@@ -53,3 +53,20 @@ You can now install Hail:
 
 - Run `kubectl -n default apply -f bootstrap.yaml`.
 
+- On an instance on the internal network, 100gb, Ubuntu 20.04 TLS, enable
+  full API and run:
+
+  ```
+  sudo apt update
+  sudo apt install -y docker.io python3-pip mysql-client-core-8.0
+  sudo snap install --classic kubectl
+  gcloud -q auth configure-docker
+  gcloud container clusters get-credentials --zone us-central1-a vdc
+  git clone https://github.com/cseed/hail.git
+  python3 -m pip install -r $HOME/hail/docker/requirements.txt
+  ```
+
+add yourself to the docker group
+add ssh firewall rule to internal
+
+python3 ./ci/bootstrap.py
