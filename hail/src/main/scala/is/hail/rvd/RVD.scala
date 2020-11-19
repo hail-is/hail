@@ -45,9 +45,7 @@ class RVD(
   require(crdd.getNumPartitions == partitioner.numPartitions)
 
   require(typ.kType.virtualType isIsomorphicTo partitioner.kType)
-
-  val myOrigin = Thread.currentThread().getStackTrace.mkString("\n")
-
+  
   // Basic accessors
 
   def sparkContext: SparkContext = crdd.sparkContext
