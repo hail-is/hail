@@ -2877,13 +2877,11 @@ class Emit[C](
 
         case _ =>
           val ndt = emit(x)
-          val ndAddress = mb.genFieldThisRef[Long]()
-          val setup = (ndAddress := ndt.value[Long])
+          val ndAddress = mb.genFieldThisRef[Long]("ndarray_emitter_nd_address")
+          val shapeAddress = mb.genFieldThisRef[Long]("ndarray_emitter_shape_address")
           val xP = x.pType.asInstanceOf[PNDArray]
+          val setup = Code(ndAddress := ndt.value[Long], shapeAddress := xP.shape.load(ndAddress))
 
-          val shapeAddress = new Value[Long] {
-            def get: Code[Long] = xP.shape.load(ndAddress)
-          }
           val shapeTuple = new CodePTuple(xP.shape.pType, shapeAddress)
 
           val shapeArray = (0 until xP.shape.pType.nFields).map(i => shapeTuple.apply[Long](i))
