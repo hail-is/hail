@@ -606,7 +606,7 @@ roleRef:
 '''
 
         if self.public:
-            config = config + '''\
+            config = config + f'''\
 ---
 apiVersion: v1
 kind: Service
