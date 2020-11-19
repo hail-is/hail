@@ -918,12 +918,7 @@ GROUP BY batches.id;
 
 
 async def _cancel_batch(app, batch_id, user):
-    try:
-        await cancel_batch_in_db(app['db'], batch_id, user)
-    except NonExistentBatchError as e:
-        raise web.HTTPNotFound() from e
-    except OpenBatchError as e:
-        raise web.HTTPBadRequest(reason=f'cannot cancel open batch {batch_id}') from e
+    await cancel_batch_in_db(app['db'], batch_id, user)
 
     app['cancel_batch_state_changed'].set()
 
@@ -966,7 +961,7 @@ async def get_batch(request, userdata):
 async def cancel_batch(request, userdata):
     batch_id = int(request.match_info['batch_id'])
     user = userdata['username']
-    await _cancel_batch(request.app, batch_id, user)
+    await _handle_api_error(_cancel_batch, request.app, batch_id, user)
     return web.Response()
 
 
@@ -1055,9 +1050,10 @@ async def ui_batch(request, userdata):
 async def ui_cancel_batch(request, userdata):
     batch_id = int(request.match_info['batch_id'])
     user = userdata['username']
-    await _cancel_batch(request.app, batch_id, user)
-    session = await aiohttp_session.get_session(request)
-    set_message(session, f'Batch {batch_id} cancelled.', 'info')
+    errored = await _handle_ui_error(_cancel_batch, request.app, batch_id, user)
+    if not errored:
+        session = await aiohttp_session.get_session(request)
+        set_message(session, f'Batch {batch_id} cancelled.', 'info')
     location = request.app.router['batches'].url_for()
     raise web.HTTPFound(location=location)
 
