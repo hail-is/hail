@@ -401,7 +401,7 @@ async def post_create_user(request, userdata):  # pylint: disable=unused-argumen
     db = request.app['db']
     post = await request.post()
     username = post['username']
-    email = post.get('email')
+    email = post.get('email', '')
     is_developer = post.get('is_developer') == '1'
     is_service_account = post.get('is_service_account') == '1'
 
@@ -409,9 +409,11 @@ async def post_create_user(request, userdata):  # pylint: disable=unused-argumen
         set_message(session, 'User cannot be both a developer and a service account.', 'error')
         return web.HTTPFound(deploy_config.external_url('auth', '/users'))
 
-    if not is_service_account and email is None:
-        set_message(session, 'Email is required for users that are not service accounts.', 'error')
-        return web.HTTPFound(deploy_config.external_url('auth', '/users'))
+    if email == '':
+        if not is_service_account:
+            set_message(session, 'Email is required for users that are not service accounts.', 'error')
+            return web.HTTPFound(deploy_config.external_url('auth', '/users'))
+        email = None
 
     user_id = await db.execute_insertone(
         '''
