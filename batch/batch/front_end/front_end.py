@@ -539,7 +539,7 @@ def check_service_account_permissions(user, sa):
     if sa is None:
         return
     if user == 'ci':
-        if sa['name'] == 'ci-agent':
+        if sa['name'] in ('ci-agent', 'admin'):
             if DEFAULT_NAMESPACE == 'default' or sa['namespace'] == DEFAULT_NAMESPACE:  # pylint: disable=consider-using-in
                 return
     elif user == 'test':
