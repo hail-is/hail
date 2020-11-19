@@ -689,7 +689,6 @@ class RVD(
      commutative: Boolean,
      tree: Boolean
   ): T = {
-    log.info(s"Combining, origin = \n ${myOrigin}")
     var reduced = crdd.cmapPartitionsWithIndex[U] { (i, ctx, it) => Iterator.single(serialize(itF(i, ctx, it))) }
 
     if (tree) {

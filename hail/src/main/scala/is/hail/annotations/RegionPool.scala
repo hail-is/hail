@@ -1,10 +1,6 @@
 package is.hail.annotations
 
-import is.hail.asm4s
-import is.hail.asm4s.Code
-import is.hail.backend.HailTaskContext
 import is.hail.utils._
-import org.apache.spark.TaskContext
 
 object RegionPool {
 
