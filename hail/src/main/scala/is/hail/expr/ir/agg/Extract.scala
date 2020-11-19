@@ -10,6 +10,7 @@ import is.hail.types.TypeWithRequiredness
 import is.hail.types.physical._
 import is.hail.types.virtual._
 import is.hail.utils._
+import org.apache.spark.TaskContext
 
 import scala.collection.mutable
 import scala.language.{existentials, postfixOps}
@@ -158,7 +159,13 @@ case class Aggs(postAggIR: IR, init: IR, seqPerElt: IR, aggs: Array[PhysicalAggS
   }
 
   def combOpFSerializedWorkersOnly(ctx: ExecuteContext, spec: BufferSpec): (Array[Byte], Array[Byte]) => Array[Byte] = {
-    combOpFSerializedFromRegionPool(ctx, spec)(() => HailTaskContext.get().getRegionPool())
+    combOpFSerializedFromRegionPool(ctx, spec)(() => {
+      val htc = HailTaskContext.get()
+      if (htc == null) {
+        throw new UnsupportedOperationException(s"Can't get htc. On worker = ${TaskContext.get != null}")
+      }
+      htc.getRegionPool()
+    })
   }
 
   def combOpFSerializedFromRegionPool(ctx: ExecuteContext, spec: BufferSpec): (() => RegionPool) => ((Array[Byte], Array[Byte]) => Array[Byte]) = {
