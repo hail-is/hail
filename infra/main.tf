@@ -264,7 +264,7 @@ resource "google_storage_bucket_iam_member" "gcr_pull_viewer" {
 
 resource "google_storage_bucket_iam_member" "gcr_push_admin" {
   bucket = google_container_registry.registry.id
-  role = "roles/storage.objectAdmin"
+  role = "roles/storage.admin"
   member = "serviceAccount:${google_service_account.gcr_push.email}"
 }
 

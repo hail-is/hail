@@ -50,3 +50,6 @@ You can now install Hail:
   get settings from the default/global-config secret.
 
 - Build the CI utils image.  Run `make push-ci-utils` in $HAIL/ci.
+
+- Run `kubectl -n default apply -f bootstrap.yaml`.
+
