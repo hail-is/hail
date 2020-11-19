@@ -31,9 +31,9 @@ class LocalBroadcastValue[T](val value: T) extends BroadcastValue[T] with Serial
 class LocalTaskContext(val partitionId: Int) extends HailTaskContext {
   override type BackendType = LocalBackend
 
-  override def stageId(): Int = ???
+  override def stageId(): Int = 0
 
-  override def attemptNumber(): Int = ???
+  override def attemptNumber(): Int = 0
 }
 
 object LocalBackend {

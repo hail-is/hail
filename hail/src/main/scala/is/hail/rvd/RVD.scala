@@ -45,7 +45,7 @@ class RVD(
   require(crdd.getNumPartitions == partitioner.numPartitions)
 
   require(typ.kType.virtualType isIsomorphicTo partitioner.kType)
-  
+
   // Basic accessors
 
   def sparkContext: SparkContext = crdd.sparkContext
