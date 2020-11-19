@@ -39,6 +39,10 @@ Instructions:
   Terraform has created a GKE cluster named `vdc`.  We assume
   `kubectl` is configured to point at this cluster.
 
+- Go to the Google Cloud console, VPC networks > internal > Private
+  service connection > Private connections to services, and enable
+  Export custom routes to both connections.
+
 You can now install Hail:
 
 - Run `$HAIL/docker/third-party/copy_images.sh`.  This copies some
@@ -51,7 +55,19 @@ You can now install Hail:
 
 - Build the CI utils image.  Run `make push-ci-utils` in $HAIL/ci.
 
-- Run `kubectl -n default apply -f bootstrap.yaml`.
+- Run `kubectl -n default apply -f $HAIL/ci/bootstrap.yaml`.
+
+- Go to the Google Cloud console, API & Services, Credentials.
+  Configure the consent screen.  Add the scope:
+  https://www.googleapis.com/auth/userinfo.email.  Create an OAuth
+  client ID.  Authorize the redirect URI:
+  https://auth.<domain>/oauth2callback.  Download the client secret
+  as client_secret.json.  Create the auth-oauth2-client-secret secret
+  with:
+
+  ```
+  kubectl -n default create secret generic auth-oauth2-client-secret --from-file=./client_secret.json
+  ```
 
 - On an instance on the internal network, 100gb, Ubuntu 20.04 TLS, enable
   full API and run:
@@ -69,4 +85,8 @@ You can now install Hail:
 add yourself to the docker group
 add ssh firewall rule to internal
 
+create users
+
 python3 ./ci/bootstrap.py
+
+cotton@admin:~/hail$ (sudo rm -rf _) && HAIL_CI_UTILS_IMAGE=gcr.io/hail-vdc-staging/ci-utils:latest HAIL_CI_BUCKET_NAME='dummy' KUBERNETES_SERVER_URL='http://34.71.246.49' HAIL_DEFAULT_NAMESPACE='default' HAIL_DOMAIN=staging.hail.is HAIL_GCP_ZONE=us-central1-a HAIL_GCP_PROJECT=hail-vdc-staging PYTHONPATH=$HOME/hail/ci:$HOME/hail/batch:$HOME/hail/hail/python python3 ./ci/bootstrap.py^C
