@@ -781,13 +781,21 @@ def test_svd():
         k = min(np_array.shape)
         rank = np.linalg.matrix_rank(np_array)
 
+        # SVD might give you reflected singular vectors.
+        def vectors_equal_magnitude(nd1, nd2):
+            np.testing.assert_array_almost_equal(np.abs(nd1), np.abs(nd2))
+
         if compute_uv:
-            np.testing.assert_array_almost_equal(evaled[0][:, :rank], np_svd[0][:, :rank])
+            vectors_equal_magnitude(evaled[0][:, :rank], np_svd[0][:, :rank])
             np.testing.assert_array_almost_equal(evaled[1], np_svd[1])
-            np.testing.assert_array_almost_equal(evaled[2][:rank, :], np_svd[2][:rank, :])
+            vectors_equal_magnitude(evaled[2][:rank, :], np_svd[2][:rank, :])
+
+            smat = np.zeros(np_array.shape) if full_matrices else np.zeros((k, k))
+            smat[:k, :k] = np.diag(evaled[1])
+            np.testing.assert_array_almost_equal(evaled[0] @ smat @ evaled[2], np_array)
 
         else:
-            np.testing.assert_array_equal(evaled, np_svd)
+            np.testing.assert_array_almost_equal(evaled, np_svd)
 
     np_small_square = np.arange(4).reshape((2, 2))
     small_square = hl.nd.array(np_small_square)
