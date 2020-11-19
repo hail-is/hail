@@ -741,10 +741,11 @@ url: {url}
         for pr in self.prs.values():
             await pr._heal(batch_client, dbpool, pr == merge_candidate, gh)
 
+        seen_batch_ids = set(pr.batch.id for pr in self.prs.values() if pr.batch and hasattr(pr.batch, 'id'))
+
         # cancel orphan builds
         running_batches = batch_client.list_batches(
-            f'!complete test=1 target_branch={self.branch.short_str()}')
-        seen_batch_ids = set(pr.batch.id for pr in self.prs.values() if pr.batch and hasattr(pr.batch, 'id'))
+            f'!complete !open test=1 target_branch={self.branch.short_str()}')
         async for batch in running_batches:
             if batch.id not in seen_batch_ids:
                 attrs = batch.attributes
@@ -794,8 +795,8 @@ mkdir -p {shq(repo_dir)}
             self.deploy_state = 'checkout_failure'
         finally:
             if deploy_batch and not self.deploy_batch:
-                log.info(f'cancelling partial deploy batch {deploy_batch.id}')
-                await deploy_batch.cancel()
+                log.info(f'deleting partially deployed batch {deploy_batch.id}')
+                await deploy_batch.delete()
 
     def checkout_script(self):
         return f'''
@@ -859,8 +860,8 @@ mkdir -p {shq(repo_dir)}
             return deploy_batch.id
         finally:
             if deploy_batch and not self.deploy_batch and isinstance(deploy_batch, Batch):
-                log.info(f'cancelling partial deploy batch {deploy_batch.id}')
-                await deploy_batch.cancel()
+                log.info(f'deleting partially created deploy batch {deploy_batch.id}')
+                await deploy_batch.delete()
 
     def checkout_script(self):
         return f'''
