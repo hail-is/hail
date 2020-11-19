@@ -44,3 +44,9 @@ You can now install Hail:
 - Run `$HAIL/docker/third-party/copy_images.sh`.  This copies some
   base images from Dockerhub (which now has rate limits) to GCR.
 
+- Generate TLS certificates.  See ../dev-docs/tls-cookbook.md.
+
+- Update $HAIL/config.mk with your infrastructure settings.  You can
+  get settings from the default/global-config secret.
+
+- Build the CI utils image.  Run `make push-ci-utils` in $HAIL/ci.

@@ -1,14 +1,25 @@
 import os
 from shlex import quote as shq
+import base64
 import asyncio
 
 import kubernetes_asyncio as kube
+
+from hailtop.utils import check_shell_output
 
 from ci.build import BuildConfiguration, Code
 from ci.github import clone_or_fetch_script
 from ci.utils import generate_token
 
 from batch.driver.k8s_cache import K8sCache
+
+
+def populate_secret_host_path(host_path, secret_data):
+    os.makedirs(host_path)
+    if secret_data is not None:
+        for filename, data in secret_data.items():
+            with open(f'{host_path}/{filename}', 'wb') as f:
+                f.write(base64.b64decode(data))
 
 
 class LocalJob:
@@ -54,18 +65,28 @@ class LocalBatchBuilder:
         return job
 
     async def run(self):
+        print('in run')
+        
         await kube.config.load_kube_config()
         k8s_client = kube.client.CoreV1Api()
         k8s_cache = K8sCache(k8s_client, refresh_time=5)
         
-        os.makedirs(f'_/shared')
+        cwd = os.getcwd()
+        
+        os.makedirs(f'{cwd}/_/shared')
         
         for j in self._jobs:
+            print(j._index)
+            
+            if j._index > 0:
+                # bail
+                return
+
             if j._parents:
                 for p in j._parents:
                     assert p._done
 
-            secrets_host_path = f'_/{j._index}/secrets'
+            secrets_host_path = f'{cwd}/_/{j._index}/secrets'
             os.makedirs(secrets_host_path)
 
             # localize secrets
@@ -73,12 +94,11 @@ class LocalBatchBuilder:
             # copy outputs
 
             mount_options = [
-                '-v', '_/shared:/shared'
+                '-v', f'{cwd}/_/shared:/shared'
             ]
 
             secrets = j._secrets
             if secrets:
-                print(secrets)
                 k8s_secrets = await asyncio.gather(*[
                     k8s_cache.read_secret(
                         secret['name'], secret['namespace'],
@@ -86,10 +106,10 @@ class LocalBatchBuilder:
                     for secret in secrets
                 ])
                 
-                for k8s_secret in k8s_secrets:
-                    secret_host_path = f'{secrets_host_path}/{secret["name"]}'
+                for secret, k8s_secret in zip(secrets, k8s_secrets):
+                    secret_host_path = f'{secrets_host_path}/{k8s_secret.metadata.name}'
 
-                    populate_secret_host_path(secret_host_path, k8s_secret['data'])
+                    populate_secret_host_path(secret_host_path, k8s_secret.data)
 
                     mount_options.extend([
                         '-v', f'{secrets_host_path}:{secret["mount_path"]}'
@@ -105,8 +125,12 @@ class LocalBatchBuilder:
                 j._image,
                 *[shq(c) for c in j._command]
             ]
-            
-            print(docker_cmd)
+
+            docker_cmd = ' '.join(docker_cmd)
+
+            outerr = await check_shell_output(f'bash -c {shq(docker_cmd)}', echo=True)
+            print(f'>>>OUT{outerr[0].decode("utf-8")}<<<\n')
+            print(f'>>>ERR{outerr[1].decode("utf-8")}<<<\n')
             
             j._done = True
 
