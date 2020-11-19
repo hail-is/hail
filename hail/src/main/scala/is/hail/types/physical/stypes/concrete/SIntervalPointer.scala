@@ -1,25 +1,24 @@
-package is.hail.types.physical.stypes
+package is.hail.types.physical.stypes.concrete
 
 import is.hail.annotations.{CodeOrdering, Region}
 import is.hail.asm4s.{Code, IntInfo, LongInfo, Settable, SettableBuilder, TypeInfo, Value}
 import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, IEmitCode, SortOrder}
+import is.hail.types.physical.stypes.interfaces.SInterval
+import is.hail.types.physical.stypes.{SCode, SType}
 import is.hail.types.physical.{PCanonicalInterval, PCode, PInterval, PIntervalCode, PIntervalValue, PSettable, PType}
 import is.hail.utils.FastIndexedSeq
 
-trait SInterval extends SType
 
 case class SIntervalPointer(pType: PInterval) extends SInterval {
-
-
   def codeOrdering(mb: EmitMethodBuilder[_], other: SType, so: SortOrder): CodeOrdering = pType.codeOrdering(mb, other.pType, so)
 
-  def coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: PCode, deepCopy: Boolean): PCode = {
+  def coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = {
     new SIntervalPointerCode(this, pType.store(cb, region, value, deepCopy))
   }
 
   def codeTupleTypes(): IndexedSeq[TypeInfo[_]] = FastIndexedSeq(LongInfo, IntInfo, IntInfo)
 
-  def loadFrom(cb: EmitCodeBuilder, region: Value[Region], pt: PType, addr: Code[Long]): PCode = {
+  def loadFrom(cb: EmitCodeBuilder, region: Value[Region], pt: PType, addr: Code[Long]): SCode = {
     pt match {
       case t: PCanonicalInterval if t.equalModuloRequired(this.pType) =>
         new SIntervalPointerCode(this, addr)
@@ -70,6 +69,20 @@ class SIntervalPointerSettable(
     cb.assign(includesStart, pt.includesStart(a.load()))
     cb.assign(includesEnd, pt.includesEnd(a.load()))
   }
+
+  // FIXME orderings should take emitcodes/iemitcodes
+  def isEmpty(cb: EmitCodeBuilder): Code[Boolean] = {
+    val gt = cb.emb.getCodeOrdering(pt.pointType, CodeOrdering.Gt())
+    val gteq = cb.emb.getCodeOrdering(pt.pointType, CodeOrdering.Gteq())
+
+    val start = cb.memoize(loadStart(cb), "start")
+    val end = cb.memoize(loadEnd(cb), "end")
+    includesStart && includesEnd.mux(
+      gt((start.m, start.v), (end.m, end.v)),
+      gteq((start.m, start.v), (end.m, end.v))
+    )
+  }
+
 }
 
 class SIntervalPointerCode(val st: SIntervalPointer, val a: Code[Long]) extends PIntervalCode {

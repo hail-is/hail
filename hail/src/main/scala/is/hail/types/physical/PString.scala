@@ -4,6 +4,7 @@ import is.hail.asm4s._
 import is.hail.annotations.CodeOrdering
 import is.hail.annotations.{UnsafeOrdering, _}
 import is.hail.expr.ir.EmitMethodBuilder
+import is.hail.types.physical.stypes.interfaces.{SStringCode, SStringValue}
 import is.hail.types.virtual.TString
 
 abstract class PString extends PType {
@@ -35,16 +36,12 @@ abstract class PString extends PType {
   def allocateAndStoreString(mb: EmitMethodBuilder[_], region: Value[Region], str: Code[String]): Code[Long]
 }
 
-abstract class PStringCode extends PCode {
+abstract class PStringCode extends PCode with SStringCode {
   def pt: PString
-
-  def loadLength(): Code[Int]
-
-  def loadString(): Code[String]
 
   def asBytes(): PBinaryCode
 }
 
-abstract class PStringValue extends PValue {
+abstract class PStringValue extends PValue with SStringValue {
   def pt: PString
 }

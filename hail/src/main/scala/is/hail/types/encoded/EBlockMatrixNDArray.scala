@@ -47,13 +47,13 @@ final case class EBlockMatrixNDArray(elementType: EType, encodeRowMajor: Boolean
     if (encodeRowMajor) {
       cb.forLoop(cb.assign(i, 0L), i < r, cb.assign(i, i + 1L), {
         cb.forLoop(cb.assign(j, 0L), j < c, cb.assign(j, j + 1L), {
-          cb += writeElemF(ndarray.loadElement(FastIndexedSeq(i, j), cb).code, out)
+          cb += writeElemF(ndarray.loadElement(FastIndexedSeq(i, j), cb).asPCode.code, out)
         })
       })
     } else {
       cb.forLoop(cb.assign(j, 0L), j < c, cb.assign(j, j + 1L), {
         cb.forLoop(cb.assign(i, 0L), i < r, cb.assign(i, i + 1L), {
-          cb += writeElemF(ndarray.loadElement(FastIndexedSeq(i, j), cb).code, out)
+          cb += writeElemF(ndarray.loadElement(FastIndexedSeq(i, j), cb).asPCode.code, out)
         })
       })
     }

@@ -3,7 +3,8 @@ package is.hail.types.physical
 import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.expr.ir._
-import is.hail.types.physical.stypes.{SBinaryPointerCode, SCanonicalShufflePointer, SCanonicalShufflePointerCode}
+import is.hail.types.physical.stypes.SCode
+import is.hail.types.physical.stypes.concrete.{SBinaryPointerCode, SCanonicalShufflePointer, SCanonicalShufflePointerCode}
 import is.hail.types.virtual._
 
 final case class PCanonicalShuffle(
@@ -51,14 +52,14 @@ final case class PCanonicalShuffle(
 
   def loadCheapPCode(cb: EmitCodeBuilder, addr: Code[Long]): PCode = new SCanonicalShufflePointerCode(sType, representation.loadCheapPCode(cb, addr))
 
-  def store(cb: EmitCodeBuilder, region: Value[Region], value: PCode, deepCopy: Boolean): Code[Long] = {
+  def store(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): Code[Long] = {
     value.st match {
       case SCanonicalShufflePointer(t) =>
         representation.store(cb, region, value.asInstanceOf[SCanonicalShufflePointerCode].shuffle, deepCopy)
     }
   }
 
-  def storeAtAddress(cb: EmitCodeBuilder, addr: Code[Long], region: Value[Region], value: PCode, deepCopy: Boolean): Unit = {
+  def storeAtAddress(cb: EmitCodeBuilder, addr: Code[Long], region: Value[Region], value: SCode, deepCopy: Boolean): Unit = {
     value.st match {
       case SCanonicalShufflePointer(t) =>
         representation.storeAtAddress(cb, addr, region, value.asInstanceOf[SCanonicalShufflePointerCode].shuffle, deepCopy)

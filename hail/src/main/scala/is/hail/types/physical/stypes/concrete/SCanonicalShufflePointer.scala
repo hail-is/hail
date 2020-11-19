@@ -1,24 +1,24 @@
-package is.hail.types.physical.stypes
+package is.hail.types.physical.stypes.concrete
 
 import is.hail.annotations.{CodeOrdering, Region}
 import is.hail.asm4s.{Code, IntInfo, LongInfo, Settable, SettableBuilder, TypeInfo, Value}
 import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, SortOrder}
 import is.hail.services.shuffler.Wire
-import is.hail.types.physical.{PBinaryCode, PCanonicalInterval, PCanonicalShuffle, PCode, PSettable, PShuffle, PShuffleCode, PShuffleValue, PType}
+import is.hail.types.physical.stypes.interfaces.SShuffle
+import is.hail.types.physical.stypes.{SCode, SType}
+import is.hail.types.physical.{PCanonicalShuffle, PCode, PSettable, PShuffle, PShuffleCode, PShuffleValue, PType}
 import is.hail.utils.FastIndexedSeq
 
-trait SShuffle extends SType
-
 case class SCanonicalShufflePointer(pType: PCanonicalShuffle) extends SShuffle {
-  def codeOrdering(mb: EmitMethodBuilder[_], other: SType, so: SortOrder): CodeOrdering= pType.codeOrdering(mb, other.pType, so)
+  def codeOrdering(mb: EmitMethodBuilder[_], other: SType, so: SortOrder): CodeOrdering = pType.codeOrdering(mb, other.pType, so)
 
-  def coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: PCode, deepCopy: Boolean): PCode = {
+  def coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = {
     new SCanonicalShufflePointerCode(this, pType.representation.loadCheapPCode(cb, pType.store(cb, region, value, deepCopy)))
   }
 
   def codeTupleTypes(): IndexedSeq[TypeInfo[_]] = FastIndexedSeq(LongInfo, IntInfo, IntInfo)
 
-  def loadFrom(cb: EmitCodeBuilder, region: Value[Region], pt: PType, addr: Code[Long]): PCode = {
+  def loadFrom(cb: EmitCodeBuilder, region: Value[Region], pt: PType, addr: Code[Long]): SCode = {
     pt match {
       case t: PCanonicalShuffle =>
         assert(t.equalModuloRequired(this.pType))
@@ -43,6 +43,7 @@ object SCanonicalShufflePointerSettable {
 
 class SCanonicalShufflePointerSettable(val st: SCanonicalShufflePointer, shuffle: SBinaryPointerSettable) extends PShuffleValue with PSettable {
   val pt: PShuffle = st.pType
+
   def get: PShuffleCode = new SCanonicalShufflePointerCode(st, shuffle.get)
 
   def settableTuple(): IndexedSeq[Settable[_]] = shuffle.settableTuple()
@@ -56,6 +57,7 @@ class SCanonicalShufflePointerSettable(val st: SCanonicalShufflePointer, shuffle
 
 class SCanonicalShufflePointerCode(val st: SCanonicalShufflePointer, val shuffle: SBinaryPointerCode) extends PShuffleCode {
   val pt: PShuffle = st.pType
+
   def code: Code[_] = shuffle.code
 
   def codeTuple(): IndexedSeq[Code[_]] = shuffle.codeTuple()

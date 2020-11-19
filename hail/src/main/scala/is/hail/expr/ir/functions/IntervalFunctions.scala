@@ -57,7 +57,7 @@ object IntervalFunctions extends RegistryFunctions {
       case (cb, r, rt, interval) =>
         interval().flatMap(cb) { case pi: PIntervalCode =>
           val pv = pi.memoize(cb, "interval")
-          pv.loadStart(cb)
+          pv.loadStart(cb).typecast[PCode]
         }
     }
 
@@ -66,7 +66,7 @@ object IntervalFunctions extends RegistryFunctions {
       case (cb, r, rt, interval) =>
         interval().flatMap(cb) { case pi: PIntervalCode =>
           val pv = pi.memoize(cb, "interval")
-          pv.loadEnd(cb)
+          pv.loadEnd(cb).typecast[PCode]
         }
     }
 
@@ -91,12 +91,12 @@ object IntervalFunctions extends RegistryFunctions {
           val pointv = cb.memoize(point(), "point")
           val compare = cb.emb.getCodeOrdering(pointv.pt, interval.pt.pointType, CodeOrdering.Compare())
 
-          val start = EmitCode.fromI(cb.emb)(interval.loadStart(_))
+          val start = EmitCode.fromI(cb.emb)(cb => interval.loadStart(cb).typecast[PCode])
           cb += start.setup
           val cmp = cb.newLocal("cmp", compare(pointv.m -> pointv.v, start.m -> start.v))
           val contains = cb.newLocal[Boolean]("contains", false)
           cb.ifx(cmp > 0 || (cmp.ceq(0) && interval.includesStart()), {
-            val end = EmitCode.fromI(cb.emb)(interval.loadEnd(_))
+            val end = EmitCode.fromI(cb.emb)(cb => interval.loadEnd(cb).typecast[PCode])
             cb += end.setup
             cb.assign(cmp, compare(pointv.m -> pointv.v, end.m -> end.v))
             cb.assign(contains, cmp < 0 || (cmp.ceq(0) && interval.includesEnd()))
@@ -123,8 +123,8 @@ object IntervalFunctions extends RegistryFunctions {
           val compare = cb.emb.getCodeOrdering(int1.pt.pointType, int2.pt.pointType, CodeOrdering.Compare())
 
           def isAboveOnNonempty(cb: EmitCodeBuilder, lhs: PIntervalValue, rhs: PIntervalValue): Code[Boolean] = {
-            val start = EmitCode.fromI(cb.emb)(lhs.loadStart(_))
-            val end = EmitCode.fromI(cb.emb)(rhs.loadEnd(_))
+            val start = EmitCode.fromI(cb.emb)(cb => lhs.loadStart(cb).typecast[PCode])
+            val end = EmitCode.fromI(cb.emb)(cb => rhs.loadEnd(cb).typecast[PCode])
             cb += start.setup
             cb += end.setup
             val cmp = cb.newLocal("cmp", compare(start.m -> start.v, end.m -> end.v))
@@ -132,8 +132,8 @@ object IntervalFunctions extends RegistryFunctions {
           }
 
           def isBelowOnNonempty(cb: EmitCodeBuilder, lhs: PIntervalValue, rhs: PIntervalValue): Code[Boolean] = {
-            val end = EmitCode.fromI(cb.emb)(lhs.loadEnd(_))
-            val start = EmitCode.fromI(cb.emb)(rhs.loadStart(_))
+            val end = EmitCode.fromI(cb.emb)(cb => lhs.loadEnd(cb).typecast[PCode])
+            val start = EmitCode.fromI(cb.emb)(cb => rhs.loadStart(cb).typecast[PCode])
             cb += start.setup
             cb += end.setup
             val cmp = cb.newLocal("cmp", compare(end.m -> end.v, start.m -> start.v))

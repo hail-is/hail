@@ -3,9 +3,10 @@ package is.hail.types.physical
 import is.hail.annotations.UnsafeOrdering
 import is.hail.asm4s.Code
 import is.hail.expr.ir.EmitStream.SizedStream
+import is.hail.expr.ir.{EmitCode, Stream}
+import is.hail.types.physical.stypes.interfaces
+import is.hail.types.physical.stypes.interfaces.{SStream, SStreamCode}
 import is.hail.types.virtual.{TStream, Type}
-import is.hail.expr.ir.{EmitCode, EmitCodeBuilder, Stream}
-import is.hail.types.physical.stypes.{SStream, SStreamCode, SType}
 
 final case class PCanonicalStream(elementType: PType, separateRegions: Boolean = false, required: Boolean = false) extends PStream {
   override val fundamentalType: PStream = {
@@ -33,5 +34,5 @@ final case class PCanonicalStream(elementType: PType, separateRegions: Boolean =
 
   def setRequired(required: Boolean): PCanonicalStream = if(required == this.required) this else this.copy(required = required)
 
-  override def sType: SStream = SStream(elementType.sType)
+  override def sType: SStream = interfaces.SStream(elementType.sType)
 }

@@ -392,13 +392,13 @@ class EmitClassBuilder[C](
       val lits = cb.emb.newPLocal("lits", litType)
       val ib = cb.newLocal[InputBuffer]("ib",
         spec.buildCodeInputBuffer(Code.newInstance[ByteArrayInputStream, Array[Byte]](allEncodedFields(0))))
-      cb.assign(lits, litSType.loadFrom(cb, partitionRegion, litType, dec(partitionRegion, ib)))
+      cb.assign(lits, litSType.loadFrom(cb, partitionRegion, litType, dec(partitionRegion, ib)).asPCode)
       literals.zipWithIndex.foreach { case (((_, _), f), i) =>
         lits.asInstanceOf[PBaseStructValue]
           .loadField(cb, i)
           .consume(cb,
             cb._fatal("expect non-missing literals!"),
-            { pc => f.store(cb, pc) })
+            { pc => f.store(cb, pc.asPCode) })
       }
       // Handle the pre-encoded literals, which only need to be decoded.
       preEncodedLiterals.zipWithIndex.foreach { case ((encLit, f), index) =>
@@ -409,7 +409,7 @@ class EmitClassBuilder[C](
         // Because 0th index is for the regular literals
         cb.assign(ib, spec.buildCodeInputBuffer(Code.newInstance[ByteArrayInputStream, Array[Byte]](allEncodedFields(index + 1))))
         f.store(cb, preEncLitRType.sType
-          .loadFrom(cb, partitionRegion, preEncLitRType, preEncLitDec(partitionRegion, ib)))
+          .loadFrom(cb, partitionRegion, preEncLitRType, preEncLitDec(partitionRegion, ib)).asPCode)
       }
     }
 

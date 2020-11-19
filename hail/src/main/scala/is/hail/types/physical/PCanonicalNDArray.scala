@@ -1,9 +1,10 @@
 package is.hail.types.physical
 
 import is.hail.annotations.{Region, StagedRegionValueBuilder, UnsafeOrdering}
-import is.hail.asm4s.{Code, MethodBuilder, _}
+import is.hail.asm4s.{Code, _}
 import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder}
-import is.hail.types.physical.stypes.{SCall, SCanonicalCall, SCanonicalCallCode, SNDArrayPointer, SNDArrayPointerCode}
+import is.hail.types.physical.stypes.SCode
+import is.hail.types.physical.stypes.concrete.{SNDArrayPointer, SNDArrayPointerCode}
 import is.hail.types.virtual.{TNDArray, Type}
 import is.hail.utils.FastIndexedSeq
 
@@ -226,14 +227,14 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
 
   def loadCheapPCode(cb: EmitCodeBuilder, addr: Code[Long]): PCode = new SNDArrayPointerCode(sType, addr)
 
-  def store(cb: EmitCodeBuilder, region: Value[Region], value: PCode, deepCopy: Boolean): Code[Long] = {
+  def store(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): Code[Long] = {
     value.st match {
       case SNDArrayPointer(t) if t.equalModuloRequired(this) =>
           representation.store(cb, region, representation.loadCheapPCode(cb, value.asInstanceOf[SNDArrayPointerCode].a), deepCopy)
     }
   }
 
-  def storeAtAddress(cb: EmitCodeBuilder, addr: Code[Long], region: Value[Region], value: PCode, deepCopy: Boolean): Unit = {
+  def storeAtAddress(cb: EmitCodeBuilder, addr: Code[Long], region: Value[Region], value: SCode, deepCopy: Boolean): Unit = {
     value.st match {
       case SNDArrayPointer(t) if t.equalModuloRequired(this) =>
         representation.storeAtAddress(cb, addr, region, representation.loadCheapPCode(cb, value.asInstanceOf[SNDArrayPointerCode].a), deepCopy)

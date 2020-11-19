@@ -4,7 +4,9 @@ import is.hail.annotations.{Region, UnsafeUtils}
 import is.hail.asm4s.{Code, Settable, SettableBuilder, Value, coerce, const}
 import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, IEmitCode}
 import is.hail.types.BaseStruct
-import is.hail.types.physical.stypes.{SStruct, SSubsetStruct, SType}
+import is.hail.types.physical.stypes.interfaces.SStruct
+import is.hail.types.physical.stypes.{SCode, SType}
+import is.hail.types.physical.stypes.concrete.SSubsetStruct
 import is.hail.types.virtual.TStruct
 import is.hail.utils._
 
@@ -127,9 +129,9 @@ final case class PSubsetStruct(ps: PStruct, _fieldNames: Array[String]) extends 
 
   def sType: SSubsetStruct = SSubsetStruct(ps.sType.asInstanceOf[SStruct], _fieldNames)
 
-  def store(cb: EmitCodeBuilder, region: Value[Region], value: PCode, deepCopy: Boolean): Code[Long] = throw new UnsupportedOperationException
+  def store(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): Code[Long] = throw new UnsupportedOperationException
 
-  def storeAtAddress(cb: EmitCodeBuilder, addr: Code[Long], region: Value[Region], value: PCode, deepCopy: Boolean): Unit = {
+  def storeAtAddress(cb: EmitCodeBuilder, addr: Code[Long], region: Value[Region], value: SCode, deepCopy: Boolean): Unit = {
     throw new UnsupportedOperationException
   }
 

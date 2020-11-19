@@ -1,23 +1,23 @@
-package is.hail.types.physical.stypes
+package is.hail.types.physical.stypes.concrete
 
 import is.hail.annotations.{CodeOrdering, Region}
 import is.hail.asm4s.{Code, IntInfo, LongInfo, Settable, SettableBuilder, TypeInfo, Value, const}
 import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, SortOrder}
+import is.hail.types.physical.stypes.interfaces.{SNDArray, SNDArrayValue}
+import is.hail.types.physical.stypes.{SCode, SType}
 import is.hail.types.physical.{PBaseStructCode, PCode, PNDArray, PNDArrayCode, PNDArrayValue, PSettable, PType, PValue}
 import is.hail.utils.FastIndexedSeq
-
-trait SNDArray extends SType
 
 case class SNDArrayPointer(pType: PNDArray) extends SNDArray {
   def codeOrdering(mb: EmitMethodBuilder[_], other: SType, so: SortOrder): CodeOrdering = pType.codeOrdering(mb)
 
-  def coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: PCode, deepCopy: Boolean): PCode = {
+  def coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = {
     new SNDArrayPointerCode(this, pType.store(cb, region, value, deepCopy))
   }
 
   def codeTupleTypes(): IndexedSeq[TypeInfo[_]] = FastIndexedSeq(LongInfo)
 
-  def loadFrom(cb: EmitCodeBuilder, region: Value[Region], pt: PType, addr: Code[Long]): PCode = {
+  def loadFrom(cb: EmitCodeBuilder, region: Value[Region], pt: PType, addr: Code[Long]): SCode = {
     if (pt == this.pType)
       new SNDArrayPointerCode(this, addr)
     else
@@ -78,10 +78,11 @@ class SNDArrayPointerSettable(val st: SNDArrayPointer, val a: Settable[Long]) ex
     Array.tabulate(pt.nDims)(i => cb.newLocal[Long](s"sndarray_strides_$i", pt.loadStride(cb, a, i)))
   }
 
-  override def sameShape(other: PNDArrayValue, cb: EmitCodeBuilder): Code[Boolean] = {
-    val comparator = this.pt.shape.pType.codeOrdering(cb.emb, other.pt.shape.pType)
+  override def sameShape(other: SNDArrayValue, cb: EmitCodeBuilder): Code[Boolean] = {
+    val otherPtr = other.asInstanceOf[SNDArrayPointerSettable]
+    val comparator = this.pt.shape.pType.codeOrdering(cb.emb, otherPtr.pt.shape.pType)
     val thisShape = this.pt.shape.load(this.a).asInstanceOf[Code[comparator.T]]
-    val otherShape = other.pt.shape.load(other.value.asInstanceOf[Value[Long]]).asInstanceOf[Code[comparator.T]]
+    val otherShape = otherPtr.pt.shape.load(otherPtr.a.asInstanceOf[Value[Long]]).asInstanceOf[Code[comparator.T]]
     comparator.equivNonnull(thisShape, otherShape)
   }
 }

@@ -3,11 +3,11 @@ package is.hail.io.index
 import is.hail.annotations.Region
 import is.hail.asm4s.{Code, SettableBuilder, Value}
 import is.hail.expr.ir.{EmitCodeBuilder, IEmitCode}
+import is.hail.io.OutputBuffer
 import is.hail.types.encoded.EType
 import is.hail.types.physical._
+import is.hail.types.physical.stypes.concrete.{SBaseStructPointer, SBaseStructPointerSettable}
 import is.hail.types.virtual.{TStruct, Type}
-import is.hail.io.OutputBuffer
-import is.hail.types.physical.stypes.{SBaseStructPointer, SBaseStructPointerSettable}
 import is.hail.utils._
 
 object LeafNodeBuilder {

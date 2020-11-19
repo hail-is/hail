@@ -3,6 +3,7 @@ package is.hail.types.physical
 import is.hail.annotations.{CodeOrdering, Region}
 import is.hail.asm4s.{Code, TypeInfo, Value}
 import is.hail.expr.ir.{Ascending, Descending, EmitCodeBuilder, EmitMethodBuilder, SortOrder}
+import is.hail.types.physical.stypes.SCode
 
 trait PUnrealizable extends PType {
   private def unsupported: Nothing =
@@ -32,9 +33,9 @@ trait PUnrealizable extends PType {
 
   override def loadCheapPCode(cb: EmitCodeBuilder, addr: Code[Long]): PCode = unsupported
 
-  override def store(cb: EmitCodeBuilder, region: Value[Region], value: PCode, deepCopy: Boolean): Code[Long] = unsupported
+  override def store(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): Code[Long] = unsupported
 
-  override def storeAtAddress(cb: EmitCodeBuilder, addr: Code[Long], region: Value[Region], value: PCode, deepCopy: Boolean): Unit = unsupported
+  override def storeAtAddress(cb: EmitCodeBuilder, addr: Code[Long], region: Value[Region], value: SCode, deepCopy: Boolean): Unit = unsupported
 
   override def encodableType: PType = unsupported
 

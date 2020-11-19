@@ -15,7 +15,8 @@ import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer}
 import is.hail.linalg.{BLAS, LAPACK, LinalgCodeUtils}
 import is.hail.services.shuffler._
 import is.hail.types.physical._
-import is.hail.types.physical.stypes._
+import is.hail.types.physical.stypes.concrete.{SCanonicalShufflePointerCode, SCanonicalShufflePointerSettable}
+import is.hail.types.physical.stypes.primitives.{SFloat32, SFloat64, SInt32, SInt64}
 import is.hail.types.virtual._
 import is.hail.utils._
 
@@ -243,7 +244,11 @@ object IEmitCodeGen {
   }
 }
 
-case class IEmitCodeGen[A](Lmissing: CodeLabel, Lpresent: CodeLabel, value: A) {
+case class IEmitCodeGen[+A](Lmissing: CodeLabel, Lpresent: CodeLabel, value: A) {
+
+  // This method is a very temporary patch until we can properly separate SCode and PCode
+  def typecast[T]: IEmitCodeGen[T] = IEmitCodeGen(Lmissing, Lpresent, value.asInstanceOf[T])
+
   def map[B](cb: EmitCodeBuilder)(f: (A) => B): IEmitCodeGen[B] = {
     val Lpresent2 = CodeLabel()
     cb.define(Lpresent)
@@ -767,7 +772,7 @@ class Emit[C](
                   .concat(", length=")
                   .concat(av.loadLength().toS)))
             })
-            av.loadElement(cb, iv)
+            av.loadElement(cb, iv).typecast[PCode]
           }
         }
 
@@ -779,13 +784,13 @@ class Emit[C](
       case GetField(o, name) =>
         emitI(o).flatMap(cb) { oc =>
           val ov = oc.asBaseStruct.memoize(cb, "get_tup_elem_o")
-          ov.loadField(cb, name)
+          ov.loadField(cb, name).typecast[PCode]
         }
 
       case GetTupleElement(o, i) =>
         emitI(o).flatMap(cb) { oc =>
           val ov = oc.asBaseStruct.memoize(cb, "get_tup_elem_o")
-          ov.loadField(cb, oc.pt.asInstanceOf[PTuple].fieldIndex(i))
+          ov.loadField(cb, oc.pt.asInstanceOf[PTuple].fieldIndex(i)).typecast[PCode]
         }
 
       case x@MakeNDArray(dataIR, shapeIR, rowMajorIR) =>
@@ -811,7 +816,7 @@ class Emit[C](
                   cb += srvb.start()
                   (0 until nDims).foreach { index =>
                     val shape =
-                      shapeTupleValue.loadField(cb, index).get(cb).tcode[Long]
+                      shapeTupleValue.loadField(cb, index).get(cb).asPCode.tcode[Long]
                     cb += srvb.addLong(shape)
                     cb += srvb.advance()
                   }
@@ -819,7 +824,7 @@ class Emit[C](
 
               def makeStridesBuilder(sourceShape: PBaseStructValue, isRowMajor: Code[Boolean], mb: EmitMethodBuilder[_]): StagedRegionValueBuilder => Code[Unit] = { srvb => EmitCodeBuilder.scopedVoid(mb) { cb =>
                 def shapeCodeSeq1 = (0 until nDims).map { i =>
-                  sourceShape.loadField(cb, i).get(cb).memoize(cb, s"make_ndarray_shape_${i}").value.asInstanceOf[Value[Long]]
+                  sourceShape.loadField(cb, i).get(cb).memoize(cb, s"make_ndarray_shape_${i}").asPValue.asInstanceOf[Value[Long]]
                 }
 
                 cb.ifx(isRowMajor, {
@@ -834,7 +839,7 @@ class Emit[C](
           }
         }
       case NDArrayShape(ndIR) =>
-        emitI(ndIR).map(cb){ case pc: PNDArrayCode => pc.shape}
+        emitI(ndIR).map(cb){ case pc: PNDArrayCode => pc.shape.asPCode}
       case x@NDArrayReindex(child, indexMap) =>
         val childEC = emitI(child)
         val childPType = coerce[PNDArray](child.pType)
@@ -876,7 +881,7 @@ class Emit[C](
             val idxValues = memoizedIndices.map(_.value.asInstanceOf[Value[Long]])
             cb.append(ndValue.assertInBounds(idxValues, cb, errorId))
 
-            ndValue.loadElement(idxValues, cb)
+            ndValue.loadElement(idxValues, cb).asPCode
           }
         }
 
@@ -1009,7 +1014,7 @@ class Emit[C](
                     kLen := lShape(lPType.nDims - 1),
                     element := numericElementType.zero,
                     Code.whileLoop(k < kLen,
-                      element := numericElementType.add(multiply(lElem, rElem), element),
+                      element := numericElementType.add(multiply(lElem.asPCode, rElem.asPCode), element),
                       k := k + 1L),
                     element
                   )

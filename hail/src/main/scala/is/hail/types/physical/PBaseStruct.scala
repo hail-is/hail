@@ -4,6 +4,7 @@ import is.hail.annotations._
 import is.hail.asm4s.{Code, _}
 import is.hail.check.Gen
 import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, IEmitCode, SortOrder}
+import is.hail.types.physical.stypes.interfaces.{SBaseStructCode, SBaseStructValue}
 import is.hail.utils._
 
 object PBaseStruct {
@@ -189,22 +190,16 @@ abstract class PBaseStruct extends PType {
   }
 }
 
-abstract class PBaseStructValue extends PValue {
+abstract class PBaseStructValue extends PValue with SBaseStructValue {
   def pt: PBaseStruct
-
-  def isFieldMissing(fieldIdx: Int): Code[Boolean]
-
-  def isFieldMissing(fieldName: String): Code[Boolean] = isFieldMissing(pt.fieldIdx(fieldName))
-
-  def loadField(cb: EmitCodeBuilder, fieldIdx: Int): IEmitCode
-
-  def loadField(cb: EmitCodeBuilder, fieldName: String): IEmitCode = loadField(cb, pt.fieldIdx(fieldName))
 }
 
-abstract class PBaseStructCode extends PCode {
+abstract class PBaseStructCode extends PCode with SBaseStructCode {
   def pt: PBaseStruct
 
   def memoize(cb: EmitCodeBuilder, name: String): PBaseStructValue
 
   def memoizeField(cb: EmitCodeBuilder, name: String): PBaseStructValue
 }
+
+trait PStructSettable extends PBaseStructValue with PSettable

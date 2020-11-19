@@ -9,7 +9,7 @@ import is.hail.io._
 import is.hail.io.fs.FS
 import is.hail.rvd.AbstractRVDSpec
 import is.hail.types
-import is.hail.types.physical.stypes.{SBaseStructPointer, SBaseStructPointerSettable}
+import is.hail.types.physical.stypes.concrete.{SBaseStructPointer, SBaseStructPointerSettable}
 import is.hail.types.physical.{PBaseStructValue, PCanonicalArray, PCanonicalStruct, PCode, PType}
 import is.hail.types.virtual.Type
 import is.hail.utils._

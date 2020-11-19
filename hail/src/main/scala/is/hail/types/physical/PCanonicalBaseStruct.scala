@@ -4,7 +4,9 @@ import is.hail.annotations.{Region, UnsafeUtils}
 import is.hail.asm4s._
 import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.types.BaseStruct
-import is.hail.types.physical.stypes.{SBaseStructPointer, SBaseStructPointerCode, SBaseStructPointerSettable, SStruct}
+import is.hail.types.physical.stypes.SCode
+import is.hail.types.physical.stypes.concrete.{SBaseStructPointer, SBaseStructPointerCode, SBaseStructPointerSettable}
+import is.hail.types.physical.stypes.interfaces.SStruct
 import is.hail.utils._
 
 abstract class PCanonicalBaseStruct(val types: Array[PType]) extends PBaseStruct {
@@ -170,7 +172,7 @@ abstract class PCanonicalBaseStruct(val types: Array[PType]) extends PBaseStruct
 
   def loadCheapPCode(cb: EmitCodeBuilder, addr: Code[Long]): PCode = new SBaseStructPointerCode(SBaseStructPointer(this), addr)
 
-  def store(cb: EmitCodeBuilder, region: Value[Region], value: PCode, deepCopy: Boolean): Code[Long] = {
+  def store(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): Code[Long] = {
     value.st match {
       case SBaseStructPointer(t) if t.equalModuloRequired(this) && !deepCopy =>
         value.asInstanceOf[SBaseStructPointerCode].a
@@ -182,7 +184,7 @@ abstract class PCanonicalBaseStruct(val types: Array[PType]) extends PBaseStruct
     }
   }
 
-  def storeAtAddress(cb: EmitCodeBuilder, addr: Code[Long], region: Value[Region], value: PCode, deepCopy: Boolean): Unit = {
+  def storeAtAddress(cb: EmitCodeBuilder, addr: Code[Long], region: Value[Region], value: SCode, deepCopy: Boolean): Unit = {
     value.st match {
       case SBaseStructPointer(t) if t.equalModuloRequired(this) =>
         val pcs = value.asBaseStruct.memoize(cb, "pcbasestruct_store_src").asInstanceOf[SBaseStructPointerSettable]

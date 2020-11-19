@@ -1,23 +1,24 @@
-package is.hail.types.physical.stypes
+package is.hail.types.physical.stypes.concrete
 
 import is.hail.annotations.{CodeOrdering, Region}
 import is.hail.asm4s._
 import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, SortOrder}
-import is.hail.types.physical.{PBinary, PBinaryCode, PBinaryValue, PCanonicalBinary, PCode, PSettable, PType}
+import is.hail.types.physical.stypes.interfaces.SBinary
+import is.hail.types.physical.stypes.{SCode, SType}
+import is.hail.types.physical.{PBinary, PBinaryCode, PBinaryValue, PCode, PSettable, PType}
 import is.hail.utils._
 
-trait SBinary extends SType
 
 case class SBinaryPointer(pType: PBinary) extends SBinary {
   def codeOrdering(mb: EmitMethodBuilder[_], other: SType, so: SortOrder): CodeOrdering = pType.codeOrdering(mb, other.pType, so)
 
-  def coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: PCode, deepCopy: Boolean): PCode = {
+  def coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = {
     new SBinaryPointerCode(this, pType.store(cb, region, value, deepCopy))
   }
 
   def codeTupleTypes(): IndexedSeq[TypeInfo[_]] = FastIndexedSeq(LongInfo)
 
-  def loadFrom(cb: EmitCodeBuilder, region: Value[Region], pt: PType, addr: Code[Long]): PCode = {
+  def loadFrom(cb: EmitCodeBuilder, region: Value[Region], pt: PType, addr: Code[Long]): SCode = {
     if (pt == this.pType)
       new SBinaryPointerCode(this, addr)
     else

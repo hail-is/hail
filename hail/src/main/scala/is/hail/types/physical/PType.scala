@@ -6,7 +6,7 @@ import is.hail.asm4s._
 import is.hail.check.{Arbitrary, Gen}
 import is.hail.expr.ir
 import is.hail.expr.ir._
-import is.hail.types.physical.stypes.SType
+import is.hail.types.physical.stypes.{SCode, SType}
 import is.hail.types.virtual._
 import is.hail.types.{Requiredness, coerce}
 import is.hail.utils._
@@ -453,10 +453,10 @@ abstract class PType extends Serializable with Requiredness {
   def loadCheapPCode(cb: EmitCodeBuilder, addr: Code[Long]): PCode
 
   // stores a stack value as a region value of this type
-  def store(cb: EmitCodeBuilder, region: Value[Region], value: PCode, deepCopy: Boolean): Code[Long]
+  def store(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): Code[Long]
 
   // stores a stack value inside pre-allocated memory of this type (in a nested structure, for instance).
-  def storeAtAddress(cb: EmitCodeBuilder, addr: Code[Long], region: Value[Region], value: PCode, deepCopy: Boolean): Unit
+  def storeAtAddress(cb: EmitCodeBuilder, addr: Code[Long], region: Value[Region], value: SCode, deepCopy: Boolean): Unit
 
   def unstagedStoreAtAddress(addr: Long, region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Unit
 

@@ -13,10 +13,13 @@ import is.hail.utils._
 import scala.language.implicitConversions
 import java.util.UUID
 
+import is.hail.types.physical.stypes.SCode
+
 package object ir {
   type TokenIterator = BufferedIterator[Token]
 
   type IEmitCode = IEmitCodeGen[PCode]
+  type IEmitSCode = IEmitCodeGen[SCode]
 
   var uidCounter: Long = 0
 

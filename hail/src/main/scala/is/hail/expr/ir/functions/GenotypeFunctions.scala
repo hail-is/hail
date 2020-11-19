@@ -4,6 +4,7 @@ import is.hail.annotations.Region
 import is.hail.asm4s.{coerce => _, _}
 import is.hail.types.{coerce => _, _}
 import is.hail.expr.ir._
+import is.hail.types.physical.stypes.SCode
 import is.hail.types.physical.{PArray, PCode, PFloat64, PIndexableCode, PInt32, PType}
 import is.hail.types.virtual.{TArray, TFloat64, TInt32, Type}
 
@@ -43,9 +44,9 @@ object GenotypeFunctions extends RegistryFunctions {
         cb.ifx(gpv.loadLength().cne(3),
           cb._fatal(const("length of gp array must be 3, got ").concat(gpv.loadLength().toS)))
 
-        gpv.loadElement(cb, 1).flatMap(cb) { (_1: PCode) =>
-          gpv.loadElement(cb, 2).map(cb) { (_2: PCode) =>
-            PCode(rt, _1.tcode[Double] + _2.tcode[Double] * 2.0)
+        gpv.loadElement(cb, 1).flatMap(cb) { (_1: SCode) =>
+          gpv.loadElement(cb, 2).map(cb) { (_2: SCode) =>
+            PCode(rt, _1.asDouble.doubleCode(cb) + _2.asDouble.doubleCode(cb) * 2.0)
           }
         }
       }

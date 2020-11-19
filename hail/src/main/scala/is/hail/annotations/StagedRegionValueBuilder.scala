@@ -5,6 +5,7 @@ import is.hail.asm4s.{Code, _}
 import is.hail.expr.ir
 import is.hail.expr.ir.{EmitClassBuilder, EmitMethodBuilder, EmitRegion, ParamType}
 import is.hail.types.physical._
+import is.hail.types.physical.stypes.SCode
 import is.hail.types.virtual._
 import is.hail.utils._
 
@@ -231,13 +232,14 @@ class StagedRegionValueBuilder private (val mb: EmitMethodBuilder[_], val typ: P
   def addIRIntermediate(t: PType): (Code[_]) => Code[Unit] =
     addIRIntermediate(t, deepCopy = false)
 
-  def addIRIntermediate(v: PCode, deepCopy: Boolean): Code[Unit] = {
-
-    addIRIntermediate(v.pt, deepCopy)(v.code)
+  def addIRIntermediate(v: SCode, deepCopy: Boolean): Code[Unit] = {
+    val pc = v.asPCode
+    addIRIntermediate(pc.pt, deepCopy)(pc.code)
   }
 
-  def addIRIntermediate(v: PCode): Code[Unit] =
-    addIRIntermediate(v.pt, deepCopy = false)(v.code)
+  def addIRIntermediate(v: SCode): Code[Unit] =
+    addIRIntermediate(v, false)
+
 
   def addWithDeepCopy(t: PType, v: Code[_]): Code[Unit] = {
     if (!(t.fundamentalType isOfType currentPType()))

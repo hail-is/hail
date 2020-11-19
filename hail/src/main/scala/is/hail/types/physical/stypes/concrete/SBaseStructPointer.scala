@@ -1,24 +1,24 @@
-package is.hail.types.physical.stypes
+package is.hail.types.physical.stypes.concrete
+
 import is.hail.annotations.{CodeOrdering, Region}
 import is.hail.asm4s._
 import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, IEmitCode, SortOrder}
-import is.hail.types.physical.{PBaseStruct, PBaseStructCode, PBaseStructValue, PCanonicalBaseStruct, PCode, PSettable, PStruct, PType}
+import is.hail.types.physical.stypes.interfaces.{SStruct, SStructSettable}
+import is.hail.types.physical.stypes.{SCode, SType}
+import is.hail.types.physical.{PBaseStruct, PBaseStructCode, PBaseStructValue, PCode, PStructSettable, PType}
 import is.hail.utils.FastIndexedSeq
 
-trait SStruct extends SType
-
-trait SStructSettable extends PBaseStructValue with PSettable
 
 case class SBaseStructPointer(pType: PBaseStruct) extends SStruct {
   def codeOrdering(mb: EmitMethodBuilder[_], other: SType, so: SortOrder): CodeOrdering = pType.codeOrdering(mb, other.pType, so)
 
-  def coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: PCode, deepCopy: Boolean): PCode = {
+  def coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = {
     new SBaseStructPointerCode(this, pType.store(cb, region, value, deepCopy))
   }
 
   def codeTupleTypes(): IndexedSeq[TypeInfo[_]] = FastIndexedSeq(LongInfo)
 
-  def loadFrom(cb: EmitCodeBuilder, region: Value[Region], pt: PType, addr: Code[Long]): PCode = {
+  def loadFrom(cb: EmitCodeBuilder, region: Value[Region], pt: PType, addr: Code[Long]): SCode = {
     if (pt == this.pType)
       new SBaseStructPointerCode(this, addr)
     else
@@ -36,7 +36,7 @@ object SBaseStructPointerSettable {
 class SBaseStructPointerSettable(
   val st: SBaseStructPointer,
   val a: Settable[Long]
-) extends SStructSettable {
+) extends PStructSettable {
   val pt: PBaseStruct = st.pType
 
   def get: PBaseStructCode = new SBaseStructPointerCode(st, a)

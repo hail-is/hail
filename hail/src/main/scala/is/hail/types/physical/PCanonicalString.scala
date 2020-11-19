@@ -1,10 +1,10 @@
 package is.hail.types.physical
 
 import is.hail.annotations.Region
-import is.hail.asm4s.{Code, MethodBuilder, Value}
+import is.hail.asm4s.{Code, Value}
 import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder}
-import is.hail.types.physical.stypes.{SBaseStructPointer, SBaseStructPointerCode, SString, SStringPointer, SStringPointerCode, SStruct}
-import is.hail.utils.FastIndexedSeq
+import is.hail.types.physical.stypes.SCode
+import is.hail.types.physical.stypes.concrete.{SStringPointer, SStringPointerCode}
 
 case object PCanonicalStringOptional extends PCanonicalString(false)
 
@@ -64,7 +64,7 @@ class PCanonicalString(val required: Boolean) extends PString {
 
   def loadCheapPCode(cb: EmitCodeBuilder, addr: Code[Long]): PCode = new SStringPointerCode(SStringPointer(this), addr)
 
-  def store(cb: EmitCodeBuilder, region: Value[Region], value: PCode, deepCopy: Boolean): Code[Long] = {
+  def store(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): Code[Long] = {
     value.st match {
       case SStringPointer(t) if t.equalModuloRequired(this) && !deepCopy =>
         value.asInstanceOf[SStringPointerCode].a
@@ -73,7 +73,7 @@ class PCanonicalString(val required: Boolean) extends PString {
     }
   }
 
-  def storeAtAddress(cb: EmitCodeBuilder, addr: Code[Long], region: Value[Region], value: PCode, deepCopy: Boolean): Unit = {
+  def storeAtAddress(cb: EmitCodeBuilder, addr: Code[Long], region: Value[Region], value: SCode, deepCopy: Boolean): Unit = {
     cb += Region.storeAddress(addr, store(cb, region, value, deepCopy))
   }
 }
