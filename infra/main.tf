@@ -223,6 +223,7 @@ resource "kubernetes_secret" "database_server_config" {
     "client-cert.pem" = google_sql_ssl_cert.root_client_cert.cert
     "client-key.pem" = google_sql_ssl_cert.root_client_cert.private_key
     "sql-config.cnf" = <<END
+[client]
 host=${google_sql_database_instance.db.ip_address[0].ip_address}
 user=root
 password=${random_password.db_root_password.result}
@@ -447,5 +448,45 @@ resource "kubernetes_secret" "monitoring_gsa_key" {
 
   data = {
     "key.json" = base64decode(google_service_account_key.monitoring_key.private_key)
+  }
+}
+
+resource "random_id" "test_name_suffix" {
+  byte_length = 2
+}
+
+resource "google_service_account" "test" {
+  account_id   = "test-${random_id.test_name_suffix.hex}"
+}
+
+resource "google_service_account_key" "test_key" {
+  service_account_id = google_service_account.test.name
+}
+
+resource "kubernetes_secret" "test_gsa_key" {
+  metadata {
+    name = "test-gsa-key"
+  }
+
+  data = {
+    "key.json" = base64decode(google_service_account_key.test_key.private_key)
+  }
+}
+
+resource "google_service_account" "test_dev" {
+  account_id   = "test-dev"
+}
+
+resource "google_service_account_key" "test_dev_key" {
+  service_account_id = google_service_account.test_dev.name
+}
+
+resource "kubernetes_secret" "test_dev_gsa_key" {
+  metadata {
+    name = "test-dev-gsa-key"
+  }
+
+  data = {
+    "key.json" = base64decode(google_service_account_key.test_dev_key.private_key)
   }
 }
