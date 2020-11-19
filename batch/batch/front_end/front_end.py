@@ -540,10 +540,10 @@ def check_service_account_permissions(user, sa):
         return
     if user == 'ci':
         if sa['name'] == 'ci-agent':
-            if DEFAULT_NAMESPACE == 'default' or sa['namespace'] == DEFAULT_NAMESPACE:
+            if DEFAULT_NAMESPACE == 'default' or sa['namespace'] == DEFAULT_NAMESPACE:  # pylint: disable=consider-using-in
                 return
     elif user == 'test':
-        if sa['namespace'] == DEFAULT_NAMESPACE and sa['name'] == 'test-batch-sa':  # pylint: disable=consider-using-in
+        if sa['namespace'] == DEFAULT_NAMESPACE and sa['name'] == 'test-batch-sa':
             return
     raise web.HTTPBadRequest(reason=f'unauthorized service account {(sa["namespace"], sa["name"])} for user {user}')
 
