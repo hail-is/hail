@@ -13,7 +13,7 @@ case object EInt64Optional extends EInt64(false)
 case object EInt64Required extends EInt64(true)
 
 class EInt64(override val required: Boolean) extends EFundamentalType {
-  def _buildFundamentalEncoder(cb: EmitCodeBuilder, pt: PType, v: Value[_], out: Value[OutputBuffer]): Unit = {
+  def _buildFundamentalEncoder(cb: EmitCodeBuilder, pt: PType, v: Value[_], out: Value[OutputBuffer])(implicit line: LineNumber): Unit = {
     cb += out.writeLong(coerce[Long](v))
   }
 
@@ -24,7 +24,8 @@ class EInt64(override val required: Boolean) extends EFundamentalType {
     in: Value[InputBuffer]
   ): Code[Long] = in.readLong()
 
-  def _buildSkip(cb: EmitCodeBuilder, r: Value[Region], in: Value[InputBuffer]): Unit = cb += in.skipLong()
+  def _buildSkip(cb: EmitCodeBuilder, r: Value[Region], in: Value[InputBuffer])(implicit line: LineNumber): Unit =
+    cb += in.skipLong()
 
   override def _compatible(pt: PType): Boolean = pt.isInstanceOf[PInt64]
 

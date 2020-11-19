@@ -1,6 +1,6 @@
 package is.hail.types.physical
 
-import is.hail.asm4s.Code
+import is.hail.asm4s.{Code, LineNumber}
 import is.hail.types.virtual.{TStruct, Type}
 import is.hail.utils._
 import org.apache.spark.sql.Row
@@ -96,19 +96,19 @@ final case class PCanonicalStruct(fields: IndexedSeq[PField], required: Boolean 
     }
   }
 
-  def loadField(offset: Code[Long], fieldName: String): Code[Long] =
+  def loadField(offset: Code[Long], fieldName: String)(implicit line: LineNumber): Code[Long] =
     loadField(offset, fieldIdx(fieldName))
 
-  def isFieldMissing(offset: Code[Long], field: String): Code[Boolean] =
+  def isFieldMissing(offset: Code[Long], field: String)(implicit line: LineNumber): Code[Boolean] =
     isFieldMissing(offset, fieldIdx(field))
 
-  def fieldOffset(offset: Code[Long], fieldName: String): Code[Long] =
+  def fieldOffset(offset: Code[Long], fieldName: String)(implicit line: LineNumber): Code[Long] =
     fieldOffset(offset, fieldIdx(fieldName))
 
-  def setFieldPresent(offset: Code[Long], field: String): Code[Unit] =
+  def setFieldPresent(offset: Code[Long], field: String)(implicit line: LineNumber): Code[Unit] =
     setFieldPresent(offset, fieldIdx(field))
 
-  def setFieldMissing(offset: Code[Long], field: String): Code[Unit] =
+  def setFieldMissing(offset: Code[Long], field: String)(implicit line: LineNumber): Code[Unit] =
     setFieldMissing(offset, fieldIdx(field))
 
   def insertFields(fieldsToInsert: TraversableOnce[(String, PType)]): PStruct = {

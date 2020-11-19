@@ -1654,7 +1654,8 @@ class Emit[C](
         emitI(path).map(cb) { pv =>
           val ib = cb.newLocal[InputBuffer]("read_ib")
           cb.assign(ib, spec.buildCodeInputBuffer(mb.open(pv.asString.loadString(), checkCodec = true)))
-          spec.buildEmitDecoder(requestedType, mb.ecb)(region.code, ib)
+          val ed = spec.buildEmitDecoder(requestedType, mb.ecb)
+          ed(region.code, ib)
         }
 
       case WriteValue(value, path, spec) =>

@@ -1,7 +1,7 @@
 package is.hail.types.physical
 
 import is.hail.annotations.{Region, UnsafeOrdering}
-import is.hail.asm4s.{Code, MethodBuilder, Value}
+import is.hail.asm4s.{Code, LineNumber, MethodBuilder, Value}
 import is.hail.expr.ir.EmitMethodBuilder
 
 abstract class ComplexPType extends PType {
@@ -39,6 +39,6 @@ abstract class ComplexPType extends PType {
   def constructAtAddress(addr: Long, region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Unit =
     this.representation.constructAtAddress(addr, region, srcPType.fundamentalType, srcAddress, deepCopy)
 
-  override def constructAtAddressFromValue(mb: EmitMethodBuilder[_], addr: Code[Long], region: Value[Region], srcPType: PType, src: Code[_], deepCopy: Boolean): Code[Unit] =
+  override def constructAtAddressFromValue(mb: EmitMethodBuilder[_], addr: Code[Long], region: Value[Region], srcPType: PType, src: Code[_], deepCopy: Boolean)(implicit line: LineNumber): Code[Unit] =
     this.representation.constructAtAddressFromValue(mb, addr, region, srcPType.fundamentalType, src, deepCopy)
 }

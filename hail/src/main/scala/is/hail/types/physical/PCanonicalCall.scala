@@ -29,17 +29,21 @@ object PCanonicalCallSettable {
 }
 
 class PCanonicalCallSettable(val pt: PCanonicalCall, call: Settable[Int]) extends PCallValue with PSettable {
-  def get: PCallCode = new PCanonicalCallCode(pt, call)
+  def get(implicit line: LineNumber): PCallCode =
+    new PCanonicalCallCode(pt, call)
 
   def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(call)
 
-  def store(pc: PCode): Code[Unit] = call.store(pc.asInstanceOf[PCanonicalCallCode].call)
+  def store(pc: PCode)(implicit line: LineNumber): Code[Unit] =
+    call.store(pc.asInstanceOf[PCanonicalCallCode].call)
 
-  def ploidy(): Code[Int] = get.ploidy()
+  def ploidy()(implicit line: LineNumber): Code[Int] =
+    get.ploidy()
 
-  def isPhased(): Code[Boolean] = get.isPhased()
+  def isPhased()(implicit line: LineNumber): Code[Boolean] =
+    get.isPhased()
 
-  def forEachAllele(cb: EmitCodeBuilder)(alleleCode: Value[Int] => Unit): Unit = {
+  def forEachAllele(cb: EmitCodeBuilder)(alleleCode: Value[Int] => Unit)(implicit line: LineNumber): Unit = {
     val call2 = cb.newLocal[Int]("fea_call2", call >>> 3)
     val p = cb.newLocal[Int]("fea_ploidy", ploidy())
     val j = cb.newLocal[Int]("fea_j")
@@ -70,19 +74,24 @@ class PCanonicalCallCode(val pt: PCanonicalCall, val call: Code[Int]) extends PC
 
   def codeTuple(): IndexedSeq[Code[_]] = FastIndexedSeq(call)
 
-  def ploidy(): Code[Int] = (call >>> 1) & 0x3
+  def ploidy()(implicit line: LineNumber): Code[Int] =
+    (call >>> 1) & 0x3
 
-  def isPhased(): Code[Boolean] = (call & 0x1).ceq(1)
+  def isPhased()(implicit line: LineNumber): Code[Boolean] =
+    (call & 0x1).ceq(1)
 
-  def memoize(cb: EmitCodeBuilder, name: String, sb: SettableBuilder): PCallValue = {
+  def memoize(cb: EmitCodeBuilder, name: String, sb: SettableBuilder)(implicit line: LineNumber): PCallValue = {
     val s = PCanonicalCallSettable(sb, pt, name)
     cb.assign(s, this)
     s
   }
 
-  def memoize(cb: EmitCodeBuilder, name: String): PCallValue = memoize(cb, name, cb.localBuilder)
+  def memoize(cb: EmitCodeBuilder, name: String)(implicit line: LineNumber): PCallValue =
+    memoize(cb, name, cb.localBuilder)
 
-  def memoizeField(cb: EmitCodeBuilder, name: String): PCallValue = memoize(cb, name, cb.fieldBuilder)
+  def memoizeField(cb: EmitCodeBuilder, name: String)(implicit line: LineNumber): PCallValue =
+    memoize(cb, name, cb.fieldBuilder)
 
-  def store(mb: EmitMethodBuilder[_], r: Value[Region], dst: Code[Long]): Code[Unit] = Region.storeInt(dst, call)
+  def store(mb: EmitMethodBuilder[_], r: Value[Region], dst: Code[Long])(implicit line: LineNumber): Code[Unit] =
+    Region.storeInt(dst, call)
 }

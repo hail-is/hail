@@ -58,7 +58,8 @@ case class MatrixNativeWriter(
   partitions: String = null,
   partitionsTypeStr: String = null
 ) extends MatrixWriter {
-  def apply(ctx: ExecuteContext, mv: MatrixValue): Unit = mv.write(ctx, path, overwrite, stageLocally, codecSpecJSONStr, partitions, partitionsTypeStr)
+  def apply(ctx: ExecuteContext, mv: MatrixValue)(implicit line: LineNumber): Unit =
+    mv.write(ctx, path, overwrite, stageLocally, codecSpecJSONStr, partitions, partitionsTypeStr)
   override def lower(colsFieldName: String, entriesFieldName: String, colKey: IndexedSeq[String],
     ctx: ExecuteContext, tablestage: TableStage, t: TableIR, r: RTable, relationalLetsAbove: Map[String, IR]): IR = {
     val bufferSpec: BufferSpec = BufferSpec.parseOrDefault(codecSpecJSONStr)
@@ -351,5 +352,6 @@ case class MatrixNativeMultiWriter(
   overwrite: Boolean = false,
   stageLocally: Boolean = false
 ) {
-  def apply(ctx: ExecuteContext, mvs: IndexedSeq[MatrixValue]): Unit = MatrixValue.writeMultiple(ctx, mvs, prefix, overwrite, stageLocally)
+  def apply(ctx: ExecuteContext, mvs: IndexedSeq[MatrixValue])(implicit line: LineNumber): Unit =
+    MatrixValue.writeMultiple(ctx, mvs, prefix, overwrite, stageLocally)
 }

@@ -455,16 +455,16 @@ abstract class PType extends Serializable with Requiredness {
   }
 
   def constructAtAddress(mb: EmitMethodBuilder[_], addr: Code[Long], region: Value[Region], srcPType: PType, srcAddress: Code[Long], deepCopy: Boolean): Code[Unit]
-  def constructAtAddressFromValue(mb: EmitMethodBuilder[_], addr: Code[Long], region: Value[Region], srcPType: PType, src: Code[_], deepCopy: Boolean): Code[Unit]
+  def constructAtAddressFromValue(mb: EmitMethodBuilder[_], addr: Code[Long], region: Value[Region], srcPType: PType, src: Code[_], deepCopy: Boolean)(implicit line: LineNumber): Code[Unit]
     = constructAtAddress(mb, addr, region, srcPType, asm4s.coerce[Long](src), deepCopy)
 
   def constructAtAddress(addr: Long, region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Unit
 
   def deepRename(t: Type): PType = this
 
-  def defaultValue: PCode = PCode(this, is.hail.types.physical.defaultValue(this))
+  def defaultValue(implicit line: LineNumber): PCode = PCode(this, is.hail.types.physical.defaultValue(this))
 
-  def load(src: Code[Long]): PCode = PCode(this, Region.loadIRIntermediate(this)(src))
+  def load(src: Code[Long])(implicit line: LineNumber): PCode = PCode(this, Region.loadIRIntermediate(this)(src))
 
   def ti: TypeInfo[_] = typeToTypeInfo(this)
 

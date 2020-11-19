@@ -24,10 +24,10 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
     off => representation.loadField(off, "shape")
   )
 
-  def loadShape(off: Code[Long], idx: Int): Code[Long] =
+  def loadShape(off: Code[Long], idx: Int)(implicit line: LineNumber): Code[Long] =
     shape.pType.types(idx).load(shape.pType.fieldOffset(shape.load(off), idx)).tcode[Long]
 
-  def loadStride(off: Code[Long], idx: Int): Code[Long] =
+  def loadStride(off: Code[Long], idx: Int)(implicit line: LineNumber): Code[Long] =
     strides.pType.types(idx).load(strides.pType.fieldOffset(strides.load(off), idx)).tcode[Long]
 
   @transient lazy val strides = new StaticallyKnownField(
@@ -57,11 +57,11 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
 
   override lazy val encodableType: PType = PCanonicalNDArray(elementType.encodableType, nDims, required)
 
-  def numElements(shape: IndexedSeq[Value[Long]], mb: EmitMethodBuilder[_]): Code[Long] = {
+  def numElements(shape: IndexedSeq[Value[Long]], mb: EmitMethodBuilder[_])(implicit line: LineNumber): Code[Long] = {
     shape.foldLeft(1L: Code[Long])(_ * _)
   }
 
-  def makeShapeBuilder(shapeArray: IndexedSeq[Value[Long]]): StagedRegionValueBuilder => Code[Unit] = { srvb =>
+  def makeShapeBuilder(shapeArray: IndexedSeq[Value[Long]])(implicit line: LineNumber): StagedRegionValueBuilder => Code[Unit] = { srvb =>
     coerce[Unit](Code(
       srvb.start(),
       Code(shapeArray.map(shapeElement => Code(
@@ -71,7 +71,7 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
     ))
   }
 
-  def makeColumnMajorStridesBuilder(sourceShapeArray: IndexedSeq[Value[Long]], mb: EmitMethodBuilder[_]): StagedRegionValueBuilder => Code[Unit] = { srvb =>
+  def makeColumnMajorStridesBuilder(sourceShapeArray: IndexedSeq[Value[Long]], mb: EmitMethodBuilder[_])(implicit line: LineNumber): StagedRegionValueBuilder => Code[Unit] = { srvb =>
     val runningProduct = mb.newLocal[Long]()
     val tempShapeStorage = mb.newLocal[Long]()
     Code(
@@ -88,7 +88,7 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
     )
   }
 
-  def makeRowMajorStridesBuilder(sourceShapeArray: IndexedSeq[Value[Long]], mb: EmitMethodBuilder[_]): StagedRegionValueBuilder => Code[Unit] = { srvb =>
+  def makeRowMajorStridesBuilder(sourceShapeArray: IndexedSeq[Value[Long]], mb: EmitMethodBuilder[_])(implicit line: LineNumber): StagedRegionValueBuilder => Code[Unit] = { srvb =>
     val runningProduct = mb.newLocal[Long]()
     val tempShapeStorage = mb.newLocal[Long]()
     val computedStrides = (0 until nDims).map(_ => mb.genFieldThisRef[Long]())
@@ -111,7 +111,7 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
     )
   }
 
-  private def getElementAddress(indices: IndexedSeq[Value[Long]], nd: Value[Long], mb: EmitMethodBuilder[_]): Code[Long] = {
+  private def getElementAddress(indices: IndexedSeq[Value[Long]], nd: Value[Long], mb: EmitMethodBuilder[_])(implicit line: LineNumber): Code[Long] = {
     val stridesTuple  = new CodePTuple(strides.pType, new Value[Long] {
       def get: Code[Long] = strides.load(nd)
     })
@@ -130,15 +130,15 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
     ))
   }
 
-  def setElement(indices: IndexedSeq[Value[Long]], ndAddress: Value[Long], newElement: Code[_], mb: EmitMethodBuilder[_]): Code[Unit] = {
+  def setElement(indices: IndexedSeq[Value[Long]], ndAddress: Value[Long], newElement: Code[_], mb: EmitMethodBuilder[_])(implicit line: LineNumber): Code[Unit] = {
     Region.storeIRIntermediate(this.elementType)(getElementAddress(indices, ndAddress, mb), newElement)
   }
 
-  def loadElementToIRIntermediate(indices: IndexedSeq[Value[Long]], ndAddress: Value[Long], mb: EmitMethodBuilder[_]): Code[_] = {
+  def loadElementToIRIntermediate(indices: IndexedSeq[Value[Long]], ndAddress: Value[Long], mb: EmitMethodBuilder[_])(implicit line: LineNumber): Code[_] = {
     Region.loadIRIntermediate(data.pType.elementType)(getElementAddress(indices, ndAddress, mb))
   }
 
-  def linearizeIndicesRowMajor(indices: IndexedSeq[Code[Long]], shapeArray: IndexedSeq[Value[Long]], mb: EmitMethodBuilder[_]): Code[Long] = {
+  def linearizeIndicesRowMajor(indices: IndexedSeq[Code[Long]], shapeArray: IndexedSeq[Value[Long]], mb: EmitMethodBuilder[_])(implicit line: LineNumber): Code[Long] = {
     val index = mb.genFieldThisRef[Long]()
     val elementsInProcessedDimensions = mb.genFieldThisRef[Long]()
     Code(
@@ -154,7 +154,7 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
     )
   }
 
-  def unlinearizeIndexRowMajor(index: Code[Long], shapeArray: IndexedSeq[Value[Long]], mb: EmitMethodBuilder[_]): (Code[Unit], IndexedSeq[Value[Long]]) = {
+  def unlinearizeIndexRowMajor(index: Code[Long], shapeArray: IndexedSeq[Value[Long]], mb: EmitMethodBuilder[_])(implicit line: LineNumber): (Code[Unit], IndexedSeq[Value[Long]]) = {
     val nDim = shapeArray.length
     val newIndices = (0 until nDim).map(_ => mb.genFieldThisRef[Long]())
     val elementsInProcessedDimensions = mb.genFieldThisRef[Long]()
@@ -180,6 +180,7 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
     data: Code[Long],
     mb: EmitMethodBuilder[_],
     region: Value[Region]
+  )(implicit line: LineNumber
   ): Code[Long] = {
     val srvb = new StagedRegionValueBuilder(mb, this.representation, region)
 
@@ -233,7 +234,7 @@ object PCanonicalNDArraySettable {
 
 class PCanonicalNDArraySettable(override val pt: PCanonicalNDArray, val a: Settable[Long]) extends PNDArrayValue with PSettable {
   //FIXME: Rewrite apply to not require a methodBuilder, meaning also rewrite loadElementToIRIntermediate
-  def apply(indices: IndexedSeq[Value[Long]], mb: EmitMethodBuilder[_]): Value[_] = {
+  def apply(indices: IndexedSeq[Value[Long]], mb: EmitMethodBuilder[_])(implicit line: LineNumber): Value[_] = {
     assert(indices.size == pt.nDims)
     new Value[Any] {
       override def get: Code[Any] = pt.loadElementToIRIntermediate(indices, a, mb)
@@ -242,11 +243,13 @@ class PCanonicalNDArraySettable(override val pt: PCanonicalNDArray, val a: Setta
 
   def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(a)
 
-  override def get: PCode = new PCanonicalNDArrayCode(pt, a)
+  override def get(implicit line: LineNumber): PCode =
+    new PCanonicalNDArrayCode(pt, a)
 
-  override def store(pv: PCode): Code[Unit] = a := pv.asInstanceOf[PCanonicalNDArrayCode].a
+  override def store(pv: PCode)(implicit line: LineNumber): Code[Unit] =
+    a := pv.asInstanceOf[PCanonicalNDArrayCode].a
 
-  override def outOfBounds(indices: IndexedSeq[Value[Long]], mb: EmitMethodBuilder[_]): Code[Boolean] = {
+  override def outOfBounds(indices: IndexedSeq[Value[Long]], mb: EmitMethodBuilder[_])(implicit line: LineNumber): Code[Boolean] = {
     val shape = this.shapes()
     val outOfBounds = mb.genFieldThisRef[Boolean]()
     Code(
@@ -258,7 +261,7 @@ class PCanonicalNDArraySettable(override val pt: PCanonicalNDArray, val a: Setta
     )
   }
 
-  override def assertInBounds(indices: IndexedSeq[Value[Long]], mb: EmitMethodBuilder[_], errorId: Int): Code[Unit] = {
+  override def assertInBounds(indices: IndexedSeq[Value[Long]], mb: EmitMethodBuilder[_], errorId: Int)(implicit line: LineNumber): Code[Unit] = {
     val shape = this.shapes()
     Code.foreach(0 until pt.nDims) { dimIndex =>
       val eMsg = const("Index ").concat(indices(dimIndex).toS)
@@ -270,17 +273,17 @@ class PCanonicalNDArraySettable(override val pt: PCanonicalNDArray, val a: Setta
 
   override def shapes(): IndexedSeq[Value[Long]] = Array.tabulate(pt.nDims) { i =>
     new Value[Long] {
-      def get: Code[Long] = pt.loadShape(a, i)
+      def get(implicit line: LineNumber): Code[Long] = pt.loadShape(a, i)
     }
   }
 
   override def strides(): IndexedSeq[Value[Long]] = Array.tabulate(pt.nDims) { i =>
     new Value[Long] {
-      def get: Code[Long] = pt.loadStride(a, i)
+      def get(implicit line: LineNumber): Code[Long] = pt.loadStride(a, i)
     }
   }
 
-  override def sameShape(other: PNDArrayValue, mb: EmitMethodBuilder[_]): Code[Boolean] = {
+  override def sameShape(other: PNDArrayValue, mb: EmitMethodBuilder[_])(implicit line: LineNumber): Code[Boolean] = {
     val comparator = this.pt.shape.pType.codeOrdering(mb, other.pt.shape.pType)
     val thisShape = this.pt.shape.load(this.a).asInstanceOf[Code[comparator.T]]
     val otherShape = other.pt.shape.load(other.value.asInstanceOf[Value[Long]]).asInstanceOf[Code[comparator.T]]
@@ -296,15 +299,17 @@ class PCanonicalNDArrayCode(val pt: PCanonicalNDArray, val a: Code[Long]) extend
 
   override def store(mb: EmitMethodBuilder[_], r: Value[Region], dst: Code[Long]): Code[Unit] = ???
 
-  def memoize(cb: EmitCodeBuilder, name: String, sb: SettableBuilder): PNDArrayValue = {
+  def memoize(cb: EmitCodeBuilder, name: String, sb: SettableBuilder)(implicit line: LineNumber): PNDArrayValue = {
     val s = PCanonicalNDArraySettable(cb, pt, name, sb)
     cb.assign(s, this)
     s
   }
 
-  override def memoize(cb: EmitCodeBuilder, name: String): PNDArrayValue = memoize(cb, name, cb.localBuilder)
+  override def memoize(cb: EmitCodeBuilder, name: String)(implicit line: LineNumber): PNDArrayValue =
+    memoize(cb, name, cb.localBuilder)
 
-  override def memoizeField(cb: EmitCodeBuilder, name: String): PValue = memoize(cb, name, cb.fieldBuilder)
+  override def memoizeField(cb: EmitCodeBuilder, name: String)(implicit line: LineNumber): PValue =
+    memoize(cb, name, cb.fieldBuilder)
 
   override def shape: PBaseStructCode = PCode(this.pt.shape.pType, this.pt.shape.load(a)).asBaseStruct
 }

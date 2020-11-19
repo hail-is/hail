@@ -1,7 +1,7 @@
 package is.hail.types.physical
 
 import is.hail.annotations.Region
-import is.hail.asm4s.{Code, MethodBuilder, Value}
+import is.hail.asm4s.{Code, LineNumber, MethodBuilder, Value}
 import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder}
 import is.hail.utils.FastIndexedSeq
 
@@ -41,7 +41,7 @@ class PCanonicalString(val required: Boolean) extends PString {
   def loadString(bAddress: Long): String =
     new String(this.fundamentalType.loadBytes(bAddress))
 
-  def loadString(bAddress: Code[Long]): Code[String] =
+  def loadString(bAddress: Code[Long])(implicit line: LineNumber): Code[String] =
     Code.newInstance[String, Array[Byte]](this.fundamentalType.loadBytes(bAddress))
 
   def allocateAndStoreString(region: Region, str: String): Long = {
@@ -51,7 +51,7 @@ class PCanonicalString(val required: Boolean) extends PString {
     dstAddrss
   }
 
-  def allocateAndStoreString(mb: EmitMethodBuilder[_], region: Value[Region], str: Code[String]): Code[Long] = {
+  def allocateAndStoreString(mb: EmitMethodBuilder[_], region: Value[Region], str: Code[String])(implicit line: LineNumber): Code[Long] = {
     val dstAddress = mb.genFieldThisRef[Long]()
     val byteRep = mb.genFieldThisRef[Array[Byte]]()
     Code(
@@ -81,15 +81,19 @@ class PCanonicalStringCode(val pt: PCanonicalString, a: Code[Long]) extends PStr
 
   def codeTuple(): IndexedSeq[Code[_]] = FastIndexedSeq(a)
 
-  def loadLength(): Code[Int] = pt.loadLength(a)
+  def loadLength()(implicit line: LineNumber): Code[Int] = pt.loadLength(a)
 
-  def loadString(): Code[String] = pt.loadString(a)
+  def loadString()(implicit line: LineNumber): Code[String] =
+    pt.loadString(a)
 
   def asBytes(): PBinaryCode = new PCanonicalBinaryCode(pt.binaryFundamentalType, a)
 
-  def memoize(cb: EmitCodeBuilder, name: String): PValue = defaultMemoizeImpl(cb, name)
+  def memoize(cb: EmitCodeBuilder, name: String)(implicit line: LineNumber): PValue =
+    defaultMemoizeImpl(cb, name)
 
-  def memoizeField(cb: EmitCodeBuilder, name: String): PValue = defaultMemoizeFieldImpl(cb, name)
+  def memoizeField(cb: EmitCodeBuilder, name: String)(implicit line: LineNumber): PValue =
+    defaultMemoizeFieldImpl(cb, name)
 
-  def store(mb: EmitMethodBuilder[_], r: Value[Region], dst: Code[Long]): Code[Unit] = Region.storeAddress(dst, a)
+  def store(mb: EmitMethodBuilder[_], r: Value[Region], dst: Code[Long])(implicit line: LineNumber): Code[Unit] =
+    Region.storeAddress(dst, a)
 }

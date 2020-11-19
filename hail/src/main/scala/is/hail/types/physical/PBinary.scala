@@ -39,7 +39,7 @@ abstract class PBinary extends PType {
     new CodeOrderingCompareConsistentWithOthers {
       type T = Long
 
-      def compareNonnull(x: Code[T], y: Code[T]): Code[Int] = {
+      def compareNonnull(x: Code[T], y: Code[T])(implicit line: LineNumber): Code[Int] = {
         val l1 = mb.newLocal[Int]()
         val l2 = mb.newLocal[Int]()
         val lim = mb.newLocal[Int]()

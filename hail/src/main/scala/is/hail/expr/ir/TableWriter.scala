@@ -369,6 +369,6 @@ case class WrappedMatrixNativeMultiWriter(
   writer: MatrixNativeMultiWriter,
   colKey: IndexedSeq[String]
 ) {
-  def apply(ctx: ExecuteContext, mvs: IndexedSeq[TableValue]): Unit = writer.apply(
+  def apply(ctx: ExecuteContext, mvs: IndexedSeq[TableValue])(implicit line: LineNumber): Unit = writer.apply(
     ctx, mvs.map(_.toMatrixValue(colKey)))
 }

@@ -182,7 +182,7 @@ package object ir {
 
   implicit def toPCodeParam(pc: PCode): PCodeParam = PCodeParam(pc)
 
-  implicit def pValueToPCodeParam(pv: PValue): PCodeParam = PCodeParam(pv)
+  implicit def pValueToPCodeParam(pv: PValue)(implicit line: LineNumber): PCodeParam = PCodeParam(pv)
 
   implicit def toEmitParam(ec: EmitCode): EmitParam = EmitParam(ec)
 

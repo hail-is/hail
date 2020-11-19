@@ -20,9 +20,12 @@ class StagedArrayBuilder(eltType: PType, cb: EmitClassBuilder[_], region: Value[
   val data = cb.genFieldThisRef[Long]("data")
 
   private val tmpOff = cb.genFieldThisRef[Long]("tmp_offset")
-  private val currentSizeOffset: Code[Long] => Code[Long] = stateType.fieldOffset(_, 0)
-  private val capacityOffset: Code[Long] => Code[Long] = stateType.fieldOffset(_, 1)
-  private val dataOffset: Code[Long] => Code[Long] = stateType.fieldOffset(_, 2)
+  private def currentSizeOffset(off: Code[Long])(implicit line: LineNumber): Code[Long] =
+    stateType.fieldOffset(off, 0)
+  private def capacityOffset(off: Code[Long])(implicit line: LineNumber): Code[Long] =
+    stateType.fieldOffset(off, 1)
+  private def dataOffset(off: Code[Long])(implicit line: LineNumber): Code[Long] =
+    stateType.fieldOffset(off, 2)
 
   def loadFrom(src: Code[Long])(implicit line: LineNumber): Code[Unit] = {
     Code(

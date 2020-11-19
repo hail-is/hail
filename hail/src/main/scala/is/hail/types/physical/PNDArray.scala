@@ -28,7 +28,7 @@ abstract class PNDArray extends PType {
 
   val representation: PStruct
 
-  def dimensionLength(off: Code[Long], idx: Int): Code[Long] = {
+  def dimensionLength(off: Code[Long], idx: Int)(implicit line: LineNumber): Code[Long] = {
     Region.loadLong(shape.pType.fieldOffset(shape.load(off), idx))
   }
 
@@ -78,5 +78,5 @@ abstract class PNDArrayCode extends PCode {
 
   def shape: PBaseStructCode
 
-  def memoize(cb: EmitCodeBuilder, name: String): PNDArrayValue
+  def memoize(cb: EmitCodeBuilder, name: String)(implicit line: LineNumber): PNDArrayValue
 }

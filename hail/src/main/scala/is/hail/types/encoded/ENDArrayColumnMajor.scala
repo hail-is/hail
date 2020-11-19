@@ -22,7 +22,7 @@ case class ENDArrayColumnMajor(elementType: EType, nDims: Int, required: Boolean
       elementType.encodeCompatible(pt.asInstanceOf[PCanonicalNDArray].elementType)
   }
 
-  def _buildEncoder(cb: EmitCodeBuilder, pt: PType, v: Value[_], out: Value[OutputBuffer]): Unit = {
+  def _buildEncoder(cb: EmitCodeBuilder, pt: PType, v: Value[_], out: Value[OutputBuffer])(implicit line: LineNumber): Unit = {
     val ndarray = PCode(pt, v).asNDArray.memoize(cb, "ndarray")
     val writeElemF = elementType.buildEncoder(ndarray.pt.elementType, cb.emb.ecb)
 
@@ -47,7 +47,7 @@ case class ENDArrayColumnMajor(elementType: EType, nDims: Int, required: Boolean
     pt: PType,
     region: Value[Region],
     in: Value[InputBuffer]
-  ): Code[_] = {
+  )(implicit line: LineNumber): Code[_] = {
     val pnd = pt.asInstanceOf[PCanonicalNDArray]
     val readElemF = elementType.buildInplaceDecoder(pnd.elementType, cb.emb.ecb)
 
@@ -70,7 +70,7 @@ case class ENDArrayColumnMajor(elementType: EType, nDims: Int, required: Boolean
       dataAddress, cb.emb, region)
   }
 
-  def _buildSkip(cb: EmitCodeBuilder, r: Value[Region], in: Value[InputBuffer]): Unit = {
+  def _buildSkip(cb: EmitCodeBuilder, r: Value[Region], in: Value[InputBuffer])(implicit line: LineNumber): Unit = {
     val skip = elementType.buildSkip(cb.emb)
 
     val numElements = cb.newLocal[Long]("ndarray_skipper_total_num_elements",

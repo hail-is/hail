@@ -1,7 +1,7 @@
 package is.hail.types.physical
 
 import is.hail.annotations._
-import is.hail.asm4s.Code
+import is.hail.asm4s.{Code, LineNumber}
 import is.hail.expr.ir.{EmitMethodBuilder, SortOrder}
 import is.hail.types.virtual.{Field, TStruct}
 
@@ -52,7 +52,8 @@ trait PStruct extends PBaseStruct {
 
   def loadField(offset: Code[Long], fieldName: String): Code[Long]
 
-  final def isFieldDefined(offset: Code[Long], fieldName: String): Code[Boolean] = !isFieldMissing(offset, fieldName)
+  final def isFieldDefined(offset: Code[Long], fieldName: String)(implicit line: LineNumber): Code[Boolean] =
+    !isFieldMissing(offset, fieldName)
 
   def isFieldMissing(offset: Code[Long], fieldName: String): Code[Boolean]
 

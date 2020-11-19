@@ -49,7 +49,7 @@ final case class ETransposedArrayOfStructs(
     case _ => false
   }
 
-  def _buildDecoder(cb: EmitCodeBuilder, pt: PType, region: Value[Region], in: Value[InputBuffer]): Code[_] = {
+  def _buildDecoder(cb: EmitCodeBuilder, pt: PType, region: Value[Region], in: Value[InputBuffer])(implicit line: LineNumber): Code[_] = {
     val mb = cb.emb
     val arrayPType = pt.asInstanceOf[PArray]
     val elementPStruct = arrayPType.elementType.asInstanceOf[PBaseStruct]
@@ -83,9 +83,9 @@ final case class ETransposedArrayOfStructs(
               i := i + const(1))),
           anMissing := UnsafeUtils.packBitsToBytes(alen)),
       if (fields.forall(_.typ.required)) {
-        fmbytes := 0
+        fmbytes := 0L
       } else {
-        fmbytes := region.allocate(const(1), anMissing.toL)
+        fmbytes := region.allocate(const(1L), anMissing.toL)
       }
     )
 
@@ -159,7 +159,7 @@ final case class ETransposedArrayOfStructs(
     )
   }
 
-  def _buildSkip(cb: EmitCodeBuilder, r: Value[Region], in: Value[InputBuffer]): Unit = {
+  def _buildSkip(cb: EmitCodeBuilder, r: Value[Region], in: Value[InputBuffer])(implicit line: LineNumber): Unit = {
     val len = cb.newLocal[Int]("len")
     val i = cb.newLocal[Int]("i")
     val nMissing = cb.newLocal[Int]("nMissing")
@@ -196,7 +196,7 @@ final case class ETransposedArrayOfStructs(
     }
   }
 
-  def _buildEncoder(cb: EmitCodeBuilder, pt: PType, v: Value[_], out: Value[OutputBuffer]): Unit = {
+  def _buildEncoder(cb: EmitCodeBuilder, pt: PType, v: Value[_], out: Value[OutputBuffer])(implicit line: LineNumber): Unit = {
     val arrayPType = pt.asInstanceOf[PArray]
     val elementPStruct = arrayPType.elementType.asInstanceOf[PBaseStruct]
     val array = PCode(pt, v).asIndexable.memoize(cb, "array")

@@ -6,7 +6,7 @@ import is.hail.expr.ir.StreamArgType
 import scala.language.implicitConversions
 
 package object physical {
-  implicit def pvalueToPCode(pv: PValue): PCode = pv.get
+  implicit def pvalueToPCode(pv: PValue)(implicit line: LineNumber): PCode = pv.get
 
   def typeToTypeInfo(t: PType): TypeInfo[_] = t.fundamentalType match {
     case _: PInt32 => typeInfo[Int]
@@ -23,9 +23,10 @@ package object physical {
     case _ => throw new RuntimeException(s"unsupported type found, $t")
   }
 
-  def defaultValue(t: PType): Code[_] = defaultValue(typeToTypeInfo(t))
+  def defaultValue(t: PType)(implicit line: LineNumber): Code[_] =
+    defaultValue(typeToTypeInfo(t))
 
-  def defaultValue(ti: TypeInfo[_]): Code[_] = ti match {
+  def defaultValue(ti: TypeInfo[_])(implicit line: LineNumber): Code[_] = ti match {
     case UnitInfo => Code._empty
     case BooleanInfo => false
     case IntInfo => 0

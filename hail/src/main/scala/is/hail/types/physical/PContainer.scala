@@ -77,7 +77,7 @@ abstract class PContainer extends PIterable {
 
   def initialize(aoff: Long, length: Int, setMissing: Boolean = false)
 
-  def stagedInitialize(aoff: Code[Long], length: Code[Int], setMissing: Boolean = false): Code[Unit]
+  def stagedInitialize(aoff: Code[Long], length: Code[Int], setMissing: Boolean = false)(implicit line: LineNumber): Code[Unit]
 
   def zeroes(region: Region, length: Int): Long
 
@@ -97,7 +97,8 @@ abstract class PIndexableValue extends PValue {
 
   def isElementMissing(i: Code[Int]): Code[Boolean]
 
-  def isElementDefined(i: Code[Int]): Code[Boolean] = !isElementMissing(i)
+  def isElementDefined(i: Code[Int])(implicit line: LineNumber): Code[Boolean] =
+    !isElementMissing(i)
 
   def loadElement(cb: EmitCodeBuilder, i: Code[Int]): IEmitCode
 }

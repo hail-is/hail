@@ -116,7 +116,7 @@ abstract class PIntervalValue extends PValue {
   def loadEnd(cb: EmitCodeBuilder): IEmitCode
 
   // FIXME orderings should take emitcodes/iemitcodes
-  def isEmpty(cb: EmitCodeBuilder): Code[Boolean] = {
+  def isEmpty(cb: EmitCodeBuilder)(implicit line: LineNumber): Code[Boolean] = {
     val gt = cb.emb.getCodeOrdering(pt.pointType, CodeOrdering.Gt())
     val gteq = cb.emb.getCodeOrdering(pt.pointType, CodeOrdering.Gteq())
 

@@ -51,23 +51,24 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
   def loadLength(aoff: Long): Int =
     Region.loadInt(aoff)
 
-  def loadLength(aoff: Code[Long]): Code[Int] =
+  def loadLength(aoff: Code[Long])(implicit line: LineNumber): Code[Int] =
     Region.loadInt(aoff)
 
   def storeLength(aoff: Long, length: Int): Unit =
     Region.storeInt(aoff, length)
 
-  def storeLength(aoff: Code[Long], length: Code[Int]): Code[Unit] =
+  def storeLength(aoff: Code[Long], length: Code[Int])(implicit line: LineNumber): Code[Unit] =
     Region.storeInt(aoff, length)
 
-  def nMissingBytes(len: Code[Int]): Code[Int] = UnsafeUtils.packBitsToBytes(len)
+  def nMissingBytes(len: Code[Int])(implicit line: LineNumber): Code[Int] =
+    UnsafeUtils.packBitsToBytes(len)
 
   def nMissingBytes(len: Int): Int = UnsafeUtils.packBitsToBytes(len)
 
   private def contentsByteSize(length: Int): Long =
     elementsOffset(length) + length * elementByteSize
 
-  private def contentsByteSize(length: Code[Int]): Code[Long] = {
+  private def contentsByteSize(length: Code[Int])(implicit line: LineNumber): Code[Long] = {
     Code.memoize(length, "contentsByteSize_arr_len") { length =>
       elementsOffset(length) + length.toL * elementByteSize
     }
@@ -79,7 +80,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
     else
       UnsafeUtils.roundUpAlignment(lengthHeaderBytes + nMissingBytes(length), elementType.alignment)
 
-  private def _elementsOffset(length: Code[Int]): Code[Long] =
+  private def _elementsOffset(length: Code[Int])(implicit line: LineNumber): Code[Long] =
     if (elementRequired)
       UnsafeUtils.roundUpAlignment(lengthHeaderBytes, elementType.alignment)
     else
@@ -95,14 +96,14 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
       _elementsOffset(length)
   }
 
-  def elementsOffset(length: Code[Int]): Code[Long] = {
+  def elementsOffset(length: Code[Int])(implicit line: LineNumber): Code[Long] = {
     _elementsOffset(length)
   }
 
   def isElementDefined(aoff: Long, i: Int): Boolean =
     elementRequired || !Region.loadBit(aoff + lengthHeaderBytes, i)
 
-  def isElementDefined(aoff: Code[Long], i: Code[Int]): Code[Boolean] =
+  def isElementDefined(aoff: Code[Long], i: Code[Int])(implicit line: LineNumber): Code[Boolean] =
     if (elementRequired)
       true
     else
@@ -111,7 +112,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
   def isElementMissing(aoff: Long, i: Int): Boolean =
     !isElementDefined(aoff, i)
 
-  def isElementMissing(aoff: Code[Long], i: Code[Int]): Code[Boolean] =
+  def isElementMissing(aoff: Code[Long], i: Code[Int])(implicit line: LineNumber): Code[Boolean] =
     !isElementDefined(aoff, i)
 
   def setElementMissing(aoff: Long, i: Int) {
@@ -119,7 +120,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
       Region.setBit(aoff + lengthHeaderBytes, i)
   }
 
-  def setElementMissing(aoff: Code[Long], i: Code[Int]): Code[Unit] =
+  def setElementMissing(aoff: Code[Long], i: Code[Int])(implicit line: LineNumber): Code[Unit] =
     if (!elementRequired)
       Region.setBit(aoff + lengthHeaderBytes, i.toL)
     else
@@ -130,7 +131,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
       Region.clearBit(aoff + lengthHeaderBytes, i.toLong)
   }
 
-  def setElementPresent(aoff: Code[Long], i: Code[Int]): Code[Unit] =
+  def setElementPresent(aoff: Code[Long], i: Code[Int])(implicit line: LineNumber): Code[Unit] =
     if (!elementRequired)
       Region.clearBit(aoff + lengthHeaderBytes, i.toL)
     else
@@ -139,10 +140,10 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
   def firstElementOffset(aoff: Long, length: Int): Long =
     aoff + elementsOffset(length)
 
-  def firstElementOffset(aoff: Code[Long], length: Code[Int]): Code[Long] =
+  def firstElementOffset(aoff: Code[Long], length: Code[Int])(implicit line: LineNumber): Code[Long] =
     aoff + elementsOffset(length)
 
-  def firstElementOffset(aoff: Code[Long]): Code[Long] =
+  def firstElementOffset(aoff: Code[Long])(implicit line: LineNumber): Code[Long] =
     Code.memoize(aoff, "pcarr_first_elem_off_aoff") { aoff =>
       firstElementOffset(aoff, loadLength(aoff))
     }
@@ -153,18 +154,18 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
   def elementOffset(aoff: Long, i: Int): Long =
     firstElementOffset(aoff, loadLength(aoff)) + i * elementByteSize
 
-  def elementOffset(aoff: Code[Long], length: Code[Int], i: Code[Int]): Code[Long] =
+  def elementOffset(aoff: Code[Long], length: Code[Int], i: Code[Int])(implicit line: LineNumber): Code[Long] =
     firstElementOffset(aoff, length) + i.toL * const(elementByteSize)
 
-  def elementOffset(aoff: Code[Long], i: Code[Int]): Code[Long] =
+  def elementOffset(aoff: Code[Long], i: Code[Int])(implicit line: LineNumber): Code[Long] =
     Code.memoize(aoff, "pcarr_elem_off_aoff") { aoff =>
       firstElementOffset(aoff, loadLength(aoff)) + i.toL * const(elementByteSize)
     }
 
-  def nextElementAddress(currentOffset: Long) =
+  def nextElementAddress(currentOffset: Long): Long =
     currentOffset + elementByteSize
 
-  def nextElementAddress(currentOffset: Code[Long]) =
+  def nextElementAddress(currentOffset: Code[Long])(implicit line: LineNumber): Code[Long] =
     currentOffset + elementByteSize
 
   def loadElement(aoff: Long, length: Int, i: Int): Long = {
@@ -177,7 +178,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
 
   def loadElement(aoff: Long, i: Int): Long = loadElement(aoff, loadLength(aoff), i)
 
-  def loadElement(aoff: Code[Long], length: Code[Int], i: Code[Int]): Code[Long] = {
+  def loadElement(aoff: Code[Long], length: Code[Int], i: Code[Int])(implicit line: LineNumber): Code[Long] = {
     val off = elementOffset(aoff, length, i)
     elementType.fundamentalType match {
       case _: PArray | _: PBinary => Region.loadAddress(off)
@@ -185,7 +186,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
     }
   }
 
-  def loadElement(aoff: Code[Long], i: Code[Int]): Code[Long] =
+  def loadElement(aoff: Code[Long], i: Code[Int])(implicit line: LineNumber): Code[Long] =
     Code.memoize(aoff, "pcarr_load_elem_aoff") { aoff =>
       loadElement(aoff, loadLength(aoff), i)
     }
@@ -210,7 +211,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
     region.allocate(contentsAlignment, contentsByteSize(length))
   }
 
-  def allocate(region: Code[Region], length: Code[Int]): Code[Long] =
+  def allocate(region: Code[Region], length: Code[Int])(implicit line: LineNumber): Code[Long] =
     region.allocate(contentsAlignment, contentsByteSize(length))
 
   private def writeMissingness(aoff: Long, length: Int, value: Byte) {
@@ -235,7 +236,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
       clearMissingBits(aoff, length)
   }
 
-  def stagedInitialize(aoff: Code[Long], length: Code[Int], setMissing: Boolean = false): Code[Unit] = {
+  def stagedInitialize(aoff: Code[Long], length: Code[Int], setMissing: Boolean = false)(implicit line: LineNumber): Code[Unit] = {
     if (elementRequired)
       Region.storeInt(aoff, length)
     else
@@ -255,7 +256,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
     aoff
   }
 
-  def zeroes(mb: EmitMethodBuilder[_], region: Value[Region], length: Code[Int]): Code[Long] = {
+  def zeroes(mb: EmitMethodBuilder[_], region: Value[Region], length: Code[Int])(implicit line: LineNumber): Code[Long] = {
     require(elementType.isNumeric)
     Code.memoize(length, "pcarr_zeros_len") { length =>
       val aoff = mb.newLocal[Long]()
@@ -267,7 +268,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
     }
   }
 
-  def forEach(mb: EmitMethodBuilder[_], aoff: Code[Long], body: Code[Long] => Code[Unit]): Code[Unit] = {
+  def forEach(mb: EmitMethodBuilder[_], aoff: Code[Long], body: Code[Long] => Code[Unit])(implicit line: LineNumber): Code[Unit] = {
     val i = mb.newLocal[Int]()
     val n = mb.newLocal[Int]()
     Code(
@@ -315,7 +316,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
     }
   }
 
-  def hasMissingValues(srcAddress: Code[Long]): Code[Boolean] = {
+  def hasMissingValues(srcAddress: Code[Long])(implicit line: LineNumber): Code[Boolean] = {
     if (elementRequired)
       return const(false)
 
@@ -330,7 +331,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
     destOff
   }
 
-  def copyFrom(mb: EmitMethodBuilder[_], region: Code[Region], srcOff: Code[Long]): Code[Long] = {
+  def copyFrom(mb: EmitMethodBuilder[_], region: Code[Region], srcOff: Code[Long])(implicit line: LineNumber): Code[Long] = {
     val destOff = mb.genFieldThisRef[Long]()
     Code(
       destOff := allocate(region, loadLength(srcOff)),
@@ -339,7 +340,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
     )
   }
 
-  def deepPointerCopy(mb: EmitMethodBuilder[_], region: Value[Region], dstAddress: Code[Long]): Code[Unit] = {
+  def deepPointerCopy(mb: EmitMethodBuilder[_], region: Value[Region], dstAddress: Code[Long])(implicit line: LineNumber): Code[Unit] = {
     if (!this.elementType.fundamentalType.containsPointers) {
       return Code._empty
     }
@@ -389,7 +390,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
     }
   }
 
-  def copyFromType(mb: EmitMethodBuilder[_], region: Value[Region], srcPType: PType, srcAddress: Code[Long], deepCopy: Boolean): Code[Long] = {
+  def copyFromType(mb: EmitMethodBuilder[_], region: Value[Region], srcPType: PType, srcAddress: Code[Long], deepCopy: Boolean)(implicit line: LineNumber): Code[Long] = {
     val sourceType = srcPType.asInstanceOf[PArray]
     constructOrCopy(mb, region, sourceType, srcAddress, deepCopy)
   }
@@ -426,15 +427,15 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
     }
   }
 
-  def copyFromTypeAndStackValue(mb: EmitMethodBuilder[_], region: Value[Region], srcPType: PType, stackValue: Code[_], deepCopy: Boolean): Code[_] =
+  def copyFromTypeAndStackValue(mb: EmitMethodBuilder[_], region: Value[Region], srcPType: PType, stackValue: Code[_], deepCopy: Boolean)(implicit line: LineNumber): Code[_] =
     this.copyFromType(mb, region, srcPType, stackValue.asInstanceOf[Code[Long]], deepCopy)
 
-  def constructAtAddress(mb: EmitMethodBuilder[_], addr: Code[Long], region: Value[Region], srcPType: PType, srcAddress: Code[Long], deepCopy: Boolean): Code[Unit] = {
+  def constructAtAddress(mb: EmitMethodBuilder[_], addr: Code[Long], region: Value[Region], srcPType: PType, srcAddress: Code[Long], deepCopy: Boolean)(implicit line: LineNumber): Code[Unit] = {
     val srcArray = srcPType.asInstanceOf[PArray]
     Region.storeAddress(addr, copyFromType(mb, region, srcArray, srcAddress, deepCopy))
   }
 
-  private def constructOrCopy(mb: EmitMethodBuilder[_], region: Value[Region], srcArray: PArray, srcAddress: Code[Long], deepCopy: Boolean): Code[Long] = {
+  private def constructOrCopy(mb: EmitMethodBuilder[_], region: Value[Region], srcArray: PArray, srcAddress: Code[Long], deepCopy: Boolean)(implicit line: LineNumber): Code[Long] = {
     if (srcArray.isInstanceOf[PCanonicalArray] && srcArray.elementType == elementType) {
       if (deepCopy) {
         val newAddr = mb.newLocal[Long]()
@@ -484,7 +485,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
   private def deepRenameArray(t: TArray): PArray =
     PCanonicalArray(this.elementType.deepRename(t.elementType), this.required)
 
-  override def load(src: Code[Long]): PCode =
+  override def load(src: Code[Long])(implicit line: LineNumber): PCode =
     new PCanonicalIndexableCode(this, Region.loadAddress(src))
 }
 
@@ -495,17 +496,20 @@ class PCanonicalIndexableCode(val pt: PContainer, val a: Code[Long]) extends PIn
 
   def loadLength(): Code[Int] = pt.loadLength(a)
 
-  def memoize(cb: EmitCodeBuilder, name: String, sb: SettableBuilder): PIndexableValue = {
+  def memoize(cb: EmitCodeBuilder, name: String, sb: SettableBuilder)(implicit line: LineNumber): PIndexableValue = {
     val s = PCanonicalIndexableSettable(sb, pt, name)
     cb.assign(s, this)
     s
   }
 
-  def memoize(cb: EmitCodeBuilder, name: String): PIndexableValue = memoize(cb, name, cb.localBuilder)
+  def memoize(cb: EmitCodeBuilder, name: String)(implicit line: LineNumber): PIndexableValue =
+    memoize(cb, name, cb.localBuilder)
 
-  def memoizeField(cb: EmitCodeBuilder, name: String): PIndexableValue = memoize(cb, name, cb.fieldBuilder)
+  def memoizeField(cb: EmitCodeBuilder, name: String)(implicit line: LineNumber): PIndexableValue =
+    memoize(cb, name, cb.fieldBuilder)
 
-  def store(mb: EmitMethodBuilder[_], r: Value[Region], dst: Code[Long]): Code[Unit] = Region.storeAddress(dst, a)
+  def store(mb: EmitMethodBuilder[_], r: Value[Region], dst: Code[Long])(implicit line: LineNumber): Code[Unit] =
+    Region.storeAddress(dst, a)
 }
 
 object PCanonicalIndexableSettable {
@@ -523,22 +527,24 @@ class PCanonicalIndexableSettable(
   val length: Settable[Int],
   val elementsAddress: Settable[Long]
 ) extends PIndexableValue with PSettable {
-  def get: PIndexableCode = new PCanonicalIndexableCode(pt, a)
+  def get(implicit line: LineNumber): PIndexableCode =
+    new PCanonicalIndexableCode(pt, a)
 
   def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(a, length, elementsAddress)
 
   def loadLength(): Value[Int] = length
 
-  def loadElement(cb: EmitCodeBuilder, i: Code[Int]): IEmitCode = {
+  def loadElement(cb: EmitCodeBuilder, i: Code[Int])(implicit line: LineNumber): IEmitCode = {
     val iv = cb.newLocal("pcindval_i", i)
     IEmitCode(cb,
       isElementMissing(iv),
       pt.elementType.load(elementsAddress + iv.toL * pt.elementByteSize))
   }
 
-  def isElementMissing(i: Code[Int]): Code[Boolean] = pt.isElementMissing(a, i)
+  def isElementMissing(i: Code[Int])(implicit line: LineNumber): Code[Boolean] =
+    pt.isElementMissing(a, i)
 
-  def store(pc: PCode): Code[Unit] = {
+  def store(pc: PCode)(implicit line: LineNumber): Code[Unit] = {
     Code(
       a := pc.asInstanceOf[PCanonicalIndexableCode].a,
       length := pt.loadLength(a),

@@ -1,7 +1,7 @@
 package is.hail.types.physical
 
 import is.hail.annotations.{CodeOrdering, Region}
-import is.hail.asm4s.{Code, Value, coerce}
+import is.hail.asm4s.{Code, LineNumber, Value, coerce}
 import is.hail.expr.ir.{EmitMethodBuilder, SortOrder}
 import is.hail.types.virtual.{TTuple, TupleField}
 import is.hail.utils._
@@ -38,18 +38,21 @@ class CodePTuple(
 ) {
   def apply[T](i: Int): Value[T] =
       new Value[T] {
-        def get: Code[T] = coerce[T](Region.loadIRIntermediate(pType.types(i))(pType.loadField(offset, i)))
+        def get(implicit line: LineNumber): Code[T] = coerce[T](Region.loadIRIntermediate(pType.types(i))(pType.loadField(offset, i)))
       }
 
-  def isMissing(i: Int): Code[Boolean] = {
+  def isMissing(i: Int)(implicit line: LineNumber): Code[Boolean] = {
     pType.isFieldMissing(offset, i)
   }
 
-  def withTypesAndIndices: IndexedSeq[(PType, Value[_], Int)] = (0 until pType.nFields).map(i => (pType.types(i), apply(i), i)).toFastIndexedSeq
+  def withTypesAndIndices: IndexedSeq[(PType, Value[_], Int)] =
+    (0 until pType.nFields).map(i => (pType.types(i), apply(i), i)).toFastIndexedSeq
 
-  def withTypes: IndexedSeq[(PType, Value[_])] = withTypesAndIndices.map(x => (x._1, x._2)).toFastIndexedSeq
+  def withTypes: IndexedSeq[(PType, Value[_])] =
+    withTypesAndIndices.map(x => (x._1, x._2)).toFastIndexedSeq
 
-  def missingnessPattern: IndexedSeq[Code[Boolean]] = (0 until pType.nFields).map(isMissing)
+  def missingnessPattern(implicit line: LineNumber): IndexedSeq[Code[Boolean]] =
+    (0 until pType.nFields).map(isMissing)
 
   def values[T, U, V]: (Value[T], Value[U], Value[V]) = {
     assert(pType.nFields == 3)

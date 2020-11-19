@@ -152,7 +152,7 @@ abstract class PBaseStruct extends PType {
 
   def initialize(structAddress: Long, setMissing: Boolean = false): Unit
 
-  def stagedInitialize(structAddress: Code[Long], setMissing: Boolean = false): Code[Unit]
+  def stagedInitialize(structAddress: Code[Long], setMissing: Boolean = false)(implicit line: LineNumber): Code[Unit]
 
   def isFieldDefined(offset: Long, fieldIdx: Int): Boolean
 
@@ -160,7 +160,7 @@ abstract class PBaseStruct extends PType {
 
   def isFieldMissing(offset: Code[Long], fieldIdx: Int): Code[Boolean]
 
-  def isFieldDefined(offset: Code[Long], fieldIdx: Int): Code[Boolean] =
+  def isFieldDefined(offset: Code[Long], fieldIdx: Int)(implicit line: LineNumber): Code[Boolean] =
     !isFieldMissing(offset, fieldIdx)
 
   def setFieldMissing(offset: Long, fieldIdx: Int): Unit
@@ -188,25 +188,27 @@ abstract class PBaseStruct extends PType {
       Gen.uniformSequence(types.map(t => t.genValue)).map(a => Annotation(a: _*))
   }
 
-  override def load(src: Code[Long]): PBaseStructCode = ???
+  override def load(src: Code[Long])(implicit line: LineNumber): PBaseStructCode = ???
 }
 
 abstract class PBaseStructValue extends PValue {
   def pt: PBaseStruct
 
-  def isFieldMissing(fieldIdx: Int): Code[Boolean]
+  def isFieldMissing(fieldIdx: Int)(implicit line: LineNumber): Code[Boolean]
 
-  def isFieldMissing(fieldName: String): Code[Boolean] = isFieldMissing(pt.fieldIdx(fieldName))
+  def isFieldMissing(fieldName: String)(implicit line: LineNumber): Code[Boolean] =
+    isFieldMissing(pt.fieldIdx(fieldName))
 
-  def loadField(cb: EmitCodeBuilder, fieldIdx: Int): IEmitCode
+  def loadField(cb: EmitCodeBuilder, fieldIdx: Int)(implicit line: LineNumber): IEmitCode
 
-  def loadField(cb: EmitCodeBuilder, fieldName: String): IEmitCode = loadField(cb, pt.fieldIdx(fieldName))
+  def loadField(cb: EmitCodeBuilder, fieldName: String)(implicit line: LineNumber): IEmitCode =
+    loadField(cb, pt.fieldIdx(fieldName))
 }
 
 abstract class PBaseStructCode extends PCode {
   def pt: PBaseStruct
 
-  def memoize(cb: EmitCodeBuilder, name: String): PBaseStructValue
+  def memoize(cb: EmitCodeBuilder, name: String)(implicit line: LineNumber): PBaseStructValue
 
-  def memoizeField(cb: EmitCodeBuilder, name: String): PBaseStructValue
+  def memoizeField(cb: EmitCodeBuilder, name: String)(implicit line: LineNumber): PBaseStructValue
 }

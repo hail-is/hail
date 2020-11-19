@@ -32,7 +32,7 @@ final case class EBlockMatrixNDArray(elementType: EType, encodeRowMajor: Boolean
     PCanonicalNDArray(elementPType, 2, required)
   }
 
-  def _buildEncoder(cb: EmitCodeBuilder, pt: PType, v: Value[_], out: Value[OutputBuffer]): Unit = {
+  def _buildEncoder(cb: EmitCodeBuilder, pt: PType, v: Value[_], out: Value[OutputBuffer])(implicit line: LineNumber): Unit = {
     val ndarray = PCode(pt, v).asNDArray.memoize(cb, "ndarray")
     val shapes = ndarray.shapes()
     val r = cb.newLocal[Long]("r", shapes(0))
@@ -64,7 +64,7 @@ final case class EBlockMatrixNDArray(elementType: EType, encodeRowMajor: Boolean
     pt: PType,
     region: Value[Region],
     in: Value[InputBuffer]
-  ): Code[Long] = {
+  )(implicit line: LineNumber): Code[Long] = {
     val t = pt.asInstanceOf[PCanonicalNDArray]
     val readElemF = elementType.buildInplaceDecoder(t.elementType, cb.emb.ecb)
 
@@ -92,7 +92,7 @@ final case class EBlockMatrixNDArray(elementType: EType, encodeRowMajor: Boolean
     t.construct(shapeBuilder, stridesBuilder, data, cb.emb, region)
   }
 
-  def _buildSkip(cb: EmitCodeBuilder, r: Value[Region], in: Value[InputBuffer]): Unit = {
+  def _buildSkip(cb: EmitCodeBuilder, r: Value[Region], in: Value[InputBuffer])(implicit line: LineNumber): Unit = {
     val skip = elementType.buildSkip(cb.emb)
 
     val len = cb.newLocal[Int]("len", in.readInt() * in.readInt())

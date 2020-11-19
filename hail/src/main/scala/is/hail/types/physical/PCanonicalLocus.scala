@@ -41,7 +41,8 @@ final case class PCanonicalLocus(rgBc: BroadcastRG, required: Boolean = false) e
 
   lazy val contigType: PCanonicalString = representation.field("contig").typ.asInstanceOf[PCanonicalString]
 
-  def position(off: Code[Long]): Code[Int] = Region.loadInt(representation.loadField(off, 1))
+  def position(off: Code[Long])(implicit line: LineNumber): Code[Int] =
+    Region.loadInt(representation.loadField(off, 1))
 
   lazy val positionType: PInt32 = representation.field("position").typ.asInstanceOf[PInt32]
 
@@ -76,7 +77,7 @@ final case class PCanonicalLocus(rgBc: BroadcastRG, required: Boolean = false) e
       type T = Long
       val bincmp = representation.fundamentalType.fieldType("contig").asInstanceOf[PBinary].codeOrdering(mb)
 
-      override def compareNonnull(x: Code[Long], y: Code[Long]): Code[Int] = {
+      override def compareNonnull(x: Code[Long], y: Code[Long])(implicit line: LineNumber): Code[Int] = {
         val c1 = mb.newLocal[Long]("c1")
         val c2 = mb.newLocal[Long]("c2")
 
@@ -117,18 +118,19 @@ class PCanonicalLocusSettable(
   _contig: Settable[Long],
   val position: Settable[Int]
 ) extends PLocusValue with PSettable {
-  def get = new PCanonicalLocusCode(pt, a)
+  def get(implicit line: LineNumber) = new PCanonicalLocusCode(pt, a)
 
   def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(a, _contig, position)
 
-  def store(pc: PCode): Code[Unit] = {
+  def store(pc: PCode)(implicit line: LineNumber): Code[Unit] = {
     Code(
       a := pc.asInstanceOf[PCanonicalLocusCode].a,
       _contig := pt.contigAddr(a),
       position := pt.position(a))
   }
 
-  def contig(): PStringCode = new PCanonicalStringCode(pt.contigType.asInstanceOf[PCanonicalString], _contig)
+  def contig()(implicit line: LineNumber): PStringCode =
+    new PCanonicalStringCode(pt.contigType.asInstanceOf[PCanonicalString], _contig)
 }
 
 class PCanonicalLocusCode(val pt: PCanonicalLocus, val a: Code[Long]) extends PLocusCode {
@@ -138,9 +140,10 @@ class PCanonicalLocusCode(val pt: PCanonicalLocus, val a: Code[Long]) extends PL
 
   def contig(): PStringCode = new PCanonicalStringCode(pt.contigType, pt.contigAddr(a))
 
-  def position(): Code[Int] = pt.position(a)
+  def position()(implicit line: LineNumber): Code[Int] =
+    pt.position(a)
 
-  def getLocusObj(): Code[Locus] = {
+  def getLocusObj()(implicit line: LineNumber): Code[Locus] = {
     Code.memoize(a, "get_locus_code_memo") { a =>
       Code.invokeStatic2[Locus, String, Int, Locus]("apply",
         pt.contigType.loadString(pt.contigAddr(a)),
@@ -148,15 +151,18 @@ class PCanonicalLocusCode(val pt: PCanonicalLocus, val a: Code[Long]) extends PL
     }
   }
 
-  def memoize(cb: EmitCodeBuilder, name: String, sb: SettableBuilder): PLocusValue = {
+  def memoize(cb: EmitCodeBuilder, name: String, sb: SettableBuilder)(implicit line: LineNumber): PLocusValue = {
     val s = PCanonicalLocusSettable(sb, pt, name)
     cb.assign(s, this)
     s
   }
 
-  def memoize(cb: EmitCodeBuilder, name: String): PLocusValue = memoize(cb, name, cb.localBuilder)
+  def memoize(cb: EmitCodeBuilder, name: String)(implicit line: LineNumber): PLocusValue =
+    memoize(cb, name, cb.localBuilder)
 
-  def memoizeField(cb: EmitCodeBuilder, name: String): PLocusValue = memoize(cb, name, cb.fieldBuilder)
+  def memoizeField(cb: EmitCodeBuilder, name: String)(implicit line: LineNumber): PLocusValue =
+    memoize(cb, name, cb.fieldBuilder)
 
-  def store(mb: EmitMethodBuilder[_], r: Value[Region], dst: Code[Long]): Code[Unit] = Region.storeAddress(dst, a)
+  def store(mb: EmitMethodBuilder[_], r: Value[Region], dst: Code[Long])(implicit line: LineNumber): Code[Unit] =
+    Region.storeAddress(dst, a)
 }

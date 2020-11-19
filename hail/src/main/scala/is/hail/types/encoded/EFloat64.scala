@@ -13,7 +13,7 @@ case object EFloat64Optional extends EFloat64(false)
 case object EFloat64Required extends EFloat64(true)
 
 class EFloat64(override val required: Boolean) extends EFundamentalType {
-  def _buildFundamentalEncoder(cb: EmitCodeBuilder, pt: PType, v: Value[_], out: Value[OutputBuffer]): Unit = {
+  def _buildFundamentalEncoder(cb: EmitCodeBuilder, pt: PType, v: Value[_], out: Value[OutputBuffer])(implicit line: LineNumber): Unit = {
     cb += out.writeDouble(coerce[Double](v))
   }
 
@@ -24,7 +24,8 @@ class EFloat64(override val required: Boolean) extends EFundamentalType {
     in: Value[InputBuffer]
   ): Code[Double] = in.readDouble()
 
-  def _buildSkip(cb: EmitCodeBuilder, r: Value[Region], in: Value[InputBuffer]): Unit = cb += in.skipDouble()
+  def _buildSkip(cb: EmitCodeBuilder, r: Value[Region], in: Value[InputBuffer])(implicit line: LineNumber): Unit =
+    cb += in.skipDouble()
 
   override def _compatible(pt: PType): Boolean = pt.isInstanceOf[PFloat64]
 

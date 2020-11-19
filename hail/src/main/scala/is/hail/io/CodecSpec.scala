@@ -65,7 +65,7 @@ trait AbstractTypedCodecSpec extends Spec {
 
   def buildCodeOutputBuffer(os: Code[OutputStream]): Code[OutputBuffer]
 
-  def buildEmitDecoder(requestedType: Type, cb: EmitClassBuilder[_]): EmitDecoder = {
+  def buildEmitDecoder(requestedType: Type, cb: EmitClassBuilder[_])(implicit line: LineNumber): EmitDecoder = {
     typeToTypeInfo(decodedPType(requestedType)) match {
       case ti: TypeInfo[t] =>
         val (ptype, dec) = buildTypedEmitDecoderF[t](requestedType, cb)
@@ -76,7 +76,7 @@ trait AbstractTypedCodecSpec extends Spec {
     }
   }
 
-  def buildEmitEncoder(pt: PType, cb: EmitClassBuilder[_]): EmitEncoder = {
+  def buildEmitEncoder(pt: PType, cb: EmitClassBuilder[_])(implicit line: LineNumber): EmitEncoder = {
     typeToTypeInfo(pt) match {
       case ti: TypeInfo[t] =>
         val enc: StagedEncoder[t] = buildTypedEmitEncoderF[t](pt, cb)
@@ -87,7 +87,7 @@ trait AbstractTypedCodecSpec extends Spec {
     }
   }
 
-  def buildTypedEmitDecoderF[T](requestedType: Type, cb: EmitClassBuilder[_]): (PType, StagedDecoder[T]) = {
+  def buildTypedEmitDecoderF[T](requestedType: Type, cb: EmitClassBuilder[_])(implicit line: LineNumber): (PType, StagedDecoder[T]) = {
     val rt = encodedType.decodedPType(requestedType)
     val mb = encodedType.buildDecoderMethod(rt, cb)
     val dec = new StagedDecoder[T] {
@@ -97,10 +97,10 @@ trait AbstractTypedCodecSpec extends Spec {
     (rt, dec)
   }
 
-  def buildEmitDecoderF[T](cb: EmitClassBuilder[_]): (PType, StagedDecoder[T]) =
+  def buildEmitDecoderF[T](cb: EmitClassBuilder[_])(implicit line: LineNumber): (PType, StagedDecoder[T]) =
     buildTypedEmitDecoderF(encodedVirtualType, cb)
 
-  def buildTypedEmitEncoderF[T](t: PType, cb: EmitClassBuilder[_]): StagedEncoder[T] = {
+  def buildTypedEmitEncoderF[T](t: PType, cb: EmitClassBuilder[_])(implicit line: LineNumber): StagedEncoder[T] = {
     val mb = encodedType.buildEncoderMethod(t, cb)
     new StagedEncoder[T] {
       def apply(region: Value[Region], off: Value[T], buf: Value[OutputBuffer])(implicit line: LineNumber): Code[Unit] =

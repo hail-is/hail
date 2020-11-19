@@ -61,6 +61,8 @@ object Interpret {
     def interpret(ir: IR, env: Env[Any] = env, args: IndexedSeq[(Any, Type)] = args): Any =
       run(ctx, ir, env, args, functionMemo)
 
+    implicit val line = LineNumber(ir.lineNumber)
+
     ir match {
       case I32(x) => x
       case I64(x) => x

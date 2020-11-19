@@ -10,70 +10,70 @@ import is.hail.types.physical._
 class RichCodeInputBuffer(
   val ib: Value[InputBuffer]
 ) extends AnyVal {
-  def close(): Code[Unit] =
+  def close()(implicit line: LineNumber): Code[Unit] =
     ib.invoke[Unit]("close")
 
-  def seek(offset: Code[Long]): Code[Unit] =
+  def seek(offset: Code[Long])(implicit line: LineNumber): Code[Unit] =
     ib.invoke[Long, Unit]("seek", offset)
 
-  def readByte(): Code[Byte] =
+  def readByte()(implicit line: LineNumber): Code[Byte] =
     ib.invoke[Byte]("readByte")
 
-  def read(buf: Code[Array[Byte]], toOff: Code[Int], n: Code[Int]): Code[Unit] =
+  def read(buf: Code[Array[Byte]], toOff: Code[Int], n: Code[Int])(implicit line: LineNumber): Code[Unit] =
     ib.invoke[Array[Byte], Int, Int, Unit]("read", buf, toOff, n)
 
-  def readInt(): Code[Int] =
+  def readInt()(implicit line: LineNumber): Code[Int] =
     ib.invoke[Int]("readInt")
 
-  def readLong(): Code[Long] =
+  def readLong()(implicit line: LineNumber): Code[Long] =
     ib.invoke[Long]("readLong")
 
-  def readFloat(): Code[Float] =
+  def readFloat()(implicit line: LineNumber): Code[Float] =
     ib.invoke[Float]("readFloat")
 
-  def readDouble(): Code[Double] =
+  def readDouble()(implicit line: LineNumber): Code[Double] =
     ib.invoke[Double]("readDouble")
 
-  def readBytes(toRegion: Code[Region], toOff: Code[Long], n: Code[Int]): Code[Unit] =
+  def readBytes(toRegion: Code[Region], toOff: Code[Long], n: Code[Int])(implicit line: LineNumber): Code[Unit] =
     ib.invoke[Region, Long, Int, Unit]("readBytes", toRegion, toOff, n)
 
-  def readBytesArray(n: Code[Int]): Code[Array[Byte]] =
+  def readBytesArray(n: Code[Int])(implicit line: LineNumber): Code[Array[Byte]] =
     ib.invoke[Int, Array[Byte]]("readBytesArray", n)
 
-  def skipBoolean(): Code[Unit] =
+  def skipBoolean()(implicit line: LineNumber): Code[Unit] =
     ib.invoke[Unit]("skipBoolean")
 
-  def skipByte(): Code[Unit] =
+  def skipByte()(implicit line: LineNumber): Code[Unit] =
     ib.invoke[Unit]("skipByte")
 
-  def skipInt(): Code[Unit] =
+  def skipInt()(implicit line: LineNumber): Code[Unit] =
     ib.invoke[Unit]("skipInt")
 
-  def skipLong(): Code[Unit] =
+  def skipLong()(implicit line: LineNumber): Code[Unit] =
     ib.invoke[Unit]("skipLong")
 
-  def skipFloat(): Code[Unit] =
+  def skipFloat()(implicit line: LineNumber): Code[Unit] =
     ib.invoke[Unit]("skipFloat")
 
-  def skipDouble(): Code[Unit] =
+  def skipDouble()(implicit line: LineNumber): Code[Unit] =
     ib.invoke[Unit]("skipDouble")
 
-  def skipBytes(n: Code[Int]): Code[Unit] =
+  def skipBytes(n: Code[Int])(implicit line: LineNumber): Code[Unit] =
     ib.invoke[Int, Unit]("skipBytes", n)
 
-  def readDoubles(to: Code[Array[Double]], off: Code[Int], n: Code[Int]): Code[Unit] =
+  def readDoubles(to: Code[Array[Double]], off: Code[Int], n: Code[Int])(implicit line: LineNumber): Code[Unit] =
     ib.invoke[Array[Double], Int, Int, Unit]("readDoubles", to, off, n)
 
-  def readDoubles(to: Code[Array[Double]]): Code[Unit] =
+  def readDoubles(to: Code[Array[Double]])(implicit line: LineNumber): Code[Unit] =
     ib.invoke[Array[Double], Unit]("readDoubles", to)
 
-  def readBoolean(): Code[Boolean] =
+  def readBoolean()(implicit line: LineNumber): Code[Boolean] =
     ib.invoke[Boolean]("readBoolean")
 
-  def readUTF(): Code[String] =
+  def readUTF()(implicit line: LineNumber): Code[String] =
     ib.invoke[String]("readUTF")
 
-  def readBytes(toRegion: Value[Region], toOff: Code[Long], n: Int): Code[Unit] = {
+  def readBytes(toRegion: Value[Region], toOff: Code[Long], n: Int)(implicit line: LineNumber): Code[Unit] = {
     if (n == 0)
       Code._empty
     else if (n < 5)
@@ -87,7 +87,7 @@ class RichCodeInputBuffer(
       ib.invoke[Region, Long, Int, Unit]("readBytes", toRegion, toOff, n)
   }
 
-  def readPrimitive(typ: PType): Code[_] = typ.fundamentalType match {
+  def readPrimitive(typ: PType)(implicit line: LineNumber): Code[_] = typ.fundamentalType match {
     case _: PBoolean => readBoolean()
     case _: PInt32 => readInt()
     case _: PInt64 => readLong()

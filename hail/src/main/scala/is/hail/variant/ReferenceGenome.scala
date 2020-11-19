@@ -4,7 +4,7 @@ import java.io.InputStream
 
 import htsjdk.samtools.reference.FastaSequenceIndex
 import is.hail.HailContext
-import is.hail.asm4s.Code
+import is.hail.asm4s.{Code, LineNumber}
 import is.hail.backend.BroadcastValue
 import is.hail.check.Gen
 import is.hail.expr.ir.{EmitClassBuilder, ExecuteContext, RelationalSpec}
@@ -488,7 +488,7 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
     Serialization.write(toJSON)
   }
 
-  def codeSetup(localTmpdir: String, cb: EmitClassBuilder[_]): Code[ReferenceGenome] = {
+  def codeSetup(localTmpdir: String, cb: EmitClassBuilder[_])(implicit line: LineNumber): Code[ReferenceGenome] = {
     val json = toJSONString
     val chunkSize = (1 << 16) - 1
     val nChunks = (json.length() - 1) / chunkSize + 1

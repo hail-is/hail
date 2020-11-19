@@ -176,7 +176,7 @@ trait OwnedStagedRegion extends ChildStagedRegion {
 
   def shareWithSibling(dest: ChildStagedRegion): Code[Unit]
 
-  def addToParentRVB(srvb: StagedRegionValueBuilder, value: PCode): Code[Unit]
+  def addToParentRVB(srvb: StagedRegionValueBuilder, value: PCode)(implicit line: LineNumber): Code[Unit]
 }
 
 abstract class OwnedStagedRegionArray {
@@ -204,13 +204,17 @@ class RealOwnedStagedRegion(
     new RealOwnedStagedRegion(newR, parent, otherAncestors)
   }
 
-  def allocateRegion(size: Int)(implicit line: LineNumber): Code[Unit] = r := Region.stagedCreate(size)
+  def allocateRegion(size: Int)(implicit line: LineNumber): Code[Unit] =
+    r := Region.stagedCreate(size)
 
-  def free()(implicit line: LineNumber): Code[Unit] = Code(r.invalidate(), r := Code._null)
+  def free()(implicit line: LineNumber): Code[Unit] =
+    Code(r.invalidate(), r := Code._null)
 
-  def clear(): Code[Unit] = (r: Value[Region]).clear()
+  def clear()(implicit line: LineNumber): Code[Unit] =
+    (r: Value[Region]).clear()
 
-  def giveToParent()(implicit line: LineNumber): Code[Unit] = r.invoke[Region, Unit]("move", parent.code)
+  def giveToParent()(implicit line: LineNumber): Code[Unit] =
+    r.invoke[Region, Unit]("move", parent.code)
 
   def copyTo(mb: EmitMethodBuilder[_], value: PCode, dest: StagedRegion, destType: PType): PCode = {
     dest assertSubRegion parent

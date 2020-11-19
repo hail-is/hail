@@ -26,7 +26,7 @@ abstract class PLocusValue extends PValue {
 
   def position(): Value[Int]
 
-  def getLocusObj(): Code[Locus] = Code.invokeStatic2[Locus, String, Int, Locus]("apply",
+  def getLocusObj()(implicit line: LineNumber): Code[Locus] = Code.invokeStatic2[Locus, String, Int, Locus]("apply",
     contig().loadString(), position())
 }
 
@@ -37,7 +37,7 @@ abstract class PLocusCode extends PCode {
 
   def position(): Code[Int]
 
-  def getLocusObj(): Code[Locus]
+  def getLocusObj()(implicit line: LineNumber): Code[Locus]
 
   def memoize(cb: EmitCodeBuilder, name: String): PLocusValue
 

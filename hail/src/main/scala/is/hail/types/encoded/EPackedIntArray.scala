@@ -29,7 +29,7 @@ final case class EPackedIntArray(
     pt: PType,
     region: Value[Region],
     in: Value[InputBuffer]
-  ): Code[_] = {
+  )(implicit line: LineNumber): Code[_] = {
     val pa = pt.asInstanceOf[PArray]
 
     val len = cb.newLocal[Int]("len", in.readInt())
@@ -65,14 +65,14 @@ final case class EPackedIntArray(
     array
   }
 
-  def _buildSkip(cb: EmitCodeBuilder, r: Value[Region], in: Value[InputBuffer]): Unit = {
+  def _buildSkip(cb: EmitCodeBuilder, r: Value[Region], in: Value[InputBuffer])(implicit line: LineNumber): Unit = {
     val len = cb.newLocal[Int]("len", in.readInt())
     if (!elementsRequired) cb += in.skipBytes(UnsafeUtils.packBitsToBytes(len))
     cb.assign(len, in.readInt())
     cb += in.skipBytes(len)
   }
 
-  def _buildFundamentalEncoder(cb: EmitCodeBuilder, pt: PType, v: Value[_], out: Value[OutputBuffer]): Unit = {
+  def _buildFundamentalEncoder(cb: EmitCodeBuilder, pt: PType, v: Value[_], out: Value[OutputBuffer])(implicit line: LineNumber): Unit = {
     val pa = pt.asInstanceOf[PArray]
     val array = coerce[Long](v)
     val len = cb.newLocal[Int]("len", pa.loadLength(array))
@@ -100,7 +100,7 @@ final case class EPackedIntArray(
   def _asIdent: String = s"packedintarray_w_${if (elementsRequired) "required" else "optional"}_elements"
   def _toPretty: String = s"EPackedIntArray[${if (elementsRequired) "True" else "False"}]"
 
-  private def getPacker(mb: EmitMethodBuilder[_]): Value[IntPacker] = {
+  private def getPacker(mb: EmitMethodBuilder[_])(implicit line: LineNumber): Value[IntPacker] = {
     mb.getOrDefineLazyField[IntPacker](Code.newInstance[IntPacker], "thePacker")
   }
 

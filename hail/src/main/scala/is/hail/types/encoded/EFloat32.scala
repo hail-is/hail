@@ -13,7 +13,7 @@ case object EFloat32Optional extends EFloat32(false)
 case object EFloat32Required extends EFloat32(true)
 
 class EFloat32(override val required: Boolean) extends EFundamentalType {
-  def _buildFundamentalEncoder(cb: EmitCodeBuilder, pt: PType, v: Value[_], out: Value[OutputBuffer]): Unit = {
+  def _buildFundamentalEncoder(cb: EmitCodeBuilder, pt: PType, v: Value[_], out: Value[OutputBuffer])(implicit line: LineNumber): Unit = {
     cb += out.writeFloat(coerce[Float](v))
   }
 
@@ -24,7 +24,8 @@ class EFloat32(override val required: Boolean) extends EFundamentalType {
     in: Value[InputBuffer]
   ): Code[Float] = in.readFloat()
 
-  def _buildSkip(cb: EmitCodeBuilder, r: Value[Region], in: Value[InputBuffer]): Unit = cb += in.skipFloat()
+  def _buildSkip(cb: EmitCodeBuilder, r: Value[Region], in: Value[InputBuffer])(implicit line: LineNumber): Unit =
+    cb += in.skipFloat()
 
   override def _compatible(pt: PType): Boolean = pt.isInstanceOf[PFloat32]
 

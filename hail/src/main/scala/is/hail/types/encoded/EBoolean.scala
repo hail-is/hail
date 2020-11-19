@@ -13,7 +13,7 @@ case object EBooleanOptional extends EBoolean(false)
 case object EBooleanRequired extends EBoolean(true)
 
 class EBoolean(override val required: Boolean) extends EFundamentalType {
-  def _buildFundamentalEncoder(cb: EmitCodeBuilder, pt: PType, v: Value[_], out: Value[OutputBuffer]): Unit = {
+  def _buildFundamentalEncoder(cb: EmitCodeBuilder, pt: PType, v: Value[_], out: Value[OutputBuffer])(implicit line: LineNumber): Unit = {
     cb += out.writeBoolean(coerce[Boolean](v))
   }
 
@@ -24,7 +24,8 @@ class EBoolean(override val required: Boolean) extends EFundamentalType {
     in: Value[InputBuffer]
   ): Code[Boolean] = in.readBoolean()
 
-  def _buildSkip(cb: EmitCodeBuilder, r: Value[Region], in: Value[InputBuffer]): Unit = cb += in.skipBoolean()
+  def _buildSkip(cb: EmitCodeBuilder, r: Value[Region], in: Value[InputBuffer])(implicit line: LineNumber): Unit =
+    cb += in.skipBoolean()
 
   override def _compatible(pt: PType): Boolean = pt.isInstanceOf[PBoolean]
 

@@ -26,34 +26,39 @@ class PInt64(override val required: Boolean) extends PNumeric with PPrimitive {
     new CodeOrdering {
       type T = Long
 
-      def compareNonnull(x: Code[T], y: Code[T]): Code[Int] =
+      def compareNonnull(x: Code[T], y: Code[T])(implicit line: LineNumber): Code[Int] =
         Code.invokeStatic2[java.lang.Long, Long, Long, Int]("compare", x, y)
 
-      def ltNonnull(x: Code[T], y: Code[T]): Code[Boolean] = x < y
+      def ltNonnull(x: Code[T], y: Code[T])(implicit line: LineNumber): Code[Boolean] =
+        x < y
 
-      def lteqNonnull(x: Code[T], y: Code[T]): Code[Boolean] = x <= y
+      def lteqNonnull(x: Code[T], y: Code[T])(implicit line: LineNumber): Code[Boolean] =
+        x <= y
 
-      def gtNonnull(x: Code[T], y: Code[T]): Code[Boolean] = x > y
+      def gtNonnull(x: Code[T], y: Code[T])(implicit line: LineNumber): Code[Boolean] =
+        x > y
 
-      def gteqNonnull(x: Code[T], y: Code[T]): Code[Boolean] = x >= y
+      def gteqNonnull(x: Code[T], y: Code[T])(implicit line: LineNumber): Code[Boolean] =
+        x >= y
 
-      def equivNonnull(x: Code[T], y: Code[T]): Code[Boolean] = x.ceq(y)
+      def equivNonnull(x: Code[T], y: Code[T])(implicit line: LineNumber): Code[Boolean] =
+        x.ceq(y)
     }
   }
 
   override def byteSize: Long = 8
 
-  override def zero = coerce[PInt64](const(0L))
+  override def zero(implicit line: LineNumber) = coerce[PInt64](const(0L))
 
-  override def add(a: Code[_], b: Code[_]): Code[PInt64] = {
+  override def add(a: Code[_], b: Code[_])(implicit line: LineNumber): Code[PInt64] = {
     coerce[PInt64](coerce[Long](a) + coerce[Long](b))
   }
 
-  override def multiply(a: Code[_], b: Code[_]): Code[PInt64] = {
+  override def multiply(a: Code[_], b: Code[_])(implicit line: LineNumber): Code[PInt64] = {
     coerce[PInt64](coerce[Long](a) * coerce[Long](b))
   }
 
-  def storePrimitiveAtAddress(addr: Code[Long], srcPType: PType, value: Code[_]): Code[Unit] =
+  def storePrimitiveAtAddress(addr: Code[Long], srcPType: PType, value: Code[_])(implicit line: LineNumber): Code[Unit] =
     Region.storeLong(addr, coerce[Long](value))
 }
 

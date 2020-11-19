@@ -26,14 +26,14 @@ class PBoolean(override val required: Boolean) extends PType with PPrimitive {
     new CodeOrderingCompareConsistentWithOthers {
       type T = Boolean
 
-      def compareNonnull(x: Code[T], y: Code[T]): Code[Int] =
+      def compareNonnull(x: Code[T], y: Code[T])(implicit line: LineNumber): Code[Int] =
         Code.invokeStatic2[java.lang.Boolean, Boolean, Boolean, Int]("compare", x, y)
     }
   }
 
   override def byteSize: Long = 1
 
-  def storePrimitiveAtAddress(addr: Code[Long], srcPType: PType, value: Code[_]): Code[Unit] =
+  def storePrimitiveAtAddress(addr: Code[Long], srcPType: PType, value: Code[_])(implicit line: LineNumber): Code[Unit] =
     Region.storeBoolean(addr, coerce[Boolean](value))
 }
 

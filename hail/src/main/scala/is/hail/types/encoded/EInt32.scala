@@ -13,7 +13,7 @@ case object EInt32Optional extends EInt32(false)
 case object EInt32Required extends EInt32(true)
 
 class EInt32(override val required: Boolean) extends EFundamentalType {
-  def _buildFundamentalEncoder(cb: EmitCodeBuilder, pt: PType, v: Value[_], out: Value[OutputBuffer]): Unit = {
+  def _buildFundamentalEncoder(cb: EmitCodeBuilder, pt: PType, v: Value[_], out: Value[OutputBuffer])(implicit line: LineNumber): Unit = {
     cb += out.writeInt(coerce[Int](v))
   }
 
@@ -24,7 +24,8 @@ class EInt32(override val required: Boolean) extends EFundamentalType {
     in: Value[InputBuffer]
   ): Code[Int] = in.readInt()
 
-  def _buildSkip(cb: EmitCodeBuilder, r: Value[Region], in: Value[InputBuffer]): Unit = cb += in.skipInt()
+  def _buildSkip(cb: EmitCodeBuilder, r: Value[Region], in: Value[InputBuffer])(implicit line: LineNumber): Unit =
+    cb += in.skipInt()
 
   override def _compatible(pt: PType): Boolean = pt.isInstanceOf[PInt32]
 

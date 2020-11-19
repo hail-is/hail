@@ -44,15 +44,20 @@ class PCanonicalShuffleSettable(val pt: PCanonicalShuffle, shuffle: PCanonicalBi
   def this(pt: PCanonicalShuffle, a: Settable[Long]) =
     this(pt, new PCanonicalBinarySettable(pt.representation, a))
 
-  def get: PShuffleCode = new PCanonicalShuffleCode(pt, shuffle.get)
+  def get(implicit line: LineNumber): PShuffleCode =
+    new PCanonicalShuffleCode(pt, shuffle.get)
 
-  def settableTuple(): IndexedSeq[Settable[_]] = shuffle.settableTuple()
+  def settableTuple(): IndexedSeq[Settable[_]] =
+    shuffle.settableTuple()
 
-  def loadLength(): Code[Int] = shuffle.loadLength()
+  def loadLength()(implicit line: LineNumber): Code[Int] =
+    shuffle.loadLength()
 
-  def loadBytes(): Code[Array[Byte]] = shuffle.loadBytes()
+  def loadBytes()(implicit line: LineNumber): Code[Array[Byte]] =
+    shuffle.loadBytes()
 
-  def store(pc: PCode): Code[Unit] = shuffle.store(pc.asInstanceOf[PCanonicalShuffleCode].shuffle)
+  def store(pc: PCode)(implicit line: LineNumber): Code[Unit] =
+    shuffle.store(pc.asInstanceOf[PCanonicalShuffleCode].shuffle)
 }
 
 class PCanonicalShuffleCode(val pt: PCanonicalShuffle, val shuffle: PCanonicalBinaryCode) extends PShuffleCode {
@@ -60,15 +65,18 @@ class PCanonicalShuffleCode(val pt: PCanonicalShuffle, val shuffle: PCanonicalBi
 
   def codeTuple(): IndexedSeq[Code[_]] = shuffle.codeTuple()
 
-  def memoize(cb: EmitCodeBuilder, name: String, sb: SettableBuilder): PCanonicalShuffleSettable = {
+  def memoize(cb: EmitCodeBuilder, name: String, sb: SettableBuilder)(implicit line: LineNumber): PCanonicalShuffleSettable = {
     val s = PCanonicalShuffleSettable(sb, pt, name)
     cb.assign(s, this)
     s
   }
 
-  def memoize(cb: EmitCodeBuilder, name: String): PCanonicalShuffleSettable = memoize(cb, name, cb.localBuilder)
+  def memoize(cb: EmitCodeBuilder, name: String)(implicit line: LineNumber): PCanonicalShuffleSettable =
+    memoize(cb, name, cb.localBuilder)
 
-  def memoizeField(cb: EmitCodeBuilder, name: String): PCanonicalShuffleSettable = memoize(cb, name, cb.fieldBuilder)
+  def memoizeField(cb: EmitCodeBuilder, name: String)(implicit line: LineNumber): PCanonicalShuffleSettable =
+    memoize(cb, name, cb.fieldBuilder)
 
-  def store(mb: EmitMethodBuilder[_], r: Value[Region], dst: Code[Long]): Code[Unit] = shuffle.store(mb, r, dst)
+  def store(mb: EmitMethodBuilder[_], r: Value[Region], dst: Code[Long])(implicit line: LineNumber): Code[Unit] =
+    shuffle.store(mb, r, dst)
 }

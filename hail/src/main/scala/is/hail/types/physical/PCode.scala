@@ -19,13 +19,13 @@ trait PValue { pValueSelf =>
 }
 
 trait PSettable extends PValue {
-  def store(v: PCode): Code[Unit]
+  def store(v: PCode)(implicit line: LineNumber): Code[Unit]
 
   def settableTuple(): IndexedSeq[Settable[_]]
 
-  def load(): PCode = get
+  def load()(implicit line: LineNumber): PCode = get
 
-  def :=(v: PCode): Code[Unit] = store(v)
+  def :=(v: PCode)(implicit line: LineNumber): Code[Unit] = store(v)
 }
 
 abstract class PCode { self =>
@@ -42,9 +42,9 @@ abstract class PCode { self =>
     code.asInstanceOf[Code[T]]
   }
 
-  def store(mb: EmitMethodBuilder[_], r: Value[Region], dst: Code[Long]): Code[Unit]
+  def store(mb: EmitMethodBuilder[_], r: Value[Region], dst: Code[Long])(implicit line: LineNumber): Code[Unit]
 
-  def allocateAndStore(mb: EmitMethodBuilder[_], r: Value[Region]): (Code[Unit], Code[Long]) = {
+  def allocateAndStore(mb: EmitMethodBuilder[_], r: Value[Region])(implicit line: LineNumber): (Code[Unit], Code[Long]) = {
     val dst = mb.newLocal[Long]()
     (Code(dst := r.allocate(pt.byteSize, pt.alignment), store(mb, r, dst)), dst)
   }
@@ -77,29 +77,29 @@ abstract class PCode { self =>
 
   // this is necessary because Scala doesn't infer the return type of
   // PIndexableCode.memoize if PCode.memoize has a default implementation
-  def defaultMemoizeImpl(cb: EmitCodeBuilder, name: String): PValue = {
+  def defaultMemoizeImpl(cb: EmitCodeBuilder, name: String)(implicit line: LineNumber): PValue = {
     new PValue {
       val pt: PType = self.pt
 
-      private val v = cb.newLocalAny(name, code)(typeToTypeInfo(pt))
+      private val v = cb.newLocalAny(name, code)(typeToTypeInfo(pt), line)
 
       def get: PCode = PCode(pt, v)
     }
   }
 
-  def defaultMemoizeFieldImpl(cb: EmitCodeBuilder, name: String): PValue = {
+  def defaultMemoizeFieldImpl(cb: EmitCodeBuilder, name: String)(implicit line: LineNumber): PValue = {
     new PValue {
       val pt: PType = self.pt
 
-      private val v = cb.newFieldAny(name, code)(typeToTypeInfo(pt))
+      private val v = cb.newFieldAny(name, code)(typeToTypeInfo(pt), line)
 
       def get: PCode = PCode(pt, v)
     }
   }
 
-  def memoize(cb: EmitCodeBuilder, name: String): PValue
+  def memoize(cb: EmitCodeBuilder, name: String)(implicit line: LineNumber): PValue
 
-  def memoizeField(cb: EmitCodeBuilder, name: String): PValue
+  def memoizeField(cb: EmitCodeBuilder, name: String)(implicit line: LineNumber): PValue
 }
 
 object PCode {
@@ -165,9 +165,9 @@ object PSettable {
 
       def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(v)
 
-      def get: PCode = PCode(pt, v)
+      def get(implicit line: LineNumber): PCode = PCode(pt, v)
 
-      def store(pv: PCode): Code[Unit] = {
+      def store(pv: PCode)(implicit line: LineNumber): Code[Unit] = {
         v.storeAny(pv.code)
       }
     }

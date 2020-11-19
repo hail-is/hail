@@ -14,8 +14,10 @@ class TakeRVAS(val eltType: PType, val resultType: PArray, val kb: EmitClassBuil
   val builder = new StagedArrayBuilder(eltType, kb, region)
   val storageType: PCanonicalTuple = PCanonicalTuple(true, PInt32Required, builder.stateType)
   private val maxSize = kb.genFieldThisRef[Int]()
-  private val maxSizeOffset: Code[Long] => Code[Long] = storageType.loadField(_, 0)
-  private val builderStateOffset: Code[Long] => Code[Long] = storageType.loadField(_, 1)
+  private def maxSizeOffset(off: Code[Long])(implicit line: LineNumber): Code[Long] =
+    storageType.loadField(off, 0)
+  private def builderStateOffset(off: Code[Long])(implicit line: LineNumber): Code[Long] =
+    storageType.loadField(off, 1)
 
   def newState(off: Code[Long])(implicit line: LineNumber): Code[Unit] = region.getNewRegion(regionSize)
 

@@ -27,26 +27,26 @@ abstract class EType extends BaseType with Serializable with Requiredness {
   type StagedDecoder[T] = (Code[Region], Code[InputBuffer]) => Code[T]
   type StagedInplaceDecoder = (Code[Region], Code[Long], Code[InputBuffer]) => Code[Unit]
 
-  final def buildEncoder(ctx: ExecuteContext, t: PType): (OutputBuffer) => Encoder = {
+  final def buildEncoder(ctx: ExecuteContext, t: PType)(implicit line: LineNumber): (OutputBuffer) => Encoder = {
     val f = EType.buildEncoder(ctx, this, t)
     out: OutputBuffer => new CompiledEncoder(out, f)
   }
 
-  final def buildDecoder(ctx: ExecuteContext, requestedType: Type): (PType, (InputBuffer) => Decoder) = {
+  final def buildDecoder(ctx: ExecuteContext, requestedType: Type)(implicit line: LineNumber): (PType, (InputBuffer) => Decoder) = {
     val (rt, f) = EType.buildDecoder(ctx, this, requestedType)
     (rt, (in: InputBuffer) => new CompiledDecoder(in, f))
   }
 
-  final def buildStructDecoder(ctx: ExecuteContext, requestedType: TStruct): (PStruct, (InputBuffer) => Decoder) = {
+  final def buildStructDecoder(ctx: ExecuteContext, requestedType: TStruct)(implicit line: LineNumber): (PStruct, (InputBuffer) => Decoder) = {
     val (pType: PStruct, makeDec) = buildDecoder(ctx, requestedType)
     pType -> makeDec
   }
 
-  final def buildEncoder(pt: PType, kb: EmitClassBuilder[_]): StagedEncoder = {
+  final def buildEncoder(pt: PType, kb: EmitClassBuilder[_])(implicit line: LineNumber): StagedEncoder = {
     buildEncoderMethod(pt, kb).invokeCode(_, _)
   }
 
-  final def buildEncoderMethod(pt: PType, kb: EmitClassBuilder[_]): EmitMethodBuilder[_] = {
+  final def buildEncoderMethod(pt: PType, kb: EmitClassBuilder[_])(implicit line: LineNumber): EmitMethodBuilder[_] = {
     if (!encodeCompatible(pt))
       throw new RuntimeException(s"encode incompatible:\n  PT: $pt\n  ET: ${ parsableString() }")
     val ptti = typeToTypeInfo(pt)
@@ -64,11 +64,11 @@ abstract class EType extends BaseType with Serializable with Requiredness {
     }
   }
 
-  final def buildDecoder[T](pt: PType, kb: EmitClassBuilder[_]): StagedDecoder[T] = {
+  final def buildDecoder[T](pt: PType, kb: EmitClassBuilder[_])(implicit line: LineNumber): StagedDecoder[T] = {
     buildDecoderMethod(pt, kb).invokeCode(_, _)
   }
 
-  final def buildDecoderMethod[T](pt: PType, kb: EmitClassBuilder[_]): EmitMethodBuilder[_] = {
+  final def buildDecoderMethod[T](pt: PType, kb: EmitClassBuilder[_])(implicit line: LineNumber): EmitMethodBuilder[_] = {
     if (!decodeCompatible(pt))
       throw new RuntimeException(s"decode incompatible:\n  PT: $pt }\n  ET: ${ parsableString() }")
     kb.getOrGenEmitMethod(s"DECODE_${ asIdent }_TO_${ pt.asIdent }",
@@ -84,11 +84,11 @@ abstract class EType extends BaseType with Serializable with Requiredness {
     }
   }
 
-  final def buildInplaceDecoder(pt: PType, kb: EmitClassBuilder[_]): StagedInplaceDecoder = {
+  final def buildInplaceDecoder(pt: PType, kb: EmitClassBuilder[_])(implicit line: LineNumber): StagedInplaceDecoder = {
     buildInplaceDecoderMethod(pt, kb).invokeCode(_, _, _)
   }
 
-  final def buildInplaceDecoderMethod(pt: PType, kb: EmitClassBuilder[_]): EmitMethodBuilder[_] = {
+  final def buildInplaceDecoderMethod(pt: PType, kb: EmitClassBuilder[_])(implicit line: LineNumber): EmitMethodBuilder[_] = {
     if (!decodeCompatible(pt))
       throw new RuntimeException(s"decode incompatible:\n  PT: $pt\n  ET: ${ parsableString() }")
     kb.getOrGenEmitMethod(s"INPLACE_DECODE_${ asIdent }_TO_${ pt.asIdent }",
@@ -106,7 +106,7 @@ abstract class EType extends BaseType with Serializable with Requiredness {
     })
   }
 
-  final def buildSkip(mb: EmitMethodBuilder[_]): (Code[Region], Code[InputBuffer]) => Code[Unit] = {
+  final def buildSkip(mb: EmitMethodBuilder[_])(implicit line: LineNumber): (Code[Region], Code[InputBuffer]) => Code[Unit] = {
     mb.getOrGenEmitMethod(s"SKIP_${ asIdent }",
       (this, "SKIP"),
       FastIndexedSeq[ParamType](classInfo[Region], classInfo[InputBuffer]),
@@ -130,7 +130,7 @@ abstract class EType extends BaseType with Serializable with Requiredness {
     region: Value[Region],
     addr: Value[Long],
     in: Value[InputBuffer]
-  ): Unit = {
+  )(implicit line: LineNumber): Unit = {
     assert(!pt.isInstanceOf[PBaseStruct]) // should be overridden for structs
     val decoded = _buildDecoder(cb, pt, region, in)
     cb += Region.storeIRIntermediate(pt)(addr, decoded)
@@ -202,7 +202,8 @@ trait EncoderAsmFunction { def apply(off: Long, out: OutputBuffer): Unit }
 object EType {
 
   protected[encoded] def lowBitMask(n: Int): Byte = (0xFF >>> ((-n) & 0x7)).toByte
-  protected[encoded] def lowBitMask(n: Code[Int]): Code[Byte] = (const(0xFF) >>> ((-n) & 0x7)).toB
+  protected[encoded] def lowBitMask(n: Code[Int])(implicit line: LineNumber): Code[Byte] =
+    (const(0xFF) >>> ((-n) & 0x7)).toB
 
   val cacheCapacity = 256
   protected val encoderCache = new util.LinkedHashMap[(EType, PType), () => EncoderAsmFunction](cacheCapacity, 0.75f, true) {
@@ -212,7 +213,7 @@ object EType {
   protected var encoderCacheMisses: Long = 0L
 
   // The 'entry point' for building an encoder from an EType and a PType
-  def buildEncoder(ctx: ExecuteContext, et: EType, pt: PType): () => EncoderAsmFunction = {
+  def buildEncoder(ctx: ExecuteContext, et: EType, pt: PType)(implicit line: LineNumber): () => EncoderAsmFunction = {
     val k = (et, pt)
     if (encoderCache.containsKey(k)) {
       encoderCacheHits += 1
@@ -245,7 +246,7 @@ object EType {
   protected var decoderCacheHits: Long = 0L
   protected var decoderCacheMisses: Long = 0L
 
-  def buildDecoder(ctx: ExecuteContext, et: EType, t: Type): (PType, () => DecoderAsmFunction) = {
+  def buildDecoder(ctx: ExecuteContext, et: EType, t: Type)(implicit line: LineNumber): (PType, () => DecoderAsmFunction) = {
     val k = (et, t)
     if (decoderCache.containsKey(k)) {
       decoderCacheHits += 1

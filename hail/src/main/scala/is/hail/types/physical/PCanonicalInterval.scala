@@ -44,14 +44,16 @@ final case class PCanonicalInterval(pointType: PType, override val required: Boo
 
     def includesEnd(off: Long): Boolean = Region.loadBoolean(representation.loadField(off, 3))
 
-    def startDefined(off: Code[Long]): Code[Boolean] = representation.isFieldDefined(off, 0)
+    def startDefined(off: Code[Long])(implicit line: LineNumber): Code[Boolean] =
+      representation.isFieldDefined(off, 0)
 
-    def endDefined(off: Code[Long]): Code[Boolean] = representation.isFieldDefined(off, 1)
+    def endDefined(off: Code[Long])(implicit line: LineNumber): Code[Boolean] =
+      representation.isFieldDefined(off, 1)
 
-    def includesStart(off: Code[Long]): Code[Boolean] =
+    def includesStart(off: Code[Long])(implicit line: LineNumber): Code[Boolean] =
       Region.loadBoolean(representation.loadField(off, 2))
 
-    def includesEnd(off: Code[Long]): Code[Boolean] =
+    def includesEnd(off: Code[Long])(implicit line: LineNumber): Code[Boolean] =
       Region.loadBoolean(representation.loadField(off, 3))
 
     override def deepRename(t: Type) = deepRenameInterval(t.asInstanceOf[TInterval])
@@ -75,21 +77,22 @@ class PCanonicalIntervalSettable(
   val includesStart: Settable[Boolean],
   val includesEnd: Settable[Boolean]
 ) extends PIntervalValue with PSettable {
-  def get: PIntervalCode = new PCanonicalIntervalCode(pt, a)
+  def get(implicit line: LineNumber): PIntervalCode =
+    new PCanonicalIntervalCode(pt, a)
 
   def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(a, includesStart, includesEnd)
 
-  def loadStart(cb: EmitCodeBuilder): IEmitCode =
+  def loadStart(cb: EmitCodeBuilder)(implicit line: LineNumber): IEmitCode =
     IEmitCode(cb,
       !(pt.startDefined(a)),
       pt.pointType.load(pt.startOffset(a)))
 
-  def loadEnd(cb: EmitCodeBuilder): IEmitCode =
+  def loadEnd(cb: EmitCodeBuilder)(implicit line: LineNumber): IEmitCode =
     IEmitCode(cb,
       !(pt.endDefined(a)),
       pt.pointType.load(pt.endOffset(a)))
 
-  def store(pc: PCode): Code[Unit] = {
+  def store(pc: PCode)(implicit line: LineNumber): Code[Unit] = {
     Code(
       a := pc.asInstanceOf[PCanonicalIntervalCode].a,
       includesStart := pt.includesStart(a.load()),
@@ -102,19 +105,23 @@ class PCanonicalIntervalCode(val pt: PCanonicalInterval, val a: Code[Long]) exte
 
   def codeTuple(): IndexedSeq[Code[_]] = FastIndexedSeq(a)
 
-  def includesStart(): Code[Boolean] = pt.includesStart(a)
+  def includesStart()(implicit line: LineNumber): Code[Boolean] =
+    pt.includesStart(a)
 
-  def includesEnd(): Code[Boolean] = pt.includesEnd(a)
+  def includesEnd()(implicit line: LineNumber): Code[Boolean] =
+    pt.includesEnd(a)
 
-  def memoize(cb: EmitCodeBuilder, name: String, sb: SettableBuilder): PIntervalValue = {
+  def memoize(cb: EmitCodeBuilder, name: String, sb: SettableBuilder)(implicit line: LineNumber): PIntervalValue = {
     val s = PCanonicalIntervalSettable(sb, pt, name)
     cb.assign(s, this)
     s
   }
 
-  def memoize(cb: EmitCodeBuilder, name: String): PIntervalValue = memoize(cb, name, cb.localBuilder)
+  def memoize(cb: EmitCodeBuilder, name: String)(implicit line: LineNumber): PIntervalValue =
+    memoize(cb, name, cb.localBuilder)
 
-  def memoizeField(cb: EmitCodeBuilder, name: String): PIntervalValue = memoize(cb, name, cb.fieldBuilder)
+  def memoizeField(cb: EmitCodeBuilder, name: String)(implicit line: LineNumber): PIntervalValue =
+    memoize(cb, name, cb.fieldBuilder)
 
   def store(mb: EmitMethodBuilder[_], r: Value[Region], dst: Code[Long]): Code[Unit] =
     pt.constructAtAddress(mb, dst, r, pt, a, deepCopy = false)

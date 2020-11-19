@@ -1,7 +1,7 @@
 package is.hail.types.physical
 
 import is.hail.annotations.{Region, UnsafeUtils}
-import is.hail.asm4s.{Code, Settable, SettableBuilder, Value, coerce, const}
+import is.hail.asm4s.{Code, LineNumber, Settable, SettableBuilder, Value, coerce, const}
 import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, IEmitCode}
 import is.hail.types.BaseStruct
 import is.hail.types.virtual.TStruct
@@ -106,7 +106,7 @@ final case class PSubsetStruct(ps: PStruct, _fieldNames: Array[String]) extends 
   override def initialize(structAddress: Long, setMissing: Boolean): Unit =
     ps.initialize(structAddress, setMissing)
 
-  override def stagedInitialize(structAddress: Code[Long], setMissing: Boolean): Code[Unit] =
+  override def stagedInitialize(structAddress: Code[Long], setMissing: Boolean)(implicit line: LineNumber): Code[Unit] =
     ps.stagedInitialize(structAddress, setMissing)
 
   def allocate(region: Region): Long =
@@ -136,7 +136,7 @@ final case class PSubsetStruct(ps: PStruct, _fieldNames: Array[String]) extends 
   def copyFromTypeAndStackValue(mb: EmitMethodBuilder[_], region: Value[Region], srcPType: PType, stackValue: Code[_], deepCopy: Boolean): Code[_] =
     this.copyFromType(mb, region, srcPType, stackValue.asInstanceOf[Code[Long]], deepCopy)
 
-  def constructAtAddress(mb: EmitMethodBuilder[_], addr: Code[Long], region: Value[Region], srcPType: PType, srcAddress: Code[Long], deepCopy: Boolean): Code[Unit] = {
+  def constructAtAddress(mb: EmitMethodBuilder[_], addr: Code[Long], region: Value[Region], srcPType: PType, srcAddress: Code[Long], deepCopy: Boolean)(implicit line: LineNumber): Code[Unit] = {
     val srcPSubsetStruct = srcPType.asInstanceOf[PSubsetStruct]
     Region.storeAddress(addr, ps.copyFromType(mb, region, srcPSubsetStruct.ps, srcAddress, deepCopy))
   }
@@ -154,20 +154,20 @@ object PSubsetStructSettable {
 }
 
 class PSubsetStructSettable(val pt: PSubsetStruct, a: Settable[Long]) extends PBaseStructValue with PSettable {
-  def get: PSubsetStructCode = new PSubsetStructCode(pt, a)
+  def get(implicit line: LineNumber): PSubsetStructCode = new PSubsetStructCode(pt, a)
 
   def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(a)
 
-  def loadField(cb: EmitCodeBuilder, fieldIdx: Int): IEmitCode = {
+  def loadField(cb: EmitCodeBuilder, fieldIdx: Int)(implicit line: LineNumber): IEmitCode = {
     IEmitCode(cb,
       pt.isFieldMissing(a, fieldIdx),
       pt.fields(fieldIdx).typ.load(pt.fieldOffset(a, fieldIdx)))
   }
 
-  def isFieldMissing(fieldIdx: Int): Code[Boolean] =
+  def isFieldMissing(fieldIdx: Int)(implicit line: LineNumber): Code[Boolean] =
     pt.isFieldMissing(a, fieldIdx)
 
-  def store(pv: PCode): Code[Unit] = {
+  def store(pv: PCode)(implicit line: LineNumber): Code[Unit] = {
     a := pv.asInstanceOf[PSubsetStructCode].a
   }
 }
@@ -177,16 +177,18 @@ class PSubsetStructCode(val pt: PSubsetStruct, val a: Code[Long]) extends PBaseS
 
   def codeTuple(): IndexedSeq[Code[_]] = FastIndexedSeq(a)
 
-  def memoize(cb: EmitCodeBuilder, name: String, sb: SettableBuilder): PBaseStructValue = {
+  def memoize(cb: EmitCodeBuilder, name: String, sb: SettableBuilder)(implicit line: LineNumber): PBaseStructValue = {
     val s = PSubsetStructSettable(cb, pt, name, sb)
     cb.assign(s, this)
     s
   }
 
-  def memoize(cb: EmitCodeBuilder, name: String): PBaseStructValue = memoize(cb, name, cb.localBuilder)
+  def memoize(cb: EmitCodeBuilder, name: String)(implicit line: LineNumber): PBaseStructValue =
+    memoize(cb, name, cb.localBuilder)
 
-  def memoizeField(cb: EmitCodeBuilder, name: String): PBaseStructValue = memoize(cb, name, cb.fieldBuilder)
+  def memoizeField(cb: EmitCodeBuilder, name: String)(implicit line: LineNumber): PBaseStructValue =
+    memoize(cb, name, cb.fieldBuilder)
 
-  def store(mb: EmitMethodBuilder[_], r: Value[Region], dst: Code[Long]): Code[Unit] =
+  def store(mb: EmitMethodBuilder[_], r: Value[Region], dst: Code[Long])(implicit line: LineNumber): Code[Unit] =
     pt.ps.constructAtAddress(mb, dst, r, pt.ps, a, deepCopy = false)
 }

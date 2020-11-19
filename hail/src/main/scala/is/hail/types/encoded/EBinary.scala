@@ -36,7 +36,7 @@ class EBinary(override val required: Boolean) extends EFundamentalType {
     barray.load()
   }
 
-  def _buildSkip(cb: EmitCodeBuilder, r: Value[Region], in: Value[InputBuffer]): Unit = {
+  def _buildSkip(cb: EmitCodeBuilder, r: Value[Region], in: Value[InputBuffer])(implicit line: LineNumber): Unit = {
     cb += in.skipBytes(in.readInt())
   }
 

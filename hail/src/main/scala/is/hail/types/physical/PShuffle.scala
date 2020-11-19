@@ -11,9 +11,9 @@ abstract class PShuffle extends ComplexPType {
 }
 
 abstract class PShuffleValue extends PValue {
-  def loadLength(): Code[Int]
+  def loadLength()(implicit line: LineNumber): Code[Int]
 
-  def loadBytes(): Code[Array[Byte]]
+  def loadBytes()(implicit line: LineNumber): Code[Array[Byte]]
 }
 
 abstract class PShuffleCode extends PCode {

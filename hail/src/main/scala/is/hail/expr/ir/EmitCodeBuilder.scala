@@ -57,7 +57,8 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
     s.store(this, v)
   }
 
-  def memoize(pc: PCode, name: String): PValue = pc.memoize(this, name)
+  def memoize(pc: PCode, name: String)(implicit line: LineNumber): PValue =
+    pc.memoize(this, name)
 
   def memoizeField(pc: PCode, name: String)(implicit line: LineNumber): PValue = {
     val f = emb.newPField(name, pc.pt)

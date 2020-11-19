@@ -13,11 +13,11 @@ class PCanonicalBinary(val required: Boolean) extends PBinary {
 
   override def byteSize: Long = 8
 
-  def copyFromType(mb: EmitMethodBuilder[_], region: Value[Region], srcPType: PType, srcAddress: Code[Long], deepCopy: Boolean): Code[Long] = {
+  def copyFromType(mb: EmitMethodBuilder[_], region: Value[Region], srcPType: PType, srcAddress: Code[Long], deepCopy: Boolean)(implicit line: LineNumber): Code[Long] = {
       constructOrCopy(mb, region, srcPType.asInstanceOf[PBinary], srcAddress, deepCopy)
   }
 
-  def copyFromTypeAndStackValue(mb: EmitMethodBuilder[_], region: Value[Region], srcPType: PType, stackValue: Code[_], deepCopy: Boolean): Code[_] =
+  def copyFromTypeAndStackValue(mb: EmitMethodBuilder[_], region: Value[Region], srcPType: PType, stackValue: Code[_], deepCopy: Boolean)(implicit line: LineNumber): Code[_] =
     this.copyFromType(mb, region, srcPType, stackValue.asInstanceOf[Code[Long]], deepCopy)
 
   def _copyFromAddress(region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Long = {
@@ -50,22 +50,24 @@ class PCanonicalBinary(val required: Boolean) extends PBinary {
 
   def contentByteSize(length: Int): Long = 4 + length
 
-  def contentByteSize(length: Code[Int]): Code[Long] = (const(4) + length).toL
+  def contentByteSize(length: Code[Int])(implicit line: LineNumber): Code[Long] =
+    (const(4) + length).toL
 
   def allocate(region: Region, length: Int): Long =
     region.allocate(contentAlignment, contentByteSize(length))
 
-  def allocate(region: Code[Region], length: Code[Int]): Code[Long] =
+  def allocate(region: Code[Region], length: Code[Int])(implicit line: LineNumber): Code[Long] =
     region.allocate(const(contentAlignment), contentByteSize(length))
 
   def loadLength(boff: Long): Int = Region.loadInt(boff)
 
-  def loadLength(boff: Code[Long]): Code[Int] = Region.loadInt(boff)
+  def loadLength(boff: Code[Long])(implicit line: LineNumber): Code[Int] =
+    Region.loadInt(boff)
 
-  def loadBytes(bAddress: Code[Long], length: Code[Int]): Code[Array[Byte]] =
+  def loadBytes(bAddress: Code[Long], length: Code[Int])(implicit line: LineNumber): Code[Array[Byte]] =
     Region.loadBytes(this.bytesAddress(bAddress), length)
 
-  def loadBytes(bAddress: Code[Long]): Code[Array[Byte]] =
+  def loadBytes(bAddress: Code[Long])(implicit line: LineNumber): Code[Array[Byte]] =
     Code.memoize(bAddress, "pcbin_load_bytes_addr") { bAddress =>
       loadBytes(bAddress, this.loadLength(bAddress))
     }
@@ -78,18 +80,20 @@ class PCanonicalBinary(val required: Boolean) extends PBinary {
 
   def storeLength(boff: Long, len: Int): Unit = Region.storeInt(boff, len)
 
-  def storeLength(boff: Code[Long], len: Code[Int]): Code[Unit] = Region.storeInt(boff, len)
+  def storeLength(boff: Code[Long], len: Code[Int])(implicit line: LineNumber): Code[Unit] =
+    Region.storeInt(boff, len)
 
   def bytesAddress(boff: Long): Long = boff + lengthHeaderBytes
 
-  def bytesAddress(boff: Code[Long]): Code[Long] = boff + lengthHeaderBytes
+  def bytesAddress(boff: Code[Long])(implicit line: LineNumber): Code[Long] =
+    boff + lengthHeaderBytes
 
   def store(addr: Long, bytes: Array[Byte]) {
     Region.storeInt(addr, bytes.length)
     Region.storeBytes(bytesAddress(addr), bytes)
   }
 
-  def store(addr: Code[Long], bytes: Code[Array[Byte]]): Code[Unit] =
+  def store(addr: Code[Long], bytes: Code[Array[Byte]])(implicit line: LineNumber): Code[Unit] =
     Code.memoize(addr, "pcbin_store_addr") { addr =>
       Code.memoize(bytes, "pcbin_store_bytes") { bytes =>
         Code(
@@ -98,12 +102,12 @@ class PCanonicalBinary(val required: Boolean) extends PBinary {
       }
     }
 
-  def constructAtAddress(mb: EmitMethodBuilder[_], addr: Code[Long], region: Value[Region], srcPType: PType, srcAddress: Code[Long], deepCopy: Boolean): Code[Unit] = {
+  def constructAtAddress(mb: EmitMethodBuilder[_], addr: Code[Long], region: Value[Region], srcPType: PType, srcAddress: Code[Long], deepCopy: Boolean)(implicit line: LineNumber): Code[Unit] = {
     val srcBinary = srcPType.asInstanceOf[PBinary]
     Region.storeAddress(addr, constructOrCopy(mb, region, srcBinary, srcAddress, deepCopy))
   }
 
-  private def constructOrCopy(mb: EmitMethodBuilder[_], region: Value[Region], srcBinary: PBinary, srcAddress: Code[Long], deepCopy: Boolean): Code[Long] = {
+  private def constructOrCopy(mb: EmitMethodBuilder[_], region: Value[Region], srcBinary: PBinary, srcAddress: Code[Long], deepCopy: Boolean)(implicit line: LineNumber): Code[Long] = {
     if (srcBinary == this) {
       if (deepCopy) {
         val srcAddrVar = mb.newLocal[Long]()
@@ -154,17 +158,22 @@ object PCanonicalBinarySettable {
 }
 
 class PCanonicalBinarySettable(val pt: PCanonicalBinary, a: Settable[Long]) extends PBinaryValue with PSettable {
-  def get: PCanonicalBinaryCode = new PCanonicalBinaryCode(pt, a)
+  def get(implicit line: LineNumber): PCanonicalBinaryCode =
+    new PCanonicalBinaryCode(pt, a)
 
   def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(a)
 
-  def loadLength(): Code[Int] = pt.loadLength(a)
+  def loadLength()(implicit line: LineNumber): Code[Int] =
+    pt.loadLength(a)
 
-  def loadBytes(): Code[Array[Byte]] = pt.loadBytes(a)
+  def loadBytes()(implicit line: LineNumber): Code[Array[Byte]] =
+    pt.loadBytes(a)
 
-  def loadByte(i: Code[Int]): Code[Byte] = Region.loadByte(pt.bytesAddress(a) + i.toL)
+  def loadByte(i: Code[Int])(implicit line: LineNumber): Code[Byte] =
+    Region.loadByte(pt.bytesAddress(a) + i.toL)
 
-  def store(pc: PCode): Code[Unit] = a.store(pc.asInstanceOf[PCanonicalBinaryCode].a)
+  def store(pc: PCode)(implicit line: LineNumber): Code[Unit] =
+    a.store(pc.asInstanceOf[PCanonicalBinaryCode].a)
 }
 
 class PCanonicalBinaryCode(val pt: PCanonicalBinary, val a: Code[Long]) extends PBinaryCode {
@@ -172,21 +181,24 @@ class PCanonicalBinaryCode(val pt: PCanonicalBinary, val a: Code[Long]) extends 
 
   def codeTuple(): IndexedSeq[Code[_]] = FastIndexedSeq(a)
 
-  def loadLength(): Code[Int] = pt.loadLength(a)
+  def loadLength()(implicit line: LineNumber): Code[Int] =
+    pt.loadLength(a)
 
-  def loadBytes(): Code[Array[Byte]] = pt.loadBytes(a)
+  def loadBytes()(implicit line: LineNumber): Code[Array[Byte]] =
+    pt.loadBytes(a)
 
-  def memoize(cb: EmitCodeBuilder, sb: SettableBuilder, name: String): PCanonicalBinarySettable = {
+  def memoize(cb: EmitCodeBuilder, sb: SettableBuilder, name: String)(implicit line: LineNumber): PCanonicalBinarySettable = {
     val s = PCanonicalBinarySettable(sb, pt, name)
     cb.assign(s, this)
     s
   }
 
-  def memoize(cb: EmitCodeBuilder, name: String): PCanonicalBinarySettable =
+  def memoize(cb: EmitCodeBuilder, name: String)(implicit line: LineNumber): PCanonicalBinarySettable =
     memoize(cb, cb.localBuilder, name)
 
-  def memoizeField(cb: EmitCodeBuilder, name: String): PCanonicalBinarySettable =
+  def memoizeField(cb: EmitCodeBuilder, name: String)(implicit line: LineNumber): PCanonicalBinarySettable =
     memoize(cb, cb.fieldBuilder, name)
 
-  def store(mb: EmitMethodBuilder[_], r: Value[Region], dst: Code[Long]): Code[Unit] = Region.storeAddress(dst, a)
+  def store(mb: EmitMethodBuilder[_], r: Value[Region], dst: Code[Long])(implicit line: LineNumber): Code[Unit] =
+    Region.storeAddress(dst, a)
 }

@@ -1,7 +1,7 @@
 package is.hail.types.physical
 
 import is.hail.annotations.{Region, UnsafeOrdering}
-import is.hail.asm4s.{Code, MethodBuilder, Value}
+import is.hail.asm4s.{Code, LineNumber, MethodBuilder, Value}
 import is.hail.expr.ir.EmitMethodBuilder
 
 trait PArrayBackedContainer extends PContainer {
@@ -110,7 +110,7 @@ trait PArrayBackedContainer extends PContainer {
   def initialize(aoff: Long, length: Int, setMissing: Boolean = false) =
     arrayRep.initialize(aoff, length, setMissing)
 
-  def stagedInitialize(aoff: Code[Long], length: Code[Int], setMissing: Boolean = false): Code[Unit] =
+  def stagedInitialize(aoff: Code[Long], length: Code[Int], setMissing: Boolean = false)(implicit line: LineNumber): Code[Unit] =
     arrayRep.stagedInitialize(aoff, length, setMissing)
 
   def zeroes(region: Region, length: Int): Long =

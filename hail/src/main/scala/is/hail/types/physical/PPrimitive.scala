@@ -25,7 +25,7 @@ trait PPrimitive extends PType {
     addr
   }
 
-  def copyFromType(mb: EmitMethodBuilder[_], region: Value[Region], srcPType: PType, srcAddress: Code[Long], deepCopy: Boolean): Code[Long] = {
+  def copyFromType(mb: EmitMethodBuilder[_], region: Value[Region], srcPType: PType, srcAddress: Code[Long], deepCopy: Boolean)(implicit line: LineNumber): Code[Long] = {
     assert(this.isOfType(srcPType))
     if (deepCopy) {
       val addr = mb.newLocal[Long]()
@@ -42,7 +42,7 @@ trait PPrimitive extends PType {
     stackValue
   }
 
-  def constructAtAddress(mb: EmitMethodBuilder[_], addr: Code[Long], region: Value[Region], srcPType: PType, srcAddress: Code[Long], deepCopy: Boolean): Code[Unit] = {
+  def constructAtAddress(mb: EmitMethodBuilder[_], addr: Code[Long], region: Value[Region], srcPType: PType, srcAddress: Code[Long], deepCopy: Boolean)(implicit line: LineNumber): Code[Unit] = {
     assert(srcPType.isOfType(this))
     Region.copyFrom(srcAddress, addr, byteSize)
   }
@@ -52,12 +52,12 @@ trait PPrimitive extends PType {
     Region.copyFrom(srcAddress, addr, byteSize)
   }
 
-  override def constructAtAddressFromValue(mb: EmitMethodBuilder[_], addr: Code[Long], region: Value[Region], srcPType: PType, src: Code[_], deepCopy: Boolean): Code[Unit] = {
+  override def constructAtAddressFromValue(mb: EmitMethodBuilder[_], addr: Code[Long], region: Value[Region], srcPType: PType, src: Code[_], deepCopy: Boolean)(implicit line: LineNumber): Code[Unit] = {
     assert(this.isOfType(srcPType))
     storePrimitiveAtAddress(addr, srcPType, src)
   }
 
-  def storePrimitiveAtAddress(addr: Code[Long], srcPType: PType, value: Code[_]): Code[Unit]
+  def storePrimitiveAtAddress(addr: Code[Long], srcPType: PType, value: Code[_])(implicit line: LineNumber): Code[Unit]
 
   def setRequired(required: Boolean): PPrimitive = {
     if (required == this.required)
@@ -76,12 +76,14 @@ trait PPrimitive extends PType {
 class PPrimitiveCode(val pt: PType, val code: Code[_]) extends PCode {
   def codeTuple(): IndexedSeq[Code[_]] = FastIndexedSeq(code)
 
-  def store(mb: EmitMethodBuilder[_], r: Value[Region], a: Code[Long]): Code[Unit] =
+  def store(mb: EmitMethodBuilder[_], r: Value[Region], a: Code[Long])(implicit line: LineNumber): Code[Unit] =
     Region.storeIRIntermediate(pt)(a, code)
 
-  def memoize(cb: EmitCodeBuilder, name: String): PValue = defaultMemoizeImpl(cb, name)
+  def memoize(cb: EmitCodeBuilder, name: String)(implicit line: LineNumber): PValue =
+    defaultMemoizeImpl(cb, name)
 
-  def memoizeField(cb: EmitCodeBuilder, name: String): PValue = defaultMemoizeFieldImpl(cb, name)
+  def memoizeField(cb: EmitCodeBuilder, name: String)(implicit line: LineNumber): PValue =
+    defaultMemoizeFieldImpl(cb, name)
 
   def primCode[T](implicit ti: TypeInfo[T]): Code[T] = {
     val IndexedSeq(typeInfo) = pt.codeTupleTypes()

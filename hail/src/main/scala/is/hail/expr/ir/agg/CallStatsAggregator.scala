@@ -67,8 +67,9 @@ class CallStatsState(val kb: EmitClassBuilder[_]) extends PointerBasedRVAState {
   )
 
   def serialize(codec: BufferSpec)(implicit line: LineNumber): (EmitCodeBuilder, Value[OutputBuffer]) => Unit = { (cb, ob) =>
-    cb += TypedCodecSpec(CallStatsState.stateType, codec)
-      .buildTypedEmitEncoderF[Long](CallStatsState.stateType, kb)(region, off, ob)
+    val enc = TypedCodecSpec(CallStatsState.stateType, codec)
+      .buildTypedEmitEncoderF[Long](CallStatsState.stateType, kb)
+    cb += enc(region, off, ob)
   }
 
   def deserialize(codec: BufferSpec)(implicit line: LineNumber): (EmitCodeBuilder, Value[InputBuffer]) => Unit = {

@@ -323,7 +323,7 @@ object MatrixValue {
     prefix: String,
     overwrite: Boolean,
     stageLocally: Boolean
-  ): Unit = {
+  )(implicit line: LineNumber): Unit = {
     val first = mvs.head
     require(mvs.forall(_.typ == first.typ))
     val fs = ctx.fs
