@@ -2096,7 +2096,7 @@ steps:
        namespace:
          valueFrom: default_ns.name
        mountPath: /ssl-config
-   timeout: 300
+   timeout: 1200
    dependsOn:
      - test_benchmark_image
      - create_deploy_config
