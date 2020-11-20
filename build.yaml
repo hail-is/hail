@@ -384,7 +384,7 @@ steps:
      export HAIL_SCOPE={{ scope }}
      python3 /io/bootstrap_create_accounts.py
    serviceAccount:
-     name: admin
+     name: auth-driver
      namespace:
        valueFrom: default_ns.name
    secrets:
@@ -414,6 +414,7 @@ steps:
     - auth_database
     - auth_image
     - create_deploy_config
+    - deploy_auth_driver_service_account
     - create_test_gsa_keys
  - kind: buildImage
    name: hail_build_image
