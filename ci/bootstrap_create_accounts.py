@@ -63,8 +63,6 @@ async def main():
     app['iam_client'] = aiogoogle.IAmClient(
         PROJECT, credentials=aiogoogle.Credentials.from_file('/gsa-key/key.json'))
 
-    app['batch_client'] = await bc.aioclient.BatchClient(None)
-
     for username, email, is_developer, is_service_account in users:
         user_id = await insert_user_if_not_exists(db, username, email, is_developer, is_service_account)
 
