@@ -1,31 +1,36 @@
 import os
+import base64
+import json
 import kubernetes_asyncio as kube
 from hailtop import aiogoogle
-from hailtop import batch_client as bc
 from hailtop.utils import async_to_blocking
 from gear import Database
 
 from auth.driver.driver import create_user
 
+SCOPE = os.environ['HAIL_SCOPE']
 PROJECT = os.environ['HAIL_PROJECT']
-GSA_EMAIL = os.environ.get('HAIL_GSA_EMAIL')
-NAMESPACE_NAME = os.environ.get('HAIL_NAMESPACE_NAME')
+DEFAULT_NAMESPACE = os.environ['HAIL_DEFAULT_NAMESPACE']
 
+async def insert_user_if_not_exists(app, username, email, is_developer, is_service_account):
+    db = app['db']
+    k8s_client = app['k8s_client']
 
-async def insert_user_if_not_exists(db, username, email, is_developer, is_service_account):
     row = await db.execute_and_fetchone('SELECT id FROM users where username = %s;', (username,))
     if row:
         return row['id']
 
-    # If scope = test, dev we can't create our own service accounts or
-    # namespaces.  Use the ones given to us.
-    gsa_email = GSA_EMAIL
-    if gsa_email:
-        gsa_key_secret_name = f'{username}-gsa-key'
-    else:
-        gsa_key_secret_name = None
+    gsa_key_secret_name = f'{username}-gsa-key'
 
-    namespace_name = NAMESPACE_NAME
+    secret = await k8s_client.read_namespaced_secret(gsa_key_secret_name, DEFAULT_NAMESPACE)
+    key_json = base64.b64decode(secret.data['key.json']).decode()
+    key = json.loads(key_json)
+    gsa_email = key['client_email']
+
+    if is_developer and SCOPE != 'deploy':
+        namespace_name = DEFAULT_NAMESPACE
+    else:
+        namespace_name = None
 
     return await db.execute_insertone(
         '''

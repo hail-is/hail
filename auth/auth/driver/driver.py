@@ -423,7 +423,7 @@ async def _create_user(app, user, skip_trial_bp, cleanup):
         await db_secret.create(
             'database-server-config', namespace_name, db_resource.secret_data())
 
-    if not skip_trial_bp:
+    if not skip_trial_bp and user['is_service_account'] != 1:
         trial_bp = user['trial_bp_name']
         if trial_bp is None:
             batch_client = app['batch_client']
