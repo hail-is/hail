@@ -123,8 +123,8 @@ resource "google_container_node_pool" "vdc_nonpreemptible_pool" {
   }
 }
 
-resource "google_compute_global_address" "db_ip_address" {
-  name = "db-ip-address"
+resource "google_compute_global_address" "google_managed_services_internal" {
+  name = "google-managed-services-internal"
   purpose = "VPC_PEERING"
   address_type = "INTERNAL"
   prefix_length = 16
@@ -134,7 +134,7 @@ resource "google_compute_global_address" "db_ip_address" {
 resource "google_service_networking_connection" "private_vpc_connection" {
   network = google_compute_network.internal.id
   service = "servicenetworking.googleapis.com"
-  reserved_peering_ranges = [google_compute_global_address.db_ip_address.name]
+  reserved_peering_ranges = [google_compute_global_address.google_managed_services_internal.name]
 }
 
 resource "random_id" "db_name_suffix" {
