@@ -55,7 +55,8 @@ async def main():
     await db_instance.async_init(maxsize=50, config_file='/database-server-config/sql-config.json')
     app['db_instance'] = db_instance
 
-    kube.config.load_incluster_config()
+    # kube.config.load_incluster_config()
+    await kube.config.load_kube_config()
     k8s_client = kube.client.CoreV1Api()
     app['k8s_client'] = k8s_client
 
