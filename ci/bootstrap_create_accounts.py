@@ -69,10 +69,10 @@ async def main():
         PROJECT, credentials=aiogoogle.Credentials.from_file('/gsa-key/key.json'))
 
     for username, email, is_developer, is_service_account in users:
-        user_id = await insert_user_if_not_exists(db, username, email, is_developer, is_service_account)
+        user_id = await insert_user_if_not_exists(app, username, email, is_developer, is_service_account)
 
-    db_user = await db.execute_and_fetchone('SELECT * FROM users where id = %s;', (user_id,))
-    await create_user(app, db_user, skip_trial_bp=True)
+        db_user = await db.execute_and_fetchone('SELECT * FROM users where id = %s;', (user_id,))
+        await create_user(app, db_user, skip_trial_bp=True)
 
 
 async_to_blocking(main())
