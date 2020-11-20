@@ -49,6 +49,7 @@ abstract class SCode {
 
   def asStream: SStreamCode = asInstanceOf[SStreamCode]
 
+  java.lang.Double
   def castTo(cb: EmitCodeBuilder, region: Value[Region], destType: PType): SCode =
     castTo(cb, region, destType, false)
 
