@@ -376,9 +376,6 @@ steps:
      export HAIL_GSA_EMAIL=$(kubectl get secret test-gsa-key -o jsonpath={.data.key\\.json} | base64 -d | jq -r '."client_email"')
      {% endif %}
      /io/bootstrap_create_accounts.py 
-   scopes:
-    - test
-    - dev
    serviceAccount:
      name: admin
      namespace:
