@@ -93,6 +93,7 @@ You can now install Hail:
 
 add yourself to the docker group
 add ssh firewall rule to internal
+fix up sha, other config in bootstrap.py
 
 create users
 
