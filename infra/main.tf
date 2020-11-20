@@ -313,7 +313,7 @@ resource "kubernetes_namespace" "ukbb_rg" {
 resource "kubernetes_service" "ukbb_rb_browser" {
   metadata {
     name = "ukbb-rg-browser"
-    namespace = "ukbb-rg"
+    namespace = kubernetes_namespace.ukbb_rg.metadata[0].name
     labels = {
       app = "ukbb-rg-browser"
     }
@@ -333,7 +333,7 @@ resource "kubernetes_service" "ukbb_rb_browser" {
 resource "kubernetes_service" "ukbb_rb_static" {
   metadata {
     name = "ukbb-rg-static"
-    namespace = "ukbb-rg"
+    namespace = kubernetes_namespace.ukbb_rg.metadata[0].name
     labels = {
       app = "ukbb-rg-static"
     }
