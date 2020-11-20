@@ -20,12 +20,12 @@ async def insert_user_if_not_exists(app, username, email, is_developer, is_servi
     if row:
         return row['id']
 
-    gsa_key_secret_name = f'{username}-gsa-key'
-
     secret = await k8s_client.read_namespaced_secret(gsa_key_secret_name, DEFAULT_NAMESPACE)
     key_json = base64.b64decode(secret.data['key.json']).decode()
     key = json.loads(key_json)
     gsa_email = key['client_email']
+
+    gsa_key_secret_name = f'{username}-gsa-key'
 
     if is_developer and SCOPE != 'deploy':
         namespace_name = DEFAULT_NAMESPACE
