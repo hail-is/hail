@@ -16,7 +16,7 @@ async def insert_user_if_not_exists(app, username, email, is_developer, is_servi
     db = app['db']
     k8s_client = app['k8s_client']
 
-    row = await db.execute_and_fetchone('SELECT id FROM users where username = %s;', (username,))
+    row = await db.execute_and_fetchone('SELECT id, state FROM users where username = %s;', (username,))
     if row:
         if row['state'] == 'active':
             return None
