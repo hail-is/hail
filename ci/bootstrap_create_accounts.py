@@ -18,6 +18,8 @@ async def insert_user_if_not_exists(app, username, email, is_developer, is_servi
 
     row = await db.execute_and_fetchone('SELECT id FROM users where username = %s;', (username,))
     if row:
+        if row['state'] == 'active':
+            return None
         return row['id']
 
     gsa_key_secret_name = f'{username}-gsa-key'
@@ -71,8 +73,9 @@ async def main():
     for username, email, is_developer, is_service_account in users:
         user_id = await insert_user_if_not_exists(app, username, email, is_developer, is_service_account)
 
-        db_user = await db.execute_and_fetchone('SELECT * FROM users where id = %s;', (user_id,))
-        await create_user(app, db_user, skip_trial_bp=True)
+        if user_id is not None:
+            db_user = await db.execute_and_fetchone('SELECT * FROM users where id = %s;', (user_id,))
+            await create_user(app, db_user, skip_trial_bp=True)
 
 
 async_to_blocking(main())
