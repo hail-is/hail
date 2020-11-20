@@ -354,7 +354,6 @@ async def _create_user(app, user, skip_trial_bp, cleanup):
     db = app['db']
     k8s_client = app['k8s_client']
     iam_client = app['iam_client']
-    batch_client = app['batch_client']
 
     if user['is_service_account'] != 1:
         token = secret_alnum_string(5, case='lower')
@@ -427,6 +426,7 @@ async def _create_user(app, user, skip_trial_bp, cleanup):
     if not skip_trial_bp:
         trial_bp = user['trial_bp_name']
         if trial_bp is None:
+            batch_client = app['batch_client']
             username = user['username']
             billing_project_name = f'{username}-trial'
             billing_project = BillingProjectResource(batch_client)
@@ -466,7 +466,6 @@ async def delete_user(app, user):
     db = app['db']
     k8s_client = app['k8s_client']
     iam_client = app['iam_client']
-    batch_client = app['batch_client']
 
     tokens_secret_name = user['tokens_secret_name']
     if tokens_secret_name is not None:
@@ -499,6 +498,7 @@ async def delete_user(app, user):
 
     trial_bp_name = user['trial_bp_name']
     if trial_bp_name is not None:
+        batch_client = app['batch_client']
         bp = BillingProjectResource(batch_client, user['username'], trial_bp_name)
         await bp.delete()
 
