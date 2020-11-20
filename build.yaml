@@ -364,6 +364,13 @@ steps:
    publishAs: auth
    dependsOn:
      - service_base_image
+ - kind: deploy
+   name: deploy_auth_driver_service_account
+   namespace:
+     valueFrom: default_ns.name
+   config: auth/auth-driver-service-account.yaml
+   dependsOn:
+    - default_ns
  - kind: runImage
    name: create_accounts
    image:
