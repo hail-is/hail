@@ -143,6 +143,8 @@ steps:
        to: /git_version
      - from: /io/repo/address/test
        to: /repo/address/
+     - from: /io/repo/ci/bootstrap_create_accounts.py
+       to: /repo/ci/
    dependsOn:
      - base_image
  - kind: buildImage
@@ -352,82 +354,25 @@ steps:
    scopes:
     - test
     - dev
+ - kind: buildImage
+   name: auth_image
+   dockerFile: auth/Dockerfile
+   contextPath: .
+   publishAs: auth
+   dependsOn:
+     - service_base_image
  - kind: runImage
    name: create_accounts
    image:
-     valueFrom: service_base_image.image
+     valueFrom: auth_image.image
    script: |
      set -ex
-     # create accounts
-     mkdir /user-tokens
-     cat > create-session.py <<EOF
-     import sys
-     import json
-     import asyncio
-     from hailtop.config import get_deploy_config
-     from hailtop.auth import get_tokens
-     from hailtop.utils import async_to_blocking
-     from gear import Database, insert_user, create_session
-     async def main():
-         db = Database()
-         try:
-             await db.async_init()
-             tokens = get_tokens()
-             user_spec = json.loads(sys.argv[1])
-             user_id = await insert_user(db, user_spec)
-             deploy_config = get_deploy_config()
-             auth_ns = deploy_config.service_ns('auth')
-             tokens[auth_ns] = await create_session(db, user_id)
-             tokens.write()
-         finally:
-             await db.async_close()
-     async_to_blocking(main())
-     EOF
-     # create auth
-     N=$(kubectl -n {{ default_ns.name }} get secret --ignore-not-found=true --no-headers auth-tokens | wc -l | tr -d '[:space:]')
-     if [[ $N = 0 ]]; then
-         rm -f /user-tokens/tokens.json
-         kubectl -n {{ default_ns.name }} get -o json secret test-gsa-key | jq '{apiVersion, kind, type, data, metadata: {name: "auth-gsa-key"}}' | kubectl -n {{ default_ns.name }} apply -f -
-         python3 create-session.py '{"state":"active","username":"auth","is_service_account":1,"gsa_email":"hail-test@hail-vdc.iam.gserviceaccount.com","gsa_key_secret_name":"auth-gsa-key","tokens_secret_name":"auth-tokens"}'
-         kubectl -n {{ default_ns.name }} create secret generic auth-tokens --from-file=/user-tokens/tokens.json
-     fi
-     # created auth
-     # create ci
-     N=$(kubectl -n {{ default_ns.name }} get secret --ignore-not-found=true --no-headers ci-tokens | wc -l | tr -d '[:space:]')
-     if [[ $N = 0 ]]; then
-         rm -f /user-tokens/tokens.json
-         kubectl -n {{ default_ns.name }} get -o json secret test-gsa-key | jq '{apiVersion, kind, type, data, metadata: {name: "ci-gsa-key"}}' | kubectl -n {{ default_ns.name }} apply -f -
-         python3 create-session.py '{"state":"active","username":"ci","is_service_account":1,"gsa_email":"hail-test@hail-vdc.iam.gserviceaccount.com","gsa_key_secret_name":"ci-gsa-key","tokens_secret_name":"ci-tokens"}'
-         kubectl -n {{ default_ns.name }} create secret generic ci-tokens --from-file=/user-tokens/tokens.json
-     fi
-     # created ci
-     # create test
-     N=$(kubectl -n {{ default_ns.name }} get secret --ignore-not-found=true --no-headers test-tokens | wc -l | tr -d '[:space:]')
-     if [[ $N = 0 ]]; then
-         # if test-tokens does not exist
-         rm -f /user-tokens/tokens.json
-         python3 create-session.py '{"state":"active","username":"test","gsa_email":"hail-test@hail-vdc.iam.gserviceaccount.com","gsa_key_secret_name":"test-gsa-key","tokens_secret_name":"test-tokens"}'
-         kubectl -n {{ default_ns.name }} create secret generic test-tokens --from-file=/user-tokens/tokens.json
-     fi
-     # created test
-     # create test-dev
-     N=$(kubectl -n {{ default_ns.name }} get secret --ignore-not-found=true --no-headers test-dev-tokens | wc -l | tr -d '[:space:]')
-     if [[ $N = 0 ]]; then
-         # if test-dev-tokens does not exist
-         rm -f /user-tokens/tokens.json
-         python3 create-session.py '{"state":"active","username":"test-dev","gsa_email":"hail-test@hail-vdc.iam.gserviceaccount.com","gsa_key_secret_name":"test-gsa-key","tokens_secret_name":"test-dev-tokens","is_developer":1}'
-         kubectl -n {{ default_ns.name }} create secret generic test-dev-tokens --from-file=/user-tokens/tokens.json
-     fi
-     # created test-dev
-     # create benchmark
-     N=$(kubectl -n {{ default_ns.name }} get secret --ignore-not-found=true --no-headers benchmark-tokens | wc -l | tr -d '[:space:]')
-     if [[ $N = 0 ]]; then
-         # if benchmark does not exist
-         rm -f /user-tokens/tokens.json
-         python3 create-session.py '{"state":"active","username":"benchmark","gsa_email":"benchmark@hail-vdc.iam.gserviceaccount.com","gsa_key_secret_name":"benchmark-gsa-key","tokens_secret_name":"benchmark-tokens"}'
-         kubectl -n {{ default_ns.name }} create secret generic benchmark-tokens --from-file=/user-tokens/tokens.json
-     fi
-     # created benchmark
+     export HAIL_PROJECT={{ global.project }}
+     {% if not deploy %}
+     export HAIL_NAMESPACE_NAME={{ default_ns.name }}
+     export HAIL_GSA_EMAIL=$(kubectl get secret test-gsa-key -o jsonpath={.data.key\\.json} | base64 -d | jq -r '."client_email"')
+     {% endif %}
+     /io/bootstrap_create_accounts.py 
    scopes:
     - test
     - dev
@@ -441,10 +386,21 @@ steps:
       namespace:
         valueFrom: default_ns.name
       mountPath: /sql-config
+    - name: database-server-config
+      namespace:
+        valueFrom: default_ns.name
+      mountPath: /database-server-config
     - name: gce-deploy-config
       namespace:
         valueFrom: default_ns.name
       mountPath: /deploy-config
+    - name: auth-gsa-key
+      namespace:
+        valueFrom: default_ns.name
+      mountPath: /gsa-key
+   inputs:
+     - from: /repo/ci/bootstrap_create_accounts.py
+       to: /io/bootstrap_create_accounts.py
    dependsOn:
     - default_ns
     - deploy_test_batch_sa
@@ -496,13 +452,6 @@ steps:
    dockerFile: monitoring/Dockerfile
    contextPath: .
    publishAs: monitoring
-   dependsOn:
-     - service_base_image
- - kind: buildImage
-   name: auth_image
-   dockerFile: auth/Dockerfile
-   contextPath: .
-   publishAs: auth
    dependsOn:
      - service_base_image
  - kind: buildImage

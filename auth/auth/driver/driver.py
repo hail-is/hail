@@ -449,7 +449,7 @@ async def create_user(app, user):
     try:
         await _create_user(app, user, cleanup)
     except Exception:
-        log.exception(f'create user {user} failed, will retry')
+        log.exception(f'create user {user} failed')
 
         for f in cleanup:
             try:
