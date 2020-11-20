@@ -377,7 +377,7 @@ steps:
      export HAIL_NAMESPACE_NAME={{ default_ns.name }}
      export HAIL_GSA_EMAIL=$(kubectl get secret test-gsa-key -o jsonpath={.data.key\\.json} | base64 -d | jq -r '."client_email"')
      {% endif %}
-     /io/bootstrap_create_accounts.py 
+     python3 /io/bootstrap_create_accounts.py 
    serviceAccount:
      name: admin
      namespace:
