@@ -85,7 +85,7 @@ You can now install Hail:
 
   ```
   sudo apt update
-  sudo apt install -y docker.io python3-pip mysql-client-core-8.0
+  sudo apt install -y docker.io python3-pip
   sudo usermod -a -G docker $USER
   gcloud -q auth configure-docker
   gcloud container clusters get-credentials --zone us-central1-a vdc
