@@ -20,8 +20,8 @@ provider "google" {
   credentials = file("~/.hail/terraform_sa_key.json")
 
   project = var.gcp_project
-  region  = var.gcp_region
-  zone    = var.gcp_zone
+  region = var.gcp_region
+  zone = var.gcp_zone
 }
 
 data "google_client_config" "provider" {}
@@ -49,7 +49,7 @@ resource "google_container_cluster" "vdc" {
   # separately managed node pools. So we create the smallest possible default
   # node pool and immediately delete it.
   remove_default_node_pool = true
-  initial_node_count       = 1
+  initial_node_count = 1
 
   master_auth {
     username = ""
@@ -62,9 +62,9 @@ resource "google_container_cluster" "vdc" {
 }
 
 resource "google_container_node_pool" "vdc_preemptible_pool" {
-  name       = "preemptible-pool"
-  location   = var.gcp_zone
-  cluster    = google_container_cluster.vdc.name
+  name = "preemptible-pool"
+  location = var.gcp_zone
+  cluster = google_container_cluster.vdc.name
 
   autoscaling {
     min_node_count = 0
@@ -72,7 +72,7 @@ resource "google_container_node_pool" "vdc_preemptible_pool" {
   }
 
   node_config {
-    preemptible  = true
+    preemptible = true
     machine_type = "n1-standard-2"
 
     labels = {
@@ -96,9 +96,9 @@ resource "google_container_node_pool" "vdc_preemptible_pool" {
 }
 
 resource "google_container_node_pool" "vdc_nonpreemptible_pool" {
-  name       = "nonpreemptible-pool"
-  location   = var.gcp_zone
-  cluster    = google_container_cluster.vdc.name
+  name = "nonpreemptible-pool"
+  location = var.gcp_zone
+  cluster = google_container_cluster.vdc.name
 
   autoscaling {
     min_node_count = 0
@@ -106,7 +106,7 @@ resource "google_container_node_pool" "vdc_nonpreemptible_pool" {
   }
 
   node_config {
-    preemptible  = false
+    preemptible = false
     machine_type = "n1-standard-2"
 
     labels = {
@@ -124,9 +124,9 @@ resource "google_container_node_pool" "vdc_nonpreemptible_pool" {
 }
 
 resource "google_compute_global_address" "db_ip_address" {
-  name          = "db-ip-address"
-  purpose       = "VPC_PEERING"
-  address_type  = "INTERNAL"
+  name = "db-ip-address"
+  purpose = "VPC_PEERING"
+  address_type = "INTERNAL"
   prefix_length = 16
   network = google_compute_network.internal.id
 }
@@ -142,9 +142,9 @@ resource "random_id" "db_name_suffix" {
 }
 
 resource "google_sql_database_instance" "db" {
-  name             = "db-${random_id.db_name_suffix.hex}"
+  name = "db-${random_id.db_name_suffix.hex}"
   database_version = "MYSQL_5_7"
-  region           = var.gcp_region
+  region = var.gcp_region
 
   depends_on = [google_service_networking_connection.private_vpc_connection]
 
@@ -154,7 +154,7 @@ resource "google_sql_database_instance" "db" {
     tier = "db-n1-standard-1"
 
     ip_configuration {
-      ipv4_enabled    = false
+      ipv4_enabled = false
       private_network = google_compute_network.internal.id
       require_ssl = true
     }
@@ -167,16 +167,16 @@ resource "google_compute_address" "gateway" {
 }
 
 resource "google_compute_address" "internal_gateway" {
-  name         = "internal-gateway"
-  subnetwork   = data.google_compute_subnetwork.internal_default_region.id
+  name = "internal-gateway"
+  subnetwork = data.google_compute_subnetwork.internal_default_region.id
   address_type = "INTERNAL"
-  region       = var.gcp_region
+  region = var.gcp_region
 }
 
 provider "kubernetes" {
   load_config_file = false
 
-  host  = "https://${google_container_cluster.vdc.endpoint}"
+  host = "https://${google_container_cluster.vdc.endpoint}"
   token = data.google_client_config.provider.access_token
   cluster_ca_certificate = base64decode(
     google_container_cluster.vdc.master_auth[0].cluster_ca_certificate,
@@ -255,7 +255,7 @@ resource "google_container_registry" "registry" {
 }
 
 resource "google_service_account" "gcr_pull" {
-  account_id   = "gcr-pull"
+  account_id = "gcr-pull"
   display_name = "pull from gcr.io"
 }
 
@@ -264,7 +264,7 @@ resource "google_service_account_key" "gcr_pull_key" {
 }
 
 resource "google_service_account" "gcr_push" {
-  account_id   = "gcr-push"
+  account_id = "gcr-push"
   display_name = "push to gcr.io"
 }
 
@@ -355,7 +355,7 @@ resource "random_id" "atgu_name_suffix" {
 }
 
 resource "google_service_account" "atgu" {
-  account_id   = "atgu-${random_id.atgu_name_suffix.hex}"
+  account_id = "atgu-${random_id.atgu_name_suffix.hex}"
 }
 
 resource "google_service_account_key" "atgu_key" {
@@ -377,7 +377,7 @@ resource "random_id" "auth_name_suffix" {
 }
 
 resource "google_service_account" "auth" {
-  account_id   = "auth-${random_id.auth_name_suffix.hex}"
+  account_id = "auth-${random_id.auth_name_suffix.hex}"
 }
 
 resource "google_service_account_key" "auth_key" {
@@ -385,18 +385,18 @@ resource "google_service_account_key" "auth_key" {
 }
 
 resource "google_project_iam_member" "auth_service_account_admin" {
-  role    = "roles/iam.serviceAccountAdmin"
-  member  = "serviceAccount:${google_service_account.auth.email}"
+  role = "roles/iam.serviceAccountAdmin"
+  member = "serviceAccount:${google_service_account.auth.email}"
 }
 
 resource "google_project_iam_member" "auth_service_account_key_admin" {
-  role    = "roles/iam.serviceAccountKeyAdmin"
-  member  = "serviceAccount:${google_service_account.auth.email}"
+  role = "roles/iam.serviceAccountKeyAdmin"
+  member = "serviceAccount:${google_service_account.auth.email}"
 }
 
 resource "google_project_iam_member" "auth_storage_admin" {
-  role    = "roles/storage.admin"
-  member  = "serviceAccount:${google_service_account.auth.email}"
+  role = "roles/storage.admin"
+  member = "serviceAccount:${google_service_account.auth.email}"
 }
 
 resource "kubernetes_secret" "auth_gsa_key" {
@@ -414,7 +414,7 @@ resource "random_id" "batch_name_suffix" {
 }
 
 resource "google_service_account" "batch" {
-  account_id   = "batch-${random_id.batch_name_suffix.hex}"
+  account_id = "batch-${random_id.batch_name_suffix.hex}"
 }
 
 resource "google_service_account_key" "batch_key" {
@@ -432,7 +432,7 @@ resource "kubernetes_secret" "batch_gsa_key" {
 }
 
 resource "google_service_account" "benchmark" {
-  account_id   = "benchmark"
+  account_id = "benchmark"
 }
 
 resource "google_service_account_key" "benchmark_key" {
@@ -450,7 +450,7 @@ resource "kubernetes_secret" "benchmark_gsa_key" {
 }
 
 resource "google_service_account" "monitoring" {
-  account_id   = "monitoring"
+  account_id = "monitoring"
 }
 
 resource "google_service_account_key" "monitoring_key" {
@@ -472,7 +472,7 @@ resource "random_id" "test_name_suffix" {
 }
 
 resource "google_service_account" "test" {
-  account_id   = "test-${random_id.test_name_suffix.hex}"
+  account_id = "test-${random_id.test_name_suffix.hex}"
 }
 
 resource "google_service_account_key" "test_key" {
@@ -490,7 +490,7 @@ resource "kubernetes_secret" "test_gsa_key" {
 }
 
 resource "google_service_account" "test_dev" {
-  account_id   = "test-dev"
+  account_id = "test-dev"
 }
 
 resource "google_service_account_key" "test_dev_key" {
