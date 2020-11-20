@@ -431,6 +431,21 @@ resource "kubernetes_secret" "batch_gsa_key" {
   }
 }
 
+resource "google_project_iam_member" "batch_compute_instance_admin" {
+  role = "roles/compute.instanceAdmin.v1"
+  member = "serviceAccount:${google_service_account.batch.email}"
+}
+
+resource "google_project_iam_member" "batch_service_account_user" {
+  role = "roles/iam.serviceAccountUser"
+  member = "serviceAccount:${google_service_account.batch.email}"
+}
+
+resource "google_project_iam_member" "batch_logging_viewer" {
+  role = "roles/logging.viewer"
+  member = "serviceAccount:${google_service_account.batch.email}"
+}
+
 resource "google_service_account" "benchmark" {
   account_id = "benchmark"
 }
@@ -489,6 +504,26 @@ resource "kubernetes_secret" "test_gsa_key" {
   }
 }
 
+resource "google_project_iam_member" "test_compute_instance_admin" {
+  role = "roles/compute.instanceAdmin.v1"
+  member = "serviceAccount:${google_service_account.test.email}"
+}
+
+resource "google_project_iam_member" "test_service_account_user" {
+  role = "roles/iam.serviceAccountUser"
+  member = "serviceAccount:${google_service_account.test.email}"
+}
+
+resource "google_project_iam_member" "test_logging_viewer" {
+  role = "roles/logging.viewer"
+  member = "serviceAccount:${google_service_account.test.email}"
+}
+
+resource "google_project_iam_member" "test_service_usage_consumer" {
+  role = "roles/serviceusage.serviceUsageConsumer"
+  member = "serviceAccount:${google_service_account.test.email}"
+}
+
 resource "google_service_account" "test_dev" {
   account_id = "test-dev"
 }
@@ -505,4 +540,33 @@ resource "kubernetes_secret" "test_dev_gsa_key" {
   data = {
     "key.json" = base64decode(google_service_account_key.test_dev_key.private_key)
   }
+}
+
+resource "google_service_account" "batch_agent" {
+  account_id = "batch2-agent"
+}
+
+resource "google_project_iam_member" "batch_agent_compute_instance_admin" {
+  role = "roles/compute.instanceAdmin.v1"
+  member = "serviceAccount:${google_service_account.batch_agent.email}"
+}
+
+resource "google_project_iam_member" "batch_agent_service_account_user" {
+  role = "roles/iam.serviceAccountUser"
+  member = "serviceAccount:${google_service_account.batch_agent.email}"
+}
+
+resource "google_project_iam_member" "batch_agent_log_writer" {
+  role = "roles/logging.logWriter"
+  member = "serviceAccount:${google_service_account.batch_agent.email}"
+}
+
+resource "google_project_iam_member" "batch_agent_object_creator" {
+  role = "roles/storage.objectCreator"
+  member = "serviceAccount:${google_service_account.batch_agent.email}"
+}
+
+resource "google_project_iam_member" "batch_agent_object_viewer" {
+  role = "roles/storage.objectViewer"
+  member = "serviceAccount:${google_service_account.batch_agent.email}"
 }
