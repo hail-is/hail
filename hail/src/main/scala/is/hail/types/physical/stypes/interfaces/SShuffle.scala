@@ -14,8 +14,6 @@ trait SShuffleValue extends SValue {
 }
 
 trait SShuffleCode extends SCode {
-  def pt: PShuffle
-
   def memoize(cb: EmitCodeBuilder, name: String): SShuffleValue
 
   def memoizeField(cb: EmitCodeBuilder, name: String): SShuffleValue

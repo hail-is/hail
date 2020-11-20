@@ -22,8 +22,6 @@ trait SBaseStructValue extends SValue {
 }
 
 trait SBaseStructCode extends SCode {
-  def pt: PBaseStruct
-
   def memoize(cb: EmitCodeBuilder, name: String): SBaseStructValue
 
   def memoizeField(cb: EmitCodeBuilder, name: String): SBaseStructValue

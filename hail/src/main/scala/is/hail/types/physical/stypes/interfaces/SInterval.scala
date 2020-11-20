@@ -24,8 +24,6 @@ trait SIntervalValue extends SValue {
 }
 
 trait SIntervalCode extends SCode {
-  def pt: PInterval
-
   def includesStart(): Code[Boolean]
 
   def includesEnd(): Code[Boolean]
