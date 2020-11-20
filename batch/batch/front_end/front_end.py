@@ -41,7 +41,7 @@ from ..utils import (adjust_cores_for_memory_request, worker_memory_per_core_gb,
 from ..batch import batch_record_to_dict, job_record_to_dict, cancel_batch_in_db
 from ..exceptions import (BatchUserError, NonExistentBillingProjectError,
                           NonExistentUserError, ClosedBillingProjectError,
-                          InvalidBillingLimitError, OpenBatchError, NonExistentBatchError)
+                          InvalidBillingLimitError)
 from ..log_store import LogStore
 from ..database import CallError, check_call_procedure
 from ..batch_configuration import (BATCH_BUCKET_NAME, DEFAULT_NAMESPACE,
