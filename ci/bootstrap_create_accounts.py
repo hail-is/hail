@@ -69,7 +69,7 @@ async def main():
         user_id = await insert_user_if_not_exists(db, username, email, is_developer, is_service_account)
 
     db_user = await db.execute_and_fetchone('SELECT * FROM users where id = %s;', (user_id,))
-    await create_user(app, db_user)
+    await create_user(app, db_user, skip_trial_bp=True)
 
 
 async_to_blocking(main())
