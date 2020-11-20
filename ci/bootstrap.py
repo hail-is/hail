@@ -13,7 +13,7 @@ from ci.utils import generate_token
 
 from batch.driver.k8s_cache import K8sCache
 
-KUBERNETES_SERVER_URL = 'https://34.71.246.49'
+KUBERNETES_SERVER_URL = os.environ['KUBERNETES_SERVER_URL']
 SHA  = os.environ['HAIL_SHA']
 
 def populate_secret_host_path(host_path, secret_data):
