@@ -384,6 +384,21 @@ resource "google_service_account_key" "auth_key" {
   service_account_id = google_service_account.auth.name
 }
 
+resource "google_project_iam_member" "auth_service_account_admin" {
+  role    = "roles/iam.serviceAccountAdmin"
+  member  = "serviceAccount:${google_service_account.auth.email}"
+}
+
+resource "google_project_iam_member" "auth_service_account_key_admin" {
+  role    = "roles/iam.serviceAccountKeyAdmin"
+  member  = "serviceAccount:${google_service_account.auth.email}"
+}
+
+resource "google_project_iam_member" "auth_storage_admin" {
+  role    = "roles/storage.admin"
+  member  = "serviceAccount:${google_service_account.auth.email}"
+}
+
 resource "kubernetes_secret" "auth_gsa_key" {
   metadata {
     name = "auth-gsa-key"
