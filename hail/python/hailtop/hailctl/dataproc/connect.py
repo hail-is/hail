@@ -62,9 +62,16 @@ def main(args, pass_through_args):  # pylint: disable=unused-argument
     if not zone:
         raise RuntimeError("Could not determine compute zone. Use --zone argument to hailctl, or use `gcloud config set compute/zone <my-zone>` to set a default.")
 
+    account = gcloud.get_config("account")
+    if account:
+        account = account[0:account.find('@')]
+        ssh_login = '{}@{}-m'.format(account, args.name)
+    else:
+        ssh_login = '{}-m'.format(args.name)
+
     cmd = ['compute',
            'ssh',
-           '{}-m'.format(args.name),
+           ssh_login,
            '--zone={}'.format(zone),
            '--ssh-flag=-D {}'.format(args.port),
            '--ssh-flag=-N',
