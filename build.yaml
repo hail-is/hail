@@ -340,6 +340,19 @@ steps:
     - default_ns
     - base_image
  - kind: runImage
+   name: create_test_gsa_keys
+   image:
+     valueFrom: service_base_image.image
+   script: |
+     # batch, benchmark, auth gsa keys
+     kubectl -n {{ default_ns.name }} get -o json secret test-gsa-key | jq '{apiVersion, kind, type, data, metadata: {name: "auth-gsa-key"}}' | kubectl -n {{ default_ns.name }} apply -f -
+     kubectl -n {{ default_ns.name }} get -o json secret test-gsa-key | jq '{apiVersion, kind, type, data, metadata: {name: "batch-gsa-key"}}' | kubectl -n {{ default_ns.name }} apply -f -
+     kubectl -n {{ default_ns.name }} get -o json secret test-gsa-key | jq '{apiVersion, kind, type, data, metadata: {name: "atgu-gsa-key"}}' | kubectl -n {{ default_ns.name }} apply -f -
+     kubectl -n {{ default_ns.name }} get -o json secret test-gsa-key | jq '{apiVersion, kind, type, data, metadata: {name: "benchmark-gsa-key"}}' | kubectl -n {{ default_ns.name }} apply -f -
+   scopes:
+    - test
+    - dev
+ - kind: runImage
    name: create_accounts
    image:
      valueFrom: service_base_image.image
@@ -370,11 +383,6 @@ steps:
              await db.async_close()
      async_to_blocking(main())
      EOF
-     # batch, benchmark, auth gsa keys
-     kubectl -n {{ default_ns.name }} get -o json secret test-gsa-key | jq '{apiVersion, kind, type, data, metadata: {name: "auth-gsa-key"}}' | kubectl -n {{ default_ns.name }} apply -f -
-     kubectl -n {{ default_ns.name }} get -o json secret test-gsa-key | jq '{apiVersion, kind, type, data, metadata: {name: "batch-gsa-key"}}' | kubectl -n {{ default_ns.name }} apply -f -
-     kubectl -n {{ default_ns.name }} get -o json secret test-gsa-key | jq '{apiVersion, kind, type, data, metadata: {name: "atgu-gsa-key"}}' | kubectl -n {{ default_ns.name }} apply -f -
-     kubectl -n {{ default_ns.name }} get -o json secret test-gsa-key | jq '{apiVersion, kind, type, data, metadata: {name: "benchmark-gsa-key"}}' | kubectl -n {{ default_ns.name }} apply -f -
      # create auth
      N=$(kubectl -n {{ default_ns.name }} get secret --ignore-not-found=true --no-headers auth-tokens | wc -l | tr -d '[:space:]')
      if [[ $N = 0 ]]; then
@@ -443,6 +451,7 @@ steps:
     - auth_database
     - service_base_image
     - create_deploy_config
+    - create_test_gsa_keys
  - kind: buildImage
    name: hail_build_image
    dockerFile: hail/Dockerfile.hail-build
