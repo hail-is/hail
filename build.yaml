@@ -354,6 +354,9 @@ steps:
    scopes:
     - test
     - dev
+   dependsOn:
+     - default_ns
+     - service_base_image
  - kind: buildImage
    name: auth_image
    dockerFile: auth/Dockerfile
@@ -405,7 +408,7 @@ steps:
     - default_ns
     - deploy_test_batch_sa
     - auth_database
-    - service_base_image
+    - auth_image
     - create_deploy_config
     - create_test_gsa_keys
  - kind: buildImage
