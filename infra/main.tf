@@ -161,8 +161,9 @@ resource "google_sql_database_instance" "db" {
   }
 }
 
-resource "google_compute_global_address" "gateway" {
+resource "google_compute_address" "gateway" {
   name = "gateway"
+  region = var.gcp_region
 }
 
 resource "google_compute_address" "internal_gateway" {
@@ -191,7 +192,7 @@ resource "kubernetes_secret" "global_config" {
     gcp_project = var.gcp_project
     domain = var.domain
     internal_ip = google_compute_address.internal_gateway.address
-    ip = google_compute_global_address.gateway.address
+    ip = google_compute_address.gateway.address
     kubernetes_server_url = "https://${google_container_cluster.vdc.endpoint}"
     gcp_region = var.gcp_region
     gcp_zone = var.gcp_zone

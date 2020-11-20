@@ -53,9 +53,18 @@ You can now install Hail:
 - Update $HAIL/config.mk with your infrastructure settings.  You can
   get settings from the default/global-config secret.
 
+- Run `kubectl -n default apply -f $HAIL/ci/bootstrap.yaml`.
+
 - Build the CI utils image.  Run `make push-ci-utils` in $HAIL/ci.
 
-- Run `kubectl -n default apply -f $HAIL/ci/bootstrap.yaml`.
+- Deploy the bootstrap gateway.  Run `make deploy` in
+  $HAIL/bootstrap-gateway.
+
+- Create Let's Encrypt certs. Run `make run` in $HAIL/letsencrypt.
+
+- Deploy the gateway.  Run `make deploy` in $HAIL/gateway.
+
+- Deploy the internal-gateway.  Run `make deploy` in $HAIL/internal-gateway.
 
 - Go to the Google Cloud console, API & Services, Credentials.
   Configure the consent screen.  Add the scope:
