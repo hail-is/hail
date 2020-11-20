@@ -78,25 +78,36 @@ You can now install Hail:
   kubectl -n default create secret generic auth-oauth2-client-secret --from-file=./client_secret.json
   ```
 
-- On an instance on the internal network, 100gb, Ubuntu 20.04 TLS, enable
-  full API and run:
+- Create a VM on the internal network, 100GB, Ubuntu 20.04 TLS, allow
+  full access to all Cloud APIs.  10GB will run out of space.
+
+- Install some dependencies:
 
   ```
   sudo apt update
   sudo apt install -y docker.io python3-pip mysql-client-core-8.0
-  sudo snap install --classic kubectl
+  sudo usermod -a -G docker $USER
   gcloud -q auth configure-docker
   gcloud container clusters get-credentials --zone us-central1-a vdc
   git clone https://github.com/cseed/hail.git
   python3 -m pip install -r $HOME/hail/docker/requirements.txt
   ```
 
-add yourself to the docker group
-add ssh firewall rule to internal
-fix up sha, other config in bootstrap.py
+  You will have to log out/in for usermod to take effect.
 
-create users
+- Bootstrap the cluster by running:
 
-python3 ./ci/bootstrap.py
+  ```
+  HAIL_SHA=$(git rev-parse HEAD) \
+  HAIL_CI_UTILS_IMAGE=gcr.io/<gcp-project>/ci-utils:latest \
+  HAIL_CI_BUCKET_NAME=dummy \
+  KUBERNETES_SERVER_URL='<k8s-server-url>' \
+  HAIL_DEFAULT_NAMESPACE='default' \
+  HAIL_DOMAIN=<domain> \
+  HAIL_GCP_ZONE=<gcp-zone> \
+  GCP_PROJECT=<gcp-project> \
+  PYTHONPATH=$HOME/hail/ci:$HOME/hail/batch:$HOME/hail/hail/python \
+  python3 $HAIL/ci/bootstrap.py
+  ```
 
-cotton@admin:~/hail$ (sudo rm -rf _) && HAIL_CI_UTILS_IMAGE=gcr.io/hail-vdc-staging/ci-utils:latest HAIL_CI_BUCKET_NAME='dummy' KUBERNETES_SERVER_URL='http://34.71.246.49' HAIL_DEFAULT_NAMESPACE='default' HAIL_DOMAIN=staging.hail.is HAIL_GCP_ZONE=us-central1-a HAIL_GCP_PROJECT=hail-vdc-staging PYTHONPATH=$HOME/hail/ci:$HOME/hail/batch:$HOME/hail/hail/python python3 ./ci/bootstrap.py^C
+- You may want to add a suitable ssh forward rule to the internal network.
