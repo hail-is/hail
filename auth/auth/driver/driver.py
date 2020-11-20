@@ -349,7 +349,7 @@ class BillingProjectResource:
         self.billing_project = None
 
 
-async def _create_user(app, user, cleanup):
+async def _create_user(app, user, skip_trial_bp, cleanup):
     db_instance = app['db_instance']
     db = app['db']
     k8s_client = app['k8s_client']
@@ -424,14 +424,15 @@ async def _create_user(app, user, cleanup):
         await db_secret.create(
             'database-server-config', namespace_name, db_resource.secret_data())
 
-    trial_bp = user['trial_bp_name']
-    if trial_bp is None:
-        username = user['username']
-        billing_project_name = f'{username}-trial'
-        billing_project = BillingProjectResource(batch_client)
-        cleanup.append(billing_project.delete)
-        await billing_project.create(username, billing_project_name)
-        updates['trial_bp_name'] = billing_project_name
+    if not skip_trial_bp:
+        trial_bp = user['trial_bp_name']
+        if trial_bp is None:
+            username = user['username']
+            billing_project_name = f'{username}-trial'
+            billing_project = BillingProjectResource(batch_client)
+            cleanup.append(billing_project.delete)
+            await billing_project.create(username, billing_project_name)
+            updates['trial_bp_name'] = billing_project_name
 
     n_rows = await db.execute_update(f'''
 UPDATE users
@@ -444,10 +445,10 @@ WHERE id = %(id)s AND state = 'creating';
         raise DatabaseConflictError
 
 
-async def create_user(app, user):
+async def create_user(app, user, skip_trial_bp=False):
     cleanup = []
     try:
-        await _create_user(app, user, cleanup)
+        await _create_user(app, user, skip_trial_bp, cleanup)
     except Exception:
         log.exception(f'create user {user} failed')
 
