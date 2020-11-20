@@ -67,7 +67,7 @@ resource "google_container_node_pool" "vdc_preemptible_pool" {
   cluster = google_container_cluster.vdc.name
 
   autoscaling {
-    min_node_count = 0
+    min_node_count = 1
     max_node_count = 200
   }
 
@@ -101,7 +101,7 @@ resource "google_container_node_pool" "vdc_nonpreemptible_pool" {
   cluster = google_container_cluster.vdc.name
 
   autoscaling {
-    min_node_count = 0
+    min_node_count = 1
     max_node_count = 200
   }
 
@@ -569,4 +569,27 @@ resource "google_project_iam_member" "batch_agent_object_creator" {
 resource "google_project_iam_member" "batch_agent_object_viewer" {
   role = "roles/storage.objectViewer"
   member = "serviceAccount:${google_service_account.batch_agent.email}"
+}
+
+resource "google_compute_firewall" "vdc_to_batch_worker" {
+  name    = "vdc-to-batch-worker"
+  network = google_compute_network.internal.name
+
+  source_ranges = [google_container_cluster.vdc.cluster_ipv4_cidr]
+
+  target_tags = ["batch2-worker"]
+
+  allow {
+    protocol = "icmp"
+  }
+
+  allow {
+    protocol = "tcp"
+    ports    = ["1-65535"]
+  }
+
+  allow {
+    protocol = "udp"
+    ports    = ["1-65535"]
+  }
 }
