@@ -14,7 +14,7 @@ from ci.utils import generate_token
 from batch.driver.k8s_cache import K8sCache
 
 KUBERNETES_SERVER_URL = 'https://34.71.246.49'
-
+SHA  = os.environ['HAIL_SHA']
 
 def populate_secret_host_path(host_path, secret_data):
     os.makedirs(host_path)
@@ -275,7 +275,7 @@ git checkout {shq(self._sha)}
 
 async def main():
     scope = 'deploy'
-    code = Branch('cseed', 'hail', 'infra-1', 'dd8c84ee1601d9dd5643ec78fd9996cb51472e18')
+    code = Branch('cseed', 'hail', 'infra-1', SHA)
 
     with open(f'build.yaml', 'r') as f:
         config = BuildConfiguration(code, f.read(), scope, requested_step_names=['deploy_batch'])
