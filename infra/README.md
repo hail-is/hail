@@ -3,8 +3,12 @@ infrastructure.
 
 Instructions:
 
-- You will need a GCP project.  We assume `gcloud` is configured to
-  point at your project.
+- You will need a GCP project.  Configure `gcloud` to point at your project:
+
+   ```
+   gcloud config set project <gcp-project-id>
+   gcloud config set compute/zone <gcp-zone>
+   ```
 
 - Create a service account for Terraform with Owner role, create a
   service account key and place it in
@@ -27,7 +31,7 @@ Instructions:
 - Create `$HOME/.hail/global.tfvars` that looks like:
 
    ```
-   gcp_project = "<gcp-project>"
+   gcp_project = "<gcp-project-id>"
    gcp_region = "<gcp-region>"
    gcp_zone = "<gcp-zone>"
    domain = "<domain>"
@@ -36,8 +40,11 @@ Instructions:
 - Run `terraform init`.
 
 - Run `terraform apply -var-file="$HOME/.hail/global.tfvars"`.
-  Terraform has created a GKE cluster named `vdc`.  We assume
-  `kubectl` is configured to point at this cluster.
+  Terraform has created a GKE cluster named `vdc`.  Configure `kubectl` to point at the vdc cluster:
+
+  ```
+  gcloud container clusters get-credentials vdc
+  ```
 
 - Go to the Google Cloud console, VPC networks > internal > Private
   service connection > Private connections to services, and enable
@@ -45,13 +52,40 @@ Instructions:
 
 You can now install Hail:
 
-- Run `$HAIL/docker/third-party/copy_images.sh`.  This copies some
-  base images from Dockerhub (which now has rate limits) to GCR.
+- Create a VM on the internal network, 100GB, Ubuntu 20.04 TLS, allow
+  full access to all Cloud APIs.  10GB will run out of space.  We
+  assume the rest of the commands are run on the VM.
 
-- Generate TLS certificates.  See ../dev-docs/tls-cookbook.md.
+- Standardize file permissions.  This is for docker, which considers
+  permissions for caching.  Run `echo 'umask 022' > ~/.profile`.  You
+  will need to log out/in or run `umask 022`.
 
 - Update $HAIL/config.mk with your infrastructure settings.  You can
-  get settings from the default/global-config secret.
+  get settings from the default/global-config secret:
+
+  ```
+  kubectl get secret global-config -o json | jq '.data | map_values(@base64d)'
+  ```
+
+- Install some dependencies on the VM:
+
+  ```
+  sudo apt update
+  sudo apt install -y docker.io python3-pip
+  sudo usermod -a -G docker $USER
+  gcloud -q auth configure-docker
+  gcloud container clusters get-credentials --zone us-central1-a vdc
+  git clone https://github.com/cseed/hail.git
+  python3 -m pip install -r $HOME/hail/docker/requirements.txt
+  ```
+
+  You will have to log out/in for usermod to take effect.
+
+- Run `PROJECT=<gc-project-id>
+  $HAIL/docker/third-party/copy_images.sh`.  This copies some base
+  images from Dockerhub (which now has rate limits) to GCR.
+
+- Generate TLS certificates.  See ../dev-docs/tls-cookbook.md.
 
 - Run `kubectl -n default apply -f $HAIL/ci/bootstrap.yaml`.
 
@@ -77,23 +111,6 @@ You can now install Hail:
   ```
   kubectl -n default create secret generic auth-oauth2-client-secret --from-file=./client_secret.json
   ```
-
-- Create a VM on the internal network, 100GB, Ubuntu 20.04 TLS, allow
-  full access to all Cloud APIs.  10GB will run out of space.
-
-- Install some dependencies:
-
-  ```
-  sudo apt update
-  sudo apt install -y docker.io python3-pip
-  sudo usermod -a -G docker $USER
-  gcloud -q auth configure-docker
-  gcloud container clusters get-credentials --zone us-central1-a vdc
-  git clone https://github.com/cseed/hail.git
-  python3 -m pip install -r $HOME/hail/docker/requirements.txt
-  ```
-
-  You will have to log out/in for usermod to take effect.
 
 - Bootstrap the cluster by running:
 
