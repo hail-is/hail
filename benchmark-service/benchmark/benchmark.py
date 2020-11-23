@@ -386,6 +386,8 @@ async def update_commit(app, sha):  # pylint: disable=unused-argument
     benchmark_data['commits'][sha] = commit  # TODO: ????
     benchmarks = get_benchmarks(app, file_path)
     commit['geo_mean'] = benchmarks['geometric_mean']
+    geo_mean = commit['geo_mean']
+    log.info(f'geo mean is {geo_mean}')
 
     dates.append(commit['date'])
     geo_means.append(commit['geo_mean'])
