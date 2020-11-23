@@ -169,14 +169,14 @@ case class EmitRegion(mb: EmitMethodBuilder[_], region: Value[Region]) {
 abstract class EmitValue {
   def pt: PType
 
-  def get: EmitCode
+  def load: EmitCode
 }
 
 class EmitUnrealizableValue(val pt: PType, private val ec: EmitCode) extends EmitValue {
   assert(!pt.isRealizable)
   private var used: Boolean = false
 
-  def get: EmitCode = {
+  def load: EmitCode = {
     assert(!used)
     used = true
     ec
@@ -321,7 +321,7 @@ object EmitCode {
     new EmitCode(Code(setup, ec.setup), ec.m, ec.pv)
 
   def apply(setup: Code[Unit], ev: EmitValue): EmitCode =
-    EmitCode(setup, ev.get)
+    EmitCode(setup, ev.load)
 
   def present(pt: PType, v: Code[_]): EmitCode = EmitCode(Code._empty, false, PCode(pt, v))
 
@@ -412,18 +412,14 @@ abstract class EmitSettable extends EmitValue {
   def store(cb: EmitCodeBuilder, ec: EmitCode): Unit
 
   def store(cb: EmitCodeBuilder, iec: IEmitCode): Unit
-
-  def load(): EmitCode = get
 }
 
 abstract class PresentEmitSettable extends EmitValue {
   def store(cb: EmitCodeBuilder, pc: PCode): Unit
-
-  def load(): EmitCode = get
 }
 
 class RichIndexedSeqEmitSettable(is: IndexedSeq[EmitSettable]) {
-  def load(): IndexedSeq[EmitCode] = is.map(_.load())
+  def load(): IndexedSeq[EmitCode] = is.map(_.load)
 }
 
 object LoopRef {
@@ -1083,7 +1079,7 @@ class Emit[C](
 
           val shapeBuilder = pndVal.pt.makeShapeBuilder(shapeArray)
           val stridesBuilder = pndVal.pt.makeColumnMajorStridesBuilder(shapeArray, mb)
-          
+
           pndVal.pt.construct(shapeBuilder, stridesBuilder, Aaddr, mb, region.code)
         }
       case x@NDArraySVD(nd, full_matrices, computeUV) =>
@@ -1826,7 +1822,7 @@ class Emit[C](
         val ev = env.lookup(name)
         if (ev.pt != pt)
           throw new RuntimeException(s"PValue type did not match inferred ptype:\n name: $name\n  pv: ${ ev.pt }\n  ir: $pt")
-        ev.get
+        ev.load
 
       case x@MakeArray(args, _) =>
         val pType = x.pType.asInstanceOf[PArray]
@@ -2454,7 +2450,7 @@ class Emit[C](
     (ir, { (env: Emit.E, f: DependentEmitFunctionBuilder[_]) =>
       Env[EmitValue](ids.toFastSeq.flatMap { id =>
          env.lookupOption(id).map { e =>
-           (id, f.newDepEmitField(e.get))
+           (id, f.newDepEmitField(e.load))
         }
       }: _*)
     })

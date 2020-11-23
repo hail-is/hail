@@ -84,7 +84,7 @@ class StagedArrayBuilder(val elt: PType, mb: EmitMethodBuilder[_], len: Code[Int
     new EmitValue {
       def pt: PType = elt
 
-      def get: EmitCode = {
+      def load: EmitCode = {
         val t = mb.newLocal[Int]("sab_applyEV_i")
         EmitCode(t := i, isMissing(t), PCode(elt, apply(t)))
       }
