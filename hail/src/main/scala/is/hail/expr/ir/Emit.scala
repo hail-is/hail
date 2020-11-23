@@ -2498,6 +2498,41 @@ class Emit[C](
       PCode(pt, value))
   }
 
+  def deforestNDArrayI(x0: IR, cb: EmitCodeBuilder, region: StagedRegion, env: E): IEmitCode = {
+
+    def emit(ir: IR, env: E = env): IEmitCode =
+      this.emitI(ir, cb, region, env, None, None)
+
+    def dEmit(ir: IR, env: E = env): IEmitCode = emit(ir, env)
+
+    def deforest(x: IR): NDArrayEmitter2 = {
+      val xType = coerce[PNDArray](x.pType)
+      val nDims = xType.nDims
+
+      x match {
+        case NDArrayMap(child, elemName, body) =>
+          val childP = child.pType.asInstanceOf[PNDArray]
+          val elemPType = childP.elementType
+
+          val childEmitter = deforest(child)
+
+          new NDArrayEmitter2(childEmitter.outputShape) {
+            override def outputElement(cb: EmitCodeBuilder, idxVars: IndexedSeq[Value[Long]]): Code[_] = {
+              val elemRef = cb.emb.newPresentEmitField("ndarray_map_element_name", elemPType)
+              val bodyEnv = env.bind(elemName, elemRef)
+              val bodyI = dEmit(body, bodyEnv)
+
+              cb.assign(elemRef, PCode(elemPType, childEmitter.outputElement(cb, idxVars)))
+              val bodyP = bodyI.get(cb, "NDArray map body cannot be missing")
+              bodyP.code
+            }
+          }
+      }
+    }
+
+    deforest(x0).emit(cb, coerce[PNDArray](x0.pType), region.code)
+  }
+
   def deforestNDArray(x0: IR, mb: EmitMethodBuilder[C], region: StagedRegion, env: E): EmitCode = {
     def emit(ir: IR, env: E = env): EmitCode =
       this.emitWithRegion(ir, mb, region, env, None)
