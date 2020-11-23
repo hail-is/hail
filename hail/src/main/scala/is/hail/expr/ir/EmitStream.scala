@@ -1315,7 +1315,7 @@ object EmitStream {
       val atEnd = mb.genFieldThisRef[Boolean]()
       val x = mb.newEmitField(eltType)
       val Lpush = CodeLabel()
-      val source = stream(Code(atEnd := true, Lpush.goto), a => Code(EmitCodeBuilder.scopedVoid(mb)(_.assign(x, a)), Lpush, push(COption(atEnd.get, x.get))))
+      val source = stream(Code(atEnd := true, Lpush.goto), a => Code(EmitCodeBuilder.scopedVoid(mb)(_.assign(x, a)), Lpush, push(COption(atEnd.get, x.load))))
       Source[COption[EmitCode]](
         setup0 = source.setup0,
         close0 = source.close0,
@@ -1370,7 +1370,7 @@ object EmitStream {
           val ev = env.lookup(name)
           if (ev.pt != typ)
             throw new RuntimeException(s"PValue type did not match inferred ptype:\n name: $name\n  pv: ${ ev.pt }\n  ir: $typ")
-          COption.fromEmitCode(ev.get).map(_.asStream.stream)
+          COption.fromEmitCode(ev.load).map(_.asStream.stream)
 
         case x@StreamRange(startIR, stopIR, stepIR, _) =>
           val eltType = coerce[PStream](x.pType).elementType
@@ -2037,7 +2037,7 @@ object EmitStream {
                     cb.assign(xElt, eltt)
                     cb.assign(xResult, postt)
                     cb.append(seqPerElt)
-                    xResult.get
+                    xResult.load
                   }
                 },
                 setup0 = Some(aggSetup),

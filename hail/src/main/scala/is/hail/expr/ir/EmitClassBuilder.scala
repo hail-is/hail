@@ -290,7 +290,7 @@ class EmitClassBuilder[C](
 
     def pt: PType = _pt
 
-    def get: EmitCode = EmitCode(Code._empty,
+    def load: EmitCode = EmitCode(Code._empty,
       if (_pt.required) false else ms.get,
       vs.get)
 
@@ -331,7 +331,7 @@ class EmitClassBuilder[C](
   def newPresentEmitSettable(_pt: PType, ps: PSettable): PresentEmitSettable = new PresentEmitSettable {
     def pt: PType = _pt
 
-    def get: EmitCode = EmitCode(Code._empty, const(false), ps.load())
+    def load: EmitCode = EmitCode(Code._empty, const(false), ps.load())
 
     def store(cb: EmitCodeBuilder, pv: PCode): Unit = ps.store(cb, pv)
   }
@@ -1011,7 +1011,7 @@ class EmitMethodBuilder[C](
     new EmitValue {
       val pt: PType = _pt
 
-      def get: EmitCode = {
+      def load: EmitCode = {
         new EmitCode(Code._empty,
           if (pt.required)
             const(false)
@@ -1185,7 +1185,7 @@ class DependentEmitFunctionBuilder[F](
     new EmitValue {
       def pt: PType = _pt
 
-      def get: EmitCode = EmitCode(Code._empty, m.load(), PCode(_pt, v.load()))
+      def load: EmitCode = EmitCode(Code._empty, m.load(), PCode(_pt, v.load()))
     }
   }
 }
