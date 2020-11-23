@@ -322,6 +322,15 @@ class EmitClassBuilder[C](
           cb.assign(ms, false)
           cb.assign(vs, value)
         })
+
+    override def toPValue(cb: EmitCodeBuilder): PValue = {
+      if (_pt.required) {
+        vs
+      } else {
+        cb.ifx(ms, cb._fatal(s"Can't convert missing ${_pt} to PValue"))
+        vs
+      }
+    }
   }
 
   def newPresentEmitField(pt: PType): PresentEmitSettable =
@@ -336,6 +345,8 @@ class EmitClassBuilder[C](
     def load: EmitCode = EmitCode(Code._empty, const(false), ps.load())
 
     def store(cb: EmitCodeBuilder, pv: PCode): Unit = ps.store(cb, pv)
+
+    override def toPValue(cb: EmitCodeBuilder): PValue = ps
   }
 
   private[this] val typMap: mutable.Map[Type, Value[_ <: Type]] =
@@ -1020,6 +1031,7 @@ class EmitMethodBuilder[C](
     val codeIndex = emitParamCodeIndex(emitIndex - static)
 
     new EmitValue {
+      evSelf =>
       val pt: PType = _pt
 
       def load: EmitCode = {
@@ -1031,6 +1043,16 @@ class EmitMethodBuilder[C](
           pt.fromCodeTuple(ts.zipWithIndex.map { case (t, i) =>
             mb.getArg(codeIndex + i)(t).get
           }))
+      }
+
+      override def toPValue(cb: EmitCodeBuilder): PValue = {
+        new PValue {
+          override def pt: PType = pt
+
+          override def get: PCode = ???
+
+          override def st: SType = ???
+        }
       }
     }
   }

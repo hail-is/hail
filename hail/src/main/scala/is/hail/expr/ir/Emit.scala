@@ -170,6 +170,8 @@ abstract class EmitValue {
   def pt: PType
 
   def load: EmitCode
+
+  def toPValue(cb: EmitCodeBuilder): PValue
 }
 
 class EmitUnrealizableValue(val pt: PType, private val ec: EmitCode) extends EmitValue {
@@ -181,6 +183,8 @@ class EmitUnrealizableValue(val pt: PType, private val ec: EmitCode) extends Emi
     used = true
     ec
   }
+
+  override def toPValue(cb: EmitCodeBuilder): PValue = throw new UnsupportedOperationException(s"Can't make PValue for unrealizable type ${pt}")
 }
 
 /**
@@ -648,6 +652,9 @@ class Emit[C](
 
     def emitDeforestedNDArray(ir: IR): IEmitCode =
       deforestNDArray(ir, mb, region, env).toI(cb)
+
+    def emitDeforestedNDArrayI(ir: IR): IEmitCode =
+      deforestNDArrayI(ir, cb, region, env)
 
     def emitNDArrayColumnMajorStrides(ir: IR): IEmitCode = {
       emitI(ir).map(cb){case pNDCode: PNDArrayCode =>
@@ -1437,7 +1444,7 @@ class Emit[C](
           }
           PCode(pt, result)
         }
-      case x: NDArrayMap  =>  emitDeforestedNDArray(x)
+      case x: NDArrayMap  =>  emitDeforestedNDArrayI(x)
       case x: NDArrayMap2 =>  emitDeforestedNDArray(x)
       case x: NDArrayReshape => emitDeforestedNDArray(x)
       case x: NDArrayConcat => emitDeforestedNDArray(x)
@@ -2525,6 +2532,16 @@ class Emit[C](
               cb.assign(elemRef, PCode(elemPType, childEmitter.outputElement(cb, idxVars)))
               val bodyP = bodyI.get(cb, "NDArray map body cannot be missing")
               bodyP.code
+            }
+          }
+        case _ =>
+          val ndI = emit(x)
+          val ndMemo = cb.memoize(ndI, "deforestNDArray_fall_through_ndarray")
+          val shapeI = ndMemo.toI(cb).map(cb)(ndPCode => ndPCode.asNDArray.memoize(cb, "deforestNDArray_fall_through_shape").shapes(cb))
+          val ndPv = ndMemo.get.toI(cb).get(cb, "foo").memoize(cb, "deforestNDArray_fall_through_ndarray2")
+          new NDArrayEmitter2(shapeI) {
+            override def outputElement(cb: EmitCodeBuilder, idxVars: IndexedSeq[Value[Long]]): Code[_] = {
+              ndPv.asInstanceOf[PNDArrayValue].loadElement(idxVars, cb).toPCode(cb, region.code).code
             }
           }
       }
