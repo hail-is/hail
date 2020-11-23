@@ -1802,6 +1802,16 @@ class ImportMatrixTableTests(unittest.TestCase):
                                     min_partitions=10)
         assert mt.row_id.collect() == list(range(50))
 
+    @fails_local_backend()
+    def test_long_parsing(self):
+        path = resource('text_matrix_longs.tsv')
+        mt = hl.import_matrix_table(path, row_fields={'foo': hl.tint64})
+        collected = mt.entries().collect()
+        assert collected == [
+            hl.utils.Struct(foo=7, row_id=0, col_id='s1', x=1234),
+            hl.utils.Struct(foo=7, row_id=0, col_id='s2', x=2345)
+        ]
+
 
 class ImportTableTests(unittest.TestCase):
     @fails_local_backend()
