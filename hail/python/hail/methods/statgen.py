@@ -1997,7 +1997,8 @@ def realized_relationship_matrix(call_expr) -> BlockMatrix:
         bm = BlockMatrix.from_entry_expr(normalized_gt)
         return (bm.T @ bm) / (bm.n_rows / bm.n_cols)
     except FatalError as fe:
-        raise FatalError("Could not convert MatrixTable to BlockMatrix. It's possible all variants were dropped by variance filter.") from fe
+        raise FatalError("Could not convert MatrixTable to BlockMatrix. It's possible all variants were dropped by variance filter.\n"
+                         "Check that the input MatrixTable has at least two samples in it:  mt.count_cols().") from fe
 
 @typecheck(entry_expr=expr_float64, block_size=nullable(int))
 def row_correlation(entry_expr, block_size=None) -> BlockMatrix:
