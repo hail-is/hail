@@ -77,6 +77,9 @@ principals:
 - name: benchmark
   domain: benchmark
   kind: json
+- name: benchmark-tests
+  domain: benchmark-tests
+  kind: json
 - name: address
   domain: address
   kind: json
