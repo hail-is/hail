@@ -256,15 +256,6 @@ async def compare(request, userdata):  # pylint: disable=unused-argument
     return await render_template('benchmark', request, userdata, 'compare.html', context)
 
 
-@router.get('/submit')
-async def submit(request, userdata):
-    app = request.app
-    reponame = request.query.get('reponame')
-    branchname = request.query.get('branchname')
-    iterations = request.query.get('iterations')
-    regex = request.query.get('regex')
-    
-
 @router.get('/batches/{batch_id}')
 @web_authenticated_developers_only()
 async def get_batch(request, userdata):
@@ -326,15 +317,15 @@ async def get_commit(app, sha):  # pylint: disable=unused-argument
 
     gh_date = gh_commit['commit']['author']['date']
     date = gh_date.split('T')[0]
-    dates.append(date)
+    #dates.append(date)
 
     message = gh_commit['commit']['message']
     idx = message.index('#')
     commit_id = message[idx: idx+5]
-    commit_ids.append(commit_id)
+    #commit_ids.append(commit_id)
 
-    benchmarks = get_benchmarks(app, file_path)
-    geo_means.append(benchmarks['geometric_mean'])
+    #benchmarks = get_benchmarks(app, file_path)
+    #geo_means.append(benchmarks['geometric_mean'])
 
     title_message = gh_commit['commit']['message']
     title_end = title_message.index(')')
@@ -360,8 +351,10 @@ async def get_commit(app, sha):  # pylint: disable=unused-argument
         'sha': sha,
         'title': title,
         'author': gh_commit['commit']['author']['name'],
-        'date': gh_commit['commit']['author']['date'],
-        'status': status
+        'date': date,
+        'status': status,
+        #'geo_mean': benchmarks['geometric_mean'],
+        'commit_id': commit_id
     }
 
     log.info('got new commits')
@@ -378,10 +371,12 @@ async def get_commit(app, sha):  # pylint: disable=unused-argument
 
 
 async def update_commit(app, sha):  # pylint: disable=unused-argument
+    global benchmark_data, dates, geo_means, commit_ids
     commit = await get_commit(app, sha)
     if commit['status'] is not None:
         return commit
 
+    file_path = f'{BENCHMARK_RESULTS_PATH}/{sha}.json'
     batch_client = app['batch_client']
     batch_id = await submit_test_batch(batch_client, sha)
     batch = await batch_client.get_batch(batch_id)
@@ -389,6 +384,12 @@ async def update_commit(app, sha):  # pylint: disable=unused-argument
     log.info(f'submitted a batch {batch_id} for commit {sha}')
 
     benchmark_data['commits'][sha] = commit  # TODO: ????
+    benchmarks = get_benchmarks(app, file_path)
+    commit['geo_mean'] = benchmarks['geometric_mean']
+
+    dates.append(commit['date'])
+    geo_means.append(commit['geo_mean'])
+    commit_ids.append(commit['commit_id'])
 
     return commit
 
