@@ -246,6 +246,15 @@ object IEmitCodeGen {
     def memoize(cb: EmitCodeBuilder, name: String): EmitValue =
       cb.memoize(iec, name)
   }
+
+  def apply[B](cb: EmitCodeBuilder, m: Code[Boolean], value: => B): IEmitCodeGen[B] = {
+    val Lmissing = CodeLabel()
+    val Lpresent = CodeLabel()
+    cb.ifx(m, { cb.goto(Lmissing) })
+    val res: B = value
+    cb.goto(Lpresent)
+    IEmitCodeGen(Lmissing, Lpresent, res)
+  }
 }
 
 case class IEmitCodeGen[+A](Lmissing: CodeLabel, Lpresent: CodeLabel, value: A) {
@@ -2532,6 +2541,37 @@ class Emit[C](
               val bodyI = dEmit(body, bodyEnv)
 
               bodyI.get(cb, "NDArray map body cannot be missing")
+            }
+          }
+
+        case x@NDArrayReindex(child, indexExpr) =>
+          val childEmitter = deforest(child)
+          val childPType = child.pType.asInstanceOf[PNDArray]
+
+          val xM = cb.newLocal[Boolean]("ndarray_reindex_child_missing")
+          val xValues = Array.tabulate(childEmitter.nDims)(i => cb.newLocal[Long](s"ndarray_reindex_child_shape_$i")).toIndexedSeq
+
+          childEmitter.outputShape.consume(cb, {
+            cb.assign(xM, true)
+          }, {values =>
+            cb.assign(xM, false)
+            (xValues.toIterable, values.toIterable).zipped.map { case (x, v) => cb.assign(x, v) }
+          })
+
+          val shapeSeq = indexExpr.map { childIndex =>
+            if (childIndex < childPType.nDims)
+              xValues(childIndex)
+            else
+              const(1L)
+          }
+
+          new NDArrayEmitter2(IEmitCodeGen.apply(cb, xM, shapeSeq)) {
+            override def outputElement(cb: EmitCodeBuilder, idxVars: IndexedSeq[Value[Long]]): PCode = {
+              val concreteIdxsForChild = Array.tabulate(childEmitter.nDims) { childDim =>
+                val parentDim = indexExpr.indexOf(childDim)
+                idxVars(parentDim)
+              }
+              childEmitter.outputElement(cb, concreteIdxsForChild)
             }
           }
         case _ =>
