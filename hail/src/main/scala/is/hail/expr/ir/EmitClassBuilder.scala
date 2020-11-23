@@ -323,10 +323,11 @@ class EmitClassBuilder[C](
           cb.assign(vs, value)
         })
 
-    override def toPValue(cb: EmitCodeBuilder): PValue = {
+    override def get(cb: EmitCodeBuilder): PValue = {
       if (_pt.required) {
         vs
       } else {
+        // TODO: I don't think this is right. Seems to get an open ended issue instead of a fatal error.
         cb.ifx(ms, cb._fatal(s"Can't convert missing ${_pt} to PValue"))
         vs
       }
@@ -346,7 +347,7 @@ class EmitClassBuilder[C](
 
     def store(cb: EmitCodeBuilder, pv: PCode): Unit = ps.store(cb, pv)
 
-    override def toPValue(cb: EmitCodeBuilder): PValue = ps
+    override def get(cb: EmitCodeBuilder): PValue = ps
   }
 
   private[this] val typMap: mutable.Map[Type, Value[_ <: Type]] =
@@ -1045,9 +1046,9 @@ class EmitMethodBuilder[C](
           }))
       }
 
-      override def toPValue(cb: EmitCodeBuilder): PValue = {
+      override def get(cb: EmitCodeBuilder): PValue = {
         new PValue {
-          override def pt: PType = pt
+          override def pt: PType = evSelf.pt
 
           override def get: PCode = ???
 
@@ -1217,6 +1218,10 @@ class DependentEmitFunctionBuilder[F](
     }
     new EmitValue {
       def pt: PType = _pt
+
+      def get(cb: EmitCodeBuilder): PValue= load.toI(cb).handle(
+        cb,
+        cb._fatal("Can't convert missing value to PValue.")).memoize(cb, "newDepEmitField_memo")
 
       def load: EmitCode = EmitCode(Code._empty, m.load(), PCode(_pt, v.load()))
     }
