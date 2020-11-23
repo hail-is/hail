@@ -76,7 +76,7 @@ final case class EArray(val elementType: EType, override val required: Boolean =
     val writeElemF = elementType.buildEncoder(pt.elementType, cb.emb.ecb)
     cb.forLoop(cb.assign(i, 0), i < prefixLen, cb.assign(i, i + 1), {
       arr.loadElement(cb, i).consume(cb, { /* do nothing */ }, { pc =>
-        cb += writeElemF(pc.code, out)
+        cb += writeElemF(pc.asPCode.code, out)
       })
     })
   }

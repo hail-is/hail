@@ -4,6 +4,7 @@ import is.hail.annotations.Region
 import is.hail.asm4s.{coerce => _, _}
 import is.hail.expr.ir.functions.StringFunctions
 import is.hail.lir
+import is.hail.types.physical.stypes.SValue
 import is.hail.types.physical.{PCode, PSettable, PType, PValue}
 import is.hail.utils.FastIndexedSeq
 

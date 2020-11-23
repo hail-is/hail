@@ -30,7 +30,7 @@ case class ENDArrayColumnMajor(elementType: EType, nDims: Int, required: Boolean
     shapes.foreach(s => cb += out.writeLong(s))
 
     val idxVars = Array.tabulate(ndarray.pt.nDims)(i => cb.newLocal[Long](s"idx_$i"))
-    cb += idxVars.zipWithIndex.foldLeft(writeElemF(ndarray.loadElement(idxVars, cb).code, out))
+    cb += idxVars.zipWithIndex.foldLeft(writeElemF(ndarray.loadElement(idxVars, cb).asPCode.code, out))
     { case (innerLoops, (dimVar, dimIdx)) =>
       Code(
         dimVar := 0L,

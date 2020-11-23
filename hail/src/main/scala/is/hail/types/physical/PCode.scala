@@ -4,11 +4,11 @@ import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.expr.ir._
 import is.hail.types.physical.stypes._
-import is.hail.utils._
+import is.hail.types.physical.stypes.concrete._
+import is.hail.types.physical.stypes.interfaces.PVoidCode
+import is.hail.types.physical.stypes.primitives._
 
-trait PValue { pValueSelf =>
-  def st: SType
-
+trait PValue extends SValue { pValueSelf =>
   def pt: PType
 
   def get: PCode
@@ -29,7 +29,7 @@ trait PSettable extends PValue {
   def load(): PCode = get
 }
 
-abstract class PCode { self =>
+abstract class PCode extends SCode { self =>
 
   def st: SType
 
@@ -46,43 +46,42 @@ abstract class PCode { self =>
     code.asInstanceOf[Code[T]]
   }
 
-  def asBoolean: SBooleanCode = asInstanceOf[SBooleanCode]
-  def asInt: SInt32Code = asInstanceOf[SInt32Code]
-  def asInt32: SInt32Code = asInstanceOf[SInt32Code]
-  def asLong: SInt64Code = asInstanceOf[SInt64Code]
-  def asInt64: SInt64Code = asInstanceOf[SInt64Code]
-  def asFloat: SFloat32Code = asInstanceOf[SFloat32Code]
-  def asFloat32: SFloat32Code = asInstanceOf[SFloat32Code]
-  def asFloat64: SFloat64Code = asInstanceOf[SFloat64Code]
-  def asDouble: SFloat64Code = asInstanceOf[SFloat64Code]
-  def asBinary: PBinaryCode = asInstanceOf[PBinaryCode]
+  override def asBoolean: SBooleanCode = asInstanceOf[SBooleanCode]
+  override def asInt: SInt32Code = asInstanceOf[SInt32Code]
+  override def asInt32: SInt32Code = asInstanceOf[SInt32Code]
+  override def asLong: SInt64Code = asInstanceOf[SInt64Code]
+  override def asInt64: SInt64Code = asInstanceOf[SInt64Code]
+  override def asFloat: SFloat32Code = asInstanceOf[SFloat32Code]
+  override def asFloat32: SFloat32Code = asInstanceOf[SFloat32Code]
+  override def asFloat64: SFloat64Code = asInstanceOf[SFloat64Code]
+  override def asDouble: SFloat64Code = asInstanceOf[SFloat64Code]
+  override def asBinary: PBinaryCode = asInstanceOf[PBinaryCode]
+  override def asIndexable: PIndexableCode = asInstanceOf[PIndexableCode]
+  override def asBaseStruct: PBaseStructCode = asInstanceOf[PBaseStructCode]
+  override def asString: PStringCode = asInstanceOf[PStringCode]
+  override def asInterval: PIntervalCode = asInstanceOf[PIntervalCode]
+  override def asNDArray: PNDArrayCode = asInstanceOf[PNDArrayCode]
+  override def asLocus: PLocusCode = asInstanceOf[PLocusCode]
 
-  def asIndexable: PIndexableCode = asInstanceOf[PIndexableCode]
+  override def asCall: PCallCode = asInstanceOf[PCallCode]
 
-  def asBaseStruct: PBaseStructCode = asInstanceOf[PBaseStructCode]
+  override def castTo(cb: EmitCodeBuilder, region: Value[Region], destType: PType): PCode =
+    castTo(cb, region, destType, false)
 
-  def asString: PStringCode = asInstanceOf[PStringCode]
-
-  def asInterval: PIntervalCode = asInstanceOf[PIntervalCode]
-
-  def asNDArray: PNDArrayCode = asInstanceOf[PNDArrayCode]
-
-  def asLocus: PLocusCode = asInstanceOf[PLocusCode]
-
-  def asCall: PCallCode = asInstanceOf[PCallCode]
-
-  def asStream: SStreamCode = asInstanceOf[SStreamCode]
-
-  def castTo(cb: EmitCodeBuilder, region: Value[Region], destType: PType, deepCopy: Boolean = false): PCode = {
-    destType.sType.coerceOrCopy(cb, region, this, deepCopy)
+  override def castTo(cb: EmitCodeBuilder, region: Value[Region], destType: PType, deepCopy: Boolean): PCode = {
+    super.castTo(cb, region, destType, deepCopy).asPCode
   }
 
-  def copyToRegion(cb: EmitCodeBuilder, region: Value[Region], destType: PType = pt): PCode =
-    destType.sType.coerceOrCopy(cb, region, this, deepCopy = true)
+  override def copyToRegion(cb: EmitCodeBuilder, region: Value[Region]): PCode = copyToRegion(cb, region, pt)
+
+  override def copyToRegion(cb: EmitCodeBuilder, region: Value[Region], destType: PType): PCode =
+    super.copyToRegion(cb, region, destType).asPCode
 
   def memoize(cb: EmitCodeBuilder, name: String): PValue
 
   def memoizeField(cb: EmitCodeBuilder, name: String): PValue
+
+  final def toPCode(cb: EmitCodeBuilder, region: Value[Region]): PCode = this
 }
 
 object PCode {
@@ -138,7 +137,7 @@ object PSettable {
     case pt: PCanonicalDict =>
       SIndexablePointerSettable(sb, SIndexablePointer(pt), name)
     case pt: PSubsetStruct =>
-      new SSubsetStructSettable(pt.sType, PSettable(sb, pt.ps, name).asInstanceOf[SStructSettable])
+      new SSubsetStructSettable(pt.sType, PSettable(sb, pt.ps, name).asInstanceOf[PStructSettable])
     case pt: PCanonicalBaseStruct =>
       SBaseStructPointerSettable(sb, SBaseStructPointer(pt), name)
     case pt: PCanonicalBinary =>

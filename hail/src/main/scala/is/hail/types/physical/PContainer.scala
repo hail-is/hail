@@ -3,6 +3,7 @@ package is.hail.types.physical
 import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, IEmitCode}
+import is.hail.types.physical.stypes.interfaces.{SIndexableCode, SIndexableValue}
 
 abstract class PContainer extends PIterable {
   override def containsPointers: Boolean = true
@@ -88,20 +89,10 @@ abstract class PContainer extends PIterable {
   def nextElementAddress(currentOffset: Code[Long]): Code[Long]
 }
 
-abstract class PIndexableValue extends PValue {
-  def loadLength(): Value[Int]
+abstract class PIndexableValue extends PValue with SIndexableValue
 
-  def isElementMissing(i: Code[Int]): Code[Boolean]
-
-  def isElementDefined(i: Code[Int]): Code[Boolean] = !isElementMissing(i)
-
-  def loadElement(cb: EmitCodeBuilder, i: Code[Int]): IEmitCode
-}
-
-abstract class PIndexableCode extends PCode {
+abstract class PIndexableCode extends PCode with SIndexableCode {
   def pt: PContainer
-
-  def loadLength(): Code[Int]
 
   def memoize(cb: EmitCodeBuilder, name: String): PIndexableValue
 

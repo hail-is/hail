@@ -627,7 +627,7 @@ case class PartitionNativeReaderIndexed(spec: AbstractTypedCodecSpec, indexSpec:
                     .consumeCode[Interval](cb,
                       Code._fatal[Interval](""),
                       { pc =>
-                        val pcm = pc.memoize(cb, "pnri_interval")
+                        val pcm = pc.memoize(cb, "pnri_interval").asPValue
                         Code.invokeScalaObject2[PType, Long, Interval](
                           PartitionBoundOrdering.getClass,
                           "regionValueToJavaObject",
@@ -744,7 +744,7 @@ case class PartitionZippedNativeReader(specLeft: AbstractTypedCodecSpec, specRig
               .consumeCode[Interval](cb,
                 Code._fatal[Interval](""),
                 { pc =>
-                  val pcm = pc.memoize(cb, "pnri_interval")
+                  val pcm = pc.memoize(cb, "pnri_interval").asPValue
                   Code.invokeScalaObject2[PType, Long, Interval](
                     PartitionBoundOrdering.getClass,
                     "regionValueToJavaObject",

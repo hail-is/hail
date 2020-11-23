@@ -3,7 +3,8 @@ package is.hail.types.physical
 import is.hail.annotations.{CodeOrdering, _}
 import is.hail.asm4s._
 import is.hail.check.Gen
-import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, IEmitCode, EmitCode}
+import is.hail.expr.ir.{EmitCode, EmitCodeBuilder, EmitMethodBuilder, IEmitCode}
+import is.hail.types.physical.stypes.interfaces.{SIntervalCode, SIntervalValue}
 import is.hail.types.virtual.TInterval
 import is.hail.utils._
 
@@ -104,41 +105,12 @@ abstract class PInterval extends PType {
   override def genNonmissingValue: Gen[Annotation] = Interval.gen(pointType.virtualType.ordering, pointType.genValue)
 }
 
-abstract class PIntervalValue extends PValue {
+abstract class PIntervalValue extends PValue with SIntervalValue {
   def pt: PInterval
-
-  def includesStart(): Value[Boolean]
-
-  def includesEnd(): Value[Boolean]
-
-  def loadStart(cb: EmitCodeBuilder): IEmitCode
-
-  def startDefined(cb: EmitCodeBuilder): Code[Boolean]
-
-  def loadEnd(cb: EmitCodeBuilder): IEmitCode
-
-  def endDefined(cb: EmitCodeBuilder): Code[Boolean]
-  
-  // FIXME orderings should take emitcodes/iemitcodes
-  def isEmpty(cb: EmitCodeBuilder): Code[Boolean] = {
-    val gt = cb.emb.getCodeOrdering(pt.pointType, CodeOrdering.Gt())
-    val gteq = cb.emb.getCodeOrdering(pt.pointType, CodeOrdering.Gteq())
-
-    val start = cb.memoize(loadStart(cb), "start")
-    val end = cb.memoize(loadEnd(cb), "end")
-    (includesStart() && includesEnd()).mux(
-      gt((start.m, start.v), (end.m, end.v)),
-      gteq((start.m, start.v), (end.m, end.v))
-    )
-  }
 }
 
-abstract class PIntervalCode extends PCode {
+abstract class PIntervalCode extends PCode with SIntervalCode {
   def pt: PInterval
-
-  def includesStart(): Code[Boolean]
-
-  def includesEnd(): Code[Boolean]
 
   def memoize(cb: EmitCodeBuilder, name: String): PIntervalValue
 

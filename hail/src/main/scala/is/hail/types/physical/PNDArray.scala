@@ -4,6 +4,7 @@ import is.hail.annotations.{CodeOrdering, Region, StagedRegionValueBuilder}
 import is.hail.asm4s.{Code, _}
 import is.hail.expr.Nat
 import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder}
+import is.hail.types.physical.stypes.interfaces.{SNDArrayCode, SNDArrayValue}
 import is.hail.types.virtual.TNDArray
 
 final class StaticallyKnownField[T, U](
@@ -62,26 +63,12 @@ abstract class PNDArray extends PType {
   ): PNDArrayCode
 }
 
-abstract class PNDArrayValue extends PValue {
-  def loadElement(indices: IndexedSeq[Value[Long]], cb: EmitCodeBuilder): PCode
-
-  def shapes(cb: EmitCodeBuilder): IndexedSeq[Value[Long]]
-
-  def strides(cb: EmitCodeBuilder): IndexedSeq[Value[Long]]
-
+abstract class PNDArrayValue extends PValue with SNDArrayValue {
   def pt: PNDArray
-
-  def outOfBounds(indices: IndexedSeq[Value[Long]], cb: EmitCodeBuilder): Code[Boolean]
-
-  def assertInBounds(indices: IndexedSeq[Value[Long]], cb: EmitCodeBuilder, errorId: Int = -1): Code[Unit]
-
-  def sameShape(other: PNDArrayValue, cb: EmitCodeBuilder): Code[Boolean]
 }
 
-abstract class PNDArrayCode extends PCode {
+abstract class PNDArrayCode extends PCode with SNDArrayCode {
   def pt: PNDArray
-
-  def shape: PBaseStructCode
 
   def memoize(cb: EmitCodeBuilder, name: String): PNDArrayValue
 }

@@ -3,6 +3,7 @@ package is.hail.types.physical
 import is.hail.annotations.Region
 import is.hail.asm4s.{Code, _}
 import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder}
+import is.hail.types.physical.stypes.SCode
 import is.hail.utils._
 
 trait PPrimitive extends PType {
@@ -30,18 +31,18 @@ trait PPrimitive extends PType {
     Region.copyFrom(srcAddress, addr, byteSize)
   }
 
-  def store(cb: EmitCodeBuilder, region: Value[Region], value: PCode, deepCopy: Boolean): Code[Long] = {
+  def store(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): Code[Long] = {
     val newAddr = cb.newLocal[Long]("pprimitive_store_addr", region.allocate(alignment, byteSize))
     storeAtAddress(cb, newAddr, region, value, deepCopy)
     newAddr
   }
 
 
-  override def storeAtAddress(cb: EmitCodeBuilder, addr: Code[Long], region: Value[Region], value: PCode, deepCopy: Boolean): Unit = {
+  override def storeAtAddress(cb: EmitCodeBuilder, addr: Code[Long], region: Value[Region], value: SCode, deepCopy: Boolean): Unit = {
     storePrimitiveAtAddress(cb, addr, value)
   }
 
-  def storePrimitiveAtAddress(cb: EmitCodeBuilder, addr: Code[Long], value: PCode): Unit
+  def storePrimitiveAtAddress(cb: EmitCodeBuilder, addr: Code[Long], value: SCode): Unit
 
   def setRequired(required: Boolean): PPrimitive = {
     if (required == this.required)

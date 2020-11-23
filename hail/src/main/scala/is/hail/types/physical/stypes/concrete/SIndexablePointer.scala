@@ -1,23 +1,25 @@
-package is.hail.types.physical.stypes
+package is.hail.types.physical.stypes.concrete
 
 import is.hail.annotations.{CodeOrdering, Region}
 import is.hail.asm4s.{Code, IntInfo, LongInfo, Settable, SettableBuilder, TypeInfo, Value}
 import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, IEmitCode, SortOrder}
-import is.hail.types.physical.{PArray, PCode, PContainer, PIndexableCode, PIndexableValue, PSettable, PType}
+import is.hail.types.physical.stypes.{SCode, SType}
+import is.hail.types.physical.stypes.interfaces.SContainer
+import is.hail.types.physical.{PCode, PContainer, PIndexableCode, PIndexableValue, PSettable, PType}
 import is.hail.utils.FastIndexedSeq
 
-trait SContainer extends SType
+
 
 case class SIndexablePointer(pType: PContainer) extends SContainer {
   def codeOrdering(mb: EmitMethodBuilder[_], other: SType, so: SortOrder): CodeOrdering = pType.codeOrdering(mb, other.pType, so)
 
-  def coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: PCode, deepCopy: Boolean): PCode = {
+  def coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = {
     new SIndexablePointerCode(this, pType.store(cb, region, value, deepCopy))
   }
 
   def codeTupleTypes(): IndexedSeq[TypeInfo[_]] = FastIndexedSeq(LongInfo, IntInfo, LongInfo)
 
-  def loadFrom(cb: EmitCodeBuilder, region: Value[Region], pt: PType, addr: Code[Long]): PCode = {
+  def loadFrom(cb: EmitCodeBuilder, region: Value[Region], pt: PType, addr: Code[Long]): SCode = {
     if (pt == this.pType)
       new SIndexablePointerCode(this, addr)
     else

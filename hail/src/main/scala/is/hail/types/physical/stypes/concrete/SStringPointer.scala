@@ -1,29 +1,29 @@
-package is.hail.types.physical.stypes
+package is.hail.types.physical.stypes.concrete
 
 import is.hail.annotations.{CodeOrdering, Region}
 import is.hail.asm4s.{Code, LongInfo, Settable, SettableBuilder, TypeInfo, Value}
 import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, SortOrder}
+import is.hail.types.physical.stypes.interfaces.SString
+import is.hail.types.physical.stypes.{SCode, SType}
 import is.hail.types.physical.{PBinaryCode, PCanonicalString, PCode, PSettable, PString, PStringCode, PStringValue, PType, PValue}
 import is.hail.utils.FastIndexedSeq
 
-trait SString extends SType
 
 case class SStringPointer(pType: PString) extends SString {
   def codeOrdering(mb: EmitMethodBuilder[_], other: SType, so: SortOrder): CodeOrdering = pType.codeOrdering(mb, other.pType, so)
 
-  def coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: PCode, deepCopy: Boolean): PCode = {
+  def coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = {
     new SStringPointerCode(this, pType.store(cb, region, value, deepCopy))
   }
 
   def codeTupleTypes(): IndexedSeq[TypeInfo[_]] = FastIndexedSeq(LongInfo)
 
-  def loadFrom(cb: EmitCodeBuilder, region: Value[Region], pt: PType, addr: Code[Long]): PCode = {
+  def loadFrom(cb: EmitCodeBuilder, region: Value[Region], pt: PType, addr: Code[Long]): SCode = {
     pt match {
       case _: PCanonicalString =>
         new SStringPointerCode(this, addr)
     }
   }
-
 }
 
 

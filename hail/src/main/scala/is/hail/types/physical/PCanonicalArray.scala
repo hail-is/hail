@@ -3,7 +3,9 @@ package is.hail.types.physical
 import is.hail.annotations.{Region, _}
 import is.hail.asm4s.{Code, _}
 import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder}
-import is.hail.types.physical.stypes.{SContainer, SIndexablePointer, SIndexablePointerCode, SIndexablePointerSettable}
+import is.hail.types.physical.stypes.SCode
+import is.hail.types.physical.stypes.concrete.{SIndexablePointer, SIndexablePointerCode, SIndexablePointerSettable}
+import is.hail.types.physical.stypes.interfaces.SContainer
 import is.hail.types.virtual.{TArray, Type}
 import is.hail.utils._
 
@@ -408,7 +410,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
 
   def loadCheapPCode(cb: EmitCodeBuilder, addr: Code[Long]): PCode = new SIndexablePointerCode(SIndexablePointer(this), addr)
 
-  def store(cb: EmitCodeBuilder, region: Value[Region], value: PCode, deepCopy: Boolean): Code[Long] = {
+  def store(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): Code[Long] = {
     value.st match {
       case SIndexablePointer(PCanonicalArray(otherElementType, _)) if otherElementType == elementType =>
         if (deepCopy) {
@@ -443,7 +445,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
     }
   }
 
-  def storeAtAddress(cb: EmitCodeBuilder, addr: Code[Long], region: Value[Region], value: PCode, deepCopy: Boolean): Unit = {
+  def storeAtAddress(cb: EmitCodeBuilder, addr: Code[Long], region: Value[Region], value: SCode, deepCopy: Boolean): Unit = {
     cb += Region.storeAddress(addr, store(cb, region, value, deepCopy))
   }
 

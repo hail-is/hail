@@ -2,10 +2,10 @@ package is.hail.types.physical
 
 import is.hail.annotations._
 import is.hail.asm4s._
-import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, IEmitCode}
-import is.hail.types.physical.stypes.{SIntervalPointer, SIntervalPointerCode, SType}
+import is.hail.expr.ir.EmitCodeBuilder
+import is.hail.types.physical.stypes.SCode
+import is.hail.types.physical.stypes.concrete.{SIntervalPointer, SIntervalPointerCode}
 import is.hail.types.virtual.{TInterval, Type}
-import is.hail.utils.FastIndexedSeq
 
 final case class PCanonicalInterval(pointType: PType, override val required: Boolean = false) extends PInterval {
 
@@ -73,14 +73,14 @@ final case class PCanonicalInterval(pointType: PType, override val required: Boo
 
   def loadCheapPCode(cb: EmitCodeBuilder, addr: Code[Long]): PCode = new SIntervalPointerCode(SIntervalPointer(this), addr)
 
-  def store(cb: EmitCodeBuilder, region: Value[Region], value: PCode, deepCopy: Boolean): Code[Long] = {
+  def store(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): Code[Long] = {
     value.st match {
       case SIntervalPointer(t: PCanonicalInterval) =>
         representation.store(cb, region, t.representation.loadCheapPCode(cb, value.asInstanceOf[SIntervalPointerCode].a), deepCopy)
     }
   }
 
-  def storeAtAddress(cb: EmitCodeBuilder, addr: Code[Long], region: Value[Region], value: PCode, deepCopy: Boolean): Unit = {
+  def storeAtAddress(cb: EmitCodeBuilder, addr: Code[Long], region: Value[Region], value: SCode, deepCopy: Boolean): Unit = {
     value.st match {
       case SIntervalPointer(t: PCanonicalInterval) =>
         representation.storeAtAddress(cb, addr, region, t.representation.loadCheapPCode(cb, value.asInstanceOf[SIntervalPointerCode].a), deepCopy)

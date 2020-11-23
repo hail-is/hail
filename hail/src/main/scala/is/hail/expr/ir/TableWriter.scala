@@ -305,7 +305,7 @@ case class TableSpecWriter(path: String, typ: TableType, rowRelPath: String, glo
     cb.assign(partCounts, Code.newArray[Long](n))
     cb.whileLoop(i < n, {
       val count = a.loadElement(cb, i).get(cb, "part count can't be missing!")
-      cb += partCounts.update(i, count.tcode[Long])
+      cb += partCounts.update(i, count.asLong.longCode(cb))
       cb.assign(i, i + 1)
     })
     cb += cb.emb.getObject(new TableSpecHelper(path, rowRelPath, globalRelPath, refRelPath, typ, log))

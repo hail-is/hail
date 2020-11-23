@@ -1,8 +1,9 @@
-package is.hail.types.physical.stypes
+package is.hail.types.physical.stypes.primitives
 
 import is.hail.annotations.{CodeOrdering, Region}
 import is.hail.asm4s.{Code, IntInfo, Settable, SettableBuilder, TypeInfo, Value}
 import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, SortOrder}
+import is.hail.types.physical.stypes.{SCode, SType}
 import is.hail.types.physical.{PCode, PInt32, PSettable, PType, PValue}
 import is.hail.utils.FastIndexedSeq
 
@@ -11,7 +12,7 @@ case class SInt32(required: Boolean) extends SType {
 
   def codeOrdering(mb: EmitMethodBuilder[_], other: SType, so: SortOrder): CodeOrdering = pType.codeOrdering(mb, other.pType, so)
 
-  def coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: PCode, deepCopy: Boolean): PCode = {
+  def coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = {
     value.st match {
       case SInt32(r) =>
         if (r == required)
@@ -23,7 +24,7 @@ case class SInt32(required: Boolean) extends SType {
 
   def codeTupleTypes(): IndexedSeq[TypeInfo[_]] = FastIndexedSeq(IntInfo)
 
-  def loadFrom(cb: EmitCodeBuilder, region: Value[Region], pt: PType, addr: Code[Long]): PCode = {
+  def loadFrom(cb: EmitCodeBuilder, region: Value[Region], pt: PType, addr: Code[Long]): SCode = {
     pt match {
       case _: PInt32 =>
         new SInt32Code(required, Region.loadInt(addr))

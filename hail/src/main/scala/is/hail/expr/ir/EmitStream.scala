@@ -5,7 +5,10 @@ import is.hail.asm4s._
 import is.hail.asm4s.joinpoint.Ctrl
 import is.hail.services.shuffler._
 import is.hail.types.physical._
-import is.hail.types.physical.stypes._
+import is.hail.types.physical.stypes.concrete.{SBinaryPointer, SBinaryPointerSettable, SCanonicalShufflePointerCode, SCanonicalShufflePointerSettable, SIntervalPointer, SIntervalPointerSettable, SSubsetStruct, SSubsetStructCode}
+import is.hail.types.physical.stypes.{interfaces, _}
+import is.hail.types.physical.stypes.interfaces.{SStream, SStreamCode, SStruct}
+import is.hail.types.physical.stypes.primitives.SInt32Code
 import is.hail.types.virtual._
 import is.hail.utils._
 
@@ -1426,7 +1429,7 @@ object EmitStream {
                     Code(i := i + 1,
                       push(
                         EmitCode.fromI(mb) { cb =>
-                          a.loadElement(cb, i - 1)
+                          a.loadElement(cb, i - 1).typecast[PCode]
                         })),
                     eos))
             }
@@ -1517,7 +1520,7 @@ object EmitStream {
                     EmitCode(
                       Code._empty,
                       false,
-                      SStreamCode(
+                      interfaces.SStreamCode(
                         innerType.sType,
                         unsized(inner)))
                   }
@@ -1541,7 +1544,7 @@ object EmitStream {
               groupBy(mb, nonMissingStream, innerType, key.toArray, eltRegion)
                 .map { inner =>
                   EmitCode.present(
-                    SStreamCode(
+                    interfaces.SStreamCode(
                       innerType.sType,
                       unsized { innerEltRegion =>
                         inner(innerEltRegion).map(EmitCode.present)
@@ -2211,7 +2214,7 @@ object EmitStream {
 
     COption.toEmitCode(ctx,
       _emitStream(streamIR0, outerRegion, env0).map { stream =>
-        SStreamCode(coerce[PCanonicalStream](streamIR0.pType).sType, stream)
+        interfaces.SStreamCode(coerce[PCanonicalStream](streamIR0.pType).sType, stream)
       }, mb)
   }
 

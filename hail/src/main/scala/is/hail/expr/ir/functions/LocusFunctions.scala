@@ -2,15 +2,13 @@ package is.hail.expr.ir.functions
 
 import is.hail.annotations.{Region, StagedRegionValueBuilder}
 import is.hail.asm4s._
-import is.hail.types
-import is.hail.asm4s
-import is.hail.expr.ir.EmitMethodBuilder
-import is.hail.variant._
-import is.hail.expr.ir._
+import is.hail.expr.ir.{EmitMethodBuilder, _}
+import is.hail.{asm4s, types}
 import is.hail.types.physical._
-import is.hail.types.physical.stypes.{SCanonicalLocusPointer, SCanonicalLocusPointerCode}
+import is.hail.types.physical.stypes.concrete.{SCanonicalLocusPointer, SCanonicalLocusPointerCode}
 import is.hail.types.virtual._
 import is.hail.utils._
+import is.hail.variant._
 
 object LocusFunctions extends RegistryFunctions {
 
@@ -164,7 +162,7 @@ object LocusFunctions extends RegistryFunctions {
     registerPCode1("contig", tlocus("T"), TString,
       (_: Type, x: PType) => x.asInstanceOf[PLocus].contigType) {
       case (r, cb, rt, locus: PLocusCode) =>
-        locus.contig(cb)
+        locus.contig(cb).asPCode
     }
 
     registerCode1("position", tlocus("T"), TInt32, (_: Type, x: PType) => x.asInstanceOf[PLocus].positionType) {
