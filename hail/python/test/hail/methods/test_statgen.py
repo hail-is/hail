@@ -7,6 +7,7 @@ import hail as hl
 import hail.expr.aggregators as agg
 import hail.utils as utils
 from hail.linalg import BlockMatrix
+from hail.utils import FatalError
 from ..helpers import (startTestHailContext, stopTestHailContext, resource,
                        skip_unless_spark_backend, fails_local_backend)
 
@@ -1055,6 +1056,9 @@ class Tests(unittest.TestCase):
 
         rrm = hl.realized_relationship_matrix(mt.GT).to_numpy()
         self.assertTrue(np.allclose(k, rrm))
+
+        one_sample = hl.balding_nichols_model(1, 1, 10)
+        self.assertRaises(FatalError, lambda: hl.realized_relationship_matrix(one_sample))
 
     @skip_unless_spark_backend()
     def test_row_correlation_vs_hardcode(self):
