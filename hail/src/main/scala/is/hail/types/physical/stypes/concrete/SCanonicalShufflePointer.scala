@@ -10,6 +10,9 @@ import is.hail.types.physical.{PCanonicalShuffle, PCode, PSettable, PShuffle, PS
 import is.hail.utils.FastIndexedSeq
 
 case class SCanonicalShufflePointer(pType: PCanonicalShuffle) extends SShuffle {
+
+  lazy val binarySType = SBinaryPointer(pType.representation)
+
   def codeOrdering(mb: EmitMethodBuilder[_], other: SType, so: SortOrder): CodeOrdering = pType.codeOrdering(mb, other.pType, so)
 
   def coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = {
@@ -26,6 +29,13 @@ case class SCanonicalShufflePointer(pType: PCanonicalShuffle) extends SShuffle {
     }
   }
 
+  def fromSettables(settables: IndexedSeq[Settable[_]]): SCanonicalShufflePointerSettable = {
+    new SCanonicalShufflePointerSettable(this, binarySType.fromSettables(settables))
+  }
+
+  def fromCodes(codes: IndexedSeq[Code[_]]): SCanonicalShufflePointerCode = {
+    new SCanonicalShufflePointerCode(this, binarySType.fromCodes(codes))
+  }
 }
 
 object SCanonicalShufflePointerSettable {

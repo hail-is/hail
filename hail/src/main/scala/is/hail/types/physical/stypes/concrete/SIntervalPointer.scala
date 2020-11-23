@@ -1,7 +1,7 @@
 package is.hail.types.physical.stypes.concrete
 
 import is.hail.annotations.{CodeOrdering, Region}
-import is.hail.asm4s.{Code, IntInfo, LongInfo, Settable, SettableBuilder, TypeInfo, Value}
+import is.hail.asm4s.{BooleanInfo, Code, IntInfo, LongInfo, Settable, SettableBuilder, TypeInfo, Value}
 import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, IEmitCode, SortOrder}
 import is.hail.types.physical.stypes.interfaces.SInterval
 import is.hail.types.physical.stypes.{SCode, SType}
@@ -25,6 +25,20 @@ case class SIntervalPointer(pType: PInterval) extends SInterval {
       case _ =>
         new SIntervalPointerCode(this, pType.store(cb, region, pt.loadCheapPCode(cb, addr), false))
     }
+  }
+
+  def fromSettables(settables: IndexedSeq[Settable[_]]): SIntervalPointerSettable = {
+    val IndexedSeq(a: Settable[Long@unchecked], includesStart: Settable[Boolean@unchecked], includesEnd: Settable[Boolean@unchecked]) = settables
+    assert(a.ti == LongInfo)
+    assert(includesStart.ti == BooleanInfo)
+    assert(includesEnd.ti == BooleanInfo)
+    new SIntervalPointerSettable(this, a, includesStart, includesEnd)
+  }
+
+  def fromCodes(codes: IndexedSeq[Code[_]]): SIntervalPointerCode = {
+    val IndexedSeq(a: Code[Long@unchecked]) = codes
+    assert(a.ti == LongInfo)
+    new SIntervalPointerCode(this, a)
   }
 }
 
