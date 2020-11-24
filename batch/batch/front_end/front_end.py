@@ -1050,7 +1050,8 @@ async def ui_batch(request, userdata):
 async def ui_cancel_batch(request, userdata):
     batch_id = int(request.match_info['batch_id'])
     user = userdata['username']
-    errored = await _handle_ui_error(_cancel_batch, request.app, batch_id, user)
+    session = await aiohttp_session.get_session(request)
+    errored = await _handle_ui_error(session, _cancel_batch, request.app, batch_id, user)
     if not errored:
         session = await aiohttp_session.get_session(request)
         set_message(session, f'Batch {batch_id} cancelled.', 'info')
