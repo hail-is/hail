@@ -2574,6 +2574,107 @@ class Emit[C](
               childEmitter.outputElement(cb, concreteIdxsForChild)
             }
           }
+        case x@NDArrayReshape(childND, shape) =>
+          val outputNDims = x.pType.nDims
+
+          val requestedShapeI = dEmit(shape, env).map(cb){pc =>
+            val tupleCode = pc.asBaseStruct
+            val tupleValue = tupleCode.memoize(cb, "ndarray_reshape_requested")
+            Array.tabulate(outputNDims)(i => {
+              val shapeField = cb.newLocal[Long](s"ndarray_reshape_requested_${i}")
+              cb.assign(shapeField, tupleValue.loadField(cb, i).get(cb, "foo").toPCode(cb, region.code).tcode[Long])
+            })
+          }
+
+          // The above shape may have -1s in it. Ignore for now
+
+          new NDArrayEmitter2(requestedShapeI) {
+            override def outputElement(cb: EmitCodeBuilder, idxVars: IndexedSeq[Value[Long]]): PCode = ???
+          }
+          // Need to take this shape, which may have a -1 in it, and turn it into a compatible shape if possible.
+//          def compatibleShape(numElements: Value[Long], requestedShape: IndexedSeq[Value[Long]]): (Code[Unit], IndexedSeq[Value[Long]]) = {
+//            val hasNegativeOne = mb.newLocal[Boolean]()
+//            val runningProduct = mb.newLocal[Long]()
+//            val replacesNegativeOne = mb.newLocal[Long]()
+//            val tempShapeElement = mb.newLocal[Long]()
+//
+//            val newShapeVars = requestedShape.indices.map(_ => mb.genFieldThisRef[Long]())
+//
+//            val setupShape = coerce[Unit](Code(
+//              hasNegativeOne := false,
+//              runningProduct := 1L,
+//
+//              Code.foreach(requestedShape) { requestedShapeElement => Code(
+//                tempShapeElement := requestedShapeElement,
+//                (tempShapeElement < 0L).mux(
+//                  (tempShapeElement ceq -1L).mux(
+//                    hasNegativeOne.mux(
+//                      Code._fatal[Unit]("Can't infer shape, more than one -1"),
+//                      hasNegativeOne := true
+//                    ),
+//                    Code._fatal[Unit]("Can't reshape, new shape must contain only nonnegative numbers or -1")),
+//                  runningProduct := runningProduct * tempShapeElement
+//                )
+//              )},
+//
+//              Code(
+//                hasNegativeOne.mux(
+//                  (runningProduct ceq 0L) || (numElements % runningProduct) > 0L,
+//                  numElements cne runningProduct
+//                ).orEmpty(Code._fatal[Unit]("Can't reshape since requested shape is incompatible with number of elements")),
+//                replacesNegativeOne := (runningProduct ceq 0L).mux(0, numElements / runningProduct),
+//                Code(newShapeVars.zip(requestedShape).map { case (variable, shapeElement) =>
+//                  variable := (shapeElement ceq -1L).mux(replacesNegativeOne, shapeElement)
+//                })
+//              )
+//            ))
+//
+//            (setupShape, newShapeVars)
+//          }
+//
+//          val childEmitter = deforest(childND)
+//
+//          val requestedShapet = emit(shape)
+//          val requestedShapeAddress = mb.genFieldThisRef[Long]()
+//          val requestedShapePType = coerce[PTuple](shape.pType)
+//          val requestedShapeTuple = new CodePTuple(requestedShapePType, requestedShapeAddress)
+//          val requestedShapeArray = (0 until requestedShapePType.size).map(i => requestedShapeTuple[Long](i)).toArray
+//
+//          val (childShapeCachingCode, childShapeCached) = childEmitter.outputShape.cacheEntries(mb, LongInfo)
+//
+//          val numElements = mb.genFieldThisRef[Long]()
+//
+//          val (reshapeSetup, reshapedShapeArray) = compatibleShape(numElements, requestedShapeArray)
+//
+//          val setupMissing = Code(
+//            childEmitter.setupMissing,
+//            requestedShapet.setup
+//          )
+//
+//          val setupShape = Code(
+//            childEmitter.setupShape,
+//            childShapeCachingCode,
+//            requestedShapeAddress := requestedShapet.value[Long],
+//            numElements := coerce[PNDArray](childND.pType).numElements(childShapeCached, mb),
+//            reshapeSetup
+//          )
+//
+//          new NDArrayEmitter[C](reshapedShapeArray.length, reshapedShapeArray, requestedShapePType.setRequired(true).asInstanceOf[PTuple],
+//            childEmitter.outputElementPType, setupShape, setupMissing, childEmitter.missing || requestedShapet.m) {
+//            override def outputElement(elemMB: EmitMethodBuilder[C], idxVars: IndexedSeq[Value[Long]]): Code[_] = {
+//              val storeElementIndex = elemMB.genFieldThisRef[Long]()
+//
+//              val (newIdxVarsSetup, newIdxVars) = x.pType.unlinearizeIndexRowMajor(storeElementIndex, childShapeCached, elemMB)
+//
+//              assert(newIdxVars.length == childEmitter.nDims)
+//
+//              Code(
+//                storeElementIndex := x.pType.linearizeIndicesRowMajor(idxVars, reshapedShapeArray, elemMB),
+//                newIdxVarsSetup,
+//                childEmitter.outputElement(elemMB, newIdxVars)
+//              )
+//            }
+//          }
         case _ =>
           val ndI = emit(x)
           val ndMemo = cb.memoize(ndI, "deforestNDArray_fall_through_ndarray")
