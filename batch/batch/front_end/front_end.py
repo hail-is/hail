@@ -1,3 +1,4 @@
+from numbers import Number
 import os
 import concurrent
 import logging
@@ -23,7 +24,7 @@ from hailtop.batch_client.parse import (parse_cpu_in_mcpu, parse_memory_in_bytes
 from hailtop.config import get_deploy_config
 from hailtop.tls import get_in_cluster_server_ssl_context, in_cluster_ssl_client_session
 from hailtop.hail_logging import AccessLogger
-from hailtop import aiotools
+from hailtop import aiotools, dictfix
 from gear import (Database, setup_aiohttp_session,
                   rest_authenticated_users_only,
                   web_authenticated_users_only,
@@ -382,7 +383,7 @@ async def _get_full_job_status(app, record):
     format_version = BatchFormatVersion(record['format_version'])
 
     if state in ('Pending', 'Ready', 'Cancelled'):
-        return
+        return None
 
     if state in ('Error', 'Failed', 'Success'):
         if not format_version.has_full_status_in_gcs():
@@ -1206,12 +1207,37 @@ async def ui_get_job(request, userdata):
                                                          _get_attempts(app, batch_id, job_id, user),
                                                          _get_job_log(app, batch_id, job_id, user))
 
+    job_status_status = job_status['status']
+    container_status_spec = dictfix.NoneOr({
+        'name': str,
+        'timing': {'pulling': dictfix.NoneOr({'duration': Number}),
+                   'running': dictfix.NoneOr({'duration': Number})},
+        'container_status': {'out_of_memory': False},
+        'state': str})
+    job_status_status_spec = {
+        'container_statuses': {'input': container_status_spec,
+                               'main': container_status_spec,
+                               'output': container_status_spec}}
+    job_status_status = dictfix.dictfix(job_status_status, job_status_status_spec)
+    container_statuses = job_status_status['container_statuses']
+    step_statuses = [container_statuses['input'],
+                     container_statuses['main'],
+                     container_statuses['output']]
+
+    job_specification = job_status['spec']
+    job_specification = dictfix.dictfix(job_specification,
+                                        dictfix.NoneOr({'image': str,
+                                                        'command': list,
+                                                        'resources': dict()}))
+
     page_context = {
         'batch_id': batch_id,
         'job_id': job_id,
         'job_log': job_log,
         'attempts': attempts,
-        'job_status': json.dumps(job_status, indent=2)
+        'step_statuses': step_statuses,
+        'job_specification': job_specification,
+        'job_status_str': json.dumps(job_status, indent=2)
     }
     return await render_template('batch', request, userdata, 'job.html', page_context)
 
