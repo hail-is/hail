@@ -2000,6 +2000,7 @@ def realized_relationship_matrix(call_expr) -> BlockMatrix:
         raise FatalError("Could not convert MatrixTable to BlockMatrix. It's possible all variants were dropped by variance filter.\n"
                          "Check that the input MatrixTable has at least two samples in it:  mt.count_cols().") from fe
 
+
 @typecheck(entry_expr=expr_float64, block_size=nullable(int))
 def row_correlation(entry_expr, block_size=None) -> BlockMatrix:
     """Computes the correlation matrix between row vectors.
