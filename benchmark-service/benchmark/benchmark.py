@@ -81,6 +81,8 @@ def get_benchmarks(app, file_path):
         data[stats['name']] = stats
     geometric_mean = get_geometric_mean(prod_of_means, len(pre_data['benchmarks']))
 
+    log.info(f'file path: {file_path}')
+
     file_info = parse_file_path(BENCHMARK_FILE_REGEX, file_path)
     sha = file_info['sha']
     benchmarks = dict()
