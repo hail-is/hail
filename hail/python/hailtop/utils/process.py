@@ -40,3 +40,14 @@ def sync_check_shell_output(script, echo=False):
 def sync_check_shell(script, echo=False):
     # discard output
     sync_check_shell_output(script, echo)
+
+
+async def check_call(*args, echo=False):
+    proc = await asyncio.create_subprocess_exec(
+        *args,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE)
+    outerr = await proc.communicate()
+    if proc.returncode != 0:
+        raise CalledProcessError(args, proc.returncode, outerr)
+    return outerr
