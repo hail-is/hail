@@ -9,12 +9,14 @@
 <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/3.5.6/d3.min.js"></script>
 
+{% if plot is not none %}
 <div class="chart" id="scatterplot">
     <script>
         var graphs = {{plot | safe}};
         Plotly.plot('scatterplot',graphs,{});
     </script>
 </div>
+{% endif %}
 
 <table class="data-table">
     <thead>
@@ -28,13 +30,13 @@
     </tr>
     </thead>
     <tbody>
-    {% for commit in commits %}
+    {% for commit in commits.values() %}
     <tr>
         <td><a href="{{ base_path }}/lookup?file={{ benchmark_results_path }}/{{ commit['sha'] }}.json">{{ commit['title'] }}</a></td>
         <td>{{ commit['sha'] }}</td>
         <td>{{ commit['author'] }}</td>
         <td>{{ commit['date'] }}</td>
-        <td>{{ commit['status'] }}</td>
+        <td>{{ commit['status']['state'] }}</td>
         <td>
             {% if commit['batch_id'] is not none %}
             <a href="{{ base_path }}/batches/{{ commit['batch_id'] }}">{{ commit['batch_id'] }}</a>

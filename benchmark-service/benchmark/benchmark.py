@@ -62,7 +62,6 @@ def get_benchmarks(app, file_path):
         message = f'could not find file, {file_path}'
         log.info('could not get blob: ' + message, exc_info=True)
         return None
-        #raise web.HTTPBadRequest(text=message) from e
 
     data = {}
     prod_of_means = 1
@@ -205,9 +204,15 @@ async def index(request):
     }
     assert len(d['dates']) == len(d['geo_means']), d
     df = pd.DataFrame(d)
-    fig = px.line(df, x=df.dates, y=df.geo_means, hover_data=['commit'])
-    fig.update_xaxes(rangeslider_visible=True)
-    plot = json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
+    log.info(f'{df}')
+    log.info(f'dates: {df.dates}')
+    log.info(f'geo_means: {df.geo_means}')
+    if not df.dates.empty:
+        fig = px.line(df, x=df.dates, y=df.geo_means, hover_data=['commit'])
+        fig.update_xaxes(rangeslider_visible=True)
+        plot = json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
+    else:
+        plot = None
     context = {
         'commits': benchmark_data['commits'],
         'plot': plot,
@@ -303,6 +308,7 @@ async def update_commits(app):
         sha = gh_commit.get('sha')
         log.info(f'for commit {sha}')
         await update_commit(app, sha)
+
     log.info('got new commits')
 
 
@@ -351,7 +357,7 @@ async def get_commit(app, sha):  # pylint: disable=unused-argument
         'sha': sha,
         'title': title,
         'author': gh_commit['commit']['author']['name'],
-        'date': date,
+        'date': gh_commit['commit']['author']['date'],
         'status': status,
         #'geo_mean': benchmarks['geometric_mean'],
         'commit_id': commit_id
@@ -371,27 +377,38 @@ async def get_commit(app, sha):  # pylint: disable=unused-argument
 
 
 async def update_commit(app, sha):  # pylint: disable=unused-argument
+    log.info('in update_commit')
     global benchmark_data, dates, geo_means, commit_ids
+    gs_reader = app['gs_reader']
     commit = await get_commit(app, sha)
-    if commit['status'] is not None:
-        return commit
-
     file_path = f'{BENCHMARK_RESULTS_PATH}/{sha}.json'
-    batch_client = app['batch_client']
-    batch_id = await submit_test_batch(batch_client, sha)
-    batch = await batch_client.get_batch(batch_id)
-    commit['status'] = batch._last_known_status
-    log.info(f'submitted a batch {batch_id} for commit {sha}')
 
-    benchmark_data['commits'][sha] = commit  # TODO: ????
-    benchmarks = get_benchmarks(app, file_path)
-    commit['geo_mean'] = benchmarks['geometric_mean']
-    geo_mean = commit['geo_mean']
-    log.info(f'geo mean is {geo_mean}')
+    if commit['status'] is None:
+        #return commit
 
-    dates.append(commit['date'])
-    geo_means.append(commit['geo_mean'])
-    commit_ids.append(commit['commit_id'])
+        batch_client = app['batch_client']
+        batch_id = await submit_test_batch(batch_client, sha)
+        batch = await batch_client.get_batch(batch_id)
+        commit['status'] = batch._last_known_status
+        commit['batch_id'] = batch_id
+        log.info(f'submitted a batch {batch_id} for commit {sha}')
+
+    log.info('hi')
+    if sha not in benchmark_data['commits']:
+        benchmark_data['commits'][sha] = commit  # TODO: ????
+        log.info(f'append commit {sha} to commits')
+
+    log.info('hello')
+    has_results_file = gs_reader.file_exists(file_path)
+    if has_results_file and commit['date'] not in dates:
+        benchmarks = get_benchmarks(app, file_path)
+        commit['geo_mean'] = benchmarks['geometric_mean']
+        geo_mean = commit['geo_mean']
+        log.info(f'geo mean is {geo_mean}')
+
+        dates.append(commit['date'])
+        geo_means.append(commit['geo_mean'])
+        commit_ids.append(commit['commit_id'])
 
     return commit
 
@@ -435,15 +452,6 @@ async def call_update_commit(request):  # pylint: disable=unused-argument
     log.info('call_update_commit')
     commit = await update_commit(request.app, sha)
     return web.json_response(commit)
-
-
-@router.get('/submit')
-async def submit(request, userdata):
-    app = request.app
-    reponame = request.query.get('reponame')
-    branchname = request.query.get('branchname')
-    iterations = request.query.get('iterations')
-    regex = request.query.get('regex')
 
 
 async def github_polling_loop(app):
