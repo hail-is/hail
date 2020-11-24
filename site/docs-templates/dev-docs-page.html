@@ -1,0 +1,18 @@
+{% extends "dev-docs-root.html" %}
+{% block head %}
+<link rel="stylesheet" href="/common_static/css/docs-styles.css">
+{% endblock %}
+{% block content %}
+<div class="docs-all">
+<h3>
+  {% for name, href in path %}
+  <a href="{{ href }}">{{ name }}</a> >
+  {% endfor %}
+  {% block title %}{% endblock %}
+</h3>
+<div class="docs-content">
+{% block docs_content %}
+{% endblock %}
+</div>
+</div>
+{% endblock %}

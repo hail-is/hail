@@ -10,10 +10,12 @@ log = logging.getLogger('gear')
 
 
 def session_id_encode_to_str(session_id_bytes: bytes) -> str:
+    """Convert session id bytes to string form."""
     return base64.urlsafe_b64encode(session_id_bytes).decode('ascii')
 
 
 def session_id_decode_from_str(session_id_str: str) -> bytes:
+    """Convert session id string to bytes form."""
     return base64.urlsafe_b64decode(session_id_str.encode('ascii'))
 
 
@@ -53,19 +55,15 @@ class Tokens(collections.abc.MutableMapping):
         return self._tokens[key]
 
     def namespace_token_or_error(self, ns):
+        """Get the auth token for the namespace or err if no such token exists."""
         if ns in self._tokens:
             return self._tokens[ns]
 
         deploy_config = get_deploy_config()
         auth_ns = deploy_config.service_ns('auth')
         ns_arg = '' if ns == auth_ns else f'-n {ns}'
-        sys.stderr.write(f'''\
-You are not authenticated.  Please log in with:
-
-  $ hailctl auth login {ns_arg}
-
-to obtain new credentials.
-''')
+        message = f'You are not authenticated.  Please log in with:\n\n    $ hailctl auth login {ns_arg}\nto obtain new credentials.'
+        sys.stderr.write(message)
         sys.exit(1)
 
     def __delitem__(self, key):

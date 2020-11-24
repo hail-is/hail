@@ -1,16 +1,17 @@
 include ../config.mk
 
-.PHONY: deployment.yaml build push deploy clean test render render-hail-too watch watch-hail-too
+.PHONY: deployment.yaml build push deploy clean test render render-hail-too watch watch-all
 
 IMAGE = gcr.io/$(PROJECT)/site:$(shell docker images -q --no-trunc site | sed -e 's,[^:]*:,,')
-RENDER_COMMAND := PYTHONPATH=$$PYTHONPATH:../web_common:../gear python3 render.py
+RENDER_COMMAND := PYTHONPATH=$$PYTHONPATH:../web_common:../gear python3 render.py 2>&1 | jq -c '{asctime, funcNameAndLine, message}'
 
 render:
+	mkdir -p docs
 	$(RENDER_COMMAND)
 
 # For a good development experience, in one terminal window:
 #
-#     (cd www && python3 -m http.server)
+#     (cd site && python3 -m http.server)
 #
 # and in another terminal window:
 #
@@ -23,23 +24,24 @@ render:
 # will be faster.
 render-hail-too:
 	$(MAKE) -C ../hail hail-docs-no-test batch-docs
-	rsync --archive --verbose ../hail/build/www/docs/ www/docs/
+	rsync --archive ../hail/build/www/docs/ site/docs/
 	$(RENDER_COMMAND)
 
 watch:
-	fswatch -o pages/ templates/ | xargs -n1 -I{} /bin/bash -c '$(RENDER_COMMAND)'
+	fswatch -o pages/ templates/ docs-templates/ docs-pages/ docs-styles/ dev-docs/ render.py \
+    | xargs -n1 -I{} $(MAKE) render
 
 watch-hail-too:
 	fswatch -o ../hail/python/ pages/ templates/ | xargs -n1 -I{} $(MAKE) render-hail-too
 
 build: render
-	-rm -rf www-out
+	-rm -rf site-out
 	rsync --archive \
         --verbose \
-        www/* \
-        www-out
-	-rm ../site-www.tar.gz
-	cd www-out && tar -cvzf ../site-www.tar.gz *
+        site/* \
+        site-out
+	-rm ../site.tar.gz
+	cd site-out && tar -cvzf ../site.tar.gz *
 	docker build -t site .
 
 push: build

@@ -32,14 +32,18 @@ async def _userdata_from_session_id(session_id):
         raise web.HTTPInternalServerError() from e
 
 
-async def userdata_from_web_request(request):
+async def userdata_from_web_request(request: web.Request):
+    """Userdata for logged in web-browsing user, if logged in.
+    """
     session = await aiohttp_session.get_session(request)
     if 'session_id' not in session:
         return None
     return await _userdata_from_session_id(session['session_id'])
 
 
-async def userdata_from_rest_request(request):
+async def userdata_from_rest_request(request: web.Request):
+    """Userdata for logged in REST API user, if logged in.
+    """
     if 'Authorization' not in request.headers:
         return None
     auth_header = request.headers['Authorization']

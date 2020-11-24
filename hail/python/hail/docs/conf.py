@@ -84,6 +84,8 @@ intersphinx_mapping = {
     'scipy': ('https://docs.scipy.org/doc/scipy-1.3.3/reference', None),
     'pandas': ('https://pandas.pydata.org/docs/', None)}
 
+pygments_style = None
+
 # Add any paths that contain templates here, relative to this directory.
 site_templates = os.environ.get('HAIL_SITE_DIR', '../../../../site/') + 'templates'
 if not os.path.isdir(site_templates):

@@ -1,5 +1,7 @@
-# TLS
+{% extends "dev-docs-page.html" %}
+{% block title %} TLS {% endblock %}
 
+{% block docs_content %}
 TLS stands for Transport Layer Security. We use TLS to encrypt all traffic
 between all services in our kubernetes (k8s) cluster.
 
@@ -244,3 +246,4 @@ the hell?), ergo Confused Deputy.
     discarded. If the session key is securely discarded and neither key can
     recreate it without cooperation from the other key, then *one* leaked key is
     insufficient to reveal the messages.
+{% endblock %}

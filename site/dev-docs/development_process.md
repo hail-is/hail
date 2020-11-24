@@ -1,4 +1,7 @@
-# Hail Development Process
+{% extends "dev-docs-page.html" %}
+{% block title %} Hail Development Process {% endblock %}
+
+{% block docs_content %}
 
 The lifecycle of a new contribution to the Hail code base consists of the
 following steps:  designing the feature, implementation, creating a PR,
@@ -235,3 +238,4 @@ the Discuss Forum.
 It is relatively easy for us to make a new release. We try and do this at least
 once every other week, but can also do it for bug fixes and user-facing changes
 that people have requested immediate access to.
+{% endblock %}

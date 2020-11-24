@@ -1,10 +1,10 @@
 <!DOCTYPE html>
 <html lang="en">
   <head>
-    <title>Hail | {% block title %}{% endblock %}</title>
+    <title>Hail | {% block title %}{{ block }}{% endblock %}</title>
 
     <meta charset="utf-8"/>
-    <meta name="description" content="{% block meta_description %}{% endblock meta_description %}"/>
+    <meta name="description" content="{% block meta_description %}{{ meta_description }}{% endblock meta_description %}"/>
     <meta name="viewport" content="width=device-width, initial-scale=1"></meta>
 
     <link rel="shortcut icon" href="/hail_logo_sq-sm-opt.ico" type="image/x-icon">
@@ -30,7 +30,7 @@
   <body>
     {% include "nav-top.html" %}
     <div id="main">
-      {%block content %}{% endblock %}
+      {%block content %}{{ content }}{% endblock %}
     </div>
     {% include "nav-bottom.html" %}
     <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.20.0/components/prism-core.min.js"></script>

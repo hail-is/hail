@@ -1,0 +1,39 @@
+html {
+  font-family: "Lucida Sans Unicode", "Lucida Grande", sans-serif;
+  background: linear-gradient(to bottom, #baf2ff, #dfbaff, #84678c);
+  color: #313f42;
+  height: 100%;
+  width: 100%;
+}
+input[type="submit"] {
+  background: linear-gradient(to bottom, rgba(203,153,197,1) 0%, rgba(181,134,176,1) 100%);
+  border: 1px solid rgba(0,0,0,0.21);
+  border-bottom: 4px solid rgba(0,0,0,0.21);
+  border-radius: 4px;
+  text-shadow: 0 1px 0 rgba(0,0,0,0.15);
+  padding: 15px 25px;
+  text-transform: uppercase;
+  color: white;
+  font-weight: 700;
+  border-radius: 3px;
+  margin-left: auto;
+  margin-right: auto;
+  width: 100%;
+}
+input[type="submit"]:hover, input[type="submit"]:focus{
+  background: linear-gradient(to bottom, rgba(181,134,176,1) 0%, rgba(203,153,197,1) 100%);
+  outline: none;
+  cursor: pointer;
+}
+div.center {
+  margin-top: 5%;
+  margin-left: auto;
+  margin-right: auto;
+  width: 35%;
+}
+form > p {
+  margin-left: auto;
+  margin-right: auto;
+  width: fit-content;
+  display: block-inline;
+}

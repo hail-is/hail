@@ -1,5 +1,7 @@
-# Hail
+{% extends "dev-docs-page.html" %}
+{% block title %} Hail Overview {% endblock %}
 
+{% block docs_content %}
 This document gives an overview of the Hail architecture and source
 code.
 
@@ -280,3 +282,4 @@ There are two types of services: regular and infrastructure.
 Deployment of regular services is managed by ci.  Infrastructure
 services are currently managed by hand.  The infrastructure services
 include: gateway, internal-gateway and router-resolver.
+{% endblock %}

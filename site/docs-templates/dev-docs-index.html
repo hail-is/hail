@@ -1,0 +1,25 @@
+{% extends "dev-docs-root.html" %}
+{% block content %}
+<div class="docs-all">
+<h3>
+  {% for name, href in path %}
+  <a href="{{ href }}">{{ name }}</a> >
+  {% endfor %}
+  {% block title %}{% endblock %}
+</h3>
+<div class="docs-content">
+<h4>Documents</h4>
+<ul>
+  {% for name, href in files %}
+  <li><a href="{{ href }}">{{ name }}</a></li>
+  {% endfor %}
+</ul>
+<h4>Folders</h4>
+<ul>
+  {% for name, href in folders %}
+  <li><a href="{{ href }}">{{ name }}</a></li>
+  {% endfor %}
+</ul>
+</div>
+</div>
+{% endblock %}

@@ -1,5 +1,7 @@
-# Large-scale Batch Operation
+{% extends "dev-docs-page.html" %}
+{% block title %} Large-scale Batch Operation {% endblock %}
 
+{% block docs_content %}
 Operating Batch at or near its limit is semi-manual because Batch currently is unable to regulate the amount of incoming work it accepts.
 
 CPU is the best readily available metric of Batch’s remaining capacity, obtained by:
@@ -33,3 +35,4 @@ Watch the behavior under maximum load.  Normally the allocated cores increases f
 You can inspect the `internal-gateway` logs to determine if the request rate is  maximized.  When the maximum request rate is exceeded, `internal-gateway` nginx returns 503 and logs a message.
 
 To determine if the cluster size is at the maximum, check the CPU and `internal-gateway` request rate when the cluster is not growing, but just replacing preempted nodes.  The CPU should not be pegged, and `internal-gateway` should reject requests at most in transient bursts.  In general, the load will be much lower at equilibrium because filling an empty node requires many operations.
+{% endblock %}

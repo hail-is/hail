@@ -1,4 +1,7 @@
-# TLS Cookbook
+{% extends "dev-docs-page.html" %}
+{% block title %} TLS Cookbook {% endblock %}
+
+{% block docs_content %}
 ## Create a Self-Signed x509 Certificate in PEM Format
 
 Produce an x509 certificate. The key is a 4096-bit RSA key. The cert is valid
@@ -139,3 +142,4 @@ print(",".join(x["name"] for x in x))')
 ```
 kubectl delete pods -l "app in ($SERVICES_TO_RESTART)"
 ```
+{% endblock %}

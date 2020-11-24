@@ -15,8 +15,8 @@ ADD hail.nginx.conf.in /
 ADD nginx.conf /etc/nginx/
 
 ADD site.sh /site.sh
-ADD site-www.tar.gz /var/www/html
-RUN chown -R www-data /var/www/html && \
-    chmod -R u=rX,g=rX /var/www/html
+ADD site.tar.gz /var/www/html/site
+RUN chown -R www-data /var/www/html/site && \
+    chmod -R u=rX,g=rX /var/www/html/site
 
 CMD ["/bin/bash", "/site.sh"]

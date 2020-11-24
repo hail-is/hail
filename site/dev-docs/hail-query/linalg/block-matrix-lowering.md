@@ -1,9 +1,13 @@
-# Overview
+{% extends "dev-docs-page.html" %}
+{% block title %} Block Matrix Lowering {% endblock %}
+
+{% block docs_content %}
+## Overview
 
 This document describes the process for computations represented by BlockMatrixIR 
 nodes into computations represented by value IR nodes using CollectDistributedArray.
 
-# BlockMatrixStage
+## BlockMatrixStage
 
 BlockMatrixStage is the intermediate representation for a lowered BlockMatrix. It 
 represents the block structure of a BlockMatrixIR node as well as all information 
@@ -16,7 +20,7 @@ functions:
 - blockContext(idx): a function taking the block index and returning the context IR for that block
 - blockBody(ctxRef): a function tranforming the block context into the matrix value of each block
 
-## Global values
+### Global values
 
 If a value is needed in the body of the computation, such as with a relational 
 Let, it should generally be included as a global value.
@@ -30,12 +34,12 @@ structure of the BlockMatrixIR means that it is unlikely to be necessary, though
 When creating a BlockMatrixStage from other BlockMatrixStages, broadcast values
 should be preserved from all child BlockMatrixStages.
 
-### Referencing global values from contexts and body
+#### Referencing global values from contexts and body
 
 Global values can be referenced from both block contexts and the body of the 
 computation using `Ref(name, value.typ)`.
 
-## Contexts
+### Contexts
 
 Each block in a BlockMatrixIR node will need to define its own context as 
 a value IR node.
@@ -49,7 +53,7 @@ which creates an arbitrary NDArray, the computation itself should be stored as
 a global value and a reference to that value used in the context IR itself. (It 
 will not be broadcast unless needed in distributed computation.)
 
-# lowering value IRs with BlockMatrixStages
+## lowering value IRs with BlockMatrixStages
 
 BlockMatrixStage generates a value IR node which executes all block computations and
 returns the results as a (sparse) array. The primary way for doing this is with the
@@ -73,3 +77,4 @@ in which blocks will appear in the result array.
 The BlockMatrixStage doesn't store any information about the dimensions of the 
 BlockMatrix or which blocks are defined; at any point where the BlockMatrixStage 
 exists, this can be retrieved from the corresponding BlockMatrixIR.
+{% endblock %}

@@ -43,6 +43,17 @@
   <a class="header-link" href="{{ ci_base_url }}">CI</a>
   {% endif %}
 
+  <div class="header-dropdown">
+    <div class="header-dropdown-item-margin">
+      <a href="/" class="header-dropdown-link">Documentation</a>
+      <div class="header-dropdown-menu">
+        <div class="batch-caret header-dropdown-menu-caret"></div>
+        <a class="header-dropdown-menu-link" href="/dev-docs">
+          Internal</a>
+      </div>
+    </div>
+  </div>
+
   {% if userdata['is_developer'] == 1 %}
   <div class="header-dropdown">
     <div class="header-dropdown-item-margin">

@@ -324,7 +324,8 @@ class ServiceBackend(Backend):
              disable_progress_bar: bool = False,
              callback: Optional[str] = None,
              **backend_kwargs):  # pylint: disable-msg=too-many-statements
-        """Execute a batch.
+        """
+        Execute a batch.
 
         Warning
         -------

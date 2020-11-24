@@ -5,6 +5,7 @@
 .idea/
 .pytest_cache/
 build/
+_build
 *.iml
 hail*.log
 out/

@@ -1,4 +1,7 @@
-# ksync
+{% extends "dev-docs-page.html" %}
+{% block title %} ksync {% endblock %}
+
+{% block docs_content %}
 
 https://github.com/ksync/ksync
 
@@ -79,7 +82,13 @@ ksync watch
 3. Create a spec in ~/.ksync/ksync.yaml using the create operation
 
 ```
-ksync create --local-read-only -l app=atgu --name <NAMESPACE>-<APP> -n jigold $(pwd)/<APP>/ /usr/local/lib/python3.7/dist-packages/<APP>/
+ksync create \
+      --local-read-only \
+      -l app=atgu \
+      --name <NAMESPACE>-<APP> \
+      -n jigold \
+      $(pwd)/<APP>/ \
+      /usr/local/lib/python3.7/dist-packages/<APP>/
 ```
 
 4. Use ksync get to make sure the pods are being watched
@@ -100,3 +109,4 @@ ksync delete <NAMESPACE>-<APP>
 
 - ksync is updating all pods specified in ~/.ksync/ksync.yaml
 when it is running (`ksync watch`)
+{% endblock %}

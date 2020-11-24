@@ -1,18 +1,32 @@
+from typing import Dict, Any
 import os
+from typing_extensions import Literal
 import importlib
 import sass
 import jinja2
+import aiohttp
 import aiohttp_jinja2
 import aiohttp_session
 from hailtop.config import get_deploy_config
 from gear import new_csrf_token
+
+# https://github.com/aio-libs/aiohttp/issues/3714#issuecomment-486973504
+aiohttp.web_request.Request.__module__ = 'aiohttp.web'
+aiohttp.web.Application.__module__ = 'aiohttp.web'
 
 deploy_config = get_deploy_config()
 
 WEB_COMMON_ROOT = os.path.dirname(os.path.abspath(__file__))
 
 
-def sass_compile(module_name):
+def sass_compile(module_name: str):
+    """Compile a module's Sass files.
+
+    Parameters
+    ----------
+    module_name:
+        The module in which to find sass files to compile.
+    """
     module = importlib.import_module(module_name)
     module_root = os.path.dirname(os.path.abspath(module.__file__))
 
@@ -25,7 +39,16 @@ def sass_compile(module_name):
         include_paths=[f'{WEB_COMMON_ROOT}/styles'])
 
 
-def setup_aiohttp_jinja2(app, module):
+def setup_aiohttp_jinja2(app: aiohttp.web.Application, module: str):
+    """Enable aiohttp applications to use Jinja2 templates.
+
+    Parameters
+    ----------
+    app:
+        The application in which to enable jinja2 rendering.
+    module:
+        The name of the module in which the application is defined.
+    """
     aiohttp_jinja2.setup(
         app, loader=jinja2.ChoiceLoader([
             jinja2.PackageLoader('web_common'),
@@ -36,7 +59,14 @@ def setup_aiohttp_jinja2(app, module):
 _compiled = False
 
 
-def setup_common_static_routes(routes):
+def setup_common_static_routes(routes: aiohttp.web.RouteTableDef):
+    """Serve web_common's static (e.g. CSS) files at /common_static.
+
+    Parameters
+    ----------
+    route:
+        The route table to which to add the ``/common_static`` route.
+    """
     global _compiled
 
     if not _compiled:
@@ -45,7 +75,22 @@ def setup_common_static_routes(routes):
     routes.static('/common_static', f'{WEB_COMMON_ROOT}/static')
 
 
-def set_message(session, text, type):
+WebMessageType = Literal['info', 'error']
+
+
+def set_message(session: Dict, text: str, type: WebMessageType):
+    """Set a message for display in the response to the web browser.
+
+    Parameters
+    ----------
+    session:
+        The aiohttp session for the current request.
+    text:
+        A short message to display to the user.
+    type:
+        Info is displayed on a green background whereas error is displayed on a
+        red background.
+    """
     assert type in ('info', 'error')
     session['message'] = {
         'text': text,
@@ -53,7 +98,18 @@ def set_message(session, text, type):
     }
 
 
-def base_context(session, userdata, service):
+def base_context(session: Dict, userdata: Dict, service: str):
+    """The base page context for Hail Jinja2 templates.
+
+    Parameters
+    ----------
+    session:
+        The aiohttp session for the current request.
+    userdata:
+        The userdata FIXME: link to gear.
+    service:
+        The current service.
+    """
     context = {
         'base_path': deploy_config.base_path(service),
         'base_url': deploy_config.external_url(service, ''),
@@ -74,7 +130,26 @@ def base_context(session, userdata, service):
     return context
 
 
-async def render_template(service, request, userdata, file, page_context):
+async def render_template(service: str,
+                          request: aiohttp.web.Request,
+                          userdata: Dict,
+                          file: str,
+                          page_context: Dict[str, Any]):
+    """Render a Jinja2 template.
+
+    Parameters
+    ----------
+    service:
+        The current service.
+    request:
+        The current request.
+    userdata:
+        The userdata.
+    file:
+        The template to render.
+    page_context:
+        A mapping from variables used in the template to values.
+    """
     if '_csrf' in request.cookies:
         csrf_token = request.cookies['_csrf']
     else:

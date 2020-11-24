@@ -1,0 +1,18 @@
+div.center {
+  margin-top: 5%;
+  margin-left: auto;
+  margin-right: auto;
+  width: 35%;
+}
+form > p {
+  margin-left: auto;
+  margin-right: auto;
+  width: fit-content;
+  display: block-inline;
+}
+div > h1 {
+  margin-left: auto;
+  margin-right: auto;
+  width: 90%;
+  text-align: center;
+}
