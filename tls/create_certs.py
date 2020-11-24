@@ -152,19 +152,19 @@ async def create_curl_config(principal, incoming_trust, outgoing_trust, key, cer
 
 async def create_config(principal, incoming_trust, outgoing_trust, key, cert, key_store, kind):
     if kind == 'json':
-        return create_json_config(principal, incoming_trust, outgoing_trust, key, cert, key_store)
+        return await create_json_config(principal, incoming_trust, outgoing_trust, key, cert, key_store)
     if kind == 'curl':
-        return create_curl_config(principal, incoming_trust, outgoing_trust, key, cert)
+        return await create_curl_config(principal, incoming_trust, outgoing_trust, key, cert)
     assert kind == 'nginx'
-    return create_nginx_config(principal, incoming_trust, outgoing_trust, key, cert)
+    return await create_nginx_config(principal, incoming_trust, outgoing_trust, key, cert)
 
 
 async def create_principal(principal, domain, kind, key, cert, key_store, unmanaged):
     if unmanaged and namespace != 'default':
         return
-    incoming_trust = create_trust(principal, 'incoming')
-    outgoing_trust = create_trust(principal, 'outgoing')
-    configs = create_config(principal, incoming_trust, outgoing_trust, key, cert, key_store, kind)
+    incoming_trust = await create_trust(principal, 'incoming')
+    outgoing_trust = await create_trust(principal, 'outgoing')
+    configs = await create_config(principal, incoming_trust, outgoing_trust, key, cert, key_store, kind)
     with tempfile.NamedTemporaryFile() as k8s_secret:
         await check_call(
             ['kubectl', 'create', 'secret', 'generic', f'ssl-config-{principal}',

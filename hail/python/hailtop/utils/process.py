@@ -42,9 +42,10 @@ def sync_check_shell(script, echo=False):
     sync_check_shell_output(script, echo)
 
 
-async def check_call(*args, echo=False):
+async def check_call(*args):
     proc = await asyncio.create_subprocess_exec(
-        *args,
+        args[0],
+        *args[1:],
         stdout=asyncio.subprocess.PIPE,
         stderr=asyncio.subprocess.PIPE)
     outerr = await proc.communicate()
