@@ -598,6 +598,16 @@ def test_verify_no_access_to_metadata_server(client):
     assert "Connection timed out" in j.log()['main'], (j.log()['main'], status)
 
 
+def test_can_use_hailctl_auth(client):
+    builder = client.create_batch()
+    j = builder.create_job(os.environ['CI_UTILS_IMAGE'],
+                           'gcloud', 'auth', 'list')
+    status = j.wait()
+    assert status['state'] == 'Success', f'{j.log(), status}'
+    log = j.log()
+    assert '*       test-665@hail-vdc.iam.gserviceaccount.com' in log, f'{j.log(), status}'
+
+
 def test_user_authentication_within_job(client):
     batch = client.create_batch()
     cmd = ['bash', '-c', 'hailctl auth user']
