@@ -2576,20 +2576,43 @@ class Emit[C](
           }
         case x@NDArrayReshape(childND, shape) =>
           val outputNDims = x.pType.nDims
+          val childEmitter = deforest(childND)
 
-          val requestedShapeI = dEmit(shape, env).map(cb){pc =>
+          val childMissing = cb.newLocal[Boolean]("ndarray_reshape_child_missing")
+          val childShapeValues = Array.tabulate(childEmitter.nDims)(i => cb.newLocal[Long](s"ndarray_reindex_child_shape_$i")).toIndexedSeq
+
+          childEmitter.outputShape.consume(cb, {
+            cb.assign(childMissing, true)
+          }, {values =>
+            cb.assign(childMissing, false)
+            (childShapeValues.toIterable, values.toIterable).zipped.map { case (x, v) => cb.assign(x, v) }
+          })
+
+          val requestMissing = cb.newLocal[Boolean]("ndarray_reshape_request_missing")
+          val requestedShapeValues = Array.tabulate(childEmitter.nDims)(i => cb.newLocal[Long](s"ndarray_reindex_request_shape_$i")).toIndexedSeq
+
+          dEmit(shape, env).consume(cb, {
+            cb.assign(requestMissing, true)
+          }, { pc =>
             val tupleCode = pc.asBaseStruct
             val tupleValue = tupleCode.memoize(cb, "ndarray_reshape_requested")
-            Array.tabulate(outputNDims)(i => {
-              val shapeField = cb.newLocal[Long](s"ndarray_reshape_requested_${i}")
-              cb.assign(shapeField, tupleValue.loadField(cb, i).get(cb, "foo").toPCode(cb, region.code).tcode[Long])
-            })
-          }
+            (0 until outputNDims).foreach { i =>
+              cb.assign(requestedShapeValues(i), tupleValue.loadField(cb, i).get(cb, "foo").toPCode(cb, region.code).tcode[Long])
+            }
+          })
 
           // The above shape may have -1s in it. Ignore for now
+          new NDArrayEmitter2(IEmitCodeGen(cb, requestMissing || childMissing, requestedShapeValues)) {
+            override def outputElement(cb: EmitCodeBuilder, idxVars: IndexedSeq[Value[Long]]): PCode = {
+              val storeElementIndex = cb.newLocal[Long]("ndarray_reshape_index_store")
+              cb.assign(storeElementIndex, LinalgCodeUtils.linearizeIndicesRowMajor(idxVars, requestedShapeValues, cb.emb))
 
-          new NDArrayEmitter2(requestedShapeI) {
-            override def outputElement(cb: EmitCodeBuilder, idxVars: IndexedSeq[Value[Long]]): PCode = ???
+              val (newIdxVarsSetup, newIdxVars) = LinalgCodeUtils.unlinearizeIndexRowMajor(storeElementIndex, childShapeValues, cb.emb)
+              cb.append(newIdxVarsSetup)
+              assert (newIdxVars.length == childEmitter.nDims)
+
+              childEmitter.outputElement(cb, newIdxVars)
+            }
           }
           // Need to take this shape, which may have a -1 in it, and turn it into a compatible shape if possible.
 //          def compatibleShape(numElements: Value[Long], requestedShape: IndexedSeq[Value[Long]]): (Code[Unit], IndexedSeq[Value[Long]]) = {
@@ -2860,12 +2883,12 @@ class Emit[C](
             override def outputElement(elemMB: EmitMethodBuilder[C], idxVars: IndexedSeq[Value[Long]]): Code[_] = {
               val storeElementIndex = elemMB.genFieldThisRef[Long]()
 
-              val (newIdxVarsSetup, newIdxVars) = x.pType.unlinearizeIndexRowMajor(storeElementIndex, childShapeCached, elemMB)
+              val (newIdxVarsSetup, newIdxVars) = LinalgCodeUtils.unlinearizeIndexRowMajor(storeElementIndex, childShapeCached, elemMB)
 
               assert(newIdxVars.length == childEmitter.nDims)
 
               Code(
-                storeElementIndex := x.pType.linearizeIndicesRowMajor(idxVars, reshapedShapeArray, elemMB),
+                storeElementIndex := LinalgCodeUtils.linearizeIndicesRowMajor(idxVars, reshapedShapeArray, elemMB),
                 newIdxVarsSetup,
                 childEmitter.outputElement(elemMB, newIdxVars)
               )
