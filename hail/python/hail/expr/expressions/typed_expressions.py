@@ -14,7 +14,7 @@ from hail.expr.types import HailType, tint32, tint64, tfloat32, \
     tndarray, tlocus, tinterval, is_numeric
 import hail.ir as ir
 from hail.typecheck import typecheck, typecheck_method, func_spec, oneof, \
-    identity, nullable, tupleof, sliceof, dictof
+    identity, nullable, tupleof, sliceof, dictof, sequenceof
 from hail.utils.java import Env, warning
 from hail.utils.linkedlist import LinkedList
 from hail.utils.misc import wrap_to_list, get_nice_field_error, get_nice_attr_error
@@ -3831,7 +3831,7 @@ class NDArrayExpression(Expression):
                               self._aggregations)
 
     @typecheck_method(shape=oneof(expr_int64, tupleof(expr_int64), expr_tuple()))
-    def reshape(self, shape):
+    def reshape(self, *shape):
         """Reshape this ndarray to a new shape.
 
         Parameters
@@ -3849,7 +3849,19 @@ class NDArrayExpression(Expression):
         -------
         :class:`.NDArrayExpression`.
         """
+
+        # varargs with many ints works, but can't be a mix of ints and tuples.
+        if len(shape) > 1:
+            for i, arg in enumerate(shape):
+                if not isinstance(arg, Int64Expression):
+                    raise TypeError(f"Argument {i} of reshape needs to be of type tint64.")
+        else:
+            shape = shape[0]
+
         if isinstance(shape, TupleExpression):
+            for i, tuple_field_type in enumerate(shape.dtype.types):
+                if not tuple_field_type in [hl.tint32, hl.tint64]:
+                    raise TypeError(f"Argument {i} of reshape needs to be an integer, got {tuple_field_type}.")
             shape_ir = hl.or_missing(hl.is_defined(shape), hl.tuple([hl.int64(i) for i in shape]))._ir
             ndim = len(shape)
         else:
