@@ -781,18 +781,25 @@ def test_svd():
         k = min(np_array.shape)
         rank = np.linalg.matrix_rank(np_array)
 
-        # SVD might give you reflected singular vectors.
-        def vectors_equal_magnitude(nd1, nd2):
-            np.testing.assert_array_almost_equal(np.abs(nd1), np.abs(nd2))
-
         if compute_uv:
-            vectors_equal_magnitude(evaled[0][:, :rank], np_svd[0][:, :rank])
-            np.testing.assert_array_almost_equal(evaled[1], np_svd[1])
-            vectors_equal_magnitude(evaled[2][:rank, :], np_svd[2][:rank, :])
+            hu, hs, hv = evaled
+            nu, ns, nv = np_svd
 
+            # Singular values match
+            np.testing.assert_array_almost_equal(hs, ns)
+
+            # U is orthonormal
+            uut = hu @ hu.T
+            np.testing.assert_array_almost_equal(uut, np.identity(uut.shape[0]))
+
+            # V is orthonormal
+            vvt = hv @ hv.T
+            np.testing.assert_array_almost_equal(vvt, np.identity(vvt.shape[0]))
+
+            # Multiplying together gets back to original
             smat = np.zeros(np_array.shape) if full_matrices else np.zeros((k, k))
-            smat[:k, :k] = np.diag(evaled[1])
-            np.testing.assert_array_almost_equal(evaled[0] @ smat @ evaled[2], np_array)
+            smat[:k, :k] = np.diag(hs)
+            np.testing.assert_array_almost_equal(hu @ smat @ hv, np_array)
 
         else:
             np.testing.assert_array_almost_equal(evaled, np_svd)
