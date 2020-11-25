@@ -43,3 +43,7 @@ build/%: build/%.o
 .PHONY: clean
 clean:
 	rm -rf build
+
+.PHONY: test
+test:
+	./test.sh
