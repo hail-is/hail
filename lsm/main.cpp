@@ -6,11 +6,20 @@
 #include <vector>
 
 class LSM {
+  std::map<int32_t, int32_t> m;
 public:
-  void put(int32_t k, int32_t v);
-  std::optional<int32_t> get(int32_t k);
-  std::vector<std::pair<int32_t, int32_t>> range(int32_t l, int32_t r);
-  void del(int32_t k);
+  void put(int32_t k, int32_t v) {
+    // ???
+  }
+  std::optional<int32_t> get(int32_t k) {
+    // ???
+  }
+  std::vector<std::pair<int32_t, int32_t>> range(int32_t l, int32_t r) {
+    // ???
+  }
+  void del(int32_t k) {
+    // ???
+  }
 };
 
 int main(int argc, const char ** argv) {

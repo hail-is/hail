@@ -7,7 +7,7 @@ CXX ?= /usr/local/Cellar/gcc/10.2.0/bin/g++-10
 LD ?= /usr/local/Cellar/gcc/10.2.0/bin/gcc-10
 LDXX ?= /usr/local/Cellar/gcc/10.2.0/bin/g++-10
 
-CXXFLAGS += -std=c++17 -fPIC -ggdb -g -fno-strict-aliasing -Igrpc/include/grpc++
+CXXFLAGS += -std=c++2a -fPIC -ggdb -g -fno-strict-aliasing
 CXXFLAGS += -fno-omit-frame-pointer  # enables libasan to provide complete stack traces
 CXXFLAGS += -Wall -Werror -Wextra -Wpedantic -Wno-unused-parameter
 CXXFLAGS += -Og -fsanitize=address -fsanitize=undefined
