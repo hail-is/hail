@@ -319,11 +319,12 @@ async def update_commits(app):
 
 
 async def get_commit(app, sha):  # pylint: disable=unused-argument
+    log.info('in get_commit')
     github_client = app['github_client']
     batch_client = app['batch_client']
     gs_reader = app['gs_reader']
 
-    file_path = f'{BENCHMARK_RESULTS_PATH}/{sha}.json'
+    file_path = f'{BENCHMARK_RESULTS_PATH}/0-{sha}.json'
     request_string = f'/repos/hail-is/hail/commits/{sha}'
     gh_commit = await github_client.getitem(request_string)
 
@@ -352,11 +353,15 @@ async def get_commit(app, sha):  # pylint: disable=unused-argument
         assert complete_batch_statuses, batch_statuses
         log.info(f'commit {sha} has a results file')
         status = complete_batch_statuses[-1]
+        batch_id = status['id']
+        log.info(f'status of {sha}: {status}')
     elif running_batch_statuses:
         status = running_batch_statuses[-1]
+        batch_id = status['id']
         log.info(f'batch already exists for commit {sha}')
     else:
         status = None
+        batch_id = None
         log.info(f'no batches or results file exists for {sha}')
 
     commit = {
@@ -365,9 +370,11 @@ async def get_commit(app, sha):  # pylint: disable=unused-argument
         'author': gh_commit['commit']['author']['name'],
         'date': gh_commit['commit']['author']['date'],
         'status': status,
-        #'geo_mean': benchmarks['geometric_mean'],
+        'batch_id': batch_id,
+            #'geo_mean': benchmarks['geometric_mean'],
         'commit_id': commit_id
     }
+    benchmark_data['commits'][sha] = commit
 
     log.info('got new commits')
 
@@ -387,9 +394,10 @@ async def update_commit(app, sha):  # pylint: disable=unused-argument
     global benchmark_data, dates, geo_means, commit_ids
     gs_reader = app['gs_reader']
     commit = await get_commit(app, sha)
-    file_path = f'{BENCHMARK_RESULTS_PATH}/{sha}.json'
+    file_path = f'{BENCHMARK_RESULTS_PATH}/0-{sha}.json'
 
     if commit['status'] is None:
+        log.info('commit status is None')
         #return commit
 
         batch_client = app['batch_client']
@@ -404,8 +412,8 @@ async def update_commit(app, sha):  # pylint: disable=unused-argument
         benchmark_data['commits'][sha] = commit  # TODO: ????
         log.info(f'append commit {sha} to commits')
 
-    log.info('hello')
     has_results_file = gs_reader.file_exists(file_path)
+    log.info(f'hello {has_results_file}')
     if has_results_file and commit['date'] not in dates:
         benchmarks = get_benchmarks(app, file_path)
         commit['geo_mean'] = benchmarks['geometric_mean']
@@ -434,7 +442,7 @@ async def delete_commit(request):  # pylint: disable=unused-argument
     gs_reader = app['gs_reader']
     batch_client = app['batch_client']
     sha = str(request.match_info['sha'])
-    file_path = f'{BENCHMARK_RESULTS_PATH}/{sha}.json'
+    file_path = f'{BENCHMARK_RESULTS_PATH}/0-{sha}.json'
 
     if gs_reader.file_exists(file_path):
         gs_reader.delete_file(file_path)
@@ -464,7 +472,7 @@ async def github_polling_loop(app):
     while True:
         await update_commits(app)
         log.info('successfully queried github')
-        await asyncio.sleep(300)
+        await asyncio.sleep(30)
 
 
 async def on_startup(app):

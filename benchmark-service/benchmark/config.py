@@ -4,7 +4,7 @@ from hailtop.utils import secret_alnum_string
 
 HAIL_BENCHMARK_BUCKET_NAME = os.environ['HAIL_BENCHMARK_BUCKET_NAME']
 
-INSTANCE_ID = os.environ.get('INSTANCE_ID')
+INSTANCE_ID = os.environ.get('INSTANCE_ID', 'R8kZlZhmqGJk')
 if INSTANCE_ID is None:
     INSTANCE_ID = secret_alnum_string(12)
 
