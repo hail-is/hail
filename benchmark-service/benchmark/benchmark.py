@@ -31,8 +31,6 @@ logging.basicConfig(level=logging.DEBUG)
 deploy_config = get_deploy_config()
 log = logging.getLogger('benchmark')
 
-#BENCHMARK_FILE_REGEX = re.compile(r'gs://((?P<bucket>[^/]+)/)((?P<user>[^/]+)/)((?P<version>[^-]+)-)((?P<sha>[^-]+))(-(?P<tag>[^\.]+))?\.json')
-
 BENCHMARK_FILE_REGEX = re.compile(r'gs://((?P<bucket>[^/]+)/)((?P<user>[^/]+)/)((?P<instanceId>[^/]*)/)((?P<version>[^-]+)-)((?P<sha>[^-]+))(-(?P<tag>[^\.]+))?\.json')
 
 BENCHMARK_ROOT = os.path.dirname(os.path.abspath(__file__))
@@ -328,13 +326,10 @@ async def get_commit(app, sha):  # pylint: disable=unused-argument
     gh_commit = await github_client.getitem(request_string)
 
     gh_date = gh_commit['commit']['author']['date']
-    date = gh_date.split('T')[0]
-    #dates.append(date)
 
     message = gh_commit['commit']['message']
     idx = message.index('#')
     commit_id = message[idx: idx+5]
-    #commit_ids.append(commit_id)
 
     title_message = gh_commit['commit']['message']
     title_end = title_message.index(')')
@@ -384,9 +379,6 @@ async def update_commit(app, sha):  # pylint: disable=unused-argument
     file_path = f'{BENCHMARK_RESULTS_PATH}/0-{sha}.json'
 
     if commit['status'] is None:
-        log.info('commit status is None')
-        #return commit
-
         batch_client = app['batch_client']
         batch_id = await submit_test_batch(batch_client, sha)
         batch = await batch_client.get_batch(batch_id)
@@ -395,11 +387,10 @@ async def update_commit(app, sha):  # pylint: disable=unused-argument
         log.info(f'submitted a batch {batch_id} for commit {sha}')
 
     if sha not in benchmark_data['commits']:
-        benchmark_data['commits'][sha] = commit  # TODO: ????
+        benchmark_data['commits'][sha] = commit
         log.info(f'append commit {sha} to commits')
 
     has_results_file = gs_reader.file_exists(file_path)
-    log.info(f'hello {has_results_file}')
     if has_results_file and commit['date'] not in dates:
         benchmarks = get_benchmarks(app, file_path)
         commit['geo_mean'] = benchmarks['geometric_mean']
