@@ -7,7 +7,6 @@ from gear import setup_aiohttp_session, web_authenticated_developers_only
 from hailtop.config import get_deploy_config
 from hailtop.tls import get_in_cluster_server_ssl_context
 from hailtop.hail_logging import AccessLogger, configure_logging
-import hailtop.batch_client.aioclient as bc
 from hailtop.utils import retry_long_running, collect_agen, humanize_timedelta_msecs
 from hailtop import aiotools
 import hailtop.batch_client.aioclient as bc
@@ -337,9 +336,6 @@ async def get_commit(app, sha):  # pylint: disable=unused-argument
     commit_id = message[idx: idx+5]
     #commit_ids.append(commit_id)
 
-    #benchmarks = get_benchmarks(app, file_path)
-    #geo_means.append(benchmarks['geometric_mean'])
-
     title_message = gh_commit['commit']['message']
     title_end = title_message.index(')')
     title = title_message[0: title_end + 1]
@@ -371,20 +367,11 @@ async def get_commit(app, sha):  # pylint: disable=unused-argument
         'date': gh_commit['commit']['author']['date'],
         'status': status,
         'batch_id': batch_id,
-            #'geo_mean': benchmarks['geometric_mean'],
         'commit_id': commit_id
     }
     benchmark_data['commits'][sha] = commit
 
     log.info('got new commits')
-
-    # benchmark_data = {
-    #     'commits': formatted_new_commits,
-    #     'dates': dates,
-    #     'geo_means': geo_means,
-    #     'commit_ids': commit_ids
-    # }
-    #formatted_new_commits.append(commit)
 
     return commit
 
@@ -407,7 +394,6 @@ async def update_commit(app, sha):  # pylint: disable=unused-argument
         commit['batch_id'] = batch_id
         log.info(f'submitted a batch {batch_id} for commit {sha}')
 
-    log.info('hi')
     if sha not in benchmark_data['commits']:
         benchmark_data['commits'][sha] = commit  # TODO: ????
         log.info(f'append commit {sha} to commits')
@@ -472,7 +458,7 @@ async def github_polling_loop(app):
     while True:
         await update_commits(app)
         log.info('successfully queried github')
-        await asyncio.sleep(30)
+        await asyncio.sleep(300)
 
 
 async def on_startup(app):
