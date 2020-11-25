@@ -59,7 +59,7 @@ async def submit_test_batch(batch_client, sha):
     dest_file_path = f'{BENCHMARK_RESULTS_PATH}/0-{sha}.json'
     # should it be 0.0.0-{sha}.json?
     job = batch.create_job(image='ubuntu:18.04',
-                           command=['/bin/bash', '-c', f'touch /io/test; sleep 5'],
+                           command=['/bin/bash', '-c', 'touch /io/test; sleep 5'],
                            resources={'cpu': '0.25'},
                            input_files=[(known_file_path, '/io/test')],
                            output_files=[('/io/test', dest_file_path)])

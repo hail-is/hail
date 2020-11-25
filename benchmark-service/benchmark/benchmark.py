@@ -325,11 +325,9 @@ async def get_commit(app, sha):  # pylint: disable=unused-argument
     request_string = f'/repos/hail-is/hail/commits/{sha}'
     gh_commit = await github_client.getitem(request_string)
 
-    gh_date = gh_commit['commit']['author']['date']
-
     message = gh_commit['commit']['message']
     idx = message.index('#')
-    commit_id = message[idx: idx+5]
+    commit_id = message[idx: idx + 5]
 
     title_message = gh_commit['commit']['message']
     title_end = title_message.index(')')
