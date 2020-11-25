@@ -32,7 +32,9 @@ logging.basicConfig(level=logging.DEBUG)
 deploy_config = get_deploy_config()
 log = logging.getLogger('benchmark')
 
-BENCHMARK_FILE_REGEX = re.compile(r'gs://((?P<bucket>[^/]+)/)((?P<user>[^/]+)/)((?P<version>[^-]+)-)((?P<sha>[^-]+))(-(?P<tag>[^\.]+))?\.json')
+#BENCHMARK_FILE_REGEX = re.compile(r'gs://((?P<bucket>[^/]+)/)((?P<user>[^/]+)/)((?P<version>[^-]+)-)((?P<sha>[^-]+))(-(?P<tag>[^\.]+))?\.json')
+
+BENCHMARK_FILE_REGEX = re.compile(r'gs://((?P<bucket>[^/]+)/)((?P<user>[^/]+)/)((?P<instanceId>[^/]*)/)((?P<version>[^-]+)-)((?P<sha>[^-]+))(-(?P<tag>[^\.]+))?\.json')
 
 BENCHMARK_ROOT = os.path.dirname(os.path.abspath(__file__))
 
@@ -62,6 +64,8 @@ def get_benchmarks(app, file_path):
         message = f'could not find file, {file_path}'
         log.info('could not get blob: ' + message, exc_info=True)
         return None
+
+    log.info(f'file path: {file_path}')
 
     data = {}
     prod_of_means = 1
