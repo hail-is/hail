@@ -35,16 +35,11 @@ BENCHMARK_FILE_REGEX = re.compile(r'gs://((?P<bucket>[^/]+)/)((?P<user>[^/]+)/)(
 
 BENCHMARK_ROOT = os.path.dirname(os.path.abspath(__file__))
 
-dates = []
-geo_means = []
-formatted_new_commits = []
-commit_ids = []
-
 benchmark_data = {
     'commits': {},
-    'dates': dates,
-    'geo_means': geo_means,
-    'commit_ids': commit_ids
+    'dates': [],
+    'geo_means': [],
+    'commit_ids': []
 }
 
 
@@ -53,6 +48,7 @@ with open(os.environ.get('HAIL_CI_OAUTH_TOKEN', 'oauth-token/oauth-token'), 'r')
 
 
 def get_benchmarks(app, file_path):
+    log.info(f'get_benchmarks file_path={file_path}')
     gs_reader = app['gs_reader']
     try:
         json_data = gs_reader.get_data_as_string(file_path)
@@ -61,8 +57,6 @@ def get_benchmarks(app, file_path):
         message = f'could not find file, {file_path}'
         log.info('could not get blob: ' + message, exc_info=True)
         return None
-
-    log.info(f'file path: {file_path}')
 
     data = {}
     prod_of_means = 1
@@ -81,8 +75,6 @@ def get_benchmarks(app, file_path):
             stats['trials'] = d.get('trials')
         data[stats['name']] = stats
     geometric_mean = get_geometric_mean(prod_of_means, len(pre_data['benchmarks']))
-
-    log.info(f'file path: {file_path}')
 
     file_info = parse_file_path(BENCHMARK_FILE_REGEX, file_path)
     sha = file_info['sha']
@@ -207,9 +199,6 @@ async def index(request):
     }
     assert len(d['dates']) == len(d['geo_means']), d
     df = pd.DataFrame(d)
-    log.info(f'{df}')
-    log.info(f'dates: {df.dates}')
-    log.info(f'geo_means: {df.geo_means}')
     if not df.dates.empty:
         fig = px.line(df, x=df.dates, y=df.geo_means, hover_data=['commit'])
         fig.update_xaxes(rangeslider_visible=True)
@@ -316,7 +305,7 @@ async def update_commits(app):
 
 
 async def get_commit(app, sha):  # pylint: disable=unused-argument
-    log.info('in get_commit')
+    log.info(f'get_commit sha={sha}')
     github_client = app['github_client']
     batch_client = app['batch_client']
     gs_reader = app['gs_reader']
@@ -362,18 +351,17 @@ async def get_commit(app, sha):  # pylint: disable=unused-argument
         'batch_id': batch_id,
         'commit_id': commit_id
     }
-    benchmark_data['commits'][sha] = commit
-
-    log.info('got new commits')
+    #benchmark_data['commits'][sha] = commit
 
     return commit
 
 
 async def update_commit(app, sha):  # pylint: disable=unused-argument
     log.info('in update_commit')
-    global benchmark_data, dates, geo_means, commit_ids
+    global benchmark_data
     gs_reader = app['gs_reader']
     commit = await get_commit(app, sha)
+    benchmark_data['commits'][sha] = commit
     file_path = f'{BENCHMARK_RESULTS_PATH}/0-{sha}.json'
 
     if commit['status'] is None:
@@ -384,20 +372,16 @@ async def update_commit(app, sha):  # pylint: disable=unused-argument
         commit['batch_id'] = batch_id
         log.info(f'submitted a batch {batch_id} for commit {sha}')
 
-    if sha not in benchmark_data['commits']:
-        benchmark_data['commits'][sha] = commit
-        log.info(f'append commit {sha} to commits')
-
     has_results_file = gs_reader.file_exists(file_path)
-    if has_results_file and commit['date'] not in dates:
+    if has_results_file and commit['date'] not in benchmark_data['dates']:
         benchmarks = get_benchmarks(app, file_path)
         commit['geo_mean'] = benchmarks['geometric_mean']
         geo_mean = commit['geo_mean']
         log.info(f'geo mean is {geo_mean}')
 
-        dates.append(commit['date'])
-        geo_means.append(commit['geo_mean'])
-        commit_ids.append(commit['commit_id'])
+        benchmark_data['dates'].append(commit['date'])
+        benchmark_data['geo_mean'].append(commit['geo_mean'])
+        benchmark_data['commit_ids'].append(commit['commit_id'])
 
     return commit
 
