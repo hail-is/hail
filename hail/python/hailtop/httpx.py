@@ -16,7 +16,8 @@ def client_session(*args,
                    raise_for_status: bool = True,
                    **kwargs) -> 'ClientSession':
     assert 'connector' not in kwargs
-    if get_deploy_config().location() == 'external':
+    location = get_deploy_config().location()
+    if location == 'external':
         kwargs['connector'] = aiohttp.TCPConnector(
             ssl=external_client_ssl_context())
     else:
@@ -107,7 +108,8 @@ class ClientSession:
     def ws_connect(self, url: aiohttp.typedefs.StrOrURL, **kwargs: Any):
         retry_transient = kwargs.pop('retry_transient', self.retry_transient)
         if retry_transient:
-            coroutine = retry_transient_errors(self.session._ws_connect(url, **kwargs))
+            coroutine = retry_transient_errors(
+                self.session._ws_connect, url, **kwargs))
         else:
             coroutine = self.session._ws_connect(url, **kwargs)
         return WebSocketResponseManager(coroutine)
@@ -279,7 +281,7 @@ class BlockingWebSocketClientResponse:
         return self.ws.close_code
 
     @property
-    def protocol(self) -> Optional[int]:
+    def protocol(self) -> Optional[str]:
         return self.ws.protocol
 
     @property
@@ -322,10 +324,10 @@ class BlockingWebSocketClientResponse:
         return async_to_blocking(self.ws.receive(timeout))
 
     def receive_str(self, *, timeout: Optional[float] = None) -> str:
-        return async_to_blocking(self.ws.receive_str(timeout))
+        return async_to_blocking(self.ws.receive_str(timeout=timeout))
 
     def receive_bytes(self, *, timeout: Optional[float] = None) -> bytes:
-        return async_to_blocking(self.ws.receive_bytes(timeout))
+        return async_to_blocking(self.ws.receive_bytes(timeout=timeout))
 
     def receive_json(self,
                      *, loads: aiohttp.typedefs.JSONDecoder = aiohttp.typedefs.DEFAULT_JSON_DECODER,

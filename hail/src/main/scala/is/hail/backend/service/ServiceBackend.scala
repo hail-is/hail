@@ -339,6 +339,9 @@ class ServiceBackend() extends Backend {
 
   def getFlag(name: String): Response = {
     statusForException {
+      if (!HailContext.isValidFlag(name)) {
+        fatal(s"No such flag ${name}")
+      }
       val v = HailContext.getFlag(name)
       JsonMethods.compact(if (v == null) JNull else JString(v))
     }
@@ -346,6 +349,9 @@ class ServiceBackend() extends Backend {
 
   def setFlag(name: String, value: String): Response = {
     statusForException {
+      if (!HailContext.isValidFlag(name)) {
+        fatal(s"No such flag ${name}")
+      }
       val v = HailContext.getFlag(name)
       HailContext.setFlag(name, value)
       JsonMethods.compact(if (v == null) JNull else JString(v))
@@ -354,6 +360,9 @@ class ServiceBackend() extends Backend {
 
   def unsetFlag(name: String): Response = {
     statusForException {
+      if (!HailContext.isValidFlag(name)) {
+        fatal(s"No such flag ${name}")
+      }
       val v = HailContext.getFlag(name)
       HailContext.setFlag(name, null)
       JsonMethods.compact(if (v == null) JNull else JString(v))

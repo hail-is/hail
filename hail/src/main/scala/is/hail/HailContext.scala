@@ -53,6 +53,8 @@ object HailContext {
 
   def backend: Backend = get.backend
 
+  def isValidFlag(flag: String): Boolean = get.flags.exists(flag)
+
   def getFlag(flag: String): String = get.flags.get(flag)
 
   def setFlag(flag: String, value: String): Unit = get.flags.set(flag, value)

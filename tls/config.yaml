@@ -98,3 +98,6 @@ principals:
 - name: auth-tests
   domain: auth-tests
   kind: json
+- name: create-billing-projects
+  domain: create-billing-projects
+  kind: json

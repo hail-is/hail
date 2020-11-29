@@ -54,7 +54,8 @@ class QueryClient:
         headers = service_auth_headers(self._deploy_config, 'query')
         self._session = httpx.client_session(
             headers=headers,
-            timeout=aiohttp.ClientTimeout(total=60))
+            timeout=aiohttp.ClientTimeout(total=60),
+            raise_for_status=False)
         return self
 
     async def __aexit__(self, exc_type, exc, tb):

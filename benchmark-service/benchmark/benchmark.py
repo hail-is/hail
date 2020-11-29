@@ -1,6 +1,5 @@
 import asyncio
 import os
-import aiohttp
 from aiohttp import web
 import logging
 from gear import setup_aiohttp_session, web_authenticated_developers_only

@@ -2062,10 +2062,15 @@ steps:
       namespace:
         valueFrom: default_ns.name
       mountPath: /deploy-config
+    - name: ssl-config-create-billing-projects
+      namespace:
+        valueFrom: default_ns.name
+      mountPath: /ssl-config
    dependsOn:
     - default_ns
     - service_base_image
     - create_deploy_config
+    - create_certs
     - create_accounts
     - deploy_batch
  - kind: deploy

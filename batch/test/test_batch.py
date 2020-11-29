@@ -628,7 +628,7 @@ hl.read_table(location).show()
     assert expected_log in log['main'], f'{j.log(), status}'
 
 
-def test_user_authentication_within_job(client):
+def test_no_user_authentication_within_job(client):
     batch = client.create_batch()
     cmd = ['bash', '-c', 'hailctl auth user']
     no_token = batch.create_job(os.environ['CI_UTILS_IMAGE'], cmd, mount_tokens=False)
