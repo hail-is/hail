@@ -51,7 +51,7 @@ deploy: push
 .PHONY: create-build-worker-image-instance
 create-build-worker-image-instance:
 	-gcloud -q compute --project $(PROJECT) instances delete --zone=$(ZONE) build-batch-worker-image
-	gcloud -q compute --project $(PROJECT) instances create --zone=$(ZONE) build-batch-worker-image --machine-type=n1-standard-1 --network=default --network-tier=PREMIUM --metadata-from-file startup-script=build-batch-worker-image-startup.sh --no-restart-on-failure --maintenance-policy=MIGRATE --scopes=https://www.googleapis.com/auth/cloud-platform --image=ubuntu-minimal-1804-bionic-v20200923 --image-project=ubuntu-os-cloud --boot-disk-size=10GB --boot-disk-type=pd-ssd
+	gcloud -q compute --project $(PROJECT) instances create --zone=$(ZONE) build-batch-worker-image --machine-type=n1-standard-1 --network=default --network-tier=PREMIUM --metadata-from-file startup-script=build-batch-worker-image-startup.sh --no-restart-on-failure --maintenance-policy=MIGRATE --scopes=https://www.googleapis.com/auth/cloud-platform --image=ubuntu-minimal-1804-bionic-v20201123 --image-project=ubuntu-os-cloud --boot-disk-size=10GB --boot-disk-type=pd-ssd
 
 .PHONY: create-worker-image
 create-worker-image:

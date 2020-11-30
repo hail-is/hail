@@ -37,6 +37,8 @@ curl -fsSL "https://github.com/GoogleCloudPlatform/docker-credential-gcr/release
   | tar xz --to-stdout ./docker-credential-gcr \
 	> /usr/bin/docker-credential-gcr && chmod +x /usr/bin/docker-credential-gcr
 
+# avoid "unable to get current user home directory: os/user lookup failed"
+export HOME=/root
 docker-credential-gcr configure-docker
 
 docker pull gcr.io/hail-vdc/ubuntu:18.04
