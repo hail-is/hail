@@ -1182,6 +1182,10 @@ class Tests(unittest.TestCase):
             .default(4))
         self.assertEqual(hl.eval(expr5), -1)
 
+        with pytest.raises(hl.utils.java.HailUserError) as exc:
+            hl.eval(hl.switch(x).when('0', 0).or_error("foo"))
+        assert '.or_error("foo")' in str(exc.value)
+
     def test_case(self):
         def make_case(x):
             x = hl.literal(x)
