@@ -17,10 +17,13 @@ def loop(f: Callable, typ, *args):
     recursive call, and the remaining arguments are the arguments to the
     recursive function, e.g. to define the recursive function
 
-    :math:`f(x, y) = \begin{cases}
+    .. math::
+
+        f(x, y) = \begin{cases}
         y & \textrm{if } x \equiv 0 \\
         f(x - 1, y + x) & \textrm{otherwise}
-        \end{cases}`
+        \end{cases}
+
 
     we would write:
     >>> f = lambda recur, x, y: hl.if_else(x == 0, y, recur(x - 1, y + x))
@@ -90,7 +93,7 @@ def loop(f: Callable, typ, *args):
 
     Parameters
     ----------
-    f : function ( (marker, *args) -> :class:`.Expression`
+    f : function ( (marker, \*args) -> :class:`.Expression`
         Function of one callable marker, denoting where the recursive call (or calls) is located,
         and many `args`, the loop variables.
     typ : :class:`str` or :class:`.HailType`

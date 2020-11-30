@@ -96,3 +96,4 @@ Functions
 .. autofunction:: strftime
 .. autofunction:: strptime
 .. autofunction:: pc_project
+.. autofunction:: loop
