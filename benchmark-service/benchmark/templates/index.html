@@ -36,7 +36,9 @@
         <td>{{ commit['sha'] }}</td>
         <td>{{ commit['author'] }}</td>
         <td>{{ commit['date'] }}</td>
+        {% if commit['status'] is not none %}
         <td>{{ commit['status']['state'] }}</td>
+        {% endif %}
         <td>
             {% if commit['batch_id'] is not none %}
             <a href="{{ base_path }}/batches/{{ commit['batch_id'] }}">{{ commit['batch_id'] }}</a>

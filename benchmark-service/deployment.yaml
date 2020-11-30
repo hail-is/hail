@@ -45,6 +45,10 @@ spec:
           - name: HAIL_BENCHMARK_BUCKET_NAME
             value: hail-test-dmk9z
 {% endif %}
+{% if scope == "dev" %}
+          - name: INSTANCE_ID
+            value: "R8kZlZhmqGJk"
+{% endif %}
           ports:
             - containerPort: 5000
           resources:
@@ -69,9 +73,6 @@ spec:
               readOnly: true
             - name: hail-ci-0-1-github-oauth-token
               mountPath: /secrets/oauth-token
-              readOnly: true
-            - name: benchmark-tokens
-              mountPath: /user-tokens
               readOnly: true
             - name: benchmark-tokens
               mountPath: /user-tokens
