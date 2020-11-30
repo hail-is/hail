@@ -83,7 +83,7 @@ class SwitchBuilder(ConditionalBuilder):
     @typecheck_method(value=expr_any, then=expr_any)
     def when(self, value, then) -> 'SwitchBuilder':
         """Add a value test. If the `base` expression is equal to `value`, then
-         returns `then`.
+        returns `then`.
 
         Warning
         -------
@@ -173,6 +173,28 @@ class SwitchBuilder(ConditionalBuilder):
             raise ExpressionException("'or_missing' cannot be called without at least one 'when' call")
         from hail.expr.functions import null
         return self._finish(null(self._ret_type))
+
+    @typecheck_method(message=expr_str)
+    def or_error(self, message):
+        """Finish the switch statement by throwing an error with the given message.
+
+        Notes
+        -----
+        If no value from a :meth:`.SwitchBuilder.when` call is matched, then an
+        error is thrown.
+
+        Parameters
+        ----------
+        message : :class:`.Expression` of type :obj:`.tstr`
+
+        Returns
+        -------
+        :class:`.Expression`
+        """
+        if len(self._cases) == 0:
+            raise ExpressionException("'or_error' cannot be called without at least one 'when' call")
+        error_expr = construct_expr(ir.Die(message._ir, self._ret_type), self._ret_type)
+        return self._finish(error_expr)
 
 
 class CaseBuilder(ConditionalBuilder):
