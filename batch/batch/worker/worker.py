@@ -344,7 +344,7 @@ class Container:
     async def run(self, worker):
         try:
             async with self.step('pulling'):
-                if self.image.startswith('gcr.io/'):
+                if self.image.split('/')[0].endswith('gcr.io'):
                     key = base64.b64decode(
                         self.job.gsa_key['key.json']).decode()
                     auth = {

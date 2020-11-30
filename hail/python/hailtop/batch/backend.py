@@ -359,7 +359,7 @@ class ServiceBackend(Backend):
         remote_tmpdir = f'gs://{self._bucket_name}/batch/{token}'
         local_tmpdir = f'/io/batch/{token}'
 
-        default_image = 'ubuntu:18.04'
+        default_image = 'marketplace.gcr.io/google/ubuntu1804:latest'
 
         attributes = copy.deepcopy(batch.attributes)
         if batch.name is not None:
@@ -472,7 +472,7 @@ class ServiceBackend(Backend):
                 resources['storage'] = job._storage
 
             image = job._image if job._image else default_image
-            if not image.startswith('gcr.io/'):
+            if not image.split('/')[0].endswith('gcr.io'):
                 warnings.warn(f'Using an image {image} not in GCR. '
                               f'Jobs may fail due to Docker Hub rate limits.')
 
