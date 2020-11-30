@@ -35,6 +35,9 @@ spec:
       - name: batch-driver
         image: {{ batch_image.image }}
         command:
+{% if not deploy %}
+         - /controller.sh
+{% endif %}
          - python3
          - -m
          - batch.driver
@@ -162,6 +165,9 @@ spec:
       - name: batch
         image: {{ batch_image.image }}
         command:
+{% if not deploy %}
+         - /controller.sh
+{% endif %}
          - python3
          - -m
          - batch.front_end

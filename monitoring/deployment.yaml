@@ -25,6 +25,9 @@ spec:
         - name: monitoring
           image: "{{ monitoring_image.image }}"
           command:
+{% if not deploy %}
+         - /controller.sh
+{% endif %}
            - python3
            - -m
            - monitoring

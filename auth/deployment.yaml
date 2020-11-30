@@ -57,6 +57,9 @@ spec:
        - name: auth-driver
          image: "{{ auth_image.image }}"
          command:
+{% if not deploy %}
+         - /controller.sh
+{% endif %}
           - "python3"
           - -m
           - auth.driver
@@ -164,6 +167,9 @@ spec:
        - name: auth
          image: "{{ auth_image.image }}"
          command:
+{% if not deploy %}
+         - /controller.sh
+{% endif %}
           - "python3"
           - -m
           - auth

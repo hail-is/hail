@@ -20,6 +20,9 @@ spec:
       containers:
        - name: admin-pod
          command:
+{% if not deploy %}
+         - /controller.sh
+{% endif %}
           - bash
           - -c
           - |
