@@ -789,7 +789,7 @@ def test_svd():
             np.testing.assert_array_almost_equal(hs, ns)
 
             # U is orthonormal
-            uut = hu @ hu.T
+            uut = hu.T @ hu
             np.testing.assert_array_almost_equal(uut, np.identity(uut.shape[0]))
 
             # V is orthonormal
