@@ -28,7 +28,7 @@ push: build
 .PHONY: deploy
 deploy: push
 	! [ -z $(NAMESPACE) ]  # call this like: make deploy NAMESPACE=default
-	python3 ../ci/jinja2_render.py '{"code":{"sha":"$(shell git rev-parse --short=12 HEAD)"},"deploy":true,"default_ns":{"name":"$(NAMESPACE)"}, "benchmark_image":{"image":"$(BENCHMARK_IMAGE)"},"benchmark_database":{"user_secret_name":"sql-benchmark-user-config"},"global":{"project":"$(PROJECT)","zone":"$(ZONE)","domain":"$(DOMAIN)"}}' deployment.yaml deployment.yaml.out
+	python3 ../ci/jinja2_render.py '{"code":{"sha":"$(shell git rev-parse --short=12 HEAD)"},"deploy":$(DEPLOY),"default_ns":{"name":"$(NAMESPACE)"}, "benchmark_image":{"image":"$(BENCHMARK_IMAGE)"},"benchmark_database":{"user_secret_name":"sql-benchmark-user-config"},"global":{"project":"$(PROJECT)","zone":"$(ZONE)","domain":"$(DOMAIN)"}}' deployment.yaml deployment.yaml.out
 	kubectl -n $(NAMESPACE) apply -f deployment.yaml.out
 
 .PHONY: clean
