@@ -268,7 +268,7 @@ object Region {
   def stagedCreate(blockSize: Size, pool: Code[RegionPool]): Code[Region] =
     Code.invokeScalaObject2[Int, RegionPool, Region](Region.getClass, "apply", asm4s.const(blockSize), pool)
 
-  def apply(blockSize: Region.Size = Region.REGULAR, pool: RegionPool = null): Region = {
+  def apply(blockSize: Region.Size = Region.REGULAR, pool: RegionPool): Region = {
     (if (pool == null) {
       val htc = HailTaskContext.get()
       if (htc == null) {

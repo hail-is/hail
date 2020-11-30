@@ -139,7 +139,7 @@ class LinearMixedModel(lmmData: LMMData) {
       val r0 = 0 to 0
       val r1 = 1 until f
       
-      val region = Region()
+      val region = Region(pool=HailTaskContext.get().getRegionPool())
       val rv = RegionValue(region)
       val rvb = new RegionValueBuilder(region)
 
