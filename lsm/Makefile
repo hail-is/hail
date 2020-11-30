@@ -42,5 +42,5 @@ clean:
 	rm -rf build
 
 .PHONY: test
-test:
+test: build/main
 	./test.sh
