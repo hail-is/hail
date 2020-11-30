@@ -4,6 +4,7 @@
 *.pyc
 **/.mypy_cache/
 **/hail-*.log
+**/__pycache__/
 hail/.bloop/
 hail/.gradle/
 hail/.idea/
