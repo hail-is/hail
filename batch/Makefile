@@ -20,7 +20,7 @@ build:
 	$(MAKE) -C ../docker build
 	-docker pull $(BATCH_LATEST)
 	python3 ../ci/jinja2_render.py '{"service_base_image":{"image":"service-base"}}' Dockerfile Dockerfile.out
-	docker build -t batch -f Dockerfile.out --cache-from batch,$(BATCH_LATEST),service-base ..
+	docker build -t batch -f Dockerfile.out --cache-from batch,$(BATCH_LATEST),service-base .
 	-docker pull gcr.io/$(PROJECT)/python:3.7-slim-stretch
 	-docker pull $(BATCH_WORKER_LATEST)
 	python3 ../ci/jinja2_render.py '{"global":{"project":"$(PROJECT)"}}' Dockerfile.worker Dockerfile.worker.out
