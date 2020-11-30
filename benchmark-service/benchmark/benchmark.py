@@ -195,7 +195,7 @@ async def index(request):
     d = {
         'dates': benchmark_data['dates'],
         'geo_means': benchmark_data['geo_means'],
-        'commit': benchmark_data['commit_ids']
+        'commits': benchmark_data['commit_ids']
     }
     assert len(d['dates']) == len(d['geo_means']), d
     df = pd.DataFrame(d)
@@ -351,7 +351,6 @@ async def get_commit(app, sha):  # pylint: disable=unused-argument
         'batch_id': batch_id,
         'commit_id': commit_id
     }
-    #benchmark_data['commits'][sha] = commit
 
     return commit
 
