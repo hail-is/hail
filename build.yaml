@@ -2181,6 +2181,7 @@ steps:
    image:
      valueFrom: base_image.image
    script: |
+     cd /io/lsm
      make
      make test
    inputs:
