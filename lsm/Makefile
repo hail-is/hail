@@ -7,8 +7,10 @@ CXXFLAGS += -fno-omit-frame-pointer  # enables libasan to provide complete stack
 CXXFLAGS += -Wall -Werror -Wextra -Wpedantic -Wno-unused-parameter
 CXXFLAGS += -Og -fsanitize=address -fsanitize=undefined
 
-CPP_FILES := $(shell find . -iname '*.cpp' -print)
+CPP_FILES := $(shell find . -iname '*.cpp' -print | sed 's:./::')
 OBJECTS := $(CPP_FILES:%.cpp=build/%.o)
+
+.SECONDARY: $(OBJECTS)  # do not delete the object files (useful for debugging)
 
 ifneq ($(MAKECMDGOALS),clean)
 -include $(OBJECTS:%.o=%.d)
