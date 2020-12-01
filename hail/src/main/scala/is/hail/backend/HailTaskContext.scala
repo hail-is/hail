@@ -11,16 +11,9 @@ object HailTaskContext {
 
   private[this] val taskContext: ThreadLocal[HailTaskContext] = new ThreadLocal[HailTaskContext]() {
     override def initialValue(): HailTaskContext = {
-      val backend = HailContext.get.backend
-      if (backend.isInstanceOf[SparkBackend]) {
         val sparkTC = TaskContext.get()
         assert(sparkTC != null, "Spark Task Context was null, maybe this ran on the driver?")
         new SparkTaskContext(sparkTC)
-      } else if (backend.isInstanceOf[LocalBackend]) {
-        throw new IllegalStateException("Internal Hail Error. Must manually set HailTaskContext for local backend.")
-      } else {
-        throw new IllegalStateException("Unsupported backend type.")
-      }
     }
   }
   def setTaskContext(tc: HailTaskContext): Unit = taskContext.set(tc)
