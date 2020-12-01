@@ -5,6 +5,7 @@ from hailtop.google_storage import GCS
 
 from .spec_writer import SpecWriter
 from .globals import BATCH_FORMAT_VERSION
+from .batch_format_version import BatchFormatVersion
 
 log = logging.getLogger('logstore')
 
@@ -19,7 +20,8 @@ class LogStore:
         self.gcs = GCS(blocking_pool, project=project, credentials=credentials)
 
         log.info(f'BATCH_LOGS_ROOT {self.batch_logs_root}')
-        log.info(f'EXAMPLE BATCH_JOB_LOGS_PATH {self.log_path(BATCH_FORMAT_VERSION, 1, 1, "abc123", "main")}')
+        format_version = BatchFormatVersion(BATCH_FORMAT_VERSION)
+        log.info(f'EXAMPLE BATCH_JOB_LOGS_PATH {self.log_path(format_version, 1, 1, "abc123", "main")}')
 
     def worker_log_path(self, machine_name, log_file):
         # this has to match worker startup-script
