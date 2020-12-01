@@ -22,7 +22,7 @@ spec:
 {% endif %}
       containers:
         - name: redis
-          image: redis:6.0.6-alpine
+          image: gcr.io/{{ global.project }}/redis:6.0.6-alpine
           command:
            - redis-server
            - --port 
@@ -65,8 +65,8 @@ spec:
              value: "{{ global.domain }}"
            - name: HAIL_DEPLOY_CONFIG_FILE
              value: /deploy-config/deploy-config.json
-           - name: HAIL_BATCH_PODS_NAMESPACE
-             value: "{{ batch_pods_ns.name }}"
+           - name: HAIL_DEFAULT_NAMESPACE
+             value: "{{ default_ns.name }}"
            - name: HAIL_SHA
              value: "{{ code.sha }}"
           ports:

@@ -3,7 +3,8 @@ package is.hail.types.physical
 import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder}
-import is.hail.utils.FastIndexedSeq
+import is.hail.types.physical.stypes.SCode
+import is.hail.types.physical.stypes.concrete.{SCanonicalLocusPointer, SCanonicalLocusPointerCode}
 import is.hail.variant._
 
 object PCanonicalLocus {
@@ -23,27 +24,31 @@ object PCanonicalLocus {
 }
 
 final case class PCanonicalLocus(rgBc: BroadcastRG, required: Boolean = false) extends PLocus {
+
+  def byteSize: Long = representation.byteSize
+  override def alignment: Long = representation.alignment
+  override lazy val fundamentalType: PStruct = representation.fundamentalType
+
   def rg: ReferenceGenome = rgBc.value
 
   def _asIdent = "locus"
 
   override def _pretty(sb: StringBuilder, indent: Call, compact: Boolean): Unit = sb.append(s"PCLocus($rg)")
 
-  def setRequired(required: Boolean) = if(required == this.required) this else PCanonicalLocus(this.rgBc, required)
+  def setRequired(required: Boolean) = if (required == this.required) this else PCanonicalLocus(this.rgBc, required)
 
   val representation: PStruct = PCanonicalLocus.representation(required)
 
-  private[physical] def contigAddr(address: Code[Long])(implicit line: LineNumber): Code[Long] =
-    representation.loadField(address, 0)
+  private[physical] def contigAddr(address: Code[Long]): Code[Long] = representation.loadField(address, 0)
 
   private[physical] def contigAddr(address: Long): Long = representation.loadField(address, 0)
 
   def contig(address: Long): String = contigType.loadString(contigAddr(address))
+  def position(address: Long): Int = Region.loadInt(representation.fieldOffset(address, 1))
 
   lazy val contigType: PCanonicalString = representation.field("contig").typ.asInstanceOf[PCanonicalString]
 
-  def position(off: Code[Long])(implicit line: LineNumber): Code[Int] =
-    Region.loadInt(representation.loadField(off, 1))
+  def position(off: Code[Long]): Code[Int] = Region.loadInt(representation.loadField(off, 1))
 
   lazy val positionType: PInt32 = representation.field("position").typ.asInstanceOf[PInt32]
 
@@ -78,7 +83,7 @@ final case class PCanonicalLocus(rgBc: BroadcastRG, required: Boolean = false) e
       type T = Long
       val bincmp = representation.fundamentalType.fieldType("contig").asInstanceOf[PBinary].codeOrdering(mb)
 
-      override def compareNonnull(x: Code[Long], y: Code[Long])(implicit line: LineNumber): Code[Int] = {
+      override def compareNonnull(x: Code[Long], y: Code[Long]): Code[Int] = {
         val c1 = mb.newLocal[Long]("c1")
         val c2 = mb.newLocal[Long]("c2")
 
@@ -102,69 +107,38 @@ final case class PCanonicalLocus(rgBc: BroadcastRG, required: Boolean = false) e
       }
     }
   }
-}
 
-object PCanonicalLocusSettable {
-  def apply(sb: SettableBuilder, pt: PCanonicalLocus, name: String): PCanonicalLocusSettable = {
-    new PCanonicalLocusSettable(pt,
-      sb.newSettable[Long](s"${ name }_a"),
-      sb.newSettable[Long](s"${ name }_contig"),
-      sb.newSettable[Int](s"${ name }_position"))
-  }
-}
-
-class PCanonicalLocusSettable(
-  val pt: PCanonicalLocus,
-  val a: Settable[Long],
-  _contig: Settable[Long],
-  val position: Settable[Int]
-) extends PLocusValue with PSettable {
-  def get(implicit line: LineNumber) = new PCanonicalLocusCode(pt, a)
-
-  def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(a, _contig, position)
-
-  def store(pc: PCode)(implicit line: LineNumber): Code[Unit] = {
-    Code(
-      a := pc.asInstanceOf[PCanonicalLocusCode].a,
-      _contig := pt.contigAddr(a),
-      position := pt.position(a))
-  }
-
-  def contig()(implicit line: LineNumber): PStringCode =
-    new PCanonicalStringCode(pt.contigType.asInstanceOf[PCanonicalString], _contig)
-}
-
-class PCanonicalLocusCode(val pt: PCanonicalLocus, val a: Code[Long]) extends PLocusCode {
-  def code: Code[_] = a
-
-  def codeTuple(): IndexedSeq[Code[_]] = FastIndexedSeq(a)
-
-  def contig()(implicit line: LineNumber): PStringCode =
-    new PCanonicalStringCode(pt.contigType, pt.contigAddr(a))
-
-  def position()(implicit line: LineNumber): Code[Int] =
-    pt.position(a)
-
-  def getLocusObj()(implicit line: LineNumber): Code[Locus] = {
-    Code.memoize(a, "get_locus_code_memo") { a =>
-      Code.invokeStatic2[Locus, String, Int, Locus]("apply",
-        pt.contigType.loadString(pt.contigAddr(a)),
-        pt.position(a))
+  override def unstagedStoreAtAddress(addr: Long, region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Unit = {
+    srcPType match {
+      case pt: PCanonicalLocus => representation.unstagedStoreAtAddress(addr, region, pt.representation, srcAddress, deepCopy)
     }
   }
 
-  def memoize(cb: EmitCodeBuilder, name: String, sb: SettableBuilder)(implicit line: LineNumber): PLocusValue = {
-    val s = PCanonicalLocusSettable(sb, pt, name)
-    cb.assign(s, this)
-    s
+  override def encodableType: PType = representation.encodableType
+
+  override def containsPointers: Boolean = representation.containsPointers
+
+  def _copyFromAddress(region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Long = {
+    srcPType match {
+      case pt: PCanonicalLocus => representation._copyFromAddress(region, pt.representation, srcAddress, deepCopy)
+    }
   }
 
-  def memoize(cb: EmitCodeBuilder, name: String)(implicit line: LineNumber): PLocusValue =
-    memoize(cb, name, cb.localBuilder)
+  def sType: SCanonicalLocusPointer = SCanonicalLocusPointer(this)
 
-  def memoizeField(cb: EmitCodeBuilder, name: String)(implicit line: LineNumber): PLocusValue =
-    memoize(cb, name, cb.fieldBuilder)
+  def loadCheapPCode(cb: EmitCodeBuilder, addr: Code[Long]): PCode = new SCanonicalLocusPointerCode(sType, addr)
 
-  def store(mb: EmitMethodBuilder[_], r: Value[Region], dst: Code[Long])(implicit line: LineNumber): Code[Unit] =
-    Region.storeAddress(dst, a)
+  def store(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): Code[Long] = {
+    value.st match {
+      case SCanonicalLocusPointer(pt) =>
+        representation.store(cb, region, pt.representation.loadCheapPCode(cb, value.asInstanceOf[SCanonicalLocusPointerCode].a), deepCopy)
+    }
+  }
+
+  def storeAtAddress(cb: EmitCodeBuilder, addr: Code[Long], region: Value[Region], value: SCode, deepCopy: Boolean): Unit = {
+    value.st match {
+      case SCanonicalLocusPointer(pt) =>
+        representation.storeAtAddress(cb, addr, region, pt.representation.loadCheapPCode(cb, value.asInstanceOf[SCanonicalLocusPointerCode].a), deepCopy)
+    }
+  }
 }

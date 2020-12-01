@@ -1,0 +1,82 @@
+{% extends "layout.html" %}
+{% block title %}Resources{% endblock %}
+{% block breadcrumb_items %}
+  <li class="breadcrumb-item"><a href="{{ base_path }}/">ATGU</a></li>
+  <li class="breadcrumb-item active" aria-current="page">Resources</li>
+{% endblock %}
+{% block container_contents %}
+  <div class="row my-3">
+    <div class="col">
+      <div style="float:right;">Search: <input id="searchbox" type="text" /></div>
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="col">
+      <div style="float:right;">
+        <form action="{{ base_path }}/resources/create">
+          <button type="submit" class="btn btn-primary">New</button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <div id="resources">
+  </div>
+{% endblock %}
+{% block before_body_end %}
+  <script src="https://cdn.jsdelivr.net/npm/fuse.js@6.4.2"></script>
+
+  <script>
+    const resources = {{ resources|tojson }};
+
+    const options = {
+      shouldSort: true,
+      threshold: 0.3,
+      location: 0,
+      distance: 100,
+      maxPatternLength: 32,
+      minMatchCharLength: 1,
+      keys: ["title", "description", "tags"]
+    };
+    const fuse = new Fuse(resources, options);
+
+    const searchbox = document.getElementById('searchbox');
+
+    const resourcesDiv = document.getElementById('resources');
+
+    function oninput() {
+        const query = searchbox.value;
+        let results;
+        if (query.length == 0) {
+            results = [];
+            for (let i = 0; i < resources.length; ++i) {
+                results.push({"item": resources[i]});
+            }
+        } else
+            results = fuse.search(query);
+
+        html = '';
+        for (let i = 0; i < results.length; ++i) {
+            let result = results[i];
+            let resource = result['item'];
+            html += `
+      <div class="mb-3">
+        <h4 class="my-0">
+          <a href="{{ base_path }}/resources/${ resource['id'] }">${ resource['title'] }</a>
+        </h4>
+        <div class="ml-3">
+          <p class="my-0"><small class="text-secondary" style="line-height:1.2;">${ resource['tags'] }</small></p>
+          <p class="my-0">${ resource['description'] }</p>
+        </div>
+      </div>
+`;
+        }
+
+        resourcesDiv.innerHTML = html
+    }
+
+    oninput();
+    searchbox.oninput = oninput;
+  </script>
+{% endblock %}

@@ -224,7 +224,7 @@ final case class ETransposedArrayOfStructs(
           array.loadElement(cb, j).consume(cb, { /* do nothing */ }, { pbsc =>
             // FIXME may be bad if structs get memoized into their fields, otherwise
             // probably fine
-            cb.assign(pbss, pbsc)
+            cb.assign(pbss, pbsc.asPCode)
             cb.assign(b, b | (pbsv.isFieldMissing(fidx).toI << (presentIdx & 7)))
             cb.assign(presentIdx, presentIdx + 1)
             cb.ifx((presentIdx & 7).ceq(0), {
@@ -237,8 +237,8 @@ final case class ETransposedArrayOfStructs(
 
       cb.forLoop(cb.assign(j, 0), j < len, cb.assign(j, j + 1), {
         array.loadElement(cb, j).flatMap(cb) { pbsc =>
-          cb.assign(pbss, pbsc)
-          pbsv.loadField(cb, fidx)
+          cb.assign(pbss, pbsc.asPCode)
+          pbsv.loadField(cb, fidx).typecast[PCode]
         }
         .consume(cb, { /* do nothing */ }, { pc =>
           cb += encodeFieldF(pc.code, out)

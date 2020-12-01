@@ -12,6 +12,10 @@
 {%- set script_files = script_files + ['_static/hail_version.js','_static/annotationdb/annotationdb.js'] %}
 {% endif %}
 
+{% if pagename == "datasets" %}
+{%- set css_files = css_files + [ '_static/annotationdb/annotationdb.css'] %}
+{%- set script_files = script_files + ['_static/hail_version.js','_static/datasets/datasets.js'] %}
+{% endif %}
 
 {% block title %}
 {{ title|striptags|e }}{{ titlesuffix }}

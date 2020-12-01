@@ -1,11 +1,11 @@
 package is.hail.types.physical
 
-import is.hail.annotations.Region
-import is.hail.asm4s.Code
-import is.hail.annotations._
-import is.hail.asm4s._
-import is.hail.asm4s.joinpoint._
-import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, IEmitCode}
+import is.hail.annotations.{Region, _}
+import is.hail.asm4s.{Code, _}
+import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder}
+import is.hail.types.physical.stypes.SCode
+import is.hail.types.physical.stypes.concrete.{SIndexablePointer, SIndexablePointerCode, SIndexablePointerSettable}
+import is.hail.types.physical.stypes.interfaces.SContainer
 import is.hail.types.virtual.{TArray, Type}
 import is.hail.utils._
 
@@ -325,46 +325,31 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
     }
   }
 
-  def copyFrom(region: Region, srcOff: Long): Long = {
-    val destOff = allocate(region, loadLength(srcOff))
-    Region.copyFrom(srcOff,  destOff, contentsByteSize(loadLength(srcOff)))
-    destOff
-  }
-
-  def copyFrom(mb: EmitMethodBuilder[_], region: Code[Region], srcOff: Code[Long])(implicit line: LineNumber): Code[Long] = {
-    val destOff = mb.genFieldThisRef[Long]()
-    Code(
-      destOff := allocate(region, loadLength(srcOff)),
-      Region.copyFrom(srcOff, destOff, contentsByteSize(loadLength(srcOff))),
-      destOff
-    )
-  }
-
-  def deepPointerCopy(mb: EmitMethodBuilder[_], region: Value[Region], dstAddress: Code[Long])(implicit line: LineNumber): Code[Unit] = {
+  def deepPointerCopy(cb: EmitCodeBuilder, region: Value[Region], dstAddressCode: Code[Long], len: Value[Int])(implicit line: LineNumber): Unit = {
     if (!this.elementType.fundamentalType.containsPointers) {
-      return Code._empty
+      return
     }
 
-    Code.memoize(dstAddress, "pcarr_deep_ptr_copy_dst") { dstAddress =>
-      val numberOfElements = mb.newLocal[Int]()
-      val currentIdx = mb.newLocal[Int]()
-      val currentElementAddress = mb.genFieldThisRef[Long]()
-      Code(
-        currentIdx := const(0),
-        numberOfElements := this.loadLength(dstAddress),
-        Code.whileLoop(currentIdx < numberOfElements,
-          this.isElementDefined(dstAddress, currentIdx).orEmpty(
-            Code(
-              currentElementAddress := this.elementOffset(dstAddress, numberOfElements, currentIdx),
-              this.elementType.fundamentalType match {
-                case t@(_: PBinary | _: PArray) =>
-                  Region.storeAddress(currentElementAddress, t.copyFromType(mb, region, t, Region.loadAddress(currentElementAddress), deepCopy = true))
-                case t: PCanonicalBaseStruct =>
-                  t.deepPointerCopy(mb, region, currentElementAddress)
-                case t: PType => fatal(s"Type isn't supported ${t}")
-              })),
-          currentIdx := currentIdx + const(1)))
-    }
+    val dstAddress = cb.newLocal[Long]("pcarr_deep_ptr_copy_dst")
+    cb.assign(dstAddress, dstAddressCode)
+    val currentIdx = cb.newLocal[Int]("pcarray_deep_pointer_copy_current_idx")
+    val currentElementAddress = cb.newLocal[Long]("pcarray_deep_pointer_copy_current_element_addr")
+    cb.forLoop(
+      cb.assign(currentIdx, 0),
+      currentIdx < len,
+      cb.assign(currentIdx, currentIdx + 1),
+      cb.ifx(isElementDefined(dstAddress, currentIdx),
+        {
+          cb.assign(currentElementAddress, elementOffset(dstAddress, len, currentIdx))
+          this.elementType.fundamentalType match {
+            // FIXME this logic needs to go before we can create new ptypes
+            case t@(_: PBinary | _: PArray) =>
+              t.storeAtAddress(cb, currentElementAddress, region, t.loadCheapPCode(cb, Region.loadAddress(currentElementAddress)), deepCopy = true)
+            case t: PCanonicalBaseStruct =>
+              t.deepPointerCopy(cb, region, currentElementAddress)
+            case t: PType => throw new RuntimeException(s"Type isn't supported ${ t }")
+          }
+        }))
   }
 
   def deepPointerCopy(region: Region, dstAddress: Long) {
@@ -390,11 +375,6 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
     }
   }
 
-  def copyFromType(mb: EmitMethodBuilder[_], region: Value[Region], srcPType: PType, srcAddress: Code[Long], deepCopy: Boolean)(implicit line: LineNumber): Code[Long] = {
-    val sourceType = srcPType.asInstanceOf[PArray]
-    constructOrCopy(mb, region, sourceType, srcAddress, deepCopy)
-  }
-
   def _copyFromAddress(region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Long = {
     val srcArrayT = srcPType.asInstanceOf[PArray]
 
@@ -417,7 +397,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
       while (i < len) {
         if (srcArrayT.isElementDefined(srcAddress, i)) {
           setElementPresent(newAddr, i)
-          elementType.constructAtAddress(elementOffset(newAddr, len, i), region, srcElementT, srcArrayT.loadElement(srcAddress, len, i), deepCopy)
+          elementType.unstagedStoreAtAddress(elementOffset(newAddr, len, i), region, srcElementT, srcArrayT.loadElement(srcAddress, len, i), deepCopy)
         } else
           assert(!elementType.required)
 
@@ -427,55 +407,51 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
     }
   }
 
-  def copyFromTypeAndStackValue(mb: EmitMethodBuilder[_], region: Value[Region], srcPType: PType, stackValue: Code[_], deepCopy: Boolean)(implicit line: LineNumber): Code[_] =
-    this.copyFromType(mb, region, srcPType, stackValue.asInstanceOf[Code[Long]], deepCopy)
+  def sType: SContainer = SIndexablePointer(this)
 
-  def constructAtAddress(mb: EmitMethodBuilder[_], addr: Code[Long], region: Value[Region], srcPType: PType, srcAddress: Code[Long], deepCopy: Boolean)(implicit line: LineNumber): Code[Unit] = {
-    val srcArray = srcPType.asInstanceOf[PArray]
-    Region.storeAddress(addr, copyFromType(mb, region, srcArray, srcAddress, deepCopy))
-  }
+  def loadCheapPCode(cb: EmitCodeBuilder, addr: Code[Long]): PCode = new SIndexablePointerCode(SIndexablePointer(this), addr)
 
-  private def constructOrCopy(mb: EmitMethodBuilder[_], region: Value[Region], srcArray: PArray, srcAddress: Code[Long], deepCopy: Boolean)(implicit line: LineNumber): Code[Long] = {
-    if (srcArray.isInstanceOf[PCanonicalArray] && srcArray.elementType == elementType) {
-      if (deepCopy) {
-        val newAddr = mb.newLocal[Long]()
-        val len = mb.newLocal[Int]()
-        val srcAddrVar = mb.newLocal[Long]()
-        Code(
-          srcAddrVar := srcAddress,
-          len := srcArray.loadLength(srcAddrVar),
-          newAddr := allocate(region, len),
-          Region.copyFrom(srcAddrVar, newAddr, contentsByteSize(len)),
-          deepPointerCopy(mb, region, newAddr),
-          newAddr)
-      } else
-        srcAddress
-    } else {
+  def store(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): Code[Long] = {
+    value.st match {
+      case SIndexablePointer(PCanonicalArray(otherElementType, _)) if otherElementType == elementType =>
+        if (deepCopy) {
+          val newAddr = cb.newLocal[Long]("pcarray_store_newaddr")
+          val pcInd = value.asIndexable.memoize(cb, "pcarray_store_src_sametype").asInstanceOf[SIndexablePointerSettable]
+          cb.assign(newAddr, allocate(region, pcInd.length))
+          cb += Region.copyFrom(pcInd.a, newAddr, contentsByteSize(pcInd.length))
+          deepPointerCopy(cb, region, newAddr, pcInd.length)
+          newAddr
+        } else {
+          value.asInstanceOf[SIndexablePointerCode].a
+        }
+      case _ =>
+        val newAddr = cb.newLocal[Long]("pcarray_store_newaddr")
+        val indexable = value.asIndexable.memoize(cb, "pcarray_store_src_difftype")
+        val length = indexable.loadLength()
+        cb.assign(newAddr, allocate(region, length))
+        cb += stagedInitialize(newAddr, length, setMissing = false)
 
-      val len = mb.newLocal[Int]()
-      val srcAddrVar = mb.newLocal[Long]()
-      val newAddr = mb.newLocal[Long]()
-      val i = mb.newLocal[Int]()
-
-      Code(
-        srcAddrVar := srcAddress,
-        len := srcArray.loadLength(srcAddrVar),
-        newAddr := allocate(region, len),
-        stagedInitialize(newAddr, len, setMissing = true),
-        i := 0,
-        Code.whileLoop(i < len,
-          srcArray.isElementDefined(srcAddrVar, i).mux(
-            Code(
-              setElementPresent(newAddr, i),
-              elementType.constructAtAddress(mb, elementOffset(newAddr, len, i), region, srcArray.elementType, srcArray.loadElement(srcAddrVar, len, i), deepCopy)),
-            if (elementType.required) Code._fatal[Unit]("required array element encountered missing value!") else Code._empty),
-          i := i + 1
-        ),
-        newAddr)
+        val idx = cb.newLocal[Int]("pcarray_store_at_addr_idx", 0)
+        cb.whileLoop(idx < length, {
+          indexable
+            .loadElement(cb, idx)
+            .consume(
+              cb,
+              { cb.append(setElementMissing(newAddr, idx)) },
+              { pc => elementType.storeAtAddress(cb, elementOffset(newAddr, length, idx), region, pc, deepCopy) }
+            )
+          cb.assign(idx, idx + 1)
+        })
+        newAddr
     }
   }
 
-  def constructAtAddress(addr: Long, region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Unit = {
+  def storeAtAddress(cb: EmitCodeBuilder, addr: Code[Long], region: Value[Region], value: SCode, deepCopy: Boolean): Unit = {
+    cb += Region.storeAddress(addr, store(cb, region, value, deepCopy))
+  }
+
+
+  def unstagedStoreAtAddress(addr: Long, region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Unit = {
     val srcArray = srcPType.asInstanceOf[PArray]
     Region.storeAddress(addr, copyFromAddress(region, srcArray, srcAddress, deepCopy))
   }
@@ -484,71 +460,4 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
 
   private def deepRenameArray(t: TArray): PArray =
     PCanonicalArray(this.elementType.deepRename(t.elementType), this.required)
-
-  override def load(src: Code[Long])(implicit line: LineNumber): PCode =
-    new PCanonicalIndexableCode(this, Region.loadAddress(src))
-}
-
-class PCanonicalIndexableCode(val pt: PContainer, val a: Code[Long]) extends PIndexableCode {
-  def code: Code[_] = a
-
-  def codeTuple(): IndexedSeq[Code[_]] = FastIndexedSeq(a)
-
-  def loadLength()(implicit line: LineNumber): Code[Int] =
-    pt.loadLength(a)
-
-  def memoize(cb: EmitCodeBuilder, name: String, sb: SettableBuilder)(implicit line: LineNumber): PIndexableValue = {
-    val s = PCanonicalIndexableSettable(sb, pt, name)
-    cb.assign(s, this)
-    s
-  }
-
-  def memoize(cb: EmitCodeBuilder, name: String)(implicit line: LineNumber): PIndexableValue =
-    memoize(cb, name, cb.localBuilder)
-
-  def memoizeField(cb: EmitCodeBuilder, name: String)(implicit line: LineNumber): PIndexableValue =
-    memoize(cb, name, cb.fieldBuilder)
-
-  def store(mb: EmitMethodBuilder[_], r: Value[Region], dst: Code[Long])(implicit line: LineNumber): Code[Unit] =
-    Region.storeAddress(dst, a)
-}
-
-object PCanonicalIndexableSettable {
-  def apply(sb: SettableBuilder, pt: PContainer, name: String): PCanonicalIndexableSettable = {
-    new PCanonicalIndexableSettable(pt,
-      sb.newSettable[Long](s"${ name }_a"),
-      sb.newSettable[Int](s"${ name }_length"),
-      sb.newSettable[Long](s"${ name }_elems_addr"))
-  }
-}
-
-class PCanonicalIndexableSettable(
-  val pt: PContainer,
-  val a: Settable[Long],
-  val length: Settable[Int],
-  val elementsAddress: Settable[Long]
-) extends PIndexableValue with PSettable {
-  def get(implicit line: LineNumber): PIndexableCode =
-    new PCanonicalIndexableCode(pt, a)
-
-  def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(a, length, elementsAddress)
-
-  def loadLength(): Value[Int] = length
-
-  def loadElement(cb: EmitCodeBuilder, i: Code[Int])(implicit line: LineNumber): IEmitCode = {
-    val iv = cb.newLocal("pcindval_i", i)
-    IEmitCode(cb,
-      isElementMissing(iv),
-      pt.elementType.load(elementsAddress + iv.toL * pt.elementByteSize))
-  }
-
-  def isElementMissing(i: Code[Int])(implicit line: LineNumber): Code[Boolean] =
-    pt.isElementMissing(a, i)
-
-  def store(pc: PCode)(implicit line: LineNumber): Code[Unit] = {
-    Code(
-      a := pc.asInstanceOf[PCanonicalIndexableCode].a,
-      length := pt.loadLength(a),
-      elementsAddress := pt.firstElementOffset(a, length))
-  }
 }

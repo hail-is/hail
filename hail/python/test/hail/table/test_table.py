@@ -54,7 +54,7 @@ class Tests(unittest.TestCase):
             x11=kt.f[1:2],
             x12=kt.f.map(lambda x: [x, x + 1]),
             x13=kt.f.map(lambda x: [[x, x + 1], [x + 2]]).flatmap(lambda x: x),
-            x14=hl.cond(kt.a < kt.b, kt.c, hl.null(hl.tint32)),
+            x14=hl.if_else(kt.a < kt.b, kt.c, hl.null(hl.tint32)),
             x15={1, 2, 3}
         ).take(1)[0])
 
@@ -939,12 +939,12 @@ class Tests(unittest.TestCase):
 
     def test_null_joins(self):
         tr = hl.utils.range_table(7, 1)
-        table1 = tr.key_by(new_key=hl.cond((tr.idx == 3) | (tr.idx == 5),
-                                           hl.null(hl.tint32), tr.idx),
+        table1 = tr.key_by(new_key=hl.if_else((tr.idx == 3) | (tr.idx == 5),
+                                              hl.null(hl.tint32), tr.idx),
                            key2=1)
         table1 = table1.select(idx1=table1.idx)
-        table2 = tr.key_by(new_key=hl.cond((tr.idx == 4) | (tr.idx == 6),
-                                           hl.null(hl.tint32), tr.idx),
+        table2 = tr.key_by(new_key=hl.if_else((tr.idx == 4) | (tr.idx == 6),
+                                              hl.null(hl.tint32), tr.idx),
                            key2=1)
         table2 = table2.select(idx2=table2.idx)
 
@@ -979,12 +979,12 @@ class Tests(unittest.TestCase):
 
     def test_null_joins_2(self):
         tr = hl.utils.range_table(7, 1)
-        table1 = tr.key_by(new_key=hl.cond((tr.idx == 3) | (tr.idx == 5),
-                                           hl.null(hl.tint32), tr.idx),
+        table1 = tr.key_by(new_key=hl.if_else((tr.idx == 3) | (tr.idx == 5),
+                                              hl.null(hl.tint32), tr.idx),
                            key2=tr.idx)
         table1 = table1.select(idx1=table1.idx)
-        table2 = tr.key_by(new_key=hl.cond((tr.idx == 4) | (tr.idx == 6),
-                                           hl.null(hl.tint32), tr.idx),
+        table2 = tr.key_by(new_key=hl.if_else((tr.idx == 4) | (tr.idx == 6),
+                                              hl.null(hl.tint32), tr.idx),
                            key2=tr.idx)
         table2 = table2.select(idx2=table2.idx)
 
@@ -1021,7 +1021,7 @@ class Tests(unittest.TestCase):
         tr = hl.utils.range_table(7, 1)
         table1 = tr.key_by(new_key=tr.idx)
         table1 = table1.select(idx1=table1.idx)
-        table2 = tr.key_by(new_key=hl.cond((tr.idx == 4) | (tr.idx == 6), hl.null(hl.tint32), tr.idx))
+        table2 = tr.key_by(new_key=hl.if_else((tr.idx == 4) | (tr.idx == 6), hl.null(hl.tint32), tr.idx))
         table2 = table2.select(idx2=table2.idx)
 
         left_join = table1.join(table2, 'left')
@@ -1120,8 +1120,8 @@ class Tests(unittest.TestCase):
         ht = hl.utils.range_table(10).annotate(foo=5)
         ht.annotate(a_join=ht[ht.key],
                     a_literal=hl.literal(['a']),
-                    the_row_failure=hl.cond(True, ht.row, hl.null(ht.row.dtype)),
-                    the_global_failure=hl.cond(True, ht.globals, hl.null(ht.globals.dtype))).count()
+                    the_row_failure=hl.if_else(True, ht.row, hl.null(ht.row.dtype)),
+                    the_global_failure=hl.if_else(True, ht.globals, hl.null(ht.globals.dtype))).count()
 
     def test_aggregate_localize_false(self):
         ht = hl.utils.range_table(10)

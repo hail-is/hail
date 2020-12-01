@@ -10,7 +10,7 @@ def stress():
     b = hb.Batch(
         name='stress',
         backend=hb.ServiceBackend(billing_project='hail'),
-        default_image='ubuntu:18.04')
+        default_image=DOCKER_ROOT_IMAGE)
 
     for i in range(100):
         j = (b

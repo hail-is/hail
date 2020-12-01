@@ -2,8 +2,8 @@ package is.hail.expr.ir.agg
 
 import is.hail.annotations.{Region, StagedRegionValueBuilder}
 import is.hail.asm4s._
-import is.hail.expr.ir.{CodeParamType, EmitCode, EmitCodeBuilder, EmitParamType, ParamType, coerce}
-import is.hail.types.physical.{PCanonicalBaseStructSettable, PCanonicalTuple, PCode, PNDArray, PNDArrayCode, PNDArrayValue, PNumeric, PType, PVoid}
+import is.hail.expr.ir.{CodeParamType, EmitCode, EmitCodeBuilder, EmitParamType, coerce}
+import is.hail.types.physical.{PCanonicalTuple, PNDArray, PNDArrayCode, PNDArrayValue, PNumeric, PType}
 import is.hail.utils._
 
 class NDArraySumAggregator (ndTyp: PNDArray) extends StagedAggregator {
@@ -33,21 +33,19 @@ class NDArraySumAggregator (ndTyp: PNDArray) extends StagedAggregator {
 
     seqOpMethod.voidWithBuilder(cb => {
       val nextNDInput = seqOpMethod.getEmitParam(1)
-      val statePV = new PCanonicalBaseStructSettable(stateType, state.off)
+      val statePV = stateType.loadCheapPCode(cb, state.off).asBaseStruct.memoize(cb, "ndarray_sum_seq_op_state")
       nextNDInput.toI(cb).consume(cb, {}, {case nextNDArrayPCode: PNDArrayCode =>
         val nextNDPV = nextNDArrayPCode.memoize(cb, "ndarray_sum_seqop_next")
         statePV.loadField(cb, ndarrayFieldNumber).consume(cb,
           {
             cb.append(state.region.getNewRegion(Region.TINY))
             cb.append(stateType.setFieldPresent(state.off, ndarrayFieldNumber))
-            cb.append(ndTyp.constructAtAddress(
-              cb.emb,
+            ndTyp.storeAtAddress(
+              cb,
               stateType.fieldOffset(state.off, ndarrayFieldNumber),
               state.region,
-              nextNDCode.pt,
-              nextNDInput.value[Long],
+              nextNDPV,
               true)
-            )
           },
           { currentNDPCode =>
             val currentNDPValue = currentNDPCode.asNDArray.memoize(cb, "ndarray_sum_seqop_current")
@@ -63,10 +61,10 @@ class NDArraySumAggregator (ndTyp: PNDArray) extends StagedAggregator {
     val combOpMethod = cb.emb.genEmitMethod[Unit]("ndarray_sum_aggregator_comb_op")
 
     combOpMethod.voidWithBuilder(cb => {
-      val rightPV = new PCanonicalBaseStructSettable(stateType, other.off)
+      val rightPV = stateType.loadCheapPCode(cb, other.off).asBaseStruct.memoize(cb, "ndarray_sum_comb_op_right")
       rightPV.loadField(cb, ndarrayFieldNumber).consume(cb, {},
         { rightNDPC =>
-          val leftPV = new PCanonicalBaseStructSettable(stateType, state.off)
+          val leftPV = stateType.loadCheapPCode(cb, state.off).asBaseStruct.memoize(cb, "ndarray_sum_comb_op_left")
           leftPV.loadField(cb, ndarrayFieldNumber).consume(cb,
             {
               cb.append(state.storeNonmissing(other.off))
@@ -84,7 +82,7 @@ class NDArraySumAggregator (ndTyp: PNDArray) extends StagedAggregator {
   }
 
   private def addValues(cb: EmitCodeBuilder, leftNdValue: PNDArrayValue, rightNdValue: PNDArrayValue)(implicit line: LineNumber): Unit = {
-    val sameShape = leftNdValue.sameShape(rightNdValue, cb.emb)
+    val sameShape = leftNdValue.sameShape(rightNdValue, cb)
 
     val idxVars = Array.tabulate(ndTyp.nDims) { _ => cb.emb.genFieldThisRef[Long]() }
 
@@ -101,7 +99,7 @@ class NDArraySumAggregator (ndTyp: PNDArray) extends StagedAggregator {
       cb.emb
     )
 
-    val leftNdShape = leftNdValue.shapes()
+    val leftNdShape = leftNdValue.shapes(cb)
 
     val columnMajorLoops = idxVars.zipWithIndex.foldLeft(body) { case (innerLoops, (dimVar, dimIdx)) =>
       Code(

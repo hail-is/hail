@@ -8,10 +8,11 @@ from hailtop.config import get_deploy_config
 from hailtop.tls import get_in_cluster_server_ssl_context
 from hailtop.hail_logging import AccessLogger, configure_logging
 from hailtop.utils import retry_long_running
+import hailtop.batch_client.aioclient as bc
 from hailtop import aiotools
 from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template
 from benchmark.utils import ReadGoogleStorage, get_geometric_mean, parse_file_path, enumerate_list_of_trials,\
-    list_benchmark_files, round_if_defined
+    list_benchmark_files, round_if_defined, submit_test_batch
 import json
 import re
 import plotly
@@ -21,6 +22,7 @@ import numpy as np
 import pandas as pd
 import gidgethub
 import gidgethub.aiohttp
+from .config import START_POINT, BENCHMARK_RESULTS_PATH
 
 configure_logging()
 router = web.RouteTableDef()
@@ -32,7 +34,12 @@ BENCHMARK_FILE_REGEX = re.compile(r'gs://((?P<bucket>[^/]+)/)((?P<user>[^/]+)/)(
 
 BENCHMARK_ROOT = os.path.dirname(os.path.abspath(__file__))
 
-START_POINT = '2020-10-01T00:00:00Z'
+benchmark_data = {
+    'commits': {}
+}
+
+with open(os.environ.get('HAIL_CI_OAUTH_TOKEN', 'oauth-token/oauth-token'), 'r') as f:
+    oauth_token = f.read().strip()
 
 
 def get_benchmarks(app, file_path):
@@ -215,36 +222,127 @@ async def compare(request, userdata):  # pylint: disable=unused-argument
     return await render_template('benchmark', request, userdata, 'compare.html', context)
 
 
-async def query_github(app):
-    global START_POINT
+async def update_commits(app):
+    global benchmark_data
     github_client = app['github_client']
-    request_string = f'/repos/hail-is/hail/commits?since={START_POINT}'
 
-    data = await github_client.getitem(request_string)
-    new_commits = []
-    for commit in data:
-        sha = commit.get('sha')
-        new_commits.append(commit)
-        log.info(f'commit {sha}')
-        START_POINT = commit['commit']['author'].get('date')
-        log.info(f'start point is now {START_POINT}')
+    request_string = f'/repos/hail-is/hail/commits?since={START_POINT}'
+    log.info(f'start point is {START_POINT}')
+    gh_data = await github_client.getitem(request_string)
+    log.info(f'gh_data length is {len(gh_data)}')
+
+    for gh_commit in gh_data:
+        sha = gh_commit.get('sha')
+        log.info(f'for commit {sha}')
+        await update_commit(app, sha)
+
     log.info('got new commits')
+
+
+async def get_commit(app, sha):  # pylint: disable=unused-argument
+    github_client = app['github_client']
+    batch_client = app['batch_client']
+    gs_reader = app['gs_reader']
+
+    file_path = f'{BENCHMARK_RESULTS_PATH}/{sha}.json'
+    request_string = f'/repos/hail-is/hail/commits/{sha}'
+
+    gh_commit = await github_client.getitem(request_string)
+
+    has_results_file = gs_reader.file_exists(file_path)
+    batch_statuses = [b._last_known_status async for b in batch_client.list_batches(q=f'sha={sha}')]
+    complete_batch_statuses = [bs for bs in batch_statuses if bs['complete']]
+    running_batch_statuses = [bs for bs in batch_statuses if not bs['complete']]
+
+    if has_results_file:
+        assert complete_batch_statuses, batch_statuses
+        log.info(f'commit {sha} has a results file')
+        status = complete_batch_statuses[-1]
+    elif running_batch_statuses:
+        status = running_batch_statuses[-1]
+        log.info(f'batch already exists for commit {sha}')
+    else:
+        status = None
+        log.info(f'no batches or results file exists for {sha}')
+
+    commit = {
+        'sha': sha,
+        'title': gh_commit['commit']['message'],
+        'author': gh_commit['commit']['author']['name'],
+        'date': gh_commit['commit']['author']['date'],
+        'status': status
+    }
+    return commit
+
+
+async def update_commit(app, sha):  # pylint: disable=unused-argument
+    commit = await get_commit(app, sha)
+    if commit['status'] is not None:
+        return commit
+
+    batch_client = app['batch_client']
+    batch_id = await submit_test_batch(batch_client, sha)
+    batch = await batch_client.get_batch(batch_id)
+    commit['status'] = batch._last_known_status
+    log.info(f'submitted a batch {batch_id} for commit {sha}')
+
+    return commit
+
+
+@router.get('/api/v1alpha/benchmark/commit/{sha}')
+async def get_status(request):  # pylint: disable=unused-argument
+    sha = str(request.match_info['sha'])
+    app = request.app
+    commit = await get_commit(app, sha)
+    return web.json_response(commit)
+
+
+@router.delete('/api/v1alpha/benchmark/commit/{sha}')
+async def delete_commit(request):  # pylint: disable=unused-argument
+    global benchmark_data
+    app = request.app
+    gs_reader = app['gs_reader']
+    batch_client = app['batch_client']
+    sha = str(request.match_info['sha'])
+    file_path = f'{BENCHMARK_RESULTS_PATH}/{sha}.json'
+
+    if gs_reader.file_exists(file_path):
+        gs_reader.delete_file(file_path)
+        log.info(f'deleted file for sha {sha}')
+
+    async for b in batch_client.list_batches(q=f'sha={sha}'):
+        await b.delete()
+        log.info(f'deleted batch for sha {sha}')
+
+    if benchmark_data['commits'].get(sha):
+        del benchmark_data['commits'][sha]
+        log.info(f'deleted commit {sha} from commit list')
+
+    return web.Response()
+
+
+@router.post('/api/v1alpha/benchmark/commit/{sha}')
+async def call_update_commit(request):  # pylint: disable=unused-argument
+    body = await request.json()
+    sha = body['sha']
+    log.info('call_update_commit')
+    commit = await update_commit(request.app, sha)
+    return web.json_response(commit)
 
 
 async def github_polling_loop(app):
     while True:
-        await query_github(app)
+        await update_commits(app)
         log.info('successfully queried github')
-        await asyncio.sleep(600)
+        await asyncio.sleep(300)
 
 
 async def on_startup(app):
-    with open(os.environ.get('HAIL_CI_OAUTH_TOKEN', 'oauth-token/oauth-token'), 'r') as f:
-        oauth_token = f.read().strip()
     app['gs_reader'] = ReadGoogleStorage(service_account_key_file='/benchmark-gsa-key/key.json')
     app['github_client'] = gidgethub.aiohttp.GitHubAPI(aiohttp.ClientSession(),
                                                        'hail-is/hail',
                                                        oauth_token=oauth_token)
+    app['batch_client'] = await bc.BatchClient(billing_project='benchmark')
     app['task_manager'] = aiotools.BackgroundTaskManager()
     app['task_manager'].ensure_future(retry_long_running(
         'github_polling_loop', github_polling_loop, app))

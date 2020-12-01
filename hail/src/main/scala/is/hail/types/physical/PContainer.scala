@@ -3,6 +3,7 @@ package is.hail.types.physical
 import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, IEmitCode}
+import is.hail.types.physical.stypes.interfaces.{SIndexableCode, SIndexableValue}
 
 abstract class PContainer extends PIterable {
   override def containsPointers: Boolean = true
@@ -55,10 +56,6 @@ abstract class PContainer extends PIterable {
 
   def firstElementOffset(aoff: Code[Long])(implicit line: LineNumber): Code[Long]
 
-  def copyFrom(region: Region, srcOff: Long): Long
-
-  def copyFrom(mb: EmitMethodBuilder[_], region: Code[Region], srcOff: Code[Long])(implicit line: LineNumber): Code[Long]
-
   def loadElement(aoff: Long, length: Int, i: Int): Long
 
   def loadElement(aoff: Long, i: Int): Long
@@ -92,21 +89,10 @@ abstract class PContainer extends PIterable {
   def nextElementAddress(currentOffset: Code[Long])(implicit line: LineNumber): Code[Long]
 }
 
-abstract class PIndexableValue extends PValue {
-  def loadLength(): Value[Int]
+abstract class PIndexableValue extends PValue with SIndexableValue
 
-  def isElementMissing(i: Code[Int])(implicit line: LineNumber): Code[Boolean]
-
-  def isElementDefined(i: Code[Int])(implicit line: LineNumber): Code[Boolean] =
-    !isElementMissing(i)
-
-  def loadElement(cb: EmitCodeBuilder, i: Code[Int])(implicit line: LineNumber): IEmitCode
-}
-
-abstract class PIndexableCode extends PCode {
+abstract class PIndexableCode extends PCode with SIndexableCode {
   def pt: PContainer
-
-  def loadLength()(implicit line: LineNumber): Code[Int]
 
   def memoize(cb: EmitCodeBuilder, name: String)(implicit line: LineNumber): PIndexableValue
 

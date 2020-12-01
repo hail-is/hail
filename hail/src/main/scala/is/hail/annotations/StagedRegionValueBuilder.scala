@@ -1,11 +1,12 @@
 package is.hail.annotations
 
 import is.hail.asm4s.Code._
-import is.hail.asm4s.{Code, FunctionBuilder, _}
+import is.hail.asm4s.{Code, _}
 import is.hail.expr.ir
-import is.hail.expr.ir.{EmitClassBuilder, EmitFunctionBuilder, EmitMethodBuilder, EmitRegion, ParamType}
+import is.hail.expr.ir.{EmitClassBuilder, EmitMethodBuilder, EmitRegion, ParamType}
 import is.hail.types.physical._
-import is.hail.types.virtual.{TBoolean, TFloat32, TFloat64, TInt32, TInt64, Type}
+import is.hail.types.physical.stypes.SCode
+import is.hail.types.virtual._
 import is.hail.utils._
 
 object StagedRegionValueBuilder {
@@ -17,18 +18,21 @@ object StagedRegionValueBuilder {
       val r = mb.getCodeParam[Region](1)
       val value = mb.getCodeParam(2)(valueTI)
       val dest = mb.getCodeParam[Long](3)
-      mb.emit(t.constructAtAddressFromValue(mb, dest, r, t, value, true))
+      mb.voidWithBuilder { cb =>
+        typ.storeAtAddress(cb, dest, r, PCode(typ, value), deepCopy = true)
+      }
     }
     mb.invokeCode[Unit](region, value, dest)
   }
 
   def deepCopyFromOffset(cb: EmitClassBuilder[_], region: Code[Region], typ: PType, value: Code[Long])(implicit line: LineNumber): Code[Long] = {
-    val t = typ.fundamentalType
     val mb = cb.getOrGenEmitMethod("deepCopyFromOffset", ("deepCopyFromOffset", typ),
       FastIndexedSeq[ParamType](classInfo[Region], LongInfo), LongInfo) { mb =>
       val r = mb.getCodeParam[Region](1)
       val value = mb.getCodeParam[Long](2)
-      mb.emit(t.copyFromType(mb, r, t, value, true))
+      mb.emitWithBuilder { cb =>
+        typ.store(cb, r, typ.loadCheapPCode(cb, value), deepCopy = true)
+      }
     }
     mb.invokeCode[Long](region, value)
   }
@@ -205,34 +209,36 @@ class StagedRegionValueBuilder private (val mb: EmitMethodBuilder[_], val typ: P
     f(new StagedRegionValueBuilder(mb, currentPType(), this))
   }
 
-  def addIRIntermediate(t: PType, deepCopy: Boolean)(v: Code[_])(implicit line: LineNumber): Code[Unit] = t.fundamentalType match {
-    case _: PBoolean => addBoolean(v.asInstanceOf[Code[Boolean]])
-    case _: PInt32 => addInt(v.asInstanceOf[Code[Int]])
-    case _: PInt64 => addLong(v.asInstanceOf[Code[Long]])
-    case _: PFloat32 => addFloat(v.asInstanceOf[Code[Float]])
-    case _: PFloat64 => addDouble(v.asInstanceOf[Code[Double]])
-    case t =>
-      assert(v.v != null)
-      val current = currentPType()
-      val valueTI = typeToTypeInfo(t)
-      val m = mb.getOrGenEmitMethod("addIRIntermediate", ("addIRIntermediate", current, t, deepCopy),
-        FastIndexedSeq[ParamType](classInfo[Region], valueTI, LongInfo), UnitInfo) { mb =>
-        val r = mb.getCodeParam[Region](1)
-        val value = mb.getCodeParam(2)(valueTI)
-        val dest = mb.getCodeParam[Long](3)
-        mb.emit(current.constructAtAddressFromValue(mb, dest, r, t, value, deepCopy))
+  private def addIRIntermediate(t: PType, deepCopy: Boolean)(v: Code[_])(implicit line: LineNumber): Code[Unit] = {
+    val ft = t.fundamentalType
+    val current = currentPType()
+    val valueTI = typeToTypeInfo(ft)
+    val m = mb.getOrGenEmitMethod("addIRIntermediate", ("addIRIntermediate", current, ft, deepCopy),
+      FastIndexedSeq[ParamType](classInfo[Region], valueTI, LongInfo), UnitInfo) { mb =>
+      val r = mb.getCodeParam[Region](1)
+      val value = mb.getCodeParam(2)(valueTI)
+      val dest = mb.getCodeParam[Long](3)
+      mb.voidWithBuilder { cb =>
+        current.storeAtAddress(cb, dest, r, PCode(ft, value), deepCopy)
       }
+    }
+    (v: Code[_]) => {
+      assert(v.v != null)
       m.invokeCode[Unit](region, v, currentOffset)
+    }
   }
 
+  // deprecated -- to be removed
   def addIRIntermediate(t: PType)(v: Code[_])(implicit line: LineNumber): Code[Unit] =
     addIRIntermediate(t, deepCopy = false)(v)
 
-  def addIRIntermediate(v: PCode, deepCopy: Boolean)(implicit line: LineNumber): Code[Unit] =
-    addIRIntermediate(v.pt, deepCopy)(v.code)
+  def addIRIntermediate(v: SCode, deepCopy: Boolean)(implicit line: LineNumber): Code[Unit] = {
+    val pc = v.asPCode
+    addIRIntermediate(pc.pt, deepCopy)(pc.code)
+  }
 
-  def addIRIntermediate(v: PCode)(implicit line: LineNumber): Code[Unit] =
-    addIRIntermediate(v.pt, deepCopy = false)(v.code)
+  def addIRIntermediate(v: SCode)(implicit line: LineNumber): Code[Unit] =
+    addIRIntermediate(v, false)
 
   def addWithDeepCopy(t: PType, v: Code[_])(implicit line: LineNumber): Code[Unit] = {
     if (!(t.fundamentalType isOfType currentPType()))

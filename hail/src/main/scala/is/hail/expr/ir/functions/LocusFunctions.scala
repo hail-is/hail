@@ -2,14 +2,13 @@ package is.hail.expr.ir.functions
 
 import is.hail.annotations.{Region, StagedRegionValueBuilder}
 import is.hail.asm4s._
-import is.hail.types
-import is.hail.asm4s
-import is.hail.expr.ir.EmitMethodBuilder
-import is.hail.variant._
-import is.hail.expr.ir._
+import is.hail.expr.ir.{EmitMethodBuilder, _}
+import is.hail.{asm4s, types}
 import is.hail.types.physical._
+import is.hail.types.physical.stypes.concrete.{SCanonicalLocusPointer, SCanonicalLocusPointerCode}
 import is.hail.types.virtual._
 import is.hail.utils._
+import is.hail.variant._
 
 object LocusFunctions extends RegistryFunctions {
 
@@ -162,9 +161,9 @@ object LocusFunctions extends RegistryFunctions {
 
     registerPCode1("contig", tlocus("T"), TString,
       (_: Type, x: PType) => x.asInstanceOf[PLocus].contigType) {
-      case (r, rt, locus: PLocusCode, _line) =>
+      case (r, cb, rt, locus: PLocusCode, _line) =>
         implicit val line = _line
-        locus.contig()
+        locus.contig(cb).asPCode
     }
 
     registerCode1("position", tlocus("T"), TInt32, (_: Type, x: PType) => x.asInstanceOf[PLocus].positionType) {
@@ -188,12 +187,12 @@ object LocusFunctions extends RegistryFunctions {
         PCanonicalStruct("locus" -> locusPT, "alleles" -> PCanonicalArray(PCanonicalString(true), true))
       }
     }) {
-      case (r, rt: PStruct, locus: PLocusCode, alleles: PIndexableCode, _line) =>
+      case (r, cb, rt: PStruct, locus: PLocusCode, alleles: PIndexableCode, _line) =>
         implicit val line = _line
-        val tuple = Code.invokeScalaObject2[Locus, IndexedSeq[String], (Locus, IndexedSeq[String])](
+        val tuple = EmitCodeBuilder.scopedCode(r.mb) { cb => Code.invokeScalaObject2[Locus, IndexedSeq[String], (Locus, IndexedSeq[String])](
           VariantMethods.getClass, "minRep",
-          locus.getLocusObj(),
-          Code.checkcast[IndexedSeq[String]](wrapArg(r, alleles.pt)(alleles.code).asInstanceOf[Code[AnyRef]]))
+          locus.getLocusObj(cb),
+          Code.checkcast[IndexedSeq[String]](wrapArg(r, alleles.pt)(alleles.code).asInstanceOf[Code[AnyRef]]))}
 
         val code = Code.memoize(tuple, "min_rep_tuple") { tuple =>
           Code.memoize(
@@ -315,22 +314,20 @@ object LocusFunctions extends RegistryFunctions {
         emitLocus(r, locus, rt)
     }
 
-    registerCode2("Locus", TString, TInt32, tlocus("T"), {
+    registerPCode2("Locus", TString, TInt32, tlocus("T"), {
       (returnType: Type, _: PType, _: PType) => PCanonicalLocus(returnType.asInstanceOf[TLocus].rg)
     }) {
-      case (r, rt: PLocus, (contigT, contig: Code[Long]), (posT, pos: Code[Int]), _line) =>
+      case (r, cb, rt: PCanonicalLocus, contig, pos, _line) =>
         implicit val line = _line
-        Code.memoize(asm4s.coerce[Long](contig), "locus_contig", asm4s.coerce[Int](pos), "locus_pos") { (contig, pos) =>
-          val srvb = new StagedRegionValueBuilder(r, rt)
-          val scontig = asm4s.coerce[String](wrapArg(r, contigT)(contig))
-          Code(
-            rgCode(r.mb, rt.rg).invoke[String, Int, Unit]("checkLocus", scontig, pos),
-            srvb.start(),
-            srvb.addIRIntermediate(contigT)(contig),
-            srvb.advance(),
-            srvb.addInt(pos),
-            srvb.offset)
-        }
+        val contigMemo = contig.memoize(cb, "locus_contig")
+        val posMemo = pos.memoize(cb, "locus_pos")
+        val srvb = new StagedRegionValueBuilder(r, rt)
+        cb += rgCode(r.mb, rt.rg).invoke[String, Int, Unit]("checkLocus", contigMemo.asString.loadString(), posMemo.asInt.intCode(cb))
+        cb += srvb.start()
+        cb += srvb.addIRIntermediate(contigMemo)
+        cb += srvb.advance()
+        cb += srvb.addInt(posMemo.asInt.intCode(cb))
+        new SCanonicalLocusPointerCode(SCanonicalLocusPointer(rt), srvb.offset)
     }
 
     registerCode1("LocusAlleles", TString, tvariant("T"), {

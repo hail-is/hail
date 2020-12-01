@@ -34,11 +34,11 @@ object IntervalFunctions extends RegistryFunctions {
               srvb.start(),
               start.m.mux(
                 srvb.setMissing(),
-                srvb.addIRIntermediate(start.pt)(start.v)),
+                srvb.addIRIntermediate(start.pv)),
               srvb.advance(),
               end.m.mux(
                 srvb.setMissing(),
-                srvb.addIRIntermediate(end.pt)(end.v)),
+                srvb.addIRIntermediate(end.pv)),
               srvb.advance(),
               srvb.addBoolean(includesStart.value[Boolean]),
               srvb.advance(),
@@ -59,7 +59,7 @@ object IntervalFunctions extends RegistryFunctions {
         implicit val line = _line
         interval().flatMap(cb) { case pi: PIntervalCode =>
           val pv = pi.memoize(cb, "interval")
-          pv.loadStart(cb)
+          pv.loadStart(cb).typecast[PCode]
         }
     }
 
@@ -69,14 +69,14 @@ object IntervalFunctions extends RegistryFunctions {
         implicit val line = _line
         interval().flatMap(cb) { case pi: PIntervalCode =>
           val pv = pi.memoize(cb, "interval")
-          pv.loadEnd(cb)
+          pv.loadEnd(cb).typecast[PCode]
         }
     }
 
     registerPCode1("includesStart", TInterval(tv("T")), TBoolean, (_: Type, x: PType) =>
       PBoolean(x.required)
     ) {
-      case (r, rt, interval: PIntervalCode, _line) =>
+      case (r, cb, rt, interval: PIntervalCode, _line) =>
         implicit val line = _line
         PCode(rt, interval.includesStart())
     }
@@ -84,7 +84,7 @@ object IntervalFunctions extends RegistryFunctions {
     registerPCode1("includesEnd", TInterval(tv("T")), TBoolean, (_: Type, x: PType) =>
       PBoolean(x.required)
     ) {
-      case (r, rt, interval: PIntervalCode, _line) =>
+      case (r, cb, rt, interval: PIntervalCode, _line) =>
         implicit val line = _line
         PCode(rt, interval.includesEnd())
     }
@@ -99,12 +99,12 @@ object IntervalFunctions extends RegistryFunctions {
           val pointv = cb.memoize(point(), "point")
           val compare = cb.emb.getCodeOrdering(pointv.pt, interval.pt.pointType, CodeOrdering.Compare())
 
-          val start = EmitCode.fromI(cb.emb)(interval.loadStart(_))
+          val start = EmitCode.fromI(cb.emb)(cb => interval.loadStart(cb).typecast[PCode])
           cb += start.setup
           val cmp = cb.newLocal("cmp", compare(pointv.m -> pointv.v, start.m -> start.v))
           val contains = cb.newLocal[Boolean]("contains", false)
           cb.ifx(cmp > 0 || (cmp.ceq(0) && interval.includesStart()), {
-            val end = EmitCode.fromI(cb.emb)(interval.loadEnd(_))
+            val end = EmitCode.fromI(cb.emb)(cb => interval.loadEnd(cb).typecast[PCode])
             cb += end.setup
             cb.assign(cmp, compare(pointv.m -> pointv.v, end.m -> end.v))
             cb.assign(contains, cmp < 0 || (cmp.ceq(0) && interval.includesEnd()))
@@ -115,7 +115,7 @@ object IntervalFunctions extends RegistryFunctions {
     }
 
     registerPCode1("isEmpty", TInterval(tv("T")), TBoolean, (_: Type, pt: PType) => PBoolean(pt.required)) {
-      case (r, rt, interval: PIntervalCode, _line) =>
+      case (r, cb, rt, interval: PIntervalCode, _line) =>
         implicit val line = _line
         val empty = EmitCodeBuilder.scopedCode(r.mb) { cb =>
           val intv = interval.memoize(cb, "interval")
@@ -125,7 +125,7 @@ object IntervalFunctions extends RegistryFunctions {
     }
 
     registerPCode2("overlaps", TInterval(tv("T")), TInterval(tv("T")), TBoolean, (_: Type, i1t: PType, i2t: PType) => PBoolean(i1t.required && i2t.required)) {
-      case (r, rt, int1: PIntervalCode, int2: PIntervalCode, _line) =>
+      case (r, cb, rt, int1: PIntervalCode, int2: PIntervalCode, _line) =>
         implicit val line = _line
         val overlap = EmitCodeBuilder.scopedCode(r.mb) { cb =>
           val interval1 = int1.memoize(cb, "interval1")
@@ -133,8 +133,8 @@ object IntervalFunctions extends RegistryFunctions {
           val compare = cb.emb.getCodeOrdering(int1.pt.pointType, int2.pt.pointType, CodeOrdering.Compare())
 
           def isAboveOnNonempty(cb: EmitCodeBuilder, lhs: PIntervalValue, rhs: PIntervalValue): Code[Boolean] = {
-            val start = EmitCode.fromI(cb.emb)(lhs.loadStart(_))
-            val end = EmitCode.fromI(cb.emb)(rhs.loadEnd(_))
+            val start = EmitCode.fromI(cb.emb)(cb => lhs.loadStart(cb).typecast[PCode])
+            val end = EmitCode.fromI(cb.emb)(cb => rhs.loadEnd(cb).typecast[PCode])
             cb += start.setup
             cb += end.setup
             val cmp = cb.newLocal("cmp", compare(start.m -> start.v, end.m -> end.v))
@@ -142,8 +142,8 @@ object IntervalFunctions extends RegistryFunctions {
           }
 
           def isBelowOnNonempty(cb: EmitCodeBuilder, lhs: PIntervalValue, rhs: PIntervalValue): Code[Boolean] = {
-            val end = EmitCode.fromI(cb.emb)(lhs.loadEnd(_))
-            val start = EmitCode.fromI(cb.emb)(rhs.loadStart(_))
+            val end = EmitCode.fromI(cb.emb)(cb => lhs.loadEnd(cb).typecast[PCode])
+            val start = EmitCode.fromI(cb.emb)(cb => rhs.loadStart(cb).typecast[PCode])
             cb += start.setup
             cb += end.setup
             val cmp = cb.newLocal("cmp", compare(end.m -> end.v, start.m -> start.v))

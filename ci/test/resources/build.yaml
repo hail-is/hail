@@ -3,15 +3,11 @@ steps:
    name: default_ns
    namespaceName: default
    public: true
- - kind: createNamespace
-   name: batch_pods_ns
-   namespaceName: batch_pods
-   public: false
  - kind: buildImage
    name: inline_image
    dockerFile:
      inline: |
-       FROM ubuntu:18.04
+       FROM gcr.io/{{ global.project }}/ubuntu:18.04
        RUN apt-get update && apt-get install -y git
    contextPath: .
  - kind: runImage
@@ -38,10 +34,17 @@ steps:
    dependsOn:
     - inline_image
  - kind: buildImage
+   name: hail_ubuntu_image
+   dockerFile: docker/hail-ubuntu/Dockerfile
+   contextPath: docker/hail-ubuntu
+   publishAs: hail-ubuntu
+ - kind: buildImage
    name: base_image
    dockerFile: docker/Dockerfile.base
    contextPath: .
    publishAs: base
+   dependsOn:
+    - hail_ubuntu_image
  - kind: buildImage
    name: service_base_image
    dockerFile: docker/Dockerfile.service-base
@@ -142,7 +145,7 @@ steps:
    secrets:
     - name: test-tokens
       namespace:
-        valueFrom: batch_pods_ns.name
+        valueFrom: default_ns.name
       mountPath: /user-tokens
     - name: gce-deploy-config
       namespace:
@@ -152,4 +155,3 @@ steps:
     - service_base_image
     - default_ns
     - deploy_hello
-    - batch_pods_ns

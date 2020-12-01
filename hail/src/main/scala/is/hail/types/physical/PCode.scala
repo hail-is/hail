@@ -1,12 +1,14 @@
 package is.hail.types.physical
 
-import is.hail.annotations.{Region, UnsafeUtils}
+import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.expr.ir._
-import is.hail.utils._
-import is.hail.variant.Genotype
+import is.hail.types.physical.stypes._
+import is.hail.types.physical.stypes.concrete._
+import is.hail.types.physical.stypes.interfaces.PVoidCode
+import is.hail.types.physical.stypes.primitives._
 
-trait PValue { pValueSelf =>
+trait PValue extends SValue { pValueSelf =>
   def pt: PType
 
   def get(implicit line: LineNumber): PCode
@@ -19,16 +21,18 @@ trait PValue { pValueSelf =>
 }
 
 trait PSettable extends PValue {
-  def store(v: PCode)(implicit line: LineNumber): Code[Unit]
+
+  def store(cb: EmitCodeBuilder, v: PCode)(implicit line: LineNumber): Unit
 
   def settableTuple(): IndexedSeq[Settable[_]]
 
   def load()(implicit line: LineNumber): PCode = get
-
-  def :=(v: PCode)(implicit line: LineNumber): Code[Unit] = store(v)
 }
 
-abstract class PCode { self =>
+abstract class PCode extends SCode { self =>
+
+  def st: SType
+
   def pt: PType
 
   def code: Code[_]
@@ -42,96 +46,83 @@ abstract class PCode { self =>
     code.asInstanceOf[Code[T]]
   }
 
-  def store(mb: EmitMethodBuilder[_], r: Value[Region], dst: Code[Long])(implicit line: LineNumber): Code[Unit]
+  override def asBoolean: SBooleanCode = asInstanceOf[SBooleanCode]
+  override def asInt: SInt32Code = asInstanceOf[SInt32Code]
+  override def asInt32: SInt32Code = asInstanceOf[SInt32Code]
+  override def asLong: SInt64Code = asInstanceOf[SInt64Code]
+  override def asInt64: SInt64Code = asInstanceOf[SInt64Code]
+  override def asFloat: SFloat32Code = asInstanceOf[SFloat32Code]
+  override def asFloat32: SFloat32Code = asInstanceOf[SFloat32Code]
+  override def asFloat64: SFloat64Code = asInstanceOf[SFloat64Code]
+  override def asDouble: SFloat64Code = asInstanceOf[SFloat64Code]
+  override def asBinary: PBinaryCode = asInstanceOf[PBinaryCode]
+  override def asIndexable: PIndexableCode = asInstanceOf[PIndexableCode]
+  override def asBaseStruct: PBaseStructCode = asInstanceOf[PBaseStructCode]
+  override def asString: PStringCode = asInstanceOf[PStringCode]
+  override def asInterval: PIntervalCode = asInstanceOf[PIntervalCode]
+  override def asNDArray: PNDArrayCode = asInstanceOf[PNDArrayCode]
+  override def asLocus: PLocusCode = asInstanceOf[PLocusCode]
 
-  def allocateAndStore(mb: EmitMethodBuilder[_], r: Value[Region])(implicit line: LineNumber): (Code[Unit], Code[Long]) = {
-    val dst = mb.newLocal[Long]()
-    (Code(dst := r.allocate(pt.byteSize, pt.alignment), store(mb, r, dst)), dst)
+  override def asCall: PCallCode = asInstanceOf[PCallCode]
+
+  override def castTo(cb: EmitCodeBuilder, region: Value[Region], destType: PType): PCode =
+    castTo(cb, region, destType, false)
+
+  override def castTo(cb: EmitCodeBuilder, region: Value[Region], destType: PType, deepCopy: Boolean)(implicit line: LineNumber): PCode = {
+    super.castTo(cb, region, destType, deepCopy).asPCode
   }
 
-  def asPrimitive: PPrimitiveCode = asInstanceOf[PPrimitiveCode]
+  override def copyToRegion(cb: EmitCodeBuilder, region: Value[Region]): PCode = copyToRegion(cb, region, pt)
 
-  def asIndexable: PIndexableCode = asInstanceOf[PIndexableCode]
-
-  def asBaseStruct: PBaseStructCode = asInstanceOf[PBaseStructCode]
-
-  def asString: PStringCode = asInstanceOf[PStringCode]
-
-  def asInterval: PIntervalCode = asInstanceOf[PIntervalCode]
-
-  def asNDArray: PNDArrayCode = asInstanceOf[PNDArrayCode]
-
-  def asLocus: PLocusCode = asInstanceOf[PLocusCode]
-
-  def asCall: PCallCode = asInstanceOf[PCallCode]
-
-  def asStream: PCanonicalStreamCode = asInstanceOf[PCanonicalStreamCode]
-
-  def castTo(mb: EmitMethodBuilder[_], region: Value[Region], destType: PType, deepCopy: Boolean = false)(implicit line: LineNumber): PCode = {
-    PCode(destType,
-      destType.copyFromTypeAndStackValue(mb, region, pt, code, deepCopy))
-  }
-
-  def copyToRegion(mb: EmitMethodBuilder[_], region: Value[Region], destType: PType = pt)(implicit line: LineNumber): PCode =
-    castTo(mb, region, destType, deepCopy = true)
-
-  // this is necessary because Scala doesn't infer the return type of
-  // PIndexableCode.memoize if PCode.memoize has a default implementation
-  def defaultMemoizeImpl(cb: EmitCodeBuilder, name: String)(implicit line: LineNumber): PValue = {
-    new PValue {
-      val pt: PType = self.pt
-
-      private val v = cb.newLocalAny(name, code)(typeToTypeInfo(pt), line)
-
-      def get(implicit line: LineNumber): PCode = PCode(pt, v)
-    }
-  }
-
-  def defaultMemoizeFieldImpl(cb: EmitCodeBuilder, name: String)(implicit line: LineNumber): PValue = {
-    new PValue {
-      val pt: PType = self.pt
-
-      private val v = cb.newFieldAny(name, code)(typeToTypeInfo(pt), line)
-
-      def get(implicit line: LineNumber): PCode = PCode(pt, v)
-    }
-  }
+  override def copyToRegion(cb: EmitCodeBuilder, region: Value[Region], destType: PType): PCode =
+    super.copyToRegion(cb, region, destType).asPCode
 
   def memoize(cb: EmitCodeBuilder, name: String)(implicit line: LineNumber): PValue
 
   def memoizeField(cb: EmitCodeBuilder, name: String)(implicit line: LineNumber): PValue
+
+  final def toPCode(cb: EmitCodeBuilder, region: Value[Region])(implicit line: LineNumber): PCode = this
 }
 
 object PCode {
   def apply(pt: PType, code: Code[_]): PCode = pt match {
-    case pt: PCanonicalArray =>
-      new PCanonicalIndexableCode(pt, coerce[Long](code))
+    case pt: PCanonicalArray  =>
+      new SIndexablePointerCode(SIndexablePointer(pt), coerce[Long](code))
     case pt: PCanonicalSet =>
-      new PCanonicalIndexableCode(pt, coerce[Long](code))
+      new SIndexablePointerCode(SIndexablePointer(pt), coerce[Long](code))
     case pt: PCanonicalDict =>
-      new PCanonicalIndexableCode(pt, coerce[Long](code))
+      new SIndexablePointerCode(SIndexablePointer(pt), coerce[Long](code))
     case pt: PSubsetStruct =>
-      new PSubsetStructCode(pt, coerce[Long](code))
+      val ss = pt.sType
+      new SSubsetStructCode(ss, PCode(ss.pType.ps, code).asBaseStruct)
     case pt: PCanonicalBaseStruct =>
-      new PCanonicalBaseStructCode(pt, coerce[Long](code))
+      new SBaseStructPointerCode(SBaseStructPointer(pt), coerce[Long](code))
     case pt: PCanonicalBinary =>
-      new PCanonicalBinaryCode(pt, coerce[Long](code))
+      new SBinaryPointerCode(SBinaryPointer(pt), coerce[Long](code))
     case pt: PCanonicalString =>
-      new PCanonicalStringCode(pt, coerce[Long](code))
+      new SStringPointerCode(SStringPointer(pt), coerce[Long](code))
     case pt: PCanonicalInterval =>
-      new PCanonicalIntervalCode(pt, coerce[Long](code))
+      new SIntervalPointerCode(SIntervalPointer(pt), coerce[Long](code))
     case pt: PCanonicalLocus =>
-      new PCanonicalLocusCode(pt, coerce[Long](code))
+      new SCanonicalLocusPointerCode(SCanonicalLocusPointer(pt), coerce[Long](code))
     case pt: PCanonicalCall =>
-      new PCanonicalCallCode(pt, coerce[Int](code))
+      new SCanonicalCallCode(pt.required, coerce[Int](code))
     case pt: PCanonicalNDArray =>
-      new PCanonicalNDArrayCode(pt, coerce[Long](code))
+      new SNDArrayPointerCode(SNDArrayPointer(pt), coerce[Long](code))
     case pt: PCanonicalStream =>
       throw new UnsupportedOperationException(s"Can't PCode.apply unrealizable PType: $pt")
     case PVoid =>
       throw new UnsupportedOperationException(s"Can't PCode.apply unrealizable PType: $pt")
-    case _ =>
-      new PPrimitiveCode(pt, code)
+    case PBoolean(r) =>
+      new SBooleanCode(r, coerce[Boolean](code))
+    case PInt32(r) =>
+      new SInt32Code(r, coerce[Int](code))
+    case PInt64(r) =>
+      new SInt64Code(r, coerce[Long](code))
+    case PFloat32(r) =>
+      new SFloat32Code(r, coerce[Float](code))
+    case PFloat64(r) =>
+      new SFloat64Code(r, coerce[Double](code))
   }
 
   def _empty: PCode = PVoidCode
@@ -140,36 +131,40 @@ object PCode {
 object PSettable {
   def apply(sb: SettableBuilder, _pt: PType, name: String): PSettable = _pt match {
     case pt: PCanonicalArray =>
-      PCanonicalIndexableSettable(sb, pt, name)
-    case pt: PCanonicalBinary =>
-      PCanonicalBinarySettable(sb,pt, name)
+      SIndexablePointerSettable(sb, SIndexablePointer(pt), name)
     case pt: PCanonicalSet =>
-      PCanonicalIndexableSettable(sb, pt, name)
+      SIndexablePointerSettable(sb, SIndexablePointer(pt), name)
     case pt: PCanonicalDict =>
-      PCanonicalIndexableSettable(sb, pt, name)
-
+      SIndexablePointerSettable(sb, SIndexablePointer(pt), name)
+    case pt: PSubsetStruct =>
+      new SSubsetStructSettable(pt.sType, PSettable(sb, pt.ps, name).asInstanceOf[PStructSettable])
     case pt: PCanonicalBaseStruct =>
-      PCanonicalBaseStructSettable(sb, pt, name)
-
+      SBaseStructPointerSettable(sb, SBaseStructPointer(pt), name)
+    case pt: PCanonicalBinary =>
+      SBinaryPointerSettable(sb, SBinaryPointer(pt), name)
+    case pt: PCanonicalString =>
+      SStringPointerSettable(sb, SStringPointer(pt), name)
     case pt: PCanonicalInterval =>
-      PCanonicalIntervalSettable(sb, pt, name)
+      SIntervalPointerSettable(sb, SIntervalPointer(pt), name)
     case pt: PCanonicalLocus =>
-      PCanonicalLocusSettable(sb, pt, name)
+      SCanonicalLocusPointerSettable(sb, SCanonicalLocusPointer(pt), name)
     case pt: PCanonicalCall =>
-      PCanonicalCallSettable(sb, pt, name)
-
-    case _ => new PSettable {
-      val pt: PType = _pt
-
-      private val v = sb.newSettable(name)(typeToTypeInfo(pt))
-
-      def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(v)
-
-      def get(implicit line: LineNumber): PCode = PCode(pt, v)
-
-      def store(pv: PCode)(implicit line: LineNumber): Code[Unit] = {
-        v.storeAny(pv.code)
-      }
-    }
+      SCanonicalCallSettable(sb, name, pt.required)
+    case pt: PCanonicalNDArray =>
+      SNDArrayPointerSettable(sb, SNDArrayPointer(pt), name)
+    case pt: PCanonicalStream =>
+      throw new UnsupportedOperationException(s"Can't PCode.apply unrealizable PType: $pt")
+    case PVoid =>
+      throw new UnsupportedOperationException(s"Can't PCode.apply unrealizable PType: PVoid")
+    case PBoolean(r) =>
+      SBooleanSettable(sb, name, r)
+    case PInt32(r) =>
+      SInt32Settable(sb, name, r)
+    case PInt64(r) =>
+      SInt64Settable(sb, name, r)
+    case PFloat32(r) =>
+      SFloat32Settable(sb, name, r)
+    case PFloat64(r) =>
+      SFloat64Settable(sb, name, r)
   }
 }

@@ -4,6 +4,7 @@ import is.hail.annotations._
 import is.hail.asm4s.{Code, _}
 import is.hail.check.Gen
 import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, IEmitCode, SortOrder}
+import is.hail.types.physical.stypes.interfaces.{SBaseStructCode, SBaseStructValue}
 import is.hail.utils._
 
 object PBaseStruct {
@@ -179,7 +180,7 @@ abstract class PBaseStruct extends PType {
 
   def loadField(offset: Code[Long], fieldIdx: Int)(implicit line: LineNumber): Code[Long]
 
-  override def containsPointers: Boolean = types.exists(_.containsPointers)
+  override lazy val containsPointers: Boolean = types.exists(_.containsPointers)
 
   override def genNonmissingValue: Gen[Annotation] = {
     if (types.isEmpty) {
@@ -187,28 +188,18 @@ abstract class PBaseStruct extends PType {
     } else
       Gen.uniformSequence(types.map(t => t.genValue)).map(a => Annotation(a: _*))
   }
-
-  override def load(src: Code[Long])(implicit line: LineNumber): PBaseStructCode = ???
 }
 
-abstract class PBaseStructValue extends PValue {
+abstract class PBaseStructValue extends PValue with SBaseStructValue {
   def pt: PBaseStruct
-
-  def isFieldMissing(fieldIdx: Int)(implicit line: LineNumber): Code[Boolean]
-
-  def isFieldMissing(fieldName: String)(implicit line: LineNumber): Code[Boolean] =
-    isFieldMissing(pt.fieldIdx(fieldName))
-
-  def loadField(cb: EmitCodeBuilder, fieldIdx: Int)(implicit line: LineNumber): IEmitCode
-
-  def loadField(cb: EmitCodeBuilder, fieldName: String)(implicit line: LineNumber): IEmitCode =
-    loadField(cb, pt.fieldIdx(fieldName))
 }
 
-abstract class PBaseStructCode extends PCode {
+abstract class PBaseStructCode extends PCode with SBaseStructCode {
   def pt: PBaseStruct
 
   def memoize(cb: EmitCodeBuilder, name: String)(implicit line: LineNumber): PBaseStructValue
 
   def memoizeField(cb: EmitCodeBuilder, name: String)(implicit line: LineNumber): PBaseStructValue
 }
+
+trait PStructSettable extends PBaseStructValue with PSettable

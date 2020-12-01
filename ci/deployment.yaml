@@ -55,8 +55,6 @@ spec:
              value: "{{ global.domain }}"
            - name: HAIL_DEFAULT_NAMESPACE
              value: "{{ default_ns.name }}"
-           - name: HAIL_BATCH_PODS_NAMESPACE
-             value: "{{ batch_pods_ns.name }}"
            - name: KUBERNETES_SERVER_URL
              value: "{{ global.k8s_server_url }}"
            - name: HAIL_CI_BUCKET_NAME

@@ -1,5 +1,9 @@
 from google.cloud import storage
 import re
+import logging
+from .config import BENCHMARK_RESULTS_PATH
+
+log = logging.getLogger('benchmark')
 
 BENCHMARK_BUCKETS = ['hail-benchmarks', 'hail-benchmarks-2']
 
@@ -45,6 +49,17 @@ def list_benchmark_files(read_gs):
     return list_of_files
 
 
+async def submit_test_batch(batch_client, sha):
+    batch = batch_client.create_batch(attributes={'sha': sha})
+    job = batch.create_job(image='ubuntu:18.04',
+                           command=['/bin/bash', '-c', 'touch /io/test; sleep 5'],
+                           resources={'cpu': '0.25'},
+                           output_files=[('/io/test', f'{BENCHMARK_RESULTS_PATH}/{sha}.json')])
+    await batch.submit(disable_progress_bar=True)
+    log.info(f'submitted batch for commit {sha}')
+    return job.batch_id
+
+
 class ReadGoogleStorage:
     def __init__(self, service_account_key_file=None):
         self.storage_client = storage.Client.from_service_account_json(service_account_key_file)
@@ -52,10 +67,10 @@ class ReadGoogleStorage:
     def get_data_as_string(self, file_path):
         file_info = parse_file_path(FILE_PATH_REGEX, file_path)
         bucket = self.storage_client.get_bucket(file_info['bucket'])
-        shorter_file_path = file_info['path']
+        path = file_info['path']
         try:
             # get bucket data as blob
-            blob = bucket.blob(shorter_file_path)
+            blob = bucket.blob(path)
             # convert to string
             data = blob.download_as_string()
         except Exception as e:
@@ -68,3 +83,19 @@ class ReadGoogleStorage:
         for blob in bucket.list_blobs():
             list_of_files.append('gs://' + bucket_name + '/' + blob.name)
         return list_of_files
+
+    def file_exists(self, file_path):
+        file_info = parse_file_path(FILE_PATH_REGEX, file_path)
+        bucket_name = file_info['bucket']
+        bucket = self.storage_client.bucket(bucket_name)
+        path = file_info['path']
+        exists = storage.Blob(bucket=bucket, name=path).exists()
+        log.info(f'file {bucket_name}/{path} in bucket {bucket_name} exists? {exists}')
+        return exists
+
+    def delete_file(self, file_path):
+        file_info = parse_file_path(FILE_PATH_REGEX, file_path)
+        bucket_name = file_info['bucket']
+        bucket = self.storage_client.bucket(bucket_name)
+        path = file_info['path']
+        storage.Blob(bucket=bucket, name=path).delete()

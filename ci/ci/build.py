@@ -9,7 +9,7 @@ import jinja2
 from hailtop.utils import RETRY_FUNCTION_SCRIPT, flatten
 from .utils import generate_token
 from .environment import GCP_PROJECT, GCP_ZONE, DOMAIN, IP, CI_UTILS_IMAGE, \
-    DEFAULT_NAMESPACE, BATCH_PODS_NAMESPACE, KUBERNETES_SERVER_URL, BUCKET
+    DEFAULT_NAMESPACE, KUBERNETES_SERVER_URL, BUCKET
 from .globals import is_test_deployment
 
 log = logging.getLogger('ci')
@@ -348,7 +348,7 @@ date
                                     command=['bash', '-c', script],
                                     mount_docker_socket=True,
                                     secrets=[{
-                                        'namespace': BATCH_PODS_NAMESPACE,
+                                        'namespace': DEFAULT_NAMESPACE,
                                         'name': 'gcr-push-service-account-key',
                                         'mount_path': '/secrets/gcr-push-service-account-key'
                                     }],
@@ -381,7 +381,7 @@ true
                                     command=['bash', '-c', script],
                                     attributes={'name': f'cleanup_{self.name}'},
                                     secrets=[{
-                                        'namespace': BATCH_PODS_NAMESPACE,
+                                        'namespace': DEFAULT_NAMESPACE,
                                         'name': 'gcr-push-service-account-key',
                                         'mount_path': '/secrets/gcr-push-service-account-key'
                                     }],
@@ -503,11 +503,8 @@ class CreateNamespaceStep(Step):
         self.job = None
 
         if is_test_deployment:
-            assert self.namespace_name in ('default', 'batch_pods'), self.namespace_name
-            if self.namespace_name == 'default':
-                self._name = DEFAULT_NAMESPACE
-            else:
-                self._name = BATCH_PODS_NAMESPACE
+            assert self.namespace_name == 'default'
+            self._name = DEFAULT_NAMESPACE
             return
 
         if params.scope == 'deploy':
@@ -609,20 +606,21 @@ roleRef:
 '''
 
         if self.public:
-            config = config + '''\
+            config = config + f'''\
 ---
 apiVersion: v1
 kind: Service
 metadata:
   name: router
+  namespace: {self._name}
   labels:
     app: router
 spec:
   ports:
   - name: http
-    port: 80
+    port: 443
     protocol: TCP
-    targetPort: 80
+    targetPort: 443
   selector:
     app: router
 '''
@@ -649,7 +647,7 @@ date
                                     attributes={'name': self.name},
                                     # FIXME configuration
                                     service_account={
-                                        'namespace': BATCH_PODS_NAMESPACE,
+                                        'namespace': DEFAULT_NAMESPACE,
                                         'name': 'ci-agent'
                                     },
                                     parents=self.deps_parents(),
@@ -677,7 +675,7 @@ true
                                     command=['bash', '-c', script],
                                     attributes={'name': f'cleanup_{self.name}'},
                                     service_account={
-                                        'namespace': BATCH_PODS_NAMESPACE,
+                                        'namespace': DEFAULT_NAMESPACE,
                                         'name': 'ci-agent'
                                     },
                                     parents=parents,
@@ -796,7 +794,7 @@ date
                                     attributes=attrs,
                                     # FIXME configuration
                                     service_account={
-                                        'namespace': BATCH_PODS_NAMESPACE,
+                                        'namespace': DEFAULT_NAMESPACE,
                                         'name': 'ci-agent'
                                     },
                                     parents=self.deps_parents(),
@@ -821,7 +819,7 @@ date
                                         attributes={'name': self.name + '_logs'},
                                         # FIXME configuration
                                         service_account={
-                                            'namespace': BATCH_PODS_NAMESPACE,
+                                            'namespace': DEFAULT_NAMESPACE,
                                             'name': 'ci-agent'
                                         },
                                         parents=parents,
@@ -963,7 +961,7 @@ EOF
                 'mount_path': '/sql-config'
             }],
             service_account={
-                'namespace': BATCH_PODS_NAMESPACE,
+                'namespace': DEFAULT_NAMESPACE,
                 'name': 'ci-agent'
             },
             input_files=input_files,
@@ -1003,7 +1001,7 @@ done
                 'mount_path': '/sql-config'
             }],
             service_account={
-                'namespace': BATCH_PODS_NAMESPACE,
+                'namespace': DEFAULT_NAMESPACE,
                 'name': 'ci-agent'
             },
             parents=parents,

@@ -19,6 +19,8 @@ from .failure_injecting_client_session import FailureInjectingClientSession
 
 deploy_config = get_deploy_config()
 
+DOCKER_ROOT_IMAGE = os.environ.get('DOCKER_ROOT_IMAGE', 'gcr.io/hail-vdc/ubuntu:18.04')
+
 
 def poll_until(p, max_polls=None):
     i = 0
@@ -42,7 +44,7 @@ def client():
 
 def test_job(client):
     builder = client.create_batch()
-    j = builder.create_job('ubuntu:18.04', ['echo', 'test'])
+    j = builder.create_job(DOCKER_ROOT_IMAGE, ['echo', 'test'])
     b = builder.submit()
     status = j.wait()
     assert 'attributes' not in status, (status, j.log())
@@ -54,7 +56,7 @@ def test_job(client):
 
 def test_exit_code_duration(client):
     builder = client.create_batch()
-    j = builder.create_job('ubuntu:18.04', ['bash', '-c', 'exit 7'])
+    j = builder.create_job(DOCKER_ROOT_IMAGE, ['bash', '-c', 'exit 7'])
     b = builder.submit()
     status = j.wait()
     assert status['exit_code'] == 7, status
@@ -70,8 +72,8 @@ def test_msec_mcpu(client):
         'storage': '1Gi'
     }
     # two jobs so the batch msec_mcpu computation is non-trivial
-    builder.create_job('ubuntu:18.04', ['echo', 'foo'], resources=resources)
-    builder.create_job('ubuntu:18.04', ['echo', 'bar'], resources=resources)
+    builder.create_job(DOCKER_ROOT_IMAGE, ['echo', 'foo'], resources=resources)
+    builder.create_job(DOCKER_ROOT_IMAGE, ['echo', 'bar'], resources=resources)
     b = builder.submit()
 
     batch = b.wait()
@@ -99,7 +101,7 @@ def test_attributes(client):
         'foo': 'bar'
     }
     builder = client.create_batch()
-    j = builder.create_job('ubuntu:18.04', ['true'], attributes=a)
+    j = builder.create_job(DOCKER_ROOT_IMAGE, ['true'], attributes=a)
     builder.submit()
     assert(j.attributes() == a)
 
@@ -116,7 +118,7 @@ def test_garbage_image(client):
 
 def test_bad_command(client):
     builder = client.create_batch()
-    j = builder.create_job('ubuntu:18.04', ['sleep 5'])
+    j = builder.create_job(DOCKER_ROOT_IMAGE, ['sleep 5'])
     builder.submit()
     status = j.wait()
     assert j._get_exit_codes(status) == {'main': None}, status
@@ -127,13 +129,13 @@ def test_bad_command(client):
 def test_invalid_resource_requests(client):
     builder = client.create_batch()
     resources = {'cpu': '1', 'memory': '250Gi', 'storage': '1Gi'}
-    builder.create_job('ubuntu:18.04', ['true'], resources=resources)
+    builder.create_job(DOCKER_ROOT_IMAGE, ['true'], resources=resources)
     with pytest.raises(aiohttp.client.ClientResponseError, match='resource requests.*unsatisfiable'):
         builder.submit()
 
     builder = client.create_batch()
     resources = {'cpu': '0', 'memory': '1Gi', 'storage': '1Gi'}
-    builder.create_job('ubuntu:18.04', ['true'], resources=resources)
+    builder.create_job(DOCKER_ROOT_IMAGE, ['true'], resources=resources)
     with pytest.raises(aiohttp.client.ClientResponseError, match='bad resource request.*cpu cannot be 0'):
         builder.submit()
 
@@ -152,7 +154,7 @@ def test_out_of_memory(client):
 def test_out_of_storage(client):
     builder = client.create_batch()
     resources = {'cpu': '0.1', 'memory': '10M', 'storage': '5Gi'}
-    j = builder.create_job('ubuntu:18.04',
+    j = builder.create_job(DOCKER_ROOT_IMAGE,
                            ['/bin/sh', '-c', 'fallocate -l 100GiB /foo'],
                            resources=resources)
     builder.submit()
@@ -163,7 +165,7 @@ def test_out_of_storage(client):
 
 def test_unsubmitted_state(client):
     builder = client.create_batch()
-    j = builder.create_job('ubuntu:18.04', ['echo', 'test'])
+    j = builder.create_job(DOCKER_ROOT_IMAGE, ['echo', 'test'])
 
     with pytest.raises(ValueError):
         j.batch_id
@@ -180,17 +182,17 @@ def test_unsubmitted_state(client):
 
     builder.submit()
     with pytest.raises(ValueError):
-        builder.create_job('ubuntu:18.04', ['echo', 'test'])
+        builder.create_job(DOCKER_ROOT_IMAGE, ['echo', 'test'])
 
 
 def test_list_batches(client):
     tag = secrets.token_urlsafe(64)
     b1 = client.create_batch(attributes={'tag': tag, 'name': 'b1'})
-    b1.create_job('ubuntu:18.04', ['sleep', '3600'])
+    b1.create_job(DOCKER_ROOT_IMAGE, ['sleep', '3600'])
     b1 = b1.submit()
 
     b2 = client.create_batch(attributes={'tag': tag, 'name': 'b2'})
-    b2.create_job('ubuntu:18.04', ['echo', 'test'])
+    b2.create_job(DOCKER_ROOT_IMAGE, ['echo', 'test'])
     b2 = b2.submit()
 
     def assert_batch_ids(expected, q=None):
@@ -225,10 +227,10 @@ def test_list_batches(client):
 
 def test_list_jobs(client):
     b = client.create_batch()
-    j_success = b.create_job('ubuntu:18.04', ['true'])
-    j_failure = b.create_job('ubuntu:18.04', ['false'])
-    j_error = b.create_job('ubuntu:18.04', ['sleep 5'], attributes={'tag': 'bar'})
-    j_running = b.create_job('ubuntu:18.04', ['sleep', '1800'], attributes={'tag': 'foo'})
+    j_success = b.create_job(DOCKER_ROOT_IMAGE, ['true'])
+    j_failure = b.create_job(DOCKER_ROOT_IMAGE, ['false'])
+    j_error = b.create_job(DOCKER_ROOT_IMAGE, ['sleep 5'], attributes={'tag': 'bar'})
+    j_running = b.create_job(DOCKER_ROOT_IMAGE, ['sleep', '1800'], attributes={'tag': 'foo'})
 
     b = b.submit()
     j_success.wait()
@@ -252,7 +254,7 @@ def test_list_jobs(client):
 def test_include_jobs(client):
     b1 = client.create_batch()
     for i in range(2):
-        b1.create_job('ubuntu:18.04', ['true'])
+        b1.create_job(DOCKER_ROOT_IMAGE, ['true'])
     b1 = b1.submit()
     s = b1.status()
     assert 'jobs' not in s
@@ -260,7 +262,7 @@ def test_include_jobs(client):
 
 def test_fail(client):
     b = client.create_batch()
-    j = b.create_job('ubuntu:18.04', ['false'])
+    j = b.create_job(DOCKER_ROOT_IMAGE, ['false'])
     b.submit()
     status = j.wait()
     assert j._get_exit_code(status, 'main') == 1
@@ -268,7 +270,7 @@ def test_fail(client):
 
 def test_running_job_log_and_status(client):
     b = client.create_batch()
-    j = b.create_job('ubuntu:18.04', ['sleep', '300'])
+    j = b.create_job(DOCKER_ROOT_IMAGE, ['sleep', '300'])
     b = b.submit()
 
     while True:
@@ -282,7 +284,7 @@ def test_running_job_log_and_status(client):
 
 def test_deleted_job_log(client):
     b = client.create_batch()
-    j = b.create_job('ubuntu:18.04', ['echo', 'test'])
+    j = b.create_job(DOCKER_ROOT_IMAGE, ['echo', 'test'])
     b = b.submit()
     j.wait()
     b.delete()
@@ -298,7 +300,7 @@ def test_deleted_job_log(client):
 
 def test_delete_batch(client):
     b = client.create_batch()
-    j = b.create_job('ubuntu:18.04', ['sleep', '30'])
+    j = b.create_job(DOCKER_ROOT_IMAGE, ['sleep', '30'])
     b = b.submit()
     b.delete()
 
@@ -314,7 +316,7 @@ def test_delete_batch(client):
 
 def test_cancel_batch(client):
     b = client.create_batch()
-    j = b.create_job('ubuntu:18.04', ['sleep', '30'])
+    j = b.create_job(DOCKER_ROOT_IMAGE, ['sleep', '30'])
     b = b.submit()
 
     status = j.status()
@@ -348,7 +350,7 @@ def test_get_nonexistent_job(client):
 
 def test_get_job(client):
     b = client.create_batch()
-    j = b.create_job('ubuntu:18.04', ['true'])
+    j = b.create_job(DOCKER_ROOT_IMAGE, ['true'])
     b.submit()
 
     j2 = client.get_job(*j.id)
@@ -358,9 +360,9 @@ def test_get_job(client):
 
 def test_batch(client):
     b = client.create_batch()
-    j1 = b.create_job('ubuntu:18.04', ['false'])
-    j2 = b.create_job('ubuntu:18.04', ['sleep', '1'])
-    j3 = b.create_job('ubuntu:18.04', ['sleep', '30'])
+    j1 = b.create_job(DOCKER_ROOT_IMAGE, ['false'])
+    j2 = b.create_job(DOCKER_ROOT_IMAGE, ['sleep', '1'])
+    j3 = b.create_job(DOCKER_ROOT_IMAGE, ['sleep', '30'])
     b = b.submit()
 
     j1.wait()
@@ -382,29 +384,29 @@ def test_batch(client):
 
 def test_batch_status(client):
     b1 = client.create_batch()
-    b1.create_job('ubuntu:18.04', ['true'])
+    b1.create_job(DOCKER_ROOT_IMAGE, ['true'])
     b1 = b1.submit()
     b1.wait()
     b1s = b1.status()
     assert b1s['complete'] and b1s['state'] == 'success', b1s
 
     b2 = client.create_batch()
-    b2.create_job('ubuntu:18.04', ['false'])
-    b2.create_job('ubuntu:18.04', ['true'])
+    b2.create_job(DOCKER_ROOT_IMAGE, ['false'])
+    b2.create_job(DOCKER_ROOT_IMAGE, ['true'])
     b2 = b2.submit()
     b2.wait()
     b2s = b2.status()
     assert b2s['complete'] and b2s['state'] == 'failure', b2s
 
     b3 = client.create_batch()
-    b3.create_job('ubuntu:18.04', ['sleep', '30'])
+    b3.create_job(DOCKER_ROOT_IMAGE, ['sleep', '30'])
     b3 = b3.submit()
     b3s = b3.status()
     assert not b3s['complete'] and b3s['state'] == 'running', b3s
     b3.cancel()
 
     b4 = client.create_batch()
-    b4.create_job('ubuntu:18.04', ['sleep', '30'])
+    b4.create_job(DOCKER_ROOT_IMAGE, ['sleep', '30'])
     b4 = b4.submit()
     b4.cancel()
     b4.wait()
@@ -414,7 +416,7 @@ def test_batch_status(client):
 
 def test_log_after_failing_job(client):
     b = client.create_batch()
-    j = b.create_job('ubuntu:18.04', ['/bin/sh', '-c', 'echo test; exit 127'])
+    j = b.create_job(DOCKER_ROOT_IMAGE, ['/bin/sh', '-c', 'echo test; exit 127'])
     b.submit()
     status = j.wait()
     assert 'attributes' not in status
@@ -472,7 +474,7 @@ def test_service_account(client):
         os.environ['CI_UTILS_IMAGE'],
         ['/bin/sh', '-c', 'kubectl version'],
         service_account={
-            'namespace': os.environ['HAIL_BATCH_PODS_NAMESPACE'],
+            'namespace': os.environ['HAIL_DEFAULT_NAMESPACE'],
             'name': 'test-batch-sa'
         })
     b.submit()
@@ -482,7 +484,7 @@ def test_service_account(client):
 
 def test_port(client):
     builder = client.create_batch()
-    j = builder.create_job('ubuntu:18.04', ['bash', '-c', '''
+    j = builder.create_job(DOCKER_ROOT_IMAGE, ['bash', '-c', '''
 echo $HAIL_BATCH_WORKER_PORT
 echo $HAIL_BATCH_WORKER_IP
 '''], port=5000)
@@ -493,7 +495,7 @@ echo $HAIL_BATCH_WORKER_IP
 
 def test_timeout(client):
     builder = client.create_batch()
-    j = builder.create_job('ubuntu:18.04', ['sleep', '30'], timeout=5)
+    j = builder.create_job(DOCKER_ROOT_IMAGE, ['sleep', '30'], timeout=5)
     b = builder.submit()
     status = j.wait()
     assert status['state'] == 'Error', (status, j.log())
@@ -505,7 +507,7 @@ def test_timeout(client):
 def test_client_max_size(client):
     builder = client.create_batch()
     for i in range(4):
-        builder.create_job('ubuntu:18.04',
+        builder.create_job(DOCKER_ROOT_IMAGE,
                            ['echo', 'a' * (900 * 1024)])
     builder.submit()
 
@@ -525,7 +527,7 @@ def test_restartable_insert(client):
         builder = client.create_batch()
 
         for _ in range(9):
-            builder.create_job('ubuntu:18.04', ['echo', 'a'])
+            builder.create_job(DOCKER_ROOT_IMAGE, ['echo', 'a'])
 
         b = builder.submit(max_bunch_size=1)
         b = client.get_batch(b.id)  # get a batch untainted by the FailureInjectingClientSession
@@ -536,7 +538,7 @@ def test_restartable_insert(client):
 
 def test_create_idempotence(client):
     builder = client.create_batch()
-    builder.create_job('ubuntu:18.04', ['/bin/true'])
+    builder.create_job(DOCKER_ROOT_IMAGE, ['/bin/true'])
     batch_token = secrets.token_urlsafe(32)
     b = builder._create(batch_token=batch_token)
     b2 = builder._create(batch_token=batch_token)
@@ -576,8 +578,8 @@ def test_batch_create_validation():
 
 def test_duplicate_parents(client):
     batch = client.create_batch()
-    head = batch.create_job('ubuntu:18.04', command=['echo', 'head'])
-    batch.create_job('ubuntu:18.04', command=['echo', 'tail'], parents=[head, head])
+    head = batch.create_job(DOCKER_ROOT_IMAGE, command=['echo', 'head'])
+    batch.create_job(DOCKER_ROOT_IMAGE, command=['echo', 'tail'], parents=[head, head])
     try:
         batch = batch.submit()
     except aiohttp.ClientResponseError as e:
@@ -604,7 +606,7 @@ def test_user_authentication_within_job(client):
     batch.submit()
 
     with_token_status = with_token.wait()
-    assert with_token_status['state'] == 'Success', with_token_status
+    assert with_token_status['state'] == 'Success', f'{(with_token.log(), with_token_status)}'
 
     username = get_userinfo()['username']
 
@@ -615,7 +617,7 @@ def test_user_authentication_within_job(client):
     assert job_userinfo is not None and job_userinfo["username"] == username, (username, with_token.log()['main'])
 
     no_token_status = no_token.wait()
-    assert no_token_status['state'] == 'Failed', no_token_status
+    assert no_token_status['state'] == 'Failed', f'{(no_token.log(), no_token_status)}'
 
 
 def test_verify_access_to_public_internet(client):

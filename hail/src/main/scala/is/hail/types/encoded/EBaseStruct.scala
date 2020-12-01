@@ -139,7 +139,8 @@ final case class EBaseStruct(fields: IndexedSeq[EField], override val required: 
 
     // Write fields
     fields.foreach { ef =>
-      pv.loadField(cb, ef.name).consume(cb, { /* do nothing */ }, { pc =>
+      pv.loadField(cb, ef.name).consume(cb, { /* do nothing */ }, { _pc =>
+        val pc = _pc.asPCode
         val encodeField = ef.typ.buildEncoder(pc.pt, cb.emb.ecb)
         cb += encodeField(pc.code, out)
       })

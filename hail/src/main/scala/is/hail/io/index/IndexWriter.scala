@@ -2,20 +2,18 @@ package is.hail.io.index
 
 import java.io.OutputStream
 
-import is.hail.annotations.{Annotation, Region, RegionValueBuilder, StagedRegionValueBuilder}
+import is.hail.annotations.{Annotation, Region, RegionValueBuilder}
 import is.hail.asm4s._
-import is.hail.expr.ir.{CodeParam, EmitClassBuilder, EmitCode, EmitCodeBuilder, EmitFunctionBuilder, EmitMethodBuilder, EmitParamType, ExecuteContext, IEmitCode, ParamType, coerce}
-import is.hail.types
-import is.hail.types._
-import is.hail.types.encoded.EType
-import is.hail.types.physical.{PBaseStruct, PBaseStructValue, PCanonicalArray, PCanonicalBaseStructSettable, PCanonicalStruct, PCode, PInt64, PType}
-import is.hail.types.virtual.Type
-import is.hail.io.fs.FS
+import is.hail.expr.ir.{CodeParam, EmitClassBuilder, EmitCodeBuilder, EmitFunctionBuilder, EmitMethodBuilder, ExecuteContext, IEmitCode, ParamType}
 import is.hail.io._
+import is.hail.io.fs.FS
 import is.hail.rvd.AbstractRVDSpec
+import is.hail.types
+import is.hail.types.physical.stypes.concrete.{SBaseStructPointer, SBaseStructPointerSettable}
+import is.hail.types.physical.{PBaseStructValue, PCanonicalArray, PCanonicalStruct, PCode, PType}
+import is.hail.types.virtual.Type
 import is.hail.utils._
 import is.hail.utils.richUtils.ByteTrackingOutputStream
-import org.json4s.Formats
 import org.json4s.jackson.Serialization
 
 trait AbstractIndexMetadata {
@@ -110,7 +108,7 @@ class IndexWriterArrayBuilder(name: String, maxSize: Int, sb: SettableBuilder, r
   private val len = sb.newSettable[Int](s"${name}_len")
 
   val eltType: PCanonicalStruct = types.coerce[PCanonicalStruct](arrayType.elementType)
-  private val elt = new PCanonicalBaseStructSettable(eltType, sb.newSettable[Long](s"${name}_elt_off"))
+  private val elt = new SBaseStructPointerSettable(SBaseStructPointer(eltType), sb.newSettable[Long](s"${name}_elt_off"))
 
   def length: Value[Int] = len
 
@@ -122,7 +120,7 @@ class IndexWriterArrayBuilder(name: String, maxSize: Int, sb: SettableBuilder, r
   def create(cb: EmitCodeBuilder, dest: Code[Long])(implicit line: LineNumber): Unit = {
     cb.assign(aoff, arrayType.allocate(region, maxSize))
     cb += arrayType.stagedInitialize(aoff, maxSize)
-    cb += PCode(arrayType, aoff).store(cb.emb, region, dest)
+    arrayType.storeAtAddress(cb, dest, region, arrayType.loadCheapPCode(cb, aoff), deepCopy = false)
     cb.assign(len, 0)
   }
 
@@ -131,7 +129,7 @@ class IndexWriterArrayBuilder(name: String, maxSize: Int, sb: SettableBuilder, r
 
   def setFieldValue(cb: EmitCodeBuilder, name: String, field: PCode)(implicit line: LineNumber): Unit = {
     cb += eltType.setFieldPresent(elt.a, name)
-    cb += eltType.fieldType(name).constructAtAddressFromValue(cb.emb, eltType.fieldOffset(elt.a, name), region, field.pt, field.code, deepCopy = true)
+    eltType.fieldType(name).storeAtAddress(cb, eltType.fieldOffset(elt.a, name), region, field, deepCopy = true)
   }
 
   def setField(cb: EmitCodeBuilder, name: String, v: => IEmitCode)(implicit line: LineNumber): Unit =
@@ -144,7 +142,7 @@ class IndexWriterArrayBuilder(name: String, maxSize: Int, sb: SettableBuilder, r
     cb.assign(len, len + 1)
   }
   def loadChild(cb: EmitCodeBuilder, idx: Code[Int])(implicit line: LineNumber): Unit =
-    cb += elt.store(PCode(eltType, arrayType.elementOffset(aoff, idx)))
+    elt.store(cb, PCode(eltType, arrayType.elementOffset(aoff, idx)))
   def getLoadedChild: PBaseStructValue = elt
 
   def getChild(idx: Value[Int])(implicit line: LineNumber): PCode =
@@ -352,7 +350,7 @@ class StagedIndexWriter(branchingFactor: Int, keyType: PType, annotationType: PT
       parentBuilder.loadFrom(cb, utils, 0)
 
       leafBuilder.loadChild(cb, 0)
-      parentBuilder.add(cb, idxOff, leafBuilder.firstIdx.tcode[Long], leafBuilder.getLoadedChild)
+      parentBuilder.add(cb, idxOff, leafBuilder.firstIdx(cb).asLong.longCode(cb), leafBuilder.getLoadedChild)
       parentBuilder.store(cb, utils, 0)
       leafBuilder.reset(cb, elementIdx)
       Code._empty

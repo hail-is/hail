@@ -3,11 +3,12 @@ package is.hail.types.physical
 import is.hail.annotations.{CodeOrdering, _}
 import is.hail.asm4s._
 import is.hail.check.Gen
-import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, IEmitCode, EmitCode}
+import is.hail.expr.ir.{EmitCode, EmitCodeBuilder, EmitMethodBuilder, IEmitCode}
+import is.hail.types.physical.stypes.interfaces.{SIntervalCode, SIntervalValue}
 import is.hail.types.virtual.TInterval
 import is.hail.utils._
 
-abstract class PInterval extends ComplexPType {
+abstract class PInterval extends PType {
   val pointType: PType
 
   lazy val virtualType: TInterval = TInterval(pointType.virtualType)
@@ -73,17 +74,17 @@ abstract class PInterval extends ComplexPType {
       }
     }
 
-  def startOffset(off: Code[Long])(implicit line: LineNumber): Code[Long]
+  def startOffset(off: Code[Long]): Code[Long]
 
-  def endOffset(off: Code[Long])(implicit line: LineNumber): Code[Long]
+  def endOffset(off: Code[Long]): Code[Long]
 
   def loadStart(off: Long): Long
 
-  def loadStart(off: Code[Long])(implicit line: LineNumber): Code[Long]
+  def loadStart(off: Code[Long]): Code[Long]
 
   def loadEnd(off: Long): Long
 
-  def loadEnd(off: Code[Long])(implicit line: LineNumber): Code[Long]
+  def loadEnd(off: Code[Long]): Code[Long]
 
   def startDefined(off: Long): Boolean
 
@@ -93,50 +94,25 @@ abstract class PInterval extends ComplexPType {
 
   def includesEnd(off: Long): Boolean
 
-  def startDefined(off: Code[Long])(implicit line: LineNumber): Code[Boolean]
+  def startDefined(off: Code[Long]): Code[Boolean]
 
-  def endDefined(off: Code[Long])(implicit line: LineNumber): Code[Boolean]
+  def endDefined(off: Code[Long]): Code[Boolean]
 
-  def includesStart(off: Code[Long])(implicit line: LineNumber): Code[Boolean]
+  def includesStart(off: Code[Long]): Code[Boolean]
 
-  def includesEnd(off: Code[Long])(implicit line: LineNumber): Code[Boolean]
+  def includesEnd(off: Code[Long]): Code[Boolean]
 
   override def genNonmissingValue: Gen[Annotation] = Interval.gen(pointType.virtualType.ordering, pointType.genValue)
 }
 
-abstract class PIntervalValue extends PValue {
+abstract class PIntervalValue extends PValue with SIntervalValue {
   def pt: PInterval
-
-  def includesStart(): Value[Boolean]
-
-  def includesEnd(): Value[Boolean]
-
-  def loadStart(cb: EmitCodeBuilder)(implicit line: LineNumber): IEmitCode
-
-  def loadEnd(cb: EmitCodeBuilder)(implicit line: LineNumber): IEmitCode
-
-  // FIXME orderings should take emitcodes/iemitcodes
-  def isEmpty(cb: EmitCodeBuilder)(implicit line: LineNumber): Code[Boolean] = {
-    val gt = cb.emb.getCodeOrdering(pt.pointType, CodeOrdering.Gt())
-    val gteq = cb.emb.getCodeOrdering(pt.pointType, CodeOrdering.Gteq())
-
-    val start = cb.memoize(loadStart(cb), "start")
-    val end = cb.memoize(loadEnd(cb), "end")
-    (includesStart() && includesEnd()).mux(
-      gt((start.m, start.v), (end.m, end.v)),
-      gteq((start.m, start.v), (end.m, end.v))
-    )
-  }
 }
 
-abstract class PIntervalCode extends PCode {
+abstract class PIntervalCode extends PCode with SIntervalCode {
   def pt: PInterval
 
-  def includesStart()(implicit line: LineNumber): Code[Boolean]
+  def memoize(cb: EmitCodeBuilder, name: String): PIntervalValue
 
-  def includesEnd()(implicit line: LineNumber): Code[Boolean]
-
-  def memoize(cb: EmitCodeBuilder, name: String)(implicit line: LineNumber): PIntervalValue
-
-  def memoizeField(cb: EmitCodeBuilder, name: String)(implicit line: LineNumber): PIntervalValue
+  def memoizeField(cb: EmitCodeBuilder, name: String): PIntervalValue
 }

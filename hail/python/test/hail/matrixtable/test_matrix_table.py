@@ -491,7 +491,7 @@ class Tests(unittest.TestCase):
 
     def test_literals_rebuild(self):
         mt = hl.utils.range_matrix_table(1, 1)
-        mt = mt.annotate_rows(x = hl.cond(hl.literal([1,2,3])[mt.row_idx] < hl.rand_unif(10, 11), mt.globals, hl.struct()))
+        mt = mt.annotate_rows(x=hl.if_else(hl.literal([1,2,3])[mt.row_idx] < hl.rand_unif(10, 11), mt.globals, hl.struct()))
         mt._force_count_rows()
 
     @fails_local_backend()
@@ -557,10 +557,10 @@ class Tests(unittest.TestCase):
         mt2 = mt2.annotate_entries(entry=hl.tuple([mt2.row_idx, mt2.col_idx]))
         expected = hl.utils.range_matrix_table(3*r, 2*c)
         missing = hl.null(hl.ttuple(hl.tint, hl.tint))
-        expected = expected.annotate_entries(entry=hl.cond(
+        expected = expected.annotate_entries(entry=hl.if_else(
             expected.col_idx < c,
-            hl.cond(expected.row_idx < 2*r, hl.tuple([expected.row_idx, expected.col_idx]), missing),
-            hl.cond(expected.row_idx >= r, hl.tuple([expected.row_idx, expected.col_idx]), missing)))
+            hl.if_else(expected.row_idx < 2*r, hl.tuple([expected.row_idx, expected.col_idx]), missing),
+            hl.if_else(expected.row_idx >= r, hl.tuple([expected.row_idx, expected.col_idx]), missing)))
         assert mt.union_cols(mt2, row_join_type='outer')._same(expected)
 
     def test_union_rows_different_col_schema(self):
@@ -663,7 +663,7 @@ class Tests(unittest.TestCase):
         ds = ds.annotate_rows(value=kt[ds.info.culprit, ds.dsfoo]['value'])
         rt = ds.rows()
         self.assertTrue(
-            rt.all(hl.cond(
+            rt.all(hl.if_else(
                 rt.info.culprit == "InbreedingCoeff",
                 rt['value'] == "IB",
                 hl.is_missing(rt['value']))))
@@ -1189,9 +1189,9 @@ class Tests(unittest.TestCase):
 
         # MatrixAnnotateRowsTable uses left distinct join
         mr = hl.utils.range_matrix_table(7, 3, 4)
-        matrix1 = mr.key_rows_by(new_key=hl.cond((mr.row_idx == 3) | (mr.row_idx == 5),
+        matrix1 = mr.key_rows_by(new_key=hl.if_else((mr.row_idx == 3) | (mr.row_idx == 5),
                                                 hl.null(hl.tint32), mr.row_idx))
-        matrix2 = mr.key_rows_by(new_key=hl.cond((mr.row_idx == 4) | (mr.row_idx == 6),
+        matrix2 = mr.key_rows_by(new_key=hl.if_else((mr.row_idx == 4) | (mr.row_idx == 6),
                                                 hl.null(hl.tint32), mr.row_idx))
 
         joined = matrix1.select_rows(idx1=matrix1.row_idx,
@@ -1280,10 +1280,10 @@ class Tests(unittest.TestCase):
             a_col_join=hl.is_defined(mt.cols()[mt.col_key]),
             a_row_join=hl.is_defined(mt.rows()[mt.row_key]),
             an_entry_join=hl.is_defined(mt[mt.row_key, mt.col_key]),
-            the_global_failure=hl.cond(True, mt.globals, hl.null(mt.globals.dtype)),
-            the_row_failure=hl.cond(True, mt.row, hl.null(mt.row.dtype)),
-            the_col_failure=hl.cond(True, mt.col, hl.null(mt.col.dtype)),
-            the_entry_failure=hl.cond(True, mt.entry, hl.null(mt.entry.dtype)),
+            the_global_failure=hl.if_else(True, mt.globals, hl.null(mt.globals.dtype)),
+            the_row_failure=hl.if_else(True, mt.row, hl.null(mt.row.dtype)),
+            the_col_failure=hl.if_else(True, mt.col, hl.null(mt.col.dtype)),
+            the_entry_failure=hl.if_else(True, mt.entry, hl.null(mt.entry.dtype)),
         )
         mt.count()
 
@@ -1317,19 +1317,19 @@ class Tests(unittest.TestCase):
         t = hl.utils.range_matrix_table(1, 10)
 
         tests = [(agg.explode(lambda elt: agg.collect(elt + 1).append(0),
-                              hl.cond(t.col_idx > 7, [t.col_idx, t.col_idx + 1], hl.empty_array(hl.tint32))),
+                              hl.if_else(t.col_idx > 7, [t.col_idx, t.col_idx + 1], hl.empty_array(hl.tint32))),
                   [9, 10, 10, 11, 0]),
                  (agg.explode(lambda elt: agg.explode(lambda elt2: agg.collect(elt2 + 1).append(0),
                                                       [elt, elt + 1]),
-                              hl.cond(t.col_idx > 7, [t.col_idx, t.col_idx + 1], hl.empty_array(hl.tint32))),
+                              hl.if_else(t.col_idx > 7, [t.col_idx, t.col_idx + 1], hl.empty_array(hl.tint32))),
                   [9, 10, 10, 11, 10, 11, 11, 12, 0]),
                  (agg.explode(lambda elt: agg.filter(elt > 8,
                                                      agg.collect(elt + 1).append(0)),
-                              hl.cond(t.col_idx > 7, [t.col_idx, t.col_idx + 1], hl.empty_array(hl.tint32))),
+                              hl.if_else(t.col_idx > 7, [t.col_idx, t.col_idx + 1], hl.empty_array(hl.tint32))),
                   [10, 10, 11, 0]),
                  (agg.explode(lambda elt: agg.group_by(elt % 3,
                                                        agg.collect(elt + 1).append(0)),
-                                           hl.cond(t.col_idx > 7,
+                                           hl.if_else(t.col_idx > 7,
                                                    [t.col_idx, t.col_idx + 1],
                                                    hl.empty_array(hl.tint32))),
                   {0: [10, 10, 0], 1: [11, 0], 2:[9, 0]})
@@ -1348,7 +1348,7 @@ class Tests(unittest.TestCase):
                   {0: [10, 0], 1: [0], 2: [9, 0]}),
                  (agg.group_by(t.col_idx % 3,
                                agg.explode(lambda elt: agg.collect(elt + 1).append(0),
-                                           hl.cond(t.col_idx > 7,
+                                           hl.if_else(t.col_idx > 7,
                                                    [t.col_idx, t.col_idx + 1],
                                                    hl.empty_array(hl.tint32)))),
                   {0: [10, 11, 0], 1: [0], 2:[9, 10, 0]}),

@@ -1,9 +1,9 @@
 package is.hail.types.physical
 
 import is.hail.annotations.Region
-import is.hail.asm4s._
-import is.hail.asm4s.{Code, MethodBuilder}
+import is.hail.asm4s.{Code, _}
 import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder}
+import is.hail.types.physical.stypes.SCode
 import is.hail.utils._
 
 trait PPrimitive extends PType {
@@ -21,43 +21,28 @@ trait PPrimitive extends PType {
 
     // FIXME push down
     val addr = region.allocate(byteSize, byteSize)
-    constructAtAddress(addr, region, srcPType, srcAddress, deepCopy)
+    unstagedStoreAtAddress(addr, region, srcPType, srcAddress, deepCopy)
     addr
   }
 
-  def copyFromType(mb: EmitMethodBuilder[_], region: Value[Region], srcPType: PType, srcAddress: Code[Long], deepCopy: Boolean)(implicit line: LineNumber): Code[Long] = {
-    assert(this.isOfType(srcPType))
-    if (deepCopy) {
-      val addr = mb.newLocal[Long]()
-      Code(
-        addr := region.allocate(byteSize, byteSize),
-        constructAtAddress(mb, addr, region, srcPType, srcAddress, deepCopy),
-        addr
-      )
-    } else srcAddress
-  }
 
-  def copyFromTypeAndStackValue(mb: EmitMethodBuilder[_], region: Value[Region], srcPType: PType, stackValue: Code[_], deepCopy: Boolean)(implicit line: LineNumber): Code[_] = {
-    assert(this.isOfType(srcPType))
-    stackValue
-  }
-
-  def constructAtAddress(mb: EmitMethodBuilder[_], addr: Code[Long], region: Value[Region], srcPType: PType, srcAddress: Code[Long], deepCopy: Boolean)(implicit line: LineNumber): Code[Unit] = {
+  def unstagedStoreAtAddress(addr: Long, region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Unit = {
     assert(srcPType.isOfType(this))
     Region.copyFrom(srcAddress, addr, byteSize)
   }
 
-  def constructAtAddress(addr: Long, region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Unit = {
-    assert(srcPType.isOfType(this))
-    Region.copyFrom(srcAddress, addr, byteSize)
+  def store(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): Code[Long] = {
+    val newAddr = cb.newLocal[Long]("pprimitive_store_addr", region.allocate(alignment, byteSize))
+    storeAtAddress(cb, newAddr, region, value, deepCopy)
+    newAddr
   }
 
-  override def constructAtAddressFromValue(mb: EmitMethodBuilder[_], addr: Code[Long], region: Value[Region], srcPType: PType, src: Code[_], deepCopy: Boolean)(implicit line: LineNumber): Code[Unit] = {
-    assert(this.isOfType(srcPType))
-    storePrimitiveAtAddress(addr, srcPType, src)
+
+  override def storeAtAddress(cb: EmitCodeBuilder, addr: Code[Long], region: Value[Region], value: SCode, deepCopy: Boolean): Unit = {
+    storePrimitiveAtAddress(cb, addr, value)
   }
 
-  def storePrimitiveAtAddress(addr: Code[Long], srcPType: PType, value: Code[_])(implicit line: LineNumber): Code[Unit]
+  def storePrimitiveAtAddress(cb: EmitCodeBuilder, addr: Code[Long], value: SCode): Unit
 
   def setRequired(required: Boolean): PPrimitive = {
     if (required == this.required)
@@ -70,24 +55,5 @@ trait PPrimitive extends PType {
         case _: PFloat32 => PFloat32(required)
         case _: PFloat64 => PFloat64(required)
       }
-  }
-}
-
-class PPrimitiveCode(val pt: PType, val code: Code[_]) extends PCode {
-  def codeTuple(): IndexedSeq[Code[_]] = FastIndexedSeq(code)
-
-  def store(mb: EmitMethodBuilder[_], r: Value[Region], a: Code[Long])(implicit line: LineNumber): Code[Unit] =
-    Region.storeIRIntermediate(pt)(a, code)
-
-  def memoize(cb: EmitCodeBuilder, name: String)(implicit line: LineNumber): PValue =
-    defaultMemoizeImpl(cb, name)
-
-  def memoizeField(cb: EmitCodeBuilder, name: String)(implicit line: LineNumber): PValue =
-    defaultMemoizeFieldImpl(cb, name)
-
-  def primCode[T](implicit ti: TypeInfo[T]): Code[T] = {
-    val IndexedSeq(typeInfo) = pt.codeTupleTypes()
-    assert(ti == typeInfo)
-    code.asInstanceOf[Code[T]]
   }
 }

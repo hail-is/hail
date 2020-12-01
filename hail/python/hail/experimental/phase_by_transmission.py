@@ -73,7 +73,7 @@ def phase_by_transmission(
         :return: Array of one-hot-encoded alleles
         :rtype: ArrayExpression
         """
-        return hl.cond(
+        return hl.if_else(
             call.is_het(),
             hl.array([
                 hl.call(call[0]).one_hot_alleles(alleles),
@@ -118,7 +118,7 @@ def phase_by_transmission(
         """
 
         proband_v = proband_call.one_hot_alleles(alleles)
-        father_v = hl.cond(
+        father_v = hl.if_else(
             locus.in_x_nonpar() | locus.in_y_nonpar(),
             hl.or_missing(father_call.is_haploid(), hl.array([father_call.one_hot_alleles(alleles)])),
             call_to_one_hot_alleles_array(father_call, alleles)
@@ -138,7 +138,7 @@ def phase_by_transmission(
                 hl.is_defined(combinations) & (hl.len(combinations) == 1),
                 hl.array([
                     hl.call(father_call[combinations[0].f], mother_call[combinations[0].m], phased=True),
-                    hl.cond(father_call.is_haploid(), hl.call(father_call[0], phased=True), phase_parent_call(father_call, combinations[0].f)),
+                    hl.if_else(father_call.is_haploid(), hl.call(father_call[0], phased=True), phase_parent_call(father_call, combinations[0].f)),
                     phase_parent_call(mother_call, combinations[0].m)
                 ])
             )

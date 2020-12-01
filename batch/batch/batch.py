@@ -90,12 +90,10 @@ FOR UPDATE;
 ''',
                                                (user, batch_id))
         if not record:
-            log.info(f'cannot cancel nonexistent batch {batch_id}')
-            raise NonExistentBatchError
+            raise NonExistentBatchError(batch_id)
 
         if record['state'] == 'open':
-            log.info(f'cannot cancel open batch {batch_id}')
-            raise OpenBatchError
+            raise OpenBatchError(batch_id)
 
         await tx.just_execute(
             'CALL cancel_batch(%s);', (batch_id,))

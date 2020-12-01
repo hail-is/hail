@@ -4,6 +4,7 @@
   <div id="profile" class="vcentered">
     <h1>{{ userdata['username'] }}</h1>
     <p><b>Google Service Account: </b>{{ userdata['gsa_email'] }}</p>
+    <p><b>Trial Billing Project: </b>{{ userdata['trial_bp_name'] }}</p>
     <form action="{{ auth_base_url }}/copy-paste-token" method="post">
       <input type="hidden" name="_csrf" value="{{ csrf_token }}"/>
       <button class="nb-create">Get a copy-paste login token</button>

@@ -2,7 +2,9 @@ package is.hail.types.physical
 
 import is.hail.annotations._
 import is.hail.asm4s.{Code, _}
-import is.hail.expr.ir.EmitMethodBuilder
+import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder}
+import is.hail.types.physical.stypes.primitives.{SFloat32, SFloat32Code}
+import is.hail.types.physical.stypes.{SCode, SType}
 import is.hail.types.virtual.TFloat32
 
 case object PFloat32Optional extends PFloat32(false)
@@ -28,40 +30,39 @@ class PFloat32(override val required: Boolean) extends PNumeric with PPrimitive 
     new CodeOrdering {
       type T = Float
 
-      def compareNonnull(x: Code[T], y: Code[T])(implicit line: LineNumber): Code[Int] =
+      def compareNonnull(x: Code[T], y: Code[T]): Code[Int] =
         Code.invokeStatic2[java.lang.Float, Float, Float, Int]("compare", x, y)
 
-      override def ltNonnull(x: Code[T], y: Code[T])(implicit line: LineNumber): Code[Boolean] =
-        x < y
+      override def ltNonnull(x: Code[T], y: Code[T]): Code[Boolean] = x < y
 
-      override def lteqNonnull(x: Code[T], y: Code[T])(implicit line: LineNumber): Code[Boolean] =
-        x <= y
+      override def lteqNonnull(x: Code[T], y: Code[T]): Code[Boolean] = x <= y
 
-      override def gtNonnull(x: Code[T], y: Code[T])(implicit line: LineNumber): Code[Boolean] =
-        x > y
+      override def gtNonnull(x: Code[T], y: Code[T]): Code[Boolean] = x > y
 
-      override def gteqNonnull(x: Code[T], y: Code[T])(implicit line: LineNumber): Code[Boolean] =
-        x >= y
+      override def gteqNonnull(x: Code[T], y: Code[T]): Code[Boolean] = x >= y
 
-      override def equivNonnull(x: Code[T], y: Code[T])(implicit line: LineNumber): Code[Boolean] =
-        x.ceq(y)
+      override def equivNonnull(x: Code[T], y: Code[T]): Code[Boolean] = x.ceq(y)
     }
   }
 
   override def byteSize: Long = 4
 
-  override def zero(implicit line: LineNumber) = coerce[PFloat32](const(0.0f))
+  override def zero = coerce[PFloat32](const(0.0f))
 
-  override def add(a: Code[_], b: Code[_])(implicit line: LineNumber): Code[PFloat32] = {
+  override def add(a: Code[_], b: Code[_]): Code[PFloat32] = {
     coerce[PFloat32](coerce[Float](a) + coerce[Float](b))
   }
 
-  override def multiply(a: Code[_], b: Code[_])(implicit line: LineNumber): Code[PFloat32] = {
+  override def multiply(a: Code[_], b: Code[_]): Code[PFloat32] = {
     coerce[PFloat32](coerce[Float](a) * coerce[Float](b))
   }
 
-  def storePrimitiveAtAddress(addr: Code[Long], srcPType: PType, value: Code[_])(implicit line: LineNumber): Code[Unit] =
-    Region.storeFloat(addr, coerce[Float](value))
+  override def sType: SType = SFloat32(required)
+
+  def storePrimitiveAtAddress(cb: EmitCodeBuilder, addr: Code[Long], value: SCode): Unit =
+    cb.append(Region.storeFloat(addr, value.asFloat.floatCode(cb)))
+
+  override def loadCheapPCode(cb: EmitCodeBuilder, addr: Code[Long]): PCode = new SFloat32Code(required, Region.loadFloat(addr))
 }
 
 object PFloat32 {

@@ -21,9 +21,10 @@ build:
 	-docker pull $(BATCH_LATEST)
 	python3 ../ci/jinja2_render.py '{"service_base_image":{"image":"service-base"}}' Dockerfile Dockerfile.out
 	docker build -t batch -f Dockerfile.out --cache-from batch,$(BATCH_LATEST),service-base ..
-	-docker pull python:3.7-slim-stretch
+	-docker pull gcr.io/$(PROJECT)/python:3.7-slim-stretch
 	-docker pull $(BATCH_WORKER_LATEST)
-	docker build -t batch-worker -f Dockerfile.worker --cache-from batch-worker,$(BATCH_WORKER_LATEST),python:3.7-slim-stretch ..
+	python3 ../ci/jinja2_render.py '{"global":{"project":"$(PROJECT)"}}' Dockerfile.worker Dockerfile.worker.out
+	docker build -t batch-worker -f Dockerfile.worker.out --cache-from batch-worker,$(BATCH_WORKER_LATEST),gcr.io/$(PROJECT)/python:3.7-slim-stretch ..
 
 .PHONY: push
 push: build
@@ -36,17 +37,16 @@ push: build
 	docker tag batch-worker $(BATCH_WORKER_IMAGE)
 	docker push $(BATCH_WORKER_IMAGE)
 
-JINJA_ENVIRONMENT = '{"code":{"sha":"$(shell git rev-parse --short=12 HEAD)"},"deploy":true,"batch_image":{"image":"$(BATCH_IMAGE)"},"batch_worker_image":{"image":"$(BATCH_WORKER_IMAGE)"},"default_ns":{"name":"default"},"batch_pods_ns":{"name":"batch-pods"},"batch_database":{"user_secret_name":"sql-batch-user-config"},"global":{"project":"$(PROJECT)","domain":"$(DOMAIN)","k8s_server_url":"$(KUBERNETES_SERVER_URL)"},"scope":"deploy"}'
+JINJA_ENVIRONMENT = '{"code":{"sha":"$(shell git rev-parse --short=12 HEAD)"},"deploy":$(DEPLOY),"batch_image":{"image":"$(BATCH_IMAGE)"},"batch_worker_image":{"image":"$(BATCH_WORKER_IMAGE)"},"default_ns":{"name":"$(NAMESPACE)"},"batch_database":{"user_secret_name":"sql-batch-user-config"},"global":{"project":"$(PROJECT)","domain":"$(DOMAIN)","k8s_server_url":"$(KUBERNETES_SERVER_URL)"},"scope":"$(SCOPE)"}'
 
 .PHONY: deploy
 deploy: push
+	! [ -z $(NAMESPACE) ]  # call this like: make deploy NAMESPACE=default
 	E=$(JINJA_ENVIRONMENT) && \
 	  python3 ../ci/jinja2_render.py $$E deployment.yaml deployment.yaml.out && \
-	  python3 ../ci/jinja2_render.py $$E service-account.yaml service-account.yaml.out && \
-	  python3 ../ci/jinja2_render.py $$E service-account-batch-pods.yaml service-account-batch-pods.yaml.out
-	kubectl -n default apply -f service-account.yaml.out
-	kubectl -n default apply -f service-account-batch-pods.yaml.out
-	kubectl -n default apply -f deployment.yaml.out
+	  python3 ../ci/jinja2_render.py $$E service-account.yaml service-account.yaml.out
+	kubectl -n $(NAMESPACE) apply -f service-account.yaml.out
+	kubectl -n $(NAMESPACE) apply -f deployment.yaml.out
 
 .PHONY: create-build-worker-image-instance
 create-build-worker-image-instance:

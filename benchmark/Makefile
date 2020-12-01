@@ -41,7 +41,8 @@ image_sha: wheel cleanup_image
 	cp $(BENCHMARK_WHEEL) .
 	# it's possible that the HAIL_WHEEL installs different dependencies, but this generally creates less work for docker
 	cp ../hail/python/requirements.txt .
-	docker build -t $(BENCHMARK_DOCKER_TAG) . --build-arg HAIL_WHEEL=$(notdir $(HAIL_WHEEL)) --build-arg BENCHMARK_WHEEL=$(notdir $(BENCHMARK_WHEEL))
+	python3 ../ci/jinja2_render.py '{"global":{"project":"$(PROJECT)"}}' Dockerfile Dockerfile.out
+	docker build -f Dockerfile.out -t $(BENCHMARK_DOCKER_TAG) . --build-arg HAIL_WHEEL=$(notdir $(HAIL_WHEEL)) --build-arg BENCHMARK_WHEEL=$(notdir $(BENCHMARK_WHEEL))
 	@printf $$(docker images -q --no-trunc $(BENCHMARK_DOCKER_TAG) | sed -e 's,[^:]*:,,') > image_sha
 	@echo Image sha is `cat image_sha`
 	rm $(notdir $(HAIL_WHEEL))

@@ -495,7 +495,7 @@ def transmission_disequilibrium_test(dataset, pedigree) -> Table:
     parent_is_valid_het = ((father_is_het & tri.auto_or_x_par)
                            | (tri.mother_entry.GT.is_het() & ~father_is_het))
 
-    copy_state = hl.cond(tri.auto_or_x_par | tri.is_female, 2, 1)
+    copy_state = hl.if_else(tri.auto_or_x_par | tri.is_female, 2, 1)
 
     config = (tri.proband_entry.GT.n_alt_alleles(),
               tri.father_entry.GT.n_alt_alleles(),

@@ -2,6 +2,9 @@ principals:
 - name: admin-pod
   domain: admin-pod
   kind: curl
+- name: auth-driver
+  domain: auth-driver
+  kind: json
 - name: auth
   domain: auth
   kind: json
@@ -74,6 +77,9 @@ principals:
 - name: benchmark
   domain: benchmark
   kind: json
+- name: benchmark-tests
+  domain: benchmark-tests
+  kind: json
 - name: address
   domain: address
   kind: json
@@ -85,4 +91,7 @@ principals:
   kind: json
 - name: monitoring-tests
   domain: monitoring-tests
+  kind: json
+- name: atgu
+  domain: atgu
   kind: json

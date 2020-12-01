@@ -46,8 +46,8 @@ def maximal_independent_set(i, j, keep=True, tie_breaker=None, keyed=True) -> Ta
     ...     i=hl.struct(id=pairs.i, is_case=samples[pairs.i].is_case),
     ...     j=hl.struct(id=pairs.j, is_case=samples[pairs.j].is_case))
     >>> def tie_breaker(l, r):
-    ...     return hl.cond(l.is_case & ~r.is_case, -1,
-    ...                    hl.cond(~l.is_case & r.is_case, 1, 0))
+    ...     return hl.if_else(l.is_case & ~r.is_case, -1,
+    ...                       hl.if_else(~l.is_case & r.is_case, 1, 0))
     >>> related_samples_to_remove = hl.maximal_independent_set(
     ...    pairs_with_case.i, pairs_with_case.j, False, tie_breaker)
     >>> result = dataset.filter_cols(hl.is_defined(

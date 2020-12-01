@@ -45,30 +45,20 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
     )
 
   private val _compareKey: EmitMethodBuilder[_] = {
-    implicit val line = LineNumber.none
-    val keyInfo = typeToTypeInfo(keyType)
-    val cmp = kb.genEmitMethod("compare", FastIndexedSeq[ParamType](BooleanInfo, keyInfo, BooleanInfo, keyInfo), IntInfo)
+    val cmp = kb.genEmitMethod("compare", FastIndexedSeq[ParamType](keyType.asEmitParam, keyType.asEmitParam), IntInfo)
     val ord = keyType.codeOrdering(cmp, so)
-    val k1m = cmp.getCodeParam[Boolean](1)
-    val k1 = cmp.getCodeParam(2)(keyInfo)
-    val k2m = cmp.getCodeParam[Boolean](3)
-    val k2 = cmp.getCodeParam(4)(keyInfo)
+    val k1 = cmp.getEmitParam(1)
+    val k2 = cmp.getEmitParam(2)
 
     cmp.emit(
-      ord.compare((k1m, asm4s.coerce[ord.T](k1)), (k2m, asm4s.coerce[ord.T](k2)))
+      ord.compare(k1.m -> coerce(k1.v), k2.m -> coerce(k2.v))
     )
 
     cmp
   }
 
-  private def compareKey(k1: (Code[Boolean], Code[_]), k2: (Code[Boolean], Code[_]))(implicit line: LineNumber): Code[Int] = {
-    def wrappedValue(missingBit: Code[Boolean], value: Code[_]): Code[_] = {
-      missingBit.mux(defaultValue(keyType), value)
-    }
-
-    Code.memoize(k1._1, "tba_comp_key_k1m", k2._1, "tba_comp_key_k2m") { (k1m, k2m) =>
-      _compareKey.invokeCode[Int](k1m, wrappedValue(k1m, k1._2), k2m, wrappedValue(k2m, k2._2))
-    }
+  private def compareKey(cb: EmitCodeBuilder, k1: EmitCode, k2: EmitCode)(implicit line: LineNumber) => Code[Int] = {
+    cb.invokeCode(_compareKey, k1, k2)
   }
 
   private val _compareIndexedKey: EmitMethodBuilder[_] = {
@@ -241,9 +231,11 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
 
   private def keyIsMissing(offset: Code[Long])(implicit line: LineNumber): Code[Boolean] = indexedKeyType.isFieldMissing(offset, 0)
 
-  private def loadKeyValue(offset: Code[Long])(implicit line: LineNumber): Code[_] = Region.loadIRIntermediate(keyType)(indexedKeyType.fieldOffset(offset, 0))
+  private def loadKeyValue(cb: EmitCodeBuilder, offset: Code[Long])(implicit line: LineNumber): PCode =
+    keyType.loadCheapPCode(cb, indexedKeyType.loadField(offset, 0))
 
-  private def loadKey(offset: Value[Long])(implicit line: LineNumber): (Code[Boolean], Code[_]) = (keyIsMissing(offset), loadKeyValue(offset))
+  private def loadKey(cb: EmitCodeBuilder, offset: Value[Long])(implicit line: LineNumber): EmitCode =
+    EmitCode(Code._empty, keyIsMissing(offset), loadKeyValue(cb, offset))
 
   private val _compareElt: EmitMethodBuilder[_] = {
     implicit val line = LineNumber.none
@@ -416,21 +408,24 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
     val value = mb.getEmitParam(1)
     val key = mb.getEmitParam(2)
 
-    mb.emit(
-      (maxSize > 0).orEmpty(
-        (ab.size < maxSize).mux(
-          Code(
-            stageAndIndexKey(key.m, key.v),
-            copyToStaging(value.v, value.m, keyStage),
-            enqueueStaging()),
-          Code(
-            tempPtr := eltTuple.loadField(elementOffset(0), 0),
-            (compareKey((key.m, key.v), loadKey(tempPtr)) < 0)
-              .orEmpty(Code(
-                stageAndIndexKey(key.m, key.v),
-                copyToStaging(value.v, value.m, keyStage),
-                swapStaging(),
-                gc()))))))
+    mb.emitWithBuilder { cb =>
+      cb.ifx(maxSize > 0, {
+        cb.ifx(ab.size < maxSize, {
+          cb += stageAndIndexKey(key.m, key.v)
+          cb += copyToStaging(value.v, value.m, keyStage)
+          cb += enqueueStaging()
+        }, {
+          cb.assign(tempPtr, eltTuple.loadField(elementOffset(0), 0))
+          cb.ifx(compareKey(cb, key, loadKey(cb, tempPtr)) < 0, {
+            cb += stageAndIndexKey(key.m, key.v)
+            cb += copyToStaging(value.v, value.m, keyStage)
+            cb += swapStaging()
+            cb += gc()
+          })
+        })
+      })
+      Code._empty
+    }
 
     mb
   }

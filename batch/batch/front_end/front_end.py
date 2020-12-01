@@ -4,6 +4,7 @@ import logging
 import json
 import random
 import datetime
+from functools import wraps
 import asyncio
 import aiohttp
 from aiohttp import web
@@ -24,8 +25,9 @@ from hailtop.tls import get_in_cluster_server_ssl_context, in_cluster_ssl_client
 from hailtop.hail_logging import AccessLogger
 from hailtop import aiotools
 from gear import (Database, setup_aiohttp_session,
-                  rest_authenticated_users_only, rest_authenticated_developers_only,
-                  web_authenticated_users_only, web_authenticated_developers_only,
+                  rest_authenticated_users_only,
+                  web_authenticated_users_only,
+                  web_authenticated_developers_only,
                   check_csrf_token, transaction)
 from web_common import (setup_aiohttp_jinja2, setup_common_static_routes,
                         render_template, set_message)
@@ -39,11 +41,11 @@ from ..utils import (adjust_cores_for_memory_request, worker_memory_per_core_gb,
 from ..batch import batch_record_to_dict, job_record_to_dict, cancel_batch_in_db
 from ..exceptions import (BatchUserError, NonExistentBillingProjectError,
                           NonExistentUserError, ClosedBillingProjectError,
-                          InvalidBillingLimitError, OpenBatchError, NonExistentBatchError)
+                          InvalidBillingLimitError)
 from ..log_store import LogStore
 from ..database import CallError, check_call_procedure
-from ..batch_configuration import (BATCH_PODS_NAMESPACE, BATCH_BUCKET_NAME,
-                                   DEFAULT_NAMESPACE, WORKER_LOGS_BUCKET_NAME)
+from ..batch_configuration import (BATCH_BUCKET_NAME, DEFAULT_NAMESPACE,
+                                   WORKER_LOGS_BUCKET_NAME)
 from ..globals import HTTP_CLIENT_MAX_SIZE, BATCH_FORMAT_VERSION
 from ..spec_writer import SpecWriter
 from ..batch_format_version import BatchFormatVersion
@@ -97,6 +99,16 @@ deploy_config = get_deploy_config()
 BATCH_JOB_DEFAULT_CPU = os.environ.get('HAIL_BATCH_JOB_DEFAULT_CPU', '1')
 BATCH_JOB_DEFAULT_MEMORY = os.environ.get('HAIL_BATCH_JOB_DEFAULT_MEMORY', '3.75Gi')
 BATCH_JOB_DEFAULT_STORAGE = os.environ.get('HAIL_BATCH_JOB_DEFAULT_STORAGE', '10Gi')
+
+
+def rest_authenticated_developers_or_auth_only(fun):
+    @rest_authenticated_users_only
+    @wraps(fun)
+    async def wrapped(request, userdata, *args, **kwargs):
+        if userdata['is_developer'] == 1 or userdata['username'] == 'auth':
+            return await fun(request, userdata, *args, **kwargs)
+        raise web.HTTPUnauthorized()
+    return wrapped
 
 
 @routes.get('/healthcheck')
@@ -528,12 +540,10 @@ def check_service_account_permissions(user, sa):
         return
     if user == 'ci':
         if sa['name'] in ('ci-agent', 'admin'):
-            if DEFAULT_NAMESPACE == 'default':  # real-ci needs access to all namespaces
+            if DEFAULT_NAMESPACE == 'default' or sa['namespace'] == DEFAULT_NAMESPACE:  # pylint: disable=consider-using-in
                 return
-            if sa['namespace'] == BATCH_PODS_NAMESPACE:
-                return
-    if user == 'test':
-        if sa['name'] == 'test-batch-sa' and sa['namespace'] == BATCH_PODS_NAMESPACE:
+    elif user == 'test':
+        if sa['namespace'] == DEFAULT_NAMESPACE and sa['name'] == 'test-batch-sa':
             return
     raise web.HTTPBadRequest(reason=f'unauthorized service account {(sa["namespace"], sa["name"])} for user {user}')
 
@@ -675,14 +685,14 @@ WHERE user = %s AND id = %s AND NOT deleted;
 
                 spec['secrets'] = secrets
                 secrets.append({
-                    'namespace': BATCH_PODS_NAMESPACE,
+                    'namespace': DEFAULT_NAMESPACE,
                     'name': userdata['gsa_key_secret_name'],
                     'mount_path': '/gsa-key',
                     'mount_in_copy': True
                 })
                 if spec.get('mount_tokens', False):
                     secrets.append({
-                        'namespace': BATCH_PODS_NAMESPACE,
+                        'namespace': DEFAULT_NAMESPACE,
                         'name': userdata['tokens_secret_name'],
                         'mount_path': '/user-tokens',
                         'mount_in_copy': True
@@ -908,12 +918,7 @@ GROUP BY batches.id;
 
 
 async def _cancel_batch(app, batch_id, user):
-    try:
-        await cancel_batch_in_db(app['db'], batch_id, user)
-    except NonExistentBatchError as e:
-        raise web.HTTPNotFound() from e
-    except OpenBatchError as e:
-        raise web.HTTPBadRequest(reason=f'cannot cancel open batch {batch_id}') from e
+    await cancel_batch_in_db(app['db'], batch_id, user)
 
     app['cancel_batch_state_changed'].set()
 
@@ -956,7 +961,7 @@ async def get_batch(request, userdata):
 async def cancel_batch(request, userdata):
     batch_id = int(request.match_info['batch_id'])
     user = userdata['username']
-    await _cancel_batch(request.app, batch_id, user)
+    await _handle_api_error(_cancel_batch, request.app, batch_id, user)
     return web.Response()
 
 
@@ -1045,9 +1050,10 @@ async def ui_batch(request, userdata):
 async def ui_cancel_batch(request, userdata):
     batch_id = int(request.match_info['batch_id'])
     user = userdata['username']
-    await _cancel_batch(request.app, batch_id, user)
     session = await aiohttp_session.get_session(request)
-    set_message(session, f'Batch {batch_id} cancelled.', 'info')
+    errored = await _handle_ui_error(session, _cancel_batch, request.app, batch_id, user)
+    if not errored:
+        set_message(session, f'Batch {batch_id} cancelled.', 'info')
     location = request.app.router['batches'].url_for()
     raise web.HTTPFound(location=location)
 
@@ -1273,7 +1279,7 @@ UPDATE billing_projects SET `limit` = %s WHERE name = %s;
 
 @routes.post('/api/v1alpha/billing_limits/{billing_project}/edit')
 @prom_async_time(REQUEST_TIME_POST_BILLING_LIMITS_EDIT)
-@rest_authenticated_developers_only
+@rest_authenticated_developers_or_auth_only
 async def post_edit_billing_limits(request, userdata):  # pylint: disable=unused-argument
     db = request.app['db']
     billing_project = request.match_info['billing_project']
@@ -1336,7 +1342,7 @@ async def _query_billing(request):
 SELECT
   billing_project,
   `user`,
-  CAST(SUM(IF(format_version < 3, msec_mcpu, 0)) AS SIGNED) as msec_mcpu,
+  CAST(SUM(IF(format_version < 3, batches.msec_mcpu, 0)) AS SIGNED) as msec_mcpu,
   SUM(IF(format_version >= 3, `usage` * rate, NULL)) as cost
 FROM batches
 LEFT JOIN aggregated_batch_resources
@@ -1427,7 +1433,7 @@ async def ui_get_billing_projects(request, userdata):
 async def get_billing_projects(request, userdata):
     db = request.app['db']
 
-    if not userdata['is_developer']:
+    if not userdata['is_developer'] and userdata['username'] != 'auth':
         user = userdata['username']
     else:
         user = None
@@ -1444,7 +1450,7 @@ async def get_billing_project(request, userdata):
     db = request.app['db']
     billing_project = request.match_info['billing_project']
 
-    if not userdata['is_developer']:
+    if not userdata['is_developer'] and userdata['username'] != 'auth':
         user = userdata['username']
     else:
         user = None
@@ -1509,7 +1515,7 @@ async def post_billing_projects_remove_user(request, userdata):  # pylint: disab
 
 @routes.post('/api/v1alpha/billing_projects/{billing_project}/users/{user}/remove')
 @prom_async_time(REQUEST_TIME_POST_BILLING_PROJECT_REMOVE_USER_API)
-@rest_authenticated_developers_only
+@rest_authenticated_developers_or_auth_only
 async def api_get_billing_projects_remove_user(request, userdata):  # pylint: disable=unused-argument
     db = request.app['db']
     billing_project = request.match_info['billing_project']
@@ -1570,7 +1576,7 @@ async def post_billing_projects_add_user(request, userdata):  # pylint: disable=
 
 @routes.post('/api/v1alpha/billing_projects/{billing_project}/users/{user}/add')
 @prom_async_time(REQUEST_TIME_POST_BILLING_PROJECT_ADD_USER_API)
-@rest_authenticated_developers_only
+@rest_authenticated_developers_or_auth_only
 async def api_billing_projects_add_user(request, userdata):  # pylint: disable=unused-argument
     db = request.app['db']
     user = request.match_info['user']
@@ -1624,7 +1630,7 @@ async def post_create_billing_projects(request, userdata):  # pylint: disable=un
 
 @routes.post('/api/v1alpha/billing_projects/{billing_project}/create')
 @prom_async_time(REQUEST_TIME_POST_CREATE_BILLING_PROJECT_API)
-@rest_authenticated_developers_only
+@rest_authenticated_developers_or_auth_only
 async def api_get_create_billing_projects(request, userdata):  # pylint: disable=unused-argument
     db = request.app['db']
     billing_project = request.match_info['billing_project']
@@ -1676,7 +1682,7 @@ async def post_close_billing_projects(request, userdata):  # pylint: disable=unu
 
 @routes.post('/api/v1alpha/billing_projects/{billing_project}/close')
 @prom_async_time(REQUEST_TIME_POST_CLOSE_BILLING_PROJECT_API)
-@rest_authenticated_developers_only
+@rest_authenticated_developers_or_auth_only
 async def api_close_billing_projects(request, userdata):  # pylint: disable=unused-argument
     db = request.app['db']
     billing_project = request.match_info['billing_project']
@@ -1722,7 +1728,7 @@ async def post_reopen_billing_projects(request, userdata):  # pylint: disable=un
 
 @routes.post('/api/v1alpha/billing_projects/{billing_project}/reopen')
 @prom_async_time(REQUEST_TIME_POST_REOPEN_BILLING_PROJECT_API)
-@rest_authenticated_developers_only
+@rest_authenticated_developers_or_auth_only
 async def api_reopen_billing_projects(request, userdata):  # pylint: disable=unused-argument
     db = request.app['db']
     billing_project = request.match_info['billing_project']
@@ -1752,7 +1758,7 @@ async def _delete_billing_project(db, billing_project):
 
 @routes.post('/api/v1alpha/billing_projects/{billing_project}/delete')
 @prom_async_time(REQUEST_TIME_POST_DELETE_BILLING_PROJECT_API)
-@rest_authenticated_developers_only
+@rest_authenticated_developers_or_auth_only
 async def api_delete_billing_projects(request, userdata):  # pylint: disable=unused-argument
     db = request.app['db']
     billing_project = request.match_info['billing_project']

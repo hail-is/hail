@@ -259,7 +259,7 @@ abstract class RegistryFunctions {
     case _: PFloat64 => coerce[Double](c)
     case _: PCall => coerce[Int](c)
     case t: PString => t.loadString(coerce[Long](c))
-    case t: PLocus => PCode(t, c).asLocus.getLocusObj()
+    case t: PLocus => EmitCodeBuilder.scopedCode(r.mb)(cb => PCode(t, c).asLocus.getLocusObj(cb))
     case _ =>
       Code.invokeScalaObject3[PType, Region, Long, Any](
         UnsafeRow.getClass, "read",
@@ -287,7 +287,7 @@ abstract class RegistryFunctions {
     case _: PFloat64 => Code.boxDouble(coerce[Double](c))
     case _: PCall => Code.boxInt(coerce[Int](c))
     case t: PString => t.loadString(coerce[Long](c))
-    case t: PLocus => PCode(t, c).asLocus.getLocusObj()
+    case t: PLocus => EmitCodeBuilder.scopedCode(r.mb)(cb => PCode(t, c).asLocus.getLocusObj(cb))
     case _ =>
       Code.invokeScalaObject3[PType, Region, Long, AnyRef](
         UnsafeRow.getClass, "readAnyRef",
@@ -364,15 +364,15 @@ abstract class RegistryFunctions {
     calculateReturnPType: (Type, Seq[PType]) => PType,
     typeParameters: Array[Type] = Array.empty
   )(
-    impl: (EmitRegion, PType, Array[PCode], LineNumber) => PCode
+    impl: (EmitRegion, EmitCodeBuilder, PType, Array[PCode], LineNumber) => PCode
   ) {
     IRFunctionRegistry.addJVMFunction(
       new UnseededMissingnessObliviousJVMFunction(name, typeParameters, valueParameterTypes, returnType, calculateReturnPType) {
-        override def apply(r: EmitRegion, returnPType: PType, typeParameters: Seq[Type], args: PCode*)(implicit line: LineNumber): PCode =
-          impl(r, returnPType, args.toArray, line)
-        override def apply(r: EmitRegion, returnPType: PType, typeParameters: Seq[Type], args: (PType, Code[_])*)(implicit line: LineNumber): Code[_] = {
+        override def apply(r: EmitRegion, cb: EmitCodeBuilder, returnPType: PType, typeParameters: Seq[Type], args: PCode*)(implicit line: LineNumber): PCode =
+          impl(r, cb, returnPType, args.toArray, line)
+        override def apply(r: EmitRegion, cb: EmitCodeBuilder, returnPType: PType, typeParameters: Seq[Type], args: (PType, Code[_])*)(implicit line: LineNumber): Code[_] = {
           assert(unify(typeParameters, args.map(_._1.virtualType), returnPType.virtualType))
-          apply(r, returnPType, typeParameters, args.map { case (t, a) => PCode(t, a) }: _*).code
+          apply(r, cb, returnPType, typeParameters, args.map { case (t, a) => PCode(t, a) }: _*).code
         }
       })
   }
@@ -384,13 +384,13 @@ abstract class RegistryFunctions {
     calculateReturnPType: (Type, Seq[PType]) => PType,
     typeParameters: Array[Type] = Array.empty
   )(
-    impl: (EmitRegion, PType, Array[Type], Array[(PType, Code[_])], LineNumber) => Code[_]
+    impl: (EmitRegion, EmitCodeBuilder, PType, Array[Type], Array[(PType, Code[_])], LineNumber) => Code[_]
   ) {
     IRFunctionRegistry.addJVMFunction(
       new UnseededMissingnessObliviousJVMFunction(name, typeParameters, valueParameterTypes, returnType, calculateReturnPType) {
-        override def apply(r: EmitRegion, returnPType: PType, typeParameters: Seq[Type], args: (PType, Code[_])*)(implicit line: LineNumber): Code[_] = {
+        override def apply(r: EmitRegion, cb: EmitCodeBuilder, returnPType: PType, typeParameters: Seq[Type], args: (PType, Code[_])*)(implicit line: LineNumber): Code[_] = {
           assert(unify(typeParameters, args.map(_._1.virtualType), returnPType.virtualType))
-          impl(r, returnPType, typeParameters.toArray, args.toArray, line)
+          impl(r, cb, returnPType, typeParameters.toArray, args.toArray, line)
         }
       })
   }
@@ -450,7 +450,7 @@ abstract class RegistryFunctions {
     cls: Class[_],
     method: String
   ) {
-    registerCode(name, valueParameterTypes, returnType, calculateReturnPType) { case (r, rt, _, args, line) =>
+    registerCode(name, valueParameterTypes, returnType, calculateReturnPType) { case (r, cb, rt, _, args, line) =>
       val cts = valueParameterTypes.map(TypeToIRIntermediateClassTag(_).runtimeClass)
       Code.invokeScalaObject(cls, method, cts, args.map(_._2))(TypeToIRIntermediateClassTag(returnType), line)
     }
@@ -475,7 +475,7 @@ abstract class RegistryFunctions {
       case t => TypeToIRIntermediateClassTag(t)
     }
 
-    registerCode(name, valueParameterTypes, returnType, calculateReturnPType) { case (r, rt, _, args, _line) =>
+    registerCode(name, valueParameterTypes, returnType, calculateReturnPType) { case (r, cb, rt, _, args, _line) =>
       implicit val line = _line
       val cts = valueParameterTypes.map(ct(_).runtimeClass)
       val out = Code.invokeScalaObject(cls, method, cts, args.map { case (t, a) => wrapArg(r, t)(a) })(ct(returnType), line)
@@ -494,7 +494,7 @@ abstract class RegistryFunctions {
     registerWrappedScalaFunction(name, Array(a1, a2, a3), returnType, unwrappedApply(pt))(cls, method)
 
   def registerJavaStaticFunction(name: String, valueParameterTypes: Array[Type], returnType: Type, pt: (Type, Seq[PType]) => PType)(cls: Class[_], method: String) {
-    registerCode(name, valueParameterTypes, returnType, pt) { case (r, rt, _, args, line) =>
+    registerCode(name, valueParameterTypes, returnType, pt) { case (r, cb, rt, _, args, line) =>
       val cts = valueParameterTypes.map(TypeToIRIntermediateClassTag(_).runtimeClass)
       Code.invokeStatic(cls, method, cts, args.map(_._2))(TypeToIRIntermediateClassTag(returnType), line)
     }
@@ -503,32 +503,32 @@ abstract class RegistryFunctions {
   def registerIR(name: String, valueParameterTypes: Array[Type], returnType: Type, inline: Boolean = false, typeParameters: Array[Type] = Array.empty)(f: (Seq[Type], Seq[IR]) => IR): Unit =
     IRFunctionRegistry.addIR(name, typeParameters, valueParameterTypes, returnType, inline, f)
 
-  def registerPCode1(name: String, mt1: Type, rt: Type, pt: (Type, PType) => PType)(impl: (EmitRegion, PType, PCode, LineNumber) => PCode): Unit =
+  def registerPCode1(name: String, mt1: Type, rt: Type, pt: (Type, PType) => PType)(impl: (EmitRegion, EmitCodeBuilder, PType, PCode, LineNumber) => PCode): Unit =
     registerPCode(name, Array(mt1), rt, unwrappedApply(pt)) {
-      case (r, rt, Array(a1), line) => impl(r, rt, a1, line)
+      case (r, cb, rt, Array(a1), line) => impl(r, cb, rt, a1, line)
     }
 
   def registerPCode2(name: String, mt1: Type, mt2: Type, rt: Type, pt: (Type, PType, PType) => PType)
-    (impl: (EmitRegion, PType, PCode, PCode, LineNumber) => PCode): Unit =
+    (impl: (EmitRegion, EmitCodeBuilder, PType, PCode, PCode, LineNumber) => PCode): Unit =
     registerPCode(name, Array(mt1, mt2), rt, unwrappedApply(pt)) {
-      case (r, rt, Array(a1, a2), line) => impl(r, rt, a1, a2, line)
+      case (r, cb, rt, Array(a1, a2), line) => impl(r, cb, rt, a1, a2, line)
     }
 
   def registerCode1[A1](name: String, mt1: Type, rt: Type, pt: (Type, PType) => PType)(impl: (EmitRegion, PType, (PType, Code[A1]), LineNumber) => Code[_]): Unit =
     registerCode(name, Array(mt1), rt, unwrappedApply(pt)) {
-      case (r, rt, _, Array(a1: (PType, Code[A1]) @unchecked), line) => impl(r, rt, a1, line)
+      case (r, xb, rt, _, Array(a1: (PType, Code[A1]) @unchecked), line) => impl(r, rt, a1, line)
     }
 
   def registerCode1t[A1](name: String, typeParam: Type, mt1: Type, rt: Type, pt: (Type, PType) => PType)(impl: (EmitRegion, PType, Type, (PType, Code[A1]), LineNumber) => Code[_]): Unit =
     registerCode(name, Array(mt1), rt, unwrappedApply(pt), typeParameters = Array(typeParam)) {
-      case (r, rt, Array(t), Array(a1: (PType, Code[A1]) @unchecked), line) => impl(r, rt, t, a1, line)
+      case (r, cb, rt, Array(t), Array(a1: (PType, Code[A1]) @unchecked), line) => impl(r, rt, t, a1, line)
     }
 
 
   def registerCode2[A1, A2](name: String, mt1: Type, mt2: Type, rt: Type, pt: (Type, PType, PType) => PType)
     (impl: (EmitRegion, PType, (PType, Code[A1]), (PType, Code[A2]), LineNumber) => Code[_]): Unit =
     registerCode(name, Array(mt1, mt2), rt, unwrappedApply(pt)) {
-      case (r, rt, _, Array(
+      case (r, cb, rt, _, Array(
       a1: (PType, Code[A1]) @unchecked,
       a2: (PType, Code[A2]) @unchecked), line) => impl(r, rt, a1, a2, line)
     }
@@ -536,13 +536,13 @@ abstract class RegistryFunctions {
   def registerCode2t[A1, A2](name: String, typeParam1: Type, arg1: Type, arg2: Type, rt: Type, pt: (Type, PType, PType) => PType)
     (impl: (EmitRegion, PType, Type, (PType, Code[A1]), (PType, Code[A2]), LineNumber) => Code[_]): Unit =
     registerCode(name, Array(arg1, arg2), rt, unwrappedApply(pt), Array(typeParam1)) {
-      case (r, rt, Array(t1), Array(a1: (PType, Code[A1]) @unchecked, a2: (PType, Code[A2]) @unchecked), line) => impl(r, rt, t1, a1, a2, line)
+      case (r, cb, rt, Array(t1), Array(a1: (PType, Code[A1]) @unchecked, a2: (PType, Code[A2]) @unchecked), line) => impl(r, rt, t1, a1, a2, line)
     }
 
   def registerCode3[A1, A2, A3](name: String, mt1: Type, mt2: Type, mt3: Type, rt: Type, pt: (Type, PType, PType, PType) => PType)
     (impl: (EmitRegion, PType, (PType, Code[A1]), (PType, Code[A2]), (PType, Code[A3]), LineNumber) => Code[_]): Unit =
     registerCode(name, Array(mt1, mt2, mt3), rt, unwrappedApply(pt)) {
-      case (r, rt, _, Array(
+      case (r, cb, rt, _, Array(
       a1: (PType, Code[A1]) @unchecked,
       a2: (PType, Code[A2]) @unchecked,
       a3: (PType, Code[A3]) @unchecked), line) => impl(r, rt, a1, a2, a3, line)
@@ -551,7 +551,7 @@ abstract class RegistryFunctions {
   def registerCode4[A1, A2, A3, A4](name: String, mt1: Type, mt2: Type, mt3: Type, mt4: Type, rt: Type, pt: (Type, PType, PType, PType, PType) => PType)
     (impl: (EmitRegion, PType, (PType, Code[A1]), (PType, Code[A2]), (PType, Code[A3]), (PType, Code[A4]), LineNumber) => Code[_]): Unit =
     registerCode(name, Array(mt1, mt2, mt3, mt4), rt, unwrappedApply(pt)) {
-      case (r, rt, _, Array(
+      case (r, cb, rt, _, Array(
       a1: (PType, Code[A1]) @unchecked,
       a2: (PType, Code[A2]) @unchecked,
       a3: (PType, Code[A3]) @unchecked,
@@ -561,7 +561,7 @@ abstract class RegistryFunctions {
   def registerCode4t[A1, A2, A3, A4](name: String, typeParam1: Type, arg1: Type, arg2: Type, arg3: Type, arg4: Type, rt: Type, pt: (Type, PType, PType, PType, PType) => PType)
     (impl: (EmitRegion, PType, Type, (PType, Code[A1]), (PType, Code[A2]), (PType, Code[A3]), (PType, Code[A4]), LineNumber) => Code[_]): Unit =
     registerCode(name, Array(arg1, arg2, arg3, arg4), rt, unwrappedApply(pt), Array(typeParam1)) {
-      case (r, rt, Array(t1), Array(
+      case (r, cb, rt, Array(t1), Array(
       a1: (PType, Code[A1]) @unchecked,
       a2: (PType, Code[A2]) @unchecked,
       a3: (PType, Code[A3]) @unchecked,
@@ -571,7 +571,7 @@ abstract class RegistryFunctions {
   def registerCode5[A1, A2, A3, A4, A5](name: String, mt1: Type, mt2: Type, mt3: Type, mt4: Type, mt5: Type, rt: Type, pt: (Type, PType, PType, PType, PType, PType) => PType)
     (impl: (EmitRegion, PType, (PType, Code[A1]), (PType, Code[A2]), (PType, Code[A3]), (PType, Code[A4]), (PType, Code[A5]), LineNumber) => Code[_]): Unit =
     registerCode(name, Array(mt1, mt2, mt3, mt4, mt5), rt, unwrappedApply(pt)) {
-      case (r, rt, _, Array(
+      case (r, cb, rt, _, Array(
       a1: (PType, Code[A1]) @unchecked,
       a2: (PType, Code[A2]) @unchecked,
       a3: (PType, Code[A3]) @unchecked,
@@ -721,17 +721,17 @@ abstract class UnseededMissingnessObliviousJVMFunction (
   override def returnPType(returnType: Type, valueParameterTypes: Seq[PType]): PType =
     MissingnessObliviousJVMFunction.returnPType(missingnessObliviousReturnPType)(returnType, valueParameterTypes)
 
-  def apply(r: EmitRegion, returnPType: PType, typeParameters: Seq[Type], args: (PType, Code[_])*)(implicit line: LineNumber): Code[_]
+  def apply(r: EmitRegion, cb: EmitCodeBuilder, returnPType: PType, typeParameters: Seq[Type], args: (PType, Code[_])*)(implicit line: LineNumber): Code[_]
 
-  def apply(r: EmitRegion, returnPType: PType, typeParameters: Seq[Type], args: PCode*)(implicit line: LineNumber): PCode =
-    PCode(returnPType, apply(r, returnPType, typeParameters, args.map(pc => pc.pt -> pc.code): _*))
+  def apply(r: EmitRegion, cb: EmitCodeBuilder, returnPType: PType, typeParameters: Seq[Type], args: PCode*)(implicit line: LineNumber): PCode =
+    PCode(returnPType, apply(r, cb, returnPType, typeParameters, args.map(pc => pc.pt -> pc.code): _*))
 
   def apply(r: EmitRegion, returnPType: PType, typeParameters: Seq[Type], args: EmitCode*)(implicit line: LineNumber): EmitCode = {
     val setup = Code(args.map(_.setup))
     val missing = args.map(_.m).reduce(_ || _)
-    val value = apply(r, returnPType, typeParameters, args.map { a => (a.pt, a.v) }: _*)
+    val (cbResult, value) = EmitCodeBuilder.scoped(r.mb)(cb => apply(r, cb, returnPType, typeParameters, args.map { a => (a.pt, a.v) }: _*))
 
-    EmitCode(setup, missing, PCode(returnPType, value))
+    EmitCode(Code(cbResult, setup), missing, PCode(returnPType, value))
   }
 
   override def getAsMethod[C](cb: EmitClassBuilder[C], rpt: PType, typeParameters: Seq[Type], args: PType*): EmitMethodBuilder[C] = {
@@ -740,7 +740,8 @@ abstract class UnseededMissingnessObliviousJVMFunction (
     assert(unified)
     val argTIs = args.toFastIndexedSeq.map(typeToTypeInfo)
     val methodbuilder = cb.genEmitMethod(name, (typeInfo[Region] +: argTIs).map(ti => ti: CodeParamType), typeToTypeInfo(rpt))
-    methodbuilder.emit(apply(EmitRegion.default(methodbuilder),
+    methodbuilder.emitWithBuilder(cb => apply(EmitRegion.default(methodbuilder),
+      cb,
       rpt,
       typeParameters,
       args.zip(argTIs.zipWithIndex.map { case (ti, i) =>

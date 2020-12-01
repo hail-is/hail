@@ -2,7 +2,7 @@ package is.hail.expr.ir.agg
 
 import is.hail.annotations.{Region, StagedRegionValueBuilder}
 import is.hail.asm4s._
-import is.hail.expr.ir.{EmitCode, EmitClassBuilder, EmitFunctionBuilder}
+import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitCodeBuilder, EmitFunctionBuilder}
 import is.hail.types.physical._
 import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer, TypedCodecSpec}
 import is.hail.utils._
@@ -121,9 +121,9 @@ class StagedArrayBuilder(eltType: PType, cb: EmitClassBuilder[_], region: Value[
   def elementOffset(idx: Value[Int])(implicit line: LineNumber): Code[Long] =
     eltArray.elementOffset(data, capacity, idx)
 
-  def loadElement(idx: Value[Int])(implicit line: LineNumber): EmitCode = {
+  def loadElement(cb: EmitCodeBuilder, idx: Value[Int])(implicit line: LineNumber): EmitCode = {
     val m = eltArray.isElementMissing(data, idx)
-    EmitCode(Code._empty, m, eltType.load(elementOffset(idx)))
+    EmitCode(Code._empty, m, eltType.loadCheapPCode(cb, eltArray.loadElement(data, capacity, idx)))
   }
 
   private def resize()(implicit line: LineNumber): Code[Unit] = {

@@ -17,13 +17,16 @@ def loop(f: Callable, typ, *args):
     recursive call, and the remaining arguments are the arguments to the
     recursive function, e.g. to define the recursive function
 
-    :math:`f(x, y) = \begin{cases}
+    .. math::
+
+        f(x, y) = \begin{cases}
         y & \textrm{if } x \equiv 0 \\
         f(x - 1, y + x) & \textrm{otherwise}
-        \end{cases}`
+        \end{cases}
+
 
     we would write:
-    >>> f = lambda recur, x, y: hl.cond(x == 0, y, recur(x - 1, y + x))
+    >>> f = lambda recur, x, y: hl.if_else(x == 0, y, recur(x - 1, y + x))
 
     Full recursion is not supported, and any non-tail-recursive methods will
     throw an error when called.
@@ -54,7 +57,7 @@ def loop(f: Callable, typ, *args):
     Example
     -------
     To find the sum of all the numbers from n=1...10:
-    >>> triangle_f = lambda f, x, total: hl.cond(x == 0, total, f(x - 1, total + x))
+    >>> triangle_f = lambda f, x, total: hl.if_else(x == 0, total, f(x - 1, total + x))
     >>> x = hl.experimental.loop(triangle_f, hl.tint32, 10, 0)
     >>> hl.eval(x)
     55
@@ -78,7 +81,7 @@ def loop(f: Callable, typ, *args):
     ...     converged = hl.is_defined(error) & (error < threshold)
     ...     new_guess = guess - (polynomial(guess) / derivative(guess))
     ...     new_error = hl.abs(new_guess - guess)
-    ...     return hl.cond(converged, guess, f(new_guess, new_error))
+    ...     return hl.if_else(converged, guess, f(new_guess, new_error))
     >>> x = hl.experimental.loop(find_root, hl.tfloat, 0.0, hl.null(hl.tfloat))
     >>> hl.eval(x)
     0.8052291984599675
@@ -90,7 +93,7 @@ def loop(f: Callable, typ, *args):
 
     Parameters
     ----------
-    f : function ( (marker, *args) -> :class:`.Expression`
+    f : function ( (marker, \*args) -> :class:`.Expression`
         Function of one callable marker, denoting where the recursive call (or calls) is located,
         and many `args`, the loop variables.
     typ : :class:`str` or :class:`.HailType`

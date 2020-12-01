@@ -140,15 +140,15 @@ abstract class ChildStagedRegion extends StagedRegion {
   final def createSiblingRegionArray(mb: EmitMethodBuilder[_], length: Int): OwnedStagedRegionArray =
     parent.createChildRegionArray(mb, length)
 
-  final def copyToParent(mb: EmitMethodBuilder[_], value: PCode, destType: PType)(implicit line: LineNumber): PCode =
-    copyTo(mb, value, parent, destType)
+  final def copyToParent(cb: EmitCodeBuilder, value: PCode, destType: PType)(implicit line: LineNumber): PCode =
+    copyTo(cb, value, parent, destType)
 
-  final def copyToParent(mb: EmitMethodBuilder[_], value: PCode)(implicit line: LineNumber): PCode =
-    copyTo(mb, value, parent)
+  final def copyToParent(cb: EmitCodeBuilder, value: PCode)(implicit line: LineNumber): PCode =
+    copyTo(cb, value, parent)
 
-  def copyTo(mb: EmitMethodBuilder[_], value: PCode, dest: StagedRegion, destType: PType)(implicit line: LineNumber): PCode
+  def copyTo(cb: EmitCodeBuilder, value: PCode, dest: StagedRegion, destType: PType)(implicit line: LineNumber): PCode
 
-  def copyTo(mb: EmitMethodBuilder[_], value: PCode, dest: StagedRegion)(implicit line: LineNumber): PCode
+  def copyTo(cb: EmitCodeBuilder, value: PCode, dest: StagedRegion)(implicit line: LineNumber): PCode
 
   final def <=(that: ParentStagedRegion): Boolean =
     (this.parent <= that) || otherAncestors.exists(_ <= that)
@@ -216,13 +216,13 @@ class RealOwnedStagedRegion(
   def giveToParent()(implicit line: LineNumber): Code[Unit] =
     r.invoke[Region, Unit]("move", parent.code)
 
-  def copyTo(mb: EmitMethodBuilder[_], value: PCode, dest: StagedRegion, destType: PType)(implicit line: LineNumber): PCode = {
+  def copyTo(cb: EmitCodeBuilder, value: PCode, dest: StagedRegion, destType: PType)(implicit line: LineNumber): PCode = {
     dest assertSubRegion parent
-    value.copyToRegion(mb, dest.code, destType)
+    value.copyToRegion(cb, dest.code, destType)
   }
 
-  def copyTo(mb: EmitMethodBuilder[_], value: PCode, dest: StagedRegion)(implicit line: LineNumber): PCode =
-    copyTo(mb, value, dest, value.pt)
+  def copyTo(cb: EmitCodeBuilder, value: PCode, dest: StagedRegion)(implicit line: LineNumber): PCode =
+    copyTo(cb, value, dest, value.pt)
 
   def giveToSibling(dest: ChildStagedRegion)(implicit line: LineNumber): Code[Unit] = {
     dest assertSubRegion  parent
@@ -260,12 +260,12 @@ class DummyOwnedStagedRegion(
 
   def giveToParent()(implicit line: LineNumber): Code[Unit] = Code._empty
 
-  def copyTo(mb: EmitMethodBuilder[_], value: PCode, dest: StagedRegion, destType: PType)(implicit line: LineNumber): PCode = {
+  def copyTo(cb: EmitCodeBuilder, value: PCode, dest: StagedRegion, destType: PType)(implicit line: LineNumber): PCode = {
     dest assertSubRegion parent
-    value.castTo(mb, parent.code, destType)
+    value.castTo(cb, parent.code, destType)
   }
 
-  def copyTo(mb: EmitMethodBuilder[_], value: PCode, dest: StagedRegion)(implicit line: LineNumber): PCode = {
+  def copyTo(cb: EmitCodeBuilder, value: PCode, dest: StagedRegion)(implicit line: LineNumber): PCode = {
     dest assertSubRegion parent
     value
   }

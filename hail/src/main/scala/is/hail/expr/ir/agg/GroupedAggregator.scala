@@ -1,10 +1,10 @@
 package is.hail.expr.ir.agg
-import is.hail.annotations.{CodeOrdering, Region, RegionUtils, StagedRegionValueBuilder}
+import is.hail.annotations.{CodeOrdering, Region, StagedRegionValueBuilder}
 import is.hail.asm4s._
-import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitCodeBuilder, EmitFunctionBuilder, EmitMethodBuilder, EmitRegion, ParamType}
+import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitCodeBuilder, EmitMethodBuilder, EmitRegion, ParamType}
+import is.hail.io._
 import is.hail.types.encoded.EType
 import is.hail.types.physical._
-import is.hail.io._
 import is.hail.utils._
 
 class GroupedBTreeKey(kt: PType, kb: EmitClassBuilder[_], region: Value[Region], val offset: Value[Long], states: StateTuple) extends BTreeKey {
@@ -101,8 +101,8 @@ class GroupedBTreeKey(kt: PType, kb: EmitClassBuilder[_], region: Value[Region],
 class DictState(val kb: EmitClassBuilder[_], val keyType: PType, val nested: StateTuple) extends PointerBasedRVAState {
   val nStates: Int = nested.nStates
   val valueType: PStruct = PCanonicalStruct("regionIdx" -> PInt32(true), "states" -> nested.storageType)
-  val root: Settable[Long] = kb.genFieldThisRef[Long]()
-  val size: Settable[Int] = kb.genFieldThisRef[Int]()
+  val root: Settable[Long] = kb.genFieldThisRef[Long]("grouped_agg_root")
+  val size: Settable[Int] = kb.genFieldThisRef[Int]("grouped_agg_size")
   val keyEType = EType.defaultFromPType(keyType)
 
   val typ: PStruct = PCanonicalStruct(
@@ -264,12 +264,12 @@ class GroupedAggregator(kt: PType, nestedAggs: Array[StagedAggregator]) extends 
 
   protected def _initOp(cb: EmitCodeBuilder, state: State, init: Array[EmitCode])(implicit line: LineNumber): Unit = {
     val Array(inits) = init
-    state.init(cb, cb += inits.setup)
+    state.init(cb, cb += inits.asVoid())
   }
 
   protected def _seqOp(cb: EmitCodeBuilder, state: State, seq: Array[EmitCode])(implicit line: LineNumber): Unit = {
     val Array(key, seqs) = seq
-    state.withContainer(cb, key, (cb) => cb += seqs.setup)
+    state.withContainer(cb, key, (cb) => cb += seqs.asVoid())
   }
 
   protected def _combOp(cb: EmitCodeBuilder, state: State, other: State)(implicit line: LineNumber): Unit = {

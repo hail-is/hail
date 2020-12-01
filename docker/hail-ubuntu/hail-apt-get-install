@@ -1,0 +1,11 @@
+#!/bin/bash
+
+set -ex
+
+apt-get update \
+    || (sleep 2 && apt-get update) \
+    || (sleep 4 && apt-get update) \
+    || (sleep 8 && apt-get update) \
+    || (sleep 16 && apt-get update)
+apt-get -y install "$@"
+exec rm -rf /var/lib/apt/lists/*

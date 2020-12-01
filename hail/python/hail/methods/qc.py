@@ -91,11 +91,11 @@ def sample_qc(mt, name='sample_qc') -> MatrixTable:
     allele_ints = {v: k for k, v in allele_enum.items()}
 
     def allele_type(ref, alt):
-        return hl.bind(lambda at: hl.cond(at == allele_ints['SNP'],
-                                          hl.cond(hl.is_transition(ref, alt),
-                                                  allele_ints['Transition'],
-                                                  allele_ints['Transversion']),
-                                          at),
+        return hl.bind(lambda at: hl.if_else(at == allele_ints['SNP'],
+                                             hl.if_else(hl.is_transition(ref, alt),
+                                                        allele_ints['Transition'],
+                                                        allele_ints['Transversion']),
+                                             at),
                        _num_allele_type(ref, alt))
 
     variant_ac = Env.get_uid()
@@ -129,7 +129,7 @@ def sample_qc(mt, name='sample_qc') -> MatrixTable:
     bound_exprs['n_singleton'] = hl.agg.sum(hl.sum(hl.range(0, mt['GT'].ploidy).map(lambda i: mt[variant_ac][mt['GT'][i]] == 1)))
 
     def get_allele_type(allele_idx):
-        return hl.cond(allele_idx > 0, mt[variant_atypes][allele_idx - 1], hl.null(hl.tint32))
+        return hl.if_else(allele_idx > 0, mt[variant_atypes][allele_idx - 1], hl.null(hl.tint32))
 
     bound_exprs['allele_type_counts'] = hl.agg.explode(
         lambda elt: hl.agg.counter(elt),
@@ -438,7 +438,7 @@ def concordance(left, right, *, _localize_global_statistics=True) -> Tuple[List[
     joined = hl.experimental.full_outer_join_mt(left, right)
 
     def get_idx(struct):
-        return hl.cond(
+        return hl.if_else(
             hl.is_missing(struct),
             0,
             hl.coalesce(2 + struct.GT.n_alt_alleles(), 1))

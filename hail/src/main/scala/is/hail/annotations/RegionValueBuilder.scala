@@ -392,7 +392,7 @@ class RegionValueBuilder(var region: Region) {
     val toOff = currentOffset()
     assert(typestk.nonEmpty || toOff == start)
 
-    toT.constructAtAddress(toOff, region, t.fundamentalType, fromOff, deepCopy)
+    toT.unstagedStoreAtAddress(toOff, region, t.fundamentalType, fromOff, deepCopy)
 
     advance()
   }

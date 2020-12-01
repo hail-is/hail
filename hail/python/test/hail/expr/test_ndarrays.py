@@ -782,12 +782,27 @@ def test_svd():
         rank = np.linalg.matrix_rank(np_array)
 
         if compute_uv:
-            np.testing.assert_array_almost_equal(evaled[0][:, :rank], np_svd[0][:, :rank])
-            np.testing.assert_array_almost_equal(evaled[1], np_svd[1])
-            np.testing.assert_array_almost_equal(evaled[2][:rank, :], np_svd[2][:rank, :])
+            hu, hs, hv = evaled
+            nu, ns, nv = np_svd
+
+            # Singular values match
+            np.testing.assert_array_almost_equal(hs, ns)
+
+            # U is orthonormal
+            uut = hu.T @ hu
+            np.testing.assert_array_almost_equal(uut, np.identity(uut.shape[0]))
+
+            # V is orthonormal
+            vvt = hv @ hv.T
+            np.testing.assert_array_almost_equal(vvt, np.identity(vvt.shape[0]))
+
+            # Multiplying together gets back to original
+            smat = np.zeros(np_array.shape) if full_matrices else np.zeros((k, k))
+            smat[:k, :k] = np.diag(hs)
+            np.testing.assert_array_almost_equal(hu @ smat @ hv, np_array)
 
         else:
-            np.testing.assert_array_equal(evaled, np_svd)
+            np.testing.assert_array_almost_equal(evaled, np_svd)
 
     np_small_square = np.arange(4).reshape((2, 2))
     small_square = hl.nd.array(np_small_square)

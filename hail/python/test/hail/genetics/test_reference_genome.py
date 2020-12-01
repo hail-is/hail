@@ -100,9 +100,9 @@ class Tests(unittest.TestCase):
         ]
         schema = hl.tstruct(l37=hl.tlocus(grch37), l38=hl.tlocus(grch38))
         t = hl.Table.parallelize(rows, schema)
-        self.assertTrue(t.all(hl.cond(hl.is_defined(t.l38),
-                                      hl.liftover(t.l37, 'GRCh38') == t.l38,
-                                      hl.is_missing(hl.liftover(t.l37, 'GRCh38')))))
+        self.assertTrue(t.all(hl.if_else(hl.is_defined(t.l38),
+                                         hl.liftover(t.l37, 'GRCh38') == t.l38,
+                                         hl.is_missing(hl.liftover(t.l37, 'GRCh38')))))
 
         t = t.filter(hl.is_defined(t.l38))
         self.assertTrue(t.count() == 6)

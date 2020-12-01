@@ -1,0 +1,24 @@
+<div class="d-flex flex-column" id="annotation-db">
+  <div class="flex-1">
+    <div class="panel panel-default flex-fill">
+      <div class="panel-heading">Search</div>
+      <div class="panel-body">
+        <div class="search">
+          <div class="col-xs-6">
+            <input type="text" id="searchInput"
+                   onkeyup="filterTable()" name="keyword"
+                   class="form-control input-sm" placeholder="Search datasets">
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <table id="table1" class="table1 table table-bordered display select">
+    <tr id="tableHeader">
+      <th>name</th>
+      <th>description</th>
+      <th>version</th>
+      <th>reference genome</th>
+    </tr>
+  </table>
+</div>

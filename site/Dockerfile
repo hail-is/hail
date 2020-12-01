@@ -1,8 +1,10 @@
-FROM debian:9.5
+FROM {{ hail_ubuntu_image.image }}
 
-RUN apt-get update -y && \
-    apt-get install -y nginx curl python-minimal && \
-    rm -rf /var/lib/apt/lists/*
+RUN hail-apt-get-install \
+  nginx \
+  curl \
+  python-minimal \
+  libnginx-mod-http-subs-filter
 
 RUN /bin/sh -c 'curl https://sdk.cloud.google.com | bash' && \
     mv /root/google-cloud-sdk /

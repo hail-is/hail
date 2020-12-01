@@ -27,6 +27,17 @@ server {
 }
 
 server {
+    server_name amundsen-frontend.*;
+
+    location / {
+        proxy_pass http://amundsen-frontend/;
+    }
+
+    listen 443 ssl;
+    listen [::]:443 ssl;
+}
+
+server {
     server_name benchmark.*;
 
     location / {
@@ -52,11 +63,6 @@ server {
 
 server {
     server_name ci.*;
-
-    location ~ /(test-ci-[a-z0-9]+)/(.*) {
-        resolver kube-dns.kube-system.svc.cluster.local;
-        proxy_pass http://$1.batch-pods.svc.cluster.local/$2;
-    }
 
     location / {
         proxy_pass https://ci/;
@@ -253,6 +259,9 @@ server {
     location / {
         proxy_pass https://auth/;
         include /etc/nginx/proxy.conf;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $connection_upgrade;
     }
 
     listen 443 ssl;
@@ -265,6 +274,10 @@ server {
     location / {
         proxy_pass https://query/;
         include /etc/nginx/proxy.conf;
+
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection $connection_upgrade;
     }
 
     listen 443 ssl;
@@ -303,6 +316,19 @@ server {
 
     location / {
         proxy_pass https://address/;
+        include /etc/nginx/proxy.conf;
+    }
+
+    listen 443 ssl;
+    listen [::]:443 ssl;
+}
+
+server {
+    server_name atgu.*;
+    client_max_body_size 8m;
+
+    location / {
+        proxy_pass https://atgu/;
         include /etc/nginx/proxy.conf;
     }
 

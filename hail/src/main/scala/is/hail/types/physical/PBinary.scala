@@ -6,6 +6,7 @@ import is.hail.asm4s._
 import is.hail.check.Arbitrary._
 import is.hail.check.Gen
 import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder}
+import is.hail.types.physical.stypes.interfaces.{SBinaryCode, SBinaryValue}
 import is.hail.types.virtual.TBinary
 
 abstract class PBinary extends PType {
@@ -101,7 +102,7 @@ abstract class PBinary extends PType {
   def store(addr: Code[Long], bytes: Code[Array[Byte]])(implicit line: LineNumber): Code[Unit]
 }
 
-abstract class PBinaryValue extends PValue {
+abstract class PBinaryValue extends PValue with SBinaryValue {
   def loadLength()(implicit line: LineNumber): Code[Int]
 
   def loadBytes()(implicit line: LineNumber): Code[Array[Byte]]
@@ -109,7 +110,7 @@ abstract class PBinaryValue extends PValue {
   def loadByte(i: Code[Int])(implicit line: LineNumber): Code[Byte]
 }
 
-abstract class PBinaryCode extends PCode {
+abstract class PBinaryCode extends PCode with SBinaryCode {
   def pt: PBinary
 
   def loadLength()(implicit line: LineNumber): Code[Int]

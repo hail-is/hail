@@ -525,11 +525,10 @@ class CompiledLineParser(
       parseError[Int]("empty integer literal"),
       Code(
         mul := 1,
-        (line(pos).ceq(const('-'))).mux(
+        (line(pos).ceq(const('-'))).orEmpty(
           Code(
             mul := -1,
-            pos := pos + 1),
-          Code._empty),
+            pos := pos + 1)),
         c := line(pos),
         v := numericValue(c),
         pos := pos + 1,
@@ -548,9 +547,10 @@ class CompiledLineParser(
       parseError[Long](const("empty long literal at ")),
       Code(
         mul := 1L,
-        (line(pos).ceq(const('-'))).mux(
-          mul := -1L,
-          pos := pos + 1),
+        (line(pos).ceq(const('-'))).orEmpty(
+          Code(
+            mul := -1L,
+            pos := pos + 1)),
         c := line(pos),
         v := numericValue(c).toL,
         pos := pos + 1,

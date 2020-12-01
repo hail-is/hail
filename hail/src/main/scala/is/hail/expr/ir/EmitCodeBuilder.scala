@@ -1,8 +1,11 @@
 package is.hail.expr.ir
 
+import is.hail.annotations.Region
 import is.hail.asm4s.{coerce => _, _}
+import is.hail.expr.ir.functions.StringFunctions
 import is.hail.lir
-import is.hail.types.physical.{PCode, PSettable, PValue}
+import is.hail.types.physical.stypes.SValue
+import is.hail.types.physical.{PCode, PSettable, PType, PValue}
 import is.hail.utils.FastIndexedSeq
 
 object EmitCodeBuilder {
@@ -25,6 +28,11 @@ object EmitCodeBuilder {
     val (cbcode, _) = EmitCodeBuilder.scoped(mb)(f)
     cbcode
   }
+
+  def scopedEmitCode(mb: EmitMethodBuilder[_])(f: (EmitCodeBuilder) => EmitCode): EmitCode = {
+    val (cbcode, ec) = EmitCodeBuilder.scoped(mb)(f)
+    EmitCode(cbcode, ec)
+  }
 }
 
 class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) extends CodeBuilderLike {
@@ -46,19 +54,26 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
   }
 
   def assign(s: PSettable, v: PCode)(implicit line: LineNumber): Unit = {
-    append(s := v)
+    s.store(this, v)
   }
 
   def assign(s: EmitSettable, v: EmitCode)(implicit line: LineNumber): Unit = {
-    append(s := v)
+    s.store(this, v)
   }
 
   def assign(s: EmitSettable, v: IEmitCode)(implicit line: LineNumber): Unit = {
     s.store(this, v)
   }
 
-  def memoize(pc: PCode, name: String)(implicit line: LineNumber): PValue =
-    pc.memoize(this, name)
+  def assign(is: IndexedSeq[EmitSettable], ix: IndexedSeq[EmitCode]): Unit = {
+    (is, ix).zipped.foreach { case (s, c) => s.store(this, c) }
+  }
+
+  def assign(s: PresentEmitSettable, v: PCode): Unit = {
+    s.store(this, v)
+  }
+
+  def memoize(pc: PCode, name: String)(implicit line: LineNumber): PValue = pc.memoize(this, name)
 
   def memoizeField(pc: PCode, name: String)(implicit line: LineNumber): PValue = {
     val f = emb.newPField(name, pc.pt)
@@ -80,7 +95,7 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
 
   def memoizeField[T](ec: EmitCode, name: String)(implicit line: LineNumber): EmitValue = {
     val l = emb.newEmitField(name, ec.pt)
-    append(l := ec)
+    l.store(this, ec)
     l
   }
 
@@ -116,5 +131,10 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
     val r = newLocal("invokeEmit_r")(pt.codeReturnType())
     EmitCode(r := _invoke(callee, args: _*),
       EmitCode.fromCodeTuple(pt, Code.loadTuple(callee.modb, EmitCode.codeTupleTypes(pt), r)))
+  }
+
+  // for debugging
+  def printRegionValue(value: Code[_], typ: PType, region: Value[Region]): Unit = {
+    append(Code._println(StringFunctions.boxArg(EmitRegion(emb, region), typ)(value)))
   }
 }

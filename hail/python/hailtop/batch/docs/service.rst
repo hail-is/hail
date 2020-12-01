@@ -5,6 +5,12 @@ Batch Service
 =============
 
 
+.. warning::
+
+    The Batch Service is currently only available to Broad Institute users. If you are interested
+    in using the Batch Service, please send us an email at hail-team@broadinstitute.org.
+
+
 What is the Batch Service?
 --------------------------
 
@@ -14,6 +20,16 @@ and is called the Batch Service. The Batch Service consists of a scheduler that 
 submission requests from users and then executes jobs in Docker containers on Google Compute
 Engine VMs (workers) that are shared amongst all Batch users. A UI is available at `<https://batch.hail.is>`__
 that allows a user to see job progress and access logs.
+
+
+Sign Up
+-------
+
+For Broad Institute users, you can click the Sign Up button at `<notebook.hail.is>`__.
+This will allow you to authorize with your Broad Institute email address and create
+a Batch Service account. A :ref:`Google Service Account <service-accounts>` is created
+on your behalf. A trial Batch billing project is also created for you at
+:code:`<USERNAME>-trial`. You can view these at `<https://auth.hail.is/user>`__.
 
 
 .. _file-localization:
@@ -163,9 +179,15 @@ Submitting a Batch to the Service
 
 To execute a batch on the Batch service rather than locally, first
 construct a :class:`.ServiceBackend` object with a billing project and
-bucket for storing intermediate files.  Your service account must
-have read and write access to the bucket.  Next, pass the
-:class:`.ServiceBackend` object to the :class:`.Batch` constructor
+bucket for storing intermediate files. Your service account must have read
+and write access to the bucket.
+
+.. warning::
+
+   To avoid expensive egress charges, make sure your bucket is multi-regional
+   in the United States because Batch runs your job in any US region.
+
+Next, pass the :class:`.ServiceBackend` object to the :class:`.Batch` constructor
 with the parameter name `backend`.
 
 An example of running "Hello World" on the Batch service rather than
@@ -188,6 +210,10 @@ have previously set them with ``hailctl``:
 
     hailctl config set batch/billing_project my-billing-project
     hailctl config set batch/bucket my-bucket
+
+.. note::
+
+    A trial billing project is automatically created for you with the name {USERNAME}-trial
 
 
 Using the UI
@@ -231,3 +257,12 @@ button next to the row for that batch. You can also delete a batch with the "Del
 .. warning::
 
     Deleting a batch only removes it from the UI. You will still be billed for a deleted batch.
+
+
+Important Notes
+---------------
+
+.. warning::
+
+    To avoid expensive egress charges, input and output files should be located in buckets
+    that are multi-regional in the United States because Batch runs jobs in any US region.

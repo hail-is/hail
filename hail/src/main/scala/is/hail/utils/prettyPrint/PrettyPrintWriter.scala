@@ -39,7 +39,7 @@ object Doc {
     var pendingOpens: Int = 0
     var pendingCloses: Int = 0
 
-    def scan(node: ScanedNode, size: Int): Unit = {
+    def scan(node: ScannedNode, size: Int): Unit = {
       globalPos += size
       if (pendingGroups.isEmpty) {
         printNode(node, false)
@@ -79,7 +79,7 @@ object Doc {
       }
     }
 
-    def printNode(node: ScanedNode, flatten: Boolean): Unit = node match {
+    def printNode(node: ScannedNode, flatten: Boolean): Unit = node match {
       case TextN(t) =>
         remainingInLine -= t.length
         out.write(t)
@@ -121,7 +121,7 @@ object Doc {
 
     def openGroups(): Unit = {
       while (pendingOpens > 0) {
-        pendingGroups.addLast(GroupN(new ArrayBuilder[ScanedNode](), globalPos, -1))
+        pendingGroups.addLast(GroupN(new ArrayBuilder[ScannedNode](), globalPos, -1))
         pendingOpens -= 1
       }
     }
@@ -153,6 +153,7 @@ object Doc {
       closeGroups()
     } catch {
       case _: MaxLinesExceeded =>
+        // 'maxLines' have been printed, so break out of the loop and stop printing.
     }
   }
 }
@@ -174,14 +175,14 @@ private[prettyPrint] case class Group(body: Doc) extends Doc
 private[prettyPrint] case class Indent(i: Int, body: Doc) extends Doc
 private[prettyPrint] case class Concat(it: Iterable[Doc]) extends Doc
 
-private[prettyPrint] abstract class ScanedNode
-private[prettyPrint] case class TextN(t: String) extends ScanedNode
-private[prettyPrint] case class LineN(indentation: Int, ifFlat: String) extends ScanedNode
-private[prettyPrint] case class GroupN(contents: ArrayBuilder[ScanedNode], start: Int, var end: Int) extends ScanedNode
+private[prettyPrint] abstract class ScannedNode
+private[prettyPrint] case class TextN(t: String) extends ScannedNode
+private[prettyPrint] case class LineN(indentation: Int, ifFlat: String) extends ScannedNode
+private[prettyPrint] case class GroupN(contents: ArrayBuilder[ScannedNode], start: Int, var end: Int) extends ScannedNode
 
 private[prettyPrint] abstract class KontNode
 private[prettyPrint] case object PopGroupK extends KontNode
 private[prettyPrint] case class UnindentK(indent: Int) extends KontNode
 private[prettyPrint] case class ConcatK(kont: Iterator[Doc]) extends KontNode
 
-class MaxLinesExceeded() extends Exception
+private[prettyPrint] class MaxLinesExceeded() extends Exception

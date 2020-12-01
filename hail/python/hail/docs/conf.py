@@ -68,26 +68,7 @@ nbsphinx_allow_errors = False
 if not tags.has('checktutorial'):  # noqa: F821
     nbsphinx_execute = 'never'
 
-autosummary_generate = ['api.rst',
-                        'genetics/index.rst',
-                        'methods/index.rst',
-                        'methods/impex.rst',
-                        'methods/stats.rst',
-                        'methods/genetics.rst',
-                        'methods/misc.rst',
-                        'utils/index.rst',
-                        'linalg/index.rst',
-                        'stats/index.rst',
-                        'expressions.rst',
-                        'functions/index.rst',
-                        'functions/core.rst',
-                        'functions/constructors.rst',
-                        'functions/string.rst',
-                        'functions/stats.rst',
-                        'functions/collections.rst',
-                        'functions/numeric.rst',
-                        'functions/genetics.rst',
-                        ]
+autosummary_generate = True
 # autoclass_content = "both"
 autodoc_default_flags = ['members', 'undoc-members']
 autodoc_typehints = 'none'  # https://github.com/hail-is/hail/pull/9403#issuecomment-703776111

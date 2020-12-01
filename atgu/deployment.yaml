@@ -1,0 +1,129 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: atgu
+  labels:
+    app: atgu
+    hail.is/sha: "{{ code.sha }}"
+spec:
+  selector:
+    matchLabels:
+      app: atgu
+  replicas: 3
+  template:
+    metadata:
+      labels:
+        app: atgu
+        hail.is/sha: "{{ code.sha }}"
+        grafanak8sapp: "true"
+    spec:
+{% if deploy %}
+      priorityClassName: production
+{% endif %}
+      nodeSelector:
+        preemptible: "true"
+      tolerations:
+       - key: preemptible
+         value: "true"
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchExpressions:
+                  - key: "app"
+                    operator: In
+                    values:
+                    - atgu
+              topologyKey: "kubernetes.io/hostname"
+      containers:
+      - name: atgu
+        image: {{ atgu_image.image }}
+        command:
+         - python3
+         - -m
+         - atgu
+        ports:
+         - containerPort: 5000
+        resources:
+          requests:
+            memory: "250M"
+            cpu: "100m"
+          limits:
+            memory: "1G"
+            cpu: "1"
+        env:
+         - name: HAIL_DOMAIN
+           value: "{{ global.domain }}"
+         - name: GOOGLE_APPLICATION_CREDENTIALS
+           value: /gsa-key/key.json
+         - name: HAIL_ATGU_BUCKET
+{% if deploy %}
+           value: hail-atgu-data
+{% else %}
+           value: hail-test-dmk9z
+{% endif %}
+        volumeMounts:
+         - name: deploy-config
+           mountPath: /deploy-config
+           readOnly: true
+         - name: session-secret-key
+           mountPath: /session-secret-key
+           readOnly: true
+         - name: sql-config
+           mountPath: /sql-config
+           readOnly: true
+         - name: ssl-config-atgu
+           mountPath: /ssl-config
+           readOnly: true
+         - name: gsa-key
+           mountPath: /gsa-key
+           readOnly: true
+        readinessProbe:
+          tcpSocket:
+            port: 5000
+          initialDelaySeconds: 5
+          periodSeconds: 5
+      volumes:
+       - name: deploy-config
+         secret:
+           secretName: deploy-config
+       - name: session-secret-key
+         secret:
+           secretName: session-secret-key
+       - name: sql-config
+         secret:
+           secretName: "{{ atgu_database.user_secret_name }}"
+       - name: ssl-config-atgu
+         secret:
+           optional: false
+           secretName: ssl-config-atgu
+       - name: gsa-key
+         secret:
+           secretName: atgu-gsa-key
+---
+apiVersion: autoscaling/v2beta1
+kind: HorizontalPodAutoscaler
+metadata:
+  name: atgu
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: atgu
+  minReplicas: 3
+  maxReplicas: 10
+  metrics:
+   - type: Resource
+     resource:
+       name: cpu
+       targetAverageUtilization: 80
+---
+apiVersion: policy/v1beta1
+kind: PodDisruptionBudget
+metadata:
+  name: atgu
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: atgu

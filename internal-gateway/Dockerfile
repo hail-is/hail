@@ -1,9 +1,6 @@
-FROM ubuntu:18.04
+FROM {{ hail_ubuntu_image.image }}
 
-RUN apt-get update -y && \
-    apt-get install -y nginx && \
-    rm -rf /var/lib/apt/lists/*
-
+RUN hail-apt-get-install nginx
 RUN rm -f /etc/nginx/sites-enabled/default
 ADD nginx.conf /etc/nginx/
 ADD internal-gateway.nginx.conf /etc/nginx/conf.d/internal-gateway.conf

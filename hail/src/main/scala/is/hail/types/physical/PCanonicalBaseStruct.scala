@@ -2,14 +2,17 @@ package is.hail.types.physical
 
 import is.hail.annotations.{Region, UnsafeUtils}
 import is.hail.asm4s._
-import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, IEmitCode}
+import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.types.BaseStruct
+import is.hail.types.physical.stypes.SCode
+import is.hail.types.physical.stypes.concrete.{SBaseStructPointer, SBaseStructPointerCode, SBaseStructPointerSettable}
+import is.hail.types.physical.stypes.interfaces.SStruct
 import is.hail.utils._
 
 abstract class PCanonicalBaseStruct(val types: Array[PType]) extends PBaseStruct {
   if (!types.forall(_.isRealizable)) {
     throw new AssertionError(
-      s"found non realizable type(s) ${types.filter(!_.isRealizable).mkString(", ")} in ${types.mkString(", ")}")
+      s"found non realizable type(s) ${ types.filter(!_.isRealizable).mkString(", ") } in ${ types.mkString(", ") }")
   }
 
   val (missingIdx: Array[Int], nMissing: Int) = BaseStruct.getMissingIndexAndCount(types.map(_.required))
@@ -99,41 +102,30 @@ abstract class PCanonicalBaseStruct(val types: Array[PType]) extends PBaseStruct
     }
   }
 
-  def deepPointerCopy(mb: EmitMethodBuilder[_], region: Value[Region], dstStructAddress: Code[Long])(implicit line: LineNumber): Code[Unit] = {
-    Code.memoize(dstStructAddress, "pcbs_dpcopy_dst") { dstStructAddress =>
-      var c: Code[Unit] = Code._empty
-      var i = 0
-      while (i < size) {
-        val dstFieldType = fields(i).typ.fundamentalType
-        if (dstFieldType.containsPointers) {
-          val dstFieldAddress = mb.genFieldThisRef[Long]()
-          c = Code(
-            c,
-            isFieldDefined(dstStructAddress, i).orEmpty(
-              Code(
-                dstFieldAddress := fieldOffset(dstStructAddress, i),
-                dstFieldType match {
-                  case t@(_: PBinary | _: PArray) =>
-                    Region.storeAddress(dstFieldAddress, t.copyFromType(mb, region, dstFieldType, Region.loadAddress(dstFieldAddress), deepCopy = true))
-                  case t: PCanonicalBaseStruct =>
-                    t.deepPointerCopy(mb, region, dstFieldAddress)
-                }
-              )
-            )
-          )
-        }
-        i += 1
+  def deepPointerCopy(cb: EmitCodeBuilder, region: Value[Region], dstStructAddress: Code[Long])(implicit line: LineNumber): Unit = {
+    val dstAddr = cb.newLocal[Long]("pcbs_dpcopy_dst", dstStructAddress)
+    fields.foreach { f =>
+      val dstFieldType = f.typ.fundamentalType
+      if (dstFieldType.containsPointers) {
+        cb.ifx(isFieldDefined(dstAddr, f.index),
+          {
+            dstFieldType match {
+              case t@(_: PBinary | _: PArray) =>
+                val fieldAddr = cb.newLocal[Long]("pcbs_dpcopy_field", fieldOffset(dstAddr, f.index))
+                t.storeAtAddress(cb, fieldAddr, region, t.loadCheapPCode(cb, Region.loadAddress(fieldAddr)), deepCopy = true)
+              case t: PCanonicalBaseStruct =>
+                t.deepPointerCopy(cb, region, fieldOffset(dstAddr, f.index))
+            }
+          })
       }
-
-      c
     }
   }
 
   def deepPointerCopy(region: Region, dstStructAddress: Long) {
     var i = 0
-    while(i < this.size) {
+    while (i < this.size) {
       val dstFieldType = this.fields(i).typ.fundamentalType
-      if(dstFieldType.containsPointers && this.isFieldDefined(dstStructAddress, i)) {
+      if (dstFieldType.containsPointers && this.isFieldDefined(dstStructAddress, i)) {
         val dstFieldAddress = this.fieldOffset(dstStructAddress, i)
         dstFieldType match {
           case t@(_: PBinary | _: PArray) =>
@@ -146,64 +138,16 @@ abstract class PCanonicalBaseStruct(val types: Array[PType]) extends PBaseStruct
     }
   }
 
-  def copyFromType(mb: EmitMethodBuilder[_], region: Value[Region], srcPType: PType, srcStructAddress: Code[Long], deepCopy: Boolean)(implicit line: LineNumber): Code[Long] = {
-    val sourceType = srcPType.asInstanceOf[PBaseStruct]
-    assert(sourceType.size == this.size)
-
-    if (this == sourceType && !deepCopy)
-      srcStructAddress
-    else {
-      val addr = mb.newLocal[Long]()
-      Code(
-        addr := allocate(region),
-        constructAtAddress(mb, addr, region, sourceType, srcStructAddress, deepCopy),
-        addr
-      )
-    }
-  }
-
-  def copyFromTypeAndStackValue(mb: EmitMethodBuilder[_], region: Value[Region], srcPType: PType, stackValue: Code[_], deepCopy: Boolean)(implicit line: LineNumber): Code[_] =
-    copyFromType(mb, region, srcPType, stackValue.asInstanceOf[Code[Long]], deepCopy)
-
   def _copyFromAddress(region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Long = {
     if (equalModuloRequired(srcPType) && !deepCopy)
       return srcAddress
 
     val newAddr = allocate(region)
-    constructAtAddress(newAddr, region, srcPType.asInstanceOf[PBaseStruct], srcAddress, deepCopy)
+    unstagedStoreAtAddress(newAddr, region, srcPType.asInstanceOf[PBaseStruct], srcAddress, deepCopy)
     newAddr
   }
 
-  def constructAtAddress(mb: EmitMethodBuilder[_], addr: Code[Long], region: Value[Region], srcPType: PType, srcAddress: Code[Long], deepCopy: Boolean)(implicit line: LineNumber): Code[Unit] = {
-    val srcStruct = srcPType.asInstanceOf[PBaseStruct]
-    val addrVar = mb.newLocal[Long]()
-
-    if (srcStruct == this) {
-      var c: Code[Unit] = Code(
-        addrVar := addr,
-        Region.copyFrom(srcAddress, addrVar, byteSize))
-      if (deepCopy)
-        c = Code(c, deepPointerCopy(mb, region, addrVar))
-      c
-    } else {
-      val srcAddrVar = mb.newLocal[Long]()
-      Code(
-        srcAddrVar := srcAddress,
-        addrVar := addr,
-        stagedInitialize(addrVar, setMissing = true),
-        Code(fields.zip(srcStruct.fields).map { case (dest, src) =>
-          val idx = dest.index
-          assert(idx == src.index)
-          srcStruct.isFieldDefined(srcAddrVar, idx).mux(Code(
-            setFieldPresent(addrVar, idx),
-            dest.typ.constructAtAddress(mb, fieldOffset(addrVar, idx), region, src.typ, srcStruct.loadField(srcAddrVar, idx), deepCopy)),
-            if (dest.typ.required) Code._fatal[Unit](s"required struct field ${dest.name} encountered missing value!") else Code._empty
-          )
-        }))
-    }
-  }
-
-  def constructAtAddress(addr: Long, region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Unit = {
+  def unstagedStoreAtAddress(addr: Long, region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Unit = {
     val srcStruct = srcPType.asInstanceOf[PBaseStruct]
     if (equalModuloRequired(srcStruct)) {
       Region.copyFrom(srcAddress, addr, byteSize)
@@ -215,7 +159,7 @@ abstract class PCanonicalBaseStruct(val types: Array[PType]) extends PBaseStruct
       while (idx < types.length) {
         if (srcStruct.isFieldDefined(srcAddress, idx)) {
           setFieldPresent(addr, idx)
-          types(idx).constructAtAddress(
+          types(idx).unstagedStoreAtAddress(
             fieldOffset(addr, idx), region, srcStruct.types(idx), srcStruct.loadField(srcAddress, idx), deepCopy)
         } else
           assert(!fieldRequired(idx))
@@ -224,57 +168,45 @@ abstract class PCanonicalBaseStruct(val types: Array[PType]) extends PBaseStruct
     }
   }
 
-  override def load(src: Code[Long])(implicit line: LineNumber): PCanonicalBaseStructCode =
-    new PCanonicalBaseStructCode(this, src)
-}
+  def sType: SStruct = SBaseStructPointer(this)
 
-object PCanonicalBaseStructSettable {
-  def apply(sb: SettableBuilder, pt: PCanonicalBaseStruct, name: String): PCanonicalBaseStructSettable = {
-    new PCanonicalBaseStructSettable(pt, sb.newSettable(name))
-  }
-}
+  def loadCheapPCode(cb: EmitCodeBuilder, addr: Code[Long]): PCode = new SBaseStructPointerCode(SBaseStructPointer(this), addr)
 
-class PCanonicalBaseStructSettable(
-  val pt: PCanonicalBaseStruct,
-  val a: Settable[Long]
-) extends PBaseStructValue with PSettable {
-  def get(implicit line: LineNumber): PBaseStructCode =
-    new PCanonicalBaseStructCode(pt, a)
-
-  def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(a)
-
-  def loadField(cb: EmitCodeBuilder, fieldIdx: Int)(implicit line: LineNumber): IEmitCode = {
-    IEmitCode(cb,
-      pt.isFieldMissing(a, fieldIdx),
-      pt.fields(fieldIdx).typ.load(pt.fieldOffset(a, fieldIdx)))
+  def store(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): Code[Long] = {
+    value.st match {
+      case SBaseStructPointer(t) if t.equalModuloRequired(this) && !deepCopy =>
+        value.asInstanceOf[SBaseStructPointerCode].a
+      case _ =>
+        val newAddr = cb.newLocal[Long]("pcbasestruct_store_newaddr")
+        cb.assign(newAddr, allocate(region))
+        storeAtAddress(cb, newAddr, region, value, deepCopy)
+        newAddr
+    }
   }
 
-  def store(pv: PCode)(implicit line: LineNumber): Code[Unit] = {
-    a := pv.asInstanceOf[PCanonicalBaseStructCode].a
+  def storeAtAddress(cb: EmitCodeBuilder, addr: Code[Long], region: Value[Region], value: SCode, deepCopy: Boolean)(implicit line: LineNumber): Unit = {
+    value.st match {
+      case SBaseStructPointer(t) if t.equalModuloRequired(this) =>
+        val pcs = value.asBaseStruct.memoize(cb, "pcbasestruct_store_src").asInstanceOf[SBaseStructPointerSettable]
+        val addrVar = cb.newLocal[Long]("pcbasestruct_store_dest_addr1", addr)
+        cb += Region.copyFrom(pcs.a, addrVar, byteSize)
+        if (deepCopy)
+          deepPointerCopy(cb, region, addrVar)
+      case _ =>
+        val addrVar = cb.newLocal[Long]("pcbasestruct_store_dest_addr2", addr)
+        val pcs = value.asBaseStruct.memoize(cb, "pcbasestruct_store_src")
+        cb += stagedInitialize(addrVar, setMissing = false)
+
+        fields.foreach { f =>
+          pcs.loadField(cb, f.index)
+            .consume(cb,
+              {
+                cb += setFieldMissing(addrVar, f.index)
+              },
+              {
+                f.typ.storeAtAddress(cb, fieldOffset(addrVar, f.index), region, _, deepCopy)
+              })
+        }
+    }
   }
-
-  def isFieldMissing(fieldIdx: Int)(implicit line: LineNumber): Code[Boolean] = {
-    this.pt.isFieldMissing(a, fieldIdx)
-  }
-}
-
-class PCanonicalBaseStructCode(val pt: PCanonicalBaseStruct, val a: Code[Long]) extends PBaseStructCode {
-  def code: Code[_] = a
-
-  def codeTuple(): IndexedSeq[Code[_]] = FastIndexedSeq(a)
-
-  def memoize(cb: EmitCodeBuilder, name: String, sb: SettableBuilder)(implicit line: LineNumber): PBaseStructValue = {
-    val s = PCanonicalBaseStructSettable(sb, pt, name)
-    cb.assign(s, this)
-    s
-  }
-
-  def memoize(cb: EmitCodeBuilder, name: String)(implicit line: LineNumber): PBaseStructValue =
-    memoize(cb, name, cb.localBuilder)
-
-  def memoizeField(cb: EmitCodeBuilder, name: String)(implicit line: LineNumber): PBaseStructValue =
-    memoize(cb, name, cb.fieldBuilder)
-
-  def store(mb: EmitMethodBuilder[_], r: Value[Region], dst: Code[Long])(implicit line: LineNumber): Code[Unit] =
-    pt.constructAtAddress(mb, dst, r, pt, a, deepCopy = false)
 }

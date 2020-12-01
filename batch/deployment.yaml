@@ -22,12 +22,15 @@ spec:
       serviceAccountName: batch
 {% if deploy %}
       priorityClassName: production
-{% endif %}
+      nodeSelector:
+        preemptible: "false"      
+{% else %}
       nodeSelector:
         preemptible: "true"
       tolerations:
        - key: preemptible
          value: "true"
+{% endif %}
       containers:
       - name: batch-driver
         image: {{ batch_image.image }}
@@ -48,8 +51,6 @@ spec:
            value: "{{ batch_worker_image.image }}"
          - name: HAIL_DEFAULT_NAMESPACE
            value: "{{ default_ns.name }}"
-         - name: HAIL_BATCH_PODS_NAMESPACE
-           value: "{{ batch_pods_ns.name }}"
          - name: PROJECT
            value: "{{ global.project }}"
          - name: KUBERNETES_SERVER_URL
@@ -175,8 +176,6 @@ spec:
            value: /deploy-config/deploy-config.json
          - name: HAIL_DEFAULT_NAMESPACE
            value: "{{ default_ns.name }}"
-         - name: HAIL_BATCH_PODS_NAMESPACE
-           value: "{{ batch_pods_ns.name }}"
          - name: PROJECT
            value: "{{ global.project }}"
          - name: KUBERNETES_SERVER_URL

@@ -36,7 +36,7 @@ abstract class PhysicalTestUtils extends HailSuite {
         region.clear()
         srcRegion.clear()
       } catch {
-        case e: AssertionError =>
+        case e: Throwable =>
           srcRegion.clear()
           region.clear()
 
@@ -57,10 +57,10 @@ abstract class PhysicalTestUtils extends HailSuite {
     val value = fb.getCodeParam[Long](2)
 
     try {
-      fb.emit(destType.fundamentalType.copyFromType(fb.apply_method, codeRegion, sourceType.fundamentalType, value, deepCopy = deepCopy))
+      fb.emitWithBuilder(cb => destType.fundamentalType.store(cb, codeRegion, sourceType.fundamentalType.loadCheapPCode(cb, value), deepCopy = deepCopy))
       compileSuccess = true
     } catch {
-      case e: AssertionError =>
+      case e: Throwable =>
         srcRegion.clear()
         region.clear()
 

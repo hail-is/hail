@@ -79,11 +79,11 @@ class ArrayElementState(val kb: EmitClassBuilder[_], val nested: StateTuple) ext
       Code._fatal[Unit]("mismatched lengths in ArrayElementsAggregator "))
   }
 
-  def init(cb: EmitCodeBuilder, initOp: => Unit, initLen: Boolean)(implicit line: LineNumber): Unit = {
+  def init(cb: EmitCodeBuilder, initOp: (EmitCodeBuilder) => Unit, initLen: Boolean)(implicit line: LineNumber): Unit = {
     cb += region.setNumParents(nStates)
     cb.assign(off, region.allocate(typ.alignment, typ.byteSize))
     initContainer.newState(cb)
-    initOp
+    initOp(cb)
     initContainer.store(cb)
     if (initLen) {
       cb += typ.setFieldMissing(off, 1)
@@ -124,7 +124,7 @@ class ArrayElementState(val kb: EmitClassBuilder[_], val nested: StateTuple) ext
   def deserialize(codec: BufferSpec)(implicit line: LineNumber): (EmitCodeBuilder, Value[InputBuffer]) => Unit = {
     val deserializers = nested.states.map(_.deserialize(codec));
     { (cb: EmitCodeBuilder, ib: Value[InputBuffer]) =>
-      init(cb, nested.toCodeWithArgs(cb,
+      init(cb, cb => nested.toCodeWithArgs(cb,
         FastIndexedSeq(ib),
         { (cb, i, _, args) =>
           val ib = cb.newLocal("aelca_deser_init_ib", coerce[InputBuffer](args.head))
@@ -152,7 +152,7 @@ class ArrayElementState(val kb: EmitClassBuilder[_], val nested: StateTuple) ext
     val initOffset = typ.loadField(srcOff, 0)
     val eltOffset = arrayType.loadElement(typ.loadField(srcOff, 1), idx)
 
-    init(cb, initContainer.copyFrom(cb, initOffset), initLen = false)
+    init(cb, cb => initContainer.copyFrom(cb, initOffset), initLen = false)
     cb.ifx(typ.isFieldMissing(srcOff, 1), {
       cb += typ.setFieldMissing(off, 1)
       cb.assign(lenRef, -1)
@@ -176,12 +176,12 @@ class ArrayElementLengthCheckAggregator(nestedAggs: Array[StagedAggregator], kno
   protected def _initOp(cb: EmitCodeBuilder, state: State, init: Array[EmitCode])(implicit line: LineNumber): Unit = {
     if (knownLength) {
       val Array(len, inits) = init
-      state.init(cb, cb += inits.setup, initLen = false)
+      state.init(cb, cb => cb += inits.asVoid, initLen = false)
       cb += len.setup
       state.initLength(cb, len.m.mux(Code._fatal[Int]("Array length can't be missing"), len.value[Int]))
     } else {
       val Array(inits) = init
-      state.init(cb, cb += inits.setup, initLen = true)
+      state.init(cb, cb => cb += inits.asVoid, initLen = true)
       cb.assign(state.lenRef, -1)
     }
   }
@@ -192,10 +192,10 @@ class ArrayElementLengthCheckAggregator(nestedAggs: Array[StagedAggregator], kno
     val len = seq.head
     len.toI(cb).consume(cb, { /* do nothing */ }, { len =>
       if (!knownLength) {
-        val v = cb.newLocal("aelca_seqop_len", len.tcode[Int])
+        val v = cb.newLocal("aelca_seqop_len", len.asInt.intCode(cb))
         cb.ifx(state.lenRef < 0, state.initLength(cb, v), cb += state.checkLength(v))
       } else {
-        cb += state.checkLength(len.tcode[Int])
+        cb += state.checkLength(len.asInt.intCode(cb))
       }
     })
   }
@@ -271,7 +271,7 @@ class ArrayElementwiseOpAggregator(nestedAggs: Array[StagedAggregator]) extends 
         cb._fatal("element idx out of bounds")
       }, {
         state.load(cb)
-        cb += seqOps.setup
+        cb += seqOps.asVoid
         state.store(cb)
       })
     })

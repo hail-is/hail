@@ -9,12 +9,14 @@ UKBB_RG_BROWSER_IMAGE = gcr.io/$(PROJECT)/ukbb-rg-browser:$(shell docker images 
 .PHONY: build
 build:
 	ls app/app.R app/www/rainbowvis.js # read the README
-	docker pull ubuntu:18.04
+	docker pull gcr.io/$(PROJECT)/ubuntu:18.04
 	-docker pull $(UKBB_RG_STATIC_LATEST)
-	docker build -t ukbb-rg-static -f Dockerfile.static --cache-from ukbb-rg-static,$(UKBB_RG_STATIC_LATEST),ubuntu:18.04 .
-	docker pull ubuntu:19.04
+	python3 ../ci/jinja2_render.py '{"global":{"project":"$(PROJECT)"}}' Dockerfile.static Dockerfile.static.out
+	docker build -t ukbb-rg-static -f Dockerfile.static.out --cache-from ukbb-rg-static,$(UKBB_RG_STATIC_LATEST),gcr.io/$(PROJECT)/ubuntu:18.04 .
+	docker pull gcr.io/$(PROJECT)/ubuntu:19.04
 	-docker pull $(UKBB_RG_BROWSER_LATEST)
-	docker build -t ukbb-rg-browser -f Dockerfile.browser --cache-from ukbb-rg-browser,$(UKBB_RG_BROWSER_LATEST),ubuntu:19.04 .
+	python3 ../ci/jinja2_render.py '{"global":{"project":"$(PROJECT)"}}' Dockerfile.browser Dockerfile.browser.out
+	docker build -t ukbb-rg-browser -f Dockerfile.browser.out --cache-from ukbb-rg-browser,$(UKBB_RG_BROWSER_LATEST),gcr.io/$(PROJECT)/ubuntu:19.04 .
 
 .PHONY: push
 push: build

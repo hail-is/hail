@@ -502,7 +502,7 @@ case class PartitionRVDReader(rvd: RVD) extends PartitionReader {
             pc => EmitCode.present(upcastPType, pc),
             setup0 = None,
             setup = Some(Code(iterator := broadcastRVD.invoke[Int, Region, Region, Iterator[Long]](
-              "computePartition", idx.asPrimitive.primCode[Int], eltRegion.code, outerRegion.code),
+              "computePartition", EmitCodeBuilder.scopedCode[Int](mb)(idx.asInt.intCode(_)), eltRegion.code, outerRegion.code),
               upcastF := Code.checkcast[AsmFunction2RegionLongLong](upcastCode.invoke[AnyRef, AnyRef, AnyRef]("apply", Code.boxInt(0), outerRegion.code)))))
       }
     }
@@ -639,7 +639,7 @@ case class PartitionNativeReaderIndexed(spec: AbstractTypedCodecSpec, indexSpec:
                     .consumeCode[Interval](cb,
                       Code._fatal[Interval](""),
                       { pc =>
-                        val pcm = pc.memoize(cb, "pnri_interval")
+                        val pcm = pc.memoize(cb, "pnri_interval").asPValue
                         Code.invokeScalaObject2[PType, Long, Interval](
                           PartitionBoundOrdering.getClass,
                           "regionValueToJavaObject",
@@ -758,7 +758,7 @@ case class PartitionZippedNativeReader(specLeft: AbstractTypedCodecSpec, specRig
               .consumeCode[Interval](cb,
                 Code._fatal[Interval](""),
                 { pc =>
-                  val pcm = pc.memoize(cb, "pnri_interval")
+                  val pcm = pc.memoize(cb, "pnri_interval").asPValue
                   Code.invokeScalaObject2[PType, Long, Interval](
                     PartitionBoundOrdering.getClass,
                     "regionValueToJavaObject",

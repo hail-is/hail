@@ -195,9 +195,8 @@ case class SplitPartitionNativeWriter(
       val eltRegion = region.createChildRegion(mb)
 
       def writeFile(codeRow: EmitCode): Code[Unit] = {
-        val rowType = coerce[PStruct](codeRow.pt)
         EmitCodeBuilder.scopedVoid(mb) { cb =>
-          val pc = codeRow.toI(cb).get(cb, "row can't be missing")
+          val pc = codeRow.toI(cb).get(cb, "row can't be missing").asBaseStruct
           val row = pc.memoize(cb, "row")
           if (hasIndex) {
             val keyRVB = new StagedRegionValueBuilder(mb, keyType, eltRegion.code)
@@ -205,8 +204,13 @@ case class SplitPartitionNativeWriter(
             indexWriter.add(cb, {
               cb += keyRVB.start()
               keyType.fields.foreach { f =>
-                cb += keyRVB.addIRIntermediate(f.typ)(Region.loadIRIntermediate(f.typ)(rowType.fieldOffset(coerce[Long](row.value), f.name)))
-                cb += keyRVB.advance()
+                row.loadField(cb, f.name).consume(cb,
+                  cb._fatal("index field cannot be missing"),
+                  { fieldCode =>
+                    cb += keyRVB.addIRIntermediate(fieldCode)
+                    cb += keyRVB.advance()
+                  }
+                )
               }
               IEmitCode.present(cb, PCode(keyType, keyRVB.offset))
             }, ob1.invoke[Long]("indexOffset"), {
@@ -302,12 +306,14 @@ case class MatrixSpecWriter(path: String, typ: MatrixType, rowRelPath: String, g
     val i = cb.newLocal[Int]("i", 0)
     cb.assign(partCounts, Code.newArray[Long](n))
     cb.whileLoop(i < n, {
-      val count = a.loadElement(cb, i).get(cb, "part count can't be missing!")
+      val count = a.loadElement(cb, i).get(cb, "part count can't be missing!").asPCode
       cb += partCounts.update(i, count.tcode[Long])
       cb.assign(i, i + 1)
     })
     cb += cb.emb.getObject(new MatrixSpecHelper(path, rowRelPath, globalRelPath, colRelPath, entryRelPath, refRelPath, typ, log))
-      .invoke[FS, Long, Array[Long], Unit]("write", cb.emb.getFS, c.loadField(cb, "cols").get(cb).tcode[Long], partCounts)
+      .invoke[FS, Long, Array[Long], Unit]("write", cb.emb.getFS, c.loadField(cb, "cols").get(cb)
+        .asPCode
+        .tcode[Long], partCounts)
   }
 }
 

@@ -17,7 +17,7 @@ class BinarySearch[C](mb: EmitMethodBuilder[C], typ: PContainer, eltType: PType,
       case t: PBaseStruct =>
         require(t.size == 2)
         t
-      case t: PInterval => t.representation.asInstanceOf[PStruct]
+      case t: PCanonicalInterval => t.representation.asInstanceOf[PStruct]
     }
     val kt = ttype.types(0)
     val findMB = mb.genEmitMethod("findElt", FastIndexedSeq[ParamType](typeInfo[Long], typeInfo[Boolean], typeToTypeInfo(kt)), typeInfo[Int])

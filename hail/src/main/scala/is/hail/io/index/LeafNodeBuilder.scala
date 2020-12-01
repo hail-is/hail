@@ -3,10 +3,11 @@ package is.hail.io.index
 import is.hail.annotations.Region
 import is.hail.asm4s.{Code, LineNumber, SettableBuilder, Value}
 import is.hail.expr.ir.{EmitCodeBuilder, IEmitCode}
+import is.hail.io.OutputBuffer
 import is.hail.types.encoded.EType
 import is.hail.types.physical._
+import is.hail.types.physical.stypes.concrete.{SBaseStructPointer, SBaseStructPointerSettable}
 import is.hail.types.virtual.{TStruct, Type}
-import is.hail.io.OutputBuffer
 import is.hail.utils._
 
 object LeafNodeBuilder {
@@ -38,23 +39,24 @@ class StagedLeafNodeBuilder(maxSize: Int, keyType: PType, annotationType: PType,
     sb, region,
     LeafNodeBuilder.arrayType(keyType, annotationType))
 
-  private val pType: PCanonicalStruct = LeafNodeBuilder.typ(keyType, annotationType)
-  private val node = new PCanonicalBaseStructSettable(pType, sb.newSettable[Long]("lef_node_addr"))
+  private[this] val pType: PCanonicalStruct = LeafNodeBuilder.typ(keyType, annotationType)
+  private[this] val idxType = pType.fieldType("first_idx").asInstanceOf[PInt64]
+  private[this] val node = new SBaseStructPointerSettable(SBaseStructPointer(pType), sb.newSettable[Long]("lef_node_addr"))
 
   def close(cb: EmitCodeBuilder)(implicit line: LineNumber): Unit =
     cb.ifx(!region.isNull, cb += region.invalidate())
 
   def reset(cb: EmitCodeBuilder, firstIdx: Code[Long])(implicit line: LineNumber): Unit = {
     cb += region.invoke[Unit]("clear")
-    cb += node.store(PCode(pType, pType.allocate(region)))
-    cb += PInt64().storePrimitiveAtAddress(pType.fieldOffset(node.a, "first_idx"), PInt64(), firstIdx)
+    node.store(cb, pType.loadCheapPCode(cb, pType.allocate(region)))
+    idxType.storePrimitiveAtAddress(cb, pType.fieldOffset(node.a, "first_idx"), PCode(idxType, firstIdx))
     ab.create(cb, pType.fieldOffset(node.a, "keys"))
   }
 
   def create(cb: EmitCodeBuilder, firstIdx: Code[Long])(implicit line: LineNumber): Unit = {
     cb.assign(region, Region.stagedCreate(Region.REGULAR))
-    cb += node.store(PCode(pType, pType.allocate(region)))
-    cb += PInt64().storePrimitiveAtAddress(pType.fieldOffset(node.a, "first_idx"), PInt64(), firstIdx)
+    node.store(cb, pType.loadCheapPCode(cb, pType.allocate(region)))
+    idxType.storePrimitiveAtAddress(cb, pType.fieldOffset(node.a, "first_idx"), PCode(idxType, firstIdx))
     ab.create(cb, pType.fieldOffset(node.a, "keys"))
   }
 
@@ -76,5 +78,5 @@ class StagedLeafNodeBuilder(maxSize: Int, keyType: PType, annotationType: PType,
   def loadChild(cb: EmitCodeBuilder, idx: Code[Int])(implicit line: LineNumber): Unit =
     ab.loadChild(cb, idx)
   def getLoadedChild: PBaseStructValue = ab.getLoadedChild
-  def firstIdx(implicit line: LineNumber): PCode = PInt64().load(pType.fieldOffset(node.a, "first_idx"))
+  def firstIdx(cb: EmitCodeBuilder)(implicit line: LineNumber): PCode = idxType.loadCheapPCode(cb, pType.fieldOffset(node.a, "first_idx"))
 }

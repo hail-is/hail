@@ -88,8 +88,8 @@ class Tests(unittest.TestCase):
     @skip_unless_spark_backend()
     def test_plot_roc_curve(self):
         x = hl.utils.range_table(100).annotate(score1=hl.rand_norm(), score2=hl.rand_norm())
-        x = x.annotate(tp=hl.cond(x.score1 > 0, hl.rand_bool(0.7), False), score3=x.score1 + hl.rand_norm())
-        ht = x.annotate(fp=hl.cond(~x.tp, hl.rand_bool(0.2), False))
+        x = x.annotate(tp=hl.if_else(x.score1 > 0, hl.rand_bool(0.7), False), score3=x.score1 + hl.rand_norm())
+        ht = x.annotate(fp=hl.if_else(~x.tp, hl.rand_bool(0.2), False))
         _, aucs = hl.experimental.plot_roc_curve(ht, ['score1', 'score2', 'score3'])
 
     @pytest.mark.unchecked_allocator
@@ -288,7 +288,6 @@ class Tests(unittest.TestCase):
         ht = hl.experimental.pc_project(mt_to_project.GT, loadings_ht.loadings, loadings_ht.af)
         assert ht._force_count() == 100
 
-    @fails_local_backend()
     def test_mt_full_outer_join(self):
         mt1 = hl.utils.range_matrix_table(10, 10)
         mt1 = mt1.annotate_cols(c1=hl.rand_unif(0, 1))
@@ -370,12 +369,12 @@ class Tests(unittest.TestCase):
     def test_loop(self):
         def triangle_with_ints(n):
             return hl.experimental.loop(
-                lambda f, x, c: hl.cond(x > 0, f(x - 1, c + x), c),
+                lambda f, x, c: hl.if_else(x > 0, f(x - 1, c + x), c),
                 hl.tint32, n, 0)
 
         def triangle_with_tuple(n):
             return hl.experimental.loop(
-                lambda f, xc: hl.cond(xc[0] > 0, f((xc[0] - 1, xc[1] + xc[0])), xc[1]),
+                lambda f, xc: hl.if_else(xc[0] > 0, f((xc[0] - 1, xc[1] + xc[0])), xc[1]),
                 hl.tint32, (n, 0))
 
         for triangle in [triangle_with_ints, triangle_with_tuple]:
@@ -394,13 +393,13 @@ class Tests(unittest.TestCase):
         fails_typecheck("bound value",
                         lambda f, x: hl.bind(lambda x: x, f(x)))
         fails_typecheck("branch condition",
-                        lambda f, x: hl.cond(f(x) == 0, x, 1))
+                        lambda f, x: hl.if_else(f(x) == 0, x, 1))
         fails_typecheck("Type error",
-                        lambda f, x: hl.cond(x == 0, f("foo"), 1))
+                        lambda f, x: hl.if_else(x == 0, f("foo"), 1))
 
     def test_nested_loops(self):
         def triangle_loop(n, add_f):
-            recur = lambda f, x, c: hl.cond(x <= n, f(x + 1, add_f(x, c)), c)
+            recur = lambda f, x, c: hl.if_else(x <= n, f(x + 1, add_f(x, c)), c)
             return hl.experimental.loop(recur, hl.tint32, 0, 0)
 
         assert_evals_to(triangle_loop(5, lambda x, c: c + x), 15)
@@ -409,10 +408,10 @@ class Tests(unittest.TestCase):
         n1 = 5
         calls_recur_from_nested_loop = hl.experimental.loop(
             lambda f, x1, c1:
-            hl.cond(x1 <= n1,
+            hl.if_else(x1 <= n1,
                     hl.experimental.loop(
                         lambda f2, x2, c2:
-                        hl.cond(x2 <= x1,
+                        hl.if_else(x2 <= x1,
                                 f2(x2 + 1, c2 + x2),
                                 f(x1 + 1, c1 + c2)),
                         'int32', 0, 0),

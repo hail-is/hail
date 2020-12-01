@@ -4,6 +4,7 @@ import is.hail.annotations.Region
 import is.hail.asm4s.{coerce => _, _}
 import is.hail.types.{coerce => _, _}
 import is.hail.expr.ir._
+import is.hail.types.physical.stypes.SCode
 import is.hail.types.physical.{PArray, PCode, PFloat64, PIndexableCode, PInt32, PType}
 import is.hail.types.virtual.{TArray, TFloat64, TInt32, Type}
 
@@ -11,7 +12,7 @@ object GenotypeFunctions extends RegistryFunctions {
 
   def registerAll() {
     registerPCode1("gqFromPL", TArray(tv("N", "int32")), TInt32, (_: Type, _: PType) => PInt32())
-    { case (r, rt, _pl: PIndexableCode, _line) =>
+    { case (r, cb, rt, _pl: PIndexableCode, _line) =>
       implicit val line = _line
       val code = EmitCodeBuilder.scopedCode(r.mb) { cb =>
         val pl = _pl.memoize(cb, "plv")
@@ -21,7 +22,7 @@ object GenotypeFunctions extends RegistryFunctions {
 
         cb.whileLoop(i < pl.loadLength(), {
           val value = pl.loadElement(cb, i).get(cb, "PL cannot have missing elements.")
-          val pli = cb.newLocal[Int]("pli", value.tcode[Int])
+          val pli = cb.newLocal[Int]("pli", value.asInt.intCode(cb))
           cb.ifx(pli < m, {
             cb.assign(m2, m)
             cb.assign(m, pli)
@@ -45,9 +46,9 @@ object GenotypeFunctions extends RegistryFunctions {
         cb.ifx(gpv.loadLength().cne(3),
           cb._fatal(const("length of gp array must be 3, got ").concat(gpv.loadLength().toS)))
 
-        gpv.loadElement(cb, 1).flatMap(cb) { (_1: PCode) =>
-          gpv.loadElement(cb, 2).map(cb) { (_2: PCode) =>
-            PCode(rt, _1.tcode[Double] + _2.tcode[Double] * 2.0)
+        gpv.loadElement(cb, 1).flatMap(cb) { (_1: SCode) =>
+          gpv.loadElement(cb, 2).map(cb) { (_2: SCode) =>
+            PCode(rt, _1.asDouble.doubleCode(cb) + _2.asDouble.doubleCode(cb) * 2.0)
           }
         }
       }

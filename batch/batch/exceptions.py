@@ -21,7 +21,7 @@ class NonExistentBillingProjectError(BatchUserError):
 
 class NonExistentUserError(BatchUserError):
     def __init__(self, user, billing_project):
-        super().__init__(f'User {user} is not in billing project {billing_project} does not exist.', 'error')
+        super().__init__(f'User {user} is not in billing project {billing_project}.', 'error')
 
     def http_response(self):
         return web.HTTPNotFound(reason=self.message)
@@ -45,6 +45,6 @@ class NonExistentBatchError(BatchUserError):
         super().__init__(f'Batch {batch_id} does not exist.', 'error')
 
 
-class OpenBatchError(Exception):
+class OpenBatchError(BatchUserError):
     def __init__(self, batch_id):
         super().__init__(f'Batch {batch_id} is open.', 'error')
