@@ -148,7 +148,7 @@ abstract class PBaseStruct extends PType {
 
   def allocate(region: Region): Long
 
-  def allocate(region: Code[Region]): Code[Long]
+  def allocate(region: Code[Region])(implicit line: LineNumber): Code[Long]
 
   def initialize(structAddress: Long, setMissing: Boolean = false): Unit
 
@@ -158,26 +158,26 @@ abstract class PBaseStruct extends PType {
 
   def isFieldMissing(off: Long, fieldIdx: Int): Boolean = !isFieldDefined(off, fieldIdx)
 
-  def isFieldMissing(offset: Code[Long], fieldIdx: Int): Code[Boolean]
+  def isFieldMissing(offset: Code[Long], fieldIdx: Int)(implicit line: LineNumber): Code[Boolean]
 
   def isFieldDefined(offset: Code[Long], fieldIdx: Int)(implicit line: LineNumber): Code[Boolean] =
     !isFieldMissing(offset, fieldIdx)
 
   def setFieldMissing(offset: Long, fieldIdx: Int): Unit
 
-  def setFieldMissing(offset: Code[Long], fieldIdx: Int): Code[Unit]
+  def setFieldMissing(offset: Code[Long], fieldIdx: Int)(implicit line: LineNumber): Code[Unit]
 
   def setFieldPresent(offset: Long, fieldIdx: Int): Unit
 
-  def setFieldPresent(offset: Code[Long], fieldIdx: Int): Code[Unit]
+  def setFieldPresent(offset: Code[Long], fieldIdx: Int)(implicit line: LineNumber): Code[Unit]
 
   def fieldOffset(structAddress: Long, fieldIdx: Int): Long
 
-  def fieldOffset(structAddress: Code[Long], fieldIdx: Int): Code[Long]
+  def fieldOffset(structAddress: Code[Long], fieldIdx: Int)(implicit line: LineNumber): Code[Long]
 
   def loadField(offset: Long, fieldIdx: Int): Long
 
-  def loadField(offset: Code[Long], fieldIdx: Int): Code[Long]
+  def loadField(offset: Code[Long], fieldIdx: Int)(implicit line: LineNumber): Code[Long]
 
   override def containsPointers: Boolean = types.exists(_.containsPointers)
 

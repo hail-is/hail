@@ -19,7 +19,7 @@ abstract class PShuffleValue extends PValue {
 abstract class PShuffleCode extends PCode {
   def pt: PShuffle
 
-  def memoize(cb: EmitCodeBuilder, name: String): PShuffleValue
+  def memoize(cb: EmitCodeBuilder, name: String)(implicit line: LineNumber): PShuffleValue
 
-  def memoizeField(cb: EmitCodeBuilder, name: String): PShuffleValue
+  def memoizeField(cb: EmitCodeBuilder, name: String)(implicit line: LineNumber): PShuffleValue
 }

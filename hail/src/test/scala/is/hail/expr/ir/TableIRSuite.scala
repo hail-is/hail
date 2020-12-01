@@ -2,6 +2,7 @@ package is.hail.expr.ir
 
 import is.hail.ExecStrategy.ExecStrategy
 import is.hail.TestUtils._
+import is.hail.asm4s.LineNumber
 import is.hail.expr.ir.TestUtils._
 import is.hail.methods.ForceCountTable
 import is.hail.types._
@@ -744,7 +745,7 @@ class TableIRSuite extends HailSuite {
     val tr = new TableReader {
       def pathsUsed: Seq[String] = FastSeq()
 
-      override def apply(tr: TableRead, ctx: ExecuteContext): TableValue = ???
+      override def apply(tr: TableRead, ctx: ExecuteContext)(implicit line: LineNumber): TableValue = ???
 
       override def partitionCounts: Option[IndexedSeq[Long]] = Some(FastIndexedSeq(1, 2, 3, 4))
 

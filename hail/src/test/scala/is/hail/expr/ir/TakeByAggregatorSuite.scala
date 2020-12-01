@@ -9,6 +9,8 @@ import is.hail.utils._
 import org.testng.annotations.Test
 
 class TakeByAggregatorSuite extends HailSuite {
+  implicit val line = LineNumber.none
+
   @Test def testPointers() {
     for ((size, n) <- Array((1000, 100), (1, 10), (100, 10000), (1000, 10000))) {
       val fb = EmitFunctionBuilder[Region, Long](ctx, "test_pointers")

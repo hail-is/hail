@@ -11,14 +11,14 @@ import scala.reflect.ClassTag
 
 trait StagedMonoidSpec {
   val typ: PType
-  def neutral: Option[Code[_]]
-  def apply(v1: Code[_], v2: Code[_]): Code[_]
+  def neutral(implicit line: LineNumber): Option[Code[_]]
+  def apply(v1: Code[_], v2: Code[_])(implicit line: LineNumber): Code[_]
 }
 
 class MonoidAggregator(monoid: StagedMonoidSpec) extends StagedAggregator {
   type State = PrimitiveRVAState
   val typ: PType = monoid.typ
-  val resultType: PType = typ.setRequired(monoid.neutral.isDefined)
+  val resultType: PType = typ.setRequired(monoid.neutral(LineNumber.none).isDefined)
   val initOpTypes: Seq[PType] = Array[PType]()
   val seqOpTypes: Seq[PType] = Array[PType](typ)
 
@@ -98,7 +98,7 @@ class MonoidAggregator(monoid: StagedMonoidSpec) extends StagedAggregator {
 
 class ComparisonMonoid(val typ: PType, val functionName: String) extends StagedMonoidSpec {
 
-  def neutral: Option[Code[_]] = None
+  def neutral(implicit line: LineNumber): Option[Code[_]] = None
 
   private def cmp[T](v1: Code[T], v2: Code[T])(implicit tct: ClassTag[T], line: LineNumber): Code[T] =
     Code.invokeStatic2[Math,T,T,T](functionName, v1, v2)

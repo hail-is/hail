@@ -24,7 +24,7 @@ abstract class PString extends PType {
 
   def loadLength(boff: Long): Int
 
-  def loadLength(boff: Code[Long]): Code[Int]
+  def loadLength(boff: Code[Long])(implicit line: LineNumber): Code[Int]
 
   def loadString(boff: Long): String
 
@@ -32,7 +32,7 @@ abstract class PString extends PType {
 
   def allocateAndStoreString(region: Region, str: String): Long
 
-  def allocateAndStoreString(mb: EmitMethodBuilder[_], region: Value[Region], str: Code[String]): Code[Long]
+  def allocateAndStoreString(mb: EmitMethodBuilder[_], region: Value[Region], str: Code[String])(implicit line: LineNumber): Code[Long]
 }
 
 abstract class PStringCode extends PCode {

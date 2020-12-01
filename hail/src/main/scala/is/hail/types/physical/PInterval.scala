@@ -73,17 +73,17 @@ abstract class PInterval extends ComplexPType {
       }
     }
 
-  def startOffset(off: Code[Long]): Code[Long]
+  def startOffset(off: Code[Long])(implicit line: LineNumber): Code[Long]
 
-  def endOffset(off: Code[Long]): Code[Long]
+  def endOffset(off: Code[Long])(implicit line: LineNumber): Code[Long]
 
   def loadStart(off: Long): Long
 
-  def loadStart(off: Code[Long]): Code[Long]
+  def loadStart(off: Code[Long])(implicit line: LineNumber): Code[Long]
 
   def loadEnd(off: Long): Long
 
-  def loadEnd(off: Code[Long]): Code[Long]
+  def loadEnd(off: Code[Long])(implicit line: LineNumber): Code[Long]
 
   def startDefined(off: Long): Boolean
 
@@ -93,13 +93,13 @@ abstract class PInterval extends ComplexPType {
 
   def includesEnd(off: Long): Boolean
 
-  def startDefined(off: Code[Long]): Code[Boolean]
+  def startDefined(off: Code[Long])(implicit line: LineNumber): Code[Boolean]
 
-  def endDefined(off: Code[Long]): Code[Boolean]
+  def endDefined(off: Code[Long])(implicit line: LineNumber): Code[Boolean]
 
-  def includesStart(off: Code[Long]): Code[Boolean]
+  def includesStart(off: Code[Long])(implicit line: LineNumber): Code[Boolean]
 
-  def includesEnd(off: Code[Long]): Code[Boolean]
+  def includesEnd(off: Code[Long])(implicit line: LineNumber): Code[Boolean]
 
   override def genNonmissingValue: Gen[Annotation] = Interval.gen(pointType.virtualType.ordering, pointType.genValue)
 }
@@ -111,9 +111,9 @@ abstract class PIntervalValue extends PValue {
 
   def includesEnd(): Value[Boolean]
 
-  def loadStart(cb: EmitCodeBuilder): IEmitCode
+  def loadStart(cb: EmitCodeBuilder)(implicit line: LineNumber): IEmitCode
 
-  def loadEnd(cb: EmitCodeBuilder): IEmitCode
+  def loadEnd(cb: EmitCodeBuilder)(implicit line: LineNumber): IEmitCode
 
   // FIXME orderings should take emitcodes/iemitcodes
   def isEmpty(cb: EmitCodeBuilder)(implicit line: LineNumber): Code[Boolean] = {
@@ -132,11 +132,11 @@ abstract class PIntervalValue extends PValue {
 abstract class PIntervalCode extends PCode {
   def pt: PInterval
 
-  def includesStart(): Code[Boolean]
+  def includesStart()(implicit line: LineNumber): Code[Boolean]
 
-  def includesEnd(): Code[Boolean]
+  def includesEnd()(implicit line: LineNumber): Code[Boolean]
 
-  def memoize(cb: EmitCodeBuilder, name: String): PIntervalValue
+  def memoize(cb: EmitCodeBuilder, name: String)(implicit line: LineNumber): PIntervalValue
 
-  def memoizeField(cb: EmitCodeBuilder, name: String): PIntervalValue
+  def memoizeField(cb: EmitCodeBuilder, name: String)(implicit line: LineNumber): PIntervalValue
 }

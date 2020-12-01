@@ -9,6 +9,7 @@ import is.hail.utils.FastIndexedSeq
 import org.testng.annotations.Test
 
 class DownsampleSuite extends HailSuite {
+  implicit val line = LineNumber.none
 
   @Test def testLargeRandom(): Unit = {
     val lt = PCanonicalArray(PCanonicalString())

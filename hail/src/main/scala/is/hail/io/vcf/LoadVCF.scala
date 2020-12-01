@@ -3,6 +3,7 @@ package is.hail.io.vcf
 import htsjdk.variant.vcf._
 import is.hail.HailContext
 import is.hail.annotations._
+import is.hail.asm4s.LineNumber
 import is.hail.backend.BroadcastValue
 import is.hail.backend.spark.SparkBackend
 import is.hail.expr.JSONAnnotationImpex
@@ -1766,10 +1767,10 @@ class MatrixVCFReader(
       body)
   }
 
-  override def lower(ctx: ExecuteContext, requestedType: TableType): TableStage =
+  override def lower(ctx: ExecuteContext, requestedType: TableType)(implicit line: LineNumber): TableStage =
     executeGeneric(ctx).toTableStage(ctx, requestedType)
 
-  def apply(tr: TableRead, ctx: ExecuteContext): TableValue =
+  def apply(tr: TableRead, ctx: ExecuteContext)(implicit line: LineNumber): TableValue =
     executeGeneric(ctx).toTableValue(ctx ,tr.typ)
 
   override def toJValue: JValue = {

@@ -16,13 +16,13 @@ abstract class PLocus extends ComplexPType {
 
   def contigType: PString
 
-  def position(value: Code[Long]): Code[Int]
+  def position(value: Code[Long])(implicit line: LineNumber): Code[Int]
 
   def positionType: PInt32
 }
 
 abstract class PLocusValue extends PValue {
-  def contig(): PStringCode
+  def contig()(implicit line: LineNumber): PStringCode
 
   def position(): Value[Int]
 
@@ -33,13 +33,13 @@ abstract class PLocusValue extends PValue {
 abstract class PLocusCode extends PCode {
   def pt: PLocus
 
-  def contig(): PStringCode
+  def contig()(implicit line: LineNumber): PStringCode
 
-  def position(): Code[Int]
+  def position()(implicit line: LineNumber): Code[Int]
 
   def getLocusObj()(implicit line: LineNumber): Code[Locus]
 
-  def memoize(cb: EmitCodeBuilder, name: String): PLocusValue
+  def memoize(cb: EmitCodeBuilder, name: String)(implicit line: LineNumber): PLocusValue
 
-  def memoizeField(cb: EmitCodeBuilder, name: String): PLocusValue
+  def memoizeField(cb: EmitCodeBuilder, name: String)(implicit line: LineNumber): PLocusValue
 }

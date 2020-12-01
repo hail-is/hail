@@ -18,13 +18,13 @@ class PCanonicalString(val required: Boolean) extends PString {
   lazy val binaryFundamentalType: PCanonicalBinary = PCanonicalBinary(required)
   override lazy val binaryEncodableType: PCanonicalBinary =  PCanonicalBinary(required)
 
-  def copyFromType(mb: EmitMethodBuilder[_], region: Value[Region], srcPType: PType, srcAddress: Code[Long], deepCopy: Boolean): Code[Long] = {
+  def copyFromType(mb: EmitMethodBuilder[_], region: Value[Region], srcPType: PType, srcAddress: Code[Long], deepCopy: Boolean)(implicit line: LineNumber): Code[Long] = {
     this.fundamentalType.copyFromType(
       mb, region, srcPType.asInstanceOf[PString].fundamentalType, srcAddress, deepCopy
     )
   }
 
-  def copyFromTypeAndStackValue(mb: EmitMethodBuilder[_], region: Value[Region], srcPType: PType, stackValue: Code[_], deepCopy: Boolean): Code[_] =
+  def copyFromTypeAndStackValue(mb: EmitMethodBuilder[_], region: Value[Region], srcPType: PType, stackValue: Code[_], deepCopy: Boolean)(implicit line: LineNumber): Code[_] =
     this.copyFromType(mb, region, srcPType, stackValue.asInstanceOf[Code[Long]], deepCopy)
 
   def _copyFromAddress(region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Long =
@@ -35,7 +35,7 @@ class PCanonicalString(val required: Boolean) extends PString {
   def loadLength(boff: Long): Int =
     this.fundamentalType.loadLength(boff)
 
-  def loadLength(boff: Code[Long]): Code[Int] =
+  def loadLength(boff: Code[Long])(implicit line: LineNumber): Code[Int] =
     this.fundamentalType.loadLength(boff)
 
   def loadString(bAddress: Long): String =
@@ -61,7 +61,7 @@ class PCanonicalString(val required: Boolean) extends PString {
       dstAddress)
   }
 
-  def constructAtAddress(mb: EmitMethodBuilder[_], addr: Code[Long], region: Value[Region], srcPType: PType, srcAddress: Code[Long], deepCopy: Boolean): Code[Unit] =
+  def constructAtAddress(mb: EmitMethodBuilder[_], addr: Code[Long], region: Value[Region], srcPType: PType, srcAddress: Code[Long], deepCopy: Boolean)(implicit line: LineNumber): Code[Unit] =
     fundamentalType.constructAtAddress(mb, addr, region, srcPType.fundamentalType, srcAddress, deepCopy)
 
   def constructAtAddress(addr: Long, region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Unit =

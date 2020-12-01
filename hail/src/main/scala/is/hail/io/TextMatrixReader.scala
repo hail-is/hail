@@ -316,7 +316,7 @@ class TextMatrixReader(
       PType.canonical(requestedType.globalType, required = true).asInstanceOf[PStruct]
   }
 
-  def executeGeneric(ctx: ExecuteContext): GenericTableValue = {
+  def executeGeneric(ctx: ExecuteContext)(implicit line: LineNumber): GenericTableValue = {
     val tt = fullMatrixType.toTableType(LowerMatrixIR.entriesFieldName, LowerMatrixIR.colsFieldName)
 
     val globals = Row(headerInfo.columnIdentifiers.map(Row(_)).toFastIndexedSeq)
@@ -368,10 +368,10 @@ class TextMatrixReader(
 
   }
 
-  override def lower(ctx: ExecuteContext, requestedType: TableType): TableStage =
+  override def lower(ctx: ExecuteContext, requestedType: TableType)(implicit line: LineNumber): TableStage =
     executeGeneric(ctx).toTableStage(ctx, requestedType)
 
-  def apply(tr: TableRead, ctx: ExecuteContext): TableValue = {
+  def apply(tr: TableRead, ctx: ExecuteContext)(implicit line: LineNumber): TableValue = {
     executeGeneric(ctx).toTableValue(ctx,tr.typ)
   }
 
@@ -409,6 +409,7 @@ class CompiledLineParser(
   partitionRowIndexGlobal: Array[Long],
   partitionRowIndexFile: Array[Long],
   hasHeader: Boolean
+)(implicit irLine: LineNumber
 ) extends ((Int, Region, Iterator[GenericLine]) => Iterator[Long]) with Serializable {
   assert(!missingValue.contains(separator))
   @transient private[this] val entriesType = rowPType

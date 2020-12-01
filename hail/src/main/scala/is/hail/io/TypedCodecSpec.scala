@@ -43,7 +43,9 @@ final case class TypedCodecSpec(_eType: EType, _vType: Type, _bufferSpec: Buffer
     pType -> makeDec
   }
 
-  def buildCodeInputBuffer(is: Code[InputStream]): Code[InputBuffer] = _bufferSpec.buildCodeInputBuffer(is)
+  def buildCodeInputBuffer(is: Code[InputStream])(implicit line: LineNumber): Code[InputBuffer] =
+    _bufferSpec.buildCodeInputBuffer(is)
 
-  def buildCodeOutputBuffer(os: Code[OutputStream]): Code[OutputBuffer] = _bufferSpec.buildCodeOutputBuffer(os)
+  def buildCodeOutputBuffer(os: Code[OutputStream])(implicit line: LineNumber): Code[OutputBuffer] =
+    _bufferSpec.buildCodeOutputBuffer(os)
 }

@@ -99,7 +99,7 @@ class LSM (
 ) extends AutoCloseable {
   private[this] val rootRegion: Region = Region()
   private[this] val log = Logger.getLogger(getClass.getName)
-  val keyOrd: UnsafeOrdering = codecs.keyDecodedPType.unsafeOrdering
+  val keyOrd: UnsafeOrdering = codecs.keyDecodedPType.unsafeOrdering()
   private[this] val region = ThreadLocal.withInitial(new Supplier[Region]() {
     def get(): Region = {
       val region = Region()

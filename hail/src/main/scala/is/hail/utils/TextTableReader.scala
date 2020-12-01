@@ -4,6 +4,7 @@ import java.util.regex.Pattern
 
 import is.hail.HailContext
 import is.hail.annotations.{Region, RegionValueBuilder}
+import is.hail.asm4s.LineNumber
 import is.hail.backend.spark.SparkBackend
 import is.hail.expr.TableAnnotationImpex
 import is.hail.expr.ir.lowering.TableStage
@@ -413,10 +414,10 @@ class TextTableReader(
       body = body)
   }
 
-  override def lower(ctx: ExecuteContext, requestedType: TableType): TableStage =
+  override def lower(ctx: ExecuteContext, requestedType: TableType)(implicit line: LineNumber): TableStage =
     executeGeneric(ctx).toTableStage(ctx, requestedType)
 
-  def apply(tr: TableRead, ctx: ExecuteContext): TableValue =
+  def apply(tr: TableRead, ctx: ExecuteContext)(implicit line: LineNumber): TableValue =
     executeGeneric(ctx).toTableValue(ctx, tr.typ)
 
   override def toJValue: JValue = {

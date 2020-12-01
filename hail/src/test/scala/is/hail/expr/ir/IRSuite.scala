@@ -3,7 +3,7 @@ package is.hail.expr.ir
 import is.hail.ExecStrategy.ExecStrategy
 import is.hail.TestUtils._
 import is.hail.annotations.BroadcastRow
-import is.hail.asm4s.Code
+import is.hail.asm4s.{Code, LineNumber}
 import is.hail.expr.ir.ArrayZipBehavior.ArrayZipBehavior
 import is.hail.expr.ir.IRBuilder._
 import is.hail.expr.ir.IRSuite.TestFunctions
@@ -37,6 +37,7 @@ object IRSuite {
   }
 
   object TestFunctions extends RegistryFunctions {
+    implicit val line = LineNumber.none
 
     def registerSeededWithMissingness(
       name: String,
@@ -49,7 +50,7 @@ object IRSuite {
       IRFunctionRegistry.addJVMFunction(
         new SeededMissingnessAwareJVMFunction(name, valueParameterTypes, returnType, calculateReturnType) {
           val isDeterministic: Boolean = false
-          def applySeededI(seed: Long, cb: EmitCodeBuilder, r: EmitRegion, returnPType: PType, args: (PType, () => IEmitCode)*): IEmitCode = {
+          def applySeededI(seed: Long, cb: EmitCodeBuilder, r: EmitRegion, returnPType: PType, args: (PType, () => IEmitCode)*)(implicit line: LineNumber): IEmitCode = {
             assert(unify(FastSeq(), args.map(_._1.virtualType), returnPType.virtualType))
             impl(cb, r, returnPType, seed, args.map(a => a._2).toArray)
           }
@@ -88,6 +89,7 @@ object IRSuite {
 
 class IRSuite extends HailSuite {
   implicit val execStrats = ExecStrategy.nonLowering
+  implicit val line = LineNumber.none
 
   def assertPType(node: IR, expected: PType) {
     InferPType(node)

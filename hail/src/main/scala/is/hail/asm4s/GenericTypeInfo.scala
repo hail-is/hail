@@ -1,8 +1,8 @@
 package is.hail.asm4s
 
 sealed abstract class MaybeGenericTypeInfo[T : TypeInfo] {
-  def castFromGeneric(x: Code[_]): Code[T]
-  def castToGeneric(x: Code[T]): Code[_]
+  def castFromGeneric(x: Code[_])(implicit line: LineNumber): Code[T]
+  def castToGeneric(x: Code[T])(implicit line: LineNumber): Code[_]
 
   val base: TypeInfo[_]
   val generic: TypeInfo[_]
@@ -70,8 +70,8 @@ final case class GenericTypeInfo[T : TypeInfo]() extends MaybeGenericTypeInfo[T]
 }
 
 final case class NotGenericTypeInfo[T : TypeInfo]() extends MaybeGenericTypeInfo[T] {
-  def castFromGeneric(x: Code[_]): Code[T] = x.asInstanceOf[Code[T]]
-  def castToGeneric(x: Code[T]): Code[_] = x
+  def castFromGeneric(x: Code[_])(implicit line: LineNumber): Code[T] = x.asInstanceOf[Code[T]]
+  def castToGeneric(x: Code[T])(implicit line: LineNumber): Code[_] = x
 
   val base = typeInfo[T]
   val generic = base

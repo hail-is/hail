@@ -12,7 +12,7 @@ import org.objectweb.asm.Type
 import scala.reflect.ClassTag
 
 abstract class Thrower[T] {
-  def apply[U](cerr: Code[T])(implicit uti: TypeInfo[U]): Code[U]
+  def apply[U](cerr: Code[T])(implicit uti: TypeInfo[U], line: LineNumber): Code[U]
 }
 
 object LineNumber {
@@ -477,7 +477,7 @@ object Code {
       c.v match {
         case v: lir.LdcX =>
           val t = new Value[T] {
-            def get: Code[T] = Code(lir.ldcInsn(v.a, v.ti, line.v))
+            def get(implicit line: LineNumber): Code[T] = Code(lir.ldcInsn(v.a, v.ti, line.v))
           }
           return f(t)
         // You can't forward local references here because the local might have changed

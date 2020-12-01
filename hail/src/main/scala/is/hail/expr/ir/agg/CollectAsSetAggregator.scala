@@ -14,7 +14,7 @@ class TypedKey(typ: PType, kb: EmitClassBuilder[_], region: Value[Region]) exten
   val compType: PType = typ
   private val kcomp = kb.getCodeOrdering(typ, CodeOrdering.Compare(), ignoreMissingness = false)
 
-  def isKeyMissing(src: Code[Long]): Code[Boolean] = storageType.isFieldMissing(src, 0)
+  def isKeyMissing(src: Code[Long])(implicit line: LineNumber): Code[Boolean] = storageType.isFieldMissing(src, 0)
   def loadKey(src: Code[Long])(implicit line: LineNumber): Code[_] = Region.loadIRIntermediate(if (inline) typ else PInt64(typ.required))(storageType.fieldOffset(src, 0))
 
   def isEmpty(off: Code[Long])(implicit line: LineNumber): Code[Boolean] = storageType.isFieldMissing(off, 1)

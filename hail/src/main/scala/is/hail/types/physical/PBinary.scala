@@ -70,19 +70,19 @@ abstract class PBinary extends PType {
 
   def allocate(region: Region, length: Int): Long
 
-  def allocate(region: Code[Region], length: Code[Int]): Code[Long]
+  def allocate(region: Code[Region], length: Code[Int])(implicit line: LineNumber): Code[Long]
 
   def contentByteSize(length: Int): Long
 
-  def contentByteSize(length: Code[Int]): Code[Long]
+  def contentByteSize(length: Code[Int])(implicit line: LineNumber): Code[Long]
 
   def loadLength(bAddress: Long): Int
 
-  def loadLength(bAddress: Code[Long]): Code[Int]
+  def loadLength(bAddress: Code[Long])(implicit line: LineNumber): Code[Int]
 
-  def loadBytes(bAddress: Code[Long], length: Code[Int]): Code[Array[Byte]]
+  def loadBytes(bAddress: Code[Long], length: Code[Int])(implicit line: LineNumber): Code[Array[Byte]]
 
-  def loadBytes(bAddress: Code[Long]): Code[Array[Byte]]
+  def loadBytes(bAddress: Code[Long])(implicit line: LineNumber): Code[Array[Byte]]
 
   def loadBytes(bAddress: Long): Array[Byte]
 
@@ -90,33 +90,33 @@ abstract class PBinary extends PType {
 
   def storeLength(boff: Long, len: Int): Unit
 
-  def storeLength(boff: Code[Long], len: Code[Int]): Code[Unit]
+  def storeLength(boff: Code[Long], len: Code[Int])(implicit line: LineNumber): Code[Unit]
 
   def bytesAddress(boff: Long): Long
 
-  def bytesAddress(boff: Code[Long]): Code[Long]
+  def bytesAddress(boff: Code[Long])(implicit line: LineNumber): Code[Long]
 
   def store(addr: Long, bytes: Array[Byte]): Unit
 
-  def store(addr: Code[Long], bytes: Code[Array[Byte]]): Code[Unit]
+  def store(addr: Code[Long], bytes: Code[Array[Byte]])(implicit line: LineNumber): Code[Unit]
 }
 
 abstract class PBinaryValue extends PValue {
-  def loadLength(): Code[Int]
+  def loadLength()(implicit line: LineNumber): Code[Int]
 
-  def loadBytes(): Code[Array[Byte]]
+  def loadBytes()(implicit line: LineNumber): Code[Array[Byte]]
 
-  def loadByte(i: Code[Int]): Code[Byte]
+  def loadByte(i: Code[Int])(implicit line: LineNumber): Code[Byte]
 }
 
 abstract class PBinaryCode extends PCode {
   def pt: PBinary
 
-  def loadLength(): Code[Int]
+  def loadLength()(implicit line: LineNumber): Code[Int]
 
-  def loadBytes(): Code[Array[Byte]]
+  def loadBytes()(implicit line: LineNumber): Code[Array[Byte]]
 
-  def memoize(cb: EmitCodeBuilder, name: String): PBinaryValue
+  def memoize(cb: EmitCodeBuilder, name: String)(implicit line: LineNumber): PBinaryValue
 
-  def memoizeField(cb: EmitCodeBuilder, name: String): PBinaryValue
+  def memoizeField(cb: EmitCodeBuilder, name: String)(implicit line: LineNumber): PBinaryValue
 }

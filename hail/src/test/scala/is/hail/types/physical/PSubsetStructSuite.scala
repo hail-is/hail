@@ -9,6 +9,7 @@ import org.apache.spark.sql.Row
 
 class PSubsetStructSuite extends PhysicalTestUtils {
   val debug = true
+  implicit val lineNum = LineNumber.none
 
   @Test def testSubsetStruct() {
     val rt = PCanonicalStruct("a" -> PCanonicalString(), "b" -> PInt32(), "c" -> PInt64())

@@ -24,17 +24,21 @@ final case class PCanonicalInterval(pointType: PType, override val required: Boo
 
     def setRequired(required: Boolean) = if(required == this.required) this else PCanonicalInterval(this.pointType, required)
 
-    def startOffset(off: Code[Long]): Code[Long] = representation.fieldOffset(off, 0)
+    def startOffset(off: Code[Long])(implicit line: LineNumber): Code[Long] =
+      representation.fieldOffset(off, 0)
 
-    def endOffset(off: Code[Long]): Code[Long] = representation.fieldOffset(off, 1)
+    def endOffset(off: Code[Long])(implicit line: LineNumber): Code[Long] =
+      representation.fieldOffset(off, 1)
 
     def loadStart(off: Long): Long = representation.loadField(off, 0)
 
-    def loadStart(off: Code[Long]): Code[Long] = representation.loadField(off, 0)
+    def loadStart(off: Code[Long])(implicit line: LineNumber): Code[Long] =
+      representation.loadField(off, 0)
 
     def loadEnd(off: Long): Long = representation.loadField(off, 1)
 
-    def loadEnd(off: Code[Long]): Code[Long] = representation.loadField(off, 1)
+    def loadEnd(off: Code[Long])(implicit line: LineNumber): Code[Long] =
+      representation.loadField(off, 1)
 
     def startDefined(off: Long): Boolean = representation.isFieldDefined(off, 0)
 
@@ -123,6 +127,6 @@ class PCanonicalIntervalCode(val pt: PCanonicalInterval, val a: Code[Long]) exte
   def memoizeField(cb: EmitCodeBuilder, name: String)(implicit line: LineNumber): PIntervalValue =
     memoize(cb, name, cb.fieldBuilder)
 
-  def store(mb: EmitMethodBuilder[_], r: Value[Region], dst: Code[Long]): Code[Unit] =
+  def store(mb: EmitMethodBuilder[_], r: Value[Region], dst: Code[Long])(implicit line: LineNumber): Code[Unit] =
     pt.constructAtAddress(mb, dst, r, pt, a, deepCopy = false)
 }

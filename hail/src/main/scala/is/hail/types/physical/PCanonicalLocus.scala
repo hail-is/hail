@@ -33,7 +33,8 @@ final case class PCanonicalLocus(rgBc: BroadcastRG, required: Boolean = false) e
 
   val representation: PStruct = PCanonicalLocus.representation(required)
 
-  private[physical] def contigAddr(address: Code[Long]): Code[Long] = representation.loadField(address, 0)
+  private[physical] def contigAddr(address: Code[Long])(implicit line: LineNumber): Code[Long] =
+    representation.loadField(address, 0)
 
   private[physical] def contigAddr(address: Long): Long = representation.loadField(address, 0)
 
@@ -138,7 +139,8 @@ class PCanonicalLocusCode(val pt: PCanonicalLocus, val a: Code[Long]) extends PL
 
   def codeTuple(): IndexedSeq[Code[_]] = FastIndexedSeq(a)
 
-  def contig(): PStringCode = new PCanonicalStringCode(pt.contigType, pt.contigAddr(a))
+  def contig()(implicit line: LineNumber): PStringCode =
+    new PCanonicalStringCode(pt.contigType, pt.contigAddr(a))
 
   def position()(implicit line: LineNumber): Code[Int] =
     pt.position(a)

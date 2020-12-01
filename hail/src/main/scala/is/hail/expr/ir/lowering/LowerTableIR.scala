@@ -1,5 +1,6 @@
 package is.hail.expr.ir.lowering
 
+import is.hail.asm4s.LineNumber
 import is.hail.expr.ir._
 import is.hail.methods.{ForceCountTable, NPartitionsTable}
 import is.hail.rvd.{PartitionBoundOrdering, RVDPartitioner}
@@ -382,6 +383,7 @@ object LowerTableIR {
         throw new LowererUnsupportedOperation("found TableIR in lowering; lowering only BlockMatrixIRs.")
 
       val typ: TableType = tir.typ
+      implicit val line = LineNumber(tir.lineNumber)
 
       val lowered = tir match {
         case TableRead(typ, dropRows, reader) =>

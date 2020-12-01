@@ -15,21 +15,21 @@ object PCallValue {
 }
 
 abstract class PCallValue extends PValue {
-  def ploidy(): Code[Int]
+  def ploidy()(implicit line: LineNumber): Code[Int]
 
-  def isPhased(): Code[Boolean]
+  def isPhased()(implicit line: LineNumber): Code[Boolean]
 
-  def forEachAllele(cb: EmitCodeBuilder)(alleleCode: Value[Int] => Unit): Unit
+  def forEachAllele(cb: EmitCodeBuilder)(alleleCode: Value[Int] => Unit)(implicit line: LineNumber): Unit
 }
 
 abstract class PCallCode extends PCode {
   def pt: PCall
 
-  def ploidy(): Code[Int]
+  def ploidy()(implicit line: LineNumber): Code[Int]
 
-  def isPhased(): Code[Boolean]
+  def isPhased()(implicit line: LineNumber): Code[Boolean]
 
-  def memoize(cb: EmitCodeBuilder, name: String): PCallValue
+  def memoize(cb: EmitCodeBuilder, name: String)(implicit line: LineNumber): PCallValue
 
-  def memoizeField(cb: EmitCodeBuilder, name: String): PCallValue
+  def memoizeField(cb: EmitCodeBuilder, name: String)(implicit line: LineNumber): PCallValue
 }

@@ -37,14 +37,15 @@ case class WrappedMatrixWriter(writer: MatrixWriter,
   entriesFieldName: String,
   colKey: IndexedSeq[String]) extends TableWriter {
   def path: String = writer.path
-  def apply(ctx: ExecuteContext, tv: TableValue): Unit = writer(ctx, tv.toMatrixValue(colKey, colsFieldName, entriesFieldName))
+  def apply(ctx: ExecuteContext, tv: TableValue)(implicit line: LineNumber): Unit =
+    writer(ctx, tv.toMatrixValue(colKey, colsFieldName, entriesFieldName))
   override def lower(ctx: ExecuteContext, ts: TableStage, t: TableIR, r: RTable, relationalLetsAbove: Map[String, IR]): IR =
     writer.lower(colsFieldName, entriesFieldName, colKey, ctx, ts, t, r, relationalLetsAbove)
 }
 
 abstract class MatrixWriter {
   def path: String
-  def apply(ctx: ExecuteContext, mv: MatrixValue): Unit
+  def apply(ctx: ExecuteContext, mv: MatrixValue)(implicit line: LineNumber): Unit
   def lower(colsFieldName: String, entriesFieldName: String, colKey: IndexedSeq[String],
     ctx: ExecuteContext, ts: TableStage, t: TableIR, r: RTable, relationalLetsAbove: Map[String, IR]): IR =
     throw new LowererUnsupportedOperation(s"${ this.getClass } does not have defined lowering!")
@@ -317,27 +318,27 @@ case class MatrixVCFWriter(
   metadata: Option[VCFMetadata] = None,
   tabix: Boolean = false
 ) extends MatrixWriter {
-  def apply(ctx: ExecuteContext, mv: MatrixValue): Unit = ExportVCF(ctx, mv, path, append, exportType, metadata, tabix)
+  def apply(ctx: ExecuteContext, mv: MatrixValue)(implicit line: LineNumber): Unit = ExportVCF(ctx, mv, path, append, exportType, metadata, tabix)
 }
 
 case class MatrixGENWriter(
   path: String,
   precision: Int = 4
 ) extends MatrixWriter {
-  def apply(ctx: ExecuteContext, mv: MatrixValue): Unit = ExportGen(ctx, mv, path, precision)
+  def apply(ctx: ExecuteContext, mv: MatrixValue)(implicit line: LineNumber): Unit = ExportGen(ctx, mv, path, precision)
 }
 
 case class MatrixBGENWriter(
   path: String,
   exportType: String
 ) extends MatrixWriter {
-  def apply(ctx: ExecuteContext, mv: MatrixValue): Unit = ExportBGEN(ctx, mv, path, exportType)
+  def apply(ctx: ExecuteContext, mv: MatrixValue)(implicit line: LineNumber): Unit = ExportBGEN(ctx, mv, path, exportType)
 }
 
 case class MatrixPLINKWriter(
   path: String
 ) extends MatrixWriter {
-  def apply(ctx: ExecuteContext, mv: MatrixValue): Unit = ExportPlink(ctx, mv, path)
+  def apply(ctx: ExecuteContext, mv: MatrixValue)(implicit line: LineNumber): Unit = ExportPlink(ctx, mv, path)
 }
 
 object MatrixNativeMultiWriter {

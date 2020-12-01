@@ -181,7 +181,7 @@ object Wire {
     in.readBytesArray(n)
   }
 
-  def readByteArray(in: Value[InputBuffer]): Code[Array[Byte]] =
+  def readByteArray(in: Value[InputBuffer])(implicit line: LineNumber): Code[Array[Byte]] =
     in.readBytesArray(in.readInt())
 }
 

@@ -162,12 +162,14 @@ object LocusFunctions extends RegistryFunctions {
 
     registerPCode1("contig", tlocus("T"), TString,
       (_: Type, x: PType) => x.asInstanceOf[PLocus].contigType) {
-      case (r, rt, locus: PLocusCode, line) =>
+      case (r, rt, locus: PLocusCode, _line) =>
+        implicit val line = _line
         locus.contig()
     }
 
     registerCode1("position", tlocus("T"), TInt32, (_: Type, x: PType) => x.asInstanceOf[PLocus].positionType) {
-      case (r, rt, (locusT: PLocus, locus: Code[Long]), line) =>
+      case (r, rt, (locusT: PLocus, locus: Code[Long]), _line) =>
+        implicit val line = _line
         locusT.position(locus)
     }
     registerLocusCode("isAutosomalOrPseudoAutosomal") { locus =>

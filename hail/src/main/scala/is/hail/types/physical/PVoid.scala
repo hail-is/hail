@@ -1,6 +1,6 @@
 package is.hail.types.physical
 import is.hail.annotations.{CodeOrdering, Region, UnsafeOrdering}
-import is.hail.asm4s.{Code, MethodBuilder, Value, TypeInfo, UnitInfo}
+import is.hail.asm4s.{Code, LineNumber, MethodBuilder, TypeInfo, UnitInfo, Value}
 import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder}
 import is.hail.types.virtual.{TVoid, Type}
 
@@ -30,8 +30,8 @@ case object PVoidCode extends PCode with PUnrealizableCode { self =>
 
   def pt: PType = PVoid
 
-  def memoize(cb: EmitCodeBuilder, name: String): PValue = new PValue {
+  def memoize(cb: EmitCodeBuilder, name: String)(implicit line: LineNumber): PValue = new PValue {
     val pt = self.pt
-    def get: PCode = self
+    def get(implicit line: LineNumber): PCode = self
   }
 }

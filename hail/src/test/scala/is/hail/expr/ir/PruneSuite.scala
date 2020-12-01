@@ -1,6 +1,7 @@
 package is.hail.expr.ir
 
 import is.hail.HailSuite
+import is.hail.asm4s.LineNumber
 import is.hail.expr.Nat
 import is.hail.types._
 import is.hail.types.physical.PStruct
@@ -104,7 +105,7 @@ class PruneSuite extends HailSuite {
 
     def pathsUsed: Seq[String] = FastSeq()
 
-    def apply(tr: TableRead, ctx: ExecuteContext): TableValue = ???
+    def apply(tr: TableRead, ctx: ExecuteContext)(implicit line: LineNumber): TableValue = ???
 
     def partitionCounts: Option[IndexedSeq[Long]] = ???
 

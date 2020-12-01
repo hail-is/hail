@@ -5,6 +5,7 @@ import is.hail.expr.ir.EmitFunctionBuilder
 import org.testng.annotations.Test
 
 class CodeSuite extends HailSuite {
+  implicit val line = LineNumber.none
 
   @Test def testForLoop() {
     val fb = EmitFunctionBuilder[Int](ctx, "foo")

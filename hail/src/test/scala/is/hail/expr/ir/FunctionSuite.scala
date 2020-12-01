@@ -32,14 +32,19 @@ object TestRegisterFunctions extends RegistryFunctions {
     registerScalaFunction("foobar1", Array(), TInt32, null)(ScalaTestObject.getClass, "testFunction")
     registerScalaFunction("foobar2", Array(), TInt32, null)(ScalaTestCompanion.getClass, "testFunction")
     registerCode2[Int, Int]("testCodeUnification", tnum("x"), tv("x", "int32"), tv("x"), null) {
-      case (_, rt, (aT, a: Code[Int]), (bT, b: Code[Int])) => a + b
+      case (_, rt, (aT, a: Code[Int]), (bT, b: Code[Int]), _line) =>
+        implicit val line = _line
+        a + b
     }
-    registerCode1("testCodeUnification2", tv("x"), tv("x"), null) { case (_, rt, (aT, a: Code[Long])) => a }
+    registerCode1("testCodeUnification2", tv("x"), tv("x"), null) {
+      case (_, rt, (aT, a: Code[Long]), _line) => a
+    }
   }
 }
 
 class FunctionSuite extends HailSuite {
 
+  implicit val line = LineNumber.none
   implicit val execStrats = ExecStrategy.javaOnly
   val region = Region()
 

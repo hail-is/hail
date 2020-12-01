@@ -30,7 +30,7 @@ object TableWriter {
 
 abstract class TableWriter {
   def path: String
-  def apply(ctx: ExecuteContext, mv: TableValue): Unit
+  def apply(ctx: ExecuteContext, mv: TableValue)(implicit line: LineNumber): Unit
   def lower(ctx: ExecuteContext, ts: TableStage, t: TableIR, r: RTable, relationalLetsAbove: Map[String, IR]): IR =
     throw new LowererUnsupportedOperation(s"${ this.getClass } does not have defined lowering!")
 }
@@ -356,7 +356,8 @@ case class TableTextWriter(
   exportType: String = ExportType.CONCATENATED,
   delimiter: String
 ) extends TableWriter {
-  def apply(ctx: ExecuteContext, tv: TableValue): Unit = tv.export(ctx, path, typesFile, header, exportType, delimiter)
+  def apply(ctx: ExecuteContext, tv: TableValue)(implicit line: LineNumber): Unit =
+    tv.export(ctx, path, typesFile, header, exportType, delimiter)
 }
 
 object WrappedMatrixNativeMultiWriter {

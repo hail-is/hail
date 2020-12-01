@@ -13,6 +13,8 @@ import org.apache.spark.sql.Row
 import org.testng.annotations.Test
 
 class EmitStreamSuite extends HailSuite {
+  implicit val line = LineNumber.none
+
   private def compile1[T: TypeInfo, R: TypeInfo](f: (EmitMethodBuilder[_], Value[T]) => Code[R]): T => R = {
     val fb = EmitFunctionBuilder[T, R](ctx, "stream_test")
     val mb = fb.apply_method
@@ -187,7 +189,9 @@ class EmitStreamSuite extends HailSuite {
     val f = compile1[Int, Unit] { (mb, n) =>
       val r = checkedRange(0, n, "range", mb)
       var checkedInner: CheckedStream[Code[Int]] = null
-      val rootRegion = StagedRegion(new Value[Region] { def get: Code[Region] = Code._null[Region] }, allowSubregions = false)
+      val rootRegion = StagedRegion(new Value[Region] {
+        def get(implicit line: LineNumber): Code[Region] = Code._null[Region]
+      }, false)
       val eltRegion = rootRegion.createChildRegion(mb)
       val innerStreamType = PCanonicalStream(PInt32())
       val outer = Stream.grouped(mb, _ => r.stream, innerStreamType, 2, eltRegion).map { inner =>
@@ -213,7 +217,9 @@ class EmitStreamSuite extends HailSuite {
     val f = compile1[Int, Unit] { (mb, n) =>
       val r = checkedRange(0, n, "range", mb)
       var checkedInner: CheckedStream[Code[Int]] = null
-      val rootRegion = StagedRegion(new Value[Region] { def get: Code[Region] = Code._null[Region] }, allowSubregions = false)
+      val rootRegion = StagedRegion(new Value[Region] {
+        def get(implicit line: LineNumber): Code[Region] = Code._null[Region]
+      }, false)
       val eltRegion = rootRegion.createChildRegion(mb)
       val innerStreamType = PCanonicalStream(PInt32())
       val outer = Stream.grouped(mb, _ => r.stream, innerStreamType, 2, eltRegion).map { inner =>
@@ -263,7 +269,9 @@ class EmitStreamSuite extends HailSuite {
   @Test def testES2kWayMerge() {
     def merge(k: Int) {
       val f = compile1[Int, Unit] { (mb, _) =>
-        val rootRegion = StagedRegion(new Value[Region] { def get: Code[Region] = Code._null[Region] }, allowSubregions = false)
+        val rootRegion = StagedRegion(new Value[Region] {
+          def get(implicit line: LineNumber): Code[Region] = Code._null[Region]
+        }, allowSubregions = false)
         val eltRegion = rootRegion.createChildRegion(mb)
         val ranges = Array.tabulate(k)(i => checkedRange(0 + i, 5 + i, s"s$i", mb, print = false))
 

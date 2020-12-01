@@ -2,6 +2,7 @@ package is.hail.io
 
 import is.hail.HailSuite
 import is.hail.annotations.Annotation
+import is.hail.asm4s.LineNumber
 import is.hail.types.encoded.EType
 import is.hail.types.physical.{PCanonicalString, PCanonicalStruct, PInt32, PString, PStruct, PType}
 import is.hail.types.virtual._
@@ -12,6 +13,8 @@ import org.apache.spark.sql.Row
 import org.testng.annotations.{DataProvider, Test}
 
 class IndexSuite extends HailSuite {
+  implicit val line = LineNumber.none
+
   val strings = Array(
     "bear", "cat", "deer", "dog",
     "lion", "mouse", "parrot", "quail",
@@ -42,7 +45,8 @@ class IndexSuite extends HailSuite {
     attributes: Map[String, Any]) {
     val bufferSpec = BufferSpec.default
 
-    val iw = IndexWriter.builder(ctx, keyType, annotationType, branchingFactor, attributes)(file)
+    val builder = IndexWriter.builder(ctx, keyType, annotationType, branchingFactor, attributes)
+    val iw = builder(file)
     data.zip(annotations).zipWithIndex.foreach { case ((s, a), offset) =>
       iw.appendRow(s, offset, a)
     }

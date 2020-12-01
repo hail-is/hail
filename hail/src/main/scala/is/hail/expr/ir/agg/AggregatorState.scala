@@ -85,7 +85,7 @@ trait PointerBasedRVAState extends RegionBackedAggState {
   def copyFrom(cb: EmitCodeBuilder, src: Code[Long])(implicit line: LineNumber): Unit =
     copyFromAddress(cb, Region.loadAddress(src))
 
-  def copyFromAddress(cb: EmitCodeBuilder, src: Code[Long]): Unit
+  def copyFromAddress(cb: EmitCodeBuilder, src: Code[Long])(implicit line: LineNumber): Unit
 }
 
 class TypedRegionBackedAggState(val typ: PType, val kb: EmitClassBuilder[_]) extends RegionBackedAggState {
@@ -146,8 +146,8 @@ class PrimitiveRVAState(val types: Array[PType], val kb: EmitClassBuilder[_]) ex
   def foreachField(f: (Int, ValueField) => Code[Unit])(implicit line: LineNumber): Code[Unit] =
     Code(Array.tabulate(nFields)(i => f(i, fields(i))))
 
-  def newState(off: Code[Long]): Code[Unit] = Code._empty
-  def createState(cb: EmitCodeBuilder): Unit = {}
+  def newState(off: Code[Long])(implicit line: LineNumber): Code[Unit] = Code._empty
+  def createState(cb: EmitCodeBuilder)(implicit line: LineNumber): Unit = {}
 
   private[this] def loadVarsFromRegion(src: Code[Long])(implicit line: LineNumber): Code[Unit] =
     foreachField {

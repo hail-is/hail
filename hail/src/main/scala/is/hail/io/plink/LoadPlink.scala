@@ -1,6 +1,7 @@
 package is.hail.io.plink
 
 import is.hail.annotations.{Region, RegionValueBuilder}
+import is.hail.asm4s.LineNumber
 import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.ir._
 import is.hail.expr.ir.lowering.TableStage
@@ -457,7 +458,7 @@ class MatrixPLINKReader(
       body)
   }
 
-  def apply(tr: TableRead, ctx: ExecuteContext): TableValue =
+  def apply(tr: TableRead, ctx: ExecuteContext)(implicit line: LineNumber): TableValue =
     executeGeneric(ctx).toTableValue(ctx, tr.typ)
 
   override def lowerGlobals(ctx: ExecuteContext, requestedGlobalsType: TStruct): IR = {
@@ -466,7 +467,7 @@ class MatrixPLINKReader(
     Literal(requestedGlobalsType, subset(globals).asInstanceOf[Row])
   }
 
-  override def lower(ctx: ExecuteContext, requestedType: TableType): TableStage =
+  override def lower(ctx: ExecuteContext, requestedType: TableType)(implicit line: LineNumber): TableStage =
     executeGeneric(ctx).toTableStage(ctx, requestedType)
 
   override def toJValue: JValue = {

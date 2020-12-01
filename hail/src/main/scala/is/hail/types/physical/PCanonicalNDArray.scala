@@ -19,10 +19,12 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
     sb.append(s",$nDims]")
   }
 
-  @transient lazy val shape = new StaticallyKnownField(
-    PCanonicalTuple(true, Array.tabulate(nDims)(_ => PInt64Required):_*): PTuple,
-    off => representation.loadField(off, "shape")
-  )
+  @transient lazy val shape: StaticallyKnownField[PTuple, Long] = new StaticallyKnownField[PTuple, Long](
+    PCanonicalTuple(true, Array.tabulate(nDims)(_ => PInt64Required):_*): PTuple
+  ) {
+    def load(off: Code[Long])(implicit line: LineNumber): Code[Long] =
+      representation.loadField(off, "shape")
+  }
 
   def loadShape(off: Code[Long], idx: Int)(implicit line: LineNumber): Code[Long] =
     shape.pType.types(idx).load(shape.pType.fieldOffset(shape.load(off), idx)).tcode[Long]
@@ -30,15 +32,19 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
   def loadStride(off: Code[Long], idx: Int)(implicit line: LineNumber): Code[Long] =
     strides.pType.types(idx).load(strides.pType.fieldOffset(strides.load(off), idx)).tcode[Long]
 
-  @transient lazy val strides = new StaticallyKnownField(
-    PCanonicalTuple(true, Array.tabulate(nDims)(_ => PInt64Required):_*): PTuple,
-    (off) => representation.loadField(off, "strides")
-  )
+  @transient lazy val strides: StaticallyKnownField[PTuple, Long] = new StaticallyKnownField[PTuple, Long](
+    PCanonicalTuple(true, Array.tabulate(nDims)(_ => PInt64Required):_*): PTuple
+  ) {
+    def load(off: Code[Long])(implicit line: LineNumber): Code[Long] =
+      representation.loadField(off, "strides")
+  }
 
-  @transient lazy val data: StaticallyKnownField[PArray, Long] = new StaticallyKnownField(
-    PCanonicalArray(elementType, required = true),
-    off => representation.loadField(off, "data")
-  )
+  @transient lazy val data: StaticallyKnownField[PArray, Long] = new StaticallyKnownField[PArray, Long](
+    PCanonicalArray(elementType, required = true)
+  ) {
+    def load(off: Code[Long])(implicit line: LineNumber): Code[Long] =
+      representation.loadField(off, "data")
+  }
 
   lazy val representation: PStruct = {
     PCanonicalStruct(required,
@@ -113,7 +119,7 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
 
   private def getElementAddress(indices: IndexedSeq[Value[Long]], nd: Value[Long], mb: EmitMethodBuilder[_])(implicit line: LineNumber): Code[Long] = {
     val stridesTuple  = new CodePTuple(strides.pType, new Value[Long] {
-      def get: Code[Long] = strides.load(nd)
+      def get(implicit line: LineNumber): Code[Long] = strides.load(nd)
     })
     val bytesAway = mb.newLocal[Long]()
     val dataStore = mb.newLocal[Long]()
@@ -195,7 +201,7 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
     )
   }
 
-  def copyFromType(mb: EmitMethodBuilder[_], region: Value[Region], srcPType: PType, srcAddress: Code[Long], deepCopy: Boolean): Code[Long] = {
+  def copyFromType(mb: EmitMethodBuilder[_], region: Value[Region], srcPType: PType, srcAddress: Code[Long], deepCopy: Boolean)(implicit line: LineNumber): Code[Long] = {
     val sourceNDPType = srcPType.asInstanceOf[PNDArray]
 
     assert(this.elementType == sourceNDPType.elementType && this.nDims == sourceNDPType.nDims)
@@ -203,7 +209,7 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
     this.representation.copyFromType(mb, region, sourceNDPType.representation, srcAddress, deepCopy)
   }
 
-  def copyFromTypeAndStackValue(mb: EmitMethodBuilder[_], region: Value[Region], srcPType: PType, stackValue: Code[_], deepCopy: Boolean): Code[_] =
+  def copyFromTypeAndStackValue(mb: EmitMethodBuilder[_], region: Value[Region], srcPType: PType, stackValue: Code[_], deepCopy: Boolean)(implicit line: LineNumber): Code[_] =
     this.copyFromType(mb, region, srcPType, stackValue.asInstanceOf[Code[Long]], deepCopy)
 
   def _copyFromAddress(region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Long  = {
@@ -219,7 +225,7 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
 
   def setRequired(required: Boolean) = if(required == this.required) this else PCanonicalNDArray(elementType, nDims, required)
 
-  def constructAtAddress(mb: EmitMethodBuilder[_], addr: Code[Long], region: Value[Region], srcPType: PType, srcAddress: Code[Long], deepCopy: Boolean): Code[Unit] =
+  def constructAtAddress(mb: EmitMethodBuilder[_], addr: Code[Long], region: Value[Region], srcPType: PType, srcAddress: Code[Long], deepCopy: Boolean)(implicit line: LineNumber): Code[Unit] =
     this.fundamentalType.constructAtAddress(mb, addr, region, srcPType.fundamentalType, srcAddress, deepCopy)
 
   def constructAtAddress(addr: Long, region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Unit =
@@ -237,7 +243,7 @@ class PCanonicalNDArraySettable(override val pt: PCanonicalNDArray, val a: Setta
   def apply(indices: IndexedSeq[Value[Long]], mb: EmitMethodBuilder[_])(implicit line: LineNumber): Value[_] = {
     assert(indices.size == pt.nDims)
     new Value[Any] {
-      override def get: Code[Any] = pt.loadElementToIRIntermediate(indices, a, mb)
+      override def get(implicit line: LineNumber): Code[Any] = pt.loadElementToIRIntermediate(indices, a, mb)
     }
   }
 
@@ -297,7 +303,7 @@ class PCanonicalNDArrayCode(val pt: PCanonicalNDArray, val a: Code[Long]) extend
 
   override def codeTuple(): IndexedSeq[Code[_]] = FastIndexedSeq(a)
 
-  override def store(mb: EmitMethodBuilder[_], r: Value[Region], dst: Code[Long]): Code[Unit] = ???
+  override def store(mb: EmitMethodBuilder[_], r: Value[Region], dst: Code[Long])(implicit line: LineNumber): Code[Unit] = ???
 
   def memoize(cb: EmitCodeBuilder, name: String, sb: SettableBuilder)(implicit line: LineNumber): PNDArrayValue = {
     val s = PCanonicalNDArraySettable(cb, pt, name, sb)
@@ -311,5 +317,6 @@ class PCanonicalNDArrayCode(val pt: PCanonicalNDArray, val a: Code[Long]) extend
   override def memoizeField(cb: EmitCodeBuilder, name: String)(implicit line: LineNumber): PValue =
     memoize(cb, name, cb.fieldBuilder)
 
-  override def shape: PBaseStructCode = PCode(this.pt.shape.pType, this.pt.shape.load(a)).asBaseStruct
+  override def shape(implicit line: LineNumber): PBaseStructCode =
+    PCode(this.pt.shape.pType, this.pt.shape.load(a)).asBaseStruct
 }

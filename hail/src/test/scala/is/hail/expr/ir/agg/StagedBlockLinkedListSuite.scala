@@ -4,7 +4,7 @@ import is.hail.HailSuite
 
 import scala.collection.generic.Growable
 import is.hail.annotations.{Region, SafeRow, ScalaToRegionValue, StagedRegionValueBuilder}
-import is.hail.asm4s.Code
+import is.hail.asm4s.{Code, LineNumber}
 import is.hail.expr.ir.{EmitCode, EmitFunctionBuilder, EmitRegion}
 import is.hail.types.physical._
 import is.hail.utils._
@@ -13,6 +13,7 @@ import org.testng.annotations.Test
 import org.testng.Assert._
 
 class StagedBlockLinkedListSuite extends HailSuite {
+  implicit val line = LineNumber.none
 
   class BlockLinkedList[E](region: Region, val elemPType: PType, initImmediately: Boolean = true)
       extends Growable[E] {
@@ -45,7 +46,7 @@ class StagedBlockLinkedListSuite extends HailSuite {
       fb.emit(Code(
         sbll.load(ptr),
         sbll.push(r, EmitCode(Code._empty,
-          eltOff.get.ceq(0),
+          eltOff.get.ceq(0L),
           PCode(elemPType, Region.getIRIntermediate(elemPType)(eltOff)))),
         sbll.store(ptr)))
 

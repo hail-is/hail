@@ -319,7 +319,9 @@ object LoweredTableReader {
         def coerce(globals: IR,
           contextType: Type,
           contexts: IndexedSeq[Any],
-          body: IR => IR): TableStage = {
+          body: IR => IR
+        )(implicit line: LineNumber
+        ): TableStage = {
           val partOrigIndex = sortedPartData.map(_.getInt(6))
 
           val partitioner = new RVDPartitioner(keyType,
@@ -350,7 +352,9 @@ object LoweredTableReader {
         def coerce(globals: IR,
           contextType: Type,
           contexts: IndexedSeq[Any],
-          body: IR => IR): TableStage = {
+          body: IR => IR
+        )(implicit line: LineNumber
+        ): TableStage = {
           val partOrigIndex = sortedPartData.map(_.getInt(6))
 
           val partitioner = new RVDPartitioner(pkType,
@@ -378,7 +382,9 @@ object LoweredTableReader {
         def coerce(globals: IR,
           contextType: Type,
           contexts: IndexedSeq[Any],
-          body: IR => IR): TableStage = {
+          body: IR => IR
+        )(implicit line: LineNumber
+        ): TableStage = {
           val partOrigIndex = sortedPartData.map(_.getInt(6))
 
           val partitioner = RVDPartitioner.unkeyed(sortedPartData.length)
@@ -399,7 +405,7 @@ object LoweredTableReader {
 abstract class TableReader {
   def pathsUsed: Seq[String]
 
-  def apply(tr: TableRead, ctx: ExecuteContext): TableValue
+  def apply(tr: TableRead, ctx: ExecuteContext)(implicit line: LineNumber): TableValue
 
   def partitionCounts: Option[IndexedSeq[Long]]
 
@@ -414,7 +420,7 @@ abstract class TableReader {
   def lowerGlobals(ctx: ExecuteContext, requestedGlobalsType: TStruct): IR =
     throw new LowererUnsupportedOperation(s"${ getClass.getSimpleName }.lowerGlobals not implemented")
 
-  def lower(ctx: ExecuteContext, requestedType: TableType): TableStage =
+  def lower(ctx: ExecuteContext, requestedType: TableType)(implicit line: LineNumber): TableStage =
     throw new LowererUnsupportedOperation(s"${ getClass.getSimpleName }.lower not implemented")
 }
 
@@ -843,7 +849,7 @@ class TableNativeReader(
         .typedCodecSpec.encodedType.decodedPType(requestedType.globalType))
   }
 
-  def apply(tr: TableRead, ctx: ExecuteContext): TableValue = {
+  def apply(tr: TableRead, ctx: ExecuteContext)(implicit line: LineNumber): TableValue = {
     val (globalType, globalsOffset) = spec.globalsComponent.readLocalSingleRow(ctx, params.path, tr.typ.globalType)
     val rvd = if (tr.dropRows) {
       RVD.empty(tr.typ.canonicalRVDType)
@@ -883,7 +889,7 @@ class TableNativeReader(
     ArrayRef(ToArray(ReadPartition(Str(globalsSpec.absolutePartPaths(globalsPath).head), requestedGlobalsType, PartitionNativeReader(globalsSpec.typedCodecSpec))), 0)
   }
 
-  override def lower(ctx: ExecuteContext, requestedType: TableType): TableStage = {
+  override def lower(ctx: ExecuteContext, requestedType: TableType)(implicit line: LineNumber): TableStage = {
     val globals = lowerGlobals(ctx, requestedType.globalType)
     val rowsSpec = spec.rowsSpec
     val specPart = rowsSpec.partitioner
@@ -951,7 +957,7 @@ case class TableNativeZippedReader(
     (t, mk)
   }
 
-  def apply(tr: TableRead, ctx: ExecuteContext): TableValue = {
+  def apply(tr: TableRead, ctx: ExecuteContext)(implicit line: LineNumber): TableValue = {
     val fs = ctx.fs
     val (globalPType: PStruct, globalsOffset) = specLeft.globalsComponent.readLocalSingleRow(ctx, pathLeft, tr.typ.globalType)
     val rvd = if (tr.dropRows) {
@@ -994,7 +1000,7 @@ case class TableNativeZippedReader(
     ArrayRef(ToArray(ReadPartition(Str(globalsSpec.absolutePartPaths(globalsPath).head), requestedGlobalsType, PartitionNativeReader(globalsSpec.typedCodecSpec))), 0)
   }
 
-  override def lower(ctx: ExecuteContext, requestedType: TableType): TableStage = {
+  override def lower(ctx: ExecuteContext, requestedType: TableType)(implicit line: LineNumber): TableStage = {
     val globals = lowerGlobals(ctx, requestedType.globalType)
     val rowsSpec = specLeft.rowsSpec
     val specPart = rowsSpec.partitioner
@@ -1066,7 +1072,7 @@ case class TableFromBlockMatrixNativeReader(params: TableFromBlockMatrixNativeRe
       PCanonicalStruct.empty(required = true)
   }
 
-  def apply(tr: TableRead, ctx: ExecuteContext): TableValue = {
+  def apply(tr: TableRead, ctx: ExecuteContext)(implicit line: LineNumber): TableValue = {
     val rowsRDD = new BlockMatrixReadRowBlockedRDD(ctx.fsBc, params.path, partitionRanges, metadata,
       maybeMaximumCacheMemoryInBytes = params.maximumCacheMemoryInBytes)
 
@@ -1105,7 +1111,8 @@ case class TableRead(typ: TableType, dropRows: Boolean, tr: TableReader) extends
     TableRead(typ, dropRows, tr)
   }
 
-  protected[ir] override def execute(ctx: ExecuteContext): TableValue = tr.apply(this, ctx)
+  protected[ir] override def execute(ctx: ExecuteContext): TableValue =
+    tr.apply(this, ctx)(LineNumber(lineNumber))
 }
 
 case class TableParallelize(rowsAndGlobal: IR, nPartitions: Option[Int] = None) extends TableIR {

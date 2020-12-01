@@ -99,7 +99,9 @@ abstract class LoweredTableReaderCoercer {
   def coerce(globals: IR,
     contextType: Type,
     contexts: IndexedSeq[Any],
-    body: IR => IR): TableStage
+    body: IR => IR
+  )(implicit line: LineNumber
+  ): TableStage
 }
 
 class GenericTableValue(
@@ -127,7 +129,7 @@ class GenericTableValue(
     ltrCoercer
   }
 
-  def toTableStage(ctx: ExecuteContext, requestedType: TableType): TableStage = {
+  def toTableStage(ctx: ExecuteContext, requestedType: TableType)(implicit line: LineNumber): TableStage = {
     val globalsIR = Literal(requestedType.globalType, globals(requestedType.globalType))
     val requestedBody: (IR) => (IR) = (ctx: IR) => ReadPartition(ctx,
       requestedType.rowType,

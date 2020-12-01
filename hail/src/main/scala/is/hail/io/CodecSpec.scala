@@ -61,9 +61,9 @@ trait AbstractTypedCodecSpec extends Spec {
     (pt, dec(bais).readRegionValue(region))
   }
 
-  def buildCodeInputBuffer(is: Code[InputStream]): Code[InputBuffer]
+  def buildCodeInputBuffer(is: Code[InputStream])(implicit line: LineNumber): Code[InputBuffer]
 
-  def buildCodeOutputBuffer(os: Code[OutputStream]): Code[OutputBuffer]
+  def buildCodeOutputBuffer(os: Code[OutputStream])(implicit line: LineNumber): Code[OutputBuffer]
 
   def buildEmitDecoder(requestedType: Type, cb: EmitClassBuilder[_])(implicit line: LineNumber): EmitDecoder = {
     typeToTypeInfo(decodedPType(requestedType)) match {

@@ -14,12 +14,13 @@ import org.testng.annotations.Test
 
 import scala.collection.mutable
 class TestBTreeKey(mb: EmitMethodBuilder[_]) extends BTreeKey {
+  implicit val line = LineNumber.none
   private val comp = mb.getCodeOrdering(PInt64(), CodeOrdering.Compare())
   def storageType: PTuple = PCanonicalTuple(required = true, PInt64(), PCanonicalTuple(false))
   def compType: PType = PInt64()
-  def isEmpty(off: Code[Long]): Code[Boolean] =
+  def isEmpty(off: Code[Long])(implicit line: LineNumber): Code[Boolean] =
     storageType.isFieldMissing(off, 1)
-  def initializeEmpty(off: Code[Long]): Code[Unit] =
+  def initializeEmpty(off: Code[Long])(implicit line: LineNumber): Code[Unit] =
     storageType.setFieldMissing(off, 1)
 
   def storeKey(off: Code[Long], m: Code[Boolean], v: Code[Long]): Code[Unit] =
@@ -31,19 +32,20 @@ class TestBTreeKey(mb: EmitMethodBuilder[_]) extends BTreeKey {
           Region.storeLong(storageType.fieldOffset(off, 0), v)))
     }
 
-  def copy(src: Code[Long], dest: Code[Long]): Code[Unit] =
+  def copy(src: Code[Long], dest: Code[Long])(implicit line: LineNumber): Code[Unit] =
     Region.copyFrom(src, dest, storageType.byteSize)
-  def deepCopy(er: EmitRegion, src: Code[Long], dest: Code[Long]): Code[Unit] =
+  def deepCopy(er: EmitRegion, src: Code[Long], dest: Code[Long])(implicit line: LineNumber): Code[Unit] =
     copy(src, dest)
 
-  def compKeys(k1: EmitCode, k2: EmitCode): Code[Int] =
+  def compKeys(k1: EmitCode, k2: EmitCode)(implicit line: LineNumber): Code[Int] =
     Code(k1.setup, k2.setup, comp((k1.m, k1.v), (k2.m, k2.v)))
 
-  def loadCompKey(off: Value[Long]): EmitCode =
+  def loadCompKey(off: Value[Long])(implicit line: LineNumber): EmitCode =
     EmitCode(Code._empty, storageType.isFieldMissing(off, 0), PCode(compType, Region.loadLong(storageType.fieldOffset(off, 0))))
 }
 
 object BTreeBackedSet {
+  implicit val line = LineNumber.none
   def bulkLoad(ctx: ExecuteContext, region: Region, serialized: Array[Byte], n: Int): BTreeBackedSet = {
     val fb = EmitFunctionBuilder[Region, InputBuffer, Long](ctx, "btree_bulk_load")
     val cb = fb.ecb
@@ -77,6 +79,7 @@ object BTreeBackedSet {
 }
 
 class BTreeBackedSet(ctx: ExecuteContext, region: Region, n: Int) {
+  implicit val line = LineNumber.none
 
   var root: Long = 0
 

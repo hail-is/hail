@@ -224,7 +224,7 @@ abstract class PCanonicalBaseStruct(val types: Array[PType]) extends PBaseStruct
     }
   }
 
-  override def load(src: Code[Long]): PCanonicalBaseStructCode =
+  override def load(src: Code[Long])(implicit line: LineNumber): PCanonicalBaseStructCode =
     new PCanonicalBaseStructCode(this, src)
 }
 

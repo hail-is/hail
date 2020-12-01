@@ -9,9 +9,12 @@ import is.hail.io.reference.{FASTAReader, FASTAReaderConfig}
 import is.hail.utils._
 import is.hail.{HailSuite, TestUtils}
 import htsjdk.samtools.reference.ReferenceSequenceFileFactory
+import is.hail.asm4s.LineNumber
 import org.testng.annotations.Test
 
 class ReferenceGenomeSuite extends HailSuite {
+  implicit val line = LineNumber.none
+
   @Test def testGRCh37() {
     val grch37 = ReferenceGenome.GRCh37
     assert(ReferenceGenome.hasReference("GRCh37"))

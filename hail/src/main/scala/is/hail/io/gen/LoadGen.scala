@@ -2,6 +2,7 @@ package is.hail.io.gen
 
 import is.hail.HailContext
 import is.hail.annotations._
+import is.hail.asm4s.LineNumber
 import is.hail.backend.BroadcastValue
 import is.hail.backend.spark.SparkBackend
 import is.hail.expr.ir.{ExecuteContext, LowerMatrixIR, MatrixHybridReader, MatrixRead, MatrixReader, MatrixValue, TableRead, TableValue}
@@ -195,7 +196,7 @@ class MatrixGENReader(
     requestedType.canonicalRowPType -> PType.canonical(requestedType.globalType).asInstanceOf[PStruct]
   }
 
-  def apply(tr: TableRead, ctx: ExecuteContext): TableValue = {
+  def apply(tr: TableRead, ctx: ExecuteContext)(implicit line: LineNumber): TableValue = {
     val sc = SparkBackend.sparkContext("MatrixGENReader.apply")
     val rdd =
       if (tr.dropRows)

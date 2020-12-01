@@ -4,8 +4,11 @@ import is.hail.HailSuite
 import is.hail.utils.{HailException, log}
 import is.hail.annotations.{Region, ScalaToRegionValue, UnsafeRow}
 import is.hail.expr.ir.EmitFunctionBuilder
+import is.hail.asm4s.LineNumber
 
 abstract class PhysicalTestUtils extends HailSuite {
+  implicit val line = LineNumber.none
+
   def copyTestExecutor(sourceType: PType, destType: PType, sourceValue: Any,
     expectCompileError: Boolean = false, expectRuntimeError: Boolean = false,
     deepCopy: Boolean = false, interpret: Boolean = false, expectedValue: Any = null) {

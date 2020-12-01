@@ -1,7 +1,7 @@
 package is.hail.types.physical
 
 import is.hail.annotations.UnsafeOrdering
-import is.hail.asm4s.Code
+import is.hail.asm4s.{Code, LineNumber}
 import is.hail.expr.ir.EmitStream.SizedStream
 import is.hail.types.virtual.{TStream, Type}
 import is.hail.expr.ir.{EmitCode, EmitCodeBuilder, Stream}
@@ -22,7 +22,7 @@ final case class PCanonicalStream(elementType: PType, separateRegions: Boolean =
     sb.append("]")
   }
 
-  override def defaultValue: PCanonicalStreamCode =
+  override def defaultValue(implicit line: LineNumber): PCanonicalStreamCode =
     PCanonicalStreamCode(this, SizedStream(Code._empty, _ => Stream.empty(EmitCode.missing(elementType)), Some(0)))
 
   override def deepRename(t: Type) = deepRenameStream(t.asInstanceOf[TStream])
@@ -34,10 +34,10 @@ final case class PCanonicalStream(elementType: PType, separateRegions: Boolean =
 }
 
 final case class PCanonicalStreamCode(pt: PCanonicalStream, stream: SizedStream) extends PStreamCode { self =>
-  def memoize(cb: EmitCodeBuilder, name: String): PValue = new PValue {
+  def memoize(cb: EmitCodeBuilder, name: String)(implicit line: LineNumber): PValue = new PValue {
     val pt = self.pt
     var used: Boolean = false
-    def get: PCode = {
+    def get(implicit line: LineNumber): PCode = {
       assert(!used)
       used = true
       self

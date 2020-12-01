@@ -22,6 +22,7 @@ class EBoolean(override val required: Boolean) extends EFundamentalType {
     pt: PType,
     region: Value[Region],
     in: Value[InputBuffer]
+  )(implicit line: LineNumber
   ): Code[Boolean] = in.readBoolean()
 
   def _buildSkip(cb: EmitCodeBuilder, r: Value[Region], in: Value[InputBuffer])(implicit line: LineNumber): Unit =

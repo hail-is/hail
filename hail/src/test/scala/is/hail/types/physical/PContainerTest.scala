@@ -8,6 +8,8 @@ import is.hail.utils._
 import org.testng.annotations.Test
 
 class PContainerTest extends PhysicalTestUtils {
+  implicit val lineNum = LineNumber.none
+
   def nullInByte(nElements: Int, missingElement: Int) = {
     IndexedSeq.tabulate(nElements)(i => {
       if (i == missingElement - 1)

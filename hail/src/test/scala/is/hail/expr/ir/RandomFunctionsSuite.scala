@@ -2,7 +2,7 @@ package is.hail.expr.ir
 
 import is.hail.TestUtils._
 import is.hail.expr.ir.TestUtils._
-import is.hail.asm4s.Code
+import is.hail.asm4s.{Code, LineNumber}
 import is.hail.expr.ir.functions.{IRRandomness, RegistryFunctions}
 import is.hail.types.physical.{PInt32, PInt64}
 import is.hail.types.virtual.{TArray, TFloat64, TInt32, TInt64, TStream}
@@ -28,22 +28,25 @@ class TestIRRandomness(val seed: Long) extends IRRandomness(seed) {
 }
 
 object TestRandomFunctions extends RegistryFunctions {
-  def getTestRNG(mb: EmitMethodBuilder[_], seed: Long): Code[TestIRRandomness] = {
+  def getTestRNG(mb: EmitMethodBuilder[_], seed: Long)(implicit line: LineNumber): Code[TestIRRandomness] = {
     val rng = mb.genFieldThisRef[IRRandomness]()
     mb.ecb.rngs += rng -> Code.checkcast[IRRandomness](Code.newInstance[TestIRRandomness, Long](seed))
     Code.checkcast[TestIRRandomness](rng)
   }
 
   def registerAll() {
-    registerSeeded0("counter_seeded", TInt32, PInt32(true)) { case (r, rt, seed) =>
+    registerSeeded0("counter_seeded", TInt32, PInt32(true)) { case (r, rt, seed, _line) =>
+      implicit val line = _line
       getTestRNG(r.mb, seed).invoke[Int]("counter")
     }
 
-    registerSeeded0("seed_seeded", TInt64, PInt64(true)) { case (r, rt, seed) =>
+    registerSeeded0("seed_seeded", TInt64, PInt64(true)) { case (r, rt, seed, _line) =>
+      implicit val line = _line
       getTestRNG(r.mb, seed).invoke[Long]("seed")
     }
 
-    registerSeeded0("pi_seeded", TInt32, PInt32(true)) { case (r, rt, seed) =>
+    registerSeeded0("pi_seeded", TInt32, PInt32(true)) { case (r, rt, seed, _line) =>
+      implicit val line = _line
       getTestRNG(r.mb, seed).invoke[Int]("partitionIndex")
     }
   }

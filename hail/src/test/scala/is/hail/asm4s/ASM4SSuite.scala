@@ -14,6 +14,8 @@ import scala.language.postfixOps
 trait Z2Z { def apply(z:Boolean): Boolean }
 
 class ASM4SSuite extends TestNGSuite {
+  implicit val line = LineNumber.none
+
   @Test def not(): Unit = {
     val notb = FunctionBuilder[Z2Z]("is/hail/asm4s/Z2Z", Array(NotGenericTypeInfo[Boolean]), NotGenericTypeInfo[Boolean])
     notb.emit(!notb.getArg[Boolean](1))

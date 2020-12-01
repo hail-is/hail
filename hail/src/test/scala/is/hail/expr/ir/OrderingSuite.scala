@@ -16,6 +16,7 @@ import org.testng.annotations.{DataProvider, Test}
 class OrderingSuite extends HailSuite {
 
   implicit val execStrats = ExecStrategy.values
+  implicit val line = LineNumber.none
 
   def recursiveSize(t: Type): Int = {
     val inner = t match {

@@ -17,13 +17,16 @@ class ApproxCDFState(val kb: EmitClassBuilder[_]) extends AggregatorState {
   private val aggr = kb.genFieldThisRef[ApproxCDFStateManager]("aggr")
 
   private val initialized = kb.genFieldThisRef[Boolean]("initialized")
-  private val initializedOffset: Code[Long] => Code[Long] = storageType.loadField(_, "initialized")
+  private def initializedOffset(off: Code[Long])(implicit line: LineNumber): Code[Long] =
+    storageType.loadField(off, "initialized")
 
   private val id = kb.genFieldThisRef[Int]("id")
-  private val idOffset: Code[Long] => Code[Long] = storageType.loadField(_, "id")
+  private def idOffset(off: Code[Long])(implicit line: LineNumber): Code[Long] =
+    storageType.loadField(off, "id")
 
   private val k = kb.genFieldThisRef[Int]("k")
-  private val kOffset: Code[Long] => Code[Long] = storageType.loadField(_, "k")
+  private def kOffset(off: Code[Long])(implicit line: LineNumber): Code[Long] =
+    storageType.loadField(off, "k")
 
   def init(k: Code[Int])(implicit line: LineNumber): Code[Unit] = {
     Code(

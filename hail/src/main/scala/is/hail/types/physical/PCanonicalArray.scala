@@ -494,7 +494,8 @@ class PCanonicalIndexableCode(val pt: PContainer, val a: Code[Long]) extends PIn
 
   def codeTuple(): IndexedSeq[Code[_]] = FastIndexedSeq(a)
 
-  def loadLength(): Code[Int] = pt.loadLength(a)
+  def loadLength()(implicit line: LineNumber): Code[Int] =
+    pt.loadLength(a)
 
   def memoize(cb: EmitCodeBuilder, name: String, sb: SettableBuilder)(implicit line: LineNumber): PIndexableValue = {
     val s = PCanonicalIndexableSettable(sb, pt, name)

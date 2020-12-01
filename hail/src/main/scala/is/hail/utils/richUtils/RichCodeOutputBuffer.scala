@@ -56,11 +56,11 @@ class RichCodeOutputBuffer(
   def writeUTF(s: Code[String])(implicit line: LineNumber): Code[Unit] =
     ob.invoke[String, Unit]("writeUTF", s)
 
-  def writePrimitive(typ: PType)(implicit line: LineNumber): Code[_] => Code[Unit] = typ.fundamentalType match {
-    case _: PBoolean => v => writeBoolean(coerce[Boolean](v))
-    case _: PInt32 => v => writeInt(coerce[Int](v))
-    case _: PInt64 => v => writeLong(coerce[Long](v))
-    case _: PFloat32 => v => writeFloat(coerce[Float](v))
-    case _: PFloat64 => v => writeDouble(coerce[Double](v))
+  def writePrimitive(typ: PType)(v: Code[_])(implicit line: LineNumber): Code[Unit] = typ.fundamentalType match {
+    case _: PBoolean => writeBoolean(coerce[Boolean](v))
+    case _: PInt32 => writeInt(coerce[Int](v))
+    case _: PInt64 => writeLong(coerce[Long](v))
+    case _: PFloat32 => writeFloat(coerce[Float](v))
+    case _: PFloat64 => writeDouble(coerce[Double](v))
   }
 }

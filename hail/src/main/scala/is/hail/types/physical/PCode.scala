@@ -67,12 +67,12 @@ abstract class PCode { self =>
 
   def asStream: PCanonicalStreamCode = asInstanceOf[PCanonicalStreamCode]
 
-  def castTo(mb: EmitMethodBuilder[_], region: Value[Region], destType: PType, deepCopy: Boolean = false): PCode = {
+  def castTo(mb: EmitMethodBuilder[_], region: Value[Region], destType: PType, deepCopy: Boolean = false)(implicit line: LineNumber): PCode = {
     PCode(destType,
       destType.copyFromTypeAndStackValue(mb, region, pt, code, deepCopy))
   }
 
-  def copyToRegion(mb: EmitMethodBuilder[_], region: Value[Region], destType: PType = pt): PCode =
+  def copyToRegion(mb: EmitMethodBuilder[_], region: Value[Region], destType: PType = pt)(implicit line: LineNumber): PCode =
     castTo(mb, region, destType, deepCopy = true)
 
   // this is necessary because Scala doesn't infer the return type of
@@ -83,7 +83,7 @@ abstract class PCode { self =>
 
       private val v = cb.newLocalAny(name, code)(typeToTypeInfo(pt), line)
 
-      def get: PCode = PCode(pt, v)
+      def get(implicit line: LineNumber): PCode = PCode(pt, v)
     }
   }
 
@@ -93,7 +93,7 @@ abstract class PCode { self =>
 
       private val v = cb.newFieldAny(name, code)(typeToTypeInfo(pt), line)
 
-      def get: PCode = PCode(pt, v)
+      def get(implicit line: LineNumber): PCode = PCode(pt, v)
     }
   }
 

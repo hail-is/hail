@@ -182,7 +182,7 @@ class EmitUnrealizableValue(val pt: PType, private val ec: EmitCode) extends Emi
   assert(!pt.isRealizable)
   private var used: Boolean = false
 
-  def get: EmitCode = {
+  def get(implicit line: LineNumber): EmitCode = {
     assert(!used)
     used = true
     ec
@@ -383,7 +383,7 @@ case class EmitCode(setup: Code[Unit], m: Code[Boolean], pv: PCode) {
     IEmitCode(Lmissing, Lpresent, pv)
   }
 
-  def castTo(mb: EmitMethodBuilder[_], region: Value[Region], destType: PType, deepCopy: Boolean = false): EmitCode =
+  def castTo(mb: EmitMethodBuilder[_], region: Value[Region], destType: PType, deepCopy: Boolean = false)(implicit line: LineNumber): EmitCode =
     EmitCode(setup, m, pv.castTo(mb, region, destType, deepCopy))
 
   def codeTuple(): IndexedSeq[Code[_]] = {
@@ -848,10 +848,12 @@ class Emit[C](
                   sourceShape.loadField(cb, i).get(cb).memoize(cb, s"make_ndarray_shape_${i}").value.asInstanceOf[Value[Long]]
                 }
 
-                cb.ifx(isRowMajor, {
-                  cb += xP.makeRowMajorStridesBuilder(shapeCodeSeq1, mb)(srvb)
+                val rowMajorSB = xP.makeRowMajorStridesBuilder(shapeCodeSeq1, mb)
+                val columnMajorSB = xP.makeColumnMajorStridesBuilder(shapeCodeSeq1, mb)
+                val stridesBuilder = cb.ifx(isRowMajor, {
+                  cb += rowMajorSB(srvb)
                 }, {
-                  cb += xP.makeColumnMajorStridesBuilder(shapeCodeSeq1, mb)(srvb)
+                  cb += columnMajorSB(srvb)
                 })
               }}
 
@@ -1245,10 +1247,10 @@ class Emit[C](
           val M = shapeArray(0)
           val N = shapeArray(1)
           val K = new Value[Long] {
-            def get: Code[Long] = (M < N).mux(M, N)
+            def get(implicit line: LineNumber): Code[Long] = (M < N).mux(M, N)
           }
           val LDA = new Value[Long] {
-            override def get: Code[Long] = (M > 1L).mux(M, 1L) // Possible stride tricks could change this in the future.
+            override def get(implicit line: LineNumber): Code[Long] = (M > 1L).mux(M, 1L) // Possible stride tricks could change this in the future.
           }
 
           def LWORK = Region.loadDouble(LWORKAddress).toI
@@ -2785,7 +2787,7 @@ class Emit[C](
               Code(
                 setupTransformedIdx,
                 inputNDType.loadElementToIRIntermediate(transformedIdxs, new Value[Long] {
-                  def get: Code[Long] = inputType.loadElement(inputArray, i)
+                  def get(implicit line: LineNumber): Code[Long] = inputType.loadElement(inputArray, i)
                 }, elemMB))
             }
           }
@@ -2838,7 +2840,7 @@ class Emit[C](
                 case (t: PTuple, slicer) =>
                   val (start, _, step) = new CodePTuple(t, coerce[Long](slicer)).values[Long, Long, Long]
                   new Value[Long] {
-                    def get: Code[Long] = start + oldIdxVarsIter.next() * step
+                    def get(implicit line: LineNumber): Code[Long] = start + oldIdxVarsIter.next() * step
                   }
               }
 
@@ -2895,7 +2897,7 @@ class Emit[C](
           val xP = x.pType.asInstanceOf[PNDArray]
 
           val shapeAddress = new Value[Long] {
-            def get: Code[Long] = xP.shape.load(ndAddress)
+            def get(implicit line: LineNumber): Code[Long] = xP.shape.load(ndAddress)
           }
           val shapeTuple = new CodePTuple(xP.shape.pType, shapeAddress)
 

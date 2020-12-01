@@ -62,44 +62,44 @@ final case class PSubsetStruct(ps: PStruct, _fieldNames: Array[String]) extends 
     PSubsetStruct(newPStruct, newNames)
   }
 
-  override def isFieldMissing(structAddress: Code[Long], fieldName: String): Code[Boolean] =
+  override def isFieldMissing(structAddress: Code[Long], fieldName: String)(implicit line: LineNumber): Code[Boolean] =
     ps.isFieldMissing(structAddress, fieldName)
 
-  override def fieldOffset(structAddress: Code[Long], fieldName: String): Code[Long] =
+  override def fieldOffset(structAddress: Code[Long], fieldName: String)(implicit line: LineNumber): Code[Long] =
     ps.fieldOffset(structAddress, fieldName)
 
   override def isFieldDefined(structAddress: Long, fieldIdx: Int): Boolean =
     ps.isFieldDefined(structAddress, idxMap(fieldIdx))
 
-  override def isFieldMissing(structAddress: Code[Long], fieldIdx: Int): Code[Boolean] =
+  override def isFieldMissing(structAddress: Code[Long], fieldIdx: Int)(implicit line: LineNumber): Code[Boolean] =
     ps.isFieldMissing(structAddress, idxMap(fieldIdx))
 
   override def fieldOffset(structAddress: Long, fieldIdx: Int): Long =
     ps.fieldOffset(structAddress, idxMap(fieldIdx))
 
-  override def fieldOffset(structAddress: Code[Long], fieldIdx: Int): Code[Long] =
+  override def fieldOffset(structAddress: Code[Long], fieldIdx: Int)(implicit line: LineNumber): Code[Long] =
     ps.fieldOffset(structAddress, idxMap(fieldIdx))
 
-  def loadField(structAddress: Code[Long], fieldName: String): Code[Long] =
+  def loadField(structAddress: Code[Long], fieldName: String)(implicit line: LineNumber): Code[Long] =
     ps.loadField(structAddress, fieldName)
 
   override def loadField(structAddress: Long, fieldIdx: Int): Long =
     ps.loadField(structAddress, idxMap(fieldIdx))
 
-  override def loadField(structAddress: Code[Long], fieldIdx: Int): Code[Long] =
+  override def loadField(structAddress: Code[Long], fieldIdx: Int)(implicit line: LineNumber): Code[Long] =
     ps.loadField(structAddress, idxMap(fieldIdx))
 
-  override def setFieldPresent(structAddress: Code[Long], fieldName: String): Code[Unit] = ???
+  override def setFieldPresent(structAddress: Code[Long], fieldName: String)(implicit line: LineNumber): Code[Unit] = ???
 
-  override def setFieldMissing(structAddress: Code[Long], fieldName: String): Code[Unit] = ???
+  override def setFieldMissing(structAddress: Code[Long], fieldName: String)(implicit line: LineNumber): Code[Unit] = ???
 
   override def setFieldMissing(structAddress: Long, fieldIdx: Int): Unit = ???
 
-  override def setFieldMissing(structAddress: Code[Long], fieldIdx: Int): Code[Unit] = ???
+  override def setFieldMissing(structAddress: Code[Long], fieldIdx: Int)(implicit line: LineNumber): Code[Unit] = ???
 
   override def setFieldPresent(structAddress: Long, fieldIdx: Int): Unit = ???
 
-  override def setFieldPresent(structAddress: Code[Long], fieldIdx: Int): Code[Unit] = ???
+  override def setFieldPresent(structAddress: Code[Long], fieldIdx: Int)(implicit line: LineNumber): Code[Unit] = ???
 
   def insertFields(fieldsToInsert: TraversableOnce[(String, PType)]): PSubsetStruct = ???
 
@@ -112,13 +112,13 @@ final case class PSubsetStruct(ps: PStruct, _fieldNames: Array[String]) extends 
   def allocate(region: Region): Long =
     ps.allocate(region)
 
-  def allocate(region: Code[Region]): Code[Long] =
+  def allocate(region: Code[Region])(implicit line: LineNumber): Code[Long] =
     ps.allocate(region)
 
   override def setRequired(required: Boolean): PType =
     PSubsetStruct(ps.setRequired(required).asInstanceOf[PStruct], _fieldNames)
 
-  def copyFromType(mb: EmitMethodBuilder[_], region: Value[Region], srcPType: PType, srcAddress: Code[Long], deepCopy: Boolean): Code[Long] = {
+  def copyFromType(mb: EmitMethodBuilder[_], region: Value[Region], srcPType: PType, srcAddress: Code[Long], deepCopy: Boolean)(implicit line: LineNumber): Code[Long] = {
     val srcPSubsetStruct = srcPType.asInstanceOf[PSubsetStruct]
     ps.copyFromType(mb, region, srcPSubsetStruct.ps, srcAddress, deepCopy)
   }
@@ -133,7 +133,7 @@ final case class PSubsetStruct(ps: PStruct, _fieldNames: Array[String]) extends 
     ps.copyFromAddress(region, srcPSubsetStruct.ps, srcAddress, deepCopy)
   }
 
-  def copyFromTypeAndStackValue(mb: EmitMethodBuilder[_], region: Value[Region], srcPType: PType, stackValue: Code[_], deepCopy: Boolean): Code[_] =
+  def copyFromTypeAndStackValue(mb: EmitMethodBuilder[_], region: Value[Region], srcPType: PType, stackValue: Code[_], deepCopy: Boolean)(implicit line: LineNumber): Code[_] =
     this.copyFromType(mb, region, srcPType, stackValue.asInstanceOf[Code[Long]], deepCopy)
 
   def constructAtAddress(mb: EmitMethodBuilder[_], addr: Code[Long], region: Value[Region], srcPType: PType, srcAddress: Code[Long], deepCopy: Boolean)(implicit line: LineNumber): Code[Unit] = {

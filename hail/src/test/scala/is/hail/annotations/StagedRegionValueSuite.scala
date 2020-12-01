@@ -14,6 +14,7 @@ import org.testng.annotations.Test
 class StagedRegionValueSuite extends HailSuite {
 
   val showRVInfo = true
+  implicit val line = LineNumber.none
 
   @Test
   def testCanonicalString() {

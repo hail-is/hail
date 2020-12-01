@@ -9,7 +9,7 @@ import is.hail.types.virtual._
 import is.hail.io.{InputBuffer, OutputBuffer}
 import is.hail.utils._
 
-final case class EArray(val elementType: EType, override val required: Boolean = false) extends EContainer with EFundamentalType {
+final case class EArray(elementType: EType, override val required: Boolean = false) extends EContainer with EFundamentalType {
   override def _decodeCompatible(pt: PType): Boolean = {
     pt.required <= required &&
       pt.isInstanceOf[PArray] &&
