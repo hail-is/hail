@@ -27,5 +27,5 @@ push: build
 
 .PHONY: deploy
 deploy: push
-	python3 ../ci/jinja2_render.py '{"code":{"sha":"$(shell git rev-parse --short=12 HEAD)"},"deploy":true,"router_resolver_image":{"image":"$(ROUTER_RESOLVER_IMAGE)"},"global":{"domain":"$(DOMAIN)"}}' deployment.yaml deployment.yaml.out
+	python3 ../ci/jinja2_render.py '{"code":{"sha":"$(shell git rev-parse --short=12 HEAD)"},"deploy":$(DEPLOY),"router_resolver_image":{"image":"$(ROUTER_RESOLVER_IMAGE)"},"global":{"domain":"$(DOMAIN)"}}' deployment.yaml deployment.yaml.out
 	kubectl -n default apply -f deployment.yaml.out
