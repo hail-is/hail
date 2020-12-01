@@ -11,7 +11,12 @@ RUN hail-apt-get-install \
     xsltproc pandoc \
     jq \
     openjdk-8-jdk-headless \
-    liblapack3
+    liblapack3 \
+    g++-10 \
+    gcc-10
+
+RUN update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-10 10 && \
+    update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-10 10
 
 # source: https://cloud.google.com/storage/docs/gsutil_install#linux
 RUN /bin/sh -c 'curl https://sdk.cloud.google.com | bash' && \
