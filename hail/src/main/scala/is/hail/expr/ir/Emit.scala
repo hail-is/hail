@@ -2700,6 +2700,64 @@ class Emit[C](
               childEmitter.outputElement(cb, newIdxVars)
             }
           }
+        case NDArrayFilter(child, filters) =>
+          val childEmitter = deforest(child)
+
+          val outputShape = childEmitter.outputShape.flatMap(cb){ childShape =>
+            val shapeSeq = filters.zipWithIndex.map { case (filt, i) =>
+              val filtI = emit(filt)
+              cb.memoize(filtI, s"ndarray_filter_${i}")
+            }
+
+            val flattened = IEmitCode.flatten(shapeSeq.map(ev => () => ev.toI(cb)), cb)(a => a)
+            flattened.map(cb)(pcodes => pcodes.map(pc => pc.memoize(cb, "filter_shape_values").value.asInstanceOf[Value[Long]]))
+          }
+
+          new NDArrayEmitter2(outputShape) {
+            override def outputElement(cb: EmitCodeBuilder, idxVars: IndexedSeq[Value[Long]]): PCode = ???
+          }
+
+          /*
+
+          val sb = SetupBuilder(mb, childEmitter.setupShape)
+
+          val (vars, outputShape) = filters.zipWithIndex.map { case (f, i) =>
+            val codeF = emit(f)
+            val m = mb.genFieldThisRef[Boolean](s"m_filter$i")
+            val v = mb.genFieldThisRef[Long](s"v_filter$i")
+
+            val shapeVar = sb.memoizeField(Code(
+                codeF.setup,
+                m := codeF.m,
+                m.mux(
+                  Code(v := 0L, childEmitter.outputShape(i)),
+                  Code(v := codeF.value[Long], coerce[PArray](f.pType).loadLength(v).toL))),
+              s"nda_filter_shape$i")
+
+            ((m, v), shapeVar)
+          }.unzip
+
+          val setupShape = sb.result()
+
+          new NDArrayEmitter[C](x.pType.nDims, outputShape, x.pType.shape.pType, x.pType.elementType, setupShape, childEmitter.setupMissing, childEmitter.missing) {
+            override def outputElement(elemMB: EmitMethodBuilder[C], idxVars: IndexedSeq[Value[Long]]): Code[_] = {
+              val newIdxVars: IndexedSeq[Settable[Long]] = Array.tabulate(x.pType.nDims) { _ => mb.genFieldThisRef[Long]() }
+
+              Code(
+                Code(
+                  Array.tabulate(x.pType.nDims) { i =>
+                    val (m, v) = vars(i)
+                    val typ = coerce[PArray](filters(i).pType)
+                    newIdxVars(i) := m.mux(
+                      idxVars(i),
+                      typ.isElementMissing(v, idxVars(i).toI).mux(
+                        Code._fatal[Long](s"NDArrayFilter: can't filter on missing index (axis=$i)"),
+                        Region.loadLong(typ.loadElement(v.load(), idxVars(i).toI))))
+                  }),
+                childEmitter.outputElement(elemMB, newIdxVars))
+            }
+          }
+           */
         case _ =>
           val ndI = emit(x)
           val ndMemo = cb.memoize(ndI, "deforestNDArray_fall_through_ndarray")
