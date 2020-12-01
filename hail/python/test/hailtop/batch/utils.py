@@ -1,4 +1,4 @@
-from hailtop.batch_client import Job
+from hailtop.batch_client.client import Job
 
 
 def job_logs(batch):
