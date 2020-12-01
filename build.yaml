@@ -2694,7 +2694,7 @@ steps:
      export PYTEST_SPLITS=5
      export PYTEST_SPLIT_INDEX=0
      export DOCKER_ROOT_IMAGE="gcr.io/{{ global.project }}/ubuntu:18.04"
-     export PYTHON_DILL_IMAGE="gcr.io/{{ global.project }}/python-dill:3.7-slim"
+     export PYTHON_DILL_IMAGE="gcr.io/{{ global.project }}/hailgenetics/python-dill:3.7-slim"
      hailctl config set batch/billing_project test
      hailctl config set batch/bucket hail-test-dmk9z
      python3 -m pytest \
@@ -2745,7 +2745,7 @@ steps:
      export PYTEST_SPLITS=5
      export PYTEST_SPLIT_INDEX=1
      export DOCKER_ROOT_IMAGE="gcr.io/{{ global.project }}/ubuntu:18.04"
-     export PYTHON_DILL_IMAGE="gcr.io/{{ global.project }}/python-dill:3.7-slim"
+     export PYTHON_DILL_IMAGE="gcr.io/{{ global.project }}/hailgenetics/python-dill:3.7-slim"
      hailctl config set batch/billing_project test
      hailctl config set batch/bucket hail-test-dmk9z
      python3 -m pytest \
@@ -2796,7 +2796,7 @@ steps:
      export PYTEST_SPLITS=5
      export PYTEST_SPLIT_INDEX=2
      export DOCKER_ROOT_IMAGE="gcr.io/{{ global.project }}/ubuntu:18.04"
-     export PYTHON_DILL_IMAGE="gcr.io/{{ global.project }}/python-dill:3.7-slim"
+     export PYTHON_DILL_IMAGE="gcr.io/{{ global.project }}/hailgenetics/python-dill:3.7-slim"
      hailctl config set batch/billing_project test
      hailctl config set batch/bucket hail-test-dmk9z
      python3 -m pytest \
@@ -2847,7 +2847,7 @@ steps:
      export PYTEST_SPLITS=5
      export PYTEST_SPLIT_INDEX=3
      export DOCKER_ROOT_IMAGE="gcr.io/{{ global.project }}/ubuntu:18.04"
-     export PYTHON_DILL_IMAGE="gcr.io/{{ global.project }}/python-dill:3.7-slim"
+     export PYTHON_DILL_IMAGE="gcr.io/{{ global.project }}/hailgenetics/python-dill:3.7-slim"
      hailctl config set batch/billing_project test
      hailctl config set batch/bucket hail-test-dmk9z
      python3 -m pytest \
@@ -2898,7 +2898,7 @@ steps:
      export PYTEST_SPLITS=5
      export PYTEST_SPLIT_INDEX=4
      export DOCKER_ROOT_IMAGE="gcr.io/{{ global.project }}/ubuntu:18.04"
-     export PYTHON_DILL_IMAGE="gcr.io/{{ global.project }}/python-dill:3.7-slim"
+     export PYTHON_DILL_IMAGE="gcr.io/{{ global.project }}/hailgenetics/python-dill:3.7-slim"
      hailctl config set batch/billing_project test
      hailctl config set batch/bucket hail-test-dmk9z
      python3 -m pytest \
