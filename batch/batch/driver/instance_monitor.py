@@ -2,7 +2,6 @@ import re
 import asyncio
 import aiohttp
 import logging
-import collections
 import datetime
 import sortedcontainers
 import dateutil.parser
