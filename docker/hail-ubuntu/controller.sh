@@ -14,10 +14,8 @@ restart() {
     fi
 
     $COMMAND &
-
     PID=$!
     restarted=yes
-    echo hi
 }
 trap restart SIGINT
 
