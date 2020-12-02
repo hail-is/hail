@@ -33,13 +33,15 @@ log = logging.getLogger('benchmark')
 
 BENCHMARK_FILE_REGEX = re.compile(r'gs://((?P<bucket>[^/]+)/)((?P<user>[^/]+)/)((?P<instanceId>[^/]*)/)((?P<version>[^-]+)-)((?P<sha>[^-]+))(-(?P<tag>[^\.]+))?\.json')
 
+GH_COMMIT_MESSAGE_REGEX = re.compile(r'(?P<title>.*)\s\(#(?P<pr_id>\d+)\)\n\n(?P<rest>.*)')
+
 BENCHMARK_ROOT = os.path.dirname(os.path.abspath(__file__))
 
 benchmark_data = {
     'commits': {},
     'dates': [],
     'geo_means': [],
-    'commit_ids': []
+    'pr_ids': []
 }
 
 
@@ -195,7 +197,7 @@ async def index(request):
     d = {
         'dates': benchmark_data['dates'],
         'geo_means': benchmark_data['geo_means'],
-        'commits': benchmark_data['commit_ids']
+        'commits': benchmark_data['pr_ids']
     }
     assert len(d['dates']) == len(d['geo_means']), d
     df = pd.DataFrame(d)
@@ -315,12 +317,17 @@ async def get_commit(app, sha):  # pylint: disable=unused-argument
     gh_commit = await github_client.getitem(request_string)
 
     message = gh_commit['commit']['message']
-    idx = message.index('#')
-    commit_id = message[idx: idx + 5]
+    match = GH_COMMIT_MESSAGE_REGEX.search(message)
+    message_dict = match.groupdict()
+    pr_id = message_dict['pr_id']
+    title = message_dict['title']
 
-    title_message = gh_commit['commit']['message']
-    title_end = title_message.index(')')
-    title = title_message[0: title_end + 1]
+    # idx = message.index('#')
+    # pr_id = message[idx: idx + 5]
+
+    # title_message = gh_commit['commit']['message']
+    # title_end = title_message.index(')')
+    # title = title_message[0: title_end + 1]
 
     has_results_file = gs_reader.file_exists(file_path)
     batch_statuses = [b._last_known_status async for b in batch_client.list_batches(q=f'sha={sha}')]
@@ -349,7 +356,7 @@ async def get_commit(app, sha):  # pylint: disable=unused-argument
         'date': gh_commit['commit']['author']['date'],
         'status': status,
         'batch_id': batch_id,
-        'commit_id': commit_id
+        'pr_id': pr_id
     }
 
     return commit
@@ -380,7 +387,7 @@ async def update_commit(app, sha):  # pylint: disable=unused-argument
 
         benchmark_data['dates'].append(commit['date'])
         benchmark_data['geo_means'].append(commit['geo_mean'])
-        benchmark_data['commit_ids'].append(commit['commit_id'])
+        benchmark_data['pr_ids'].append(commit['pr_id'])
 
     return commit
 

@@ -13,5 +13,5 @@ BENCHMARK_RESULTS_PATH = f'gs://{HAIL_BENCHMARK_BUCKET_NAME}/benchmark-test/{INS
 START_POINT = os.environ.get('START_POINT')
 if START_POINT is None:
     now = datetime.datetime.now()
-    start_point = now - datetime.timedelta(days=2)
+    start_point = now - datetime.timedelta(days=1)
     START_POINT = start_point.strftime("%Y-%m-%dT%H:%M:%SZ")

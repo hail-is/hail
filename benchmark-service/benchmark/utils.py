@@ -78,7 +78,7 @@ class ReadGoogleStorage:
             data = blob.download_as_string()
         except google.api_core.exceptions.NotFound as e:
             log.exception(f'error while reading file {file_path}: {e}')
-            data = ""
+            data = None
         return data
 
     def list_files(self, bucket_name):
