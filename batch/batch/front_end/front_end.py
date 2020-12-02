@@ -683,11 +683,6 @@ WHERE user = %s AND id = %s AND NOT deleted;
                     if user != 'ci':
                         raise web.HTTPBadRequest(reason=f'unauthorized secret {(secret["namespace"], secret["name"])}')
 
-                env = spec.get('env')
-                if not env:
-                    env = []
-                    spec['env'] = env
-
                 spec['secrets'] = secrets
                 secrets.append({
                     'namespace': DEFAULT_NAMESPACE,
@@ -695,7 +690,12 @@ WHERE user = %s AND id = %s AND NOT deleted;
                     'mount_path': '/gsa-key',
                     'mount_in_copy': True
                 })
-                if all('GOOGLE_APPLICATION_CREDENTIALS' != envvar['name'] for envvar in spec.env):
+
+                env = spec.get('env')
+                if not env:
+                    env = []
+                    spec['env'] = env
+                if all(envvar['name'] != 'GOOGLE_APPLICATION_CREDENTIALS' for envvar in spec.env):
                     spec.env.append(
                         {'name': 'GOOGLE_APPLICATION_CREDENTIALS', 'value': '/gsa-key/key.json'})
 
