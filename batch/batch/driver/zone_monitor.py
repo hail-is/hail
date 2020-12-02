@@ -123,7 +123,7 @@ class ZoneMonitor:
             new_region_info[name] = r
 
         self.region_info = new_region_info
-        log.info(f'updated region quotas')
+        log.info('updated region quotas')
 
     async def update_region_quotas_loop(self):
         while True:

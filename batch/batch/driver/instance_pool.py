@@ -5,15 +5,13 @@ import random
 import json
 import datetime
 import asyncio
-import urllib.parse
 import logging
 import base64
 import dateutil.parser
 import sortedcontainers
 import aiohttp
 from hailtop import aiotools
-from hailtop.utils import (
-    retry_long_running, time_msecs, secret_alnum_string)
+from hailtop.utils import time_msecs, secret_alnum_string
 
 from ..batch_configuration import DEFAULT_NAMESPACE, PROJECT, \
     WORKER_MAX_IDLE_TIME_MSECS, STANDING_WORKER_MAX_IDLE_TIME_MSECS, \
