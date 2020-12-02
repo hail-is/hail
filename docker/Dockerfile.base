@@ -6,7 +6,7 @@ RUN hail-apt-get-install \
     unzip bzip2 zip tar \
     wget curl \
     rsync \
-    emacs25-nox \
+    emacs-nox \
     mysql-client \
     xsltproc pandoc \
     jq \
