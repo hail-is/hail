@@ -1,7 +1,7 @@
 package is.hail.types.physical
 
 import is.hail.annotations.Region
-import is.hail.asm4s.{Code, Value}
+import is.hail.asm4s.{Code, LineNumber, Value}
 import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder}
 import is.hail.types.physical.stypes.SCode
 import is.hail.types.physical.stypes.concrete.{SStringPointer, SStringPointerCode}
@@ -29,13 +29,13 @@ class PCanonicalString(val required: Boolean) extends PString {
   def loadLength(boff: Long): Int =
     this.fundamentalType.loadLength(boff)
 
-  def loadLength(boff: Code[Long]): Code[Int] =
+  def loadLength(boff: Code[Long])(implicit line: LineNumber): Code[Int] =
     this.fundamentalType.loadLength(boff)
 
   def loadString(bAddress: Long): String =
     new String(this.fundamentalType.loadBytes(bAddress))
 
-  def loadString(bAddress: Code[Long]): Code[String] =
+  def loadString(bAddress: Code[Long])(implicit line: LineNumber): Code[String] =
     Code.newInstance[String, Array[Byte]](this.fundamentalType.loadBytes(bAddress))
 
   def allocateAndStoreString(region: Region, str: String): Long = {
@@ -45,7 +45,7 @@ class PCanonicalString(val required: Boolean) extends PString {
     dstAddrss
   }
 
-  def allocateAndStoreString(mb: EmitMethodBuilder[_], region: Value[Region], str: Code[String]): Code[Long] = {
+  def allocateAndStoreString(mb: EmitMethodBuilder[_], region: Value[Region], str: Code[String])(implicit line: LineNumber): Code[Long] = {
     val dstAddress = mb.genFieldThisRef[Long]()
     val byteRep = mb.genFieldThisRef[Array[Byte]]()
     Code(
@@ -62,9 +62,10 @@ class PCanonicalString(val required: Boolean) extends PString {
 
   def sType: SStringPointer = SStringPointer(this)
 
-  def loadCheapPCode(cb: EmitCodeBuilder, addr: Code[Long]): PCode = new SStringPointerCode(SStringPointer(this), addr)
+  def loadCheapPCode(cb: EmitCodeBuilder, addr: Code[Long])(implicit line: LineNumber): PCode =
+    new SStringPointerCode(SStringPointer(this), addr)
 
-  def store(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): Code[Long] = {
+  def store(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean)(implicit line: LineNumber): Code[Long] = {
     value.st match {
       case SStringPointer(t) if t.equalModuloRequired(this) && !deepCopy =>
         value.asInstanceOf[SStringPointerCode].a
@@ -73,7 +74,7 @@ class PCanonicalString(val required: Boolean) extends PString {
     }
   }
 
-  def storeAtAddress(cb: EmitCodeBuilder, addr: Code[Long], region: Value[Region], value: SCode, deepCopy: Boolean): Unit = {
+  def storeAtAddress(cb: EmitCodeBuilder, addr: Code[Long], region: Value[Region], value: SCode, deepCopy: Boolean)(implicit line: LineNumber): Unit = {
     cb += Region.storeAddress(addr, store(cb, region, value, deepCopy))
   }
 }

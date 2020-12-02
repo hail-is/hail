@@ -47,9 +47,10 @@ final case class PCanonicalCall(required: Boolean = false) extends PCall {
 
   def sType: SCall = SCanonicalCall(required)
 
-  def loadCheapPCode(cb: EmitCodeBuilder, addr: Code[Long]): PCode = new SCanonicalCallCode(required, Region.loadInt(addr))
+  def loadCheapPCode(cb: EmitCodeBuilder, addr: Code[Long])(implicit line: LineNumber): PCode =
+    new SCanonicalCallCode(required, Region.loadInt(addr))
 
-  def store(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): Code[Long] = {
+  def store(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean)(implicit line: LineNumber): Code[Long] = {
     value.st match {
       case SCanonicalCall(r) =>
         val newAddr = cb.newLocal[Long]("pcanonicalcall_store_addr", region.allocate(representation.alignment, representation.byteSize))
@@ -58,7 +59,7 @@ final case class PCanonicalCall(required: Boolean = false) extends PCall {
     }
   }
 
-  def storeAtAddress(cb: EmitCodeBuilder, addr: Code[Long], region: Value[Region], value: SCode, deepCopy: Boolean): Unit = {
+  def storeAtAddress(cb: EmitCodeBuilder, addr: Code[Long], region: Value[Region], value: SCode, deepCopy: Boolean)(implicit line: LineNumber): Unit = {
     cb += Region.storeInt(addr, value.asInstanceOf[SCanonicalCallCode].call)
   }
 }

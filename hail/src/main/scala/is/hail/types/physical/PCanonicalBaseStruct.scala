@@ -170,9 +170,10 @@ abstract class PCanonicalBaseStruct(val types: Array[PType]) extends PBaseStruct
 
   def sType: SStruct = SBaseStructPointer(this)
 
-  def loadCheapPCode(cb: EmitCodeBuilder, addr: Code[Long]): PCode = new SBaseStructPointerCode(SBaseStructPointer(this), addr)
+  def loadCheapPCode(cb: EmitCodeBuilder, addr: Code[Long])(implicit line: LineNumber): PCode =
+    new SBaseStructPointerCode(SBaseStructPointer(this), addr)
 
-  def store(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): Code[Long] = {
+  def store(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean)(implicit line: LineNumber): Code[Long] = {
     value.st match {
       case SBaseStructPointer(t) if t.equalModuloRequired(this) && !deepCopy =>
         value.asInstanceOf[SBaseStructPointerCode].a

@@ -1,6 +1,6 @@
 package is.hail.types.physical.stypes.interfaces
 
-import is.hail.asm4s.{Code, Value}
+import is.hail.asm4s.{Code, LineNumber, Value}
 import is.hail.expr.ir.{EmitCodeBuilder, IEmitSCode}
 import is.hail.types.physical.stypes.{SCode, SType, SValue}
 
@@ -9,18 +9,18 @@ trait SContainer extends SType
 trait SIndexableValue extends SValue {
   def loadLength(): Value[Int]
 
-  def isElementMissing(i: Code[Int]): Code[Boolean]
+  def isElementMissing(i: Code[Int])(implicit line: LineNumber): Code[Boolean]
 
-  def isElementDefined(i: Code[Int]): Code[Boolean] = !isElementMissing(i)
+  def isElementDefined(i: Code[Int])(implicit line: LineNumber): Code[Boolean] = !isElementMissing(i)
 
-  def loadElement(cb: EmitCodeBuilder, i: Code[Int]): IEmitSCode
+  def loadElement(cb: EmitCodeBuilder, i: Code[Int])(implicit line: LineNumber): IEmitSCode
 }
 
 trait SIndexableCode extends SCode {
-  def loadLength(): Code[Int]
+  def loadLength()(implicit line: LineNumber): Code[Int]
 
-  def memoize(cb: EmitCodeBuilder, name: String): SIndexableValue
+  def memoize(cb: EmitCodeBuilder, name: String)(implicit line: LineNumber): SIndexableValue
 
-  def memoizeField(cb: EmitCodeBuilder, name: String): SIndexableValue
+  def memoizeField(cb: EmitCodeBuilder, name: String)(implicit line: LineNumber): SIndexableValue
 }
 

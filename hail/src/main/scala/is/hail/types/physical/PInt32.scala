@@ -27,39 +27,40 @@ class PInt32(override val required: Boolean) extends PNumeric with PPrimitive {
     new CodeOrderingCompareConsistentWithOthers {
       type T = Int
 
-      def compareNonnull(x: Code[T], y: Code[T]): Code[Int] =
+      def compareNonnull(x: Code[T], y: Code[T])(implicit line: LineNumber): Code[Int] =
         Code.invokeStatic2[java.lang.Integer, Int, Int, Int]("compare", x, y)
 
-      override def ltNonnull(x: Code[T], y: Code[T]): Code[Boolean] = x < y
+      override def ltNonnull(x: Code[T], y: Code[T])(implicit line: LineNumber): Code[Boolean] = x < y
 
-      override def lteqNonnull(x: Code[T], y: Code[T]): Code[Boolean] = x <= y
+      override def lteqNonnull(x: Code[T], y: Code[T])(implicit line: LineNumber): Code[Boolean] = x <= y
 
-      override def gtNonnull(x: Code[T], y: Code[T]): Code[Boolean] = x > y
+      override def gtNonnull(x: Code[T], y: Code[T])(implicit line: LineNumber): Code[Boolean] = x > y
 
-      override def gteqNonnull(x: Code[T], y: Code[T]): Code[Boolean] = x >= y
+      override def gteqNonnull(x: Code[T], y: Code[T])(implicit line: LineNumber): Code[Boolean] = x >= y
 
-      override def equivNonnull(x: Code[T], y: Code[T]): Code[Boolean] = x.ceq(y)
+      override def equivNonnull(x: Code[T], y: Code[T])(implicit line: LineNumber): Code[Boolean] = x.ceq(y)
     }
   }
 
   override def byteSize: Long = 4
 
-  override def zero = coerce[PInt32](const(0))
+  override def zero(implicit line: LineNumber) = coerce[PInt32](const(0))
 
-  override def add(a: Code[_], b: Code[_]): Code[PInt32] = {
+  override def add(a: Code[_], b: Code[_])(implicit line: LineNumber): Code[PInt32] = {
     coerce[PInt32](coerce[Int](a) + coerce[Int](b))
   }
 
-  override def multiply(a: Code[_], b: Code[_]): Code[PInt32] = {
+  override def multiply(a: Code[_], b: Code[_])(implicit line: LineNumber): Code[PInt32] = {
     coerce[PInt32](coerce[Int](a) * coerce[Int](b))
   }
 
   override def sType: SType = SInt32(required)
 
-  def storePrimitiveAtAddress(cb: EmitCodeBuilder, addr: Code[Long], value: SCode): Unit =
+  def storePrimitiveAtAddress(cb: EmitCodeBuilder, addr: Code[Long], value: SCode)(implicit line: LineNumber): Unit =
     cb.append(Region.storeInt(addr, value.asInt.intCode(cb)))
 
-  override def loadCheapPCode(cb: EmitCodeBuilder, addr: Code[Long]): PCode = new SInt32Code(required, Region.loadInt(addr))
+  override def loadCheapPCode(cb: EmitCodeBuilder, addr: Code[Long])(implicit line: LineNumber): PCode =
+    new SInt32Code(required, Region.loadInt(addr))
 }
 
 object PInt32 {

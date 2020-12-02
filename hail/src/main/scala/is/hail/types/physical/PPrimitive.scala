@@ -31,18 +31,18 @@ trait PPrimitive extends PType {
     Region.copyFrom(srcAddress, addr, byteSize)
   }
 
-  def store(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): Code[Long] = {
+  def store(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean)(implicit line: LineNumber): Code[Long] = {
     val newAddr = cb.newLocal[Long]("pprimitive_store_addr", region.allocate(alignment, byteSize))
     storeAtAddress(cb, newAddr, region, value, deepCopy)
     newAddr
   }
 
 
-  override def storeAtAddress(cb: EmitCodeBuilder, addr: Code[Long], region: Value[Region], value: SCode, deepCopy: Boolean): Unit = {
+  override def storeAtAddress(cb: EmitCodeBuilder, addr: Code[Long], region: Value[Region], value: SCode, deepCopy: Boolean)(implicit line: LineNumber): Unit = {
     storePrimitiveAtAddress(cb, addr, value)
   }
 
-  def storePrimitiveAtAddress(cb: EmitCodeBuilder, addr: Code[Long], value: SCode): Unit
+  def storePrimitiveAtAddress(cb: EmitCodeBuilder, addr: Code[Long], value: SCode)(implicit line: LineNumber): Unit
 
   def setRequired(required: Boolean): PPrimitive = {
     if (required == this.required)

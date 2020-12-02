@@ -30,17 +30,21 @@ final case class PCanonicalInterval(pointType: PType, override val required: Boo
 
   def setRequired(required: Boolean) = if (required == this.required) this else PCanonicalInterval(this.pointType, required)
 
-  def startOffset(off: Code[Long]): Code[Long] = representation.fieldOffset(off, 0)
+  def startOffset(off: Code[Long])(implicit line: LineNumber): Code[Long] =
+    representation.fieldOffset(off, 0)
 
-  def endOffset(off: Code[Long]): Code[Long] = representation.fieldOffset(off, 1)
+  def endOffset(off: Code[Long])(implicit line: LineNumber): Code[Long] =
+    representation.fieldOffset(off, 1)
 
   def loadStart(off: Long): Long = representation.loadField(off, 0)
 
-  def loadStart(off: Code[Long]): Code[Long] = representation.loadField(off, 0)
+  def loadStart(off: Code[Long])(implicit line: LineNumber): Code[Long] =
+    representation.loadField(off, 0)
 
   def loadEnd(off: Long): Long = representation.loadField(off, 1)
 
-  def loadEnd(off: Code[Long]): Code[Long] = representation.loadField(off, 1)
+  def loadEnd(off: Code[Long])(implicit line: LineNumber): Code[Long] =
+    representation.loadField(off, 1)
 
   def startDefined(off: Long): Boolean = representation.isFieldDefined(off, 0)
 
@@ -50,14 +54,16 @@ final case class PCanonicalInterval(pointType: PType, override val required: Boo
 
   def includesEnd(off: Long): Boolean = Region.loadBoolean(representation.loadField(off, 3))
 
-  def startDefined(off: Code[Long]): Code[Boolean] = representation.isFieldDefined(off, 0)
+  def startDefined(off: Code[Long])(implicit line: LineNumber): Code[Boolean] =
+    representation.isFieldDefined(off, 0)
 
-  def endDefined(off: Code[Long]): Code[Boolean] = representation.isFieldDefined(off, 1)
+  def endDefined(off: Code[Long])(implicit line: LineNumber): Code[Boolean] =
+    representation.isFieldDefined(off, 1)
 
-  def includesStart(off: Code[Long]): Code[Boolean] =
+  def includesStart(off: Code[Long])(implicit line: LineNumber): Code[Boolean] =
     Region.loadBoolean(representation.loadField(off, 2))
 
-  def includesEnd(off: Code[Long]): Code[Boolean] =
+  def includesEnd(off: Code[Long])(implicit line: LineNumber): Code[Boolean] =
     Region.loadBoolean(representation.loadField(off, 3))
 
   override def deepRename(t: Type) = deepRenameInterval(t.asInstanceOf[TInterval])
@@ -71,16 +77,17 @@ final case class PCanonicalInterval(pointType: PType, override val required: Boo
 
   def sType: SIntervalPointer = SIntervalPointer(this)
 
-  def loadCheapPCode(cb: EmitCodeBuilder, addr: Code[Long]): PCode = new SIntervalPointerCode(SIntervalPointer(this), addr)
+  def loadCheapPCode(cb: EmitCodeBuilder, addr: Code[Long])(implicit line: LineNumber): PCode =
+    new SIntervalPointerCode(SIntervalPointer(this), addr)
 
-  def store(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): Code[Long] = {
+  def store(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean)(implicit line: LineNumber): Code[Long] = {
     value.st match {
       case SIntervalPointer(t: PCanonicalInterval) =>
         representation.store(cb, region, t.representation.loadCheapPCode(cb, value.asInstanceOf[SIntervalPointerCode].a), deepCopy)
     }
   }
 
-  def storeAtAddress(cb: EmitCodeBuilder, addr: Code[Long], region: Value[Region], value: SCode, deepCopy: Boolean): Unit = {
+  def storeAtAddress(cb: EmitCodeBuilder, addr: Code[Long], region: Value[Region], value: SCode, deepCopy: Boolean)(implicit line: LineNumber): Unit = {
     value.st match {
       case SIntervalPointer(t: PCanonicalInterval) =>
         representation.storeAtAddress(cb, addr, region, t.representation.loadCheapPCode(cb, value.asInstanceOf[SIntervalPointerCode].a), deepCopy)

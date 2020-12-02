@@ -417,7 +417,7 @@ case class EmitCode(setup: Code[Unit], m: Code[Boolean], pv: PCode) {
   def get()(implicit line: LineNumber): PCode =
     PCode(pv.pt, Code(setup, m.orEmpty(Code._fatal[Unit]("expected non-missing")), pv.code))
 
-  def asVoid(): Code[Unit] = {
+  def asVoid()(implicit line: LineNumber): Code[Unit] = {
     require(pv.pt == PVoid)
     Code(setup, Code.toUnit(m))
   }

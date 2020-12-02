@@ -28,39 +28,40 @@ class PInt64(override val required: Boolean) extends PNumeric with PPrimitive {
     new CodeOrdering {
       type T = Long
 
-      def compareNonnull(x: Code[T], y: Code[T]): Code[Int] =
+      def compareNonnull(x: Code[T], y: Code[T])(implicit line: LineNumber): Code[Int] =
         Code.invokeStatic2[java.lang.Long, Long, Long, Int]("compare", x, y)
 
-      def ltNonnull(x: Code[T], y: Code[T]): Code[Boolean] = x < y
+      def ltNonnull(x: Code[T], y: Code[T])(implicit line: LineNumber): Code[Boolean] = x < y
 
-      def lteqNonnull(x: Code[T], y: Code[T]): Code[Boolean] = x <= y
+      def lteqNonnull(x: Code[T], y: Code[T])(implicit line: LineNumber): Code[Boolean] = x <= y
 
-      def gtNonnull(x: Code[T], y: Code[T]): Code[Boolean] = x > y
+      def gtNonnull(x: Code[T], y: Code[T])(implicit line: LineNumber): Code[Boolean] = x > y
 
-      def gteqNonnull(x: Code[T], y: Code[T]): Code[Boolean] = x >= y
+      def gteqNonnull(x: Code[T], y: Code[T])(implicit line: LineNumber): Code[Boolean] = x >= y
 
-      def equivNonnull(x: Code[T], y: Code[T]): Code[Boolean] = x.ceq(y)
+      def equivNonnull(x: Code[T], y: Code[T])(implicit line: LineNumber): Code[Boolean] = x.ceq(y)
     }
   }
 
   override def byteSize: Long = 8
 
-  override def zero = coerce[PInt64](const(0L))
+  override def zero(implicit line: LineNumber) = coerce[PInt64](const(0L))
 
-  override def add(a: Code[_], b: Code[_]): Code[PInt64] = {
+  override def add(a: Code[_], b: Code[_])(implicit line: LineNumber): Code[PInt64] = {
     coerce[PInt64](coerce[Long](a) + coerce[Long](b))
   }
 
-  override def multiply(a: Code[_], b: Code[_]): Code[PInt64] = {
+  override def multiply(a: Code[_], b: Code[_])(implicit line: LineNumber): Code[PInt64] = {
     coerce[PInt64](coerce[Long](a) * coerce[Long](b))
   }
 
   override def sType: SType = SInt64(required)
 
-  def storePrimitiveAtAddress(cb: EmitCodeBuilder, addr: Code[Long], value: SCode): Unit =
+  def storePrimitiveAtAddress(cb: EmitCodeBuilder, addr: Code[Long], value: SCode)(implicit line: LineNumber): Unit =
     cb.append(Region.storeLong(addr, value.asLong.longCode(cb)))
 
-  override def loadCheapPCode(cb: EmitCodeBuilder, addr: Code[Long]): PCode = new SInt64Code(required, Region.loadLong(addr))
+  override def loadCheapPCode(cb: EmitCodeBuilder, addr: Code[Long])(implicit line: LineNumber): PCode =
+    new SInt64Code(required, Region.loadLong(addr))
 }
 
 object PInt64 {

@@ -409,9 +409,10 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
 
   def sType: SContainer = SIndexablePointer(this)
 
-  def loadCheapPCode(cb: EmitCodeBuilder, addr: Code[Long]): PCode = new SIndexablePointerCode(SIndexablePointer(this), addr)
+  def loadCheapPCode(cb: EmitCodeBuilder, addr: Code[Long])(implicit line: LineNumber): PCode =
+    new SIndexablePointerCode(SIndexablePointer(this), addr)
 
-  def store(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): Code[Long] = {
+  def store(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean)(implicit line: LineNumber): Code[Long] = {
     value.st match {
       case SIndexablePointer(PCanonicalArray(otherElementType, _)) if otherElementType == elementType =>
         if (deepCopy) {
@@ -446,7 +447,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
     }
   }
 
-  def storeAtAddress(cb: EmitCodeBuilder, addr: Code[Long], region: Value[Region], value: SCode, deepCopy: Boolean): Unit = {
+  def storeAtAddress(cb: EmitCodeBuilder, addr: Code[Long], region: Value[Region], value: SCode, deepCopy: Boolean)(implicit line: LineNumber): Unit = {
     cb += Region.storeAddress(addr, store(cb, region, value, deepCopy))
   }
 

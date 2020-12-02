@@ -1,7 +1,7 @@
 package is.hail.types.physical.stypes
 
 import is.hail.annotations.Region
-import is.hail.asm4s.{Code, Settable, Value}
+import is.hail.asm4s.{Code, LineNumber, Settable, Value}
 import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.physical.stypes.primitives._
@@ -49,23 +49,23 @@ abstract class SCode {
 
   def asStream: SStreamCode = asInstanceOf[SStreamCode]
 
-  def castTo(cb: EmitCodeBuilder, region: Value[Region], destType: PType): SCode =
+  def castTo(cb: EmitCodeBuilder, region: Value[Region], destType: PType)(implicit line: LineNumber): SCode =
     castTo(cb, region, destType, false)
 
 
-  def castTo(cb: EmitCodeBuilder, region: Value[Region], destType: PType, deepCopy: Boolean): SCode = {
+  def castTo(cb: EmitCodeBuilder, region: Value[Region], destType: PType, deepCopy: Boolean)(implicit line: LineNumber): SCode = {
     destType.sType.coerceOrCopy(cb, region, this, deepCopy)
   }
 
-  def copyToRegion(cb: EmitCodeBuilder, region: Value[Region]): SCode =
+  def copyToRegion(cb: EmitCodeBuilder, region: Value[Region])(implicit line: LineNumber): SCode =
     copyToRegion(cb, region, st.pType)
 
-  def copyToRegion(cb: EmitCodeBuilder, region: Value[Region], destType: PType): SCode =
+  def copyToRegion(cb: EmitCodeBuilder, region: Value[Region], destType: PType)(implicit line: LineNumber): SCode =
     destType.sType.coerceOrCopy(cb, region, this, deepCopy = true)
 
-  def memoize(cb: EmitCodeBuilder, name: String): SValue
+  def memoize(cb: EmitCodeBuilder, name: String)(implicit line: LineNumber): SValue
 
-  def memoizeField(cb: EmitCodeBuilder, name: String): SValue
+  def memoizeField(cb: EmitCodeBuilder, name: String)(implicit line: LineNumber): SValue
 
   def toPCode(cb: EmitCodeBuilder, region: Value[Region]): PCode
 
@@ -76,7 +76,7 @@ abstract class SCode {
 trait SValue {
   def st: SType
 
-  def get: SCode
+  def get(implicit line: LineNumber): SCode
 
   def asPValue: PValue = asInstanceOf[PValue]
 }
@@ -87,7 +87,7 @@ trait SSettable extends SValue {
 
   def settableTuple(): IndexedSeq[Settable[_]]
 
-  def load(): SCode = get
+  def load()(implicit line: LineNumber): SCode = get
 }
 
 

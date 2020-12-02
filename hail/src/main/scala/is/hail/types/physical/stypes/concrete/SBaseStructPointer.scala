@@ -12,13 +12,13 @@ import is.hail.utils.FastIndexedSeq
 case class SBaseStructPointer(pType: PBaseStruct) extends SStruct {
   def codeOrdering(mb: EmitMethodBuilder[_], other: SType, so: SortOrder): CodeOrdering = pType.codeOrdering(mb, other.pType, so)
 
-  def coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = {
+  def coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean)(implicit line: LineNumber): SCode = {
     new SBaseStructPointerCode(this, pType.store(cb, region, value, deepCopy))
   }
 
   def codeTupleTypes(): IndexedSeq[TypeInfo[_]] = FastIndexedSeq(LongInfo)
 
-  def loadFrom(cb: EmitCodeBuilder, region: Value[Region], pt: PType, addr: Code[Long]): SCode = {
+  def loadFrom(cb: EmitCodeBuilder, region: Value[Region], pt: PType, addr: Code[Long])(implicit line: LineNumber): SCode = {
     if (pt == this.pType)
       new SBaseStructPointerCode(this, addr)
     else
@@ -39,21 +39,21 @@ class SBaseStructPointerSettable(
 ) extends PStructSettable {
   val pt: PBaseStruct = st.pType
 
-  def get: PBaseStructCode = new SBaseStructPointerCode(st, a)
+  def get(implicit line: LineNumber): PBaseStructCode = new SBaseStructPointerCode(st, a)
 
   def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(a)
 
-  def loadField(cb: EmitCodeBuilder, fieldIdx: Int): IEmitCode = {
+  def loadField(cb: EmitCodeBuilder, fieldIdx: Int)(implicit line: LineNumber): IEmitCode = {
     IEmitCode(cb,
       pt.isFieldMissing(a, fieldIdx),
       pt.fields(fieldIdx).typ.loadCheapPCode(cb, pt.loadField(a, fieldIdx)))
   }
 
-  def store(cb: EmitCodeBuilder, pv: PCode): Unit = {
+  def store(cb: EmitCodeBuilder, pv: PCode)(implicit line: LineNumber): Unit = {
     cb.assign(a, pv.asInstanceOf[SBaseStructPointerCode].a)
   }
 
-  def isFieldMissing(fieldIdx: Int): Code[Boolean] = {
+  def isFieldMissing(fieldIdx: Int)(implicit line: LineNumber): Code[Boolean] = {
     pt.isFieldMissing(a, fieldIdx)
   }
 }
@@ -65,13 +65,15 @@ class SBaseStructPointerCode(val st: SBaseStructPointer, val a: Code[Long]) exte
 
   def codeTuple(): IndexedSeq[Code[_]] = FastIndexedSeq(a)
 
-  def memoize(cb: EmitCodeBuilder, name: String, sb: SettableBuilder): PBaseStructValue = {
+  def memoize(cb: EmitCodeBuilder, name: String, sb: SettableBuilder)(implicit line: LineNumber): PBaseStructValue = {
     val s = SBaseStructPointerSettable(sb, st, name)
     cb.assign(s, this)
     s
   }
 
-  def memoize(cb: EmitCodeBuilder, name: String): PBaseStructValue = memoize(cb, name, cb.localBuilder)
+  def memoize(cb: EmitCodeBuilder, name: String)(implicit line: LineNumber): PBaseStructValue =
+    memoize(cb, name, cb.localBuilder)
 
-  def memoizeField(cb: EmitCodeBuilder, name: String): PBaseStructValue = memoize(cb, name, cb.fieldBuilder)
+  def memoizeField(cb: EmitCodeBuilder, name: String)(implicit line: LineNumber): PBaseStructValue =
+    memoize(cb, name, cb.fieldBuilder)
 }

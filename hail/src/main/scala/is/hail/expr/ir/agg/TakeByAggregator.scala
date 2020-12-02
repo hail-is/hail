@@ -45,6 +45,7 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
     )
 
   private val _compareKey: EmitMethodBuilder[_] = {
+    implicit val line = LineNumber.none
     val cmp = kb.genEmitMethod("compare", FastIndexedSeq[ParamType](keyType.asEmitParam, keyType.asEmitParam), IntInfo)
     val ord = keyType.codeOrdering(cmp, so)
     val k1 = cmp.getEmitParam(1)
@@ -57,9 +58,8 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
     cmp
   }
 
-  private def compareKey(cb: EmitCodeBuilder, k1: EmitCode, k2: EmitCode)(implicit line: LineNumber) => Code[Int] = {
+  private def compareKey(cb: EmitCodeBuilder, k1: EmitCode, k2: EmitCode)(implicit line: LineNumber): Code[Int] =
     cb.invokeCode(_compareKey, k1, k2)
-  }
 
   private val _compareIndexedKey: EmitMethodBuilder[_] = {
     implicit val line = LineNumber.none

@@ -29,7 +29,7 @@ object EmitCodeBuilder {
     cbcode
   }
 
-  def scopedEmitCode(mb: EmitMethodBuilder[_])(f: (EmitCodeBuilder) => EmitCode): EmitCode = {
+  def scopedEmitCode(mb: EmitMethodBuilder[_])(f: (EmitCodeBuilder) => EmitCode)(implicit line: LineNumber): EmitCode = {
     val (cbcode, ec) = EmitCodeBuilder.scoped(mb)(f)
     EmitCode(cbcode, ec)
   }
@@ -65,11 +65,11 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
     s.store(this, v)
   }
 
-  def assign(is: IndexedSeq[EmitSettable], ix: IndexedSeq[EmitCode]): Unit = {
+  def assign(is: IndexedSeq[EmitSettable], ix: IndexedSeq[EmitCode])(implicit line: LineNumber): Unit = {
     (is, ix).zipped.foreach { case (s, c) => s.store(this, c) }
   }
 
-  def assign(s: PresentEmitSettable, v: PCode): Unit = {
+  def assign(s: PresentEmitSettable, v: PCode)(implicit line: LineNumber): Unit = {
     s.store(this, v)
   }
 
@@ -134,7 +134,7 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
   }
 
   // for debugging
-  def printRegionValue(value: Code[_], typ: PType, region: Value[Region]): Unit = {
+  def printRegionValue(value: Code[_], typ: PType, region: Value[Region])(implicit line: LineNumber): Unit = {
     append(Code._println(StringFunctions.boxArg(EmitRegion(emb, region), typ)(value)))
   }
 }

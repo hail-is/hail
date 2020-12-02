@@ -1,7 +1,7 @@
 package is.hail.types.physical.stypes.concrete
 
 import is.hail.annotations.{CodeOrdering, Region}
-import is.hail.asm4s.{Code, IntInfo, LongInfo, Settable, SettableBuilder, TypeInfo, Value}
+import is.hail.asm4s.{Code, IntInfo, LineNumber, LongInfo, Settable, SettableBuilder, TypeInfo, Value}
 import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, IEmitCode, SortOrder}
 import is.hail.types.physical.stypes.{SCode, SType}
 import is.hail.types.physical.stypes.interfaces.SContainer
@@ -13,13 +13,13 @@ import is.hail.utils.FastIndexedSeq
 case class SIndexablePointer(pType: PContainer) extends SContainer {
   def codeOrdering(mb: EmitMethodBuilder[_], other: SType, so: SortOrder): CodeOrdering = pType.codeOrdering(mb, other.pType, so)
 
-  def coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = {
+  def coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean)(implicit line: LineNumber): SCode = {
     new SIndexablePointerCode(this, pType.store(cb, region, value, deepCopy))
   }
 
   def codeTupleTypes(): IndexedSeq[TypeInfo[_]] = FastIndexedSeq(LongInfo, IntInfo, LongInfo)
 
-  def loadFrom(cb: EmitCodeBuilder, region: Value[Region], pt: PType, addr: Code[Long]): SCode = {
+  def loadFrom(cb: EmitCodeBuilder, region: Value[Region], pt: PType, addr: Code[Long])(implicit line: LineNumber): SCode = {
     if (pt == this.pType)
       new SIndexablePointerCode(this, addr)
     else
@@ -35,17 +35,19 @@ class SIndexablePointerCode(val st: SIndexablePointer, val a: Code[Long]) extend
 
   def codeTuple(): IndexedSeq[Code[_]] = FastIndexedSeq(a)
 
-  def loadLength(): Code[Int] = pt.loadLength(a)
+  def loadLength()(implicit line: LineNumber): Code[Int] = pt.loadLength(a)
 
-  def memoize(cb: EmitCodeBuilder, name: String, sb: SettableBuilder): PIndexableValue = {
+  def memoize(cb: EmitCodeBuilder, name: String, sb: SettableBuilder)(implicit line: LineNumber): PIndexableValue = {
     val s = SIndexablePointerSettable(sb, st, name)
     cb.assign(s, this)
     s
   }
 
-  def memoize(cb: EmitCodeBuilder, name: String): PIndexableValue = memoize(cb, name, cb.localBuilder)
+  def memoize(cb: EmitCodeBuilder, name: String)(implicit line: LineNumber): PIndexableValue =
+    memoize(cb, name, cb.localBuilder)
 
-  def memoizeField(cb: EmitCodeBuilder, name: String): PIndexableValue = memoize(cb, name, cb.fieldBuilder)
+  def memoizeField(cb: EmitCodeBuilder, name: String)(implicit line: LineNumber): PIndexableValue =
+    memoize(cb, name, cb.fieldBuilder)
 }
 
 object SIndexablePointerSettable {
@@ -65,22 +67,22 @@ class SIndexablePointerSettable(
 ) extends PIndexableValue with PSettable {
   val pt: PContainer = st.pType
 
-  def get: PIndexableCode = new SIndexablePointerCode(st, a)
+  def get(implicit line: LineNumber): PIndexableCode = new SIndexablePointerCode(st, a)
 
   def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(a, length, elementsAddress)
 
   def loadLength(): Value[Int] = length
 
-  def loadElement(cb: EmitCodeBuilder, i: Code[Int]): IEmitCode = {
+  def loadElement(cb: EmitCodeBuilder, i: Code[Int])(implicit line: LineNumber): IEmitCode = {
     val iv = cb.newLocal("pcindval_i", i)
     IEmitCode(cb,
       isElementMissing(iv),
       pt.elementType.loadCheapPCode(cb, pt.loadElement(a, length, iv))) // FIXME loadElement should take elementsAddress
   }
 
-  def isElementMissing(i: Code[Int]): Code[Boolean] = pt.isElementMissing(a, i)
+  def isElementMissing(i: Code[Int])(implicit line: LineNumber): Code[Boolean] = pt.isElementMissing(a, i)
 
-  def store(cb: EmitCodeBuilder, pc: PCode): Unit = {
+  def store(cb: EmitCodeBuilder, pc: PCode)(implicit line: LineNumber): Unit = {
     cb.assign(a, pc.asInstanceOf[SIndexablePointerCode].a)
     cb.assign(length, pt.loadLength(a))
     cb.assign(elementsAddress, pt.firstElementOffset(a, length))

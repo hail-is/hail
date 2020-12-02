@@ -222,10 +222,9 @@ class StagedRegionValueBuilder private (val mb: EmitMethodBuilder[_], val typ: P
         current.storeAtAddress(cb, dest, r, PCode(ft, value), deepCopy)
       }
     }
-    (v: Code[_]) => {
-      assert(v.v != null)
-      m.invokeCode[Unit](region, v, currentOffset)
-    }
+
+    assert(v.v != null)
+    m.invokeCode[Unit](region, v, currentOffset)
   }
 
   // deprecated -- to be removed

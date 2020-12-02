@@ -17,7 +17,7 @@ abstract class PLocus extends PType {
 
   def contigType: PString
 
-  def position(value: Code[Long]): Code[Int]
+  def position(value: Code[Long])(implicit line: LineNumber): Code[Int]
 
   def position(value: Long): Int
 
@@ -29,7 +29,7 @@ abstract class PLocusValue extends PValue with SLocusValue
 abstract class PLocusCode extends PCode with SLocusCode {
   def pt: PLocus
 
-  def memoize(cb: EmitCodeBuilder, name: String): PLocusValue
+  def memoize(cb: EmitCodeBuilder, name: String)(implicit line: LineNumber): PLocusValue
 
-  def memoizeField(cb: EmitCodeBuilder, name: String): PLocusValue
+  def memoizeField(cb: EmitCodeBuilder, name: String)(implicit line: LineNumber): PLocusValue
 }

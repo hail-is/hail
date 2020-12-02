@@ -135,9 +135,10 @@ class PCanonicalBinary(val required: Boolean) extends PBinary {
 
   def sType: SBinary = SBinaryPointer(this)
 
-  def loadCheapPCode(cb: EmitCodeBuilder, addr: Code[Long]): SBinaryPointerCode = new SBinaryPointerCode(SBinaryPointer(this), addr)
+  def loadCheapPCode(cb: EmitCodeBuilder, addr: Code[Long])(implicit line: LineNumber): SBinaryPointerCode =
+    new SBinaryPointerCode(SBinaryPointer(this), addr)
 
-  def store(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): Code[Long] = {
+  def store(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean)(implicit line: LineNumber): Code[Long] = {
     value.st match {
       case SBinaryPointer(PCanonicalBinary(_)) =>
         if (deepCopy) {
@@ -152,7 +153,7 @@ class PCanonicalBinary(val required: Boolean) extends PBinary {
     }
   }
 
-  def storeAtAddress(cb: EmitCodeBuilder, addr: Code[Long], region: Value[Region], value: SCode, deepCopy: Boolean): Unit = {
+  def storeAtAddress(cb: EmitCodeBuilder, addr: Code[Long], region: Value[Region], value: SCode, deepCopy: Boolean)(implicit line: LineNumber): Unit = {
     cb += Region.storeAddress(addr, store(cb, region, value, deepCopy))
   }
 

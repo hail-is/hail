@@ -74,17 +74,17 @@ abstract class PInterval extends PType {
       }
     }
 
-  def startOffset(off: Code[Long]): Code[Long]
+  def startOffset(off: Code[Long])(implicit line: LineNumber): Code[Long]
 
-  def endOffset(off: Code[Long]): Code[Long]
+  def endOffset(off: Code[Long])(implicit line: LineNumber): Code[Long]
 
   def loadStart(off: Long): Long
 
-  def loadStart(off: Code[Long]): Code[Long]
+  def loadStart(off: Code[Long])(implicit line: LineNumber): Code[Long]
 
   def loadEnd(off: Long): Long
 
-  def loadEnd(off: Code[Long]): Code[Long]
+  def loadEnd(off: Code[Long])(implicit line: LineNumber): Code[Long]
 
   def startDefined(off: Long): Boolean
 
@@ -94,13 +94,13 @@ abstract class PInterval extends PType {
 
   def includesEnd(off: Long): Boolean
 
-  def startDefined(off: Code[Long]): Code[Boolean]
+  def startDefined(off: Code[Long])(implicit line: LineNumber): Code[Boolean]
 
-  def endDefined(off: Code[Long]): Code[Boolean]
+  def endDefined(off: Code[Long])(implicit line: LineNumber): Code[Boolean]
 
-  def includesStart(off: Code[Long]): Code[Boolean]
+  def includesStart(off: Code[Long])(implicit line: LineNumber): Code[Boolean]
 
-  def includesEnd(off: Code[Long]): Code[Boolean]
+  def includesEnd(off: Code[Long])(implicit line: LineNumber): Code[Boolean]
 
   override def genNonmissingValue: Gen[Annotation] = Interval.gen(pointType.virtualType.ordering, pointType.genValue)
 }
@@ -112,7 +112,7 @@ abstract class PIntervalValue extends PValue with SIntervalValue {
 abstract class PIntervalCode extends PCode with SIntervalCode {
   def pt: PInterval
 
-  def memoize(cb: EmitCodeBuilder, name: String): PIntervalValue
+  def memoize(cb: EmitCodeBuilder, name: String)(implicit line: LineNumber): PIntervalValue
 
-  def memoizeField(cb: EmitCodeBuilder, name: String): PIntervalValue
+  def memoizeField(cb: EmitCodeBuilder, name: String)(implicit line: LineNumber): PIntervalValue
 }

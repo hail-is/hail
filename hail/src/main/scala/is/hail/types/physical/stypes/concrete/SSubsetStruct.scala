@@ -1,7 +1,7 @@
 package is.hail.types.physical.stypes.concrete
 
 import is.hail.annotations.{CodeOrdering, Region}
-import is.hail.asm4s.{Code, Settable, TypeInfo, Value}
+import is.hail.asm4s.{Code, LineNumber, Settable, TypeInfo, Value}
 import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, IEmitCode, IEmitSCode, SortOrder}
 import is.hail.types.physical.stypes.{SCode, SType}
 import is.hail.types.physical.stypes.interfaces.{SStruct, SStructSettable}
@@ -18,7 +18,7 @@ case class SSubsetStruct(parent: SStruct, fieldNames: IndexedSeq[String]) extend
 
   def codeOrdering(mb: EmitMethodBuilder[_], other: SType, so: SortOrder): CodeOrdering = pType.codeOrdering(mb)
 
-  def coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = {
+  def coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean)(implicit line: LineNumber): SCode = {
     value.st match {
       case SSubsetStruct(parent2, fd2) if parent == parent2 && fieldNames == fd2 && !deepCopy =>
         value
@@ -27,7 +27,7 @@ case class SSubsetStruct(parent: SStruct, fieldNames: IndexedSeq[String]) extend
 
   def codeTupleTypes(): IndexedSeq[TypeInfo[_]] = parent.codeTupleTypes()
 
-  def loadFrom(cb: EmitCodeBuilder, region: Value[Region], pt: PType, addr: Code[Long]): SCode = {
+  def loadFrom(cb: EmitCodeBuilder, region: Value[Region], pt: PType, addr: Code[Long])(implicit line: LineNumber): SCode = {
     throw new UnsupportedOperationException
   }
 }
@@ -36,18 +36,19 @@ case class SSubsetStruct(parent: SStruct, fieldNames: IndexedSeq[String]) extend
 class SSubsetStructSettable(val st: SSubsetStruct, prev: PStructSettable) extends PStructSettable {
   def pt: PBaseStruct = st.pType.asInstanceOf[PBaseStruct]
 
-  def get: SSubsetStructCode = new SSubsetStructCode(st, prev.load().asBaseStruct)
+  def get(implicit line: LineNumber): SSubsetStructCode = new SSubsetStructCode(st, prev.load().asBaseStruct)
 
   def settableTuple(): IndexedSeq[Settable[_]] = prev.settableTuple()
 
-  def loadField(cb: EmitCodeBuilder, fieldIdx: Int): IEmitSCode = {
+  def loadField(cb: EmitCodeBuilder, fieldIdx: Int)(implicit line: LineNumber): IEmitSCode = {
     prev.loadField(cb, st.newToOldFieldMapping(fieldIdx))
   }
 
-  def isFieldMissing(fieldIdx: Int): Code[Boolean] =
+  def isFieldMissing(fieldIdx: Int)(implicit line: LineNumber): Code[Boolean] =
     prev.isFieldMissing(st.newToOldFieldMapping(fieldIdx))
 
-  def store(cb: EmitCodeBuilder, pv: PCode): Unit = prev.store(cb, pv)
+  def store(cb: EmitCodeBuilder, pv: PCode)(implicit line: LineNumber): Unit =
+    prev.store(cb, pv)
 }
 
 class SSubsetStructCode(val st: SSubsetStruct, val prev: PBaseStructCode) extends PBaseStructCode {
@@ -58,11 +59,11 @@ class SSubsetStructCode(val st: SSubsetStruct, val prev: PBaseStructCode) extend
 
   def codeTuple(): IndexedSeq[Code[_]] = prev.codeTuple()
 
-  def memoize(cb: EmitCodeBuilder, name: String): PBaseStructValue = {
+  def memoize(cb: EmitCodeBuilder, name: String)(implicit line: LineNumber): PBaseStructValue = {
     new SSubsetStructSettable(st, prev.memoize(cb, name).asInstanceOf[PStructSettable])
   }
 
-  def memoizeField(cb: EmitCodeBuilder, name: String): PBaseStructValue = {
+  def memoizeField(cb: EmitCodeBuilder, name: String)(implicit line: LineNumber): PBaseStructValue = {
     new SSubsetStructSettable(st, prev.memoizeField(cb, name).asInstanceOf[PStructSettable])
   }
 }

@@ -1,7 +1,7 @@
 package is.hail.types.physical
 
 import is.hail.annotations.UnsafeOrdering
-import is.hail.asm4s.Code
+import is.hail.asm4s.{Code, LineNumber}
 import is.hail.expr.ir.EmitStream.SizedStream
 import is.hail.expr.ir.{EmitCode, Stream}
 import is.hail.types.physical.stypes.interfaces
@@ -24,7 +24,7 @@ final case class PCanonicalStream(elementType: PType, separateRegions: Boolean =
     sb.append("]")
   }
 
-  override def defaultValue: SStreamCode =
+  override def defaultValue(implicit line: LineNumber): SStreamCode =
     SStreamCode(SStream(elementType.sType, separateRegions), SizedStream(Code._empty, _ => Stream.empty(EmitCode.missing(elementType)), Some(0)))
 
   override def deepRename(t: Type) = deepRenameStream(t.asInstanceOf[TStream])
