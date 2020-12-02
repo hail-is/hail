@@ -695,8 +695,10 @@ WHERE user = %s AND id = %s AND NOT deleted;
                 if not env:
                     env = []
                     spec['env'] = env
-                if all(envvar['name'] != 'GOOGLE_APPLICATION_CREDENTIALS' for envvar in spec.env):
-                    spec.env.append(
+                assert isinstance(spec['env'], list)
+
+                if all(envvar['name'] != 'GOOGLE_APPLICATION_CREDENTIALS' for envvar in spec['env']):
+                    spec['env'].append(
                         {'name': 'GOOGLE_APPLICATION_CREDENTIALS', 'value': '/gsa-key/key.json'})
 
                 if spec.get('mount_tokens', False):
