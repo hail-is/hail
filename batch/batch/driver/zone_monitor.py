@@ -93,7 +93,7 @@ class ZoneMonitor:
             return self.init_zone_weights
 
         _zone_weights = []
-        for name, r in self.region_info.items():
+        for _, r in self.region_info.items():
             quota_remaining = {
                 q['metric']: q['limit'] - q['usage']
                 for q in r['quotas']
