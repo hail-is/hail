@@ -33,6 +33,7 @@ from ..batch_configuration import (REFRESH_INTERVAL_IN_SECONDS,
 from ..globals import HTTP_CLIENT_MAX_SIZE
 
 from .zone_monitor import ZoneMonitor
+from .instance_monitor import InstanceMonitor
 from .instance_pool import InstancePool
 from .scheduler import Scheduler
 from .k8s_cache import K8sCache
@@ -78,8 +79,8 @@ def instance_from_request(request):
     if not instance_name:
         return None
 
-    instance_pool = request.app['inst_pool']
-    return instance_pool.name_instance.get(instance_name)
+    instance_monitor = request.app['inst_monitor']
+    return instance_monitor.name_instance.get(instance_name)
 
 
 def activating_instances_only(fun):
@@ -304,6 +305,7 @@ async def get_index(request, userdata):
     app = request.app
     db = app['db']
     instance_pool = app['inst_pool']
+    instance_monitor = app['inst_monitor']
 
     ready_cores = await db.select_and_fetchone(
         '''
@@ -315,10 +317,10 @@ FROM ready_cores;
     page_context = {
         'config': instance_pool.config(),
         'instance_id': app['instance_id'],
-        'n_instances_by_state': instance_pool.n_instances_by_state,
-        'instances': instance_pool.name_instance.values(),
+        'n_instances_by_state': instance_monitor.n_instances_by_state,
+        'instances': instance_monitor.name_instance.values(),
         'ready_cores_mcpu': ready_cores_mcpu,
-        'live_free_cores_mcpu': instance_pool.live_free_cores_mcpu
+        'live_free_cores_mcpu': instance_monitor.live_free_cores_mcpu
     }
     return await render_template('batch-driver', request, userdata, 'index.html', page_context)
 
@@ -750,9 +752,17 @@ SELECT worker_type, worker_cores, worker_disk_size_gb,
     app['zone_monitor'] = zone_monitor
     await zone_monitor.async_init()
 
-    inst_pool = InstancePool(app, machine_name_prefix)
+    inst_monitor = InstanceMonitor(app, machine_name_prefix)
+    app['inst_monitor'] = inst_monitor
+
+    inst_pool = InstancePool(app)
     app['inst_pool'] = inst_pool
+
+    await inst_monitor.async_init()
     await inst_pool.async_init()
+
+    await inst_monitor.run()
+    await inst_pool.run()
 
     scheduler = Scheduler(app)
     await scheduler.async_init()
@@ -782,12 +792,15 @@ async def on_cleanup(app):
                 app['zone_monitor'].shutdown()
             finally:
                 try:
-                    app['inst_pool'].shutdown()
+                    app['inst_monitor'].shutdown()
                 finally:
                     try:
-                        app['scheduler'].shutdown()
+                        app['inst_pool'].shutdown()
                     finally:
-                        app['task_manager'].shutdown()
+                        try:
+                            app['scheduler'].shutdown()
+                        finally:
+                            app['task_manager'].shutdown()
 
 
 def run():
