@@ -32,6 +32,7 @@ from ..batch_configuration import (REFRESH_INTERVAL_IN_SECONDS,
                                    HAIL_SHOULD_CHECK_INVARIANTS, WORKER_LOGS_BUCKET_NAME, PROJECT)
 from ..globals import HTTP_CLIENT_MAX_SIZE
 
+from .zone_monitor import ZoneMonitor
 from .instance_pool import InstancePool
 from .scheduler import Scheduler
 from .k8s_cache import K8sCache
@@ -745,6 +746,10 @@ SELECT worker_type, worker_cores, worker_disk_size_gb,
     log_store = LogStore(BATCH_BUCKET_NAME, WORKER_LOGS_BUCKET_NAME, instance_id, pool, credentials=credentials)
     app['log_store'] = log_store
 
+    zone_monitor = ZoneMonitor(app)
+    app['zone_monitor'] = zone_monitor
+    await zone_monitor.async_init()
+
     inst_pool = InstancePool(app, machine_name_prefix)
     app['inst_pool'] = inst_pool
     await inst_pool.async_init()
@@ -774,12 +779,15 @@ async def on_cleanup(app):
             await app['db'].async_close()
         finally:
             try:
-                app['inst_pool'].shutdown()
+                app['zone_monitor'].shutdown()
             finally:
                 try:
-                    app['scheduler'].shutdown()
+                    app['inst_pool'].shutdown()
                 finally:
-                    app['task_manager'].shutdown()
+                    try:
+                        app['scheduler'].shutdown()
+                    finally:
+                        app['task_manager'].shutdown()
 
 
 def run():
