@@ -506,7 +506,7 @@ steps:
  - kind: buildImage
    name: batch_image
    dockerFile: batch/Dockerfile
-   contextPath: .
+   contextPath: batch/
    publishAs: batch
    dependsOn:
      - service_base_image
