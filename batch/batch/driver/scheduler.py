@@ -88,10 +88,12 @@ SELECT user,
   CAST(COALESCE(SUM(ready_cores_mcpu), 0) AS SIGNED) AS ready_cores_mcpu,
   CAST(COALESCE(SUM(n_running_jobs), 0) AS SIGNED) AS n_running_jobs,
   CAST(COALESCE(SUM(running_cores_mcpu), 0) AS SIGNED) AS running_cores_mcpu
-FROM user_resources
+FROM user_pool_resources
+WHERE pool = %s
 GROUP BY user;
 ''',
-            timer_description='in compute_fair_share: aggregate user_resources')
+            (self.inst_pool.name,),
+            timer_description='in compute_fair_share: aggregate user_pool_resources')
 
         async for record in records:
             user = record['user']
@@ -149,10 +151,12 @@ GROUP BY user;
 SELECT user, n_cancelled_ready_jobs
 FROM (SELECT user,
     CAST(COALESCE(SUM(n_cancelled_ready_jobs), 0) AS SIGNED) AS n_cancelled_ready_jobs
-  FROM user_resources
+  FROM user_pool_resources
+  WHERE pool = %s
   GROUP BY user) AS t
 WHERE n_cancelled_ready_jobs > 0;
 ''',
+            (self.inst_pool.name,),
             timer_description='in cancel_cancelled_ready_jobs: aggregate n_cancelled_ready_jobs')
         user_n_cancelled_ready_jobs = {
             record['user']: record['n_cancelled_ready_jobs'] async for record in records
@@ -181,10 +185,10 @@ WHERE user = %s AND `state` = 'running';
                             '''
 SELECT jobs.job_id
 FROM jobs FORCE INDEX(jobs_batch_id_state_always_run_cancelled)
-WHERE batch_id = %s AND state = 'Ready' AND always_run = 0
+WHERE batch_id = %s AND state = 'Ready' AND always_run = 0 AND pool = %s
 LIMIT %s;
 ''',
-                            (batch['id'], remaining.value),
+                            (batch['id'], self.inst_pool.name, remaining.value),
                             timer_description=f'in cancel_cancelled_ready_jobs: get {user} batch {batch["id"]} ready cancelled jobs (1)'):
                         record['batch_id'] = batch['id']
                         yield record
@@ -193,10 +197,10 @@ LIMIT %s;
                             '''
 SELECT jobs.job_id
 FROM jobs FORCE INDEX(jobs_batch_id_state_always_run_cancelled)
-WHERE batch_id = %s AND state = 'Ready' AND always_run = 0 AND cancelled = 1
+WHERE batch_id = %s AND state = 'Ready' AND always_run = 0 AND pool = %s AND cancelled = 1
 LIMIT %s;
 ''',
-                            (batch['id'], remaining.value),
+                            (batch['id'], self.inst_pool.name, remaining.value),
                             timer_description=f'in cancel_cancelled_ready_jobs: get {user} batch {batch["id"]} ready cancelled jobs (2)'):
                         record['batch_id'] = batch['id']
                         yield record
@@ -239,10 +243,12 @@ LIMIT %s;
 SELECT user, n_cancelled_running_jobs
 FROM (SELECT user,
     CAST(COALESCE(SUM(n_cancelled_running_jobs), 0) AS SIGNED) AS n_cancelled_running_jobs
-  FROM user_resources
+  FROM user_pool_resources
+  WHERE pool = %s
   GROUP BY user) AS t
 WHERE n_cancelled_running_jobs > 0;
 ''',
+            (self.inst_pool.name,),
             timer_description='in cancel_cancelled_running_jobs: aggregate n_cancelled_running_jobs')
         user_n_cancelled_running_jobs = {
             record['user']: record['n_cancelled_running_jobs'] async for record in records
@@ -272,10 +278,10 @@ SELECT jobs.job_id, attempts.attempt_id, attempts.instance_name
 FROM jobs FORCE INDEX(jobs_batch_id_state_always_run_cancelled)
 STRAIGHT_JOIN attempts
   ON attempts.batch_id = jobs.batch_id AND attempts.job_id = jobs.job_id
-WHERE jobs.batch_id = %s AND state = 'Running' AND always_run = 0 AND cancelled = 0
+WHERE jobs.batch_id = %s AND state = 'Running' AND always_run = 0 AND pool = %s AND cancelled = 0
 LIMIT %s;
 ''',
-                        (batch['id'], remaining.value),
+                        (batch['id'], self.inst_pool.name, remaining.value),
                         timer_description=f'in cancel_cancelled_running_jobs: get {user} batch {batch["id"]} running cancelled jobs'):
                     record['batch_id'] = batch['id']
                     yield record
@@ -338,10 +344,10 @@ WHERE user = %s AND `state` = 'running';
                         '''
 SELECT job_id, spec, cores_mcpu
 FROM jobs FORCE INDEX(jobs_batch_id_state_always_run_cancelled)
-WHERE batch_id = %s AND state = 'Ready' AND always_run = 1
+WHERE batch_id = %s AND state = 'Ready' AND always_run = 1 AND pool = %s
 LIMIT %s;
 ''',
-                        (batch['id'], remaining.value),
+                        (batch['id'], self.inst_pool.name, remaining.value),
                         timer_description=f'in schedule: get {user} batch {batch["id"]} runnable jobs (1)'):
                     record['batch_id'] = batch['id']
                     record['userdata'] = batch['userdata']
@@ -353,10 +359,10 @@ LIMIT %s;
                             '''
 SELECT job_id, spec, cores_mcpu
 FROM jobs FORCE INDEX(jobs_batch_id_state_always_run_cancelled)
-WHERE batch_id = %s AND state = 'Ready' AND always_run = 0 AND cancelled = 0
+WHERE batch_id = %s AND state = 'Ready' AND always_run = 0 AND pool = %s AND cancelled = 0
 LIMIT %s;
 ''',
-                            (batch['id'], remaining.value),
+                            (batch['id'], self.inst_pool.name, remaining.value),
                             timer_description=f'in schedule: get {user} batch {batch["id"]} runnable jobs (2)'):
                         record['batch_id'] = batch['id']
                         record['userdata'] = batch['userdata']

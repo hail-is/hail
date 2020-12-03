@@ -33,8 +33,9 @@ def parse_resource_name(resource_name):
 
 
 class InstancePool:
-    def __init__(self, app):
+    def __init__(self, app, name):
         self.app = app
+        self.name = name
         self.instance_id = app['instance_id']
         self.log_store = app['log_store']
         self.db = app['db']
@@ -188,7 +189,7 @@ SET worker_type = %s, worker_cores = %s, worker_disk_size_gb = %s,
             zone = random.choices(zones, zone_prob_weights)[0]
 
         activation_token = secrets.token_urlsafe(32)
-        instance = await Instance.create(self.app, machine_name, activation_token, cores * 1000, zone)
+        instance = await Instance.create(self.app, machine_name, activation_token, cores * 1000, zone, self.name)
         self.inst_monitor.add_instance(instance)
 
         log.info(f'created {instance}')

@@ -4,6 +4,7 @@ import logging
 import json
 import random
 import datetime
+import collections
 from functools import wraps
 import asyncio
 import aiohttp
@@ -604,10 +605,13 @@ WHERE user = %s AND id = %s AND NOT deleted;
             job_parents_args = []
             job_attributes_args = []
 
-            n_ready_jobs = 0
-            ready_cores_mcpu = 0
-            n_ready_cancellable_jobs = 0
-            ready_cancellable_cores_mcpu = 0
+            pool_resources = collections.defaultdict(lambda: {
+                'n_jobs': 0,
+                'n_ready_jobs': 0,
+                'ready_cores_mcpu': 0,
+                'n_ready_cancellable_jobs': 0,
+                'ready_cancellable_cores_mcpu': 0
+            })
 
             prev_job_idx = None
             start_job_id = None
@@ -632,6 +636,8 @@ WHERE user = %s AND id = %s AND NOT deleted;
                         raise web.HTTPBadRequest(
                             reason=f'noncontiguous job ids found in the spec: {prev_job_idx} -> {job_id}')
                 prev_job_idx = job_id
+
+                pool_name = 'standard'
 
                 resources = spec.get('resources')
                 if not resources:
@@ -712,13 +718,15 @@ WHERE user = %s AND id = %s AND NOT deleted;
                     env = []
                     spec['env'] = env
 
+                pr = pool_resources[pool_name]
+                pr['n_jobs'] += 1
                 if len(parent_ids) == 0:
                     state = 'Ready'
-                    n_ready_jobs += 1
-                    ready_cores_mcpu += cores_mcpu
+                    pr['n_ready_jobs'] += 1
+                    pr['ready_cores_mcpu'] += cores_mcpu
                     if not always_run:
-                        n_ready_cancellable_jobs += 1
-                        ready_cancellable_cores_mcpu += cores_mcpu
+                        pr['n_ready_cancellable_jobs'] += 1
+                        pr['ready_cancellable_cores_mcpu'] += cores_mcpu
                 else:
                     state = 'Pending'
 
@@ -731,7 +739,7 @@ WHERE user = %s AND id = %s AND NOT deleted;
 
                 jobs_args.append(
                     (batch_id, job_id, state, json.dumps(db_spec),
-                     always_run, cores_mcpu, len(parent_ids)))
+                     always_run, cores_mcpu, len(parent_ids), pool_name))
 
                 for parent_id in parent_ids:
                     job_parents_args.append(
@@ -747,15 +755,14 @@ WHERE user = %s AND id = %s AND NOT deleted;
                 await spec_writer.write()
 
         rand_token = random.randint(0, app['n_tokens'] - 1)
-        n_jobs = len(job_specs)
 
         async with timer.step('insert jobs'):
             @transaction(db)
             async def insert(tx):
                 try:
                     await tx.execute_many('''
-INSERT INTO jobs (batch_id, job_id, state, spec, always_run, cores_mcpu, n_pending_parents)
-VALUES (%s, %s, %s, %s, %s, %s, %s);
+INSERT INTO jobs (batch_id, job_id, state, spec, always_run, cores_mcpu, n_pending_parents, pool)
+VALUES (%s, %s, %s, %s, %s, %s, %s, %s);
 ''',
                                           jobs_args)
                 except pymysql.err.IntegrityError as err:
@@ -781,27 +788,35 @@ INSERT INTO `job_attributes` (batch_id, job_id, `key`, `value`)
 VALUES (%s, %s, %s, %s);
 ''',
                                       job_attributes_args)
-                await tx.execute_update('''
-INSERT INTO batches_staging (batch_id, token, n_jobs, n_ready_jobs, ready_cores_mcpu)
-VALUES (%s, %s, %s, %s, %s)
+
+                for pool_name, resources in pool_resources.items():
+                    n_jobs = resources['n_jobs']
+                    n_ready_jobs = resources['n_ready_jobs']
+                    ready_cores_mcpu = resources['ready_cores_mcpu']
+                    n_ready_cancellable_jobs = resources['n_ready_cancellable_jobs']
+                    ready_cancellable_cores_mcpu = resources['ready_cancellable_cores_mcpu']
+
+                    await tx.execute_update('''
+INSERT INTO batches_pool_staging (batch_id, pool, token, n_jobs, n_ready_jobs, ready_cores_mcpu)
+VALUES (%s, %s, %s, %s, %s, %s)
 ON DUPLICATE KEY UPDATE
   n_jobs = n_jobs + %s,
   n_ready_jobs = n_ready_jobs + %s,
   ready_cores_mcpu = ready_cores_mcpu + %s;
 ''',
-                                        (batch_id, rand_token,
-                                         n_jobs, n_ready_jobs, ready_cores_mcpu,
-                                         n_jobs, n_ready_jobs, ready_cores_mcpu))
-                await tx.execute_update('''
-INSERT INTO batch_cancellable_resources (batch_id, token, n_ready_cancellable_jobs, ready_cancellable_cores_mcpu)
-VALUES (%s, %s, %s, %s)
+                                            (batch_id, pool_name, rand_token,
+                                             n_jobs, n_ready_jobs, ready_cores_mcpu,
+                                             n_jobs, n_ready_jobs, ready_cores_mcpu))
+                    await tx.execute_update('''
+INSERT INTO batch_pool_cancellable_resources (batch_id, pool, token, n_ready_cancellable_jobs, ready_cancellable_cores_mcpu)
+VALUES (%s, %s, %s, %s, %s)
 ON DUPLICATE KEY UPDATE
   n_ready_cancellable_jobs = n_ready_cancellable_jobs + %s,
   ready_cancellable_cores_mcpu = ready_cancellable_cores_mcpu + %s;
 ''',
-                                        (batch_id, rand_token,
-                                         n_ready_cancellable_jobs, ready_cancellable_cores_mcpu,
-                                         n_ready_cancellable_jobs, ready_cancellable_cores_mcpu))
+                                            (batch_id, pool_name, rand_token,
+                                             n_ready_cancellable_jobs, ready_cancellable_cores_mcpu,
+                                             n_ready_cancellable_jobs, ready_cancellable_cores_mcpu))
 
                 if batch_format_version.has_full_spec_in_gcs():
                     await tx.execute_update('''

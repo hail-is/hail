@@ -22,7 +22,7 @@ class Instance:
             record['zone'])
 
     @staticmethod
-    async def create(app, name, activation_token, worker_cores_mcpu, zone):
+    async def create(app, name, activation_token, worker_cores_mcpu, zone, pool_name):
         db = app['db']
 
         state = 'pending'
@@ -30,11 +30,11 @@ class Instance:
         token = secrets.token_urlsafe(32)
         await db.just_execute(
             '''
-INSERT INTO instances (name, state, activation_token, token, cores_mcpu, free_cores_mcpu, time_created, last_updated, version, zone)
+INSERT INTO instances (name, state, activation_token, token, cores_mcpu, free_cores_mcpu, time_created, last_updated, version, zone, pool)
 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
 ''',
             (name, state, activation_token, token, worker_cores_mcpu,
-             worker_cores_mcpu, now, now, INSTANCE_VERSION, zone))
+             worker_cores_mcpu, now, now, INSTANCE_VERSION, zone, pool_name))
         return Instance(
             app, name, state, worker_cores_mcpu, worker_cores_mcpu, now,
             0, now, None, INSTANCE_VERSION, zone)

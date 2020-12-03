@@ -449,43 +449,21 @@ async def get_user_resources(request, userdata):
 async def check_incremental_loop(app, db):
     @transaction(db, read_only=True)
     async def check(tx):
-        ready_cores = await tx.execute_and_fetchone('''
-SELECT CAST(COALESCE(SUM(ready_cores_mcpu), 0) AS SIGNED) AS ready_cores_mcpu
-FROM ready_cores
-LOCK IN SHARE MODE;
-''')
-        ready_cores_mcpu = ready_cores['ready_cores_mcpu']
-
-        computed_ready_cores = await tx.execute_and_fetchone('''
-SELECT CAST(COALESCE(SUM(cores_mcpu), 0) AS SIGNED) AS ready_cores_mcpu
-FROM jobs
-INNER JOIN batches ON batches.id = jobs.batch_id
-WHERE batches.`state` = 'running'
-        AND jobs.state = 'Ready'
-        # runnable
-        AND (jobs.always_run OR NOT (jobs.cancelled OR batches.cancelled))
-LOCK IN SHARE MODE;
-''')
-        computed_ready_cores_mcpu = computed_ready_cores['ready_cores_mcpu']
-
-        if ready_cores_mcpu != computed_ready_cores_mcpu:
-            log.error(f'ready_cores corrupt: ready_cores_mcpu {ready_cores_mcpu} != computed_ready_cores_mcpu {computed_ready_cores_mcpu}')
-
-        user_resources = tx.execute_and_fetchall('''
-SELECT user,
+        user_pool_resources = tx.execute_and_fetchall('''
+SELECT user, pool,
   CAST(COALESCE(SUM(n_ready_jobs), 0) AS SIGNED) AS n_ready_jobs,
   CAST(COALESCE(SUM(ready_cores_mcpu), 0) AS SIGNED) AS ready_cores_mcpu,
   CAST(COALESCE(SUM(n_running_jobs), 0) AS SIGNED) AS n_running_jobs,
   CAST(COALESCE(SUM(running_cores_mcpu), 0) AS SIGNED) AS running_cores_mcpu,
   CAST(COALESCE(SUM(n_cancelled_ready_jobs), 0) AS SIGNED) AS n_cancelled_ready_jobs,
   CAST(COALESCE(SUM(n_cancelled_running_jobs), 0) AS SIGNED) AS n_cancelled_running_jobs
-FROM user_resources
-GROUP BY user
+FROM user_pool_resources
+GROUP BY user, pool
 LOCK IN SHARE MODE;
 ''')
-        user_resources = {record['user']: record async for record in user_resources}
+        user_pool_resources = {(record['user'], record['pool']): record async for record in user_pool_resources}
 
-        computed_user_resources = tx.execute_and_fetchall('''
+        computed_user_pool_resources = tx.execute_and_fetchall('''
 SELECT user,
     COALESCE(SUM(state = 'Ready' AND runnable), 0) as n_ready_jobs,
     COALESCE(SUM(IF(state = 'Ready' AND runnable, cores_mcpu, 0)), 0) as ready_cores_mcpu,
@@ -498,31 +476,32 @@ FROM (SELECT
     jobs.cores_mcpu,
     (jobs.always_run OR NOT (jobs.cancelled OR batches.cancelled)) AS runnable,
     (NOT jobs.always_run AND (jobs.cancelled OR batches.cancelled)) AS cancelled,
-    batches.user
+    batches.user,
+    jobs.pool
   FROM jobs
   INNER JOIN batches ON batches.id = jobs.batch_id
   WHERE batches.`state` = 'running'
   LOCK IN SHARE MODE) AS s
-GROUP BY user;
+GROUP BY user, pool;
 ''')
-        computed_user_resources = {record['user']: record async for record in computed_user_resources}
+        computed_user_pool_resources = {(record['user'], record['pool']): record async for record in computed_user_pool_resources}
 
-        def user_get(d, u, f):
+        def user_pool_get(d, u, f):
             if u not in d:
                 return 0
             return d[u][f]
 
         fields = ['n_running_jobs', 'running_cores_mcpu', 'n_ready_jobs', 'ready_cores_mcpu',
                   'n_cancelled_ready_jobs', 'n_cancelled_running_jobs']
-        users = set(user_resources.keys())
-        users.update(computed_user_resources.keys())
-        for u in users:
+        user_pools = set(user_pool_resources.keys())
+        user_pools.update(computed_user_pool_resources.keys())
+        for up in user_pools:
             for f in fields:
-                v = user_get(user_resources, u, f)
-                computed_v = user_get(user_resources, u, f)
+                v = user_pool_get(user_pool_resources, up, f)
+                computed_v = user_pool_get(user_pool_resources, up, f)
 
                 if v != computed_v:
-                    log.error(f'user_resources corrupt: user_resources[{u}][{f}] {v} != computed_user_resources[{u}][{f}] {computed_v}')
+                    log.error(f'user_pool_resources corrupt: user_pool_resources[{up}][{f}] {v} != computed_user_pool_resources[{up}][{f}] {computed_v}')
 
     while True:
         try:
@@ -767,7 +746,7 @@ SELECT worker_type, worker_cores, worker_disk_size_gb,
     inst_monitor = InstanceMonitor(app, machine_name_prefix)
     app['inst_monitor'] = inst_monitor
 
-    inst_pool = InstancePool(app)
+    inst_pool = InstancePool(app, 'standard')
     app['inst_pool'] = inst_pool
 
     await inst_monitor.async_init()

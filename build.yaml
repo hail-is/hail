@@ -1958,6 +1958,8 @@ steps:
       script: /io/sql/add-status-flag-billing-projects.sql
     - name: add-aggregated-billing-project-resources
       script: /io/sql/add-aggregated-billing-project-resources.sql
+    - name: add-pools
+      script: /io/sql/add-pools.sql
    inputs:
     - from: /repo/batch/sql
       to: /io/
