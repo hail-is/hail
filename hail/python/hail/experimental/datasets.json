@@ -605,24 +605,6 @@
       }
     ]
   },
-  "gnomad_hgdp_1kg_callset": {
-    "description": "gnomAD: a resource with the goal of aggregating and harmonizing both exome and genome sequencing data from a wide variety of large-scale sequencing projects. The samples included in this subset are drawn from the 1000 Genomes Project (n=2,435) and the Human Genome Diversity Project (n=780), which contain some of the most genetically diverse populations present in gnomAD.",
-    "url": "https://gnomad.broadinstitute.org/",
-    "versions": [
-      {
-        "reference_genome": "GRCh38",
-        "url": {
-          "aws": {
-            "us": "s3://gnomad-public-us-east-1/release/3.1/mt/genomes/gnomad.genomes.v3.1.hgdp_1kg_subset.mt"
-          },
-          "gcp": {
-            "us": "gs://gcp-public-data--gnomad/release/3.1/mt/genomes/gnomad.genomes.v3.1.hgdp_1kg_subset.mt"
-          }
-        },
-        "version": "3.1"
-      }
-    ]
-  },
   "gnomad_exome_sites": {
     "annotation_db": {
       "key_properties": [
@@ -702,6 +684,510 @@
           }
         },
         "version": "3.1"
+      }
+    ]
+  },
+  "gnomad_hgdp_1kg_callset": {
+    "description": "gnomAD: samples included in this subset are drawn from the 1000 Genomes Project (n=2,435) and the Human Genome Diversity Project (n=780), which contain some of the most genetically diverse populations present in gnomAD.",
+    "url": "https://gnomad.broadinstitute.org/",
+    "versions": [
+      {
+        "reference_genome": "GRCh38",
+        "url": {
+          "aws": {
+            "us": "s3://gnomad-public-us-east-1/release/3.1/mt/genomes/gnomad.genomes.v3.1.hgdp_1kg_subset.mt"
+          },
+          "gcp": {
+            "us": "gs://gcp-public-data--gnomad/release/3.1/mt/genomes/gnomad.genomes.v3.1.hgdp_1kg_subset.mt"
+          }
+        },
+        "version": "3.1"
+      }
+    ]
+  },
+  "gnomad_ld_block_matrix_afr": {
+    "description": "gnomAD: linkage disequilibrium (LD) matrix Hail BlockMatrix for African/African-American population.",
+    "url": "https://gnomad.broadinstitute.org/",
+    "versions": [
+      {
+        "reference_genome": "GRCh37",
+        "url": {
+          "aws": {
+            "us": "s3://gnomad-public-us-east-1/release/2.1.1/ld/gnomad.genomes.r2.1.1.afr.common.adj.ld.bm"
+          },
+          "gcp": {
+            "us": "gs://gcp-public-data--gnomad/release/2.1.1/ld/gnomad.genomes.r2.1.1.afr.common.adj.ld.bm"
+          }
+        },
+        "version": "2.1.1"
+      }
+    ]
+  },
+  "gnomad_ld_block_matrix_amr": {
+    "description": "gnomAD: linkage disequilibrium (LD) matrix Hail BlockMatrix for Latino/Admixed American population.",
+    "url": "https://gnomad.broadinstitute.org/",
+    "versions": [
+      {
+        "reference_genome": "GRCh37",
+        "url": {
+          "aws": {
+            "us": "s3://gnomad-public-us-east-1/release/2.1.1/ld/gnomad.genomes.r2.1.1.amr.common.adj.ld.bm"
+          },
+          "gcp": {
+            "us": "gs://gcp-public-data--gnomad/release/2.1.1/ld/gnomad.genomes.r2.1.1.amr.common.adj.ld.bm"
+          }
+        },
+        "version": "2.1.1"
+      }
+    ]
+  },
+  "gnomad_ld_block_matrix_asj": {
+    "description": "gnomAD: linkage disequilibrium (LD) matrix Hail BlockMatrix for Ashkenazi Jewish population.",
+    "url": "https://gnomad.broadinstitute.org/",
+    "versions": [
+      {
+        "reference_genome": "GRCh37",
+        "url": {
+          "aws": {
+            "us": "s3://gnomad-public-us-east-1/release/2.1.1/ld/gnomad.genomes.r2.1.1.asj.common.adj.ld.bm"
+          },
+          "gcp": {
+            "us": "gs://gcp-public-data--gnomad/release/2.1.1/ld/gnomad.genomes.r2.1.1.asj.common.adj.ld.bm"
+          }
+        },
+        "version": "2.1.1"
+      }
+    ]
+  },
+  "gnomad_ld_block_matrix_eas": {
+    "description": "gnomAD: linkage disequilibrium (LD) matrix Hail BlockMatrix for East Asian population.",
+    "url": "https://gnomad.broadinstitute.org/",
+    "versions": [
+      {
+        "reference_genome": "GRCh37",
+        "url": {
+          "aws": {
+            "us": "s3://gnomad-public-us-east-1/release/2.1.1/ld/gnomad.genomes.r2.1.1.eas.common.adj.ld.bm"
+          },
+          "gcp": {
+            "us": "gs://gcp-public-data--gnomad/release/2.1.1/ld/gnomad.genomes.r2.1.1.eas.common.adj.ld.bm"
+          }
+        },
+        "version": "2.1.1"
+      }
+    ]
+  },
+  "gnomad_ld_block_matrix_est": {
+    "description": "gnomAD: linkage disequilibrium (LD) matrix Hail BlockMatrix for Estonian population.",
+    "url": "https://gnomad.broadinstitute.org/",
+    "versions": [
+      {
+        "reference_genome": "GRCh37",
+        "url": {
+          "aws": {
+            "us": "s3://gnomad-public-us-east-1/release/2.1.1/ld/gnomad.genomes.r2.1.1.est.common.adj.ld.bm"
+          },
+          "gcp": {
+            "us": "gs://gcp-public-data--gnomad/release/2.1.1/ld/gnomad.genomes.r2.1.1.est.common.adj.ld.bm"
+          }
+        },
+        "version": "2.1.1"
+      }
+    ]
+  },
+  "gnomad_ld_block_matrix_fin": {
+    "description": "gnomAD: linkage disequilibrium (LD) matrix Hail BlockMatrix for European (Finnish) population.",
+    "url": "https://gnomad.broadinstitute.org/",
+    "versions": [
+      {
+        "reference_genome": "GRCh37",
+        "url": {
+          "aws": {
+            "us": "s3://gnomad-public-us-east-1/release/2.1.1/ld/gnomad.genomes.r2.1.1.fin.common.adj.ld.bm"
+          },
+          "gcp": {
+            "us": "gs://gcp-public-data--gnomad/release/2.1.1/ld/gnomad.genomes.r2.1.1.fin.common.adj.ld.bm"
+          }
+        },
+        "version": "2.1.1"
+      }
+    ]
+  },
+  "gnomad_ld_block_matrix_nfe": {
+    "description": "gnomAD: linkage disequilibrium (LD) matrix Hail BlockMatrix for European (non-Finnish) population.",
+    "url": "https://gnomad.broadinstitute.org/",
+    "versions": [
+      {
+        "reference_genome": "GRCh37",
+        "url": {
+          "aws": {
+            "us": "s3://gnomad-public-us-east-1/release/2.1.1/ld/gnomad.genomes.r2.1.1.nfe.common.adj.ld.bm"
+          },
+          "gcp": {
+            "us": "gs://gcp-public-data--gnomad/release/2.1.1/ld/gnomad.genomes.r2.1.1.nfe.common.adj.ld.bm"
+          }
+        },
+        "version": "2.1.1"
+      }
+    ]
+  },
+  "gnomad_ld_block_matrix_nwe": {
+    "description": "gnomAD: linkage disequilibrium (LD) matrix Hail BlockMatrix for North-western European population.",
+    "url": "https://gnomad.broadinstitute.org/",
+    "versions": [
+      {
+        "reference_genome": "GRCh37",
+        "url": {
+          "aws": {
+            "us": "s3://gnomad-public-us-east-1/release/2.1.1/ld/gnomad.genomes.r2.1.1.nwe.common.adj.ld.bm"
+          },
+          "gcp": {
+            "us": "gs://gcp-public-data--gnomad/release/2.1.1/ld/gnomad.genomes.r2.1.1.nwe.common.adj.ld.bm"
+          }
+        },
+        "version": "2.1.1"
+      }
+    ]
+  },
+  "gnomad_ld_block_matrix_seu": {
+    "description": "gnomAD: linkage disequilibrium (LD) matrix Hail BlockMatrix for Southern European population.",
+    "url": "https://gnomad.broadinstitute.org/",
+    "versions": [
+      {
+        "reference_genome": "GRCh37",
+        "url": {
+          "aws": {
+            "us": "s3://gnomad-public-us-east-1/release/2.1.1/ld/gnomad.genomes.r2.1.1.seu.common.adj.ld.bm"
+          },
+          "gcp": {
+            "us": "gs://gcp-public-data--gnomad/release/2.1.1/ld/gnomad.genomes.r2.1.1.seu.common.adj.ld.bm"
+          }
+        },
+        "version": "2.1.1"
+      }
+    ]
+  },
+  "gnomad_ld_scores_afr": {
+    "description": "gnomAD: linkage disequilibrium (LD) scores Hail Table for African/African-American population.",
+    "url": "https://gnomad.broadinstitute.org/",
+    "versions": [
+      {
+        "reference_genome": "GRCh37",
+        "url": {
+          "aws": {
+            "us": "s3://gnomad-public-us-east-1/release/2.1.1/ld/scores/gnomad.genomes.r2.1.1.afr.adj.ld_scores.ht"
+          },
+          "gcp": {
+            "us": "gs://gcp-public-data--gnomad/release/2.1.1/ld/scores/gnomad.genomes.r2.1.1.afr.adj.ld_scores.ht"
+          }
+        },
+        "version": "2.1.1"
+      }
+    ]
+  },
+  "gnomad_ld_scores_amr": {
+    "description": "gnomAD: linkage disequilibrium (LD) scores Hail Table for Latino/Admixed American population.",
+    "url": "https://gnomad.broadinstitute.org/",
+    "versions": [
+      {
+        "reference_genome": "GRCh37",
+        "url": {
+          "aws": {
+            "us": "s3://gnomad-public-us-east-1/release/2.1.1/ld/scores/gnomad.genomes.r2.1.1.amr.adj.ld_scores.ht"
+          },
+          "gcp": {
+            "us": "gs://gcp-public-data--gnomad/release/2.1.1/ld/scores/gnomad.genomes.r2.1.1.amr.adj.ld_scores.ht"
+          }
+        },
+        "version": "2.1.1"
+      }
+    ]
+  },
+  "gnomad_ld_scores_asj": {
+    "description": "gnomAD: linkage disequilibrium (LD) scores Hail Table for Ashkenazi Jewish population.",
+    "url": "https://gnomad.broadinstitute.org/",
+    "versions": [
+      {
+        "reference_genome": "GRCh37",
+        "url": {
+          "aws": {
+            "us": "s3://gnomad-public-us-east-1/release/2.1.1/ld/scores/gnomad.genomes.r2.1.1.asj.adj.ld_scores.ht"
+          },
+          "gcp": {
+            "us": "gs://gcp-public-data--gnomad/release/2.1.1/ld/scores/gnomad.genomes.r2.1.1.asj.adj.ld_scores.ht"
+          }
+        },
+        "version": "2.1.1"
+      }
+    ]
+  },
+  "gnomad_ld_scores_eas": {
+    "description": "gnomAD: linkage disequilibrium (LD) scores Hail Table for East Asian population.",
+    "url": "https://gnomad.broadinstitute.org/",
+    "versions": [
+      {
+        "reference_genome": "GRCh37",
+        "url": {
+          "aws": {
+            "us": "s3://gnomad-public-us-east-1/release/2.1.1/ld/scores/gnomad.genomes.r2.1.1.eas.adj.ld_scores.ht"
+          },
+          "gcp": {
+            "us": "gs://gcp-public-data--gnomad/release/2.1.1/ld/scores/gnomad.genomes.r2.1.1.eas.adj.ld_scores.ht"
+          }
+        },
+        "version": "2.1.1"
+      }
+    ]
+  },
+  "gnomad_ld_scores_est": {
+    "description": "gnomAD: linkage disequilibrium (LD) scores Hail Table for Estonian population.",
+    "url": "https://gnomad.broadinstitute.org/",
+    "versions": [
+      {
+        "reference_genome": "GRCh37",
+        "url": {
+          "aws": {
+            "us": "s3://gnomad-public-us-east-1/release/2.1.1/ld/scores/gnomad.genomes.r2.1.1.est.adj.ld_scores.ht"
+          },
+          "gcp": {
+            "us": "gs://gcp-public-data--gnomad/release/2.1.1/ld/scores/gnomad.genomes.r2.1.1.est.adj.ld_scores.ht"
+          }
+        },
+        "version": "2.1.1"
+      }
+    ]
+  },
+  "gnomad_ld_scores_fin": {
+    "description": "gnomAD: linkage disequilibrium (LD) scores Hail Table for European (Finnish) population.",
+    "url": "https://gnomad.broadinstitute.org/",
+    "versions": [
+      {
+        "reference_genome": "GRCh37",
+        "url": {
+          "aws": {
+            "us": "s3://gnomad-public-us-east-1/release/2.1.1/ld/scores/gnomad.genomes.r2.1.1.fin.adj.ld_scores.ht"
+          },
+          "gcp": {
+            "us": "gs://gcp-public-data--gnomad/release/2.1.1/ld/scores/gnomad.genomes.r2.1.1.fin.adj.ld_scores.ht"
+          }
+        },
+        "version": "2.1.1"
+      }
+    ]
+  },
+  "gnomad_ld_scores_nfe": {
+    "description": "gnomAD: linkage disequilibrium (LD) scores Hail Table for European (non-Finnish) population.",
+    "url": "https://gnomad.broadinstitute.org/",
+    "versions": [
+      {
+        "reference_genome": "GRCh37",
+        "url": {
+          "aws": {
+            "us": "s3://gnomad-public-us-east-1/release/2.1.1/ld/scores/gnomad.genomes.r2.1.1.nfe.adj.ld_scores.ht"
+          },
+          "gcp": {
+            "us": "gs://gcp-public-data--gnomad/release/2.1.1/ld/scores/gnomad.genomes.r2.1.1.nfe.adj.ld_scores.ht"
+          }
+        },
+        "version": "2.1.1"
+      }
+    ]
+  },
+  "gnomad_ld_scores_nwe": {
+    "description": "gnomAD: linkage disequilibrium (LD) scores Hail Table for North-western European population.",
+    "url": "https://gnomad.broadinstitute.org/",
+    "versions": [
+      {
+        "reference_genome": "GRCh37",
+        "url": {
+          "aws": {
+            "us": "s3://gnomad-public-us-east-1/release/2.1.1/ld/scores/gnomad.genomes.r2.1.1.nwe.adj.ld_scores.ht"
+          },
+          "gcp": {
+            "us": "gs://gcp-public-data--gnomad/release/2.1.1/ld/scores/gnomad.genomes.r2.1.1.nwe.adj.ld_scores.ht"
+          }
+        },
+        "version": "2.1.1"
+      }
+    ]
+  },
+  "gnomad_ld_scores_seu": {
+    "description": "gnomAD: linkage disequilibrium (LD) scores Hail Table for Southern European population.",
+    "url": "https://gnomad.broadinstitute.org/",
+    "versions": [
+      {
+        "reference_genome": "GRCh37",
+        "url": {
+          "aws": {
+            "us": "s3://gnomad-public-us-east-1/release/2.1.1/ld/scores/gnomad.genomes.r2.1.1.seu.adj.ld_scores.ht"
+          },
+          "gcp": {
+            "us": "gs://gcp-public-data--gnomad/release/2.1.1/ld/scores/gnomad.genomes.r2.1.1.seu.adj.ld_scores.ht"
+          }
+        },
+        "version": "2.1.1"
+      }
+    ]
+  },
+  "gnomad_ld_variant_indices_afr": {
+    "description": "gnomAD: variant indices Hail Table for African/African-American population",
+    "url": "https://gnomad.broadinstitute.org/",
+    "versions": [
+      {
+        "reference_genome": "GRCh37",
+        "url": {
+          "aws": {
+            "us": "s3://gnomad-public-us-east-1/release/2.1.1/ld/gnomad.genomes.r2.1.1.afr.common.adj.ld.variant_indices.ht"
+          },
+          "gcp": {
+            "us": "gs://gcp-public-data--gnomad/release/2.1.1/ld/gnomad.genomes.r2.1.1.afr.common.adj.ld.variant_indices.ht"
+          }
+        },
+        "version": "2.1.1"
+      }
+    ]
+  },
+  "gnomad_ld_variant_indices_amr": {
+    "description": "gnomAD: variant indices Hail Table for Latino/Admixed American population",
+    "url": "https://gnomad.broadinstitute.org/",
+    "versions": [
+      {
+        "reference_genome": "GRCh37",
+        "url": {
+          "aws": {
+            "us": "s3://gnomad-public-us-east-1/release/2.1.1/ld/gnomad.genomes.r2.1.1.amr.common.adj.ld.variant_indices.ht"
+          },
+          "gcp": {
+            "us": "gs://gcp-public-data--gnomad/release/2.1.1/ld/gnomad.genomes.r2.1.1.amr.common.adj.ld.variant_indices.ht"
+          }
+        },
+        "version": "2.1.1"
+      }
+    ]
+  },
+  "gnomad_ld_variant_indices_asj": {
+    "description": "gnomAD: variant indices Hail Table for Ashkenazi Jewish population",
+    "url": "https://gnomad.broadinstitute.org/",
+    "versions": [
+      {
+        "reference_genome": "GRCh37",
+        "url": {
+          "aws": {
+            "us": "s3://gnomad-public-us-east-1/release/2.1.1/ld/gnomad.genomes.r2.1.1.asj.common.adj.ld.variant_indices.ht"
+          },
+          "gcp": {
+            "us": "gs://gcp-public-data--gnomad/release/2.1.1/ld/gnomad.genomes.r2.1.1.asj.common.adj.ld.variant_indices.ht"
+          }
+        },
+        "version": "2.1.1"
+      }
+    ]
+  },
+  "gnomad_ld_variant_indices_eas": {
+    "description": "gnomAD: variant indices Hail Table for East Asian population",
+    "url": "https://gnomad.broadinstitute.org/",
+    "versions": [
+      {
+        "reference_genome": "GRCh37",
+        "url": {
+          "aws": {
+            "us": "s3://gnomad-public-us-east-1/release/2.1.1/ld/gnomad.genomes.r2.1.1.eas.common.adj.ld.variant_indices.ht"
+          },
+          "gcp": {
+            "us": "gs://gcp-public-data--gnomad/release/2.1.1/ld/gnomad.genomes.r2.1.1.eas.common.adj.ld.variant_indices.ht"
+          }
+        },
+        "version": "2.1.1"
+      }
+    ]
+  },
+  "gnomad_ld_variant_indices_est": {
+    "description": "gnomAD: variant indices Hail Table for Estonian population",
+    "url": "https://gnomad.broadinstitute.org/",
+    "versions": [
+      {
+        "reference_genome": "GRCh37",
+        "url": {
+          "aws": {
+            "us": "s3://gnomad-public-us-east-1/release/2.1.1/ld/gnomad.genomes.r2.1.1.est.common.adj.ld.variant_indices.ht"
+          },
+          "gcp": {
+            "us": "gs://gcp-public-data--gnomad/release/2.1.1/ld/gnomad.genomes.r2.1.1.est.common.adj.ld.variant_indices.ht"
+          }
+        },
+        "version": "2.1.1"
+      }
+    ]
+  },
+  "gnomad_ld_variant_indices_fin": {
+    "description": "gnomAD: variant indices Hail Table for European (Finnish) population",
+    "url": "https://gnomad.broadinstitute.org/",
+    "versions": [
+      {
+        "reference_genome": "GRCh37",
+        "url": {
+          "aws": {
+            "us": "s3://gnomad-public-us-east-1/release/2.1.1/ld/gnomad.genomes.r2.1.1.fin.common.adj.ld.variant_indices.ht"
+          },
+          "gcp": {
+            "us": "gs://gcp-public-data--gnomad/release/2.1.1/ld/gnomad.genomes.r2.1.1.fin.common.adj.ld.variant_indices.ht"
+          }
+        },
+        "version": "2.1.1"
+      }
+    ]
+  },
+  "gnomad_ld_variant_indices_nfe": {
+    "description": "gnomAD: variant indices Hail Table for European (non-Finnish) population",
+    "url": "https://gnomad.broadinstitute.org/",
+    "versions": [
+      {
+        "reference_genome": "GRCh37",
+        "url": {
+          "aws": {
+            "us": "s3://gnomad-public-us-east-1/release/2.1.1/ld/gnomad.genomes.r2.1.1.nfe.common.adj.ld.variant_indices.ht"
+          },
+          "gcp": {
+            "us": "gs://gcp-public-data--gnomad/release/2.1.1/ld/gnomad.genomes.r2.1.1.nfe.common.adj.ld.variant_indices.ht"
+          }
+        },
+        "version": "2.1.1"
+      }
+    ]
+  },
+  "gnomad_ld_variant_indices_nwe": {
+    "description": "gnomAD: variant indices Hail Table for North-western European population",
+    "url": "https://gnomad.broadinstitute.org/",
+    "versions": [
+      {
+        "reference_genome": "GRCh37",
+        "url": {
+          "aws": {
+            "us": "s3://gnomad-public-us-east-1/release/2.1.1/ld/gnomad.genomes.r2.1.1.nwe.common.adj.ld.variant_indices.ht"
+          },
+          "gcp": {
+            "us": "gs://gcp-public-data--gnomad/release/2.1.1/ld/gnomad.genomes.r2.1.1.nwe.common.adj.ld.variant_indices.ht"
+          }
+        },
+        "version": "2.1.1"
+      }
+    ]
+  },
+  "gnomad_ld_variant_indices_seu": {
+    "description": "gnomAD: variant indices Hail Table for Southern European population",
+    "url": "https://gnomad.broadinstitute.org/",
+    "versions": [
+      {
+        "reference_genome": "GRCh37",
+        "url": {
+          "aws": {
+            "us": "s3://gnomad-public-us-east-1/release/2.1.1/ld/gnomad.genomes.r2.1.1.seu.common.adj.ld.variant_indices.ht"
+          },
+          "gcp": {
+            "us": "gs://gcp-public-data--gnomad/release/2.1.1/ld/gnomad.genomes.r2.1.1.seu.common.adj.ld.variant_indices.ht"
+          }
+        },
+        "version": "2.1.1"
       }
     ]
   },
