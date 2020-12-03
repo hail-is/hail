@@ -632,7 +632,12 @@ date
 echo {shq(config)} | kubectl apply -f -
 '''
 
-        if self.secrets and not scope == 'deploy':
+        if self.secrets and scope != 'deploy':
+            if self.namespace_name == 'default':
+                script += f'''
+kubectl -n {self.namespace_name} get -o json secret global-config | jq '.data.default_namespace |= ("{self._name}" | @base64)' | kubectl apply -f -
+'''
+
             for s in self.secrets:
                 script += f'''
 kubectl -n {self.namespace_name} get -o json --export secret {s} | jq '.metadata.name = "{s}"' | kubectl -n {self._name} apply -f -
