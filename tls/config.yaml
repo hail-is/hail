@@ -71,9 +71,6 @@ principals:
 - name: shuffler
   domain: shuffler
   kind: json
-- name: image-fetcher
-  domain: image-fetcher
-  kind: curl
 - name: benchmark
   domain: benchmark
   kind: json
