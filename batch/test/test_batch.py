@@ -601,7 +601,7 @@ def test_verify_no_access_to_metadata_server(client):
 def test_can_use_hailctl_auth(client):
     builder = client.create_batch()
     j = builder.create_job(os.environ['CI_UTILS_IMAGE'],
-                           'gcloud', 'auth', 'list')
+                           ['gcloud', 'auth', 'list'])
     status = j.wait()
     assert status['state'] == 'Success', f'{j.log(), status}'
     log = j.log()
