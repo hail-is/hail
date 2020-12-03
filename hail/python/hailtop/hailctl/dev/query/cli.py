@@ -91,7 +91,7 @@ class QueryClient:
             try:
                 def raise_flag_not_found(status, text):
                     error = text.split('\n')[0].strip()
-                    if status == 500 and 'java.util.NoSuchElementException: key not found: ' in error:
+                    if status == 400 and 'is.hail.utils.HailException: No such flag ' in error:
                         raise KeyError(error[49:])
                 flags[name] = await self.get_request(f'flags/get/{name}', handler=raise_flag_not_found)
             except KeyError as e:
