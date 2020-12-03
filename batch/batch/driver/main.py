@@ -757,6 +757,9 @@ SELECT worker_type, worker_cores, worker_disk_size_gb,
     log_store = LogStore(BATCH_BUCKET_NAME, WORKER_LOGS_BUCKET_NAME, instance_id, pool, credentials=credentials)
     app['log_store'] = log_store
 
+    async_worker_pool = AsyncWorkerPool(parallelism=100, queue_size=100)
+    app['async_worker_pool'] = async_worker_pool
+
     zone_monitor = ZoneMonitor(app)
     app['zone_monitor'] = zone_monitor
     await zone_monitor.async_init()
@@ -772,9 +775,6 @@ SELECT worker_type, worker_cores, worker_disk_size_gb,
 
     await inst_monitor.run()
     await inst_pool.run()
-
-    async_worker_pool = AsyncWorkerPool(parallelism=100, queue_size=100)
-    app['async_worker_pool'] = async_worker_pool
 
     app['check_incremental_error'] = None
     app['check_resource_aggregation_error'] = None
