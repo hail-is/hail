@@ -45,8 +45,7 @@ from ..exceptions import (BatchUserError, NonExistentBillingProjectError,
                           InvalidBillingLimitError)
 from ..log_store import LogStore
 from ..database import CallError, check_call_procedure
-from ..batch_configuration import (BATCH_BUCKET_NAME, DEFAULT_NAMESPACE,
-                                   WORKER_LOGS_BUCKET_NAME)
+from ..batch_configuration import (BATCH_BUCKET_NAME, DEFAULT_NAMESPACE)
 from ..globals import HTTP_CLIENT_MAX_SIZE, BATCH_FORMAT_VERSION
 from ..spec_writer import SpecWriter
 from ..batch_format_version import BatchFormatVersion
@@ -1859,7 +1858,7 @@ SELECT worker_type, worker_cores, worker_disk_size_gb,
 
     credentials = google.oauth2.service_account.Credentials.from_service_account_file(
         '/gsa-key/key.json')
-    app['log_store'] = LogStore(BATCH_BUCKET_NAME, WORKER_LOGS_BUCKET_NAME, instance_id, pool, credentials=credentials)
+    app['log_store'] = LogStore(BATCH_BUCKET_NAME, instance_id, pool, credentials=credentials)
 
     cancel_batch_state_changed = asyncio.Event()
     app['cancel_batch_state_changed'] = cancel_batch_state_changed

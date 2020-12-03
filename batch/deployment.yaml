@@ -68,14 +68,10 @@ spec:
 {% if deploy %}
          - name: HAIL_BATCH_BUCKET_NAME
            value: hail-batch
-         - name: HAIL_WORKER_LOGS_BUCKET_NAME
-           value: hail-batch-worker-logs
          - name: STANDING_WORKER_MAX_IDLE_TIME_SECS
            value: "7200" # 2 hours
 {% else %}
          - name: HAIL_BATCH_BUCKET_NAME
-           value: hail-test-dmk9z
-         - name: HAIL_WORKER_LOGS_BUCKET_NAME
            value: hail-test-dmk9z
          - name: STANDING_WORKER_MAX_IDLE_TIME_SECS
            value: "300"
@@ -193,14 +189,10 @@ spec:
 {% if deploy %}
          - name: HAIL_BATCH_BUCKET_NAME
            value: hail-batch
-         - name: HAIL_WORKER_LOGS_BUCKET_NAME
-           value: hail-batch-worker-logs
          - name: STANDING_WORKER_MAX_IDLE_TIME_SECS
            value: "7200" # 2 hours
 {% else %}
          - name: HAIL_BATCH_BUCKET_NAME
-           value: hail-test-dmk9z
-         - name: HAIL_WORKER_LOGS_BUCKET_NAME
            value: hail-test-dmk9z
          - name: STANDING_WORKER_MAX_IDLE_TIME_SECS
            value: "300"
