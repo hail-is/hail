@@ -535,7 +535,7 @@ async def add_gcsfuse_bucket(mount_path, bucket, key_file, read_only):
         except asyncio.CancelledError:  # pylint: disable=try-except-raise
             raise
 
-    delay = await sleep_and_backoff(delay)
+        delay = await sleep_and_backoff(delay)
 
 
 def copy_command(src, dst, requester_pays_project=None):
@@ -551,9 +551,10 @@ def copy_command(src, dst, requester_pays_project=None):
         mkdirs_file = ''
         mkdirs_dir = ''
 
-    cp = f'retry gsutil {requester_pays_project} -m cp -R {shq(src)} {shq(dst)}'
+    cp_file = f'retry gsutil {requester_pays_project} -m cp -R {shq(src)} {shq(dst)}'
+    cp_dir = f'retry gsutil {requester_pays_project} -m cp -R {shq(src.rstrip("/") + "/*")} {shq(dst)}'
 
-    return f'{{ {mkdirs_file}{cp} ; }} || {{ {mkdirs_dir}{cp} ; }}'
+    return f'{{ {mkdirs_file}{cp_file} ; }} || {{ {mkdirs_dir}{cp_dir} ; }}'
 
 
 def copy(files, name, requester_pays_project):

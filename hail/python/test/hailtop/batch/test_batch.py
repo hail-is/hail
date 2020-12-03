@@ -612,6 +612,6 @@ class ServiceTests(unittest.TestCase):
         input1 = b.read_input(self.gcs_input_dir)
         input2 = b.read_input(self.gcs_input_dir.rstrip('/') + '/')
         j = b.new_job()
-        j.command(f'ls {input1}')
-        j.command(f'ls {input2}')
+        j.command(f'ls {input1}/hello.txt')
+        j.command(f'ls {input2}/hello.txt')
         assert b.run().status()['state'] == 'success'
