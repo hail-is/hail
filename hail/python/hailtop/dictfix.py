@@ -5,7 +5,7 @@ class NoneOr:
 
 def dictfix(x, spec):
     assert isinstance(x, dict) or x is None
-    assert isinstance(spec, dict) or isinstance(spec, NoneOr)
+    assert isinstance(spec, (NoneOr, dict))
     return _dictfix(x, spec)
 
 
@@ -26,7 +26,7 @@ def _dictfix(x, spec):
             try:
                 x[k] = _dictfix(v, subspec)
             except AssertionError as err:
-                raise AssertionError(f'{k}:{v}', err)
+                raise AssertionError(f'{k}:{v}') from err
     else:
         if x is None:
             x = spec
