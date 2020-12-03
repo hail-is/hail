@@ -31,7 +31,7 @@ class Instance:
         await db.just_execute(
             '''
 INSERT INTO instances (name, state, activation_token, token, cores_mcpu, free_cores_mcpu, time_created, last_updated, version, zone, pool)
-VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
+VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
 ''',
             (name, state, activation_token, token, worker_cores_mcpu,
              worker_cores_mcpu, now, now, INSTANCE_VERSION, zone, pool_name))

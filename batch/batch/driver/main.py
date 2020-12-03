@@ -465,7 +465,7 @@ LOCK IN SHARE MODE;
         user_pool_resources = {(record['user'], record['pool']): record async for record in user_pool_resources}
 
         computed_user_pool_resources = tx.execute_and_fetchall('''
-SELECT user,
+SELECT user, pool,
     COALESCE(SUM(state = 'Ready' AND runnable), 0) as n_ready_jobs,
     COALESCE(SUM(IF(state = 'Ready' AND runnable, cores_mcpu, 0)), 0) as ready_cores_mcpu,
     COALESCE(SUM(state = 'Running' AND NOT cancelled), 0) as n_running_jobs,
