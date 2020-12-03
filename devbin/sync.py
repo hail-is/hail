@@ -2,7 +2,7 @@
 from typing import List, Tuple
 from hailtop.aiotools import BackgroundTaskManager
 from contextlib import closing
-from hailtop.utils import check_shell, CalledProcessError
+from hailtop.utils import check_shell_output, check_shell, CalledProcessError
 from hailtop.utils import retry_transient_errors
 from hailtop.hail_logging import configure_logging
 from fswatch import Monitor, libfswatch
@@ -17,6 +17,7 @@ import signal
 
 configure_logging()
 log = logging.getLogger('scorecard')
+RSYNC_ARGS = "-av --progress --stats --exclude='*.log' --exclude='.mypy_cache' --exclude='__pycache__' --exclude='*~'"
 
 
 async def retry(f, *args, **kwargs):
@@ -37,14 +38,14 @@ class Sync:
 
     async def sync_and_restart_pod(self, pod, namespace):
         await asyncio.gather(*[
-            retry(check_shell, f'krsync.sh {local} {pod}@{namespace}:{remote}')
+            retry(check_shell, f'krsync.sh {RSYNC_ARGS} {local} {pod}@{namespace}:{remote}')
             for local, remote in self.paths])
         await retry(check_shell, f'kubectl exec {pod} --namespace {namespace} -- kill -2 1')
         log.info(f'reloaded {pod}@{namespace}')
 
     async def initialize_pod(self, pod, namespace):
         await asyncio.gather(*[
-            retry(check_shell, f'krsync.sh {local} {pod}@{namespace}:{remote}')
+            retry(check_shell, f'krsync.sh {RSYNC_ARGS} {local} {pod}@{namespace}:{remote}')
             for local, remote in self.paths])
         await retry(check_shell, f'kubectl exec {pod} --namespace {namespace} -- kill -2 1')
         self.pods_list.append((pod, namespace))
