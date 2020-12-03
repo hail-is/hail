@@ -1,7 +1,7 @@
 package is.hail.types.physical.stypes
 
 import is.hail.annotations.{CodeOrdering, Region}
-import is.hail.asm4s.{Code, TypeInfo, Value}
+import is.hail.asm4s.{Code, Settable, TypeInfo, Value}
 import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, SortOrder}
 import is.hail.types.physical.{PCode, PType}
 
@@ -16,4 +16,8 @@ trait SType {
   def codeTupleTypes(): IndexedSeq[TypeInfo[_]]
 
   def codeOrdering(mb: EmitMethodBuilder[_], other: SType, so: SortOrder): CodeOrdering
+
+  def fromSettables(settables: IndexedSeq[Settable[_]]): SSettable
+
+  def fromCodes(codes: IndexedSeq[Code[_]]): SCode
 }

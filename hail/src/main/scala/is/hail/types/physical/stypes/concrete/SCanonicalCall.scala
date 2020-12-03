@@ -30,6 +30,18 @@ case class SCanonicalCall(required: Boolean) extends SCall {
         new SCanonicalCallCode(required, Region.loadInt(addr))
     }
   }
+
+  def fromSettables(settables: IndexedSeq[Settable[_]]): SCanonicalCallSettable = {
+    val IndexedSeq(call: Settable[Int@unchecked]) = settables
+    assert(call.ti == IntInfo)
+    new SCanonicalCallSettable(required, call)
+  }
+
+  def fromCodes(codes: IndexedSeq[Code[_]]): SCanonicalCallCode = {
+    val IndexedSeq(call: Code[Int@unchecked]) = codes
+    assert(call.ti == IntInfo)
+    new SCanonicalCallCode(required, call)
+  }
 }
 
 object SCanonicalCallSettable {

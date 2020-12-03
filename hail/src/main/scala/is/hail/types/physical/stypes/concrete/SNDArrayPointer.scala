@@ -24,6 +24,17 @@ case class SNDArrayPointer(pType: PNDArray) extends SNDArray {
       coerceOrCopy(cb, region, pt.loadCheapPCode(cb, addr), deepCopy = false)
   }
 
+  def fromSettables(settables: IndexedSeq[Settable[_]]): SNDArrayPointerSettable = {
+    val IndexedSeq(a: Settable[Long@unchecked]) = settables
+    assert(a.ti == LongInfo)
+    new SNDArrayPointerSettable(this, a)
+  }
+
+  def fromCodes(codes: IndexedSeq[Code[_]]): SNDArrayPointerCode = {
+    val IndexedSeq(a: Code[Long@unchecked]) = codes
+    assert(a.ti == LongInfo)
+    new SNDArrayPointerCode(this, a)
+  }
 }
 
 object SNDArrayPointerSettable {
