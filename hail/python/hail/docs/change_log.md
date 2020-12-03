@@ -22,7 +22,25 @@ Please note that **forward compatibility should not be expected, especially
 relating to file formats**: this means that it may not be possible to use
 an earlier version of Hail to read files written in a later version.
 
+## Version 0.2.61
+
+Released 2020-12-03
+
+### New features
+
+- (hail#9749) Add or_error method to SwitchBuilder (`hl.switch`)
+
+### Bug fixes
+
+- (hail#9775) Fixed race condition leading to invalid intermediate files in VCF combiner.
+- (hail#9751) Fix bug where constructing an array of empty structs causes type error.
+- (hail#9731) Fix error and incorrect behavior when using `hl.import_matrix_table` with int64 data types. 
+
+---
+
 ## Version 0.2.60
+
+Released 2020-11-16
 
 ### New features
 
