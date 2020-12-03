@@ -1989,12 +1989,16 @@ def realized_relationship_matrix(call_expr) -> BlockMatrix:
                         __n_called=agg.count_where(hl.is_defined(mt.__gt)))
     mt = mt.select_rows(__mean_gt=mt.__AC / mt.__n_called,
                         __centered_length=hl.sqrt(mt.__ACsq - (mt.__AC ** 2) / mt.__n_called))
-    mt = mt.filter_rows(mt.__centered_length > 0.1)  # truly non-zero values are at least sqrt(0.5)
+    fmt = mt.filter_rows(mt.__centered_length > 0.1)  # truly non-zero values are at least sqrt(0.5)
 
-    normalized_gt = hl.or_else((mt.__gt - mt.__mean_gt) / mt.__centered_length, 0.0)
-    bm = BlockMatrix.from_entry_expr(normalized_gt)
+    normalized_gt = hl.or_else((fmt.__gt - fmt.__mean_gt) / fmt.__centered_length, 0.0)
 
-    return (bm.T @ bm) / (bm.n_rows / bm.n_cols)
+    try:
+        bm = BlockMatrix.from_entry_expr(normalized_gt)
+        return (bm.T @ bm) / (bm.n_rows / bm.n_cols)
+    except FatalError as fe:
+        raise FatalError("Could not convert MatrixTable to BlockMatrix. It's possible all variants were dropped by variance filter.\n"
+                         "Check that the input MatrixTable has at least two samples in it:  mt.count_cols().") from fe
 
 
 @typecheck(entry_expr=expr_float64, block_size=nullable(int))
