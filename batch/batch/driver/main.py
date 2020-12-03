@@ -310,7 +310,8 @@ async def get_index(request, userdata):
     ready_cores = await db.select_and_fetchone(
         '''
 SELECT CAST(COALESCE(SUM(ready_cores_mcpu), 0) AS SIGNED) AS ready_cores_mcpu
-FROM ready_cores;
+FROM user_pool_resources
+LOCK IN SHARED MODE;
 ''')
     ready_cores_mcpu = ready_cores['ready_cores_mcpu']
 
