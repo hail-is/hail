@@ -551,7 +551,7 @@ def copy_command(src, dst, requester_pays_project=None):
         mkdirs_file = ''
         mkdirs_dir = ''
 
-    cp_file = f'retry gsutil {requester_pays_project} -m cp -R {shq(src)} {shq(dst)}'
+    cp_file = f'retry gsutil {requester_pays_project} cp {shq(src)} {shq(dst)}'
     cp_dir = f'retry gsutil {requester_pays_project} -m cp -R {shq(src.rstrip("/") + "/*")} {shq(dst)}'
 
     return f'{{ {mkdirs_file}{cp_file} ; }} || {{ {mkdirs_dir}{cp_dir} ; }}'
