@@ -2244,9 +2244,11 @@ steps:
      export HAIL_CURL_IMAGE={{ curl_image.image }}
      export HAIL_DEFAULT_NAMESPACE={{ default_ns.name }}
      export HAIL_NETCAT_UBUNTU_IMAGE={{ netcat_ubuntu_image.image }}
+     export HAIL_HAIL_BASE_IMAGE={{ hail_base_image.image }}
      export DOCKER_ROOT_IMAGE="gcr.io/{{ global.project }}/ubuntu:18.04"
      export HAIL_TEST_TOKEN_FILE=/user-tokens/tokens.json
      export HAIL_TEST_DEV_TOKEN_FILE=/dev-tokens/tokens.json
+     export HAIL_TOKEN="{{ token }}"
      hailctl config set batch/bucket hail-test-dmk9z
      python3 -m pytest \
              --log-date-format="%Y-%m-%dT%H:%M:%S" \
@@ -2290,6 +2292,7 @@ steps:
     - default_ns
     - copy_files
     - base_image
+    - hail_base_image
     - batch_image
     - ci_utils_image
     - deploy_batch
@@ -2309,6 +2312,7 @@ steps:
      export HAIL_CURL_IMAGE={{ curl_image.image }}
      export HAIL_DEFAULT_NAMESPACE={{ default_ns.name }}
      export HAIL_NETCAT_UBUNTU_IMAGE={{ netcat_ubuntu_image.image }}
+     export HAIL_HAIL_BASE_IMAGE={{ hail_base_image.image }}
      export DOCKER_ROOT_IMAGE="gcr.io/{{ global.project }}/ubuntu:18.04"
      export HAIL_TEST_TOKEN_FILE=/user-tokens/tokens.json
      export HAIL_TEST_DEV_TOKEN_FILE=/dev-tokens/tokens.json
@@ -2355,6 +2359,7 @@ steps:
     - create_accounts
     - copy_files
     - base_image
+    - hail_base_image
     - batch_image
     - ci_utils_image
     - deploy_batch
@@ -2374,6 +2379,7 @@ steps:
      export HAIL_CURL_IMAGE={{ curl_image.image }}
      export HAIL_DEFAULT_NAMESPACE={{ default_ns.name }}
      export HAIL_NETCAT_UBUNTU_IMAGE={{ netcat_ubuntu_image.image }}
+     export HAIL_HAIL_BASE_IMAGE={{ hail_base_image.image }}
      export DOCKER_ROOT_IMAGE="gcr.io/{{ global.project }}/ubuntu:18.04"
      export HAIL_TEST_TOKEN_FILE=/user-tokens/tokens.json
      export HAIL_TEST_DEV_TOKEN_FILE=/dev-tokens/tokens.json
@@ -2420,6 +2426,7 @@ steps:
     - default_ns
     - copy_files
     - base_image
+    - hail_base_image
     - batch_image
     - ci_utils_image
     - deploy_batch
@@ -2439,6 +2446,7 @@ steps:
      export HAIL_CURL_IMAGE={{ curl_image.image }}
      export HAIL_DEFAULT_NAMESPACE={{ default_ns.name }}
      export HAIL_NETCAT_UBUNTU_IMAGE={{ netcat_ubuntu_image.image }}
+     export HAIL_HAIL_BASE_IMAGE={{ hail_base_image.image }}
      export DOCKER_ROOT_IMAGE="gcr.io/{{ global.project }}/ubuntu:18.04"
      export HAIL_TEST_TOKEN_FILE=/user-tokens/tokens.json
      export HAIL_TEST_DEV_TOKEN_FILE=/dev-tokens/tokens.json
@@ -2485,6 +2493,7 @@ steps:
     - default_ns
     - copy_files
     - base_image
+    - hail_base_image
     - batch_image
     - ci_utils_image
     - deploy_batch
@@ -2504,6 +2513,7 @@ steps:
      export HAIL_CURL_IMAGE={{ curl_image.image }}
      export HAIL_DEFAULT_NAMESPACE={{ default_ns.name }}
      export HAIL_NETCAT_UBUNTU_IMAGE={{ netcat_ubuntu_image.image }}
+     export HAIL_HAIL_BASE_IMAGE={{ hail_base_image.image }}
      export DOCKER_ROOT_IMAGE="gcr.io/{{ global.project }}/ubuntu:18.04"
      export HAIL_TEST_TOKEN_FILE=/user-tokens/tokens.json
      export HAIL_TEST_DEV_TOKEN_FILE=/dev-tokens/tokens.json
@@ -2550,6 +2560,7 @@ steps:
     - default_ns
     - copy_files
     - base_image
+    - hail_base_image
     - batch_image
     - ci_utils_image
     - deploy_batch
