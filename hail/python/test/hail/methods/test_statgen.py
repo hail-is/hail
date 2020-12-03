@@ -1058,7 +1058,7 @@ class Tests(unittest.TestCase):
         self.assertTrue(np.allclose(k, rrm))
 
         one_sample = hl.balding_nichols_model(1, 1, 10)
-        self.assertRaises(FatalError, lambda: hl.realized_relationship_matrix(one_sample))
+        self.assertRaises(FatalError, lambda: hl.realized_relationship_matrix(one_sample.GT))
 
     @skip_unless_spark_backend()
     def test_row_correlation_vs_hardcode(self):
