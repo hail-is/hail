@@ -4,6 +4,7 @@
 #include <string>
 #include <variant>
 #include <vector>
+#include <fstream>
 
 class LSM {
   std::map<int32_t, int32_t> m;
@@ -31,6 +32,30 @@ public:
     m.erase(k);
   }
 };
+
+int write_to_file(int arr[]) {
+    fstream myfile ("integers.txt");
+    if (myfile.is_open()) {
+        for(int num : arr) {
+            myfile << num << " " ;
+        }
+        myfile.close();
+      }
+      else cout << "Unable to open file";
+      return 0;
+}
+
+int read_from_file() {
+    vector<int> numbers;
+    ifstream myfile("integers.txt",ios::in);
+    int number;
+    while (in >> number) {
+    	numbers.push_back(number);
+    }
+    in.close();
+
+    return 0;
+}
 
 int main(int argc, const char ** argv) {
   if (argc != 1) {
