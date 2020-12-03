@@ -56,14 +56,6 @@ def test_type_asserts():
     else:
         assert False, actual
 
-    actual = {'x': 'hi'}
-    try:
-        dictfix.dictfix(actual, {'x': int})
-    except AssertionError:
-        pass
-    else:
-        assert False, actual
-
 
 def test_defaults():
     actual = {'x': None}

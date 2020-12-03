@@ -1228,7 +1228,8 @@ async def ui_get_job(request, userdata):
     job_specification = dictfix.dictfix(job_specification,
                                         dictfix.NoneOr({'image': str,
                                                         'command': list,
-                                                        'resources': dict()}))
+                                                        'resources': dict(),
+                                                        'env': list}))
 
     page_context = {
         'batch_id': batch_id,

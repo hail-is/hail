@@ -19,9 +19,7 @@ def _dictfix(x, spec):
         if x is None:
             x = dict()
         for k, subspec in spec.items():
-            v = None
-            if k in x:
-                v = x.get(k)
+            v = x.get(k)
             try:
                 x[k] = _dictfix(v, subspec)
             except AssertionError as err:

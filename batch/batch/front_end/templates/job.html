@@ -136,6 +136,26 @@
   {% endif %}
 </table>
 
+<h2>Job Environment Variables</h2>
+<table class="data-table">
+  <thead>
+    <tr>
+      <th>Name</th>
+      <th>Value</th>
+    </tr>
+  </thead>
+  {% if job_specification %}
+  <tbody>
+  {% for envvar in job_specification['env'] %}
+    <tr>
+      <td>{{ envvar['name'] }}</td>
+      <td>{{ envvar['value'] }}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+  {% endif %}
+</table>
+
 <h2>Status</h2>
 <pre>{{ job_status_str }}</pre>
 {% endblock %}
