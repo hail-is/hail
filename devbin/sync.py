@@ -2,7 +2,7 @@
 from typing import List, Tuple
 from hailtop.aiotools import BackgroundTaskManager
 from contextlib import closing
-from hailtop.utils import check_shell_output, check_shell, CalledProcessError
+from hailtop.utils import check_shell, CalledProcessError
 from hailtop.utils import retry_transient_errors
 from hailtop.hail_logging import configure_logging
 from fswatch import Monitor, libfswatch
