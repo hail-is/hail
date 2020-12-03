@@ -309,20 +309,22 @@ BEGIN
       n_running_jobs, running_cores_mcpu,
       n_cancelled_ready_jobs, n_cancelled_running_jobs)
     SELECT user, pool, 0,
-      -1 * COALESCE(SUM(n_ready_cancellable_jobs), 0), -1 * COALESCE(SUM(ready_cancellable_cores_mcpu), 0),
-      -1 * COALESCE(SUM(n_running_cancellable_jobs), 0), -1 * COALESCE(SUM(running_cancellable_cores_mcpu), 0),
+      @n_ready_cancellable_jobs := -1 * COALESCE(SUM(n_ready_cancellable_jobs), 0),
+      @ready_cancellable_cores_mcpu := -1 * COALESCE(SUM(ready_cancellable_cores_mcpu), 0),
+      @n_running_cancellable_jobs := -1 * COALESCE(SUM(n_running_cancellable_jobs), 0),
+      @running_cancellable_cores_mcpu := -1 * COALESCE(SUM(running_cancellable_cores_mcpu), 0),
       COALESCE(SUM(n_ready_cancellable_jobs), 0), COALESCE(SUM(n_running_cancellable_jobs), 0)
     FROM batch_pool_cancellable_resources
     JOIN batches ON batches.id = batch_pool_cancellable_resources.batch_id
     WHERE batch_id = in_batch_id
     GROUP BY user, pool
     ON DUPLICATE KEY UPDATE
-      n_ready_jobs = n_ready_jobs - COALESCE(SUM(n_ready_cancellable_jobs), 0),
-      ready_cores_mcpu = ready_cores_mcpu - COALESCE(SUM(ready_cancellable_cores_mcpu), 0),
-      n_running_jobs = n_running_jobs - COALESCE(SUM(n_running_cancellable_jobs), 0),
-      running_cores_mcpu = running_cores_mcpu - COALESCE(SUM(running_cancellable_cores_mcpu), 0),
-      n_cancelled_ready_jobs = n_cancelled_ready_jobs + COALESCE(SUM(n_ready_cancellable_jobs), 0),
-      n_cancelled_running_jobs = n_cancelled_running_jobs + COALESCE(SUM(n_running_cancellable_jobs), 0);
+      n_ready_jobs = n_ready_jobs - @n_ready_cancellable_jobs,
+      ready_cores_mcpu = ready_cores_mcpu - @ready_cancellable_cores_mcpu,
+      n_running_jobs = n_running_jobs - @n_running_cancellable_jobs,
+      running_cores_mcpu = running_cores_mcpu - @running_cancellable_cores_mcpu,
+      n_cancelled_ready_jobs = n_cancelled_ready_jobs + @n_ready_cancellable_jobs,
+      n_cancelled_running_jobs = n_cancelled_running_jobs + @n_running_cancellable_jobs;
 
     # there are no cancellable jobs left, they have been cancelled
     DELETE FROM batch_pool_cancellable_resources WHERE batch_id = in_batch_id;
