@@ -1,11 +1,10 @@
 import logging
-import asyncio
 import random
 import sortedcontainers
 import collections
 
 from hailtop.utils import (
-    AsyncWorkerPool, WaitableSharedPool, retry_long_running, run_if_changed,
+    WaitableSharedPool, retry_long_running, run_if_changed,
     time_msecs, secret_alnum_string)
 from hailtop import aiotools
 
@@ -35,18 +34,22 @@ class ExceededSharesCounter:
 
 
 class Scheduler:
-    def __init__(self, app):
+    def __init__(self, app, inst_pool):
         self.app = app
         self.scheduler_state_changed = app['scheduler_state_changed']
         self.cancel_ready_state_changed = app['cancel_ready_state_changed']
         self.cancel_running_state_changed = app['cancel_running_state_changed']
         self.db = app['db']
-        self.inst_pool = app['inst_pool']
-        self.async_worker_pool = AsyncWorkerPool(parallelism=100, queue_size=100)
+        self.async_worker_pool = app['async_worker_pool']
+
+        self.inst_pool = inst_pool
+
         self.exceeded_shares_counter = ExceededSharesCounter()
         self.task_manager = aiotools.BackgroundTaskManager()
 
     async def async_init(self):
+        log.info('starting scheduler control loops')
+
         self.task_manager.ensure_future(retry_long_running(
             'schedule_loop',
             run_if_changed, self.scheduler_state_changed, self.schedule_loop_body))
@@ -56,9 +59,6 @@ class Scheduler:
         self.task_manager.ensure_future(retry_long_running(
             'cancel_cancelled_running_jobs_loop',
             run_if_changed, self.cancel_running_state_changed, self.cancel_cancelled_running_jobs_loop_body))
-        self.task_manager.ensure_future(retry_long_running(
-            'bump_loop',
-            self.bump_loop))
 
     def shutdown(self):
         try:
@@ -142,14 +142,6 @@ GROUP BY user;
             allocate_cores(user, mark)
 
         return result
-
-    async def bump_loop(self):
-        while True:
-            log.info('bump loop')
-            self.scheduler_state_changed.set()
-            self.cancel_ready_state_changed.set()
-            self.cancel_running_state_changed.set()
-            await asyncio.sleep(60)
 
     async def cancel_cancelled_ready_jobs_loop_body(self):
         records = self.db.select_and_fetchall(

@@ -17,7 +17,8 @@ from gear import (Database, setup_aiohttp_session,
                   transaction)
 from hailtop.hail_logging import AccessLogger
 from hailtop.config import get_deploy_config
-from hailtop.utils import time_msecs, RateLimit, serialization, retry_long_running
+from hailtop.utils import (time_msecs, RateLimit, serialization, retry_long_running,
+                           AsyncWorkerPool)
 from hailtop.tls import get_in_cluster_server_ssl_context
 from hailtop import aiogoogle, aiotools
 from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template, \
@@ -35,7 +36,6 @@ from ..globals import HTTP_CLIENT_MAX_SIZE
 from .zone_monitor import ZoneMonitor
 from .instance_monitor import InstanceMonitor
 from .instance_pool import InstancePool
-from .scheduler import Scheduler
 from .k8s_cache import K8sCache
 from ..utils import query_billing_projects
 from ..exceptions import BatchUserError
@@ -681,6 +681,15 @@ WHERE billing_project = %s AND state = 'running';
         await asyncio.sleep(10)
 
 
+async def scheduling_bump_loop_body(app):
+    while True:
+        log.info('scheduling bump loop')
+        app['scheduler_state_changed'].set()
+        app['cancel_ready_state_changed'].set()
+        app['cancel_running_state_changed'].set()
+        await asyncio.sleep(60)
+
+
 async def on_startup(app):
     app['task_manager'] = aiotools.BackgroundTaskManager()
     pool = concurrent.futures.ThreadPoolExecutor()
@@ -764,9 +773,8 @@ SELECT worker_type, worker_cores, worker_disk_size_gb,
     await inst_monitor.run()
     await inst_pool.run()
 
-    scheduler = Scheduler(app)
-    await scheduler.async_init()
-    app['scheduler'] = scheduler
+    async_worker_pool = AsyncWorkerPool(parallelism=100, queue_size=100)
+    app['async_worker_pool'] = async_worker_pool
 
     app['check_incremental_error'] = None
     app['check_resource_aggregation_error'] = None
@@ -775,9 +783,13 @@ SELECT worker_type, worker_cores, worker_disk_size_gb,
         app['task_manager'].ensure_future(check_incremental_loop(app, db))
         app['task_manager'].ensure_future(check_resource_aggregation(app, db))
 
-    asyncio.ensure_future(retry_long_running(
+    app['task_manager'].ensure_future(retry_long_running(
         'monitor_billing_limits_loop',
         monitor_billing_limits_loop_body, app))
+
+    app['task_manager'].ensure_future(retry_long_running(
+        'scheduling_bump_loop',
+        scheduling_bump_loop_body, app))
 
 
 async def on_cleanup(app):
@@ -798,7 +810,7 @@ async def on_cleanup(app):
                         app['inst_pool'].shutdown()
                     finally:
                         try:
-                            app['scheduler'].shutdown()
+                            app['async_worker_pool'].shutdown()
                         finally:
                             app['task_manager'].shutdown()
 

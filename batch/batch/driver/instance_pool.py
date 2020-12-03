@@ -14,6 +14,7 @@ from ..batch_configuration import DEFAULT_NAMESPACE, PROJECT, \
     ENABLE_STANDING_WORKER
 
 from .instance import Instance
+from .scheduler import Scheduler
 from ..worker_config import WorkerConfig
 
 log = logging.getLogger('instance_pool')
@@ -36,13 +37,14 @@ class InstancePool:
         self.app = app
         self.instance_id = app['instance_id']
         self.log_store = app['log_store']
-        self.scheduler_state_changed = app['scheduler_state_changed']
         self.db = app['db']
         self.compute_client = app['compute_client']
         self.logging_client = app['logging_client']
 
         self.inst_monitor = app['inst_monitor']
         self.zone_monitor = app['zone_monitor']
+
+        self.scheduler = Scheduler(app, self)
 
         # set in async_init
         self.worker_type = None
@@ -93,9 +95,13 @@ FROM globals;
 
     async def run(self):
         self.task_manager.ensure_future(self.control_loop())
+        await self.scheduler.async_init()
 
     def shutdown(self):
-        self.task_manager.shutdown()
+        try:
+            self.scheduler.shutdown()
+        finally:
+            self.task_manager.shutdown()
 
     def config(self):
         return {
