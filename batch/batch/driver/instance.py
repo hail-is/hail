@@ -43,6 +43,7 @@ VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
                  time_created, failed_request_count, last_updated, ip_address,
                  version, zone):
         self.db = app['db']
+        self.inst_monitor = app['inst_monitor']
         self.inst_pool = app['inst_pool']
         self.scheduler_state_changed = app['scheduler_state_changed']
         # pending, active, inactive, deleted
@@ -69,10 +70,10 @@ VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
             'CALL activate_instance(%s, %s, %s);',
             (self.name, ip_address, timestamp))
 
-        self.inst_pool.adjust_for_remove_instance(self)
+        self.inst_monitor.adjust_for_remove_instance(self)
         self._state = 'active'
         self.ip_address = ip_address
-        self.inst_pool.adjust_for_add_instance(self)
+        self.inst_monitor.adjust_for_add_instance(self)
 
         self.scheduler_state_changed.set()
 
@@ -93,10 +94,10 @@ VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
             log.info(f'{self} with in-memory state {self._state} was already deactivated; {rv}')
             assert rv['cur_state'] in ('inactive', 'deleted')
 
-        self.inst_pool.adjust_for_remove_instance(self)
+        self.inst_monitor.adjust_for_remove_instance(self)
         self._state = 'inactive'
         self._free_cores_mcpu = self.cores_mcpu
-        self.inst_pool.adjust_for_add_instance(self)
+        self.inst_monitor.adjust_for_add_instance(self)
 
         # there might be jobs to reschedule
         self.scheduler_state_changed.set()
@@ -115,18 +116,18 @@ VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
             log.info(f'{self} with in-memory state {self._state} could not be marked deleted; {rv}')
             assert rv['cur_state'] == 'deleted'
 
-        self.inst_pool.adjust_for_remove_instance(self)
+        self.inst_monitor.adjust_for_remove_instance(self)
         self._state = 'deleted'
-        self.inst_pool.adjust_for_add_instance(self)
+        self.inst_monitor.adjust_for_add_instance(self)
 
     @property
     def free_cores_mcpu(self):
         return self._free_cores_mcpu
 
     def adjust_free_cores_in_memory(self, delta_mcpu):
-        self.inst_pool.adjust_for_remove_instance(self)
+        self.inst_monitor.adjust_for_remove_instance(self)
         self._free_cores_mcpu += delta_mcpu
-        self.inst_pool.adjust_for_add_instance(self)
+        self.inst_monitor.adjust_for_add_instance(self)
 
     @property
     def failed_request_count(self):
@@ -166,10 +167,10 @@ WHERE name = %s;
 ''',
             (now, self.name))
 
-        self.inst_pool.adjust_for_remove_instance(self)
+        self.inst_monitor.adjust_for_remove_instance(self)
         self._failed_request_count = 0
         self._last_updated = now
-        self.inst_pool.adjust_for_add_instance(self)
+        self.inst_monitor.adjust_for_add_instance(self)
 
     async def incr_failed_request_count(self):
         await self.db.execute_update(
@@ -179,9 +180,9 @@ SET failed_request_count = failed_request_count + 1 WHERE name = %s;
 ''',
             (self.name,))
 
-        self.inst_pool.adjust_for_remove_instance(self)
+        self.inst_monitor.adjust_for_remove_instance(self)
         self._failed_request_count += 1
-        self.inst_pool.adjust_for_add_instance(self)
+        self.inst_monitor.adjust_for_add_instance(self)
 
     @property
     def last_updated(self):
@@ -193,9 +194,9 @@ SET failed_request_count = failed_request_count + 1 WHERE name = %s;
             'UPDATE instances SET last_updated = %s WHERE name = %s;',
             (now, self.name))
 
-        self.inst_pool.adjust_for_remove_instance(self)
+        self.inst_monitor.adjust_for_remove_instance(self)
         self._last_updated = now
-        self.inst_pool.adjust_for_add_instance(self)
+        self.inst_monitor.adjust_for_add_instance(self)
 
     def time_created_str(self):
         return time_msecs_str(self.time_created)
