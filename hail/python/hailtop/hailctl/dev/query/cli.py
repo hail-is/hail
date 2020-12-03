@@ -89,10 +89,10 @@ class QueryClient:
         invalid = []
         for name in names:
             try:
-                def raise_flag_not_found(status, text):
+                def raise_flag_not_found(status, text, captured_name=name):
                     error = text.split('\n')[0].strip()
                     if status == 400 and 'is.hail.utils.HailException: No such flag ' in error:
-                        raise KeyError(error[49:])
+                        raise KeyError(captured_name)
                 flags[name] = await self.get_request(f'flags/get/{name}', handler=raise_flag_not_found)
             except KeyError as e:
                 invalid.append(str(e))
