@@ -606,7 +606,7 @@ def test_can_use_hailctl_auth(client):
     status = j.wait()
     assert status['state'] == 'Success', f'{j.log(), status}'
     log = j.log()
-    assert '*       test-665@hail-vdc.iam.gserviceaccount.com' in log, f'{j.log(), status}'
+    assert '*       test-665@hail-vdc.iam.gserviceaccount.com' in log['main'], f'{j.log(), status}'
 
 
 def test_user_authentication_within_job(client):
