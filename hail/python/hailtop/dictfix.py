@@ -16,7 +16,6 @@ def _dictfix(x, spec):
     elif isinstance(spec, type):
         assert isinstance(x, spec), f'{x!r} should be {spec!r}'
     elif isinstance(spec, dict):
-
         if x is None:
             x = dict()
         for k, subspec in spec.items():

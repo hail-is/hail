@@ -83,5 +83,5 @@ def test_defaults():
     assert actual == {'x': 0}
 
     actual = None
-    dictfix.dictfix(actual, {'x': 3})
+    actual = dictfix.dictfix(actual, {'x': 3})
     assert actual == {'x': 3}
