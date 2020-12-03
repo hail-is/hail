@@ -109,7 +109,7 @@ class ClientSession:
         retry_transient = kwargs.pop('retry_transient', self.retry_transient)
         if retry_transient:
             coroutine = retry_transient_errors(
-                self.session._ws_connect, url, **kwargs))
+                self.session._ws_connect, url, **kwargs)
         else:
             coroutine = self.session._ws_connect(url, **kwargs)
         return WebSocketResponseManager(coroutine)
