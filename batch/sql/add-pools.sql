@@ -264,14 +264,14 @@ BEGIN
       END IF;
 
       INSERT INTO user_pool_resources (user, pool, token, n_ready_jobs, ready_cores_mcpu)
-      SELECT user, pool, 0, COALESCE(SUM(staging_n_ready_jobs), 0), COALESCE(SUM(staging_ready_cores_mcpu), 0)
+      SELECT user, pool, 0, @n_ready_jobs := COALESCE(SUM(n_ready_jobs), 0), @ready_cores_mcpu := COALESCE(SUM(ready_cores_mcpu), 0)
       FROM batches_pool_staging
       JOIN batches ON batches.id = batches_pool_staging.batch_id
       WHERE batch_id = in_batch_id
-      GROUP BY user, pool
+      GROUP BY `user`, pool
       ON DUPLICATE KEY UPDATE
-        n_ready_jobs = n_ready_jobs + COALESCE(SUM(staging_n_ready_jobs), 0),
-        ready_cores_mcpu = ready_cores_mcpu + COALESCE(SUM(staging_ready_cores_mcpu), 0);
+        n_ready_jobs = n_ready_jobs + @n_ready_jobs,
+        ready_cores_mcpu = ready_cores_mcpu + @ready_cores_mcpu;
 
       DELETE FROM batches_pool_staging WHERE batch_id = in_batch_id;
 
