@@ -2396,6 +2396,11 @@ class Tests(unittest.TestCase):
         assert hl.eval(a.index(lambda x: x % 2 == 0) == 1)
         assert hl.eval(a.index(lambda x: x > 5)) is None
 
+    def test_array_empty_struct(self):
+        a = hl.array([hl.struct()])
+        b = hl.literal([hl.struct()])
+        assert hl.eval(a) == hl.eval(b)
+
     def test_bool_r_ops(self):
         self.assertTrue(hl.eval(hl.literal(True) & True))
         self.assertTrue(hl.eval(True & hl.literal(True)))
