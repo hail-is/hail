@@ -1521,7 +1521,8 @@ object RVD {
 
     val fileData = fileDataByOrigin.map(_.result())
 
-    sc.parallelize(fileData.zipWithIndex, fileData.length)
+    fileData.zipWithIndex
+      .par
       .foreach { case (partFiles, i) =>
         val fs = fsBc.value
         val s = StringUtils.leftPad(i.toString, fileDigits, '0')
