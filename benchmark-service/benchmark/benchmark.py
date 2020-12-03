@@ -197,7 +197,7 @@ async def index(request):
     d = {
         'dates': benchmark_data['dates'],
         'geo_means': benchmark_data['geo_means'],
-        'commits': benchmark_data['pr_ids']
+        'pr_ids': benchmark_data['pr_ids']
     }
     assert len(d['dates']) == len(d['geo_means']), d
     df = pd.DataFrame(d)
@@ -321,13 +321,6 @@ async def get_commit(app, sha):  # pylint: disable=unused-argument
     message_dict = match.groupdict()
     pr_id = message_dict['pr_id']
     title = message_dict['title']
-
-    # idx = message.index('#')
-    # pr_id = message[idx: idx + 5]
-
-    # title_message = gh_commit['commit']['message']
-    # title_end = title_message.index(')')
-    # title = title_message[0: title_end + 1]
 
     has_results_file = gs_reader.file_exists(file_path)
     batch_statuses = [b._last_known_status async for b in batch_client.list_batches(q=f'sha={sha}')]
