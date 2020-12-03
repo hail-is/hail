@@ -79,7 +79,7 @@ CREATE INDEX `instances_pool` ON `instances` (`pool`);
 
 CREATE TABLE IF NOT EXISTS `user_pool_resources` (
   `user` VARCHAR(100) NOT NULL,
-  `pool` VARCHAR(255) NOT NULL,
+  `pool` VARCHAR(255),
   `token` INT NOT NULL,
   `n_ready_jobs` INT NOT NULL DEFAULT 0,
   `n_running_jobs` INT NOT NULL DEFAULT 0,
@@ -124,7 +124,7 @@ CREATE INDEX `batches_billing_project_state` ON `batches` (`billing_project`, `s
 
 CREATE TABLE IF NOT EXISTS `batches_pool_staging` (
   `batch_id` BIGINT NOT NULL,
-  `pool` VARCHAR(255) NOT NULL,
+  `pool` VARCHAR(255),
   `token` INT NOT NULL,
   `n_jobs` INT NOT NULL DEFAULT 0,
   `n_ready_jobs` INT NOT NULL DEFAULT 0,
@@ -137,7 +137,7 @@ CREATE INDEX `batches_pool_staging_pool` ON `batches_pool_staging` (`pool`);
 
 CREATE TABLE `batch_pool_cancellable_resources` (
   `batch_id` BIGINT NOT NULL,
-  `pool` VARCHAR(255) NOT NULL,
+  `pool` VARCHAR(255),
   `token` INT NOT NULL,
   # neither run_always nor cancelled
   `n_ready_cancellable_jobs` INT NOT NULL DEFAULT 0,

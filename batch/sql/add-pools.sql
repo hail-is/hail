@@ -6,30 +6,27 @@ CREATE TABLE IF NOT EXISTS `pools` (
 
 INSERT INTO pools (`name`, `type`) VALUES ('standard', 'standard');
 
-ALTER TABLE instances ADD COLUMN `pool` VARCHAR(255) NOT NULL DEFAULT 'standard';
+ALTER TABLE instances ADD COLUMN `pool` VARCHAR(255) DEFAULT 'standard';
 
-ALTER TABLE jobs ADD COLUMN `pool` VARCHAR(255) NOT NULL DEFAULT 'standard';
+ALTER TABLE jobs ADD COLUMN `pool` VARCHAR(255) DEFAULT 'standard';
 DROP INDEX `jobs_batch_id_state_always_run_cancelled` ON `jobs`;
 CREATE INDEX `jobs_batch_id_state_always_run_pool_cancelled` ON `jobs` (`batch_id`, `state`, `always_run`, `pool`, `cancelled`);
 
 ALTER TABLE user_resources RENAME user_pool_resources;
 ALTER TABLE user_pool_resources ADD COLUMN `pool` VARCHAR(255) DEFAULT 'standard';
-ALTER TABLE user_pool_resources DROP PRIMARY KEY;
-ALTER TABLE user_pool_resources ADD PRIMARY KEY (`user`, pool, token);
+ALTER TABLE user_pool_resources DROP PRIMARY KEY, ADD PRIMARY KEY (`user`, pool, token);
 ALTER TABLE user_pool_resources ADD FOREIGN KEY (`pool`) REFERENCES pools(`name`) ON DELETE CASCADE;
 CREATE INDEX `user_pool_resources_pool` ON `user_pool_resources` (`pool`);
 
 ALTER TABLE batches_staging RENAME batches_pool_staging;
-ALTER TABLE batches_pool_staging ADD COLUMN `pool` VARCHAR(255) NOT NULL DEFAULT 'standard';
-ALTER TABLE batches_pool_staging DROP PRIMARY KEY;
-ALTER TABLE batches_pool_staging ADD PRIMARY KEY (batch_id, pool, token);
+ALTER TABLE batches_pool_staging ADD COLUMN `pool` VARCHAR(255) DEFAULT 'standard';
+ALTER TABLE batches_pool_staging DROP PRIMARY KEY, ADD PRIMARY KEY (batch_id, pool, token);
 ALTER TABLE batches_pool_staging ADD FOREIGN KEY (`pool`) REFERENCES pools(`name`) ON DELETE CASCADE;
 CREATE INDEX `batches_pool_staging_pool` ON `batches_pool_staging` (`pool`);
 
 ALTER TABLE batch_cancellable_resources RENAME batch_pool_cancellable_resources;
-ALTER TABLE batch_pool_cancellable_resources ADD COLUMN `pool` VARCHAR(255) NOT NULL DEFAULT 'standard';
-ALTER TABLE batch_pool_cancellable_resources DROP PRIMARY KEY;
-ALTER TABLE batch_pool_cancellable_resources ADD PRIMARY KEY (batch_id, pool, token);
+ALTER TABLE batch_pool_cancellable_resources ADD COLUMN `pool` VARCHAR(255) DEFAULT 'standard';
+ALTER TABLE batch_pool_cancellable_resources DROP PRIMARY KEY, ADD PRIMARY KEY (batch_id, pool, token);
 ALTER TABLE batch_pool_cancellable_resources ADD FOREIGN KEY (`pool`) REFERENCES pools(`name`) ON DELETE CASCADE;
 CREATE INDEX `batch_pool_cancellable_resources_pool` ON `batch_pool_cancellable_resources` (`pool`);
 
