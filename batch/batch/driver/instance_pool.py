@@ -5,15 +5,13 @@ import random
 import json
 import datetime
 import asyncio
-import urllib.parse
 import logging
 import base64
 import dateutil.parser
 import sortedcontainers
 import aiohttp
 from hailtop import aiotools
-from hailtop.utils import (
-    retry_long_running, time_msecs, secret_alnum_string)
+from hailtop.utils import time_msecs, secret_alnum_string
 
 from ..batch_configuration import DEFAULT_NAMESPACE, PROJECT, \
     WORKER_MAX_IDLE_TIME_MSECS, STANDING_WORKER_MAX_IDLE_TIME_MSECS, \
@@ -21,7 +19,6 @@ from ..batch_configuration import DEFAULT_NAMESPACE, PROJECT, \
 
 from .instance import Instance
 from ..worker_config import WorkerConfig
-from ..utils import WindowFractionCounter
 
 log = logging.getLogger('instance_pool')
 
@@ -38,34 +35,6 @@ def parse_resource_name(resource_name):
     return match.groupdict()
 
 
-class ZoneSuccessRate:
-    def __init__(self):
-        self._global_counter = WindowFractionCounter(10)
-        self._zone_counters = {}
-
-    def _get_zone_counter(self, zone: str):
-        zone_counter = self._zone_counters.get(zone)
-        if not zone_counter:
-            zone_counter = WindowFractionCounter(10)
-            self._zone_counters[zone] = zone_counter
-        return zone_counter
-
-    def push(self, zone: str, key: str, success: bool):
-        self._global_counter.push(key, success)
-        zone_counter = self._get_zone_counter(zone)
-        zone_counter.push(key, success)
-
-    def global_success_rate(self) -> float:
-        return self._global_counter.fraction()
-
-    def zone_success_rate(self, zone) -> float:
-        zone_counter = self._get_zone_counter(zone)
-        return zone_counter.fraction()
-
-    def __repr__(self):
-        return f'global {self._global_counter}, zones {self._zone_counters}'
-
-
 class InstancePool:
     def __init__(self, app, machine_name_prefix):
         self.app = app
@@ -77,7 +46,7 @@ class InstancePool:
         self.logging_client = app['logging_client']
         self.machine_name_prefix = machine_name_prefix
 
-        self.zone_success_rate = ZoneSuccessRate()
+        self.zone_monitor = app['zone_monitor']
 
         # set in async_init
         self.worker_type = None
@@ -88,11 +57,6 @@ class InstancePool:
         self.standing_worker_cores = None
         self.max_instances = None
         self.pool_size = None
-
-        # default until we update zones
-        # /regions is slow, don't make it synchronous on startup
-        self.zones = ['us-central1-a', 'us-central1-b', 'us-central1-c', 'us-central1-f']
-        self.zone_weights = [1, 1, 1, 1]
 
         self.instances_by_last_updated = sortedcontainers.SortedSet(
             key=lambda instance: instance.last_updated)
@@ -114,54 +78,6 @@ class InstancePool:
         self.name_instance = {}
 
         self.task_manager = aiotools.BackgroundTaskManager()
-
-    async def update_zones(self):
-        northamerica_regions = {
-            # 'northamerica-northeast1',
-            'us-central1',
-            'us-east1',
-            'us-east4',
-            'us-west1',
-            'us-west2',
-            'us-west3',
-            'us-west4'
-        }
-
-        new_zones = []
-        new_zone_weights = []
-
-        async for r in await self.compute_client.list('/regions'):
-            name = r['name']
-            if name not in northamerica_regions:
-                continue
-
-            quota_remaining = {
-                q['metric']: q['limit'] - q['usage']
-                for q in r['quotas']
-            }
-
-            remaining = quota_remaining['PREEMPTIBLE_CPUS'] / self.worker_cores
-            if self.worker_local_ssd_data_disk:
-                remaining = min(remaining, quota_remaining['LOCAL_SSD_TOTAL_GB'] / 375)
-            else:
-                remaining = min(remaining, quota_remaining['SSD_TOTAL_GB'] / self.worker_pd_ssd_data_disk_size_gb)
-
-            weight = max(remaining / len(r['zones']), 1)
-            for z in r['zones']:
-                zone_name = os.path.basename(urllib.parse.urlparse(z).path)
-                new_zones.append(zone_name)
-                new_zone_weights.append(weight)
-
-        self.zones = new_zones
-        self.zone_weights = new_zone_weights
-
-        log.info(f'updated zones: zones {self.zones} zone_weights {self.zone_weights}')
-
-    async def update_zones_loop(self):
-        while True:
-            log.info('update zones loop')
-            await self.update_zones()
-            await asyncio.sleep(60)
 
     async def async_init(self):
         log.info('initializing instance pool')
@@ -190,9 +106,6 @@ FROM globals;
         self.task_manager.ensure_future(self.event_loop())
         self.task_manager.ensure_future(self.control_loop())
         self.task_manager.ensure_future(self.instance_monitoring_loop())
-        self.task_manager.ensure_future(retry_long_running(
-            'update_zones_loop',
-            self.update_zones_loop))
 
     def shutdown(self):
         self.task_manager.shutdown()
@@ -294,19 +207,21 @@ SET worker_type = %s, worker_cores = %s, worker_disk_size_gb = %s,
                 break
 
         if self.live_total_cores_mcpu // 1000 < 4_000:
-            zones = ['us-central1-a', 'us-central1-b', 'us-central1-c', 'us-central1-f']
-            zone = random.choice(zones)
+            zone = random.choice(self.zone_monitor.init_zones)
         else:
-            zone_prob_weights = [
-                min(w, 10) * self.zone_success_rate.zone_success_rate(z)
-                for z, w in zip(self.zones, self.zone_weights)]
+            zone_weights = self.zone_monitor.zone_weights(self.worker_cores, self.worker_local_ssd_data_disk,
+                                                          self.worker_pd_ssd_data_disk_size_gb)
 
-            log.info(f'zones {self.zones}')
-            log.info(f'zone_weights {self.zone_weights}')
-            log.info(f'zone_success_rate {self.zone_success_rate}')
+            zones = [zw.zone for zw in zone_weights]
+
+            zone_prob_weights = [
+                min(zw.weight, 10) * self.zone_monitor.zone_success_rate.zone_success_rate(zw.zone)
+                for zw in zone_weights]
+
+            log.info(f'zone_success_rate {self.zone_monitor.zone_success_rate}')
             log.info(f'zone_prob_weights {zone_prob_weights}')
 
-            zone = random.choices(self.zones, zone_prob_weights)[0]
+            zone = random.choices(zones, zone_prob_weights)[0]
 
         activation_token = secrets.token_urlsafe(32)
         instance = await Instance.create(self.app, machine_name, activation_token, cores * 1000, zone)
@@ -672,7 +587,7 @@ gsutil -m cp dockerd.log gs://$WORKER_LOGS_BUCKET_NAME/batch/logs/$INSTANCE_ID/w
                 severity = event['severity']
                 operation_id = event['operation']['id']
                 success = (severity != 'ERROR')
-                self.zone_success_rate.push(resource['labels']['zone'], operation_id, success)
+                self.zone_monitor.zone_success_rate.push(resource['labels']['zone'], operation_id, success)
         else:
             instance = self.name_instance.get(name)
             if not instance:
