@@ -447,7 +447,6 @@ IP_ADDRESS=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.intern
 PROJECT=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/project/project-id")
 
 BATCH_LOGS_BUCKET_NAME=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/batch_logs_bucket_name")
-WORKER_LOGS_BUCKET_NAME=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/worker_logs_bucket_name")
 INSTANCE_ID=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/instance_id")
 WORKER_CONFIG=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/worker_config")
 MAX_IDLE_TIME_MSECS=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/max_idle_time_msecs")
@@ -529,7 +528,6 @@ docker run \
     -e ACTIVATION_TOKEN=$ACTIVATION_TOKEN \
     -e IP_ADDRESS=$IP_ADDRESS \
     -e BATCH_LOGS_BUCKET_NAME=$BATCH_LOGS_BUCKET_NAME \
-    -e WORKER_LOGS_BUCKET_NAME=$WORKER_LOGS_BUCKET_NAME \
     -e INSTANCE_ID=$INSTANCE_ID \
     -e PROJECT=$PROJECT \
     -e WORKER_CONFIG=$WORKER_CONFIG \
@@ -561,14 +559,10 @@ done
                     'value': '''
 set -x
 
-WORKER_LOGS_BUCKET_NAME=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/worker_logs_bucket_name")
 INSTANCE_ID=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/instance_id")
 NAME=$(curl -s http://metadata.google.internal/computeMetadata/v1/instance/name -H 'Metadata-Flavor: Google')
 
 journalctl -u docker.service > dockerd.log
-
-# this has to match LogStore.worker_log_path
-gsutil -m cp dockerd.log gs://$WORKER_LOGS_BUCKET_NAME/batch/logs/$INSTANCE_ID/worker/$NAME/
 '''
                 }, {
                     'key': 'activation_token',
@@ -582,9 +576,6 @@ gsutil -m cp dockerd.log gs://$WORKER_LOGS_BUCKET_NAME/batch/logs/$INSTANCE_ID/w
                 }, {
                     'key': 'batch_logs_bucket_name',
                     'value': self.log_store.batch_logs_bucket_name
-                }, {
-                    'key': 'worker_logs_bucket_name',
-                    'value': self.log_store.worker_logs_bucket_name
                 }, {
                     'key': 'instance_id',
                     'value': self.log_store.instance_id
@@ -610,8 +601,7 @@ gsutil -m cp dockerd.log gs://$WORKER_LOGS_BUCKET_NAME/batch/logs/$INSTANCE_ID/w
         await self.compute_client.post(
             f'/zones/{zone}/instances', json=config)
 
-        log.info(f'created machine {machine_name} for {instance} '
-                 f' with logs at {self.log_store.worker_log_path(machine_name, "worker.log")}')
+        log.info(f'created machine {machine_name} for {instance}')
 
     async def call_delete_instance(self, instance, reason, timestamp=None, force=False):
         if instance.state == 'deleted' and not force:

@@ -29,7 +29,7 @@ from ..batch import mark_job_complete, mark_job_started, cancel_batch_in_db
 from ..log_store import LogStore
 from ..batch_configuration import (REFRESH_INTERVAL_IN_SECONDS,
                                    DEFAULT_NAMESPACE, BATCH_BUCKET_NAME, HAIL_SHA, HAIL_SHOULD_PROFILE,
-                                   HAIL_SHOULD_CHECK_INVARIANTS, WORKER_LOGS_BUCKET_NAME, PROJECT)
+                                   HAIL_SHOULD_CHECK_INVARIANTS, PROJECT)
 from ..globals import HTTP_CLIENT_MAX_SIZE
 
 from .instance_pool import InstancePool
@@ -742,7 +742,7 @@ SELECT worker_type, worker_cores, worker_disk_size_gb,
 
     credentials = google.oauth2.service_account.Credentials.from_service_account_file(
         '/gsa-key/key.json')
-    log_store = LogStore(BATCH_BUCKET_NAME, WORKER_LOGS_BUCKET_NAME, instance_id, pool, credentials=credentials)
+    log_store = LogStore(BATCH_BUCKET_NAME, instance_id, pool, credentials=credentials)
     app['log_store'] = log_store
 
     inst_pool = InstancePool(app, machine_name_prefix)
