@@ -502,7 +502,7 @@ gsutil -m cp dockerd.log gs://$WORKER_LOGS_BUCKET_NAME/batch/logs/$INSTANCE_ID/w
 SELECT CAST(COALESCE(SUM(ready_cores_mcpu), 0) AS SIGNED) AS ready_cores_mcpu
 FROM user_pool_resources
 WHERE pool = %s
-LOCK IN SHARED MODE;
+LOCK IN SHARE MODE;
 ''',
                     (self.name,))
                 ready_cores_mcpu = ready_cores['ready_cores_mcpu']

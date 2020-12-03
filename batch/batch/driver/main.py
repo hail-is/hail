@@ -311,7 +311,7 @@ async def get_index(request, userdata):
         '''
 SELECT CAST(COALESCE(SUM(ready_cores_mcpu), 0) AS SIGNED) AS ready_cores_mcpu
 FROM user_pool_resources
-LOCK IN SHARED MODE;
+LOCK IN SHARE MODE;
 ''')
     ready_cores_mcpu = ready_cores['ready_cores_mcpu']
 
