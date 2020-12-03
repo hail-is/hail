@@ -2316,6 +2316,7 @@ steps:
      export DOCKER_ROOT_IMAGE="gcr.io/{{ global.project }}/ubuntu:18.04"
      export HAIL_TEST_TOKEN_FILE=/user-tokens/tokens.json
      export HAIL_TEST_DEV_TOKEN_FILE=/dev-tokens/tokens.json
+     export HAIL_TOKEN="{{ token }}"
      hailctl config set batch/bucket hail-test-dmk9z
      python3 -m pytest \
              --log-date-format="%Y-%m-%dT%H:%M:%S" \
@@ -2383,6 +2384,7 @@ steps:
      export DOCKER_ROOT_IMAGE="gcr.io/{{ global.project }}/ubuntu:18.04"
      export HAIL_TEST_TOKEN_FILE=/user-tokens/tokens.json
      export HAIL_TEST_DEV_TOKEN_FILE=/dev-tokens/tokens.json
+     export HAIL_TOKEN="{{ token }}"
      hailctl config set batch/bucket hail-test-dmk9z
      python3 -m pytest \
              --log-date-format="%Y-%m-%dT%H:%M:%S" \
@@ -2450,6 +2452,7 @@ steps:
      export DOCKER_ROOT_IMAGE="gcr.io/{{ global.project }}/ubuntu:18.04"
      export HAIL_TEST_TOKEN_FILE=/user-tokens/tokens.json
      export HAIL_TEST_DEV_TOKEN_FILE=/dev-tokens/tokens.json
+     export HAIL_TOKEN="{{ token }}"
      hailctl config set batch/bucket hail-test-dmk9z
      python3 -m pytest \
              --log-date-format="%Y-%m-%dT%H:%M:%S" \
@@ -2517,6 +2520,7 @@ steps:
      export DOCKER_ROOT_IMAGE="gcr.io/{{ global.project }}/ubuntu:18.04"
      export HAIL_TEST_TOKEN_FILE=/user-tokens/tokens.json
      export HAIL_TEST_DEV_TOKEN_FILE=/dev-tokens/tokens.json
+     export HAIL_TOKEN="{{ token }}"
      hailctl config set batch/bucket hail-test-dmk9z
      python3 -m pytest \
              --log-date-format="%Y-%m-%dT%H:%M:%S" \
