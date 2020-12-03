@@ -107,10 +107,12 @@ def load_dataset(name: str,
 
     if path.endswith('.ht'):
         dataset = hl.read_table(path)
+    elif path.endswith('.bm'):
+        dataset = hl.linalg.BlockMatrix.read(path)
     else:
         if not path.endswith('.mt'):
             raise ValueError(f'Invalid path {repr(path)}: can only load'
-                             f' datasets with .ht or .mt extensions.')
+                             f' datasets with .ht, .mt, or .bm extensions.')
         dataset = hl.read_matrix_table(path)
 
     return dataset
