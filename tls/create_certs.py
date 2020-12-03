@@ -97,7 +97,7 @@ async def create_trust(principal, trust_type):  # pylint: disable=unused-argumen
         'keytool',
         '-noprompt',
         '-import',
-        '-alias', f'{trust_type}-cert',
+        '-alias', f'{principal}-{trust_type}-cert',
         '-file', trust_file,
         '-keystore', trust_store_file,
         '-storepass', 'dummypw'
