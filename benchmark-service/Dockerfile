@@ -8,5 +8,3 @@ RUN hail-pip-install /benchmark-service && rm -rf /benchmark-service && \
     hail-pip-install plotly pandas scipy numpy
 
 EXPOSE 5000
-
-CMD ["python3", "-m", "benchmark"]

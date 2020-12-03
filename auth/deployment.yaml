@@ -58,7 +58,7 @@ spec:
          image: "{{ auth_image.image }}"
          command:
 {% if not deploy %}
-         - /controller.sh
+          - /controller.sh
 {% endif %}
           - "python3"
           - -m
@@ -168,7 +168,7 @@ spec:
          image: "{{ auth_image.image }}"
          command:
 {% if not deploy %}
-         - /controller.sh
+          - /controller.sh
 {% endif %}
           - "python3"
           - -m

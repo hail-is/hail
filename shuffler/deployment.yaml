@@ -23,6 +23,9 @@ spec:
         - name: shuffler
           image: "{{ shuffler_image.image }}"
           command:
+{% if not deploy %}
+            - /controller.sh
+{% endif %}
             - "/bin/bash"
             - "-c"
             - "exec java -cp ${SPARK_HOME}/jars/*:/hail.jar is.hail.services.shuffler.server.ShuffleServer"
