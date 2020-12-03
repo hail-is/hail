@@ -2,9 +2,7 @@ FROM {{ service_base_image.image }}
 
 COPY notebook/setup.py notebook/MANIFEST.in /notebook/
 COPY notebook/notebook /notebook/notebook/
-RUN pip3 install --use-feature=2020-resolver --upgrade --no-cache-dir /notebook && \
-  rm -rf /notebook && \
-  python3 -m pip check
+RUN hail-pip-install /notebook && rm -rf /notebook
 
 EXPOSE 5000
 
