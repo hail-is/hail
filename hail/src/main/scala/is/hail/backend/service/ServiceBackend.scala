@@ -5,7 +5,7 @@ import java.io._
 import is.hail.HailContext
 import is.hail.annotations.{Region, UnsafeRow}
 import is.hail.asm4s._
-import is.hail.backend.{Backend, BackendContext, BroadcastValue}
+import is.hail.backend.{Backend, BackendContext, BroadcastValue, HailTaskContext}
 import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.ir.lowering.{DArrayLowering, LowerDistributedSort, LoweringPipeline, TableStage, TableStageDependency}
 import is.hail.expr.ir.{Compile, ExecuteContext, IR, IRParser, MakeTuple, SortField}
@@ -24,6 +24,14 @@ import org.json4s.{DefaultFormats, Formats}
 
 import scala.collection.mutable
 import scala.reflect.ClassTag
+
+class ServiceTaskContext(val partitionId: Int) extends HailTaskContext {
+  override type BackendType = ServiceBackend
+
+  override def stageId(): Int = 0
+
+  override def attemptNumber(): Int = 0
+}
 
 object Worker {
   def main(args: Array[String]): Unit = {
@@ -59,7 +67,10 @@ object Worker {
       context
     }
 
+    val htc = new ServiceTaskContext(i)
+    HailTaskContext.setTaskContext(htc)
     val result = f(context, i)
+    HailTaskContext.unset()
 
     using(fs.createNoCompression(s"$root/result.$i")) { os =>
       os.write(result)
