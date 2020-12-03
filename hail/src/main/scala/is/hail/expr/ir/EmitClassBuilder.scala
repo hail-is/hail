@@ -363,6 +363,7 @@ class EmitClassBuilder[C](
   private[this] lazy val encLitField: Settable[Array[Byte]] = genFieldThisRef[Array[Byte]]("encodedLiterals")
 
   lazy val partitionRegion: Settable[Region] = genFieldThisRef[Region]("partitionRegion")
+  private[this] lazy val poolField: Settable[RegionPool] = genFieldThisRef[RegionPool]()
 
   def addLiteral(v: Any, t: PType): PValue = {
     assert(v != null)
@@ -435,7 +436,6 @@ class EmitClassBuilder[C](
 
   private[this] var _mods: ArrayBuilder[(String, (Int, Region) => AsmFunction3[Region, Array[Byte], Array[Byte], Array[Byte]])] = new ArrayBuilder()
   private[this] var _backendField: Settable[BackendUtils] = _
-  private[this] var _poolField: Settable[RegionPool] = _
 
   private[this] var _aggSigs: Array[agg.AggStateSig] = _
   private[this] var _aggRegion: Settable[Region] = _
@@ -533,14 +533,7 @@ class EmitClassBuilder[C](
   }
 
   def pool(): Value[RegionPool] = {
-    if (_poolField == null) {
-      cb.addInterface(typeInfo[FunctionWithPool].iname)
-      val poolField = genFieldThisRef[RegionPool]()
-      val mb = newEmitMethod("setPool", FastIndexedSeq[ParamType](typeInfo[RegionPool]), typeInfo[Unit])
-      mb.emit(poolField := mb.getCodeParam[RegionPool](1))
-      _poolField = poolField
-    }
-    _poolField
+    poolField
   }
 
   def addModule(name: String, mod: (Int, Region) => AsmFunction3[Region, Array[Byte], Array[Byte], Array[Byte]]): Unit = {
@@ -719,6 +712,8 @@ class EmitClassBuilder[C](
     cb.addInterface(typeInfo[FunctionWithPartitionRegion].iname)
     val mb = newEmitMethod("addPartitionRegion", FastIndexedSeq[ParamType](typeInfo[Region]), typeInfo[Unit])
     mb.emit(partitionRegion := mb.getCodeParam[Region](1))
+    val mb2 = newEmitMethod("setPool", FastIndexedSeq[ParamType](typeInfo[RegionPool]), typeInfo[Unit])
+    mb2.emit(poolField := mb2.getCodeParam[RegionPool](1))
   }
 
   def makeRNGs() {
@@ -792,6 +787,7 @@ class EmitClassBuilder[C](
         }
         val f = theClass.newInstance().asInstanceOf[C]
         f.asInstanceOf[FunctionWithPartitionRegion].addPartitionRegion(region)
+        f.asInstanceOf[FunctionWithPartitionRegion].setPool(region.pool)
         if (useBackend)
           f.asInstanceOf[FunctionWithBackend].setBackend(backend)
         if (objects != null)
@@ -801,10 +797,6 @@ class EmitClassBuilder[C](
         if (nSerializedAggs != 0)
           f.asInstanceOf[FunctionWithAggRegion].setNumSerialized(nSerializedAggs)
         f.asInstanceOf[FunctionWithSeededRandomness].setPartitionIndex(idx)
-        if (f.isInstanceOf[FunctionWithPool]) {
-          assert(region != null, s"On worker = ${TaskContext.get() != null}")
-          f.asInstanceOf[FunctionWithPool].setPool(region.pool)
-        }
         f
       }
     }
@@ -948,6 +940,7 @@ trait FunctionWithAggRegion {
 
 trait FunctionWithPartitionRegion {
   def addPartitionRegion(r: Region): Unit
+  def setPool(pool: RegionPool): Unit
 }
 
 trait FunctionWithLiterals {
@@ -960,10 +953,6 @@ trait FunctionWithSeededRandomness {
 
 trait FunctionWithBackend {
   def setBackend(spark: BackendUtils): Unit
-}
-
-trait FunctionWithPool {
-  def setPool(pool: RegionPool): Unit
 }
 
 class EmitMethodBuilder[C](
