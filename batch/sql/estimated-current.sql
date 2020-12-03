@@ -384,7 +384,7 @@ BEGIN
     ELSE
       # runnable
       INSERT INTO user_pool_resources (user, pool, token, n_ready_jobs, ready_cores_mcpu)
-      VALUES (cur_user, OLD.pool rand_token, -1, -OLD.cores_mcpu)
+      VALUES (cur_user, OLD.pool, rand_token, -1, -OLD.cores_mcpu)
       ON DUPLICATE KEY UPDATE
         n_ready_jobs = n_ready_jobs - 1,
         ready_cores_mcpu = ready_cores_mcpu - OLD.cores_mcpu;
