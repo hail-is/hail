@@ -241,10 +241,18 @@ a {
         &:nth-of-type(even) {
             background-color: #f2f2f2;
         }
+        td.data-table-bad {
+          color: red;
+          border-color: red;
+          background-color: #ffeaea;
+        }
     }
 
     tbody tr:hover {
         background-color: #ddd;
+        td.data-table-bad {
+          background-color: #ebd8d8;
+        }
     }
 }
 
@@ -410,4 +418,10 @@ a {
         transform: scale(1);
         opacity: 0;
     }
+}
+
+pre {
+  overflow: auto;
+  word-wrap: normal;
+  white-space: pre;
 }

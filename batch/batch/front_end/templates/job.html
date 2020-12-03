@@ -1,73 +1,161 @@
 {% extends "layout.html" %}
 {% block title %}Batch {{ batch_id }} Job {{ job_id }}{% endblock %}
 {% block content %}
-  <h1>Batch {{ batch_id }} Job {{ job_id }}</h1>
+<h1>Batch {{ batch_id }} Job {{ job_id }}</h1>
 
-  <h2>Attempts</h2>
-  {% if attempts %}
-  <table class="data-table">
-    <thead>
-      <tr>
-	<th>Attempt ID</th>
-	<th>Instance</th>
-	<th>Start</th>
-	<th>End</th>
-	<th>Duration</th>
-	<th>Reason</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for attempt in attempts %}
-      <tr>
-	<td class="numeric-cell">{{ attempt['attempt_id'] }}</td>
-	<td>{{ attempt['instance_name'] }}</td>
-	<td>
-	  {% if 'start_time' in attempt and attempt['start_time'] is not none %}
-	  {{ attempt['start_time'] }}
-	  {% endif %}
-	</td>
-	<td>
-	  {% if 'end_time' in attempt and attempt['end_time'] is not none %}
-	  {{ attempt['end_time'] }}
-	  {% endif %}
-	</td>
-	<td>
-	  {% if 'duration' in attempt and attempt['duration'] is not none %}
-	  {{ attempt['duration'] }}
-	  {% endif %}
-	</td>
-	<td>
-	  {% if 'reason' in attempt and attempt['reason'] is not none %}
-	  {{ attempt['reason'] }}
-	  {% endif %}
-	</td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
-  {% else %}
-  <p>No attempts</p>
+<h2>Attempts</h2>
+{% if attempts %}
+<table class="data-table">
+  <thead>
+    <tr>
+      <th>Attempt ID</th>
+      <th>Instance</th>
+      <th>Start</th>
+      <th>End</th>
+      <th>Duration</th>
+      <th>Reason</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for attempt in attempts %}
+    <tr>
+      <td class="numeric-cell">{{ attempt['attempt_id'] }}</td>
+      <td>{{ attempt['instance_name'] }}</td>
+      <td>
+        {% if 'start_time' in attempt and attempt['start_time'] is not none %}
+        {{ attempt['start_time'] }}
+        {% endif %}
+      </td>
+      <td>
+        {% if 'end_time' in attempt and attempt['end_time'] is not none %}
+        {{ attempt['end_time'] }}
+        {% endif %}
+      </td>
+      <td>
+        {% if 'duration' in attempt and attempt['duration'] is not none %}
+        {{ attempt['duration'] }}
+        {% endif %}
+      </td>
+      <td>
+        {% if 'reason' in attempt and attempt['reason'] is not none %}
+        {{ attempt['reason'] }}
+        {% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p>No attempts</p>
+{% endif %}
+
+<h2>Step Status</h2>
+<table class="data-table">
+  <thead>
+    <tr>
+      <th>Job Step</th>
+      <th>Image Pulling Time (s)</th>
+      <th>Running Time (s)</th>
+      <th>Exceeded Memory Limits?</th>
+      <th>State</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for step in step_statuses %}
+    {% if step %}
+    <tr>
+      <td>{{ step['name'] }}</td>
+      <td>
+        {% if step['timing']['pulling'] %}
+        {{ step['timing']['pulling']['duration'] / 1000.0 }}
+        {% endif %}
+      </td>
+      <td>
+        {% if step['timing']['running'] %}
+        {{ step['timing']['running']['duration'] / 1000.0 }}
+        {% endif %}
+      </td>
+      {% if step['container_status']['out_of_memory'] %}
+      <td class="data-table-bad" >Yes</td>
+      {% else %}
+      <td>No</td>
+      {% endif %}
+      <td {% if step['state'] in ['failed', 'error'] %}class="data-table-bad"{% endif %}>
+        {{ step['state'] }}
+      </td>
+    </tr>
+    {% endif %}
+    {% endfor %}
+  </tbody>
+</table>
+
+{% if job_log %}
+<h2>Log</h2>
+
+{% if 'input' in job_log %}
+<h3>Input</h3>
+<pre>{{ job_log['input'] }}</pre>
+{% endif %}
+
+{% if 'main' in job_log %}
+<h3>Main</h3>
+<pre>{{ job_log['main'] }}</pre>
+{% endif %}
+
+{% if 'output' in job_log %}
+<h3>Output</h3>
+<pre>{{ job_log['output'] }}</pre>
+{% endif %}
+{% endif %}
+
+<h2>Job Specification</h2>
+<table class="data-table">
+  <thead>
+    <tr>
+      <th>Name</th>
+      <th>Value</th>
+    </tr>
+  </thead>
+  {% if job_specification %}
+  <tbody>
+    <tr>
+      <td>image</td>
+      <td>{{ job_specification['image'] }}</td>
+    </tr>
+    <tr>
+      <td>command</td>
+      <td><pre style="max-height: 10em; max-width: 80em;">{{ "'" + (job_specification['command'] | join("' '")) + "'" }}</pre></td>
+    </tr>
+    {% for resource, value in job_specification['resources'].items() %}
+    <tr>
+      <td>{{ resource }}</td>
+      <td>{{ value }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
   {% endif %}
+</table>
 
-  {% if job_log %}
-    <h2>Log</h2>
-
-    {% if 'input' in job_log %}
-      <h3>Input</h3>
-      <pre>{{ job_log['input'] }}</pre>
-    {% endif %}
-
-    {% if 'main' in job_log %}
-      <h3>Main</h3>
-      <pre>{{ job_log['main'] }}</pre>
-    {% endif %}
-
-    {% if 'output' in job_log %}
-      <h3>Output</h3>
-      <pre>{{ job_log['output'] }}</pre>
-    {% endif %}
+<h2>Job Environment Variables</h2>
+<table class="data-table">
+  <thead>
+    <tr>
+      <th>Name</th>
+      <th>Value</th>
+    </tr>
+  </thead>
+  {% if job_specification %}
+  <tbody>
+  {% for envvar in job_specification['env'] %}
+    <tr>
+      <td>{{ envvar['name'] }}</td>
+      <td>{{ envvar['value'] }}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
   {% endif %}
+</table>
 
-  <h2>Status</h2>
-  <pre>{{ job_status }}</pre>
+<h2>Status</h2>
+<pre>{{ job_status_str }}</pre>
 {% endblock %}
