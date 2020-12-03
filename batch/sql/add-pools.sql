@@ -34,6 +34,7 @@ DROP TABLE `ready_cores`;
 
 DELIMITER $$
 
+DROP TRIGGER IF EXISTS jobs_after_update $$
 CREATE TRIGGER jobs_after_update AFTER UPDATE ON jobs
 FOR EACH ROW
 BEGIN
@@ -152,6 +153,7 @@ BEGIN
   END IF;
 END $$
 
+DROP PROCEDURE IF EXISTS recompute_incremental $$
 CREATE PROCEDURE recompute_incremental(
 ) BEGIN
 
@@ -282,6 +284,7 @@ BEGIN
   END IF;
 END $$
 
+DROP PROCEDURE IF EXISTS cancel_batch $$
 CREATE PROCEDURE cancel_batch(
   IN in_batch_id VARCHAR(100)
 )
