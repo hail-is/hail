@@ -750,6 +750,8 @@ set +e
 kubectl -n {self.namespace} rollout status --timeout=1h deployment {name} && \
   kubectl -n {self.namespace} wait --timeout=1h --for=condition=available deployment {name}
 EC=$?
+kubectl -n {self.namespace} get deployment -l app={name} -o yaml
+kubectl -n {self.namespace} get pods -l app={name} -o yaml
 kubectl -n {self.namespace} logs --tail=999999 -l app={name} --all-containers=true | {pretty_print_log}
 set -e
 (exit $EC)
@@ -760,15 +762,19 @@ set -e
                     timeout = w.get('timeout', 60)
                     if resource_type == 'statefulset':
                         wait_cmd = f'kubectl -n {self.namespace} wait --timeout=1h --for=condition=ready pods --selector=app={name}'
+                        get_cmd = f'kubectl -n {self.namespace} get statefulset -l app={name} -o yaml'
                     else:
                         assert resource_type == 'deployment'
                         wait_cmd = f'kubectl -n {self.namespace} wait --timeout=1h --for=condition=available deployment {name}'
+                        get_cmd = f'kubectl -n {self.namespace} get deployment -l app={name} -o yaml'
 
                     script += f'''
 set +e
 kubectl -n {self.namespace} rollout status --timeout=1h {resource_type} {name} && \
   {wait_cmd}
 EC=$?
+{get_cmd}
+kubectl -n {self.namespace} get pods -l app={name} -o yaml
 kubectl -n {self.namespace} logs --tail=999999 -l app={name} --all-containers=true | {pretty_print_log}
 set -e
 (exit $EC)
@@ -782,6 +788,7 @@ set +e
 kubectl -n {self.namespace} wait --timeout=1h pod --for=condition=podscheduled {name} \
   && python3 wait-for.py {timeout} {self.namespace} Pod {name}
 EC=$?
+kubectl -n {self.namespace} get pod {name} -o yaml | {pretty_print_log}
 kubectl -n {self.namespace} logs --tail=999999 {name} --all-containers=true | {pretty_print_log}
 set -e
 (exit $EC)

@@ -12,7 +12,7 @@ rules:
   resources: ["services", "pods", "pods/log", "secrets"]
   verbs: ["*"]
 - apiGroups: ["extensions", "apps"]
-  resources: ["deployments"]
+  resources: ["deployments", "statefulsets"]
   verbs: ["*"]
 ---
 kind: RoleBinding
