@@ -1,40 +1,32 @@
 import os
 import json
-from hailtop.config import get_deploy_config
 
+from . import set_property
+from . import show
 
-def init_parser(parser):
-    parser.add_argument("namespace", type=str, nargs='?',
-                        help="Default namespace.  Show the current configuration if not specified.")
-    parser.add_argument("--location", "-l", type=str, default='external',
-                        choices=['external', 'gce', 'k8s'],
-                        help="Location.  (default: external)")
-    parser.add_argument("--override", "-o", type=str, default='',
-                        help="List of comma-separated service=namespace overrides.  (default: none)")
+def init_parser(config_parser):
+    subparsers = config_parser.add_subparsers(title='hailctl dev config subcommand', dest='hailctl dev config subcommand', required=True)
 
+    set_parser = subparsers.add_parser(
+        'set',
+        help='Set deploy configuration property.',
+        description='Set deploy configuration property.')
+
+    set_parser.set_defaults(module='hailctl dev config set')
+    set_property.init_parser(set_parser)
+
+    show_parser = subparsers.add_parser(
+        'show',
+        help='Set deploy configuration property.',
+        description='Set deploy configuration property.')
+
+    show_parser.set_defaults(module='hailctl dev config show')
+    show.init_parser(show_parser)
 
 def main(args):
-    if not args.namespace:
-        deploy_config = get_deploy_config()
-        print(f'  location: {deploy_config.location()}')
-        print(f'  default: {deploy_config._default_namespace}')
-        if deploy_config._service_namespace:
-            print('  overrides:')
-            for service, ns in deploy_config._service_namespace.items():
-                print(f'    {service}: {ns}')
+    if args.module == 'hailctl dev config set':
+        set_property.main(args)
         return
 
-    override = args.override.split(',')
-    override = [o.split('=') for o in override if o]
-    service_namespace = {o[0]: o[1] for o in override}
-
-    config = {
-        'location': args.location,
-        'default_namespace': args.namespace,
-        'service_namespace': service_namespace
-    }
-
-    config_file = os.environ.get(
-        'HAIL_DEPLOY_CONFIG_FILE', os.path.expanduser('~/.hail/deploy-config.json'))
-    with open(config_file, 'w') as f:
-        json.dump(config, f)
+    assert args.module == 'hailctl dev config show'
+    show.main(args)

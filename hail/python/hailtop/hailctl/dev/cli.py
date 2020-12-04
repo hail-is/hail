@@ -9,9 +9,15 @@ from . import query
 
 def parser():
     main_parser = argparse.ArgumentParser(
-        prog='hailctl dev',
+        prog='hailctl',
         description='Manage Hail development utilities.')
-    subparsers = main_parser.add_subparsers()
+    main_subparsers = main_parser.add_subparsers(title='hailctl subcommand', dest='hailctl subcommand', required=True)
+    
+    dev_parser = main_subparsers.add_parser(
+        'dev',
+        help='Developer tools.',
+        description='Developer tools.')
+    subparsers = dev_parser.add_subparsers(title='hailctl dev subcommand', dest='hailctl dev subcommand', required=True)
 
     config_parser = subparsers.add_parser(
         'config',
@@ -24,14 +30,14 @@ def parser():
         'deploy',
         help='Deploy a branch',
         description='Deploy a branch')
-
+    deploy_parser.set_defaults(module='deploy')
     deploy.cli.init_parser(deploy_parser)
 
     query_parser = subparsers.add_parser(
         'query',
         help='Set dev settings on query service',
         description='Set dev settings on query service')
-
+    deploy_parser.set_defaults(module='query')
     query.cli.init_parser(query_parser)
 
     return main_parser
@@ -39,27 +45,14 @@ def parser():
 
 def main(args):
     p = parser()
-
-    if not args:
-        p.print_help()
-        sys.exit(0)
+    args = p.parse_args()
+    if args.module == 'deploy':
+        from .deploy import cli  # pylint: disable=import-outside-toplevel
+        cli.main(args)
+    elif args.module.startswith('hailctl dev config'):
+        from .config import cli  # pylint: disable=import-outside-toplevel
+        cli.main(args)
     else:
-        module = args[0]
-        if module == 'deploy':
-            from .deploy import cli  # pylint: disable=import-outside-toplevel
-            args, _ = p.parse_known_args(args=args)
-            cli.main(args)
-        elif module == 'config':
-            from .config import cli  # pylint: disable=import-outside-toplevel
-            args, _ = p.parse_known_args(args=args)
-            cli.main(args)
-        elif module == 'query':
-            from .query import cli  # pylint: disable=import-outside-toplevel
-            args, _ = p.parse_known_args(args=args)
-            cli.main(args)
-        elif module in ('-h', '--help', 'help'):
-            p.print_help()
-        else:
-            sys.stderr.write(f"ERROR: no such module: {module!r}")
-            p.print_help()
-            sys.exit(1)
+        assert args.module == 'query'
+        from .query import cli  # pylint: disable=import-outside-toplevel
+        cli.main(args)
