@@ -635,10 +635,9 @@ echo {shq(config)} | kubectl apply -f -
         if self.secrets and scope != 'deploy':
             if self.namespace_name == 'default':
                 script += f'''
-kubectl -n {self._name} delete --ignore-not-found=true secret global-config
 kubectl -n {self.namespace_name} get -o json secret global-config \
   | jq '{apiVersion:"v1",kind:"Secret","type":"Opaque",metadata:{name:"global-config",namespace:"{self._name}"},data:(.data + {default_namespace:("{self._name}" | @base64)})}' \
-  | kubectl -n {self._name} create -f -
+  | kubectl -n {self._name} apply -f -
 '''
 
             for s in self.secrets:
