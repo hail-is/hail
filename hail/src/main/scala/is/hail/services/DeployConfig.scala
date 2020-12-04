@@ -43,7 +43,7 @@ object DeployConfig {
       new DeployConfig(
         "external",
         "default",
-        Map())
+        "hail.is")
   }
 
   def fromConfig(config: JValue): DeployConfig = {
@@ -51,14 +51,14 @@ object DeployConfig {
     new DeployConfig(
       (config \ "location").extract[String],
       (config \ "default_namespace").extract[String],
-      (config \ "service_namespace").extract[Map[String, String]])
+      (config \ "domain").extract[String])
   }
 }
 
 class DeployConfig(
   val location: String,
   val defaultNamespace: String,
-  val serviceNamespace: Map[String, String]) {
+  val domain: String) {
   import DeployConfig._
 
   def scheme(baseScheme: String = "http"): String = {
@@ -69,7 +69,7 @@ class DeployConfig(
   }
 
   def getServiceNamespace(service: String): String = {
-    serviceNamespace.getOrElse(service, defaultNamespace)
+    defaultNamespace
   }
 
   def domain(service: String): String = {
@@ -84,9 +84,9 @@ class DeployConfig(
           "internal.hail"
       case "external" =>
         if (ns == "default")
-          s"$service.hail.is"
+          s"$service.$domain"
         else
-          "internal.hail.is"
+          s"internal.$domain"
     }
   }
 
