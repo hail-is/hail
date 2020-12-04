@@ -207,10 +207,15 @@ SET worker_type = %s, worker_cores = %s, worker_disk_size_gb = %s,
                 break
 
         if self.live_total_cores_mcpu // 1000 < 4_000:
+            if not self.zone_monitor.init_zones:
+                return
+
             zone = random.choice(self.zone_monitor.init_zones)
         else:
             zone_weights = self.zone_monitor.zone_weights(self.worker_cores, self.worker_local_ssd_data_disk,
                                                           self.worker_pd_ssd_data_disk_size_gb)
+            if not zone_weights:
+                return
 
             zones = [zw.zone for zw in zone_weights]
 
