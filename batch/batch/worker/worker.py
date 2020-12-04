@@ -542,7 +542,7 @@ def copy_command(src, dst, requester_pays_project=None):
     else:
         requester_pays_project = ''
 
-    def gsutil_cp_r(src, dst, * recursive):
+    def gsutil_cp_r(src, dst, *, recursive):
         flags = '-R' if recursive else ''
         return f'retry gsutil {requester_pays_project} -m cp {flags} {shq(src)} {shq(dst)}'
 
