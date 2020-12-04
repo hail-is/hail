@@ -600,10 +600,11 @@ def test_verify_no_access_to_metadata_server(client):
 
 def test_can_use_google_credentials(client):
     token = os.environ["HAIL_TOKEN"]
+    attempt_token = secrets.token_urlsafe(5)
     bucket_name = get_user_config().get('batch', 'bucket')
     builder = client.create_batch()
     script = f'''import hail as hl
-location = "gs://{ bucket_name }/{ token }/test_can_use_hailctl_auth.t"
+location = "gs://{ bucket_name }/{ token }/{ attempt_token }/test_can_use_hailctl_auth.t"
 hl.utils.range_table(10).write(location)
 hl.read_table(location).show()
 '''
