@@ -690,6 +690,17 @@ WHERE user = %s AND id = %s AND NOT deleted;
                     'mount_path': '/gsa-key',
                     'mount_in_copy': True
                 })
+
+                env = spec.get('env')
+                if not env:
+                    env = []
+                    spec['env'] = env
+                assert isinstance(spec['env'], list)
+
+                if all(envvar['name'] != 'GOOGLE_APPLICATION_CREDENTIALS' for envvar in spec['env']):
+                    spec['env'].append(
+                        {'name': 'GOOGLE_APPLICATION_CREDENTIALS', 'value': '/gsa-key/key.json'})
+
                 if spec.get('mount_tokens', False):
                     secrets.append({
                         'namespace': DEFAULT_NAMESPACE,
@@ -706,11 +717,6 @@ WHERE user = %s AND id = %s AND NOT deleted;
 
                 sa = spec.get('service_account')
                 check_service_account_permissions(user, sa)
-
-                env = spec.get('env')
-                if not env:
-                    env = []
-                    spec['env'] = env
 
                 if len(parent_ids) == 0:
                     state = 'Ready'

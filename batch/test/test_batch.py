@@ -8,7 +8,7 @@ import aiohttp
 import pytest
 import json
 
-from hailtop.config import get_deploy_config
+from hailtop.config import get_deploy_config, get_user_config
 from hailtop.auth import service_auth_headers, get_userinfo
 from hailtop.utils import (retry_response_returning_functions,
                            external_requests_client_session)
@@ -596,6 +596,41 @@ def test_verify_no_access_to_metadata_server(client):
     status = j.wait()
     assert status['state'] == 'Failed', status
     assert "Connection timed out" in j.log()['main'], (j.log()['main'], status)
+
+
+def test_can_use_google_credentials(client):
+    token = os.environ["HAIL_TOKEN"]
+    attempt_token = secrets.token_urlsafe(5)
+    bucket_name = get_user_config().get('batch', 'bucket')
+    builder = client.create_batch()
+    script = f'''import hail as hl
+location = "gs://{ bucket_name }/{ token }/{ attempt_token }/test_can_use_hailctl_auth.t"
+hl.utils.range_table(10).write(location)
+hl.read_table(location).show()
+'''
+    j = builder.create_job(os.environ['HAIL_HAIL_BASE_IMAGE'], ['python3', '-c', script])
+    builder.submit()
+    status = j.wait()
+    assert status['state'] == 'Success', f'{j.log(), status}'
+    expected_log = '''+-------+
+|   idx |
++-------+
+| int32 |
++-------+
+|     0 |
+|     1 |
+|     2 |
+|     3 |
+|     4 |
+|     5 |
+|     6 |
+|     7 |
+|     8 |
+|     9 |
++-------+
+'''
+    log = j.log()
+    assert expected_log in log['main'], f'{j.log(), status}'
 
 
 def test_user_authentication_within_job(client):

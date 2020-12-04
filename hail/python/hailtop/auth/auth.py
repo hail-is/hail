@@ -31,8 +31,11 @@ async def async_get_userinfo(*, deploy_config=None, session_id=None, client_sess
             raise
 
 
-def get_userinfo(deploy_config=None):
-    return async_to_blocking(async_get_userinfo(deploy_config=deploy_config))
+def get_userinfo(deploy_config=None, session_id=None, client_session=None):
+    return async_to_blocking(async_get_userinfo(
+        deploy_config=deploy_config,
+        session_id=session_id,
+        client_session=client_session))
 
 
 def namespace_auth_headers(deploy_config, ns, authorize_target=True, *, token_file=None):
