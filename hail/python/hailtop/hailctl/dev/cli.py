@@ -37,7 +37,7 @@ def parser():
         'query',
         help='Set dev settings on query service',
         description='Set dev settings on query service')
-    deploy_parser.set_defaults(module='query')
+    query_parser.set_defaults(module='query')
     query.cli.init_parser(query_parser)
 
     return main_parser
