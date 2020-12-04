@@ -381,19 +381,19 @@ class ServiceBackend(Backend):
 
         def copy_input(r):
             if isinstance(r, resource.InputResourceFile):
-                return [(r._input_path, r._get_path(local_tmpdir))]
+                return [(r._input_path, os.path.dirname(r._get_path(local_tmpdir)) + '/')]
             assert isinstance(r, resource.JobResourceFile)
-            return [(r._get_path(remote_tmpdir), r._get_path(local_tmpdir))]
+            return [(r._get_path(remote_tmpdir), os.path.dirname(r._get_path(local_tmpdir)) + '/')]
 
         def copy_internal_output(r):
             assert isinstance(r, resource.JobResourceFile)
-            return [(r._get_path(local_tmpdir), r._get_path(remote_tmpdir))]
+            return [(r._get_path(local_tmpdir), os.path.dirname(r._get_path(remote_tmpdir)) + '/')]
 
         def copy_external_output(r):
             if isinstance(r, resource.InputResourceFile):
-                return [(r._input_path, dest) for dest in r._output_paths]
+                return [(r._input_path, os.path.dirname(dest) + '/') for dest in r._output_paths]
             assert isinstance(r, resource.JobResourceFile)
-            return [(r._get_path(local_tmpdir), dest) for dest in r._output_paths]
+            return [(r._get_path(local_tmpdir), os.path.dirname(dest) + '/') for dest in r._output_paths]
 
         def symlink_input_resource_group(r):
             symlinks = []
