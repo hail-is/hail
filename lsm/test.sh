@@ -64,3 +64,32 @@ cat > build/expected <<EOF
 EOF
 diff build/out build/expected
 echo success
+
+
+echo 5
+build/main > build/out 2> build/err <<EOF
+p 5 1
+p 6 7
+p 8 10
+w filename
+d 5
+d 6
+d 8
+g 5
+g 6
+g 8
+R filename
+g 5
+g 6
+g 8
+EOF
+cat > build/expected << EOF
+
+
+
+1
+7
+10
+EOF
+diff build/out build/expected
+echo success

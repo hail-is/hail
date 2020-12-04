@@ -31,6 +31,32 @@ public:
   void del(int32_t k) {
     m.erase(k);
   }
+
+  int write_to_file(std::string filename) {
+        std::ofstream ostrm(filename, std::ios::binary);
+        for (auto const&x : m) {
+            ostrm.write(reinterpret_cast<const char*>(&x.first), sizeof x.first);
+            ostrm.write(reinterpret_cast<const char*>(&x.second), sizeof x.second);
+        }
+        return 0;
+  }
+
+  int read_from_file(std::string filename) {
+        m.clear();
+        if (auto istrm = std::ifstream (filename, std::ios::binary)) {
+
+            while (!istrm.eof()) {
+                int k, v;
+                istrm.read(reinterpret_cast<char*>(&k), sizeof k);
+                istrm.read(reinterpret_cast<char*>(&v), sizeof v);
+                m.insert(std::make_pair(k,v));
+            }
+        } else {
+            std::cerr << "could not open " << filename << "\n";
+            exit(3);
+        }
+        return 0;
+  }
 };
 
 
@@ -82,6 +108,16 @@ int main(int argc, const char ** argv) {
       int k = std::stoi(line.substr(2));
       lsm.del(k);
       break;
+    }
+    case 'w': {
+        std::string filename = line.substr(2);
+        lsm.write_to_file(filename);
+        break;
+    }
+    case 'R': {
+        std::string filename = line.substr(2);
+        lsm.read_from_file(filename);
+        break;
     }
     default:
       std::cout << "unrecognized command " << line << std::endl;
