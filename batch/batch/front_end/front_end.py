@@ -1215,8 +1215,8 @@ async def ui_get_job(request, userdata):
     job_status_status = job_status['status']
     container_status_spec = dictfix.NoneOr({
         'name': str,
-        'timing': {'pulling': dictfix.NoneOr({'duration': Number}),
-                   'running': dictfix.NoneOr({'duration': Number})},
+        'timing': {'pulling': dictfix.NoneOr({'duration': dictfix.NoneOr(Number)}),
+                   'running': dictfix.NoneOr({'duration': dictfix.NoneOr(Number)})},
         'container_status': {'out_of_memory': False},
         'state': str})
     job_status_status_spec = {

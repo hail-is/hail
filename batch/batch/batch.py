@@ -460,7 +460,7 @@ async def schedule_job(app, record, instance):
                 'user': record['user'],
                 'state': 'error',
                 'error': traceback.format_exc(),
-                'container_statuses': {k: {} for k in tasks}
+                'container_statuses': {k: None for k in tasks}
             }
 
             if format_version.has_full_status_in_gcs():

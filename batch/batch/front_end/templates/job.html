@@ -66,12 +66,12 @@
     <tr>
       <td>{{ step['name'] }}</td>
       <td>
-        {% if step['timing']['pulling'] %}
+        {% if step['timing']['pulling'] and step['timing']['pulling']['duration'] %}
         {{ step['timing']['pulling']['duration'] / 1000.0 }}
         {% endif %}
       </td>
       <td>
-        {% if step['timing']['running'] %}
+        {% if step['timing']['running'] and step['timing']['running']['duration'] %}
         {{ step['timing']['running']['duration'] / 1000.0 }}
         {% endif %}
       </td>
