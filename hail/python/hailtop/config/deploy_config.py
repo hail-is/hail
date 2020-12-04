@@ -15,7 +15,7 @@ class DeployConfig:
     @staticmethod
     def from_config(config):
         domain = config.get('domain', 'hail.is')
-        return DeployConfig(config['location'], config['default_namespace'], config['domain'])
+        return DeployConfig(config['location'], config['default_namespace'], domain)
 
     def get_config(self):
         return {
@@ -51,10 +51,16 @@ class DeployConfig:
         self._default_namespace = default_namespace
         self._domain = domain
 
+    def with_default_namespace(self, default_namespace):
+        return DeployConfig(self._location, default_namespace, self._domain)
+
+    def default_namespace(self):
+        return self._default_namespace
+
     def location(self):
         return self._location
 
-    def service_ns(self, service):
+    def service_ns(self, service):  # pylint: disable=unused-argument
         return self._default_namespace
 
     def scheme(self, base_scheme='http'):
