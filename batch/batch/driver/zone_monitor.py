@@ -6,6 +6,7 @@ from hailtop import aiotools
 from hailtop.utils import retry_long_running
 
 from ..utils import WindowFractionCounter
+from ..batch_configuration import GPC_REGION, BATCH_GPC_REGIONS
 
 log = logging.getLogger('zone_monitor')
 
