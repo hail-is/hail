@@ -554,7 +554,7 @@ def copy_command(src, dst, requester_pays_project=None):
         mkdirs = f'mkdir -p { shq(target_directory) } && '
         cp_dir = gsutil_cp_r(src, target_directory, recursive=True)
 
-        if target_basename != '' and target_basename != source_basename:
+        if target_basename not in ('', source_basename):
             current_location = target_directory + '/' + source_basename
             desired_location = target_directory + '/' + target_basename
             cp_dir = f'{{ {cp_dir} && mv {current_location} {desired_location} ; }}'
