@@ -33,7 +33,7 @@ package object services {
       case e: HttpHostConnectException =>
         true
       case e: SocketException =>
-        e.getMessage.contains("Connection reset")
+        e.getMessage.contains("Connection reset") || e.getMessage.contains("Broken pipe")
       case e: EOFException =>
         e.getMessage.contains("SSL peer shut down incorrectly")
       case e: SSLException =>
