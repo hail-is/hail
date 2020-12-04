@@ -11,6 +11,8 @@ def parser():
     main_parser = argparse.ArgumentParser(
         prog='hailctl',
         description='Manage Hail development utilities.')
+    # we have to set dest becuase of a rendering bug in argparse
+    # https://bugs.python.org/issue29298
     main_subparsers = main_parser.add_subparsers(title='hailctl subcommand', dest='hailctl subcommand', required=True)
     
     dev_parser = main_subparsers.add_parser(
