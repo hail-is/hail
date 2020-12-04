@@ -608,7 +608,8 @@ location = "gs://{ bucket_name }/{ token }/{ attempt_token }/test_can_use_hailct
 hl.utils.range_table(10).write(location)
 hl.read_table(location).show()
 '''
-    j = builder.create_job(os.environ['HAIL_HAIL_BASE_IMAGE'], ['python3', '-c', script])
+    j = builder.create_job(os.environ['HAIL_HAIL_BASE_IMAGE'],
+                           ['/bin/bash', '-c', f'python3 -c >out 2>err \'{script}\'; cat out err'])
     builder.submit()
     status = j.wait()
     assert status['state'] == 'Success', f'{j.log(), status}'
