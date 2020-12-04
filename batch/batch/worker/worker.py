@@ -562,7 +562,7 @@ def copy_command(src, dst, requester_pays_project=None):
         mkdirs = ''
         cp_dir = gsutil_cp_r(src, dst, recursive=True)
 
-    cp_file = gsutil_cp_r(src, dst, recrursive=False)
+    cp_file = gsutil_cp_r(src, dst, recursive=False)
 
     return f'{mkdirs} {cp_file} || {cp_dir}'
 
