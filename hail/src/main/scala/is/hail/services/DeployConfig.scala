@@ -51,7 +51,7 @@ object DeployConfig {
     new DeployConfig(
       (config \ "location").extract[String],
       (config \ "default_namespace").extract[String],
-      (config \ "domain").extract[String])
+      (config \ "domain").extract[Option[String]].getOrElse("hail.is"))
   }
 }
 
