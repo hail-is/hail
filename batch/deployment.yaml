@@ -184,6 +184,16 @@ spec:
            value: "{{ default_ns.name }}"
          - name: PROJECT
            value: "{{ global.project }}"
+         - name: HAIL_GCP_REGION
+           valueFrom:
+             secretKeyRef:
+               name: global-config
+               key: gcp_region
+         - name: HAIL_BATCH_GCP_REGIONS
+           valueFrom:
+             secretKeyRef:
+               name: global-config
+               key: batch_gcp_regions
          - name: KUBERNETES_SERVER_URL
            value: "{{ global.k8s_server_url }}"
          - name: HAIL_SHA
