@@ -11,7 +11,10 @@ terraform {
   }
 }
 
+variable "gsuite_organization" {}
+variable "batch_gcp_regions" {}
 variable "gcp_project" {}
+variable "gcp_location" {}
 variable "gcp_region" {}
 variable "gcp_zone" {}
 variable "domain" {}
@@ -30,20 +33,20 @@ resource "google_project_service" "service_networking" {
   service = "servicenetworking.googleapis.com"
 }
 
-resource "google_compute_network" "internal" {
-  name = "internal"
+resource "google_compute_network" "default" {
+  name = "default"
 }
 
-data "google_compute_subnetwork" "internal_default_region" {
-  name = "internal"
+data "google_compute_subnetwork" "default_region" {
+  name = "default"
   region = var.gcp_region
-  depends_on = [google_compute_network.internal]
+  depends_on = [google_compute_network.default]
 }
 
 resource "google_container_cluster" "vdc" {
   name = "vdc"
   location = var.gcp_zone
-  network = google_compute_network.internal.name
+  network = google_compute_network.default.name
 
   # We can't create a cluster with no node pool defined, but we want to only use
   # separately managed node pools. So we create the smallest possible default
@@ -66,8 +69,11 @@ resource "google_container_node_pool" "vdc_preemptible_pool" {
   location = var.gcp_zone
   cluster = google_container_cluster.vdc.name
 
+  # Allocate at least one node, so that autoscaling can take place.
+  initial_node_count = 1
+
   autoscaling {
-    min_node_count = 1
+    min_node_count = 0
     max_node_count = 200
   }
 
@@ -100,8 +106,11 @@ resource "google_container_node_pool" "vdc_nonpreemptible_pool" {
   location = var.gcp_zone
   cluster = google_container_cluster.vdc.name
 
+  # Allocate at least one node, so that autoscaling can take place.
+  initial_node_count = 1
+
   autoscaling {
-    min_node_count = 1
+    min_node_count = 0
     max_node_count = 200
   }
 
@@ -123,22 +132,24 @@ resource "google_container_node_pool" "vdc_nonpreemptible_pool" {
   }
 }
 
-resource "google_compute_global_address" "google_managed_services_internal" {
-  name = "google-managed-services-internal"
+resource "random_id" "db_name_suffix" {
+  byte_length = 4
+}
+
+# Without this, I get:
+# Error: Error, failed to create instance because the network doesn't have at least 1 private services connection. Please see https://cloud.google.com/sql/docs/mysql/private-ip#network_requirements for how to create this connection.
+resource "google_compute_global_address" "google_managed_services_default" {
+  name = "google-managed-services-default"
   purpose = "VPC_PEERING"
   address_type = "INTERNAL"
   prefix_length = 16
-  network = google_compute_network.internal.id
+  network = google_compute_network.default.id
 }
 
 resource "google_service_networking_connection" "private_vpc_connection" {
-  network = google_compute_network.internal.id
+  network = google_compute_network.default.id
   service = "servicenetworking.googleapis.com"
-  reserved_peering_ranges = [google_compute_global_address.google_managed_services_internal.name]
-}
-
-resource "random_id" "db_name_suffix" {
-  byte_length = 4
+  reserved_peering_ranges = [google_compute_global_address.google_managed_services_default.name]
 }
 
 resource "google_sql_database_instance" "db" {
@@ -155,7 +166,7 @@ resource "google_sql_database_instance" "db" {
 
     ip_configuration {
       ipv4_enabled = false
-      private_network = google_compute_network.internal.id
+      private_network = google_compute_network.default.id
       require_ssl = true
     }
   }
@@ -168,7 +179,7 @@ resource "google_compute_address" "gateway" {
 
 resource "google_compute_address" "internal_gateway" {
   name = "internal-gateway"
-  subnetwork = data.google_compute_subnetwork.internal_default_region.id
+  subnetwork = data.google_compute_subnetwork.default_region.id
   address_type = "INTERNAL"
   region = var.gcp_region
 }
@@ -189,13 +200,17 @@ resource "kubernetes_secret" "global_config" {
   }
 
   data = {
-    gcp_project = var.gcp_project
+    batch_gcp_regions = var.batch_gcp_regions
+    default_namespace = "default"
+    docker_root_image = "gcr.io/${var.gcp_project}/ubuntu:18.04"
     domain = var.domain
+    gcp_project = var.gcp_project
+    gcp_region = var.gcp_region
+    gcp_zone = var.gcp_zone
+    gsuite_organization = var.gsuite_organization
     internal_ip = google_compute_address.internal_gateway.address
     ip = google_compute_address.gateway.address
     kubernetes_server_url = "https://${google_container_cluster.vdc.endpoint}"
-    gcp_region = var.gcp_region
-    gcp_zone = var.gcp_zone
   }
 }
 
@@ -464,6 +479,28 @@ resource "kubernetes_secret" "benchmark_gsa_key" {
   }
 }
 
+resource "random_id" "ci_name_suffix" {
+  byte_length = 2
+}
+
+resource "google_service_account" "ci" {
+  account_id = "ci-${random_id.ci_name_suffix.hex}"
+}
+
+resource "google_service_account_key" "ci_key" {
+  service_account_id = google_service_account.ci.name
+}
+
+resource "kubernetes_secret" "ci_gsa_key" {
+  metadata {
+    name = "ci-gsa-key"
+  }
+
+  data = {
+    "key.json" = base64decode(google_service_account_key.ci_key.private_key)
+  }
+}
+
 resource "google_service_account" "monitoring" {
   account_id = "monitoring"
 }
@@ -571,13 +608,52 @@ resource "google_project_iam_member" "batch_agent_object_viewer" {
   member = "serviceAccount:${google_service_account.batch_agent.email}"
 }
 
+resource "google_compute_firewall" "default_allow_internal" {
+  name    = "default-allow-internal"
+  network = google_compute_network.default.name
+
+  priority = 65534
+
+  source_ranges = ["10.128.0.0/9"]
+
+  allow {
+    protocol = "tcp"
+    ports    = ["0-65535"]
+  }
+
+  allow {
+    protocol = "udp"
+    ports    = ["0-65535"]
+  }
+
+  allow {
+    protocol = "icmp"
+  }
+}
+
+resource "google_compute_firewall" "allow_ssh" {
+  name    = "allow-ssh"
+  network = google_compute_network.default.name
+
+  priority = 65534
+
+  source_ranges = ["0.0.0.0/0"]
+
+  target_tags = ["allow-ssh"]
+
+  allow {
+    protocol = "tcp"
+    ports    = ["22"]
+  }
+}
+
 resource "google_compute_firewall" "vdc_to_batch_worker" {
   name    = "vdc-to-batch-worker"
-  network = google_compute_network.internal.name
+  network = google_compute_network.default.name
 
   source_ranges = [google_container_cluster.vdc.cluster_ipv4_cidr]
 
-  target_tags = ["batch2-worker"]
+  target_tags = ["batch2-agent"]
 
   allow {
     protocol = "icmp"
@@ -592,4 +668,32 @@ resource "google_compute_firewall" "vdc_to_batch_worker" {
     protocol = "udp"
     ports    = ["1-65535"]
   }
+}
+
+resource "google_storage_bucket" "batch_logs" {
+  name = "batch-logs"
+  location = var.gcp_location
+  force_destroy = true
+  storage_class = "MULTI_REGIONAL"
+}
+
+resource "google_dns_managed_zone" "dns_zone" {
+  name = "dns-zone"
+  dns_name = "hail."
+  visibility = "private"
+
+  private_visibility_config {
+    networks {
+      network_url = google_compute_network.default.id
+    }
+  }
+}
+
+resource "google_dns_record_set" "internal_gateway" {
+  name = "*.${google_dns_managed_zone.dns_zone.dns_name}"
+  managed_zone = google_dns_managed_zone.dns_zone.name
+  type = "A"
+  ttl = 300
+
+  rrdatas = [google_compute_address.internal_gateway.address]
 }
