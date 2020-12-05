@@ -18,13 +18,13 @@ class Test(unittest.TestCase):
         self.assertEqual(deploy_config.external_url('quam', '/moo'), 'https://quam.organization.tld/moo')
 
     def test_deploy_external_bar(self):
-        deploy_config = DeployConfig('external', 'bar')
+        deploy_config = DeployConfig('external', 'bar', 'organization.tld')
 
         self.assertEqual(deploy_config.location(), 'external')
         self.assertEqual(deploy_config.service_ns('quam'), 'bar')
         self.assertEqual(deploy_config.service_ns('foo'), 'bar')
         self.assertEqual(deploy_config.scheme(), 'https')
-        self.assertEqual(deploy_config.auth_session_cookie_name(), 'session')
+        self.assertEqual(deploy_config.auth_session_cookie_name(), 'sesh')
 
         self.assertEqual(deploy_config.base_path('foo'), '/bar/foo')
         self.assertEqual(deploy_config.base_url('foo'), 'https://internal.organization.tld/bar/foo')
@@ -50,10 +50,10 @@ class Test(unittest.TestCase):
         deploy_config = DeployConfig('k8s', 'bar', 'organization.tld')
 
         self.assertEqual(deploy_config.location(), 'k8s')
-        self.assertEqual(deploy_config.service_ns('quam'), 'default')
-        self.assertEqual(deploy_config.service_ns('foo'), 'default')
+        self.assertEqual(deploy_config.service_ns('quam'), 'bar')
+        self.assertEqual(deploy_config.service_ns('foo'), 'bar')
         self.assertEqual(deploy_config.scheme(), 'https')
-        self.assertEqual(deploy_config.auth_session_cookie_name(), 'session')
+        self.assertEqual(deploy_config.auth_session_cookie_name(), 'sesh')
 
         self.assertEqual(deploy_config.base_path('foo'), '/bar/foo')
         self.assertEqual(deploy_config.base_url('foo'), 'https://foo.bar/bar/foo')
