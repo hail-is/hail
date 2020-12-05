@@ -6,7 +6,7 @@ from hailtop import aiotools
 from hailtop.utils import retry_long_running
 
 from ..utils import WindowFractionCounter
-from ..batch_configuration import GPC_REGION, BATCH_GPC_REGIONS
+from ..batch_configuration import GCP_REGION, BATCH_GCP_REGIONS
 
 log = logging.getLogger('zone_monitor')
 
@@ -98,12 +98,12 @@ class ZoneMonitor:
     async def update_region_quotas(self):
         self.region_info = {
             name: await self.compute_client.get(f'/regions/{name}')
-            for name in BATCH_GPC_REGIONS
+            for name in BATCH_GCP_REGIONS
         }
 
         self.init_zones = [
             os.path.basename(urllib.parse.urlparse(z).path)
-            for z in self.region_info[GPC_REGION]['zones']
+            for z in self.region_info[GCP_REGION]['zones']
         ]
         self.init_zone_weights = [ZoneWeight(z, 1) for z in self.init_zones]
 

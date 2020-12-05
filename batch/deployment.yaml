@@ -57,12 +57,12 @@ spec:
            valueFrom:
              secretKeyRef:
                name: global-config
-               key: gpc_region
+               key: gcp_region
          - name: HAIL_BATCH_GCP_REGIONS
            valueFrom:
              secretKeyRef:
                name: global-config
-               key: batch_gpc_regions
+               key: batch_gcp_regions
          - name: KUBERNETES_SERVER_URL
            value: "{{ global.k8s_server_url }}"
          - name: HAIL_SHA
