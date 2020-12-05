@@ -10,6 +10,8 @@ Instructions:
    gcloud config set compute/zone <gcp-zone>
    ```
 
+- Delete the default network if it exists.
+
 - Create a service account for Terraform with Owner role, create a
   service account key and place it in
   `$HOME/.hail/terraform_sa_key.json`.
@@ -23,7 +25,8 @@ Instructions:
        servicenetworking.googleapis.com \
        sqladmin.googleapis.com \
        container.googleapis.com \
-       serviceusage.googleapis.com
+       serviceusage.googleapis.com \
+       dns.googleapis.com
    ```
 
 - Install terraform.
@@ -31,7 +34,15 @@ Instructions:
 - Create `$HOME/.hail/global.tfvars` that looks like:
 
    ```
+   gsuite_organization = "<gsuite-organization>"
+   # batch_gcp_regions is a JSON array of string, the names of the gcp
+   # regions to schedule over in Batch.
+   batch_gcp_regions = "<batch-gcp-regions>"
    gcp_project = "<gcp-project-id>"
+   # gcp_location is the bucket location that spans the regions you're
+   # going to schedule across in Batch.  If you are running on one
+   # region, it can just be that region.
+   gcp_location = "<gcp-location>"
    gcp_region = "<gcp-region>"
    gcp_zone = "<gcp-zone>"
    domain = "<domain>"
@@ -40,7 +51,8 @@ Instructions:
 - Run `terraform init`.
 
 - Run `terraform apply -var-file="$HOME/.hail/global.tfvars"`.
-  Terraform has created a GKE cluster named `vdc`.  Configure `kubectl` to point at the vdc cluster:
+  Terraform has created a GKE cluster named `vdc`.  Configure
+  `kubectl` to point at the vdc cluster:
 
   ```
   gcloud container clusters get-credentials vdc
@@ -79,11 +91,16 @@ You can now install Hail:
   python3 -m pip install -r $HOME/hail/docker/requirements.txt
   ```
 
-  You will have to log out/in for usermod to take effect.
+  You will have to log out/in for the usermod to take effect.
 
-- Run `PROJECT=<gc-project-id>
-  $HAIL/docker/third-party/copy_images.sh`.  This copies some base
-  images from Dockerhub (which now has rate limits) to GCR.
+- Run
+
+  ```
+  PROJECT=<gc-project-id> $HAIL/docker/third-party/copy_images.sh
+  ```
+
+  This copies some base images from Dockerhub (which now has rate
+  limits) to GCR.
 
 - Generate TLS certificates.  See ../dev-docs/tls-cookbook.md.
 
