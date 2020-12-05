@@ -67,7 +67,10 @@ spec:
 {% endif %}
 {% if deploy %}
          - name: HAIL_BATCH_BUCKET_NAME
-           value: hail-batch
+           valueFrom:
+             secretKeyRef:
+               name: global-config
+               key: batch_logs_bucket
          - name: STANDING_WORKER_MAX_IDLE_TIME_SECS
            value: "7200" # 2 hours
 {% else %}
@@ -188,7 +191,10 @@ spec:
 {% endif %}
 {% if deploy %}
          - name: HAIL_BATCH_BUCKET_NAME
-           value: hail-batch
+           valueFrom:
+             secretKeyRef:
+               name: global-config
+               key: batch_logs_bucket
          - name: STANDING_WORKER_MAX_IDLE_TIME_SECS
            value: "7200" # 2 hours
 {% else %}

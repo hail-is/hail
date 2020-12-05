@@ -1,10 +1,7 @@
 FROM {{ hail_ubuntu_image.image }}
 
 RUN apt update && \
-    apt install -y nginx software-properties-common && \
-    bash -c 'DEBIAN_FRONTEND=noninteractive apt install -y tzdata' && \
-    python3.6 /usr/bin/add-apt-repository -y ppa:certbot/certbot && \
-    apt install -y python-certbot-nginx wget && \
+    apt install -y nginx wget certbot python3-certbot-nginx && \
     rm -rf /var/lib/apt/lists/*
 
 RUN hail-pip-install cffi
