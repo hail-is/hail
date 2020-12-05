@@ -201,6 +201,7 @@ resource "kubernetes_secret" "global_config" {
 
   data = {
     batch_gcp_regions = var.batch_gcp_regions
+    batch_logs_bucket = google_storage_bucket.batch_logs.name
     default_namespace = "default"
     docker_root_image = "gcr.io/${var.gcp_project}/ubuntu:18.04"
     domain = var.domain
@@ -668,8 +669,12 @@ resource "google_compute_firewall" "vdc_to_batch_worker" {
   }
 }
 
+resource "random_id" "batch_logs_bucket_name_suffix" {
+  byte_length = 2
+}
+
 resource "google_storage_bucket" "batch_logs" {
-  name = "batch-logs"
+  name = "batch-logs-${random_id.batch_logs_bucket_name_suffix.hex}"
   location = var.gcp_location
   force_destroy = true
   storage_class = "MULTI_REGIONAL"

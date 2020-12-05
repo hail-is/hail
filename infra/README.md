@@ -72,31 +72,37 @@ You can now install Hail:
   permissions for caching.  Run `echo 'umask 022' > ~/.profile`.  You
   will need to log out/in or run `umask 022`.
 
+- Clone the Hail Github repository:
+
+  ```
+  git clone https://github.com/hail-is/hail.git
+  ```
+
 - Update $HAIL/config.mk with your infrastructure settings.  You can
   get settings from the default/global-config secret:
 
   ```
-  kubectl get secret global-config -o json | jq '.data | map_values(@base64d)'
+  kubectl -n default get secret global-config -o json | jq '.data | map_values(@base64d)'
   ```
 
 - Install some dependencies on the VM:
 
   ```
   sudo apt update
-  sudo apt install -y docker.io python3-pip
+  sudo apt install -y docker.io python3-pip openjdk-8-jre-headless
+  sudo snap install --classic kubectl
   sudo usermod -a -G docker $USER
   gcloud -q auth configure-docker
   gcloud container clusters get-credentials --zone us-central1-a vdc
-  git clone https://github.com/cseed/hail.git
   python3 -m pip install -r $HOME/hail/docker/requirements.txt
   ```
 
   You will have to log out/in for the usermod to take effect.
 
-- Run
+- In `$HAIL/docker/third-party` run:
 
   ```
-  PROJECT=<gc-project-id> $HAIL/docker/third-party/copy_images.sh
+  PROJECT=<gc-project-id> ./copy_images.sh
   ```
 
   This copies some base images from Dockerhub (which now has rate
@@ -139,9 +145,7 @@ You can now install Hail:
   HAIL_DEFAULT_NAMESPACE='default' \
   HAIL_DOMAIN=<domain> \
   HAIL_GCP_ZONE=<gcp-zone> \
-  GCP_PROJECT=<gcp-project> \
+  HAIL_GCP_PROJECT=<gcp-project> \
   PYTHONPATH=$HOME/hail/ci:$HOME/hail/batch:$HOME/hail/hail/python \
   python3 $HAIL/ci/bootstrap.py
   ```
-
-- You may want to add a suitable ssh forward rule to the internal network.

@@ -117,9 +117,10 @@ kubectl create secret generic \
 3. Update all the service certificates:
 
 ```
-python3 $HAIL_HOME/tls/create_certs.py \
+PYTHONPATH=$HAIL/hail/python \
+        python3 $HAIL/tls/create_certs.py \
         default \
-        $HAIL_HOME/tls/config.yaml \
+        $HAIL/tls/config.yaml \
         hail-root-key.pem \
         hail-root-cert.pem
 ```

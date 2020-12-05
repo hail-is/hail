@@ -96,7 +96,9 @@ class LocalBatchBuilder:
         
         for j in self._jobs:
             job_name = j._attributes.get('name')
-            
+
+            print(f'{j._index}: {job_name}: running...')
+
             if j._parents:
                 for p in j._parents:
                     assert p._done
