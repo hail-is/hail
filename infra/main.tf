@@ -639,8 +639,6 @@ resource "google_compute_firewall" "allow_ssh" {
 
   source_ranges = ["0.0.0.0/0"]
 
-  target_tags = ["allow-ssh"]
-
   allow {
     protocol = "tcp"
     ports    = ["22"]
