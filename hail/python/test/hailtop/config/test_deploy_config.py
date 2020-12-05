@@ -3,7 +3,7 @@ from hailtop.config.deploy_config import DeployConfig
 
 class Test(unittest.TestCase):
     def test_deploy_external_default(self):
-        deploy_config = DeployConfig('external', 'default', {'foo': 'bar'})
+        deploy_config = DeployConfig('external', 'default', 'organization.tld')
 
         self.assertEqual(deploy_config.location(), 'external')
         self.assertEqual(deploy_config.service_ns('quam'), 'default')
