@@ -52,11 +52,11 @@ class LocalJob:
 async def docker_run(*args):
     script = ' '.join([shq(a) for a in args])
     outerr = await check_shell_output(script)
-    
+
     cid = outerr[0].decode('ascii').strip()
-    
+
     outerr = await check_shell_output(f'docker wait {cid}')
-    
+
     exit_code = int(outerr[0].decode('ascii').strip())
     return cid, exit_code == 0
 
@@ -84,18 +84,14 @@ class LocalBatchBuilder:
     async def run(self):
         cwd = os.getcwd()
         assert cwd.startswith('/')
-        
+
         batch_token = self._attributes['token']
         root = f'{cwd}/_/{batch_token}'
-        
-        await kube.config.load_kube_config()
-        k8s_client = kube.client.CoreV1Api()
-        k8s_cache = K8sCache(k8s_client, refresh_time=5)
 
         os.makedirs(f'{root}/shared')
-        
+
         prefix = f'gs://dummy/build/{batch_token}'
-        
+
         for j in self._jobs:
             job_name = j._attributes.get('name')
 
@@ -141,6 +137,14 @@ class LocalBatchBuilder:
                     for key, value in j._env:
                         env_options.extend([
                             '-e', f'{key}={value}'])
+
+                # Reboot the cache on each use.  The kube client isn't
+                # refreshing tokens correctly.
+                # https://github.com/kubernetes-client/python/issues/741
+                # Note, that is in the kubenetes-client repo, the
+                # kubernetes_asyncio.  I'm assuming it has the same
+                # issue.
+                k8s_cache = K8sCache(kube.client.CoreV1Api(), refresh_time=5)
 
                 if j._service_account:
                     namespace = j._service_account['namespace']
@@ -281,6 +285,8 @@ git checkout {shq(self._sha)}
 
 
 async def main():
+    await kube.config.load_kube_config()
+
     parser = argparse.ArgumentParser(description='Create initial Hail as a service account.')
 
     parser.add_argument('--extra-code-config', dest='extra_code_config',
@@ -295,7 +301,7 @@ async def main():
     args = parser.parse_args()
 
     branch_pieces = args.branch.split(":")
-    assert len(branch_pieces) == 2, f'{branch_pieces} {s}'
+    assert len(branch_pieces) == 2, f'{branch_pieces} {args.branch}'
 
     repo_pieces = branch_pieces[0].split("/")
     assert len(repo_pieces) == 2, f'{repo_pieces} {branch_pieces[0]}'
@@ -314,7 +320,7 @@ async def main():
 
     steps = [s.strip() for s in args.steps.split(',')]
 
-    with open(f'build.yaml', 'r') as f:
+    with open('build.yaml', 'r') as f:
         config = BuildConfiguration(code, f.read(), scope, requested_step_names=steps)
 
     token = generate_token()
