@@ -2,6 +2,7 @@ import os
 from shlex import quote as shq
 import base64
 import asyncio
+import argparse
 
 import kubernetes_asyncio as kube
 
@@ -14,7 +15,7 @@ from ci.utils import generate_token
 from batch.driver.k8s_cache import K8sCache
 
 KUBERNETES_SERVER_URL = os.environ['KUBERNETES_SERVER_URL']
-SHA  = os.environ['HAIL_SHA']
+
 
 def populate_secret_host_path(host_path, secret_data):
     os.makedirs(host_path)
@@ -243,11 +244,12 @@ users:
 
 
 class Branch(Code):
-    def __init__(self, owner, repo, branch, sha):
+    def __init__(self, owner, repo, branch, sha, config_extra):
         self._owner = owner
         self._repo = repo
         self._branch = branch
         self._sha = sha
+        self._extra_config = extra_config
 
     def short_str(self):
         return f'br-{self._owner}-{self._repo}-{self._branch}'
@@ -259,13 +261,15 @@ class Branch(Code):
         return f'https://github.com/{self._owner}/{self._repo}'
 
     def config(self):
-        return {
+        config = {
             'checkout_script': self.checkout_script(),
             'branch': self._branch,
             'repo': f'{self._owner}/{self._repo}',
             'repo_url': self.branch_url(),
             'sha': self._sha
         }
+        config.extend(self._extra_config)
+        return extra_config
 
     def checkout_script(self):
         return f'''
@@ -276,11 +280,42 @@ git checkout {shq(self._sha)}
 
 
 async def main():
+    parser = argparse.ArgumentParser(description='Create initial Hail as a service account.')
+
+    parser.add_argument('--extra-code-config', dest='extra_code_config',
+                        help='Extra code config in JSON format.')
+    parser.add_argument('branch',
+                        help='Github branch to run.  It should be the same branch bootstrap.py is being run from.')
+    parser.add_argument('sha',
+                        help='SHA of the git commit to run.  It should match the branch.')
+    parser.add_argument('steps',
+                        help='The requested steps to execute.')
+
+    args = parser.parse_args()
+
+    branch_pieces = args.branch.split(":")
+    assert len(branch_pieces) == 2, f'{branch_pieces} {s}'
+
+    repo_pieces = branch_pieces[0].split("/")
+    assert len(repo_pieces) == 2, f'{repo_pieces} {branch_pieces[0]}'
+    owner = repo_pieces[0]
+    repo_name = repo_pieces[1]
+
+    branch_name = branch_pieces[1]
+
+    extra_code_config = args.extra_code_config
+    if extra_code_config is not None:
+        extra_code_config = json.loads(extra_code_config)
+    else:
+        extra_code_config = {}
+
     scope = 'deploy'
-    code = Branch('cseed', 'hail', 'infra-1', SHA)
+    code = Branch(owner, repo_name, branch_name, args.sha, extra_code_config)
+
+    steps = [s.strip() for s in args.steps.split(',')]
 
     with open(f'build.yaml', 'r') as f:
-        config = BuildConfiguration(code, f.read(), scope, requested_step_names=['deploy_batch'])
+        config = BuildConfiguration(code, f.read(), scope, requested_step_names=steps)
 
     token = generate_token()
     batch = LocalBatchBuilder(

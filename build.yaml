@@ -145,6 +145,8 @@ steps:
        to: /repo/address/
      - from: /io/repo/ci/bootstrap_create_accounts.py
        to: /repo/ci/
+     - from: /io/repo/ci/create_initial_account.py
+       to: /repo/ci/
    dependsOn:
      - base_image
  - kind: buildImage
@@ -416,6 +418,25 @@ steps:
     - create_deploy_config
     - deploy_auth_driver_service_account
     - create_test_gsa_keys
+ - kind: runImage
+   name: create_initial_user
+   image:
+     valueFrom: service_base_image.image
+   script: |
+     set -ex
+     python3 /io/create_initial_account.py {{ code.username }} {{ code.email }}
+   secrets:
+    - name:
+        valueFrom: auth_database.user_secret_name
+      namespace:
+        valueFrom: default_ns.name
+      mountPath: /sql-config
+   inputs:
+     - from: /repo/create_initial_account.py
+       to: /io/create_initial_account.py
+   dependsOn:
+    - auth_database
+    - service_base_image
  - kind: buildImage
    name: hail_build_image
    dockerFile: hail/Dockerfile.hail-build
