@@ -355,15 +355,16 @@ async def _create_user(app, user, skip_trial_bp, cleanup):
     k8s_client = app['k8s_client']
     iam_client = app['iam_client']
 
+    username = user['username']
     if user['is_service_account'] != 1:
         token = secret_alnum_string(5, case='lower')
-        ident_token = f'{user["username"]}-{token}'
+        ident_token = f'{username}-{token}'
     else:
         token = secret_alnum_string(3, case='numbers')
-        ident_token = f'{user["username"]}-{token}'
+        ident_token = f'{username}-{token}'
 
-    if user['is_developer'] == 1 or user['is_service_account'] == 1:
-        ident = user['username']
+    if user['is_developer'] == 1 or user['is_service_account'] == 1 or username == 'test':
+        ident = username
     else:
         ident = ident_token
 
@@ -427,7 +428,6 @@ async def _create_user(app, user, skip_trial_bp, cleanup):
         trial_bp = user['trial_bp_name']
         if trial_bp is None:
             batch_client = app['batch_client']
-            username = user['username']
             billing_project_name = f'{username}-trial'
             billing_project = BillingProjectResource(batch_client)
             cleanup.append(billing_project.delete)
