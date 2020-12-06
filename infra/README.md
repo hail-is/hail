@@ -57,7 +57,7 @@ Instructions:
   `kubectl` to point at the vdc cluster:
 
   ```
-  gcloud container clusters get-credentials vdc
+  gcloud container clusters get-credentials --zone <gcp-zone> vdc
   ```
 
 - Go to the Google Cloud console, VPC networks > internal > Private
@@ -80,26 +80,26 @@ You can now install Hail:
   git clone https://github.com/hail-is/hail.git
   ```
 
+- Install some dependencies on the VM:
+
+  ```
+  sudo apt update
+  sudo apt install -y docker.io python3-pip openjdk-8-jre-headless jq
+  sudo snap install --classic kubectl
+  sudo usermod -a -G docker $USER
+  gcloud -q auth configure-docker
+  gcloud container clusters get-credentials --zone <gcp-zone> vdc
+  python3 -m pip install -r $HOME/hail/docker/requirements.txt
+  ```
+
+  You will have to log out/in for the usermod to take effect.
+
 - Update $HAIL/config.mk with your infrastructure settings.  You can
   get settings from the default/global-config secret:
 
   ```
   kubectl -n default get secret global-config -o json | jq '.data | map_values(@base64d)'
   ```
-
-- Install some dependencies on the VM:
-
-  ```
-  sudo apt update
-  sudo apt install -y docker.io python3-pip openjdk-8-jre-headless
-  sudo snap install --classic kubectl
-  sudo usermod -a -G docker $USER
-  gcloud -q auth configure-docker
-  gcloud container clusters get-credentials --zone us-central1-a vdc
-  python3 -m pip install -r $HOME/hail/docker/requirements.txt
-  ```
-
-  You will have to log out/in for the usermod to take effect.
 
 - In `$HAIL/docker/third-party` run:
 
