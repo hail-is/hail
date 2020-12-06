@@ -14,7 +14,7 @@ async def insert_user_if_not_exists(db, username, email):
     return await db.execute_insertone(
         '''
 INSERT INTO users (state, username, email, is_developer, is_service_account)
-VALUES (%s, %s, %s, %s, %s, %s, %s, %s);
+VALUES (%s, %s, %s, %s, %s);
 ''',
         ('creating', username, email, 1, 0))
 
