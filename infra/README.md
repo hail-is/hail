@@ -135,6 +135,18 @@ You can now install Hail:
   kubectl -n default create secret generic auth-oauth2-client-secret --from-file=./client_secret.json
   ```
 
+- Create the batch worker image.  In `$HAIL/batch`, run:
+
+  ```
+  make create-build-worker-image-instance
+  ```
+
+  Wait for the `build-batch-worker-image` instance to be stopped.  Then run:
+
+  ```
+  make create-worker-image
+  ```
+
 - Bootstrap the cluster by running:
 
   ```
