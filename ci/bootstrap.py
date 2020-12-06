@@ -1,4 +1,5 @@
 import os
+import json
 from shlex import quote as shq
 import base64
 import asyncio
@@ -244,7 +245,7 @@ users:
 
 
 class Branch(Code):
-    def __init__(self, owner, repo, branch, sha, config_extra):
+    def __init__(self, owner, repo, branch, sha, extra_config):
         self._owner = owner
         self._repo = repo
         self._branch = branch
@@ -268,8 +269,8 @@ class Branch(Code):
             'repo_url': self.branch_url(),
             'sha': self._sha
         }
-        config.extend(self._extra_config)
-        return extra_config
+        config.update(self._extra_config)
+        return config
 
     def checkout_script(self):
         return f'''
@@ -303,9 +304,8 @@ async def main():
 
     branch_name = branch_pieces[1]
 
-    extra_code_config = args.extra_code_config
-    if extra_code_config is not None:
-        extra_code_config = json.loads(extra_code_config)
+    if args.extra_code_config is not None:
+        extra_code_config = json.loads(args.extra_code_config)
     else:
         extra_code_config = {}
 

@@ -422,6 +422,7 @@ steps:
     - create_test_gsa_keys
  - kind: runImage
    name: create_initial_user
+   runIfRequested: true
    image:
      valueFrom: service_base_image.image
    script: |
@@ -434,11 +435,13 @@ steps:
         valueFrom: default_ns.name
       mountPath: /sql-config
    inputs:
-     - from: /repo/create_initial_account.py
+     - from: /repo/ci/create_initial_account.py
        to: /io/create_initial_account.py
    dependsOn:
-    - auth_database
+    - default_ns
     - service_base_image
+    - copy_files
+    - auth_database
  - kind: buildImage
    name: hail_build_image
    dockerFile: hail/Dockerfile.hail-build

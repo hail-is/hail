@@ -31,7 +31,6 @@ async def main():
 
     db = Database()
     await db.async_init(maxsize=50)
-    app['db'] = db
 
     await insert_user_if_not_exists(db, args.username, args.email)
 

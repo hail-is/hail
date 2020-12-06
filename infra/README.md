@@ -26,7 +26,9 @@ Instructions:
        sqladmin.googleapis.com \
        container.googleapis.com \
        serviceusage.googleapis.com \
-       dns.googleapis.com
+       dns.googleapis.com \
+       logging.googleapis.com \
+       cloudprofiler.googleapis.com
    ```
 
 - Install terraform.
@@ -160,3 +162,19 @@ You can now install Hail:
     PYTHONPATH=$HOME/hail/ci:$HOME/hail/batch:$HOME/hail/hail/python \
     python3 $HAIL/ci/bootstrap.py hail-is/hail:main $(git rev-parse HEAD) test_batch_0
   ```
+
+- Create the initial (developer) user:
+
+  ```
+  HAIL_CI_UTILS_IMAGE=gcr.io/<gcp-project>/ci-utils:latest \
+    HAIL_CI_BUCKET_NAME=dummy \
+    KUBERNETES_SERVER_URL='<k8s-server-url>' \
+    HAIL_DEFAULT_NAMESPACE='default' \
+    HAIL_DOMAIN=<domain> \
+    HAIL_GCP_ZONE=<gcp-zone> \
+    HAIL_GCP_PROJECT=<gcp-project> \
+    PYTHONPATH=$HOME/hail/ci:$HOME/hail/batch:$HOME/hail/hail/python \
+    python3 $HAIL/ci/bootstrap.py --extra-code-config '{"username":"<username>","email":"<email>"}' hail-is/hail:main $(git rev-parse HEAD) create_initial_user
+  ```
+
+  Additional users can be added by the intial user by going to auth.hail.is/users.
