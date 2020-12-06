@@ -288,13 +288,13 @@ steps:
      set -ex
      # k8s deploy config
      cat > deploy-config.json <<EOF
-     {"location":"k8s","default_namespace":"{{ default_ns.name }}","service_namespace":{}}
+     {"location":"k8s","default_namespace":"{{ default_ns.name }}","domain":"{{ global.domain }}"}
      EOF
      kubectl -n {{ default_ns.name }} delete --ignore-not-found secret deploy-config
      kubectl -n {{ default_ns.name }} create secret generic deploy-config --from-file=./deploy-config.json
      # gce deploy config
      cat > deploy-config.json <<EOF
-     {"location":"gce","default_namespace":"{{ default_ns.name }}","service_namespace":{}}
+     {"location":"gce","default_namespace":"{{ default_ns.name }}","domain":"{{ global.domain }}"}
      EOF
      kubectl -n {{ default_ns.name }} delete --ignore-not-found secret gce-deploy-config
      kubectl -n {{ default_ns.name }} create secret generic gce-deploy-config --from-file=./deploy-config.json
