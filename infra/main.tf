@@ -462,6 +462,11 @@ resource "google_project_iam_member" "batch_logging_viewer" {
   member = "serviceAccount:${google_service_account.batch.email}"
 }
 
+resource "google_project_iam_member" "batch_storage_admin" {
+  role = "roles/storage.admin"
+  member = "serviceAccount:${google_service_account.batch.email}"
+}
+
 resource "google_service_account" "benchmark" {
   account_id = "benchmark"
 }
