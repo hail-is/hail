@@ -388,7 +388,7 @@ steps:
      export HAIL_SCOPE={{ scope }}
      python3 /io/bootstrap_create_accounts.py
    serviceAccount:
-     name: auth-driver
+     name: admin
      namespace:
        valueFrom: default_ns.name
    secrets:
