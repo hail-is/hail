@@ -5,6 +5,6 @@ def job_logs(batch):
     logs = {}
     jobs = batch.jobs()
     for j_status in jobs:
-        j = Job(batch, j_status['job_id'])
+        j = Job(batch._async_batch, j_status['job_id'])
         logs[j.id] = j.log()
     return str(logs)
