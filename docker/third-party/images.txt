@@ -5,12 +5,6 @@ amundsendev/amundsen-search:2.4.0
 debian:9.5
 ghost:3.0-alpine
 google/cloud-sdk:305.0.0-slim
-hailgenetics/python-dill:3.6
-hailgenetics/python-dill:3.6-slim
-hailgenetics/python-dill:3.7
-hailgenetics/python-dill:3.7-slim
-hailgenetics/python-dill:3.8
-hailgenetics/python-dill:3.8-slim
 jupyter/scipy-notebook:c094bb7219f9
 jupyter/scipy-notebook
 python:3.6
