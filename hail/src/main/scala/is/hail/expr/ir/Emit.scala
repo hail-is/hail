@@ -2736,55 +2736,13 @@ class Emit[C](
                   cb.assign(newIdxVar, idxVars(i))
                 },
                 {
-                  cb.assign(newIdxVar, filtPValues(i).loadElement(cb, idxVars(i).toI).get(cb, "Internal NDArray Filter Error").toPCode(cb, region.code).tcode[Long])
+                  cb.assign(newIdxVar, filtPValues(i).loadElement(cb, idxVars(i).toI).get(cb, s"NDArrayFilter: can't filter on missing index (axis=$i)").toPCode(cb, region.code).tcode[Long])
                 })
               }
 
               childEmitter.outputElement(cb, newIdxVars)
             }
           }
-
-          /*
-
-          val sb = SetupBuilder(mb, childEmitter.setupShape)
-
-          val (vars, outputShape) = filters.zipWithIndex.map { case (f, i) =>
-            val codeF = emit(f)
-            val m = mb.genFieldThisRef[Boolean](s"m_filter$i")
-            val v = mb.genFieldThisRef[Long](s"v_filter$i")
-
-            val shapeVar = sb.memoizeField(Code(
-                codeF.setup,
-                m := codeF.m,
-                m.mux(
-                  Code(v := 0L, childEmitter.outputShape(i)),
-                  Code(v := codeF.value[Long], coerce[PArray](f.pType).loadLength(v).toL))),
-              s"nda_filter_shape$i")
-
-            ((m, v), shapeVar)
-          }.unzip
-
-          val setupShape = sb.result()
-
-          new NDArrayEmitter[C](x.pType.nDims, outputShape, x.pType.shape.pType, x.pType.elementType, setupShape, childEmitter.setupMissing, childEmitter.missing) {
-            override def outputElement(elemMB: EmitMethodBuilder[C], idxVars: IndexedSeq[Value[Long]]): Code[_] = {
-              val newIdxVars: IndexedSeq[Settable[Long]] = Array.tabulate(x.pType.nDims) { _ => mb.genFieldThisRef[Long]() }
-
-              Code(
-                Code(
-                  Array.tabulate(x.pType.nDims) { i =>
-                    val (m, v) = vars(i)
-                    val typ = coerce[PArray](filters(i).pType)
-                    newIdxVars(i) := m.mux(
-                      idxVars(i),
-                      typ.isElementMissing(v, idxVars(i).toI).mux(
-                        Code._fatal[Long](s"NDArrayFilter: can't filter on missing index (axis=$i)"),
-                        Region.loadLong(typ.loadElement(v.load(), idxVars(i).toI))))
-                  }),
-                childEmitter.outputElement(elemMB, newIdxVars))
-            }
-          }
-           */
         case _ =>
           val ndI = emit(x)
           val ndMemo = cb.memoize(ndI, "deforestNDArray_fall_through_ndarray")
@@ -3052,49 +3010,6 @@ class Emit[C](
               childEmitter.outputElement(elemMB, sliceIdxVars2)
             }
           }
-
-        case x@NDArrayFilter(child, filters) =>
-          val childEmitter = deforest(child)
-
-          val sb = SetupBuilder(mb, childEmitter.setupShape)
-
-          val (vars, outputShape) = filters.zipWithIndex.map { case (f, i) =>
-            val codeF = emit(f)
-            val m = mb.genFieldThisRef[Boolean](s"m_filter$i")
-            val v = mb.genFieldThisRef[Long](s"v_filter$i")
-
-            val shapeVar = sb.memoizeField(Code(
-                codeF.setup,
-                m := codeF.m,
-                m.mux(
-                  Code(v := 0L, childEmitter.outputShape(i)),
-                  Code(v := codeF.value[Long], coerce[PArray](f.pType).loadLength(v).toL))),
-              s"nda_filter_shape$i")
-
-            ((m, v), shapeVar)
-          }.unzip
-
-          val setupShape = sb.result()
-
-          new NDArrayEmitter[C](x.pType.nDims, outputShape, x.pType.shape.pType, x.pType.elementType, setupShape, childEmitter.setupMissing, childEmitter.missing) {
-            override def outputElement(elemMB: EmitMethodBuilder[C], idxVars: IndexedSeq[Value[Long]]): Code[_] = {
-              val newIdxVars: IndexedSeq[Settable[Long]] = Array.tabulate(x.pType.nDims) { _ => mb.genFieldThisRef[Long]() }
-
-              Code(
-                Code(
-                  Array.tabulate(x.pType.nDims) { i =>
-                    val (m, v) = vars(i)
-                    val typ = coerce[PArray](filters(i).pType)
-                    newIdxVars(i) := m.mux(
-                      idxVars(i),
-                      typ.isElementMissing(v, idxVars(i).toI).mux(
-                        Code._fatal[Long](s"NDArrayFilter: can't filter on missing index (axis=$i)"),
-                        Region.loadLong(typ.loadElement(v.load(), idxVars(i).toI))))
-                  }),
-                childEmitter.outputElement(elemMB, newIdxVars))
-            }
-          }
-
         case _ =>
           val ndt = emit(x)
           val ndAddress = mb.genFieldThisRef[Long]("ndarray_emitter_nd_address")
