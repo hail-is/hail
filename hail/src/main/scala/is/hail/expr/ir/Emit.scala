@@ -1458,7 +1458,7 @@ class Emit[C](
       case x: NDArrayReshape => emitDeforestedNDArrayI(x)
       case x: NDArrayConcat => emitDeforestedNDArray(x)
       case x: NDArraySlice => emitDeforestedNDArray(x)
-      case x: NDArrayFilter => emitDeforestedNDArray(x)
+      case x: NDArrayFilter => emitDeforestedNDArrayI(x)
       case x@RunAgg(body, result, states) =>
         val newContainer = AggContainer.fromBuilder(cb, states.toArray, "run_agg")
         emitVoid(body, container = Some(newContainer))
@@ -2700,33 +2700,48 @@ class Emit[C](
               childEmitter.outputElement(cb, newIdxVars)
             }
           }
-        case NDArrayFilter(child, filters) =>
+        case x@NDArrayFilter(child, filters) =>
           val childEmitter = deforest(child)
-          val childPType = child.pType.asInstanceOf[PNDArray]
 
-          val outputShape = childEmitter.outputShape.flatMap(cb){ childShape =>
-            val shapeSeq = filters.zipWithIndex.map { case (filt, i) =>
+          val filterWasMissing = (0 until filters.size).map(i => cb.newField[Boolean](s"ndarray_filter_${i}_was_missing"))
+          val filtPValues = new Array[PIndexableValue](filters.size)
+          val outputShape = childEmitter.outputShape.map(cb){ childShape =>
+            val outputVars = childShape.map(_ => cb.newField[Long]("ndarray_filter_output_shapes"))
+
+            filters.zipWithIndex.foreach { case (filt, i) =>
               // Each filt is a sequence that may be missing with elements that may not be missing.
-              val filtPCode = emit(filt).consumePCode(cb,
+              emit(filt).consume(cb,
                 {
-                  PCode(childPType.shape.pType, childShape(i))
+                  cb.assign(outputVars(i), childShape(i))
+                  cb.assign(filterWasMissing(i), true)
                 },
                 {
-                  filtArrayPC => filtArrayPC.asIndexable
+                  filtArrayPC => {
+                    val filtArrayPValue = filtArrayPC.asIndexable.memoize(cb, s"ndarray_filt_array_${i}")
+                    filtPValues(i) = filtArrayPValue
+                    cb.assign(outputVars(i), filtArrayPValue.loadLength().toL)
+                    cb.assign(filterWasMissing(i), false)
+                  }
                 }
               )
-
-
-              val filtEv = cb.memoize(filtI, s"ndarray_filter_${i}")
-              ???
             }
-
-            val flattened = IEmitCode.flatten(shapeSeq.map(ev => () => ev.toI(cb)), cb)(a => a)
-            flattened.map(cb)(pcodes => pcodes.map(pc => pc.memoize(cb, "filter_shape_values").value.asInstanceOf[Value[Long]]))
+            outputVars.asInstanceOf[IndexedSeq[Value[Long]]]
           }
 
           new NDArrayEmitter2(outputShape) {
-            override def outputElement(cb: EmitCodeBuilder, idxVars: IndexedSeq[Value[Long]]): PCode = ???
+            override def outputElement(cb: EmitCodeBuilder, idxVars: IndexedSeq[Value[Long]]): PCode = {
+              val newIdxVars: IndexedSeq[Settable[Long]] = Array.tabulate(x.pType.nDims) { _ => cb.newField[Long]("ndarray_filter_new_idx_val") }
+              newIdxVars.zipWithIndex.foreach {case (newIdxVar, i) =>
+                cb.ifx(filterWasMissing(i), {
+                  cb.assign(newIdxVar, idxVars(i))
+                },
+                {
+                  cb.assign(newIdxVar, filtPValues(i).loadElement(cb, idxVars(i).toI).get(cb, "Internal NDArray Filter Error").toPCode(cb, region.code).tcode[Long])
+                })
+              }
+
+              childEmitter.outputElement(cb, newIdxVars)
+            }
           }
 
           /*
