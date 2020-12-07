@@ -537,6 +537,7 @@ async def add_gcsfuse_bucket(mount_path, bucket, key_file, read_only):
 
 
 def copy_command(src, dst, requester_pays_project=None):
+    src = src.rstrip('/')  # ensure that the source_basename is always non-empty
     if requester_pays_project:
         requester_pays_project = f'-u {requester_pays_project}'
     else:
