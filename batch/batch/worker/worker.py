@@ -302,7 +302,7 @@ class Container:
 
         network = self.spec.get('network')
         if network is None:
-            network = 'private'
+            network = 'public'
         host_config['NetworkMode'] = network  # not documented, I used strace to inspect the packets
 
         config['HostConfig'] = host_config
