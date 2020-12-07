@@ -2702,11 +2702,23 @@ class Emit[C](
           }
         case NDArrayFilter(child, filters) =>
           val childEmitter = deforest(child)
+          val childPType = child.pType.asInstanceOf[PNDArray]
 
           val outputShape = childEmitter.outputShape.flatMap(cb){ childShape =>
             val shapeSeq = filters.zipWithIndex.map { case (filt, i) =>
-              val filtI = emit(filt)
-              cb.memoize(filtI, s"ndarray_filter_${i}")
+              // Each filt is a sequence that may be missing with elements that may not be missing.
+              val filtPCode = emit(filt).consumePCode(cb,
+                {
+                  PCode(childPType.shape.pType, childShape(i))
+                },
+                {
+                  filtArrayPC => filtArrayPC.asIndexable
+                }
+              )
+
+
+              val filtEv = cb.memoize(filtI, s"ndarray_filter_${i}")
+              ???
             }
 
             val flattened = IEmitCode.flatten(shapeSeq.map(ev => () => ev.toI(cb)), cb)(a => a)
