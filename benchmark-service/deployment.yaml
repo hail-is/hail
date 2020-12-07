@@ -29,7 +29,7 @@ spec:
            - /controller.sh
            - "python3"
            - "-m"
-           -"benchmark"
+           - "benchmark"
 {% endif %}
           image: "{{ benchmark_image.image }}"
           env:

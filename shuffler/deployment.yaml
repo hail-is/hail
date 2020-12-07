@@ -28,7 +28,7 @@ spec:
 {% endif %}
             - "/bin/bash"
             - "-c"
-            - "exec java -cp ${SPARK_HOME}/jars/*:/hail.jar is.hail.services.shuffler.server.ShuffleServer"
+            - "java -cp ${SPARK_HOME}/jars/*:/hail.jar is.hail.services.shuffler.server.ShuffleServer"
           env:
            - name: HAIL_DOMAIN
              value: "{{ global.domain }}"
