@@ -2720,21 +2720,23 @@ class Emit[C](
           val outputShape = sb.map(0 until ndType.nDims) { (sb, idx) =>
             val localDim = mb.genFieldThisRef[Long]()
 
-            sb += Code(
-              localDim := inputNDType.dimensionLength(inputType.loadElement(inputArray, 0), idx),
-              i := 1,
-              Code.whileLoop(i < n,
+            sb += EmitCodeBuilder.scopedVoid(mb){cb: EmitCodeBuilder =>
+
+              cb.assign(localDim, inputNDType.loadShape(cb, inputType.loadElement(inputArray, 0), idx))
+              cb.assign(i, 1)
+              cb.whileLoop(i < n,
                 {
                   if (idx == axis)
-                    localDim := localDim + inputNDType.dimensionLength(inputType.loadElement(inputArray, i), idx)
+                    cb.assign(localDim, localDim + inputNDType.loadShape(cb, inputType.loadElement(inputArray, i), idx))
                   else
-                    inputNDType.dimensionLength(inputType.loadElement(inputArray, i), idx).cne(localDim)
+                    cb += inputNDType.loadShape(cb, inputType.loadElement(inputArray, i), idx).cne(localDim)
                       .orEmpty(Code._fatal[Unit](
                         const(s"NDArrayConcat: mismatched dimensions of input NDArrays along axis $i: expected ")
                           .concat(localDim.toS).concat(", got ")
-                          .concat(inputNDType.dimensionLength(inputType.loadElement(inputArray, i), idx).toS)))
-                },
-                i := i + 1))
+                          .concat(inputNDType.loadShape(cb, inputType.loadElement(inputArray, i), idx).toS)))
+
+                  cb.assign(i, i + 1)
+                })}
 
             localDim
           }
@@ -2751,15 +2753,17 @@ class Emit[C](
             override def outputElement(elemMB: EmitMethodBuilder[C], idxVars: IndexedSeq[Value[Long]]): Code[_] = {
               val concatAxisIdx = elemMB.newLocal[Long]()
 
-              val setupTransformedIdx = Code(
-                i := 0,
-                concatAxisIdx := idxVars(axis),
-                Code.whileLoop(concatAxisIdx >= inputNDType.dimensionLength(inputType.loadElement(inputArray, i), axis),
-                  concatAxisIdx := concatAxisIdx - inputNDType.dimensionLength(inputType.loadElement(inputArray, i), axis),
-                  i := i + 1),
-                (i > n).orEmpty(Code._fatal[Unit](
+              val setupTransformedIdx = EmitCodeBuilder.scopedVoid(elemMB){cb: EmitCodeBuilder =>
+                cb.assign(i, 0)
+                cb.assign(concatAxisIdx, idxVars(axis))
+                cb.whileLoop(concatAxisIdx >= inputNDType.loadShape(cb, inputType.loadElement(inputArray, i), axis),
+                  {
+                    cb.assign(concatAxisIdx, concatAxisIdx - inputNDType.loadShape(cb, inputType.loadElement(inputArray, i), axis))
+                    cb.assign(i, i + 1)
+                  })
+                cb += (i > n).orEmpty(Code._fatal[Unit](
                   const("NDArrayConcat: trying to access element greater than length of concatenation axis: ")
-                    .concat(i.toS).concat(" > ").concat(n.toS))))
+                    .concat(i.toS).concat(" > ").concat(n.toS)))}
 
               val transformedIdxs = Array.tabulate(x.typ.nDims) { idx =>
                 if (idx == axis) concatAxisIdx else idxVars(idx)
