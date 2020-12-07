@@ -9,6 +9,7 @@ import google.cloud.storage
 
 from hailtop.batch import Batch, ServiceBackend, LocalBackend
 from hailtop.batch.globals import arg_max
+from hailtop.batch.utils import job_logs
 from hailtop.utils import grouped
 from hailtop.config import get_user_config
 from hailtop.batch.utils import concatenate
