@@ -42,41 +42,46 @@ public:
   }
 };
 
+class maybe_value {
+public:
+  int32_t v;
+  char is_deleted;
+  explicit maybe_value() : v{0}, is_deleted{0} {}
+  explicit maybe_value(int32_t _v, char _deleted) : v{_v}, is_deleted{_deleted} {}
+};
+
 class LSM {
-  std::map<int32_t, int32_t> m;
+  std::map<int32_t, maybe_value> m;
   std::vector<File> files;
 public:
-  void put(int32_t k, int32_t v) {
-    if (m.size() == 4) {
+  void put(int32_t k, int32_t v, char deleted = 0) {
+    if (m.size() >= 4) {
       std::string filename;
       if (files.empty()) {
-        filename = '0';
+        filename = "0";
       } else {
         filename = std::to_string(std::stoi(files.back().get_name()) + 1);
       }
       write_to_file(filename);
       files.push_back(File(filename));
       m.clear();
-      m.insert(std::make_pair(k,v));
-    } else{
-      m.insert(std::make_pair(k,v));
+      m.insert_or_assign(k,maybe_value(v, deleted));
+    } else {
+      m.insert_or_assign(k,maybe_value(v, deleted));
     }
   }
   std::optional<int32_t> get(int32_t k) {
     auto it = m.find(k);
-    if (it != m.end()) {
-      return it->second;
+
+    if (it != m.end() && !it->second.is_deleted) {
+      return it->second.v;
     } else {
-      // TODO: else if key doesn't exist check the files
-//      auto it_b = this->files.begin();
-//      auto it_e = this->files.end();
-//      for (auto it=it_b; it!=it_e; ++it) {
       for (auto file : files) {
         if (k >= file.get_min() && k <= file.get_max()) {
-          std::map<int32_t, int32_t> file_map = read_from_file(file.get_name());
+          std::map<int32_t, maybe_value> file_map = read_from_file(file.get_name());
           auto it_m = file_map.find(k);
-          if (it_m != m.end()) {
-            return it_m->second;
+          if (it_m != m.end() && !it_m->second.is_deleted) {
+            return it_m->second.v;
           }
         }
       }
@@ -88,30 +93,32 @@ public:
     auto it_l = m.lower_bound(l);
     auto it_u = m.lower_bound(r);
     for (auto it=it_l; it!=it_u; ++it) {
-      res.push_back(std::make_pair(it->first, it->second));
+      res.push_back(std::make_pair(it->first, it->second.v));
     }
     return res;
   }
   void del(int32_t k) {
-    m.erase(k);
+    put(k ,0, 1);
   }
   int write_to_file(std::string filename) {
     std::ofstream ostrm(filename, std::ios::binary);
     for (auto const&x : m) {
       ostrm.write(reinterpret_cast<const char*>(&x.first), sizeof x.first);
-      ostrm.write(reinterpret_cast<const char*>(&x.second), sizeof x.second);
+      ostrm.write(reinterpret_cast<const char*>(&x.second.v), sizeof x.second.v);
+      ostrm.write(reinterpret_cast<const char*>(&x.second.is_deleted), sizeof x.second.is_deleted);
     }
     return 0;
   }
-  std::map<int32_t, int32_t> read_from_file(std::string filename) {
-    //TODO: return map (don't modify actual map, create new and return)
-    std::map<int32_t, int32_t> new_m;
+  std::map<int32_t, maybe_value> read_from_file(std::string filename) {
+    std::map<int32_t, maybe_value> new_m;
     if (auto istrm = std::ifstream(filename, std::ios::binary)) {
       while (!istrm.eof()) {
         int k, v;
+        char d;
         istrm.read(reinterpret_cast<char *>(&k), sizeof k);
         istrm.read(reinterpret_cast<char *>(&v), sizeof v);
-        new_m.insert(std::make_pair(k, v));
+        istrm.read(reinterpret_cast<char *>(&d), sizeof d);
+        new_m.insert_or_assign(k, maybe_value(v,d));
       }
     } else {
       std::cerr << "could not open " << filename << "\n";
