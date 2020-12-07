@@ -143,6 +143,8 @@ steps:
        to: /git_version
      - from: /io/repo/address/test
        to: /repo/address/test
+     - from: /io/repo/lsm
+       to: /repo/lsm
    dependsOn:
      - base_image
  - kind: buildImage
@@ -2174,6 +2176,20 @@ steps:
     - build_hail
     - hail_run_image
     - deploy_query
+ - kind: runImage
+   name: test_lsm
+   image:
+     valueFrom: base_image.image
+   script: |
+     cd /io/lsm
+     make
+     make test
+   inputs:
+     - from: /repo/lsm
+       to: /io/
+   dependsOn:
+     - base_image
+     - copy_files
  - kind: buildImage
    name: netcat_ubuntu_image
    dockerFile:

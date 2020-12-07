@@ -4,23 +4,35 @@
 #include <string>
 #include <variant>
 #include <vector>
+#include <fstream>
 
 class LSM {
   std::map<int32_t, int32_t> m;
 public:
   void put(int32_t k, int32_t v) {
-    // ???
+    m.insert(std::make_pair(k,v));
   }
   std::optional<int32_t> get(int32_t k) {
-    // ???
+    auto it = m.find(k);
+    if (it != m.end()) {
+        return it->second;
+    }
+    return std::nullopt;
   }
   std::vector<std::pair<int32_t, int32_t>> range(int32_t l, int32_t r) {
-    // ???
+    std::vector<std::pair<int32_t, int32_t>> res;
+    auto it_l = m.lower_bound(l);
+    auto it_u = m.lower_bound(r);
+    for (auto it=it_l; it!=it_u; ++it) {
+        res.push_back(std::make_pair(it->first, it->second));
+    }
+    return res;
   }
   void del(int32_t k) {
-    // ???
+    m.erase(k);
   }
 };
+
 
 int main(int argc, const char ** argv) {
   if (argc != 1) {
