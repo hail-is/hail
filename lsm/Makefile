@@ -43,4 +43,4 @@ clean:
 
 .PHONY: test
 test: build/main
-	./test.sh
+	bash test.sh
