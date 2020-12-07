@@ -7,24 +7,25 @@
 #include <fstream>
 
 class File {
+public:
   std::string filename;
   int min, max;
-public:
+
   File(std::string filename) {
     this->filename = filename;
     std::vector<int32_t> keys = get_keys();
     this->min = *min_element(keys.begin(), keys.end());
     this->max = *max_element(keys.begin(), keys.end());
   }
-  int get_min() {
-    return min;
-  }
-  int get_max() {
-    return max;
-  }
-  std::string get_name() {
-    return filename;
-  }
+//  int get_min() {
+//    return min;
+//  }
+//  int get_max() {
+//    return max;
+//  }
+//  std::string get_name() {
+//    return filename;
+//  }
   std::vector<int32_t> get_keys() {
     std::vector<int32_t> keys;
     if (auto istrm = std::ifstream(filename, std::ios::binary)) {
@@ -60,7 +61,7 @@ public:
       if (files.empty()) {
         filename = "0";
       } else {
-        filename = std::to_string(std::stoi(files.back().get_name()) + 1);
+        filename = std::to_string(std::stoi(files.back().filename) + 1);
       }
       write_to_file(filename);
       files.push_back(File(filename));
@@ -77,8 +78,8 @@ public:
       return it->second.v;
     } else {
       for (auto file : files) {
-        if (k >= file.get_min() && k <= file.get_max()) {
-          std::map<int32_t, maybe_value> file_map = read_from_file(file.get_name());
+        if (k >= file.min && k <= file.max) {
+          std::map<int32_t, maybe_value> file_map = read_from_file(file.filename);
           auto it_m = file_map.find(k);
           if (it_m != m.end() && !it_m->second.is_deleted) {
             return it_m->second.v;
