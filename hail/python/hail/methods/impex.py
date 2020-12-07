@@ -1,4 +1,5 @@
 import json
+import re
 
 from hail.typecheck import typecheck, nullable, oneof, dictof, anytype, \
     sequenceof, enumeration, sized_tupleof, numeric, table_key_type, char
@@ -504,6 +505,13 @@ def export_vcf(dataset, output, append_to_header=None, parallel=None, metadata=N
 
     require_col_key_str(dataset, 'export_vcf')
     require_row_key_variant(dataset, 'export_vcf')
+
+    info_fields = list(dataset.info) if "info" in dataset.row else []
+    invalid_info_fields = [f for f in info_fields if not re.fullmatch(r"^([A-Za-z_][0-9A-Za-z_.]*|1000G)", f)]
+    if invalid_info_fields:
+        invalid_info_str = ''.join(f'\n    {f!r}' for f in invalid_info_fields)
+        warning('export_vcf: the following info field names are invalid in VCF 4.3 and may not work with some tools: ' + invalid_info_str)
+
     row_fields_used = {'rsid', 'info', 'filters', 'qual'}
 
     fields_dropped = []

@@ -1,6 +1,7 @@
 import json
 import os
 import unittest
+from unittest import mock
 
 import shutil
 import pytest
@@ -635,6 +636,20 @@ class VCFTests(unittest.TestCase):
         assert saw_gt
         assert saw_lq
 
+    @fails_local_backend()
+    def test_invalid_info_fields(self):
+        t = new_temp_file(extension='vcf')
+        mt = hl.import_vcf(resource('sample.vcf'))
+
+
+        with mock.patch("hail.methods.impex.warning", autospec=True) as warning:
+            hl.export_vcf(mt, t)
+            assert warning.call_count == 0
+
+        for invalid_field in ["foo-1", "123", "bar baz"]:
+            with mock.patch("hail.methods.impex.warning", autospec=True) as warning:
+                hl.export_vcf(mt.annotate_rows(info=mt.info.annotate(**{invalid_field: True})), t)
+                assert warning.call_count == 1
 
 class PLINKTests(unittest.TestCase):
     def test_import_fam(self):
