@@ -537,21 +537,35 @@ async def add_gcsfuse_bucket(mount_path, bucket, key_file, read_only):
 
 
 def copy_command(src, dst, requester_pays_project=None):
+    src = src.rstrip('/')  # ensure that the source_basename is always non-empty
     if requester_pays_project:
         requester_pays_project = f'-u {requester_pays_project}'
     else:
         requester_pays_project = ''
 
+    def gsutil_cp_r(src, dst, *, recursive):
+        flags = '-R' if recursive else ''
+        return f'retry gsutil {requester_pays_project} -m cp {flags} {shq(src)} {shq(dst)}'
+
     if not dst.startswith('gs://'):
-        mkdirs_file = f'mkdir -p {shq(os.path.dirname(dst))} && '
-        mkdirs_dir = f'mkdir -p {shq(dst)} && '
+        target_directory = os.path.dirname(dst)
+        target_basename = os.path.basename(dst)
+        source_basename = os.path.basename(src)
+
+        mkdirs = f'mkdir -p { shq(target_directory) } && '
+        cp_dir = gsutil_cp_r(src, target_directory, recursive=True)
+
+        if target_basename not in ('', source_basename):
+            current_location = target_directory + '/' + source_basename
+            desired_location = target_directory + '/' + target_basename
+            cp_dir = f'{{ {cp_dir} && mv {current_location} {desired_location} ; }}'
     else:
-        mkdirs_file = ''
-        mkdirs_dir = ''
+        mkdirs = ''
+        cp_dir = gsutil_cp_r(src, dst, recursive=True)
 
-    cp = f'retry gsutil {requester_pays_project} -m cp -R {shq(src)} {shq(dst)}'
+    cp_file = gsutil_cp_r(src, dst, recursive=False)
 
-    return f'{{ {mkdirs_file}{cp} ; }} || {{ {mkdirs_dir}{cp} ; }}'
+    return f'{mkdirs} {cp_file} || {cp_dir}'
 
 
 def copy(files, name, requester_pays_project):
