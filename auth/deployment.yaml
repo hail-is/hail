@@ -71,6 +71,11 @@ spec:
             value: "{{ global.zone }}"
           - name: HAIL_DEFAULT_NAMESPACE
             value: "{{ default_ns.name }}"
+          - name: HAIL_GSUITE_ORGANIZATION
+            valueFrom:
+              secretKeyRef:
+                name: global-config
+                key: gsuite_organization
          resources:
            requests:
              memory: "250M"
@@ -173,6 +178,11 @@ spec:
             value: "{{ global.zone }}"
           - name: HAIL_DEFAULT_NAMESPACE
             value: "{{ default_ns.name }}"
+          - name: HAIL_GSUITE_ORGANIZATION
+            valueFrom:
+              secretKeyRef:
+                name: global-config
+                key: gsuite_organization
          resources:
            requests:
              memory: "250M"

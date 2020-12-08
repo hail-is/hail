@@ -1,3 +1,4 @@
+import os
 import logging
 import asyncio
 import aiohttp
@@ -25,6 +26,8 @@ from web_common import (
 log = logging.getLogger('auth')
 
 uvloop.install()
+
+GSUITE_ORGANIZATION = os.environ['HAIL_GSUITE_ORGANIZATION']
 
 deploy_config = get_deploy_config()
 
@@ -239,7 +242,7 @@ async def callback(request):
 
         username, domain = email.split('@')
 
-        if domain != 'broadinstitute.org':
+        if domain != GSUITE_ORGANIZATION:
             raise web.HTTPUnauthorized()
 
         await db.execute_insertone(
