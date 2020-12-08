@@ -107,7 +107,7 @@ object VEP {
     VEP(fs, VEPParameters(config, csq, blockSize))
 
   def fromJValue(fs: FS, jv: JValue): VEP = {
-    println(jv)
+    log.info(s"vep config json: ${ jv.toString }")
     implicit val formats: Formats = RelationalFunctions.formats
     val params = jv.extract[VEPParameters]
     VEP(fs, params)
