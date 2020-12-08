@@ -19,7 +19,7 @@ class BackgroundTaskManager:
         self.tasks.add(asyncio.ensure_future(coroutine))
 
     def ensure_future_threadsafe(self, coroutine):
-        self.tasks.add(asyncio.run_coroutine_threadsafe(self.loop, coroutine))
+        self.tasks.add(asyncio.run_coroutine_threadsafe(coroutine, self.loop))
 
     def shutdown(self):
         for task in self.tasks:
