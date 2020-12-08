@@ -17,22 +17,16 @@ public:
     this->min = *min_element(keys.begin(), keys.end());
     this->max = *max_element(keys.begin(), keys.end());
   }
-//  int get_min() {
-//    return min;
-//  }
-//  int get_max() {
-//    return max;
-//  }
-//  std::string get_name() {
-//    return filename;
-//  }
+
   std::vector<int32_t> get_keys() {
     std::vector<int32_t> keys;
     if (auto istrm = std::ifstream(filename, std::ios::binary)) {
       while (!istrm.eof()) {
         int k, v;
+        char d;
         istrm.read(reinterpret_cast<char *>(&k), sizeof k);
         istrm.read(reinterpret_cast<char *>(&v), sizeof v);
+        istrm.read(reinterpret_cast<char *>(&d), sizeof d);
         keys.push_back(k);
       }
     } else {
@@ -89,15 +83,41 @@ public:
     }
     return std::nullopt;
   }
+
   std::vector<std::pair<int32_t, int32_t>> range(int32_t l, int32_t r) {
     std::vector<std::pair<int32_t, int32_t>> res;
+    std::map<int32_t,int32_t>  res_map;
+
+    for (auto file : files) {
+      if (r >= file.min && l <= file.max) {
+        std::map<int32_t, maybe_value> file_map = read_from_file(file.filename);
+        auto it_ml = file_map.lower_bound(l);
+        auto it_mu = file_map.lower_bound(r);
+        for (auto it=it_ml; it!=it_mu; ++it) {
+          if (!it->second.is_deleted) {
+            //res.push_back(std::make_pair(it->first, it->second.v));
+            res_map.insert_or_assign(it->first, it->second.v);
+          }
+        }
+      }
+    }
+
     auto it_l = m.lower_bound(l);
     auto it_u = m.lower_bound(r);
     for (auto it=it_l; it!=it_u; ++it) {
-      res.push_back(std::make_pair(it->first, it->second.v));
+      res_map.insert_or_assign(it->first, it->second.v);
+      //res.push_back(std::make_pair(it->first, it->second.v));
     }
+
+    auto rit_l = res_map.lower_bound(l);
+    auto rit_u = res_map.lower_bound(r);
+    for (auto it=rit_l; it!=rit_u; ++it) {
+      res.push_back(std::make_pair(it->first, it->second));
+    }
+
     return res;
   }
+
   void del(int32_t k) {
     put(k ,0, 1);
   }
