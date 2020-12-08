@@ -12,6 +12,8 @@ Requirements
 
 - The Python and non-pip installation requirements in `Getting Started <getting_started.html>`_
 
+- If you are setting `HAIL_COMPILE_NATIVES=1`, then you need the LZ4 library
+  header files. On Debian and Ubuntu machines run: `apt-get install liblz4-dev`.
 
 Building Hail
 ~~~~~~~~~~~~~
