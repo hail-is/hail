@@ -682,7 +682,7 @@ resource "google_storage_bucket" "batch_logs" {
   name = "batch-logs-${random_id.batch_logs_bucket_name_suffix.hex}"
   location = var.gcp_location
   force_destroy = true
-  storage_class = "MULTI_REGIONAL"
+  storage_class = "STANDARD"
 }
 
 resource "google_dns_managed_zone" "dns_zone" {
