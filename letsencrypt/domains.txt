@@ -15,4 +15,3 @@ query.@domain@
 workshop.@domain@
 atgu.@domain@
 amundsen-frontend.@domain@
-site.@domain@
