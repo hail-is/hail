@@ -2748,7 +2748,7 @@ class Emit[C](
 
           val slicesI = emit(slicesIR)
 
-          slicesI.flatMap(cb){slicesTuple =>
+          val realOutputShape = slicesI.flatMap(cb){slicesTuple =>
             val slicesValue = slicesTuple.asBaseStruct.memoize(cb, "ndarray_slices_tuple")
             // Need to look at each field, the shape is from the width of the slice fields.
             val slicingIndices = slicesValue.pt.types.zipWithIndex.flatMap { case (pFieldType, idx) =>
@@ -2756,7 +2756,7 @@ class Emit[C](
             }
             val outputShape = {
               val slicingIs = slicingIndices.map(valueIdx => slicesValue.loadField(cb, valueIdx))
-              val tooNested = IEmitCode.flatten(slicingIs.map(slice => () => slice), cb)(sCodeSlices => sCodeSlices).flatMap(cb) {sCodeSlices =>
+              val tooNested = IEmitCode.flatten(slicingIs.map(slice => () => slice), cb){sCodeSlices =>
                 val inner = sCodeSlices.map{sCodeSlice =>
                   val sValueSlice = sCodeSlice.asBaseStruct.memoize(cb, "ndarray_slice_sCodeSlice")
                   // I know I have a tuple of three elements here, start, step, stop
@@ -2781,17 +2781,23 @@ class Emit[C](
                   newDimSizeI
                 }
                 inner
-              })
+              }
 
-              //tooNested.flatMap(cb)(myThing => myThing.flatten(iec =>  => iec)(as => as))
+              tooNested.flatMap(cb)(seqOfIEmitOfA => IEmitCode.flatten(seqOfIEmitOfA.map(iec => () => iec), cb)(as => as))
             }
 
-
-            ???
+            outputShape
           }
 
-          new NDArrayEmitter2(???) {
-            override def outputElement(cb: EmitCodeBuilder, idxVars: IndexedSeq[Value[Long]]): PCode = ???
+          new NDArrayEmitter2(realOutputShape) {
+            override def outputElement(cb: EmitCodeBuilder, idxVars: IndexedSeq[Value[Long]]): PCode = {
+              // Iterate through the slices tuple given in. For each single integer, should just copy that integer into
+              // an indexed seq. For each range, should use start and step to modify.
+
+              val newIdxVars = slicesI.pt.
+
+              ???
+            }
           }
 
 //
