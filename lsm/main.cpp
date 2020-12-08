@@ -83,7 +83,6 @@ public:
     }
     return std::nullopt;
   }
-
   std::vector<std::pair<int32_t, int32_t>> range(int32_t l, int32_t r) {
     std::vector<std::pair<int32_t, int32_t>> res;
     std::map<int32_t,int32_t>  res_map;
@@ -95,7 +94,6 @@ public:
         auto it_mu = file_map.lower_bound(r);
         for (auto it=it_ml; it!=it_mu; ++it) {
           if (!it->second.is_deleted) {
-            //res.push_back(std::make_pair(it->first, it->second.v));
             res_map.insert_or_assign(it->first, it->second.v);
           }
         }
@@ -106,7 +104,6 @@ public:
     auto it_u = m.lower_bound(r);
     for (auto it=it_l; it!=it_u; ++it) {
       res_map.insert_or_assign(it->first, it->second.v);
-      //res.push_back(std::make_pair(it->first, it->second.v));
     }
 
     auto rit_l = res_map.lower_bound(l);
