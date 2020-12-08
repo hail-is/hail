@@ -10,7 +10,7 @@ deploy_config = get_deploy_config()
 app = web.Application()
 routes = web.RouteTableDef()
 
-SHA = os.environ['SHA']
+SHA = os.environ['HAIL_SHA']
 
 
 @routes.get('/healthcheck')
