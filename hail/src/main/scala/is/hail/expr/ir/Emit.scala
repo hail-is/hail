@@ -16,7 +16,8 @@ import is.hail.linalg.{BLAS, LAPACK, LinalgCodeUtils}
 import is.hail.services.shuffler._
 import is.hail.types.physical._
 import is.hail.types.physical.stypes.concrete.{SCanonicalShufflePointerCode, SCanonicalShufflePointerSettable}
-import is.hail.types.physical.stypes.primitives.{SFloat32, SFloat64, SInt32, SInt64}
+import is.hail.types.physical.stypes.interfaces.SBaseStructCode
+import is.hail.types.physical.stypes.primitives.{SFloat32, SFloat64, SInt32, SInt64, SInt64Code}
 import is.hail.types.virtual._
 import is.hail.utils._
 
@@ -1457,7 +1458,7 @@ class Emit[C](
       case x: NDArrayMap2 =>  emitDeforestedNDArrayI(x)
       case x: NDArrayReshape => emitDeforestedNDArrayI(x)
       case x: NDArrayConcat => emitDeforestedNDArray(x)
-      case x: NDArraySlice => emitDeforestedNDArray(x)
+      case x: NDArraySlice => emitDeforestedNDArrayI(x)
       case x: NDArrayFilter => emitDeforestedNDArrayI(x)
       case x@RunAgg(body, result, states) =>
         val newContainer = AggContainer.fromBuilder(cb, states.toArray, "run_agg")
@@ -2744,16 +2745,16 @@ class Emit[C](
             }
           }
         case x@NDArraySlice(child, slicesIR) =>
-          val childEmitter = deforest(child)
-
           val slicesI = emit(slicesIR)
+          val slicesV = slicesI.memoize(cb, "ndarray_slices_tuple_emitvalue_memoize")
 
-          val realOutputShape = slicesI.flatMap(cb){slicesTuple =>
-            val slicesValue = slicesTuple.asBaseStruct.memoize(cb, "ndarray_slices_tuple")
+          val realOutputShape = slicesV.toI(cb).flatMap(cb){slicesTuple =>
+            val slicesValue = slicesTuple.asBaseStruct.memoize(cb, "ndarray_slices_ptuple")
             // Need to look at each field, the shape is from the width of the slice fields.
             val slicingIndices = slicesValue.pt.types.zipWithIndex.flatMap { case (pFieldType, idx) =>
               Array(idx)
             }
+
             val outputShape = {
               val slicingIs = slicingIndices.map(valueIdx => slicesValue.loadField(cb, valueIdx))
               val tooNested = IEmitCode.flatten(slicingIs.map(slice => () => slice), cb){sCodeSlices =>
@@ -2789,14 +2790,31 @@ class Emit[C](
             outputShape
           }
 
+          val childEmitter = deforest(child)
+
           new NDArrayEmitter2(realOutputShape) {
             override def outputElement(cb: EmitCodeBuilder, idxVars: IndexedSeq[Value[Long]]): PCode = {
               // Iterate through the slices tuple given in. For each single integer, should just copy that integer into
               // an indexed seq. For each range, should use start and step to modify.
+              val oldIdxVarsIterator = idxVars.toIterator
 
-              val newIdxVars = slicesI.pt.
+              val newIdxVars = slicesV.toI(cb).map(cb){pc =>
+                val slicesPTuple = pc.asBaseStruct.memoize(cb, "ndarray_slice_output_element_ptuple")
+                (0 until slicesPTuple.pt.size).map(i => slicesPTuple.loadField(cb, i).get(cb, "Internal Error can't be missing") match {
+                  case indexer: SInt64Code => {
+                    cb.memoize(indexer.toPCode(cb, region.code), "ndarray_slice_indexer").value.asInstanceOf[Value[Long]]
+                  }
+                  case slicer: SBaseStructCode => {
+                    val slicerMemo = slicer.toPCode(cb, region.code).asBaseStruct.memoize(cb, "ndarray_slice_slicer")
+                    val start = slicerMemo.loadField(cb, 0).get(cb, "Internal error can't be missing").asLong
+                    val step = slicerMemo.loadField(cb, 2).get(cb, "Internal error can't be missing").asLong
 
-              ???
+                    cb.memoize(PCode.apply(PInt64Required, start.tcode[Long] + oldIdxVarsIterator.next() * step.tcode[Long]), "ndarray_slice_adjusted_lookup").value.asInstanceOf[Value[Long]]
+                  }
+                })
+              }.get(cb, "Internal error can't be missing")
+
+              childEmitter.outputElement(cb, newIdxVars)
             }
           }
 
