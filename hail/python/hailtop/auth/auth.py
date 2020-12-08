@@ -59,12 +59,13 @@ def copy_paste_login(copy_paste_token, namespace=None):
 
 async def async_copy_paste_login(copy_paste_token, namespace=None):
     deploy_config = get_deploy_config()
+
     if namespace is not None:
-        auth_ns = namespace
-        deploy_config = deploy_config.with_service('auth', auth_ns)
+        deploy_config = deploy_config.with_default_namespace(namespace)
     else:
-        auth_ns = deploy_config.service_ns('auth')
-    headers = namespace_auth_headers(deploy_config, auth_ns, authorize_target=False)
+        namespace = deploy_config.default_namespace()
+
+    headers = namespace_auth_headers(deploy_config, namespace, authorize_target=False)
 
     async with aiohttp.ClientSession(
             raise_for_status=True,
@@ -78,10 +79,10 @@ async def async_copy_paste_login(copy_paste_token, namespace=None):
     username = resp['username']
 
     tokens = get_tokens()
-    tokens[auth_ns] = token
+    tokens[namespace] = token
     dot_hail_dir = os.path.expanduser('~/.hail')
     if not os.path.exists(dot_hail_dir):
         os.mkdir(dot_hail_dir, mode=0o700)
     tokens.write()
 
-    return auth_ns, username
+    return namespace, username

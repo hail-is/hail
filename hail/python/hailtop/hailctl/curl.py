@@ -13,9 +13,10 @@ def main(args):
     svc = args[1]
     path = args[2]
     deploy_config = get_deploy_config()
+    deploy_config = deploy_config.with_default_namespace(ns)
     headers = namespace_auth_headers(deploy_config, ns)
     headers = [x
                for k, v in headers.items()
                for x in ['-H', f'{k}: {v}']]
-    path = deploy_config.with_service(svc, ns).url(svc, path)
+    path = deploy_config.url(svc, path)
     os.execvp('curl', ['curl', *headers, *args[3:], path])

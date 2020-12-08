@@ -44,7 +44,7 @@ async def start_server():
     return (runner, port)
 
 
-async def auth_flow(deploy_config, auth_ns, session):
+async def auth_flow(deploy_config, default_ns, session):
     runner, port = await start_server()
 
     async with session.get(deploy_config.url('auth', '/api/v1alpha/login'),
@@ -77,29 +77,26 @@ Opening in your browser.
     username = resp['username']
 
     tokens = get_tokens()
-    tokens[auth_ns] = token
+    tokens[default_ns] = token
     dot_hail_dir = os.path.expanduser('~/.hail')
     if not os.path.exists(dot_hail_dir):
         os.mkdir(dot_hail_dir, mode=0o700)
     tokens.write()
 
-    if auth_ns == 'default':
+    if default_ns == 'default':
         print(f'Logged in as {username}.')
     else:
-        print(f'Logged into namespace {auth_ns} as {username}.')
+        print(f'Logged into namespace {default_ns} as {username}.')
 
 
 async def async_main(args):
     deploy_config = get_deploy_config()
     if args.namespace:
-        auth_ns = args.namespace
-        deploy_config = deploy_config.with_service('auth', auth_ns)
-    else:
-        auth_ns = deploy_config.service_ns('auth')
-    headers = namespace_auth_headers(deploy_config, auth_ns, authorize_target=False)
+        deploy_config = deploy_config.with_default_namespace(args.namespace)
+    headers = namespace_auth_headers(deploy_config, deploy_config.default_namespace(), authorize_target=False)
     async with get_context_specific_ssl_client_session(
             raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60), headers=headers) as session:
-        await auth_flow(deploy_config, auth_ns, session)
+        await auth_flow(deploy_config, deploy_config.default_namespace(), session)
 
 
 def main(args, pass_through_args):  # pylint: disable=unused-argument
