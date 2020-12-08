@@ -16,7 +16,7 @@ import signal
 
 
 configure_logging()
-log = logging.getLogger('scorecard')
+log = logging.getLogger('sync.py')
 RSYNC_ARGS = "-av --progress --stats --exclude='*.log' --exclude='.mypy_cache' --exclude='__pycache__' --exclude='*~'"
 
 
