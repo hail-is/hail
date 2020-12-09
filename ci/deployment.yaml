@@ -26,10 +26,10 @@ spec:
           command:
 {% if not deploy %}
            - /controller.sh
+{% endif %}
            - "python3"
            - "-m"
            - "ci"
-{% endif %}
           image: "{{ ci_image.image }}"
           resources:
             requests:
