@@ -64,3 +64,83 @@ cat > build/expected <<EOF
 EOF
 diff build/out build/expected
 echo success
+
+echo 5
+build/main > build/out 2> build/err <<EOF
+p 10 7
+p 12 5
+p 13 9
+p 33 4
+g 10
+g 33
+D
+p 56 80
+g 56
+D
+g 10
+EOF
+cat > build/expected <<EOF
+7
+4
+10
+12
+13
+33
+80
+56
+7
+EOF
+diff build/out build/expected
+echo success
+
+echo 6
+build/main > build/out 2> build/err <<EOF
+p 1 9
+p 3 7
+p 4 6
+p 2 8
+r 1 4
+p 5 5
+p 6 4
+D
+p 1 33
+r 1 4
+r 1 6
+EOF
+cat > build/expected <<EOF
+1:9 2:8 3:7
+5
+6
+1:33 2:8 3:7
+1:33 2:8 3:7 4:6 5:5
+EOF
+diff build/out build/expected
+echo success
+
+echo 7
+build/main > build/out 2> build/err <<EOF
+p 1 9
+p 3 7
+p 4 6
+p 2 8
+r 1 4
+p 5 5
+p 6 4
+p 7 3
+p 2 99
+D
+p 8 2
+r 1 4
+r 1 6
+EOF
+cat > build/expected <<EOF
+1:9 2:8 3:7
+2
+5
+6
+7
+1:9 2:99 3:7
+1:9 2:99 3:7 4:6 5:5
+EOF
+diff build/out build/expected
+echo success

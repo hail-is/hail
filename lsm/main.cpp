@@ -139,13 +139,11 @@ public:
     put(k ,0, 1);
   }
   int write_to_file(std::string filename) {
-    std::cout << "write_to_file" << filename << "\n";
     std::ofstream ostrm(filename, std::ios::binary);
     for (auto const&x : m) {
       ostrm.write(reinterpret_cast<const char*>(&x.first), sizeof x.first);
       ostrm.write(reinterpret_cast<const char*>(&x.second.v), sizeof x.second.v);
       ostrm.write(reinterpret_cast<const char*>(&x.second.is_deleted), sizeof x.second.is_deleted);
-      std::cout << x.first << "\n";
     }
     return 0;
   }
