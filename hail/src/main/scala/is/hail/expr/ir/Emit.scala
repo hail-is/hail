@@ -15,6 +15,7 @@ import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer}
 import is.hail.linalg.{BLAS, LAPACK, LinalgCodeUtils}
 import is.hail.services.shuffler._
 import is.hail.types.physical._
+import is.hail.types.physical.stypes.SCode
 import is.hail.types.physical.stypes.concrete.{SCanonicalShufflePointerCode, SCanonicalShufflePointerSettable}
 import is.hail.types.physical.stypes.interfaces.SBaseStructCode
 import is.hail.types.physical.stypes.primitives.{SFloat32, SFloat64, SInt32, SInt64, SInt64Code}
@@ -237,6 +238,26 @@ object IEmitCode {
 
   def flatten[A, B](seq: IndexedSeq[() => IEmitCodeGen[A]], cb: EmitCodeBuilder)(f: IndexedSeq[A] => B): IEmitCodeGen[B] =
     sequence(seq, { (i: () => IEmitCodeGen[A]) => i() }, cb)(f)
+
+  def multiFlatMap[A, B, C](seq: IndexedSeq[A], toIec: A => IEmitCodeGen[B], cb: EmitCodeBuilder)
+                           (f: IndexedSeq[B] => IEmitCodeGen[C]): IEmitCodeGen[C] = {
+    val Lmissing = CodeLabel()
+
+    val pcs = seq.map { elem =>
+      val iec = toIec(elem)
+
+      cb.define(iec.Lmissing)
+      cb.goto(Lmissing)
+      cb.define(iec.Lpresent)
+
+      iec.value
+    }
+    val iec = f(pcs)
+    cb.define(iec.Lmissing)
+    cb.goto(Lmissing)
+
+    IEmitCodeGen(Lmissing, iec.Lpresent, iec.value)
+  }
 }
 
 object IEmitCodeGen {
@@ -2748,6 +2769,8 @@ class Emit[C](
           val slicesI = emit(slicesIR)
           val slicesV = slicesI.memoize(cb, "ndarray_slices_tuple_emitvalue_memoize")
 
+          val childEmitter = deforest(child)
+
           val realOutputShape = slicesV.toI(cb).flatMap(cb){slicesTuple =>
             val slicesValue = slicesTuple.asBaseStruct.memoize(cb, "ndarray_slices_ptuple")
             // Need to look at each field, the shape is from the width of the slice fields.
@@ -2756,9 +2779,9 @@ class Emit[C](
             }
 
             val outputShape = {
-              val slicingIs = slicingIndices.map(valueIdx => slicesValue.loadField(cb, valueIdx))
-              val tooNested = IEmitCode.flatten(slicingIs.map(slice => () => slice), cb){sCodeSlices =>
-                val inner = sCodeSlices.map{sCodeSlice =>
+              val slicingIs = slicingIndices.map(valueIdx => slicesValue.loadField(cb, valueIdx)).toIndexedSeq
+              val tooNested = IEmitCode.multiFlatMap[IEmitSCode, SCode, IndexedSeq[Value[Long]]](slicingIs, x => x, cb){sCodeSlices: IndexedSeq[SCode] =>
+                val inner = IEmitCode.multiFlatMap(sCodeSlices, {sCodeSlice: SCode =>
                   val sValueSlice = sCodeSlice.asBaseStruct.memoize(cb, "ndarray_slice_sCodeSlice")
                   // I know I have a tuple of three elements here, start, step, stop
                   val newDimSizeI = IEmitCode.flatten((0 to 2).map(i => () => sValueSlice.loadField(cb, i)), cb)(startStepStopSeq => {
@@ -2780,17 +2803,14 @@ class Emit[C](
                     newDimSize
                   })
                   newDimSizeI
-                }
+                }, cb)(x => IEmitCodeGen(cb, false, x))
                 inner
               }
-
-              tooNested.flatMap(cb)(seqOfIEmitOfA => IEmitCode.flatten(seqOfIEmitOfA.map(iec => () => iec), cb)(as => as))
+              tooNested
             }
 
             outputShape
           }
-
-          val childEmitter = deforest(child)
 
           new NDArrayEmitter2(realOutputShape) {
             override def outputElement(cb: EmitCodeBuilder, idxVars: IndexedSeq[Value[Long]]): PCode = {
