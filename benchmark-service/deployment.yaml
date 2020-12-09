@@ -27,10 +27,10 @@ spec:
           command:
 {% if not deploy %}
            - /controller.sh
+{% endif %}
            - "python3"
            - "-m"
            - "benchmark"
-{% endif %}
           image: "{{ benchmark_image.image }}"
           env:
           - name: HAIL_DOMAIN
