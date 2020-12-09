@@ -26,9 +26,10 @@ spec:
 {% if not deploy %}
             - /controller.sh
 {% endif %}
-            - "/bin/bash"
-            - "-c"
-            - "java -cp ${SPARK_HOME}/jars/*:/hail.jar is.hail.services.shuffler.server.ShuffleServer"
+            - java
+            - -cp
+            - /usr/local/lib/python3.7/dist-packages/pyspark/jars/*:/hail.jar
+            - is.hail.services.shuffler.server.ShuffleServer
           env:
            - name: HAIL_DOMAIN
              value: "{{ global.domain }}"
