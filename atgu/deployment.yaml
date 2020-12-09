@@ -39,6 +39,9 @@ spec:
       - name: atgu
         image: {{ atgu_image.image }}
         command:
+{% if not deploy %}
+         - /controller.sh
+{% endif %}
          - python3
          - -m
          - atgu
