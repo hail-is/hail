@@ -10,7 +10,7 @@ humanize==1.0.0
 hurry.filesize==0.9
 nest_asyncio
 numpy<2
-pandas>=1.1.0,<1.2
+pandas>=1.1.0,<1.1.5
 parsimonious<0.9
 PyJWT
 pyspark>=2.4,<2.4.2
