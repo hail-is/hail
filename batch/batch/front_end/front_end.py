@@ -1378,8 +1378,7 @@ LEFT JOIN resources
 LEFT JOIN billing_projects
   ON billing_projects.name = batches.billing_project
 WHERE `time_completed` >= %s AND
-  `time_completed` <= %s AND
-  billing_projects.`status` != 'deleted'
+  `time_completed` <= %s
 GROUP BY billing_project, `user`;
 '''
 
