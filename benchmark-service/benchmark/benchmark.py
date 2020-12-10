@@ -361,7 +361,7 @@ async def update_commit(app, sha):  # pylint: disable=unused-argument
     global benchmark_data
     gs_reader = app['gs_reader']
     commit = await get_commit(app, sha)
-    benchmark_data['commits'][sha] = commit
+    #benchmark_data['commits'][sha] = commit
     file_path = f'{BENCHMARK_RESULTS_PATH}/0-{sha}.json'
 
     if commit['status'] is None:
@@ -371,6 +371,8 @@ async def update_commit(app, sha):  # pylint: disable=unused-argument
         commit['status'] = batch._last_known_status
         commit['batch_id'] = batch_id
         log.info(f'submitted a batch {batch_id} for commit {sha}')
+        benchmark_data['commits'][sha] = commit
+        return commit
 
     has_results_file = gs_reader.file_exists(file_path)
     if has_results_file and commit['date'] not in benchmark_data['dates']:
@@ -382,7 +384,7 @@ async def update_commit(app, sha):  # pylint: disable=unused-argument
         benchmark_data['dates'].append(commit['date'])
         benchmark_data['geo_means'].append(commit['geo_mean'])
         benchmark_data['pr_ids'].append(commit['pr_id'])
-
+        benchmark_data['commits'][sha] = commit
     return commit
 
 
