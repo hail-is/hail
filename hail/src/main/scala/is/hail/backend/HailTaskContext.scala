@@ -17,7 +17,7 @@ object HailTaskContext {
     }
   }
   def setTaskContext(tc: HailTaskContext): Unit = taskContext.set(tc)
-  def unset(): Unit = {
+  def finish(): Unit = {
     taskContext.get().getRegionPool().close()
     taskContext.remove()
   }

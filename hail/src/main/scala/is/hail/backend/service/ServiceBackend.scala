@@ -70,7 +70,7 @@ object Worker {
     val htc = new ServiceTaskContext(i)
     HailTaskContext.setTaskContext(htc)
     val result = f(context, i)
-    HailTaskContext.unset()
+    HailTaskContext.finish()
 
     using(fs.createNoCompression(s"$root/result.$i")) { os =>
       os.write(result)

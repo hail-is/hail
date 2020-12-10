@@ -78,7 +78,7 @@ class LocalBackend(
     collection.zipWithIndex.map { case (c, i) =>
       HailTaskContext.setTaskContext(new LocalTaskContext(i))
       val bytes = f(c, i)
-      HailTaskContext.unset()
+      HailTaskContext.finish()
       bytes
     }
   }
