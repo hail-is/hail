@@ -667,7 +667,6 @@ class SparkBackendComputeRDD(
 
   override def compute(partition: Partition, context: TaskContext): Iterator[Array[Byte]] = {
     val sp = partition.asInstanceOf[SparkBackendComputeRDDPartition]
-    HailTaskContext.setTaskContext(new SparkTaskContext(TaskContext.get))
     Iterator.single(f(sp.data, sp.index))
   }
 }

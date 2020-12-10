@@ -123,19 +123,16 @@ object ContextRDD {
 
   def parallelize[T: ClassTag](sc: SparkContext, data: Seq[T], nPartitions: Option[Int] = None): ContextRDD[T] =
     weaken(sc.parallelize(data, nPartitions.getOrElse(sc.defaultMinPartitions))).map(x => {
-      HailTaskContext.setTaskContext(new SparkTaskContext(TaskContext.get()))
       x
     })
 
   def parallelize[T: ClassTag](data: Seq[T], numSlices: Int): ContextRDD[T] =
     weaken(SparkBackend.sparkContext("ContextRDD.parallelize").parallelize(data, numSlices)).map(x => {
-      HailTaskContext.setTaskContext(new SparkTaskContext(TaskContext.get()))
       x
     })
 
   def parallelize[T: ClassTag](data: Seq[T]): ContextRDD[T] =
     weaken(SparkBackend.sparkContext("ContextRDD.parallelize").parallelize(data)).map(x => {
-      HailTaskContext.setTaskContext(new SparkTaskContext(TaskContext.get()))
       x
     })
 
@@ -160,8 +157,6 @@ class ContextRDD[T: ClassTag](
   type ElementType = ContextRDD.ElementType[T]
 
   private[this] def sparkManagedContext[U](func: RVDContext => U): U = {
-    val tc = TaskContext.get()
-    HailTaskContext.setTaskContext(new SparkTaskContext(tc))
     val c = RVDContext.default(HailTaskContext.get().getRegionPool())
     TaskContext.get().addTaskCompletionListener[Unit] { (_: TaskContext) =>
       c.close()
@@ -243,9 +238,7 @@ class ContextRDD[T: ClassTag](
     sparkContext.runJob(
       rdd,
       { (taskContext, it: Iterator[RVDContext => Iterator[T]]) =>
-        val tc = new SparkTaskContext(taskContext)
-        HailTaskContext.setTaskContext(tc)
-        val c = RVDContext.default(tc.getRegionPool())
+        val c = RVDContext.default(HailTaskContext.get().getRegionPool())
         val ans = f(taskContext.partitionId(), c, it.flatMap(_(c)))
         ans
       })
