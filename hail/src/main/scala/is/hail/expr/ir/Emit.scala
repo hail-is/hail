@@ -2843,12 +2843,27 @@ class Emit[C](
               childEmitter.outputElement(cb, newIdxVars)
             }
           }
-        case NDArrayConcat(nds, axis) =>
-          val ndsI = emit(nds)
-
-          // Plan: If array is missing, need to return missing.
-          // Otherwise
-
+//        case NDArrayConcat(nds, axis) =>
+//          val ndsI = emit(nds)
+//
+//          // Plan: If array is missing, need to return missing.
+//          // Otherwise
+//
+//          val isMissing = cb.newLocal[Boolean]("ndarray_concat_missing")
+//
+//          ndsI.consume(cb, {
+//            cb.assign(isMissing, true)
+//          }, { pc =>
+//            val pArrOfNds = pc.asIndexable
+//            cb.assign(isMissing, false)
+//
+//          })
+//
+//          new NDArrayEmitter2(???) {
+//            override def outputElement(cb: EmitCodeBuilder, idxVars: IndexedSeq[Value[Long]]): PCode = {
+//              ???
+//            }
+//          }
 
           //         case x@NDArrayConcat(nds, axis) =>
         //          val inputType = coerce[PArray](nds.pType)
