@@ -2770,46 +2770,48 @@ class Emit[C](
           val slicesV = slicesI.memoize(cb, "ndarray_slices_tuple_emitvalue_memoize")
 
           val childEmitter = deforest(child)
-
-          val realOutputShape = slicesV.toI(cb).flatMap(cb){slicesTuple =>
-            val slicesValue = slicesTuple.asBaseStruct.memoize(cb, "ndarray_slices_ptuple")
-            // Need to look at each field, the shape is from the width of the slice fields.
-            val slicingIndices = slicesValue.pt.types.zipWithIndex.flatMap { case (pFieldType, idx) =>
-              Array(idx)
-            }
-
-            val outputShape = {
-              val slicingIs = slicingIndices.map(valueIdx => slicesValue.loadField(cb, valueIdx)).toIndexedSeq
-              val tooNested = IEmitCode.multiFlatMap[IEmitSCode, SCode, IndexedSeq[Value[Long]]](slicingIs, x => x, cb){sCodeSlices: IndexedSeq[SCode] =>
-                val inner = IEmitCode.multiFlatMap(sCodeSlices, {sCodeSlice: SCode =>
-                  val sValueSlice = sCodeSlice.asBaseStruct.memoize(cb, "ndarray_slice_sCodeSlice")
-                  // I know I have a tuple of three elements here, start, step, stop
-                  val newDimSizeI = IEmitCode.flatten((0 to 2).map(i => () => sValueSlice.loadField(cb, i)), cb)(startStepStopSeq => {
-                    val start = startStepStopSeq(0).memoize(cb, "ndarray_slice_start").asPValue.value.asInstanceOf[Value[Long]]
-                    val step = startStepStopSeq(1).memoize(cb, "ndarray_slice_step").asPValue.value.asInstanceOf[Value[Long]]
-                    val stop = startStepStopSeq(2).memoize(cb, "ndarray_slice_stop").asPValue.value.asInstanceOf[Value[Long]]
-
-                    val newDimSize = cb.newLocal[Long]("new_dim_size")
-                    cb.ifx(step >= 0L && start <= stop, {
-                      cb.assign(newDimSize, const(1L) + ((stop - start) - 1L) / step)
-                    }, {
-                      cb.ifx(step < 0L && start >= stop, {
-                        cb.assign(newDimSize, (((stop - start) + 1L) / step) + 1L)
-                      }, {
-                        cb.assign(newDimSize, 0L)
-                      })
-                    })
-
-                    newDimSize
-                  })
-                  newDimSizeI
-                }, cb)(x => IEmitCodeGen(cb, false, x))
-                inner
+          val realOutputShape = childEmitter.outputShape.flatMap(cb){_ =>
+            slicesV.toI(cb).flatMap(cb){slicesTuple =>
+              val slicesValue = slicesTuple.asBaseStruct.memoize(cb, "ndarray_slices_ptuple")
+              // Need to look at each field, the shape is from the width of the slice fields.
+              val slicingIndices = slicesValue.pt.types.zipWithIndex.flatMap { case (pFieldType, idx) =>
+                Array(idx)
               }
-              tooNested
-            }
 
-            outputShape
+              val outputShape = {
+                //val slicingIs = slicingIndices.map(valueIdx => slicesValue.loadField(cb, valueIdx)).toIndexedSeq
+                val tooNested = IEmitCode.multiFlatMap[Int, SCode, IndexedSeq[Value[Long]]](slicingIndices,
+                  valueIdx => slicesValue.loadField(cb, valueIdx), cb){sCodeSlices: IndexedSeq[SCode] =>
+                  val inner = IEmitCode.multiFlatMap(sCodeSlices, {sCodeSlice: SCode =>
+                    val sValueSlice = sCodeSlice.asBaseStruct.memoize(cb, "ndarray_slice_sCodeSlice")
+                    // I know I have a tuple of three elements here, start, stop, step
+                    val newDimSizeI = IEmitCode.flatten((0 to 2).map(i => () => sValueSlice.loadField(cb, i)), cb)(startStepStopSeq => {
+                      val start = startStepStopSeq(0).memoize(cb, "ndarray_slice_start").asPValue.value.asInstanceOf[Value[Long]]
+                      val step = startStepStopSeq(2).memoize(cb, "ndarray_slice_step").asPValue.value.asInstanceOf[Value[Long]]
+                      val stop = startStepStopSeq(1).memoize(cb, "ndarray_slice_stop").asPValue.value.asInstanceOf[Value[Long]]
+
+                      val newDimSize = cb.newLocal[Long]("new_dim_size")
+                      cb.ifx(step >= 0L && start <= stop, {
+                        cb.assign(newDimSize, const(1L) + ((stop - start) - 1L) / step)
+                      }, {
+                        cb.ifx(step < 0L && start >= stop, {
+                          cb.assign(newDimSize, (((stop - start) + 1L) / step) + 1L)
+                        }, {
+                          cb.assign(newDimSize, 0L)
+                        })
+                      })
+
+                      newDimSize
+                    })
+                    newDimSizeI
+                  }, cb)(x => IEmitCodeGen(cb, false, x))
+                  inner
+                }
+                tooNested
+              }
+
+              outputShape
+            }
           }
 
           new NDArrayEmitter2(realOutputShape) {
