@@ -8,16 +8,15 @@ AUTHORIZED_USERS = {
     'jigold',
     'patrick-schultz',
     'lfrancioli',
-    'akotlar',
     'tpoterba',
     'chrisvittal',
     'catoverdrive',
     'johnc1231',
     'nawatts',
     'mkveerapen',
-    'annamiraotoole',
     'Dania-Abuhijleh',
     'bw2',
     'pwc2',
-    'lgruen'
+    'lgruen',
+    'CDiaz96'
 }
