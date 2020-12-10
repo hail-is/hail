@@ -33,7 +33,7 @@ log = logging.getLogger('benchmark')
 
 BENCHMARK_FILE_REGEX = re.compile(r'gs://((?P<bucket>[^/]+)/)((?P<user>[^/]+)/)((?P<instanceId>[^/]*)/)((?P<version>[^-]+)-)((?P<sha>[^-]+))(-(?P<tag>[^\.]+))?\.json')
 
-GH_COMMIT_MESSAGE_REGEX = re.compile(r'(?P<title>.*)\s\(#(?P<pr_id>\d+)\)\n\n(?P<rest>.*)')
+GH_COMMIT_MESSAGE_REGEX = re.compile(r'(?P<title>.*)\s\(#(?P<pr_id>\d+)\)(?P<rest>.*)')
 
 BENCHMARK_ROOT = os.path.dirname(os.path.abspath(__file__))
 
@@ -361,7 +361,6 @@ async def update_commit(app, sha):  # pylint: disable=unused-argument
     global benchmark_data
     gs_reader = app['gs_reader']
     commit = await get_commit(app, sha)
-    #benchmark_data['commits'][sha] = commit
     file_path = f'{BENCHMARK_RESULTS_PATH}/0-{sha}.json'
 
     if commit['status'] is None:
