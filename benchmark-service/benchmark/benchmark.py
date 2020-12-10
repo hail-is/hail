@@ -317,6 +317,7 @@ async def get_commit(app, sha):  # pylint: disable=unused-argument
     gh_commit = await github_client.getitem(request_string)
 
     message = gh_commit['commit']['message']
+    log.info(f'message: {message}')
     match = GH_COMMIT_MESSAGE_REGEX.search(message)
     message_dict = match.groupdict()
     pr_id = message_dict['pr_id']
