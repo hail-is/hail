@@ -202,7 +202,7 @@ async def index(request):
     assert len(d['dates']) == len(d['geo_means']), d
     df = pd.DataFrame(d)
     if not df.dates.empty:
-        fig = px.line(df, x=df.dates, y=df.geo_means, hover_data=['commits'])
+        fig = px.line(df, x=df.dates, y=df.geo_means, hover_data=['pr_ids'])
         fig.update_xaxes(rangeslider_visible=True)
         plot = json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
     else:
