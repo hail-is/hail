@@ -269,14 +269,7 @@ object Region {
     Code.invokeScalaObject2[Int, RegionPool, Region](Region.getClass, "apply", asm4s.const(blockSize), pool)
 
   def apply(blockSize: Region.Size = Region.REGULAR, pool: RegionPool): Region = {
-    (if (pool == null) {
-      val htc = HailTaskContext.get()
-      if (htc == null) {
-        throw new IllegalStateException(s"RegionPool requested but HailTaskContext was null. On worker = ${TaskContext.get() != null}")
-      }
-      htc.getRegionPool()
-    } else pool)
-      .getRegion(blockSize)
+    pool.getRegion(blockSize)
   }
 
   def pretty(off: Long, n: Int, header: String): String = {
