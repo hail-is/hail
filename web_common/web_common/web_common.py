@@ -57,6 +57,7 @@ def base_context(session, userdata, service):
     context = {
         'base_path': deploy_config.base_path(service),
         'base_url': deploy_config.external_url(service, ''),
+        'www_base_url': deploy_config.external_url('www', ''),
         'notebook_base_url': deploy_config.external_url('notebook', ''),
         'workshop_base_url': deploy_config.external_url('workshop', ''),
         'auth_base_url': deploy_config.external_url('auth', ''),
