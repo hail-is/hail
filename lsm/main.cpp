@@ -43,6 +43,20 @@ public:
   }
 };
 
+class Level {
+  std::vector<File> files;
+  const int max_size;
+
+public:
+  File write_to_file(std::map<int32_t, maybe_value> map) {
+
+  }
+
+  File merge(File f1, File f2) {
+
+  }
+};
+
 class maybe_value {
 public:
   int32_t v;
