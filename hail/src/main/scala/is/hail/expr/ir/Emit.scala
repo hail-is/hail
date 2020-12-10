@@ -2775,11 +2775,15 @@ class Emit[C](
               val slicesValue = slicesTuple.asBaseStruct.memoize(cb, "ndarray_slices_ptuple")
               // Need to look at each field, the shape is from the width of the slice fields.
               val slicingIndices = slicesValue.pt.types.zipWithIndex.flatMap { case (pFieldType, idx) =>
-                Array(idx)
+                if (!pFieldType.isPrimitive) {
+                  Array(idx)
+                }
+                else {
+                  new Array[Int](0)
+                }
               }
 
               val outputShape = {
-                //val slicingIs = slicingIndices.map(valueIdx => slicesValue.loadField(cb, valueIdx)).toIndexedSeq
                 val tooNested = IEmitCode.multiFlatMap[Int, SCode, IndexedSeq[Value[Long]]](slicingIndices,
                   valueIdx => slicesValue.loadField(cb, valueIdx), cb){sCodeSlices: IndexedSeq[SCode] =>
                   val inner = IEmitCode.multiFlatMap(sCodeSlices, {sCodeSlice: SCode =>
@@ -2839,54 +2843,6 @@ class Emit[C](
               childEmitter.outputElement(cb, newIdxVars)
             }
           }
-
-//
-//          val slicers = slices.withTypes.collect {
-//            case (t: PTuple, slice) => new CodePTuple(t, coerce[Long](slice))
-//          }
-//
-//          val missingSliceElements = slicers.map(_.missingnessPattern.reduce(_ || _)).fold(false: Code[Boolean])(_ || _)
-//          val anyMissingness = missingSliceElements || slices.missingnessPattern.fold(false: Code[Boolean])(_ || _)
-//
-//          val codeSlices = slicers.map(_.values[Long, Long, Long])
-//
-//          val sb = SetupBuilder(mb, childEmitter.setupShape)
-//          val outputShape = codeSlices.zipWithIndex.map { case ((start, stop, step), i) =>
-//            sb.memoizeField(
-//              (step >= 0L && start <= stop).mux(
-//                const(1L) + ((stop - start) - 1L) / step,
-//                (step < 0L && start >= stop).mux(
-//                  (((stop - start) + 1L) / step) + 1L,
-//                  0L)),
-//              s"nda_slice_shape$i")
-//          }
-//
-//          val setupShape = sb.result()
-//
-//          val setupMissing = Code(childEmitter.setupMissing,
-//            slicesm := slicest.m,
-//            slicesValueAddress := slicesm.mux(0L, slicest.value[Long]),
-//            slicest.setup)
-//
-//          val missing = childEmitter.missing || anyMissingness
-//
-//          new NDArrayEmitter[C](x.pType.nDims, outputShape, x.pType.shape.pType, x.pType.elementType, setupShape, setupMissing, missing) {
-//            override def outputElement(elemMB: EmitMethodBuilder[C], idxVars: IndexedSeq[Value[Long]]): Code[_] = {
-//              val oldIdxVarsIter = idxVars.iterator
-//
-//              val sliceIdxVars2: IndexedSeq[Value[Long]] = slices.withTypes.map {
-//                case (_: PInt64, indexer) =>
-//                  coerce[Long](indexer)
-//                case (t: PTuple, slicer) =>
-//                  val (start, _, step) = new CodePTuple(t, coerce[Long](slicer)).values[Long, Long, Long]
-//                  new Value[Long] {
-//                    def get: Code[Long] = start + oldIdxVarsIter.next() * step
-//                  }
-//              }
-//
-//              childEmitter.outputElement(elemMB, sliceIdxVars2)
-//            }
-//          }
         case _ =>
           val ndI = emit(x)
           val ndMemo = cb.memoize(ndI, "deforestNDArray_fall_through_ndarray")
@@ -3011,62 +2967,7 @@ class Emit[C](
                 }, elemMB))
             }
           }
-
-
-        case x@NDArraySlice(child, slicesIR) =>
-          val childEmitter = deforest(child)
-
-          val slicest = emit(slicesIR)
-          val slicesValueAddress = mb.genFieldThisRef[Long]("ndarr_slicev")
-          val slicesm = mb.genFieldThisRef[Boolean]("ndarr_slicem")
-          val slices = new CodePTuple(coerce[PTuple](slicesIR.pType), slicesValueAddress)
-
-          val slicers = slices.withTypes.collect {
-            case (t: PTuple, slice) => new CodePTuple(t, coerce[Long](slice))
-          }
-
-          val missingSliceElements = slicers.map(_.missingnessPattern.reduce(_ || _)).fold(false: Code[Boolean])(_ || _)
-          val anyMissingness = missingSliceElements || slices.missingnessPattern.fold(false: Code[Boolean])(_ || _)
-
-          val codeSlices = slicers.map(_.values[Long, Long, Long])
-
-          val sb = SetupBuilder(mb, childEmitter.setupShape)
-          val outputShape = codeSlices.zipWithIndex.map { case ((start, stop, step), i) =>
-            sb.memoizeField(
-              (step >= 0L && start <= stop).mux(
-                const(1L) + ((stop - start) - 1L) / step,
-                (step < 0L && start >= stop).mux(
-                  (((stop - start) + 1L) / step) + 1L,
-                  0L)),
-              s"nda_slice_shape$i")
-          }
-
-          val setupShape = sb.result()
-
-          val setupMissing = Code(childEmitter.setupMissing,
-            slicesm := slicest.m,
-            slicesValueAddress := slicesm.mux(0L, slicest.value[Long]),
-            slicest.setup)
-
-          val missing = childEmitter.missing || anyMissingness
-
-          new NDArrayEmitter[C](x.pType.nDims, outputShape, x.pType.shape.pType, x.pType.elementType, setupShape, setupMissing, missing) {
-            override def outputElement(elemMB: EmitMethodBuilder[C], idxVars: IndexedSeq[Value[Long]]): Code[_] = {
-              val oldIdxVarsIter = idxVars.iterator
-
-              val sliceIdxVars2: IndexedSeq[Value[Long]] = slices.withTypes.map {
-                case (_: PInt64, indexer) =>
-                  coerce[Long](indexer)
-                case (t: PTuple, slicer) =>
-                  val (start, _, step) = new CodePTuple(t, coerce[Long](slicer)).values[Long, Long, Long]
-                  new Value[Long] {
-                    def get: Code[Long] = start + oldIdxVarsIter.next() * step
-                  }
-              }
-
-              childEmitter.outputElement(elemMB, sliceIdxVars2)
-            }
-          }
+          
         case _ =>
           val ndt = emit(x)
           val ndAddress = mb.genFieldThisRef[Long]("ndarray_emitter_nd_address")
