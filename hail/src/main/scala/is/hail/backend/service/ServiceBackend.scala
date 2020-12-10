@@ -46,7 +46,7 @@ object Worker {
     }
 
     val f = using(new ObjectInputStream(fs.openNoCompression(s"$root/f"))) { is =>
-      is.readObject().asInstanceOf[(Array[Byte], Int) => Array[Byte]]
+      is.readObject().asInstanceOf[(Array[Byte], HailTaskContext) => Array[Byte]]
     }
 
     var offset = 0L
@@ -69,7 +69,7 @@ object Worker {
 
     val htc = new ServiceTaskContext(i)
     HailTaskContext.setTaskContext(htc)
-    val result = f(context, i)
+    val result = f(context, htc)
     HailTaskContext.finish()
 
     using(fs.createNoCompression(s"$root/result.$i")) { os =>
