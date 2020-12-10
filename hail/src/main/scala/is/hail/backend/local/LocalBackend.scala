@@ -73,11 +73,10 @@ class LocalBackend(
 
   def broadcast[T : ClassTag](value: T): BroadcastValue[T] = new LocalBroadcastValue[T](value)
 
-  def parallelizeAndComputeWithIndex(backendContext: BackendContext, collection: Array[Array[Byte]],
-    dependency: Option[TableStageDependency] = None)(f: (Array[Byte], Int) => Array[Byte]): Array[Array[Byte]] = {
+  def parallelizeAndComputeWithIndex(backendContext: BackendContext, collection: Array[Array[Byte]], dependency: Option[TableStageDependency] = None)(f: (Array[Byte], HailTaskContext) => Array[Byte]): Array[Array[Byte]] = {
     collection.zipWithIndex.map { case (c, i) =>
       HailTaskContext.setTaskContext(new LocalTaskContext(i))
-      val bytes = f(c, i)
+      val bytes = f(c, HailTaskContext.get())
       HailTaskContext.finish()
       bytes
     }

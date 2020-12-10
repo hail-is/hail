@@ -256,8 +256,7 @@ class SparkBackend(
 
   def broadcast[T : ClassTag](value: T): BroadcastValue[T] = new SparkBroadcastValue[T](sc.broadcast(value))
 
-  def parallelizeAndComputeWithIndex(backendContext: BackendContext, collection: Array[Array[Byte]],
-    dependency: Option[TableStageDependency] = None)(f: (Array[Byte], Int) => Array[Byte]): Array[Array[Byte]] = {
+  def parallelizeAndComputeWithIndex(backendContext: BackendContext, collection: Array[Array[Byte]], dependency: Option[TableStageDependency] = None)(f: (Array[Byte], HailTaskContext) => Array[Byte]): Array[Array[Byte]] = {
 
     val sparkDeps = dependency.toIndexedSeq
       .flatMap(dep => dep.deps.map(rvdDep => new AnonymousDependency(rvdDep.asInstanceOf[RVDDependency].rvd.crdd.rdd)))
@@ -657,7 +656,7 @@ case class SparkBackendComputeRDDPartition(data: Array[Byte], index: Int) extend
 class SparkBackendComputeRDD(
   sc: SparkContext,
   @transient private val collection: Array[Array[Byte]],
-  f: (Array[Byte], Int) => Array[Byte],
+  f: (Array[Byte], HailTaskContext) => Array[Byte],
   deps: Seq[Dependency[_]])
   extends RDD[Array[Byte]](sc, deps) {
 
@@ -667,6 +666,6 @@ class SparkBackendComputeRDD(
 
   override def compute(partition: Partition, context: TaskContext): Iterator[Array[Byte]] = {
     val sp = partition.asInstanceOf[SparkBackendComputeRDDPartition]
-    Iterator.single(f(sp.data, sp.index))
+    Iterator.single(f(sp.data, HailTaskContext.get()))
   }
 }
