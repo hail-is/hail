@@ -88,6 +88,7 @@ class Batch:
                  default_memory: Optional[str] = None,
                  default_cpu: Optional[str] = None,
                  default_storage: Optional[str] = None,
+                 default_worker_type: Optional[str] = None,
                  default_timeout: Optional[Union[float, int]] = None,
                  default_shell: Optional[str] = None):
         self._jobs: List[job.Job] = []
@@ -112,6 +113,7 @@ class Batch:
         self._default_storage = default_storage
         self._default_timeout = default_timeout
         self._default_shell = default_shell
+        self._default_worker_type = default_worker_type
 
         self._backend = backend if backend else _backend.LocalBackend()
 
@@ -159,6 +161,8 @@ class Batch:
             j.storage(self._default_storage)
         if self._default_timeout is not None:
             j.timeout(self._default_timeout)
+        if self._default_worker_type is not None:
+            j.worker_type(self._default_worker_type)
 
         self._jobs.append(j)
         return j

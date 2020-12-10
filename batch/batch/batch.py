@@ -157,7 +157,7 @@ async def mark_job_complete(app, batch_id, job_id, attempt_id, instance_name, ne
     scheduler_state_changed = app['scheduler_state_changed']
     cancel_ready_state_changed = app['cancel_ready_state_changed']
     db = app['db']
-    inst_pool = app['inst_pool']
+    inst_coll_manager = app['inst_coll_manager']
 
     id = (batch_id, job_id)
 
@@ -179,7 +179,7 @@ async def mark_job_complete(app, batch_id, job_id, attempt_id, instance_name, ne
     cancel_ready_state_changed.set()
 
     if instance_name:
-        instance = inst_pool.name_instance.get(instance_name)
+        instance = inst_coll_manager.get_instance(instance_name)
         if instance:
             if rv['delta_cores_mcpu'] != 0 and instance.state == 'active':
                 # may also create scheduling opportunities, set above
@@ -260,7 +260,7 @@ async def unschedule_job(app, record):
     cancel_ready_state_changed = app['cancel_ready_state_changed']
     scheduler_state_changed = app['scheduler_state_changed']
     db = app['db']
-    inst_pool = app['inst_pool']
+    inst_coll_manager = app['inst_coll_manager']
 
     batch_id = record['batch_id']
     job_id = record['job_id']
@@ -287,7 +287,7 @@ async def unschedule_job(app, record):
     # job that was running is now ready to be cancelled
     cancel_ready_state_changed.set()
 
-    instance = inst_pool.name_instance.get(instance_name)
+    instance = inst_coll_manager.get_instance(instance_name)
     if not instance:
         log.warning(f'unschedule job {id}, attempt {attempt_id}: unknown instance {instance_name}')
         return

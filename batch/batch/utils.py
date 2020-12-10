@@ -69,7 +69,7 @@ def worker_memory_per_core_gb(worker_type):
 
 def worker_memory_per_core_bytes(worker_type):
     m = worker_memory_per_core_gb(worker_type)
-    return int(m * 1024**3)
+    return math.ceil(m * 1024**3)
 
 
 def memory_bytes_to_cores_mcpu(memory_in_bytes, worker_type):
@@ -77,7 +77,7 @@ def memory_bytes_to_cores_mcpu(memory_in_bytes, worker_type):
 
 
 def cores_mcpu_to_memory_bytes(cores_in_mcpu, worker_type):
-    return int((cores_in_mcpu / 1000) * worker_memory_per_core_bytes(worker_type))
+    return math.ceil((cores_in_mcpu / 1000) * worker_memory_per_core_bytes(worker_type))
 
 
 def adjust_cores_for_memory_request(cores_in_mcpu, memory_in_bytes, worker_type):
@@ -118,6 +118,11 @@ def adjust_cores_for_packability(cores_in_mcpu):
     cores_in_mcpu = max(1, cores_in_mcpu)
     power = max(-2, math.ceil(math.log2(cores_in_mcpu / 1000)))
     return int(2**power * 1000)
+
+
+class Box:
+    def __init__(self, value):
+        self.value = value
 
 
 class WindowFractionCounter:

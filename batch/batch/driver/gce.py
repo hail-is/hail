@@ -1,0 +1,147 @@
+import re
+import json
+import asyncio
+import logging
+import dateutil.parser
+import datetime
+
+from hailtop import aiotools
+
+from ..batch_configuration import PROJECT
+
+log = logging.getLogger('gce_event_monitor')
+
+RESOURCE_NAME_REGEX = re.compile('projects/(?P<project>[^/]+)/zones/(?P<zone>[^/]+)/instances/(?P<name>.+)')
+
+
+def parse_resource_name(resource_name):
+    match = RESOURCE_NAME_REGEX.fullmatch(resource_name)
+    assert match
+    return match.groupdict()
+
+
+class GCEEventMonitor:
+    def __init__(self, app, machine_name_prefix):
+        self.app = app
+        self.db = app['db']
+        self.zone_monitor = app['zone_monitor']
+        self.compute_client = app['compute_client']
+        self.logging_client = app['logging_client']
+        self.inst_coll_manager = app['inst_coll_manager']
+        self.machine_name_prefix = machine_name_prefix
+
+        self.task_manager = aiotools.BackgroundTaskManager()
+
+    async def async_init(self):
+        self.task_manager.ensure_future(self.event_loop())
+
+    def shutdown(self):
+        self.task_manager.shutdown()
+
+    async def handle_preempt_event(self, instance, timestamp):
+        await instance.inst_coll.call_delete_instance(instance, 'preempted', timestamp=timestamp)
+
+    async def handle_delete_done_event(self, instance, timestamp):
+        await instance.inst_coll.remove_instance(instance, 'deleted', timestamp)
+
+    async def handle_call_delete_event(self, instance, timestamp):
+        await instance.mark_deleted('deleted', timestamp)
+
+    async def handle_event(self, event):
+        payload = event.get('protoPayload')
+        if payload is None:
+            log.warning('event has no payload')
+            return
+
+        timestamp = dateutil.parser.isoparse(event['timestamp']).timestamp() * 1000
+
+        resource_type = event['resource']['type']
+        if resource_type != 'gce_instance':
+            log.warning(f'unknown event resource type {resource_type}')
+            return
+
+        operation = event.get('operation')
+        if operation is None:
+            # occurs when deleting a worker that does not exist
+            log.info(f'received an event with no operation {json.dumps(event)}')
+            return
+
+        operation_started = operation.get('first', False)
+        if operation_started:
+            event_type = 'STARTED'
+        else:
+            event_type = 'COMPLETED'
+
+        event_subtype = payload['methodName']
+        resource = event['resource']
+        name = parse_resource_name(payload['resourceName'])['name']
+
+        log.info(f'event {resource_type} {event_type} {event_subtype} {name}')
+
+        if not name.startswith(self.machine_name_prefix):
+            log.warning(f'event for unknown machine {name}')
+            return
+
+        if event_subtype == 'v1.compute.instances.insert':
+            if event_type == 'COMPLETED':
+                severity = event['severity']
+                operation_id = event['operation']['id']
+                success = (severity != 'ERROR')
+                self.zone_monitor.zone_success_rate.push(resource['labels']['zone'], operation_id, success)
+        else:
+            instance = self.inst_coll_manager.get_instance(name)
+            if not instance:
+                log.warning(f'event for unknown instance {name}')
+                return
+
+            if event_subtype == 'v1.compute.instances.preempted':
+                log.info(f'event handler: handle preempt {instance}')
+                await self.handle_preempt_event(instance, timestamp)
+            elif event_subtype == 'v1.compute.instances.delete':
+                if event_type == 'COMPLETED':
+                    log.info(f'event handler: delete {instance} done')
+                    await self.handle_delete_done_event(instance, timestamp)
+                elif event_type == 'STARTED':
+                    log.info(f'event handler: handle call delete {instance}')
+                    await self.handle_call_delete_event(instance, timestamp)
+
+    async def event_loop(self):
+        log.info('starting event loop')
+        while True:
+            try:
+                row = await self.db.select_and_fetchone('SELECT * FROM `gevents_mark`;')
+                mark = row['mark']
+                if mark is None:
+                    mark = datetime.datetime.utcnow().isoformat() + 'Z'
+                    await self.db.execute_update(
+                        'UPDATE `gevents_mark` SET mark = %s;',
+                        (mark,))
+
+                filter = f'''
+logName="projects/{PROJECT}/logs/cloudaudit.googleapis.com%2Factivity" AND
+resource.type=gce_instance AND
+protoPayload.resourceName:"{self.machine_name_prefix}" AND
+timestamp >= "{mark}"
+'''
+
+                new_mark = None
+                async for event in await self.logging_client.list_entries(
+                        body={
+                            'resourceNames': [f'projects/{PROJECT}'],
+                            'orderBy': 'timestamp asc',
+                            'pageSize': 100,
+                            'filter': filter
+                        }):
+                    # take the last, largest timestamp
+                    new_mark = event['timestamp']
+                    await self.handle_event(event)
+
+                if new_mark is not None:
+                    await self.db.execute_update(
+                        'UPDATE `gevents_mark` SET mark = %s;',
+                        (new_mark,))
+            except asyncio.CancelledError:  # pylint: disable=try-except-raise
+                raise
+            except Exception:
+                log.exception('in event loop')
+            await asyncio.sleep(15)

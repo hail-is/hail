@@ -74,6 +74,7 @@ class Job:
         self._memory: Optional[Union[int, str]] = None
         self._storage: Optional[Union[int, str]] = None
         self._image: Optional[str] = None
+        self._worker_type: Optional[str] = None
         self._always_run: bool = False
         self._timeout: Optional[Union[int, float]] = None
         self._gcsfuse: List[Tuple[str, str, bool]] = []
@@ -321,6 +322,43 @@ class Job:
                                handler,
                                command)
         self._command.append(subst_command)
+        return self
+
+    def worker_type(self, worker_type: str) -> 'Job':
+        """
+        Set the job's worker_type.
+
+        Examples
+        --------
+
+        Set the job's worker type to 'standard':
+
+        >>> b = Batch()
+        >>> j = b.new_job()
+        >>> (j.worker_type('standard'))
+        >>> b.run()
+
+        Notes
+        -----
+
+        When using the :class:`.ServiceBackend`, the `worker_type` parameter lets
+        you control what type of instance your job runs on. The default worker
+        type is 'standard' (3.75 Gi/core). You can also choose
+        'highmem' (6.5 Gi/core) or 'highcpu' (0.9 Gi/core). Depending on your
+        job cpu and memory requirements, you can save money by using a worker
+        type other than 'standard'.
+
+        Parameters
+        ----------
+        worker_type:
+            One of 'standard', 'highmem', 'highcpu'.
+
+        Returns
+        -------
+        Same job object with worker type set.
+        """
+
+        self._worker_type = worker_type
         return self
 
     def storage(self, storage: Union[str, int]) -> 'Job':

@@ -472,6 +472,8 @@ class ServiceBackend(Backend):
                 resources['memory'] = job._memory
             if job._storage:
                 resources['storage'] = job._storage
+            if job._worker_type:
+                resources['worker_type'] = job._worker_type
 
             image = job._image if job._image else default_image
             if not is_google_registry_image(image) and image not in HAIL_GENETICS_IMAGES:

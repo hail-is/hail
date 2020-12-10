@@ -1,4 +1,5 @@
 import re
+import math
 from collections import defaultdict
 
 from .globals import WORKER_CONFIG_VERSION
@@ -115,17 +116,17 @@ class WorkerConfig:
         return is_valid
 
     def resources(self, cpu_in_mcpu, memory_in_bytes):
-        assert memory_in_bytes % (1024 * 1024) == 0
         resources = []
 
         preemptible = 'preemptible' if self.preemptible else 'nonpreemptible'
         worker_fraction_in_1024ths = 1024 * cpu_in_mcpu // (self.cores * 1000)
+        memory_in_mb = math.ceil(memory_in_bytes / 1024 / 1024)
 
         resources.append({'name': f'compute/{self.instance_family}-{preemptible}/1',
                           'quantity': cpu_in_mcpu})
 
         resources.append({'name': f'memory/{self.instance_family}-{preemptible}/1',
-                          'quantity': memory_in_bytes // 1024 // 1024})
+                          'quantity': memory_in_mb})
 
         quantities = defaultdict(lambda: 0)
         for disk in self.disks:

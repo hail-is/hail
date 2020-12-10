@@ -5,6 +5,7 @@ import logging
 import json
 import random
 import datetime
+import collections
 from functools import wraps
 import asyncio
 import aiohttp
@@ -51,6 +52,7 @@ from ..globals import HTTP_CLIENT_MAX_SIZE, BATCH_FORMAT_VERSION
 from ..spec_writer import SpecWriter
 from ..batch_format_version import BatchFormatVersion
 
+from .pool_selector import PoolSelector
 from .validate import ValidationError, validate_batch, validate_and_clean_jobs
 
 # uvloop.install()
@@ -100,6 +102,7 @@ deploy_config = get_deploy_config()
 BATCH_JOB_DEFAULT_CPU = os.environ.get('HAIL_BATCH_JOB_DEFAULT_CPU', '1')
 BATCH_JOB_DEFAULT_MEMORY = os.environ.get('HAIL_BATCH_JOB_DEFAULT_MEMORY', '3.75Gi')
 BATCH_JOB_DEFAULT_STORAGE = os.environ.get('HAIL_BATCH_JOB_DEFAULT_STORAGE', '10Gi')
+BATCH_JOB_DEFAULT_WORKER_TYPE = os.environ.get('HAIL_BATCH_JOB_DEFAULT_WORKER_TYPE', 'standard')
 
 
 def rest_authenticated_developers_or_auth_only(fun):
@@ -553,11 +556,6 @@ async def create_jobs(request, userdata):
     db = app['db']
     log_store = app['log_store']
 
-    worker_type = app['worker_type']
-    worker_cores = app['worker_cores']
-    worker_local_ssd_data_disk = app['worker_local_ssd_data_disk']
-    worker_pd_ssd_data_disk_size_gb = app['worker_pd_ssd_data_disk_size_gb']
-
     batch_id = int(request.match_info['batch_id'])
 
     user = userdata['username']
@@ -601,10 +599,13 @@ WHERE user = %s AND id = %s AND NOT deleted;
             job_parents_args = []
             job_attributes_args = []
 
-            n_ready_jobs = 0
-            ready_cores_mcpu = 0
-            n_ready_cancellable_jobs = 0
-            ready_cancellable_cores_mcpu = 0
+            inst_coll_resources = collections.defaultdict(lambda: {
+                'n_jobs': 0,
+                'n_ready_jobs': 0,
+                'ready_cores_mcpu': 0,
+                'n_ready_cancellable_jobs': 0,
+                'ready_cancellable_cores_mcpu': 0
+            })
 
             prev_job_idx = None
             start_job_id = None
@@ -640,6 +641,8 @@ WHERE user = %s AND id = %s AND NOT deleted;
                     resources['memory'] = BATCH_JOB_DEFAULT_MEMORY
                 if 'storage' not in resources:
                     resources['storage'] = BATCH_JOB_DEFAULT_STORAGE
+                if 'worker_type' not in resources:
+                    resources['worker_type'] = BATCH_JOB_DEFAULT_WORKER_TYPE
 
                 req_cores_mcpu = parse_cpu_in_mcpu(resources['cpu'])
                 req_memory_bytes = parse_memory_in_bytes(resources['memory'])
@@ -650,6 +653,15 @@ WHERE user = %s AND id = %s AND NOT deleted;
                         reason=f'bad resource request for job {id}: '
                         f'cpu cannot be 0')
 
+                worker_type = resources['worker_type']
+                pool = app['pool_selector'].select_pool(worker_type=worker_type)
+                if not pool:
+                    raise web.HTTPBadRequest(reason=f'unsupported worker type {worker_type}')
+
+                worker_cores = pool.worker_cores
+                worker_local_ssd_data_disk = pool.worker_local_ssd_data_disk
+                worker_pd_ssd_data_disk_size_gb = pool.worker_pd_ssd_data_disk_size_gb
+
                 cores_mcpu = adjust_cores_for_memory_request(req_cores_mcpu, req_memory_bytes, worker_type)
                 cores_mcpu = adjust_cores_for_storage_request(cores_mcpu, req_storage_bytes, worker_cores,
                                                               worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gb)
@@ -659,7 +671,7 @@ WHERE user = %s AND id = %s AND NOT deleted;
                     total_memory_available = worker_memory_per_core_gb(worker_type) * worker_cores
                     total_storage_available = total_worker_storage_gib(worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gb)
                     raise web.HTTPBadRequest(
-                        reason=f'resource requests for job {id} are unsatisfiable: '
+                        reason=f'resource requests for job {id} with worker_type {worker_type} are unsatisfiable: '
                         f'requested: cpu={resources["cpu"]}, memory={resources["memory"]} storage={resources["storage"]}'
                         f'maximum: cpu={worker_cores}, memory={total_memory_available}G, storage={total_storage_available}G')
 
@@ -716,13 +728,15 @@ WHERE user = %s AND id = %s AND NOT deleted;
                 sa = spec.get('service_account')
                 check_service_account_permissions(user, sa)
 
+                icr = inst_coll_resources[pool.name]
+                icr['n_jobs'] += 1
                 if len(parent_ids) == 0:
                     state = 'Ready'
-                    n_ready_jobs += 1
-                    ready_cores_mcpu += cores_mcpu
+                    icr['n_ready_jobs'] += 1
+                    icr['ready_cores_mcpu'] += cores_mcpu
                     if not always_run:
-                        n_ready_cancellable_jobs += 1
-                        ready_cancellable_cores_mcpu += cores_mcpu
+                        icr['n_ready_cancellable_jobs'] += 1
+                        icr['ready_cancellable_cores_mcpu'] += cores_mcpu
                 else:
                     state = 'Pending'
 
@@ -735,7 +749,7 @@ WHERE user = %s AND id = %s AND NOT deleted;
 
                 jobs_args.append(
                     (batch_id, job_id, state, json.dumps(db_spec),
-                     always_run, cores_mcpu, len(parent_ids)))
+                     always_run, cores_mcpu, len(parent_ids), pool.name))
 
                 for parent_id in parent_ids:
                     job_parents_args.append(
@@ -751,15 +765,14 @@ WHERE user = %s AND id = %s AND NOT deleted;
                 await spec_writer.write()
 
         rand_token = random.randint(0, app['n_tokens'] - 1)
-        n_jobs = len(job_specs)
 
         async with timer.step('insert jobs'):
             @transaction(db)
             async def insert(tx):
                 try:
                     await tx.execute_many('''
-INSERT INTO jobs (batch_id, job_id, state, spec, always_run, cores_mcpu, n_pending_parents)
-VALUES (%s, %s, %s, %s, %s, %s, %s);
+INSERT INTO jobs (batch_id, job_id, state, spec, always_run, cores_mcpu, n_pending_parents, inst_coll)
+VALUES (%s, %s, %s, %s, %s, %s, %s, %s);
 ''',
                                           jobs_args)
                 except pymysql.err.IntegrityError as err:
@@ -785,27 +798,35 @@ INSERT INTO `job_attributes` (batch_id, job_id, `key`, `value`)
 VALUES (%s, %s, %s, %s);
 ''',
                                       job_attributes_args)
-                await tx.execute_update('''
-INSERT INTO batches_staging (batch_id, token, n_jobs, n_ready_jobs, ready_cores_mcpu)
-VALUES (%s, %s, %s, %s, %s)
+
+                for inst_coll, resources in inst_coll_resources.items():
+                    n_jobs = resources['n_jobs']
+                    n_ready_jobs = resources['n_ready_jobs']
+                    ready_cores_mcpu = resources['ready_cores_mcpu']
+                    n_ready_cancellable_jobs = resources['n_ready_cancellable_jobs']
+                    ready_cancellable_cores_mcpu = resources['ready_cancellable_cores_mcpu']
+
+                    await tx.execute_update('''
+INSERT INTO batches_inst_coll_staging (batch_id, inst_coll, token, n_jobs, n_ready_jobs, ready_cores_mcpu)
+VALUES (%s, %s, %s, %s, %s, %s)
 ON DUPLICATE KEY UPDATE
   n_jobs = n_jobs + %s,
   n_ready_jobs = n_ready_jobs + %s,
   ready_cores_mcpu = ready_cores_mcpu + %s;
 ''',
-                                        (batch_id, rand_token,
-                                         n_jobs, n_ready_jobs, ready_cores_mcpu,
-                                         n_jobs, n_ready_jobs, ready_cores_mcpu))
-                await tx.execute_update('''
-INSERT INTO batch_cancellable_resources (batch_id, token, n_ready_cancellable_jobs, ready_cancellable_cores_mcpu)
-VALUES (%s, %s, %s, %s)
+                                            (batch_id, inst_coll, rand_token,
+                                             n_jobs, n_ready_jobs, ready_cores_mcpu,
+                                             n_jobs, n_ready_jobs, ready_cores_mcpu))
+                    await tx.execute_update('''
+INSERT INTO batch_inst_coll_cancellable_resources (batch_id, inst_coll, token, n_ready_cancellable_jobs, ready_cancellable_cores_mcpu)
+VALUES (%s, %s, %s, %s, %s)
 ON DUPLICATE KEY UPDATE
   n_ready_cancellable_jobs = n_ready_cancellable_jobs + %s,
   ready_cancellable_cores_mcpu = ready_cancellable_cores_mcpu + %s;
 ''',
-                                        (batch_id, rand_token,
-                                         n_ready_cancellable_jobs, ready_cancellable_cores_mcpu,
-                                         n_ready_cancellable_jobs, ready_cancellable_cores_mcpu))
+                                            (batch_id, inst_coll, rand_token,
+                                             n_ready_cancellable_jobs, ready_cancellable_cores_mcpu,
+                                             n_ready_cancellable_jobs, ready_cancellable_cores_mcpu))
 
                 if batch_format_version.has_full_spec_in_gcs():
                     await tx.execute_update('''
@@ -1845,16 +1866,9 @@ async def on_startup(app):
 
     row = await db.select_and_fetchone(
         '''
-SELECT worker_type, worker_cores, worker_disk_size_gb,
-  worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gb,
-  instance_id, internal_token, n_tokens FROM globals;
+SELECT instance_id, internal_token, n_tokens FROM globals;
 ''')
 
-    app['worker_type'] = row['worker_type']
-    app['worker_cores'] = row['worker_cores']
-    app['worker_disk_size_gb'] = row['worker_disk_size_gb']
-    app['worker_local_ssd_data_disk'] = row['worker_local_ssd_data_disk']
-    app['worker_pd_ssd_data_disk_size_gb'] = row['worker_pd_ssd_data_disk_size_gb']
     app['n_tokens'] = row['n_tokens']
 
     instance_id = row['instance_id']
@@ -1882,6 +1896,10 @@ SELECT worker_type, worker_cores, worker_disk_size_gb,
     app['task_manager'].ensure_future(retry_long_running(
         'delete_batch_loop',
         run_if_changed, delete_batch_state_changed, delete_batch_loop_body, app))
+
+    pool_selector = PoolSelector(app)
+    app['pool_selector'] = pool_selector
+    await pool_selector.async_init()
 
 
 async def on_cleanup(app):

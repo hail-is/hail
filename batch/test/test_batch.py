@@ -713,3 +713,21 @@ def test_verify_private_network_is_restricted(client):
         assert 'unauthorized network private' in err.message
     else:
         assert False
+
+
+def test_highmem_instance(client):
+    builder = client.create_batch()
+    resources = {'worker_type': 'highmem'}
+    j = builder.create_job(DOCKER_ROOT_IMAGE, ['true'], resources=resources)
+    builder.submit()
+    status = j.wait()
+    assert status['state'] == 'Success', (j.log()['main'], status)
+
+
+def test_highcpu_instance(client):
+    builder = client.create_batch()
+    resources = {'worker_type': 'highcpu'}
+    j = builder.create_job(DOCKER_ROOT_IMAGE, ['true'], resources=resources)
+    builder.submit()
+    status = j.wait()
+    assert status['state'] == 'Success', (j.log()['main'], status)

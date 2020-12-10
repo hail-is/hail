@@ -1,9 +1,9 @@
 import secrets
 import logging
 import json
-import copy
 from functools import wraps
 import concurrent
+import copy
 import asyncio
 import dictdiffer
 from aiohttp import web
@@ -33,9 +33,11 @@ from ..batch_configuration import (REFRESH_INTERVAL_IN_SECONDS,
 from ..globals import HTTP_CLIENT_MAX_SIZE
 
 from .zone_monitor import ZoneMonitor
-from .instance_pool import InstancePool
-from .scheduler import Scheduler
+from .gce import GCEEventMonitor
+from .canceller import Canceller
+from .instance_collection_manager import InstanceCollectionManager
 from .k8s_cache import K8sCache
+from .pool import Pool
 from ..utils import query_billing_projects
 from ..exceptions import BatchUserError
 
@@ -78,8 +80,8 @@ def instance_from_request(request):
     if not instance_name:
         return None
 
-    instance_pool = request.app['inst_pool']
-    return instance_pool.name_instance.get(instance_name)
+    inst_coll_manager = request.app['inst_coll_manager']
+    return inst_coll_manager.get_instance(instance_name)
 
 
 def activating_instances_only(fun):
@@ -303,41 +305,51 @@ async def job_started(request, instance):
 async def get_index(request, userdata):
     app = request.app
     db = app['db']
-    instance_pool = app['inst_pool']
+    inst_coll_manager = app['inst_coll_manager']
 
     ready_cores = await db.select_and_fetchone(
         '''
 SELECT CAST(COALESCE(SUM(ready_cores_mcpu), 0) AS SIGNED) AS ready_cores_mcpu
-FROM ready_cores;
+FROM user_inst_coll_resources;
 ''')
     ready_cores_mcpu = ready_cores['ready_cores_mcpu']
 
     page_context = {
-        'config': instance_pool.config(),
+        'pools': inst_coll_manager.pools.values(),
         'instance_id': app['instance_id'],
-        'n_instances_by_state': instance_pool.n_instances_by_state,
-        'instances': instance_pool.name_instance.values(),
+        'n_instances_by_state': inst_coll_manager.global_n_instances_by_state,
+        'instances': inst_coll_manager.name_instance.values(),
         'ready_cores_mcpu': ready_cores_mcpu,
-        'live_free_cores_mcpu': instance_pool.live_free_cores_mcpu
+        'live_total_cores_mcpu': inst_coll_manager.global_live_total_cores_mcpu,
+        'live_free_cores_mcpu': inst_coll_manager.global_live_free_cores_mcpu
     }
     return await render_template('batch-driver', request, userdata, 'index.html', page_context)
 
 
-@routes.post('/config-update')
+@routes.post('/config-update/pool/{pool}')
 @check_csrf_token
 @web_authenticated_developers_only()
 async def config_update(request, userdata):  # pylint: disable=unused-argument
     app = request.app
-    inst_pool = app['inst_pool']
 
     session = await aiohttp_session.get_session(request)
+
+    pool_name = request.match_info['pool']
+    pool = app['inst_coll_manager'].get_inst_coll(pool_name)
+    pool_url_path = f'/pool/{pool_name}'
+
+    if pool is None or not isinstance(pool, Pool):
+        set_message(session,
+                    f'Unknown pool {pool_name}.',
+                    'error')
+        raise web.HTTPFound(deploy_config.external_url('batch-driver', pool_url_path))
 
     def validate(name, value, predicate, description):
         if not predicate(value):
             set_message(session,
                         f'{name} invalid: {value}.  Must be {description}.',
                         'error')
-            raise web.HTTPFound(deploy_config.external_url('batch-driver', '/'))
+            raise web.HTTPFound(deploy_config.external_url('batch-driver', pool_url_path))
         return value
 
     def validate_int(name, value, predicate, description):
@@ -347,17 +359,12 @@ async def config_update(request, userdata):  # pylint: disable=unused-argument
             set_message(session,
                         f'{name} invalid: {value}.  Must be an integer.',
                         'error')
-            raise web.HTTPFound(deploy_config.external_url('batch-driver', '/')) from e
+            raise web.HTTPFound(deploy_config.external_url('batch-driver', pool_url_path)) from e
         return validate(name, i, predicate, description)
 
     post = await request.post()
 
-    valid_worker_types = ('highcpu', 'standard', 'highmem')
-    worker_type = validate(
-        'Worker type',
-        post['worker_type'],
-        lambda v: v in valid_worker_types,
-        f'one of {", ".join(valid_worker_types)}')
+    worker_type = pool.worker_type
 
     if worker_type == 'standard':
         valid_worker_cores = (1, 2, 4, 8, 16, 32, 64, 96)
@@ -368,6 +375,12 @@ async def config_update(request, userdata):  # pylint: disable=unused-argument
         post['worker_cores'],
         lambda v: v in valid_worker_cores,
         f'one of {", ".join(str(v) for v in valid_worker_cores)}')
+
+    standing_worker = validate_int(
+        'Standing worker (boolean)',
+        post['standing_worker'],
+        lambda v: v in (0, 1),
+        'boolean (0 or 1)')
 
     standing_worker_cores = validate_int(
         f'{worker_type} standing worker cores',
@@ -393,12 +406,13 @@ async def config_update(request, userdata):  # pylint: disable=unused-argument
         set_message(session,
                     'Either the worker must use a local SSD or PD SSD data disk must be non-zero.',
                     'error')
-        raise web.HTTPFound(deploy_config.external_url('batch-driver', '/'))
+        raise web.HTTPFound(deploy_config.external_url('batch-driver', pool_url_path))
+
     if worker_local_ssd_data_disk and worker_pd_ssd_data_disk_size_gb > 0:
         set_message(session,
                     'Worker cannot both use local SSD and have a non-zero PD SSD data disk.',
                     'error')
-        raise web.HTTPFound(deploy_config.external_url('batch-driver', '/'))
+        raise web.HTTPFound(deploy_config.external_url('batch-driver', pool_url_path))
 
     max_instances = validate_int(
         'Max instances',
@@ -406,35 +420,81 @@ async def config_update(request, userdata):  # pylint: disable=unused-argument
         lambda v: v > 0,
         'a positive integer')
 
-    pool_size = validate_int(
-        'Worker pool size',
-        post['pool_size'],
+    max_live_instances = validate_int(
+        'Max live instances',
+        post['max_live_instances'],
         lambda v: v > 0,
         'a positive integer')
 
     enable_standing_worker = 'enable_standing_worker' in post
 
-    await inst_pool.configure(
-        worker_type, worker_cores, worker_disk_size_gb,
+    await pool.configure(
+        worker_cores, worker_disk_size_gb,
         worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gb,
-        standing_worker_cores,
-        max_instances, pool_size, enable_standing_worker)
+        enable_standing_worker, standing_worker_cores, max_instances, max_live_instances)
 
     set_message(session,
-                'Updated batch configuration.',
+                f'Updated configuration for {pool}.',
                 'info')
 
-    return web.HTTPFound(deploy_config.external_url('batch-driver', '/'))
+    return web.HTTPFound(deploy_config.external_url('batch-driver', pool_url_path))
+
+
+@routes.get('/pool/{pool}')
+@web_authenticated_developers_only()
+async def get_pool(request, userdata):
+    app = request.app
+
+    session = await aiohttp_session.get_session(request)
+
+    pool_name = request.match_info['pool']
+    pool = app['inst_coll_manager'].get_inst_coll(pool_name)
+
+    if pool is None or not isinstance(pool, Pool):
+        set_message(session,
+                    f'Unknown pool {pool_name}.',
+                    'error')
+        raise web.HTTPFound(deploy_config.external_url('batch-driver', '/'))
+
+    user_resources = await pool.scheduler.compute_fair_share()
+    user_resources = sorted(user_resources.values(),
+                            key=lambda record: record['ready_cores_mcpu'] + record['running_cores_mcpu'],
+                            reverse=True)
+    user_resources = [user for user in user_resources
+                      if user['ready_cores_mcpu'] + user['running_cores_mcpu'] > 0]
+
+    ready_cores_mcpu = sum([record['ready_cores_mcpu'] for record in user_resources])
+
+    page_context = {
+        'pool': pool,
+        'instances': pool.name_instance.values(),
+        'user_resources': user_resources,
+        'ready_cores_mcpu': ready_cores_mcpu
+    }
+
+    return await render_template('batch-driver', request, userdata, 'pool.html', page_context)
 
 
 @routes.get('/user_resources')
 @web_authenticated_developers_only()
 async def get_user_resources(request, userdata):
     app = request.app
-    user_resources = await app['scheduler'].compute_fair_share()
-    user_resources = sorted(user_resources.values(),
+    db = app['db']
+
+    records = db.execute_and_fetchall('''
+SELECT user,
+  CAST(COALESCE(SUM(n_ready_jobs), 0) AS SIGNED) AS n_ready_jobs,
+  CAST(COALESCE(SUM(ready_cores_mcpu), 0) AS SIGNED) AS ready_cores_mcpu,
+  CAST(COALESCE(SUM(n_running_jobs), 0) AS SIGNED) AS n_running_jobs,
+  CAST(COALESCE(SUM(running_cores_mcpu), 0) AS SIGNED) AS running_cores_mcpu
+FROM user_inst_coll_resources
+GROUP BY user;
+''')
+
+    user_resources = sorted([record async for record in records],
                             key=lambda record: record['ready_cores_mcpu'] + record['running_cores_mcpu'],
                             reverse=True)
+
     page_context = {
         'user_resources': user_resources
     }
@@ -445,44 +505,23 @@ async def get_user_resources(request, userdata):
 async def check_incremental_loop(app, db):
     @transaction(db, read_only=True)
     async def check(tx):
-        ready_cores = await tx.execute_and_fetchone('''
-SELECT CAST(COALESCE(SUM(ready_cores_mcpu), 0) AS SIGNED) AS ready_cores_mcpu
-FROM ready_cores
-LOCK IN SHARE MODE;
-''')
-        ready_cores_mcpu = ready_cores['ready_cores_mcpu']
-
-        computed_ready_cores = await tx.execute_and_fetchone('''
-SELECT CAST(COALESCE(SUM(cores_mcpu), 0) AS SIGNED) AS ready_cores_mcpu
-FROM jobs
-INNER JOIN batches ON batches.id = jobs.batch_id
-WHERE batches.`state` = 'running'
-        AND jobs.state = 'Ready'
-        # runnable
-        AND (jobs.always_run OR NOT (jobs.cancelled OR batches.cancelled))
-LOCK IN SHARE MODE;
-''')
-        computed_ready_cores_mcpu = computed_ready_cores['ready_cores_mcpu']
-
-        if ready_cores_mcpu != computed_ready_cores_mcpu:
-            log.error(f'ready_cores corrupt: ready_cores_mcpu {ready_cores_mcpu} != computed_ready_cores_mcpu {computed_ready_cores_mcpu}')
-
-        user_resources = tx.execute_and_fetchall('''
-SELECT user,
+        user_inst_coll_resources = tx.execute_and_fetchall('''
+SELECT user, inst_coll,
   CAST(COALESCE(SUM(n_ready_jobs), 0) AS SIGNED) AS n_ready_jobs,
   CAST(COALESCE(SUM(ready_cores_mcpu), 0) AS SIGNED) AS ready_cores_mcpu,
   CAST(COALESCE(SUM(n_running_jobs), 0) AS SIGNED) AS n_running_jobs,
   CAST(COALESCE(SUM(running_cores_mcpu), 0) AS SIGNED) AS running_cores_mcpu,
   CAST(COALESCE(SUM(n_cancelled_ready_jobs), 0) AS SIGNED) AS n_cancelled_ready_jobs,
   CAST(COALESCE(SUM(n_cancelled_running_jobs), 0) AS SIGNED) AS n_cancelled_running_jobs
-FROM user_resources
-GROUP BY user
+FROM user_inst_coll_resources
+GROUP BY user, inst_coll
 LOCK IN SHARE MODE;
 ''')
-        user_resources = {record['user']: record async for record in user_resources}
+        user_inst_coll_resources = {(record['user'], record['inst_coll']): record
+                                    async for record in user_inst_coll_resources}
 
-        computed_user_resources = tx.execute_and_fetchall('''
-SELECT user,
+        computed_user_inst_coll_resources = tx.execute_and_fetchall('''
+SELECT user, inst_coll,
     COALESCE(SUM(state = 'Ready' AND runnable), 0) as n_ready_jobs,
     COALESCE(SUM(IF(state = 'Ready' AND runnable, cores_mcpu, 0)), 0) as ready_cores_mcpu,
     COALESCE(SUM(state = 'Running' AND NOT cancelled), 0) as n_running_jobs,
@@ -494,31 +533,33 @@ FROM (SELECT
     jobs.cores_mcpu,
     (jobs.always_run OR NOT (jobs.cancelled OR batches.cancelled)) AS runnable,
     (NOT jobs.always_run AND (jobs.cancelled OR batches.cancelled)) AS cancelled,
-    batches.user
+    batches.user,
+    jobs.inst_coll
   FROM jobs
   INNER JOIN batches ON batches.id = jobs.batch_id
   WHERE batches.`state` = 'running'
   LOCK IN SHARE MODE) AS s
-GROUP BY user;
+GROUP BY user, inst_coll;
 ''')
-        computed_user_resources = {record['user']: record async for record in computed_user_resources}
+        computed_user_inst_coll_resources = {(record['user'], record['inst_coll']): record
+                                             async for record in computed_user_inst_coll_resources}
 
-        def user_get(d, u, f):
-            if u not in d:
+        def user_inst_coll_get(d, u_ic, f):
+            if u_ic not in d:
                 return 0
-            return d[u][f]
+            return d[u_ic][f]
 
         fields = ['n_running_jobs', 'running_cores_mcpu', 'n_ready_jobs', 'ready_cores_mcpu',
                   'n_cancelled_ready_jobs', 'n_cancelled_running_jobs']
-        users = set(user_resources.keys())
-        users.update(computed_user_resources.keys())
-        for u in users:
+        user_inst_colls = set(user_inst_coll_resources.keys())
+        user_inst_colls.update(computed_user_inst_coll_resources.keys())
+        for u_ic in user_inst_colls:
             for f in fields:
-                v = user_get(user_resources, u, f)
-                computed_v = user_get(user_resources, u, f)
+                v = user_inst_coll_get(user_inst_coll_resources, u_ic, f)
+                computed_v = user_inst_coll_get(user_inst_coll_resources, u_ic, f)
 
                 if v != computed_v:
-                    log.error(f'user_resources corrupt: user_resources[{u}][{f}] {v} != computed_user_resources[{u}][{f}] {computed_v}')
+                    log.error(f'user_inst_coll_resources corrupt: user_inst_coll_resources[{u_ic}][{f}] {v} != computed_user_inst_coll_resources[{u_ic}][{f}] {computed_v}')
 
     while True:
         try:
@@ -677,6 +718,15 @@ WHERE billing_project = %s AND state = 'running';
         await asyncio.sleep(10)
 
 
+async def scheduling_cancelling_bump_loop_body(app):
+    while True:
+        log.info('scheduling cancelling bump loop')
+        app['scheduler_state_changed'].set()
+        app['cancel_ready_state_changed'].set()
+        app['cancel_running_state_changed'].set()
+        await asyncio.sleep(60)
+
+
 async def on_startup(app):
     app['task_manager'] = aiotools.BackgroundTaskManager()
     pool = concurrent.futures.ThreadPoolExecutor()
@@ -692,13 +742,8 @@ async def on_startup(app):
     app['db'] = db
 
     row = await db.select_and_fetchone('''
-SELECT worker_type, worker_cores, worker_disk_size_gb,
-  instance_id, internal_token FROM globals;
+SELECT instance_id, internal_token FROM globals;
 ''')
-
-    app['worker_type'] = row['worker_type']
-    app['worker_cores'] = row['worker_cores']
-    app['worker_disk_size_gb'] = row['worker_disk_size_gb']
 
     instance_id = row['instance_id']
     log.info(f'instance_id {instance_id}')
@@ -748,13 +793,17 @@ SELECT worker_type, worker_cores, worker_disk_size_gb,
     app['zone_monitor'] = zone_monitor
     await zone_monitor.async_init()
 
-    inst_pool = InstancePool(app, machine_name_prefix)
-    app['inst_pool'] = inst_pool
-    await inst_pool.async_init()
+    inst_coll_manager = InstanceCollectionManager(app, machine_name_prefix)
+    app['inst_coll_manager'] = inst_coll_manager
+    await inst_coll_manager.async_init()
 
-    scheduler = Scheduler(app)
-    await scheduler.async_init()
-    app['scheduler'] = scheduler
+    canceller = Canceller(app)
+    app['canceller'] = canceller
+    await canceller.async_init()
+
+    gce_event_monitor = GCEEventMonitor(app, machine_name_prefix)
+    app['gce_event_monitor'] = gce_event_monitor
+    await gce_event_monitor.async_init()
 
     app['check_incremental_error'] = None
     app['check_resource_aggregation_error'] = None
@@ -766,6 +815,10 @@ SELECT worker_type, worker_cores, worker_disk_size_gb,
     app['task_manager'].ensure_future(retry_long_running(
         'monitor_billing_limits_loop',
         monitor_billing_limits_loop_body, app))
+
+    app['task_manager'].ensure_future(retry_long_running(
+        'scheduling_cancelling_bump_loop',
+        scheduling_cancelling_bump_loop_body, app))
 
 
 async def on_cleanup(app):
@@ -780,12 +833,15 @@ async def on_cleanup(app):
                 app['zone_monitor'].shutdown()
             finally:
                 try:
-                    app['inst_pool'].shutdown()
+                    app['inst_coll_manager'].shutdown()
                 finally:
                     try:
-                        app['scheduler'].shutdown()
+                        app['canceller'].shutdown()
                     finally:
-                        app['task_manager'].shutdown()
+                        try:
+                            app['gce_event_monitor'].shutdown()
+                        finally:
+                            app['task_manager'].shutdown()
 
 
 def run():
