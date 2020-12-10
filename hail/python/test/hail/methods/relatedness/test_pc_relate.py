@@ -80,6 +80,25 @@ def test_pcrelate_paths():
     assert kin3.count() > 0
     assert kin3.filter(kin3.kin < 0.1).count() == 0
 
+@skip_unless_spark_backend()
+def test_self_kinship():
+    mt = hl.balding_nichols_model(3, 10, 50)
+    with_self = hl.pc_relate(mt.GT, 0.10, k=2, statistics='kin20', block_size=16, include_self_kinship=True)
+    without_self = hl.pc_relate(mt.GT, 0.10, k=2, statistics='kin20', block_size=16)
+
+    assert with_self.count() == 55
+    assert without_self.count() == 45
+
+    with_self_self_kin_only = with_self.filter(with_self.i.sample_idx == with_self.j.sample_idx)
+    assert with_self_self_kin_only.count() == 10, with_self_self_kin_only.collect()
+
+    with_self_no_self_kin = with_self.filter(with_self.i.sample_idx != with_self.j.sample_idx)
+    assert with_self_no_self_kin.count() == 45, with_self_no_self_kin.collect()
+    assert with_self_no_self_kin._same(without_self)
+
+    without_self_self_kin_only = without_self.filter(without_self.i.sample_idx == without_self.j.sample_idx)
+    assert without_self_self_kin_only.count() == 0, without_self_self_kin_only.collect()
+
 
 @skip_unless_spark_backend()
 def test_pcrelate_issue_5263():
