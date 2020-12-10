@@ -2564,55 +2564,38 @@ class Emit[C](
               }
             }
           }
-//        case NDArrayMap2(lChild, rChild, lName, rName, body) =>
-//          val lP = coerce[PNDArray](lChild.pType)
-//          val rP = coerce[PNDArray](rChild.pType)
-//
-//          val leftChildEmitter = deforest(lChild)
-//
-//          val leftM = cb.newLocal[Boolean]("ndarray_map2_left_child_missing")
-//          val leftShapeValues = Array.tabulate(leftChildEmitter.nDims)(i => cb.newLocal[Long](s"ndarray_reindex_left_child_shape_$i")).toIndexedSeq
-//
-//          leftChildEmitter.outputShape.consume(cb, {
-//            cb.assign(leftM, true)
-//          }, {values =>
-//            cb.assign(leftM, false)
-//            (leftShapeValues.toIterable, values.toIterable).zipped.map { case (x, v) => cb.assign(x, v) }
-//          })
-//
-//          val rightChildEmitter = deforest(rChild)
-//
-//          val rightM = cb.newLocal[Boolean]("ndarray_map2_right_child_missing")
-//          val rightShapeValues = Array.tabulate(leftChildEmitter.nDims)(i => cb.newLocal[Long](s"ndarray_map2_right_child_shape_$i")).toIndexedSeq
-//
-//          rightChildEmitter.outputShape.consume(cb, {
-//            cb.assign(rightM, true)
-//          }, {values =>
-//            cb.assign(rightM, false)
-//            (rightShapeValues.toIterable, values.toIterable).zipped.map { case (x, v) => cb.assign(x, v) }
-//          })
-//
-//          val (newSetupShape, shapeArray) = NDArrayEmitter.unifyShapes2(cb.emb, leftShapeValues, rightShapeValues)
-//
-//          cb.ifx(leftM || rightM, {}, cb.append(newSetupShape))
-//
-//          new NDArrayEmitter2(IEmitCodeGen(cb, leftM || rightM, shapeArray)) {
-//            override def outputElement(cb: EmitCodeBuilder, idxVars: IndexedSeq[Value[Long]]): PCode = {
-//              val lElemRef = cb.emb.newPresentEmitField(lName, lP.elementType)
-//              val rElemRef = cb.emb.newPresentEmitField(rName, rP.elementType)
-//
-//              val bodyEnv = env.bind(lName, lElemRef)
-//                .bind(rName, rElemRef)
-//
-//              val lIdxVars2 = NDArrayEmitter.zeroBroadcastedDims2(cb.emb, idxVars, nDims, leftShapeValues)
-//              val rIdxVars2 = NDArrayEmitter.zeroBroadcastedDims2(cb.emb, idxVars, nDims, rightShapeValues)
-//
-//              cb.assign(lElemRef, leftChildEmitter.outputElement(cb, lIdxVars2))
-//              cb.assign(rElemRef, rightChildEmitter.outputElement(cb, rIdxVars2))
-//
-//              dEmit(body, bodyEnv).get(cb, "NDArrayMap2 body cannot be missing")
-//            }
-//          }
+        case NDArrayMap2(lChild, rChild, lName, rName, body) =>
+          deforest(lChild).flatMap(cb) { leftChildEmitter =>
+            deforest(rChild).map(cb) { rightChildEmitter =>
+              val lP = coerce[PNDArray](lChild.pType)
+              val rP = coerce[PNDArray](rChild.pType)
+
+              val leftShapeValues = leftChildEmitter.outputShape
+              val rightShapeValues = rightChildEmitter.outputShape
+
+              val (newSetupShape, shapeArray) = NDArrayEmitter.unifyShapes2(cb.emb, leftShapeValues, rightShapeValues)
+
+              cb.append(newSetupShape)
+
+              new NDArrayEmitter2(shapeArray) {
+                override def outputElement(cb: EmitCodeBuilder, idxVars: IndexedSeq[Value[Long]]): PCode = {
+                  val lElemRef = cb.emb.newPresentEmitField(lName, lP.elementType)
+                  val rElemRef = cb.emb.newPresentEmitField(rName, rP.elementType)
+
+                  val bodyEnv = env.bind(lName, lElemRef)
+                    .bind(rName, rElemRef)
+
+                  val lIdxVars2 = NDArrayEmitter.zeroBroadcastedDims2(cb.emb, idxVars, nDims, leftShapeValues)
+                  val rIdxVars2 = NDArrayEmitter.zeroBroadcastedDims2(cb.emb, idxVars, nDims, rightShapeValues)
+
+                  cb.assign(lElemRef, leftChildEmitter.outputElement(cb, lIdxVars2))
+                  cb.assign(rElemRef, rightChildEmitter.outputElement(cb, rIdxVars2))
+
+                  dEmit(body, bodyEnv).get(cb, "NDArrayMap2 body cannot be missing")
+                }
+              }
+            }
+          }
 //        case NDArrayReindex(child, indexExpr) =>
 //          val childEmitter = deforest(child)
 //          val childPType = child.pType.asInstanceOf[PNDArray]
