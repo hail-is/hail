@@ -1,11 +1,9 @@
-import os
 import asyncio
-import urllib.parse
 import logging
 from hailtop import aiotools
-from hailtop.utils import retry_long_running
+from hailtop.utils import retry_long_running, url_basename
 
-from ..utils import WindowFractionCounter, url_basename
+from ..utils import WindowFractionCounter
 
 log = logging.getLogger('zone_monitor')
 
