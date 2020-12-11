@@ -177,4 +177,4 @@ You can now install Hail:
     python3 $HAIL/ci/bootstrap.py --extra-code-config '{"username":"<username>","email":"<email>"}' hail-is/hail:main $(git rev-parse HEAD) create_initial_user
   ```
 
-  Additional users can be added by the intial user by going to auth.hail.is/users.
+  Additional users can be added by the initial user by going to auth.<domain>/users.
