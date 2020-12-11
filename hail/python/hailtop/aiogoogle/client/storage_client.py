@@ -258,7 +258,7 @@ class GoogleStorageAsyncFS(AsyncFS):
         except StopAsyncIteration:
             raise FileNotFoundError(url)  # pylint: disable=raise-missing-from
 
-        async def cons(n, it):
+        async def cons(first_entry, it):
             yield first_entry
             try:
                 while True:
@@ -266,7 +266,7 @@ class GoogleStorageAsyncFS(AsyncFS):
             except StopAsyncIteration:
                 pass
 
-        return cons(n, it)
+        return cons(first_entry, it)
 
     async def isfile(self, url: str) -> bool:
         try:
