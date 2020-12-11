@@ -41,7 +41,8 @@ benchmark_data = {
     'commits': {},
     'dates': [],
     'geo_means': [],
-    'pr_ids': []
+    'pr_ids': [],
+    'shas':[]
 }
 
 
@@ -197,12 +198,13 @@ async def index(request):
     d = {
         'dates': benchmark_data['dates'],
         'geo_means': benchmark_data['geo_means'],
-        'pr_ids': benchmark_data['pr_ids']
+        'pr_ids': benchmark_data['pr_ids'],
+        'commits': benchmark_data['shas']
     }
     assert len(d['dates']) == len(d['geo_means']), d
     df = pd.DataFrame(d)
     if not df.dates.empty:
-        fig = px.line(df, x=df.dates, y=df.geo_means, hover_data=['pr_ids'])
+        fig = px.line(df, x=df.dates, y=df.geo_means, hover_data=['pr_ids', 'commits'])
         fig.update_xaxes(rangeslider_visible=True)
         plot = json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
     else:
@@ -317,7 +319,6 @@ async def get_commit(app, sha):  # pylint: disable=unused-argument
     gh_commit = await github_client.getitem(request_string)
 
     message = gh_commit['commit']['message']
-    log.info(f'message: {message}')
     match = GH_COMMIT_MESSAGE_REGEX.search(message)
     message_dict = match.groupdict()
     pr_id = message_dict['pr_id']
@@ -374,7 +375,7 @@ async def update_commit(app, sha):  # pylint: disable=unused-argument
         return commit
 
     has_results_file = gs_reader.file_exists(file_path)
-    if has_results_file and commit['date'] not in benchmark_data['dates']:
+    if has_results_file and benchmark_data['commits'].get(sha) is not None:
         benchmarks = get_benchmarks(app, file_path)
         commit['geo_mean'] = benchmarks['geometric_mean']
         geo_mean = commit['geo_mean']
@@ -383,6 +384,7 @@ async def update_commit(app, sha):  # pylint: disable=unused-argument
         benchmark_data['dates'].append(commit['date'])
         benchmark_data['geo_means'].append(commit['geo_mean'])
         benchmark_data['pr_ids'].append(commit['pr_id'])
+        benchmark_data['shas'].append(sha)
         benchmark_data['commits'][sha] = commit
     return commit
 
