@@ -242,13 +242,31 @@ class GoogleStorageAsyncFS(AsyncFS):
                 for item in page['items']:
                     yield GoogleStorageFileListEntry(f'gs://{bucket}/{item["name"]}', item)
 
-    def listfiles(self, url: str, recursive: bool = False) -> AsyncIterator[FileListEntry]:
+    async def listfiles(self, url: str, recursive: bool = False) -> AsyncIterator[FileListEntry]:
         bucket, name = self._get_bucket_name(url)
         if not name.endswith('/'):
             name = f'{name}/'
+
         if recursive:
-            return self._listfiles_recursive(bucket, name)
-        return self._listfiles_flat(bucket, name)
+            it = self._listfiles_recursive(bucket, name)
+        else:
+            it = self._listfiles_flat(bucket, name)
+
+        it = it.__aiter__()
+        try:
+            n = await it.__anext__()
+        except StopAsyncIteration:
+            raise FileNotFoundError(url)
+
+        async def cons(n, it):
+            yield n
+            try:
+                while True:
+                    yield await it.__anext__()
+            except StopAsyncIteration:
+                pass
+
+        return cons(n, it)
 
     async def isfile(self, url: str) -> bool:
         try:
@@ -261,17 +279,30 @@ class GoogleStorageAsyncFS(AsyncFS):
             raise
 
     async def isdir(self, url: str) -> bool:
-        async for _ in self.listfiles(url):
-            return True
-        return False
+        bucket, name = self._get_bucket_name(url)
+        assert name.endswith('/')
+        params = {
+            'prefix': name,
+            'delimiter': '/',
+            'includeTrailingDelimiter': 'true',
+            'maxResults': 1
+        }
+        async for page in await self._storage_client.list_objects(bucket, params=params):
+            prefixes = page.get('prefixes')
+            items = page.get('items')
+            return prefixes or items
+        raise UnreachableError()
 
     async def remove(self, url: str) -> None:
         bucket, name = self._get_bucket_name(url)
         await self._storage_client.delete_object(bucket, name)
 
     async def rmtree(self, url: str) -> None:
-        async for entry in self.listfiles(url, recursive=True):
-            await self.remove(await entry.url())
+        try:
+            async for entry in await self.listfiles(url, recursive=True):
+                await self.remove(await entry.url())
+        except FileNotFoundError:
+            pass
 
     async def close(self) -> None:
         await self._storage_client.close()
