@@ -256,7 +256,7 @@ class GoogleStorageAsyncFS(AsyncFS):
         try:
             n = await it.__anext__()
         except StopAsyncIteration:
-            raise FileNotFoundError(url)
+            raise FileNotFoundError(url)  # pylint: disable=raise-missing-from
 
         async def cons(n, it):
             yield n
@@ -291,7 +291,7 @@ class GoogleStorageAsyncFS(AsyncFS):
             prefixes = page.get('prefixes')
             items = page.get('items')
             return prefixes or items
-        raise UnreachableError()
+        assert False  # unreachable
 
     async def remove(self, url: str) -> None:
         bucket, name = self._get_bucket_name(url)

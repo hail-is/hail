@@ -198,14 +198,13 @@ class LocalAsyncFS(AsyncFS):
                     yield subfile
 
     async def _listfiles_flat(self, url: str, entries) -> AsyncIterator[FileListEntry]:
-        path = self._get_path(url)
         with entries:
             for entry in entries:
                 yield LocalFileListEntry(self._thread_pool, url, entry)
 
     async def listfiles(self, url: str, recursive: bool = False) -> AsyncIterator[FileListEntry]:
         path = self._get_path(url)
-        entries = await blocking_to_async(self._thread_pool, os.scandir, path) 
+        entries = await blocking_to_async(self._thread_pool, os.scandir, path)
         if recursive:
             return self._listfiles_recursive(url, entries)
         return self._listfiles_flat(url, entries)
