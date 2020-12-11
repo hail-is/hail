@@ -605,13 +605,103 @@
       }
     ]
   },
+  "gnomad_annotation_pext": {
+    "description": "gnomAD: annotation-level proportion expressed across transcripts (pext) for all possible SNVs Hail Table.",
+    "url": "https://gnomad.broadinstitute.org/",
+    "versions": [
+      {
+        "reference_genome": "GRCh37",
+        "url": {
+          "aws": {
+            "us": "s3://gnomad-public-us-east-1/papers/2019-tx-annotation/pre_computed/all.possible.snvs.tx_annotated.021520.ht"
+          },
+          "gcp": {
+            "us": "gs://gcp-public-data--gnomad/papers/2019-tx-annotation/pre_computed/all.possible.snvs.tx_annotated.021520.ht"
+          }
+        },
+        "version": "2.1.1"
+      }
+    ]
+  },
+  "gnomad_base_pext": {
+    "description": "gnomAD: base-level proportion expressed across transcripts (pext) Hail Table.",
+    "url": "https://gnomad.broadinstitute.org/",
+    "versions": [
+      {
+        "reference_genome": "GRCh37",
+        "url": {
+          "aws": {
+            "us": "s3://gnomad-public-us-east-1/papers/2019-tx-annotation/gnomad_browser/all.baselevel.021620.ht"
+          },
+          "gcp": {
+            "us": "gs://gcp-public-data--gnomad/papers/2019-tx-annotation/gnomad_browser/all.baselevel.021620.ht"
+          }
+        },
+        "version": "2.1.1"
+      }
+    ]
+  },
+  "gnomad_chrM_coverage": {
+    "description": "gnomAD: mitochondrial DNA (mtDNA) coverage Hail Table.",
+    "url": "https://gnomad.broadinstitute.org/blog/2020-11-gnomad-v3-1-mitochondrial-dna-variants/",
+    "versions": [
+      {
+        "reference_genome": "GRCh38",
+        "url": {
+          "aws": {
+            "us": "s3://gnomad-public-us-east-1/release/3.1/coverage/genomes/gnomad.genomes.v3.1.chrM.coverage.ht"
+          },
+          "gcp": {
+            "us": "gs://gnomad-public-requester-pays/release/3.1/coverage/genomes/gnomad.genomes.v3.1.chrM.coverage.ht"
+          }
+        },
+        "version": "3.1"
+      }
+    ]
+  },
+  "gnomad_chrM_sites": {
+    "description": "gnomAD: mitochondrial DNA (mtDNA) sites Hail Table.",
+    "url": "https://gnomad.broadinstitute.org/blog/2020-11-gnomad-v3-1-mitochondrial-dna-variants/",
+    "versions": [
+      {
+        "reference_genome": "GRCh38",
+        "url": {
+          "aws": {
+            "us": "s3://gnomad-public-us-east-1/release/3.1/ht/genomes/gnomad.genomes.v3.1.sites.chrM.ht"
+          },
+          "gcp": {
+            "us": "gs://gnomad-public-requester-pays/release/3.1/ht/genomes/gnomad.genomes.v3.1.sites.chrM.ht"
+          }
+        },
+        "version": "3.1"
+      }
+    ]
+  },
+  "gnomad_exome_coverage": {
+    "description": "gnomAD: exome coverage Hail Table.",
+    "url": "https://gnomad.broadinstitute.org/",
+    "versions": [
+      {
+        "reference_genome": "GRCh37",
+        "url": {
+          "aws": {
+            "us": "s3://gnomad-public-us-east-1/release/2.1/coverage/exomes/gnomad.exomes.r2.1.coverage.ht"
+          },
+          "gcp": {
+            "us": "gs://gcp-public-data--gnomad/release/2.1/coverage/exomes/gnomad.exomes.r2.1.coverage.ht"
+          }
+        },
+        "version": "2.1"
+      }
+    ]
+  },
   "gnomad_exome_sites": {
     "annotation_db": {
       "key_properties": [
         "unique"
       ]
     },
-    "description": "gnomAD: a resource with the goal of aggregating and harmonizing both exome and genome sequencing data from a wide variety of large-scale sequencing projects.",
+    "description": "gnomAD: exome sites Hail Table.",
     "url": "https://gnomad.broadinstitute.org/",
     "versions": [
       {
@@ -640,13 +730,43 @@
       }
     ]
   },
+  "gnomad_genome_coverage": {
+    "description": "gnomAD: genome coverage Hail Table.",
+    "url": "https://gnomad.broadinstitute.org/",
+    "versions": [
+      {
+        "reference_genome": "GRCh37",
+        "url": {
+          "aws": {
+            "us": "s3://gnomad-public-us-east-1/release/2.1/coverage/genomes/gnomad.genomes.r2.1.coverage.ht"
+          },
+          "gcp": {
+            "us": "gs://gcp-public-data--gnomad/release/2.1/coverage/genomes/gnomad.genomes.r2.1.coverage.ht"
+          }
+        },
+        "version": "2.1"
+      },
+      {
+        "reference_genome": "GRCh38",
+        "url": {
+          "aws": {
+            "us": "s3://gnomad-public-us-east-1/release/3.0.1/coverage/genomes/gnomad.genomes.r3.0.1.coverage.ht"
+          },
+          "gcp": {
+            "us": "gs://gcp-public-data--gnomad/release/3.0.1/coverage/genomes/gnomad.genomes.r3.0.1.coverage.ht"
+          }
+        },
+        "version": "3.0.1"
+      }
+    ]
+  },
   "gnomad_genome_sites": {
     "annotation_db": {
       "key_properties": [
         "unique"
       ]
     },
-    "description": "gnomAD: a resource with the goal of aggregating and harmonizing both exome and genome sequencing data from a wide variety of large-scale sequencing projects.",
+    "description": "gnomAD: genome sites Hail Table.",
     "url": "https://gnomad.broadinstitute.org/",
     "versions": [
       {
@@ -1030,7 +1150,7 @@
     ]
   },
   "gnomad_ld_variant_indices_afr": {
-    "description": "gnomAD: variant indices Hail Table for African/African-American population",
+    "description": "gnomAD: variant indices Hail Table for African/African-American population.",
     "url": "https://gnomad.broadinstitute.org/",
     "versions": [
       {
@@ -1048,7 +1168,7 @@
     ]
   },
   "gnomad_ld_variant_indices_amr": {
-    "description": "gnomAD: variant indices Hail Table for Latino/Admixed American population",
+    "description": "gnomAD: variant indices Hail Table for Latino/Admixed American population.",
     "url": "https://gnomad.broadinstitute.org/",
     "versions": [
       {
@@ -1066,7 +1186,7 @@
     ]
   },
   "gnomad_ld_variant_indices_asj": {
-    "description": "gnomAD: variant indices Hail Table for Ashkenazi Jewish population",
+    "description": "gnomAD: variant indices Hail Table for Ashkenazi Jewish population.",
     "url": "https://gnomad.broadinstitute.org/",
     "versions": [
       {
@@ -1084,7 +1204,7 @@
     ]
   },
   "gnomad_ld_variant_indices_eas": {
-    "description": "gnomAD: variant indices Hail Table for East Asian population",
+    "description": "gnomAD: variant indices Hail Table for East Asian population.",
     "url": "https://gnomad.broadinstitute.org/",
     "versions": [
       {
@@ -1102,7 +1222,7 @@
     ]
   },
   "gnomad_ld_variant_indices_est": {
-    "description": "gnomAD: variant indices Hail Table for Estonian population",
+    "description": "gnomAD: variant indices Hail Table for Estonian population.",
     "url": "https://gnomad.broadinstitute.org/",
     "versions": [
       {
@@ -1120,7 +1240,7 @@
     ]
   },
   "gnomad_ld_variant_indices_fin": {
-    "description": "gnomAD: variant indices Hail Table for European (Finnish) population",
+    "description": "gnomAD: variant indices Hail Table for European (Finnish) population.",
     "url": "https://gnomad.broadinstitute.org/",
     "versions": [
       {
@@ -1138,7 +1258,7 @@
     ]
   },
   "gnomad_ld_variant_indices_nfe": {
-    "description": "gnomAD: variant indices Hail Table for European (non-Finnish) population",
+    "description": "gnomAD: variant indices Hail Table for European (non-Finnish) population.",
     "url": "https://gnomad.broadinstitute.org/",
     "versions": [
       {
@@ -1156,7 +1276,7 @@
     ]
   },
   "gnomad_ld_variant_indices_nwe": {
-    "description": "gnomAD: variant indices Hail Table for North-western European population",
+    "description": "gnomAD: variant indices Hail Table for North-western European population.",
     "url": "https://gnomad.broadinstitute.org/",
     "versions": [
       {
@@ -1174,7 +1294,7 @@
     ]
   },
   "gnomad_ld_variant_indices_seu": {
-    "description": "gnomAD: variant indices Hail Table for Southern European population",
+    "description": "gnomAD: variant indices Hail Table for Southern European population.",
     "url": "https://gnomad.broadinstitute.org/",
     "versions": [
       {
@@ -1191,17 +1311,197 @@
       }
     ]
   },
-  "gnomad_lof_metrics": {
+  "gnomad_mnv_genome_d01": {
+    "description": "gnomAD: genome wide multi-nucleotide variants (MNVs) Hail Table, for distance between two SNVs of 1.",
+    "url": "https://gnomad.broadinstitute.org/",
+    "versions": [
+      {
+        "reference_genome": "GRCh37",
+        "url": {
+          "aws": {
+            "us": "s3://gnomad-public-us-east-1/release/2.1/mnv/genome/gnomad_mnv_genome_d1.ht"
+          },
+          "gcp": {
+            "us": "gs://gcp-public-data--gnomad/release/2.1/mnv/genome/gnomad_mnv_genome_d1.ht"
+          }
+        },
+        "version": "2.1"
+      }
+    ]
+  },
+  "gnomad_mnv_genome_d02": {
+    "description": "gnomAD: genome wide multi-nucleotide variants (MNVs) Hail Table, for distance between two SNVs of 2.",
+    "url": "https://gnomad.broadinstitute.org/",
+    "versions": [
+      {
+        "reference_genome": "GRCh37",
+        "url": {
+          "aws": {
+            "us": "s3://gnomad-public-us-east-1/release/2.1/mnv/genome/gnomad_mnv_genome_d2.ht"
+          },
+          "gcp": {
+            "us": "gs://gcp-public-data--gnomad/release/2.1/mnv/genome/gnomad_mnv_genome_d2.ht"
+          }
+        },
+        "version": "2.1"
+      }
+    ]
+  },
+  "gnomad_mnv_genome_d03": {
+    "description": "gnomAD: genome wide multi-nucleotide variants (MNVs) Hail Table, for distance between two SNVs of 3.",
+    "url": "https://gnomad.broadinstitute.org/",
+    "versions": [
+      {
+        "reference_genome": "GRCh37",
+        "url": {
+          "aws": {
+            "us": "s3://gnomad-public-us-east-1/release/2.1/mnv/genome/gnomad_mnv_genome_d3.ht"
+          },
+          "gcp": {
+            "us": "gs://gcp-public-data--gnomad/release/2.1/mnv/genome/gnomad_mnv_genome_d3.ht"
+          }
+        },
+        "version": "2.1"
+      }
+    ]
+  },
+  "gnomad_mnv_genome_d04": {
+    "description": "gnomAD: genome wide multi-nucleotide variants (MNVs) Hail Table, for distance between two SNVs of 4.",
+    "url": "https://gnomad.broadinstitute.org/",
+    "versions": [
+      {
+        "reference_genome": "GRCh37",
+        "url": {
+          "aws": {
+            "us": "s3://gnomad-public-us-east-1/release/2.1/mnv/genome/gnomad_mnv_genome_d4.ht"
+          },
+          "gcp": {
+            "us": "gs://gcp-public-data--gnomad/release/2.1/mnv/genome/gnomad_mnv_genome_d4.ht"
+          }
+        },
+        "version": "2.1"
+      }
+    ]
+  },
+  "gnomad_mnv_genome_d05": {
+    "description": "gnomAD: genome wide multi-nucleotide variants (MNVs) Hail Table, for distance between two SNVs of 5.",
+    "url": "https://gnomad.broadinstitute.org/",
+    "versions": [
+      {
+        "reference_genome": "GRCh37",
+        "url": {
+          "aws": {
+            "us": "s3://gnomad-public-us-east-1/release/2.1/mnv/genome/gnomad_mnv_genome_d5.ht"
+          },
+          "gcp": {
+            "us": "gs://gcp-public-data--gnomad/release/2.1/mnv/genome/gnomad_mnv_genome_d5.ht"
+          }
+        },
+        "version": "2.1"
+      }
+    ]
+  },
+  "gnomad_mnv_genome_d06": {
+    "description": "gnomAD: genome wide multi-nucleotide variants (MNVs) Hail Table, for distance between two SNVs of 6.",
+    "url": "https://gnomad.broadinstitute.org/",
+    "versions": [
+      {
+        "reference_genome": "GRCh37",
+        "url": {
+          "aws": {
+            "us": "s3://gnomad-public-us-east-1/release/2.1/mnv/genome/gnomad_mnv_genome_d6.ht"
+          },
+          "gcp": {
+            "us": "gs://gcp-public-data--gnomad/release/2.1/mnv/genome/gnomad_mnv_genome_d6.ht"
+          }
+        },
+        "version": "2.1"
+      }
+    ]
+  },
+  "gnomad_mnv_genome_d07": {
+    "description": "gnomAD: genome wide multi-nucleotide variants (MNVs) Hail Table, for distance between two SNVs of 7.",
+    "url": "https://gnomad.broadinstitute.org/",
+    "versions": [
+      {
+        "reference_genome": "GRCh37",
+        "url": {
+          "aws": {
+            "us": "s3://gnomad-public-us-east-1/release/2.1/mnv/genome/gnomad_mnv_genome_d7.ht"
+          },
+          "gcp": {
+            "us": "gs://gcp-public-data--gnomad/release/2.1/mnv/genome/gnomad_mnv_genome_d7.ht"
+          }
+        },
+        "version": "2.1"
+      }
+    ]
+  },
+  "gnomad_mnv_genome_d08": {
+    "description": "gnomAD: genome wide multi-nucleotide variants (MNVs) Hail Table, for distance between two SNVs of 8.",
+    "url": "https://gnomad.broadinstitute.org/",
+    "versions": [
+      {
+        "reference_genome": "GRCh37",
+        "url": {
+          "aws": {
+            "us": "s3://gnomad-public-us-east-1/release/2.1/mnv/genome/gnomad_mnv_genome_d8.ht"
+          },
+          "gcp": {
+            "us": "gs://gcp-public-data--gnomad/release/2.1/mnv/genome/gnomad_mnv_genome_d8.ht"
+          }
+        },
+        "version": "2.1"
+      }
+    ]
+  },
+  "gnomad_mnv_genome_d09": {
+    "description": "gnomAD: genome wide multi-nucleotide variants (MNVs) Hail Table, for distance between two SNVs of 9.",
+    "url": "https://gnomad.broadinstitute.org/",
+    "versions": [
+      {
+        "reference_genome": "GRCh37",
+        "url": {
+          "aws": {
+            "us": "s3://gnomad-public-us-east-1/release/2.1/mnv/genome/gnomad_mnv_genome_d9.ht"
+          },
+          "gcp": {
+            "us": "gs://gcp-public-data--gnomad/release/2.1/mnv/genome/gnomad_mnv_genome_d9.ht"
+          }
+        },
+        "version": "2.1"
+      }
+    ]
+  },
+  "gnomad_mnv_genome_d10": {
+    "description": "gnomAD: genome wide multi-nucleotide variants (MNVs) Hail Table, for distance between two SNVs of 10.",
+    "url": "https://gnomad.broadinstitute.org/",
+    "versions": [
+      {
+        "reference_genome": "GRCh37",
+        "url": {
+          "aws": {
+            "us": "s3://gnomad-public-us-east-1/release/2.1/mnv/genome/gnomad_mnv_genome_d10.ht"
+          },
+          "gcp": {
+            "us": "gs://gcp-public-data--gnomad/release/2.1/mnv/genome/gnomad_mnv_genome_d10.ht"
+          }
+        },
+        "version": "2.1"
+      }
+    ]
+  },
+  "gnomad_plof_metrics_gene": {
     "annotation_db": {
       "key_properties": [
         "gene"
       ]
     },
-    "description": "gnomAD: a resource with the goal of aggregating and harmonizing both exome and genome sequencing data from a wide variety of large-scale sequencing projects.",
+    "description": "gnomAD: pLoF metrics by gene Hail Table.",
     "url": "https://gnomad.broadinstitute.org/",
     "versions": [
       {
-        "reference_genome": null,
+        "reference_genome": "GRCh37",
         "url": {
           "aws": {
             "us": "s3://hail-datasets-us-east-1/annotations/gnomad_v2.1.1_lof_metrics_by_gene.ht"
@@ -1209,6 +1509,24 @@
           "gcp": {
             "eu": "gs://hail-datasets-eu/annotations/gnomad_v2.1.1_lof_metrics_by_gene.ht",
             "us": "gs://hail-datasets-us/annotations/gnomad_v2.1.1_lof_metrics_by_gene.ht"
+          }
+        },
+        "version": "2.1.1"
+      }
+    ]
+  },
+  "gnomad_plof_metrics_transcript": {
+    "description": "gnomAD: pLoF metrics by transcript Hail Table.",
+    "url": "https://gnomad.broadinstitute.org/",
+    "versions": [
+      {
+        "reference_genome": "GRCh37",
+        "url": {
+          "aws": {
+            "us": "s3://gnomad-public-us-east-1/release/2.1.1/constraint/gnomad.v2.1.1.lof_metrics.by_transcript.ht"
+          },
+          "gcp": {
+            "us": "gs://gcp-public-data--gnomad/release/2.1.1/constraint/gnomad.v2.1.1.lof_metrics.by_transcript.ht"
           }
         },
         "version": "2.1.1"
