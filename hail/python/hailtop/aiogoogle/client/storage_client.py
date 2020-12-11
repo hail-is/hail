@@ -254,12 +254,12 @@ class GoogleStorageAsyncFS(AsyncFS):
 
         it = it.__aiter__()
         try:
-            n = await it.__anext__()
+            first_entry = await it.__anext__()
         except StopAsyncIteration:
             raise FileNotFoundError(url)  # pylint: disable=raise-missing-from
 
         async def cons(n, it):
-            yield n
+            yield first_entry
             try:
                 while True:
                     yield await it.__anext__()
