@@ -1619,6 +1619,8 @@ class Emit[C](
       case ShuffleWrite(idIR, rowsIR) =>
         val shuffleType = coerce[TShuffle](idIR.typ)
         val rowsPType = coerce[PStream](rowsIR.pType)
+        assert(shuffleType.rowEType._encodeCompatible(rowsPType.elementType),
+          s"Incompatible:\n${shuffleType.rowEType}\n\n${rowsPType.elementType}")
         val uuid = emitI(idIR)
           .get(cb, "shuffle ID must be non-missing")
           .asInstanceOf[SCanonicalShufflePointerCode]

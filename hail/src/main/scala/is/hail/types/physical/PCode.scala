@@ -154,6 +154,8 @@ object PSettable {
       SCanonicalCallSettable(sb, name, pt.required)
     case pt: PCanonicalNDArray =>
       SNDArrayPointerSettable(sb, SNDArrayPointer(pt), name)
+    case pt: PCanonicalShuffle =>
+      SCanonicalShufflePointerSettable(sb, SCanonicalShufflePointer(pt), name)
     case pt: PCanonicalStream =>
       throw new UnsupportedOperationException(s"Can't PCode.apply unrealizable PType: $pt")
     case PVoid =>

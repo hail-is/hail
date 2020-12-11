@@ -24,6 +24,7 @@ from hailtop.utils import (time_msecs, request_retry_transient_errors,
 from hailtop.httpx import client_session
 from hailtop.batch_client.parse import (parse_cpu_in_mcpu, parse_image_tag,
                                         parse_memory_in_bytes)
+from hailtop.batch.hail_genetics_images import HAIL_GENETICS_IMAGES
 from hailtop import aiotools
 # import uvloop
 
@@ -38,6 +39,8 @@ from ..log_store import LogStore
 from ..globals import HTTP_CLIENT_MAX_SIZE, STATUS_FORMAT_VERSION
 from ..batch_format_version import BatchFormatVersion
 from ..worker_config import WorkerConfig
+from ..batch_configuration import PROJECT
+from ..public_gcr_images import PUBLIC_GCR_IMAGES
 
 from .flock import Flock
 
@@ -241,7 +244,11 @@ class Container:
         if not tag:
             log.info(f'adding latest tag to image {self.spec["image"]} for {self}')
             image += ':latest'
-        self.image = image
+        if image in HAIL_GENETICS_IMAGES:
+            prefix = 'hailgenetics/'
+            self.image = 'gcr.io/' + PROJECT + '/' + image[len(prefix):]
+        else:
+            self.image = image
 
         self.port = self.spec.get('port')
         self.host_port = None
@@ -338,10 +345,25 @@ class Container:
 
         return status
 
+    async def ensure_image_is_pulled(self):
+        try:
+            await docker_call_retry(MAX_DOCKER_OTHER_OPERATION_SECS, f'{self}')(
+                docker.images.get, self.image)
+        except DockerError as e:
+            if e.status == 404:
+                await docker_call_retry(MAX_DOCKER_IMAGE_PULL_SECS, f'{self}')(
+                    docker.images.pull, self.image)
+
     async def run(self, worker):
         try:
             async with self.step('pulling'):
-                if is_google_registry_image(self.image):
+                is_gcr_image = is_google_registry_image(self.image)
+                is_public_gcr_image = self.image in PUBLIC_GCR_IMAGES
+
+                if not is_gcr_image or is_public_gcr_image:
+                    await self.ensure_image_is_pulled()
+                else:
+                    assert self.image.startswith('gcr.io/')
                     key = base64.b64decode(
                         self.job.gsa_key['key.json']).decode()
                     auth = {
@@ -354,15 +376,6 @@ class Container:
                     # per-user image cache.
                     await docker_call_retry(MAX_DOCKER_IMAGE_PULL_SECS, f'{self}')(
                         docker.images.pull, self.image, auth=auth)
-                else:
-                    # this caches public images and the copy image
-                    try:
-                        await docker_call_retry(MAX_DOCKER_OTHER_OPERATION_SECS, f'{self}')(
-                            docker.images.get, self.image)
-                    except DockerError as e:
-                        if e.status == 404:
-                            await docker_call_retry(MAX_DOCKER_IMAGE_PULL_SECS, f'{self}')(
-                                docker.images.pull, self.image)
 
             if self.port is not None:
                 async with self.step('allocating_port'):

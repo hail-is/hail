@@ -156,7 +156,7 @@ class LSM (
   private[this] var sorted = false
   private[this] var samplesEnd = 0
 
-  private[this] def maybeSample(k: Long): Unit = {
+  private[this] def maybeSample(k: Long): Unit = synchronized {
     if      (processed == 0)
       assert(least == -1 && greatest == -1)
     else if (processed == 1)
@@ -206,12 +206,12 @@ class LSM (
         samples(rnd.nextInt(samplesEnd)) = insertMe
       }
     }
+    processed += 1
   }
 
   def put(k: Long, v: Long): Unit = {
     maybeSample(k)
     store.put(k, v)
-    processed += 1
   }
 
   def iterator(startKey: Long, inclusive: Boolean) = {

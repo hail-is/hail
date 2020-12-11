@@ -289,6 +289,7 @@ object EType {
       case t: PFloat64 => EFloat64(t.required)
       case t: PBoolean => EBoolean(t.required)
       case t: PBinary => EBinary(t.required)
+      case t: PShuffle => EShuffle(t.required)
       // FIXME(chrisvittal): turn this on when performance is adequate
       case t: PArray if t.elementType.fundamentalType.isOfType(PInt32(t.elementType.required)) &&
           HailContext.getFlag("use_packed_int_encoding") != null =>

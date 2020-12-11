@@ -2108,6 +2108,45 @@ steps:
      - default_ns
      - create_certs
      - deploy_benchmark
+ - kind: buildImage
+   name: address_image
+   dockerFile: address/Dockerfile
+   contextPath: .
+   publishAs: address
+   dependsOn:
+     - service_base_image
+ - kind: runImage
+   name: check_address
+   image:
+     valueFrom: address_image.image
+   script: |
+     set -ex
+     SITE_PACKAGES=$(pip3 show address | grep Location | sed 's/Location: //')
+     python3 -m flake8 $SITE_PACKAGES/address
+     python3 -m pylint --rcfile pylintrc address
+   dependsOn:
+     - address_image
+ - kind: deploy
+   name: deploy_address_sa
+   namespace:
+     valueFrom: default_ns.name
+   config: address/service-account.yaml
+   dependsOn:
+    - default_ns
+ - kind: deploy
+   name: deploy_address
+   namespace:
+     valueFrom: default_ns.name
+   config: address/deployment.yaml
+   wait:
+    - kind: Service
+      name: address
+      for: alive
+   dependsOn:
+    - default_ns
+    - deploy_router
+    - address_image
+    - create_certs
  - kind: deploy
    name: deploy_query
    namespace:
@@ -2123,6 +2162,7 @@ steps:
     - deploy_shuffler
     - query_image
     - deploy_query_sa
+    - deploy_address
     - create_certs
  - kind: deploy
    name: deploy_memory
@@ -3290,45 +3330,6 @@ steps:
      - genetics_public_image
    scopes:
     - dev
- - kind: buildImage
-   name: address_image
-   dockerFile: address/Dockerfile
-   contextPath: .
-   publishAs: address
-   dependsOn:
-     - service_base_image
- - kind: runImage
-   name: check_address
-   image:
-     valueFrom: address_image.image
-   script: |
-     set -ex
-     SITE_PACKAGES=$(pip3 show address | grep Location | sed 's/Location: //')
-     python3 -m flake8 $SITE_PACKAGES/address
-     python3 -m pylint --rcfile pylintrc address
-   dependsOn:
-     - address_image
- - kind: deploy
-   name: deploy_address_sa
-   namespace:
-     valueFrom: default_ns.name
-   config: address/service-account.yaml
-   dependsOn:
-    - default_ns
- - kind: deploy
-   name: deploy_address
-   namespace:
-     valueFrom: default_ns.name
-   config: address/deployment.yaml
-   wait:
-    - kind: Service
-      name: address
-      for: alive
-   dependsOn:
-    - default_ns
-    - deploy_router
-    - address_image
-    - create_certs
  - kind: runImage
    name: test_address
    image:

@@ -419,6 +419,7 @@ class RegionValueBuilder(var region: Region) {
         case TFloat64 => addDouble(a.asInstanceOf[Double])
         case TString => addString(a.asInstanceOf[String])
         case TBinary => addBinary(a.asInstanceOf[Array[Byte]])
+        case _: TShuffle => addBinary(a.asInstanceOf[Array[Byte]])
 
         case t: TArray =>
           a match {

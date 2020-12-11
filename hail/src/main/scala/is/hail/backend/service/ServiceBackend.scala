@@ -3,21 +3,27 @@ package is.hail.backend.service
 import java.io._
 
 import is.hail.HailContext
-import is.hail.annotations.{Region, UnsafeRow}
+import is.hail.annotations.{Annotation, Region, SafeRow, UnsafeRow}
 import is.hail.asm4s._
 import is.hail.backend.{Backend, BackendContext, BroadcastValue, HailTaskContext}
 import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.ir.lowering.{DArrayLowering, LowerDistributedSort, LoweringPipeline, TableStage, TableStageDependency}
-import is.hail.expr.ir.{Compile, ExecuteContext, IR, IRParser, MakeTuple, SortField}
+import is.hail.expr.ir.{Compile, ExecuteContext, IR, IRParser, Literal, MakeArray, MakeTuple, ShuffleRead, ShuffleWrite, SortField, ToStream}
 import is.hail.io.fs.GoogleStorageFS
 import is.hail.linalg.BlockMatrix
+import is.hail.rvd.RVDPartitioner
+import is.hail.services.{DeployConfig, Tokens}
 import is.hail.services.batch_client.BatchClient
-import is.hail.types.BlockMatrixType
+import is.hail.services.shuffler.ShuffleClient
+import is.hail.types.{BlockMatrixType, TypeWithRequiredness}
+import is.hail.types.encoded.{EBaseStruct, EType}
 import is.hail.types.physical.{PBaseStruct, PType}
+import is.hail.types.virtual.{TArray, TInt64, TInterval, TShuffle, TStruct, Type}
 import is.hail.utils._
 import is.hail.variant.ReferenceGenome
 import org.apache.commons.io.IOUtils
 import org.apache.log4j.LogManager
+import org.apache.spark.sql.Row
 import org.json4s.JsonAST._
 import org.json4s.jackson.JsonMethods
 import org.json4s.{DefaultFormats, Formats}
@@ -83,7 +89,10 @@ class ServiceBackendContext(
   @transient val sessionID: String,
   val billingProject: String,
   val bucket: String
-) extends BackendContext
+) extends BackendContext {
+  def tokens(): Tokens =
+    new Tokens(Map((DeployConfig.get.defaultNamespace, sessionID)))
+}
 
 object ServiceBackend {
   lazy val log = LogManager.getLogger("is.hail.backend.service.ServiceBackend")
@@ -184,7 +193,8 @@ class ServiceBackend() extends Backend {
               JString("/bin/bash"),
               JString("-c"),
               JString(s"java -cp $$SPARK_HOME/jars/*:/hail.jar is.hail.backend.service.Worker $root $i"))),
-            "type" -> JString("docker")))
+            "type" -> JString("docker")),
+          "mount_tokens" -> JBool(true))
       i += 1
     }
 
@@ -304,27 +314,30 @@ class ServiceBackend() extends Backend {
     }
   }
 
+  private[this] def execute(ctx: ExecuteContext, _x: IR): (Annotation, PType) = {
+    val x = LoweringPipeline.darrayLowerer(true)(DArrayLowering.All).apply(ctx, _x)
+      .asInstanceOf[IR]
+    val (pt, f) = Compile[AsmFunction1RegionLong](ctx,
+      FastIndexedSeq[(String, PType)](),
+      FastIndexedSeq[TypeInfo[_]](classInfo[Region]), LongInfo,
+      MakeTuple.ordered(FastIndexedSeq(x)),
+      optimize = true)
+
+    val a = f(0, ctx.r)(ctx.r)
+    val retPType = pt.asInstanceOf[PBaseStruct]
+    (new UnsafeRow(retPType, ctx.r, a).get(0), retPType.types(0))
+  }
   def execute(username: String, sessionID: String, billingProject: String, bucket: String, code: String): Response = {
     statusForException {
       ExecutionTimer.logTime("ServiceBackend.execute") { timer =>
         userContext(username, timer) { ctx =>
           ctx.backendContext = new ServiceBackendContext(username, sessionID, billingProject, bucket)
 
-          var x = IRParser.parse_value_ir(ctx, code)
-          x = LoweringPipeline.darrayLowerer(true)(DArrayLowering.All).apply(ctx, x)
-            .asInstanceOf[IR]
-          val (pt, f) = Compile[AsmFunction1RegionLong](ctx,
-            FastIndexedSeq[(String, PType)](),
-            FastIndexedSeq[TypeInfo[_]](classInfo[Region]), LongInfo,
-            MakeTuple.ordered(FastIndexedSeq(x)),
-            optimize = true)
-
-          val a = f(0, ctx.r)(ctx.r)
-          val v = new UnsafeRow(pt.asInstanceOf[PBaseStruct], ctx.r, a)
+          val (v, t) = execute(ctx, IRParser.parse_value_ir(ctx, code))
 
           JsonMethods.compact(
-            JObject(List("value" -> JSONAnnotationImpex.exportAnnotation(v.get(0), x.typ),
-              "type" -> JString(x.typ.toString))))
+            JObject(List("value" -> JSONAnnotationImpex.exportAnnotation(v, t.virtualType),
+              "type" -> JString(t.virtualType.toString))))
         }
       }
     }
@@ -363,8 +376,45 @@ class ServiceBackend() extends Backend {
   }
 
   def lowerDistributedSort(ctx: ExecuteContext, stage: TableStage, sortFields: IndexedSeq[SortField], relationalLetsAbove: Map[String, IR]): TableStage = {
-    // Use a local sort for the moment to enable larger pipelines to run
-    LowerDistributedSort.localSort(ctx, stage, sortFields, relationalLetsAbove)
+    val region = ctx.r
+    val rowType = stage.rowType
+    val keyType = rowType.typeAfterSelectNames(sortFields.map(_.field))
+    val rowEType = EType.fromTypeAndAnalysis(rowType, TypeWithRequiredness(rowType)).asInstanceOf[EBaseStruct] // FIXME(danking): Probably not kosher
+    val keyEType = EType.fromTypeAndAnalysis(keyType, TypeWithRequiredness(keyType)).asInstanceOf[EBaseStruct] // FIXME(danking): Probably not kosher
+    val shuffleType = TShuffle(sortFields, rowType, rowEType, keyEType)
+    val shuffleClient = new ShuffleClient(shuffleType, ctx)
+    assert(keyType == shuffleClient.codecs.keyType)
+    val keyDecodedPType = shuffleClient.codecs.keyDecodedPType
+    shuffleClient.start()
+    try {
+      val uuid = shuffleClient.uuid
+
+      val successfulPartitionIds = execute(
+        ctx,
+        stage.mapCollect(relationalLetsAbove)(
+          ShuffleWrite(Literal(shuffleType, uuid), _)))
+
+      val partitionBoundsPointers = shuffleClient.partitionBounds(region, stage.numPartitions) // FIXME(danking): number of partitions should be configurable?
+      val partitionIntervals = partitionBoundsPointers.zip(partitionBoundsPointers.drop(1)).map { case (l, r) =>
+        Interval(SafeRow(keyDecodedPType, l), SafeRow(keyDecodedPType, r), includesStart = true, includesEnd = false)
+      }
+      val last = partitionIntervals.last
+      partitionIntervals(partitionIntervals.length - 1) = Interval(
+        last.left.point, last.right.point, includesStart = true, includesEnd = true)
+
+      val partitioner = new RVDPartitioner(keyType, partitionIntervals.toFastIndexedSeq)
+
+      TableStage(
+        globals = Literal(TStruct(), Row()),
+        partitioner = partitioner,
+        TableStageDependency.none,
+        contexts = ToStream(MakeArray(
+          partitionIntervals.map(interval => Literal(TInterval(keyType), interval)),
+          TArray(TInterval(keyType)))),
+        interval => ShuffleRead(Literal(shuffleType, uuid), interval))
+    } finally {
+      shuffleClient.close()
+    }
   }
 
   def persist(backendContext: BackendContext, id: String, value: BlockMatrix, storageLevel: String): Unit = ???

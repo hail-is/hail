@@ -5,6 +5,7 @@ import java.net.Socket
 import is.hail._
 import is.hail.annotations._
 import is.hail.asm4s._
+import is.hail.backend.service.ServiceBackendContext
 import is.hail.expr.ir._
 import is.hail.types.virtual._
 import is.hail.types.physical._
@@ -18,7 +19,14 @@ import org.apache.log4j.Logger
 object ShuffleClient {
   private[this] val log = Logger.getLogger(getClass.getName())
 
-  def socket(): Socket = DeployConfig.get.socket("shuffler")
+  def socket(ctx: Option[ExecuteContext]): Socket = ctx match {
+    case None =>
+      DeployConfig.get.socket("shuffler")
+    case Some(ctx) =>
+      DeployConfig.get.socket(
+        "shuffler",
+        ctx.backendContext.asInstanceOf[ServiceBackendContext].tokens())
+  }
 
   def codeSocket(): Code[Socket] =
     Code.invokeScalaObject0[Socket](ShuffleClient.getClass, "socket")
@@ -123,20 +131,23 @@ class ShuffleClient (
   shuffleType: TShuffle,
   var uuid: Array[Byte],
   rowEncodingPType: Option[PType],
-  keyEncodingPType: Option[PType]
+  keyEncodingPType: Option[PType],
+  ctx: Option[ExecuteContext]
 ) extends AutoCloseable {
   private[this] val log = Logger.getLogger(getClass.getName())
 
-  def this(shuffleType: TShuffle) = this(shuffleType, null, None, None)
+  def this(shuffleType: TShuffle) = this(shuffleType, null, None, None, None)
+
+  def this(shuffleType: TShuffle, ctx: ExecuteContext) = this(shuffleType, null, None, None, Some(ctx))
 
   def this(shuffleType: TShuffle, rowEncodingPType: PType, keyEncodingPType: PType) =
-    this(shuffleType, null, Option(rowEncodingPType), Option(keyEncodingPType))
+    this(shuffleType, null, Option(rowEncodingPType), Option(keyEncodingPType), None)
 
   def this(shuffleType: TShuffle, uuid: Array[Byte], rowEncodingPType: PType, keyEncodingPType: PType) =
-    this(shuffleType, uuid, Option(rowEncodingPType), Option(keyEncodingPType))
+    this(shuffleType, uuid, Option(rowEncodingPType), Option(keyEncodingPType), None)
 
   def this(shuffleType: TShuffle, uuid: Array[Byte]) =
-    this(shuffleType, uuid, None, None)
+    this(shuffleType, uuid, None, None, None)
 
   val codecs = {
     ExecutionTimer.logTime("ShuffleClient.codecs") { timer =>
@@ -148,7 +159,7 @@ class ShuffleClient (
     }
   }
 
-  private[this] val s = ShuffleClient.socket()
+  private[this] val s = ShuffleClient.socket(ctx)
   private[this] val in = shuffleBufferSpec.buildInputBuffer(s.getInputStream())
   private[this] val out = shuffleBufferSpec.buildOutputBuffer(s.getOutputStream())
 
