@@ -66,9 +66,10 @@ Instructions:
 
 You can now install Hail:
 
-- Create a VM on the internal network, 100GB, Ubuntu 20.04 TLS, allow
-  full access to all Cloud APIs.  10GB will run out of space.  We
-  assume the rest of the commands are run on the VM.
+- Create a VM on the internal network, standard-8, 100GB PD-SSD,
+  Ubuntu 20.04 TLS, allow full access to all Cloud APIs, use the
+  Terraform service account.  10GB will run out of space.  We assume
+  the rest of the commands are run on the VM.
 
 - Standardize file permissions.  This is for docker, which considers
   permissions for caching.  Run `echo 'umask 022' > ~/.profile`.  You
@@ -126,12 +127,15 @@ You can now install Hail:
 - Deploy the internal-gateway.  Run `make deploy` in $HAIL/internal-gateway.
 
 - Go to the Google Cloud console, API & Services, Credentials.
-  Configure the consent screen for internal users.  Add the scope:
+  Configure the consent screen.  Add the scope:
   https://www.googleapis.com/auth/userinfo.email.  Back in Credentials, create an OAuth
-  client ID.  Authorize the redirect URI:
-  https://auth.<domain>/oauth2callback.  Download the client secret
-  as client_secret.json.  Create the auth-oauth2-client-secret secret
-  with:
+  client ID.  Authorize the redirect URIs:
+
+   - https://auth.<domain>/oauth2callback
+   - http://127.0.0.1/oauth2callback
+
+  Download the client secret as client_secret.json.  Create the
+  auth-oauth2-client-secret secret with:
 
   ```
   kubectl -n default create secret generic auth-oauth2-client-secret --from-file=./client_secret.json
@@ -152,29 +156,31 @@ You can now install Hail:
 - Bootstrap the cluster by running:
 
   ```
-  HAIL_CI_UTILS_IMAGE=gcr.io/<gcp-project>/ci-utils:latest \
-    HAIL_CI_BUCKET_NAME=dummy \
-    KUBERNETES_SERVER_URL='<k8s-server-url>' \
-    HAIL_DEFAULT_NAMESPACE='default' \
-    HAIL_DOMAIN=<domain> \
-    HAIL_GCP_ZONE=<gcp-zone> \
-    HAIL_GCP_PROJECT=<gcp-project> \
-    PYTHONPATH=$HOME/hail/ci:$HOME/hail/batch:$HOME/hail/hail/python \
-    python3 $HAIL/ci/bootstrap.py hail-is/hail:main $(git rev-parse HEAD) test_batch_0
+  cd $HAIL
+  export HAIL_CI_UTILS_IMAGE=gcr.io/<gcp-project>/ci-utils:latest
+  export HAIL_CI_BUCKET_NAME=dummy
+  export KUBERNETES_SERVER_URL='<k8s-server-url>'
+  export HAIL_DEFAULT_NAMESPACE='default'
+  export HAIL_DOMAIN=<domain>
+  export HAIL_GCP_ZONE=<gcp-zone>
+  export HAIL_GCP_PROJECT=<gcp-project>
+  export PYTHONPATH=$HOME/hail/ci:$HOME/hail/batch:$HOME/hail/hail/python
+  python3 ci/bootstrap.py hail-is/hail:main $(git rev-parse HEAD) test_batch_0
   ```
 
 - Create the initial (developer) user:
 
   ```
-  HAIL_CI_UTILS_IMAGE=gcr.io/<gcp-project>/ci-utils:latest \
-    HAIL_CI_BUCKET_NAME=dummy \
-    KUBERNETES_SERVER_URL='<k8s-server-url>' \
-    HAIL_DEFAULT_NAMESPACE='default' \
-    HAIL_DOMAIN=<domain> \
-    HAIL_GCP_ZONE=<gcp-zone> \
-    HAIL_GCP_PROJECT=<gcp-project> \
-    PYTHONPATH=$HOME/hail/ci:$HOME/hail/batch:$HOME/hail/hail/python \
-    python3 $HAIL/ci/bootstrap.py --extra-code-config '{"username":"<username>","email":"<email>"}' hail-is/hail:main $(git rev-parse HEAD) create_initial_user
+  cd $HAIL
+  HAIL_CI_UTILS_IMAGE=gcr.io/<gcp-project>/ci-utils:latest
+  HAIL_CI_BUCKET_NAME=dummy
+  KUBERNETES_SERVER_URL='<k8s-server-url>'
+  HAIL_DEFAULT_NAMESPACE='default'
+  HAIL_DOMAIN=<domain>
+  HAIL_GCP_ZONE=<gcp-zone>
+  HAIL_GCP_PROJECT=<gcp-project>
+  PYTHONPATH=$HOME/hail/ci:$HOME/hail/batch:$HOME/hail/hail/python
+  python3 ci/bootstrap.py --extra-code-config '{"username":"<username>","email":"<email>"}' hail-is/hail:main $(git rev-parse HEAD) create_initial_user
   ```
 
   Additional users can be added by the initial user by going to auth.<domain>/users.
