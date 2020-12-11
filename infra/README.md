@@ -104,7 +104,7 @@ You can now install Hail:
 - In `$HAIL/docker/third-party` run:
 
   ```
-  PROJECT=<gc-project-id> ./copy_images.sh
+  PROJECT=<gcp-project-id> ./copy_images.sh
   ```
 
   This copies some base images from Dockerhub (which now has rate
