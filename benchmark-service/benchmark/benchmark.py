@@ -42,7 +42,7 @@ benchmark_data = {
     'dates': [],
     'geo_means': [],
     'pr_ids': [],
-    'shas':[]
+    'shas': []
 }
 
 
