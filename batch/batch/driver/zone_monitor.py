@@ -5,7 +5,7 @@ import logging
 from hailtop import aiotools
 from hailtop.utils import retry_long_running
 
-from ..utils import WindowFractionCounter
+from ..utils import WindowFractionCounter, url_basename
 
 log = logging.getLogger('zone_monitor')
 
@@ -107,7 +107,7 @@ class ZoneMonitor:
 
             weight = max(remaining / len(r['zones']), 1)
             for z in r['zones']:
-                zone_name = os.path.basename(urllib.parse.urlparse(z).path)
+                zone_name = url_basename(z)
                 _zone_weights.append(ZoneWeight(zone_name, weight))
 
         log.info(f'zone_weights {_zone_weights}')
