@@ -69,7 +69,9 @@ You can now install Hail:
 - Create a VM on the internal network, standard-8, 100GB PD-SSD,
   Ubuntu 20.04 TLS, allow full access to all Cloud APIs, use the
   Terraform service account.  10GB will run out of space.  We assume
-  the rest of the commands are run on the VM.
+  the rest of the commands are run on the VM.  You will need to
+  connect to this instance with ssh.  You may want to add a suiteable
+  ssh forwarding rule to the default network.
 
 - Standardize file permissions.  This is for docker, which considers
   permissions for caching.  Run `echo 'umask 022' > ~/.profile`.  You

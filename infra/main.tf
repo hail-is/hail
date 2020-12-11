@@ -637,20 +637,6 @@ resource "google_compute_firewall" "default_allow_internal" {
   }
 }
 
-resource "google_compute_firewall" "allow_ssh" {
-  name    = "allow-ssh"
-  network = google_compute_network.default.name
-
-  priority = 65534
-
-  source_ranges = ["0.0.0.0/0"]
-
-  allow {
-    protocol = "tcp"
-    ports    = ["22"]
-  }
-}
-
 resource "google_compute_firewall" "vdc_to_batch_worker" {
   name    = "vdc-to-batch-worker"
   network = google_compute_network.default.name
