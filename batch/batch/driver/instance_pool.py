@@ -556,7 +556,13 @@ journalctl -u docker.service > dockerd.log
             log.warning(f'unknown event resource type {resource_type}')
             return
 
-        operation_started = event['operation'].get('first', False)
+        operation = event.get('operation')
+        if operation is None:
+            # occurs when deleting a worker that does not exist
+            log.info(f'received an event with no operation {json.dumps(event)}')
+            return
+
+        operation_started = operation.get('first', False)
         if operation_started:
             event_type = 'STARTED'
         else:
@@ -622,9 +628,12 @@ timestamp >= "{mark}"
                             'pageSize': 100,
                             'filter': filter
                         }):
-                    # take the last, largest timestamp
-                    new_mark = event['timestamp']
-                    await self.handle_event(event)
+                    try:
+                        # take the last, largest timestamp
+                        new_mark = event['timestamp']
+                        await self.handle_event(event)
+                    except Exception as exc:
+                        raise ValueError(f'exception while handling {json.dumps(event)}') from exc
 
                 if new_mark is not None:
                     await self.db.execute_update(
