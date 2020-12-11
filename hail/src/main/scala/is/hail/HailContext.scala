@@ -5,7 +5,7 @@ import java.util.Properties
 
 import is.hail.annotations._
 import is.hail.asm4s._
-import is.hail.backend.Backend
+import is.hail.backend.{Backend, HailTaskContext}
 import is.hail.backend.spark.SparkBackend
 import is.hail.expr.ir
 import is.hail.expr.ir.functions.IRFunctionRegistry
@@ -340,7 +340,7 @@ object HailContext {
       val fs = fsBc.value
       val idxname = s"$path/$idxPath/${ p.file }.idx"
       val filename = s"$path/parts/${ p.file }"
-      val idxr = mkIndexReader(fs, idxname, 8) // default cache capacity
+      val idxr = mkIndexReader(fs, idxname, 8, HailTaskContext.get().getRegionPool()) // default cache capacity
       val in = fs.open(filename)
       (in, idxr, p.bounds, context.taskMetrics().inputMetrics)
     })
@@ -379,7 +379,7 @@ object HailContext {
       val fs = fsBc.value
       val idxr = mkIndexReader.map { mk =>
         val idxname = s"$pathRows/${ indexSpecRows.get.relPath }/${ p.file }.idx"
-        mk(fs, idxname, 8) // default cache capacity
+        mk(fs, idxname, 8, HailTaskContext.get().getRegionPool()) // default cache capacity
       }
       val inRows = fs.open(s"$pathRows/parts/${ p.file }")
       val inEntries = fs.open(s"$pathEntries/parts/${ p.file }")

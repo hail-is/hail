@@ -218,7 +218,7 @@ class TestSet {
 class StagedBTreeSuite extends HailSuite {
 
   @Test def testBTree(): Unit = {
-    Region.scoped { region =>
+    pool.scopedRegion { region =>
       val refSet = new TestSet()
       val nodeSizeParams = Array(
         2 -> Gen.choose(-10, 10),

@@ -3,6 +3,7 @@ package is.hail.stats
 import breeze.linalg.{DenseMatrix => BDM, DenseVector => BDV}
 import is.hail.HailContext
 import is.hail.annotations.{BroadcastRow, Region, RegionValue, RegionValueBuilder}
+import is.hail.backend.HailTaskContext
 import is.hail.expr.ir.{ExecuteContext, TableIR, TableLiteral, TableValue}
 import is.hail.types.TableType
 import is.hail.types.physical.{PCanonicalStruct, PFloat64, PInt64, PStruct}
@@ -70,7 +71,7 @@ class LinearMixedModel(lmmData: LMMData) {
       val r0 = 0 to 0
       val r1 = 1 until f
 
-      val region = Region()
+      val region = Region(pool = HailTaskContext.get().getRegionPool())
       val rv = RegionValue(region)
       val rvb = new RegionValueBuilder(region)
 
@@ -138,7 +139,7 @@ class LinearMixedModel(lmmData: LMMData) {
       val r0 = 0 to 0
       val r1 = 1 until f
       
-      val region = Region()
+      val region = Region(pool=HailTaskContext.get().getRegionPool())
       val rv = RegionValue(region)
       val rvb = new RegionValueBuilder(region)
 

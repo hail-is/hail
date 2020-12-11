@@ -135,7 +135,7 @@ class StagedBlockLinkedListSuite extends HailSuite {
   }
 
   @Test def testPushIntsRequired() {
-    Region.scoped { region =>
+    pool.scopedRegion { region =>
       val b = new BlockLinkedList[Int](region, PInt32Required)
       for (i <- 1 to 100) b += i
       assertEquals(b.toIndexedSeq, IndexedSeq.tabulate(100)(_ + 1))
@@ -143,7 +143,7 @@ class StagedBlockLinkedListSuite extends HailSuite {
   }
 
   @Test def testPushStrsMissing() {
-    Region.scoped { region =>
+    pool.scopedRegion { region =>
       val a = new ArrayBuilder[String]()
       val b = new BlockLinkedList[String](region, PCanonicalString())
       for (i <- 1 to 100) {
@@ -156,7 +156,7 @@ class StagedBlockLinkedListSuite extends HailSuite {
   }
 
   @Test def testAppendAnother() {
-    Region.scoped { region =>
+    pool.scopedRegion { region =>
       val b1 = new BlockLinkedList[String](region, PCanonicalString())
       val b2 = new BlockLinkedList[String](region, PCanonicalString())
       b1 += "{"
@@ -169,7 +169,7 @@ class StagedBlockLinkedListSuite extends HailSuite {
   }
 
   @Test def testDeepCopy() {
-    Region.scoped { region =>
+    pool.scopedRegion { region =>
       val b1 = new BlockLinkedList[Double](region, PFloat64())
       b1 ++= Seq(1.0, 2.0, 3.0)
       val b2 = b1.copy()

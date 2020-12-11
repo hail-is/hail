@@ -680,13 +680,14 @@ class RVD(
   }
 
   def combine[U: ClassTag, T: ClassTag](
-    mkZero: () => T,
-    itF: (Int, RVDContext, Iterator[Long]) => T,
-    deserialize: U => T,
-    serialize: T => U,
-    combOp: (T, T) => T,
-    commutative: Boolean,
-    tree: Boolean
+     execCtx: ExecuteContext,
+     mkZero: (RegionPool) => T,
+     itF: (Int, RVDContext, Iterator[Long]) => T,
+     deserialize: RegionPool => (U => T),
+     serialize: T => U,
+     combOp: (T, T) => T,
+     commutative: Boolean,
+     tree: Boolean
   ): T = {
     var reduced = crdd.cmapPartitionsWithIndex[U] { (i, ctx, it) => Iterator.single(serialize(itF(i, ctx, it))) }
 
@@ -709,10 +710,10 @@ class RVD(
             override def getPartition(key: Any): Int = key.asInstanceOf[Int]
             override def numPartitions: Int = newNParts
           })
-          .mapPartitions { it =>
-            var acc = mkZero()
+          .cmapPartitions { (ctx, it) =>
+            var acc = mkZero(ctx.r.pool)
             it.foreach { case (newPart, (oldPart, v)) =>
-              acc = combOp(acc, deserialize(v))
+              acc = combOp(acc, deserialize(ctx.r.pool)(v))
             }
             Iterator.single(serialize(acc))
           }
@@ -720,8 +721,8 @@ class RVD(
       }
     }
 
-    val ac = Combiner(mkZero(), combOp, commutative, true)
-    sparkContext.runJob(reduced.run, (it: Iterator[U]) => singletonElement(it), (i, x: U) => ac.combine(i, deserialize(x)))
+    val ac = Combiner(mkZero(execCtx.r.pool), combOp, commutative, true)
+    sparkContext.runJob(reduced.run, (it: Iterator[U]) => singletonElement(it), (i, x: U) => ac.combine(i, deserialize(execCtx.r.pool)(x)))
     ac.result()
   }
 
@@ -749,7 +750,7 @@ class RVD(
     val enc = TypedCodecSpec(rowPType, BufferSpec.wireSpec)
     val encodedData = collectAsBytes(execCtx, enc)
     val (pType: PStruct, dec) = enc.buildDecoder(execCtx, rowType)
-    Region.scoped { region =>
+    execCtx.r.pool.scopedRegion { region =>
       RegionValue.fromBytes(dec, region, encodedData.iterator)
         .map { ptr =>
           val row = SafeRow(pType, ptr)

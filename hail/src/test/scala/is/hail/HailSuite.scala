@@ -1,10 +1,10 @@
 package is.hail
 
-import is.hail.annotations.Region
+import is.hail.annotations.{Region, RegionPool}
 import is.hail.backend.BroadcastValue
 import is.hail.backend.spark.SparkBackend
 import is.hail.expr.ir.ExecuteContext
-import is.hail.utils.ExecutionTimer
+import is.hail.utils.{ExecutionTimer, using}
 import is.hail.io.fs.FS
 import org.apache.spark.SparkContext
 import org.scalatest.testng.TestNGSuite
@@ -51,12 +51,15 @@ class HailSuite extends TestNGSuite {
 
   var ctx: ExecuteContext = _
 
+  var pool: RegionPool = _
+
   @BeforeMethod
   def setupContext(context: ITestContext): Unit = {
     assert(timer == null)
     timer = new ExecutionTimer("HailSuite")
     assert(ctx == null)
-    ctx = new ExecuteContext(backend.tmpdir, backend.localTmpdir, backend, fs, Region(), timer)
+    pool = RegionPool()
+    ctx = new ExecuteContext(backend.tmpdir, backend.localTmpdir, backend, fs, Region(pool=pool), timer)
   }
 
   @AfterMethod
@@ -65,6 +68,7 @@ class HailSuite extends TestNGSuite {
     ctx = null
     timer.finish()
     timer = null
+    pool.close()
   }
 
   def withExecuteContext[T]()(f: ExecuteContext => T): T = {

@@ -1,7 +1,7 @@
 package is.hail.io.bgen
 
 import is.hail.HailContext
-import is.hail.backend.BroadcastValue
+import is.hail.backend.{BroadcastValue, HailTaskContext}
 import is.hail.expr.ir.ExecuteContext
 import is.hail.types.TableType
 import is.hail.types.physical.{PCanonicalStruct, PStruct}
@@ -117,11 +117,14 @@ object IndexBgen {
       .foreachPartition { it =>
         val partIdx = TaskContext.get.partitionId()
         val idxPath = indexFilePaths(partIdx)
+        val htc = HailTaskContext.get()
 
-        using(makeIW(idxPath)) { iw =>
-          it.foreach { r =>
-            assert(r.getInt(fileIdxIdx) == partIdx)
-            iw.appendRow(Row(r(locusIdx), r(allelesIdx)), r.getLong(offsetIdx), Row())
+        htc.getRegionPool().scopedRegion { r =>
+          using(makeIW(idxPath, r.pool)) { iw =>
+            it.foreach { r =>
+              assert(r.getInt(fileIdxIdx) == partIdx)
+              iw.appendRow(Row(r(locusIdx), r(allelesIdx)), r.getLong(offsetIdx), Row())
+            }
           }
         }
         info(s"Finished writing index file for ${ bgenFilePaths(partIdx) }")

@@ -57,8 +57,9 @@ trait RegionBackedAggState extends AggregatorState {
 
   def newState(off: Code[Long]): Code[Unit] = region.getNewRegion(const(regionSize))
 
-  def createState(cb: EmitCodeBuilder): Unit =
-    cb.ifx(region.isNull, cb.assign(r, Region.stagedCreate(regionSize)))
+  def createState(cb: EmitCodeBuilder): Unit = {
+    cb.ifx(region.isNull, cb.assign(r, Region.stagedCreate(regionSize, kb.pool())))
+  }
 
   def load(regionLoader: Value[Region] => Code[Unit], src: Code[Long]): Code[Unit] = regionLoader(r)
 

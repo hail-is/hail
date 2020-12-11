@@ -1,6 +1,6 @@
 package is.hail.expr.ir
 
-import is.hail.annotations.{Region, StagedRegionValueBuilder}
+import is.hail.annotations.{Region, RegionPool, StagedRegionValueBuilder}
 import is.hail.asm4s._
 import is.hail.types.physical.{PCode, PType}
 import is.hail.utils._
@@ -88,7 +88,7 @@ class ParentStagedRegion(
           val i = mb.newLocal[Int]("sora_alloc_i")
           Code(
             regionArray := Code.newArray(length),
-            Code.forLoop(i := 0, i < length, i := i + 1, apply(i).allocateRegion(size)))
+            Code.forLoop(i := 0, i < length, i := i + 1, apply(i).allocateRegion(size, mb.ecb.pool())))
         }
 
         def freeAll(mb: EmitMethodBuilder[_]): Code[Unit] = {
@@ -164,7 +164,7 @@ abstract class ChildStagedRegion extends StagedRegion {
 }
 
 trait OwnedStagedRegion extends ChildStagedRegion {
-  def allocateRegion(size: Int): Code[Unit]
+  def allocateRegion(size: Int, pool: Value[RegionPool]): Code[Unit]
 
   def free(): Code[Unit]
 
@@ -204,7 +204,7 @@ class RealOwnedStagedRegion(
     new RealOwnedStagedRegion(newR, parent, otherAncestors)
   }
 
-  def allocateRegion(size: Int): Code[Unit] = r := Region.stagedCreate(size)
+  def allocateRegion(size: Int, pool: Value[RegionPool]): Code[Unit] = r := Region.stagedCreate(size, pool)
 
   def free(): Code[Unit] = Code(r.invalidate(), r := Code._null)
 
@@ -248,7 +248,7 @@ class DummyOwnedStagedRegion(
     new DummyOwnedStagedRegion(code, parent, otherAncestors)
   }
 
-  def allocateRegion(size: Int): Code[Unit] = Code._empty
+  def allocateRegion(size: Int, pool: Value[RegionPool]): Code[Unit] = Code._empty
 
   def free(): Code[Unit] = Code._empty
 

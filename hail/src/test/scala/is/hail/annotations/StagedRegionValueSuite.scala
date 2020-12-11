@@ -30,7 +30,7 @@ class StagedRegionValueSuite extends HailSuite {
       )
     )
 
-    val region = Region()
+    val region = Region(pool=pool)
     val rv = RegionValue(region)
     rv.setOffset(fb.result()()(region, input))
 
@@ -39,7 +39,7 @@ class StagedRegionValueSuite extends HailSuite {
       println(rv.pretty(rt))
     }
 
-    val region2 = Region()
+    val region2 = Region(pool=pool)
     val rv2 = RegionValue(region2)
     val bytes = input.getBytes()
     val bt = PCanonicalBinary()
@@ -72,7 +72,7 @@ class StagedRegionValueSuite extends HailSuite {
       )
     )
 
-    val region = Region()
+    val region = Region(pool=pool)
     val rv = RegionValue(region)
     rv.setOffset(fb.result()()(region, input))
 
@@ -81,7 +81,7 @@ class StagedRegionValueSuite extends HailSuite {
       println(rv.pretty(rt))
     }
 
-    val region2 = Region()
+    val region2 = Region(pool=pool)
     val rv2 = RegionValue(region2)
     rv2.setOffset(region2.allocate(4, 4))
     Region.storeInt(rv2.offset, input)
@@ -111,7 +111,7 @@ class StagedRegionValueSuite extends HailSuite {
       )
     )
 
-    val region = Region()
+    val region = Region(pool=pool)
     val rv = RegionValue(region)
     rv.setOffset(fb.result()()(region, input))
 
@@ -120,7 +120,7 @@ class StagedRegionValueSuite extends HailSuite {
       println(rv.pretty(rt))
     }
 
-    val region2 = Region()
+    val region2 = Region(pool=pool)
     val rv2 = RegionValue(region2)
     rv2.setOffset(ScalaToRegionValue(region2, rt, FastIndexedSeq(input)))
 
@@ -152,7 +152,7 @@ class StagedRegionValueSuite extends HailSuite {
       )
     )
 
-    val region = Region()
+    val region = Region(pool=pool)
     val rv = RegionValue(region)
     rv.setOffset(fb.result()()(region, input))
 
@@ -161,7 +161,7 @@ class StagedRegionValueSuite extends HailSuite {
       println(rv.pretty(rt))
     }
 
-    val region2 = Region()
+    val region2 = Region(pool=pool)
     val rv2 = RegionValue(region2)
     rv2.setOffset(ScalaToRegionValue(region2, rt, Annotation("hello", input)))
 
@@ -207,7 +207,7 @@ class StagedRegionValueSuite extends HailSuite {
     )
 
 
-    val region = Region()
+    val region = Region(pool=pool)
     val rv = RegionValue(region)
     rv.setOffset(fb.result()()(region, input))
 
@@ -216,7 +216,7 @@ class StagedRegionValueSuite extends HailSuite {
       println(rv.pretty(rt))
     }
 
-    val region2 = Region()
+    val region2 = Region(pool=pool)
     val rv2 = RegionValue(region2)
     val rvb = new RegionValueBuilder(region2)
     rvb.start(rt)
@@ -245,8 +245,8 @@ class StagedRegionValueSuite extends HailSuite {
     val rt = PCanonicalArray(PCanonicalStruct("a" -> PInt32(), "b" -> PCanonicalString()))
     val intVal = 20
     val strVal = "a string with a partner of 20"
-    val region = Region()
-    val region2 = Region()
+    val region = Region(pool=pool)
+    val region2 = Region(pool=pool)
     val rvb = new RegionValueBuilder(region)
     val rvb2 = new RegionValueBuilder(region2)
     val rv = RegionValue(region)
@@ -286,8 +286,8 @@ class StagedRegionValueSuite extends HailSuite {
     val rt = PCanonicalStruct("a" -> PInt32(), "b" -> PCanonicalString(), "c" -> PFloat64())
     val intVal = 30
     val floatVal = 39.273d
-    val r = Region()
-    val r2 = Region()
+    val r = Region(pool=pool)
+    val r2 = Region(pool=pool)
     val rv = RegionValue(r)
     val rv2 = RegionValue(r2)
     val rvb = new RegionValueBuilder(r)
@@ -349,7 +349,7 @@ class StagedRegionValueSuite extends HailSuite {
       )
     )
 
-    val region = Region()
+    val region = Region(pool=pool)
     val rv = RegionValue(region)
     rv.setOffset(fb.result()()(region, input))
 
@@ -358,7 +358,7 @@ class StagedRegionValueSuite extends HailSuite {
       println(rv.pretty(rt))
     }
 
-    val region2 = Region()
+    val region2 = Region(pool=pool)
     val rv2 = RegionValue(region2)
     val rvb = new RegionValueBuilder(region2)
 
@@ -403,7 +403,7 @@ class StagedRegionValueSuite extends HailSuite {
       )
     )
 
-    val region = Region()
+    val region = Region(pool=pool)
     val rv = RegionValue(region)
     rv.setOffset(fb.result()()(region, input))
 
@@ -412,7 +412,7 @@ class StagedRegionValueSuite extends HailSuite {
       println(rv.pretty(rt))
     }
 
-    val region2 = Region()
+    val region2 = Region(pool=pool)
     val rv2 = RegionValue(region2)
     rv2.setOffset(ScalaToRegionValue(region2, rt, FastIndexedSeq(input, null)))
 
@@ -449,7 +449,7 @@ class StagedRegionValueSuite extends HailSuite {
       )
     )
 
-    val region = Region()
+    val region = Region(pool=pool)
     val f = fb.result()()
     def run(i: Int, b: Boolean, d: Double): (Int, Boolean, Double) = {
       val off = f(region, i, b, d)
@@ -470,8 +470,8 @@ class StagedRegionValueSuite extends HailSuite {
 
     val p = Prop.forAll(g) { case (t, a) =>
       assert(t.virtualType.typeCheck(a))
-      val copy = Region.scoped { region =>
-        val copyOff = Region.scoped { srcRegion =>
+      val copy = pool.scopedRegion { region =>
+        val copyOff = pool.scopedRegion { srcRegion =>
           val src = ScalaToRegionValue(srcRegion, t, a)
 
           val fb = EmitFunctionBuilder[Region, Long, Long](ctx, "deep_copy")
@@ -511,7 +511,7 @@ class StagedRegionValueSuite extends HailSuite {
       Row(1, IndexedSeq(), IndexedSeq(-1), Set(Row("aa")))
     )
 
-    Region.scoped { r =>
+    pool.scopedRegion { r =>
       val rvb = new RegionValueBuilder(r)
       rvb.start(t2)
       rvb.addAnnotation(t2.virtualType, value)
@@ -542,7 +542,7 @@ class StagedRegionValueSuite extends HailSuite {
     )
 
     val valueT2 = t2.types(0)
-    Region.scoped { r =>
+    pool.scopedRegion { r =>
       val rvb = new RegionValueBuilder(r)
       rvb.start(valueT2)
       rvb.addAnnotation(valueT2.virtualType, value)

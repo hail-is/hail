@@ -3,7 +3,7 @@ package is.hail.io.bgen
 import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.asm4s.{AsmFunction4, AsmFunction5}
-import is.hail.backend.BroadcastValue
+import is.hail.backend.{BroadcastValue, HailTaskContext}
 import is.hail.backend.spark.SparkBackend
 import is.hail.expr.ir.{ExecuteContext, PruneDeadFields}
 import is.hail.types._
@@ -151,7 +151,7 @@ object BgenRDD {
 
 private class BgenRDD(
   f: (Int, Region) => AsmFunction4[Region, BgenPartition, HadoopFSDataBinaryReader, BgenSettings, Long],
-  indexBuilder: (FS, String, Int) => IndexReader,
+  indexBuilder: (FS, String, Int, RegionPool) => IndexReader,
   parts: Array[Partition],
   settings: BgenSettings,
   keys: RDD[Row]
@@ -166,7 +166,7 @@ private class BgenRDD(
           assert(keys == null)
           new IndexBgenRecordIterator(ctx, p, settings, f(p.partitionIndex, ctx.partitionRegion)).flatten
         case p: LoadBgenPartition =>
-          val index: IndexReader = indexBuilder(p.fsBc.value, p.indexPath, 8)
+          val index: IndexReader = indexBuilder(p.fsBc.value, p.indexPath, 8, HailTaskContext.get().getRegionPool())
           context.addTaskCompletionListener[Unit] { (context: TaskContext) =>
             index.close()
           }

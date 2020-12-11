@@ -41,7 +41,7 @@ class ShuffleSuite extends HailSuite {
         val rowDecodedPType = c.codecs.rowDecodedPType
 
         val values = new ArrayBuilder[Long]()
-        Region.scoped { region =>
+        pool.scopedRegion { region =>
           val rvb = new RegionValueBuilder(region)
           val nElements = 1000000
           val nPartitions = 100

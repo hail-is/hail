@@ -19,7 +19,7 @@ import org.json4s.{Formats, NoTypeHints}
 import org.json4s.jackson.{JsonMethods, Serialization}
 
 object IndexReaderBuilder {
-  def fromSpec(ctx: ExecuteContext, spec: AbstractIndexSpec): (FS, String, Int) => IndexReader = {
+  def fromSpec(ctx: ExecuteContext, spec: AbstractIndexSpec): (FS, String, Int, RegionPool) => IndexReader = {
     val (keyType, annotationType) = spec.types
     val (leafPType: PStruct, leafDec) = spec.leafCodec.buildDecoder(ctx, spec.leafCodec.encodedVirtualType)
     val (intPType: PStruct, intDec) = spec.internalNodeCodec.buildDecoder(ctx, spec.internalNodeCodec.encodedVirtualType)
@@ -31,9 +31,9 @@ object IndexReaderBuilder {
     leafDec: (InputStream) => Decoder, intDec: (InputStream) => Decoder,
     keyType: Type, annotationType: Type,
     leafPType: PStruct, intPType: PStruct
-  ): (FS, String, Int) => IndexReader = {
-    (fs, path, cacheCapacity) => new IndexReader(fs, path, cacheCapacity, leafDec,
-      intDec, keyType, annotationType, leafPType, intPType)
+  ): (FS, String, Int, RegionPool) => IndexReader = {
+    (fs, path, cacheCapacity, pool) => new IndexReader(fs, path, cacheCapacity, leafDec,
+      intDec, keyType, annotationType, leafPType, intPType, pool)
   }
 }
 
@@ -69,7 +69,8 @@ class IndexReader(fs: FS,
   val keyType: Type,
   val annotationType: Type,
   val leafPType: PStruct,
-  val internalPType: PStruct
+  val internalPType: PStruct,
+  val pool: RegionPool
 ) extends AutoCloseable {
   private[io] val metadata = IndexReader.readMetadata(fs, path, keyType, annotationType)
   val branchingFactor = metadata.branchingFactor
@@ -86,7 +87,7 @@ class IndexReader(fs: FS,
   private val leafDecoder = leafDecoderBuilder(is)
   private val internalDecoder = internalDecoderBuilder(is)
 
-  private val region = Region()
+  private val region = Region(pool=pool)
   private val rv = RegionValue(region)
 
   private var cacheHits = 0L
