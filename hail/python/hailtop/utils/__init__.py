@@ -7,7 +7,8 @@ from .utils import (
     retry_long_running, run_if_changed, run_if_changed_idempotent, LoggingTimer,
     WaitableSharedPool, RETRY_FUNCTION_SCRIPT, sync_retry_transient_errors,
     retry_response_returning_functions, first_extant_file, secret_alnum_string,
-    flatten, partition, cost_str, external_requests_client_session)
+    flatten, partition, cost_str, external_requests_client_session, url_basename,
+    url_join)
 from .process import (
     CalledProcessError, check_shell, check_shell_output, sync_check_shell,
     sync_check_shell_output)
@@ -63,5 +64,7 @@ __all__ = [
     'partition',
     'cost_str',
     'external_requests_client_session',
+    'url_basename',
+    'url_join',
     'serialization'
 ]

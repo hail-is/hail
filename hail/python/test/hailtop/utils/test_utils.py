@@ -1,4 +1,4 @@
-from hailtop.utils import partition
+from hailtop.utils import partition, url_basename, url_join
 
 
 def test_partition_zero_empty():
@@ -20,3 +20,17 @@ def test_partition_uneven_big():
 def test_partition_toofew():
     assert list(partition(6, range(3))) == [range(0, 1), range(1, 2), range(2, 3),
                                             range(3, 3), range(3, 3), range(3, 3)]
+
+
+def test_url_basename():
+    assert url_basename('/path/to/file') == 'file'
+    assert url_basename('https://hail.is/path/to/file') == 'file'
+
+
+def test_url_join():
+    assert url_join('/path/to', 'file') == '/path/to/file'
+    assert url_join('/path/to/', 'file') == '/path/to/file'
+    assert url_join('/path/to/', '/absolute/file') == '/absolute/file'
+    assert url_join('https://hail.is/path/to', 'file') == 'https://hail.is/path/to/file'
+    assert url_join('https://hail.is/path/to/', 'file') == 'https://hail.is/path/to/file'
+    assert url_join('https://hail.is/path/to/', '/absolute/file') == 'https://hail.is/absolute/file'
