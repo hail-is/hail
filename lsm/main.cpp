@@ -100,6 +100,8 @@ public:
         for (auto it=it_ml; it!=it_mu; ++it) {
           if (!it->second.is_deleted) {
             res_map.insert_or_assign(it->first, it->second.v);
+          } else {
+            res_map.erase(it->first);
           }
         }
       }
