@@ -60,7 +60,7 @@ Instructions:
   gcloud container clusters get-credentials --zone <gcp-zone> vdc
   ```
 
-- Go to the Google Cloud console, VPC networks > internal > Private
+- Go to the Google Cloud console, VPC networks > default > Private
   service connection > Private connections to services, and enable
   Export custom routes to both connections.
 
