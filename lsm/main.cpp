@@ -67,15 +67,11 @@ public:
         return std::nullopt;
       }
     } else {
-      //for (auto file : files) {
       for (auto i = files.rbegin(); i != files.rend(); ++i ) {
         File file = *i;
         if (file.bloomFilter.contains_key(k) && k >= file.min && k <= file.max) {
           std::map<int32_t, maybe_value> file_map = read_from_file(file.filename);
           auto it_m = file_map.find(k);
-//          if (it_m != m.end() && !it_m->second.is_deleted) {
-//            return it_m->second.v;
-//          }
           if (it_m != m.end()) {
             if(!it_m->second.is_deleted) {
               return it_m->second.v;
