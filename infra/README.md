@@ -126,7 +126,7 @@ You can now install Hail:
 - Deploy the internal-gateway.  Run `make deploy` in $HAIL/internal-gateway.
 
 - Go to the Google Cloud console, API & Services, Credentials.
-  Configure the consent screen.  Add the scope:
+  Configure the consent screen for internal users.  Add the scope:
   https://www.googleapis.com/auth/userinfo.email.  Create an OAuth
   client ID.  Authorize the redirect URI:
   https://auth.<domain>/oauth2callback.  Download the client secret
