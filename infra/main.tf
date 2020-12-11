@@ -14,7 +14,8 @@ terraform {
 variable "gsuite_organization" {}
 variable "batch_gcp_regions" {}
 variable "gcp_project" {}
-variable "gcp_location" {}
+variable "batch_logs_bucket_location" {}
+variable "batch_logs_bucket_storage_class" {}
 variable "gcp_region" {}
 variable "gcp_zone" {}
 variable "domain" {}
@@ -666,9 +667,9 @@ resource "random_id" "batch_logs_bucket_name_suffix" {
 
 resource "google_storage_bucket" "batch_logs" {
   name = "batch-logs-${random_id.batch_logs_bucket_name_suffix.hex}"
-  location = var.gcp_location
+  location = var.batch_logs_bucket_location
   force_destroy = true
-  storage_class = "MULTI_REGIONAL"
+  storage_class = var.batch_logs_bucket_storage_class
 }
 
 resource "google_dns_managed_zone" "dns_zone" {
