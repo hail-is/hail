@@ -15,7 +15,7 @@ from hailtop.utils import time_msecs, secret_alnum_string
 
 from ..batch_configuration import DEFAULT_NAMESPACE, PROJECT, \
     WORKER_MAX_IDLE_TIME_MSECS, STANDING_WORKER_MAX_IDLE_TIME_MSECS, \
-    ENABLE_STANDING_WORKER
+    ENABLE_STANDING_WORKER, GCP_ZONE
 
 from .instance import Instance
 from ..worker_config import WorkerConfig
@@ -206,11 +206,8 @@ SET worker_type = %s, worker_cores = %s, worker_disk_size_gb = %s,
             if machine_name not in self.name_instance:
                 break
 
-        if self.live_total_cores_mcpu // 1000 < 4_000:
-            if not self.zone_monitor.init_zones:
-                return
-
-            zone = random.choice(self.zone_monitor.init_zones)
+        if self.live_total_cores_mcpu // 1000 < 1_000:
+            zone = GCP_ZONE
         else:
             zone_weights = self.zone_monitor.zone_weights(self.worker_cores, self.worker_local_ssd_data_disk,
                                                           self.worker_pd_ssd_data_disk_size_gb)

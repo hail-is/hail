@@ -58,6 +58,11 @@ spec:
              secretKeyRef:
                name: global-config
                key: gcp_region
+         - name: HAIL_GCP_ZONE
+           valueFrom:
+             secretKeyRef:
+               name: global-config
+               key: gcp_zone
          - name: HAIL_BATCH_GCP_REGIONS
            valueFrom:
              secretKeyRef:
@@ -189,6 +194,11 @@ spec:
              secretKeyRef:
                name: global-config
                key: gcp_region
+         - name: HAIL_GCP_ZONE
+           valueFrom:
+             secretKeyRef:
+               name: global-config
+               key: gcp_zone
          - name: HAIL_BATCH_GCP_REGIONS
            valueFrom:
              secretKeyRef:
