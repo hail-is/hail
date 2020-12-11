@@ -5,9 +5,11 @@
 #include <variant>
 #include <vector>
 #include <fstream>
+#include <limits>
+#include <bitset>
 
 class BloomFilter {
-std::bitset<64> bset;
+  std::bitset<64> bset;
 public:
   void insert_key(int32_t k) {
     auto key_hash = std::hash<int32_t>{}(k);
@@ -19,7 +21,6 @@ public:
     auto last_d = key_hash % 10;
     return bset[last_d];
   }
-
 };
 
 class File {
@@ -28,32 +29,11 @@ public:
   int min, max;
   BloomFilter bloomFilter;
 
-  File(std::string filename) {
+  File(std::string filename, BloomFilter bloomFilter, int min, int max) {
     this->filename = filename;
-    std::vector<int32_t> keys = get_keys();
-    this->min = *min_element(keys.begin(), keys.end());
-    this->max = *max_element(keys.begin(), keys.end());
-    for (auto k : keys) {
-      bloomFilter.insert_key(k);
-    }
-  }
-
-  std::vector<int32_t> get_keys() {
-    std::vector<int32_t> keys;
-    if (auto istrm = std::ifstream(filename, std::ios::binary)) {
-      int k;
-      while (istrm.read(reinterpret_cast<char *>(&k), sizeof k)) {
-        int v;
-        char d;
-        istrm.read(reinterpret_cast<char *>(&v), sizeof v);
-        istrm.read(reinterpret_cast<char *>(&d), sizeof d);
-        keys.push_back(k);
-      }
-    } else {
-      std::cerr << "could not open " << filename << "\n";
-      exit(3);
-    }
-    return keys;
+    this->bloomFilter = bloomFilter;
+    this->min = min;
+    this->max = max;
   }
 };
 
@@ -71,32 +51,37 @@ class LSM {
 public:
   void put(int32_t k, int32_t v, char deleted = 0) {
     if (m.size() >= 4) {
-      std::string filename;
-      if (files.empty()) {
-        filename = "0";
-      } else {
-        filename = std::to_string(std::stoi(files.back().filename) + 1);
-      }
-      write_to_file(filename);
-      files.push_back(File(filename));
+      std::string filename = std::to_string(files.size());
+      files.push_back(write_to_file(filename));
       m.clear();
-      m.insert_or_assign(k,maybe_value(v, deleted));
-    } else {
-      m.insert_or_assign(k,maybe_value(v, deleted));
     }
+    m.insert_or_assign(k,maybe_value(v, deleted));
   }
   std::optional<int32_t> get(int32_t k) {
     auto it = m.find(k);
 
-    if (it != m.end() && !it->second.is_deleted) {
-      return it->second.v;
+    if (it != m.end()) {
+      if(!it->second.is_deleted) {
+        return it->second.v;
+      } else {
+        return std::nullopt;
+      }
     } else {
-      for (auto file : files) {
+      //for (auto file : files) {
+      for (auto i = files.rbegin(); i != files.rend(); ++i ) {
+        File file = *i;
         if (file.bloomFilter.contains_key(k) && k >= file.min && k <= file.max) {
           std::map<int32_t, maybe_value> file_map = read_from_file(file.filename);
           auto it_m = file_map.find(k);
-          if (it_m != m.end() && !it_m->second.is_deleted) {
-            return it_m->second.v;
+//          if (it_m != m.end() && !it_m->second.is_deleted) {
+//            return it_m->second.v;
+//          }
+          if (it_m != m.end()) {
+            if(!it_m->second.is_deleted) {
+              return it_m->second.v;
+            } else {
+              return std::nullopt;
+            }
           }
         }
       }
@@ -138,14 +123,20 @@ public:
   void del(int32_t k) {
     put(k ,0, 1);
   }
-  int write_to_file(std::string filename) {
+  File write_to_file(std::string filename) {
     std::ofstream ostrm(filename, std::ios::binary);
+    BloomFilter bloomFilter;
+    int min = std::numeric_limits<int>::max();
+    int max = std::numeric_limits<int>::lowest();
     for (auto const&x : m) {
+      bloomFilter.insert_key(x.first);
       ostrm.write(reinterpret_cast<const char*>(&x.first), sizeof x.first);
       ostrm.write(reinterpret_cast<const char*>(&x.second.v), sizeof x.second.v);
       ostrm.write(reinterpret_cast<const char*>(&x.second.is_deleted), sizeof x.second.is_deleted);
+      if (x.first > max) {max = x.first;}
+      if (x.first < min) {min = x.first;}
     }
-    return 0;
+    return File(filename, bloomFilter, min, max);
   }
   std::map<int32_t, maybe_value> read_from_file(std::string filename) {
     std::map<int32_t, maybe_value> new_m;
@@ -164,11 +155,10 @@ public:
     }
     return new_m;
   }
-  int dump_map() {
+  void dump_map() {
     for (auto const&x : m) {
       std::cout << x.first << "\n";
     }
-    return 0;
   }
 };
 
