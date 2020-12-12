@@ -211,6 +211,12 @@ async def test_statfile(filesystem):
 async def test_listfiles(filesystem):
     fs, base = filesystem
 
+    with pytest.raises(FileNotFoundError):
+        await fs.listfiles(f'{base}does/not/exist')
+
+    with pytest.raises(FileNotFoundError):
+        await fs.listfiles(f'{base}does/not/exist', recursive=True)
+
     # create the following directory structure in base:
     # foobar
     # foo/a
@@ -225,7 +231,7 @@ async def test_listfiles(filesystem):
     await fs.touch(c)
 
     async def listfiles(dir, recursive):
-        return {(await entry.url(), await entry.is_file()) async for entry in fs.listfiles(dir, recursive)}
+        return {(await entry.url(), await entry.is_file()) async for entry in await fs.listfiles(dir, recursive)}
 
     assert await listfiles(f'{base}foo/', recursive=True) == {(a, True), (c, True)}
     assert await listfiles(f'{base}foo/', recursive=False) == {(a, True), (b, False)}
@@ -235,7 +241,7 @@ async def test_listfiles(filesystem):
     assert await listfiles(f'{base}foo', recursive=False) == {(a, True), (b, False)}
 
     # test FileListEntry.status raises on directory
-    async for entry in fs.listfiles(f'{base}foo/', recursive=False):
+    async for entry in await fs.listfiles(f'{base}foo/', recursive=False):
         if await entry.is_dir():
             with pytest.raises(ValueError):
                 await entry.status()
