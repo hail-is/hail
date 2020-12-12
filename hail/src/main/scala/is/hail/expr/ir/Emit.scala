@@ -2801,43 +2801,23 @@ class Emit[C](
               }
             }
           }
-//        case NDArrayConcat(nds, axis) =>
-//          val ndsI = emit(nds)
-//
-//          // Plan: If array is missing, need to return missing.
-//          // Otherwise
-//
-//          val isMissing = cb.newLocal[Boolean]("ndarray_concat_missing")
-//
-//          ndsI.consume(cb, {
-//            cb.assign(isMissing, true)
-//          }, { pc =>
-//            val pArrOfNds = pc.asIndexable
-//            cb.assign(isMissing, false)
-//
-//          })
-//
-//          new NDArrayEmitter2(???) {
-//            override def outputElement(cb: EmitCodeBuilder, idxVars: IndexedSeq[Value[Long]]): PCode = {
-//              ???
-//            }
-//          }
+        case NDArrayConcat(nds, axis) =>
+          emit(nds).map(cb) { ndsPCode =>
+            val ndsArrayPValue = ndsPCode.asIndexable.memoize(cb, "ndarray_concat_array_of_nds")
+            val arrLength = ndsArrayPValue.loadLength()
+            cb.ifx(arrLength == 0, {
+              cb._fatal("need at least one ndarray to concatenate")
+            })
 
-          //         case x@NDArrayConcat(nds, axis) =>
-        //          val inputType = coerce[PArray](nds.pType)
-        //          val inputNDType = coerce[PNDArray](inputType.elementType)
-        //
-        //          val ndType = coerce[PNDArray](x.pType)
-        //          val codeNDs = emit(nds)
-        //
-        //          val inputArray = mb.genFieldThisRef[Long]()
-        //          val n = mb.genFieldThisRef[Int]()
-        //          val i = mb.genFieldThisRef[Int]()
-        //
-        //          val loadAndValidateArray = Code(
-        //            inputArray := codeNDs.value[Long],
-        //            n := inputType.loadLength(inputArray),
-        //            (n < 1).orEmpty(Code._fatal[Unit]("NDArrayConcat: can't concatenate 0 NDArrays")))
+            val nDims = coerce[PNDArray](ndsArrayPValue.pt.elementType).nDims
+
+            new NDArrayEmitter2(???) {
+              override def outputElement(cb: EmitCodeBuilder, idxVars: IndexedSeq[Value[Long]]): PCode = {
+                ???
+              }
+            }
+          }
+          
         //
         //          val (missingSetup: Code[Unit @unchecked], missing: Code[Boolean @unchecked], setupShape: Code[Unit @unchecked]) = (inputType.required, inputNDType.required) match {
         //            case (true, true) => (Code._empty, false: Code[Boolean], Code(
