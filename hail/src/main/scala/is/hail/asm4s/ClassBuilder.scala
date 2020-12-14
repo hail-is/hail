@@ -109,13 +109,13 @@ class ModuleBuilder() {
         cb.newField(s"_$i")(ti)
       }
       val ctor = cb.newMethod("<init>", fieldTypes, UnitInfo)
-      implicit val line = LineNumber.none
       ctor.emitWithBuilder { cb =>
+        implicit val line = cb.lineNumber
         fields.zipWithIndex.foreach { case (f, i) =>
             cb += f.putAny(ctor._this, ctor.getArg(i + 1)(f.ti).get)
         }
         Code._empty
-      }
+      }(LineNumber.none)
       new AsmTuple(cb, fields, ctor)
     })
   }

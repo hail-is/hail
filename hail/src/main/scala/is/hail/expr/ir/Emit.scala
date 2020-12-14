@@ -482,8 +482,6 @@ class Emit[C](
     def emitI(ir: IR, region: StagedRegion = region, env: E = env, container: Option[AggContainer] = container, loopEnv: Option[Env[LoopRef]] = loopEnv): IEmitCode =
       this.emitI(ir, cb, region, env, container, loopEnv)
 
-    implicit val line = LineNumber(ir.lineNumber)
-
     (ir: @unchecked) match {
       case Void() =>
         Code._empty
@@ -522,21 +520,24 @@ class Emit[C](
           val xElt = mb.newEmitField(valueName, eltType)
           val bodyEnv = env.bind(valueName -> xElt)
           EmitCodeBuilder.scopedVoid(mb) { cb =>
+            implicit val line = cb.lineNumber
             cb.assign(xElt, elt)
             emitVoid(body, cb, env = bodyEnv)
             cb += eltRegion.clear()
-          }
+          }(cb.lineNumber)
         }
 
         streamOpt.toI(cb).consume(cb,
           {},
           { s =>
+            implicit val line = cb.lineNumber
             cb += eltRegion.allocateRegion(Region.REGULAR)
             cb += s.asStream.stream.getStream(eltRegion).forEach(ctx, mb, forBody)
             cb += eltRegion.free()
           })
 
       case x@InitOp(i, args, sig) =>
+        implicit val line = cb.lineNumber
         val AggContainer(aggs, sc, _) = container.get
         assert(aggs(i) == sig.state)
         val rvAgg = agg.Extract.getAgg(sig)
@@ -550,6 +551,7 @@ class Emit[C](
         rvAgg.initOp(cb, sc.states(i), argVars)
 
       case x@SeqOp(i, args, sig) =>
+        implicit val line = cb.lineNumber
         val AggContainer(aggs, sc, _) = container.get
         assert(sig.state == aggs(i))
         val rvAgg = agg.Extract.getAgg(sig)
@@ -567,6 +569,7 @@ class Emit[C](
         rvAgg.combOp(cb, sc.states(i1), sc.states(i2))
 
       case x@SerializeAggs(start, sIdx, spec, sigs) =>
+        implicit val line = cb.lineNumber
         val AggContainer(_, sc, _) = container.get
         val ob = mb.genFieldThisRef[OutputBuffer]()
         val baos = mb.genFieldThisRef[ByteArrayOutputStream]()
@@ -585,6 +588,7 @@ class Emit[C](
         cb += mb.setSerializedAgg(sIdx, baos.invoke[Array[Byte]]("toByteArray"))
 
       case DeserializeAggs(start, sIdx, spec, sigs) =>
+        implicit val line = cb.lineNumber
         val AggContainer(_, sc, _) = container.get
         val ib = mb.genFieldThisRef[InputBuffer]()
 
@@ -609,6 +613,7 @@ class Emit[C](
         cb.assign(ib, Code._null)
 
       case Die(m, typ, errorId) =>
+        implicit val line = cb.lineNumber
         val cm = emitI(m)
         val msg = cm.consumeCode(cb, "<exception message missing>", _.asString.loadString())
         cb._throw(Code.newInstance[HailException, String, Int](msg, errorId))
@@ -617,6 +622,7 @@ class Emit[C](
         writer.writeMetadata(emitI(annotations), cb, region.code)
 
       case CombOpValue(i, value, aggSig) =>
+        implicit val line = cb.lineNumber
         val AggContainer(_, sc, _) = container.get
         val rvAgg = agg.Extract.getAgg(aggSig)
         val tempState = AggStateSig.getState(aggSig.state, mb.ecb)
@@ -635,6 +641,7 @@ class Emit[C](
         )
 
       case InitFromSerializedValue(i, value, sig) =>
+        implicit val line = cb.lineNumber
         val AggContainer(aggs, sc, _) = container.get
         assert(aggs(i) == sig)
 

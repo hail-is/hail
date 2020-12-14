@@ -294,8 +294,8 @@ case class MatrixSpecWriter(path: String, typ: MatrixType, rowRelPath: String, g
     writeAnnotations: => IEmitCode,
     cb: EmitCodeBuilder,
     region: Value[Region]
-  )(implicit line: LineNumber
   ): Unit = {
+    implicit val line = cb.lineNumber
     cb += cb.emb.getFS.invoke[String, Unit]("mkDir", path)
     val pc = writeAnnotations.get(cb, "write annotations can't be missing!").asInstanceOf[PBaseStructCode]
     val partCounts = cb.newLocal[Array[Long]]("partCounts")

@@ -736,7 +736,7 @@ abstract class MetadataWriter {
     writeAnnotations: => IEmitCode,
     cb: EmitCodeBuilder,
     region: Value[Region]
-  )(implicit line: LineNumber): Unit
+  ): Unit
 
   def toJValue: JValue = Extraction.decompose(this)(MetadataWriter.formats)
 }

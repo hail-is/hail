@@ -252,8 +252,8 @@ case class RVDSpecWriter(path: String, spec: RVDSpecMaker) extends MetadataWrite
     writeAnnotations: => IEmitCode,
     cb: EmitCodeBuilder,
     region: Value[Region]
-  )(implicit line: LineNumber
   ): Unit = {
+    implicit val line = cb.lineNumber
     cb += cb.emb.getFS.invoke[String, Unit]("mkDir", path)
     val pc = writeAnnotations.get(cb, "write annotations can't be missing!").asInstanceOf[PIndexableCode]
     val a = pc.memoize(cb, "filePaths")
@@ -299,8 +299,8 @@ case class TableSpecWriter(path: String, typ: TableType, rowRelPath: String, glo
     writeAnnotations: => IEmitCode,
     cb: EmitCodeBuilder,
     region: Value[Region]
-  )(implicit line: LineNumber
   ): Unit = {
+    implicit val line = cb.lineNumber
     cb += cb.emb.getFS.invoke[String, Unit]("mkDir", path)
     val pc = writeAnnotations.get(cb, "write annotations can't be missing!").asInstanceOf[PIndexableCode]
     val partCounts = cb.newLocal[Array[Long]]("partCounts")
@@ -331,8 +331,8 @@ case class RelationalWriter(path: String, overwrite: Boolean, maybeRefs: Option[
     writeAnnotations: => IEmitCode,
     cb: EmitCodeBuilder,
     region: Value[Region]
-  )(implicit line: LineNumber
   ): Unit = {
+    implicit val line = cb.lineNumber
     if (overwrite)
       cb += cb.emb.getFS.invoke[String, Boolean, Unit]("delete", path, true)
     else
