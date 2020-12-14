@@ -4,6 +4,7 @@ from hailtop import aiotools
 from hailtop.utils import retry_long_running, url_basename
 
 from ..utils import WindowFractionCounter
+from ..batch_configuration import BATCH_GCP_REGIONS
 
 log = logging.getLogger('zone_monitor')
 
@@ -46,33 +47,11 @@ class ZoneSuccessRate:
 
 
 class ZoneMonitor:
-    def __init__(self, app, regions=None, init_zones=None):
+    def __init__(self, app):
         self.app = app
         self.compute_client = app['compute_client']
 
         self.zone_success_rate = ZoneSuccessRate()
-
-        # default until we update zones
-        # /regions is slow, don't make it synchronous on startup
-        if init_zones is None:
-            init_zones = ['us-central1-a', 'us-central1-b', 'us-central1-c', 'us-central1-f']
-
-        if regions is None:
-            regions = {
-                # 'northamerica-northeast1',
-                'us-central1',
-                'us-east1',
-                'us-east4',
-                'us-west1',
-                'us-west2',
-                'us-west3',
-                'us-west4'
-            }
-
-        self.init_zones = init_zones
-        self.regions = regions
-
-        self.init_zone_weights = [ZoneWeight(z, 1) for z in self.init_zones]
 
         self.region_info = None
 
@@ -87,8 +66,8 @@ class ZoneMonitor:
         self.task_manager.shutdown()
 
     def zone_weights(self, worker_cores, worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gb):
-        if self.region_info is None:
-            return self.init_zone_weights
+        if not self.region_info:
+            return None
 
         _zone_weights = []
         for r in self.region_info.values():
@@ -112,15 +91,11 @@ class ZoneMonitor:
         return _zone_weights
 
     async def update_region_quotas(self):
-        new_region_info = {}
-        async for r in await self.compute_client.list('/regions'):
-            name = r['name']
-            if name not in self.regions:
-                continue
+        self.region_info = {
+            name: await self.compute_client.get(f'/regions/{name}')
+            for name in BATCH_GCP_REGIONS
+        }
 
-            new_region_info[name] = r
-
-        self.region_info = new_region_info
         log.info('updated region quotas')
 
     async def update_region_quotas_loop(self):
