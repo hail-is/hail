@@ -2736,66 +2736,64 @@ class Emit[C](
             emit(slicesIR).flatMap(cb) { slicesPC =>
               val slicesValue = slicesPC.asBaseStruct.memoize(cb, "ndarray_slice_tuple_pv")
 
-              val slicingIndices = slicesValue.pt.types.zipWithIndex.flatMap { case (pFieldType, idx) =>
-                if (!pFieldType.isPrimitive) {
-                  Array(idx)
-                }
-                else {
-                  new Array[Int](0)
-                }
+              val (indexingIndices, slicingIndices) = slicesValue.pt.types.zipWithIndex.partition { case (pFieldType, idx) =>
+                pFieldType.isPrimitive
+              } match {
+                case (a, b) => (a.map(_._2), b.map(_._2))
               }
 
-              val outputShape = {
-                IEmitCode.multiFlatMap[Int, SCode, IndexedSeq[Value[Long]]](slicingIndices,
-                  valueIdx => slicesValue.loadField(cb, valueIdx), cb) { sCodeSlices: IndexedSeq[SCode] =>
-                  IEmitCode.multiFlatMap(sCodeSlices, { sCodeSlice: SCode =>
-                    val sValueSlice = sCodeSlice.asBaseStruct.memoize(cb, "ndarray_slice_sCodeSlice")
-                    // I know I have a tuple of three elements here, start, stop, step
-                    val newDimSizeI = IEmitCode.flatten((0 to 2).map(i => () => sValueSlice.loadField(cb, i)), cb)(startStepStopSeq => {
-                      val start = startStepStopSeq(0).memoize(cb, "ndarray_slice_start").asPValue.value.asInstanceOf[Value[Long]]
-                      val step = startStepStopSeq(2).memoize(cb, "ndarray_slice_step").asPValue.value.asInstanceOf[Value[Long]]
-                      val stop = startStepStopSeq(1).memoize(cb, "ndarray_slice_stop").asPValue.value.asInstanceOf[Value[Long]]
+              IEmitCode.multiFlatMap[Int, SCode, NDArrayEmitter2](indexingIndices, indexingIndex => slicesValue.loadField(cb, indexingIndex), cb) { indexingFields =>
+                val outputShape = {
+                  IEmitCode.multiFlatMap[Int, SCode, IndexedSeq[Value[Long]]](slicingIndices,
+                    valueIdx => slicesValue.loadField(cb, valueIdx), cb) { sCodeSlices: IndexedSeq[SCode] =>
+                    IEmitCode.multiFlatMap(sCodeSlices, { sCodeSlice: SCode =>
+                      val sValueSlice = sCodeSlice.asBaseStruct.memoize(cb, "ndarray_slice_sCodeSlice")
+                      // I know I have a tuple of three elements here, start, stop, step
+                      val newDimSizeI = IEmitCode.flatten((0 to 2).map(i => () => sValueSlice.loadField(cb, i)), cb)(startStepStopSeq => {
+                        val start = startStepStopSeq(0).memoize(cb, "ndarray_slice_start").asPValue.value.asInstanceOf[Value[Long]]
+                        val step = startStepStopSeq(2).memoize(cb, "ndarray_slice_step").asPValue.value.asInstanceOf[Value[Long]]
+                        val stop = startStepStopSeq(1).memoize(cb, "ndarray_slice_stop").asPValue.value.asInstanceOf[Value[Long]]
 
-                      val newDimSize = cb.newLocal[Long]("new_dim_size")
-                      cb.ifx(step >= 0L && start <= stop, {
-                        cb.assign(newDimSize, const(1L) + ((stop - start) - 1L) / step)
-                      }, {
-                        cb.ifx(step < 0L && start >= stop, {
-                          cb.assign(newDimSize, (((stop - start) + 1L) / step) + 1L)
+                        val newDimSize = cb.newLocal[Long]("new_dim_size")
+                        cb.ifx(step >= 0L && start <= stop, {
+                          cb.assign(newDimSize, const(1L) + ((stop - start) - 1L) / step)
                         }, {
-                          cb.assign(newDimSize, 0L)
+                          cb.ifx(step < 0L && start >= stop, {
+                            cb.assign(newDimSize, (((stop - start) + 1L) / step) + 1L)
+                          }, {
+                            cb.assign(newDimSize, 0L)
+                          })
                         })
+
+                        newDimSize
+                      })
+                      newDimSizeI
+                    }, cb)(x => IEmitCodeGen(cb, false, x))
+                  }
+                }
+
+                outputShape.map(cb) { outputShapeSeq =>
+                  new NDArrayEmitter2(outputShapeSeq) {
+                    override def outputElement(cb: EmitCodeBuilder, idxVars: IndexedSeq[Value[Long]]): PCode = {
+                      // Iterate through the slices tuple given in. For each single integer, should just copy that integer into
+                      // an indexed seq. For each range, should use start and step to modify.
+                      val oldIdxVarsIterator = idxVars.toIterator
+
+                      val newIdxVars = (0 until slicesValue.pt.size).map(i => slicesValue.loadField(cb, i).get(cb, "outputElement1 Internal Error can't be missing") match {
+                        case indexer: SInt64Code => {
+                          cb.memoize(indexer.toPCode(cb, region.code), "ndarray_slice_indexer").value.asInstanceOf[Value[Long]]
+                        }
+                        case slicer: SBaseStructCode => {
+                          val slicerMemo = slicer.toPCode(cb, region.code).asBaseStruct.memoize(cb, "ndarray_slice_slicer")
+                          val start = slicerMemo.loadField(cb, 0).get(cb, "outputElement2 Internal error can't be missing").asLong
+                          val step = slicerMemo.loadField(cb, 2).get(cb, "outputElement3 Internal error can't be missing").asLong
+
+                          cb.memoize(PCode.apply(PInt64Required, start.tcode[Long] + oldIdxVarsIterator.next() * step.tcode[Long]), "ndarray_slice_adjusted_lookup").value.asInstanceOf[Value[Long]]
+                        }
                       })
 
-                      newDimSize
-                    })
-                    newDimSizeI
-                  }, cb)(x => IEmitCodeGen(cb, false, x))
-                }
-              }
-
-              outputShape.map(cb) { outputShapeSeq =>
-                new NDArrayEmitter2(outputShapeSeq) {
-                  override def outputElement(cb: EmitCodeBuilder, idxVars: IndexedSeq[Value[Long]]): PCode = {
-                    // Iterate through the slices tuple given in. For each single integer, should just copy that integer into
-                    // an indexed seq. For each range, should use start and step to modify.
-                    val oldIdxVarsIterator = idxVars.toIterator
-
-                    val slicesPTuple = slicesValue
-                    val newIdxVars = (0 until slicesPTuple.pt.size).map(i => slicesPTuple.loadField(cb, i).get(cb, "Internal Error can't be missing") match {
-                      case indexer: SInt64Code => {
-                        cb.memoize(indexer.toPCode(cb, region.code), "ndarray_slice_indexer").value.asInstanceOf[Value[Long]]
-                      }
-                      case slicer: SBaseStructCode => {
-                        val slicerMemo = slicer.toPCode(cb, region.code).asBaseStruct.memoize(cb, "ndarray_slice_slicer")
-                        val start = slicerMemo.loadField(cb, 0).get(cb, "Internal error can't be missing").asLong
-                        val step = slicerMemo.loadField(cb, 2).get(cb, "Internal error can't be missing").asLong
-
-                        cb.memoize(PCode.apply(PInt64Required, start.tcode[Long] + oldIdxVarsIterator.next() * step.tcode[Long]), "ndarray_slice_adjusted_lookup").value.asInstanceOf[Value[Long]]
-                      }
-                    })
-
-                    childEmitter.outputElement(cb, newIdxVars)
+                      childEmitter.outputElement(cb, newIdxVars)
+                    }
                   }
                 }
               }
