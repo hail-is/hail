@@ -197,3 +197,30 @@ cat > build/expected <<EOF
 EOF
 diff build/out build/expected
 echo success
+
+echo 11
+build/main > build/out 2> build/err <<EOF
+p 1 3
+p 10 1
+p 11 1
+p 12 1
+d 1
+r 0 9
+EOF
+cat > build/expected <<EOF
+
+EOF
+diff build/out build/expected
+echo success
+
+echo 12
+build/main > build/out 2> build/err <<EOF
+p 1 3
+d 1
+r 0 9
+EOF
+cat > build/expected <<EOF
+
+EOF
+diff build/out build/expected
+echo success

@@ -106,7 +106,11 @@ public:
     auto it_l = m.lower_bound(l);
     auto it_u = m.lower_bound(r);
     for (auto it=it_l; it!=it_u; ++it) {
-      res_map.insert_or_assign(it->first, it->second.v);
+      if (!it->second.is_deleted) {
+        res_map.insert_or_assign(it->first, it->second.v);
+      } else {
+        res_map.erase(it->first);
+      }
     }
 
     auto rit_l = res_map.lower_bound(l);
