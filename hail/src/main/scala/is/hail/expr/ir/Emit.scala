@@ -2742,7 +2742,9 @@ class Emit[C](
                 case (a, b) => (a.map(_._2), b.map(_._2))
               }
 
-              IEmitCode.multiFlatMap[Int, SCode, NDArrayEmitter2](indexingIndices, indexingIndex => slicesValue.loadField(cb, indexingIndex), cb) { indexingFields =>
+              IEmitCode.multiFlatMap[Int, SCode, NDArrayEmitter2](indexingIndices, indexingIndex => slicesValue.loadField(cb, indexingIndex), cb) { indexingSCodes =>
+                val indexingValues = indexingSCodes.map(sCode => sCode.memoize(cb, "ndarray_slice_indexer"))
+                val slicingValueTriples = new ArrayBuilder[(Value[Long], Value[Long], Value[Long])]()
                 val outputShape = {
                   IEmitCode.multiFlatMap[Int, SCode, IndexedSeq[Value[Long]]](slicingIndices,
                     valueIdx => slicesValue.loadField(cb, valueIdx), cb) { sCodeSlices: IndexedSeq[SCode] =>
@@ -2751,8 +2753,10 @@ class Emit[C](
                       // I know I have a tuple of three elements here, start, stop, step
                       val newDimSizeI = IEmitCode.flatten((0 to 2).map(i => () => sValueSlice.loadField(cb, i)), cb)(startStepStopSeq => {
                         val start = startStepStopSeq(0).memoize(cb, "ndarray_slice_start").asPValue.value.asInstanceOf[Value[Long]]
-                        val step = startStepStopSeq(2).memoize(cb, "ndarray_slice_step").asPValue.value.asInstanceOf[Value[Long]]
                         val stop = startStepStopSeq(1).memoize(cb, "ndarray_slice_stop").asPValue.value.asInstanceOf[Value[Long]]
+                        val step = startStepStopSeq(2).memoize(cb, "ndarray_slice_step").asPValue.value.asInstanceOf[Value[Long]]
+                        
+                        slicingValueTriples.push((start, stop, step))
 
                         val newDimSize = cb.newLocal[Long]("new_dim_size")
                         cb.ifx(step >= 0L && start <= stop, {
@@ -2778,19 +2782,19 @@ class Emit[C](
                       // Iterate through the slices tuple given in. For each single integer, should just copy that integer into
                       // an indexed seq. For each range, should use start and step to modify.
                       val oldIdxVarsIterator = idxVars.toIterator
+                      val indexingIterator = indexingValues.toIterator
+                      val slicingIterator = slicingValueTriples.result().toIterator
 
-                      val newIdxVars = (0 until slicesValue.pt.size).map(i => slicesValue.loadField(cb, i).get(cb, "outputElement1 Internal Error can't be missing") match {
-                        case indexer: SInt64Code => {
-                          cb.memoize(indexer.toPCode(cb, region.code), "ndarray_slice_indexer").value.asInstanceOf[Value[Long]]
+                      val newIdxVars = slicesValue.pt.types.map { fieldType => fieldType match {
+                        case indexer: PInt64 => {
+                          indexingIterator.next().asPValue.value.asInstanceOf[Value[Long]]
                         }
-                        case slicer: SBaseStructCode => {
-                          val slicerMemo = slicer.toPCode(cb, region.code).asBaseStruct.memoize(cb, "ndarray_slice_slicer")
-                          val start = slicerMemo.loadField(cb, 0).get(cb, "outputElement2 Internal error can't be missing").asLong
-                          val step = slicerMemo.loadField(cb, 2).get(cb, "outputElement3 Internal error can't be missing").asLong
+                        case slicer: PBaseStruct => {
+                          val (start, stop, step) = slicingIterator.next()
 
-                          cb.memoize(PCode.apply(PInt64Required, start.tcode[Long] + oldIdxVarsIterator.next() * step.tcode[Long]), "ndarray_slice_adjusted_lookup").value.asInstanceOf[Value[Long]]
+                          cb.memoize(PCode.apply(PInt64Required, start + oldIdxVarsIterator.next() * step), "ndarray_slice_adjusted_lookup").value.asInstanceOf[Value[Long]]
                         }
-                      })
+                      }}
 
                       childEmitter.outputElement(cb, newIdxVars)
                     }
