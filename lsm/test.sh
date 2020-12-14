@@ -1,17 +1,39 @@
 #!/bin/bash
 set -e
 
-echo 1
+echo "==============================================================================="
+echo "INTEGRATION TESTS (test.sh)"
+
+if [ -t 1 ]; then  # if output is a terminal
+    ncolors=$(tput colors)
+    if [ -n "$ncolors" ] && [ $ncolors -ge 8 ]  # if we have colors
+    then
+        RED='\033[0;31m'
+        GREEN='\033[0;32m'
+        NOCOLOR='\033[0m'
+    fi
+fi
+
+success() {
+    printf "${GREEN}success${NOCOLOR}\n"
+}
+failure() {
+    EC=$?
+    printf "${RED}failure${NOCOLOR}\n"
+    exit $EC
+}
+
+echo "Test 1"
 build/main > build/out 2> build/err <<EOF
 p 10 7
 p 63 222
 p 10 5
 EOF
 rm -rf build/expected; touch build/expected
-diff build/out build/expected
-echo success
+diff build/out build/expected || failure
+success
 
-echo 2
+echo "Test 2"
 build/main > build/out 2> build/err <<EOF
 p 10 7
 p 63 222
@@ -25,10 +47,10 @@ cat > build/expected <<EOF
 
 5
 EOF
-diff build/out build/expected
-echo success
+diff build/out build/expected || failure
+success
 
-echo 3
+echo "Test 3"
 build/main > build/out 2> build/err <<EOF
 p 10 7
 p 13 2
@@ -45,10 +67,10 @@ cat > build/expected <<EOF
 
 10:7 12:22 13:2 17:99
 EOF
-diff build/out build/expected
-echo success
+diff build/out build/expected || failure
+success
 
-echo 4
+echo "Test 4"
 build/main > build/out 2> build/err <<EOF
 p 10 7
 p 12 5
@@ -62,10 +84,10 @@ cat > build/expected <<EOF
 
 5
 EOF
-diff build/out build/expected
-echo success
+diff build/out build/expected || failure
+success
 
-echo 5
+echo "Test 5"
 build/main > build/out 2> build/err <<EOF
 p 10 7
 p 12 5
@@ -90,10 +112,10 @@ cat > build/expected <<EOF
 56
 7
 EOF
-diff build/out build/expected
-echo success
+diff build/out build/expected || failure
+success
 
-echo 6
+echo "Test 6"
 build/main > build/out 2> build/err <<EOF
 p 1 9
 p 3 7
@@ -114,10 +136,10 @@ cat > build/expected <<EOF
 1:33 2:8 3:7
 1:33 2:8 3:7 4:6 5:5
 EOF
-diff build/out build/expected
-echo success
+diff build/out build/expected || failure
+success
 
-echo 7
+echo "Test 7"
 build/main > build/out 2> build/err <<EOF
 p 1 9
 p 3 7
@@ -142,10 +164,10 @@ cat > build/expected <<EOF
 1:9 2:99 3:7
 1:9 2:99 3:7 4:6 5:5
 EOF
-diff build/out build/expected
-echo success
+diff build/out build/expected || failure
+success
 
-echo 8
+echo "Test 8"
 build/main > build/out 2> build/err <<EOF
 p 1 3
 p 10 1
@@ -157,10 +179,10 @@ EOF
 cat > build/expected <<EOF
 
 EOF
-diff build/out build/expected
-echo success
+diff build/out build/expected || failure
+success
 
-echo 9
+echo "Test 9"
 build/main > build/out 2> build/err <<EOF
 p 1 3
 p 10 1
@@ -176,10 +198,10 @@ EOF
 cat > build/expected <<EOF
 
 EOF
-diff build/out build/expected
-echo success
+diff build/out build/expected || failure
+success
 
-echo 10
+echo "Test 10"
 build/main > build/out 2> build/err <<EOF
 p 1 3
 p 10 1
@@ -195,10 +217,10 @@ EOF
 cat > build/expected <<EOF
 
 EOF
-diff build/out build/expected
-echo success
+diff build/out build/expected || failure
+success
 
-echo 11
+echo "Test 11"
 build/main > build/out 2> build/err <<EOF
 p 1 3
 p 10 1
@@ -210,10 +232,10 @@ EOF
 cat > build/expected <<EOF
 
 EOF
-diff build/out build/expected
-echo success
+diff build/out build/expected || failure
+success
 
-echo 12
+echo "Test 12"
 build/main > build/out 2> build/err <<EOF
 p 1 3
 d 1
@@ -222,5 +244,5 @@ EOF
 cat > build/expected <<EOF
 
 EOF
-diff build/out build/expected
-echo success
+diff build/out build/expected || failure
+success

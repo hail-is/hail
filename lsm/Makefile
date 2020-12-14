@@ -31,7 +31,13 @@ build/%.o: %.cpp
 	@mkdir -p $(@D)
 	$(CXX) $(CXXFLAGS) -MD -MF $(@:%.o=%.d) -MT $@ -c $< -o $@
 
-build/%: build/%.o
+build/main: $(filter-out build/test.o,$(OBJECTS))
+	$(CXX) $(CXXFLAGS) $(LDFLAGS) \
+		-ldl \
+		-o $@ \
+		$(filter %.o,$^)
+
+build/test: $(filter-out build/main.o,$(OBJECTS))
 	$(CXX) $(CXXFLAGS) $(LDFLAGS) \
 		-ldl \
 		-o $@ \
@@ -41,6 +47,13 @@ build/%: build/%.o
 clean:
 	rm -rf build
 
-.PHONY: test
-test: build/main
+.PHONY: unit-tests
+unit-tests: build/test
+	build/test
+
+.PHONY: integration-tests
+integration-tests: build/main
 	bash test.sh
+
+.PHONY: test
+test: unit-tests integration-tests
