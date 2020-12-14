@@ -10,7 +10,7 @@ case object SVoid extends SType {
 
   override def pType: PType = PVoid
 
-  override def coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean)(implicit line: LineNumber): SCode =
+  override def coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode =
     value
 
   override def codeOrdering(mb: EmitMethodBuilder[_], other: SType, so: SortOrder): CodeOrdering =
@@ -18,7 +18,7 @@ case object SVoid extends SType {
 
   override def codeTupleTypes(): IndexedSeq[TypeInfo[_]] = IndexedSeq()
 
-  override def loadFrom(cb: EmitCodeBuilder, region: Value[Region], pt: PType, addr: Code[Long])(implicit line: LineNumber): SCode =
+  override def loadFrom(cb: EmitCodeBuilder, region: Value[Region], pt: PType, addr: Code[Long]): SCode =
     throw new UnsupportedOperationException
 }
 
@@ -38,7 +38,7 @@ case object PVoidCode extends PCode with PUnrealizableCode {
     code.asInstanceOf[Code[T]]
   }
 
-  def memoize(cb: EmitCodeBuilder, name: String)(implicit line: LineNumber): PValue = new PValue {
+  def memoize(cb: EmitCodeBuilder, name: String): PValue = new PValue {
     val pt: PType = PVoid
     val st: SType = SVoid
 

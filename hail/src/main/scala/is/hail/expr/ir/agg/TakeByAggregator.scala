@@ -87,11 +87,13 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
   def newState(off: Code[Long])(implicit line: LineNumber): Code[Unit] =
     region.getNewRegion(regionSize)
 
-  def createState(cb: EmitCodeBuilder)(implicit line: LineNumber): Unit =
+  def createState(cb: EmitCodeBuilder): Unit = {
+    implicit val line = cb.lineNumber
     cb.ifx(region.isNull, {
       cb.assign(r, Region.stagedCreate(regionSize))
       cb += region.invalidate()
     })
+  }
 
   override def load(regionLoader: Value[Region] => Code[Unit], src: Code[Long])(implicit line: LineNumber): Code[Unit] =
     Code(
@@ -151,7 +153,8 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
       ))
     }
 
-  def copyFrom(cb: EmitCodeBuilder, src: Code[Long])(implicit line: LineNumber): Unit = {
+  def copyFrom(cb: EmitCodeBuilder, src: Code[Long]): Unit = {
+    implicit val line = cb.lineNumber
     cb += Code.memoize(src, "tba_copy_from_src") { src =>
       maybeGCCode(
         initStaging(),
@@ -430,7 +433,7 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
     mb
   }
 
-  def seqOp(cb: EmitCodeBuilder, v: EmitCode, k: EmitCode)(implicit line: LineNumber): Unit =
+  def seqOp(cb: EmitCodeBuilder, v: EmitCode, k: EmitCode): Unit =
     cb.invokeVoid(_seqOp, v, k)
 
   // for tests
@@ -599,7 +602,8 @@ class TakeByAggregator(valueType: PType, keyType: PType) extends StagedAggregato
   val initOpTypes: Seq[PType] = Array(PInt32(true))
   val seqOpTypes: Seq[PType] = Array(valueType, keyType)
 
-  protected def _initOp(cb: EmitCodeBuilder, state: State, init: Array[EmitCode])(implicit line: LineNumber): Unit = {
+  protected def _initOp(cb: EmitCodeBuilder, state: State, init: Array[EmitCode]): Unit = {
+    implicit val line = cb.lineNumber
     assert(init.length == 1)
     val Array(sizeTriplet) = init
     cb += Code(
@@ -609,16 +613,21 @@ class TakeByAggregator(valueType: PType, keyType: PType) extends StagedAggregato
     )
   }
 
-  protected def _seqOp(cb: EmitCodeBuilder, state: State, seq: Array[EmitCode])(implicit line: LineNumber): Unit = {
+  protected def _seqOp(cb: EmitCodeBuilder, state: State, seq: Array[EmitCode]): Unit = {
+    implicit val line = cb.lineNumber
     val Array(value: EmitCode, key: EmitCode) = seq
     assert(value.pv.pt == valueType)
     assert(key.pv.pt == keyType)
     state.seqOp(cb, value, key)
   }
 
-  protected def _combOp(cb: EmitCodeBuilder, state: State, other: State)(implicit line: LineNumber): Unit =
+  protected def _combOp(cb: EmitCodeBuilder, state: State, other: State): Unit = {
+    implicit val line = cb.lineNumber
     cb += state.combine(other)
+  }
 
-  protected def _result(cb: EmitCodeBuilder, state: State, srvb: StagedRegionValueBuilder)(implicit line: LineNumber): Unit =
+  protected def _result(cb: EmitCodeBuilder, state: State, srvb: StagedRegionValueBuilder): Unit = {
+    implicit val line = cb.lineNumber
     cb += srvb.addIRIntermediate(resultType)(state.result(srvb.region, resultType))
+  }
 }

@@ -17,15 +17,15 @@ trait SBaseStructValue extends SValue {
   def isFieldMissing(fieldName: String)(implicit line: LineNumber): Code[Boolean] =
     isFieldMissing(pt.fieldIdx(fieldName))
 
-  def loadField(cb: EmitCodeBuilder, fieldIdx: Int)(implicit line: LineNumber): IEmitSCode
+  def loadField(cb: EmitCodeBuilder, fieldIdx: Int): IEmitSCode
 
-  def loadField(cb: EmitCodeBuilder, fieldName: String)(implicit line: LineNumber): IEmitSCode =
+  def loadField(cb: EmitCodeBuilder, fieldName: String): IEmitSCode =
     loadField(cb, pt.fieldIdx(fieldName))
 }
 
 trait SBaseStructCode extends SCode {
-  def memoize(cb: EmitCodeBuilder, name: String)(implicit line: LineNumber): SBaseStructValue
+  def memoize(cb: EmitCodeBuilder, name: String): SBaseStructValue
 
-  def memoizeField(cb: EmitCodeBuilder, name: String)(implicit line: LineNumber): SBaseStructValue
+  def memoizeField(cb: EmitCodeBuilder, name: String): SBaseStructValue
 }
 

@@ -19,8 +19,8 @@ trait SBinaryCode extends SCode {
 
   def loadBytes()(implicit line: LineNumber): Code[Array[Byte]]
 
-  def memoize(cb: EmitCodeBuilder, name: String)(implicit line: LineNumber): SBinaryValue
+  def memoize(cb: EmitCodeBuilder, name: String): SBinaryValue
 
-  def memoizeField(cb: EmitCodeBuilder, name: String)(implicit line: LineNumber): SBinaryValue
+  def memoizeField(cb: EmitCodeBuilder, name: String): SBinaryValue
 }
 

@@ -15,7 +15,7 @@ case class SCanonicalCall(required: Boolean) extends SCall {
 
   def codeOrdering(mb: EmitMethodBuilder[_], other: SType, so: SortOrder): CodeOrdering = pType.codeOrdering(mb, other.pType, so)
 
-  def coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean)(implicit line: LineNumber): SCode = {
+  def coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = {
     value.st match {
       case SCanonicalCall(_) =>
         new SCanonicalCallCode(required, value.asInstanceOf[SCanonicalCallCode].call)
@@ -24,7 +24,8 @@ case class SCanonicalCall(required: Boolean) extends SCall {
 
   def codeTupleTypes(): IndexedSeq[TypeInfo[_]] = FastIndexedSeq(IntInfo)
 
-  def loadFrom(cb: EmitCodeBuilder, region: Value[Region], pt: PType, addr: Code[Long])(implicit line: LineNumber): SCode = {
+  def loadFrom(cb: EmitCodeBuilder, region: Value[Region], pt: PType, addr: Code[Long]): SCode = {
+    implicit val line = cb.lineNumber
     pt match {
       case PCanonicalCall(_) =>
         new SCanonicalCallCode(required, Region.loadInt(addr))
@@ -41,7 +42,7 @@ class SCanonicalCallSettable(required: Boolean, call: Settable[Int]) extends PCa
 
   val pt: PCall = PCanonicalCall(required)
 
-  override def store(cb: EmitCodeBuilder, v: PCode)(implicit line: LineNumber): Unit =
+  override def store(cb: EmitCodeBuilder, v: PCode): Unit =
     cb.assign(call, v.asInstanceOf[SCanonicalCallCode].call)
 
   val st: SCanonicalCall = SCanonicalCall(required)
@@ -56,7 +57,8 @@ class SCanonicalCallSettable(required: Boolean, call: Settable[Int]) extends PCa
 
   def isPhased()(implicit line: LineNumber): Code[Boolean] = get.isPhased()
 
-  def forEachAllele(cb: EmitCodeBuilder)(alleleCode: Value[Int] => Unit)(implicit line: LineNumber): Unit = {
+  def forEachAllele(cb: EmitCodeBuilder)(alleleCode: Value[Int] => Unit): Unit = {
+    implicit val line = cb.lineNumber
     val call2 = cb.newLocal[Int]("fea_call2", call >>> 3)
     val p = cb.newLocal[Int]("fea_ploidy", ploidy())
     val j = cb.newLocal[Int]("fea_j")
@@ -96,16 +98,16 @@ class SCanonicalCallCode(required: Boolean, val call: Code[Int]) extends PCallCo
 
   def isPhased()(implicit line: LineNumber): Code[Boolean] = (call & 0x1).ceq(1)
 
-  def memoize(cb: EmitCodeBuilder, name: String, sb: SettableBuilder)(implicit line: LineNumber): PCallValue = {
+  def memoize(cb: EmitCodeBuilder, name: String, sb: SettableBuilder): PCallValue = {
     val s = SCanonicalCallSettable(sb, name, required)
     cb.assign(s, this)
     s
   }
 
-  def memoize(cb: EmitCodeBuilder, name: String)(implicit line: LineNumber): PCallValue =
+  def memoize(cb: EmitCodeBuilder, name: String): PCallValue =
     memoize(cb, name, cb.localBuilder)
 
-  def memoizeField(cb: EmitCodeBuilder, name: String)(implicit line: LineNumber): PCallValue =
+  def memoizeField(cb: EmitCodeBuilder, name: String): PCallValue =
     memoize(cb, name, cb.fieldBuilder)
 
   def store(mb: EmitMethodBuilder[_], r: Value[Region], dst: Code[Long])(implicit line: LineNumber): Code[Unit] =

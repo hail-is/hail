@@ -12,13 +12,13 @@ import is.hail.utils.FastIndexedSeq
 case class SStringPointer(pType: PString) extends SString {
   def codeOrdering(mb: EmitMethodBuilder[_], other: SType, so: SortOrder): CodeOrdering = pType.codeOrdering(mb, other.pType, so)
 
-  def coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean)(implicit line: LineNumber): SCode = {
+  def coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = {
     new SStringPointerCode(this, pType.store(cb, region, value, deepCopy))
   }
 
   def codeTupleTypes(): IndexedSeq[TypeInfo[_]] = FastIndexedSeq(LongInfo)
 
-  def loadFrom(cb: EmitCodeBuilder, region: Value[Region], pt: PType, addr: Code[Long])(implicit line: LineNumber): SCode = {
+  def loadFrom(cb: EmitCodeBuilder, region: Value[Region], pt: PType, addr: Code[Long]): SCode = {
     pt match {
       case _: PCanonicalString =>
         new SStringPointerCode(this, addr)
@@ -40,15 +40,15 @@ class SStringPointerCode(val st: SStringPointer, val a: Code[Long]) extends PStr
 
   def asBytes(): PBinaryCode = new SBinaryPointerCode(SBinaryPointer(pt.fundamentalType), a)
 
-  private[this] def memoizeWithBuilder(cb: EmitCodeBuilder, name: String, sb: SettableBuilder)(implicit line: LineNumber): PValue = {
+  private[this] def memoizeWithBuilder(cb: EmitCodeBuilder, name: String, sb: SettableBuilder): PValue = {
     val s = new SStringPointerSettable(st, sb.newSettable[Long]("sstringpointer_memoize"))
     s.store(cb, this)
     s
   }
 
-  def memoize(cb: EmitCodeBuilder, name: String)(implicit line: LineNumber): PValue = memoizeWithBuilder(cb, name, cb.localBuilder)
+  def memoize(cb: EmitCodeBuilder, name: String): PValue = memoizeWithBuilder(cb, name, cb.localBuilder)
 
-  def memoizeField(cb: EmitCodeBuilder, name: String)(implicit line: LineNumber): PValue = memoizeWithBuilder(cb, name, cb.fieldBuilder)
+  def memoizeField(cb: EmitCodeBuilder, name: String): PValue = memoizeWithBuilder(cb, name, cb.fieldBuilder)
 }
 
 object SStringPointerSettable {
@@ -65,7 +65,7 @@ class SStringPointerSettable(val st: SStringPointer, val a: Settable[Long]) exte
 
   def get(implicit line: LineNumber): PCode = new SStringPointerCode(st, a.load())
 
-  def store(cb: EmitCodeBuilder, v: PCode)(implicit line: LineNumber): Unit = {
+  def store(cb: EmitCodeBuilder, v: PCode): Unit = {
     cb.assign(a, v.asInstanceOf[SStringPointerCode].a)
   }
 }

@@ -28,11 +28,11 @@ trait PUnrealizable extends PType {
   def unstagedStoreAtAddress(addr: Long, region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Unit =
     unsupported
 
-  override def loadCheapPCode(cb: EmitCodeBuilder, addr: Code[Long])(implicit line: LineNumber): PCode = unsupported
+  override def loadCheapPCode(cb: EmitCodeBuilder, addr: Code[Long]): PCode = unsupported
 
-  override def store(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean)(implicit line: LineNumber): Code[Long] = unsupported
+  override def store(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): Code[Long] = unsupported
 
-  override def storeAtAddress(cb: EmitCodeBuilder, addr: Code[Long], region: Value[Region], value: SCode, deepCopy: Boolean)(implicit line: LineNumber): Unit = unsupported
+  override def storeAtAddress(cb: EmitCodeBuilder, addr: Code[Long], region: Value[Region], value: SCode, deepCopy: Boolean): Unit = unsupported
 
   override def encodableType: PType = unsupported
 
@@ -53,5 +53,5 @@ trait PUnrealizableCode extends PCode {
 
   override def tcode[T](implicit ti: TypeInfo[T]): Code[T] = unsupported
 
-  def memoizeField(cb: EmitCodeBuilder, name: String)(implicit line: LineNumber): PValue = unsupported
+  def memoizeField(cb: EmitCodeBuilder, name: String): PValue = unsupported
 }

@@ -12,7 +12,7 @@ case class SFloat64(required: Boolean) extends SType {
 
   def codeOrdering(mb: EmitMethodBuilder[_], other: SType, so: SortOrder): CodeOrdering = pType.codeOrdering(mb, other.pType, so)
 
-  def coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean)(implicit line: LineNumber): SCode = {
+  def coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = {
     value.st match {
       case SFloat64(r) =>
         if (r == required)
@@ -24,7 +24,8 @@ case class SFloat64(required: Boolean) extends SType {
 
   def codeTupleTypes(): IndexedSeq[TypeInfo[_]] = FastIndexedSeq(DoubleInfo)
 
-  def loadFrom(cb: EmitCodeBuilder, region: Value[Region], pt: PType, addr: Code[Long])(implicit line: LineNumber): SCode = {
+  def loadFrom(cb: EmitCodeBuilder, region: Value[Region], pt: PType, addr: Code[Long]): SCode = {
+    implicit val line = cb.lineNumber
     pt match {
       case _: PFloat64 =>
         new SFloat64Code(required, Region.loadDouble(addr))
@@ -44,16 +45,16 @@ class SFloat64Code(required: Boolean, val code: Code[Double]) extends PCode {
 
   def codeTuple(): IndexedSeq[Code[_]] = FastIndexedSeq(code)
 
-  private[this] def memoizeWithBuilder(cb: EmitCodeBuilder, name: String, sb: SettableBuilder)(implicit line: LineNumber): PFloat64Value = {
+  private[this] def memoizeWithBuilder(cb: EmitCodeBuilder, name: String, sb: SettableBuilder): PFloat64Value = {
     val s = new SFloat64Settable(required, sb.newSettable[Double]("sint64_memoize"))
     s.store(cb, this)
     s
   }
 
-  def memoize(cb: EmitCodeBuilder, name: String)(implicit line: LineNumber): PFloat64Value =
+  def memoize(cb: EmitCodeBuilder, name: String): PFloat64Value =
     memoizeWithBuilder(cb, name, cb.localBuilder)
 
-  def memoizeField(cb: EmitCodeBuilder, name: String)(implicit line: LineNumber): PFloat64Value =
+  def memoizeField(cb: EmitCodeBuilder, name: String): PFloat64Value =
     memoizeWithBuilder(cb, name, cb.fieldBuilder)
 
   def doubleCode(cb: EmitCodeBuilder): Code[Double] = code
@@ -70,7 +71,7 @@ class SFloat64Settable(required: Boolean, x: Settable[Double]) extends PFloat64V
 
   def st: SFloat64 = SFloat64(required)
 
-  def store(cb: EmitCodeBuilder, v: PCode)(implicit line: LineNumber): Unit = cb.assign(x, v.asDouble.doubleCode(cb))
+  def store(cb: EmitCodeBuilder, v: PCode): Unit = cb.assign(x, v.asDouble.doubleCode(cb))
 
   def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(x)
 

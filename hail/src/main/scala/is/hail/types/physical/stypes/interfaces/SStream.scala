@@ -10,7 +10,7 @@ import is.hail.types.physical.{PCanonicalStream, PCode, PStream, PStreamCode, PT
 case class SStream(elementType: SType, separateRegions: Boolean = false) extends SType {
   def pType: PStream = PCanonicalStream(elementType.pType, separateRegions, false)
 
-  override def coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean)(implicit line: LineNumber): SCode = {
+  override def coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = {
     if (deepCopy) throw new UnsupportedOperationException
 
     assert(value.st == this)
@@ -22,7 +22,7 @@ case class SStream(elementType: SType, separateRegions: Boolean = false) extends
   override def codeOrdering(mb: EmitMethodBuilder[_], other: SType, so: SortOrder): CodeOrdering =
     throw new UnsupportedOperationException
 
-  override def loadFrom(cb: EmitCodeBuilder, region: Value[Region], pt: PType, addr: Code[Long])(implicit line: LineNumber): SCode =
+  override def loadFrom(cb: EmitCodeBuilder, region: Value[Region], pt: PType, addr: Code[Long]): SCode =
     throw new UnsupportedOperationException
 }
 
@@ -31,7 +31,7 @@ final case class SStreamCode(st: SStream, stream: SizedStream) extends PStreamCo
   self =>
   override def pt: PStream = st.pType
 
-  def memoize(cb: EmitCodeBuilder, name: String)(implicit line: LineNumber): PValue = new PValue {
+  def memoize(cb: EmitCodeBuilder, name: String): PValue = new PValue {
     def pt: PStream = PCanonicalStream(st.pType)
 
     override def st: SType = self.st

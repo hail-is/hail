@@ -12,13 +12,13 @@ import is.hail.utils.FastIndexedSeq
 case class SBaseStructPointer(pType: PBaseStruct) extends SStruct {
   def codeOrdering(mb: EmitMethodBuilder[_], other: SType, so: SortOrder): CodeOrdering = pType.codeOrdering(mb, other.pType, so)
 
-  def coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean)(implicit line: LineNumber): SCode = {
+  def coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = {
     new SBaseStructPointerCode(this, pType.store(cb, region, value, deepCopy))
   }
 
   def codeTupleTypes(): IndexedSeq[TypeInfo[_]] = FastIndexedSeq(LongInfo)
 
-  def loadFrom(cb: EmitCodeBuilder, region: Value[Region], pt: PType, addr: Code[Long])(implicit line: LineNumber): SCode = {
+  def loadFrom(cb: EmitCodeBuilder, region: Value[Region], pt: PType, addr: Code[Long]): SCode = {
     if (pt == this.pType)
       new SBaseStructPointerCode(this, addr)
     else
@@ -43,13 +43,14 @@ class SBaseStructPointerSettable(
 
   def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(a)
 
-  def loadField(cb: EmitCodeBuilder, fieldIdx: Int)(implicit line: LineNumber): IEmitCode = {
+  def loadField(cb: EmitCodeBuilder, fieldIdx: Int): IEmitCode = {
+    implicit val line = cb.lineNumber
     IEmitCode(cb,
       pt.isFieldMissing(a, fieldIdx),
       pt.fields(fieldIdx).typ.loadCheapPCode(cb, pt.loadField(a, fieldIdx)))
   }
 
-  def store(cb: EmitCodeBuilder, pv: PCode)(implicit line: LineNumber): Unit = {
+  def store(cb: EmitCodeBuilder, pv: PCode): Unit = {
     cb.assign(a, pv.asInstanceOf[SBaseStructPointerCode].a)
   }
 
@@ -65,15 +66,15 @@ class SBaseStructPointerCode(val st: SBaseStructPointer, val a: Code[Long]) exte
 
   def codeTuple(): IndexedSeq[Code[_]] = FastIndexedSeq(a)
 
-  def memoize(cb: EmitCodeBuilder, name: String, sb: SettableBuilder)(implicit line: LineNumber): PBaseStructValue = {
+  def memoize(cb: EmitCodeBuilder, name: String, sb: SettableBuilder): PBaseStructValue = {
     val s = SBaseStructPointerSettable(sb, st, name)
     cb.assign(s, this)
     s
   }
 
-  def memoize(cb: EmitCodeBuilder, name: String)(implicit line: LineNumber): PBaseStructValue =
+  def memoize(cb: EmitCodeBuilder, name: String): PBaseStructValue =
     memoize(cb, name, cb.localBuilder)
 
-  def memoizeField(cb: EmitCodeBuilder, name: String)(implicit line: LineNumber): PBaseStructValue =
+  def memoizeField(cb: EmitCodeBuilder, name: String): PBaseStructValue =
     memoize(cb, name, cb.fieldBuilder)
 }

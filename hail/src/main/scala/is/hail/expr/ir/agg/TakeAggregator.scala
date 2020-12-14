@@ -21,8 +21,10 @@ class TakeRVAS(val eltType: PType, val resultType: PArray, val kb: EmitClassBuil
 
   def newState(off: Code[Long])(implicit line: LineNumber): Code[Unit] = region.getNewRegion(regionSize)
 
-  def createState(cb: EmitCodeBuilder)(implicit line: LineNumber): Unit =
+  def createState(cb: EmitCodeBuilder): Unit = {
+    implicit val line = cb.lineNumber
     cb.ifx(region.isNull, { cb.assign(r, Region.stagedCreate(regionSize)) })
+  }
 
   override def load(regionLoader: Value[Region] => Code[Unit], src: Code[Long])(implicit line: LineNumber): Code[Unit] =
     Code.memoize(src, "take_rvas_src") { src =>
@@ -75,7 +77,8 @@ class TakeRVAS(val eltType: PType, val resultType: PArray, val kb: EmitClassBuil
     )
   }
 
-  def combine(cb: EmitCodeBuilder, other: TakeRVAS)(implicit line: LineNumber): Unit = {
+  def combine(cb: EmitCodeBuilder, other: TakeRVAS): Unit = {
+    implicit val line = cb.lineNumber
     val j = kb.genFieldThisRef[Int]()
     val elt = other.builder.loadElement(cb, j)
 
@@ -107,7 +110,8 @@ class TakeRVAS(val eltType: PType, val resultType: PArray, val kb: EmitClassBuil
       })
   }
 
-  def copyFrom(cb: EmitCodeBuilder, srcCode: Code[Long])(implicit line: LineNumber): Unit = {
+  def copyFrom(cb: EmitCodeBuilder, srcCode: Code[Long]): Unit = {
+    implicit val line = cb.lineNumber
     val src = cb.newLocal("takervas_copy_from_src", srcCode)
     cb.assign(maxSize, Region.loadInt(maxSizeOffset(src)))
     cb += builder.copyFrom(builderStateOffset(src))
@@ -123,7 +127,8 @@ class TakeAggregator(typ: PType) extends StagedAggregator {
   val initOpTypes: Seq[PType] = Array(PInt32Required)
   val seqOpTypes: Seq[PType] = Array(typ)
 
-  protected def _initOp(cb: EmitCodeBuilder, state: State, init: Array[EmitCode])(implicit line: LineNumber): Unit = {
+  protected def _initOp(cb: EmitCodeBuilder, state: State, init: Array[EmitCode]): Unit = {
+    implicit val line = cb.lineNumber
     assert(init.length == 1)
     val Array(sizeTriplet) = init
     cb += Code(
@@ -133,14 +138,17 @@ class TakeAggregator(typ: PType) extends StagedAggregator {
     )
   }
 
-  protected def _seqOp(cb: EmitCodeBuilder, state: State, seq: Array[EmitCode])(implicit line: LineNumber): Unit = {
+  protected def _seqOp(cb: EmitCodeBuilder, state: State, seq: Array[EmitCode]): Unit = {
+    implicit val line = cb.lineNumber
     val Array(elt: EmitCode) = seq
     cb += state.seqOp(elt)
   }
 
-  protected def _combOp(cb: EmitCodeBuilder, state: State, other: State)(implicit line: LineNumber): Unit =
+  protected def _combOp(cb: EmitCodeBuilder, state: State, other: State): Unit =
     state.combine(cb, other)
 
-  protected def _result(cb: EmitCodeBuilder, state: State, srvb: StagedRegionValueBuilder)(implicit line: LineNumber): Unit =
+  protected def _result(cb: EmitCodeBuilder, state: State, srvb: StagedRegionValueBuilder): Unit = {
+    implicit val line = cb.lineNumber
     cb += state.result(srvb)
+  }
 }

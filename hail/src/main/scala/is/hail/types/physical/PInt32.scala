@@ -56,11 +56,15 @@ class PInt32(override val required: Boolean) extends PNumeric with PPrimitive {
 
   override def sType: SType = SInt32(required)
 
-  def storePrimitiveAtAddress(cb: EmitCodeBuilder, addr: Code[Long], value: SCode)(implicit line: LineNumber): Unit =
+  def storePrimitiveAtAddress(cb: EmitCodeBuilder, addr: Code[Long], value: SCode): Unit = {
+    implicit val line = cb.lineNumber
     cb.append(Region.storeInt(addr, value.asInt.intCode(cb)))
+  }
 
-  override def loadCheapPCode(cb: EmitCodeBuilder, addr: Code[Long])(implicit line: LineNumber): PCode =
+  override def loadCheapPCode(cb: EmitCodeBuilder, addr: Code[Long]): PCode = {
+    implicit val line = cb.lineNumber
     new SInt32Code(required, Region.loadInt(addr))
+  }
 }
 
 object PInt32 {

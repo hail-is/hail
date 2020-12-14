@@ -12,7 +12,7 @@ case class SFloat32(required: Boolean) extends SType {
 
   def codeOrdering(mb: EmitMethodBuilder[_], other: SType, so: SortOrder): CodeOrdering = pType.codeOrdering(mb, other.pType, so)
 
-  def coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean)(implicit line: LineNumber): SCode = {
+  def coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = {
     value.st match {
       case SFloat32(r) =>
         if (r == required)
@@ -24,7 +24,8 @@ case class SFloat32(required: Boolean) extends SType {
 
   def codeTupleTypes(): IndexedSeq[TypeInfo[_]] = FastIndexedSeq(FloatInfo)
 
-  def loadFrom(cb: EmitCodeBuilder, region: Value[Region], pt: PType, addr: Code[Long])(implicit line: LineNumber): SCode = {
+  def loadFrom(cb: EmitCodeBuilder, region: Value[Region], pt: PType, addr: Code[Long]): SCode = {
+    implicit val line = cb.lineNumber
     pt match {
       case _: PFloat32 =>
         new SFloat32Code(required, Region.loadFloat(addr))
@@ -44,16 +45,16 @@ class SFloat32Code(required: Boolean, val code: Code[Float]) extends PCode {
 
   def codeTuple(): IndexedSeq[Code[_]] = FastIndexedSeq(code)
 
-  private[this] def memoizeWithBuilder(cb: EmitCodeBuilder, name: String, sb: SettableBuilder)(implicit line: LineNumber): PFloat32Value = {
+  private[this] def memoizeWithBuilder(cb: EmitCodeBuilder, name: String, sb: SettableBuilder): PFloat32Value = {
     val s = new SFloat32Settable(required, sb.newSettable[Float]("sint64_memoize"))
     s.store(cb, this)
     s
   }
 
-  def memoize(cb: EmitCodeBuilder, name: String)(implicit line: LineNumber): PFloat32Value =
+  def memoize(cb: EmitCodeBuilder, name: String): PFloat32Value =
     memoizeWithBuilder(cb, name, cb.localBuilder)
 
-  def memoizeField(cb: EmitCodeBuilder, name: String)(implicit line: LineNumber): PFloat32Value =
+  def memoizeField(cb: EmitCodeBuilder, name: String): PFloat32Value =
     memoizeWithBuilder(cb, name, cb.fieldBuilder)
 
   def floatCode(cb: EmitCodeBuilder): Code[Float] = code
@@ -70,7 +71,7 @@ class SFloat32Settable(required: Boolean, x: Settable[Float]) extends PFloat32Va
 
   def st: SFloat32 = SFloat32(required)
 
-  def store(cb: EmitCodeBuilder, v: PCode)(implicit line: LineNumber): Unit =
+  def store(cb: EmitCodeBuilder, v: PCode): Unit =
     cb.assign(x, v.asFloat.floatCode(cb))
 
   def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(x)

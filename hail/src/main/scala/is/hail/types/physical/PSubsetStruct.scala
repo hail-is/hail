@@ -129,14 +129,14 @@ final case class PSubsetStruct(ps: PStruct, _fieldNames: Array[String]) extends 
 
   def sType: SSubsetStruct = SSubsetStruct(ps.sType.asInstanceOf[SStruct], _fieldNames)
 
-  def store(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean)(implicit line: LineNumber): Code[Long] =
+  def store(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): Code[Long] =
     throw new UnsupportedOperationException
 
-  def storeAtAddress(cb: EmitCodeBuilder, addr: Code[Long], region: Value[Region], value: SCode, deepCopy: Boolean)(implicit line: LineNumber): Unit = {
+  def storeAtAddress(cb: EmitCodeBuilder, addr: Code[Long], region: Value[Region], value: SCode, deepCopy: Boolean): Unit = {
     throw new UnsupportedOperationException
   }
 
-  def loadCheapPCode(cb: EmitCodeBuilder, addr: Code[Long])(implicit line: LineNumber): PCode =
+  def loadCheapPCode(cb: EmitCodeBuilder, addr: Code[Long]): PCode =
     throw new UnsupportedOperationException
 
   def unstagedStoreAtAddress(addr: Long, region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Unit = {

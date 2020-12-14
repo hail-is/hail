@@ -49,23 +49,23 @@ abstract class SCode {
 
   def asStream: SStreamCode = asInstanceOf[SStreamCode]
 
-  def castTo(cb: EmitCodeBuilder, region: Value[Region], destType: PType)(implicit line: LineNumber): SCode =
+  def castTo(cb: EmitCodeBuilder, region: Value[Region], destType: PType): SCode =
     castTo(cb, region, destType, false)
 
 
-  def castTo(cb: EmitCodeBuilder, region: Value[Region], destType: PType, deepCopy: Boolean)(implicit line: LineNumber): SCode = {
+  def castTo(cb: EmitCodeBuilder, region: Value[Region], destType: PType, deepCopy: Boolean): SCode = {
     destType.sType.coerceOrCopy(cb, region, this, deepCopy)
   }
 
-  def copyToRegion(cb: EmitCodeBuilder, region: Value[Region])(implicit line: LineNumber): SCode =
+  def copyToRegion(cb: EmitCodeBuilder, region: Value[Region]): SCode =
     copyToRegion(cb, region, st.pType)
 
-  def copyToRegion(cb: EmitCodeBuilder, region: Value[Region], destType: PType)(implicit line: LineNumber): SCode =
+  def copyToRegion(cb: EmitCodeBuilder, region: Value[Region], destType: PType): SCode =
     destType.sType.coerceOrCopy(cb, region, this, deepCopy = true)
 
-  def memoize(cb: EmitCodeBuilder, name: String)(implicit line: LineNumber): SValue
+  def memoize(cb: EmitCodeBuilder, name: String): SValue
 
-  def memoizeField(cb: EmitCodeBuilder, name: String)(implicit line: LineNumber): SValue
+  def memoizeField(cb: EmitCodeBuilder, name: String): SValue
 
   def toPCode(cb: EmitCodeBuilder, region: Value[Region]): PCode
 

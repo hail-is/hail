@@ -197,9 +197,9 @@ abstract class PBaseStructValue extends PValue with SBaseStructValue {
 abstract class PBaseStructCode extends PCode with SBaseStructCode {
   def pt: PBaseStruct
 
-  def memoize(cb: EmitCodeBuilder, name: String)(implicit line: LineNumber): PBaseStructValue
+  def memoize(cb: EmitCodeBuilder, name: String): PBaseStructValue
 
-  def memoizeField(cb: EmitCodeBuilder, name: String)(implicit line: LineNumber): PBaseStructValue
+  def memoizeField(cb: EmitCodeBuilder, name: String): PBaseStructValue
 }
 
 trait PStructSettable extends PBaseStructValue with PSettable

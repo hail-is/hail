@@ -11,13 +11,13 @@ import is.hail.utils.FastIndexedSeq
 case class SNDArrayPointer(pType: PNDArray) extends SNDArray {
   def codeOrdering(mb: EmitMethodBuilder[_], other: SType, so: SortOrder): CodeOrdering = pType.codeOrdering(mb)
 
-  def coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean)(implicit line: LineNumber): SCode = {
+  def coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = {
     new SNDArrayPointerCode(this, pType.store(cb, region, value, deepCopy))
   }
 
   def codeTupleTypes(): IndexedSeq[TypeInfo[_]] = FastIndexedSeq(LongInfo)
 
-  def loadFrom(cb: EmitCodeBuilder, region: Value[Region], pt: PType, addr: Code[Long])(implicit line: LineNumber): SCode = {
+  def loadFrom(cb: EmitCodeBuilder, region: Value[Region], pt: PType, addr: Code[Long]): SCode = {
     if (pt == this.pType)
       new SNDArrayPointerCode(this, addr)
     else
@@ -42,7 +42,7 @@ class SNDArrayPointerSettable(val st: SNDArrayPointer, val a: Settable[Long]) ex
 
   def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(a)
 
-  def store(cb: EmitCodeBuilder, v: PCode)(implicit line: LineNumber): Unit = {
+  def store(cb: EmitCodeBuilder, v: PCode): Unit = {
     cb.assign(a, v.asInstanceOf[SNDArrayPointerCode].a)
   }
 
@@ -95,16 +95,16 @@ class SNDArrayPointerCode(val st: SNDArrayPointer, val a: Code[Long]) extends PN
 
   override def codeTuple(): IndexedSeq[Code[_]] = FastIndexedSeq(a)
 
-  def memoize(cb: EmitCodeBuilder, name: String, sb: SettableBuilder)(implicit line: LineNumber): PNDArrayValue = {
+  def memoize(cb: EmitCodeBuilder, name: String, sb: SettableBuilder): PNDArrayValue = {
     val s = SNDArrayPointerSettable(sb, st, name)
     cb.assign(s, this)
     s
   }
 
-  override def memoize(cb: EmitCodeBuilder, name: String)(implicit line: LineNumber): PNDArrayValue =
+  override def memoize(cb: EmitCodeBuilder, name: String): PNDArrayValue =
     memoize(cb, name, cb.localBuilder)
 
-  override def memoizeField(cb: EmitCodeBuilder, name: String)(implicit line: LineNumber): PValue =
+  override def memoizeField(cb: EmitCodeBuilder, name: String): PValue =
     memoize(cb, name, cb.fieldBuilder)
 
   override def shape(implicit line: LineNumber): PBaseStructCode =

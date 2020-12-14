@@ -12,13 +12,13 @@ import is.hail.utils.FastIndexedSeq
 case class SIntervalPointer(pType: PInterval) extends SInterval {
   def codeOrdering(mb: EmitMethodBuilder[_], other: SType, so: SortOrder): CodeOrdering = pType.codeOrdering(mb, other.pType, so)
 
-  def coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean)(implicit line: LineNumber): SCode = {
+  def coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = {
     new SIntervalPointerCode(this, pType.store(cb, region, value, deepCopy))
   }
 
   def codeTupleTypes(): IndexedSeq[TypeInfo[_]] = FastIndexedSeq(LongInfo, IntInfo, IntInfo)
 
-  def loadFrom(cb: EmitCodeBuilder, region: Value[Region], pt: PType, addr: Code[Long])(implicit line: LineNumber): SCode = {
+  def loadFrom(cb: EmitCodeBuilder, region: Value[Region], pt: PType, addr: Code[Long]): SCode = {
     pt match {
       case t: PCanonicalInterval if t.equalModuloRequired(this.pType) =>
         new SIntervalPointerCode(this, addr)
@@ -65,7 +65,8 @@ class SIntervalPointerSettable(
 
   def endDefined(cb: EmitCodeBuilder)(implicit line: LineNumber): Code[Boolean] = pt.endDefined(a)
 
-  def store(cb: EmitCodeBuilder, pc: PCode)(implicit line: LineNumber): Unit = {
+  def store(cb: EmitCodeBuilder, pc: PCode): Unit = {
+    implicit val line = cb.lineNumber
     cb.assign(a, pc.asInstanceOf[SIntervalPointerCode].a)
     cb.assign(includesStart, pt.includesStart(a.load()))
     cb.assign(includesEnd, pt.includesEnd(a.load()))
@@ -97,15 +98,15 @@ class SIntervalPointerCode(val st: SIntervalPointer, val a: Code[Long]) extends 
 
   def includesEnd()(implicit line: LineNumber): Code[Boolean] = pt.includesEnd(a)
 
-  def memoize(cb: EmitCodeBuilder, name: String, sb: SettableBuilder)(implicit line: LineNumber): PIntervalValue = {
+  def memoize(cb: EmitCodeBuilder, name: String, sb: SettableBuilder): PIntervalValue = {
     val s = SIntervalPointerSettable(sb, st, name)
     cb.assign(s, this)
     s
   }
 
-  def memoize(cb: EmitCodeBuilder, name: String)(implicit line: LineNumber): PIntervalValue =
+  def memoize(cb: EmitCodeBuilder, name: String): PIntervalValue =
     memoize(cb, name, cb.localBuilder)
 
-  def memoizeField(cb: EmitCodeBuilder, name: String)(implicit line: LineNumber): PIntervalValue =
+  def memoizeField(cb: EmitCodeBuilder, name: String): PIntervalValue =
     memoize(cb, name, cb.fieldBuilder)
 }

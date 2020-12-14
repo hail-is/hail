@@ -24,5 +24,5 @@ trait SNDArrayValue extends SValue {
 trait SNDArrayCode extends SCode {
   def shape(implicit line: LineNumber): SBaseStructCode
 
-  def memoize(cb: EmitCodeBuilder, name: String)(implicit line: LineNumber): SNDArrayValue
+  def memoize(cb: EmitCodeBuilder, name: String): SNDArrayValue
 }

@@ -121,7 +121,8 @@ class StagedArrayBuilder(eltType: PType, cb: EmitClassBuilder[_], region: Value[
   def elementOffset(idx: Value[Int])(implicit line: LineNumber): Code[Long] =
     eltArray.elementOffset(data, capacity, idx)
 
-  def loadElement(cb: EmitCodeBuilder, idx: Value[Int])(implicit line: LineNumber): EmitCode = {
+  def loadElement(cb: EmitCodeBuilder, idx: Value[Int]): EmitCode = {
+    implicit val line = cb.lineNumber
     val m = eltArray.isElementMissing(data, idx)
     EmitCode(Code._empty, m, eltType.loadCheapPCode(cb, eltArray.loadElement(data, capacity, idx)))
   }

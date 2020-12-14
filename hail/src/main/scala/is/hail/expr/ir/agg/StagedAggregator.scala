@@ -12,23 +12,23 @@ abstract class StagedAggregator {
   def initOpTypes: Seq[PType]
   def seqOpTypes: Seq[PType]
 
-  protected def _initOp(cb: EmitCodeBuilder, state: State, init: Array[EmitCode])(implicit line: LineNumber)
+  protected def _initOp(cb: EmitCodeBuilder, state: State, init: Array[EmitCode])
 
-  protected def _seqOp(cb: EmitCodeBuilder, state: State, seq: Array[EmitCode])(implicit line: LineNumber)
+  protected def _seqOp(cb: EmitCodeBuilder, state: State, seq: Array[EmitCode])
 
-  protected def _combOp(cb: EmitCodeBuilder, state: State, other: State)(implicit line: LineNumber)
+  protected def _combOp(cb: EmitCodeBuilder, state: State, other: State)
 
-  protected def _result(cb: EmitCodeBuilder, state: State, srvb: StagedRegionValueBuilder)(implicit line: LineNumber)
+  protected def _result(cb: EmitCodeBuilder, state: State, srvb: StagedRegionValueBuilder)
 
-  def initOp(cb: EmitCodeBuilder, state: AggregatorState, init: Array[EmitCode])(implicit line: LineNumber) =
+  def initOp(cb: EmitCodeBuilder, state: AggregatorState, init: Array[EmitCode]) =
     _initOp(cb, state.asInstanceOf[State], init)
 
-  def seqOp(cb: EmitCodeBuilder, state: AggregatorState, seq: Array[EmitCode])(implicit line: LineNumber) =
+  def seqOp(cb: EmitCodeBuilder, state: AggregatorState, seq: Array[EmitCode]) =
     _seqOp(cb, state.asInstanceOf[State], seq)
 
-  def combOp(cb: EmitCodeBuilder, state: AggregatorState, other: AggregatorState)(implicit line: LineNumber) =
+  def combOp(cb: EmitCodeBuilder, state: AggregatorState, other: AggregatorState) =
     _combOp(cb, state.asInstanceOf[State], other.asInstanceOf[State])
 
-  def result(cb: EmitCodeBuilder, state: AggregatorState, srvb: StagedRegionValueBuilder)(implicit line: LineNumber) =
+  def result(cb: EmitCodeBuilder, state: AggregatorState, srvb: StagedRegionValueBuilder) =
     _result(cb, state.asInstanceOf[State], srvb)
 }

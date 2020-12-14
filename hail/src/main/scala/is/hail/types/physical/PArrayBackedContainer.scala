@@ -148,12 +148,12 @@ trait PArrayBackedContainer extends PContainer {
 
   def sType: SContainer = SIndexablePointer(this)
 
-  def loadCheapPCode(cb: EmitCodeBuilder, addr: Code[Long])(implicit line: LineNumber): PCode =
+  def loadCheapPCode(cb: EmitCodeBuilder, addr: Code[Long]): PCode =
     new SIndexablePointerCode(SIndexablePointer(this), addr)
 
-  def store(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean)(implicit line: LineNumber): Code[Long] =
+  def store(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): Code[Long] =
     arrayRep.store(cb, region, value, deepCopy)
 
-  def storeAtAddress(cb: EmitCodeBuilder, addr: Code[Long], region: Value[Region], value: SCode, deepCopy: Boolean)(implicit line: LineNumber): Unit =
+  def storeAtAddress(cb: EmitCodeBuilder, addr: Code[Long], region: Value[Region], value: SCode, deepCopy: Boolean): Unit =
     arrayRep.storeAtAddress(cb, addr, region, value, deepCopy)
 }

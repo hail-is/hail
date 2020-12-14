@@ -14,7 +14,7 @@ trait AggregatorState {
 
   def regionSize: Int = Region.TINY
 
-  def createState(cb: EmitCodeBuilder)(implicit line: LineNumber): Unit
+  def createState(cb: EmitCodeBuilder): Unit
   def newState(off: Code[Long])(implicit line: LineNumber): Code[Unit]
 
   // null to safeguard against users of off
@@ -23,13 +23,14 @@ trait AggregatorState {
   def load(regionLoader: Value[Region] => Code[Unit], src: Code[Long])(implicit line: LineNumber): Code[Unit]
   def store(regionStorer: Value[Region] => Code[Unit], dest: Code[Long])(implicit line: LineNumber): Code[Unit]
 
-  def copyFrom(cb: EmitCodeBuilder, src: Code[Long])(implicit line: LineNumber): Unit
+  def copyFrom(cb: EmitCodeBuilder, src: Code[Long]): Unit
 
   def serialize(codec: BufferSpec)(implicit line: LineNumber): (EmitCodeBuilder, Value[OutputBuffer]) => Unit
 
   def deserialize(codec: BufferSpec)(implicit line: LineNumber): (EmitCodeBuilder, Value[InputBuffer]) => Unit
 
-  def deserializeFromBytes(cb: EmitCodeBuilder, t: PBinary, address: Code[Long])(implicit line: LineNumber): Unit = {
+  def deserializeFromBytes(cb: EmitCodeBuilder, t: PBinary, address: Code[Long]): Unit = {
+    implicit val line = cb.lineNumber
     val lazyBuffer = kb.getOrDefineLazyField[MemoryBufferWrapper](Code.newInstance[MemoryBufferWrapper](), (this, "bufferWrapper"))
     val addr = cb.newField[Long]("addr", address)
     cb += lazyBuffer.invoke[Long, Int, Unit]("clearAndSetFrom", t.bytesAddress(addr), t.loadLength(addr))
@@ -38,7 +39,8 @@ trait AggregatorState {
     deserializer(cb, ib)
   }
 
-  def serializeToRegion(cb: EmitCodeBuilder, t: PBinary, r: Code[Region])(implicit line: LineNumber): Code[Long] = {
+  def serializeToRegion(cb: EmitCodeBuilder, t: PBinary, r: Code[Region]): Code[Long] = {
+    implicit val line = cb.lineNumber
     val lazyBuffer = kb.getOrDefineLazyField[MemoryWriterWrapper](Code.newInstance[MemoryWriterWrapper](), (this, "writerWrapper"))
     val addr = kb.genFieldThisRef[Long]("addr")
     cb += lazyBuffer.invoke[Unit]("clear")
@@ -60,8 +62,10 @@ trait RegionBackedAggState extends AggregatorState {
   def newState(off: Code[Long])(implicit line: LineNumber): Code[Unit] =
     region.getNewRegion(const(regionSize))
 
-  def createState(cb: EmitCodeBuilder)(implicit line: LineNumber): Unit =
+  def createState(cb: EmitCodeBuilder): Unit = {
+    implicit val line = cb.lineNumber
     cb.ifx(region.isNull, cb.assign(r, Region.stagedCreate(regionSize)))
+  }
 
   def load(regionLoader: Value[Region] => Code[Unit], src: Code[Long])(implicit line: LineNumber): Code[Unit] =
     regionLoader(r)
@@ -82,10 +86,12 @@ trait PointerBasedRVAState extends RegionBackedAggState {
   override def store(regionStorer: Value[Region] => Code[Unit], dest: Code[Long])(implicit line: LineNumber): Code[Unit] =
     Code(region.isValid.orEmpty(Region.storeAddress(dest, off)), super.store(regionStorer, dest))
 
-  def copyFrom(cb: EmitCodeBuilder, src: Code[Long])(implicit line: LineNumber): Unit =
+  def copyFrom(cb: EmitCodeBuilder, src: Code[Long]): Unit = {
+    implicit val line = cb.lineNumber
     copyFromAddress(cb, Region.loadAddress(src))
+  }
 
-  def copyFromAddress(cb: EmitCodeBuilder, src: Code[Long])(implicit line: LineNumber): Unit
+  def copyFromAddress(cb: EmitCodeBuilder, src: Code[Long]): Unit
 }
 
 class TypedRegionBackedAggState(val typ: PType, val kb: EmitClassBuilder[_]) extends RegionBackedAggState {
@@ -116,8 +122,10 @@ class TypedRegionBackedAggState(val typ: PType, val kb: EmitClassBuilder[_]) ext
     storageType.isFieldMissing(off, 0),
     PCode(typ, Region.loadIRIntermediate(typ)(storageType.fieldOffset(off, 0))))
 
-  def copyFrom(cb: EmitCodeBuilder, src: Code[Long])(implicit line: LineNumber): Unit =
+  def copyFrom(cb: EmitCodeBuilder, src: Code[Long]): Unit = {
+    implicit val line = cb.lineNumber
     cb += Code(newState(off), StagedRegionValueBuilder.deepCopy(kb, region, storageType, src, off))
+  }
 
   def serialize(codec: BufferSpec)(implicit line: LineNumber): (EmitCodeBuilder, Value[OutputBuffer]) => Unit = {
     val enc = TypedCodecSpec(storageType, codec).buildTypedEmitEncoderF[Long](storageType, kb)
@@ -147,7 +155,7 @@ class PrimitiveRVAState(val types: Array[PType], val kb: EmitClassBuilder[_]) ex
     Code(Array.tabulate(nFields)(i => f(i, fields(i))))
 
   def newState(off: Code[Long])(implicit line: LineNumber): Code[Unit] = Code._empty
-  def createState(cb: EmitCodeBuilder)(implicit line: LineNumber): Unit = {}
+  def createState(cb: EmitCodeBuilder): Unit = {}
 
   private[this] def loadVarsFromRegion(src: Code[Long])(implicit line: LineNumber): Code[Unit] =
     foreachField {
@@ -177,7 +185,10 @@ class PrimitiveRVAState(val types: Array[PType], val kb: EmitClassBuilder[_]) ex
           }
       }
 
-  def copyFrom(cb: EmitCodeBuilder, src: Code[Long])(implicit line: LineNumber): Unit = cb += loadVarsFromRegion(src)
+  def copyFrom(cb: EmitCodeBuilder, src: Code[Long]): Unit = {
+    implicit val line = cb.lineNumber
+    cb += loadVarsFromRegion(src)
+  }
 
   def serialize(codec: BufferSpec)(implicit line: LineNumber): (EmitCodeBuilder, Value[OutputBuffer]) => Unit = {
     (cb, ob: Value[OutputBuffer]) =>
@@ -220,17 +231,17 @@ case class StateTuple(states: Array[AggregatorState]) {
   def toCodeWithArgs(
     cb: EmitCodeBuilder, args: IndexedSeq[Code[_]],
     f: (EmitCodeBuilder, Int, AggregatorState, Seq[Code[_]]) => Unit
-  )(implicit line: LineNumber
   ): Unit = {
+    implicit val line = cb.lineNumber
     val targs = args.zipWithIndex.map { case (arg, i) =>
-      cb.newLocalAny(s"astcwa_arg$i", arg)(arg.ti, line)
+      cb.newLocalAny(s"astcwa_arg$i", arg)(arg.ti)
     }
     (0 until nStates).foreach { i =>
       f(cb, i, states(i), targs.map(_.get))
     }
   }
 
-  def createStates(cb: EmitCodeBuilder)(implicit line: LineNumber): Unit =
+  def createStates(cb: EmitCodeBuilder): Unit =
     toCode(cb, (cb, i, s) => s.createState(cb))
 }
 
@@ -257,15 +268,23 @@ class TupleAggregatorState(
   def newState(i: Int)(implicit line: LineNumber): Code[Unit] =
     states(i).newState(getStateOffset(i))
 
-  def newState(cb: EmitCodeBuilder)(implicit line: LineNumber): Unit = states.toCode(cb, (cb, i, s) => cb += s.newState(getStateOffset(i)))
+  def newState(cb: EmitCodeBuilder): Unit = {
+    implicit val line = cb.lineNumber
+    states.toCode(cb, (cb, i, s) => cb += s.newState(getStateOffset(i)))
+  }
 
-  def load(cb: EmitCodeBuilder)(implicit line: LineNumber): Unit =
+  def load(cb: EmitCodeBuilder): Unit = {
+    implicit val line = cb.lineNumber
     states.toCode(cb, (cb, i, s) => cb += s.load(getRegion(i), getStateOffset(i)))
+  }
 
-  def store(cb: EmitCodeBuilder)(implicit line: LineNumber): Unit =
+  def store(cb: EmitCodeBuilder): Unit = {
+    implicit val line = cb.lineNumber
     states.toCode(cb, (cb, i, s) => cb += s.store(setRegion(i), getStateOffset(i)))
+  }
 
-  def copyFrom(cb: EmitCodeBuilder, statesOffset: Code[Long])(implicit line: LineNumber): Unit = {
+  def copyFrom(cb: EmitCodeBuilder, statesOffset: Code[Long]): Unit = {
+    implicit val line = cb.lineNumber
     states.toCodeWithArgs(cb,
       Array(statesOffset),
       { case (cb, i, s, Seq(o: Code[Long@unchecked])) => s.copyFrom(cb, storageType.loadField(o, i)) })

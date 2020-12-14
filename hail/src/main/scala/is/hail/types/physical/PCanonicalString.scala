@@ -62,10 +62,10 @@ class PCanonicalString(val required: Boolean) extends PString {
 
   def sType: SStringPointer = SStringPointer(this)
 
-  def loadCheapPCode(cb: EmitCodeBuilder, addr: Code[Long])(implicit line: LineNumber): PCode =
+  def loadCheapPCode(cb: EmitCodeBuilder, addr: Code[Long]): PCode =
     new SStringPointerCode(SStringPointer(this), addr)
 
-  def store(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean)(implicit line: LineNumber): Code[Long] = {
+  def store(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): Code[Long] = {
     value.st match {
       case SStringPointer(t) if t.equalModuloRequired(this) && !deepCopy =>
         value.asInstanceOf[SStringPointerCode].a
@@ -74,7 +74,8 @@ class PCanonicalString(val required: Boolean) extends PString {
     }
   }
 
-  def storeAtAddress(cb: EmitCodeBuilder, addr: Code[Long], region: Value[Region], value: SCode, deepCopy: Boolean)(implicit line: LineNumber): Unit = {
+  def storeAtAddress(cb: EmitCodeBuilder, addr: Code[Long], region: Value[Region], value: SCode, deepCopy: Boolean): Unit = {
+    implicit val line = cb.lineNumber
     cb += Region.storeAddress(addr, store(cb, region, value, deepCopy))
   }
 }

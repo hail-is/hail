@@ -110,7 +110,8 @@ class LinearRegressionAggregator(yt: PFloat64, xt: PCanonicalArray) extends Stag
           k0))
     }
 
-  protected def _initOp(cb: EmitCodeBuilder, state: State, init: Array[EmitCode])(implicit line: LineNumber): Unit = {
+  protected def _initOp(cb: EmitCodeBuilder, state: State, init: Array[EmitCode]): Unit = {
+    implicit val line = cb.lineNumber
     val Array(kt, k0t) = init
     cb += (Code(kt.setup, kt.m) || Code(k0t.setup, k0t.m)).mux(
       Code._fatal[Unit]("linreg: init args may not be missing"),
@@ -162,7 +163,8 @@ class LinearRegressionAggregator(yt: PFloat64, xt: PCanonicalArray) extends Stag
     }
   }
 
-  protected def _seqOp(cb: EmitCodeBuilder, state: State, seq: Array[EmitCode])(implicit line: LineNumber): Unit = {
+  protected def _seqOp(cb: EmitCodeBuilder, state: State, seq: Array[EmitCode]): Unit = {
+    implicit val line = cb.lineNumber
     val Array(y, x) = seq
     cb += (Code(y.setup, y.m) || Code(x.setup, x.m)).mux(
       Code._empty,
@@ -205,11 +207,13 @@ class LinearRegressionAggregator(yt: PFloat64, xt: PCanonicalArray) extends Stag
         optr := optr + scalar.byteSize))))
   }
 
-  protected def _combOp(cb: EmitCodeBuilder, state: State, other: State)(implicit line: LineNumber): Unit = {
+  protected def _combOp(cb: EmitCodeBuilder, state: State, other: State): Unit = {
+    implicit val line = cb.lineNumber
     cb += combOpF(state, other)(cb.emb)
   }
 
-  protected def _result(cb: EmitCodeBuilder, state: State, srvb: StagedRegionValueBuilder)(implicit line: LineNumber): Unit = {
+  protected def _result(cb: EmitCodeBuilder, state: State, srvb: StagedRegionValueBuilder): Unit = {
+    implicit val line = cb.lineNumber
     val res = state.kb.genFieldThisRef[Long]()
     cb += coerce[Unit](Code(
       res := Code.invokeScalaObject4[Region, Long, Long, Int, Long](LinearRegressionAggregator.getClass, "computeResult",

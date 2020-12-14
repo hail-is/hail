@@ -56,8 +56,10 @@ class DownsampleState(val kb: EmitClassBuilder[_], labelType: PArray, maxBufferS
   def newState(off: Code[Long])(implicit line: LineNumber): Code[Unit] =
     region.getNewRegion(regionSize)
 
-  def createState(cb: EmitCodeBuilder)(implicit line: LineNumber): Unit =
+  def createState(cb: EmitCodeBuilder): Unit = {
+    implicit val line = cb.lineNumber
     cb.ifx(region.isNull, cb.assign(r, Region.stagedCreate(regionSize)))
+  }
 
   val binType = PCanonicalStruct(required = true, "x" -> PInt32Required, "y" -> PInt32Required)
   val pointType = PCanonicalStruct(required = true, "x" -> PFloat64Required, "y" -> PFloat64Required, "label" -> labelType)
@@ -167,7 +169,8 @@ class DownsampleState(val kb: EmitClassBuilder[_], labelType: PArray, maxBufferS
       region.isValid.orEmpty(Code(regionStorer(region), region.invalidate())))
   }
 
-  def copyFrom(cb: EmitCodeBuilder, _src: Code[Long])(implicit line: LineNumber): Unit = {
+  def copyFrom(cb: EmitCodeBuilder, _src: Code[Long]): Unit = {
+    implicit val line = cb.lineNumber
     val mb = kb.genEmitMethod("downsample_copy", FastIndexedSeq[ParamType](LongInfo), UnitInfo)
 
     val src = mb.getCodeParam[Long](1)
@@ -493,7 +496,8 @@ class DownsampleState(val kb: EmitClassBuilder[_], labelType: PArray, maxBufferS
     mb.invokeCode(point)
   }
 
-  def merge(cb: EmitCodeBuilder, other: DownsampleState)(implicit line: LineNumber): Unit = {
+  def merge(cb: EmitCodeBuilder, other: DownsampleState): Unit = {
+    implicit val line = cb.lineNumber
     val mb = kb.genEmitMethod("downsample_insert_from", FastIndexedSeq[ParamType](), UnitInfo)
 
     val i = mb.newLocal[Int]("i")
@@ -554,7 +558,8 @@ class DownsampleAggregator(arrayType: PArray) extends StagedAggregator {
   val initOpTypes: Seq[PType] = Array(PInt32(true))
   val seqOpTypes: Seq[PType] = Array(PFloat64(), PFloat64(), PType.canonical(arrayType))
 
-  protected def _initOp(cb: EmitCodeBuilder, state: State, init: Array[EmitCode])(implicit line: LineNumber): Unit = {
+  protected def _initOp(cb: EmitCodeBuilder, state: State, init: Array[EmitCode]): Unit = {
+    implicit val line = cb.lineNumber
     val Array(nDivisions) = init
     cb += Code(
       nDivisions.setup,
@@ -565,7 +570,8 @@ class DownsampleAggregator(arrayType: PArray) extends StagedAggregator {
     )
   }
 
-  protected def _seqOp(cb: EmitCodeBuilder, state: State, seq: Array[EmitCode])(implicit line: LineNumber): Unit = {
+  protected def _seqOp(cb: EmitCodeBuilder, state: State, seq: Array[EmitCode]): Unit = {
+    implicit val line = cb.lineNumber
     val Array(x, y, label) = seq
 
     cb += Code(
@@ -578,8 +584,10 @@ class DownsampleAggregator(arrayType: PArray) extends StagedAggregator {
     )
   }
 
-  protected def _combOp(cb: EmitCodeBuilder, state: State, other: State)(implicit line: LineNumber): Unit = state.merge(cb, other)
+  protected def _combOp(cb: EmitCodeBuilder, state: State, other: State): Unit = state.merge(cb, other)
 
-  protected def _result(cb: EmitCodeBuilder, state: State, srvb: StagedRegionValueBuilder)(implicit line: LineNumber): Unit =
+  protected def _result(cb: EmitCodeBuilder, state: State, srvb: StagedRegionValueBuilder): Unit = {
+    implicit val line = cb.lineNumber
     cb += state.result(cb.emb, srvb, resultType)
+  }
 }

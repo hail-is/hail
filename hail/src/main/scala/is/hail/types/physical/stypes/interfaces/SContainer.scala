@@ -13,14 +13,14 @@ trait SIndexableValue extends SValue {
 
   def isElementDefined(i: Code[Int])(implicit line: LineNumber): Code[Boolean] = !isElementMissing(i)
 
-  def loadElement(cb: EmitCodeBuilder, i: Code[Int])(implicit line: LineNumber): IEmitSCode
+  def loadElement(cb: EmitCodeBuilder, i: Code[Int]): IEmitSCode
 }
 
 trait SIndexableCode extends SCode {
   def loadLength()(implicit line: LineNumber): Code[Int]
 
-  def memoize(cb: EmitCodeBuilder, name: String)(implicit line: LineNumber): SIndexableValue
+  def memoize(cb: EmitCodeBuilder, name: String): SIndexableValue
 
-  def memoizeField(cb: EmitCodeBuilder, name: String)(implicit line: LineNumber): SIndexableValue
+  def memoizeField(cb: EmitCodeBuilder, name: String): SIndexableValue
 }
 

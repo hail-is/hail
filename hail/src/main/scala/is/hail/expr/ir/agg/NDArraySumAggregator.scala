@@ -19,19 +19,21 @@ class NDArraySumAggregator (ndTyp: PNDArray) extends StagedAggregator {
 
   val ndarrayFieldNumber = 0
 
-  override protected def _initOp(cb: EmitCodeBuilder, state: State, init: Array[EmitCode])(implicit line: LineNumber): Unit = {
+  override protected def _initOp(cb: EmitCodeBuilder, state: State, init: Array[EmitCode]): Unit = {
     val initMethod = cb.emb.genEmitMethod[Unit]("ndarray_sum_aggregator_init_op")
-    initMethod.voidWithBuilder(cb =>
+    initMethod.voidWithBuilder(cb => {
+      implicit val line = cb.lineNumber
       cb.append(stateType.setFieldMissing(state.off, ndarrayFieldNumber))
-    )
+    })(cb.lineNumber)
     cb.invokeVoid(initMethod)
   }
 
-  override protected def _seqOp(cb: EmitCodeBuilder, state: State, seq: Array[EmitCode])(implicit line: LineNumber): Unit = {
+  override protected def _seqOp(cb: EmitCodeBuilder, state: State, seq: Array[EmitCode]): Unit = {
     val Array(nextNDCode) = seq
     val seqOpMethod = cb.emb.genEmitMethod("ndarray_sum_aggregator_seq_op", FastIndexedSeq(EmitParamType(nextNDCode.pt)), CodeParamType(UnitInfo))
 
     seqOpMethod.voidWithBuilder(cb => {
+      implicit val line = cb.lineNumber
       val nextNDInput = seqOpMethod.getEmitParam(1)
       val statePV = stateType.loadCheapPCode(cb, state.off).asBaseStruct.memoize(cb, "ndarray_sum_seq_op_state")
       nextNDInput.toI(cb).consume(cb, {}, {case nextNDArrayPCode: PNDArrayCode =>
@@ -53,14 +55,15 @@ class NDArraySumAggregator (ndTyp: PNDArray) extends StagedAggregator {
           }
         )
       })
-    })
+    })(cb.lineNumber)
     cb.invokeVoid(seqOpMethod, nextNDCode)
   }
 
-  override protected def _combOp(cb: EmitCodeBuilder, state: State, other: State)(implicit line: LineNumber): Unit = {
+  override protected def _combOp(cb: EmitCodeBuilder, state: State, other: State): Unit = {
     val combOpMethod = cb.emb.genEmitMethod[Unit]("ndarray_sum_aggregator_comb_op")
 
     combOpMethod.voidWithBuilder(cb => {
+      implicit val line = cb.lineNumber
       val rightPV = stateType.loadCheapPCode(cb, other.off).asBaseStruct.memoize(cb, "ndarray_sum_comb_op_right")
       rightPV.loadField(cb, ndarrayFieldNumber).consume(cb, {},
         { rightNDPC =>
@@ -76,7 +79,7 @@ class NDArraySumAggregator (ndTyp: PNDArray) extends StagedAggregator {
             })
         }
       )
-    })
+    })(cb.lineNumber)
 
     cb.invokeVoid(combOpMethod)
   }
@@ -117,7 +120,8 @@ class NDArraySumAggregator (ndTyp: PNDArray) extends StagedAggregator {
     ))
   }
 
-  override protected def _result(cb: EmitCodeBuilder, state: State, srvb: StagedRegionValueBuilder)(implicit line: LineNumber): Unit = {
+  override protected def _result(cb: EmitCodeBuilder, state: State, srvb: StagedRegionValueBuilder): Unit = {
+    implicit val line = cb.lineNumber
     val t = state.get()
     cb.append(t.setup)
     cb.append(

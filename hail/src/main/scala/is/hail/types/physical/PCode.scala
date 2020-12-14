@@ -22,7 +22,7 @@ trait PValue extends SValue { pValueSelf =>
 
 trait PSettable extends PValue {
 
-  def store(cb: EmitCodeBuilder, v: PCode)(implicit line: LineNumber): Unit
+  def store(cb: EmitCodeBuilder, v: PCode): Unit
 
   def settableTuple(): IndexedSeq[Settable[_]]
 
@@ -65,22 +65,22 @@ abstract class PCode extends SCode { self =>
 
   override def asCall: PCallCode = asInstanceOf[PCallCode]
 
-  override def castTo(cb: EmitCodeBuilder, region: Value[Region], destType: PType)(implicit line: LineNumber): PCode =
+  override def castTo(cb: EmitCodeBuilder, region: Value[Region], destType: PType): PCode =
     castTo(cb, region, destType, false)
 
-  override def castTo(cb: EmitCodeBuilder, region: Value[Region], destType: PType, deepCopy: Boolean)(implicit line: LineNumber): PCode = {
+  override def castTo(cb: EmitCodeBuilder, region: Value[Region], destType: PType, deepCopy: Boolean): PCode = {
     super.castTo(cb, region, destType, deepCopy).asPCode
   }
 
-  override def copyToRegion(cb: EmitCodeBuilder, region: Value[Region])(implicit line: LineNumber): PCode =
+  override def copyToRegion(cb: EmitCodeBuilder, region: Value[Region]): PCode =
     copyToRegion(cb, region, pt)
 
-  override def copyToRegion(cb: EmitCodeBuilder, region: Value[Region], destType: PType)(implicit line: LineNumber): PCode =
+  override def copyToRegion(cb: EmitCodeBuilder, region: Value[Region], destType: PType): PCode =
     super.copyToRegion(cb, region, destType).asPCode
 
-  def memoize(cb: EmitCodeBuilder, name: String)(implicit line: LineNumber): PValue
+  def memoize(cb: EmitCodeBuilder, name: String): PValue
 
-  def memoizeField(cb: EmitCodeBuilder, name: String)(implicit line: LineNumber): PValue
+  def memoizeField(cb: EmitCodeBuilder, name: String): PValue
 
   final def toPCode(cb: EmitCodeBuilder, region: Value[Region]): PCode = this
 }

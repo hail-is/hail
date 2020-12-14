@@ -12,13 +12,13 @@ import is.hail.utils.FastIndexedSeq
 case class SCanonicalShufflePointer(pType: PCanonicalShuffle) extends SShuffle {
   def codeOrdering(mb: EmitMethodBuilder[_], other: SType, so: SortOrder): CodeOrdering = pType.codeOrdering(mb, other.pType, so)
 
-  def coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean)(implicit line: LineNumber): SCode = {
+  def coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = {
     new SCanonicalShufflePointerCode(this, pType.representation.loadCheapPCode(cb, pType.store(cb, region, value, deepCopy)))
   }
 
   def codeTupleTypes(): IndexedSeq[TypeInfo[_]] = FastIndexedSeq(LongInfo, IntInfo, IntInfo)
 
-  def loadFrom(cb: EmitCodeBuilder, region: Value[Region], pt: PType, addr: Code[Long])(implicit line: LineNumber): SCode = {
+  def loadFrom(cb: EmitCodeBuilder, region: Value[Region], pt: PType, addr: Code[Long]): SCode = {
     pt match {
       case t: PCanonicalShuffle =>
         assert(t.equalModuloRequired(this.pType))
@@ -53,7 +53,7 @@ class SCanonicalShufflePointerSettable(val st: SCanonicalShufflePointer, shuffle
 
   def loadBytes()(implicit line: LineNumber): Code[Array[Byte]] = shuffle.loadBytes()
 
-  def store(cb: EmitCodeBuilder, pc: PCode)(implicit line: LineNumber): Unit =
+  def store(cb: EmitCodeBuilder, pc: PCode): Unit =
     shuffle.store(cb, pc.asInstanceOf[SCanonicalShufflePointerCode].shuffle)
 }
 
@@ -64,16 +64,16 @@ class SCanonicalShufflePointerCode(val st: SCanonicalShufflePointer, val shuffle
 
   def codeTuple(): IndexedSeq[Code[_]] = shuffle.codeTuple()
 
-  def memoize(cb: EmitCodeBuilder, name: String, sb: SettableBuilder)(implicit line: LineNumber): SCanonicalShufflePointerSettable = {
+  def memoize(cb: EmitCodeBuilder, name: String, sb: SettableBuilder): SCanonicalShufflePointerSettable = {
     val s = SCanonicalShufflePointerSettable(sb, st, name)
     cb.assign(s, this)
     s
   }
 
-  def memoize(cb: EmitCodeBuilder, name: String)(implicit line: LineNumber): SCanonicalShufflePointerSettable =
+  def memoize(cb: EmitCodeBuilder, name: String): SCanonicalShufflePointerSettable =
     memoize(cb, name, cb.localBuilder)
 
-  def memoizeField(cb: EmitCodeBuilder, name: String)(implicit line: LineNumber): SCanonicalShufflePointerSettable =
+  def memoizeField(cb: EmitCodeBuilder, name: String): SCanonicalShufflePointerSettable =
     memoize(cb, name, cb.fieldBuilder)
 
   def store(mb: EmitMethodBuilder[_], r: Value[Region], dst: Code[Long])(implicit line: LineNumber): Code[Unit] =

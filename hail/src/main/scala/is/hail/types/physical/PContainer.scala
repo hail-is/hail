@@ -94,7 +94,7 @@ abstract class PIndexableValue extends PValue with SIndexableValue
 abstract class PIndexableCode extends PCode with SIndexableCode {
   def pt: PContainer
 
-  def memoize(cb: EmitCodeBuilder, name: String)(implicit line: LineNumber): PIndexableValue
+  def memoize(cb: EmitCodeBuilder, name: String): PIndexableValue
 
-  def memoizeField(cb: EmitCodeBuilder, name: String)(implicit line: LineNumber): PIndexableValue
+  def memoizeField(cb: EmitCodeBuilder, name: String): PIndexableValue
 }

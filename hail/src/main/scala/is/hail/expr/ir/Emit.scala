@@ -201,7 +201,7 @@ class EmitUnrealizableValue(val pt: PType, private val ec: EmitCode) extends Emi
  *     jumping to Lmissing.
  */
 object IEmitCode {
-  def apply[A](cb: EmitCodeBuilder, m: Code[Boolean], value: => A)(implicit line: LineNumber): IEmitCodeGen[A] = {
+  def apply[A](cb: EmitCodeBuilder, m: Code[Boolean], value: => A): IEmitCodeGen[A] = {
     val Lmissing = CodeLabel()
     val Lpresent = CodeLabel()
     cb.ifx(m, { cb.goto(Lmissing) })
@@ -213,7 +213,7 @@ object IEmitCode {
   def apply[A](Lmissing: CodeLabel, Lpresent: CodeLabel, value: A): IEmitCodeGen[A] =
     IEmitCodeGen(Lmissing, Lpresent, value)
 
-  def present[A](cb: EmitCodeBuilder, value: => A)(implicit line: LineNumber): IEmitCodeGen[A] = {
+  def present[A](cb: EmitCodeBuilder, value: => A): IEmitCodeGen[A] = {
     val Lpresent = CodeLabel()
     cb.goto(Lpresent)
     IEmitCodeGen(CodeLabel(), Lpresent, value)
@@ -222,7 +222,6 @@ object IEmitCode {
   def sequence[A, B, C](
     seq: IndexedSeq[A], toIec: A => IEmitCodeGen[B], cb: EmitCodeBuilder
   )(f: IndexedSeq[B] => C
-  )(implicit line: LineNumber
   ): IEmitCodeGen[C] = {
     val Lmissing = CodeLabel()
     val Lpresent = CodeLabel()
@@ -242,7 +241,7 @@ object IEmitCode {
     IEmitCodeGen(Lmissing, Lpresent, pc)
   }
 
-  def flatten[A, B](seq: IndexedSeq[() => IEmitCodeGen[A]], cb: EmitCodeBuilder)(f: IndexedSeq[A] => B)(implicit line: LineNumber): IEmitCodeGen[B] =
+  def flatten[A, B](seq: IndexedSeq[() => IEmitCodeGen[A]], cb: EmitCodeBuilder)(f: IndexedSeq[A] => B): IEmitCodeGen[B] =
     sequence(seq, { (i: () => IEmitCodeGen[A]) => i() }, cb)(f)
 }
 
@@ -251,7 +250,7 @@ object IEmitCodeGen {
     def pc: PCode = iec.value
     def pt: PType = pc.pt
 
-    def memoize(cb: EmitCodeBuilder, name: String)(implicit line: LineNumber): EmitValue =
+    def memoize(cb: EmitCodeBuilder, name: String): EmitValue =
       cb.memoize(iec, name)
   }
 }
@@ -261,7 +260,7 @@ case class IEmitCodeGen[+A](Lmissing: CodeLabel, Lpresent: CodeLabel, value: A) 
   // This method is a very temporary patch until we can properly separate SCode and PCode
   def typecast[T]: IEmitCodeGen[T] = IEmitCodeGen(Lmissing, Lpresent, value.asInstanceOf[T])
 
-  def map[B](cb: EmitCodeBuilder)(f: (A) => B)(implicit line: LineNumber): IEmitCodeGen[B] = {
+  def map[B](cb: EmitCodeBuilder)(f: (A) => B): IEmitCodeGen[B] = {
     val Lpresent2 = CodeLabel()
     cb.define(Lpresent)
     val value2 = f(value)
@@ -269,7 +268,7 @@ case class IEmitCodeGen[+A](Lmissing: CodeLabel, Lpresent: CodeLabel, value: A) 
     IEmitCodeGen(Lmissing, Lpresent2, value2)
   }
 
-  def mapMissing(cb: EmitCodeBuilder)(ifMissing: => Unit)(implicit line: LineNumber): IEmitCodeGen[A] = {
+  def mapMissing(cb: EmitCodeBuilder)(ifMissing: => Unit): IEmitCodeGen[A] = {
     val Lmissing2 = CodeLabel()
     cb.define(Lmissing)
     ifMissing
@@ -277,7 +276,7 @@ case class IEmitCodeGen[+A](Lmissing: CodeLabel, Lpresent: CodeLabel, value: A) 
     IEmitCodeGen(Lmissing2, Lpresent, value)
   }
 
-  def flatMap[B](cb: EmitCodeBuilder)(f: (A) => IEmitCodeGen[B])(implicit line: LineNumber): IEmitCodeGen[B] = {
+  def flatMap[B](cb: EmitCodeBuilder)(f: (A) => IEmitCodeGen[B]): IEmitCodeGen[B] = {
     cb.define(Lpresent)
     val ec2 = f(value)
     cb.define(ec2.Lmissing)
@@ -285,17 +284,19 @@ case class IEmitCodeGen[+A](Lmissing: CodeLabel, Lpresent: CodeLabel, value: A) 
     IEmitCodeGen(Lmissing, ec2.Lpresent, ec2.value)
   }
 
-  def handle(cb: EmitCodeBuilder, ifMissing: => Unit)(implicit line: LineNumber): A = {
+  def handle(cb: EmitCodeBuilder, ifMissing: => Unit): A = {
     cb.define(Lmissing)
     ifMissing
     cb.define(Lpresent)
     value
   }
 
-  def get(cb: EmitCodeBuilder, errorMsg: String = "expected non-missing")(implicit line: LineNumber): A =
+  def get(cb: EmitCodeBuilder, errorMsg: String = "expected non-missing"): A = {
+    implicit val line = cb.lineNumber
     handle(cb, cb._fatal(errorMsg))
+  }
 
-  def consume(cb: EmitCodeBuilder, ifMissing: => Unit, ifPresent: (A) => Unit)(implicit line: LineNumber): Unit = {
+  def consume(cb: EmitCodeBuilder, ifMissing: => Unit, ifPresent: (A) => Unit): Unit = {
     val Lafter = CodeLabel()
     cb.define(Lmissing)
     ifMissing
@@ -305,7 +306,8 @@ case class IEmitCodeGen[+A](Lmissing: CodeLabel, Lpresent: CodeLabel, value: A) 
     cb.define(Lafter)
   }
 
-  def consumePCode(cb: EmitCodeBuilder, ifMissing: => PCode, ifPresent: (A) => PCode)(implicit line: LineNumber): PCode = {
+  def consumePCode(cb: EmitCodeBuilder, ifMissing: => PCode, ifPresent: (A) => PCode): PCode = {
+    implicit val line = cb.lineNumber
     val Lafter = CodeLabel()
     cb.define(Lmissing)
     val missingValue = ifMissing
@@ -321,7 +323,8 @@ case class IEmitCodeGen[+A](Lmissing: CodeLabel, Lpresent: CodeLabel, value: A) 
     ret
   }
 
-  def consumeCode[B: TypeInfo](cb: EmitCodeBuilder, ifMissing: => Code[B], ifPresent: (A) => Code[B])(implicit line: LineNumber): Code[B] = {
+  def consumeCode[B: TypeInfo](cb: EmitCodeBuilder, ifMissing: => Code[B], ifPresent: (A) => Code[B]): Code[B] = {
+    implicit val line = cb.lineNumber
     val ret = cb.emb.newLocal[B]("iec_consumeCode")
     consume(cb, cb.assign(ret, ifMissing), a => cb.assign(ret, ifPresent(a)))
     ret
@@ -382,7 +385,7 @@ case class EmitCode(setup: Code[Unit], m: Code[Boolean], pv: PCode) {
 
   def map(f: PCode => PCode): EmitCode = EmitCode(setup, m, pv = f(pv))
 
-  def toI(cb: EmitCodeBuilder)(implicit line: LineNumber): IEmitCode = {
+  def toI(cb: EmitCodeBuilder): IEmitCode = {
     val Lmissing = CodeLabel()
     val Lpresent = CodeLabel()
     cb += setup
@@ -1748,7 +1751,7 @@ class Emit[C](
     def emitVoid(ir: IR, env: E = env, container: Option[AggContainer] = container, loopEnv: Option[Env[LoopRef]] = loopEnv): Code[Unit] = {
       EmitCodeBuilder.scopedVoid(mb) { cb =>
         this.emitVoid(cb, ir, mb, region, env, container, loopEnv)
-      }
+      }(LineNumber.none) // emitVoid will set line numbers on cb
     }
 
     def emitStream(ir: IR, outerRegion: ParentStagedRegion): EmitCode =

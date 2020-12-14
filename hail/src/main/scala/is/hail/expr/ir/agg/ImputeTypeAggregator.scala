@@ -71,8 +71,8 @@ class ImputeTypeState(kb: EmitClassBuilder[_]) extends PrimitiveRVAState(Array(P
     supportsI32: Code[Boolean],
     supportsI64: Code[Boolean],
     supportsF64: Code[Boolean]
-  )(implicit line: LineNumber
   ): Unit = {
+    implicit val line = cb.lineNumber
 
     cb += repr.store(anyNonMissing.toI
       | (allDefined.toI << 1)
@@ -83,11 +83,13 @@ class ImputeTypeState(kb: EmitClassBuilder[_]) extends PrimitiveRVAState(Array(P
     )
   }
 
-  def initialize(cb: EmitCodeBuilder)(implicit line: LineNumber): Unit = {
+  def initialize(cb: EmitCodeBuilder): Unit = {
+    implicit val line = cb.lineNumber
     setRepr(cb, false, true, true, true, true, true)
   }
 
-  def seqOp(cb: EmitCodeBuilder, ec: EmitCode)(implicit line: LineNumber): Unit = {
+  def seqOp(cb: EmitCodeBuilder, ec: EmitCode): Unit = {
+    implicit val line = cb.lineNumber
     ec.toI(cb)
       .consume(cb,
         cb += repr.store(repr & (~(1 << 1))),
@@ -107,7 +109,8 @@ class ImputeTypeState(kb: EmitClassBuilder[_]) extends PrimitiveRVAState(Array(P
       )
   }
 
-  def combOp(cb: EmitCodeBuilder, other: ImputeTypeState)(implicit line: LineNumber): Unit = {
+  def combOp(cb: EmitCodeBuilder, other: ImputeTypeState): Unit = {
+    implicit val line = cb.lineNumber
     setRepr(cb,
       getAnyNonMissing || other.getAnyNonMissing,
       getAllDefined && other.getAllDefined,
@@ -128,23 +131,24 @@ class ImputeTypeAggregator(st: PType) extends StagedAggregator {
 
   def resultType: PStruct = ImputeTypeState.resultType
 
-  protected def _initOp(cb: EmitCodeBuilder, state: State, init: Array[EmitCode])(implicit line: LineNumber): Unit = {
+  protected def _initOp(cb: EmitCodeBuilder, state: State, init: Array[EmitCode]): Unit = {
     assert(init.length == 0)
     state.initialize(cb)
   }
 
-  protected def _seqOp(cb: EmitCodeBuilder, state: State, seq: Array[EmitCode])(implicit line: LineNumber): Unit = {
+  protected def _seqOp(cb: EmitCodeBuilder, state: State, seq: Array[EmitCode]): Unit = {
     val Array(s) = seq
     assert(s.pt == st)
 
     state.seqOp(cb, s)
   }
 
-  protected def _combOp(cb: EmitCodeBuilder, state: State, other: State)(implicit line: LineNumber): Unit = {
+  protected def _combOp(cb: EmitCodeBuilder, state: State, other: State): Unit = {
     state.combOp(cb, other)
   }
 
-  protected def _result(cb: EmitCodeBuilder, state: State, srvb: StagedRegionValueBuilder)(implicit line: LineNumber): Unit = {
+  protected def _result(cb: EmitCodeBuilder, state: State, srvb: StagedRegionValueBuilder): Unit = {
+    implicit val line = cb.lineNumber
     cb += srvb.addBaseStruct(ImputeTypeState.resultType, { srvb =>
       Code(FastSeq(
         srvb.start(),

@@ -40,7 +40,8 @@ class GroupedBTreeKey(kt: PType, kb: EmitClassBuilder[_], region: Value[Region],
   def loadKey(off: Code[Long])(implicit line: LineNumber): Code[_] =
     Region.loadIRIntermediate(kt)(storageType.fieldOffset(off, 0))
 
-  def initValue(cb: EmitCodeBuilder, destc: Code[Long], km: Code[Boolean], kv: Code[_], rIdx: Code[Int])(implicit line: LineNumber): Unit = {
+  def initValue(cb: EmitCodeBuilder, destc: Code[Long], km: Code[Boolean], kv: Code[_], rIdx: Code[Int]): Unit = {
+    implicit val line = cb.lineNumber
     val dest = cb.newLocal("ga_init_value_dest", destc)
     val koff = storageType.fieldOffset(dest, 0)
     val storeK =
@@ -63,9 +64,9 @@ class GroupedBTreeKey(kt: PType, kb: EmitClassBuilder[_], region: Value[Region],
     container.newState(cb)
   }
 
-  def loadStates(cb: EmitCodeBuilder)(implicit line: LineNumber): Unit = container.load(cb)
-  def storeStates(cb: EmitCodeBuilder)(implicit line: LineNumber): Unit = container.store(cb)
-  def copyStatesFrom(cb: EmitCodeBuilder, srcOff: Code[Long])(implicit line: LineNumber): Unit = container.copyFrom(cb, srcOff)
+  def loadStates(cb: EmitCodeBuilder): Unit = container.load(cb)
+  def storeStates(cb: EmitCodeBuilder): Unit = container.store(cb)
+  def copyStatesFrom(cb: EmitCodeBuilder, srcOff: Code[Long]): Unit = container.copyFrom(cb, srcOff)
 
   def storeRegionIdx(off: Code[Long], idx: Code[Int])(implicit line: LineNumber): Code[Unit] =
     Region.storeInt(storageType.fieldOffset(off, 1), idx)
@@ -120,13 +121,15 @@ class DictState(val kb: EmitClassBuilder[_], val keyType: PType, val nested: Sta
   val keyed = new GroupedBTreeKey(keyType, kb, region, _elt, nested)
   val tree = new AppendOnlyBTree(kb, keyed, region, root, maxElements = 6)
 
-  def initElement(cb: EmitCodeBuilder, eltOff: Code[Long], k: EmitCode)(implicit line: LineNumber): Unit = {
+  def initElement(cb: EmitCodeBuilder, eltOff: Code[Long], k: EmitCode): Unit = {
+    implicit val line = cb.lineNumber
     cb.assign(size, size + 1)
     cb += region.setNumParents((size + 1) * nStates)
     keyed.initValue(cb, _elt, k.m, k.v, size * nStates)
   }
 
-  def loadContainer(cb: EmitCodeBuilder, kec: EmitCode)(implicit line: LineNumber): Unit = {
+  def loadContainer(cb: EmitCodeBuilder, kec: EmitCode): Unit = {
+    implicit val line = cb.lineNumber
     val kev = cb.memoize(kec, "ga_load_cont_k")
     cb.assign(_elt, tree.getOrElseInitialize(cb, kev))
     cb.ifx(keyed.isEmpty(_elt), {
@@ -137,13 +140,13 @@ class DictState(val kb: EmitClassBuilder[_], val keyType: PType, val nested: Sta
     })
   }
 
-  def withContainer(cb: EmitCodeBuilder, k: EmitCode, seqOps: EmitCodeBuilder => Unit)(implicit line: LineNumber): Unit = {
+  def withContainer(cb: EmitCodeBuilder, k: EmitCode, seqOps: EmitCodeBuilder => Unit): Unit = {
     loadContainer(cb, k)
     seqOps(cb)
     keyed.storeStates(cb)
   }
 
-  override def createState(cb: EmitCodeBuilder)(implicit line: LineNumber): Unit = {
+  override def createState(cb: EmitCodeBuilder): Unit = {
     super.createState(cb)
     nested.createStates(cb)
   }
@@ -163,7 +166,8 @@ class DictState(val kb: EmitClassBuilder[_], val keyType: PType, val nested: Sta
       super.store(regionStorer, dest))
   }
 
-  def init(cb: EmitCodeBuilder, initOps: => Unit)(implicit line: LineNumber): Unit = {
+  def init(cb: EmitCodeBuilder, initOps: => Unit): Unit = {
+    implicit val line = cb.lineNumber
     cb += region.setNumParents(nStates)
     cb += (off := region.allocate(typ.alignment, typ.byteSize))
     initContainer.newState(cb)
@@ -173,18 +177,20 @@ class DictState(val kb: EmitClassBuilder[_], val keyType: PType, val nested: Sta
     cb += tree.init
   }
 
-  def combine(cb: EmitCodeBuilder, other: DictState, comb: EmitCodeBuilder => Unit)(implicit line: LineNumber): Unit =
+  def combine(cb: EmitCodeBuilder, other: DictState, comb: EmitCodeBuilder => Unit): Unit =
     other.foreach(cb) { (cb, k) => withContainer(cb, k, comb) }
 
   // loads container; does not update.
-  def foreach(cb: EmitCodeBuilder)(f: (EmitCodeBuilder, EmitCode) => Unit)(implicit line: LineNumber): Unit =
+  def foreach(cb: EmitCodeBuilder)(f: (EmitCodeBuilder, EmitCode) => Unit): Unit =
     tree.foreach(cb) { (cb, kvOff) =>
+      implicit val line = cb.lineNumber
       cb += (_elt := kvOff)
       keyed.loadStates(cb)
       f(cb, EmitCode(Code._empty, keyed.isKeyMissing(_elt), PCode(keyType, keyed.loadKey(_elt))))
     }
 
-  def copyFromAddress(cb: EmitCodeBuilder, srcCode: Code[Long])(implicit line: LineNumber): Unit = {
+  def copyFromAddress(cb: EmitCodeBuilder, srcCode: Code[Long]): Unit = {
+    implicit val line = cb.lineNumber
     val src = cb.newLocal("ga_copy_from_addr_src", srcCode)
     init(cb, initContainer.copyFrom(cb, typ.loadField(src, 0)))
     cb += (size := Region.loadInt(typ.loadField(src, 1)))
@@ -262,23 +268,26 @@ class GroupedAggregator(kt: PType, nestedAggs: Array[StagedAggregator]) extends 
   val initOpTypes: Seq[PType] = Array(PVoid)
   val seqOpTypes: Seq[PType] = Array(kt, PVoid)
 
-  protected def _initOp(cb: EmitCodeBuilder, state: State, init: Array[EmitCode])(implicit line: LineNumber): Unit = {
+  protected def _initOp(cb: EmitCodeBuilder, state: State, init: Array[EmitCode]): Unit = {
+    implicit val line = cb.lineNumber
     val Array(inits) = init
     state.init(cb, cb += inits.asVoid())
   }
 
-  protected def _seqOp(cb: EmitCodeBuilder, state: State, seq: Array[EmitCode])(implicit line: LineNumber): Unit = {
+  protected def _seqOp(cb: EmitCodeBuilder, state: State, seq: Array[EmitCode]): Unit = {
+    implicit val line = cb.lineNumber
     val Array(key, seqs) = seq
     state.withContainer(cb, key, (cb) => cb += seqs.asVoid())
   }
 
-  protected def _combOp(cb: EmitCodeBuilder, state: State, other: State)(implicit line: LineNumber): Unit = {
+  protected def _combOp(cb: EmitCodeBuilder, state: State, other: State): Unit = {
     state.combine(cb, other, { cb =>
       state.nested.toCode(cb, (cb, i, s) => nestedAggs(i).combOp(cb, s, other.nested(i)))
     })
   }
 
-  protected def _result(cb: EmitCodeBuilder, state: State, srvb: StagedRegionValueBuilder)(implicit line: LineNumber): Unit = {
+  protected def _result(cb: EmitCodeBuilder, state: State, srvb: StagedRegionValueBuilder): Unit = {
+    implicit val line = cb.lineNumber
     cb += srvb.addArray(resultType.arrayFundamentalType, sab => EmitCodeBuilder.scopedVoid(cb.emb) { cb =>
       cb += sab.start(state.size)
       state.foreach(cb) { (cb, k) =>

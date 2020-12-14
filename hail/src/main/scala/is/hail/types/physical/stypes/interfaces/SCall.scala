@@ -11,7 +11,7 @@ trait SCallValue extends SValue {
 
   def isPhased()(implicit line: LineNumber): Code[Boolean]
 
-  def forEachAllele(cb: EmitCodeBuilder)(alleleCode: Value[Int] => Unit)(implicit line: LineNumber): Unit
+  def forEachAllele(cb: EmitCodeBuilder)(alleleCode: Value[Int] => Unit): Unit
 }
 
 trait SCallCode extends SCode {
@@ -19,7 +19,7 @@ trait SCallCode extends SCode {
 
   def isPhased()(implicit line: LineNumber): Code[Boolean]
 
-  def memoize(cb: EmitCodeBuilder, name: String)(implicit line: LineNumber): SCallValue
+  def memoize(cb: EmitCodeBuilder, name: String): SCallValue
 
-  def memoizeField(cb: EmitCodeBuilder, name: String)(implicit line: LineNumber): SCallValue
+  def memoizeField(cb: EmitCodeBuilder, name: String): SCallValue
 }

@@ -13,7 +13,7 @@ trait SShuffleValue extends SValue {
 }
 
 trait SShuffleCode extends SCode {
-  def memoize(cb: EmitCodeBuilder, name: String)(implicit line: LineNumber): SShuffleValue
+  def memoize(cb: EmitCodeBuilder, name: String): SShuffleValue
 
-  def memoizeField(cb: EmitCodeBuilder, name: String)(implicit line: LineNumber): SShuffleValue
+  def memoizeField(cb: EmitCodeBuilder, name: String): SShuffleValue
 }

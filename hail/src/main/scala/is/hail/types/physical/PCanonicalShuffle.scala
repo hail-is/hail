@@ -46,22 +46,22 @@ final case class PCanonicalShuffle(
   def unstagedStoreAtAddress(addr: Long, region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Unit =
     this.representation.unstagedStoreAtAddress(addr, region, srcPType.fundamentalType, srcAddress, deepCopy)
 
-  def loadBinary(cb: EmitCodeBuilder, addr: Code[Long])(implicit line: LineNumber): SBinaryPointerCode =
+  def loadBinary(cb: EmitCodeBuilder, addr: Code[Long]): SBinaryPointerCode =
     representation.loadCheapPCode(cb, addr)
 
   def sType: SCanonicalShufflePointer = SCanonicalShufflePointer(this)
 
-  def loadCheapPCode(cb: EmitCodeBuilder, addr: Code[Long])(implicit line: LineNumber): PCode =
+  def loadCheapPCode(cb: EmitCodeBuilder, addr: Code[Long]): PCode =
     new SCanonicalShufflePointerCode(sType, representation.loadCheapPCode(cb, addr))
 
-  def store(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean)(implicit line: LineNumber): Code[Long] = {
+  def store(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): Code[Long] = {
     value.st match {
       case SCanonicalShufflePointer(t) =>
         representation.store(cb, region, value.asInstanceOf[SCanonicalShufflePointerCode].shuffle, deepCopy)
     }
   }
 
-  def storeAtAddress(cb: EmitCodeBuilder, addr: Code[Long], region: Value[Region], value: SCode, deepCopy: Boolean)(implicit line: LineNumber): Unit = {
+  def storeAtAddress(cb: EmitCodeBuilder, addr: Code[Long], region: Value[Region], value: SCode, deepCopy: Boolean): Unit = {
     value.st match {
       case SCanonicalShufflePointer(t) =>
         representation.storeAtAddress(cb, addr, region, value.asInstanceOf[SCanonicalShufflePointerCode].shuffle, deepCopy)

@@ -222,10 +222,13 @@ class AppendOnlyBTree(kb: EmitClassBuilder[_], key: BTreeKey, region: Value[Regi
 
   def init(implicit line: LineNumber): Code[Unit] = createNode(root)
 
-  def getOrElseInitialize(cb: EmitCodeBuilder, k: EmitCode)(implicit line: LineNumber): Code[Long] =
+  def getOrElseInitialize(cb: EmitCodeBuilder, k: EmitCode): Code[Long] = {
+    implicit val line = cb.lineNumber
     cb.invokeCode(getF, root, k)
+  }
 
-  def foreach(cb: EmitCodeBuilder)(visitor: (EmitCodeBuilder, Code[Long]) => Unit)(implicit line: LineNumber): Unit = {
+  def foreach(cb: EmitCodeBuilder)(visitor: (EmitCodeBuilder, Code[Long]) => Unit): Unit = {
+    implicit val line = cb.lineNumber
     val stackI = cb.newLocal[Int]("btree_foreach_stack_i", -1)
     val nodeStack = cb.newLocal("btree_foreach_node_stack", Code.newArray[Long](const(128)))
     val idxStack = cb.newLocal("btree_foreach_index_stack", Code.newArray[Int](const(128)))

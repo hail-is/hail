@@ -112,7 +112,7 @@ abstract class PIntervalValue extends PValue with SIntervalValue {
 abstract class PIntervalCode extends PCode with SIntervalCode {
   def pt: PInterval
 
-  def memoize(cb: EmitCodeBuilder, name: String)(implicit line: LineNumber): PIntervalValue
+  def memoize(cb: EmitCodeBuilder, name: String): PIntervalValue
 
-  def memoizeField(cb: EmitCodeBuilder, name: String)(implicit line: LineNumber): PIntervalValue
+  def memoizeField(cb: EmitCodeBuilder, name: String): PIntervalValue
 }

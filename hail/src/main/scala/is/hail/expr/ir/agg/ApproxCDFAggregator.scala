@@ -52,8 +52,10 @@ class ApproxCDFState(val kb: EmitClassBuilder[_]) extends AggregatorState {
   def newState(off: Code[Long])(implicit line: LineNumber): Code[Unit] =
     region.getNewRegion(regionSize)
 
-  def createState(cb: EmitCodeBuilder)(implicit line: LineNumber): Unit =
+  def createState(cb: EmitCodeBuilder): Unit = {
+    implicit val line = cb.lineNumber
     cb.ifx(region.isNull, cb.assign(r, Region.stagedCreate(regionSize)))
+  }
 
   override def load(regionLoader: Value[Region] => Code[Unit], src: Code[Long])(implicit line: LineNumber): Code[Unit] =
     Code.memoize(src, "acdfa_load_src") { src =>
@@ -101,7 +103,8 @@ class ApproxCDFState(val kb: EmitClassBuilder[_]) extends AggregatorState {
         ))
   }
 
-  override def copyFrom(cb: EmitCodeBuilder, src: Code[Long])(implicit line: LineNumber): Unit = {
+  override def copyFrom(cb: EmitCodeBuilder, src: Code[Long]): Unit = {
+    implicit val line = cb.lineNumber
     cb += Code(
       k := Region.loadInt(kOffset(src)),
       aggr := Code.newInstance[ApproxCDFStateManager, Int](k),
@@ -118,7 +121,8 @@ class ApproxCDFAggregator extends StagedAggregator {
   val initOpTypes: Seq[PType] = FastSeq(PInt32Required)
   val seqOpTypes: Seq[PType] = FastSeq(PFloat64())
 
-  protected def _initOp(cb: EmitCodeBuilder, state: State, init: Array[EmitCode])(implicit line: LineNumber): Unit = {
+  protected def _initOp(cb: EmitCodeBuilder, state: State, init: Array[EmitCode]): Unit = {
+    implicit val line = cb.lineNumber
     val Array(k) = init
     cb += Code(
       k.setup,
@@ -128,7 +132,8 @@ class ApproxCDFAggregator extends StagedAggregator {
       ))
   }
 
-  protected def _seqOp(cb: EmitCodeBuilder, state: State, seq: Array[EmitCode])(implicit line: LineNumber): Unit = {
+  protected def _seqOp(cb: EmitCodeBuilder, state: State, seq: Array[EmitCode]): Unit = {
+    implicit val line = cb.lineNumber
     val Array(x) = seq
     cb += Code(
       x.setup,
@@ -138,11 +143,13 @@ class ApproxCDFAggregator extends StagedAggregator {
       ))
   }
 
-  protected def _combOp(cb: EmitCodeBuilder, state: State, other: State)(implicit line: LineNumber): Unit = {
+  protected def _combOp(cb: EmitCodeBuilder, state: State, other: State): Unit = {
+    implicit val line = cb.lineNumber
     cb += state.comb(other)
   }
 
-  protected def _result(cb: EmitCodeBuilder, state: State, srvb: StagedRegionValueBuilder)(implicit line: LineNumber): Unit = {
+  protected def _result(cb: EmitCodeBuilder, state: State, srvb: StagedRegionValueBuilder): Unit = {
+    implicit val line = cb.lineNumber
     cb += state.result(srvb)
   }
 }

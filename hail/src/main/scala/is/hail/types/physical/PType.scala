@@ -450,13 +450,13 @@ abstract class PType extends Serializable with Requiredness {
   }
 
   // return a PCode that can cheaply operate on the region representation. Generally a pointer type, but not necessarily (e.g. primitives).
-  def loadCheapPCode(cb: EmitCodeBuilder, addr: Code[Long])(implicit line: LineNumber): PCode
+  def loadCheapPCode(cb: EmitCodeBuilder, addr: Code[Long]): PCode
 
   // stores a stack value as a region value of this type
-  def store(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean)(implicit line: LineNumber): Code[Long]
+  def store(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): Code[Long]
 
   // stores a stack value inside pre-allocated memory of this type (in a nested structure, for instance).
-  def storeAtAddress(cb: EmitCodeBuilder, addr: Code[Long], region: Value[Region], value: SCode, deepCopy: Boolean)(implicit line: LineNumber): Unit
+  def storeAtAddress(cb: EmitCodeBuilder, addr: Code[Long], region: Value[Region], value: SCode, deepCopy: Boolean): Unit
 
   def unstagedStoreAtAddress(addr: Long, region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Unit
 

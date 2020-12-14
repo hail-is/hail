@@ -117,7 +117,7 @@ abstract class PBinaryCode extends PCode with SBinaryCode {
 
   def loadBytes()(implicit line: LineNumber): Code[Array[Byte]]
 
-  def memoize(cb: EmitCodeBuilder, name: String)(implicit line: LineNumber): PBinaryValue
+  def memoize(cb: EmitCodeBuilder, name: String): PBinaryValue
 
-  def memoizeField(cb: EmitCodeBuilder, name: String)(implicit line: LineNumber): PBinaryValue
+  def memoizeField(cb: EmitCodeBuilder, name: String): PBinaryValue
 }

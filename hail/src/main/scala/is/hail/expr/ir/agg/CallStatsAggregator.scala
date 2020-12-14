@@ -84,7 +84,8 @@ class CallStatsState(val kb: EmitClassBuilder[_]) extends PointerBasedRVAState {
     }
   }
 
-  def copyFromAddress(cb: EmitCodeBuilder, src: Code[Long])(implicit line: LineNumber): Unit = {
+  def copyFromAddress(cb: EmitCodeBuilder, src: Code[Long]): Unit = {
+    implicit val line = cb.lineNumber
     cb += Code(
       off := StagedRegionValueBuilder.deepCopyFromOffset(kb, region, CallStatsState.stateType, src),
       loadNAlleles
@@ -100,7 +101,8 @@ class CallStatsAggregator(t: PCall) extends StagedAggregator {
   val initOpTypes: Seq[PType] = FastSeq(PInt32(true))
   val seqOpTypes: Seq[PType] = FastSeq(t)
 
-  protected def _initOp(cb: EmitCodeBuilder, state: State, init: Array[EmitCode])(implicit line: LineNumber): Unit = {
+  protected def _initOp(cb: EmitCodeBuilder, state: State, init: Array[EmitCode]): Unit = {
+    implicit val line = cb.lineNumber
     val Array(nAlleles) = init
     val addr = state.kb.genFieldThisRef[Long]()
     val n = state.kb.genFieldThisRef[Int]()
@@ -129,7 +131,8 @@ class CallStatsAggregator(t: PCall) extends StagedAggregator {
     ))
   }
 
-  protected def _seqOp(cb: EmitCodeBuilder, state: State, seq: Array[EmitCode])(implicit line: LineNumber): Unit = {
+  protected def _seqOp(cb: EmitCodeBuilder, state: State, seq: Array[EmitCode]): Unit = {
+    implicit val line = cb.lineNumber
     val Array(call) = seq
     assert(t == call.pv.pt)
 
@@ -152,7 +155,8 @@ class CallStatsAggregator(t: PCall) extends StagedAggregator {
     })
   }
 
-  protected def _combOp(cb: EmitCodeBuilder, state: State, other: State)(implicit line: LineNumber): Unit = {
+  protected def _combOp(cb: EmitCodeBuilder, state: State, other: State): Unit = {
+    implicit val line = cb.lineNumber
     val i = state.kb.genFieldThisRef[Int]()
     cb += Code(
       other.nAlleles.cne(state.nAlleles).orEmpty(Code._fatal[Unit]("length mismatch")),
@@ -166,7 +170,8 @@ class CallStatsAggregator(t: PCall) extends StagedAggregator {
   }
 
 
-  protected def _result(cb: EmitCodeBuilder, state: State, srvb: StagedRegionValueBuilder)(implicit line: LineNumber): Unit = {
+  protected def _result(cb: EmitCodeBuilder, state: State, srvb: StagedRegionValueBuilder): Unit = {
+    implicit val line = cb.lineNumber
     val alleleNumber = state.kb.genFieldThisRef[Int]()
     val i = state.kb.genFieldThisRef[Int]()
     val x = state.kb.genFieldThisRef[Int]()

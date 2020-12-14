@@ -89,7 +89,8 @@ class AppendOnlySetState(val kb: EmitClassBuilder[_], t: PType) extends PointerB
   private val _elt = kb.genFieldThisRef[Long]()
   private val _v = kb.newEmitField(t)
 
-  def insert(cb: EmitCodeBuilder, v: EmitCode)(implicit line: LineNumber): Unit = {
+  def insert(cb: EmitCodeBuilder, v: EmitCode): Unit = {
+    implicit val line = cb.lineNumber
     cb.assign(_v, v)
     cb.assign(_elt, tree.getOrElseInitialize(cb, _v))
     cb.ifx(key.isEmpty(_elt), {
@@ -99,13 +100,16 @@ class AppendOnlySetState(val kb: EmitClassBuilder[_], t: PType) extends PointerB
   }
 
   // loads container; does not update.
-  def foreach(cb: EmitCodeBuilder)(f: (EmitCodeBuilder, EmitCode) => Unit)(implicit line: LineNumber): Unit =
+  def foreach(cb: EmitCodeBuilder)(f: (EmitCodeBuilder, EmitCode) => Unit): Unit = {
+    implicit val line = cb.lineNumber
     tree.foreach(cb) { (cb, eoffCode) =>
       val eoff = cb.newLocal("casa_foreach_eoff", eoffCode)
       f(cb, EmitCode(Code._empty, key.isKeyMissing(eoff), PCode(t, key.loadKey(eoff))))
     }
+  }
 
-  def copyFromAddress(cb: EmitCodeBuilder, src: Code[Long])(implicit line: LineNumber): Unit =
+  def copyFromAddress(cb: EmitCodeBuilder, src: Code[Long]): Unit = {
+    implicit val line = cb.lineNumber
     cb += Code.memoize(src, "aoss_copy_from_addr_src") { src =>
       Code(
         off := region.allocate(typ.alignment, typ.byteSize),
@@ -113,6 +117,7 @@ class AppendOnlySetState(val kb: EmitClassBuilder[_], t: PType) extends PointerB
         tree.init,
         tree.deepCopy(Region.loadAddress(typ.loadField(src, 1))))
     }
+  }
 
   def serialize(codec: BufferSpec)(implicit line: LineNumber): (EmitCodeBuilder, Value[OutputBuffer]) => Unit = {
     val kEnc = et.buildEncoderMethod(t, kb)
@@ -155,22 +160,26 @@ class CollectAsSetAggregator(t: PType) extends StagedAggregator {
   val initOpTypes: Seq[PType] = Array[PType]()
   val seqOpTypes: Seq[PType] = Array[PType](t)
 
-  protected def _initOp(cb: EmitCodeBuilder, state: State, init: Array[EmitCode])(implicit line: LineNumber): Unit = {
+  protected def _initOp(cb: EmitCodeBuilder, state: State, init: Array[EmitCode]): Unit = {
     assert(init.length == 0)
+    implicit val line = cb.lineNumber
     cb += state.init
   }
 
-  protected def _seqOp(cb: EmitCodeBuilder, state: State, seq: Array[EmitCode])(implicit line: LineNumber): Unit = {
+  protected def _seqOp(cb: EmitCodeBuilder, state: State, seq: Array[EmitCode]): Unit = {
+    implicit val line = cb.lineNumber
     val Array(elt) = seq
     state.insert(cb, elt)
   }
 
-  protected def _combOp(cb: EmitCodeBuilder, state: State, other: State)(implicit line: LineNumber): Unit =
+  protected def _combOp(cb: EmitCodeBuilder, state: State, other: State): Unit =
     other.foreach(cb) { (cb, k) => state.insert(cb, k) }
 
-  protected def _result(cb: EmitCodeBuilder, state: State, srvb: StagedRegionValueBuilder)(implicit line: LineNumber): Unit =
+  protected def _result(cb: EmitCodeBuilder, state: State, srvb: StagedRegionValueBuilder): Unit = {
+    implicit val line = cb.lineNumber
     cb += srvb.addArray(resultType.arrayFundamentalType, { sab =>
       EmitCodeBuilder.scopedVoid(cb.emb) { cb =>
+        implicit val line = cb.lineNumber
         cb += sab.start(state.size)
         state.foreach(cb) { (cb, k) =>
           cb.ifx(k.m, {
@@ -182,4 +191,5 @@ class CollectAsSetAggregator(t: PType) extends StagedAggregator {
         }
       }
     })
+  }
 }

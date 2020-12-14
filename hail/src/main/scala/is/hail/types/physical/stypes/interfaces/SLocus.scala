@@ -23,7 +23,7 @@ trait SLocusCode extends SCode {
 
   def getLocusObj(cb: EmitCodeBuilder)(implicit line: LineNumber): Code[Locus]
 
-  def memoize(cb: EmitCodeBuilder, name: String)(implicit line: LineNumber): SLocusValue
+  def memoize(cb: EmitCodeBuilder, name: String): SLocusValue
 
-  def memoizeField(cb: EmitCodeBuilder, name: String)(implicit line: LineNumber): SLocusValue
+  def memoizeField(cb: EmitCodeBuilder, name: String): SLocusValue
 }

@@ -74,5 +74,5 @@ abstract class PNDArrayValue extends PValue with SNDArrayValue {
 abstract class PNDArrayCode extends PCode with SNDArrayCode {
   def pt: PNDArray
 
-  def memoize(cb: EmitCodeBuilder, name: String)(implicit line: LineNumber): PNDArrayValue
+  def memoize(cb: EmitCodeBuilder, name: String): PNDArrayValue
 }

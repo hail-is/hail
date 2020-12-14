@@ -102,7 +102,8 @@ abstract class PCanonicalBaseStruct(val types: Array[PType]) extends PBaseStruct
     }
   }
 
-  def deepPointerCopy(cb: EmitCodeBuilder, region: Value[Region], dstStructAddress: Code[Long])(implicit line: LineNumber): Unit = {
+  def deepPointerCopy(cb: EmitCodeBuilder, region: Value[Region], dstStructAddress: Code[Long]): Unit = {
+    implicit val line = cb.lineNumber
     val dstAddr = cb.newLocal[Long]("pcbs_dpcopy_dst", dstStructAddress)
     fields.foreach { f =>
       val dstFieldType = f.typ.fundamentalType
@@ -170,10 +171,11 @@ abstract class PCanonicalBaseStruct(val types: Array[PType]) extends PBaseStruct
 
   def sType: SStruct = SBaseStructPointer(this)
 
-  def loadCheapPCode(cb: EmitCodeBuilder, addr: Code[Long])(implicit line: LineNumber): PCode =
+  def loadCheapPCode(cb: EmitCodeBuilder, addr: Code[Long]): PCode =
     new SBaseStructPointerCode(SBaseStructPointer(this), addr)
 
-  def store(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean)(implicit line: LineNumber): Code[Long] = {
+  def store(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): Code[Long] = {
+    implicit val line = cb.lineNumber
     value.st match {
       case SBaseStructPointer(t) if t.equalModuloRequired(this) && !deepCopy =>
         value.asInstanceOf[SBaseStructPointerCode].a
@@ -185,7 +187,8 @@ abstract class PCanonicalBaseStruct(val types: Array[PType]) extends PBaseStruct
     }
   }
 
-  def storeAtAddress(cb: EmitCodeBuilder, addr: Code[Long], region: Value[Region], value: SCode, deepCopy: Boolean)(implicit line: LineNumber): Unit = {
+  def storeAtAddress(cb: EmitCodeBuilder, addr: Code[Long], region: Value[Region], value: SCode, deepCopy: Boolean): Unit = {
+    implicit val line = cb.lineNumber
     value.st match {
       case SBaseStructPointer(t) if t.equalModuloRequired(this) =>
         val pcs = value.asBaseStruct.memoize(cb, "pcbasestruct_store_src").asInstanceOf[SBaseStructPointerSettable]

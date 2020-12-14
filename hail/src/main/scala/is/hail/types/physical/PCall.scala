@@ -14,7 +14,7 @@ abstract class PCallValue extends PValue with SCallValue {
 
   def isPhased()(implicit line: LineNumber): Code[Boolean]
 
-  def forEachAllele(cb: EmitCodeBuilder)(alleleCode: Value[Int] => Unit)(implicit line: LineNumber): Unit
+  def forEachAllele(cb: EmitCodeBuilder)(alleleCode: Value[Int] => Unit): Unit
 }
 
 abstract class PCallCode extends PCode with SCallCode {
@@ -24,7 +24,7 @@ abstract class PCallCode extends PCode with SCallCode {
 
   def isPhased()(implicit line: LineNumber): Code[Boolean]
 
-  def memoize(cb: EmitCodeBuilder, name: String)(implicit line: LineNumber): PCallValue
+  def memoize(cb: EmitCodeBuilder, name: String): PCallValue
 
-  def memoizeField(cb: EmitCodeBuilder, name: String)(implicit line: LineNumber): PCallValue
+  def memoizeField(cb: EmitCodeBuilder, name: String): PCallValue
 }

@@ -37,12 +37,15 @@ class PBoolean(override val required: Boolean) extends PType with PPrimitive {
 
   def sType: SBoolean = SBoolean(required)
 
-  def storePrimitiveAtAddress(cb: EmitCodeBuilder, addr: Code[Long], value: SCode)(implicit line: LineNumber): Unit = {
+  def storePrimitiveAtAddress(cb: EmitCodeBuilder, addr: Code[Long], value: SCode): Unit = {
+    implicit val line = cb.lineNumber
     cb += Region.storeBoolean(addr, value.asBoolean.boolCode(cb))
   }
 
-  override def loadCheapPCode(cb: EmitCodeBuilder, addr: Code[Long])(implicit line: LineNumber): PCode =
+  override def loadCheapPCode(cb: EmitCodeBuilder, addr: Code[Long]): PCode = {
+    implicit val line = cb.lineNumber
     new SBooleanCode(required, Region.loadBoolean(addr))
+  }
 }
 
 object PBoolean {

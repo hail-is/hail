@@ -13,7 +13,7 @@ case class SBoolean(required: Boolean) extends SType {
 
   def codeOrdering(mb: EmitMethodBuilder[_], other: SType, so: SortOrder): CodeOrdering = pType.codeOrdering(mb, other.pType, so)
 
-  def coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean)(implicit line: LineNumber): SCode = {
+  def coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = {
     value.st match {
       case SBoolean(_) =>
         value.asInstanceOf[SBooleanCode]
@@ -22,7 +22,8 @@ case class SBoolean(required: Boolean) extends SType {
 
   def codeTupleTypes(): IndexedSeq[TypeInfo[_]] = FastIndexedSeq(BooleanInfo)
 
-  def loadFrom(cb: EmitCodeBuilder, region: Value[Region], pt: PType, addr: Code[Long])(implicit line: LineNumber): SCode = {
+  def loadFrom(cb: EmitCodeBuilder, region: Value[Region], pt: PType, addr: Code[Long]): SCode = {
+    implicit val line = cb.lineNumber
     pt match {
       case PBoolean(_) =>
         new SBooleanCode(required: Boolean, Region.loadBoolean(addr))
@@ -37,16 +38,16 @@ class SBooleanCode(required: Boolean, val code: Code[Boolean]) extends PCode {
 
   def codeTuple(): IndexedSeq[Code[_]] = FastIndexedSeq(code)
 
-  private[this] def memoizeWithBuilder(cb: EmitCodeBuilder, name: String, sb: SettableBuilder)(implicit line: LineNumber): SBooleanSettable = {
+  private[this] def memoizeWithBuilder(cb: EmitCodeBuilder, name: String, sb: SettableBuilder): SBooleanSettable = {
     val s = new SBooleanSettable(required, sb.newSettable[Boolean]("sboolean_memoize"))
     s.store(cb, this)
     s
   }
 
-  def memoize(cb: EmitCodeBuilder, name: String)(implicit line: LineNumber): SBooleanSettable =
+  def memoize(cb: EmitCodeBuilder, name: String): SBooleanSettable =
     memoizeWithBuilder(cb, name, cb.localBuilder)
 
-  def memoizeField(cb: EmitCodeBuilder, name: String)(implicit line: LineNumber): SBooleanSettable =
+  def memoizeField(cb: EmitCodeBuilder, name: String): SBooleanSettable =
     memoizeWithBuilder(cb, name, cb.fieldBuilder)
 
   def boolCode(cb: EmitCodeBuilder): Code[Boolean] = code
@@ -63,7 +64,7 @@ class SBooleanSettable(required: Boolean, x: Settable[Boolean]) extends PValue w
 
   def st: SBoolean = SBoolean(required)
 
-  def store(cb: EmitCodeBuilder, v: PCode)(implicit line: LineNumber): Unit =
+  def store(cb: EmitCodeBuilder, v: PCode): Unit =
     cb.assign(x, v.asBoolean.boolCode(cb))
 
   def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(x)

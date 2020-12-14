@@ -11,8 +11,9 @@ object CodeBuilder {
 
   def apply(mb: MethodBuilder[_], code: Code[Unit]): CodeBuilder = new CodeBuilder(mb, code)
 
-  def scoped[T](mb: MethodBuilder[_])(f: (CodeBuilder) => T): (Code[Unit], T) = {
+  def scoped[T](mb: MethodBuilder[_])(f: (CodeBuilder) => T)(implicit line: LineNumber): (Code[Unit], T) = {
     val cb = CodeBuilder(mb)
+    cb.lineNumber = line
     val t = f(cb)
     (cb.result(), t)
   }
@@ -22,7 +23,7 @@ object CodeBuilder {
     Code(cbcode, retcode)
   }
 
-  def scopedVoid[T](mb: MethodBuilder[_])(f: (CodeBuilder) => Unit): Code[Unit] = {
+  def scopedVoid[T](mb: MethodBuilder[_])(f: (CodeBuilder) => Unit)(implicit line: LineNumber): Code[Unit] = {
     val (cbcode, _) = CodeBuilder.scoped(mb)(f)
     cbcode
   }
@@ -33,11 +34,13 @@ trait CodeBuilderLike {
 
   def isOpenEnded: Boolean
 
+  var lineNumber: LineNumber = LineNumber.none
+
   // def code: Code[Unit] // debugging only
 
-  protected def uncheckedAppend(c: Code[Unit])(implicit line: LineNumber): Unit
+  protected def uncheckedAppend(c: Code[Unit]): Unit
 
-  def append(c: Code[Unit])(implicit line: LineNumber): Unit = {
+  def append(c: Code[Unit]): Unit = {
     // if (!isOpenEnded) { // stack in lir.Block (X.scala)
     //   println(code.end.stack.mkString("\n"))
     // }
@@ -45,7 +48,7 @@ trait CodeBuilderLike {
     uncheckedAppend(c)
   }
 
-  def define(L: CodeLabel)(implicit line: LineNumber): Unit = {
+  def define(L: CodeLabel): Unit = {
     uncheckedAppend(L)
   }
 
@@ -55,17 +58,20 @@ trait CodeBuilderLike {
 
   def fieldBuilder: SettableBuilder = mb.fieldBuilder
 
-  def +=(c: Code[Unit])(implicit line: LineNumber): Unit = append(c)
+  def +=(c: Code[Unit]): Unit = append(c)
 
-  def assign[T](s: Settable[T], v: Code[T])(implicit line: LineNumber): Unit = {
+  def assign[T](s: Settable[T], v: Code[T]): Unit = {
+    implicit val line = lineNumber
     append(s := v)
   }
 
-  def assignAny[T](s: Settable[T], v: Code[_])(implicit line: LineNumber): Unit = {
+  def assignAny[T](s: Settable[T], v: Code[_]): Unit = {
+    implicit val line = lineNumber
     append(s := coerce[T](v))
   }
 
-  def ifx(c: Code[Boolean], emitThen: => Unit)(implicit line: LineNumber): Unit = {
+  def ifx(c: Code[Boolean], emitThen: => Unit): Unit = {
+    implicit val line = lineNumber
     val Ltrue = CodeLabel()
     val Lafter = CodeLabel()
     append(c.mux(Ltrue.goto, Lafter.goto))
@@ -74,7 +80,8 @@ trait CodeBuilderLike {
     define(Lafter)
   }
 
-  def ifx(c: Code[Boolean], emitThen: => Unit, emitElse: => Unit)(implicit line: LineNumber): Unit = {
+  def ifx(c: Code[Boolean], emitThen: => Unit, emitElse: => Unit): Unit = {
+    implicit val line = lineNumber
     val Ltrue = CodeLabel()
     val Lfalse = CodeLabel()
     val Lafter = CodeLabel()
@@ -87,7 +94,8 @@ trait CodeBuilderLike {
     define(Lafter)
   }
 
-  def whileLoop(c: Code[Boolean], emitBody: (CodeLabel) => Unit)(implicit line: LineNumber): Unit = {
+  def whileLoop(c: Code[Boolean], emitBody: (CodeLabel) => Unit): Unit = {
+    implicit val line = lineNumber
     val Lstart = CodeLabel()
     val Lbody = CodeLabel()
     val Lafter = CodeLabel()
@@ -99,9 +107,10 @@ trait CodeBuilderLike {
     define(Lafter)
   }
 
-  def whileLoop(c: Code[Boolean], emitBody: => Unit)(implicit line: LineNumber): Unit = whileLoop(c, _ => emitBody)
+  def whileLoop(c: Code[Boolean], emitBody: => Unit): Unit = whileLoop(c, _ => emitBody)
 
-  def forLoop(setup: => Unit, cond: Code[Boolean], incr: => Unit, emitBody: (CodeLabel) => Unit)(implicit line: LineNumber): Unit = {
+  def forLoop(setup: => Unit, cond: Code[Boolean], incr: => Unit, emitBody: (CodeLabel) => Unit): Unit = {
+    implicit val line = lineNumber
     val Lstart = CodeLabel()
     val Lbody = CodeLabel()
     val Lafter = CodeLabel()
@@ -118,40 +127,48 @@ trait CodeBuilderLike {
     define(Lafter)
   }
 
-  def forLoop(setup: => Unit, cond: Code[Boolean], incr: => Unit, emitBody: => Unit)(implicit line: LineNumber): Unit =
+  def forLoop(setup: => Unit, cond: Code[Boolean], incr: => Unit, emitBody: => Unit): Unit =
     forLoop(setup, cond, incr, _ => emitBody)
 
-  def newLocal[T](name: String)(implicit tti: TypeInfo[T]): LocalRef[T] = mb.newLocal[T](name)
+  def newLocal[T](name: String)(implicit tti: TypeInfo[T]): LocalRef[T] = {
+    implicit val line = lineNumber
+    mb.newLocal[T](name)
+  }
 
-  def newLocal[T](name: String, c: Code[T])(implicit tti: TypeInfo[T], line: LineNumber): LocalRef[T] = {
+  def newLocal[T](name: String, c: Code[T])(implicit tti: TypeInfo[T]): LocalRef[T] = {
+    implicit val line = lineNumber
     val l = newLocal[T](name)
     append(l := c)
     l
   }
 
-  def newLocalAny[T](name: String, c: Code[_])(implicit tti: TypeInfo[T], line: LineNumber): LocalRef[T] =
+  def newLocalAny[T](name: String, c: Code[_])(implicit tti: TypeInfo[T]): LocalRef[T] =
     newLocal[T](name, coerce[T](c))
 
   def newField[T](name: String)(implicit tti: TypeInfo[T]): ThisFieldRef[T] = mb.genFieldThisRef[T](name)
 
-  def newField[T](name: String, c: Code[T])(implicit tti: TypeInfo[T], line: LineNumber): ThisFieldRef[T] = {
+  def newField[T](name: String, c: Code[T])(implicit tti: TypeInfo[T]): ThisFieldRef[T] = {
+    implicit val line = lineNumber
     val f = newField[T](name)
     append(f := c)
     f
   }
 
-  def newFieldAny[T](name: String, c: Code[_])(implicit tti: TypeInfo[T], line: LineNumber): ThisFieldRef[T] =
+  def newFieldAny[T](name: String, c: Code[_])(implicit tti: TypeInfo[T]): ThisFieldRef[T] =
     newField[T](name, coerce[T](c))
 
-  def goto(L: CodeLabel)(implicit line: LineNumber): Unit = {
+  def goto(L: CodeLabel): Unit = {
+    implicit val line = lineNumber
     append(L.goto)
   }
 
-  def _fatal(msg: Code[String])(implicit line: LineNumber): Unit = {
+  def _fatal(msg: Code[String]): Unit = {
+    implicit val line = lineNumber
     append(Code._fatal[Unit](msg))
   }
 
-  def _throw[T <: java.lang.Throwable](cerr: Code[T])(implicit line: LineNumber): Unit = {
+  def _throw[T <: java.lang.Throwable](cerr: Code[T]): Unit = {
+    implicit val line = lineNumber
     append(Code._throw[T, Unit](cerr))
   }
 }
@@ -162,7 +179,8 @@ class CodeBuilder(val mb: MethodBuilder[_], var code: Code[Unit]) extends CodeBu
     (last == null) || !last.isInstanceOf[lir.ControlX] || last.isInstanceOf[lir.ThrowX]
   }
 
-  def uncheckedAppend(c: Code[Unit])(implicit line: LineNumber): Unit = {
+  def uncheckedAppend(c: Code[Unit]): Unit = {
+    implicit val line = lineNumber
     code = Code(code, c)
   }
 

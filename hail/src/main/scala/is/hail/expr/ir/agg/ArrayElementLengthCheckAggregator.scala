@@ -34,7 +34,7 @@ class ArrayElementState(val kb: EmitClassBuilder[_], val nested: StateTuple) ext
   })
   val container: TupleAggregatorState = new TupleAggregatorState(kb, nested, region, statesOffset(idx), regionOffset(idx))
 
-  override def createState(cb: EmitCodeBuilder)(implicit line: LineNumber): Unit = {
+  override def createState(cb: EmitCodeBuilder): Unit = {
     super.createState(cb)
     nested.createStates(cb)
   }
@@ -54,7 +54,8 @@ class ArrayElementState(val kb: EmitClassBuilder[_], val nested: StateTuple) ext
       arrayType.stagedInitialize(aoff, lenRef),
       typ.setFieldPresent(off, 1))
 
-  def seq(cb: EmitCodeBuilder, init: => Unit, initPerElt: => Unit, seqOp: => Unit)(implicit line: LineNumber): Unit = {
+  def seq(cb: EmitCodeBuilder, init: => Unit, initPerElt: => Unit, seqOp: => Unit): Unit = {
+    implicit val line = cb.lineNumber
     init
     cb.assign(idx, 0)
     cb.whileLoop(idx < lenRef, {
@@ -66,10 +67,13 @@ class ArrayElementState(val kb: EmitClassBuilder[_], val nested: StateTuple) ext
   }
 
 
-  def seq(cb: EmitCodeBuilder, seqOp: => Unit)(implicit line: LineNumber): Unit =
+  def seq(cb: EmitCodeBuilder, seqOp: => Unit): Unit = {
+    implicit val line = cb.lineNumber
     seq(cb, {cb += initArray()}, container.newState(cb), seqOp)
+  }
 
-  def initLength(cb: EmitCodeBuilder, len: Code[Int])(implicit line: LineNumber): Unit = {
+  def initLength(cb: EmitCodeBuilder, len: Code[Int]): Unit = {
+    implicit val line = cb.lineNumber
     cb.assign(lenRef, len)
     seq(cb, container.copyFrom(cb, initContainer.off))
   }
@@ -79,7 +83,8 @@ class ArrayElementState(val kb: EmitClassBuilder[_], val nested: StateTuple) ext
       Code._fatal[Unit]("mismatched lengths in ArrayElementsAggregator "))
   }
 
-  def init(cb: EmitCodeBuilder, initOp: (EmitCodeBuilder) => Unit, initLen: Boolean)(implicit line: LineNumber): Unit = {
+  def init(cb: EmitCodeBuilder, initOp: (EmitCodeBuilder) => Unit, initLen: Boolean): Unit = {
+    implicit val line = cb.lineNumber
     cb += region.setNumParents(nStates)
     cb.assign(off, region.allocate(typ.alignment, typ.byteSize))
     initContainer.newState(cb)
@@ -90,11 +95,11 @@ class ArrayElementState(val kb: EmitClassBuilder[_], val nested: StateTuple) ext
     }
   }
 
-  def loadInit(cb: EmitCodeBuilder)(implicit line: LineNumber): Unit = initContainer.load(cb)
+  def loadInit(cb: EmitCodeBuilder): Unit = initContainer.load(cb)
 
-  def load(cb: EmitCodeBuilder)(implicit line: LineNumber): Unit = container.load(cb)
+  def load(cb: EmitCodeBuilder): Unit = container.load(cb)
 
-  def store(cb: EmitCodeBuilder)(implicit line: LineNumber): Unit = container.store(cb)
+  def store(cb: EmitCodeBuilder): Unit = container.store(cb)
 
   def serialize(codec: BufferSpec)(implicit line: LineNumber): (EmitCodeBuilder, Value[OutputBuffer]) => Unit = {
     val serializers = nested.states.map(_.serialize(codec));
@@ -147,7 +152,8 @@ class ArrayElementState(val kb: EmitClassBuilder[_], val nested: StateTuple) ext
     }
   }
 
-  def copyFromAddress(cb: EmitCodeBuilder, src: Code[Long])(implicit line: LineNumber): Unit = {
+  def copyFromAddress(cb: EmitCodeBuilder, src: Code[Long]): Unit = {
+    implicit val line = cb.lineNumber
     val srcOff = cb.newField("aelca_copyfromaddr_srcoff", src)
     val initOffset = typ.loadField(srcOff, 0)
     val eltOffset = arrayType.loadElement(typ.loadField(srcOff, 1), idx)
@@ -173,7 +179,8 @@ class ArrayElementLengthCheckAggregator(nestedAggs: Array[StagedAggregator], kno
   val seqOpTypes: Seq[PType] = FastSeq(PInt32())
 
   // inits all things
-  protected def _initOp(cb: EmitCodeBuilder, state: State, init: Array[EmitCode])(implicit line: LineNumber): Unit = {
+  protected def _initOp(cb: EmitCodeBuilder, state: State, init: Array[EmitCode]): Unit = {
+    implicit val line = cb.lineNumber
     if (knownLength) {
       val Array(len, inits) = init
       state.init(cb, cb => cb += inits.asVoid, initLen = false)
@@ -187,7 +194,8 @@ class ArrayElementLengthCheckAggregator(nestedAggs: Array[StagedAggregator], kno
   }
 
   // does a length check on arrays
-  protected def _seqOp(cb: EmitCodeBuilder, state: State, seq: Array[EmitCode])(implicit line: LineNumber): Unit = {
+  protected def _seqOp(cb: EmitCodeBuilder, state: State, seq: Array[EmitCode]): Unit = {
+    implicit val line = cb.lineNumber
     assert(seq.length == 1)
     val len = seq.head
     len.toI(cb).consume(cb, { /* do nothing */ }, { len =>
@@ -200,7 +208,8 @@ class ArrayElementLengthCheckAggregator(nestedAggs: Array[StagedAggregator], kno
     })
   }
 
-  protected def _combOp(cb: EmitCodeBuilder, state: State, other: State)(implicit line: LineNumber): Unit = {
+  protected def _combOp(cb: EmitCodeBuilder, state: State, other: State): Unit = {
+    implicit val line = cb.lineNumber
     state.seq(cb, {
       cb.ifx(other.lenRef < 0, {
         cb.ifx(state.lenRef >= 0, {
@@ -226,10 +235,12 @@ class ArrayElementLengthCheckAggregator(nestedAggs: Array[StagedAggregator], kno
     })
   }
 
-  protected def _result(cb: EmitCodeBuilder, state: State, srvb: StagedRegionValueBuilder)(implicit line: LineNumber): Unit =
+  protected def _result(cb: EmitCodeBuilder, state: State, srvb: StagedRegionValueBuilder): Unit = {
+    implicit val line = cb.lineNumber
     cb.ifx(state.lenRef < 0, { cb += srvb.setMissing() }, {
       cb += srvb.addArray(resultType, { sab =>
         EmitCodeBuilder.scopedVoid(sab.mb) { cb =>
+          implicit val line = cb.lineNumber
           cb += sab.start(state.lenRef)
           cb.whileLoop(sab.arrayIdx < state.lenRef, {
             cb += sab.addBaseStruct(resultEltType, { ssb =>
@@ -249,6 +260,7 @@ class ArrayElementLengthCheckAggregator(nestedAggs: Array[StagedAggregator], kno
         }
       })
     })
+  }
 }
 
 class ArrayElementwiseOpAggregator(nestedAggs: Array[StagedAggregator]) extends StagedAggregator {
@@ -259,10 +271,11 @@ class ArrayElementwiseOpAggregator(nestedAggs: Array[StagedAggregator]) extends 
 
   def resultType: PType = PCanonicalArray(PCanonicalTuple(false, nestedAggs.map(_.resultType): _*))
 
-  protected def _initOp(cb: EmitCodeBuilder, state: State, init: Array[EmitCode])(implicit line: LineNumber): Unit =
+  protected def _initOp(cb: EmitCodeBuilder, state: State, init: Array[EmitCode]): Unit =
     throw new UnsupportedOperationException("State must be initialized by ArrayElementLengthCheckAggregator.")
 
-  protected def _seqOp(cb: EmitCodeBuilder, state: State, seq: Array[EmitCode])(implicit line: LineNumber): Unit = {
+  protected def _seqOp(cb: EmitCodeBuilder, state: State, seq: Array[EmitCode]): Unit = {
+    implicit val line = cb.lineNumber
     val Array(eltIdx, seqOps) = seq
     cb += eltIdx.setup
     cb.ifx(!eltIdx.m, {
@@ -277,9 +290,9 @@ class ArrayElementwiseOpAggregator(nestedAggs: Array[StagedAggregator]) extends 
     })
   }
 
-  protected def _combOp(cb: EmitCodeBuilder, state: State, other: State)(implicit line: LineNumber): Unit =
+  protected def _combOp(cb: EmitCodeBuilder, state: State, other: State): Unit =
     throw new UnsupportedOperationException("State must be combined by ArrayElementLengthCheckAggregator.")
 
-  protected def _result(cb: EmitCodeBuilder, state: State, srvb: StagedRegionValueBuilder)(implicit line: LineNumber): Unit =
+  protected def _result(cb: EmitCodeBuilder, state: State, srvb: StagedRegionValueBuilder): Unit =
     throw new UnsupportedOperationException("Result must be defined by ArrayElementLengthCheckAggregator.")
 }

@@ -15,11 +15,13 @@ class CollectAggState(val elemType: PType, val kb: EmitClassBuilder[_]) extends 
   def storageType = bll.storageType
   override def regionSize: Region.Size = Region.REGULAR
 
-  def createState(cb: EmitCodeBuilder)(implicit line: LineNumber): Unit =
+  def createState(cb: EmitCodeBuilder): Unit = {
+    implicit val line = cb.lineNumber
     cb.ifx(region.isNull, {
       cb.assign(r, Region.stagedCreate(regionSize))
       cb += region.invalidate()
     })
+  }
 
   def newState(off: Code[Long])(implicit line: LineNumber): Code[Unit] =
     region.getNewRegion(regionSize)
@@ -35,7 +37,8 @@ class CollectAggState(val elemType: PType, val kb: EmitClassBuilder[_]) extends 
       bll.store(dst),
       region.invalidate()))
 
-  def copyFrom(cb: EmitCodeBuilder, src: Code[Long])(implicit line: LineNumber): Unit = {
+  def copyFrom(cb: EmitCodeBuilder, src: Code[Long]): Unit = {
+    implicit val line = cb.lineNumber
     val copyBll = new StagedBlockLinkedList(elemType, kb)
     cb += Code(
       copyBll.load(src),
@@ -59,17 +62,24 @@ class CollectAggregator(val elemType: PType) extends StagedAggregator {
   val initOpTypes: Seq[PType] = Array[PType]()
   val seqOpTypes: Seq[PType] = Array[PType](elemType)
 
-  protected def _initOp(cb: EmitCodeBuilder, state: State, args: Array[EmitCode])(implicit line: LineNumber): Unit = {
+  protected def _initOp(cb: EmitCodeBuilder, state: State, args: Array[EmitCode]): Unit = {
+    implicit val line = cb.lineNumber
     assert(args.isEmpty)
     cb += state.bll.init(state.region)
   }
 
-  protected def _seqOp(cb: EmitCodeBuilder, state: State, seq: Array[EmitCode])(implicit line: LineNumber): Unit =
+  protected def _seqOp(cb: EmitCodeBuilder, state: State, seq: Array[EmitCode]): Unit = {
+    implicit val line = cb.lineNumber
     cb += state.bll.push(state.region, seq(0))
+  }
 
-  protected def _combOp(cb: EmitCodeBuilder, state: State, other: State)(implicit line: LineNumber): Unit =
+  protected def _combOp(cb: EmitCodeBuilder, state: State, other: State): Unit = {
+    implicit val line = cb.lineNumber
     cb += state.bll.append(state.region, other.bll)
+  }
 
-  protected def _result(cb: EmitCodeBuilder, state: State, srvb: StagedRegionValueBuilder)(implicit line: LineNumber): Unit =
+  protected def _result(cb: EmitCodeBuilder, state: State, srvb: StagedRegionValueBuilder): Unit = {
+    implicit val line = cb.lineNumber
     cb += srvb.addArray(resultType, state.bll.writeToSRVB(cb.emb, _))
+  }
 }

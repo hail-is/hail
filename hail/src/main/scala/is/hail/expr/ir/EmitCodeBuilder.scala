@@ -13,8 +13,9 @@ object EmitCodeBuilder {
 
   def apply(mb: EmitMethodBuilder[_], code: Code[Unit]): EmitCodeBuilder = new EmitCodeBuilder(mb, code)
 
-  def scoped[T](mb: EmitMethodBuilder[_])(f: (EmitCodeBuilder) => T): (Code[Unit], T) = {
+  def scoped[T](mb: EmitMethodBuilder[_])(f: (EmitCodeBuilder) => T)(implicit line: LineNumber): (Code[Unit], T) = {
     val cb = EmitCodeBuilder(mb)
+    cb.lineNumber = line
     val t = f(cb)
     (cb.result(), t)
   }
@@ -24,7 +25,7 @@ object EmitCodeBuilder {
     Code(cbcode, retcode)
   }
 
-  def scopedVoid(mb: EmitMethodBuilder[_])(f: (EmitCodeBuilder) => Unit): Code[Unit] = {
+  def scopedVoid(mb: EmitMethodBuilder[_])(f: (EmitCodeBuilder) => Unit)(implicit line: LineNumber): Code[Unit] = {
     val (cbcode, _) = EmitCodeBuilder.scoped(mb)(f)
     cbcode
   }
@@ -43,7 +44,8 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
 
   def mb: MethodBuilder[_] = emb.mb
 
-  def uncheckedAppend(c: Code[Unit])(implicit line: LineNumber): Unit = {
+  def uncheckedAppend(c: Code[Unit]): Unit = {
+    implicit val line = lineNumber
     code = Code(code, c)
   }
 
@@ -53,53 +55,63 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
     tmp
   }
 
-  def assign(s: PSettable, v: PCode)(implicit line: LineNumber): Unit = {
+  def assign(s: PSettable, v: PCode): Unit = {
+    implicit val line = lineNumber
     s.store(this, v)
   }
 
-  def assign(s: EmitSettable, v: EmitCode)(implicit line: LineNumber): Unit = {
+  def assign(s: EmitSettable, v: EmitCode): Unit = {
+    implicit val line = lineNumber
     s.store(this, v)
   }
 
-  def assign(s: EmitSettable, v: IEmitCode)(implicit line: LineNumber): Unit = {
+  def assign(s: EmitSettable, v: IEmitCode): Unit = {
+    implicit val line = lineNumber
     s.store(this, v)
   }
 
-  def assign(is: IndexedSeq[EmitSettable], ix: IndexedSeq[EmitCode])(implicit line: LineNumber): Unit = {
+  def assign(is: IndexedSeq[EmitSettable], ix: IndexedSeq[EmitCode]): Unit = {
+    implicit val line = lineNumber
     (is, ix).zipped.foreach { case (s, c) => s.store(this, c) }
   }
 
-  def assign(s: PresentEmitSettable, v: PCode)(implicit line: LineNumber): Unit = {
+  def assign(s: PresentEmitSettable, v: PCode): Unit = {
+    implicit val line = lineNumber
     s.store(this, v)
   }
 
-  def memoize(pc: PCode, name: String)(implicit line: LineNumber): PValue = pc.memoize(this, name)
+  def memoize(pc: PCode, name: String): PValue = {
+    implicit val line = lineNumber
+    pc.memoize(this, name)
+  }
 
-  def memoizeField(pc: PCode, name: String)(implicit line: LineNumber): PValue = {
+  def memoizeField(pc: PCode, name: String): PValue = {
     val f = emb.newPField(name, pc.pt)
     assign(f, pc)
     f
   }
 
-  def memoize(v: EmitCode, name: String)(implicit line: LineNumber): EmitValue = {
+  def memoize(v: EmitCode, name: String): EmitValue = {
     val l = emb.newEmitLocal(name, v.pt)
     assign(l, v)
     l
   }
 
-  def memoize(v: IEmitCode, name: String)(implicit line: LineNumber): EmitValue = {
+  def memoize(v: IEmitCode, name: String): EmitValue = {
     val l = emb.newEmitLocal(name, v.pt)
     assign(l, v)
     l
   }
 
-  def memoizeField[T](ec: EmitCode, name: String)(implicit line: LineNumber): EmitValue = {
+  def memoizeField[T](ec: EmitCode, name: String): EmitValue = {
+    implicit val line = lineNumber
     val l = emb.newEmitField(name, ec.pt)
     l.store(this, ec)
     l
   }
 
-  private def _invoke[T](callee: EmitMethodBuilder[_], args: Param*)(implicit line: LineNumber): Code[T] = {
+  private def _invoke[T](callee: EmitMethodBuilder[_], args: Param*): Code[T] = {
+    implicit val line = lineNumber
       val codeArgs = args.flatMap {
         case CodeParam(c) =>
           FastIndexedSeq(c)
@@ -116,17 +128,18 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
       callee.mb.invoke(codeArgs: _*)
   }
 
-  def invokeVoid(callee: EmitMethodBuilder[_], args: Param*)(implicit line: LineNumber): Unit = {
+  def invokeVoid(callee: EmitMethodBuilder[_], args: Param*): Unit = {
     assert(callee.emitReturnType == CodeParamType(UnitInfo))
     append(_invoke[Unit](callee, args: _*))
   }
 
-  def invokeCode[T](callee: EmitMethodBuilder[_], args: Param*)(implicit line: LineNumber): Code[T] = {
+  def invokeCode[T](callee: EmitMethodBuilder[_], args: Param*): Code[T] = {
     assert(callee.emitReturnType.isInstanceOf[CodeParamType])
     _invoke[T](callee, args: _*)
   }
 
-  def invokeEmit(callee: EmitMethodBuilder[_], args: Param*)(implicit line: LineNumber): EmitCode = {
+  def invokeEmit(callee: EmitMethodBuilder[_], args: Param*): EmitCode = {
+    implicit val line = lineNumber
     val pt = callee.emitReturnType.asInstanceOf[EmitParamType].pt
     val r = newLocal("invokeEmit_r")(pt.codeReturnType())
     EmitCode(r := _invoke(callee, args: _*),
@@ -134,7 +147,8 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
   }
 
   // for debugging
-  def printRegionValue(value: Code[_], typ: PType, region: Value[Region])(implicit line: LineNumber): Unit = {
+  def printRegionValue(value: Code[_], typ: PType, region: Value[Region]): Unit = {
+    implicit val line = lineNumber
     append(Code._println(StringFunctions.boxArg(EmitRegion(emb, region), typ)(value)))
   }
 }

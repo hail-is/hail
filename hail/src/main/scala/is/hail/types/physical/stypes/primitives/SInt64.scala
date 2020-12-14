@@ -12,7 +12,7 @@ case class SInt64(required: Boolean) extends SType {
 
   def codeOrdering(mb: EmitMethodBuilder[_], other: SType, so: SortOrder): CodeOrdering = pType.codeOrdering(mb, other.pType, so)
 
-  def coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean)(implicit line: LineNumber): SCode = {
+  def coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = {
     value.st match {
       case SInt64(r) =>
         if (r == required)
@@ -24,7 +24,8 @@ case class SInt64(required: Boolean) extends SType {
 
   def codeTupleTypes(): IndexedSeq[TypeInfo[_]] = FastIndexedSeq(LongInfo)
 
-  def loadFrom(cb: EmitCodeBuilder, region: Value[Region], pt: PType, addr: Code[Long])(implicit line: LineNumber): SCode = {
+  def loadFrom(cb: EmitCodeBuilder, region: Value[Region], pt: PType, addr: Code[Long]): SCode = {
+    implicit val line = cb.lineNumber
     pt match {
       case _: PInt64 =>
         new SInt64Code(required, Region.loadLong(addr))
@@ -33,7 +34,7 @@ case class SInt64(required: Boolean) extends SType {
 }
 
 trait PInt64Value extends PValue {
-  def longCode(cb: EmitCodeBuilder)(implicit line: LineNumber): Code[Long]
+  def longCode(cb: EmitCodeBuilder): Code[Long]
 
 }
 
@@ -44,16 +45,16 @@ class SInt64Code(required: Boolean, val code: Code[Long]) extends PCode {
 
   def codeTuple(): IndexedSeq[Code[_]] = FastIndexedSeq(code)
 
-  private[this] def memoizeWithBuilder(cb: EmitCodeBuilder, name: String, sb: SettableBuilder)(implicit line: LineNumber): PInt64Value = {
+  private[this] def memoizeWithBuilder(cb: EmitCodeBuilder, name: String, sb: SettableBuilder): PInt64Value = {
     val s = new SInt64Settable(required, sb.newSettable[Long]("sint64_memoize"))
     s.store(cb, this)
     s
   }
 
-  def memoize(cb: EmitCodeBuilder, name: String)(implicit line: LineNumber): PInt64Value =
+  def memoize(cb: EmitCodeBuilder, name: String): PInt64Value =
     memoizeWithBuilder(cb, name, cb.localBuilder)
 
-  def memoizeField(cb: EmitCodeBuilder, name: String)(implicit line: LineNumber): PInt64Value =
+  def memoizeField(cb: EmitCodeBuilder, name: String): PInt64Value =
     memoizeWithBuilder(cb, name, cb.fieldBuilder)
 
   def longCode(cb: EmitCodeBuilder): Code[Long] = code
@@ -70,11 +71,14 @@ class SInt64Settable(required: Boolean, x: Settable[Long]) extends PInt64Value w
 
   def st: SInt64 = SInt64(required)
 
-  def store(cb: EmitCodeBuilder, v: PCode)(implicit line: LineNumber): Unit = cb.assign(x, v.asLong.longCode(cb))
+  def store(cb: EmitCodeBuilder, v: PCode): Unit = cb.assign(x, v.asLong.longCode(cb))
 
   def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(x)
 
   def get(implicit line: LineNumber): PCode = new SInt64Code(required, x)
 
-  def longCode(cb: EmitCodeBuilder)(implicit line: LineNumber): Code[Long] = x
+  def longCode(cb: EmitCodeBuilder): Code[Long] = {
+    implicit val line = cb.lineNumber
+    x
+  }
 }
