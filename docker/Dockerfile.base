@@ -13,8 +13,7 @@ RUN hail-apt-get-install \
     openjdk-8-jdk-headless \
     liblapack3 \
     g++-10 \
-    gcc-10 \
-    catch
+    gcc-10
 
 RUN update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-10 10 && \
     update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-10 10
@@ -37,3 +36,10 @@ RUN wget -nv -O ${SPARK_HOME}/jars/gcs-connector-hadoop2-2.0.1.jar https://stora
 COPY docker/core-site.xml ${SPARK_HOME}/conf/core-site.xml
 
 COPY pylintrc setup.cfg /
+
+RUN git clone https://github.com/catchorg/Catch2.git && \
+  cd Catch2 && \
+  cmake -Bbuild -H. -DBUILD_TESTING=OFF && \
+  sudo cmake --build build/ --target install && \
+  cd .. && \
+  rm -rf Catch2 && \
