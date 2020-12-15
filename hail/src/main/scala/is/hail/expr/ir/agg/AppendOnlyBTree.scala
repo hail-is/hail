@@ -17,17 +17,19 @@ trait BTreeKey {
   def copy(src: Code[Long], dest: Code[Long]): Code[Unit]
   def deepCopy(er: EmitRegion, src: Code[Long], dest: Code[Long]): Code[Unit]
 
-  def compKeys(k1: EmitCode, k2: EmitCode): Code[Int]
+  def compKeys(cb: EmitCodeBuilder, k1: EmitCode, k2: EmitCode): Code[Int]
   def loadCompKey(off: Value[Long]): EmitCode
 
-  def compSame(off: Code[Long], other: Code[Long]): Code[Int] =
-    Code.memoize(off, "btk_comp_same_off", other, "btk_comp_same_other") { (off, other) =>
-      compKeys(loadCompKey(off), loadCompKey(other))
-    }
-  def compWithKey(off: Code[Long], k: EmitCode): Code[Int] =
-    Code.memoize(off, "btk_comp_with_key_off") { off =>
-      compKeys(loadCompKey(off), k)
-    }
+  def compSame(cb: EmitCodeBuilder, off: Code[Long], other: Code[Long]): Code[Int] = {
+    val offv = cb.newLocal("btk_comp_same_off", off)
+    val otherv = cb.newLocal("btk_comp_same_other", other)
+    compKeys(cb, loadCompKey(offv), loadCompKey(otherv))
+  }
+
+  def compWithKey(cb: EmitCodeBuilder, off: Code[Long], k: EmitCode): Code[Int] = {
+    val offv = cb.newLocal("btk_comp_with_key_off", off)
+    compKeys(cb, loadCompKey(offv), k)
+  }
 }
 
 class AppendOnlyBTree(kb: EmitClassBuilder[_], key: BTreeKey, region: Value[Region], root: Settable[Long], maxElements: Int = 2) {
