@@ -3,19 +3,23 @@ package is.hail.expr.ir.agg
 import is.hail.annotations.{Region, StagedRegionValueBuilder}
 import is.hail.asm4s._
 import is.hail.expr.ir.{CodeParamType, EmitCode, EmitCodeBuilder, EmitParamType, coerce}
+import is.hail.types.VirtualTypeWithReq
 import is.hail.types.physical.{PCanonicalTuple, PNDArray, PNDArrayCode, PNDArrayValue, PNumeric, PType}
+import is.hail.types.virtual.Type
 import is.hail.utils._
 
-class NDArraySumAggregator (ndTyp: PNDArray) extends StagedAggregator {
+class NDArraySumAggregator(ndVTyp: VirtualTypeWithReq) extends StagedAggregator {
+  private val ndTyp = ndVTyp.canonicalPType.asInstanceOf[PNDArray]
+
   override type State = TypedRegionBackedAggState
 
   override def resultType: PType = ndTyp
 
   val stateType = PCanonicalTuple(true, ndTyp)
 
-  override def initOpTypes: Seq[PType] = Array[PType]()
+  override def initOpTypes: Seq[Type] = Array[Type]()
 
-  override def seqOpTypes: Seq[PType] = Array(ndTyp)
+  override def seqOpTypes: Seq[Type] = Array(ndVTyp.t)
 
   val ndarrayFieldNumber = 0
 
@@ -67,7 +71,7 @@ class NDArraySumAggregator (ndTyp: PNDArray) extends StagedAggregator {
           val leftPV = stateType.loadCheapPCode(cb, state.off).asBaseStruct.memoize(cb, "ndarray_sum_comb_op_left")
           leftPV.loadField(cb, ndarrayFieldNumber).consume(cb,
             {
-              cb.append(state.storeNonmissing(other.off))
+              state.storeNonmissing(cb, other.ptype.loadCheapPCode(cb, other.off))
             },
             { leftNDPC =>
               val leftNdValue = leftNDPC.asNDArray.memoize(cb, "left_ndarray_sum_agg")

@@ -3,8 +3,9 @@ package is.hail.expr.ir.agg
 import is.hail.annotations.{Region, StagedRegionValueBuilder}
 import is.hail.asm4s._
 import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitCodeBuilder}
-import is.hail.types.physical.{PBooleanRequired, PCanonicalStruct, PFloat64, PInt32Required, PStruct, PType}
 import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer}
+import is.hail.types.physical.{PBooleanRequired, PCanonicalStruct, PInt32Required, PStruct}
+import is.hail.types.virtual.{TInt32, TInt64, Type}
 import is.hail.utils._
 
 class ApproxCDFState(val kb: EmitClassBuilder[_]) extends AggregatorState {
@@ -25,7 +26,7 @@ class ApproxCDFState(val kb: EmitClassBuilder[_]) extends AggregatorState {
   private val k = kb.genFieldThisRef[Int]("k")
   private val kOffset: Code[Long] => Code[Long] = storageType.loadField(_, "k")
 
-  def init(k: Code[Int]): Code[Unit] = {
+  def init(cb: EmitCodeBuilder, k: Code[Int]): Code[Unit] = {
     Code(
       this.k := k,
       aggr := Code.newInstance[ApproxCDFStateManager, Int](this.k),
@@ -34,44 +35,46 @@ class ApproxCDFState(val kb: EmitClassBuilder[_]) extends AggregatorState {
     )
   }
 
-  def seq(x: Code[Double]): Code[Unit] = {
-    aggr.invoke[Double, Unit]("seqOp", x)
+  def seq(cb: EmitCodeBuilder, x: Code[Double]): Unit = {
+    cb += aggr.invoke[Double, Unit]("seqOp", x)
   }
 
-  def comb(other: ApproxCDFState): Code[Unit] = {
-    aggr.invoke[ApproxCDFStateManager, Unit]("combOp", other.aggr)
+  def comb(cb: EmitCodeBuilder, other: ApproxCDFState): Unit = {
+    cb += aggr.invoke[ApproxCDFStateManager, Unit]("combOp", other.aggr)
   }
 
-  def result(srvb: StagedRegionValueBuilder): Code[Unit] = {
-    srvb.addIRIntermediate(QuantilesAggregator.resultType)(aggr.invoke[Region, Long]("rvResult", srvb.region))
+  def result(cb: EmitCodeBuilder, srvb: StagedRegionValueBuilder): Unit = {
+    cb += srvb.addIRIntermediate(QuantilesAggregator.resultType)(aggr.invoke[Region, Long]("rvResult", srvb.region))
   }
 
-  def newState(off: Code[Long]): Code[Unit] = region.getNewRegion(regionSize)
+  def newState(cb: EmitCodeBuilder, off: Code[Long]): Unit = cb += region.getNewRegion(regionSize)
 
   def createState(cb: EmitCodeBuilder): Unit =
     cb.ifx(region.isNull, cb.assign(r, Region.stagedCreate(regionSize, kb.pool())))
 
-  override def load(regionLoader: Value[Region] => Code[Unit], src: Code[Long]): Code[Unit] =
-    Code.memoize(src, "acdfa_load_src") { src =>
-      Code(
-        regionLoader(r),
-        id := Region.loadInt(idOffset(src)),
-        initialized := Region.loadBoolean(initializedOffset(src)),
-        initialized.orEmpty(Code(
-          aggr := Code.checkcast[ApproxCDFStateManager](region.lookupJavaObject(id)),
-          k := Region.loadInt(kOffset(src)))))
-    }
+  override def load(cb: EmitCodeBuilder, regionLoader: (EmitCodeBuilder, Value[Region]) => Unit, srcc: Code[Long]): Unit = {
+    val src = cb.newLocal("acdfa_load_src", srcc)
+    regionLoader(cb, r)
+    cb.assign(id, Region.loadInt(idOffset(src)))
+    cb.assign(initialized, Region.loadBoolean(initializedOffset(src)))
+    cb.ifx(initialized,
+      {
+        cb.assign(aggr, Code.checkcast[ApproxCDFStateManager](region.lookupJavaObject(id)))
+        cb.assign(k, Region.loadInt(kOffset(src)))
+      })
+  }
 
-  override def store(regionStorer: Value[Region] => Code[Unit], dest: Code[Long]): Code[Unit] =
-    Code.memoize(dest, "acdfa_store_dest") { dest =>
-      region.isValid.orEmpty(
-        Code(
-          regionStorer(region),
-          region.invalidate(),
-          Region.storeInt(idOffset(dest), id),
-          Region.storeInt(kOffset(dest), k),
-          Region.storeBoolean(initializedOffset(dest), initialized)))
-    }
+  override def store(cb: EmitCodeBuilder, regionStorer: (EmitCodeBuilder, Value[Region]) => Unit, destc: Code[Long]): Unit = {
+    val dest = cb.newLocal("acdfa_store_dest", destc)
+    cb.ifx(region.isValid,
+      {
+        regionStorer(cb, region)
+        cb += region.invalidate()
+        cb += Region.storeInt(idOffset(dest), id)
+        cb += Region.storeInt(kOffset(dest), k)
+        cb += Region.storeBoolean(initializedOffset(dest), initialized)
+      })
+  }
 
   override def serialize(codec: BufferSpec): (EmitCodeBuilder, Value[OutputBuffer]) => Unit = {
     (cb, ob: Value[OutputBuffer]) =>
@@ -111,34 +114,31 @@ class ApproxCDFAggregator extends StagedAggregator {
   type State = ApproxCDFState
 
   def resultType: PStruct = QuantilesAggregator.resultType
-  val initOpTypes: Seq[PType] = FastSeq(PInt32Required)
-  val seqOpTypes: Seq[PType] = FastSeq(PFloat64())
+  val initOpTypes: Seq[Type] = FastSeq(TInt32)
+  val seqOpTypes: Seq[Type] = FastSeq(TInt64)
 
   protected def _initOp(cb: EmitCodeBuilder, state: State, init: Array[EmitCode]): Unit = {
     val Array(k) = init
-    cb += Code(
-      k.setup,
-      k.m.mux(
-        Code._fatal[Unit]("approx_cdf: 'k' may not be missing"),
-        state.init(k.v.asInstanceOf[Code[Int]])
-      ))
+    k.toI(cb)
+      .consume(cb,
+        cb += Code._fatal[Unit]("approx_cdf: 'k' may not be missing"),
+        pv => state.init(cb, pv.asInt.intCode(cb)))
   }
 
   protected def _seqOp(cb: EmitCodeBuilder, state: State, seq: Array[EmitCode]): Unit = {
     val Array(x) = seq
-    cb += Code(
-      x.setup,
-      x.m.mux(
-        Code._empty,
-        state.seq(x.v.asInstanceOf[Code[Double]])
-      ))
+    x.toI(cb)
+      .consume(cb,
+        {},
+        pv => state.seq(cb, pv.asDouble.doubleCode(cb))
+      )
   }
 
   protected def _combOp(cb: EmitCodeBuilder, state: State, other: State): Unit = {
-    cb += state.comb(other)
+    state.comb(cb, other)
   }
 
   protected def _result(cb: EmitCodeBuilder, state: State, srvb: StagedRegionValueBuilder): Unit = {
-    cb += state.result(srvb)
+    state.result(cb, srvb)
   }
 }

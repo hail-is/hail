@@ -5,6 +5,8 @@ import is.hail.asm4s.{coerce, _}
 import is.hail.expr.ir._
 import is.hail.types.physical._
 import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer, TypedCodecSpec}
+import is.hail.types.VirtualTypeWithReq
+import is.hail.types.physical.stypes.SCode
 import is.hail.utils._
 
 trait AggregatorState {
@@ -15,13 +17,15 @@ trait AggregatorState {
   def regionSize: Int = Region.TINY
 
   def createState(cb: EmitCodeBuilder): Unit
-  def newState(off: Code[Long]): Code[Unit]
+
+  def newState(cb: EmitCodeBuilder, off: Code[Long]): Unit
 
   // null to safeguard against users of off
-  def newState(): Code[Unit] = newState(null)
+  def newState(cb: EmitCodeBuilder): Unit = newState(cb, null)
 
-  def load(regionLoader: Value[Region] => Code[Unit], src: Code[Long]): Code[Unit]
-  def store(regionStorer: Value[Region] => Code[Unit], dest: Code[Long]): Code[Unit]
+  def load(cb: EmitCodeBuilder, regionLoader: (EmitCodeBuilder, Value[Region]) => Unit, src: Code[Long]): Unit
+
+  def store(cb: EmitCodeBuilder, regionStorer: (EmitCodeBuilder, Value[Region]) => Unit, dest: Code[Long]): Unit
 
   def copyFrom(cb: EmitCodeBuilder, src: Code[Long]): Unit
 
@@ -55,16 +59,20 @@ trait RegionBackedAggState extends AggregatorState {
   protected val r: Settable[Region] = kb.genFieldThisRef[Region]()
   val region: Value[Region] = r
 
-  def newState(off: Code[Long]): Code[Unit] = region.getNewRegion(const(regionSize))
+  def newState(cb: EmitCodeBuilder, off: Code[Long]): Unit = cb += region.getNewRegion(const(regionSize))
 
   def createState(cb: EmitCodeBuilder): Unit = {
     cb.ifx(region.isNull, cb.assign(r, Region.stagedCreate(regionSize, kb.pool())))
   }
 
-  def load(regionLoader: Value[Region] => Code[Unit], src: Code[Long]): Code[Unit] = regionLoader(r)
+  def load(cb: EmitCodeBuilder, regionLoader: (EmitCodeBuilder, Value[Region]) => Unit, src: Code[Long]): Unit = regionLoader(cb, r)
 
-  def store(regionStorer: Value[Region] => Code[Unit], dest: Code[Long]): Code[Unit] =
-    region.isValid.orEmpty(Code(regionStorer(region), region.invalidate()))
+  def store(cb: EmitCodeBuilder, regionStorer: (EmitCodeBuilder, Value[Region]) => Unit, dest: Code[Long]): Unit =
+    cb.ifx(region.isValid,
+      {
+        regionStorer(cb, region)
+        cb += region.invalidate()
+      })
 }
 
 trait PointerBasedRVAState extends RegionBackedAggState {
@@ -73,45 +81,71 @@ trait PointerBasedRVAState extends RegionBackedAggState {
 
   override val regionSize: Int = Region.TINIER
 
-  override def load(regionLoader: Value[Region] => Code[Unit], src: Code[Long]): Code[Unit] =
-    Code(super.load(regionLoader, src), off := Region.loadAddress(src))
+  override def load(cb: EmitCodeBuilder, regionLoader: (EmitCodeBuilder, Value[Region]) => Unit, src: Code[Long]): Unit = {
+    super.load(cb, regionLoader, src)
+    cb.assign(off, Region.loadAddress(src))
+  }
 
-  override def store(regionStorer: Value[Region] => Code[Unit], dest: Code[Long]): Code[Unit] =
-    Code(region.isValid.orEmpty(Region.storeAddress(dest, off)), super.store(regionStorer, dest))
+  override def store(cb: EmitCodeBuilder, regionStorer: (EmitCodeBuilder, Value[Region]) => Unit, dest: Code[Long]): Unit = {
+    cb.ifx(region.isValid,
+      {
+        cb += Region.storeAddress(dest, off)
+        super.store(cb, regionStorer, dest)
+      })
+  }
 
   def copyFrom(cb: EmitCodeBuilder, src: Code[Long]): Unit = copyFromAddress(cb, Region.loadAddress(src))
 
   def copyFromAddress(cb: EmitCodeBuilder, src: Code[Long]): Unit
 }
 
-class TypedRegionBackedAggState(val typ: PType, val kb: EmitClassBuilder[_]) extends RegionBackedAggState {
+class TypedRegionBackedAggState(val typ: VirtualTypeWithReq, val kb: EmitClassBuilder[_]) extends RegionBackedAggState {
+  val ptype = typ.canonicalPType
   override val regionSize: Int = Region.TINIER
-  val storageType: PTuple = PCanonicalTuple(required = true, typ)
+  val storageType: PTuple = PCanonicalTuple(required = true, ptype)
   val off: Settable[Long] = kb.genFieldThisRef[Long]()
 
-  override def newState(): Code[Unit] = Code(region.getNewRegion(const(regionSize)), off := storageType.allocate(region))
-  override def newState(src: Code[Long]): Code[Unit] = Code(off := src, super.newState(off))
-  override def load(regionLoader: Value[Region] => Code[Unit], src: Code[Long]): Code[Unit] =
-    Code(super.load(r => r.invalidate(), src), off := src)
-  override def store(regionStorer: Value[Region] => Code[Unit], dest: Code[Long]): Code[Unit] =
-    Code.memoize(dest, "trbas_dest") { dest =>
-      Code(region.isValid.orEmpty(dest.cne(off).orEmpty(
-        Region.copyFrom(off, dest, const(storageType.byteSize)))),
-        super.store(regionStorer, dest))
-    }
+  override def newState(cb: EmitCodeBuilder): Unit = {
+    cb += region.getNewRegion(const(regionSize))
+    cb.assign(off, storageType.allocate(region))
+  }
 
-  def storeMissing(): Code[Unit] = storageType.setFieldMissing(off, 0)
-  def storeNonmissing(v: Code[_]): Code[Unit] = Code(
-    region.getNewRegion(const(regionSize)),
-    storageType.setFieldPresent(off, 0),
-    StagedRegionValueBuilder.deepCopy(kb, region, typ, v, storageType.fieldOffset(off, 0)))
+  override def newState(cb: EmitCodeBuilder, src: Code[Long]): Unit = {
+    cb.assign(off, src)
+    super.newState(cb, off)
+  }
+
+  override def load(cb: EmitCodeBuilder, regionLoader: (EmitCodeBuilder, Value[Region]) => Unit, src: Code[Long]): Unit = {
+    super.load(cb, { (cb: EmitCodeBuilder, r: Value[Region]) => cb += r.invalidate() }, src)
+    cb.assign(off, src)
+  }
+
+  override def store(cb: EmitCodeBuilder, regionStorer: (EmitCodeBuilder, Value[Region]) => Unit, destc: Code[Long]): Unit = {
+    val dest = cb.newLocal[Long]("trbas_dest", destc)
+    cb.ifx(region.isValid,
+      cb.ifx(dest.cne(off),
+        cb += Region.copyFrom(off, dest, const(storageType.byteSize))))
+    super.store(cb, regionStorer, dest)
+  }
+
+  def storeMissing(cb: EmitCodeBuilder): Unit = {
+    cb += storageType.setFieldMissing(off, 0)
+  }
+
+  def storeNonmissing(cb: EmitCodeBuilder, sc: SCode): Unit = {
+    cb += region.getNewRegion(const(regionSize))
+    cb += storageType.setFieldPresent(off, 0)
+    ptype.storeAtAddress(cb, storageType.fieldOffset(off, 0), region, sc, deepCopy = true)
+  }
 
   def get(): EmitCode = EmitCode(Code._empty,
     storageType.isFieldMissing(off, 0),
-    PCode(typ, Region.loadIRIntermediate(typ)(storageType.fieldOffset(off, 0))))
+    PCode(ptype, Region.loadIRIntermediate(ptype)(storageType.fieldOffset(off, 0))))
 
-  def copyFrom(cb: EmitCodeBuilder, src: Code[Long]): Unit =
-    cb += Code(newState(off), StagedRegionValueBuilder.deepCopy(kb, region, storageType, src, off))
+  def copyFrom(cb: EmitCodeBuilder, src: Code[Long]): Unit = {
+    newState(cb, off)
+    storageType.storeAtAddress(cb, off, region, storageType.loadCheapPCode(cb, src), deepCopy = true)
+  }
 
   def serialize(codec: BufferSpec): (EmitCodeBuilder, Value[OutputBuffer]) => Unit = {
     val enc = TypedCodecSpec(storageType, codec).buildTypedEmitEncoderF[Long](storageType, kb)
@@ -125,73 +159,79 @@ class TypedRegionBackedAggState(val typ: PType, val kb: EmitClassBuilder[_]) ext
   }
 }
 
-class PrimitiveRVAState(val types: Array[PType], val kb: EmitClassBuilder[_]) extends AggregatorState {
+class PrimitiveRVAState(val vtypes: Array[VirtualTypeWithReq], val kb: EmitClassBuilder[_]) extends AggregatorState {
+  private[this] val ptypes = vtypes.map(_.canonicalPType)
   type ValueField = (Option[Settable[Boolean]], Settable[_], PType)
-  assert(types.forall(_.isPrimitive))
+  assert(ptypes.forall(_.isPrimitive))
 
-  val nFields: Int = types.length
+  val nFields: Int = ptypes.length
   val fields: Array[ValueField] = Array.tabulate(nFields) { i =>
-    val m = if (types(i).required) None else Some(kb.genFieldThisRef[Boolean](s"primitiveRVA_${i}_m"))
-    val v = kb.genFieldThisRef(s"primitiveRVA_${i}_v")(typeToTypeInfo(types(i)))
-    (m, v, types(i))
+    val m = if (ptypes(i).required) None else Some(kb.genFieldThisRef[Boolean](s"primitiveRVA_${ i }_m"))
+    val v = kb.genFieldThisRef(s"primitiveRVA_${ i }_v")(typeToTypeInfo(ptypes(i)))
+    (m, v, ptypes(i))
   }
-  val storageType: PTuple = PCanonicalTuple(false, types: _*)
+  val storageType: PTuple = PCanonicalTuple(false, ptypes: _*)
 
-  def foreachField(f: (Int, ValueField) => Code[Unit]): Code[Unit] =
-    Code(Array.tabulate(nFields)(i => f(i, fields(i))))
+  def foreachField(f: (Int, ValueField) => Unit): Unit = {
+    (0 until nFields).foreach { i =>
+      f(i, fields(i))
+    }
+  }
 
-  def newState(off: Code[Long]): Code[Unit] = Code._empty
+  def newState(cb: EmitCodeBuilder, off: Code[Long]): Unit = {}
+
   def createState(cb: EmitCodeBuilder): Unit = {}
 
-  private[this] def loadVarsFromRegion(src: Code[Long]): Code[Unit] =
+  private[this] def loadVarsFromRegion(cb: EmitCodeBuilder, srcc: Code[Long]): Unit =
     foreachField {
       case (i, (None, v, t)) =>
-        v.storeAny(Region.loadPrimitive(t)(storageType.fieldOffset(src, i)))
+        cb.assignAny(v, Region.loadPrimitive(t)(storageType.fieldOffset(srcc, i)))
       case (i, (Some(m), v, t)) =>
-        Code.memoize(src, "prim_rvastate_load_vars_src") { src =>
-          Code(
-            m := storageType.isFieldMissing(src, i),
-            m.mux(Code._empty,
-              v.storeAny(Region.loadPrimitive(t)(storageType.fieldOffset(src, i)))))
-        }
+        val src = cb.newLocal("prim_rvastate_load_vars_src", srcc)
+        cb.assign(m, storageType.isFieldMissing(src, i))
+        cb.ifx(!m, cb.assignAny(v, Region.loadPrimitive(t)(storageType.fieldOffset(srcc, i))))
     }
 
-  def load(regionLoader: Value[Region] => Code[Unit], src: Code[Long]): Code[Unit] =
-    loadVarsFromRegion(src)
+  def load(cb: EmitCodeBuilder, regionLoader: (EmitCodeBuilder, Value[Region]) => Unit, src: Code[Long]): Unit = {
+    loadVarsFromRegion(cb, src)
+  }
 
-  def store(regionStorer: Value[Region] => Code[Unit], dest: Code[Long]): Code[Unit] =
-      foreachField {
-        case (i, (None, v, t)) =>
-          Region.storePrimitive(t, storageType.fieldOffset(dest, i))(v)
-        case (i, (Some(m), v, t)) =>
-          Code.memoize(dest, "prim_rvastate_store_dest") { dest =>
-            m.mux(storageType.setFieldMissing(dest, i),
-              Code(storageType.setFieldPresent(dest, i),
-                Region.storePrimitive(t, storageType.fieldOffset(dest, i))(v)))
-          }
-      }
+   def store(cb: EmitCodeBuilder, regionStorer: (EmitCodeBuilder, Value[Region]) => Unit, destc: Code[Long]): Unit = {
+     foreachField({
+       case (i, (None, v, t)) =>
+         cb += Region.storePrimitive(t, storageType.fieldOffset(destc, i))(v)
+       case (i, (Some(m), v, t)) =>
+         val dest = cb.newLocal("prim_rvastate_store_dest", destc)
+         cb.ifx(m,
+           cb += storageType.setFieldMissing(dest, i),
+           {
+             cb += storageType.setFieldPresent(dest, i)
+             cb += Region.storePrimitive(t, storageType.fieldOffset(dest, i))(v)
+           })
+     })
+   }
 
-  def copyFrom(cb: EmitCodeBuilder, src: Code[Long]): Unit = cb += loadVarsFromRegion(src)
+  def copyFrom(cb: EmitCodeBuilder, src: Code[Long]): Unit = loadVarsFromRegion(cb, src)
 
   def serialize(codec: BufferSpec): (EmitCodeBuilder, Value[OutputBuffer]) => Unit = {
     (cb, ob: Value[OutputBuffer]) =>
-      cb += (foreachField {
-        case (_, (None, v, t)) => ob.writePrimitive(t)(v)
-        case (_, (Some(m), v, t)) => Code(
+      foreachField {
+        case (_, (None, v, t)) => cb += ob.writePrimitive(t)(v)
+        case (_, (Some(m), v, t)) => cb += Code(
           ob.writeBoolean(m),
           m.mux(Code._empty, ob.writePrimitive(t)(v)))
-      })
+      }
   }
 
   def deserialize(codec: BufferSpec): (EmitCodeBuilder, Value[InputBuffer]) => Unit = {
     (cb, ib: Value[InputBuffer]) =>
-      cb += (foreachField {
+      foreachField {
         case (_, (None, v, t)) =>
-          v.storeAny(ib.readPrimitive(t))
-        case (_, (Some(m), v, t)) => Code(
+          cb += v.storeAny(ib.readPrimitive(t))
+        case (_, (Some(m), v, t)) => cb += Code(
           m := ib.readBoolean(),
           m.mux(Code._empty, v.storeAny(ib.readPrimitive(t))))
-      })
+      }
   }
 }
 
@@ -205,9 +245,9 @@ case class StateTuple(states: Array[AggregatorState]) {
     states(i)
   }
 
-  def toCode(cb: EmitCodeBuilder, f: (EmitCodeBuilder, Int, AggregatorState) => Unit): Unit = {
+  def toCode(f: (Int, AggregatorState) => Unit): Unit = {
     (0 until nStates).foreach { i =>
-      f(cb, i, states(i))
+      f(i, states(i))
     }
   }
 
@@ -223,30 +263,34 @@ case class StateTuple(states: Array[AggregatorState]) {
   }
 
   def createStates(cb: EmitCodeBuilder): Unit =
-    toCode(cb, (cb, i, s) => s.createState(cb))
+    toCode((i, s) => s.createState(cb))
 }
 
 class TupleAggregatorState(val kb: EmitClassBuilder[_], val states: StateTuple, val topRegion: Value[Region], val off: Value[Long], val rOff: Value[Int] = const(0)) {
   val storageType: PTuple = states.storageType
-  private def getRegion(i: Int): Value[Region] => Code[Unit] = { r: Value[Region] =>
-    r.setFromParentReference(topRegion, rOff + const(i), states(i).regionSize) }
-  private def setRegion(i: Int): Value[Region] => Code[Unit] = { r: Value[Region] =>
-    topRegion.setParentReference(r, rOff + const(i))
+
+  private def getRegion(i: Int): (EmitCodeBuilder, Value[Region]) => Unit = { (cb: EmitCodeBuilder, r: Value[Region]) =>
+    cb += r.setFromParentReference(topRegion, rOff + const(i), states(i).regionSize)
   }
+
+  private def setRegion(i: Int): (EmitCodeBuilder, Value[Region]) => Unit = { (cb: EmitCodeBuilder, r: Value[Region]) =>
+    cb += topRegion.setParentReference(r, rOff + const(i))
+  }
+
   private def getStateOffset(i: Int): Code[Long] = storageType.loadField(off, i)
 
-  def toCode(f: (Int, AggregatorState) => Code[Unit]): Code[Unit] =
-    Code(Array.tabulate(states.nStates)(i => f(i, states(i))))
+  def toCode(f: (Int, AggregatorState) => Unit): Unit =
+    (0 until states.nStates).foreach(i => f(i, states(i)))
 
-  def newState(i: Int): Code[Unit] = states(i).newState(getStateOffset(i))
+  def newState(cb: EmitCodeBuilder, i: Int): Unit = states(i).newState(cb, getStateOffset(i))
 
-  def newState(cb: EmitCodeBuilder): Unit = states.toCode(cb, (cb, i, s) => cb += s.newState(getStateOffset(i)))
+  def newState(cb: EmitCodeBuilder): Unit = states.toCode((i, s) => s.newState(cb, getStateOffset(i)))
 
   def load(cb: EmitCodeBuilder): Unit =
-    states.toCode(cb, (cb, i, s) => cb += s.load(getRegion(i), getStateOffset(i)))
+    states.toCode((i, s) => s.load(cb, getRegion(i), getStateOffset(i)))
 
   def store(cb: EmitCodeBuilder): Unit = {
-    states.toCode(cb, (cb, i, s) => cb += s.store(setRegion(i), getStateOffset(i)))
+    states.toCode((i, s) => s.store(cb, setRegion(i), getStateOffset(i)))
   }
 
   def copyFrom(cb: EmitCodeBuilder, statesOffset: Code[Long]): Unit = {

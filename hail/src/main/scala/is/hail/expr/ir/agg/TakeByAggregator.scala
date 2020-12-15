@@ -6,14 +6,19 @@ import is.hail.asm4s.{Code, _}
 import is.hail.expr.ir.{Ascending, EmitClassBuilder, EmitCode, EmitCodeBuilder, ParamType, SortOrder}
 import is.hail.types.physical._
 import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer}
+import is.hail.types.VirtualTypeWithReq
+import is.hail.types.virtual.{TInt32, Type}
 import is.hail.utils._
 
 object TakeByRVAS {
   val END_SERIALIZATION: Int = 0x1324
 }
 
-class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArray, val kb: EmitClassBuilder[_], so: SortOrder = Ascending) extends AggregatorState {
+class TakeByRVAS(val valueVType: VirtualTypeWithReq, val keyVType: VirtualTypeWithReq, val kb: EmitClassBuilder[_], so: SortOrder = Ascending) extends AggregatorState {
   private val r: Settable[Region] = kb.genFieldThisRef[Region]("takeby_region")
+
+  val valueType: PType  = valueVType.canonicalPType
+  val keyType: PType = keyVType.canonicalPType
 
   val region: Value[Region] = r
 
@@ -69,13 +74,18 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
     cmp.invokeCode(_, _)
   }
 
-  private def maybeGCCode(alwaysRun: Code[Unit]*)(runIfGarbage: => Array[Code[Unit]], runBefore: Boolean = false): Code[Unit] = {
-    val gcCodes = (if (canHaveGarbage) runIfGarbage else Array[Code[Unit]]())
-    val allCode = if (runBefore) (gcCodes ++ alwaysRun) else (alwaysRun.toArray ++ gcCodes)
-    Code(allCode)
+  private def maybeGCCode(cb: EmitCodeBuilder, alwaysRun: EmitCodeBuilder => Unit)(runIfGarbage: EmitCodeBuilder => Unit, runBefore: Boolean = false): Unit = {
+    val gc = (if (canHaveGarbage) runIfGarbage else (cb: EmitCodeBuilder) => ())
+    if (runBefore) {
+      gc(cb)
+      alwaysRun(cb)
+    } else {
+      alwaysRun(cb)
+      gc(cb)
+    }
   }
 
-  def newState(off: Code[Long]): Code[Unit] = region.getNewRegion(regionSize)
+  def newState(cb: EmitCodeBuilder, off: Code[Long]): Unit = cb += region.getNewRegion(regionSize)
 
   def createState(cb: EmitCodeBuilder): Unit =
     cb.ifx(region.isNull, {
@@ -83,103 +93,117 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
       cb += region.invalidate()
     })
 
-  override def load(regionLoader: Value[Region] => Code[Unit], src: Code[Long]): Code[Unit] =
-    Code(
-      regionLoader(r),
-      loadFields(src))
-
-  override def store(regionStorer: Value[Region] => Code[Unit], dest: Code[Long]): Code[Unit] =
-    region.isValid.orEmpty(
-      Code(
-        regionStorer(region),
-        region.invalidate(),
-        storeFields(dest)))
-
-  private def initStaging(): Code[Unit] = Code(
-    staging := eltTuple.allocate(region),
-    keyStage := indexedKeyType.allocate(region)
-  )
-
-  def initialize(_maxSize: Code[Int]): Code[Unit] = {
-    maybeGCCode(
-      maxIndex := 0L,
-      maxSize := _maxSize,
-      (maxSize < 0).orEmpty(Code._fatal[Unit](const("'take': 'n' cannot be negative, found '").concat(maxSize.toS))),
-      initStaging(),
-      ab.initialize()
-    )(Array(
-      garbage := 0,
-      maxGarbage := Code.invokeStatic2[Math, Int, Int, Int]("max", maxSize * 2, 256)
-    ))
+  override def load(cb: EmitCodeBuilder, regionLoader: (EmitCodeBuilder, Value[Region]) => Unit, srcc: Code[Long]): Unit = {
+    regionLoader(cb, r)
+    loadFields(cb, srcc)
   }
 
-  private def storeFields(dest: Code[Long]): Code[Unit] = {
-    Code.memoize(dest, "tba_store_fields_dest") { dest =>
-      maybeGCCode(
-        ab.storeTo(storageType.fieldOffset(dest, 0)),
-        Region.storeAddress(storageType.fieldOffset(dest, 1), staging),
-        Region.storeAddress(storageType.fieldOffset(dest, 2), keyStage),
-        Region.storeLong(storageType.fieldOffset(dest, 3), maxIndex),
-        Region.storeInt(storageType.fieldOffset(dest, 4), maxSize)
-      )(Array(
-        Region.storeInt(storageType.fieldOffset(dest, 5), garbage),
-        Region.storeInt(storageType.fieldOffset(dest, 6), maxGarbage)))
-    }
+  override def store(cb: EmitCodeBuilder, regionStorer: (EmitCodeBuilder, Value[Region]) => Unit, destc: Code[Long]): Unit = {
+    cb.ifx(region.isValid,
+      {
+        regionStorer(cb, region)
+        cb += region.invalidate()
+        storeFields(cb, destc)
+      })
   }
 
-  private def loadFields(src: Code[Long]): Code[Unit] =
-    Code.memoize(src, "takeby_rvas_load_fields_src") { src =>
-      maybeGCCode(
-        ab.loadFrom(storageType.fieldOffset(src, 0)),
-        staging := Region.loadAddress(storageType.fieldOffset(src, 1)),
-        keyStage := Region.loadAddress(storageType.fieldOffset(src, 2)),
-        maxIndex := Region.loadLong(storageType.fieldOffset(src, 3)),
-        maxSize := Region.loadInt(storageType.fieldOffset(src, 4))
-      )(Array(
-        garbage := Region.loadInt(storageType.fieldOffset(src, 5)),
-        maxGarbage := Region.loadInt(storageType.fieldOffset(src, 6))
-      ))
-    }
+  private def initStaging(cb: EmitCodeBuilder): Unit = {
+    cb.assign(staging, eltTuple.allocate(region))
+    cb.assign(keyStage, indexedKeyType.allocate(region))
+  }
 
-  def copyFrom(cb: EmitCodeBuilder, src: Code[Long]): Unit = {
-    cb += Code.memoize(src, "tba_copy_from_src") { src =>
-      maybeGCCode(
-        initStaging(),
-        ab.copyFrom(storageType.fieldOffset(src, 0)),
-        maxIndex := Region.loadLong(storageType.fieldOffset(src, 3)),
-        maxSize := Region.loadInt(storageType.fieldOffset(src, 4)))(
-        Array(
-          maxGarbage := Region.loadInt(storageType.fieldOffset(src, 4))))
+  def initialize(cb: EmitCodeBuilder, _maxSize: Code[Int]): Unit = {
+    maybeGCCode(cb,
+      { cb =>
+        cb.assign(maxIndex, 0L)
+        cb.assign(maxSize, _maxSize)
+        cb.ifx(maxSize < 0,
+          cb += Code._fatal[Unit](const("'take': 'n' cannot be negative, found '").concat(maxSize.toS)))
+        initStaging(cb)
+        ab.initialize(cb)
+      })({ cb =>
+      cb.assign(garbage, 0)
+      cb.assign(maxGarbage, Code.invokeStatic2[Math, Int, Int, Int]("max", maxSize * 2, 256))
+    })
+  }
+
+  private def storeFields(cb: EmitCodeBuilder, destc: Code[Long]): Unit = {
+    val dest = cb.newLocal("tba_store_fields_dest", destc)
+    maybeGCCode(cb,
+      { cb =>
+        ab.storeTo(cb, storageType.fieldOffset(dest, 0))
+        cb += Region.storeAddress(storageType.fieldOffset(dest, 1), staging)
+        cb += Region.storeAddress(storageType.fieldOffset(dest, 2), keyStage)
+        cb += Region.storeLong(storageType.fieldOffset(dest, 3), maxIndex)
+        cb += Region.storeInt(storageType.fieldOffset(dest, 4), maxSize)
+      }
+    )({ cb =>
+      cb += Region.storeInt(storageType.fieldOffset(dest, 5), garbage)
+      cb += Region.storeInt(storageType.fieldOffset(dest, 6), maxGarbage)
+    })
+  }
+
+  private def loadFields(cb: EmitCodeBuilder, srcc: Code[Long]): Unit = {
+    val src = cb.newLocal("takeby_rvas_load_fields_src", srcc)
+    maybeGCCode(cb,
+      { cb =>
+        ab.loadFrom(cb, storageType.fieldOffset(src, 0))
+        cb.assign(staging, Region.loadAddress(storageType.fieldOffset(src, 1)))
+        cb.assign(keyStage, Region.loadAddress(storageType.fieldOffset(src, 2)))
+        cb.assign(maxIndex, Region.loadLong(storageType.fieldOffset(src, 3)))
+        cb.assign(maxSize, Region.loadInt(storageType.fieldOffset(src, 4)))
+      }
+    )({ cb =>
+      cb.assign(garbage, Region.loadInt(storageType.fieldOffset(src, 5)))
+      cb.assign(maxGarbage, Region.loadInt(storageType.fieldOffset(src, 6)))
     }
+    )
+  }
+
+  def copyFrom(cb: EmitCodeBuilder, srcc: Code[Long]): Unit = {
+    val src = cb.newLocal("tba_copy_from_src", srcc)
+    maybeGCCode(cb,
+      { cb =>
+        initStaging(cb)
+        ab.copyFrom(cb, storageType.fieldOffset(src, 0))
+        cb.assign(maxIndex, Region.loadLong(storageType.fieldOffset(src, 3)))
+        cb.assign(maxSize, Region.loadInt(storageType.fieldOffset(src, 4)))
+      })({ cb =>
+      cb.assign(maxGarbage, Region.loadInt(storageType.fieldOffset(src, 4)))
+    })
   }
 
   def serialize(codec: BufferSpec): (EmitCodeBuilder, Value[OutputBuffer]) => Unit = {
     { (cb: EmitCodeBuilder, ob: Value[OutputBuffer]) =>
-      cb += maybeGCCode(
-        ob.writeLong(maxIndex),
-        ob.writeInt(maxSize),
-        ab.serialize(codec)(ob),
-        ob.writeInt(const(TakeByRVAS.END_SERIALIZATION))
-      )(Array(
-        ob.writeInt(maxGarbage)
-      ), runBefore = true)
+      maybeGCCode(cb,
+        { cb =>
+          cb += ob.writeLong(maxIndex)
+          cb += ob.writeInt(maxSize)
+          ab.serialize(codec)(cb, ob)
+          cb += ob.writeInt(const(TakeByRVAS.END_SERIALIZATION))
+        }
+      )({ cb =>
+        cb += ob.writeInt(maxGarbage)
+      }, runBefore = true)
     }
   }
 
   def deserialize(codec: BufferSpec): (EmitCodeBuilder, Value[InputBuffer]) => Unit = {
     { (cb: EmitCodeBuilder, ib: Value[InputBuffer]) =>
-      cb += maybeGCCode(
-        maxIndex := ib.readLong(),
-        maxSize := ib.readInt(),
-        ab.deserialize(codec)(ib),
-        initStaging(),
-        ib.readInt()
-          .cne(const(TakeByRVAS.END_SERIALIZATION))
-          .orEmpty(Code._fatal[Unit](s"StagedSizedKeyValuePriorityQueue serialization failed"))
-      )(Array(
-        maxGarbage := ib.readInt(),
-        garbage := 0
-      ), runBefore = true)
+      maybeGCCode(cb,
+        { cb =>
+          cb.assign(maxIndex, ib.readLong())
+          cb.assign(maxSize, ib.readInt())
+          ab.deserialize(codec)(cb, ib)
+          initStaging(cb)
+          cb += ib.readInt()
+            .cne(const(TakeByRVAS.END_SERIALIZATION))
+            .orEmpty(Code._fatal[Unit](s"StagedSizedKeyValuePriorityQueue serialization failed"))
+        }
+      )({ cb =>
+        cb.assign(maxGarbage, ib.readInt())
+        cb.assign(garbage, 0)
+      }, runBefore = true)
     }
   }
 
@@ -236,22 +260,22 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
     mb.invokeCode(_, _)
   }
 
-  private val swap: (Code[Long], Code[Long]) => Code[Unit] = {
+  private val swap: (EmitCodeBuilder, Code[Long], Code[Long]) => Unit = {
     val mb = kb.genEmitMethod("swap", FastIndexedSeq[ParamType](LongInfo, LongInfo), UnitInfo)
     val i = mb.getCodeParam[Long](1)
     val j = mb.getCodeParam[Long](2)
 
-    mb.emit(
-      Code(
-        Region.copyFrom(i, staging, eltTuple.byteSize),
-        Region.copyFrom(j, i, eltTuple.byteSize),
-        Region.copyFrom(staging, j, eltTuple.byteSize))
-    )
-    mb.invokeCode(_, _)
+    mb.voidWithBuilder({ cb =>
+      cb += Region.copyFrom(i, staging, eltTuple.byteSize)
+      cb += Region.copyFrom(j, i, eltTuple.byteSize)
+      cb += Region.copyFrom(staging, j, eltTuple.byteSize)
+    })
+
+    (cb: EmitCodeBuilder, x: Code[Long], y: Code[Long]) => cb += mb.invokeCode(x, y)
   }
 
 
-  private val rebalanceUp: Code[Int] => Code[Unit] = {
+  private val rebalanceUp: (EmitCodeBuilder, Code[Int]) => Unit = {
     val mb = kb.genEmitMethod("rebalance_up", FastIndexedSeq[ParamType](IntInfo), UnitInfo)
     val idx = mb.getCodeParam[Int](1)
 
@@ -260,22 +284,24 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
 
     val parent = mb.newLocal[Int]("parent")
 
-    mb.emit(
-      (idx > 0).orEmpty(
-        Code(
-          parent := (idx + 1) / 2 - 1,
-          ii := elementOffset(idx),
-          jj := elementOffset(parent),
-          (compareElt(ii, jj) > 0).orEmpty(
-            Code(
-              swap(ii, jj),
-              mb.invokeCode(parent))
-          ))))
+    mb.voidWithBuilder { cb =>
+      cb.ifx(idx > 0,
+        {
+          cb.assign(parent, (idx + 1) / 2 - 1)
+          cb.assign(ii, elementOffset(idx))
+          cb.assign(jj, elementOffset(parent))
+          cb.ifx(compareElt(ii, jj) > 0,
+            {
+              swap(cb, ii, jj)
+              cb += mb.invokeCode(parent)
+            })
+        })
+    }
 
-    mb.invokeCode(_)
+    (cb: EmitCodeBuilder, x: Code[Int]) => cb += mb.invokeCode(x)
   }
 
-  private val rebalanceDown: Code[Int] => Code[Unit] = {
+  private val rebalanceDown: (EmitCodeBuilder, Code[Int]) => Unit = {
     val mb = kb.genEmitMethod("rebalance_down", FastIndexedSeq[ParamType](IntInfo), UnitInfo)
     val idx = mb.getCodeParam[Int](1)
 
@@ -285,89 +311,89 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
     val ii = mb.newLocal[Long]("ii")
     val jj = mb.newLocal[Long]("jj")
 
-    mb.emit(Code(
-      child1 := (idx + 1) * 2 - 1,
-      child2 := child1 + 1,
-      (child1 < ab.size).orEmpty(
-        Code(
-          minChild := (child2 >= ab.size || compareElt(elementOffset(child1), elementOffset(child2)) > 0).mux(child1, child2),
-          ii := elementOffset(minChild),
-          jj := elementOffset(idx),
-          (compareElt(ii, jj) > 0).mux(
-            Code(
-              swap(ii, jj),
-              mb.invokeCode(minChild)
-            ),
-            Code._empty
-          )))))
-    mb.invokeCode(_)
+    mb.voidWithBuilder { cb =>
+      cb.assign(child1, (idx + 1) * 2 - 1)
+      cb.assign(child2, child1 + 1)
+      cb.ifx(child1 < ab.size,
+        {
+          cb.assign(minChild, (child2 >= ab.size || compareElt(elementOffset(child1), elementOffset(child2)) > 0).mux(child1, child2))
+          cb.assign(ii, elementOffset(minChild))
+          cb.assign(jj, elementOffset(idx))
+          cb.ifx(compareElt(ii, jj) > 0,
+            {
+              swap(cb, ii, jj)
+              cb += mb.invokeCode(minChild)
+            })
+        })
+    }
+    (cb: EmitCodeBuilder, x: Code[Int]) => cb += mb.invokeCode(x)
   }
 
-  private lazy val gc: () => Code[Unit] = {
+  private lazy val gc: EmitCodeBuilder => Unit = {
     if (canHaveGarbage) {
       val mb = kb.genEmitMethod("take_by_garbage_collect", FastIndexedSeq[ParamType](), UnitInfo)
       val oldRegion = mb.newLocal[Region]("old_region")
-      mb.emit(
-        Code(
-          garbage := garbage + 1,
-          (garbage >= maxGarbage).orEmpty(Code(
-            oldRegion := region,
-            r := Region.stagedCreate(regionSize, kb.pool()),
-            ab.reallocateData(),
-            initStaging(),
-            garbage := 0,
-            oldRegion.invoke[Unit]("invalidate")
-          ))
-        ))
-      () => mb.invokeCode()
+      mb.voidWithBuilder { cb =>
+        cb.assign(garbage, garbage + 1)
+        cb.ifx(garbage >= maxGarbage,
+          {
+            cb.assign(oldRegion, region)
+            cb.assign(r, Region.stagedCreate(regionSize, region.getPool()))
+            ab.reallocateData(cb)
+            initStaging(cb)
+            cb.assign(garbage, 0)
+            cb += oldRegion.invoke[Unit]("invalidate")
+          })
+      }
+      (cb: EmitCodeBuilder) => cb += mb.invokeCode()
     } else
-      () => Code._empty
+      (_: EmitCodeBuilder) => ()
   }
 
 
-  private def stageAndIndexKey(km: Code[Boolean], k: Code[_]): Code[Unit] = Code(
-    if (keyType.required)
-      Region.storeIRIntermediate(keyType)(indexedKeyType.fieldOffset(keyStage, 0), k)
-    else
-      km.mux(
-        indexedKeyType.setFieldMissing(keyStage, 0),
-        Code(
-          indexedKeyType.setFieldPresent(keyStage, 0),
-          Region.storeIRIntermediate(keyType)(indexedKeyType.fieldOffset(keyStage, 0), k)
-        )),
-    Region.storeLong(indexedKeyType.fieldOffset(keyStage, 1), maxIndex),
-    maxIndex := maxIndex + 1L
-  )
-
-  private def copyElementToStaging(o: Code[Long]): Code[Unit] = Region.copyFrom(o, staging, eltTuple.byteSize)
-
-  private def copyToStaging(value: Code[_], valueM: Code[Boolean], indexedKey: Code[Long]): Code[Unit] = {
-    Code(
-      staging.ceq(0L).orEmpty(Code._fatal[Unit]("staging is 0")),
-      Region.copyFrom(indexedKey, eltTuple.fieldOffset(staging, 0), indexedKeyType.byteSize),
-      if (valueType.required)
-        Region.storeIRIntermediate(valueType)(eltTuple.fieldOffset(staging, 1), value)
-      else
-        valueM.mux(
-          eltTuple.setFieldMissing(staging, 1),
-          Code(
-            eltTuple.setFieldPresent(staging, 1),
-            Region.storeIRIntermediate(valueType)(eltTuple.fieldOffset(staging, 1), value)
-          ))
-    )
+  private def stageAndIndexKey(cb: EmitCodeBuilder, k: EmitCode): Unit = {
+    k.toI(cb)
+      .consume(cb,
+        {
+          cb += indexedKeyType.setFieldMissing(keyStage, 0)
+        },
+        { sc =>
+          cb += indexedKeyType.setFieldPresent(keyStage, 0)
+          keyType.storeAtAddress(cb, indexedKeyType.fieldOffset(keyStage, 0), region, sc, deepCopy = false)
+        }
+      )
+    cb += Region.storeLong(indexedKeyType.fieldOffset(keyStage, 1), maxIndex)
+    cb.assign(maxIndex, maxIndex + 1L)
   }
 
-  private def swapStaging(): Code[Unit] = {
-    Code(
-      StagedRegionValueBuilder.deepCopy(kb, region, eltTuple, staging, ab.elementOffset(0)),
-      rebalanceDown(0)
-    )
+  private def copyElementToStaging(cb: EmitCodeBuilder, o: Code[Long]): Unit = cb += Region.copyFrom(o, staging, eltTuple.byteSize)
+
+  private def copyToStaging(cb: EmitCodeBuilder, value: EmitCode, indexedKey: Code[Long]): Unit = {
+    cb.ifx(staging.ceq(0L), cb += Code._fatal[Unit]("staging is 0"))
+    indexedKeyType.storeAtAddress(cb,
+      eltTuple.fieldOffset(staging, 0),
+      region,
+      indexedKeyType.loadCheapPCode(cb, indexedKey),
+      deepCopy = false)
+    value.toI(cb)
+      .consume(cb,
+        {
+          cb += eltTuple.setFieldMissing(staging, 1)
+        },
+        { v =>
+          cb += eltTuple.setFieldPresent(staging, 1)
+          valueType.storeAtAddress(cb, eltTuple.fieldOffset(staging, 1), region, v, deepCopy = false)
+        })
   }
 
-  private def enqueueStaging(): Code[Unit] = {
-    Code(
-      ab.append(Region.loadIRIntermediate(eltTuple)(staging)),
-      rebalanceUp(ab.size - 1))
+  private def swapStaging(cb: EmitCodeBuilder): Unit = {
+    eltTuple.storeAtAddress(cb, ab.elementOffset(0), region, eltTuple.loadCheapPCode(cb, staging), true)
+    rebalanceDown(cb, 0)
+  }
+
+  private def enqueueStaging(cb: EmitCodeBuilder): Unit = {
+    ab.append(cb, eltTuple.loadCheapPCode(cb, staging))
+    rebalanceUp(cb, ab.size - 1)
   }
 
   val seqOp: (EmitCodeBuilder, EmitCode, EmitCode) => Unit = {
@@ -381,16 +407,16 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
     mb.emitWithBuilder { cb =>
       cb.ifx(maxSize > 0, {
         cb.ifx(ab.size < maxSize, {
-          cb += stageAndIndexKey(key.m, key.v)
-          cb += copyToStaging(value.v, value.m, keyStage)
-          cb += enqueueStaging()
+          stageAndIndexKey(cb, key)
+          copyToStaging(cb, value, keyStage)
+          enqueueStaging(cb)
         }, {
           cb.assign(tempPtr, eltTuple.loadField(elementOffset(0), 0))
           cb.ifx(compareKey(cb, key, loadKey(cb, tempPtr)) < 0, {
-            cb += stageAndIndexKey(key.m, key.v)
-            cb += copyToStaging(value.v, value.m, keyStage)
-            cb += swapStaging()
-            cb += gc()
+            stageAndIndexKey(cb, key)
+            copyToStaging(cb, value, keyStage)
+            swapStaging(cb)
+            gc(cb)
           })
         })
       })
@@ -407,35 +433,43 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
     seqOp(cb, vec, kec)
   }
 
-  def combine(other: TakeByRVAS): Code[Unit] = {
+  def combine(cb: EmitCodeBuilder, other: TakeByRVAS): Unit = {
     val mb = kb.genEmitMethod("take_by_combop", FastIndexedSeq[ParamType](), UnitInfo)
 
-    val i = mb.newLocal[Int]("combine_i")
-    val offset = mb.newLocal[Long]("combine_offset")
-    val indexOffset = mb.newLocal[Long]("index_offset")
 
-    mb.emit(Code(
-      i := 0,
-      Code.whileLoop(i < other.ab.size,
-        offset := other.elementOffset(i),
-        indexOffset := indexedKeyType.fieldOffset(eltTuple.loadField(offset, 0), 1),
-        Region.storeLong(indexOffset, Region.loadLong(indexOffset) + maxIndex),
-        (maxSize > 0).orEmpty(
-          (ab.size < maxSize).mux(
-            Code(
-              copyElementToStaging(offset),
-              enqueueStaging()),
-            Code(
-              tempPtr := elementOffset(0),
-              (compareElt(offset, tempPtr) < 0)
-                .orEmpty(Code(
-                  copyElementToStaging(offset),
-                  swapStaging(),
-                  gc()))))),
-        i := i + 1),
-      maxIndex := maxIndex + other.maxIndex))
+    mb.voidWithBuilder { cb =>
+      val i = cb.newLocal[Int]("combine_i")
+      val offset = cb.newLocal[Long]("combine_offset")
+      val indexOffset = cb.newLocal[Long]("index_offset")
+      cb.forLoop(
+        cb.assign(i, 0),
+        i < other.ab.size,
+        cb.assign(i, i + 1),
+        {
+          cb.assign(offset, other.elementOffset(i))
+          cb.assign(indexOffset, indexedKeyType.fieldOffset(eltTuple.loadField(offset, 0), 1))
+          cb += Region.storeLong(indexOffset, Region.loadLong(indexOffset) + maxIndex)
+          cb.ifx(maxSize > 0,
+            cb.ifx(ab.size < maxSize,
+              {
+                copyElementToStaging(cb, offset)
+                enqueueStaging(cb)
+              },
+              {
+                cb.assign(tempPtr, elementOffset(0))
+                cb.ifx(compareElt(offset, tempPtr) < 0,
+                  {
+                    copyElementToStaging(cb, offset)
+                    swapStaging(cb)
+                    gc(cb)
+                  })
+              }
+            ))
+        })
+      cb.assign(maxIndex, maxIndex + other.maxIndex)
+    }
 
-    mb.invokeCode()
+    cb += mb.invokeCode()
   }
 
   def result(_r: Code[Region], resultType: PArray): Code[Long] = {
@@ -556,34 +590,29 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
 
 }
 
-class TakeByAggregator(valueType: PType, keyType: PType) extends StagedAggregator {
+class TakeByAggregator(valueType: VirtualTypeWithReq, keyType: VirtualTypeWithReq) extends StagedAggregator {
 
-  assert(valueType.isCanonical)
-  assert(keyType.isCanonical)
   type State = TakeByRVAS
 
-  val resultType: PArray = PCanonicalArray(valueType, true)
-  val initOpTypes: Seq[PType] = Array(PInt32(true))
-  val seqOpTypes: Seq[PType] = Array(valueType, keyType)
+  val resultType: PArray = PCanonicalArray(valueType.canonicalPType, true)
+  val initOpTypes: Seq[Type] = Array(TInt32)
+  val seqOpTypes: Seq[Type] = Array(valueType.t, keyType.t)
 
   protected def _initOp(cb: EmitCodeBuilder, state: State, init: Array[EmitCode]): Unit = {
     assert(init.length == 1)
     val Array(sizeTriplet) = init
-    cb += Code(
-      sizeTriplet.setup,
-      sizeTriplet.m.orEmpty(Code._fatal[Unit](s"argument 'n' for 'hl.agg.take' may not be missing")),
-      state.initialize(coerce[Int](sizeTriplet.v))
-    )
+    sizeTriplet.toI(cb)
+      .consume(cb,
+        cb += Code._fatal[Unit](s"argument 'n' for 'hl.agg.take' may not be missing"),
+        sc => state.initialize(cb, sc.asInt.intCode(cb)))
   }
 
   protected def _seqOp(cb: EmitCodeBuilder, state: State, seq: Array[EmitCode]): Unit = {
     val Array(value: EmitCode, key: EmitCode) = seq
-    assert(value.pv.pt == valueType)
-    assert(key.pv.pt == keyType)
     state.seqOp(cb, value, key)
   }
 
-  protected def _combOp(cb: EmitCodeBuilder, state: State, other: State): Unit = cb += state.combine(other)
+  protected def _combOp(cb: EmitCodeBuilder, state: State, other: State): Unit = state.combine(cb, other)
 
   protected def _result(cb: EmitCodeBuilder, state: State, srvb: StagedRegionValueBuilder): Unit =
     cb += srvb.addIRIntermediate(resultType)(state.result(srvb.region, resultType))

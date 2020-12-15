@@ -8,7 +8,7 @@ import is.hail.expr.ir.ArrayZipBehavior.ArrayZipBehavior
 import is.hail.expr.ir.IRBuilder._
 import is.hail.expr.ir.IRSuite.TestFunctions
 import is.hail.expr.ir.functions._
-import is.hail.types.{BlockMatrixType, TableType}
+import is.hail.types.{BlockMatrixType, TableType, VirtualTypeWithReq}
 import is.hail.types.physical._
 import is.hail.types.virtual._
 import is.hail.types.encoded._
@@ -3045,10 +3045,10 @@ class IRSuite extends HailSuite {
     val call = Ref("call", TCall)
 
     val collectSig = AggSignature(Collect(), Seq(), Seq(TInt32))
-    val pCollectSig = PhysicalAggSig(Collect(), CollectStateSig(PInt32()))
+    val pCollectSig = PhysicalAggSig(Collect(), CollectStateSig(VirtualTypeWithReq(PInt32())))
 
     val sumSig = AggSignature(Sum(), Seq(), Seq(TInt64))
-    val pSumSig = PhysicalAggSig(Sum(), TypedStateSig(PInt64(true)))
+    val pSumSig = PhysicalAggSig(Sum(), TypedStateSig(VirtualTypeWithReq(PInt64(true))))
 
     val callStatsSig = AggSignature(CallStats(), Seq(TInt32), Seq(TCall))
     val pCallStatsSig = PhysicalAggSig(CallStats(), CallStatsStateSig())
@@ -3058,7 +3058,7 @@ class IRSuite extends HailSuite {
     val countSig = AggSignature(Count(), Seq(), Seq())
     val count = ApplyAggOp(FastIndexedSeq.empty, FastIndexedSeq.empty, countSig)
 
-    val groupSignature = GroupedAggSig(PInt32(true), FastSeq(pSumSig))
+    val groupSignature = GroupedAggSig(VirtualTypeWithReq(PInt32(true)), FastSeq(pSumSig))
 
     val table = TableRange(100, 10)
 

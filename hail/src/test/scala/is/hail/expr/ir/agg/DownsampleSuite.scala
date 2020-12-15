@@ -3,8 +3,10 @@ package is.hail.expr.ir.agg
 import is.hail.HailSuite
 import is.hail.annotations.{Region, RegionPool}
 import is.hail.asm4s._
-import is.hail.expr.ir.EmitFunctionBuilder
-import is.hail.types.physical.{PCanonicalArray, PCanonicalString}
+import is.hail.expr.ir.{EmitCode, EmitFunctionBuilder}
+import is.hail.types.VirtualTypeWithReq
+import is.hail.types.physical.stypes.primitives.{SFloat64Code, SInt32Code}
+import is.hail.types.physical.{PCanonicalArray, PCanonicalString, PCode}
 import is.hail.utils.FastIndexedSeq
 import org.testng.annotations.Test
 
@@ -14,9 +16,9 @@ class DownsampleSuite extends HailSuite {
     val lt = PCanonicalArray(PCanonicalString())
     val fb = EmitFunctionBuilder[RegionPool, Unit](ctx, "foo")
     val cb = fb.ecb
-    val ds1 = new DownsampleState(cb, lt, maxBufferSize = 4)
-    val ds2 = new DownsampleState(cb, lt, maxBufferSize = 4)
-    val ds3 = new DownsampleState(cb, lt, maxBufferSize = 4)
+    val ds1 = new DownsampleState(cb, VirtualTypeWithReq(lt), maxBufferSize = 4)
+    val ds2 = new DownsampleState(cb, VirtualTypeWithReq(lt), maxBufferSize = 4)
+    val ds3 = new DownsampleState(cb, VirtualTypeWithReq(lt), maxBufferSize = 4)
 
     val stagedPool = fb.newLocal[RegionPool]("pool")
 
@@ -31,16 +33,20 @@ class DownsampleSuite extends HailSuite {
       cb.assign(ds2.r, Region.stagedCreate(Region.SMALL, stagedPool))
       cb.assign(ds3.r, Region.stagedCreate(Region.SMALL, stagedPool))
       cb.assign(i, 0)
-      cb += ds1.init(100)
-      cb += ds2.init(100)
+      ds1.init(cb, 100)
+      ds2.init(cb, 100)
       cb.whileLoop(i < 10000000, {
           cb.assign(x, rng.invoke[Double, Double, Double]("runif", 0d, 1d))
           cb.assign(y, rng.invoke[Double, Double, Double]("runif", 0d, 1d))
-          cb += ds1.insert(x, y, true, 0L)
+
+          ds1.insert(cb,
+            EmitCode.present(new SFloat64Code(true, x)),
+            EmitCode.present(new SFloat64Code(true, y)),
+            EmitCode.missing(PCanonicalArray(PCanonicalString())))
           cb.assign(i, i + const(1))
       })
       ds1.merge(cb, ds2)
-      cb += ds3.init(100)
+      ds3.init(cb, 100)
       ds1.merge(cb, ds3)
       Code._empty
     }

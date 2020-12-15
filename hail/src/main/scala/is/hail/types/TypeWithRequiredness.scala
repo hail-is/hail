@@ -2,6 +2,7 @@ package is.hail.types
 
 import is.hail.annotations.Annotation
 import is.hail.types.physical._
+import is.hail.types.physical.stypes.SType
 import is.hail.types.virtual._
 import is.hail.utils.{FastSeq, Interval}
 import org.apache.spark.sql.Row
@@ -127,6 +128,30 @@ sealed abstract class BaseTypeWithRequiredness {
     change = false
     children.foreach { r => hasChanged |= r.probeChangedAndReset() }
     hasChanged
+  }
+
+  def hardSetRequiredness(newRequiredness: Boolean): Unit = {
+    _required = newRequiredness
+    change = false
+  }
+}
+
+object VirtualTypeWithReq {
+  def apply(pt: PType): VirtualTypeWithReq = {
+    val vt = pt.virtualType
+    val r = TypeWithRequiredness(vt)
+    r._unionPType(pt)
+    VirtualTypeWithReq(vt, r)
+  }
+}
+
+case class VirtualTypeWithReq(t: Type, r: TypeWithRequiredness) {
+  def canonicalPType: PType = r.canonicalPType(t)
+
+  def setRequired(newReq: Boolean): VirtualTypeWithReq = {
+    val newR = r.copy(r.children).asInstanceOf[TypeWithRequiredness]
+    newR.hardSetRequiredness(newReq)
+    copy(r = newR)
   }
 }
 

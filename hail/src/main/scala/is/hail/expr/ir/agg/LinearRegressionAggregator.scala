@@ -4,7 +4,12 @@ import breeze.linalg.{DenseMatrix, DenseVector, diag, inv}
 import is.hail.annotations.{Region, RegionValueBuilder, StagedRegionValueBuilder, UnsafeRow}
 import is.hail.asm4s._
 import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitCodeBuilder, EmitMethodBuilder}
+import is.hail.types.VirtualTypeWithReq
 import is.hail.types.physical._
+import is.hail.types.physical.stypes.SCode
+import is.hail.types.physical.stypes.concrete.SNDArrayPointerSettable
+import is.hail.types.physical.stypes.interfaces.SIndexableValue
+import is.hail.types.virtual.{TFloat64, TInt32, Type}
 import is.hail.utils.FastIndexedSeq
 
 object LinearRegressionAggregator {
@@ -80,106 +85,113 @@ object LinearRegressionAggregator {
   }
 }
 
-class LinearRegressionAggregator(yt: PFloat64, xt: PCanonicalArray) extends StagedAggregator {
-
+class LinearRegressionAggregator(xt: VirtualTypeWithReq) extends StagedAggregator {
   import LinearRegressionAggregator._
 
   type State = TypedRegionBackedAggState
 
   override def resultType: PType = LinearRegressionAggregator.resultType
-  val initOpTypes: Seq[PType] = Array(PInt32(true), PInt32(true))
-  val seqOpTypes: Seq[PType] = Array(yt, xt)
+  val initOpTypes: Seq[Type] = Array(TInt32, TInt32)
+  val seqOpTypes: Seq[Type] = Array(TFloat64, xt.t)
 
-  def initOpF(state: State)(mb: EmitMethodBuilder[_], k: Code[Int], k0: Code[Int]): Code[Unit] =
-    Code.memoize(k, "lra_init_k", k0, "lra_init_k0") { (k, k0) =>
-      Code(
-        (k0 < 0 | k0 > k).mux(
-          Code._fatal[Unit](const("linreg: `nested_dim` must be between 0 and the number (")
-            .concat(k.toS)
-            .concat(") of covariates, inclusive")),
-          Code._empty),
-        state.off := stateType.allocate(state.region),
-        Region.storeAddress(
-          stateType.fieldOffset(state.off, 0),
-          vector.zeroes(mb, state.region, k)),
-        Region.storeAddress(
-          stateType.fieldOffset(state.off, 1),
-          vector.zeroes(mb, state.region, k * k)),
-        Region.storeInt(
-          stateType.loadField(state.off, 2),
-          k0))
-    }
+  def initOpF(state: State)(cb: EmitCodeBuilder, kc: Code[Int], k0c: Code[Int]): Unit = {
+    val k = cb.newLocal[Int]("lra_init_k", kc)
+    val k0 = cb.newLocal[Int]("lra_init_k0", k0c)
+    cb.ifx((k0 < 0) || (k0 > k),
+      cb += Code._fatal[Unit](const("linreg: `nested_dim` must be between 0 and the number (")
+        .concat(k.toS)
+        .concat(") of covariates, inclusive"))
+    )
+    cb.assign(state.off, stateType.allocate(state.region))
+    cb += Region.storeAddress(stateType.fieldOffset(state.off, 0), vector.zeroes(cb.emb, state.region, k))
+    cb +=  Region.storeAddress(stateType.fieldOffset(state.off, 1), vector.zeroes(cb.emb, state.region, k * k))
+    cb += Region.storeInt(stateType.loadField(state.off, 2), k0)
+  }
 
   protected def _initOp(cb: EmitCodeBuilder, state: State, init: Array[EmitCode]): Unit = {
     val Array(kt, k0t) = init
-    cb += (Code(kt.setup, kt.m) || Code(k0t.setup, k0t.m)).mux(
-      Code._fatal[Unit]("linreg: init args may not be missing"),
-      initOpF(state)(cb.emb, coerce[Int](kt.v), coerce[Int](k0t.v)))
+    kt.toI(cb)
+        .consume(cb,
+        { cb += Code._fatal[Unit]("linreg: init args may not be missing") },
+        { ktCode =>
+          k0t.toI(cb)
+            .consume(cb,
+              { cb += Code._fatal[Unit]("linreg: init args may not be missing") },
+              k0tCode => initOpF(state)(cb, ktCode.asInt.intCode(cb), k0tCode.asInt.intCode(cb))
+            )
+        })
   }
 
-  def seqOpF(state: State)(mb: EmitMethodBuilder[_], y: Code[Double], x: Code[Long]): Code[Unit] = {
-    val k = mb.newLocal[Int]()
-    val i = mb.newLocal[Int]()
-    val j = mb.newLocal[Int]()
-    val sptr = mb.newLocal[Long]()
-    val xptr = mb.newLocal[Long]()
-    val xptr2 = mb.newLocal[Long]()
-    val xty = mb.newLocal[Long]()
-    val xtx = mb.newLocal[Long]()
+  def seqOpF(state: State)(cb: EmitCodeBuilder, y: Code[Double], xc: SCode): Unit = {
+    val k = cb.newLocal[Int]("linreg_agg_seqop_k")
+    val i = cb.newLocal[Int]("linreg_agg_seqop_i")
+    val j = cb.newLocal[Int]("linreg_agg_seqop_j")
+    val sptr = cb.newLocal[Long]("linreg_agg_seqop_sptr")
+    val xptr = cb.newLocal[Long]("linreg_agg_seqop_xptr")
+    val xptr2 = cb.newLocal[Long]("linreg_agg_seqop_xptr2")
+    val xty = cb.newLocal[Long]("linreg_agg_seqop_xty")
+    val xtx = cb.newLocal[Long]("linreg_agg_seqop_xtx")
 
-    Code.memoize(x, "lra_seqop_x") { x =>
-      val body = Code(FastIndexedSeq(
-        xty := stateType.loadField(state.off, 0),
-        xtx := stateType.loadField(state.off, 1),
-        sptr := vector.firstElementOffset(xty, k),
-        xptr := xt.firstElementOffset(x, k),
-        k := vector.loadLength(xty),
-        i := 0,
-        Code.whileLoop(i < k, Code(
-          Region.storeDouble(sptr, Region.loadDouble(sptr)
-            + (Region.loadDouble(xptr) * y)),
-          i := i + 1,
-          sptr := sptr + scalar.byteSize,
-          xptr := xptr + scalar.byteSize
-        )),
+    val x = xc.memoize(cb, "lra_seqop_x").asInstanceOf[SIndexableValue]
 
-        i := 0,
-        sptr := vector.firstElementOffset(xtx),
-        xptr := xt.firstElementOffset(x, k),
-        Code.whileLoop(i < k, Code(
-          j := 0,
-          xptr2 := xt.firstElementOffset(x, k),
-          Code.whileLoop(j < k, Code(
-            Region.storeDouble(sptr, Region.loadDouble(sptr)
-              + (Region.loadDouble(xptr) * Region.loadDouble(xptr2))),
-            j += 1,
-            sptr := sptr + scalar.byteSize,
-            xptr2 := xptr2 + xt.elementByteSize)),
-          i += 1,
-          xptr := xptr + scalar.byteSize))))
+    cb.ifx(!x.hasMissingValues(cb),
+      {
+        cb.assign(xty, stateType.loadField(state.off, 0))
+        cb.assign(xtx, stateType.loadField(state.off, 1))
+        cb.assign(sptr, vector.firstElementOffset(xty, k))
+        cb.assign(k, vector.loadLength(xty))
+        cb.assign(i, 0)
+        cb.whileLoop(i < i,
+        {
+          cb += Region.storeDouble(sptr, Region.loadDouble(sptr) + x.loadElement(cb, i).get(cb).asDouble.doubleCode(cb))
+          cb.assign(i, i + 1)
+          cb.assign(sptr, sptr + scalar.byteSize)
+        })
 
-      xt.hasMissingValues(x).mux(Code._empty, body)
-    }
+        cb.assign(i, 0)
+        cb.assign(sptr, vector.firstElementOffset(xtx, k))
+
+        cb.whileLoop(i < k,
+        {
+          cb.assign(j, 0)
+          cb.whileLoop(j < k,
+          {
+            // add x[i] * x[j] to the value at sptr
+            cb += Region.storeDouble(sptr, Region.loadDouble(sptr) +
+              (x.loadElement(cb, i).get(cb).asDouble.doubleCode(cb) * x.loadElement(cb, j).get(cb).asDouble.doubleCode(cb)))
+            cb.assign(j, j + 1)
+            cb.assign(sptr, sptr + scalar.byteSize)
+          })
+          cb.assign(i, i + 1)
+        })
+      })
   }
 
   protected def _seqOp(cb: EmitCodeBuilder, state: State, seq: Array[EmitCode]): Unit = {
     val Array(y, x) = seq
-    cb += (Code(y.setup, y.m) || Code(x.setup, x.m)).mux(
-      Code._empty,
-      seqOpF(state)(cb.emb, coerce[Double](y.v), coerce[Long](x.v)))
+    y.toI(cb)
+        .consume(cb,
+        {},
+        { yCode =>
+          x.toI(cb)
+            .consume(cb,
+              {},
+              xCode => seqOpF(state)(cb, yCode.asDouble.doubleCode(cb), xCode)
+            )
+        })
   }
 
-  def combOpF(state: State, other: State)(mb: EmitMethodBuilder[_]): Code[Unit] = {
-    val n = mb.newLocal[Int]()
-    val i = mb.newLocal[Int]()
-    val sptr = mb.newLocal[Long]()
-    val optr = mb.newLocal[Long]()
-    val xty = mb.newLocal[Long]()
-    val xtx = mb.newLocal[Long]()
-    val oxty = mb.newLocal[Long]()
-    val oxtx = mb.newLocal[Long]()
+  def combOpF(state: State, other: State)(cb: EmitCodeBuilder): Unit = {
+    val n = cb.newLocal[Int]("n")
+    val i = cb.newLocal[Int]("i")
+    val sptr = cb.newLocal[Long]("sptr")
+    val optr = cb.newLocal[Long]("optr")
+    val xty = cb.newLocal[Long]("xty")
+    val xtx = cb.newLocal[Long]("xtx")
+    val oxty = cb.newLocal[Long]("oxty")
+    val oxtx = cb.newLocal[Long]("oxtx")
 
-    Code(FastIndexedSeq(
+    cb += Code(FastIndexedSeq(
       xty := stateType.loadField(state.off, 0),
       xtx := stateType.loadField(state.off, 1),
       oxty := stateType.loadField(other.off, 0),
@@ -206,7 +218,7 @@ class LinearRegressionAggregator(yt: PFloat64, xt: PCanonicalArray) extends Stag
   }
 
   protected def _combOp(cb: EmitCodeBuilder, state: State, other: State): Unit = {
-    cb += combOpF(state, other)(cb.emb)
+    combOpF(state, other)(cb)
   }
 
   protected def _result(cb: EmitCodeBuilder, state: State, srvb: StagedRegionValueBuilder): Unit = {

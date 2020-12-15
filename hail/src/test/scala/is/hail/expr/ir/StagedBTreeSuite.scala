@@ -19,11 +19,11 @@ class TestBTreeKey(mb: EmitMethodBuilder[_]) extends BTreeKey {
   def compType: PType = PInt64()
   def isEmpty(off: Code[Long]): Code[Boolean] =
     storageType.isFieldMissing(off, 1)
-  def initializeEmpty(off: Code[Long]): Code[Unit] =
-    storageType.setFieldMissing(off, 1)
+  def initializeEmpty(cb: EmitCodeBuilder, off: Code[Long]): Unit =
+    cb += storageType.setFieldMissing(off, 1)
 
-  def storeKey(off: Code[Long], m: Code[Boolean], v: Code[Long]): Code[Unit] =
-    Code.memoize(off, "off") { off =>
+  def storeKey(cb: EmitCodeBuilder, off: Code[Long], m: Code[Boolean], v: Code[Long]): Unit =
+    cb += Code.memoize(off, "off") { off =>
       Code(
         storageType.stagedInitialize(off),
         m.mux(
@@ -31,10 +31,10 @@ class TestBTreeKey(mb: EmitMethodBuilder[_]) extends BTreeKey {
           Region.storeLong(storageType.fieldOffset(off, 0), v)))
     }
 
-  def copy(src: Code[Long], dest: Code[Long]): Code[Unit] =
-    Region.copyFrom(src, dest, storageType.byteSize)
-  def deepCopy(er: EmitRegion, src: Code[Long], dest: Code[Long]): Code[Unit] =
-    copy(src, dest)
+  def copy(cb: EmitCodeBuilder, src: Code[Long], dest: Code[Long]): Unit =
+    cb += Region.copyFrom(src, dest, storageType.byteSize)
+  def deepCopy(cb: EmitCodeBuilder, er: EmitRegion, src: Code[Long], dest: Code[Long]): Unit =
+    copy(cb, src, dest)
 
   def compKeys(k1: EmitCode, k2: EmitCode): Code[Int] =
     Code(k1.setup, k2.setup, comp((k1.m, k1.v), (k2.m, k2.v)))
@@ -59,12 +59,11 @@ object BTreeBackedSet {
     val btree = new AppendOnlyBTree(cb, key, r, root, maxElements = n)
     fb.emitWithBuilder { cb =>
       cb += (r := fb.getCodeParam[Region](1))
-      cb += btree.init
+      btree.init(cb)
       btree.bulkLoad(cb, ib) { (cb, ib, off) =>
-        cb += Code(
-          km := ib.readBoolean(),
-          kv := km.mux(0L, ib.readLong()),
-          key.storeKey(off, km, kv))
+        cb.assign(km, ib.readBoolean())
+        cb.assign(kv, km.mux(0L, ib.readLong()))
+        key.storeKey(cb, off, km, kv)
       }
       root
     }
@@ -88,9 +87,11 @@ class BTreeBackedSet(ctx: ExecuteContext, region: Region, n: Int) {
 
     val key = new TestBTreeKey(fb.apply_method)
     val btree = new AppendOnlyBTree(cb, key, r, root, maxElements = n)
-    fb.emit(Code(
-      r := fb.getCodeParam[Region](1),
-      btree.init, root))
+    fb.emitWithBuilder { cb =>
+      cb.assign(r, fb.getCodeParam[Region](1))
+      btree.init(cb)
+      root
+    }
 
     fb.resultWithIndex()(0, region)
   }
@@ -113,7 +114,7 @@ class BTreeBackedSet(ctx: ExecuteContext, region: Region, n: Int) {
       cb.assign(root, fb.getCodeParam[Long](2))
       cb.assign(elt, btree.getOrElseInitialize(cb, ec))
       cb.ifx(key.isEmpty(elt), {
-        cb += key.storeKey(elt, m, v)
+        key.storeKey(cb, elt, m, v)
       })
       root
     }
