@@ -577,59 +577,51 @@ class EmitClassBuilder[C](
     ignoreMissingness: Boolean
   ): CodeOrdering.F[op.ReturnType] = {
     val f = compareMap.getOrElseUpdate((t1, t2, op, sortOrder, ignoreMissingness), {
-      val ti = typeToTypeInfo(t1)
       val rt = op.rtti
-
       val newMB = if (ignoreMissingness) {
-        val newMB = genEmitMethod("cord", FastIndexedSeq[ParamType](ti, ti), rt)
+        val newMB = genEmitMethod("cord", FastIndexedSeq[ParamType](t1.asEmitParam, t2.asEmitParam), rt)
         lazy val ord = t1.codeOrdering(newMB, t2, sortOrder)
-        val v1 = newMB.getCodeParam(1)(ti)
-        val v2 = newMB.getCodeParam(3)(ti)
-        val c: Code[_] = op match {
-          case CodeOrdering.CompareStructs(sf, missingEqual) =>
-            val ord = CodeOrdering.rowOrdering(t1.asInstanceOf[PStruct], t2.asInstanceOf[PStruct], newMB, sf.map(_.sortOrder).toArray, missingEqual)
-            ord.compareNonnull(coerce[ord.T](v1), coerce[ord.T](v2))
-          case CodeOrdering.Compare(_) => ord.compareNonnull(coerce[ord.T](v1), coerce[ord.T](v2))
-          case CodeOrdering.Equiv(_) => ord.equivNonnull(coerce[ord.T](v1), coerce[ord.T](v2))
-          case CodeOrdering.Lt(_) => ord.ltNonnull(coerce[ord.T](v1), coerce[ord.T](v2))
-          case CodeOrdering.Lteq(_) => ord.lteqNonnull(coerce[ord.T](v1), coerce[ord.T](v2))
-          case CodeOrdering.Gt(_) => ord.gtNonnull(coerce[ord.T](v1), coerce[ord.T](v2))
-          case CodeOrdering.Gteq(_) => ord.gteqNonnull(coerce[ord.T](v1), coerce[ord.T](v2))
-          case CodeOrdering.Neq(_) => !ord.equivNonnull(coerce[ord.T](v1), coerce[ord.T](v2))
+        val v1 = newMB.getEmitParam(1).pv
+        val v2 = newMB.getEmitParam(2).pv
+        newMB.emitWithBuilder { cb =>
+          op match {
+            case CodeOrdering.CompareStructs(sf, missingEqual) =>
+              val ord = CodeOrdering.rowOrdering(t1.asInstanceOf[PStruct], t2.asInstanceOf[PStruct], newMB, sf.map(_.sortOrder).toArray, missingEqual)
+              ord.compareNonnull(cb, v1, v2)
+            case CodeOrdering.Compare(_) => ord.compareNonnull(cb, v1, v2)
+            case CodeOrdering.Equiv(_) => ord.equivNonnull(cb, v1, v2)
+            case CodeOrdering.Lt(_) => ord.ltNonnull(cb, v1, v2)
+            case CodeOrdering.Lteq(_) => ord.lteqNonnull(cb, v1, v2)
+            case CodeOrdering.Gt(_) => ord.gtNonnull(cb, v1, v2)
+            case CodeOrdering.Gteq(_) => ord.gteqNonnull(cb, v1, v2)
+            case CodeOrdering.Neq(_) => !ord.equivNonnull(cb, v1, v2)
+          }
         }
-        newMB.emit(c)
         newMB
       } else {
-        val newMB = genEmitMethod("cord", FastIndexedSeq[ParamType](typeInfo[Boolean], ti, typeInfo[Boolean], ti), rt)
+        val newMB = genEmitMethod("cord", FastIndexedSeq[ParamType](t1.asEmitParam, t2.asEmitParam), rt)
         lazy val ord = t1.codeOrdering(newMB, t2, sortOrder)
-        val m1 = newMB.getCodeParam[Boolean](1)
-        val v1 = newMB.getCodeParam(2)(ti)
-        val m2 = newMB.getCodeParam[Boolean](3)
-        val v2 = newMB.getCodeParam(4)(ti)
-        val c: Code[_] = op match {
-          case CodeOrdering.CompareStructs(sf, missingEqual) =>
-            val ord = CodeOrdering.rowOrdering(t1.asInstanceOf[PStruct], t2.asInstanceOf[PStruct], newMB, sf.map(_.sortOrder).toArray, missingEqual)
-            ord.compare((m1, coerce[ord.T](v1)), (m2, coerce[ord.T](v2)), missingEqual)
-          case CodeOrdering.Compare(missingEqual) => ord.compare((m1, coerce[ord.T](v1)), (m2, coerce[ord.T](v2)), missingEqual)
-          case CodeOrdering.Equiv(missingEqual) => ord.equiv((m1, coerce[ord.T](v1)), (m2, coerce[ord.T](v2)), missingEqual)
-          case CodeOrdering.Lt(missingEqual) => ord.lt((m1, coerce[ord.T](v1)), (m2, coerce[ord.T](v2)), missingEqual)
-          case CodeOrdering.Lteq(missingEqual) => ord.lteq((m1, coerce[ord.T](v1)), (m2, coerce[ord.T](v2)), missingEqual)
-          case CodeOrdering.Gt(missingEqual) => ord.gt((m1, coerce[ord.T](v1)), (m2, coerce[ord.T](v2)), missingEqual)
-          case CodeOrdering.Gteq(missingEqual) => ord.gteq((m1, coerce[ord.T](v1)), (m2, coerce[ord.T](v2)), missingEqual)
-          case CodeOrdering.Neq(missingEqual) => !ord.equiv((m1, coerce[ord.T](v1)), (m2, coerce[ord.T](v2)), missingEqual)
+        val v1 = newMB.getEmitParam(1)
+        val v2 = newMB.getEmitParam(2)
+        newMB.emitWithBuilder { cb =>
+          op match {
+            case CodeOrdering.CompareStructs(sf, missingEqual) =>
+              val ord = CodeOrdering.rowOrdering(t1.asInstanceOf[PStruct], t2.asInstanceOf[PStruct], newMB, sf.map(_.sortOrder).toArray, missingEqual)
+              ord.compare(cb, v1, v2, missingEqual)
+            case CodeOrdering.Compare(missingEqual) => ord.compare(cb, v1, v2, missingEqual)
+            case CodeOrdering.Equiv(missingEqual) => ord.equiv(cb, v1, v2, missingEqual)
+            case CodeOrdering.Lt(missingEqual) => ord.lt(cb, v1, v2, missingEqual)
+            case CodeOrdering.Lteq(missingEqual) => ord.lteq(cb, v1, v2, missingEqual)
+            case CodeOrdering.Gt(missingEqual) => ord.gt(cb, v1, v2, missingEqual)
+            case CodeOrdering.Gteq(missingEqual) => ord.gteq(cb, v1, v2, missingEqual)
+            case CodeOrdering.Neq(missingEqual) => !ord.equiv(cb, v1, v2, missingEqual)
+          }
         }
-        newMB.emit(c)
         newMB
       }
-      val f = { (x: (Code[Boolean], Code[_]), y: (Code[Boolean], Code[_])) =>
-        if (ignoreMissingness)
-          newMB.invokeCode[op.ReturnType](x._2, y._2)
-        else
-          newMB.invokeCode[op.ReturnType](x._1, x._2, y._1, y._2)
-      }
-      f
+      { (cb: EmitCodeBuilder, elhs: EmitCode, erhs: EmitCode) => cb.invokeCode(newMB, elhs, erhs) }
     })
-    (v1: (Code[Boolean], Code[_]), v2: (Code[Boolean], Code[_])) => coerce[op.ReturnType](f(v1, v2))
+    ((cb: EmitCodeBuilder, elhs: EmitCode, erhs: EmitCode) => coerce[op.ReturnType](f(cb, elhs, erhs)))
   }
 
   def getCodeOrdering(
