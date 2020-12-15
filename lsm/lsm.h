@@ -37,10 +37,23 @@ public:
   explicit maybe_value(int32_t _v, char _deleted) : v{_v}, is_deleted{_deleted} {}
 };
 
+class Level {
+public:
+  std::vector <File> files;
+  const int max_size = 2;
+
+  int get_size();
+  void add_file(File f);
+  File write_to_file(std::map<int32_t, maybe_value> m, std::string filename);
+  void read_to_map(File f, std::map<int32_t, maybe_value> &m);
+  File merge(File older_f, File newer_f, std::string merged_filename);
+};
+
 class LSM {
   std::map<int32_t, maybe_value> m;
   std::vector<File> files;
   std::filesystem::path directory;
+  std::vector<Level> levels;
 public:
   explicit LSM(std::string _directory) :
     m{}, files{}, directory{_directory} {
@@ -49,6 +62,7 @@ public:
     }
     std::filesystem::create_directory(directory);
   }
+  void add_to_level(File f, int l_index);
   void put(int32_t k, int32_t v, char deleted = 0);
   std::optional<int32_t> get(int32_t k);
   std::vector<std::pair<int32_t, int32_t>> range(int32_t l, int32_t r);
