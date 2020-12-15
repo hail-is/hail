@@ -182,15 +182,16 @@ class PrimitiveRVAState(val vtypes: Array[VirtualTypeWithReq], val kb: EmitClass
 
   def createState(cb: EmitCodeBuilder): Unit = {}
 
-  private[this] def loadVarsFromRegion(cb: EmitCodeBuilder, srcc: Code[Long]): Unit =
+  private[this] def loadVarsFromRegion(cb: EmitCodeBuilder, srcc: Code[Long]): Unit = {
+    val src = cb.newLocal("prim_rvastate_load_vars_src", srcc)
     foreachField {
       case (i, (None, v, t)) =>
-        cb.assignAny(v, Region.loadPrimitive(t)(storageType.fieldOffset(srcc, i)))
+        cb.assignAny(v, Region.loadPrimitive(t)(storageType.fieldOffset(src, i)))
       case (i, (Some(m), v, t)) =>
-        val src = cb.newLocal("prim_rvastate_load_vars_src", srcc)
         cb.assign(m, storageType.isFieldMissing(src, i))
-        cb.ifx(!m, cb.assignAny(v, Region.loadPrimitive(t)(storageType.fieldOffset(srcc, i))))
+        cb.ifx(!m, cb.assignAny(v, Region.loadPrimitive(t)(storageType.fieldOffset(src, i))))
     }
+  }
 
   def load(cb: EmitCodeBuilder, regionLoader: (EmitCodeBuilder, Value[Region]) => Unit, src: Code[Long]): Unit = {
     loadVarsFromRegion(cb, src)
