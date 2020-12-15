@@ -684,9 +684,6 @@ class Emit[C](
     def emitFallback(ir: IR, env: E = env, container: Option[AggContainer] = container, loopEnv: Option[Env[LoopRef]] = loopEnv): IEmitCode =
       this.emit(ir, mb, region, env, container, loopEnv, fallingBackFromEmitI = true).toI(cb)
 
-    def emitDeforestedNDArray(ir: IR): IEmitCode =
-      deforestNDArray(ir, mb, region, env).toI(cb)
-
     def emitDeforestedNDArrayI(ir: IR): IEmitCode =
       deforestNDArrayI(ir, cb, region, env)
 
@@ -2864,31 +2861,6 @@ class Emit[C](
               }
             }
           }
-
-        //            override def outputElement(elemMB: EmitMethodBuilder[C], idxVars: IndexedSeq[Value[Long]]): Code[_] = {
-        //              val concatAxisIdx = elemMB.newLocal[Long]()
-        //
-        //              val setupTransformedIdx = EmitCodeBuilder.scopedVoid(elemMB){cb: EmitCodeBuilder =>
-        //                cb.assign(i, 0)
-        //                cb.assign(concatAxisIdx, idxVars(axis))
-        //                cb.whileLoop(concatAxisIdx >= inputNDType.loadShape(cb, inputType.loadElement(inputArray, i), axis),
-        //                  {
-        //                    cb.assign(concatAxisIdx, concatAxisIdx - inputNDType.loadShape(cb, inputType.loadElement(inputArray, i), axis))
-        //                    cb.assign(i, i + 1)
-        //                  })
-        //                cb += (i > n).orEmpty(Code._fatal[Unit](
-        //                  const("NDArrayConcat: trying to access element greater than length of concatenation axis: ")
-        //                    .concat(i.toS).concat(" > ").concat(n.toS)))}
-        //
-        //              val transformedIdxs = Array.tabulate(x.typ.nDims) { idx =>
-        //                if (idx == axis) concatAxisIdx else idxVars(idx)
-        //              }.toFastIndexedSeq
-        //              Code(
-        //                setupTransformedIdx,
-        //                inputNDType.loadElementToIRIntermediate(transformedIdxs, new Value[Long] {
-        //                  def get: Code[Long] = inputType.loadElement(inputArray, i)
-        //                }, elemMB))
-        //            }
         case _ =>
           val ndI = emit(x)
           ndI.map(cb){ ndPCode =>
@@ -2905,137 +2877,6 @@ class Emit[C](
     }
 
     deforest(x0).map(cb)(emitter => emitter.emit(cb, coerce[PNDArray](x0.pType), region.code))
-  }
-
-  def deforestNDArray(x0: IR, mb: EmitMethodBuilder[C], region: StagedRegion, env: E): EmitCode = {
-    def emit(ir: IR, env: E = env): EmitCode =
-      this.emitWithRegion(ir, mb, region, env, None)
-
-    def dEmit(ir: IR, env: E = env): EmitCode = emit(ir, env)
-
-    def deforest(x: IR): NDArrayEmitter[C] = {
-      val xType = coerce[PNDArray](x.pType)
-      val nDims = xType.nDims
-
-      x match {
-        case x@NDArrayConcat(nds, axis) =>
-          val inputType = coerce[PArray](nds.pType)
-          val inputNDType = coerce[PNDArray](inputType.elementType)
-
-          val ndType = coerce[PNDArray](x.pType)
-          val codeNDs = emit(nds)
-
-          val inputArray = mb.genFieldThisRef[Long]()
-          val n = mb.genFieldThisRef[Int]()
-          val i = mb.genFieldThisRef[Int]()
-
-          val loadAndValidateArray = Code(
-            inputArray := codeNDs.value[Long],
-            n := inputType.loadLength(inputArray),
-            (n < 1).orEmpty(Code._fatal[Unit]("NDArrayConcat: can't concatenate 0 NDArrays")))
-
-          val (missingSetup: Code[Unit @unchecked], missing: Code[Boolean @unchecked], setupShape: Code[Unit @unchecked]) = (inputType.required, inputNDType.required) match {
-            case (true, true) => (Code._empty, false: Code[Boolean], Code(
-              codeNDs.setup,
-              codeNDs.m.orEmpty(Code._fatal[Unit]("NDArrayConcat: required NDArray can't be missing")),
-              loadAndValidateArray))
-            case (false, true) => (codeNDs.setup, codeNDs.m, loadAndValidateArray)
-            case _ =>
-              val m = mb.genFieldThisRef[Boolean]()
-              val setup = Code(
-                codeNDs.setup,
-                m := codeNDs.m,
-                (!m).orEmpty(
-                  Code(
-                    loadAndValidateArray,
-                    i := 0,
-                    Code.whileLoop(i < n,
-                      m := m | inputType.isElementMissing(inputArray, i),
-                      i := i + 1))
-                ))
-              (setup, m.load(), Code._empty)
-          }
-
-          val sb = SetupBuilder(mb, setupShape)
-          val outputShape = sb.map(0 until ndType.nDims) { (sb, idx) =>
-            val localDim = mb.genFieldThisRef[Long]()
-
-            sb += EmitCodeBuilder.scopedVoid(mb){cb: EmitCodeBuilder =>
-
-              cb.assign(localDim, inputNDType.loadShape(cb, inputType.loadElement(inputArray, 0), idx))
-              cb.assign(i, 1)
-              cb.whileLoop(i < n,
-                {
-                  if (idx == axis)
-                    cb.assign(localDim, localDim + inputNDType.loadShape(cb, inputType.loadElement(inputArray, i), idx))
-                  else
-                    cb += inputNDType.loadShape(cb, inputType.loadElement(inputArray, i), idx).cne(localDim)
-                      .orEmpty(Code._fatal[Unit](
-                        const(s"NDArrayConcat: mismatched dimensions of input NDArrays along axis $i: expected ")
-                          .concat(localDim.toS).concat(", got ")
-                          .concat(inputNDType.loadShape(cb, inputType.loadElement(inputArray, i), idx).toS)))
-
-                  cb.assign(i, i + 1)
-                })}
-
-            localDim
-          }
-
-          val setupShape2 = sb.result()
-
-          new NDArrayEmitter[C](x.typ.nDims,
-            outputShape,
-            ndType.shape.pType,
-            ndType.elementType,
-            setupShape2,
-            missingSetup,
-            missing) {
-            override def outputElement(elemMB: EmitMethodBuilder[C], idxVars: IndexedSeq[Value[Long]]): Code[_] = {
-              val concatAxisIdx = elemMB.newLocal[Long]()
-
-              val setupTransformedIdx = EmitCodeBuilder.scopedVoid(elemMB){cb: EmitCodeBuilder =>
-                cb.assign(i, 0)
-                cb.assign(concatAxisIdx, idxVars(axis))
-                cb.whileLoop(concatAxisIdx >= inputNDType.loadShape(cb, inputType.loadElement(inputArray, i), axis),
-                  {
-                    cb.assign(concatAxisIdx, concatAxisIdx - inputNDType.loadShape(cb, inputType.loadElement(inputArray, i), axis))
-                    cb.assign(i, i + 1)
-                  })
-                cb += (i > n).orEmpty(Code._fatal[Unit](
-                  const("NDArrayConcat: trying to access element greater than length of concatenation axis: ")
-                    .concat(i.toS).concat(" > ").concat(n.toS)))}
-
-              val transformedIdxs = Array.tabulate(x.typ.nDims) { idx =>
-                if (idx == axis) concatAxisIdx else idxVars(idx)
-              }.toFastIndexedSeq
-              Code(
-                setupTransformedIdx,
-                inputNDType.loadElementToIRIntermediate(transformedIdxs, new Value[Long] {
-                  def get: Code[Long] = inputType.loadElement(inputArray, i)
-                }, elemMB))
-            }
-          }
-
-        case _ =>
-          val ndt = emit(x)
-          val ndAddress = mb.genFieldThisRef[Long]("ndarray_emitter_nd_address")
-          val shapeAddress = mb.genFieldThisRef[Long]("ndarray_emitter_shape_address")
-          val xP = x.pType.asInstanceOf[PNDArray]
-          val setup = Code(ndAddress := ndt.value[Long], shapeAddress := xP.shape.load(ndAddress))
-
-          val shapeTuple = new CodePTuple(xP.shape.pType, shapeAddress)
-
-          val shapeArray = (0 until xP.shape.pType.nFields).map(i => shapeTuple.apply[Long](i))
-
-          new NDArrayEmitter[C](nDims, shapeArray,
-            xP.shape.pType, xP.elementType, setup, ndt.setup, ndt.m) {
-            override def outputElement(elemMB: EmitMethodBuilder[C], idxVars: IndexedSeq[Value[Long]]): Code[_] =
-              xP.loadElementToIRIntermediate(idxVars, ndAddress, elemMB)
-          }
-      }
-    }
-
-    deforest(x0).emit(mb, coerce[PNDArray](x0.pType), region.code)
   }
 }
 
@@ -3126,86 +2967,6 @@ object NDArrayEmitter {
 
     cb.append(setup)
     shape
-  }
-}
-
-abstract class NDArrayEmitter[C](
-   val nDims: Int,
-   val outputShape: IndexedSeq[Value[Long]],
-   val outputShapePType: PTuple,
-   val outputElementPType: PType,
-   val setupShape: Code[Unit],
-   val setupMissing: Code[Unit] = Code._empty,
-   val missing: Code[Boolean] = false) {
-
-  def outputElement(elemMB: EmitMethodBuilder[C], idxVars: IndexedSeq[Value[Long]]): Code[_]
-
-  def emit(mb: EmitMethodBuilder[C], targetType: PNDArray, region: Value[Region]): EmitCode = {
-    val outputShapeVariables = (0 until nDims).map(_ => mb.genFieldThisRef[Long]())
-
-    val dataSrvb = new StagedRegionValueBuilder(mb, targetType.data.pType, region)
-
-    val dataAddress: Code[Long] =
-      Code(
-        dataSrvb.start(targetType.numElements(outputShapeVariables, mb).toI),
-        emitLoops(mb, outputShapeVariables, dataSrvb),
-        dataSrvb.end())
-
-    def shapeBuilder(srvb: StagedRegionValueBuilder): Code[Unit] = {
-      coerce[Unit](Code(
-        srvb.start(),
-        Code.foreach(outputShapeVariables){ shapeElement =>
-          Code(
-            srvb.addLong(shapeElement),
-            srvb.advance()
-          )
-        }
-      ))
-    }
-
-    val m = mb.genFieldThisRef[Boolean]()
-
-    val fullSetup = Code(
-      setupMissing,
-      m := missing,
-      m.mux(
-        Code._empty,
-        Code(
-          setupShape,
-          Code.foreach(0 until nDims)(index => outputShapeVariables(index) := outputShape(index)))))
-
-    val ptr = targetType.construct(
-      shapeBuilder,
-      targetType.makeColumnMajorStridesBuilder(outputShapeVariables, mb),
-      dataAddress,
-      mb,
-      region)
-
-    EmitCode(fullSetup, m, ptr)
-  }
-
-  private def emitLoops(mb: EmitMethodBuilder[C], outputShapeVariables: IndexedSeq[Value[Long]], srvb: StagedRegionValueBuilder): Code[Unit] = {
-    val idxVars = Array.tabulate(nDims) { _ => mb.genFieldThisRef[Long]() }.toFastIndexedSeq
-    val storeElement = mb.newLocal("nda_elem_out")(typeToTypeInfo(outputElementPType))
-
-    val body =
-      Code(
-        storeElement.storeAny(outputElement(mb, idxVars)),
-        srvb.addIRIntermediate(outputElementPType)(storeElement),
-        srvb.advance()
-      )
-
-    val columnMajorLoops = idxVars.zipWithIndex.foldLeft(body) { case (innerLoops, (dimVar, dimIdx)) =>
-      Code(
-        dimVar := 0L,
-        Code.whileLoop(dimVar < outputShapeVariables(dimIdx),
-          innerLoops,
-          dimVar := dimVar + 1L
-        )
-      )
-    }
-
-    columnMajorLoops
   }
 }
 
