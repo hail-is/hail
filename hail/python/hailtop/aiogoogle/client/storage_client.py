@@ -140,7 +140,7 @@ class GetObjectFileStatus(FileStatus):
 
 class GoogleStorageFileListEntry(FileListEntry):
     def __init__(self, url: str, items: Optional[Dict[str, Any]]):
-        assert url.endswith('/') == (items is None)
+        assert url.endswith('/') == (items is None), f'{url} {items}'
         self._url = url
         self._items = items
         self._status = None
@@ -150,6 +150,9 @@ class GoogleStorageFileListEntry(FileListEntry):
         return os.path.basename(parsed.path)
 
     async def url(self) -> str:
+        return self._url
+
+    def url_maybe_trailing_slash(self) -> str:
         return self._url
 
     async def is_file(self) -> bool:
@@ -197,6 +200,9 @@ class GoogleStorageAsyncFS(AsyncFS):
         return await self._storage_client.insert_object(bucket, name)
 
     async def mkdir(self, url: str) -> None:
+        pass
+
+    async def makedirs(self, url: str, exist_ok: bool = False) -> None:
         pass
 
     async def statfile(self, url: str) -> GetObjectFileStatus:

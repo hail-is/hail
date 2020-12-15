@@ -1016,7 +1016,7 @@ steps:
      export PYSPARK_SUBMIT_ARGS="--driver-memory 6g pyspark-shell"
      export PYTEST_SPLITS=5
      export PYTEST_SPLIT_INDEX=0
-     python3 -m pytest --ignore=test/hailtop/batch/ --log-cli-level=INFO -s -vv --instafail --durations=50 test
+     python3 -m pytest --ignore=test/hailtop/batch/ --ignore=test/hailtop/aiotools/test_copy.py --log-cli-level=INFO -s -vv --instafail --durations=50 test
    inputs:
      - from: /debug-wheel-container.tar
        to: /io/debug-wheel-container.tar
@@ -1057,7 +1057,7 @@ steps:
      export PYSPARK_SUBMIT_ARGS="--driver-memory 6g pyspark-shell"
      export PYTEST_SPLITS=5
      export PYTEST_SPLIT_INDEX=1
-     python3 -m pytest --ignore=test/hailtop/batch/ --log-cli-level=INFO -s -vv --instafail --durations=50 test
+     python3 -m pytest --ignore=test/hailtop/batch/ --ignore=test/hailtop/aiotools/test_copy.py --log-cli-level=INFO -s -vv --instafail --durations=50 test
    inputs:
      - from: /debug-wheel-container.tar
        to: /io/debug-wheel-container.tar
@@ -1098,7 +1098,7 @@ steps:
      export PYSPARK_SUBMIT_ARGS="--driver-memory 6g pyspark-shell"
      export PYTEST_SPLITS=5
      export PYTEST_SPLIT_INDEX=2
-     python3 -m pytest --ignore=test/hailtop/batch/ --log-cli-level=INFO -s -vv --instafail --durations=50 test
+     python3 -m pytest --ignore=test/hailtop/batch/ --ignore=test/hailtop/aiotools/test_copy.py --log-cli-level=INFO -s -vv --instafail --durations=50 test
    inputs:
      - from: /debug-wheel-container.tar
        to: /io/debug-wheel-container.tar
@@ -1139,7 +1139,7 @@ steps:
      export PYSPARK_SUBMIT_ARGS="--driver-memory 6g pyspark-shell"
      export PYTEST_SPLITS=5
      export PYTEST_SPLIT_INDEX=3
-     python3 -m pytest --ignore=test/hailtop/batch/ --log-cli-level=INFO -s -vv --instafail --durations=50 test
+     python3 -m pytest --ignore=test/hailtop/batch/ --ignore=test/hailtop/aiotools/test_copy.py --log-cli-level=INFO -s -vv --instafail --durations=50 test
    inputs:
      - from: /debug-wheel-container.tar
        to: /io/debug-wheel-container.tar
@@ -1180,7 +1180,7 @@ steps:
      export PYSPARK_SUBMIT_ARGS="--driver-memory 6g pyspark-shell"
      export PYTEST_SPLITS=5
      export PYTEST_SPLIT_INDEX=4
-     python3 -m pytest --ignore=test/hailtop/batch/ --log-cli-level=INFO -s -vv --instafail --durations=50 test
+     python3 -m pytest --ignore=test/hailtop/batch/ --ignore=test/hailtop/aiotools/test_copy.py --log-cli-level=INFO -s -vv --instafail --durations=50 test
    inputs:
      - from: /debug-wheel-container.tar
        to: /io/debug-wheel-container.tar
@@ -1190,6 +1190,36 @@ steps:
        to: /io/resources.tar.gz
      - from: /data.tar.gz
        to: /io/data.tar.gz
+   secrets:
+    - name: test-gsa-key
+      namespace:
+        valueFrom: default_ns.name
+      mountPath: /test-gsa-key
+   dependsOn:
+     - default_ns
+     - hail_run_image
+     - build_hail
+ - kind: runImage
+   name: test_hail_python_copy
+   image:
+     valueFrom: hail_run_image.image
+   resources:
+     memory: "7.5G"
+     cpu: "2"
+   script: |
+     set -ex
+     cd /io
+     tar xzf test.tar.gz
+     tar xvf debug-wheel-container.tar
+     python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
+     export HAIL_TEST_BUCKET=hail-test-dmk9z
+     export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
+     python3 -m pytest --log-cli-level=INFO -s -vv --instafail --durations=50 -n 10 test/hailtop/aiotools/test_copy.py
+   inputs:
+     - from: /debug-wheel-container.tar
+       to: /io/debug-wheel-container.tar
+     - from: /test.tar.gz
+       to: /io/test.tar.gz
    secrets:
     - name: test-gsa-key
       namespace:
