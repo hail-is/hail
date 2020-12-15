@@ -8,7 +8,7 @@ int main(int argc, const char ** argv) {
     return 1;
   }
 
-  LSM lsm;
+  LSM lsm{"db"};
 
   auto& in = std::cin;
   for (std::string line; std::getline(in, line);) {

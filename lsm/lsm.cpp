@@ -14,7 +14,7 @@ char BloomFilter::contains_key(int32_t k) {
 
 void LSM::put(int32_t k, int32_t v, char deleted) {
   if (m.size() >= 4) {
-    std::string filename = std::to_string(files.size());
+    std::string filename = directory / std::to_string(files.size());
     files.push_back(write_to_file(filename));
     m.clear();
   }

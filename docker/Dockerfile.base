@@ -38,7 +38,7 @@ COPY docker/core-site.xml ${SPARK_HOME}/conf/core-site.xml
 
 COPY pylintrc setup.cfg /
 
-RUN git clone https://github.com/catchorg/Catch2.git && \
+RUN git clone https://github.com/catchorg/Catch2.git --depth 1 --branch v2.13.3 && \
   cd Catch2 && \
   cmake -Bbuild -H. -DBUILD_TESTING=OFF && \
   cmake --build build/ --target install && \

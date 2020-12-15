@@ -7,6 +7,7 @@
 #include <fstream>
 #include <limits>
 #include <bitset>
+#include <filesystem>
 
 class BloomFilter {
   std::bitset<64> bset;
@@ -39,7 +40,15 @@ public:
 class LSM {
   std::map<int32_t, maybe_value> m;
   std::vector<File> files;
+  std::filesystem::path directory;
 public:
+  explicit LSM(std::string _directory) :
+    m{}, files{}, directory{_directory} {
+    if (std::filesystem::exists(directory)) {
+      std::cerr << "WARNING: " << directory << " already exists.";
+    }
+    std::filesystem::create_directory(directory);
+  }
   void put(int32_t k, int32_t v, char deleted = 0);
   std::optional<int32_t> get(int32_t k);
   std::vector<std::pair<int32_t, int32_t>> range(int32_t l, int32_t r);

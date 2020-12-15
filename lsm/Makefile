@@ -29,15 +29,15 @@ build/%.d: %.cpp
 
 build/%.o: %.cpp
 	@mkdir -p $(@D)
-	$(CXX) $(CXXFLAGS) -MD -MF $(@:%.o=%.d) -MT $@ -c $< -o $@
+	$(CXX) -I$(CURDIR) $(CXXFLAGS) -MD -MF $(@:%.o=%.d) -MT $@ -c $< -o $@
 
-build/main: $(filter-out build/test.o,$(OBJECTS))
+build/main: $(filter-out build/test/%,$(OBJECTS))
 	$(CXX) $(CXXFLAGS) $(LDFLAGS) \
 		-ldl \
 		-o $@ \
 		$(filter %.o,$^)
 
-build/test: $(filter-out build/main.o,$(OBJECTS))
+build/test/main: $(filter-out build/main.o,$(OBJECTS))
 	$(CXX) $(CXXFLAGS) $(LDFLAGS) \
 		-ldl \
 		-o $@ \
@@ -48,12 +48,12 @@ clean:
 	rm -rf build
 
 .PHONY: unit-tests
-unit-tests: build/test
-	build/test
+unit-tests: build/test/main
+	build/test/main
 
 .PHONY: integration-tests
 integration-tests: build/main
-	bash test.sh
+	bash test/integration-tests.sh
 
 .PHONY: test
 test: unit-tests integration-tests
