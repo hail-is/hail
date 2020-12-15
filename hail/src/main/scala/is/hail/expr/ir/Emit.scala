@@ -2832,7 +2832,7 @@ class Emit[C](
               cb.assign(localDim, ndShape(0))
               cb.forLoop(cb.assign(loopIdx, 1), loopIdx < arrLength, cb.assign(loopIdx, loopIdx + 1), {
                 val shapeOfNDAtIdx = ndsArrayPValue.loadElement(cb, loopIdx).map(cb) { sCode => sCode.asNDArray }.getNeverMissing(cb).shape.memoize(cb, "ndarray_concat_input_shape")
-                val dimLength = shapeOfNDAtIdx.loadField(cb, dimIdx).getNeverMissing(cb).toPCode(cb, region.code).tcode[Long]
+                val dimLength = shapeOfNDAtIdx.loadField(cb, dimIdx).getNeverMissing(cb).toPCode(cb, region.code).memoize(cb, "dimLength").value.asInstanceOf[Value[Long]]
 
                 if (dimIdx == axis) {
                   cb.assign(localDim, localDim + dimLength)
