@@ -1044,15 +1044,13 @@ class Emit[C](
                     }
                   }
 
-                  PCode(outputPType.elementType, Code(
-                    k := 0L,
-                    kLen := lShape(lPType.nDims - 1),
-                    element := numericElementType.zero,
-                    Code.whileLoop(k < kLen,
-                      element := numericElementType.add(multiply(lElem.asPCode, rElem.asPCode), element),
-                      k := k + 1L),
-                    element
-                  ))
+                  cb.assign(kLen, lShape(lPType.nDims - 1))
+                  cb.assign(element, numericElementType.zero)
+                  cb.forLoop(cb.assign(k, 0L), k < kLen, cb.assign(k, k + 1L),
+                    cb.assign(element, numericElementType.add(multiply(lElem.asPCode, rElem.asPCode), element))
+                  )
+
+                  PCode(outputPType.elementType, element)
                 }
               }
               emitter.emit(cb, outputPType, region.code)
