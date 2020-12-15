@@ -5,7 +5,9 @@ import is.hail.types.physical.stypes.{SCode, SType, SValue}
 
 trait SString extends SType
 
-trait SStringValue extends SValue
+trait SStringValue extends SValue {
+  override def get: SStringCode
+}
 
 trait SStringCode extends SCode {
   def loadLength(): Code[Int]

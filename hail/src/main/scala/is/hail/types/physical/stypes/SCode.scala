@@ -89,5 +89,3 @@ trait SSettable extends SValue {
 
   def load(): SCode = get
 }
-
-

@@ -92,9 +92,9 @@ class SNDArrayPointerSettable(val st: SNDArrayPointer, val a: Settable[Long]) ex
   override def sameShape(other: SNDArrayValue, cb: EmitCodeBuilder): Code[Boolean] = {
     val otherPtr = other.asInstanceOf[SNDArrayPointerSettable]
     val comparator = this.pt.shape.pType.codeOrdering(cb.emb, otherPtr.pt.shape.pType)
-    val thisShape = this.pt.shape.load(this.a).asInstanceOf[Code[comparator.T]]
-    val otherShape = otherPtr.pt.shape.load(otherPtr.a.asInstanceOf[Value[Long]]).asInstanceOf[Code[comparator.T]]
-    comparator.equivNonnull(thisShape, otherShape)
+    val thisShape = PCode(this.pt.shape.pType, this.pt.shape.load(this.a))
+    val otherShape = PCode(otherPtr.pt.shape.pType, otherPtr.pt.shape.load(otherPtr.a))
+    comparator.equivNonnull(cb, thisShape, otherShape)
   }
 }
 
