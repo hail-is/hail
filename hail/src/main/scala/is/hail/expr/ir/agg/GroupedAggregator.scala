@@ -22,7 +22,7 @@ class GroupedBTreeKey(kt: PType, kb: EmitClassBuilder[_], region: Value[Region],
     val v = mb.getCodeParam(3)(compType.ti)
     val ev1 = EmitCode(Code._empty, isKeyMissing(off), PCode(compType, loadKey(off)))
     val ev2 = EmitCode(Code._empty, m, PCode(compType, v))
-    mb.emit(compKeys(ev1, ev2))
+    mb.emitWithBuilder(compKeys(_, ev1, ev2))
     mb
   }
 
@@ -88,12 +88,10 @@ class GroupedBTreeKey(kt: PType, kb: EmitClassBuilder[_], region: Value[Region],
       container.store(cb)
     }
 
-  def compKeys(k1: EmitCode, k2: EmitCode): Code[Int] =
-    Code(k1.setup, k2.setup, kcomp(k1.m -> k1.v, k2.m -> k2.v))
+  def compKeys(cb: EmitCodeBuilder, k1: EmitCode, k2: EmitCode): Code[Int] = kcomp(cb, k1, k2)
 
   def loadCompKey(off: Value[Long]): EmitCode =
     EmitCode(Code._empty, isKeyMissing(off), PCode(compType, loadKey(off)))
-
 }
 
 class DictState(val kb: EmitClassBuilder[_], val keyType: PType, val nested: StateTuple) extends PointerBasedRVAState {

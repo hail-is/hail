@@ -50,10 +50,7 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
     val k1 = cmp.getEmitParam(1)
     val k2 = cmp.getEmitParam(2)
 
-    cmp.emit(
-      ord.compare(k1.m -> coerce(k1.v), k2.m -> coerce(k2.v))
-    )
-
+    cmp.emitWithBuilder(cb => ord.compare(cb, k1, k2))
     (cb, k1, k2) => cb.invokeCode(cmp, k1, k2)
   }
 
@@ -64,7 +61,7 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
     val k1 = cmp.getCodeParam(1)(indexedkeyTypeTypeInfo)
     val k2 = cmp.getCodeParam(2)(indexedkeyTypeTypeInfo)
 
-    cmp.emit(ord.compare((false, asm4s.coerce[ord.T](k1)), (false, asm4s.coerce[ord.T](k2))))
+    cmp.emitWithBuilder(cb => ord.compare(cb , EmitCode.present(indexedKeyType, k1), EmitCode.present(indexedKeyType, k2)))
 
     cmp.invokeCode(_, _)
   }
