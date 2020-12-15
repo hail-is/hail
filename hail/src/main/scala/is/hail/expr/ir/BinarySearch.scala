@@ -3,6 +3,7 @@ package is.hail.expr.ir
 import is.hail.annotations.{CodeOrdering, Region}
 import is.hail.asm4s._
 import is.hail.types.physical._
+import is.hail.types.physical.stypes._
 import is.hail.utils.FastIndexedSeq
 
 import scala.language.existentials
@@ -21,24 +22,26 @@ class BinarySearch[C](mb: EmitMethodBuilder[C], typ: PContainer, eltType: PType,
     }
     val kt = ttype.types(0)
     val findMB = mb.genEmitMethod("findElt", FastIndexedSeq[ParamType](typeInfo[Long], typeInfo[Boolean], typeToTypeInfo(kt)), typeInfo[Int])
-    val mk2l = findMB.newLocal[Boolean]()
-    val mk2l1 = mb.newLocal[Boolean]()
 
     val comp: CodeOrdering.F[Int] = {
-      case ((mk1: Code[Boolean], k1: Code[_]), (m2: Code[Boolean], v2: Code[Long] @unchecked)) =>
-        Code.memoize(v2, "bs_comp_v2") { v2 =>
-          val mk2 = Code(mk2l := m2 || ttype.isFieldMissing(v2, 0), mk2l)
-          val k2 = mk2l.mux(defaultValue(kt), Region.loadIRIntermediate(kt)(ttype.fieldOffset(v2, 0)))
-          findMB.getCodeOrdering(eltType, kt, CodeOrdering.Compare())((mk1, k1), (mk2, k2))
+      (cb: EmitCodeBuilder, ec1: EmitCode, _ec2: EmitCode) =>
+        val ec2 = EmitCode.fromI(cb.emb) { cb =>
+          val iec = _ec2.toI(cb)
+          iec.flatMap(cb) { case v2: PBaseStructCode =>
+            v2.memoize(cb, "bs_comp_v2").loadField(cb, 0)
+          }.map(cb)(_.asPCode)
         }
+        findMB.getCodeOrdering(eltType, kt, CodeOrdering.Compare())(cb, ec1, ec2)
     }
     val ceq: CodeOrdering.F[Boolean] = {
-      case ((mk1: Code[Boolean], k1: Code[_]), (m2: Code[Boolean], v2: Code[Long] @unchecked)) =>
-        Code.memoize(v2, "bs_comp_v2") { v2 =>
-          val mk2 = Code(mk2l1 := m2 || ttype.isFieldMissing(v2, 0), mk2l1)
-          val k2 = mk2l1.mux(defaultValue(kt), Region.loadIRIntermediate(kt)(ttype.fieldOffset(v2, 0)))
-          mb.getCodeOrdering(eltType, kt, CodeOrdering.Equiv())((mk1, k1), (mk2, k2))
+      (cb: EmitCodeBuilder, ec1: EmitCode, _ec2: EmitCode) =>
+        val ec2 = EmitCode.fromI(cb.emb) { cb =>
+          val iec = _ec2.toI(cb)
+          iec.flatMap(cb) { case v2: PBaseStructCode =>
+            v2.memoize(cb, "bs_eq_v2").loadField(cb, 0)
+          }.map(cb)(_.asPCode)
         }
+      findMB.getCodeOrdering(eltType, kt, CodeOrdering.Equiv())(cb, ec1, ec2)
     }
     (comp, ceq, findMB, kt)
   } else
@@ -54,12 +57,13 @@ class BinarySearch[C](mb: EmitMethodBuilder[C], typ: PContainer, eltType: PType,
   private[this] val low = findElt.newLocal[Int]()
   private[this] val high = findElt.newLocal[Int]()
 
-  def cmp(i: Code[Int]): Code[Int] =
-    Code.memoize(i, "binsearch_cmp_i") { i =>
-      compare((m, e),
-        (typ.isElementMissing(array, i),
-          Region.loadIRIntermediate(elt)(typ.elementOffset(array, len, i))))
+  def cmp(i: Code[Int]): Code[Int] = EmitCodeBuilder.scopedCode(mb) { cb =>
+    val ec1 = EmitCode(Code._empty, m, PCode(t, e))
+    val ec2 = EmitCode.fromI(mb) { cb =>
+      PCode(typ, array).asIndexable.memoize(cb, "binsearch_cmp_i").loadElement(cb, i).map(cb)(_.asPCode)
     }
+    compare(cb, ec1, ec2)
+  }
 
   // Returns smallest i, 0 <= i < n, for which a(i) >= key, or returns n if a(i) < key for all i
   findElt.emit(Code(
