@@ -2823,7 +2823,7 @@ class Emit[C](
             val newShape = (0 until nDims).map { dimIdx =>
               val localDim = cb.newLocal[Long](s"ndarray_concat_output_shape_element_${dimIdx}")
               val ndShape = firstND.shapes(cb)
-              cb.assign(localDim, ndShape(0))
+              cb.assign(localDim, ndShape(dimIdx))
               cb.forLoop(cb.assign(loopIdx, 1), loopIdx < arrLength, cb.assign(loopIdx, loopIdx + 1), {
                 val shapeOfNDAtIdx = ndsArrayPValue.loadElement(cb, loopIdx).map(cb) { sCode => sCode.asNDArray }.getNeverMissing(cb).shape.memoize(cb, "ndarray_concat_input_shape")
                 val dimLength = shapeOfNDAtIdx.loadField(cb, dimIdx).getNeverMissing(cb).toPCode(cb, region.code).memoize(cb, "dimLength").value.asInstanceOf[Value[Long]]
@@ -2842,20 +2842,18 @@ class Emit[C](
               localDim
             }
 
-
             new NDArrayEmitter2(newShape) {
               override def outputElement(cb: EmitCodeBuilder, idxVars: IndexedSeq[Value[Long]]): PCode = {
                 val concatAxisIdx = cb.newLocal[Long]("ndarray_concat_axis_id")
                 val i = cb.newLocal[Int]("ndarray_concat_outputElement_i")
 
-                cb.assign(i, 0)
                 cb.assign(concatAxisIdx, idxVars(axis))
                 cb.forLoop(cb.assign(i, 0), concatAxisIdx >= ndsArrayPValue.loadElement(cb, i).getNeverMissing(cb).asNDArray.shape.memoize(cb,"foo").loadField(cb,axis).getNeverMissing(cb).asLong.longCode(cb), cb.assign(i, i + 1),
-                  cb.assign(concatAxisIdx, concatAxisIdx - ndsArrayPValue.loadElement(cb, i).getNeverMissing(cb).asNDArray.shape.memoize(cb,"foo").loadField(cb,axis).getNeverMissing(cb).asLong.longCode(cb))
+                  cb.assign(concatAxisIdx, concatAxisIdx - ndsArrayPValue.loadElement(cb, i).getNeverMissing(cb).asNDArray.shape.memoize(cb, "foo").loadField(cb, axis).getNeverMissing(cb).asLong.longCode(cb))
                 )
-                cb.ifx(i > arrLength, cb._fatal("NDArrayConcat: trying to access element greater than length of concatenation axis: "))
+                cb.ifx(i >= arrLength, cb._fatal(const("NDArrayConcat: trying to access element greater than length of concatenation axis: ").concat(i.toS).concat(" > ").concat((arrLength - 1).toS)))
                 val transformedIdxs = Array.tabulate(nDims) {idx =>
-                  if (idx == axis) concatAxisIdx else  idxVars(idx)
+                  if (idx == axis) concatAxisIdx else idxVars(idx)
                 }.toFastIndexedSeq
                 ndsArrayPValue.loadElement(cb, i).getNeverMissing(cb).asNDArray.memoize(cb, "ndarray_to_load_element_from").loadElement(transformedIdxs, cb).toPCode(cb, region.code)
               }
