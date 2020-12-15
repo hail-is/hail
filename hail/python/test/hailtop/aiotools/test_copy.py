@@ -4,7 +4,7 @@ from concurrent.futures import ThreadPoolExecutor
 import asyncio
 import pytest
 from hailtop.utils import url_scheme
-from hailtop.aiotools import LocalAsyncFS, RouterAsyncFS, Transfer
+from hailtop.aiotools import LocalAsyncFS, RouterAsyncFS, Transfer, FileAndDirectoryError
 from hailtop.aiogoogle import StorageClient, GoogleStorageAsyncFS
 
 from .generate_copy_test_specs import (
@@ -15,7 +15,8 @@ from .copy_test_specs import COPY_TEST_SPECS
 
 @pytest.fixture(scope='module')
 def event_loop():
-    loop = asyncio.get_event_loop()
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
     yield loop
     loop.close()
 
@@ -25,8 +26,7 @@ async def test_spec(request):
     return request.param
 
 
-@pytest.fixture(scope='module', params=['file/file', 'file/gs', 'gs/file', 'gs/gs'])
-# @pytest.fixture(scope='module', params=['file/file'])
+@pytest.fixture(scope='module')
 async def router_filesystem(request):
     token = secrets.token_hex(16)
 
@@ -44,15 +44,7 @@ async def router_filesystem(request):
                 'gs': gs_base
             }
 
-            [src_scheme, dest_scheme] = request.param.split('/')
-
-            src_base = f'{bases[src_scheme]}src/'
-            dest_base = f'{bases[dest_scheme]}dest/'
-
-            await fs.mkdir(src_base)
-            await fs.mkdir(dest_base)
-
-            yield (fs, src_base, dest_base)
+            yield (fs, bases)
 
             await fs.rmtree(file_base)
             assert not await fs.isdir(file_base)
@@ -61,16 +53,22 @@ async def router_filesystem(request):
             assert not await fs.isdir(gs_base)
 
 
-@pytest.fixture
-async def copy_test_context(router_filesystem):
-    fs, src_base, dest_base = router_filesystem
-
+async def fresh_dir(fs, bases, scheme):
     token = secrets.token_hex(16)
-    src_base = f'{src_base}{token}/'
-    dest_base = f'{dest_base}{token}/'
+    dir = f'{bases[scheme]}{token}/'
+    await fs.mkdir(dir)
+    return dir
 
-    await fs.mkdir(src_base)
-    await fs.mkdir(dest_base)
+
+@pytest.fixture(params=['file/file', 'file/gs', 'gs/file', 'gs/gs'])
+async def copy_test_context(request, router_filesystem):
+    fs, bases = router_filesystem
+
+    [src_scheme, dest_scheme] = request.param.split('/')
+
+    src_base = await fresh_dir(fs, bases, src_scheme)
+    dest_base = await fresh_dir(fs, bases, dest_scheme)
+
     # make sure dest_base exists
     async with await fs.create(f'{dest_base}keep'):
         pass
@@ -104,6 +102,33 @@ async def expect_file(fs, path, expected):
     assert actual == expected, (actual, expected)
 
 
+class DidNotRaiseError(Exception):
+    pass
+
+
+class RaisedWrongExceptionError(Exception):
+    pass
+
+
+class RaisesOrGS:
+    def __init__(self, dest_base, expected_type):
+        self._gs = url_scheme(dest_base) == 'gs'
+        self._expected_type = expected_type
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, type, value, traceback):
+        # gs can succeed or throw
+        if type is None:
+            if not self._gs:
+                raise DidNotRaiseError()
+        elif type != self._expected_type:
+            raise RaisedWrongExceptionError(type)
+
+        # suppress exception
+        return True
+
 @pytest.mark.asyncio
 async def test_copy_doesnt_exist(copy_test_context):
     fs, src_base, dest_base = copy_test_context
@@ -121,6 +146,22 @@ async def test_copy_file(copy_test_context):
     await fs.copy(Transfer(f'{src_base}a', dest_base.rstrip('/')))
 
     await expect_file(fs, f'{dest_base}a', 'src/a')
+
+
+@pytest.mark.asyncio
+async def test_copy_large_file(copy_test_context):
+    fs, src_base, dest_base = copy_test_context
+
+    # mainly needs to be larger than the transfer block size (8K)
+    contents = secrets.token_bytes(1_000_000)
+    async with await fs.create(f'{src_base}a') as f:
+        await f.write(contents)
+
+    await fs.copy(Transfer(f'{src_base}a', dest_base.rstrip('/')))
+
+    async with await fs.open(f'{dest_base}a') as f:
+        copy_contents = await f.read()
+    assert copy_contents == contents
 
 
 @pytest.mark.asyncio
@@ -270,7 +311,7 @@ async def test_copy_multiple_dest_target_file(copy_test_context):
     await create_test_file(fs, 'src', src_base, 'a')
     await create_test_file(fs, 'src', src_base, 'b')
 
-    with pytest.raises(NotADirectoryError):
+    with RaisesOrGS(dest_base, NotADirectoryError):
         await fs.copy(Transfer([f'{src_base}a', f'{src_base}b'], dest_base.rstrip('/'), treat_dest_as=Transfer.TARGET_FILE))
 
 
@@ -282,7 +323,7 @@ async def test_copy_multiple_dest_file(copy_test_context):
     await create_test_file(fs, 'src', src_base, 'b')
     await create_test_file(fs, 'dest', dest_base, 'x')
 
-    with pytest.raises(NotADirectoryError):
+    with RaisesOrGS(dest_base, NotADirectoryError):
         await fs.copy(Transfer([f'{src_base}a', f'{src_base}b'], f'{dest_base}x'))
 
 
@@ -292,5 +333,19 @@ async def test_file_overwrite_dir(copy_test_context):
 
     await create_test_file(fs, 'src', src_base, 'a')
 
-    with pytest.raises(IsADirectoryError):
+    with RaisesOrGS(dest_base, IsADirectoryError):
         await fs.copy(Transfer(f'{src_base}a', dest_base.rstrip('/'), treat_dest_as=Transfer.TARGET_FILE))
+
+
+@pytest.mark.asyncio
+async def test_file_and_directory_error(router_filesystem):
+    fs, bases = router_filesystem
+
+    src_base = await fresh_dir(fs, bases, 'gs')
+    dest_base = await fresh_dir(fs, bases, 'file')
+
+    await create_test_file(fs, 'src', src_base, 'a')
+    await create_test_file(fs, 'src', src_base, 'a/subfile')
+
+    with pytest.raises(FileAndDirectoryError):
+        await fs.copy(Transfer(f'{src_base}a', dest_base.rstrip('/')))

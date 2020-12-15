@@ -84,12 +84,15 @@ async def run_test_spec(fs, spec, src_base, dest_base):
         result = {'exception': exc_type.__name__}
 
     if exc_type is None:
-        result = {
-            'files': set([
-                remove_prefix(await entry.url(), dest_base.rstrip("/"))
-                async for entry in await fs.listfiles(dest_base, recursive=True)
-            ])
-        }
+        files = {}
+        async for entry in await fs.listfiles(dest_base, recursive=True):
+            url = await entry.url()
+            assert not url.endswith('/')
+            file = remove_prefix(url, dest_base.rstrip('/'))
+            async with await fs.open(url) as f:
+                contents = (await f.read()).decode('utf-8')
+            files[file] = contents
+        result = {'files': files}
 
     return result
 

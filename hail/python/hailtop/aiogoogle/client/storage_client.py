@@ -3,7 +3,9 @@ from typing import Tuple, Any, Set, Optional, Mapping, Dict, AsyncIterator, cast
 import asyncio
 import urllib.parse
 import aiohttp
-from hailtop.aiotools import FileStatus, FileListEntry, ReadableStream, WritableStream, AsyncFS, FeedableAsyncIterable
+from hailtop.aiotools import (
+    FileStatus, FileListEntry, ReadableStream, WritableStream, AsyncFS,
+    FeedableAsyncIterable, FileAndDirectoryError)
 from multidict import CIMultiDictProxy  # pylint: disable=unused-import
 from .base_client import BaseClient
 
@@ -198,6 +200,33 @@ class GoogleStorageAsyncFS(AsyncFS):
     async def create(self, url: str) -> WritableStream:
         bucket, name = self._get_bucket_name(url)
         return await self._storage_client.insert_object(bucket, name)
+
+    async def staturl(self, url: str) -> str:
+        assert not url.endswith('/')
+
+        async def with_exception(f, *args, **kwargs):
+            try:
+                return (await f(*args, **kwargs)), None
+            except Exception as e:
+                return None, e
+
+        [(is_file, isfile_exc), (is_dir, isdir_exc)] = await asyncio.gather(
+            with_exception(self.isfile, url), with_exception(self.isdir, url + '/'))
+        # raise exception deterministically
+        if isfile_exc:
+            raise isfile_exc
+        if isdir_exc:
+            raise isdir_exc
+
+        if is_file:
+            if is_dir:
+                raise FileAndDirectoryError(url)
+            return AsyncFS.FILE
+
+        if is_dir:
+            return AsyncFS.DIR
+
+        raise FileNotFoundError(url)
 
     async def mkdir(self, url: str) -> None:
         pass
