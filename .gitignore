@@ -21,3 +21,6 @@ hs_err_pid*.log
 *hail/python/hailtop/pipeline/docs/output*
 .mypy_cache/
 *.out
+GPATH
+GRTAGS
+GTAGS
