@@ -318,6 +318,9 @@ case class IEmitCodeGen[+A](Lmissing: CodeLabel, Lpresent: CodeLabel, value: A) 
   def get(cb: EmitCodeBuilder, errorMsg: String = "expected non-missing"): A =
     handle(cb, cb._fatal(errorMsg))
 
+  def getNeverMissing(cb: EmitCodeBuilder): A =
+    handle(cb, cb._fatal("Internal compiler error, unexpected value was missing."))
+
   def consume(cb: EmitCodeBuilder, ifMissing: => Unit, ifPresent: (A) => Unit): Unit = {
     val Lafter = CodeLabel()
     cb.define(Lmissing)
@@ -1477,7 +1480,7 @@ class Emit[C](
       case x: NDArrayMap  =>  emitDeforestedNDArrayI(x)
       case x: NDArrayMap2 =>  emitDeforestedNDArrayI(x)
       case x: NDArrayReshape => emitDeforestedNDArrayI(x)
-      case x: NDArrayConcat => emitDeforestedNDArray(x)
+      case x: NDArrayConcat => emitDeforestedNDArrayI(x)
       case x: NDArraySlice => emitDeforestedNDArrayI(x)
       case x: NDArrayFilter => emitDeforestedNDArrayI(x)
       case x@RunAgg(body, result, states) =>
@@ -2811,72 +2814,60 @@ class Emit[C](
               cb._fatal("need at least one ndarray to concatenate")
             })
 
-            val nDims = coerce[PNDArray](ndsArrayPValue.pt.elementType).nDims
+            val missing = cb.newLocal[Boolean]("ndarray_concat_result_missing")
+            cb.assign(missing, false)
+            // Need to check if the any of the ndarrays are missing.
+            val missingCheckLoopIdx = cb.newLocal[Int]("ndarray_concat_missing_check_idx")
+            cb.forLoop(cb.assign(missingCheckLoopIdx, 0), missingCheckLoopIdx < arrLength, cb.assign(missingCheckLoopIdx, missingCheckLoopIdx + 1),
+              cb.assign(missing, missing | ndsArrayPValue.isElementMissing(missingCheckLoopIdx))
+            )
 
-            new NDArrayEmitter2(???) {
+            val inputNDType = coerce[PNDArray](ndsArrayPValue.pt.elementType)
+            val nDims = inputNDType.nDims
+            val loopIdx = cb.newLocal[Int]("ndarray_concat_shape_check_idx")
+            val firstND = ndsArrayPValue.loadElement(cb, 0).map(cb){ sCode => sCode.asNDArray}.getNeverMissing(cb).memoize(cb, "ndarray_concat_input_0")
+            val newShape = (0 until nDims).map { dimIdx =>
+              val localDim = cb.newLocal[Long](s"ndarray_concat_output_shape_element_${dimIdx}")
+              val ndShape = firstND.shapes(cb)
+              cb.assign(localDim, ndShape(0))
+              cb.forLoop(cb.assign(loopIdx, 1), loopIdx < arrLength, cb.assign(loopIdx, loopIdx + 1), {
+                val shapeOfNDAtIdx = ndsArrayPValue.loadElement(cb, loopIdx).map(cb) { sCode => sCode.asNDArray }.getNeverMissing(cb).shape.memoize(cb, "ndarray_concat_input_shape")
+                val dimLength = shapeOfNDAtIdx.loadField(cb, dimIdx).getNeverMissing(cb).toPCode(cb, region.code).tcode[Long]
+
+                if (dimIdx == axis) {
+                  cb.assign(localDim, localDim + dimLength)
+                }
+                else {
+                  cb.ifx(dimLength.cne(localDim),
+                    cb._fatal( const(s"NDArrayConcat: mismatched dimensions of input NDArrays along axis ").concat(loopIdx.toS).concat(": expected ")
+                                                .concat(localDim.toS).concat(", got ")
+                                                .concat(dimLength.toS))
+                  )
+                }
+              })
+              localDim
+            }
+
+
+            new NDArrayEmitter2(newShape) {
               override def outputElement(cb: EmitCodeBuilder, idxVars: IndexedSeq[Value[Long]]): PCode = {
-                ???
+                val concatAxisIdx = cb.newLocal[Long]("ndarray_concat_axis_id")
+                val i = cb.newLocal[Int]("ndarray_concat_outputElement_i")
+
+                cb.assign(i, 0)
+                cb.assign(concatAxisIdx, idxVars(axis))
+                cb.forLoop(cb.assign(i, 0), concatAxisIdx >= ndsArrayPValue.loadElement(cb, i).getNeverMissing(cb).asNDArray.shape.memoize(cb,"foo").loadField(cb,axis).getNeverMissing(cb).asLong.longCode(cb), cb.assign(i, i + 1),
+                  cb.assign(concatAxisIdx, concatAxisIdx - ndsArrayPValue.loadElement(cb, i).getNeverMissing(cb).asNDArray.shape.memoize(cb,"foo").loadField(cb,axis).getNeverMissing(cb).asLong.longCode(cb))
+                )
+                cb.ifx(i > arrLength, cb._fatal("NDArrayConcat: trying to access element greater than length of concatenation axis: "))
+                val transformedIdxs = Array.tabulate(nDims) {idx =>
+                  if (idx == axis) concatAxisIdx else  idxVars(idx)
+                }.toFastIndexedSeq
+                ndsArrayPValue.loadElement(cb, i).getNeverMissing(cb).asNDArray.memoize(cb, "ndarray_to_load_element_from").loadElement(transformedIdxs, cb).toPCode(cb, region.code)
               }
             }
           }
-          
-        //
-        //          val (missingSetup: Code[Unit @unchecked], missing: Code[Boolean @unchecked], setupShape: Code[Unit @unchecked]) = (inputType.required, inputNDType.required) match {
-        //            case (true, true) => (Code._empty, false: Code[Boolean], Code(
-        //              codeNDs.setup,
-        //              codeNDs.m.orEmpty(Code._fatal[Unit]("NDArrayConcat: required NDArray can't be missing")),
-        //              loadAndValidateArray))
-        //            case (false, true) => (codeNDs.setup, codeNDs.m, loadAndValidateArray)
-        //            case _ =>
-        //              val m = mb.genFieldThisRef[Boolean]()
-        //              val setup = Code(
-        //                codeNDs.setup,
-        //                m := codeNDs.m,
-        //                (!m).orEmpty(
-        //                  Code(
-        //                    loadAndValidateArray,
-        //                    i := 0,
-        //                    Code.whileLoop(i < n,
-        //                      m := m | inputType.isElementMissing(inputArray, i),
-        //                      i := i + 1))
-        //                ))
-        //              (setup, m.load(), Code._empty)
-        //          }
-        //
-        //          val sb = SetupBuilder(mb, setupShape)
-        //          val outputShape = sb.map(0 until ndType.nDims) { (sb, idx) =>
-        //            val localDim = mb.genFieldThisRef[Long]()
-        //
-        //            sb += EmitCodeBuilder.scopedVoid(mb){cb: EmitCodeBuilder =>
-        //
-        //              cb.assign(localDim, inputNDType.loadShape(cb, inputType.loadElement(inputArray, 0), idx))
-        //              cb.assign(i, 1)
-        //              cb.whileLoop(i < n,
-        //                {
-        //                  if (idx == axis)
-        //                    cb.assign(localDim, localDim + inputNDType.loadShape(cb, inputType.loadElement(inputArray, i), idx))
-        //                  else
-        //                    cb += inputNDType.loadShape(cb, inputType.loadElement(inputArray, i), idx).cne(localDim)
-        //                      .orEmpty(Code._fatal[Unit](
-        //                        const(s"NDArrayConcat: mismatched dimensions of input NDArrays along axis $i: expected ")
-        //                          .concat(localDim.toS).concat(", got ")
-        //                          .concat(inputNDType.loadShape(cb, inputType.loadElement(inputArray, i), idx).toS)))
-        //
-        //                  cb.assign(i, i + 1)
-        //                })}
-        //
-        //            localDim
-        //          }
-        //
-        //          val setupShape2 = sb.result()
-        //
-        //          new NDArrayEmitter[C](x.typ.nDims,
-        //            outputShape,
-        //            ndType.shape.pType,
-        //            ndType.elementType,
-        //            setupShape2,
-        //            missingSetup,
-        //            missing) {
+
         //            override def outputElement(elemMB: EmitMethodBuilder[C], idxVars: IndexedSeq[Value[Long]]): Code[_] = {
         //              val concatAxisIdx = elemMB.newLocal[Long]()
         //
