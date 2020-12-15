@@ -93,12 +93,12 @@ object IntervalFunctions extends RegistryFunctions {
 
           val start = EmitCode.fromI(cb.emb)(cb => interval.loadStart(cb).typecast[PCode])
           cb += start.setup
-          val cmp = cb.newLocal("cmp", compare(pointv.m -> pointv.v, start.m -> start.v))
+          val cmp = cb.newLocal("cmp", compare(cb, pointv, start))
           val contains = cb.newLocal[Boolean]("contains", false)
           cb.ifx(cmp > 0 || (cmp.ceq(0) && interval.includesStart()), {
             val end = EmitCode.fromI(cb.emb)(cb => interval.loadEnd(cb).typecast[PCode])
             cb += end.setup
-            cb.assign(cmp, compare(pointv.m -> pointv.v, end.m -> end.v))
+            cb.assign(cmp, compare(cb, pointv, end))
             cb.assign(contains, cmp < 0 || (cmp.ceq(0) && interval.includesEnd()))
           })
 
@@ -127,7 +127,7 @@ object IntervalFunctions extends RegistryFunctions {
             val end = EmitCode.fromI(cb.emb)(cb => rhs.loadEnd(cb).typecast[PCode])
             cb += start.setup
             cb += end.setup
-            val cmp = cb.newLocal("cmp", compare(start.m -> start.v, end.m -> end.v))
+            val cmp = cb.newLocal("cmp", compare(cb, start, end))
             cmp > 0 || (cmp.ceq(0) && (!lhs.includesStart() || !rhs.includesEnd()))
           }
 
@@ -136,7 +136,7 @@ object IntervalFunctions extends RegistryFunctions {
             val start = EmitCode.fromI(cb.emb)(cb => rhs.loadStart(cb).typecast[PCode])
             cb += start.setup
             cb += end.setup
-            val cmp = cb.newLocal("cmp", compare(end.m -> end.v, start.m -> start.v))
+            val cmp = cb.newLocal("cmp", compare(cb, end, start))
             cmp < 0 || (cmp.ceq(0) && (!lhs.includesEnd() || !rhs.includesStart()))
           }
 
