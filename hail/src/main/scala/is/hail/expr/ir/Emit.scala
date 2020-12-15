@@ -728,13 +728,15 @@ class Emit[C](
       case ApplyComparisonOp(op, l, r) =>
         val f = op.codeOrdering(mb, l.pType, r.pType)
         if (op.strict) {
-          emitI(l).flatMap(cb)(l => emitI(r).map(cb)(r => PCode(pt, f((false, l.code), (false, r.code)))))
+          emitI(l).flatMap(cb) { l =>
+            emitI(r).map(cb) { r =>
+              PCode(pt, f(cb, EmitCode.present(l), EmitCode.present(r)))
+            }
+          }
         } else {
           val lc = emitI(l).memoize(cb, "l")
           val rc = emitI(r).memoize(cb, "r")
-          presentC(
-            f((lc.m, lc.v),
-              (rc.m, rc.v)))
+          presentC(f(cb, lc, rc))
         }
 
       case x@ArrayRef(a, i, s) =>
