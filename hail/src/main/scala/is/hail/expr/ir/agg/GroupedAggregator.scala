@@ -216,7 +216,7 @@ class DictState(val kb: EmitClassBuilder[_], val keyVType: VirtualTypeWithReq, v
         cb += (kv.storeAny(keyed.loadKey(_elt)))
         cb += (ob.writeBoolean(km))
         cb.ifx(!km, {
-          cb += kEnc.invokeCode(kv, ob)
+          cb.invokeCode(kEnc, kv, ob)
         })
         keyed.loadStates(cb)
         nested.toCodeWithArgs(cb,

@@ -119,7 +119,7 @@ class DownsampleState(val kb: EmitClassBuilder[_], labelType: VirtualTypeWithReq
       tree.init(cb)
       buffer.initialize(cb)
     }
-    cb += mb.invokeCode(nDivisions)
+    cb.invokeCode(mb, nDivisions)
   }
 
   override def load(cb: EmitCodeBuilder, regionLoader: (EmitCodeBuilder, Value[Region]) => Unit, srcc: Code[Long]): Unit = {
@@ -141,7 +141,7 @@ class DownsampleState(val kb: EmitClassBuilder[_], labelType: VirtualTypeWithReq
     }
     cb.assign(off, srcc)
     regionLoader(cb, r)
-    cb += mb.invokeCode()
+    cb.invokeCode(mb)
   }
 
   override def store(cb: EmitCodeBuilder, regionStorer: (EmitCodeBuilder, Value[Region]) => Unit, destc: Code[Long]): Unit = {
@@ -162,7 +162,7 @@ class DownsampleState(val kb: EmitClassBuilder[_], labelType: VirtualTypeWithReq
     }
 
     cb.assign(off, destc)
-    cb += mb.invokeCode()
+    cb.invokeCode(mb)
     cb.ifx(region.isValid,
       {
         regionStorer(cb, region)
@@ -186,7 +186,7 @@ class DownsampleState(val kb: EmitClassBuilder[_], labelType: VirtualTypeWithReq
       tree.deepCopy(cb, Region.loadAddress(storageType.loadField(src, "tree")))
       buffer.copyFrom(cb, storageType.loadField(src, "buffer"))
     }
-    cb += mb.invokeCode(_src)
+    cb.invokeCode(mb, _src)
   }
 
   def serialize(codec: BufferSpec): (EmitCodeBuilder, Value[OutputBuffer]) => Unit = {
@@ -208,8 +208,8 @@ class DownsampleState(val kb: EmitClassBuilder[_], labelType: VirtualTypeWithReq
         tree.bulkStore(cb, ob) { (cb, ob, srcCode) =>
           val src = cb.newLocal("downsample_state_ser_src", srcCode)
           cb += Region.loadBoolean(key.storageType.loadField(src, "empty")).orEmpty(Code._fatal[Unit]("bad"))
-          cb += binEnc.invokeCode(key.storageType.loadField(src, "bin"), ob)
-          cb += pointEnc.invokeCode(key.storageType.loadField(src, "point"), ob)
+          cb.invokeCode(binEnc, key.storageType.loadField(src, "bin"), ob)
+          cb.invokeCode(pointEnc, key.storageType.loadField(src, "point"), ob)
         }
         cb += ob.writeInt(DownsampleState.serializationEndMarker)
         Code._empty

@@ -271,7 +271,7 @@ class TakeByRVAS(val valueVType: VirtualTypeWithReq, val keyVType: VirtualTypeWi
       cb += Region.copyFrom(staging, j, eltTuple.byteSize)
     })
 
-    (cb: EmitCodeBuilder, x: Code[Long], y: Code[Long]) => cb += mb.invokeCode(x, y)
+    (cb: EmitCodeBuilder, x: Code[Long], y: Code[Long]) => cb.invokeCode(mb, x, y)
   }
 
 
@@ -293,12 +293,12 @@ class TakeByRVAS(val valueVType: VirtualTypeWithReq, val keyVType: VirtualTypeWi
           cb.ifx(compareElt(ii, jj) > 0,
             {
               swap(cb, ii, jj)
-              cb += mb.invokeCode(parent)
+              cb.invokeCode(mb, parent)
             })
         })
     }
 
-    (cb: EmitCodeBuilder, x: Code[Int]) => cb += mb.invokeCode(x)
+    (cb: EmitCodeBuilder, x: Code[Int]) => cb.invokeCode(mb, x)
   }
 
   private val rebalanceDown: (EmitCodeBuilder, Code[Int]) => Unit = {
@@ -322,11 +322,11 @@ class TakeByRVAS(val valueVType: VirtualTypeWithReq, val keyVType: VirtualTypeWi
           cb.ifx(compareElt(ii, jj) > 0,
             {
               swap(cb, ii, jj)
-              cb += mb.invokeCode(minChild)
+              cb.invokeCode(mb, minChild)
             })
         })
     }
-    (cb: EmitCodeBuilder, x: Code[Int]) => cb += mb.invokeCode(x)
+    (cb: EmitCodeBuilder, x: Code[Int]) => cb.invokeCode(mb, x)
   }
 
   private lazy val gc: EmitCodeBuilder => Unit = {
@@ -345,7 +345,7 @@ class TakeByRVAS(val valueVType: VirtualTypeWithReq, val keyVType: VirtualTypeWi
             cb += oldRegion.invoke[Unit]("invalidate")
           })
       }
-      (cb: EmitCodeBuilder) => cb += mb.invokeCode()
+      (cb: EmitCodeBuilder) => cb.invokeCode(mb)
     } else
       (_: EmitCodeBuilder) => ()
   }
@@ -469,7 +469,7 @@ class TakeByRVAS(val valueVType: VirtualTypeWithReq, val keyVType: VirtualTypeWi
       cb.assign(maxIndex, maxIndex + other.maxIndex)
     }
 
-    cb += mb.invokeCode()
+    cb.invokeCode(mb)
   }
 
   def result(_r: Code[Region], resultType: PArray): Code[Long] = {

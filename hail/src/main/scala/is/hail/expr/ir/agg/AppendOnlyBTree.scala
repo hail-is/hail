@@ -315,7 +315,7 @@ class AppendOnlyBTree(kb: EmitClassBuilder[_], key: BTreeKey, region: Value[Regi
       copyNodes(cb, 0)
     }
 
-    { (cb: EmitCodeBuilder, srcRoot: Code[Long]) => cb += f.invokeCode(root, srcRoot) }
+    { (cb: EmitCodeBuilder, srcRoot: Code[Long]) => cb.invokeCode(f, root, srcRoot) }
   }
 
   def bulkStore(cb: EmitCodeBuilder, obCode: Code[OutputBuffer]
@@ -328,7 +328,7 @@ class AppendOnlyBTree(kb: EmitClassBuilder[_], key: BTreeKey, region: Value[Regi
     f.emitWithBuilder { cb =>
       cb += ob.writeBoolean(!isLeaf(node))
       cb.ifx(!isLeaf(node), {
-        cb += f.invokeCode(loadChild(node, -1), ob)
+        cb.invokeCode(f, loadChild(node, -1), ob)
       })
       val Lexit = CodeLabel()
       (0 until maxElements).foreach { i =>
@@ -336,7 +336,7 @@ class AppendOnlyBTree(kb: EmitClassBuilder[_], key: BTreeKey, region: Value[Regi
           cb += ob.writeBoolean(true)
           keyStore(cb, ob, loadKey(node, i))
           cb.ifx(!isLeaf(node), {
-            cb += f.invokeCode(loadChild(node, i), ob)
+            cb.invokeCode(f, loadChild(node, i), ob)
           })
         }, {
           cb += ob.writeBoolean(false)
@@ -346,7 +346,7 @@ class AppendOnlyBTree(kb: EmitClassBuilder[_], key: BTreeKey, region: Value[Regi
       cb.define(Lexit)
       Code._empty
     }
-    cb += f.invokeCode(root, obCode)
+    cb.invokeCode(f, root, obCode)
   }
 
   def bulkLoad(cb: EmitCodeBuilder, ibCode: Code[InputBuffer]
@@ -363,7 +363,7 @@ class AppendOnlyBTree(kb: EmitClassBuilder[_], key: BTreeKey, region: Value[Regi
       cb.ifx(isInternalNode, {
         createNode(cb, newNode)
         setChild(cb, node, -1, newNode)
-        cb += f.invokeCode(newNode, ib)
+        cb.invokeCode(f, newNode, ib)
       })
       val Lexit = CodeLabel()
       (0 until maxElements).foreach { i =>
@@ -373,7 +373,7 @@ class AppendOnlyBTree(kb: EmitClassBuilder[_], key: BTreeKey, region: Value[Regi
           cb.ifx(isInternalNode, {
             createNode(cb, newNode)
             setChild(cb, node, i, newNode)
-            cb += f.invokeCode(newNode, ib)
+            cb.invokeCode(f, newNode, ib)
           })
         }, {
           cb.goto(Lexit)
@@ -382,6 +382,6 @@ class AppendOnlyBTree(kb: EmitClassBuilder[_], key: BTreeKey, region: Value[Regi
       cb.define(Lexit)
       Code._empty
     }
-    cb += f.invokeCode(root, ibCode)
+    cb.invokeCode(f, root, ibCode)
   }
 }

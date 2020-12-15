@@ -128,7 +128,7 @@ class AppendOnlySetState(val kb: EmitClassBuilder[_], vt: VirtualTypeWithReq) ex
         val src = cb.newLocal("aoss_ser_src", srcCode)
         cb += ob.writeBoolean(key.isKeyMissing(src))
         cb.ifx(!key.isKeyMissing(src), {
-          cb += kEnc.invokeCode(key.loadKey(src), ob)
+          cb.invokeCode(kEnc, key.loadKey(src), ob)
         })
       }
     }

@@ -170,7 +170,7 @@ class StagedBlockLinkedList(val elemType: PType, val kb: EmitClassBuilder[_]) {
         pushF.getCodeParam[Region](1),
         pushF.getEmitParam(2))
     }
-    cb += pushF.invokeCode(region, elt)
+    cb.invokeCode(pushF, region, elt)
   }
 
   def append(cb: EmitCodeBuilder, region: Value[Region], bll: StagedBlockLinkedList): Unit = {
@@ -185,7 +185,7 @@ class StagedBlockLinkedList(val elemType: PType, val kb: EmitClassBuilder[_]) {
         pushImpl(cb, appF.getCodeParam[Region](1), elt)
       }
     }
-    cb += appF.invokeCode(region)
+    cb.invokeCode(appF, region)
   }
 
   def writeToSRVB(cb: EmitCodeBuilder, resultType: PCanonicalArray, srvb: StagedRegionValueBuilder): Unit = {
@@ -220,7 +220,7 @@ class StagedBlockLinkedList(val elemType: PType, val kb: EmitClassBuilder[_]) {
       }
       cb += ob.writeBoolean(false)
     }
-    cb += serF.invokeCode(region, outputBuffer)
+    cb.invokeCode(serF, region, outputBuffer)
   }
 
   def deserialize(cb: EmitCodeBuilder, region: Code[Region], inputBuffer: Code[InputBuffer]): Unit = {
@@ -280,6 +280,6 @@ class StagedBlockLinkedList(val elemType: PType, val kb: EmitClassBuilder[_]) {
       }
       cb.assign(totalCount, other.totalCount)
     }
-    cb += initF.invokeCode(region)
+    cb.invokeCode(initF, region)
   }
 }
