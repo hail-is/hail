@@ -33,14 +33,14 @@ trait CodeBuilderLike {
 
   def isOpenEnded: Boolean
 
-   def code: Code[Unit] // debugging only
+  // def code: Code[Unit] // debugging only
 
   protected def uncheckedAppend(c: Code[Unit]): Unit
 
   def append(c: Code[Unit]): Unit = {
-     if (!isOpenEnded) { // stack in lir.Block (X.scala)
-       println(code.end.stack.mkString("\n"))
-     }
+    // if (!isOpenEnded) { // stack in lir.Block (X.scala)
+    //   println(code.end.stack.mkString("\n"))
+    // }
     assert(isOpenEnded)
     uncheckedAppend(c)
   }
