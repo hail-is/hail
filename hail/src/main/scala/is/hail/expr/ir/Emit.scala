@@ -1005,7 +1005,7 @@ class Emit[C](
               val numericElementType = coerce[PNumeric](lPType.elementType)
               val eVti = typeToTypeInfo(numericElementType)
 
-              val emitter = new NDArrayEmitter2(unifiedShape) {
+              val emitter = new NDArrayEmitter(unifiedShape) {
                 override def outputElement(cb: EmitCodeBuilder, idxVars: IndexedSeq[Value[Long]]): PCode = {
                   val element = coerce[Any](cb.newField("matmul_element")(eVti))
                   val k = cb.newField[Long]("ndarray_matmul_k")
@@ -2539,7 +2539,7 @@ class Emit[C](
 
     def dEmit(ir: IR, env: E = env): IEmitCode = emit(ir, env)
 
-    def deforest(x: IR): IEmitCodeGen[NDArrayEmitter2] = {
+    def deforest(x: IR): IEmitCodeGen[NDArrayEmitter] = {
       val xType = coerce[PNDArray](x.pType)
       val nDims = xType.nDims
 
@@ -2549,7 +2549,7 @@ class Emit[C](
             val childP = child.pType.asInstanceOf[PNDArray]
             val elemPType = childP.elementType
 
-            new NDArrayEmitter2(childEmitter.outputShape) {
+            new NDArrayEmitter(childEmitter.outputShape) {
               override def outputElement(cb: EmitCodeBuilder, idxVars: IndexedSeq[Value[Long]]): PCode = {
                 val elemRef = cb.emb.newPresentEmitField("ndarray_map_element_name", elemPType)
 
@@ -2574,7 +2574,7 @@ class Emit[C](
 
               cb.append(newSetupShape)
 
-              new NDArrayEmitter2(shapeArray) {
+              new NDArrayEmitter(shapeArray) {
                 override def outputElement(cb: EmitCodeBuilder, idxVars: IndexedSeq[Value[Long]]): PCode = {
                   val lElemRef = cb.emb.newPresentEmitField(lName, lP.elementType)
                   val rElemRef = cb.emb.newPresentEmitField(rName, rP.elementType)
@@ -2604,7 +2604,7 @@ class Emit[C](
                 const(1L)
             }
 
-            new NDArrayEmitter2(shapeSeq) {
+            new NDArrayEmitter(shapeSeq) {
               override def outputElement(cb: EmitCodeBuilder, idxVars: IndexedSeq[Value[Long]]): PCode = {
                 val concreteIdxsForChild = Array.tabulate(childEmitter.nDims) { childDim =>
                   val parentDim = indexExpr.indexOf(childDim)
@@ -2673,7 +2673,7 @@ class Emit[C](
                 cb.assign(requestedShapeValues(i), (tempShapeElement ceq -1L).mux(replacesNegativeOne, tempShapeElement))
               }
 
-              new NDArrayEmitter2(requestedShapeValues) {
+              new NDArrayEmitter(requestedShapeValues) {
                 override def outputElement(cb: EmitCodeBuilder, idxVars: IndexedSeq[Value[Long]]): PCode = {
                   val storeElementIndex = cb.newLocal[Long]("ndarray_reshape_index_store")
                   cb.assign(storeElementIndex, LinalgCodeUtils.linearizeIndicesRowMajor(idxVars, requestedShapeValues, cb.emb))
@@ -2712,7 +2712,7 @@ class Emit[C](
               )
             }
 
-            new NDArrayEmitter2(outputShape) {
+            new NDArrayEmitter(outputShape) {
               override def outputElement(cb: EmitCodeBuilder, idxVars: IndexedSeq[Value[Long]]): PCode = {
                 val newIdxVars: IndexedSeq[Settable[Long]] = Array.tabulate(x.pType.nDims) { _ => cb.newField[Long]("ndarray_filter_new_idx_val") }
                 newIdxVars.zipWithIndex.foreach { case (newIdxVar, i) =>
@@ -2739,7 +2739,7 @@ class Emit[C](
                 case (a, b) => (a.map(_._2), b.map(_._2))
               }
 
-              IEmitCode.multiFlatMap[Int, SCode, NDArrayEmitter2](indexingIndices, indexingIndex => slicesValue.loadField(cb, indexingIndex), cb) { indexingSCodes =>
+              IEmitCode.multiFlatMap[Int, SCode, NDArrayEmitter](indexingIndices, indexingIndex => slicesValue.loadField(cb, indexingIndex), cb) { indexingSCodes =>
                 val indexingValues = indexingSCodes.map(sCode => sCode.memoize(cb, "ndarray_slice_indexer"))
                 val slicingValueTriples = new ArrayBuilder[(Value[Long], Value[Long], Value[Long])]()
                 val outputShape = {
@@ -2752,7 +2752,7 @@ class Emit[C](
                         val start = startStepStopSeq(0).memoize(cb, "ndarray_slice_start").asPValue.value.asInstanceOf[Value[Long]]
                         val stop = startStepStopSeq(1).memoize(cb, "ndarray_slice_stop").asPValue.value.asInstanceOf[Value[Long]]
                         val step = startStepStopSeq(2).memoize(cb, "ndarray_slice_step").asPValue.value.asInstanceOf[Value[Long]]
-                        
+
                         slicingValueTriples.push((start, stop, step))
 
                         val newDimSize = cb.newLocal[Long]("new_dim_size")
@@ -2774,7 +2774,7 @@ class Emit[C](
                 }
 
                 outputShape.map(cb) { outputShapeSeq =>
-                  new NDArrayEmitter2(outputShapeSeq) {
+                  new NDArrayEmitter(outputShapeSeq) {
                     override def outputElement(cb: EmitCodeBuilder, idxVars: IndexedSeq[Value[Long]]): PCode = {
                       // Iterate through the slices tuple given in. For each single integer, should just copy that integer into
                       // an indexed seq. For each range, should use start and step to modify.
@@ -2842,7 +2842,7 @@ class Emit[C](
               localDim
             }
 
-            new NDArrayEmitter2(newShape) {
+            new NDArrayEmitter(newShape) {
               override def outputElement(cb: EmitCodeBuilder, idxVars: IndexedSeq[Value[Long]]): PCode = {
                 val concatAxisIdx = cb.newLocal[Long]("ndarray_concat_axis_id")
                 val i = cb.newLocal[Int]("ndarray_concat_outputElement_i")
@@ -2865,7 +2865,7 @@ class Emit[C](
             val ndPv = ndPCode.asNDArray.memoize(cb, "deforestNDArray_fall_through_ndarray")
             val shape = ndPv.shapes(cb)
 
-            new NDArrayEmitter2(shape) {
+            new NDArrayEmitter(shape) {
               override def outputElement(cb: EmitCodeBuilder, idxVars: IndexedSeq[Value[Long]]): PCode = {
                 ndPv.asInstanceOf[PNDArrayValue].loadElement(idxVars, cb).toPCode(cb, region.code)
               }
@@ -2968,7 +2968,7 @@ object NDArrayEmitter {
   }
 }
 
-abstract class NDArrayEmitter2(val outputShape: IndexedSeq[Value[Long]])
+abstract class NDArrayEmitter(val outputShape: IndexedSeq[Value[Long]])
 {
   val nDims = outputShape.length
 
