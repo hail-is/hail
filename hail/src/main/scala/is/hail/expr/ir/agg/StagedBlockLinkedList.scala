@@ -189,7 +189,6 @@ class StagedBlockLinkedList(val elemType: PType, val kb: EmitClassBuilder[_]) {
   }
 
   def writeToSRVB(cb: EmitCodeBuilder, resultType: PCanonicalArray, srvb: StagedRegionValueBuilder): Unit = {
-    assert(srvb.typ.fundamentalType.isOfType(bufferType.fundamentalType), s"srvb: ${ srvb.typ }, buf: ${ bufferType.fundamentalType }")
     cb += srvb.addArray(resultType, { srvb =>
       EmitCodeBuilder.scopedVoid(cb.emb) { cb =>
         cb += srvb.start(totalCount, init = true)
