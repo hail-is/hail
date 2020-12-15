@@ -924,7 +924,7 @@ class Emit[C](
 
       case NDArrayMatMul(lChild, rChild) =>
         emitNDArrayColumnMajorStrides(lChild).flatMap(cb) { case leftPCode: PNDArrayCode =>
-          emitNDArrayColumnMajorStrides(rChild).flatMap(cb) { case rightPCode: PNDArrayCode =>
+          emitNDArrayColumnMajorStrides(rChild).map(cb) { case rightPCode: PNDArrayCode =>
             val lPType = leftPCode.pt
             val rPType = rightPCode.pt
 
@@ -1003,14 +1003,13 @@ class Emit[C](
                 mb,
                 region.code)
 
-              IEmitCode.present(cb, res)
+              res
             } else {
               val numericElementType = coerce[PNumeric](lPType.elementType)
               val eVti = typeToTypeInfo(numericElementType)
 
               val emitter = new NDArrayEmitter2(unifiedShape) {
                 override def outputElement(cb: EmitCodeBuilder, idxVars: IndexedSeq[Value[Long]]): PCode = {
-                  val elemMB = cb.emb
                   val element = coerce[Any](cb.newField("matmul_element")(eVti))
                   val k = cb.newField[Long]("ndarray_matmul_k")
 
@@ -1056,7 +1055,7 @@ class Emit[C](
                   ))
                 }
               }
-              IEmitCode.present(cb, emitter.emit(cb, outputPType, region.code))
+              emitter.emit(cb, outputPType, region.code)
             }
           }
         }
