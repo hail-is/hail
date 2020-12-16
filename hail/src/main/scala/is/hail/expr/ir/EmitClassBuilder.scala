@@ -1050,9 +1050,11 @@ class EmitMethodBuilder[C](
         new PValue {
           override def pt: PType = evSelf.pt
 
-          override def get: PCode = ???
+          override def get: PCode = pt.fromCodeTuple(ts.zipWithIndex.map { case (t, i) =>
+            mb.getArg(codeIndex + i)(t).get
+          })
 
-          override def st: SType = ???
+          override def st: SType = evSelf.pt.sType
         }
       }
     }
