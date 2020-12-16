@@ -676,8 +676,11 @@ class Emit[C](
       iec
     }
 
-    def emitStream(ir: IR, outerRegion: ParentStagedRegion): IEmitCode =
-      EmitStream.emit(ctx, this, ir, mb, outerRegion, env, container).toI(cb)
+    def emitStream(ir: IR, outerRegion: ParentStagedRegion): IEmitCode = {
+      val iec = EmitStream.emit(ctx, this, ir, mb, outerRegion, env, container).toI(cb)
+      cb.lineNumber = LineNumber(ir.lineNumber)
+      iec
+    }
 
     def emitVoid(childIR: IR, env: E = env, container: Option[AggContainer] = container, loopEnv: Option[Env[LoopRef]] = loopEnv): Unit = {
       this.emitVoid(cb, childIR: IR, mb, region, env, container, loopEnv)
