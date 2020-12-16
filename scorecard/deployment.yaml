@@ -34,8 +34,8 @@ spec:
            value: "{{ global.domain }}"
         resources:
           requests:
-            memory: "500M"
-            cpu: "100m"
+            memory: 37Mi
+            cpu: 10m
         ports:
         - containerPort: 5000
         volumeMounts:
