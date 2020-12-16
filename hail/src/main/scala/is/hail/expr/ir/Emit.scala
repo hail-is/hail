@@ -2853,10 +2853,10 @@ class Emit[C](
                   cb.assign(concatAxisIdx, idxVars(axis))
                   cb.assign(whichNDArrayToRead, 0)
                   val condition = EmitCodeBuilder.scopedCode[Boolean](cb.emb) { cb =>
-                    (concatAxisIdx >= ndsArrayPValue.loadElement(cb, whichNDArrayToRead).getNeverMissing(cb).asNDArray.shape.memoize(cb, "foo").loadField(cb, axis).getNeverMissing(cb).asLong.longCode(cb))
+                    (concatAxisIdx >= ndsArrayPValue.loadElement(cb, whichNDArrayToRead).getNeverMissing(cb).asNDArray.shape.memoize(cb, "ndarray_concat_condition").loadField(cb, axis).getNeverMissing(cb).asLong.longCode(cb))
                   }
                   cb.whileLoop(condition, {
-                    cb.assign(concatAxisIdx, concatAxisIdx - ndsArrayPValue.loadElement(cb, whichNDArrayToRead).getNeverMissing(cb).asNDArray.shape.memoize(cb, "bar").loadField(cb, axis).getNeverMissing(cb).asLong.longCode(cb))
+                    cb.assign(concatAxisIdx, concatAxisIdx - ndsArrayPValue.loadElement(cb, whichNDArrayToRead).getNeverMissing(cb).asNDArray.shape.memoize(cb, "ndarray_concat_output_subtract").loadField(cb, axis).getNeverMissing(cb).asLong.longCode(cb))
                     cb.assign(whichNDArrayToRead, whichNDArrayToRead + 1)
                   })
                   cb.ifx(whichNDArrayToRead >= arrLength, cb._fatal(const("NDArrayConcat: trying to access element greater than length of concatenation axis: ").concat(whichNDArrayToRead.toS).concat(" > ").concat((arrLength - 1).toS)))
