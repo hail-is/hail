@@ -2804,7 +2804,7 @@ class Emit[C](
           emit(nds).map(cb) { ndsPCode =>
             val ndsArrayPValue = ndsPCode.asIndexable.memoize(cb, "ndarray_concat_array_of_nds")
             val arrLength = ndsArrayPValue.loadLength()
-            cb.ifx(arrLength == 0, {
+            cb.ifx(arrLength ceq 0, {
               cb._fatal("need at least one ndarray to concatenate")
             })
 
