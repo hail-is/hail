@@ -15,7 +15,6 @@ void BloomFilter::insert_key(int32_t k) {
     auto last_d = key_hash % 10;
     bset[last_d] = 1;
 }
-
 char BloomFilter::contains_key(int32_t k) {
     uint32_t seed = 1;
     uint64_t key_hash;
@@ -23,7 +22,6 @@ char BloomFilter::contains_key(int32_t k) {
     auto last_d = key_hash % 10;
     return bset[last_d];
 }
-
 int Level::get_size() {
   return files.size();
 }
@@ -45,7 +43,7 @@ File Level::write_to_file(std::map<int32_t, maybe_value> m, std::string filename
   }
   return File(filename, bloomFilter, min, max);
 }
-void Level::read_to_map(File f, std::map<int32_t, maybe_value> &m) { //TODO: is there a difference between int& x and int &x?
+void Level::read_to_map(File f, std::map<int32_t, maybe_value> &m) { 
   if (auto istrm = std::ifstream(f.filename, std::ios::binary)) {
     int k;
     while (istrm.read(reinterpret_cast<char *>(&k), sizeof k)) {
@@ -61,8 +59,6 @@ void Level::read_to_map(File f, std::map<int32_t, maybe_value> &m) { //TODO: is 
   }
 }
 File Level::merge(File older_f, File newer_f, std::string merged_filename) {
-  //Reading both files into a map, then writing the map to a file,
-  // you have to write the older file first (in case a key is overwritten) order matters!
   std::map<int32_t, maybe_value> m;
   read_to_map(older_f, m);
   read_to_map(newer_f, m);
@@ -155,11 +151,9 @@ std::vector<std::pair<int32_t, int32_t>> LSM::range(int32_t l, int32_t r) {
   }
   return res;
 }
-
 void LSM::del(int32_t k) {
   put(k ,0, 1);
 }
-
 File LSM::write_to_file(std::string filename) {
   std::ofstream ostrm(filename, std::ios::binary);
   BloomFilter bloomFilter;
