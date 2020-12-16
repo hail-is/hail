@@ -1,7 +1,7 @@
 package is.hail.expr.ir.agg
 
 import is.hail.HailSuite
-import is.hail.annotations.Region
+import is.hail.annotations.{Region, RegionPool}
 import is.hail.asm4s._
 import is.hail.expr.ir.EmitFunctionBuilder
 import is.hail.types.physical.{PCanonicalArray, PCanonicalString}
@@ -13,11 +13,13 @@ class DownsampleSuite extends HailSuite {
 
   @Test def testLargeRandom(): Unit = {
     val lt = PCanonicalArray(PCanonicalString())
-    val fb = EmitFunctionBuilder[Unit](ctx, "foo")
+    val fb = EmitFunctionBuilder[RegionPool, Unit](ctx, "foo")
     val cb = fb.ecb
     val ds1 = new DownsampleState(cb, lt, maxBufferSize = 4)
     val ds2 = new DownsampleState(cb, lt, maxBufferSize = 4)
     val ds3 = new DownsampleState(cb, lt, maxBufferSize = 4)
+
+    val stagedPool = fb.newLocal[RegionPool]("pool")
 
     val rng = fb.newRNG(0)
     val i = fb.newLocal[Int]()
@@ -25,9 +27,10 @@ class DownsampleSuite extends HailSuite {
     val x = fb.newLocal[Double]()
     val y = fb.newLocal[Double]()
     fb.emitWithBuilder { cb =>
-      cb.assign(ds1.r, Region.stagedCreate(Region.SMALL))
-      cb.assign(ds2.r, Region.stagedCreate(Region.SMALL))
-      cb.assign(ds3.r, Region.stagedCreate(Region.SMALL))
+      cb.assign(stagedPool, fb.getCodeParam[RegionPool](1))
+      cb.assign(ds1.r, Region.stagedCreate(Region.SMALL, stagedPool))
+      cb.assign(ds2.r, Region.stagedCreate(Region.SMALL, stagedPool))
+      cb.assign(ds3.r, Region.stagedCreate(Region.SMALL, stagedPool))
       cb.assign(i, 0)
       cb += ds1.init(100)
       cb += ds2.init(100)
@@ -43,8 +46,8 @@ class DownsampleSuite extends HailSuite {
       Code._empty
     }
 
-    Region.smallScoped { r =>
-      fb.resultWithIndex().apply(0, r).apply()
+    pool.scopedSmallRegion { r =>
+      fb.resultWithIndex().apply(0, r).apply(pool)
     }
   }
 }

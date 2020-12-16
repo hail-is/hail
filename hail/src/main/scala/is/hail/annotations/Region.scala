@@ -2,8 +2,10 @@ package is.hail.annotations
 
 import is.hail.asm4s
 import is.hail.asm4s.{Code, LineNumber, coerce}
+import is.hail.backend.HailTaskContext
 import is.hail.types.physical._
 import is.hail.utils._
+import org.apache.spark.TaskContext
 
 object Region {
   type Size = Int
@@ -14,12 +16,6 @@ object Region {
 
   val SIZES: Array[Long] = Array(64 * 1024, 8 * 1024, 1024, 256)
   val BLOCK_THRESHOLD: Long = 4 * 1024
-
-  def scoped[T](f: Region => T): T = using(Region())(f)
-
-  def smallScoped[T](f: Region => T): T = using(Region(SMALL))(f)
-
-  def tinyScoped[T](f: Region => T): T = using(Region(TINY))(f)
 
   def loadInt(addr: Long): Int = Memory.loadInt(addr)
 
@@ -289,17 +285,11 @@ object Region {
     case t: PBaseStruct => Region.copyFrom(coerce[Long](v), addr, t.byteSize)
   }
 
-  def stagedCreate(blockSize: Size)(implicit line: LineNumber): Code[Region] =
-    Code.invokeScalaObject2[Int, RegionPool, Region](Region.getClass, "apply", asm4s.const(blockSize), Code._null)
+  def stagedCreate(blockSize: Size, pool: Code[RegionPool])(implicit line: LineNumber): Code[Region] =
+    Code.invokeScalaObject2[Int, RegionPool, Region](Region.getClass, "apply", asm4s.const(blockSize), pool)
 
-  def apply(blockSize: Region.Size = Region.REGULAR, pool: RegionPool = null): Region = {
-    (if (pool == null) RegionPool.get else pool)
-      .getRegion(blockSize)
-  }
-
-  def makeNamed(blockSize: Region.Size = Region.REGULAR, pool: RegionPool = null): Region = {
-    (if (pool == null) RegionPool.get else pool)
-      .getRegion(blockSize)
+  def apply(blockSize: Region.Size = Region.REGULAR, pool: RegionPool): Region = {
+    pool.getRegion(blockSize)
   }
 
   def pretty(off: Long, n: Int, header: String): String = {
@@ -472,6 +462,10 @@ final class Region protected[annotations](var blockSize: Region.Size, var pool: 
 
   def prettyBits(): String = {
     "FIXME: implement prettyBits on Region"
+  }
+
+  def getPool(): RegionPool = {
+    pool
   }
 }
 

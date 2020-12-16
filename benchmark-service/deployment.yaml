@@ -24,6 +24,13 @@ spec:
          value: "true"
       containers:
         - name: benchmark
+          command:
+{% if not deploy %}
+           - /controller.sh
+{% endif %}
+           - "python3"
+           - "-m"
+           - "benchmark"
           image: "{{ benchmark_image.image }}"
           env:
           - name: HAIL_DOMAIN

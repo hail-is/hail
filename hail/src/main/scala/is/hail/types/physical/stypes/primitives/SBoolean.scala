@@ -29,6 +29,18 @@ case class SBoolean(required: Boolean) extends SType {
         new SBooleanCode(required: Boolean, Region.loadBoolean(addr))
     }
   }
+
+  def fromSettables(settables: IndexedSeq[Settable[_]]): SBooleanSettable = {
+    val IndexedSeq(x: Settable[Boolean@unchecked]) = settables
+    assert(x.ti == BooleanInfo)
+    new SBooleanSettable(required, x)
+  }
+
+  def fromCodes(codes: IndexedSeq[Code[_]]): SBooleanCode = {
+    val IndexedSeq(x: Code[Boolean@unchecked]) = codes
+    assert(x.ti == BooleanInfo)
+    new SBooleanCode(required, x)
+  }
 }
 
 class SBooleanCode(required: Boolean, val code: Code[Boolean]) extends PCode {

@@ -46,14 +46,14 @@ class Job:
         return aioclient.Job.total_duration_msecs(job_status)
 
     @classmethod
-    def from_async_job(cls, job):
+    def from_async_job(cls, job: aioclient.Job):
         j = object.__new__(cls)
         j._async_job = job
         return j
 
-    def __init__(self, batch, job_id, _status=None):
+    def __init__(self, batch: aioclient.Batch, job_id: int, _status=None):
         j = aioclient.SubmittedJob(batch, job_id, _status)
-        self._async_job = aioclient.Job(j)
+        self._async_job: aioclient.Job = aioclient.Job(j)
 
     @property
     def _status(self):
@@ -102,16 +102,16 @@ class Job:
 
 class Batch:
     @classmethod
-    def from_async_batch(cls, batch):
+    def from_async_batch(cls, batch: aioclient.Batch):
         b = object.__new__(cls)
         b._async_batch = batch
         return b
 
     def __init__(self, client, id, attributes, n_jobs):
-        self._async_batch = aioclient.Batch(client, id, attributes, n_jobs)
+        self._async_batch: aioclient.Batch = aioclient.Batch(client, id, attributes, n_jobs)
 
     @property
-    def id(self):
+    def id(self) -> int:
         return self._async_batch.id
 
     @property
@@ -158,13 +158,13 @@ class Batch:
 
 class BatchBuilder:
     @classmethod
-    def from_async_builder(cls, builder):
+    def from_async_builder(cls, builder: aioclient.BatchBuilder):
         b = object.__new__(cls)
         b._async_builder = builder
         return b
 
     def __init__(self, client, attributes, callback):
-        self._async_builder = aioclient.BatchBuilder(client, attributes, callback)
+        self._async_builder: aioclient.BatchBuilder = aioclient.BatchBuilder(client, attributes, callback)
 
     @property
     def attributes(self):

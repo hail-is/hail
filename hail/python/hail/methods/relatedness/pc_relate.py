@@ -17,9 +17,11 @@ from ..pca import hwe_normalized_pca
            scores_expr=nullable(expr_array(expr_float64)),
            min_kinship=nullable(numeric),
            statistics=enumeration('kin', 'kin2', 'kin20', 'all'),
-           block_size=nullable(int))
+           block_size=nullable(int),
+           include_self_kinship=bool)
 def pc_relate(call_expr, min_individual_maf, *, k=None, scores_expr=None,
-              min_kinship=None, statistics="all", block_size=None) -> Table:
+              min_kinship=None, statistics="all", block_size=None,
+              include_self_kinship=False) -> Table:
     r"""Compute relatedness estimates between individuals using a variant of the
     PC-Relate method.
 
@@ -278,6 +280,9 @@ def pc_relate(call_expr, min_individual_maf, *, k=None, scores_expr=None,
     block_size : :obj:`int`, optional
         Block size of block matrices used in the algorithm.
         Default given by :meth:`.BlockMatrix.default_block_size`.
+    include_self_kinship: :obj:`bool`
+        If ``True``, include entries for an individual's estimated kinship with
+        themselves. Defaults to ``False``.
 
     Returns
     -------
@@ -329,6 +334,9 @@ def pc_relate(call_expr, min_individual_maf, *, k=None, scores_expr=None,
         ht = ht.drop('ibd0', 'ibd1')
     elif statistics == 'kin20':
         ht = ht.drop('ibd1')
+
+    if not include_self_kinship:
+        ht = ht.filter(ht.i == ht.j, keep=False)
 
     col_keys = hl.literal(mt.select_cols().key_cols_by().cols().collect(), dtype=tarray(mt.col_key.dtype))
     return ht.key_by(i=col_keys[ht.i], j=col_keys[ht.j])

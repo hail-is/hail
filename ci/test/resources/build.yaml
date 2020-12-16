@@ -129,6 +129,21 @@ steps:
     - hello_image
     - check_hello
     - hello_database
+ - kind: deploy
+   name: deploy_hello_stateful_set
+   namespace:
+     valueFrom: default_ns.name
+   config: ci/test/resources/statefulset.yaml
+   wait:
+    - kind: Service
+      name: hello-stateful-set
+      resource_type: statefulset
+      for: alive
+   dependsOn:
+    - default_ns
+    - hello_image
+    - check_hello
+    - hello_database
  - kind: runImage
    name: test_connect_to_hello
    image:

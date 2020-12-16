@@ -3,7 +3,6 @@ FROM {{ hail_ubuntu_image.image }}
 RUN hail-apt-get-install \
   nginx \
   curl \
-  python-minimal \
   libnginx-mod-http-subs-filter
 
 RUN /bin/sh -c 'curl https://sdk.cloud.google.com | bash' && \

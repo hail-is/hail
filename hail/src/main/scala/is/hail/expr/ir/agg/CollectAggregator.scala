@@ -18,7 +18,7 @@ class CollectAggState(val elemType: PType, val kb: EmitClassBuilder[_]) extends 
   def createState(cb: EmitCodeBuilder): Unit = {
     implicit val line = cb.lineNumber
     cb.ifx(region.isNull, {
-      cb.assign(r, Region.stagedCreate(regionSize))
+      cb.assign(r, Region.stagedCreate(regionSize, kb.pool()))
       cb += region.invalidate()
     })
   }

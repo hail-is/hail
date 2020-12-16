@@ -3374,7 +3374,7 @@ class Table(ExprContainer):
             hl.struct(**{name: hl.agg.collect(self.row_value)})._ir))
 
     def distinct(self) -> 'Table':
-        """Deduplicate keys, keeping only one row for each unique key.
+        """Deduplicate keys, keeping exactly one row for each unique key.
 
         .. include:: _templates/req_keyed_table.rst
 

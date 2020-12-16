@@ -31,6 +31,18 @@ case class SFloat32(required: Boolean) extends SType {
         new SFloat32Code(required, Region.loadFloat(addr))
     }
   }
+
+  def fromSettables(settables: IndexedSeq[Settable[_]]): SFloat32Settable = {
+    val IndexedSeq(x: Settable[Float@unchecked]) = settables
+    assert(x.ti == FloatInfo)
+    new SFloat32Settable(required, x)
+  }
+
+  def fromCodes(codes: IndexedSeq[Code[_]]): SFloat32Code = {
+    val IndexedSeq(x: Code[Float@unchecked]) = codes
+    assert(x.ti == FloatInfo)
+    new SFloat32Code(required, x)
+  }
 }
 
 trait PFloat32Value extends PValue {

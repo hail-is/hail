@@ -20,13 +20,15 @@ trait PValue extends SValue { pValueSelf =>
   }
 }
 
-trait PSettable extends PValue {
+trait PSettable extends PValue with SSettable {
+
+  def store(cb: EmitCodeBuilder, v: SCode): Unit = store(cb, v.asInstanceOf[PCode])
 
   def store(cb: EmitCodeBuilder, v: PCode): Unit
 
   def settableTuple(): IndexedSeq[Settable[_]]
 
-  def load()(implicit line: LineNumber): PCode = get
+  override def load()(implicit line: LineNumber): PCode = get
 }
 
 abstract class PCode extends SCode { self =>

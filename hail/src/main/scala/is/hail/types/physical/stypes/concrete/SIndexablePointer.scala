@@ -9,7 +9,6 @@ import is.hail.types.physical.{PCode, PContainer, PIndexableCode, PIndexableValu
 import is.hail.utils.FastIndexedSeq
 
 
-
 case class SIndexablePointer(pType: PContainer) extends SContainer {
   def codeOrdering(mb: EmitMethodBuilder[_], other: SType, so: SortOrder): CodeOrdering = pType.codeOrdering(mb, other.pType, so)
 
@@ -24,6 +23,20 @@ case class SIndexablePointer(pType: PContainer) extends SContainer {
       new SIndexablePointerCode(this, addr)
     else
       coerceOrCopy(cb, region, pt.loadCheapPCode(cb, addr), deepCopy = false)
+  }
+
+  def fromSettables(settables: IndexedSeq[Settable[_]]): SIndexablePointerSettable = {
+    val IndexedSeq(a: Settable[Long@unchecked], length: Settable[Int@unchecked], elementsAddress: Settable[Long@unchecked]) = settables
+    assert(a.ti == LongInfo)
+    assert(length.ti == IntInfo)
+    assert(elementsAddress.ti == LongInfo)
+    new SIndexablePointerSettable(this, a, length, elementsAddress)
+  }
+
+  def fromCodes(codes: IndexedSeq[Code[_]]): SIndexablePointerCode = {
+    val IndexedSeq(a: Code[Long@unchecked]) = codes
+    assert(a.ti == LongInfo)
+    new SIndexablePointerCode(this, a)
   }
 }
 

@@ -6,7 +6,7 @@ IP := 35.188.91.25
 KUBERNETES_SERVER_URL := https://104.198.230.143
 REGION := us-central1
 ZONE := us-central1-a
-ifeq ($(NAMESPACE), "default")
+ifeq ($(NAMESPACE),default)
 SCOPE = deploy
 DEPLOY = true
 else

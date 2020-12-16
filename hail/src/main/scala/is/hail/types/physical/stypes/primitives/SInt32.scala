@@ -31,6 +31,18 @@ case class SInt32(required: Boolean) extends SType {
         new SInt32Code(required, Region.loadInt(addr))
     }
   }
+
+  def fromSettables(settables: IndexedSeq[Settable[_]]): SInt32Settable = {
+    val IndexedSeq(x: Settable[Int@unchecked]) = settables
+    assert(x.ti == IntInfo)
+    new SInt32Settable(required, x)
+  }
+
+  def fromCodes(codes: IndexedSeq[Code[_]]): SInt32Code = {
+    val IndexedSeq(x: Code[Int@unchecked]) = codes
+    assert(x.ti == IntInfo)
+    new SInt32Code(required, x)
+  }
 }
 
 trait PInt32Value extends PValue {

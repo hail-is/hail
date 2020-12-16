@@ -13,8 +13,8 @@ abstract class PhysicalTestUtils extends HailSuite {
     expectCompileError: Boolean = false, expectRuntimeError: Boolean = false,
     deepCopy: Boolean = false, interpret: Boolean = false, expectedValue: Any = null) {
 
-    val srcRegion = Region()
-    val region = Region()
+    val srcRegion = Region(pool=pool)
+    val region = Region(pool=pool)
 
     val srcAddress = sourceType match {
       case x: PSubsetStruct => ScalaToRegionValue(srcRegion, x.ps, sourceValue)

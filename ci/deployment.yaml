@@ -23,6 +23,13 @@ spec:
         preemptible: "false"
       containers:
         - name: ci
+          command:
+{% if not deploy %}
+           - /controller.sh
+{% endif %}
+           - "python3"
+           - "-m"
+           - "ci"
           image: "{{ ci_image.image }}"
           resources:
             requests:

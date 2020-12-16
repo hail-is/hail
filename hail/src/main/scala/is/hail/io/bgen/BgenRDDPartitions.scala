@@ -133,7 +133,8 @@ object BgenRDDPartitions extends Logging {
       var fileIndex = 0
       while (fileIndex < nonEmptyFilesAfterFilter.length) {
         val file = nonEmptyFilesAfterFilter(fileIndex)
-        using(indexReaderBuilder(fs, file.indexPath, 8)) { index =>
+        // TODO Not sure I should be using ctx's pool here.
+        using(indexReaderBuilder(fs, file.indexPath, 8, ctx.r.pool)) { index =>
           val nPartitions = math.min(fileNPartitions(fileIndex), file.nVariants.toInt)
           val partNVariants = partition(file.nVariants.toInt, nPartitions)
           val partFirstVariantIndex = partNVariants.scan(0)(_ + _).init

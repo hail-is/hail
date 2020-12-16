@@ -31,6 +31,18 @@ case class SInt64(required: Boolean) extends SType {
         new SInt64Code(required, Region.loadLong(addr))
     }
   }
+
+  def fromSettables(settables: IndexedSeq[Settable[_]]): SInt64Settable = {
+    val IndexedSeq(x: Settable[Long@unchecked]) = settables
+    assert(x.ti == LongInfo)
+    new SInt64Settable(required, x)
+  }
+
+  def fromCodes(codes: IndexedSeq[Code[_]]): SInt64Code = {
+    val IndexedSeq(x: Code[Long@unchecked]) = codes
+    assert(x.ti == LongInfo)
+    new SInt64Code(required, x)
+  }
 }
 
 trait PInt64Value extends PValue {

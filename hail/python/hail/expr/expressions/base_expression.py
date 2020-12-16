@@ -158,7 +158,7 @@ def impute_type(x):
             raise ExpressionException("Cannot impute type of empty list. Use 'hl.empty_array' to create an empty array.")
         ts = {impute_type(element) for element in x}
         unified_type = unify_types_limited(*ts)
-        if not unified_type:
+        if unified_type is None:
             raise ExpressionException("Hail does not support heterogeneous arrays: "
                                       "found list with elements of types {} ".format(list(ts)))
         return tarray(unified_type)

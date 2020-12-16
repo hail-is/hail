@@ -5,7 +5,9 @@ import is.hail.expr.ir.{EmitCodeBuilder, IEmitSCode}
 import is.hail.types.physical.{PBaseStruct}
 import is.hail.types.physical.stypes.{SCode, SSettable, SType, SValue}
 
-trait SStruct extends SType
+trait SStruct extends SType {
+  override def fromCodes(codes: IndexedSeq[Code[_]]): SBaseStructCode
+}
 
 trait SStructSettable extends SBaseStructValue with SSettable
 

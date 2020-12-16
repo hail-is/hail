@@ -37,10 +37,7 @@ abstract class Backend {
 
   def getPersistedBlockMatrixType(backendContext: BackendContext, id: String): BlockMatrixType
 
-  def parallelizeAndComputeWithIndex(
-    backendContext: BackendContext,
-    collection: Array[Array[Byte]],
-    dependency: Option[TableStageDependency] = None)(f: (Array[Byte], Int) => Array[Byte]): Array[Array[Byte]]
+  def parallelizeAndComputeWithIndex(backendContext: BackendContext, collection: Array[Array[Byte]], dependency: Option[TableStageDependency] = None)(f: (Array[Byte], HailTaskContext) => Array[Byte]): Array[Array[Byte]]
 
   def stop(): Unit
 

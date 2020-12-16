@@ -195,7 +195,7 @@ object LoadBgen {
         val (intPType: PStruct, intDec) = internalNodeCodec.buildDecoder(ctx, internalNodeCodec.encodedVirtualType)
         IndexReaderBuilder.withDecoders(leafDec, intDec, BgenSettings.indexKeyType(rg), BgenSettings.indexAnnotationType, leafPType, intPType)
       }
-      using(indexReaderBuilder(fs, indexFile, 8)) { index =>
+      using(indexReaderBuilder(fs, indexFile, 8, ctx.r.pool)) { index =>
         val attributes = index.attributes
         val rg = Option(attributes("reference_genome")).map(name => ReferenceGenome.getReference(name.asInstanceOf[String]))
         val skipInvalidLoci = attributes("skip_invalid_loci").asInstanceOf[Boolean]

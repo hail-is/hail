@@ -5,7 +5,7 @@ import java.security.SecureRandom
 
 import is.hail.HailContext
 import is.hail.utils._
-import is.hail.annotations.Region
+import is.hail.annotations.{Region, RegionPool}
 import is.hail.backend.{Backend, BackendContext, BroadcastValue}
 import is.hail.io.fs.FS
 
@@ -20,14 +20,16 @@ object ExecuteContext {
   }
 
   def scoped[T](tmpdir: String, localTmpdir: String, backend: Backend, fs: FS, timer: ExecutionTimer)(f: ExecuteContext => T): T = {
-    Region.scoped { r =>
-      val ctx = new ExecuteContext(tmpdir, localTmpdir, backend, fs, r, timer)
+    RegionPool.scoped {rp =>
+      val ctx = new ExecuteContext(tmpdir, localTmpdir, backend, fs, Region(pool = rp), timer)
       f(ctx)
     }
   }
 
   def scopedNewRegion[T](ctx: ExecuteContext)(f: ExecuteContext => T): T = {
-    Region.scoped { r =>
+    val rp = ctx.r.pool
+
+    rp.scopedRegion { r =>
       val oldR = ctx.r
       ctx.r = r
       val t = f(ctx)

@@ -3,7 +3,9 @@ package is.hail.expr.ir
 import java.io._
 import java.util.Base64
 
-import is.hail.annotations.{CodeOrdering, Region, RegionValueBuilder, SafeRow}
+
+import is.hail.{HailContext, lir}
+import is.hail.annotations.{CodeOrdering, Region, RegionPool, RegionValueBuilder, SafeRow}
 import is.hail.asm4s._
 import is.hail.asm4s.joinpoint.Ctrl
 import is.hail.backend.BackendUtils
@@ -364,6 +366,7 @@ class EmitClassBuilder[C](
   private[this] lazy val encLitField: Settable[Array[Byte]] = genFieldThisRef[Array[Byte]]("encodedLiterals")
 
   lazy val partitionRegion: Settable[Region] = genFieldThisRef[Region]("partitionRegion")
+  private[this] lazy val poolField: Settable[RegionPool] = genFieldThisRef[RegionPool]()
 
   def addLiteral(v: Any, t: PType): PValue = {
     assert(v != null)
@@ -419,7 +422,7 @@ class EmitClassBuilder[C](
 
     val baos = new ByteArrayOutputStream()
     val enc = spec.buildEncoder(ctx, litType)(baos)
-    Region.scoped { region =>
+    this.emodb.ctx.r.pool.scopedRegion { region =>
       val rvb = new RegionValueBuilder(region)
       rvb.start(litType)
       rvb.startTuple()
@@ -532,6 +535,10 @@ class EmitClassBuilder[C](
       _backendField = backendField
     }
     _backendField
+  }
+
+  def pool(): Value[RegionPool] = {
+    poolField
   }
 
   def addModule(name: String, mod: (Int, Region) => AsmFunction3[Region, Array[Byte], Array[Byte], Array[Byte]]): Unit = {
@@ -714,6 +721,8 @@ class EmitClassBuilder[C](
     cb.addInterface(typeInfo[FunctionWithPartitionRegion].iname)
     val mb = newEmitMethod("addPartitionRegion", FastIndexedSeq[ParamType](typeInfo[Region]), typeInfo[Unit])
     mb.emit(partitionRegion := mb.getCodeParam[Region](1))
+    val mb2 = newEmitMethod("setPool", FastIndexedSeq[ParamType](typeInfo[RegionPool]), typeInfo[Unit])
+    mb2.emit(poolField := mb2.getCodeParam[RegionPool](1))
   }
 
   def makeRNGs()(implicit line: LineNumber) {
@@ -788,6 +797,7 @@ class EmitClassBuilder[C](
         }
         val f = theClass.newInstance().asInstanceOf[C]
         f.asInstanceOf[FunctionWithPartitionRegion].addPartitionRegion(region)
+        f.asInstanceOf[FunctionWithPartitionRegion].setPool(region.pool)
         if (useBackend)
           f.asInstanceOf[FunctionWithBackend].setBackend(backend)
         if (objects != null)
@@ -941,6 +951,7 @@ trait FunctionWithAggRegion {
 
 trait FunctionWithPartitionRegion {
   def addPartitionRegion(r: Region): Unit
+  def setPool(pool: RegionPool): Unit
 }
 
 trait FunctionWithLiterals {

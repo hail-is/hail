@@ -25,6 +25,17 @@ case class SBinaryPointer(pType: PBinary) extends SBinary {
       coerceOrCopy(cb, region, pt.loadCheapPCode(cb, addr), deepCopy = false)
   }
 
+  def fromSettables(settables: IndexedSeq[Settable[_]]): SBinaryPointerSettable = {
+    val IndexedSeq(a: Settable[Long@unchecked]) = settables
+    assert(a.ti == LongInfo)
+    new SBinaryPointerSettable(this, a)
+  }
+
+  def fromCodes(codes: IndexedSeq[Code[_]]): SBinaryPointerCode = {
+    val IndexedSeq(a: Code[Long@unchecked]) = codes
+    assert(a.ti == LongInfo)
+    new SBinaryPointerCode(this, a)
+  }
 }
 
 object SBinaryPointerSettable {

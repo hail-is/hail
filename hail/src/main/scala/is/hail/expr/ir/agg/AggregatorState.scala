@@ -64,7 +64,7 @@ trait RegionBackedAggState extends AggregatorState {
 
   def createState(cb: EmitCodeBuilder): Unit = {
     implicit val line = cb.lineNumber
-    cb.ifx(region.isNull, cb.assign(r, Region.stagedCreate(regionSize)))
+    cb.ifx(region.isNull, cb.assign(r, Region.stagedCreate(regionSize, kb.pool())))
   }
 
   def load(regionLoader: Value[Region] => Code[Unit], src: Code[Long])(implicit line: LineNumber): Code[Unit] =

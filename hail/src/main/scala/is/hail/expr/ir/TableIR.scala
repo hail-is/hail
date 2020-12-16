@@ -5,6 +5,7 @@ import java.io.{ByteArrayInputStream, ByteArrayOutputStream, DataInputStream, Da
 import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.asm4s._
+import is.hail.backend.HailTaskContext
 import is.hail.backend.spark.SparkBackend
 import is.hail.expr.ir
 import is.hail.expr.ir.EmitStream.SizedStream
@@ -589,12 +590,12 @@ case class PartitionNativeReaderIndexed(spec: AbstractTypedCodecSpec, indexSpec:
     val (intPType: PStruct, intDec) = indexSpec.internalNodeCodec.buildDecoder(ctx, indexSpec.internalNodeCodec.encodedVirtualType)
     val mkIndexReader = IndexReaderBuilder.withDecoders(leafDec, intDec, keyType, annotationType, leafPType, intPType)
 
-    val makeIndexCode = mb.getObject[Function3[FS, String, Int, IndexReader]](mkIndexReader)
+    val makeIndexCode = mb.getObject[Function4[FS, String, Int, RegionPool, IndexReader]](mkIndexReader)
     val makeDecCode = mb.getObject[(InputStream => Decoder)](makeDec)
     COption.fromEmitCode(emitIR(context)).map { ctxStruct =>
       val getIndexReader: Code[String] => Code[IndexReader] = { (indexPath: Code[String]) =>
         Code.checkcast[IndexReader](
-          makeIndexCode.invoke[AnyRef, AnyRef, AnyRef, AnyRef]("apply", mb.getFS, indexPath, Code.boxInt(8)))
+          makeIndexCode.invoke[AnyRef, AnyRef, AnyRef, AnyRef, AnyRef]("apply", mb.getFS, indexPath, Code.boxInt(8), mb.ecb.pool()))
       }
 
       val hasNext = mb.newLocal[Boolean]("pnr_hasNext")
@@ -726,7 +727,7 @@ case class PartitionZippedNativeReader(specLeft: AbstractTypedCodecSpec, specRig
       val (intPType: PStruct, intDec) = indexSpec.internalNodeCodec.buildDecoder(ctx, indexSpec.internalNodeCodec.encodedVirtualType)
       val mkIndexReader = IndexReaderBuilder.withDecoders(leafDec, intDec, keyType, annotationType, leafPType, intPType)
 
-      mb.getObject[Function3[FS, String, Int, IndexReader]](mkIndexReader)
+      mb.getObject[Function4[FS, String, Int, RegionPool, IndexReader]](mkIndexReader)
     }
     val makeLeftDecCode = mb.getObject[(InputStream => Decoder)](makeLeftDec)
     val makeRightDecCode = mb.getObject[(InputStream => Decoder)](makeRightDec)
@@ -1932,7 +1933,7 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
 
     val read = extracted.deserialize(ctx, spec)
     val write = extracted.serialize(ctx, spec)
-    val combOpF = extracted.combOpFSerialized(ctx, spec)
+    val combOpFNeedsPool = extracted.combOpFSerializedFromRegionPool(ctx, spec)
 
     val (rTyp, f) = ir.CompileWithAggregators[AsmFunction3RegionLongLongLong](ctx,
       extracted.states,
@@ -1946,8 +1947,8 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
     assert(rTyp.virtualType == newRow.typ)
 
     // 1. init op on all aggs and write out to initPath
-    val initAgg = Region.scoped { aggRegion =>
-      Region.scoped { fRegion =>
+    val initAgg = ctx.r.pool.scopedRegion { aggRegion =>
+      ctx.r.pool.scopedRegion { fRegion =>
         val init = initF(0, fRegion)
         init.newAggState(aggRegion)
         init(fRegion, tv.globals.value.offset)
@@ -1964,7 +1965,7 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
         val globalRegion = ctx.freshRegion()
         val globals = if (scanSeqNeedsGlobals) globalsBc.value.readRegionValue(globalRegion) else 0
 
-        Region.smallScoped { aggRegion =>
+        ctx.r.pool.scopedSmallRegion { aggRegion =>
           val seq = eltSeqF(i, globalRegion)
 
           seq.setAggState(aggRegion, read(aggRegion, initAgg))
@@ -1987,8 +1988,9 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
         val nToMerge = filesToMerge.length / 2
         log.info(s"Running combOp stage with $nToMerge tasks")
         fileStack += filesToMerge
-        filesToMerge = SparkBackend.sparkContext("TableMapRows.execute").parallelize(0 until nToMerge, nToMerge)
-          .mapPartitions { it =>
+
+        filesToMerge = ContextRDD.weaken(SparkBackend.sparkContext("TableMapRows.execute").parallelize(0 until nToMerge, nToMerge))
+          .cmapPartitions { (ctx, it) =>
             val i = it.next()
             assert(it.isEmpty)
             val path = tmpBase + "/" + partFile(d, i, TaskContext.get)
@@ -2005,7 +2007,7 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
             val b1 = using(new DataInputStream(fsBc.value.open(file1)))(readToBytes)
             val b2 = using(new DataInputStream(fsBc.value.open(file2)))(readToBytes)
             using(new DataOutputStream(fsBc.value.create(path))) { os =>
-              val bytes = combOpF(b1, b2)
+              val bytes = combOpFNeedsPool(() => ctx.r.pool)(b1, b2)
               os.writeInt(bytes.length)
               os.write(bytes)
             }
@@ -2044,7 +2046,7 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
               b
             }
 
-            b = combOpF(b, using(new DataInputStream(fsBc.value.open(path)))(readToBytes))
+            b = combOpFNeedsPool(() => ctx.r.pool)(b, using(new DataInputStream(fsBc.value.open(path)))(readToBytes))
           }
           b
         }
@@ -2076,7 +2078,7 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
       val globalRegion = ctx.partitionRegion
       val globals = if (scanSeqNeedsGlobals) globalsBc.value.readRegionValue(globalRegion) else 0
 
-      Region.smallScoped { aggRegion =>
+      HailTaskContext.get.getRegionPool().scopedSmallRegion { aggRegion =>
         val seq = eltSeqF(i, globalRegion)
 
         seq.setAggState(aggRegion, read(aggRegion, initAgg))
@@ -2089,7 +2091,7 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
     }, HailContext.getFlag("max_leader_scans").toInt)
 
     // 3. load in partition aggregations, comb op as necessary, write back out.
-    val partAggs = scanPartitionAggs.scanLeft(initAgg)(combOpF)
+    val partAggs = scanPartitionAggs.scanLeft(initAgg)(combOpFNeedsPool(() => ctx.r.pool))
     val scanAggCount = tv.rvd.getNumPartitions
     val partitionIndices = new Array[Long](scanAggCount)
     val scanAggsPerPartitionFile = ctx.createTmpPath("table-map-rows-scan-aggs-part")
@@ -2413,11 +2415,11 @@ case class TableKeyByAndAggregate(
 
     val serialize = extracted.serialize(ctx, spec)
     val deserialize = extracted.deserialize(ctx, spec)
-    val combOp = extracted.combOpFSerialized(ctx, spec)
+    val combOp = extracted.combOpFSerializedWorkersOnly(ctx, spec)
 
     val initF = makeInit(0, ctx.r)
     val globalsOffset = prev.globals.value.offset
-    val initAggs = Region.scoped { aggRegion =>
+    val initAggs = ctx.r.pool.scopedRegion { aggRegion =>
       initF.newAggState(aggRegion)
       initF(ctx.r, globalsOffset)
       serialize(aggRegion, initF.getAggOffset())

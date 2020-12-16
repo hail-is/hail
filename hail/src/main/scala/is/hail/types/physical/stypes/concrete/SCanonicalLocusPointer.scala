@@ -25,6 +25,20 @@ case class SCanonicalLocusPointer(pType: PCanonicalLocus) extends SLocus {
         new SCanonicalLocusPointerCode(this, addr)
     }
   }
+
+  def fromSettables(settables: IndexedSeq[Settable[_]]): SCanonicalLocusPointerSettable = {
+    val IndexedSeq(a: Settable[Long@unchecked], contig: Settable[Long@unchecked], position: Settable[Int@unchecked]) = settables
+    assert(a.ti == LongInfo)
+    assert(contig.ti == LongInfo)
+    assert(position.ti == IntInfo)
+    new SCanonicalLocusPointerSettable(this, a, contig, position)
+  }
+
+  def fromCodes(codes: IndexedSeq[Code[_]]): SCanonicalLocusPointerCode = {
+    val IndexedSeq(a: Code[Long@unchecked]) = codes
+    assert(a.ti == LongInfo)
+    new SCanonicalLocusPointerCode(this, a)
+  }
 }
 
 

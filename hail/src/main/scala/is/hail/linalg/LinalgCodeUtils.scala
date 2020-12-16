@@ -12,15 +12,18 @@ object LinalgCodeUtils {
     implicit val line = cb.lineNumber
     val answer = cb.newField[Boolean]("checkColumnMajorResult")
     val shapes = pndv.shapes(cb)
+    val strides = pndv.strides(cb)
     val runningProduct = cb.newLocal[Long]("check_column_major_running_product")
 
     val elementType = pndv.pt.elementType
     val nDims = pndv.pt.nDims
+
+    cb.assign(answer, true)
     cb.append(Code(
       runningProduct := elementType.byteSize,
       Code.foreach(0 until nDims){ index =>
         Code(
-          answer := answer & (shapes(index) ceq runningProduct),
+          answer := answer & (strides(index) ceq runningProduct),
           runningProduct := runningProduct * (shapes(index) > 0L).mux(shapes(index), 1L)
         )
       }

@@ -24,6 +24,9 @@ spec:
         - name: query
           image: "{{ query_image.image }}"
           command:
+{% if not deploy %}
+           - /controller.sh
+{% endif %}
            - python3
            - -m
            - query

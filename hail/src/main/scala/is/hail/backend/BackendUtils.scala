@@ -1,7 +1,7 @@
 package is.hail.backend
 
 import is.hail.HailContext
-import is.hail.annotations.Region
+import is.hail.annotations.{Region, RegionPool}
 import is.hail.asm4s._
 import is.hail.expr.ir.lowering.TableStageDependency
 
@@ -23,12 +23,12 @@ class BackendUtils(mods: Array[(String, (Int, Region) => BackendUtils.F)]) {
     val globalsBC = backend.broadcast(globals)
     val f = getModule(modID)
 
-    backend.parallelizeAndComputeWithIndex(backendContext, contexts, tsd) { (ctx, i) =>
-      val gs = globalsBC.value
-      Region.scoped { region =>
-        val res = f(i, region)(region, ctx, gs)
-        res
-      }
-    }
+    backend.parallelizeAndComputeWithIndex(backendContext, contexts, tsd)({ (ctx, htc) =>
+          val gs = globalsBC.value
+          HailTaskContext.get.getRegionPool().scopedRegion { region =>
+            val res = f(htc.partitionId(), region)(region, ctx, gs)
+            res
+          }
+        })
   }
 }

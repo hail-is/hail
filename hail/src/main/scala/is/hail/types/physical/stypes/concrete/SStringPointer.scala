@@ -24,6 +24,18 @@ case class SStringPointer(pType: PString) extends SString {
         new SStringPointerCode(this, addr)
     }
   }
+
+  def fromSettables(settables: IndexedSeq[Settable[_]]): SStringPointerSettable = {
+    val IndexedSeq(a: Settable[Long@unchecked]) = settables
+    assert(a.ti == LongInfo)
+    new SStringPointerSettable(this, a)
+  }
+
+  def fromCodes(codes: IndexedSeq[Code[_]]): SStringPointerCode = {
+    val IndexedSeq(a: Code[Long@unchecked]) = codes
+    assert(a.ti == LongInfo)
+    new SStringPointerCode(this, a)
+  }
 }
 
 

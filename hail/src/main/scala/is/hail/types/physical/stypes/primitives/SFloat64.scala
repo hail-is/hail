@@ -31,6 +31,18 @@ case class SFloat64(required: Boolean) extends SType {
         new SFloat64Code(required, Region.loadDouble(addr))
     }
   }
+
+  def fromSettables(settables: IndexedSeq[Settable[_]]): SFloat64Settable = {
+    val IndexedSeq(x: Settable[Double@unchecked]) = settables
+    assert(x.ti == DoubleInfo)
+    new SFloat64Settable(required, x)
+  }
+
+  def fromCodes(codes: IndexedSeq[Code[_]]): SFloat64Code = {
+    val IndexedSeq(x: Code[Double@unchecked]) = codes
+    assert(x.ti == DoubleInfo)
+    new SFloat64Code(required, x)
+  }
 }
 
 trait PFloat64Value extends PValue {

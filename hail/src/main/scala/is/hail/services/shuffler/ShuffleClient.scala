@@ -147,9 +147,11 @@ class ShuffleClient (
 
   val codecs = {
     ExecutionTimer.logTime("ShuffleClient.codecs") { timer =>
-      using(new ExecuteContext("/tmp", "file:///tmp", null, null, Region(), timer)) { ctx =>
-        new ShuffleCodecSpec(ctx, shuffleType, rowEncodingPType, keyEncodingPType)
-      }
+      RegionPool.scoped(rp =>
+        using(new ExecuteContext("/tmp", "file:///tmp", null, null, Region(pool=rp), timer)) { ctx =>
+          new ShuffleCodecSpec(ctx, shuffleType, rowEncodingPType, keyEncodingPType)
+        }
+      )
     }
   }
 

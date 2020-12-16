@@ -33,7 +33,7 @@ async def dev_client():
 
 @pytest.fixture(scope='module')
 def get_billing_project_name():
-    prefix = f'__testproject_{secrets.token_urlsafe(15)}'
+    prefix = f'__testproject_{os.environ["HAIL_TOKEN"]}'
     projects = []
     def get_name():
         name = f'{prefix}_{len(projects)}'

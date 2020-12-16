@@ -2,7 +2,7 @@ package is.hail.io.index
 
 import java.io.OutputStream
 
-import is.hail.annotations.{Annotation, Region, RegionValueBuilder}
+import is.hail.annotations.{Annotation, Region, RegionPool, RegionValueBuilder}
 import is.hail.asm4s._
 import is.hail.expr.ir.{CodeParam, EmitClassBuilder, EmitCodeBuilder, EmitFunctionBuilder, EmitMethodBuilder, ExecuteContext, IEmitCode, ParamType}
 import is.hail.io._
@@ -74,16 +74,16 @@ object IndexWriter {
     branchingFactor: Int = 4096,
     attributes: Map[String, Any] = Map.empty[String, Any]
   )(implicit line: LineNumber
-  ): String => IndexWriter = {
+  ): (String, RegionPool) => IndexWriter = {
     val f = StagedIndexWriter.build(ctx, keyType, annotationType, branchingFactor, attributes);
-    { path: String =>
-      new IndexWriter(keyType, annotationType, f(path))
+    { (path: String, pool: RegionPool) =>
+      new IndexWriter(keyType, annotationType, f(path, pool), pool)
     }
   }
 }
 
-class IndexWriter(keyType: PType, valueType: PType, comp: CompiledIndexWriter) extends AutoCloseable {
-  private val region = Region()
+class IndexWriter(keyType: PType, valueType: PType, comp: CompiledIndexWriter, pool: RegionPool) extends AutoCloseable {
+  private val region = Region(pool=pool)
   private val rvb = new RegionValueBuilder(region)
   def appendRow(x: Annotation, offset: Long, annotation: Annotation): Unit = {
     rvb.start(keyType)
@@ -248,7 +248,7 @@ object StagedIndexWriter {
     annotationType: PType,
     branchingFactor: Int = 4096,
     attributes: Map[String, Any] = Map.empty[String, Any]
-  )(implicit line: LineNumber): String => CompiledIndexWriter = {
+  )(implicit line: LineNumber): (String, RegionPool) => CompiledIndexWriter = {
     val fb = EmitFunctionBuilder[CompiledIndexWriter](ctx, "indexwriter",
       FastIndexedSeq[ParamType](typeInfo[Long], typeInfo[Long], typeInfo[Long]),
       typeInfo[Unit])
@@ -271,10 +271,12 @@ object StagedIndexWriter {
 
     val makeFB = fb.resultWithIndex()
 
-    { path: String =>
-      val f = makeFB(0, null)
-      f.init(path)
-      f
+    { (path: String, pool: RegionPool) =>
+      pool.scopedRegion { r =>
+        val f = makeFB(0, r)
+        f.init(path)
+        f
+      }
     }
   }
 

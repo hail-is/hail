@@ -1,3 +1,4 @@
+from numbers import Number
 import os
 import concurrent
 import logging
@@ -23,7 +24,7 @@ from hailtop.batch_client.parse import (parse_cpu_in_mcpu, parse_memory_in_bytes
 from hailtop.config import get_deploy_config
 from hailtop.tls import get_in_cluster_server_ssl_context, in_cluster_ssl_client_session
 from hailtop.hail_logging import AccessLogger
-from hailtop import aiotools
+from hailtop import aiotools, dictfix
 from gear import (Database, setup_aiohttp_session,
                   rest_authenticated_users_only,
                   web_authenticated_users_only,
@@ -44,8 +45,7 @@ from ..exceptions import (BatchUserError, NonExistentBillingProjectError,
                           InvalidBillingLimitError)
 from ..log_store import LogStore
 from ..database import CallError, check_call_procedure
-from ..batch_configuration import (BATCH_BUCKET_NAME, DEFAULT_NAMESPACE,
-                                   WORKER_LOGS_BUCKET_NAME)
+from ..batch_configuration import (BATCH_BUCKET_NAME, DEFAULT_NAMESPACE)
 from ..globals import HTTP_CLIENT_MAX_SIZE, BATCH_FORMAT_VERSION
 from ..spec_writer import SpecWriter
 from ..batch_format_version import BatchFormatVersion
@@ -382,7 +382,7 @@ async def _get_full_job_status(app, record):
     format_version = BatchFormatVersion(record['format_version'])
 
     if state in ('Pending', 'Ready', 'Cancelled'):
-        return
+        return None
 
     if state in ('Error', 'Failed', 'Success'):
         if not format_version.has_full_status_in_gcs():
@@ -690,6 +690,17 @@ WHERE user = %s AND id = %s AND NOT deleted;
                     'mount_path': '/gsa-key',
                     'mount_in_copy': True
                 })
+
+                env = spec.get('env')
+                if not env:
+                    env = []
+                    spec['env'] = env
+                assert isinstance(spec['env'], list)
+
+                if all(envvar['name'] != 'GOOGLE_APPLICATION_CREDENTIALS' for envvar in spec['env']):
+                    spec['env'].append(
+                        {'name': 'GOOGLE_APPLICATION_CREDENTIALS', 'value': '/gsa-key/key.json'})
+
                 if spec.get('mount_tokens', False):
                     secrets.append({
                         'namespace': DEFAULT_NAMESPACE,
@@ -697,20 +708,9 @@ WHERE user = %s AND id = %s AND NOT deleted;
                         'mount_path': '/user-tokens',
                         'mount_in_copy': True
                     })
-                    secrets.append({
-                        'namespace': DEFAULT_NAMESPACE,
-                        'name': 'gce-deploy-config',
-                        'mount_path': '/deploy-config',
-                        'mount_in_copy': True
-                    })
 
                 sa = spec.get('service_account')
                 check_service_account_permissions(user, sa)
-
-                env = spec.get('env')
-                if not env:
-                    env = []
-                    spec['env'] = env
 
                 if len(parent_ids) == 0:
                     state = 'Ready'
@@ -1206,12 +1206,38 @@ async def ui_get_job(request, userdata):
                                                          _get_attempts(app, batch_id, job_id, user),
                                                          _get_job_log(app, batch_id, job_id, user))
 
+    job_status_status = job_status['status']
+    container_status_spec = dictfix.NoneOr({
+        'name': str,
+        'timing': {'pulling': dictfix.NoneOr({'duration': dictfix.NoneOr(Number)}),
+                   'running': dictfix.NoneOr({'duration': dictfix.NoneOr(Number)})},
+        'container_status': {'out_of_memory': False},
+        'state': str})
+    job_status_status_spec = {
+        'container_statuses': {'input': container_status_spec,
+                               'main': container_status_spec,
+                               'output': container_status_spec}}
+    job_status_status = dictfix.dictfix(job_status_status, job_status_status_spec)
+    container_statuses = job_status_status['container_statuses']
+    step_statuses = [container_statuses['input'],
+                     container_statuses['main'],
+                     container_statuses['output']]
+
+    job_specification = job_status['spec']
+    job_specification = dictfix.dictfix(job_specification,
+                                        dictfix.NoneOr({'image': str,
+                                                        'command': list,
+                                                        'resources': dict(),
+                                                        'env': list}))
+
     page_context = {
         'batch_id': batch_id,
         'job_id': job_id,
         'job_log': job_log,
         'attempts': attempts,
-        'job_status': json.dumps(job_status, indent=2)
+        'step_statuses': step_statuses,
+        'job_specification': job_specification,
+        'job_status_str': json.dumps(job_status, indent=2)
     }
     return await render_template('batch', request, userdata, 'job.html', page_context)
 
@@ -1832,7 +1858,7 @@ SELECT worker_type, worker_cores, worker_disk_size_gb,
 
     credentials = google.oauth2.service_account.Credentials.from_service_account_file(
         '/gsa-key/key.json')
-    app['log_store'] = LogStore(BATCH_BUCKET_NAME, WORKER_LOGS_BUCKET_NAME, instance_id, pool, credentials=credentials)
+    app['log_store'] = LogStore(BATCH_BUCKET_NAME, instance_id, pool, credentials=credentials)
 
     cancel_batch_state_changed = asyncio.Event()
     app['cancel_batch_state_changed'] = cancel_batch_state_changed

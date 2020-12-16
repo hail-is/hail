@@ -3948,7 +3948,7 @@ class MatrixTable(ExprContainer):
         return MatrixTable(ir.MatrixRename(self._mir, global_map, col_map, row_map, entry_map))
 
     def distinct_by_row(self) -> 'MatrixTable':
-        """Remove rows with a duplicate row key.
+        """Remove rows with a duplicate row key, keeping exactly one row for each unique key.
 
         Returns
         -------
@@ -3957,7 +3957,7 @@ class MatrixTable(ExprContainer):
         return MatrixTable(ir.MatrixDistinctByRow(self._mir))
 
     def distinct_by_col(self) -> 'MatrixTable':
-        """Remove columns with a duplicate row key.
+        """Remove columns with a duplicate row key, keeping exactly one column for each unique key.
 
         Returns
         -------

@@ -4,7 +4,7 @@ import is.hail.annotations.{CodeOrdering, Region}
 import is.hail.asm4s._
 import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, IEmitCode, SortOrder}
 import is.hail.types.physical.stypes.interfaces.{SStruct, SStructSettable}
-import is.hail.types.physical.stypes.{SCode, SType}
+import is.hail.types.physical.stypes.{SCode, SSettable, SType}
 import is.hail.types.physical.{PBaseStruct, PBaseStructCode, PBaseStructValue, PCode, PStructSettable, PType}
 import is.hail.utils.FastIndexedSeq
 
@@ -23,6 +23,18 @@ case class SBaseStructPointer(pType: PBaseStruct) extends SStruct {
       new SBaseStructPointerCode(this, addr)
     else
       coerceOrCopy(cb, region, pt.loadCheapPCode(cb, addr), deepCopy = false)
+  }
+
+  def fromSettables(settables: IndexedSeq[Settable[_]]): SBaseStructPointerSettable = {
+    val IndexedSeq(a: Settable[Long@unchecked]) = settables
+    assert(a.ti == LongInfo)
+    new SBaseStructPointerSettable(this, a)
+  }
+
+  def fromCodes(codes: IndexedSeq[Code[_]]): SBaseStructPointerCode = {
+    val IndexedSeq(a: Code[Long@unchecked]) = codes
+    assert(a.ti == LongInfo)
+    new SBaseStructPointerCode(this, a)
   }
 }
 

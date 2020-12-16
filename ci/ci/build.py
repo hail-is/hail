@@ -632,7 +632,14 @@ date
 echo {shq(config)} | kubectl apply -f -
 '''
 
-        if self.secrets and not scope == 'deploy':
+        if self.secrets and scope != 'deploy':
+            if self.namespace_name == 'default':
+                script += f'''
+kubectl -n {self.namespace_name} get -o json secret global-config \
+  | jq '{{apiVersion:"v1",kind:"Secret","type":"Opaque",metadata:{{name:"global-config",namespace:"{self._name}"}},data:(.data + {{default_namespace:("{self._name}" | @base64)}})}}' \
+  | kubectl -n {self._name} apply -f -
+'''
+
             for s in self.secrets:
                 script += f'''
 kubectl -n {self.namespace_name} get -o json --export secret {s} | jq '.metadata.name = "{s}"' | kubectl -n {self._name} apply -f -
@@ -743,6 +750,8 @@ set +e
 kubectl -n {self.namespace} rollout status --timeout=1h deployment {name} && \
   kubectl -n {self.namespace} wait --timeout=1h --for=condition=available deployment {name}
 EC=$?
+kubectl -n {self.namespace} get deployment -l app={name} -o yaml
+kubectl -n {self.namespace} get pods -l app={name} -o yaml
 kubectl -n {self.namespace} logs --tail=999999 -l app={name} --all-containers=true | {pretty_print_log}
 set -e
 (exit $EC)
@@ -753,15 +762,19 @@ set -e
                     timeout = w.get('timeout', 60)
                     if resource_type == 'statefulset':
                         wait_cmd = f'kubectl -n {self.namespace} wait --timeout=1h --for=condition=ready pods --selector=app={name}'
+                        get_cmd = f'kubectl -n {self.namespace} get statefulset -l app={name} -o yaml'
                     else:
                         assert resource_type == 'deployment'
                         wait_cmd = f'kubectl -n {self.namespace} wait --timeout=1h --for=condition=available deployment {name}'
+                        get_cmd = f'kubectl -n {self.namespace} get deployment -l app={name} -o yaml'
 
                     script += f'''
 set +e
 kubectl -n {self.namespace} rollout status --timeout=1h {resource_type} {name} && \
   {wait_cmd}
 EC=$?
+{get_cmd}
+kubectl -n {self.namespace} get pods -l app={name} -o yaml
 kubectl -n {self.namespace} logs --tail=999999 -l app={name} --all-containers=true | {pretty_print_log}
 set -e
 (exit $EC)
@@ -775,6 +788,7 @@ set +e
 kubectl -n {self.namespace} wait --timeout=1h pod --for=condition=podscheduled {name} \
   && python3 wait-for.py {timeout} {self.namespace} Pod {name}
 EC=$?
+kubectl -n {self.namespace} get pod {name} -o yaml | {pretty_print_log}
 kubectl -n {self.namespace} logs --tail=999999 {name} --all-containers=true | {pretty_print_log}
 set -e
 (exit $EC)

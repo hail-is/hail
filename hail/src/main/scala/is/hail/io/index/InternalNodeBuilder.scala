@@ -67,7 +67,7 @@ class StagedInternalNodeBuilder(maxSize: Int, keyType: PType, annotationType: PT
   }
 
   def create(cb: EmitCodeBuilder)(implicit line: LineNumber): Unit = {
-    cb.assign(region, Region.stagedCreate(Region.REGULAR))
+    cb.assign(region, Region.stagedCreate(Region.REGULAR, cb.emb.ecb.pool()))
     allocate(cb)
   }
 
