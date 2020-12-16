@@ -37,10 +37,10 @@ spec:
          imagePullPolicy: Always
          resources:
            requests:
-             memory: "3.75G"
-             cpu: "800m"
+             memory: 375Mi
+             cpu: 100m
            limits:
-             memory: "3.75G"
+             memory: 3750Mi
              cpu: "1"
          ports:
           - containerPort: 80
@@ -86,10 +86,10 @@ spec:
          imagePullPolicy: Always
          resources:
            requests:
-             memory: "3.75G"
-             cpu: "800m"
+             memory: 375Mi
+             cpu: 100m
            limits:
-             memory: "3.75G"
+             memory: 3750Mi
              cpu: "1"
          ports:
           - containerPort: 3838

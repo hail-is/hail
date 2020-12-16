@@ -33,10 +33,10 @@ spec:
           image: "{{ ci_image.image }}"
           resources:
             requests:
-              memory: "1G"
-              cpu: "400m"
+              memory: 375Mi
+              cpu: 100m
             limits:
-              memory: "1G"
+              memory: 3750Mi
               cpu: "1"
           env:
            - name: HAIL_DEPLOY_CONFIG_FILE
