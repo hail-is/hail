@@ -8,17 +8,17 @@ import is.hail.types.physical.stypes.{SCode, SType, SValue}
 trait SNDArray extends SType
 
 trait SNDArrayValue extends SValue {
-  def loadElement(indices: IndexedSeq[Value[Long]], cb: EmitCodeBuilder)(implicit line: LineNumber): SCode
+  def loadElement(indices: IndexedSeq[Value[Long]], cb: EmitCodeBuilder): SCode
 
-  def shapes(cb: EmitCodeBuilder)(implicit line: LineNumber): IndexedSeq[Value[Long]]
+  def shapes(cb: EmitCodeBuilder): IndexedSeq[Value[Long]]
 
-  def strides(cb: EmitCodeBuilder)(implicit line: LineNumber): IndexedSeq[Value[Long]]
+  def strides(cb: EmitCodeBuilder): IndexedSeq[Value[Long]]
 
-  def outOfBounds(indices: IndexedSeq[Value[Long]], cb: EmitCodeBuilder)(implicit line: LineNumber): Code[Boolean]
+  def outOfBounds(indices: IndexedSeq[Value[Long]], cb: EmitCodeBuilder): Code[Boolean]
 
-  def assertInBounds(indices: IndexedSeq[Value[Long]], cb: EmitCodeBuilder, errorId: Int = -1)(implicit line: LineNumber): Code[Unit]
+  def assertInBounds(indices: IndexedSeq[Value[Long]], cb: EmitCodeBuilder, errorId: Int = -1): Code[Unit]
 
-  def sameShape(other: SNDArrayValue, cb: EmitCodeBuilder)(implicit line: LineNumber): Code[Boolean]
+  def sameShape(other: SNDArrayValue, cb: EmitCodeBuilder): Code[Boolean]
 }
 
 trait SNDArrayCode extends SCode {

@@ -35,7 +35,7 @@ object SNDArrayPointerSettable {
 class SNDArrayPointerSettable(val st: SNDArrayPointer, val a: Settable[Long]) extends PNDArrayValue with PSettable {
   val pt: PNDArray = st.pType
 
-  def loadElement(indices: IndexedSeq[Value[Long]], cb: EmitCodeBuilder)(implicit line: LineNumber): PCode = {
+  def loadElement(indices: IndexedSeq[Value[Long]], cb: EmitCodeBuilder): PCode = {
     assert(indices.size == pt.nDims)
     pt.elementType.loadCheapPCode(cb, pt.loadElement(cb, indices, a))
   }
@@ -49,7 +49,8 @@ class SNDArrayPointerSettable(val st: SNDArrayPointer, val a: Settable[Long]) ex
   override def get(implicit line: LineNumber): PCode =
     new SNDArrayPointerCode(st, a)
 
-  override def outOfBounds(indices: IndexedSeq[Value[Long]], cb: EmitCodeBuilder)(implicit line: LineNumber): Code[Boolean] = {
+  override def outOfBounds(indices: IndexedSeq[Value[Long]], cb: EmitCodeBuilder): Code[Boolean] = {
+    implicit val line = cb.lineNumber
     val shape = this.shapes(cb)
     val outOfBounds = cb.newLocal[Boolean]("sndarray_out_of_bounds", false)
 
@@ -61,7 +62,8 @@ class SNDArrayPointerSettable(val st: SNDArrayPointer, val a: Settable[Long]) ex
     outOfBounds
   }
 
-  override def assertInBounds(indices: IndexedSeq[Value[Long]], cb: EmitCodeBuilder, errorId: Int)(implicit line: LineNumber): Code[Unit] = {
+  override def assertInBounds(indices: IndexedSeq[Value[Long]], cb: EmitCodeBuilder, errorId: Int): Code[Unit] = {
+    implicit val line = cb.lineNumber
     val shape = this.shapes(cb)
     Code.foreach(0 until pt.nDims) { dimIndex =>
       val eMsg = const("Index ").concat(indices(dimIndex).toS)
@@ -71,15 +73,18 @@ class SNDArrayPointerSettable(val st: SNDArrayPointer, val a: Settable[Long]) ex
     }
   }
 
-  override def shapes(cb: EmitCodeBuilder)(implicit line: LineNumber): IndexedSeq[Value[Long]] = {
+  override def shapes(cb: EmitCodeBuilder): IndexedSeq[Value[Long]] = {
+    implicit val line = cb.lineNumber
     Array.tabulate(pt.nDims)(i => cb.newLocal[Long](s"sndarray_shapes_$i", pt.loadShape(cb, a, i)))
   }
 
-  override def strides(cb: EmitCodeBuilder)(implicit line: LineNumber): IndexedSeq[Value[Long]] = {
+  override def strides(cb: EmitCodeBuilder): IndexedSeq[Value[Long]] = {
+    implicit val line = cb.lineNumber
     Array.tabulate(pt.nDims)(i => cb.newLocal[Long](s"sndarray_strides_$i", pt.loadStride(cb, a, i)))
   }
 
-  override def sameShape(other: SNDArrayValue, cb: EmitCodeBuilder)(implicit line: LineNumber): Code[Boolean] = {
+  override def sameShape(other: SNDArrayValue, cb: EmitCodeBuilder): Code[Boolean] = {
+    implicit val line = cb.lineNumber
     val otherPtr = other.asInstanceOf[SNDArrayPointerSettable]
     val comparator = this.pt.shape.pType.codeOrdering(cb.emb, otherPtr.pt.shape.pType)
     val thisShape = this.pt.shape.load(this.a).asInstanceOf[Code[comparator.T]]

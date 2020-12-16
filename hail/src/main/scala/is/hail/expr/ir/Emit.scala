@@ -133,7 +133,8 @@ object AggContainer {
   ): (AggContainer, Code[Unit], Code[Unit]) =
     fromVars(aggs, mb, mb.genFieldThisRef[Region](s"${varPrefix}_top_region"), mb.genFieldThisRef[Long](s"${varPrefix}_off"))
 
-  def fromBuilder[C](cb: EmitCodeBuilder, aggs: Array[AggStateSig], varPrefix: String)(implicit line: LineNumber): AggContainer = {
+  def fromBuilder[C](cb: EmitCodeBuilder, aggs: Array[AggStateSig], varPrefix: String): AggContainer = {
+    implicit val line = cb.lineNumber
     val off = cb.newField[Long](s"${varPrefix}_off")
     val region = cb.newField[Region](s"${varPrefix}_top_region", Region.stagedCreate(Region.REGULAR))
     val states = agg.StateTuple(aggs.map(a => agg.AggStateSig.getState(a, cb.emb.ecb)))
@@ -476,11 +477,18 @@ class Emit[C](
     def emitStream(ir: IR, outerRegion: ParentStagedRegion, mb: EmitMethodBuilder[C] = mb): EmitCode =
       EmitStream.emit(ctx, this, ir, mb, outerRegion, env, container)
 
-    def emitVoid(ir: IR, cb: EmitCodeBuilder = cb, mb: EmitMethodBuilder[C] = mb, region: StagedRegion = region, env: E = env, container: Option[AggContainer] = container, loopEnv: Option[Env[LoopRef]] = loopEnv): Unit =
-      this.emitVoid(cb, ir, mb, region, env, container, loopEnv)
+    def emitVoid(childIR: IR, cb: EmitCodeBuilder = cb, mb: EmitMethodBuilder[C] = mb, region: StagedRegion = region, env: E = env, container: Option[AggContainer] = container, loopEnv: Option[Env[LoopRef]] = loopEnv): Unit = {
+      this.emitVoid(cb, childIR, mb, region, env, container, loopEnv)
+      cb.lineNumber = LineNumber(ir.lineNumber)
+    }
 
-    def emitI(ir: IR, region: StagedRegion = region, env: E = env, container: Option[AggContainer] = container, loopEnv: Option[Env[LoopRef]] = loopEnv): IEmitCode =
-      this.emitI(ir, cb, region, env, container, loopEnv)
+    def emitI(childIR: IR, region: StagedRegion = region, env: E = env, container: Option[AggContainer] = container, loopEnv: Option[Env[LoopRef]] = loopEnv): IEmitCode = {
+      val iec = this.emitI(childIR, cb, region, env, container, loopEnv)
+      cb.lineNumber = LineNumber(ir.lineNumber)
+      iec
+    }
+
+    cb.lineNumber = LineNumber(ir.lineNumber)
 
     (ir: @unchecked) match {
       case Void() =>
@@ -662,16 +670,19 @@ class Emit[C](
   ): IEmitCode = {
     val mb: EmitMethodBuilder[C] = cb.emb.asInstanceOf[EmitMethodBuilder[C]]
 
-    implicit val line = LineNumber(ir.lineNumber)
-
-    def emitI(ir: IR, region: StagedRegion = region, env: E = env, container: Option[AggContainer] = container, loopEnv: Option[Env[LoopRef]] = loopEnv): IEmitCode =
-      this.emitI(ir, cb, region, env, container, loopEnv)
+    def emitI(childIR: IR, region: StagedRegion = region, env: E = env, container: Option[AggContainer] = container, loopEnv: Option[Env[LoopRef]] = loopEnv): IEmitCode = {
+      val iec = this.emitI(childIR, cb, region, env, container, loopEnv)
+      cb.lineNumber = LineNumber(ir.lineNumber)
+      iec
+    }
 
     def emitStream(ir: IR, outerRegion: ParentStagedRegion): IEmitCode =
       EmitStream.emit(ctx, this, ir, mb, outerRegion, env, container).toI(cb)
 
-    def emitVoid(ir: IR, env: E = env, container: Option[AggContainer] = container, loopEnv: Option[Env[LoopRef]] = loopEnv): Unit =
-      this.emitVoid(cb, ir: IR, mb, region, env, container, loopEnv)
+    def emitVoid(childIR: IR, env: E = env, container: Option[AggContainer] = container, loopEnv: Option[Env[LoopRef]] = loopEnv): Unit = {
+      this.emitVoid(cb, childIR: IR, mb, region, env, container, loopEnv)
+      cb.lineNumber = LineNumber(ir.lineNumber)
+    }
 
     def emitFallback(ir: IR, env: E = env, container: Option[AggContainer] = container, loopEnv: Option[Env[LoopRef]] = loopEnv): IEmitCode =
       this.emit(ir, mb, region, env, container, loopEnv, fallingBackFromEmitI = true).toI(cb)
@@ -681,6 +692,7 @@ class Emit[C](
 
     def emitNDArrayColumnMajorStrides(ir: IR): IEmitCode = {
       emitI(ir).map(cb){case pNDCode: PNDArrayCode =>
+        implicit val line = cb.lineNumber
         val pNDValue = pNDCode.memoize(cb, "ndarray_column_major_check")
         val isColumnMajor = LinalgCodeUtils.checkColumnMajor(pNDValue, cb)
         val pAnswer = cb.emb.newPField("ndarray_output_column_major", pNDValue.pt)
@@ -706,6 +718,9 @@ class Emit[C](
     }
 
     def presentC(c: Code[_]): IEmitCode = presentPC(PCode(pt, c))
+
+    implicit val line = LineNumber(ir.lineNumber)
+    cb.lineNumber = line
 
     (ir: @unchecked) match {
       case I32(x) =>
@@ -1002,6 +1017,7 @@ class Emit[C](
 
               val emitter = new NDArrayEmitter2(iUnifiedShape, line) {
                 override def outputElement(cb: EmitCodeBuilder, idxVars: IndexedSeq[Value[Long]]): Code[_] = {
+                  implicit val line = cb.lineNumber
                   val elemMB = cb.emb
                   val element = coerce[Any](cb.newField("matmul_element")(eVti))
                   val k = cb.newField[Long]("ndarray_matmul_k")
@@ -2986,10 +3002,8 @@ object NDArrayEmitter {
     (sb.result(), shape)
   }
 
-  def matmulShape(
-    cb: EmitCodeBuilder, leftShape: IndexedSeq[Value[Long]], rightShape: IndexedSeq[Value[Long]]
-  )(implicit line: LineNumber
-  ): IndexedSeq[Value[Long]] = {
+  def matmulShape(cb: EmitCodeBuilder, leftShape: IndexedSeq[Value[Long]], rightShape: IndexedSeq[Value[Long]]): IndexedSeq[Value[Long]] = {
+    implicit val line = cb.lineNumber
     val mb = cb.emb
     val sb = SetupBuilder(mb)
 

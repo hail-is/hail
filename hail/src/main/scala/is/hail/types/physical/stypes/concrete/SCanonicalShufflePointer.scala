@@ -32,7 +32,8 @@ object SCanonicalShufflePointerSettable {
   def apply(sb: SettableBuilder, st: SCanonicalShufflePointer, name: String): SCanonicalShufflePointerSettable =
     new SCanonicalShufflePointerSettable(st, SBinaryPointerSettable(sb, SBinaryPointer(st.pType.representation), name))
 
-  def fromArrayBytes(cb: EmitCodeBuilder, region: Value[Region], pt: PCanonicalShuffle, bytes: Code[Array[Byte]])(implicit line: LineNumber): SCanonicalShufflePointerSettable = {
+  def fromArrayBytes(cb: EmitCodeBuilder, region: Value[Region], pt: PCanonicalShuffle, bytes: Code[Array[Byte]]): SCanonicalShufflePointerSettable = {
+    implicit val line = cb.lineNumber
     val off = cb.newField[Long](
       "PCanonicalShuffleSettableOff",
       pt.representation.allocate(region, Wire.ID_SIZE))

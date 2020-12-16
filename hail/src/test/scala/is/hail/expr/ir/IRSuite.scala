@@ -50,7 +50,7 @@ object IRSuite {
       IRFunctionRegistry.addJVMFunction(
         new SeededMissingnessAwareJVMFunction(name, valueParameterTypes, returnType, calculateReturnType) {
           val isDeterministic: Boolean = false
-          def applySeededI(seed: Long, cb: EmitCodeBuilder, r: EmitRegion, returnPType: PType, args: (PType, () => IEmitCode)*)(implicit line: LineNumber): IEmitCode = {
+          def applySeededI(seed: Long, cb: EmitCodeBuilder, r: EmitRegion, returnPType: PType, args: (PType, () => IEmitCode)*): IEmitCode = {
             assert(unify(FastSeq(), args.map(_._1.virtualType), returnPType.virtualType))
             impl(cb, r, returnPType, seed, args.map(a => a._2).toArray)
           }

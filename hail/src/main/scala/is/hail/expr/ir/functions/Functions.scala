@@ -639,7 +639,8 @@ abstract class RegistryFunctions {
           impl(r, rpt, seed, args.toArray, line)
         }
 
-        def applySeededI(seed: Long, cb: EmitCodeBuilder, r: EmitRegion, rpt: PType, args: (PType, () => IEmitCode)*)(implicit line: LineNumber): IEmitCode = {
+        def applySeededI(seed: Long, cb: EmitCodeBuilder, r: EmitRegion, rpt: PType, args: (PType, () => IEmitCode)*): IEmitCode = {
+          implicit val line = cb.lineNumber
           IEmitCode.flatten(args.map(a => a._2).toFastIndexedSeq, cb) {
             argPCs => PCode(rpt, applySeeded(seed, r, rpt, argPCs.map(pc => pc.pt -> pc.code): _*))
           }
@@ -789,7 +790,7 @@ abstract class SeededJVMFunction (
 
   def setSeed(s: Long): Unit = { seed = s }
 
-  def applySeededI(seed: Long, cb: EmitCodeBuilder, region: EmitRegion, rpt: PType, args: (PType, () => IEmitCode)*)(implicit line: LineNumber): IEmitCode
+  def applySeededI(seed: Long, cb: EmitCodeBuilder, region: EmitRegion, rpt: PType, args: (PType, () => IEmitCode)*): IEmitCode
 
   def apply(region: EmitRegion, rpt: PType, typeParameters: Seq[Type], args: EmitCode*)(implicit line: LineNumber): EmitCode =
     fatal("seeded functions must go through IEmitCode path")

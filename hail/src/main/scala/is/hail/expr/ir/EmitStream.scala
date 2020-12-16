@@ -181,7 +181,8 @@ abstract class Stream[+A] { self =>
   def forEach(ctx: ExecuteContext, mb: EmitMethodBuilder[_], f: A => Code[Unit])(implicit line: LineNumber): Code[Unit] =
     mapCPS[Unit]((_, a, k) => Code(f(a), k(()))).run(ctx, mb)
 
-  def forEachI(ctx: ExecuteContext, cb: EmitCodeBuilder, f: A => Unit)(implicit line: LineNumber): Unit = {
+  def forEachI(ctx: ExecuteContext, cb: EmitCodeBuilder, f: A => Unit): Unit = {
+    implicit val line = cb.lineNumber
     val savedCode = cb.code
     cb.code = Code._empty
     val streamCode = forEach(ctx, cb.emb, a => { f(a); cb.code })

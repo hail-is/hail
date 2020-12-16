@@ -36,9 +36,9 @@ abstract class PNDArray extends PType {
     Region.loadLong(shape.pType.fieldOffset(shape.load(off), idx))
   }
 
-  def loadShape(cb: EmitCodeBuilder, off: Code[Long], idx: Int)(implicit line: LineNumber): Code[Long]
+  def loadShape(cb: EmitCodeBuilder, off: Code[Long], idx: Int): Code[Long]
 
-  def loadStride(cb: EmitCodeBuilder, off: Code[Long], idx: Int)(implicit line: LineNumber): Code[Long]
+  def loadStride(cb: EmitCodeBuilder, off: Code[Long], idx: Int): Code[Long]
 
   def numElements(shape: IndexedSeq[Value[Long]], mb: EmitMethodBuilder[_])(implicit line: LineNumber): Code[Long]
 
@@ -50,7 +50,7 @@ abstract class PNDArray extends PType {
 
   def setElement(indices: IndexedSeq[Value[Long]], ndAddress: Value[Long], newElement: Code[_], mb: EmitMethodBuilder[_])(implicit line: LineNumber): Code[Unit]
 
-  def loadElement(cb: EmitCodeBuilder, indices: IndexedSeq[Value[Long]], ndAddress: Value[Long])(implicit line: LineNumber): Code[Long]
+  def loadElement(cb: EmitCodeBuilder, indices: IndexedSeq[Value[Long]], ndAddress: Value[Long]): Code[Long]
   def loadElementToIRIntermediate(indices: IndexedSeq[Value[Long]], ndAddress: Value[Long], mb: EmitMethodBuilder[_])(implicit line: LineNumber): Code[_]
 
   def linearizeIndicesRowMajor(indices: IndexedSeq[Code[Long]], shapeArray: IndexedSeq[Value[Long]], mb: EmitMethodBuilder[_])(implicit line: LineNumber): Code[Long]

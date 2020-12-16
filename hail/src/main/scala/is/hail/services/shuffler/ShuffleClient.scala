@@ -25,13 +25,17 @@ object ShuffleClient {
 }
 
 object CodeShuffleClient {
-  def createValue(cb: CodeBuilderLike, shuffleType: Code[TShuffle])(implicit line: LineNumber): ValueShuffleClient =
+  def createValue(cb: CodeBuilderLike, shuffleType: Code[TShuffle]): ValueShuffleClient = {
+    implicit val line = cb.lineNumber
     new ValueShuffleClient(
       cb.newField[ShuffleClient]("shuffleClient", create(shuffleType)))
+  }
 
-  def createValue(cb: CodeBuilderLike, shuffleType: Code[TShuffle], uuid: Code[Array[Byte]])(implicit line: LineNumber): ValueShuffleClient =
+  def createValue(cb: CodeBuilderLike, shuffleType: Code[TShuffle], uuid: Code[Array[Byte]]): ValueShuffleClient = {
+    implicit val line = cb.lineNumber
     new ValueShuffleClient(
       cb.newField[ShuffleClient]("shuffleClient", create(shuffleType, uuid)))
+  }
 
   def createValue(
     cb: CodeBuilderLike,
@@ -39,12 +43,13 @@ object CodeShuffleClient {
     uuid: Code[Array[Byte]],
     rowEncodingPType: Code[PType],
     keyEncodingPType: Code[PType]
-  )(implicit line: LineNumber
-  ): ValueShuffleClient =
+  ): ValueShuffleClient = {
+    implicit val line = cb.lineNumber
     new ValueShuffleClient(
       cb.newField[ShuffleClient](
         "shuffleClient",
         create(shuffleType, uuid, rowEncodingPType, keyEncodingPType)))
+  }
 
   def create(shuffleType: Code[TShuffle])(implicit line: LineNumber): Code[ShuffleClient] =
     Code.newInstance[ShuffleClient, TShuffle](shuffleType)

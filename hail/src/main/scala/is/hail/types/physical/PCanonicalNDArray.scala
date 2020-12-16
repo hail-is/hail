@@ -28,11 +28,16 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
       representation.loadField(off, "shape")
   }
 
-  def loadShape(cb: EmitCodeBuilder, off: Code[Long], idx: Int)(implicit line: LineNumber): Code[Long] =
+  def loadShape(cb: EmitCodeBuilder, off: Code[Long], idx: Int): Code[Long] = {
+    implicit val line = cb.lineNumber
     shape.pType.types(idx).loadCheapPCode(cb, shape.pType.fieldOffset(shape.load(off), idx)).asInt64.longCode(cb)
+  }
 
-  def loadStride(cb: EmitCodeBuilder, off: Code[Long], idx: Int)(implicit line: LineNumber): Code[Long] =
+
+  def loadStride(cb: EmitCodeBuilder, off: Code[Long], idx: Int): Code[Long] = {
+    implicit val line = cb.lineNumber
     strides.pType.types(idx).loadCheapPCode(cb, strides.pType.fieldOffset(strides.load(off), idx)).asInt64.longCode(cb)
+  }
 
   @transient lazy val strides = new StaticallyKnownField[PTuple, Long](
     PCanonicalTuple(true, Array.tabulate(nDims)(_ => PInt64Required): _*): PTuple
@@ -142,7 +147,8 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
     Region.storeIRIntermediate(this.elementType)(getElementAddress(indices, ndAddress, mb), newElement)
   }
 
-  def loadElement(cb: EmitCodeBuilder, indices: IndexedSeq[Value[Long]], ndAddress: Value[Long])(implicit line: LineNumber): Code[Long] = {
+  def loadElement(cb: EmitCodeBuilder, indices: IndexedSeq[Value[Long]], ndAddress: Value[Long]): Code[Long] = {
+    implicit val line = cb.lineNumber
     val off = getElementAddress(indices, ndAddress, cb.emb)
     data.pType.elementType.fundamentalType match {
       case _: PArray | _: PBinary =>
