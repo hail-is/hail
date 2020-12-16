@@ -23,7 +23,7 @@ spec:
 {% if deploy %}
       priorityClassName: production
       nodeSelector:
-        preemptible: "false"      
+        preemptible: "false"
 {% else %}
       nodeSelector:
         preemptible: "true"
@@ -43,7 +43,15 @@ spec:
          - batch.driver
         resources:
           requests:
-            memory: "1G"
+{% if deploy %}
+            memory: 3750Mi
+            cpu: "1"
+{% else %}
+            memory: 375Mi
+            cpu: 100m
+{% endif %}
+          limits:
+            memory: 3750Mi
             cpu: "1"
         env:
          - name: HAIL_DOMAIN
