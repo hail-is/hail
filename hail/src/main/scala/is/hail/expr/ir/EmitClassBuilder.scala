@@ -297,7 +297,7 @@ class EmitClassBuilder[C](
       if (_pt.required) false else ms.get,
       vs.get)
 
-    def store(cb: EmitCodeBuilder, ec: EmitCode)(implicit line: LineNumber): Unit = {
+    def store(cb: EmitCodeBuilder, ec: EmitCode): Unit = {
       cb.append(ec.setup)
 
       if (_pt.required) {
@@ -313,7 +313,7 @@ class EmitClassBuilder[C](
       }
     }
 
-    def store(cb: EmitCodeBuilder, iec: IEmitCode)(implicit line: LineNumber): Unit =
+    def store(cb: EmitCodeBuilder, iec: IEmitCode): Unit =
       if (_pt.required)
         cb.assign(vs, iec.get(cb, s"Required EmitSettable cannot be missing ${ _pt }"))
       else
@@ -336,7 +336,7 @@ class EmitClassBuilder[C](
 
     def load(implicit line: LineNumber): EmitCode = EmitCode(Code._empty, const(false), ps.load())
 
-    def store(cb: EmitCodeBuilder, pv: PCode)(implicit line: LineNumber): Unit = ps.store(cb, pv)
+    def store(cb: EmitCodeBuilder, pv: PCode): Unit = ps.store(cb, pv)
   }
 
   private[this] val typMap: mutable.Map[Type, Value[_ <: Type]] =

@@ -428,13 +428,13 @@ case class EmitCode(setup: Code[Unit], m: Code[Boolean], pv: PCode) {
 }
 
 abstract class EmitSettable extends EmitValue {
-  def store(cb: EmitCodeBuilder, ec: EmitCode)(implicit line: LineNumber): Unit
+  def store(cb: EmitCodeBuilder, ec: EmitCode): Unit
 
-  def store(cb: EmitCodeBuilder, iec: IEmitCode)(implicit line: LineNumber): Unit
+  def store(cb: EmitCodeBuilder, iec: IEmitCode): Unit
 }
 
 abstract class PresentEmitSettable extends EmitValue {
-  def store(cb: EmitCodeBuilder, pc: PCode)(implicit line: LineNumber): Unit
+  def store(cb: EmitCodeBuilder, pc: PCode): Unit
 }
 
 class RichIndexedSeqEmitSettable(is: IndexedSeq[EmitSettable]) {
