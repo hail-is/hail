@@ -300,6 +300,7 @@ class EmitClassBuilder[C](
       vs.get)
 
     def store(cb: EmitCodeBuilder, ec: EmitCode): Unit = {
+      implicit val line = cb.lineNumber
       cb.append(ec.setup)
 
       if (_pt.required) {
@@ -315,7 +316,8 @@ class EmitClassBuilder[C](
       }
     }
 
-    def store(cb: EmitCodeBuilder, iec: IEmitCode): Unit =
+    def store(cb: EmitCodeBuilder, iec: IEmitCode): Unit = {
+      implicit val line = cb.lineNumber
       if (_pt.required)
         cb.assign(vs, iec.get(cb, s"Required EmitSettable cannot be missing ${ _pt }"))
       else
@@ -325,6 +327,7 @@ class EmitClassBuilder[C](
           cb.assign(ms, false)
           cb.assign(vs, value)
         })
+    }
   }
 
   def newPresentEmitField(pt: PType): PresentEmitSettable =

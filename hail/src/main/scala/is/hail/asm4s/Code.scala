@@ -1198,6 +1198,8 @@ trait Settable[T] extends Value[T] {
   def storeAny(rhs: Code[_])(implicit line: LineNumber): Code[Unit] = store(coerce[T](rhs))
 
   def load()(implicit line: LineNumber): Code[T] = get
+
+  def ti: TypeInfo[_] = load()(LineNumber.none).ti
 }
 
 class ThisLazyFieldRef[T: TypeInfo](cb: ClassBuilder[_], name: String, setup: Code[T])(implicit line: LineNumber) extends Value[T] {
