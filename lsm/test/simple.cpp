@@ -9,10 +9,9 @@ TEST_CASE("Simple LSM test", "") {
   REQUIRE( m.get(10) == 5 );
   REQUIRE( m.get(63) == 222 );
 }
-
 TEST_CASE("Merge 2 files", "") {
   LSM m{"db"};
-  Level l;
+  Level l{0, "db"};
 
   std::map<int32_t, maybe_value> m_older;
   m_older.insert_or_assign(10, maybe_value(7, 0));
@@ -34,10 +33,9 @@ TEST_CASE("Merge 2 files", "") {
     std::cout << x.first << "\n";
   }
 }
-
 TEST_CASE("Merge files overwrite key and delete key", "") {
   LSM m{"db"};
-  Level l;
+  Level l{0, "db"};
 
   std::map<int32_t, maybe_value> m_older;
   m_older.insert_or_assign(10, maybe_value(7, 0));
