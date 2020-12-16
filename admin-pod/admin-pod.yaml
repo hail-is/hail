@@ -40,6 +40,13 @@ spec:
           - name: ssl-config-admin-pod
             mountPath: /ssl-config
             readOnly: true
+         resources:
+           requests:
+             memory: 3Mi
+             cpu: 1m
+           limits:
+             memory: 3750Mi
+             cpu: "1"
       volumes:
        - name: deploy-config
          secret:
