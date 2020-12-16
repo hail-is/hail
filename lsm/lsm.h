@@ -47,12 +47,12 @@ public:
 //    this->index = index;
 //  }
   explicit Level(int index, std::string _directory) :
-  level_directory{_directory} {
+  level_directory{(std::filesystem::path) _directory / std::to_string(index)} {
     if (std::filesystem::exists(level_directory)) {
       std::cerr << "WARNING: " << level_directory << " already exists.";
     }
     this->index = index;
-    std::filesystem::create_directory(level_directory / std::to_string(index));
+    std::filesystem::create_directory(level_directory);
   }
 
   int size();
