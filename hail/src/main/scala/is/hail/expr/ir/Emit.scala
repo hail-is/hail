@@ -2542,7 +2542,7 @@ class Emit[C](
 
     def deforest(x: IR): IEmitCodeGen[NDArrayEmitter] = {
       val xType = coerce[PNDArray](x.pType)
-      val nDims = xType.nDims
+      val outputNDims = xType.nDims
 
       x match {
         case NDArrayMap(child, elemName, body) =>
@@ -2818,12 +2818,9 @@ class Emit[C](
             )
 
             IEmitCode(cb, missing, {
-
-              val inputNDType = coerce[PNDArray](ndsArrayPValue.pt.elementType)
-              val nDims = inputNDType.nDims
               val loopIdx = cb.newLocal[Int]("ndarray_concat_shape_check_idx")
               val firstND = ndsArrayPValue.loadElement(cb, 0).map(cb) { sCode => sCode.asNDArray }.getNeverMissing(cb).memoize(cb, "ndarray_concat_input_0")
-              val newShape = (0 until nDims).map { dimIdx =>
+              val newShape = (0 until outputNDims).map { dimIdx =>
                 val localDim = cb.newLocal[Long](s"ndarray_concat_output_shape_element_${dimIdx}")
                 val ndShape = firstND.shapes(cb)
                 cb.assign(localDim, ndShape(dimIdx))
