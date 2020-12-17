@@ -37,6 +37,32 @@ public:
   explicit maybe_value(int32_t _v, char _deleted) : v{_v}, is_deleted{_deleted} {}
 };
 
+class Level {
+public:
+  std::vector <File> files;
+  const int max_size = 2;
+  int index;
+  std::filesystem::path level_directory;
+
+  explicit Level(int index, std::filesystem::path _directory) :
+      level_directory{(std::filesystem::path) _directory / std::to_string(index)} {
+    if (std::filesystem::exists(level_directory)) {
+      std::cerr << "WARNING: " << level_directory << " already exists.";
+    }
+    this->index = index;
+    std::filesystem::create_directory(level_directory);
+  }
+
+  int size();
+  void add(std::map<int32_t, maybe_value> m);
+  void add_file(File f);
+  std::string file_path(std::filesystem::path directory);
+  File write_to_file(std::map<int32_t, maybe_value> m, std::string filename);
+  std::map<int32_t, maybe_value> read_from_file(std::string filename);
+  void read_to_map(File f, std::map<int32_t, maybe_value> &m);
+  File merge(File older_f, File newer_f, std::string merged_filename);
+};
+
 class LSM {
   std::map<int32_t, maybe_value> m;
   //std::vector<File> files;
@@ -54,7 +80,8 @@ public:
   std::optional<int32_t> get(int32_t k);
   std::vector<std::pair<int32_t, int32_t>> range(int32_t l, int32_t r);
   void del(int32_t k);
-  &Level get_level(size_t index);
+  Level& get_level(size_t index);
+  void add_to_level(std::map<int32_t, maybe_value> m, size_t l_index);
   //File write_to_file(std::string filename);
   //std::map<int32_t, maybe_value> read_from_file(std::string filename);
   void dump_map();
