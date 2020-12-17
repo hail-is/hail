@@ -31,8 +31,8 @@ void Level::add_file(File f) {
   std::cerr << "add file " << f.filename << " to level " << index << "\n";
   files.push_back(f);
 }
-std::string Level::file_name(std::filesystem::path directory) {
-  std::cerr << "file_name: " << directory / std::to_string(index) / std::to_string(files.size()) << "\n";
+std::string Level::file_path(std::filesystem::path directory) {
+  std::cerr << "file_path: " << directory / std::to_string(index) / std::to_string(files.size()) << "\n";
 //  return directory / std::to_string(index) / std::to_string(files.size());
   return level_directory / std::to_string(files.size());
 }
@@ -85,7 +85,8 @@ void LSM::add_to_level(File f, size_t l_index) {
   } else if (levels[l_index].size() + 1 >= levels[l_index].max_size) {
     assert(levels[l_index].max_size == 2);
     File merged_f = levels[l_index].merge(levels[l_index].files.back(), f,
-                                          levels[l_index].file_name(directory));
+                                          //std::to_string(levels[l_index].files.size()));
+                                          levels[l_index].file_path(directory));
     add_to_level(merged_f, l_index + 1);
     levels[l_index].files.pop_back();
   } else {
@@ -100,6 +101,7 @@ void LSM::put(int32_t k, int32_t v, char deleted) {
       std::string f_name = std::to_string(levels[0].files.size());
     }
     std::string filename = directory / std::to_string(0) / f_name;
+    Level l = Level(0, directory);
     File f = write_to_file(filename);
     //files.push_back(f);
     add_to_level(f, 0);

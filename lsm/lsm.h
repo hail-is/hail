@@ -46,7 +46,7 @@ public:
 //  Level(int index) {
 //    this->index = index;
 //  }
-  explicit Level(int index, std::string _directory) :
+  explicit Level(int index, std::filesystem::path _directory) :
   level_directory{(std::filesystem::path) _directory / std::to_string(index)} {
     if (std::filesystem::exists(level_directory)) {
       std::cerr << "WARNING: " << level_directory << " already exists.";
@@ -57,7 +57,7 @@ public:
 
   int size();
   void add_file(File f);
-  std::string file_name(std::filesystem::path directory);
+  std::string file_path(std::filesystem::path directory);
   File write_to_file(std::map<int32_t, maybe_value> m, std::string filename);
   void read_to_map(File f, std::map<int32_t, maybe_value> &m);
   File merge(File older_f, File newer_f, std::string merged_filename);
