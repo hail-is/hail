@@ -53,8 +53,6 @@ def init_parser(parent_subparsers):
 
 
 def main(args):
-    print(args)
-    
     modify_args = []
     if args.num_workers is not None:
         modify_args.append('--num-workers={}'.format(args.num_workers))

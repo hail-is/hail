@@ -22,12 +22,12 @@ def test_cluster_name_required(capsys, gcloud_run):
 
 
 def test_cluster_project(gcloud_run):
-    hailctl.main(["dataproc", "modify", "test-cluster", "--num-workers=2", "--", "--project=foo"])
+    hailctl.main(["dataproc", "modify", "--project=foo", "test-cluster", "--num-workers=2"])
     assert "--project=foo" in gcloud_run.call_args[0][0]
 
 
 def test_cluster_region(gcloud_run):
-    hailctl.main(["dataproc", "modify", "test-cluster", "--num-workers=2", "--", "--region=europe-north1"])
+    hailctl.main(["dataproc", "modify", "--region=europe-north1", "test-cluster", "--num-workers=2"])
     assert "--region=europe-north1" in gcloud_run.call_args[0][0]
 
 
