@@ -851,7 +851,7 @@ class Emit[C](
                   cb += srvb.start()
                   (0 until nDims).foreach { index =>
                     val shape =
-                      shapeTupleValue.loadField(cb, index).get(cb).asPCode.tcode[Long]
+                      shapeTupleValue.loadField(cb, index).get(cb).asLong.longCode(cb)
                     cb += srvb.addLong(shape)
                     cb += srvb.advance()
                   }
@@ -2636,7 +2636,7 @@ class Emit[C](
               cb.assign(runningProduct, 1L)
 
               (0 until outputNDims).foreach { i =>
-                cb.assign(tempShapeElement, tupleValue.loadField(cb, i).get(cb, "Can't reshape if elements of reshape tuple are missing.").toPCode(cb, region.code).tcode[Long])
+                cb.assign(tempShapeElement, tupleValue.loadField(cb, i).get(cb, "Can't reshape if elements of reshape tuple are missing.").asLong.longCode(cb))
                 cb.ifx(tempShapeElement < 0L,
                   {
                     cb.ifx(tempShapeElement ceq -1L,
@@ -2670,7 +2670,7 @@ class Emit[C](
               cb.assign(replacesNegativeOne, (runningProduct ceq 0L).mux(0L, numElements / runningProduct))
 
               (0 until outputNDims).foreach { i =>
-                cb.assign(tempShapeElement, tupleValue.loadField(cb, i).get(cb, "Can't reshape if elements of reshape tuple are missing.").toPCode(cb, region.code).tcode[Long])
+                cb.assign(tempShapeElement, tupleValue.loadField(cb, i).get(cb, "Can't reshape if elements of reshape tuple are missing.").asLong.longCode(cb))
                 cb.assign(requestedShapeValues(i), (tempShapeElement ceq -1L).mux(replacesNegativeOne, tempShapeElement))
               }
 
@@ -2721,7 +2721,7 @@ class Emit[C](
                     cb.assign(newIdxVar, idxVars(i))
                   },
                     {
-                      cb.assign(newIdxVar, filtPValues(i).loadElement(cb, idxVars(i).toI).get(cb, s"NDArrayFilter: can't filter on missing index (axis=$i)").toPCode(cb, region.code).tcode[Long])
+                      cb.assign(newIdxVar, filtPValues(i).loadElement(cb, idxVars(i).toI).get(cb, s"NDArrayFilter: can't filter on missing index (axis=$i)").asLong.longCode(cb))
                     })
                 }
 
