@@ -140,8 +140,10 @@ std::optional<int32_t> LSM::get(int32_t k) {
       return std::nullopt;
     }
   } else {
-    for (auto i = levels.rbegin(); i != levels.rend(); ++i ) {
-      Level level = *i;
+    //for (auto i = levels.rbegin(); i != levels.rend(); ++i ) {
+    for(unsigned i = levels.size() - 1; levels.size() > i; --i) {
+      //Level level = *i;
+      Level level = get_level(i);
       for (auto j = level.files.rbegin(); j != level.files.rend(); ++j) {
         File file = *j;
         if (file.bloomFilter.contains_key(k) && k >= file.min && k <= file.max) {
