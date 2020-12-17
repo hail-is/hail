@@ -3,7 +3,13 @@ import json
 from subprocess import call, Popen, PIPE
 
 
-def init_parser(parser):
+def init_parser(parent_subparsers):
+    parser = parent_subparsers.add_parser(
+        'diagnose',
+        help='Diagnose problems in a Dataproc cluster.',
+        description='Diagnose problems in a Dataproc cluster.')
+    parser.set_defaults(module='hailctl dataproc diagnose')
+
     parser.add_argument('name', type=str, help='Cluster name.')
     parser.add_argument('--dest', '-d', required=True, type=str, help="Directory for diagnose output -- must be local.")
     parser.add_argument('--hail-log', '-l', required=False, type=str, default='/home/hail/hail.log',
@@ -18,7 +24,7 @@ def init_parser(parser):
                         help="Only download logs from the first N workers.")
 
 
-def main(args, pass_through_args):  # pylint: disable=unused-argument
+def main(args):
     print("Diagnosing cluster '{}'...".format(args.name))
 
     is_local = not args.dest.startswith("gs://")

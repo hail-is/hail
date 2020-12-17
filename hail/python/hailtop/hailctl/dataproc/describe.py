@@ -98,13 +98,19 @@ def get_partitions_info_str(j):
     return "\n{}".format(IDENT).join(['{}: {}'.format(k, v) for k, v in partitions_info.items()])
 
 
-def init_parser(parser):
+def init_parser(parent_subparsers):
+    parser = parent_subparsers.add_parser(
+        'describe',
+        help='Gather information about a hail file (including the schema)',
+        description='Gather information about a hail file (including the schema)')
+    parser.set_defaults(module='describe')
+
     # arguments with default parameters
     parser.add_argument('file', type=str, help='Path to hail file (either MatrixTable or Table).')
     parser.add_argument('--requester-pays-project-id', '-u', help='Project to be billed for GCS requests.')
 
 
-def main(args, pass_through_args):  # pylint: disable=unused-argument
+def main(args):
     command = []
     if args.file.startswith('gs://'):
         command = ['gsutil']

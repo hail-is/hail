@@ -1,12 +1,20 @@
 import os.path
 import sys
+import argparse
 
 from . import gcloud
 from .deploy_metadata import get_deploy_metadata
 
 
-def init_parser(parser):
+def init_parser(parent_subparsers):
+    parser = parent_subparsers.add_parser(
+        'modify',
+        help='Modify active Dataproc clusters.',
+        description='Modify active Dataproc clusters.')
+    parser.set_defaults(module='hailctl dataproc modify', allow_unknown_args=True)
+
     parser.add_argument('name', type=str, help='Cluster name.')
+
     parser.add_argument('--num-workers', '--n-workers', '-w', type=int,
                         help='New number of worker machines (min. 2).')
     parser.add_argument('--num-secondary-workers', '--num-preemptible-workers', '--n-pre-workers', '-p', type=int,
@@ -37,13 +45,16 @@ def init_parser(parser):
         help='Disable auto-deletion due to max age or expiration time.')
     parser.add_argument('--dry-run', action='store_true', help="Print gcloud dataproc command, but don't run it.")
     parser.add_argument('--zone', '-z', type=str, help='Compute zone for Dataproc cluster.')
+
     wheel_group = parser.add_mutually_exclusive_group()
     wheel_group.add_argument('--update-hail-version', action='store_true', help="Update the version of hail running on cluster to match "
                              "the currently installed version.")
     wheel_group.add_argument('--wheel', type=str, help='New Hail installation.')
 
 
-def main(args, pass_through_args):
+def main(args):
+    print(args)
+    
     modify_args = []
     if args.num_workers is not None:
         modify_args.append('--num-workers={}'.format(args.num_workers))
@@ -73,7 +84,7 @@ def main(args, pass_through_args):
         if args.beta:
             cmd.insert(0, 'beta')
 
-        cmd.extend(pass_through_args)
+        cmd.extend(args.unknown_args)
 
         # print underlying gcloud command
         print('gcloud ' + ' '.join(cmd[:4]) + ' \\\n    ' + ' \\\n    '.join(cmd[4:]))
@@ -137,6 +148,6 @@ def main(args, pass_through_args):
             if not args.dry_run:
                 gcloud.run(cmd)
 
-    if not wheel and not modify_args and pass_through_args:
+    if not wheel and not modify_args and args.unknown_args:
         sys.stderr.write('ERROR: found pass-through arguments but not known modification args.')
         sys.exit(1)

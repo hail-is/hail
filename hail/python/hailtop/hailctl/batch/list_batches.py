@@ -5,7 +5,12 @@ import tabulate
 from .batch_cli_utils import make_formatter
 
 
-def init_parser(parser):
+def init_parser(parent_subparsers):
+    parser = parent_subparsers.add_parser(
+        'list',
+        help="List batches",
+        description="List batches")
+    parser.set_defaults(module='hailctl batch list')
     parser.add_argument('--query', '-q', type=str, help="see docs at https://batch.hail.is/batches")
     parser.add_argument('--limit', '-l', type=int, default=50,
                         help='number of batches to return (default 50)')
@@ -19,7 +24,7 @@ def init_parser(parser):
                         help='specify output format (json, yaml, csv, tsv, or any tabulate format)')
 
 
-def main(args, passthrough_args, client):  # pylint: disable=unused-argument
+def main(args, client):
     choices = ['json', 'yaml', 'csv', 'tsv', *tabulate.tabulate_formats]
     if args.o not in choices:
         print('invalid output format:', args.o, file=sys.stderr)

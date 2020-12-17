@@ -2,7 +2,7 @@ from unittest.mock import Mock
 
 import pytest
 
-from hailtop.hailctl.dataproc import cli
+from hailtop import hailctl
 
 
 @pytest.fixture
@@ -24,24 +24,24 @@ def patch_subprocess(monkeypatch, subprocess):
 
 def test_cluster_and_service_required(gcloud_run):
     with pytest.raises(SystemExit):
-        cli.main(["connect"])
+        hailctl.main(["dataproc", "connect"])
 
     assert gcloud_run.call_count == 0
 
     with pytest.raises(SystemExit):
-        cli.main(["connect", "notebook"])
+        hailctl.main(["dataproc", "connect", "notebook"])
 
     assert gcloud_run.call_count == 0
 
 
 def test_dry_run(gcloud_run, subprocess):
-    cli.main(["connect", "test-cluster", "notebook", "--dry-run"])
+    hailctl.main(["dataproc", "connect", "test-cluster", "notebook", "--dry-run"])
     assert gcloud_run.call_count == 0
     assert subprocess.Popen.call_count == 0
 
 
 def test_connect(gcloud_run, subprocess):
-    cli.main(["connect", "test-cluster", "notebook"])
+    hailctl.main(["dataproc", "connect", "test-cluster", "notebook"])
 
     gcloud_args = gcloud_run.call_args[0][0]
     assert gcloud_args[:2] == ["compute", "ssh"]
@@ -71,7 +71,7 @@ def test_connect(gcloud_run, subprocess):
     ("nb", "8123"),
 ])
 def test_service_port_and_path(gcloud_run, subprocess, service, expected_port_and_path):
-    cli.main(["connect", "test-cluster", service])
+    hailctl.main(["dataproc", "connect", "test-cluster", service])
 
     popen_args = subprocess.Popen.call_args[0][0]
     assert popen_args[1] == f"http://localhost:{expected_port_and_path}"
@@ -84,20 +84,20 @@ def test_hailctl_chrome(subprocess, monkeypatch):
     )
     monkeypatch.setenv("HAILCTL_CHROME", "/path/to/chrome.exe")
 
-    cli.main(["connect", "test-cluster", "notebook"])
+    hailctl.main(["dataproc", "connect", "test-cluster", "notebook"])
     popen_args = subprocess.Popen.call_args[0][0]
     assert popen_args[0] == "/path/to/chrome.exe"
 
 
 def test_port(gcloud_run):
-    cli.main(["connect", "test-cluster", "notebook", "--port=8000"])
+    hailctl.main(["dataproc", "connect", "test-cluster", "notebook", "--port=8000"])
     assert "--ssh-flag=-D 8000" in gcloud_run.call_args[0][0]
 
 
 def test_connect_zone(gcloud_run, gcloud_config):
     gcloud_config["compute/zone"] = "us-central1-b"
 
-    cli.main(["connect", "test-cluster", "notebook", "--zone=us-east1-d"])
+    hailctl.main(["dataproc", "connect", "test-cluster", "notebook", "--zone=us-east1-d"])
 
     assert "--zone=us-east1-d" in gcloud_run.call_args[0][0]
 
@@ -105,7 +105,7 @@ def test_connect_zone(gcloud_run, gcloud_config):
 def test_connect_default_zone(gcloud_run, gcloud_config):
     gcloud_config["compute/zone"] = "us-west1-a"
 
-    cli.main(["connect", "test-cluster", "notebook"])
+    hailctl.main(["dataproc", "connect", "test-cluster", "notebook"])
 
     assert "--zone=us-west1-a" in gcloud_run.call_args[0][0]
 
@@ -114,12 +114,12 @@ def test_connect_zone_required(gcloud_run, gcloud_config):
     gcloud_config["compute/zone"] = None
 
     with pytest.raises(Exception):
-        cli.main(["connect", "test-cluster", "notebook"])
+        hailctl.main(["dataproc", "connect", "test-cluster", "notebook"])
 
     assert gcloud_run.call_count == 0
 
 
 def test_connect_project(gcloud_run):
-    cli.main(["connect", "test-cluster", "notebook", "--project=test-project"])
+    hailctl.main(["dataproc", "connect", "test-cluster", "notebook", "--project=test-project"])
 
     assert "--project=test-project" in gcloud_run.call_args[0][0]

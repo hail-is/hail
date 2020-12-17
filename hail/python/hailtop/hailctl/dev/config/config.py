@@ -2,7 +2,12 @@ from . import set_property
 from . import show
 
 
-def init_parser(config_parser):
+def init_parser(parent_subparsers):
+    config_parser = parent_subparsers.add_parser(
+        'config',
+        help='Configure deployment',
+        description='Configure deployment')
+
     subparsers = config_parser.add_subparsers(title='hailctl dev config subcommand', dest='hailctl dev config subcommand', required=True)
 
     set_parser = subparsers.add_parser(

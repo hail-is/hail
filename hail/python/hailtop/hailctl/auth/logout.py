@@ -6,8 +6,12 @@ from hailtop.auth import get_tokens, service_auth_headers
 from hailtop.tls import get_context_specific_ssl_client_session
 
 
-def init_parser(parser):  # pylint: disable=unused-argument
-    pass
+def init_parser(parent_subparsers):
+    logout_parser = parent_subparsers.add_parser(
+        'logout',
+        help='Revoke Hail credentials.',
+        description='Revoke Hail credentials.')
+    logout_parser.set_defaults(module='hailctl auth logout')
 
 
 async def async_main():
@@ -32,6 +36,6 @@ async def async_main():
     print('Logged out.')
 
 
-def main(args, pass_through_args):  # pylint: disable=unused-argument
+def main(args):
     loop = asyncio.get_event_loop()
     loop.run_until_complete(async_main())

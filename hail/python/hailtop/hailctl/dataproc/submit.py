@@ -1,11 +1,19 @@
 import os
 import tempfile
 import zipfile
+import argparse
 
 from . import gcloud
 
 
-def init_parser(parser):
+def init_parser(parent_subparsers):
+    parser = parent_subparsers.add_parser(
+        'submit',
+        help='Submit a Python script to a running Dataproc cluster.',
+        description='Submit a Python script to a running Dataproc cluster. To pass arguments to the '
+                    'script being submitted, just list them after the name of the script.')
+    parser.set_defaults(module='hailctl dataproc submit', allow_unknown_args=True)
+
     parser.add_argument('name', type=str, help='Cluster name.')
     parser.add_argument('script', type=str, help="Path to script.")
     parser.add_argument('--files', required=False, type=str, help='Comma-separated list of files to add to the working directory of the Hail application.')
@@ -15,7 +23,7 @@ def init_parser(parser):
     parser.add_argument('--dry-run', action='store_true', help="Print gcloud dataproc command, but don't run it.")
 
 
-def main(args, pass_through_args):  # pylint: disable=unused-argument
+def main(args):
     print("Submitting to cluster '{}'...".format(args.name))
 
     # create files argument
@@ -65,9 +73,9 @@ def main(args, pass_through_args):  # pylint: disable=unused-argument
         cmd.append('--configuration={}'.format(args.gcloud_configuration))
 
     # append arguments to pass to the Hail script
-    if pass_through_args:
+    if args.unknown_args:
         cmd.append('--')
-        cmd.extend(pass_through_args)
+        cmd.extend(args.unknown_args)
 
     # print underlying gcloud command
     print('gcloud command:')

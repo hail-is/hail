@@ -1,3 +1,1 @@
-from . import cli
-
-__all__ = ['cli']
+from .auth import init_parser, main

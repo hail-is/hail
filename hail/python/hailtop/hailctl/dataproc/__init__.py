@@ -1,3 +1,1 @@
-from . import cli
-
-__all__ = ['cli']
+from .dataproc import init_parser, main

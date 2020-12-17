@@ -7,20 +7,31 @@ from hailtop.auth import service_auth_headers
 from hailtop.tls import get_context_specific_ssl_client_session
 
 
-def init_parser(parser):
+def init_parser(parent_subparsers):
+    parser = parent_subparsers.add_parser(
+        'query',
+        help='Set dev settings on query service',
+        description='Set dev settings on query service')
+    parser.set_defaults(module='hailctl dev query')
+
     subparsers = parser.add_subparsers()
     set_parser = subparsers.add_parser(
         'set',
         help='Set a Hail query resource value.',
         description='Set a Hail query resource value.')
+    set_parser.set_defaults(module='hailctl dev query set')
+
     unset_parser = subparsers.add_parser(
         'unset',
         help='Unset a Hail query resource value (restore to default behavior).',
         description='Unset a Hail query resource value (restore to default behavior).')
+    unset_parser.set_defaults(module='hailctl dev query unset')
+
     get_parser = subparsers.add_parser(
         'get',
         help='Get the value of a Hail query resource (or all values of a specific resource type).',
         description='Get the value of a Hail query resource.')
+    get_parser.set_defaults(module='hailctl dev query get')
 
     resource_types = ['flag']
 
@@ -99,13 +110,13 @@ class QueryClient:
 
 async def submit(args):
     async with QueryClient() as client:
-        if args.action == 'set' and args.resource == 'flag':
+        if args.action == 'hailctl dev query set' and args.resource == 'flag':
             old = await client.set_flag(args.name, args.value)
             print(f'Set {args.name} to {args.value}. Old value: {old}')
-        elif args.action == 'unset' and args.resource == 'flag':
+        elif args.action == 'hailctl dev query unset' and args.resource == 'flag':
             old = await client.set_flag(args.name, None)
             print(f'Unset {args.name}. Old value: {old}')
-        elif args.action == 'get' and args.resource == 'flag':
+        elif args.action == 'hailctl dev query get' and args.resource == 'flag':
             flags, invalid = await client.get_flag(args.name)
             n = max(len(k) for k in flags.keys())
             for k, v in flags.items():
