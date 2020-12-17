@@ -7,7 +7,13 @@ import tempfile
 from . import gcloud
 
 
-def init_parser(parser):
+def init_parser(parent_subparsers):
+    parser = parent_subparsers.add_parser(
+        'connect',
+        help='Connect to a running Dataproc cluster.',
+        description='Connect to a running Dataproc cluster.')
+    parser.set_defaults(module='hailctl dataproc connect')
+
     parser.add_argument('name', type=str, help='Cluster name.')
     parser.add_argument('service', type=str,
                         choices=['notebook', 'nb', 'spark-ui', 'ui', 'spark-history', 'hist'],
@@ -39,7 +45,7 @@ def get_chrome_path():
     raise ValueError(f"unsupported system: {system}, set environment variable HAILCTL_CHROME to a chrome executable")
 
 
-def main(args, pass_through_args):  # pylint: disable=unused-argument
+def main(args):
     # shortcut mapping
     shortcut = {
         'ui': 'spark-ui',

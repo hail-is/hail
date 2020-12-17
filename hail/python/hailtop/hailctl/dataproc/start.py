@@ -1,7 +1,7 @@
 import re
-
 import pkg_resources
 import yaml
+import argparse
 
 from . import gcloud
 from .cluster_config import ClusterConfig
@@ -139,7 +139,13 @@ ANNOTATION_DB_BUCKETS = ["hail-datasets-us", "hail-datasets-eu", "gnomad-public-
 IMAGE_VERSION = '1.4-debian9'
 
 
-def init_parser(parser):
+def init_parser(parent_subparsers):
+    parser = parent_subparsers.add_parser(
+        'start',
+        help='Start a Dataproc cluster configured for Hail.',
+        description='Start a Dataproc cluster configured for Hail.')
+    parser.set_defaults(module='hailctl dataproc start', allow_unknown_args=True)
+
     parser.add_argument('name', type=str, help='Cluster name.')
 
     # arguments with default parameters
@@ -214,7 +220,7 @@ def init_parser(parser):
                         help="Enable debug features on created cluster (heap dump on out-of-memory error)")
 
 
-def main(args, pass_through_args):
+def main(args):
     conf = ClusterConfig()
     conf.extend_flag('image-version', IMAGE_VERSION)
 
@@ -358,7 +364,8 @@ def main(args, pass_through_args):
     if args.expiration_time:
         cmd.append('--expiration_time={}'.format(args.expiration_time))
 
-    cmd.extend(pass_through_args)
+    if args.unknown_args:
+        cmd.extend(args.unknown_args)
 
     # print underlying gcloud command
     print(' '.join(cmd[:5]) + ' \\\n    ' + ' \\\n    '.join(cmd[5:]))

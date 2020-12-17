@@ -1,5 +1,1 @@
-from . import cli
-
-__all__ = [
-    'cli'
-]
+from .batch import init_parser, main

@@ -2,7 +2,7 @@ from unittest.mock import Mock
 
 import pytest
 
-from hailtop.hailctl.dataproc.cli import MINIMUM_REQUIRED_GCLOUD_VERSION
+from hailtop.hailctl.dataproc.dataproc import MINIMUM_REQUIRED_GCLOUD_VERSION
 
 
 @pytest.fixture

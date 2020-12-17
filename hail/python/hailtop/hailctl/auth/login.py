@@ -10,9 +10,14 @@ from hailtop.auth import get_tokens, namespace_auth_headers
 from hailtop.httpx import client_session
 
 
-def init_parser(parser):
+def init_parser(parent_subparsers):
+    parser = parent_subparsers.add_parser(
+        'login',
+        help='Obtain Hail credentials.',
+        description='Obtain Hail credentials.')
     parser.add_argument("--namespace", "-n", type=str,
                         help="Specify namespace for auth server.  (default: from deploy configuration)")
+    parser.set_defaults(module='hailctl auth login')
 
 
 routes = web.RouteTableDef()
@@ -99,6 +104,6 @@ async def async_main(args):
         await auth_flow(deploy_config, deploy_config.default_namespace(), session)
 
 
-def main(args, pass_through_args):  # pylint: disable=unused-argument
+def main(args):
     loop = asyncio.get_event_loop()
     loop.run_until_complete(async_main(args))
