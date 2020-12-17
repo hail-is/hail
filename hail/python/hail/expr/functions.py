@@ -1,3 +1,4 @@
+import operator
 import builtins
 import functools
 from typing import Union, Optional, Any, Callable, Iterable, TypeVar
@@ -6,26 +7,25 @@ from deprecated import deprecated
 
 import hail
 import hail as hl
-from hail.expr.expressions import Expression, ArrayExpression, SetExpression, \
-    Int32Expression, Int64Expression, Float32Expression, \
-    Float64Expression, DictExpression, StructExpression, LocusExpression, \
-    StringExpression, IntervalExpression, ArrayNumericExpression, \
-    BooleanExpression, CallExpression, TupleExpression, \
-    ExpressionException, NumericExpression, \
-    unify_all, construct_expr, to_expr, unify_exprs, impute_type, \
-    construct_variable, apply_expr, coercer_from_dtype, unify_types_limited, \
-    expr_array, expr_any, expr_struct, expr_int32, expr_int64, expr_float32, \
-    expr_float64, expr_oneof, expr_bool, expr_tuple, expr_dict, expr_str, \
-    expr_set, expr_call, expr_locus, expr_interval, expr_ndarray, \
-    expr_numeric, cast_expr
-from hail.expr.types import HailType, hail_type, tint32, tint64, tfloat32, \
-    tfloat64, tstr, tbool, tarray, tset, tdict, tstruct, tlocus, tinterval, \
-    tcall, ttuple, tndarray, \
-    is_primitive, is_numeric
+from hail.expr.expressions import (Expression, ArrayExpression, SetExpression,
+                                   Int32Expression, Int64Expression, Float32Expression, Float64Expression,
+                                   DictExpression, StructExpression, LocusExpression, StringExpression,
+                                   IntervalExpression, ArrayNumericExpression, BooleanExpression,
+                                   CallExpression, TupleExpression, ExpressionException, NumericExpression,
+                                   unify_all, construct_expr, to_expr, unify_exprs, impute_type,
+                                   construct_variable, apply_expr, coercer_from_dtype, unify_types_limited,
+                                   expr_array, expr_any, expr_struct, expr_int32, expr_int64, expr_float32,
+                                   expr_float64, expr_oneof, expr_bool, expr_tuple, expr_dict, expr_str,
+                                   expr_set, expr_call, expr_locus, expr_interval, expr_ndarray, expr_numeric,
+                                   cast_expr)
+from hail.expr.types import (HailType, hail_type, tint32, tint64, tfloat32,
+                             tfloat64, tstr, tbool, tarray, tset, tdict,
+                             tstruct, tlocus, tinterval, tcall, ttuple,
+                             tndarray, is_primitive, is_numeric)
 from hail.genetics.reference_genome import reference_genome_type, ReferenceGenome
 import hail.ir as ir
-from hail.typecheck import typecheck, nullable, anytype, enumeration, tupleof, \
-    func_spec, oneof
+from hail.typecheck import (typecheck, nullable, anytype, enumeration, tupleof,
+                            func_spec, oneof, arg_check, args_check)
 from hail.utils.java import Env, warning
 from hail.utils.misc import plural
 
@@ -3106,13 +3106,48 @@ def filter(f: Callable, collection):
     return collection.filter(f)
 
 
-@typecheck(f=func_spec(1, expr_bool),
-           collection=expr_oneof(expr_set(), expr_array()))
-def any(f: Callable, collection) -> BooleanExpression:
-    """Returns ``True`` if `f` returns ``True`` for any element.
+collection_type = expr_oneof(expr_set(), expr_array())
+any_to_bool_type = func_spec(1, expr_bool)
+
+
+def any(*args) -> BooleanExpression:
+    """Check for any ``True`` in boolean expressions or collections of booleans.
+
+    :func:`.any` comes in three forms:
+
+    1. ``hl.any(boolean, ...)``. Is at least one argument ``True``?
+
+    2. ``hl.any(collection)``. Is at least one element of this collection ``True``?
+
+    3. ``hl.any(function, collection)``. Does ``function`` return ``True`` for at
+       least one value in this collection?
 
     Examples
     --------
+
+    The first form:
+
+    >>> hl.eval(hl.any())
+    False
+
+    >>> hl.eval(hl.any(True))
+    True
+
+    >>> hl.eval(hl.any(False))
+    False
+
+    >>> hl.eval(hl.any(False, False, True, False))
+    True
+
+    The second form:
+
+    >>> hl.eval(hl.any([False, True, False]))
+    True
+
+    >>> hl.eval(hl.any([False, False, False]))
+    False
+
+    The third form:
 
     >>> a = ['The', 'quick', 'brown', 'fox']
     >>> s = {1, 3, 5, 6, 7, 9}
@@ -3125,31 +3160,67 @@ def any(f: Callable, collection) -> BooleanExpression:
 
     Notes
     -----
-    This method returns ``False`` for empty collections.
-
-    Parameters
-    ----------
-    f : function ( (arg) -> :class:`.BooleanExpression`)
-        Function to evaluate for each element of the collection. Must return a
-        :class:`.BooleanExpression`.
-    collection : :class:`.ArrayExpression` or :class:`.SetExpression`
-        Collection expression.
-
-    Returns
-    -------
-    :class:`.BooleanExpression`.
-        ``True`` if `f` returns ``True`` for any element, ``False`` otherwise.
+    :func:`.any` returns ``False` when given an empty array or empty argument
+    list.
     """
-    return collection.any(f)
+    base = hl.literal(False)
+    if builtins.len(args) == 0:
+        return base
+    if builtins.len(args) == 1:
+        arg = arg_check(args[0], 'any', 'collection',
+                        oneof(collection_type, expr_bool))
+        if arg.dtype == hl.tbool:
+            return arg
+        return arg.any(lambda x: x)
+    if builtins.len(args) == 2:
+        if callable(args[0]):
+            f = arg_check(args[0], 'any', 'f', any_to_bool_type)
+            collection = arg_check(args[1], 'any', 'collection', collection_type)
+            return collection.any(f)
+    n_args = len(args)
+    args = [args_check(x, 'any', 'exprs', i, n_args, expr_bool)
+            for i, x in enumerate(args)]
+    return functools.reduce(operator.ior, args, base)
 
 
-@typecheck(f=func_spec(1, expr_bool),
-           collection=expr_oneof(expr_set(), expr_array()))
-def all(f: Callable, collection) -> BooleanExpression:
-    """Returns ``True`` if `f` returns ``True`` for every element.
+def all(*args) -> BooleanExpression:
+    """Check for all ``True`` in boolean expressions or collections of booleans.
+
+    :func:`.all` comes in three forms:
+
+    1. ``hl.all(boolean, ...)``. Are all arguments ``True``?
+
+    2. ``hl.all(collection)``. Are all elements of the collection ``True``?
+
+    3. ``hl.all(function, collection)``. Does ``function`` return ``True`` for
+       all values in this collection?
 
     Examples
     --------
+
+    The first form:
+
+    >>> hl.eval(hl.all())
+    False
+
+    >>> hl.eval(hl.all(True))
+    True
+
+    >>> hl.eval(hl.all(False))
+    False
+
+    >>> hl.eval(hl.all(False, False, True, False))
+    True
+
+    The second form:
+
+    >>> hl.eval(hl.all([False, True, False]))
+    True
+
+    >>> hl.eval(hl.all([False, False, False]))
+    False
+
+    The third form:
 
     >>> a = ['The', 'quick', 'brown', 'fox']
     >>> s = {1, 3, 5, 6, 7, 9}
@@ -3162,23 +3233,27 @@ def all(f: Callable, collection) -> BooleanExpression:
 
     Notes
     -----
-    This method returns ``True`` if the collection is empty.
-
-    Parameters
-    ----------
-    f : function ( (arg) -> :class:`.BooleanExpression`)
-        Function to evaluate for each element of the collection. Must return a
-        :class:`.BooleanExpression`.
-    collection : :class:`.ArrayExpression` or :class:`.SetExpression`
-        Collection expression.
-
-    Returns
-    -------
-    :class:`.BooleanExpression`.
-        ``True`` if `f` returns ``True`` for every element, ``False`` otherwise.
+    :func:`.all` returns ``True` when given an empty array or empty argument
+    list.
     """
-
-    return collection.all(f)
+    base = hl.literal(True)
+    if builtins.len(args) == 0:
+        return base
+    if builtins.len(args) == 1:
+        arg = arg_check(args[0], 'any', 'collection',
+                        oneof(collection_type, expr_bool))
+        if arg.dtype == hl.tbool:
+            return arg
+        return arg.all(lambda x: x)
+    if builtins.len(args) == 2:
+        if callable(args[0]):
+            f = arg_check(args[0], 'all', 'f', any_to_bool_type)
+            collection = arg_check(args[1], 'all', 'collection', collection_type)
+            return collection.all(f)
+    n_args = len(args)
+    args = [args_check(x, 'all', 'exprs', i, n_args, expr_bool)
+            for i, x in enumerate(args)]
+    return functools.reduce(operator.iand, args, base)
 
 
 @typecheck(f=func_spec(1, expr_bool),
