@@ -3113,7 +3113,7 @@ any_to_bool_type = func_spec(1, expr_bool)
 def any(*args) -> BooleanExpression:
     """Check for any ``True`` in boolean expressions or collections of booleans.
 
-    :func:`.any` comes in three forms:
+    :func:`~.any` comes in three forms:
 
     1. ``hl.any(boolean, ...)``. Is at least one argument ``True``?
 
@@ -3160,8 +3160,7 @@ def any(*args) -> BooleanExpression:
 
     Notes
     -----
-    :func:`.any` returns ``False` when given an empty array or empty argument
-    list.
+    :func:`~.any` returns ``False`` when given an empty array or empty argument list.
     """
     base = hl.literal(False)
     if builtins.len(args) == 0:
@@ -3186,7 +3185,7 @@ def any(*args) -> BooleanExpression:
 def all(*args) -> BooleanExpression:
     """Check for all ``True`` in boolean expressions or collections of booleans.
 
-    :func:`.all` comes in three forms:
+    :func:`~.all` comes in three forms:
 
     1. ``hl.all(boolean, ...)``. Are all arguments ``True``?
 
@@ -3233,8 +3232,7 @@ def all(*args) -> BooleanExpression:
 
     Notes
     -----
-    :func:`.all` returns ``True` when given an empty array or empty argument
-    list.
+    :func:`~.all` returns ``True`` when given an empty array or empty argument list.
     """
     base = hl.literal(True)
     if builtins.len(args) == 0:
