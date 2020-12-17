@@ -82,6 +82,19 @@ object UnsafeRow {
       t.position(offset))
   }
 
+  def readNDArray(offset: Long, region: Region, nd: PNDArray): Row = {
+    val nDims = nd.nDims
+    val elementSize = nd.elementType.byteSize
+    val urWithStrides = read(nd.representation, region, offset).asInstanceOf[UnsafeRow]
+    val shapeRow = urWithStrides.get(0).asInstanceOf[UnsafeRow]
+    val shape = shapeRow.toSeq.map(x => x.asInstanceOf[Long]).toIndexedSeq
+    val strides = urWithStrides.get(1).asInstanceOf[UnsafeRow].toSeq.map(x => x.asInstanceOf[Long]).toIndexedSeq
+    val data = urWithStrides.get(2).asInstanceOf[UnsafeIndexedSeq]
+    val elementWiseStrides = (0 until nDims).map(i => strides(i) / elementSize)
+    val row = Row(shapeRow, new UnsafeIndexedSeqRowMajorView(data, shape, elementWiseStrides))
+    row
+  }
+
   def readAnyRef(t: PType, region: Region, offset: Long): AnyRef = read(t, region, offset).asInstanceOf[AnyRef]
 
   def read(t: PType, region: Region, offset: Long): Any = {
@@ -118,16 +131,7 @@ object UnsafeRow {
         val includesEnd = x.includesEnd(offset)
         Interval(start, end, includesStart, includesEnd)
       case nd: PNDArray => {
-        val nDims = nd.nDims
-        val elementSize = nd.elementType.byteSize
-        val urWithStrides = read(nd.representation, region, offset).asInstanceOf[UnsafeRow]
-        val shapeRow = urWithStrides.get(0).asInstanceOf[UnsafeRow]
-        val shape = shapeRow.toSeq.map(x => x.asInstanceOf[Long]).toIndexedSeq
-        val strides = urWithStrides.get(1).asInstanceOf[UnsafeRow].toSeq.map(x => x.asInstanceOf[Long]).toIndexedSeq
-        val data = urWithStrides.get(2).asInstanceOf[UnsafeIndexedSeq]
-        val elementWiseStrides = (0 until nDims).map(i => strides(i) / elementSize)
-        val row = Row(shapeRow, new UnsafeIndexedSeqRowMajorView(data, shape, elementWiseStrides))
-        row
+        readNDArray(offset, region, nd)
       }
     }
   }
