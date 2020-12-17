@@ -56,11 +56,11 @@ public:
   int size();
   void add(std::map<int32_t, maybe_value> m);
   void add_file(File f);
-  std::string file_path(std::filesystem::path directory);
+  std::string next_file_path();
   File write_to_file(std::map<int32_t, maybe_value> m, std::string filename);
   std::map<int32_t, maybe_value> read_from_file(std::string filename);
-  void read_to_map(File f, std::map<int32_t, maybe_value> &m);
-  File merge(File older_f, File newer_f, std::string merged_filename);
+  void read_to_map(std::string filename, std::map<int32_t, maybe_value> &m);
+  File merge(File older_f, File newer_f);
 };
 
 class LSM {

@@ -30,7 +30,7 @@ int Level::size() {
 void Level::add_file(File f) {
   files.push_back(f);
 }
-std::string Level::file_path(std::filesystem::path directory) {
+std::string Level::next_file_path() {
   return level_directory / std::to_string(files.size());
 }
 File Level::write_to_file(std::map<int32_t, maybe_value> m, std::string filename) {
@@ -51,23 +51,11 @@ File Level::write_to_file(std::map<int32_t, maybe_value> m, std::string filename
 }
 std::map<int32_t, maybe_value> Level::read_from_file(std::string filename) {
   std::map<int32_t, maybe_value> new_m;
-  if (auto istrm = std::ifstream(filename, std::ios::binary)) {
-    int k;
-    while (istrm.read(reinterpret_cast<char *>(&k), sizeof k)) {
-      int v;
-      char d;
-      istrm.read(reinterpret_cast<char *>(&v), sizeof v);
-      istrm.read(reinterpret_cast<char *>(&d), sizeof d);
-      new_m.insert_or_assign(k, maybe_value(v,d));
-    }
-  } else {
-    std::cerr << "could not open " << filename << "\n";
-    exit(3);
-  }
+  read_to_map(filename, new_m);
   return new_m;
 }
-void Level::read_to_map(File f, std::map<int32_t, maybe_value> &m) {
-  if (auto istrm = std::ifstream(f.filename, std::ios::binary)) {
+void Level::read_to_map(std::string filename, std::map<int32_t, maybe_value> &m) {
+  if (auto istrm = std::ifstream(filename, std::ios::binary)) {
     int k;
     while (istrm.read(reinterpret_cast<char *>(&k), sizeof k)) {
       int v;
@@ -77,38 +65,38 @@ void Level::read_to_map(File f, std::map<int32_t, maybe_value> &m) {
       m.insert_or_assign(k, maybe_value(v,d));
     }
   } else {
-    std::cerr << "could not open " << f.filename << "\n";
+    std::cerr << "could not open " << filename << "\n";
     exit(3);
   }
-  std::cerr << "read file " << f.filename << " to map" << "\n";
+  std::cerr << "read file " << filename << " to map" << "\n";
 }
-File Level::merge(File older_f, File newer_f, std::string merged_filename) {
+File Level::merge(File older_f, File newer_f) {
   std::map<int32_t, maybe_value> m;
-  read_to_map(older_f, m);
-  read_to_map(newer_f, m);
-  std::cerr << "merge files " << older_f.filename << "and" << newer_f.filename << " to new file " << merged_filename << "\n";
-  return write_to_file(m, merged_filename);
+  read_to_map(older_f.filename, m);
+  read_to_map(newer_f.filename, m);
+  std::cerr << "merge files " << older_f.filename << "and" << newer_f.filename << " to new file " << "\n";
+  return write_to_file(m, next_file_path());
 }
 void Level::add(std::map<int32_t, maybe_value> m) {
-  std::string file_path = level_directory / std::to_string(files.size());
-  File f = write_to_file(m, file_path);
+  File f = write_to_file(m, next_file_path());
   add_file(f);
 }
 
 void LSM::add_to_level(std::map<int32_t, maybe_value> m, size_t l_index) {
+  Level level = get_level(l_index);
   if (l_index >= levels.size()) {
-    get_level(l_index).add(m);
-  } else if (levels[l_index].size() + 1 >= levels[l_index].max_size) {
-    assert(levels[l_index].max_size == 2);
-    File merged_f = levels[l_index].merge(levels[l_index].files.back(),
-                                          levels[l_index].write_to_file(m, std::to_string(levels[l_index].size())),
-                                          levels[l_index].file_path(directory));
+    //get_level(l_index).add(m);
+    level.add(m);
+  } else if (level.size() + 1 >= level.max_size) {
+    assert(level.max_size == 2);
+    File merged_f = level.merge(level.files.back(),
+                                          level.write_to_file(m, level.next_file_path()));
     std::map<int32_t, maybe_value> merged_m;
-    levels[l_index].read_to_map(merged_f, merged_m);
+    level.read_to_map(merged_f.filename, merged_m);
     add_to_level(merged_m, l_index + 1);
-    levels[l_index].files.pop_back();
+    level.files.pop_back();
   } else {
-    levels[l_index].add(m);
+    level.add(m);
   }
 }
 Level& LSM::get_level(size_t index) {
