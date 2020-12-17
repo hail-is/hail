@@ -21,6 +21,8 @@ info: struct{
   NEGATIVE_TRAIN_SITE: bool,
   HWP: float64,
   AC: array<int32>},
+empty_struct: struct{
+},
 variant_qc: struct{
   dp_stats: struct{
     mean: float64,
@@ -42,20 +44,20 @@ variant_qc: struct{
         assert len(grid) == 4
 
         row1 = grid[1]
-        assert len(row1) == 7
+        assert len(row1) == 8
         for i in range(5):
             assert row1[i] == (None, 1)
         assert row1[5] == (None, 3)
-        assert row1[6] == ('variant_qc', 13)
+        assert row1[7] == ('variant_qc', 13)
 
         row2 = grid[2]
-        assert len(row2) == 13
+        assert len(row2) == 14
         for i in range(5):
             assert row2[i] == (None, 1)
         assert row2[5] == ('info', 3)
-        assert row2[6] == ('dp_stats', 4)
-        assert row2[7] == ('gq_stats', 4)
-        for i in range(8, 13):
+        assert row2[7] == ('dp_stats', 4)
+        assert row2[8] == ('gq_stats', 4)
+        for i in range(9, 13):
             assert row2[i] == (None, 1)
 
         row3 = grid[3]
