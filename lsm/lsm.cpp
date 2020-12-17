@@ -101,7 +101,6 @@ void LSM::put(int32_t k, int32_t v, char deleted) {
       std::string f_name = std::to_string(levels[0].files.size());
     }
     std::string filename = directory / std::to_string(0) / f_name;
-    Level l = Level(0, directory);
     File f = write_to_file(filename);
     //files.push_back(f);
     add_to_level(f, 0);
