@@ -39,11 +39,12 @@ public:
 
 class LSM {
   std::map<int32_t, maybe_value> m;
-  std::vector<File> files;
+  //std::vector<File> files;
+  std::vector<Level> levels;
   std::filesystem::path directory;
 public:
   explicit LSM(std::string _directory) :
-    m{}, files{}, directory{_directory} {
+    m{}, levels{}, directory{_directory} {
     if (std::filesystem::exists(directory)) {
       std::cerr << "WARNING: " << directory << " already exists.";
     }
@@ -53,7 +54,8 @@ public:
   std::optional<int32_t> get(int32_t k);
   std::vector<std::pair<int32_t, int32_t>> range(int32_t l, int32_t r);
   void del(int32_t k);
-  File write_to_file(std::string filename);
-  std::map<int32_t, maybe_value> read_from_file(std::string filename);
+  &Level get_level(size_t index);
+  //File write_to_file(std::string filename);
+  //std::map<int32_t, maybe_value> read_from_file(std::string filename);
   void dump_map();
 };
