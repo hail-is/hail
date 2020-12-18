@@ -230,7 +230,9 @@ def init_parser(parent_subparsers):
 @click.option('--debug-mode', is_flag=True,
               help="Enable debug features on created cluster (heap dump on out-of-memory error).")
 @click.argument('gcloud_args', nargs=-1)
+@click.pass_context
 def start(
+        ctx,
         cluster_name,
         master_machine_type, master_memory_fraction, master_boot_disk_size,
         num_master_local_ssds, num_secondary_workers, num_worker_local_ssds,
@@ -244,6 +246,8 @@ def start(
         requester_pays_allow_all, requester_pays_allow_buckets,
         requester_pays_allow_annotation_db,
         debug_mode, gcloud_args):
+    beta = ctx.parent.params['beta']
+
     conf = ClusterConfig()
     conf.extend_flag('image-version', IMAGE_VERSION)
 

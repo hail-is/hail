@@ -37,24 +37,27 @@ from .deploy_metadata import get_deploy_metadata
                     "the currently installed version."))
 @click.option('--wheel', help='New Hail installation.')
 @click.argument('gcloud_args', nargs=-1)
-def modify(cluster_name,
+@click.pass_context
+def modify(ctx,
+           cluster_name,
            num_workers, num_secondary_workers,
            graceful_decommission_timeout,
            max_idle, no_max_idle,
            expiration_time, max_age, no_max_age,
            dry_run, zone,
-           upate_hail_version, wheel, update_hail_version,
+           update_hail_version, wheel,
            gcloud_args):
+    beta = ctx.parent.params['beta']
     if wheel and update_hail_version:
         print("--wheel and --update-hail-version mutually exclusive", file=sys.stderr)
         sys.exit(1)
 
-    idle_count = int(max_idle) + int(no_max_idle)
+    idle_count = bool(max_idle) + bool(no_max_idle)
     if idle_count != 1:
         print("exactly one of --max-idle and --no-max-idle required", file=sys.stderr)
         sys.exit(1)
 
-    age_count = int(bool(expiration_time)) + int(bool(max_idle)) + int(bool(no_max_idle))
+    age_count = bool(expiration_time) + bool(max_idle) + bool(no_max_idle)
     if age_count != 1:
         print("exactly one of --expiration-time, --max-age, and --no-max-age required", file=sys.stderr)
         sys.exit(1)
