@@ -10,7 +10,6 @@ TEST_CASE("Simple LSM test", "") {
   REQUIRE( m.get(63) == 222 );
 }
 TEST_CASE("Merge 2 files", "") {
-  LSM m{"db"};
   Level l{0, "db"};
 
   std::map<int32_t, maybe_value> m_older;
@@ -39,7 +38,6 @@ TEST_CASE("Merge 2 files", "") {
   REQUIRE( m_merged[98].v == 107 );
 }
 TEST_CASE("Merge files overwrite key and delete key", "") {
-  LSM m{"db"};
   Level l{0, "db"};
 
   std::map<int32_t, maybe_value> m_older;
@@ -66,24 +64,7 @@ TEST_CASE("Merge files overwrite key and delete key", "") {
   REQUIRE( m_merged[1].v == 83 );
 }
 TEST_CASE("Merge two files overlapping keys with deletes and puts", "") {
-  LSM m{"db"};
   Level l{0, "db"};
-
-//  m.put(10, 7);
-//  m.put(75, 9);
-//  m.put(4, 8);
-//  m.del(10);
-//
-//  m.put(4, 44);
-//  m.put(3, 42);
-//  m.del(75);
-//  m.put(2, 22);
-//
-//  REQUIRE( m.get(10) == 0 );
-//  REQUIRE( m.get(4) == 44 );
-//  REQUIRE( m.get(3) == 42 );
-//  REQUIRE( m.get(75) == 0 );
-//  REQUIRE( m.get(2) == 22 );
 
   std::map<int32_t, maybe_value> m_older;
   m_older.insert_or_assign(10, maybe_value(7, 0));
@@ -102,9 +83,30 @@ TEST_CASE("Merge two files overlapping keys with deletes and puts", "") {
   l.read_to_map(f_merged.filename, m_merged);
 
   REQUIRE( m_merged[10].v == 0 );
+  REQUIRE( m_merged[10].is_deleted == 1 );
   REQUIRE( m_merged[75].v == 0 );
-  REQUIRE( m_merged[4].v ==  44 );
+  REQUIRE( m_merged[75].is_deleted == 1 );
+  REQUIRE( m_merged[4].v == 44 );
   REQUIRE( m_merged[3].v == 42 );
   REQUIRE( m_merged[2].v == 22 );
 
+}
+TEST_CASE("puts and deletes", "") {
+  LSM m{"db"};
+
+  m.put(10, 7);
+  m.put(75, 9);
+  m.put(4, 8);
+  m.del(10);
+
+  m.put(4, 44);
+  m.put(3, 42);
+  m.del(75);
+  m.put(2, 22);
+
+  REQUIRE( m.get(10) == std::nullopt );
+  REQUIRE( m.get(4) == 44 );
+  REQUIRE( m.get(3) == 42 );
+  REQUIRE( m.get(75) == std::nullopt );
+  REQUIRE( m.get(2) == 22 );
 }

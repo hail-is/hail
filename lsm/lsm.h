@@ -44,12 +44,11 @@ public:
   int index;
   std::filesystem::path level_directory;
 
-  explicit Level(int index, std::filesystem::path _directory) :
-      level_directory{(std::filesystem::path) _directory / std::to_string(index)} {
+  explicit Level(int _index, std::filesystem::path _directory) :
+      index{_index}, level_directory{(std::filesystem::path) _directory / std::to_string(index)} {
     if (std::filesystem::exists(level_directory)) {
       std::cerr << "WARNING: " << level_directory << " already exists.";
     }
-    this->index = index;
     std::filesystem::create_directory(level_directory);
   }
 
@@ -65,7 +64,6 @@ public:
 
 class LSM {
   std::map<int32_t, maybe_value> m;
-  //std::vector<File> files;
   std::vector<Level> levels;
   std::filesystem::path directory;
 public:
@@ -82,7 +80,5 @@ public:
   void del(int32_t k);
   Level& get_level(size_t index);
   void add_to_level(std::map<int32_t, maybe_value> m, size_t l_index);
-  //File write_to_file(std::string filename);
-  //std::map<int32_t, maybe_value> read_from_file(std::string filename);
   void dump_map();
 };

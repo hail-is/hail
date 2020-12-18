@@ -51,16 +51,6 @@ int main(int argc, const char ** argv) {
         lsm.del(k);
         break;
       }
-//      case 'w': {
-//        std::string filename = line.substr(2);
-//        lsm.write_to_file(filename);
-//        break;
-//      }
-//      case 'R': {
-//        std::string filename = line.substr(2);
-//        lsm.read_from_file(filename);
-//        break;
-//      }
       case 'D': {
         lsm.dump_map();
         break;

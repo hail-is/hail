@@ -46,7 +46,10 @@ File Level::write_to_file(std::map<int32_t, maybe_value> m, std::string filename
     if (x.first > max) {max = x.first;}
     if (x.first < min) {min = x.first;}
   }
-  std::cerr << "write to file " << filename << "\n";
+  if (!ostrm) {
+    std::cerr << "could not write to file successfully" << "\n";
+    exit(5);
+  }
   return File(filename, bloomFilter, min, max);
 }
 std::map<int32_t, maybe_value> Level::read_from_file(std::string filename) {
@@ -84,9 +87,7 @@ void Level::add(std::map<int32_t, maybe_value> m) {
 
 void LSM::add_to_level(std::map<int32_t, maybe_value> m, size_t l_index) {
   Level& level = get_level(l_index);
-  if (l_index >= levels.size()) {
-    level.add(m);
-  } else if (level.size() + 1 >= level.max_size) {
+  if (level.size() + 1 == level.max_size) {
     assert(level.max_size == 2);
     File merged_f = level.merge(level.files.back(),
                                           level.write_to_file(m, level.next_file_path()));
@@ -94,9 +95,10 @@ void LSM::add_to_level(std::map<int32_t, maybe_value> m, size_t l_index) {
     level.read_to_map(merged_f.filename, merged_m);
     add_to_level(merged_m, l_index + 1);
     std::filesystem::path file_path = get_level(l_index).files.back().filename;
-    get_level(l_index).files.pop_back(); //TODO: why does this error heap-used-after-free if I replace `get_level(l_index)` with `level`?
+    get_level(l_index).files.pop_back();
     std::filesystem::remove(file_path);
   } else {
+    assert(level.size() < level.max_size);
     level.add(m);
   }
 }
@@ -128,10 +130,10 @@ std::optional<int32_t> LSM::get(int32_t k) {
       return std::nullopt;
     }
   } else {
-    for(unsigned i = levels.size() - 1; levels.size() > i; --i) {
-      Level& level = get_level(i);
+    for (auto it = levels.rbegin(); it != levels.rend(); ++it) {
+      auto& level = *it;
       for (auto j = level.files.rbegin(); j != level.files.rend(); ++j) {
-        File& file = *j;
+        auto& file = *j;
         if (file.bloomFilter.contains_key(k) && k >= file.min && k <= file.max) {
           std::map <int32_t, maybe_value> file_map = level.read_from_file(file.filename);
           auto it_m = file_map.find(k);
