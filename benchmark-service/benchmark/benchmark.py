@@ -332,11 +332,11 @@ async def get_commit(app, sha):  # pylint: disable=unused-argument
     if has_results_file:
         assert complete_batch_statuses, batch_statuses
         log.info(f'commit {sha} has a results file')
-        status = complete_batch_statuses[-1]
+        status = complete_batch_statuses[0]
         batch_id = status['id']
         log.info(f'status of {sha}: {status}')
     elif running_batch_statuses:
-        status = running_batch_statuses[-1]
+        status = running_batch_statuses[0]
         batch_id = status['id']
         log.info(f'batch already exists for commit {sha}')
     else:
@@ -434,7 +434,7 @@ async def github_polling_loop(app):
     while True:
         await update_commits(app)
         log.info('successfully queried github')
-        await asyncio.sleep(300)
+        await asyncio.sleep(600)
 
 
 async def on_startup(app):
