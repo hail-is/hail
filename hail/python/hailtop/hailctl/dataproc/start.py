@@ -141,14 +141,6 @@ ANNOTATION_DB_BUCKETS = ["hail-datasets-us", "hail-datasets-eu", "gnomad-public-
 IMAGE_VERSION = '1.4-debian9'
 
 
-def init_parser(parent_subparsers):
-    parser = parent_subparsers.add_parser(
-        'start',
-        help='Start a Dataproc cluster configured for Hail.',
-        description='Start a Dataproc cluster configured for Hail.')
-    parser.set_defaults(module='hailctl dataproc start')
-
-
 @dataproc.command(
     help="Start a Dataproc cluster configured for Hail.")
 @click.argument('cluster_name')

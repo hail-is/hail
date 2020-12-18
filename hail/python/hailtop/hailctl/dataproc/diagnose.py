@@ -1,48 +1,50 @@
 import re
 import json
 from subprocess import call, Popen, PIPE
+import click
+
+from .dataproc import dataproc
 
 
-def init_parser(parent_subparsers):
-    parser = parent_subparsers.add_parser(
-        'diagnose',
-        help='Diagnose problems in a Dataproc cluster.',
-        description='Diagnose problems in a Dataproc cluster.')
-    parser.set_defaults(module='hailctl dataproc diagnose')
+@dataproc.command(
+    help="Diagnose problems in a Dataproc cluster.")
+@click.argument('cluster_name')
+@click.option('--dest', '-d',
+              required=True,
+              help="Directory for diagnose output -- must be local.")
+@click.option('--hail-log', '-l',
+              default='/home/hail/hail.log', show_default=True,
+              help="Path for hail.log file.")
+@click.option('--overwrite', is_flag=True,
+              help="Delete dest directory before adding new files.")
+@click.option('--no-diagnose', is_flag=True,
+              help="Do not run gcloud dataproc clusters diagnose.")
+@click.option('--compress', '-z', is_flag=True,
+              help="GZIP all files.")
+@click.option('--workers', multiple=True,
+              help="Specific workers to get log files from.")
+@click.option('--take',
+              type=int, default=None,
+              help="Only download logs from the first N workers.")
+def diagnose(cluster_name, dest, hail_log, overwrite, no_diagnose, compress, workers, take):
+    print("Diagnosing cluster '{}'...".format(cluster_name))
 
-    parser.add_argument('name', type=str, help='Cluster name.')
-    parser.add_argument('--dest', '-d', required=True, type=str, help="Directory for diagnose output -- must be local.")
-    parser.add_argument('--hail-log', '-l', required=False, type=str, default='/home/hail/hail.log',
-                        help="Path for hail.log file.")
-    parser.add_argument('--overwrite', required=False, action='store_true',
-                        help="Delete dest directory before adding new files.")
-    parser.add_argument('--no-diagnose', required=False, action='store_true',
-                        help="Do not run gcloud dataproc clusters diagnose.")
-    parser.add_argument('--compress', '-z', required=False, action='store_true', help="GZIP all files.")
-    parser.add_argument('--workers', required=False, nargs='*', help="Specific workers to get log files from.")
-    parser.add_argument('--take', required=False, type=int, default=None,
-                        help="Only download logs from the first N workers.")
+    is_local = not dest.startswith("gs://")
 
-
-def diagnose(args):
-    print("Diagnosing cluster '{}'...".format(args.name))
-
-    is_local = not args.dest.startswith("gs://")
-
-    if args.overwrite:
+    if overwrite:
         if is_local:
-            call('rm -r {dir}'.format(dir=args.dest), shell=True)
+            call('rm -r {dir}'.format(dir=dest), shell=True)
         else:
-            call('gsutil -m rm -r {dir}'.format(dir=args.dest), shell=True)
+            call('gsutil -m rm -r {dir}'.format(dir=dest), shell=True)
 
-    master_dest = args.dest.rstrip('/') + "/master/"
-    worker_dest = args.dest.rstrip('/') + "/workers/"
+    master_dest = dest.rstrip('/') + "/master/"
+    worker_dest = dest.rstrip('/') + "/workers/"
 
     if is_local:
         call('mkdir -p {dir}'.format(dir=master_dest), shell=True)
         call('mkdir -p {dir}'.format(dir=worker_dest), shell=True)
 
-    desc = json.loads(Popen('gcloud dataproc clusters describe {name} --format json'.format(name=args.name),
+    desc = json.loads(Popen('gcloud dataproc clusters describe {name} --format json'.format(name=cluster_name),
                             shell=True,
                             stdout=PIPE,
                             stderr=PIPE).communicate()[0].strip())
@@ -51,20 +53,19 @@ def diagnose(args):
 
     master = config['masterConfig']['instanceNames'][0]
     try:
-        workers = config['workerConfig']['instanceNames'] + config['secondaryWorkerConfig']['instanceNames']
+        actual_workers = config['workerConfig']['instanceNames'] + config['secondaryWorkerConfig']['instanceNames']
     except KeyError:
-        workers = config['workerConfig']['instanceNames']
+        actual_workers = config['workerConfig']['instanceNames']
     zone = re.search(r'zones/(?P<zone>\S+)$', config['gceClusterConfig']['zoneUri']).group('zone')
 
-    if args.workers:
-        invalid_workers = set(args.workers).difference(set(workers))
+    if workers:
+        invalid_workers = set(workers).difference(set(actual_workers))
         assert len(invalid_workers) == 0, "Non-existent workers specified: " + ", ".join(invalid_workers)
-        workers = args.workers
 
-    if args.take:
-        assert args.take > 0 and args.take <= len(
-            workers), "Number of workers to take must be in the range of [0, nWorkers]. Found " + args.take + "."
-        workers = workers[:args.take]
+    if take:
+        assert 0 < take <= len(workers), \
+            "Number of workers to take must be in the range of [0, nWorkers]. Found " + take + "."
+        workers = workers[:take]
 
     def gcloud_ssh(remote, command):
         return 'gcloud compute ssh {remote} --zone {zone} --command "{command}"'.format(remote=remote, zone=zone,
@@ -83,7 +84,7 @@ def diagnose(args):
         copy_tmp_cmds = ['sudo cp -r {file} {tmp}'.format(file=file, tmp=tmp) for file in files]
         copy_tmp_cmds.append('sudo chmod -R 777 {tmp}'.format(tmp=tmp))
 
-        if args.compress:
+        if compress:
             copy_tmp_cmds.append('sudo find ' + tmp + ' -type f ! -name \'*.gz\' -exec gzip "{}" \\;')
 
         call(gcloud_ssh(remote, '; '.join(init_cmd + copy_tmp_cmds)), shell=True)
@@ -95,14 +96,14 @@ def diagnose(args):
 
         call(copy_dest_cmd, shell=True)
 
-    if not args.no_diagnose:
+    if not no_diagnose:
         diagnose_tar_path = re.search(r'Diagnostic results saved in: (?P<tarfile>gs://\S+diagnostic\.tar)',
-                                      str(Popen('gcloud dataproc clusters diagnose {name}'.format(name=args.name),
+                                      str(Popen('gcloud dataproc clusters diagnose {name}'.format(name=cluster_name),
                                                 shell=True,
                                                 stdout=PIPE,
                                                 stderr=PIPE).communicate())).group('tarfile')
 
-        call(gsutil_cp(diagnose_tar_path, args.dest), shell=True)
+        call(gsutil_cp(diagnose_tar_path, dest), shell=True)
 
     master_log_files = ['/var/log/hive/hive-*',
                         '/var/log/google-dataproc-agent.0.log',
@@ -110,7 +111,7 @@ def diagnose(args):
                         '/var/log/hadoop-mapreduce/mapred-mapred-historyserver*',
                         '/var/log/hadoop-hdfs/*-m.*',
                         '/var/log/hadoop-yarn/yarn-yarn-resourcemanager-*-m.*',
-                        args.hail_log
+                        hail_log
                         ]
 
     copy_files_tmp(master, master_log_files, master_dest, '/tmp/' + master + '/')
@@ -121,4 +122,4 @@ def diagnose(args):
 
     for worker in workers:
         copy_files_tmp(worker, worker_log_files, worker_dest, '/tmp/' + worker + '/')
-        copy_files_tmp(worker, ['/var/log/hadoop-yarn/userlogs/'], args.dest, '/tmp/hadoop-yarn/')
+        copy_files_tmp(worker, ['/var/log/hadoop-yarn/userlogs/'], dest, '/tmp/hadoop-yarn/')
