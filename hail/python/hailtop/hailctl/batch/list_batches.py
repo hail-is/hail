@@ -25,7 +25,7 @@ def init_parser(parent_subparsers):
               type=int, default=50, show_default=True,
               help='Number of batches to return.')
 @click.option('--all', '-a', is_flag=True,
-              help='list all batches (overrides --limit)')
+              help='List all batches (overrides --limit).')
 @click.option('--before', type=int, help='Start listing before supplied id.', default=None)
 @click.option('--full', is_flag=True,
               help='When output is tabular, print more information.')
@@ -42,6 +42,8 @@ def list_batches(query, limit, all, before, full, no_header, output_format):
             print('must be one of:', *choices, file=sys.stderr)
             sys.exit(1)
 
+        if all:
+            limit = None
         batch_list = client.list_batches(q=query, last_batch_id=before, limit=limit)
         statuses = [batch.last_known_status() for batch in batch_list]
         if output_format in ('json', 'yaml'):

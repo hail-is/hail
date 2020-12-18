@@ -633,7 +633,7 @@ class BatchClient:
             self._session, 'DELETE',
             self.url + path, headers=self._headers)
 
-    async def list_batches(self, q=None, last_batch_id=None, limit=2**64):
+    async def list_batches(self, q=None, last_batch_id=None, limit=None):
         n = 0
         while True:
             params = {}
@@ -646,7 +646,7 @@ class BatchClient:
             body = await resp.json()
 
             for batch in body['batches']:
-                if n >= limit:
+                if limit is not None and n >= limit:
                     return
                 n += 1
                 yield Batch(self, batch['id'], attributes=batch.get('attributes'),
