@@ -1,23 +1,23 @@
 import sys
+import click
+
+from hailtop.batch_client.client import BatchClient
+
+from .batch import batch
 from .batch_cli_utils import get_batch_if_exists
 
 
-def init_parser(parent_subparsers):
-    parser = parent_subparsers.add_parser(
-        'delete',
-        help="Delete a batch",
-        description="Delete a batch")
-    parser.set_defaults(module='hailctl batch delete')
-    parser.add_argument('batch_id', type=int, help="ID number of batch to be deleted")
+@batch.command(
+    help="Delete a batch.")
+@click.argument('batch_id', type=int)
+def delete(batch_id):
+    with BatchClient(None) as client:
+        maybe_batch = get_batch_if_exists(client, batch_id)
+        if maybe_batch is None:
+            print(f"Batch with batch_id {batch_id} not found")
+            sys.exit(1)
 
+        batch = maybe_batch
 
-def delete(args, client):
-    maybe_batch = get_batch_if_exists(client, args.batch_id)
-    if maybe_batch is None:
-        print(f"Batch with batch_id {args.batch_id} not found")
-        sys.exit(1)
-
-    batch = maybe_batch
-
-    batch.delete()
-    print(f"Batch with batch_id {args.batch_id} was deleted successfully")
+        batch.delete()
+        print(f"Batch with batch_id {batch_id} was deleted successfully")
