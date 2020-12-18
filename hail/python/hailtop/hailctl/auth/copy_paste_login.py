@@ -1,6 +1,9 @@
 import asyncio
+import click
 
 from hailtop.auth import async_copy_paste_login
+
+from .auth import auth
 
 
 def init_parser(parent_subparsers):
@@ -16,8 +19,8 @@ def init_parser(parent_subparsers):
                         help="Specify namespace for auth server.  (default: from deploy configuration)")
 
 
-async def async_main(args):
-    auth_ns, username = await async_copy_paste_login(args.copy_paste_token, args.namespace)
+async def async_main(copy_paste_token, namespace):
+    auth_ns, username = await async_copy_paste_login(copy_paste_token, namespace)
 
     if auth_ns == 'default':
         print(f'Logged in as {username}.')
@@ -25,6 +28,9 @@ async def async_main(args):
         print(f'Logged into namespace {auth_ns} as {username}.')
 
 
-def main(args, pass_through_args):  # pylint: disable=unused-argument
+@auth.command()
+@click.argument('copy_paste_token')
+@click.option('--namespace', '-n')
+def copy_paste_login(copy_paste_token, namespace):  # pylint: disable=unused-argument
     loop = asyncio.get_event_loop()
-    loop.run_until_complete(async_main(args))
+    loop.run_until_complete(async_main(copy_paste_token, namespace))

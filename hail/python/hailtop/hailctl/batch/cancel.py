@@ -10,7 +10,7 @@ def init_parser(parent_subparsers):
     parser.add_argument('id', type=int)
 
 
-def main(args, client):
+def cancel(args, client):
     maybe_batch = get_batch_if_exists(client, args.id)
     if maybe_batch is None:
         print(f"Batch with id {args.id} not found")

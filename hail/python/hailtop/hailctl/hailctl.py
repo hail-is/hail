@@ -1,39 +1,8 @@
 import os
 import sys
-
-import argparse
 import re
 import time
-
-from . import version
-from . import dataproc
-from . import auth
-from . import dev
-from . import batch
-from . import curl
-from . import config
-
-
-def parser():
-    root_parser = argparse.ArgumentParser(
-        prog='hailctl',
-        description='Manage and monitor Hail deployments.')
-    # we have to set dest becuase of a rendering bug in argparse
-    # https://bugs.python.org/issue29298
-    subparsers = root_parser.add_subparsers(
-        title='hailctl subcommand',
-        dest='hailctl subcommand',
-        required=True)
-
-    version.init_parser(subparsers)
-    dataproc.init_parser(subparsers)
-    auth.init_parser(subparsers)
-    dev.init_parser(subparsers)
-    batch.init_parser(subparsers)
-    curl.init_parser(subparsers)
-    config.init_parser(subparsers)
-
-    return root_parser
+import click
 
 
 def check_for_update():
@@ -78,31 +47,7 @@ def check_for_update():
         pass
 
 
-def main(args=None):
+@click.group(
+    help="Command line interface and utilities for working with Hail")
+def hailctl():
     check_for_update()
-
-    p = parser()
-    args, unknown_args = p.parse_known_args(args=args)
-    print(dir(args))
-    if 'allow_unknown_args' in args:
-        args.unknown_args = unknown_args
-    elif unknown_args:
-        p.print_usage(file=sys.stderr)
-        print(f'hailctl: error: unrecognized arguments: {" ".join(unknown_args)}', file=sys.stderr)
-        sys.exit(1)
-
-    if args.module.startswith('hailctl version'):
-        version.main(args)
-    elif args.module.startswith('hailctl dataproc'):
-        dataproc.main(args)
-    elif args.module.startswith('hailctl auth'):
-        auth.main(args)
-    elif args.module.startswith('hailctl dev'):
-        dev.main(args)
-    elif args.module.startswith('hailctl batch'):
-        batch.main(args)
-    elif args.module.startswith('hailctl curl'):
-        curl.main(args)
-    else:
-        assert args.module.startswith('hailctl config')
-        config.main(args)

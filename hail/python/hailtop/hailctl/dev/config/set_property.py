@@ -1,23 +1,21 @@
 import os
 import json
+import click
 
 from hailtop.config import get_deploy_config
 
-
-def init_parser(parser):
-    parser.add_argument("property", type=str,
-                        help="Property to set.",
-                        choices=['location', 'default_namespace', 'domain'])
-    parser.add_argument("value", type=str,
-                        help="Value to set property to.")
+from .config import config
 
 
-def main(args):
+@config.command(name='set',
+                help="Set deploy configuration property.")
+@click.argument('property')
+@click.argument('value')
+def set_property(property, value):
     deploy_config = get_deploy_config()
     config = deploy_config.get_config()
 
-    p = args.property
-    config[p] = args.value
+    config[property] = value
 
     config_file = os.environ.get(
         'HAIL_DEPLOY_CONFIG_FILE', os.path.expanduser('~/.hail/deploy-config.json'))

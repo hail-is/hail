@@ -1,3 +1,3 @@
-from .hailctl import main
+from .hailctl import hailctl
 
-main()
+hailctl(prog_name='hailctl')

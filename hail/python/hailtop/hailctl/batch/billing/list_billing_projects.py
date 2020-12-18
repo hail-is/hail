@@ -11,6 +11,6 @@ def init_parser(parent_subparsers):
                         choices=["yaml", "json"])
 
 
-def main(args, client):
+def list_billing_projects(args, client):
     billing_projects = client.list_billing_projects()
     print(make_formatter(args.o)(billing_projects))

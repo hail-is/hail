@@ -3,26 +3,10 @@ import platform
 import shutil
 import subprocess
 import tempfile
+import click
 
 from . import gcloud
-
-
-def init_parser(parent_subparsers):
-    parser = parent_subparsers.add_parser(
-        'connect',
-        help='Connect to a running Dataproc cluster.',
-        description='Connect to a running Dataproc cluster.')
-    parser.set_defaults(module='hailctl dataproc connect')
-
-    parser.add_argument('name', type=str, help='Cluster name.')
-    parser.add_argument('service', type=str,
-                        choices=['notebook', 'nb', 'spark-ui', 'ui', 'spark-history', 'hist'],
-                        help='Web service to launch.')
-    parser.add_argument('--project', help='Google Cloud project for the cluster (defaults to currently set project).')
-    parser.add_argument('--port', '-p', default='10000', type=str,
-                        help='Local port to use for SSH tunnel to leader (master) node (default: %(default)s).')
-    parser.add_argument('--zone', '-z', type=str, help='Compute zone for Dataproc cluster.')
-    parser.add_argument('--dry-run', action='store_true', help="Print gcloud dataproc command, but don't run it.")
+from .dataproc import dataproc
 
 
 def get_chrome_path():
@@ -45,7 +29,27 @@ def get_chrome_path():
     raise ValueError(f"unsupported system: {system}, set environment variable HAILCTL_CHROME to a chrome executable")
 
 
-def main(args):
+@dataproc.command(
+    help="Connect to a running Dataproc cluster")
+@click.argument('cluster_name')
+@click.argument('service',
+                type=click.Choice(['notebook', 'nb', 'spark-ui', 'ui', 'spark-history', 'hist'],
+                                  case_sensitive=False))
+@click.option('--project',
+              metavar='GCP_PROJECT',
+              help='Google Cloud project for the cluster.')
+@click.option('--port', '-p',
+              metavar='PORT',
+              default='10000',
+              type=int,
+              help="Local port to use for SSH tunnel to leader (master) node",
+              show_default=True)
+@click.option('--zone', '-z',
+              metavar='GCP_ZONE',
+              help='Compute zone for Dataproc cluster.')
+@click.option('--dry-run', is_flag=True,
+              help="Print gcloud dataproc command, but don't run it")
+def connect(cluster_name, service, *, project, port, zone, dry_run):
     # shortcut mapping
     shortcut = {
         'ui': 'spark-ui',
@@ -53,7 +57,7 @@ def main(args):
         'nb': 'notebook'
     }
 
-    service = args.service
+    service = service
     service = shortcut.get(service, service)
 
     # Dataproc port mapping
@@ -64,34 +68,34 @@ def main(args):
     }
     connect_port_and_path = dataproc_port_and_path[service]
 
-    zone = args.zone if args.zone else gcloud.get_config("compute/zone")
+    zone = zone if zone else gcloud.get_config("compute/zone")
     if not zone:
         raise RuntimeError("Could not determine compute zone. Use --zone argument to hailctl, or use `gcloud config set compute/zone <my-zone>` to set a default.")
 
     account = gcloud.get_config("account")
     if account:
         account = account[0:account.find('@')]
-        ssh_login = '{}@{}-m'.format(account, args.name)
+        ssh_login = '{}@{}-m'.format(account, cluster_name)
     else:
-        ssh_login = '{}-m'.format(args.name)
+        ssh_login = '{}-m'.format(cluster_name)
 
     cmd = ['compute',
            'ssh',
            ssh_login,
            '--zone={}'.format(zone),
-           '--ssh-flag=-D {}'.format(args.port),
+           '--ssh-flag=-D {}'.format(port),
            '--ssh-flag=-N',
            '--ssh-flag=-f',
            '--ssh-flag=-n']
 
-    if args.project:
-        cmd.append(f"--project={args.project}")
+    if project:
+        cmd.append(f"--project={project}")
 
     print('gcloud command:')
     print(' '.join(cmd[:4]) + ' \\\n    ' + ' \\\n    '.join([f"'{x}'" for x in cmd[4:]]))
 
-    if not args.dry_run:
-        print("Connecting to cluster '{}'...".format(args.name))
+    if not dry_run:
+        print("Connecting to cluster '{}'...".format(cluster_name))
 
         # open SSH tunnel to master node
         gcloud.run(cmd)
@@ -103,7 +107,7 @@ def main(args):
             subprocess.Popen([
                 chrome,
                 'http://localhost:{}'.format(connect_port_and_path),
-                '--proxy-server=socks5://localhost:{}'.format(args.port),
+                '--proxy-server=socks5://localhost:{}'.format(port),
                 '--host-resolver-rules=MAP * 0.0.0.0 , EXCLUDE localhost',
                 '--proxy-bypass-list=<-loopback>',  # https://chromium.googlesource.com/chromium/src/+/da790f920bbc169a6805a4fb83b4c2ab09532d91
                 '--user-data-dir={}'.format(tempfile.gettempdir())

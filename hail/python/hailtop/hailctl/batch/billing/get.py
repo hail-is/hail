@@ -14,7 +14,7 @@ def init_parser(parent_subparsers):
                         choices=["yaml", "json"])
 
 
-def main(args, client):
+def get(args, client):
     try:
         billing_project = client.get_billing_project(args.billing_project)
     except aiohttp.client_exceptions.ClientResponseError as cle:

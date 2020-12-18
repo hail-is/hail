@@ -13,7 +13,7 @@ def init_parser(parent_subparsers):
                         choices=["yaml", "json"])
 
 
-def main(args, client):
+def get(args, client):
     maybe_batch = get_batch_if_exists(client, args.batch_id)
     if maybe_batch is None:
         print(f"Batch with id {args.batch_id} not found")

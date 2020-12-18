@@ -4,6 +4,9 @@ from zlib import decompress, MAX_WBITS
 from subprocess import check_output
 from statistics import median, mean, stdev
 from collections import OrderedDict
+import click
+
+from .dataproc import dataproc
 
 SECTION_SEPARATOR = '-' * 40
 IDENT = ' ' * 4
@@ -98,31 +101,21 @@ def get_partitions_info_str(j):
     return "\n{}".format(IDENT).join(['{}: {}'.format(k, v) for k, v in partitions_info.items()])
 
 
-def init_parser(parent_subparsers):
-    parser = parent_subparsers.add_parser(
-        'describe',
-        help='Gather information about a hail file (including the schema)',
-        description='Gather information about a hail file (including the schema)')
-    parser.set_defaults(module='describe')
-
-    # arguments with default parameters
-    parser.add_argument('file', type=str, help='Path to hail file (either MatrixTable or Table).')
-    parser.add_argument('--requester-pays-project-id', '-u', help='Project to be billed for GCS requests.')
-
-
-def main(args):
+@dataproc.command(
+    help="Gather information about a Hail (Table or MatrixTable) file (including the schema)")
+@click.argument('file')
+@click.option('--requester-pays-project-id', '-u', help='Project to be billed for GCS requests')
+def describe(file, requester_pays_project_id):
     command = []
-    if args.file.startswith('gs://'):
+    if file.startswith('gs://'):
         command = ['gsutil']
-        if args.requester_pays_project_id:
-            command.extend(['-u', args.requester_pays_project_id])
+        if requester_pays_project_id:
+            command.extend(['-u', requester_pays_project_id])
 
     j = json.loads(
         decompress(
-            check_output(command + ['cat', path.join(args.file, 'metadata.json.gz')]),
-            16 + MAX_WBITS
-        )
-    )
+            check_output(command + ['cat', path.join(file, 'metadata.json.gz')]),
+            16 + MAX_WBITS))
 
     # Get the file schema
     file_schema = parse_schema(j[[k for k in j.keys() if k.endswith('type')][0]])
@@ -165,7 +158,7 @@ def main(args):
 
     # Check for _SUCCESS
     try:
-        check_output(command + ['ls', path.join(args.file, '_SUCCESS')])
+        check_output(command + ['ls', path.join(file, '_SUCCESS')])
     except Exception:  # pylint: disable=broad-except
         print(
-            "\033[;1m\033[1;31mCould not find _SUCCESS for file: {}\nThis file will not work.\033[0m".format(args.file))
+            "\033[;1m\033[1;31mCould not find _SUCCESS for file: {}\nThis file will not work.\033[0m".format(file))

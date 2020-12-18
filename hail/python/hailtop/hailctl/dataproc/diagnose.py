@@ -24,7 +24,7 @@ def init_parser(parent_subparsers):
                         help="Only download logs from the first N workers.")
 
 
-def main(args):
+def diagnose(args):
     print("Diagnosing cluster '{}'...".format(args.name))
 
     is_local = not args.dest.startswith("gs://")

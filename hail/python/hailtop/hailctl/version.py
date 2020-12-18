@@ -1,14 +1,8 @@
-from . import version
+from .hailctl import hailctl
 
 
-def init_parser(subparsers):
-    deploy_parser = subparsers.add_parser(
-        'version',
-        help='Print version',
-        description='Print version')
-    deploy_parser.set_defaults(module='hailctl version')
-
-
-def main(args):
+@hailctl.command(
+    help="Print version")
+def version():
     import pkg_resources  # pylint: disable=import-outside-toplevel
     print(pkg_resources.resource_string(__name__, 'hail_version').decode().strip())

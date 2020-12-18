@@ -1,1 +1,3 @@
-from .deploy import init_parser, main
+from .deploy import deploy
+
+__all__ = ['deploy']

@@ -1,1 +1,3 @@
-from .config import init_parser, main
+from .config import config
+
+__all__ = ['config']

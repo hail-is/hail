@@ -1,1 +1,3 @@
-from .query import init_parser, main
+from .query import query, set, unset, get
+
+__all__ = ['query', 'set', 'unset', 'get']

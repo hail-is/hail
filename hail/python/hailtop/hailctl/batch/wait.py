@@ -11,7 +11,7 @@ def init_parser(parent_subparsers):
     parser.add_argument('batch_id', type=int)
 
 
-def main(args, client):
+def wait(args, client):
     maybe_batch = get_batch_if_exists(client, args.batch_id)
     if maybe_batch is None:
         print(f"Batch with id {args.batch_id} not found")

@@ -4,20 +4,13 @@ import asyncio
 import webbrowser
 import aiohttp
 from aiohttp import web
+import click
 
 from hailtop.config import get_deploy_config
 from hailtop.auth import get_tokens, namespace_auth_headers
 from hailtop.httpx import client_session
 
-
-def init_parser(parent_subparsers):
-    parser = parent_subparsers.add_parser(
-        'login',
-        help='Obtain Hail credentials.',
-        description='Obtain Hail credentials.')
-    parser.add_argument("--namespace", "-n", type=str,
-                        help="Specify namespace for auth server.  (default: from deploy configuration)")
-    parser.set_defaults(module='hailctl auth login')
+from .auth import auth
 
 
 routes = web.RouteTableDef()
@@ -94,16 +87,19 @@ Opening in your browser.
         print(f'Logged into namespace {default_ns} as {username}.')
 
 
-async def async_main(args):
+async def async_main(namespace):
     deploy_config = get_deploy_config()
-    if args.namespace:
-        deploy_config = deploy_config.with_default_namespace(args.namespace)
+    if namespace:
+        deploy_config = deploy_config.with_default_namespace(namespace)
     headers = namespace_auth_headers(deploy_config, deploy_config.default_namespace(), authorize_target=False)
     async with client_session(
             timeout=aiohttp.ClientTimeout(total=5), headers=headers) as session:
         await auth_flow(deploy_config, deploy_config.default_namespace(), session)
 
 
-def main(args):
+@auth.command(
+    help="Obtain Hail credentials")
+@click.argument('namespace', required=False)
+def login(namespace):
     loop = asyncio.get_event_loop()
-    loop.run_until_complete(async_main(args))
+    loop.run_until_complete(async_main(namespace))

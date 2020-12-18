@@ -1,21 +1,17 @@
-import json
 import sys
+import json
 
 from hailtop.auth import get_userinfo
 
-
-def init_parser(parent_subparsers):
-    user_parser = parent_subparsers.add_parser(
-        'user',
-        help='Get Hail user information.',
-        description='Get Hail user information')
-    user_parser.set_defaults(module='hailctl auth user')
+from .auth import auth
 
 
-def main(args):
+@auth.command(
+    help="Get Hail user information.")
+def user():
     userinfo = get_userinfo()
     if userinfo is None:
-        print('not logged in')
+        print("Not logged in.", file=sys.stderr)
         sys.exit(1)
     result = {
         'username': userinfo['username'],

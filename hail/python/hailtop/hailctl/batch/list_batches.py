@@ -24,7 +24,7 @@ def init_parser(parent_subparsers):
                         help='specify output format (json, yaml, csv, tsv, or any tabulate format)')
 
 
-def main(args, client):
+def list_batches(args, client):
     choices = ['json', 'yaml', 'csv', 'tsv', *tabulate.tabulate_formats]
     if args.o not in choices:
         print('invalid output format:', args.o, file=sys.stderr)

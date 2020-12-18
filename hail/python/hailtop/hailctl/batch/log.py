@@ -13,7 +13,7 @@ def init_parser(parent_subparsers):
                         choices=["yaml", "json"])
 
 
-def main(args, client):
+def log(args, client):
     maybe_job = get_job_if_exists(client, args.batch_id, args.job_id)
     if maybe_job is None:
         print(f"Job with ID {args.job_id} on batch {args.batch_id} not found")

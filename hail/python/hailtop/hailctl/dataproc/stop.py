@@ -1,34 +1,29 @@
-import argparse
+import click
 
 from . import gcloud
+from .dataproc import dataproc
 
 
-def init_parser(parent_subparsers):
-    parser = parent_subparsers.add_parser(
-        'stop',
-        help='Shut down a Dataproc cluster.',
-        description='Shut down a Dataproc cluster.')
-    parser.set_defaults(module='hailctl dataproc stop', allow_unknown_args=True)
+@dataproc.command(
+    help="Shut down a Dataproc cluster.")
+@click.argument('cluster_name')
+@click.option('--async', 'async_', is_flag=True,
+              help="Do not wait for cluster deletion.")
+@click.option('--dry-run', is_flag=True,
+              help="Print gcloud dataproc command, but don't run it.")
+@click.argument('gcloud_args', nargs=-1)
+def stop(cluster_name, async_, dry_run, gcloud_args):
+    print("Stopping cluster '{}'...".format(cluster_name))
 
-    parser.add_argument('name', type=str, help='Cluster name.')
-    parser.add_argument('--async', action='store_true', dest='asink',
-                        help="Do not wait for cluster deletion.")
-    parser.add_argument('--dry-run', action='store_true',
-                        help="Print gcloud dataproc command, but don't run it.")
-
-
-def main(args):
-    print("Stopping cluster '{}'...".format(args.name))
-
-    cmd = ['dataproc', 'clusters', 'delete', '--quiet', args.name]
-    if args.asink:
+    cmd = ['dataproc', 'clusters', 'delete', '--quiet', cluster_name]
+    if async_:
         cmd.append('--async')
 
-    if args.unknown_args:
-        cmd.extend(args.unknown_args)
+    if gcloud_args:
+        cmd.extend(gcloud_args)
 
     # print underlying gcloud command
     print('gcloud ' + ' '.join(cmd[:5]) + ' \\\n    ' + ' \\\n    '.join(cmd[6:]))
 
-    if not args.dry_run:
+    if not dry_run:
         gcloud.run(cmd)

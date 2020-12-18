@@ -2,26 +2,13 @@ import asyncio
 import webbrowser
 import aiohttp
 import sys
+import click
 
 from hailtop.config import get_deploy_config
 from hailtop.auth import service_auth_headers
 from hailtop.httpx import client_session
 
-
-def init_parser(parent_subparsers):
-    parser = parent_subparsers.add_parser(
-        'deploy',
-        help='Deploy a branch',
-        description='Deploy a branch')
-    parser.set_defaults(module='hailctl dev deploy')
-
-    parser.add_argument("--branch", "-b", type=str,
-                        help="Fully-qualified branch, e.g., hail-is/hail:feature.", required=True)
-    parser.add_argument("--steps", "-s", nargs='+', action='append',
-                        help="Comma or space-separated list of steps to run.", required=True)
-    parser.add_argument("--open", "-o",
-                        action="store_true",
-                        help="Open the deploy batch page in a web browser.")
+from ..dev import dev
 
 
 class CIClient:
@@ -60,21 +47,31 @@ class CIClient:
             return resp_data['batch_id']
 
 
-async def submit(args):
+async def submit(branch, steps, open):
     deploy_config = get_deploy_config()
 
-    steps = [s.strip() for steps in args.steps  # let's unpack this shall we?
+    steps = [s.strip()
              for step in steps
              for s in step.split(',') if s.strip()]
     async with CIClient(deploy_config) as ci_client:
-        batch_id = await ci_client.dev_deploy_branch(args.branch, steps)
+        batch_id = await ci_client.dev_deploy_branch(branch, steps)
         url = deploy_config.url('ci', f'/batches/{batch_id}')
         print(f'Created deploy batch, see {url}')
-        if args.open:
+        if open:
             webbrowser.open(url)
 
 
-def main(args):
+@dev.command(
+    help="Deploy a branch.")
+@click.option("--branch", "-b",
+              required=True,
+              help="Fully-qualified branch, e.g., hail-is/hail:feature.")
+@click.option('--steps', '-s',
+              required=True, multiple=True,
+              help="Comma list of steps to run.")
+@click.option("--open", "-o", is_flag=True,
+              help="Open the deploy batch page in a web browser.")
+def deploy(branch, steps, open):
     loop = asyncio.get_event_loop()
-    loop.run_until_complete(submit(args))
+    loop.run_until_complete(submit(branch, steps, open))
     loop.run_until_complete(loop.shutdown_asyncgens())
