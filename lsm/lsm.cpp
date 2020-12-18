@@ -78,12 +78,12 @@ File Level::merge(File older_f, File newer_f) {
   return write_to_file(m, next_file_path());
 }
 void Level::add(std::map<int32_t, maybe_value> m) {
-  File f = write_to_file(m, next_file_path());
+  File f = write_to_file(m, next_file_path()); //TODO & ?
   add_file(f);
 }
 
 void LSM::add_to_level(std::map<int32_t, maybe_value> m, size_t l_index) {
-  Level level = get_level(l_index);
+  Level& level = get_level(l_index); //TODO
   if (l_index >= levels.size()) {
     //get_level(l_index).add(m);
     level.add(m);
@@ -94,7 +94,7 @@ void LSM::add_to_level(std::map<int32_t, maybe_value> m, size_t l_index) {
     std::map<int32_t, maybe_value> merged_m;
     level.read_to_map(merged_f.filename, merged_m);
     add_to_level(merged_m, l_index + 1);
-    level.files.pop_back();
+    get_level(l_index).files.pop_back();
   } else {
     level.add(m);
   }
@@ -131,14 +131,14 @@ std::optional<int32_t> LSM::get(int32_t k) {
     //for (auto i = levels.rbegin(); i != levels.rend(); ++i ) {
     for(unsigned i = levels.size() - 1; levels.size() > i; --i) {
       //Level level = *i;
-      Level level = get_level(i);
+      Level& level = get_level(i); //TODO
       for (auto j = level.files.rbegin(); j != level.files.rend(); ++j) {
-        File file = *j;
+        File& file = *j;
         if (file.bloomFilter.contains_key(k) && k >= file.min && k <= file.max) {
-          std::cout << "exists? " << std::filesystem::exists(file.filename);
+          //std::cout << "exists? " << std::filesystem::exists(file.filename);
           std::map <int32_t, maybe_value> file_map = level.read_from_file(file.filename);
           auto it_m = file_map.find(k);
-          if (it_m != m.end()) {
+          if (it_m != file_map.end()) {
             if (!it_m->second.is_deleted) {
               return it_m->second.v;
             } else {
@@ -155,8 +155,8 @@ std::vector<std::pair<int32_t, int32_t>> LSM::range(int32_t l, int32_t r) {
   std::vector<std::pair<int32_t, int32_t>> res;
   std::map<int32_t,int32_t>  res_map;
 
-  for (auto level : levels) {
-    for (auto file : level.files) {
+  for (auto &level : levels) {
+    for (auto &file : level.files) {
       if (r >= file.min && l <= file.max) {
         std::map <int32_t, maybe_value> file_map = level.read_from_file(file.filename);
         auto it_ml = file_map.lower_bound(l);
