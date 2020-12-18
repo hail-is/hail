@@ -101,6 +101,8 @@ class DeployConfig:
     def external_url(self, service, path, base_scheme='http'):
         ns = self.service_ns(service)
         if ns == 'default':
+            if service == 'www':
+                return f'{base_scheme}s://{self._domain}{path}'
             return f'{base_scheme}s://{service}.{self._domain}{path}'
         return f'{base_scheme}s://internal.{self._domain}/{ns}/{service}{path}'
 

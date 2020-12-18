@@ -7,6 +7,7 @@ DEFAULT_NAMESPACE = os.environ['HAIL_DEFAULT_NAMESPACE']
 PROJECT = os.environ['PROJECT']
 
 GCP_REGION = os.environ['HAIL_GCP_REGION']
+GCP_ZONE = os.environ['HAIL_GCP_ZONE']
 
 BATCH_GCP_REGIONS = set(json.loads(os.environ['HAIL_BATCH_GCP_REGIONS']))
 BATCH_GCP_REGIONS.add(GCP_REGION)

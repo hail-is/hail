@@ -5,7 +5,7 @@ import java.io._
 import is.hail.HailContext
 import is.hail.annotations.{Region, UnsafeRow}
 import is.hail.asm4s._
-import is.hail.backend.{Backend, BackendContext, BroadcastValue}
+import is.hail.backend.{Backend, BackendContext, BroadcastValue, HailTaskContext}
 import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.ir.lowering.{DArrayLowering, LowerDistributedSort, LoweringPipeline, TableStage, TableStageDependency}
 import is.hail.expr.ir.{Compile, ExecuteContext, IR, IRParser, MakeTuple, SortField}
@@ -25,6 +25,14 @@ import org.json4s.{DefaultFormats, Formats}
 import scala.collection.mutable
 import scala.reflect.ClassTag
 
+class ServiceTaskContext(val partitionId: Int) extends HailTaskContext {
+  override type BackendType = ServiceBackend
+
+  override def stageId(): Int = 0
+
+  override def attemptNumber(): Int = 0
+}
+
 object Worker {
   def main(args: Array[String]): Unit = {
     if (args.length != 2)
@@ -38,7 +46,7 @@ object Worker {
     }
 
     val f = using(new ObjectInputStream(fs.openNoCompression(s"$root/f"))) { is =>
-      is.readObject().asInstanceOf[(Array[Byte], Int) => Array[Byte]]
+      is.readObject().asInstanceOf[(Array[Byte], HailTaskContext) => Array[Byte]]
     }
 
     var offset = 0L
@@ -59,7 +67,10 @@ object Worker {
       context
     }
 
-    val result = f(context, i)
+    val htc = new ServiceTaskContext(i)
+    HailTaskContext.setTaskContext(htc)
+    val result = f(context, htc)
+    HailTaskContext.finish()
 
     using(fs.createNoCompression(s"$root/result.$i")) { os =>
       os.write(result)
@@ -117,8 +128,7 @@ class ServiceBackend() extends Backend {
     def value: T = _value
   }
 
-  def parallelizeAndComputeWithIndex(_backendContext: BackendContext, collection: Array[Array[Byte]],
-    dependency: Option[TableStageDependency] = None)(f: (Array[Byte], Int) => Array[Byte]): Array[Array[Byte]] = {
+  def parallelizeAndComputeWithIndex(_backendContext: BackendContext, collection: Array[Array[Byte]], dependency: Option[TableStageDependency] = None)(f: (Array[Byte], HailTaskContext) => Array[Byte]): Array[Array[Byte]] = {
     val backendContext = _backendContext.asInstanceOf[ServiceBackendContext]
 
     val user = users(backendContext.username)

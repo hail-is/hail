@@ -205,6 +205,6 @@ class RichRDD[T](val r: RDD[T]) extends AnyVal {
       path,
       null,
       stageLocally,
-      (_) => null,
+      (_, _) => null,
       (_, it, os, _) => write(it, os))
 }

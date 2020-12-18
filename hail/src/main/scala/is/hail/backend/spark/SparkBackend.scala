@@ -35,6 +35,7 @@ import is.hail.types.BlockMatrixType
 import is.hail.variant.ReferenceGenome
 import org.apache.spark.rdd.RDD
 import org.apache.spark.storage.StorageLevel
+import org.apache.spark.util.TaskCompletionListener
 import org.json4s.JsonAST.{JInt, JObject}
 
 
@@ -43,10 +44,16 @@ class SparkBroadcastValue[T](bc: Broadcast[T]) extends BroadcastValue[T] with Se
 }
 
 class SparkTaskContext(ctx: TaskContext) extends HailTaskContext {
+  self=>
+
   type BackendType = SparkBackend
   override def stageId(): Int = ctx.stageId()
   override def partitionId(): Int = ctx.partitionId()
   override def attemptNumber(): Int = ctx.attemptNumber()
+
+  ctx.addTaskCompletionListener(new TaskCompletionListener {
+    override def onTaskCompletion(context: TaskContext): Unit = self.getRegionPool().close()
+  })
 }
 
 object SparkBackend {
@@ -249,8 +256,7 @@ class SparkBackend(
 
   def broadcast[T : ClassTag](value: T): BroadcastValue[T] = new SparkBroadcastValue[T](sc.broadcast(value))
 
-  def parallelizeAndComputeWithIndex(backendContext: BackendContext, collection: Array[Array[Byte]],
-    dependency: Option[TableStageDependency] = None)(f: (Array[Byte], Int) => Array[Byte]): Array[Array[Byte]] = {
+  def parallelizeAndComputeWithIndex(backendContext: BackendContext, collection: Array[Array[Byte]], dependency: Option[TableStageDependency] = None)(f: (Array[Byte], HailTaskContext) => Array[Byte]): Array[Array[Byte]] = {
 
     val sparkDeps = dependency.toIndexedSeq
       .flatMap(dep => dep.deps.map(rvdDep => new AnonymousDependency(rvdDep.asInstanceOf[RVDDependency].rvd.crdd.rdd)))
@@ -650,7 +656,7 @@ case class SparkBackendComputeRDDPartition(data: Array[Byte], index: Int) extend
 class SparkBackendComputeRDD(
   sc: SparkContext,
   @transient private val collection: Array[Array[Byte]],
-  f: (Array[Byte], Int) => Array[Byte],
+  f: (Array[Byte], HailTaskContext) => Array[Byte],
   deps: Seq[Dependency[_]])
   extends RDD[Array[Byte]](sc, deps) {
 
@@ -660,7 +666,6 @@ class SparkBackendComputeRDD(
 
   override def compute(partition: Partition, context: TaskContext): Iterator[Array[Byte]] = {
     val sp = partition.asInstanceOf[SparkBackendComputeRDDPartition]
-    HailTaskContext.setTaskContext(new SparkTaskContext(TaskContext.get))
-    Iterator.single(f(sp.data, sp.index))
+    Iterator.single(f(sp.data, HailTaskContext.get()))
   }
 }

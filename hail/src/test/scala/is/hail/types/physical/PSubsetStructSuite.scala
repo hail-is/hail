@@ -29,7 +29,7 @@ class PSubsetStructSuite extends PhysicalTestUtils {
       )
     )
 
-    val region = Region()
+    val region = Region(pool=pool)
     val rv = RegionValue(region)
     rv.setOffset(fb.result()()(region, intInput, longInput))
 

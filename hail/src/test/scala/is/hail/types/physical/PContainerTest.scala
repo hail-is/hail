@@ -18,7 +18,7 @@ class PContainerTest extends PhysicalTestUtils {
   }
 
   def testContainsNonZeroBits(sourceType: PArray, data: IndexedSeq[Any]) = {
-    val srcRegion = Region()
+    val srcRegion = Region(pool=pool)
     val src = ScalaToRegionValue(srcRegion, sourceType, data)
 
     log.info(s"Testing $data")
@@ -28,7 +28,7 @@ class PContainerTest extends PhysicalTestUtils {
   }
 
   def testContainsNonZeroBitsStaged(sourceType: PArray, data: IndexedSeq[Any]) = {
-    val srcRegion = Region()
+    val srcRegion = Region(pool=pool)
     val src = ScalaToRegionValue(srcRegion, sourceType, data)
 
     log.info(s"Testing $data")
@@ -43,7 +43,7 @@ class PContainerTest extends PhysicalTestUtils {
   }
 
   def testHasMissingValues(sourceType: PArray, data: IndexedSeq[Any]) = {
-    val srcRegion = Region()
+    val srcRegion = Region(pool=pool)
     val src = ScalaToRegionValue(srcRegion, sourceType, data)
 
     log.info(s"\nTesting $data")

@@ -5,7 +5,8 @@ import is.hail.types.virtual._
 import is.hail.types.physical._
 
 object ShufflerTestUtils {
-  private[this] lazy val region = Region()
+  private[this] lazy val pool = RegionPool()
+  private[this] lazy val region = Region(pool=pool)
   private[this] lazy val rvb = new RegionValueBuilder(region)
 
   def arrayOfUnsafeRow(elementPType: PStruct, array: Array[Long]): Array[UnsafeRow] =

@@ -237,11 +237,11 @@ class CaseBuilder(ConditionalBuilder):
     def _finish(self, default):
         assert len(self._cases) > 0
 
-        from hail.expr.functions import cond
+        from hail.expr.functions import if_else
 
         expr = default
         for conditional, then in self._cases[::-1]:
-            expr = cond(conditional, then, expr, missing_false=self._missing_false)
+            expr = if_else(conditional, then, expr, missing_false=self._missing_false)
         return expr
 
     @typecheck_method(condition=expr_bool, then=expr_any)

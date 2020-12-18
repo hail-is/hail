@@ -256,11 +256,11 @@ def cond(condition,
     --------
 
     >>> x = 5
-    >>> hl.eval(hl.if_else(x < 2, 'Hi', 'Bye'))
+    >>> hl.eval(hl.cond(x < 2, 'Hi', 'Bye'))
     'Bye'
 
     >>> a = hl.literal([1, 2, 3, 4])
-    >>> hl.eval(hl.if_else(hl.len(a) > 0, 2.0 * a, a / 2.0))
+    >>> hl.eval(hl.cond(hl.len(a) > 0, 2.0 * a, a / 2.0))
     [2.0, 4.0, 6.0, 8.0]
 
     Notes

@@ -35,6 +35,9 @@ spec:
       - name: batch-driver
         image: {{ batch_image.image }}
         command:
+{% if not deploy %}
+         - /controller.sh
+{% endif %}
          - python3
          - -m
          - batch.driver
@@ -58,6 +61,11 @@ spec:
              secretKeyRef:
                name: global-config
                key: gcp_region
+         - name: HAIL_GCP_ZONE
+           valueFrom:
+             secretKeyRef:
+               name: global-config
+               key: gcp_zone
          - name: HAIL_BATCH_GCP_REGIONS
            valueFrom:
              secretKeyRef:
@@ -175,6 +183,9 @@ spec:
       - name: batch
         image: {{ batch_image.image }}
         command:
+{% if not deploy %}
+         - /controller.sh
+{% endif %}
          - python3
          - -m
          - batch.front_end
@@ -192,6 +203,11 @@ spec:
              secretKeyRef:
                name: global-config
                key: gcp_region
+         - name: HAIL_GCP_ZONE
+           valueFrom:
+             secretKeyRef:
+               name: global-config
+               key: gcp_zone
          - name: HAIL_BATCH_GCP_REGIONS
            valueFrom:
              secretKeyRef:

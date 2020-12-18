@@ -57,6 +57,9 @@ spec:
         - name: memory
           image: "{{ memory_image.image }}"
           command:
+{% if not deploy %}
+           - /controller.sh
+{% endif %}
            - python3
            - -m
            - memory

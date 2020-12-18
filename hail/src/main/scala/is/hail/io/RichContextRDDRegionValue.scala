@@ -77,7 +77,7 @@ object RichContextRDDRegionValue {
     ctx: RVDContext,
     partDigits: Int,
     stageLocally: Boolean,
-    makeIndexWriter: (String) => IndexWriter,
+    makeIndexWriter: (String, RegionPool) => IndexWriter,
     makeRowsEnc: (OutputStream) => Encoder,
     makeEntriesEnc: (OutputStream) => Encoder
   ): FileWriteMetadata = {
@@ -110,7 +110,7 @@ object RichContextRDDRegionValue {
         using(fs.create(entriesPartPath)) { entriesOS =>
           val trackedEntriesOS = new ByteTrackingOutputStream(entriesOS)
           using(makeEntriesEnc(trackedEntriesOS)) { entriesEN =>
-            using(makeIndexWriter(idxPath)) { iw =>
+            using(makeIndexWriter(idxPath, ctx.r.pool)) { iw =>
               var rowCount = 0L
 
               it.foreach { ptr =>

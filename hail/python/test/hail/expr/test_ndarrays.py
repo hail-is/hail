@@ -270,6 +270,7 @@ def test_ndarray_reshape():
         (zero_dim.reshape((1,)), np_zero_dim.reshape((1,))),
         (a.reshape((6,)), np_a.reshape((6,))),
         (a.reshape((2, 3)), np_a.reshape((2, 3))),
+        (a.reshape(2, 3), np_a.reshape(2, 3)),
         (a.reshape((3, 2)), np_a.reshape((3, 2))),
         (a.reshape((3, -1)), np_a.reshape((3, -1))),
         (a.reshape((-1, 2)), np_a.reshape((-1, 2))),
@@ -312,6 +313,9 @@ def test_ndarray_reshape():
     with pytest.raises(FatalError) as exc:
         hl.eval(shape_zero.reshape((0, -1)))
     assert "Can't reshape" in str(exc)
+
+    with pytest.raises(TypeError):
+        a.reshape(hl.tuple(['4', '5']))
 
 
 def test_ndarray_map():

@@ -15,7 +15,7 @@ class TakeByAggregatorSuite extends HailSuite {
       val cb = fb.ecb
       val stringPT = PCanonicalString(true)
       val tba = new TakeByRVAS(PCanonicalString(true), PInt64Optional, PCanonicalArray(stringPT, required = true), cb)
-      Region.scoped { r =>
+      pool.scopedRegion { r =>
         val argR = fb.getCodeParam[Region](1)
         val i = fb.genFieldThisRef[Long]()
         val off = fb.genFieldThisRef[Long]()
@@ -50,7 +50,7 @@ class TakeByAggregatorSuite extends HailSuite {
     val fb = EmitFunctionBuilder[Region, Long](ctx, "take_by_test_missing")
     val cb = fb.ecb
     val tba = new TakeByRVAS(PInt32Optional, PInt32Optional, PCanonicalArray(PInt32Optional, required = true), cb)
-    Region.scoped { r =>
+    pool.scopedRegion { r =>
       val argR = fb.getCodeParam[Region](1)
       val rt = tba.resultType
 
@@ -81,7 +81,7 @@ class TakeByAggregatorSuite extends HailSuite {
       val fb = EmitFunctionBuilder[Region, Long](ctx, "take_by_test_random")
       val kb = fb.ecb
 
-      Region.scoped { r =>
+      pool.scopedRegion { r =>
         val argR = fb.getCodeParam[Region](1)
         val i = fb.genFieldThisRef[Int]()
         val random = fb.genFieldThisRef[Int]()

@@ -79,7 +79,7 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
 
   def createState(cb: EmitCodeBuilder): Unit =
     cb.ifx(region.isNull, {
-      cb.assign(r, Region.stagedCreate(regionSize))
+      cb.assign(r, Region.stagedCreate(regionSize, kb.pool()))
       cb += region.invalidate()
     })
 
@@ -312,7 +312,7 @@ class TakeByRVAS(val valueType: PType, val keyType: PType, val resultType: PArra
           garbage := garbage + 1,
           (garbage >= maxGarbage).orEmpty(Code(
             oldRegion := region,
-            r := Region.stagedCreate(regionSize),
+            r := Region.stagedCreate(regionSize, kb.pool()),
             ab.reallocateData(),
             initStaging(),
             garbage := 0,

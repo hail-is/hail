@@ -24,14 +24,9 @@ abstract class PNDArray extends PType {
   def codeOrdering(mb: EmitMethodBuilder[_], other: PType): CodeOrdering = throw new UnsupportedOperationException
 
   val shape: StaticallyKnownField[PTuple, Long]
-  val strides: StaticallyKnownField[PTuple, Long]
   val data: StaticallyKnownField[PArray, Long]
 
   val representation: PStruct
-
-  def dimensionLength(off: Code[Long], idx: Int): Code[Long] = {
-    Region.loadLong(shape.pType.fieldOffset(shape.load(off), idx))
-  }
 
   def loadShape(cb: EmitCodeBuilder, off: Code[Long], idx: Int): Code[Long]
 

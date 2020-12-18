@@ -6,4 +6,3 @@ RUN hail-pip-install /ci && rm -rf /ci
 
 EXPOSE 5000
 
-CMD ["python3", "-m", "ci"]

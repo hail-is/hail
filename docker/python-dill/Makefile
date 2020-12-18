@@ -1,2 +1,4 @@
+include ../../config.mk
+
 push:
-	bash push.sh
+	PROJECT=$(PROJECT) bash push.sh

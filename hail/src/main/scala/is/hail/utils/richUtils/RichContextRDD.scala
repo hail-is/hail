@@ -3,6 +3,9 @@ package is.hail.utils.richUtils
 import java.io._
 
 import is.hail.HailContext
+import is.hail.annotations.{Region, RegionPool}
+import is.hail.backend.HailTaskContext
+import is.hail.backend.spark.SparkTaskContext
 import is.hail.expr.ir.ExecuteContext
 import is.hail.io.FileWriteMetadata
 import is.hail.io.fs.FS
@@ -17,7 +20,7 @@ import org.apache.spark.rdd.RDD
 import scala.reflect.ClassTag
 
 object RichContextRDD {
-  def writeParts[T](ctx: RVDContext, rootPath: String, f:String, idxRelPath: String, mkIdxWriter: (String) => IndexWriter,
+  def writeParts[T](ctx: RVDContext, rootPath: String, f:String, idxRelPath: String, mkIdxWriter: (String, RegionPool) => IndexWriter,
                     stageLocally: Boolean, fs: FS, localTmpdir: String, it: Iterator[T],
                     write: (RVDContext, Iterator[T], OutputStream, IndexWriter) => (Long, Long)): Iterator[FileWriteMetadata] = {
     val finalFilename = rootPath + "/parts/" + f
@@ -35,7 +38,7 @@ object RichContextRDD {
       } else
         finalFilename -> finalIdxFilename
     val os = fs.create(filename)
-    val iw = mkIdxWriter(idxFilename)
+    val iw = mkIdxWriter(idxFilename, ctx.r.pool)
 
     // write must close `os` and `iw`
     val (rowCount, bytesWritten) = write(ctx, it, os, iw)
@@ -87,7 +90,7 @@ class RichContextRDD[T: ClassTag](crdd: ContextRDD[T]) {
     path: String,
     idxRelPath: String,
     stageLocally: Boolean,
-    mkIdxWriter: (String) => IndexWriter,
+    mkIdxWriter: (String, RegionPool) => IndexWriter,
     write: (RVDContext, Iterator[T], OutputStream, IndexWriter) => (Long, Long)
   ): Array[FileWriteMetadata] = {
     val localTmpdir = ctx.localTmpdir

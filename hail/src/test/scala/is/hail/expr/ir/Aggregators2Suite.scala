@@ -55,7 +55,7 @@ class Aggregators2Suite extends HailSuite {
     if (transformResult.isEmpty)
       assert(resultType.virtualType.typeCheck(expected), s"expected type ${ resultType.virtualType.parsableString() }, got ${expected}")
 
-    Region.scoped { region =>
+    pool.scopedRegion { region =>
       val argOff = ScalaToRegionValue(region, argT, argVs)
 
       def withArgs(foo: IR) = {
@@ -87,7 +87,7 @@ class Aggregators2Suite extends HailSuite {
         val init = initF(0, region)
         val res = resOneF(0, region)
 
-        Region.smallScoped { aggRegion =>
+        pool.scopedSmallRegion { aggRegion =>
           init.newAggState(aggRegion)
           init(region, argOff)
           res.setAggState(aggRegion, init.getAggOffset())
@@ -100,7 +100,7 @@ class Aggregators2Suite extends HailSuite {
         val init = initF(0, region)
         val seq = withArgs(Begin(seqs))(0, region)
         val write = writeF(0, region)
-        Region.smallScoped { aggRegion =>
+        pool.scopedSmallRegion { aggRegion =>
           init.newAggState(aggRegion)
           init(region, argOff)
           val ioff = init.getAggOffset()
@@ -113,7 +113,7 @@ class Aggregators2Suite extends HailSuite {
         }
       }.toArray
 
-      Region.smallScoped { aggRegion =>
+      pool.scopedSmallRegion { aggRegion =>
         val combOp = combAndDuplicate(0, region)
         combOp.newAggState(aggRegion)
         serializedParts.zipWithIndex.foreach { case (s, i) =>

@@ -1,9 +1,7 @@
-import os
 import asyncio
-import urllib.parse
 import logging
 from hailtop import aiotools
-from hailtop.utils import retry_long_running
+from hailtop.utils import retry_long_running, url_basename
 
 from ..utils import WindowFractionCounter
 from ..batch_configuration import GCP_REGION, BATCH_GCP_REGIONS
@@ -55,9 +53,6 @@ class ZoneMonitor:
 
         self.zone_success_rate = ZoneSuccessRate()
 
-        self.init_zones = None
-        self.init_zone_weights = None
-
         self.region_info = None
 
         self.task_manager = aiotools.BackgroundTaskManager()
@@ -89,7 +84,7 @@ class ZoneMonitor:
 
             weight = max(remaining / len(r['zones']), 1)
             for z in r['zones']:
-                zone_name = os.path.basename(urllib.parse.urlparse(z).path)
+                zone_name = url_basename(z)
                 _zone_weights.append(ZoneWeight(zone_name, weight))
 
         log.info(f'zone_weights {_zone_weights}')
@@ -100,12 +95,6 @@ class ZoneMonitor:
             name: await self.compute_client.get(f'/regions/{name}')
             for name in BATCH_GCP_REGIONS
         }
-
-        self.init_zones = [
-            os.path.basename(urllib.parse.urlparse(z).path)
-            for z in self.region_info[GCP_REGION]['zones']
-        ]
-        self.init_zone_weights = [ZoneWeight(z, 1) for z in self.init_zones]
 
         log.info('updated region quotas')
 

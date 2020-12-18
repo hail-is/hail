@@ -470,10 +470,10 @@ object ExportVCF {
           val localFsBc = ctx.fsBc
           val files = fs.glob(path + "/part-*").map(_.getPath.getBytes)
           info(s"Writing tabix index for ${ files.length } in $path")
-          ctx.backend.parallelizeAndComputeWithIndex(ctx.backendContext, files) { (pathBytes, _) =>
-            TabixVCF(localFsBc, new String(pathBytes))
-            Array.empty
-          }
+          ctx.backend.parallelizeAndComputeWithIndex(ctx.backendContext, files)({ (pathBytes, _) =>
+                      TabixVCF(localFsBc, new String(pathBytes))
+                      Array.empty
+                    })
         case ExportType.PARALLEL_COMPOSABLE =>
           warn("Writing tabix index for `parallel=composable` is not supported. No index will be written.")
       }
