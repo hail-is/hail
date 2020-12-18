@@ -44,14 +44,14 @@
         <th>ratio of first to second</th>
         <th>
             {% if benchmarks1['sha'] is not none %}
-            <a href="{{ base_path }}/?file={{ file1 }}">{{ benchmarks1['sha'] }}</a>
+            <a href="{{ base_path }}/lookup?file={{ file1 }}">{{ benchmarks1['sha'] }}</a>
             {% else %}
             unknown
             {% endif %}
         </th>
         <th>
             {% if benchmarks2['sha'] is not none %}
-            <a href="{{ base_path }}/?file={{ file2 }}">{{ benchmarks2['sha'] }}</a>
+            <a href="{{ base_path }}/lookup?file={{ file2 }}">{{ benchmarks2['sha'] }}</a>
             {% else %}
             unknown
             {% endif %}
