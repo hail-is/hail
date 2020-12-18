@@ -62,6 +62,10 @@ resource "google_container_cluster" "vdc" {
       issue_client_certificate = false
     }
   }
+
+  release_channel {
+    channel = "STABLE"
+  }
 }
 
 resource "google_container_node_pool" "vdc_preemptible_pool" {
