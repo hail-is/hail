@@ -43,6 +43,13 @@ spec:
         - mountPath: /ssl-config
           name: ssl-config-blog
           readOnly: true
+        resources:
+          requests:
+            memory: 338Mi
+            cpu: 90m
+          limits:
+            memory: 3375Mi
+            cpu: 900m
       - name: blog
         image: ghost:3.0-alpine
         env:
@@ -87,11 +94,11 @@ spec:
             name: blog-content
         resources:
           requests:
-            memory: 250Mi
-            cpu: 300m
+            memory: 37Mi
+            cpu: 10m
           limits:
-            memory: 250Mi
-            cpu: "1"
+            memory: 375Mi
+            cpu: 100m
   volumeClaimTemplates:
     - metadata:
         name: blog-content
