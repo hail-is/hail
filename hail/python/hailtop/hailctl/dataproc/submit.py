@@ -28,9 +28,8 @@ def submit(
     print("Submitting to cluster '{}'...".format(cluster_name))
 
     # create files argument
-    files = ''
-    if files:
-        files = files
+    if not files:
+        files = ''
     pyfiles = []
     if pyfiles:
         pyfiles.extend(pyfiles.split(','))

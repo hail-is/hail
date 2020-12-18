@@ -11,7 +11,7 @@ MINIMUM_REQUIRED_GCLOUD_VERSION = (285, 0, 0)
     help='Manage and monitor Hail deployments')
 @click.option('--beta',
               help='Force use of `beta` in gcloud commands')
-def dataproc(beta):
+def dataproc(beta):  # pylint: disable=unused-argument
     try:
         gcloud_version = gcloud.get_version()
         if gcloud_version < MINIMUM_REQUIRED_GCLOUD_VERSION:

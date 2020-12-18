@@ -57,7 +57,7 @@ def modify(ctx,
         print("exactly one of --max-idle and --no-max-idle required", file=sys.stderr)
         sys.exit(1)
 
-    age_count = bool(expiration_time) + bool(max_idle) + bool(no_max_idle)
+    age_count = bool(expiration_time) + bool(max_age) + bool(no_max_age)
     if age_count != 1:
         print("exactly one of --expiration-time, --max-age, and --no-max-age required", file=sys.stderr)
         sys.exit(1)

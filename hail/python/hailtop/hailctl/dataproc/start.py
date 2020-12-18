@@ -1,3 +1,4 @@
+import sys
 import re
 import pkg_resources
 import yaml
@@ -247,6 +248,16 @@ def start(
         requester_pays_allow_annotation_db,
         debug_mode, gcloud_args):
     beta = ctx.parent.params['beta']
+
+    idle_count = bool(max_idle) + bool(no_max_idle)
+    if idle_count != 1:
+        print("exactly one of --max-idle and --no-max-idle required", file=sys.stderr)
+        sys.exit(1)
+
+    age_count = bool(expiration_time) + bool(max_age) + bool(no_max_age)
+    if age_count != 1:
+        print("exactly one of --expiration-time, --max-age, and --no-max-age required", file=sys.stderr)
+        sys.exit(1)
 
     conf = ClusterConfig()
     conf.extend_flag('image-version', IMAGE_VERSION)

@@ -57,7 +57,6 @@ def connect(cluster_name, service, *, project, port, zone, dry_run):
         'nb': 'notebook'
     }
 
-    service = service
     service = shortcut.get(service, service)
 
     # Dataproc port mapping
