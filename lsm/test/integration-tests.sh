@@ -396,3 +396,65 @@ cat > build/expected <<EOF
 EOF
 diff build/out build/expected || failure
 success
+
+echo "Test 16"
+build/main > build/out 2> build/err <<EOF
+p 1 11
+p 2 22
+p 7 77
+p 3 33
+p 8 88
+p 4 44
+p 5 55
+p 9 99
+p 6 66
+d 8
+p 10 100
+p 11 110
+p 13 130
+p 12 120
+p 17 170
+p 14 140
+p 16 160
+p 5 150
+p 18 180
+d 2
+p 19 190
+p 20 200
+p 22 220
+p 23 230
+p 21 210
+p 24 240
+p 25 250
+p 26 260
+p 28 280
+p 27 270
+d 10
+d 3
+p 29 290
+p 32 320
+p 30 300
+p 1 310
+g 1
+g 5
+g 10
+g 8
+g 31
+g 4
+g 3
+g 2
+r 1 11
+EOF
+cat > build/expected <<EOF
+310
+150
+
+
+
+44
+
+
+1:310 4:44 5:150 6:66 7:77 9:99
+EOF
+diff build/out build/expected || failure
+success

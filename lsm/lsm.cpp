@@ -94,7 +94,9 @@ void LSM::add_to_level(std::map<int32_t, maybe_value> m, size_t l_index) {
     std::map<int32_t, maybe_value> merged_m;
     level.read_to_map(merged_f.filename, merged_m);
     add_to_level(merged_m, l_index + 1);
-    get_level(l_index).files.pop_back();
+    std::filesystem::path file_path = get_level(l_index).files.back().filename;
+    get_level(l_index).files.pop_back(); //TODO: why does this error heap-used-after-free if I replace `get_level(l_index)` with `level`?
+    std::filesystem::remove(file_path);
   } else {
     level.add(m);
   }
@@ -128,14 +130,11 @@ std::optional<int32_t> LSM::get(int32_t k) {
       return std::nullopt;
     }
   } else {
-    //for (auto i = levels.rbegin(); i != levels.rend(); ++i ) {
     for(unsigned i = levels.size() - 1; levels.size() > i; --i) {
-      //Level level = *i;
-      Level& level = get_level(i); //TODO
+      Level& level = get_level(i);
       for (auto j = level.files.rbegin(); j != level.files.rend(); ++j) {
         File& file = *j;
         if (file.bloomFilter.contains_key(k) && k >= file.min && k <= file.max) {
-          //std::cout << "exists? " << std::filesystem::exists(file.filename);
           std::map <int32_t, maybe_value> file_map = level.read_from_file(file.filename);
           auto it_m = file_map.find(k);
           if (it_m != file_map.end()) {
