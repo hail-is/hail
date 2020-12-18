@@ -78,14 +78,13 @@ File Level::merge(File older_f, File newer_f) {
   return write_to_file(m, next_file_path());
 }
 void Level::add(std::map<int32_t, maybe_value> m) {
-  File f = write_to_file(m, next_file_path()); //TODO & ?
+  File f = write_to_file(m, next_file_path());
   add_file(f);
 }
 
 void LSM::add_to_level(std::map<int32_t, maybe_value> m, size_t l_index) {
-  Level& level = get_level(l_index); //TODO
+  Level& level = get_level(l_index);
   if (l_index >= levels.size()) {
-    //get_level(l_index).add(m);
     level.add(m);
   } else if (level.size() + 1 >= level.max_size) {
     assert(level.max_size == 2);
@@ -115,7 +114,6 @@ Level& LSM::get_level(size_t index) {
 void LSM::put(int32_t k, int32_t v, char deleted) {
   if (m.size() >= 4) {
     add_to_level(m, 0);
-    //get_level(0).add(m);
     m.clear();
   }
   m.insert_or_assign(k,maybe_value(v, deleted));
