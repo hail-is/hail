@@ -31,7 +31,7 @@ async def async_main():
 
 
 @auth.command(
-    help="Revoke Hail credentials")
+    help="Revoke Hail credentials.")
 def logout():
     loop = asyncio.get_event_loop()
     loop.run_until_complete(async_main())

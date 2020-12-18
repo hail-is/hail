@@ -38,7 +38,8 @@ A parameter with more than one slash is invalid, for example:
     return section, key
 
 
-@hailctl.group()
+@hailctl.group(
+    help="Manage Hail configuration.")
 def config():
     pass
 

@@ -6,7 +6,7 @@ from .auth import auth
 
 @auth.command(
     name='list',
-    help='List Hail credentials')
+    help='List Hail credentials.')
 def auth_list():
     deploy_config = get_deploy_config()
     auth_ns = deploy_config.service_ns('auth')

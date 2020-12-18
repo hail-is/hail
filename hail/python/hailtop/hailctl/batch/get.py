@@ -8,10 +8,11 @@ from .batch_cli_utils import get_batch_if_exists, make_formatter
 
 
 @batch.command(
-    help="Get a particular batch's info")
+    help="Get a particular batch's info.")
 @click.argument('batch_id', type=int)
 @click.option('--output-format', '-o',
               type=click.Choice(['yaml', 'json']),
+              default='yaml', show_default=True,
               help="Specify output format",)
 def get(batch_id, output_format):
     with BatchClient(None) as client:

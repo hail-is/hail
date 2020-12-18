@@ -18,6 +18,7 @@ def init_parser(parent_subparsers):
 
 
 @batch.command(
+    name='list',
     help="List batches.")
 @click.option('--query', '-q',
               help="See docs at https://batch.hail.is/batches.")
@@ -29,7 +30,7 @@ def init_parser(parent_subparsers):
 @click.option('--before', type=int, help='Start listing before supplied id.', default=None)
 @click.option('--full', is_flag=True,
               help='When output is tabular, print more information.')
-@click.option('--no-header',
+@click.option('--no-header', is_flag=True,
               help='Do not print a table header.')
 @click.option('--output-format', '-o',
               default='orgtbl', show_default=True,

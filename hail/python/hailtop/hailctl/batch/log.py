@@ -12,6 +12,7 @@ from .batch_cli_utils import get_job_if_exists, make_formatter
 @click.argument('job_id')
 @click.option('--output-format', '-o',
               type=click.Choice(['yaml', 'json']),
+              default='yaml', show_default=True,
               help="Specify output format",)
 def log(batch_id, job_id, output_format):
     with BatchClient(None) as client:

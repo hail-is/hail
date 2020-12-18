@@ -98,7 +98,7 @@ async def async_main(namespace):
 
 
 @auth.command(
-    help="Obtain Hail credentials")
+    help="Obtain Hail credentials.")
 @click.argument('namespace', required=False)
 def login(namespace):
     loop = asyncio.get_event_loop()

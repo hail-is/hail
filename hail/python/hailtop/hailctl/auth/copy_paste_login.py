@@ -15,7 +15,8 @@ async def async_main(copy_paste_token, namespace):
         print(f'Logged into namespace {auth_ns} as {username}.')
 
 
-@auth.command()
+@auth.command(
+    help="Obtain Hail credentials with a copy paste token.")
 @click.argument('copy_paste_token')
 @click.option('--namespace', '-n')
 def copy_paste_login(copy_paste_token, namespace):  # pylint: disable=unused-argument
