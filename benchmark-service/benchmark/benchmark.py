@@ -375,7 +375,7 @@ async def update_commit(app, sha):  # pylint: disable=unused-argument
         return commit
 
     has_results_file = gs_reader.file_exists(file_path)
-    if has_results_file and benchmark_data['commits'].get(sha) is not None:
+    if has_results_file and sha in benchmark_data['commits']:
         benchmarks = get_benchmarks(app, file_path)
         commit['geo_mean'] = benchmarks['geometric_mean']
         geo_mean = commit['geo_mean']
