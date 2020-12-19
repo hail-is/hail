@@ -1,14 +1,15 @@
-from .dataproc import dataproc
-from .connect import connect
-from .describe import describe
-from .diagnose import diagnose
-from .list_clusters import list_clusters
-from .modify import modify
-from .start import start
-from .stop import stop
-from .submit import submit
+from . import dataproc
+from . import gcloud
+from . import connect
+from . import describe
+from . import diagnose
+from . import list_clusters
+from . import modify
+from . import start
+from . import stop
+from . import submit
 
 __all__ = [
-    'dataproc', 'connect', 'describe', 'diagnose', 'list_clusters', 'modify',
-    'start', 'stop', 'submit'
+    'dataproc', 'gcloud', 'connect', 'describe', 'diagnose', 'list_clusters',
+    'modify', 'start', 'stop', 'submit'
 ]

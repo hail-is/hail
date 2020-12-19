@@ -51,3 +51,11 @@ def check_for_update():
     help="Command line interface and utilities for working with Hail")
 def hailctl():
     check_for_update()
+
+
+def main(*args, standalone_mode=False, **kwargs):
+    try:
+        hailctl(*args, **kwargs)
+    except SystemExit as e:
+        if e.code != 0:
+            raise

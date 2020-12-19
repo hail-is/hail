@@ -48,18 +48,13 @@ def modify(ctx,
            update_hail_version, wheel,
            gcloud_args):
     beta = ctx.parent.params['beta']
+    print(f'beta {beta}')
     if wheel and update_hail_version:
-        print("--wheel and --update-hail-version mutually exclusive", file=sys.stderr)
+        print("at most one of --wheel and --update-hail-version allowed", file=sys.stderr)
         sys.exit(1)
 
-    idle_count = bool(max_idle) + bool(no_max_idle)
-    if idle_count != 1:
-        print("exactly one of --max-idle and --no-max-idle required", file=sys.stderr)
-        sys.exit(1)
-
-    age_count = bool(expiration_time) + bool(max_age) + bool(no_max_age)
-    if age_count != 1:
-        print("exactly one of --expiration-time, --max-age, and --no-max-age required", file=sys.stderr)
+    if expiration_time and max_age:
+        print("at most one of --expiration-time and --max-age allowed", file=sys.stderr)
         sys.exit(1)
 
     modify_args = []

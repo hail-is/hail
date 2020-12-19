@@ -7,7 +7,7 @@ def test_cluster_name_required(capsys, gcloud_run):
     with pytest.raises(SystemExit):
         hailctl.main(["dataproc", "start"])
 
-    assert "arguments are required: name" in capsys.readouterr().err
+    assert "Missing argument 'CLUSTER_NAME'" in capsys.readouterr().err
     assert gcloud_run.call_count == 0
 
 

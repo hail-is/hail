@@ -4,10 +4,10 @@ import click
 from hailtop.auth import namespace_auth_headers
 from hailtop.config import get_deploy_config
 
-from .dataproc import dataproc
+from .hailctl import hailctl
 
 
-@dataproc.command(
+@hailctl.command(
     help="Issue authenticated curl requests to Hail infrastructure.")
 @click.argument('namespace')
 @click.argument('service')

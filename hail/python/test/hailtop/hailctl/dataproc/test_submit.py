@@ -47,6 +47,6 @@ def test_properties(gcloud_run):
 
 
 def test_gcloud_configuration(gcloud_run):
-    hailctl.main(["dataproc", "submit", "test-cluster", "a-script.py", "--gcloud_configuration=some-config"])
+    hailctl.main(["dataproc", "submit", "test-cluster", "a-script.py", "--gcloud-configuration=some-config"])
     assert "--" not in gcloud_run.call_args[0][0]  # make sure arg is passed to gcloud and not job
     assert "--configuration=some-config" in gcloud_run.call_args[0][0]

@@ -232,8 +232,8 @@ def start(
         num_workers, secondary_worker_boot_disk_size,
         worker_boot_disk_size, worker_machine_type,
         region, zone, properties, metadata, packages, project, configuration,
-        max_idle, expiration_time, no_max_idle,
-        max_age, no_max_age,
+        max_idle, expiration_time,
+        max_age,
         bucket, network, master_tags, wheel,
         init, init_timeout, vep, dry_run,
         requester_pays_allow_all, requester_pays_allow_buckets,
@@ -241,14 +241,8 @@ def start(
         debug_mode, gcloud_args):
     beta = ctx.parent.params['beta']
 
-    idle_count = bool(max_idle) + bool(no_max_idle)
-    if idle_count != 1:
-        print("exactly one of --max-idle and --no-max-idle required", file=sys.stderr)
-        sys.exit(1)
-
-    age_count = bool(expiration_time) + bool(max_age) + bool(no_max_age)
-    if age_count != 1:
-        print("exactly one of --expiration-time, --max-age, and --no-max-age required", file=sys.stderr)
+    if expiration_time and max_age:
+        print("at most one of --expiration-time and --max-age allowed", file=sys.stderr)
         sys.exit(1)
 
     conf = ClusterConfig()
@@ -334,14 +328,14 @@ def start(
     conf.extend_flag('metadata', {'WHEEL': wheel})
 
     # if Python packages requested, add metadata variable
-    packages = deploy_metadata['pip_dependencies'].strip('|').split('|||')
+    pkgs = deploy_metadata['pip_dependencies'].strip('|').split('|||')
     metadata_pkgs = conf.flags['metadata'].get('PKGS')
     split_regex = r'[|,]'
     if metadata_pkgs:
-        packages.extend(re.split(split_regex, metadata_pkgs))
+        pkgs.extend(re.split(split_regex, metadata_pkgs))
     if packages:
-        packages.extend(re.split(split_regex, packages))
-    conf.extend_flag('metadata', {'PKGS': '|'.join(set(packages))})
+        pkgs.extend(re.split(split_regex, packages))
+    conf.extend_flag('metadata', {'PKGS': '|'.join(set(pkgs))})
 
     def disk_size(size):
         if vep:

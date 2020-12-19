@@ -17,17 +17,17 @@ def test_cluster_name_required(capsys, gcloud_run):
     with pytest.raises(SystemExit):
         hailctl.main(["dataproc", "modify"])
 
-    assert "arguments are required: name" in capsys.readouterr().err
+    assert "Missing argument 'CLUSTER_NAME'" in capsys.readouterr().err
     assert gcloud_run.call_count == 0
 
 
 def test_cluster_project(gcloud_run):
-    hailctl.main(["dataproc", "modify", "--project=foo", "test-cluster", "--num-workers=2"])
+    hailctl.main(["dataproc", "modify", "test-cluster", "--num-workers=2", "--", "--project=foo"])
     assert "--project=foo" in gcloud_run.call_args[0][0]
 
 
 def test_cluster_region(gcloud_run):
-    hailctl.main(["dataproc", "modify", "--region=europe-north1", "test-cluster", "--num-workers=2"])
+    hailctl.main(["dataproc", "modify", "test-cluster", "--num-workers=2", "--", "--region=europe-north1"])
     assert "--region=europe-north1" in gcloud_run.call_args[0][0]
 
 
@@ -39,7 +39,7 @@ def test_modify_dry_run(gcloud_run):
 @pytest.mark.parametrize("workers_arg", [
     "--num-workers=2",
     "--n-workers=2",
-    "-w=2",
+    "-w2",
 ])
 def test_modify_workers(gcloud_run, workers_arg):
     hailctl.main(["dataproc", "modify", "test-cluster", workers_arg])
@@ -50,7 +50,7 @@ def test_modify_workers(gcloud_run, workers_arg):
     "--num-secondary-workers=2",
     "--num-preemptible-workers=2",
     "--n-pre-workers=2",
-    "-p=2",
+    "-p2",
 ])
 def test_modify_secondary_workers(gcloud_run, workers_arg):
     hailctl.main(["dataproc", "modify", "test-cluster", workers_arg])
@@ -160,7 +160,7 @@ def test_wheel_and_update_hail_version_mutually_exclusive(gcloud_run, capsys):
         hailctl.main(["dataproc", "modify", "test-cluster", "--wheel=./hail.whl", "--update-hail-version"])
 
     assert gcloud_run.call_count == 0
-    assert "argument --update-hail-version: not allowed with argument --wheel" in capsys.readouterr().err
+    assert "at most one of --wheel and --update-hail-version allowed" in capsys.readouterr().err
 
 
 def test_update_hail_version(gcloud_run, monkeypatch, deploy_metadata):

@@ -9,7 +9,7 @@ MINIMUM_REQUIRED_GCLOUD_VERSION = (285, 0, 0)
 
 @hailctl.group(
     help='Manage and monitor Hail deployments.')
-@click.option('--beta',
+@click.option('--beta', is_flag=True,
               help='Force use of `beta` in gcloud commands')
 def dataproc(beta):  # pylint: disable=unused-argument
     try:
