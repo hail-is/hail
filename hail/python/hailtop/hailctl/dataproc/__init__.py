@@ -1,4 +1,4 @@
-from . import dataproc
+from .dataproc import dataproc
 from . import gcloud
 from . import connect
 from . import describe
