@@ -72,8 +72,9 @@ class CollectAggregator(val elemType: VirtualTypeWithReq) extends StagedAggregat
     state.bll.init(cb, state.region)
   }
 
-  protected def _seqOp(cb: EmitCodeBuilder, state: State, seq: Array[EmitCode]): Unit =
+  protected def _seqOp(cb: EmitCodeBuilder, state: State, seq: Array[EmitCode]): Unit = {
     state.bll.push(cb, state.region, seq(0))
+  }
 
   protected def _combOp(cb: EmitCodeBuilder, state: State, other: State): Unit =
     state.bll.append(cb, state.region, other.bll)

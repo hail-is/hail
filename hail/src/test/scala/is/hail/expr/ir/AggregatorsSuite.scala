@@ -548,6 +548,14 @@ class AggregatorsSuite extends HailSuite {
   @Test
   def keyedCount() {
     runKeyedAggregator(Count(),
+      Ref("k", TInt32),
+      TStruct("k" -> TInt32),
+      FastIndexedSeq(Row(1), Row(2), Row(3), Row(1), Row(1), Row(null), Row(null)),
+      Map(1 -> 3L, 2 -> 1L, 3 -> 1L, (null, 2L)),
+      initOpArgs = FastIndexedSeq(),
+      seqOpArgs = FastIndexedSeq())
+
+    runKeyedAggregator(Count(),
       Ref("k", TBoolean),
       TStruct("k" -> TBoolean),
       FastIndexedSeq(Row(true), Row(true), Row(true), Row(false), Row(false), Row(null), Row(null)),

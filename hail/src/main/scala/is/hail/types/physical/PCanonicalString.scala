@@ -74,7 +74,10 @@ class PCanonicalString(val required: Boolean) extends PString {
   }
 
   def storeAtAddress(cb: EmitCodeBuilder, addr: Code[Long], region: Value[Region], value: SCode, deepCopy: Boolean): Unit = {
-    cb += Region.storeAddress(addr, store(cb, region, value, deepCopy))
+    val addrC = cb.newLocal[Long]("addrc", addr)
+    val sc = cb.newLocal[Long]("sc", store(cb, region, value, deepCopy))
+//    cb += Code._printlns("in PCS.storeAtAddress, addr=", addrC.toS, ", ptr=", sc.toS)
+    cb += Region.storeAddress(addrC, sc)
   }
 }
 

@@ -26,15 +26,17 @@ object AggStateSig {
   def apply(op: AggOp, initOpArgs: Seq[(IR, TypeWithRequiredness)], seqOpArgs: Seq[(IR, TypeWithRequiredness)]): AggStateSig = {
     val seqVTypes = seqOpArgs.map { case (a, r) => VirtualTypeWithReq(a.typ, r) }
     op match {
-      case Sum() | Product() => TypedStateSig(seqVTypes.head)
-      case Min() | Max()  => TypedStateSig(seqVTypes.head)
-      case Count() => TypedStateSig(VirtualTypeWithReq(TInt64, RPrimitive()))
+      case Sum() | Product() => TypedStateSig(seqVTypes.head.setRequired(true))
+      case Min() | Max()  => TypedStateSig(seqVTypes.head.setRequired(false))
+      case Count() => TypedStateSig(VirtualTypeWithReq.fullyOptional(TInt64).setRequired(true))
       case Take() => TakeStateSig(seqVTypes.head)
       case TakeBy(reverse) =>
         val Seq(vt, kt) = seqVTypes
         TakeByStateSig(vt, kt, reverse)
       case CallStats() => CallStatsStateSig()
-      case PrevNonnull() => TypedStateSig(seqVTypes.head.setRequired(false))
+      case PrevNonnull() =>
+        println("generating AggStateSig for PrevNonNull")
+        TypedStateSig(seqVTypes.head.setRequired(false))
       case CollectAsSet() => CollectAsSetStateSig(seqVTypes.head)
       case Collect() => CollectStateSig(seqVTypes.head)
       case LinearRegression() => LinearRegressionStateSig(seqVTypes.head)

@@ -158,9 +158,9 @@ class Aggregators2Suite extends HailSuite {
   val rows = FastIndexedSeq(Row("abcd", 5L), null, Row(null, -2L), Row("abcd", 7L), null, Row("foo", null))
   val arrayType = TArray(t)
 
-  val pnnAggSig = PhysicalAggSig(PrevNonnull(), TypedStateSig(VirtualTypeWithReq(t, TypeWithRequiredness(t))))
-  val countAggSig = PhysicalAggSig(Count(), TypedStateSig(VirtualTypeWithReq(TFloat64, RPrimitive())))
-  val sumAggSig = PhysicalAggSig(Sum(), TypedStateSig(VirtualTypeWithReq(TFloat64, RPrimitive())))
+  val pnnAggSig = PhysicalAggSig(PrevNonnull(), TypedStateSig(VirtualTypeWithReq.fullyOptional(t)))
+  val countAggSig = PhysicalAggSig(Count(), TypedStateSig(VirtualTypeWithReq.fullyOptional(TInt64).setRequired(true)))
+  val sumAggSig = PhysicalAggSig(Sum(), TypedStateSig(VirtualTypeWithReq.fullyOptional(TInt64).setRequired(true)))
 
   def collectAggSig(t: Type): PhysicalAggSig = PhysicalAggSig(Collect(), CollectStateSig(VirtualTypeWithReq(PType.canonical(t))))
 
@@ -187,7 +187,7 @@ class Aggregators2Suite extends HailSuite {
   }
 
   @Test def testProduct() {
-    val aggSig = PhysicalAggSig(Product(), TypedStateSig(VirtualTypeWithReq(TInt64, RPrimitive())))
+    val aggSig = PhysicalAggSig(Product(), TypedStateSig(VirtualTypeWithReq.fullyOptional(TInt64).setRequired(true)))
     val seqOpArgs = Array.tabulate(rows.length)(i => FastIndexedSeq[IR](GetField(ArrayRef(Ref("rows", arrayType), i), "b")))
     assertAggEquals(aggSig, FastIndexedSeq(), seqOpArgs, expected = -70L, args = FastIndexedSeq(("rows", (arrayType, rows))))
   }
@@ -695,7 +695,7 @@ class Aggregators2Suite extends HailSuite {
 
   @Test def testRunAggScan(): Unit = {
     implicit val execStrats = ExecStrategy.compileOnly
-    val sig = PhysicalAggSig(Sum(), TypedStateSig(VirtualTypeWithReq(TFloat64, RPrimitive())))
+    val sig = PhysicalAggSig(Sum(), TypedStateSig(VirtualTypeWithReq.fullyOptional(TFloat64).setRequired(true)))
     val x = ToArray(RunAggScan(
       StreamRange(I32(0), I32(5), I32(1)),
       "foo",
@@ -708,7 +708,7 @@ class Aggregators2Suite extends HailSuite {
 
   @Test def testNestedRunAggScan(): Unit = {
     implicit val execStrats = ExecStrategy.compileOnly
-    val sig = PhysicalAggSig(Sum(), TypedStateSig(VirtualTypeWithReq(TFloat64, RPrimitive())))
+    val sig = PhysicalAggSig(Sum(), TypedStateSig(VirtualTypeWithReq.fullyOptional(TFloat64).setRequired(true)))
     val x =
       ToArray(
         StreamFlatMap(

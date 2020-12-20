@@ -36,10 +36,13 @@ class TestBTreeKey(mb: EmitMethodBuilder[_]) extends BTreeKey {
   def deepCopy(cb: EmitCodeBuilder, er: EmitRegion, src: Code[Long], dest: Code[Long]): Unit =
     copy(cb, src, dest)
 
-  def compKeys(k1: EmitCode, k2: EmitCode): Code[Int] =
-    Code(k1.setup, k2.setup, comp((k1.m, k1.v), (k2.m, k2.v)))
+  def compKeys(cb: EmitCodeBuilder, k1: EmitCode, k2: EmitCode): Code[Int] = {
+    cb += k1.setup
+    cb += k2.setup
+    comp(k1.m -> k1.v, k2.m -> k2.v)
+  }
 
-  def loadCompKey(off: Value[Long]): EmitCode =
+  def loadCompKey(cb: EmitCodeBuilder, off: Value[Long]): EmitCode =
     EmitCode(Code._empty, storageType.isFieldMissing(off, 0), PCode(compType, Region.loadLong(storageType.fieldOffset(off, 0))))
 }
 
@@ -140,7 +143,7 @@ class BTreeBackedSet(ctx: ExecuteContext, region: Region, n: Int) {
       cb += sab.clear
       btree.foreach(cb) { (cb, koff) =>
         cb += Code.memoize(koff, "koff") { koff =>
-          val ec = key.loadCompKey(koff)
+          val ec = key.loadCompKey(cb, koff)
           ec.m.mux(sab.addMissing(),
             sab.add(ec.v))
         }
@@ -175,7 +178,7 @@ class BTreeBackedSet(ctx: ExecuteContext, region: Region, n: Int) {
       btree.bulkStore(cb, ob2) { (cb, obc, offc) =>
         val ob = cb.newLocal("ob", obc)
         val off = cb.newLocal("off", offc)
-        val ev = cb.memoize(key.loadCompKey(off), "ev")
+        val ev = cb.memoize(key.loadCompKey(cb, off), "ev")
         cb += ob.writeBoolean(ev.m)
         cb.ifx(!ev.m, {
           cb += ob.writeLong(ev.value[Long])

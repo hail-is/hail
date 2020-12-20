@@ -52,10 +52,13 @@ class TypedKey(typ: PType, kb: EmitClassBuilder[_], region: Value[Region]) exten
       cb += Region.storeAddress(dest, StagedRegionValueBuilder.deepCopyFromOffset(er, storageType, src))
   }
 
-  def compKeys(k1: EmitCode, k2: EmitCode): Code[Int] =
-    Code(k1.setup, k2.setup, kcomp(k1.m -> k1.v, k2.m -> k2.v))
+  def compKeys(cb: EmitCodeBuilder, k1: EmitCode, k2: EmitCode): Code[Int] = {
+    cb += k1.setup
+    cb += k2.setup
+    kcomp(k1.m -> k1.v, k2.m -> k2.v)
+  }
 
-  def loadCompKey(off: Value[Long]): EmitCode =
+  def loadCompKey(cb: EmitCodeBuilder, off: Value[Long]): EmitCode =
     EmitCode(Code._empty, isKeyMissing(off), PCode(typ, loadKey(off)))
 }
 
@@ -128,7 +131,7 @@ class AppendOnlySetState(val kb: EmitClassBuilder[_], vt: VirtualTypeWithReq) ex
         val src = cb.newLocal("aoss_ser_src", srcCode)
         cb += ob.writeBoolean(key.isKeyMissing(src))
         cb.ifx(!key.isKeyMissing(src), {
-          cb.invokeCode(kEnc, key.loadKey(src), ob)
+          cb += kEnc.invokeCode(key.loadKey(src), ob)
         })
       }
     }

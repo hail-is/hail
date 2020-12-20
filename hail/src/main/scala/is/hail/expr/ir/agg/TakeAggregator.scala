@@ -25,7 +25,7 @@ class TakeRVAS(val eltType: VirtualTypeWithReq, val kb: EmitClassBuilder[_]) ext
 
   def createState(cb: EmitCodeBuilder): Unit =
     cb.ifx(region.isNull, {
-      cb.assign(r, Region.stagedCreate(regionSize, region.getPool))
+      cb.assign(r, Region.stagedCreate(regionSize, kb.pool()))
     })
 
   override def load(cb: EmitCodeBuilder, regionLoader: (EmitCodeBuilder, Value[Region]) => Unit, srcc: Code[Long]): Unit = {

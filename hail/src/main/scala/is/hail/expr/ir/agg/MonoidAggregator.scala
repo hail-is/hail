@@ -12,24 +12,33 @@ import scala.reflect.ClassTag
 
 trait StagedMonoidSpec {
   val typ: Type
+
   def neutral: Option[Code[_]]
+
   def apply(v1: Code[_], v2: Code[_]): Code[_]
 }
 
 class MonoidAggregator(monoid: StagedMonoidSpec) extends StagedAggregator {
   type State = PrimitiveRVAState
   val typ: PType = PType.canonical(monoid.typ, required = monoid.neutral.isDefined)
+
   def resultType: PType = typ
+
   val initOpTypes: Seq[Type] = Array[Type]()
   val seqOpTypes: Seq[Type] = Array[Type](monoid.typ)
 
   protected def _initOp(cb: EmitCodeBuilder, state: State, init: Array[EmitCode]): Unit = {
     assert(init.length == 0)
+    val stateRequired = state.vtypes.head.r.required
     val (mOpt, v, _) = state.fields(0)
-    cb += { (mOpt, monoid.neutral) match {
-      case (Some(m), _)  => m.store(true)
-      case (_, Some(v0)) => v.storeAny(v0)
-    }}
+    (mOpt, monoid.neutral) match {
+      case (Some(m), _) =>
+        assert(!stateRequired, s"monoid=$monoid, stateRequired=$stateRequired")
+        cb.assign(m, true)
+      case (_, Some(v0)) =>
+        assert(stateRequired, s"monoid=$monoid, stateRequired=$stateRequired")
+        cb.assignAny(v, v0)
+    }
   }
 
   protected def _seqOp(cb: EmitCodeBuilder, state: State, seq: Array[EmitCode]): Unit = {
@@ -37,28 +46,33 @@ class MonoidAggregator(monoid: StagedMonoidSpec) extends StagedAggregator {
     val (mOpt, v, _) = state.fields(0)
     val eltm = state.kb.genFieldThisRef[Boolean]()
     val eltv = state.kb.genFieldThisRef()(typeToTypeInfo(typ))
+    cb += elt.setup
     cb.assign(eltm, elt.m)
     cb.ifx(eltm,
       {},
       cb.assign(eltv, elt.value))
+//    println("seqop")
     combine(cb, mOpt, v, Some(eltm), eltv)
   }
 
   protected def _combOp(cb: EmitCodeBuilder, state: State, other: State): Unit = {
     val (m1, v1, _) = state.fields(0)
     val (m2, v2, _) = other.fields(0)
+//    println("comb op")
+    cb += Code._printlns(const("in combop, v1="), v1.load().asInstanceOf[Code[Long]].toS, ", v2=", v2.load().asInstanceOf[Code[Long]].toS)
     combine(cb, m1, v1, m2.map(_.load), v2.load)
   }
 
   protected def _result(cb: EmitCodeBuilder, state: State, srvb: StagedRegionValueBuilder): Unit = {
     val (mOpt, v, _) = state.fields(0)
-    cb += { mOpt match {
-      case None => srvb.addIRIntermediate(typ)(v)
+    mOpt match {
+      case None =>
+        cb += srvb.addIRIntermediate(typ)(v)
       case Some(m) =>
-        m.mux(
-          srvb.setMissing(),
-          srvb.addIRIntermediate(typ)(v))
-    }}
+        cb.ifx(m,
+          cb += srvb.setMissing(),
+          cb += srvb.addIRIntermediate(typ)(v))
+    }
   }
 
   private def combine(
@@ -71,22 +85,24 @@ class MonoidAggregator(monoid: StagedMonoidSpec) extends StagedAggregator {
     val ti = typeToTypeInfo(typ)
     ti match {
       case ti: TypeInfo[t] =>
+//        println(s"$monoid, $m1Opt, $m2Opt")
+//        cb += Code._println(const("before monoid combine, value is ").concat(v1.load().asInstanceOf[Code[Long]].toS))
         (m1Opt, m2Opt) match {
           case (None, None) =>
             cb.assignAny(v1, monoid(v1, v2))
           case (None, Some(m2)) =>
             // only update if the element is not missing
-            cb.ifx(m2, cb.assignAny(v1, monoid(v1, v2)))
+            cb.ifx(!m2, cb.assignAny(v1, monoid(v1, v2)))
           case (Some(m1), None) =>
             val v2var = cb.newLocalAny("mon_agg_combine_v2", v2)(ti)
             cb.ifx(m1,
-            {
-              cb.assign(m1, false)
-              cb.assignAny(v1, v2var)
-            },
-            {
-             cb.assignAny(v1, monoid(v1, v2))
-            })
+              {
+                cb.assign(m1, false)
+                cb.assignAny(v1, v2var)
+              },
+              {
+                cb.assignAny(v1, monoid(v1, v2))
+              })
           case (Some(m1), Some(m2)) =>
             val m2var = cb.newLocal[Boolean]("mon_agg_combine_m2", m2)
             val v2var = cb.newLocalAny("mon_agg_combine_v2", v2)(ti)
@@ -102,6 +118,7 @@ class MonoidAggregator(monoid: StagedMonoidSpec) extends StagedAggregator {
               })
         }
     }
+//    cb += Code._println(const("after monoid combine, value is ").concat(v1.load().asInstanceOf[Code[Long]].toS))
   }
 }
 
@@ -110,10 +127,10 @@ class ComparisonMonoid(val typ: Type, val functionName: String) extends StagedMo
   def neutral: Option[Code[_]] = None
 
   private def cmp[T](v1: Code[T], v2: Code[T])(implicit tct: ClassTag[T]): Code[T] =
-    Code.invokeStatic2[Math,T,T,T](functionName, v1, v2)
+    Code.invokeStatic2[Math, T, T, T](functionName, v1, v2)
 
   private def nancmp[T](v1: Code[T], v2: Code[T])(implicit tct: ClassTag[T]): Code[T] =
-    Code.invokeScalaObject2[T,T,T](UtilFunctions.getClass, "nan" + functionName, v1, v2)
+    Code.invokeScalaObject2[T, T, T](UtilFunctions.getClass, "nan" + functionName, v1, v2)
 
   def apply(v1: Code[_], v2: Code[_]): Code[_] = typ match {
     case TInt32 => cmp[Int](coerce(v1), coerce(v2))
@@ -155,6 +172,9 @@ class ProductMonoid(val typ: Type) extends StagedMonoidSpec {
 }
 
 class MinAggregator(typ: Type) extends MonoidAggregator(new ComparisonMonoid(typ, "min"))
+
 class MaxAggregator(typ: Type) extends MonoidAggregator(new ComparisonMonoid(typ, "max"))
+
 class SumAggregator(typ: Type) extends MonoidAggregator(new SumMonoid(typ))
+
 class ProductAggregator(typ: Type) extends MonoidAggregator(new ProductMonoid(typ))

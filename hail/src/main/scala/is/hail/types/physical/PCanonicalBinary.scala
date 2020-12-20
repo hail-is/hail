@@ -55,7 +55,9 @@ class PCanonicalBinary(val required: Boolean) extends PBinary {
   def allocate(region: Code[Region], length: Code[Int]): Code[Long] =
     region.allocate(const(contentAlignment), contentByteSize(length))
 
-  def loadLength(boff: Long): Int = Region.loadInt(boff)
+  def loadLength(boff: Long): Int =  {
+    Region.loadInt(boff)
+  }
 
   def loadLength(boff: Code[Long]): Code[Int] = Region.loadInt(boff)
 
@@ -64,7 +66,12 @@ class PCanonicalBinary(val required: Boolean) extends PBinary {
 
   def loadBytes(bAddress: Code[Long]): Code[Array[Byte]] =
     Code.memoize(bAddress, "pcbin_load_bytes_addr") { bAddress =>
-      loadBytes(bAddress, this.loadLength(bAddress))
+      Code.memoize(this.loadLength(bAddress), "len") { len =>
+        (len < 0 || len > 100).mux(
+          Code._fatal[Array[Byte]](const("bad len: ").concat(len.toS).concat(", bAddr=").concat(bAddress.toS)),
+          loadBytes(bAddress, len)
+        )
+      }
     }
 
   def loadBytes(bAddress: Long, length: Int): Array[Byte] =
@@ -142,6 +149,7 @@ class PCanonicalBinary(val required: Boolean) extends PBinary {
           val newAddr = cb.newLocal[Long]("pcbinary_store_newaddr", allocate(region, len))
           cb += storeLength(newAddr, len)
           cb += Region.copyFrom(bytesAddress(memoizedValue.a), bytesAddress(newAddr), len.toL)
+//          cb += Code._printlns(s"newAddr is ", newAddr.toS)
           newAddr
         } else
           value.asInstanceOf[SBinaryPointerCode].a
@@ -149,7 +157,10 @@ class PCanonicalBinary(val required: Boolean) extends PBinary {
   }
 
   def storeAtAddress(cb: EmitCodeBuilder, addr: Code[Long], region: Value[Region], value: SCode, deepCopy: Boolean): Unit = {
-    cb += Region.storeAddress(addr, store(cb, region, value, deepCopy))
+    val addrC = cb.newLocal[Long]("addrc", addr)
+    val sc = cb.newLocal[Long]("sc", store(cb, region, value, deepCopy))
+//    cb += Code._printlns("in PCB.storeAtAddress, addr=", addrC.toS, ", ptr=", sc.toS)
+    cb += Region.storeAddress(addrC, sc)
   }
 
   def unstagedStoreAtAddress(addr: Long, region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Unit = {

@@ -140,8 +140,15 @@ object VirtualTypeWithReq {
   def apply(pt: PType): VirtualTypeWithReq = {
     val vt = pt.virtualType
     val r = TypeWithRequiredness(vt)
-    r._unionPType(pt)
+    r.fromPType(pt)
     VirtualTypeWithReq(vt, r)
+  }
+
+  def fullyOptional(t: Type): VirtualTypeWithReq = {
+    val twr = TypeWithRequiredness(t)
+    twr.fromPType(PType.canonical(t))
+    assert(!twr.required)
+    VirtualTypeWithReq(t, twr)
   }
 }
 
@@ -151,6 +158,7 @@ case class VirtualTypeWithReq(t: Type, r: TypeWithRequiredness) {
   def setRequired(newReq: Boolean): VirtualTypeWithReq = {
     val newR = r.copy(r.children).asInstanceOf[TypeWithRequiredness]
     newR.hardSetRequiredness(newReq)
+    assert(newR.required == newReq)
     copy(r = newR)
   }
 }

@@ -3,7 +3,8 @@ package is.hail.expr.ir.agg
 import is.hail.annotations.{Region, StagedRegionValueBuilder}
 import is.hail.asm4s
 import is.hail.asm4s.{Code, _}
-import is.hail.expr.ir.{Ascending, EmitClassBuilder, EmitCode, EmitCodeBuilder, ParamType, SortOrder}
+import is.hail.expr.ir.functions.StringFunctions
+import is.hail.expr.ir.{Ascending, EmitClassBuilder, EmitCode, EmitCodeBuilder, EmitRegion, ParamType, SortOrder}
 import is.hail.types.physical._
 import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer}
 import is.hail.types.VirtualTypeWithReq
@@ -49,17 +50,18 @@ class TakeByRVAS(val valueVType: VirtualTypeWithReq, val keyVType: VirtualTypeWi
         ("max_size", PInt32Required)) ++ garbageFields: _*
     )
 
-  private val compareKey: (EmitCodeBuilder, EmitCode, EmitCode) => Code[Int] = {
-    val cmp = kb.genEmitMethod("compare", FastIndexedSeq[ParamType](keyType.asEmitParam, keyType.asEmitParam), IntInfo)
-    val ord = keyType.codeOrdering(cmp, so)
-    val k1 = cmp.getEmitParam(1)
-    val k2 = cmp.getEmitParam(2)
+  def compareKey(cb: EmitCodeBuilder, k1: EmitCode, k2: EmitCode): Code[Int] = {
+    val cmp = kb.genEmitMethod("compare", FastIndexedSeq[ParamType](k1.pv.st.pType.asEmitParam, k2.pv.st.pType.asEmitParam), IntInfo)
+    val ord = k1.pv.st.pType.codeOrdering(cmp, k2.pv.st.pType, so)
+//    println(s"k1t=${k1.pv.st.pType}, k2t=${k2.pv.st.pType}")
 
-    cmp.emit(
+    cmp.emit {
+      val k1 = cmp.getEmitParam(1)
+      val k2 = cmp.getEmitParam(2)
       ord.compare(k1.m -> coerce(k1.v), k2.m -> coerce(k2.v))
-    )
+    }
 
-    (cb, k1, k2) => cb.invokeCode(cmp, k1, k2)
+    cb.invokeCode(cmp, k1, k2)
   }
 
   private val compareIndexedKey: (Code[Long], Code[Long]) => Code[Int] = {
@@ -271,7 +273,7 @@ class TakeByRVAS(val valueVType: VirtualTypeWithReq, val keyVType: VirtualTypeWi
       cb += Region.copyFrom(staging, j, eltTuple.byteSize)
     })
 
-    (cb: EmitCodeBuilder, x: Code[Long], y: Code[Long]) => cb.invokeCode(mb, x, y)
+    (cb: EmitCodeBuilder, x: Code[Long], y: Code[Long]) => cb.invokeVoid(mb, x, y)
   }
 
 
@@ -293,12 +295,12 @@ class TakeByRVAS(val valueVType: VirtualTypeWithReq, val keyVType: VirtualTypeWi
           cb.ifx(compareElt(ii, jj) > 0,
             {
               swap(cb, ii, jj)
-              cb.invokeCode(mb, parent)
+              cb.invokeVoid(mb, parent)
             })
         })
     }
 
-    (cb: EmitCodeBuilder, x: Code[Int]) => cb.invokeCode(mb, x)
+    (cb: EmitCodeBuilder, x: Code[Int]) => cb.invokeVoid(mb, x)
   }
 
   private val rebalanceDown: (EmitCodeBuilder, Code[Int]) => Unit = {
@@ -322,11 +324,11 @@ class TakeByRVAS(val valueVType: VirtualTypeWithReq, val keyVType: VirtualTypeWi
           cb.ifx(compareElt(ii, jj) > 0,
             {
               swap(cb, ii, jj)
-              cb.invokeCode(mb, minChild)
+              cb.invokeVoid(mb, minChild)
             })
         })
     }
-    (cb: EmitCodeBuilder, x: Code[Int]) => cb.invokeCode(mb, x)
+    (cb: EmitCodeBuilder, x: Code[Int]) => cb.invokeVoid(mb, x)
   }
 
   private lazy val gc: EmitCodeBuilder => Unit = {
@@ -338,14 +340,14 @@ class TakeByRVAS(val valueVType: VirtualTypeWithReq, val keyVType: VirtualTypeWi
         cb.ifx(garbage >= maxGarbage,
           {
             cb.assign(oldRegion, region)
-            cb.assign(r, Region.stagedCreate(regionSize, region.getPool()))
+            cb.assign(r, Region.stagedCreate(regionSize, kb.pool()))
             ab.reallocateData(cb)
             initStaging(cb)
             cb.assign(garbage, 0)
             cb += oldRegion.invoke[Unit]("invalidate")
           })
       }
-      (cb: EmitCodeBuilder) => cb.invokeCode(mb)
+      (cb: EmitCodeBuilder) => cb.invokeVoid(mb)
     } else
       (_: EmitCodeBuilder) => ()
   }
@@ -396,21 +398,29 @@ class TakeByRVAS(val valueVType: VirtualTypeWithReq, val keyVType: VirtualTypeWi
     rebalanceUp(cb, ab.size - 1)
   }
 
-  val seqOp: (EmitCodeBuilder, EmitCode, EmitCode) => Unit = {
+  def seqOp(cb: EmitCodeBuilder, v: EmitCode, k: EmitCode): Unit = {
     val mb = kb.genEmitMethod("take_by_seqop",
-      FastIndexedSeq[ParamType](valueType.asEmitParam, keyType.asEmitParam),
+      FastIndexedSeq[ParamType](v.pv.st.pType.asEmitParam, k.pv.st.pType.asEmitParam),
       UnitInfo)
 
-    val value = mb.getEmitParam(1)
-    val key = mb.getEmitParam(2)
+    mb.voidWithBuilder { cb =>
+      val value = mb.getEmitParam(1)
+      val key = mb.getEmitParam(2)
 
-    mb.emitWithBuilder { cb =>
+//      key.toI(cb).consume(cb,
+//        cb += Code._printlns(s" >> running grouped seqop for k=NA"),
+//        k => cb += Code._printlns(s" >> running grouped seqop for k=", StringFunctions.boxArg(new EmitRegion(cb.emb, region), k.pt)(k.code).invoke[String]("toString"))
+//      )
+
+
       cb.ifx(maxSize > 0, {
         cb.ifx(ab.size < maxSize, {
+//          cb +=Code._printlns(s"LESSTHAN - ab.size=", ab.size.toS, ", maxSize=", maxSize.toS)
           stageAndIndexKey(cb, key)
           copyToStaging(cb, value, keyStage)
           enqueueStaging(cb)
         }, {
+//          cb +=Code._printlns(s"GTEQ - ab.size=", ab.size.toS, ", maxSize=", maxSize.toS)
           cb.assign(tempPtr, eltTuple.loadField(elementOffset(0), 0))
           cb.ifx(compareKey(cb, key, loadKey(cb, tempPtr)) < 0, {
             stageAndIndexKey(cb, key)
@@ -420,10 +430,9 @@ class TakeByRVAS(val valueVType: VirtualTypeWithReq, val keyVType: VirtualTypeWi
           })
         })
       })
-      Code._empty
     }
 
-    (cb: EmitCodeBuilder, v: EmitCode, k: EmitCode) => cb.invokeVoid(mb, v, k)
+    cb.invokeVoid(mb, v, k)
   }
 
   // for tests
@@ -469,7 +478,7 @@ class TakeByRVAS(val valueVType: VirtualTypeWithReq, val keyVType: VirtualTypeWi
       cb.assign(maxIndex, maxIndex + other.maxIndex)
     }
 
-    cb.invokeCode(mb)
+    cb.invokeVoid(mb)
   }
 
   def result(_r: Code[Region], resultType: PArray): Code[Long] = {

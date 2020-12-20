@@ -217,10 +217,11 @@ class PrimitiveRVAState(val vtypes: Array[VirtualTypeWithReq], val kb: EmitClass
   def serialize(codec: BufferSpec): (EmitCodeBuilder, Value[OutputBuffer]) => Unit = {
     (cb, ob: Value[OutputBuffer]) =>
       foreachField {
-        case (_, (None, v, t)) => cb += ob.writePrimitive(t)(v)
-        case (_, (Some(m), v, t)) => cb += Code(
-          ob.writeBoolean(m),
-          m.mux(Code._empty, ob.writePrimitive(t)(v)))
+        case (_, (None, v, t)) =>
+          cb += ob.writePrimitive(t)(v)
+        case (_, (Some(m), v, t)) =>
+          cb += ob.writeBoolean(m)
+          cb.ifx(!m, cb += ob.writePrimitive(t)(v))
       }
   }
 
@@ -228,10 +229,10 @@ class PrimitiveRVAState(val vtypes: Array[VirtualTypeWithReq], val kb: EmitClass
     (cb, ib: Value[InputBuffer]) =>
       foreachField {
         case (_, (None, v, t)) =>
-          cb += v.storeAny(ib.readPrimitive(t))
-        case (_, (Some(m), v, t)) => cb += Code(
-          m := ib.readBoolean(),
-          m.mux(Code._empty, v.storeAny(ib.readPrimitive(t))))
+          cb.assignAny(v, ib.readPrimitive(t))
+        case (_, (Some(m), v, t)) =>
+          cb.assign(m, ib.readBoolean())
+          cb.ifx(!m, cb.assignAny(v, ib.readPrimitive(t)))
       }
   }
 }

@@ -3,9 +3,9 @@ package is.hail.expr.ir.agg
 import is.hail.annotations.{Region, StagedRegionValueBuilder}
 import is.hail.asm4s._
 import is.hail.expr.ir._
+import is.hail.io.{InputBuffer, OutputBuffer}
 import is.hail.types.encoded._
 import is.hail.types.physical._
-import is.hail.io.{InputBuffer, OutputBuffer}
 import is.hail.utils._
 
 object StagedBlockLinkedList {
@@ -15,6 +15,7 @@ object StagedBlockLinkedList {
 }
 
 class StagedBlockLinkedList(val elemType: PType, val kb: EmitClassBuilder[_]) {
+
   import StagedBlockLinkedList._
 
   private val firstNode = kb.genFieldThisRef[Long]()
@@ -170,7 +171,7 @@ class StagedBlockLinkedList(val elemType: PType, val kb: EmitClassBuilder[_]) {
         pushF.getCodeParam[Region](1),
         pushF.getEmitParam(2))
     }
-    cb.invokeCode(pushF, region, elt)
+    cb.invokeVoid(pushF, region, elt)
   }
 
   def append(cb: EmitCodeBuilder, region: Value[Region], bll: StagedBlockLinkedList): Unit = {
@@ -185,7 +186,7 @@ class StagedBlockLinkedList(val elemType: PType, val kb: EmitClassBuilder[_]) {
         pushImpl(cb, appF.getCodeParam[Region](1), elt)
       }
     }
-    cb.invokeCode(appF, region)
+    cb.invokeVoid(appF, region)
   }
 
   def writeToSRVB(cb: EmitCodeBuilder, resultType: PCanonicalArray, srvb: StagedRegionValueBuilder): Unit = {
@@ -219,7 +220,7 @@ class StagedBlockLinkedList(val elemType: PType, val kb: EmitClassBuilder[_]) {
       }
       cb += ob.writeBoolean(false)
     }
-    cb.invokeCode(serF, region, outputBuffer)
+    cb.invokeVoid(serF, region, outputBuffer)
   }
 
   def deserialize(cb: EmitCodeBuilder, region: Code[Region], inputBuffer: Code[InputBuffer]): Unit = {
@@ -235,7 +236,7 @@ class StagedBlockLinkedList(val elemType: PType, val kb: EmitClassBuilder[_]) {
         array := dec(r, ib),
         appendShallow(desF, r, array))
     )
-    cb += desF.invokeCode[Unit](region, inputBuffer)
+    cb.invokeVoid(desF, region, inputBuffer)
   }
 
   private def appendShallow(mb: EmitMethodBuilder[_], r: Code[Region], aoff: Code[Long]): Code[Unit] = {
@@ -279,6 +280,6 @@ class StagedBlockLinkedList(val elemType: PType, val kb: EmitClassBuilder[_]) {
       }
       cb.assign(totalCount, other.totalCount)
     }
-    cb.invokeCode(initF, region)
+    cb.invokeVoid(initF, region)
   }
 }
