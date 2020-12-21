@@ -533,11 +533,10 @@ def check_all(f, args, kwargs, checks, is_method):
         checker = checks[arg_name]
         assert isinstance(param, inspect.Parameter)
 
-        treated_as_positional = (
-            param.kind == param.POSITIONAL_ONLY or
-            (param.kind == param.POSITIONAL_OR_KEYWORD and i < len(args)))
+        keyword_passed_as_positional = param.kind == param.POSITIONAL_OR_KEYWORD and i < len(args)
+        necessarily_positional = param.kind == param.POSITIONAL_ONLY
 
-        if treated_as_positional:
+        if necessarily_positional or keyword_passed_as_positional:
             if i >= len(args):
                 raise TypeError(
                     f'Expected {n_pos_args} positional arguments, found {len(args)}')
