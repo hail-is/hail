@@ -534,9 +534,8 @@ def check_all(f, args, kwargs, checks, is_method):
         assert isinstance(param, inspect.Parameter)
 
         treated_as_positional = (
-            param.kind == param.POSITIONAL_ONLY
-            or
-            param.kind == param.POSITIONAL_OR_KEYWORD and i < len(args))
+            param.kind == param.POSITIONAL_ONLY or
+            (param.kind == param.POSITIONAL_OR_KEYWORD and i < len(args)))
 
         if treated_as_positional:
             if i >= len(args):
