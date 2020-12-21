@@ -188,7 +188,7 @@ def new_local_temp_file(filename: str = 'temp') -> str:
 
 @contextmanager
 def with_local_temp_file(filename: str = 'temp') -> str:
-    path = new_local_temp_dir(filename)
+    path = new_local_temp_file(filename)
     try:
         yield path
     finally:
