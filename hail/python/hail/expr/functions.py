@@ -3176,9 +3176,9 @@ def any(*args) -> BooleanExpression:
             f = arg_check(args[0], 'any', 'f', any_to_bool_type)
             collection = arg_check(args[1], 'any', 'collection', collection_type)
             return collection.any(f)
-    n_args = len(args)
+    n_args = builtins.len(args)
     args = [args_check(x, 'any', 'exprs', i, n_args, expr_bool)
-            for i, x in enumerate(args)]
+            for i, x in builtins.enumerate(args)]
     return functools.reduce(operator.ior, args, base)
 
 
@@ -3248,9 +3248,9 @@ def all(*args) -> BooleanExpression:
             f = arg_check(args[0], 'all', 'f', any_to_bool_type)
             collection = arg_check(args[1], 'all', 'collection', collection_type)
             return collection.all(f)
-    n_args = len(args)
+    n_args = builtins.len(args)
     args = [args_check(x, 'all', 'exprs', i, n_args, expr_bool)
-            for i, x in enumerate(args)]
+            for i, x in builtins.enumerate(args)]
     return functools.reduce(operator.iand, args, base)
 
 
