@@ -91,7 +91,7 @@ spec:
               memory: 187Mi
               cpu: 50m
             limits:
-              memory: 1875i
+              memory: 1875Mi
               cpu: 500m
           readinessProbe:
             tcpSocket:
