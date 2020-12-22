@@ -6,9 +6,24 @@
     <div>Worker cores: <input name="worker_cores" value="{{ config['worker_cores'] }}" /></div>
     <div>Worker type: <input name="worker_type" value="{{ config['worker_type'] }}" /></div>
     <div>Worker boot disk size (in GB): <input name="worker_disk_size_gb" value="{{ config['worker_disk_size_gb'] }}" /></div>
-    <div>Worker local SSD data disk (boolean): <input name="worker_local_ssd_data_disk" value="{{ config['worker_local_ssd_data_disk'] }}" /></div>
+    <div>
+      <label for="worker_local_ssd_data_disk">Worker should use a Local SSD: </label>
+      <input type="checkbox"
+             id="worker_local_ssd_data_disk"
+             name="worker_local_ssd_data_disk"
+             {% if config['worker_local_ssd_data_disk']%}checked{% endif %}
+             value="true" />
+    </div>
     <div>Worker PD SSD data disk size (in GB): <input name="worker_pd_ssd_data_disk_size_gb" value="{{ config['worker_pd_ssd_data_disk_size_gb'] }}" /></div>
     <div>Standing worker cores: <input name="standing_worker_cores" value="{{ config['standing_worker_cores'] }}" /></div>
+    <div>
+      <label for="enable_standing_worker">Enable standing worker: </label>
+      <input type="checkbox"
+             id="enable_standing_worker"
+             name="enable_standing_worker"
+             {% if config['enable_standing_worker']%}checked{% endif %}
+             value="true" />
+    </div>
     <div>Max instances: <input name="max_instances" value="{{ config['max_instances'] }}" /></div>
     <div>Worker pool size: <input name="pool_size" value="{{ config['pool_size'] }}" /></div>
     <input type="hidden" name="_csrf" value="{{ csrf_token }}"/>
