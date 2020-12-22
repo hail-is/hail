@@ -58,6 +58,7 @@ class InstancePool:
         self.standing_worker_cores = None
         self.max_instances = None
         self.pool_size = None
+        self.enable_standing_worker = None
 
         self.instances_by_last_updated = sortedcontainers.SortedSet(
             key=lambda instance: instance.last_updated)
