@@ -532,68 +532,31 @@ def check_all(f, args, kwargs, checks, is_method):
             continue
         checker = checks[arg_name]
         assert isinstance(param, inspect.Parameter)
-        if param.kind in (param.POSITIONAL_ONLY, param.POSITIONAL_OR_KEYWORD, param.KEYWORD_ONLY):
-            try:
-                if param.kind in (param.POSITIONAL_ONLY, param.POSITIONAL_OR_KEYWORD):
-                    # must be positional
-                    if i < len(args):
-                        arg = args[i]
-                        args_.append(checker.check(arg, name, arg_name))
-                    # passed as keyword
-                    else:
-                        if arg_name in kwargs:
-                            arg = kwargs.pop(arg_name)
-                        else:
-                            if param.default is inspect._empty:
-                                raise TypeError(f'Expected {n_pos_args} positional arguments, '
-                                                f'found {len(args)}')
-                            arg = param.default
-                        args_.append(checker.check(arg, name, arg_name))
-                else:
-                    if arg_name in kwargs:
-                        arg = kwargs.pop(arg_name)
-                    else:
-                        if param.default is inspect._empty:
-                            raise TypeError(f"{name}() missing required keyword-only argument '{arg_name}'")
-                        arg = param.default
-                    kwargs_[arg_name] = checker.check(arg, name, arg_name)
-            except TypecheckFailure as e:
-                raise TypeError("{fname}: parameter '{argname}': "
-                                "expected {expected}, found {found}".format(
-                                    fname=name,
-                                    argname=arg_name,
-                                    expected=checker.expects(),
-                                    found=checker.format(arg)
-                                )) from e
+
+        keyword_passed_as_positional = param.kind == param.POSITIONAL_OR_KEYWORD and i < len(args)
+        necessarily_positional = param.kind == param.POSITIONAL_ONLY
+
+        if necessarily_positional or keyword_passed_as_positional:
+            if i >= len(args):
+                raise TypeError(
+                    f'Expected {n_pos_args} positional arguments, found {len(args)}')
+            args_.append(arg_check(args[i], name, arg_name, checker))
+        elif param.kind in (param.KEYWORD_ONLY, param.POSITIONAL_OR_KEYWORD):
+            arg = kwargs.pop(arg_name, param.default)
+            if arg is inspect._empty:
+                raise TypeError(
+                    f"{name}() missing required keyword-only argument '{arg_name}'")
+            kwargs_[arg_name] = arg_check(arg, name, arg_name, checker)
         elif param.kind == param.VAR_POSITIONAL:
             # consume the rest of the positional arguments
             varargs = args[i:]
             for j, arg in enumerate(varargs):
-                try:
-                    args_.append(checker.check(arg, name, arg_name))
-                except TypecheckFailure as e:
-                    raise TypeError("{fname}: parameter '*{argname}' (arg {idx} of {tot}): "
-                                    "expected {expected}, found {found}".format(
-                                        fname=name,
-                                        argname=arg_name,
-                                        idx=j,
-                                        tot=len(varargs),
-                                        expected=checker.expects(),
-                                        found=checker.format(arg)
-                                    )) from e
+                args_.append(args_check(arg, name, arg_name, j, len(varargs), checker))
         else:
             assert param.kind == param.VAR_KEYWORD
             # kwargs now holds all variable kwargs
             for kwarg_name, arg in kwargs.items():
-                try:
-                    kwargs_[kwarg_name] = checker.check(arg, name, arg_name)
-                except TypecheckFailure as e:
-                    raise TypeError("{fname}: keyword argument '{argname}': "
-                                    "expected {expected}, found {found}".format(
-                                        fname=name,
-                                        argname=kwarg_name,
-                                        expected=checker.expects(),
-                                        found=checker.format(arg))) from e
+                kwargs_[kwarg_name] = kwargs_check(arg, name, kwarg_name, checker)
     return args_, kwargs_
 
 
@@ -614,3 +577,48 @@ def _make_dec(checkers, is_method):
         return __original_func(*args_, **kwargs_)
 
     return wrapper
+
+
+def arg_check(arg, function_name: str, arg_name: str, checker: TypeChecker):
+    try:
+        return checker.check(arg, function_name, arg_name)
+    except TypecheckFailure as e:
+        raise TypeError("{fname}: parameter '{argname}': "
+                        "expected {expected}, found {found}".format(
+                            fname=function_name,
+                            argname=arg_name,
+                            expected=checker.expects(),
+                            found=checker.format(arg)
+                        )) from e
+
+
+def args_check(arg,
+               function_name: str,
+               arg_name: str,
+               index: int,
+               total_varargs: int,
+               checker: TypeChecker):
+    try:
+        return checker.check(arg, function_name, arg_name)
+    except TypecheckFailure as e:
+        raise TypeError("{fname}: parameter '*{argname}' (arg {idx} of {tot}): "
+                        "expected {expected}, found {found}".format(
+                            fname=function_name,
+                            argname=arg_name,
+                            idx=index,
+                            tot=total_varargs,
+                            expected=checker.expects(),
+                            found=checker.format(arg)
+                        )) from e
+
+
+def kwargs_check(arg, function_name: str, kwarg_name: str, checker: TypeChecker):
+    try:
+        return checker.check(arg, function_name, kwarg_name)
+    except TypecheckFailure as e:
+        raise TypeError("{fname}: keyword argument '{argname}': "
+                        "expected {expected}, found {found}".format(
+                            fname=function_name,
+                            argname=kwarg_name,
+                            expected=checker.expects(),
+                            found=checker.format(arg))) from e
