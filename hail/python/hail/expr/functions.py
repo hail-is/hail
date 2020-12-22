@@ -3208,16 +3208,19 @@ def all(*args) -> BooleanExpression:
     >>> hl.eval(hl.all(False))
     False
 
-    >>> hl.eval(hl.all(False, False, True, False))
+    >>> hl.eval(hl.all(True, True, True))
     True
+
+    >>> hl.eval(hl.all(False, False, True, False))
+    False
 
     The second form:
 
     >>> hl.eval(hl.all([False, True, False]))
-    True
-
-    >>> hl.eval(hl.all([False, False, False]))
     False
+
+    >>> hl.eval(hl.all([True, True, True]))
+    True
 
     The third form:
 
