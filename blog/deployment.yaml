@@ -45,11 +45,11 @@ spec:
           readOnly: true
         resources:
           requests:
-            memory: 338Mi
-            cpu: 90m
+            memory: 168Mi
+            cpu: 50m
           limits:
-            memory: 3375Mi
-            cpu: 900m
+            memory: 1687Mi
+            cpu: 500m
       - name: blog
         image: ghost:3.0-alpine
         env:
@@ -94,11 +94,11 @@ spec:
             name: blog-content
         resources:
           requests:
-            memory: 37Mi
-            cpu: 10m
+            memory: 168Mi
+            cpu: 50m
           limits:
-            memory: 375Mi
-            cpu: 100m
+            memory: 1687Mi
+            cpu: 500m
   volumeClaimTemplates:
     - metadata:
         name: blog-content
