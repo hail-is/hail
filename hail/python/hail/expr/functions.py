@@ -3200,7 +3200,7 @@ def all(*args) -> BooleanExpression:
     The first form:
 
     >>> hl.eval(hl.all())
-    False
+    True
 
     >>> hl.eval(hl.all(True))
     True
