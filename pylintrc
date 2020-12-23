@@ -26,5 +26,3 @@ const-rgx=(([a-zA-Z_][a-zA-Z0-9_]*)|(__.*__))$
 
 # Maximum number of characters on a single line.
 max-line-length=120
-
-ignore-patterns=.*_flymake\.py,flycheck_.*\.py
