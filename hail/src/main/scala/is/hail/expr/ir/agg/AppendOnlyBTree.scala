@@ -178,31 +178,40 @@ class AppendOnlyBTree(kb: EmitClassBuilder[_], key: BTreeKey, region: Value[Regi
     val node = get.getCodeParam[Long](1)
     val k = get.getEmitParam(2)
 
-    val cmp = get.newLocal[Int]()
-    val keyV = get.newLocal[Long]()
+    val code = EmitCodeBuilder.scopedCode(get) { cb =>
+      val cmp = cb.newLocal("cmp", -1)
+      val keyV = cb.newLocal("keyV", 0L)
 
-    def insertOrGetAt(i: Int) = EmitCodeBuilder.scopedVoid(get) { cb =>
-      cb.ifx(isLeaf(node), {
-        cb.assign(keyV, cb.invokeCode(insert, node, const(i), k, const(0L)))
-        cb.assign(cmp, 0)
-      }, {
-        cb.assign(node, loadChild(node, i - 1))
+      def insertOrGetAt(i: Int) = {
+        cb.ifx(isLeaf(node), {
+          cb.assign(keyV, cb.invokeCode(insert, node, const(i), k, const(0L)))
+          cb.assign(cmp, 0)
+        }, {
+          cb.assign(node, loadChild(node, i - 1))
+        })
+      }
+
+      cb.whileLoop(cmp.cne(0), { Lcont =>
+        (0 until maxElements).foreach { i =>
+          cb.ifx(hasKey(node, i), {
+            cb.assign(keyV, loadKey(node, i))
+            cb.assign(cmp, key.compWithKey(keyV, k))
+            cb.ifx(cmp.ceq(0), cb.goto(Lcont))
+            cb.ifx(cmp > 0, {
+              insertOrGetAt(i)
+              cb.goto(Lcont)
+            })
+          }, {
+            insertOrGetAt(i)
+            cb.goto(Lcont)
+          })
+        }
+        insertOrGetAt(maxElements)
       })
+      keyV.get
     }
 
-    get.emit(Code(
-      cmp := -1,
-      keyV := 0L,
-      Code.whileLoop(cmp.cne(0),
-        Array.range(0, maxElements).foldRight(insertOrGetAt(maxElements)) { (i, cont) =>
-          val storeKeyAndComp = Code(
-            keyV := loadKey(node, i),
-            cmp := key.compWithKey(keyV, k))
-          (hasKey(node, i) && Code(storeKeyAndComp, cmp <= 0)).mux(
-            (cmp < 0).orEmpty(cont),
-            insertOrGetAt(i))
-        }),
-      keyV))
+    get.emit(code)
     get
   }
 
