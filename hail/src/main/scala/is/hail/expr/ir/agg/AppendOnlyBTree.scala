@@ -131,17 +131,23 @@ class AppendOnlyBTree(kb: EmitClassBuilder[_], key: BTreeKey, region: Value[Regi
     }
 
     def promote(idx: Int): Code[Unit] = EmitCodeBuilder.scopedVoid(insertAt) { cb =>
-      val upperBound = Array.range(0, maxElements)
-        .foldRight(maxElements: Code[Int]) { (i, cont) =>
-          (!hasKey(parent, i) ||
-            key.compSame(loadKey(parent, i), loadKey(node, idx)) >= 0)
-            .mux(i, cont)
-        }
-      val nikey = cb.newLocal("aobt_insert_nikey", loadKey(node, idx))
-      val compKey = key.loadCompKey(nikey)
       cb.ifx(!isLeaf(node), {
         cb += setChild(newNode, -1, loadChild(node, idx))
       })
+
+      val upperBound = cb.newLocal("promote_upper_bound", maxElements)
+      val Lfound = CodeLabel()
+
+      (0 until maxElements).foreach { i =>
+        cb.ifx(!hasKey(parent, i) || key.compSame(loadKey(parent, i), loadKey(node, idx)) >= 0, {
+          cb.assign(upperBound, i)
+          cb.goto(Lfound)
+        })
+      }
+
+      cb.define(Lfound)
+      val nikey = cb.newLocal("aobt_insert_nikey", loadKey(node, idx))
+      val compKey = key.loadCompKey(nikey)
       cb += key.copy(loadKey(node, idx), cb.invokeCode(insertAt, parent, upperBound, compKey, newNode))
       cb += setKeyMissing(node, idx)
     }
