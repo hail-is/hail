@@ -60,7 +60,6 @@ NAMESPACE = os.environ['NAMESPACE']
 IP_ADDRESS = os.environ['IP_ADDRESS']
 BATCH_LOGS_BUCKET_NAME = os.environ['BATCH_LOGS_BUCKET_NAME']
 INSTANCE_ID = os.environ['INSTANCE_ID']
-PROJECT = os.environ['PROJECT']
 WORKER_CONFIG = json.loads(base64.b64decode(os.environ['WORKER_CONFIG']).decode())
 MAX_IDLE_TIME_MSECS = int(os.environ['MAX_IDLE_TIME_MSECS'])
 WORKER_DATA_DISK_MOUNT = os.environ['WORKER_DATA_DISK_MOUNT']
