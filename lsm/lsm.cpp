@@ -90,7 +90,7 @@ void LSM::add_to_level(std::map<int32_t, maybe_value> m, size_t l_index) {
   if (level.size() + 1 == level.max_size) {
     assert(level.max_size == 2);
     File merged_f = level.merge(level.files.back(),
-                                          level.write_to_file(m, level.next_file_path()));
+                                level.write_to_file(m, level.next_file_path()));
     std::map<int32_t, maybe_value> merged_m;
     level.read_to_map(merged_f.filename, merged_m);
     add_to_level(merged_m, l_index + 1);
