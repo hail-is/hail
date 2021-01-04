@@ -100,16 +100,6 @@ class AppendOnlyBTree(kb: EmitClassBuilder[_], key: BTreeKey, region: Value[Regi
           (!isLeaf(srcNode)).orEmpty(setChild(destNode, destIdx, loadChild(srcNode, srcIdx))))
       }
 
-    val shiftAndInsert = Array.range(1, maxElements)
-      .foldLeft(makeUninitialized(0)) { (cont, destIdx) =>
-        Code(
-          hasKey(node, destIdx - 1).orEmpty(
-            copyFrom(node, destIdx, node, destIdx - 1)),
-          insertIdx.ceq(destIdx).mux(
-            makeUninitialized(destIdx),
-            cont))
-      }
-
     def copyToNew(startIdx: Int) = Code(
       Array.tabulate(maxElements - startIdx) { newIdx =>
         Code(copyFrom(newNode, newIdx, node, newIdx + startIdx),
@@ -117,12 +107,17 @@ class AppendOnlyBTree(kb: EmitClassBuilder[_], key: BTreeKey, region: Value[Regi
       })
 
     def insertKey(ev: EmitValue, c: Code[Long]): Code[Long] = EmitCodeBuilder.scopedCode(insertAt) { cb =>
-      val upperBound = Array.range(0, maxElements)
-        .foldRight(maxElements: Code[Int]) { (i, cont) =>
-          (!hasKey(parent, i) ||
-            key.compWithKey(loadKey(parent, i), ev) >= 0)
-            .mux(i, cont)
-        }
+      val upperBound = cb.newLocal("insertKey_upper_bound", maxElements)
+      val Lfound = CodeLabel()
+
+      (0 until maxElements).foreach { i =>
+        cb.ifx(!hasKey(parent, i) || key.compWithKey(loadKey(parent, i), ev) >= 0, {
+          cb.assign(upperBound, i)
+          cb.goto(Lfound)
+        })
+      }
+
+      cb.define(Lfound)
 
       cb.ifx(!isLeaf(node), {
         cb += setChild(newNode, -1, c)
@@ -131,17 +126,23 @@ class AppendOnlyBTree(kb: EmitClassBuilder[_], key: BTreeKey, region: Value[Regi
     }
 
     def promote(idx: Int): Code[Unit] = EmitCodeBuilder.scopedVoid(insertAt) { cb =>
-      val upperBound = Array.range(0, maxElements)
-        .foldRight(maxElements: Code[Int]) { (i, cont) =>
-          (!hasKey(parent, i) ||
-            key.compSame(loadKey(parent, i), loadKey(node, idx)) >= 0)
-            .mux(i, cont)
-        }
-      val nikey = cb.newLocal("aobt_insert_nikey", loadKey(node, idx))
-      val compKey = key.loadCompKey(nikey)
       cb.ifx(!isLeaf(node), {
         cb += setChild(newNode, -1, loadChild(node, idx))
       })
+
+      val upperBound = cb.newLocal("promote_upper_bound", maxElements)
+      val Lfound = CodeLabel()
+
+      (0 until maxElements).foreach { i =>
+        cb.ifx(!hasKey(parent, i) || key.compSame(loadKey(parent, i), loadKey(node, idx)) >= 0, {
+          cb.assign(upperBound, i)
+          cb.goto(Lfound)
+        })
+      }
+
+      cb.define(Lfound)
+      val nikey = cb.newLocal("aobt_insert_nikey", loadKey(node, idx))
+      val compKey = key.loadCompKey(nikey)
       cb += key.copy(loadKey(node, idx), cb.invokeCode(insertAt, parent, upperBound, compKey, newNode))
       cb += setKeyMissing(node, idx)
     }
@@ -167,6 +168,23 @@ class AppendOnlyBTree(kb: EmitClassBuilder[_], key: BTreeKey, region: Value[Regi
         })
       })
       out
+    }
+
+    val shiftAndInsert = EmitCodeBuilder.scopedCode(insertAt) { cb =>
+      val ret = cb.newLocal[Long]("shift_and_insert")
+      val Lout = CodeLabel()
+      (1 until maxElements).reverse.foreach { destIdx =>
+        cb.ifx(hasKey(node, destIdx - 1), {
+          cb += copyFrom(node, destIdx, node, destIdx - 1)
+        })
+        cb.ifx(insertIdx.ceq(destIdx), {
+          cb.assign(ret, makeUninitialized(destIdx))
+          cb.goto(Lout)
+        })
+      }
+      cb.assign(ret, makeUninitialized(0))
+      cb.define(Lout)
+      ret
     }
 
     insertAt.emit(isFull(node).mux(splitAndInsert, shiftAndInsert))
