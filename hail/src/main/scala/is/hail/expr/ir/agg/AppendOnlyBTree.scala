@@ -278,31 +278,33 @@ class AppendOnlyBTree(kb: EmitClassBuilder[_], key: BTreeKey, region: Value[Regi
 
   val deepCopy: Code[Long] => Code[Unit] = {
     val f = kb.genEmitMethod("btree_deepCopy", FastIndexedSeq[ParamType](typeInfo[Long], typeInfo[Long]), typeInfo[Unit])
-    val destNode = f.getCodeParam[Long](1)
-    val srcNode = f.getCodeParam[Long](2)
+    f.voidWithBuilder { cb =>
+      val destNode = f.getCodeParam[Long](1)
+      val srcNode = f.getCodeParam[Long](2)
 
-    val er = EmitRegion(f, region)
-    val newNode = f.newLocal[Long]()
+      val er = EmitRegion(cb.emb, region)
+      val newNode = cb.newLocal[Long]("new_node")
 
-    def copyChild(i: Int) =
-      Code(createNode(newNode),
-        f.invokeCode[Unit](newNode, loadChild(srcNode, i)))
+      def copyChild(i: Int): Unit = {
+        cb += createNode(newNode)
+        cb.invokeVoid(cb.emb, newNode, loadChild(srcNode, i))
+      }
 
-    val copyNodes = Array.range(0, maxElements).foldRight(Code._empty) { (i, cont) =>
-      hasKey(srcNode, i).orEmpty(
-        Code(
-          key.deepCopy(er, destNode, srcNode),
-          (!isLeaf(srcNode)).orEmpty(Code(
-            copyChild(i),
-            setChild(destNode, i, newNode))),
-          cont))
+      cb.ifx(!isLeaf(srcNode), {
+        copyChild(-1)
+        cb += setChild(destNode, -1, newNode)
+      })
+
+      (0 until maxElements).foreach { i =>
+        cb.ifx(hasKey(srcNode, i), {
+          cb += key.deepCopy(er, destNode, srcNode)
+          cb.ifx(!isLeaf(srcNode), {
+            copyChild(i)
+            cb += setChild(destNode, i, newNode)
+          })
+        })
+      }
     }
-
-    f.emit(Code(
-      (!isLeaf(srcNode)).orEmpty(
-        Code(copyChild(-1),
-          setChild(destNode, -1, newNode))),
-      copyNodes))
 
     { srcRoot: Code[Long] => f.invokeCode(root, srcRoot) }
   }
