@@ -1,6 +1,6 @@
 package is.hail.expr
 
-import is.hail.annotations.Annotation
+import is.hail.annotations.{Annotation, UnsafeNDArray}
 import is.hail.expr.ir.functions.UtilFunctions
 import is.hail.types.physical.{PBoolean, PCanonicalArray, PCanonicalBinary, PCanonicalString, PCanonicalStruct, PFloat32, PFloat64, PInt32, PInt64, PType}
 import is.hail.types.virtual._
@@ -132,7 +132,11 @@ object JSONAnnotationImpex {
           val row = a.asInstanceOf[Row]
           JArray(List.tabulate(row.size) { i => exportAnnotation(row.get(i), types(i).typ) })
         case t: TNDArray =>
-          exportAnnotation(a, t.representation)
+          val jnd = a.asInstanceOf[UnsafeNDArray]
+          JObject(
+            "shape" -> JArray(jnd.shape.map(shapeEntry => JInt(shapeEntry)).toList),
+            "data" -> JArray(jnd.elements.map(a => exportAnnotation(a, jnd.elementType)).toList)
+          )
       }
     }
 

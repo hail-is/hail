@@ -39,6 +39,12 @@ class UnsafeIndexedSeq(
   override def toString: String = s"[${this.mkString(",")}]"
 }
 
+class UnsafeNDArray(val pnd: PNDArray, val region: Region, val ndAddr: Long) {
+  val shape: IndexedSeq[Long] = ???
+  val elements: IndexedSeq[Annotation] = ???
+  val elementType = pnd.elementType.virtualType
+}
+
 class UnsafeIndexedSeqRowMajorView(val wrapped: UnsafeIndexedSeq, shape: IndexedSeq[Long], strides: IndexedSeq[Long]) extends IndexedSeq[Annotation] {
   val coordStorageArray = new Array[Long](shape.size)
   val shapeProduct = shape.foldLeft(1L )(_ * _)
