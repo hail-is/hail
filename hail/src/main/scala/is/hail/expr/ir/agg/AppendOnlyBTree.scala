@@ -178,7 +178,7 @@ class AppendOnlyBTree(kb: EmitClassBuilder[_], key: BTreeKey, region: Value[Regi
     val node = get.getCodeParam[Long](1)
     val k = get.getEmitParam(2)
 
-    val code = EmitCodeBuilder.scopedCode(get) { cb =>
+    get.emitWithBuilder { cb =>
       val cmp = cb.newLocal("cmp", -1)
       val keyV = cb.newLocal("keyV", 0L)
 
@@ -210,8 +210,6 @@ class AppendOnlyBTree(kb: EmitClassBuilder[_], key: BTreeKey, region: Value[Regi
       })
       keyV.get
     }
-
-    get.emit(code)
     get
   }
 
