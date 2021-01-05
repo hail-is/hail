@@ -5562,7 +5562,7 @@ def _shift_op(x, y, op):
     return hl.bind(lambda x, y: (
         hl.case()
         .when(y >= word_size, hl.sign(x) if op == '>>' else zero)
-        .when(y > 0, construct_expr(ir.ApplyBinaryPrimOp(op, x._ir, y._ir), t, indices, aggregations))
+        .when(y >= 0, construct_expr(ir.ApplyBinaryPrimOp(op, x._ir, y._ir), t, indices, aggregations))
         .or_error('cannot shift by a negative value: ' + hl.str(x) + f" {op} " + hl.str(y))), x, y)
 
 
