@@ -6,65 +6,47 @@
 
 <h1>Benchmark System</h1>
 
-<form autocomplete="off" action="{{ base_path }}/" method="get">
-    <div class="autocomplete">
-        <input type="text" name="file" class="autoComplete"></input>
-    </div>
-    <button type="submit" id="button">Lookup</button>
-</form>
+<script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/3.5.6/d3.min.js"></script>
 
-{% if file is not none %}
-    <div class="attributes">
-        <div>SHA:
-            {% if benchmarks['sha'] is not none %}
-            {{ benchmarks['sha'] }}
-            {% else %}
-            unknown
-            {% endif %}
-        </div>
-        <div>Geometric Mean:
-            {% if benchmarks['geometric_mean'] is not none %}
-            {{ benchmarks['geometric_mean'] }}
-            {% endif %}
-        </div>
-    </div>
-
-    <table class="data-table">
-        <thead>
-        <tr>
-            <th>name</th>
-            <th>failed</th>
-            <th>f-stat</th>
-            <th>mean</th>
-            <th>median</th>
-            <th>p-value</th>
-            <th>stdev</th>
-        </tr>
-        </thead>
-        <tbody>
-        {% for d in benchmarks['data'].values() %}
-        <tr>
-
-            <td><a href="{{ base_path }}/name/{{ d['name'] }}?file={{ file }}">{{ d['name'] }}</a></td>
-            <td>{{ d['failed'] }}</td>
-            <td>{{ d['f-stat'] }}</td>
-            <td>{{ d['mean'] }}</td>
-            <td>{{ d['median'] }}</td>
-            <td>{{ d['p-value'] }}</td>
-            <td>{{ d['stdev'] }}</td>
-        </tr>
-        {% endfor %}
-        </tbody>
-    </table>
-
+{% if plot is not none %}
+<div class="chart" id="scatterplot">
+    <script>
+        var graphs = {{plot | safe}};
+        Plotly.plot('scatterplot',graphs,{});
+    </script>
+</div>
 {% endif %}
 
-<script src="https://cdn.jsdelivr.net/npm/@tarekraafat/autocomplete.js@7.2.0/dist/js/autoComplete.min.js"></script>
-<script>
-    var files = {{ benchmark_file_list|tojson }};
-</script>
-<script src="{{ base_path }}/static/js/autocomplete.js"></script>
-<script>
-    auto_complete("gs://...", ".autoComplete");
-</script>
+<table class="data-table">
+    <thead>
+    <tr>
+        <th>name</th>
+        <th>sha</th>
+        <th>author</th>
+        <th>date</th>
+        <th>status</th>
+        <th>deploy batch</th>
+    </tr>
+    </thead>
+    <tbody>
+    {% for commit in commits.values() %}
+    <tr>
+        <td><a href="{{ base_path }}/lookup?file={{ benchmark_results_path }}/0-{{ commit['sha'] }}.json">{{ commit['title'] }}</a></td>
+        <td>{{ commit['sha'] }}</td>
+        <td>{{ commit['author'] }}</td>
+        <td>{{ commit['date'] }}</td>
+        {% if commit['status'] is not none %}
+        <td>{{ commit['status']['state'] }}</td>
+        {% endif %}
+        <td>
+            {% if commit['batch_id'] is not none %}
+            <a href="{{ base_path }}/batches/{{ commit['batch_id'] }}">{{ commit['batch_id'] }}</a>
+            {% endif %}
+        </td>
+    </tr>
+    {% endfor %}
+    </tbody>
+</table>
+
 {% endblock %}

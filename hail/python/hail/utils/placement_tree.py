@@ -17,7 +17,7 @@ class PlacementTree:
             return PlacementTree(name, 1, 0, [])
         children = [PlacementTree.from_named_type(name, dtype) for name, dtype in dtype.items()]
         width = sum(child.width for child in children)
-        height = max(child.height for child in children) + 1
+        height = max([child.height for child in children], default=0) + 1
         return PlacementTree(name, width, height, children)
 
     def to_grid(self):

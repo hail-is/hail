@@ -7,9 +7,9 @@ from gear import setup_aiohttp_session, web_authenticated_developers_only
 from hailtop.config import get_deploy_config
 from hailtop.tls import get_in_cluster_server_ssl_context
 from hailtop.hail_logging import AccessLogger, configure_logging
-from hailtop.utils import retry_long_running
-import hailtop.batch_client.aioclient as bc
+from hailtop.utils import retry_long_running, collect_agen, humanize_timedelta_msecs
 from hailtop import aiotools
+import hailtop.batch_client.aioclient as bc
 from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template
 from benchmark.utils import ReadGoogleStorage, get_geometric_mean, parse_file_path, enumerate_list_of_trials,\
     list_benchmark_files, round_if_defined, submit_test_batch
@@ -23,6 +23,7 @@ import pandas as pd
 import gidgethub
 import gidgethub.aiohttp
 from .config import START_POINT, BENCHMARK_RESULTS_PATH
+import google
 
 configure_logging()
 router = web.RouteTableDef()
@@ -30,27 +31,35 @@ logging.basicConfig(level=logging.DEBUG)
 deploy_config = get_deploy_config()
 log = logging.getLogger('benchmark')
 
-BENCHMARK_FILE_REGEX = re.compile(r'gs://((?P<bucket>[^/]+)/)((?P<user>[^/]+)/)((?P<version>[^-]+)-)((?P<sha>[^-]+))(-(?P<tag>[^\.]+))?\.json')
+BENCHMARK_FILE_REGEX = re.compile(r'gs://((?P<bucket>[^/]+)/)((?P<user>[^/]+)/)((?P<instanceId>[^/]*)/)((?P<version>[^-]+)-)((?P<sha>[^-]+))(-(?P<tag>[^\.]+))?\.json')
+
+GH_COMMIT_MESSAGE_REGEX = re.compile(r'(?P<title>.*)\s\(#(?P<pr_id>\d+)\)(?P<rest>.*)')
 
 BENCHMARK_ROOT = os.path.dirname(os.path.abspath(__file__))
 
 benchmark_data = {
-    'commits': {}
+    'commits': {},
+    'dates': [],
+    'geo_means': [],
+    'pr_ids': [],
+    'shas': []
 }
+
 
 with open(os.environ.get('HAIL_CI_OAUTH_TOKEN', 'oauth-token/oauth-token'), 'r') as f:
     oauth_token = f.read().strip()
 
 
 def get_benchmarks(app, file_path):
+    log.info(f'get_benchmarks file_path={file_path}')
     gs_reader = app['gs_reader']
     try:
         json_data = gs_reader.get_data_as_string(file_path)
         pre_data = json.loads(json_data)
-    except Exception as e:
+    except google.api_core.exceptions.NotFound:
         message = f'could not find file, {file_path}'
         log.info('could not get blob: ' + message, exc_info=True)
-        raise web.HTTPBadRequest(text=message) from e
+        return None
 
     data = {}
     prod_of_means = 1
@@ -183,8 +192,34 @@ async def show_name(request: web.Request, userdata) -> web.Response:  # pylint: 
 
 @router.get('/')
 @router.get('')
+async def index(request):
+    userdata = {}
+    global benchmark_data
+    d = {
+        'dates': benchmark_data['dates'],
+        'geo_means': benchmark_data['geo_means'],
+        'pr_ids': benchmark_data['pr_ids'],
+        'commits': benchmark_data['shas']
+    }
+    assert len(d['dates']) == len(d['geo_means']), d
+    df = pd.DataFrame(d)
+    if not df.dates.empty:
+        fig = px.line(df, x=df.dates, y=df.geo_means, hover_data=['pr_ids', 'commits'])
+        fig.update_xaxes(rangeslider_visible=True)
+        plot = json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
+    else:
+        plot = None
+    context = {
+        'commits': benchmark_data['commits'],
+        'plot': plot,
+        'benchmark_results_path': BENCHMARK_RESULTS_PATH
+    }
+    return await render_template('benchmark', request, userdata, 'index.html', context)
+
+
+@router.get('/lookup')
 @web_authenticated_developers_only(redirect=False)
-async def index(request, userdata):  # pylint: disable=unused-argument
+async def lookup(request, userdata):  # pylint: disable=unused-argument
     app = request.app
     file = request.query.get('file')
     if file is None:
@@ -194,7 +229,7 @@ async def index(request, userdata):  # pylint: disable=unused-argument
     context = {'file': file,
                'benchmarks': benchmarks_context,
                'benchmark_file_list': list_benchmark_files(app['gs_reader'])}
-    return await render_template('benchmark', request, userdata, 'index.html', context)
+    return await render_template('benchmark', request, userdata, 'lookup.html', context)
 
 
 @router.get('/compare')
@@ -222,6 +257,40 @@ async def compare(request, userdata):  # pylint: disable=unused-argument
     return await render_template('benchmark', request, userdata, 'compare.html', context)
 
 
+@router.get('/batches/{batch_id}')
+@web_authenticated_developers_only()
+async def get_batch(request, userdata):
+    batch_id = int(request.match_info['batch_id'])
+    batch_client = request.app['batch_client']
+    b = await batch_client.get_batch(batch_id)
+    status = await b.last_known_status()
+    jobs = await collect_agen(b.jobs())
+    for j in jobs:
+        j['duration'] = humanize_timedelta_msecs(j['duration'])
+    page_context = {
+        'batch': status,
+        'jobs': jobs
+    }
+    return await render_template('benchmark', request, userdata, 'batch.html', page_context)
+
+
+@router.get('/batches/{batch_id}/jobs/{job_id}')
+@web_authenticated_developers_only()
+async def get_job(request, userdata):
+    batch_id = int(request.match_info['batch_id'])
+    job_id = int(request.match_info['job_id'])
+    batch_client = request.app['batch_client']
+    job = await batch_client.get_job(batch_id, job_id)
+    page_context = {
+        'batch_id': batch_id,
+        'job_id': job_id,
+        'job_log': await job.log(),
+        'job_status': json.dumps(await job.status(), indent=2),
+        'attempts': await job.attempts()
+    }
+    return await render_template('benchmark', request, userdata, 'job.html', page_context)
+
+
 async def update_commits(app):
     global benchmark_data
     github_client = app['github_client']
@@ -240,14 +309,20 @@ async def update_commits(app):
 
 
 async def get_commit(app, sha):  # pylint: disable=unused-argument
+    log.info(f'get_commit sha={sha}')
     github_client = app['github_client']
     batch_client = app['batch_client']
     gs_reader = app['gs_reader']
 
-    file_path = f'{BENCHMARK_RESULTS_PATH}/{sha}.json'
+    file_path = f'{BENCHMARK_RESULTS_PATH}/0-{sha}.json'
     request_string = f'/repos/hail-is/hail/commits/{sha}'
-
     gh_commit = await github_client.getitem(request_string)
+
+    message = gh_commit['commit']['message']
+    match = GH_COMMIT_MESSAGE_REGEX.search(message)
+    message_dict = match.groupdict()
+    pr_id = message_dict['pr_id']
+    title = message_dict['title']
 
     has_results_file = gs_reader.file_exists(file_path)
     batch_statuses = [b._last_known_status async for b in batch_client.list_batches(q=f'sha={sha}')]
@@ -257,35 +332,60 @@ async def get_commit(app, sha):  # pylint: disable=unused-argument
     if has_results_file:
         assert complete_batch_statuses, batch_statuses
         log.info(f'commit {sha} has a results file')
-        status = complete_batch_statuses[-1]
+        status = complete_batch_statuses[0]
+        batch_id = status['id']
+        log.info(f'status of {sha}: {status}')
     elif running_batch_statuses:
-        status = running_batch_statuses[-1]
+        status = running_batch_statuses[0]
+        batch_id = status['id']
         log.info(f'batch already exists for commit {sha}')
     else:
         status = None
+        batch_id = None
         log.info(f'no batches or results file exists for {sha}')
 
     commit = {
         'sha': sha,
-        'title': gh_commit['commit']['message'],
+        'title': title,
         'author': gh_commit['commit']['author']['name'],
         'date': gh_commit['commit']['author']['date'],
-        'status': status
+        'status': status,
+        'batch_id': batch_id,
+        'pr_id': pr_id
     }
+
     return commit
 
 
 async def update_commit(app, sha):  # pylint: disable=unused-argument
+    log.info('in update_commit')
+    global benchmark_data
+    gs_reader = app['gs_reader']
     commit = await get_commit(app, sha)
-    if commit['status'] is not None:
+    file_path = f'{BENCHMARK_RESULTS_PATH}/0-{sha}.json'
+
+    if commit['status'] is None:
+        batch_client = app['batch_client']
+        batch_id = await submit_test_batch(batch_client, sha)
+        batch = await batch_client.get_batch(batch_id)
+        commit['status'] = batch._last_known_status
+        commit['batch_id'] = batch_id
+        log.info(f'submitted a batch {batch_id} for commit {sha}')
+        benchmark_data['commits'][sha] = commit
         return commit
 
-    batch_client = app['batch_client']
-    batch_id = await submit_test_batch(batch_client, sha)
-    batch = await batch_client.get_batch(batch_id)
-    commit['status'] = batch._last_known_status
-    log.info(f'submitted a batch {batch_id} for commit {sha}')
+    has_results_file = gs_reader.file_exists(file_path)
+    if has_results_file and sha in benchmark_data['commits']:
+        benchmarks = get_benchmarks(app, file_path)
+        commit['geo_mean'] = benchmarks['geometric_mean']
+        geo_mean = commit['geo_mean']
+        log.info(f'geo mean is {geo_mean}')
 
+        benchmark_data['dates'].append(commit['date'])
+        benchmark_data['geo_means'].append(commit['geo_mean'])
+        benchmark_data['pr_ids'].append(commit['pr_id'])
+        benchmark_data['shas'].append(sha)
+        benchmark_data['commits'][sha] = commit
     return commit
 
 
@@ -304,7 +404,7 @@ async def delete_commit(request):  # pylint: disable=unused-argument
     gs_reader = app['gs_reader']
     batch_client = app['batch_client']
     sha = str(request.match_info['sha'])
-    file_path = f'{BENCHMARK_RESULTS_PATH}/{sha}.json'
+    file_path = f'{BENCHMARK_RESULTS_PATH}/0-{sha}.json'
 
     if gs_reader.file_exists(file_path):
         gs_reader.delete_file(file_path)
@@ -334,7 +434,7 @@ async def github_polling_loop(app):
     while True:
         await update_commits(app)
         log.info('successfully queried github')
-        await asyncio.sleep(300)
+        await asyncio.sleep(600)
 
 
 async def on_startup(app):

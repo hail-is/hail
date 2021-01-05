@@ -20,7 +20,7 @@ class TakeRVAS(val eltType: PType, val resultType: PArray, val kb: EmitClassBuil
   def newState(off: Code[Long]): Code[Unit] = region.getNewRegion(regionSize)
 
   def createState(cb: EmitCodeBuilder): Unit =
-    cb.ifx(region.isNull, { cb.assign(r, Region.stagedCreate(regionSize)) })
+    cb.ifx(region.isNull, { cb.assign(r, Region.stagedCreate(regionSize, kb.pool())) })
 
   override def load(regionLoader: Value[Region] => Code[Unit], src: Code[Long]): Code[Unit] =
     Code.memoize(src, "take_rvas_src") { src =>

@@ -776,7 +776,7 @@ object Interpret {
         }
       case ir: AbstractApplyNode[_] =>
         val argTuple = PType.canonical(TTuple(ir.args.map(_.typ): _*)).setRequired(true).asInstanceOf[PTuple]
-        Region.scoped { region =>
+        ctx.r.pool.scopedRegion { region =>
           val (rt, f) = functionMemo.getOrElseUpdate(ir, {
             val wrappedArgs: IndexedSeq[BaseIR] = ir.args.zipWithIndex.map { case (x, i) =>
               GetTupleElement(Ref("in", argTuple.virtualType), i)
@@ -847,7 +847,8 @@ object Interpret {
             FastIndexedSeq(classInfo[Region], LongInfo), LongInfo,
             MakeTuple.ordered(FastSeq(extracted.postAggIR)))
 
-          Region.scoped { region =>
+          // TODO Is this right? where does wrapped run?
+          ctx.r.pool.scopedRegion { region =>
             SafeRow(rt, f(0, region)(region, globalsOffset))
           }
         } else {
@@ -881,13 +882,15 @@ object Interpret {
           }
 
           // creates a region, giving ownership to the caller
-          val read: WrappedByteArray => RegionValue = {
+          val read: RegionPool => (WrappedByteArray => RegionValue) = {
             val deserialize = extracted.deserialize(ctx, spec)
-            (a: WrappedByteArray) => {
-              val r = Region(Region.SMALL)
-              val res = deserialize(r, a.bytes)
-              a.clear()
-              RegionValue(r, res)
+            (pool: RegionPool) => {
+              (a: WrappedByteArray) => {
+                val r = Region(Region.SMALL, pool)
+                val res = deserialize(r, a.bytes)
+                a.clear()
+                RegionValue(r, res)
+              }
             }
           }
 
@@ -927,8 +930,8 @@ object Interpret {
 
           // creates a new region holding the zero value, giving ownership to
           // the caller
-          val mkZero = () => {
-            val region = Region(Region.SMALL)
+          val mkZero = (pool: RegionPool) => {
+            val region = Region(Region.SMALL, pool)
             val initF = initOp(0, region)
             initF.newAggState(region)
             initF(region, globalsBc.value.readRegionValue(region))
@@ -936,7 +939,7 @@ object Interpret {
           }
 
           val rv = value.rvd.combine[WrappedByteArray, RegionValue](
-            mkZero, itF, read, write, combOpF, isCommutative, useTreeAggregate)
+            ctx, mkZero, itF, read, write, combOpF, isCommutative, useTreeAggregate)
 
           val (rTyp: PTuple, f) = CompileWithAggregators[AsmFunction2RegionLongLong](
             ctx,
@@ -946,7 +949,7 @@ object Interpret {
             Let(res, extracted.results, MakeTuple.ordered(FastSeq(extracted.postAggIR))))
           assert(rTyp.types(0).virtualType == query.typ)
 
-          Region.scoped { r =>
+          ctx.r.pool.scopedRegion { r =>
             val resF = f(0, r)
             resF.setAggState(rv.region, rv.offset)
             val res = SafeRow(rTyp, resF(r, globalsOffset))
@@ -963,7 +966,7 @@ object Interpret {
           FastIndexedSeq(classInfo[Region]), LongInfo,
           MakeTuple.ordered(FastSeq(child)),
           optimize = false)
-        Region.scoped { r =>
+        ctx.r.pool.scopedRegion { r =>
           SafeRow.read(rt, makeFunction(0, r)(r)).asInstanceOf[Row](0)
         }
       case UUID4(_) =>

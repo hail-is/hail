@@ -51,7 +51,7 @@ class DownsampleState(val kb: EmitClassBuilder[_], labelType: PArray, maxBufferS
   def newState(off: Code[Long]): Code[Unit] = region.getNewRegion(regionSize)
 
   def createState(cb: EmitCodeBuilder): Unit =
-    cb.ifx(region.isNull, cb.assign(r, Region.stagedCreate(regionSize)))
+    cb.ifx(region.isNull, cb.assign(r, Region.stagedCreate(regionSize, kb.pool())))
 
   val binType = PCanonicalStruct(required = true, "x" -> PInt32Required, "y" -> PInt32Required)
   val pointType = PCanonicalStruct(required = true, "x" -> PFloat64Required, "y" -> PFloat64Required, "label" -> labelType)
@@ -350,7 +350,7 @@ class DownsampleState(val kb: EmitClassBuilder[_], labelType: PArray, maxBufferS
         top := max(top, bufferTop),
         oldRegion := region,
         oldRoot := root,
-        r := Region.stagedCreate(regionSize),
+        r := Region.stagedCreate(regionSize, region.getPool()),
         treeSize := 0,
         tree.init,
         copyFromTree(oldRootBTree),

@@ -14,3 +14,4 @@ RUN hail-apt-get-install python3.7-minimal python3.7-dev python3-pip && \
     python3 -m pip --version
 COPY pip.conf /root/.config/pip/pip.conf
 COPY hail-pip-install /bin/hail-pip-install
+COPY controller.sh /

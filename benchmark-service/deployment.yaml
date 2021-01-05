@@ -24,6 +24,13 @@ spec:
          value: "true"
       containers:
         - name: benchmark
+          command:
+{% if not deploy %}
+           - /controller.sh
+{% endif %}
+           - "python3"
+           - "-m"
+           - "benchmark"
           image: "{{ benchmark_image.image }}"
           env:
           - name: HAIL_DOMAIN
@@ -44,6 +51,10 @@ spec:
 {% else %}
           - name: HAIL_BENCHMARK_BUCKET_NAME
             value: hail-test-dmk9z
+{% endif %}
+{% if scope == "dev" %}
+          - name: INSTANCE_ID
+            value: "R8kZlZhmqGJk"
 {% endif %}
           ports:
             - containerPort: 5000

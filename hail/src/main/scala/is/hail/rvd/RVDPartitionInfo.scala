@@ -35,7 +35,7 @@ object RVDPartitionInfo {
     seed: Int,
     producerContext: RVDContext
   ): RVDPartitionInfo = {
-    using(RVDContext.default) { localctx =>
+    using(RVDContext.default(producerContext.r.pool)) { localctx =>
       val kPType = typ.kType
       val pkOrd = typ.copy(key = typ.key.take(partitionKey)).kOrd
       val minF = WritableRegionValue(kPType, localctx.freshRegion())

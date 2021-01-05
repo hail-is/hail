@@ -34,7 +34,7 @@
         <a class="header-dropdown-menu-link" href="{{ batch_base_url }}/billing">Billing</a>
         <a class="header-dropdown-menu-link" href="{{ batch_driver_base_url }}/user_resources">User Resources</a>
         {% endif %}
-        <a class="header-dropdown-menu-link" href="https://hail.is/docs/batch/">Docs</a>
+        <a class="header-dropdown-menu-link" href="{{ www_base_url }}/docs/batch/">Docs</a>
       </div>
     </div>
   </div>
@@ -81,14 +81,13 @@
     Scorecard
   </a>
   {% endif %}
-
   {% if userdata['is_developer'] == 1 %}
   <div class="header-dropdown">
     <div class="header-dropdown-item-margin">
       <a href="{{ benchmark_base_url }}" class="header-dropdown-link">Benchmark</a>
       <div class="header-dropdown-menu">
         <div class="benchmark-caret header-dropdown-menu-caret"></div>
-        <a class="header-dropdown-menu-link" href="{{ benchmark_base_url }}/">Lookup</a>
+        <a class="header-dropdown-menu-link" href="{{ benchmark_base_url }}/lookup">Lookup</a>
         <a class="header-dropdown-menu-link" href="{{ benchmark_base_url }}/compare">Compare</a>
       </div>
     </div>

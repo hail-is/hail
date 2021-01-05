@@ -95,14 +95,15 @@ object LSM {
 
 class LSM (
   path: String,
-  codecs: ShuffleCodecSpec
+  codecs: ShuffleCodecSpec,
+  pool: RegionPool
 ) extends AutoCloseable {
-  private[this] val rootRegion: Region = Region()
+  private[this] val rootRegion: Region = Region(pool=pool)
   private[this] val log = Logger.getLogger(getClass.getName)
   val keyOrd: UnsafeOrdering = codecs.keyDecodedPType.unsafeOrdering
   private[this] val region = ThreadLocal.withInitial(new Supplier[Region]() {
     def get(): Region = {
-      val region = Region()
+      val region = Region(pool=pool)
       rootRegion.synchronized {
         rootRegion.addReferenceTo(region)
       }

@@ -3,16 +3,13 @@ package is.hail.annotations
 import is.hail.utils._
 
 object RegionPool {
-  private lazy val thePool: ThreadLocal[RegionPool] = new ThreadLocal[RegionPool]() {
-    override def initialValue(): RegionPool = RegionPool()
-  }
-
-  def get: RegionPool = thePool.get()
 
   def apply(strictMemoryCheck: Boolean = false): RegionPool = {
     val thread = Thread.currentThread()
     new RegionPool(strictMemoryCheck, thread.getName, thread.getId)
   }
+
+  def scoped[T](f: RegionPool => T): T = using(RegionPool(false))(f)
 }
 
 final class RegionPool private(strictMemoryCheck: Boolean, threadName: String, threadID: Long) extends AutoCloseable {
@@ -101,10 +98,9 @@ final class RegionPool private(strictMemoryCheck: Boolean, threadName: String, t
   def numFreeBlocks(): Int = freeBlocks.map(_.size).sum
 
   def logStats(context: String): Unit = {
-    val pool = RegionPool.get
-    val nFree = pool.numFreeRegions()
-    val nRegions = pool.numRegions()
-    val nBlocks = pool.numFreeBlocks()
+    val nFree = this.numFreeRegions()
+    val nRegions = this.numRegions()
+    val nBlocks = this.numFreeBlocks()
 
     val freeBlockCounts = freeBlocks.map(_.size)
     val usedBlockCounts = blocks.zip(freeBlockCounts).map { case (tot, free) => tot - free }
@@ -134,6 +130,10 @@ final class RegionPool private(strictMemoryCheck: Boolean, threadName: String, t
 
 
   }
+
+  def scopedRegion[T](f: Region => T): T = using(Region(pool = this))(f)
+  def scopedSmallRegion[T](f: Region => T): T = using(Region(Region.SMALL, pool=this))(f)
+  def scopedTinyRegion[T](f: Region => T): T = using(Region(Region.TINY, pool=this))(f)
 
   override def finalize(): Unit = close()
 

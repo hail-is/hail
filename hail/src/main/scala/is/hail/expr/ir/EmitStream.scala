@@ -384,8 +384,8 @@ object Stream {
       Code(LchildPull, childSource.pull)
 
       Source[StagedRegion => Stream[A]](
-        setup0 = Code(childSource.setup0, childEltRegion.allocateRegion(Region.REGULAR)),
-        close0 = Code(childEltRegion.allocateRegion(Region.REGULAR), childSource.close0),
+        setup0 = Code(childSource.setup0, childEltRegion.allocateRegion(Region.REGULAR, mb.ecb.pool())),
+        close0 = Code(childEltRegion.allocateRegion(Region.REGULAR, mb.ecb.pool()), childSource.close0),
         setup = Code(
           childSource.setup,
           xSize := size,
@@ -570,7 +570,7 @@ object Stream {
         })
 
       Source[(EmitCode, EmitCode)](
-        setup0 = Code(leftSource.setup0, rightSource.setup0, rightRegion.allocateRegion(Region.REGULAR)),
+        setup0 = Code(leftSource.setup0, rightSource.setup0, rightRegion.allocateRegion(Region.REGULAR, mb.ecb.pool())),
         close0 = Code(rightRegion.free(), leftSource.close0, rightSource.close0),
         setup = Code(pulledRight := false, rightEOS := false, leftSource.setup, rightSource.setup),
         close = Code(leftSource.close, rightSource.close),
@@ -674,8 +674,8 @@ object Stream {
       Source[EmitCode](
         setup0 = Code(leftSource.setup0,
           rightSource.setup0,
-          leftRegion.allocateRegion(Region.REGULAR),
-          rightRegion.allocateRegion(Region.REGULAR)),
+          leftRegion.allocateRegion(Region.REGULAR, mb.ecb.pool()),
+          rightRegion.allocateRegion(Region.REGULAR, mb.ecb.pool())),
         close0 = Code(leftRegion.free(),
           rightRegion.free(),
           leftSource.close0,
@@ -798,8 +798,8 @@ object Stream {
 
       Source[(EmitCode, EmitCode)](
         setup0 = Code(leftSource.setup0, rightSource.setup0,
-                      leftRegion.allocateRegion(Region.REGULAR),
-                      rightRegion.allocateRegion(Region.REGULAR)),
+                      leftRegion.allocateRegion(Region.REGULAR, mb.ecb.pool()),
+                      rightRegion.allocateRegion(Region.REGULAR, mb.ecb.pool())),
         close0 = Code(leftRegion.free(), rightRegion.free(),
                       leftSource.close0, rightSource.close0),
         setup = Code(pulledRight := false, c := 0,
@@ -935,7 +935,7 @@ object EmitStream {
     val SizedStream(ssSetup, stream, optLen) = sstream
     val eltRegion = destRegion.createChildRegion(mb)
     Code(FastSeq(
-      eltRegion.allocateRegion(Region.REGULAR),
+      eltRegion.allocateRegion(Region.REGULAR, mb.ecb.pool()),
       ssSetup,
       ab.clear,
       ab.ensureCapacity(optLen.getOrElse(16)),
@@ -980,7 +980,7 @@ object EmitStream {
       case Some(len) =>
         val eltRegion = destRegion.createChildRegion(mb)
         val ptr = Code.sequence1(FastIndexedSeq(
-            eltRegion.allocateRegion(Region.REGULAR),
+            eltRegion.allocateRegion(Region.REGULAR, mb.ecb.pool()),
             ss.setup,
             srvb.start(len),
             ss.stream(eltRegion).forEach(ctx, mb, { et =>
@@ -1292,7 +1292,7 @@ object EmitStream {
       Code(LouterEos, outerEos)
 
       Source[ChildStagedRegion => Stream[PCode]](
-        setup0 = Code(childSource.setup0, holdingRegion.allocateRegion(Region.REGULAR), keyRegion.allocateRegion(Region.TINIER)),
+        setup0 = Code(childSource.setup0, holdingRegion.allocateRegion(Region.REGULAR, mb.ecb.pool()), keyRegion.allocateRegion(Region.TINIER, mb.ecb.pool())),
         close0 = Code(holdingRegion.free(), keyRegion.free(), childSource.close0),
         setup = Code(
           childSource.setup,
@@ -1622,7 +1622,7 @@ object EmitStream {
                       }
                     }
                   },
-                  setup0 = Some(tmpRegion.allocateRegion(Region.REGULAR)),
+                  setup0 = Some(tmpRegion.allocateRegion(Region.REGULAR, mb.ecb.pool())),
                   close0 = Some(tmpRegion.free()))
                 .flatten
             }
@@ -1904,7 +1904,7 @@ object EmitStream {
                 }
                 .flatten.flatten
                 .map(x => x,
-                     setup0 = Some(outerEltRegion.allocateRegion(Region.REGULAR)),
+                     setup0 = Some(outerEltRegion.allocateRegion(Region.REGULAR, mb.ecb.pool())),
                      close0 = Some(outerEltRegion.free()))
             }
 
@@ -1994,7 +1994,7 @@ object EmitStream {
                   })
 
                 Source[EmitCode](
-                  setup0 = Code(source.setup0, accRegion.allocateRegion(Region.TINIER)),
+                  setup0 = Code(source.setup0, accRegion.allocateRegion(Region.TINIER, mb.ecb.pool())),
                   setup = Code(hasPulled := false, source.setup),
                   close = source.close,
                   close0 = Code(accRegion.free(), source.close0),
@@ -2014,7 +2014,7 @@ object EmitStream {
           }
 
         case x@RunAggScan(array, name, init, seqs, result, states) =>
-          val (newContainer, aggSetup, aggCleanup) = AggContainer.fromMethodBuilder(states.toArray, mb, "array_agg_scan")
+          val (newContainer, aggSetup, aggCleanup) = AggContainer.fromMethodBuilder(states.toArray, mb,"array_agg_scan")
 
           val eltType = coerce[PStream](array.pType).elementType
 
@@ -2042,7 +2042,7 @@ object EmitStream {
                 },
                 setup0 = Some(aggSetup),
                 close0 = Some(aggCleanup),
-                setup = Some(Code(tmpRegion.allocateRegion(Region.SMALL), cInit, tmpRegion.free())))
+                setup = Some(Code(tmpRegion.allocateRegion(Region.SMALL, mb.ecb.pool()), cInit, tmpRegion.free())))
             }
 
 

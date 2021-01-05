@@ -84,10 +84,10 @@ class Tests(unittest.TestCase):
 
     @fails_local_backend()
     def test_hadoop_copy_log(self):
-        r = new_local_temp_file('log')
-        hl.copy_log(r)
-        stats = hl.hadoop_stat(r)
-        self.assertTrue(stats['size_bytes'] > 0)
+        with with_local_temp_file('log') as r:
+            hl.copy_log(r)
+            stats = hl.hadoop_stat(r)
+            self.assertTrue(stats['size_bytes'] > 0)
 
     def test_hadoop_is_file(self):
         self.assertTrue(hl.hadoop_is_file(resource('ls_test/f_50')))

@@ -1,4 +1,4 @@
-from .misc import wrap_to_list, get_env_or_default, uri_path, local_path_uri, new_temp_file, new_local_temp_dir, new_local_temp_file, storage_level, range_matrix_table, range_table, run_command, HailSeedGenerator, timestamp_path, _dumps_partitions, default_handler
+from .misc import wrap_to_list, get_env_or_default, uri_path, local_path_uri, new_temp_file, new_local_temp_dir, new_local_temp_file, with_local_temp_file, storage_level, range_matrix_table, range_table, run_command, HailSeedGenerator, timestamp_path, _dumps_partitions, default_handler
 from .hadoop_utils import hadoop_copy, hadoop_open, hadoop_exists, hadoop_is_dir, hadoop_is_file, hadoop_ls, hadoop_stat, copy_log
 from .struct import Struct
 from .linkedlist import LinkedList
@@ -40,4 +40,6 @@ __all__ = ['hadoop_open',
            'timestamp_path',
            '_dumps_partitions',
            'default_handler',
-           'deduplicate']
+           'deduplicate',
+           'with_local_temp_file',
+           ]

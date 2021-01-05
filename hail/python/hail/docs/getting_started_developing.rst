@@ -73,9 +73,9 @@ Execute every Hail test using at most 8 parallel threads::
 Contributing
 ~~~~~~~~~~~~
 
-Chat with the dev team on our `Zulip chatroom <https://hail.zulipchat.com>`_ if
-you have an idea for a contribution. We can help you determine if your
-project is a good candidate for merging.
+Chat with the dev team on our `Zulip chatroom <https://hail.zulipchat.com>`_ or
+`development forum <https://dev.hail.is>`_ if you have an idea for a contribution.
+We can help you determine if your project is a good candidate for merging.
 
 Keep in mind the following principles when submitting a pull request:
 
@@ -85,3 +85,5 @@ Keep in mind the following principles when submitting a pull request:
 - PRs require a review before being merged. We will assign someone from our dev team to review your PR.
 - When you make a PR, include a short message that describes the purpose of the
   PR and any necessary context for the changes you are making.
+- For user facing changes (new functions, etc), include "CHANGELOG" in the commit message or PR title.
+  This helps identify what should be included in the change log when a new version is released.

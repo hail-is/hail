@@ -105,7 +105,7 @@ object AggContainer {
     val (setup, aggState) = EmitCodeBuilder.scoped(mb) { cb =>
       val states = agg.StateTuple(aggs.map(a => agg.AggStateSig.getState(a, cb.emb.ecb)))
       val aggState = new agg.TupleAggregatorState(mb.ecb, states, region, off)
-      cb += (region := Region.stagedCreate(Region.REGULAR))
+      cb += (region := Region.stagedCreate(Region.REGULAR, cb.emb.ecb.pool()))
       cb += region.load().setNumParents(aggs.length)
       cb += (off := region.load().allocate(aggState.storageType.alignment, aggState.storageType.byteSize))
       states.createStates(cb)
@@ -126,7 +126,7 @@ object AggContainer {
 
   def fromBuilder[C](cb: EmitCodeBuilder, aggs: Array[AggStateSig], varPrefix: String): AggContainer = {
     val off = cb.newField[Long](s"${varPrefix}_off")
-    val region = cb.newField[Region](s"${varPrefix}_top_region", Region.stagedCreate(Region.REGULAR))
+    val region = cb.newField[Region](s"${varPrefix}_top_region", Region.stagedCreate(Region.REGULAR, cb.emb.ecb.pool()))
     val states = agg.StateTuple(aggs.map(a => agg.AggStateSig.getState(a, cb.emb.ecb)))
     val aggState = new agg.TupleAggregatorState(cb.emb.ecb, states, region, off)
     cb += region.load().setNumParents(aggs.length)
@@ -511,7 +511,7 @@ class Emit[C](
         streamOpt.toI(cb).consume(cb,
           {},
           { s =>
-            cb += eltRegion.allocateRegion(Region.REGULAR)
+            cb += eltRegion.allocateRegion(Region.REGULAR, cb.emb.ecb.pool())
             cb += s.asStream.stream.getStream(eltRegion).forEach(ctx, mb, forBody)
             cb += eltRegion.free()
           })
@@ -1495,8 +1495,9 @@ class Emit[C](
           val xAcc = mb.newEmitField(accumName, accType)
           val xElt = mb.newEmitField(valueName, eltType)
 
-          cb += eltRegion.allocateRegion(Region.REGULAR)
-          cb += tmpRegion.allocateRegion(Region.REGULAR)
+
+          cb += eltRegion.allocateRegion(Region.REGULAR, cb.emb.ecb.pool())
+          cb += tmpRegion.allocateRegion(Region.REGULAR, cb.emb.ecb.pool())
           cb.assign(xAcc, emitI(zero, eltRegion).map(cb)(_.castTo(cb, eltRegion.code, accType)))
 
           stream.asStream.stream.getStream(eltRegion).forEachI(ctx, cb, { elt =>
@@ -1536,8 +1537,8 @@ class Emit[C](
 
         val streamOpt = emitStream(a, outerRegion)
         streamOpt.flatMap(cb) { stream =>
-          cb += eltRegion.allocateRegion(Region.REGULAR)
-          cb += tmpRegion.allocateRegion(Region.REGULAR)
+          cb += eltRegion.allocateRegion(Region.REGULAR, cb.emb.ecb.pool())
+          cb += tmpRegion.allocateRegion(Region.REGULAR, cb.emb.ecb.pool())
 
           (accVars, acc).zipped.foreach { case (xAcc, (_, x)) =>
             cb.assign(xAcc, emitI(x, eltRegion).map(cb)(_.castTo(cb, eltRegion.code, xAcc.pt)))
@@ -1619,7 +1620,7 @@ class Emit[C](
         val rows = emitStream(rowsIR, outerRegion)
           .get(cb, "rows stream was missing in shuffle write")
           .asStream.stream.getStream(eltRegion)
-        cb += eltRegion.allocateRegion(Region.REGULAR)
+        cb += eltRegion.allocateRegion(Region.REGULAR, cb.emb.ecb.pool())
         cb += rows.forEach(ctx, mb, { row: EmitCode =>
           Code(
             row.setup,
@@ -2074,7 +2075,7 @@ class Emit[C](
                 Code(
                   count := 0,
                   setup,
-                  eltRegion.allocateRegion(Region.REGULAR),
+                  eltRegion.allocateRegion(Region.REGULAR, cb.pool()),
                   stream(eltRegion).forEach(ctx, mb, _ => Code(count := count + 1, eltRegion.clear())),
                   eltRegion.free(),
                   count.get
@@ -2322,7 +2323,7 @@ class Emit[C](
             Code(
               setup,
               ctxab.invoke[Int, Unit]("ensureCapacity", len.getOrElse(16)),
-              eltRegion.allocateRegion(Region.REGULAR),
+              eltRegion.allocateRegion(Region.REGULAR, cb.pool()),
               stream(eltRegion).map(etToTuple(_, ctxType)).forEach(ctx, mb, { offset =>
                 Code(
                   baos.invoke[Unit]("reset"),

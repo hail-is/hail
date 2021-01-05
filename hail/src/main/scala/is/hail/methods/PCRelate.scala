@@ -87,7 +87,7 @@ object PCRelate {
         var jj = 0
         while (jj < lmPhi.cols) {
           var ii = 0
-          val nRowsAboveDiagonal = if (i < j) lmPhi.rows else jj // assumes square blocks on diagonal
+          val nRowsAboveDiagonal = if (i < j) lmPhi.rows else (jj + 1) // assumes square blocks on diagonal
           while (ii < nRowsAboveDiagonal) {
             val kin = lmPhi(ii, jj)
             if (kin >= minKinship) {

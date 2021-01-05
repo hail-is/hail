@@ -61,10 +61,10 @@ class UnsafeSuite extends HailSuite {
   }
 
   @Test def testCodec() {
-    val region = Region()
-    val region2 = Region()
-    val region3 = Region()
-    val region4 = Region()
+    val region = Region(pool=pool)
+    val region2 = Region(pool=pool)
+    val region3 = Region(pool=pool)
+    val region4 = Region(pool=pool)
     val rvb = new RegionValueBuilder(region)
 
     val path = ctx.createTmpPath("test-codec", "ser")
@@ -147,7 +147,7 @@ class UnsafeSuite extends HailSuite {
       FastIndexedSeq[Int](1, 2, 3) -> PCanonicalArray(PInt32()))
 
     valuesAndTypes.foreach { case (v, t) =>
-      Region.scoped { region =>
+      pool.scopedRegion { region =>
         val off = ScalaToRegionValue(region, t, v)
         BufferSpec.specs.foreach { spec =>
           val cs2 = TypedCodecSpec(t, spec)
@@ -186,8 +186,8 @@ class UnsafeSuite extends HailSuite {
   }
 
   @Test def testRegionValue() {
-    val region = Region()
-    val region2 = Region()
+    val region = Region(pool=pool)
+    val region2 = Region(pool=pool)
     val rvb = new RegionValueBuilder(region)
     val rvb2 = new RegionValueBuilder(region2)
 
@@ -326,8 +326,8 @@ class UnsafeSuite extends HailSuite {
   }
 
   @Test def testUnsafeOrdering() {
-    val region = Region()
-    val region2 = Region()
+    val region = Region(pool=pool)
+    val region2 = Region(pool=pool)
     val rvb = new RegionValueBuilder(region)
     val rvb2 = new RegionValueBuilder(region2)
 

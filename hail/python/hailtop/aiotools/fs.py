@@ -67,7 +67,7 @@ class AsyncFS(abc.ABC):
         pass
 
     @abc.abstractmethod
-    def listfiles(self, url: str, recursive: bool = False) -> AsyncIterator[FileListEntry]:
+    async def listfiles(self, url: str, recursive: bool = False) -> AsyncIterator[FileListEntry]:
         pass
 
     @abc.abstractmethod
@@ -175,24 +175,39 @@ class LocalAsyncFS(AsyncFS):
             raise FileNotFoundError(f'is directory: {url}')
         return LocalStatFileStatus(stat_result)
 
-    async def _listfiles_recursive(self, url: str) -> AsyncIterator[FileListEntry]:
-        async for file in self._listfiles_flat(url):
+    # entries has no type hint because the return type of os.scandir
+    # appears to be a private type, posix.ScandirIterator.
+    # >>> import os
+    # >>> entries = os.scandir('.')
+    # >>> type(entries)
+    # <class 'posix.ScandirIterator'>
+    # >>> import posix
+    # >>> posix.ScandirIterator
+    # Traceback (most recent call last):
+    #   File "<stdin>", line 1, in <module>
+    # AttributeError: module 'posix' has no attribute 'ScandirIterator'
+    async def _listfiles_recursive(self, url: str, entries) -> AsyncIterator[FileListEntry]:
+        async for file in self._listfiles_flat(url, entries):
             if await file.is_file():
                 yield file
             else:
-                async for subfile in self._listfiles_recursive(await file.url()):
+                new_url = await file.url()
+                new_path = self._get_path(new_url)
+                new_entries = await blocking_to_async(self._thread_pool, os.scandir, new_path)
+                async for subfile in self._listfiles_recursive(new_url, new_entries):
                     yield subfile
 
-    async def _listfiles_flat(self, url: str) -> AsyncIterator[FileListEntry]:
-        path = self._get_path(url)
-        with await blocking_to_async(self._thread_pool, os.scandir, path) as it:
-            for entry in it:
+    async def _listfiles_flat(self, url: str, entries) -> AsyncIterator[FileListEntry]:
+        with entries:
+            for entry in entries:
                 yield LocalFileListEntry(self._thread_pool, url, entry)
 
-    def listfiles(self, url: str, recursive: bool = False) -> AsyncIterator[FileListEntry]:
+    async def listfiles(self, url: str, recursive: bool = False) -> AsyncIterator[FileListEntry]:
+        path = self._get_path(url)
+        entries = await blocking_to_async(self._thread_pool, os.scandir, path)
         if recursive:
-            return self._listfiles_recursive(url)
-        return self._listfiles_flat(url)
+            return self._listfiles_recursive(url, entries)
+        return self._listfiles_flat(url, entries)
 
     async def mkdir(self, url: str) -> None:
         path = self._get_path(url)
@@ -263,9 +278,9 @@ class RouterAsyncFS(AsyncFS):
         fs = self._get_fs(url)
         return await fs.statfile(url)
 
-    def listfiles(self, url: str, recursive: bool = False) -> AsyncIterator[FileListEntry]:
+    async def listfiles(self, url: str, recursive: bool = False) -> AsyncIterator[FileListEntry]:
         fs = self._get_fs(url)
-        return fs.listfiles(url, recursive)
+        return await fs.listfiles(url, recursive)
 
     async def mkdir(self, url: str) -> None:
         fs = self._get_fs(url)

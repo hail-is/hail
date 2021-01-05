@@ -40,6 +40,9 @@ spec:
       - name: address
         image: {{ address_image.image }}
         command:
+{% if not deploy %}
+         - /controller.sh
+{% endif %}
          - python3
          - -m
          - address

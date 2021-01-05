@@ -1,7 +1,9 @@
 package is.hail.sparkextras
 
 import is.hail.HailContext
-import is.hail.backend.spark.SparkBackend
+import is.hail.annotations.RegionPool
+import is.hail.backend.HailTaskContext
+import is.hail.backend.spark.{SparkBackend, SparkTaskContext}
 import is.hail.rvd.RVDContext
 import is.hail.utils._
 import is.hail.utils.PartitionCounts._
@@ -120,13 +122,19 @@ object ContextRDD {
         .mapPartitions(filterAndReplace.apply))
 
   def parallelize[T: ClassTag](sc: SparkContext, data: Seq[T], nPartitions: Option[Int] = None): ContextRDD[T] =
-    weaken(sc.parallelize(data, nPartitions.getOrElse(sc.defaultMinPartitions)))
+    weaken(sc.parallelize(data, nPartitions.getOrElse(sc.defaultMinPartitions))).map(x => {
+      x
+    })
 
   def parallelize[T: ClassTag](data: Seq[T], numSlices: Int): ContextRDD[T] =
-    weaken(SparkBackend.sparkContext("ContextRDD.parallelize").parallelize(data, numSlices))
+    weaken(SparkBackend.sparkContext("ContextRDD.parallelize").parallelize(data, numSlices)).map(x => {
+      x
+    })
 
   def parallelize[T: ClassTag](data: Seq[T]): ContextRDD[T] =
-    weaken(SparkBackend.sparkContext("ContextRDD.parallelize").parallelize(data))
+    weaken(SparkBackend.sparkContext("ContextRDD.parallelize").parallelize(data)).map(x => {
+      x
+    })
 
   type ElementType[T] = RVDContext => Iterator[T]
 
@@ -148,19 +156,21 @@ class ContextRDD[T: ClassTag](
 ) extends Serializable {
   type ElementType = ContextRDD.ElementType[T]
 
-  private[this] def sparkManagedContext(): RVDContext = {
-    val c = RVDContext.default
+  private[this] def sparkManagedContext[U](func: RVDContext => U): U = {
+    val c = RVDContext.default(HailTaskContext.get().getRegionPool())
     TaskContext.get().addTaskCompletionListener[Unit] { (_: TaskContext) =>
       c.close()
     }
-    c
+    func(c)
   }
 
-  def run[U >: T : ClassTag]: RDD[U] =
+  def run[U >: T : ClassTag]: RDD[U] = {
     this.cleanupRegions.rdd.mapPartitions { part =>
-      val c = sparkManagedContext()
-      part.flatMap(_(c))
+      sparkManagedContext{ c =>
+        part.flatMap(_(c))
+      }
     }
+  }
 
   def collect(): Array[T] = {
     run.collect()
@@ -228,8 +238,9 @@ class ContextRDD[T: ClassTag](
     sparkContext.runJob(
       rdd,
       { (taskContext, it: Iterator[RVDContext => Iterator[T]]) =>
-        val c = RVDContext.default
-        f(taskContext.partitionId(), c, it.flatMap(_(c)))
+        val c = RVDContext.default(HailTaskContext.get().getRegionPool())
+        val ans = f(taskContext.partitionId(), c, it.flatMap(_(c)))
+        ans
       })
 
   def cmapPartitionsAndContext[U: ClassTag](
@@ -351,8 +362,9 @@ class ContextRDD[T: ClassTag](
     sparkContext.runJob(
       rdd,
       { (it: Iterator[ElementType]) =>
-        val c = sparkManagedContext()
-        f(it.flatMap(_(c)))
+        sparkManagedContext { c =>
+          f(it.flatMap(_ (c)))
+        }
       },
       partitions)
 

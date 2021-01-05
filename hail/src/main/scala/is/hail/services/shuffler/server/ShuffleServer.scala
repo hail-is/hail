@@ -4,7 +4,7 @@ import java.net._
 import java.security.SecureRandom
 import java.util.concurrent.{ConcurrentSkipListMap, Executors, _}
 
-import is.hail.annotations.Region
+import is.hail.annotations.{Region, RegionPool}
 import is.hail.expr.ir._
 import is.hail.types.encoded._
 import is.hail.types.virtual._
@@ -132,7 +132,8 @@ class Shuffle (
   shuffleType: TShuffle
 ) extends AutoCloseable {
   private[this] val log = Logger.getLogger(getClass.getName)
-  private[this] val rootRegion = Region()
+  private[this] val pool = RegionPool()
+  private[this] val rootRegion = Region(pool=pool)
   private[this] val codecs = {
     ExecutionTimer.logTime("Shuffle.codecs") { timer =>
       using(new ExecuteContext("/tmp", "file:///tmp", null, null, rootRegion, timer)) { ctx =>
@@ -141,10 +142,10 @@ class Shuffle (
     }
   }
 
-  private[this] val store = new LSM(s"/tmp/${uuidToString(uuid)}", codecs)
+  private[this] val store = new LSM(s"/tmp/${uuidToString(uuid)}", codecs, pool)
 
   private[this] def makeRegion(): Region = {
-    val region = Region()
+    val region = Region(pool=pool)
     rootRegion.addReferenceTo(region)
     region
   }

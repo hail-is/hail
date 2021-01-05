@@ -15,7 +15,7 @@ from hailtop.utils import time_msecs, secret_alnum_string
 
 from ..batch_configuration import DEFAULT_NAMESPACE, PROJECT, \
     WORKER_MAX_IDLE_TIME_MSECS, STANDING_WORKER_MAX_IDLE_TIME_MSECS, \
-    ENABLE_STANDING_WORKER
+    ENABLE_STANDING_WORKER, GCP_ZONE
 
 from .instance import Instance
 from ..worker_config import WorkerConfig
@@ -206,11 +206,13 @@ SET worker_type = %s, worker_cores = %s, worker_disk_size_gb = %s,
             if machine_name not in self.name_instance:
                 break
 
-        if self.live_total_cores_mcpu // 1000 < 4_000:
-            zone = random.choice(self.zone_monitor.init_zones)
+        if self.live_total_cores_mcpu // 1000 < 1_000:
+            zone = GCP_ZONE
         else:
             zone_weights = self.zone_monitor.zone_weights(self.worker_cores, self.worker_local_ssd_data_disk,
                                                           self.worker_pd_ssd_data_disk_size_gb)
+            if not zone_weights:
+                return
 
             zones = [zw.zone for zw in zone_weights]
 
@@ -556,7 +558,13 @@ journalctl -u docker.service > dockerd.log
             log.warning(f'unknown event resource type {resource_type}')
             return
 
-        operation_started = event['operation'].get('first', False)
+        operation = event.get('operation')
+        if operation is None:
+            # occurs when deleting a worker that does not exist
+            log.info(f'received an event with no operation {json.dumps(event)}')
+            return
+
+        operation_started = operation.get('first', False)
         if operation_started:
             event_type = 'STARTED'
         else:
@@ -622,9 +630,12 @@ timestamp >= "{mark}"
                             'pageSize': 100,
                             'filter': filter
                         }):
-                    # take the last, largest timestamp
-                    new_mark = event['timestamp']
-                    await self.handle_event(event)
+                    try:
+                        # take the last, largest timestamp
+                        new_mark = event['timestamp']
+                        await self.handle_event(event)
+                    except Exception as exc:
+                        raise ValueError(f'exception while handling {json.dumps(event)}') from exc
 
                 if new_mark is not None:
                     await self.db.execute_update(

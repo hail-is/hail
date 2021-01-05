@@ -33,7 +33,7 @@ class LSMSuite extends HailSuite {
       val keyPType = PType.canonical(keyType)
       val keyEType = EType.defaultFromPType(keyPType).asInstanceOf[EBaseStruct]
       val codecs = new ShuffleCodecSpec(ctx, TShuffle(key, rowType, rowEType, keyEType))
-      using(new LSM(ctx.createTmpPath("lsm"), codecs)) { lsm =>
+      using(new LSM(ctx.createTmpPath("lsm"), codecs, pool=this.pool)) { lsm =>
         val shuffled = Array(4, 3, 1, 2, 0)
 
         lsm.put(struct(4), struct(4, "4"))
@@ -71,7 +71,7 @@ class LSMSuite extends HailSuite {
       val keyPType = PType.canonical(keyType)
       val keyEType = EType.defaultFromPType(keyPType).asInstanceOf[EBaseStruct]
       val codecs = new ShuffleCodecSpec(ctx, TShuffle(key, rowType, rowEType, keyEType))
-      using(new LSM(ctx.createTmpPath("lsm"), codecs)) { lsm =>
+      using(new LSM(ctx.createTmpPath("lsm"), codecs, pool=this.pool)) { lsm =>
         val shuffled = Array(4, 3, 1, 2, 0)
 
         lsm.put(struct(4), struct(4, "4"))
@@ -146,7 +146,7 @@ class LSMSuite extends HailSuite {
       val keyPType = PType.canonical(keyType)
       val keyEType = EType.defaultFromPType(keyPType).asInstanceOf[EBaseStruct]
       val codecs = new ShuffleCodecSpec(ctx, TShuffle(key, rowType, rowEType, keyEType))
-      using(new LSM(ctx.createTmpPath("lsm"), codecs)) { lsm =>
+      using(new LSM(ctx.createTmpPath("lsm"), codecs, pool=this.pool)) { lsm =>
         val shuffled = Random.shuffle((0 until nElements).toIndexedSeq).toArray
 
         var i = 0

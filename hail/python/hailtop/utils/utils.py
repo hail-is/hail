@@ -7,6 +7,7 @@ import logging
 import asyncio
 import aiohttp
 from aiohttp import web
+import urllib
 import urllib3
 import secrets
 import socket
@@ -532,3 +533,14 @@ class LoggingTimer:
         if self.threshold_ms is None or total > self.threshold_ms:
             self.timing['total'] = total
             log.info(f'{self.description} timing {self.timing}')
+
+
+def url_basename(url: str) -> str:
+    """Return the basename of the path of the URL `url`."""
+    return os.path.basename(urllib.parse.urlparse(url).path)
+
+
+def url_join(url: str, path: str) -> str:
+    """Join the (relative or absolute) path `path` to the URL `url`."""
+    parsed = urllib.parse.urlparse(url)
+    return urllib.parse.urlunparse(parsed._replace(path=os.path.join(parsed.path, path)))
