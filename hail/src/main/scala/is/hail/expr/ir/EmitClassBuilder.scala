@@ -327,7 +327,6 @@ class EmitClassBuilder[C](
       if (_pt.required) {
         vs
       } else {
-        // TODO: I don't think this is right. Seems to get an open ended issue instead of a fatal error.
         cb.ifx(ms, cb._fatal(s"Can't convert missing ${_pt} to PValue"))
         vs
       }
@@ -1221,9 +1220,9 @@ class DependentEmitFunctionBuilder[F](
     new EmitValue {
       def pt: PType = _pt
 
-      def get(cb: EmitCodeBuilder): PValue= load.toI(cb).handle(
+      def get(cb: EmitCodeBuilder): PValue= load.toI(cb).get(
         cb,
-        cb._fatal("Can't convert missing value to PValue.")).memoize(cb, "newDepEmitField_memo")
+        "Can't convert missing value to PValue.").memoize(cb, "newDepEmitField_memo")
 
       def load: EmitCode = EmitCode(Code._empty, m.load(), PCode(_pt, v.load()))
     }

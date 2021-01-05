@@ -86,7 +86,7 @@ class StagedArrayBuilder(val elt: PType, mb: EmitMethodBuilder[_], len: Code[Int
 
       def get(cb: EmitCodeBuilder): PValue = load.toI(cb).handle(
         cb,
-        cb._fatal(s"Can't convert missing EmitValue of type ${pt} to PValue.")).memoize(cb, "sab_apply_EV_get_i")
+        s"Can't convert missing EmitValue of type ${pt} to PValue.").memoize(cb, "sab_apply_EV_get_i")
 
       def load: EmitCode = {
         val t = mb.newLocal[Int]("sab_applyEV_load_i")

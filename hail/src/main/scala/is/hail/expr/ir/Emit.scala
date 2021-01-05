@@ -318,10 +318,6 @@ case class IEmitCodeGen[+A](Lmissing: CodeLabel, Lpresent: CodeLabel, value: A) 
   def get(cb: EmitCodeBuilder, errorMsg: String = "expected non-missing"): A =
     handle(cb, cb._fatal(errorMsg))
 
-  def getNeverMissing(cb: EmitCodeBuilder): A = {
-    handle(cb, cb._fatal(s"Internal compiler error, unexpected value was missing."))
-  }
-
   def consume(cb: EmitCodeBuilder, ifMissing: => Unit, ifPresent: (A) => Unit): Unit = {
     val Lafter = CodeLabel()
     cb.define(Lmissing)
@@ -2819,14 +2815,14 @@ class Emit[C](
 
             IEmitCode(cb, missing, {
               val loopIdx = cb.newLocal[Int]("ndarray_concat_shape_check_idx")
-              val firstND = ndsArrayPValue.loadElement(cb, 0).map(cb) { sCode => sCode.asNDArray }.getNeverMissing(cb).memoize(cb, "ndarray_concat_input_0")
+              val firstND = ndsArrayPValue.loadElement(cb, 0).map(cb) { sCode => sCode.asNDArray }.get(cb).memoize(cb, "ndarray_concat_input_0")
               val newShape = (0 until outputNDims).map { dimIdx =>
                 val localDim = cb.newLocal[Long](s"ndarray_concat_output_shape_element_${dimIdx}")
                 val ndShape = firstND.shapes(cb)
                 cb.assign(localDim, ndShape(dimIdx))
                 cb.forLoop(cb.assign(loopIdx, 1), loopIdx < arrLength, cb.assign(loopIdx, loopIdx + 1), {
-                  val shapeOfNDAtIdx = ndsArrayPValue.loadElement(cb, loopIdx).map(cb) { sCode => sCode.asNDArray }.getNeverMissing(cb).shape.memoize(cb, "ndarray_concat_input_shape")
-                  val dimLength = shapeOfNDAtIdx.loadField(cb, dimIdx).getNeverMissing(cb).toPCode(cb, region.code).memoize(cb, "dimLength").value.asInstanceOf[Value[Long]]
+                  val shapeOfNDAtIdx = ndsArrayPValue.loadElement(cb, loopIdx).map(cb) { sCode => sCode.asNDArray }.get(cb).shape.memoize(cb, "ndarray_concat_input_shape")
+                  val dimLength = shapeOfNDAtIdx.loadField(cb, dimIdx).get(cb).toPCode(cb, region.code).memoize(cb, "dimLength").value.asInstanceOf[Value[Long]]
 
                   if (dimIdx == axis) {
                     cb.assign(localDim, localDim + dimLength)
@@ -2850,17 +2846,17 @@ class Emit[C](
                   cb.assign(concatAxisIdx, idxVars(axis))
                   cb.assign(whichNDArrayToRead, 0)
                   val condition = EmitCodeBuilder.scopedCode[Boolean](cb.emb) { cb =>
-                    (concatAxisIdx >= ndsArrayPValue.loadElement(cb, whichNDArrayToRead).getNeverMissing(cb).asNDArray.shape.memoize(cb, "ndarray_concat_condition").loadField(cb, axis).getNeverMissing(cb).asLong.longCode(cb))
+                    (concatAxisIdx >= ndsArrayPValue.loadElement(cb, whichNDArrayToRead).get(cb).asNDArray.shape.memoize(cb, "ndarray_concat_condition").loadField(cb, axis).get(cb).asLong.longCode(cb))
                   }
                   cb.whileLoop(condition, {
-                    cb.assign(concatAxisIdx, concatAxisIdx - ndsArrayPValue.loadElement(cb, whichNDArrayToRead).getNeverMissing(cb).asNDArray.shape.memoize(cb, "ndarray_concat_output_subtract").loadField(cb, axis).getNeverMissing(cb).asLong.longCode(cb))
+                    cb.assign(concatAxisIdx, concatAxisIdx - ndsArrayPValue.loadElement(cb, whichNDArrayToRead).get(cb).asNDArray.shape.memoize(cb, "ndarray_concat_output_subtract").loadField(cb, axis).get(cb).asLong.longCode(cb))
                     cb.assign(whichNDArrayToRead, whichNDArrayToRead + 1)
                   })
                   cb.ifx(whichNDArrayToRead >= arrLength, cb._fatal(const("NDArrayConcat: trying to access element greater than length of concatenation axis: ").concat(whichNDArrayToRead.toS).concat(" > ").concat((arrLength - 1).toS)))
                   val transformedIdxs = Array.tabulate(nDims) { idx =>
                     if (idx == axis) concatAxisIdx else idxVars(idx)
                   }.toFastIndexedSeq
-                  ndsArrayPValue.loadElement(cb, whichNDArrayToRead).getNeverMissing(cb).asNDArray.memoize(cb, "ndarray_to_load_element_from").loadElement(transformedIdxs, cb).toPCode(cb, region.code)
+                  ndsArrayPValue.loadElement(cb, whichNDArrayToRead).get(cb).asNDArray.memoize(cb, "ndarray_to_load_element_from").loadElement(transformedIdxs, cb).toPCode(cb, region.code)
                 }
               }
             })
