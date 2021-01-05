@@ -307,6 +307,15 @@ class SelectFieldsRow(
 trait NDArray {
   val shape: IndexedSeq[Long]
   def getRowMajorElements(): IndexedSeq[Annotation]
+
+  override def equals(that: Any): Boolean = {
+    if (that.isInstanceOf[NDArray]) {
+      val thatNd = that.asInstanceOf[NDArray]
+      this.shape == thatNd.shape && this.getRowMajorElements() == thatNd.getRowMajorElements()
+    } else {
+      false
+    }
+  }
 }
 
 class UnsafeNDArray(val pnd: PNDArray, val region: Region, val ndAddr: Long) extends NDArray {
