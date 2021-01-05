@@ -27,13 +27,18 @@ final case class TNDArray(elementType: Type, nDimsBase: NatBase) extends Type {
   override def fundamentalType: Type = representation.fundamentalType
 
   override def valuesSimilar(a1: Annotation, a2: Annotation, tolerance: Double, absolute: Boolean): Boolean = {
-    val aNd1 = a1.asInstanceOf[NDArray]
-    val aNd2 = a2.asInstanceOf[NDArray]
+    if (a1 == null || a2 == null) {
+      a1 == a2
+    }
+    else {
+      val aNd1 = a1.asInstanceOf[NDArray]
+      val aNd2 = a2.asInstanceOf[NDArray]
 
-    val sameShape = aNd1.shape == aNd2.shape
-    val sameData = aNd1.getRowMajorElements().zip(aNd2.getRowMajorElements()).forall{ case (e1, e2) => elementType.valuesSimilar(e1, e2, tolerance, absolute)}
+      val sameShape = aNd1.shape == aNd2.shape
+      val sameData = aNd1.getRowMajorElements().zip(aNd2.getRowMajorElements()).forall{ case (e1, e2) => elementType.valuesSimilar(e1, e2, tolerance, absolute)}
 
-    sameShape && sameData
+      sameShape && sameData
+    }
   }
 
   override def pyString(sb: StringBuilder): Unit = {
