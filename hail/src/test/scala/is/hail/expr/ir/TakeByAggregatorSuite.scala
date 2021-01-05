@@ -4,7 +4,9 @@ import is.hail.HailSuite
 import is.hail.annotations.{Region, SafeRow}
 import is.hail.asm4s._
 import is.hail.expr.ir.agg.TakeByRVAS
+import is.hail.types.VirtualTypeWithReq
 import is.hail.types.physical._
+import is.hail.types.physical.stypes.primitives.{SInt32, SInt32Code}
 import is.hail.utils._
 import org.testng.annotations.Test
 
@@ -14,17 +16,17 @@ class TakeByAggregatorSuite extends HailSuite {
       val fb = EmitFunctionBuilder[Region, Long](ctx, "test_pointers")
       val cb = fb.ecb
       val stringPT = PCanonicalString(true)
-      val tba = new TakeByRVAS(PCanonicalString(true), PInt64Optional, PCanonicalArray(stringPT, required = true), cb)
+      val tba = new TakeByRVAS(VirtualTypeWithReq(PCanonicalString(true)), VirtualTypeWithReq(PInt64Optional), cb)
       pool.scopedRegion { r =>
         val argR = fb.getCodeParam[Region](1)
         val i = fb.genFieldThisRef[Long]()
         val off = fb.genFieldThisRef[Long]()
-        val rt = tba.resultType
+        val rt = PCanonicalArray(tba.valueType)
 
         fb.emitWithBuilder { cb =>
           tba.createState(cb)
-          cb += tba.newState(0L)
-          cb += tba.initialize(size)
+          tba.newState(cb, 0L)
+          tba.initialize(cb, size)
           cb += (i := 0L)
           cb.whileLoop(i < n.toLong, {
             cb += argR.invoke[Unit]("clear")
@@ -49,15 +51,15 @@ class TakeByAggregatorSuite extends HailSuite {
   @Test def testMissing() {
     val fb = EmitFunctionBuilder[Region, Long](ctx, "take_by_test_missing")
     val cb = fb.ecb
-    val tba = new TakeByRVAS(PInt32Optional, PInt32Optional, PCanonicalArray(PInt32Optional, required = true), cb)
+    val tba = new TakeByRVAS(VirtualTypeWithReq(PInt32Optional), VirtualTypeWithReq(PInt32Optional), cb)
     pool.scopedRegion { r =>
       val argR = fb.getCodeParam[Region](1)
-      val rt = tba.resultType
+      val rt = PCanonicalArray(tba.valueType)
 
       fb.emitWithBuilder { cb =>
         tba.createState(cb)
-        cb += tba.newState(0L)
-        cb += tba.initialize(7)
+        tba.newState(cb, 0L)
+        tba.initialize(cb, 7)
         tba.seqOp(cb, true, 0, true, 0)
         tba.seqOp(cb, true, 0, true, 0)
         tba.seqOp(cb, false, 0, false, 0)
@@ -87,22 +89,22 @@ class TakeByAggregatorSuite extends HailSuite {
         val random = fb.genFieldThisRef[Int]()
         val resultOff = fb.genFieldThisRef[Long]()
 
-        val tba = new TakeByRVAS(PInt32Required, PInt32Required, PCanonicalArray(PInt32Required, required = true), kb)
+        val tba = new TakeByRVAS(VirtualTypeWithReq(PInt32Required), VirtualTypeWithReq(PInt32Required), kb)
         val ab = new agg.StagedArrayBuilder(PInt32Required, kb, argR)
-        val rt = tba.resultType
+        val rt = PCanonicalArray(tba.valueType)
         val er = new EmitRegion(fb.apply_method, argR)
         val rng = er.mb.newRNG(0)
 
         fb.emitWithBuilder { cb =>
           tba.createState(cb)
-          cb += tba.newState(0L)
-          cb += tba.initialize(nToTake)
-          cb += ab.initialize()
+          tba.newState(cb, 0L)
+          tba.initialize(cb, nToTake)
+          ab.initialize(cb)
           cb += (i := 0)
           cb.whileLoop(i < n, {
             cb += (random := rng.invoke[Double, Double, Double]("runif", -10000d, 10000d).toI)
             tba.seqOp(cb, false, random, false, random)
-            cb += ab.append(random)
+            ab.append(cb, new SInt32Code(true, random))
             cb += (i := i + 1)
           })
           cb += ab.size.cne(n).orEmpty(Code._fatal[Unit]("bad size!"))

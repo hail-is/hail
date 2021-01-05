@@ -898,6 +898,8 @@ class CodeLong(val lhs: Code[Long]) extends AnyVal {
   def toD: Code[Double] = Code(lhs, lir.insn1(L2D))
 
   def toS: Code[String] = Code.invokeStatic1[java.lang.Long, Long, String]("toString", lhs)
+
+  def hexString: Code[String] = Code.invokeStatic1[java.lang.Long, Long, String]("toHexString", lhs)
 }
 
 class CodeFloat(val lhs: Code[Float]) extends AnyVal {

@@ -4,13 +4,14 @@ import is.hail.annotations.StagedRegionValueBuilder
 import is.hail.asm4s._
 import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitCodeBuilder}
 import is.hail.types.physical.PType
+import is.hail.types.virtual.Type
 
 abstract class StagedAggregator {
   type State <: AggregatorState
 
   def resultType: PType
-  def initOpTypes: Seq[PType]
-  def seqOpTypes: Seq[PType]
+  def initOpTypes: Seq[Type]
+  def seqOpTypes: Seq[Type]
 
   protected def _initOp(cb: EmitCodeBuilder, state: State, init: Array[EmitCode])
 
