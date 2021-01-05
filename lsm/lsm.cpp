@@ -8,6 +8,7 @@
 #include <bitset>
 #include <filesystem>
 #include "MurmurHash3.h"
+#include <cassert>
 
 void BloomFilter::insert_key(int32_t k) {
   uint32_t seed = 1;
