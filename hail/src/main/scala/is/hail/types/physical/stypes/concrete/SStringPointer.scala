@@ -75,7 +75,7 @@ class SStringPointerSettable(val st: SStringPointer, val a: Settable[Long]) exte
 
   def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(a)
 
-  def get: PCode = new SStringPointerCode(st, a.load())
+  def get: SStringPointerCode = new SStringPointerCode(st, a.load())
 
   def store(cb: EmitCodeBuilder, v: PCode): Unit = {
     cb.assign(a, v.asInstanceOf[SStringPointerCode].a)

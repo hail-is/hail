@@ -16,18 +16,16 @@ class GroupedBTreeKey(kt: PType, kb: EmitClassBuilder[_], region: Value[Region],
   private val kcomp = kb.getCodeOrdering(kt, CodeOrdering.Compare(), ignoreMissingness = false)
 
   private val compLoader: EmitMethodBuilder[_] = {
-    val mb = kb.genEmitMethod("compWithKey", FastIndexedSeq[ParamType](typeInfo[Long], typeInfo[Boolean], compType.ti), typeInfo[Int])
+    val mb = kb.genEmitMethod("compWithKey", FastIndexedSeq[ParamType](typeInfo[Long], compType.asEmitParam), typeInfo[Int])
     val off = mb.getCodeParam[Long](1)
-    val m = mb.getCodeParam[Boolean](2)
-    val v = mb.getCodeParam(3)(compType.ti)
     val ev1 = EmitCode(Code._empty, isKeyMissing(off), PCode(compType, loadKey(off)))
-    val ev2 = EmitCode(Code._empty, m, PCode(compType, v))
+    val ev2 = mb.getEmitParam(2)
     mb.emitWithBuilder(compKeys(_, ev1, ev2))
     mb
   }
 
-  override def compWithKey(off: Code[Long], k: EmitCode): Code[Int] =
-    Code(k.setup, compLoader.invokeCode[Int](off, k.m, k.v)) // FIXME EmitParameter
+  override def compWithKey(cb: EmitCodeBuilder, off: Code[Long], k: EmitCode): Code[Int] =
+    cb.invokeCode(compLoader, off, k)
 
   val regionIdx: Value[Int] = new Value[Int] {
     def get: Code[Int] = Region.loadInt(storageType.fieldOffset(offset, 1))

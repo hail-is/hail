@@ -113,7 +113,7 @@ class AppendOnlyBTree(kb: EmitClassBuilder[_], key: BTreeKey, region: Value[Regi
       val Lfound = CodeLabel()
 
       (0 until maxElements).foreach { i =>
-        cb.ifx(!hasKey(parent, i) || key.compWithKey(loadKey(parent, i), ev) >= 0, {
+        cb.ifx(!hasKey(parent, i) || key.compWithKey(cb, loadKey(parent, i), ev) >= 0, {
           cb.assign(upperBound, i)
           cb.goto(Lfound)
         })
@@ -136,7 +136,7 @@ class AppendOnlyBTree(kb: EmitClassBuilder[_], key: BTreeKey, region: Value[Regi
       val Lfound = CodeLabel()
 
       (0 until maxElements).foreach { i =>
-        cb.ifx(!hasKey(parent, i) || key.compSame(loadKey(parent, i), loadKey(node, idx)) >= 0, {
+        cb.ifx(!hasKey(parent, i) || key.compSame(cb, loadKey(parent, i), loadKey(node, idx)) >= 0, {
           cb.assign(upperBound, i)
           cb.goto(Lfound)
         })
@@ -215,7 +215,7 @@ class AppendOnlyBTree(kb: EmitClassBuilder[_], key: BTreeKey, region: Value[Regi
         (0 until maxElements).foreach { i =>
           cb.ifx(hasKey(node, i), {
             cb.assign(keyV, loadKey(node, i))
-            cb.assign(cmp, key.compWithKey(keyV, k))
+            cb.assign(cmp, key.compWithKey(cb, keyV, k))
             cb.ifx(cmp.ceq(0), cb.goto(Lcont))
             cb.ifx(cmp > 0, {
               insertOrGetAt(i)

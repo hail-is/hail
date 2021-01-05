@@ -44,4 +44,6 @@ abstract class PStringCode extends PCode with SStringCode {
 
 abstract class PStringValue extends PValue with SStringValue {
   def pt: PString
+
+  def get: PStringCode
 }
