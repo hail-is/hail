@@ -39,12 +39,6 @@ class UnsafeIndexedSeq(
   override def toString: String = s"[${this.mkString(",")}]"
 }
 
-class UnsafeNDArray(val pnd: PNDArray, val region: Region, val ndAddr: Long) {
-  val shape: IndexedSeq[Long] = ???
-  val elements: IndexedSeq[Annotation] = ???
-  val elementType = pnd.elementType.virtualType
-}
-
 class UnsafeIndexedSeqRowMajorView(val wrapped: UnsafeIndexedSeq, shape: IndexedSeq[Long], strides: IndexedSeq[Long]) extends IndexedSeq[Annotation] {
   val coordStorageArray = new Array[Long](shape.size)
   val shapeProduct = shape.foldLeft(1L )(_ * _)
@@ -88,17 +82,18 @@ object UnsafeRow {
       t.position(offset))
   }
 
-  def readNDArray(offset: Long, region: Region, nd: PNDArray): Row = {
-    val nDims = nd.nDims
-    val elementSize = nd.elementType.byteSize
-    val urWithStrides = read(nd.representation, region, offset).asInstanceOf[UnsafeRow]
-    val shapeRow = urWithStrides.get(0).asInstanceOf[UnsafeRow]
-    val shape = shapeRow.toSeq.map(x => x.asInstanceOf[Long]).toIndexedSeq
-    val strides = urWithStrides.get(1).asInstanceOf[UnsafeRow].toSeq.map(x => x.asInstanceOf[Long]).toIndexedSeq
-    val data = urWithStrides.get(2).asInstanceOf[UnsafeIndexedSeq]
-    val elementWiseStrides = (0 until nDims).map(i => strides(i) / elementSize)
-    val row = Row(shapeRow, new UnsafeIndexedSeqRowMajorView(data, shape, elementWiseStrides))
-    row
+  def readNDArray(offset: Long, region: Region, nd: PNDArray): UnsafeNDArray = {
+//    val nDims = nd.nDims
+//    val elementSize = nd.elementType.byteSize
+//    val urWithStrides = read(nd.representation, region, offset).asInstanceOf[UnsafeRow]
+//    val shapeRow = urWithStrides.get(0).asInstanceOf[UnsafeRow]
+//    val shape = shapeRow.toSeq.map(x => x.asInstanceOf[Long]).toIndexedSeq
+//    val strides = urWithStrides.get(1).asInstanceOf[UnsafeRow].toSeq.map(x => x.asInstanceOf[Long]).toIndexedSeq
+//    val data = urWithStrides.get(2).asInstanceOf[UnsafeIndexedSeq]
+//    val elementWiseStrides = (0 until nDims).map(i => strides(i) / elementSize)
+//    val row = Row(shapeRow, new UnsafeIndexedSeqRowMajorView(data, shape, elementWiseStrides))
+//    row
+    new UnsafeNDArray(nd, region, offset)
   }
 
   def readAnyRef(t: PType, region: Region, offset: Long): AnyRef = read(t, region, offset).asInstanceOf[AnyRef]
@@ -342,3 +337,45 @@ class SelectFieldsRow(
     this
   }
 }
+
+trait NDArray {
+  val shape: IndexedSeq[Long]
+  val elements: IndexedSeq[Annotation]
+}
+
+class UnsafeNDArray(val pnd: PNDArray, val region: Region, val ndAddr: Long) extends NDArray {
+  val shape: IndexedSeq[Long] = (0 until pnd.nDims).map(i => pnd.loadShape(ndAddr, i))
+  val elementType = pnd.elementType.virtualType
+  val coordStorageArray = new Array[Long](shape.size)
+  val shapeProduct = shape.foldLeft(1L)(_ * _)
+
+  val elements: IndexedSeq[Annotation] = {
+    val indices = (0 until pnd.nDims).map(_ => 0L).toArray
+    var curIdx = indices.size - 1
+    var idxIntoFlat = 0
+    val flat = new Array[Annotation](shapeProduct.toInt)
+
+    if (shapeProduct > Int.MaxValue) {
+      throw new IllegalArgumentException("Cannot make an UnsafeNDArray with greater than Int.MaxValue entries")
+    }
+
+    while (idxIntoFlat < shapeProduct) {
+      val elementAddress = pnd.getElementAddress(indices, ndAddr)
+      flat(idxIntoFlat) = UnsafeRow.read(pnd.elementType, region, elementAddress)
+      while (curIdx >= 0L && indices(curIdx) >= shape(curIdx) - 1) {
+        indices(curIdx) = 0L
+        curIdx -= 1
+      }
+      // found the index that needs incrementing, so long as we haven't run out of room
+      if (curIdx >= 0) {
+        indices(curIdx) += 1L
+        curIdx = indices.size - 1
+      }
+      idxIntoFlat += 1
+    }
+
+    flat
+  }
+}
+
+class SafeNDArray(val shape: IndexedSeq[Long], val elements: IndexedSeq[Annotation]) extends NDArray

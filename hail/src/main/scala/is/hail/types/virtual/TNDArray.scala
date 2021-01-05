@@ -1,6 +1,6 @@
 package is.hail.types.virtual
 
-import is.hail.annotations.{Annotation, ExtendedOrdering, UnsafeIndexedSeq}
+import is.hail.annotations.{Annotation, ExtendedOrdering, NDArray, UnsafeIndexedSeq}
 import is.hail.expr.{Nat, NatBase}
 import is.hail.types.physical.PNDArray
 import org.apache.spark.sql.Row
@@ -46,11 +46,11 @@ final case class TNDArray(elementType: Type, nDimsBase: NatBase) extends Type {
 
   override def str(a: Annotation): String = {
     if (a == null) "NA" else {
-      val a_row = a.asInstanceOf[Row]
-      val shape = a_row(this.representation.fieldIdx("shape")).asInstanceOf[Row].toSeq.asInstanceOf[Seq[Long]].map(_.toInt)
-      val data = a_row(this.representation.fieldIdx("data")).asInstanceOf[IndexedSeq[Any]]
+      val aNd = a.asInstanceOf[NDArray]
+      val shape = aNd.shape
+      val data = aNd.elements
 
-      def dataToNestedString(data: Iterator[Annotation], shape: Seq[Int], sb: StringBuilder):Unit  = {
+      def dataToNestedString(data: Iterator[Annotation], shape: Seq[Long], sb: StringBuilder):Unit  = {
         if (shape.isEmpty) {
           sb.append(data.next().toString)
         }

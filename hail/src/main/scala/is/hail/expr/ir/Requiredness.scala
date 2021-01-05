@@ -6,6 +6,7 @@ import is.hail.types._
 import is.hail.types.physical.{PStream, PType}
 import is.hail.types.virtual._
 import is.hail.utils._
+import org.apache.spark.sql.catalyst.expressions.GenericRow
 
 import scala.collection.mutable
 
@@ -438,7 +439,7 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
       case TableToValueApply(t, ForceCountTable()) =>
 
       case _: NA => requiredness.union(false)
-      case Literal(t, a) => requiredness.unionLiteral(a)
+      case x@Literal(t, a) => requiredness.unionLiteral(a)
       case EncodedLiteral(codec, value) => requiredness.fromPType(codec.decodedPType())
 
       case Coalesce(values) =>
