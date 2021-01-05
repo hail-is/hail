@@ -48,7 +48,7 @@ final case class TNDArray(elementType: Type, nDimsBase: NatBase) extends Type {
     if (a == null) "NA" else {
       val aNd = a.asInstanceOf[NDArray]
       val shape = aNd.shape
-      val data = aNd.elements
+      val data = aNd.getRowMajorElements()
 
       def dataToNestedString(data: Iterator[Annotation], shape: Seq[Long], sb: StringBuilder):Unit  = {
         if (shape.isEmpty) {

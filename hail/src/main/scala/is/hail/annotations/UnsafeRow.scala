@@ -39,30 +39,6 @@ class UnsafeIndexedSeq(
   override def toString: String = s"[${this.mkString(",")}]"
 }
 
-class UnsafeIndexedSeqRowMajorView(val wrapped: UnsafeIndexedSeq, shape: IndexedSeq[Long], strides: IndexedSeq[Long]) extends IndexedSeq[Annotation] {
-  val coordStorageArray = new Array[Long](shape.size)
-  val shapeProduct = shape.foldLeft(1L )(_ * _)
-  def apply(i: Int): Annotation = {
-    var workRemaining = i.toLong
-    var elementsInProcessedDimensions = shapeProduct
-
-    (0 until shape.size).foreach { dim =>
-      elementsInProcessedDimensions = elementsInProcessedDimensions / shape(dim)
-      coordStorageArray(dim) = workRemaining / elementsInProcessedDimensions
-      workRemaining = workRemaining % elementsInProcessedDimensions
-    }
-
-    val properIndex = (0 until shape.size).map(dim => coordStorageArray(dim) * strides(dim)).sum
-    if (properIndex > Int.MaxValue) {
-      throw new IllegalArgumentException("Index too large")
-    }
-
-    wrapped(properIndex.toInt)
-  }
-
-  override def length: Int = wrapped.length
-}
-
 object UnsafeRow {
   def readBinary(boff: Long, t: PBinary): Array[Byte] =
     t.loadBytes(boff)
@@ -83,16 +59,6 @@ object UnsafeRow {
   }
 
   def readNDArray(offset: Long, region: Region, nd: PNDArray): UnsafeNDArray = {
-//    val nDims = nd.nDims
-//    val elementSize = nd.elementType.byteSize
-//    val urWithStrides = read(nd.representation, region, offset).asInstanceOf[UnsafeRow]
-//    val shapeRow = urWithStrides.get(0).asInstanceOf[UnsafeRow]
-//    val shape = shapeRow.toSeq.map(x => x.asInstanceOf[Long]).toIndexedSeq
-//    val strides = urWithStrides.get(1).asInstanceOf[UnsafeRow].toSeq.map(x => x.asInstanceOf[Long]).toIndexedSeq
-//    val data = urWithStrides.get(2).asInstanceOf[UnsafeIndexedSeq]
-//    val elementWiseStrides = (0 until nDims).map(i => strides(i) / elementSize)
-//    val row = Row(shapeRow, new UnsafeIndexedSeqRowMajorView(data, shape, elementWiseStrides))
-//    row
     new UnsafeNDArray(nd, region, offset)
   }
 
@@ -340,7 +306,7 @@ class SelectFieldsRow(
 
 trait NDArray {
   val shape: IndexedSeq[Long]
-  val elements: IndexedSeq[Annotation]
+  def getRowMajorElements(): IndexedSeq[Annotation]
 }
 
 class UnsafeNDArray(val pnd: PNDArray, val region: Region, val ndAddr: Long) extends NDArray {
@@ -349,7 +315,7 @@ class UnsafeNDArray(val pnd: PNDArray, val region: Region, val ndAddr: Long) ext
   val coordStorageArray = new Array[Long](shape.size)
   val shapeProduct = shape.foldLeft(1L)(_ * _)
 
-  val elements: IndexedSeq[Annotation] = {
+  def getRowMajorElements(): IndexedSeq[Annotation] = {
     val indices = (0 until pnd.nDims).map(_ => 0L).toArray
     var curIdx = indices.size - 1
     var idxIntoFlat = 0
@@ -378,4 +344,6 @@ class UnsafeNDArray(val pnd: PNDArray, val region: Region, val ndAddr: Long) ext
   }
 }
 
-class SafeNDArray(val shape: IndexedSeq[Long], val elements: IndexedSeq[Annotation]) extends NDArray
+class SafeNDArray(val shape: IndexedSeq[Long], rowMajorElements: IndexedSeq[Annotation]) extends NDArray {
+  override def getRowMajorElements: IndexedSeq[Annotation] = rowMajorElements
+}

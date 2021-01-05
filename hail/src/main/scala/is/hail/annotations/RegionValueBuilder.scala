@@ -500,7 +500,7 @@ class RegionValueBuilder(var region: Region) {
           }
           val stridesRow = Row(stridesArray:_*)
 
-          addAnnotation(structWithStrides, Row(shapeRow, stridesRow, aNDArray.elements))
+          addAnnotation(structWithStrides, Row(shapeRow, stridesRow, aNDArray.getRowMajorElements()))
       }
   }
 

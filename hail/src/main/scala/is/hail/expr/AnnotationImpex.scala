@@ -135,7 +135,7 @@ object JSONAnnotationImpex {
           val jnd = a.asInstanceOf[NDArray]
           JObject(
             "shape" -> JArray(jnd.shape.map(shapeEntry => JInt(shapeEntry)).toList),
-            "data" -> JArray(jnd.elements.map(a => exportAnnotation(a, elementType)).toList)
+            "data" -> JArray(jnd.getRowMajorElements().map(a => exportAnnotation(a, elementType)).toList)
           )
       }
     }
