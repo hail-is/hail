@@ -354,5 +354,6 @@ class UnsafeNDArray(val pnd: PNDArray, val region: Region, val ndAddr: Long) ext
 }
 
 class SafeNDArray(val shape: IndexedSeq[Long], rowMajorElements: IndexedSeq[Annotation]) extends NDArray {
+  assert(shape.foldLeft(1L)(_ * _) == rowMajorElements.size)
   override def getRowMajorElements: IndexedSeq[Annotation] = rowMajorElements
 }
