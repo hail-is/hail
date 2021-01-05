@@ -439,7 +439,7 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
       case TableToValueApply(t, ForceCountTable()) =>
 
       case _: NA => requiredness.union(false)
-      case x@Literal(t, a) => requiredness.unionLiteral(a)
+      case Literal(t, a) => requiredness.unionLiteral(a)
       case EncodedLiteral(codec, value) => requiredness.fromPType(codec.decodedPType())
 
       case Coalesce(values) =>
