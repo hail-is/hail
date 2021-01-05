@@ -8,6 +8,7 @@
 // non-native version will be less than optimal.
 
 #include "MurmurHash3.h"
+#include <cassert>
 
 //-----------------------------------------------------------------------------
 // Platform-specific functions and macros
