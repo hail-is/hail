@@ -268,15 +268,6 @@ object IEmitCodeGen {
     def memoize(cb: EmitCodeBuilder, name: String): EmitValue =
       cb.memoize(iec, name)
   }
-
-  def apply[B](cb: EmitCodeBuilder, m: Code[Boolean], value: => B): IEmitCodeGen[B] = {
-    val Lmissing = CodeLabel()
-    val Lpresent = CodeLabel()
-    cb.ifx(m, { cb.goto(Lmissing) })
-    val res: B = value
-    cb.goto(Lpresent)
-    IEmitCodeGen(Lmissing, Lpresent, res)
-  }
 }
 
 case class IEmitCodeGen[+A](Lmissing: CodeLabel, Lpresent: CodeLabel, value: A) {
@@ -2766,7 +2757,7 @@ class Emit[C](
                         newDimSize
                       })
                       newDimSizeI
-                    }, cb)(x => IEmitCodeGen(cb, false, x))
+                    }, cb)(x => IEmitCode(cb, false, x))
                   }
                 }
 
