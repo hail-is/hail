@@ -660,6 +660,11 @@
     ]
   },
   "gnomad_chrM_sites": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
     "description": "gnomAD: mitochondrial DNA (mtDNA) sites Hail Table.",
     "url": "https://gnomad.broadinstitute.org/blog/2020-11-gnomad-v3-1-mitochondrial-dna-variants/",
     "versions": [
