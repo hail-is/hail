@@ -7,9 +7,9 @@ import traceback
 
 from hailtop.utils import (
     time_msecs, sleep_and_backoff, is_transient_error,
-    time_msecs_str, humanize_timedelta_msecs)
+    time_msecs_str, humanize_timedelta_msecs, Notice)
 from hailtop.httpx import client_session
-from gear import transaction
+from gear import transaction, Database
 
 from .globals import complete_states, tasks, STATUS_FORMAT_VERSION
 from .batch_configuration import KUBERNETES_TIMEOUT_IN_SECONDS, \
@@ -17,6 +17,10 @@ from .batch_configuration import KUBERNETES_TIMEOUT_IN_SECONDS, \
 from .batch_format_version import BatchFormatVersion
 from .spec_writer import SpecWriter
 from .exceptions import NonExistentBatchError, OpenBatchError
+from .log_store import LogStore
+
+from .driver.instance_collection_manager import InstanceCollectionManager  # pylint: disable=cyclic-import
+from .driver.k8s_cache import K8sCache
 
 log = logging.getLogger('batch')
 
@@ -154,10 +158,10 @@ ON DUPLICATE KEY UPDATE quantity = quantity;
 
 async def mark_job_complete(app, batch_id, job_id, attempt_id, instance_name, new_state,
                             status, start_time, end_time, reason, resources):
-    scheduler_state_changed = app['scheduler_state_changed']
-    cancel_ready_state_changed = app['cancel_ready_state_changed']
-    db = app['db']
-    inst_coll_manager = app['inst_coll_manager']
+    scheduler_state_changed: Notice = app['scheduler_state_changed']
+    cancel_ready_state_changed: asyncio.Event = app['cancel_ready_state_changed']
+    db: Database = app['db']
+    inst_coll_manager: InstanceCollectionManager = app['inst_coll_manager']
 
     id = (batch_id, job_id)
 
@@ -175,7 +179,7 @@ async def mark_job_complete(app, batch_id, job_id, attempt_id, instance_name, ne
         log.exception(f'error while marking job {id} complete on instance {instance_name}')
         raise
 
-    scheduler_state_changed.set()
+    scheduler_state_changed.notify()
     cancel_ready_state_changed.set()
 
     if instance_name:
@@ -205,7 +209,7 @@ async def mark_job_complete(app, batch_id, job_id, attempt_id, instance_name, ne
 
 
 async def mark_job_started(app, batch_id, job_id, attempt_id, instance, start_time, resources):
-    db = app['db']
+    db: Database = app['db']
 
     id = (batch_id, job_id)
 
@@ -257,9 +261,9 @@ def job_record_to_dict(record, name):
 
 
 async def unschedule_job(app, record):
-    cancel_ready_state_changed = app['cancel_ready_state_changed']
-    scheduler_state_changed = app['scheduler_state_changed']
-    db = app['db']
+    cancel_ready_state_changed: asyncio.Event = app['cancel_ready_state_changed']
+    scheduler_state_changed: Notice = app['scheduler_state_changed']
+    db: Database = app['db']
     inst_coll_manager = app['inst_coll_manager']
 
     batch_id = record['batch_id']
@@ -294,7 +298,7 @@ async def unschedule_job(app, record):
 
     if rv['delta_cores_mcpu'] and instance.state == 'active':
         instance.adjust_free_cores_in_memory(rv['delta_cores_mcpu'])
-        scheduler_state_changed.set()
+        scheduler_state_changed.notify()
         log.info(f'unschedule job {id}, attempt {attempt_id}: updated {instance} free cores')
 
     url = (f'http://{instance.ip_address}:5000'
@@ -325,8 +329,8 @@ async def unschedule_job(app, record):
 
 
 async def job_config(app, record, attempt_id):
-    k8s_cache = app['k8s_cache']
-    db = app['db']
+    k8s_cache: K8sCache = app['k8s_cache']
+    db: Database = app['db']
 
     format_version = BatchFormatVersion(record['format_version'])
     batch_id = record['batch_id']
@@ -436,8 +440,8 @@ users:
 async def schedule_job(app, record, instance):
     assert instance.state == 'active'
 
-    log_store = app['log_store']
-    db = app['db']
+    log_store: LogStore = app['log_store']
+    db: Database = app['db']
 
     batch_id = record['batch_id']
     job_id = record['job_id']

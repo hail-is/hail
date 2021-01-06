@@ -3,7 +3,9 @@ import datetime
 import logging
 import secrets
 import humanize
+
 from hailtop.utils import time_msecs, time_msecs_str
+from gear import Database
 
 from ..database import check_call_procedure
 from ..globals import INSTANCE_VERSION
@@ -23,7 +25,7 @@ class Instance:
 
     @staticmethod
     async def create(app, inst_coll, name, activation_token, worker_cores_mcpu, zone):
-        db = app['db']
+        db: Database = app['db']
 
         state = 'pending'
         now = time_msecs()
@@ -42,7 +44,7 @@ VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
     def __init__(self, app, inst_coll, name, state, cores_mcpu, free_cores_mcpu,
                  time_created, failed_request_count, last_updated, ip_address,
                  version, zone):
-        self.db = app['db']
+        self.db: Database = app['db']
         self.inst_coll = inst_coll
         # pending, active, inactive, deleted
         self._state = state

@@ -281,7 +281,7 @@ async def _get_job_log_from_record(app, batch_id, job_id, record):
                 raise
 
     if state in ('Error', 'Failed', 'Success'):
-        log_store = app['log_store']
+        log_store: LogStore = app['log_store']
         batch_format_version = BatchFormatVersion(record['format_version'])
 
         async def _read_log_from_gcs(task):
@@ -312,7 +312,7 @@ async def _get_job_log_from_record(app, batch_id, job_id, record):
 
 
 async def _get_job_log(app, batch_id, job_id, user):
-    db = app['db']
+    db: Database = app['db']
 
     record = await db.select_and_fetchone('''
 SELECT jobs.state, jobs.spec, ip_address, format_version, jobs.attempt_id
@@ -332,7 +332,7 @@ WHERE user = %s AND jobs.batch_id = %s AND NOT deleted AND jobs.job_id = %s;
 
 
 async def _get_attributes(app, record):
-    db = app['db']
+    db: Database = app['db']
 
     batch_id = record['batch_id']
     job_id = record['job_id']
@@ -352,8 +352,8 @@ WHERE batch_id = %s AND job_id = %s;
 
 
 async def _get_full_job_spec(app, record):
-    db = app['db']
-    log_store = app['log_store']
+    db: Database = app['db']
+    log_store: LogStore = app['log_store']
 
     batch_id = record['batch_id']
     job_id = record['job_id']
@@ -374,7 +374,7 @@ async def _get_full_job_spec(app, record):
 
 
 async def _get_full_job_status(app, record):
-    log_store = app['log_store']
+    log_store: LogStore = app['log_store']
 
     batch_id = record['batch_id']
     job_id = record['job_id']
@@ -553,8 +553,8 @@ def check_service_account_permissions(user, sa):
 @rest_authenticated_users_only
 async def create_jobs(request, userdata):
     app = request.app
-    db = app['db']
-    log_store = app['log_store']
+    db: Database = app['db']
+    log_store: LogStore = app['log_store']
 
     batch_id = int(request.match_info['batch_id'])
 
@@ -654,7 +654,10 @@ WHERE user = %s AND id = %s AND NOT deleted;
                         f'cpu cannot be 0')
 
                 worker_type = resources['worker_type']
-                pool = app['pool_selector'].select_pool(worker_type=worker_type)
+
+                pool_selector: PoolSelector = app['pool_selector']
+                pool = pool_selector.select_pool(worker_type=worker_type)
+
                 if not pool:
                     raise web.HTTPBadRequest(reason=f'unsupported worker type {worker_type}')
 
@@ -851,7 +854,7 @@ VALUES (%s, %s, %s);
 @rest_authenticated_users_only
 async def create_batch(request, userdata):
     app = request.app
-    db = app['db']
+    db: Database = app['db']
 
     batch_spec = await request.json()
 
@@ -925,7 +928,7 @@ VALUES (%s, %s, %s)
 
 
 async def _get_batch(app, batch_id, user):
-    db = app['db']
+    db: Database = app['db']
 
     record = await db.select_and_fetchone('''
 SELECT batches.*, SUM(`usage` * rate) AS cost FROM batches
@@ -951,7 +954,7 @@ async def _cancel_batch(app, batch_id, user):
 
 
 async def _delete_batch(app, batch_id, user):
-    db = app['db']
+    db: Database = app['db']
 
     record = await db.select_and_fetchone(
         '''
@@ -998,7 +1001,7 @@ async def close_batch(request, userdata):
     user = userdata['username']
 
     app = request.app
-    db = app['db']
+    db: Database = app['db']
 
     record = await db.select_and_fetchone(
         '''
@@ -1114,7 +1117,7 @@ async def ui_batches(request, userdata):
 
 
 async def _get_job(app, batch_id, job_id, user):
-    db = app['db']
+    db: Database = app['db']
 
     record = await db.select_and_fetchone('''
 SELECT jobs.*, ip_address, format_version, SUM(`usage` * rate) AS cost
@@ -1152,7 +1155,7 @@ GROUP BY jobs.batch_id, jobs.job_id;
 
 
 async def _get_attempts(app, batch_id, job_id, user):
-    db = app['db']
+    db: Database = app['db']
 
     attempts = db.select_and_fetchall('''
 SELECT attempts.*
@@ -1277,7 +1280,7 @@ async def ui_get_job(request, userdata):
 @web_authenticated_users_only()
 async def ui_get_billing_limits(request, userdata):
     app = request.app
-    db = app['db']
+    db: Database = app['db']
 
     if not userdata['is_developer']:
         user = userdata['username']
@@ -1337,7 +1340,7 @@ UPDATE billing_projects SET `limit` = %s WHERE name = %s;
 @prom_async_time(REQUEST_TIME_POST_BILLING_LIMITS_EDIT)
 @rest_authenticated_developers_or_auth_only
 async def post_edit_billing_limits(request, userdata):  # pylint: disable=unused-argument
-    db = request.app['db']
+    db: Database = request.app['db']
     billing_project = request.match_info['billing_project']
     data = await request.json()
     limit = data['limit']
@@ -1350,7 +1353,7 @@ async def post_edit_billing_limits(request, userdata):  # pylint: disable=unused
 @check_csrf_token
 @web_authenticated_developers_only(redirect=False)
 async def post_edit_billing_limits_ui(request, userdata):  # pylint: disable=unused-argument
-    db = request.app['db']
+    db: Database = request.app['db']
     billing_project = request.match_info['billing_project']
     post = await request.post()
     limit = post['limit']
@@ -1362,7 +1365,7 @@ async def post_edit_billing_limits_ui(request, userdata):  # pylint: disable=unu
 
 
 async def _query_billing(request):
-    db = request.app['db']
+    db: Database = request.app['db']
 
     date_format = '%m/%d/%Y'
 
@@ -1474,7 +1477,7 @@ async def ui_get_billing(request, userdata):
 @prom_async_time(REQUEST_TIME_GET_BILLING_PROJECTS_UI)
 @web_authenticated_developers_only()
 async def ui_get_billing_projects(request, userdata):
-    db = request.app['db']
+    db: Database = request.app['db']
     billing_projects = await query_billing_projects(db)
     page_context = {
         'billing_projects': [{**p, 'size': len(p['users'])} for p in billing_projects if p['status'] == 'open'],
@@ -1487,7 +1490,7 @@ async def ui_get_billing_projects(request, userdata):
 @prom_async_time(REQUEST_TIME_GET_BILLING_PROJECTS)
 @rest_authenticated_users_only
 async def get_billing_projects(request, userdata):
-    db = request.app['db']
+    db: Database = request.app['db']
 
     if not userdata['is_developer'] and userdata['username'] != 'auth':
         user = userdata['username']
@@ -1503,7 +1506,7 @@ async def get_billing_projects(request, userdata):
 @prom_async_time(REQUEST_TIME_GET_BILLING_PROJECT)
 @rest_authenticated_users_only
 async def get_billing_project(request, userdata):
-    db = request.app['db']
+    db: Database = request.app['db']
     billing_project = request.match_info['billing_project']
 
     if not userdata['is_developer'] and userdata['username'] != 'auth':
@@ -1558,7 +1561,7 @@ WHERE billing_project = %s AND user = %s;
 @check_csrf_token
 @web_authenticated_developers_only(redirect=False)
 async def post_billing_projects_remove_user(request, userdata):  # pylint: disable=unused-argument
-    db = request.app['db']
+    db: Database = request.app['db']
     billing_project = request.match_info['billing_project']
     user = request.match_info['user']
 
@@ -1573,7 +1576,7 @@ async def post_billing_projects_remove_user(request, userdata):  # pylint: disab
 @prom_async_time(REQUEST_TIME_POST_BILLING_PROJECT_REMOVE_USER_API)
 @rest_authenticated_developers_or_auth_only
 async def api_get_billing_projects_remove_user(request, userdata):  # pylint: disable=unused-argument
-    db = request.app['db']
+    db: Database = request.app['db']
     billing_project = request.match_info['billing_project']
     user = request.match_info['user']
     await _handle_api_error(_remove_user_from_billing_project, db, billing_project, user)
@@ -1617,7 +1620,7 @@ VALUES (%s, %s);
 @check_csrf_token
 @web_authenticated_developers_only(redirect=False)
 async def post_billing_projects_add_user(request, userdata):  # pylint: disable=unused-argument
-    db = request.app['db']
+    db: Database = request.app['db']
     post = await request.post()
     user = post['user']
     billing_project = request.match_info['billing_project']
@@ -1634,7 +1637,7 @@ async def post_billing_projects_add_user(request, userdata):  # pylint: disable=
 @prom_async_time(REQUEST_TIME_POST_BILLING_PROJECT_ADD_USER_API)
 @rest_authenticated_developers_or_auth_only
 async def api_billing_projects_add_user(request, userdata):  # pylint: disable=unused-argument
-    db = request.app['db']
+    db: Database = request.app['db']
     user = request.match_info['user']
     billing_project = request.match_info['billing_project']
 
@@ -1669,7 +1672,7 @@ VALUES (%s);
 @check_csrf_token
 @web_authenticated_developers_only(redirect=False)
 async def post_create_billing_projects(request, userdata):  # pylint: disable=unused-argument
-    db = request.app['db']
+    db: Database = request.app['db']
     post = await request.post()
     billing_project = post['billing_project']
 
@@ -1688,7 +1691,7 @@ async def post_create_billing_projects(request, userdata):  # pylint: disable=un
 @prom_async_time(REQUEST_TIME_POST_CREATE_BILLING_PROJECT_API)
 @rest_authenticated_developers_or_auth_only
 async def api_get_create_billing_projects(request, userdata):  # pylint: disable=unused-argument
-    db = request.app['db']
+    db: Database = request.app['db']
     billing_project = request.match_info['billing_project']
     await _handle_api_error(_create_billing_project, db, billing_project)
     return web.json_response(billing_project)
@@ -1726,7 +1729,7 @@ WHERE name = %s LIMIT 1 FOR UPDATE;
 @check_csrf_token
 @web_authenticated_developers_only(redirect=False)
 async def post_close_billing_projects(request, userdata):  # pylint: disable=unused-argument
-    db = request.app['db']
+    db: Database = request.app['db']
     billing_project = request.match_info['billing_project']
 
     session = await aiohttp_session.get_session(request)
@@ -1740,7 +1743,7 @@ async def post_close_billing_projects(request, userdata):  # pylint: disable=unu
 @prom_async_time(REQUEST_TIME_POST_CLOSE_BILLING_PROJECT_API)
 @rest_authenticated_developers_or_auth_only
 async def api_close_billing_projects(request, userdata):  # pylint: disable=unused-argument
-    db = request.app['db']
+    db: Database = request.app['db']
     billing_project = request.match_info['billing_project']
 
     await _handle_api_error(_close_billing_project, db, billing_project)
@@ -1772,7 +1775,7 @@ async def _reopen_billing_project(db, billing_project):
 @check_csrf_token
 @web_authenticated_developers_only(redirect=False)
 async def post_reopen_billing_projects(request, userdata):  # pylint: disable=unused-argument
-    db = request.app['db']
+    db: Database = request.app['db']
     billing_project = request.match_info['billing_project']
 
     session = await aiohttp_session.get_session(request)
@@ -1786,7 +1789,7 @@ async def post_reopen_billing_projects(request, userdata):  # pylint: disable=un
 @prom_async_time(REQUEST_TIME_POST_REOPEN_BILLING_PROJECT_API)
 @rest_authenticated_developers_or_auth_only
 async def api_reopen_billing_projects(request, userdata):  # pylint: disable=unused-argument
-    db = request.app['db']
+    db: Database = request.app['db']
     billing_project = request.match_info['billing_project']
     await _handle_api_error(_reopen_billing_project, db, billing_project)
     return web.json_response(billing_project)
@@ -1816,7 +1819,7 @@ async def _delete_billing_project(db, billing_project):
 @prom_async_time(REQUEST_TIME_POST_DELETE_BILLING_PROJECT_API)
 @rest_authenticated_developers_or_auth_only
 async def api_delete_billing_projects(request, userdata):  # pylint: disable=unused-argument
-    db = request.app['db']
+    db: Database = request.app['db']
     billing_project = request.match_info['billing_project']
 
     await _handle_api_error(_delete_billing_project, db, billing_project)
@@ -1904,8 +1907,7 @@ SELECT instance_id, internal_token, n_tokens FROM globals;
 
 async def on_cleanup(app):
     try:
-        blocking_pool = app['blocking_pool']
-        blocking_pool.shutdown()
+        app['blocking_pool'].shutdown()
     finally:
         app['task_manager'].shutdown()
 

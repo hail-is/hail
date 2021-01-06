@@ -17,7 +17,8 @@ from gear import (Database, setup_aiohttp_session,
                   transaction)
 from hailtop.hail_logging import AccessLogger
 from hailtop.config import get_deploy_config
-from hailtop.utils import time_msecs, RateLimit, serialization, retry_long_running
+from hailtop.utils import (time_msecs, RateLimit, serialization,
+                           Notice, periodically_call)
 from hailtop.tls import internal_server_ssl_context
 from hailtop import aiogoogle, aiotools
 from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template, \
@@ -178,7 +179,7 @@ SELECT state FROM batches WHERE user = %s AND id = %s;
     if not record:
         raise web.HTTPNotFound()
 
-    request.app['scheduler_state_changed'].set()
+    request.app['scheduler_state_changed'].notify()
 
     return web.Response()
 
@@ -304,8 +305,8 @@ async def job_started(request, instance):
 @web_authenticated_developers_only()
 async def get_index(request, userdata):
     app = request.app
-    db = app['db']
-    inst_coll_manager = app['inst_coll_manager']
+    db: Database = app['db']
+    inst_coll_manager: InstanceCollectionManager = app['inst_coll_manager']
 
     ready_cores = await db.select_and_fetchone(
         '''
@@ -331,14 +332,15 @@ FROM user_inst_coll_resources;
 @web_authenticated_developers_only()
 async def config_update(request, userdata):  # pylint: disable=unused-argument
     app = request.app
+    inst_coll_manager: InstanceCollectionManager = app['inst_coll_manager']
 
     session = await aiohttp_session.get_session(request)
 
     pool_name = request.match_info['pool']
-    pool = app['inst_coll_manager'].get_inst_coll(pool_name)
+    pool = inst_coll_manager.get_inst_coll(pool_name)
     pool_url_path = f'/pool/{pool_name}'
 
-    if pool is None or not isinstance(pool, Pool):
+    if not isinstance(pool, Pool):
         set_message(session,
                     f'Unknown pool {pool_name}.',
                     'error')
@@ -375,12 +377,6 @@ async def config_update(request, userdata):  # pylint: disable=unused-argument
         post['worker_cores'],
         lambda v: v in valid_worker_cores,
         f'one of {", ".join(str(v) for v in valid_worker_cores)}')
-
-    standing_worker = validate_int(
-        'Standing worker (boolean)',
-        post['standing_worker'],
-        lambda v: v in (0, 1),
-        'boolean (0 or 1)')
 
     standing_worker_cores = validate_int(
         f'{worker_type} standing worker cores',
@@ -444,13 +440,14 @@ async def config_update(request, userdata):  # pylint: disable=unused-argument
 @web_authenticated_developers_only()
 async def get_pool(request, userdata):
     app = request.app
+    inst_coll_manager: InstanceCollectionManager = app['inst_coll_manager']
 
     session = await aiohttp_session.get_session(request)
 
     pool_name = request.match_info['pool']
-    pool = app['inst_coll_manager'].get_inst_coll(pool_name)
+    pool = inst_coll_manager.get_inst_coll(pool_name)
 
-    if pool is None or not isinstance(pool, Pool):
+    if not isinstance(pool, Pool):
         set_message(session,
                     f'Unknown pool {pool_name}.',
                     'error')
@@ -460,8 +457,6 @@ async def get_pool(request, userdata):
     user_resources = sorted(user_resources.values(),
                             key=lambda record: record['ready_cores_mcpu'] + record['running_cores_mcpu'],
                             reverse=True)
-    user_resources = [user for user in user_resources
-                      if user['ready_cores_mcpu'] + user['running_cores_mcpu'] > 0]
 
     ready_cores_mcpu = sum([record['ready_cores_mcpu'] for record in user_resources])
 
@@ -479,7 +474,7 @@ async def get_pool(request, userdata):
 @web_authenticated_developers_only()
 async def get_user_resources(request, userdata):
     app = request.app
-    db = app['db']
+    db: Database = app['db']
 
     records = db.execute_and_fetchall('''
 SELECT user,
@@ -488,7 +483,8 @@ SELECT user,
   CAST(COALESCE(SUM(n_running_jobs), 0) AS SIGNED) AS n_running_jobs,
   CAST(COALESCE(SUM(running_cores_mcpu), 0) AS SIGNED) AS running_cores_mcpu
 FROM user_inst_coll_resources
-GROUP BY user;
+GROUP BY user
+HAVING n_ready_jobs + n_running_jobs > 0;
 ''')
 
     user_resources = sorted([record async for record in records],
@@ -502,72 +498,62 @@ GROUP BY user;
                                  'user_resources.html', page_context)
 
 
-async def check_incremental_loop(app, db):
+async def check_incremental(app, db):
     @transaction(db, read_only=True)
     async def check(tx):
-        user_inst_coll_resources = tx.execute_and_fetchall('''
-SELECT user, inst_coll,
-  CAST(COALESCE(SUM(n_ready_jobs), 0) AS SIGNED) AS n_ready_jobs,
-  CAST(COALESCE(SUM(ready_cores_mcpu), 0) AS SIGNED) AS ready_cores_mcpu,
-  CAST(COALESCE(SUM(n_running_jobs), 0) AS SIGNED) AS n_running_jobs,
-  CAST(COALESCE(SUM(running_cores_mcpu), 0) AS SIGNED) AS running_cores_mcpu,
-  CAST(COALESCE(SUM(n_cancelled_ready_jobs), 0) AS SIGNED) AS n_cancelled_ready_jobs,
-  CAST(COALESCE(SUM(n_cancelled_running_jobs), 0) AS SIGNED) AS n_cancelled_running_jobs
-FROM user_inst_coll_resources
-GROUP BY user, inst_coll
-LOCK IN SHARE MODE;
+        user_inst_coll_with_broken_resources = tx.execute_and_fetchall('''
+SELECT
+  t.*,
+  u.*
+FROM
+(
+  SELECT user, inst_coll
+    CAST(COALESCE(SUM(state = 'Ready' AND runnable), 0) AS SIGNED) AS actual_n_ready_jobs,
+    CAST(COALESCE(SUM(cores_mcpu * (state = 'Ready' AND runnable)), 0) AS SIGNED) AS actual_ready_cores_mcpu,
+    CAST(COALESCE(SUM(state = 'Running' AND (NOT cancelled)), 0) AS SIGNED) AS actual_n_running_jobs,
+    CAST(COALESCE(SUM(cores_mcpu * (state = 'Running' AND (NOT cancelled))), 0) AS SIGNED) AS actual_running_cores_mcpu,
+    CAST(COALESCE(SUM(state = 'Ready' AND cancelled), 0) AS SIGNED) AS actual_n_cancelled_ready_jobs,
+    CAST(COALESCE(SUM(state = 'Running' AND cancelled), 0) AS SIGNED) AS actual_n_cancelled_running_jobs
+  FROM
+  (
+    SELECT batches.user, jobs.state, jobs.cores_mcpu, jobs.inst_coll,
+      (jobs.always_run OR NOT (jobs.cancelled OR batches.cancelled)) AS runnable,
+      (NOT jobs.always_run AND (jobs.cancelled OR batches.cancelled)) AS cancelled
+    FROM batches
+    INNER JOIN jobs ON batches.id = jobs.batch_id
+    WHERE batches.`state` = 'running'
+  ) as v
+  GROUP BY user, inst_coll
+) as t
+INNER JOIN
+(
+  SELECT user, inst_coll,
+    CAST(COALESCE(SUM(n_ready_jobs), 0) AS SIGNED) AS expected_n_ready_jobs,
+    CAST(COALESCE(SUM(ready_cores_mcpu), 0) AS SIGNED) AS expected_ready_cores_mcpu,
+    CAST(COALESCE(SUM(n_running_jobs), 0) AS SIGNED) AS expected_n_running_jobs,
+    CAST(COALESCE(SUM(running_cores_mcpu), 0) AS SIGNED) AS expected_running_cores_mcpu,
+    CAST(COALESCE(SUM(n_cancelled_ready_jobs), 0) AS SIGNED) AS expected_n_cancelled_ready_jobs,
+    CAST(COALESCE(SUM(n_cancelled_running_jobs), 0) AS SIGNED) AS expected_n_cancelled_running_jobs
+  FROM user_inst_coll_resources
+  GROUP BY user, inst_coll
+) AS u
+ON t.user = u.user AND t.inst_coll = u.inst_coll
+WHERE actual_n_ready_jobs != expected_n_ready_jobs
+   OR actual_ready_cores_mcpu != expected_ready_cores_mcpu
+   OR actual_n_running_jobs != expected_n_running_jobs
+   OR actual_running_cores_mcpu != expected_running_cores_mcpu
+   OR actual_n_cancelled_ready_jobs != expected_n_cancelled_ready_jobs
+   OR actual_n_cancelled_running_jobs != expected_n_cancelled_running_jobs;
 ''')
-        user_inst_coll_resources = {(record['user'], record['inst_coll']): record
-                                    async for record in user_inst_coll_resources}
 
-        computed_user_inst_coll_resources = tx.execute_and_fetchall('''
-SELECT user, inst_coll,
-    COALESCE(SUM(state = 'Ready' AND runnable), 0) as n_ready_jobs,
-    COALESCE(SUM(IF(state = 'Ready' AND runnable, cores_mcpu, 0)), 0) as ready_cores_mcpu,
-    COALESCE(SUM(state = 'Running' AND NOT cancelled), 0) as n_running_jobs,
-    COALESCE(SUM(IF(state = 'Running' AND NOT cancelled, cores_mcpu, 0)), 0) as running_cores_mcpu,
-    COALESCE(SUM(state = 'Ready' AND cancelled), 0) as n_cancelled_ready_jobs,
-    COALESCE(SUM(state = 'Running' AND cancelled), 0) as n_cancelled_running_jobs
-FROM (SELECT
-    jobs.state,
-    jobs.cores_mcpu,
-    (jobs.always_run OR NOT (jobs.cancelled OR batches.cancelled)) AS runnable,
-    (NOT jobs.always_run AND (jobs.cancelled OR batches.cancelled)) AS cancelled,
-    batches.user,
-    jobs.inst_coll
-  FROM jobs
-  INNER JOIN batches ON batches.id = jobs.batch_id
-  WHERE batches.`state` = 'running'
-  LOCK IN SHARE MODE) AS s
-GROUP BY user, inst_coll;
-''')
-        computed_user_inst_coll_resources = {(record['user'], record['inst_coll']): record
-                                             async for record in computed_user_inst_coll_resources}
+        async for record in user_inst_coll_with_broken_resources:
+            log.error(f'user_inst_coll_resources corrupt: {record}')
 
-        def user_inst_coll_get(d, u_ic, f):
-            if u_ic not in d:
-                return 0
-            return d[u_ic][f]
-
-        fields = ['n_running_jobs', 'running_cores_mcpu', 'n_ready_jobs', 'ready_cores_mcpu',
-                  'n_cancelled_ready_jobs', 'n_cancelled_running_jobs']
-        user_inst_colls = set(user_inst_coll_resources.keys())
-        user_inst_colls.update(computed_user_inst_coll_resources.keys())
-        for u_ic in user_inst_colls:
-            for f in fields:
-                v = user_inst_coll_get(user_inst_coll_resources, u_ic, f)
-                computed_v = user_inst_coll_get(user_inst_coll_resources, u_ic, f)
-
-                if v != computed_v:
-                    log.error(f'user_inst_coll_resources corrupt: user_inst_coll_resources[{u_ic}][{f}] {v} != computed_user_inst_coll_resources[{u_ic}][{f}] {computed_v}')
-
-    while True:
-        try:
-            await check()  # pylint: disable=no-value-for-parameter
-        except Exception as e:
-            app['check_incremental_error'] = serialization.exception_to_dict(e)
-            log.exception('while checking incremental')
-        await asyncio.sleep(10)
+    try:
+        await check()  # pylint: disable=no-value-for-parameter
+    except Exception as e:
+        app['check_incremental_error'] = serialization.exception_to_dict(e)
+        log.exception('while checking incremental')
 
 
 async def check_resource_aggregation(app, db):
@@ -680,13 +666,11 @@ LOCK IN SHARE MODE;
         assert batch_by_billing_project_resources == agg_billing_project_resources, (
             dictdiffer.diff(batch_by_billing_project_resources, agg_billing_project_resources), batch_by_billing_project_resources, agg_billing_project_resources)
 
-    while True:
-        try:
-            await check()  # pylint: disable=no-value-for-parameter
-        except Exception as e:
-            app['check_resource_aggregation_error'] = serialization.exception_to_dict(e)
-            log.exception('while checking resource aggregation')
-        await asyncio.sleep(10)
+    try:
+        await check()  # pylint: disable=no-value-for-parameter
+    except Exception as e:
+        app['check_resource_aggregation_error'] = serialization.exception_to_dict(e)
+        log.exception('while checking resource aggregation')
 
 
 async def _cancel_batch(app, batch_id, user):
@@ -698,33 +682,29 @@ async def _cancel_batch(app, batch_id, user):
     set_cancel_state_changed(app)
 
 
-async def monitor_billing_limits_loop_body(app):
-    db = app['db']
-    while True:
-        records = await query_billing_projects(db)
-        for record in records:
-            limit = record['limit']
-            accrued_cost = record['accrued_cost']
-            if limit is not None and accrued_cost >= limit:
-                running_batches = db.execute_and_fetchall('''
+async def monitor_billing_limits(app):
+    db: Database = app['db']
+
+    records = await query_billing_projects(db)
+    for record in records:
+        limit = record['limit']
+        accrued_cost = record['accrued_cost']
+        if limit is not None and accrued_cost >= limit:
+            running_batches = db.execute_and_fetchall('''
 SELECT id, user
 FROM batches
 WHERE billing_project = %s AND state = 'running';
 ''',
-                                                          (record['billing_project'],))
-                async for batch in running_batches:
-                    await _cancel_batch(app, batch['id'], batch['user'])
-
-        await asyncio.sleep(10)
+                                                      (record['billing_project'],))
+            async for batch in running_batches:
+                await _cancel_batch(app, batch['id'], batch['user'])
 
 
-async def scheduling_cancelling_bump_loop_body(app):
-    while True:
-        log.info('scheduling cancelling bump loop')
-        app['scheduler_state_changed'].set()
-        app['cancel_ready_state_changed'].set()
-        app['cancel_running_state_changed'].set()
-        await asyncio.sleep(60)
+async def scheduling_cancelling_bump(app):
+    log.info('scheduling cancelling bump loop')
+    app['scheduler_state_changed'].notify()
+    app['cancel_ready_state_changed'].set()
+    app['cancel_running_state_changed'].set()
 
 
 async def on_startup(app):
@@ -775,7 +755,7 @@ SELECT instance_id, internal_token FROM globals;
         rate_limit=RateLimit(10, 60))
     app['logging_client'] = logging_client
 
-    scheduler_state_changed = asyncio.Event()
+    scheduler_state_changed = Notice()
     app['scheduler_state_changed'] = scheduler_state_changed
 
     cancel_ready_state_changed = asyncio.Event()
@@ -809,22 +789,21 @@ SELECT instance_id, internal_token FROM globals;
     app['check_resource_aggregation_error'] = None
 
     if HAIL_SHOULD_CHECK_INVARIANTS:
-        app['task_manager'].ensure_future(check_incremental_loop(app, db))
-        app['task_manager'].ensure_future(check_resource_aggregation(app, db))
+        app['task_manager'].ensure_future(periodically_call(
+            10, check_incremental, app, db))
+        app['task_manager'].ensure_future(periodically_call(
+            10, check_resource_aggregation, app, db))
 
-    app['task_manager'].ensure_future(retry_long_running(
-        'monitor_billing_limits_loop',
-        monitor_billing_limits_loop_body, app))
+    app['task_manager'].ensure_future(periodically_call(
+        10, monitor_billing_limits, app))
 
-    app['task_manager'].ensure_future(retry_long_running(
-        'scheduling_cancelling_bump_loop',
-        scheduling_cancelling_bump_loop_body, app))
+    app['task_manager'].ensure_future(periodically_call(
+        60, scheduling_cancelling_bump, app))
 
 
 async def on_cleanup(app):
     try:
-        blocking_pool = app['blocking_pool']
-        blocking_pool.shutdown()
+        app['blocking_pool'].shutdown()
     finally:
         try:
             await app['db'].async_close()

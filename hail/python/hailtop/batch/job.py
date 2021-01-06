@@ -343,10 +343,8 @@ class Job:
 
         When using the :class:`.ServiceBackend`, the `worker_type` parameter lets
         you control what type of instance your job runs on. The default worker
-        type is 'standard' (3.75 Gi/core). You can also choose
-        'highmem' (6.5 Gi/core) or 'highcpu' (0.9 Gi/core). Depending on your
-        job cpu and memory requirements, you can save money by using a worker
-        type other than 'standard'.
+        type is 'standard' (3.75 Gi memory / core). You can also choose
+        'highmem' (6.5 Gi memory / core) or 'highcpu' (0.9 Gi memory / core).
 
         Parameters
         ----------

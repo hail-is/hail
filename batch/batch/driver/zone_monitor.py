@@ -1,8 +1,8 @@
-import asyncio
 import logging
 import random
-from hailtop import aiotools
-from hailtop.utils import retry_long_running, url_basename
+
+from hailtop import aiotools, aiogoogle
+from hailtop.utils import periodically_call, url_basename
 
 from ..utils import WindowFractionCounter
 from ..batch_configuration import BATCH_GCP_REGIONS, GCP_ZONE
@@ -50,7 +50,7 @@ class ZoneSuccessRate:
 class ZoneMonitor:
     def __init__(self, app):
         self.app = app
-        self.compute_client = app['compute_client']
+        self.compute_client: aiogoogle.ComputeClient = app['compute_client']
 
         self.zone_success_rate = ZoneSuccessRate()
 
@@ -59,9 +59,7 @@ class ZoneMonitor:
         self.task_manager = aiotools.BackgroundTaskManager()
 
     async def async_init(self):
-        self.task_manager.ensure_future(retry_long_running(
-            'update_zones_loop',
-            self.update_region_quotas_loop))
+        self.task_manager.ensure_future(self.update_region_quotas_loop())
 
     def shutdown(self):
         self.task_manager.shutdown()
@@ -122,7 +120,4 @@ class ZoneMonitor:
         log.info('updated region quotas')
 
     async def update_region_quotas_loop(self):
-        while True:
-            log.info('update region quotas loop')
-            await self.update_region_quotas()
-            await asyncio.sleep(60)
+        await periodically_call(60, self.update_region_quotas)

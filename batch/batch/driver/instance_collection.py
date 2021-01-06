@@ -1,10 +1,12 @@
 import aiohttp
-import asyncio
 import sortedcontainers
 import logging
 
-from hailtop.utils import time_msecs, secret_alnum_string
-from hailtop import aiotools
+from hailtop.utils import time_msecs, secret_alnum_string, periodically_call
+from hailtop import aiotools, aiogoogle
+from gear import Database
+
+from .zone_monitor import ZoneMonitor
 
 log = logging.getLogger('inst_collection')
 
@@ -12,9 +14,9 @@ log = logging.getLogger('inst_collection')
 class InstanceCollection:
     def __init__(self, app, name, machine_name_prefix):
         self.app = app
-        self.db = app['db']
-        self.compute_client = app['compute_client']
-        self.zone_monitor = app['zone_monitor']
+        self.db: Database = app['db']
+        self.compute_client: aiogoogle.ComputeClient = app['compute_client']
+        self.zone_monitor: ZoneMonitor = app['zone_monitor']
 
         self.name = name
         self.machine_name_prefix = f'{machine_name_prefix}{self.name}-'
@@ -38,7 +40,7 @@ class InstanceCollection:
         self.task_manager = aiotools.BackgroundTaskManager()
 
     async def async_init(self):
-        self.task_manager.ensure_future(self.instance_monitoring_loop())
+        self.task_manager.ensure_future(self.monitor_instances_loop())
 
     def shutdown(self):
         self.task_manager.shutdown()
@@ -143,21 +145,14 @@ class InstanceCollection:
 
         await instance.update_timestamp()
 
-    async def instance_monitoring_loop(self):
-        log.info(f'starting instance monitoring loop for {self.name}')
+    async def monitor_instances(self):
+        if self.instances_by_last_updated:
+            # 0 is the smallest (oldest)
+            instance = self.instances_by_last_updated[0]
+            since_last_updated = time_msecs() - instance.last_updated
+            if since_last_updated > 60 * 1000:
+                log.info(f'checking on {instance}, last updated {since_last_updated / 1000}s ago')
+                await self.check_on_instance(instance)
 
-        while True:
-            try:
-                if self.instances_by_last_updated:
-                    # 0 is the smallest (oldest)
-                    instance = self.instances_by_last_updated[0]
-                    since_last_updated = time_msecs() - instance.last_updated
-                    if since_last_updated > 60 * 1000:
-                        log.info(f'checking on {instance}, last updated {since_last_updated / 1000}s ago')
-                        await self.check_on_instance(instance)
-            except asyncio.CancelledError:  # pylint: disable=try-except-raise
-                raise
-            except Exception:
-                log.exception('in monitor instances loop')
-
-            await asyncio.sleep(1)
+    async def monitor_instances_loop(self):
+        await periodically_call(1, self.monitor_instances)

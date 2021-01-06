@@ -2,9 +2,10 @@ import re
 import collections
 import logging
 
-from hailtop import aiotools
+from gear import Database
 
 from .pool import Pool
+from .zone_monitor import ZoneMonitor
 
 log = logging.getLogger('inst_coll_manager')
 
@@ -12,15 +13,13 @@ log = logging.getLogger('inst_coll_manager')
 class InstanceCollectionManager:
     def __init__(self, app, machine_name_prefix):
         self.app = app
-        self.db = app['db']
-        self.zone_monitor = app['zone_monitor']
+        self.db: Database = app['db']
+        self.zone_monitor: ZoneMonitor = app['zone_monitor']
         self.machine_name_prefix = machine_name_prefix
         self.inst_coll_regex = re.compile(f'{self.machine_name_prefix}(?P<inst_coll>[^-]+)-.*')
 
         self.name_inst_coll = {}
         self.name_pool = {}
-
-        self.task_manager = aiotools.BackgroundTaskManager()
 
     async def async_init(self):
         inst_coll_records = self.db.execute_and_fetchall('''
@@ -41,7 +40,8 @@ SELECT * FROM inst_colls;
         log.info('finished initializing instance collections')
 
     def shutdown(self):
-        self.task_manager.shutdown()
+        for inst_coll in self.name_inst_coll.values():
+            inst_coll.shutdown()
 
     @property
     def pools(self):

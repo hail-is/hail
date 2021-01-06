@@ -1,13 +1,17 @@
 import re
 import json
-import asyncio
 import logging
 import dateutil.parser
 import datetime
 
-from hailtop import aiotools
+from gear import Database
+from hailtop import aiotools, aiogoogle
+from hailtop.utils import periodically_call
 
 from ..batch_configuration import PROJECT
+
+from .zone_monitor import ZoneMonitor
+from .instance_collection_manager import InstanceCollectionManager
 
 log = logging.getLogger('gce_event_monitor')
 
@@ -23,11 +27,11 @@ def parse_resource_name(resource_name):
 class GCEEventMonitor:
     def __init__(self, app, machine_name_prefix):
         self.app = app
-        self.db = app['db']
-        self.zone_monitor = app['zone_monitor']
-        self.compute_client = app['compute_client']
-        self.logging_client = app['logging_client']
-        self.inst_coll_manager = app['inst_coll_manager']
+        self.db: Database = app['db']
+        self.zone_monitor: ZoneMonitor = app['zone_monitor']
+        self.compute_client: aiogoogle.ComputeClient = app['compute_client']
+        self.logging_client: aiogoogle.LoggingClient = app['logging_client']
+        self.inst_coll_manager: InstanceCollectionManager = app['inst_coll_manager']
         self.machine_name_prefix = machine_name_prefix
 
         self.task_manager = aiotools.BackgroundTaskManager()
@@ -50,14 +54,14 @@ class GCEEventMonitor:
     async def handle_event(self, event):
         payload = event.get('protoPayload')
         if payload is None:
-            log.warning('event has no payload')
+            log.warning(f'event has no payload {json.dumps(event)}')
             return
 
         timestamp = dateutil.parser.isoparse(event['timestamp']).timestamp() * 1000
 
         resource_type = event['resource']['type']
         if resource_type != 'gce_instance':
-            log.warning(f'unknown event resource type {resource_type}')
+            log.warning(f'unknown event resource type {resource_type} {json.dumps(event)}')
             return
 
         operation = event.get('operation')
@@ -105,43 +109,38 @@ class GCEEventMonitor:
                     log.info(f'event handler: handle call delete {instance}')
                     await self.handle_call_delete_event(instance, timestamp)
 
-    async def event_loop(self):
-        log.info('starting event loop')
-        while True:
-            try:
-                row = await self.db.select_and_fetchone('SELECT * FROM `gevents_mark`;')
-                mark = row['mark']
-                if mark is None:
-                    mark = datetime.datetime.utcnow().isoformat() + 'Z'
-                    await self.db.execute_update(
-                        'UPDATE `gevents_mark` SET mark = %s;',
-                        (mark,))
+    async def handle_events(self):
+        row = await self.db.select_and_fetchone('SELECT * FROM `gevents_mark`;')
+        mark = row['mark']
+        if mark is None:
+            mark = datetime.datetime.utcnow().isoformat() + 'Z'
+            await self.db.execute_update(
+                'UPDATE `gevents_mark` SET mark = %s;',
+                (mark,))
 
-                filter = f'''
+        filter = f'''
 logName="projects/{PROJECT}/logs/cloudaudit.googleapis.com%2Factivity" AND
 resource.type=gce_instance AND
 protoPayload.resourceName:"{self.machine_name_prefix}" AND
 timestamp >= "{mark}"
 '''
 
-                new_mark = None
-                async for event in await self.logging_client.list_entries(
-                        body={
-                            'resourceNames': [f'projects/{PROJECT}'],
-                            'orderBy': 'timestamp asc',
-                            'pageSize': 100,
-                            'filter': filter
-                        }):
-                    # take the last, largest timestamp
-                    new_mark = event['timestamp']
-                    await self.handle_event(event)
+        mark = None
+        async for event in await self.logging_client.list_entries(
+                body={
+                    'resourceNames': [f'projects/{PROJECT}'],
+                    'orderBy': 'timestamp asc',
+                    'pageSize': 100,
+                    'filter': filter
+                }):
+            # take the last, largest timestamp
+            mark = event['timestamp']
+            await self.handle_event(event)
 
-                if new_mark is not None:
-                    await self.db.execute_update(
-                        'UPDATE `gevents_mark` SET mark = %s;',
-                        (new_mark,))
-            except asyncio.CancelledError:  # pylint: disable=try-except-raise
-                raise
-            except Exception:
-                log.exception('in event loop')
-            await asyncio.sleep(15)
+        if mark is not None:
+            await self.db.execute_update(
+                'UPDATE `gevents_mark` SET mark = %s;',
+                (mark,))
+
+    async def event_loop(self):
+        await periodically_call(15, self.handle_events)
