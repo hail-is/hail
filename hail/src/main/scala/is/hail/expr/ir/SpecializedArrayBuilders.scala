@@ -1,7 +1,7 @@
 package is.hail.expr.ir
 
 import is.hail.asm4s._
-import is.hail.types.physical.{PType, PCode, typeToTypeInfo}
+import is.hail.types.physical.{PCode, PType, PValue, typeToTypeInfo}
 import is.hail.types.virtual.Type
 
 import scala.reflect.ClassTag
@@ -84,8 +84,12 @@ class StagedArrayBuilder(val elt: PType, mb: EmitMethodBuilder[_], len: Code[Int
     new EmitValue {
       def pt: PType = elt
 
+      def get(cb: EmitCodeBuilder): PValue = load.toI(cb).handle(
+        cb,
+        s"Can't convert missing EmitValue of type ${pt} to PValue.").memoize(cb, "sab_apply_EV_get_i")
+
       def load: EmitCode = {
-        val t = mb.newLocal[Int]("sab_applyEV_i")
+        val t = mb.newLocal[Int]("sab_applyEV_load_i")
         EmitCode(t := i, isMissing(t), PCode(elt, apply(t)))
       }
     }
