@@ -7,6 +7,7 @@ from hailtop.utils import retry_transient_errors
 from hailtop.hail_logging import configure_logging
 from fswatch import Monitor, libfswatch
 from threading import Thread
+import os
 import argparse
 import asyncio
 import kubernetes_asyncio as kube
@@ -31,24 +32,27 @@ async def retry(f, *args, **kwargs):
                 log.info(f'{i} errors encountered', exc_info=True)
 
 
+DEVBIN = os.path.abspath(os.path.dirname(__file__))
+
+
 class Sync:
     def __init__(self, paths: List[Tuple[str, str]]):
-        self.pods_list: List[Tuple[str, str]] = []
+        self.pods_list: Set[Tuple[str, str]] = set()
         self.paths = paths
 
     async def sync_and_restart_pod(self, pod, namespace):
         await asyncio.gather(*[
-            retry(check_shell, f'krsync.sh {RSYNC_ARGS} {local} {pod}@{namespace}:{remote}')
+            retry(check_shell, f'{DEVBIN}/krsync.sh {RSYNC_ARGS} {local} {pod}@{namespace}:{remote}')
             for local, remote in self.paths])
         await retry(check_shell, f'kubectl exec {pod} --namespace {namespace} -- kill -2 1')
         log.info(f'reloaded {pod}@{namespace}')
 
     async def initialize_pod(self, pod, namespace):
         await asyncio.gather(*[
-            retry(check_shell, f'krsync.sh {RSYNC_ARGS} {local} {pod}@{namespace}:{remote}')
+            retry(check_shell, f'{DEVBIN}/krsync.sh {RSYNC_ARGS} {local} {pod}@{namespace}:{remote}')
             for local, remote in self.paths])
         await retry(check_shell, f'kubectl exec {pod} --namespace {namespace} -- kill -2 1')
-        self.pods_list.append((pod, namespace))
+        self.pods_list.add((pod, namespace))
         log.info(f'initialized {pod}@{namespace}')
 
     async def monitor_pods(self, apps, namespace):
@@ -60,9 +64,12 @@ class Sync:
                 k8s.list_namespaced_pod,
                 namespace,
                 label_selector=f'app in ({",".join(apps)})')
-            updated_pods = [(pod.metadata.name, namespace) for pod in updated_pods.items]
-            fresh_pods = set(updated_pods) - set(self.pods_list)
+            updated_pods = {(pod.metadata.name, namespace) for pod in updated_pods.items}
+            fresh_pods = updated_pods - self.pods_list
+            dead_pods = self.pods_list - updated_pods
             log.info(f'monitor_pods: fresh_pods: {fresh_pods}')
+            log.info(f'monitor_pods: dead_pods: {dead_pods}')
+            self.pods_list = self.pods_list - dead_pods
             await asyncio.gather(*[
                 self.initialize_pod(name, namespace)
                 for name, namespace in fresh_pods])
