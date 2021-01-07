@@ -183,7 +183,8 @@ class ServiceBackend() extends Backend {
             "command" -> JArray(List(
               JString("/bin/bash"),
               JString("-c"),
-              JString(s"java -cp $$SPARK_HOME/jars/*:/hail.jar is.hail.backend.service.Worker $root $i")))))
+              JString(s"java -cp $$SPARK_HOME/jars/*:/hail.jar is.hail.backend.service.Worker $root $i"))),
+            "type" -> JString("docker")))
       i += 1
     }
 
