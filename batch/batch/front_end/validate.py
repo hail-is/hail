@@ -108,11 +108,12 @@ def handle_deprecated_args(i, job):
         del job['pvc_size']
 
     if 'process' not in job:
-        if 'command' not in job or 'image' not in job or 'mount_docker_socket' not in job:
-            raise ValidationError(f'no required key command in jobs[{i}].process')
         deprecated_msg = "[command, image, mount_docker_socket keys are DEPRECATED. " \
                          "Use process.command, process.image, process.mount_docker_socket " \
                          "with process.type = 'docker'.]"
+        if 'command' not in job or 'image' not in job or 'mount_docker_socket' not in job:
+            keys = {'command', 'image', 'mount_docker_socket'}
+            raise ValidationError(f'{deprecated_msg} required keys {[k for k in keys if k not in job]} not in jobs[{i}]')
         command = job['command']
         image = job['image']
         mount_docker_socket = job['mount_docker_socket']
