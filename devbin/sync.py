@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-from typing import List, Tuple
+from typing import List, Tuple, Set
 from hailtop.aiotools import BackgroundTaskManager
 from contextlib import closing
 from hailtop.utils import check_shell, CalledProcessError
@@ -21,17 +21,6 @@ log = logging.getLogger('sync.py')
 RSYNC_ARGS = "-av --progress --stats --exclude='*.log' --exclude='.mypy_cache' --exclude='__pycache__' --exclude='*~'"
 
 
-async def retry(f, *args, **kwargs):
-    i = 0
-    while True:
-        try:
-            return await f(*args, **kwargs)
-        except CalledProcessError:
-            i += 1
-            if i % 10 == 0:
-                log.info(f'{i} errors encountered', exc_info=True)
-
-
 DEVBIN = os.path.abspath(os.path.dirname(__file__))
 
 
@@ -41,18 +30,27 @@ class Sync:
         self.paths = paths
 
     async def sync_and_restart_pod(self, pod, namespace):
-        await asyncio.gather(*[
-            retry(check_shell, f'{DEVBIN}/krsync.sh {RSYNC_ARGS} {local} {pod}@{namespace}:{remote}')
-            for local, remote in self.paths])
-        await retry(check_shell, f'kubectl exec {pod} --namespace {namespace} -- kill -2 1')
+        try:
+            await asyncio.gather(*[
+                check_shell(f'{DEVBIN}/krsync.sh {RSYNC_ARGS} {local} {pod}@{namespace}:{remote}')
+                for local, remote in self.paths])
+            await check_shell(f'kubectl exec {pod} --namespace {namespace} -- kill -2 1')
+        except CalledProcessError:
+            log.warning(f'could not synchronize {namespace}/{pod}, removing from active pods', exc_info=True)
+            self.pods_list.remove((pod, namespace))
+            return
         log.info(f'reloaded {pod}@{namespace}')
 
     async def initialize_pod(self, pod, namespace):
-        await asyncio.gather(*[
-            retry(check_shell, f'{DEVBIN}/krsync.sh {RSYNC_ARGS} {local} {pod}@{namespace}:{remote}')
-            for local, remote in self.paths])
-        await retry(check_shell, f'kubectl exec {pod} --namespace {namespace} -- kill -2 1')
-        self.pods_list.add((pod, namespace))
+        try:
+            await asyncio.gather(*[
+                check_shell(f'{DEVBIN}/krsync.sh {RSYNC_ARGS} {local} {pod}@{namespace}:{remote}')
+                for local, remote in self.paths])
+            await check_shell(f'kubectl exec {pod} --namespace {namespace} -- kill -2 1')
+        except CalledProcessError:
+            log.warning(f'could not initialize {namespace}/{pod}', exc_info=True)
+            return
+        self.pods_list.append((pod, namespace))
         log.info(f'initialized {pod}@{namespace}')
 
     async def monitor_pods(self, apps, namespace):
