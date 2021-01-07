@@ -65,7 +65,7 @@ job_validator = keyed({
         required('namespace'): k8s_str,
         required('name'): k8s_str
     }),
-    'timeout': numeric(**{"x > 0", lambda x: x > 0})
+    'timeout': numeric(**{"x > 0": lambda x: x > 0})
 })
 
 batch_validator = keyed({
