@@ -20,8 +20,7 @@ from aiodocker.exceptions import DockerError
 import google.oauth2.service_account
 from hailtop.utils import (time_msecs, request_retry_transient_errors,
                            RETRY_FUNCTION_SCRIPT, sleep_and_backoff, retry_all_errors, check_shell,
-                           CalledProcessError, blocking_to_async, check_shell_output,
-                           retry_long_running, run_if_changed)
+                           CalledProcessError, check_shell_output)
 from hailtop.tls import get_context_specific_ssl_client_session
 from hailtop.batch_client.parse import (parse_cpu_in_mcpu, parse_image_tag,
                                         parse_memory_in_bytes)
@@ -905,58 +904,12 @@ class Job:
         return f'job {self.id}'
 
 
-class FileCache:
-    def __init__(self, path, pool):
-        self.path = path
-        self.cleanup_event = asyncio.Event()
-        self.pool = pool
-        self.task_manager = aiotools.BackgroundTaskManager()
-
-    async def async_init(self):
-        self.task_manager.ensure_future(retry_long_running(
-            'file_cache_monitoring_loop', self.monitor_loop))
-        self.task_manager.ensure_future(retry_long_running(
-            'file_cache_cleanup_loop',
-            run_if_changed, self.cleanup_event, self.cleanup_loop))
-
-    def shutdown(self):
-        self.task_manager.shutdown()
-
-    async def used_disk_space(self):
-        usage = await blocking_to_async(self.pool, shutil.disk_usage, self.path)
-        return usage.used / usage.total
-
-    async def remove(self, path):
-        await blocking_to_async(self.pool, os.remove, path)
-
-    async def monitor_loop(self):
-        while True:
-            if await self.used_disk_space() > 0.9:
-                log.info('more than 90% disk space used, cleaning up')
-                self.cleanup_event.set()
-            await asyncio.sleep(5)
-
-    async def cleanup_loop(self):
-        for root, _, files in os.walk(f'{self.path}/cache/'):
-            for file in files:
-                if await self.used_disk_space() < 0.7:
-                    return True
-                file_path = f'{root}/{file}'
-                try:
-                    async with Flock(file_path, pool=worker.pool, nonblock=True):
-                        await self.remove(file_path)
-                except BlockingIOError:
-                    log.info(f'could not remove in-use file {file_path}')
-        return True
-
-
 class Worker:
     def __init__(self):
         self.cores_mcpu = CORES * 1000
         self.last_updated = time_msecs()
         self.cpu_sem = FIFOWeightedSemaphore(self.cores_mcpu)
         self.pool = concurrent.futures.ThreadPoolExecutor()
-        self.file_cache = FileCache('/host', self.pool)
         self.jobs = {}
 
         # filled in during activation
@@ -965,10 +918,7 @@ class Worker:
         self.task_manager = aiotools.BackgroundTaskManager()
 
     def shutdown(self):
-        try:
-            self.file_cache.shutdown()
-        finally:
-            self.task_manager.shutdown()
+        self.task_manager.shutdown()
 
     async def run_job(self, job):
         try:
@@ -1082,9 +1032,6 @@ class Worker:
             await app_runner.setup()
             site = web.TCPSite(app_runner, '0.0.0.0', 5000)
             await site.start()
-
-            # FIXME: add this back once certain it's not blocking
-            # await self.file_cache.async_init()
 
             try:
                 await asyncio.wait_for(self.activate(), MAX_IDLE_TIME_MSECS / 1000)
