@@ -1,4 +1,4 @@
-from typing import List, Tuple, Optional, Dict
+from typing import List, Tuple, Optional
 import aiohttp
 import random
 import os
