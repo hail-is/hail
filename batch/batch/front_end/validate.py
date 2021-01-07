@@ -57,7 +57,7 @@ job_validator = keyed({
         'storage': regex(MEMORY_REGEXPAT, MEMORY_REGEX)
     }),
     'secrets': listof(keyed({
-        required('namespace': k8s_str,
+        required('namespace'): k8s_str,
         required('name'): k8s_str,
         required('mount_path'): str_type
     })),

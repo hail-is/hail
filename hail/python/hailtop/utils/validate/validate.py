@@ -1,3 +1,5 @@
+import re
+
 class ValidationError(Exception):
     def __init__(self, reason):
         super().__init__()
@@ -107,8 +109,8 @@ class SwitchValidator(TypedValidator):
     def __init__(self, key, checkers):
         super().__init__(dict)
         self.key = key
-        self.valid_key = required(in_set(*checkers.keys()))
-        self.checkers = {k: keyed({key: self.valid_key, **fields}) for k, fields in checkers.items()}
+        self.valid_key = oneof(*checkers.keys())
+        self.checkers = {k: keyed({required(key): self.valid_key, **fields}) for k, fields in checkers.items()}
 
     def __getitem__(self, key):
         return self.checkers[key]
@@ -126,7 +128,7 @@ class NullableValidator:
 
     def validate(self, name, obj):
         if obj is not None:
-            self.checker.validate(obj)
+            self.checker.validate(name, obj)
 
 
 required = RequiredKey
