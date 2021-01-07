@@ -473,6 +473,8 @@ docker run \
     $BATCH_WORKER_IMAGE \
     python3 -u -m batch.worker.worker >worker.log 2>&1
 
+[ $? -eq 0 ] || tail -n 1000 worker.log
+
 while true; do
   gcloud -q compute instances delete $NAME --zone=$ZONE
   sleep 1
