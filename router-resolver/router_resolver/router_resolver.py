@@ -5,7 +5,7 @@ import aiohttp_session
 from kubernetes_asyncio import client, config
 import logging
 from hailtop.auth import async_get_userinfo
-from hailtop.tls import get_in_cluster_server_ssl_context
+from hailtop.tls import internal_server_ssl_context
 from hailtop.hail_logging import configure_logging
 from gear import setup_aiohttp_session
 
@@ -102,4 +102,4 @@ app.on_startup.append(on_startup)
 web.run_app(app,
             host='0.0.0.0',
             port=5000,
-            ssl_context=get_in_cluster_server_ssl_context())
+            ssl_context=internal_server_ssl_context())

@@ -9,7 +9,7 @@ import aiohttp_jinja2
 
 from hailtop.utils import time_msecs, secret_alnum_string
 from hailtop.hail_logging import AccessLogger
-from hailtop.tls import get_in_cluster_server_ssl_context
+from hailtop.tls import internal_server_ssl_context
 from hailtop.config import get_deploy_config
 from hailtop import aiogoogle
 from gear import (Database, setup_aiohttp_session,
@@ -351,4 +351,4 @@ def run():
         host='0.0.0.0',
         port=5000,
         access_log_class=AccessLogger,
-        ssl_context=get_in_cluster_server_ssl_context())
+        ssl_context=internal_server_ssl_context())
