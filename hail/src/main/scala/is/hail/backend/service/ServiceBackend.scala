@@ -175,14 +175,15 @@ class ServiceBackend() extends Backend {
     while (i < n) {
       jobs(i) = JObject(
           "always_run" -> JBool(false),
-          "image" -> JString(workerImage),
-          "mount_docker_socket" -> JBool(false),
-          "command" -> JArray(List(
-            JString("/bin/bash"),
-            JString("-c"),
-            JString(s"java -cp $$SPARK_HOME/jars/*:/hail.jar is.hail.backend.service.Worker $root $i"))),
           "job_id" -> JInt(i),
-          "parent_ids" -> JArray(List()))
+          "parent_ids" -> JArray(List()),
+          "process" -> JObject(
+            "image" -> JString(workerImage),
+            "mount_docker_socket" -> JBool(false),
+            "command" -> JArray(List(
+              JString("/bin/bash"),
+              JString("-c"),
+              JString(s"java -cp $$SPARK_HOME/jars/*:/hail.jar is.hail.backend.service.Worker $root $i")))))
       i += 1
     }
 
