@@ -109,13 +109,18 @@ final case class TNDArray(elementType: Type, nDimsBase: NatBase) extends Type {
 
   override def scalaClassTag: ClassTag[Row] = classTag[Row]
 
-  def _typeCheck(a: Any): Boolean = representation._typeCheck(a)
+  def _typeCheck(a: Annotation): Boolean = { a match {
+    case nd: NDArray => nd.forall(e => elementType.typeCheck(e))
+    case _ => false
+  }
+
+  }
 
   override def mkOrdering(missingEqual: Boolean): ExtendedOrdering = null
 
   lazy val shapeType: TTuple = TTuple(Array.fill(nDims)(TInt64): _*)
 
-  lazy val representation = TStruct(
+  private lazy val representation = TStruct(
     ("shape", shapeType),
     ("data", TArray(elementType))
   )
