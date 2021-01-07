@@ -93,7 +93,7 @@ def handle_deprecated_args(i, job):
     if 'pvc_size' in job:
         if 'storage' in resources:
             raise ValidationError(f"jobs[{i}].resources.storage is already defined, but "
-                                  f"deprecated key 'pvc_size'.")
+                                  f"deprecated key 'pvc_size' is also present.")
         deprecated_msg = "[pvc_size key is DEPRECATED. Use resources.storage]"
         pvc_size = job['pvc_size']
         if not isinstance(pvc_size, str):
