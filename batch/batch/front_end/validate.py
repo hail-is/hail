@@ -5,11 +5,11 @@ from hailtop.batch_client.parse import (MEMORY_REGEX, MEMORY_REGEXPAT,
 
 # rough schema (without requiredness, value validation):
 
-## DEPRECATED:
-## command -> process/command
-## image -> process/image
-## mount_docker_socket -> process/mount_docker_socket
-## pvc_size -> resources/storage
+# DEPRECATED:
+# command -> process/command
+# image -> process/image
+# mount_docker_socket -> process/mount_docker_socket
+# pvc_size -> resources/storage
 #
 # jobs_schema = [{
 #   'always_run': bool,
@@ -91,7 +91,7 @@ def validate_and_clean_jobs(jobs):
 
 def handle_deprecated_args(i, job):
     if 'pvc_size' in job:
-        if 'storage' in resources:
+        if 'resources' in job and 'storage' in job['resources']:
             raise ValidationError(f"jobs[{i}].resources.storage is already defined, but "
                                   f"deprecated key 'pvc_size' is also present.")
         deprecated_msg = "[pvc_size key is DEPRECATED. Use resources.storage]"
@@ -417,7 +417,7 @@ def validate_process(i, process):
         raise ValidationError(f'no required key type in jobs[{i}].process')
     type = process['type']
     if type not in PROCESS_TYPES:
-        raise ValidationError(f'jobs[{i}].process.type must be in set {PROCESS_TYPES}.')
+        raise ValidationError(f'jobs[{i}].process.type must be in set {PROCESS_TYPES.keys()}.')
     for k in process:
         if k != 'type' and k not in PROCESS_TYPES[type]:
             raise ValidationError(f'unknown key in jobs[{i}].process for type {type}: {k}')
@@ -440,9 +440,9 @@ def validate_process(i, process):
         # FIXME validate image
         # https://github.com/docker/distribution/blob/master/reference/regexp.go#L68
 
-        if 'mount_docker_socket' not in job:
+        if 'mount_docker_socket' not in process:
             raise ValidationError(f'no required key mount_docker_socket in jobs[{i}].process (type=docker)')
-        mount_docker_socket = job['mount_docker_socket']
+        mount_docker_socket = process['mount_docker_socket']
         if not isinstance(mount_docker_socket, bool):
             raise ValidationError(f'jobs[{i}].process.mount_docker_socket not bool')
 
