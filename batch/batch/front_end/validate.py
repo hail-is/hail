@@ -55,9 +55,9 @@ from hailtop.batch_client.parse import (MEMORY_REGEX, MEMORY_REGEXPAT,
 #     }
 # }
 
-JOB_KEYS = {'always_run', 'attributes', 'command', 'env', 'gcsfuse', 'image',
-            'input_files', 'job_id', 'mount_docker_socket', 'mount_tokens',
-            'output_files', 'parent_ids', 'port', 'process', 'pvc_size',
+JOB_KEYS = {'always_run', 'attributes', 'env', 'gcsfuse',
+            'input_files', 'job_id', 'mount_tokens',
+            'output_files', 'parent_ids', 'port', 'process',
             'requester_pays_project', 'network', 'resources', 'secrets',
             'service_account', 'timeout'}
 
