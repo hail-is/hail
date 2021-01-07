@@ -296,6 +296,7 @@ def validate_job(i, job):
 
     if 'process' not in job:
         raise ValidationError(f'no required key process in jobs[{i}]')
+    validate_process(i, job['process'])
 
     if 'requester_pays_project' in job:
         requester_pays_project = job['requester_pays_project']

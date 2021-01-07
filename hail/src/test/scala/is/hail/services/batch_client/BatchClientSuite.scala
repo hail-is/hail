@@ -27,7 +27,8 @@ class BatchClientSuite extends TestNGSuite {
             "command" -> JArray(List(
               JString("/bin/bash"),
               JString("-c"),
-              JString("echo 'Hello, world!'"))))
+              JString("echo 'Hello, world!'"))),
+            "type" -> JString("docker"))
         )))
     implicit val formats: Formats = DefaultFormats
     assert((batch \ "state").extract[String] == "success")

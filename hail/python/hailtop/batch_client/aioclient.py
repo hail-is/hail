@@ -450,7 +450,8 @@ class BatchBuilder:
             'process': {
                 'command': command,
                 'image': image,
-                'mount_docker_socket': mount_docker_socket
+                'mount_docker_socket': mount_docker_socket,
+                'type': 'docker'
             }
         }
 
