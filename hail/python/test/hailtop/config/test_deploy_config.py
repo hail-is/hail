@@ -8,7 +8,7 @@ class Test(unittest.TestCase):
         self.assertEqual(deploy_config.location(), 'external')
         self.assertEqual(deploy_config.service_ns('quam'), 'default')
         self.assertEqual(deploy_config.service_ns('foo'), 'default')
-        self.assertEqual(deploy_config.scheme(), 'https')
+        self.assertEqual(deploy_config.scheme('batch'), 'https')
         self.assertEqual(deploy_config.auth_session_cookie_name(), 'session')
 
         self.assertEqual(deploy_config.domain('quam'), 'quam.organization.tld')
@@ -23,7 +23,7 @@ class Test(unittest.TestCase):
         self.assertEqual(deploy_config.location(), 'external')
         self.assertEqual(deploy_config.service_ns('quam'), 'bar')
         self.assertEqual(deploy_config.service_ns('foo'), 'bar')
-        self.assertEqual(deploy_config.scheme(), 'https')
+        self.assertEqual(deploy_config.scheme('batch'), 'https')
         self.assertEqual(deploy_config.auth_session_cookie_name(), 'sesh')
 
         self.assertEqual(deploy_config.base_path('foo'), '/bar/foo')
@@ -37,7 +37,7 @@ class Test(unittest.TestCase):
         self.assertEqual(deploy_config.location(), 'k8s')
         self.assertEqual(deploy_config.service_ns('quam'), 'default')
         self.assertEqual(deploy_config.service_ns('foo'), 'default')
-        self.assertEqual(deploy_config.scheme(), 'https')
+        self.assertEqual(deploy_config.scheme('batch'), 'https')
         self.assertEqual(deploy_config.auth_session_cookie_name(), 'session')
 
         self.assertEqual(deploy_config.domain('quam'), 'quam.default')
@@ -52,7 +52,7 @@ class Test(unittest.TestCase):
         self.assertEqual(deploy_config.location(), 'k8s')
         self.assertEqual(deploy_config.service_ns('quam'), 'bar')
         self.assertEqual(deploy_config.service_ns('foo'), 'bar')
-        self.assertEqual(deploy_config.scheme(), 'https')
+        self.assertEqual(deploy_config.scheme('batch'), 'https')
         self.assertEqual(deploy_config.auth_session_cookie_name(), 'sesh')
 
         self.assertEqual(deploy_config.base_path('foo'), '/bar/foo')
