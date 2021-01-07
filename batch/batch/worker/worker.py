@@ -655,7 +655,7 @@ class Job:
 
         requester_pays_project = job_spec.get('requester_pays_project')
 
-        if job_spec.get('mount_docker_socket'):
+        if job_spec['process'].get('mount_docker_socket'):
             main_volume_mounts.append('/var/run/docker.sock:/var/run/docker.sock')
 
         io_volume_mount = f'{self.io_host_path()}:/io'
@@ -711,8 +711,8 @@ class Job:
 
         # main container
         main_spec = {
-            'command': job_spec['command'],
-            'image': job_spec['image'],
+            'command': job_spec['process']['command'],
+            'image': job_spec['process']['image'],
             'name': 'main',
             'env': env,
             'cpu': self.cpu_in_mcpu,
