@@ -20,7 +20,6 @@ async def test_deploy():
     ci_deploy_status_url = deploy_config.url('ci', '/api/v1alpha/deploy_status')
     headers = service_auth_headers(deploy_config, 'ci')
     async with client_session(
-            raise_for_status=True,
             timeout=aiohttp.ClientTimeout(total=60)) as session:
 
         async def wait_forever():

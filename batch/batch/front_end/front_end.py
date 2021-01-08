@@ -269,7 +269,7 @@ async def _get_job_log_from_record(app, batch_id, job_id, record):
     ip_address = record['ip_address']
     if state == 'Running':
         async with aiohttp.ClientSession(
-                raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
+                timeout=aiohttp.ClientTimeout(total=60)) as session:
             try:
                 url = (f'http://{ip_address}:5000'
                        f'/api/v1alpha/batches/{batch_id}/jobs/{job_id}/log')
@@ -402,7 +402,7 @@ async def _get_full_job_status(app, record):
 
     ip_address = record['ip_address']
     async with aiohttp.ClientSession(
-            raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
+            timeout=aiohttp.ClientTimeout(total=60)) as session:
         try:
             url = (f'http://{ip_address}:5000'
                    f'/api/v1alpha/batches/{batch_id}/jobs/{job_id}/status')
@@ -1026,7 +1026,7 @@ WHERE user = %s AND id = %s AND NOT deleted;
         raise
 
     async with client_session(
-            raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
+            timeout=aiohttp.ClientTimeout(total=60)) as session:
         await request_retry_transient_errors(
             session, 'PATCH',
             deploy_config.url('batch-driver', f'/api/v1alpha/batches/{user}/{batch_id}/close'),
@@ -1836,7 +1836,7 @@ async def index(request, userdata):  # pylint: disable=unused-argument
 
 async def cancel_batch_loop_body(app):
     async with client_session(
-            raise_for_status=True, timeout=aiohttp.ClientTimeout(total=5)) as session:
+            timeout=aiohttp.ClientTimeout(total=5)) as session:
         await request_retry_transient_errors(
             session, 'POST',
             deploy_config.url('batch-driver', '/api/v1alpha/batches/cancel'),
@@ -1848,7 +1848,7 @@ async def cancel_batch_loop_body(app):
 
 async def delete_batch_loop_body(app):
     async with client_session(
-            raise_for_status=True, timeout=aiohttp.ClientTimeout(total=5)) as session:
+            timeout=aiohttp.ClientTimeout(total=5)) as session:
         await request_retry_transient_errors(
             session, 'POST',
             deploy_config.url('batch-driver', '/api/v1alpha/batches/delete'),

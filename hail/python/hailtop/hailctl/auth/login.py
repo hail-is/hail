@@ -95,7 +95,7 @@ async def async_main(args):
         deploy_config = deploy_config.with_default_namespace(args.namespace)
     headers = namespace_auth_headers(deploy_config, deploy_config.default_namespace(), authorize_target=False)
     async with client_session(
-            raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60), headers=headers) as session:
+            timeout=aiohttp.ClientTimeout(total=60), headers=headers) as session:
         await auth_flow(deploy_config, deploy_config.default_namespace(), session)
 
 
