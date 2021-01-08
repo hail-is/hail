@@ -3,16 +3,16 @@ import datetime
 import humanize
 
 
-def time_msecs():
+def time_msecs() -> int:
     return int(time.time() * 1000 + 0.5)
 
 
-def time_msecs_str(t):
+def time_msecs_str(t: int) -> str:
     return datetime.datetime.utcfromtimestamp(t / 1000).strftime(
         '%Y-%m-%dT%H:%M:%SZ')
 
 
-def humanize_timedelta_msecs(delta_msecs):
+def humanize_timedelta_msecs(delta_msecs: Optional[int]) -> Optional[int]:
     if delta_msecs is None:
         return None
 

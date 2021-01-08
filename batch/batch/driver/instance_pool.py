@@ -1,3 +1,4 @@
+from typing import Optional
 import os
 import re
 import secrets
@@ -19,6 +20,7 @@ from ..batch_configuration import DEFAULT_NAMESPACE, PROJECT, \
 
 from .instance import Instance
 from ..worker_config import WorkerConfig
+from ..database import check_call_procedure
 
 log = logging.getLogger('instance_pool')
 
@@ -33,6 +35,19 @@ def parse_resource_name(resource_name):
     match = RESOURCE_NAME_REGEX.fullmatch(resource_name)
     assert match
     return match.groupdict()
+
+
+async def periodically(delay, fun):
+    log.info(f'starting {fun.__name__} loop')
+
+    while True:
+        try:
+            await fun()
+        except asyncio.CancelledError:  # pylint: disable=try-except-raise
+            raise
+        except Exception:
+            log.exception(f'in {fun.__name__} loop')
+        await asyncio.sleep(delay)
 
 
 class InstancePool:
@@ -100,8 +115,7 @@ FROM globals;
 
         async for record in self.db.select_and_fetchall(
                 'SELECT * FROM instances WHERE removed = 0;'):
-            instance = Instance.from_record(self.app, record)
-            self.add_instance(instance)
+            self.add(Instance.from_record(self.app, record))
 
         self.task_manager.ensure_future(self.event_loop())
         self.task_manager.ensure_future(self.control_loop())
@@ -152,46 +166,100 @@ SET worker_type = %s, worker_cores = %s, worker_disk_size_gb = %s,
     def n_instances(self):
         return len(self.name_instance)
 
-    def adjust_for_remove_instance(self, instance):
-        assert instance in self.instances_by_last_updated
-
-        self.instances_by_last_updated.remove(instance)
-
-        self.n_instances_by_state[instance.state] -= 1
-
-        if instance.state in ('pending', 'active'):
-            self.live_free_cores_mcpu -= max(0, instance.free_cores_mcpu)
-            self.live_total_cores_mcpu -= instance.cores_mcpu
-        if instance in self.healthy_instances_by_free_cores:
-            self.healthy_instances_by_free_cores.remove(instance)
-
-    async def remove_instance(self, instance, reason, timestamp=None):
-        await instance.deactivate(reason, timestamp)
-
-        await self.db.just_execute(
-            'UPDATE instances SET removed = 1 WHERE name = %s;', (instance.name,))
-
-        self.adjust_for_remove_instance(instance)
-        del self.name_instance[instance.name]
-
-    def adjust_for_add_instance(self, instance):
+    def add(self, instance):
+        assert instance.name not in self.name_instance
         assert instance not in self.instances_by_last_updated
+        assert instance.state == 'pending'
 
+        self.name_instance[instance.name] = instance
         self.n_instances_by_state[instance.state] += 1
-
         self.instances_by_last_updated.add(instance)
         if instance.state in ('pending', 'active'):
             self.live_free_cores_mcpu += max(0, instance.free_cores_mcpu)
             self.live_total_cores_mcpu += instance.cores_mcpu
-        if (instance.state == 'active'
-                and instance.failed_request_count <= 1):
+        if instance.is_healthy():
             self.healthy_instances_by_free_cores.add(instance)
 
-    def add_instance(self, instance):
-        assert instance.name not in self.name_instance
+    # async def create_instance should be here but it is huge currently
 
-        self.name_instance[instance.name] = instance
-        self.adjust_for_add_instance(instance)
+    async def activate(self, instance: Instance, ip_address: str, timestamp: int):
+        assert instance.state == 'pending'
+
+        rv = await check_call_procedure(
+            self.db,
+            'CALL activate_instance(%s, %s, %s);',
+            (instance.name, ip_address, timestamp))
+
+        instance.state = 'active'
+        instance.ip_address = ip_address
+
+        self.scheduler_state_changed.set()
+
+        return rv['token']
+
+    async def deactivate(self, instance: Instance, reason, timestamp: Optional[int] = None):
+        if instance.state in ('inactive', 'deleted'):
+            return
+
+        if not timestamp:
+            timestamp = time_msecs()
+
+        rv = await self.db.execute_and_fetchone(
+            'CALL deactivate_instance(%s, %s, %s);',
+            (instance.name, reason, timestamp))
+
+        if rv['rc'] == 1:
+            log.info(f'{self} with in-memory state {instance.state} was already deactivated; {rv}')
+            assert rv['cur_state'] in ('inactive', 'deleted')
+
+        instance.state = 'inactive'
+        instance.free_cores_mcpu = instance.cores_mcpu
+
+        # there might be jobs to reschedule
+        self.scheduler_state_changed.set()
+
+    async def request_delete(self, instance, reason, timestamp=None):
+        if instance.state == 'deleted':
+            return
+        await self.deactivate(instance, reason, timestamp)
+
+        try:
+            await self.compute_client.delete(
+                f'/zones/{instance.zone}/instances/{instance.name}')
+        except aiohttp.ClientResponseError as e:
+            if e.status == 404:
+                log.info(f'{instance} already delete done')
+                await self.acknowledge_delete_complete(instance, reason, timestamp)
+                return
+            raise
+
+    async def acknowledge_delete_start(self, instance: Instance, timestamp: int):
+        if instance.state == 'deleted':
+            return
+        await self.deactivate(instance, 'deleted', timestamp)
+
+        rv = await self.db.execute_and_fetchone(
+            'CALL mark_instance_deleted(%s);',
+            (instance.name,))
+
+        if rv['rc'] == 1:
+            log.info(f'{self} with in-memory state {instance.state} could not be marked deleted; {rv}')
+            assert rv['cur_state'] == 'deleted'
+
+        instance.state = 'deleted'
+
+    async def acknowledge_delete_complete(self, instance, reason, timestamp=None):
+        assert instance.name in self.name_instance
+        assert instance in self.instances_by_last_updated
+
+        await instance.deactivate(reason, timestamp)
+        await self.db.just_execute(
+            'UPDATE instances SET removed = 1 WHERE name = %s;', (instance.name,))
+
+        del self.name_instance[instance.name]
+        self.n_instances_by_state[instance.state] -= 1
+        self.instances_by_last_updated.remove(instance)
+        self.healthy_instances_by_free_cores.discard(instance)
 
     async def create_instance(self, cores=None, max_idle_time_msecs=None):
         if cores is None:
@@ -227,7 +295,7 @@ SET worker_type = %s, worker_cores = %s, worker_disk_size_gb = %s,
 
         activation_token = secrets.token_urlsafe(32)
         instance = await Instance.create(self.app, machine_name, activation_token, cores * 1000, zone)
-        self.add_instance(instance)
+        self.add(instance)
 
         log.info(f'created {instance}')
 
@@ -520,31 +588,6 @@ journalctl -u docker.service > dockerd.log
 
         log.info(f'created machine {machine_name} for {instance}')
 
-    async def call_delete_instance(self, instance, reason, timestamp=None, force=False):
-        if instance.state == 'deleted' and not force:
-            return
-        if instance.state not in ('inactive', 'deleted'):
-            await instance.deactivate(reason, timestamp)
-
-        try:
-            await self.compute_client.delete(
-                f'/zones/{instance.zone}/instances/{instance.name}')
-        except aiohttp.ClientResponseError as e:
-            if e.status == 404:
-                log.info(f'{instance} already delete done')
-                await self.remove_instance(instance, reason, timestamp)
-                return
-            raise
-
-    async def handle_preempt_event(self, instance, timestamp):
-        await self.call_delete_instance(instance, 'preempted', timestamp=timestamp)
-
-    async def handle_delete_done_event(self, instance, timestamp):
-        await self.remove_instance(instance, 'deleted', timestamp)
-
-    async def handle_call_delete_event(self, instance, timestamp):
-        await instance.mark_deleted('deleted', timestamp)
-
     async def handle_event(self, event):
         payload = event.get('protoPayload')
         if payload is None:
@@ -565,139 +608,139 @@ journalctl -u docker.service > dockerd.log
             return
 
         operation_started = operation.get('first', False)
-        if operation_started:
-            event_type = 'STARTED'
-        else:
-            event_type = 'COMPLETED'
 
-        event_subtype = payload['methodName']
-        resource = event['resource']
+        operation_type = payload['methodName']
         name = parse_resource_name(payload['resourceName'])['name']
 
-        log.info(f'event {resource_type} {event_type} {event_subtype} {name}')
+        log.info(f'event operation_started={operation_started} {operation_type} {name}')
 
         if not name.startswith(self.machine_name_prefix):
             log.warning(f'event for unknown machine {name}')
             return
 
-        if event_subtype == 'v1.compute.instances.insert':
-            if event_type == 'COMPLETED':
+        if operation_type == 'v1.compute.instances.insert':
+            if operation_started:
                 severity = event['severity']
-                operation_id = event['operation']['id']
+                operation_id = operation['id']
                 success = (severity != 'ERROR')
-                self.zone_monitor.zone_success_rate.push(resource['labels']['zone'], operation_id, success)
-        else:
-            instance = self.name_instance.get(name)
-            if not instance:
-                log.warning(f'event for unknown instance {name}')
-                return
+                zone = event['resource']['labels']['zone']
+                self.zone_monitor.zone_success_rate.push(zone, operation_id, success)
+            return
 
-            if event_subtype == 'v1.compute.instances.preempted':
-                log.info(f'event handler: handle preempt {instance}')
-                await self.handle_preempt_event(instance, timestamp)
-            elif event_subtype == 'v1.compute.instances.delete':
-                if event_type == 'COMPLETED':
-                    log.info(f'event handler: delete {instance} done')
-                    await self.handle_delete_done_event(instance, timestamp)
-                elif event_type == 'STARTED':
-                    log.info(f'event handler: handle call delete {instance}')
-                    await self.handle_call_delete_event(instance, timestamp)
+        instance = self.name_instance.get(name)
+        if not instance:
+            log.warning(f'event for unknown instance {name}')
+            return
+
+        if operation_type == 'v1.compute.instances.preempted':
+            log.info(f'event handler: handle preempt {instance}')
+            await self.request_delete(instance, timestamp)
+            return
+        if operation_type == 'v1.compute.instances.delete':
+            if operation_started:
+                log.info(f'event handler: handle call delete {instance}')
+                await self.acknowledge_delete_start(instance, timestamp)
+                return
+            log.info(f'event handler: delete {instance} done')
+            await self.acknowledge_delete_complete(instance, timestamp)
+            return
 
     async def event_loop(self):
-        log.info('starting event loop')
-        while True:
-            try:
-                row = await self.db.select_and_fetchone('SELECT * FROM `gevents_mark`;')
-                mark = row['mark']
-                if mark is None:
-                    mark = datetime.datetime.utcnow().isoformat() + 'Z'
-                    await self.db.execute_update(
-                        'UPDATE `gevents_mark` SET mark = %s;',
-                        (mark,))
+        await periodically(15, self.event)
 
-                filter = f'''
+    async def event(self):
+        row = await self.db.select_and_fetchone('SELECT * FROM `gevents_mark`;')
+        mark = row['mark']
+        if mark is None:
+            mark = datetime.datetime.utcnow().isoformat() + 'Z'
+            await self.db.execute_update(
+                'UPDATE `gevents_mark` SET mark = %s;',
+                (mark,))
+        filter = f'''
 logName="projects/{PROJECT}/logs/cloudaudit.googleapis.com%2Factivity" AND
 resource.type=gce_instance AND
 protoPayload.resourceName:"{self.machine_name_prefix}" AND
 timestamp >= "{mark}"
 '''
+        new_mark = None
+        async for event in await self.logging_client.list_entries(
+                body={
+                    'resourceNames': [f'projects/{PROJECT}'],
+                    'orderBy': 'timestamp asc',
+                    'pageSize': 100,
+                    'filter': filter
+                }):
+            try:
+                # take the last, largest timestamp
+                new_mark = event['timestamp']
+                await self.handle_event(event)
+            except Exception as exc:
+                raise ValueError(f'exception while handling {json.dumps(event)}') from exc
 
-                new_mark = None
-                async for event in await self.logging_client.list_entries(
-                        body={
-                            'resourceNames': [f'projects/{PROJECT}'],
-                            'orderBy': 'timestamp asc',
-                            'pageSize': 100,
-                            'filter': filter
-                        }):
-                    try:
-                        # take the last, largest timestamp
-                        new_mark = event['timestamp']
-                        await self.handle_event(event)
-                    except Exception as exc:
-                        raise ValueError(f'exception while handling {json.dumps(event)}') from exc
-
-                if new_mark is not None:
-                    await self.db.execute_update(
-                        'UPDATE `gevents_mark` SET mark = %s;',
-                        (new_mark,))
-            except asyncio.CancelledError:  # pylint: disable=try-except-raise
-                raise
-            except Exception:
-                log.exception('in event loop')
-            await asyncio.sleep(15)
+        if new_mark is not None:
+            await self.db.execute_update(
+                'UPDATE `gevents_mark` SET mark = %s;',
+                (new_mark,))
 
     async def control_loop(self):
-        log.info('starting control loop')
-        while True:
-            try:
-                ready_cores = await self.db.select_and_fetchone(
-                    '''
+        await periodically(15, self.control)
+
+    async def control(self):
+        ready_cores = await self.db.select_and_fetchone(
+            '''
 SELECT CAST(COALESCE(SUM(ready_cores_mcpu), 0) AS SIGNED) AS ready_cores_mcpu
 FROM ready_cores;
 ''')
-                ready_cores_mcpu = ready_cores['ready_cores_mcpu']
+        ready_cores_mcpu = ready_cores['ready_cores_mcpu']
 
-                free_cores_mcpu = sum([
-                    worker.free_cores_mcpu
-                    for worker in self.healthy_instances_by_free_cores
-                ])
-                free_cores = free_cores_mcpu / 1000
+        free_cores_mcpu = sum([
+            worker.free_cores_mcpu
+            for worker in self.healthy_instances_by_free_cores
+        ])
+        free_cores = free_cores_mcpu / 1000
 
-                log.info(f'n_instances {self.n_instances} {self.n_instances_by_state}'
-                         f' free_cores {free_cores} live_free_cores {self.live_free_cores_mcpu / 1000}'
-                         f' ready_cores {ready_cores_mcpu / 1000}')
+        log.info(f'n_instances {self.n_instances} {self.n_instances_by_state}'
+                 f' free_cores {free_cores} live_free_cores {self.live_free_cores_mcpu / 1000}'
+                 f' ready_cores {ready_cores_mcpu / 1000}')
 
-                if ready_cores_mcpu > 0 and free_cores < 500:
-                    n_live_instances = self.n_instances_by_state['pending'] + self.n_instances_by_state['active']
-                    instances_needed = (
-                        (ready_cores_mcpu - self.live_free_cores_mcpu + (self.worker_cores * 1000) - 1)
-                        // (self.worker_cores * 1000))
-                    instances_needed = min(instances_needed,
-                                           self.pool_size - n_live_instances,
-                                           self.max_instances - self.n_instances,
-                                           # 20 queries/s; our GCE long-run quota
-                                           300,
-                                           # n * 16 cores / 15s = excess_scheduling_rate/s = 10/s => n ~= 10
-                                           10)
-                    if instances_needed > 0:
-                        log.info(f'creating {instances_needed} new instances')
-                        # parallelism will be bounded by thread pool
-                        await asyncio.gather(*[self.create_instance() for _ in range(instances_needed)])
+        if ready_cores_mcpu > 0 and free_cores < 500:
+            n_live_instances = self.n_instances_by_state['pending'] + self.n_instances_by_state['active']
+            instances_needed = (
+                (ready_cores_mcpu - self.live_free_cores_mcpu + (self.worker_cores * 1000) - 1)
+                // (self.worker_cores * 1000))
+            instances_needed = min(instances_needed,
+                                   self.pool_size - n_live_instances,
+                                   self.max_instances - self.n_instances,
+                                   # 20 queries/s; our GCE long-run quota
+                                   300,
+                                   # N * 16 cores / 15s = excess_scheduling_rate/s = 10/s => n ~= 10
+                                   10)
+            if instances_needed > 0:
+                log.info(f'creating {instances_needed} new instances')
+                # parallelism will be bounded by thread pool
+                await asyncio.gather(*[self.create_instance() for _ in range(instances_needed)])
 
-                n_live_instances = self.n_instances_by_state['pending'] + self.n_instances_by_state['active']
-                if ENABLE_STANDING_WORKER and n_live_instances == 0 and self.max_instances > 0:
-                    await self.create_instance(cores=self.standing_worker_cores,
-                                               max_idle_time_msecs=STANDING_WORKER_MAX_IDLE_TIME_MSECS)
-            except asyncio.CancelledError:  # pylint: disable=try-except-raise
-                raise
-            except Exception:
-                log.exception('in control loop')
-            await asyncio.sleep(15)
+        n_live_instances = self.n_instances_by_state['pending'] + self.n_instances_by_state['active']
+        if ENABLE_STANDING_WORKER and n_live_instances == 0 and self.max_instances > 0:
+            await self.create_instance(cores=self.standing_worker_cores,
+                                       max_idle_time_msecs=STANDING_WORKER_MAX_IDLE_TIME_MSECS)
 
-    async def check_on_instance(self, instance):
-        active_and_healthy = await instance.check_is_active_and_healthy()
-        if active_and_healthy:
+    async def instance_monitoring_loop(self):
+        await periodically(1, self.check_on_oldest_instance)
+
+    async def check_on_oldest_instance(self):
+        if self.instances_by_last_updated:
+            # 0 is the smallest (oldest)
+            instance = self.instances_by_last_updated[0]
+            since_last_updated = time_msecs() - instance.last_updated
+            if since_last_updated > 60 * 1000:
+                log.info(f'checking on {instance}, last updated {since_last_updated / 1000}s ago')
+                await self.check_on_instance(instance)
+
+    async def check_on_instance(self, instance: Instance):
+        if instance.state != 'active' or instance.ip_address is None:
+            return
+        if await self.check_is_instance_healthy(instance):
             return
 
         try:
@@ -705,7 +748,7 @@ FROM ready_cores;
                 f'/zones/{instance.zone}/instances/{instance.name}')
         except aiohttp.ClientResponseError as e:
             if e.status == 404:
-                await self.remove_instance(instance, 'does_not_exist')
+                await self.acknowledge_delete_complete(instance, 'does_not_exist')
                 return
             raise
 
@@ -715,36 +758,33 @@ FROM ready_cores;
 
         if gce_state in ('STOPPING', 'TERMINATED'):
             log.info(f'{instance} live but stopping or terminated, deactivating')
-            await instance.deactivate('terminated')
+            await self.deactivate(instance, 'terminated')
 
-        if (gce_state in ('STAGING', 'RUNNING')
-                and instance.state == 'pending'
-                and time_msecs() - instance.time_created > 5 * 60 * 1000):
+        if (gce_state in ('STAGING', 'RUNNING') and
+            instance.state == 'pending' and
+            time_msecs() - instance.time_created > 5 * 60 * 1000):
             # FIXME shouldn't count time in PROVISIONING
             log.info(f'{instance} did not activate within 5m, deleting')
-            await self.call_delete_instance(instance, 'activation_timeout')
+            await self.request_delete(instance, 'activation_timeout')
 
         if instance.state == 'inactive':
             log.info(f'{instance} is inactive, deleting')
-            await self.call_delete_instance(instance, 'inactive')
+            await self.request_delete(instance, 'inactive')
 
         await instance.update_timestamp()
 
-    async def instance_monitoring_loop(self):
-        log.info('starting instance monitoring loop')
+    async def check_is_instance_healthy(self, instance: Instance):
+        try:
+            async with aiohttp.ClientSession(
+                    raise_for_status=True, timeout=aiohttp.ClientTimeout(total=5)) as session:
+                async with session.get(f'http://{instance.ip_address}:5000/healthcheck') as resp:
+                    actual_name = (await resp.json()).get('name')
+                    if actual_name and actual_name != instance.name:
+                        return False
+                await instance.mark_healthy()
+                return True
+        except Exception:
+            log.exception(f'while requesting {instance} /healthcheck')
+            await instance.incr_failed_request_count()
+            return False
 
-        while True:
-            try:
-                if self.instances_by_last_updated:
-                    # 0 is the smallest (oldest)
-                    instance = self.instances_by_last_updated[0]
-                    since_last_updated = time_msecs() - instance.last_updated
-                    if since_last_updated > 60 * 1000:
-                        log.info(f'checking on {instance}, last updated {since_last_updated / 1000}s ago')
-                        await self.check_on_instance(instance)
-            except asyncio.CancelledError:  # pylint: disable=try-except-raise
-                raise
-            except Exception:
-                log.exception('in monitor instances loop')
-
-            await asyncio.sleep(1)
