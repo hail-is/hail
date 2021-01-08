@@ -227,5 +227,9 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
         representation.storeAtAddress(cb, addr, region, representation.loadCheapPCode(cb, value.asInstanceOf[SNDArrayPointerCode].a), deepCopy)
     }
   }
+
+  override def dataPointer(ndAddr: Code[Long]): Code[Long] = data.pType.firstElementOffset(this.dataPointer(ndAddr))
+
+  override def dataArrayPointer(ndAddr: Code[Long]): Code[Long] = data.load(ndAddr)
 }
 

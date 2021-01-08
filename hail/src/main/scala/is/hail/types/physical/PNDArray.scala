@@ -28,6 +28,9 @@ abstract class PNDArray extends PType {
 
   val representation: PStruct
 
+  def dataPointer(ndAddr: Code[Long]): Code[Long]
+  def dataArrayPointer(ndAddr: Code[Long]): Code[Long]
+
   def loadShape(cb: EmitCodeBuilder, off: Code[Long], idx: Int): Code[Long]
 
   def loadShape(off: Long, idx: Int): Long

@@ -883,7 +883,7 @@ class Emit[C](
                   srvb.addLong(if (index < childPType.nDims) childStrides(index) else 0L),
                   srvb.advance())
               })
-          }, childPType.data.load(pndVal.tcode[Long]), mb, region.code)
+          }, childPType.dataArrayPointer(pndVal.tcode[Long]), mb, region.code)
         }
 
       case NDArrayRef(nd, idxs, errorId) =>
@@ -924,8 +924,8 @@ class Emit[C](
             val outputPType = PCanonicalNDArray(lPType.elementType, TNDArray.matMulNDims(lPType.nDims, rPType.nDims), true)
 
             if ((lPType.elementType.isInstanceOf[PFloat64] || lPType.elementType.isInstanceOf[PFloat32]) && lPType.nDims == 2 && rPType.nDims == 2) {
-              val leftDataAddress = lPType.data.load(leftPVal.tcode[Long])
-              val rightDataAddress = rPType.data.load(rightPVal.tcode[Long])
+              val leftDataAddress = lPType.dataPointer(leftPVal.tcode[Long])
+              val rightDataAddress = rPType.dataPointer(rightPVal.tcode[Long])
 
               val answerPArrayAddress = mb.genFieldThisRef[Long]()
               val M = lShape(lPType.nDims - 2)
@@ -948,9 +948,9 @@ class Emit[C](
                       N.toI,
                       K.toI,
                       1.0f,
-                      lPType.data.pType.firstElementOffset(leftDataAddress),
+                      leftDataAddress,
                       LDA.toI,
-                      rPType.data.pType.firstElementOffset(rightDataAddress),
+                      rightDataAddress,
                       LDB.toI,
                       0.0f,
                       outputPType.data.pType.firstElementOffset(answerPArrayAddress, (M * N).toI),
@@ -964,9 +964,9 @@ class Emit[C](
                       N.toI,
                       K.toI,
                       1.0,
-                      lPType.data.pType.firstElementOffset(leftDataAddress),
+                      leftDataAddress,
                       LDA.toI,
-                      rPType.data.pType.firstElementOffset(rightDataAddress),
+                      rightDataAddress,
                       LDB.toI,
                       0.0,
                       outputPType.data.pType.firstElementOffset(answerPArrayAddress, (M * N).toI),
