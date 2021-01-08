@@ -1067,7 +1067,7 @@ class Worker:
                 log.info(f'idle {idle_duration} ms, exiting')
 
                 async with client_session(
-                        timeout=aiohttp.ClientTimeout(total=60)) as session:
+                        timeout=aiohttp.ClientTimeout(total=5)) as session:
                     # Don't retry.  If it doesn't go through, the driver
                     # monitoring loops will recover.  If the driver is
                     # gone (e.g. testing a PR), this would go into an
@@ -1190,7 +1190,7 @@ class Worker:
 
     async def activate(self):
         async with client_session(
-                timeout=aiohttp.ClientTimeout(total=60)) as session:
+                timeout=aiohttp.ClientTimeout(total=5)) as session:
             resp = await request_retry_transient_errors(
                 session, 'POST',
                 deploy_config.url('batch-driver', '/api/v1alpha/instances/activate'),
