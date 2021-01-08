@@ -128,7 +128,7 @@ VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
             return
 
         now = time_msecs()
-        changed = (self._failed_request_count > 1) or (now - self.last_updated) > 5000
+        changed = (self.failed_request_count > 1) or (now - self.last_updated) > 5000
         if not changed:
             return
 
@@ -141,7 +141,7 @@ WHERE name = %s;
 ''',
             (now, self.name))
 
-        self._failed_request_count = 0
+        self.failed_request_count = 0
         self.last_updated = now
 
     async def incr_failed_request_count(self):
@@ -152,7 +152,7 @@ SET failed_request_count = failed_request_count + 1 WHERE name = %s;
 ''',
             (self.name,))
 
-        self._failed_request_count += 1
+        self.failed_request_count += 1
 
 
     async def update_timestamp(self):
