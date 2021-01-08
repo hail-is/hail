@@ -7,7 +7,7 @@ from hailtop.httpx import client_session
 class FailureInjectingClientSession:
     def __init__(self, should_fail):
         self.should_fail = should_fail
-        self.real_session = client_session(timeout=aiohttp.ClientTimeout(total=5))
+        self.real_session = client_session()
 
     def __enter__(self):
         return self
