@@ -173,20 +173,17 @@ async def _query_batch_jobs(request, batch_id):
         if '=' in t:
             k, v = t.split('=', 1)
             condition = '''
-(EXISTS (SELECT * FROM `job_attributes`
-         WHERE `job_attributes`.batch_id = jobs.batch_id AND
-           `job_attributes`.job_id = jobs.job_id AND
-           `job_attributes`.`key` = %s AND
-           `job_attributes`.`value` = %s))
+((jobs.batch_id, jobs.job_id) IN
+ (SELECT batch_id, job_id FROM job_attributes
+  WHERE `key` = %s AND `value` = %s))
 '''
             args = [k, v]
         elif t.startswith('has:'):
             k = t[4:]
             condition = '''
-(EXISTS (SELECT * FROM `job_attributes`
-         WHERE `job_attributes`.batch_id = jobs.batch_id AND
-           `job_attributes`.job_id = jobs.job_id AND
-           `job_attributes`.`key` = %s))
+((jobs.batch_id, jobs.job_id) IN
+ (SELECT batch_id, job_id FROM job_attributes
+  WHERE `key` = %s))
 '''
             args = [k]
         elif t in state_query_values:
@@ -448,18 +445,17 @@ async def _query_batches(request, user):
         if '=' in t:
             k, v = t.split('=', 1)
             condition = '''
-(EXISTS (SELECT * FROM `batch_attributes`
-         WHERE `batch_attributes`.batch_id = id AND
-           `batch_attributes`.`key` = %s AND
-           `batch_attributes`.`value` = %s))
+((batches.id) IN
+ (SELECT batch_id FROM batch_attributes
+  WHERE `key` = %s AND `value` = %s))
 '''
             args = [k, v]
         elif t.startswith('has:'):
             k = t[4:]
             condition = '''
-(EXISTS (SELECT * FROM `batch_attributes`
-         WHERE `batch_attributes`.batch_id = id AND
-           `batch_attributes`.`key` = %s))
+((batches.id) IN
+ (SELECT batch_id FROM batch_attributes
+  WHERE `key` = %s))
 '''
             args = [k]
         elif t == 'open':
