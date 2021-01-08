@@ -306,7 +306,7 @@ class SelectFieldsRow(
 
 trait NDArray {
   val shape: IndexedSeq[Long]
-  val numElements = shape.foldLeft(1L)(_ * _)
+  lazy val numElements = shape.foldLeft(1L)(_ * _)
   def lookupElement(indices: IndexedSeq[Long]): Annotation
   def getRowMajorElements(): IndexedSeq[Annotation]
   def forall(pred: Annotation => Boolean): Boolean
