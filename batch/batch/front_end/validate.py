@@ -1,9 +1,8 @@
-import re
-
 from hailtop.batch_client.parse import (MEMORY_REGEX, MEMORY_REGEXPAT,
                                         CPU_REGEX, CPU_REGEXPAT)
 
-from hailtop.utils.validate import *
+from hailtop.utils.validate import bool_type, dictof, keyed, listof, int_type, nullable, \
+    numeric, oneof, regex, required, str_type, switch, ValidationError
 
 k8s_str = regex(r'[a-z0-9](?:[-a-z0-9]*[a-z0-9])?(?:\.[a-z0-9](?:[-a-z0-9]*[a-z0-9])?)*', maxlen=253)
 
@@ -77,7 +76,6 @@ batch_validator = keyed({
 })
 
 
-
 def validate_and_clean_jobs(jobs):
     if not isinstance(jobs, list):
         raise ValidationError('jobs is not list')
@@ -91,7 +89,6 @@ def handle_deprecated_job_keys(i, job):
         if 'resources' in job and 'storage' in job['resources']:
             raise ValidationError(f"jobs[{i}].resources.storage is already defined, but "
                                   f"deprecated key 'pvc_size' is also present.")
-        deprecated_msg = "[pvc_size key is DEPRECATED. Use resources.storage]"
         pvc_size = job['pvc_size']
         try:
             job_validator['resources']['storage'].validate(f"jobs[{i}].pvc_size", job['pvc_size'])
@@ -106,9 +103,6 @@ def handle_deprecated_job_keys(i, job):
 
     if 'process' not in job:
         process_keys = ['command', 'image', 'mount_docker_socket']
-        deprecated_msg = "[command, image, mount_docker_socket keys are DEPRECATED. " \
-                         "Use process.command, process.image, process.mount_docker_socket " \
-                         "with process.type = 'docker'.]"
         if 'command' not in job or 'image' not in job or 'mount_docker_socket' not in job:
 
             raise ValidationError(f'jobs[{i}].process is not defined, but deprecated keys {[k for k in process_keys if k not in job]} are not in jobs[{i}]')

@@ -30,7 +30,7 @@ class DictValidator(TypedValidator):
         for k, v in obj.items():
             if not isinstance(k, str):
                 raise ValidationError(f'{name} has non-str key')
-            self.vchecker.validate(f"{name}[{k}]", obj[k])
+            self.vchecker.validate(f"{name}[{k}]", v)
 
 
 class KeyedValidator(TypedValidator):
@@ -54,7 +54,7 @@ class KeyedValidator(TypedValidator):
         for k, (checker, required) in self.checkers.items():
             if required and k not in obj:
                 raise ValidationError(f'{name} missing required key {k}.')
-            elif k in obj:
+            if k in obj:
                 checker.validate(f"{name}.{k}", obj[k])
 
 
@@ -70,8 +70,8 @@ class ListValidator(TypedValidator):
 
 
 class SetValidator:
-    def __init__(self, *valid):
-        self.valid = set(valid)
+    def __init__(self, valid):
+        self.valid = valid
 
     def validate(self, name, obj):
         if obj not in self.valid:
@@ -79,7 +79,7 @@ class SetValidator:
 
 
 class RegexValidator(TypedValidator):
-    def __init__(self, pattern, re_obj=None, maxlen=None):
+    def __init__(self, pattern, re_obj, maxlen):
         super().__init__(str)
         self.pattern = pattern
         self.re_obj = re_obj if re_obj is not None else re.compile(pattern)
@@ -94,7 +94,7 @@ class RegexValidator(TypedValidator):
 
 
 class NumericValidator:
-    def __init__(self, **conditions):
+    def __init__(self, conditions):
         self.conditions = conditions
 
     def validate(self, name, obj):
@@ -131,17 +131,41 @@ class NullableValidator:
             self.checker.validate(name, obj)
 
 
-required = RequiredKey
+def required(key):
+    return RequiredKey(key)
 
 str_type = TypedValidator(str)
 bool_type = TypedValidator(bool)
 int_type = TypedValidator(int)
 
-dictof = DictValidator
-keyed = KeyedValidator
-listof = ListValidator
-oneof = SetValidator
-regex = RegexValidator
-nullable = NullableValidator
-numeric = NumericValidator
-switch = SwitchValidator
+
+def dictof(vchecker):
+    return DictValidator(vchecker)
+
+
+def keyed(checkers):
+    return KeyedValidator(checkers)
+
+
+def listof(checker):
+    return ListValidator(checker)
+
+
+def oneof(*items):
+    return SetValidator(set(items))
+
+
+def regex(pattern, re_obj=None, maxlen=None):
+    return RegexValidator(pattern, re_obj, maxlen)
+
+
+def nullable(wrapped):
+    return NullableValidator(wrapped)
+
+
+def numeric(**conditions):
+    return NumericValidator(conditions)
+
+
+def switch(key, checkers):
+    return SwitchValidator(key, checkers)
