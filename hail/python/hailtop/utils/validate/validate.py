@@ -1,5 +1,6 @@
 import re
 
+
 class ValidationError(Exception):
     def __init__(self, reason):
         super().__init__()
@@ -133,6 +134,7 @@ class NullableValidator:
 
 def required(key):
     return RequiredKey(key)
+
 
 str_type = TypedValidator(str)
 bool_type = TypedValidator(bool)

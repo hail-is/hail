@@ -93,7 +93,8 @@ def handle_deprecated_job_keys(i, job):
         try:
             job_validator['resources']['storage'].validate(f"jobs[{i}].pvc_size", job['pvc_size'])
         except ValidationError as e:
-            raise ValidationError(f"[pvc_size key is DEPRECATED. Use resources.storage] {e.reason}")
+            raise ValidationError(f"[pvc_size key is DEPRECATED. Use "
+                                  f"resources.storage] {e.reason}") from e
         resources = job.get('resources')
         if resources is None:
             resources = {}
@@ -104,8 +105,9 @@ def handle_deprecated_job_keys(i, job):
     if 'process' not in job:
         process_keys = ['command', 'image', 'mount_docker_socket']
         if 'command' not in job or 'image' not in job or 'mount_docker_socket' not in job:
-
-            raise ValidationError(f'jobs[{i}].process is not defined, but deprecated keys {[k for k in process_keys if k not in job]} are not in jobs[{i}]')
+            raise ValidationError(f'jobs[{i}].process is not defined, but '
+                                  f'deprecated keys {[k for k in process_keys if k not in job]} '
+                                  f'are not in jobs[{i}]') from e
         command = job['command']
         image = job['image']
         mount_docker_socket = job['mount_docker_socket']
