@@ -1219,6 +1219,11 @@ async def ui_get_job(request, userdata):
                      container_statuses['output']]
 
     job_specification = job_status['spec']
+    if 'process' in job_specification:
+        process_specification = job_specification['process']
+        assert process_specification['type'] == 'docker'
+        job_specification['image'] = process_specification['image']
+        job_specification['command'] = process_specification['command']
     job_specification = dictfix.dictfix(job_specification,
                                         dictfix.NoneOr({'image': str,
                                                         'command': list,
