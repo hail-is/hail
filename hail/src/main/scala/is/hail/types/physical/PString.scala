@@ -3,7 +3,7 @@ package is.hail.types.physical
 import is.hail.asm4s._
 import is.hail.annotations.CodeOrdering
 import is.hail.annotations.{UnsafeOrdering, _}
-import is.hail.expr.ir.EmitMethodBuilder
+import is.hail.expr.ir.{EmitMethodBuilder, EmitCodeBuilder}
 import is.hail.types.physical.stypes.interfaces.{SStringCode, SStringValue}
 import is.hail.types.virtual.TString
 
@@ -14,7 +14,11 @@ abstract class PString extends PType {
 
   def codeOrdering(mb: EmitMethodBuilder[_], other: PType): CodeOrdering = {
     assert(this isOfType other)
-    PCanonicalBinary(required).codeOrdering(mb, PCanonicalBinary(other.required))
+    new CodeOrderingCompareConsistentWithOthers {
+      val ord = PCanonicalBinary(required).codeOrdering(mb, PCanonicalBinary(other.required))
+      def compareNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Int] =
+        ord.compareNonnull(cb, x.asString.asBytes(), y.asString.asBytes())
+    }
   }
 
   protected val binaryFundamentalType: PBinary

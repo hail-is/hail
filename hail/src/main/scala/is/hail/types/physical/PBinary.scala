@@ -40,7 +40,7 @@ abstract class PBinary extends PType {
     new CodeOrderingCompareConsistentWithOthers {
       def compareNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Int] = {
         val xv: SBinaryValue = x.asBinary.memoize(cb, "xv")
-        val yv: SBinaryValue = x.asBinary.memoize(cb, "yv")
+        val yv: SBinaryValue = y.asBinary.memoize(cb, "yv")
         val xlen = cb.newLocal[Int]("xlen", xv.loadLength())
         val ylen = cb.newLocal[Int]("ylen", yv.loadLength())
         val lim = cb.newLocal[Int]("lim", (xlen < ylen).mux(xlen, ylen))
