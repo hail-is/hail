@@ -17,6 +17,21 @@ async def create_test_file(fs, name, base, path):
 
 
 async def create_test_dir(fs, name, base, path):
+    '''Create a directory of test data.
+
+    The directory test data depends on the name (src or dest) so, when
+    testing overwriting for example, there is a file in src which does
+    not exist in dest, a file in dest that does not exist in src, and
+    one that exists in both.
+
+    The src configuration looks like:
+     - {base}/src/a/file1
+     - {base}/src/a/subdir/file2
+
+    The dest configuration looks like:
+     - {base}/dest/a/subdir/file2
+     - {base}/dest/a/file3
+    '''
     assert path.endswith('/')
     await fs.mkdir(f'{base}{path}')
     if name == 'src':

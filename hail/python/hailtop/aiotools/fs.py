@@ -146,7 +146,7 @@ class LocalFileListEntry(FileListEntry):
 
     async def url(self) -> str:
         trailing_slash = "/" if await self.is_dir() else ""
-        return f'{self.url_maybe_trailing_slash()}{trailing_slash}'
+        return f'{self._base_url}{self._entry.name}{trailing_slash}'
 
     def url_maybe_trailing_slash(self) -> str:
         return f'{self._base_url}{self._entry.name}'
@@ -300,7 +300,7 @@ class SourceCopier:
         if self.pending == 0:
             self.barrier.set()
 
-    async def wait_barrier(self):
+    async def release_barier_and_wait(self):
         await self.release_barrier()
         await self.barrier.wait()
 
@@ -331,7 +331,8 @@ class SourceCopier:
             if dest_type == AsyncFS.FILE:
                 raise NotADirectoryError(self.dest)
 
-            return url_join(self.dest, url_basename(self.src.rstrip('/'))), None
+            assert dest_type == AsyncFS.DIR
+            return url_join(self.dest, url_basename(self.src.rstrip('/'))), dest_type
 
         assert not self.dest.endswith('/')
         return self.dest, dest_type
@@ -352,7 +353,7 @@ class SourceCopier:
             return
 
         self.src_is_file = True
-        await self.wait_barrier()
+        await self.release_barrier_and_wait()
 
         if self.src_is_dir:
             raise FileAndDirectoryError(self.src)
@@ -376,7 +377,7 @@ class SourceCopier:
             return
 
         self.src_is_dir = True
-        await self.wait_barrier()
+        await self.release_barrier_and_wait()
 
         if self.src_is_file:
             raise FileAndDirectoryError(self.src)
