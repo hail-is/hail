@@ -1,5 +1,4 @@
 import asyncio
-import aiohttp
 
 from hailtop.config import get_deploy_config
 from hailtop.auth import get_tokens, service_auth_headers

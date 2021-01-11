@@ -1,5 +1,4 @@
 import asyncio
-import aiohttp
 import sys
 
 from hailtop.config import get_deploy_config

@@ -2,7 +2,6 @@ import os
 import socket
 import asyncio
 import webbrowser
-import aiohttp
 from aiohttp import web
 
 from hailtop.config import get_deploy_config
