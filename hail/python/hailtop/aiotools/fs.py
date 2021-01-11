@@ -300,7 +300,7 @@ class SourceCopier:
         if self.pending == 0:
             self.barrier.set()
 
-    async def release_barier_and_wait(self):
+    async def release_barrier_and_wait(self):
         await self.release_barrier()
         await self.barrier.wait()
 
