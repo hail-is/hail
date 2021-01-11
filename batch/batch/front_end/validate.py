@@ -107,7 +107,7 @@ def handle_deprecated_job_keys(i, job):
         if 'command' not in job or 'image' not in job or 'mount_docker_socket' not in job:
             raise ValidationError(f'jobs[{i}].process is not defined, but '
                                   f'deprecated keys {[k for k in process_keys if k not in job]} '
-                                  f'are not in jobs[{i}]') from e
+                                  f'are not in jobs[{i}]')
         command = job['command']
         image = job['image']
         mount_docker_socket = job['mount_docker_socket']
