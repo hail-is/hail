@@ -56,20 +56,18 @@ def cost_from_msec_mcpu(msec_mcpu):
     return (msec_mcpu * 0.001 * 0.001) * (total_cost_per_core_hour / 3600)
 
 
-def worker_memory_per_core_gb(worker_type):
+def worker_memory_per_core_mib(worker_type):
     if worker_type == 'standard':
-        m = 3.75
+        return 3840
     elif worker_type == 'highmem':
-        m = 6.5
-    else:
-        assert worker_type == 'highcpu', worker_type
-        m = 0.9
-    return m
+        return 6656
+    assert worker_type == 'highcpu', worker_type
+    return 921
 
 
 def worker_memory_per_core_bytes(worker_type):
-    m = worker_memory_per_core_gb(worker_type)
-    return math.ceil(m * 1024**3)
+    m = worker_memory_per_core_mib(worker_type)
+    return int(m * 1024**2)
 
 
 def memory_bytes_to_cores_mcpu(memory_in_bytes, worker_type):

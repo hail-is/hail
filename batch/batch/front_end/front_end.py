@@ -37,7 +37,7 @@ from web_common import (setup_aiohttp_jinja2, setup_common_static_routes,
 
 # import uvloop
 
-from ..utils import (adjust_cores_for_memory_request, worker_memory_per_core_gb,
+from ..utils import (adjust_cores_for_memory_request, worker_memory_per_core_mib,
                      cost_from_msec_mcpu, adjust_cores_for_packability, coalesce,
                      adjust_cores_for_storage_request, total_worker_storage_gib,
                      query_billing_projects)
@@ -671,12 +671,12 @@ WHERE user = %s AND id = %s AND NOT deleted;
                 cores_mcpu = adjust_cores_for_packability(cores_mcpu)
 
                 if cores_mcpu > worker_cores * 1000:
-                    total_memory_available = worker_memory_per_core_gb(worker_type) * worker_cores
+                    total_memory_available = worker_memory_per_core_mib(worker_type) * worker_cores
                     total_storage_available = total_worker_storage_gib(worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gb)
                     raise web.HTTPBadRequest(
                         reason=f'resource requests for job {id} with worker_type {worker_type} are unsatisfiable: '
                         f'requested: cpu={resources["cpu"]}, memory={resources["memory"]} storage={resources["storage"]}'
-                        f'maximum: cpu={worker_cores}, memory={total_memory_available}G, storage={total_storage_available}G')
+                        f'maximum: cpu={worker_cores}, memory={total_memory_available}Mi, storage={total_storage_available}G')
 
                 secrets = spec.get('secrets')
                 if not secrets:
