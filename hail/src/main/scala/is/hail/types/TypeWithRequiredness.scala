@@ -1,6 +1,6 @@
 package is.hail.types
 
-import is.hail.annotations.Annotation
+import is.hail.annotations.{Annotation, NDArray}
 import is.hail.types.physical._
 import is.hail.types.virtual._
 import is.hail.utils.{FastSeq, Interval}
@@ -246,7 +246,7 @@ case class RDict(keyType: TypeWithRequiredness, valueType: TypeWithRequiredness)
 }
 case class RNDArray(override val elementType: TypeWithRequiredness) extends RIterable(elementType, true) {
   override def _unionLiteral(a: Annotation): Unit = {
-    val data = a.asInstanceOf[Row].getAs[Iterable[Any]](1)
+    val data = a.asInstanceOf[NDArray].getRowMajorElements()
     data.asInstanceOf[Iterable[_]].foreach { elt =>
       if (elt != null)
         elementType.unionLiteral(elt)

@@ -26,6 +26,17 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
     off => representation.loadField(off, "shape")
   )
 
+  def loadShape(off: Long, idx: Int): Long = {
+    val shapeTupleAddr = representation.loadField(off, 0)
+    Region.loadLong(shape.pType.loadField(shapeTupleAddr, idx))
+  }
+
+  def loadStride(off: Long, idx: Int): Long = {
+    val shapeTupleAddr = representation.loadField(off, 1)
+    Region.loadLong(strides.pType.loadField(shapeTupleAddr, idx))
+  }
+
+
   def loadShape(cb: EmitCodeBuilder, off: Code[Long], idx: Int): Code[Long] =
     shape.pType.types(idx).loadCheapPCode(cb, shape.pType.fieldOffset(shape.load(off), idx)).asInt64.longCode(cb)
 
@@ -113,8 +124,20 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
     )
   }
 
+  def getElementAddress(indices: IndexedSeq[Long], nd: Long): Long = {
+    val dataLength = (0 until nDims).map(loadShape(nd, _)).foldLeft(1L)(_ * _)
+    val dataAddress = this.representation.loadField(nd, 2)
+
+    var bytesAway = 0L
+    indices.zipWithIndex.foreach{case (requestedIndex: Long, strideIndex: Int) =>
+      bytesAway += requestedIndex * loadStride(nd, strideIndex)
+    }
+
+    bytesAway + data.pType.firstElementOffset(dataAddress, dataLength.toInt)
+  }
+
   private def getElementAddress(indices: IndexedSeq[Value[Long]], nd: Value[Long], mb: EmitMethodBuilder[_]): Code[Long] = {
-    val stridesTuple  = new CodePTuple(strides.pType, new Value[Long] {
+    val stridesTuple = new CodePTuple(strides.pType, new Value[Long] {
       def get: Code[Long] = strides.load(nd)
     })
     val bytesAway = mb.newLocal[Long]()
@@ -147,7 +170,6 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
   }
 
   def loadElementToIRIntermediate(indices: IndexedSeq[Value[Long]], ndAddress: Value[Long], mb: EmitMethodBuilder[_]): Code[_] = {
-
     Region.loadIRIntermediate(data.pType.elementType)(getElementAddress(indices, ndAddress, mb))
   }
 
