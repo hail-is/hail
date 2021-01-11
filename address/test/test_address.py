@@ -23,7 +23,7 @@ async def test_connect_to_address_on_pod_ip():
     client_ssl_context.verify_mode = ssl.CERT_REQUIRED
     client_ssl_context.check_hostname = True
 
-    async with aiohttp.clientSession(
+    async with aiohttp.ClientSession(
             connector=aiohttp.TCPConnector(ssl=client_ssl_context),
             raise_for_status=True,
             timeout=aiohttp.ClientTimeout(total=60),
