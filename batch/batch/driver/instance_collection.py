@@ -13,6 +13,7 @@ log = logging.getLogger('inst_collection')
 
 class InstanceCollection:
     def __init__(self, app, name, machine_name_prefix):
+        self.app = app
         self.db: Database = app['db']
         self.compute_client: aiogoogle.ComputeClient = app['compute_client']
         self.zone_monitor: ZoneMonitor = app['zone_monitor']
