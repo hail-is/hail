@@ -116,19 +116,36 @@
 	</tbody>
 	</table>
 	</div>
-      {% if last_batch_id is not none %}
-      <form method="GET" action="{{ base_path }}/batches">
-	{% if q is not none %}
-	  <input type="hidden" name="q" value="{{ q }}" />
-	{% endif %}
-	<input type="hidden" name="last_batch_id" value="{{ last_batch_id }}" />
-	<button>
-	  Next page
-	</button>
-      </form>
-      {% endif %}
-  </div>
-  <script type="text/javascript">
-    focusOnSlash("searchBar");
-  </script>
+
+
+<div class="next-page-buttons">
+  {% if first_batch_id is not none %}
+  <form method="GET" action="{{ base_path }}/batches">
+    {% if q is not none %}
+    <input type="hidden" name="q" value="{{ q }}" />
+    {% endif %}
+    <input type="hidden" name="first_batch_id" value="{{ first_batch_id }}" />
+    <button >
+     Previous page
+   </button>
+  </form>
+  {% endif %}
+
+  {% if last_batch_id is not none %}
+  <form method="GET" action="{{ base_path }}/batches">
+    {% if q is not none %}
+    <input type="hidden" name="q" value="{{ q }}" />
+    {% endif %}
+    <input type="hidden" name="last_batch_id" value="{{ last_batch_id }}" />
+    <button>
+      Next page
+    </button>
+  </form>
+  {% endif %}
+</div>
+
+</div>
+<script type="text/javascript">
+focusOnSlash("searchBar");
+</script>
 {% endblock %}

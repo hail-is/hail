@@ -425,3 +425,10 @@ pre {
   word-wrap: normal;
   white-space: pre;
 }
+
+.next-page-buttons{
+  display: flex;
+  width: 100;
+  margin-top: 1em;
+  justify-content: space-between;
+}
