@@ -237,7 +237,9 @@ object Simplify {
     case ToStream(Let(name, value, ToArray(x)), _) if x.typ.isInstanceOf[TStream] =>
       Let(name, value, x)
 
+    //TODO: A better system would push all reshapes down to the MakeNDArray calls if there aren't any shape dependent nodes in between.
     case NDArrayReshape(MakeNDArray(data, _, rowMajor), reshapedShape) => MakeNDArray(data, reshapedShape, rowMajor)
+    case NDArrayReshape(NDArrayMap(MakeNDArray(data, _, rowMajor), vName, body), newShape) => NDArrayMap(MakeNDArray(data, newShape, rowMajor), vName, body)
 
     case NDArrayShape(NDArrayMap(nd, _, _)) => NDArrayShape(nd)
 
