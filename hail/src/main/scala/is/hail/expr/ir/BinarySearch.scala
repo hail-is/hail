@@ -13,7 +13,7 @@ class BinarySearch[C](mb: EmitMethodBuilder[C], typ: PContainer, eltType: PType,
   val elt: PType = typ.elementType
   val ti: TypeInfo[_] = typeToTypeInfo(elt)
 
-  val (compare: CodeOrdering.F[Int], equiv: CodeOrdering.F[Boolean], findElt: EmitMethodBuilder[C], t: PType) = if (keyOnly) {
+  val (compare: CodeOrdering.F[Int], equiv: CodeOrdering.F[Boolean], findElt: EmitMethodBuilder[C]) = if (keyOnly) {
     val ttype = elt match {
       case t: PBaseStruct =>
         require(t.size == 2)
@@ -43,22 +43,22 @@ class BinarySearch[C](mb: EmitMethodBuilder[C], typ: PContainer, eltType: PType,
         }
       findMB.getCodeOrdering(eltType, kt, CodeOrdering.Equiv())(cb, ec1, ec2)
     }
-    (comp, ceq, findMB, kt)
+    (comp, ceq, findMB)
   } else
     (mb.getCodeOrdering(eltType, elt, CodeOrdering.Compare()),
       mb.getCodeOrdering(eltType, elt, CodeOrdering.Equiv()),
-      mb.genEmitMethod("findElt", FastIndexedSeq[ParamType](typeInfo[Long], typeInfo[Boolean], elt.ti), typeInfo[Int]), elt)
+      mb.genEmitMethod("findElt", FastIndexedSeq[ParamType](typeInfo[Long], typeInfo[Boolean], elt.ti), typeInfo[Int]))
 
   private[this] val array = findElt.getCodeParam[Long](1)
   private[this] val m = findElt.getCodeParam[Boolean](2)
-  private[this] val e = findElt.getCodeParam(3)(t.ti)
+  private[this] val e = findElt.getCodeParam(3)(eltType.ti)
   private[this] val len = findElt.newLocal[Int]()
   private[this] val i = findElt.newLocal[Int]()
   private[this] val low = findElt.newLocal[Int]()
   private[this] val high = findElt.newLocal[Int]()
 
   def cmp(i: Code[Int]): Code[Int] = EmitCodeBuilder.scopedCode(findElt) { cb =>
-    val ec1 = EmitCode(Code._empty, m, PCode(t, e))
+    val ec1 = EmitCode(Code._empty, m, PCode(eltType, e))
     val ec2 = EmitCode.fromI(findElt) { cb =>
       PCode(typ, array).asIndexable.memoize(cb, "binsearch_cmp_i").loadElement(cb, i).map(cb)(_.asPCode)
     }

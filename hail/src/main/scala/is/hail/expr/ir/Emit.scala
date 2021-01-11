@@ -726,16 +726,17 @@ class Emit[C](
       case ApplyUnaryPrimOp(op, x) =>
         emitI(x).map(cb)(pc => PCode(pt, UnaryOp.emit(op, x.typ, pc.code)))
       case ApplyComparisonOp(op, l, r) =>
-        val f = op.codeOrdering(mb, l.pType, r.pType)
         if (op.strict) {
           emitI(l).flatMap(cb) { l =>
             emitI(r).map(cb) { r =>
+              val f = op.codeOrdering(mb, l.pt, r.pt)
               PCode(pt, f(cb, EmitCode.present(l), EmitCode.present(r)))
             }
           }
         } else {
           val lc = emitI(l).memoize(cb, "l")
           val rc = emitI(r).memoize(cb, "r")
+          val f = op.codeOrdering(mb, lc.pt, rc.pt)
           presentC(f(cb, lc, rc))
         }
 
