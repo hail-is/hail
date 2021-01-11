@@ -36,9 +36,9 @@ from ..globals import HTTP_CLIENT_MAX_SIZE
 from .zone_monitor import ZoneMonitor
 from .gce import GCEEventMonitor
 from .canceller import Canceller
-from .instance_collection import InstanceCollection
 from .instance_collection_manager import InstanceCollectionManager
 from .job import mark_job_complete, mark_job_started
+from .job_private import JobPrivateInstanceCollection
 from .k8s_cache import K8sCache
 from .pool import Pool
 from ..utils import query_billing_projects
@@ -189,6 +189,7 @@ SELECT state FROM batches WHERE user = %s AND id = %s;
 
 def set_cancel_state_changed(app):
     app['cancel_running_state_changed'].set()
+    app['cancel_creating_state_changed'].set()
     app['cancel_ready_state_changed'].set()
 
 
@@ -320,6 +321,7 @@ FROM user_inst_coll_resources;
 
     page_context = {
         'pools': inst_coll_manager.pools.values(),
+        'job_private_inst_colls': inst_coll_manager.job_private_inst_colls.values(),
         'instance_id': app['instance_id'],
         'n_instances_by_state': inst_coll_manager.global_n_instances_by_state,
         'instances': inst_coll_manager.name_instance.values(),
@@ -333,7 +335,7 @@ FROM user_inst_coll_resources;
 @routes.post('/config-update/pool/{pool}')
 @check_csrf_token
 @web_authenticated_developers_only()
-async def config_update(request, userdata):  # pylint: disable=unused-argument
+async def pool_config_update(request, userdata):  # pylint: disable=unused-argument
     app = request.app
     inst_coll_manager: InstanceCollectionManager = app['inst_coll_manager']
 
@@ -341,7 +343,7 @@ async def config_update(request, userdata):  # pylint: disable=unused-argument
 
     pool_name = request.match_info['pool']
     pool = inst_coll_manager.get_inst_coll(pool_name)
-    pool_url_path = f'/inst_coll/{pool_name}'
+    pool_url_path = f'/inst_coll/pool/{pool_name}'
 
     if not isinstance(pool, Pool):
         set_message(session,
@@ -390,8 +392,8 @@ async def config_update(request, userdata):  # pylint: disable=unused-argument
     boot_disk_size_gb = validate_int(
         'Worker boot disk size',
         post['boot_disk_size_gb'],
-        lambda v: v > 10,
-        'a positive integer greater than 10')
+        lambda v: v >= 10,
+        'a positive integer greater than or equal to 10')
 
     worker_local_ssd_data_disk = 'worker_local_ssd_data_disk' in post
 
@@ -440,27 +442,90 @@ async def config_update(request, userdata):  # pylint: disable=unused-argument
     return web.HTTPFound(deploy_config.external_url('batch-driver', pool_url_path))
 
 
-@routes.get('/inst_coll/{inst_coll}')
+@routes.post('/config-update/job-private/{job_private}')
+@check_csrf_token
 @web_authenticated_developers_only()
-async def get_inst_coll(request, userdata):
+async def job_private_config_update(request, userdata):  # pylint: disable=unused-argument
     app = request.app
     inst_coll_manager: InstanceCollectionManager = app['inst_coll_manager']
 
     session = await aiohttp_session.get_session(request)
 
-    log.info(request.match_info)
-    inst_coll_name = request.match_info['inst_coll']
-    inst_coll = inst_coll_manager.get_inst_coll(inst_coll_name)
+    job_private_name = request.match_info['job_private']
+    job_private_inst_coll = inst_coll_manager.get_inst_coll(job_private_name)
+    url_path = f'/inst_coll/job-private/{job_private_name}'
 
-    if not isinstance(inst_coll, InstanceCollection):
+    if not isinstance(job_private_inst_coll, JobPrivateInstanceCollection):
         set_message(session,
-                    f'Unknown inst_coll {inst_coll_name}.',
+                    f'Unknown job private instance collection {job_private_name}.',
+                    'error')
+        raise web.HTTPFound(deploy_config.external_url('batch-driver', url_path))
+
+    def validate(name, value, predicate, description):
+        if not predicate(value):
+            set_message(session,
+                        f'{name} invalid: {value}.  Must be {description}.',
+                        'error')
+            raise web.HTTPFound(deploy_config.external_url('batch-driver', url_path))
+        return value
+
+    def validate_int(name, value, predicate, description):
+        try:
+            i = int(value)
+        except ValueError as e:
+            set_message(session,
+                        f'{name} invalid: {value}.  Must be an integer.',
+                        'error')
+            raise web.HTTPFound(deploy_config.external_url('batch-driver', url_path)) from e
+        return validate(name, i, predicate, description)
+
+    post = await request.post()
+
+    boot_disk_size_gb = validate_int(
+        'Worker boot disk size',
+        post['boot_disk_size_gb'],
+        lambda v: v >= 10,
+        'a positive integer greater than or equal to 10')
+
+    max_instances = validate_int(
+        'Max instances',
+        post['max_instances'],
+        lambda v: v > 0,
+        'a positive integer')
+
+    max_live_instances = validate_int(
+        'Max live instances',
+        post['max_live_instances'],
+        lambda v: v > 0,
+        'a positive integer')
+
+    await job_private_inst_coll.configure(boot_disk_size_gb, max_instances, max_live_instances)
+
+    set_message(session,
+                f'Updated configuration for {job_private_inst_coll}.',
+                'info')
+
+    return web.HTTPFound(deploy_config.external_url('batch-driver', url_path))
+
+
+@routes.get('/inst_coll/pool/{pool}')
+@web_authenticated_developers_only()
+async def get_pool(request, userdata):
+    app = request.app
+    inst_coll_manager: InstanceCollectionManager = app['inst_coll_manager']
+
+    session = await aiohttp_session.get_session(request)
+
+    pool_name = request.match_info['pool']
+    pool = inst_coll_manager.get_inst_coll(pool_name)
+
+    if not isinstance(pool, Pool):
+        set_message(session,
+                    f'Unknown pool {pool_name}.',
                     'error')
         raise web.HTTPFound(deploy_config.external_url('batch-driver', '/'))
 
-    assert isinstance(inst_coll, Pool)
-
-    user_resources = await inst_coll.scheduler.compute_fair_share()
+    user_resources = await pool.scheduler.compute_fair_share()
     user_resources = sorted(user_resources.values(),
                             key=lambda record: record['ready_cores_mcpu'] + record['running_cores_mcpu'],
                             reverse=True)
@@ -468,13 +533,51 @@ async def get_inst_coll(request, userdata):
     ready_cores_mcpu = sum([record['ready_cores_mcpu'] for record in user_resources])
 
     page_context = {
-        'pool': inst_coll,
-        'instances': inst_coll.name_instance.values(),
+        'pool': pool,
+        'instances': pool.name_instance.values(),
         'user_resources': user_resources,
         'ready_cores_mcpu': ready_cores_mcpu
     }
 
     return await render_template('batch-driver', request, userdata, 'pool.html', page_context)
+
+
+@routes.get('/inst_coll/job-private/{job_private}')
+@web_authenticated_developers_only()
+async def get_job_private_inst_coll(request, userdata):
+    app = request.app
+    inst_coll_manager: InstanceCollectionManager = app['inst_coll_manager']
+
+    session = await aiohttp_session.get_session(request)
+
+    job_private_name = request.match_info['job_private']
+    job_private_inst_coll = inst_coll_manager.get_inst_coll(job_private_name)
+
+    if not isinstance(job_private_inst_coll, JobPrivateInstanceCollection):
+        set_message(session,
+                    f'Unknown inst_coll {job_private_name}.',
+                    'error')
+        raise web.HTTPFound(deploy_config.external_url('batch-driver', '/'))
+
+    user_resources = await job_private_inst_coll.compute_fair_share()
+    user_resources = sorted(user_resources.values(),
+                            key=lambda record: record['n_ready_jobs'] + record['n_creating_jobs'] + record['n_running_jobs'],
+                            reverse=True)
+
+    n_ready_jobs = sum([record['n_ready_jobs'] for record in user_resources])
+    n_creating_jobs = sum([record['n_creating_jobs'] for record in user_resources])
+    n_running_jobs = sum([record['n_running_jobs'] for record in user_resources])
+
+    page_context = {
+        'job_private_inst_coll': job_private_inst_coll,
+        'instances': job_private_inst_coll.name_instance.values(),
+        'user_resources': user_resources,
+        'n_ready_jobs': n_ready_jobs,
+        'n_creating_jobs': n_creating_jobs,
+        'n_running_jobs': n_running_jobs
+    }
+
+    return await render_template('batch-driver', request, userdata, 'job_private.html', page_context)
 
 
 @routes.get('/user_resources')
@@ -519,8 +622,10 @@ FROM
     CAST(COALESCE(SUM(cores_mcpu * (state = 'Ready' AND runnable)), 0) AS SIGNED) AS actual_ready_cores_mcpu,
     CAST(COALESCE(SUM(state = 'Running' AND (NOT cancelled)), 0) AS SIGNED) AS actual_n_running_jobs,
     CAST(COALESCE(SUM(cores_mcpu * (state = 'Running' AND (NOT cancelled))), 0) AS SIGNED) AS actual_running_cores_mcpu,
+    CAST(COALESCE(SUM(state = 'Creating' AND (NOT cancelled)), 0) AS SIGNED) AS actual_n_creating_jobs,
     CAST(COALESCE(SUM(state = 'Ready' AND cancelled), 0) AS SIGNED) AS actual_n_cancelled_ready_jobs,
-    CAST(COALESCE(SUM(state = 'Running' AND cancelled), 0) AS SIGNED) AS actual_n_cancelled_running_jobs
+    CAST(COALESCE(SUM(state = 'Running' AND cancelled), 0) AS SIGNED) AS actual_n_cancelled_running_jobs,
+    CAST(COALESCE(SUM(state = 'Creating' AND cancelled), 0) AS SIGNED) AS actual_n_cancelled_creating_jobs
   FROM
   (
     SELECT batches.user, jobs.state, jobs.cores_mcpu, jobs.inst_coll,
@@ -539,8 +644,10 @@ INNER JOIN
     CAST(COALESCE(SUM(ready_cores_mcpu), 0) AS SIGNED) AS expected_ready_cores_mcpu,
     CAST(COALESCE(SUM(n_running_jobs), 0) AS SIGNED) AS expected_n_running_jobs,
     CAST(COALESCE(SUM(running_cores_mcpu), 0) AS SIGNED) AS expected_running_cores_mcpu,
+    CAST(COALESCE(SUM(n_creating_jobs), 0) AS SIGNED) AS expected_n_creating_jobs,
     CAST(COALESCE(SUM(n_cancelled_ready_jobs), 0) AS SIGNED) AS expected_n_cancelled_ready_jobs,
-    CAST(COALESCE(SUM(n_cancelled_running_jobs), 0) AS SIGNED) AS expected_n_cancelled_running_jobs
+    CAST(COALESCE(SUM(n_cancelled_running_jobs), 0) AS SIGNED) AS expected_n_cancelled_running_jobs,
+    CAST(COALESCE(SUM(n_cancelled_creating_jobs), 0) AS SIGNED) AS expected_n_cancelled_creating_jobs
   FROM user_inst_coll_resources
   GROUP BY user, inst_coll
 ) AS u
@@ -549,8 +656,10 @@ WHERE actual_n_ready_jobs != expected_n_ready_jobs
    OR actual_ready_cores_mcpu != expected_ready_cores_mcpu
    OR actual_n_running_jobs != expected_n_running_jobs
    OR actual_running_cores_mcpu != expected_running_cores_mcpu
+   OR actual_n_creating_jobs != expected_n_creating_jobs
    OR actual_n_cancelled_ready_jobs != expected_n_cancelled_ready_jobs
    OR actual_n_cancelled_running_jobs != expected_n_cancelled_running_jobs
+   OR actual_n_cancelled_creating_jobs != expected_n_cancelled_creating_jobs
 LOCK IN SHARE MODE;
 ''')
 
@@ -712,6 +821,7 @@ async def scheduling_cancelling_bump(app):
     log.info('scheduling cancelling bump loop')
     app['scheduler_state_changed'].notify()
     app['cancel_ready_state_changed'].set()
+    app['cancel_creating_state_changed'].set()
     app['cancel_running_state_changed'].set()
 
 
@@ -768,6 +878,9 @@ SELECT instance_id, internal_token FROM globals;
 
     cancel_ready_state_changed = asyncio.Event()
     app['cancel_ready_state_changed'] = cancel_ready_state_changed
+
+    cancel_creating_state_changed = asyncio.Event()
+    app['cancel_creating_state_changed'] = cancel_creating_state_changed
 
     cancel_running_state_changed = asyncio.Event()
     app['cancel_running_state_changed'] = cancel_running_state_changed

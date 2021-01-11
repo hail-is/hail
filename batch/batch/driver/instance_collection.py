@@ -12,7 +12,7 @@ log = logging.getLogger('inst_collection')
 
 
 class InstanceCollection:
-    def __init__(self, app, name, machine_name_prefix):
+    def __init__(self, app, name, machine_name_prefix, is_pool):
         self.app = app
         self.db: Database = app['db']
         self.compute_client: aiogoogle.ComputeClient = app['compute_client']
@@ -20,6 +20,7 @@ class InstanceCollection:
 
         self.name = name
         self.machine_name_prefix = f'{machine_name_prefix}{self.name}-'
+        self.is_pool = is_pool
 
         self.name_instance = {}
 
@@ -36,6 +37,10 @@ class InstanceCollection:
         # pending and active
         self.live_free_cores_mcpu = 0
         self.live_total_cores_mcpu = 0
+
+        self.boot_disk_size_gb = None
+        self.max_instances = None
+        self.max_live_instances = None
 
         self.task_manager = aiotools.BackgroundTaskManager()
 

@@ -75,6 +75,8 @@ class Job:
         self._storage: Optional[Union[int, str]] = None
         self._image: Optional[str] = None
         self._always_run: bool = False
+        self._preemptible: Optional[bool] = None
+        self._machine_type: Optional[bool] = None
         self._timeout: Optional[Union[int, float]] = None
         self._gcsfuse: List[Tuple[str, str, bool]] = []
         self._env: Dict[str, str] = dict()

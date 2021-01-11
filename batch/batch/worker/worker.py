@@ -24,7 +24,7 @@ from hailtop.utils import (time_msecs, request_retry_transient_errors,
                            CalledProcessError, check_shell_output, is_google_registry_image)
 from hailtop.httpx import client_session
 from hailtop.batch_client.parse import (parse_cpu_in_mcpu, parse_image_tag,
-                                        parse_memory_in_bytes)
+                                        parse_memory_in_bytes, parse_storage_in_bytes)
 from hailtop.batch.hail_genetics_images import HAIL_GENETICS, HAIL_GENETICS_IMAGES
 from hailtop import aiotools
 # import uvloop
@@ -708,7 +708,7 @@ class Job:
 
         req_cpu_in_mcpu = parse_cpu_in_mcpu(job_spec['resources']['cpu'])
         req_memory_in_bytes = parse_memory_in_bytes(job_spec['resources']['memory'])
-        req_storage_in_bytes = parse_memory_in_bytes(job_spec['resources']['storage'])
+        req_storage_in_bytes = parse_storage_in_bytes(job_spec['resources']['storage'])
 
         cpu_in_mcpu = adjust_cores_for_memory_request(req_cpu_in_mcpu, req_memory_in_bytes, worker_config.instance_type)
         cpu_in_mcpu = adjust_cores_for_storage_request(cpu_in_mcpu, req_storage_in_bytes, CORES, worker_config.local_ssd_data_disk, worker_config.data_disk_size_gb)
@@ -937,12 +937,24 @@ class Worker:
         self.jobs = {}
 
         # filled in during activation
+        self.site = None
+        self.app_runner = None
         self.log_store = None
         self.headers = None
         self.task_manager = aiotools.BackgroundTaskManager()
 
     def shutdown(self):
+        log.info('shutting down')
         self.task_manager.shutdown()
+
+    async def cleanup(self):
+        if self.site:
+            await self.site.stop()
+            log.info('stopped site')
+
+        if self.app_runner:
+            await self.app_runner.cleanup()
+            log.info('cleaned up app runner')
 
     async def run_job(self, job):
         try:
@@ -1040,11 +1052,10 @@ class Worker:
         return web.json_response(body)
 
     async def run(self):
-        app_runner = None
-        site = None
         try:
             app = web.Application(client_max_size=HTTP_CLIENT_MAX_SIZE)
             app.add_routes([
+                web.post('/api/v1alpha/kill', self.kill),
                 web.post('/api/v1alpha/batches/jobs/create', self.create_job),
                 web.delete('/api/v1alpha/batches/{batch_id}/jobs/{job_id}/delete', self.delete_job),
                 web.get('/api/v1alpha/batches/{batch_id}/jobs/{job_id}/log', self.get_job_log),
@@ -1052,10 +1063,10 @@ class Worker:
                 web.get('/healthcheck', self.healthcheck)
             ])
 
-            app_runner = web.AppRunner(app)
-            await app_runner.setup()
-            site = web.TCPSite(app_runner, '0.0.0.0', 5000)
-            await site.start()
+            self.app_runner = web.AppRunner(app)
+            await self.app_runner.setup()
+            self.site = web.TCPSite(self.app_runner, '0.0.0.0', 5000)
+            await self.site.start()
 
             try:
                 await asyncio.wait_for(self.activate(), MAX_IDLE_TIME_MSECS / 1000)
@@ -1079,13 +1090,30 @@ class Worker:
                         headers=self.headers)
                 log.info('deactivated')
         finally:
-            log.info('shutting down')
-            if site:
-                await site.stop()
-                log.info('stopped site')
-            if app_runner:
-                await app_runner.cleanup()
-                log.info('cleaned up app runner')
+            await self.cleanup()
+            self.shutdown()
+
+    async def kill(self, request):
+        body = await request.json()
+
+        expected_name = body['name']
+        if expected_name != NAME:
+            return web.HTTPForbidden()
+
+        try:
+            async with client_session(
+                    raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
+                # Don't retry.  If it doesn't go through, the driver
+                # monitoring loops will recover.  If the driver is
+                # gone (e.g. testing a PR), this would go into an
+                # infinite loop and the instance won't be deleted.
+                await session.post(
+                    deploy_config.url('batch-driver', '/api/v1alpha/instances/deactivate'),
+                    headers=self.headers)
+            log.info('deactivated')
+        finally:
+            await self.cleanup()
+            self.shutdown()
 
     async def post_job_complete_1(self, job):
         run_duration = job.end_time - job.start_time

@@ -18,7 +18,8 @@ log.info(f'BATCH_WORKER_IMAGE {BATCH_WORKER_IMAGE}')
 
 async def create_instance(app, zone, machine_name, machine_type, activation_token,
                           max_idle_time_msecs, worker_local_ssd_data_disk,
-                          worker_pd_ssd_data_disk_size_gb, boot_disk_size_gb):
+                          worker_pd_ssd_data_disk_size_gb, boot_disk_size_gb,
+                          preemptible):
     log_store: LogStore = app['log_store']
     compute_client: aiogoogle.ComputeClient = app['compute_client']
 
@@ -71,7 +72,7 @@ async def create_instance(app, zone, machine_name, machine_type, activation_toke
         'scheduling': {
             'automaticRestart': False,
             'onHostMaintenance': "TERMINATE",
-            'preemptible': True
+            'preemptible': preemptible
         },
 
         'serviceAccounts': [{
@@ -323,3 +324,5 @@ journalctl -u docker.service > dockerd.log
         f'/zones/{zone}/instances', json=config)
 
     log.info(f'created machine {machine_name}')
+
+    return worker_config

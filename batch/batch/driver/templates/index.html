@@ -7,7 +7,9 @@
     <div>ready cores: {{ ready_cores_mcpu / 1000 }}</div>
   </div>
 
-  <h1>Pools</h1>
+  <h1>Instance Collections</h1>
+
+  <h2>Pools</h2>
   <table class="data-table" id="pools">
     <thead>
     <tr>
@@ -24,7 +26,7 @@
     <tbody>
     {% for pool in pools %}
     <tr>
-      <td><a href="{{ base_path }}/inst_coll/{{ pool.name }}">{{ pool.name }}</a></td>
+      <td><a href="{{ base_path }}/inst_coll/pool/{{ pool.name }}">{{ pool.name }}</a></td>
       <td>{{ pool.worker_type }}</td>
       <td class="numeric-cell">{{ pool.n_instances_by_state['pending'] }}</td>
       <td class="numeric-cell">{{ pool.n_instances_by_state['active'] }}</td>
@@ -32,6 +34,34 @@
       <td class="numeric-cell">{{ pool.n_instances_by_state['deleted'] }}</td>
       <td class="numeric-cell">{{ pool.live_total_cores_mcpu / 1000 }}</td>
       <td class="numeric-cell">{{ pool.live_free_cores_mcpu / 1000 }}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+
+  <h2>Job Private</h2>
+  <table class="data-table" id="job-private-inst-coll">
+    <thead>
+    <tr>
+      <th>Name</th>
+      <th>Pending</th>
+      <th>Active</th>
+      <th>Inactive</th>
+      <th>Deleted</th>
+      <th>Live Total Cores</th>
+      <th>Live Free Cores</th>
+    </tr>
+    </thead>
+    <tbody>
+    {% for inst_coll in job_private_inst_colls %}
+    <tr>
+      <td><a href="{{ base_path }}/inst_coll/job-private/{{ inst_coll.name }}">{{ inst_coll.name }}</a></td>
+      <td class="numeric-cell">{{ inst_coll.n_instances_by_state['pending'] }}</td>
+      <td class="numeric-cell">{{ inst_coll.n_instances_by_state['active'] }}</td>
+      <td class="numeric-cell">{{ inst_coll.n_instances_by_state['inactive'] }}</td>
+      <td class="numeric-cell">{{ inst_coll.n_instances_by_state['deleted'] }}</td>
+      <td class="numeric-cell">{{ inst_coll.live_total_cores_mcpu / 1000 }}</td>
+      <td class="numeric-cell">{{ inst_coll.live_free_cores_mcpu / 1000 }}</td>
     </tr>
     {% endfor %}
     </tbody>

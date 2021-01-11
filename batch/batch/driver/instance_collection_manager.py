@@ -4,6 +4,7 @@ import logging
 
 from gear import Database
 
+from .job_private import JobPrivateInstanceCollection
 from .pool import Pool
 from .zone_monitor import ZoneMonitor
 
@@ -16,10 +17,11 @@ class InstanceCollectionManager:
         self.db: Database = app['db']
         self.zone_monitor: ZoneMonitor = app['zone_monitor']
         self.machine_name_prefix = machine_name_prefix
-        self.inst_coll_regex = re.compile(f'{self.machine_name_prefix}(?P<inst_coll>[^-]+)-.*')
+        self.inst_coll_regex = re.compile(f'{self.machine_name_prefix}(?P<inst_coll>.*)-.*')
 
         self.name_inst_coll = {}
         self.name_pool = {}
+        self.name_job_private = {}
 
     async def async_init(self):
         inst_coll_records = self.db.execute_and_fetchall('''
@@ -30,9 +32,13 @@ SELECT * FROM inst_colls;
             inst_coll_name = record['name']
             is_pool = record['is_pool']
 
-            assert is_pool, record
-            inst_coll = Pool(self.app, inst_coll_name, self.machine_name_prefix)
-            self.name_pool[inst_coll_name] = inst_coll
+            if is_pool:
+                inst_coll = Pool(self.app, inst_coll_name, self.machine_name_prefix)
+                self.name_pool[inst_coll_name] = inst_coll
+            else:
+                inst_coll = JobPrivateInstanceCollection(self.app, inst_coll_name, self.machine_name_prefix)
+                self.name_job_private[inst_coll_name] = inst_coll
+
             self.name_inst_coll[inst_coll_name] = inst_coll
 
             await inst_coll.async_init()
@@ -46,6 +52,10 @@ SELECT * FROM inst_colls;
     @property
     def pools(self):
         return self.name_pool
+
+    @property
+    def job_private_inst_colls(self):
+        return self.name_job_private
 
     @property
     def name_instance(self):

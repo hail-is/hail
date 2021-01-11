@@ -120,6 +120,12 @@ def adjust_cores_for_packability(cores_in_mcpu):
     return int(2**power * 1000)
 
 
+def round_storage_bytes_to_gib(storage_bytes):
+    gib = storage_bytes / 1024 / 1024 / 1024
+    gib = math.ceil(gib)
+    return gib
+
+
 class Box:
     def __init__(self, value):
         self.value = value
@@ -164,6 +170,20 @@ class WindowFractionCounter:
     def assert_valid(self):
         assert len(self._q) <= self._window_size
         assert 0 <= self._n_true <= self._window_size
+
+
+class ExceededSharesCounter:
+    def __init__(self):
+        self._global_counter = WindowFractionCounter(10)
+
+    def push(self, success: bool):
+        self._global_counter.push('exceeded_shares', success)
+
+    def rate(self) -> float:
+        return self._global_counter.fraction()
+
+    def __repr__(self):
+        return f'global {self._global_counter}'
 
 
 async def query_billing_projects(db, user=None, billing_project=None):
