@@ -57,9 +57,9 @@ class BinarySearch[C](mb: EmitMethodBuilder[C], typ: PContainer, eltType: PType,
   private[this] val low = findElt.newLocal[Int]()
   private[this] val high = findElt.newLocal[Int]()
 
-  def cmp(i: Code[Int]): Code[Int] = EmitCodeBuilder.scopedCode(mb) { cb =>
+  def cmp(i: Code[Int]): Code[Int] = EmitCodeBuilder.scopedCode(findElt) { cb =>
     val ec1 = EmitCode(Code._empty, m, PCode(t, e))
-    val ec2 = EmitCode.fromI(mb) { cb =>
+    val ec2 = EmitCode.fromI(findElt) { cb =>
       PCode(typ, array).asIndexable.memoize(cb, "binsearch_cmp_i").loadElement(cb, i).map(cb)(_.asPCode)
     }
     compare(cb, ec1, ec2)
