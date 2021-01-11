@@ -205,7 +205,7 @@ class Method private[lir] (
     val visited = mutable.Set[Block]()
 
     s.push(entry)
-    
+
     while (s.nonEmpty) {
       val L = s.pop()
       if (!visited.contains(L)) {
@@ -275,9 +275,9 @@ class Method private[lir] (
             l.method = this
           else {
             /*
-            if (l.method ne m) {
-              // println(s"$l ${l.method} $m\n  ${l.stack.mkString("  \n")}")
-              println(s"$l ${l.method} $m")
+            if (l.method ne this) {
+              // println(s"$l ${l.method} ${this}\n  ${l.stack.mkString("  \n")}")
+              println(s"$l ${l.method} ${this}")
             }
              */
             assert(l.method eq this)
