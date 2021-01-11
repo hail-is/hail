@@ -236,7 +236,7 @@ class PoolScheduler:
         self.scheduler_state_changed = pool.scheduler_state_changed
         self.db: Database = app['db']
         self.pool = pool
-        self.async_worker_pool = AsyncWorkerPool(parallelism=100, queue_size=100)
+        self.async_worker_pool: AsyncWorkerPool = self.app['async_worker_pool']
         self.exceeded_shares_counter = ExceededSharesCounter()
         self.task_manager = aiotools.BackgroundTaskManager()
 

@@ -25,19 +25,19 @@ CREATE TABLE IF NOT EXISTS `pools` (
 ) ENGINE = InnoDB;
 
 INSERT INTO pools (`name`, `worker_type`, `worker_cores`, `worker_disk_size_gb`, `worker_local_ssd_data_disk`,
-  `worker_pd_ssd_data_disk_size_gb`, `standing_worker`, `standing_worker_cores`, `max_instances`, `max_live_instances`)
+  `worker_pd_ssd_data_disk_size_gb`, `enable_standing_worker`, `standing_worker_cores`, `max_instances`, `max_live_instances`)
 SELECT 'standard', 'standard', worker_cores, worker_disk_size_gb, worker_local_ssd_data_disk,
   worker_pd_ssd_data_disk_size_gb, 1, standing_worker_cores, max_instances, pool_size
 FROM globals;
 
 INSERT INTO pools (`name`, `worker_type`, `worker_cores`, `worker_disk_size_gb`, `worker_local_ssd_data_disk`,
-  `worker_pd_ssd_data_disk_size_gb`, `standing_worker`, `standing_worker_cores`, `max_instances`, `max_live_instances`)
+  `worker_pd_ssd_data_disk_size_gb`, `enable_standing_worker`, `standing_worker_cores`, `max_instances`, `max_live_instances`)
 SELECT 'highmem', 'highmem', GREATEST(2, worker_cores), worker_disk_size_gb, worker_local_ssd_data_disk,
   worker_pd_ssd_data_disk_size_gb, 0, GREATEST(2, standing_worker_cores), max_instances, pool_size
 FROM globals;
 
 INSERT INTO pools (`name`, `worker_type`, `worker_cores`, `worker_disk_size_gb`, `worker_local_ssd_data_disk`,
-  `worker_pd_ssd_data_disk_size_gb`, `standing_worker`, `standing_worker_cores`, `max_instances`, `max_live_instances`)
+  `worker_pd_ssd_data_disk_size_gb`, `enable_standing_worker`, `standing_worker_cores`, `max_instances`, `max_live_instances`)
 SELECT 'highcpu', 'highcpu', GREATEST(2, worker_cores), worker_disk_size_gb, worker_local_ssd_data_disk,
   worker_pd_ssd_data_disk_size_gb, 0, GREATEST(2, standing_worker_cores), max_instances, pool_size
 FROM globals;

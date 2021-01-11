@@ -17,7 +17,7 @@ class Canceller:
         self.cancel_ready_state_changed: asyncio.Event = app['cancel_ready_state_changed']
         self.cancel_running_state_changed: asyncio.Event = app['cancel_running_state_changed']
         self.db: Database = app['db']
-        self.async_worker_pool = AsyncWorkerPool(parallelism=100, queue_size=100)
+        self.async_worker_pool: AsyncWorkerPool = self.app['async_worker_pool']
         self.task_manager = aiotools.BackgroundTaskManager()
 
     async def async_init(self):

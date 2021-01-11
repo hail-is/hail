@@ -18,7 +18,7 @@ from gear import (Database, setup_aiohttp_session,
 from hailtop.hail_logging import AccessLogger
 from hailtop.config import get_deploy_config
 from hailtop.utils import (time_msecs, RateLimit, serialization,
-                           Notice, periodically_call)
+                           Notice, periodically_call, AsyncWorkerPool)
 from hailtop.tls import internal_server_ssl_context
 from hailtop import aiogoogle, aiotools
 from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template, \
@@ -763,6 +763,9 @@ SELECT instance_id, internal_token FROM globals;
 
     cancel_running_state_changed = asyncio.Event()
     app['cancel_running_state_changed'] = cancel_running_state_changed
+
+    async_worker_pool = AsyncWorkerPool(100, queue_size=100)
+    app['async_worker_pool'] = async_worker_pool
 
     credentials = google.oauth2.service_account.Credentials.from_service_account_file(
         '/gsa-key/key.json')
