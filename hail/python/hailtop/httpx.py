@@ -11,8 +11,12 @@ def client_session(*args, **kwargs) -> aiohttp.ClientSession:
     location = get_deploy_config().location()
     if location == 'external':
         tls = external_client_ssl_context()
-    else:
+    elif location == 'k8s':
         tls = internal_client_ssl_context()
+    else:
+        assert location == 'gce'
+        # no encryption on the internal gateway
+        tls = external_client_ssl_context()
 
     assert 'connector' not in kwargs
     kwargs['connector'] = aiohttp.TCPConnector(ssl=tls)
