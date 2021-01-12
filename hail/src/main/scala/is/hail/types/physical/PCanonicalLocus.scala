@@ -78,7 +78,7 @@ final case class PCanonicalLocus(rgBc: BroadcastRG, required: Boolean = false) e
   }
 
   def codeOrdering(mb: EmitMethodBuilder[_], other: PType): CodeOrdering =
-    CodeOrdering.locusOrdering(this, other.asInstanceOf, mb)
+    CodeOrdering.locusOrdering(this, other.asInstanceOf[PLocus], mb)
 
   override def unstagedStoreAtAddress(addr: Long, region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Unit = {
     srcPType match {

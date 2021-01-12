@@ -548,7 +548,7 @@ object CodeOrdering {
       def compareNonnull(cb: EmitCodeBuilder, lhsc: PCode, rhsc: PCode): Code[Int] = {
         val codeRG = mb.getReferenceGenome(t1.rg)
         val lhs: PLocusValue = lhsc.asLocus.memoize(cb, "locus_cmp_lhs")
-        val rhs: PLocusValue = lhsc.asLocus.memoize(cb, "locus_cmp_rhs")
+        val rhs: PLocusValue = rhsc.asLocus.memoize(cb, "locus_cmp_rhs")
         val lhsContig = lhs.contig(cb).memoize(cb, "locus_cmp_lcontig").asInstanceOf[SStringValue]
         val rhsContig = rhs.contig(cb).memoize(cb, "locus_cmp_rcontig").asInstanceOf[SStringValue]
 
