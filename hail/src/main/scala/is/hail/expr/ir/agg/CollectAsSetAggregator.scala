@@ -13,7 +13,6 @@ import is.hail.utils._
 class TypedKey(typ: PType, kb: EmitClassBuilder[_], region: Value[Region]) extends BTreeKey {
   val storageType: PTuple = PCanonicalTuple(false, typ, PCanonicalTuple(false))
   val compType: PType = typ
-  private val kcomp = kb.getCodeOrdering(typ, CodeOrdering.Compare(), ignoreMissingness = false)
 
   def isKeyMissing(src: Code[Long]): Code[Boolean] = storageType.isFieldMissing(src, 0)
 
@@ -46,9 +45,11 @@ class TypedKey(typ: PType, kb: EmitClassBuilder[_], region: Value[Region]) exten
     storageType.storeAtAddress(cb, dest, region, storageType.loadCheapPCode(cb, src), deepCopy = true)
   }
 
-  def compKeys(cb: EmitCodeBuilder, k1: EmitCode, k2: EmitCode): Code[Int] = {
-    cb += k1.setup
-    cb += k2.setup
+  def compKeys(cb: EmitCodeBuilder, k1c: EmitCode, k2c: EmitCode): Code[Int] = {
+    val k1 = cb.memoize(k1c, "k1c")
+    val k2 = cb.memoize(k2c, "k2c")
+
+    val kcomp = kb.getCodeOrdering(k1.pt, k2.pt, CodeOrdering.Compare(), ignoreMissingness = false)
     kcomp(k1.m -> k1.v, k2.m -> k2.v)
   }
 
@@ -91,10 +92,9 @@ class AppendOnlySetState(val kb: EmitClassBuilder[_], vt: VirtualTypeWithReq) ex
   }
 
   private val _elt = kb.genFieldThisRef[Long]()
-  private val _v = kb.newEmitField(t)
 
   def insert(cb: EmitCodeBuilder, v: EmitCode): Unit = {
-    cb.assign(_v, v)
+    val _v = cb.memoize(v, "collect_as_set_insert_value")
     cb.assign(_elt, tree.getOrElseInitialize(cb, _v))
     cb.ifx(key.isEmpty(_elt), {
       cb.assign(size, size + 1)
