@@ -342,7 +342,7 @@ class Container:
     async def run(self, worker):
         try:
             async with self.step('pulling'):
-                if self.image.startswith('gcr.io/') or self.image.contains('docker.pkg.dev/'):
+                if self.image.startswith('gcr.io/') or 'docker.pkg.dev/' in self.image:
                     key = base64.b64decode(
                         self.job.gsa_key['key.json']).decode()
                     auth = {

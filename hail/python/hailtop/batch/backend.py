@@ -472,7 +472,7 @@ class ServiceBackend(Backend):
                 resources['storage'] = job._storage
 
             image = job._image if job._image else default_image
-            if not image.startswith('gcr.io/'):
+            if not (image.startswith('gcr.io/') or 'docker.pkg.dev/' in image):
                 warnings.warn(f'Using an image {image} not in GCR. '
                               f'Jobs may fail due to Docker Hub rate limits.')
 
