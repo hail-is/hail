@@ -4,10 +4,11 @@ import java.net._
 import java.security.SecureRandom
 import java.util.concurrent.{ConcurrentSkipListMap, Executors, _}
 
-import is.hail.annotations.{Region, RegionPool}
+import is.hail.annotations._
 import is.hail.expr.ir._
 import is.hail.types.encoded._
 import is.hail.types.virtual._
+import is.hail.types.physical._
 import is.hail.io._
 import is.hail.services.tls._
 import is.hail.services.shuffler._
@@ -205,8 +206,9 @@ class Shuffle (
 
     val keyEncoder = codecs.makeKeyEncoder(out)
 
-    log.info(s"partitionBounds ${nPartitions}")
     val keys = store.partitionKeys(nPartitions)
+    val printableKeys = keys.map(key => new UnsafeRow(codecs.keyEncodingPType.asInstanceOf[PBaseStruct], null, key))
+    log.info(s"partitionBounds ${nPartitions} ${printableKeys}")
     assert((nPartitions == 0 && keys.length == 0) ||
       keys.length == nPartitions + 1)
     writeRegionValueArray(keyEncoder, keys)
