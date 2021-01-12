@@ -21,7 +21,7 @@ async def test_connect_to_address_on_pod_ip():
                                        keyfile=ssl_config['key'],
                                        password=None)
     client_ssl_context.verify_mode = ssl.CERT_REQUIRED
-    client_ssl_context.check_hostname = True
+    client_ssl_context.check_hostname = False
 
     async with aiohttp.ClientSession(
             connector=aiohttp.TCPConnector(ssl=client_ssl_context),
