@@ -489,7 +489,8 @@ class ServiceBackend(Backend):
                                     timeout=job._timeout,
                                     gcsfuse=job._gcsfuse if len(job._gcsfuse) > 0 else None,
                                     env=env_vars,
-                                    requester_pays_project=batch.requester_pays_project)
+                                    requester_pays_project=batch.requester_pays_project,
+                                    mount_tokens=True)
 
             n_jobs_submitted += 1
 
