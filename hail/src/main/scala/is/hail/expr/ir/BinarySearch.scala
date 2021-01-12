@@ -14,21 +14,24 @@ class BinarySearch[C](mb: EmitMethodBuilder[C], typ: PContainer, eltType: PType,
   val ti: TypeInfo[_] = typeToTypeInfo(elt)
 
   val (compare: CodeOrdering.F[Int], equiv: CodeOrdering.F[Boolean], findElt: EmitMethodBuilder[C]) = if (keyOnly) {
-    val ttype = elt match {
+    val kt = elt match {
       case t: PBaseStruct =>
         require(t.size == 2)
-        t
-      case t: PCanonicalInterval => t.representation.asInstanceOf[PStruct]
+        t.types(0)
+      case t: PCanonicalInterval =>
+        t.pointType
     }
-    val kt = ttype.types(0)
     val findMB = mb.genEmitMethod("findElt", FastIndexedSeq[ParamType](typeInfo[Long], typeInfo[Boolean], typeToTypeInfo(kt)), typeInfo[Int])
 
     val comp: CodeOrdering.F[Int] = {
       (cb: EmitCodeBuilder, ec1: EmitCode, _ec2: EmitCode) =>
         val ec2 = EmitCode.fromI(cb.emb) { cb =>
           val iec = _ec2.toI(cb)
-          iec.flatMap(cb) { case v2: PBaseStructCode =>
-            v2.memoize(cb, "bs_comp_v2").loadField(cb, 0)
+          iec.flatMap(cb) {
+            case v2: PBaseStructCode =>
+              v2.memoize(cb, "bs_comp_v2").loadField(cb, 0)
+            case v2: PIntervalCode =>
+              v2.memoize(cb, "bs_comp_v2").loadStart(cb)
           }.map(cb)(_.asPCode)
         }
         findMB.getCodeOrdering(eltType, kt, CodeOrdering.Compare())(cb, ec1, ec2)
@@ -37,8 +40,11 @@ class BinarySearch[C](mb: EmitMethodBuilder[C], typ: PContainer, eltType: PType,
       (cb: EmitCodeBuilder, ec1: EmitCode, _ec2: EmitCode) =>
         val ec2 = EmitCode.fromI(cb.emb) { cb =>
           val iec = _ec2.toI(cb)
-          iec.flatMap(cb) { case v2: PBaseStructCode =>
-            v2.memoize(cb, "bs_eq_v2").loadField(cb, 0)
+          iec.flatMap(cb) {
+            case v2: PBaseStructCode =>
+              v2.memoize(cb, "bs_eq_v2").loadField(cb, 0)
+            case v2: PIntervalCode =>
+              v2.memoize(cb, "bs_comp_v2").loadStart(cb)
           }.map(cb)(_.asPCode)
         }
       findMB.getCodeOrdering(eltType, kt, CodeOrdering.Equiv())(cb, ec1, ec2)

@@ -123,8 +123,6 @@ object IntervalFunctions extends RegistryFunctions {
           def isAboveOnNonempty(cb: EmitCodeBuilder, lhs: PIntervalValue, rhs: PIntervalValue): Code[Boolean] = {
             val start = EmitCode.fromI(cb.emb)(cb => lhs.loadStart(cb).typecast[PCode])
             val end = EmitCode.fromI(cb.emb)(cb => rhs.loadEnd(cb).typecast[PCode])
-            cb += start.setup
-            cb += end.setup
             val cmp = cb.newLocal("cmp", compare(cb, start, end))
             cmp > 0 || (cmp.ceq(0) && (!lhs.includesStart() || !rhs.includesEnd()))
           }
@@ -132,8 +130,6 @@ object IntervalFunctions extends RegistryFunctions {
           def isBelowOnNonempty(cb: EmitCodeBuilder, lhs: PIntervalValue, rhs: PIntervalValue): Code[Boolean] = {
             val end = EmitCode.fromI(cb.emb)(cb => lhs.loadEnd(cb).typecast[PCode])
             val start = EmitCode.fromI(cb.emb)(cb => rhs.loadStart(cb).typecast[PCode])
-            cb += start.setup
-            cb += end.setup
             val cmp = cb.newLocal("cmp", compare(cb, end, start))
             cmp < 0 || (cmp.ceq(0) && (!lhs.includesEnd() || !rhs.includesStart()))
           }
