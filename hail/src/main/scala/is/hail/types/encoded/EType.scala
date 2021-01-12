@@ -91,7 +91,7 @@ abstract class EType extends BaseType with Serializable with Requiredness {
   final def buildInplaceDecoderMethod(pt: PType, kb: EmitClassBuilder[_]): EmitMethodBuilder[_] = {
     if (!decodeCompatible(pt))
       throw new RuntimeException(s"decode incompatible:\n  PT: $pt\n  ET: ${ parsableString() }")
-    kb.getOrGenEmitMethod(s"INPLACE_DECODE_${ asIdent }_TO_${ pt.asIdent }".take(50),
+    kb.getOrGenEmitMethod(s"INPLACE_DECODE_${ asIdent }_TO_${ pt.asIdent }",
       (pt, this, "INPLACE_DECODE"),
       FastIndexedSeq[ParamType](typeInfo[Region], typeInfo[Long], classInfo[InputBuffer]),
       UnitInfo)({ mb =>
