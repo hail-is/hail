@@ -30,6 +30,7 @@ class Sync:
         self.paths = paths
 
     async def sync_and_restart_pod(self, pod, namespace):
+        log.info(f'syncing and restarting {pod}@{namespace}')
         try:
             await asyncio.gather(*[
                 check_shell(f'{DEVBIN}/krsync.sh {RSYNC_ARGS} {local} {pod}@{namespace}:{remote}')
@@ -42,6 +43,7 @@ class Sync:
         log.info(f'reloaded {pod}@{namespace}')
 
     async def initialize_pod(self, pod, namespace):
+        log.info(f'initilizing {pod}@{namespace}')
         try:
             await asyncio.gather(*[
                 check_shell(f'{DEVBIN}/krsync.sh {RSYNC_ARGS} {local} {pod}@{namespace}:{remote}')
@@ -50,7 +52,7 @@ class Sync:
         except CalledProcessError:
             log.warning(f'could not initialize {namespace}/{pod}', exc_info=True)
             return
-        self.pods_list.append((pod, namespace))
+        self.pods_list.add((pod, namespace))
         log.info(f'initialized {pod}@{namespace}')
 
     async def monitor_pods(self, apps, namespace):
