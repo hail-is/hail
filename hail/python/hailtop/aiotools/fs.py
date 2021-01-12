@@ -330,9 +330,10 @@ class SourceCopier:
                     and dest_type == AsyncFS.DIR)):
             if dest_type == AsyncFS.FILE:
                 raise NotADirectoryError(self.dest)
-
             assert dest_type == AsyncFS.DIR
-            return url_join(self.dest, url_basename(self.src.rstrip('/'))), dest_type
+            # We know dest is a dir, but we're copying to
+            # dest/basename(src), and we don't know its type.
+            return url_join(self.dest, url_basename(self.src.rstrip('/'))), None
 
         assert not self.dest.endswith('/')
         return self.dest, dest_type
