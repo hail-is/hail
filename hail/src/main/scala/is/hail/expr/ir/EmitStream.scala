@@ -1641,7 +1641,7 @@ object EmitStream {
 
           val lKeyViewType = PSubsetStruct(lElemType, key: _*)
           val rKeyViewType = PSubsetStruct(rElemType, key: _*)
-          val ordering = lKeyViewType.codeOrdering(mb, rKeyViewType, missingFieldsEqual = false).asInstanceOf[CodeOrdering { type T = Long }]
+          val ordering = lKeyViewType.codeOrdering(mb, rKeyViewType, missingFieldsEqual = false)
 
           def compare(lelt: EmitValue, relt: EmitValue): Code[Int] = EmitCodeBuilder.scopedCode(mb) { cb =>
             assert(lelt.pt == lElemType)
