@@ -3,11 +3,9 @@ package is.hail.expr.ir.agg
 import breeze.linalg.{DenseMatrix, DenseVector, diag, inv}
 import is.hail.annotations.{Region, RegionValueBuilder, StagedRegionValueBuilder, UnsafeRow}
 import is.hail.asm4s._
-import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitCodeBuilder, EmitMethodBuilder}
-import is.hail.types.VirtualTypeWithReq
+import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitCodeBuilder}
 import is.hail.types.physical._
 import is.hail.types.physical.stypes.SCode
-import is.hail.types.physical.stypes.concrete.SNDArrayPointerSettable
 import is.hail.types.physical.stypes.interfaces.SIndexableValue
 import is.hail.types.virtual.{TArray, TFloat64, TInt32, Type}
 import is.hail.utils.FastIndexedSeq
@@ -21,6 +19,7 @@ object LinearRegressionAggregator {
   val stateType: PCanonicalTuple = PCanonicalTuple(true, vector, vector, PInt32(true))
 
   private val optVector = vector.setRequired(false)
+
   def resultType: PCanonicalStruct = PCanonicalStruct(required = true, "xty" -> optVector, "beta" -> optVector, "diag_inv" -> optVector, "beta0" -> optVector)
 
   def computeResult(region: Region, xtyPtr: Long, xtxPtr: Long, k0: Int): Long = {
@@ -88,11 +87,13 @@ object LinearRegressionAggregator {
 }
 
 class LinearRegressionAggregator() extends StagedAggregator {
+
   import LinearRegressionAggregator._
 
   type State = AbstractTypedRegionBackedAggState
 
   override def resultType: PType = LinearRegressionAggregator.resultType
+
   val initOpTypes: Seq[Type] = Array(TInt32, TInt32)
   val seqOpTypes: Seq[Type] = Array(TFloat64, TArray(TFloat64))
 
@@ -106,19 +107,23 @@ class LinearRegressionAggregator() extends StagedAggregator {
     )
     cb.assign(state.off, stateType.allocate(state.region))
     cb += Region.storeAddress(stateType.fieldOffset(state.off, 0), vector.zeroes(cb.emb, state.region, k))
-    cb +=  Region.storeAddress(stateType.fieldOffset(state.off, 1), vector.zeroes(cb.emb, state.region, k * k))
+    cb += Region.storeAddress(stateType.fieldOffset(state.off, 1), vector.zeroes(cb.emb, state.region, k * k))
     cb += Region.storeInt(stateType.loadField(state.off, 2), k0)
   }
 
   protected def _initOp(cb: EmitCodeBuilder, state: State, init: Array[EmitCode]): Unit = {
     val Array(kt, k0t) = init
     kt.toI(cb)
-        .consume(cb,
-        { cb += Code._fatal[Unit]("linreg: init args may not be missing") },
+      .consume(cb,
+        {
+          cb += Code._fatal[Unit]("linreg: init args may not be missing")
+        },
         { ktCode =>
           k0t.toI(cb)
             .consume(cb,
-              { cb += Code._fatal[Unit]("linreg: init args may not be missing") },
+              {
+                cb += Code._fatal[Unit]("linreg: init args may not be missing")
+              },
               k0tCode => initOpF(state)(cb, ktCode.asInt.intCode(cb), k0tCode.asInt.intCode(cb))
             )
         })
@@ -142,35 +147,35 @@ class LinearRegressionAggregator() extends StagedAggregator {
         cb.assign(sptr, vector.firstElementOffset(xty, k))
         cb.assign(i, 0)
         cb.whileLoop(i < k,
-        {
-          cb += Region.storeDouble(sptr, Region.loadDouble(sptr) + x.loadElement(cb, i).get(cb).asDouble.doubleCode(cb) * y)
-          cb.assign(i, i + 1)
-          cb.assign(sptr, sptr + scalar.byteSize)
-        })
+          {
+            cb += Region.storeDouble(sptr, Region.loadDouble(sptr) + x.loadElement(cb, i).get(cb).asDouble.doubleCode(cb) * y)
+            cb.assign(i, i + 1)
+            cb.assign(sptr, sptr + scalar.byteSize)
+          })
 
         cb.assign(i, 0)
         cb.assign(sptr, vector.firstElementOffset(xtx, k))
 
         cb.whileLoop(i < k,
-        {
-          cb.assign(j, 0)
-          cb.whileLoop(j < k,
           {
-            // add x[i] * x[j] to the value at sptr
-            cb += Region.storeDouble(sptr, Region.loadDouble(sptr) +
-              (x.loadElement(cb, i).get(cb).asDouble.doubleCode(cb) * x.loadElement(cb, j).get(cb).asDouble.doubleCode(cb)))
-            cb.assign(j, j + 1)
-            cb.assign(sptr, sptr + scalar.byteSize)
+            cb.assign(j, 0)
+            cb.whileLoop(j < k,
+              {
+                // add x[i] * x[j] to the value at sptr
+                cb += Region.storeDouble(sptr, Region.loadDouble(sptr) +
+                  (x.loadElement(cb, i).get(cb).asDouble.doubleCode(cb) * x.loadElement(cb, j).get(cb).asDouble.doubleCode(cb)))
+                cb.assign(j, j + 1)
+                cb.assign(sptr, sptr + scalar.byteSize)
+              })
+            cb.assign(i, i + 1)
           })
-          cb.assign(i, i + 1)
-        })
       })
   }
 
   protected def _seqOp(cb: EmitCodeBuilder, state: State, seq: Array[EmitCode]): Unit = {
     val Array(y, x) = seq
     y.toI(cb)
-        .consume(cb,
+      .consume(cb,
         {},
         { yCode =>
           x.toI(cb)

@@ -51,15 +51,12 @@ class MonoidAggregator(monoid: StagedMonoidSpec) extends StagedAggregator {
     cb.ifx(eltm,
       {},
       cb.assign(eltv, elt.value))
-//    println("seqop")
     combine(cb, mOpt, v, Some(eltm), eltv)
   }
 
   protected def _combOp(cb: EmitCodeBuilder, state: State, other: State): Unit = {
     val (m1, v1, _) = state.fields(0)
     val (m2, v2, _) = other.fields(0)
-//    println("comb op")
-//    cb += Code._printlns(const("in combop, v1="), v1.load().asInstanceOf[Code[Long]].toS, ", v2=", v2.load().asInstanceOf[Code[Long]].toS)
     combine(cb, m1, v1, m2.map(_.load), v2.load)
   }
 
@@ -85,8 +82,6 @@ class MonoidAggregator(monoid: StagedMonoidSpec) extends StagedAggregator {
     val ti = typeToTypeInfo(typ)
     ti match {
       case ti: TypeInfo[t] =>
-//        println(s"$monoid, $m1Opt, $m2Opt")
-//        cb += Code._println(const("before monoid combine, value is ").concat(v1.load().asInstanceOf[Code[Double]].toS))
         (m1Opt, m2Opt) match {
           case (None, None) =>
             cb.assignAny(v1, monoid(v1, v2))
@@ -118,7 +113,6 @@ class MonoidAggregator(monoid: StagedMonoidSpec) extends StagedAggregator {
               })
         }
     }
-//    cb += Code._println(const("after monoid combine, value is ").concat(v1.load().asInstanceOf[Code[Long]].toS))
   }
 }
 
