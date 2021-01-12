@@ -165,7 +165,10 @@ def run_with_timeout(b, config):
         try:
             cleanup_container = []
             def runner():
-                cleanup_container.append(b.run(config.data_dir))
+                result = b.run(config.data_dir)
+                if result is not None:
+                    assert callable(result)
+                    cleanup_container.append(result)
             timer = timeit.Timer(runner).timeit(1)
 
             if cleanup_container:
