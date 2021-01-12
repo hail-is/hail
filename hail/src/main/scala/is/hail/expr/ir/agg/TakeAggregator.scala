@@ -98,7 +98,7 @@ class TakeRVAS(val eltType: VirtualTypeWithReq, val kb: EmitClassBuilder[_]) ext
               .toI(cb)
               .consume(cb,
                 cb += rvb.setMissing(),
-                sc => cb += rvb.addIRIntermediate(sc))
+                sc => cb += rvb.addIRIntermediate(sc, deepCopy = true))
             cb += rvb.advance()
           })
       }

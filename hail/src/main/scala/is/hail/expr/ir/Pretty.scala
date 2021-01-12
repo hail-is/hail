@@ -93,7 +93,7 @@ object Pretty {
   def prettyPhysicalAggSig(aggSig: PhysicalAggSig): Doc = {
     aggSig match {
       case GroupedAggSig(t, nested) =>
-        fillList("Grouped", t.toString, prettyPhysicalAggSigs(nested))
+        fillList("Grouped", t.canonicalPType.toString, prettyPhysicalAggSigs(nested))
       case ArrayLenAggSig(kl, nested) =>
         fillList("ArrayLen", prettyBooleanLiteral(kl), prettyPhysicalAggSigs(nested))
       case AggElementsAggSig(nested) =>

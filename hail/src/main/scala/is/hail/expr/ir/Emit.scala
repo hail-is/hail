@@ -1474,9 +1474,8 @@ class Emit[C](
         }
 
       case x@ResultOp(start, sig) =>
-        val newRegion = cb.newField("resultop_region", region.code)
         val AggContainer(aggs, sc, _) = container.get
-        val srvb = new StagedRegionValueBuilder(cb.emb, x.pType, newRegion)
+        val srvb = new StagedRegionValueBuilder(cb.emb, x.pType, region.code)
         cb += srvb.start()
 
         (0 until aggs.length).foreach { j =>
