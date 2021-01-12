@@ -237,9 +237,6 @@ object Simplify {
     case ToStream(Let(name, value, ToArray(x)), _) if x.typ.isInstanceOf[TStream] =>
       Let(name, value, x)
 
-    case NDArrayReshape(MakeNDArray(data, _, rowMajor), reshapedShape) => MakeNDArray(data, reshapedShape, rowMajor)
-    case NDArrayReshape(NDArrayMap(inner, vName, body), newShape) => NDArrayMap(NDArrayReshape(inner, newShape), vName, body)
-
     case NDArrayShape(NDArrayMap(nd, _, _)) => NDArrayShape(nd)
 
     case GetField(MakeStruct(fields), name) =>
