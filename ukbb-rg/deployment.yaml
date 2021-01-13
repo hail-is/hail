@@ -37,8 +37,8 @@ spec:
          imagePullPolicy: Always
          resources:
            requests:
-             memory: 375Mi
-             cpu: 100m
+             memory: 3750Mi
+             cpu: "1"
            limits:
              memory: 3750Mi
              cpu: "1"
@@ -86,8 +86,8 @@ spec:
          imagePullPolicy: Always
          resources:
            requests:
-             memory: 375Mi
-             cpu: 100m
+             memory: 3750Mi
+             cpu: "1"
            limits:
              memory: 3750Mi
              cpu: "1"
