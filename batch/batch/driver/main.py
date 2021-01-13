@@ -36,6 +36,7 @@ from ..globals import HTTP_CLIENT_MAX_SIZE
 from .zone_monitor import ZoneMonitor
 from .gce import GCEEventMonitor
 from .canceller import Canceller
+from .instance_collection import InstanceCollection
 from .instance_collection_manager import InstanceCollectionManager
 from .k8s_cache import K8sCache
 from .pool import Pool
@@ -437,24 +438,26 @@ async def config_update(request, userdata):  # pylint: disable=unused-argument
     return web.HTTPFound(deploy_config.external_url('batch-driver', pool_url_path))
 
 
-@routes.get('/pool/{pool}')
+@routes.get('/inst_coll/{inst_coll}')
 @web_authenticated_developers_only()
-async def get_pool(request, userdata):
+async def get_inst_coll(request, userdata):
     app = request.app
     inst_coll_manager: InstanceCollectionManager = app['inst_coll_manager']
 
     session = await aiohttp_session.get_session(request)
 
-    pool_name = request.match_info['pool']
-    pool = inst_coll_manager.get_inst_coll(pool_name)
+    inst_coll_name = request.match_info['pool']
+    inst_coll = inst_coll_manager.get_inst_coll(inst_coll_name)
 
-    if not isinstance(pool, Pool):
+    if not isinstance(inst_coll, InstanceCollection):
         set_message(session,
-                    f'Unknown pool {pool_name}.',
+                    f'Unknown inst_coll {inst_coll_name}.',
                     'error')
         raise web.HTTPFound(deploy_config.external_url('batch-driver', '/'))
 
-    user_resources = await pool.scheduler.compute_fair_share()
+    assert isinstance(inst_coll, Pool)
+
+    user_resources = await inst_coll.scheduler.compute_fair_share()
     user_resources = sorted(user_resources.values(),
                             key=lambda record: record['ready_cores_mcpu'] + record['running_cores_mcpu'],
                             reverse=True)
@@ -462,8 +465,8 @@ async def get_pool(request, userdata):
     ready_cores_mcpu = sum([record['ready_cores_mcpu'] for record in user_resources])
 
     page_context = {
-        'pool': pool,
-        'instances': pool.name_instance.values(),
+        'pool': inst_coll,
+        'instances': inst_coll.name_instance.values(),
         'user_resources': user_resources,
         'ready_cores_mcpu': ready_cores_mcpu
     }
