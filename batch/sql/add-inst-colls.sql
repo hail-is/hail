@@ -1,7 +1,7 @@
 CREATE TABLE IF NOT EXISTS `inst_colls` (
   `name` VARCHAR(255) NOT NULL,
   `pool` BOOLEAN NOT NULL,
-  `boot_disk_size_gb` NOT NULL,
+  `boot_disk_size_gb` BIGINT NOT NULL,
   `max_instances` BIGINT NOT NULL,
   `max_live_instances` BIGINT NOT NULL,
   PRIMARY KEY (`name`)

@@ -13,13 +13,16 @@ CREATE TABLE IF NOT EXISTS `resources` (
 CREATE TABLE IF NOT EXISTS `inst_colls` (
   `name` VARCHAR(255) NOT NULL,
   `pool` BOOLEAN NOT NULL,
+  `boot_disk_size_gb` BIGINT NOT NULL,
+  `max_instances` BIGINT NOT NULL,
+  `max_live_instances` BIGINT NOT NULL,
   PRIMARY KEY (`name`)
 ) ENGINE = InnoDB;
 CREATE INDEX `inst_colls_pool` ON `inst_colls` (`pool`);
 
-INSERT INTO inst_colls (`name`, `pool`) VALUES ('standard', 1);
-INSERT INTO inst_colls (`name`, `pool`) VALUES ('highmem', 1);
-INSERT INTO inst_colls (`name`, `pool`) VALUES ('highcpu', 1);
+INSERT INTO inst_colls (`name`, `pool`, `boot_disk_size_gb`, `max_instances`, `max_live_instances`) VALUES ('standard', 1, 10, 6250, 800);
+INSERT INTO inst_colls (`name`, `pool`, `boot_disk_size_gb`, `max_instances`, `max_live_instances`) VALUES ('highmem', 1, 10, 6250, 800);
+INSERT INTO inst_colls (`name`, `pool`, `boot_disk_size_gb`, `max_instances`, `max_live_instances`) VALUES ('highcpu', 1, 10, 6250, 800);
 
 CREATE TABLE IF NOT EXISTS `pools` (
   `name` VARCHAR(255) NOT NULL,
@@ -36,18 +39,17 @@ CREATE TABLE IF NOT EXISTS `pools` (
   FOREIGN KEY (`name`) REFERENCES inst_colls(name) ON DELETE CASCADE
 ) ENGINE = InnoDB;
 
-INSERT INTO pools (`name`, `worker_type`, `worker_cores`, `worker_disk_size_gb`, `worker_local_ssd_data_disk`,
-  `worker_pd_ssd_data_disk_size_gb`, `standing_worker`, `standing_worker_cores`, `max_instances`, `max_live_instances`)
-VALUES ('standard', 'standard', 16, 10, 1, 0, 1, 4, 6250, 800);
+INSERT INTO pools (`name`, `worker_type`, `worker_cores`, `worker_local_ssd_data_disk`,
+  `worker_pd_ssd_data_disk_size_gb`, `enable_standing_worker`, `standing_worker_cores`)
+VALUES ('standard', 'standard', 16, 1, 0, 1, 4);
 
-INSERT INTO pools (`name`, `worker_type`, `worker_cores`, `worker_disk_size_gb`, `worker_local_ssd_data_disk`,
-  `worker_pd_ssd_data_disk_size_gb`, `standing_worker`, `standing_worker_cores`, `max_instances`, `max_live_instances`)
-VALUES ('highmem', 'highmem', 16, 10, 1, 0, 0, 4, 6250, 800);
+INSERT INTO pools (`name`, `worker_type`, `worker_cores`, `worker_local_ssd_data_disk`,
+  `worker_pd_ssd_data_disk_size_gb`, `enable_standing_worker`, `standing_worker_cores`)
+VALUES ('highmem', 'highmem', 16, 10, 1, 0, 0, 4);
 
-INSERT INTO pools (`name`, `worker_type`, `worker_cores`, `worker_disk_size_gb`, `worker_local_ssd_data_disk`,
-  `worker_pd_ssd_data_disk_size_gb`, `standing_worker_cores`, `max_instances`, `max_live_instances`)
-SELECT 'highcpu', 'highcpu', 16, 10, 1, 0, 0, 4, 6250, 800
-FROM globals;
+INSERT INTO pools (`name`, `worker_type`, `worker_cores`, `worker_local_ssd_data_disk`,
+  `worker_pd_ssd_data_disk_size_gb`, `enable_standing_worker`, `standing_worker_cores`)
+VALUES ('highcpu', 'highcpu', 16, 10, 1, 0, 0, 4);
 
 CREATE TABLE IF NOT EXISTS `billing_projects` (
   `name` VARCHAR(100) NOT NULL,
