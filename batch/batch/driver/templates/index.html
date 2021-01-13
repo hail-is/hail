@@ -24,7 +24,7 @@
     <tbody>
     {% for pool in pools %}
     <tr>
-      <td><a href="{{ base_path }}/pool/{{ pool.name }}">{{ pool.name }}</a></td>
+      <td><a href="{{ base_path }}/inst_coll/{{ pool.name }}">{{ pool.name }}</a></td>
       <td>{{ pool.worker_type }}</td>
       <td class="numeric-cell">{{ pool.n_instances_by_state['pending'] }}</td>
       <td class="numeric-cell">{{ pool.n_instances_by_state['active'] }}</td>

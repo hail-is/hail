@@ -106,7 +106,7 @@ WHERE name = %s;
         @transaction(self.db)
         async def update(tx):
             await tx.just_execute(
-            '''
+                '''
 UPDATE pools
 SET worker_cores = %s, worker_local_ssd_data_disk = %s, worker_pd_ssd_data_disk_size_gb = %s,
   enable_standing_worker = %s, standing_worker_cores = %s
@@ -123,6 +123,8 @@ SET boot_disk_size_gb = %s, max_instances = %s, max_live_instances = %s
 WHERE name = %s;
 ''',
                 (boot_disk_size_gb, max_instances, max_live_instances))
+
+        await update()  # pylint: disable=no-value-for-parameter
 
         self.worker_cores = worker_cores
         self.boot_disk_size_gb = boot_disk_size_gb
