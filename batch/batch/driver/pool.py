@@ -5,7 +5,7 @@ import secrets
 import random
 import collections
 
-from gear import Database
+from gear import Database, transaction
 from hailtop import aiotools
 from hailtop.utils import (secret_alnum_string, retry_long_running, run_if_changed,
                            time_msecs, WaitableSharedPool, AsyncWorkerPool, Notice,
@@ -34,7 +34,7 @@ class Pool(InstanceCollection):
 
         self.worker_type = None
         self.worker_cores = None
-        self.worker_disk_size_gb = None
+        self.boot_disk_size_gb = None
         self.worker_local_ssd_data_disk = None
         self.worker_pd_ssd_data_disk_size_gb = None
         self.enable_standing_worker = None
@@ -48,17 +48,18 @@ class Pool(InstanceCollection):
         await super().async_init()
 
         row = await self.db.select_and_fetchone('''
-SELECT worker_type, worker_cores, worker_disk_size_gb,
+SELECT worker_type, worker_cores,
   worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gb,
-  standing_worker, standing_worker_cores, max_instances, max_live_instances
+  standing_worker, standing_worker_cores
 FROM pools
+LEFT JOIN inst_colls ON inst_colls.name = pools.name
 WHERE name = %s;
 ''',
                                                 (self.name,))
 
         self.worker_type = row['worker_type']
         self.worker_cores = row['worker_cores']
-        self.worker_disk_size_gb = row['worker_disk_size_gb']
+        self.boot_disk_size_gb = row['boot_disk_size_gb']
         self.worker_local_ssd_data_disk = bool(row['worker_local_ssd_data_disk'])
         self.worker_pd_ssd_data_disk_size_gb = row['worker_pd_ssd_data_disk_size_gb']
         self.enable_standing_worker = bool(row['standing_worker'])
@@ -87,7 +88,7 @@ WHERE name = %s;
             'name': self.name,
             'worker_type': self.worker_type,
             'worker_cores': self.worker_cores,
-            'worker_disk_size_gb': self.worker_disk_size_gb,
+            'boot_disk_size_gb': self.boot_disk_size_gb,
             'worker_local_ssd_data_disk': self.worker_local_ssd_data_disk,
             'worker_pd_ssd_data_disk_size_gb': self.worker_pd_ssd_data_disk_size_gb,
             'enable_standing_worker': self.enable_standing_worker,
@@ -97,26 +98,34 @@ WHERE name = %s;
         }
 
     async def configure(
-            self, worker_cores, worker_disk_size_gb,
+            self, worker_cores, boot_disk_size_gb,
             worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gb,
             enable_standing_worker, standing_worker_cores,
             max_instances, max_live_instances):
-        await self.db.just_execute(
+
+        @transaction(self.db)
+        async def update(tx):
+            await tx.just_execute(
             '''
 UPDATE pools
-SET worker_cores = %s, worker_disk_size_gb = %s,
-  worker_local_ssd_data_disk = %s, worker_pd_ssd_data_disk_size_gb = %s,
-  enable_standing_worker = %s, standing_worker_cores = %s,
-  max_instances = %s, max_live_instances = %s
+SET worker_cores = %s, worker_local_ssd_data_disk = %s, worker_pd_ssd_data_disk_size_gb = %s,
+  enable_standing_worker = %s, standing_worker_cores = %s
 WHERE name = %s;
 ''',
-            (worker_cores, worker_disk_size_gb,
-             worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gb,
+            (worker_cores, worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gb,
              enable_standing_worker, standing_worker_cores,
-             max_instances, max_live_instances, self.name))
+             self.name))
+
+            await tx.just_execute(
+                '''
+UPDATE inst_colls
+SET boot_disk_size_gb = %s, max_instances = %s, max_live_instances = %s
+WHERE name = %s;
+''',
+                (boot_disk_size_gb, max_instances, max_live_instances))
 
         self.worker_cores = worker_cores
-        self.worker_disk_size_gb = worker_disk_size_gb
+        self.boot_disk_size_gb = boot_disk_size_gb
         self.worker_local_ssd_data_disk = worker_local_ssd_data_disk
         self.worker_pd_ssd_data_disk_size_gb = worker_pd_ssd_data_disk_size_gb
         self.enable_standing_worker = enable_standing_worker
@@ -160,7 +169,7 @@ WHERE name = %s;
                               max_idle_time_msecs=max_idle_time_msecs,
                               worker_local_ssd_data_disk=self.worker_local_ssd_data_disk,
                               worker_pd_ssd_data_disk_size_gb=self.worker_pd_ssd_data_disk_size_gb,
-                              worker_disk_size_gb=self.worker_disk_size_gb)
+                              worker_disk_size_gb=self.boot_disk_size_gb)
 
     async def create_instances(self):
         ready_cores = await self.db.select_and_fetchone(

@@ -9,7 +9,7 @@
   <form action="{{ base_path }}/config-update/pool/{{ pool.name }}" method="POST">
     <div>Worker type: {{ pool.worker_type }}</div>
     <div>Worker cores: <input name="worker_cores" value="{{ pool.worker_cores }}" /></div>
-    <div>Worker boot disk size (in GB): <input name="worker_disk_size_gb" value="{{ pool.worker_disk_size_gb }}" /></div>
+    <div>Worker boot disk size (in GB): <input name="boot_disk_size_gb" value="{{ pool.boot_disk_size_gb }}" /></div>
     <div>
       <label for="worker_local_ssd_data_disk">Worker should use a Local SSD: </label>
       <input type="checkbox"

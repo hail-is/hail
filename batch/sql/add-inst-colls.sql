@@ -1,45 +1,53 @@
 CREATE TABLE IF NOT EXISTS `inst_colls` (
   `name` VARCHAR(255) NOT NULL,
   `pool` BOOLEAN NOT NULL,
+  `boot_disk_size_gb` NOT NULL,
+  `max_instances` BIGINT NOT NULL,
+  `max_live_instances` BIGINT NOT NULL,
   PRIMARY KEY (`name`)
 ) ENGINE = InnoDB;
 CREATE INDEX `inst_colls_pool` ON `inst_colls` (`pool`);
 
-INSERT INTO inst_colls (`name`, `pool`) VALUES ('standard', 1);
-INSERT INTO inst_colls (`name`, `pool`) VALUES ('highmem', 1);
-INSERT INTO inst_colls (`name`, `pool`) VALUES ('highcpu', 1);
+INSERT INTO pools (`name`, `pool`, `boot_disk_size_gb`, `max_instances`, `max_live_instances`)
+SELECT 'standard', 1, worker_disk_size_gb, max_instances, pool_size
+FROM globals;
+
+INSERT INTO pools (`name`, `pool`, `boot_disk_size_gb`, `max_instances`, `max_live_instances`)
+SELECT 'highmem', 1, worker_disk_size_gb, max_instances, pool_size
+FROM globals;
+
+INSERT INTO pools (`name`, `pool`, `boot_disk_size_gb`, `max_instances`, `max_live_instances`)
+SELECT 'highcpu', 1, worker_disk_size_gb, max_instances, pool_size
+FROM globals;
 
 CREATE TABLE IF NOT EXISTS `pools` (
   `name` VARCHAR(255) NOT NULL,
   `worker_type` VARCHAR(100) NOT NULL,
   `worker_cores` BIGINT NOT NULL,
-  `worker_disk_size_gb` BIGINT NOT NULL,
   `worker_local_ssd_data_disk` BOOLEAN NOT NULL DEFAULT 1,
   `worker_pd_ssd_data_disk_size_gb` BIGINT NOT NULL DEFAULT 0,
   `enable_standing_worker` BOOLEAN NOT NULL DEFAULT FALSE,
   `standing_worker_cores` BIGINT NOT NULL DEFAULT 0,
-  `max_instances` BIGINT NOT NULL,
-  `max_live_instances` BIGINT NOT NULL,
   PRIMARY KEY (`name`),
   FOREIGN KEY (`name`) REFERENCES inst_colls(name) ON DELETE CASCADE
 ) ENGINE = InnoDB;
 
-INSERT INTO pools (`name`, `worker_type`, `worker_cores`, `worker_disk_size_gb`, `worker_local_ssd_data_disk`,
-  `worker_pd_ssd_data_disk_size_gb`, `enable_standing_worker`, `standing_worker_cores`, `max_instances`, `max_live_instances`)
-SELECT 'standard', 'standard', worker_cores, worker_disk_size_gb, worker_local_ssd_data_disk,
-  worker_pd_ssd_data_disk_size_gb, 1, standing_worker_cores, max_instances, pool_size
+INSERT INTO pools (`name`, `worker_type`, `worker_cores`, `worker_local_ssd_data_disk`,
+  `worker_pd_ssd_data_disk_size_gb`, `enable_standing_worker`, `standing_worker_cores`)
+SELECT 'standard', 'standard', worker_cores, worker_local_ssd_data_disk,
+  worker_pd_ssd_data_disk_size_gb, 1, standing_worker_cores
 FROM globals;
 
-INSERT INTO pools (`name`, `worker_type`, `worker_cores`, `worker_disk_size_gb`, `worker_local_ssd_data_disk`,
-  `worker_pd_ssd_data_disk_size_gb`, `enable_standing_worker`, `standing_worker_cores`, `max_instances`, `max_live_instances`)
-SELECT 'highmem', 'highmem', GREATEST(2, worker_cores), worker_disk_size_gb, worker_local_ssd_data_disk,
-  worker_pd_ssd_data_disk_size_gb, 0, GREATEST(2, standing_worker_cores), max_instances, pool_size
+INSERT INTO pools (`name`, `worker_type`, `worker_cores`, `worker_local_ssd_data_disk`,
+  `worker_pd_ssd_data_disk_size_gb`, `enable_standing_worker`, `standing_worker_cores`)
+SELECT 'highmem', 'highmem', GREATEST(2, worker_cores), worker_local_ssd_data_disk,
+  worker_pd_ssd_data_disk_size_gb, 0, GREATEST(2, standing_worker_cores)
 FROM globals;
 
-INSERT INTO pools (`name`, `worker_type`, `worker_cores`, `worker_disk_size_gb`, `worker_local_ssd_data_disk`,
-  `worker_pd_ssd_data_disk_size_gb`, `enable_standing_worker`, `standing_worker_cores`, `max_instances`, `max_live_instances`)
-SELECT 'highcpu', 'highcpu', GREATEST(2, worker_cores), worker_disk_size_gb, worker_local_ssd_data_disk,
-  worker_pd_ssd_data_disk_size_gb, 0, GREATEST(2, standing_worker_cores), max_instances, pool_size
+INSERT INTO pools (`name`, `worker_type`, `worker_cores`, `worker_local_ssd_data_disk`,
+  `worker_pd_ssd_data_disk_size_gb`, `enable_standing_worker`, `standing_worker_cores`)
+SELECT 'highcpu', 'highcpu', GREATEST(2, worker_cores), worker_local_ssd_data_disk,
+  worker_pd_ssd_data_disk_size_gb, 0, GREATEST(2, standing_worker_cores)
 FROM globals;
 
 ALTER TABLE instances ADD COLUMN `inst_coll` VARCHAR(255) DEFAULT 'standard';

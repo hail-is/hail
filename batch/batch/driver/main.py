@@ -384,11 +384,11 @@ async def config_update(request, userdata):  # pylint: disable=unused-argument
         lambda v: v in valid_worker_cores,
         f'one of {", ".join(str(v) for v in valid_worker_cores)}')
 
-    worker_disk_size_gb = validate_int(
-        'Worker disk size',
-        post['worker_disk_size_gb'],
-        lambda v: v > 0,
-        'a positive integer')
+    boot_disk_size_gb = validate_int(
+        'Worker boot disk size',
+        post['boot_disk_size_gb'],
+        lambda v: v > 10,
+        'a positive integer greater than 10')
 
     worker_local_ssd_data_disk = 'worker_local_ssd_data_disk' in post
 
@@ -425,9 +425,10 @@ async def config_update(request, userdata):  # pylint: disable=unused-argument
     enable_standing_worker = 'enable_standing_worker' in post
 
     await pool.configure(
-        worker_cores, worker_disk_size_gb,
+        worker_cores, boot_disk_size_gb,
         worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gb,
-        enable_standing_worker, standing_worker_cores, max_instances, max_live_instances)
+        enable_standing_worker, standing_worker_cores,
+        max_instances, max_live_instances)
 
     set_message(session,
                 f'Updated configuration for {pool}.',
