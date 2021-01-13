@@ -48,8 +48,7 @@ class GroupedBTreeKey(kt: PType, kb: EmitClassBuilder[_], region: Value[Region],
         {
           cb += storageType.setFieldMissing(dest, 0)
         },
-        { ssc =>
-          val sc = ssc.memoize(cb, "s")
+        { sc =>
           cb += storageType.setFieldPresent(dest, 0)
           storageType.fieldType("kt")
             .storeAtAddress(cb, storageType.fieldOffset(dest, 0), region, sc, deepCopy = true)

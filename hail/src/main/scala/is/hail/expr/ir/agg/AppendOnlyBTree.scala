@@ -237,8 +237,8 @@ class AppendOnlyBTree(kb: EmitClassBuilder[_], val key: BTreeKey, region: Value[
     val node = get.getCodeParam[Long](1)
     val k = get.getEmitParam(2)
     get.emitWithBuilder { cb =>
-      val cmp = cb.newLocal("cmp", -1)
-      val keyV = cb.newLocal("keyV", 0L)
+      val cmp = cb.newLocal("btree_get_cmp", -1)
+      val keyV = cb.newLocal("btree_get_keyV", 0L)
 
       def insertOrGetAt(i: Int) = {
         cb.ifx(isLeaf(node), {
