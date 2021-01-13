@@ -6,7 +6,7 @@ from hailtop.utils import (WaitableSharedPool, retry_long_running, run_if_change
 from hailtop import aiotools
 from gear import Database
 
-from ..batch import unschedule_job, mark_job_complete
+from .job import unschedule_job, mark_job_complete
 
 log = logging.getLogger('canceller')
 

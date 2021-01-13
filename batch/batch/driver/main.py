@@ -26,8 +26,8 @@ from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_
 import googlecloudprofiler
 import uvloop
 
-from ..batch import mark_job_complete, mark_job_started, cancel_batch_in_db
 from ..log_store import LogStore
+from ..batch import cancel_batch_in_db
 from ..batch_configuration import (REFRESH_INTERVAL_IN_SECONDS,
                                    DEFAULT_NAMESPACE, BATCH_BUCKET_NAME, HAIL_SHA, HAIL_SHOULD_PROFILE,
                                    HAIL_SHOULD_CHECK_INVARIANTS, PROJECT)
@@ -38,6 +38,7 @@ from .gce import GCEEventMonitor
 from .canceller import Canceller
 from .instance_collection import InstanceCollection
 from .instance_collection_manager import InstanceCollectionManager
+from .job import mark_job_complete, mark_job_started
 from .k8s_cache import K8sCache
 from .pool import Pool
 from ..utils import query_billing_projects

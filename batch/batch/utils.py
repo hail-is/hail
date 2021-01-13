@@ -61,8 +61,9 @@ def worker_memory_per_core_mib(worker_type):
         return 3840
     elif worker_type == 'highmem':
         return 6656
-    assert worker_type == 'highcpu', worker_type
-    return 921
+    else:
+        assert worker_type == 'highcpu', worker_type
+        return 921
 
 
 def worker_memory_per_core_bytes(worker_type):

@@ -11,12 +11,12 @@ from hailtop.utils import (secret_alnum_string, retry_long_running, run_if_chang
                            time_msecs, WaitableSharedPool, AsyncWorkerPool, Notice,
                            periodically_call)
 
-from ..batch import schedule_job
 from ..batch_configuration import STANDING_WORKER_MAX_IDLE_TIME_MSECS, WORKER_MAX_IDLE_TIME_MSECS
 from ..utils import WindowFractionCounter
 from .create_instance import create_instance
 from .instance import Instance
 from .instance_collection import InstanceCollection
+from .job import schedule_job
 
 log = logging.getLogger('pool')
 
