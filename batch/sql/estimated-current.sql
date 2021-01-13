@@ -28,13 +28,10 @@ CREATE TABLE IF NOT EXISTS `pools` (
   `name` VARCHAR(255) NOT NULL,
   `worker_type` VARCHAR(100) NOT NULL,
   `worker_cores` BIGINT NOT NULL,
-  `worker_disk_size_gb` BIGINT NOT NULL,
   `worker_local_ssd_data_disk` BOOLEAN NOT NULL DEFAULT 1,
   `worker_pd_ssd_data_disk_size_gb` BIGINT NOT NULL DEFAULT 0,
   `enable_standing_worker` BOOLEAN NOT NULL DEFAULT FALSE,
   `standing_worker_cores` BIGINT NOT NULL DEFAULT 0,
-  `max_instances` BIGINT NOT NULL,
-  `max_live_instances` BIGINT NOT NULL,
   PRIMARY KEY (`name`),
   FOREIGN KEY (`name`) REFERENCES inst_colls(name) ON DELETE CASCADE
 ) ENGINE = InnoDB;
