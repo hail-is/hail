@@ -1646,7 +1646,9 @@ object EmitStream {
           def compare(lelt: EmitValue, relt: EmitValue): Code[Int] = EmitCodeBuilder.scopedCode(mb) { cb =>
             assert(lelt.pt == lElemType)
             assert(relt.pt == rElemType)
-            ordering.compare(cb, lelt, relt)
+            val lhs = lelt.map(_.asBaseStruct.subset(key: _*).asPCode)
+            val rhs = relt.map(_.asBaseStruct.subset(key: _*).asPCode)
+            ordering.compare(cb, lhs, rhs)
           }
 
           emitStream(leftIR).flatMap { case SizedStream(leftSetup, leftStream, leftLen) =>
@@ -2069,7 +2071,9 @@ object EmitStream {
           def compare(lelt: EmitValue, relt: EmitValue): Code[Int] = {
             assert(lelt.pt == lEltType)
             assert(relt.pt == rEltType)
-            EmitCodeBuilder.scopedCode(mb) { cb => ordering.compare(cb, lelt, relt) }
+            val lhs = lelt.map(_.asBaseStruct.subset(lKey: _*).asPCode)
+            val rhs = relt.map(_.asBaseStruct.subset(rKey: _*).asPCode)
+            EmitCodeBuilder.scopedCode(mb) { cb => ordering.compare(cb, lhs, rhs) }
           }
 
           def joinF: ((EmitCode, EmitCode)) => EmitCode = { case (lelt, relt) =>
