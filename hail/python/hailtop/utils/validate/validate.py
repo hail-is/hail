@@ -120,7 +120,7 @@ class SwitchValidator(TypedValidator):
         super().validate(name, obj)
         key = obj[self.key]
         self.valid_key.validate(f"{name}.{key}", key)
-        self.checkers[key].validate(obj)
+        self.checkers[key].validate(f"{name}", obj)
 
 
 class NullableValidator:
