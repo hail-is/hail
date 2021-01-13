@@ -58,12 +58,13 @@ def cost_from_msec_mcpu(msec_mcpu):
 
 def worker_memory_per_core_mib(worker_type):
     if worker_type == 'standard':
-        return 3840
+        m = 3840
     elif worker_type == 'highmem':
-        return 6656
+        m = 6656
     else:
         assert worker_type == 'highcpu', worker_type
-        return 921
+        m = 921
+    return m
 
 
 def worker_memory_per_core_bytes(worker_type):
