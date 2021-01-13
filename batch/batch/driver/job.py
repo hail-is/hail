@@ -8,8 +8,9 @@ import traceback
 from hailtop.utils import (
     time_msecs, sleep_and_backoff, is_transient_error, Notice)
 from hailtop.httpx import client_session
-from gear import transaction, Database
+from gear import Database
 
+from ..batch import batch_record_to_dict
 from ..globals import complete_states, tasks, STATUS_FORMAT_VERSION
 from ..batch_configuration import KUBERNETES_TIMEOUT_IN_SECONDS, \
     KUBERNETES_SERVER_URL

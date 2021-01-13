@@ -112,9 +112,9 @@ SET worker_cores = %s, worker_local_ssd_data_disk = %s, worker_pd_ssd_data_disk_
   enable_standing_worker = %s, standing_worker_cores = %s
 WHERE name = %s;
 ''',
-            (worker_cores, worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gb,
-             enable_standing_worker, standing_worker_cores,
-             self.name))
+                (worker_cores, worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gb,
+                 enable_standing_worker, standing_worker_cores,
+                 self.name))
 
             await tx.just_execute(
                 '''
@@ -122,7 +122,7 @@ UPDATE inst_colls
 SET boot_disk_size_gb = %s, max_instances = %s, max_live_instances = %s
 WHERE name = %s;
 ''',
-                (boot_disk_size_gb, max_instances, max_live_instances))
+                (boot_disk_size_gb, max_instances, max_live_instances, self.name))
 
         await update()  # pylint: disable=no-value-for-parameter
 
@@ -171,7 +171,7 @@ WHERE name = %s;
                               max_idle_time_msecs=max_idle_time_msecs,
                               worker_local_ssd_data_disk=self.worker_local_ssd_data_disk,
                               worker_pd_ssd_data_disk_size_gb=self.worker_pd_ssd_data_disk_size_gb,
-                              worker_disk_size_gb=self.boot_disk_size_gb)
+                              boot_disk_size_gb=self.boot_disk_size_gb)
 
     async def create_instances(self):
         ready_cores = await self.db.select_and_fetchone(

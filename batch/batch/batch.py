@@ -2,7 +2,7 @@ import json
 import logging
 
 from hailtop.utils import (time_msecs_str, humanize_timedelta_msecs)
-from gear import transaction, Database
+from gear import transaction
 
 from .batch_format_version import BatchFormatVersion
 from .exceptions import NonExistentBatchError, OpenBatchError

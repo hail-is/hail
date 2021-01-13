@@ -18,7 +18,7 @@ log.info(f'BATCH_WORKER_IMAGE {BATCH_WORKER_IMAGE}')
 
 async def create_instance(app, zone, machine_name, machine_type, activation_token,
                           max_idle_time_msecs, worker_local_ssd_data_disk,
-                          worker_pd_ssd_data_disk_size_gb, worker_disk_size_gb):
+                          worker_pd_ssd_data_disk_size_gb, boot_disk_size_gb):
     log_store: LogStore = app['log_store']
     compute_client: aiogoogle.ComputeClient = app['compute_client']
 
@@ -55,7 +55,7 @@ async def create_instance(app, zone, machine_name, machine_type, activation_toke
             'initializeParams': {
                 'sourceImage': f'projects/{PROJECT}/global/images/batch-worker-12',
                 'diskType': f'projects/{PROJECT}/zones/{zone}/diskTypes/pd-ssd',
-                'diskSizeGb': str(worker_disk_size_gb)
+                'diskSizeGb': str(boot_disk_size_gb)
             }
         }, worker_data_disk],
 
