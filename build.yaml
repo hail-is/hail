@@ -142,7 +142,7 @@ steps:
      - from: /io/repo/git_version
        to: /git_version
      - from: /io/repo/address/test
-       to: /repo/address/test
+       to: /repo/address/
      - from: /io/repo/lsm
        to: /repo/lsm
    dependsOn:
