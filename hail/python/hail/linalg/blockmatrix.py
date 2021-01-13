@@ -9,21 +9,27 @@ import scipy.linalg as spla
 import hail as hl
 import hail.expr.aggregators as agg
 from hail.expr import construct_expr, construct_variable
-from hail.expr.expressions import expr_float64, matrix_table_source, check_entry_indexed, \
-    expr_tuple, expr_array, expr_int32, expr_int64
-from hail.ir import BlockMatrixWrite, BlockMatrixMap2, ApplyBinaryPrimOp, F64, \
-    BlockMatrixBroadcast, ValueToBlockMatrix, BlockMatrixRead, JavaBlockMatrix, BlockMatrixMap, \
-    ApplyUnaryPrimOp, BlockMatrixDot, tensor_shape_to_matrix_shape, BlockMatrixAgg, BlockMatrixRandom, \
-    BlockMatrixToValueApply, BlockMatrixToTable, BlockMatrixFilter, TableFromBlockMatrixNativeReader, TableRead, \
-    BlockMatrixSlice, BlockMatrixSparsify, BlockMatrixDensify, RectangleSparsifier, \
-    RowIntervalSparsifier, BandSparsifier, PerBlockSparsifier
-from hail.ir.blockmatrix_reader import BlockMatrixNativeReader, BlockMatrixBinaryReader, BlockMatrixPersistReader
-from hail.ir.blockmatrix_writer import BlockMatrixBinaryWriter, BlockMatrixNativeWriter, BlockMatrixRectanglesWriter, BlockMatrixPersistWriter
+from hail.expr.expressions import (expr_float64, matrix_table_source,
+                                   check_entry_indexed, expr_tuple, expr_array, expr_int32, expr_int64)
+from hail.ir import (BlockMatrixWrite, BlockMatrixMap2, ApplyBinaryPrimOp, F64,
+                     BlockMatrixBroadcast, ValueToBlockMatrix, BlockMatrixRead, JavaBlockMatrix,
+                     BlockMatrixMap, ApplyUnaryPrimOp, BlockMatrixDot,
+                     tensor_shape_to_matrix_shape, BlockMatrixAgg, BlockMatrixRandom,
+                     BlockMatrixToValueApply, BlockMatrixToTable, BlockMatrixFilter,
+                     TableFromBlockMatrixNativeReader, TableRead, BlockMatrixSlice,
+                     BlockMatrixSparsify, BlockMatrixDensify, RectangleSparsifier,
+                     RowIntervalSparsifier, BandSparsifier, PerBlockSparsifier)
+from hail.ir.blockmatrix_reader import (BlockMatrixNativeReader,
+                                        BlockMatrixBinaryReader, BlockMatrixPersistReader)
+from hail.ir.blockmatrix_writer import (BlockMatrixBinaryWriter,
+                                        BlockMatrixNativeWriter, BlockMatrixRectanglesWriter, BlockMatrixPersistWriter)
 from hail.ir import ExportType
 from hail.table import Table
-from hail.typecheck import typecheck, typecheck_method, nullable, oneof, \
-    sliceof, sequenceof, lazy, enumeration, numeric, tupleof, func_spec, sized_tupleof
-from hail.utils import new_temp_file, new_local_temp_file, local_path_uri, storage_level
+from hail.typecheck import (typecheck, typecheck_method, nullable, oneof,
+                            sliceof, sequenceof, lazy, enumeration, numeric, tupleof, func_spec,
+                            sized_tupleof)
+from hail.utils import (new_temp_file, new_local_temp_file, local_path_uri,
+                        storage_level, with_local_temp_file)
 from hail.utils.java import Env
 
 block_matrix_type = lazy()
@@ -1194,10 +1200,10 @@ class BlockMatrix(object):
             self.export_blocks(path, binary=True)
             return BlockMatrix.rectangles_to_numpy(path, binary=True)
 
-        path = new_local_temp_file()
-        uri = local_path_uri(path)
-        self.tofile(uri)
-        return np.fromfile(path).reshape((self.n_rows, self.n_cols))
+        with with_local_temp_file() as path:
+            uri = local_path_uri(path)
+            self.tofile(uri)
+            return np.fromfile(path).reshape((self.n_rows, self.n_cols))
 
     @property
     def is_sparse(self):
@@ -2245,16 +2251,15 @@ class BlockMatrix(object):
         n_cols = max(rects, key=lambda r: r[4])[4]
 
         nd = np.zeros(shape=(n_rows, n_cols))
-        f = new_local_temp_file()
-        uri = local_path_uri(f)
-        for rect, file_path in zip(rects, rect_files):
-            hl.utils.hadoop_copy(file_path, uri)
-            if binary:
-                rect_data = np.reshape(np.fromfile(f), (rect[2] - rect[1], rect[4] - rect[3]))
-            else:
-                rect_data = np.loadtxt(f, ndmin=2)
-            nd[rect[1]:rect[2], rect[3]:rect[4]] = rect_data
-
+        with with_local_temp_file() as f:
+            uri = local_path_uri(f)
+            for rect, file_path in zip(rects, rect_files):
+                hl.utils.hadoop_copy(file_path, uri)
+                if binary:
+                    rect_data = np.reshape(np.fromfile(f), (rect[2] - rect[1], rect[4] - rect[3]))
+                else:
+                    rect_data = np.loadtxt(f, ndmin=2)
+                nd[rect[1]:rect[2], rect[3]:rect[4]] = rect_data
         return nd
 
     @typecheck_method(compute_uv=bool,
@@ -2510,17 +2515,17 @@ def _jarray_from_ndarray(nd):
         raise ValueError(f'size of ndarray must be less than 2^31, found {nd.size}')
 
     nd = _ndarray_as_float64(nd)
-    path = new_local_temp_file()
-    uri = local_path_uri(path)
-    nd.tofile(path)
-    return Env.hail().utils.richUtils.RichArray.importFromDoubles(Env.spark_backend('_jarray_from_ndarray').fs._jfs, uri, nd.size)
+    with with_local_temp_file() as path:
+        uri = local_path_uri(path)
+        nd.tofile(path)
+        return Env.hail().utils.richUtils.RichArray.importFromDoubles(Env.spark_backend('_jarray_from_ndarray').fs._jfs, uri, nd.size)
 
 
 def _ndarray_from_jarray(ja):
-    path = new_local_temp_file()
-    uri = local_path_uri(path)
-    Env.hail().utils.richUtils.RichArray.exportToDoubles(Env.spark_backend('_ndarray_from_jarray').fs._jfs, uri, ja)
-    return np.fromfile(path)
+    with with_local_temp_file() as path:
+        uri = local_path_uri(path)
+        Env.hail().utils.richUtils.RichArray.exportToDoubles(Env.spark_backend('_ndarray_from_jarray').fs._jfs, uri, ja)
+        return np.fromfile(path)
 
 
 def _breeze_fromfile(uri, n_rows, n_cols):
@@ -2543,10 +2548,10 @@ def _breeze_from_ndarray(nd):
     nd = _ndarray_as_float64(nd)
     n_rows, n_cols = nd.shape
 
-    path = new_local_temp_file()
-    uri = local_path_uri(path)
-    nd.tofile(path)
-    return _breeze_fromfile(uri, n_rows, n_cols)
+    with with_local_temp_file() as path:
+        uri = local_path_uri(path)
+        nd.tofile(path)
+        return _breeze_fromfile(uri, n_rows, n_cols)
 
 
 def _svd(a, full_matrices=True, compute_uv=True, overwrite_a=False, check_finite=True):

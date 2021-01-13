@@ -39,30 +39,6 @@ class UnsafeIndexedSeq(
   override def toString: String = s"[${this.mkString(",")}]"
 }
 
-class UnsafeIndexedSeqRowMajorView(val wrapped: UnsafeIndexedSeq, shape: IndexedSeq[Long], strides: IndexedSeq[Long]) extends IndexedSeq[Annotation] {
-  val coordStorageArray = new Array[Long](shape.size)
-  val shapeProduct = shape.foldLeft(1L )(_ * _)
-  def apply(i: Int): Annotation = {
-    var workRemaining = i.toLong
-    var elementsInProcessedDimensions = shapeProduct
-
-    (0 until shape.size).foreach { dim =>
-      elementsInProcessedDimensions = elementsInProcessedDimensions / shape(dim)
-      coordStorageArray(dim) = workRemaining / elementsInProcessedDimensions
-      workRemaining = workRemaining % elementsInProcessedDimensions
-    }
-
-    val properIndex = (0 until shape.size).map(dim => coordStorageArray(dim) * strides(dim)).sum
-    if (properIndex > Int.MaxValue) {
-      throw new IllegalArgumentException("Index too large")
-    }
-
-    wrapped(properIndex.toInt)
-  }
-
-  override def length: Int = wrapped.length
-}
-
 object UnsafeRow {
   def readBinary(boff: Long, t: PBinary): Array[Byte] =
     t.loadBytes(boff)
@@ -80,6 +56,10 @@ object UnsafeRow {
     Locus(
       t.contig(offset),
       t.position(offset))
+  }
+
+  def readNDArray(offset: Long, region: Region, nd: PNDArray): UnsafeNDArray = {
+    new UnsafeNDArray(nd, region, offset)
   }
 
   def readAnyRef(t: PType, region: Region, offset: Long): AnyRef = read(t, region, offset).asInstanceOf[AnyRef]
@@ -118,16 +98,7 @@ object UnsafeRow {
         val includesEnd = x.includesEnd(offset)
         Interval(start, end, includesStart, includesEnd)
       case nd: PNDArray => {
-        val nDims = nd.nDims
-        val elementSize = nd.elementType.byteSize
-        val urWithStrides = read(nd.representation, region, offset).asInstanceOf[UnsafeRow]
-        val shapeRow = urWithStrides.get(0).asInstanceOf[UnsafeRow]
-        val shape = shapeRow.toSeq.map(x => x.asInstanceOf[Long]).toIndexedSeq
-        val strides = urWithStrides.get(1).asInstanceOf[UnsafeRow].toSeq.map(x => x.asInstanceOf[Long]).toIndexedSeq
-        val data = urWithStrides.get(2).asInstanceOf[UnsafeIndexedSeq]
-        val elementWiseStrides = (0 until nDims).map(i => strides(i) / elementSize)
-        val row = Row(shapeRow, new UnsafeIndexedSeqRowMajorView(data, shape, elementWiseStrides))
-        row
+        readNDArray(offset, region, nd)
       }
     }
   }
@@ -331,4 +302,98 @@ class SelectFieldsRow(
     old = newRow
     this
   }
+}
+
+trait NDArray {
+  val shape: IndexedSeq[Long]
+  lazy val numElements = shape.foldLeft(1L)(_ * _)
+  def lookupElement(indices: IndexedSeq[Long]): Annotation
+  def getRowMajorElements(): IndexedSeq[Annotation]
+  def forall(pred: Annotation => Boolean): Boolean
+
+  override def equals(that: Any): Boolean = {
+    if (that.isInstanceOf[NDArray]) {
+      val thatNd = that.asInstanceOf[NDArray]
+      this.shape == thatNd.shape && this.getRowMajorElements() == thatNd.getRowMajorElements()
+    } else {
+      false
+    }
+  }
+}
+
+class UnsafeNDArray(val pnd: PNDArray, val region: Region, val ndAddr: Long) extends NDArray {
+  val shape: IndexedSeq[Long] = (0 until pnd.nDims).map(i => pnd.loadShape(ndAddr, i))
+  val elementType = pnd.elementType.virtualType
+  val coordStorageArray = new Array[Long](shape.size)
+
+  def lookupElement(indices: IndexedSeq[Long]): Annotation = {
+    val elementAddress = pnd.getElementAddress(indices, ndAddr)
+    UnsafeRow.read(pnd.elementType, region, elementAddress)
+  }
+
+  def getRowMajorElements(): IndexedSeq[Annotation] = {
+    val indices = (0 until pnd.nDims).map(_ => 0L).toArray
+    var curIdx = indices.size - 1
+    var idxIntoFlat = 0
+    val flat = new Array[Annotation](numElements.toInt)
+
+    if (numElements > Int.MaxValue) {
+      throw new IllegalArgumentException("Cannot make an UnsafeNDArray with greater than Int.MaxValue entries")
+    }
+
+    while (idxIntoFlat < numElements) {
+      flat(idxIntoFlat) = lookupElement(indices)
+      while (curIdx >= 0L && indices(curIdx) >= shape(curIdx) - 1) {
+        indices(curIdx) = 0L
+        curIdx -= 1
+      }
+      // found the index that needs incrementing, so long as we haven't run out of room
+      if (curIdx >= 0) {
+        indices(curIdx) += 1L
+        curIdx = indices.size - 1
+      }
+      idxIntoFlat += 1
+    }
+
+    flat
+  }
+
+  override def forall(pred: Annotation => Boolean): Boolean = {
+    val indices = (0 until pnd.nDims).map(_ => 0L).toArray
+    var curIdx = indices.size - 1
+    var idxIntoFlat = 0
+
+    while (idxIntoFlat < numElements) {
+      if (!pred(lookupElement(indices))) {
+        return false
+      }
+
+      while (curIdx >= 0L && indices(curIdx) >= shape(curIdx) - 1) {
+        indices(curIdx) = 0L
+        curIdx -= 1
+      }
+      // found the index that needs incrementing, so long as we haven't run out of room
+      if (curIdx >= 0) {
+        indices(curIdx) += 1L
+        curIdx = indices.size - 1
+      }
+      idxIntoFlat += 1
+    }
+
+    true
+  }
+}
+
+class SafeNDArray(val shape: IndexedSeq[Long], rowMajorElements: IndexedSeq[Annotation]) extends NDArray {
+  assert(shape.foldLeft(1L)(_ * _) == rowMajorElements.size)
+  override def getRowMajorElements: IndexedSeq[Annotation] = rowMajorElements
+
+  override def lookupElement(indices: IndexedSeq[Long]): Annotation = {
+    val flatIdx = indices.zip(shape).foldLeft(0L){ case (flatIdx, (index, shape)) =>
+      flatIdx + index * shape
+    }
+    rowMajorElements(flatIdx.toInt)
+  }
+
+  override def forall(pred: Annotation => Boolean): Boolean = this.rowMajorElements.forall(pred)
 }

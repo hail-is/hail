@@ -381,11 +381,7 @@ async def config_update(request, userdata):  # pylint: disable=unused-argument
         lambda v: v > 0,
         'a positive integer')
 
-    worker_local_ssd_data_disk = validate_int(
-        'Worker local SSD data disk (boolean)',
-        post['worker_local_ssd_data_disk'],
-        lambda v: v in (0, 1),
-        'boolean (0 or 1)')
+    worker_local_ssd_data_disk = 'worker_local_ssd_data_disk' in post
 
     worker_pd_ssd_data_disk_size_gb = validate_int(
         'Worker PD SSD data disk size (in GB)',
@@ -393,14 +389,14 @@ async def config_update(request, userdata):  # pylint: disable=unused-argument
         lambda v: v >= 0,
         'a nonnegative integer')
 
-    if worker_local_ssd_data_disk == 0 and worker_pd_ssd_data_disk_size_gb == 0:
+    if not worker_local_ssd_data_disk and worker_pd_ssd_data_disk_size_gb == 0:
         set_message(session,
-                    'One of worker local SSD or PD SSD data disk must be non-zero.',
+                    'Either the worker must use a local SSD or PD SSD data disk must be non-zero.',
                     'error')
         raise web.HTTPFound(deploy_config.external_url('batch-driver', '/'))
-    if worker_local_ssd_data_disk == 1 and worker_pd_ssd_data_disk_size_gb > 0:
+    if worker_local_ssd_data_disk and worker_pd_ssd_data_disk_size_gb > 0:
         set_message(session,
-                    'Both worker local SSD and PD SSD data disk are non-zero.',
+                    'Worker cannot both use local SSD and have a non-zero PD SSD data disk.',
                     'error')
         raise web.HTTPFound(deploy_config.external_url('batch-driver', '/'))
 
@@ -416,11 +412,13 @@ async def config_update(request, userdata):  # pylint: disable=unused-argument
         lambda v: v > 0,
         'a positive integer')
 
+    enable_standing_worker = 'enable_standing_worker' in post
+
     await inst_pool.configure(
         worker_type, worker_cores, worker_disk_size_gb,
         worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gb,
         standing_worker_cores,
-        max_instances, pool_size)
+        max_instances, pool_size, enable_standing_worker)
 
     set_message(session,
                 'Updated batch configuration.',
@@ -765,7 +763,7 @@ SELECT worker_type, worker_cores, worker_disk_size_gb,
         app['task_manager'].ensure_future(check_incremental_loop(app, db))
         app['task_manager'].ensure_future(check_resource_aggregation(app, db))
 
-    asyncio.ensure_future(retry_long_running(
+    app['task_manager'].ensure_future(retry_long_running(
         'monitor_billing_limits_loop',
         monitor_billing_limits_loop_body, app))
 

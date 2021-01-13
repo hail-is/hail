@@ -26,6 +26,17 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
     off => representation.loadField(off, "shape")
   )
 
+  def loadShape(off: Long, idx: Int): Long = {
+    val shapeTupleAddr = representation.loadField(off, 0)
+    Region.loadLong(shape.pType.loadField(shapeTupleAddr, idx))
+  }
+
+  def loadStride(off: Long, idx: Int): Long = {
+    val shapeTupleAddr = representation.loadField(off, 1)
+    Region.loadLong(strides.pType.loadField(shapeTupleAddr, idx))
+  }
+
+
   def loadShape(cb: EmitCodeBuilder, off: Code[Long], idx: Int): Code[Long] =
     shape.pType.types(idx).loadCheapPCode(cb, shape.pType.fieldOffset(shape.load(off), idx)).asInt64.longCode(cb)
 
@@ -113,8 +124,20 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
     )
   }
 
+  def getElementAddress(indices: IndexedSeq[Long], nd: Long): Long = {
+    val dataLength = (0 until nDims).map(loadShape(nd, _)).foldLeft(1L)(_ * _)
+    val dataAddress = this.representation.loadField(nd, 2)
+
+    var bytesAway = 0L
+    indices.zipWithIndex.foreach{case (requestedIndex: Long, strideIndex: Int) =>
+      bytesAway += requestedIndex * loadStride(nd, strideIndex)
+    }
+
+    bytesAway + data.pType.firstElementOffset(dataAddress, dataLength.toInt)
+  }
+
   private def getElementAddress(indices: IndexedSeq[Value[Long]], nd: Value[Long], mb: EmitMethodBuilder[_]): Code[Long] = {
-    val stridesTuple  = new CodePTuple(strides.pType, new Value[Long] {
+    val stridesTuple = new CodePTuple(strides.pType, new Value[Long] {
       def get: Code[Long] = strides.load(nd)
     })
     val bytesAway = mb.newLocal[Long]()
@@ -147,44 +170,7 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
   }
 
   def loadElementToIRIntermediate(indices: IndexedSeq[Value[Long]], ndAddress: Value[Long], mb: EmitMethodBuilder[_]): Code[_] = {
-
     Region.loadIRIntermediate(data.pType.elementType)(getElementAddress(indices, ndAddress, mb))
-  }
-
-  def linearizeIndicesRowMajor(indices: IndexedSeq[Code[Long]], shapeArray: IndexedSeq[Value[Long]], mb: EmitMethodBuilder[_]): Code[Long] = {
-    val index = mb.genFieldThisRef[Long]()
-    val elementsInProcessedDimensions = mb.genFieldThisRef[Long]()
-    Code(
-      index := 0L,
-      elementsInProcessedDimensions := 1L,
-      Code.foreach(shapeArray.zip(indices).reverse) { case (shapeElement, currentIndex) =>
-        Code(
-          index := index + currentIndex * elementsInProcessedDimensions,
-          elementsInProcessedDimensions := elementsInProcessedDimensions * shapeElement
-        )
-      },
-      index
-    )
-  }
-
-  def unlinearizeIndexRowMajor(index: Code[Long], shapeArray: IndexedSeq[Value[Long]], mb: EmitMethodBuilder[_]): (Code[Unit], IndexedSeq[Value[Long]]) = {
-    val nDim = shapeArray.length
-    val newIndices = (0 until nDim).map(_ => mb.genFieldThisRef[Long]())
-    val elementsInProcessedDimensions = mb.genFieldThisRef[Long]()
-    val workRemaining = mb.genFieldThisRef[Long]()
-
-    val createShape = Code(
-      workRemaining := index,
-      elementsInProcessedDimensions := shapeArray.foldLeft(1L: Code[Long])(_ * _),
-      Code.foreach(shapeArray.zip(newIndices)) { case (shapeElement, newIndex) =>
-        Code(
-          elementsInProcessedDimensions := elementsInProcessedDimensions / shapeElement,
-          newIndex := workRemaining / elementsInProcessedDimensions,
-          workRemaining := workRemaining % elementsInProcessedDimensions
-        )
-      }
-    )
-    (createShape, newIndices)
   }
 
   override def construct(

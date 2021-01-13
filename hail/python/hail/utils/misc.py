@@ -1,3 +1,4 @@
+import os
 import atexit
 import datetime
 import string
@@ -11,6 +12,7 @@ import json
 import re
 from urllib.parse import urlparse
 from io import StringIO
+from contextlib import contextmanager
 
 import hail
 import hail as hl
@@ -178,10 +180,22 @@ def new_local_temp_dir(suffix=None, prefix=None, dir=None):
     return local_temp_dir
 
 
-def new_local_temp_file(filename="temp"):
+def new_local_temp_file(filename: str = 'temp') -> str:
     local_temp_dir = new_local_temp_dir()
     path = local_temp_dir + "/" + filename
     return path
+
+
+@contextmanager
+def with_local_temp_file(filename: str = 'temp') -> str:
+    path = new_local_temp_file(filename)
+    try:
+        yield path
+    finally:
+        try:
+            os.remove(path)
+        except FileNotFoundError:
+            pass
 
 
 storage_level = enumeration('NONE', 'DISK_ONLY', 'DISK_ONLY_2', 'MEMORY_ONLY',

@@ -4,6 +4,7 @@ import os
 import re
 import signal
 import timeit
+import shutil
 
 import hail as hl
 from py4j.protocol import Py4JError
@@ -19,6 +20,9 @@ class BenchmarkTimeoutError(KeyboardInterrupt):
 _timeout_state = False
 _init_args = {}
 
+
+def recursive_delete(path):
+    shutil.rmtree(path)
 
 # https://stackoverflow.com/questions/492519/timeout-on-a-function-call/494273#494273
 @contextlib.contextmanager
@@ -67,7 +71,7 @@ class Benchmark:
         self.args = args
 
     def run(self, data_dir):
-        self.f(*(arg(data_dir) for arg in self.args))
+        return self.f(*(arg(data_dir) for arg in self.args))
 
 
 class RunConfig:
@@ -159,7 +163,20 @@ def run_with_timeout(b, config):
     max_time = config.timeout
     with timeout_signal(max_time):
         try:
-            return timeit.Timer(lambda: b.run(config.data_dir)).timeit(1), False
+            cleanup_container = []
+            def runner():
+                result = b.run(config.data_dir)
+                if result is not None:
+                    assert callable(result)
+                    cleanup_container.append(result)
+            timer = timeit.Timer(runner).timeit(1)
+
+            if cleanup_container:
+                [cleanup] = cleanup_container
+                assert callable(cleanup)
+                cleanup()
+
+            return timer, False
         except Py4JError as e:
             if _timeout_state:
                 return max_time, True

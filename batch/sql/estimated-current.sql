@@ -9,7 +9,8 @@ CREATE TABLE IF NOT EXISTS `globals` (
   `standing_worker_cores` BIGINT NOT NULL,
   `max_instances` BIGINT NOT NULL,
   `pool_size` BIGINT NOT NULL,
-  `n_tokens` INT NOT NULL
+  `n_tokens` INT NOT NULL,
+  `enable_standing_worker` BOOLEAN NOT NULL DEFAULT FALSE
 ) ENGINE = InnoDB;
 
 CREATE TABLE IF NOT EXISTS `resources` (

@@ -1,6 +1,6 @@
 package is.hail.expr
 
-import is.hail.annotations.Annotation
+import is.hail.annotations.{Annotation, NDArray, SafeNDArray, UnsafeNDArray}
 import is.hail.expr.ir.functions.UtilFunctions
 import is.hail.types.physical.{PBoolean, PCanonicalArray, PCanonicalBinary, PCanonicalString, PCanonicalStruct, PFloat32, PFloat64, PInt32, PInt64, PType}
 import is.hail.types.virtual._
@@ -131,8 +131,12 @@ object JSONAnnotationImpex {
         case TTuple(types) =>
           val row = a.asInstanceOf[Row]
           JArray(List.tabulate(row.size) { i => exportAnnotation(row.get(i), types(i).typ) })
-        case t: TNDArray =>
-          exportAnnotation(a, t.representation)
+        case TNDArray(elementType, _) =>
+          val jnd = a.asInstanceOf[NDArray]
+          JObject(
+            "shape" -> JArray(jnd.shape.map(shapeEntry => JInt(shapeEntry)).toList),
+            "data" -> JArray(jnd.getRowMajorElements().map(a => exportAnnotation(a, elementType)).toList)
+          )
       }
     }
 
@@ -244,8 +248,12 @@ object JSONAnnotationImpex {
         }
       case (_, TLocus(_)) =>
         jv.extract[Locus]
-      case (JObject(_), t@TNDArray(_, _)) =>
-        imp(jv, t.representation, parent)
+      case (JObject(List(("shape", shapeJson: JArray), ("data", dataJson: JArray))), t@TNDArray(_, _)) => {
+        val shapeArray = shapeJson.arr.map(imp(_, TInt64, parent)).map(_.asInstanceOf[Long]).toIndexedSeq
+        val dataArray = dataJson.arr.map(imp(_, t.elementType, parent)).toIndexedSeq
+
+        new SafeNDArray(shapeArray, dataArray)
+      }
       case (_, TInterval(pointType)) =>
         jv match {
           case JObject(list) =>
@@ -272,9 +280,6 @@ object JSONAnnotationImpex {
 
       case (JArray(a), TSet(elementType)) =>
         a.iterator.map(jv2 => imp(jv2, elementType, parent + "[element]")).toSet[Any]
-
-      case (j, t: TNDArray) => importAnnotation(j, t.representation)
-
       case _ =>
         warnOnce(s"Can't convert JSON value $jv to type $t at $parent.", parent)
         null

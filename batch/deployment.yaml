@@ -103,10 +103,6 @@ spec:
          - name: STANDING_WORKER_MAX_IDLE_TIME_SECS
            value: "300"
 {% endif %}
-{% if deploy or scope == "test" %}
-         - name: ENABLE_STANDING_WORKER
-           value: "1"
-{% endif %}
         ports:
          - containerPort: 5000
         volumeMounts:

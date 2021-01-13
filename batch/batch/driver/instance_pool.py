@@ -13,9 +13,10 @@ import aiohttp
 from hailtop import aiotools
 from hailtop.utils import time_msecs, secret_alnum_string
 
-from ..batch_configuration import DEFAULT_NAMESPACE, PROJECT, \
-    WORKER_MAX_IDLE_TIME_MSECS, STANDING_WORKER_MAX_IDLE_TIME_MSECS, \
-    ENABLE_STANDING_WORKER, GCP_ZONE
+from ..batch_configuration import (DEFAULT_NAMESPACE, PROJECT,
+                                   WORKER_MAX_IDLE_TIME_MSECS,
+                                   STANDING_WORKER_MAX_IDLE_TIME_MSECS,
+                                   GCP_ZONE)
 
 from .instance import Instance
 from ..worker_config import WorkerConfig
@@ -57,6 +58,7 @@ class InstancePool:
         self.standing_worker_cores = None
         self.max_instances = None
         self.pool_size = None
+        self.enable_standing_worker = None
 
         self.instances_by_last_updated = sortedcontainers.SortedSet(
             key=lambda instance: instance.last_updated)
@@ -85,18 +87,19 @@ class InstancePool:
         row = await self.db.select_and_fetchone('''
 SELECT worker_type, worker_cores, worker_disk_size_gb,
   worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gb,
-  standing_worker_cores, max_instances, pool_size
+  standing_worker_cores, max_instances, pool_size, enable_standing_worker
 FROM globals;
 ''')
 
         self.worker_type = row['worker_type']
         self.worker_cores = row['worker_cores']
         self.worker_disk_size_gb = row['worker_disk_size_gb']
-        self.worker_local_ssd_data_disk = row['worker_local_ssd_data_disk']
+        self.worker_local_ssd_data_disk = bool(row['worker_local_ssd_data_disk'])
         self.worker_pd_ssd_data_disk_size_gb = row['worker_pd_ssd_data_disk_size_gb']
         self.standing_worker_cores = row['standing_worker_cores']
         self.max_instances = row['max_instances']
         self.pool_size = row['pool_size']
+        self.enable_standing_worker = bool(row['enable_standing_worker'])
 
         async for record in self.db.select_and_fetchall(
                 'SELECT * FROM instances WHERE removed = 0;'):
@@ -119,26 +122,31 @@ FROM globals;
             'worker_pd_ssd_data_disk_size_gb': self.worker_pd_ssd_data_disk_size_gb,
             'standing_worker_cores': self.standing_worker_cores,
             'max_instances': self.max_instances,
-            'pool_size': self.pool_size
+            'pool_size': self.pool_size,
+            'enable_standing_worker': self.enable_standing_worker
         }
 
-    async def configure(
-            self,
-            worker_type, worker_cores, worker_disk_size_gb,
-            worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gb,
-            standing_worker_cores,
-            max_instances, pool_size):
+    async def configure(self,
+                        worker_type: str,
+                        worker_cores: int,
+                        worker_disk_size_gb: int,
+                        worker_local_ssd_data_disk: bool,
+                        worker_pd_ssd_data_disk_size_gb: int,
+                        standing_worker_cores: int,
+                        max_instances: int,
+                        pool_size: int,
+                        enable_standing_worker: bool):
         await self.db.just_execute(
             '''
 UPDATE globals
 SET worker_type = %s, worker_cores = %s, worker_disk_size_gb = %s,
   worker_local_ssd_data_disk = %s, worker_pd_ssd_data_disk_size_gb = %s,
-  standing_worker_cores = %s, max_instances = %s, pool_size = %s;
+  standing_worker_cores = %s, max_instances = %s, pool_size = %s, enable_standing_worker = %s;
 ''',
             (worker_type, worker_cores, worker_disk_size_gb,
              worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gb,
              standing_worker_cores,
-             max_instances, pool_size))
+             max_instances, pool_size, enable_standing_worker))
         self.worker_type = worker_type
         self.worker_cores = worker_cores
         self.worker_disk_size_gb = worker_disk_size_gb
@@ -147,6 +155,7 @@ SET worker_type = %s, worker_cores = %s, worker_disk_size_gb = %s,
         self.standing_worker_cores = standing_worker_cores
         self.max_instances = max_instances
         self.pool_size = pool_size
+        self.enable_standing_worker = enable_standing_worker
 
     @property
     def n_instances(self):
@@ -686,7 +695,7 @@ FROM ready_cores;
                         await asyncio.gather(*[self.create_instance() for _ in range(instances_needed)])
 
                 n_live_instances = self.n_instances_by_state['pending'] + self.n_instances_by_state['active']
-                if ENABLE_STANDING_WORKER and n_live_instances == 0 and self.max_instances > 0:
+                if self.enable_standing_worker and n_live_instances == 0 and self.max_instances > 0:
                     await self.create_instance(cores=self.standing_worker_cores,
                                                max_idle_time_msecs=STANDING_WORKER_MAX_IDLE_TIME_MSECS)
             except asyncio.CancelledError:  # pylint: disable=try-except-raise

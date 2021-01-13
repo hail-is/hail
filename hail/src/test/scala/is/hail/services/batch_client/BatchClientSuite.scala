@@ -19,14 +19,17 @@ class BatchClientSuite extends TestNGSuite {
       FastIndexedSeq(
         JObject(
           "always_run" -> JBool(false),
-          "image" -> JString("ubuntu:18.04"),
-          "mount_docker_socket" -> JBool(false),
-          "command" -> JArray(List(
-            JString("/bin/bash"),
-            JString("-c"),
-            JString("echo 'Hello, world!'"))),
           "job_id" -> JInt(0),
-          "parent_ids" -> JArray(List()))))
+          "parent_ids" -> JArray(List()),
+          "process" -> JObject(
+            "image" -> JString("ubuntu:18.04"),
+            "mount_docker_socket" -> JBool(false),
+            "command" -> JArray(List(
+              JString("/bin/bash"),
+              JString("-c"),
+              JString("echo 'Hello, world!'"))),
+            "type" -> JString("docker"))
+        )))
     implicit val formats: Formats = DefaultFormats
     assert((batch \ "state").extract[String] == "success")
   }

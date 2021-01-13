@@ -2301,13 +2301,59 @@ class Tests(unittest.TestCase):
         self.assertEqual(hl.eval(hl.zip(a3, a2, a1)),
                          [([1], 'a', 1)])
 
-    def test_array_methods(self):
+    def test_any_form_1(self):
+        self.assertEqual(hl.eval(hl.any()), False)
+
+        self.assertEqual(hl.eval(hl.any(True)), True)
+        self.assertEqual(hl.eval(hl.any(False)), False)
+
+        self.assertEqual(hl.eval(hl.any(True, True)), True)
+        self.assertEqual(hl.eval(hl.any(True, False)), True)
+        self.assertEqual(hl.eval(hl.any(False, True)), True)
+        self.assertEqual(hl.eval(hl.any(False, False)), False)
+
+    def test_all_form_1(self):
+        self.assertEqual(hl.eval(hl.all()), True)
+
+        self.assertEqual(hl.eval(hl.all(True)), True)
+        self.assertEqual(hl.eval(hl.all(False)), False)
+
+        self.assertEqual(hl.eval(hl.all(True, True)), True)
+        self.assertEqual(hl.eval(hl.all(True, False)), False)
+        self.assertEqual(hl.eval(hl.all(False, True)), False)
+        self.assertEqual(hl.eval(hl.all(False, False)), False)
+
+    def test_any_form_2(self):
+        self.assertEqual(hl.eval(hl.any(hl.empty_array(hl.tbool))), False)
+
+        self.assertEqual(hl.eval(hl.any([True])), True)
+        self.assertEqual(hl.eval(hl.any([False])), False)
+
+        self.assertEqual(hl.eval(hl.any([True, True])), True)
+        self.assertEqual(hl.eval(hl.any([True, False])), True)
+        self.assertEqual(hl.eval(hl.any([False, True])), True)
+        self.assertEqual(hl.eval(hl.any([False, False])), False)
+
+    def test_all_form_2(self):
+        self.assertEqual(hl.eval(hl.all(hl.empty_array(hl.tbool))), True)
+
+        self.assertEqual(hl.eval(hl.all([True])), True)
+        self.assertEqual(hl.eval(hl.all([False])), False)
+
+        self.assertEqual(hl.eval(hl.all([True, True])), True)
+        self.assertEqual(hl.eval(hl.all([True, False])), False)
+        self.assertEqual(hl.eval(hl.all([False, True])), False)
+        self.assertEqual(hl.eval(hl.all([False, False])), False)
+
+    def test_any_form_3(self):
         self.assertEqual(hl.eval(hl.any(lambda x: x % 2 == 0, [1, 3, 5])), False)
         self.assertEqual(hl.eval(hl.any(lambda x: x % 2 == 0, [1, 3, 5, 6])), True)
 
+    def test_all_form_3(self):
         self.assertEqual(hl.eval(hl.all(lambda x: x % 2 == 0, [1, 3, 5, 6])), False)
         self.assertEqual(hl.eval(hl.all(lambda x: x % 2 == 0, [2, 6])), True)
 
+    def test_array_methods(self):
         self.assertEqual(hl.eval(hl.map(lambda x: x % 2 == 0, [0, 1, 4, 6])), [True, False, True, True])
 
         self.assertEqual(hl.eval(hl.len([0, 1, 4, 6])), 4)
@@ -3262,6 +3308,15 @@ class Tests(unittest.TestCase):
 
         assert hl.bit_not(1).dtype == hl.tint32
         assert hl.bit_not(hl.int64(1)).dtype == hl.tint64
+
+    def test_bit_shifts(self):
+        assert hl.eval(hl.bit_lshift(hl.int(8), 2)) == 32
+        assert hl.eval(hl.bit_rshift(hl.int(8), 2)) == 2
+        assert hl.eval(hl.bit_lshift(hl.int(8), 0)) == 8
+
+        assert hl.eval(hl.bit_lshift(hl.int64(8), 2)) == 32
+        assert hl.eval(hl.bit_rshift(hl.int64(8), 2)) == 2
+        assert hl.eval(hl.bit_lshift(hl.int64(8), 0)) == 8
 
     def test_bit_shift_edge_cases(self):
         assert hl.eval(hl.bit_lshift(hl.int(1), 32)) == 0

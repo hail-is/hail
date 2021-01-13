@@ -6,6 +6,7 @@ import is.hail.types._
 import is.hail.types.physical.{PStream, PType}
 import is.hail.types.virtual._
 import is.hail.utils._
+import org.apache.spark.sql.catalyst.expressions.GenericRow
 
 import scala.collection.mutable
 

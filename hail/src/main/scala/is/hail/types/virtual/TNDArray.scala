@@ -1,6 +1,6 @@
 package is.hail.types.virtual
 
-import is.hail.annotations.{Annotation, ExtendedOrdering, UnsafeIndexedSeq}
+import is.hail.annotations.{Annotation, ExtendedOrdering, NDArray, UnsafeIndexedSeq}
 import is.hail.expr.{Nat, NatBase}
 import is.hail.types.physical.PNDArray
 import org.apache.spark.sql.Row
@@ -26,6 +26,21 @@ final case class TNDArray(elementType: Type, nDimsBase: NatBase) extends Type {
 
   override def fundamentalType: Type = representation.fundamentalType
 
+  override def valuesSimilar(a1: Annotation, a2: Annotation, tolerance: Double, absolute: Boolean): Boolean = {
+    if (a1 == null || a2 == null) {
+      a1 == a2
+    }
+    else {
+      val aNd1 = a1.asInstanceOf[NDArray]
+      val aNd2 = a2.asInstanceOf[NDArray]
+
+      val sameShape = aNd1.shape == aNd2.shape
+      val sameData = aNd1.getRowMajorElements().zip(aNd2.getRowMajorElements()).forall{ case (e1, e2) => elementType.valuesSimilar(e1, e2, tolerance, absolute)}
+
+      sameShape && sameData
+    }
+  }
+
   override def pyString(sb: StringBuilder): Unit = {
     sb.append("ndarray<")
     elementType.pyString(sb)
@@ -46,11 +61,11 @@ final case class TNDArray(elementType: Type, nDimsBase: NatBase) extends Type {
 
   override def str(a: Annotation): String = {
     if (a == null) "NA" else {
-      val a_row = a.asInstanceOf[Row]
-      val shape = a_row(this.representation.fieldIdx("shape")).asInstanceOf[Row].toSeq.asInstanceOf[Seq[Long]].map(_.toInt)
-      val data = a_row(this.representation.fieldIdx("data")).asInstanceOf[IndexedSeq[Any]]
+      val aNd = a.asInstanceOf[NDArray]
+      val shape = aNd.shape
+      val data = aNd.getRowMajorElements()
 
-      def dataToNestedString(data: Iterator[Annotation], shape: Seq[Int], sb: StringBuilder):Unit  = {
+      def dataToNestedString(data: Iterator[Annotation], shape: Seq[Long], sb: StringBuilder):Unit  = {
         if (shape.isEmpty) {
           sb.append(data.next().toString)
         }
@@ -94,13 +109,18 @@ final case class TNDArray(elementType: Type, nDimsBase: NatBase) extends Type {
 
   override def scalaClassTag: ClassTag[Row] = classTag[Row]
 
-  def _typeCheck(a: Any): Boolean = representation._typeCheck(a)
+  def _typeCheck(a: Annotation): Boolean = { a match {
+    case nd: NDArray => nd.forall(e => elementType.typeCheck(e))
+    case _ => false
+  }
+
+  }
 
   override def mkOrdering(missingEqual: Boolean): ExtendedOrdering = null
 
   lazy val shapeType: TTuple = TTuple(Array.fill(nDims)(TInt64): _*)
 
-  lazy val representation = TStruct(
+  private lazy val representation = TStruct(
     ("shape", shapeType),
     ("data", TArray(elementType))
   )

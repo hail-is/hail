@@ -1,6 +1,6 @@
 import hail as hl
 
-from .utils import benchmark
+from .utils import benchmark, recursive_delete
 
 
 @benchmark()
@@ -8,6 +8,7 @@ def block_matrix_nested_multiply():
     bm = hl.linalg.BlockMatrix.random(8 * 1024, 8 * 1024).checkpoint(hl.utils.new_temp_file(extension='bm'))
     path = hl.utils.new_temp_file(extension='bm')
     ((bm @ bm) @ bm @ bm @ (bm @ bm)).write(path, overwrite=True)
+    return lambda: recursive_delete(path)
 
 
 @benchmark()
@@ -40,6 +41,7 @@ def blockmatrix_write_from_entry_expr_range_mt():
     mt = hl.utils.range_matrix_table(40_000, 40_000, n_partitions=4)
     path = hl.utils.new_temp_file(extension='bm')
     hl.linalg.BlockMatrix.write_from_entry_expr(mt.row_idx + mt.col_idx, path)
+    return lambda: recursive_delete(path)
 
 
 @benchmark()
@@ -48,6 +50,7 @@ def blockmatrix_write_from_entry_expr_range_mt_standardize():
     path = hl.utils.new_temp_file(extension='bm')
     hl.linalg.BlockMatrix.write_from_entry_expr(mt.row_idx + mt.col_idx, path, mean_impute=True, center=True,
                                                 normalize=True)
+    return lambda: recursive_delete(path)
 
 
 @benchmark()

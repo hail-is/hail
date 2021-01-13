@@ -1950,6 +1950,8 @@ steps:
       script: /io/sql/add-status-flag-billing-projects.sql
     - name: add-aggregated-billing-project-resources
       script: /io/sql/add-aggregated-billing-project-resources.sql
+    - name: add-enable-standing-worker
+      script: /io/sql/add-enable-standing-worker.py
    inputs:
     - from: /repo/batch/sql
       to: /io/

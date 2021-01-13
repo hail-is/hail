@@ -84,6 +84,9 @@ def cdf(data, k=350, legend=None, title=None, normalize=True, log=False):
         agg_f = data._aggregation_method()
         data = agg_f(aggregators.approx_cdf(data, k))
 
+    if legend is None:
+        legend = ""
+
     if normalize:
         y_axis_label = 'Quantile'
     else:
@@ -120,7 +123,7 @@ def cdf(data, k=350, legend=None, title=None, normalize=True, log=False):
            y=ranks,
            line_width=2,
            line_color='black',
-           legend=legend)
+           legend_label=legend)
     return p
 
 
@@ -155,6 +158,9 @@ def pdf(data, k=1000, confidence=5, legend=None, title=None, log=False, interact
         agg_f = data._aggregation_method()
         data = agg_f(aggregators.approx_cdf(data, k))
 
+    if legend is None:
+        legend = ""
+
     y_axis_label = 'Frequency'
     if log:
         y_axis_type = 'log'
@@ -179,7 +185,7 @@ def pdf(data, k=1000, confidence=5, legend=None, title=None, log=False, interact
 
     new_y, keep = _max_entropy_cdf(min_x, max_x, x, y, err)
     slopes = np.diff([0, *new_y[keep], 1]) / np.diff([data.values[0], *x[keep], data.values[-1]])
-    q = p.quad(left=[data.values[0], *x[keep]], right=[*x[keep], data.values[-1]], bottom=0, top=slopes, legend=legend)
+    q = p.quad(left=[data.values[0], *x[keep]], right=[*x[keep], data.values[-1]], bottom=0, top=slopes, legend_label=legend)
 
     if interactive:
         def mk_interact(handle):
@@ -305,6 +311,9 @@ def smoothed_pdf(data, k=350, smoothing=.5, legend=None, title=None, log=False, 
         agg_f = data._aggregation_method()
         data = agg_f(aggregators.approx_cdf(data, k))
 
+    if legend is None:
+        legend = ""
+
     y_axis_label = 'Frequency'
     if log:
         y_axis_type = 'log'
@@ -338,7 +347,7 @@ def smoothed_pdf(data, k=350, smoothing=.5, legend=None, title=None, log=False, 
     x_d = np.linspace(min, max, 1000)
     final = f(x_d, round1)
 
-    line = p.line(x_d, final, line_width=2, line_color='black', legend=legend)
+    line = p.line(x_d, final, line_width=2, line_color='black', legend_label=legend)
 
     if interactive:
         def mk_interact(handle):
@@ -406,6 +415,9 @@ def histogram(data, range=None, bins=50, legend=None, title=None, log=False, int
         hist, edges = np.histogram(cdf.values, bins=bins, weights=np.diff(cdf.ranks), density=True)
         data = Struct(bin_freq=hist, bin_edges=edges, n_larger=0, n_smaller=0)
 
+    if legend is None:
+        legend = ""
+
     if log:
         data.bin_freq = [math.log10(x) for x in data.bin_freq]
         data.n_larger = math.log10(data.n_larger)
@@ -426,17 +438,17 @@ def histogram(data, range=None, bins=50, legend=None, title=None, log=False, int
     q = p.quad(
         bottom=0, top=data.bin_freq,
         left=data.bin_edges[:-1], right=data.bin_edges[1:],
-        legend=legend, line_color='black')
+        legend_label=legend, line_color='black')
     if data.n_larger > 0:
         p.quad(
             bottom=0, top=data.n_larger,
             left=data.bin_edges[-1], right=(data.bin_edges[-1] + (data.bin_edges[1] - data.bin_edges[0])),
-            line_color='black', fill_color='green', legend='Outliers Above')
+            line_color='black', fill_color='green', legend_label='Outliers Above')
     if data.n_smaller > 0:
         p.quad(
             bottom=0, top=data.n_smaller,
             left=data.bin_edges[0] - (data.bin_edges[1] - data.bin_edges[0]), right=data.bin_edges[0],
-            line_color='black', fill_color='red', legend='Outliers Below')
+            line_color='black', fill_color='red', legend_label='Outliers Below')
     if interactive:
         def mk_interact(handle):
             def update(bins=bins, phase=0):
@@ -496,6 +508,9 @@ def cumulative_histogram(data, range=None, bins=50, legend=None, title=None, nor
             data = agg_f(aggregators.hist(data, start, end, bins))
         else:
             return ValueError('Invalid input')
+
+    if legend is None:
+        legend = ""
 
     cumulative_data = np.cumsum(data.bin_freq) + data.n_smaller
     np.append(cumulative_data, [cumulative_data[-1] + data.n_larger])

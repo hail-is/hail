@@ -4,26 +4,33 @@ from hailtop.batch_client.parse import (MEMORY_REGEX, MEMORY_REGEXPAT,
                                         CPU_REGEX, CPU_REGEXPAT)
 
 # rough schema (without requiredness, value validation):
+
+# DEPRECATED:
+# command -> process/command
+# image -> process/image
+# mount_docker_socket -> process/mount_docker_socket
+# pvc_size -> resources/storage
+#
 # jobs_schema = [{
 #   'always_run': bool,
 #   'attributes': {str: str},
-#   'command': [str],
 #   'env': [{
 #     'name': str,
 #     'value': str
 #   }],
 #   'gcsfuse': [{"bucket": str, "mount_path": str, "read_only": bool}],
-#   'image': str,
 #   'input_files': [{"from": str, "to": str}],
 #   'job_id': int,
-#   'mount_docker_socket': bool,
 #   'output_files': [{"from": str, "to": str}],
 #   'parent_ids': [int],
 #   'port': int,
-#   'pvc_size': str,
+#   'process': {
+#     'type': str,
+#     **process_schema[process_type]
+#   },
 #   'requester_pays_project': str,
 #   'network': str,
-#   'resoures': {
+#   'resources': {
 #     'memory': str,
 #     'cpu': str,
 #     'storage': str
@@ -39,10 +46,18 @@ from hailtop.batch_client.parse import (MEMORY_REGEX, MEMORY_REGEXPAT,
 #   },
 #   'timeout': float or int
 # }]
+#
+# process_schema = {
+#     'docker': {
+#         'command': str,
+#         'image': str,
+#         'mount_docker_socket': str
+#     }
+# }
 
-JOB_KEYS = {'always_run', 'attributes', 'command', 'env', 'gcsfuse', 'image',
-            'input_files', 'job_id', 'mount_docker_socket', 'mount_tokens',
-            'output_files', 'parent_ids', 'pvc_size', 'port',
+JOB_KEYS = {'always_run', 'attributes', 'env', 'gcsfuse',
+            'input_files', 'job_id', 'mount_tokens',
+            'output_files', 'parent_ids', 'port', 'process',
             'requester_pays_project', 'network', 'resources', 'secrets',
             'service_account', 'timeout'}
 
@@ -66,11 +81,68 @@ class ValidationError(Exception):
         self.reason = reason
 
 
-def validate_jobs(jobs):
+def validate_and_clean_jobs(jobs):
     if not isinstance(jobs, list):
         raise ValidationError('jobs is not list')
     for i, job in enumerate(jobs):
+        handle_deprecated_args(i, job)
         validate_job(i, job)
+
+
+def handle_deprecated_args(i, job):
+    if 'pvc_size' in job:
+        if 'resources' in job and 'storage' in job['resources']:
+            raise ValidationError(f"jobs[{i}].resources.storage is already defined, but "
+                                  f"deprecated key 'pvc_size' is also present.")
+        deprecated_msg = "[pvc_size key is DEPRECATED. Use resources.storage]"
+        pvc_size = job['pvc_size']
+        if not isinstance(pvc_size, str):
+            raise ValidationError(f'{deprecated_msg} jobs[{i}].pvc_size not str.')
+        if not MEMORY_REGEX.fullmatch(pvc_size):
+            raise ValidationError(f'{deprecated_msg} jobs[{i}].pvc_size must match regex: {MEMORY_REGEXPAT}')
+        resources = job.get('resources')
+        if resources is None:
+            resources = {}
+            job['resources'] = resources
+        resources['storage'] = pvc_size
+        del job['pvc_size']
+
+    if 'process' not in job:
+        deprecated_msg = "[command, image, mount_docker_socket keys are DEPRECATED. " \
+                         "Use process.command, process.image, process.mount_docker_socket " \
+                         "with process.type = 'docker'.]"
+        if 'command' not in job or 'image' not in job or 'mount_docker_socket' not in job:
+            keys = {'command', 'image', 'mount_docker_socket'}
+            raise ValidationError(f'{deprecated_msg} required keys {[k for k in keys if k not in job]} not in jobs[{i}]')
+        command = job['command']
+        image = job['image']
+        mount_docker_socket = job['mount_docker_socket']
+        if not isinstance(command, list):
+            raise ValidationError(f'{deprecated_msg} jobs[{i}].command not list')
+        for j, a in enumerate(command):
+            if not isinstance(a, str):
+                raise ValidationError(f'{deprecated_msg} jobs[{i}].command[{j}] is not str')
+
+        if not isinstance(image, str):
+            raise ValidationError(f'{deprecated_msg} jobs[{i}].image is not str')
+        # FIXME validate image
+        # https://github.com/docker/distribution/blob/master/reference/regexp.go#L68
+        if not isinstance(mount_docker_socket, bool):
+            raise ValidationError(f'{deprecated_msg} jobs[{i}].mount_docker_socket not bool')
+
+        job['process'] = {'command': command,
+                          'image': image,
+                          'mount_docker_socket': mount_docker_socket,
+                          'type': 'docker'}
+        del job['command']
+        del job['image']
+        del job['mount_docker_socket']
+    else:
+        if 'command' in job or 'image' in job or 'mount_docker_socket' in job:
+            raise ValidationError(f"jobs[{i}].process is already defined, but "
+                                  f"deprecated keys 'command', 'image', "
+                                  f"'mount_docker_socket' are also present. "
+                                  f"Please remove deprecated keys.")
 
 
 def validate_job(i, job):
@@ -95,15 +167,6 @@ def validate_job(i, job):
                 raise ValidationError(f'jobs[{i}].attributes has non-str key')
             if not isinstance(v, str):
                 raise ValidationError(f'jobs[{i}].attributes has non-str value')
-
-    if 'command' not in job:
-        raise ValidationError(f'no required key command in jobs[{i}]')
-    command = job['command']
-    if not isinstance(command, list):
-        raise ValidationError(f'jobs[{i}].command not list')
-    for j, a in enumerate(command):
-        if not isinstance(a, str):
-            raise ValidationError(f'jobs[{i}].command[{j}] is not str')
 
     if 'env' in job:
         env = job['env']
@@ -157,14 +220,6 @@ def validate_job(i, job):
             if not isinstance(read_only, bool):
                 raise ValidationError(f'jobs[{i}].gcsfuse[{j}].read_only is not bool')
 
-    if 'image' not in job:
-        raise ValidationError(f'no required key image in jobs[{i}]')
-    image = job['image']
-    if not isinstance(image, str):
-        raise ValidationError(f'jobs[{i}].image is not str')
-    # FIXME validate image
-    # https://github.com/docker/distribution/blob/master/reference/regexp.go#L68
-
     if 'input_files' in job:
         input_files = job['input_files']
         if not isinstance(input_files, list):
@@ -194,12 +249,6 @@ def validate_job(i, job):
     job_id = job['job_id']
     if not isinstance(job_id, int):
         raise ValidationError(f'jobs[{i}].job_id is not int')
-
-    if 'mount_docker_socket' not in job:
-        raise ValidationError(f'no required key mount_docker_socket in jobs[{i}]')
-    mount_docker_socket = job['mount_docker_socket']
-    if not isinstance(mount_docker_socket, bool):
-        raise ValidationError(f'jobs[{i}].mount_docker_socket not bool')
 
     if 'mount_tokens' in job:
         mount_tokens = job['mount_tokens']
@@ -245,13 +294,9 @@ def validate_job(i, job):
         if not isinstance(port, int):
             raise ValidationError(f'jobs[{i}].port not int')
 
-    # pvc_size is deprecated in favor of resources[storage]
-    if 'pvc_size' in job:
-        pvc_size = job['pvc_size']
-        if not isinstance(pvc_size, str):
-            raise ValidationError(f'jobs[{i}].pvc_size not str')
-        if not MEMORY_REGEX.fullmatch(pvc_size):
-            raise ValidationError(f'jobs[{i}].pvc_size must match regex: {MEMORY_REGEXPAT}')
+    if 'process' not in job:
+        raise ValidationError(f'no required key process in jobs[{i}]')
+    validate_process(i, job['process'])
 
     if 'requester_pays_project' in job:
         requester_pays_project = job['requester_pays_project']
@@ -361,6 +406,46 @@ def validate_job(i, job):
             raise ValidationError(f'jobs[{i}].timeout not numeric')
         if timeout < 0:
             raise ValidationError(f'jobs[{i}].timeout is not a positive number')
+
+
+PROCESS_TYPES = {
+    'docker': {'command', 'image', 'mount_docker_socket', 'type'}
+}
+
+
+def validate_process(i, process):
+    if 'type' not in process:
+        raise ValidationError(f'no required key type in jobs[{i}].process')
+    type = process['type']
+    if type not in PROCESS_TYPES:
+        raise ValidationError(f'jobs[{i}].process.type must be in set {PROCESS_TYPES.keys()}.')
+    for k in process:
+        if k != 'type' and k not in PROCESS_TYPES[type]:
+            raise ValidationError(f'unknown key in jobs[{i}].process for type {type}: {k}')
+
+    if type == 'docker':
+        if 'command' not in process:
+            raise ValidationError(f'no required key command in jobs[{i}].process (type=docker)')
+        command = process['command']
+        if not isinstance(command, list):
+            raise ValidationError(f'jobs[{i}].process.command not list')
+        for j, a in enumerate(command):
+            if not isinstance(a, str):
+                raise ValidationError(f'jobs[{i}].process.command[{j}] is not str')
+
+        if 'image' not in process:
+            raise ValidationError(f'no required key image in jobs[{i}].process (type=docker)')
+        image = process['image']
+        if not isinstance(image, str):
+            raise ValidationError(f'jobs[{i}].process.image is not str')
+        # FIXME validate image
+        # https://github.com/docker/distribution/blob/master/reference/regexp.go#L68
+
+        if 'mount_docker_socket' not in process:
+            raise ValidationError(f'no required key mount_docker_socket in jobs[{i}].process (type=docker)')
+        mount_docker_socket = process['mount_docker_socket']
+        if not isinstance(mount_docker_socket, bool):
+            raise ValidationError(f'jobs[{i}].process.mount_docker_socket not bool')
 
 
 # rough schema

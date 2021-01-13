@@ -445,11 +445,14 @@ class BatchBuilder:
 
         job_spec = {
             'always_run': always_run,
-            'command': command,
-            'image': image,
             'job_id': self._job_idx,
-            'mount_docker_socket': mount_docker_socket,
-            'parent_ids': parent_ids
+            'parent_ids': parent_ids,
+            'process': {
+                'command': command,
+                'image': image,
+                'mount_docker_socket': mount_docker_socket,
+                'type': 'docker'
+            }
         }
 
         if env:

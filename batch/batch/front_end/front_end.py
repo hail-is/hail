@@ -50,7 +50,7 @@ from ..globals import HTTP_CLIENT_MAX_SIZE, BATCH_FORMAT_VERSION
 from ..spec_writer import SpecWriter
 from ..batch_format_version import BatchFormatVersion
 
-from .validate import ValidationError, validate_batch, validate_jobs
+from .validate import ValidationError, validate_batch, validate_and_clean_jobs
 
 # uvloop.install()
 
@@ -593,7 +593,7 @@ WHERE user = %s AND id = %s AND NOT deleted;
 
         async with timer.step('validate job_specs'):
             try:
-                validate_jobs(job_specs)
+                validate_and_clean_jobs(job_specs)
             except ValidationError as e:
                 raise web.HTTPBadRequest(reason=e.reason)
 
@@ -642,12 +642,7 @@ WHERE user = %s AND id = %s AND NOT deleted;
                 if 'memory' not in resources:
                     resources['memory'] = BATCH_JOB_DEFAULT_MEMORY
                 if 'storage' not in resources:
-                    # FIXME: pvc_size is deprecated
-                    pvc_size = spec.get('pvc_size')
-                    if pvc_size:
-                        resources['storage'] = pvc_size
-                    else:
-                        resources['storage'] = BATCH_JOB_DEFAULT_STORAGE
+                    resources['storage'] = BATCH_JOB_DEFAULT_STORAGE
 
                 req_cores_mcpu = parse_cpu_in_mcpu(resources['cpu'])
                 req_memory_bytes = parse_memory_in_bytes(resources['memory'])
@@ -1224,6 +1219,11 @@ async def ui_get_job(request, userdata):
                      container_statuses['output']]
 
     job_specification = job_status['spec']
+    if 'process' in job_specification:
+        process_specification = job_specification['process']
+        assert process_specification['type'] == 'docker'
+        job_specification['image'] = process_specification['image']
+        job_specification['command'] = process_specification['command']
     job_specification = dictfix.dictfix(job_specification,
                                         dictfix.NoneOr({'image': str,
                                                         'command': list,

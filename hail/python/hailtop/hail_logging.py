@@ -1,4 +1,5 @@
 import logging
+import sys
 from pythonjsonlogger import jsonlogger
 from aiohttp.abc import AbstractAccessLogger
 import datetime
@@ -15,7 +16,7 @@ class CustomJsonFormatter(jsonlogger.JsonFormatter):
 def configure_logging():
     fmt = CustomJsonFormatter('(levelname) (asctime) (filename) (funcNameAndLine) (message)')
 
-    stream_handler = logging.StreamHandler()
+    stream_handler = logging.StreamHandler(stream=sys.stdout)
     stream_handler.setLevel(logging.INFO)
     stream_handler.setFormatter(fmt)
 

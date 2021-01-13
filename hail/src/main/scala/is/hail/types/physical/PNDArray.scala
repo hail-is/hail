@@ -30,6 +30,8 @@ abstract class PNDArray extends PType {
 
   def loadShape(cb: EmitCodeBuilder, off: Code[Long], idx: Int): Code[Long]
 
+  def loadShape(off: Long, idx: Int): Long
+
   def loadStride(cb: EmitCodeBuilder, off: Code[Long], idx: Int): Code[Long]
 
   def numElements(shape: IndexedSeq[Value[Long]], mb: EmitMethodBuilder[_]): Code[Long]
@@ -42,12 +44,10 @@ abstract class PNDArray extends PType {
 
   def setElement(indices: IndexedSeq[Value[Long]], ndAddress: Value[Long], newElement: Code[_], mb: EmitMethodBuilder[_]): Code[Unit]
 
+  def getElementAddress(indices: IndexedSeq[Long], nd: Long): Long
+
   def loadElement(cb: EmitCodeBuilder, indices: IndexedSeq[Value[Long]], ndAddress: Value[Long]): Code[Long]
   def loadElementToIRIntermediate(indices: IndexedSeq[Value[Long]], ndAddress: Value[Long], mb: EmitMethodBuilder[_]): Code[_]
-
-  def linearizeIndicesRowMajor(indices: IndexedSeq[Code[Long]], shapeArray: IndexedSeq[Value[Long]], mb: EmitMethodBuilder[_]): Code[Long]
-
-  def unlinearizeIndexRowMajor(index: Code[Long], shapeArray: IndexedSeq[Value[Long]], mb: EmitMethodBuilder[_]): (Code[Unit], IndexedSeq[Value[Long]])
 
   def construct(
     shapeBuilder: StagedRegionValueBuilder => Code[Unit],
