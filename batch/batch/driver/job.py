@@ -18,10 +18,11 @@ from ..batch_format_version import BatchFormatVersion
 from ..spec_writer import SpecWriter
 from ..log_store import LogStore
 
+from .k8s_cache import K8sCache
+
 from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from .instance_collection_manager import InstanceCollectionManager  # pylint: disable=cyclic-import
-from .k8s_cache import K8sCache
 
 log = logging.getLogger('job')
 
