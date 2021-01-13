@@ -26,7 +26,7 @@ class PoolSelector:
 
     async def async_init(self):
         records = self.db.execute_and_fetchall('''
-SELECT name, worker_type, worker_cores, boot_disk_size_gb,
+SELECT pools.name, worker_type, worker_cores, boot_disk_size_gb,
   worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gb
 FROM pools
 LEFT JOIN inst_colls ON pools.name = inst_colls.name;
