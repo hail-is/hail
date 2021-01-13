@@ -86,17 +86,15 @@ class GroupedBTreeKey(kt: PType, kb: EmitClassBuilder[_], region: Value[Region],
     container.store(cb)
   }
 
-  def compKeys(cb: EmitCodeBuilder, k1c: EmitCode, k2c: EmitCode): Code[Int] = {
-    val k1 = cb.memoize(k1c, "k1c")
-    val k2 = cb.memoize(k2c, "k2c")
-
+  def compKeys(cb: EmitCodeBuilder, k1: EmitCode, k2: EmitCode): Code[Int] = {
+    cb += k1.setup
+    cb += k2.setup
     val kcomp = kb.getCodeOrdering(k1.pt, k2.pt, CodeOrdering.Compare(), ignoreMissingness = false)
     kcomp(k1.m -> k1.v, k2.m -> k2.v)
   }
 
   def loadCompKey(cb: EmitCodeBuilder, off: Value[Long]): EmitCode = {
-    val off_ = cb.newLocal[Long]("off", off)
-    EmitCode(Code._empty, isKeyMissing(off), compType.loadCheapPCode(cb, storageType.loadField(off_, 0)))
+    EmitCode(Code._empty, isKeyMissing(off), compType.loadCheapPCode(cb, storageType.loadField(off, 0)))
   }
 }
 
