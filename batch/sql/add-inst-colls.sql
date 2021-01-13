@@ -8,15 +8,15 @@ CREATE TABLE IF NOT EXISTS `inst_colls` (
 ) ENGINE = InnoDB;
 CREATE INDEX `inst_colls_pool` ON `inst_colls` (`pool`);
 
-INSERT INTO pools (`name`, `pool`, `boot_disk_size_gb`, `max_instances`, `max_live_instances`)
+INSERT INTO inst_colls (`name`, `pool`, `boot_disk_size_gb`, `max_instances`, `max_live_instances`)
 SELECT 'standard', 1, worker_disk_size_gb, max_instances, pool_size
 FROM globals;
 
-INSERT INTO pools (`name`, `pool`, `boot_disk_size_gb`, `max_instances`, `max_live_instances`)
+INSERT INTO inst_colls (`name`, `pool`, `boot_disk_size_gb`, `max_instances`, `max_live_instances`)
 SELECT 'highmem', 1, worker_disk_size_gb, max_instances, pool_size
 FROM globals;
 
-INSERT INTO pools (`name`, `pool`, `boot_disk_size_gb`, `max_instances`, `max_live_instances`)
+INSERT INTO inst_colls (`name`, `pool`, `boot_disk_size_gb`, `max_instances`, `max_live_instances`)
 SELECT 'highcpu', 1, worker_disk_size_gb, max_instances, pool_size
 FROM globals;
 
