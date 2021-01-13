@@ -42,15 +42,17 @@ spec:
          - -m
          - batch.driver
         resources:
+          requests:
 {% if deploy %}
-           requests:
-             memory: 375Mi
-             cpu: 100m
+            memory: 375Mi
+            cpu: 100m
 {% else %}
-           requests:
-             memory: 37Mi
-             cpu: 10m
+            memory: 75Mi
+            cpu: 20m
 {% endif %}
+          limits:
+            memory: 3750Mi
+            cpu: "1"
         env:
          - name: HAIL_DOMAIN
            value: "{{ global.domain }}"
@@ -242,13 +244,13 @@ spec:
         ports:
          - containerPort: 5000
         resources:
-           requests:
+          requests:
 {% if deploy %}
-             memory: 375Mi
-             cpu: 100m
+            memory: 375Mi
+            cpu: 100m
 {% else %}
-             memory: 37Mi
-             cpu: 10m
+            memory: 75Mi
+            cpu: 20m
 {% endif %}
            limits:
              memory: 3750Mi

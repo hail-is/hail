@@ -85,8 +85,8 @@ spec:
              memory: 375Mi
              cpu: 100m
 {% else %}
-             memory: 37Mi
-             cpu: 10m
+             memory: 75Mi
+             cpu: 20m
 {% endif %}
            limits:
              memory: 3750Mi
@@ -200,8 +200,8 @@ spec:
              memory: 375Mi
              cpu: 100m
 {% else %}
-             memory: 37Mi
-             cpu: 10m
+             memory: 75Mi
+             cpu: 20m
 {% endif %}
            limits:
              memory: 3750Mi
