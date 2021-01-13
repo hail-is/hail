@@ -89,7 +89,7 @@ final case class EBlockMatrixNDArray(elementType: EType, encodeRowMajor: Boolean
         srvb.advance())
     }
 
-    t.construct(shapeBuilder, stridesBuilder, data, cb.emb, region)
+    t.construct(shapeBuilder, stridesBuilder, data, cb, region)
       .tcode[Long]
   }
 

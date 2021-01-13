@@ -66,8 +66,8 @@ case class ENDArrayColumnMajor(elementType: EType, nDims: Int, required: Boolean
       cb += readElemF(region, pnd.data.pType.elementOffset(dataAddress, totalNumElements.toI, dataIdx), in))
 
     pnd.construct(pnd.makeShapeBuilder(shapeVars),
-      pnd.makeColumnMajorStridesBuilder(shapeVars, cb.emb),
-      dataAddress, cb.emb, region)
+      pnd.makeColumnMajorStridesBuilder(shapeVars, cb),
+      dataAddress, cb, region)
       .tcode[Long]
   }
 

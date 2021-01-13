@@ -37,24 +37,24 @@ abstract class PNDArray extends PType {
 
   def loadStride(cb: EmitCodeBuilder, off: Code[Long], idx: Int): Code[Long]
 
-  def numElements(shape: IndexedSeq[Value[Long]], mb: EmitMethodBuilder[_]): Code[Long]
+  def numElements(shape: IndexedSeq[Value[Long]]): Code[Long]
 
   def makeShapeBuilder(shapeArray: IndexedSeq[Value[Long]]): StagedRegionValueBuilder => Code[Unit]
 
-  def makeRowMajorStridesBuilder(sourceShapeArray: IndexedSeq[Value[Long]], mb: EmitMethodBuilder[_]): StagedRegionValueBuilder => Code[Unit]
+  def makeRowMajorStridesBuilder(sourceShapeArray: IndexedSeq[Value[Long]], cb: EmitCodeBuilder): StagedRegionValueBuilder => Code[Unit]
 
-  def makeColumnMajorStridesBuilder(sourceShapeArray: IndexedSeq[Value[Long]], mb: EmitMethodBuilder[_]): StagedRegionValueBuilder => Code[Unit]
+  def makeColumnMajorStridesBuilder(sourceShapeArray: IndexedSeq[Value[Long]], cb: EmitCodeBuilder): StagedRegionValueBuilder => Code[Unit]
 
   def getElementAddress(indices: IndexedSeq[Long], nd: Long): Long
 
   def loadElement(cb: EmitCodeBuilder, indices: IndexedSeq[Value[Long]], ndAddress: Value[Long]): Code[Long]
-  def loadElementToIRIntermediate(indices: IndexedSeq[Value[Long]], ndAddress: Value[Long], mb: EmitMethodBuilder[_]): Code[_]
+  def loadElementToIRIntermediate(indices: IndexedSeq[Value[Long]], ndAddress: Value[Long], cb: EmitCodeBuilder): Code[_]
 
   def construct(
     shapeBuilder: StagedRegionValueBuilder => Code[Unit],
     stridesBuilder: StagedRegionValueBuilder => Code[Unit],
     data: Code[Long],
-    mb: EmitMethodBuilder[_],
+    mb: EmitCodeBuilder,
     region: Value[Region]
   ): PNDArrayCode
 }
