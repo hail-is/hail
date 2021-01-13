@@ -142,6 +142,10 @@ class Shuffle (
       }
     }
   }
+  log.info(s"rowDecodedPType: ${codecs.rowDecodedPType}")
+  log.info(s"rowEncodingPType: ${codecs.rowEncodingPType}")
+  log.info(s"keyDecodedPType: ${codecs.keyDecodedPType}")
+  log.info(s"keyEncodingPType: ${codecs.keyEncodingPType}")
 
   private[this] val store = new LSM(s"/tmp/${uuidToString(uuid)}", codecs, pool)
 
@@ -207,8 +211,7 @@ class Shuffle (
     val keyEncoder = codecs.makeKeyEncoder(out)
 
     val keys = store.partitionKeys(nPartitions)
-    val printableKeys = keys.map(key => new UnsafeRow(codecs.keyEncodingPType.asInstanceOf[PBaseStruct], null, key))
-    log.info(s"partitionBounds ${nPartitions} ${printableKeys}")
+    log.info(s"partitionBounds ${nPartitions}")
     assert((nPartitions == 0 && keys.length == 0) ||
       keys.length == nPartitions + 1)
     writeRegionValueArray(keyEncoder, keys)
