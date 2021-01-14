@@ -118,7 +118,7 @@ def handle_deprecated_job_keys(i, job):
             raise ValidationError(f"[command, image, mount_docker_socket keys are "
                                   f"DEPRECATED. Use process.command, process.image, "
                                   f"process.mount_docker_socket with process.type = 'docker'.] "
-                                  f"{e.reason}")
+                                  f"{e.reason}") from e
 
         job['process'] = {'command': command,
                           'image': image,
