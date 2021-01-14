@@ -20,7 +20,7 @@ from aiodocker.exceptions import DockerError
 import google.oauth2.service_account
 from hailtop.utils import (time_msecs, request_retry_transient_errors,
                            RETRY_FUNCTION_SCRIPT, sleep_and_backoff, retry_all_errors, check_shell,
-                           CalledProcessError, check_shell_output)
+                           CalledProcessError, check_shell_output, is_google_registry_image)
 from hailtop.tls import get_context_specific_ssl_client_session
 from hailtop.batch_client.parse import (parse_cpu_in_mcpu, parse_image_tag,
                                         parse_memory_in_bytes)
@@ -341,7 +341,7 @@ class Container:
     async def run(self, worker):
         try:
             async with self.step('pulling'):
-                if self.image.startswith('gcr.io/'):
+                if is_google_registry_image(self.image):
                     key = base64.b64decode(
                         self.job.gsa_key['key.json']).decode()
                     auth = {

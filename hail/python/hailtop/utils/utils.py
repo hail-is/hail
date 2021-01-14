@@ -544,3 +544,10 @@ def url_join(url: str, path: str) -> str:
     """Join the (relative or absolute) path `path` to the URL `url`."""
     parsed = urllib.parse.urlparse(url)
     return urllib.parse.urlunparse(parsed._replace(path=os.path.join(parsed.path, path)))
+
+
+def is_google_registry_image(path: str) -> bool:
+    """Returns true if the given Docker image path points to either the Google
+    Container Registry or the Artifact Registry."""
+    host = path.partition('/')[0]
+    return host == 'gcr.io' or host.endswith('docker.pkg.dev')
