@@ -53,7 +53,7 @@ SELECT worker_type, worker_cores,
   enable_standing_worker, standing_worker_cores
 FROM pools
 LEFT JOIN inst_colls ON inst_colls.name = pools.name
-WHERE name = %s;
+WHERE inst_colls.name = %s;
 ''',
                                                 (self.name,))
 
