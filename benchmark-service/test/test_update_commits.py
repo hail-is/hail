@@ -6,7 +6,7 @@ import aiohttp
 
 from hailtop.config import get_deploy_config
 from hailtop.auth import service_auth_headers
-from hailtop.tls import in_cluster_ssl_client_session, get_context_specific_ssl_client_session
+from hailtop.httpx import client_session
 import hailtop.utils as utils
 
 pytestmark = pytest.mark.asyncio
@@ -22,7 +22,7 @@ async def test_update_commits():
     headers = service_auth_headers(deploy_config, 'benchmark')
     commit_benchmark_url = deploy_config.url('benchmark', f'/api/v1alpha/benchmark/commit/{sha}')
 
-    async with get_context_specific_ssl_client_session(
+    async with client_session(
             raise_for_status=True,
             timeout=aiohttp.ClientTimeout(total=60)) as session:
 
