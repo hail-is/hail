@@ -93,11 +93,11 @@ class MissingArrayBuilderSuite extends TestNGSuite {
 
   @Test(dataProvider="sortDouble")
   def testSortOnDoubleArrayBuilder(array: IndexedSeq[java.lang.Double], expected: IndexedSeq[java.lang.Double]) {
-    val ab = new DoubleArrayBuilder(16)
+    val ab = new DoubleMissingArrayBuilder(16)
     addToArrayBuilder(ab, array) { (dab, d) => dab.add(d) }
 
     ab.sort(ordering[Double] { (i, j) => i < j })
-    val result = getResult[DoubleArrayBuilder, java.lang.Double](ab) { (dab, d) => Double.box(dab(d)) }
+    val result = getResult[DoubleMissingArrayBuilder, java.lang.Double](ab) { (dab, d) => Double.box(dab(d)) }
     assert(result sameElements expected)
   }
 

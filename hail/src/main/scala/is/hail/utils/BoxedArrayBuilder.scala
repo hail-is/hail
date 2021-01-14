@@ -105,14 +105,4 @@ final class BoxedArrayBuilder[T](initialCapacity: Int)(implicit tct: ClassTag[T]
     ab.size_ = size_
     ab
   }
-
-
-  def clearAndSetNull(): Unit = {
-    clear()
-    var i = 0
-    while (i < b.length) {
-      b(i) = (null.asInstanceOf[T])
-      i += 1
-    }
-  }
 }

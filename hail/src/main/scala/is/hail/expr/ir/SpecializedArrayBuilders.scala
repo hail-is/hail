@@ -16,7 +16,7 @@ class StagedArrayBuilder(val elt: PType, mb: EmitMethodBuilder[_], len: Code[Int
     case IntInfo => mb.genLazyFieldThisRef[IntMissingArrayBuilder](Code.newInstance[IntMissingArrayBuilder, Int](len), "iab")
     case LongInfo => mb.genLazyFieldThisRef[LongMissingArrayBuilder](Code.newInstance[LongMissingArrayBuilder, Int](len), "jab")
     case FloatInfo => mb.genLazyFieldThisRef[FloatMissingArrayBuilder](Code.newInstance[FloatMissingArrayBuilder, Int](len), "fab")
-    case DoubleInfo => mb.genLazyFieldThisRef[DoubleArrayBuilder](Code.newInstance[DoubleArrayBuilder, Int](len), "dab")
+    case DoubleInfo => mb.genLazyFieldThisRef[DoubleMissingArrayBuilder](Code.newInstance[DoubleMissingArrayBuilder, Int](len), "dab")
     case ti => throw new RuntimeException(s"unsupported typeinfo found: $ti")
   })
 
@@ -25,7 +25,7 @@ class StagedArrayBuilder(val elt: PType, mb: EmitMethodBuilder[_], len: Code[Int
     case IntInfo => coerce[IntMissingArrayBuilder](ref).invoke[Int, Unit]("add", coerce[Int](x))
     case LongInfo => coerce[LongMissingArrayBuilder](ref).invoke[Long, Unit]("add", coerce[Long](x))
     case FloatInfo => coerce[FloatMissingArrayBuilder](ref).invoke[Float, Unit]("add", coerce[Float](x))
-    case DoubleInfo => coerce[DoubleArrayBuilder](ref).invoke[Double, Unit]("add", coerce[Double](x))
+    case DoubleInfo => coerce[DoubleMissingArrayBuilder](ref).invoke[Double, Unit]("add", coerce[Double](x))
   }
 
   def apply(i: Code[Int]): Code[_] = ti match {
@@ -33,7 +33,7 @@ class StagedArrayBuilder(val elt: PType, mb: EmitMethodBuilder[_], len: Code[Int
     case IntInfo => coerce[IntMissingArrayBuilder](ref).invoke[Int, Int]("apply", i)
     case LongInfo => coerce[LongMissingArrayBuilder](ref).invoke[Int, Long]("apply", i)
     case FloatInfo => coerce[FloatMissingArrayBuilder](ref).invoke[Int, Float]("apply", i)
-    case DoubleInfo => coerce[DoubleArrayBuilder](ref).invoke[Int, Double]("apply", i)
+    case DoubleInfo => coerce[DoubleMissingArrayBuilder](ref).invoke[Int, Double]("apply", i)
   }
 
   def update(i: Code[Int], x: Code[_]): Code[Unit] = ti match {
@@ -41,7 +41,7 @@ class StagedArrayBuilder(val elt: PType, mb: EmitMethodBuilder[_], len: Code[Int
     case IntInfo => coerce[IntMissingArrayBuilder](ref).invoke[Int, Int, Unit]("update", i, coerce[Int](x))
     case LongInfo => coerce[LongMissingArrayBuilder](ref).invoke[Int, Long, Unit]("update", i, coerce[Long](x))
     case FloatInfo => coerce[FloatMissingArrayBuilder](ref).invoke[Int, Float, Unit]("update", i, coerce[Float](x))
-    case DoubleInfo => coerce[DoubleArrayBuilder](ref).invoke[Int, Double, Unit]("update", i, coerce[Double](x))
+    case DoubleInfo => coerce[DoubleMissingArrayBuilder](ref).invoke[Int, Double, Unit]("update", i, coerce[Double](x))
   }
 
   def sort(compare: Code[AsmFunction2[_, _, _]]): Code[Unit] = {
@@ -60,7 +60,7 @@ class StagedArrayBuilder(val elt: PType, mb: EmitMethodBuilder[_], len: Code[Int
         coerce[FloatMissingArrayBuilder](ref).invoke[F, Unit]("sort", coerce[F](compare))
       case DoubleInfo =>
         type F = AsmFunction2[Double, Double, Boolean]
-        coerce[DoubleArrayBuilder](ref).invoke[F, Unit]("sort", coerce[F](compare))
+        coerce[DoubleMissingArrayBuilder](ref).invoke[F, Unit]("sort", coerce[F](compare))
     }
   }
 
@@ -129,7 +129,7 @@ sealed abstract class MissingArrayBuilder(initialCapacity: Int) {
   def clear() {  size_ = 0 }
 }
 
-class IntMissingArrayBuilder(initialCapacity: Int) extends MissingArrayBuilder(initialCapacity) {
+final class IntMissingArrayBuilder(initialCapacity: Int) extends MissingArrayBuilder(initialCapacity) {
   private var b: Array[Int] = new Array[Int](initialCapacity)
 
   def apply(i: Int): Int = {
@@ -188,7 +188,7 @@ class IntMissingArrayBuilder(initialCapacity: Int) extends MissingArrayBuilder(i
   }
 }
 
-class LongMissingArrayBuilder(initialCapacity: Int) extends MissingArrayBuilder(initialCapacity) {
+final class LongMissingArrayBuilder(initialCapacity: Int) extends MissingArrayBuilder(initialCapacity) {
   private var b: Array[Long] = new Array[Long](initialCapacity)
 
   def apply(i: Int): Long = {
@@ -247,7 +247,7 @@ class LongMissingArrayBuilder(initialCapacity: Int) extends MissingArrayBuilder(
   }
 }
 
-class FloatMissingArrayBuilder(initialCapacity: Int) extends MissingArrayBuilder(initialCapacity) {
+final class FloatMissingArrayBuilder(initialCapacity: Int) extends MissingArrayBuilder(initialCapacity) {
   private var b: Array[Float] = new Array[Float](initialCapacity)
 
   def apply(i: Int): Float = {
@@ -306,7 +306,7 @@ class FloatMissingArrayBuilder(initialCapacity: Int) extends MissingArrayBuilder
   }
 }
 
-class DoubleArrayBuilder(initialCapacity: Int) extends MissingArrayBuilder(initialCapacity) {
+final class DoubleMissingArrayBuilder(initialCapacity: Int) extends MissingArrayBuilder(initialCapacity) {
   private var b: Array[Double] = new Array[Double](initialCapacity)
 
   def apply(i: Int): Double = {
@@ -365,7 +365,7 @@ class DoubleArrayBuilder(initialCapacity: Int) extends MissingArrayBuilder(initi
   }
 }
 
-class BooleanMissingArrayBuilder(initialCapacity: Int) extends MissingArrayBuilder(initialCapacity) {
+final class BooleanMissingArrayBuilder(initialCapacity: Int) extends MissingArrayBuilder(initialCapacity) {
   private var b: Array[Boolean] = new Array[Boolean](initialCapacity)
 
   def apply(i: Int): Boolean = {
@@ -424,7 +424,7 @@ class BooleanMissingArrayBuilder(initialCapacity: Int) extends MissingArrayBuild
   }
 }
 
-class ByteArrayArrayBuilder(initialCapacity: Int) {
+final class ByteArrayArrayBuilder(initialCapacity: Int) {
 
   var size_ : Int = 0
   private var b: Array[Array[Byte]] = new Array[Array[Byte]](initialCapacity)
@@ -467,7 +467,7 @@ class ByteArrayArrayBuilder(initialCapacity: Int) {
 }
 
 
-class LongArrayBuilder(initialCapacity: Int) {
+final class LongArrayBuilder(initialCapacity: Int= 16) {
 
   var size_ : Int = 0
   var b: Array[Long] = new Array[Long](initialCapacity)
@@ -525,7 +525,7 @@ class LongArrayBuilder(initialCapacity: Int) {
   }
 }
 
-class IntArrayBuilder(initialCapacity: Int) {
+final class IntArrayBuilder(initialCapacity: Int = 16) {
 
   var size_ : Int = 0
   var b: Array[Int] = new Array[Int](initialCapacity)
@@ -580,5 +580,135 @@ class IntArrayBuilder(initialCapacity: Int) {
   def pop(): Int = {
     size_ -= 1
     b(size)
+  }
+}
+
+final class DoubleArrayBuilder(initialCapacity: Int = 16) {
+
+  var size_ : Int = 0
+  var b: Array[Double] = new Array[Double](initialCapacity)
+
+  def size: Int = size_
+
+  def setSize(n: Int) {
+    require(n >= 0 && n <= size)
+    size_ = n
+  }
+
+  def apply(i: Int): Double = {
+    require(i >= 0 && i < size)
+    b(i)
+  }
+
+  def ensureCapacity(n: Int): Unit = {
+    if (b.length < n) {
+      val newCapacity = (b.length * 2).max(n)
+      val newb = new Array[Double](newCapacity)
+      Array.copy(b, 0, newb, 0, size_)
+      b = newb
+    }
+  }
+
+  def add(x: Double): Unit = {
+    ensureCapacity(size_ + 1)
+    b(size_) = x
+    size_ += 1
+  }
+
+  def update(i: Int, x: Double): Unit = {
+    require(i >= 0 && i < size)
+    b(i) = x
+  }
+
+  def clear() {  size_ = 0 }
+
+  def result(): Array[Double] = b.slice(0, size_)
+
+  def clearAndResize(): Unit = {
+    size_ = 0
+    if (b.length > initialCapacity)
+      b = new Array[Double](initialCapacity)
+  }
+  def appendFrom(ab2: DoubleArrayBuilder): Unit = {
+    ensureCapacity(size_ + ab2.size_)
+    System.arraycopy(ab2.b, 0, b, size_, ab2.size_)
+    size_ = size_ + ab2.size_
+  }
+
+  def pop(): Double = {
+    size_ -= 1
+    b(size)
+  }
+}
+
+final class AnyRefArrayBuilder[T <: AnyRef](initialCapacity: Int = 16)(implicit ct: ClassTag[T]) {
+
+  var size_ : Int = 0
+  var b: Array[T] = new Array[T](initialCapacity)
+
+  def size: Int = size_
+
+  def setSize(n: Int) {
+    require(n >= 0 && n <= size)
+    size_ = n
+  }
+
+  def apply(i: Int): T = {
+    require(i >= 0 && i < size)
+    b(i)
+  }
+
+  def ensureCapacity(n: Int): Unit = {
+    if (b.length < n) {
+      val newCapacity = (b.length * 2).max(n)
+      val newb = new Array[T](newCapacity)
+      Array.copy(b, 0, newb, 0, size_)
+      b = newb
+    }
+  }
+
+  def add(x: T): Unit = {
+    ensureCapacity(size_ + 1)
+    b(size_) = x
+    size_ += 1
+  }
+
+  def update(i: Int, x: T): Unit = {
+    require(i >= 0 && i < size)
+    b(i) = x
+  }
+
+  def clear() {  size_ = 0 }
+
+  def result(): Array[T] = b.slice(0, size_)
+
+  def clearAndResize(): Unit = {
+    size_ = 0
+    if (b.length > initialCapacity)
+      b = new Array[T](initialCapacity)
+  }
+  def appendFrom(ab2: AnyRefArrayBuilder[T]): Unit = {
+    ensureCapacity(size_ + ab2.size_)
+    System.arraycopy(ab2.b, 0, b, size_, ab2.size_)
+    size_ = size_ + ab2.size_
+  }
+
+  def pop(): T = {
+    size_ -= 1
+    b(size)
+  }
+
+  def clearAndSetNull(): Unit = {
+    clear()
+    var i = 0
+    while (i < b.length) {
+      b(i) = (null.asInstanceOf[T])
+      i += 1
+    }
+  }
+
+  def setSizeUninitialized(size: Int): Unit = {
+    ensureCapacity(size)
+    size_ = size
   }
 }

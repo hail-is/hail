@@ -1,12 +1,12 @@
 package is.hail.annotations
 
-import is.hail.expr.ir.{LongArrayBuilder, LongMissingArrayBuilder}
+import is.hail.expr.ir.{AnyRefArrayBuilder, LongArrayBuilder, LongMissingArrayBuilder}
 import is.hail.utils._
 
 final class RegionMemory(pool: RegionPool) extends AutoCloseable {
   private val usedBlocks = new LongArrayBuilder(4)
   private val bigChunks = new LongArrayBuilder(4)
-  private val jObjects = new BoxedArrayBuilder[AnyRef](0)
+  private val jObjects = new AnyRefArrayBuilder[AnyRef](0)
 
   private var totalChunkMemory = 0L
   private var currentBlock: Long = 0L
@@ -18,12 +18,12 @@ final class RegionMemory(pool: RegionPool) extends AutoCloseable {
   private var blockThreshold: Long = _
   private var blockByteSize: Long = _
 
-  private val references = new BoxedArrayBuilder[RegionMemory](4)
+  private val references = new AnyRefArrayBuilder[RegionMemory](4)
   private var referenceCount: Long = _
 
   def storeJavaObject(obj: AnyRef): Int = {
     val idx = jObjects.size
-    jObjects += obj
+    jObjects.add(obj)
     pool.addJavaObject()
     idx
   }
@@ -211,12 +211,12 @@ final class RegionMemory(pool: RegionPool) extends AutoCloseable {
   def blockAddress: Long = currentBlock
 
   def addReferenceTo(r: RegionMemory): Unit = {
-    references += r
+    references.add(r)
     r.referenceCount += 1
   }
 
   def takeOwnershipOf(r: RegionMemory): Unit =
-    references += r
+    references.add(r)
 
   def nReferencedRegions(): Long = references.size
 

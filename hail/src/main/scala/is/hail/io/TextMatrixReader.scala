@@ -6,7 +6,7 @@ import is.hail.asm4s._
 import is.hail.backend.BroadcastValue
 import is.hail.backend.spark.SparkBackend
 import is.hail.expr.ir.lowering.TableStage
-import is.hail.expr.ir.{EmitFunctionBuilder, EmitMethodBuilder, ExecuteContext, GenericLine, GenericLines, GenericTableValue, IRParser, LowerMatrixIR, MatrixHybridReader, MatrixIR, MatrixLiteral, MatrixValue, TableLiteral, TableRead, TableValue, TextReaderOptions}
+import is.hail.expr.ir.{EmitFunctionBuilder, EmitMethodBuilder, ExecuteContext, GenericLine, GenericLines, GenericTableValue, IRParser, IntArrayBuilder, LowerMatrixIR, MatrixHybridReader, MatrixIR, MatrixLiteral, MatrixValue, TableLiteral, TableRead, TableValue, TextReaderOptions}
 import is.hail.types._
 import is.hail.types.physical._
 import is.hail.types.virtual._
@@ -108,14 +108,15 @@ object TextMatrixReader {
 
   def makePartitionerFromCounts(partitionCounts: Array[Long], kType: TStruct): (RVDPartitioner, Array[Int]) = {
     var includesStart = true
-    val keepPartitions = new BoxedArrayBuilder[Int]()
+    val keepPartitions = new IntArrayBuilder()
     val rangeBoundIntervals = partitionCounts.zip(partitionCounts.tail).zipWithIndex.flatMap { case ((s, e), i) =>
       val interval = Interval.orNone(kType.ordering,
         Row(if (includesStart) s else s - 1),
         Row(e - 1),
         includesStart, true)
       includesStart = false
-      if (interval.isDefined) keepPartitions += i
+      if (interval.isDefined)
+        keepPartitions.add(i)
       interval
     }
     val ranges = rangeBoundIntervals

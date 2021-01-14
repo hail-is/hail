@@ -1,7 +1,7 @@
 package is.hail.expr.ir.agg
 
 import is.hail.annotations._
-import is.hail.expr.ir.IntArrayBuilder
+import is.hail.expr.ir.{DoubleArrayBuilder, IntArrayBuilder, LongArrayBuilder}
 import is.hail.types.physical.{PArray, PCanonicalArray, PCanonicalStruct, PFloat64, PInt32, PInt64, PStruct, PType}
 import is.hail.types.virtual._
 import is.hail.io.{InputBuffer, OutputBuffer}
@@ -474,16 +474,16 @@ class ApproxCDFCombiner(
 
     val sorted = builder.result().sortBy(_._2)
 
-    val values = new BoxedArrayBuilder[Double]
-    val ranks = new BoxedArrayBuilder[Long]
+    val values = new DoubleArrayBuilder(16)
+    val ranks = new LongArrayBuilder(16)
     var rank: Long = 0
     var i = 0
-    ranks += 0
+    ranks.add(0)
     while (i < sorted.length) {
       rank += sorted(i)._1
       if (i == sorted.length - 1 || sorted(i)._2 != sorted(i + 1)._2) {
-        values += sorted(i)._2
-        ranks += rank
+        values.add(sorted(i)._2)
+        ranks.add(rank)
       }
       i += 1
     }
