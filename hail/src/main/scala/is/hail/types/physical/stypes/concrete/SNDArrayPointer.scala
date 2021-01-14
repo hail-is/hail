@@ -45,20 +45,23 @@ object SNDArrayPointerSettable {
 
 class SNDArrayPointerSettable(val st: SNDArrayPointer, val a: Settable[Long]) extends PNDArrayValue with PSettable {
   val pt: PNDArray = st.pType
+  private var shape: IndexedSeq[Value[Long]] = null
+  private var strides: IndexedSeq[Value[Long]] = null
+  private var dataFirstElement: Settable[Long] = null
 
   def loadElement(indices: IndexedSeq[Value[Long]], cb: EmitCodeBuilder): PCode = {
     assert(indices.size == pt.nDims)
-    pt.elementType.loadCheapPCode(cb, pt.loadElement(cb, indices, a))
-  }
-
-  def loadElementFromDataPointerAndStrides(indices: IndexedSeq[Value[Long]], ndArrayDataPointer: Value[Long], strides: IndexedSeq[Value[Long]], cb: EmitCodeBuilder): PCode = {
-    pt.elementType.loadCheapPCode(cb, pt.asInstanceOf[PCanonicalNDArray].loadElementFromDataAndStrides(cb, indices, ndArrayDataPointer, strides))
+    pt.elementType.loadCheapPCode(cb, pt.asInstanceOf[PCanonicalNDArray].loadElementFromDataAndStrides(cb, indices, dataFirstElement, strides))
   }
 
   def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(a)
 
   def store(cb: EmitCodeBuilder, v: PCode): Unit = {
     cb.assign(a, v.asInstanceOf[SNDArrayPointerCode].a)
+    shape = Array.tabulate(pt.nDims)(i => cb.newLocal[Long](s"sndarray_shapes_$i", pt.loadShape(cb, a, i)))
+    strides = Array.tabulate(pt.nDims)(i => cb.newLocal[Long](s"sndarray_strides_$i", pt.loadStride(cb, a, i)))
+    dataFirstElement = cb.newLocal[Long]("sndarray_pointer_first_element")
+    cb.assign(dataFirstElement, pt.dataPointer(a))
   }
 
   override def get: PCode = new SNDArrayPointerCode(st, a)
@@ -85,13 +88,9 @@ class SNDArrayPointerSettable(val st: SNDArrayPointer, val a: Settable[Long]) ex
     }
   }
 
-  override def shapes(cb: EmitCodeBuilder): IndexedSeq[Value[Long]] = {
-    Array.tabulate(pt.nDims)(i => cb.newLocal[Long](s"sndarray_shapes_$i", pt.loadShape(cb, a, i)))
-  }
+  override def shapes(cb: EmitCodeBuilder): IndexedSeq[Value[Long]] = shape
 
-  override def strides(cb: EmitCodeBuilder): IndexedSeq[Value[Long]] = {
-    Array.tabulate(pt.nDims)(i => cb.newLocal[Long](s"sndarray_strides_$i", pt.loadStride(cb, a, i)))
-  }
+  override def strides(cb: EmitCodeBuilder): IndexedSeq[Value[Long]] = strides
 
   override def sameShape(other: SNDArrayValue, cb: EmitCodeBuilder): Code[Boolean] = {
     val otherPtr = other.asInstanceOf[SNDArrayPointerSettable]

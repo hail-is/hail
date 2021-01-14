@@ -155,8 +155,7 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
     elementType.storeAtAddress(cb, getElementAddress(indices, ndAddress, cb), region, newElement, deepCopy)
   }
 
-  private def getElementAddressFromDataPointerAndStrides(indices: IndexedSeq[Value[Long]], ndData: Value[Long], strides: IndexedSeq[Value[Long]], cb: EmitCodeBuilder): Code[Long] = {
-    val stridesTuple = strides
+  private def getElementAddressFromDataPointerAndStrides(indices: IndexedSeq[Value[Long]], dataFirstElementPointer: Value[Long], strides: IndexedSeq[Value[Long]], cb: EmitCodeBuilder): Code[Long] = {
     val bytesAway = cb.newLocal[Long]("nd_get_element_address_bytes_away")
 
     coerce[Long](Code(
@@ -164,9 +163,9 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
       indices.zipWithIndex.foldLeft(Code._empty) { case (codeSoFar: Code[_], (requestedIndex: Value[Long], strideIndex: Int)) =>
         Code(
           codeSoFar,
-          bytesAway := bytesAway + requestedIndex * stridesTuple(strideIndex))
+          bytesAway := bytesAway + requestedIndex * strides(strideIndex))
       },
-      bytesAway + ndData)
+      bytesAway + dataFirstElementPointer)
     )
   }
 
