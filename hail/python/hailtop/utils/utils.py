@@ -296,6 +296,9 @@ def is_transient_error(e):
     # google.auth.exceptions.TransportError: ('Connection aborted.', ConnectionResetError(104, 'Connection reset by peer'))
     #
     # aiohttp.client_exceptions.ClientConnectorError: Cannot connect to host batch.pr-6925-default-s24o4bgat8e8:80 ssl:None [Connect call failed ('10.36.7.86', 80)]
+    #
+    # OSError: [Errno 51] Connect call failed ('35.188.91.25', 443)
+    # https://hail.zulipchat.com/#narrow/stream/223457-Batch-support/topic/ssl.20error
     if isinstance(e, aiohttp.ClientResponseError) and (
             e.status in RETRYABLE_HTTP_STATUS_CODES):
         # nginx returns 502 if it cannot connect to the upstream server
@@ -317,10 +320,12 @@ def is_transient_error(e):
     if isinstance(e, aiohttp.client_exceptions.ClientConnectorError):
         return hasattr(e, 'os_error') and is_transient_error(e.os_error)
     if (isinstance(e, OSError)
-            and (e.errno == errno.ETIMEDOUT
-                 or e.errno == errno.ECONNREFUSED
-                 or e.errno == errno.EHOSTUNREACH
-                 or e.errno == errno.ECONNRESET)):
+            and e.errno in (errno.ETIMEDOUT,
+                            errno.ECONNREFUSED,
+                            errno.EHOSTUNREACH,
+                            errno.ECONNRESET,
+                            errno.ENETUNREACH
+                            )):
         return True
     if isinstance(e, urllib3.exceptions.ReadTimeoutError):
         return True
