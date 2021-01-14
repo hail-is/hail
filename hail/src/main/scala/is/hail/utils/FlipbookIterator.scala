@@ -90,13 +90,13 @@ object FlipbookIterator {
   def multiZipJoin[A: ClassTag](
     its: Array[FlipbookIterator[A]],
     ord: (A, A) => Int
-  ): FlipbookIterator[ArrayBuilder[(A, Int)]] = {
+  ): FlipbookIterator[BoxedArrayBuilder[(A, Int)]] = {
     object TmpOrd extends Ordering[(A, Int)] {
       def compare(x: (A, Int), y: (A, Int)): Int = ord(y._1, x._1)
     }
-    val sm = new StateMachine[ArrayBuilder[(A, Int)]] {
+    val sm = new StateMachine[BoxedArrayBuilder[(A, Int)]] {
       val q: PriorityQueue[(A, Int)] = new PriorityQueue()(TmpOrd)
-      val value = new ArrayBuilder[(A, Int)](its.length)
+      val value = new BoxedArrayBuilder[(A, Int)](its.length)
       var isValid = true
 
       var i = 0; while (i < its.length) {

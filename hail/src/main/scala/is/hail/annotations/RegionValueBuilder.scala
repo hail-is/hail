@@ -12,10 +12,10 @@ class RegionValueBuilder(var region: Region) {
   var start: Long = _
   var root: PType = _
 
-  val typestk = new ArrayStack[PType]()
-  val indexstk = new ArrayStack[Int]()
-  val offsetstk = new ArrayStack[Long]()
-  val elementsOffsetstk = new ArrayStack[Long]()
+  val typestk = new ObjectArrayStack[PType]()
+  val indexstk = new IntArrayStack()
+  val offsetstk = new LongArrayStack()
+  val elementsOffsetstk = new LongArrayStack()
 
   def inactive: Boolean = root == null && typestk.isEmpty && offsetstk.isEmpty && elementsOffsetstk.isEmpty && indexstk.isEmpty
 

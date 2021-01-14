@@ -443,9 +443,9 @@ class EmitClassBuilder[C](
   }
 
   private[this] var _objectsField: Settable[Array[AnyRef]] = _
-  private[this] var _objects: ArrayBuilder[AnyRef] = _
+  private[this] var _objects: BoxedArrayBuilder[AnyRef] = _
 
-  private[this] var _mods: ArrayBuilder[(String, (Int, Region) => AsmFunction3[Region, Array[Byte], Array[Byte], Array[Byte]])] = new ArrayBuilder()
+  private[this] var _mods: BoxedArrayBuilder[(String, (Int, Region) => AsmFunction3[Region, Array[Byte], Array[Byte], Array[Byte]])] = new BoxedArrayBuilder()
   private[this] var _backendField: Settable[BackendUtils] = _
 
   private[this] var _aggSigs: Array[agg.AggStateSig] = _
@@ -557,7 +557,7 @@ class EmitClassBuilder[C](
     if (_objectsField == null) {
       cb.addInterface(typeInfo[FunctionWithObjects].iname)
       _objectsField = genFieldThisRef[Array[AnyRef]]()
-      _objects = new ArrayBuilder[AnyRef]()
+      _objects = new BoxedArrayBuilder[AnyRef]()
       val mb = newEmitMethod("setObjects", FastIndexedSeq[ParamType](typeInfo[Array[AnyRef]]), typeInfo[Unit])
       mb.emit(_objectsField := mb.getCodeParam[Array[AnyRef]](1))
     }
@@ -717,7 +717,7 @@ class EmitClassBuilder[C](
     new DependentEmitFunctionBuilder[F](this, dep_apply_method, emit_apply_method)
   }
 
-  val rngs: ArrayBuilder[(Settable[IRRandomness], Code[IRRandomness])] = new ArrayBuilder()
+  val rngs: BoxedArrayBuilder[(Settable[IRRandomness], Code[IRRandomness])] = new BoxedArrayBuilder()
 
   def makeAddPartitionRegion(): Unit = {
     cb.addInterface(typeInfo[FunctionWithPartitionRegion].iname)

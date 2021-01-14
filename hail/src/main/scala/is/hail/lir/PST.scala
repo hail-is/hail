@@ -1,6 +1,6 @@
 package is.hail.lir
 
-import is.hail.utils.ArrayBuilder
+import is.hail.utils.BoxedArrayBuilder
 
 import scala.collection.mutable
 
@@ -105,7 +105,7 @@ class PSTBuilder(
 
   private def computeBackEdges(): Unit = {
     // recursion will blow out the stack
-    val stack = new ArrayBuilder[(Int, Iterator[Int])]()
+    val stack = new BoxedArrayBuilder[(Int, Iterator[Int])]()
     val onStack = mutable.Set[Int]()
     val visited = mutable.Set[Int]()
 
@@ -161,7 +161,7 @@ class PSTBuilder(
     var k = 0
 
     // recursion will blow out the stack
-    val stack = new ArrayBuilder[(Int, Iterator[Int])]()
+    val stack = new BoxedArrayBuilder[(Int, Iterator[Int])]()
 
     def push(b: Int): Unit = {
       val i = k
@@ -256,7 +256,7 @@ class PSTBuilder(
   private val regions: mutable.ArrayBuffer[PSTRegion] = mutable.ArrayBuffer[PSTRegion]()
 
   // regions with no parents
-  private val frontier = new ArrayBuilder[Int]()
+  private val frontier = new BoxedArrayBuilder[Int]()
 
   private def addRegion(start: Int, end: Int): Int = {
     var firstc = frontier.length
@@ -312,7 +312,7 @@ class PSTBuilder(
   // find regions in [start, end]
   // no edges from [0, start) target (start, end]
   private def findRegions(start: Int, end: Int): Unit = {
-    var regionStarts = new ArrayBuilder[Int]()
+    var regionStarts = new BoxedArrayBuilder[Int]()
     regionStarts += start
 
     // find subregions of [start, end]
@@ -381,8 +381,8 @@ class PSTBuilder(
     findRegions(0, nBlocks - 1)
     val root = addRoot()
 
-    val newBlocksB = new ArrayBuilder[Block]()
-    val newSplitBlock = new ArrayBuilder[Boolean]()
+    val newBlocksB = new BoxedArrayBuilder[Block]()
+    val newSplitBlock = new BoxedArrayBuilder[Boolean]()
 
     // split blocks, compute new blocks
     // in linearization order
@@ -426,7 +426,7 @@ class PSTBuilder(
 
     // compute new regions, including singletons
     // update children
-    val newRegionsB = new ArrayBuilder[PSTRegion]()
+    val newRegionsB = new BoxedArrayBuilder[PSTRegion]()
     val regionNewRegion = new Array[Int](regions.length)
     i = 0
     while (i < regions.length) {
@@ -442,7 +442,7 @@ class PSTBuilder(
         child = regions(children(c))
       }
 
-      val newChildren = new ArrayBuilder[Int]()
+      val newChildren = new BoxedArrayBuilder[Int]()
 
       var j = r.start
       var jincluded = false
@@ -491,7 +491,7 @@ class PSTBuilder(
     // but are not contained in region i
     def findLoopRegions(i: Int): Array[Int] = {
       val r = newRegions(i)
-      val backEdgeSourcesB = new ArrayBuilder[Int]()
+      val backEdgeSourcesB = new BoxedArrayBuilder[Int]()
       if (r.children.nonEmpty) {
         var c = 0
         while (c < r.children.length) {

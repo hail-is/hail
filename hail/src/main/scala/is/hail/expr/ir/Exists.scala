@@ -1,7 +1,7 @@
 package is.hail.expr.ir
 
 import is.hail.expr._
-import is.hail.utils.{ArrayBuilder, _}
+import is.hail.utils.{BoxedArrayBuilder, _}
 
 import scala.collection.mutable._
 

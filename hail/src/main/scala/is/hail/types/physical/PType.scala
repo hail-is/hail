@@ -161,9 +161,9 @@ object PType {
   }
 
   def literalPType(t: Type, a: Annotation): PType = {
-    val rb = new ArrayBuilder[Boolean]()
-    val crib = new ArrayBuilder[Int]()
-    val cib = new ArrayBuilder[Int]()
+    val rb = new BoxedArrayBuilder[Boolean]()
+    val crib = new BoxedArrayBuilder[Int]()
+    val cib = new BoxedArrayBuilder[Int]()
 
     def indexTypes(t: Type): Unit = {
       val ci = crib.size

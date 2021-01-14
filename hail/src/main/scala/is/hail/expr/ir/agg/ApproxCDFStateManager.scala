@@ -1,6 +1,7 @@
 package is.hail.expr.ir.agg
 
 import is.hail.annotations._
+import is.hail.expr.ir.IntArrayBuilder
 import is.hail.types.physical.{PArray, PCanonicalArray, PCanonicalStruct, PFloat64, PInt32, PInt64, PStruct, PType}
 import is.hail.types.virtual._
 import is.hail.io.{InputBuffer, OutputBuffer}
@@ -458,7 +459,7 @@ class ApproxCDFCombiner(
   }
 
   def computeCDF(): (Array[Double], Array[Long]) = {
-    val builder: ArrayBuilder[(Long, Double)] = new ArrayBuilder(size)
+    val builder: BoxedArrayBuilder[(Long, Double)] = new BoxedArrayBuilder(size)
 
     var level = 0
     while (level < numLevels) {
@@ -473,8 +474,8 @@ class ApproxCDFCombiner(
 
     val sorted = builder.result().sortBy(_._2)
 
-    val values = new ArrayBuilder[Double]
-    val ranks = new ArrayBuilder[Long]
+    val values = new BoxedArrayBuilder[Double]
+    val ranks = new BoxedArrayBuilder[Long]
     var rank: Long = 0
     var i = 0
     ranks += 0
@@ -772,11 +773,11 @@ object QuantilesAggregator {
     math.max(m, depthCapacity(numLevels - level - 1, k))
 
   def capacities(k: Int, m: Int): Array[Int] = {
-    val buffer: ArrayBuilder[Int] = new ArrayBuilder()
+    val buffer: IntArrayBuilder = new IntArrayBuilder(8)
     var depth = 0
     var capacity = depthCapacity(depth, k)
     while (capacity > m) {
-      buffer += capacity
+      buffer.add(capacity)
       depth += 1
       capacity = depthCapacity(depth, k)
     }

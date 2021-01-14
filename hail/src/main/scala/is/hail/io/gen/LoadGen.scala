@@ -81,7 +81,7 @@ object LoadGen {
       if (gp.length != (3 * nSamples))
         fatal("Number of genotype probabilities does not match 3 * number of samples. If no chromosome column is included, use -c to input the chromosome.")
 
-      val gsb = new ArrayBuilder[Annotation]()
+      val gsb = new BoxedArrayBuilder[Annotation]()
 
       for (i <- gp.indices by 3) {
         val d0 = gp(i)

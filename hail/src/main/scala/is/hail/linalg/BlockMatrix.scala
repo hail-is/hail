@@ -1367,9 +1367,9 @@ object BlockMatrixFilterRDD {
     newGP: GridPartitioner): Array[Array[(Int, Array[Int], Array[Int])]] = {
 
     val blockSize = gp.blockSize
-    val ab = new ArrayBuilder[(Int, Array[Int], Array[Int])]()
-    val startIndices = new ArrayBuilder[Int]()
-    val endIndices = new ArrayBuilder[Int]()
+    val ab = new BoxedArrayBuilder[(Int, Array[Int], Array[Int])]()
+    val startIndices = new BoxedArrayBuilder[Int]()
+    val endIndices = new BoxedArrayBuilder[Int]()
 
     keep
       .grouped(blockSize)

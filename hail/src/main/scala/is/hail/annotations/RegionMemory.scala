@@ -1,11 +1,12 @@
 package is.hail.annotations
 
+import is.hail.expr.ir.{LongArrayBuilder, LongMissingArrayBuilder}
 import is.hail.utils._
 
 final class RegionMemory(pool: RegionPool) extends AutoCloseable {
-  private val usedBlocks = new ArrayBuilder[Long](4)
-  private val bigChunks = new ArrayBuilder[Long](4)
-  private val jObjects = new ArrayBuilder[AnyRef](0)
+  private val usedBlocks = new LongArrayBuilder(4)
+  private val bigChunks = new LongArrayBuilder(4)
+  private val jObjects = new BoxedArrayBuilder[AnyRef](0)
 
   private var totalChunkMemory = 0L
   private var currentBlock: Long = 0L
@@ -17,7 +18,7 @@ final class RegionMemory(pool: RegionPool) extends AutoCloseable {
   private var blockThreshold: Long = _
   private var blockByteSize: Long = _
 
-  private val references = new ArrayBuilder[RegionMemory](4)
+  private val references = new BoxedArrayBuilder[RegionMemory](4)
   private var referenceCount: Long = _
 
   def storeJavaObject(obj: AnyRef): Int = {
@@ -46,7 +47,7 @@ final class RegionMemory(pool: RegionPool) extends AutoCloseable {
 
   def allocateNewBlock(): Unit = {
     if (currentBlock != 0)
-      usedBlocks += currentBlock
+      usedBlocks.add(currentBlock)
     currentBlock = pool.getBlock(blockSize)
   }
 
@@ -54,7 +55,7 @@ final class RegionMemory(pool: RegionPool) extends AutoCloseable {
 
   private def allocateBigChunk(size: Long): Long = {
     val o = pool.getChunk(size)
-    bigChunks += o
+    bigChunks.add(o)
     totalChunkMemory += size
     o
   }
@@ -116,12 +117,12 @@ final class RegionMemory(pool: RegionPool) extends AutoCloseable {
 
   private def freeObjects(): Unit = {
     pool.removeJavaObjects(jObjects.size)
-    jObjects.clearAndSetMem(null)
+    jObjects.clearAndSetNull()
   }
 
   private def freeFullBlocks(): Unit = freeFullBlocks(pool.freeBlocks(blockSize))
 
-  private def freeFullBlocks(ab: ArrayBuilder[Long]): Unit = {
+  private def freeFullBlocks(ab: LongArrayBuilder): Unit = {
     ab.appendFrom(usedBlocks)
     usedBlocks.clearAndResize()
   }
@@ -138,7 +139,7 @@ final class RegionMemory(pool: RegionPool) extends AutoCloseable {
     } else {
       val freeBlocksOfSize = pool.freeBlocks(blockSize)
       if (currentBlock != 0)
-        freeBlocksOfSize += currentBlock
+        freeBlocksOfSize.add(currentBlock)
 
       freeFullBlocks(freeBlocksOfSize)
       freeChunks()

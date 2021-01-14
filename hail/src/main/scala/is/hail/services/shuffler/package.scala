@@ -36,9 +36,9 @@ package object shuffler {
   def readRegionValueArray(
     region: Region,
     decoder: Decoder,
-    sizeHint: Int = ArrayBuilder.defaultInitialCapacity
+    sizeHint: Int = BoxedArrayBuilder.defaultInitialCapacity
   ): Array[Long] = {
-    val ab = new ArrayBuilder[Long](sizeHint)
+    val ab = new BoxedArrayBuilder[Long](sizeHint)
 
     var hasNext = decoder.readByte()
     while (hasNext == 1) {

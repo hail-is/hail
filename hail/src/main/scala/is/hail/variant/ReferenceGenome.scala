@@ -619,8 +619,8 @@ object ReferenceGenome {
     fs.copyRecode(indexFile, localIndexFile)
     val index = new FastaSequenceIndex(new java.io.File(uriPath(localIndexFile)))
 
-    val contigs = new ArrayBuilder[String]
-    val lengths = new ArrayBuilder[(String, Int)]
+    val contigs = new BoxedArrayBuilder[String]
+    val lengths = new BoxedArrayBuilder[(String, Int)]
 
     index.iterator().asScala.foreach { entry =>
       val contig = entry.getContig

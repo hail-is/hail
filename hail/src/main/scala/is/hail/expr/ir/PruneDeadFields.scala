@@ -10,7 +10,7 @@ import scala.collection.mutable
 
 object PruneDeadFields {
 
-  case class ComputeMutableState(requestedType: Memo[BaseType], relationalRefs: mutable.HashMap[String, ArrayBuilder[Type]]) {
+  case class ComputeMutableState(requestedType: Memo[BaseType], relationalRefs: mutable.HashMap[String, BoxedArrayBuilder[Type]]) {
     def rebuildState: RebuildMutableState = RebuildMutableState(requestedType, mutable.HashMap.empty)
   }
 
@@ -206,9 +206,9 @@ object PruneDeadFields {
 
   def unifySeq[T <: BaseType](base: T, children: Seq[T]): T = unifyBaseTypeSeq(base, children).asInstanceOf[T]
 
-  def unifyEnvs(envs: BindingEnv[ArrayBuilder[Type]]*): BindingEnv[ArrayBuilder[Type]] = unifyEnvsSeq(envs)
+  def unifyEnvs(envs: BindingEnv[BoxedArrayBuilder[Type]]*): BindingEnv[BoxedArrayBuilder[Type]] = unifyEnvsSeq(envs)
 
-  def concatEnvs(envs: Seq[Env[ArrayBuilder[Type]]]): Env[ArrayBuilder[Type]] = {
+  def concatEnvs(envs: Seq[Env[BoxedArrayBuilder[Type]]]): Env[BoxedArrayBuilder[Type]] = {
     val lc = envs.lengthCompare(1)
     if (lc < 0)
       Env.empty
@@ -229,10 +229,10 @@ object PruneDeadFields {
     }
   }
 
-  def unifyEnvsSeq(envs: Seq[BindingEnv[ArrayBuilder[Type]]]): BindingEnv[ArrayBuilder[Type]] = {
+  def unifyEnvsSeq(envs: Seq[BindingEnv[BoxedArrayBuilder[Type]]]): BindingEnv[BoxedArrayBuilder[Type]] = {
     val lc = envs.lengthCompare(1)
     if (lc < 0)
-      BindingEnv.empty[ArrayBuilder[Type]]
+      BindingEnv.empty[BoxedArrayBuilder[Type]]
     else if (lc == 0)
       envs.head
     else {
@@ -850,7 +850,7 @@ object PruneDeadFields {
     * any of the "b" dependencies in order to create its own requested type,
     * which only contains "a".
     */
-  def memoizeValueIR(ir: IR, requestedType: Type, memo: ComputeMutableState): BindingEnv[ArrayBuilder[Type]] = {
+  def memoizeValueIR(ir: IR, requestedType: Type, memo: ComputeMutableState): BindingEnv[BoxedArrayBuilder[Type]] = {
     memo.requestedType.bind(ir, requestedType)
     ir match {
       case IsNA(value) => memoizeValueIR(value, minimal(value.typ), memo)
@@ -922,7 +922,7 @@ object PruneDeadFields {
           )
         }
       case Ref(name, t) =>
-        val ab = new ArrayBuilder[Type]()
+        val ab = new BoxedArrayBuilder[Type]()
         ab += requestedType
         BindingEnv.empty.bindEval(name -> ab)
       case RelationalLet(name, value, body) =>
@@ -931,7 +931,7 @@ object PruneDeadFields {
         memoizeValueIR(value, unifySeq(value.typ, usages), memo)
         e
       case RelationalRef(name, _) =>
-        memo.relationalRefs.getOrElseUpdate(name, new ArrayBuilder[Type]) += requestedType
+        memo.relationalRefs.getOrElseUpdate(name, new BoxedArrayBuilder[Type]) += requestedType
         BindingEnv.empty
       case MakeArray(args, _) =>
         val eltType = requestedType.asInstanceOf[TArray].elementType

@@ -199,9 +199,9 @@ class Method private[lir] (
   def genLocal(baseName: String, ti: TypeInfo[_]): Local = newLocal(genName("l", baseName), ti)
 
   def findBlocks(): Blocks = {
-    val blocksb = new ArrayBuilder[Block]()
+    val blocksb = new BoxedArrayBuilder[Block]()
 
-    val s = new ArrayStack[Block]()
+    val s = new ObjectArrayStack[Block]()
     val visited = mutable.Set[Block]()
 
     s.push(entry)
@@ -254,7 +254,7 @@ class Method private[lir] (
   }
 
   def findLocals(blocks: Blocks, verifyMethodAssignment: Boolean = false): Locals = {
-    val localsb = new ArrayBuilder[Local]()
+    val localsb = new BoxedArrayBuilder[Local]()
 
     var i = 0
     while (i < nParameters) {

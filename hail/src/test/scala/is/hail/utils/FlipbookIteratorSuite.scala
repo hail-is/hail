@@ -276,7 +276,7 @@ class FlipbookIteratorSuite extends HailSuite {
     val three = makeTestIterator(2, 3, 4, 4, 5, 6, 1000, 1000)
     val its: Array[FlipbookIterator[Box[Int]]] = Array(one, two, three)
     val zipped = FlipbookIterator.multiZipJoin(its, boxIntOrd(missingValue = 1000))
-    def fillOut(ar: ArrayBuilder[(Box[Int], Int)], default: Box[Int]): Array[Box[Int]] = {
+    def fillOut(ar: BoxedArrayBuilder[(Box[Int], Int)], default: Box[Int]): Array[Box[Int]] = {
       val a: Array[Box[Int]] = Array.fill(3)(default)
       var i = 0; while (i < ar.size) {
         var v = ar(i)

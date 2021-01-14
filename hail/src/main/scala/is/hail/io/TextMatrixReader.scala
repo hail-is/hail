@@ -108,7 +108,7 @@ object TextMatrixReader {
 
   def makePartitionerFromCounts(partitionCounts: Array[Long], kType: TStruct): (RVDPartitioner, Array[Int]) = {
     var includesStart = true
-    val keepPartitions = new ArrayBuilder[Int]()
+    val keepPartitions = new BoxedArrayBuilder[Int]()
     val rangeBoundIntervals = partitionCounts.zip(partitionCounts.tail).zipWithIndex.flatMap { case ((s, e), i) =>
       val interval = Interval.orNone(kType.ordering,
         Row(if (includesStart) s else s - 1),
@@ -596,7 +596,7 @@ class CompiledLineParser(
     var inputIndex = 0
     var outputIndex = 0
     assert(onDiskRowFieldsType.size >= rowFieldsType.size)
-    val ab = new ArrayBuilder[Code[Unit]]()
+    val ab = new BoxedArrayBuilder[Code[Unit]]()
     while (inputIndex < onDiskRowFieldsType.size) {
       val onDiskField = onDiskRowFieldsType.fields(inputIndex)
       val onDiskPType = PType.canonical(onDiskField.typ) // will always be optional

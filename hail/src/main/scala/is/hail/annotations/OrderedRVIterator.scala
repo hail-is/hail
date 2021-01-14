@@ -10,7 +10,7 @@ import scala.collection.mutable
 object OrderedRVIterator {
   def multiZipJoin(
     its: IndexedSeq[OrderedRVIterator]
-  ): Iterator[ArrayBuilder[(RegionValue, Int)]] = {
+  ): Iterator[BoxedArrayBuilder[(RegionValue, Int)]] = {
     require(its.length > 0)
     val first = its(0)
     val flipbooks = its.map(_.iterator.toFlipbookIterator)

@@ -58,7 +58,7 @@ object BgenRDDPartitions extends Logging {
     val pord = keyType.ordering
     val bounds = fileMetadata.map(md => (md.path, md.rangeBounds))
 
-    val overlappingBounds = new ArrayBuilder[(String, Interval, String, Interval)]
+    val overlappingBounds = new BoxedArrayBuilder[(String, Interval, String, Interval)]
     var i = 0
     while (i < bounds.length) {
       var j = 0
@@ -128,8 +128,8 @@ object BgenRDDPartitions extends Logging {
     if (nonEmptyFilesAfterFilter.isEmpty) {
       (Array.empty, Array.empty)
     } else {
-      val partitions = new ArrayBuilder[Partition]()
-      val rangeBounds = new ArrayBuilder[Interval]()
+      val partitions = new BoxedArrayBuilder[Partition]()
+      val rangeBounds = new BoxedArrayBuilder[Interval]()
       var fileIndex = 0
       while (fileIndex < nonEmptyFilesAfterFilter.length) {
         val file = nonEmptyFilesAfterFilter(fileIndex)
