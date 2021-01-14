@@ -50,7 +50,8 @@ class Pool(InstanceCollection):
         row = await self.db.select_and_fetchone('''
 SELECT worker_type, worker_cores,
   worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gb,
-  enable_standing_worker, standing_worker_cores
+  enable_standing_worker, standing_worker_cores,
+  boot_disk_size_gb, max_instances, max_live_instances
 FROM pools
 LEFT JOIN inst_colls ON inst_colls.name = pools.name
 WHERE inst_colls.name = %s;
