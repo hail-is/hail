@@ -6,6 +6,7 @@ import is.hail.asm4s._
 import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitCodeBuilder}
 import is.hail.types.physical._
 import is.hail.types.physical.stypes.SCode
+import is.hail.types.physical.stypes.concrete.{SIndexablePointer, SIndexablePointerSettable}
 import is.hail.types.physical.stypes.interfaces.SIndexableValue
 import is.hail.types.virtual.{TArray, TFloat64, TInt32, Type}
 import is.hail.utils.FastIndexedSeq
@@ -146,29 +147,67 @@ class LinearRegressionAggregator() extends StagedAggregator {
         cb.assign(k, vector.loadLength(xty))
         cb.assign(sptr, vector.firstElementOffset(xty, k))
         cb.assign(i, 0)
-        cb.whileLoop(i < k,
-          {
-            cb += Region.storeDouble(sptr, Region.loadDouble(sptr) + x.loadElement(cb, i).get(cb).asDouble.doubleCode(cb) * y)
-            cb.assign(i, i + 1)
-            cb.assign(sptr, sptr + scalar.byteSize)
-          })
+        xc.st match {
+          case SIndexablePointer(pt: PCanonicalArray) =>
+            assert(pt.elementType.isInstanceOf[PFloat64])
 
-        cb.assign(i, 0)
-        cb.assign(sptr, vector.firstElementOffset(xtx, k))
-
-        cb.whileLoop(i < k,
-          {
-            cb.assign(j, 0)
-            cb.whileLoop(j < k,
+            val xAddr = x.asInstanceOf[SIndexablePointerSettable].a
+            val xptr = cb.newLocal[Long]("linreg_agg_seqop_xptr")
+            val xptr2 = cb.newLocal[Long]("linreg_agg_seqop_xptr2")
+            cb.assign(xptr, pt.firstElementOffset(xAddr, k))
+            cb.whileLoop(i < k,
               {
-                // add x[i] * x[j] to the value at sptr
-                cb += Region.storeDouble(sptr, Region.loadDouble(sptr) +
-                  (x.loadElement(cb, i).get(cb).asDouble.doubleCode(cb) * x.loadElement(cb, j).get(cb).asDouble.doubleCode(cb)))
-                cb.assign(j, j + 1)
+                cb += Region.storeDouble(sptr, Region.loadDouble(sptr) + (Region.loadDouble(xptr) * y))
+                cb.assign(i, i + 1)
+                cb.assign(sptr, sptr + scalar.byteSize)
+                cb.assign(xptr, xptr + scalar.byteSize)
+              })
+
+            cb.assign(i, 0)
+            cb.assign(sptr, vector.firstElementOffset(xtx, k))
+            cb.assign(xptr, pt.firstElementOffset(xAddr, k))
+
+            cb.whileLoop(i < k,
+              {
+                cb.assign(j, 0)
+                cb.assign(xptr2, pt.firstElementOffset(xAddr, k))
+                cb.whileLoop(j < k,
+                  {
+                    // add x[i] * x[j] to the value at sptr
+                    cb += Region.storeDouble(sptr, Region.loadDouble(sptr) + (Region.loadDouble(xptr) * Region.loadDouble(xptr2)))
+                    cb.assign(j, j + 1)
+                    cb.assign(sptr, sptr + scalar.byteSize)
+                    cb.assign(xptr2, xptr2 + scalar.byteSize)
+                  })
+                cb.assign(i, i + 1)
+                cb.assign(xptr, xptr + scalar.byteSize)
+              })
+
+          case _ =>
+            cb.whileLoop(i < k,
+              {
+                cb += Region.storeDouble(sptr, Region.loadDouble(sptr) + x.loadElement(cb, i).get(cb).asDouble.doubleCode(cb) * y)
+                cb.assign(i, i + 1)
                 cb.assign(sptr, sptr + scalar.byteSize)
               })
-            cb.assign(i, i + 1)
-          })
+
+            cb.assign(i, 0)
+            cb.assign(sptr, vector.firstElementOffset(xtx, k))
+
+            cb.whileLoop(i < k,
+              {
+                cb.assign(j, 0)
+                cb.whileLoop(j < k,
+                  {
+                    // add x[i] * x[j] to the value at sptr
+                    cb += Region.storeDouble(sptr, Region.loadDouble(sptr) +
+                      (x.loadElement(cb, i).get(cb).asDouble.doubleCode(cb) * x.loadElement(cb, j).get(cb).asDouble.doubleCode(cb)))
+                    cb.assign(j, j + 1)
+                    cb.assign(sptr, sptr + scalar.byteSize)
+                  })
+                cb.assign(i, i + 1)
+              })
+        }
       })
   }
 
