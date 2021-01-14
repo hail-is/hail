@@ -5,7 +5,7 @@ import is.hail.asm4s.{Code, IntInfo, LongInfo, Settable, SettableBuilder, TypeIn
 import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, SortOrder}
 import is.hail.types.physical.stypes.interfaces.{SNDArray, SNDArrayValue}
 import is.hail.types.physical.stypes.{SCode, SType}
-import is.hail.types.physical.{PBaseStructCode, PCode, PNDArray, PNDArrayCode, PNDArrayValue, PSettable, PType, PValue}
+import is.hail.types.physical.{PBaseStructCode, PCanonicalNDArray, PCode, PNDArray, PNDArrayCode, PNDArrayValue, PSettable, PType, PValue}
 import is.hail.utils.FastIndexedSeq
 
 case class SNDArrayPointer(pType: PNDArray) extends SNDArray {
@@ -49,6 +49,10 @@ class SNDArrayPointerSettable(val st: SNDArrayPointer, val a: Settable[Long]) ex
   def loadElement(indices: IndexedSeq[Value[Long]], cb: EmitCodeBuilder): PCode = {
     assert(indices.size == pt.nDims)
     pt.elementType.loadCheapPCode(cb, pt.loadElement(cb, indices, a))
+  }
+
+  def loadElementFromDataPointerAndStrides(indices: IndexedSeq[Value[Long]], ndArrayDataPointer: Value[Long], strides: IndexedSeq[Value[Long]], cb: EmitCodeBuilder): PCode = {
+    pt.elementType.loadCheapPCode(cb, pt.asInstanceOf[PCanonicalNDArray].loadElementFromDataAndStrides(cb, indices, ndArrayDataPointer, strides))
   }
 
   def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(a)

@@ -133,9 +133,8 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
   }
 
   private def getElementAddress(indices: IndexedSeq[Value[Long]], nd: Value[Long], cb: EmitCodeBuilder): Code[Long] = {
-    val stridesTuple = new CodePTuple(strides.pType, new Value[Long] {
-      def get: Code[Long] = strides.load(nd)
-    })
+    val ndarrayValue = PCode(this, nd).asNDArray.memoize(cb, "getElementAddressNDValue")
+    val stridesTuple = ndarrayValue.strides(cb)
     val bytesAway = cb.newLocal[Long]("nd_get_element_address_bytes_away")
     val dataStore = cb.newLocal[Long]("nd_get_element_address_data_store")
 
@@ -147,7 +146,7 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
           codeSoFar,
           bytesAway := bytesAway + requestedIndex * stridesTuple(strideIndex))
       },
-      bytesAway + data.pType.elementOffset(dataStore, data.pType.loadLength(dataStore), 0)
+      bytesAway + data.pType.firstElementOffset(dataStore, data.pType.loadLength(dataStore))
     ))
   }
 
@@ -156,8 +155,33 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
     elementType.storeAtAddress(cb, getElementAddress(indices, ndAddress, cb), region, newElement, deepCopy)
   }
 
+  private def getElementAddressFromDataPointerAndStrides(indices: IndexedSeq[Value[Long]], ndData: Value[Long], strides: IndexedSeq[Value[Long]], cb: EmitCodeBuilder): Code[Long] = {
+    val stridesTuple = strides
+    val bytesAway = cb.newLocal[Long]("nd_get_element_address_bytes_away")
+
+    coerce[Long](Code(
+      bytesAway := 0L,
+      indices.zipWithIndex.foldLeft(Code._empty) { case (codeSoFar: Code[_], (requestedIndex: Value[Long], strideIndex: Int)) =>
+        Code(
+          codeSoFar,
+          bytesAway := bytesAway + requestedIndex * stridesTuple(strideIndex))
+      },
+      bytesAway + ndData)
+    )
+  }
+
   def loadElement(cb: EmitCodeBuilder, indices: IndexedSeq[Value[Long]], ndAddress: Value[Long]): Code[Long] = {
     val off = getElementAddress(indices, ndAddress, cb)
+    data.pType.elementType.fundamentalType match {
+      case _: PArray | _: PBinary =>
+        Region.loadAddress(off)
+      case _ =>
+        off
+    }
+  }
+
+  def loadElementFromDataAndStrides(cb: EmitCodeBuilder, indices: IndexedSeq[Value[Long]], ndDataAddress: Value[Long], strides: IndexedSeq[Value[Long]]): Code[Long] = {
+    val off = getElementAddressFromDataPointerAndStrides(indices, ndDataAddress, strides, cb)
     data.pType.elementType.fundamentalType match {
       case _: PArray | _: PBinary =>
         Region.loadAddress(off)
@@ -224,7 +248,7 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
     }
   }
 
-  override def dataPointer(ndAddr: Code[Long]): Code[Long] = data.pType.firstElementOffset(this.dataPointer(ndAddr))
+  override def dataPointer(ndAddr: Code[Long]): Code[Long] = data.pType.firstElementOffset(this.dataArrayPointer(ndAddr))
 
   override def dataArrayPointer(ndAddr: Code[Long]): Code[Long] = data.load(ndAddr)
 }

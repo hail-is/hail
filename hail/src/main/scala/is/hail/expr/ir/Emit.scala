@@ -2855,10 +2855,13 @@ class Emit[C](
           ndI.map(cb){ ndPCode =>
             val ndPv = ndPCode.asNDArray.memoize(cb, "deforestNDArray_fall_through_ndarray")
             val shape = ndPv.shapes(cb)
+            val strides = ndPv.strides(cb)
+            val dataAddress = cb.newLocal[Long]("deforestNDArray_fall_through_ndarray_data")
+            cb.assign(dataAddress, ndPv.pt.dataPointer(ndPv.tcode[Long]))
 
             new NDArrayEmitter(shape) {
               override def outputElement(cb: EmitCodeBuilder, idxVars: IndexedSeq[Value[Long]]): PCode = {
-                ndPv.asInstanceOf[PNDArrayValue].loadElement(idxVars, cb).toPCode(cb, region.code)
+                ndPv.asInstanceOf[PNDArrayValue].loadElementFromDataPointerAndStrides(idxVars, dataAddress, strides, cb).toPCode(cb, region.code)
               }
             }
           }

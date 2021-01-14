@@ -10,6 +10,8 @@ trait SNDArray extends SType
 trait SNDArrayValue extends SValue {
   def loadElement(indices: IndexedSeq[Value[Long]], cb: EmitCodeBuilder): SCode
 
+  def loadElementFromDataPointerAndStrides(indices: IndexedSeq[Value[Long]], ndArrayDataPointer: Value[Long], strides: IndexedSeq[Value[Long]], cb: EmitCodeBuilder): SCode
+
   def shapes(cb: EmitCodeBuilder): IndexedSeq[Value[Long]]
 
   def strides(cb: EmitCodeBuilder): IndexedSeq[Value[Long]]
