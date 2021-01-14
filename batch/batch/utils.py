@@ -63,7 +63,7 @@ def worker_memory_per_core_mib(worker_type):
         m = 6656
     else:
         assert worker_type == 'highcpu', worker_type
-        m = 921
+        m = 920  # this number must be divisible by 4. I rounded down to the nearest MiB
     return m
 
 
