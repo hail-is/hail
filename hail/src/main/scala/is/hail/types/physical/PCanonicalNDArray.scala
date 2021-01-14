@@ -247,8 +247,8 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
     }
   }
 
-  override def dataPointer(ndAddr: Code[Long]): Code[Long] = data.pType.firstElementOffset(this.dataArrayPointer(ndAddr))
+  override def dataFirstElementPointer(ndAddr: Code[Long]): Code[Long] = data.pType.firstElementOffset(this.dataPArrayPointer(ndAddr))
 
-  override def dataArrayPointer(ndAddr: Code[Long]): Code[Long] = data.load(ndAddr)
+  override def dataPArrayPointer(ndAddr: Code[Long]): Code[Long] = data.load(ndAddr)
 }
 

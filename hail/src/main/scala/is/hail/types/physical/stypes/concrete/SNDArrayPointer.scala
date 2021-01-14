@@ -61,7 +61,7 @@ class SNDArrayPointerSettable(val st: SNDArrayPointer, val a: Settable[Long]) ex
     shape = Array.tabulate(pt.nDims)(i => cb.newLocal[Long](s"sndarray_shapes_$i", pt.loadShape(cb, a, i)))
     strides = Array.tabulate(pt.nDims)(i => cb.newLocal[Long](s"sndarray_strides_$i", pt.loadStride(cb, a, i)))
     dataFirstElement = cb.newLocal[Long]("sndarray_pointer_first_element")
-    cb.assign(dataFirstElement, pt.dataPointer(a))
+    cb.assign(dataFirstElement, pt.dataFirstElementPointer(a))
   }
 
   override def get: PCode = new SNDArrayPointerCode(st, a)

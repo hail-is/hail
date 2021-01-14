@@ -883,7 +883,7 @@ class Emit[C](
                   srvb.addLong(if (index < childPType.nDims) childStrides(index) else 0L),
                   srvb.advance())
               })
-          }, childPType.dataArrayPointer(pndVal.tcode[Long]), cb, region.code)
+          }, childPType.dataPArrayPointer(pndVal.tcode[Long]), cb, region.code)
         }
 
       case NDArrayRef(nd, idxs, errorId) =>
@@ -924,8 +924,8 @@ class Emit[C](
             val outputPType = PCanonicalNDArray(lPType.elementType, TNDArray.matMulNDims(lPType.nDims, rPType.nDims), true)
 
             if ((lPType.elementType.isInstanceOf[PFloat64] || lPType.elementType.isInstanceOf[PFloat32]) && lPType.nDims == 2 && rPType.nDims == 2) {
-              val leftDataAddress = lPType.dataPointer(leftPVal.tcode[Long])
-              val rightDataAddress = rPType.dataPointer(rightPVal.tcode[Long])
+              val leftDataAddress = lPType.dataFirstElementPointer(leftPVal.tcode[Long])
+              val rightDataAddress = rPType.dataFirstElementPointer(rightPVal.tcode[Long])
 
               val answerPArrayAddress = mb.genFieldThisRef[Long]()
               val M = lShape(lPType.nDims - 2)
