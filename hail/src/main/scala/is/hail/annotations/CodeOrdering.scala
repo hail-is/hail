@@ -257,7 +257,7 @@ object CodeOrdering {
     }
 
     override def lteqNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Boolean] = {
-      val elemLtEq = mb.getCodeOrdering(t1.elementType, t2.elementType, CodeOrdering.Gt())
+      val elemLtEq = mb.getCodeOrdering(t1.elementType, t2.elementType, CodeOrdering.Lteq())
       val elemEq = mb.getCodeOrdering(t1.elementType, t2.elementType, CodeOrdering.Equiv())
 
       val ret = cb.newLocal[Boolean]("iterable_lteq")
