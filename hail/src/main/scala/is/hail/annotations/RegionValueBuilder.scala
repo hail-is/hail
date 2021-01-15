@@ -410,7 +410,12 @@ class RegionValueBuilder(var region: Region) {
   def addAnnotation(t: Type, a: Annotation) {
     if (a == null)
       setMissing()
-    else
+    else {
+
+      currentType().unstagedStoreJavaObjectAtAddress(currentOffset(), a)
+      advance()
+      return
+
       t match {
         case TBoolean => addBoolean(a.asInstanceOf[Boolean])
         case TInt32 => addInt(a.asInstanceOf[Int])
@@ -505,6 +510,7 @@ class RegionValueBuilder(var region: Region) {
 
           addAnnotation(structWithStrides, Row(shapeRow, stridesRow, aNDArray.getRowMajorElements()))
       }
+    }
   }
 
   def addInlineRow(t: PBaseStruct, a: Row) {

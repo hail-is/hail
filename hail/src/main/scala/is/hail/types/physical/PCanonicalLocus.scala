@@ -143,4 +143,8 @@ final case class PCanonicalLocus(rgBc: BroadcastRG, required: Boolean = false) e
   }
 
   def loadFromNested(cb: EmitCodeBuilder, addr: Code[Long]): Code[Long] = addr
+
+  override def unstagedStoreJavaObjectAtAddress(addr: Long, annotation: Annotation): Unit = {
+    representation.unstagedStoreJavaObjectAtAddress(addr, annotation)
+  }
 }

@@ -1,6 +1,6 @@
 package is.hail.types.physical
 
-import is.hail.annotations.{CodeOrdering, Region, UnsafeOrdering}
+import is.hail.annotations.{Annotation, CodeOrdering, Region, UnsafeOrdering}
 import is.hail.asm4s._
 import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder}
 import is.hail.types.physical.stypes.SCode
@@ -63,4 +63,8 @@ final case class PCanonicalCall(required: Boolean = false) extends PCall {
   }
 
   def loadFromNested(cb: EmitCodeBuilder, addr: Code[Long]): Code[Long] = representation.loadFromNested(cb, addr)
+
+  override def unstagedStoreJavaObjectAtAddress(addr: Long, annotation: Annotation): Unit = {
+    representation.unstagedStoreJavaObjectAtAddress(addr, annotation)
+  }
 }
