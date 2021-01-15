@@ -391,7 +391,7 @@ class Container:
 
             async with self.step('creating'):
                 config = self.container_config()
-                async with worker.container_create_sem:
+                async with worker.create_container_sem:
                     log.info(f'starting {self}')
                     self.container = await docker_call_retry(MAX_DOCKER_OTHER_OPERATION_SECS, f'{self}')(
                         create_container, config, name=f'batch-{self.job.batch_id}-job-{self.job.job_id}-{self.name}')
@@ -931,7 +931,7 @@ class Worker:
         self.cores_mcpu = CORES * 1000
         self.last_updated = time_msecs()
         self.cpu_sem = FIFOWeightedSemaphore(self.cores_mcpu)
-        self.container_create_sem = asyncio.BoundedSemaphore(1)
+        self.create_container_sem = asyncio.BoundedSemaphore(2)
         self.pool = concurrent.futures.ThreadPoolExecutor()
         self.jobs = {}
 
