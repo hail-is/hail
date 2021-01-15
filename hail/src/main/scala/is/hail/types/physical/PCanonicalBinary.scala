@@ -1,6 +1,6 @@
 package is.hail.types.physical
 
-import is.hail.annotations.Region
+import is.hail.annotations.{Annotation, Region}
 import is.hail.asm4s._
 import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder}
 import is.hail.types.physical.stypes.SCode
@@ -162,6 +162,11 @@ class PCanonicalBinary(val required: Boolean) extends PBinary {
   override val encodableType = this
 
   def loadFromNested(cb: EmitCodeBuilder, addr: Code[Long]): Code[Long] = Region.loadAddress(addr)
+
+  override def unstagedStoreJavaObjectAtAddress(addr: Long, annotation: Annotation, region: Region): Unit = {
+    val bytes = annotation.asInstanceOf[Array[Byte]]
+    ???
+  }
 }
 
 object PCanonicalBinary {

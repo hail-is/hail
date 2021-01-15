@@ -65,7 +65,7 @@ class PFloat64(override val required: Boolean) extends PNumeric with PPrimitive 
 
   override def loadCheapPCode(cb: EmitCodeBuilder, addr: Code[Long]): PCode = new SFloat64Code(required, Region.loadDouble(addr))
 
-  override def unstagedStoreJavaObjectAtAddress(addr: Long, annotation: Annotation): Unit = {
+  override def unstagedStoreJavaObjectAtAddress(addr: Long, annotation: Annotation, region: Region): Unit = {
     Region.storeDouble(addr, annotation.asInstanceOf[Double])
   }
 }

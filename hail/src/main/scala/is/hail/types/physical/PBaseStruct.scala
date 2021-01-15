@@ -190,13 +190,13 @@ abstract class PBaseStruct extends PType {
       Gen.uniformSequence(types.map(t => t.genValue)).map(a => Annotation(a: _*))
   }
 
-  override def unstagedStoreJavaObjectAtAddress(addr: Long, annotation: Annotation): Unit = {
+  override def unstagedStoreJavaObjectAtAddress(addr: Long, annotation: Annotation, region: Region): Unit = {
     initialize(addr)
     val row = annotation.asInstanceOf[Row]
     // TODO Separate unsafe row handling
     this.types.zipWithIndex.foreach { case (fieldPt, fieldIdx) =>
       val fieldAddress = fieldOffset(addr, fieldIdx)
-      fieldPt.unstagedStoreJavaObjectAtAddress(fieldAddress, row(fieldIdx))
+      fieldPt.unstagedStoreJavaObjectAtAddress(fieldAddress, row(fieldIdx), region)
     }
   }
 }

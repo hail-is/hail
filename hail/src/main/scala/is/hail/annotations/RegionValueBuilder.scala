@@ -412,7 +412,7 @@ class RegionValueBuilder(var region: Region) {
       setMissing()
     else {
 
-      currentType().unstagedStoreJavaObjectAtAddress(currentOffset(), a)
+      currentType().unstagedStoreJavaObjectAtAddress(currentOffset(), a, region)
       advance()
       return
 
@@ -448,7 +448,7 @@ class RegionValueBuilder(var region: Region) {
 //            case r: Row =>
 //              addRow(t, r)
 //          }
-          currentType().unstagedStoreJavaObjectAtAddress(currentOffset(), a)
+          currentType().unstagedStoreJavaObjectAtAddress(currentOffset(), a, region)
           advance()
 
         case TSet(elementType) =>

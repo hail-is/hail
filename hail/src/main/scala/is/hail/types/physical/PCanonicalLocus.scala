@@ -146,5 +146,8 @@ final case class PCanonicalLocus(rgBc: BroadcastRG, required: Boolean = false) e
 
   override def unstagedStoreJavaObjectAtAddress(addr: Long, annotation: Annotation): Unit = {
     representation.unstagedStoreJavaObjectAtAddress(addr, annotation)
+
+  override def unstagedStoreJavaObjectAtAddress(addr: Long, annotation: Annotation, region: Region): Unit = {
+    representation.unstagedStoreJavaObjectAtAddress(addr, annotation, region)
   }
 }

@@ -490,4 +490,6 @@ abstract class PType extends Serializable with Requiredness {
   def loadFromNested(cb: EmitCodeBuilder, addr: Code[Long]): Code[Long]
 
   def unstagedStoreJavaObjectAtAddress(addr: Long, annotation: Annotation): Unit = ???
+
+  def unstagedStoreJavaObjectAtAddress(addr: Long, annotation: Annotation, region: Region): Unit = ???
 }
