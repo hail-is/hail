@@ -1260,7 +1260,7 @@ class Emit[C](
 
           def LWORK = Region.loadDouble(LWORKAddress).toI
 
-          val dataAddress = pndValue.pt.data.load(pndValue.tcode[Long])
+          val dataAddress = pndValue.pt.dataPArrayPointer(pndValue.tcode[Long])
 
           val tauPType = PCanonicalArray(PFloat64Required, true)
           val tauAddress = cb.newLocal[Long]("ndarray_qr_tauAddress")
