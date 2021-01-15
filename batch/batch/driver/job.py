@@ -84,7 +84,7 @@ async def mark_job_complete(app, batch_id, job_id, attempt_id, instance_name, ne
     scheduler_state_changed: Notice = app['scheduler_state_changed']
     cancel_ready_state_changed: asyncio.Event = app['cancel_ready_state_changed']
     db: Database = app['db']
-    inst_coll_manager: InstanceCollectionManager = app['inst_coll_manager']
+    inst_coll_manager: 'InstanceCollectionManager' = app['inst_coll_manager']
 
     id = (batch_id, job_id)
 

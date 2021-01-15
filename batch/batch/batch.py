@@ -116,4 +116,3 @@ FOR UPDATE;
         await tx.just_execute(
             'CALL cancel_batch(%s);', (batch_id,))
     await cancel()  # pylint: disable=no-value-for-parameter
-
