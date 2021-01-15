@@ -72,7 +72,7 @@ batch_validator = keyed({
     required('billing_project'): str_type,
     'callback': nullable(str),
     required('n_jobs'): int_type,
-    'token': str_type
+    required('token'): str_type
 })
 
 
