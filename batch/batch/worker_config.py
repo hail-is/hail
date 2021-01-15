@@ -116,7 +116,6 @@ class WorkerConfig:
 
     def resources(self, cpu_in_mcpu, memory_in_bytes):
         assert memory_in_bytes % (1024 * 1024) == 0
-
         resources = []
 
         preemptible = 'preemptible' if self.preemptible else 'nonpreemptible'

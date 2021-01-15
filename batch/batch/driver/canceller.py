@@ -38,12 +38,10 @@ class Canceller:
     async def cancel_cancelled_ready_jobs_loop_body(self):
         records = self.db.select_and_fetchall(
             '''
-SELECT user, n_cancelled_ready_jobs
-FROM (SELECT user,
-    CAST(COALESCE(SUM(n_cancelled_ready_jobs), 0) AS SIGNED) AS n_cancelled_ready_jobs
-  FROM user_inst_coll_resources
-  GROUP BY user) AS t
-WHERE n_cancelled_ready_jobs > 0;
+SELECT user, CAST(COALESCE(SUM(n_cancelled_ready_jobs), 0) AS SIGNED) AS n_cancelled_ready_jobs
+FROM user_inst_coll_resources
+GROUP BY user
+HAVING n_cancelled_ready_jobs > 0;
 ''',
             timer_description='in cancel_cancelled_ready_jobs: aggregate n_cancelled_ready_jobs')
         user_n_cancelled_ready_jobs = {
@@ -51,7 +49,7 @@ WHERE n_cancelled_ready_jobs > 0;
         }
 
         total = sum(user_n_cancelled_ready_jobs.values())
-        if not total:
+        if total == 0:
             should_wait = True
             return should_wait
         user_share = {
@@ -128,12 +126,10 @@ LIMIT %s;
     async def cancel_cancelled_running_jobs_loop_body(self):
         records = self.db.select_and_fetchall(
             '''
-SELECT user, n_cancelled_running_jobs
-FROM (SELECT user,
-    CAST(COALESCE(SUM(n_cancelled_running_jobs), 0) AS SIGNED) AS n_cancelled_running_jobs
-  FROM user_inst_coll_resources
-  GROUP BY user) AS t
-WHERE n_cancelled_running_jobs > 0;
+SELECT user, CAST(COALESCE(SUM(n_cancelled_running_jobs), 0) AS SIGNED) AS n_cancelled_running_jobs
+FROM user_inst_coll_resources
+GROUP BY user
+HAVING n_cancelled_running_jobs > 0;
 ''',
             timer_description='in cancel_cancelled_running_jobs: aggregate n_cancelled_running_jobs')
         user_n_cancelled_running_jobs = {
@@ -141,7 +137,7 @@ WHERE n_cancelled_running_jobs > 0;
         }
 
         total = sum(user_n_cancelled_running_jobs.values())
-        if not total:
+        if total == 0:
             should_wait = True
             return should_wait
         user_share = {

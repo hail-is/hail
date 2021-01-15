@@ -28,7 +28,7 @@ SELECT * FROM inst_colls;
 
         async for record in inst_coll_records:
             inst_coll_name = record['name']
-            is_pool = record['pool']
+            is_pool = record['is_pool']
 
             assert is_pool, record
             inst_coll = Pool(self.app, inst_coll_name, self.machine_name_prefix)

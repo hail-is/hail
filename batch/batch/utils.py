@@ -77,7 +77,7 @@ def memory_bytes_to_cores_mcpu(memory_in_bytes, worker_type):
 
 
 def cores_mcpu_to_memory_bytes(cores_in_mcpu, worker_type):
-    return math.ceil((cores_in_mcpu / 1000) * worker_memory_per_core_bytes(worker_type))
+    return int((cores_in_mcpu / 1000) * worker_memory_per_core_bytes(worker_type))
 
 
 def adjust_cores_for_memory_request(cores_in_mcpu, memory_in_bytes, worker_type):
