@@ -2017,6 +2017,7 @@ def read_matrix_table(path, *, _intervals=None, _filter_intervals=False, _drop_c
         return read_matrix_table(path, _drop_rows=_drop_rows, _drop_cols=_drop_cols, _intervals=intervals)
     return mt
 
+
 @typecheck(path=str)
 def get_vcf_metadata(path):
     """Extract metadata from VCF header.
@@ -2461,7 +2462,7 @@ def read_table(path, *, _intervals=None, _filter_intervals=False, _n_partitions=
 
     if _n_partitions:
         intervals = ht._calculate_new_partitions(_n_partitions)
-        return read_table(path, _intervals = intervals)
+        return read_table(path, _intervals=intervals)
     return ht
 
 

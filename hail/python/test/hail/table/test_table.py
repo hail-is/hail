@@ -1551,6 +1551,7 @@ def test_lowered_shuffle():
     ht = ht.order_by(-ht.idx)
     assert ht.aggregate(hl.agg.take(ht.idx, 3)) == [99, 98, 97]
 
+@fails_local_backend()
 def test_read_partitions():
     ht = hl.utils.range_table(100, 3)
     path = new_temp_file()
