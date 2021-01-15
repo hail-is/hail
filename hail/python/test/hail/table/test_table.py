@@ -1550,3 +1550,9 @@ def test_lowered_shuffle():
     ht = hl.utils.range_table(100, 10)
     ht = ht.order_by(-ht.idx)
     assert ht.aggregate(hl.agg.take(ht.idx, 3)) == [99, 98, 97]
+
+def test_read_partitions():
+    ht = hl.utils.range_table(100, 3)
+    path = new_temp_file()
+    ht.write(path)
+    assert hl.read_table(path, _n_partitions=10).n_partitions() == 10

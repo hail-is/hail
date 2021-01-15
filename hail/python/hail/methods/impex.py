@@ -1989,9 +1989,10 @@ def import_plink(bed, bim, fam,
            _intervals=nullable(sequenceof(anytype)),
            _filter_intervals=bool,
            _drop_cols=bool,
-           _drop_rows=bool)
+           _drop_rows=bool,
+           _n_partitions=nullable(int))
 def read_matrix_table(path, *, _intervals=None, _filter_intervals=False, _drop_cols=False,
-                      _drop_rows=False) -> MatrixTable:
+                      _drop_rows=False, _n_partitions=None) -> MatrixTable:
     """Read in a :class:`.MatrixTable` written with :meth:`.MatrixTable.write`.
 
     Parameters
@@ -2006,9 +2007,15 @@ def read_matrix_table(path, *, _intervals=None, _filter_intervals=False, _drop_c
     for rg_config in Env.backend().load_references_from_dataset(path):
         hl.ReferenceGenome._from_config(rg_config)
 
-    return MatrixTable(ir.MatrixRead(ir.MatrixNativeReader(path, _intervals, _filter_intervals),
-                       _drop_cols, _drop_rows))
+    if _intervals is not None and _n_partitions is not None:
+        raise ValueError("'read_matrix_table' does not support both _intervals and _n_partitions")
 
+    mt = MatrixTable(ir.MatrixRead(ir.MatrixNativeReader(path, _intervals, _filter_intervals),
+                                   _drop_cols, _drop_rows))
+    if _n_partitions:
+        intervals = mt._calculate_new_partitions(_n_partitions)
+        return read_matrix_table(path, _drop_rows=_drop_rows, _drop_cols=_drop_cols, _intervals=intervals)
+    return mt
 
 @typecheck(path=str)
 def get_vcf_metadata(path):
@@ -2430,8 +2437,9 @@ def index_bgen(path,
 
 @typecheck(path=str,
            _intervals=nullable(sequenceof(anytype)),
-           _filter_intervals=bool)
-def read_table(path, *, _intervals=None, _filter_intervals=False) -> Table:
+           _filter_intervals=bool,
+           _n_partitions=nullable(int))
+def read_table(path, *, _intervals=None, _filter_intervals=False, _n_partitions=None) -> Table:
     """Read in a :class:`.Table` written with :meth:`.Table.write`.
 
     Parameters
@@ -2446,8 +2454,15 @@ def read_table(path, *, _intervals=None, _filter_intervals=False) -> Table:
     for rg_config in Env.backend().load_references_from_dataset(path):
         hl.ReferenceGenome._from_config(rg_config)
 
+    if _intervals is not None and _n_partitions is not None:
+        raise ValueError("'read_table' does not support both _intervals and _n_partitions")
     tr = ir.TableNativeReader(path, _intervals, _filter_intervals)
-    return Table(ir.TableRead(tr, False))
+    ht = Table(ir.TableRead(tr, False))
+
+    if _n_partitions:
+        intervals = ht._calculate_new_partitions(_n_partitions)
+        return read_table(path, _intervals = intervals)
+    return ht
 
 
 @typecheck(t=Table,
