@@ -6,7 +6,7 @@ CREATE TABLE IF NOT EXISTS `inst_colls` (
   `max_live_instances` BIGINT NOT NULL,
   PRIMARY KEY (`name`)
 ) ENGINE = InnoDB;
-CREATE INDEX `inst_colls_pool` ON `inst_colls` (`is_pool`);
+CREATE INDEX `inst_colls_is_pool` ON `inst_colls` (`is_pool`);
 
 INSERT INTO inst_colls (`name`, `is_pool`, `boot_disk_size_gb`, `max_instances`, `max_live_instances`)
 SELECT 'standard', 1, worker_disk_size_gb, max_instances, pool_size
