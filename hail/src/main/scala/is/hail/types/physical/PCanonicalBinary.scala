@@ -165,7 +165,9 @@ class PCanonicalBinary(val required: Boolean) extends PBinary {
 
   override def unstagedStoreJavaObjectAtAddress(addr: Long, annotation: Annotation, region: Region): Unit = {
     val bytes = annotation.asInstanceOf[Array[Byte]]
-    ???
+    val valueAddress = allocate(region, bytes.length)
+    store(valueAddress, bytes)
+    Region.storeAddress(addr, valueAddress)
   }
 }
 

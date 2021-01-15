@@ -62,7 +62,7 @@ class RegionValueBuilder(var region: Region) {
 
   def start(newRoot: PType) {
     assert(inactive)
-    root = newRoot.fundamentalType
+    root = newRoot
   }
 
   def allocateRoot() {
