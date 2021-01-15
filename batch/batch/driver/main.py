@@ -549,7 +549,8 @@ WHERE actual_n_ready_jobs != expected_n_ready_jobs
    OR actual_n_running_jobs != expected_n_running_jobs
    OR actual_running_cores_mcpu != expected_running_cores_mcpu
    OR actual_n_cancelled_ready_jobs != expected_n_cancelled_ready_jobs
-   OR actual_n_cancelled_running_jobs != expected_n_cancelled_running_jobs;
+   OR actual_n_cancelled_running_jobs != expected_n_cancelled_running_jobs
+LOCK IN SHARE MODE;
 ''')
 
         async for record in user_inst_coll_with_broken_resources:

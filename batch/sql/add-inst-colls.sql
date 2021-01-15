@@ -1,6 +1,6 @@
 CREATE TABLE IF NOT EXISTS `inst_colls` (
   `name` VARCHAR(255) NOT NULL,
-  `pool` BOOLEAN NOT NULL,
+  `is_pool` BOOLEAN NOT NULL,
   `boot_disk_size_gb` BIGINT NOT NULL,
   `max_instances` BIGINT NOT NULL,
   `max_live_instances` BIGINT NOT NULL,
@@ -8,15 +8,15 @@ CREATE TABLE IF NOT EXISTS `inst_colls` (
 ) ENGINE = InnoDB;
 CREATE INDEX `inst_colls_pool` ON `inst_colls` (`pool`);
 
-INSERT INTO inst_colls (`name`, `pool`, `boot_disk_size_gb`, `max_instances`, `max_live_instances`)
+INSERT INTO inst_colls (`name`, `is_pool`, `boot_disk_size_gb`, `max_instances`, `max_live_instances`)
 SELECT 'standard', 1, worker_disk_size_gb, max_instances, pool_size
 FROM globals;
 
-INSERT INTO inst_colls (`name`, `pool`, `boot_disk_size_gb`, `max_instances`, `max_live_instances`)
+INSERT INTO inst_colls (`name`, `is_pool`, `boot_disk_size_gb`, `max_instances`, `max_live_instances`)
 SELECT 'highmem', 1, worker_disk_size_gb, max_instances, pool_size
 FROM globals;
 
-INSERT INTO inst_colls (`name`, `pool`, `boot_disk_size_gb`, `max_instances`, `max_live_instances`)
+INSERT INTO inst_colls (`name`, `is_pool`, `boot_disk_size_gb`, `max_instances`, `max_live_instances`)
 SELECT 'highcpu', 1, worker_disk_size_gb, max_instances, pool_size
 FROM globals;
 
