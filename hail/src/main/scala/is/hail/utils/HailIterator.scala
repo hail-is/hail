@@ -8,7 +8,7 @@ abstract class HailIterator[@specialized T] {
   def hasNext: Boolean
 
   def toArray(implicit tct: ClassTag[T]): Array[T] = {
-    val b = new ArrayBuilder[T]()
+    val b = new BoxedArrayBuilder[T]()
     while (hasNext)
       b += next()
     b.result()

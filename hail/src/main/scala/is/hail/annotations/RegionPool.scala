@@ -1,5 +1,6 @@
 package is.hail.annotations
 
+import is.hail.expr.ir.LongArrayBuilder
 import is.hail.utils._
 
 object RegionPool {
@@ -14,9 +15,9 @@ object RegionPool {
 
 final class RegionPool private(strictMemoryCheck: Boolean, threadName: String, threadID: Long) extends AutoCloseable {
   log.info(s"RegionPool: initialized for thread $threadID: $threadName")
-  protected[annotations] val freeBlocks: Array[ArrayBuilder[Long]] = Array.fill[ArrayBuilder[Long]](4)(new ArrayBuilder[Long])
-  protected[annotations] val regions = new ArrayBuilder[RegionMemory]()
-  private val freeRegions = new ArrayBuilder[RegionMemory]()
+  protected[annotations] val freeBlocks: Array[LongArrayBuilder] = Array.fill[LongArrayBuilder](4)(new LongArrayBuilder(8))
+  protected[annotations] val regions = new BoxedArrayBuilder[RegionMemory]()
+  private val freeRegions = new BoxedArrayBuilder[RegionMemory]()
   private val blocks: Array[Long] = Array(0L, 0L, 0L, 0L)
   private var totalAllocatedBytes: Long = 0L
   private var allocationEchoThreshold: Long = 256 * 1024
@@ -62,7 +63,7 @@ final class RegionPool private(strictMemoryCheck: Boolean, threadName: String, t
     Memory.malloc(size)
   }
 
-  protected[annotations] def freeChunks(ab: ArrayBuilder[Long], totalSize: Long): Unit = {
+  protected[annotations] def freeChunks(ab: LongArrayBuilder, totalSize: Long): Unit = {
     while (ab.size > 0) {
       val addr = ab.pop()
       Memory.free(addr)

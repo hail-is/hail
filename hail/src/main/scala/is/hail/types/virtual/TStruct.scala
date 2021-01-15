@@ -184,8 +184,8 @@ final case class TStruct(fields: IndexedSeq[Field]) extends TBaseStruct {
   }
 
   def annotate(other: TStruct): (TStruct, Merger) = {
-    val newFieldsBuilder = new ArrayBuilder[(String, Type)]()
-    val fieldIdxBuilder = new ArrayBuilder[Int]()
+    val newFieldsBuilder = new BoxedArrayBuilder[(String, Type)]()
+    val fieldIdxBuilder = new BoxedArrayBuilder[Int]()
     // In fieldIdxBuilder, positive integers are field indices from the left.
     // Negative integers are the complement of field indices from the right.
 
@@ -237,7 +237,7 @@ final case class TStruct(fields: IndexedSeq[Field]) extends TBaseStruct {
   }
 
   def insertFields(fieldsToInsert: TraversableOnce[(String, Type)]): TStruct = {
-    val ab = new ArrayBuilder[Field](fields.length)
+    val ab = new BoxedArrayBuilder[Field](fields.length)
     var i = 0
     while (i < fields.length) {
       ab += fields(i)
@@ -256,7 +256,7 @@ final case class TStruct(fields: IndexedSeq[Field]) extends TBaseStruct {
   }
 
   def rename(m: Map[String, String]): TStruct = {
-    val newFieldsBuilder = new ArrayBuilder[(String, Type)]()
+    val newFieldsBuilder = new BoxedArrayBuilder[(String, Type)]()
     fields.foreach { fd =>
       val n = fd.name
       newFieldsBuilder += (m.getOrElse(n, n) -> fd.typ)

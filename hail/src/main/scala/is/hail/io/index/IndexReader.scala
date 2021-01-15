@@ -186,7 +186,7 @@ class IndexReader(fs: FS,
     getLeafNode(index, height - 1, metadata.rootOffset)
 
   def queryByKey(key: Annotation): Array[LeafChild] = {
-    val ab = new ArrayBuilder[LeafChild]()
+    val ab = new BoxedArrayBuilder[LeafChild]()
     keyIterator(key).foreach(ab += _)
     ab.result()
   }

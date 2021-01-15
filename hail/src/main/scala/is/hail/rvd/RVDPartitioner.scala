@@ -411,7 +411,7 @@ object RVDPartitioner {
         intervals
       else {
         val unpruned = intervals.sorted(iord.toOrdering.asInstanceOf[Ordering[Interval]])
-        val ab = new ArrayBuilder[Interval](intervals.length)
+        val ab = new BoxedArrayBuilder[Interval](intervals.length)
         var tmp = unpruned(0)
         for (i <- unpruned.tail) {
           if (eord.gteq(tmp.right.coarsenRight(pk), i.left.coarsenLeft(pk)))

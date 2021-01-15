@@ -144,7 +144,7 @@ class StagedBlockLinkedListSuite extends HailSuite {
 
   @Test def testPushStrsMissing() {
     pool.scopedRegion { region =>
-      val a = new ArrayBuilder[String]()
+      val a = new BoxedArrayBuilder[String]()
       val b = new BlockLinkedList[String](region, PCanonicalString())
       for (i <- 1 to 100) {
         val elt = if(i%3 == 0) null else i.toString()

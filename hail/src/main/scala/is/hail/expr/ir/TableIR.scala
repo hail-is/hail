@@ -1700,7 +1700,7 @@ case class TableMultiWayZipJoin(children: IndexedSeq[TableIR], fieldName: String
       keyFields ++ Array((fieldName, PCanonicalArray(
         PCanonicalStruct(required = false, valueFields: _*), required = true))): _*)
     val localDataLength = children.length
-    val rvMerger = { (ctx: RVDContext, it: Iterator[ArrayBuilder[(RegionValue, Int)]]) =>
+    val rvMerger = { (ctx: RVDContext, it: Iterator[BoxedArrayBuilder[(RegionValue, Int)]]) =>
       val rvb = new RegionValueBuilder()
       val newRegionValue = RegionValue()
 
@@ -1967,7 +1967,7 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
         }
       }.collect()
 
-      val fileStack = new ArrayBuilder[Array[String]]()
+      val fileStack = new BoxedArrayBuilder[Array[String]]()
       var filesToMerge: Array[String] = files
       while (filesToMerge.length > 1) {
         val nToMerge = filesToMerge.length / 2
@@ -2010,7 +2010,7 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
         val partitionAggs = {
           var j = 0
           var x = i
-          val ab = new ArrayBuilder[String]
+          val ab = new BoxedArrayBuilder[String]
           while (j < fileStack.length) {
             assert(x <= fileStack(j).length)
             if (x % 2 != 0) {

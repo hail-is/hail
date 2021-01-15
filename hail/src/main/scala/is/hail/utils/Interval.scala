@@ -235,7 +235,7 @@ object Interval {
 
     val sorted = xs.sortBy(_.left: Any)(ord.toOrdering)
 
-    val ab = new ArrayBuilder[Interval]()
+    val ab = new BoxedArrayBuilder[Interval]()
     var i = 0
     while (i < sorted.length) {
       var interval = sorted(i)
@@ -255,7 +255,7 @@ object Interval {
 
     var i = 0
     var j = 0
-    val ab = new ArrayBuilder[Interval]()
+    val ab = new BoxedArrayBuilder[Interval]()
 
     while (!(i >= x1.length || j >= x2.length)) {
       val l = x1(i)

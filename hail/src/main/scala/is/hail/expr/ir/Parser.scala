@@ -280,7 +280,7 @@ object IRParser {
     f: (TokenIterator) => T,
     sep: Token,
     end: Token)(implicit tct: ClassTag[T]): Array[T] = {
-    val xs = new ArrayBuilder[T]()
+    val xs = new BoxedArrayBuilder[T]()
     while (it.hasNext && it.head != end) {
       xs += f(it)
       if (it.head == sep)
@@ -292,7 +292,7 @@ object IRParser {
   def repUntil[T](it: TokenIterator,
     f: (TokenIterator) => StackFrame[T],
     end: Token)(implicit tct: ClassTag[T]): StackFrame[Array[T]] = {
-    val xs = new ArrayBuilder[T]()
+    val xs = new BoxedArrayBuilder[T]()
     var cont: T => StackFrame[Array[T]] = null
     def loop(): StackFrame[Array[T]] = {
       if (it.hasNext && it.head != end) {
@@ -311,7 +311,7 @@ object IRParser {
   def repUntilNonStackSafe[T](it: TokenIterator,
     f: (TokenIterator) => T,
     end: Token)(implicit tct: ClassTag[T]): Array[T] = {
-    val xs = new ArrayBuilder[T]()
+    val xs = new BoxedArrayBuilder[T]()
     while (it.hasNext && it.head != end) {
       xs += f(it)
     }

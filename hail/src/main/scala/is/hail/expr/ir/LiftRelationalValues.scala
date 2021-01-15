@@ -1,15 +1,15 @@
 package is.hail.expr.ir
 
-import is.hail.utils.ArrayBuilder
+import is.hail.utils.BoxedArrayBuilder
 
 object LiftRelationalValues {
 
   def apply(ir0: IR): IR = {
 
-    def rewrite(ir: BaseIR, ab: ArrayBuilder[(String, IR)]): BaseIR = ir match {
+    def rewrite(ir: BaseIR, ab: BoxedArrayBuilder[(String, IR)]): BaseIR = ir match {
       case RelationalLet(name, value, body) =>
         val value2 = rewrite(value, ab).asInstanceOf[IR]
-        val ab2 = new ArrayBuilder[(String, IR)]
+        val ab2 = new BoxedArrayBuilder[(String, IR)]
         val body2 = rewrite(body, ab2).asInstanceOf[IR]
         RelationalLet(name, value2, ab2.result().foldRight[IR](body2) { case ((name, value), acc) => RelationalLet(name, value, acc) })
       case LiftMeOut(child) =>
@@ -40,7 +40,7 @@ object LiftRelationalValues {
           ir.copy(rwChildren)
     }
 
-    val ab = new ArrayBuilder[(String, IR)]
+    val ab = new BoxedArrayBuilder[(String, IR)]
     val rw = rewrite(ir0, ab).asInstanceOf[IR]
     ab.result().foldRight[IR](rw) { case ((name, value), acc) => RelationalLet(name, value, acc)
     }
