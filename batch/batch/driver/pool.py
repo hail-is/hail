@@ -467,4 +467,3 @@ LIMIT %s;
         log.info(f'schedule: scheduled {n_scheduled} jobs in {end - start}ms for {self.pool}')
 
         return should_wait
-

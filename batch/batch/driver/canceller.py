@@ -198,4 +198,3 @@ LIMIT %s;
         await waitable_pool.wait()
 
         return should_wait
-
