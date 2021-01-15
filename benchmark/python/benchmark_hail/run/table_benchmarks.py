@@ -186,6 +186,12 @@ def table_range_array_range_force_count():
     ht._force_count()
 
 
+@benchmark(args=random_doubles.handle('mt'))
+def table_aggregate_approx_cdf(mt_path):
+    mt = hl.read_matrix_table(mt_path)
+    mt.aggregate_entries((hl.agg.approx_cdf(mt.x), hl.agg.approx_cdf(mt.x ** 2), hl.agg.approx_cdf(1 / mt.x)))
+
+
 @benchmark(args=many_strings_table.handle('ht'))
 def table_aggregate_counter(ht_path):
     ht = hl.read_table(ht_path)
