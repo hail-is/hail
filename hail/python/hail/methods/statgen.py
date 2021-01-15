@@ -426,8 +426,11 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, pass_through=())
     num_y_lists = len(y_field_names)
 
     def all_defined(struct_root, field_names):
-        defined_array = hl.array([hl.is_defined(struct_root[field_name]) for field_name in field_names])
-        return defined_array.all(lambda a: a)
+        if field_names:
+            defined_array = hl.array([hl.is_defined(struct_root[field_name]) for field_name in field_names])
+            return defined_array.all(lambda a: a)
+        else:
+            return hl.bool(True)
 
     # Given a hail array, get the mean of the nonmissing entries and
     # return new array where the missing entries are the mean.
