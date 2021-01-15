@@ -6,7 +6,6 @@ import secrets
 import time
 import aiohttp
 import pytest
-import json
 
 from hailtop.config import get_deploy_config, get_user_config
 from hailtop.auth import service_auth_headers, get_userinfo
@@ -77,22 +76,25 @@ def test_msec_mcpu(client):
     b = builder.submit()
 
     batch = b.wait()
-    assert batch['state'] == 'success', batch
+    assert batch['state'] == 'success', str(batch)
 
+    job_status_logs = []
     batch_msec_mcpu2 = 0
     for job in b.jobs():
         # I'm dying
         job = client.get_job(job['batch_id'], job['job_id'])
-        job = job.status()
+        job_status = job.status()
+        log = job.log()
+        job_status_logs.append((job_status, log))
 
         # runs at 250mcpu
-        job_msec_mcpu2 = 250 * max(job['status']['end_time'] - job['status']['start_time'], 0)
+        job_msec_mcpu2 = 250 * max(job_status['status']['end_time'] - job_status['status']['start_time'], 0)
         # greater than in case there are multiple attempts
-        assert job['msec_mcpu'] >= job_msec_mcpu2, batch
+        assert job_status['msec_mcpu'] >= job_msec_mcpu2, str(job_status)
 
         batch_msec_mcpu2 += job_msec_mcpu2
 
-    assert batch['msec_mcpu'] == batch_msec_mcpu2, batch
+    assert batch['msec_mcpu'] == batch_msec_mcpu2, str((batch, job_status_logs))
 
 
 def test_attributes(client):
@@ -113,7 +115,7 @@ def test_garbage_image(client):
     status = j.wait()
     assert j._get_exit_codes(status) == {'main': None}, status
     assert j._get_error(status, 'main') is not None
-    assert status['state'] == 'Error', status
+    assert status['state'] == 'Error', str(status)
 
 
 def test_bad_command(client):
@@ -123,7 +125,7 @@ def test_bad_command(client):
     status = j.wait()
     assert j._get_exit_codes(status) == {'main': None}, status
     assert j._get_error(status, 'main') is not None
-    assert status['state'] == 'Error', status
+    assert status['state'] == 'Error', str(status)
 
 
 def test_invalid_resource_requests(client):
@@ -148,7 +150,7 @@ def test_out_of_memory(client):
                            resources=resources)
     builder.submit()
     status = j.wait()
-    assert j._get_out_of_memory(status, 'main')
+    assert j._get_out_of_memory(status, 'main'), str(status)
 
 
 def test_out_of_storage(client):
@@ -265,7 +267,7 @@ def test_fail(client):
     j = b.create_job(DOCKER_ROOT_IMAGE, ['false'])
     b.submit()
     status = j.wait()
-    assert j._get_exit_code(status, 'main') == 1
+    assert j._get_exit_code(status, 'main') == 1, str(status)
 
 
 def test_running_job_log_and_status(client):
@@ -320,13 +322,13 @@ def test_cancel_batch(client):
     b = b.submit()
 
     status = j.status()
-    assert status['state'] in ('Ready', 'Running'), status
+    assert status['state'] in ('Ready', 'Running'), str(status)
 
     b.cancel()
 
     status = j.wait()
-    assert status['state'] == 'Cancelled', status
-    assert 'log' not in status, status
+    assert status['state'] == 'Cancelled', str(status)
+    assert 'log' not in status, str(status)
 
     # cancelled job has no log
     try:
@@ -355,7 +357,7 @@ def test_get_job(client):
 
     j2 = client.get_job(*j.id)
     status2 = j2.status()
-    assert (status2['batch_id'], status2['job_id']) == j.id
+    assert (status2['batch_id'], status2['job_id']) == j.id, str(status2)
 
 
 def test_batch(client):
@@ -371,15 +373,15 @@ def test_batch(client):
     b.wait()
     bstatus = legacy_batch_status(b)
 
-    assert len(bstatus['jobs']) == 3, bstatus
+    assert len(bstatus['jobs']) == 3, str(bstatus)
     state_count = collections.Counter([j['state'] for j in bstatus['jobs']])
     n_cancelled = state_count['Cancelled']
     n_complete = state_count['Error'] + state_count['Failed'] + state_count['Success']
-    assert n_cancelled <= 1, bstatus
-    assert n_cancelled + n_complete == 3, bstatus
+    assert n_cancelled <= 1, str(bstatus)
+    assert n_cancelled + n_complete == 3, str(bstatus)
 
     n_failed = sum([j['exit_code'] > 0 for j in bstatus['jobs'] if j['state'] in ('Failed', 'Error')])
-    assert n_failed == 1, bstatus
+    assert n_failed == 1, str(bstatus)
 
 
 def test_batch_status(client):
@@ -388,7 +390,7 @@ def test_batch_status(client):
     b1 = b1.submit()
     b1.wait()
     b1s = b1.status()
-    assert b1s['complete'] and b1s['state'] == 'success', b1s
+    assert b1s['complete'] and b1s['state'] == 'success', str(b1s)
 
     b2 = client.create_batch()
     b2.create_job(DOCKER_ROOT_IMAGE, ['false'])
@@ -396,13 +398,13 @@ def test_batch_status(client):
     b2 = b2.submit()
     b2.wait()
     b2s = b2.status()
-    assert b2s['complete'] and b2s['state'] == 'failure', b2s
+    assert b2s['complete'] and b2s['state'] == 'failure', str(b2s)
 
     b3 = client.create_batch()
     b3.create_job(DOCKER_ROOT_IMAGE, ['sleep', '30'])
     b3 = b3.submit()
     b3s = b3.status()
-    assert not b3s['complete'] and b3s['state'] == 'running', b3s
+    assert not b3s['complete'] and b3s['state'] == 'running', str(b3s)
     b3.cancel()
 
     b4 = client.create_batch()
@@ -411,7 +413,7 @@ def test_batch_status(client):
     b4.cancel()
     b4.wait()
     b4s = b4.status()
-    assert b4s['complete'] and b4s['state'] == 'cancelled', b4s
+    assert b4s['complete'] and b4s['state'] == 'cancelled', str(b4s)
 
 
 def test_log_after_failing_job(client):
@@ -465,7 +467,7 @@ def test_gcr_image(client):
     j = builder.create_job(os.environ['HAIL_CURL_IMAGE'], ['echo', 'test'])
     builder.submit()
     status = j.wait()
-    assert status['state'] == 'Success', (status, j.log())
+    assert status['state'] == 'Success', str(status, j.log())
 
 
 def test_service_account(client):
@@ -479,7 +481,7 @@ def test_service_account(client):
         })
     b.submit()
     status = j.wait()
-    assert j._get_exit_code(status, 'main') == 0, status
+    assert j._get_exit_code(status, 'main') == 0, str(status)
 
 
 def test_port(client):
@@ -490,7 +492,7 @@ echo $HAIL_BATCH_WORKER_IP
 '''], port=5000)
     b = builder.submit()
     batch = b.wait()
-    assert batch['state'] == 'success', batch
+    assert batch['state'] == 'success', str(batch)
 
 
 def test_timeout(client):
@@ -501,7 +503,7 @@ def test_timeout(client):
     assert status['state'] == 'Error', (status, j.log())
     error_msg = j._get_error(status, 'main')
     assert error_msg and 'JobTimeoutError' in error_msg
-    assert j.exit_code(status) is None, status
+    assert j.exit_code(status) is None, str(status)
 
 
 def test_client_max_size(client):
@@ -532,7 +534,7 @@ def test_restartable_insert(client):
         b = builder.submit(max_bunch_size=1)
         b = client.get_batch(b.id)  # get a batch untainted by the FailureInjectingClientSession
         batch = b.wait()
-        assert batch['state'] == 'success', batch
+        assert batch['state'] == 'success', str(batch)
         assert len(list(b.jobs())) == 9
 
 
@@ -594,8 +596,8 @@ def test_verify_no_access_to_metadata_server(client):
                            ['curl', '-fsSL', 'metadata.google.internal', '--max-time', '10'])
     builder.submit()
     status = j.wait()
-    assert status['state'] == 'Failed', status
-    assert "Connection timed out" in j.log()['main'], (j.log()['main'], status)
+    assert status['state'] == 'Failed', str(status)
+    assert "Connection timed out" in j.log()['main'], str(j.log()['main'], status)
 
 
 def test_can_use_google_credentials(client):
@@ -665,7 +667,7 @@ echo "hello" | nc -q 1 localhost 5000
                            command=['/bin/bash', '-c', script])
     builder.submit()
     status = j.wait()
-    assert status['state'] == 'Success', (j.log()['main'], status)
+    assert status['state'] == 'Success', str(j.log()['main'], status)
     assert 'hello\n' == j.log()['main']
 
 
@@ -681,7 +683,7 @@ echo "hello" | nc -q 1 127.0.0.1 5000
                            command=['/bin/bash', '-c', script])
     builder.submit()
     status = j.wait()
-    assert status['state'] == 'Success', (j.log()['main'], status)
+    assert status['state'] == 'Success', str(j.log()['main'], status)
     assert 'hello\n' == j.log()['main']
 
 
@@ -697,8 +699,8 @@ echo "hello" | nc -q 1 $(hostname -i) 5000
                            command=['/bin/sh', '-c', script])
     builder.submit()
     status = j.wait()
-    assert status['state'] == 'Success', (j.log()['main'], status)
-    assert 'hello\n' == j.log()['main']
+    assert status['state'] == 'Success', str(j.log()['main'], status)
+    assert 'hello\n' == j.log()['main'], str(j.log())
 
 
 def test_verify_private_network_is_restricted(client):
@@ -721,7 +723,7 @@ def test_highmem_instance(client):
     j = builder.create_job(DOCKER_ROOT_IMAGE, ['true'], resources=resources)
     builder.submit()
     status = j.wait()
-    assert status['state'] == 'Success', (j.log()['main'], status)
+    assert status['state'] == 'Success', str(j.log()['main'], status)
 
 
 def test_highcpu_instance(client):
@@ -730,4 +732,4 @@ def test_highcpu_instance(client):
     j = builder.create_job(DOCKER_ROOT_IMAGE, ['true'], resources=resources)
     builder.submit()
     status = j.wait()
-    assert status['state'] == 'Success', (j.log()['main'], status)
+    assert status['state'] == 'Success', str(j.log()['main'], status)
