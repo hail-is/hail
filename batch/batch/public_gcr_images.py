@@ -1,3 +1,5 @@
+from .batch_configuration import PROJECT
+
 PUBLIC_GCR_IMAGES = (
-    'gcr.io/hail-vdc/' + name
+    f'gcr.io/{PROJECT}/{name}'
     for name in ('query',))

@@ -24,7 +24,7 @@ from hailtop.utils import (time_msecs, request_retry_transient_errors,
 from hailtop.httpx import client_session
 from hailtop.batch_client.parse import (parse_cpu_in_mcpu, parse_image_tag,
                                         parse_memory_in_bytes)
-from hailtop.batch.hail_genetics_images import HAIL_GENETICS_IMAGES
+from hailtop.batch.hail_genetics_images import HAIL_GENETICS, HAIL_GENETICS_IMAGES
 from hailtop import aiotools
 # import uvloop
 
@@ -244,8 +244,8 @@ class Container:
             log.info(f'adding latest tag to image {self.spec["image"]} for {self}')
             image += ':latest'
         if image in HAIL_GENETICS_IMAGES:
-            prefix = 'hailgenetics/'
-            self.image = 'gcr.io/' + PROJECT + '/' + image[len(prefix):]
+            image_name_without_prefix = image[len(HAIL_GENETICS):]
+            self.image = 'gcr.io/' + PROJECT + '/' + image_name_without_prefix
         else:
             self.image = image
 
