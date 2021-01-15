@@ -15,7 +15,7 @@
       <input type="checkbox"
              id="worker_local_ssd_data_disk"
              name="worker_local_ssd_data_disk"
-             {% if config['worker_local_ssd_data_disk']%}checked{% endif %}
+             {% if pool.worker_local_ssd_data_disk %}checked{% endif %}
       value="true" />
     </div>
     <div>Worker PD SSD data disk size (in GB): <input name="worker_pd_ssd_data_disk_size_gb" value="{{ pool.worker_pd_ssd_data_disk_size_gb }}" /></div>
@@ -24,7 +24,7 @@
       <input type="checkbox"
              id="enable_standing_worker"
              name="enable_standing_worker"
-             {% if config['enable_standing_worker']%}checked{% endif %}
+             {% if pool.enable_standing_worker %}checked{% endif %}
       value="true" />
     </div>
     <div>Standing worker cores: <input name="standing_worker_cores" value="{{ pool.standing_worker_cores }}" /></div>

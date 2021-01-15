@@ -35,7 +35,7 @@ CREATE TABLE IF NOT EXISTS `pools` (
 INSERT INTO pools (`name`, `worker_type`, `worker_cores`, `worker_local_ssd_data_disk`,
   `worker_pd_ssd_data_disk_size_gb`, `enable_standing_worker`, `standing_worker_cores`)
 SELECT 'standard', 'standard', worker_cores, worker_local_ssd_data_disk,
-  worker_pd_ssd_data_disk_size_gb, 1, standing_worker_cores
+  worker_pd_ssd_data_disk_size_gb, enable_standing_worker, standing_worker_cores
 FROM globals;
 
 INSERT INTO pools (`name`, `worker_type`, `worker_cores`, `worker_local_ssd_data_disk`,

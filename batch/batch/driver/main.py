@@ -340,7 +340,7 @@ async def config_update(request, userdata):  # pylint: disable=unused-argument
 
     pool_name = request.match_info['pool']
     pool = inst_coll_manager.get_inst_coll(pool_name)
-    pool_url_path = f'/pool/{pool_name}'
+    pool_url_path = f'/inst_coll/{pool_name}'
 
     if not isinstance(pool, Pool):
         set_message(session,
@@ -447,7 +447,8 @@ async def get_inst_coll(request, userdata):
 
     session = await aiohttp_session.get_session(request)
 
-    inst_coll_name = request.match_info['pool']
+    log.info(request.match_info)
+    inst_coll_name = request.match_info['inst_coll']
     inst_coll = inst_coll_manager.get_inst_coll(inst_coll_name)
 
     if not isinstance(inst_coll, InstanceCollection):
@@ -512,7 +513,7 @@ SELECT
   u.*
 FROM
 (
-  SELECT user, inst_coll
+  SELECT user, inst_coll,
     CAST(COALESCE(SUM(state = 'Ready' AND runnable), 0) AS SIGNED) AS actual_n_ready_jobs,
     CAST(COALESCE(SUM(cores_mcpu * (state = 'Ready' AND runnable)), 0) AS SIGNED) AS actual_ready_cores_mcpu,
     CAST(COALESCE(SUM(state = 'Running' AND (NOT cancelled)), 0) AS SIGNED) AS actual_n_running_jobs,
