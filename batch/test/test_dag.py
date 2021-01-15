@@ -59,7 +59,7 @@ def test_dag(client):
     for node in [head, left, right, tail]:
         node_status_logs.append((node.status(), node.log()))
 
-    assert batch_status_job_counter(status, 'Success') == 4, str(status, node_status_logs)
+    assert batch_status_job_counter(status, 'Success') == 4, str(status, str(node_status_logs))
 
     for node in [head, left, right, tail]:
         status = node._status
