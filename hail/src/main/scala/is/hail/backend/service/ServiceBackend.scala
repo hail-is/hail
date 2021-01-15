@@ -385,8 +385,8 @@ class ServiceBackend() extends Backend {
     val region = ctx.r
     val rowType = stage.rowType
     val keyType = rowType.typeAfterSelectNames(sortFields.map(_.field))
-    val rowEType = EType.fromTypeAndAnalysis(rowType, tableTypeRequiredness.rowType).asInstanceOf[EBaseStruct] // FIXME(danking): Probably not kosher
-    val keyEType = EType.fromTypeAndAnalysis(keyType, tableTypeRequiredness.rowType).asInstanceOf[EBaseStruct] // FIXME(danking): Probably not kosher
+    val rowEType = EType.fromTypeAndAnalysis(rowType, tableTypeRequiredness.rowType).asInstanceOf[EBaseStruct]
+    val keyEType = EType.fromTypeAndAnalysis(keyType, tableTypeRequiredness.rowType).asInstanceOf[EBaseStruct]
     val shuffleType = TShuffle(sortFields, rowType, rowEType, keyEType)
     val shuffleClient = new ShuffleClient(shuffleType, ctx)
     assert(keyType == shuffleClient.codecs.keyType)
@@ -406,7 +406,7 @@ class ServiceBackend() extends Backend {
         stage.mapCollect(relationalLetsAbove)(
           ShuffleWrite(Literal(shuffleType, uuid), _)))
 
-      val partitionBoundsPointers = shuffleClient.partitionBounds(region, stage.numPartitions) // FIXME(danking): number of partitions should be configurable?
+      val partitionBoundsPointers = shuffleClient.partitionBounds(region, stage.numPartitions)
       val partitionIntervals = partitionBoundsPointers.zip(partitionBoundsPointers.drop(1)).map { case (l, r) =>
         Interval(SafeRow(keyDecodedPType, l), SafeRow(keyDecodedPType, r), includesStart = true, includesEnd = false)
       }
