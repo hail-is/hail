@@ -166,7 +166,7 @@ class Shuffle (
     assert(hasNext != -1)
     while (hasNext == 1) {
       val off = decoder.readRegionValue(region)
-      val koff = codecs.keyDecodedPType.copyFromAddress(region, codecs.rowDecodedPType, off, false)
+      val koff = codecs.constructKeyFromDecodedRow(region, off)
       store.put(koff, off)
       hasNext = in.readByte()
     }
