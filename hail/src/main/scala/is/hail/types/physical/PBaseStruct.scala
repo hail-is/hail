@@ -6,6 +6,7 @@ import is.hail.check.Gen
 import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, IEmitCode, SortOrder}
 import is.hail.types.physical.stypes.interfaces.{SBaseStructCode, SBaseStructValue}
 import is.hail.utils._
+import org.apache.spark.sql.Row
 
 object PBaseStruct {
   def getByteSizeAndOffsets(types: Array[PType], nMissingBytes: Long, byteOffsets: Array[Long]): Long = {
@@ -187,6 +188,16 @@ abstract class PBaseStruct extends PType {
       Gen.const(Annotation.empty)
     } else
       Gen.uniformSequence(types.map(t => t.genValue)).map(a => Annotation(a: _*))
+  }
+
+  override def unstagedStoreJavaObjectAtAddress(addr: Long, annotation: Annotation): Unit = {
+    initialize(addr)
+    val row = annotation.asInstanceOf[Row]
+    // TODO Separate unsafe row handling
+    this.types.zipWithIndex.foreach { case (fieldPt, fieldIdx) =>
+      val fieldAddress = fieldOffset(addr, fieldIdx)
+      fieldPt.unstagedStoreJavaObjectAtAddress(fieldAddress, row(fieldIdx))
+    }
   }
 }
 

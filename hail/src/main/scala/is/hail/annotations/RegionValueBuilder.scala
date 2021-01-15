@@ -437,12 +437,14 @@ class RegionValueBuilder(var region: Region) {
           }
 
         case t: TBaseStruct =>
-          a match {
-            case ur: UnsafeRow if currentType() == ur.t =>
-              addUnsafeRow(ur.t, ur)
-            case r: Row =>
-              addRow(t, r)
-          }
+//          a match {
+//            case ur: UnsafeRow if currentType() == ur.t =>
+//              addUnsafeRow(ur.t, ur)
+//            case r: Row =>
+//              addRow(t, r)
+//          }
+          currentType().unstagedStoreJavaObjectAtAddress(currentOffset(), a)
+          advance()
 
         case TSet(elementType) =>
           val s = a.asInstanceOf[Set[Annotation]]
