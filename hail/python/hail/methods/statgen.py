@@ -456,8 +456,13 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, pass_through=())
         return hl.nd.array(ys_and_covs_to_keep.map(lambda struct: array_from_struct(struct, one_y_field_name_set)))
 
     def setup_globals(ht):
-        list_of_ys_and_covs_to_keep_with_indices = \
-            [hl.enumerate(ht[sample_field_name]).filter(lambda struct_with_index: all_defined(struct_with_index[1], one_y_field_name_set + cov_field_names)) for one_y_field_name_set in y_field_names]
+        all_covs_defined = ht[sample_field_name].map(lambda sample_struct: all_defined(sample_struct, cov_field_names))
+        list_of_ys_and_covs_to_keep_with_indices = [
+            hl.enumerate(ht[sample_field_name]).filter(
+                lambda struct_with_index:
+                all_covs_defined[struct_with_index[0]] & all_defined(struct_with_index[1], one_y_field_name_set))
+            for one_y_field_name_set in y_field_names
+        ]
 
         list_of_ys_and_covs_to_keep = [inner_list.map(lambda pair: pair[1]) for inner_list in list_of_ys_and_covs_to_keep_with_indices]
         kept_samples = [inner_list.map(lambda pair: pair[0]) for inner_list in list_of_ys_and_covs_to_keep_with_indices]
