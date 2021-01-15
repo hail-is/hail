@@ -15,7 +15,7 @@ import is.hail.rvd.RVDPartitioner
 import is.hail.services.{DeployConfig, Tokens}
 import is.hail.services.batch_client.BatchClient
 import is.hail.services.shuffler.ShuffleClient
-import is.hail.types.{BlockMatrixType, TypeWithRequiredness}
+import is.hail.types._
 import is.hail.types.encoded.{EBaseStruct, EType}
 import is.hail.types.physical.{PBaseStruct, PType}
 import is.hail.types.virtual.{TArray, TInt64, TInterval, TShuffle, TStruct, Type}
@@ -375,12 +375,18 @@ class ServiceBackend() extends Backend {
     }
   }
 
-  def lowerDistributedSort(ctx: ExecuteContext, stage: TableStage, sortFields: IndexedSeq[SortField], relationalLetsAbove: Map[String, IR]): TableStage = {
+  def lowerDistributedSort(
+    ctx: ExecuteContext,
+    stage: TableStage,
+    sortFields: IndexedSeq[SortField],
+    relationalLetsAbove: Map[String, IR],
+    tableTypeRequiredness: RTable
+  ): TableStage = {
     val region = ctx.r
     val rowType = stage.rowType
     val keyType = rowType.typeAfterSelectNames(sortFields.map(_.field))
-    val rowEType = EType.fromTypeAndAnalysis(rowType, TypeWithRequiredness(rowType)).asInstanceOf[EBaseStruct] // FIXME(danking): Probably not kosher
-    val keyEType = EType.fromTypeAndAnalysis(keyType, TypeWithRequiredness(keyType)).asInstanceOf[EBaseStruct] // FIXME(danking): Probably not kosher
+    val rowEType = EType.fromTypeAndAnalysis(rowType, tableTypeRequiredness.rowType).asInstanceOf[EBaseStruct] // FIXME(danking): Probably not kosher
+    val keyEType = EType.fromTypeAndAnalysis(keyType, tableTypeRequiredness.rowType).asInstanceOf[EBaseStruct] // FIXME(danking): Probably not kosher
     val shuffleType = TShuffle(sortFields, rowType, rowEType, keyEType)
     val shuffleClient = new ShuffleClient(shuffleType, ctx)
     assert(keyType == shuffleClient.codecs.keyType)
