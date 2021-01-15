@@ -7,6 +7,7 @@ from hailtop import aiotools
 from gear import Database
 
 from .job import unschedule_job, mark_job_complete
+from ..utils import Box
 
 log = logging.getLogger('canceller')
 
@@ -37,10 +38,12 @@ class Canceller:
     async def cancel_cancelled_ready_jobs_loop_body(self):
         records = self.db.select_and_fetchall(
             '''
-SELECT user, CAST(COALESCE(SUM(n_cancelled_ready_jobs), 0) AS SIGNED) AS n_cancelled_ready_jobs
-FROM user_inst_coll_resources
-GROUP BY user
-HAVING n_cancelled_ready_jobs > 0;
+SELECT user, n_cancelled_ready_jobs
+FROM (SELECT user,
+    CAST(COALESCE(SUM(n_cancelled_ready_jobs), 0) AS SIGNED) AS n_cancelled_ready_jobs
+  FROM user_inst_coll_resources
+  GROUP BY user) AS t
+WHERE n_cancelled_ready_jobs > 0;
 ''',
             timer_description='in cancel_cancelled_ready_jobs: aggregate n_cancelled_ready_jobs')
         user_n_cancelled_ready_jobs = {
@@ -48,7 +51,7 @@ HAVING n_cancelled_ready_jobs > 0;
         }
 
         total = sum(user_n_cancelled_ready_jobs.values())
-        if total == 0:
+        if not total:
             should_wait = True
             return should_wait
         user_share = {
@@ -56,25 +59,46 @@ HAVING n_cancelled_ready_jobs > 0;
             for user, user_n_jobs in user_n_cancelled_ready_jobs.items()
         }
 
+        async def user_cancelled_ready_jobs(user, remaining):
+            async for batch in self.db.select_and_fetchall(
+                    '''
+SELECT id, cancelled
+FROM batches
+WHERE user = %s AND `state` = 'running';
+''',
+                    (user,),
+                    timer_description=f'in cancel_cancelled_ready_jobs: get {user} running batches'):
+                if batch['cancelled']:
+                    async for record in self.db.select_and_fetchall(
+                            '''
+SELECT jobs.job_id
+FROM jobs FORCE INDEX(jobs_batch_id_state_always_run_cancelled)
+WHERE batch_id = %s AND state = 'Ready' AND always_run = 0
+LIMIT %s;
+''',
+                            (batch['id'], remaining.value),
+                            timer_description=f'in cancel_cancelled_ready_jobs: get {user} batch {batch["id"]} ready cancelled jobs (1)'):
+                        record['batch_id'] = batch['id']
+                        yield record
+                else:
+                    async for record in self.db.select_and_fetchall(
+                            '''
+SELECT jobs.job_id
+FROM jobs FORCE INDEX(jobs_batch_id_state_always_run_cancelled)
+WHERE batch_id = %s AND state = 'Ready' AND always_run = 0 AND cancelled = 1
+LIMIT %s;
+''',
+                            (batch['id'], remaining.value),
+                            timer_description=f'in cancel_cancelled_ready_jobs: get {user} batch {batch["id"]} ready cancelled jobs (2)'):
+                        record['batch_id'] = batch['id']
+                        yield record
+
         waitable_pool = WaitableSharedPool(self.async_worker_pool)
 
         should_wait = True
         for user, share in user_share.items():
-            n_cancelled = 0
-            async for record in self.db.select_and_fetchall(
-                    '''
-SELECT batch_id, job_id
-FROM batches
-INNER JOIN jobs ON batches.id = jobs.batch_id
-WHERE batches.user = %s
-  AND batches.state = 'running'
-  AND jobs.state = 'Ready'
-  AND NOT jobs.always_run
-  AND (jobs.cancelled OR batches.cancelled)
-LIMIT %s;
-''',
-                    (user, share + 1),
-                    timer_description='in cancel_cancelled_ready_jobs: get cancelled ready jobs'):
+            remaining = Box(share)
+            async for record in user_cancelled_ready_jobs(user, remaining):
                 batch_id = record['batch_id']
                 job_id = record['job_id']
                 id = (batch_id, job_id)
@@ -92,11 +116,10 @@ LIMIT %s;
                     cancel_with_error_handling,
                     self.app, batch_id, job_id, id)
 
-                if n_cancelled == share:
+                remaining.value -= 1
+                if remaining.value <= 0:
                     should_wait = False
                     break
-
-                n_cancelled += 1
 
         await waitable_pool.wait()
 
@@ -105,10 +128,12 @@ LIMIT %s;
     async def cancel_cancelled_running_jobs_loop_body(self):
         records = self.db.select_and_fetchall(
             '''
-SELECT user, CAST(COALESCE(SUM(n_cancelled_running_jobs), 0) AS SIGNED) AS n_cancelled_running_jobs
-FROM user_inst_coll_resources
-GROUP BY user
-HAVING n_cancelled_running_jobs > 0;
+SELECT user, n_cancelled_running_jobs
+FROM (SELECT user,
+    CAST(COALESCE(SUM(n_cancelled_running_jobs), 0) AS SIGNED) AS n_cancelled_running_jobs
+  FROM user_inst_coll_resources
+  GROUP BY user) AS t
+WHERE n_cancelled_running_jobs > 0;
 ''',
             timer_description='in cancel_cancelled_running_jobs: aggregate n_cancelled_running_jobs')
         user_n_cancelled_running_jobs = {
@@ -116,7 +141,7 @@ HAVING n_cancelled_running_jobs > 0;
         }
 
         total = sum(user_n_cancelled_running_jobs.values())
-        if total == 0:
+        if not total:
             should_wait = True
             return should_wait
         user_share = {
@@ -124,48 +149,53 @@ HAVING n_cancelled_running_jobs > 0;
             for user, user_n_jobs in user_n_cancelled_running_jobs.items()
         }
 
+        async def user_cancelled_running_jobs(user, remaining):
+            async for batch in self.db.select_and_fetchall(
+                    '''
+SELECT id
+FROM batches
+WHERE user = %s AND `state` = 'running' AND cancelled = 1;
+''',
+                    (user,),
+                    timer_description=f'in cancel_cancelled_running_jobs: get {user} cancelled batches'):
+                async for record in self.db.select_and_fetchall(
+                        '''
+SELECT jobs.job_id, attempts.attempt_id, attempts.instance_name
+FROM jobs FORCE INDEX(jobs_batch_id_state_always_run_cancelled)
+STRAIGHT_JOIN attempts
+  ON attempts.batch_id = jobs.batch_id AND attempts.job_id = jobs.job_id
+WHERE jobs.batch_id = %s AND state = 'Running' AND always_run = 0 AND cancelled = 0
+LIMIT %s;
+''',
+                        (batch['id'], remaining.value),
+                        timer_description=f'in cancel_cancelled_running_jobs: get {user} batch {batch["id"]} running cancelled jobs'):
+                    record['batch_id'] = batch['id']
+                    yield record
+
         waitable_pool = WaitableSharedPool(self.async_worker_pool)
 
         should_wait = True
         for user, share in user_share.items():
-            n_cancelled = 0
-            async for record in self.db.select_and_fetchall(
-                    '''
-SELECT attempts.batch_id, attempts.job_id, attempts.attempt_id,
-       attempts.instance_name
-FROM batches
-INNER JOIN jobs ON batches.id = jobs.batch_id
-INNER JOIN attempts ON attempts.batch_id = jobs.batch_id AND
-                       attempts.job_id = jobs.job_id
-WHERE batches.user = %s
-  AND batches.state = 'running'
-  AND jobs.state = 'Running'
-  AND NOT jobs.always_run
-  AND NOT jobs.cancelled
-LIMIT %s;
-''',
-                    (user, share + 1),
-                    timer_description='in cancel_cancelled_running_jobs: get cancelled running jobs'):
+            remaining = Box(share)
+            async for record in user_cancelled_running_jobs(user, remaining):
                 batch_id = record['batch_id']
                 job_id = record['job_id']
                 id = (batch_id, job_id)
-                log.info(f'cancelling job {id}')
 
                 async def unschedule_with_error_handling(app, record, instance_name, id):
                     try:
                         await unschedule_job(app, record)
                     except Exception:
                         log.info(f'unscheduling job {id} on instance {instance_name}', exc_info=True)
-
                 await waitable_pool.call(
                     unschedule_with_error_handling, self.app, record, record['instance_name'], id)
 
-                if n_cancelled == share:
+                remaining.value -= 1
+                if remaining.value <= 0:
                     should_wait = False
                     break
-
-                n_cancelled += 1
 
         await waitable_pool.wait()
 
         return should_wait
+
