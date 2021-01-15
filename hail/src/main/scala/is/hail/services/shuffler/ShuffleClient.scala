@@ -146,6 +146,9 @@ class ShuffleClient (
   def this(shuffleType: TShuffle, uuid: Array[Byte], rowEncodingPType: PType, keyEncodingPType: PType) =
     this(shuffleType, uuid, Option(rowEncodingPType), Option(keyEncodingPType), None)
 
+  def this(shuffleType: TShuffle, uuid: Array[Byte], ctx: ExecuteContext) =
+    this(shuffleType, uuid, None, None, Some(ctx))
+
   def this(shuffleType: TShuffle, uuid: Array[Byte]) =
     this(shuffleType, uuid, None, None, None)
 
@@ -308,6 +311,6 @@ class ShuffleClient (
     out.writeByte(Wire.EOS)
     out.flush()
     assert(in.readByte() == Wire.EOS)
-    using(s) { _ => () }  // close with proper exception suppression notices
+    s.close()
   }
 }

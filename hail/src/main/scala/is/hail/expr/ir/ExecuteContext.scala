@@ -62,6 +62,7 @@ class ExecuteContext(
   def fsBc: BroadcastValue[FS] = fs.broadcast
 
   private val tmpPaths = mutable.ArrayBuffer[String]()
+  private val cleanupFunctions = mutable.ArrayBuffer[() => Unit]()
 
   val memo: mutable.Map[Any, Any] = new mutable.HashMap[Any, Any]()
 
@@ -71,9 +72,33 @@ class ExecuteContext(
     path
   }
 
+  def ownCloseable(c: Closeable): Unit = {
+    cleanupFunctions += c.close
+  }
+
+  def ownCleanup(cleanupFunction: () => Unit): Unit = {
+    cleanupFunctions += cleanupFunction
+  }
+
   def close(): Unit = {
     for (p <- tmpPaths)
       fs.delete(p, recursive = true)
     tmpPaths.clear()
+
+    var exception: Exception = null
+    for (cleanupFunction <- cleanupFunctions) {
+      try {
+        cleanupFunction()
+      } catch {
+        case exc: Exception =>
+          if (exception == null) {
+            exception = new RuntimeException("ExecuteContext could not cleanup all resources")
+          }
+          exception.addSuppressed(exc)
+      }
+    }
+    if (exception != null) {
+      throw exception
+    }
   }
 }

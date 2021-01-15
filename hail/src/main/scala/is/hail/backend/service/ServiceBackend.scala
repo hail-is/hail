@@ -386,9 +386,15 @@ class ServiceBackend() extends Backend {
     assert(keyType == shuffleClient.codecs.keyType)
     val keyDecodedPType = shuffleClient.codecs.keyDecodedPType
     shuffleClient.start()
-    try {
-      val uuid = shuffleClient.uuid
+    val uuid = shuffleClient.uuid
 
+    ctx.ownCleanup({ () =>
+      using(new ShuffleClient(shuffleType, uuid, ctx)) { shuffleClient =>
+        shuffleClient.stop()
+      }
+    })
+
+    try {
       val successfulPartitionIds = execute(
         ctx,
         stage.mapCollect(relationalLetsAbove)(
