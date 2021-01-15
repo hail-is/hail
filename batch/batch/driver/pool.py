@@ -12,7 +12,7 @@ from hailtop.utils import (secret_alnum_string, retry_long_running, run_if_chang
                            periodically_call)
 
 from ..batch_configuration import STANDING_WORKER_MAX_IDLE_TIME_MSECS, WORKER_MAX_IDLE_TIME_MSECS
-from ..utils import WindowFractionCounter
+from ..utils import WindowFractionCounter, Box
 from .create_instance import create_instance
 from .instance import Instance
 from .instance_collection import InstanceCollection
@@ -346,13 +346,13 @@ HAVING n_ready_jobs + n_running_jobs > 0;
     async def schedule_loop_body(self):
         log.info(f'schedule {self.pool}: starting')
         start = time_msecs()
-        n_total_scheduled = 0
+        n_scheduled = 0
 
         user_resources = await self.compute_fair_share()
 
         total = sum(resources['allocated_cores_mcpu']
                     for resources in user_resources.values())
-        if total == 0:
+        if not total:
             log.info(f'schedule {self.pool}: no allocated cores')
             should_wait = True
             return should_wait
@@ -360,6 +360,45 @@ HAVING n_ready_jobs + n_running_jobs > 0;
             user: max(int(300 * resources['allocated_cores_mcpu'] / total + 0.5), 20)
             for user, resources in user_resources.items()
         }
+
+        async def user_runnable_jobs(user, remaining):
+            async for batch in self.db.select_and_fetchall(
+                    '''
+SELECT id, cancelled, userdata, user, format_version
+FROM batches
+WHERE user = %s AND `state` = 'running';
+''',
+                    (user,),
+                    timer_description=f'in schedule {self.pool}: get {user} running batches'):
+                async for record in self.db.select_and_fetchall(
+                        '''
+SELECT job_id, spec, cores_mcpu
+FROM jobs FORCE INDEX(jobs_batch_id_state_always_run_inst_coll_cancelled)
+WHERE batch_id = %s AND state = 'Ready' AND always_run = 1 AND inst_coll = %s
+LIMIT %s;
+''',
+                        (batch['id'], self.pool.name, remaining.value),
+                        timer_description=f'in schedule {self.pool}: get {user} batch {batch["id"]} runnable jobs (1)'):
+                    record['batch_id'] = batch['id']
+                    record['userdata'] = batch['userdata']
+                    record['user'] = batch['user']
+                    record['format_version'] = batch['format_version']
+                    yield record
+                if not batch['cancelled']:
+                    async for record in self.db.select_and_fetchall(
+                            '''
+SELECT job_id, spec, cores_mcpu
+FROM jobs FORCE INDEX(jobs_batch_id_state_always_run_cancelled)
+WHERE batch_id = %s AND state = 'Ready' AND always_run = 0 AND inst_coll = %s AND cancelled = 0
+LIMIT %s;
+''',
+                            (batch['id'], self.pool.name, remaining.value),
+                            timer_description=f'in schedule {self.pool}: get {user} batch {batch["id"]} runnable jobs (2)'):
+                        record['batch_id'] = batch['id']
+                        record['userdata'] = batch['userdata']
+                        record['user'] = batch['user']
+                        record['format_version'] = batch['format_version']
+                        yield record
 
         waitable_pool = WaitableSharedPool(self.async_worker_pool)
 
@@ -380,31 +419,16 @@ HAVING n_ready_jobs + n_running_jobs > 0;
         should_wait = True
         for user, resources in user_resources.items():
             allocated_cores_mcpu = resources['allocated_cores_mcpu']
-
-            share = user_share[user]
-            scheduled_cores_mcpu = 0
-            n_scheduled = 0
-
-            log.info(f'schedule {self.pool}: user-share: {user}: {allocated_cores_mcpu} {share}')
-
             if allocated_cores_mcpu == 0:
                 continue
 
-            async for record in self.db.select_and_fetchall(
-                    '''
-SELECT jobs.batch_id, jobs.job_id, userdata, user, format_version,
-  spec, cores_mcpu
-FROM batches
-INNER JOIN jobs ON batches.id = jobs.batch_id
-WHERE batches.user = %s
-  AND batches.state = 'running'
-  AND jobs.state = 'Ready'
-  AND (jobs.always_run OR NOT jobs.cancelled)
-  AND inst_coll = %s
-LIMIT %s;
-''',
-                    (user, self.pool.name, share + 1),
-                    timer_description=f'in schedule {self.pool}: get {user} runnable jobs'):
+            scheduled_cores_mcpu = 0
+            share = user_share[user]
+
+            log.info(f'schedule {self.pool}: user-share: {user}: {allocated_cores_mcpu} {share}')
+
+            remaining = Box(share)
+            async for record in user_runnable_jobs(user, remaining):
                 batch_id = record['batch_id']
                 job_id = record['job_id']
                 id = (batch_id, job_id)
@@ -423,7 +447,6 @@ LIMIT %s;
                     instance.adjust_free_cores_in_memory(-record['cores_mcpu'])
                     scheduled_cores_mcpu += record['cores_mcpu']
                     n_scheduled += 1
-                    n_total_scheduled += 1
                     should_wait = False
 
                     async def schedule_with_error_handling(app, record, id, instance):
@@ -434,15 +457,14 @@ LIMIT %s;
                     await waitable_pool.call(
                         schedule_with_error_handling, self.app, record, id, instance)
 
-                if n_scheduled == share:
-                    should_wait = False
+                remaining.value -= 1
+                if remaining.value <= 0:
                     break
-
-                n_scheduled += 1
 
         await waitable_pool.wait()
 
         end = time_msecs()
-        log.info(f'schedule: scheduled {n_total_scheduled} jobs in {end - start}ms for {self.pool}')
+        log.info(f'schedule: scheduled {n_scheduled} jobs in {end - start}ms for {self.pool}')
 
         return should_wait
+
