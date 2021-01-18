@@ -94,7 +94,7 @@ case class LogisticRegression(
     val newRVD = mv.rvd.mapPartitions(newRVDType) { (ctx, it) =>
       val rvb = ctx.rvb
 
-      val missingCompleteCols = new ArrayBuilder[Int]()
+      val missingCompleteCols = new BoxedArrayBuilder[Int]()
       val _nullFits = nullFitBc.value
       val _yVecs = yVecsBc.value
       val X = XBc.value.copy

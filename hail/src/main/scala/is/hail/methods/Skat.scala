@@ -356,7 +356,7 @@ case class Skat(
         val key = Annotation.copy(keyType.virtualType, UnsafeRow.read(keyType, ctx.r, fullRowType.loadField(ptr, keyIndex)))
         val data = new Array[Double](n)
 
-        RegressionUtils.setMeanImputedDoubles(data, 0, completeColIdxBc.value, new ArrayBuilder[Int](),
+        RegressionUtils.setMeanImputedDoubles(data, 0, completeColIdxBc.value, new BoxedArrayBuilder[Int](),
           ptr, fullRowType, entryArrayType, entryType, entryArrayIdx, fieldIdx)
         Some(key -> (BDV(data) -> weight))
       } else None

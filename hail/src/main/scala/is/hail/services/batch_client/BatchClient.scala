@@ -74,9 +74,9 @@ class BatchClient(
     request(new HttpDelete(s"$baseUrl$path"))
 
   def createJobs(batchID: Long, jobs: IndexedSeq[JObject]): Unit = {
-    val bunches = new ArrayBuilder[Array[Array[Byte]]]()
+    val bunches = new BoxedArrayBuilder[Array[Array[Byte]]]()
 
-    val bunchb = new ArrayBuilder[Array[Byte]]()
+    val bunchb = new BoxedArrayBuilder[Array[Byte]]()
 
     var i = 0
     var size = 0
@@ -97,7 +97,7 @@ class BatchClient(
     bunchb.clear()
     size = 0
 
-    val b = new ArrayBuilder[Byte]()
+    val b = new BoxedArrayBuilder[Byte]()
 
     i = 0 // reuse
     while (i < bunches.length) {

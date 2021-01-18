@@ -2729,7 +2729,7 @@ class Emit[C](
 
               IEmitCode.multiFlatMap[Int, SCode, NDArrayEmitter](indexingIndices, indexingIndex => slicesValue.loadField(cb, indexingIndex), cb) { indexingSCodes =>
                 val indexingValues = indexingSCodes.map(sCode => sCode.memoize(cb, "ndarray_slice_indexer"))
-                val slicingValueTriples = new ArrayBuilder[(Value[Long], Value[Long], Value[Long])]()
+                val slicingValueTriples = new BoxedArrayBuilder[(Value[Long], Value[Long], Value[Long])]()
                 val outputShape = {
                   IEmitCode.multiFlatMap[Int, SCode, IndexedSeq[Value[Long]]](slicingIndices,
                     valueIdx => slicesValue.loadField(cb, valueIdx), cb) { sCodeSlices: IndexedSeq[SCode] =>

@@ -192,9 +192,9 @@ class IndexWriterUtils(path: String, fs: FS, meta: StagedIndexMetadata) {
     using(fs.create(metadataPath)) { os => meta.serialize(os, height, rootOffset, nKeys) }
   }
 
-  val rBuilder = new ArrayBuilder[Region]()
-  val aBuilder = new ArrayBuilder[Long]()
-  val lBuilder = new ArrayBuilder[Int]()
+  val rBuilder = new BoxedArrayBuilder[Region]()
+  val aBuilder = new BoxedArrayBuilder[Long]()
+  val lBuilder = new BoxedArrayBuilder[Int]()
 
   def size: Int = rBuilder.size
 

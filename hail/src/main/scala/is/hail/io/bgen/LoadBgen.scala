@@ -147,7 +147,7 @@ object LoadBgen {
   }
 
   def getAllFileStatuses(fs: FS, files: Array[String]): Array[FileStatus] = {
-    val badFiles = new ArrayBuilder[String]()
+    val badFiles = new BoxedArrayBuilder[String]()
 
     val statuses = files.flatMap { file =>
       val matches = fs.glob(file)

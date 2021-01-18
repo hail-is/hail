@@ -62,7 +62,7 @@ object ExecutionTimer {
 }
 
 class ExecutionTimer(val rootName: String) {
-  private[this] val stack = new ArrayStack[TimeBlock]()
+  private[this] val stack = new ObjectArrayStack[TimeBlock]()
 
   private[this] val rootBlock = new TimeBlock(rootName)
   stack.push(rootBlock)

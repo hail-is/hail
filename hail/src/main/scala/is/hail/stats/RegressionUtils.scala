@@ -12,7 +12,7 @@ object RegressionUtils {
   def setMeanImputedDoubles(data: Array[Double],
     offset: Int,
     completeColIdx: Array[Int],
-    missingCompleteCols: ArrayBuilder[Int],
+    missingCompleteCols: BoxedArrayBuilder[Int],
     rv: Long,
     rvRowType: PStruct,
     entryArrayType: PArray,

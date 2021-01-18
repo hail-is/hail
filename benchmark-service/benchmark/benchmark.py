@@ -5,7 +5,7 @@ from aiohttp import web
 import logging
 from gear import setup_aiohttp_session, web_authenticated_developers_only
 from hailtop.config import get_deploy_config
-from hailtop.tls import get_in_cluster_server_ssl_context
+from hailtop.tls import internal_server_ssl_context
 from hailtop.hail_logging import AccessLogger, configure_logging
 from hailtop.utils import retry_long_running, collect_agen, humanize_timedelta_msecs
 from hailtop import aiotools
@@ -466,4 +466,4 @@ def run():
                 host='0.0.0.0',
                 port=5000,
                 access_log_class=AccessLogger,
-                ssl_context=get_in_cluster_server_ssl_context())
+                ssl_context=internal_server_ssl_context())

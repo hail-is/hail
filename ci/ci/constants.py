@@ -18,5 +18,6 @@ AUTHORIZED_USERS = {
     'bw2',
     'pwc2',
     'lgruen',
-    'CDiaz96'
+    'CDiaz96',
+    'daniel-goldstein'
 }

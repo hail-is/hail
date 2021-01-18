@@ -5,7 +5,7 @@ import org.testng.annotations.Test
 
 class ArrayStackSuite extends TestNGSuite {
   @Test def test() {
-    val s = new ArrayStack[Int](4)
+    val s = new IntArrayStack(4)
     assert(s.isEmpty)
     assert(!s.nonEmpty)
     assert(s.size == 0)

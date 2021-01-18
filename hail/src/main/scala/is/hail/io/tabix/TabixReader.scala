@@ -121,7 +121,7 @@ class TabixReader(val filePath: String, fs: FS, idxFilePath: Option[String] = No
     }
 
     // read the index
-    val indices = new ArrayBuilder[(mutable.HashMap[Int, Array[TbiPair]], Array[Long])](seqs.length)
+    val indices = new BoxedArrayBuilder[(mutable.HashMap[Int, Array[TbiPair]], Array[Long])](seqs.length)
     i = 0
     while (i < seqs.length) {
       // binning index
@@ -256,7 +256,7 @@ class TabixReader(val filePath: String, fs: FS, idxFilePath: Option[String] = No
       new Array[Int](0)
     else {
       var end = _end
-      val bins = new ArrayBuilder[Int](MaxBin)
+      val bins = new BoxedArrayBuilder[Int](MaxBin)
       if (end >= (1 << 29)) {
         end = 1 << 29
       }

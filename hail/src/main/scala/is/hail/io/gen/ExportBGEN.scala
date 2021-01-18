@@ -5,7 +5,7 @@ import is.hail.annotations.{RegionValue, UnsafeRow}
 import is.hail.expr.ir.{ExecuteContext, MatrixValue}
 import is.hail.types.physical.PStruct
 import is.hail.io.fs.FS
-import is.hail.utils.ArrayBuilder
+import is.hail.utils.BoxedArrayBuilder
 import is.hail.variant.{ArrayGenotypeView, RegionValueVariant, View}
 import is.hail.utils._
 import org.apache.hadoop.io.IOUtils
@@ -17,19 +17,19 @@ object BgenWriter {
   val phased: Byte = 0
   val totalProb: Int = 255
 
-  def shortToBytesLE(bb: ArrayBuilder[Byte], i: Int) {
+  def shortToBytesLE(bb: BoxedArrayBuilder[Byte], i: Int) {
     bb += (i & 0xff).toByte
     bb += ((i >>> 8) & 0xff).toByte
   }
 
-  def intToBytesLE(bb: ArrayBuilder[Byte], i: Int) {
+  def intToBytesLE(bb: BoxedArrayBuilder[Byte], i: Int) {
     bb += (i & 0xff).toByte
     bb += ((i >>> 8) & 0xff).toByte
     bb += ((i >>> 16) & 0xff).toByte
     bb += ((i >>> 24) & 0xff).toByte
   }
 
-  def stringToBytesWithShortLength(bb: ArrayBuilder[Byte], s: String): Int = {
+  def stringToBytesWithShortLength(bb: BoxedArrayBuilder[Byte], s: String): Int = {
     val bytes = s.getBytes
     val l = bytes.length
     shortToBytesLE(bb, l)
@@ -37,7 +37,7 @@ object BgenWriter {
     2 + l
   }
 
-  def stringToBytesWithIntLength(bb: ArrayBuilder[Byte], s: String): Int = {
+  def stringToBytesWithIntLength(bb: BoxedArrayBuilder[Byte], s: String): Int = {
     val bytes = s.getBytes
     val l = bytes.length
     intToBytesLE(bb, l)
@@ -45,7 +45,7 @@ object BgenWriter {
     4 + l
   }
 
-  def updateIntToBytesLE(bb: ArrayBuilder[Byte], i: Int, pos: Int) {
+  def updateIntToBytesLE(bb: BoxedArrayBuilder[Byte], i: Int, pos: Int) {
     bb(pos) = (i & 0xff).toByte
     bb(pos + 1) = ((i >>> 8) & 0xff).toByte
     bb(pos + 2) = ((i >>> 16) & 0xff).toByte
@@ -53,7 +53,7 @@ object BgenWriter {
   }
 
   def headerBlock(sampleIds: IndexedSeq[String], nVariants: Long): Array[Byte] = {
-    val bb = new ArrayBuilder[Byte]
+    val bb = new BoxedArrayBuilder[Byte]
     val nSamples = sampleIds.length
     assert(nVariants < (1L << 32))
 
@@ -93,8 +93,8 @@ object BgenWriter {
 class BgenPartitionWriter(rowPType: PStruct, nSamples: Int) {
   import BgenWriter._
 
-  val bb: ArrayBuilder[Byte] = new ArrayBuilder[Byte]
-  val uncompressedData: ArrayBuilder[Byte] = new ArrayBuilder[Byte]
+  val bb: BoxedArrayBuilder[Byte] = new BoxedArrayBuilder[Byte]
+  val uncompressedData: BoxedArrayBuilder[Byte] = new BoxedArrayBuilder[Byte]
   val gs = new ArrayGenotypeView(rowPType)
   val v = new RegionValueVariant(rowPType)
   val va = new GenAnnotationView(rowPType)
@@ -191,7 +191,7 @@ class BgenPartitionWriter(rowPType: PStruct, nSamples: Int) {
   }
 
   def roundWithConstantSum(input: Array[Double], fractional: Array[Double], index: Array[Int],
-    indexInverse: Array[Int], output: ArrayBuilder[Byte], expectedSize: Long) {
+    indexInverse: Array[Int], output: BoxedArrayBuilder[Byte], expectedSize: Long) {
     val n = input.length
     assert(fractional.length == n && index.length == n && indexInverse.length == n)
 

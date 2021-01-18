@@ -10,6 +10,7 @@ import webbrowser
 import warnings
 
 from hailtop.config import get_deploy_config, get_user_config
+from hailtop.utils import is_google_registry_image
 import hailtop.batch_client.client as bc
 from hailtop.batch_client.client import BatchClient
 
@@ -472,7 +473,7 @@ class ServiceBackend(Backend):
                 resources['storage'] = job._storage
 
             image = job._image if job._image else default_image
-            if not (image.startswith('gcr.io/') or 'docker.pkg.dev/' in image):
+            if not is_google_registry_image(image):
                 warnings.warn(f'Using an image {image} not in GCR. '
                               f'Jobs may fail due to Docker Hub rate limits.')
 

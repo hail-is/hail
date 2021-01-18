@@ -1514,7 +1514,7 @@ object RVD {
       new OriginUnionRDD(first.crdd.rdd.sparkContext, rvds.map(_.crdd.rdd), partF))
       .collect())
 
-    val fileDataByOrigin = Array.fill[ArrayBuilder[FileWriteMetadata]](nRVDs)(new ArrayBuilder())
+    val fileDataByOrigin = Array.fill[BoxedArrayBuilder[FileWriteMetadata]](nRVDs)(new BoxedArrayBuilder())
 
     for ((fd, oidx) <- partFilePartitionCounts) {
       fileDataByOrigin(oidx) += fd

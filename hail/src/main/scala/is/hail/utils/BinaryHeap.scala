@@ -4,7 +4,7 @@ import Math.signum
 import scala.collection.mutable
 import scala.reflect.ClassTag
 
-class BinaryHeap[@specialized T: ClassTag](minimumCapacity: Int = 32, maybeTieBreaker: (T, T) => Double = null) {
+class BinaryHeap[T: ClassTag](minimumCapacity: Int = 32, maybeTieBreaker: (T, T) => Double = null) {
   private var ts: Array[T] = new Array[T](minimumCapacity)
   private var ranks: Array[Long] = new Array[Long](minimumCapacity)
   private val m: mutable.Map[T, Int] = new mutable.HashMap()

@@ -12,33 +12,33 @@ object LowerMatrixIR {
   val entriesField: Symbol = Symbol(entriesFieldName)
 
   def apply(ir: IR): IR = {
-    val ab = new ArrayBuilder[(String, IR)]
+    val ab = new BoxedArrayBuilder[(String, IR)]
     val l1 = lower(ir, ab)
     ab.result().foldRight[IR](l1) { case ((ident, value), body) => RelationalLet(ident, value, body) }
   }
 
   def apply(tir: TableIR): TableIR = {
-    val ab = new ArrayBuilder[(String, IR)]
+    val ab = new BoxedArrayBuilder[(String, IR)]
     val l1 = lower(tir, ab)
     ab.result().foldRight[TableIR](l1) { case ((ident, value), body) => RelationalLetTable(ident, value, body) }
   }
 
   def apply(mir: MatrixIR): TableIR = {
-    val ab = new ArrayBuilder[(String, IR)]
+    val ab = new BoxedArrayBuilder[(String, IR)]
 
     val l1 = lower(mir, ab)
     ab.result().foldRight[TableIR](l1) { case ((ident, value), body) => RelationalLetTable(ident, value, body) }
   }
 
   def apply(bmir: BlockMatrixIR): BlockMatrixIR = {
-    val ab = new ArrayBuilder[(String, IR)]
+    val ab = new BoxedArrayBuilder[(String, IR)]
 
     val l1 = lower(bmir, ab)
     ab.result().foldRight[BlockMatrixIR](l1) { case ((ident, value), body) => RelationalLetBlockMatrix(ident, value, body) }
   }
 
 
-  private[this] def lowerChildren(ir: BaseIR, ab: ArrayBuilder[(String, IR)]): BaseIR = {
+  private[this] def lowerChildren(ir: BaseIR, ab: BoxedArrayBuilder[(String, IR)]): BaseIR = {
     val loweredChildren = ir.children.map {
       case tir: TableIR => lower(tir, ab)
       case mir: MatrixIR => throw new RuntimeException(s"expect specialized lowering rule for " +
@@ -85,7 +85,7 @@ object LowerMatrixIR {
   }
 
 
-  private[this] def lower(mir: MatrixIR, ab: ArrayBuilder[(String, IR)]): TableIR = {
+  private[this] def lower(mir: MatrixIR, ab: BoxedArrayBuilder[(String, IR)]): TableIR = {
     val lowered = mir match {
       case RelationalLetMatrixTable(name, value, body) =>
         RelationalLetTable(name, lower(value, ab), lower(body, ab))
@@ -180,14 +180,14 @@ object LowerMatrixIR {
 
       case MatrixMapRows(child, newRow) =>
         def liftScans(ir: IR): IRProxy = {
-          def lift(ir: IR, builder: ArrayBuilder[(String, IR)]): IR = ir match {
+          def lift(ir: IR, builder: BoxedArrayBuilder[(String, IR)]): IR = ir match {
             case a: ApplyScanOp =>
               val s = genUID()
               builder += ((s, a))
               Ref(s, a.typ)
 
             case AggFilter(filt, body, true) =>
-              val ab = new ArrayBuilder[(String, IR)]
+              val ab = new BoxedArrayBuilder[(String, IR)]
               val liftedBody = lift(body, ab)
               val uid = genUID()
               val aggs = ab.result()
@@ -197,7 +197,7 @@ object LowerMatrixIR {
               aggs.foldLeft[IR](liftedBody) { case (acc, (name, _)) => Let(name, GetField(Ref(uid, structResult.typ), name), acc) }
 
             case AggExplode(a, name, body, true) =>
-              val ab = new ArrayBuilder[(String, IR)]
+              val ab = new BoxedArrayBuilder[(String, IR)]
               val liftedBody = lift(body, ab)
               val uid = genUID()
               val aggs = ab.result()
@@ -207,7 +207,7 @@ object LowerMatrixIR {
               aggs.foldLeft[IR](liftedBody) { case (acc, (name, _)) => Let(name, GetField(Ref(uid, structResult.typ), name), acc) }
 
             case AggGroupBy(a, body, true) =>
-              val ab = new ArrayBuilder[(String, IR)]
+              val ab = new BoxedArrayBuilder[(String, IR)]
               val liftedBody = lift(body, ab)
               val uid = genUID()
               val aggs = ab.result()
@@ -223,7 +223,7 @@ object LowerMatrixIR {
                   aggs.foldLeft[IR](liftedBody) { case (acc, (name, _)) => Let(name, GetField(Ref(valueUID, valueType), name), acc) })))))
 
             case AggArrayPerElement(a, elementName, indexName, body, knownLength, true) =>
-              val ab = new ArrayBuilder[(String, IR)]
+              val ab = new BoxedArrayBuilder[(String, IR)]
               val liftedBody = lift(body, ab)
               val uid = genUID()
               val aggs = ab.result()
@@ -235,7 +235,7 @@ object LowerMatrixIR {
               ToArray(StreamMap(ToStream(Ref(uid, t)), eltUID, aggs.foldLeft[IR](liftedBody) { case (acc, (name, _)) => Let(name, GetField(Ref(eltUID, structResult.typ), name), acc) }))
 
             case AggLet(name, value, body, true) =>
-              val ab = new ArrayBuilder[(String, IR)]
+              val ab = new BoxedArrayBuilder[(String, IR)]
               val liftedBody = lift(body, ab)
               val uid = genUID()
               val aggs = ab.result()
@@ -248,7 +248,7 @@ object LowerMatrixIR {
               MapIR(lift(_, builder))(ir)
           }
 
-          val ab = new ArrayBuilder[(String, IR)]
+          val ab = new BoxedArrayBuilder[(String, IR)]
           val b0 = lift(ir, ab)
 
           val scans = ab.result()
@@ -280,7 +280,7 @@ object LowerMatrixIR {
       case MatrixMapCols(child, newCol, _) =>
         val loweredChild = lower(child, ab)
 
-        def lift(ir: IR, scanBindings: ArrayBuilder[(String, IR)], aggBindings: ArrayBuilder[(String, IR)]): IR = ir match {
+        def lift(ir: IR, scanBindings: BoxedArrayBuilder[(String, IR)], aggBindings: BoxedArrayBuilder[(String, IR)]): IR = ir match {
           case a: ApplyScanOp =>
             val s = genUID()
             scanBindings += ((s, a))
@@ -292,7 +292,7 @@ object LowerMatrixIR {
             Ref(s, a.typ)
 
           case AggFilter(filt, body, isScan) =>
-            val ab = new ArrayBuilder[(String, IR)]
+            val ab = new BoxedArrayBuilder[(String, IR)]
             val (liftedBody, builder) = if (isScan)
               (lift(body, ab, aggBindings), scanBindings)
             else
@@ -305,7 +305,7 @@ object LowerMatrixIR {
             aggs.foldLeft[IR](liftedBody) { case (acc, (name, _)) => Let(name, GetField(Ref(uid, structResult.typ), name), acc) }
 
           case AggExplode(a, name, body, isScan) =>
-            val ab = new ArrayBuilder[(String, IR)]
+            val ab = new BoxedArrayBuilder[(String, IR)]
             val (liftedBody, builder) = if (isScan)
               (lift(body, ab, aggBindings), scanBindings)
             else
@@ -318,7 +318,7 @@ object LowerMatrixIR {
             aggs.foldLeft[IR](liftedBody) { case (acc, (name, _)) => Let(name, GetField(Ref(uid, structResult.typ), name), acc) }
 
           case AggGroupBy(a, body, isScan) =>
-            val ab = new ArrayBuilder[(String, IR)]
+            val ab = new BoxedArrayBuilder[(String, IR)]
             val (liftedBody, builder) = if (isScan)
               (lift(body, ab, aggBindings), scanBindings)
             else
@@ -337,7 +337,7 @@ object LowerMatrixIR {
                 aggs.foldLeft[IR](liftedBody) { case (acc, (name, _)) => Let(name, GetField(Ref(valueUID, valueType), name), acc) } )))))
 
           case AggArrayPerElement(a, elementName, indexName, body, knownLength, isScan) =>
-            val ab = new ArrayBuilder[(String, IR)]
+            val ab = new BoxedArrayBuilder[(String, IR)]
             val (liftedBody, builder) = if (isScan)
               (lift(body, ab, aggBindings), scanBindings)
             else
@@ -352,7 +352,7 @@ object LowerMatrixIR {
             ToArray(StreamMap(ToStream(Ref(uid, t)), eltUID, aggs.foldLeft[IR](liftedBody) { case (acc, (name, _)) => Let(name, GetField(Ref(eltUID, structResult.typ), name), acc) }))
 
           case AggLet(name, value, body, isScan) =>
-            val ab = new ArrayBuilder[(String, IR)]
+            val ab = new BoxedArrayBuilder[(String, IR)]
             val (liftedBody, builder) = if (isScan)
               (lift(body, ab, aggBindings), scanBindings)
             else
@@ -368,8 +368,8 @@ object LowerMatrixIR {
             MapIR(lift(_, scanBindings, aggBindings))(ir)
         }
 
-        val scanBuilder = new ArrayBuilder[(String, IR)]
-        val aggBuilder = new ArrayBuilder[(String, IR)]
+        val scanBuilder = new BoxedArrayBuilder[(String, IR)]
+        val aggBuilder = new BoxedArrayBuilder[(String, IR)]
 
         val b0 = lift(Subst(lower(newCol, ab), matrixSubstEnvIR(child, loweredChild)), scanBuilder, aggBuilder)
         val aggs = aggBuilder.result()
@@ -688,7 +688,7 @@ object LowerMatrixIR {
   }
 
 
-  private[this] def lower(tir: TableIR, ab: ArrayBuilder[(String, IR)]): TableIR = {
+  private[this] def lower(tir: TableIR, ab: BoxedArrayBuilder[(String, IR)]): TableIR = {
     val lowered = tir match {
       case CastMatrixToTable(child, entries, cols) =>
         lower(child, ab)
@@ -790,7 +790,7 @@ object LowerMatrixIR {
     lowered
   }
 
-  private[this] def lower(bmir: BlockMatrixIR, ab: ArrayBuilder[(String, IR)]): BlockMatrixIR = {
+  private[this] def lower(bmir: BlockMatrixIR, ab: BoxedArrayBuilder[(String, IR)]): BlockMatrixIR = {
     val lowered = bmir match {
       case noMatrixChildren => lowerChildren(noMatrixChildren, ab).asInstanceOf[BlockMatrixIR]
     }
@@ -798,7 +798,7 @@ object LowerMatrixIR {
     lowered
   }
 
-  private[this] def lower(ir: IR, ab: ArrayBuilder[(String, IR)]): IR = {
+  private[this] def lower(ir: IR, ab: BoxedArrayBuilder[(String, IR)]): IR = {
     val lowered = ir match {
       case MatrixToValueApply(child, function) => TableToValueApply(lower(child, ab), function.lower()
         .getOrElse(WrappedMatrixToValueFunction(function, colsFieldName, entriesFieldName, child.typ.colKey)))
