@@ -59,13 +59,13 @@ case class TextTableReaderMetadata(fileStatuses: Array[FileStatus], header: Stri
 object TextTableReader {
 
   def splitLine(s: String, separator: String, quote: java.lang.Character): Array[String] =
-    splitLine(s, separator, quote, new ArrayBuilder[String], new StringBuilder)
+    splitLine(s, separator, quote, new BoxedArrayBuilder[String], new StringBuilder)
 
   def splitLine(
     s: String,
     separator: String,
     quote: java.lang.Character,
-    ab: ArrayBuilder[String],
+    ab: BoxedArrayBuilder[String],
     sb: StringBuilder): Array[String] = {
     ab.clear()
     sb.clear()
@@ -184,7 +184,7 @@ object TextTableReader {
     val (imputation, allDefined) = linesRDD.mapPartitions { it =>
       val allDefined = Array.fill(nFields)(true)
       val ma = MultiArray2.fill[Boolean](nFields, nMatchers + 1)(true)
-      val ab = new ArrayBuilder[String]
+      val ab = new BoxedArrayBuilder[String]
       val sb = new StringBuilder
       it.foreach { genericLine =>
         val line = genericLine.toString
@@ -355,7 +355,7 @@ class TextTableReader(
       { (region: Region, context: Any) =>
 
         val rvb = new RegionValueBuilder(region)
-        val ab = new ArrayBuilder[String]
+        val ab = new BoxedArrayBuilder[String]
         val sb = new StringBuilder
         linesBody(context)
           .filter { bline =>

@@ -28,7 +28,7 @@ object LoadPlink {
   def parseBim(fs: FS, bimPath: String, a2Reference: Boolean,
     contigRecoding: Map[String, String], rg: Option[ReferenceGenome], locusAllelesType: TStruct,
     skipInvalidLoci: Boolean): (Int, Array[PlinkVariant]) = {
-    val vs = new ArrayBuilder[PlinkVariant]()
+    val vs = new BoxedArrayBuilder[PlinkVariant]()
     var n = 0
     fs.readLines(bimPath) { lines =>
       lines.foreach { cline =>
@@ -81,8 +81,8 @@ object LoadPlink {
     val signature = PCanonicalStruct(("id", PCanonicalString()), ("fam_id", PCanonicalString()), ("pat_id", PCanonicalString()),
       ("mat_id", PCanonicalString()), ("is_female", PBoolean()), phenoSig)
 
-    val idBuilder = new ArrayBuilder[String]
-    val structBuilder = new ArrayBuilder[Row]
+    val idBuilder = new BoxedArrayBuilder[String]
+    val structBuilder = new BoxedArrayBuilder[Row]
 
     val m = fs.readLines(filename) {
       _.foreachLine { line =>
@@ -217,8 +217,8 @@ object MatrixPLINKReader {
     val partSize = partition(nVariants, nPartitions)
     val partScan = partSize.scanLeft(0)(_ + _)
 
-    val cb = new ArrayBuilder[Any]()
-    val ib = new ArrayBuilder[Interval]()
+    val cb = new BoxedArrayBuilder[Any]()
+    val ib = new BoxedArrayBuilder[Interval]()
 
     var p = 0
     var prevEnd = 0

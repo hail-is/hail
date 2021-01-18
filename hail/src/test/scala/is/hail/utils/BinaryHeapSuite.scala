@@ -252,7 +252,7 @@ class BinaryHeapSuite {
   def successivelyMoreInserts() {
     for (count <- Seq(2, 4, 8, 16, 32)) {
       val bh = new BinaryHeap[Int](8)
-      val trace = new ArrayBuilder[String]()
+      val trace = new BoxedArrayBuilder[String]()
       trace += bh.toString()
       bh.checkHeapProperty()
       for (i <- 0 until count) {
@@ -296,7 +296,7 @@ class BinaryHeapSuite {
   @Test
   def shrinkCapacity() {
     val bh = new BinaryHeap[Int](8)
-    val trace = new ArrayBuilder[String]()
+    val trace = new BoxedArrayBuilder[String]()
     trace += bh.toString()
     bh.checkHeapProperty()
     for (i <- 0 until 64) {
@@ -366,7 +366,7 @@ class BinaryHeapSuite {
     forAll(ops) { opList =>
       val bh = new BinaryHeap[Long]()
       val ref = new LongPriorityQueueReference()
-      val trace = new ArrayBuilder[String]()
+      val trace = new BoxedArrayBuilder[String]()
       trace += bh.toString()
       opList.foreach {
         case Max() =>

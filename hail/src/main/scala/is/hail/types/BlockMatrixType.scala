@@ -5,7 +5,7 @@ import is.hail.types.virtual.{TFloat64, Type}
 import is.hail.linalg.BlockMatrix
 
 object BlockMatrixSparsity {
-  private val builder: ArrayBuilder[(Int, Int)] = new ArrayBuilder[(Int, Int)]
+  private val builder: BoxedArrayBuilder[(Int, Int)] = new BoxedArrayBuilder[(Int, Int)]
 
   val dense: BlockMatrixSparsity = BlockMatrixSparsity(None)
 

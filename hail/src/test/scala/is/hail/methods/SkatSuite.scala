@@ -5,7 +5,7 @@ import is.hail.utils._
 import breeze.linalg._
 import org.testng.annotations.Test
 
-case class SkatAggForR(xs: ArrayBuilder[DenseVector[Double]], weights: ArrayBuilder[Double])
+case class SkatAggForR(xs: BoxedArrayBuilder[DenseVector[Double]], weights: BoxedArrayBuilder[Double])
 
 class SkatSuite extends HailSuite {
 

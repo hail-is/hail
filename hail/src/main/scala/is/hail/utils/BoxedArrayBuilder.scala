@@ -2,15 +2,15 @@ package is.hail.utils
 
 import scala.reflect.ClassTag
 
-object ArrayBuilder {
+object BoxedArrayBuilder {
   final val defaultInitialCapacity: Int = 16
 }
 
-final class ArrayBuilder[@specialized T](initialCapacity: Int)(implicit tct: ClassTag[T]) extends Serializable {
+final class BoxedArrayBuilder[T](initialCapacity: Int)(implicit tct: ClassTag[T]) extends Serializable {
   private[utils] var b: Array[T] = new Array[T](initialCapacity)
   private[utils] var size_ : Int = 0
 
-  def this()(implicit tct: ClassTag[T]) = this(ArrayBuilder.defaultInitialCapacity)
+  def this()(implicit tct: ClassTag[T]) = this(BoxedArrayBuilder.defaultInitialCapacity)
 
   def size: Int = size_
 
@@ -88,7 +88,7 @@ final class ArrayBuilder[@specialized T](initialCapacity: Int)(implicit tct: Cla
     b(size)
   }
 
-  def appendFrom(ab2: ArrayBuilder[T]): Unit = {
+  def appendFrom(ab2: BoxedArrayBuilder[T]): Unit = {
     ensureCapacity(size_ + ab2.size_)
     System.arraycopy(ab2.b, 0, b, size_, ab2.size_)
     size_ = size_ + ab2.size_
@@ -99,19 +99,10 @@ final class ArrayBuilder[@specialized T](initialCapacity: Int)(implicit tct: Cla
     size_ = size
   }
 
-  override def clone(): ArrayBuilder[T] = {
-    val ab = new ArrayBuilder[T]()
+  override def clone(): BoxedArrayBuilder[T] = {
+    val ab = new BoxedArrayBuilder[T]()
     ab.b = b.clone()
     ab.size_ = size_
     ab
-  }
-
-  def clearAndSetMem(obj: T): Unit = {
-    clear()
-    var i = 0
-    while (i < b.length) {
-      b(i) = obj
-      i += 1
-    }
   }
 }

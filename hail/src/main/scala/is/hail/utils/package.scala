@@ -584,10 +584,10 @@ package object utils extends Logging
   def partFile(d: Int, i: Int, ctx: TaskContext): String = s"${ partFile(d, i) }-${ partSuffix(ctx) }"
 
   def mangle(strs: Array[String], formatter: Int => String = "_%d".format(_)): (Array[String], Array[(String, String)]) = {
-    val b = new ArrayBuilder[String]
+    val b = new BoxedArrayBuilder[String]
 
     val uniques = new mutable.HashSet[String]()
-    val mapping = new ArrayBuilder[(String, String)]
+    val mapping = new BoxedArrayBuilder[(String, String)]
 
     strs.foreach { s =>
       var smod = s
@@ -792,7 +792,7 @@ package object utils extends Logging
     }
   }
 
-  def compress(bb: ArrayBuilder[Byte], input: Array[Byte]): Int = {
+  def compress(bb: BoxedArrayBuilder[Byte], input: Array[Byte]): Int = {
     val compressor = new Deflater()
     compressor.setInput(input)
     compressor.finish()

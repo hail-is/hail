@@ -253,8 +253,8 @@ object Extract {
     val depBindings = mutable.HashSet.empty[String]
     depBindings += name
 
-    val dep = new ArrayBuilder[AggLet]
-    val indep = new ArrayBuilder[AggLet]
+    val dep = new BoxedArrayBuilder[AggLet]
+    val indep = new BoxedArrayBuilder[AggLet]
 
     lets.foreach { l =>
       val fv = FreeVariables(l.value, supportsAgg = false, supportsScan = false)
@@ -320,9 +320,9 @@ object Extract {
   }
 
   def apply(ir: IR, resultName: String, r: RequirednessAnalysis, isScan: Boolean = false): Aggs = {
-    val ab = new ArrayBuilder[(InitOp, PhysicalAggSig)]()
-    val seq = new ArrayBuilder[IR]()
-    val let = new ArrayBuilder[AggLet]()
+    val ab = new BoxedArrayBuilder[(InitOp, PhysicalAggSig)]()
+    val seq = new BoxedArrayBuilder[IR]()
+    val let = new BoxedArrayBuilder[AggLet]()
     val ref = Ref(resultName, null)
     val postAgg = extract(ir, ab, seq, let, ref, r, isScan)
     val (initOps, pAggSigs) = ab.result().unzip
@@ -332,7 +332,7 @@ object Extract {
     Aggs(postAgg, Begin(initOps), addLets(Begin(seq.result()), let.result()), pAggSigs)
   }
 
-  private def extract(ir: IR, ab: ArrayBuilder[(InitOp, PhysicalAggSig)], seqBuilder: ArrayBuilder[IR], letBuilder: ArrayBuilder[AggLet], result: IR, r: RequirednessAnalysis, isScan: Boolean): IR = {
+  private def extract(ir: IR, ab: BoxedArrayBuilder[(InitOp, PhysicalAggSig)], seqBuilder: BoxedArrayBuilder[IR], letBuilder: BoxedArrayBuilder[AggLet], result: IR, r: RequirednessAnalysis, isScan: Boolean): IR = {
     def extract(node: IR): IR = this.extract(node, ab, seqBuilder, letBuilder, result, r, isScan)
 
     ir match {
@@ -354,16 +354,16 @@ object Extract {
         seqBuilder += SeqOp(i, x.seqOpArgs, state)
         GetTupleElement(result, i)
       case AggFilter(cond, aggIR, _) =>
-        val newSeq = new ArrayBuilder[IR]()
-        val newLet = new ArrayBuilder[AggLet]()
+        val newSeq = new BoxedArrayBuilder[IR]()
+        val newLet = new BoxedArrayBuilder[AggLet]()
         val transformed = this.extract(aggIR, ab, newSeq, newLet, result, r, isScan)
 
         seqBuilder += If(cond, addLets(Begin(newSeq.result()), newLet.result()), Begin(FastIndexedSeq[IR]()))
         transformed
 
       case AggExplode(array, name, aggBody, _) =>
-        val newSeq = new ArrayBuilder[IR]()
-        val newLet = new ArrayBuilder[AggLet]()
+        val newSeq = new BoxedArrayBuilder[IR]()
+        val newLet = new BoxedArrayBuilder[AggLet]()
         val transformed = this.extract(aggBody, ab, newSeq, newLet, result, r, isScan)
 
         val (dependent, independent) = partitionDependentLets(newLet.result(), name)
@@ -372,8 +372,8 @@ object Extract {
         transformed
 
       case AggGroupBy(key, aggIR, _) =>
-        val newAggs = new ArrayBuilder[(InitOp, PhysicalAggSig)]()
-        val newSeq = new ArrayBuilder[IR]()
+        val newAggs = new BoxedArrayBuilder[(InitOp, PhysicalAggSig)]()
+        val newSeq = new BoxedArrayBuilder[IR]()
         val newRef = Ref(genUID(), null)
         val transformed = this.extract(aggIR, newAggs, newSeq, letBuilder, GetField(newRef, "value"), r, isScan)
 
@@ -391,9 +391,9 @@ object Extract {
         ToDict(StreamMap(ToStream(GetTupleElement(result, i)), newRef.name, MakeTuple.ordered(FastSeq(GetField(newRef, "key"), transformed))))
 
       case AggArrayPerElement(a, elementName, indexName, aggBody, knownLength, _) =>
-        val newAggs = new ArrayBuilder[(InitOp, PhysicalAggSig)]()
-        val newSeq = new ArrayBuilder[IR]()
-        val newLet = new ArrayBuilder[AggLet]()
+        val newAggs = new BoxedArrayBuilder[(InitOp, PhysicalAggSig)]()
+        val newSeq = new BoxedArrayBuilder[IR]()
+        val newLet = new BoxedArrayBuilder[AggLet]()
         val newRef = Ref(genUID(), null)
         val transformed = this.extract(aggBody, newAggs, newSeq, newLet, newRef, r, isScan)
 

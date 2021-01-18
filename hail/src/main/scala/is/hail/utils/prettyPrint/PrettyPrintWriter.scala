@@ -3,7 +3,7 @@ package is.hail.utils.prettyPrint
 import java.io.{StringWriter, Writer}
 import java.util.ArrayDeque
 
-import is.hail.utils.ArrayBuilder
+import is.hail.utils.BoxedArrayBuilder
 
 import scala.annotation.tailrec
 
@@ -121,7 +121,7 @@ object Doc {
 
     def openGroups(): Unit = {
       while (pendingOpens > 0) {
-        pendingGroups.addLast(GroupN(new ArrayBuilder[ScannedNode](), globalPos, -1))
+        pendingGroups.addLast(GroupN(new BoxedArrayBuilder[ScannedNode](), globalPos, -1))
         pendingOpens -= 1
       }
     }
@@ -178,7 +178,7 @@ private[prettyPrint] case class Concat(it: Iterable[Doc]) extends Doc
 private[prettyPrint] abstract class ScannedNode
 private[prettyPrint] case class TextN(t: String) extends ScannedNode
 private[prettyPrint] case class LineN(indentation: Int, ifFlat: String) extends ScannedNode
-private[prettyPrint] case class GroupN(contents: ArrayBuilder[ScannedNode], start: Int, var end: Int) extends ScannedNode
+private[prettyPrint] case class GroupN(contents: BoxedArrayBuilder[ScannedNode], start: Int, var end: Int) extends ScannedNode
 
 private[prettyPrint] abstract class KontNode
 private[prettyPrint] case object PopGroupK extends KontNode

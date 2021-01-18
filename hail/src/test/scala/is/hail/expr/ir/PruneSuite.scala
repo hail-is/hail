@@ -187,8 +187,8 @@ class PruneSuite extends HailSuite {
   }
 
   def subsetTable(tt: TableType, fields: String*): TableType = {
-    val rowFields = new ArrayBuilder[TStruct]()
-    val globalFields = new ArrayBuilder[TStruct]()
+    val rowFields = new BoxedArrayBuilder[TStruct]()
+    val globalFields = new BoxedArrayBuilder[TStruct]()
     var noKey = false
     fields.foreach { f =>
       val split = f.split("\\.")
@@ -210,10 +210,10 @@ class PruneSuite extends HailSuite {
   }
 
   def subsetMatrixTable(mt: MatrixType, fields: String*): MatrixType = {
-    val rowFields = new ArrayBuilder[TStruct]()
-    val colFields = new ArrayBuilder[TStruct]()
-    val entryFields = new ArrayBuilder[TStruct]()
-    val globalFields = new ArrayBuilder[TStruct]()
+    val rowFields = new BoxedArrayBuilder[TStruct]()
+    val colFields = new BoxedArrayBuilder[TStruct]()
+    val entryFields = new BoxedArrayBuilder[TStruct]()
+    val globalFields = new BoxedArrayBuilder[TStruct]()
     var noRowKey = false
     var noColKey = false
     fields.foreach { f =>

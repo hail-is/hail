@@ -37,7 +37,7 @@ case class MatrixExportEntriesByCol(parallelism: Int, path: String, bgzip: Boole
 
     val allColValuesJSON = mv.colValues.javaValue.map(TableAnnotationImpex.exportAnnotation(_, mv.typ.colType)).toArray
 
-    val tempFolders = new ArrayBuilder[String]
+    val tempFolders = new BoxedArrayBuilder[String]
 
     info(s"exporting ${ mv.nCols } files in batches of $parallelism...")
     val nBatches = (mv.nCols + parallelism - 1) / parallelism

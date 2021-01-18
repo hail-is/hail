@@ -8,7 +8,7 @@ import is.hail.types.physical._
 import is.hail.types.virtual._
 import is.hail.io.{BufferSpec, TypedCodecSpec}
 import is.hail.stats.fetStruct
-import is.hail.utils.{ArrayBuilder, FastIndexedSeq, FastSeq}
+import is.hail.utils.{BoxedArrayBuilder, FastIndexedSeq, FastSeq}
 import org.apache.spark.sql.Row
 import org.testng.annotations.{DataProvider, Test}
 
@@ -92,7 +92,7 @@ class RequirednessSuite extends HailSuite {
 
   @DataProvider(name="valueIR")
   def valueIR(): Array[Array[Any]] = {
-    val nodes = new ArrayBuilder[Array[Any]](50)
+    val nodes = new BoxedArrayBuilder[Array[Any]](50)
 
     val allRequired = Array(
       I32(5), I64(5), F32(3.14f), F64(3.14), Str("foo"), True(), False(),
@@ -251,7 +251,7 @@ class RequirednessSuite extends HailSuite {
 
   @DataProvider(name="tableIR")
   def tableIR(): Array[Array[Any]] = {
-    val nodes = new ArrayBuilder[Array[Any]](50)
+    val nodes = new BoxedArrayBuilder[Array[Any]](50)
 
     nodes += Array[Any](TableRange(1, 1), PCanonicalStruct(required, "idx" -> PInt32(required)), PCanonicalStruct.empty(required))
 
@@ -431,7 +431,7 @@ class RequirednessSuite extends HailSuite {
 
   @Test
   def testDataProviders(): Unit = {
-    val s = new ArrayBuilder[String]()
+    val s = new BoxedArrayBuilder[String]()
     valueIR().map(v => v(0) -> v(1)).foreach { case (n: IR, t: PType) =>
       if (n.typ != t.virtualType)
         s += s"${ n.typ } != ${ t.virtualType }: \n${ Pretty(n) }"

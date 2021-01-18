@@ -76,7 +76,7 @@ final case class TUnion(cases: IndexedSeq[Case]) extends Type {
   def fieldType(name: String): Type = types(caseIdx(name))
 
   def rename(m: Map[String, String]): TUnion = {
-    val newFieldsBuilder = new ArrayBuilder[(String, Type)]()
+    val newFieldsBuilder = new BoxedArrayBuilder[(String, Type)]()
     cases.foreach { fd =>
       val n = fd.name
       newFieldsBuilder += (m.getOrElse(n, n) -> fd.typ)

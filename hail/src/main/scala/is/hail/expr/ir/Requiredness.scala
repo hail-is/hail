@@ -138,7 +138,7 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
       case RelationalLetTable(name, value, body) => addBinding(name, value)
       case TailLoop(loopName, params, body) =>
         addBinding(loopName, body)
-        val argDefs = Array.fill(params.length)(new ArrayBuilder[IR]())
+        val argDefs = Array.fill(params.length)(new BoxedArrayBuilder[IR]())
         refMap(loopName).map(_.t).foreach { case Recur(_, args, _) =>
           argDefs.zip(args).foreach { case (ab, d) => ab += d }
         }
