@@ -75,6 +75,30 @@ def variant_and_sample_qc_nested_with_filters_4(mt_path):
     mt = mt.filter_cols(mt.sample_qc.call_rate >= .999)
     mt.count()
 
+@benchmark(args=profile_25.handle('mt'))
+def variant_and_sample_qc_nested_with_filters_4_counts(mt_path):
+    mt = hl.read_matrix_table(mt_path)
+    mt = hl.variant_qc(mt)
+    mt = mt.filter_rows(mt.variant_qc.call_rate >= .8)
+    mt = hl.sample_qc(mt)
+    mt = mt.filter_cols(mt.sample_qc.call_rate >= .8)
+    counts1 = mt.count()
+    mt = hl.variant_qc(mt)
+    mt = mt.filter_rows(mt.variant_qc.call_rate >= .98)
+    mt = hl.sample_qc(mt)
+    mt = mt.filter_cols(mt.sample_qc.call_rate >= .98)
+    counts2 = mt.count()
+    mt = hl.variant_qc(mt)
+    mt = mt.filter_rows(mt.variant_qc.call_rate >= .99)
+    mt = hl.sample_qc(mt)
+    mt = mt.filter_cols(mt.sample_qc.call_rate >= .99)
+    counts3 = mt.count()
+    mt = hl.variant_qc(mt)
+    mt = mt.filter_rows(mt.variant_qc.call_rate >= .999)
+    mt = hl.sample_qc(mt)
+    mt = mt.filter_cols(mt.sample_qc.call_rate >= .999)
+    mt.count()
+
 
 @benchmark(args=profile_25.handle('mt'))
 def hwe_normalized_pca(mt_path):
