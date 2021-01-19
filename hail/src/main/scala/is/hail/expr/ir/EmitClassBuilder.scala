@@ -662,6 +662,7 @@ class EmitClassBuilder[C](
     val codeArgsInfo = argsInfo.flatMap {
       case CodeParamType(ti) => FastIndexedSeq(ti)
       case EmitParamType(pt) => EmitCode.codeTupleTypes(pt)
+      case PCodeParamType(pt) => pt.codeTupleTypes()
     }
     val codeReturnInfo = returnInfo match {
       case CodeParamType(ti) => ti

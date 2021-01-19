@@ -116,6 +116,11 @@ abstract class Type extends BaseType with Serializable {
 
   final def isCanonical: Boolean = _isCanonical && children.forall(_.isCanonical)
 
+  def isPrimitive: Boolean = this match {
+    case TInt32 | TInt64 | TFloat32 | TFloat64 | TBoolean => true
+    case _ => false
+  }
+
   def isBound: Boolean = children.forall(_.isBound)
 
   def subst(): Type = this

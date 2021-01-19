@@ -952,7 +952,8 @@ object Interpret {
           ctx.r.pool.scopedRegion { r =>
             val resF = f(0, r)
             resF.setAggState(rv.region, rv.offset)
-            val res = SafeRow(rTyp, resF(r, globalsOffset))
+            val resAddr = resF(r, globalsOffset)
+            val res = SafeRow(rTyp, resAddr)
             resF.storeAggsToRegion()
             rv.region.invalidate()
             res

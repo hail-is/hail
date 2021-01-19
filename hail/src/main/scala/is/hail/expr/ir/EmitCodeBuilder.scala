@@ -103,6 +103,8 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
       val codeArgs = args.flatMap {
         case CodeParam(c) =>
           FastIndexedSeq(c)
+        case PCodeParam(pc) =>
+          pc.codeTuple()
         case EmitParam(ec) =>
           if (ec.pt.required) {
             append(ec.setup)
@@ -122,7 +124,12 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
   }
 
   def invokeCode[T](callee: EmitMethodBuilder[_], args: Param*): Code[T] = {
-    assert(callee.emitReturnType.isInstanceOf[CodeParamType])
+    callee.emitReturnType match {
+      case CodeParamType(UnitInfo) =>
+        throw new AssertionError("CodeBuilder.invokeCode had unit return type, use invokeVoid")
+      case _: CodeParamType =>
+      case x => throw new AssertionError(s"CodeBuilder.invokeCode expects CodeParamType return, got $x")
+    }
     _invoke[T](callee, args: _*)
   }
 
@@ -136,5 +143,10 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
   // for debugging
   def printRegionValue(value: Code[_], typ: PType, region: Value[Region]): Unit = {
     append(Code._println(StringFunctions.boxArg(EmitRegion(emb, region), typ)(value)))
+  }
+
+  // for debugging
+  def strValue(r: Value[Region], t: PType, code: Code[_]): Code[String] = {
+    StringFunctions.boxArg(EmitRegion(emb, r), t)(code).invoke[String]("toString")
   }
 }

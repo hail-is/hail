@@ -5,6 +5,8 @@ import pytest
 
 from hail.utils.java import FatalError, HailUserError
 
+setUpModule = startTestHailContext
+tearDownModule = stopTestHailContext
 
 def assert_ndarrays(asserter, exprs_and_expecteds):
     exprs, expecteds = zip(*exprs_and_expecteds)
