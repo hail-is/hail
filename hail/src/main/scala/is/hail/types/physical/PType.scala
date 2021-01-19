@@ -489,7 +489,5 @@ abstract class PType extends Serializable with Requiredness {
   // Usually a no-op, but may need to dereference a pointer.
   def loadFromNested(cb: EmitCodeBuilder, addr: Code[Long]): Code[Long]
 
-  def unstagedStoreJavaObjectAtAddress(addr: Long, annotation: Annotation): Unit = ???
-
-  def unstagedStoreJavaObjectAtAddress(addr: Long, annotation: Annotation, region: Region): Unit = ???
+  def unstagedStoreJavaObjectAtAddress(addr: Long, annotation: Annotation, region: Region): Unit
 }
