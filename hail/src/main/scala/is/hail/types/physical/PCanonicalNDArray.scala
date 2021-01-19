@@ -267,7 +267,8 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
     shape.pType.unstagedStoreJavaObjectAtAddress(curAddr, shapeRow, region)
     curAddr += shape.pType.byteSize
     strides.pType.unstagedStoreJavaObjectAtAddress(curAddr, stridesRow, region)
-
+    curAddr += strides.pType.byteSize
+    data.pType.unstagedStoreJavaObjectAtAddress(curAddr, aNDArray.getRowMajorElements(), region)
   }
 }
 
