@@ -1,8 +1,9 @@
 package is.hail.types.physical
 
-import is.hail.annotations.Region
+import is.hail.annotations.{Annotation, Region}
 import is.hail.asm4s.Code
 import is.hail.types.virtual.{TArray, TDict, Type}
+import org.apache.spark.sql.Row
 
 final case class PCanonicalDict(keyType: PType, valueType: PType, required: Boolean = false) extends PDict with PArrayBackedContainer {
   val elementType = PCanonicalStruct(required = true, "key" -> keyType, "value" -> valueType)
@@ -28,4 +29,13 @@ final case class PCanonicalDict(keyType: PType, valueType: PType, required: Bool
 
   private def deepRenameDict(t: TDict) =
     PCanonicalDict(this.keyType.deepRename(t.keyType), this.valueType.deepRename(t.valueType), this.required)
+
+  override def unstagedStoreJavaObjectAtAddress(addr: Long, annotation: Annotation, region: Region): Unit = {
+    val annotMap = annotation.asInstanceOf[Map[Annotation, Annotation]]
+    val sortedArray = annotMap.map{ case (k, v) => Row(k, v) }
+      .toArray
+      .sorted(elementType.virtualType.ordering.toOrdering)
+      .toIndexedSeq
+    this.arrayRep.unstagedStoreJavaObjectAtAddress(addr, sortedArray, region)
+  }
 }
