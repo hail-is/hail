@@ -370,6 +370,7 @@ def spark_context():
     """
     return Env.spark_backend('spark_context').sc
 
+
 def tmp_dir():
     """Returns the Hail shared temporary directory.
 
@@ -378,6 +379,7 @@ def tmp_dir():
     :class:`str`
     """
     return Env.hc()._tmpdir
+
 
 def current_backend():
     return Env.hc()._backend
