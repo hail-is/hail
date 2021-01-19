@@ -232,8 +232,13 @@ abstract class PCanonicalBaseStruct(val types: Array[PType]) extends PBaseStruct
     val row = annotation.asInstanceOf[Row]
     // TODO Separate unsafe row handling
     this.types.zipWithIndex.foreach { case (fieldPt, fieldIdx) =>
-      val fieldAddress = fieldOffset(addr, fieldIdx)
-      fieldPt.unstagedStoreJavaObjectAtAddress(fieldAddress, row(fieldIdx), region)
+      if (row(fieldIdx) == null) {
+        setFieldMissing(addr, fieldIdx)
+      }
+      else {
+        val fieldAddress = fieldOffset(addr, fieldIdx)
+        fieldPt.unstagedStoreJavaObjectAtAddress(fieldAddress, row(fieldIdx), region)
+      }
     }
   }
 

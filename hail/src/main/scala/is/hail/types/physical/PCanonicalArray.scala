@@ -516,8 +516,13 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
     var i = 0
     var curElementAddress = firstElementOffset(valueAddress, is.length)
     while (i < is.length) {
-      elementType.unstagedStoreJavaObjectAtAddress(curElementAddress, is(i), region)
-      curElementAddress = nextElementAddress(curElementAddress)
+      if (is(i) == null) {
+        setElementMissing(valueAddress, i)
+      }
+      else {
+        elementType.unstagedStoreJavaObjectAtAddress(curElementAddress, is(i), region)
+        curElementAddress = nextElementAddress(curElementAddress)
+      }
       i += 1
     }
     Region.storeAddress(addr, valueAddress)
