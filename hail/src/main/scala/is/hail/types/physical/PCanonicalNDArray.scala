@@ -156,8 +156,8 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
   }
 
   def setElement(cb: EmitCodeBuilder, region: Value[Region],
-    indices: IndexedSeq[Value[Long]], ndAddress: Value[Long], newElement: SCode): Unit = {
-    elementType.storeAtAddress(cb, getElementAddress(indices, ndAddress, cb.emb), region, newElement, false)
+    indices: IndexedSeq[Value[Long]], ndAddress: Value[Long], newElement: SCode, deepCopy: Boolean): Unit = {
+    elementType.storeAtAddress(cb, getElementAddress(indices, ndAddress, cb.emb), region, newElement, deepCopy)
   }
 
   def loadElement(cb: EmitCodeBuilder, indices: IndexedSeq[Value[Long]], ndAddress: Value[Long]): Code[Long] = {

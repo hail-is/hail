@@ -90,9 +90,9 @@ class NDArraySumAggregator(ndVTyp: VirtualTypeWithReq) extends StagedAggregator 
     def recur(dimIdx: Int): Unit = {
       if (dimIdx == indices.length) {
         val newElement = SCode.add(cb, leftNdValue.loadElement(indices, cb), rightNdValue.loadElement(indices, cb), true)
-        ndTyp.setElement(cb, region, indices, leftNdValue.value.asInstanceOf[Value[Long]], newElement)
+        ndTyp.setElement(cb, region, indices, leftNdValue.value.asInstanceOf[Value[Long]], newElement, deepCopy = true)
       } else {
-        val currentIdx = cb.newLocal[Long](s"ndarray_sum_addvalues_$dimIdx")
+        val currentIdx = cb.newLocal[Long](s"ndarray_sum_addvalues_$dimIdx", 0L)
         indices(dimIdx) = currentIdx
 
         cb.whileLoop(currentIdx < shape(dimIdx),
