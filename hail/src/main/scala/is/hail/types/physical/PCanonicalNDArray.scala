@@ -155,8 +155,9 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
     ))
   }
 
-  def setElement(indices: IndexedSeq[Value[Long]], ndAddress: Value[Long], newElement: Code[_], mb: EmitMethodBuilder[_]): Code[Unit] = {
-    Region.storeIRIntermediate(this.elementType)(getElementAddress(indices, ndAddress, mb), newElement)
+  def setElement(cb: EmitCodeBuilder, region: Value[Region],
+    indices: IndexedSeq[Value[Long]], ndAddress: Value[Long], newElement: SCode): Unit = {
+    elementType.storeAtAddress(cb, getElementAddress(indices, ndAddress, cb.emb), region, newElement, false)
   }
 
   def loadElement(cb: EmitCodeBuilder, indices: IndexedSeq[Value[Long]], ndAddress: Value[Long]): Code[Long] = {
