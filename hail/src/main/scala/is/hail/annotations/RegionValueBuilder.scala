@@ -408,9 +408,14 @@ class RegionValueBuilder(var region: Region) {
   }
 
   def addAnnotation(t: Type, a: Annotation) {
+    // TODO: Is this all that's needed? I don't think I need to mess with the stacks for this
+    if (typestk.isEmpty) {
+      allocateRoot()
+    }
     if (a == null)
       setMissing()
     else {
+
 
       currentType().unstagedStoreJavaObjectAtAddress(currentOffset(), a, region)
       advance()
