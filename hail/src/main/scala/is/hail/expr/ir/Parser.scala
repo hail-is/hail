@@ -6,7 +6,7 @@ import is.hail.expr.ir.functions.RelationalFunctions
 import is.hail.types.physical._
 import is.hail.types.virtual._
 import is.hail.types.encoded._
-import is.hail.types.{MatrixType, TableType}
+import is.hail.types.{MatrixType, TableType, TypeWithRequiredness, VirtualTypeWithReq}
 import is.hail.expr.{JSONAnnotationImpex, Nat, ParserUtils}
 import is.hail.io.{AbstractTypedCodecSpec, BufferSpec}
 import is.hail.rvd.{AbstractRVDSpec, RVDType}
@@ -280,7 +280,7 @@ object IRParser {
     f: (TokenIterator) => T,
     sep: Token,
     end: Token)(implicit tct: ClassTag[T]): Array[T] = {
-    val xs = new ArrayBuilder[T]()
+    val xs = new BoxedArrayBuilder[T]()
     while (it.hasNext && it.head != end) {
       xs += f(it)
       if (it.head == sep)
@@ -292,7 +292,7 @@ object IRParser {
   def repUntil[T](it: TokenIterator,
     f: (TokenIterator) => StackFrame[T],
     end: Token)(implicit tct: ClassTag[T]): StackFrame[Array[T]] = {
-    val xs = new ArrayBuilder[T]()
+    val xs = new BoxedArrayBuilder[T]()
     var cont: T => StackFrame[Array[T]] = null
     def loop(): StackFrame[Array[T]] = {
       if (it.hasNext && it.head != end) {
@@ -311,7 +311,7 @@ object IRParser {
   def repUntilNonStackSafe[T](it: TokenIterator,
     f: (TokenIterator) => T,
     end: Token)(implicit tct: ClassTag[T]): Array[T] = {
-    val xs = new ArrayBuilder[T]()
+    val xs = new BoxedArrayBuilder[T]()
     while (it.hasNext && it.head != end) {
       xs += f(it)
     }
@@ -364,6 +364,11 @@ object IRParser {
 
   def type_field(env: TypeParserEnvironment)(it: TokenIterator): (String, Type) = {
     struct_field(type_expr(env))(it)
+  }
+
+  def vtwr_expr(env: TypeParserEnvironment)(it: TokenIterator): VirtualTypeWithReq = {
+    val pt = ptype_expr(env)(it)
+    VirtualTypeWithReq(pt)
   }
 
   def ptype_expr(env: TypeParserEnvironment)(it: TokenIterator): PType = {
@@ -651,30 +656,30 @@ object IRParser {
     punctuation(it, "(")
     val sig = identifier(it) match {
       case "TypedStateSig" =>
-        val pt = ptype_expr(env)(it)
+        val pt = vtwr_expr(env)(it)
         TypedStateSig(pt)
       case "DownsampleStateSig" =>
-        val labelType = ptype_expr(env)(it)
-        DownsampleStateSig(coerce[PArray](labelType))
+        val labelType = vtwr_expr(env)(it)
+        DownsampleStateSig(labelType)
       case "TakeStateSig" =>
-        val pt = ptype_expr(env)(it)
+        val pt = vtwr_expr(env)(it)
         TakeStateSig(pt)
       case "TakeByStateSig" =>
-        val vt = ptype_expr(env)(it)
-        val kt = ptype_expr(env)(it)
+        val vt = vtwr_expr(env)(it)
+        val kt = vtwr_expr(env)(it)
         TakeByStateSig(vt, kt, Ascending)
       case "CollectStateSig" =>
-        val pt = ptype_expr(env)(it)
+        val pt = vtwr_expr(env)(it)
         CollectStateSig(pt)
       case "CollectAsSetStateSig" =>
-        val pt = ptype_expr(env)(it)
+        val pt = vtwr_expr(env)(it)
         CollectAsSetStateSig(pt)
       case "CallStatsStateSig" => CallStatsStateSig()
       case "ArrayAggStateSig" =>
         val nested = agg_state_signatures(env)(it)
         ArrayAggStateSig(nested)
       case "GroupedStateSig" =>
-        val kt = ptype_expr(env)(it)
+        val kt = vtwr_expr(env)(it)
         val nested = agg_state_signatures(env)(it)
         GroupedStateSig(kt, nested)
       case "ApproxCDFStateSig" => ApproxCDFStateSig()
@@ -693,7 +698,7 @@ object IRParser {
     punctuation(it, "(")
     val sig = identifier(it) match {
       case "Grouped" =>
-        val pt = ptype_expr(env)(it)
+        val pt = vtwr_expr(env)(it)
         val nested = p_agg_sigs(env)(it)
         GroupedAggSig(pt, nested)
       case "ArrayLen" =>

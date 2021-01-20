@@ -88,7 +88,7 @@ final case class EBaseStruct(fields: IndexedSeq[EField], override val required: 
       }
       PCanonicalTuple(pFields, required)
     case t: TNDArray =>
-      val elementType = _decodedPType(t.representation).asInstanceOf[PStruct].fieldType("data").asInstanceOf[PArray].elementType
+      val elementType = _decodedPType(t.elementType)
       PCanonicalNDArray(elementType, t.nDims, required)
   }
 

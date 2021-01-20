@@ -81,7 +81,7 @@ case class PoissonRegression(
     val newRVD = mv.rvd.mapPartitions(newRVDType) { (ctx, it) =>
       val rvb = ctx.rvb
 
-      val missingCompleteCols = new ArrayBuilder[Int]()
+      val missingCompleteCols = new BoxedArrayBuilder[Int]()
 
       val X = XBc.value.copy
       it.map { ptr =>

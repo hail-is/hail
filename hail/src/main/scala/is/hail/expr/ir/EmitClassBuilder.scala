@@ -322,6 +322,15 @@ class EmitClassBuilder[C](
           cb.assign(ms, false)
           cb.assign(vs, value)
         })
+
+    override def get(cb: EmitCodeBuilder): PValue = {
+      if (_pt.required) {
+        vs
+      } else {
+        cb.ifx(ms, cb._fatal(s"Can't convert missing ${_pt} to PValue"))
+        vs
+      }
+    }
   }
 
   def newPresentEmitField(pt: PType): PresentEmitSettable =
@@ -336,6 +345,8 @@ class EmitClassBuilder[C](
     def load: EmitCode = EmitCode(Code._empty, const(false), ps.load())
 
     def store(cb: EmitCodeBuilder, pv: PCode): Unit = ps.store(cb, pv)
+
+    override def get(cb: EmitCodeBuilder): PValue = ps
   }
 
   private[this] val typMap: mutable.Map[Type, Value[_ <: Type]] =
@@ -432,9 +443,9 @@ class EmitClassBuilder[C](
   }
 
   private[this] var _objectsField: Settable[Array[AnyRef]] = _
-  private[this] var _objects: ArrayBuilder[AnyRef] = _
+  private[this] var _objects: BoxedArrayBuilder[AnyRef] = _
 
-  private[this] var _mods: ArrayBuilder[(String, (Int, Region) => AsmFunction3[Region, Array[Byte], Array[Byte], Array[Byte]])] = new ArrayBuilder()
+  private[this] var _mods: BoxedArrayBuilder[(String, (Int, Region) => AsmFunction3[Region, Array[Byte], Array[Byte], Array[Byte]])] = new BoxedArrayBuilder()
   private[this] var _backendField: Settable[BackendUtils] = _
 
   private[this] var _aggSigs: Array[agg.AggStateSig] = _
@@ -546,7 +557,7 @@ class EmitClassBuilder[C](
     if (_objectsField == null) {
       cb.addInterface(typeInfo[FunctionWithObjects].iname)
       _objectsField = genFieldThisRef[Array[AnyRef]]()
-      _objects = new ArrayBuilder[AnyRef]()
+      _objects = new BoxedArrayBuilder[AnyRef]()
       val mb = newEmitMethod("setObjects", FastIndexedSeq[ParamType](typeInfo[Array[AnyRef]]), typeInfo[Unit])
       mb.emit(_objectsField := mb.getCodeParam[Array[AnyRef]](1))
     }
@@ -643,6 +654,7 @@ class EmitClassBuilder[C](
     val codeArgsInfo = argsInfo.flatMap {
       case CodeParamType(ti) => FastIndexedSeq(ti)
       case EmitParamType(pt) => EmitCode.codeTupleTypes(pt)
+      case PCodeParamType(pt) => pt.codeTupleTypes()
     }
     val codeReturnInfo = returnInfo match {
       case CodeParamType(ti) => ti
@@ -698,7 +710,7 @@ class EmitClassBuilder[C](
     new DependentEmitFunctionBuilder[F](this, dep_apply_method, emit_apply_method)
   }
 
-  val rngs: ArrayBuilder[(Settable[IRRandomness], Code[IRRandomness])] = new ArrayBuilder()
+  val rngs: BoxedArrayBuilder[(Settable[IRRandomness], Code[IRRandomness])] = new BoxedArrayBuilder()
 
   def makeAddPartitionRegion(): Unit = {
     cb.addInterface(typeInfo[FunctionWithPartitionRegion].iname)
@@ -1012,6 +1024,7 @@ class EmitMethodBuilder[C](
     val codeIndex = emitParamCodeIndex(emitIndex - static)
 
     new EmitValue {
+      evSelf =>
       val pt: PType = _pt
 
       def load: EmitCode = {
@@ -1023,6 +1036,18 @@ class EmitMethodBuilder[C](
           pt.fromCodeTuple(ts.zipWithIndex.map { case (t, i) =>
             mb.getArg(codeIndex + i)(t).get
           }))
+      }
+
+      override def get(cb: EmitCodeBuilder): PValue = {
+        new PValue {
+          override def pt: PType = evSelf.pt
+
+          override def get: PCode = pt.fromCodeTuple(ts.zipWithIndex.map { case (t, i) =>
+            mb.getArg(codeIndex + i)(t).get
+          })
+
+          override def st: SType = evSelf.pt.sType
+        }
       }
     }
   }
@@ -1187,6 +1212,10 @@ class DependentEmitFunctionBuilder[F](
     }
     new EmitValue {
       def pt: PType = _pt
+
+      def get(cb: EmitCodeBuilder): PValue= load.toI(cb).get(
+        cb,
+        "Can't convert missing value to PValue.").memoize(cb, "newDepEmitField_memo")
 
       def load: EmitCode = EmitCode(Code._empty, m.load(), PCode(_pt, v.load()))
     }

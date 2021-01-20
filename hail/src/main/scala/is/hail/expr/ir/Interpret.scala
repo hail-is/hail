@@ -394,8 +394,8 @@ object Interpret {
           if (seq.isEmpty)
             FastIndexedSeq[IndexedSeq[Row]]()
           else {
-            val outer = new ArrayBuilder[IndexedSeq[Row]]()
-            val inner = new ArrayBuilder[Row]()
+            val outer = new BoxedArrayBuilder[IndexedSeq[Row]]()
+            val inner = new BoxedArrayBuilder[Row]()
             val (kType, getKey) = structType.select(key)
             val keyOrd = TBaseStruct.getJoinOrdering(kType.types)
             var curKey: Row = getKey(seq.head)
@@ -517,7 +517,7 @@ object Interpret {
 
           for (i <- 0 until k) { advance(i) }
 
-          val builder = new ArrayBuilder[Row]()
+          val builder = new BoxedArrayBuilder[Row]()
           while (tournament(0) != k) {
             val i = tournament(0)
             val elt = streams(i)(heads(i))
@@ -558,7 +558,7 @@ object Interpret {
 
           for (i <- 0 until k) { advance(i) }
 
-          val builder = new ArrayBuilder[Any]()
+          val builder = new BoxedArrayBuilder[Any]()
           while (tournament(0) != k) {
             val i = tournament(0)
             val elt = Array.fill[Row](k)(null)
@@ -952,7 +952,8 @@ object Interpret {
           ctx.r.pool.scopedRegion { r =>
             val resF = f(0, r)
             resF.setAggState(rv.region, rv.offset)
-            val res = SafeRow(rTyp, resF(r, globalsOffset))
+            val resAddr = resF(r, globalsOffset)
+            val res = SafeRow(rTyp, resAddr)
             resF.storeAggsToRegion()
             rv.region.invalidate()
             res

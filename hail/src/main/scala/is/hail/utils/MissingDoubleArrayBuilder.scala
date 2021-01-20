@@ -7,7 +7,7 @@ import scala.collection.mutable
 
 class MissingDoubleArrayBuilder extends Serializable {
   private var len = 0
-  private var elements = new ArrayBuilder[Double]()
+  private var elements = new BoxedArrayBuilder[Double]()
   private var isMissing = new mutable.BitSet()
 
   def addMissing() {

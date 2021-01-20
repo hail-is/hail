@@ -19,3 +19,6 @@ class Tests(unittest.TestCase):
     def test_top_level_functions_are_do_not_error(self):
         hl.current_backend()
         hl.debug_info()
+
+    def test_tmpdir_runs(self):
+        isinstance(hl.tmp_dir(), str)

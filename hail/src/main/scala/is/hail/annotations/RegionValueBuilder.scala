@@ -12,10 +12,10 @@ class RegionValueBuilder(var region: Region) {
   var start: Long = _
   var root: PType = _
 
-  val typestk = new ArrayStack[PType]()
-  val indexstk = new ArrayStack[Int]()
-  val offsetstk = new ArrayStack[Long]()
-  val elementsOffsetstk = new ArrayStack[Long]()
+  val typestk = new ObjectArrayStack[PType]()
+  val indexstk = new IntArrayStack()
+  val offsetstk = new LongArrayStack()
+  val elementsOffsetstk = new LongArrayStack()
 
   def inactive: Boolean = root == null && typestk.isEmpty && offsetstk.isEmpty && elementsOffsetstk.isEmpty && indexstk.isEmpty
 
@@ -490,17 +490,17 @@ class RegionValueBuilder(var region: Region) {
             ("data", TArray(elementType))
           )
           val ptype = currentType().asInstanceOf[PBaseStruct]
-          val shapeRow = a.asInstanceOf[Row](0).asInstanceOf[Row]
-          val shapeArray = shapeRow.toSeq.toIndexedSeq.map(x => x.asInstanceOf[Long])
+          val aNDArray = a.asInstanceOf[NDArray]
+          val shapeRow = Annotation.fromSeq(aNDArray.shape)
           var runningProduct = ptype.fieldType("data").asInstanceOf[PArray].elementType.byteSize
-          val stridesArray = new Array[Long](shapeArray.size)
-          ((shapeArray.size - 1) to 0 by -1).foreach { i =>
+          val stridesArray = new Array[Long](aNDArray.shape.size)
+          ((aNDArray.shape.size - 1) to 0 by -1).foreach { i =>
             stridesArray(i) = runningProduct
-            runningProduct = runningProduct * (if (shapeArray(i) > 0L) shapeArray(i) else 1L)
+            runningProduct = runningProduct * (if (aNDArray.shape(i) > 0L) aNDArray.shape(i) else 1L)
           }
           val stridesRow = Row(stridesArray:_*)
 
-          addAnnotation(structWithStrides, Row(shapeRow, stridesRow, a.asInstanceOf[Row](1)))
+          addAnnotation(structWithStrides, Row(shapeRow, stridesRow, aNDArray.getRowMajorElements()))
       }
   }
 

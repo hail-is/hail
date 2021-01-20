@@ -5,7 +5,7 @@ import is.hail.HailSuite
 import scala.collection.generic.Growable
 import is.hail.annotations.{Region, SafeRow, ScalaToRegionValue, StagedRegionValueBuilder}
 import is.hail.asm4s.Code
-import is.hail.expr.ir.{EmitCode, EmitFunctionBuilder, EmitRegion}
+import is.hail.expr.ir.{EmitCode, EmitCodeBuilder, EmitFunctionBuilder, EmitRegion}
 import is.hail.types.physical._
 import is.hail.utils._
 import org.scalatest.testng.TestNGSuite
@@ -25,11 +25,12 @@ class StagedBlockLinkedListSuite extends HailSuite {
 
       val ptr = fb.genFieldThisRef[Long]()
       val r = fb.getCodeParam[Region](1)
-      fb.emit(Code(
-        ptr := r.allocate(sbll.storageType.alignment, sbll.storageType.byteSize),
-        sbll.init(r),
-        sbll.store(ptr),
-        ptr))
+      fb.emitWithBuilder[Long] { cb =>
+        cb.assign(ptr, r.allocate(sbll.storageType.alignment, sbll.storageType.byteSize))
+        sbll.init(cb, r)
+        sbll.store(cb, ptr)
+        ptr
+      }
 
       fb.result()()(_)
     }
@@ -42,12 +43,15 @@ class StagedBlockLinkedListSuite extends HailSuite {
       val r = fb.getCodeParam[Region](1)
       val ptr = fb.getCodeParam[Long](2)
       val eltOff = fb.getCodeParam[Long](3)
-      fb.emit(Code(
-        sbll.load(ptr),
-        sbll.push(r, EmitCode(Code._empty,
-          eltOff.get.ceq(0),
-          PCode(elemPType, Region.getIRIntermediate(elemPType)(eltOff)))),
-        sbll.store(ptr)))
+      fb.emitWithBuilder[Unit] { cb =>
+
+        sbll.load(cb, ptr)
+        sbll.push(cb, r, EmitCode(Code._empty,
+          eltOff.get.ceq(0L),
+          PCode(elemPType, Region.getIRIntermediate(elemPType)(eltOff))))
+        sbll.store(cb, ptr)
+        Code._empty
+      }
 
       val f = fb.result()()
       ({ (r, ptr, elt) =>
@@ -64,11 +68,13 @@ class StagedBlockLinkedListSuite extends HailSuite {
       val r = fb.getCodeParam[Region](1)
       val ptr1 = fb.getCodeParam[Long](2)
       val ptr2 = fb.getCodeParam[Long](3)
-      fb.emit(Code(
-        sbll1.load(ptr1),
-        sbll2.load(ptr2),
-        sbll1.append(r, sbll2),
-        sbll1.store(ptr1)))
+      fb.emitWithBuilder { cb =>
+        sbll1.load(cb, ptr1)
+        sbll2.load(cb, ptr2)
+        sbll1.append(cb, r, sbll2)
+        sbll1.store(cb, ptr1)
+        Code._empty
+      }
 
       val f = fb.result()()
       ({ (r, ptr, other) =>
@@ -85,12 +91,13 @@ class StagedBlockLinkedListSuite extends HailSuite {
       val rArg = fb.getCodeParam[Region](1)
       val ptr = fb.getCodeParam[Long](2)
       val rField = fb.genFieldThisRef[Region]()
-      val srvb = new StagedRegionValueBuilder(EmitRegion(fb.apply_method, rField), arrayPType)
-      fb.emit(Code(
-        rField := rArg,
-        sbll.load(ptr),
-        sbll.writeToSRVB(fb.emb, srvb),
-        srvb.end()))
+      fb.emitWithBuilder { cb =>
+        cb.assign(rField, rArg)
+        sbll.load(cb, ptr)
+        val srvb = new StagedRegionValueBuilder(EmitRegion(fb.apply_method, rField), arrayPType)
+        sbll.writeToSRVB(cb, srvb)
+        srvb.end()
+      }
 
       val f = fb.result()()
       ({ (r, ptr) =>
@@ -107,12 +114,13 @@ class StagedBlockLinkedListSuite extends HailSuite {
       val dstPtr = fb.genFieldThisRef[Long]()
       val r = fb.getCodeParam[Region](1)
       val srcPtr = fb.getCodeParam[Long](2)
-      fb.emit(Code(
-        dstPtr := r.allocate(sbll1.storageType.alignment, sbll1.storageType.byteSize),
-        sbll2.load(srcPtr),
-        sbll1.initWithDeepCopy(r, sbll2),
-        sbll1.store(dstPtr),
-        dstPtr))
+      fb.emitWithBuilder { cb =>
+        cb.assign(dstPtr, r.allocate(sbll1.storageType.alignment, sbll1.storageType.byteSize))
+        sbll2.load(cb, srcPtr)
+        sbll1.initWithDeepCopy(cb, r, sbll2)
+        sbll1.store(cb, dstPtr)
+        dstPtr
+      }
 
       val f = fb.result()()
       ({ (r, other) => f(r, other.ptr) })
@@ -144,7 +152,7 @@ class StagedBlockLinkedListSuite extends HailSuite {
 
   @Test def testPushStrsMissing() {
     pool.scopedRegion { region =>
-      val a = new ArrayBuilder[String]()
+      val a = new BoxedArrayBuilder[String]()
       val b = new BlockLinkedList[String](region, PCanonicalString())
       for (i <- 1 to 100) {
         val elt = if(i%3 == 0) null else i.toString()

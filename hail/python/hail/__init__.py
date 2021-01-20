@@ -48,7 +48,7 @@ from hail.utils import (Struct, Interval, hadoop_copy, hadoop_open, hadoop_ls,  
                         hadoop_stat, hadoop_exists, hadoop_is_file,
                         hadoop_is_dir, copy_log)
 
-from .context import (init, init_local, stop, spark_context, default_reference,  # noqa: E402
+from .context import (init, init_local, stop, spark_context, tmp_dir, default_reference,  # noqa: E402
                       get_reference, set_global_seed, _set_flags, _get_flags, current_backend,
                       debug_info, citation, cite_hail, cite_hail_bibtex, version)
 
@@ -59,6 +59,7 @@ __all__ = [
     'init_local',
     'stop',
     'spark_context',
+    'tmp_dir',
     'default_reference',
     'get_reference',
     'set_global_seed',

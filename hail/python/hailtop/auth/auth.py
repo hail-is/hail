@@ -2,7 +2,7 @@ import os
 import aiohttp
 from hailtop.config import get_deploy_config
 from hailtop.utils import async_to_blocking, request_retry_transient_errors
-from hailtop.tls import get_context_specific_ssl_client_session
+from hailtop.httpx import client_session as http_client_session
 
 from .tokens import get_tokens
 
@@ -11,7 +11,7 @@ async def async_get_userinfo(*, deploy_config=None, session_id=None, client_sess
     if deploy_config is None:
         deploy_config = get_deploy_config()
     if client_session is None:
-        client_session = get_context_specific_ssl_client_session(
+        client_session = http_client_session(
             raise_for_status=True, timeout=aiohttp.ClientTimeout(total=5))
 
     if session_id is None:

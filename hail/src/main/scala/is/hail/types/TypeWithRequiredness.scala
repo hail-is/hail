@@ -1,7 +1,8 @@
 package is.hail.types
 
-import is.hail.annotations.Annotation
+import is.hail.annotations.{Annotation, NDArray}
 import is.hail.types.physical._
+import is.hail.types.physical.stypes.SType
 import is.hail.types.virtual._
 import is.hail.utils.{FastSeq, Interval}
 import org.apache.spark.sql.Row
@@ -128,6 +129,49 @@ sealed abstract class BaseTypeWithRequiredness {
     children.foreach { r => hasChanged |= r.probeChangedAndReset() }
     hasChanged
   }
+
+  def hardSetRequiredness(newRequiredness: Boolean): Unit = {
+    _required = newRequiredness
+    change = false
+  }
+}
+
+object VirtualTypeWithReq {
+  def apply(pt: PType): VirtualTypeWithReq = {
+    val vt = pt.virtualType
+    val r = TypeWithRequiredness(vt)
+    r.fromPType(pt)
+    VirtualTypeWithReq(vt, r)
+  }
+
+  def fullyOptional(t: Type): VirtualTypeWithReq = {
+    val twr = TypeWithRequiredness(t)
+    twr.fromPType(PType.canonical(t))
+    assert(!twr.required)
+    VirtualTypeWithReq(t, twr)
+  }
+}
+
+case class VirtualTypeWithReq(t: Type, r: TypeWithRequiredness) {
+  lazy val canonicalPType: PType = r.canonicalPType(t)
+
+  def setRequired(newReq: Boolean): VirtualTypeWithReq = {
+    val newR = r.copy(r.children).asInstanceOf[TypeWithRequiredness]
+    newR.hardSetRequiredness(newReq)
+    assert(newR.required == newReq)
+    copy(r = newR)
+  }
+
+  override def toString: String = s"VirtualTypeWithReq($canonicalPType)"
+
+  override def equals(obj: Any): Boolean = obj match {
+    case t2: VirtualTypeWithReq => canonicalPType == t2.canonicalPType
+    case _ => false
+  }
+
+  override def hashCode(): Int = {
+    canonicalPType.hashCode() + 37
+  }
 }
 
 sealed abstract class TypeWithRequiredness extends BaseTypeWithRequiredness {
@@ -246,7 +290,7 @@ case class RDict(keyType: TypeWithRequiredness, valueType: TypeWithRequiredness)
 }
 case class RNDArray(override val elementType: TypeWithRequiredness) extends RIterable(elementType, true) {
   override def _unionLiteral(a: Annotation): Unit = {
-    val data = a.asInstanceOf[Row].getAs[Iterable[Any]](1)
+    val data = a.asInstanceOf[NDArray].getRowMajorElements()
     data.asInstanceOf[Iterable[_]].foreach { elt =>
       if (elt != null)
         elementType.unionLiteral(elt)

@@ -1251,7 +1251,8 @@ object EmitStream {
                     keyRegion.clear(),
                     EmitCodeBuilder.scopedVoid(mb) { cb =>
                       val pc = new SSubsetStructCode(keyViewType, xCurElt.load().asBaseStruct)
-                      cb.assign(xCurKey, pc.castTo(cb, keyRegion.code, keyType))},
+                      cb.assign(xCurKey, pc.castTo(cb, keyRegion.code, keyType, deepCopy = true))
+                    },
                     xInOuter.mux(
                       LouterPush.goto,
                       Code(xNextGrpReady := true, LinnerEos.goto)))))

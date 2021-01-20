@@ -86,7 +86,7 @@ case class LinearRegressionRowsSingle(
         val producerCtx = consumerCtx.freshContext
         val rvb = new RegionValueBuilder()
 
-        val missingCompleteCols = new ArrayBuilder[Int]
+        val missingCompleteCols = new BoxedArrayBuilder[Int]
         val data = new Array[Double](n * rowBlockSize)
 
         val blockWRVs = new Array[WritableRegionValue](rowBlockSize)
@@ -244,7 +244,7 @@ case class LinearRegressionRowsChained(
         val rvb = new RegionValueBuilder()
 
         val inputData = bc.value
-        val builder = new ArrayBuilder[Int]
+        val builder = new BoxedArrayBuilder[Int]
         val data = inputData.map(cri => new Array[Double](cri.n * rowBlockSize))
 
         val blockWRVs = new Array[WritableRegionValue](rowBlockSize)

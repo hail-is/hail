@@ -172,8 +172,8 @@ object TestUtils {
     optimize: Boolean = true
   ): Any = {
     ExecuteContext.scoped() { ctx =>
-      val inputTypesB = new ArrayBuilder[Type]()
-      val inputsB = new ArrayBuilder[Any]()
+      val inputTypesB = new BoxedArrayBuilder[Type]()
+      val inputsB = new BoxedArrayBuilder[Any]()
 
       args.foreach { case (v, t) =>
         inputsB += v

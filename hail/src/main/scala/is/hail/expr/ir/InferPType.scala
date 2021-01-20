@@ -32,11 +32,11 @@ object InferPType {
 
   def apply(ir: IR): Unit = apply(ir, Env.empty)
 
-  private type AAB[T] = Array[ArrayBuilder[RecursiveArrayBuilderElement[T]]]
+  private type AAB[T] = Array[BoxedArrayBuilder[RecursiveArrayBuilderElement[T]]]
 
   case class RecursiveArrayBuilderElement[T](value: T, nested: Option[AAB[T]])
 
-  def newBuilder[T](n: Int): AAB[T] = Array.fill(n)(new ArrayBuilder[RecursiveArrayBuilderElement[T]])
+  def newBuilder[T](n: Int): AAB[T] = Array.fill(n)(new BoxedArrayBuilder[RecursiveArrayBuilderElement[T]])
 
   def apply(ir: IR, env: Env[PType]): Unit = {
     try {

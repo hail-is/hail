@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-from typing import List, Tuple
+from typing import List, Tuple, Set
 from hailtop.aiotools import BackgroundTaskManager
 from contextlib import closing
 from hailtop.utils import check_shell, CalledProcessError
@@ -7,6 +7,7 @@ from hailtop.utils import retry_transient_errors
 from hailtop.hail_logging import configure_logging
 from fswatch import Monitor, libfswatch
 from threading import Thread
+import os
 import argparse
 import asyncio
 import kubernetes_asyncio as kube
@@ -20,35 +21,38 @@ log = logging.getLogger('sync.py')
 RSYNC_ARGS = "-av --progress --stats --exclude='*.log' --exclude='.mypy_cache' --exclude='__pycache__' --exclude='*~'"
 
 
-async def retry(f, *args, **kwargs):
-    i = 0
-    while True:
-        try:
-            return await f(*args, **kwargs)
-        except CalledProcessError:
-            i += 1
-            if i % 10 == 0:
-                log.info(f'{i} errors encountered', exc_info=True)
+DEVBIN = os.path.abspath(os.path.dirname(__file__))
 
 
 class Sync:
     def __init__(self, paths: List[Tuple[str, str]]):
-        self.pods_list: List[Tuple[str, str]] = []
+        self.pods: Set[Tuple[str, str]] = set()
         self.paths = paths
 
     async def sync_and_restart_pod(self, pod, namespace):
-        await asyncio.gather(*[
-            retry(check_shell, f'krsync.sh {RSYNC_ARGS} {local} {pod}@{namespace}:{remote}')
-            for local, remote in self.paths])
-        await retry(check_shell, f'kubectl exec {pod} --namespace {namespace} -- kill -2 1')
+        log.info(f'reloading {pod}@{namespace}')
+        try:
+            await asyncio.gather(*[
+                check_shell(f'{DEVBIN}/krsync.sh {RSYNC_ARGS} {local} {pod}@{namespace}:{remote}')
+                for local, remote in self.paths])
+            await check_shell(f'kubectl exec {pod} --namespace {namespace} -- kill -2 1')
+        except CalledProcessError:
+            log.warning(f'could not synchronize {namespace}/{pod}, removing from active pods', exc_info=True)
+            self.pods.remove((pod, namespace))
+            return
         log.info(f'reloaded {pod}@{namespace}')
 
     async def initialize_pod(self, pod, namespace):
-        await asyncio.gather(*[
-            retry(check_shell, f'krsync.sh {RSYNC_ARGS} {local} {pod}@{namespace}:{remote}')
-            for local, remote in self.paths])
-        await retry(check_shell, f'kubectl exec {pod} --namespace {namespace} -- kill -2 1')
-        self.pods_list.append((pod, namespace))
+        log.info(f'initializing {pod}@{namespace}')
+        try:
+            await asyncio.gather(*[
+                check_shell(f'{DEVBIN}/krsync.sh {RSYNC_ARGS} {local} {pod}@{namespace}:{remote}')
+                for local, remote in self.paths])
+            await check_shell(f'kubectl exec {pod} --namespace {namespace} -- kill -2 1')
+        except CalledProcessError:
+            log.warning(f'could not initialize {namespace}/{pod}', exc_info=True)
+            return
+        self.pods.add((pod, namespace))
         log.info(f'initialized {pod}@{namespace}')
 
     async def monitor_pods(self, apps, namespace):
@@ -60,9 +64,12 @@ class Sync:
                 k8s.list_namespaced_pod,
                 namespace,
                 label_selector=f'app in ({",".join(apps)})')
-            updated_pods = [(pod.metadata.name, namespace) for pod in updated_pods.items]
-            fresh_pods = set(updated_pods) - set(self.pods_list)
+            updated_pods = {(pod.metadata.name, namespace) for pod in updated_pods.items}
+            fresh_pods = updated_pods - self.pods
+            dead_pods = self.pods - updated_pods
             log.info(f'monitor_pods: fresh_pods: {fresh_pods}')
+            log.info(f'monitor_pods: dead_pods: {dead_pods}')
+            self.pods = self.pods - dead_pods
             await asyncio.gather(*[
                 self.initialize_pod(name, namespace)
                 for name, namespace in fresh_pods])
@@ -71,7 +78,7 @@ class Sync:
     async def should_sync(self):
         await asyncio.gather(*[
             self.sync_and_restart_pod(pod, namespace)
-            for pod, namespace in self.pods_list])
+            for pod, namespace in self.pods])
 
 
 if __name__ == '__main__':

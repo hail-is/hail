@@ -1,7 +1,7 @@
 package is.hail.expr.ir
 
 import is.hail.HailSuite
-import is.hail.annotations.{Annotation, Region, RegionValueBuilder, SafeRow}
+import is.hail.annotations.{Annotation, Region, RegionValueBuilder, SafeNDArray, SafeRow}
 import is.hail.types.encoded._
 import is.hail.types.physical.{PCanonicalArray, PCanonicalNDArray, PCanonicalStringOptional, PCanonicalStringRequired, PCanonicalStruct, PFloat32Required, PFloat64Required, PInt32Optional, PInt32Required, PInt64Optional, PInt64Required, PType}
 import is.hail.io.{InputBuffer, MemoryBuffer, MemoryInputBuffer, MemoryOutputBuffer, OutputBuffer}
@@ -113,28 +113,28 @@ class ETypeSuite extends HailSuite {
   @Test def testNDArrayEncodeDecode(): Unit = {
     val pTypeInt0 = PCanonicalNDArray(PInt32Required, 0, true)
     val eTypeInt0 = ENDArrayColumnMajor(EInt32Required, 0, true)
-    val dataInt0 = Row(Row(), FastIndexedSeq(0))
+    val dataInt0 = new SafeNDArray(IndexedSeq[Long](), FastIndexedSeq(0))
 
     assertEqualEncodeDecode(pTypeInt0, eTypeInt0, pTypeInt0, dataInt0)
 
     val pTypeFloat1 = PCanonicalNDArray(PFloat32Required, 1, true)
     val eTypeFloat1 = ENDArrayColumnMajor(EFloat32Required, 1, true)
-    val dataFloat1 = Row(Row(5L), (0 until 5).map(_.toFloat))
+    val dataFloat1 = new SafeNDArray(IndexedSeq(5L), (0 until 5).map(_.toFloat))
 
     assertEqualEncodeDecode(pTypeFloat1, eTypeFloat1, pTypeFloat1, dataFloat1)
 
     val pTypeInt2 = PCanonicalNDArray(PInt32Required, 2, true)
     val eTypeInt2 = ENDArrayColumnMajor(EInt32Required, 2, true)
-    val dataInt2 = Row(Row(2L, 2L), FastIndexedSeq(10, 20, 30, 40))
+    val dataInt2 = new SafeNDArray(IndexedSeq(2L, 2L), FastIndexedSeq(10, 20, 30, 40))
 
     assertEqualEncodeDecode(pTypeInt2, eTypeInt2, pTypeInt2, dataInt2)
 
     val pTypeDouble3 = PCanonicalNDArray(PFloat64Required, 3, false)
     val eTypeDouble3 = ENDArrayColumnMajor(EFloat64Required, 3, false)
-    val dataDouble3 = Row(Row(3L, 2L, 1L), FastIndexedSeq(1.0, 2.0, 3.0, 4.0, 5.0, 6.0))
+    val dataDouble3 = new SafeNDArray(IndexedSeq(3L, 2L, 1L), FastIndexedSeq(1.0, 2.0, 3.0, 4.0, 5.0, 6.0))
 
     assert(encodeDecode(pTypeDouble3, eTypeDouble3, pTypeDouble3, dataDouble3) ==
-      Row(Row(3L, 2L, 1L), FastIndexedSeq(1.0, 2.0, 3.0, 4.0, 5.0, 6.0)))
+      new SafeNDArray(IndexedSeq(3L, 2L, 1L), FastIndexedSeq(1.0, 2.0, 3.0, 4.0, 5.0, 6.0)))
 
     // Test for skipping
     val pStructContainingNDArray = PCanonicalStruct(true,
@@ -156,7 +156,7 @@ class ETypeSuite extends HailSuite {
     assert(encodeDecode(pStructContainingNDArray, eStructContainingNDArray, pOnlyReadB, dataStruct) ==
       Row(3))
 
-    // Try reading a EBaseStruct into a PNDArray, old method.
+    // Try reading a EBaseStruct into a PNDArray, backwards compatibility.
     val shapeAndStrideType = EBaseStruct(FastIndexedSeq(
       EField("0", EInt64Required, 0),
       EField("1", EInt64Required, 1)
@@ -169,8 +169,8 @@ class ETypeSuite extends HailSuite {
       ),
       true)
     val dataStructInt2 = Row(Row(2L, 2L), Row(4L, 8L), FastIndexedSeq(10, 20, 30, 40))
+    val outputNDArray = new SafeNDArray(IndexedSeq(2L, 2L), FastIndexedSeq(10, 30, 20, 40))
 
-
-    encodeDecode(pTypeInt2.representation, eTypeStructInt2, pTypeInt2, dataStructInt2)
+    assert(encodeDecode(pTypeInt2.representation, eTypeStructInt2, pTypeInt2, dataStructInt2) == outputNDArray)
   }
 }

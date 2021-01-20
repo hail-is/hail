@@ -68,4 +68,40 @@ object LinalgCodeUtils {
 
     pndv.pt.construct(shapeBuilder, stridesBuilder, srvb.end(), cb.emb, region)
   }
+
+  def linearizeIndicesRowMajor(indices: IndexedSeq[Code[Long]], shapeArray: IndexedSeq[Value[Long]], mb: EmitMethodBuilder[_]): Code[Long] = {
+    val index = mb.genFieldThisRef[Long]()
+    val elementsInProcessedDimensions = mb.genFieldThisRef[Long]()
+    Code(
+      index := 0L,
+      elementsInProcessedDimensions := 1L,
+      Code.foreach(shapeArray.zip(indices).reverse) { case (shapeElement, currentIndex) =>
+        Code(
+          index := index + currentIndex * elementsInProcessedDimensions,
+          elementsInProcessedDimensions := elementsInProcessedDimensions * shapeElement
+        )
+      },
+      index
+    )
+  }
+
+  def unlinearizeIndexRowMajor(index: Code[Long], shapeArray: IndexedSeq[Value[Long]], mb: EmitMethodBuilder[_]): (Code[Unit], IndexedSeq[Value[Long]]) = {
+    val nDim = shapeArray.length
+    val newIndices = (0 until nDim).map(_ => mb.genFieldThisRef[Long]())
+    val elementsInProcessedDimensions = mb.genFieldThisRef[Long]()
+    val workRemaining = mb.genFieldThisRef[Long]()
+
+    val createShape = Code(
+      workRemaining := index,
+      elementsInProcessedDimensions := shapeArray.foldLeft(1L: Code[Long])(_ * _),
+      Code.foreach(shapeArray.zip(newIndices)) { case (shapeElement, newIndex) =>
+        Code(
+          elementsInProcessedDimensions := elementsInProcessedDimensions / shapeElement,
+          newIndex := workRemaining / elementsInProcessedDimensions,
+          workRemaining := workRemaining % elementsInProcessedDimensions
+        )
+      }
+    )
+    (createShape, newIndices)
+  }
 }

@@ -296,6 +296,9 @@ def is_transient_error(e):
     # google.auth.exceptions.TransportError: ('Connection aborted.', ConnectionResetError(104, 'Connection reset by peer'))
     #
     # aiohttp.client_exceptions.ClientConnectorError: Cannot connect to host batch.pr-6925-default-s24o4bgat8e8:80 ssl:None [Connect call failed ('10.36.7.86', 80)]
+    #
+    # OSError: [Errno 51] Connect call failed ('35.188.91.25', 443)
+    # https://hail.zulipchat.com/#narrow/stream/223457-Batch-support/topic/ssl.20error
     if isinstance(e, aiohttp.ClientResponseError) and (
             e.status in RETRYABLE_HTTP_STATUS_CODES):
         # nginx returns 502 if it cannot connect to the upstream server
@@ -317,10 +320,12 @@ def is_transient_error(e):
     if isinstance(e, aiohttp.client_exceptions.ClientConnectorError):
         return hasattr(e, 'os_error') and is_transient_error(e.os_error)
     if (isinstance(e, OSError)
-            and (e.errno == errno.ETIMEDOUT
-                 or e.errno == errno.ECONNREFUSED
-                 or e.errno == errno.EHOSTUNREACH
-                 or e.errno == errno.ECONNRESET)):
+            and e.errno in (errno.ETIMEDOUT,
+                            errno.ECONNREFUSED,
+                            errno.EHOSTUNREACH,
+                            errno.ECONNRESET,
+                            errno.ENETUNREACH
+                            )):
         return True
     if isinstance(e, urllib3.exceptions.ReadTimeoutError):
         return True
@@ -544,3 +549,10 @@ def url_join(url: str, path: str) -> str:
     """Join the (relative or absolute) path `path` to the URL `url`."""
     parsed = urllib.parse.urlparse(url)
     return urllib.parse.urlunparse(parsed._replace(path=os.path.join(parsed.path, path)))
+
+
+def is_google_registry_image(path: str) -> bool:
+    """Returns true if the given Docker image path points to either the Google
+    Container Registry or the Artifact Registry."""
+    host = path.partition('/')[0]
+    return host == 'gcr.io' or host.endswith('docker.pkg.dev')

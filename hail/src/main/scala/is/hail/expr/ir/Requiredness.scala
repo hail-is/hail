@@ -6,6 +6,7 @@ import is.hail.types._
 import is.hail.types.physical.{PStream, PType}
 import is.hail.types.virtual._
 import is.hail.utils._
+import org.apache.spark.sql.catalyst.expressions.GenericRow
 
 import scala.collection.mutable
 
@@ -137,7 +138,7 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
       case RelationalLetTable(name, value, body) => addBinding(name, value)
       case TailLoop(loopName, params, body) =>
         addBinding(loopName, body)
-        val argDefs = Array.fill(params.length)(new ArrayBuilder[IR]())
+        val argDefs = Array.fill(params.length)(new BoxedArrayBuilder[IR]())
         refMap(loopName).map(_.t).foreach { case Recur(_, args, _) =>
           argDefs.zip(args).foreach { case (ab, d) => ab += d }
         }

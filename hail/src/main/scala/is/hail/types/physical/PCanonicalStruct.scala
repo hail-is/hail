@@ -49,7 +49,7 @@ final case class PCanonicalStruct(fields: IndexedSeq[PField], required: Boolean 
   def setRequired(required: Boolean): PCanonicalStruct = if(required == this.required) this else PCanonicalStruct(fields, required)
 
   def rename(m: Map[String, String]): PStruct = {
-    val newFieldsBuilder = new ArrayBuilder[(String, PType)]()
+    val newFieldsBuilder = new BoxedArrayBuilder[(String, PType)]()
     fields.foreach { fd =>
       val n = fd.name
       newFieldsBuilder += (m.getOrElse(n, n) -> fd.typ)
@@ -112,7 +112,7 @@ final case class PCanonicalStruct(fields: IndexedSeq[PField], required: Boolean 
     setFieldMissing(offset, fieldIdx(field))
 
   def insertFields(fieldsToInsert: TraversableOnce[(String, PType)]): PStruct = {
-    val ab = new ArrayBuilder[PField](fields.length)
+    val ab = new BoxedArrayBuilder[PField](fields.length)
     var i = 0
     while (i < fields.length) {
       ab += fields(i)

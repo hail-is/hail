@@ -3,8 +3,9 @@ package is.hail.types.physical.stypes
 import is.hail.annotations.{CodeOrdering, Region}
 import is.hail.asm4s.{Code, Settable, TypeInfo, Value}
 import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, SortOrder}
+import is.hail.types.TypeWithRequiredness
 import is.hail.types.physical.{PCode, PType}
-
+import is.hail.types.virtual.Type
 
 trait SType {
   def pType: PType

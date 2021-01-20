@@ -22,7 +22,8 @@ from hailtop.utils import (time_msecs, time_msecs_str, humanize_timedelta_msecs,
 from hailtop.batch_client.parse import (parse_cpu_in_mcpu, parse_memory_in_bytes,
                                         parse_storage_in_bytes)
 from hailtop.config import get_deploy_config
-from hailtop.tls import get_in_cluster_server_ssl_context, in_cluster_ssl_client_session
+from hailtop.tls import internal_server_ssl_context
+from hailtop.httpx import client_session
 from hailtop.hail_logging import AccessLogger
 from hailtop import aiotools, dictfix
 from gear import (Database, setup_aiohttp_session,
@@ -50,7 +51,7 @@ from ..globals import HTTP_CLIENT_MAX_SIZE, BATCH_FORMAT_VERSION
 from ..spec_writer import SpecWriter
 from ..batch_format_version import BatchFormatVersion
 
-from .validate import ValidationError, validate_batch, validate_jobs
+from .validate import ValidationError, validate_batch, validate_and_clean_jobs
 
 # uvloop.install()
 
@@ -173,20 +174,17 @@ async def _query_batch_jobs(request, batch_id):
         if '=' in t:
             k, v = t.split('=', 1)
             condition = '''
-(EXISTS (SELECT * FROM `job_attributes`
-         WHERE `job_attributes`.batch_id = jobs.batch_id AND
-           `job_attributes`.job_id = jobs.job_id AND
-           `job_attributes`.`key` = %s AND
-           `job_attributes`.`value` = %s))
+((jobs.batch_id, jobs.job_id) IN
+ (SELECT batch_id, job_id FROM job_attributes
+  WHERE `key` = %s AND `value` = %s))
 '''
             args = [k, v]
         elif t.startswith('has:'):
             k = t[4:]
             condition = '''
-(EXISTS (SELECT * FROM `job_attributes`
-         WHERE `job_attributes`.batch_id = jobs.batch_id AND
-           `job_attributes`.job_id = jobs.job_id AND
-           `job_attributes`.`key` = %s))
+((jobs.batch_id, jobs.job_id) IN
+ (SELECT batch_id, job_id FROM job_attributes
+  WHERE `key` = %s))
 '''
             args = [k]
         elif t in state_query_values:
@@ -448,18 +446,17 @@ async def _query_batches(request, user):
         if '=' in t:
             k, v = t.split('=', 1)
             condition = '''
-(EXISTS (SELECT * FROM `batch_attributes`
-         WHERE `batch_attributes`.batch_id = id AND
-           `batch_attributes`.`key` = %s AND
-           `batch_attributes`.`value` = %s))
+((batches.id) IN
+ (SELECT batch_id FROM batch_attributes
+  WHERE `key` = %s AND `value` = %s))
 '''
             args = [k, v]
         elif t.startswith('has:'):
             k = t[4:]
             condition = '''
-(EXISTS (SELECT * FROM `batch_attributes`
-         WHERE `batch_attributes`.batch_id = id AND
-           `batch_attributes`.`key` = %s))
+((batches.id) IN
+ (SELECT batch_id FROM batch_attributes
+  WHERE `key` = %s))
 '''
             args = [k]
         elif t == 'open':
@@ -593,7 +590,7 @@ WHERE user = %s AND id = %s AND NOT deleted;
 
         async with timer.step('validate job_specs'):
             try:
-                validate_jobs(job_specs)
+                validate_and_clean_jobs(job_specs)
             except ValidationError as e:
                 raise web.HTTPBadRequest(reason=e.reason)
 
@@ -642,12 +639,7 @@ WHERE user = %s AND id = %s AND NOT deleted;
                 if 'memory' not in resources:
                     resources['memory'] = BATCH_JOB_DEFAULT_MEMORY
                 if 'storage' not in resources:
-                    # FIXME: pvc_size is deprecated
-                    pvc_size = spec.get('pvc_size')
-                    if pvc_size:
-                        resources['storage'] = pvc_size
-                    else:
-                        resources['storage'] = BATCH_JOB_DEFAULT_STORAGE
+                    resources['storage'] = BATCH_JOB_DEFAULT_STORAGE
 
                 req_cores_mcpu = parse_cpu_in_mcpu(resources['cpu'])
                 req_memory_bytes = parse_memory_in_bytes(resources['memory'])
@@ -997,7 +989,7 @@ WHERE user = %s AND id = %s AND NOT deleted;
                 reason=f'wrong number of jobs: expected {expected_n_jobs}, actual {actual_n_jobs}')
         raise
 
-    async with in_cluster_ssl_client_session(
+    async with client_session(
             raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
         await request_retry_transient_errors(
             session, 'PATCH',
@@ -1224,6 +1216,11 @@ async def ui_get_job(request, userdata):
                      container_statuses['output']]
 
     job_specification = job_status['spec']
+    if 'process' in job_specification:
+        process_specification = job_specification['process']
+        assert process_specification['type'] == 'docker'
+        job_specification['image'] = process_specification['image']
+        job_specification['command'] = process_specification['command']
     job_specification = dictfix.dictfix(job_specification,
                                         dictfix.NoneOr({'image': str,
                                                         'command': list,
@@ -1802,7 +1799,7 @@ async def index(request, userdata):  # pylint: disable=unused-argument
 
 
 async def cancel_batch_loop_body(app):
-    async with in_cluster_ssl_client_session(
+    async with client_session(
             raise_for_status=True, timeout=aiohttp.ClientTimeout(total=5)) as session:
         await request_retry_transient_errors(
             session, 'POST',
@@ -1814,7 +1811,7 @@ async def cancel_batch_loop_body(app):
 
 
 async def delete_batch_loop_body(app):
-    async with in_cluster_ssl_client_session(
+    async with client_session(
             raise_for_status=True, timeout=aiohttp.ClientTimeout(total=5)) as session:
         await request_retry_transient_errors(
             session, 'POST',
@@ -1901,4 +1898,4 @@ def run():
                 host='0.0.0.0',
                 port=5000,
                 access_log_class=AccessLogger,
-                ssl_context=get_in_cluster_server_ssl_context())
+                ssl_context=internal_server_ssl_context())

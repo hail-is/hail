@@ -12,7 +12,7 @@ from asyncinit import asyncinit
 from hailtop.config import get_deploy_config
 from hailtop.auth import service_auth_headers
 from hailtop.utils import bounded_gather, request_retry_transient_errors, tqdm, TQDM_DEFAULT_DISABLE
-from hailtop.tls import get_context_specific_ssl_client_session
+from hailtop.httpx import client_session
 
 from .globals import tasks, complete_states
 
@@ -445,11 +445,14 @@ class BatchBuilder:
 
         job_spec = {
             'always_run': always_run,
-            'command': command,
-            'image': image,
             'job_id': self._job_idx,
-            'mount_docker_socket': mount_docker_socket,
-            'parent_ids': parent_ids
+            'parent_ids': parent_ids,
+            'process': {
+                'command': command,
+                'image': image,
+                'mount_docker_socket': mount_docker_socket,
+                'type': 'docker'
+            }
         }
 
         if env:
@@ -597,7 +600,7 @@ class BatchClient:
         self.url = deploy_config.base_url('batch')
 
         if session is None:
-            session = get_context_specific_ssl_client_session(
+            session = client_session(
                 raise_for_status=True,
                 timeout=aiohttp.ClientTimeout(total=60))
         self._session = session
