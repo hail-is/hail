@@ -47,7 +47,7 @@ class NDArraySumAggregator(ndVTyp: VirtualTypeWithReq) extends StagedAggregator 
           },
           { currentNDPCode =>
             val currentNDPValue = currentNDPCode.asNDArray.memoize(cb, "ndarray_sum_seqop_current")
-            addValues(cb, currentNDPValue, nextNDPV)
+            addValues(cb, state.region, currentNDPValue, nextNDPV)
           }
         )
       })
@@ -70,7 +70,7 @@ class NDArraySumAggregator(ndVTyp: VirtualTypeWithReq) extends StagedAggregator 
             },
             { leftNDPC =>
               val leftNdValue = leftNDPC.asNDArray.memoize(cb, "left_ndarray_sum_agg")
-              addValues(cb, leftNdValue, rightNdValue)
+              addValues(cb, state.region, leftNdValue, rightNdValue)
             })
         }
       )

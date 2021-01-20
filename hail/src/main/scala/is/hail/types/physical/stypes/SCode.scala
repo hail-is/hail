@@ -1,7 +1,7 @@
 package is.hail.types.physical.stypes
 
 import is.hail.annotations.Region
-import is.hail.asm4s.{Code, Settable, Value}
+import is.hail.asm4s._
 import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.physical.stypes.primitives._
