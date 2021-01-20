@@ -133,7 +133,7 @@ abstract class EType extends BaseType with Serializable with Requiredness {
   ): Unit = {
     assert(!pt.isInstanceOf[PBaseStruct]) // should be overridden for structs
     val decoded = _buildDecoder(cb, pt, region, in)
-    cb += Region.storeIRIntermediate(pt)(addr, decoded)
+    pt.storeAtAddress(cb, addr, region, PCode(pt, decoded), false)
   }
 
   def _buildSkip(cb: EmitCodeBuilder, r: Value[Region], in: Value[InputBuffer]): Unit

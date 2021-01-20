@@ -386,7 +386,6 @@ abstract class RegistryFunctions {
   )(
     impl: (EmitRegion, EmitCodeBuilder, PType, Array[Type], Array[(PType, Code[_])]) => Code[_]
   ) {
-    val _typeParameters = typeParameters
     IRFunctionRegistry.addJVMFunction(
       new UnseededMissingnessObliviousJVMFunction(name, typeParameters, valueParameterTypes, returnType, calculateReturnPType) {
         override def apply(r: EmitRegion, cb: EmitCodeBuilder, returnPType: PType, typeParameters: Seq[Type], args: (PType, Code[_])*): Code[_] = {
