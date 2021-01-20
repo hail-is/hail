@@ -39,7 +39,7 @@ from ..log_store import LogStore
 from ..globals import HTTP_CLIENT_MAX_SIZE, STATUS_FORMAT_VERSION
 from ..batch_format_version import BatchFormatVersion
 from ..worker_config import WorkerConfig
-from ..public_gcr_images import PUBLIC_GCR_IMAGES
+from ..public_gcr_images import public_gcr_images
 
 from .flock import Flock
 
@@ -60,6 +60,7 @@ IP_ADDRESS = os.environ['IP_ADDRESS']
 BATCH_LOGS_BUCKET_NAME = os.environ['BATCH_LOGS_BUCKET_NAME']
 INSTANCE_ID = os.environ['INSTANCE_ID']
 PROJECT = os.environ['PROJECT']
+PUBLIC_GCR_IMAGES = public_gcr_images(PROJECT)
 WORKER_CONFIG = json.loads(base64.b64decode(os.environ['WORKER_CONFIG']).decode())
 MAX_IDLE_TIME_MSECS = int(os.environ['MAX_IDLE_TIME_MSECS'])
 WORKER_DATA_DISK_MOUNT = os.environ['WORKER_DATA_DISK_MOUNT']

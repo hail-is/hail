@@ -1,5 +1,7 @@
-from .batch_configuration import PROJECT
+from typing import List
 
-PUBLIC_GCR_IMAGES = (
-    f'gcr.io/{PROJECT}/{name}'
-    for name in ('query',))
+
+def public_gcr_images(project: str) -> List[str]:
+    # the worker cannot import batch_configuration because it does not have all the environment
+    # variables
+    return [f'gcr.io/{project}/{name}' for name in ('query',)]
