@@ -23,7 +23,7 @@ spec:
 {% if deploy %}
       priorityClassName: production
       nodeSelector:
-        preemptible: "false"      
+        preemptible: "false"
 {% else %}
       nodeSelector:
         preemptible: "true"
@@ -252,9 +252,9 @@ spec:
             memory: 75Mi
             cpu: 20m
 {% endif %}
-           limits:
-             memory: 3750Mi
-             cpu: "1"
+          limits:
+            memory: 3750Mi
+            cpu: "1"
         volumeMounts:
          - name: deploy-config
            mountPath: /deploy-config
