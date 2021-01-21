@@ -147,7 +147,7 @@ async def create_container(config, name):
         try:
             return await docker.containers.create(config, name=name)
         except DockerError as e:
-            log.exception('while creating container', exc_info=True)
+            log.exception('while creating container')
             # 409 container with name already exists
             if e.status == 409:
                 try:
@@ -169,7 +169,7 @@ async def start_container(container):
     try:
         return await container.start()
     except DockerError as e:
-        log.exception('while starting container', exc_info=True)
+        log.exception('while starting container')
         # 304 container has already started
         if e.status == 304:
             return
@@ -183,7 +183,7 @@ async def stop_container(container):
     try:
         return await container.stop()
     except DockerError as e:
-        log.exception('while stopping container', exc_info=True)
+        log.exception('while stopping container')
         # 304 container has already stopped
         if e.status == 304:
             return
@@ -194,7 +194,7 @@ async def delete_container(container, *args, **kwargs):
     try:
         return await container.delete(*args, **kwargs)
     except DockerError as e:
-        log.exception('while deleting container', exc_info=True)
+        log.exception('while deleting container')
         # 404 container does not exist
         # 409 removal of container is already in progress
         if e.status in (404, 409):
