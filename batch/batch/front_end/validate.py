@@ -70,7 +70,7 @@ job_validator = keyed({
 batch_validator = keyed({
     'attributes': nullable(dictof(str_type)),
     required('billing_project'): str_type,
-    'callback': nullable(str),
+    'callback': nullable(str_type),
     required('n_jobs'): int_type,
     required('token'): str_type
 })
