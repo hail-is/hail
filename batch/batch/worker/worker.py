@@ -239,16 +239,19 @@ class Container:
         self.name = name
         self.spec = spec
 
-        image = spec['image']
-        tag = parse_image_tag(self.spec['image'])
+        repository, tag = parse_image_tag(self.spec['image'])
+
         if not tag:
             log.info(f'adding latest tag to image {self.spec["image"]} for {self}')
-            image += ':latest'
-        if image in HAIL_GENETICS_IMAGES:
-            image_name_without_prefix = image[len(HAIL_GENETICS):]
-            self.image = 'gcr.io/' + PROJECT + '/' + image_name_without_prefix
-        else:
-            self.image = image
+            tag = 'latest'
+
+        if repository in HAIL_GENETICS_IMAGES:
+            repository_name_without_prefix = repository[len(HAIL_GENETICS):]
+            repository = f'gcr.io/{PROJECT}/{repository_name_without_prefix}'
+
+        self.repository = repository
+        self.tag = tag
+        self.image = self.repository + ':' + self.tag
 
         self.port = self.spec.get('port')
         self.host_port = None
@@ -358,7 +361,7 @@ class Container:
         try:
             async with self.step('pulling'):
                 is_gcr_image = is_google_registry_image(self.image)
-                is_public_gcr_image = self.image in PUBLIC_GCR_IMAGES
+                is_public_gcr_image = self.repository in PUBLIC_GCR_IMAGES
 
                 if not is_gcr_image or is_public_gcr_image:
                     await self.ensure_image_is_pulled()
