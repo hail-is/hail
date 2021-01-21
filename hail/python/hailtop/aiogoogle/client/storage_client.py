@@ -3,7 +3,9 @@ from typing import Tuple, Any, Set, Optional, Mapping, Dict, AsyncIterator, cast
 import asyncio
 import urllib.parse
 import aiohttp
-from hailtop.aiotools import FileStatus, FileListEntry, ReadableStream, WritableStream, AsyncFS, FeedableAsyncIterable
+from hailtop.aiotools import (
+    FileStatus, FileListEntry, ReadableStream, WritableStream, AsyncFS,
+    FeedableAsyncIterable, FileAndDirectoryError)
 from multidict import CIMultiDictProxy  # pylint: disable=unused-import
 from .base_client import BaseClient
 
@@ -140,7 +142,7 @@ class GetObjectFileStatus(FileStatus):
 
 class GoogleStorageFileListEntry(FileListEntry):
     def __init__(self, url: str, items: Optional[Dict[str, Any]]):
-        assert url.endswith('/') == (items is None)
+        assert url.endswith('/') == (items is None), f'{url} {items}'
         self._url = url
         self._items = items
         self._status = None
@@ -150,6 +152,9 @@ class GoogleStorageFileListEntry(FileListEntry):
         return os.path.basename(parsed.path)
 
     async def url(self) -> str:
+        return self._url
+
+    def url_maybe_trailing_slash(self) -> str:
         return self._url
 
     async def is_file(self) -> bool:
@@ -196,7 +201,37 @@ class GoogleStorageAsyncFS(AsyncFS):
         bucket, name = self._get_bucket_name(url)
         return await self._storage_client.insert_object(bucket, name)
 
+    async def staturl(self, url: str) -> str:
+        assert not url.endswith('/')
+
+        async def with_exception(f, *args, **kwargs):
+            try:
+                return (await f(*args, **kwargs)), None
+            except Exception as e:
+                return None, e
+
+        [(is_file, isfile_exc), (is_dir, isdir_exc)] = await asyncio.gather(
+            with_exception(self.isfile, url), with_exception(self.isdir, url + '/'))
+        # raise exception deterministically
+        if isfile_exc:
+            raise isfile_exc
+        if isdir_exc:
+            raise isdir_exc
+
+        if is_file:
+            if is_dir:
+                raise FileAndDirectoryError(url)
+            return AsyncFS.FILE
+
+        if is_dir:
+            return AsyncFS.DIR
+
+        raise FileNotFoundError(url)
+
     async def mkdir(self, url: str) -> None:
+        pass
+
+    async def makedirs(self, url: str, exist_ok: bool = False) -> None:
         pass
 
     async def statfile(self, url: str) -> GetObjectFileStatus:
