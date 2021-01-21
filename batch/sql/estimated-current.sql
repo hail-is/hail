@@ -188,7 +188,6 @@ CREATE TABLE IF NOT EXISTS `jobs` (
   `msec_mcpu` BIGINT NOT NULL DEFAULT 0,
   `attempt_id` VARCHAR(40),
   `inst_coll` VARCHAR(255),
-  `worker_type` VARCHAR(255),
   PRIMARY KEY (`batch_id`, `job_id`),
   FOREIGN KEY (`batch_id`) REFERENCES batches(id) ON DELETE CASCADE,
   FOREIGN KEY (`inst_coll`) REFERENCES inst_colls(name) ON DELETE CASCADE

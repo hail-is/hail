@@ -752,7 +752,7 @@ WHERE user = %s AND id = %s AND NOT deleted;
 
                 jobs_args.append(
                     (batch_id, job_id, state, json.dumps(db_spec),
-                     always_run, cores_mcpu, len(parent_ids), pool.name, worker_type))
+                     always_run, cores_mcpu, len(parent_ids), pool.name))
 
                 for parent_id in parent_ids:
                     job_parents_args.append(
@@ -774,8 +774,8 @@ WHERE user = %s AND id = %s AND NOT deleted;
             async def insert(tx):
                 try:
                     await tx.execute_many('''
-INSERT INTO jobs (batch_id, job_id, state, spec, always_run, cores_mcpu, n_pending_parents, inst_coll, worker_type)
-VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s);
+INSERT INTO jobs (batch_id, job_id, state, spec, always_run, cores_mcpu, n_pending_parents, inst_coll)
+VALUES (%s, %s, %s, %s, %s, %s, %s, %s);
 ''',
                                           jobs_args)
                 except pymysql.err.IntegrityError as err:
