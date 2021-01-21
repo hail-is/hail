@@ -9,6 +9,12 @@ def test_simple_table():
     print(f'n {n}')
     assert n == 17
 
+def test_simple_shuffle():
+    expected = [hl.Struct(idx=i) for i in range(99, -1, -1)]
+    t = hl.utils.range_table(100)
+    actual = t.order_by(-t.idx).collect()
+    assert actual == expected
+
 @pytest.mark.asyncio
 async def test_flags():
     async with cli.QueryClient() as client:

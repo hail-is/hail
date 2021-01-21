@@ -95,3 +95,6 @@ principals:
 - name: atgu
   domain: atgu
   kind: json
+- name: batch-user-code
+  domain: batch-user-code
+  kind: json

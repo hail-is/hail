@@ -698,7 +698,19 @@ WHERE user = %s AND id = %s AND NOT deleted;
                         'namespace': DEFAULT_NAMESPACE,
                         'name': userdata['tokens_secret_name'],
                         'mount_path': '/user-tokens',
-                        'mount_in_copy': True
+                        'mount_in_copy': False
+                    })
+                    secrets.append({
+                        'namespace': DEFAULT_NAMESPACE,
+                        'name': 'gce-deploy-config',
+                        'mount_path': '/deploy-config',
+                        'mount_in_copy': False
+                    })
+                    secrets.append({
+                        'namespace': DEFAULT_NAMESPACE,
+                        'name': 'ssl-config-batch-user-code',
+                        'mount_path': '/ssl-config',
+                        'mount_in_copy': False
                     })
 
                 sa = spec.get('service_account')

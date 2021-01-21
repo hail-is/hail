@@ -3,6 +3,7 @@ package is.hail.services.shuffler
 import is.hail.expr.ir._
 import is.hail.types.virtual._
 import is.hail.types.physical._
+import is.hail.annotations.Region
 
 class ShuffleCodecSpec(
   ctx: ExecuteContext,
@@ -20,4 +21,14 @@ class ShuffleCodecSpec(
   assert(keyDecodedPType == shuffleType.keyDecodedPType)
   val keyEncodingPType = _keyEncodingPType.getOrElse(keyDecodedPType)
   val makeKeyEncoder = shuffleType.keyEType.buildEncoder(ctx, keyEncodingPType)
+
+  val keyPSubsetStruct = {
+    if (keyDecodedPType == rowDecodedPType) {
+      rowDecodedPType
+    } else {
+      new PSubsetStruct(rowDecodedPType, shuffleType.keyFields.map(_.field).toArray)
+    }
+  }
+  def constructKeyFromDecodedRow(r: Region, row: Long): Long =
+    keyDecodedPType.copyFromAddress(r, keyPSubsetStruct, row, false)
 }

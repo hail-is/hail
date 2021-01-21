@@ -323,8 +323,6 @@ iptables -I DOCKER-USER -d 169.254.169.254 -p udp -m udp --destination-port 53 -
 
 docker network create public --opt com.docker.network.bridge.name=public
 docker network create private --opt com.docker.network.bridge.name=private
-# make the internal network not route-able
-iptables -I DOCKER-USER -i public -d 10.0.0.0/8 -j DROP
 # make other docker containers not route-able
 iptables -I DOCKER-USER -i public -d 172.16.0.0/12 -j DROP
 # not used, but ban it anyway!
@@ -474,6 +472,8 @@ docker run \
     --security-opt apparmor:unconfined \
     $BATCH_WORKER_IMAGE \
     python3 -u -m batch.worker.worker >worker.log 2>&1
+
+[ $? -eq 0 ] || tail -n 1000 worker.log
 
 while true; do
   gcloud -q compute instances delete $NAME --zone=$ZONE

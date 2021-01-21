@@ -4,10 +4,11 @@ import java.net._
 import java.security.SecureRandom
 import java.util.concurrent.{ConcurrentSkipListMap, Executors, _}
 
-import is.hail.annotations.{Region, RegionPool}
+import is.hail.annotations._
 import is.hail.expr.ir._
 import is.hail.types.encoded._
 import is.hail.types.virtual._
+import is.hail.types.physical._
 import is.hail.io._
 import is.hail.services.tls._
 import is.hail.services.shuffler._
@@ -141,6 +142,10 @@ class Shuffle (
       }
     }
   }
+  log.info(s"rowDecodedPType: ${codecs.rowDecodedPType}")
+  log.info(s"rowEncodingPType: ${codecs.rowEncodingPType}")
+  log.info(s"keyDecodedPType: ${codecs.keyDecodedPType}")
+  log.info(s"keyEncodingPType: ${codecs.keyEncodingPType}")
 
   private[this] val store = new LSM(s"/tmp/${uuidToString(uuid)}", codecs, pool)
 
@@ -161,7 +166,7 @@ class Shuffle (
     assert(hasNext != -1)
     while (hasNext == 1) {
       val off = decoder.readRegionValue(region)
-      val koff = codecs.keyDecodedPType.copyFromAddress(region, codecs.rowDecodedPType, off, false)
+      val koff = codecs.constructKeyFromDecodedRow(region, off)
       store.put(koff, off)
       hasNext = in.readByte()
     }
@@ -205,8 +210,8 @@ class Shuffle (
 
     val keyEncoder = codecs.makeKeyEncoder(out)
 
-    log.info(s"partitionBounds ${nPartitions}")
     val keys = store.partitionKeys(nPartitions)
+    log.info(s"partitionBounds ${nPartitions}")
     assert((nPartitions == 0 && keys.length == 0) ||
       keys.length == nPartitions + 1)
     writeRegionValueArray(keyEncoder, keys)

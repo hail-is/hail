@@ -13,7 +13,7 @@ import is.hail.io.fs.{FS, HadoopFS}
 import is.hail.io.plink.LoadPlink
 import is.hail.io.{BufferSpec, TypedCodecSpec}
 import is.hail.linalg.BlockMatrix
-import is.hail.types.BlockMatrixType
+import is.hail.types._
 import is.hail.types.encoded.EType
 import is.hail.types.physical.{PTuple, PType, PVoid}
 import is.hail.types.virtual.TVoid
@@ -265,7 +265,13 @@ class LocalBackend(
     }
   }
 
-  def lowerDistributedSort(ctx: ExecuteContext, stage: TableStage, sortFields: IndexedSeq[SortField], relationalLetsAbove: Map[String, IR]): TableStage = {
+  def lowerDistributedSort(
+    ctx: ExecuteContext,
+    stage: TableStage,
+    sortFields: IndexedSeq[SortField],
+    relationalLetsAbove: Map[String, IR],
+    tableTypeRequiredness: RTable
+  ): TableStage = {
     // Use a local sort for the moment to enable larger pipelines to run
     LowerDistributedSort.localSort(ctx, stage, sortFields, relationalLetsAbove)
   }
