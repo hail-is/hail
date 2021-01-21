@@ -102,7 +102,8 @@ object PCode {
     case pt: PCanonicalBinary =>
       new SBinaryPointerCode(SBinaryPointer(pt), coerce[Long](code))
     case pt: PCanonicalShuffle =>
-      new SCanonicalShufflePointerCode(SCanonicalShufflePointer(pt), coerce[Long](code))
+      new SCanonicalShufflePointerCode(SCanonicalShufflePointer(pt),
+        new SBinaryPointerCode(SBinaryPointer(pt), coerce[Long](code)))
     case pt: PCanonicalString =>
       new SStringPointerCode(SStringPointer(pt), coerce[Long](code))
     case pt: PCanonicalInterval =>
