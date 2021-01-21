@@ -340,6 +340,7 @@ case class RInterval(startType: TypeWithRequiredness, endType: TypeWithRequiredn
 case class RField(name: String, typ: TypeWithRequiredness, index: Int)
 sealed abstract class RBaseStruct extends TypeWithRequiredness {
   def fields: IndexedSeq[RField]
+  def size: Int = fields.length
   val children: Seq[TypeWithRequiredness] = fields.map(_.typ)
   def _unionLiteral(a: Annotation): Unit =
     children.zip(a.asInstanceOf[Row].toSeq).foreach { case (r, f) => r.unionLiteral(f) }
