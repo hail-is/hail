@@ -384,9 +384,10 @@ class ServiceBackend() extends Backend {
   ): TableStage = {
     val region = ctx.r
     val rowType = stage.rowType
-    val keyType = rowType.typeAfterSelectNames(sortFields.map(_.field))
+    val keyFields = sortFields.map(_.field).toArray
+    val keyType = rowType.typeAfterSelectNames(keyFields)
     val rowEType = EType.fromTypeAndAnalysis(rowType, tableTypeRequiredness.rowType).asInstanceOf[EBaseStruct]
-    val keyEType = EType.fromTypeAndAnalysis(keyType, tableTypeRequiredness.rowType).asInstanceOf[EBaseStruct]
+    val keyEType = EType.fromTypeAndAnalysis(keyType, tableTypeRequiredness.rowType.select(keyFields)).asInstanceOf[EBaseStruct]
     val shuffleType = TShuffle(sortFields, rowType, rowEType, keyEType)
     val shuffleClient = new ShuffleClient(shuffleType, ctx)
     assert(keyType == shuffleClient.codecs.keyType)

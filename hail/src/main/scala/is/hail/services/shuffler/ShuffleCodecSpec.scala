@@ -16,15 +16,15 @@ class ShuffleCodecSpec(
   val rowEncodingPType = _rowEncodingPType.getOrElse(rowDecodedPType)
   val makeRowEncoder = shuffleType.rowEType.buildEncoder(ctx, rowEncodingPType)
 
-  val keyDecodedSubsetPType = new PSubsetStruct(
-    rowDecodedPType,
-    shuffleType.keyFields.map(_.field).toArray)
-  def constructKeyFromDecodedRow(r: Region, row: Long): Long =
-    keyDecodedSubsetPType.copyFromAddress(r, rowDecodedPType, row, false)
-
   val keyType = shuffleType.keyType
   val (keyDecodedPType, makeKeyDecoder) = shuffleType.keyEType.buildStructDecoder(ctx, shuffleType.keyType)
   assert(keyDecodedPType == shuffleType.keyDecodedPType)
   val keyEncodingPType = _keyEncodingPType.getOrElse(keyDecodedPType)
   val makeKeyEncoder = shuffleType.keyEType.buildEncoder(ctx, keyEncodingPType)
+
+  val keyPSubsetStruct = new PSubsetStruct(
+    rowDecodedPType,
+    shuffleType.keyFields.map(_.field).toArray)
+  def constructKeyFromDecodedRow(r: Region, row: Long): Long =
+    keyDecodedPType.copyFromAddress(r, keyPSubsetStruct, row, false)
 }

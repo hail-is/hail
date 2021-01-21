@@ -371,6 +371,8 @@ case class RStruct(fields: IndexedSeq[RField]) extends RBaseStruct {
     assert(newChildren.length == fields.length)
     RStruct(Array.tabulate(fields.length)(i => fields(i).name -> coerce[TypeWithRequiredness](newChildren(i))))
   }
+  def select(newFields: Array[String]): RStruct =
+    RStruct(Array.tabulate(newFields.length)(i => RField(newFields(i), field(newFields(i)), i)))
   def _toString: String = s"RStruct[${ fields.map(f => s"${ f.name }: ${ f.typ.toString }").mkString(",") }]"
 }
 
