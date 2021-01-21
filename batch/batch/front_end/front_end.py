@@ -269,6 +269,7 @@ async def _get_job_log_from_record(app, batch_id, job_id, record):
     ip_address = record['ip_address']
     if state == 'Running':
         async with aiohttp.ClientSession(
+                raise_for_status=True,
                 timeout=aiohttp.ClientTimeout(total=60)) as session:
             try:
                 url = (f'http://{ip_address}:5000'
@@ -402,6 +403,7 @@ async def _get_full_job_status(app, record):
 
     ip_address = record['ip_address']
     async with aiohttp.ClientSession(
+            raise_for_status=True,
             timeout=aiohttp.ClientTimeout(total=60)) as session:
         try:
             url = (f'http://{ip_address}:5000'
