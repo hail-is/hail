@@ -1992,6 +1992,8 @@ steps:
       script: /io/sql/add-aggregated-billing-project-resources.sql
     - name: add-enable-standing-worker
       script: /io/sql/add-enable-standing-worker.py
+    - name: add-inst-colls
+      script: /io/sql/add-inst-colls.sql
    inputs:
     - from: /repo/batch/sql
       to: /io/

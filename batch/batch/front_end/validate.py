@@ -17,6 +17,7 @@ image_str = str_type
 # mount_docker_socket -> process/mount_docker_socket
 # pvc_size -> resources/storage
 
+
 job_validator = keyed({
     'always_run': bool_type,
     'attributes': dictof(str_type),
@@ -53,7 +54,8 @@ job_validator = keyed({
     'resources': keyed({
         'memory': regex(MEMORY_REGEXPAT, MEMORY_REGEX),
         'cpu': regex(CPU_REGEXPAT, CPU_REGEX),
-        'storage': regex(MEMORY_REGEXPAT, MEMORY_REGEX)
+        'storage': regex(MEMORY_REGEXPAT, MEMORY_REGEX),
+        'worker_type': oneof('standard', 'highcpu', 'highmem')
     }),
     'secrets': listof(keyed({
         required('namespace'): k8s_str,
