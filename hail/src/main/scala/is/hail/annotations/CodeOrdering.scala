@@ -204,7 +204,6 @@ object CodeOrdering {
         val left = EmitCode.fromI(cb.emb)(lhs.loadElement(_, i).typecast)
         val right = EmitCode.fromI(cb.emb)(rhs.loadElement(_, i).typecast)
         f(left, right)
-        cb.assign(i, i + 1)
       })
     }
 
