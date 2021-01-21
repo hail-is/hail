@@ -17,6 +17,7 @@ setup(
     package_dir={
         'hailtop': 'hailtop'},
     package_data={
+        "hailtop": ["py.typed"],
         'hailtop.hailctl': ['hail_version', 'deploy.yaml']},
     classifiers=[
         "Programming Language :: Python :: 3",
