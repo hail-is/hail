@@ -53,7 +53,11 @@ class TakeByRVAS(val valueVType: VirtualTypeWithReq, val keyVType: VirtualTypeWi
     val cmp = kb.genEmitMethod("compare", FastIndexedSeq[ParamType](k1.pv.st.pType.asEmitParam, k2.pv.st.pType.asEmitParam), IntInfo)
     val ord = k1.pv.st.pType.codeOrdering(cmp, k2.pv.st.pType, so)
 
-    cmp.emitWithBuilder(cb => ord.compare(cb, k1, k2))
+    cmp.emitWithBuilder {
+      val k1 = cmp.getEmitParam(1)
+      val k2 = cmp.getEmitParam(2)
+      cb => ord.compare(cb, k1, k2)
+    }
     cb.invokeCode(cmp, k1, k2)
   }
 
