@@ -145,7 +145,6 @@ str_type = TypedValidator(str)
 bool_type = TypedValidator(bool)
 int_type = TypedValidator(int)
 
-Key = Union[str, RequiredKey]
 Validator = Union[TypedValidator, NumericValidator, NullableValidator, SetValidator]
 
 
