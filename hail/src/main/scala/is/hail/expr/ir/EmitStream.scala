@@ -1144,7 +1144,7 @@ object EmitStream {
         (matchIdx.ceq(0) || challenger.ceq(-1)).orEmpty(LloopEnd.goto),
         (challenger.cne(k) && (winner.ceq(k)
             || EmitCodeBuilder.scopedCode(mb)(
-                lt(_, PCode(keyViewType, heads(winner)), PCode(keyViewType, heads(challenger)))))
+                lt(_, PCode(keyViewType, heads(challenger)), PCode(keyViewType, heads(winner)))))
         ).orEmpty(Code(
           bracket(matchIdx) = winner,
           winner := challenger)),
