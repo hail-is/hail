@@ -1,5 +1,4 @@
 import aiohttp
-import base64
 import os
 import pytest
 import secrets
@@ -261,6 +260,7 @@ async def test_add_and_delete_user(dev_client, new_billing_project):
     r = await dev_client.remove_user('test', project)
     # test idempotent
     r = await dev_client.remove_user('test', project)
+
     assert r['user'] == 'test'
     assert r['billing_project'] == project
 
@@ -418,3 +418,101 @@ async def test_billing_limit_tiny(make_client, dev_client, new_billing_project):
     batch = await batch.submit()
     batch = await batch.wait()
     assert batch['state'] == 'cancelled', batch
+
+
+async def test_all_billing_project_users_operations(make_client, dev_client, new_billing_project):
+    project = new_billing_project
+
+    r = await dev_client.add_user("test", project)
+    assert r['user'] == 'test'
+    assert r['billing_project'] == project
+
+    r = await dev_client.add_user("test-dev", project)
+    assert r['user'] == 'test-dev'
+    assert r['billing_project'] == project
+
+    b = await dev_client.create_batch()
+    j = b.create_job(DOCKER_ROOT_IMAGE, command=['sleep', '30'])
+    b = await b.submit()
+
+    client = await make_client(project)
+    client_batch = await client.get_batch(b.id)
+    client_job = await client.get_job(j.batch_id, j.job_id)
+
+    await client_job.attempts()
+    await client_job.log()
+    await client_job.status()
+
+    await client_batch.cancel()
+    await client_batch.delete()
+
+
+async def test_only_one_billing_project_user_operations(make_client, dev_client, new_billing_project):
+    project = new_billing_project
+
+    r = await dev_client.add_user("test", project)
+    assert r['user'] == 'test'
+    assert r['billing_project'] == project
+
+    client = await make_client(project)
+    b = await client.create_batch()
+    j = b.create_job(DOCKER_ROOT_IMAGE, command=['sleep', '30'])
+    b = await b.submit()
+
+    try:
+        await dev_client.get_batch(b.id)
+    except aiohttp.ClientResponseError as e:
+        assert e.status == 403, e
+    else:
+        assert False, 'expected error'
+
+    try:
+        await dev_client.get_job(j.batch_id, j.job_id)
+    except aiohttp.ClientResponseError as e:
+        assert e.status == 403, e
+    else:
+        assert False, 'expected error'
+
+    try:
+        await dev_client.get_job(j.batch_id, j.job_id)
+    except aiohttp.ClientResponseError as e:
+        assert e.status == 403, e
+    else:
+        assert False, 'expected error'
+
+    try:
+        await dev_client.get_job(j.batch_id, j.job_id)
+    except aiohttp.ClientResponseError as e:
+        assert e.status == 403, e
+    else:
+        assert False, 'expected error'
+
+    try:
+        await dev_client._get(f'/api/v1alpha/batches/{j.batch_id}/jobs/{j.job_id}/log')
+    except aiohttp.ClientResponseError as e:
+        assert e.status == 403, e
+    else:
+        assert False, 'expected error'
+
+    try:
+        await dev_client._get(f'/api/v1alpha/batches/{j.batch_id}/jobs/{j.job_id}/attempts')
+    except aiohttp.ClientResponseError as e:
+        assert e.status == 403, e
+    else:
+        assert False, 'expected error'
+
+    try:
+        await dev_client._patch(f'/api/v1alpha/batches/{b.id}/cancel')
+    except aiohttp.ClientResponseError as e:
+        assert e.status == 403, e
+    else:
+        assert False, 'expected error'
+
+    try:
+        await dev_client._delete(f'/api/v1alpha/batches/{b.id}/delete')
+    except aiohttp.ClientResponseError as e:
+        assert e.status == 403, e
+    else:
+        assert False, 'expected error'
+
+    await b.cancel()

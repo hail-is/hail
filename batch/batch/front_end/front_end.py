@@ -113,6 +113,49 @@ def rest_authenticated_developers_or_auth_only(fun):
     return wrapped
 
 
+async def _batch_billing_project_user(request, userdata):
+    app = request.app
+    db: Database = app['db']
+
+    batch_id = int(request.match_info['batch_id'])
+    user = userdata['username']
+
+    record = await db.select_and_fetchone(
+        '''
+SELECT id
+FROM batches
+LEFT JOIN billing_project_users ON batches.billing_project = billing_project_users.billing_project
+WHERE id = %s AND billing_project_users.`user` = %s;
+''',
+        (batch_id, user))
+
+    return record is not None
+
+
+def rest_billing_project_users_only(fun):
+    @rest_authenticated_users_only
+    @wraps(fun)
+    async def wrapped(request, userdata, *args, **kwargs):
+        permitted_user = await _batch_billing_project_user(request, userdata)
+        if not permitted_user:
+            raise web.HTTPUnauthorized()
+        return await fun(request, userdata, *args, **kwargs)
+    return wrapped
+
+
+def web_billing_project_users_only(redirect=True):
+    def wrap(fun):
+        @web_authenticated_users_only(redirect)
+        @wraps(fun)
+        async def wrapped(request, userdata, *args, **kwargs):
+            permitted_user = await _batch_billing_project_user(request, userdata)
+            if not permitted_user:
+                raise web.HTTPUnauthorized()
+            return await fun(request, userdata, *args, **kwargs)
+        return wrapped
+    return wrap
+
+
 @routes.get('/healthcheck')
 async def get_healthcheck(request):  # pylint: disable=W0613
     return web.Response()
@@ -249,17 +292,16 @@ LIMIT 50;
 
 @routes.get('/api/v1alpha/batches/{batch_id}/jobs')
 @prom_async_time(REQUEST_TIME_GET_JOBS)
-@rest_authenticated_users_only
-async def get_jobs(request, userdata):
+@rest_billing_project_users_only
+async def get_jobs(request, userdata):  # pylint: disable=unused-argument
     batch_id = int(request.match_info['batch_id'])
-    user = userdata['username']
 
     db = request.app['db']
     record = await db.select_and_fetchone(
         '''
 SELECT * FROM batches
-WHERE user = %s AND id = %s AND NOT deleted;
-''', (user, batch_id))
+WHERE id = %s AND NOT deleted;
+''', (batch_id,))
     if not record:
         raise web.HTTPNotFound()
 
@@ -320,7 +362,7 @@ async def _get_job_log_from_record(app, batch_id, job_id, record):
     return None
 
 
-async def _get_job_log(app, batch_id, job_id, user):
+async def _get_job_log(app, batch_id, job_id):
     db: Database = app['db']
 
     record = await db.select_and_fetchone('''
@@ -332,9 +374,9 @@ LEFT JOIN attempts
   ON jobs.batch_id = attempts.batch_id AND jobs.job_id = attempts.job_id AND jobs.attempt_id = attempts.attempt_id
 LEFT JOIN instances
   ON attempts.instance_name = instances.name
-WHERE user = %s AND jobs.batch_id = %s AND NOT deleted AND jobs.job_id = %s;
+WHERE jobs.batch_id = %s AND NOT deleted AND jobs.job_id = %s;
 ''',
-                                          (user, batch_id, job_id))
+                                          (batch_id, job_id))
     if not record:
         raise web.HTTPNotFound()
     return await _get_job_log_from_record(app, batch_id, job_id, record)
@@ -426,20 +468,19 @@ async def _get_full_job_status(app, record):
 
 @routes.get('/api/v1alpha/batches/{batch_id}/jobs/{job_id}/log')
 @prom_async_time(REQUEST_TIME_GET_JOB_LOG)
-@rest_authenticated_users_only
-async def get_job_log(request, userdata):  # pylint: disable=R1710
+@rest_billing_project_users_only
+async def get_job_log(request, userdata):  # pylint: disable=unused-argument
     batch_id = int(request.match_info['batch_id'])
     job_id = int(request.match_info['job_id'])
-    user = userdata['username']
-    job_log = await _get_job_log(request.app, batch_id, job_id, user)
+    job_log = await _get_job_log(request.app, batch_id, job_id)
     return web.json_response(job_log)
 
 
-async def _query_batches(request, user):
+async def _query_batches(request):
     db = request.app['db']
 
-    where_conditions = ['user = %s', 'NOT deleted']
-    where_args = [user]
+    where_conditions = ['NOT deleted']
+    where_args = []
 
     last_batch_id = request.query.get('last_batch_id')
     if last_batch_id is not None:
@@ -533,10 +574,9 @@ LIMIT 50;
 
 @routes.get('/api/v1alpha/batches')
 @prom_async_time(REQUEST_TIME_GET_BATCHES)
-@rest_authenticated_users_only
-async def get_batches(request, userdata):
-    user = userdata['username']
-    batches, last_batch_id = await _query_batches(request, user)
+@rest_billing_project_users_only
+async def get_batches(request, userdata):  # pylint: disable=unused-argument
+    batches, last_batch_id = await _query_batches(request)
     body = {
         'batches': batches
     }
@@ -958,7 +998,8 @@ VALUES (%s, %s, %s)
     return web.json_response({'id': id})
 
 
-async def _get_batch(app, batch_id, user):
+
+async def _get_batch(app, batch_id):
     db: Database = app['db']
 
     record = await db.select_and_fetchone('''
@@ -967,32 +1008,30 @@ LEFT JOIN aggregated_batch_resources
        ON batches.id = aggregated_batch_resources.batch_id
 LEFT JOIN resources
        ON aggregated_batch_resources.resource = resources.resource
-WHERE user = %s AND id = %s AND NOT deleted
+WHERE id = %s AND NOT deleted
 GROUP BY batches.id;
-''', (user, batch_id))
+''', (batch_id))
     if not record:
         raise web.HTTPNotFound()
 
     return batch_record_to_dict(record)
 
 
-async def _cancel_batch(app, batch_id, user):
-    await cancel_batch_in_db(app['db'], batch_id, user)
-
+async def _cancel_batch(app, batch_id):
+    await cancel_batch_in_db(app['db'], batch_id)
     app['cancel_batch_state_changed'].set()
-
     return web.Response()
 
 
-async def _delete_batch(app, batch_id, user):
+async def _delete_batch(app, batch_id):
     db: Database = app['db']
 
     record = await db.select_and_fetchone(
         '''
 SELECT `state` FROM batches
-WHERE user = %s AND id = %s AND NOT deleted;
+WHERE id = %s AND NOT deleted;
 ''',
-        (user, batch_id))
+        (batch_id,))
     if not record:
         raise web.HTTPNotFound()
 
@@ -1007,20 +1046,18 @@ WHERE user = %s AND id = %s AND NOT deleted;
 
 @routes.get('/api/v1alpha/batches/{batch_id}')
 @prom_async_time(REQUEST_TIME_POST_GET_BATCH)
-@rest_authenticated_users_only
-async def get_batch(request, userdata):
+@rest_billing_project_users_only
+async def get_batch(request, userdata):  # pylint: disable=unused-argument
     batch_id = int(request.match_info['batch_id'])
-    user = userdata['username']
-    return web.json_response(await _get_batch(request.app, batch_id, user))
+    return web.json_response(await _get_batch(request.app, batch_id))
 
 
 @routes.patch('/api/v1alpha/batches/{batch_id}/cancel')
 @prom_async_time(REQUEST_TIME_PATCH_CANCEL_BATCH)
-@rest_authenticated_users_only
-async def cancel_batch(request, userdata):
+@rest_billing_project_users_only
+async def cancel_batch(request, userdata):  # pylint: disable=unused-argument
     batch_id = int(request.match_info['batch_id'])
-    user = userdata['username']
-    await _handle_api_error(_cancel_batch, request.app, batch_id, user)
+    await _handle_api_error(_cancel_batch, request.app, batch_id)
     return web.Response()
 
 
@@ -1067,23 +1104,21 @@ WHERE user = %s AND id = %s AND NOT deleted;
 
 @routes.delete('/api/v1alpha/batches/{batch_id}')
 @prom_async_time(REQUEST_TIME_DELETE_BATCH)
-@rest_authenticated_users_only
-async def delete_batch(request, userdata):
+@rest_billing_project_users_only
+async def delete_batch(request, userdata):  # pylint: disable=unused-argument
     batch_id = int(request.match_info['batch_id'])
-    user = userdata['username']
-    await _delete_batch(request.app, batch_id, user)
+    await _delete_batch(request.app, batch_id)
     return web.Response()
 
 
 @routes.get('/batches/{batch_id}')
 @prom_async_time(REQUEST_TIME_GET_BATCH_UI)
-@web_authenticated_users_only()
+@web_billing_project_users_only()
 async def ui_batch(request, userdata):
     app = request.app
     batch_id = int(request.match_info['batch_id'])
-    user = userdata['username']
 
-    batch = await _get_batch(app, batch_id, user)
+    batch = await _get_batch(app, batch_id)
 
     jobs, last_job_id = await _query_batch_jobs(request, batch_id)
     for j in jobs:
@@ -1104,12 +1139,11 @@ async def ui_batch(request, userdata):
 @routes.post('/batches/{batch_id}/cancel')
 @prom_async_time(REQUEST_TIME_POST_CANCEL_BATCH_UI)
 @check_csrf_token
-@web_authenticated_users_only(redirect=False)
-async def ui_cancel_batch(request, userdata):
+@web_billing_project_users_only(redirect=False)
+async def ui_cancel_batch(request, userdata):  # pylint: disable=unused-argument
     batch_id = int(request.match_info['batch_id'])
-    user = userdata['username']
     session = await aiohttp_session.get_session(request)
-    errored = await _handle_ui_error(session, _cancel_batch, request.app, batch_id, user)
+    errored = await _handle_ui_error(session, _cancel_batch, request.app, batch_id)
     if not errored:
         set_message(session, f'Batch {batch_id} cancelled.', 'info')
     location = request.app.router['batches'].url_for()
@@ -1119,11 +1153,10 @@ async def ui_cancel_batch(request, userdata):
 @routes.post('/batches/{batch_id}/delete')
 @prom_async_time(REQUEST_TIME_POST_DELETE_BATCH_UI)
 @check_csrf_token
-@web_authenticated_users_only(redirect=False)
-async def ui_delete_batch(request, userdata):
+@web_billing_project_users_only(redirect=False)
+async def ui_delete_batch(request, userdata):  # pylint: disable=unused-argument
     batch_id = int(request.match_info['batch_id'])
-    user = userdata['username']
-    await _delete_batch(request.app, batch_id, user)
+    await _delete_batch(request.app, batch_id)
     session = await aiohttp_session.get_session(request)
     set_message(session, f'Batch {batch_id} deleted.', 'info')
     location = request.app.router['batches'].url_for()
@@ -1132,10 +1165,9 @@ async def ui_delete_batch(request, userdata):
 
 @routes.get('/batches', name='batches')
 @prom_async_time(REQUEST_TIME_GET_BATCHES_UI)
-@web_authenticated_users_only()
+@web_billing_project_users_only()
 async def ui_batches(request, userdata):
-    user = userdata['username']
-    batches, last_batch_id = await _query_batches(request, user)
+    batches, last_batch_id = await _query_batches(request)
     for batch in batches:
         batch['cost'] = cost_str(batch['cost'])
     page_context = {
@@ -1146,7 +1178,7 @@ async def ui_batches(request, userdata):
     return await render_template('batch', request, userdata, 'batches.html', page_context)
 
 
-async def _get_job(app, batch_id, job_id, user):
+async def _get_job(app, batch_id, job_id):
     db: Database = app['db']
 
     record = await db.select_and_fetchone('''
@@ -1163,10 +1195,10 @@ LEFT JOIN aggregated_job_resources
      jobs.job_id = aggregated_job_resources.job_id
 LEFT JOIN resources
   ON aggregated_job_resources.resource = resources.resource
-WHERE user = %s AND jobs.batch_id = %s AND NOT deleted AND jobs.job_id = %s
+WHERE jobs.batch_id = %s AND NOT deleted AND jobs.job_id = %s
 GROUP BY jobs.batch_id, jobs.job_id;
 ''',
-                                          (user, batch_id, job_id))
+                                          (batch_id, job_id))
     if not record:
         raise web.HTTPNotFound()
 
@@ -1184,7 +1216,7 @@ GROUP BY jobs.batch_id, jobs.job_id;
     return job
 
 
-async def _get_attempts(app, batch_id, job_id, user):
+async def _get_attempts(app, batch_id, job_id):
     db: Database = app['db']
 
     attempts = db.select_and_fetchall('''
@@ -1192,9 +1224,9 @@ SELECT attempts.*
 FROM jobs
 INNER JOIN batches ON jobs.batch_id = batches.id
 LEFT JOIN attempts ON jobs.batch_id = attempts.batch_id and jobs.job_id = attempts.job_id
-WHERE user = %s AND jobs.batch_id = %s AND NOT deleted AND jobs.job_id = %s;
+WHERE jobs.batch_id = %s AND NOT deleted AND jobs.job_id = %s;
 ''',
-                                      (user, batch_id, job_id))
+                                      (batch_id, job_id))
 
     attempts = [attempt async for attempt in attempts]
     if len(attempts) == 0:
@@ -1229,40 +1261,35 @@ WHERE user = %s AND jobs.batch_id = %s AND NOT deleted AND jobs.job_id = %s;
 
 @routes.get('/api/v1alpha/batches/{batch_id}/jobs/{job_id}/attempts')
 @prom_async_time(REQUEST_TIME_GET_ATTEMPTS)
-@rest_authenticated_users_only
-async def get_attempts(request, userdata):
+@rest_billing_project_users_only
+async def get_attempts(request, userdata):  # pylint: disable=unused-argument
     batch_id = int(request.match_info['batch_id'])
     job_id = int(request.match_info['job_id'])
-    user = userdata['username']
-
-    attempts = await _get_attempts(request.app, batch_id, job_id, user)
+    attempts = await _get_attempts(request.app, batch_id, job_id)
     return web.json_response(attempts)
 
 
 @routes.get('/api/v1alpha/batches/{batch_id}/jobs/{job_id}')
 @prom_async_time(REQUEST_TIME_GET_JOB)
-@rest_authenticated_users_only
-async def get_job(request, userdata):
+@rest_billing_project_users_only
+async def get_job(request, userdata):  # pylint: disable=unused-argument
     batch_id = int(request.match_info['batch_id'])
     job_id = int(request.match_info['job_id'])
-    user = userdata['username']
-
-    status = await _get_job(request.app, batch_id, job_id, user)
+    status = await _get_job(request.app, batch_id, job_id)
     return web.json_response(status)
 
 
 @routes.get('/batches/{batch_id}/jobs/{job_id}')
 @prom_async_time(REQUEST_TIME_GET_JOB_UI)
-@web_authenticated_users_only()
+@web_billing_project_users_only()
 async def ui_get_job(request, userdata):
     app = request.app
     batch_id = int(request.match_info['batch_id'])
     job_id = int(request.match_info['job_id'])
-    user = userdata['username']
 
-    job_status, attempts, job_log = await asyncio.gather(_get_job(app, batch_id, job_id, user),
-                                                         _get_attempts(app, batch_id, job_id, user),
-                                                         _get_job_log(app, batch_id, job_id, user))
+    job_status, attempts, job_log = await asyncio.gather(_get_job(app, batch_id, job_id),
+                                                         _get_attempts(app, batch_id, job_id),
+                                                         _get_job_log(app, batch_id, job_id))
 
     job_status_status = job_status['status']
     container_status_spec = dictfix.NoneOr({
