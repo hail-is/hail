@@ -847,7 +847,7 @@ class Emit[C](
                 }
 
                 cb.ifx(isRowMajor, {
-                  cb += xP.makeRowMajorStridesBuilder(shapeCodeSeq1, cb)(srvb)
+                  cb += xP.makeRowMajorStridesStruct(shapeCodeSeq1, cb)(srvb)
                 }, {
                   cb += xP.makeColumnMajorStridesBuilder(shapeCodeSeq1, cb)(srvb)
                 })
@@ -1317,10 +1317,10 @@ class Emit[C](
 
             val hShapeArray = FastIndexedSeq[Value[Long]](N, M)
             val hShapeBuilder = hPType.makeShapeBuilder(hShapeArray)
-            val hStridesBuilder = hPType.makeRowMajorStridesBuilder(hShapeArray, cb)
+            val hStridesBuilder = hPType.makeRowMajorStridesStruct(hShapeArray, cb)
 
             val tauShapeBuilder = tauPType.makeShapeBuilder(FastIndexedSeq(K))
-            val tauStridesBuilder = tauPType.makeRowMajorStridesBuilder(FastIndexedSeq(K), cb)
+            val tauStridesBuilder = tauPType.makeRowMajorStridesStruct(FastIndexedSeq(K), cb)
 
             val h = hPType.construct(hShapeBuilder, hStridesBuilder, aAddressDGEQRF, cb, region.code)
             val tau = tauPType.construct(tauShapeBuilder, tauStridesBuilder, tauAddress, cb, region.code)

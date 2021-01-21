@@ -4,7 +4,7 @@ import is.hail.annotations.{CodeOrdering, Region, StagedRegionValueBuilder}
 import is.hail.asm4s.{Code, _}
 import is.hail.expr.Nat
 import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder}
-import is.hail.types.physical.stypes.interfaces.{SNDArrayCode, SNDArrayValue}
+import is.hail.types.physical.stypes.interfaces.{SBaseStructCode, SNDArrayCode, SNDArrayValue}
 import is.hail.types.virtual.TNDArray
 
 final class StaticallyKnownField[T, U](
@@ -41,9 +41,9 @@ abstract class PNDArray extends PType {
 
   def makeShapeBuilder(shapeArray: IndexedSeq[Value[Long]]): StagedRegionValueBuilder => Code[Unit]
 
-  def makeRowMajorStridesBuilder(sourceShapeArray: IndexedSeq[Value[Long]], cb: EmitCodeBuilder): StagedRegionValueBuilder => Code[Unit]
+  def makeRowMajorStridesStruct(sourceShapeArray: IndexedSeq[Value[Long]], region: Value[Region], cb: EmitCodeBuilder): SBaseStructCode
 
-  def makeColumnMajorStridesBuilder(sourceShapeArray: IndexedSeq[Value[Long]], cb: EmitCodeBuilder): StagedRegionValueBuilder => Code[Unit]
+  def makeColumnMajorStridesStruct(sourceShapeArray: IndexedSeq[Value[Long]], region: Value[Region], cb: EmitCodeBuilder): SBaseStructCode
 
   def getElementAddress(indices: IndexedSeq[Long], nd: Long): Long
 

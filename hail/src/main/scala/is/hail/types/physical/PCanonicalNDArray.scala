@@ -4,7 +4,8 @@ import is.hail.annotations.{Region, StagedRegionValueBuilder, UnsafeOrdering}
 import is.hail.asm4s.{Code, _}
 import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder}
 import is.hail.types.physical.stypes.SCode
-import is.hail.types.physical.stypes.concrete.{SNDArrayPointer, SNDArrayPointerCode}
+import is.hail.types.physical.stypes.concrete.{SBaseStructPointer, SBaseStructPointerSettable, SNDArrayPointer, SNDArrayPointerCode}
+import is.hail.types.physical.stypes.interfaces.SBaseStructCode
 import is.hail.types.virtual.{TNDArray, Type}
 import is.hail.utils.FastIndexedSeq
 
@@ -84,40 +85,36 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
     ))
   }
 
-  def makeColumnMajorStridesBuilder(sourceShapeArray: IndexedSeq[Value[Long]], cb: EmitCodeBuilder): StagedRegionValueBuilder => Code[Unit] = { srvb =>
+  def makeColumnMajorStridesStruct(sourceShapeArray: IndexedSeq[Value[Long]], region: Value[Region], cb: EmitCodeBuilder): SBaseStructCode = {
     val runningProduct = cb.newLocal[Long]("make_column_major_strides_prod")
-    Code(
-      srvb.start(),
-      runningProduct := elementType.byteSize,
-      Code.foreach(0 until nDims){ index =>
-        Code(
-          srvb.addLong(runningProduct),
-          srvb.advance(),
-          runningProduct := runningProduct * (sourceShapeArray(index) > 0L).mux(sourceShapeArray(index), 1L)
-        )
-      }
-    )
+    val structAddress = cb.newLocal[Long]("make_column_major_strides_addr")
+
+    cb.assign(structAddress,  this.strides.pType.allocate(region))
+    cb.assign(runningProduct, elementType.byteSize)
+    (0 until nDims).foreach{ index =>
+      Region.storeLong(this.strides.pType.fieldOffset(structAddress, index), runningProduct)
+      cb.assign(runningProduct, runningProduct * (sourceShapeArray(index) > 0L).mux(sourceShapeArray(index), 1L))
+    }
+
+    PCode.apply(this.strides.pType, structAddress).asBaseStruct
   }
 
-  def makeRowMajorStridesBuilder(sourceShapeArray: IndexedSeq[Value[Long]], cb: EmitCodeBuilder): StagedRegionValueBuilder => Code[Unit] = { srvb =>
+  def makeRowMajorStridesStruct(sourceShapeArray: IndexedSeq[Value[Long]],region: Value[Region], cb: EmitCodeBuilder): SBaseStructCode = {
     val runningProduct = cb.newLocal[Long]("make_row_major_strides_prod")
     val computedStrides = (0 until nDims).map(idx => cb.newField[Long](s"make_row_major_computed_stride_${idx}"))
-    Code(
-      srvb.start(),
-      runningProduct := elementType.byteSize,
-      Code.foreach((nDims - 1) to 0 by -1){ index =>
-        Code(
-          computedStrides(index) := runningProduct,
-          runningProduct := runningProduct * (sourceShapeArray(index) > 0L).mux(sourceShapeArray(index), 1L)
-        )
-      },
-      Code.foreach(0 until nDims)(index =>
-        Code(
-          srvb.addLong(computedStrides(index)),
-          srvb.advance()
-        )
-      )
-    )
+    val structAddress = cb.newLocal[Long]("make_row_major_strides_addr")
+
+    cb.assign(structAddress,  this.strides.pType.allocate(region))
+    cb.assign(runningProduct, elementType.byteSize)
+    ((nDims - 1) to 0 by -1).foreach{ index =>
+      cb.assign(computedStrides(index), runningProduct)
+      cb.assign(runningProduct, runningProduct * (sourceShapeArray(index) > 0L).mux(sourceShapeArray(index), 1L))
+    }
+    (0 until nDims).foreach{ index =>
+      Region.storeLong(this.strides.pType.fieldOffset(structAddress, index), computedStrides(index))
+    }
+
+    PCode.apply(this.strides.pType, structAddress).asBaseStruct
   }
 
   def getElementAddress(indices: IndexedSeq[Long], nd: Long): Long = {
@@ -194,23 +191,19 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
   }
 
   override def construct(
-    shapeBuilder: StagedRegionValueBuilder => Code[Unit],
-    stridesBuilder: StagedRegionValueBuilder => Code[Unit],
+    shape: SBaseStructCode,
+    strides: SBaseStructCode,
     data: Code[Long],
     cb: EmitCodeBuilder,
     region: Value[Region]
   ): SNDArrayPointerCode = {
     val srvb = new StagedRegionValueBuilder(cb.emb, this.representation, region)
 
-    new SNDArrayPointerCode(SNDArrayPointer(this), Code(Code(FastIndexedSeq(
-      srvb.start(),
-      srvb.addBaseStruct(this.shape.pType, shapeBuilder),
-      srvb.advance(),
-      srvb.addBaseStruct(this.strides.pType, stridesBuilder),
-      srvb.advance(),
-      srvb.addIRIntermediate(this.representation.fieldType("data"))(data))),
-      srvb.end()
-    ))
+    val ndAddr = cb.newLocal[Long]("ndarray_construct_addr")
+    cb.assign(ndAddr, this.representation.allocate(region))
+    shape
+
+    new SNDArrayPointerCode(SNDArrayPointer(this), ndAddr)
   }
 
   def _copyFromAddress(region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Long  = {
