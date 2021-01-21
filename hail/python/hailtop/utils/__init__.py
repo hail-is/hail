@@ -68,4 +68,5 @@ __all__ = [
     'url_join',
     'serialization',
     'is_google_registry_image',
+    'validate',
 ]
