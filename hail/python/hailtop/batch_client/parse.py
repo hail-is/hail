@@ -10,7 +10,7 @@ CPU_REGEX: Pattern = re.compile(CPU_REGEXPAT)
 
 # https://github.com/moby/moby/blob/master/image/spec/v1.md
 # https://github.com/moby/moby/blob/master/image/spec/v1.2.md
-IMAGE_REGEX: Pattern = re.compile(r"(.+/)?([^:]+)(:(.+))?")
+IMAGE_REGEX: Pattern = re.compile(r"(.+/|)([^:]+)(:(.+))?")
 
 
 def parse_cpu_in_mcpu(cpu_string: str) -> Optional[int]:
