@@ -54,7 +54,10 @@ ALTER TABLE instances ADD COLUMN `inst_coll` VARCHAR(255) DEFAULT 'standard';
 CREATE INDEX `instances_inst_coll` ON `instances` (`inst_coll`);
 CREATE INDEX `instances_removed_inst_coll` ON `instances` (`removed`, `inst_coll`);
 
+ALTER TABLE jobs ADD COLUMN `worker_type` VARCHAR(255) DEFAULT 'standard';
+ALTER TABLE jobs ALTER COLUMN `worker_type` VARCHAR(255);
 ALTER TABLE jobs ADD COLUMN `inst_coll` VARCHAR(255) DEFAULT 'standard';
+ALTER TABLE jobs ADD COLUMN `inst_coll` VARCHAR(255);
 CREATE INDEX `jobs_batch_id_state_always_run_inst_coll_cancelled` ON `jobs` (`batch_id`, `state`, `always_run`, `inst_coll`, `cancelled`);
 
 ALTER TABLE user_resources RENAME user_inst_coll_resources;

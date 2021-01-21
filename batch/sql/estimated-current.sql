@@ -94,7 +94,7 @@ CREATE TABLE IF NOT EXISTS `instances` (
   `time_deactivated` BIGINT,
   `removed` BOOLEAN NOT NULL DEFAULT FALSE,
   `version` INT NOT NULL,
-  `inst_coll` VARCHAR(255) NOT NULL DEFAULT 'standard',
+  `inst_coll` VARCHAR(255) NOT NULL,
   PRIMARY KEY (`name`),
   FOREIGN KEY (`inst_coll`) REFERENCES inst_colls(`name`)
 ) ENGINE = InnoDB;
@@ -187,7 +187,8 @@ CREATE TABLE IF NOT EXISTS `jobs` (
   `cancelled` BOOLEAN NOT NULL DEFAULT FALSE,
   `msec_mcpu` BIGINT NOT NULL DEFAULT 0,
   `attempt_id` VARCHAR(40),
-  `inst_coll` VARCHAR(255) NOT NULL DEFAULT 'standard',
+  `inst_coll` VARCHAR(255),
+  `worker_type` VARCHAR(255),
   PRIMARY KEY (`batch_id`, `job_id`),
   FOREIGN KEY (`batch_id`) REFERENCES batches(id) ON DELETE CASCADE,
   FOREIGN KEY (`inst_coll`) REFERENCES inst_colls(name) ON DELETE CASCADE
