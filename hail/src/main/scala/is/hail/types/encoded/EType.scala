@@ -351,7 +351,7 @@ object EType {
     case t: TIterable => EArray(fromTypeAndAnalysis(t.elementType, coerce[RIterable](r).elementType), r.required)
     case t: TBaseStruct =>
       val rstruct = coerce[RBaseStruct](r)
-      assert(t.size == r.size, s"different number of fields: ${t} ${r}")
+      assert(t.size == rstruct.size, s"different number of fields: ${t} ${r}")
       EBaseStruct(Array.tabulate(t.size) { i =>
         val f = rstruct.fields(i)
         EField(f.name, fromTypeAndAnalysis(t.fields(i).typ, f.typ), f.index)
