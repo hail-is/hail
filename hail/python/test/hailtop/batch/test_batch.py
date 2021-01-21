@@ -640,11 +640,3 @@ class ServiceTests(unittest.TestCase):
         j.command(f'ls {input2}/hello.txt')
         res = b.run()
         assert res.status()['state'] == 'success', job_logs(res)
-
-    def test_specify_worker_type(self):
-        b = self.batch()
-        j = b.new_job()
-        j.worker_type('standard')
-        j.command(f'echo "hello" > {j.ofile}')
-        res = b.run()
-        assert res.status()['state'] == 'success', job_logs(res)
