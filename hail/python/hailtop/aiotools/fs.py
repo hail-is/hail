@@ -429,7 +429,7 @@ class Copier:
     '''
     This class implements copy for a list of transfers.
     '''
-    
+
     BUFFER_SIZE = 8192
 
     def __init__(self, router_fs):
