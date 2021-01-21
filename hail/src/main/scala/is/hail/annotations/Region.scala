@@ -293,9 +293,6 @@ object Region {
       case t: PBinary =>
         val b = t.loadBytes(off)
         v.visitBinary(b)
-      case t: PShuffle =>
-        val b = t.loadBytes(off)
-        v.visitBinary(b)
       case t: PContainer =>
         val aoff = off
         val pt = t
