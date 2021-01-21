@@ -7,6 +7,7 @@ setup(
     author = 'Hail Team',
     author_email = 'hail@broadinstitute.org',
     description = 'Shared web support',
+    package_data={"web_common": ["py.typed"]},
     packages = find_packages(),
     include_package_data=True
 )
