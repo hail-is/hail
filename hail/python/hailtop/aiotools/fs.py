@@ -447,6 +447,9 @@ class Copier:
                 or transfer.dest.endswith('/')):
             return AsyncFS.DIR
 
+        if transfer.treat_dest_as == Transfer.TARGET_FILE:
+            return AsyncFS.FILE
+
         assert not transfer.dest.endswith('/')
         try:
             dest_type = await self.router_fs.staturl(transfer.dest)

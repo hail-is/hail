@@ -267,7 +267,7 @@ async def test_copy_dest_target_file_is_dir(copy_test_context):
 
     await create_test_file(fs, 'src', src_base, 'a')
 
-    with pytest.raises(IsADirectoryError):
+    with RaisesOrGS(dest_base, IsADirectoryError):
         await fs.copy(Transfer(f'{src_base}a', dest_base.rstrip('/'), treat_dest_as=Transfer.TARGET_FILE))
 
 
