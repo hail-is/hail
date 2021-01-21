@@ -242,6 +242,7 @@ object Region {
     case _: PFloat64 => loadDouble
     case _: PArray => loadAddress
     case _: PBinary => loadAddress
+    case _: PShuffle => loadAddress
     case _: PBaseStruct => off => off
   }
 
@@ -290,6 +291,9 @@ object Region {
       case t: PString =>
         v.visitString(t.loadString(off))
       case t: PBinary =>
+        val b = t.loadBytes(off)
+        v.visitBinary(b)
+      case t: PShuffle =>
         val b = t.loadBytes(off)
         v.visitBinary(b)
       case t: PContainer =>
