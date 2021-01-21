@@ -282,6 +282,11 @@ class Transfer:
 
 
 class SourceCopier:
+    '''This class implements copy from a single source.  In general, a
+    transfer will have multiple sources, and a SourceCopier will be
+    created for each source.
+    '''
+
     def __init__(self, router_fs: 'RouterAsyncFS', src: str, dest: str, treat_dest_as: str, dest_type_task):
         self.router_fs = router_fs
         self.src = src
@@ -328,6 +333,8 @@ class SourceCopier:
                 or self.dest.endswith('/')
                 or (self.treat_dest_as == Transfer.INFER_TARGET
                     and dest_type == AsyncFS.DIR)):
+            if dest_type is None:
+                raise FileNotFoundError(self.dest)
             if dest_type == AsyncFS.FILE:
                 raise NotADirectoryError(self.dest)
             assert dest_type == AsyncFS.DIR
@@ -419,6 +426,10 @@ class SourceCopier:
 
 
 class Copier:
+    '''
+    This class implements copy for a list of transfers.
+    '''
+    
     BUFFER_SIZE = 8192
 
     def __init__(self, router_fs):

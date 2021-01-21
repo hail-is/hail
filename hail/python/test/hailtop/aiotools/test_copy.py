@@ -21,6 +21,13 @@ def event_loop():
     loop.close()
 
 
+# This fixture is for test_copy_behavior.  It runs a series of copy
+# test "specifications" by calling run_test_spec.  The set of
+# specifications is enumerated by
+# generate_copy_test_specs.py::copy_test_configurations which are then
+# run against the local file system.  This tests that (1) that copy
+# runs without expected error for each enumerated spec, and that the
+# semantics of each filesystem agree.
 @pytest.fixture(params=COPY_TEST_SPECS)
 async def test_spec(request):
     return request.param
@@ -187,6 +194,17 @@ async def test_copy_rename_file_dest_target_file(copy_test_context):
 
 
 @pytest.mark.asyncio
+async def test_copy_file_dest_target_directory_doesnt_exist(copy_test_context):
+    fs, src_base, dest_base = copy_test_context
+
+    await create_test_file(fs, 'src', src_base, 'a')
+
+    # SourceCopier._copy_file creates destination directories as needed
+    await fs.copy(Transfer(f'{src_base}a', f'{dest_base}x', treat_dest_as=Transfer.TARGET_DIR))
+    await expect_file(fs, f'{dest_base}x/a', 'src/a')
+
+
+@pytest.mark.asyncio
 async def test_overwrite_rename_file(copy_test_context):
     fs, src_base, dest_base = copy_test_context
 
@@ -241,6 +259,16 @@ async def test_copy_file_dest_target_file(copy_test_context):
     await fs.copy(Transfer(f'{src_base}a', f'{dest_base}a', treat_dest_as=Transfer.TARGET_FILE))
 
     await expect_file(fs, f'{dest_base}a', 'src/a')
+
+
+@pytest.mark.asyncio
+async def test_copy_dest_target_file_is_dir(copy_test_context):
+    fs, src_base, dest_base = copy_test_context
+
+    await create_test_file(fs, 'src', src_base, 'a')
+
+    with pytest.raises(IsADirectoryError):
+        await fs.copy(Transfer(f'{src_base}a', dest_base.rstrip('/'), treat_dest_as=Transfer.TARGET_FILE))
 
 
 @pytest.mark.asyncio
@@ -349,3 +377,15 @@ async def test_file_and_directory_error(router_filesystem):
 
     with pytest.raises(FileAndDirectoryError):
         await fs.copy(Transfer(f'{src_base}a', dest_base.rstrip('/')))
+
+
+@pytest.mark.asyncio
+async def test_copy_src_parts(copy_test_context):
+    fs, src_base, dest_base = copy_test_context
+
+    await create_test_dir(fs, 'src', src_base, 'a/')
+
+    await fs.copy(Transfer([f'{src_base}a/file1', f'{src_base}a/subdir'], dest_base.rstrip('/'), treat_dest_as=Transfer.TARGET_DIR))
+
+    await expect_file(fs, f'{dest_base}file1', 'src/a/file1')
+    await expect_file(fs, f'{dest_base}subdir/file2', 'src/a/subdir/file2')

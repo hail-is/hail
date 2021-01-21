@@ -11,7 +11,9 @@ def remove_prefix(s, prefix):
 
 
 async def create_test_file(fs, name, base, path):
+    assert name in ('src', 'dest')
     assert not path.endswith('/')
+
     async with await fs.create(f'{base}{path}') as f:
         await f.write(f'{name}/{path}'.encode('utf-8'))
 
@@ -32,7 +34,9 @@ async def create_test_dir(fs, name, base, path):
      - {base}/dest/a/subdir/file2
      - {base}/dest/a/file3
     '''
+    assert name in ('src', 'dest')
     assert path.endswith('/')
+
     await fs.mkdir(f'{base}{path}')
     if name == 'src':
         await create_test_file(fs, name, base, f'{path}file1')
