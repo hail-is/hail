@@ -1,4 +1,4 @@
-from typing import Union, List, Dict, Pattern, Callable, Any
+from typing import Union, Dict, Pattern, Callable, Any
 import re
 
 
@@ -11,6 +11,9 @@ class ValidationError(Exception):
 class RequiredKey:
     def __init__(self, key: str):
         self.key = key
+
+
+Key = Union[str, RequiredKey]
 
 
 class TypedValidator:
@@ -45,7 +48,7 @@ class KeyedValidator(TypedValidator):
             else:
                 self.checkers[k] = (v, False)
 
-    def __getitem__(self, key: Key):
+    def __getitem__(self, key: str):
         return self.checkers[key][0]
 
     def validate(self, name: str, obj):
