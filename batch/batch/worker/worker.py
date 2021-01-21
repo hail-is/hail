@@ -82,11 +82,11 @@ assert worker_config.cores == CORES
 
 deploy_config = DeployConfig('gce', NAMESPACE, {})
 
-docker = None
+docker: aiodocker.Docker = None
 
-port_allocator = None
+port_allocator: 'PortAllocator' = None
 
-worker = None
+worker: 'Worker' = None
 
 
 class PortAllocator:
@@ -353,14 +353,25 @@ class Container:
 
         return status
 
-    async def ensure_image_is_pulled(self):
+    async def ensure_image_is_pulled(self, auth=None):
         try:
             await docker_call_retry(MAX_DOCKER_OTHER_OPERATION_SECS, f'{self}')(
                 docker.images.get, self.image)
         except DockerError as e:
             if e.status == 404:
                 await docker_call_retry(MAX_DOCKER_IMAGE_PULL_SECS, f'{self}')(
-                    docker.images.pull, self.image)
+                    docker.images.pull, self.image, auth=auth)
+
+    def current_user_access_token(self):
+        key = base64.b64decode(self.job.gsa_key['key.json']).decode()
+        return {'username': '_json_key', 'password': key}
+
+    async def batch_worker_access_token(self):
+        async with aiohttp.ClientSession(raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
+            async with session.post('http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token',
+                                    headers={'Metadata-Flavor': 'Google'}) as resp:
+                access_token = resp.json()['access_token']
+                return {'username': 'oauth2accesstoken', 'password': access_token}
 
     async def run(self, worker):
         try:
@@ -368,20 +379,18 @@ class Container:
                 is_gcr_image = is_google_registry_image(self.image)
                 is_public_gcr_image = self.repository in PUBLIC_GCR_IMAGES
 
-                if not is_gcr_image or is_public_gcr_image:
+                if not is_gcr_image:
                     await self.ensure_image_is_pulled()
+                elif is_public_gcr_image:
+                    auth = await self.batch_worker_access_token()
+                    await self.ensure_image_is_pulled(auth=auth)
                 else:
                     assert self.image.startswith('gcr.io/')
-                    key = base64.b64decode(
-                        self.job.gsa_key['key.json']).decode()
-                    auth = {
-                        'username': '_json_key',
-                        'password': key
-                    }
                     # Pull to verify this user has access to this
                     # image.
                     # FIXME improve the performance of this with a
                     # per-user image cache.
+                    auth = self.current_user_access_token()
                     await docker_call_retry(MAX_DOCKER_IMAGE_PULL_SECS, f'{self}')(
                         docker.images.pull, self.image, auth=auth)
 
