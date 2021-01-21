@@ -1,6 +1,5 @@
 from hailtop.batch_client.parse import (MEMORY_REGEX, MEMORY_REGEXPAT,
                                         CPU_REGEX, CPU_REGEXPAT)
-from ..globals import valid_worker_types
 
 from hailtop.utils.validate import bool_type, dictof, keyed, listof, int_type, nullable, \
     numeric, oneof, regex, required, str_type, switch, ValidationError
