@@ -76,10 +76,15 @@ def modify(ctx,
 
     if max_idle:
         modify_args.append('--max-idle={}'.format(max_idle))
+    if no_max_idle:
+        modify_args.append('--no-max-idle')
+
     if expiration_time:
         modify_args.append('--expiration_time={}'.format(expiration_time))
     if max_age:
         modify_args.append('--max-age={}'.format(max_age))
+    if no_max_age:
+        modify_args.append('--no-max-age')
 
     cmd = ['dataproc', 'clusters', 'update', cluster_name] + modify_args
 
