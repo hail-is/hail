@@ -62,6 +62,8 @@ def modify(ctx,
         print("at most one of --expiration-time and --max-age allowed", file=sys.stderr)
         sys.exit(1)
 
+    runner = gcloud.GCloudRunner(project, zone, dry_run)
+
     modify_args = []
     if num_workers is not None:
         modify_args.append('--num-workers={}'.format(num_workers))
@@ -86,16 +88,16 @@ def modify(ctx,
     if no_max_age:
         modify_args.append('--no-max-age')
 
-    cmd = ['dataproc', 'clusters', 'update', cluster_name] + modify_args
+    cmd = ['dataproc', f'--region={runner._region}', 'clusters', 'update', cluster_name] + modify_args
 
     if beta:
         cmd.insert(0, 'beta')
 
     cmd.extend(extra_gcloud_update_args.split())
 
-    print("Updating cluster '{}'...".format(cluster_name))
-    runner = gcloud.GCloudRunner(project, zone, dry_run)
-    runner.run(cmd)
+    if modify_args or extra_gcloud_update_args:
+        print("Updating cluster '{}'...".format(cluster_name))
+        runner.run(cmd)
 
     if update_hail_version:
         deploy_metadata = get_deploy_metadata()

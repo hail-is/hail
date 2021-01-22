@@ -6,7 +6,7 @@ from hailtop import hailctl
 def test_submit(gcloud_run):
     hailctl.main(["dataproc", "submit", "test-cluster", "a-script.py"])
     gcloud_args = gcloud_run.call_args[0][0]
-    assert gcloud_args[:5] == ["dataproc", "jobs", "submit", "pyspark", "a-script.py"]
+    assert gcloud_args[:9] == ["gcloud", "--project=hailctl-dataproc-tests", "--zone=us-central1-b", "dataproc", "--region=us-central1", "jobs", "submit", "pyspark", "a-script.py"]
     assert "--cluster=test-cluster" in gcloud_args
 
 
@@ -30,6 +30,7 @@ def test_dry_run(gcloud_run):
 def test_script_args(gcloud_run):
     hailctl.main(["dataproc", "submit", "test-cluster", "a-script.py", "--", "--foo", "bar"])
     gcloud_args = gcloud_run.call_args[0][0]
+    print(gcloud_args)
     job_args = gcloud_args[gcloud_args.index("--") + 1:]
     assert job_args == ["--foo", "bar"]
 

@@ -147,8 +147,6 @@ IMAGE_VERSION = '1.4-debian9'
 @click.option('--project',
               metavar='GCP_PROJECT',
               help='Google Cloud project for the cluster.')
-@click.option('--region',
-              help="Deprecated.  Ignored, the region is determined from the zone.")
 @click.option('--zone', '-z',
               metavar='GCP_ZONE',
               help='Compute zone for Dataproc cluster.')
@@ -236,7 +234,7 @@ def start(
         num_master_local_ssds, num_secondary_workers, num_worker_local_ssds,
         num_workers, secondary_worker_boot_disk_size,
         worker_boot_disk_size, worker_machine_type,
-        region, properties, metadata, packages, configuration,
+        properties, metadata, packages, configuration,
         max_idle, expiration_time,
         max_age,
         bucket, network, master_tags, wheel,
@@ -250,11 +248,6 @@ def start(
 
     runner = gcloud.GCloudRunner(project, zone, dry_run)
     beta = ctx.parent.params['beta']
-
-    # determine region from zone
-    region = runner._zone.split('-')
-    region = region[:2]
-    region = ''.join(region)
 
     conf = ClusterConfig()
     conf.extend_flag('image-version', IMAGE_VERSION)
@@ -305,11 +298,11 @@ def start(
     # add VEP init script
     if vep:
         # VEP is too expensive if you have to pay egress charges. We must choose the right replicate.
-        replicate = REGION_TO_REPLICATE_MAPPING.get(region)
+        replicate = REGION_TO_REPLICATE_MAPPING.get(runner._region)
         if replicate is None:
             raise RuntimeError(f"The --vep argument is not currently provided in your region.\n"
                                f"  Please contact the Hail team on https://discuss.hail.is for support.\n"
-                               f"  Your region: {region}\n"
+                               f"  Your region: {runner._region}\n"
                                f"  Supported regions: {', '.join(REGION_TO_REPLICATE_MAPPING.keys())}")
         print(f"Pulling VEP data from bucket in {replicate}.")
         conf.extend_flag('metadata', {"VEP_REPLICATE": replicate})
@@ -353,7 +346,7 @@ def start(
     conf.flags['secondary-worker-boot-disk-size'] = disk_size(secondary_worker_boot_disk_size)
     conf.flags['worker-boot-disk-size'] = disk_size(worker_boot_disk_size)
     conf.flags['worker-machine-type'] = worker_machine_type
-    conf.flags['region'] = region
+    conf.flags['region'] = runner._region
     conf.flags['initialization-action-timeout'] = init_timeout
     if network:
         conf.flags['network'] = network
@@ -371,7 +364,7 @@ def start(
     conf.flags['properties'] = '^|||^' + '|||'.join(f'{k}={v}' for k, v in conf.flags['properties'].items())
 
     # command to start cluster
-    cmd = conf.get_command(cluster_name)
+    cmd = ['dataproc', f'--region={runner._region}', 'clusters', 'create', cluster_name, *conf.get_flags()]
 
     if beta or max_idle or max_age:
         cmd.insert(1, 'beta')

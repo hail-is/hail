@@ -13,6 +13,11 @@ def get_config(setting: str) -> typing.Optional[str]:
         return None
 
 
+def run(command: typing.List[str]):
+    """Run a gcloud command."""
+    return subprocess.check_call(command)
+
+
 class GCloudRunner:
     def __init__(self, project: typing.Optional[str], zone: typing.Optional[str], dry_run: bool):
         if not project:
@@ -25,13 +30,19 @@ class GCloudRunner:
         if not zone:
             raise RuntimeError("Unable to determine the compute zone.  Specify the --zone option to hailctl, or use `gcloud config set compute/zone <my-zone>` to set a default.")
         self._zone = zone
+
+        region = zone.split('-')
+        region = region[:2]
+        region = '-'.join(region)
+        self._region = region
+
         self._dry_run = dry_run
 
     def run(self, command: typing.List[str]):
         gcloud_cmd = ['gcloud', f'--project={self._project}', f'--zone={self._zone}', *command]
         print(' '.join(gcloud_cmd))
         if not self._dry_run:
-            subprocess.check_call(gcloud_cmd)
+            run(gcloud_cmd)
 
 
 def get_version() -> typing.Tuple[int, int, int]:

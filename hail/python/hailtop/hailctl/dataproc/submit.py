@@ -30,10 +30,11 @@ from .dataproc import dataproc
 @click.option('--extra-gcloud-submit-args',
               default='',
               help="Extra arguments to pass to 'gcloud dataproc clusters submit'")
+@click.argument('script_args', nargs=-1)
 def submit(
         cluster_name, script,
         project, zone, dry_run,
-        files, pyfiles, properties, gcloud_configuration, extra_gcloud_submit_args):
+        files, pyfiles, properties, gcloud_configuration, extra_gcloud_submit_args, script_args):
     print("Submitting to cluster '{}'...".format(cluster_name))
 
     # create files argument
@@ -64,9 +65,12 @@ def submit(
     if not properties:
         properties = ''
 
+    runner = gcloud.GCloudRunner(project, zone, dry_run)
+
     # pyspark submit command
     cmd = [
         'dataproc',
+        f'--region={runner._region}',
         'jobs',
         'submit',
         'pyspark',
@@ -79,6 +83,9 @@ def submit(
     if gcloud_configuration:
         cmd.append('--configuration={}'.format(gcloud_configuration))
 
+    if script_args:
+        cmd.extend(['--', *script_args])
+
     cmd.extend(extra_gcloud_submit_args.split())
 
-    gcloud.GCloudRunner(project, zone, dry_run).run(cmd)
+    runner.run(cmd)

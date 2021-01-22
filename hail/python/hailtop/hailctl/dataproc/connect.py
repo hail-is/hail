@@ -52,7 +52,7 @@ def get_chrome_path():
 @click.option('--extra-gcloud-ssh-args',
               default='',
               help="Extra arguments to pass to 'gcloud compute ssh'")
-def connect(cluster_name, service, *, project, zone, port, dry_run, extra_glcoud_ssh_args):
+def connect(cluster_name, service, *, project, zone, port, dry_run, extra_gcloud_ssh_args):
     # shortcut mapping
     shortcut = {
         'ui': 'spark-ui',
@@ -85,8 +85,8 @@ def connect(cluster_name, service, *, project, zone, port, dry_run, extra_glcoud
            '--ssh-flag=-f',
            '--ssh-flag=-n']
 
-    extra_glcoud_ssh_args = extra_glcoud_ssh_args.split()
-    cmd.extend(extra_glcoud_ssh_args)
+    extra_gcloud_ssh_args = extra_gcloud_ssh_args.split()
+    cmd.extend(extra_gcloud_ssh_args)
 
     print("Connecting to cluster '{}'...".format(cluster_name))
 

@@ -18,4 +18,5 @@ from . import gcloud
               default='',
               help="Extra arguments to pass to 'gcloud dataproc clusters list'")
 def list_clusters(project, zone, dry_run, extra_gcloud_list_args):
-    gcloud.GCloudRunner(project, zone, dry_run).run(['dataproc', 'clusters', 'list'] + extra_gcloud_list_args.split())
+    runner = gcloud.GCloudRunner(project, zone, dry_run)
+    runner.run(['dataproc', f'--region={runner._region}', 'clusters', 'list'] + extra_gcloud_list_args.split())

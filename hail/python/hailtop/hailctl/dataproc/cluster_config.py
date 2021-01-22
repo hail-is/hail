@@ -25,9 +25,5 @@ class ClusterConfig:
             return self.format(','.join(obj))
         return str(obj).format(**self.vars)
 
-    def get_command(self, name):
-        flags = ['--{}={}'.format(f, self.format(v)) for f, v in self.flags.items()]
-        return ['dataproc',
-                'clusters',
-                'create',
-                name] + flags
+    def get_flags(self):
+        return ['--{}={}'.format(f, self.format(v)) for f, v in self.flags.items()]

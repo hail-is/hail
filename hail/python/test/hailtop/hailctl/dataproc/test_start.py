@@ -21,13 +21,9 @@ def test_cluster_project(gcloud_run):
     assert "--project=foo" in gcloud_run.call_args[0][0]
 
 
-@pytest.mark.parametrize("location_arg", [
-    "--region=europe-north1",
-    "--zone=us-central1-b",
-])
-def test_cluster_location(gcloud_run, location_arg):
-    hailctl.main(["dataproc", "start", location_arg, "test-cluster"])
-    assert location_arg in gcloud_run.call_args[0][0]
+def test_cluster_zone(gcloud_run):
+    hailctl.main(["dataproc", "start", "--zone=us-central1-b", "test-cluster"])
+    assert "--zone=us-central1-b" in gcloud_run.call_args[0][0]
 
 
 def test_creator_label(gcloud_run, gcloud_config):
@@ -130,8 +126,8 @@ def test_scheduled_deletion_configuration(gcloud_run, scheduled_deletion_arg):
 def test_master_tags(gcloud_run):
     hailctl.main(["dataproc", "start", "test-cluster", "--master-tags=foo"])
     assert gcloud_run.call_count == 2
-    assert gcloud_run.call_args_list[0][0][0][:4] == ["dataproc", "clusters", "create", "test-cluster"]
-    assert gcloud_run.call_args_list[1][0][0] == ["compute", "instances", "add-tags", "test-cluster-m", "--tags", "foo"]
+    assert gcloud_run.call_args_list[0][0][0][:8] == ["gcloud", "--project=hailctl-dataproc-tests", "--zone=us-central1-b", "dataproc", "--region=us-central1", "clusters", "create", "test-cluster"]
+    assert gcloud_run.call_args_list[1][0][0] == ["gcloud", "--project=hailctl-dataproc-tests", "--zone=us-central1-b", "compute", "instances", "add-tags", "test-cluster-m", "--tags", "foo"]
 
 
 def test_master_tags_project(gcloud_run):
