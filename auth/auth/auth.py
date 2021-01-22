@@ -241,6 +241,7 @@ async def callback(request):
         assert caller == 'signup'
 
         username, domain = email.split('@')
+        username = ''.join(c for c in username if c.isalnum())
 
         if domain != GSUITE_ORGANIZATION:
             raise web.HTTPUnauthorized()
