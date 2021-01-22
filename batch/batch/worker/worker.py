@@ -757,6 +757,7 @@ class Job:
             main_spec['timeout'] = timeout
         network = job_spec.get('network')
         if network:
+            assert network in ('public', 'private')
             main_spec['network'] = network
         containers['main'] = Container(self, 'main', main_spec)
 
