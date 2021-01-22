@@ -38,6 +38,19 @@ class ServiceTaskContext(val partitionId: Int) extends HailTaskContext {
 
   override def attemptNumber(): Int = 0
 }
+//
+//object JobListener {
+//  def main(args: Array[String]): Unit = {
+//    val port = args(0).toInt
+//    val serverSocket = new ServerSocket(port)
+//    val clientSocket = serverSocket.accept()
+//    val is = clientSocket.getInputStream()
+//    is.read()
+//
+//  }
+//
+//
+//}
 
 object Worker {
   def main(args: Array[String]): Unit = {
@@ -188,13 +201,11 @@ class ServiceBackend() extends Backend {
           "job_id" -> JInt(i),
           "parent_ids" -> JArray(List()),
           "process" -> JObject(
-            "image" -> JString(workerImage),
-            "mount_docker_socket" -> JBool(false),
             "command" -> JArray(List(
-              JString("/bin/bash"),
-              JString("-c"),
-              JString(s"java -cp $$SPARK_HOME/jars/*:/hail.jar is.hail.backend.service.Worker $root $i"))),
-            "type" -> JString("docker")),
+              JString("is.hail.backend.service.Worker"),
+              JString(root),
+              JString(s"$i"))),
+            "type" -> JString("jvm")),
           "mount_tokens" -> JBool(true))
       i += 1
     }

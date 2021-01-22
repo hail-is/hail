@@ -521,6 +521,35 @@ class Container:
         return f'container {self.job.id}/{self.name}'
 
 
+class JVMProcess:
+    def __init__(self, job, main_spec):
+        self.job = job
+        self.command = main_spec['command']
+        self.env = main_spec['env']
+
+        self.timing = {}
+
+    async def run(self):
+        log.info(f'running {self}')
+
+    async def status(self, state=None):
+        return {
+            'name': 'main',
+            'state': state,
+            'timing': self.timing
+        }
+
+    async def get_log(self):
+        return ''
+
+    async def delete(self):
+        log.info(f'deleting {self}')
+        # kill jvm process
+
+    def __str__(self):
+        return f'process {self.job.id}/main'
+
+
 def populate_secret_host_path(host_path, secret_data):
     os.makedirs(host_path)
     if secret_data is not None:
@@ -644,6 +673,16 @@ class Job:
     def gsa_key_file_path(self):
         return f'{self.scratch}/gsa-key'
 
+    @classmethod
+    def create(cls, batch_id, user, gsa_key, job_spec, format_version, task_manager):
+        type = job_spec['process']['type']
+        if type == 'docker':
+            return DockerJob(batch_id, user, gsa_key, job_spec, format_version, task_manager)
+        elif type == 'jvm':
+            return JVMJob(batch_id, user, gsa_key, job_spec, format_version, task_manager)
+        else:
+            raise Exception(f"unsupported job type {type}")
+
     def __init__(self,
                  batch_id: int,
                  user: str,
@@ -668,43 +707,26 @@ class Job:
         self.start_time = None
         self.end_time = None
 
-        input_files = job_spec.get('input_files')
-        output_files = job_spec.get('output_files')
-
-        input_volume_mounts = []
-        main_volume_mounts = []
-        output_volume_mounts = []
-
-        requester_pays_project = job_spec.get('requester_pays_project')
-
-        if job_spec['process'].get('mount_docker_socket'):
-            main_volume_mounts.append('/var/run/docker.sock:/var/run/docker.sock')
+        self.input_volume_mounts = []
+        self.main_volume_mounts = []
+        self.output_volume_mounts = []
 
         io_volume_mount = f'{self.io_host_path()}:/io'
-        input_volume_mounts.append(io_volume_mount)
-        main_volume_mounts.append(io_volume_mount)
-        output_volume_mounts.append(io_volume_mount)
+        self.input_volume_mounts.append(io_volume_mount)
+        self.main_volume_mounts.append(io_volume_mount)
+        self.output_volume_mounts.append(io_volume_mount)
 
         gcsfuse = job_spec.get('gcsfuse')
         self.gcsfuse = gcsfuse
         if gcsfuse:
             for b in gcsfuse:
-                main_volume_mounts.append(f'{self.gcsfuse_path(b["bucket"])}:{b["mount_path"]}:shared')
+                self.main_volume_mounts.append(f'{self.gcsfuse_path(b["bucket"])}:{b["mount_path"]}:shared')
 
         secrets = job_spec.get('secrets')
         self.secrets = secrets
-        if secrets:
-            for secret in secrets:
-                volume_mount = f'{self.secret_host_path(secret)}:{secret["mount_path"]}'
-                main_volume_mounts.append(volume_mount)
-                # this will be the user gsa-key
-                if secret.get('mount_in_copy', False):
-                    input_volume_mounts.append(volume_mount)
-                    output_volume_mounts.append(volume_mount)
-
-        env = []
+        self.env = []
         for item in job_spec.get('env', []):
-            env.append(f'{item["name"]}={item["value"]}')
+            self.env.append(f'{item["name"]}={item["value"]}')
 
         req_cpu_in_mcpu = parse_cpu_in_mcpu(job_spec['resources']['cpu'])
         req_memory_in_bytes = parse_memory_in_bytes(job_spec['resources']['memory'])
@@ -723,12 +745,101 @@ class Job:
         self.project_name = f'batch-{self.batch_id}-job-{self.job_id}'
         self.project_id = Job.get_next_xfsquota_project_id()
 
+        self.task_manager = task_manager
+
+    @property
+    def job_id(self):
+        return self.job_spec['job_id']
+
+    @property
+    def attempt_id(self):
+        return self.job_spec['attempt_id']
+
+    @property
+    def id(self):
+        return (self.batch_id, self.job_id)
+
+    async def run(self, worker):
+        pass
+
+    async def get_log(self):
+        pass
+
+    async def delete(self):
+        log.info(f'deleting {self}')
+        self.deleted = True
+
+    # {
+    #   version: int,
+    #   worker: str,
+    #   batch_id: int,
+    #   job_id: int,
+    #   attempt_id: int,
+    #   user: str,
+    #   state: str, (pending, initializing, running, succeeded, error, failed)
+    #   format_version: int
+    #   error: str, (optional)
+    #   container_statuses: [Container.status],
+    #   start_time: int,
+    #   end_time: int,
+    #   resources: list of dict, {name: str, quantity: int}
+    # }
+    async def status(self):
+        status = {
+            'version': STATUS_FORMAT_VERSION,
+            'worker': NAME,
+            'batch_id': self.batch_id,
+            'job_id': self.job_spec['job_id'],
+            'attempt_id': self.job_spec['attempt_id'],
+            'user': self.user,
+            'state': self.state,
+            'format_version': self.format_version.format_version,
+            'resources': self.resources
+        }
+        if self.error:
+            status['error'] = self.error
+
+        status['start_time'] = self.start_time
+        status['end_time'] = self.end_time
+
+        return status
+
+    def __str__(self):
+        return f'job {self.id}'
+
+
+class DockerJob(Job):
+    def __init__(self,
+                 batch_id: int,
+                 user: str,
+                 gsa_key,
+                 job_spec,
+                 format_version,
+                 task_manager: aiotools.BackgroundTaskManager):
+        super().__init__(self, batch_id, user, gsa_key, job_spec, format_version, task_manager)
+        input_files = job_spec.get('input_files')
+        output_files = job_spec.get('output_files')
+
+        requester_pays_project = job_spec.get('requester_pays_project')
+
+        if job_spec['process'].get('mount_docker_socket'):
+            self.main_volume_mounts.append('/var/run/docker.sock:/var/run/docker.sock')
+
+        if self.secrets:
+            for secret in self.secrets:
+                volume_mount = f'{self.secret_host_path(secret)}:{secret["mount_path"]}'
+                self.main_volume_mounts.append(volume_mount)
+                # this will be the user gsa-key
+                if secret.get('mount_in_copy', False):
+                    self.input_volume_mounts.append(volume_mount)
+                    self.output_volume_mounts.append(volume_mount)
+
         # create containers
         containers = {}
 
         if input_files:
             containers['input'] = copy_container(
-                self, 'input', input_files, input_volume_mounts,
+                self, 'input', input_files, self.input_volume_mounts,
                 self.cpu_in_mcpu, self.memory_in_bytes, requester_pays_project)
 
         # main container
@@ -736,10 +847,10 @@ class Job:
             'command': job_spec['process']['command'],
             'image': job_spec['process']['image'],
             'name': 'main',
-            'env': env,
+            'env': self.env,
             'cpu': self.cpu_in_mcpu,
             'memory': self.memory_in_bytes,
-            'volume_mounts': main_volume_mounts
+            'volume_mounts': self.main_volume_mounts
         }
         port = job_spec.get('port')
         if port:
@@ -755,24 +866,10 @@ class Job:
 
         if output_files:
             containers['output'] = copy_container(
-                self, 'output', output_files, output_volume_mounts,
+                self, 'output', output_files, self.output_volume_mounts,
                 self.cpu_in_mcpu, self.memory_in_bytes, requester_pays_project)
 
         self.containers = containers
-
-        self.task_manager = task_manager
-
-    @property
-    def job_id(self):
-        return self.job_spec['job_id']
-
-    @property
-    def attempt_id(self):
-        return self.job_spec['attempt_id']
-
-    @property
-    def id(self):
-        return (self.batch_id, self.job_id)
 
     async def run(self, worker):
         async with worker.cpu_sem(self.cpu_in_mcpu):
@@ -879,10 +976,106 @@ class Job:
         return {name: await c.get_log() for name, c in self.containers.items()}
 
     async def delete(self):
-        log.info(f'deleting {self}')
-        self.deleted = True
+        await super().delete()
         for _, c in self.containers.items():
             await c.delete()
+
+    async def status(self):
+        status = await super().status()
+        cstatuses = {
+            name: await c.status() for name, c in self.containers.items()
+        }
+        status['container_statuses'] = cstatuses
+
+        return status
+
+    def __str__(self):
+        return f'job {self.id}'
+
+
+class JVMJob(Job):
+
+    def __init__(self,
+                 batch_id: int,
+                 user: str,
+                 gsa_key,
+                 job_spec,
+                 format_version,
+                 task_manager: aiotools.BackgroundTaskManager):
+        super().__init__(batch_id, user, gsa_key, job_spec, format_version, task_manager)
+        assert job_spec['process']['type'] == 'jvm'
+
+        input_files = job_spec.get('input_files')
+        output_files = job_spec.get('output_files')
+        if input_files or output_files:
+            raise Exception("i/o not supported")
+
+        if self.secrets:
+            for secret in self.secrets:
+                volume_mount = f'{self.secret_host_path(secret)}:{secret["mount_path"]}'
+                self.env.append(f"SECRET_{secret['name']}={volume_mount}")
+
+        # main container
+        self.main_spec = {
+            'command': job_spec['process']['command'], # ['is.hail.backend.service.Worker', $root, $i]
+            'name': 'main',
+            'env': self.env,
+            'cpu': self.cpu_in_mcpu,
+            'memory': self.memory_in_bytes,
+        }
+        self.process = JVMProcess(self, self.main_spec)
+
+    async def run(self, worker):
+        async with worker.cpu_sem(self.cpu_in_mcpu):
+            self.start_time = time_msecs()
+
+            try:
+                self.task_manager.ensure_future(worker.post_job_started(self))
+
+                log.info(f'{self}: initializing')
+                self.state = 'initializing'
+                if self.secrets:
+                    for secret in self.secrets:
+                        populate_secret_host_path(self.secret_host_path(secret), secret['data'])
+                self.state = 'running'
+
+                log.info(f'{self}: running jvm process')
+
+                self.state = await self.process.run()
+                log.info(f'{self} main: {self.state}')
+            except Exception:
+                log.exception(f'while running {self}')
+
+                self.state = 'error'
+                self.error = traceback.format_exc()
+            finally:
+                self.end_time = time_msecs()
+
+                if not self.deleted:
+                    log.info(f'{self}: marking complete')
+                    self.task_manager.ensure_future(worker.post_job_complete(self))
+
+                log.info(f'{self}: cleaning up')
+                try:
+                    await check_shell(f'xfs_quota -x -D /xfsquota/projects -P /xfsquota/projid -c "limit -p bsoft=0 bhard=0 {self.project_name}" /host')
+
+                    async with Flock('/xfsquota/projid', pool=worker.pool):
+                        await check_shell(f"sed     -i '/{self.project_name}:{self.project_id}/d' /xfsquota/projid")
+
+                    async with Flock('/xfsquota/projects', pool=worker.pool):
+                        await check_shell(f"sed -i '/{self.project_id}:/d' /xfsquota/projects")
+
+                    shutil.rmtree(self.scratch, ignore_errors=True)
+                except Exception:
+                    log.exception('while deleting volumes')
+
+    async def get_log(self):
+        return {'main': await self.process.get_log()}
+
+    async def delete(self):
+        log.info(f'deleting {self}')
+        self.deleted = True
+        await self.process.delete()
 
     # {
     #   version: int,
@@ -900,28 +1093,8 @@ class Job:
     #   resources: list of dict, {name: str, quantity: int}
     # }
     async def status(self):
-        status = {
-            'version': STATUS_FORMAT_VERSION,
-            'worker': NAME,
-            'batch_id': self.batch_id,
-            'job_id': self.job_spec['job_id'],
-            'attempt_id': self.job_spec['attempt_id'],
-            'user': self.user,
-            'state': self.state,
-            'format_version': self.format_version.format_version,
-            'resources': self.resources
-        }
-        if self.error:
-            status['error'] = self.error
-
-        cstatuses = {
-            name: await c.status() for name, c in self.containers.items()
-        }
-        status['container_statuses'] = cstatuses
-
-        status['start_time'] = self.start_time
-        status['end_time'] = self.end_time
-
+        status = await super().status()
+        status['container_statuses'] = {'main': await self.process.status()}
         return status
 
     def __str__(self):
@@ -986,7 +1159,7 @@ class Worker:
         if id in self.jobs:
             return web.HTTPForbidden()
 
-        job = Job(batch_id, body['user'], body['gsa_key'], job_spec, format_version, self.task_manager)
+        job = Job.create(batch_id, body['user'], body['gsa_key'], job_spec, format_version, self.task_manager)
 
         log.info(f'created {job}, adding to jobs')
 
