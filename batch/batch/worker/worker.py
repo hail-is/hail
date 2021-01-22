@@ -371,7 +371,7 @@ class Container:
         async with aiohttp.ClientSession(raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
             async with session.post('http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token',
                                     headers={'Metadata-Flavor': 'Google'}) as resp:
-                access_token = resp.json()['access_token']
+                access_token = (await resp.json())['access_token']
                 return {'username': 'oauth2accesstoken', 'password': access_token}
 
     async def run(self, worker):
