@@ -7,7 +7,7 @@ from .tls import internal_client_ssl_context, external_client_ssl_context
 from .config.deploy_config import get_deploy_config
 
 
-def client_session(*args, **kwargs) -> aiohttp.ClientSession:
+def client_session(*args, raise_for_status: bool = True, **kwargs) -> aiohttp.ClientSession:
     location = get_deploy_config().location()
     if location == 'external':
         tls = external_client_ssl_context()
@@ -20,6 +20,8 @@ def client_session(*args, **kwargs) -> aiohttp.ClientSession:
 
     assert 'connector' not in kwargs
     kwargs['connector'] = aiohttp.TCPConnector(ssl=tls)
+
+    kwargs['raise_for_status'] = raise_for_status
 
     return aiohttp.ClientSession(*args, **kwargs)
 

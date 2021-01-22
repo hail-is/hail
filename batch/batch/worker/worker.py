@@ -1067,7 +1067,7 @@ class Worker:
                 log.info(f'idle {idle_duration} ms, exiting')
 
                 async with client_session(
-                        raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
+                        timeout=aiohttp.ClientTimeout(total=60)) as session:
                     # Don't retry.  If it doesn't go through, the driver
                     # monitoring loops will recover.  If the driver is
                     # gone (e.g. testing a PR), this would go into an
@@ -1121,7 +1121,7 @@ class Worker:
         while True:
             try:
                 async with client_session(
-                        raise_for_status=True, timeout=aiohttp.ClientTimeout(total=5)) as session:
+                        timeout=aiohttp.ClientTimeout(total=5)) as session:
                     await session.post(
                         deploy_config.url('batch-driver', '/api/v1alpha/instances/job_complete'),
                         json=body, headers=self.headers)
@@ -1176,7 +1176,7 @@ class Worker:
         }
 
         async with client_session(
-                raise_for_status=True, timeout=aiohttp.ClientTimeout(total=5)) as session:
+                timeout=aiohttp.ClientTimeout(total=5)) as session:
             await request_retry_transient_errors(
                 session, 'POST',
                 deploy_config.url('batch-driver', '/api/v1alpha/instances/job_started'),
@@ -1190,7 +1190,7 @@ class Worker:
 
     async def activate(self):
         async with client_session(
-                raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
+                timeout=aiohttp.ClientTimeout(total=60)) as session:
             resp = await request_retry_transient_errors(
                 session, 'POST',
                 deploy_config.url('batch-driver', '/api/v1alpha/instances/activate'),
