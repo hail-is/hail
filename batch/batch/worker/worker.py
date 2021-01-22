@@ -1,3 +1,4 @@
+from typing import Optional
 import os
 import json
 import sys
@@ -82,11 +83,11 @@ assert worker_config.cores == CORES
 
 deploy_config = DeployConfig('gce', NAMESPACE, {})
 
-docker: aiodocker.Docker = None
+docker: Optional[aiodocker.Docker] = None
 
-port_allocator: 'PortAllocator' = None
+port_allocator: Optional['PortAllocator'] = None
 
-worker: 'Worker' = None
+worker: Optional['Worker'] = None
 
 
 class PortAllocator:
