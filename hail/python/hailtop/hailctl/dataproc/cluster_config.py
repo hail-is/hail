@@ -27,8 +27,7 @@ class ClusterConfig:
 
     def get_command(self, name):
         flags = ['--{}={}'.format(f, self.format(v)) for f, v in self.flags.items()]
-        return ['gcloud',
-                'dataproc',
+        return ['dataproc',
                 'clusters',
                 'create',
                 name] + flags

@@ -9,6 +9,14 @@ from .deploy_metadata import get_deploy_metadata
 
 @dataproc.command()
 @click.argument('cluster_name')
+@click.option('--project',
+              metavar='GCP_PROJECT',
+              help='Google Cloud project for the cluster.')
+@click.option('--zone', '-z',
+              metavar='GCP_ZONE',
+              help='Compute zone for Dataproc cluster.')
+@click.option('--dry-run', is_flag=True,
+              help="Print gcloud dataproc command, but don't run it.")
 @click.option('--num-workers', '--n-workers', '-w', type=int,
               help="New number of worker machines (min. 2).")
 @click.option('--num-secondary-workers', '--num-preemptible-workers', '--n-pre-workers', '-p', type=int,
@@ -28,25 +36,22 @@ from .deploy_metadata import get_deploy_metadata
                     'Execute gcloud topic datatimes for more information.'))
 @click.option('--no-max-age', is_flag=True,
               help='Disable auto-deletion due to max age or expiration time.')
-@click.option('--dry-run', is_flag=True,
-              help="Print gcloud dataproc command, but don't run it.")
-@click.option('--zone', '-z',
-              help='Compute zone for Dataproc cluster.')
 @click.option('--update-hail-version', is_flag=True,
               help=("Update the version of hail running on cluster to match "
                     "the currently installed version."))
 @click.option('--wheel', help='New Hail installation.')
-@click.argument('gcloud_args', nargs=-1)
+@click.option('--extra-gcloud-update-args',
+              default='',
+              help="Extra arguments to pass to 'gcloud dataproc clusters update'")
 @click.pass_context
 def modify(ctx,
            cluster_name,
+           project, zone, dry_run,
            num_workers, num_secondary_workers,
            graceful_decommission_timeout,
            max_idle, no_max_idle,
            expiration_time, max_age, no_max_age,
-           dry_run, zone,
-           update_hail_version, wheel,
-           gcloud_args):
+           update_hail_version, wheel, extra_gcloud_update_args):
     beta = ctx.parent.params['beta']
     print(f'beta {beta}')
     if wheel and update_hail_version:
@@ -76,22 +81,16 @@ def modify(ctx,
     if max_age:
         modify_args.append('--max-age={}'.format(max_age))
 
-    if modify_args:
-        cmd = ['dataproc', 'clusters', 'update', cluster_name] + modify_args
+    cmd = ['dataproc', 'clusters', 'update', cluster_name] + modify_args
 
-        if beta:
-            cmd.insert(0, 'beta')
+    if beta:
+        cmd.insert(0, 'beta')
 
-        if gcloud_args:
-            cmd.extend(gcloud_args)
+    cmd.extend(extra_gcloud_update_args.split())
 
-        # print underlying gcloud command
-        print('gcloud ' + ' '.join(cmd[:4]) + ' \\\n    ' + ' \\\n    '.join(cmd[4:]))
-
-        # Update cluster
-        if not dry_run:
-            print("Updating cluster '{}'...".format(cluster_name))
-            gcloud.run(cmd)
+    print("Updating cluster '{}'...".format(cluster_name))
+    runner = gcloud.GCloudRunner(project, zone, dry_run)
+    runner.run(cmd)
 
     if update_hail_version:
         deploy_metadata = get_deploy_metadata()
@@ -99,11 +98,6 @@ def modify(ctx,
         wheel = deploy_metadata["wheel"]
 
     if wheel is not None:
-        if not zone:
-            zone = gcloud.get_config("compute/zone")
-        if not zone:
-            raise RuntimeError("Could not determine compute zone. Use --zone argument to hailctl, or use `gcloud config set compute/zone <my-zone>` to set a default.")
-
         wheelfile = os.path.basename(wheel)
         cmds = []
         if wheel.startswith("gs://"):
@@ -111,7 +105,6 @@ def modify(ctx,
                 'compute',
                 'ssh',
                 '{}-m'.format(cluster_name),
-                '--zone={}'.format(zone),
                 '--',
                 f'sudo gsutil cp {wheel} /tmp/ && '
                 'sudo /opt/conda/default/bin/pip uninstall -y hail && '
@@ -124,7 +117,6 @@ def modify(ctx,
                 [
                     'compute',
                     'scp',
-                    '--zone={}'.format(zone),
                     wheel,
                     '{}-m:/tmp/'.format(cluster_name)
                 ],
@@ -132,7 +124,6 @@ def modify(ctx,
                     'compute',
                     'ssh',
                     f'{cluster_name}-m',
-                    f'--zone={zone}',
                     '--',
                     'sudo /opt/conda/default/bin/pip uninstall -y hail && '
                     f'sudo /opt/conda/default/bin/pip install --no-dependencies /tmp/{wheelfile} && '
@@ -142,10 +133,4 @@ def modify(ctx,
             ])
 
         for cmd in cmds:
-            print('gcloud ' + ' '.join(cmd))
-            if not dry_run:
-                gcloud.run(cmd)
-
-    if not wheel and not modify_args and gcloud_args:
-        sys.stderr.write('ERROR: found pass-through arguments but not known modification args.')
-        sys.exit(1)
+            runner.run(cmd)

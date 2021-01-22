@@ -144,6 +144,16 @@ IMAGE_VERSION = '1.4-debian9'
 @dataproc.command(
     help="Start a Dataproc cluster configured for Hail.")
 @click.argument('cluster_name')
+@click.option('--project',
+              metavar='GCP_PROJECT',
+              help='Google Cloud project for the cluster.')
+@click.option('--region',
+              help="Deprecated.  Ignored, the region is determined from the zone.")
+@click.option('--zone', '-z',
+              metavar='GCP_ZONE',
+              help='Compute zone for Dataproc cluster.')
+@click.option('--dry-run', is_flag=True,
+              help="Print gcloud dataproc command, but don't run it.")
 @click.option('--master-machine-type', '--master', '-m',
               default='n1-highmem-8', show_default=True,
               help="Master machine type.")
@@ -175,18 +185,12 @@ IMAGE_VERSION = '1.4-debian9'
               help="Disk size of worker machines, in GB.")
 @click.option('--worker-machine-type', '--worker',
               help="Worker machine type. [default: (n1-standard-8, or n1-highmem-8 with --vep)]")
-@click.option('--region',
-              help="Compute region for the cluster.")
-@click.option('--zone',
-              help="Compute zone for the cluster.")
 @click.option('--properties',
               help="Additional configuration properties for the cluster")
 @click.option('--metadata',
               help="Comma-separated list of metadata to add: KEY1=VALUE1,KEY2=VALUE2...")
 @click.option('--packages', '--pkgs',
               help="Comma-separated list of Python packages to be installed on the master node.")
-@click.option('--project',
-              help='Google Cloud project to start cluster. [default: (currently set project)]')
 @click.option('--configuration',
               help='Google Cloud configuration to start cluster. [default: (currently set configuration)]')
 @click.option('--max-idle',
@@ -212,8 +216,6 @@ IMAGE_VERSION = '1.4-debian9'
 @click.option('--vep',
               type=click.Choice(['GRCh37', 'GRCh38']),
               help='Install VEP for the specified reference genome.')
-@click.option('--dry-run', is_flag=True,
-              help="Print gcloud dataproc command, but don't run it.")
 @click.option('--requester-pays-allow-all', is_flag=True,
               help="Allow reading from all requester-pays buckets.")
 @click.option('--requester-pays-allow-buckets',
@@ -222,28 +224,37 @@ IMAGE_VERSION = '1.4-debian9'
               help="Allows reading from any of the requester-pays buckets that hold data for the annotation database.")
 @click.option('--debug-mode', is_flag=True,
               help="Enable debug features on created cluster (heap dump on out-of-memory error).")
-@click.argument('gcloud_args', nargs=-1)
+@click.option('--extra-gcloud-create-args',
+              default='',
+              help="Extra arguments to pass to 'gcloud dataproc clusters create'")
 @click.pass_context
 def start(
         ctx,
         cluster_name,
+        project, zone, dry_run,
         master_machine_type, master_memory_fraction, master_boot_disk_size,
         num_master_local_ssds, num_secondary_workers, num_worker_local_ssds,
         num_workers, secondary_worker_boot_disk_size,
         worker_boot_disk_size, worker_machine_type,
-        region, zone, properties, metadata, packages, project, configuration,
+        region, properties, metadata, packages, configuration,
         max_idle, expiration_time,
         max_age,
         bucket, network, master_tags, wheel,
-        init, init_timeout, vep, dry_run,
+        init, init_timeout, vep,
         requester_pays_allow_all, requester_pays_allow_buckets,
         requester_pays_allow_annotation_db,
-        debug_mode, gcloud_args):
-    beta = ctx.parent.params['beta']
-
+        debug_mode, extra_gcloud_create_args):
     if expiration_time and max_age:
         print("at most one of --expiration-time and --max-age allowed", file=sys.stderr)
         sys.exit(1)
+
+    runner = gcloud.GCloudRunner(project, zone, dry_run)
+    beta = ctx.parent.params['beta']
+
+    # determine region from zone
+    region = runner._zone.split('-')
+    region = region[:2]
+    region = ''.join(region)
 
     conf = ClusterConfig()
     conf.extend_flag('image-version', IMAGE_VERSION)
@@ -288,29 +299,17 @@ def start(
 
             conf.extend_flag("properties", {"spark:spark.hadoop.fs.gs.requester.pays.buckets": ",".join(requester_pays_bucket_sources)})
 
-        # Need to pick requester pays project.
-        requester_pays_project = project if project else gcloud.get_config("project")
-
         conf.extend_flag("properties", {"spark:spark.hadoop.fs.gs.requester.pays.mode": requester_pays_mode,
-                                        "spark:spark.hadoop.fs.gs.requester.pays.project.id": requester_pays_project})
-
-    # gcloud version 277 and onwards requires you to specify a region. Let's just require it for all hailctl users for consistency.
-    if region:
-        project_region = region
-    else:
-        project_region = gcloud.get_config("dataproc/region")
-
-    if not project_region:
-        raise RuntimeError("Could not determine dataproc region. Use --region argument to hailctl, or use `gcloud config set dataproc/region <my-region>` to set a default.")
+                                        "spark:spark.hadoop.fs.gs.requester.pays.project.id": runner._project})
 
     # add VEP init script
     if vep:
         # VEP is too expensive if you have to pay egress charges. We must choose the right replicate.
-        replicate = REGION_TO_REPLICATE_MAPPING.get(project_region)
+        replicate = REGION_TO_REPLICATE_MAPPING.get(region)
         if replicate is None:
             raise RuntimeError(f"The --vep argument is not currently provided in your region.\n"
                                f"  Please contact the Hail team on https://discuss.hail.is for support.\n"
-                               f"  Your region: {project_region}\n"
+                               f"  Your region: {region}\n"
                                f"  Supported regions: {', '.join(REGION_TO_REPLICATE_MAPPING.keys())}")
         print(f"Pulling VEP data from bucket in {replicate}.")
         conf.extend_flag('metadata', {"VEP_REPLICATE": replicate})
@@ -354,17 +353,12 @@ def start(
     conf.flags['secondary-worker-boot-disk-size'] = disk_size(secondary_worker_boot_disk_size)
     conf.flags['worker-boot-disk-size'] = disk_size(worker_boot_disk_size)
     conf.flags['worker-machine-type'] = worker_machine_type
-    if region:
-        conf.flags['region'] = region
-    if zone:
-        conf.flags['zone'] = zone
+    conf.flags['region'] = region
     conf.flags['initialization-action-timeout'] = init_timeout
     if network:
         conf.flags['network'] = network
     if configuration:
         conf.flags['configuration'] = configuration
-    if project:
-        conf.flags['project'] = project
     if bucket:
         conf.flags['bucket'] = bucket
 
@@ -388,25 +382,12 @@ def start(
     if expiration_time:
         cmd.append('--expiration_time={}'.format(expiration_time))
 
-    if gcloud_args:
-        cmd.extend(gcloud_args)
+    if extra_gcloud_create_args:
+        cmd.extend(extra_gcloud_create_args)
 
-    # print underlying gcloud command
-    print(' '.join(cmd[:5]) + ' \\\n    ' + ' \\\n    '.join(cmd[5:]))
-
-    # spin up cluster
-    if not dry_run:
-        print("Starting cluster '{}'...".format(cluster_name))
-        gcloud.run(cmd[1:])
+    print("Starting cluster '{}'...".format(cluster_name))
+    runner.run(cmd)
 
     if master_tags:
         add_tags_command = ['compute', 'instances', 'add-tags', cluster_name + '-m', '--tags', master_tags]
-
-        if project:
-            add_tags_command.append(f"--project={project}")
-        if zone:
-            add_tags_command.append(f"--zone={zone}")
-
-        print('gcloud ' + ' '.join(add_tags_command))
-        if not dry_run:
-            gcloud.run(add_tags_command)
+        runner.run(add_tags_command)

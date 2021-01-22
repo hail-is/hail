@@ -38,18 +38,21 @@ def get_chrome_path():
 @click.option('--project',
               metavar='GCP_PROJECT',
               help='Google Cloud project for the cluster.')
+@click.option('--zone', '-z',
+              metavar='GCP_ZONE',
+              help='Compute zone for Dataproc cluster.')
 @click.option('--port', '-p',
               metavar='PORT',
               default='10000',
               type=int,
               help="Local port to use for SSH tunnel to leader (master) node",
               show_default=True)
-@click.option('--zone', '-z',
-              metavar='GCP_ZONE',
-              help='Compute zone for Dataproc cluster.')
 @click.option('--dry-run', is_flag=True,
               help="Print gcloud dataproc command, but don't run it")
-def connect(cluster_name, service, *, project, port, zone, dry_run):
+@click.option('--extra-gcloud-ssh-args',
+              default='',
+              help="Extra arguments to pass to 'gcloud compute ssh'")
+def connect(cluster_name, service, *, project, zone, port, dry_run, extra_glcoud_ssh_args):
     # shortcut mapping
     shortcut = {
         'ui': 'spark-ui',
@@ -67,10 +70,6 @@ def connect(cluster_name, service, *, project, port, zone, dry_run):
     }
     connect_port_and_path = dataproc_port_and_path[service]
 
-    zone = zone if zone else gcloud.get_config("compute/zone")
-    if not zone:
-        raise RuntimeError("Could not determine compute zone. Use --zone argument to hailctl, or use `gcloud config set compute/zone <my-zone>` to set a default.")
-
     account = gcloud.get_config("account")
     if account:
         account = account[0:account.find('@')]
@@ -81,24 +80,20 @@ def connect(cluster_name, service, *, project, port, zone, dry_run):
     cmd = ['compute',
            'ssh',
            ssh_login,
-           '--zone={}'.format(zone),
            '--ssh-flag=-D {}'.format(port),
            '--ssh-flag=-N',
            '--ssh-flag=-f',
            '--ssh-flag=-n']
 
-    if project:
-        cmd.append(f"--project={project}")
+    extra_glcoud_ssh_args = extra_glcoud_ssh_args.split()
+    cmd.extend(extra_glcoud_ssh_args)
 
-    print('gcloud command:')
-    print(' '.join(cmd[:4]) + ' \\\n    ' + ' \\\n    '.join([f"'{x}'" for x in cmd[4:]]))
+    print("Connecting to cluster '{}'...".format(cluster_name))
+
+    # open SSH tunnel to master node
+    gcloud.GCloudRunner(project, zone, dry_run).run(cmd)
 
     if not dry_run:
-        print("Connecting to cluster '{}'...".format(cluster_name))
-
-        # open SSH tunnel to master node
-        gcloud.run(cmd)
-
         chrome = os.environ.get('HAILCTL_CHROME') or get_chrome_path()
 
         # open Chrome with SOCKS proxy configuration

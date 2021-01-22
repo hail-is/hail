@@ -11,6 +11,14 @@ from .dataproc import dataproc
     help="Submit a Python script to a running Dataproc cluster.")
 @click.argument('cluster_name')
 @click.argument('script')
+@click.option('--project',
+              metavar='GCP_PROJECT',
+              help='Google Cloud project for the cluster.')
+@click.option('--zone', '-z',
+              metavar='GCP_ZONE',
+              help='Compute zone for Dataproc cluster.')
+@click.option('--dry-run', is_flag=True,
+              help="Print gcloud dataproc command, but don't run it.")
 @click.option('--files',
               help="Comma-separated list of files to add to the working directory of the Hail application.")
 @click.option('--pyfiles',
@@ -19,12 +27,13 @@ from .dataproc import dataproc
               help="Extra Spark properties to set.")
 @click.option('--gcloud-configuration',
               help="Google Cloud configuration to submit job. [default: (currently set configuration)]")
-@click.option('--dry-run', is_flag=True,
-              help="Print gcloud dataproc command, but don't run it.")
-@click.argument('gcloud_args', nargs=-1)
+@click.option('--extra-gcloud-submit-args',
+              default='',
+              help="Extra arguments to pass to 'gcloud dataproc clusters submit'")
 def submit(
         cluster_name, script,
-        files, pyfiles, properties, gcloud_configuration, dry_run, gcloud_args):
+        project, zone, dry_run,
+        files, pyfiles, properties, gcloud_configuration, extra_gcloud_submit_args):
     print("Submitting to cluster '{}'...".format(cluster_name))
 
     # create files argument
@@ -70,15 +79,6 @@ def submit(
     if gcloud_configuration:
         cmd.append('--configuration={}'.format(gcloud_configuration))
 
-    # append arguments to pass to the Hail script
-    if gcloud_args:
-        cmd.append('--')
-        cmd.extend(gcloud_args)
+    cmd.extend(extra_gcloud_submit_args.split())
 
-    # print underlying gcloud command
-    print('gcloud command:')
-    print('gcloud ' + ' '.join(cmd[:5]) + ' \\\n    ' + ' \\\n    '.join(cmd[6:]))
-
-    # submit job
-    if not dry_run:
-        gcloud.run(cmd)
+    gcloud.GCloudRunner(project, zone, dry_run).run(cmd)

@@ -5,6 +5,7 @@ from hailtop.batch_client.client import BatchClient
 from ..batch_cli_utils import make_formatter
 from .billing import billing
 
+
 @billing.command(
     name='list',
     help="List billing projects.")

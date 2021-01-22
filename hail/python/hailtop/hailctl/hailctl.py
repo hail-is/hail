@@ -53,7 +53,7 @@ def hailctl():
     check_for_update()
 
 
-def main(*args, standalone_mode=False, **kwargs):
+def main(*args, **kwargs):
     try:
         hailctl(*args, **kwargs)
     except SystemExit as e:
