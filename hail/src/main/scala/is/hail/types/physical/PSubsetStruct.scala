@@ -140,4 +140,6 @@ final case class PSubsetStruct(ps: PStruct, _fieldNames: Array[String]) extends 
   def unstagedStoreAtAddress(addr: Long, region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Unit = {
     throw new UnsupportedOperationException
   }
+
+  def loadFromNested(cb: EmitCodeBuilder, addr: Code[Long]): Code[Long] = addr
 }

@@ -2115,6 +2115,7 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
     using(ctx.fs.createNoCompression(scanAggsPerPartitionFile)) { os =>
       partAggs.zipWithIndex.foreach { case (x, i) =>
         if (i < scanAggCount) {
+          log.info(s"TableMapRows scan: serializing combined agg $i")
           partitionIndices(i) = os.getPosition
           os.writeInt(x.length)
           os.write(x, 0, x.length)
@@ -2152,10 +2153,12 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
       val seq = eltSeqF(i, globalRegion)
       var aggOff = read(aggRegion, partitionAggs)
 
+      var idx = 0
       it.map { ptr =>
         newRow.setAggState(aggRegion, aggOff)
         val off = newRow(ctx.region, globals, ptr)
         seq.setAggState(aggRegion, newRow.getAggOffset())
+        idx += 1
         seq(ctx.region, globals, ptr)
         aggOff = seq.getAggOffset()
         off

@@ -22,5 +22,7 @@ case object PVoid extends PType with PUnrealizable {
   def setRequired(required: Boolean) = PVoid
 
   override def unsafeOrdering(): UnsafeOrdering = throw new NotImplementedError()
+
+  def loadFromNested(cb: EmitCodeBuilder, addr: Code[Long]): Code[Long] = throw new NotImplementedError()
 }
 

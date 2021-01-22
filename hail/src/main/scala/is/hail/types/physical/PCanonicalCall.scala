@@ -61,4 +61,6 @@ final case class PCanonicalCall(required: Boolean = false) extends PCall {
   def storeAtAddress(cb: EmitCodeBuilder, addr: Code[Long], region: Value[Region], value: SCode, deepCopy: Boolean): Unit = {
     cb += Region.storeInt(addr, value.asInstanceOf[SCanonicalCallCode].call)
   }
+
+  def loadFromNested(cb: EmitCodeBuilder, addr: Code[Long]): Code[Long] = representation.loadFromNested(cb, addr)
 }

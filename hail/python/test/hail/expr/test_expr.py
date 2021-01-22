@@ -469,6 +469,22 @@ class Tests(unittest.TestCase):
         for aggregation, expected in tests:
             self.assertEqual(t.aggregate(aggregation), expected)
 
+    def test_agg_densify(self):
+        mt = hl.utils.range_matrix_table(5, 5, 3)
+        mt = mt.filter_entries(mt.row_idx == mt.col_idx)
+        mt = mt.annotate_entries(x=(mt.row_idx, mt.col_idx), y=hl.str(mt.row_idx) + ',' + hl.str(mt.col_idx))
+        ht = mt.localize_entries('entries', 'cols')
+        ht = ht.annotate(dense = hl.scan._densify(hl.len(ht.cols), ht.entries))
+        ht = ht.drop('entries', 'cols')
+        assert ht.collect() == [
+            hl.utils.Struct(row_idx=0, dense=[None, None, None, None, None]),
+            hl.utils.Struct(row_idx=1, dense=[hl.utils.Struct(x=(0,0), y='0,0'), None, None, None, None]),
+            hl.utils.Struct(row_idx=2, dense=[hl.utils.Struct(x=(0,0), y='0,0'), hl.utils.Struct(x=(1,1), y='1,1'), None, None, None]),
+            hl.utils.Struct(row_idx=3, dense=[hl.utils.Struct(x=(0,0), y='0,0'), hl.utils.Struct(x=(1,1), y='1,1'), hl.utils.Struct(x=(2,2), y='2,2'), None, None]),
+            hl.utils.Struct(row_idx=4, dense=[hl.utils.Struct(x=(0,0), y='0,0'), hl.utils.Struct(x=(1,1), y='1,1'), hl.utils.Struct(x=(2,2), y='2,2'), hl.utils.Struct(x=(3,3), y='3,3'), None]),
+        ]
+
+
     def test_agg_array_inside_annotate_rows(self):
         n_rows = 10
         n_cols = 5

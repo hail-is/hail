@@ -402,8 +402,8 @@ final class Region protected[annotations](var blockSize: Region.Size, var pool: 
     memory.setNumParents(n)
   }
 
-  def setParentReference(parent: Region, idx: Int): Unit = {
-    memory.setReferenceAtIndex(parent.memory, idx)
+  def setParentReference(child: Region, idx: Int): Unit = {
+    memory.setReferenceAtIndex(child.memory, idx)
   }
 
   def getParentReference(idx: Int, blockSize: Region.Size): Region = {
@@ -437,6 +437,8 @@ final class Region protected[annotations](var blockSize: Region.Size, var pool: 
   def getPool(): RegionPool = {
     pool
   }
+
+  def totalManagedBytes(): Long = memory.totalManagedBytes()
 }
 
 object RegionUtils {

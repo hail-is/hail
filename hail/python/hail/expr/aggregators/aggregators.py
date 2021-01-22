@@ -375,6 +375,9 @@ def collect(expr) -> ArrayExpression:
     """
     return _agg_func('Collect', [expr], tarray(expr.dtype))
 
+@typecheck(len=expr_int32, expr=expr_array(expr_any))
+def _densify(len, expr) -> ArrayExpression:
+    return _agg_func('Densify', [expr], expr.dtype, init_op_args=[len])
 
 @typecheck(expr=expr_any)
 def collect_as_set(expr) -> SetExpression:

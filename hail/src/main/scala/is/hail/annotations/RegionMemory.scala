@@ -4,21 +4,21 @@ import is.hail.expr.ir.{AnyRefArrayBuilder, LongArrayBuilder, LongMissingArrayBu
 import is.hail.utils._
 
 final class RegionMemory(pool: RegionPool) extends AutoCloseable {
-  private val usedBlocks = new LongArrayBuilder(4)
-  private val bigChunks = new LongArrayBuilder(4)
-  private val jObjects = new AnyRefArrayBuilder[AnyRef](0)
+  private[this] val usedBlocks = new LongArrayBuilder(4)
+  private[this] val bigChunks = new LongArrayBuilder(4)
+  private[this] val jObjects = new AnyRefArrayBuilder[AnyRef](0)
 
-  private var totalChunkMemory = 0L
-  private var currentBlock: Long = 0L
-  private var offsetWithinBlock: Long = _
+  private[this] var totalChunkMemory = 0L
+  private[this] var currentBlock: Long = 0L
+  private[this] var offsetWithinBlock: Long = _
 //  var stackTrace: Option[IndexedSeq[StackTraceElement]] = None
 
   // blockThreshold and blockByteSize are mutable because RegionMemory objects are reused with different sizes
   protected[annotations] var blockSize: Region.Size = -1
-  private var blockThreshold: Long = _
-  private var blockByteSize: Long = _
+  private[this] var blockThreshold: Long = _
+  private[this] var blockByteSize: Long = _
 
-  private val references = new AnyRefArrayBuilder[RegionMemory](4)
+  private[this] val references = new AnyRefArrayBuilder[RegionMemory](4)
   private var referenceCount: Long = _
 
   def storeJavaObject(obj: AnyRef): Int = {
@@ -129,6 +129,8 @@ final class RegionMemory(pool: RegionPool) extends AutoCloseable {
 
   def getTotalChunkMemory(): Long = this.totalChunkMemory
 
+  def totalManagedBytes(): Long = this.totalChunkMemory + usedBlocks.size * blockByteSize
+
   protected[annotations] def freeMemory(): Unit = {
     // freeMemory should be idempotent
     if (isFreed) {
@@ -225,12 +227,12 @@ final class RegionMemory(pool: RegionPool) extends AutoCloseable {
     references.setSizeUninitialized(n)
   }
 
-  def setReferenceAtIndex(reference: RegionMemory, idx: Int): Unit = {
-    reference.referenceCount += 1
+  def setReferenceAtIndex(child: RegionMemory, idx: Int): Unit = {
+    child.referenceCount += 1
     val existing = references(idx)
     if (existing != null)
       existing.release()
-    references.update(idx, reference)
+    references.update(idx, child)
   }
 
   def getReferenceAtIndex(idx: Int, blockSize: Region.Size): RegionMemory = {

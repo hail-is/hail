@@ -81,5 +81,7 @@ final case class PCanonicalShuffle(
   def allocate(region: Region, length: Int): Long = representation.allocate(region, length)
 
   def allocate(region: Code[Region], length: Code[Int]): Code[Long] = representation.allocate(region, length)
+
+  def loadFromNested(cb: EmitCodeBuilder, addr: Code[Long]): Code[Long] = representation.loadFromNested(cb, addr)
 }
 

@@ -33,23 +33,18 @@ def densify(sparse_mt):
     mt = mt.annotate_entries(__contig=mt.__contig_idx)
 
     t = mt._localize_entries('__entries', '__cols')
-    t = t.annotate(
-        __entries=hl.rbind(
-            hl.scan.array_agg(
-                lambda entry: hl.scan._prev_nonnull(hl.or_missing(hl.is_defined(entry.END), entry)),
-                t.__entries),
-            lambda prev_entries: hl.map(
-                lambda i:
-                hl.rbind(
-                    prev_entries[i], t.__entries[i],
-                    lambda prev_entry, entry:
-                    hl.if_else(
-                        (~hl.is_defined(entry)
-                         & (prev_entry.END >= t.locus.position)
-                         & (prev_entry.__contig == t.__contig_idx)),
-                        prev_entry,
-                        entry)),
-                hl.range(0, hl.len(t.__entries)))))
+    scan = hl.scan._densify(
+        hl.len(t.__cols),
+        t.__entries.map(lambda x: hl.or_missing(hl.is_defined(x.END), x)))
+    dense = hl.rbind(t.locus.position, lambda pos:
+    hl._zip_func(scan, t.__entries,
+                 f=lambda prev_entry, entry: hl.if_else(
+                     (~hl.is_defined(entry)
+                      & (prev_entry.END >= pos)
+                      & (prev_entry.__contig == t.__contig_idx)),
+                     prev_entry,
+                     entry)))
+    t = t.annotate(__entries=dense)
     mt = t._unlocalize_entries('__entries', '__cols', col_key_fields)
     mt = mt.drop('__contig_idx', '__contig', 'END')
     return mt
