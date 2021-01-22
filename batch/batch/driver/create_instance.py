@@ -110,6 +110,11 @@ iptables -I DOCKER-USER -i public -d 172.16.0.0/12 -j DROP
 # not used, but ban it anyway!
 iptables -I DOCKER-USER -i public -d 192.168.0.0/16 -j DROP
 
+# create network for batch-worker that allows metadata server
+docker network create batch-worker --opt com.docker.network.bridge.name=batch-worker
+iptables -I DOCKER-USER -i batch-worker -d 169.254.169.254 -j ACCEPT
+
+
 WORKER_DATA_DISK_NAME="{worker_data_disk_name}"
 
 # format local SSD
@@ -252,6 +257,7 @@ docker run \
 --device $XFS_DEVICE \
 --cap-add SYS_ADMIN \
 --security-opt apparmor:unconfined \
+--network batch-worker \
 $BATCH_WORKER_IMAGE \
 python3 -u -m batch.worker.worker >worker.log 2>&1
 
