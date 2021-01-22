@@ -208,7 +208,7 @@ IMAGE_VERSION = '1.4-debian9'
 @click.option('--init',
               default='', show_default=True,
               help="Comma-separated list of init scripts to run.")
-@click.option('--init_timeout',
+@click.option('--init-timeout',
               default='20m', show_default=True,
               help="Flag to specify a timeout period for the initialization action.")
 @click.option('--vep',

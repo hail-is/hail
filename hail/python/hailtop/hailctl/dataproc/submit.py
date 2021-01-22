@@ -25,7 +25,7 @@ from .dataproc import dataproc
               help="Comma-separated list of files (or directories with python files) to add to the PYTHONPATH.")
 @click.option('--properties', '-p',
               help="Extra Spark properties to set.")
-@click.option('--gcloud-configuration',
+@click.option('--configuration',
               help="Google Cloud configuration to submit job. [default: (currently set configuration)]")
 @click.option('--extra-gcloud-submit-args',
               default='',
@@ -34,7 +34,7 @@ from .dataproc import dataproc
 def submit(
         cluster_name, script,
         project, zone, dry_run,
-        files, pyfiles, properties, gcloud_configuration, extra_gcloud_submit_args, script_args):
+        files, pyfiles, properties, configuration, extra_gcloud_submit_args, script_args):
     print("Submitting to cluster '{}'...".format(cluster_name))
 
     # create files argument
@@ -80,8 +80,8 @@ def submit(
         '--py-files={}'.format(pyfiles),
         '--properties={}'.format(properties)
     ]
-    if gcloud_configuration:
-        cmd.append('--configuration={}'.format(gcloud_configuration))
+    if configuration:
+        cmd.append('--configuration={}'.format(configuration))
 
     if script_args:
         cmd.extend(['--', *script_args])
