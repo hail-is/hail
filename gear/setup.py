@@ -7,6 +7,7 @@ setup(
     author = 'Hail Team',
     author_email = 'hail@broadinstitute.org',
     description = 'Utils for building services',
+    package_data={"gear": ["py.typed"]},
     packages = find_packages(),
     include_package_data=True
 )

@@ -51,9 +51,11 @@ class Tests(unittest.TestCase):
         cases = [('empty_file', b''), ('null', b'\0'), ('small', b'hello world')]
         for file, data in cases:
             handle = self.add_temp_file_from_string(file, data)
+            expected = self.fs._read_binary_gs_file(handle)
+            self.assertEqual(expected, data)
             i = 0
             cached = self.client._get_file_if_exists(handle)
             while cached is None and i < 10:
                 cached = self.client._get_file_if_exists(handle)
                 i += 1
-            self.assertEqual(cached, data)
+            self.assertEqual(cached, expected)

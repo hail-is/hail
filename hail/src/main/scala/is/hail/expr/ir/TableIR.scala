@@ -384,12 +384,19 @@ object LoweredTableReader {
 
           val partitioner = RVDPartitioner.unkeyed(sortedPartData.length)
 
+          val tableStage = TableStage(globals, partitioner, TableStageDependency.none,
+            ToStream(Literal(TArray(contextType), partOrigIndex.map(i => contexts(i)))),
+            body)
+
+          val tableType = TableType(tableStage.rowType, tableStage.key, tableStage.globalType)
+
+          val rTable = BaseTypeWithRequiredness(tableType).asInstanceOf[RTable]
+
           ctx.backend.lowerDistributedSort(ctx,
-            TableStage(globals, partitioner, TableStageDependency.none,
-              ToStream(Literal(TArray(contextType), partOrigIndex.map(i => contexts(i)))),
-              body),
+            tableStage,
             keyType.fieldNames.map(f => SortField(f, Ascending)),
-            Map.empty
+            Map.empty,
+            rTable
           )
         }
       }

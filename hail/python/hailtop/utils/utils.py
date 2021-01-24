@@ -504,6 +504,15 @@ async def run_if_changed_idempotent(changed, f, *args, **kwargs):
             await changed.wait()
 
 
+async def periodically_call(period, f, *args, **kwargs):
+    async def loop():
+        log.info(f'starting loop for {f.__name__}')
+        while True:
+            await f(*args, **kwargs)
+            await asyncio.sleep(period)
+    await retry_long_running(f.__name__, loop)
+
+
 class LoggingTimerStep:
     def __init__(self, timer, name):
         self.timer = timer
@@ -556,3 +565,23 @@ def is_google_registry_image(path: str) -> bool:
     Container Registry or the Artifact Registry."""
     host = path.partition('/')[0]
     return host == 'gcr.io' or host.endswith('docker.pkg.dev')
+
+
+def url_scheme(url: str) -> str:
+    """Return scheme of `url`, or the empty string if there is no scheme."""
+    parsed = urllib.parse.urlparse(url)
+    return parsed.scheme
+
+
+class Notice:
+    def __init__(self):
+        self.subscribers = []
+
+    def subscribe(self):
+        e = asyncio.Event()
+        self.subscribers.append(e)
+        return e
+
+    def notify(self):
+        for e in self.subscribers:
+            e.set()

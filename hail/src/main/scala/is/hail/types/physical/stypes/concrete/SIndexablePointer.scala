@@ -98,4 +98,6 @@ class SIndexablePointerSettable(
     cb.assign(length, pt.loadLength(a))
     cb.assign(elementsAddress, pt.firstElementOffset(a, length))
   }
+
+  override def hasMissingValues(cb: EmitCodeBuilder): Code[Boolean] = pt.hasMissingValues(a)
 }

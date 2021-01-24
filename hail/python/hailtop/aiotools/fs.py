@@ -1,13 +1,14 @@
-from typing import TypeVar, Any, Optional, List, Type, BinaryIO, cast, Set, AsyncIterator
+from typing import TypeVar, Any, Optional, List, Type, BinaryIO, cast, Set, AsyncIterator, Union
 from types import TracebackType
 import abc
 import os
 import os.path
 import stat
 import shutil
+import asyncio
 from concurrent.futures import ThreadPoolExecutor
 import urllib.parse
-from hailtop.utils import blocking_to_async
+from hailtop.utils import blocking_to_async, url_basename, url_join
 from .stream import ReadableStream, WritableStream, blocking_readable_stream_to_async, blocking_writable_stream_to_async
 
 AsyncFSType = TypeVar('AsyncFSType', bound='AsyncFS')
@@ -33,6 +34,10 @@ class FileListEntry(abc.ABC):
         pass
 
     @abc.abstractmethod
+    def url_maybe_trailing_slash(self) -> str:
+        pass
+
+    @abc.abstractmethod
     async def is_file(self) -> bool:
         pass
 
@@ -46,6 +51,9 @@ class FileListEntry(abc.ABC):
 
 
 class AsyncFS(abc.ABC):
+    FILE = 'file'
+    DIR = 'dir'
+
     @abc.abstractmethod
     def schemes(self) -> Set[str]:
         pass
@@ -63,11 +71,19 @@ class AsyncFS(abc.ABC):
         pass
 
     @abc.abstractmethod
+    async def makedirs(self, url: str, exist_ok: bool = False) -> None:
+        pass
+
+    @abc.abstractmethod
     async def statfile(self, url: str) -> FileStatus:
         pass
 
     @abc.abstractmethod
     async def listfiles(self, url: str, recursive: bool = False) -> AsyncIterator[FileListEntry]:
+        pass
+
+    @abc.abstractmethod
+    async def staturl(self, url: str) -> str:
         pass
 
     @abc.abstractmethod
@@ -131,6 +147,9 @@ class LocalFileListEntry(FileListEntry):
     async def url(self) -> str:
         trailing_slash = "/" if await self.is_dir() else ""
         return f'{self._base_url}{self._entry.name}{trailing_slash}'
+
+    def url_maybe_trailing_slash(self) -> str:
+        return f'{self._base_url}{self._entry.name}'
 
     async def is_file(self) -> bool:
         return not await self.is_dir()
@@ -209,9 +228,20 @@ class LocalAsyncFS(AsyncFS):
             return self._listfiles_recursive(url, entries)
         return self._listfiles_flat(url, entries)
 
+    async def staturl(self, url: str) -> str:
+        path = self._get_path(url)
+        stat_result = await blocking_to_async(self._thread_pool, os.stat, path)
+        if stat.S_ISDIR(stat_result.st_mode):
+            return AsyncFS.DIR
+        return AsyncFS.FILE
+
     async def mkdir(self, url: str) -> None:
         path = self._get_path(url)
-        os.mkdir(path)
+        await blocking_to_async(self._thread_pool, os.mkdir, path)
+
+    async def makedirs(self, url: str, exist_ok: bool = False) -> None:
+        path = self._get_path(url)
+        await blocking_to_async(self._thread_pool, os.makedirs, path, exist_ok=exist_ok)
 
     async def isfile(self, url: str) -> bool:
         path = self._get_path(url)
@@ -228,6 +258,245 @@ class LocalAsyncFS(AsyncFS):
     async def rmtree(self, url: str) -> None:
         path = self._get_path(url)
         await blocking_to_async(self._thread_pool, shutil.rmtree, path)
+
+
+class FileAndDirectoryError(Exception):
+    pass
+
+
+class Transfer:
+    TARGET_DIR = 'target_dir'
+    TARGET_FILE = 'target_file'
+    INFER_TARGET = 'infer_target'
+
+    def __init__(self, src: Union[str, List[str]], dest: str, *, treat_dest_as: str = INFER_TARGET):
+        if treat_dest_as not in (Transfer.TARGET_DIR, Transfer.TARGET_FILE, Transfer.INFER_TARGET):
+            raise ValueError(f'treat_dest_as invalid: {treat_dest_as}')
+
+        if treat_dest_as == Transfer.TARGET_FILE and isinstance(src, list):
+            raise NotADirectoryError(dest)
+
+        self.src = src
+        self.dest = dest
+        self.treat_dest_as = treat_dest_as
+
+
+class SourceCopier:
+    '''This class implements copy from a single source.  In general, a
+    transfer will have multiple sources, and a SourceCopier will be
+    created for each source.
+    '''
+
+    def __init__(self, router_fs: 'RouterAsyncFS', src: str, dest: str, treat_dest_as: str, dest_type_task):
+        self.router_fs = router_fs
+        self.src = src
+        self.dest = dest
+        self.treat_dest_as = treat_dest_as
+        self.dest_type_task = dest_type_task
+
+        self.src_is_file = None
+        self.src_is_dir = None
+
+        self.pending = 2
+        self.barrier = asyncio.Event()
+
+    async def release_barrier(self):
+        self.pending -= 1
+        if self.pending == 0:
+            self.barrier.set()
+
+    async def release_barrier_and_wait(self):
+        await self.release_barrier()
+        await self.barrier.wait()
+
+    async def _copy_file(self, srcfile: str, destfile: str) -> None:
+        assert not destfile.endswith('/')
+
+        async with await self.router_fs.open(srcfile) as srcf:
+            try:
+                destf = await self.router_fs.create(destfile)
+            except FileNotFoundError:
+                await self.router_fs.makedirs(os.path.dirname(destfile), exist_ok=True)
+                destf = await self.router_fs.create(destfile)
+
+            async with destf:
+                while True:
+                    b = await srcf.read(Copier.BUFFER_SIZE)
+                    if not b:
+                        return
+                    await destf.write(b)
+
+    async def _full_dest(self):
+        dest_type = await self.dest_type_task
+
+        if (self.treat_dest_as == Transfer.TARGET_DIR
+                or self.dest.endswith('/')
+                or (self.treat_dest_as == Transfer.INFER_TARGET
+                    and dest_type == AsyncFS.DIR)):
+            if dest_type is None:
+                raise FileNotFoundError(self.dest)
+            if dest_type == AsyncFS.FILE:
+                raise NotADirectoryError(self.dest)
+            assert dest_type == AsyncFS.DIR
+            # We know dest is a dir, but we're copying to
+            # dest/basename(src), and we don't know its type.
+            return url_join(self.dest, url_basename(self.src.rstrip('/'))), None
+
+        assert not self.dest.endswith('/')
+        return self.dest, dest_type
+
+    async def copy_as_file(self):
+        src = self.src
+        if src.endswith('/'):
+            await self.release_barrier()
+            return
+
+        try:
+            # currently unused; size will be use to do mutli-part
+            # uploads
+            await self.router_fs.statfile(src)
+        except FileNotFoundError:
+            self.src_is_file = False
+            await self.release_barrier()
+            return
+
+        self.src_is_file = True
+        await self.release_barrier_and_wait()
+
+        if self.src_is_dir:
+            raise FileAndDirectoryError(self.src)
+
+        full_dest, full_dest_type = await self._full_dest()
+        if full_dest_type == AsyncFS.DIR:
+            raise IsADirectoryError(full_dest)
+
+        await self._copy_file(src, full_dest)
+
+    async def copy_as_dir(self):
+        src = self.src
+        if not src.endswith('/'):
+            src = src + '/'
+
+        try:
+            srcentries = await self.router_fs.listfiles(src, recursive=True)
+        except (NotADirectoryError, FileNotFoundError):
+            self.src_is_dir = False
+            await self.release_barrier()
+            return
+
+        self.src_is_dir = True
+        await self.release_barrier_and_wait()
+
+        if self.src_is_file:
+            raise FileAndDirectoryError(self.src)
+
+        full_dest, full_dest_type = await self._full_dest()
+        if full_dest_type == AsyncFS.FILE:
+            raise NotADirectoryError(full_dest)
+
+        async for srcentry in srcentries:
+            srcfile = srcentry.url_maybe_trailing_slash()
+            assert srcfile.startswith(src)
+
+            # skip files with empty names
+            if srcfile.endswith('/'):
+                continue
+
+            relsrcfile = srcfile[len(src):]
+            assert not relsrcfile.startswith('/')
+
+            await self._copy_file(srcfile, url_join(full_dest, relsrcfile))
+
+    async def copy(self):
+        # gather with return_exceptions=True to make copy
+        # deterministic with respect to exceptions
+        results = await asyncio.gather(
+            self.copy_as_file(), self.copy_as_dir(),
+            return_exceptions=True)
+
+        assert self.pending == 0
+        assert (self.src_is_file is None) == self.src.endswith('/')
+        assert self.src_is_dir is not None
+
+        if (self.src_is_file is False or self.src.endswith('/')) and not self.src_is_dir:
+            raise FileNotFoundError(self.src)
+        for result in results:
+            if isinstance(result, Exception):
+                raise result
+
+
+class Copier:
+    '''
+    This class implements copy for a list of transfers.
+    '''
+
+    BUFFER_SIZE = 8192
+
+    def __init__(self, router_fs):
+        self.router_fs = router_fs
+
+    async def _dest_type(self, transfer):
+        '''Return the (real or assumed) type of `dest`.
+
+        If the transfer assumes the type of `dest`, return that rather
+        than the real type.  A return value of `None` mean `dest` does
+        not exist.
+        '''
+        if (transfer.treat_dest_as == Transfer.TARGET_DIR
+                or isinstance(transfer.src, list)
+                or transfer.dest.endswith('/')):
+            return AsyncFS.DIR
+
+        if transfer.treat_dest_as == Transfer.TARGET_FILE:
+            return AsyncFS.FILE
+
+        assert not transfer.dest.endswith('/')
+        try:
+            dest_type = await self.router_fs.staturl(transfer.dest)
+        except FileNotFoundError:
+            dest_type = None
+
+        return dest_type
+
+    async def copy_source(self, transfer, src, dest_type_task):
+        src_copier = SourceCopier(self.router_fs, src, transfer.dest, transfer.treat_dest_as, dest_type_task)
+        await src_copier.copy()
+
+    async def _copy_one_transfer(self, transfer: Transfer):
+        dest_type_task = asyncio.create_task(self._dest_type(transfer))
+        dest_type_task_awaited = False
+
+        try:
+            src = transfer.src
+            if isinstance(src, list):
+                if transfer.treat_dest_as == Transfer.TARGET_FILE:
+                    raise NotADirectoryError(transfer.dest)
+
+                for s in src:
+                    await self.copy_source(transfer, s, dest_type_task)
+            else:
+                await self.copy_source(transfer, src, dest_type_task)
+
+            # raise potential exception
+            dest_type_task_awaited = True
+            await dest_type_task
+        finally:
+            if not dest_type_task_awaited:
+                # retrieve dest_type_task exception to avoid
+                # "Task exception was never retrieved" errors
+                try:
+                    dest_type_task_awaited = True
+                    await dest_type_task
+                except:
+                    pass
+
+    async def copy(self, transfer: Union[Transfer, List[Transfer]]):
+        if isinstance(transfer, Transfer):
+            await self._copy_one_transfer(transfer)
+            return
+
+        for t in transfer:
+            await self._copy_one_transfer(t)
 
 
 class RouterAsyncFS(AsyncFS):
@@ -282,9 +551,17 @@ class RouterAsyncFS(AsyncFS):
         fs = self._get_fs(url)
         return await fs.listfiles(url, recursive)
 
+    async def staturl(self, url: str) -> str:
+        fs = self._get_fs(url)
+        return await fs.staturl(url)
+
     async def mkdir(self, url: str) -> None:
         fs = self._get_fs(url)
         return await fs.mkdir(url)
+
+    async def makedirs(self, url: str, exist_ok: bool = False) -> None:
+        fs = self._get_fs(url)
+        return await fs.makedirs(url, exist_ok=exist_ok)
 
     async def isfile(self, url: str) -> bool:
         fs = self._get_fs(url)
@@ -305,3 +582,7 @@ class RouterAsyncFS(AsyncFS):
     async def close(self) -> None:
         for fs in self._filesystems:
             await fs.close()
+
+    async def copy(self, transfer: Union[Transfer, List[Transfer]]):
+        copier = Copier(self)
+        await copier.copy(transfer)

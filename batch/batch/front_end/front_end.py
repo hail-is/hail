@@ -5,6 +5,7 @@ import logging
 import json
 import random
 import datetime
+import collections
 from functools import wraps
 import asyncio
 import aiohttp
@@ -36,7 +37,7 @@ from web_common import (setup_aiohttp_jinja2, setup_common_static_routes,
 
 # import uvloop
 
-from ..utils import (adjust_cores_for_memory_request, worker_memory_per_core_gb,
+from ..utils import (adjust_cores_for_memory_request, worker_memory_per_core_mib,
                      cost_from_msec_mcpu, adjust_cores_for_packability, coalesce,
                      adjust_cores_for_storage_request, total_worker_storage_gib,
                      query_billing_projects)
@@ -51,6 +52,7 @@ from ..globals import HTTP_CLIENT_MAX_SIZE, BATCH_FORMAT_VERSION
 from ..spec_writer import SpecWriter
 from ..batch_format_version import BatchFormatVersion
 
+from .pool_selector import PoolSelector
 from .validate import ValidationError, validate_batch, validate_and_clean_jobs
 
 # uvloop.install()
@@ -100,6 +102,7 @@ deploy_config = get_deploy_config()
 BATCH_JOB_DEFAULT_CPU = os.environ.get('HAIL_BATCH_JOB_DEFAULT_CPU', '1')
 BATCH_JOB_DEFAULT_MEMORY = os.environ.get('HAIL_BATCH_JOB_DEFAULT_MEMORY', '3.75Gi')
 BATCH_JOB_DEFAULT_STORAGE = os.environ.get('HAIL_BATCH_JOB_DEFAULT_STORAGE', '10Gi')
+BATCH_JOB_DEFAULT_WORKER_TYPE = os.environ.get('HAIL_BATCH_JOB_DEFAULT_WORKER_TYPE', 'standard')
 
 
 def rest_authenticated_developers_or_auth_only(fun):
@@ -266,7 +269,8 @@ async def _get_job_log_from_record(app, batch_id, job_id, record):
     ip_address = record['ip_address']
     if state == 'Running':
         async with aiohttp.ClientSession(
-                raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
+                raise_for_status=True,
+                timeout=aiohttp.ClientTimeout(total=60)) as session:
             try:
                 url = (f'http://{ip_address}:5000'
                        f'/api/v1alpha/batches/{batch_id}/jobs/{job_id}/log')
@@ -278,7 +282,7 @@ async def _get_job_log_from_record(app, batch_id, job_id, record):
                 raise
 
     if state in ('Error', 'Failed', 'Success'):
-        log_store = app['log_store']
+        log_store: LogStore = app['log_store']
         batch_format_version = BatchFormatVersion(record['format_version'])
 
         async def _read_log_from_gcs(task):
@@ -309,7 +313,7 @@ async def _get_job_log_from_record(app, batch_id, job_id, record):
 
 
 async def _get_job_log(app, batch_id, job_id, user):
-    db = app['db']
+    db: Database = app['db']
 
     record = await db.select_and_fetchone('''
 SELECT jobs.state, jobs.spec, ip_address, format_version, jobs.attempt_id
@@ -329,7 +333,7 @@ WHERE user = %s AND jobs.batch_id = %s AND NOT deleted AND jobs.job_id = %s;
 
 
 async def _get_attributes(app, record):
-    db = app['db']
+    db: Database = app['db']
 
     batch_id = record['batch_id']
     job_id = record['job_id']
@@ -349,8 +353,8 @@ WHERE batch_id = %s AND job_id = %s;
 
 
 async def _get_full_job_spec(app, record):
-    db = app['db']
-    log_store = app['log_store']
+    db: Database = app['db']
+    log_store: LogStore = app['log_store']
 
     batch_id = record['batch_id']
     job_id = record['job_id']
@@ -371,7 +375,7 @@ async def _get_full_job_spec(app, record):
 
 
 async def _get_full_job_status(app, record):
-    log_store = app['log_store']
+    log_store: LogStore = app['log_store']
 
     batch_id = record['batch_id']
     job_id = record['job_id']
@@ -399,7 +403,8 @@ async def _get_full_job_status(app, record):
 
     ip_address = record['ip_address']
     async with aiohttp.ClientSession(
-            raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
+            raise_for_status=True,
+            timeout=aiohttp.ClientTimeout(total=60)) as session:
         try:
             url = (f'http://{ip_address}:5000'
                    f'/api/v1alpha/batches/{batch_id}/jobs/{job_id}/status')
@@ -550,13 +555,8 @@ def check_service_account_permissions(user, sa):
 @rest_authenticated_users_only
 async def create_jobs(request, userdata):
     app = request.app
-    db = app['db']
-    log_store = app['log_store']
-
-    worker_type = app['worker_type']
-    worker_cores = app['worker_cores']
-    worker_local_ssd_data_disk = app['worker_local_ssd_data_disk']
-    worker_pd_ssd_data_disk_size_gb = app['worker_pd_ssd_data_disk_size_gb']
+    db: Database = app['db']
+    log_store: LogStore = app['log_store']
 
     batch_id = int(request.match_info['batch_id'])
 
@@ -601,10 +601,13 @@ WHERE user = %s AND id = %s AND NOT deleted;
             job_parents_args = []
             job_attributes_args = []
 
-            n_ready_jobs = 0
-            ready_cores_mcpu = 0
-            n_ready_cancellable_jobs = 0
-            ready_cancellable_cores_mcpu = 0
+            inst_coll_resources = collections.defaultdict(lambda: {
+                'n_jobs': 0,
+                'n_ready_jobs': 0,
+                'ready_cores_mcpu': 0,
+                'n_ready_cancellable_jobs': 0,
+                'ready_cancellable_cores_mcpu': 0
+            })
 
             prev_job_idx = None
             start_job_id = None
@@ -640,6 +643,8 @@ WHERE user = %s AND id = %s AND NOT deleted;
                     resources['memory'] = BATCH_JOB_DEFAULT_MEMORY
                 if 'storage' not in resources:
                     resources['storage'] = BATCH_JOB_DEFAULT_STORAGE
+                if 'worker_type' not in resources:
+                    resources['worker_type'] = BATCH_JOB_DEFAULT_WORKER_TYPE
 
                 req_cores_mcpu = parse_cpu_in_mcpu(resources['cpu'])
                 req_memory_bytes = parse_memory_in_bytes(resources['memory'])
@@ -650,18 +655,30 @@ WHERE user = %s AND id = %s AND NOT deleted;
                         reason=f'bad resource request for job {id}: '
                         f'cpu cannot be 0')
 
+                worker_type = resources['worker_type']
+
+                pool_selector: PoolSelector = app['pool_selector']
+                pool = pool_selector.select_pool(worker_type=worker_type)
+
+                if not pool:
+                    raise web.HTTPBadRequest(reason=f'unsupported worker type {worker_type}')
+
+                worker_cores = pool.worker_cores
+                worker_local_ssd_data_disk = pool.worker_local_ssd_data_disk
+                worker_pd_ssd_data_disk_size_gb = pool.worker_pd_ssd_data_disk_size_gb
+
                 cores_mcpu = adjust_cores_for_memory_request(req_cores_mcpu, req_memory_bytes, worker_type)
                 cores_mcpu = adjust_cores_for_storage_request(cores_mcpu, req_storage_bytes, worker_cores,
                                                               worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gb)
                 cores_mcpu = adjust_cores_for_packability(cores_mcpu)
 
                 if cores_mcpu > worker_cores * 1000:
-                    total_memory_available = worker_memory_per_core_gb(worker_type) * worker_cores
+                    total_memory_available = worker_memory_per_core_mib(worker_type) * worker_cores
                     total_storage_available = total_worker_storage_gib(worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gb)
                     raise web.HTTPBadRequest(
-                        reason=f'resource requests for job {id} are unsatisfiable: '
+                        reason=f'resource requests for job {id} with worker_type {worker_type} are unsatisfiable: '
                         f'requested: cpu={resources["cpu"]}, memory={resources["memory"]} storage={resources["storage"]}'
-                        f'maximum: cpu={worker_cores}, memory={total_memory_available}G, storage={total_storage_available}G')
+                        f'maximum: cpu={worker_cores}, memory={total_memory_available}Mi, storage={total_storage_available}G')
 
                 secrets = spec.get('secrets')
                 if not secrets:
@@ -698,19 +715,33 @@ WHERE user = %s AND id = %s AND NOT deleted;
                         'namespace': DEFAULT_NAMESPACE,
                         'name': userdata['tokens_secret_name'],
                         'mount_path': '/user-tokens',
-                        'mount_in_copy': True
+                        'mount_in_copy': False
+                    })
+                    secrets.append({
+                        'namespace': DEFAULT_NAMESPACE,
+                        'name': 'gce-deploy-config',
+                        'mount_path': '/deploy-config',
+                        'mount_in_copy': False
+                    })
+                    secrets.append({
+                        'namespace': DEFAULT_NAMESPACE,
+                        'name': 'ssl-config-batch-user-code',
+                        'mount_path': '/ssl-config',
+                        'mount_in_copy': False
                     })
 
                 sa = spec.get('service_account')
                 check_service_account_permissions(user, sa)
 
+                icr = inst_coll_resources[pool.name]
+                icr['n_jobs'] += 1
                 if len(parent_ids) == 0:
                     state = 'Ready'
-                    n_ready_jobs += 1
-                    ready_cores_mcpu += cores_mcpu
+                    icr['n_ready_jobs'] += 1
+                    icr['ready_cores_mcpu'] += cores_mcpu
                     if not always_run:
-                        n_ready_cancellable_jobs += 1
-                        ready_cancellable_cores_mcpu += cores_mcpu
+                        icr['n_ready_cancellable_jobs'] += 1
+                        icr['ready_cancellable_cores_mcpu'] += cores_mcpu
                 else:
                     state = 'Pending'
 
@@ -723,7 +754,7 @@ WHERE user = %s AND id = %s AND NOT deleted;
 
                 jobs_args.append(
                     (batch_id, job_id, state, json.dumps(db_spec),
-                     always_run, cores_mcpu, len(parent_ids)))
+                     always_run, cores_mcpu, len(parent_ids), pool.name))
 
                 for parent_id in parent_ids:
                     job_parents_args.append(
@@ -739,15 +770,14 @@ WHERE user = %s AND id = %s AND NOT deleted;
                 await spec_writer.write()
 
         rand_token = random.randint(0, app['n_tokens'] - 1)
-        n_jobs = len(job_specs)
 
         async with timer.step('insert jobs'):
             @transaction(db)
             async def insert(tx):
                 try:
                     await tx.execute_many('''
-INSERT INTO jobs (batch_id, job_id, state, spec, always_run, cores_mcpu, n_pending_parents)
-VALUES (%s, %s, %s, %s, %s, %s, %s);
+INSERT INTO jobs (batch_id, job_id, state, spec, always_run, cores_mcpu, n_pending_parents, inst_coll)
+VALUES (%s, %s, %s, %s, %s, %s, %s, %s);
 ''',
                                           jobs_args)
                 except pymysql.err.IntegrityError as err:
@@ -773,27 +803,35 @@ INSERT INTO `job_attributes` (batch_id, job_id, `key`, `value`)
 VALUES (%s, %s, %s, %s);
 ''',
                                       job_attributes_args)
-                await tx.execute_update('''
-INSERT INTO batches_staging (batch_id, token, n_jobs, n_ready_jobs, ready_cores_mcpu)
-VALUES (%s, %s, %s, %s, %s)
+
+                for inst_coll, resources in inst_coll_resources.items():
+                    n_jobs = resources['n_jobs']
+                    n_ready_jobs = resources['n_ready_jobs']
+                    ready_cores_mcpu = resources['ready_cores_mcpu']
+                    n_ready_cancellable_jobs = resources['n_ready_cancellable_jobs']
+                    ready_cancellable_cores_mcpu = resources['ready_cancellable_cores_mcpu']
+
+                    await tx.execute_update('''
+INSERT INTO batches_inst_coll_staging (batch_id, inst_coll, token, n_jobs, n_ready_jobs, ready_cores_mcpu)
+VALUES (%s, %s, %s, %s, %s, %s)
 ON DUPLICATE KEY UPDATE
   n_jobs = n_jobs + %s,
   n_ready_jobs = n_ready_jobs + %s,
   ready_cores_mcpu = ready_cores_mcpu + %s;
 ''',
-                                        (batch_id, rand_token,
-                                         n_jobs, n_ready_jobs, ready_cores_mcpu,
-                                         n_jobs, n_ready_jobs, ready_cores_mcpu))
-                await tx.execute_update('''
-INSERT INTO batch_cancellable_resources (batch_id, token, n_ready_cancellable_jobs, ready_cancellable_cores_mcpu)
-VALUES (%s, %s, %s, %s)
+                                            (batch_id, inst_coll, rand_token,
+                                             n_jobs, n_ready_jobs, ready_cores_mcpu,
+                                             n_jobs, n_ready_jobs, ready_cores_mcpu))
+                    await tx.execute_update('''
+INSERT INTO batch_inst_coll_cancellable_resources (batch_id, inst_coll, token, n_ready_cancellable_jobs, ready_cancellable_cores_mcpu)
+VALUES (%s, %s, %s, %s, %s)
 ON DUPLICATE KEY UPDATE
   n_ready_cancellable_jobs = n_ready_cancellable_jobs + %s,
   ready_cancellable_cores_mcpu = ready_cancellable_cores_mcpu + %s;
 ''',
-                                        (batch_id, rand_token,
-                                         n_ready_cancellable_jobs, ready_cancellable_cores_mcpu,
-                                         n_ready_cancellable_jobs, ready_cancellable_cores_mcpu))
+                                            (batch_id, inst_coll, rand_token,
+                                             n_ready_cancellable_jobs, ready_cancellable_cores_mcpu,
+                                             n_ready_cancellable_jobs, ready_cancellable_cores_mcpu))
 
                 if batch_format_version.has_full_spec_in_gcs():
                     await tx.execute_update('''
@@ -818,7 +856,7 @@ VALUES (%s, %s, %s);
 @rest_authenticated_users_only
 async def create_batch(request, userdata):
     app = request.app
-    db = app['db']
+    db: Database = app['db']
 
     batch_spec = await request.json()
 
@@ -892,7 +930,7 @@ VALUES (%s, %s, %s)
 
 
 async def _get_batch(app, batch_id, user):
-    db = app['db']
+    db: Database = app['db']
 
     record = await db.select_and_fetchone('''
 SELECT batches.*, SUM(`usage` * rate) AS cost FROM batches
@@ -918,7 +956,7 @@ async def _cancel_batch(app, batch_id, user):
 
 
 async def _delete_batch(app, batch_id, user):
-    db = app['db']
+    db: Database = app['db']
 
     record = await db.select_and_fetchone(
         '''
@@ -965,7 +1003,7 @@ async def close_batch(request, userdata):
     user = userdata['username']
 
     app = request.app
-    db = app['db']
+    db: Database = app['db']
 
     record = await db.select_and_fetchone(
         '''
@@ -990,7 +1028,7 @@ WHERE user = %s AND id = %s AND NOT deleted;
         raise
 
     async with client_session(
-            raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
+            timeout=aiohttp.ClientTimeout(total=60)) as session:
         await request_retry_transient_errors(
             session, 'PATCH',
             deploy_config.url('batch-driver', f'/api/v1alpha/batches/{user}/{batch_id}/close'),
@@ -1081,7 +1119,7 @@ async def ui_batches(request, userdata):
 
 
 async def _get_job(app, batch_id, job_id, user):
-    db = app['db']
+    db: Database = app['db']
 
     record = await db.select_and_fetchone('''
 SELECT jobs.*, ip_address, format_version, SUM(`usage` * rate) AS cost
@@ -1119,7 +1157,7 @@ GROUP BY jobs.batch_id, jobs.job_id;
 
 
 async def _get_attempts(app, batch_id, job_id, user):
-    db = app['db']
+    db: Database = app['db']
 
     attempts = db.select_and_fetchall('''
 SELECT attempts.*
@@ -1244,7 +1282,7 @@ async def ui_get_job(request, userdata):
 @web_authenticated_users_only()
 async def ui_get_billing_limits(request, userdata):
     app = request.app
-    db = app['db']
+    db: Database = app['db']
 
     if not userdata['is_developer']:
         user = userdata['username']
@@ -1304,7 +1342,7 @@ UPDATE billing_projects SET `limit` = %s WHERE name = %s;
 @prom_async_time(REQUEST_TIME_POST_BILLING_LIMITS_EDIT)
 @rest_authenticated_developers_or_auth_only
 async def post_edit_billing_limits(request, userdata):  # pylint: disable=unused-argument
-    db = request.app['db']
+    db: Database = request.app['db']
     billing_project = request.match_info['billing_project']
     data = await request.json()
     limit = data['limit']
@@ -1317,7 +1355,7 @@ async def post_edit_billing_limits(request, userdata):  # pylint: disable=unused
 @check_csrf_token
 @web_authenticated_developers_only(redirect=False)
 async def post_edit_billing_limits_ui(request, userdata):  # pylint: disable=unused-argument
-    db = request.app['db']
+    db: Database = request.app['db']
     billing_project = request.match_info['billing_project']
     post = await request.post()
     limit = post['limit']
@@ -1329,7 +1367,7 @@ async def post_edit_billing_limits_ui(request, userdata):  # pylint: disable=unu
 
 
 async def _query_billing(request):
-    db = request.app['db']
+    db: Database = request.app['db']
 
     date_format = '%m/%d/%Y'
 
@@ -1441,7 +1479,7 @@ async def ui_get_billing(request, userdata):
 @prom_async_time(REQUEST_TIME_GET_BILLING_PROJECTS_UI)
 @web_authenticated_developers_only()
 async def ui_get_billing_projects(request, userdata):
-    db = request.app['db']
+    db: Database = request.app['db']
     billing_projects = await query_billing_projects(db)
     page_context = {
         'billing_projects': [{**p, 'size': len(p['users'])} for p in billing_projects if p['status'] == 'open'],
@@ -1454,7 +1492,7 @@ async def ui_get_billing_projects(request, userdata):
 @prom_async_time(REQUEST_TIME_GET_BILLING_PROJECTS)
 @rest_authenticated_users_only
 async def get_billing_projects(request, userdata):
-    db = request.app['db']
+    db: Database = request.app['db']
 
     if not userdata['is_developer'] and userdata['username'] != 'auth':
         user = userdata['username']
@@ -1470,7 +1508,7 @@ async def get_billing_projects(request, userdata):
 @prom_async_time(REQUEST_TIME_GET_BILLING_PROJECT)
 @rest_authenticated_users_only
 async def get_billing_project(request, userdata):
-    db = request.app['db']
+    db: Database = request.app['db']
     billing_project = request.match_info['billing_project']
 
     if not userdata['is_developer'] and userdata['username'] != 'auth':
@@ -1525,7 +1563,7 @@ WHERE billing_project = %s AND user = %s;
 @check_csrf_token
 @web_authenticated_developers_only(redirect=False)
 async def post_billing_projects_remove_user(request, userdata):  # pylint: disable=unused-argument
-    db = request.app['db']
+    db: Database = request.app['db']
     billing_project = request.match_info['billing_project']
     user = request.match_info['user']
 
@@ -1540,7 +1578,7 @@ async def post_billing_projects_remove_user(request, userdata):  # pylint: disab
 @prom_async_time(REQUEST_TIME_POST_BILLING_PROJECT_REMOVE_USER_API)
 @rest_authenticated_developers_or_auth_only
 async def api_get_billing_projects_remove_user(request, userdata):  # pylint: disable=unused-argument
-    db = request.app['db']
+    db: Database = request.app['db']
     billing_project = request.match_info['billing_project']
     user = request.match_info['user']
     await _handle_api_error(_remove_user_from_billing_project, db, billing_project, user)
@@ -1584,7 +1622,7 @@ VALUES (%s, %s);
 @check_csrf_token
 @web_authenticated_developers_only(redirect=False)
 async def post_billing_projects_add_user(request, userdata):  # pylint: disable=unused-argument
-    db = request.app['db']
+    db: Database = request.app['db']
     post = await request.post()
     user = post['user']
     billing_project = request.match_info['billing_project']
@@ -1601,7 +1639,7 @@ async def post_billing_projects_add_user(request, userdata):  # pylint: disable=
 @prom_async_time(REQUEST_TIME_POST_BILLING_PROJECT_ADD_USER_API)
 @rest_authenticated_developers_or_auth_only
 async def api_billing_projects_add_user(request, userdata):  # pylint: disable=unused-argument
-    db = request.app['db']
+    db: Database = request.app['db']
     user = request.match_info['user']
     billing_project = request.match_info['billing_project']
 
@@ -1636,7 +1674,7 @@ VALUES (%s);
 @check_csrf_token
 @web_authenticated_developers_only(redirect=False)
 async def post_create_billing_projects(request, userdata):  # pylint: disable=unused-argument
-    db = request.app['db']
+    db: Database = request.app['db']
     post = await request.post()
     billing_project = post['billing_project']
 
@@ -1655,7 +1693,7 @@ async def post_create_billing_projects(request, userdata):  # pylint: disable=un
 @prom_async_time(REQUEST_TIME_POST_CREATE_BILLING_PROJECT_API)
 @rest_authenticated_developers_or_auth_only
 async def api_get_create_billing_projects(request, userdata):  # pylint: disable=unused-argument
-    db = request.app['db']
+    db: Database = request.app['db']
     billing_project = request.match_info['billing_project']
     await _handle_api_error(_create_billing_project, db, billing_project)
     return web.json_response(billing_project)
@@ -1693,7 +1731,7 @@ WHERE name = %s LIMIT 1 FOR UPDATE;
 @check_csrf_token
 @web_authenticated_developers_only(redirect=False)
 async def post_close_billing_projects(request, userdata):  # pylint: disable=unused-argument
-    db = request.app['db']
+    db: Database = request.app['db']
     billing_project = request.match_info['billing_project']
 
     session = await aiohttp_session.get_session(request)
@@ -1707,7 +1745,7 @@ async def post_close_billing_projects(request, userdata):  # pylint: disable=unu
 @prom_async_time(REQUEST_TIME_POST_CLOSE_BILLING_PROJECT_API)
 @rest_authenticated_developers_or_auth_only
 async def api_close_billing_projects(request, userdata):  # pylint: disable=unused-argument
-    db = request.app['db']
+    db: Database = request.app['db']
     billing_project = request.match_info['billing_project']
 
     await _handle_api_error(_close_billing_project, db, billing_project)
@@ -1739,7 +1777,7 @@ async def _reopen_billing_project(db, billing_project):
 @check_csrf_token
 @web_authenticated_developers_only(redirect=False)
 async def post_reopen_billing_projects(request, userdata):  # pylint: disable=unused-argument
-    db = request.app['db']
+    db: Database = request.app['db']
     billing_project = request.match_info['billing_project']
 
     session = await aiohttp_session.get_session(request)
@@ -1753,7 +1791,7 @@ async def post_reopen_billing_projects(request, userdata):  # pylint: disable=un
 @prom_async_time(REQUEST_TIME_POST_REOPEN_BILLING_PROJECT_API)
 @rest_authenticated_developers_or_auth_only
 async def api_reopen_billing_projects(request, userdata):  # pylint: disable=unused-argument
-    db = request.app['db']
+    db: Database = request.app['db']
     billing_project = request.match_info['billing_project']
     await _handle_api_error(_reopen_billing_project, db, billing_project)
     return web.json_response(billing_project)
@@ -1783,7 +1821,7 @@ async def _delete_billing_project(db, billing_project):
 @prom_async_time(REQUEST_TIME_POST_DELETE_BILLING_PROJECT_API)
 @rest_authenticated_developers_or_auth_only
 async def api_delete_billing_projects(request, userdata):  # pylint: disable=unused-argument
-    db = request.app['db']
+    db: Database = request.app['db']
     billing_project = request.match_info['billing_project']
 
     await _handle_api_error(_delete_billing_project, db, billing_project)
@@ -1800,7 +1838,7 @@ async def index(request, userdata):  # pylint: disable=unused-argument
 
 async def cancel_batch_loop_body(app):
     async with client_session(
-            raise_for_status=True, timeout=aiohttp.ClientTimeout(total=5)) as session:
+            timeout=aiohttp.ClientTimeout(total=5)) as session:
         await request_retry_transient_errors(
             session, 'POST',
             deploy_config.url('batch-driver', '/api/v1alpha/batches/cancel'),
@@ -1812,7 +1850,7 @@ async def cancel_batch_loop_body(app):
 
 async def delete_batch_loop_body(app):
     async with client_session(
-            raise_for_status=True, timeout=aiohttp.ClientTimeout(total=5)) as session:
+            timeout=aiohttp.ClientTimeout(total=5)) as session:
         await request_retry_transient_errors(
             session, 'POST',
             deploy_config.url('batch-driver', '/api/v1alpha/batches/delete'),
@@ -1833,16 +1871,9 @@ async def on_startup(app):
 
     row = await db.select_and_fetchone(
         '''
-SELECT worker_type, worker_cores, worker_disk_size_gb,
-  worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gb,
-  instance_id, internal_token, n_tokens FROM globals;
+SELECT instance_id, internal_token, n_tokens FROM globals;
 ''')
 
-    app['worker_type'] = row['worker_type']
-    app['worker_cores'] = row['worker_cores']
-    app['worker_disk_size_gb'] = row['worker_disk_size_gb']
-    app['worker_local_ssd_data_disk'] = row['worker_local_ssd_data_disk']
-    app['worker_pd_ssd_data_disk_size_gb'] = row['worker_pd_ssd_data_disk_size_gb']
     app['n_tokens'] = row['n_tokens']
 
     instance_id = row['instance_id']
@@ -1871,11 +1902,14 @@ SELECT worker_type, worker_cores, worker_disk_size_gb,
         'delete_batch_loop',
         run_if_changed, delete_batch_state_changed, delete_batch_loop_body, app))
 
+    pool_selector = PoolSelector(app)
+    app['pool_selector'] = pool_selector
+    await pool_selector.async_init()
+
 
 async def on_cleanup(app):
     try:
-        blocking_pool = app['blocking_pool']
-        blocking_pool.shutdown()
+        app['blocking_pool'].shutdown()
     finally:
         app['task_manager'].shutdown()
 

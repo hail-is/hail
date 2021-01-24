@@ -3,7 +3,9 @@ package is.hail.expr.ir.agg
 import is.hail.annotations.StagedRegionValueBuilder
 import is.hail.asm4s._
 import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitCodeBuilder}
+import is.hail.types.{RPrimitive, VirtualTypeWithReq}
 import is.hail.types.physical._
+import is.hail.types.virtual.{TInt32, TString, Type}
 import is.hail.utils._
 
 import scala.language.existentials
@@ -48,7 +50,7 @@ object ImputeTypeState {
 
 }
 
-class ImputeTypeState(kb: EmitClassBuilder[_]) extends PrimitiveRVAState(Array(PInt32Required), kb) {
+class ImputeTypeState(kb: EmitClassBuilder[_]) extends PrimitiveRVAState(Array(VirtualTypeWithReq(TInt32,RPrimitive()).setRequired(true)), kb) {
 
   private val repr = fields(0)._2.asInstanceOf[Settable[Int]]
 
@@ -118,10 +120,10 @@ class ImputeTypeState(kb: EmitClassBuilder[_]) extends PrimitiveRVAState(Array(P
   }
 }
 
-class ImputeTypeAggregator(st: PType) extends StagedAggregator {
+class ImputeTypeAggregator() extends StagedAggregator {
 
-  val initOpTypes: Seq[PType] = FastSeq()
-  val seqOpTypes: Seq[PType] = FastSeq(st)
+  val initOpTypes: Seq[Type] = FastSeq()
+  val seqOpTypes: Seq[Type] = FastSeq(TString)
 
   type State = ImputeTypeState
 
@@ -134,7 +136,6 @@ class ImputeTypeAggregator(st: PType) extends StagedAggregator {
 
   protected def _seqOp(cb: EmitCodeBuilder, state: State, seq: Array[EmitCode]): Unit = {
     val Array(s) = seq
-    assert(s.pt == st)
 
     state.seqOp(cb, s)
   }

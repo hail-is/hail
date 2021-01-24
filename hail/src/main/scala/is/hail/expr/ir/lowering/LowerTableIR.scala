@@ -494,7 +494,7 @@ object LowerTableIR {
             }
 
         // TODO: This ignores nPartitions and bufferSize
-        case TableKeyByAndAggregate(child, expr, newKey, nPartitions, bufferSize) =>
+        case self@TableKeyByAndAggregate(child, expr, newKey, nPartitions, bufferSize) =>
           val loweredChild = lower(child)
           val newKeyType = newKey.typ.asInstanceOf[TStruct]
           val oldRowType = child.typ.rowType
@@ -511,7 +511,8 @@ object LowerTableIR {
           val shuffledRowType = withNewKeyFields.rowType
 
           val sortFields = newKeyType.fieldNames.map(fieldName => SortField(fieldName, Ascending)).toIndexedSeq
-          val shuffled = ctx.backend.lowerDistributedSort(ctx, withNewKeyFields, sortFields, relationalLetsAbove)
+          val shuffled = ctx.backend.lowerDistributedSort(
+            ctx, withNewKeyFields, sortFields, relationalLetsAbove, r.lookup(self).asInstanceOf[RTable])
           val repartitioned = shuffled.repartitionNoShuffle(shuffled.partitioner.strictify)
 
           repartitioned.mapPartition(None) { partition =>
@@ -897,7 +898,7 @@ object LowerTableIR {
               )
             }
 
-        case TableKeyBy(child, newKey, isSorted: Boolean) =>
+        case self@TableKeyBy(child, newKey, isSorted: Boolean) =>
           val loweredChild = lower(child)
 
           val nPreservedFields = loweredChild.kType.fieldNames
@@ -913,7 +914,7 @@ object LowerTableIR {
               .extendKeyPreservesPartitioning(newKey)
           else {
             val sorted = ctx.backend.lowerDistributedSort(
-              ctx, loweredChild, newKey.map(k => SortField(k, Ascending)), relationalLetsAbove)
+              ctx, loweredChild, newKey.map(k => SortField(k, Ascending)), relationalLetsAbove, r.lookup(self).asInstanceOf[RTable])
             assert(sorted.kType.fieldNames.sameElements(newKey))
             sorted
           }
@@ -1029,12 +1030,12 @@ object LowerTableIR {
                 InsertFields(keyRef, FastSeq(fieldName -> projectedVals)))
             )
 
-        case TableOrderBy(child, sortFields) =>
+        case self@TableOrderBy(child, sortFields) =>
           val loweredChild = lower(child)
           if (TableOrderBy.isAlreadyOrdered(sortFields, loweredChild.partitioner.kType.fieldNames))
             loweredChild.changePartitionerNoRepartition(RVDPartitioner.unkeyed(loweredChild.partitioner.numPartitions))
           else
-            ctx.backend.lowerDistributedSort(ctx, loweredChild, sortFields, relationalLetsAbove)
+            ctx.backend.lowerDistributedSort(ctx, loweredChild, sortFields, relationalLetsAbove, r.lookup(self).asInstanceOf[RTable])
 
         case TableExplode(child, path) =>
           lower(child).mapPartition(Some(child.typ.key.takeWhile(k => k != path(0)))) { rows =>
