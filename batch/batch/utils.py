@@ -56,20 +56,20 @@ def cost_from_msec_mcpu(msec_mcpu):
     return (msec_mcpu * 0.001 * 0.001) * (total_cost_per_core_hour / 3600)
 
 
-def worker_memory_per_core_gb(worker_type):
+def worker_memory_per_core_mib(worker_type):
     if worker_type == 'standard':
-        m = 3.75
+        m = 3840
     elif worker_type == 'highmem':
-        m = 6.5
+        m = 6656
     else:
         assert worker_type == 'highcpu', worker_type
-        m = 0.9
+        m = 924  # this number must be divisible by 4. I rounded up to the nearest MiB
     return m
 
 
 def worker_memory_per_core_bytes(worker_type):
-    m = worker_memory_per_core_gb(worker_type)
-    return int(m * 1024**3)
+    m = worker_memory_per_core_mib(worker_type)
+    return int(m * 1024**2)
 
 
 def memory_bytes_to_cores_mcpu(memory_in_bytes, worker_type):
@@ -118,6 +118,11 @@ def adjust_cores_for_packability(cores_in_mcpu):
     cores_in_mcpu = max(1, cores_in_mcpu)
     power = max(-2, math.ceil(math.log2(cores_in_mcpu / 1000)))
     return int(2**power * 1000)
+
+
+class Box:
+    def __init__(self, value):
+        self.value = value
 
 
 class WindowFractionCounter:

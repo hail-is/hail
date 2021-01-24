@@ -1,11 +1,49 @@
 package is.hail.types.physical.stypes
 
 import is.hail.annotations.Region
-import is.hail.asm4s.{Code, Settable, Value}
+import is.hail.asm4s._
 import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.physical.stypes.primitives._
 import is.hail.types.physical.{PCode, PIntervalCode, PNDArrayCode, PType, PValue}
+
+object SCode {
+  def add(cb: EmitCodeBuilder, left: SCode, right: SCode, required: Boolean): SCode = {
+    (left.st, right.st) match {
+      case (_: SInt32, _: SInt32) => new SInt32Code(required, left.asInt.intCode(cb) + right.asInt.intCode(cb))
+      case (_: SFloat32, _: SFloat32) => new SFloat32Code(required, left.asFloat.floatCode(cb) + right.asFloat.floatCode(cb))
+      case (_: SInt64, _: SInt64) => new SInt64Code(required, left.asLong.longCode(cb) + right.asLong.longCode(cb))
+      case (_: SFloat64, _: SFloat64) => new SFloat64Code(required, left.asDouble.doubleCode(cb) + right.asDouble.doubleCode(cb))
+    }
+  }
+
+  def multiply(cb: EmitCodeBuilder, left: SCode, right: SCode, required: Boolean): SCode = {
+    (left.st, right.st) match {
+      case (_: SInt32, _: SInt32) => new SInt32Code(required, left.asInt.intCode(cb) * right.asInt.intCode(cb))
+      case (_: SFloat32, _: SFloat32) => new SFloat32Code(required, left.asFloat.floatCode(cb) * right.asFloat.floatCode(cb))
+      case (_: SInt64, _: SInt64) => new SInt64Code(required, left.asLong.longCode(cb) * right.asLong.longCode(cb))
+      case (_: SFloat64, _: SFloat64) => new SFloat64Code(required, left.asDouble.doubleCode(cb) * right.asDouble.doubleCode(cb))
+    }
+  }
+
+  def subtract(cb: EmitCodeBuilder, left: SCode, right: SCode, required: Boolean): SCode = {
+    (left.st, right.st) match {
+      case (_: SInt32, _: SInt32) => new SInt32Code(required, left.asInt.intCode(cb) - right.asInt.intCode(cb))
+      case (_: SFloat32, _: SFloat32) => new SFloat32Code(required, left.asFloat.floatCode(cb) - right.asFloat.floatCode(cb))
+      case (_: SInt64, _: SInt64) => new SInt64Code(required, left.asLong.longCode(cb) - right.asLong.longCode(cb))
+      case (_: SFloat64, _: SFloat64) => new SFloat64Code(required, left.asDouble.doubleCode(cb) - right.asDouble.doubleCode(cb))
+    }
+  }
+
+  def divide(cb: EmitCodeBuilder, left: SCode, right: SCode, required: Boolean): SCode = {
+    (left.st, right.st) match {
+      case (_: SInt32, _: SInt32) => new SInt32Code(required, left.asInt.intCode(cb) / right.asInt.intCode(cb))
+      case (_: SFloat32, _: SFloat32) => new SFloat32Code(required, left.asFloat.floatCode(cb) / right.asFloat.floatCode(cb))
+      case (_: SInt64, _: SInt64) => new SInt64Code(required, left.asLong.longCode(cb) / right.asLong.longCode(cb))
+      case (_: SFloat64, _: SFloat64) => new SFloat64Code(required, left.asDouble.doubleCode(cb) / right.asDouble.doubleCode(cb))
+    }
+  }
+}
 
 abstract class SCode {
 

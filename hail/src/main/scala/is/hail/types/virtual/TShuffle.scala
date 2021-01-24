@@ -30,6 +30,8 @@ case class TShuffle (
 
   val keyDecodedPType = keyCodecSpec.decodedPType()
 
+  assert(keyDecodedPType == rowDecodedPType.subsetTo(keyType))
+
   def _toPretty: String = {
     val sb = new StringBuilder()
     sb.append("Shuffle{")

@@ -11,6 +11,7 @@ import warnings
 
 from hailtop.config import get_deploy_config, get_user_config
 from hailtop.utils import is_google_registry_image
+from hailtop.batch.hail_genetics_images import HAIL_GENETICS_IMAGES
 import hailtop.batch_client.client as bc
 from hailtop.batch_client.client import BatchClient
 
@@ -473,7 +474,7 @@ class ServiceBackend(Backend):
                 resources['storage'] = job._storage
 
             image = job._image if job._image else default_image
-            if not is_google_registry_image(image):
+            if not is_google_registry_image(image) and image not in HAIL_GENETICS_IMAGES:
                 warnings.warn(f'Using an image {image} not in GCR. '
                               f'Jobs may fail due to Docker Hub rate limits.')
 

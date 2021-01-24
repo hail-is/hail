@@ -1,4 +1,4 @@
-from hailtop.utils import partition, url_basename, url_join
+from hailtop.utils import partition, url_basename, url_join, url_scheme
 
 
 def test_partition_zero_empty():
@@ -34,3 +34,8 @@ def test_url_join():
     assert url_join('https://hail.is/path/to', 'file') == 'https://hail.is/path/to/file'
     assert url_join('https://hail.is/path/to/', 'file') == 'https://hail.is/path/to/file'
     assert url_join('https://hail.is/path/to/', '/absolute/file') == 'https://hail.is/absolute/file'
+
+
+def test_url_scheme():
+    assert url_scheme('https://hail.is/path/to') == 'https'
+    assert url_scheme('/path/to') == ''

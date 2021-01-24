@@ -176,7 +176,6 @@ case class PartitionNativeWriter(spec: AbstractTypedCodecSpec, partPrefix: Strin
     val indexWriter = ifIndexed { StagedIndexWriter.withDefaults(keyType, mb.ecb) }
 
     context.map { ctxCode: PCode =>
-      val pctx = mb.newLocal[Long]("ctx")
       val result = mb.newLocal[Long]("write_result")
 
       val filename = mb.newLocal[String]("filename")
@@ -215,8 +214,8 @@ case class PartitionNativeWriter(spec: AbstractTypedCodecSpec, partPrefix: Strin
       }
 
       PCode(pResultType, EmitCodeBuilder.scopedCode(mb) { cb: EmitCodeBuilder =>
-        cb.assign(pctx, ctxCode.tcode[Long])
-        cb.assign(filename, pContextType.loadString(pctx))
+        val pctx = ctxCode.memoize(cb, "context")
+        cb.assign(filename, pctx.asString.loadString())
         if (hasIndex) {
           val indexFile = cb.newLocal[String]("indexFile")
           cb.assign(indexFile, const(index.get._1).concat(filename).concat(".idx"))
@@ -235,8 +234,7 @@ case class PartitionNativeWriter(spec: AbstractTypedCodecSpec, partPrefix: Strin
           indexWriter.close(cb)
         cb += ob.flush()
         cb += os.invoke[Unit]("close")
-        cb += Region.storeIRIntermediate(filenameType)(
-          pResultType.fieldOffset(result, "filePath"), pctx)
+        filenameType.storeAtAddress(cb, pResultType.fieldOffset(result, "filePath"), region.code, pctx, false)
         cb += Region.storeLong(pResultType.fieldOffset(result, "partitionCounts"), n)
         result.get
       })

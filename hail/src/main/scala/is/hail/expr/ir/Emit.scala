@@ -547,12 +547,11 @@ class Emit[C](
         assert(aggs(i) == sig.state)
         val rvAgg = agg.Extract.getAgg(sig)
 
-        val argVars = args.zip(rvAgg.initOpTypes).map { case (a, t) =>
-          emit(a, container = container.flatMap(_.nested(i, init = true)))
-            .castTo(mb, region.code, t)
-        }.toArray
+        val argVars = args
+          .map { a => emit(a, container = container.flatMap(_.nested(i, init = true))) }
+          .toArray
 
-        cb += sc.newState(i)
+        sc.newState(cb, i)
         rvAgg.initOp(cb, sc.states(i), argVars)
 
       case x@SeqOp(i, args, sig) =>
@@ -560,10 +559,10 @@ class Emit[C](
         assert(sig.state == aggs(i))
         val rvAgg = agg.Extract.getAgg(sig)
 
-        val argVars = args.zip(rvAgg.seqOpTypes).map { case (a, t) =>
-          emit(a, container = container.flatMap(_.nested(i, init = false)))
-            .castTo(mb, region.code, t)
-        }.toArray
+        val argVars = args
+          .map { a => emit(a, container = container.flatMap(_.nested(i, init = false))) }
+          .toArray
+
         rvAgg.seqOp(cb, sc.states(i), argVars)
 
       case x@CombOp(i1, i2, sig) =>
@@ -598,10 +597,8 @@ class Emit[C](
           .slice(start, start + ns)
           .map(sc => sc.deserialize(BufferSpec.defaultUncompressed))
 
-        val init = Code(Array.range(start, start + ns)
-          .map(i => sc.newState(i)))
+        Array.range(start, start + ns).foreach(i => sc.newState(cb, i))
 
-        cb += init
         cb.assign(ib, spec.buildCodeInputBuffer(
             Code.newInstance[ByteArrayInputStream, Array[Byte]](
               mb.getSerializedAgg(sIdx))))
@@ -633,7 +630,7 @@ class Emit[C](
           { serializedValue =>
             cb.assign(aggStateOffset, region.code.allocate(tempState.storageType.alignment, tempState.storageType.byteSize))
             tempState.createState(cb)
-            cb += tempState.newState()
+            tempState.newState(cb)
             tempState.deserializeFromBytes(cb, serializedValue.pt.asInstanceOf[PBinary], serializedValue.code.asInstanceOf[Code[Long]])
             rvAgg.combOp(cb, sc.states(i), tempState)
           }
@@ -648,7 +645,7 @@ class Emit[C](
           cb._fatal("cannot initialize aggs from a missing value"),
           { serializedValue =>
             sc.states(i).createState(cb)
-            cb += sc.newState(i)
+            sc.newState(cb, i)
             sc.states(i).deserializeFromBytes(cb, serializedValue.pt.asInstanceOf[PBinary], serializedValue.code.asInstanceOf[Code[Long]])
           }
         )
@@ -1477,9 +1474,8 @@ class Emit[C](
         }
 
       case x@ResultOp(start, sig) =>
-        val newRegion = cb.newField("resultop_region", region.code)
         val AggContainer(aggs, sc, _) = container.get
-        val srvb = new StagedRegionValueBuilder(cb.emb, x.pType, newRegion)
+        val srvb = new StagedRegionValueBuilder(cb.emb, x.pType, region.code)
         cb += srvb.start()
 
         (0 until aggs.length).foreach { j =>
@@ -1623,6 +1619,8 @@ class Emit[C](
       case ShuffleWrite(idIR, rowsIR) =>
         val shuffleType = coerce[TShuffle](idIR.typ)
         val rowsPType = coerce[PStream](rowsIR.pType)
+        assert(shuffleType.rowEType._encodeCompatible(rowsPType.elementType),
+          s"Incompatible:\n${shuffleType.rowEType}\n\n${rowsPType.elementType}")
         val uuid = emitI(idIR)
           .get(cb, "shuffle ID must be non-missing")
           .asInstanceOf[SCanonicalShufflePointerCode]

@@ -92,11 +92,15 @@ Billing
 -------
 
 The cost for executing a job depends on the underlying machine type and how much CPU and
-memory is being requested. Currently, Batch runs most jobs on 16 core, preemptible, n1-standard
+memory is being requested. Currently, Batch runs most jobs on 16 core, preemptible, n1
 machines with 10 GB of persistent SSD boot disk and 375 GB of local SSD. The costs are as follows:
 
 - Compute cost
-   = $0.01 per core per hour
+   = $0.01 per core per hour for **standard** worker types
+
+   = $0.012453 per core per hour for **highmem** worker types
+
+   = $0.0074578 per core per hour for **highcpu** worker types
 
 - Disk cost
    - Boot Disk
@@ -127,18 +131,19 @@ machines with 10 GB of persistent SSD boot disk and 375 GB of local SSD. The cos
 - Service cost
    = $0.01 per core per hour
 
-The sum of these costs is **$0.021935** per core per hour.
+The sum of these costs is **$0.021935** per core/hour for standard workers, **$0.024388** per core/hour
+for highmem workers, and **$0.019393** per core/hour for highcpu workers.
 
-At any given moment as many as four cores of the cluster may come from a 4 core machine. If a job is
-scheduled on this machine, then the cost per core hour is **$0.02774**.
+At any given moment as many as four cores of the cluster may come from a 4 core machine if the worker type
+is standard. If a job is scheduled on this machine, then the cost per core hour is **$0.02774**.
 
 
 .. note::
 
     The amount of CPU reserved for a job can be rounded up if the equivalent memory and/or storage request
     requires a larger fraction of the worker. Currently, each 1 core requested
-    gets 3.75 GB of memory and 21.875 GB of storage. Therefore, if a user requests 1 CPU and 7 GB of memory,
-    the user will get 2 cores for their job and will be billed for 2 cores.
+    gets 3.75 GB of memory and 21.875 GB of storage for standard worker types. Therefore, if a user requests
+    1 CPU and 7 GB of memory, the user will get 2 cores for their job and will be billed for 2 cores.
 
 .. note::
 

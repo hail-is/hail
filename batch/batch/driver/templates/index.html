@@ -1,54 +1,56 @@
 {% extends "layout.html" %}
 {% block title %}Batch Status{% endblock %}
 {% block content %}
-  <h1>Config</h1>
-  <form action="{{ base_path }}/config-update" method="POST">
-    <div>Worker cores: <input name="worker_cores" value="{{ config['worker_cores'] }}" /></div>
-    <div>Worker type: <input name="worker_type" value="{{ config['worker_type'] }}" /></div>
-    <div>Worker boot disk size (in GB): <input name="worker_disk_size_gb" value="{{ config['worker_disk_size_gb'] }}" /></div>
-    <div>
-      <label for="worker_local_ssd_data_disk">Worker should use a Local SSD: </label>
-      <input type="checkbox"
-             id="worker_local_ssd_data_disk"
-             name="worker_local_ssd_data_disk"
-             {% if config['worker_local_ssd_data_disk']%}checked{% endif %}
-             value="true" />
-    </div>
-    <div>Worker PD SSD data disk size (in GB): <input name="worker_pd_ssd_data_disk_size_gb" value="{{ config['worker_pd_ssd_data_disk_size_gb'] }}" /></div>
-    <div>Standing worker cores: <input name="standing_worker_cores" value="{{ config['standing_worker_cores'] }}" /></div>
-    <div>
-      <label for="enable_standing_worker">Enable standing worker: </label>
-      <input type="checkbox"
-             id="enable_standing_worker"
-             name="enable_standing_worker"
-             {% if config['enable_standing_worker']%}checked{% endif %}
-             value="true" />
-    </div>
-    <div>Max instances: <input name="max_instances" value="{{ config['max_instances'] }}" /></div>
-    <div>Worker pool size: <input name="pool_size" value="{{ config['pool_size'] }}" /></div>
-    <input type="hidden" name="_csrf" value="{{ csrf_token }}"/>
-    <button>
-      Update
-    </button>
-  </form>
-
-  <h1>Status</h1>
+  <h1>Globals</h1>
   <div class="attributes">
     <div>instance ID: {{ instance_id }}</div>
     <div>ready cores: {{ ready_cores_mcpu / 1000 }}</div>
   </div>
+
+  <h1>Pools</h1>
+  <table class="data-table" id="pools">
+    <thead>
+    <tr>
+      <th>Name</th>
+      <th>Worker Type</th>
+      <th>Pending</th>
+      <th>Active</th>
+      <th>Inactive</th>
+      <th>Deleted</th>
+      <th>Live Total Cores</th>
+      <th>Live Free Cores</th>
+    </tr>
+    </thead>
+    <tbody>
+    {% for pool in pools %}
+    <tr>
+      <td><a href="{{ base_path }}/inst_coll/{{ pool.name }}">{{ pool.name }}</a></td>
+      <td>{{ pool.worker_type }}</td>
+      <td class="numeric-cell">{{ pool.n_instances_by_state['pending'] }}</td>
+      <td class="numeric-cell">{{ pool.n_instances_by_state['active'] }}</td>
+      <td class="numeric-cell">{{ pool.n_instances_by_state['inactive'] }}</td>
+      <td class="numeric-cell">{{ pool.n_instances_by_state['deleted'] }}</td>
+      <td class="numeric-cell">{{ pool.live_total_cores_mcpu / 1000 }}</td>
+      <td class="numeric-cell">{{ pool.live_free_cores_mcpu / 1000 }}</td>
+    </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+
   <h1>Instances</h1>
   <div class="attributes">
     <div>pending: {{ n_instances_by_state['pending'] }}</div>
     <div>active: {{ n_instances_by_state['active'] }}</div>
     <div>inactive: {{ n_instances_by_state['inactive'] }}</div>
     <div>deleted: {{ n_instances_by_state['deleted'] }}</div>
+    <div>live total cores: {{ live_total_cores_mcpu / 1000 }}</div>
     <div>live free cores: {{ live_free_cores_mcpu / 1000 }}</div>
   </div>
   <table class="data-table" id="instances">
     <thead>
       <tr>
         <th>Name</th>
+        <th>Instance Collection</th>
         <th>Zone</th>
         <th>Version</th>
         <th>State</th>
@@ -62,6 +64,7 @@
       {% for instance in instances %}
       <tr>
         <td>{{ instance.name }}</td>
+        <td>{{ instance.inst_coll.name }}</td>
         <td>{{ instance.zone }}</td>
         <td class="numeric-cell">{{ instance.version }}</td>
         <td>{{ instance.state }}</td>
@@ -71,7 +74,6 @@
         <td>{{ instance.last_updated_str() }} ago</td>
       </tr>
       {% endfor %}
-      </tbody>
-    </table>
-  </div>
+    </tbody>
+  </table>
 {% endblock %}

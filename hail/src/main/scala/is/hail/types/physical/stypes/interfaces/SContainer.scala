@@ -14,6 +14,8 @@ trait SIndexableValue extends SValue {
   def isElementDefined(i: Code[Int]): Code[Boolean] = !isElementMissing(i)
 
   def loadElement(cb: EmitCodeBuilder, i: Code[Int]): IEmitSCode
+
+  def hasMissingValues(cb: EmitCodeBuilder): Code[Boolean]
 }
 
 trait SIndexableCode extends SCode {

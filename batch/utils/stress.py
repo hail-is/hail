@@ -1,5 +1,8 @@
-from hailtop.batch import hb
+import hailtop.batch as hb
 import random
+
+
+DOCKER_ROOT_IMAGE = 'gcr.io/hail-vdc/ubuntu:18.04'
 
 
 def flip(p):
@@ -20,11 +23,12 @@ def stress():
             j.command(f'sleep {d}; exit 1')
         else:
             j.command(f'sleep {d}; echo parent {i}')
-        for j in range(10):
+
+        for k in range(10):
             d = random.choice(range(4))
             c = (b
-                 .new_job(name=f'child_{i}_{j}')
-                 .command(f'sleep {d}; echo child {i} {j}'))
+                 .new_job(name=f'child_{i}_{k}')
+                 .command(f'sleep {d}; echo child {i} {k}'))
             c.depends_on(j)
             if flip(0.2):
                 c._always_run = True

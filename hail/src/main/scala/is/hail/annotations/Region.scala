@@ -242,6 +242,7 @@ object Region {
     case _: PFloat64 => loadDouble
     case _: PArray => loadAddress
     case _: PBinary => loadAddress
+    case _: PShuffle => loadAddress
     case _: PBaseStruct => off => off
   }
 
@@ -252,17 +253,6 @@ object Region {
     case _: PFloat32 => loadFloat
     case _: PFloat64 => loadDouble
     case _ => off => off
-  }
-
-  def storeIRIntermediate(typ: PType): (Code[Long], Code[_]) => Code[Unit] = typ.fundamentalType match {
-    case _: PBoolean => (addr, v) => Region.storeBoolean(addr, coerce[Boolean](v))
-    case _: PInt32 => (addr, v) => Region.storeInt(addr, coerce[Int](v))
-    case _: PInt64 => (addr, v) => Region.storeLong(addr, coerce[Long](v))
-    case _: PFloat32 => (addr, v) => Region.storeFloat(addr, coerce[Float](v))
-    case _: PFloat64 => (addr, v) => Region.storeDouble(addr, coerce[Double](v))
-    case _: PArray => (addr, v) => Region.storeAddress(addr, coerce[Long](v))
-    case _: PBinary => (addr, v) => Region.storeAddress(addr, coerce[Long](v))
-    case t: PBaseStruct => (addr, v) => Region.copyFrom(coerce[Long](v), addr, t.byteSize)
   }
 
   def stagedCreate(blockSize: Size, pool: Code[RegionPool]): Code[Region] =

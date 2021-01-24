@@ -26,7 +26,7 @@ def get_cookie(session, name):
 async def run(args, i):
     headers = service_auth_headers(deploy_config, 'workshop', authorize_target=False)
 
-    async with client_session(raise_for_status=True) as session:
+    async with client_session() as session:
         # make sure notebook is up
         async with session.get(
                 deploy_config.url('workshop', ''),

@@ -1,10 +1,11 @@
-import asyncio
 import logging
-from hailtop import aiotools
-from hailtop.utils import retry_long_running, url_basename
+import random
+
+from hailtop import aiotools, aiogoogle
+from hailtop.utils import periodically_call, url_basename
 
 from ..utils import WindowFractionCounter
-from ..batch_configuration import GCP_REGION, BATCH_GCP_REGIONS
+from ..batch_configuration import BATCH_GCP_REGIONS, GCP_ZONE
 
 log = logging.getLogger('zone_monitor')
 
@@ -49,7 +50,7 @@ class ZoneSuccessRate:
 class ZoneMonitor:
     def __init__(self, app):
         self.app = app
-        self.compute_client = app['compute_client']
+        self.compute_client: aiogoogle.ComputeClient = app['compute_client']
 
         self.zone_success_rate = ZoneSuccessRate()
 
@@ -58,12 +59,32 @@ class ZoneMonitor:
         self.task_manager = aiotools.BackgroundTaskManager()
 
     async def async_init(self):
-        self.task_manager.ensure_future(retry_long_running(
-            'update_zones_loop',
-            self.update_region_quotas_loop))
+        self.task_manager.ensure_future(self.update_region_quotas_loop())
 
     def shutdown(self):
         self.task_manager.shutdown()
+
+    def get_zone(self, worker_cores, worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gb):
+        if self.app['inst_coll_manager'].global_live_total_cores_mcpu // 1000 < 1_000:
+            zone = GCP_ZONE
+        else:
+            zone_weights = self.zone_weights(worker_cores, worker_local_ssd_data_disk,
+                                             worker_pd_ssd_data_disk_size_gb)
+
+            if not zone_weights:
+                return None
+
+            zones = [zw.zone for zw in zone_weights]
+
+            zone_prob_weights = [
+                min(zw.weight, 10) * self.zone_success_rate.zone_success_rate(zw.zone)
+                for zw in zone_weights]
+
+            log.info(f'zone_success_rate {self.zone_success_rate}')
+            log.info(f'zone_prob_weights {zone_prob_weights}')
+
+            zone = random.choices(zones, zone_prob_weights)[0]
+        return zone
 
     def zone_weights(self, worker_cores, worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gb):
         if not self.region_info:
@@ -99,7 +120,4 @@ class ZoneMonitor:
         log.info('updated region quotas')
 
     async def update_region_quotas_loop(self):
-        while True:
-            log.info('update region quotas loop')
-            await self.update_region_quotas()
-            await asyncio.sleep(60)
+        await periodically_call(60, self.update_region_quotas)

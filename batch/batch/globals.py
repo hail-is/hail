@@ -14,6 +14,8 @@ valid_state_transitions = {
 
 tasks = ('input', 'main', 'output')
 
+valid_worker_types = {'standard', 'highmem', 'highcpu'}
+
 HTTP_CLIENT_MAX_SIZE = 8 * 1024 * 1024
 
 BATCH_FORMAT_VERSION = 4
