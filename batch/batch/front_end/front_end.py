@@ -247,11 +247,14 @@ async def get_jobs(request, userdata):
     user = userdata['username']
 
     db = request.app['db']
+
+    # CPG-specific workaround until there's a permission model for sharing
+    # batches: don't check the user in this query.
     record = await db.select_and_fetchone(
         '''
 SELECT * FROM batches
-WHERE user = %s AND id = %s AND NOT deleted;
-''', (user, batch_id))
+WHERE id = %s AND NOT deleted;
+''', (batch_id,))
     if not record:
         raise web.HTTPNotFound()
 
@@ -315,6 +318,8 @@ async def _get_job_log_from_record(app, batch_id, job_id, record):
 async def _get_job_log(app, batch_id, job_id, user):
     db: Database = app['db']
 
+    # CPG-specific workaround until there's a permission model for sharing
+    # batches: don't check the user in this query.
     record = await db.select_and_fetchone('''
 SELECT jobs.state, jobs.spec, ip_address, format_version, jobs.attempt_id
 FROM jobs
@@ -324,9 +329,9 @@ LEFT JOIN attempts
   ON jobs.batch_id = attempts.batch_id AND jobs.job_id = attempts.job_id AND jobs.attempt_id = attempts.attempt_id
 LEFT JOIN instances
   ON attempts.instance_name = instances.name
-WHERE user = %s AND jobs.batch_id = %s AND NOT deleted AND jobs.job_id = %s;
+WHERE jobs.batch_id = %s AND NOT deleted AND jobs.job_id = %s;
 ''',
-                                          (user, batch_id, job_id))
+                                          (batch_id, job_id))
     if not record:
         raise web.HTTPNotFound()
     return await _get_job_log_from_record(app, batch_id, job_id, record)
@@ -430,8 +435,10 @@ async def get_job_log(request, userdata):  # pylint: disable=R1710
 async def _query_batches(request, user):
     db = request.app['db']
 
-    where_conditions = ['user = %s', 'NOT deleted']
-    where_args = [user]
+    # CPG-specific workaround until there's a permission model for sharing
+    # batches: don't check the user in this query.
+    where_conditions = ['NOT deleted']
+    where_args = []
 
     last_batch_id = request.query.get('last_batch_id')
     if last_batch_id is not None:
@@ -1121,6 +1128,8 @@ async def ui_batches(request, userdata):
 async def _get_job(app, batch_id, job_id, user):
     db: Database = app['db']
 
+    # CPG-specific workaround until there's a permission model for sharing
+    # batches: don't check the user in this query.
     record = await db.select_and_fetchone('''
 SELECT jobs.*, ip_address, format_version, SUM(`usage` * rate) AS cost
 FROM jobs
@@ -1135,10 +1144,10 @@ LEFT JOIN aggregated_job_resources
      jobs.job_id = aggregated_job_resources.job_id
 LEFT JOIN resources
   ON aggregated_job_resources.resource = resources.resource
-WHERE user = %s AND jobs.batch_id = %s AND NOT deleted AND jobs.job_id = %s
+WHERE jobs.batch_id = %s AND NOT deleted AND jobs.job_id = %s
 GROUP BY jobs.batch_id, jobs.job_id;
 ''',
-                                          (user, batch_id, job_id))
+                                          (batch_id, job_id))
     if not record:
         raise web.HTTPNotFound()
 
@@ -1159,14 +1168,16 @@ GROUP BY jobs.batch_id, jobs.job_id;
 async def _get_attempts(app, batch_id, job_id, user):
     db: Database = app['db']
 
+    # CPG-specific workaround until there's a permission model for sharing
+    # batches: don't check the user in this query.
     attempts = db.select_and_fetchall('''
 SELECT attempts.*
 FROM jobs
 INNER JOIN batches ON jobs.batch_id = batches.id
 LEFT JOIN attempts ON jobs.batch_id = attempts.batch_id and jobs.job_id = attempts.job_id
-WHERE user = %s AND jobs.batch_id = %s AND NOT deleted AND jobs.job_id = %s;
+WHERE jobs.batch_id = %s AND NOT deleted AND jobs.job_id = %s;
 ''',
-                                      (user, batch_id, job_id))
+                                      (batch_id, job_id))
 
     attempts = [attempt async for attempt in attempts]
     if len(attempts) == 0:
