@@ -1,87 +1,66 @@
-import os.path
 import sys
+import os.path
 import click
 
 from .dataproc import dataproc
 from .deploy_metadata import get_deploy_metadata
 
 
-@dataproc.command()
+@dataproc.command(
+    help="""Modify an existing Dataproc cluster.
+
+'hailctl dataproc modify' works by calling 'gcloud dataproc clusters update' and then updating the Hail version if '--update-hail-version' or '--wheel' is specified.  You can pass arguments to the 'update' command with the option '--extra-gcloud-update-args'.
+
+The following 'gcloud dataproc clusters update' options may be useful:
+
+  --num-workers=NUM_WORKERS: New number of worker machines, minimum 2.
+
+  --num-secondary-workers=NUM_SECONDARY_WORKERS: New number of secondary (preemptible) worker machines.
+
+  --graceful-decommission-timeout=GRACEFUL_DECOMMISSION_TIMEOUT: Graceful decommissioning allows removing nodes from the cluster without interrupting jobs in progress.  Timeout specifies how long to wait for jobs in progress to finish before forcefully removing nodes (and potentially interrupting jobs).  Timeout defaults to 0 if not set (for forceful decommission), and the maximum allowed timeout is 1 day.
+
+  At most one of the following may be set:
+
+    --expiration-time=EXPIRATION_TIME: The time when cluster will be auto-deleted.
+
+    --max-age=MAX_AGE: The lifespan of the cluster before it is auto-deleted, such as '60m' or '1d'.
+
+    --no-max-age: Cancel the cluster auto-deletion by maximum cluster age, as configured by max-age or --expiration-time flags.
+
+  At most one of the following may be set:
+
+      --max-idle=MAX_IDLE: The duration before cluster is auto-deleted after last job finished, such as '60m' or '1d'.
+
+      --no-max-idle: Cancel the cluster auto-deletion by cluster idle duration (configured by --max-idle flag).
+
+  See 'gcloud dataproc clusters update --help' for more information.
+""")
 @click.argument('cluster_name')
-@click.option('--num-workers', '--n-workers', '-w', type=int,
-              help="New number of worker machines (min. 2).")
-@click.option('--num-secondary-workers', '--num-preemptible-workers', '--n-pre-workers', '-p', type=int,
-              help="New number of secondary (preemptible) worker machines.")
-@click.option('--graceful-decommission-timeout', '--graceful',
-              help='If set, cluster size downgrade will use graceful decommissioning with the given timeout (e.g. "60m").  See `gcloud topic datetimes` for information on duration formats.')
-@click.option('--max-idle',
-              help='New maximum idle time before shutdown (e.g. "60m").')
-@click.option('--no-max-idle', is_flag=True,
-              help="Disable auto deletion after idle time.")
-@click.option('--expiration-time',
-              help=('The time when cluster will be auto-deleted. (e.g. "2020-01-01T20:00:00Z"). '
-                    'Execute gcloud topic datatimes for more information.'))
-@click.option('--max-age',
-              type=str,
-              help=('If the cluster is older than this, it will be auto-deleted. (e.g. "2h")'
-                    'Execute gcloud topic datatimes for more information.'))
-@click.option('--no-max-age', is_flag=True,
-              help='Disable auto-deletion due to max age or expiration time.')
 @click.option('--update-hail-version', is_flag=True,
               help=("Update the version of hail running on cluster to match "
                     "the currently installed version."))
 @click.option('--wheel', help='New Hail installation.')
 @click.option('--extra-gcloud-update-args',
               default='',
-              help="Extra arguments to pass to 'gcloud dataproc clusters update'")
+              help="Extra arguments to pass to 'gcloud dataproc clusters update'.  The "
+              "'update' command is only run if this option is specified.")
 @click.pass_context
 def modify(ctx,
            cluster_name,
-           num_workers, num_secondary_workers,
-           graceful_decommission_timeout,
-           max_idle, no_max_idle,
-           expiration_time, max_age, no_max_age,
            update_hail_version, wheel, extra_gcloud_update_args):
     runner = ctx.parent.obj
 
     if wheel and update_hail_version:
-        print("at most one of --wheel and --update-hail-version allowed", file=sys.stderr)
+        print('at most one of --wheel and --update-hail-version allowed', file=sys.stderr)
         sys.exit(1)
 
-    if expiration_time and max_age:
-        print("at most one of --expiration-time and --max-age allowed", file=sys.stderr)
+    if not wheel and not update_hail_version and not extra_gcloud_update_args:
+        print('nothing to do: none of --wheel, --update-hail-version or --extra-gcloud-update-args specified', file=sys.stderr)
         sys.exit(1)
 
-    modify_args = []
-    if num_workers is not None:
-        modify_args.append('--num-workers={}'.format(num_workers))
-
-    if num_secondary_workers is not None:
-        modify_args.append('--num-secondary-workers={}'.format(num_secondary_workers))
-
-    if graceful_decommission_timeout:
-        if not modify_args:
-            sys.exit("Error: Cannot use --graceful-decommission-timeout without resizing the cluster.")
-        modify_args.append('--graceful-decommission-timeout={}'.format(graceful_decommission_timeout))
-
-    if max_idle:
-        modify_args.append('--max-idle={}'.format(max_idle))
-    if no_max_idle:
-        modify_args.append('--no-max-idle')
-
-    if expiration_time:
-        modify_args.append('--expiration_time={}'.format(expiration_time))
-    if max_age:
-        modify_args.append('--max-age={}'.format(max_age))
-    if no_max_age:
-        modify_args.append('--no-max-age')
-
-    cmd = ['clusters', 'update', cluster_name] + modify_args
-
-    cmd.extend(extra_gcloud_update_args.split())
-
-    if modify_args or extra_gcloud_update_args:
+    if extra_gcloud_update_args:
         print("Updating cluster '{}'...".format(cluster_name))
+        cmd = ['clusters', 'update', cluster_name, *extra_gcloud_update_args.split()]
         runner.run_dataproc_command(cmd)
 
     if update_hail_version:

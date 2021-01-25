@@ -152,7 +152,7 @@ steps:
      set -ex
      export HAIL_DEPLOY_CONFIG_FILE=/deploy-config/deploy-config.json
      hailctl curl {{ default_ns.name }} \
-         hello /healthcheck \
+         hello /healthcheck -- \
          -fsSL \
          --retry 3 \
          --retry-delay 5 \

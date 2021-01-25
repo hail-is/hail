@@ -4,12 +4,12 @@ from hailtop import hailctl
 
 
 def test_stop(gcloud_run):
-    hailctl.main(["dataproc", "modify", "test-cluster", "--num-workers=2"])
+    hailctl.main(["dataproc", "modify", "test-cluster", "--extra-gcloud-update-args=--num-workers=2"])
     assert gcloud_run.call_args[0][0] == ["gcloud", "--project=hailctl-dataproc-tests", "dataproc", "--region=us-central1", "clusters", "update", "test-cluster", "--num-workers=2"]
 
 
 def test_beta(gcloud_run):
-    hailctl.main(["dataproc", "--beta", "modify", "test-cluster", "--num-workers=2"])
+    hailctl.main(["dataproc", "--beta", "modify", "test-cluster", "--extra-gcloud-update-args=--num-workers=2"])
     assert gcloud_run.call_args[0][0] == ["gcloud", "--project=hailctl-dataproc-tests", "beta", "dataproc", "--region=us-central1", "clusters", "update", "test-cluster", "--num-workers=2"]
 
 
@@ -22,60 +22,18 @@ def test_cluster_name_required(capsys, gcloud_run):
 
 
 def test_cluster_project(gcloud_run):
-    hailctl.main(["dataproc", "--project=foo", "modify", "test-cluster", "--num-workers=2"])
+    hailctl.main(["dataproc", "--project=foo", "modify", "test-cluster", "--extra-gcloud-update-args=--num-workers=2"])
     assert "--project=foo" in gcloud_run.call_args[0][0]
 
 
 def test_cluster_region(gcloud_run):
-    hailctl.main(["dataproc", "--zone=europe-north1-a", "modify", "test-cluster", "--num-workers=2"])
+    hailctl.main(["dataproc", "--zone=europe-north1-a", "modify", "test-cluster", "--extra-gcloud-update-args=--num-workers=2"])
     assert "--region=europe-north1" in gcloud_run.call_args[0][0]
 
 
 def test_modify_dry_run(gcloud_run):
-    hailctl.main(["dataproc", "--dry-run", "modify", "test-cluster", "--num-workers=2"])
+    hailctl.main(["dataproc", "--dry-run", "modify", "test-cluster", "--extra-gcloud-update-args=--num-workers=2"])
     assert gcloud_run.call_count == 0
-
-
-@pytest.mark.parametrize("workers_arg", [
-    "--num-workers=2",
-    "--n-workers=2",
-    "-w2",
-])
-def test_modify_workers(gcloud_run, workers_arg):
-    hailctl.main(["dataproc", "modify", "test-cluster", workers_arg])
-    assert "--num-workers=2" in gcloud_run.call_args[0][0]
-
-
-@pytest.mark.parametrize("workers_arg", [
-    "--num-secondary-workers=2",
-    "--num-preemptible-workers=2",
-    "--n-pre-workers=2",
-    "-p2",
-])
-def test_modify_secondary_workers(gcloud_run, workers_arg):
-    hailctl.main(["dataproc", "modify", "test-cluster", workers_arg])
-    assert "--num-secondary-workers=2" in gcloud_run.call_args[0][0]
-
-
-def test_modify_max_idle(gcloud_run):
-    hailctl.main(["dataproc", "modify", "test-cluster", "--max-idle=1h"])
-    assert "--max-idle=1h" in gcloud_run.call_args[0][0]
-
-
-@pytest.mark.parametrize("workers_arg", [
-    "--num-workers=2",
-    "--num-secondary-workers=2",
-])
-def test_graceful_decommission_timeout(gcloud_run, workers_arg):
-    hailctl.main(["dataproc", "modify", "test-cluster", workers_arg, "--graceful-decommission-timeout=1h"])
-    assert workers_arg in gcloud_run.call_args[0][0]
-    assert "--graceful-decommission-timeout=1h" in gcloud_run.call_args[0][0]
-
-
-def test_graceful_decommission_timeout_no_resize(gcloud_run):
-    with pytest.raises(SystemExit):
-        hailctl.main(["dataproc", "modify", "test-cluster", "--graceful-decommission-timeout=1h"])
-        assert gcloud_run.call_count == 0
 
 
 def test_modify_wheel_remote_wheel(gcloud_run):
