@@ -1,6 +1,6 @@
 import pytest
 import hail as hl
-from hailtop.hailctl.dev.query import cli
+from hailtop.hailctl.dev.query.query import QueryClient
 
 def test_simple_table():
     t = hl.utils.range_table(50, 3)
@@ -18,7 +18,7 @@ def test_simple_table():
 
 @pytest.mark.asyncio
 async def test_flags():
-    async with cli.QueryClient() as client:
+    async with QueryClient() as client:
         all_flags, invalid = await client.get_flag([])
         assert len(invalid) == 0
 

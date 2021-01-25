@@ -45,7 +45,7 @@ def get_chrome_path():
               help="Extra arguments to pass to 'gcloud compute ssh'.")
 @click.pass_context
 def connect(ctx, cluster_name, service, *, port, extra_gcloud_ssh_args):
-    runner = ctx.obj
+    runner = ctx.parent.obj
 
     # shortcut mapping
     shortcut = {

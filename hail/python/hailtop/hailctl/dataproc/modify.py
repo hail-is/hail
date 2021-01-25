@@ -42,7 +42,7 @@ def modify(ctx,
            max_idle, no_max_idle,
            expiration_time, max_age, no_max_age,
            update_hail_version, wheel, extra_gcloud_update_args):
-    runner = ctx.obj
+    runner = ctx.parent.obj
 
     if wheel and update_hail_version:
         print("at most one of --wheel and --update-hail-version allowed", file=sys.stderr)

@@ -10,7 +10,9 @@ MINIMUM_REQUIRED_GCLOUD_VERSION = (285, 0, 0)
 @hailctl.group(
     help="""Manage and monitor Hail deployments.
 
-For 'gcloud dataproc' commands, the region is taken from the gcloud 'dataproc/region' setting or determined from the zone.""")
+When invoking 'gcloud dataproc' commands, the region is taken from the
+gcloud 'dataproc/region' setting, and if 'dataproc/region' is not set,
+determined from the zone.""")
 @click.option('--beta', is_flag=True,
               help="Use of 'beta' in gcloud commands.")
 @click.option('--dry-run', is_flag=True,
@@ -35,5 +37,4 @@ def dataproc(ctx, beta, dry_run, gcloud_configuration, project, zone):  # pylint
         # then continue and attempt to run gcloud.
         print("Warning: unable to determine Google Cloud SDK version", file=sys.stderr)
 
-    assert ctx.obj is None
     ctx.obj = gcloud.GCloudRunner(beta, dry_run, gcloud_configuration, project, zone)
