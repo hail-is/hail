@@ -2,11 +2,5 @@
 
 set -ex
 
-function retry() {
-    "$@" ||
-        (sleep 2 && "$@") ||
-        (sleep 5 && "$@");
-}
-
 retry python3 -m pip install "$@"
 exec python3 -m pip check
