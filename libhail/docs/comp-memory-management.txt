@@ -1,0 +1,106 @@
+This note discusses memory management strategies in general, and their
+use for compiler data structures like Type and IR.  We will need to
+make explicit choices about memory management in C++ which were
+unnecessary or implicit in a managed languages like JVM languages.
+
+I think there are four main options:
+
+1. Explicit memory management.  This is both tedious and error prone
+and is not a viable solution.  It is a non-answer because it puts the
+burden on each compiler transformation to have its own strategy for
+reclaiming unused memory which, for complicated passes, may involve
+non-trivial bookkeeping.
+
+If we're not going to use explicit memory management, we need to use a
+general allocation strategy for freeing unused memory.  There are
+three traditional approaches:
+
+2. Reference counting.  There are a few downsides to reference
+counting:
+
+It doesn't handle cyclic data structures.  Cyclic structures can
+sometimes be broken by non-owning pointers.  For example, in a linked
+IR data structure where parent IR nodes point to their children, and
+children point back to their parents (as lir currently does), the
+upward pointers can be non-owning.  This adds another layer of
+complexity to the model.
+
+There are non-cyclic scenarios where reference counting fails.  For
+example, supposed you want to intern types (I do).  Say, for structs,
+you want an intern map fo the form `map<Fields, StructType>`.  You
+don't want the keys to be owning, but weak pointers don't work either
+because you can't change the value of the keys while the object is
+still in the map.
+
+Reference counting has poor performance because low-level pointer
+manipulations need to adjust reference counts everywhere.  This is
+compounded by the default C++ pointer types that are thread-safe and
+use atomics, so incur addition memory synchronization overhead.
+Either way, we should have our own non-thread-safe pointer classes.
+
+Reference counting has poor ergonomics compared to bare pointers.
+That was my take away from the smart pointer experiments we did in the
+C++ implementation of region.
+
+Finally, I think it is wrong to think of C++ smart pointers as a
+safety mechanism.  It is poor design use smart pointers everywhere to
+get out of the responsibility of needing to decide if a given pointer
+is owning or not.  I agree with [GotW #91 Solution: Smart Pointer
+Parameters](https://herbsutter.com/2013/06/05/gotw-91-solution-smart-pointer-parameters/):
+
+ > Guideline: Don’t pass a smart pointer as a function parameter
+   unless you want to use or manipulate the smart pointer itself, such
+   as to share or transfer ownership.
+
+ > Guideline: Prefer passing objects by value, *, or &, not by
+   smart pointer.
+
+3. Garbage collection.  What?!  I thought the point of going to C++
+was to get away from GC.  And C++ isn't a garbage collected
+language, how's that supposed to work?
+
+Building a targetted GC for custom data structures in a non-managed
+language can be a great idea.  For example, a compiler IR often has a
+well-defined root set (the function or module being compiled),
+suitable sequence points to enter the GC (like between passes), and
+well-developed facilities for tracing over the data structure (IR
+iterators), which are the primary ingredients you need to build a
+garbage collector.
+
+Explicitly, I'd track the IR size on initial construction and run the
+GC after each compiler pass if the IR allocation has increased some
+multiple (2x, say) beyond the tracked size.  After GC, the IR size
+becomes the new tracked size.
+
+GC has very good ergonomics because you can freely manipulate pointers
+to the IR.
+
+There are two primary ways to build a simple garbage collector:
+
+ - Mark-and-sweep.  In mark-and-sweep, you keep a list of all the
+   allocated objects.  When you decide to GC, you iterate over the
+   objects from the root set and mark the ones you reach.  The
+   unmarked objects can then be safely deallocated.  This is the
+   strategy we used in my last compiler.
+
+ - Stop-and-copy.  Here, you use something like an arena allocator,
+   and when you decide to GC, you simply copy the entire IR into a new
+   allocator, and free the previous arena.
+
+   Object allocation is very fast because you're just doing a compare
+   and pointer bump on the fast path in an arena allocator.
+
+   Mark-and-sweep need to do additional book keeeping on each
+   allocation to keep track of allocated objects for the sweep step.
+   If object destructors need to be called, stop-and-copy may need to
+   do additional work per allocation to record objects and their
+   destructors.  If the destructors only need to deallocate memory
+   originally allocated in the arena allocator, then destructor calls
+   can be elided.
+
+   In the case destructors calls can be elided, the GC runs O(live
+   data).
+
+4. Arena allocator.  If an activity involving allocations has a
+well-defined scope and doesn't generate much garbage, it might be
+appropriate to use an arena allocator.

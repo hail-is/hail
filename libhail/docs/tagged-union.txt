@@ -26,7 +26,7 @@ First, let's create the base class:
     };
     const tag_type tag;
     literal(tag_type tag) : tag(tag) {}
-    virtual ~const();
+    virtual ~literal();
   };
 
 The literal base class has some notable features:
