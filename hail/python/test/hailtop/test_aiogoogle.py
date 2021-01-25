@@ -2,14 +2,16 @@ import os
 import secrets
 import shutil
 from concurrent.futures import ThreadPoolExecutor
+import asyncio
 import pytest
+from hailtop.utils import secret_alnum_string
 from hailtop.aiotools import LocalAsyncFS, RouterAsyncFS
 from hailtop.aiogoogle import StorageClient, GoogleStorageAsyncFS
 
 
 @pytest.fixture(params=['file', 'gs', 'router/file', 'router/gs'])
 async def filesystem(request):
-    token = secrets.token_hex(16)
+    token = secret_alnum_string()
 
     with ThreadPoolExecutor() as thread_pool:
         if request.param.startswith('router/'):
@@ -27,6 +29,19 @@ async def filesystem(request):
                 bucket = os.environ['HAIL_TEST_BUCKET']
                 base = f'gs://{bucket}/tmp/{token}/'
 
+            await fs.mkdir(base)
+            yield (fs, base)
+            await fs.rmtree(base)
+            assert not await fs.isdir(base)
+
+
+@pytest.fixture
+async def local_filesystem(request):
+    token = secret_alnum_string()
+
+    with ThreadPoolExecutor() as thread_pool:
+        async with LocalAsyncFS(thread_pool) as fs:
+            base = f'/tmp/{token}/'
             await fs.mkdir(base)
             yield (fs, base)
             await fs.rmtree(base)
@@ -248,3 +263,24 @@ async def test_listfiles(filesystem):
         else:
             stat = await entry.status()
             assert await stat.size() == 0
+
+@pytest.mark.asyncio
+async def test_multi_part_create(local_filesystem):
+    fs, base = local_filesystem
+
+    num_parts = 3
+    parts_data = [secrets.token_bytes(8192) for _ in range(num_parts)]
+
+    path = f'{base}a'
+    async with await fs.multi_part_create(path, num_parts) as c:
+        async def create_part(i):
+            async with await c.create_part(i, i * 8192) as f:
+                await f.write(parts_data[i])
+
+        await asyncio.gather(*[
+            create_part(i) for i in range(num_parts)])
+
+    expected = b''.join(parts_data)
+    async with await fs.open(path) as f:
+        actual = await f.read()
+    assert expected == actual
