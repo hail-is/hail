@@ -383,7 +383,7 @@ object CodeOrdering {
           cb.assign(cmp, pointCompare(cb, lend, rend))
           cb.ifx(cmp.ceq(0), {
             cb.ifx(lhs.includesEnd().cne(rhs.includesEnd()), {
-              cb.assign(cmp, lhs.includesEnd().mux(-1, 1))
+              cb.assign(cmp, lhs.includesEnd().mux(1, -1))
             })
           })
         })
