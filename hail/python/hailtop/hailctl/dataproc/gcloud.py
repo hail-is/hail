@@ -4,10 +4,14 @@ import sys
 import typing
 
 
-def get_config(setting: str) -> typing.Optional[str]:
+def get_config(gcloud_configuration: typing.Optional[str], setting: str) -> typing.Optional[str]:
     """Get a gcloud configuration value."""
     try:
-        return subprocess.check_output(["gcloud", "config", "get-value", setting], stderr=subprocess.DEVNULL).decode().strip()
+        cmd = ['gcloud']
+        if gcloud_configuration:
+            cmd.append(f'--configuration={gcloud_configuration}')
+        cmd.extend(["config", "get-value", setting])
+        return subprocess.check_output(cmd, stderr=subprocess.DEVNULL).decode().strip()
     except subprocess.CalledProcessError as e:
         print(f"Warning: could not run 'gcloud config get-value {setting}': {e.output.decode}", file=sys.stderr)
         return None
@@ -25,18 +29,18 @@ class GCloudRunner:
         self._gcloud_configuration = gcloud_configuration
 
         if not project:
-            project = get_config('project')
+            project = self.get_config('project')
         if not project:
             raise RuntimeError("Unable to determine the GCP project.  Specify the --project option to hailctl, or use `gcloud config set project <my-project>` to set a default.")
         self._project = project
 
         if not zone:
-            zone = get_config("compute/zone")
+            zone = self.get_config("compute/zone")
         if not zone:
             raise RuntimeError("Unable to determine the compute zone.  Specify the --zone option to hailctl, or use `gcloud config set compute/zone <my-zone>` to set a default.")
         self._zone = zone
 
-        dataproc_region = get_config("dataproc/region")
+        dataproc_region = self.get_config("dataproc/region")
         if not dataproc_region:
             dataproc_region = zone.split('-')
             dataproc_region = dataproc_region[:2]
@@ -46,6 +50,9 @@ class GCloudRunner:
                 raise RuntimeError("Compute zone and Dataproc region are incompatible: zone: {zone} vs region: {dataproc_region}.")
 
         self._dataproc_region = dataproc_region
+
+    def get_config(self, setting: str) -> typing.Optional[str]:
+        return get_config(self._gcloud_configuration, setting)
 
     def run_gcloud_command(self, command: typing.List[str]):
         gcloud_cmd = ['gcloud', f'--project={self._project}']

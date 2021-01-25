@@ -5,7 +5,6 @@ import subprocess
 import tempfile
 import click
 
-from . import gcloud
 from .dataproc import dataproc
 
 
@@ -65,7 +64,7 @@ def connect(ctx, cluster_name, service, *, port, extra_gcloud_ssh_args):
     }
     connect_port_and_path = dataproc_port_and_path[service]
 
-    account = gcloud.get_config("account")
+    account = runner.get_config("account")
     if account:
         account = account[0:account.find('@')]
         ssh_login = '{}@{}-m'.format(account, cluster_name)

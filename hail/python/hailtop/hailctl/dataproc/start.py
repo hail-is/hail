@@ -4,7 +4,6 @@ import pkg_resources
 import yaml
 import click
 
-from . import gcloud
 from .dataproc import dataproc
 from .cluster_config import ClusterConfig
 
@@ -339,7 +338,7 @@ def start(
     if bucket:
         conf.flags['bucket'] = bucket
 
-    account = gcloud.get_config("account")
+    account = runner.get_config("account")
     if account:
         conf.flags['labels'] = 'creator=' + re.sub(r'[^0-9a-z_\-]', '_', account.lower())[:63]
 
