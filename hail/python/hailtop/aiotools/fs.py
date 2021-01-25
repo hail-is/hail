@@ -8,7 +8,7 @@ import shutil
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
 import urllib.parse
-from hailtop.utils import blocking_to_async, url_basename, url_join, secret_alnum_string
+from hailtop.utils import blocking_to_async, url_basename, url_join
 from .stream import ReadableStream, WritableStream, blocking_readable_stream_to_async, blocking_writable_stream_to_async
 
 AsyncFSType = TypeVar('AsyncFSType', bound='AsyncFS')
