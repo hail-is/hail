@@ -25,9 +25,12 @@ case class SNDArrayPointer(pType: PNDArray) extends SNDArray {
   }
 
   def fromSettables(settables: IndexedSeq[Settable[_]]): SNDArrayPointerSettable = {
-    val IndexedSeq(a: Settable[Long@unchecked]) = settables
+    val a = settables(0).asInstanceOf[Settable[Long@unchecked]]
+    val shape = settables.slice(1, 1 + pType.nDims).asInstanceOf[IndexedSeq[Settable[Long@unchecked]]]
+    val strides = settables.slice(1 + pType.nDims, 1 + 2 * pType.nDims).asInstanceOf[IndexedSeq[Settable[Long@unchecked]]]
+    val dataFirstElementPointer = settables.last.asInstanceOf[Settable[Long]]
     assert(a.ti == LongInfo)
-    new SNDArrayPointerSettable(this, a)
+    new SNDArrayPointerSettable(this, a, shape, strides, dataFirstElementPointer)
   }
 
   def fromCodes(codes: IndexedSeq[Code[_]]): SNDArrayPointerCode = {
@@ -39,28 +42,34 @@ case class SNDArrayPointer(pType: PNDArray) extends SNDArray {
 
 object SNDArrayPointerSettable {
   def apply(sb: SettableBuilder, st: SNDArrayPointer, name: String): SNDArrayPointerSettable = {
-    new SNDArrayPointerSettable(st, sb.newSettable[Long](name))
+    new SNDArrayPointerSettable(st, sb.newSettable[Long](name),
+      Array.tabulate(st.pType.nDims)(i => sb.newSettable[Long](s"${name}_nd_shape_$i")),
+      Array.tabulate(st.pType.nDims)(i => sb.newSettable[Long](s"${name}_nd_strides_$i")),
+      sb.newSettable[Long](s"${name}_nd_first_element")
+    )
   }
 }
 
-class SNDArrayPointerSettable(val st: SNDArrayPointer, val a: Settable[Long]) extends PNDArrayValue with PSettable {
+class SNDArrayPointerSettable(
+   val st: SNDArrayPointer,
+   val a: Settable[Long],
+   val shape: IndexedSeq[Settable[Long]],
+   val strides: IndexedSeq[Settable[Long]],
+   val dataFirstElement: Settable[Long]
+ ) extends PNDArrayValue with PSettable {
   val pt: PNDArray = st.pType
-  private var shape: IndexedSeq[Value[Long]] = null
-  private var strides: IndexedSeq[Value[Long]] = null
-  private var dataFirstElement: Settable[Long] = null
 
   def loadElement(indices: IndexedSeq[Value[Long]], cb: EmitCodeBuilder): PCode = {
     assert(indices.size == pt.nDims)
     pt.elementType.loadCheapPCode(cb, pt.asInstanceOf[PCanonicalNDArray].loadElementFromDataAndStrides(cb, indices, dataFirstElement, strides))
   }
 
-  def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(a)
+  def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(a) ++ shape ++ strides ++ FastIndexedSeq(dataFirstElement)
 
   def store(cb: EmitCodeBuilder, v: PCode): Unit = {
     cb.assign(a, v.asInstanceOf[SNDArrayPointerCode].a)
-    shape = Array.tabulate(pt.nDims)(i => cb.newLocal[Long](s"sndarray_shapes_$i", pt.loadShape(cb, a, i)))
-    strides = Array.tabulate(pt.nDims)(i => cb.newLocal[Long](s"sndarray_strides_$i", pt.loadStride(cb, a, i)))
-    dataFirstElement = cb.newLocal[Long]("sndarray_pointer_first_element")
+    (0 until pt.nDims).foreach(i => cb.assign(shape(i), pt.loadShape(cb, a, i)))
+    (0 until pt.nDims).foreach(i => cb.assign(strides(i), pt.loadStride(cb, a, i)))
     cb.assign(dataFirstElement, pt.dataFirstElementPointer(a))
   }
 
