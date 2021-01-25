@@ -1622,7 +1622,7 @@ steps:
      valueFrom: service_base_image.image
    script: |
      set -ex
-     hailctl curl {{ default_ns.name }} site / \
+     hailctl curl {{ default_ns.name }} site / -- \
              -vvv \
              -fsSL \
              --retry 3 \
@@ -1794,7 +1794,7 @@ steps:
      export HAIL_DEPLOY_CONFIG_FILE=/deploy-config/deploy-config.json
 
      COPY_PASTE_TOKEN=$(hailctl curl {{ default_ns.name }} \
-                        auth /api/v1alpha/copy-paste-token \
+                        auth /api/v1alpha/copy-paste-token -- \
                         -fsSL \
                         --retry 3 \
                         --retry-delay 5 \
@@ -1808,7 +1808,7 @@ steps:
      fi
 
      COPY_PASTE_TOKEN=$(hailctl curl {{ default_ns.name }} \
-                        auth /api/v1alpha/copy-paste-token \
+                        auth /api/v1alpha/copy-paste-token -- \
                         -fsSL \
                         --retry 3 \
                         --retry-delay 5 \
@@ -1853,7 +1853,7 @@ steps:
      export HAIL_DEPLOY_CONFIG_FILE=/deploy-config/deploy-config.json
 
      COPY_PASTE_TOKEN=$(hailctl curl {{ default_ns.name }} \
-                        auth /api/v1alpha/copy-paste-token \
+                        auth /api/v1alpha/copy-paste-token -- \
                         -fsSL \
                         --retry 3 \
                         --retry-delay 5 \
