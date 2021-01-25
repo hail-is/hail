@@ -17,7 +17,7 @@ log = logging.getLogger('ci')
 
 pretty_print_log = "jq -Rr '. as $raw | try \
 (fromjson | if .hail_log == 1 then \
-    ([.levelname, .asctime, .filename, .funcNameAndLine, .message, .exc_info] | @tsv) \
+    ([.severity, .asctime, .filename, .funcNameAndLine, .message, .exc_info] | @tsv) \
     else $raw end) \
 catch $raw'"
 

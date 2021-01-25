@@ -145,6 +145,7 @@ object PType {
       case t: PFloat64 => PFloat64(t.required)
       case t: PBoolean => PBoolean(t.required)
       case t: PBinary => PCanonicalBinary(t.required)
+      case t: PShuffle => PCanonicalShuffle(t.tShuffle, t.required)
       case t: PString => PCanonicalString(t.required)
       case t: PCall => PCanonicalCall(t.required)
       case t: PLocus => PCanonicalLocus(t.rg, t.required)
@@ -445,7 +446,10 @@ abstract class PType extends Serializable with Requiredness {
     // no requirement for requiredness
     // this can have more/less requiredness than srcPType
     // if value is not compatible with this, an exception will be thrown
-    assert(virtualType == srcPType.virtualType)
+    (virtualType, srcPType.virtualType) match {
+      case (l: TBaseStruct, r: TBaseStruct) => assert(l.isCompatibleWith(r))
+      case _ => assert(virtualType == srcPType.virtualType)
+    }
     _copyFromAddress(region, srcPType, srcAddress, deepCopy)
   }
 

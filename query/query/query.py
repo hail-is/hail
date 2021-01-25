@@ -1,4 +1,5 @@
 import subprocess
+import traceback
 import os
 import base64
 import concurrent
@@ -32,9 +33,15 @@ def java_to_web_response(jresp):
 
 
 async def send_ws_response(thread_pool, endpoint, ws, f, *args, **kwargs):
-    jresp = await blocking_to_async(thread_pool, f, *args, **kwargs)
-    status = jresp.status()
-    value = jresp.value()
+    try:
+        jresp = await blocking_to_async(thread_pool, f, *args, **kwargs)
+    except Exception:
+        log.exception(f'error calling {f.__name__} for {endpoint}')
+        status = 500
+        value = traceback.format_exc()
+    else:
+        status = jresp.status()
+        value = jresp.value()
     log.info(f'{endpoint}: response status {status} value {value}')
     await ws.send_json({'status': status, 'value': value})
 
@@ -106,11 +113,11 @@ async def handle_ws_response(request, userdata, endpoint, f):
     finally:
         if not ws.closed:
             await ws.close()
-            log.info('{endpoint}: Websocket was not closed. Closing.')
+            log.info(f'{endpoint}: Websocket was not closed. Closing.')
         if task is not None and not task.done():
             task.cancel()
-            log.info('{endpoint}: Task has been cancelled due to websocket closure.')
-        log.info('{endpoint}: websocket connection closed')
+            log.info(f'{endpoint}: Task has been cancelled due to websocket closure.')
+        log.info(f'{endpoint}: websocket connection closed')
 
 
 @routes.get('/api/v1alpha/execute')

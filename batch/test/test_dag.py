@@ -28,7 +28,7 @@ def test_simple(client):
     batch = batch.submit()
     batch.wait()
     status = legacy_batch_status(batch)
-    assert batch_status_job_counter(status, 'Success') == 2, status
+    assert batch_status_job_counter(status, 'Success') == 2, str(status)
     assert all([j['exit_code'] == 0 for j in status['jobs']])
 
 
@@ -54,10 +54,16 @@ def test_dag(client):
     batch = batch.submit()
     batch.wait()
     status = legacy_batch_status(batch)
-    assert batch_status_job_counter(status, 'Success') == 4, status
+
+    node_status_logs = []
     for node in [head, left, right, tail]:
-        status = node.status()
-        assert status['state'] == 'Success'
+        node_status_logs.append((node.status(), node.log()))
+
+    assert batch_status_job_counter(status, 'Success') == 4, str(status, str(node_status_logs))
+
+    for node in [head, left, right, tail]:
+        status = node._status
+        assert status['state'] == 'Success', str(status, node.log())
         assert node._get_exit_code(status, 'main') == 0
 
 
@@ -76,7 +82,7 @@ def test_cancel_tail(client):
     batch.cancel()
     batch.wait()
     status = legacy_batch_status(batch)
-    assert batch_status_job_counter(status, 'Success') == 3, status
+    assert batch_status_job_counter(status, 'Success') == 3, str(status)
     for node in [head, left, right]:
         status = node.status()
         assert status['state'] == 'Success'
@@ -99,7 +105,7 @@ def test_cancel_left_after_tail(client):
     batch.cancel()
     batch.wait()
     status = legacy_batch_status(batch)
-    assert batch_status_job_counter(status, 'Success') == 2, status
+    assert batch_status_job_counter(status, 'Success') == 2, str(status)
     for node in [head, right]:
         status = node.status()
         assert status['state'] == 'Success'
@@ -190,8 +196,8 @@ def test_input_dependency(client):
                             parents=[head])
     batch.submit()
     tail.wait()
-    assert head._get_exit_code(head.status(), 'main') == 0, head._status
-    assert tail.log()['main'] == 'head1\nhead2\n', (tail.log()['main'], tail.status())
+    assert head._get_exit_code(head.status(), 'main') == 0, str(head._status)
+    assert tail.log()['main'] == 'head1\nhead2\n', str(tail.log(), tail.status())
 
 
 def test_input_dependency_wildcard(client):
@@ -206,8 +212,8 @@ def test_input_dependency_wildcard(client):
                             parents=[head])
     batch.submit()
     tail.wait()
-    assert head._get_exit_code(head.status(), 'input') != 0, head._status
-    assert tail.log()['main'] == 'head1\nhead2\n', tail.status()
+    assert head._get_exit_code(head.status(), 'input') != 0, str(head._status, head.log())
+    assert tail.log()['main'] == 'head1\nhead2\n', str(tail.status(), tail.log())
 
 
 def test_input_dependency_directory(client):
@@ -222,8 +228,8 @@ def test_input_dependency_directory(client):
                             parents=[head])
     batch.submit()
     tail.wait()
-    assert head._get_exit_code(head.status(), 'main') == 0, head._status
-    assert tail.log()['main'] == 'head1\nhead2\n', tail.status()
+    assert head._get_exit_code(head.status(), 'main') == 0, str(head._status, head.log())
+    assert tail.log()['main'] == 'head1\nhead2\n', str(tail.status(), tail.log())
 
 
 def test_always_run_cancel(client):
@@ -243,13 +249,13 @@ def test_always_run_cancel(client):
     batch.cancel()
     batch.wait()
     status = legacy_batch_status(batch)
-    assert batch_status_job_counter(status, 'Success') == 3, status
-    assert batch_status_job_counter(status, 'Cancelled') == 1, status
+    assert batch_status_job_counter(status, 'Success') == 3, str(status)
+    assert batch_status_job_counter(status, 'Cancelled') == 1, str(status)
 
     for node in [head, right, tail]:
         status = node.status()
-        assert status['state'] == 'Success', status
-        assert node._get_exit_code(status, 'main') == 0, status
+        assert status['state'] == 'Success', str(status, node.log())
+        assert node._get_exit_code(status, 'main') == 0, str(status, node.log())
 
 
 def test_always_run_error(client):
@@ -268,4 +274,4 @@ def test_always_run_error(client):
     for job, ec, state in [(head, 1, 'Failed'), (tail, 0, 'Success')]:
         status = job.status()
         assert status['state'] == state, status
-        assert job._get_exit_code(status, 'main') == ec, status
+        assert job._get_exit_code(status, 'main') == ec, str(status)

@@ -20,22 +20,27 @@ DROP TABLE IF EXISTS `aggregated_billing_project_resources`;
 DROP TABLE IF EXISTS `aggregated_batch_resources`;
 DROP TABLE IF EXISTS `aggregated_job_resources`;
 DROP TABLE IF EXISTS `attempt_resources`;
-DROP TABLE IF EXISTS `batch_cancellable_resources`;
+DROP TABLE IF EXISTS `batch_cancellable_resources`;  # deprecated
+DROP TABLE IF EXISTS `batch_inst_coll_cancellable_resources`;
 DROP TABLE IF EXISTS `globals`;
 DROP TABLE IF EXISTS `attempts`;
 DROP TABLE IF EXISTS `batch_attributes`;
 DROP TABLE IF EXISTS `job_attributes`;
 DROP TABLE IF EXISTS `job_parents`;
 DROP TABLE IF EXISTS `batch_bunches`;
-DROP TABLE IF EXISTS `ready_cores`;
+DROP TABLE IF EXISTS `ready_cores`;  # deprecated
 DROP TABLE IF EXISTS `gevents_mark`;
 DROP TABLE IF EXISTS `jobs`;
-DROP TABLE IF EXISTS `batches_staging`;
+DROP TABLE IF EXISTS `batches_staging`;  # deprecated
+DROP TABLE IF EXISTS `batches_inst_coll_staging`;
 DROP TABLE IF EXISTS `batches`;
-DROP TABLE IF EXISTS `user_resources`;
+DROP TABLE IF EXISTS `user_resources`;  # deprecated
+DROP TABLE IF EXISTS `user_inst_coll_resources`;
 DROP TABLE IF EXISTS `instances`;
 DROP TABLE IF EXISTS `billing_project_users`;
 DROP TABLE IF EXISTS `billing_projects`;
 DROP TABLE IF EXISTS `batch_migration_version`;
 DROP TABLE IF EXISTS `batch_migrations`;
+DROP TABLE IF EXISTS `pools`;
+DROP TABLE IF EXISTS `inst_colls`;
 DROP TABLE IF EXISTS `resources`;

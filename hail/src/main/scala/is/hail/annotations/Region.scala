@@ -242,6 +242,7 @@ object Region {
     case _: PFloat64 => loadDouble
     case _: PArray => loadAddress
     case _: PBinary => loadAddress
+    case _: PShuffle => loadAddress
     case _: PBaseStruct => off => off
   }
 

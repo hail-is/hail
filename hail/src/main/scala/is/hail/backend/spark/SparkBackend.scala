@@ -31,7 +31,7 @@ import is.hail.io.vcf.VCFsReader
 import is.hail.linalg.{BlockMatrix, RowMatrix}
 import is.hail.rvd.RVD
 import is.hail.stats.LinearMixedModel
-import is.hail.types.BlockMatrixType
+import is.hail.types._
 import is.hail.variant.ReferenceGenome
 import org.apache.spark.rdd.RDD
 import org.apache.spark.storage.StorageLevel
@@ -622,7 +622,13 @@ class SparkBackend(
     }
   }
 
-  def lowerDistributedSort(ctx: ExecuteContext, stage: TableStage, sortFields: IndexedSeq[SortField], relationalLetsAbove: Map[String, IR]): TableStage = {
+  def lowerDistributedSort(
+    ctx: ExecuteContext,
+    stage: TableStage,
+    sortFields: IndexedSeq[SortField],
+    relationalLetsAbove: Map[String, IR],
+    tableTypeRequiredness: RTable
+  ): TableStage = {
     val (globals, rvd) = TableStageToRVD(ctx, stage, relationalLetsAbove)
 
     if (sortFields.forall(_.sortOrder == Ascending)) {

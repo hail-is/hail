@@ -19,8 +19,7 @@ async def test_invariants():
     url = deploy_config.url('batch-driver', '/check_invariants')
     headers = service_auth_headers(deploy_config, 'batch-driver')
     async with client_session(
-            raise_for_status=True,
-            timeout=aiohttp.ClientTimeout(total=60)) as session:
+            timeout=aiohttp.ClientTimeout(total=5)) as session:
 
         resp = await utils.request_retry_transient_errors(
             session, 'GET', url, headers=headers)

@@ -815,6 +815,14 @@ class Emit[C](
           ov.loadField(cb, oc.pt.asInstanceOf[PTuple].fieldIndex(i)).typecast[PCode]
         }
 
+      case x@LowerBoundOnOrderedCollection(orderedCollection, elem, onKey) =>
+        emitI(orderedCollection).map(cb) { a =>
+          val typ: PContainer = coerce[PIterable](a.pt).asPContainer
+          val e = EmitCode.fromI(cb.emb)(cb => this.emitI(elem, cb, region, env, container, loopEnv))
+          val bs = new BinarySearch[C](mb, typ, e.pt, keyOnly = onKey)
+          PCode(pt, bs.getClosestIndex(a.tcode[Long], e.m, e.v))
+        }
+
       case x@MakeNDArray(dataIR, shapeIR, rowMajorIR) =>
         val xP = x.pType
         val dataContainer = dataIR.pType
@@ -1622,6 +1630,8 @@ class Emit[C](
       case ShuffleWrite(idIR, rowsIR) =>
         val shuffleType = coerce[TShuffle](idIR.typ)
         val rowsPType = coerce[PStream](rowsIR.pType)
+        assert(shuffleType.rowEType._encodeCompatible(rowsPType.elementType),
+          s"Incompatible:\n${shuffleType.rowEType}\n\n${rowsPType.elementType}")
         val uuid = emitI(idIR)
           .get(cb, "shuffle ID must be non-missing")
           .asInstanceOf[SCanonicalShufflePointerCode]
@@ -1943,24 +1953,6 @@ class Emit[C](
         emitStream(a, outerRegion).map { stream =>
           EmitStream.toArray(ctx, mb, coerce[PArray](pt), stream.asStream, outerRegion)
         }
-
-      case x@LowerBoundOnOrderedCollection(orderedCollection, elem, onKey) =>
-        val typ: PContainer = coerce[PIterable](orderedCollection.pType).asPContainer
-        val a = emit(orderedCollection)
-        val e = emit(elem)
-        val bs = new BinarySearch[C](mb, typ, elem.pType, keyOnly = onKey)
-
-        val localA = mb.newLocal[Long]()
-        val localElementMB = mb.newLocal[Boolean]()
-        val localElementValue = mb.newLocal()(typeToTypeInfo(elem.pType))
-        EmitCode(
-          Code(a.setup, e.setup),
-          a.m,
-          PCode(pt, Code(
-            localA := a.value[Long],
-            localElementMB := e.m,
-            localElementMB.mux(Code._empty, localElementValue.storeAny(e.v)),
-            bs.getClosestIndex(localA, localElementMB, localElementValue))))
 
       case GroupByKey(collection) =>
         // sort collection by group

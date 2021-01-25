@@ -19,8 +19,7 @@ async def test_billing_monitoring():
     monitoring_deploy_config_url = deploy_config.url('monitoring', '/api/v1alpha/billing')
     headers = service_auth_headers(deploy_config, 'monitoring')
     async with client_session(
-            raise_for_status=True,
-            timeout=aiohttp.ClientTimeout(total=60)) as session:
+            timeout=aiohttp.ClientTimeout(total=5)) as session:
 
         async def wait_forever():
             data = None

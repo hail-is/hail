@@ -9,12 +9,14 @@ import time
 class CustomJsonFormatter(jsonlogger.JsonFormatter):
     def add_fields(self, log_record, record, message_dict):
         super().add_fields(log_record, record, message_dict)
+        # GCP Logging expects `severity` but jsonlogger uses `levelname`
+        log_record['severity'] = record.levelname
         log_record['funcNameAndLine'] = "{}:{}".format(record.funcName, record.lineno)
         log_record['hail_log'] = 1
 
 
 def configure_logging():
-    fmt = CustomJsonFormatter('(levelname) (asctime) (filename) (funcNameAndLine) (message)')
+    fmt = CustomJsonFormatter('(severity) (levelname) (asctime) (filename) (funcNameAndLine) (message)')
 
     stream_handler = logging.StreamHandler(stream=sys.stdout)
     stream_handler.setLevel(logging.INFO)

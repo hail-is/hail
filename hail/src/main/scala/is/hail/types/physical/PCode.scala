@@ -101,6 +101,9 @@ object PCode {
       new SBaseStructPointerCode(SBaseStructPointer(pt), coerce[Long](code))
     case pt: PCanonicalBinary =>
       new SBinaryPointerCode(SBinaryPointer(pt), coerce[Long](code))
+    case pt: PCanonicalShuffle =>
+      new SCanonicalShufflePointerCode(SCanonicalShufflePointer(pt),
+        new SBinaryPointerCode(SBinaryPointer(pt.representation), coerce[Long](code)))
     case pt: PCanonicalString =>
       new SStringPointerCode(SStringPointer(pt), coerce[Long](code))
     case pt: PCanonicalInterval =>
@@ -154,6 +157,8 @@ object PSettable {
       SCanonicalCallSettable(sb, name, pt.required)
     case pt: PCanonicalNDArray =>
       SNDArrayPointerSettable(sb, SNDArrayPointer(pt), name)
+    case pt: PCanonicalShuffle =>
+      SCanonicalShufflePointerSettable(sb, SCanonicalShufflePointer(pt), name)
     case pt: PCanonicalStream =>
       throw new UnsupportedOperationException(s"Can't PCode.apply unrealizable PType: $pt")
     case PVoid =>

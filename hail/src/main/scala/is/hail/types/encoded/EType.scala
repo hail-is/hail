@@ -289,6 +289,7 @@ object EType {
       case t: PFloat64 => EFloat64(t.required)
       case t: PBoolean => EBoolean(t.required)
       case t: PBinary => EBinary(t.required)
+      case t: PShuffle => EShuffle(t.required)
       // FIXME(chrisvittal): turn this on when performance is adequate
       case t: PArray if t.elementType.fundamentalType.isOfType(PInt32(t.elementType.required)) &&
           HailContext.getFlag("use_packed_int_encoding") != null =>
@@ -350,6 +351,7 @@ object EType {
     case t: TIterable => EArray(fromTypeAndAnalysis(t.elementType, coerce[RIterable](r).elementType), r.required)
     case t: TBaseStruct =>
       val rstruct = coerce[RBaseStruct](r)
+      assert(t.size == rstruct.size, s"different number of fields: ${t} ${r}")
       EBaseStruct(Array.tabulate(t.size) { i =>
         val f = rstruct.fields(i)
         EField(f.name, fromTypeAndAnalysis(t.fields(i).typ, f.typ), f.index)

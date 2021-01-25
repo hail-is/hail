@@ -28,7 +28,7 @@ class CIClient:
     async def __aenter__(self):
         headers = service_auth_headers(self._deploy_config, 'ci')
         self._session = client_session(
-            timeout=aiohttp.ClientTimeout(total=60), headers=headers)
+            timeout=aiohttp.ClientTimeout(total=5), headers=headers)
         return self
 
     async def __aexit__(self, exc_type, exc, tb):

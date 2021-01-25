@@ -32,7 +32,7 @@ final case class PCanonicalShuffle(
 
   override def fundamentalType: PType = representation.fundamentalType
 
-  override def encodableType: PType = representation.encodableType
+  override def encodableType: PType = this
 
   override def containsPointers: Boolean = representation.containsPointers
 
@@ -64,7 +64,22 @@ final case class PCanonicalShuffle(
       case SCanonicalShufflePointer(t) =>
         representation.storeAtAddress(cb, addr, region, value.asInstanceOf[SCanonicalShufflePointerCode].shuffle, deepCopy)
     }
-
   }
+
+  def loadLength(bAddress: Long): Int = representation.loadLength(bAddress)
+
+  def loadLength(bAddress: Code[Long]): Code[Int] = representation.loadLength(bAddress)
+
+  def bytesAddress(boff: Long): Long = representation.bytesAddress(boff)
+
+  def bytesAddress(boff: Code[Long]): Code[Long] = representation.bytesAddress(boff)
+
+  def storeLength(boff: Long, len: Int): Unit = representation.storeLength(boff, len)
+
+  def storeLength(boff: Code[Long], len: Code[Int]): Code[Unit] = representation.storeLength(boff, len)
+
+  def allocate(region: Region, length: Int): Long = representation.allocate(region, length)
+
+  def allocate(region: Code[Region], length: Code[Int]): Code[Long] = representation.allocate(region, length)
 }
 

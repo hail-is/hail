@@ -102,9 +102,8 @@ class DeployConfig(
     s"${ scheme(baseScheme) }://${ domain(service) }${ basePath(service) }"
   }
 
-  private[this] lazy val addressRequester = new Requester("address")
-
-  def addresses(service: String): Seq[(String, Int)] = {
+  def addresses(service: String, tokens: Tokens = Tokens.get): Seq[(String, Int)] = {
+    val addressRequester = new Requester(tokens, "address")
     implicit val formats: Formats = DefaultFormats
 
     val addressBaseUrl = baseUrl("address")
@@ -116,17 +115,17 @@ class DeployConfig(
     addresses.map(x => ((x \ "address").extract[String], (x \ "port").extract[Int]))
   }
 
-  def address(service: String): (String, Int) = {
-    val serviceAddresses = addresses(service)
+  def address(service: String, tokens: Tokens = Tokens.get): (String, Int) = {
+    val serviceAddresses = addresses(service, tokens)
     val n = serviceAddresses.length
     assert(n > 0)
     serviceAddresses(Random.nextInt(n))
   }
 
-  def socket(service: String): Socket = {
+  def socket(service: String, tokens: Tokens = Tokens.get): Socket = {
     val (host, port) = location match {
       case "k8s" | "gce" =>
-        address(service)
+        address(service, tokens)
       case "external" =>
         throw new IllegalStateException(
           s"Cannot open a socket from an external client to a service.")

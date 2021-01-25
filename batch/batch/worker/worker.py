@@ -1,3 +1,4 @@
+from typing import Optional
 import os
 import json
 import sys
@@ -24,6 +25,7 @@ from hailtop.utils import (time_msecs, request_retry_transient_errors,
 from hailtop.httpx import client_session
 from hailtop.batch_client.parse import (parse_cpu_in_mcpu, parse_image_tag,
                                         parse_memory_in_bytes)
+from hailtop.batch.hail_genetics_images import HAIL_GENETICS, HAIL_GENETICS_IMAGES
 from hailtop import aiotools
 # import uvloop
 
@@ -38,6 +40,7 @@ from ..log_store import LogStore
 from ..globals import HTTP_CLIENT_MAX_SIZE, STATUS_FORMAT_VERSION
 from ..batch_format_version import BatchFormatVersion
 from ..worker_config import WorkerConfig
+from ..public_gcr_images import public_gcr_images
 
 from .flock import Flock
 
@@ -58,6 +61,7 @@ IP_ADDRESS = os.environ['IP_ADDRESS']
 BATCH_LOGS_BUCKET_NAME = os.environ['BATCH_LOGS_BUCKET_NAME']
 INSTANCE_ID = os.environ['INSTANCE_ID']
 PROJECT = os.environ['PROJECT']
+PUBLIC_GCR_IMAGES = public_gcr_images(PROJECT)
 WORKER_CONFIG = json.loads(base64.b64decode(os.environ['WORKER_CONFIG']).decode())
 MAX_IDLE_TIME_MSECS = int(os.environ['MAX_IDLE_TIME_MSECS'])
 WORKER_DATA_DISK_MOUNT = os.environ['WORKER_DATA_DISK_MOUNT']
@@ -79,11 +83,11 @@ assert worker_config.cores == CORES
 
 deploy_config = DeployConfig('gce', NAMESPACE, {})
 
-docker = None
+docker: Optional[aiodocker.Docker] = None
 
-port_allocator = None
+port_allocator: Optional['PortAllocator'] = None
 
-worker = None
+worker: Optional['Worker'] = None
 
 
 class PortAllocator:
@@ -144,6 +148,7 @@ async def create_container(config, name):
         try:
             return await docker.containers.create(config, name=name)
         except DockerError as e:
+            log.exception('while creating container')
             # 409 container with name already exists
             if e.status == 409:
                 try:
@@ -165,10 +170,12 @@ async def start_container(container):
     try:
         return await container.start()
     except DockerError as e:
+        log.exception('while starting container')
         # 304 container has already started
         if e.status == 304:
             return
         if e.status == 500 and e.message == 'OCI runtime start failed: container process is already dead: unknown':
+            log.info(f'restarting container {container}')
             return await container.restart()
         raise
 
@@ -177,6 +184,7 @@ async def stop_container(container):
     try:
         return await container.stop()
     except DockerError as e:
+        log.exception('while stopping container')
         # 304 container has already stopped
         if e.status == 304:
             return
@@ -187,6 +195,7 @@ async def delete_container(container, *args, **kwargs):
     try:
         return await container.delete(*args, **kwargs)
     except DockerError as e:
+        log.exception('while deleting container')
         # 404 container does not exist
         # 409 removal of container is already in progress
         if e.status in (404, 409):
@@ -236,12 +245,19 @@ class Container:
         self.name = name
         self.spec = spec
 
-        image = spec['image']
-        tag = parse_image_tag(self.spec['image'])
+        repository, tag = parse_image_tag(self.spec['image'])
+
         if not tag:
             log.info(f'adding latest tag to image {self.spec["image"]} for {self}')
-            image += ':latest'
-        self.image = image
+            tag = 'latest'
+
+        if repository in HAIL_GENETICS_IMAGES:
+            repository_name_without_prefix = repository[len(HAIL_GENETICS):]
+            repository = f'gcr.io/{PROJECT}/{repository_name_without_prefix}'
+
+        self.repository = repository
+        self.tag = tag
+        self.image = self.repository + ':' + self.tag
 
         self.port = self.spec.get('port')
         self.host_port = None
@@ -338,31 +354,46 @@ class Container:
 
         return status
 
+    async def ensure_image_is_pulled(self, auth=None):
+        try:
+            await docker_call_retry(MAX_DOCKER_OTHER_OPERATION_SECS, f'{self}')(
+                docker.images.get, self.image)
+        except DockerError as e:
+            if e.status == 404:
+                await docker_call_retry(MAX_DOCKER_IMAGE_PULL_SECS, f'{self}')(
+                    docker.images.pull, self.image, auth=auth)
+
+    def current_user_access_token(self):
+        key = base64.b64decode(self.job.gsa_key['key.json']).decode()
+        return {'username': '_json_key', 'password': key}
+
+    async def batch_worker_access_token(self):
+        async with aiohttp.ClientSession(raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
+            async with session.post('http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token',
+                                    headers={'Metadata-Flavor': 'Google'}) as resp:
+                access_token = (await resp.json())['access_token']
+                return {'username': 'oauth2accesstoken', 'password': access_token}
+
     async def run(self, worker):
         try:
             async with self.step('pulling'):
-                if is_google_registry_image(self.image):
-                    key = base64.b64decode(
-                        self.job.gsa_key['key.json']).decode()
-                    auth = {
-                        'username': '_json_key',
-                        'password': key
-                    }
+                is_gcr_image = is_google_registry_image(self.image)
+                is_public_gcr_image = self.repository in PUBLIC_GCR_IMAGES
+
+                if not is_gcr_image:
+                    await self.ensure_image_is_pulled()
+                elif is_public_gcr_image:
+                    auth = await self.batch_worker_access_token()
+                    await self.ensure_image_is_pulled(auth=auth)
+                else:
+                    assert self.image.startswith('gcr.io/')
                     # Pull to verify this user has access to this
                     # image.
                     # FIXME improve the performance of this with a
                     # per-user image cache.
+                    auth = self.current_user_access_token()
                     await docker_call_retry(MAX_DOCKER_IMAGE_PULL_SECS, f'{self}')(
                         docker.images.pull, self.image, auth=auth)
-                else:
-                    # this caches public images and the copy image
-                    try:
-                        await docker_call_retry(MAX_DOCKER_OTHER_OPERATION_SECS, f'{self}')(
-                            docker.images.get, self.image)
-                    except DockerError as e:
-                        if e.status == 404:
-                            await docker_call_retry(MAX_DOCKER_IMAGE_PULL_SECS, f'{self}')(
-                                docker.images.pull, self.image)
 
             if self.port is not None:
                 async with self.step('allocating_port'):
@@ -726,6 +757,7 @@ class Job:
             main_spec['timeout'] = timeout
         network = job_spec.get('network')
         if network:
+            assert network in ('public', 'private')
             main_spec['network'] = network
         containers['main'] = Container(self, 'main', main_spec)
 
@@ -1046,7 +1078,7 @@ class Worker:
                 log.info(f'idle {idle_duration} ms, exiting')
 
                 async with client_session(
-                        raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
+                        timeout=aiohttp.ClientTimeout(total=5)) as session:
                     # Don't retry.  If it doesn't go through, the driver
                     # monitoring loops will recover.  If the driver is
                     # gone (e.g. testing a PR), this would go into an
@@ -1100,7 +1132,7 @@ class Worker:
         while True:
             try:
                 async with client_session(
-                        raise_for_status=True, timeout=aiohttp.ClientTimeout(total=5)) as session:
+                        timeout=aiohttp.ClientTimeout(total=5)) as session:
                     await session.post(
                         deploy_config.url('batch-driver', '/api/v1alpha/instances/job_complete'),
                         json=body, headers=self.headers)
@@ -1155,7 +1187,7 @@ class Worker:
         }
 
         async with client_session(
-                raise_for_status=True, timeout=aiohttp.ClientTimeout(total=5)) as session:
+                timeout=aiohttp.ClientTimeout(total=5)) as session:
             await request_retry_transient_errors(
                 session, 'POST',
                 deploy_config.url('batch-driver', '/api/v1alpha/instances/job_started'),
@@ -1169,7 +1201,7 @@ class Worker:
 
     async def activate(self):
         async with client_session(
-                raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
+                timeout=aiohttp.ClientTimeout(total=5)) as session:
             resp = await request_retry_transient_errors(
                 session, 'POST',
                 deploy_config.url('batch-driver', '/api/v1alpha/instances/activate'),

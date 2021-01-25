@@ -340,6 +340,7 @@ case class RInterval(startType: TypeWithRequiredness, endType: TypeWithRequiredn
 case class RField(name: String, typ: TypeWithRequiredness, index: Int)
 sealed abstract class RBaseStruct extends TypeWithRequiredness {
   def fields: IndexedSeq[RField]
+  def size: Int = fields.length
   val children: Seq[TypeWithRequiredness] = fields.map(_.typ)
   def _unionLiteral(a: Annotation): Unit =
     children.zip(a.asInstanceOf[Row].toSeq).foreach { case (r, f) => r.unionLiteral(f) }
@@ -371,6 +372,8 @@ case class RStruct(fields: IndexedSeq[RField]) extends RBaseStruct {
     assert(newChildren.length == fields.length)
     RStruct(Array.tabulate(fields.length)(i => fields(i).name -> coerce[TypeWithRequiredness](newChildren(i))))
   }
+  def select(newFields: Array[String]): RStruct =
+    RStruct(Array.tabulate(newFields.length)(i => RField(newFields(i), field(newFields(i)), i)))
   def _toString: String = s"RStruct[${ fields.map(f => s"${ f.name }: ${ f.typ.toString }").mkString(",") }]"
 }
 
