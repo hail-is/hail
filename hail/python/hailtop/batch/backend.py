@@ -375,7 +375,9 @@ class ServiceBackend(Backend[bc.Batch]):
         If specified, the project to use when authenticating with Google
         Storage. Google Storage is used to transfer serialized values between
         this computer and the cloud machines that execute Python jobs.
-
+    token:
+        The authorization token to pass to the batch client.
+        Should only be set for user delegation purposes.
     """
 
     def __init__(self,
@@ -383,7 +385,8 @@ class ServiceBackend(Backend[bc.Batch]):
                  billing_project: Optional[str] = None,
                  bucket: Optional[str] = None,
                  remote_tmpdir: Optional[str] = None,
-                 google_project: Optional[str] = None
+                 google_project: Optional[str] = None,
+                 token: str = None
                  ):
         if len(args) > 2:
             raise TypeError(f'ServiceBackend() takes 2 positional arguments but {len(args)} were given')
@@ -405,7 +408,7 @@ class ServiceBackend(Backend[bc.Batch]):
                 'the billing_project parameter of ServiceBackend must be set '
                 'or run `hailctl config set batch/billing_project '
                 'MY_BILLING_PROJECT`')
-        self._batch_client = BatchClient(billing_project)
+        self._batch_client = BatchClient(billing_project, _token=token)
 
         user_config = get_user_config()
 
