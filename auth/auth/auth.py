@@ -536,7 +536,6 @@ async def userinfo(request):
     if not session_id:
         log.info('Bearer not in Authorization header')
         raise web.HTTPUnauthorized()
-    session_id = auth_header[7:]
 
     # b64 encoding of 32-byte session ID is 44 bytes
     if len(session_id) != 44:
