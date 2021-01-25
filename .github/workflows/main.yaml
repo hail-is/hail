@@ -32,5 +32,5 @@ jobs:
 
       - name: Upload to anaconda package repository
         run: |
-          anaconda -t ${{ secrets.ANACONDA_TOKEN }} \
+          anaconda -t ${{ secrets.ANACONDA_TOKEN }} --force \
           upload ${CONDA_PREFIX}/conda-bld/**/*.tar.bz2
