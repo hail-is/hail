@@ -20,14 +20,13 @@ jobs:
           activate-environment: buildenv
           channels: cpg,conda-forge,bioconda,defaults
           channel-priority: true
-          mamba-version: "*"
           python-version: 3.7
 
       - name: Setup build env
-        run: mamba install pip conda-build anaconda-client
+        run: conda install pip conda-build anaconda-client
 
       - name: Build package
-        run: mamba build conda/$(basename $GITHUB_REPOSITORY | tr '[:upper:]' '[:lower:]')
+        run: conda build conda/$(basename $GITHUB_REPOSITORY | tr '[:upper:]' '[:lower:]')
 
       - name: Upload to anaconda package repository
         if: "startsWith(github.ref, 'refs/tags/')"
