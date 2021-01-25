@@ -32,8 +32,8 @@ object LinalgCodeUtils {
 
   def createColumnMajorCode(pndv: PNDArrayValue, cb: EmitCodeBuilder, region: Value[Region]): PNDArrayCode = {
     val shape = pndv.shapes(cb)
-    val shapeBuilder = pndv.pt.makeShapeBuilder(shape)
-    val stridesBuilder = pndv.pt.makeColumnMajorStridesBuilder(shape, cb)
+    val shapeStruct = pndv.pt.makeShapeStruct(shape, region, cb)
+    val stridesStruct = pndv.pt.makeColumnMajorStridesStruct(shape, region, cb)
     val dataLength = pndv.pt.numElements(shape)
 
     val outputElementPType = pndv.pt.elementType
@@ -66,7 +66,7 @@ object LinalgCodeUtils {
       columnMajorLoops
     ))
 
-    pndv.pt.construct(shapeBuilder, stridesBuilder, srvb.end(), cb, region)
+    pndv.pt.construct(shapeStruct, stridesStruct, srvb.end(), cb, region)
   }
 
   def linearizeIndicesRowMajor(indices: IndexedSeq[Code[Long]], shapeArray: IndexedSeq[Value[Long]], mb: EmitMethodBuilder[_]): Code[Long] = {

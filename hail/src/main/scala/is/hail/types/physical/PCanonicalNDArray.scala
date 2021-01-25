@@ -75,14 +75,16 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
     shape.foldLeft(1L: Code[Long])(_ * _)
   }
 
-  def makeShapeBuilder(shapeArray: IndexedSeq[Value[Long]]): StagedRegionValueBuilder => Code[Unit] = { srvb =>
-    coerce[Unit](Code(
-      srvb.start(),
-      Code(shapeArray.map(shapeElement => Code(
-        srvb.addLong(shapeElement),
-        srvb.advance()
-      )))
-    ))
+  def makeShapeStruct(shapeArray: IndexedSeq[Value[Long]], region: Value[Region], cb: EmitCodeBuilder): SBaseStructCode = {
+    val structAddress = cb.newLocal[Long]("make_shape_addr")
+    cb.assign(structAddress,  this.shape.pType.allocate(region))
+
+
+    (0 until nDims).foreach{ index =>
+      cb.append(Region.storeLong(this.shape.pType.fieldOffset(structAddress, index), shapeArray(index)))
+    }
+
+    PCode.apply(this.shape.pType, structAddress).asBaseStruct
   }
 
   def makeColumnMajorStridesStruct(sourceShapeArray: IndexedSeq[Value[Long]], region: Value[Region], cb: EmitCodeBuilder): SBaseStructCode = {
@@ -92,7 +94,7 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
     cb.assign(structAddress,  this.strides.pType.allocate(region))
     cb.assign(runningProduct, elementType.byteSize)
     (0 until nDims).foreach{ index =>
-      Region.storeLong(this.strides.pType.fieldOffset(structAddress, index), runningProduct)
+      cb.append(Region.storeLong(this.strides.pType.fieldOffset(structAddress, index), runningProduct))
       cb.assign(runningProduct, runningProduct * (sourceShapeArray(index) > 0L).mux(sourceShapeArray(index), 1L))
     }
 
@@ -111,7 +113,7 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
       cb.assign(runningProduct, runningProduct * (sourceShapeArray(index) > 0L).mux(sourceShapeArray(index), 1L))
     }
     (0 until nDims).foreach{ index =>
-      Region.storeLong(this.strides.pType.fieldOffset(structAddress, index), computedStrides(index))
+      cb.append(Region.storeLong(this.strides.pType.fieldOffset(structAddress, index), computedStrides(index)))
     }
 
     PCode.apply(this.strides.pType, structAddress).asBaseStruct
@@ -191,17 +193,25 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
   }
 
   override def construct(
-    shape: SBaseStructCode,
-    strides: SBaseStructCode,
-    data: Code[Long],
+    shapeCode: SBaseStructCode,
+    stridesCode: SBaseStructCode,
+    dataCode: Code[Long],
     cb: EmitCodeBuilder,
     region: Value[Region]
   ): SNDArrayPointerCode = {
-    val srvb = new StagedRegionValueBuilder(cb.emb, this.representation, region)
+
+    val dataVal = cb.newLocal[Long]("data_value_store")
+    cb.assign(dataVal, dataCode)
+
+    val shapeVal = shapeCode.memoize(cb, "shape_value")
+
+    val stridesVal = stridesCode.memoize(cb, "shape_value")
 
     val ndAddr = cb.newLocal[Long]("ndarray_construct_addr")
     cb.assign(ndAddr, this.representation.allocate(region))
-    shape
+    shape.pType.storeAtAddress(cb, this.representation.fieldOffset(ndAddr, "shape"), region, shapeVal.get, false)
+    strides.pType.storeAtAddress(cb, this.representation.fieldOffset(ndAddr, "strides"), region, stridesVal.get, false)
+    cb.append(Region.storeLong(this.representation.fieldOffset(ndAddr, "data"), dataVal))
 
     new SNDArrayPointerCode(SNDArrayPointer(this), ndAddr)
   }

@@ -39,7 +39,7 @@ abstract class PNDArray extends PType {
 
   def numElements(shape: IndexedSeq[Value[Long]]): Code[Long]
 
-  def makeShapeBuilder(shapeArray: IndexedSeq[Value[Long]]): StagedRegionValueBuilder => Code[Unit]
+  def makeShapeStruct(shapeArray: IndexedSeq[Value[Long]], region: Value[Region], cb: EmitCodeBuilder): SBaseStructCode
 
   def makeRowMajorStridesStruct(sourceShapeArray: IndexedSeq[Value[Long]], region: Value[Region], cb: EmitCodeBuilder): SBaseStructCode
 
@@ -51,8 +51,8 @@ abstract class PNDArray extends PType {
   def loadElementToIRIntermediate(indices: IndexedSeq[Value[Long]], ndAddress: Value[Long], cb: EmitCodeBuilder): Code[_]
 
   def construct(
-    shapeBuilder: StagedRegionValueBuilder => Code[Unit],
-    stridesBuilder: StagedRegionValueBuilder => Code[Unit],
+    shapeCode: SBaseStructCode,
+    stridesCode: SBaseStructCode,
     data: Code[Long],
     mb: EmitCodeBuilder,
     region: Value[Region]
