@@ -155,17 +155,13 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
   }
 
   private def getElementAddressFromDataPointerAndStrides(indices: IndexedSeq[Value[Long]], dataFirstElementPointer: Value[Long], strides: IndexedSeq[Value[Long]], cb: EmitCodeBuilder): Code[Long] = {
-    val bytesAway = cb.newLocal[Long]("nd_get_element_address_bytes_away")
+    val address = cb.newLocal[Long]("nd_get_element_address_bytes_away")
+    cb.assign(address, dataFirstElementPointer)
 
-    coerce[Long](Code(
-      bytesAway := 0L,
-      indices.zipWithIndex.foldLeft(Code._empty) { case (codeSoFar: Code[_], (requestedIndex: Value[Long], strideIndex: Int)) =>
-        Code(
-          codeSoFar,
-          bytesAway := bytesAway + requestedIndex * strides(strideIndex))
-      },
-      bytesAway + dataFirstElementPointer)
-    )
+    indices.zipWithIndex.foreach { case (requestedIndex, strideIndex) =>
+      cb.assign(address, address + requestedIndex * strides(strideIndex))
+    }
+    address
   }
 
   def loadElement(cb: EmitCodeBuilder, indices: IndexedSeq[Value[Long]], ndAddress: Value[Long]): Code[Long] = {

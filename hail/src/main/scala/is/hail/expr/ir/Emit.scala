@@ -992,8 +992,6 @@ class Emit[C](
                       (lStackVars :+ n :+ k, rStackVars :+ k :+ m)
                   }
 
-                  val lElem = leftPVal.loadElement(lIndices, cb)
-                  val rElem = rightPVal.loadElement(rIndices, cb)
                   val kLen = cb.newField[Long]("ndarray_matmul_kLen")
 
                   def multiply(l: PCode, r: PCode): Code[_] = {
@@ -1011,9 +1009,11 @@ class Emit[C](
 
                   cb.assign(kLen, lShape(lPType.nDims - 1))
                   cb.assign(element, numericElementType.zero)
-                  cb.forLoop(cb.assign(k, 0L), k < kLen, cb.assign(k, k + 1L),
+                  cb.forLoop(cb.assign(k, 0L), k < kLen, cb.assign(k, k + 1L), {
+                    val lElem = leftPVal.loadElement(lIndices, cb)
+                    val rElem = rightPVal.loadElement(rIndices, cb)
                     cb.assign(element, numericElementType.add(multiply(lElem.asPCode, rElem.asPCode), element))
-                  )
+                  })
 
                   PCode(outputPType.elementType, element)
                 }
