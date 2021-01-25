@@ -281,10 +281,12 @@ class ServiceBackend(Backend):
     bucket:
         Name of bucket to use.  Should not include the ``gs://``
         prefix.
-
+    token:
+        The authorization token to pass to the batch client.
+        Should only be set for user delegation purposes.
     """
 
-    def __init__(self, billing_project: str = None, bucket: str = None):
+    def __init__(self, billing_project: str = None, bucket: str = None, token: str = None):
         if billing_project is None:
             billing_project = get_user_config().get('batch', 'billing_project', fallback=None)
         if billing_project is None:
@@ -292,7 +294,7 @@ class ServiceBackend(Backend):
                 'the billing_project parameter of ServiceBackend must be set '
                 'or run `hailctl config set batch/billing_project '
                 'MY_BILLING_PROJECT`')
-        self._batch_client = BatchClient(billing_project)
+        self._batch_client = BatchClient(billing_project, _token=token)
 
         if bucket is None:
             bucket = get_user_config().get('batch', 'bucket', fallback=None)
