@@ -5,7 +5,7 @@ import is.hail.asm4s.{Code, Settable, Value}
 import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.physical.stypes.primitives._
-import is.hail.types.physical.{PCode, PIntervalCode, PNDArrayCode, PType, PValue}
+import is.hail.types.physical.{PCode, PIntervalCode, PNDArrayCode, PShuffleCode, PType, PValue}
 
 abstract class SCode {
 
@@ -48,6 +48,8 @@ abstract class SCode {
   def asCall: SCallCode = asInstanceOf[SCallCode]
 
   def asStream: SStreamCode = asInstanceOf[SStreamCode]
+
+  def asShuffle: PShuffleCode = asInstanceOf[PShuffleCode]
 
   def castTo(cb: EmitCodeBuilder, region: Value[Region], destType: PType): SCode =
     castTo(cb, region, destType, false)

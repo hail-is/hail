@@ -7,10 +7,11 @@ import is.hail.backend.spark.SparkBackend
 import is.hail.expr.ir.EmitStream.SizedStream
 import is.hail.expr.ir.lowering.{TableStage, TableStageDependency}
 import is.hail.types.TableType
-import is.hail.types.physical.{PStruct, PType}
+import is.hail.types.physical.{PCanonicalStream, PStruct, PType}
 import is.hail.types.virtual.{TArray, TStruct, Type}
 import is.hail.rvd.{RVD, RVDCoercer, RVDContext, RVDPartitioner, RVDType}
 import is.hail.sparkextras.ContextRDD
+import is.hail.types.physical.stypes.interfaces
 import org.apache.spark.{Partition, TaskContext}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
@@ -29,25 +30,25 @@ class PartitionIteratorLongReader(
     context: IR,
     requestedType: Type,
     emitter: Emit[C],
-    mb: EmitMethodBuilder[C],
+    cb: EmitCodeBuilder,
     region: StagedRegion,
     env: Emit.E,
-    container: Option[AggContainer]): COption[SizedStream] = {
+    container: Option[AggContainer]): IEmitCode = {
 
-    def emitIR(ir: IR, env: Emit.E = env, region: StagedRegion = region, container: Option[AggContainer] = container): EmitCode =
-      emitter.emitWithRegion(ir, mb, region, env, container)
+    def emitIR(ir: IR, env: Emit.E = env, region: StagedRegion = region, container: Option[AggContainer] = container): IEmitCode =
+      emitter.emitI(ir, cb, region, env, container, None)
 
     val eltPType = bodyPType(requestedType)
 
-    COption.fromEmitCode(emitIR(context)).map { contextPC =>
+    emitIR(context).map(cb) { contextPC =>
       // FIXME SafeRow.read can only handle address values
       assert(contextPC.pt.isInstanceOf[PStruct])
 
-      val it = mb.newLocal[Iterator[java.lang.Long]]("pilr_it")
-      val hasNext = mb.newLocal[Boolean]("pilr_hasNext")
-      val next = mb.newLocal[Long]("pilr_next")
+      val it = cb.newLocal[Iterator[java.lang.Long]]("pilr_it")
+      val hasNext = cb.newLocal[Boolean]("pilr_hasNext")
+      val next = cb.newLocal[Long]("pilr_next")
 
-      SizedStream.unsized { eltRegion =>
+      val newStream = SizedStream.unsized { eltRegion =>
         Stream
           .unfold[Code[Long]](
             (_, k) =>
@@ -56,13 +57,15 @@ class PartitionIteratorLongReader(
                 hasNext.orEmpty(next := Code.longValue(it.get.next())),
                 k(COption(!hasNext, next))),
             setup = Some(
-              it := mb.getObject(body(requestedType))
+              it := cb.emb.getObject(body(requestedType))
                 .invoke[java.lang.Object, java.lang.Object, Iterator[java.lang.Long]]("apply",
                   region.code,
                   Code.invokeScalaObject3[PType, Region, Long, java.lang.Object](UnsafeRow.getClass, "read",
-                    mb.getPType(contextPC.pt), region.code, contextPC.tcode[Long]))))
+                    cb.emb.getPType(contextPC.pt), region.code, contextPC.tcode[Long]))))
           .map(rv => EmitCode.present(eltPType, Region.loadIRIntermediate(eltPType)(rv)))
       }
+
+      interfaces.SStreamCode(coerce[PCanonicalStream](context.pType).sType, newStream)
     }
   }
 
