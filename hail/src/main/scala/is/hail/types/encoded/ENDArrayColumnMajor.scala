@@ -29,17 +29,28 @@ case class ENDArrayColumnMajor(elementType: EType, nDims: Int, required: Boolean
     val shapes = ndarray.shapes(cb)
     shapes.foreach(s => cb += out.writeLong(s))
 
-    val idxVars = Array.tabulate(ndarray.pt.nDims)(i => cb.newLocal[Long](s"idx_$i"))
-    cb += idxVars.zipWithIndex.foldLeft(writeElemF(ndarray.loadElement(idxVars, cb).asPCode.code, out))
-    { case (innerLoops, (dimVar, dimIdx)) =>
-      Code(
-        dimVar := 0L,
-        Code.whileLoop(dimVar < shapes(dimIdx),
-          innerLoops,
-          dimVar := dimVar + 1L
+    val idxVars = Array.tabulate(ndarray.pt.nDims)(i => cb.newLocal[Long](s"ndarray_encoder_idxVar_$i"))
+
+    def recurLoopBuilder(dimIdx: Int, innerLambda: () => Unit): Unit = {
+      if (dimIdx == nDims) {
+        innerLambda()
+      }
+      else {
+        val dimVar = idxVars(dimIdx)
+
+        recurLoopBuilder(dimIdx + 1,
+          () => {cb.forLoop({cb.assign(dimVar, 0L)},  dimVar < shapes(dimIdx), {cb.assign(dimVar, dimVar + 1L)},
+            innerLambda()
+          )}
         )
-      )
+      }
     }
+
+    val body = () => {
+      cb += writeElemF(ndarray.loadElement(idxVars, cb).asPCode.code, out)
+    }
+
+    recurLoopBuilder(0, body)
   }
 
   def _buildDecoder(
