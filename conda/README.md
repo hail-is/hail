@@ -1,10 +1,10 @@
 # Conda package
 
-This folder contains a Conda recipe to build [the `hail` package for the `cpg` Anaconda channel]((https://anaconda.org/cpg/hail)).
+This folder contains a Conda recipe to build the `hail` package for the [`cpg` Anaconda channel](https://anaconda.org/cpg/hail).
 
-Note that there is also [a `hail` package in the `bioconda` channel](https://github.com/bioconda/bioconda-recipes/tree/master/recipes/hail), which is synced with the [official PyPI release](https://pypi.org/project/hail). The idea of having a separate package in the `cpg` channel is to be able to build it from the most recent development codebase, that would reflect changes that were not yet released, or not to be propagated to the upstream repository at all.
+Note that there is also a `hail` package in the [`bioconda` channel](https://github.com/bioconda/bioconda-recipes/tree/master/recipes/hail), which is synced with the [official PyPI release](https://pypi.org/project/hail). The idea of having a separate package in the `cpg` channel is to be able to build it from the most recent development codebase, that would reflect changes that were not yet released, or not to be propagated to the upstream repository at all.
 
-[GitHub Actions CI](../.github/workflows/main.yaml)) is set up to build the package using this recipe and push it to Anaconda on every push to the `main` branch in the [CPG hail fork](https://github.com/populationgenomics/hail).
+[GitHub Actions CI](../.github/workflows/main.yaml) is set up to build the package using this recipe and push it to Anaconda on every push to the `main` branch in the [CPG hail fork](https://github.com/populationgenomics/hail).
 
 To install the package, set up miniconda first:
 
