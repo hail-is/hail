@@ -939,15 +939,17 @@ VALUES (%s, %s, %s)
 async def _get_batch(app, batch_id, user):
     db: Database = app['db']
 
+    # CPG-specific workaround until there's a permission model for sharing
+    # batches: don't check the user in this query.
     record = await db.select_and_fetchone('''
 SELECT batches.*, SUM(`usage` * rate) AS cost FROM batches
 LEFT JOIN aggregated_batch_resources
        ON batches.id = aggregated_batch_resources.batch_id
 LEFT JOIN resources
        ON aggregated_batch_resources.resource = resources.resource
-WHERE user = %s AND id = %s AND NOT deleted
+WHERE id = %s AND NOT deleted
 GROUP BY batches.id;
-''', (user, batch_id))
+''', (batch_id,))
     if not record:
         raise web.HTTPNotFound()
 
