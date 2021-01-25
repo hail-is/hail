@@ -14,7 +14,7 @@ _initialized = False
 def startTestHailContext():
     global _initialized
     if not _initialized:
-        backend_name = os.environ.get('HAIL_QUERY_BACKEND', 'spark')
+        backend_name = os.environ.get('HAIL_QUERY_BACKEND', 'local')
         if backend_name == 'spark':
             hl.init(master='local[1]', min_block_size=0, quiet=True)
         else:

@@ -3508,14 +3508,17 @@ def zip(*arrays, fill_missing: bool = False) -> ArrayExpression:
 def _zip_func(*arrays, fill_missing=False, f):
     n_arrays = builtins.len(arrays)
     uids = [Env.get_uid() for _ in builtins.range(n_arrays)]
-    refs = [construct_expr(ir.Ref(uid), a.dtype.element_type, a._indices, a._aggregations) for uid, a in builtins.zip(uids, arrays)]
+    refs = [construct_expr(ir.Ref(uid), a.dtype.element_type, a._indices, a._aggregations) for uid, a in
+            builtins.zip(uids, arrays)]
     body_result = f(*refs)
     indices, aggregations = unify_all(*arrays, body_result)
     behavior = 'ExtendNA' if fill_missing else 'TakeMinLength'
-    return construct_expr(ir.ToArray(ir.StreamZip([ir.ToStream(a._ir) for a in arrays], uids, body_result._ir, behavior)),
-                          tarray(ttuple(*(a.dtype.element_type for a in arrays))),
-                          indices,
-                          aggregations)
+    return construct_expr(
+        ir.ToArray(ir.StreamZip([ir.ToStream(a._ir) for a in arrays], uids, body_result._ir, behavior)),
+        tarray(ttuple(*(a.dtype.element_type for a in arrays))),
+        indices,
+        aggregations)
+
 
 @typecheck(a=expr_array(), start=expr_int32, index_first=bool)
 def enumerate(a, start=0, *, index_first=True):
