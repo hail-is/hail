@@ -403,7 +403,7 @@ async def on_startup(app):
         token = f.read().strip()
     session = aiohttp.ClientSession(
         raise_for_status=True,
-        timeout=aiohttp.ClientTimeout(total=60))
+        timeout=aiohttp.ClientTimeout(total=5))
     gh_client = gidgethub.aiohttp.GitHubAPI(session, 'scorecard', oauth_token=token)
     app['gh_client'] = gh_client
 

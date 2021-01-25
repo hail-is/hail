@@ -404,7 +404,7 @@ async def update_loop(app):
 async def on_startup(app):
     app['github_client'] = gh_aiohttp.GitHubAPI(
         aiohttp.ClientSession(
-            timeout=aiohttp.ClientTimeout(total=60)),
+            timeout=aiohttp.ClientTimeout(total=5)),
         'ci',
         oauth_token=oauth_token)
     app['batch_client'] = await BatchClient('ci')

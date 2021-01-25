@@ -601,7 +601,7 @@ class BatchClient:
 
         if session is None:
             session = client_session(
-                timeout=aiohttp.ClientTimeout(total=60))
+                timeout=aiohttp.ClientTimeout(total=5))
         self._session = session
 
         h = {}
