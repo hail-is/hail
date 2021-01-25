@@ -1,33 +1,25 @@
 import click
 
-from . import gcloud
 from .dataproc import dataproc
 
 
 @dataproc.command(
     help="Shut down a Dataproc cluster.")
 @click.argument('cluster_name')
-@click.option('--project',
-              metavar='GCP_PROJECT',
-              help='Google Cloud project for the cluster.')
-@click.option('--zone', '-z',
-              metavar='GCP_ZONE',
-              help='Compute zone for Dataproc cluster.')
-@click.option('--dry-run', is_flag=True,
-              help="Print gcloud dataproc command, but don't run it.")
 @click.option('--async', 'async_', is_flag=True,
               help="Do not wait for cluster deletion.")
 @click.option('--extra-gcloud-delete-args',
               default='',
               help="Extra arguments to pass to 'gcloud dataproc clusters delete'")
-def stop(cluster_name, *, project, zone, dry_run, async_, extra_gcloud_delete_args):
+@click.pass_context
+def stop(ctx, cluster_name, *, async_, extra_gcloud_delete_args):
+    runner = ctx.parent.obj
+
     print("Stopping cluster '{}'...".format(cluster_name))
 
-    runner = gcloud.GCloudRunner(project, zone, dry_run)
-
-    cmd = ['dataproc', f'--region={runner._region}', 'clusters', 'delete', '--quiet', cluster_name]
+    cmd = ['clusters', 'delete', '--quiet', cluster_name]
     if async_:
         cmd.append('--async')
     cmd.extend(extra_gcloud_delete_args.split())
 
-    runner.run(cmd)
+    runner.run_dataproc_command(cmd)

@@ -30,29 +30,24 @@ def get_chrome_path():
 
 
 @dataproc.command(
-    help="Connect to a running Dataproc cluster")
+    help="Connect to a running Dataproc cluster.")
 @click.argument('cluster_name')
 @click.argument('service',
                 type=click.Choice(['notebook', 'nb', 'spark-ui', 'ui', 'spark-history', 'hist'],
                                   case_sensitive=False))
-@click.option('--project',
-              metavar='GCP_PROJECT',
-              help='Google Cloud project for the cluster.')
-@click.option('--zone', '-z',
-              metavar='GCP_ZONE',
-              help='Compute zone for Dataproc cluster.')
 @click.option('--port', '-p',
               metavar='PORT',
               default='10000',
               type=int,
-              help="Local port to use for SSH tunnel to leader (master) node",
+              help="Local port to use for SSH tunnel to leader (master) node.",
               show_default=True)
-@click.option('--dry-run', is_flag=True,
-              help="Print gcloud dataproc command, but don't run it")
 @click.option('--extra-gcloud-ssh-args',
               default='',
-              help="Extra arguments to pass to 'gcloud compute ssh'")
-def connect(cluster_name, service, *, project, zone, port, dry_run, extra_gcloud_ssh_args):
+              help="Extra arguments to pass to 'gcloud compute ssh'.")
+@click.pass_context
+def connect(ctx, cluster_name, service, *, port, extra_gcloud_ssh_args):
+    runner = ctx.obj
+
     # shortcut mapping
     shortcut = {
         'ui': 'spark-ui',
@@ -77,8 +72,7 @@ def connect(cluster_name, service, *, project, zone, port, dry_run, extra_gcloud
     else:
         ssh_login = '{}-m'.format(cluster_name)
 
-    cmd = ['compute',
-           'ssh',
+    cmd = ['ssh',
            ssh_login,
            '--ssh-flag=-D {}'.format(port),
            '--ssh-flag=-N',
@@ -91,9 +85,9 @@ def connect(cluster_name, service, *, project, zone, port, dry_run, extra_gcloud
     print("Connecting to cluster '{}'...".format(cluster_name))
 
     # open SSH tunnel to master node
-    gcloud.GCloudRunner(project, zone, dry_run).run(cmd)
+    runner.run_compute_command(cmd)
 
-    if not dry_run:
+    if not runner._dry_run:
         chrome = os.environ.get('HAILCTL_CHROME') or get_chrome_path()
 
         # open Chrome with SOCKS proxy configuration

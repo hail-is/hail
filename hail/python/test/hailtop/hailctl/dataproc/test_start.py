@@ -12,18 +12,18 @@ def test_cluster_name_required(capsys, gcloud_run):
 
 
 def test_dry_run(gcloud_run):
-    hailctl.main(["dataproc", "start", "test-cluster", "--dry-run"])
+    hailctl.main(["dataproc", "--dry-run", "start", "test-cluster"])
     assert gcloud_run.call_count == 0
 
 
 def test_cluster_project(gcloud_run):
-    hailctl.main(["dataproc", "start", "--project", "foo", "test-cluster"])
+    hailctl.main(["dataproc", "--project", "foo", "start", "test-cluster"])
     assert "--project=foo" in gcloud_run.call_args[0][0]
 
 
 def test_cluster_zone(gcloud_run):
-    hailctl.main(["dataproc", "start", "--zone=us-central1-b", "test-cluster"])
-    assert "--zone=us-central1-b" in gcloud_run.call_args[0][0]
+    hailctl.main(["dataproc", "--zone=us-central1-b", "start", "test-cluster"])
+    assert "--region=us-central1" in gcloud_run.call_args[0][0]
 
 
 def test_creator_label(gcloud_run, gcloud_config):
@@ -92,7 +92,7 @@ def test_requester_pays_project_configuration(gcloud_run, gcloud_config, request
     properties = next(arg for arg in gcloud_run.call_args[0][0] if arg.startswith("--properties="))
     assert "spark:spark.hadoop.fs.gs.requester.pays.project.id=foo-project" in properties
 
-    hailctl.main(["dataproc", "start", "--project=bar-project", "test-cluster", requester_pays_arg])
+    hailctl.main(["dataproc", "--project=bar-project", "start", "test-cluster", requester_pays_arg])
     properties = next(arg for arg in gcloud_run.call_args[0][0] if arg.startswith("--properties="))
     assert "spark:spark.hadoop.fs.gs.requester.pays.project.id=bar-project" in properties
 
@@ -126,22 +126,22 @@ def test_scheduled_deletion_configuration(gcloud_run, scheduled_deletion_arg):
 def test_master_tags(gcloud_run):
     hailctl.main(["dataproc", "start", "test-cluster", "--master-tags=foo"])
     assert gcloud_run.call_count == 2
-    assert gcloud_run.call_args_list[0][0][0][:8] == ["gcloud", "--project=hailctl-dataproc-tests", "--zone=us-central1-b", "dataproc", "--region=us-central1", "clusters", "create", "test-cluster"]
-    assert gcloud_run.call_args_list[1][0][0] == ["gcloud", "--project=hailctl-dataproc-tests", "--zone=us-central1-b", "compute", "instances", "add-tags", "test-cluster-m", "--tags", "foo"]
+    assert gcloud_run.call_args_list[0][0][0][:7] == ["gcloud", "--project=hailctl-dataproc-tests", "dataproc", "--region=us-central1", "clusters", "create", "test-cluster"]
+    assert gcloud_run.call_args_list[1][0][0] == ["gcloud", "--project=hailctl-dataproc-tests", "compute", "--zone=us-central1-b", "instances", "add-tags", "test-cluster-m", "--tags", "foo"]
 
 
 def test_master_tags_project(gcloud_run):
-    hailctl.main(["dataproc", "start", "test-cluster", "--master-tags=foo", "--project=some-project"])
+    hailctl.main(["dataproc", "--project=some-project", "start", "test-cluster", "--master-tags=foo"])
     assert gcloud_run.call_count == 2
     assert "--project=some-project" in gcloud_run.call_args_list[1][0][0]
 
 
 def test_master_tags_zone(gcloud_run):
-    hailctl.main(["dataproc", "start", "test-cluster", "--master-tags=foo", "--zone=us-east1-d"])
+    hailctl.main(["dataproc", "--zone=us-east1-d", "start", "test-cluster", "--master-tags=foo"])
     assert gcloud_run.call_count == 2
     assert "--zone=us-east1-d" in gcloud_run.call_args_list[1][0][0]
 
 
 def test_master_tags_dry_run(gcloud_run):
-    hailctl.main(["dataproc", "start", "test-cluster", "--master-tags=foo", "--dry-run"])
+    hailctl.main(["dataproc", "--dry-run", "start", "test-cluster", "--master-tags=foo"])
     assert gcloud_run.call_count == 0

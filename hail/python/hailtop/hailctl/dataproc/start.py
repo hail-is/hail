@@ -144,14 +144,6 @@ IMAGE_VERSION = '1.4-debian9'
 @dataproc.command(
     help="Start a Dataproc cluster configured for Hail.")
 @click.argument('cluster_name')
-@click.option('--project',
-              metavar='GCP_PROJECT',
-              help='Google Cloud project for the cluster.')
-@click.option('--zone', '-z',
-              metavar='GCP_ZONE',
-              help='Compute zone for Dataproc cluster.')
-@click.option('--dry-run', is_flag=True,
-              help="Print gcloud dataproc command, but don't run it.")
 @click.option('--master-machine-type', '--master', '-m',
               default='n1-highmem-8', show_default=True,
               help="Master machine type.")
@@ -189,8 +181,6 @@ IMAGE_VERSION = '1.4-debian9'
               help="Comma-separated list of metadata to add: KEY1=VALUE1,KEY2=VALUE2...")
 @click.option('--packages', '--pkgs',
               help="Comma-separated list of Python packages to be installed on the master node.")
-@click.option('--configuration',
-              help='Google Cloud configuration to start cluster. [default: (currently set configuration)]')
 @click.option('--max-idle',
               help="If specified, maximum idle time before shutdown (e.g. 60m).")
 @click.option('--expiration-time',
@@ -229,12 +219,11 @@ IMAGE_VERSION = '1.4-debian9'
 def start(
         ctx,
         cluster_name,
-        project, zone, dry_run,
         master_machine_type, master_memory_fraction, master_boot_disk_size,
         num_master_local_ssds, num_secondary_workers, num_worker_local_ssds,
         num_workers, secondary_worker_boot_disk_size,
         worker_boot_disk_size, worker_machine_type,
-        properties, metadata, packages, configuration,
+        properties, metadata, packages,
         max_idle, expiration_time,
         max_age,
         bucket, network, master_tags, wheel,
@@ -245,9 +234,7 @@ def start(
     if expiration_time and max_age:
         print("at most one of --expiration-time and --max-age allowed", file=sys.stderr)
         sys.exit(1)
-
-    runner = gcloud.GCloudRunner(project, zone, dry_run)
-    beta = ctx.parent.params['beta']
+    runner = ctx.parent.obj
 
     conf = ClusterConfig()
     conf.extend_flag('image-version', IMAGE_VERSION)
@@ -298,11 +285,11 @@ def start(
     # add VEP init script
     if vep:
         # VEP is too expensive if you have to pay egress charges. We must choose the right replicate.
-        replicate = REGION_TO_REPLICATE_MAPPING.get(runner._region)
+        replicate = REGION_TO_REPLICATE_MAPPING.get(runner._dataproc_region)
         if replicate is None:
             raise RuntimeError(f"The --vep argument is not currently provided in your region.\n"
                                f"  Please contact the Hail team on https://discuss.hail.is for support.\n"
-                               f"  Your region: {runner._region}\n"
+                               f"  Your region: {runner._dataproc_region}\n"
                                f"  Supported regions: {', '.join(REGION_TO_REPLICATE_MAPPING.keys())}")
         print(f"Pulling VEP data from bucket in {replicate}.")
         conf.extend_flag('metadata', {"VEP_REPLICATE": replicate})
@@ -346,12 +333,9 @@ def start(
     conf.flags['secondary-worker-boot-disk-size'] = disk_size(secondary_worker_boot_disk_size)
     conf.flags['worker-boot-disk-size'] = disk_size(worker_boot_disk_size)
     conf.flags['worker-machine-type'] = worker_machine_type
-    conf.flags['region'] = runner._region
     conf.flags['initialization-action-timeout'] = init_timeout
     if network:
         conf.flags['network'] = network
-    if configuration:
-        conf.flags['configuration'] = configuration
     if bucket:
         conf.flags['bucket'] = bucket
 
@@ -364,10 +348,8 @@ def start(
     conf.flags['properties'] = '^|||^' + '|||'.join(f'{k}={v}' for k, v in conf.flags['properties'].items())
 
     # command to start cluster
-    cmd = ['dataproc', f'--region={runner._region}', 'clusters', 'create', cluster_name, *conf.get_flags()]
+    cmd = ['clusters', 'create', cluster_name, *conf.get_flags()]
 
-    if beta or max_idle or max_age:
-        cmd.insert(1, 'beta')
     if max_idle:
         cmd.append('--max-idle={}'.format(max_idle))
     if max_age:
@@ -379,8 +361,9 @@ def start(
         cmd.extend(extra_gcloud_create_args)
 
     print("Starting cluster '{}'...".format(cluster_name))
-    runner.run(cmd)
+
+    runner.run_dataproc_command(cmd)
 
     if master_tags:
-        add_tags_command = ['compute', 'instances', 'add-tags', cluster_name + '-m', '--tags', master_tags]
-        runner.run(add_tags_command)
+        add_tags_command = ['instances', 'add-tags', cluster_name + '-m', '--tags', master_tags]
+        runner.run_compute_command(add_tags_command)

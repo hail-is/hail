@@ -5,12 +5,12 @@ from hailtop import hailctl
 
 def test_stop(gcloud_run):
     hailctl.main(["dataproc", "modify", "test-cluster", "--num-workers=2"])
-    assert gcloud_run.call_args[0][0] == ["gcloud", "--project=hailctl-dataproc-tests", "--zone=us-central1-b", "dataproc", "--region=us-central1", "clusters", "update", "test-cluster", "--num-workers=2"]
+    assert gcloud_run.call_args[0][0] == ["gcloud", "--project=hailctl-dataproc-tests", "dataproc", "--region=us-central1", "clusters", "update", "test-cluster", "--num-workers=2"]
 
 
 def test_beta(gcloud_run):
     hailctl.main(["dataproc", "--beta", "modify", "test-cluster", "--num-workers=2"])
-    assert gcloud_run.call_args[0][0] == ["gcloud", "--project=hailctl-dataproc-tests", "--zone=us-central1-b", "beta", "dataproc", "--region=us-central1", "clusters", "update", "test-cluster", "--num-workers=2"]
+    assert gcloud_run.call_args[0][0] == ["gcloud", "--project=hailctl-dataproc-tests", "beta", "dataproc", "--region=us-central1", "clusters", "update", "test-cluster", "--num-workers=2"]
 
 
 def test_cluster_name_required(capsys, gcloud_run):
@@ -22,17 +22,17 @@ def test_cluster_name_required(capsys, gcloud_run):
 
 
 def test_cluster_project(gcloud_run):
-    hailctl.main(["dataproc", "modify", "test-cluster", "--project=foo", "--num-workers=2"])
+    hailctl.main(["dataproc", "--project=foo", "modify", "test-cluster", "--num-workers=2"])
     assert "--project=foo" in gcloud_run.call_args[0][0]
 
 
 def test_cluster_region(gcloud_run):
-    hailctl.main(["dataproc", "modify", "test-cluster", "--zone=europe-north1-a", "--num-workers=2"])
+    hailctl.main(["dataproc", "--zone=europe-north1-a", "modify", "test-cluster", "--num-workers=2"])
     assert "--region=europe-north1" in gcloud_run.call_args[0][0]
 
 
 def test_modify_dry_run(gcloud_run):
-    hailctl.main(["dataproc", "modify", "test-cluster", "--num-workers=2", "--dry-run"])
+    hailctl.main(["dataproc", "--dry-run", "modify", "test-cluster", "--num-workers=2"])
     assert gcloud_run.call_count == 0
 
 
@@ -82,7 +82,7 @@ def test_modify_wheel_remote_wheel(gcloud_run):
     hailctl.main(["dataproc", "modify", "test-cluster", "--wheel=gs://some-bucket/hail.whl"])
     assert gcloud_run.call_count == 1
     gcloud_args = gcloud_run.call_args[0][0]
-    assert gcloud_args[:5] == ["gcloud", "--project=hailctl-dataproc-tests", "--zone=us-central1-b", "compute", "ssh"]
+    assert gcloud_args[:5] == ["gcloud", "--project=hailctl-dataproc-tests", "compute", "--zone=us-central1-b", "ssh"]
 
     remote_command = gcloud_args[gcloud_args.index("--") + 1]
     assert remote_command == ("sudo gsutil cp gs://some-bucket/hail.whl /tmp/ && " +
@@ -97,11 +97,11 @@ def test_modify_wheel_local_wheel(gcloud_run):
     assert gcloud_run.call_count == 2
 
     copy_gcloud_args = gcloud_run.call_args_list[0][0][0]
-    assert copy_gcloud_args[:5] == ["gcloud", "--project=hailctl-dataproc-tests", "--zone=us-central1-b", "compute", "scp"]
+    assert copy_gcloud_args[:5] == ["gcloud", "--project=hailctl-dataproc-tests", "compute", "--zone=us-central1-b", "scp"]
     assert copy_gcloud_args[-2:] == ["./local-hail.whl", "test-cluster-m:/tmp/"]
 
     install_gcloud_args = gcloud_run.call_args_list[1][0][0]
-    assert install_gcloud_args[:6] == ["gcloud", "--project=hailctl-dataproc-tests", "--zone=us-central1-b", "compute", "ssh", "test-cluster-m"]
+    assert install_gcloud_args[:6] == ["gcloud", "--project=hailctl-dataproc-tests", "compute", "--zone=us-central1-b", "ssh", "test-cluster-m"]
 
     remote_command = install_gcloud_args[install_gcloud_args.index("--") + 1]
     assert remote_command == ("sudo /opt/conda/default/bin/pip uninstall -y hail && " +
@@ -117,7 +117,7 @@ def test_modify_wheel_local_wheel(gcloud_run):
 def test_modify_wheel_zone(gcloud_run, gcloud_config, wheel_arg):
     gcloud_config["compute/zone"] = "us-central1-b"
 
-    hailctl.main(["dataproc", "modify", "test-cluster", wheel_arg, "--zone=us-east1-d"])
+    hailctl.main(["dataproc", "--zone=us-east1-d", "modify", "test-cluster", wheel_arg])
     for call_args in gcloud_run.call_args_list:
         assert "--zone=us-east1-d" in call_args[0][0]
 
@@ -151,7 +151,7 @@ def test_modify_wheel_zone_required(gcloud_run, gcloud_config, wheel_arg):
     "--wheel=./hail.whl",
 ])
 def test_modify_wheel_dry_run(gcloud_run, wheel_arg):
-    hailctl.main(["dataproc", "modify", "test-cluster", wheel_arg, "--dry-run"])
+    hailctl.main(["dataproc", "--dry-run", "modify", "test-cluster", wheel_arg])
     assert gcloud_run.call_count == 0
 
 
@@ -169,7 +169,7 @@ def test_update_hail_version(gcloud_run, monkeypatch, deploy_metadata):
     hailctl.main(["dataproc", "modify", "test-cluster", "--update-hail-version"])
     assert gcloud_run.call_count == 1
     gcloud_args = gcloud_run.call_args[0][0]
-    assert gcloud_args[:6] == ["gcloud", "--project=hailctl-dataproc-tests", "--zone=us-central1-b", "compute", "ssh", "test-cluster-m"]
+    assert gcloud_args[:6] == ["gcloud", "--project=hailctl-dataproc-tests", "compute", "--zone=us-central1-b", "ssh", "test-cluster-m"]
 
     remote_command = gcloud_args[gcloud_args.index("--") + 1]
     assert remote_command == (

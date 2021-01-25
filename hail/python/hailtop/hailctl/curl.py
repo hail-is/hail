@@ -12,7 +12,7 @@ from .hailctl import hailctl
 @click.argument('namespace')
 @click.argument('service')
 @click.argument('path')
-@click.argument('curl_args')
+@click.argument('curl_args', nargs=-1)
 def curl(namespace, service, path, curl_args):
     deploy_config = get_deploy_config()
     deploy_config = deploy_config.with_default_namespace(namespace)

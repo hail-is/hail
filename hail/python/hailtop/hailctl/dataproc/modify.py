@@ -2,21 +2,12 @@ import os.path
 import sys
 import click
 
-from . import gcloud
 from .dataproc import dataproc
 from .deploy_metadata import get_deploy_metadata
 
 
 @dataproc.command()
 @click.argument('cluster_name')
-@click.option('--project',
-              metavar='GCP_PROJECT',
-              help='Google Cloud project for the cluster.')
-@click.option('--zone', '-z',
-              metavar='GCP_ZONE',
-              help='Compute zone for Dataproc cluster.')
-@click.option('--dry-run', is_flag=True,
-              help="Print gcloud dataproc command, but don't run it.")
 @click.option('--num-workers', '--n-workers', '-w', type=int,
               help="New number of worker machines (min. 2).")
 @click.option('--num-secondary-workers', '--num-preemptible-workers', '--n-pre-workers', '-p', type=int,
@@ -46,14 +37,13 @@ from .deploy_metadata import get_deploy_metadata
 @click.pass_context
 def modify(ctx,
            cluster_name,
-           project, zone, dry_run,
            num_workers, num_secondary_workers,
            graceful_decommission_timeout,
            max_idle, no_max_idle,
            expiration_time, max_age, no_max_age,
            update_hail_version, wheel, extra_gcloud_update_args):
-    beta = ctx.parent.params['beta']
-    print(f'beta {beta}')
+    runner = ctx.obj
+
     if wheel and update_hail_version:
         print("at most one of --wheel and --update-hail-version allowed", file=sys.stderr)
         sys.exit(1)
@@ -61,8 +51,6 @@ def modify(ctx,
     if expiration_time and max_age:
         print("at most one of --expiration-time and --max-age allowed", file=sys.stderr)
         sys.exit(1)
-
-    runner = gcloud.GCloudRunner(project, zone, dry_run)
 
     modify_args = []
     if num_workers is not None:
@@ -88,16 +76,13 @@ def modify(ctx,
     if no_max_age:
         modify_args.append('--no-max-age')
 
-    cmd = ['dataproc', f'--region={runner._region}', 'clusters', 'update', cluster_name] + modify_args
-
-    if beta:
-        cmd.insert(0, 'beta')
+    cmd = ['clusters', 'update', cluster_name] + modify_args
 
     cmd.extend(extra_gcloud_update_args.split())
 
     if modify_args or extra_gcloud_update_args:
         print("Updating cluster '{}'...".format(cluster_name))
-        runner.run(cmd)
+        runner.run_dataproc_command(cmd)
 
     if update_hail_version:
         deploy_metadata = get_deploy_metadata()
@@ -109,7 +94,6 @@ def modify(ctx,
         cmds = []
         if wheel.startswith("gs://"):
             cmds.append([
-                'compute',
                 'ssh',
                 '{}-m'.format(cluster_name),
                 '--',
@@ -122,13 +106,11 @@ def modify(ctx,
         else:
             cmds.extend([
                 [
-                    'compute',
                     'scp',
                     wheel,
                     '{}-m:/tmp/'.format(cluster_name)
                 ],
                 [
-                    'compute',
                     'ssh',
                     f'{cluster_name}-m',
                     '--',
@@ -140,4 +122,4 @@ def modify(ctx,
             ])
 
         for cmd in cmds:
-            runner.run(cmd)
+            runner.run_compute_command(cmd)

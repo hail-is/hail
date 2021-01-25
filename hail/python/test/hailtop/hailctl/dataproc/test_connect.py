@@ -35,7 +35,7 @@ def test_cluster_and_service_required(gcloud_run):
 
 
 def test_dry_run(gcloud_run, subprocess):
-    hailctl.main(["dataproc", "connect", "test-cluster", "notebook", "--dry-run"])
+    hailctl.main(["dataproc", "--dry-run", "connect", "test-cluster", "notebook"])
     assert gcloud_run.call_count == 0
     assert subprocess.Popen.call_count == 0
 
@@ -47,8 +47,8 @@ def test_connect(gcloud_run, subprocess):
 
     assert gcloud_args[0] == 'gcloud'
     assert gcloud_args[1] == '--project=hailctl-dataproc-tests'
-    assert gcloud_args[2] == '--zone=us-central1-b'
-    assert gcloud_args[3] == 'compute'
+    assert gcloud_args[2] == 'compute'
+    assert gcloud_args[3] == '--zone=us-central1-b'
     assert gcloud_args[4] == 'ssh'
 
     assert gcloud_args[5][(gcloud_args[5].find("@") + 1):] == "test-cluster-m"
@@ -103,7 +103,7 @@ def test_port(gcloud_run):
 def test_connect_zone(gcloud_run, gcloud_config):
     gcloud_config["compute/zone"] = "us-central1-b"
 
-    hailctl.main(["dataproc", "connect", "test-cluster", "notebook", "--zone=us-east1-d"])
+    hailctl.main(["dataproc", "--zone=us-east1-d", "connect", "test-cluster", "notebook"])
 
     assert "--zone=us-east1-d" in gcloud_run.call_args[0][0]
 
@@ -126,6 +126,6 @@ def test_connect_zone_required(gcloud_run, gcloud_config):
 
 
 def test_connect_project(gcloud_run):
-    hailctl.main(["dataproc", "connect", "test-cluster", "notebook", "--project=test-project"])
+    hailctl.main(["dataproc", "--project=test-project", "connect", "test-cluster", "notebook"])
 
     assert "--project=test-project" in gcloud_run.call_args[0][0]
