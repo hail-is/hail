@@ -269,7 +269,9 @@ class Transfer:
     TARGET_FILE = 'target_file'
     INFER_TARGET = 'infer_target'
 
-    def __init__(self, src: Union[str, List[str]], dest: str, *, treat_dest_as: str = INFER_TARGET):
+    def __init__(self, src: Union[str, List[str]], dest: str, *, treat_dest_as: str = None):
+        if treat_dest_as is None:
+            treat_dest_as = Transfer.INFER_TARGET
         if treat_dest_as not in (Transfer.TARGET_DIR, Transfer.TARGET_FILE, Transfer.INFER_TARGET):
             raise ValueError(f'treat_dest_as invalid: {treat_dest_as}')
 

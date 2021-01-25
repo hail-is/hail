@@ -6,5 +6,6 @@ from . import dev
 from . import batch
 from . import curl
 from . import config
+from . import cp
 
-__all__ = ['hailctl', 'main', 'version', 'dataproc', 'auth', 'dev', 'batch', 'curl', 'config']
+__all__ = ['hailctl', 'main', 'version', 'dataproc', 'auth', 'dev', 'batch', 'curl', 'config', 'cp']
