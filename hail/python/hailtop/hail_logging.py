@@ -9,6 +9,8 @@ import time
 class CustomJsonFormatter(jsonlogger.JsonFormatter):
     def add_fields(self, log_record, record, message_dict):
         super().add_fields(log_record, record, message_dict)
+        # GCP Logging expects `severity` but JSONLogger uses `levelname`
+        log_record['severity'] = log_record['levelname']
         log_record['funcNameAndLine'] = "{}:{}".format(record.funcName, record.lineno)
         log_record['hail_log'] = 1
 
