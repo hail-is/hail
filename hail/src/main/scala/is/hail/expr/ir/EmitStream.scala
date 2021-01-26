@@ -1927,6 +1927,7 @@ object EmitStream {
                     COption.fromIEmitCode(mb) { cb =>
                       emitStream(
                         innerIR,
+                        cb = cb,
                         outerRegion = innerStreamOuterRegion,
                         env = env.bind(name -> new EmitUnrealizableValue(outerEltType, elt)))
                     }
@@ -1997,7 +1998,8 @@ object EmitStream {
               emitStream(bodyIR, env = bodyEnv)
 
             case _ =>
-              val xValue = cb.memoize(emitIR(valueIR), "stream_let")
+              val xValue = mb.newEmitField(name, valueType)
+              cb.assign(xValue, emitIR(valueIR))
               val bodyEnv = env.bind(name -> xValue)
 
               emitStream(bodyIR, env = bodyEnv)
@@ -2196,11 +2198,11 @@ object EmitStream {
 
               val startt = keyRange.loadStart(cb)
                   .get(cb, "shuffle expects defined endpoints")
-                  .asLong
+                  .asPCode
                   .tcode[Long]
               val endt = keyRange.loadEnd(cb)
                   .get(cb, "shuffle expects defined endpoints")
-                  .asLong
+                  .asPCode
                   .tcode[Long]
 
               cb.append(shuffle.startGet(startt, keyRange.includesStart, endt, keyRange.includesEnd))
