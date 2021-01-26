@@ -747,29 +747,29 @@ class Emit[C](
         presentC(m)
 
       case Coalesce(values) =>
-        val missing = mb.newLocal[Boolean]()
-        val coalescedValue = mb.newPLocal(pt)
+        val missing = cb.newLocal[Boolean]("coalesce_missing")
+        val coalescedValue = mb.newPLocal("coalesce_value", pt)
 
         val emittedValues = values.map(v => EmitCode.fromI(cb.emb)(cb => emitInNewBuilder(cb, v)))
-        val defined = CodeLabel()
-        val end = CodeLabel()
+        val Ldefined = CodeLabel()
+        val Lend = CodeLabel()
 
         emittedValues.foreach { value =>
           value.toI(cb).consume(cb,
             {}, // fall through to next check
             { sc =>
               cb.assign(coalescedValue, sc.castTo(cb, region.code, pt))
-              cb.goto(defined)
+              cb.goto(Ldefined)
             })
         }
 
         // base case
         cb.assign(missing, true)
-        cb.goto(end)
+        cb.goto(Lend)
 
-        cb += defined
+        cb.define(Ldefined)
         cb.assign(missing, false)
-        cb += end
+        cb.define(Lend)
 
         IEmitCode(cb, missing, coalescedValue.load())
 
