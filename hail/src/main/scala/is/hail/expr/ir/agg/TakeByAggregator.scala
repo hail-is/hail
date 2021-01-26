@@ -207,40 +207,6 @@ class TakeByRVAS(val valueVType: VirtualTypeWithReq, val keyVType: VirtualTypeWi
     }
   }
 
-  //  NOTE: these print methods are unused but helpful for debugging, should the need arise:
-  //
-  //  def indexedKeyRepElt(o: Code[Long]): Code[String] = indexedKeyRep(eltTuple.fieldOffset(o, 0))
-  //
-  //  def indexedKeyRep(o: Code[Long]): Code[String] = {
-  //    val kr = keyRep(loadKeyValue(o), keyIsMissing(o))
-  //    val idx = Region.loadLong(indexedKeyType.fieldOffset(o, 1)).toS
-  //    kr.concat(" [").concat(idx).concat("]")
-  //
-  //  }
-  //
-  //  def keyRep(key: Code[_], keyM: Code[Boolean]): Code[String] = {
-  //    keyType match {
-  //      case _: PInt32 => keyM.mux(const("NA"), key.asInstanceOf[Code[Int]].toS)
-  //      case _: PFloat32 => keyM.mux(const("NA"), key.asInstanceOf[Code[Float]].toS)
-  //      case _: PFloat64 => keyM.mux(const("NA"), key.asInstanceOf[Code[Double]].toS)
-  //      case _: PInt64 => keyM.mux(const("NA"), key.asInstanceOf[Code[Long]].toS)
-  //      case _ => keyM.mux(const("NA"), const("??"))
-  //    }
-  //  }
-  //
-  //  def dump(): Code[Unit] = {
-  //    val x = fb.newField[Int]
-  //    Code(
-  //      Code._println(const(s"Dumping heap of size=").concat(ab.size.toS)),
-  //      x := 0,
-  //      Code.whileLoop(x < ab.size,
-  //        Code._println(const("  at idx ").concat(x.toS).concat(", key=")
-  //          .concat(indexedKeyRep(eltTuple.loadField(elementOffset(x), 0)))),
-  //        x := x + 1
-  //      )
-  //    )
-  //  }
-
   private def elementOffset(i: Value[Int]): Code[Long] = ab.elementOffset(i)
 
   private def keyIsMissing(offset: Code[Long]): Code[Boolean] = indexedKeyType.isFieldMissing(offset, 0)
@@ -405,20 +371,12 @@ class TakeByRVAS(val valueVType: VirtualTypeWithReq, val keyVType: VirtualTypeWi
       val value = mb.getEmitParam(1)
       val key = mb.getEmitParam(2)
 
-//      key.toI(cb).consume(cb,
-//        cb += Code._printlns(s" >> running grouped seqop for k=NA"),
-//        k => cb += Code._printlns(s" >> running grouped seqop for k=", StringFunctions.boxArg(new EmitRegion(cb.emb, region), k.pt)(k.code).invoke[String]("toString"))
-//      )
-
-
       cb.ifx(maxSize > 0, {
         cb.ifx(ab.size < maxSize, {
-//          cb +=Code._printlns(s"LESSTHAN - ab.size=", ab.size.toS, ", maxSize=", maxSize.toS)
           stageAndIndexKey(cb, key)
           copyToStaging(cb, value, keyStage)
           enqueueStaging(cb)
         }, {
-//          cb +=Code._printlns(s"GTEQ - ab.size=", ab.size.toS, ", maxSize=", maxSize.toS)
           cb.assign(tempPtr, eltTuple.loadField(elementOffset(0), 0))
           cb.ifx(compareKey(cb, key, loadKey(cb, tempPtr)) < 0, {
             stageAndIndexKey(cb, key)
