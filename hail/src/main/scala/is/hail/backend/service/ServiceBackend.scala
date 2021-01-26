@@ -41,8 +41,9 @@ class ServiceTaskContext(val partitionId: Int) extends HailTaskContext {
 
 object Worker {
   def main(args: Array[String]): Unit = {
-    if (args.length != 2)
-      throw new IllegalArgumentException(s"expected one argument, not: ${ args.length }")
+    if (args.length != 2) {
+      throw new IllegalArgumentException(s"expected two arguments, not: ${ args.length }")
+    }
 
     val root = args(0)
     val i = args(1).toInt
@@ -437,4 +438,20 @@ class ServiceBackend() extends Backend {
   def getPersistedBlockMatrix(backendContext: BackendContext, id: String): BlockMatrix = ???
 
   def getPersistedBlockMatrixType(backendContext: BackendContext, id: String): BlockMatrixType = ???
+
+  def loadReferencesFromDataset(
+    username: String,
+    sessionID: String,
+    billingProject: String,
+    bucket: String,
+    path: String
+  ): Response = {
+    statusForException {
+      ExecutionTimer.logTime("ServiceBackend.loadReferencesFromDataset") { timer =>
+        userContext(username, timer) { ctx =>
+          ReferenceGenome.fromHailDataset(ctx.fs, path)
+        }
+      }
+    }
+  }
 }

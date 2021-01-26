@@ -72,6 +72,11 @@ def blocking_execute(jbackend, userdata, body):
     return jbackend.execute(userdata['username'], userdata['session_id'], body['billing_project'], body['bucket'], body['code'])
 
 
+def blocking_load_references_from_dataset(jbackend, userdata, body):
+    return jbackend.loadReferencesFromDataset(
+        userdata['username'], userdata['session_id'], body['billing_project'], body['bucket'], body['path'])
+
+
 def blocking_value_type(jbackend, userdata, body):
     return jbackend.valueType(userdata['username'], body['code'])
 
@@ -123,6 +128,12 @@ async def handle_ws_response(request, userdata, endpoint, f):
 @rest_authenticated_users_only
 async def execute(request, userdata):
     return await handle_ws_response(request, userdata, 'execute', blocking_execute)
+
+
+@routes.get('/api/v1alpha/load_references_from_dataset')
+@rest_authenticated_users_only
+async def load_references_from_dataset(request, userdata):
+    return await handle_ws_response(request, userdata, 'load_references_from_dataset', blocking_load_references_from_dataset)
 
 
 @routes.get('/api/v1alpha/type/value')

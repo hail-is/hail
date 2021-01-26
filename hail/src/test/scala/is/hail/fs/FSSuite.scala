@@ -11,9 +11,9 @@ import org.testng.annotations.Test
 
 trait FSSuite {
   def root: String
-  
+
   def fsResourcesRoot: String
-  
+
   def fs: FS
 
   def tmpdir: String
@@ -38,9 +38,9 @@ trait FSSuite {
       p.drop(root.length)
     }.toSet
   }
-  
+
   def pathsRelResourcesRoot(statuses: Array[FileStatus]): Set[String] = pathsRelRoot(fsResourcesRoot, statuses)
-  
+
   @Test def testExists(): Unit = {
     assert(fs.exists(r("/a")))
 
@@ -140,15 +140,17 @@ trait FSSuite {
     val statuses = fs.glob(r("/does_not_exist_dir/does_not_exist"))
     assert(pathsRelResourcesRoot(statuses) == Set())
   }
-  
+
   @Test def testGlobFilename(): Unit = {
     val statuses = fs.glob(r("/a*"))
-    assert(pathsRelResourcesRoot(statuses) == Set("/a", "/adir", "/az"))
+    assert(pathsRelResourcesRoot(statuses) == Set("/a", "/adir", "/az"),
+      s"${statuses} ${pathsRelResourcesRoot(statuses)} ${Set("/a", "/adir", "/az")}")
   }
 
   @Test def testGlobMatchDir(): Unit = {
     val statuses = fs.glob(r("/*dir/x"))
-    assert(pathsRelResourcesRoot(statuses) == Set("/adir/x", "/dir/x"))
+    assert(pathsRelResourcesRoot(statuses) == Set("/adir/x", "/dir/x"),
+      s"${statuses} ${pathsRelResourcesRoot(statuses)} ${Set("/adir/x", "/dir/x")}")
   }
 
   @Test def testGlobRoot(): Unit = {
@@ -218,8 +220,8 @@ trait FSSuite {
 
 class HadoopFSSuite extends HailSuite with FSSuite {
   val root: String = "file:/"
-  
+
   lazy val fsResourcesRoot: String = "file:" + new java.io.File("./src/test/resources/fs").getCanonicalPath
-  
+
   lazy val tmpdir: String = ctx.tmpdir
 }
