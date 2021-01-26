@@ -194,8 +194,7 @@ class LocalMultiPartCreate(MultiPartCreate):
 
     async def create_part(self, number: int, start: int):
         assert 0 <= number < self._num_parts
-        assert (start & (8192 - 1)) == 0  # verify aligned to page boundary
-        f = await blocking_to_async(self._fs._thread_pool, open, self._path, 'ab')
+        f = await blocking_to_async(self._fs._thread_pool, open, self._path, 'r+b')
         f.seek(start)
         return blocking_writable_stream_to_async(self._fs._thread_pool, cast(BinaryIO, f))
 
@@ -238,8 +237,11 @@ class LocalAsyncFS(AsyncFS):
         return blocking_writable_stream_to_async(self._thread_pool, cast(BinaryIO, f))
 
     async def multi_part_create(self, url: str, num_parts: int) -> MultiPartCreate:
-        path = self._get_path(url)
-        return LocalMultiPartCreate(self, path, num_parts)
+        # create an empty file
+        # will be opened r+b to write the parts
+        async with await self.create(url) as f:
+            pass
+        return LocalMultiPartCreate(self, self._get_path(url), num_parts)
 
     async def statfile(self, url: str) -> LocalStatFileStatus:
         path = self._get_path(url)

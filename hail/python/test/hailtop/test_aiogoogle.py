@@ -1,6 +1,7 @@
 import os
 import secrets
 import shutil
+from itertools import accumulate
 from concurrent.futures import ThreadPoolExecutor
 import asyncio
 import pytest
@@ -265,22 +266,42 @@ async def test_listfiles(filesystem):
             assert await stat.size() == 0
 
 @pytest.mark.asyncio
-async def test_multi_part_create(local_filesystem):
+@pytest.mark.parametrize("permutation", [
+    None,
+    [0, 1, 2],
+    [0, 2, 1],
+    [1, 2, 0],
+    [2, 1, 0]
+])
+async def test_multi_part_create(local_filesystem, permutation):
     fs, base = local_filesystem
 
-    num_parts = 3
-    parts_data = [secrets.token_bytes(8192) for _ in range(num_parts)]
+    # part_data = [secrets.token_bytes(s) for s in [8192, 8192, 8192]]
+    part_data = [b'a', b'bb', b'ccc']
+
+    s = 0
+    part_start = []
+    for b in part_data:
+        part_start.append(s)
+        s += len(b)
+    print(part_start)
 
     path = f'{base}a'
-    async with await fs.multi_part_create(path, num_parts) as c:
+    async with await fs.multi_part_create(path, len(part_data)) as c:
         async def create_part(i):
-            async with await c.create_part(i, i * 8192) as f:
-                await f.write(parts_data[i])
+            async with await c.create_part(i, part_start[i]) as f:
+                await f.write(part_data[i])
 
-        await asyncio.gather(*[
-            create_part(i) for i in range(num_parts)])
+        if permutation:
+            # do it in a fixed order
+            for i in permutation:
+                await create_part(i)
+        else:
+            # do in parallel
+            await asyncio.gather(*[
+                create_part(i) for i in range(len(part_data))])
 
-    expected = b''.join(parts_data)
+    expected = b''.join(part_data)
     async with await fs.open(path) as f:
         actual = await f.read()
     assert expected == actual
