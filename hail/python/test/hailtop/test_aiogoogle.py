@@ -276,8 +276,7 @@ async def test_listfiles(filesystem):
 async def test_multi_part_create(local_filesystem, permutation):
     fs, base = local_filesystem
 
-    # part_data = [secrets.token_bytes(s) for s in [8192, 8192, 8192]]
-    part_data = [b'a', b'bb', b'ccc']
+    part_data = [secrets.token_bytes(s) for s in [8192, 600, 20000]]
 
     s = 0
     part_start = []
