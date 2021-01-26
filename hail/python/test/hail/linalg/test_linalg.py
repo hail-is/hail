@@ -905,6 +905,10 @@ class Tests(unittest.TestCase):
         self.assertRaises(ValueError, lambda: hl.linalg.utils.array_windows(np.array([]), -1))
         self.assertRaises(ValueError, lambda: hl.linalg.utils.array_windows(np.array(['str']), 1))
 
+    def test_locus_windows_per_contig(self):
+        f = hl._locus_windows_per_contig([[1.0, 3.0, 4.0], [2.0, 2.0], [5.0]], 1.0)
+        assert hl.eval(f) == ([0, 1, 1, 3, 3, 5], [1, 3, 3, 5, 5, 6])
+
     def test_locus_windows(self):
         def assert_eq(a, b):
             assert np.array_equal(a, np.array(b)), f"a={a}, b={b}"

@@ -260,6 +260,8 @@ object LocusFunctions extends RegistryFunctions {
           val offset = cb.newLocal[Int]("locuswindows_offset", 0)
 
           val lastCoord = cb.newLocal[Double]("locuswindows_coord")
+
+          val arrayIndex = cb.newLocal[Int]("locuswindows_arrayidx", 0)
           forAllContigs { case (cb, contigIdx, coords) =>
             val i = cb.newLocal[Int]("locuswindows_i", 0)
             val idx = cb.newLocal[Int]("locuswindows_idx", 0)
@@ -297,13 +299,16 @@ object LocusFunctions extends RegistryFunctions {
               )
               cb.define(Lbreak)
 
-              addElement(cb, contigIdx, IEmitCode.present(cb, PCode(arrayType.elementType, offset + idx)))
+              addElement(cb, arrayIndex, IEmitCode.present(cb, PCode(arrayType.elementType, offset + idx)))
+              cb.assign(arrayIndex, arrayIndex + 1)
 
               cb.assign(i, i + 1)
             })
             cb.assign(offset, offset + len)
           }
 
+          cb.ifx(arrayIndex.cne(totalLen),
+            cb._fatal("locuswindows: expected arrayIndex == totalLen, got arrayIndex=", arrayIndex.toS, ", totalLen=", totalLen.toS))
           IEmitCode.present(cb, finish(cb)).memoize(cb, "locuswindows_result")
         }
 
@@ -315,7 +320,7 @@ object LocusFunctions extends RegistryFunctions {
         rt.constructFromFields(cb, r.region,
           FastIndexedSeq[EmitValue](
             addIdxWithCondition { case (cb, i, idx, coords) => coords.loadElement(cb, i).get(cb).asDouble.doubleCode(cb) > (coords.loadElement(cb, idx).get(cb).asDouble.doubleCode(cb) + radius)},
-            addIdxWithCondition { case (cb, i, idx, coords) => coords.loadElement(cb, i).get(cb).asDouble.doubleCode(cb) > (coords.loadElement(cb, idx).get(cb).asDouble.doubleCode(cb) - radius)}
+            addIdxWithCondition { case (cb, i, idx, coords) => coords.loadElement(cb, i).get(cb).asDouble.doubleCode(cb) >= (coords.loadElement(cb, idx).get(cb).asDouble.doubleCode(cb) - radius)}
           ), deepCopy = false)
     }
 

@@ -147,8 +147,8 @@ trait CodeBuilderLike {
     append(L.goto)
   }
 
-  def _fatal(msg: Code[String]): Unit = {
-    append(Code._fatal[Unit](msg))
+  def _fatal(msgs: Code[String]*): Unit = {
+    append(Code._fatal[Unit](msgs.reduce(_.concat(_))))
   }
 
   def _throw[T <: java.lang.Throwable](cerr: Code[T]): Unit = {
