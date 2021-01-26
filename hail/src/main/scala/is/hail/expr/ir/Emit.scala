@@ -345,19 +345,16 @@ case class IEmitCodeGen[+A](Lmissing: CodeLabel, Lpresent: CodeLabel, value: A) 
 object EmitCode {
   def apply(setup: Code[Unit], m: Code[Boolean], pv: PCode): EmitCode = {
     val start = CodeLabel()
-    val body = new CodeBoolean(Code(start, setup, m)).toCCode
+    val body = new CodeBoolean(Code(start, m)).toCCode
     val iec = IEmitCode(new CodeLabel(body.Ltrue), new CodeLabel(body.Lfalse), pv)
-    new EmitCode(start, iec)
+    new EmitCode(setup, start, iec)
   }
 
   def unapply(ec: EmitCode): Option[(Code[Unit], Code[Boolean], PCode)] =
     Some((ec.setup, ec.m, ec.pv))
 
-  def apply(setup: Code[Unit], ec: EmitCode): EmitCode = {
-    val start = CodeLabel()
-    Code(start, setup, ec.start.goto)
-    new EmitCode(start, ec.iec)
-  }
+  def apply(setup: Code[Unit], ec: EmitCode): EmitCode =
+    new EmitCode(Code(setup, ec.setup), ec.start, ec.iec)
 
   def apply(setup: Code[Unit], ev: EmitValue): EmitCode =
     EmitCode(setup, ev.load)
@@ -372,7 +369,7 @@ object EmitCode {
     val cb = EmitCodeBuilder(mb)
     val iec = f(cb)
     val setup = cb.result()
-    new EmitCode(new CodeLabel(setup.start), iec)
+    new EmitCode(Code._empty, new CodeLabel(setup.start), iec)
   }
 
   def codeTupleTypes(pt: PType): IndexedSeq[TypeInfo[_]] = {
@@ -391,10 +388,8 @@ object EmitCode {
   }
 }
 
-class EmitCode(private val start: CodeLabel, private val iec: IEmitCode) {
+class EmitCode(val setup: Code[Unit], private val start: CodeLabel, private val iec: IEmitCode) {
   def pv: PCode = iec.value
-
-  def setup: Code[Unit] = Code._empty
 
   def m: Code[Boolean] = new CCode(start.L, iec.Lmissing.L, iec.Lpresent.L)
 
@@ -405,9 +400,10 @@ class EmitCode(private val start: CodeLabel, private val iec: IEmitCode) {
   def value[T]: Code[T] = coerce[T](v)
 
   def map(f: PCode => PCode): EmitCode =
-    new EmitCode(start, iec.copy(value = f(iec.value)))
+    new EmitCode(setup, start, iec.copy(value = f(iec.value)))
 
   def toI(cb: EmitCodeBuilder): IEmitCode = {
+    cb += setup
     cb.goto(start)
     iec
   }
