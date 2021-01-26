@@ -1,3 +1,4 @@
+from typing import Optional
 import logging
 from functools import wraps
 import urllib.parse
@@ -10,6 +11,14 @@ from hailtop.auth import async_get_userinfo
 log = logging.getLogger('gear.auth')
 
 deploy_config = get_deploy_config()
+
+BEARER = 'Bearer '
+
+
+def maybe_parse_bearer_header(value: str) -> Optional[str]:
+    if value.startswith(BEARER):
+        return value[len(BEARER):]
+    return None
 
 
 async def _userdata_from_session_id(session_id):
@@ -34,8 +43,9 @@ async def userdata_from_rest_request(request):
     if 'Authorization' not in request.headers:
         return None
     auth_header = request.headers['Authorization']
-    if not auth_header.startswith('Bearer '):
-        return None
+    session_id = maybe_parse_bearer_header(auth_header)
+    if not session_id:
+        return session_id
     return await _userdata_from_session_id(auth_header[7:])
 
 
