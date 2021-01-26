@@ -27,8 +27,17 @@ jobs:
       - name: Setup build env
         run: conda install pip conda-build anaconda-client
 
+      - name: Fix version
+        run: |
+          MKFILE=hail/Makefile
+          MAJOR_MINOR=$(grep -Po 'HAIL_MAJOR_MINOR_VERSION := \K.*(?=)' ${MKFILE})
+          PATCH=$(grep -Po 'HAIL_PATCH_VERSION := \K.*(?=)' ${MKFILE})
+          VERSION=${MAJOR_MINOR}.${PATCH}-${GITHUB_SHA:0:7}
+          cat conda/hail/meta-template.yaml \
+          | sed s/{version}/${VERSION}/ > conda/hail/meta.yaml
+
       - name: Build package
-        run: conda build conda/$(basename $GITHUB_REPOSITORY | tr '[:upper:]' '[:lower:]')
+        run: conda build conda/hail
 
       - name: Upload to anaconda package repository
         run: |

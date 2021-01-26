@@ -1,17 +1,12 @@
-{% set name = 'hail' %}
-{% set version = '0.2.61' %}
-
 package:
-  name: {{ name|lower }}
-  version: {{ version }}
+  name: hail
+  version: {version}
 
 source:
-  git_url: https://github.com/hail-is/hail.git
-  git_rev: {{ version }}
-  sha256: unused
+  path: ../../
 
 build:
-  number: 1
+  number: 0
 
 requirements:
   build:
