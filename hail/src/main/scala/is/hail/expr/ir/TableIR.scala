@@ -1005,8 +1005,16 @@ case class TableNativeZippedReader(
 
     def splitRequestedTypes(requestedType: Type): (TStruct, TStruct) = {
       val reqStruct = requestedType.asInstanceOf[TStruct]
-      val leftStruct = reqStruct.filterSet(specLeft.table_type.rowType.fieldNames.toSet)._1
-      val rightStruct = reqStruct.filterSet(specRight.table_type.rowType.fieldNames.toSet)._1
+      val neededFields = reqStruct.fieldNames.toSet
+
+      val leftProvidedFields = specLeft.table_type.rowType.fieldNames.toSet
+      val rightProvidedFields = specRight.table_type.rowType.fieldNames.toSet
+      val leftNeededFields = leftProvidedFields.intersect(neededFields)
+      val rightNeededFields = rightProvidedFields.intersect(neededFields)
+      assert(leftNeededFields.intersect(rightNeededFields).isEmpty)
+
+      val leftStruct = reqStruct.filterSet(leftNeededFields)._1
+      val rightStruct = reqStruct.filterSet(rightNeededFields)._1
       (leftStruct, rightStruct)
     }
 
