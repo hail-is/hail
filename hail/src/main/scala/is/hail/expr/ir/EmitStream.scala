@@ -1344,6 +1344,7 @@ object EmitStream {
   ): EmitCode = {
 
     def _emitStream(cb: EmitCodeBuilder, streamIR: IR, outerRegion: ParentStagedRegion, env: Emit.E): IEmitCode = {
+      assert(cb.isOpenEnded)
 
       def emitStream(streamIR: IR, cb: EmitCodeBuilder = cb, env: Emit.E = env, outerRegion: ParentStagedRegion = outerRegion): IEmitCode =
         _emitStream(cb, streamIR, outerRegion, env)
@@ -1567,7 +1568,6 @@ object EmitStream {
         case StreamMap(childIR, name, bodyIR) =>
           val eltType = coerce[PStream](childIR.pType).elementType
 
-          val optStream = emitStream(childIR)
           emitStream(childIR).map(cb) { pc =>
             val SizedStream(setup, stream, len) = pc.asStream.stream
 
