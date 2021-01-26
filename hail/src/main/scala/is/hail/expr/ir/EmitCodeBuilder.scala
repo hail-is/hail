@@ -151,5 +151,5 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
   }
 
   // for debugging
-  def println(cString: Code[String]) = this += Code._println(cString)
+  def println(cString: Code[String]*) = this += Code._printlns(cString:_*)
 }
