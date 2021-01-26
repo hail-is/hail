@@ -941,7 +941,7 @@ class Emit[C](
 
       case ArrayLen(a) =>
         emitI(a).map(cb) { (ac) =>
-          PCode(PInt32Required, ac.asIndexable.loadLength())
+          PCode(pt, ac.asIndexable.loadLength())
         }
 
       case GetField(o, name) =>
@@ -2050,7 +2050,7 @@ class Emit[C](
     }
 
     if (result.pt != ir.pType)
-      throw new RuntimeException(s"ptype mismatch:\n  emitted:  ${result.pt}\n  inferred: ${ir.pType}")
+      throw new RuntimeException(s"ptype mismatch:\n  emitted:  ${result.pt}\n  inferred: ${ir.pType}\n  ir: $ir")
 
     result
   }
@@ -2440,7 +2440,7 @@ class Emit[C](
     }
 
     if (result.pt != ir.pType)
-      throw new RuntimeException(s"ptype mismatch:\n  emitted:  ${result.pt}\n  inferred: ${ir.pType}")
+      throw new RuntimeException(s"ptype mismatch:\n  emitted:  ${result.pt}\n  inferred: ${ir.pType}\n  ir: $ir")
 
     result
   }
