@@ -318,7 +318,7 @@ class GoogleStorageFS(serviceAccountKey: String) extends FS {
 
     blobs.getValues.iterator.asScala
       .map(b => GoogleStorageFileStatus(b))
-      .filter(fs => fs.isDirectory && fs.getPath == path)
+      .filter(fs => !(fs.isDirectory && fs.getPath == path))
       .toArray
   }
 
