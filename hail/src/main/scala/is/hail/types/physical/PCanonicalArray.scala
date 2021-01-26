@@ -161,7 +161,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
       firstElementOffset(aoff, loadLength(aoff)) + i.toL * const(elementByteSize)
     }
 
-  private def elementOffsetFromFirst(addr: Code[Long], i: Code[Int]): Code[Long] = addr + i.toL * const(elementByteSize)
+  private def elementOffsetFromFirst(firstElementAddr: Code[Long], i: Code[Int]): Code[Long] = firstElementAddr + i.toL * const(elementByteSize)
 
   def nextElementAddress(currentOffset: Long) =
     currentOffset + elementByteSize
@@ -473,7 +473,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
     val firstElementAddr = firstElementOffset(addr, length)
     cb.whileLoop(i < length, {
       f(cb, i).consume(cb,
-        setElementMissing(addr, i),
+        cb += setElementMissing(addr, i),
         { sc =>
           elementType.storeAtAddress(cb, elementOffsetFromFirst(firstElementAddr, i), region, sc, deepCopy = deepCopy)
         })
@@ -488,15 +488,15 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
   def constructFromFunctions(cb: EmitCodeBuilder, region: Value[Region], length: Value[Int], deepCopy: Boolean):
   (((EmitCodeBuilder, Value[Int], IEmitCode) => Unit, (EmitCodeBuilder => SIndexablePointerCode))) = {
 
-    val addr = cb.newLocal[Long]("pcarray_construct1_addr", allocate(region, length))
+    val addr = cb.newLocal[Long]("pcarray_construct2_addr", allocate(region, length))
     cb += stagedInitialize(addr, length, setMissing = false)
-    val i = cb.newLocal[Int]("pcarray_construct1_i", 0)
+    val i = cb.newLocal[Int]("pcarray_construct2_i", 0)
 
     val firstElementAddr = firstElementOffset(addr, length)
 
     val addElement: (EmitCodeBuilder, Value[Int], IEmitCode) => Unit = { case (cb, i, iec) =>
       iec.consume(cb,
-        setElementMissing(addr, i),
+        cb += setElementMissing(addr, i),
         { sc =>
           elementType.storeAtAddress(cb, elementOffsetFromFirst(firstElementAddr, i), region, sc, deepCopy = deepCopy)
         })

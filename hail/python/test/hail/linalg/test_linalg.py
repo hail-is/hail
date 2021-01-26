@@ -907,7 +907,7 @@ class Tests(unittest.TestCase):
 
     def test_locus_windows(self):
         def assert_eq(a, b):
-            self.assertTrue(np.array_equal(a, np.array(b)))
+            assert np.array_equal(a, np.array(b)), f"a={a}, b={b}"
 
         centimorgans = hl.literal([0.1, 1.0, 1.0, 1.5, 1.9])
 
