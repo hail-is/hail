@@ -660,6 +660,9 @@ class Emit[C](
     def emitI(ir: IR, region: StagedRegion = region, env: E = env, container: Option[AggContainer] = container, loopEnv: Option[Env[LoopRef]] = loopEnv): IEmitCode =
       this.emitI(ir, cb, region, env, container, loopEnv)
 
+    def emitInNewBuilder(cb: EmitCodeBuilder, ir: IR, region: StagedRegion = region, env: E = env, container: Option[AggContainer] = container, loopEnv: Option[Env[LoopRef]] = loopEnv): IEmitCode =
+      this.emitI(ir, cb, region, env, container, loopEnv)
+
     def emitStream(ir: IR, outerRegion: ParentStagedRegion): IEmitCode =
       EmitStream.emit(ctx, this, ir, mb, outerRegion, env, container).toI(cb)
 
@@ -742,6 +745,62 @@ class Emit[C](
       case IsNA(v) =>
         val m = emitI(v).consumeCode(cb, true, _ => false)
         presentC(m)
+
+      case Coalesce(values) =>
+        val missing = cb.newLocal[Boolean]("coalesce_missing")
+        val coalescedValue = mb.newPLocal("coalesce_value", pt)
+
+        val emittedValues = values.map(v => EmitCode.fromI(cb.emb)(cb => emitInNewBuilder(cb, v)))
+        val Ldefined = CodeLabel()
+        val Lend = CodeLabel()
+
+        emittedValues.foreach { value =>
+          value.toI(cb).consume(cb,
+            {}, // fall through to next check
+            { sc =>
+              cb.assign(coalescedValue, sc.castTo(cb, region.code, pt))
+              cb.goto(Ldefined)
+            })
+        }
+
+        // base case
+        cb.assign(missing, true)
+        cb.goto(Lend)
+
+        cb.define(Ldefined)
+        cb.assign(missing, false)
+        cb.define(Lend)
+
+        IEmitCode(cb, missing, coalescedValue.load())
+
+      case If(cond, cnsq, altr) =>
+        assert(cnsq.typ == altr.typ)
+
+        emitI(cond).flatMap(cb) { condValue =>
+
+          val codeCnsq = EmitCode.fromI(cb.emb)(cb => emitInNewBuilder(cb, cnsq))
+          val codeAltr = EmitCode.fromI(cb.emb)(cb => emitInNewBuilder(cb, altr))
+
+          val b = cb.newLocal[Boolean]("if_m", false)
+          val out = mb.newPLocal(pt)
+          cb.ifx(condValue.asBoolean.boolCode(cb), {
+            codeCnsq.toI(cb).consume(cb,
+              {
+                cb.assign(b, true)
+              }, {sc =>
+                cb.assign(out, sc.castTo(cb, region.code, pt))
+              })
+          }, {
+            codeAltr.toI(cb).consume(cb,
+              {
+                cb.assign(b, true)
+              }, {sc =>
+                cb.assign(out, sc.castTo(cb, region.code, pt))
+              })
+          })
+
+          IEmitCode(cb, b, out.load())
+        }
       case ApplyBinaryPrimOp(op, l, r) =>
         emitI(l).flatMap(cb) { pcL =>
           emitI(r).map(cb)(pcR => PCode(pt, BinaryOp.emit(op, l.typ, r.typ, pcL.code, pcR.code)))
@@ -1766,53 +1825,6 @@ class Emit[C](
       return new EmitCode(emitVoid(ir), const(false), PCode._empty)
 
     (ir: @unchecked) match {
-      case Coalesce(values) =>
-        val mout = mb.newLocal[Boolean]()
-        val out = mb.newPLocal(pt)
-
-        def f(i: Int): Code[Unit] = {
-          if (i < values.length) {
-            val ec = emit(values(i))
-            Code(ec.setup,
-              ec.m.mux(
-                f(i + 1),
-                Code(mout := false, EmitCodeBuilder.scopedVoid(mb){ cb => cb.assign(out, ec.pv.castTo(cb, region.code, pt)) })))
-          } else
-            mout := true
-        }
-
-        EmitCode(
-          setup = f(0),
-          m = mout,
-          pv = out.get)
-
-      case If(cond, cnsq, altr) =>
-        assert(cnsq.typ == altr.typ)
-
-        val codeCond = emit(cond)
-        val out = mb.newPLocal(pt)
-        val mout = mb.newLocal[Boolean]()
-        val codeCnsq = emit(cnsq)
-        val codeAltr = emit(altr)
-
-        val setup = Code(
-          codeCond.setup,
-          codeCond.m.mux(
-            mout := true,
-            coerce[Boolean](codeCond.v).mux(
-              Code(codeCnsq.setup,
-                mout := codeCnsq.m,
-                mout.mux(
-                  Code._empty,
-                  EmitCodeBuilder.scopedVoid(mb) { cb => cb.assign(out, codeCnsq.pv.castTo(cb, region.code, ir.pType)) })),
-              Code(codeAltr.setup,
-                mout := codeAltr.m,
-                mout.mux(
-                  Code._empty,
-                  EmitCodeBuilder.scopedVoid(mb) { cb => cb.assign(out, codeAltr.pv.castTo(cb, region.code, ir.pType)) })))))
-
-        EmitCode(setup, mout, out.load())
-
       case Let(name, value, body) => value.pType match {
         case streamType: PCanonicalStream =>
           val outerRegion = region.asParent(streamType.separateRegions, "Let value")
