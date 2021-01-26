@@ -239,7 +239,7 @@ class LocalAsyncFS(AsyncFS):
     async def multi_part_create(self, url: str, num_parts: int) -> MultiPartCreate:
         # create an empty file
         # will be opened r+b to write the parts
-        async with await self.create(url) as f:
+        async with await self.create(url):
             pass
         return LocalMultiPartCreate(self, self._get_path(url), num_parts)
 
