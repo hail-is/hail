@@ -149,4 +149,7 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
   def strValue(r: Value[Region], t: PType, code: Code[_]): Code[String] = {
     StringFunctions.boxArg(EmitRegion(emb, r), t)(code).invoke[String]("toString")
   }
+
+  // for debugging
+  def println(cString: Code[String]*) = this += Code._printlns(cString:_*)
 }
