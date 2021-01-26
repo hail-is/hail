@@ -3,5 +3,5 @@
 set -ex
 
 retry apt-get update
-retry apt-get -y install "$@"
+apt-get -y install "$@"
 exec rm -rf /var/lib/apt/lists/*
