@@ -344,8 +344,8 @@ case class IEmitCodeGen[+A](Lmissing: CodeLabel, Lpresent: CodeLabel, value: A) 
 
 object EmitCode {
   def apply(setup: Code[Unit], m: Code[Boolean], pv: PCode): EmitCode = {
-    val body = new CodeBoolean(Code(setup, m)).toCCode
-    val start = new CodeLabel(body.start)
+    val start = CodeLabel()
+    val body = new CodeBoolean(Code(start, setup, m)).toCCode
     val iec = IEmitCode(new CodeLabel(body.Ltrue), new CodeLabel(body.Lfalse), pv)
     new EmitCode(start, iec)
   }
@@ -354,8 +354,9 @@ object EmitCode {
     Some((ec.setup, ec.m, ec.pv))
 
   def apply(setup: Code[Unit], ec: EmitCode): EmitCode = {
-    Code(setup, ec.start.goto)
-    new EmitCode(new CodeLabel(setup.start), ec.iec)
+    val start = CodeLabel()
+    Code(start, setup, ec.start.goto)
+    new EmitCode(start, ec.iec)
   }
 
   def apply(setup: Code[Unit], ev: EmitValue): EmitCode =
