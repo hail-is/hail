@@ -1,11 +1,12 @@
 import os
-from typing import Tuple, Any, Set, Optional, Mapping, Dict, AsyncIterator, cast
+from typing import Tuple, Any, Set, Optional, Mapping, Dict, AsyncIterator, cast, Type
+from types import TracebackType
 import asyncio
 import urllib.parse
 import aiohttp
 from hailtop.aiotools import (
     FileStatus, FileListEntry, ReadableStream, WritableStream, AsyncFS,
-    FeedableAsyncIterable, FileAndDirectoryError)
+    FeedableAsyncIterable, FileAndDirectoryError, MultiPartCreate)
 from multidict import CIMultiDictProxy  # pylint: disable=unused-import
 from .base_client import BaseClient
 
@@ -171,6 +172,25 @@ class GoogleStorageFileListEntry(FileListEntry):
         return self._status
 
 
+class GoogleStorageMultiPartCreate(MultiPartCreate):
+    def __init__(self, fs, url, num_parts):
+        self._fs = fs
+        self._url = url
+        self._num_parts = num_parts
+
+    async def create_part(self, number: int, start: int):
+        raise NotImplementedError
+
+    async def __aenter__(self) -> 'GoogleStorageMultiPartCreate':
+        raise NotImplementedError
+
+    async def __aexit__(self,
+                        exc_type: Optional[Type[BaseException]],
+                        exc_val: Optional[BaseException],
+                        exc_tb: Optional[TracebackType]) -> None:
+        raise NotImplementedError
+
+
 class GoogleStorageAsyncFS(AsyncFS):
     def __init__(self, storage_client: Optional[StorageClient] = None):
         if not storage_client:
@@ -200,6 +220,9 @@ class GoogleStorageAsyncFS(AsyncFS):
     async def create(self, url: str) -> WritableStream:
         bucket, name = self._get_bucket_name(url)
         return await self._storage_client.insert_object(bucket, name)
+
+    async def multi_part_create(self, url: str, num_parts: int) -> GoogleStorageMultiPartCreate:
+        return GoogleStorageMultiPartCreate(self, url, num_parts)
 
     async def staturl(self, url: str) -> str:
         assert not url.endswith('/')

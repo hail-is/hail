@@ -50,6 +50,23 @@ class FileListEntry(abc.ABC):
         pass
 
 
+class MultiPartCreate(abc.ABC):
+    @abc.abstractmethod
+    async def create_part(self, number: int, start: int):
+        pass
+
+    @abc.abstractmethod
+    async def __aenter__(self) -> 'MultiPartCreate':
+        pass
+
+    @abc.abstractmethod
+    async def __aexit__(self,
+                        exc_type: Optional[Type[BaseException]],
+                        exc_val: Optional[BaseException],
+                        exc_tb: Optional[TracebackType]) -> None:
+        pass
+
+
 class AsyncFS(abc.ABC):
     FILE = 'file'
     DIR = 'dir'
@@ -64,6 +81,10 @@ class AsyncFS(abc.ABC):
 
     @abc.abstractmethod
     async def create(self, url: str) -> WritableStream:
+        pass
+
+    @abc.abstractmethod
+    async def multi_part_create(self, url: str, num_parts: int) -> MultiPartCreate:
         pass
 
     @abc.abstractmethod
@@ -109,7 +130,7 @@ class AsyncFS(abc.ABC):
     async def close(self) -> None:
         pass
 
-    async def __aenter__(self: AsyncFSType) -> AsyncFSType:
+    async def __aenter__(self) -> AsyncFSType:
         return self
 
     async def __aexit__(self,
@@ -165,6 +186,32 @@ class LocalFileListEntry(FileListEntry):
         return self._status
 
 
+class LocalMultiPartCreate(MultiPartCreate):
+    def __init__(self, fs: AsyncFS, path: str, num_parts: int):
+        self._fs = fs
+        self._path = path
+        self._num_parts = num_parts
+
+    async def create_part(self, number: int, start: int):
+        assert 0 <= number < self._num_parts
+        f = await blocking_to_async(self._fs._thread_pool, open, self._path, 'r+b')
+        f.seek(start)
+        return blocking_writable_stream_to_async(self._fs._thread_pool, cast(BinaryIO, f))
+
+    async def __aenter__(self) -> 'LocalMultiPartCreate':
+        return self
+
+    async def __aexit__(self,
+                        exc_type: Optional[Type[BaseException]],
+                        exc_val: Optional[BaseException],
+                        exc_tb: Optional[TracebackType]) -> None:
+        if exc_val:
+            try:
+                await self._fs.remove(self._path)
+            except FileNotFoundError:
+                pass
+
+
 class LocalAsyncFS(AsyncFS):
     def __init__(self, thread_pool: ThreadPoolExecutor, max_workers=None):
         if not thread_pool:
@@ -182,10 +229,19 @@ class LocalAsyncFS(AsyncFS):
         return parsed.path
 
     async def open(self, url: str) -> ReadableStream:
-        return blocking_readable_stream_to_async(self._thread_pool, cast(BinaryIO, open(self._get_path(url), 'rb')))
+        f = await blocking_to_async(self._thread_pool, open, self._get_path(url), 'rb')
+        return blocking_readable_stream_to_async(self._thread_pool, cast(BinaryIO, f))
 
     async def create(self, url: str) -> WritableStream:
-        return blocking_writable_stream_to_async(self._thread_pool, cast(BinaryIO, open(self._get_path(url), 'wb')))
+        f = await blocking_to_async(self._thread_pool, open, self._get_path(url), 'wb')
+        return blocking_writable_stream_to_async(self._thread_pool, cast(BinaryIO, f))
+
+    async def multi_part_create(self, url: str, num_parts: int) -> MultiPartCreate:
+        # create an empty file
+        # will be opened r+b to write the parts
+        async with await self.create(url):
+            pass
+        return LocalMultiPartCreate(self, self._get_path(url), num_parts)
 
     async def statfile(self, url: str) -> LocalStatFileStatus:
         path = self._get_path(url)
@@ -542,6 +598,10 @@ class RouterAsyncFS(AsyncFS):
     async def create(self, url: str) -> WritableStream:
         fs = self._get_fs(url)
         return await fs.create(url)
+
+    async def multi_part_create(self, url: str, num_parts: int) -> MultiPartCreate:
+        fs = self._get_fs(url)
+        return await fs.multi_part_create(url, num_parts)
 
     async def statfile(self, url: str) -> FileStatus:
         fs = self._get_fs(url)
