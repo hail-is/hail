@@ -1621,14 +1621,14 @@ object EmitStream {
                           val Lfalse = CodeLabel()
                           val Ltrue = CodeLabel()
                           emitIR(condIR, cb = cb, env = env.bind(name -> xElt), region = tmpRegion).consume(cb, {
-                            cb.goto(Ltrue)
+                            cb.goto(Lfalse)
                           }, { cond =>
                             cb.ifx(cond.asBoolean.boolCode(cb), cb.goto(Ltrue), cb.goto(Lfalse))
                           })
-                          cb.define(Ltrue)
+                          cb.define(Lfalse)
                           cb += tmpRegion.clear()
                           cb += none
-                          cb.define(Lfalse)
+                          cb.define(Ltrue)
                           cb += some(EmitCode.fromI(mb) { cb =>
                             xElt.toI(cb)
                                 .mapMissing(cb) { cb += tmpRegion.clear() }
