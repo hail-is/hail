@@ -5,7 +5,7 @@ import is.hail.asm4s.{Code, IntInfo, LongInfo, Settable, SettableBuilder, TypeIn
 import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, SortOrder}
 import is.hail.types.physical.stypes.interfaces.{SNDArray, SNDArrayValue}
 import is.hail.types.physical.stypes.{SCode, SType}
-import is.hail.types.physical.{PBaseStructCode, PCode, PNDArray, PNDArrayCode, PNDArrayValue, PSettable, PType, PValue}
+import is.hail.types.physical.{PBaseStructCode, PCanonicalNDArray, PCode, PNDArray, PNDArrayCode, PNDArrayValue, PSettable, PType, PValue}
 import is.hail.utils.FastIndexedSeq
 
 case class SNDArrayPointer(pType: PNDArray) extends SNDArray {
@@ -25,9 +25,12 @@ case class SNDArrayPointer(pType: PNDArray) extends SNDArray {
   }
 
   def fromSettables(settables: IndexedSeq[Settable[_]]): SNDArrayPointerSettable = {
-    val IndexedSeq(a: Settable[Long@unchecked]) = settables
+    val a = settables(0).asInstanceOf[Settable[Long@unchecked]]
+    val shape = settables.slice(1, 1 + pType.nDims).asInstanceOf[IndexedSeq[Settable[Long@unchecked]]]
+    val strides = settables.slice(1 + pType.nDims, 1 + 2 * pType.nDims).asInstanceOf[IndexedSeq[Settable[Long@unchecked]]]
+    val dataFirstElementPointer = settables.last.asInstanceOf[Settable[Long]]
     assert(a.ti == LongInfo)
-    new SNDArrayPointerSettable(this, a)
+    new SNDArrayPointerSettable(this, a, shape, strides, dataFirstElementPointer)
   }
 
   def fromCodes(codes: IndexedSeq[Code[_]]): SNDArrayPointerCode = {
@@ -39,22 +42,35 @@ case class SNDArrayPointer(pType: PNDArray) extends SNDArray {
 
 object SNDArrayPointerSettable {
   def apply(sb: SettableBuilder, st: SNDArrayPointer, name: String): SNDArrayPointerSettable = {
-    new SNDArrayPointerSettable(st, sb.newSettable[Long](name))
+    new SNDArrayPointerSettable(st, sb.newSettable[Long](name),
+      Array.tabulate(st.pType.nDims)(i => sb.newSettable[Long](s"${name}_nd_shape_$i")),
+      Array.tabulate(st.pType.nDims)(i => sb.newSettable[Long](s"${name}_nd_strides_$i")),
+      sb.newSettable[Long](s"${name}_nd_first_element")
+    )
   }
 }
 
-class SNDArrayPointerSettable(val st: SNDArrayPointer, val a: Settable[Long]) extends PNDArrayValue with PSettable {
+class SNDArrayPointerSettable(
+   val st: SNDArrayPointer,
+   val a: Settable[Long],
+   val shape: IndexedSeq[Settable[Long]],
+   val strides: IndexedSeq[Settable[Long]],
+   val dataFirstElement: Settable[Long]
+ ) extends PNDArrayValue with PSettable {
   val pt: PNDArray = st.pType
 
   def loadElement(indices: IndexedSeq[Value[Long]], cb: EmitCodeBuilder): PCode = {
     assert(indices.size == pt.nDims)
-    pt.elementType.loadCheapPCode(cb, pt.loadElement(cb, indices, a))
+    pt.elementType.loadCheapPCode(cb, pt.asInstanceOf[PCanonicalNDArray].loadElementFromDataAndStrides(cb, indices, dataFirstElement, strides))
   }
 
-  def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(a)
+  def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(a) ++ shape ++ strides ++ FastIndexedSeq(dataFirstElement)
 
   def store(cb: EmitCodeBuilder, v: PCode): Unit = {
     cb.assign(a, v.asInstanceOf[SNDArrayPointerCode].a)
+    (0 until pt.nDims).foreach(i => cb.assign(shape(i), pt.loadShape(cb, a, i)))
+    (0 until pt.nDims).foreach(i => cb.assign(strides(i), pt.loadStride(cb, a, i)))
+    cb.assign(dataFirstElement, pt.dataFirstElementPointer(a))
   }
 
   override def get: PCode = new SNDArrayPointerCode(st, a)
@@ -81,13 +97,9 @@ class SNDArrayPointerSettable(val st: SNDArrayPointer, val a: Settable[Long]) ex
     }
   }
 
-  override def shapes(cb: EmitCodeBuilder): IndexedSeq[Value[Long]] = {
-    Array.tabulate(pt.nDims)(i => cb.newLocal[Long](s"sndarray_shapes_$i", pt.loadShape(cb, a, i)))
-  }
+  override def shapes(cb: EmitCodeBuilder): IndexedSeq[Value[Long]] = shape
 
-  override def strides(cb: EmitCodeBuilder): IndexedSeq[Value[Long]] = {
-    Array.tabulate(pt.nDims)(i => cb.newLocal[Long](s"sndarray_strides_$i", pt.loadStride(cb, a, i)))
-  }
+  override def strides(cb: EmitCodeBuilder): IndexedSeq[Value[Long]] = strides
 
   override def sameShape(other: SNDArrayValue, cb: EmitCodeBuilder): Code[Boolean] = {
     val otherPtr = other.asInstanceOf[SNDArrayPointerSettable]
