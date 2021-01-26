@@ -1,6 +1,6 @@
 # Conda package
 
-This folder contains a Conda recipe to build the `hail` package for the [`cpg` Anaconda channel](https://anaconda.org/cpg/hail).
+This folder contains a conda recipe to build the `hail` package for the [`cpg` Anaconda channel](https://anaconda.org/cpg/hail).
 
 Note that there is also a `hail` package in the
 [`bioconda` channel](https://github.com/bioconda/bioconda-recipes/tree/master/recipes/hail)
