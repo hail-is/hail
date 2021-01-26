@@ -21,7 +21,8 @@ from aiodocker.exceptions import DockerError
 import google.oauth2.service_account
 from hailtop.utils import (time_msecs, request_retry_transient_errors,
                            RETRY_FUNCTION_SCRIPT, sleep_and_backoff, retry_all_errors, check_shell,
-                           CalledProcessError, check_shell_output, is_google_registry_image)
+                           CalledProcessError, check_shell_output, is_google_registry_image,
+                           find_spark_home)
 from hailtop.httpx import client_session
 from hailtop.batch_client.parse import (parse_cpu_in_mcpu, parse_image_tag,
                                         parse_memory_in_bytes)
@@ -522,15 +523,29 @@ class Container:
 
 
 class JVMProcess:
+    classpath = f'{find_spark_home()}/jars/*:/hail.jar'
+    stack_size = 512 * 1024
+    thread_pool = None
+
     def __init__(self, job, main_spec):
         self.job = job
-        self.command = main_spec['command']
-        self.env = main_spec['env']
+        self.heap_size = main_spec['memory'] - self.stack_size
+        self.command = ['java', '-classpath', self.classpath, f'-Xmx:{self.heap_size}', f'-Xss:{self.stack_size}']
+        self.command.extend(main_spec['command'])
+        self.env = {e['name']: e['value'] for e in main_spec['env']}
 
         self.timing = {}
 
     async def run(self):
         log.info(f'running {self}')
+        self.timing['start_time'] = time_msecs()
+        # run jvm job here
+        await check_shell_output(' '.join(self.command))
+        finish_time = time_msecs()
+        self.timing['finish_time'] = finish_time
+        start_time = self.timing['start_time']
+        self.timing['duration'] = finish_time - start_time
+
 
     async def status(self, state=None):
         return {

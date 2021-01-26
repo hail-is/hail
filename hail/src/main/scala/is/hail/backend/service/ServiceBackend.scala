@@ -38,19 +38,6 @@ class ServiceTaskContext(val partitionId: Int) extends HailTaskContext {
 
   override def attemptNumber(): Int = 0
 }
-//
-//object JobListener {
-//  def main(args: Array[String]): Unit = {
-//    val port = args(0).toInt
-//    val serverSocket = new ServerSocket(port)
-//    val clientSocket = serverSocket.accept()
-//    val is = clientSocket.getInputStream()
-//    is.read()
-//
-//  }
-//
-//
-//}
 
 object Worker {
   def main(args: Array[String]): Unit = {
