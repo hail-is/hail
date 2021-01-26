@@ -1,4 +1,4 @@
-from typing import TypeVar, Any, Optional, List, Type, BinaryIO, cast, Set, AsyncIterator, Union
+from typing import TypeVar, Any, Optional, List, Type, BinaryIO, cast, Set, AsyncIterator, Union, Dict
 from types import TracebackType
 import abc
 import os
@@ -340,12 +340,24 @@ class Transfer:
 class SourceReport:
     def __init__(self, source):
         self._source = source
-        self._source_type = None
+        self._source_type: Optional[str] = None
         self._files = 0
         self._errors = 0
         self._complete = 0
-        self._first_file_error = None
-        self._exception = None
+        self._first_file_error: Optional[Dict[str, Any]] = None
+        self._exception: Optional[Exception] = None
+
+    def set_exception(self, exception: Exception):
+        assert not self._exception
+        self._exception = exception
+
+    def set_file_error(self, srcfile: str, destfile: str, exception: Exception):
+        if self._first_file_error is None:
+            self._first_file_error = {
+                'srcfile': srcfile,
+                'destfile': destfile,
+                'exception': exception
+            }
 
     def raise_first_exception(self):
         if self._exception:
@@ -355,13 +367,17 @@ class SourceReport:
 
 
 class TransferReport:
-    def __init__(self, transfer):
+    def __init__(self, transfer: Transfer):
         self._transfer = transfer
         if isinstance(transfer.src, str):
             self._source_report = SourceReport(transfer.src)
         else:
             self._source_report = [SourceReport(s) for s in transfer.src]
-        self._exception = None
+        self._exception: Optional[Exception] = None
+
+    def set_exception(self, exception: Exception):
+        assert not self._exception
+        self._exception = exception
 
     def raise_first_exception(self):
         if self._exception:
@@ -379,7 +395,11 @@ class CopyReport:
             self._transfer_report = TransferReport(transfer)
         else:
             self._transfer_report = [TransferReport(t) for t in transfer]
-        self._exception = None
+        self._exception: Optional[Exception] = None
+
+    def set_exception(self, exception: Exception):
+        assert not self._exception
+        self._exception = exception
 
     def raise_first_exception(self):
         if self._exception:
@@ -441,12 +461,7 @@ class SourceCopier:
             source_report._complete += 1
             success = True
         except Exception as e:
-            if source_report._first_file_error is None:
-                source_report._first_file_error = {
-                    'srcfile': srcfile,
-                    'destfile': destfile,
-                    'exception': e
-                }
+            source_report.set_file_error(srcfile, destfile, e)
         finally:
             if not success:
                 source_report._errors += 1
@@ -471,8 +486,8 @@ class SourceCopier:
         return self.dest, dest_type
 
     async def copy_as_file(self,
-                           worker_pool: AsyncWorkerPool,
-                           source_report: SourceReport):  # pylint: disable=unused-argument
+                           worker_pool: AsyncWorkerPool,  # pylint: disable=unused-argument
+                           source_report: SourceReport):
         src = self.src
         if src.endswith('/'):
             await self.release_barrier()
@@ -557,7 +572,7 @@ class SourceCopier:
                 if isinstance(result, Exception):
                     raise result
         except Exception as e:
-            source_report._exception = e
+            source_report.set_exception(e)
 
 
 class Copier:
@@ -627,7 +642,7 @@ class Copier:
                     except:
                         pass
         except Exception as e:
-            transfer_report._exception = e
+            transfer_report.set_exception(e)
 
     async def copy(self, worker_pool: AsyncWorkerPool, copy_report: CopyReport, transfer: Union[Transfer, List[Transfer]]):
         try:
@@ -639,7 +654,7 @@ class Copier:
                 for r, t in zip(copy_report._transfer_report, transfer):
                     await pool.call(self._copy_one_transfer, worker_pool, r, t)
         except Exception as e:
-            copy_report._exception = e
+            copy_report.set_exception(e)
 
 
 class RouterAsyncFS(AsyncFS):
