@@ -839,8 +839,8 @@ class Emit[C](
           case Str(s) => (c: Code[String]) => c.concat("\n----------\nPython traceback:\n").concat(s)
           case s =>
             (_c: Code[String]) => {
-              val ies = emitI(s)
               val c = cb.newLocal("array_ref_c", _c)
+              val ies = emitI(s)
               ies.consume(cb, {}, { pc =>
                 cb.assign(c, c.concat("\n----------\nPython traceback:\n")
                         .concat(pc.asString.loadString()))
