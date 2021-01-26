@@ -201,6 +201,9 @@ class GoogleStorageAsyncFS(AsyncFS):
         bucket, name = self._get_bucket_name(url)
         return await self._storage_client.insert_object(bucket, name)
 
+    async def multi_part_create(self, url: str, num_parts: int) -> MultiPartCreate:
+        raise NotImplementedError
+
     async def staturl(self, url: str) -> str:
         assert not url.endswith('/')
 
