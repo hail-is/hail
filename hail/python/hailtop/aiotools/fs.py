@@ -597,6 +597,10 @@ class RouterAsyncFS(AsyncFS):
         fs = self._get_fs(url)
         return await fs.create(url)
 
+    async def multi_part_create(self, url: str, num_parts: int) -> MultiPartCreate:
+        fs = self._get_fs(url)
+        return await fs.multi_part_create(url, num_parts)
+
     async def statfile(self, url: str) -> FileStatus:
         fs = self._get_fs(url)
         return await fs.statfile(url)
