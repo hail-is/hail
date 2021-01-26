@@ -402,9 +402,9 @@ async def update_loop(app):
 
 
 async def on_startup(app):
+    app['gh_client_session'] = aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=5))
     app['github_client'] = gh_aiohttp.GitHubAPI(
-        aiohttp.ClientSession(
-            timeout=aiohttp.ClientTimeout(total=5)),
+        app['gh_client_session'],
         'ci',
         oauth_token=oauth_token)
     app['batch_client'] = await BatchClient('ci')
@@ -419,6 +419,8 @@ async def on_cleanup(app):
         dbpool = app['dbpool']
         dbpool.close()
         await dbpool.wait_closed()
+        await app['gh_client_session'].close()
+        await app['batch_client'].close()
     finally:
         app['task_manager'].shutdown()
 
