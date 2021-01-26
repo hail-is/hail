@@ -1,4 +1,4 @@
-from typing import TypeVar, Any, Optional, List, Type, BinaryIO, cast, Set, AsyncIterator, Union
+from typing import TypeVar, Any, Optional, List, Type, BinaryIO, cast, Set, AsyncIterator, Union, Dict
 from types import TracebackType
 import abc
 import os
@@ -8,7 +8,7 @@ import shutil
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
 import urllib.parse
-from hailtop.utils import blocking_to_async, url_basename, url_join
+from hailtop.utils import blocking_to_async, url_basename, url_join, AsyncWorkerPool, WaitableSharedPool
 from .stream import ReadableStream, WritableStream, blocking_readable_stream_to_async, blocking_writable_stream_to_async
 
 AsyncFSType = TypeVar('AsyncFSType', bound='AsyncFS')
@@ -337,6 +337,80 @@ class Transfer:
         self.treat_dest_as = treat_dest_as
 
 
+class SourceReport:
+    def __init__(self, source):
+        self._source = source
+        self._source_type: Optional[str] = None
+        self._files = 0
+        self._errors = 0
+        self._complete = 0
+        self._first_file_error: Optional[Dict[str, Any]] = None
+        self._exception: Optional[Exception] = None
+
+    def set_exception(self, exception: Exception):
+        assert not self._exception
+        self._exception = exception
+
+    def set_file_error(self, srcfile: str, destfile: str, exception: Exception):
+        if self._first_file_error is None:
+            self._first_file_error = {
+                'srcfile': srcfile,
+                'destfile': destfile,
+                'exception': exception
+            }
+
+    def raise_first_exception(self):
+        if self._exception:
+            raise self._exception
+        if self._first_file_error:
+            raise self._first_file_error['exception']
+
+
+class TransferReport:
+    def __init__(self, transfer: Transfer):
+        self._transfer = transfer
+        if isinstance(transfer.src, str):
+            self._source_report = SourceReport(transfer.src)
+        else:
+            self._source_report = [SourceReport(s) for s in transfer.src]
+        self._exception: Optional[Exception] = None
+
+    def set_exception(self, exception: Exception):
+        assert not self._exception
+        self._exception = exception
+
+    def raise_first_exception(self):
+        if self._exception:
+            raise self._exception
+        if isinstance(self._source_report, SourceReport):
+            self._source_report.raise_first_exception()
+        else:
+            for s in self._source_report:
+                s.raise_first_exception()
+
+
+class CopyReport:
+    def __init__(self, transfer: Union[Transfer, List[Transfer]]):
+        if isinstance(transfer, Transfer):
+            self._transfer_report = TransferReport(transfer)
+        else:
+            self._transfer_report = [TransferReport(t) for t in transfer]
+        self._exception: Optional[Exception] = None
+
+    def set_exception(self, exception: Exception):
+        assert not self._exception
+        self._exception = exception
+
+    def raise_first_exception(self):
+        if self._exception:
+            raise self._exception
+        if isinstance(self._transfer_report, TransferReport):
+            self._transfer_report.raise_first_exception()
+        else:
+            for t in self._transfer_report:
+                t.raise_first_exception()
+
+
 class SourceCopier:
     '''This class implements copy from a single source.  In general, a
     transfer will have multiple sources, and a SourceCopier will be
@@ -365,22 +439,32 @@ class SourceCopier:
         await self.release_barrier()
         await self.barrier.wait()
 
-    async def _copy_file(self, srcfile: str, destfile: str) -> None:
-        assert not destfile.endswith('/')
+    async def _copy_file(self, source_report: SourceReport, srcfile: str, destfile: str) -> None:
+        source_report._files += 1
+        success = False
+        try:
+            assert not destfile.endswith('/')
 
-        async with await self.router_fs.open(srcfile) as srcf:
-            try:
-                destf = await self.router_fs.create(destfile)
-            except FileNotFoundError:
-                await self.router_fs.makedirs(os.path.dirname(destfile), exist_ok=True)
-                destf = await self.router_fs.create(destfile)
+            async with await self.router_fs.open(srcfile) as srcf:
+                try:
+                    destf = await self.router_fs.create(destfile)
+                except FileNotFoundError:
+                    await self.router_fs.makedirs(os.path.dirname(destfile), exist_ok=True)
+                    destf = await self.router_fs.create(destfile)
 
-            async with destf:
-                while True:
-                    b = await srcf.read(Copier.BUFFER_SIZE)
-                    if not b:
-                        return
-                    await destf.write(b)
+                async with destf:
+                    while True:
+                        b = await srcf.read(Copier.BUFFER_SIZE)
+                        if not b:
+                            return
+                        await destf.write(b)
+            source_report._complete += 1
+            success = True
+        except Exception as e:
+            source_report.set_file_error(srcfile, destfile, e)
+        finally:
+            if not success:
+                source_report._errors += 1
 
     async def _full_dest(self):
         dest_type = await self.dest_type_task
@@ -401,7 +485,9 @@ class SourceCopier:
         assert not self.dest.endswith('/')
         return self.dest, dest_type
 
-    async def copy_as_file(self):
+    async def copy_as_file(self,
+                           worker_pool: AsyncWorkerPool,  # pylint: disable=unused-argument
+                           source_report: SourceReport):
         src = self.src
         if src.endswith('/'):
             await self.release_barrier()
@@ -422,13 +508,15 @@ class SourceCopier:
         if self.src_is_dir:
             raise FileAndDirectoryError(self.src)
 
+        source_report._source_type = AsyncFS.FILE
+
         full_dest, full_dest_type = await self._full_dest()
         if full_dest_type == AsyncFS.DIR:
             raise IsADirectoryError(full_dest)
 
-        await self._copy_file(src, full_dest)
+        await self._copy_file(source_report, src, full_dest)
 
-    async def copy_as_dir(self):
+    async def copy_as_dir(self, worker_pool: AsyncWorkerPool, source_report: SourceReport):
         src = self.src
         if not src.endswith('/'):
             src = src + '/'
@@ -446,39 +534,45 @@ class SourceCopier:
         if self.src_is_file:
             raise FileAndDirectoryError(self.src)
 
+        source_report._source_type = AsyncFS.DIR
+
         full_dest, full_dest_type = await self._full_dest()
         if full_dest_type == AsyncFS.FILE:
             raise NotADirectoryError(full_dest)
 
-        async for srcentry in srcentries:
-            srcfile = srcentry.url_maybe_trailing_slash()
-            assert srcfile.startswith(src)
+        async with WaitableSharedPool(worker_pool) as pool:
+            async for srcentry in srcentries:
+                srcfile = srcentry.url_maybe_trailing_slash()
+                assert srcfile.startswith(src)
 
-            # skip files with empty names
-            if srcfile.endswith('/'):
-                continue
+                # skip files with empty names
+                if srcfile.endswith('/'):
+                    continue
 
-            relsrcfile = srcfile[len(src):]
-            assert not relsrcfile.startswith('/')
+                relsrcfile = srcfile[len(src):]
+                assert not relsrcfile.startswith('/')
 
-            await self._copy_file(srcfile, url_join(full_dest, relsrcfile))
+                await pool.call(self._copy_file, source_report, srcfile, url_join(full_dest, relsrcfile))
 
-    async def copy(self):
-        # gather with return_exceptions=True to make copy
-        # deterministic with respect to exceptions
-        results = await asyncio.gather(
-            self.copy_as_file(), self.copy_as_dir(),
-            return_exceptions=True)
+    async def copy(self, worker_pool: AsyncWorkerPool, source_report: SourceReport):
+        try:
+            # gather with return_exceptions=True to make copy
+            # deterministic with respect to exceptions
+            results = await asyncio.gather(
+                self.copy_as_file(worker_pool, source_report), self.copy_as_dir(worker_pool, source_report),
+                return_exceptions=True)
 
-        assert self.pending == 0
-        assert (self.src_is_file is None) == self.src.endswith('/')
-        assert self.src_is_dir is not None
+            assert self.pending == 0
+            assert (self.src_is_file is None) == self.src.endswith('/')
+            assert self.src_is_dir is not None
 
-        if (self.src_is_file is False or self.src.endswith('/')) and not self.src_is_dir:
-            raise FileNotFoundError(self.src)
-        for result in results:
-            if isinstance(result, Exception):
-                raise result
+            if (self.src_is_file is False or self.src.endswith('/')) and not self.src_is_dir:
+                raise FileNotFoundError(self.src)
+            for result in results:
+                if isinstance(result, Exception):
+                    raise result
+        except Exception as e:
+            source_report.set_exception(e)
 
 
 class Copier:
@@ -491,7 +585,7 @@ class Copier:
     def __init__(self, router_fs):
         self.router_fs = router_fs
 
-    async def _dest_type(self, transfer):
+    async def _dest_type(self, transfer: Transfer):
         '''Return the (real or assumed) type of `dest`.
 
         If the transfer assumes the type of `dest`, return that rather
@@ -514,45 +608,53 @@ class Copier:
 
         return dest_type
 
-    async def copy_source(self, transfer, src, dest_type_task):
+    async def copy_source(self, worker_pool: AsyncWorkerPool, transfer: Transfer, source_report: SourceReport, src, dest_type_task):
         src_copier = SourceCopier(self.router_fs, src, transfer.dest, transfer.treat_dest_as, dest_type_task)
-        await src_copier.copy()
+        await src_copier.copy(worker_pool, source_report)
 
-    async def _copy_one_transfer(self, transfer: Transfer):
-        dest_type_task = asyncio.create_task(self._dest_type(transfer))
-        dest_type_task_awaited = False
-
+    async def _copy_one_transfer(self, worker_pool: AsyncWorkerPool, transfer_report: TransferReport, transfer: Transfer):
         try:
-            src = transfer.src
-            if isinstance(src, list):
-                if transfer.treat_dest_as == Transfer.TARGET_FILE:
-                    raise NotADirectoryError(transfer.dest)
+            dest_type_task = asyncio.create_task(self._dest_type(transfer))
+            dest_type_task_awaited = False
 
-                for s in src:
-                    await self.copy_source(transfer, s, dest_type_task)
-            else:
-                await self.copy_source(transfer, src, dest_type_task)
+            try:
+                src = transfer.src
+                if isinstance(src, str):
+                    await self.copy_source(worker_pool, transfer, transfer_report._source_report, src, dest_type_task)
+                else:
+                    if transfer.treat_dest_as == Transfer.TARGET_FILE:
+                        raise NotADirectoryError(transfer.dest)
 
-            # raise potential exception
-            dest_type_task_awaited = True
-            await dest_type_task
-        finally:
-            if not dest_type_task_awaited:
-                # retrieve dest_type_task exception to avoid
-                # "Task exception was never retrieved" errors
-                try:
-                    dest_type_task_awaited = True
-                    await dest_type_task
-                except:
-                    pass
+                    async with WaitableSharedPool(worker_pool) as pool:
+                        for r, s in zip(transfer_report._source_report, src):
+                            await pool.call(self.copy_source, worker_pool, transfer, r, s, dest_type_task)
 
-    async def copy(self, transfer: Union[Transfer, List[Transfer]]):
-        if isinstance(transfer, Transfer):
-            await self._copy_one_transfer(transfer)
-            return
+                # raise potential exception
+                dest_type_task_awaited = True
+                await dest_type_task
+            finally:
+                if not dest_type_task_awaited:
+                    # retrieve dest_type_task exception to avoid
+                    # "Task exception was never retrieved" errors
+                    try:
+                        dest_type_task_awaited = True
+                        await dest_type_task
+                    except:
+                        pass
+        except Exception as e:
+            transfer_report.set_exception(e)
 
-        for t in transfer:
-            await self._copy_one_transfer(t)
+    async def copy(self, worker_pool: AsyncWorkerPool, copy_report: CopyReport, transfer: Union[Transfer, List[Transfer]]):
+        try:
+            if isinstance(transfer, Transfer):
+                await self._copy_one_transfer(worker_pool, copy_report._transfer_report, transfer)
+                return
+
+            async with WaitableSharedPool(worker_pool) as pool:
+                for r, t in zip(copy_report._transfer_report, transfer):
+                    await pool.call(self._copy_one_transfer, worker_pool, r, t)
+        except Exception as e:
+            copy_report.set_exception(e)
 
 
 class RouterAsyncFS(AsyncFS):
@@ -643,6 +745,14 @@ class RouterAsyncFS(AsyncFS):
         for fs in self._filesystems:
             await fs.close()
 
-    async def copy(self, transfer: Union[Transfer, List[Transfer]]):
-        copier = Copier(self)
-        await copier.copy(transfer)
+    async def copy(self, transfer: Union[Transfer, List[Transfer]], raise_first_exception=True):
+        worker_pool = AsyncWorkerPool(50)
+        try:
+            copier = Copier(self)
+            copy_report = CopyReport(transfer)
+            await copier.copy(worker_pool, copy_report, transfer)
+            if raise_first_exception:
+                copy_report.raise_first_exception()
+            return copy_report
+        finally:
+            worker_pool.shutdown()

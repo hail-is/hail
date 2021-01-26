@@ -1,4 +1,5 @@
-from typing import Callable, TypeVar, Awaitable
+from typing import Callable, TypeVar, Awaitable, Optional, Type
+from types import TracebackType
 import subprocess
 import traceback
 import os
@@ -219,7 +220,7 @@ class AsyncWorkerPool:
 
 
 class WaitableSharedPool:
-    def __init__(self, worker_pool):
+    def __init__(self, worker_pool: AsyncWorkerPool):
         self._worker_pool = worker_pool
         self._n_submitted = 0
         self._n_complete = 0
@@ -246,6 +247,15 @@ class WaitableSharedPool:
         if self._n_complete == self._n_submitted:
             self._done.set()
         await self._done.wait()
+
+    async def __aenter__(self) -> 'WaitableSharedPool':
+        return self
+
+    async def __aexit__(self,
+                        exc_type: Optional[Type[BaseException]],
+                        exc_val: Optional[BaseException],
+                        exc_tb: Optional[TracebackType]) -> None:
+        await self.wait()
 
 
 RETRYABLE_HTTP_STATUS_CODES = {408, 500, 502, 503, 504}
