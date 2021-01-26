@@ -1036,7 +1036,7 @@ class EmitMethodBuilder[C](
       val pt: PType = _pt
 
       def load: EmitCode = {
-        new EmitCode(Code._empty,
+        EmitCode(Code._empty,
           if (pt.required)
             const(false)
           else

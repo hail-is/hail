@@ -343,8 +343,20 @@ case class IEmitCodeGen[+A](Lmissing: CodeLabel, Lpresent: CodeLabel, value: A) 
 }
 
 object EmitCode {
-  def apply(setup: Code[Unit], ec: EmitCode): EmitCode =
-    new EmitCode(Code(setup, ec.setup), ec.m, ec.pv)
+  def apply(setup: Code[Unit], m: Code[Boolean], pv: PCode): EmitCode = {
+    val body = new CodeBoolean(Code(setup, m)).toCCode
+    val start = new CodeLabel(body.start)
+    val iec = IEmitCode(new CodeLabel(body.Ltrue), new CodeLabel(body.Lfalse), pv)
+    new EmitCode(start, iec)
+  }
+
+  def unapply(ec: EmitCode): Option[(Code[Unit], Code[Boolean], PCode)] =
+    Some((ec.setup, ec.m, ec.pv))
+
+  def apply(setup: Code[Unit], ec: EmitCode): EmitCode = {
+    Code(setup, ec.start.goto)
+    new EmitCode(new CodeLabel(setup.start), ec.iec)
+  }
 
   def apply(setup: Code[Unit], ev: EmitValue): EmitCode =
     EmitCode(setup, ev.load)
@@ -359,13 +371,7 @@ object EmitCode {
     val cb = EmitCodeBuilder(mb)
     val iec = f(cb)
     val setup = cb.result()
-    val newEC = EmitCode(Code._empty,
-      new CCode(setup.start, iec.Lmissing.start, iec.Lpresent.start),
-      iec.pc)
-    iec.Lmissing.clear()
-    iec.Lpresent.clear()
-    setup.clear()
-    newEC
+    new EmitCode(new CodeLabel(setup.start), iec)
   }
 
   def codeTupleTypes(pt: PType): IndexedSeq[TypeInfo[_]] = {
@@ -378,27 +384,31 @@ object EmitCode {
 
   def fromCodeTuple(pt: PType, ct: IndexedSeq[Code[_]]): EmitCode = {
     if (pt.required)
-      new EmitCode(Code._empty, const(false), pt.fromCodeTuple(ct))
+      EmitCode(Code._empty, const(false), pt.fromCodeTuple(ct))
     else
-      new EmitCode(Code._empty, coerce[Boolean](ct.last), pt.fromCodeTuple(ct.init))
+      EmitCode(Code._empty, coerce[Boolean](ct.last), pt.fromCodeTuple(ct.init))
   }
 }
 
-case class EmitCode(setup: Code[Unit], m: Code[Boolean], pv: PCode) {
+class EmitCode(private val start: CodeLabel, private val iec: IEmitCode) {
+  def pv: PCode = iec.value
+
+  def setup: Code[Unit] = Code._empty
+
+  def m: Code[Boolean] = new CCode(start.L, iec.Lmissing.L, iec.Lpresent.L)
+
   def pt: PType = pv.pt
 
   def v: Code[_] = pv.code
 
   def value[T]: Code[T] = coerce[T](v)
 
-  def map(f: PCode => PCode): EmitCode = EmitCode(setup, m, pv = f(pv))
+  def map(f: PCode => PCode): EmitCode =
+    new EmitCode(start, iec.copy(value = f(iec.value)))
 
   def toI(cb: EmitCodeBuilder): IEmitCode = {
-    val Lmissing = CodeLabel()
-    val Lpresent = CodeLabel()
-    cb += setup
-    cb.ifx(m, { cb.goto(Lmissing) }, { cb.goto(Lpresent) })
-    IEmitCode(Lmissing, Lpresent, pv)
+    cb.goto(start)
+    iec
   }
 
   def castTo(mb: EmitMethodBuilder[_], region: Value[Region], destType: PType, deepCopy: Boolean = false): EmitCode = {
@@ -1822,7 +1832,7 @@ class Emit[C](
     // ideally, emit would not be called with void values, but initOp args can be void
     // working towards removing this
     if (pt == PVoid)
-      return new EmitCode(emitVoid(ir), const(false), PCode._empty)
+      return EmitCode(emitVoid(ir), const(false), PCode._empty)
 
     (ir: @unchecked) match {
       case Let(name, value, body) => value.pType match {
@@ -1886,8 +1896,8 @@ class Emit[C](
             (a, lessThan, sorter.distinctFromSorted { (r, v1, m1, v2, m2) =>
               EmitCodeBuilder.scopedCode[Boolean](mb) { cb =>
                 cb.invokeCode[Boolean](discardNext, r,
-                  new EmitCode(Code._empty, m1, PCode(eltType, v1)),
-                  new EmitCode(Code._empty, m2, PCode(eltType, v2)))
+                  EmitCode(Code._empty, m1, PCode(eltType, v1)),
+                  EmitCode(Code._empty, m2, PCode(eltType, v2)))
               }
             }, Array.empty[String])
           case ToDict(a) =>
@@ -1908,8 +1918,8 @@ class Emit[C](
             (a, lessThan, Code(sorter.pruneMissing, sorter.distinctFromSorted { (r, v1, m1, v2, m2) =>
               EmitCodeBuilder.scopedCode[Boolean](mb) { cb =>
                 cb.invokeCode[Boolean](discardNext, r,
-                  new EmitCode(Code._empty, m1, PCode(eltType, v1)),
-                  new EmitCode(Code._empty, m2, PCode(eltType, v2)))
+                  EmitCode(Code._empty, m1, PCode(eltType, v1)),
+                  EmitCode(Code._empty, m2, PCode(eltType, v2)))
               }
             }), Array.empty[String])
         }
@@ -2273,10 +2283,10 @@ class Emit[C](
             val gOff = cb.newLocal[Long]("cda_g_off", gDec(bodyFB.getCodeParam[Region](1), gIB))
 
             val bOffCode = cb.invokeCode[Long](bodyMB, bodyFB.getCodeParam[Region](1),
-              new EmitCode(Code._empty,
+              EmitCode(Code._empty,
                 x.decodedContextPTuple.isFieldMissing(ctxOff, 0),
                 PCode(ctxType, Region.loadIRIntermediate(ctxType)(x.decodedContextPTuple.fieldOffset(ctxOff, 0)))),
-              new EmitCode(Code._empty,
+              EmitCode(Code._empty,
                 x.decodedGlobalPTuple.isFieldMissing(gOff, 0),
                 PCode(gType, Region.loadIRIntermediate(gType)(x.decodedGlobalPTuple.fieldOffset(gOff, 0)))))
             val bOff = cb.newLocal[Long]("cda_boff", bOffCode)
@@ -2486,8 +2496,8 @@ class Emit[C](
 
     sort.emit(Code(setup, m.mux(Code._fatal[Boolean]("Result of sorting function cannot be missing."), v.code)))
     f.apply_method.emitWithBuilder(cb => cb.invokeCode[Boolean](sort, fregion,
-      new EmitCode(Code._empty, false, PCode(elemPType, f.getCodeParam[T](1))),
-      new EmitCode(Code._empty, false, PCode(elemPType, f.getCodeParam[T](2)))))
+      EmitCode(Code._empty, false, PCode(elemPType, f.getCodeParam[T](1))),
+      EmitCode(Code._empty, false, PCode(elemPType, f.getCodeParam[T](2)))))
     f
   }
 
