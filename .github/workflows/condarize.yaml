@@ -1,0 +1,45 @@
+name: CI
+on: 
+  push:
+    branches:
+      - main
+jobs:
+  build-test-publish:
+    # For tag pushes, we want to assure only the tag event triggers CI, not the accompanying commit:
+    if: "! startsWith(github.event.head_commit.message, 'Bump ') || startsWith(github.ref, 'refs/tags/')"
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash -l {0}
+    steps:
+      - uses: actions/checkout@main
+
+      - uses: conda-incubator/setup-miniconda@v2
+        with:
+          activate-environment: buildenv
+          channels: cpg,conda-forge,bioconda,defaults
+          channel-priority: true
+          python-version: 3.7
+
+      - name: Setup build env
+        run: conda install pip conda-build anaconda-client
+
+      - name: Fix version
+        run: |
+          MKFILE=hail/Makefile
+          MAJOR_MINOR=$(grep -Po 'HAIL_MAJOR_MINOR_VERSION := \K.*(?=)' ${MKFILE})
+          PATCH=$(grep -Po 'HAIL_PATCH_VERSION := \K.*(?=)' ${MKFILE})
+          VERSION=${MAJOR_MINOR}.${PATCH}-${GITHUB_SHA:0:7}
+          cat conda/hail/meta-template.yaml \
+          | sed s/{version}/${VERSION}/ > conda/hail/meta.yaml
+
+      - name: Build package
+        run: conda build conda/hail
+
+      - name: Upload to anaconda package repository
+        run: |
+          anaconda -t ${{ secrets.ANACONDA_TOKEN }} --force \
+          upload ${CONDA_PREFIX}/conda-bld/**/*.tar.bz2
