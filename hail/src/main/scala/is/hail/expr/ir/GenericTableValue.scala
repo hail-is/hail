@@ -65,7 +65,7 @@ class PartitionIteratorLongReader(
           .map(rv => EmitCode.present(eltPType, Region.loadIRIntermediate(eltPType)(rv)))
       }
 
-      interfaces.SStreamCode(coerce[PCanonicalStream](context.pType).sType, newStream)
+      interfaces.SStreamCode(interfaces.SStream(eltPType.sType), newStream)
     }
   }
 
