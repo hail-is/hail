@@ -7,7 +7,6 @@ import functools
 import asyncio
 import aiohttp
 import secrets
-from asyncinit import asyncinit
 
 from hailtop.config import get_deploy_config, DeployConfig
 from hailtop.auth import service_auth_headers
