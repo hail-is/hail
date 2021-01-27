@@ -1,6 +1,8 @@
-from typing import Optional
+from typing import Optional, Dict
+import aiohttp
 import asyncio
 
+from ..config import DeployConfig
 from . import aioclient
 
 
@@ -149,6 +151,9 @@ class Batch:
     def jobs(self, q=None):
         return agen_to_blocking(self._async_batch.jobs(q=q))
 
+    def get_job_log(self, job_id: int):
+        return async_to_blocking(self._async_batch.get_job_log(self.id, job_id))
+
     def wait(self):
         return async_to_blocking(self._async_batch.wait())
 
@@ -158,7 +163,7 @@ class Batch:
 
 class BatchBuilder:
     @classmethod
-    def from_async_builder(cls, builder: aioclient.BatchBuilder):
+    def from_async_builder(cls, builder: aioclient.BatchBuilder) -> 'BatchBuilder':
         b = object.__new__(cls)
         b._async_builder = builder
         return b
@@ -179,7 +184,7 @@ class BatchBuilder:
                    service_account=None, attributes=None, parents=None,
                    input_files=None, output_files=None, always_run=False,
                    timeout=None, gcsfuse=None, requester_pays_project=None,
-                   mount_tokens=False, network: Optional[str] = None):
+                   mount_tokens=False, network: Optional[str] = None) -> Job:
         if parents:
             parents = [parent._async_job for parent in parents]
 
@@ -199,15 +204,19 @@ class BatchBuilder:
         async_batch = async_to_blocking(self._async_builder._create(*args, **kwargs))
         return Batch.from_async_batch(async_batch)
 
-    def submit(self, *args, **kwargs):
+    def submit(self, *args, **kwargs) -> Batch:
         async_batch = async_to_blocking(self._async_builder.submit(*args, **kwargs))
         return Batch.from_async_batch(async_batch)
 
 
 class BatchClient:
-    def __init__(self, billing_project, deploy_config=None, session=None,
-                 headers=None, _token=None):
-        self._async_client = async_to_blocking(
+    def __init__(self,
+                 billing_project: str,
+                 deploy_config: Optional[DeployConfig] = None,
+                 session: Optional[aiohttp.ClientSession] = None,
+                 headers: Optional[Dict[str, str]] = None,
+                 _token: Optional[str] = None):
+        self._async_client: aioclient.BatchClient = async_to_blocking(
             aioclient.BatchClient(billing_project, deploy_config, session, headers=headers, _token=_token))
 
     @property
