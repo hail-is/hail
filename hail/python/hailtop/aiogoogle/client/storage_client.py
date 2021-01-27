@@ -1,5 +1,5 @@
 import os
-from typing import Tuple, Any, Set, Optional, Mapping, Dict, AsyncIterator, cast, Type, Iterator
+from typing import Tuple, Any, Set, Optional, Mapping, Dict, AsyncIterator, cast, Type, Iterator, List
 from types import TracebackType
 import collections
 from multidict import CIMultiDictProxy  # pylint: disable=unused-import
@@ -8,7 +8,9 @@ import logging
 import asyncio
 import urllib.parse
 import aiohttp
-from hailtop.utils import TransientError, retry_transient_errors
+from hailtop.utils import (
+    TransientError, retry_transient_errors,
+    AsyncWorkerPool, WaitableSharedPool, secret_alnum_string)
 from hailtop.aiotools import (
     FileStatus, FileListEntry, ReadableStream, WritableStream, AsyncFS,
     FeedableAsyncIterable, FileAndDirectoryError, MultiPartCreate)
@@ -389,6 +391,19 @@ class StorageClient(BaseClient):
     async def list_objects(self, bucket: str, **kwargs) -> PageIterator:
         return PageIterator(self, f'/b/{bucket}/o', kwargs)
 
+    async def compose(self, bucket: str, names: List[str], destination: str, **kwargs) -> None:
+        n = len(names)
+        if n == 0:
+            raise ValueError('no components in compose')
+        if n > 32:
+            raise ValueError(f'too many components in compose, maximum of 32: {n}')
+        assert 'json' not in kwargs
+        assert 'body' not in kwargs
+        kwargs['json'] = {
+            'sourceObjects': [{'name': name} for name in names]
+        }
+        await self.post(f'/b/{bucket}/o/{urllib.parse.quote(destination, safe="")}/compose', **kwargs)
+
 
 class GetObjectFileStatus(FileStatus):
     def __init__(self, items: Dict[str, str]):
@@ -433,22 +448,91 @@ class GoogleStorageFileListEntry(FileListEntry):
 
 
 class GoogleStorageMultiPartCreate(MultiPartCreate):
-    def __init__(self, fs, url, num_parts):
+    def __init__(self, worker_pool: AsyncWorkerPool, fs: 'GoogleStorageAsyncFS', dest_url: str, num_parts: int):
+        self._worker_pool = worker_pool
         self._fs = fs
-        self._url = url
+        self._dest_url = dest_url
         self._num_parts = num_parts
+        bucket, dest_name = fs._get_bucket_name(dest_url)
+        self._bucket = bucket
+        self._dest_name = dest_name
 
-    async def create_part(self, number: int, start: int):
-        raise NotImplementedError
+        # compute dest_dirname so gs://{bucket}/{dest_dirname}file
+        # refers to a file in dest_dirname with no double slashes
+        dest_dirname = os.path.dirname(dest_name)
+        if not dest_dirname:
+            dest_dirname = dest_dirname + '/'
+        self._dest_dirname = dest_dirname
+
+        self._token = secret_alnum_string()
+
+    def _tmp_name(self, filename: str) -> str:
+        return f'{self._dest_dirname}_/{self._token}/{filename}'
+
+    def _part_name(self, number: int) -> str:
+        return self._tmp_name(f'part-{number}')
+
+    async def create_part(self, number: int, start: int) -> WritableStream:
+        return await self._fs._storage_client.insert_object(self._bucket, self._part_name(number))
 
     async def __aenter__(self) -> 'GoogleStorageMultiPartCreate':
-        raise NotImplementedError
+        return self
+
+    async def _compose(self, names: List[str], dest_name: str):
+        print(f'in compose {names} {dest_name}')
+        try:
+            await self._fs._storage_client.compose(self._bucket, names, dest_name)
+        except Exception as e:
+            print(e)
+        finally:
+            print(f'in compose {dest_name} done')
 
     async def __aexit__(self,
                         exc_type: Optional[Type[BaseException]],
                         exc_val: Optional[BaseException],
                         exc_tb: Optional[TracebackType]) -> None:
-        raise NotImplementedError
+        try:
+            if exc_val is not None:
+                return
+
+            async def tree_compose(pool, names, dest_name):
+                n = len(names)
+                assert n > 0
+                if n <= 32:
+                    await pool.call(self._compose, names, dest_name)
+                    return
+
+                q, r = divmod(n, 32)
+                i = 0
+                p = 0
+                chunks = []
+                while i < 32:
+                    # each chunk gets q, and the first r get one more
+                    chunk_size = q
+                    if i < r:
+                        chunk_size += 1
+                    chunks.append(names[p:p + chunk_size])
+                    p += chunk_size
+                    i += 1
+                assert p == n
+                assert len(chunks) == 32
+
+                chunk_names = [self._tmp_name(f'chunk-{secret_alnum_string()}') for _ in range(32)]
+
+                async with WaitableSharedPool(self._worker_pool) as pool2:
+                    asyncio.gather(*[
+                        tree_compose(pool2, c, n)
+                        for c, n in zip(chunks, chunk_names)])
+
+                await pool.call(self._compose, chunk_names, dest_name)
+
+            async with WaitableSharedPool(self._worker_pool) as pool:
+                await tree_compose(
+                    pool,
+                    [self._part_name(i) for i in range(self._num_parts)],
+                    self._dest_name)
+        finally:
+            await self._fs.rmtree(f'gs://{self._bucket}/{self._dest_dirname}_')
 
 
 class GoogleStorageAsyncFS(AsyncFS):
@@ -477,12 +561,21 @@ class GoogleStorageAsyncFS(AsyncFS):
         bucket, name = self._get_bucket_name(url)
         return await self._storage_client.get_object(bucket, name)
 
+    async def open_from(self, url: str, start: int) -> ReadableStream:
+        bucket, name = self._get_bucket_name(url)
+        return await self._storage_client.get_object(
+            bucket, name, headers={'Range': f'bytes={start}-'})
+
     async def create(self, url: str) -> WritableStream:
         bucket, name = self._get_bucket_name(url)
         return await self._storage_client.insert_object(bucket, name)
 
-    async def multi_part_create(self, url: str, num_parts: int) -> GoogleStorageMultiPartCreate:
-        return GoogleStorageMultiPartCreate(self, url, num_parts)
+    async def multi_part_create(
+            self,
+            worker_pool: AsyncWorkerPool,
+            url: str,
+            num_parts: int) -> GoogleStorageMultiPartCreate:
+        return GoogleStorageMultiPartCreate(worker_pool, self, url, num_parts)
 
     async def staturl(self, url: str) -> str:
         assert not url.endswith('/')
