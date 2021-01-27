@@ -43,8 +43,8 @@ from ..utils import (adjust_cores_for_memory_request, worker_memory_per_core_mib
                      query_billing_projects)
 from ..batch import batch_record_to_dict, job_record_to_dict, cancel_batch_in_db
 from ..exceptions import (BatchUserError, NonExistentBillingProjectError,
-                          NonExistentUserError, ClosedBillingProjectError,
-                          InvalidBillingLimitError)
+                          ClosedBillingProjectError, InvalidBillingLimitError,
+                          BatchOperationAlreadyCompletedError)
 from ..log_store import LogStore
 from ..database import CallError, check_call_procedure
 from ..batch_configuration import (BATCH_BUCKET_NAME, DEFAULT_NAMESPACE)
@@ -123,6 +123,12 @@ async def get_healthcheck(request):  # pylint: disable=W0613
 async def _handle_ui_error(session, f, *args, **kwargs):
     try:
         await f(*args, **kwargs)
+    except KeyError as e:
+        set_message(session, str(e), 'error')
+        return True
+    except BatchOperationAlreadyCompletedError as e:
+        set_message(session, e.message, e.ui_error_type)
+        return True
     except BatchUserError as e:
         set_message(session, e.message, e.ui_error_type)
         return True
@@ -133,6 +139,9 @@ async def _handle_ui_error(session, f, *args, **kwargs):
 async def _handle_api_error(f, *args, **kwargs):
     try:
         await f(*args, **kwargs)
+    except BatchOperationAlreadyCompletedError as e:
+        log.info(e.message)
+        return
     except BatchUserError as e:
         raise e.http_response()
 
@@ -1546,7 +1555,7 @@ WHERE billing_projects.name = %s;
             raise BatchUserError(f'Billing project {billing_project} has been closed or deleted and cannot be modified.', 'error')
 
         if row['user'] is None:
-            raise NonExistentUserError(user, billing_project)
+            raise BatchOperationAlreadyCompletedError(f'User {user} is not in billing project {billing_project}.', 'info')
 
         await tx.just_execute(
             '''
@@ -1606,7 +1615,7 @@ WHERE billing_projects.name = %s AND billing_projects.`status` != 'deleted' LOCK
             raise ClosedBillingProjectError(billing_project)
 
         if row['user'] is not None:
-            raise BatchUserError(f'User {user} is already member of billing project {billing_project}.', 'info')
+            raise BatchOperationAlreadyCompletedError(f'User {user} is already member of billing project {billing_project}.', 'info')
         await tx.execute_insertone(
             '''
 INSERT INTO billing_project_users(billing_project, user)
@@ -1657,7 +1666,7 @@ FOR UPDATE;
 ''',
             (billing_project))
         if row is not None:
-            raise BatchUserError(f'Billing project {billing_project} already exists.', 'error')
+            raise BatchOperationAlreadyCompletedError(f'Billing project {billing_project} already exists.', 'info')
 
         await tx.execute_insertone(
             '''
@@ -1678,11 +1687,8 @@ async def post_create_billing_projects(request, userdata):  # pylint: disable=un
     billing_project = post['billing_project']
 
     session = await aiohttp_session.get_session(request)
-    try:
-        await _create_billing_project(db, billing_project)
-    except KeyError as e:
-        set_message(session, str(e), 'error')
-    else:
+    errored = await _handle_ui_error(session, _close_billing_project, db, billing_project)
+    if not errored:
         set_message(session, f'Added billing project {billing_project}.', 'info')
 
     return web.HTTPFound(deploy_config.external_url('batch', '/billing_projects'))
@@ -1715,7 +1721,7 @@ WHERE name = %s LIMIT 1 FOR UPDATE;
             raise NonExistentBillingProjectError(billing_project)
         assert row['name'] == billing_project
         if row['status'] == 'closed':
-            raise BatchUserError(f'Billing project {billing_project} is already closed or deleted.', 'info')
+            raise BatchOperationAlreadyCompletedError(f'Billing project {billing_project} is already closed or deleted.', 'info')
         if row['batch_id'] is not None:
             raise BatchUserError(f'Billing project {billing_project} has open or running batches.', 'error')
 
@@ -1763,7 +1769,7 @@ async def _reopen_billing_project(db, billing_project):
         if row['status'] == 'deleted':
             raise BatchUserError(f'Billing project {billing_project} has been deleted and cannot be reopened.', 'error')
         if row['status'] == 'open':
-            raise BatchUserError(f'Billing project {billing_project} is already open.', 'info')
+            raise BatchOperationAlreadyCompletedError(f'Billing project {billing_project} is already open.', 'info')
 
         await tx.execute_update(
             "UPDATE billing_projects SET `status` = 'open' WHERE name = %s;",
@@ -1806,7 +1812,7 @@ async def _delete_billing_project(db, billing_project):
             raise NonExistentBillingProjectError(billing_project)
         assert row['name'] == billing_project
         if row['status'] == 'deleted':
-            raise BatchUserError(f'Billing project {billing_project} is already deleted.', 'info')
+            raise BatchOperationAlreadyCompletedError(f'Billing project {billing_project} is already deleted.', 'info')
         if row['status'] == 'open':
             raise BatchUserError(f'Billing project {billing_project} is open and cannot be deleted.', 'error')
 
