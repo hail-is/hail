@@ -1060,7 +1060,7 @@ class Expression(object):
         return {}
 
     def _summary_aggs(self):
-        return hl.null(hl.tint32)
+        return hl.missing(hl.tint32)
 
     def _all_summary_aggs(self):
         return hl.tuple((

@@ -27,7 +27,7 @@ from .functions import literal, chi_squared_test, if_else, cond, switch, case, \
     fisher_exact_test, gp_dosage, hardy_weinberg_test, parse_locus, \
     parse_variant, variant_str, locus, locus_from_global_position, interval, \
     locus_interval, parse_locus_interval, call, is_defined, is_missing, \
-    is_nan, is_finite, is_infinite, json, parse_json, log, log10, null, \
+    is_nan, is_finite, is_infinite, json, parse_json, log, log10, null, missing, \
     or_else, coalesce, or_missing, binom_test, pchisqtail, pl_dosage, \
     pl_to_gp, pnorm, pT, pF, ppois, qchisqtail, qnorm, qpois, range, zeros, \
     rand_bool, rand_norm, rand_norm2d, rand_pois, rand_unif, rand_beta, \
@@ -127,6 +127,7 @@ __all__ = ['HailType',
            'log',
            'log10',
            'null',
+           'missing',
            'or_else',
            'coalesce',
            'or_missing',
