@@ -15,7 +15,7 @@ DOCKER_ROOT_IMAGE = os.environ.get('DOCKER_ROOT_IMAGE', 'gcr.io/hail-vdc/ubuntu:
 async def make_client():
     _bcs = []
     async def factory(project=None):
-        bc = await BatchClient(project, token_file=os.environ['HAIL_TEST_TOKEN_FILE'])
+        bc = BatchClient(project, token_file=os.environ['HAIL_TEST_TOKEN_FILE'])
         _bcs.append(bc)
         return bc
 
@@ -26,7 +26,7 @@ async def make_client():
 
 @pytest.fixture
 async def dev_client():
-    bc = await BatchClient(None, token_file=os.environ['HAIL_TEST_DEV_TOKEN_FILE'])
+    bc = BatchClient(None, token_file=os.environ['HAIL_TEST_DEV_TOKEN_FILE'])
     yield bc
     await bc.close()
 
@@ -61,7 +61,7 @@ async def new_billing_project(dev_client, get_billing_project_name):
 
 async def test_bad_token():
     token = session_id_encode_to_str(secrets.token_bytes(32))
-    bc = await BatchClient('test', _token=token)
+    bc = BatchClient('test', _token=token)
     try:
         b = bc.create_batch()
         j = b.create_job(DOCKER_ROOT_IMAGE, ['false'])

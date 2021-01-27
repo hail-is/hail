@@ -591,7 +591,6 @@ class BatchBuilder:
         return batch
 
 
-@asyncinit
 class BatchClient:
     async def __init__(self,
                        billing_project: str,
