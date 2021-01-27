@@ -484,7 +484,7 @@ class SourceCopier:
     async def _copy_part(self, source_report, srcfile, part_number, part_creator):
         try:
             async with await self.router_fs.open_from(srcfile, part_number * self.PART_SIZE) as srcf:
-                async with await part_creator.create_part(part_number) as destf:
+                async with await part_creator.create_part(part_number, part_number * self.PART_SIZE) as destf:
                     n = self.PART_SIZE
                     while n > 0:
                         b = await srcf.read(min(Copier.BUFFER_SIZE, n))
@@ -509,12 +509,18 @@ class SourceCopier:
             await self._copy_file(srcfile, destfile)
             return
 
-        n_parts = (size + self.PART_SIZE - 1) / self.PART_SIZE
+        n_parts = int((size + self.PART_SIZE - 1) / self.PART_SIZE)
 
-        async with WaitableSharedPool(worker_pool) as pool:
-            async with self.router_fs.multi_part_create(destfile, n_parts) as c:
+        try:
+            part_creator = await self.router_fs.multi_part_create(worker_pool, destfile, n_parts)
+        except FileNotFoundError:
+            await self.router_fs.makedirs(os.path.dirname(destfile), exist_ok=True)
+            part_creator = await self.router_fs.multi_part_create(worker_pool, destfile, n_parts)
+
+        async with part_creator:
+            async with WaitableSharedPool(worker_pool) as pool:
                 for i in range(n_parts):
-                    await pool.call(self._copy_part, source_report, srcfile, i, c)
+                    await pool.call(self._copy_part, source_report, srcfile, i, part_creator)
 
     async def _copy_file_multi_part(
             self,

@@ -460,7 +460,7 @@ class GoogleStorageMultiPartCreate(MultiPartCreate):
         # compute dest_dirname so gs://{bucket}/{dest_dirname}file
         # refers to a file in dest_dirname with no double slashes
         dest_dirname = os.path.dirname(dest_name)
-        if not dest_dirname:
+        if dest_dirname:
             dest_dirname = dest_dirname + '/'
         self._dest_dirname = dest_dirname
 
@@ -473,19 +473,14 @@ class GoogleStorageMultiPartCreate(MultiPartCreate):
         return self._tmp_name(f'part-{number}')
 
     async def create_part(self, number: int, start: int) -> WritableStream:
-        return await self._fs._storage_client.insert_object(self._bucket, self._part_name(number))
+        part_name = self._part_name(number)
+        return await self._fs._storage_client.insert_object(self._bucket, part_name)
 
     async def __aenter__(self) -> 'GoogleStorageMultiPartCreate':
         return self
 
     async def _compose(self, names: List[str], dest_name: str):
-        print(f'in compose {names} {dest_name}')
-        try:
-            await self._fs._storage_client.compose(self._bucket, names, dest_name)
-        except Exception as e:
-            print(e)
-        finally:
-            print(f'in compose {dest_name} done')
+        await self._fs._storage_client.compose(self._bucket, names, dest_name)
 
     async def __aexit__(self,
                         exc_type: Optional[Type[BaseException]],
