@@ -202,14 +202,17 @@ def literal(x: Any, dtype: Optional[Union[HailType, str]] = None):
     if dtype is None:
         dtype = impute_type(x)
 
+    # Special handling of numpy. Have to extract from numpy scalars, do nothing on numpy arrays
     if isinstance(x, np.generic):
         x = x.item()
-
-    try:
-        dtype._traverse(x, typecheck_expr)
-    except TypeError as e:
-        raise TypeError("'literal': object did not match the passed type '{}'"
-                        .format(dtype)) from e
+    elif isinstance(x, np.ndarray):
+        pass
+    else:
+        try:
+            dtype._traverse(x, typecheck_expr)
+        except TypeError as e:
+            raise TypeError("'literal': object did not match the passed type '{}'"
+                            .format(dtype)) from e
 
     if wrapper['has_expr']:
         return literal(hl.eval(to_expr(x, dtype)), dtype)
