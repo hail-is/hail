@@ -82,7 +82,7 @@ def loop(f: Callable, typ, *args):
     ...     new_guess = guess - (polynomial(guess) / derivative(guess))
     ...     new_error = hl.abs(new_guess - guess)
     ...     return hl.if_else(converged, guess, f(new_guess, new_error))
-    >>> x = hl.experimental.loop(find_root, hl.tfloat, 0.0, hl.null(hl.tfloat))
+    >>> x = hl.experimental.loop(find_root, hl.tfloat, 0.0, hl.missing(hl.tfloat))
     >>> hl.eval(x)
     0.8052291984599675
 

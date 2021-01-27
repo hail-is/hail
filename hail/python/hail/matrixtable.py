@@ -1749,7 +1749,7 @@ class MatrixTable(ExprContainer):
         entry_ir = hl.if_else(
             hl.is_defined(self.entry),
             self.entry,
-            hl.literal(hl.Struct(**{k: hl.null(v.dtype) for k, v in self.entry.items()})))._ir
+            hl.literal(hl.Struct(**{k: hl.missing(v.dtype) for k, v in self.entry.items()})))._ir
         return MatrixTable(ir.MatrixMapEntries(self._mir, entry_ir))
 
     @typecheck_method(row_field=str, col_field=str)

@@ -21,14 +21,14 @@ _merge_function_map = {}
 def parse_as_ints(string, has_non_ref):
     ints = string.split(r'\|')
     ints = hl.if_else(has_non_ref, ints[:-1], ints)
-    return ints.map(lambda i: hl.if_else((hl.len(i) == 0) | (i == '.'), hl.null(hl.tint32), hl.int32(i)))
+    return ints.map(lambda i: hl.if_else((hl.len(i) == 0) | (i == '.'), hl.missing(hl.tint32), hl.int32(i)))
 
 
 @typecheck(string=expr_str, has_non_ref=expr_bool)
 def parse_as_doubles(string, has_non_ref):
     ints = string.split(r'\|')
     ints = hl.if_else(has_non_ref, ints[:-1], ints)
-    return ints.map(lambda i: hl.if_else((hl.len(i) == 0) | (i == '.'), hl.null(hl.tfloat64), hl.float64(i)))
+    return ints.map(lambda i: hl.if_else((hl.len(i) == 0) | (i == '.'), hl.missing(hl.tfloat64), hl.float64(i)))
 
 
 @typecheck(string=expr_str, has_non_ref=expr_bool)
@@ -45,10 +45,10 @@ def parse_as_ranksum(string, has_non_ref):
     items = hl.if_else(has_non_ref, items[:-1], items)
     return items.map(lambda s: hl.if_else(
         (hl.len(s) == 0) | (s == '.'),
-        hl.null(typ),
+        hl.missing(typ),
         hl.rbind(s.split(','), lambda ss: hl.if_else(
             hl.len(ss) != 2,  # bad field, possibly 'NaN', just set it null
-            hl.null(hl.ttuple(hl.tfloat64, hl.tint32)),
+            hl.missing(hl.ttuple(hl.tfloat64, hl.tint32)),
             hl.tuple([hl.float64(ss[0]), hl.int32(ss[1])])))))
 
 
@@ -127,7 +127,7 @@ def transform_gvcf(mt, info_to_keep=[]) -> Table:
             triangle_without_nonref = hl.triangle(n_no_nonref)
             return (hl.case()
                     .when(index < triangle_without_nonref, e.GT)
-                    .when(index < hl.triangle(n_alleles), hl.null('call'))
+                    .when(index < hl.triangle(n_alleles), hl.missing('call'))
                     .or_error('invalid GT ' + hl.str(e.GT) + ' at site ' + hl.str(row.locus)))
 
         def make_entry_struct(e, alleles_len, has_non_ref, row):
@@ -154,14 +154,14 @@ def transform_gvcf(mt, info_to_keep=[]) -> Table:
                 handled_fields['LPL'] = hl.if_else(has_non_ref,
                                                    hl.if_else(alleles_len > 2,
                                                               e.PL[:-alleles_len],
-                                                              hl.null(e.PL.dtype)),
+                                                              hl.missing(e.PL.dtype)),
                                                    hl.if_else(alleles_len > 1,
                                                               e.PL,
-                                                              hl.null(e.PL.dtype)))
+                                                              hl.missing(e.PL.dtype)))
                 handled_fields['RGQ'] = hl.if_else(
                     has_non_ref,
                     e.PL[hl.call(0, alleles_len - 1).unphased_diploid_gt_index()],
-                    hl.null(e.PL.dtype.element_type))
+                    hl.missing(e.PL.dtype.element_type))
 
             handled_fields['END'] = row.info.END
             handled_fields['gvcf_info'] = (hl.case()
@@ -246,7 +246,7 @@ def combine(ts):
                             lambda i:
                             hl.if_else(hl.is_missing(row.data[i].__entries),
                                        hl.range(0, hl.len(gbl.g[i].__cols))
-                                       .map(lambda _: hl.null(row.data[i].__entries.dtype.element_type)),
+                                       .map(lambda _: hl.missing(row.data[i].__entries.dtype.element_type)),
                                        hl.bind(
                                            lambda old_to_new: row.data[i].__entries.map(
                                                lambda e: renumber_entry(e, old_to_new)),

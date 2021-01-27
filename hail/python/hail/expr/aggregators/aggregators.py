@@ -936,7 +936,7 @@ def fraction(predicate) -> Float64Expression:
     :class:`.Expression` of type :py:data:`.tfloat64`
         Fraction of records where `predicate` is ``True``.
     """
-    return hl.bind(lambda n: hl.if_else(n == 0, hl.null(hl.tfloat64),
+    return hl.bind(lambda n: hl.if_else(n == 0, hl.missing(hl.tfloat64),
                                         hl.float64(filter(predicate, count())) / n),
                    count())
 
@@ -1333,7 +1333,7 @@ def downsample(x, y, label=None, n_divisions=500) -> ArrayExpression:
         :class:`.ttuple` of :py:data:`.tfloat64`, :py:data:`.tfloat64`, and :class:`.tarray` of :py:data:`.tstr`
     """
     if label is None:
-        label = hl.null(hl.tarray(hl.tstr))
+        label = hl.missing(hl.tarray(hl.tstr))
     elif isinstance(label, StringExpression):
         label = hl.array([label])
     return _agg_func('Downsample', [x, y, label], tarray(ttuple(tfloat64, tfloat64, tarray(tstr))),
@@ -1445,8 +1445,8 @@ def info_score(gp) -> StructExpression:
                         hl.agg.count(),
                         lambda sum_variance, expected_ac, total_dosage, n:
                         hl.rbind(
-                            hl.if_else(total_dosage != 0, expected_ac / total_dosage, hl.null(hl.tfloat64)),
-                            lambda theta: hl.struct(score=hl.case().when(n == 0, hl.null(hl.tfloat64))
+                            hl.if_else(total_dosage != 0, expected_ac / total_dosage, hl.missing(hl.tfloat64)),
+                            lambda theta: hl.struct(score=hl.case().when(n == 0, hl.missing(hl.tfloat64))
                                                     .when((theta == 0.0) | (theta == 1.0), 1.0)
                                                     .default(1.0 - ((sum_variance / n) / (2 * theta * (1 - theta)))),
                                                     n_included=hl.int32(n))

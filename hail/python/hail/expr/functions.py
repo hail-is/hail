@@ -64,7 +64,7 @@ def _quantile_from_cdf(cdf, q):
                  .when(1.0, cdf.values.length() - 1)
                  .default(_lower_bound(cdf.ranks, pos) - 1))
         res = hl.if_else(n == 0,
-                         hl.null(cdf.values.dtype.element_type),
+                         hl.missing(cdf.values.dtype.element_type),
                          cdf.values[idx])
         return res
     return hl.rbind(cdf, compute)
@@ -112,8 +112,42 @@ def _error_from_cdf(cdf, failure_prob, all_quantiles=False):
 
 
 @typecheck(t=hail_type)
-def null(t: Union[HailType, str]):
+def missing(t: Union[HailType, str]):
     """Creates an expression representing a missing value of a specified type.
+
+    Examples
+    --------
+
+    >>> hl.eval(hl.missing(hl.tarray(hl.tstr)))
+    None
+
+    >>> hl.eval(hl.missing('array<str>'))
+    None
+
+    Notes
+    -----
+    This method is useful for constructing an expression that includes missing
+    values, since :obj:`None` cannot be interpreted as an expression.
+
+    Parameters
+    ----------
+    t : :class:`str` or :class:`.HailType`
+        Type of the missing expression.
+
+    Returns
+    -------
+    :class:`.Expression`
+        A missing expression of type `t`.
+    """
+    return construct_expr(ir.NA(t), t)
+
+
+@deprecated(version="0.2.62", reason="Replaced by hl.missing")
+@typecheck(t=hail_type)
+def null(t: Union[HailType, str]):
+    """Deprecated in favor of :func:`.missing`.
+
+    Creates an expression representing a missing value of a specified type.
 
     Examples
     --------
@@ -139,7 +173,7 @@ def null(t: Union[HailType, str]):
     :class:`.Expression`
         A missing expression of type `t`.
     """
-    return construct_expr(ir.NA(t), t)
+    return missing(t)
 
 
 @typecheck(x=anytype, dtype=nullable(hail_type))
@@ -218,7 +252,7 @@ def literal(x: Any, dtype: Optional[Union[HailType, str]] = None):
         return literal(hl.eval(to_expr(x, dtype)), dtype)
 
     if x is None:
-        return hl.null(dtype)
+        return hl.missing(dtype)
     elif is_primitive(dtype):
         if dtype == tint32:
             assert isinstance(x, builtins.int)
@@ -1404,10 +1438,10 @@ def is_defined(expression) -> BooleanExpression:
     >>> hl.eval(hl.is_defined(5))
     True
 
-    >>> hl.eval(hl.is_defined(hl.null(hl.tstr)))
+    >>> hl.eval(hl.is_defined(hl.missing(hl.tstr)))
     False
 
-    >>> hl.eval(hl.is_defined(hl.null(hl.tbool) & True))
+    >>> hl.eval(hl.is_defined(hl.missing(hl.tbool) & True))
     False
 
     Parameters
@@ -1433,10 +1467,10 @@ def is_missing(expression) -> BooleanExpression:
     >>> hl.eval(hl.is_missing(5))
     False
 
-    >>> hl.eval(hl.is_missing(hl.null(hl.tstr)))
+    >>> hl.eval(hl.is_missing(hl.missing(hl.tstr)))
     True
 
-    >>> hl.eval(hl.is_missing(hl.null(hl.tbool) & True))
+    >>> hl.eval(hl.is_missing(hl.missing(hl.tbool) & True))
     True
 
     Parameters
@@ -1465,7 +1499,7 @@ def is_nan(x) -> BooleanExpression:
     >>> hl.eval(hl.is_nan(hl.literal(0) / 0))
     True
 
-    >>> hl.eval(hl.is_nan(hl.literal(0) / hl.null(hl.tfloat64)))
+    >>> hl.eval(hl.is_nan(hl.literal(0) / hl.missing(hl.tfloat64)))
     None
 
     Notes
@@ -1502,7 +1536,7 @@ def is_finite(x) -> BooleanExpression:
     >>> hl.eval(hl.is_finite(float('inf')))
     False
 
-    >>> hl.eval(hl.is_finite(hl.null('float32')))
+    >>> hl.eval(hl.is_finite(hl.missing('float32')))
     None
 
     Notes
@@ -1535,7 +1569,7 @@ def is_infinite(x) -> BooleanExpression:
     >>> hl.eval(hl.is_infinite(float('inf')))
     True
 
-    >>> hl.eval(hl.is_infinite(hl.null('float32')))
+    >>> hl.eval(hl.is_infinite(hl.missing('float32')))
     None
 
     Notes
@@ -1671,7 +1705,7 @@ def coalesce(*args):
     Examples
     --------
 
-    >>> x1 = hl.null('int')
+    >>> x1 = hl.missing('int')
     >>> x2 = 2
     >>> hl.eval(hl.coalesce(x1, x2))
     2
@@ -1714,7 +1748,7 @@ def or_else(a, b):
     >>> hl.eval(hl.or_else(5, 7))
     5
 
-    >>> hl.eval(hl.or_else(hl.null(hl.tint32), 7))
+    >>> hl.eval(hl.or_else(hl.missing(hl.tint32), 7))
     7
 
     See Also
@@ -1763,7 +1797,7 @@ def or_missing(predicate, value):
         This expression has the same type as `b`.
     """
 
-    return hl.if_else(predicate, value, hl.null(value.dtype))
+    return hl.if_else(predicate, value, hl.missing(value.dtype))
 
 
 @typecheck(x=expr_int32, n=expr_int32, p=expr_float64,
@@ -5490,7 +5524,7 @@ def format(f, *args):
     >>> hl.eval(hl.format('%.3e', 0.09345332))
     '9.345e-02'
 
-    >>> hl.eval(hl.format('%.4f', hl.null(hl.tfloat64)))
+    >>> hl.eval(hl.format('%.4f', hl.missing(hl.tfloat64)))
     'null'
 
     >>> hl.eval(hl.format('%s %s %s', 'hello', hl.tuple([3, hl.locus('1', 2453)]), True))
@@ -5823,7 +5857,7 @@ def binary_search(array, elem) -> Int32Expression:
     if not c.can_coerce(elem.dtype):
         raise TypeError(f"'binary_search': cannot search an array of type {array.dtype} for a value of type {elem.dtype}")
     elem = c.coerce(elem)
-    return hl.switch(elem).when_missing(hl.null(hl.tint32)).default(_lower_bound(array, elem))
+    return hl.switch(elem).when_missing(hl.missing(hl.tint32)).default(_lower_bound(array, elem))
 
 
 @typecheck(s=expr_str)

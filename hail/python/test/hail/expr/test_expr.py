@@ -322,26 +322,26 @@ class Tests(unittest.TestCase):
     def test_cond(self):
         self.assertEqual(hl.eval('A' + hl.if_else(True, 'A', 'B')), 'AA')
 
-        self.assertEqual(hl.eval(hl.if_else(True, hl.struct(), hl.null(hl.tstruct()))), hl.utils.Struct())
-        self.assertEqual(hl.eval(hl.if_else(hl.null(hl.tbool), 1, 2)), None)
-        self.assertEqual(hl.eval(hl.if_else(hl.null(hl.tbool), 1, 2, missing_false=True)), 2)
+        self.assertEqual(hl.eval(hl.if_else(True, hl.struct(), hl.missing(hl.tstruct()))), hl.utils.Struct())
+        self.assertEqual(hl.eval(hl.if_else(hl.missing(hl.tbool), 1, 2)), None)
+        self.assertEqual(hl.eval(hl.if_else(hl.missing(hl.tbool), 1, 2, missing_false=True)), 2)
 
     def test_if_else(self):
         self.assertEqual(hl.eval('A' + hl.if_else(True, 'A', 'B')), 'AA')
 
-        self.assertEqual(hl.eval(hl.if_else(True, hl.struct(), hl.null(hl.tstruct()))), hl.utils.Struct())
-        self.assertEqual(hl.eval(hl.if_else(hl.null(hl.tbool), 1, 2)), None)
-        self.assertEqual(hl.eval(hl.if_else(hl.null(hl.tbool), 1, 2, missing_false=True)), 2)
+        self.assertEqual(hl.eval(hl.if_else(True, hl.struct(), hl.missing(hl.tstruct()))), hl.utils.Struct())
+        self.assertEqual(hl.eval(hl.if_else(hl.missing(hl.tbool), 1, 2)), None)
+        self.assertEqual(hl.eval(hl.if_else(hl.missing(hl.tbool), 1, 2, missing_false=True)), 2)
 
     def test_aggregators(self):
         table = hl.utils.range_table(10)
         r = table.aggregate(hl.struct(x=hl.agg.count(),
                                       y=hl.agg.count_where(table.idx % 2 == 0),
                                       z=hl.agg.filter(table.idx % 2 == 0, hl.agg.count()),
-                                      arr_sum=hl.agg.array_sum([1, 2, hl.null(tint32)]),
+                                      arr_sum=hl.agg.array_sum([1, 2, hl.missing(tint32)]),
                                       bind_agg=hl.agg.count_where(hl.bind(lambda x: x % 2 == 0, table.idx)),
                                       mean=hl.agg.mean(table.idx),
-                                      mean2=hl.agg.mean(hl.if_else(table.idx == 9, table.idx, hl.null(tint32))),
+                                      mean2=hl.agg.mean(hl.if_else(table.idx == 9, table.idx, hl.missing(tint32))),
                                       foo=hl.min(3, hl.agg.sum(table.idx))))
 
         self.assertEqual(r.x, 10)
@@ -392,7 +392,7 @@ class Tests(unittest.TestCase):
         table.aggregate(hl.agg.approx_cdf(hl.float64(table.i)))
 
     def test_approx_cdf_all_missing(self):
-        table = hl.utils.range_table(10).annotate(foo=hl.null(tint))
+        table = hl.utils.range_table(10).annotate(foo=hl.missing(tint))
         table.aggregate(hl.agg.approx_quantiles(table.foo, qs=[0.5]))
 
     def test_approx_cdf_col_aggregate(self):
@@ -798,7 +798,7 @@ class Tests(unittest.TestCase):
         t = table.select(scan_count=hl.scan.count(),
                          scan_count_where=hl.scan.count_where(table.idx % 2 == 0),
                          scan_count_where2=hl.scan.filter(table.idx % 2 == 0, hl.scan.count()),
-                         arr_sum=hl.scan.array_sum([1, 2, hl.null(tint32)]),
+                         arr_sum=hl.scan.array_sum([1, 2, hl.missing(tint32)]),
                          bind_agg=hl.scan.count_where(hl.bind(lambda x: x % 2 == 0, table.idx)),
                          mean=hl.scan.mean(table.idx),
                          foo=hl.min(3, hl.scan.sum(table.idx)),
@@ -912,7 +912,7 @@ class Tests(unittest.TestCase):
         # FIXME: add boolean when function registry is removed
         for (f, typ) in [(lambda x: hl.int32(x), tint32), (lambda x: hl.int64(x), tint64),
                   (lambda x: hl.float32(x), tfloat32), (lambda x: hl.float64(x), tfloat64)]:
-            t = table.annotate(x=-1 * f(table.idx) - 5, y=hl.null(typ))
+            t = table.annotate(x=-1 * f(table.idx) - 5, y=hl.missing(typ))
             r = t.aggregate(hl.struct(max=hl.agg.max(t.x), max_empty=hl.agg.max(t.y),
                                       min=hl.agg.min(t.x), min_empty=hl.agg.min(t.y)))
             self.assertTrue(r.max == -5 and r.max_empty is None and
@@ -922,7 +922,7 @@ class Tests(unittest.TestCase):
         table = hl.utils.range_table(5)
         for (f, typ) in [(lambda x: hl.int32(x), tint32), (lambda x: hl.int64(x), tint64),
                          (lambda x: hl.float32(x), tfloat32), (lambda x: hl.float64(x), tfloat64)]:
-            t = table.annotate(x=-1 * f(table.idx) - 1, y=f(table.idx), z=hl.null(typ))
+            t = table.annotate(x=-1 * f(table.idx) - 1, y=f(table.idx), z=hl.missing(typ))
             r = t.aggregate(hl.struct(sum_x=hl.agg.sum(t.x), sum_y=hl.agg.sum(t.y), sum_empty=hl.agg.sum(t.z),
                                       prod_x=hl.agg.product(t.x), prod_y=hl.agg.product(t.y), prod_empty=hl.agg.product(t.z)))
             self.assertTrue(r.sum_x == -15 and r.sum_y == 10 and r.sum_empty == 0 and
@@ -1127,8 +1127,8 @@ class Tests(unittest.TestCase):
         ht = hl.utils.range_table(10)
         ht = ht.annotate(tests=hl.range(0, 10).map(
             lambda i: hl.struct(
-                x=hl.if_else(hl.rand_bool(0.1), hl.null(hl.tfloat64), hl.rand_unif(-10, 10)),
-                y=hl.if_else(hl.rand_bool(0.1), hl.null(hl.tfloat64), hl.rand_unif(-10, 10)))))
+                x=hl.if_else(hl.rand_bool(0.1), hl.missing(hl.tfloat64), hl.rand_unif(-10, 10)),
+                y=hl.if_else(hl.rand_bool(0.1), hl.missing(hl.tfloat64), hl.rand_unif(-10, 10)))))
 
         results = ht.aggregate(hl.agg.array_agg(lambda test: (hl.agg.corr(test.x, test.y), hl.agg.collect((test.x, test.y))), ht.tests))
 
@@ -1144,7 +1144,7 @@ class Tests(unittest.TestCase):
 
     def test_switch(self):
         x = hl.literal('1')
-        na = hl.null(tint32)
+        na = hl.missing(tint32)
 
         expr1 = (hl.switch(x)
             .when('123', 5)
@@ -1169,7 +1169,7 @@ class Tests(unittest.TestCase):
             .when(5, 0)
             .when(6, 1)
             .when(0, 2)
-            .when(hl.null(tint32), 3)  # NA != NA
+            .when(hl.missing(tint32), 3)  # NA != NA
             .default(4))
         self.assertEqual(hl.eval(expr4), None)
 
@@ -1177,7 +1177,7 @@ class Tests(unittest.TestCase):
             .when(5, 0)
             .when(6, 1)
             .when(0, 2)
-            .when(hl.null(tint32), 3)  # NA != NA
+            .when(hl.missing(tint32), 3)  # NA != NA
             .when_missing(-1)
             .default(4))
         self.assertEqual(hl.eval(expr5), -1)
@@ -1202,8 +1202,8 @@ class Tests(unittest.TestCase):
         self.assertEqual(hl.eval(make_case(-1)), 'D')
         self.assertEqual(hl.eval(make_case(2)), None)
 
-        self.assertEqual(hl.eval(hl.case().when(hl.null(hl.tbool), 1).default(2)), None)
-        self.assertEqual(hl.eval(hl.case(missing_false=True).when(hl.null(hl.tbool), 1).default(2)), 2)
+        self.assertEqual(hl.eval(hl.case().when(hl.missing(hl.tbool), 1).default(2)), None)
+        self.assertEqual(hl.eval(hl.case(missing_false=True).when(hl.missing(hl.tbool), 1).default(2)), 2)
 
         error_case = hl.case().when(False, 1).or_error("foo")
         with pytest.raises(hl.utils.java.HailUserError) as exc:
@@ -1260,20 +1260,20 @@ class Tests(unittest.TestCase):
         self.assertRaises(hl.expr.ExpressionException, lambda: hl.eval(list(a)))
 
     def test_dict_get(self):
-        d = hl.dict({'a': 1, 'b': 2, 'missing_value': hl.null(hl.tint32), hl.null(hl.tstr): 5})
+        d = hl.dict({'a': 1, 'b': 2, 'missing_value': hl.missing(hl.tint32), hl.missing(hl.tstr): 5})
         self.assertEqual(hl.eval(d.get('a')), 1)
         self.assertEqual(hl.eval(d['a']), 1)
         self.assertEqual(hl.eval(d.get('b')), 2)
         self.assertEqual(hl.eval(d['b']), 2)
         self.assertEqual(hl.eval(d.get('c')), None)
-        self.assertEqual(hl.eval(d.get(hl.null(hl.tstr))), 5)
-        self.assertEqual(hl.eval(d[hl.null(hl.tstr)]), 5)
+        self.assertEqual(hl.eval(d.get(hl.missing(hl.tstr))), 5)
+        self.assertEqual(hl.eval(d[hl.missing(hl.tstr)]), 5)
 
         self.assertEqual(hl.eval(d.get('c', 5)), 5)
         self.assertEqual(hl.eval(d.get('a', 5)), 1)
 
         self.assertEqual(hl.eval(d.get('missing_values')), None)
-        self.assertEqual(hl.eval(d.get('missing_values', hl.null(hl.tint32))), None)
+        self.assertEqual(hl.eval(d.get('missing_values', hl.missing(hl.tint32))), None)
         self.assertEqual(hl.eval(d.get('missing_values', 5)), 5)
 
     def test_functions_any_and_all(self):
@@ -1312,9 +1312,9 @@ class Tests(unittest.TestCase):
         df = hl.utils.range_table(10)
         df = df.annotate(all_true=True,
                          all_false=False,
-                         true_or_missing=hl.if_else(df.idx % 2 == 0, True, hl.null(tbool)),
-                         false_or_missing=hl.if_else(df.idx % 2 == 0, False, hl.null(tbool)),
-                         all_missing=hl.null(tbool),
+                         true_or_missing=hl.if_else(df.idx % 2 == 0, True, hl.missing(tbool)),
+                         false_or_missing=hl.if_else(df.idx % 2 == 0, False, hl.missing(tbool)),
+                         all_missing=hl.missing(tbool),
                          mixed_true_false=hl.if_else(df.idx % 2 == 0, True, False),
                          mixed_all=hl.switch(df.idx % 3)
                          .when(0, True)
@@ -1347,7 +1347,7 @@ class Tests(unittest.TestCase):
         self.assertTrue(
             t.all(hl._values_similar(t.prev.idx,
                                      hl.case()
-                                     .when(t.idx < 2, hl.null(hl.tint32))
+                                     .when(t.idx < 2, hl.missing(hl.tint32))
                                      .when(((t.idx - 1) % 3) == 0, t.idx - 2)
                                      .default(t.idx - 1))))
 
@@ -1375,7 +1375,7 @@ class Tests(unittest.TestCase):
 
     def test_agg_minmax(self):
         nan = float('nan')
-        na = hl.null(hl.tfloat32)
+        na = hl.missing(hl.tfloat32)
         size = 200
         for aggfunc in (agg.min, agg.max):
             array_with_nan = hl.array([0. if i == 1 else nan for i in range(size)])
@@ -1453,7 +1453,7 @@ class Tests(unittest.TestCase):
 
     def test_str_missingness(self):
         self.assertEqual(hl.eval(hl.str(1)), '1')
-        self.assertEqual(hl.eval(hl.str(hl.null('int32'))), None)
+        self.assertEqual(hl.eval(hl.str(hl.missing('int32'))), None)
 
 
     def check_expr(self, expr, expected, expected_type):
@@ -1461,11 +1461,11 @@ class Tests(unittest.TestCase):
         self.assertEqual((expected, expected_type), hl.eval_typed(expr))
 
     def test_division(self):
-        a_int32 = hl.array([2, 4, 8, 16, hl.null(tint32)])
+        a_int32 = hl.array([2, 4, 8, 16, hl.missing(tint32)])
         a_int64 = a_int32.map(lambda x: hl.int64(x))
         a_float32 = a_int32.map(lambda x: hl.float32(x))
         a_float64 = a_int32.map(lambda x: hl.float64(x))
-        int32_4s = hl.array([4, 4, 4, 4, hl.null(tint32)])
+        int32_4s = hl.array([4, 4, 4, 4, hl.missing(tint32)])
         int64_4 = hl.int64(4)
         int64_4s = int32_4s.map(lambda x: hl.int64(x))
         float32_4 = hl.float32(4)
@@ -1537,12 +1537,12 @@ class Tests(unittest.TestCase):
         self.check_expr(a_float64 / float64_4s, expected, tarray(tfloat64))
 
     def test_floor_division(self):
-        a_int32 = hl.array([2, 4, 8, 16, hl.null(tint32)])
+        a_int32 = hl.array([2, 4, 8, 16, hl.missing(tint32)])
         a_int64 = a_int32.map(lambda x: hl.int64(x))
         a_float32 = a_int32.map(lambda x: hl.float32(x))
         a_float64 = a_int32.map(lambda x: hl.float64(x))
-        int32_4s = hl.array([4, 4, 4, 4, hl.null(tint32)])
-        int32_3s = hl.array([3, 3, 3, 3, hl.null(tint32)])
+        int32_4s = hl.array([4, 4, 4, 4, hl.missing(tint32)])
+        int32_3s = hl.array([3, 3, 3, 3, hl.missing(tint32)])
         int64_3 = hl.int64(3)
         int64_3s = int32_3s.map(lambda x: hl.int64(x))
         float32_3 = hl.float32(3)
@@ -1614,12 +1614,12 @@ class Tests(unittest.TestCase):
         self.check_expr(a_float64 // float64_3s, expected, tarray(tfloat64))
 
     def test_addition(self):
-        a_int32 = hl.array([2, 4, 8, 16, hl.null(tint32)])
+        a_int32 = hl.array([2, 4, 8, 16, hl.missing(tint32)])
         a_int64 = a_int32.map(lambda x: hl.int64(x))
         a_float32 = a_int32.map(lambda x: hl.float32(x))
         a_float64 = a_int32.map(lambda x: hl.float64(x))
-        int32_4s = hl.array([4, 4, 4, 4, hl.null(tint32)])
-        int32_3s = hl.array([3, 3, 3, 3, hl.null(tint32)])
+        int32_4s = hl.array([4, 4, 4, 4, hl.missing(tint32)])
+        int32_3s = hl.array([3, 3, 3, 3, hl.missing(tint32)])
         int64_3 = hl.int64(3)
         int64_3s = int32_3s.map(lambda x: hl.int64(x))
         float32_3 = hl.float32(3)
@@ -1691,12 +1691,12 @@ class Tests(unittest.TestCase):
         self.check_expr(a_float64 + float64_3s, expected, tarray(tfloat64))
 
     def test_subtraction(self):
-        a_int32 = hl.array([2, 4, 8, 16, hl.null(tint32)])
+        a_int32 = hl.array([2, 4, 8, 16, hl.missing(tint32)])
         a_int64 = a_int32.map(lambda x: hl.int64(x))
         a_float32 = a_int32.map(lambda x: hl.float32(x))
         a_float64 = a_int32.map(lambda x: hl.float64(x))
-        int32_4s = hl.array([4, 4, 4, 4, hl.null(tint32)])
-        int32_3s = hl.array([3, 3, 3, 3, hl.null(tint32)])
+        int32_4s = hl.array([4, 4, 4, 4, hl.missing(tint32)])
+        int32_3s = hl.array([3, 3, 3, 3, hl.missing(tint32)])
         int64_3 = hl.int64(3)
         int64_3s = int32_3s.map(lambda x: hl.int64(x))
         float32_3 = hl.float32(3)
@@ -1768,12 +1768,12 @@ class Tests(unittest.TestCase):
         self.check_expr(a_float64 - float64_3s, expected, tarray(tfloat64))
 
     def test_multiplication(self):
-        a_int32 = hl.array([2, 4, 8, 16, hl.null(tint32)])
+        a_int32 = hl.array([2, 4, 8, 16, hl.missing(tint32)])
         a_int64 = a_int32.map(lambda x: hl.int64(x))
         a_float32 = a_int32.map(lambda x: hl.float32(x))
         a_float64 = a_int32.map(lambda x: hl.float64(x))
-        int32_4s = hl.array([4, 4, 4, 4, hl.null(tint32)])
-        int32_3s = hl.array([3, 3, 3, 3, hl.null(tint32)])
+        int32_4s = hl.array([4, 4, 4, 4, hl.missing(tint32)])
+        int32_3s = hl.array([3, 3, 3, 3, hl.missing(tint32)])
         int64_3 = hl.int64(3)
         int64_3s = int32_3s.map(lambda x: hl.int64(x))
         float32_3 = hl.float32(3)
@@ -1845,12 +1845,12 @@ class Tests(unittest.TestCase):
         self.check_expr(a_float64 * float64_3s, expected, tarray(tfloat64))
 
     def test_exponentiation(self):
-        a_int32 = hl.array([2, 4, 8, 16, hl.null(tint32)])
+        a_int32 = hl.array([2, 4, 8, 16, hl.missing(tint32)])
         a_int64 = a_int32.map(lambda x: hl.int64(x))
         a_float32 = a_int32.map(lambda x: hl.float32(x))
         a_float64 = a_int32.map(lambda x: hl.float64(x))
-        int32_4s = hl.array([4, 4, 4, 4, hl.null(tint32)])
-        int32_3s = hl.array([3, 3, 3, 3, hl.null(tint32)])
+        int32_4s = hl.array([4, 4, 4, 4, hl.missing(tint32)])
+        int32_3s = hl.array([3, 3, 3, 3, hl.missing(tint32)])
         int64_3 = hl.int64(3)
         int64_3s = int32_3s.map(lambda x: hl.int64(x))
         float32_3 = hl.float32(3)
@@ -1922,12 +1922,12 @@ class Tests(unittest.TestCase):
         self.check_expr(a_float64 ** float64_3s, expected, tarray(tfloat64))
 
     def test_modulus(self):
-        a_int32 = hl.array([2, 4, 8, 16, hl.null(tint32)])
+        a_int32 = hl.array([2, 4, 8, 16, hl.missing(tint32)])
         a_int64 = a_int32.map(lambda x: hl.int64(x))
         a_float32 = a_int32.map(lambda x: hl.float32(x))
         a_float64 = a_int32.map(lambda x: hl.float64(x))
-        int32_4s = hl.array([4, 4, 4, 4, hl.null(tint32)])
-        int32_3s = hl.array([3, 3, 3, 3, hl.null(tint32)])
+        int32_4s = hl.array([4, 4, 4, 4, hl.missing(tint32)])
+        int32_3s = hl.array([3, 3, 3, 3, hl.missing(tint32)])
         int64_3 = hl.int64(3)
         int64_3s = int32_3s.map(lambda x: hl.int64(x))
         float32_3 = hl.float32(3)
@@ -2000,7 +2000,7 @@ class Tests(unittest.TestCase):
 
     def test_comparisons(self):
         f0 = hl.float(0.0)
-        fnull = hl.null(tfloat)
+        fnull = hl.missing(tfloat)
         finf = hl.float(float('inf'))
         fnan = hl.float(float('nan'))
 
@@ -2160,7 +2160,7 @@ class Tests(unittest.TestCase):
         c2_hetvar = hl.call(2, 1, phased=True)
         c1 = hl.call(1)
         c0 = hl.call()
-        cNull = hl.null(tcall)
+        cNull = hl.missing(tcall)
 
         self.check_expr(c2_homref.ploidy, 2, tint32)
         self.check_expr(c2_homref[0], 0, tint32)
@@ -2285,8 +2285,8 @@ class Tests(unittest.TestCase):
 
         self.assertEqual(hl.eval(hl.dict([('1', 2), ('2', 3)])), {'1': 2, '2': 3})
         self.assertEqual(hl.eval(hl.dict({('1', 2), ('2', 3)})), {'1': 2, '2': 3})
-        self.assertEqual(hl.eval(hl.dict([('1', 2), (hl.null(tstr), 3)])), {'1': 2, None: 3})
-        self.assertEqual(hl.eval(hl.dict({('1', 2), (hl.null(tstr), 3)})), {'1': 2, None: 3})
+        self.assertEqual(hl.eval(hl.dict([('1', 2), (hl.missing(tstr), 3)])), {'1': 2, None: 3})
+        self.assertEqual(hl.eval(hl.dict({('1', 2), (hl.missing(tstr), 3)})), {'1': 2, None: 3})
 
     def test_zip(self):
         a1 = [1,2,3]
@@ -2359,7 +2359,7 @@ class Tests(unittest.TestCase):
         self.assertEqual(hl.eval(hl.len([0, 1, 4, 6])), 4)
 
         self.assertTrue(math.isnan(hl.eval(hl.mean(hl.empty_array(hl.tint)))))
-        self.assertEqual(hl.eval(hl.mean([0, 1, 4, 6, hl.null(tint32)])), 2.75)
+        self.assertEqual(hl.eval(hl.mean([0, 1, 4, 6, hl.missing(tint32)])), 2.75)
 
         self.assertEqual(hl.eval(hl.median(hl.empty_array(hl.tint))), None)
         self.assertTrue(1 <= hl.eval(hl.median([0, 1, 4, 6])) <= 4)
@@ -2393,14 +2393,14 @@ class Tests(unittest.TestCase):
         assert hl.eval(x.grouped(100)) == [[0, 1, 2, 3, 4]]
 
     def test_array_find(self):
-        self.assertEqual(hl.eval(hl.find(lambda x: x < 0, hl.null(hl.tarray(hl.tint32)))), None)
-        self.assertEqual(hl.eval(hl.find(lambda x: hl.null(hl.tbool), [1, 0, -4, 6])), None)
+        self.assertEqual(hl.eval(hl.find(lambda x: x < 0, hl.missing(hl.tarray(hl.tint32)))), None)
+        self.assertEqual(hl.eval(hl.find(lambda x: hl.missing(hl.tbool), [1, 0, -4, 6])), None)
         self.assertEqual(hl.eval(hl.find(lambda x: x < 0, [1, 0, -4, 6])), -4)
         self.assertEqual(hl.eval(hl.find(lambda x: x < 0, [1, 0, 4, 6])), None)
 
     def test_set_find(self):
-        self.assertEqual(hl.eval(hl.find(lambda x: x < 0, hl.null(hl.tset(hl.tint32)))), None)
-        self.assertEqual(hl.eval(hl.find(lambda x: hl.null(hl.tbool), hl.set([1, 0, -4, 6]))), None)
+        self.assertEqual(hl.eval(hl.find(lambda x: x < 0, hl.missing(hl.tset(hl.tint32)))), None)
+        self.assertEqual(hl.eval(hl.find(lambda x: hl.missing(hl.tbool), hl.set([1, 0, -4, 6]))), None)
         self.assertEqual(hl.eval(hl.find(lambda x: x < 0, hl.set([1, 0, -4, 6]))), -4)
         self.assertEqual(hl.eval(hl.find(lambda x: x < 0, hl.set([1, 0, 4, 6]))), None)
 
@@ -2408,16 +2408,16 @@ class Tests(unittest.TestCase):
         self.assertEqual(hl.eval(hl.sorted([0, 1, 4, 3, 2], lambda x: x % 2)), [0, 4, 2, 1, 3])
         self.assertEqual(hl.eval(hl.sorted([0, 1, 4, 3, 2], lambda x: x % 2, reverse=True)), [1, 3, 0, 4, 2])
 
-        self.assertEqual(hl.eval(hl.sorted([0, 1, 4, hl.null(tint), 3, 2], lambda x: x)), [0, 1, 2, 3, 4, None])
-        self.assertEqual(hl.sorted([0, 1, 4, hl.null(tint), 3, 2], lambda x: x, reverse=True).collect()[0], [4, 3, 2, 1, 0, None])
-        self.assertEqual(hl.eval(hl.sorted([0, 1, 4, hl.null(tint), 3, 2], lambda x: x, reverse=True)), [4, 3, 2, 1, 0, None])
+        self.assertEqual(hl.eval(hl.sorted([0, 1, 4, hl.missing(tint), 3, 2], lambda x: x)), [0, 1, 2, 3, 4, None])
+        self.assertEqual(hl.sorted([0, 1, 4, hl.missing(tint), 3, 2], lambda x: x, reverse=True).collect()[0], [4, 3, 2, 1, 0, None])
+        self.assertEqual(hl.eval(hl.sorted([0, 1, 4, hl.missing(tint), 3, 2], lambda x: x, reverse=True)), [4, 3, 2, 1, 0, None])
 
     def test_sort_by(self):
-        self.assertEqual(hl.eval(hl._sort_by(["c", "aaa", "bb", hl.null(hl.tstr)], lambda l, r: hl.len(l) < hl.len(r))), ["c", "bb", "aaa", None])
+        self.assertEqual(hl.eval(hl._sort_by(["c", "aaa", "bb", hl.missing(hl.tstr)], lambda l, r: hl.len(l) < hl.len(r))), ["c", "bb", "aaa", None])
         self.assertEqual(hl.eval(hl._sort_by([hl.Struct(x=i, y="foo", z=5.5) for i in [5, 3, 8, 2, 5]], lambda l, r: l.x < r.x)),
                          [hl.Struct(x=i, y="foo", z=5.5) for i in [2, 3, 5, 5, 8]])
         with self.assertRaises(hl.utils.java.FatalError):
-            self.assertEqual(hl.eval(hl._sort_by([hl.Struct(x=i, y="foo", z=5.5) for i in [5, 3, 8, 2, 5, hl.null(hl.tint32)]], lambda l, r: l.x < r.x)),
+            self.assertEqual(hl.eval(hl._sort_by([hl.Struct(x=i, y="foo", z=5.5) for i in [5, 3, 8, 2, 5, hl.missing(hl.tint32)]], lambda l, r: l.x < r.x)),
                              [hl.Struct(x=i, y="foo", z=5.5) for i in [2, 3, 5, 5, 8, None]])
 
     def test_array_head(self):
@@ -2467,30 +2467,30 @@ class Tests(unittest.TestCase):
             (hl.max(0, 1, 2), 2),
             (hl.max([0, 10, 2, 3, 4, 5, 6, ]), 10),
             (hl.max(0, 10, 2, 3, 4, 5, 6), 10),
-            (hl.max([-5, -4, hl.null(tint32), -3, -2, hl.null(tint32)]), -2),
-            (hl.max([float('nan'), -4, float('nan'), -3, -2, hl.null(tint32)]), float('nan')),
-            (hl.max(0.1, hl.null('float'), 0.0), 0.1),
-            (hl.max(0.1, hl.null('float'), float('nan')), float('nan')),
-            (hl.max(hl.null('float'), float('nan')), float('nan')),
-            (hl.max(0.1, hl.null('float'), float('nan'), filter_missing=False), None),
-            (hl.nanmax(0.1, hl.null('float'), float('nan')), 0.1),
-            (hl.max(hl.null('float'), float('nan')), float('nan')),
-            (hl.nanmax(hl.null('float'), float('nan')), float('nan')),
-            (hl.nanmax(hl.null('float'), float('nan'), 1.1, filter_missing=False), None),
-            (hl.max([0.1, hl.null('float'), 0.0]), 0.1),
-            (hl.max([hl.null('float'), float('nan')]), float('nan')),
-            (hl.max([0.1, hl.null('float'), float('nan')]), float('nan')),
-            (hl.max([0.1, hl.null('float'), float('nan')], filter_missing=False), None),
-            (hl.nanmax([0.1, hl.null('float'), float('nan')]), 0.1),
-            (hl.nanmax([float('nan'), 1.1, 0.1, hl.null('float'), 0.0]), 1.1),
-            (hl.max([float('nan'), 1.1, 0.1, hl.null('float'), float('nan')]), float('nan')),
-            (hl.max([float('nan'), 1.1, 0.1, hl.null('float'), float('nan')], filter_missing=False), None),
-            (hl.nanmax([float('nan'), 1.1, 0.1, hl.null('float'), float('nan')]), 1.1),
-            (hl.nanmax([hl.null('float'), float('nan'), 1.1], filter_missing=False), None),
-            (hl.max({0.1, hl.null('float'), 0.0}), 0.1),
-            (hl.max({hl.null('float'), float('nan')}), float('nan')),
-            (hl.nanmax({float('nan'), 1.1, 0.1, hl.null('float'), 0.0}), 1.1),
-            (hl.nanmax({hl.null('float'), float('nan'), 1.1}, filter_missing=False), None),
+            (hl.max([-5, -4, hl.missing(tint32), -3, -2, hl.missing(tint32)]), -2),
+            (hl.max([float('nan'), -4, float('nan'), -3, -2, hl.missing(tint32)]), float('nan')),
+            (hl.max(0.1, hl.missing('float'), 0.0), 0.1),
+            (hl.max(0.1, hl.missing('float'), float('nan')), float('nan')),
+            (hl.max(hl.missing('float'), float('nan')), float('nan')),
+            (hl.max(0.1, hl.missing('float'), float('nan'), filter_missing=False), None),
+            (hl.nanmax(0.1, hl.missing('float'), float('nan')), 0.1),
+            (hl.max(hl.missing('float'), float('nan')), float('nan')),
+            (hl.nanmax(hl.missing('float'), float('nan')), float('nan')),
+            (hl.nanmax(hl.missing('float'), float('nan'), 1.1, filter_missing=False), None),
+            (hl.max([0.1, hl.missing('float'), 0.0]), 0.1),
+            (hl.max([hl.missing('float'), float('nan')]), float('nan')),
+            (hl.max([0.1, hl.missing('float'), float('nan')]), float('nan')),
+            (hl.max([0.1, hl.missing('float'), float('nan')], filter_missing=False), None),
+            (hl.nanmax([0.1, hl.missing('float'), float('nan')]), 0.1),
+            (hl.nanmax([float('nan'), 1.1, 0.1, hl.missing('float'), 0.0]), 1.1),
+            (hl.max([float('nan'), 1.1, 0.1, hl.missing('float'), float('nan')]), float('nan')),
+            (hl.max([float('nan'), 1.1, 0.1, hl.missing('float'), float('nan')], filter_missing=False), None),
+            (hl.nanmax([float('nan'), 1.1, 0.1, hl.missing('float'), float('nan')]), 1.1),
+            (hl.nanmax([hl.missing('float'), float('nan'), 1.1], filter_missing=False), None),
+            (hl.max({0.1, hl.missing('float'), 0.0}), 0.1),
+            (hl.max({hl.missing('float'), float('nan')}), float('nan')),
+            (hl.nanmax({float('nan'), 1.1, 0.1, hl.missing('float'), 0.0}), 1.1),
+            (hl.nanmax({hl.missing('float'), float('nan'), 1.1}, filter_missing=False), None),
         ]
 
         r = hl.eval(hl.tuple(x[0] for x in exprs_and_results))
@@ -2514,30 +2514,30 @@ class Tests(unittest.TestCase):
             (hl.min(0, 1, 2), 0),
             (hl.min([10, 10, 2, 3, 4, 5, 6]), 2),
             (hl.min(0, 10, 2, 3, 4, 5, 6), 0),
-            (hl.min([-5, -4, hl.null(tint32), -3, -2, hl.null(tint32)]), -5),
-            (hl.min([float('nan'), -4, float('nan'), -3, -2, hl.null(tint32)]), float('nan')),
-            (hl.min(-0.1, hl.null('float'), 0.0), -0.1),
-            (hl.min(0.1, hl.null('float'), float('nan')), float('nan')),
-            (hl.min(hl.null('float'), float('nan')), float('nan')),
-            (hl.min(0.1, hl.null('float'), float('nan'), filter_missing=False), None),
-            (hl.nanmin(-0.1, hl.null('float'), float('nan')), -0.1),
-            (hl.min(hl.null('float'), float('nan')), float('nan')),
-            (hl.nanmin(hl.null('float'), float('nan')), float('nan')),
-            (hl.nanmin(hl.null('float'), float('nan'), 1.1, filter_missing=False), None),
-            (hl.min([-0.1, hl.null('float'), 0.0]), -0.1),
-            (hl.min([hl.null('float'), float('nan')]), float('nan')),
-            (hl.min([0.1, hl.null('float'), float('nan')]), float('nan')),
-            (hl.min([0.1, hl.null('float'), float('nan')], filter_missing=False), None),
-            (hl.nanmin([-0.1, hl.null('float'), float('nan')]), -0.1),
-            (hl.nanmin([float('nan'), -1.1, 0.1, hl.null('float'), 0.0]), -1.1),
-            (hl.min([float('nan'), 1.1, 0.1, hl.null('float'), float('nan')]), float('nan')),
-            (hl.min([float('nan'), 1.1, 0.1, hl.null('float'), float('nan')], filter_missing=False), None),
-            (hl.nanmin([float('nan'), 1.1, 0.1, hl.null('float'), float('nan')]), 0.1),
-            (hl.nanmin([hl.null('float'), float('nan'), 1.1], filter_missing=False), None),
-            (hl.min({-0.1, hl.null('float'), 0.0}), -0.1),
-            (hl.min({hl.null('float'), float('nan')}), float('nan')),
-            (hl.nanmin({float('nan'), 1.1, -0.1, hl.null('float'), 0.0}), -0.1),
-            (hl.nanmin({hl.null('float'), float('nan'), 1.1}, filter_missing=False), None),
+            (hl.min([-5, -4, hl.missing(tint32), -3, -2, hl.missing(tint32)]), -5),
+            (hl.min([float('nan'), -4, float('nan'), -3, -2, hl.missing(tint32)]), float('nan')),
+            (hl.min(-0.1, hl.missing('float'), 0.0), -0.1),
+            (hl.min(0.1, hl.missing('float'), float('nan')), float('nan')),
+            (hl.min(hl.missing('float'), float('nan')), float('nan')),
+            (hl.min(0.1, hl.missing('float'), float('nan'), filter_missing=False), None),
+            (hl.nanmin(-0.1, hl.missing('float'), float('nan')), -0.1),
+            (hl.min(hl.missing('float'), float('nan')), float('nan')),
+            (hl.nanmin(hl.missing('float'), float('nan')), float('nan')),
+            (hl.nanmin(hl.missing('float'), float('nan'), 1.1, filter_missing=False), None),
+            (hl.min([-0.1, hl.missing('float'), 0.0]), -0.1),
+            (hl.min([hl.missing('float'), float('nan')]), float('nan')),
+            (hl.min([0.1, hl.missing('float'), float('nan')]), float('nan')),
+            (hl.min([0.1, hl.missing('float'), float('nan')], filter_missing=False), None),
+            (hl.nanmin([-0.1, hl.missing('float'), float('nan')]), -0.1),
+            (hl.nanmin([float('nan'), -1.1, 0.1, hl.missing('float'), 0.0]), -1.1),
+            (hl.min([float('nan'), 1.1, 0.1, hl.missing('float'), float('nan')]), float('nan')),
+            (hl.min([float('nan'), 1.1, 0.1, hl.missing('float'), float('nan')], filter_missing=False), None),
+            (hl.nanmin([float('nan'), 1.1, 0.1, hl.missing('float'), float('nan')]), 0.1),
+            (hl.nanmin([hl.missing('float'), float('nan'), 1.1], filter_missing=False), None),
+            (hl.min({-0.1, hl.missing('float'), 0.0}), -0.1),
+            (hl.min({hl.missing('float'), float('nan')}), float('nan')),
+            (hl.nanmin({float('nan'), 1.1, -0.1, hl.missing('float'), 0.0}), -0.1),
+            (hl.nanmin({hl.missing('float'), float('nan'), 1.1}, filter_missing=False), None),
         ]
 
         r = hl.eval(hl.tuple(x[0] for x in exprs_and_results))
@@ -2647,14 +2647,14 @@ class Tests(unittest.TestCase):
         self.assertEqual(hl.eval(hl.or_else(0.5, 2)), 0.5)
 
     def test_coalesce(self):
-        self.assertEqual(hl.eval(hl.coalesce(hl.null('int'), hl.null('int'), hl.null('int'))), None)
-        self.assertEqual(hl.eval(hl.coalesce(hl.null('int'), hl.null('int'), 2)), 2)
-        self.assertEqual(hl.eval(hl.coalesce(hl.null('int'), hl.null('int'), 2.5)), 2.5)
+        self.assertEqual(hl.eval(hl.coalesce(hl.missing('int'), hl.missing('int'), hl.missing('int'))), None)
+        self.assertEqual(hl.eval(hl.coalesce(hl.missing('int'), hl.missing('int'), 2)), 2)
+        self.assertEqual(hl.eval(hl.coalesce(hl.missing('int'), hl.missing('int'), 2.5)), 2.5)
         self.assertEqual(hl.eval(hl.coalesce(2.5)), 2.5)
-        self.assertEqual(hl.eval(hl.coalesce(2.5, hl.null('int'))), 2.5)
-        self.assertEqual(hl.eval(hl.coalesce(hl.null('int'), 2.5, hl.null('int'))), 2.5)
-        self.assertEqual(hl.eval(hl.coalesce(hl.null('int'), 2.5, 100)), 2.5)
-        self.assertEqual(hl.eval(hl.coalesce(hl.null('int'), 2.5, hl.int(1) / 0)), 2.5)
+        self.assertEqual(hl.eval(hl.coalesce(2.5, hl.missing('int'))), 2.5)
+        self.assertEqual(hl.eval(hl.coalesce(hl.missing('int'), 2.5, hl.missing('int'))), 2.5)
+        self.assertEqual(hl.eval(hl.coalesce(hl.missing('int'), 2.5, 100)), 2.5)
+        self.assertEqual(hl.eval(hl.coalesce(hl.missing('int'), 2.5, hl.int(1) / 0)), 2.5)
         with self.assertRaises(TypeError):
             hl.coalesce(2.5, 'hello')
 
@@ -2975,7 +2975,7 @@ class Tests(unittest.TestCase):
 
     def test_min_rep_error(self):
         with pytest.raises(hl.utils.FatalError, match='min_rep: found null allele'):
-            hl.eval(hl.min_rep(hl.locus('1', 100), ['A', hl.null('str')]))
+            hl.eval(hl.min_rep(hl.locus('1', 100), ['A', hl.missing('str')]))
         with pytest.raises(hl.utils.FatalError, match='min_rep: expect at least one allele'):
             hl.eval(hl.min_rep(hl.locus('1', 100), hl.empty_array('str')))
 
@@ -3006,7 +3006,7 @@ class Tests(unittest.TestCase):
         self.assert_evals_to(s.union(t), set([1, 3, 7, 8]))
 
     def test_set_numeric_functions(self):
-        s = hl.set([1, 3, 5, hl.null(tint32)])
+        s = hl.set([1, 3, 5, hl.missing(tint32)])
         self.assert_evals_to(hl.min(s), 1)
         self.assert_evals_to(hl.max(s), 5)
         self.assert_evals_to(hl.mean(s), 3)
@@ -3015,13 +3015,13 @@ class Tests(unittest.TestCase):
     def test_uniroot(self):
         tol = 1.220703e-4
 
-        self.assertAlmostEqual(hl.eval(hl.uniroot(lambda x: x - 1, 0, hl.null('float'), tolerance=tol)), None)
-        self.assertAlmostEqual(hl.eval(hl.uniroot(lambda x: x - 1, hl.null('float'), 3, tolerance=tol)), None)
+        self.assertAlmostEqual(hl.eval(hl.uniroot(lambda x: x - 1, 0, hl.missing('float'), tolerance=tol)), None)
+        self.assertAlmostEqual(hl.eval(hl.uniroot(lambda x: x - 1, hl.missing('float'), 3, tolerance=tol)), None)
         self.assertAlmostEqual(hl.eval(hl.uniroot(lambda x: x - 1, 0, 3, tolerance=tol)), 1)
         self.assertAlmostEqual(hl.eval(hl.uniroot(lambda x: hl.log(x) - 1, 0, 3, tolerance=tol)), 2.718281828459045, delta=tol)
 
         with self.assertRaisesRegex(hl.utils.FatalError, "value of f\(x\) is missing"):
-            hl.eval(hl.uniroot(lambda x: hl.null('float'), 0, 1))
+            hl.eval(hl.uniroot(lambda x: hl.missing('float'), 0, 1))
         with self.assertRaisesRegex(hl.utils.HailUserError, 'opposite signs'):
             hl.eval(hl.uniroot(lambda x: x ** 2 - 0.5, -1, 1))
         with self.assertRaisesRegex(hl.utils.HailUserError, 'min must be less than max'):
@@ -3160,10 +3160,10 @@ class Tests(unittest.TestCase):
         self.assertAlmostEqual(hl.eval(hl.pl_dosage([0, 20, 100])), 0.009900990296049406)
         self.assertAlmostEqual(hl.eval(hl.pl_dosage([20, 0, 100])), 0.9900990100009803)
         self.assertAlmostEqual(hl.eval(hl.pl_dosage([20, 100, 0])), 1.980198019704931)
-        self.assertIsNone(hl.eval(hl.pl_dosage([20, hl.null('int'), 100])))
+        self.assertIsNone(hl.eval(hl.pl_dosage([20, hl.missing('int'), 100])))
 
     def test_collection_method_missingness(self):
-        a = [1, hl.null('int')]
+        a = [1, hl.missing('int')]
 
         self.assertEqual(hl.eval(hl.min(a)), 1)
         self.assertIsNone(hl.eval(hl.min(a, filter_missing=False)))
@@ -3186,11 +3186,11 @@ class Tests(unittest.TestCase):
 
     def test_format(self):
         self.assertEqual(hl.eval(hl.format("%.4f %s %.3e", 0.25, 'hello', 0.114)), '0.2500 hello 1.140e-01')
-        self.assertEqual(hl.eval(hl.format("%.4f %d", hl.null(hl.tint32), hl.null(hl.tint32))), 'null null')
+        self.assertEqual(hl.eval(hl.format("%.4f %d", hl.missing(hl.tint32), hl.missing(hl.tint32))), 'null null')
         self.assertEqual(hl.eval(hl.format("%s", hl.struct(foo=5, bar=True, baz=hl.array([4, 5])))),
                          '{foo: 5, bar: true, baz: [4,5]}')
-        self.assertEqual(hl.eval(hl.format("%s %s", hl.locus("1", 356), hl.tuple([9, True, hl.null(hl.tstr)]))), '1:356 (9, true, null)')
-        self.assertEqual(hl.eval(hl.format("%b %B %b %b", hl.null(hl.tint), hl.null(hl.tstr), True, "hello")), "false FALSE true true")
+        self.assertEqual(hl.eval(hl.format("%s %s", hl.locus("1", 356), hl.tuple([9, True, hl.missing(hl.tstr)]))), '1:356 (9, true, null)')
+        self.assertEqual(hl.eval(hl.format("%b %B %b %b", hl.missing(hl.tint), hl.missing(hl.tstr), True, "hello")), "false FALSE true true")
 
     def test_dict_and_set_type_promotion(self):
         d = hl.literal({5: 5}, dtype='dict<int64, int64>')
@@ -3215,7 +3215,7 @@ class Tests(unittest.TestCase):
 
     def test_approx_equal(self):
         self.assertTrue(hl.eval(hl.approx_equal(0.25, 0.25000001)))
-        self.assertTrue(hl.eval(hl.approx_equal(hl.null(hl.tint64), 5)) is None)
+        self.assertTrue(hl.eval(hl.approx_equal(hl.missing(hl.tint64), 5)) is None)
         self.assertFalse(hl.eval(hl.approx_equal(0.25, 0.251, absolute=True, tolerance=1e-3)))
 
     def test_issue3729(self):
@@ -3247,7 +3247,7 @@ class Tests(unittest.TestCase):
         finite = 0
         infinite = float('inf')
         nan = math.nan
-        na = hl.null('float64')
+        na = hl.missing('float64')
 
         assert hl.eval(hl.is_finite(finite)) == True
         assert hl.eval(hl.is_finite(infinite)) == False
@@ -3276,7 +3276,7 @@ class Tests(unittest.TestCase):
     def test_reversed(self):
         a = hl.array(['a', 'b', 'c'])
         ea = hl.empty_array(hl.tint)
-        na = hl.null(hl.tarray(hl.tbool))
+        na = hl.missing(hl.tarray(hl.tbool))
 
         assert hl.eval(hl.reversed(a)) == ['c', 'b', 'a']
         assert hl.eval(hl.reversed(ea)) == []
@@ -3284,7 +3284,7 @@ class Tests(unittest.TestCase):
 
         s = hl.str('abc')
         es = ''
-        ns = hl.null(hl.tstr)
+        ns = hl.missing(hl.tstr)
 
         assert hl.eval(hl.reversed(s)) == 'cba'
         assert hl.eval(hl.reversed(es)) == ''
@@ -3411,7 +3411,7 @@ class Tests(unittest.TestCase):
 
     def test_binary_search(self):
         a = hl.array([0, 2, 4, 8])
-        values = [-1, 0, 1, 2, 3, 4, 10, hl.null('int32')]
+        values = [-1, 0, 1, 2, 3, 4, 10, hl.missing('int32')]
         expected = [0, 0, 1, 1, 2, 2, 4, None]
         assert hl.eval(hl.map(lambda x: hl.binary_search(a, x), values)) == expected
 
@@ -3460,12 +3460,12 @@ class Tests(unittest.TestCase):
 
     def test_parse_json(self):
         values = [
-            hl.null('int32'),
-            hl.null('str'),
-            hl.null('struct{a:int32,b:str}'),
+            hl.missing('int32'),
+            hl.missing('str'),
+            hl.missing('struct{a:int32,b:str}'),
             hl.locus('1', 10000),
             hl.set({'x', 'y'}),
-            hl.array([1, 2, hl.null('int32')]),
+            hl.array([1, 2, hl.missing('int32')]),
             hl.call(0, 2, phased=True),
             hl.locus_interval('1', 10000, 10005),
             hl.struct(foo='bar'),
