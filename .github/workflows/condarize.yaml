@@ -44,9 +44,6 @@ jobs:
           name: meta.yaml
           path: conda/hail/
 
-      - name: Test artefacts
-        run: cat conda/hail/meta.yaml
-
       - uses: conda-incubator/setup-miniconda@v2
         with:
           activate-environment: buildenv
