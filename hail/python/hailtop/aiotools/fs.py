@@ -481,10 +481,10 @@ class SourceCopier:
                     written = await destf.write(b)
                     assert written == len(b)
 
-    async def _copy_part(self, source_report, srcfile, part_number, destfile, part_creator):
+    async def _copy_part(self, source_report, srcfile, part_number, part_creator):
         try:
             async with await self.router_fs.open_from(srcfile, part_number * self.PART_SIZE) as srcf:
-                async with await part_creater.create_part(part_number) as destf:
+                async with await part_creator.create_part(part_number) as destf:
                     n = self.PART_SIZE
                     while n > 0:
                         b = await srcf.read(min(Copier.BUFFER_SIZE, n))
@@ -497,7 +497,13 @@ class SourceCopier:
         except Exception as e:
             source_report.set_exception(e)
 
-    async def _copy_file_multi_part_main(self, source_report: SourceReport, srcfile: str, srcstat: FileStatus, destfile: str):
+    async def _copy_file_multi_part_main(
+            self,
+            worker_pool: AsyncWorkerPool,
+            source_report: SourceReport,
+            srcfile: str,
+            srcstat: FileStatus,
+            destfile: str):
         size = await srcstat.size()
         if size <= self.PART_SIZE:
             await self._copy_file(srcfile, destfile)
@@ -507,13 +513,20 @@ class SourceCopier:
 
         async with WaitableSharedPool(worker_pool) as pool:
             async with self.router_fs.multi_part_create(destfile, n_parts) as c:
-                await pool.call(self._copy_part, source_report, srcfile, i, destfile)
+                for i in range(n_parts):
+                    await pool.call(self._copy_part, source_report, srcfile, i, c)
 
-    async def _copy_file_multi_part(self, source_report: SourceReport, srcfile: str, srcstat: FileStatus, destfile: str):
+    async def _copy_file_multi_part(
+            self,
+            worker_pool: AsyncWorkerPool,
+            source_report: SourceReport,
+            srcfile: str,
+            srcstat: FileStatus,
+            destfile: str):
         source_report._files += 1
         success = False
         try:
-            await self._copy_file_multi_part_main(source_report, srcfile, srcstat, destfile)
+            await self._copy_file_multi_part_main(worker_pool, source_report, srcfile, srcstat, destfile)
             source_report._complete += 1
             success = True
         except Exception as e:
@@ -568,7 +581,7 @@ class SourceCopier:
         if full_dest_type == AsyncFS.DIR:
             raise IsADirectoryError(full_dest)
 
-        await self._copy_file_multi_part(source_report, src, srcstat, full_dest)
+        await self._copy_file_multi_part(worker_pool, source_report, src, srcstat, full_dest)
 
     async def copy_as_dir(self, worker_pool: AsyncWorkerPool, source_report: SourceReport):
         src = self.src
@@ -606,7 +619,7 @@ class SourceCopier:
                 relsrcfile = srcfile[len(src):]
                 assert not relsrcfile.startswith('/')
 
-                await pool.call(self._copy_file_multi_part, source_report, srcfile, await srcentry.status(), url_join(full_dest, relsrcfile))
+                await pool.call(self._copy_file_multi_part, worker_pool, source_report, srcfile, await srcentry.status(), url_join(full_dest, relsrcfile))
 
     async def copy(self, worker_pool: AsyncWorkerPool, source_report: SourceReport):
         try:
@@ -754,7 +767,7 @@ class RouterAsyncFS(AsyncFS):
     async def open_from(self, url: str, start: int) -> ReadableStream:
         fs = self._get_fs(url)
         return await fs.open_from(url, start)
-        
+
     async def create(self, url: str) -> WritableStream:
         fs = self._get_fs(url)
         return await fs.create(url)
