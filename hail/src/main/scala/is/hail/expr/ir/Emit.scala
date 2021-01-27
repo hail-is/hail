@@ -2228,12 +2228,15 @@ class Emit[C](
               methods.update(k, funcMB)
               funcMB
           }
-        val codeArgs = args.map(emit(_))
         val vars = args.map { a => coerce[Any](mb.newLocal()(typeToTypeInfo(a.pType))) }
-        val ins = vars.zip(codeArgs.map(_.v)).map { case (l, i) => l := i }
-        val value = Code(Code(ins), meth.invokeCode[Any](
-          (CodeParam(region.code) +: vars.map(_.get: Param)): _*))
-        strict(pt, value, codeArgs: _*)
+        EmitCode.fromI(mb) { cb =>
+          IEmitCode.sequence(args.toIndexedSeq, (arg: IR) => emitI(arg, cb), cb) { codeArgs =>
+            for ((l, i) <- vars.zip(codeArgs)) {
+              cb.assign(l, i.code)
+            }
+            PCode(pt, meth.invokeCode[Any](CodeParam(region.code) +: vars.map(_.get: Param): _*))
+          }
+        }
       case x@ApplySpecial(_, typeArgs, args, rt) =>
         val codeArgs = args.map(a => emit(a))
         val impl = x.implementation
@@ -2502,13 +2505,6 @@ class Emit[C](
 
   private def present(pt: PType, c: Code[_]): EmitCode =
     EmitCode(Code._empty, false, PCode(pt, c))
-
-  private def strict(pt: PType, value: Code[_], args: EmitCode*): EmitCode = {
-    EmitCode(
-      Code(args.map(_.setup)),
-      if (args.isEmpty) false else args.map(_.m).reduce(_ || _),
-      PCode(pt, value))
-  }
 
   def deforestNDArrayI(x0: IR, cb: EmitCodeBuilder, region: StagedRegion, env: E): IEmitCode = {
 
