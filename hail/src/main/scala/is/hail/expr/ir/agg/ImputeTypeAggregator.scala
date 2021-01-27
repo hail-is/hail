@@ -1,6 +1,6 @@
 package is.hail.expr.ir.agg
 
-import is.hail.annotations.StagedRegionValueBuilder
+import is.hail.annotations.{Region, StagedRegionValueBuilder}
 import is.hail.asm4s._
 import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitCodeBuilder}
 import is.hail.types.{RPrimitive, VirtualTypeWithReq}
@@ -144,21 +144,15 @@ class ImputeTypeAggregator() extends StagedAggregator {
     state.combOp(cb, other)
   }
 
-  protected def _result(cb: EmitCodeBuilder, state: State, srvb: StagedRegionValueBuilder): Unit = {
-    cb += srvb.addBaseStruct(ImputeTypeState.resultType, { srvb =>
-      Code(FastSeq(
-        srvb.start(),
-        srvb.addBoolean(state.getAnyNonMissing),
-        srvb.advance(),
-        srvb.addBoolean(state.getAllDefined),
-        srvb.advance(),
-        srvb.addBoolean(state.getSupportsBool),
-        srvb.advance(),
-        srvb.addBoolean(state.getSupportsI32),
-        srvb.advance(),
-        srvb.addBoolean(state.getSupportsI64),
-        srvb.advance(),
-        srvb.addBoolean(state.getSupportsF64)))
-    })
+  protected def _storeResult(cb: EmitCodeBuilder, state: State, pt: PType, addr: Value[Long], region: Value[Region], ifMissing: EmitCodeBuilder => Unit): Unit = {
+    val rt = ImputeTypeState.resultType
+    assert(pt == rt)
+    cb += rt.stagedInitialize(addr, setMissing = false)
+    rt.types(0).storeAtAddress(cb, rt.fieldOffset(addr, 0), region, PCode(PBooleanRequired, state.getAnyNonMissing), deepCopy = true)
+    rt.types(1).storeAtAddress(cb, rt.fieldOffset(addr, 0), region, PCode(PBooleanRequired, state.getAllDefined), deepCopy = true)
+    rt.types(2).storeAtAddress(cb, rt.fieldOffset(addr, 0), region, PCode(PBooleanRequired, state.getSupportsBool), deepCopy = true)
+    rt.types(3).storeAtAddress(cb, rt.fieldOffset(addr, 0), region, PCode(PBooleanRequired, state.getSupportsI32), deepCopy = true)
+    rt.types(4).storeAtAddress(cb, rt.fieldOffset(addr, 0), region, PCode(PBooleanRequired, state.getSupportsI64), deepCopy = true)
+    rt.types(5).storeAtAddress(cb, rt.fieldOffset(addr, 0), region, PCode(PBooleanRequired, state.getSupportsF64), deepCopy = true)
   }
 }

@@ -95,7 +95,7 @@ class StagedBlockLinkedListSuite extends HailSuite {
         cb.assign(rField, rArg)
         sbll.load(cb, ptr)
         val srvb = new StagedRegionValueBuilder(EmitRegion(fb.apply_method, rField), arrayPType)
-        sbll.writeToSRVB(cb, srvb)
+        srvb.addIRIntermediate(sbll.resultArray(cb, srvb.region, arrayPType))
         srvb.end()
       }
 

@@ -1,6 +1,6 @@
 package is.hail.expr.ir.agg
 
-import is.hail.annotations.{CodeOrdering, Region, StagedRegionValueBuilder}
+import is.hail.annotations.{CodeOrdering, Region}
 import is.hail.asm4s._
 import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitCodeBuilder, EmitRegion}
 import is.hail.io._
@@ -154,7 +154,8 @@ class CollectAsSetAggregator(elem: VirtualTypeWithReq) extends StagedAggregator 
   type State = AppendOnlySetState
 
   private val elemPType = elem.canonicalPType
-  val resultType: PSet = PCanonicalSet(elemPType)
+  val resultType: PCanonicalSet = PCanonicalSet(elemPType)
+  private[this] val arrayRep = resultType.arrayRep
   val initOpTypes: Seq[Type] = Array[Type]()
   val seqOpTypes: Seq[Type] = Array[Type](elem.t)
 
@@ -172,20 +173,15 @@ class CollectAsSetAggregator(elem: VirtualTypeWithReq) extends StagedAggregator 
     other.foreach(cb) { (cb, k) => state.insert(cb, k) }
   }
 
-  protected def _result(cb: EmitCodeBuilder, state: State, srvb: StagedRegionValueBuilder): Unit = {
-    cb += srvb.addArray(resultType.arrayFundamentalType, { sab =>
-      EmitCodeBuilder.scopedVoid(cb.emb) { cb =>
-        cb += sab.start(state.size)
-        state.foreach(cb) { (cb, k) =>
-          k.toI(cb)
-            .consume(cb,
-              cb += sab.setMissing(),
-              { pc =>
-                cb += sab.addIRIntermediate(pc, deepCopy = true)
-              })
-          cb += sab.advance()
-        }
-      }
-    })
+  protected def _storeResult(cb: EmitCodeBuilder, state: State, pt: PType, addr: Value[Long], region: Value[Region], ifMissing: EmitCodeBuilder => Unit): Unit = {
+    assert(pt == resultType)
+    val (storeElement, finish) = arrayRep.constructFromFunctions(cb, region, state.size, deepCopy = true)
+    val idx = cb.newLocal[Int]("collect_as_set_result_i", 0)
+    state.foreach(cb) { (cb, elt) =>
+      storeElement(cb, idx, elt.toI(cb))
+      cb.assign(idx, idx + 1)
+    }
+    // deepCopy is handled by `storeElement` above
+    resultType.storeAtAddress(cb, addr, region, finish(cb), deepCopy = false)
   }
 }

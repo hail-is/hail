@@ -734,9 +734,9 @@ object IRParser {
   def ir_value(env: TypeParserEnvironment)(it: TokenIterator): (Type, Any) = {
     val typ = type_expr(env)(it)
     val s = string_literal(it)
-    val vJSON = JsonMethods.parse(s)
-    val v = JSONAnnotationImpex.importAnnotation(vJSON, typ)
-    (typ, v)
+//    val vJSON = JsonMethods.parse(s)
+//    val v = JSONAnnotationImpex.importAnnotation(vJSON, typ)
+    (typ, null)
   }
 
   def named_value_irs(env: IRParserEnvironment)(it: TokenIterator): StackFrame[Array[(String, IR)]] =

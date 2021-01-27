@@ -1,8 +1,8 @@
 package is.hail.expr.ir.agg
 
-import is.hail.annotations.StagedRegionValueBuilder
+import is.hail.annotations.Region
 import is.hail.asm4s._
-import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitCodeBuilder}
+import is.hail.expr.ir.{EmitCode, EmitCodeBuilder}
 import is.hail.types.physical._
 import is.hail.types.virtual.Type
 
@@ -34,9 +34,9 @@ object CountAggregator extends StagedAggregator {
     cb.assignAny(v1, coerce[Long](v1) + coerce[Long](v2))
   }
 
-  protected def _result(cb: EmitCodeBuilder, state: State, srvb: StagedRegionValueBuilder): Unit = {
+  protected def _storeResult(cb: EmitCodeBuilder, state: State, pt: PType, addr: Value[Long], region: Value[Region], ifMissing: EmitCodeBuilder => Unit): Unit = {
     assert(state.vtypes.head.r.required)
     val (_, v, _) = state.fields(0)
-    cb += srvb.addLong(coerce[Long](v))
+    pt.storeAtAddress(cb, addr, region, PCode(PInt64Required, v), deepCopy = true)
   }
 }

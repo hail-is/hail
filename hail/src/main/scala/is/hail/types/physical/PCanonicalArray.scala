@@ -410,7 +410,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
 
   def sType: SContainer = SIndexablePointer(this)
 
-  def loadCheapPCode(cb: EmitCodeBuilder, addr: Code[Long]): PCode = new SIndexablePointerCode(SIndexablePointer(this), addr)
+  def loadCheapPCode(cb: EmitCodeBuilder, addr: Code[Long]): SIndexablePointerCode = new SIndexablePointerCode(SIndexablePointer(this), addr)
 
   def store(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): Code[Long] = {
     value.st match {

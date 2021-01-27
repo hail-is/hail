@@ -1531,18 +1531,21 @@ class Emit[C](
 
       case x@ResultOp(start, sig) =>
         val AggContainer(aggs, sc, _) = container.get
-        val srvb = new StagedRegionValueBuilder(cb.emb, x.pType, region.code)
-        cb += srvb.start()
+
+        val pt = x.pType.asInstanceOf[PCanonicalTuple]
+
+        val addr = cb.newLocal("resultop_tuple_addr", pt.allocate(region.code))
+        cb += pt.stagedInitialize(addr, setMissing = false)
 
         (0 until aggs.length).foreach { j =>
           val idx = start + j
           val rvAgg = agg.Extract.getAgg(sig(j))
-          rvAgg.result(cb, sc.states(idx), srvb)
-          cb += srvb.advance()
+          val fieldAddr = cb.newLocal(s"resultop_field_addr_$j", pt.fieldOffset(addr, j))
+          rvAgg.storeResult(cb, sc.states(idx), pt.types(j), fieldAddr, region.code,
+            (cb: EmitCodeBuilder) => cb += pt.setFieldMissing(addr, j))
         }
 
-        presentC(srvb.offset)
-
+        presentPC(pt.loadCheapPCode(cb, addr))
       case x@ApplySeeded(fn, args, seed, rt) =>
         val codeArgs = args.map(a => (a.pType, () => emitI(a)))
         val impl = x.implementation

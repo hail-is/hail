@@ -4,7 +4,7 @@ import is.hail.expr.ir._
 import is.hail.methods.{ForceCountTable, NPartitionsTable}
 import is.hail.rvd.{PartitionBoundOrdering, RVDPartitioner}
 import is.hail.types.virtual._
-import is.hail.types.{RTable, TableType}
+import is.hail.types.{RField, RStruct, RTable, TableType}
 import is.hail.utils._
 import org.apache.spark.sql.Row
 

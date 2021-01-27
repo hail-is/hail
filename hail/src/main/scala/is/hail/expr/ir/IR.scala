@@ -87,7 +87,7 @@ object Literal {
 
 final case class Literal(_typ: Type, value: Annotation) extends IR {
   require(!CanEmit(_typ))
-  require(value != null)
+//  require(value != null)
   // expensive, for debugging
   // require(SafeRow.isSafe(value))
   // assert(_typ.typeCheck(value), s"literal invalid:\n  ${_typ}\n  $value")
