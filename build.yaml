@@ -1584,6 +1584,17 @@ steps:
            --verbose \
            site/www/* \
            /io/www
+
+     # Grab the latest release of the docs
+     LATEST_02_SHA=$(gsutil cat gs://hail-common/builds/0.2/latest-hash/cloudtools-5-spark-2.4.0.txt 2>/dev/null)
+     gsutil cat gs://hail-common/builds/0.2/docs/hail-0.2-docs-$LATEST_02_SHA.tar.gz |
+         tar zxvf - -C /io/www --strip-components=1
+
+     mkdir /io/www/docs/0.1
+     LATEST_01_SHA=$(gsutil cat gs://hail-common/builds/0.1/latest-hash-spark-2.0.2.txt 2>/dev/null)
+     gsutil cat gs://hail-common/builds/0.1/docs/hail-0.1-docs-$LATEST_01_SHA.tar.gz |
+         tar xvf - -C /io/www/docs/0.1 --strip-components=2
+
      cd /io/www && tar -cvzf /io/site-www.tar.gz *
    outputs:
     - from: /io/site-www.tar.gz
