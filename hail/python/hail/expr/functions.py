@@ -142,6 +142,7 @@ def missing(t: Union[HailType, str]):
     return construct_expr(ir.NA(t), t)
 
 
+@deprecated(version="0.2.62", reason="Replaced by hl.missing")
 @typecheck(t=hail_type)
 def null(t: Union[HailType, str]):
     """Deprecated in favor of :func:`.missing`.
