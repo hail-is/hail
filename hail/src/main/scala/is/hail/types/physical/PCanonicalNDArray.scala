@@ -5,8 +5,9 @@ import is.hail.asm4s.{Code, _}
 import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder}
 import is.hail.types.physical.stypes.SCode
 import is.hail.types.physical.stypes.interfaces.SBaseStructCode
-import is.hail.types.virtual.{TNDArray, Type, TStruct, Type}
-import is.hail.types.physical.stypes.concrete.{SNDArrayPointer, SNDArrayPointerCode, SBaseStructPointerSettable, SBaseStructPointer}
+import is.hail.types.virtual.{TNDArray, TStruct, Type}
+import is.hail.types.physical.stypes.concrete.{SBaseStructPointer, SBaseStructPointerSettable, SNDArrayPointer, SNDArrayPointerCode}
+import org.apache.spark.sql.Row
 
 final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boolean = false) extends PNDArray  {
   assert(elementType.required, "elementType must be required")
