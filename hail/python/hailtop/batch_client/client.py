@@ -220,6 +220,10 @@ class BatchClient:
             billing_project, deploy_config, session, headers=headers, _token=_token)
 
     @property
+    def bucket(self):
+        return self._async_client.bucket
+
+    @property
     def billing_project(self):
         return self._async_client.billing_project
 
