@@ -1617,7 +1617,8 @@ object EmitStream {
                     new COption[EmitCode] {
                       def apply(none: Code[Ctrl], some: EmitCode => Code[Ctrl])(implicit ctx: EmitStreamContext): Code[Ctrl] = {
                         EmitCodeBuilder.scopedVoid(mb) { cb =>
-                          val xElt = cb.memoize(elt, "sf_elt")
+                          val xElt = mb.newEmitField(name, childEltType)
+                          cb.assign(xElt, elt)
                           val Lfalse = CodeLabel()
                           val Ltrue = CodeLabel()
                           emitIR(condIR, cb = cb, env = env.bind(name -> xElt), region = tmpRegion).consume(cb, {
