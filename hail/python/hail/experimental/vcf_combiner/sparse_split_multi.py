@@ -113,7 +113,7 @@ def sparse_split_multi(sparse_mt, *, filter_changed_loci=False):
                                   was_split=True))
                         .when(filter_changed_loci,
                               hl.missing(hl.tstruct(locus=ds.locus.dtype, alleles=hl.tarray(hl.tstr),
-                                                 a_index=hl.tint, was_split=hl.tbool)))
+                                                    a_index=hl.tint, was_split=hl.tbool)))
                         .or_error(
                             "Found non-left-aligned variant in sparse_split_multi\n"
                             + "old locus: " + hl.str(ds.locus) + "\n"
