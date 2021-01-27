@@ -344,10 +344,11 @@ case class IEmitCodeGen[+A](Lmissing: CodeLabel, Lpresent: CodeLabel, value: A) 
 
 object EmitCode {
   def apply(setup: Code[Unit], m: Code[Boolean], pv: PCode): EmitCode = {
-    val start = CodeLabel()
-    val body = new CodeBoolean(Code(start, m)).toCCode
-    val iec = IEmitCode(new CodeLabel(body.Ltrue), new CodeLabel(body.Lfalse), pv)
-    new EmitCode(setup, start, iec)
+    val mCC = m.toCCode
+    val iec = IEmitCode(new CodeLabel(mCC.Ltrue), new CodeLabel(mCC.Lfalse), pv)
+    val result = new EmitCode(setup, new CodeLabel(mCC.entry), iec)
+    m.clear()
+    result
   }
 
   def unapply(ec: EmitCode): Option[(Code[Unit], Code[Boolean], PCode)] =
@@ -391,7 +392,7 @@ object EmitCode {
 class EmitCode(val setup: Code[Unit], private val start: CodeLabel, private val iec: IEmitCode) {
   def pv: PCode = iec.value
 
-  def m: Code[Boolean] = new CCode(start.L, iec.Lmissing.L, iec.Lpresent.L)
+  val m: Code[Boolean] = new CCode(start.L, iec.Lmissing.L, iec.Lpresent.L)
 
   def pt: PType = pv.pt
 
