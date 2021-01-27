@@ -152,7 +152,7 @@ class Batch:
         return agen_to_blocking(self._async_batch.jobs(q=q))
 
     def get_job_log(self, job_id: int):
-        return async_to_blocking(self._async_batch.get_job_log(self.id, job_id))
+        return async_to_blocking(self._async_batch.get_job_log(job_id))
 
     def wait(self):
         return async_to_blocking(self._async_batch.wait())

@@ -591,13 +591,13 @@ class BatchBuilder:
 
 
 class BatchClient:
-    async def __init__(self,
-                       billing_project: str,
-                       deploy_config: Optional[DeployConfig] = None,
-                       session: Optional[aiohttp.ClientSession] = None,
-                       headers: Optional[Dict[str, str]] = None,
-                       _token: Optional[str] = None,
-                       token_file: Optional[str] = None):
+    def __init__(self,
+                 billing_project: str,
+                 deploy_config: Optional[DeployConfig] = None,
+                 session: Optional[aiohttp.ClientSession] = None,
+                 headers: Optional[Dict[str, str]] = None,
+                 _token: Optional[str] = None,
+                 token_file: Optional[str] = None):
         self.billing_project = billing_project
 
         if not deploy_config:
