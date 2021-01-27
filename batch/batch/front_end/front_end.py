@@ -1027,8 +1027,7 @@ WHERE user = %s AND id = %s AND NOT deleted;
                 reason=f'wrong number of jobs: expected {expected_n_jobs}, actual {actual_n_jobs}')
         raise
 
-    async with client_session(
-            timeout=aiohttp.ClientTimeout(total=5)) as session:
+    async with client_session() as session:
         await request_retry_transient_errors(
             session, 'PATCH',
             deploy_config.url('batch-driver', f'/api/v1alpha/batches/{user}/{batch_id}/close'),
@@ -1837,8 +1836,7 @@ async def index(request, userdata):  # pylint: disable=unused-argument
 
 
 async def cancel_batch_loop_body(app):
-    async with client_session(
-            timeout=aiohttp.ClientTimeout(total=5)) as session:
+    async with client_session() as session:
         await request_retry_transient_errors(
             session, 'POST',
             deploy_config.url('batch-driver', '/api/v1alpha/batches/cancel'),
@@ -1849,8 +1847,7 @@ async def cancel_batch_loop_body(app):
 
 
 async def delete_batch_loop_body(app):
-    async with client_session(
-            timeout=aiohttp.ClientTimeout(total=5)) as session:
+    async with client_session() as session:
         await request_retry_transient_errors(
             session, 'POST',
             deploy_config.url('batch-driver', '/api/v1alpha/batches/delete'),
