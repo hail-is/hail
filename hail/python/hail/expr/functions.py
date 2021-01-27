@@ -112,8 +112,41 @@ def _error_from_cdf(cdf, failure_prob, all_quantiles=False):
 
 
 @typecheck(t=hail_type)
-def null(t: Union[HailType, str]):
+def missing(t: Union[HailType, str]):
     """Creates an expression representing a missing value of a specified type.
+
+    Examples
+    --------
+
+    >>> hl.eval(hl.missing(hl.tarray(hl.tstr)))
+    None
+
+    >>> hl.eval(hl.missing('array<str>'))
+    None
+
+    Notes
+    -----
+    This method is useful for constructing an expression that includes missing
+    values, since :obj:`None` cannot be interpreted as an expression.
+
+    Parameters
+    ----------
+    t : :class:`str` or :class:`.HailType`
+        Type of the missing expression.
+
+    Returns
+    -------
+    :class:`.Expression`
+        A missing expression of type `t`.
+    """
+    return construct_expr(ir.NA(t), t)
+
+
+@typecheck(t=hail_type)
+def null(t: Union[HailType, str]):
+    """Deprecated in favor of :func:`.missing`.
+
+    Creates an expression representing a missing value of a specified type.
 
     Examples
     --------
@@ -139,7 +172,7 @@ def null(t: Union[HailType, str]):
     :class:`.Expression`
         A missing expression of type `t`.
     """
-    return construct_expr(ir.NA(t), t)
+    return missing(t)
 
 
 @typecheck(x=anytype, dtype=nullable(hail_type))
