@@ -1,8 +1,6 @@
 name: CI
-on:
-  push:
-    branches:
-      - main
+on: [push, pull_request]
+
 jobs:
   set_conda_pkg_version:
     # For tag pushes, we want to assure only the tag event triggers CI, not the accompanying commit:
@@ -63,6 +61,7 @@ jobs:
         run: conda build conda/hail
 
       - name: Upload to anaconda package repository
+        if: github.ref == 'refs/heads/main'
         run: |
           anaconda -t ${{ secrets.ANACONDA_TOKEN }} \
           upload ${CONDA_PREFIX}/conda-bld/**/*.tar.bz2
