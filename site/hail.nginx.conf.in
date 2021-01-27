@@ -36,7 +36,7 @@ server {
     location ~ ^@prefix@/docs/batch(|/.*)$ {
         index index.html;
         root /var/www/html;
-        try_files docs/pipeline$1 docs/pipeline$1/ docs/batch$1 docs/batch$1/ =404;
+        try_files /docs/pipeline$1 /docs/pipeline$1/ /docs/batch$1 /docs/batch$1/ =404;
     }
 
     error_page 404 /404.html;
