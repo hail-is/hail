@@ -2198,6 +2198,7 @@ steps:
       for: alive
    dependsOn:
     - default_ns
+    - deploy_address_sa
     - deploy_router
     - address_image
     - create_certs
