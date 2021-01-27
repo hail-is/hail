@@ -36,7 +36,7 @@ server {
     location ~ ^@prefix@/docs/batch(|/.*)$ {
         index index.html;
         root /var/www/html;
-        try_files @prefix@/docs/pipeline$1 @prefix@/docs/pipeline$1/ @prefix@/docs/batch$1 @prefix@/docs/batch$1/ =404;
+        try_files docs/pipeline$1 docs/pipeline$1/ docs/batch$1 docs/batch$1/ =404;
     }
 
     error_page 404 /404.html;
@@ -44,6 +44,7 @@ server {
     location = @prefix@/ {
         return 301 $updated_scheme://$updated_host@prefix@/index.html;
     }
+
     location @prefix@/ {
         rewrite  ^@prefix@(/.*) $1 break;
         index index.html;
