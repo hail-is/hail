@@ -151,10 +151,10 @@ def null(t: Union[HailType, str]):
     Examples
     --------
 
-    >>> hl.eval(hl.missing(hl.tarray(hl.tstr)))
+    >>> hl.eval(hl.null(hl.tarray(hl.tstr)))
     None
 
-    >>> hl.eval(hl.missing('array<str>'))
+    >>> hl.eval(hl.null('array<str>'))
     None
 
     Notes
