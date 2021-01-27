@@ -386,7 +386,6 @@ class Container:
                     auth = await self.batch_worker_access_token()
                     await self.ensure_image_is_pulled(auth=auth)
                 else:
-                    assert self.image.startswith('gcr.io/')
                     # Pull to verify this user has access to this
                     # image.
                     # FIXME improve the performance of this with a
