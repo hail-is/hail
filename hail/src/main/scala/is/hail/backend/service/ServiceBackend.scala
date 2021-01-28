@@ -48,7 +48,11 @@ object Worker {
     val root = args(0)
     val i = args(1).toInt
 
-    val fs = using(new FileInputStream("/gsa-key/key.json")) { is =>
+    var scratchDir = System.getenv("HAIL_WORKER_SCRATCH_DIR")
+    if (scratchDir == null)
+      scratchDir = ""
+
+    val fs = using(new FileInputStream(s"$scratchDir/gsa-key/key.json")) { is =>
       new GoogleStorageFS(IOUtils.toString(is))
     }
 

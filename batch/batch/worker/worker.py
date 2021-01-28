@@ -530,9 +530,9 @@ class JVMProcess:
     def __init__(self, job, main_spec):
         self.job = job
         self.heap_size = main_spec['memory'] - self.stack_size
-        self.command = ['java', '-classpath', self.classpath, f'-Xmx:{self.heap_size}', f'-Xss:{self.stack_size}']
-        self.command.extend(main_spec['command'])
-        self.env = {e['name']: e['value'] for e in main_spec['env']}
+        self.env = main_spec['env']
+        self.flags = ['-classpath', self.classpath, f'-Xmx:{self.heap_size}', f'-Xss:{self.stack_size}']
+        self.java_args = main_spec['command']
 
         self.proc = None
         self.timing = {}
@@ -543,7 +543,10 @@ class JVMProcess:
         log.info(f'running {self}')
         self.timing['start_time'] = time_msecs()
         self.proc = await asyncio.create_subprocess_exec(
-            *self.command,
+            *self.env,
+            'java',
+            *self.flags,
+            *self.java_args,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.STDERR)
         out, err = await self.proc.communicate()
@@ -563,7 +566,6 @@ class JVMProcess:
             self.state = 'success'
         else:
             self.state = 'error'
-
 
     async def status(self, state=None):
         return {
@@ -1027,6 +1029,9 @@ class DockerJob(Job):
 
 class JVMJob(Job):
 
+    def secret_host_path(self, secret):
+        return f'{self.scratch}/secrets{secret["mount_path"]}'
+
     def __init__(self,
                  batch_id: int,
                  user: str,
@@ -1042,14 +1047,11 @@ class JVMJob(Job):
         if input_files or output_files:
             raise Exception("i/o not supported")
 
-        if self.secrets:
-            for secret in self.secrets:
-                volume_mount = f'{self.secret_host_path(secret)}:{secret["mount_path"]}'
-                self.env.append(f"SECRET_{secret['name']}={volume_mount}")
+        self.env.append(f"SCRATCH_DIR={self.scratch}")
 
         # main container
         self.main_spec = {
-            'command': job_spec['process']['command'], # ['is.hail.backend.service.Worker', $root, $i]
+            'command': job_spec['process']['command'],  # ['is.hail.backend.service.Worker', $root, $i]
             'name': 'main',
             'env': self.env,
             'cpu': self.cpu_in_mcpu,
@@ -1069,6 +1071,8 @@ class JVMJob(Job):
                 if self.secrets:
                     for secret in self.secrets:
                         populate_secret_host_path(self.secret_host_path(secret), secret['data'])
+
+                populate_secret_host_path(self.gsa_key_file_path(), self.gsa_key)
                 self.state = 'running'
 
                 log.info(f'{self}: running jvm process')
