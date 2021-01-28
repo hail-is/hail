@@ -9,7 +9,8 @@ namespace hail {
 class FormatStream {
 public:
   virtual ~FormatStream();
-  
+
+  virtual void write(void *p, size_t n) = 0;
   virtual void putc(int c) = 0;
   virtual void puts(const char *s) = 0;
 };

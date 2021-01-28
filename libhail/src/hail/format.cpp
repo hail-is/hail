@@ -1,5 +1,8 @@
+#include <cerrno>
 #include <cstdio>
+
 #include <sstream>
+#include <exception>
 
 #include <hail/format.hpp>
 
@@ -14,6 +17,7 @@ public:
   StdFILEStream(FILE *fp) : fp(fp) {}
   ~StdFILEStream();
 
+  void write(void *p, size_t n);
   void putc(int c);
   void puts(const char *s);
 };
@@ -22,13 +26,24 @@ public:
 StdFILEStream::~StdFILEStream() {}
 
 void
+StdFILEStream::write(void *p, size_t n) {
+  int rc = fwrite(p, n, 1, fp);
+  if (rc != 1)
+    throw std::system_error(errno, std::generic_category(), "in fwrite");
+}
+
+void
 StdFILEStream::putc(int c) {
-  fputc(c, fp);
+  int rc = fputc(c, fp);
+  if (rc != c)
+    throw std::system_error(errno, std::generic_category(), "in fputc");
 }
 
 void
 StdFILEStream::puts(const char *s) {
-  fputs(s, fp);
+  int rc = fputs(s, fp);
+  if (rc < 0)
+    throw std::system_error(errno, std::generic_category(), "in fputc");
 }
 
 static StdFILEStream stdoutfs(stdout), stderrfs(stderr);
@@ -71,6 +86,14 @@ void format1(FormatStream &s, long v) {
 }
 
 void format1(FormatStream &s, unsigned long v) {
+  write_with_iostream<unsigned long>(s, v);
+}
+
+void format1(FormatStream &s, float v) {
+  write_with_iostream<unsigned long>(s, v);
+}
+
+void format1(FormatStream &s, double v) {
   write_with_iostream<unsigned long>(s, v);
 }
 

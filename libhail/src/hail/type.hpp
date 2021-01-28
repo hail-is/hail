@@ -7,6 +7,8 @@
 
 namespace hail {
 
+class PType;
+class FormatStream;
 class TypeContext;
 
 class TypeContextToken {
@@ -32,6 +34,10 @@ public:
   const Tag tag;
   Type(Tag tag) : tag(tag) {}
   virtual ~Type();
+
+  bool is_realizable() const {
+    return (tag != Tag::VOID) && (tag != Tag::STREAM);
+  }
 };
 
 void format1(FormatStream &s, const Type *v);
@@ -100,11 +106,13 @@ public:
 };
 
 class TypeContext {
-  ArenaAllocator<HeapAllocator> arena;
+  ArenaAllocator arena;
 
   std::map<const Type *, const TArray *> arrays;
   std::map<const Type *, const TStream *> streams;
   std::map<std::vector<const Type *>, const TTuple *> tuples;
+
+  std::map<const Type *, const PType *> canonical_ptypes;
 
 public:
   const TVoid *const tvoid;
@@ -120,6 +128,8 @@ public:
   const TArray *tarray(const Type *element_type);
   const TStream *tstream(const Type *element_type);
   const TTuple *ttuple(const std::vector<const Type *> &element_types);
+
+  const PType *get_canonical_ptype(const Type *type);
 };
 
 }
