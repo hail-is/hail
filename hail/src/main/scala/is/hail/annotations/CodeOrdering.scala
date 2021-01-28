@@ -341,7 +341,7 @@ object CodeOrdering {
 
     override def equivNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Boolean] = {
       val elemEq = mb.getCodeOrdering(t1.elementType, t2.elementType, CodeOrdering.Equiv())
-      val ret = cb.newLocal[Boolean]("iterable_eq")
+      val ret = cb.newLocal[Boolean]("iterable_eq", true)
       val Lout = CodeLabel()
       val exitWith = (value: Code[Boolean]) => {
         cb.assign(ret, value)
