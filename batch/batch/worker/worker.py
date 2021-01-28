@@ -1048,7 +1048,7 @@ class JVMJob(Job):
         if input_files or output_files:
             raise Exception("i/o not supported")
 
-        self.env.append(f"HAIL_WORKER_SCRATCH_DIR='{self.scratch}'")
+        self.env.append({'name': 'HAIL_WORKER_SCRATCH_DIR', 'value': self.scratch})
 
         # main container
         self.main_spec = {
