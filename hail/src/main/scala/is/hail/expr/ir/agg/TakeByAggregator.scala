@@ -468,9 +468,9 @@ class TakeByRVAS(val valueVType: VirtualTypeWithReq, val keyVType: VirtualTypeWi
       val partition: (Code[Long], Code[Int], Code[Int]) => Code[Int] = {
         val mb = kb.genEmitMethod("quicksort_partition", FastIndexedSeq[ParamType](LongInfo, IntInfo, IntInfo), IntInfo)
 
-        val indices = mb.getCodeParam[Long](1)
-        val low = mb.getCodeParam[Int](2)
-        val high = mb.getCodeParam[Int](3)
+        val indqices = mb.getCodeParam[Long](1)
+        val low = mb.newLocal[Int]("takeby_result_partition_low")
+        val high = mb.newLocal[Int]("takeby_result_partition_high")
 
         val pivotIndex = mb.newLocal[Int]("pivotIndex")
         val pivotOffset = mb.newLocal[Long]("pivot")
@@ -482,6 +482,8 @@ class TakeByRVAS(val valueVType: VirtualTypeWithReq, val keyVType: VirtualTypeWi
         def indexAt(idx: Code[Int]): Code[Int] = Region.loadInt(indexOffset(idx))
 
         mb.emit(Code(
+          low := mb.getCodeParam[Int](2),
+          high := mb.getCodeParam[Int](3),
           low.ceq(high).orEmpty(Code._return(low)),
           pivotIndex := (low + high) / 2,
           pivotOffset := Code.memoize(indexAt(pivotIndex), "tba_qsort_pivot") { i => elementOffset(i) },
@@ -531,7 +533,7 @@ class TakeByRVAS(val valueVType: VirtualTypeWithReq, val keyVType: VirtualTypeWi
 
     val srvb = (new StagedRegionValueBuilder(mb, resultType, r))
     mb.emit(Code(
-      indicesToSort := r.load().allocate(4L, ab.size.toL * 4L),
+      indicesToSort := r.allocate(4L, ab.size.toL * 4L),
       i := 0,
       Code.whileLoop(i < ab.size,
         Region.storeInt(indicesToSort + i.toL * 4L, i),

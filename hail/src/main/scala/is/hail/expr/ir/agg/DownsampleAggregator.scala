@@ -111,7 +111,7 @@ class DownsampleState(val kb: EmitClassBuilder[_], labelType: VirtualTypeWithReq
     val mb = kb.genEmitMethod("downsample_init", FastIndexedSeq[ParamType](IntInfo), UnitInfo)
     mb.voidWithBuilder { cb =>
       allocateSpace(cb)
-      cb.assign(this.nDivisions, mb.getCodeParam[Int](1).load())
+      cb.assign(this.nDivisions, mb.getCodeParam[Int](1))
 
       cb.ifx(this.nDivisions < 4, cb += Code._fatal[Unit](const("downsample: require n_divisions >= 4, found ").concat(this.nDivisions.toS)))
 

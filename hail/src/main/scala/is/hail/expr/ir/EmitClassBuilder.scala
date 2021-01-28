@@ -991,7 +991,7 @@ class EmitMethodBuilder[C](
       i + paramType.nCodes
   }
 
-  def getCodeParam[T: TypeInfo](emitIndex: Int): Settable[T] = {
+  def getCodeParam[T: TypeInfo](emitIndex: Int): Value[T] = {
     if (emitIndex == 0 && !mb.isStatic)
       mb.getArg[T](0)
     else {
@@ -1137,7 +1137,7 @@ trait WrappedEmitMethodBuilder[C] extends WrappedEmitClassBuilder[C] {
   def emitWithBuilder[T](f: (EmitCodeBuilder) => Code[T]): Unit = emb.emitWithBuilder(f)
 
   // EmitMethodBuilder methods
-  def getCodeParam[T: TypeInfo](emitIndex: Int): Settable[T] = emb.getCodeParam[T](emitIndex)
+  def getCodeParam[T: TypeInfo](emitIndex: Int): Value[T] = emb.getCodeParam[T](emitIndex)
 
   def getEmitParam(emitIndex: Int): EmitValue = emb.getEmitParam(emitIndex)
 

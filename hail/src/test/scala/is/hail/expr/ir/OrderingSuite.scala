@@ -458,7 +458,7 @@ class OrderingSuite extends HailSuite {
         val eoff = rvb.end()
 
         val fb = EmitFunctionBuilder[Region, Long, Long, Int](ctx, "binary_search")
-        val cregion = fb.getCodeParam[Region](1).load()
+        val cregion = fb.getCodeParam[Region](1)
         val cset = fb.getCodeParam[Long](2)
         val cetuple = fb.getCodeParam[Long](3)
 
