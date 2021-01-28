@@ -548,7 +548,7 @@ class JVMProcess:
             *self.flags,
             *self.java_args,
             stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.STDERR)
+            stderr=asyncio.subprocess.PIPE)
         out, err = await self.proc.communicate()
 
         finish_time = time_msecs()
