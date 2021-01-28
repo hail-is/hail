@@ -2132,7 +2132,6 @@ steps:
     - deploy_router
     - address_image
     - create_certs
-    - deploy_address_sa
  - kind: deploy
    name: deploy_query
    namespace:
