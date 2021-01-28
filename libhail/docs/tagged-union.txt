@@ -40,9 +40,9 @@ Now let's implement one of the cases:
 
   class IntLiteral : public Literal {
   public:
-    static const Tag self_tag = Literal::INT;
+    static const Tag self_tag = Literal::Tag::INT;
     int value;
-    int_interal(int value) : Literal(self_tag), value(value) {}
+    IntInteral(int value) : Literal(self_tag), value(value) {}
   };
 
 Each case knows its own tag as self_tag.  DoubleLiteral is
