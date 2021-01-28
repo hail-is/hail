@@ -533,6 +533,7 @@ async def update_users(app):
 async def async_main():
     app = {}
 
+    user_creation_loop = None
     try:
         db = Database()
         await db.async_init(maxsize=50)
