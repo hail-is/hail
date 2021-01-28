@@ -637,7 +637,13 @@ class EmitClassBuilder[C](
         }
         newMB
       }
-      { (cb: EmitCodeBuilder, elhs: EmitCode, erhs: EmitCode) => cb.invokeCode(newMB, elhs, erhs) }
+      { (cb: EmitCodeBuilder, elhs: EmitCode, erhs: EmitCode) =>
+        if (t1 != elhs.pt)
+          fatal(s"ordering types do not match (lhs), requested type=$t1, code type=${elhs.pt}")
+        if (t2 != erhs.pt)
+          fatal(s"ordering types do not match (rhs), requested type=$t2, code type=${erhs.pt}")
+        cb.invokeCode(newMB, elhs, erhs)
+      }
     })
     ((cb: EmitCodeBuilder, elhs: EmitCode, erhs: EmitCode) => coerce[op.ReturnType](f(cb, elhs, erhs)))
   }
