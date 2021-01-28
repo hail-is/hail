@@ -1621,6 +1621,7 @@ steps:
      - base_image
      - build_site_www
      - hail_ubuntu_image
+     - deploy_hail
  - kind: deploy
    name: deploy_site
    namespace:
@@ -1635,7 +1636,6 @@ steps:
     - site_image
     - deploy_router
     - create_certs
-    - deploy_hail
  - kind: runImage
    name: test_site
    image:
