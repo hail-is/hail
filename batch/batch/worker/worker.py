@@ -534,17 +534,35 @@ class JVMProcess:
         self.command.extend(main_spec['command'])
         self.env = {e['name']: e['value'] for e in main_spec['env']}
 
+        self.proc = None
         self.timing = {}
+        self.state = 'pending'
+        self.log = ''
 
     async def run(self):
         log.info(f'running {self}')
         self.timing['start_time'] = time_msecs()
-        # run jvm job here
-        await check_shell_output(' '.join(self.command))
+        self.proc = await asyncio.create_subprocess_exec(
+            *self.command,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.STDERR)
+        out, err = await self.proc.communicate()
+
         finish_time = time_msecs()
         self.timing['finish_time'] = finish_time
         start_time = self.timing['start_time']
         self.timing['duration'] = finish_time - start_time
+
+        self.log += 'STDOUT:\n'
+        self.log += out
+        self.log += '\n\n'
+        self.log += 'STDERR:\n'
+        self.log += err
+
+        if self.proc.returncode == 0:
+            self.state = 'success'
+        else:
+            self.state = 'error'
 
 
     async def status(self, state=None):
@@ -555,11 +573,12 @@ class JVMProcess:
         }
 
     async def get_log(self):
-        return ''
+        return self.log
 
     async def delete(self):
         log.info(f'deleting {self}')
-        # kill jvm process
+        if self.proc is not None and self.proc.returncode is None:
+            self.proc.kill()
 
     def __str__(self):
         return f'process {self.job.id}/main'
@@ -693,10 +712,8 @@ class Job:
         type = job_spec['process']['type']
         if type == 'docker':
             return DockerJob(batch_id, user, gsa_key, job_spec, format_version, task_manager)
-        elif type == 'jvm':
-            return JVMJob(batch_id, user, gsa_key, job_spec, format_version, task_manager)
-        else:
-            raise Exception(f"unsupported job type {type}")
+        assert type == 'jvm'
+        return JVMJob(batch_id, user, gsa_key, job_spec, format_version, task_manager)
 
     def __init__(self,
                  batch_id: int,
