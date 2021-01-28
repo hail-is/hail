@@ -848,7 +848,7 @@ class DockerJob(Job):
                  job_spec,
                  format_version,
                  task_manager: aiotools.BackgroundTaskManager):
-        super().__init__(self, batch_id, user, gsa_key, job_spec, format_version, task_manager)
+        super().__init__(batch_id, user, gsa_key, job_spec, format_version, task_manager)
         input_files = job_spec.get('input_files')
         output_files = job_spec.get('output_files')
 
