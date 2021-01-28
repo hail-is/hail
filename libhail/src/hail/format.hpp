@@ -1,6 +1,7 @@
 #ifndef HAIL_FORMAT_HPP
 #define HAIL_FORMAT_HPP 1
 
+#include <string>
 #include <cstddef>
 #include <utility>
 
@@ -28,8 +29,16 @@ extern void format1(FormatStream &s, unsigned long v);
 extern void format1(FormatStream &s, float v);
 extern void format1(FormatStream &s, double v);
 extern void format1(FormatStream &s, const char *v);
+extern void format1(FormatStream &s, const std::string &t);
+class FormatAddress {
+public:
+  const void *p;
+  FormatAddress(const void *p) : p(p) {}
+};
 
-template<typename... Args> void
+extern void format1(FormatStream &s, FormatAddress v);
+
+template<typename... Args> inline void
 format(FormatStream &s, Args &&... args) {
   (format1(s, std::forward<Args>(args)),...);
 }

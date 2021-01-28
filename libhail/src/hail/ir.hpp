@@ -1,11 +1,30 @@
+#ifndef HAIL_IR_HPP_INCLUDED
+#define HAIL_IR_HPP_INCLUDED 1
+
+#include <unordered_set>
+
+#include <hail/allocators.hpp>
+#include <hail/type.hpp>
+#include <hail/value.hpp>
+
+namespace hail {
+
+class Module;
+class Function;
+class Block;
+class Input;
+
+class IRContextToken {
+  friend class IRContext;
+  IRContextToken() {}
+};
 
 class IRContext {
-  ArenaAllocator<HeapAllocator> arena;
+  ArenaAllocator arena;
 
 public:
-  IRContext(HeapAllocator &heap)
-    : arena(heap) {}
-  ~IRContext() {}
+  IRContext(HeapAllocator &heap);
+  ~IRContext();
 
   Module *make_module();
   Function *make_function(Module *module,
@@ -15,24 +34,33 @@ public:
 };
 
 class Module {
+  friend class Function;
+  friend class IR;
+  
   std::map<std::string, Function *> functions;
 
 public:
-  Module();
+  Module(IRContextToken);
   ~Module();
 
   void add_function(Function *f);
 };
 
 class Function {
+  friend class Module;
+  friend class IR;
+
   Module *module;
   std::string name;
+public:
   std::vector<const Type *> parameter_types;
   const Type *return_type;
+private:
   Block *body;
 
 public:
-  Function(Module *module,
+  Function(IRContextToken,
+	   Module *module,
 	   std::string name,
 	   std::vector<const Type *> parameter_types,
 	   const Type *return_type);
@@ -47,6 +75,9 @@ public:
 };
 
 class IR {
+  friend class Module;
+  friend class Function;
+  
   IR *parent;
   std::vector<IR *> children;
   std::unordered_set<std::tuple<IR *, int>> uses;
@@ -96,7 +127,7 @@ class Block : public IR {
   std::unordered_set<IR *> nodes;
 public:
   static const Tag self_tag = IR::Tag::BLOCK;
-  Block(size_t input_arity) : IR(self_tag), inputs(input_arity) {}
+  Block(IR *parent, size_t arity, size_t input_arity) : IR(self_tag, parent, arity), inputs(input_arity) {}
 
   size_t get_input_arity() const;
   void set_input_arity(size_t n);
@@ -110,14 +141,14 @@ class Input : public IR {
 public:
   static const Tag self_tag = IR::Tag::INPUT;
   size_t index;
-  Input(IR *parent, size_t index) : IR(self_tag, 0, parent), index(index) {}
+  Input(IR *parent, size_t index) : IR(self_tag, parent, 0), index(index) {}
 };
 
 class Literal : public IR {
 public:
   static const Tag self_tag = IR::Tag::NA;
   Value value;
-  NA(IR *parent, Value value) : IR(self_tag, parent, 0), value(std::move(value)) {}
+  Literal(IR *parent, Value value) : IR(self_tag, parent, 0), value(std::move(value)) {}
 };
 
 class NA : public IR {
@@ -130,5 +161,13 @@ public:
 class IsNA : public IR {
 public:
   static const Tag self_tag = IR::Tag::ISNA;
-  NA(IR *value, IR *parent) : IR(self_tag, parent, {value}), type(type) {}
+  IsNA(IR *value, IR *parent) : IR(self_tag, parent, {value}) {}
 };
+
+extern void format1(FormatStream &s, const Module *m);
+extern void format1(FormatStream &s, const Function *f);
+extern void format1(FormatStream &s, const IR *x);
+
+}
+
+#endif

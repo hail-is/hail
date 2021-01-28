@@ -5,6 +5,7 @@
 
 #include <hail/allocators.hpp>
 #include <hail/format.hpp>
+#include <hail/ir.hpp>
 #include <hail/tunion.hpp>
 #include <hail/type.hpp>
 #include <hail/value.hpp>
@@ -37,6 +38,13 @@ main() {
   v.set_element(1, s);
 
   print("v = ", v);
+
+  IRContext xc(heap);
+
+  Module *m = xc.make_module();
+  Function *f = xc.make_function(m, "main", {tc.tint32, tc.tbool}, tc.tint32);
+
+  print(f);
 
   return 0;
 }

@@ -1,5 +1,5 @@
-#ifndef HAIL_TYPE_HPP_INCLUDED
-#define HAIL_TYPE_HPP_INCLUDED 1
+#ifndef HAIL_PTYPE_HPP_INCLUDED
+#define HAIL_PTYPE_HPP_INCLUDED 1
 
 #include <hail/type.hpp>
 
