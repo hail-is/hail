@@ -58,10 +58,9 @@ class SBaseStructPointerSettable(
   def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(a)
 
   def loadField(cb: EmitCodeBuilder, fieldIdx: Int): IEmitCode = {
-    val fieldType = pt.fields(fieldIdx).typ
     IEmitCode(cb,
       pt.isFieldMissing(a, fieldIdx),
-      fieldType.setRequired(st.pType.required && fieldType.required).loadCheapPCode(cb, pt.loadField(a, fieldIdx)))
+      pt.fields(fieldIdx).typ.loadCheapPCode(cb, pt.loadField(a, fieldIdx)))
   }
 
   def store(cb: EmitCodeBuilder, pv: PCode): Unit = {

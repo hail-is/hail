@@ -1188,7 +1188,7 @@ class Emit[C](
             val leftBroadcastMask = if (lPType.nDims > 2) NDArrayEmitter.broadcastMask(lShape) else IndexedSeq[Value[Long]]()
             val rightBroadcastMask = if (rPType.nDims > 2) NDArrayEmitter.broadcastMask(rShape) else IndexedSeq[Value[Long]]()
 
-            val outputPType = PCanonicalNDArray(lPType.elementType, TNDArray.matMulNDims(lPType.nDims, rPType.nDims), true)
+            val outputPType = PCanonicalNDArray(lPType.elementType, TNDArray.matMulNDims(lPType.nDims, rPType.nDims), pt.required)
 
             if ((lPType.elementType.isInstanceOf[PFloat64] || lPType.elementType.isInstanceOf[PFloat32]) && lPType.nDims == 2 && rPType.nDims == 2) {
               val leftDataAddress = lPType.dataFirstElementPointer(leftPVal.tcode[Long])
@@ -2049,10 +2049,11 @@ class Emit[C](
         emitFallback(ir)
     }
 
-    if (result.pt != ir.pType)
+    val resultCastRequiredness = result.copy(result.Lmissing, result.Lpresent, PCode(result.pc.pt.setRequired(pt.required), result.pc.code))
+    if (resultCastRequiredness.value.pt != ir.pType)
       throw new RuntimeException(s"ptype mismatch:\n  emitted:  ${result.pt}\n  inferred: ${ir.pType}\n  ir: $ir")
 
-    result
+    resultCastRequiredness
   }
 
   /**
@@ -2439,10 +2440,11 @@ class Emit[C](
         }
     }
 
-    if (result.pt != ir.pType)
+    val resultCastRequiredness = result.map(pc => PCode(pc.pt.setRequired(pt.required), pc.code))
+    if (resultCastRequiredness.pt != ir.pType)
       throw new RuntimeException(s"ptype mismatch:\n  emitted:  ${result.pt}\n  inferred: ${ir.pType}\n  ir: $ir")
 
-    result
+    resultCastRequiredness
   }
 
   private def capturedReferences(ir: IR): (IR, (Emit.E, DependentEmitFunctionBuilder[_]) => Emit.E) = {
