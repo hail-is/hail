@@ -565,6 +565,9 @@ class JVMProcess:
         self.log += 'STDERR:\n'
         self.log += err.decode()
 
+        log.info(f'finished {self} with return code {self.proc.returncode}')
+        log.info(f'log {self}: {self.log}')
+
         if self.proc.returncode == 0:
             self.state = 'success'
         else:
@@ -573,7 +576,7 @@ class JVMProcess:
     async def status(self, state=None):
         return {
             'name': 'main',
-            'state': state,
+            'state': self.state if not state else state,
             'timing': self.timing
         }
 
