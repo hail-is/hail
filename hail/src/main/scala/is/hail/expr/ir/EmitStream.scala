@@ -1917,7 +1917,7 @@ object EmitStream {
                     outerEltRegion.asParent(innerStreamType.separateRegions, "StreamFlatMap inner")
                   val optInner = if (outerEltType.isRealizable) {
                     COption.fromIEmitCode(mb) { cb =>
-                      val xElt = cb.memoize(elt, "sfm_elt")
+                      val xElt = cb.memoizeField(elt, "sfm_elt")
                       emitStream(
                         innerIR,
                         cb = cb,
@@ -2029,7 +2029,7 @@ object EmitStream {
                 val source = stream(eltRegion).apply(
                   eos = eos,
                   push = a => EmitCodeBuilder.scopedVoid(mb) { cb =>
-                    val xElt = cb.memoize(a, "st_scan_elt")
+                    val xElt = cb.memoizeField(a, "st_scan_elt")
                     val bodyEnv = env.bind(accName -> xAccInAccR, eltName -> xElt)
                     val body = emitIR(bodyIR, cb = cb, env = bodyEnv, region = eltRegion)
                       .map(cb)(_.castTo(cb, eltRegion.code, accType))
@@ -2080,10 +2080,10 @@ object EmitStream {
               stream(eltRegion).map[EmitCode](
                 { eltt =>
                   EmitCode.fromI(mb) { cb =>
-                    val xElt = cb.memoize(eltt, "aggscan_elt")
+                    val xElt = cb.memoizeField(eltt, "aggscan_elt")
                     val bodyEnv = env.bind(name -> xElt)
                     val postt = emitIR(result, cb = cb, region = eltRegion, env = bodyEnv, container = Some(newContainer))
-                    val xResult = cb.memoize(postt, "aggscan_result")
+                    val xResult = cb.memoizeField(postt, "aggscan_result")
                     emitVoidIR(seqs, cb = cb, region = eltRegion, env = bodyEnv, container = Some(newContainer))
                     xResult.toI(cb)
                   }
@@ -2173,7 +2173,7 @@ object EmitStream {
             emitIR(keyRangeIR).get(cb, "ShuffleRead cannot have null key range").asInterval
 
           val uuid = idt.memoize(cb, "shuffleUUID")
-          val keyRange = keyRangeCode.memoize(cb, "shuffleClientKeyRange")
+          val keyRange = keyRangeCode.memoizeField(cb, "shuffleClientKeyRange")
 
           cb.ifx(!keyRange.startDefined(cb) || !keyRange.endDefined(cb), {
             Code._fatal[Unit]("ShuffleRead cannot have null start or end points of key range")
