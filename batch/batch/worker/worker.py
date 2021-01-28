@@ -549,7 +549,6 @@ class JVMProcess:
         self.timing['start_time'] = time_msecs()
         log.info(f'env: {" ".join(self.env)}')
         self.proc = await asyncio.create_subprocess_exec(
-            *self.env,
             'java',
             *self.flags,
             *self.java_args,
