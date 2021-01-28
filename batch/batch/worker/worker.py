@@ -530,7 +530,12 @@ class JVMProcess:
     def __init__(self, job, main_spec):
         self.job = job
         self.heap_size = main_spec['memory'] - self.stack_size
-        self.env = main_spec['env']
+        self.env = {}
+        for var in main_spec.get('env', []):
+            idx = var.find('=')
+            if idx > 0:
+                self.env[var[:idx]] = var[idx + 1:]
+
         self.flags = ['-classpath', self.classpath, f'-Xmx:{self.heap_size}', f'-Xss:{self.stack_size}']
         self.java_args = main_spec['command']
 
@@ -549,7 +554,8 @@ class JVMProcess:
             *self.flags,
             *self.java_args,
             stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE)
+            stderr=asyncio.subprocess.PIPE,
+            env=self.env)
         out, err = await self.proc.communicate()
 
         finish_time = time_msecs()

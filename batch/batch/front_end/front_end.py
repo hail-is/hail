@@ -1264,7 +1264,7 @@ async def ui_get_job(request, userdata):
     job_specification = job_status['spec']
     if 'process' in job_specification:
         process_specification = job_specification['process']
-        assert process_specification['type'] == 'docker'
+        assert process_specification['type'] in {'docker', 'jvm'}
         job_specification['image'] = process_specification['image']
         job_specification['command'] = process_specification['command']
     job_specification = dictfix.dictfix(job_specification,
