@@ -216,8 +216,8 @@ class BatchClient:
                  session: Optional[aiohttp.ClientSession] = None,
                  headers: Optional[Dict[str, str]] = None,
                  _token: Optional[str] = None):
-        self._async_client: aioclient.BatchClient = async_to_blocking(
-            aioclient.BatchClient(billing_project, deploy_config, session, headers=headers, _token=_token))
+        self._async_client = aioclient.BatchClient(
+            billing_project, deploy_config, session, headers=headers, _token=_token)
 
     @property
     def bucket(self):
