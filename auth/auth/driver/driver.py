@@ -549,7 +549,7 @@ async def async_main():
         app['iam_client'] = aiogoogle.IAmClient(
             PROJECT, credentials=aiogoogle.Credentials.from_file('/gsa-key/key.json'))
 
-        app['batch_client'] = await bc.aioclient.BatchClient(None)
+        app['batch_client'] = bc.aioclient.BatchClient(None)
 
         users_changed_event = asyncio.Event()
         app['users_changed_event'] = users_changed_event
@@ -574,4 +574,5 @@ async def async_main():
                 if 'db_instance_pool' in app:
                     await app['db_instance_pool'].async_close()
             finally:
-                user_creation_loop.shutdown()
+                if user_creation_loop is not None:
+                    user_creation_loop.shutdown()
