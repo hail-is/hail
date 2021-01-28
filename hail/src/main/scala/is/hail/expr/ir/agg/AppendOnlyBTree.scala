@@ -234,9 +234,8 @@ class AppendOnlyBTree(kb: EmitClassBuilder[_], val key: BTreeKey, region: Value[
   private def getF(cb: EmitCodeBuilder, root: Code[Long], kc: EmitCode): Code[Long] = {
     val get = kb.genEmitMethod("btree_get", FastIndexedSeq[ParamType](typeInfo[Long], kc.pv.st.pType.asEmitParam), typeInfo[Long])
     get.emitWithBuilder { cb =>
+      val node = get.getCodeParam[Long](1)
       val k = get.getEmitParam(2)
-      // FIXME load bearing conversion of arg to local ???
-      val node = cb.newLocal("node", get.getCodeParam[Long](1))
 
       val cmp = cb.newLocal("btree_get_cmp", -1)
       val keyV = cb.newLocal("btree_get_keyV", 0L)
