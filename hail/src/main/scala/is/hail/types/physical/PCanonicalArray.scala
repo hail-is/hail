@@ -510,8 +510,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
     // TODO Special case UnsafeIndexedSeq
     val is = annotation.asInstanceOf[IndexedSeq[Annotation]]
     val valueAddress = allocate(region, is.length)
-    assert(is.length > 0)
-    // TODO: Don't have to touch missing? Or do I?
+    assert(is.length >= 0)
     initialize(valueAddress, is.length)
     var i = 0
     var curElementAddress = firstElementOffset(valueAddress, is.length)
@@ -521,8 +520,8 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
       }
       else {
         elementType.unstagedStoreJavaObjectAtAddress(curElementAddress, is(i), region)
-        curElementAddress = nextElementAddress(curElementAddress)
       }
+      curElementAddress = nextElementAddress(curElementAddress)
       i += 1
     }
     valueAddress

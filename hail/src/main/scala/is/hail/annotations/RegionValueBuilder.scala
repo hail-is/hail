@@ -392,7 +392,7 @@ class RegionValueBuilder(var region: Region) {
     val toOff = currentOffset()
     assert(typestk.nonEmpty || toOff == start)
 
-    toT.unstagedStoreAtAddress(toOff, region, t.fundamentalType, fromOff, deepCopy)
+    toT.unstagedStoreAtAddress(toOff, region, t, fromOff, deepCopy)
 
     advance()
   }
@@ -412,9 +412,9 @@ class RegionValueBuilder(var region: Region) {
     if (typestk.isEmpty) {
       allocateRoot()
     }
-    if (a == null)
+    if (a == null) {
       setMissing()
-    else {
+    } else {
       if (typestk.isEmpty) { // Top level, have to make a decision
         root match {
           case _: PCanonicalArray | _: PCanonicalString | _: PCanonicalBinary | _: PArrayBackedContainer => {
@@ -432,9 +432,7 @@ class RegionValueBuilder(var region: Region) {
       }
     }
 
-    if (typestk.isEmpty) {
 
-    }
   }
 
   def addInlineRow(t: PBaseStruct, a: Row) {
