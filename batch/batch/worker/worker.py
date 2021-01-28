@@ -1092,7 +1092,8 @@ class JVMJob(Job):
 
                 log.info(f'{self}: running jvm process')
 
-                self.state = await self.process.run()
+                await self.process.run()
+                self.state = self.process.state
                 log.info(f'{self} main: {self.state}')
             except Exception:
                 log.exception(f'while running {self}')
