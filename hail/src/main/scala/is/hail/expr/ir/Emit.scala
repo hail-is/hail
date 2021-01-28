@@ -216,6 +216,12 @@ object IEmitCode {
     IEmitCodeGen(CodeLabel(), Lpresent, value)
   }
 
+  def missing[A](cb: EmitCodeBuilder, defaultValue: A): IEmitCodeGen[A] = {
+    val Lmissing = CodeLabel()
+    cb.goto(Lmissing)
+    IEmitCodeGen(Lmissing, CodeLabel(), defaultValue)
+  }
+
   def sequence[A, B, C](seq: IndexedSeq[A], toIec: A => IEmitCodeGen[B], cb: EmitCodeBuilder)
       (f: IndexedSeq[B] => C): IEmitCodeGen[C] = {
     val Lmissing = CodeLabel()
@@ -652,7 +658,7 @@ class Emit[C](
     }
   }
 
-  private def emitI(ir: IR, cb: EmitCodeBuilder, region: StagedRegion, env: E,
+  private[ir] def emitI(ir: IR, cb: EmitCodeBuilder, region: StagedRegion, env: E,
     container: Option[AggContainer], loopEnv: Option[Env[LoopRef]]
   ): IEmitCode = {
     val mb: EmitMethodBuilder[C] = cb.emb.asInstanceOf[EmitMethodBuilder[C]]

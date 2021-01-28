@@ -704,10 +704,10 @@ abstract class PartitionReader {
     context: IR,
     requestedType: Type,
     emitter: Emit[C],
-    mb: EmitMethodBuilder[C],
+    cb: EmitCodeBuilder,
     partitionRegion: StagedRegion,
     env0: Emit.E,
-    container: Option[AggContainer]): COption[SizedStream]
+    container: Option[AggContainer]): IEmitCode
 
   def toJValue: JValue
 }

@@ -20,6 +20,7 @@ import is.hail.io.index.{IndexReadIterator, IndexReader, IndexReaderBuilder, May
 import is.hail.linalg.{BlockMatrix, BlockMatrixMetadata, BlockMatrixReadRowBlockedRDD}
 import is.hail.rvd._
 import is.hail.sparkextras.ContextRDD
+import is.hail.types.physical.stypes.interfaces
 import is.hail.utils._
 import org.apache.spark.TaskContext
 import org.apache.spark.executor.InputMetrics
@@ -466,11 +467,12 @@ case class PartitionRVDReader(rvd: RVD) extends PartitionReader {
     context: IR,
     requestedType: Type,
     emitter: Emit[C],
-    mb: EmitMethodBuilder[C],
+    cb: EmitCodeBuilder,
     outerRegion: StagedRegion,
     env0: Emit.E,
-    container: Option[AggContainer]): COption[SizedStream] = {
-    val ctxIdx = emitter.emitWithRegion(context, mb, outerRegion, env0, container)
+    container: Option[AggContainer]): IEmitCode = {
+
+    val mb = cb.emb
 
     val (upcastPType, upcast) = Compile[AsmFunction2RegionLongLong](ctx,
       FastIndexedSeq(("elt", rvd.rowPType)),
@@ -483,7 +485,7 @@ case class PartitionRVDReader(rvd: RVD) extends PartitionReader {
     assert(upcastPType == rowPType(requestedType),
       s"ptype mismatch:\n  upcast: $upcastPType\n  computed: ${ rowPType(requestedType) }")
 
-    COption.fromEmitCode(ctxIdx).map { idx =>
+    emitter.emitI(context, cb, outerRegion, env0, container, None).map(cb) { idx =>
       val iterator = mb.genFieldThisRef[Iterator[Long]]("rvdreader_iterator")
       val hasNext = mb.genFieldThisRef[Boolean]("rvdreader_hasNext")
       val next = mb.genFieldThisRef[Long]("rvdreader_next")
@@ -491,7 +493,7 @@ case class PartitionRVDReader(rvd: RVD) extends PartitionReader {
       val upcastF = mb.genFieldThisRef[AsmFunction2RegionLongLong]("rvdreader_upcast")
 
       val broadcastRVD = mb.getObject[BroadcastRVD](new BroadcastRVD(ctx.backend.asSpark("RVDReader"), rvd))
-      SizedStream.unsized { eltRegion =>
+      val newStream = SizedStream.unsized { eltRegion =>
         Stream.unfold[Code[Long]](
           (_, k) =>
             Code(
@@ -505,6 +507,8 @@ case class PartitionRVDReader(rvd: RVD) extends PartitionReader {
               "computePartition", EmitCodeBuilder.scopedCode[Int](mb)(idx.asInt.intCode(_)), eltRegion.code, outerRegion.code),
               upcastF := Code.checkcast[AsmFunction2RegionLongLong](upcastCode.invoke[AnyRef, AnyRef, AnyRef]("apply", Code.boxInt(0), outerRegion.code)))))
       }
+
+      interfaces.SStreamCode(interfaces.SStream(upcastPType.sType, separateRegions = true), newStream)
     }
   }
 
@@ -526,24 +530,26 @@ case class PartitionNativeReader(spec: AbstractTypedCodecSpec) extends AbstractN
     context: IR,
     requestedType: Type,
     emitter: Emit[C],
-    mb: EmitMethodBuilder[C],
+    cb: EmitCodeBuilder,
     partitionRegion: StagedRegion,
     env: Emit.E,
-    container: Option[AggContainer]): COption[SizedStream] = {
+    container: Option[AggContainer]): IEmitCode = {
 
-    def emitIR(ir: IR, env: Emit.E = env, region: StagedRegion = partitionRegion, container: Option[AggContainer] = container): EmitCode =
-      emitter.emitWithRegion(ir, mb, region, env, container)
+    val mb = cb.emb
+
+    def emitIR(ir: IR, env: Emit.E = env, region: StagedRegion = partitionRegion, container: Option[AggContainer] = container): IEmitCode =
+      emitter.emitI(ir, cb, region, env, container, None)
 
     val (eltType, dec) = spec.buildTypedEmitDecoderF[Long](requestedType, mb.ecb)
 
-    COption.fromEmitCode(emitIR(context)).map { path =>
+    emitIR(context).map(cb) { path =>
       val pathString = path.asString.loadString()
       val xRowBuf = mb.newLocal[InputBuffer]()
       val decRes = mb.newEmitLocal(PInt64Optional)
       val hasNext = mb.newLocal[Boolean]("pnr_hasNext")
       val next = mb.newLocal[Long]("pnr_next")
 
-      SizedStream.unsized(eltRegion => Stream.unfold[Code[Long]](
+      val newStream = SizedStream.unsized(eltRegion => Stream.unfold[Code[Long]](
         (_, k) =>
           Code(
             hasNext := xRowBuf.readByte().toZ,
@@ -554,6 +560,8 @@ case class PartitionNativeReader(spec: AbstractTypedCodecSpec) extends AbstractN
           setup0 = None,
           setup = Some(xRowBuf := spec
             .buildCodeInputBuffer(mb.open(pathString, true)))))
+
+      interfaces.SStreamCode(interfaces.SStream(eltType.sType, separateRegions = true), newStream)
     }
   }
 
@@ -570,13 +578,15 @@ case class PartitionNativeReaderIndexed(spec: AbstractTypedCodecSpec, indexSpec:
     context: IR,
     requestedType: Type,
     emitter: Emit[C],
-    mb: EmitMethodBuilder[C],
+    cb: EmitCodeBuilder,
     partitionRegion: StagedRegion,
     env: Emit.E,
-    container: Option[AggContainer]): COption[SizedStream] = {
+    container: Option[AggContainer]): IEmitCode = {
 
-    def emitIR(ir: IR, env: Emit.E = env, region: StagedRegion = partitionRegion, container: Option[AggContainer] = container): EmitCode =
-      emitter.emitWithRegion(ir, mb, region, env, container)
+    val mb = cb.emb
+
+    def emitIR(ir: IR, env: Emit.E = env, region: StagedRegion = partitionRegion, container: Option[AggContainer] = container): IEmitCode =
+      emitter.emitI(ir, cb, region, env, container, None)
 
     val (eltType, makeDec) = spec.buildDecoder(ctx, requestedType)
 
@@ -587,7 +597,8 @@ case class PartitionNativeReaderIndexed(spec: AbstractTypedCodecSpec, indexSpec:
 
     val makeIndexCode = mb.getObject[Function4[FS, String, Int, RegionPool, IndexReader]](mkIndexReader)
     val makeDecCode = mb.getObject[(InputStream => Decoder)](makeDec)
-    COption.fromEmitCode(emitIR(context)).map { ctxStruct =>
+
+    emitIR(context).map(cb) { ctxStruct =>
       val getIndexReader: Code[String] => Code[IndexReader] = { (indexPath: Code[String]) =>
         Code.checkcast[IndexReader](
           makeIndexCode.invoke[AnyRef, AnyRef, AnyRef, AnyRef, AnyRef]("apply", mb.getFS, indexPath, Code.boxInt(8), mb.ecb.pool()))
@@ -598,7 +609,7 @@ case class PartitionNativeReaderIndexed(spec: AbstractTypedCodecSpec, indexSpec:
       val idxr = mb.genFieldThisRef[IndexReader]("pnri_idx_reader")
       val it = mb.genFieldThisRef[IndexReadIterator]("pnri_idx_iterator")
 
-      SizedStream.unsized(eltRegion => Stream.unfold[Code[Long]](
+      val newStream = SizedStream.unsized(eltRegion => Stream.unfold[Code[Long]](
         (_, k) =>
           Code(
             hasNext := it.invoke[Boolean]("hasNext"),
@@ -647,6 +658,8 @@ case class PartitionNativeReaderIndexed(spec: AbstractTypedCodecSpec, indexSpec:
                 ))
             }),
           close = Some(it.invoke[Unit]("close"))))
+
+      interfaces.SStreamCode(interfaces.SStream(eltType.sType, separateRegions = true), newStream)
     }
   }
 
@@ -686,13 +699,15 @@ case class PartitionZippedNativeReader(specLeft: AbstractTypedCodecSpec, specRig
     context: IR,
     requestedType: Type,
     emitter: Emit[C],
-    mb: EmitMethodBuilder[C],
+    cb: EmitCodeBuilder,
     partitionRegion: StagedRegion,
     env: Emit.E,
-    container: Option[AggContainer]): COption[SizedStream] = {
+    container: Option[AggContainer]): IEmitCode = {
 
-    def emitIR(ir: IR, env: Emit.E = env, region: StagedRegion = partitionRegion, container: Option[AggContainer] = container): EmitCode =
-      emitter.emitWithRegion(ir, mb, region, env, container)
+    val mb = cb.emb
+
+    def emitIR(ir: IR, env: Emit.E = env, region: StagedRegion = partitionRegion, container: Option[AggContainer] = container): IEmitCode =
+      emitter.emitI(ir, cb, region, env, container, None)
 
     val (leftRType, rightRType) = splitRequestedTypes(requestedType)
 
@@ -728,7 +743,7 @@ case class PartitionZippedNativeReader(specLeft: AbstractTypedCodecSpec, specRig
     val leftOffsetField = indexSpecLeft.flatMap(_.offsetField)
     val rightOffsetField = indexSpecRight.flatMap(_.offsetField)
 
-    COption.fromEmitCode(emitIR(context)).map { ctxStruct =>
+    emitIR(context).map(cb) { ctxStruct =>
 
       def getIndexReader(cb: EmitCodeBuilder, ctxMemo: PBaseStructValue): Code[IndexReader] = {
         makeIndexCode match {
@@ -768,7 +783,7 @@ case class PartitionZippedNativeReader(specLeft: AbstractTypedCodecSpec, specRig
       val next = mb.newLocal[Long]("pnr_next")
       val it = mb.genFieldThisRef[MaybeIndexedReadZippedIterator]("pnri_idx_iterator")
 
-      SizedStream.unsized(eltRegion => Stream.unfold[Code[Long]](
+      val newStream = SizedStream.unsized(eltRegion => Stream.unfold[Code[Long]](
         (_, k) =>
           Code(
             hasNext := it.invoke[Boolean]("hasNext"),
@@ -814,6 +829,8 @@ case class PartitionZippedNativeReader(specLeft: AbstractTypedCodecSpec, specRig
             }),
           close = Some(it.invoke[Unit]("close")))
       )
+
+      interfaces.SStreamCode(interfaces.SStream(eltType.sType, separateRegions = true), newStream)
     }
   }
 
