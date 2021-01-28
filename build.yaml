@@ -1676,6 +1676,9 @@ steps:
     - kind: Service
       name: auth
       for: alive
+    - kind: Service
+      name: auth-driver
+      for: alive
    dependsOn:
     - default_ns
     - create_deploy_config
@@ -2316,7 +2319,7 @@ steps:
      hailctl config set batch/bucket hail-test-dmk9z
      python3 -m pytest --log-cli-level=INFO -s -vv --instafail --durations=50 /io/test/
    timeout: 600
-   secrets: 
+   secrets:
     - name: gce-deploy-config
       namespace:
         valueFrom: default_ns.name
