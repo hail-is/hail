@@ -415,10 +415,19 @@ class RegionValueBuilder(var region: Region) {
     if (a == null)
       setMissing()
     else {
+      currentType() match {
+        case _: PCanonicalArray | _: PCanonicalString | _: PCanonicalBinary | _: PArrayBackedContainer => {
+          start = currentType().unstagedStoreJavaObject(a, region)
+        }
+        case _ => {
+          currentType().unstagedStoreJavaObjectAtAddress(currentOffset(), a, region)
+          advance()
+        }
+      }
+    }
 
+    if (typestk.isEmpty) {
 
-      currentType().unstagedStoreJavaObjectAtAddress(currentOffset(), a, region)
-      advance()
     }
   }
 

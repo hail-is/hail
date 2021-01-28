@@ -30,12 +30,12 @@ final case class PCanonicalDict(keyType: PType, valueType: PType, required: Bool
   private def deepRenameDict(t: TDict) =
     PCanonicalDict(this.keyType.deepRename(t.keyType), this.valueType.deepRename(t.valueType), this.required)
 
-  override def unstagedStoreJavaObjectAtAddress(addr: Long, annotation: Annotation, region: Region): Unit = {
+  override def unstagedStoreJavaObject(annotation: Annotation, region: Region): Long = {
     val annotMap = annotation.asInstanceOf[Map[Annotation, Annotation]]
     val sortedArray = annotMap.map{ case (k, v) => Row(k, v) }
       .toArray
       .sorted(elementType.virtualType.ordering.toOrdering)
       .toIndexedSeq
-    this.arrayRep.unstagedStoreJavaObjectAtAddress(addr, sortedArray, region)
+    this.arrayRep.unstagedStoreJavaObject(sortedArray, region)
   }
 }

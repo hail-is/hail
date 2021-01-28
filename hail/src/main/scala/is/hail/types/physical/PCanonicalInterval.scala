@@ -112,4 +112,10 @@ final case class PCanonicalInterval(pointType: PType, override val required: Boo
       region
     )
   }
+
+  override def unstagedStoreJavaObject(annotation: Annotation, region: Region): Long = {
+    val addr = representation.allocate(region)
+    unstagedStoreJavaObjectAtAddress(addr, annotation, region)
+    addr
+  }
 }

@@ -152,4 +152,10 @@ final case class PCanonicalLocus(rgBc: BroadcastRG, required: Boolean = false) e
     val myLocus = annotation.asInstanceOf[Locus]
     representation.unstagedStoreJavaObjectAtAddress(addr, Row(myLocus.contig, myLocus.position), region)
   }
+
+  override def unstagedStoreJavaObject(annotation: Annotation, region: Region): Long = {
+    val addr = representation.allocate(region)
+    unstagedStoreJavaObjectAtAddress(addr, annotation, region)
+    addr
+  }
 }

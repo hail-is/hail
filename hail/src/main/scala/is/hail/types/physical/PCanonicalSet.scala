@@ -22,10 +22,10 @@ final case class PCanonicalSet(elementType: PType,  required: Boolean = false) e
   private def deepRenameSet(t: TSet) =
     PCanonicalSet(this.elementType.deepRename(t.elementType), this.required)
 
-  override def unstagedStoreJavaObjectAtAddress(addr: Long, annotation: Annotation, region: Region): Unit = {
+  override def unstagedStoreJavaObject(annotation: Annotation, region: Region): Long = {
     val s = annotation.asInstanceOf[Set[Annotation]]
       .toArray
       .sorted(elementType.virtualType.ordering.toOrdering)
-    arrayRep.unstagedStoreJavaObjectAtAddress(addr, s, region)
+    arrayRep.unstagedStoreJavaObject(s, region)
   }
 }

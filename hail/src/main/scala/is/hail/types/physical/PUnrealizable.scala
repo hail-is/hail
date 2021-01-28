@@ -31,6 +31,9 @@ trait PUnrealizable extends PType {
   def unstagedStoreAtAddress(addr: Long, region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Unit =
     unsupported
 
+  override def unstagedStoreJavaObject(annotation: Annotation, region: Region): Long =
+    unsupported
+
   override def unstagedStoreJavaObjectAtAddress(addr: Long, annotation: Annotation, region: Region): Unit =
     unsupported
 

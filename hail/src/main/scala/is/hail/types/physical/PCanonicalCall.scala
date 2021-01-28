@@ -64,8 +64,9 @@ final case class PCanonicalCall(required: Boolean = false) extends PCall {
 
   def loadFromNested(cb: EmitCodeBuilder, addr: Code[Long]): Code[Long] = representation.loadFromNested(cb, addr)
 
-  override def unstagedStoreJavaObjectAtAddress(addr: Long, annotation: Annotation): Unit = {
-    representation.unstagedStoreJavaObjectAtAddress(addr, annotation)
+  override def unstagedStoreJavaObject(annotation: Annotation, region: Region): Long = {
+    representation.unstagedStoreJavaObject(annotation, region)
+  }
 
   override def unstagedStoreJavaObjectAtAddress(addr: Long, annotation: Annotation, region: Region): Unit = {
     representation.unstagedStoreJavaObjectAtAddress(addr, annotation, region)

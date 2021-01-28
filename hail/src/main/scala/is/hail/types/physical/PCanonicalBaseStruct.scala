@@ -228,6 +228,12 @@ abstract class PCanonicalBaseStruct(val types: Array[PType]) extends PBaseStruct
     new SBaseStructPointerCode(SBaseStructPointer(this), addr)
   }
 
+  override def unstagedStoreJavaObject(annotation: Annotation, region: Region): Long = {
+    val addr = allocate(region)
+    unstagedStoreJavaObjectAtAddress(addr, annotation, region)
+    addr
+  }
+
   override def unstagedStoreJavaObjectAtAddress(addr: Long, annotation: Annotation, region: Region): Unit = {
     initialize(addr)
     val row = annotation.asInstanceOf[Row]

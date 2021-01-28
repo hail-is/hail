@@ -252,7 +252,11 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
 
   def loadFromNested(cb: EmitCodeBuilder, addr: Code[Long]): Code[Long] = addr
 
-  override def unstagedStoreJavaObjectAtAddress(addr: Long, a: Annotation): Unit = {
+  override def unstagedStoreJavaObject(annotation: Annotation, region: Region): Long = {
+    val addr = this.representation.allocate(region)
+    unstagedStoreJavaObjectAtAddress(addr, annotation, region)
+    addr
+  }
 
   override def unstagedStoreJavaObjectAtAddress(addr: Long, a: Annotation, region: Region): Unit = {
     val aNDArray = a.asInstanceOf[NDArray]
