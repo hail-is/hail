@@ -198,9 +198,7 @@ object MathFunctions extends RegistryFunctions {
 
       chisqStruct.constructFromFields(cb, r.region, FastIndexedSeq(
         IEmitCode.present(cb, SFloat64Code(res(0))).memoize(cb, "chi_squared_test_res0"),
-        IEmitCode.present(cb, SFloat64Code(res(1))).memoize(cb, "chi_squared_test_res1"),
-        IEmitCode.present(cb, SFloat64Code(res(2))).memoize(cb, "chi_squared_test_res2"),
-        IEmitCode.present(cb, SFloat64Code(res(3))).memoize(cb, "chi_squared_test_res3")
+        IEmitCode.present(cb, SFloat64Code(res(1))).memoize(cb, "chi_squared_test_res1")
       ), deepCopy = false)
     }
 
@@ -217,9 +215,7 @@ object MathFunctions extends RegistryFunctions {
 
       chisqStruct.constructFromFields(cb, r.region, FastIndexedSeq(
         IEmitCode.present(cb, SFloat64Code(res(0))).memoize(cb, "contingency_table_test_res0"),
-        IEmitCode.present(cb, SFloat64Code(res(1))).memoize(cb, "contingency_table_test_res1"),
-        IEmitCode.present(cb, SFloat64Code(res(2))).memoize(cb, "contingency_table_test_res2"),
-        IEmitCode.present(cb, SFloat64Code(res(3))).memoize(cb, "contingency_table_test_res3")
+        IEmitCode.present(cb, SFloat64Code(res(1))).memoize(cb, "contingency_table_test_res1")
       ), deepCopy = false)
     }
 
