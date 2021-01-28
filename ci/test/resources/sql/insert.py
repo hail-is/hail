@@ -6,8 +6,7 @@ async def async_main():
     db = Database()
     await db.async_init()
 
-    await db.just_execute(
-        f"INSERT INTO hello2 (greeting) VALUES ('hello, hello!');")
+    await db.just_execute(f"INSERT INTO hello2 (greeting) VALUES ('hello, hello!');")
 
 
 loop = asyncio.get_event_loop()

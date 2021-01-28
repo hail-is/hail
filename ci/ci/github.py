@@ -211,11 +211,13 @@ class PR(Code):
         else:
             source_sha_failed_prio = 0 if self.source_sha_failed else 2
 
-        return (HIGH_PRIORITY in self.labels,
-                all(label not in DO_NOT_MERGE for label in self.labels),
-                source_sha_failed_prio,
-                # oldest first
-                - self.number)
+        return (
+            HIGH_PRIORITY in self.labels,
+            all(label not in DO_NOT_MERGE for label in self.labels),
+            source_sha_failed_prio,
+            # oldest first
+            -self.number,
+        )
 
     def short_str(self):
         return f'pr-{self.number}'
@@ -247,13 +249,15 @@ class PR(Code):
     @staticmethod
     def from_gh_json(gh_json, target_branch):
         head = gh_json['head']
-        return PR(gh_json['number'],
-                  gh_json['title'],
-                  Repo.from_gh_json(head['repo']),
-                  head['sha'],
-                  target_branch,
-                  gh_json['user']['login'],
-                  {label['name'] for label in gh_json['labels']})
+        return PR(
+            gh_json['number'],
+            gh_json['title'],
+            Repo.from_gh_json(head['repo']),
+            head['sha'],
+            target_branch,
+            gh_json['user']['login'],
+            {label['name'] for label in gh_json['labels']},
+        )
 
     def repo_dir(self):
         return self.target_branch.repo_dir()
@@ -270,14 +274,13 @@ class PR(Code):
             'target_repo': target_repo.short_str(),
             'target_repo_url': target_repo.url,
             'target_sha': self.target_branch.sha,
-            'sha': self.sha
+            'sha': self.sha,
         }
 
     def github_status_from_build_state(self):
         if self.build_state == 'failure' or self.build_state == 'error':
             return 'failure'
-        if (self.build_state == 'success'
-                and self.batch.attributes['target_sha'] == self.target_branch.sha):
+        if self.build_state == 'success' and self.batch.attributes['target_sha'] == self.target_branch.sha:
             return 'success'
         return 'pending'
 
@@ -287,24 +290,22 @@ class PR(Code):
         log.info(f'{self.short_str()}: notify github state: {gh_status}')
         if self.batch is None or isinstance(self.batch, MergeFailureBatch):
             target_url = deploy_config.external_url(
-                'ci',
-                f'/watched_branches/{self.target_branch.index}/pr/{self.number}')
+                'ci', f'/watched_branches/{self.target_branch.index}/pr/{self.number}'
+            )
         else:
             assert self.batch.id is not None
-            target_url = deploy_config.external_url(
-                'ci',
-                f'/batches/{self.batch.id}')
+            target_url = deploy_config.external_url('ci', f'/batches/{self.batch.id}')
         data = {
             'state': gh_status,
             'target_url': target_url,
             # FIXME improve
             'description': gh_status,
-            'context': GITHUB_STATUS_CONTEXT
+            'context': GITHUB_STATUS_CONTEXT,
         }
         try:
             await gh_client.post(
-                f'/repos/{self.target_branch.branch.repo.short_str()}/statuses/{self.source_sha}',
-                data=data)
+                f'/repos/{self.target_branch.branch.repo.short_str()}/statuses/{self.source_sha}', data=data
+            )
         except gidgethub.HTTPException:
             log.info(f'{self.short_str()}: notify github of build state failed due to exception: {data}', exc_info=True)
         except aiohttp.client_exceptions.ClientResponseError:
@@ -325,12 +326,14 @@ class PR(Code):
             return hail_status[0]['state']
         raise ValueError(
             f'github sent multiple status summaries for our one '
-            f'context {GITHUB_STATUS_CONTEXT}: {hail_status}\n\n{statuses_json}')
+            f'context {GITHUB_STATUS_CONTEXT}: {hail_status}\n\n{statuses_json}'
+        )
 
     async def _update_last_known_github_status(self, gh):
         if self.source_sha:
             source_sha_json = await gh.getitem(
-                f'/repos/{self.target_branch.branch.repo.short_str()}/commits/{self.source_sha}/status')
+                f'/repos/{self.target_branch.branch.repo.short_str()}/commits/{self.source_sha}/status'
+            )
             last_known_github_status = PR._hail_github_status_from_statuses(source_sha_json)
             if last_known_github_status != self.last_known_github_status:
                 self.last_known_github_status = last_known_github_status
@@ -338,7 +341,9 @@ class PR(Code):
 
     async def _update_github_review_state(self, gh):
         latest_state_by_login = {}
-        async for review in gh.getiter(f'/repos/{self.target_branch.branch.repo.short_str()}/pulls/{self.number}/reviews'):
+        async for review in gh.getiter(
+            f'/repos/{self.target_branch.branch.repo.short_str()}/pulls/{self.number}/reviews'
+        ):
             login = review['user']['login']
             state = review['state']
             # reviews is chronological, so later ones are newer statuses
@@ -370,14 +375,15 @@ class PR(Code):
         try:
             log.info(f'merging for {self.number}')
             repo_dir = self.repo_dir()
-            await check_shell(f'''
+            await check_shell(
+                f'''
 set -ex
 mkdir -p {shq(repo_dir)}
 (cd {shq(repo_dir)}; {self.checkout_script()})
-''')
+'''
+            )
 
-            sha_out, _ = await check_shell_output(
-                f'git -C {shq(repo_dir)} rev-parse HEAD')
+            sha_out, _ = await check_shell_output(f'git -C {shq(repo_dir)} rev-parse HEAD')
             self.sha = sha_out.decode('utf-8').strip()
 
             with open(f'{repo_dir}/build.yaml', 'r') as f:
@@ -391,9 +397,10 @@ mkdir -p {shq(repo_dir)}
                     'target_branch': self.target_branch.branch.short_str(),
                     'pr': str(self.number),
                     'source_sha': self.source_sha,
-                    'target_sha': self.target_branch.sha
+                    'target_sha': self.target_branch.sha,
                 },
-                callback=CALLBACK_URL)
+                callback=CALLBACK_URL,
+            )
             config.build(batch, self, scope='test')
             batch = await batch.submit()
             self.batch = batch
@@ -411,7 +418,8 @@ mkdir -p {shq(repo_dir)}
                     'pr': str(self.number),
                     'source_sha': self.source_sha,
                     'target_sha': self.target_branch.sha,
-                })
+                },
+            )
             self.set_build_state('error')
             self.source_sha_failed = True
             self.target_branch.state_changed = True
@@ -432,9 +440,8 @@ mkdir -p {shq(repo_dir)}
     async def _update_batch(self, batch_client, dbpool):
         # find the latest non-cancelled batch for source
         batches = batch_client.list_batches(
-            f'test=1 '
-            f'target_branch={self.target_branch.branch.short_str()} '
-            f'source_sha={self.source_sha}')
+            f'test=1 ' f'target_branch={self.target_branch.branch.short_str()} ' f'source_sha={self.source_sha}'
+        )
         min_batch = None
         min_batch_status = None
         async for b in batches:
@@ -476,8 +483,7 @@ mkdir -p {shq(repo_dir)}
         if not await self.authorized(dbpool):
             return
 
-        if (not self.batch
-                or (on_deck and self.batch.attributes['target_sha'] != self.target_branch.sha)):
+        if not self.batch or (on_deck and self.batch.attributes['target_sha'] != self.target_branch.sha):
 
             if on_deck or self.target_branch.n_running_batches < 8:
                 self.target_branch.n_running_batches += 1
@@ -488,18 +494,19 @@ mkdir -p {shq(repo_dir)}
         return self.batch is not None and self.target_branch.sha == self.batch.attributes['target_sha']
 
     def is_mergeable(self):
-        return (self.review_state == 'approved'
-                and self.build_state == 'success'
-                and self.is_up_to_date()
-                and all(label not in DO_NOT_MERGE for label in self.labels))
+        return (
+            self.review_state == 'approved'
+            and self.build_state == 'success'
+            and self.is_up_to_date()
+            and all(label not in DO_NOT_MERGE for label in self.labels)
+        )
 
     async def merge(self, gh):
         try:
-            await gh.put(f'/repos/{self.target_branch.branch.repo.short_str()}/pulls/{self.number}/merge',
-                         data={
-                             'merge_method': 'squash',
-                             'sha': self.source_sha
-                         })
+            await gh.put(
+                f'/repos/{self.target_branch.branch.repo.short_str()}/pulls/{self.number}/merge',
+                data={'merge_method': 'squash', 'sha': self.source_sha},
+            )
             return True
         except (gidgethub.HTTPException, aiohttp.client_exceptions.ClientResponseError):
             log.info(f'merge {self.target_branch.branch.short_str()} {self.number} failed', exc_info=True)
@@ -558,7 +565,7 @@ class WatchedBranch(Code):
             'branch': self.branch.name,
             'repo': self.branch.repo.short_str(),
             'repo_url': self.branch.repo.url,
-            'sha': self.sha
+            'sha': self.sha,
         }
 
     async def notify_github_changed(self, app):
@@ -649,15 +656,15 @@ class WatchedBranch(Code):
 
         if self.deploy_batch is None:
             running_deploy_batches = batch_client.list_batches(
-                f'!complete deploy=1 target_branch={self.branch.short_str()}')
+                f'!complete deploy=1 target_branch={self.branch.short_str()}'
+            )
             running_deploy_batches = [b async for b in running_deploy_batches]
             if running_deploy_batches:
                 self.deploy_batch = max(running_deploy_batches, key=lambda b: b.id)
             else:
                 deploy_batches = batch_client.list_batches(
-                    f'deploy=1 '
-                    f'target_branch={self.branch.short_str()} '
-                    f'sha={self.sha}')
+                    f'deploy=1 ' f'target_branch={self.branch.short_str()} ' f'sha={self.sha}'
+                )
                 deploy_batches = [b async for b in deploy_batches]
                 if deploy_batches:
                     self.deploy_batch = max(deploy_batches, key=lambda b: b.id)
@@ -676,9 +683,7 @@ class WatchedBranch(Code):
                     self.deploy_state = 'failure'
 
                 if not is_test_deployment and self.deploy_state == 'failure':
-                    url = deploy_config.external_url(
-                        'ci',
-                        f'/batches/{self.deploy_batch.id}')
+                    url = deploy_config.external_url('ci', f'/batches/{self.deploy_batch.id}')
                     request = {
                         'type': 'stream',
                         'to': 'team',
@@ -689,7 +694,8 @@ state: {self.deploy_state}
 branch: {self.branch.short_str()}
 sha: {self.sha}
 url: {url}
-'''}
+''',
+                    }
                     result = zulip_client.send_message(request)
                     log.info(result)
 
@@ -701,8 +707,7 @@ url: {url}
         if not self.sha:
             return
 
-        if (self.deploy_batch is None
-                or (self.deploy_state and self.deploy_batch.attributes['sha'] != self.sha)):
+        if self.deploy_batch is None or (self.deploy_state and self.deploy_batch.attributes['sha'] != self.sha):
             async with repos_lock:
                 await self._start_deploy(batch_client)
 
@@ -726,8 +731,7 @@ url: {url}
         for pr in self.prs.values():
             # merge candidate if up-to-date build passing, or
             # pending but haven't failed
-            if (pr.review_state == 'approved'
-                    and (pr.build_state == 'success' or not pr.source_sha_failed)):
+            if pr.review_state == 'approved' and (pr.build_state == 'success' or not pr.source_sha_failed):
                 pri = pr.merge_priority()
                 is_authorized = await pr.authorized(dbpool)
                 if is_authorized and (not merge_candidate or pri > merge_candidate_pri):
@@ -742,8 +746,7 @@ url: {url}
             await pr._heal(batch_client, dbpool, pr == merge_candidate, gh)
 
         # cancel orphan builds
-        running_batches = batch_client.list_batches(
-            f'!complete !open test=1 target_branch={self.branch.short_str()}')
+        running_batches = batch_client.list_batches(f'!complete !open test=1 target_branch={self.branch.short_str()}')
         seen_batch_ids = set(pr.batch.id for pr in self.prs.values() if pr.batch and hasattr(pr.batch, 'id'))
         async for batch in running_batches:
             if batch.id not in seen_batch_ids:
@@ -761,10 +764,12 @@ url: {url}
         deploy_batch = None
         try:
             repo_dir = self.repo_dir()
-            await check_shell(f'''
+            await check_shell(
+                f'''
 mkdir -p {shq(repo_dir)}
 (cd {shq(repo_dir)}; {self.checkout_script()})
-''')
+'''
+            )
             with open(f'{repo_dir}/build.yaml', 'r') as f:
                 config = BuildConfiguration(self, f.read(), scope='deploy')
 
@@ -774,9 +779,10 @@ mkdir -p {shq(repo_dir)}
                     'token': secrets.token_hex(16),
                     'deploy': '1',
                     'target_branch': self.branch.short_str(),
-                    'sha': self.sha
+                    'sha': self.sha,
                 },
-                callback=CALLBACK_URL)
+                callback=CALLBACK_URL,
+            )
             config.build(deploy_batch, self, scope='deploy')
             deploy_batch = await deploy_batch.submit()
             self.deploy_batch = deploy_batch
@@ -785,12 +791,8 @@ mkdir -p {shq(repo_dir)}
         except Exception as e:  # pylint: disable=broad-except
             log.exception('could not start deploy')
             self.deploy_batch = MergeFailureBatch(
-                e,
-                attributes={
-                    'deploy': '1',
-                    'target_branch': self.branch.short_str(),
-                    'sha': self.sha
-                })
+                e, attributes={'deploy': '1', 'target_branch': self.branch.short_str(), 'sha': self.sha}
+            )
             self.deploy_state = 'checkout_failure'
         finally:
             if deploy_batch and not self.deploy_batch:
@@ -827,7 +829,7 @@ class UnwatchedBranch(Code):
             'repo': self.branch.repo.short_str(),
             'repo_url': self.branch.repo.url,
             'sha': self.sha,
-            'user': self.user
+            'user': self.user,
         }
 
     async def deploy(self, batch_client, steps):
@@ -836,10 +838,12 @@ class UnwatchedBranch(Code):
         deploy_batch = None
         try:
             repo_dir = self.repo_dir()
-            await check_shell(f'''
+            await check_shell(
+                f'''
 mkdir -p {shq(repo_dir)}
 (cd {shq(repo_dir)}; {self.checkout_script()})
-''')
+'''
+            )
             log.info(f'User {self.user} requested these steps for dev deploy: {steps}')
             with open(f'{repo_dir}/build.yaml', 'r') as f:
                 config = BuildConfiguration(self, f.read(), scope='dev', requested_step_names=steps)
@@ -851,8 +855,9 @@ mkdir -p {shq(repo_dir)}
                     'token': secrets.token_hex(16),
                     'target_branch': self.branch.short_str(),
                     'sha': self.sha,
-                    'user': self.user
-                })
+                    'user': self.user,
+                }
+            )
             config.build(deploy_batch, self, scope='dev')
             deploy_batch = await deploy_batch.submit()
             self.deploy_batch = deploy_batch
