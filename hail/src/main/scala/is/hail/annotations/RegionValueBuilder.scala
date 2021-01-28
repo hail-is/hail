@@ -273,7 +273,10 @@ class RegionValueBuilder(var region: Region) {
   }
 
   def addBinary(bytes: Array[Byte]) {
-    val pbt = currentType().asInstanceOf[PBinary]
+    val pbt = currentType() match {
+      case b: PBinary => b
+      case s: PString => s.fundamentalType.asInstanceOf[PBinary]
+    }
     val valueAddress = pbt.allocate(region, bytes.length)
     pbt.store(valueAddress, bytes)
 
