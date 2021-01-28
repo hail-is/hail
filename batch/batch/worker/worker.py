@@ -532,9 +532,7 @@ class JVMProcess:
         self.heap_size = main_spec['memory'] - self.stack_size
         self.env = {}
         for var in main_spec.get('env', []):
-            idx = var.find('=')
-            if idx > 0:
-                self.env[var[:idx]] = var[idx + 1:]
+            self.env[var['name']] = var['value']
 
         self.flags = ['-classpath', self.classpath, f'-Xmx:{self.heap_size}', f'-Xss:{self.stack_size}']
         self.java_args = main_spec['command']
@@ -547,7 +545,6 @@ class JVMProcess:
     async def run(self):
         log.info(f'running {self}')
         self.timing['start_time'] = time_msecs()
-        log.info(f'env: {" ".join(self.env)}')
         self.proc = await asyncio.create_subprocess_exec(
             'java',
             *self.flags,
@@ -563,10 +560,10 @@ class JVMProcess:
         self.timing['duration'] = finish_time - start_time
 
         self.log += 'STDOUT:\n'
-        self.log += out
+        self.log += out.decode()
         self.log += '\n\n'
         self.log += 'STDERR:\n'
-        self.log += err
+        self.log += err.decode()
 
         if self.proc.returncode == 0:
             self.state = 'success'
@@ -764,9 +761,7 @@ class Job:
 
         secrets = job_spec.get('secrets')
         self.secrets = secrets
-        self.env = []
-        for item in job_spec.get('env', []):
-            self.env.append(f'{item["name"]}={item["value"]}')
+        self.env = job_spec.get('env', [])
 
         req_cpu_in_mcpu = parse_cpu_in_mcpu(job_spec['resources']['cpu'])
         req_memory_in_bytes = parse_memory_in_bytes(job_spec['resources']['memory'])
@@ -887,7 +882,7 @@ class DockerJob(Job):
             'command': job_spec['process']['command'],
             'image': job_spec['process']['image'],
             'name': 'main',
-            'env': self.env,
+            'env': [f'{var["name"]}={var["value"]}' for var in self.env],
             'cpu': self.cpu_in_mcpu,
             'memory': self.memory_in_bytes,
             'volume_mounts': self.main_volume_mounts
@@ -1074,6 +1069,20 @@ class JVMJob(Job):
 
                 log.info(f'{self}: initializing')
                 self.state = 'initializing'
+
+                os.makedirs(f'{self.scratch}/')
+
+                async with Flock('/xfsquota/projid', pool=worker.pool):
+                    with open('/xfsquota/projid', 'a') as f:
+                        f.write(f'{self.project_name}:{self.project_id}\n')
+
+                async with Flock('/xfsquota/projects', pool=worker.pool):
+                    with open('/xfsquota/projects', 'a') as f:
+                        f.write(f'{self.project_id}:{self.scratch}\n')
+
+                await check_shell_output(f'xfs_quota -x -D /xfsquota/projects -P /xfsquota/projid -c "project -s {self.project_name}" /host/')
+                await check_shell(f'xfs_quota -x -D /xfsquota/projects -P /xfsquota/projid -c "limit -p bsoft={self.storage_in_bytes} bhard={self.storage_in_bytes} {self.project_name}" /host/')
+
                 if self.secrets:
                     for secret in self.secrets:
                         populate_secret_host_path(self.secret_host_path(secret), secret['data'])
