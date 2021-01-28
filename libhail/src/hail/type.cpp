@@ -33,6 +33,20 @@ format1(FormatStream &s, const Type *v) {
   case Type::Tag::ARRAY:
     format(s, "array<", cast<TArray>(v)->element_type, ">");
     break;
+  case Type::Tag::TUPLE:
+    {
+      format(s, "(");
+      bool first = true;
+      for (auto t : cast<TTuple>(v)->element_types) {
+	if (first)
+	  first = false;
+	else
+	  s.puts(", ");
+	format(s, t);
+      }
+      format(s, ")");
+    }
+    break;
   default:
     abort();
   }
@@ -40,9 +54,13 @@ format1(FormatStream &s, const Type *v) {
 
 TypeContext::TypeContext(HeapAllocator &heap)
   : arena(heap),
+    tvoid(arena.make<TVoid>(TypeContextToken())),
     tbool(arena.make<TBool>(TypeContextToken())),
     tint32(arena.make<TInt32>(TypeContextToken())),
-    tint64(arena.make<TInt64>(TypeContextToken())) {}
+    tint64(arena.make<TInt64>(TypeContextToken())),
+    tfloat32(arena.make<TFloat32>(TypeContextToken())),
+    tfloat64(arena.make<TFloat64>(TypeContextToken())),
+    tstr(arena.make<TStr>(TypeContextToken())) {}
 
 const TArray *
 TypeContext::tarray(const Type *element_type) {
@@ -53,6 +71,29 @@ TypeContext::tarray(const Type *element_type) {
     return t;
   } else
     return p.first->second;
+}
+
+const TStream *
+TypeContext::tstream(const Type *element_type) {
+  auto p = streams.insert({element_type, nullptr});
+  if (p.second) {
+    TStream *t = arena.make<TStream>(TypeContextToken(), element_type);
+    p.first->second = t;
+    return t;
+  } else
+    return p.first->second;
+}
+
+const TTuple *
+TypeContext::ttuple(const std::vector<const Type *> &element_types) {
+  /* it is not clear how to insert into tuples without copying
+     element_types unnecessarily or searching tuples twice */
+  auto i = tuples.find(element_types);
+  if (i != tuples.end())
+    return i->second;
+  TTuple *t = arena.make<TTuple>(TypeContextToken(), element_types);
+  tuples.insert({element_types, t});
+  return t;
 }
 
 }

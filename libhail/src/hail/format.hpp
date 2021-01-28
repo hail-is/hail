@@ -36,11 +36,6 @@ format(FormatStream &s, Args &&... args) {
 template<typename... Args> inline void
 print(Args &&... args) {
   format(outs, std::forward<Args>(args)...);
-}
-
-template<typename... Args> inline void
-println(Args &&... args) {
-  format(outs, std::forward<Args>(args)...);
   outs.putc('\n');
 }
 

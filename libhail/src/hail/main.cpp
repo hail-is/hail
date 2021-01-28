@@ -9,8 +9,8 @@ using namespace hail;
 
 class A {
 public:
-  A() { println("ctor"); }
-  ~A() { println("dtor"); }
+  A() { print("ctor"); }
+  ~A() { print("dtor"); }
 };
 
 int
@@ -19,7 +19,7 @@ main() {
   ArenaAllocator arena(heap);
   TypeContext tc(heap);
   auto a = arena.make<A>();
-  auto ab = tc.tarray(tc.tbool);
+  auto ab = tc.ttuple({tc.tbool, tc.tarray(tc.tint32)});
 
-  println("this: ", 5, " is a number and this: ", ab);
+  print("this: ", 5, " is a number and this: ", ab);
 }
