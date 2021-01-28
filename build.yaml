@@ -1635,6 +1635,7 @@ steps:
     - site_image
     - deploy_router
     - create_certs
+    - deploy_hail
  - kind: runImage
    name: test_site
    image:
