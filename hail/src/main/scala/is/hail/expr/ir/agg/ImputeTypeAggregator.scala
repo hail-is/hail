@@ -148,11 +148,10 @@ class ImputeTypeAggregator() extends StagedAggregator {
     val rt = ImputeTypeState.resultType
     assert(pt == rt)
     cb += rt.stagedInitialize(addr, setMissing = false)
-    rt.types(0).storeAtAddress(cb, rt.fieldOffset(addr, 0), region, PCode(PBooleanRequired, state.getAnyNonMissing), deepCopy = true)
-    rt.types(1).storeAtAddress(cb, rt.fieldOffset(addr, 0), region, PCode(PBooleanRequired, state.getAllDefined), deepCopy = true)
-    rt.types(2).storeAtAddress(cb, rt.fieldOffset(addr, 0), region, PCode(PBooleanRequired, state.getSupportsBool), deepCopy = true)
-    rt.types(3).storeAtAddress(cb, rt.fieldOffset(addr, 0), region, PCode(PBooleanRequired, state.getSupportsI32), deepCopy = true)
-    rt.types(4).storeAtAddress(cb, rt.fieldOffset(addr, 0), region, PCode(PBooleanRequired, state.getSupportsI64), deepCopy = true)
-    rt.types(5).storeAtAddress(cb, rt.fieldOffset(addr, 0), region, PCode(PBooleanRequired, state.getSupportsF64), deepCopy = true)
+    Array(state.getAnyNonMissing, state.getAllDefined, state.getSupportsBool,
+      state.getSupportsI32, state.getSupportsI64, state.getSupportsF64)
+      .zipWithIndex.foreach { case (b, idx) =>
+      rt.types(idx).storeAtAddress(cb, rt.fieldOffset(addr, idx), region, PCode(PBooleanRequired, b), deepCopy = true)
+    }
   }
 }

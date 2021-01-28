@@ -192,13 +192,16 @@ class CallStatsAggregator extends StagedAggregator {
 
     acType.storeAtAddress(cb, rt.fieldOffset(addr, "AC"), region, ac, deepCopy = false)
 
-    val afType = resultType.fieldType("AF").asInstanceOf[PCanonicalArray]
-    val af = afType.constructFromElements(cb, region, state.nAlleles, deepCopy = true) { (cb, i) =>
-      val acAtIndex = cb.newLocal[Int]("callstats_result_acAtIndex", state.alleleCountAtIndex(i, state.nAlleles))
-      IEmitCode.present(cb, PCode(afType.elementType, acAtIndex.toD / alleleNumber.toD))
-    }
-
-    afType.storeAtAddress(cb, rt.fieldOffset(addr, "AF"), region, af, deepCopy = false)
+    cb.ifx(alleleNumber.ceq(0),
+      cb += rt.setFieldMissing(addr, "AF"),
+      {
+        val afType = resultType.fieldType("AF").asInstanceOf[PCanonicalArray]
+        val af = afType.constructFromElements(cb, region, state.nAlleles, deepCopy = true) { (cb, i) =>
+          val acAtIndex = cb.newLocal[Int]("callstats_result_acAtIndex", state.alleleCountAtIndex(i, state.nAlleles))
+          IEmitCode.present(cb, PCode(afType.elementType, acAtIndex.toD / alleleNumber.toD))
+        }
+        afType.storeAtAddress(cb, rt.fieldOffset(addr, "AF"), region, af, deepCopy = false)
+      })
 
     val anType = resultType.fieldType("AN")
     val an = PCode(anType, alleleNumber)

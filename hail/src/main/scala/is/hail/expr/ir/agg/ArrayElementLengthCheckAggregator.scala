@@ -236,25 +236,31 @@ class ArrayElementLengthCheckAggregator(nestedAggs: Array[StagedAggregator], kno
     assert(pt == resultType)
 
     val len = state.lenRef
-    val resultAddr = cb.newLocal[Long]("arrayagg_result_addr", resultType.allocate(region, len))
-    cb += resultType.stagedInitialize(resultAddr, len, setMissing = false)
-    val i = cb.newLocal[Int]("arrayagg_result_i", 0)
+    cb.ifx(len < 0,
+      ifMissing(cb),
+      {
+        val resultAddr = cb.newLocal[Long]("arrayagg_result_addr", resultType.allocate(region, len))
+        cb += resultType.stagedInitialize(resultAddr, len, setMissing = false)
+        val i = cb.newLocal[Int]("arrayagg_result_i", 0)
 
-    cb.whileLoop(i < len, {
-      val addrAtI = cb.newLocal[Long]("arrayagg_result_addr_at_i", resultType.elementOffset(resultAddr, len, i))
-      cb += resultEltType.stagedInitialize(addrAtI, setMissing = false)
-      cb.assign(state.idx, i)
-      state.load(cb)
-      state.nested.toCode { case (nestedIdx, nestedState) =>
-        val nestedAddr = cb.newLocal[Long](s"arrayagg_result_nested_addr_$nestedIdx", resultEltType.fieldOffset(addrAtI, nestedIdx))
-        nestedAggs(nestedIdx).storeResult(cb, nestedState, resultEltType.types(nestedIdx), nestedAddr, region,
-          (cb: EmitCodeBuilder) => cb += resultEltType.setFieldMissing(addrAtI, nestedIdx))
+        cb.whileLoop(i < len, {
+          val addrAtI = cb.newLocal[Long]("arrayagg_result_addr_at_i", resultType.elementOffset(resultAddr, len, i))
+          cb += resultEltType.stagedInitialize(addrAtI, setMissing = false)
+          cb.assign(state.idx, i)
+          state.load(cb)
+          state.nested.toCode { case (nestedIdx, nestedState) =>
+            val nestedAddr = cb.newLocal[Long](s"arrayagg_result_nested_addr_$nestedIdx", resultEltType.fieldOffset(addrAtI, nestedIdx))
+            nestedAggs(nestedIdx).storeResult(cb, nestedState, resultEltType.types(nestedIdx), nestedAddr, region,
+              (cb: EmitCodeBuilder) => cb += resultEltType.setFieldMissing(addrAtI, nestedIdx))
+          }
+          state.store(cb)
+          cb.assign(i, i + 1)
+        })
+        // don't need to deep copy because that's done in nested aggregators
+        pt.storeAtAddress(cb, addr, region, resultType.loadCheapPCode(cb, resultAddr), deepCopy = false)
+
       }
-      state.store(cb)
-      cb.assign(i, i + 1)
-    })
-    // don't need to deep copy because that's done in nested aggregators
-    pt.storeAtAddress(cb, addr, region, resultType.loadCheapPCode(cb, resultAddr), deepCopy = false)
+    )
   }
 }
 
