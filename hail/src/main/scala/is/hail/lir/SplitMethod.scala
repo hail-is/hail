@@ -134,10 +134,7 @@ class SplitMethod(
     def localField(l: Local): Field =
       l match {
         case p: Parameter =>
-          if (method eq m)
-            null
-          else
-            fields(p.i)
+          fields(p.i)
         case _ =>
           locals.getIndex(l) match {
             case Some(i) =>
