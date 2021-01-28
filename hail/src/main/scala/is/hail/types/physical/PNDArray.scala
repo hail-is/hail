@@ -4,7 +4,7 @@ import is.hail.annotations.{CodeOrdering, Region, StagedRegionValueBuilder}
 import is.hail.asm4s.{Code, _}
 import is.hail.expr.Nat
 import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder}
-import is.hail.types.physical.stypes.interfaces.{SNDArrayCode, SNDArrayValue}
+import is.hail.types.physical.stypes.interfaces.{SBaseStructCode, SNDArrayCode, SNDArrayValue}
 import is.hail.types.virtual.TNDArray
 
 final class StaticallyKnownField[T, U](
@@ -28,30 +28,33 @@ abstract class PNDArray extends PType {
 
   val representation: PStruct
 
+  def dataFirstElementPointer(ndAddr: Code[Long]): Code[Long]
+  def dataPArrayPointer(ndAddr: Code[Long]): Code[Long]
+
   def loadShape(cb: EmitCodeBuilder, off: Code[Long], idx: Int): Code[Long]
 
   def loadShape(off: Long, idx: Int): Long
 
   def loadStride(cb: EmitCodeBuilder, off: Code[Long], idx: Int): Code[Long]
 
-  def numElements(shape: IndexedSeq[Value[Long]], mb: EmitMethodBuilder[_]): Code[Long]
+  def numElements(shape: IndexedSeq[Value[Long]]): Code[Long]
 
-  def makeShapeBuilder(shapeArray: IndexedSeq[Value[Long]]): StagedRegionValueBuilder => Code[Unit]
+  def makeShapeStruct(shapeArray: IndexedSeq[Value[Long]], region: Value[Region], cb: EmitCodeBuilder): SBaseStructCode
 
-  def makeRowMajorStridesBuilder(sourceShapeArray: IndexedSeq[Value[Long]], mb: EmitMethodBuilder[_]): StagedRegionValueBuilder => Code[Unit]
+  def makeRowMajorStridesStruct(sourceShapeArray: IndexedSeq[Value[Long]], region: Value[Region], cb: EmitCodeBuilder): SBaseStructCode
 
-  def makeColumnMajorStridesBuilder(sourceShapeArray: IndexedSeq[Value[Long]], mb: EmitMethodBuilder[_]): StagedRegionValueBuilder => Code[Unit]
+  def makeColumnMajorStridesStruct(sourceShapeArray: IndexedSeq[Value[Long]], region: Value[Region], cb: EmitCodeBuilder): SBaseStructCode
 
   def getElementAddress(indices: IndexedSeq[Long], nd: Long): Long
 
   def loadElement(cb: EmitCodeBuilder, indices: IndexedSeq[Value[Long]], ndAddress: Value[Long]): Code[Long]
-  def loadElementToIRIntermediate(indices: IndexedSeq[Value[Long]], ndAddress: Value[Long], mb: EmitMethodBuilder[_]): Code[_]
+  def loadElementToIRIntermediate(indices: IndexedSeq[Value[Long]], ndAddress: Value[Long], cb: EmitCodeBuilder): Code[_]
 
   def construct(
-    shapeBuilder: StagedRegionValueBuilder => Code[Unit],
-    stridesBuilder: StagedRegionValueBuilder => Code[Unit],
+    shapeCode: SBaseStructCode,
+    stridesCode: SBaseStructCode,
     data: Code[Long],
-    mb: EmitMethodBuilder[_],
+    mb: EmitCodeBuilder,
     region: Value[Region]
   ): PNDArrayCode
 }

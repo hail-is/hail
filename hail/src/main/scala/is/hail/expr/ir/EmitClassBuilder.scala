@@ -1052,22 +1052,26 @@ class EmitMethodBuilder[C](
     }
   }
 
-  def getStreamEmitParam(emitIndex: Int): COption[Code[StreamArgType]] = {
+  def getStreamEmitParam(cb: EmitCodeBuilder, emitIndex: Int): IEmitCodeGen[Code[StreamArgType]] = {
     assert(emitIndex != 0)
 
     val pt = emitParamTypes(emitIndex - 1).asInstanceOf[EmitParamType].pt
     val codeIndex = emitParamCodeIndex(emitIndex - 1)
 
-    new COption[Code[StreamArgType]] {
-      def apply(none: Code[Ctrl], some: (Code[StreamArgType]) => Code[Ctrl])(implicit ctx: EmitStreamContext): Code[Ctrl] = {
-        if (pt.required)
-          some(mb.getArg[StreamArgType](codeIndex))
-        else
-          mb.getArg[Boolean](codeIndex + 1).mux(
-            none,
-            some(mb.getArg[StreamArgType](codeIndex)))
-      }
+    val Lpresent = CodeLabel()
+    val Lmissing = CodeLabel()
+
+    if (pt.required) {
+      cb.goto(Lpresent)
+    } else {
+      cb.ifx(mb.getArg[Boolean](codeIndex + 1), {
+        cb.goto(Lmissing)
+      }, {
+        cb.goto(Lpresent)
+      })
     }
+
+    IEmitCodeGen(Lmissing, Lpresent, mb.getArg[StreamArgType](codeIndex))
   }
 
   def getParamsList(): IndexedSeq[Param] = {

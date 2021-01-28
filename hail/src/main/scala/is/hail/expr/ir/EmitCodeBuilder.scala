@@ -99,6 +99,12 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
     l
   }
 
+  def memoizeField(v: IEmitCode, name: String): EmitValue = {
+    val l = emb.newEmitField(name, v.pt)
+    assign(l, v)
+    l
+  }
+
   private def _invoke[T](callee: EmitMethodBuilder[_], args: Param*): Code[T] = {
       val codeArgs = args.flatMap {
         case CodeParam(c) =>
@@ -149,4 +155,7 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
   def strValue(r: Value[Region], t: PType, code: Code[_]): Code[String] = {
     StringFunctions.boxArg(EmitRegion(emb, r), t)(code).invoke[String]("toString")
   }
+
+  // for debugging
+  def println(cString: Code[String]*) = this += Code._printlns(cString:_*)
 }

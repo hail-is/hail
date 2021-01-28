@@ -1,4 +1,4 @@
-from typing import Any, Tuple, Optional, Type, TypeVar, Generic, Callable
+from typing import Any, Tuple, Optional, Type, TypeVar, Generic, Callable, Union
 from types import TracebackType
 import aiohttp
 
@@ -7,7 +7,10 @@ from .tls import internal_client_ssl_context, external_client_ssl_context
 from .config.deploy_config import get_deploy_config
 
 
-def client_session(*args, raise_for_status: bool = True, **kwargs) -> aiohttp.ClientSession:
+def client_session(*args,
+                   raise_for_status: bool = True,
+                   timeout: Union[aiohttp.ClientTimeout, float] = None,
+                   **kwargs) -> aiohttp.ClientSession:
     location = get_deploy_config().location()
     if location == 'external':
         tls = external_client_ssl_context()
@@ -22,6 +25,10 @@ def client_session(*args, raise_for_status: bool = True, **kwargs) -> aiohttp.Cl
     kwargs['connector'] = aiohttp.TCPConnector(ssl=tls)
 
     kwargs['raise_for_status'] = raise_for_status
+
+    if timeout is None:
+        timeout = aiohttp.ClientTimeout(total=5)
+    kwargs['timeout'] = timeout
 
     return aiohttp.ClientSession(*args, **kwargs)
 

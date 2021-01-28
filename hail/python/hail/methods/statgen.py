@@ -160,7 +160,7 @@ def impute_sex(call, aaf_threshold=0.0, include_par=False, female_threshold=0.2,
                              True,
                              hl.if_else(mt.ib.f_stat > male_threshold,
                                         False,
-                                        hl.null(tbool))),
+                                        hl.missing(tbool))),
         **mt.ib).cols()
 
     return kt
@@ -2028,7 +2028,7 @@ def row_correlation(entry_expr, block_size=None) -> BlockMatrix:
     ...         {'v': '1:3:C:G', 's': 'a', 'GT': hl.Call([0, 1])},
     ...         {'v': '1:3:C:G', 's': 'b', 'GT': hl.Call([0, 0])},
     ...         {'v': '1:3:C:G', 's': 'c', 'GT': hl.Call([1, 1])},
-    ...         {'v': '1:3:C:G', 's': 'd', 'GT': hl.null(hl.tcall)}]
+    ...         {'v': '1:3:C:G', 's': 'd', 'GT': hl.missing(hl.tcall)}]
     >>> ht = hl.Table.parallelize(data, hl.dtype('struct{v: str, s: str, GT: call}'))
     >>> mt = ht.to_matrix_table(row_key=['v'], col_key=['s'])
 
@@ -2134,7 +2134,7 @@ def ld_matrix(entry_expr, locus_expr, radius, coord_expr=None, block_size=None) 
     ...         {'v': '2:1:C:G',       'cm': 0.2, 's': 'a', 'GT': hl.Call([0, 1])},
     ...         {'v': '2:1:C:G',       'cm': 0.2, 's': 'b', 'GT': hl.Call([0, 0])},
     ...         {'v': '2:1:C:G',       'cm': 0.2, 's': 'c', 'GT': hl.Call([1, 1])},
-    ...         {'v': '2:1:C:G',       'cm': 0.2, 's': 'd', 'GT': hl.null(hl.tcall)}]
+    ...         {'v': '2:1:C:G',       'cm': 0.2, 's': 'd', 'GT': hl.missing(hl.tcall)}]
     >>> ht = hl.Table.parallelize(data, hl.dtype('struct{v: str, s: str, cm: float64, GT: call}'))
     >>> ht = ht.transmute(**hl.parse_variant(ht.v))
     >>> mt = ht.to_matrix_table(row_key=['locus', 'alleles'], col_key=['s'], row_fields=['cm'])
@@ -2804,14 +2804,14 @@ def filter_alleles_hts(mt: MatrixTable,
                         lambda newc: mt.PL[hl.call(mt.new_to_old[newc[0]],
                                                    mt.new_to_old[newc[1]]).unphased_diploid_gt_index()],
                         hl.unphased_diploid_gt_index_call(newi)))),
-            hl.null(tarray(tint32)))
+            hl.missing(tarray(tint32)))
         return mt.annotate_entries(
             GT=hl.unphased_diploid_gt_index_call(hl.argmin(newPL, unique=True)),
             AD=hl.if_else(
                 hl.is_defined(mt.AD),
                 hl.range(0, mt.alleles.length()).map(
                     lambda newi: mt.AD[mt.new_to_old[newi]]),
-                hl.null(tarray(tint32))),
+                hl.missing(tarray(tint32))),
             # DP unchanged
             GQ=hl.gq_from_pl(newPL),
             PL=newPL)
@@ -2827,7 +2827,7 @@ def filter_alleles_hts(mt: MatrixTable,
                                                                mt.__old_to_new_no_na[oldc[1]]) == hl.unphased_diploid_gt_index_call(newi),
                                           hl.unphased_diploid_gt_index_call(oldi)))
                                       .map(lambda oldi: mt.PL[oldi])))),
-            hl.null(tarray(tint32)))
+            hl.missing(tarray(tint32)))
         return mt.annotate_entries(
             GT=hl.call(mt.__old_to_new_no_na[mt.GT[0]],
                        mt.__old_to_new_no_na[mt.GT[1]]),
@@ -2837,7 +2837,7 @@ def filter_alleles_hts(mt: MatrixTable,
                  .map(lambda newi: hl.sum(hl.range(0, hl.len(mt.old_alleles))
                                           .filter(lambda oldi: mt.__old_to_new_no_na[oldi] == newi)
                                           .map(lambda oldi: mt.AD[oldi])))),
-                hl.null(tarray(tint32))),
+                hl.missing(tarray(tint32))),
             # DP unchanged
             GQ=hl.gq_from_pl(newPL),
             PL=newPL).drop('__old_to_new_no_na')

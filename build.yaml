@@ -142,7 +142,7 @@ steps:
      - from: /io/repo/git_version
        to: /git_version
      - from: /io/repo/address/test
-       to: /repo/address/test
+       to: /repo/address/
      - from: /io/repo/lsm
        to: /repo/lsm
    dependsOn:
@@ -2071,7 +2071,7 @@ steps:
      from hailtop.utils import async_to_blocking
      from hailtop.batch_client.aioclient import BatchClient
      async def create(billing_project, user, limit=None):
-         bc = await BatchClient(None)
+         bc = BatchClient(None)
          try:
              try:
                  await bc.create_billing_project(billing_project)
@@ -2198,6 +2198,7 @@ steps:
       for: alive
    dependsOn:
     - default_ns
+    - deploy_address_sa
     - deploy_router
     - address_image
     - create_certs

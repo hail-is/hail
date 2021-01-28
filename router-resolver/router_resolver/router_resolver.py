@@ -7,7 +7,7 @@ import logging
 from hailtop.auth import async_get_userinfo
 from hailtop.tls import internal_server_ssl_context
 from hailtop.hail_logging import AccessLogger, configure_logging
-from gear import setup_aiohttp_session
+from gear import setup_aiohttp_session, maybe_parse_bearer_header
 
 uvloop.install()
 
@@ -27,14 +27,17 @@ async def auth(request):
     namespace = request.match_info['namespace']
 
     if 'X-Hail-Internal-Authorization' in request.headers:
-        session_id = request.headers['X-Hail-Internal-Authorization']
+        session_id = maybe_parse_bearer_header(
+            request.headers['X-Hail-Internal-Authorization'])
     elif 'Authorization' in request.headers:
-        session_id = request.headers['Authorization']
+        session_id = maybe_parse_bearer_header(
+            request.headers['Authorization'])
     else:
         session = await aiohttp_session.get_session(request)
         session_id = session.get('session_id')
-        if not session_id:
-            raise web.HTTPUnauthorized()
+
+    if not session_id:
+        raise web.HTTPUnauthorized()
 
     userdata = await async_get_userinfo(session_id=session_id)
     is_developer = userdata is not None and userdata['is_developer'] == 1

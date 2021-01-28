@@ -905,9 +905,13 @@ class Tests(unittest.TestCase):
         self.assertRaises(ValueError, lambda: hl.linalg.utils.array_windows(np.array([]), -1))
         self.assertRaises(ValueError, lambda: hl.linalg.utils.array_windows(np.array(['str']), 1))
 
+    def test_locus_windows_per_contig(self):
+        f = hl._locus_windows_per_contig([[1.0, 3.0, 4.0], [2.0, 2.0], [5.0]], 1.0)
+        assert hl.eval(f) == ([0, 1, 1, 3, 3, 5], [1, 3, 3, 5, 5, 6])
+
     def test_locus_windows(self):
         def assert_eq(a, b):
-            self.assertTrue(np.array_equal(a, np.array(b)))
+            assert np.array_equal(a, np.array(b)), f"a={a}, b={b}"
 
         centimorgans = hl.literal([0.1, 1.0, 1.0, 1.5, 1.9])
 
@@ -947,42 +951,42 @@ class Tests(unittest.TestCase):
 
         with self.assertRaises(HailUserError) as cm:
             hl.linalg.utils.locus_windows(ht.order_by(ht.cm).locus, 1.0)
-        self.assertTrue('ascending order' in str(cm.exception))
+        assert 'ascending order' in str(cm.exception)
 
         with self.assertRaises(ExpressionException) as cm:
             hl.linalg.utils.locus_windows(ht.locus, 1.0, coord_expr=hl.utils.range_table(1).idx)
-        self.assertTrue('different source' in str(cm.exception))
+        assert 'different source' in str(cm.exception)
 
         with self.assertRaises(ExpressionException) as cm:
             hl.linalg.utils.locus_windows(hl.locus('1', 1), 1.0)
-        self.assertTrue("no source" in str(cm.exception))
+        assert "no source" in str(cm.exception)
 
         with self.assertRaises(ExpressionException) as cm:
             hl.linalg.utils.locus_windows(ht.locus, 1.0, coord_expr=0.0)
-        self.assertTrue("no source" in str(cm.exception))
+        assert "no source" in str(cm.exception)
 
         ht = ht.annotate_globals(x = hl.locus('1', 1), y = 1.0)
         with self.assertRaises(ExpressionException) as cm:
             hl.linalg.utils.locus_windows(ht.x, 1.0)
-        self.assertTrue("row-indexed" in str(cm.exception))
+        assert "row-indexed" in str(cm.exception)
         with self.assertRaises(ExpressionException) as cm:
             hl.linalg.utils.locus_windows(ht.locus, 1.0, ht.y)
-        self.assertTrue("row-indexed" in str(cm.exception))
+        assert "row-indexed" in str(cm.exception)
 
         ht = hl.Table.parallelize([{'locus': hl.null(hl.tlocus()), 'cm': 1.0}],
                                   hl.tstruct(locus=hl.tlocus('GRCh37'), cm=hl.tfloat64), key=['locus'])
         with self.assertRaises(HailUserError) as cm:
             hl.linalg.utils.locus_windows(ht.locus, 1.0)
-        self.assertTrue("missing value for 'locus_expr'" in str(cm.exception))
+        assert "missing value for 'locus_expr'" in str(cm.exception)
         with self.assertRaises(HailUserError) as cm:
             hl.linalg.utils.locus_windows(ht.locus, 1.0, coord_expr=ht.cm)
-        self.assertTrue("missing value for 'locus_expr'" in str(cm.exception))
+        assert "missing value for 'locus_expr'" in str(cm.exception)
 
         ht = hl.Table.parallelize([{'locus': hl.Locus('1', 1), 'cm': hl.null(hl.tfloat64)}],
                                   hl.tstruct(locus=hl.tlocus('GRCh37'), cm=hl.tfloat64), key=['locus'])
         with self.assertRaises(FatalError) as cm:
             hl.linalg.utils.locus_windows(ht.locus, 1.0, coord_expr=ht.cm)
-        self.assertTrue("missing value for 'coord_expr'" in str(cm.exception))
+        assert "missing value for 'coord_expr'" in str(cm.exception)
 
     @fails_local_backend()
     def test_write_overwrite(self):

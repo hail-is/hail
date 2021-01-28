@@ -134,6 +134,14 @@ object COption {
     }
   }
 
+  def fromIEmitCode[A](mb: EmitMethodBuilder[_])(f: EmitCodeBuilder => IEmitCodeGen[A]): COption[A] = new COption[A] {
+    def apply(none: Code[Ctrl], some: A => Code[Ctrl])(implicit ctx: EmitStreamContext): Code[Ctrl] = {
+      EmitCodeBuilder.scopedVoid(mb) { cb =>
+        f(cb).consume(cb, cb += none, cb += some(_))
+      }
+    }
+  }
+
   def toEmitCode(ctx: ExecuteContext, opt: COption[PCode], mb: EmitMethodBuilder[_]): EmitCode = {
     implicit val sctx = EmitStreamContext(mb, ctx)
     val Lmissing = CodeLabel()
@@ -1340,25 +1348,17 @@ object EmitStream {
     container: Option[AggContainer]
   ): EmitCode = {
 
-    def _emitStream(streamIR: IR, outerRegion: ParentStagedRegion, env: Emit.E): COption[SizedStream] = {
+    def _emitStream(cb: EmitCodeBuilder, streamIR: IR, outerRegion: ParentStagedRegion, env: Emit.E): IEmitCode = {
+      assert(cb.isOpenEnded)
 
-      def emitStream(streamIR: IR, outerRegion: ParentStagedRegion = outerRegion, env: Emit.E = env): COption[SizedStream] =
-        _emitStream(streamIR, outerRegion, env)
+      def emitStream(streamIR: IR, cb: EmitCodeBuilder = cb, env: Emit.E = env, outerRegion: ParentStagedRegion = outerRegion): IEmitCode =
+        _emitStream(cb, streamIR, outerRegion, env)
 
-      def emitStreamToEmitCode(streamIR: IR, outerRegion: ParentStagedRegion = outerRegion, env: Emit.E = env): EmitCode =
-        COption.toEmitCode(ctx,
-          _emitStream(streamIR, outerRegion, env).map { stream =>
-            SStreamCode(streamIR.pType.sType.asInstanceOf[SStream], stream)
-          }, mb)
+      def emitIR(ir: IR, cb: EmitCodeBuilder = cb, env: Emit.E = env, region: StagedRegion = outerRegion, container: Option[AggContainer] = container): IEmitCode =
+        emitter.emitI(ir, cb, region, env, container, None)
 
-      def emitIR(ir: IR, env: Emit.E = env, region: StagedRegion = outerRegion, container: Option[AggContainer] = container): EmitCode =
-        emitter.emitWithRegion(ir, mb, region, env, container)
-
-      def emitVoidIR(ir: IR, env: Emit.E = env, region: StagedRegion = outerRegion, container: Option[AggContainer] = container): Code[Unit] = {
-        EmitCodeBuilder.scopedVoid(mb) { cb =>
-          emitter.emitVoid(cb, ir, mb, region, env, container, None)
-        }
-      }
+      def emitVoidIR(ir: IR, cb: EmitCodeBuilder = cb, env: Emit.E = env, region: StagedRegion = outerRegion, container: Option[AggContainer] = container): Unit =
+        emitter.emitVoid(cb, ir, mb, region, env, container, None)
 
       def sized(setup: Code[Unit], stream: ChildStagedRegion => Stream[EmitCode], length: Option[Code[Int]], outerRegion: ParentStagedRegion = outerRegion): SizedStream =
         SizedStream(setup, r => { r assertSubRegion outerRegion; stream(r) }, length)
@@ -1366,60 +1366,60 @@ object EmitStream {
       def unsized(stream: ChildStagedRegion => Stream[EmitCode], outerRegion: ParentStagedRegion = outerRegion): SizedStream =
         SizedStream.unsized(r => { r assertSubRegion outerRegion; stream(r) })
 
-      streamIR match {
+      val result: IEmitCode = streamIR match {
         case x@NA(_) =>
-          COption.none(coerce[PCanonicalStream](x.pType).defaultValue.stream)
+          IEmitCode.missing(cb, x.pType.defaultValue)
 
         case x@Ref(name, _) =>
           val typ = coerce[PStream](x.pType)
           val ev = env.lookup(name)
           if (ev.pt != typ)
             throw new RuntimeException(s"PValue type did not match inferred ptype:\n name: $name\n  pv: ${ ev.pt }\n  ir: $typ")
-          COption.fromEmitCode(ev.load).map(_.asStream.stream)
+          ev.toI(cb)
 
         case x@StreamRange(startIR, stopIR, stepIR, _) =>
           val eltType = coerce[PStream](x.pType).elementType
-          val step = mb.genFieldThisRef[Int]("sr_step")
-          val start = mb.genFieldThisRef[Int]("sr_start")
-          val stop = mb.genFieldThisRef[Int]("sr_stop")
           val llen = mb.genFieldThisRef[Long]("sr_llen")
           val len = mb.genFieldThisRef[Int]("sr_len")
 
-          val startt = emitIR(startIR)
-          val stopt = emitIR(stopIR)
-          val stept = emitIR(stepIR)
+          emitIR(startIR).flatMap(cb) { startc =>
+            emitIR(stopIR).flatMap(cb) { stopc =>
+              emitIR(stepIR).map(cb) { stepc =>
+                val start = cb.memoizeField(startc, "sr_step")
+                val stop = cb.memoizeField(stopc, "sr_stop")
+                val step = cb.memoizeField(stepc, "sr_step")
+                cb.ifx(step.asInt.intCode(cb) ceq const(0), cb._fatal("Array range cannot have step size 0."))
+                cb.ifx(step.asInt.intCode(cb) < const(0), {
+                  cb.ifx(start.asInt.intCode(cb).toL <= stop.asInt.intCode(cb).toL, {
+                    cb.assign(llen, 0L)
+                  }, {
+                    cb.assign(llen, (start.asInt.intCode(cb).toL - stop.asInt.intCode(cb).toL - 1L) / (-step.asInt.intCode(cb).toL) + 1L)
+                  })
+                }, {
+                  cb.ifx(start.asInt.intCode(cb).toL >= stop.asInt.intCode(cb).toL, {
+                    cb.assign(llen, 0L)
+                  }, {
+                    cb.assign(llen, (stop.asInt.intCode(cb).toL - start.asInt.intCode(cb).toL - 1L) / step.asInt.intCode(cb).toL + 1L)
+                  })
+                })
+                cb.ifx(llen > const(Int.MaxValue.toLong), {
+                  cb._fatal("Array range cannot have more than MAXINT elements.")
+                })
 
-          new COption[SizedStream] {
-            def apply(none: Code[Ctrl], some: SizedStream => Code[Ctrl])(implicit ctx: EmitStreamContext): Code[Ctrl] = {
-              Code(
-                startt.setup,
-                stopt.setup,
-                stept.setup,
-                (startt.m || stopt.m || stept.m).mux[Unit](
-                  none,
-                  Code(
-                    start := startt.value,
-                    stop := stopt.value,
-                    step := stept.value,
-                    (step ceq const(0)).orEmpty(Code._fatal[Unit]("Array range cannot have step size 0.")),
-                    llen := (step < const(0)).mux(
-                      (start <= stop).mux(const(0L), (start.toL - stop.toL - const(1L)) / (-step).toL + const(1L)),
-                      (start >= stop).mux(const(0L), (stop.toL - start.toL - const(1L)) / step.toL + const(1L))),
-                    (llen > const(Int.MaxValue.toLong)).mux[Unit](
-                      Code._fatal[Unit]("Array range cannot have more than MAXINT elements."),
-                      some(sized(
-                        len := llen.toI,
-                        eltRegion => range(mb, start, step, len)
-                          .map(i => EmitCode(Code._empty, const(false), PCode(eltType, i))),
-                        Some(len)))))))
+                val stream = sized(
+                  len := llen.toI,
+                  eltRegion => range(mb, start.asInt.intCode(cb), step.asInt.intCode(cb), len)
+                    .map(i => EmitCode(Code._empty, const(false), PCode(eltType, i))),
+                  Some(len))
+
+                interfaces.SStreamCode(coerce[PCanonicalStream](x.pType).sType, stream)
+              }
             }
           }
 
-        case ToStream(containerIR, _) =>
-          COption.fromEmitCode(emitIR(containerIR)).mapCPS { (containerAddr, k) =>
-            val (asetup, a) = EmitCodeBuilder.scoped(mb) { cb =>
-              containerAddr.asIndexable.memoizeField(cb, "ts_a")
-            }
+        case x@ToStream(containerIR, _) =>
+          emitIR(containerIR).map(cb) { containerAddr =>
+            val a = containerAddr.asIndexable.memoizeField(cb, "ts_a")
 
             val len = mb.genFieldThisRef[Int]("ts_len")
             val i = mb.genFieldThisRef[Int]("ts_i")
@@ -1432,40 +1432,41 @@ object EmitStream {
                   close0 = Code._empty,
                   pull = (i < len).mux(
                     Code(i := i + 1,
-                      push(
-                        EmitCode.fromI(mb) { cb =>
-                          a.loadElement(cb, i - 1).typecast[PCode]
-                        })),
+                         push(
+                           EmitCode.fromI(mb) { cb =>
+                             a.loadElement(cb, i - 1).typecast[PCode]
+                           })),
                     eos))
             }
 
-            Code(
-              asetup,
-              len := a.loadLength(),
-              k(sized(Code._empty, eltRegion => newStream, Some(len))))
+            cb.assign(len, a.loadLength())
+            val stream = sized(Code._empty, eltRegion => newStream, Some(len))
+            interfaces.SStreamCode(coerce[PCanonicalStream](x.pType).sType, stream)
           }
 
         case x@MakeStream(elements, _, _) =>
           val eltType = coerce[PStream](x.pType).elementType
           val stream = (eltRegion: StagedRegion) =>
             sequence(mb, eltType, elements.toFastIndexedSeq.map { ir =>
-              emitIR(ir, region = eltRegion)
-                .castTo(mb, eltRegion.code, eltType)
+              EmitCode.fromI(mb) { cb =>
+                emitIR(ir, cb = cb, region = eltRegion).map(cb)(_.castTo(cb, eltRegion.code, eltType))
+              }
             })
 
-          COption.present(sized(Code._empty, stream, Some(elements.length)))
+          val sstream = sized(Code._empty, stream, Some(elements.length))
+          IEmitCode.present(cb, interfaces.SStreamCode(coerce[PCanonicalStream](x.pType).sType, sstream))
 
         case x@ReadPartition(context, rowType, reader) =>
-          reader.emitStream(ctx, context, rowType, emitter, mb, outerRegion, env, container)
+          reader.emitStream(ctx, context, rowType, emitter, cb, outerRegion, env, container)
 
-        case In(n, PCanonicalStream(eltType, _, _)) =>
+        case In(n, pt@PCanonicalStream(eltType, _, _)) =>
           val xIter = mb.genFieldThisRef[Iterator[java.lang.Long]]("streamInIterator")
           val hasNext = mb.genFieldThisRef[Boolean]("streamInHasNext")
           val next = mb.genFieldThisRef[Long]("streamInNext")
 
           // this, Region, ...
-          mb.getStreamEmitParam(2 + n).map { mkIter =>
-            unsized { eltRegion =>
+          mb.getStreamEmitParam(cb, 2 + n).map(cb) { mkIter =>
+            val stream = unsized { eltRegion =>
               unfold[Code[Long]](
                 (_, k) => Code(
                   hasNext := xIter.load().hasNext,
@@ -1479,46 +1480,54 @@ object EmitStream {
                     "apply", outerRegion.code, eltRegion.code))
                 )
             }
+
+            interfaces.SStreamCode(pt.sType, stream)
           }
 
         case StreamTake(a, num) =>
-          val optStream = emitStream(a)
-          val optN = COption.fromEmitCode(emitIR(num))
           val xN = mb.genFieldThisRef[Int]("st_n")
-          optStream.flatMap { case SizedStream(setup, stream, len) =>
-            optN.map { n => sized(
-              Code(setup,
-                   EmitCodeBuilder.scopedVoid(mb)(cb => cb.assign(xN, n.asInt.intCode(cb))),
-                   (xN < 0).orEmpty(Code._fatal[Unit](const("StreamTake: negative length")))),
-              eltRegion => zip(stream(eltRegion), range(mb, 0, 1, xN))
-                .map({ case (elt, count) => elt }),
-              len.map(_.min(xN)))
+          emitStream(a).flatMap(cb) { pc =>
+            val SizedStream(setup, stream, len) = pc.asStream.stream
+
+            emitIR(num).map(cb) { n =>
+              val sstream = sized(
+                Code(setup,
+                     EmitCodeBuilder.scopedVoid(mb)(cb => cb.assign(xN, n.asInt.intCode(cb))),
+                     (xN < 0).orEmpty(Code._fatal[Unit](const("StreamTake: negative length")))),
+                eltRegion => zip(stream(eltRegion), range(mb, 0, 1, xN))
+                  .map({ case (elt, count) => elt }),
+                len.map(_.min(xN)))
+
+              interfaces.SStreamCode(pc.st.asInstanceOf[SStream], sstream)
             }
           }
 
         case StreamDrop(a, num) =>
-          val optStream = emitStream(a)
-          val optN = COption.fromEmitCode(emitIR(num))
           val xN = mb.genFieldThisRef[Int]("st_n")
-          optStream.flatMap { case SizedStream(setup, stream, len) =>
-            optN.map { n => sized(
-              Code(setup,
-                EmitCodeBuilder.scopedVoid(mb)(cb => cb.assign(xN, n.asInt.intCode(cb))),
-                (xN < 0).orEmpty(Code._fatal[Unit](const("StreamDrop: negative num")))),
-              eltRegion => zip(stream(eltRegion), iota(mb, 0, 1))
-                .map({ case (elt, count) => COption(count < xN, elt) })
-                .flatten,
-              len.map(l => (l - xN).max(0)))
+          emitStream(a).flatMap(cb) { pc =>
+            val SizedStream(setup, stream, len) = pc.asStream.stream
+
+            emitIR(num).map(cb) { n =>
+              val sstream = sized(
+                Code(setup,
+                  EmitCodeBuilder.scopedVoid(mb)(cb => cb.assign(xN, n.asInt.intCode(cb))),
+                  (xN < 0).orEmpty(Code._fatal[Unit](const("StreamDrop: negative num")))),
+                eltRegion => zip(stream(eltRegion), iota(mb, 0, 1))
+                  .map({ case (elt, count) => COption(count < xN, elt) })
+                  .flatten,
+                len.map(l => (l - xN).max(0)))
+
+              interfaces.SStreamCode(pc.st.asInstanceOf[SStream], sstream)
             }
           }
 
         case x@StreamGrouped(a, size) =>
           val innerType = coerce[PCanonicalStream](coerce[PStream](x.pType).elementType)
-          val optStream = emitStream(a)
-          val optSize = COption.fromEmitCode(emitIR(size))
           val xS = mb.genFieldThisRef[Int]("st_n")
-          optStream.flatMap { case SizedStream(setup, stream, len) =>
-            optSize.map { s =>
+          emitStream(a).flatMap(cb) { pc =>
+            val SizedStream(setup, stream, len) = pc.asStream.stream
+
+            emitIR(size).map(cb) { s =>
               val newStream = (eltRegion: ChildStagedRegion) =>
                 Stream.grouped(mb, stream, innerType, xS, eltRegion)
                   .map { inner =>
@@ -1529,20 +1538,22 @@ object EmitStream {
                         innerType.sType,
                         unsized(inner)))
                   }
-              sized(
+
+              val sstream = sized(
                 Code(setup,
                   EmitCodeBuilder.scopedVoid(mb)(cb => cb.assign(xS, s.asInt.intCode(cb))),
                   (xS <= 0).orEmpty(Code._fatal[Unit](const("StreamGrouped: nonpositive size")))),
                 newStream,
                 len.map(l => ((l.toL + xS.toL - 1L) / xS.toL).toI)) // rounding up integer division
+
+              interfaces.SStreamCode(pc.st.asInstanceOf[SStream], sstream)
             }
           }
 
         case x@StreamGroupByKey(a, key) =>
           val innerType = coerce[PCanonicalStream](coerce[PStream](x.pType).elementType)
-          val optStream = emitStream(a)
-          optStream.map { ss =>
-            val nonMissingStream = (eltRegion: ChildStagedRegion) => ss.getStream(eltRegion).mapCPS[PCode] { (_, ec, k) =>
+          emitStream(a).map(cb) { pc =>
+            val nonMissingStream = (eltRegion: ChildStagedRegion) => pc.asStream.stream.getStream(eltRegion).mapCPS[PCode] { (_, ec, k) =>
               Code(ec.setup, ec.m.orEmpty(Code._fatal[Unit](const("expected non-missing"))), k(ec.pv))
             }
             val newStream = (eltRegion: ChildStagedRegion) =>
@@ -1555,75 +1566,84 @@ object EmitStream {
                         inner(innerEltRegion).map(EmitCode.present)
                       }))
                 }
-            unsized(newStream)
+
+            interfaces.SStreamCode(pc.st.asInstanceOf[SStream], unsized(newStream))
           }
 
         case StreamMap(childIR, name, bodyIR) =>
           val eltType = coerce[PStream](childIR.pType).elementType
 
-          val optStream = emitStream(childIR)
-          optStream.map { case SizedStream(setup, stream, len) =>
-            def newStream(eltRegion: ChildStagedRegion) = stream(eltRegion).map { eltt => (eltType, bodyIR.pType) match {
+          emitStream(childIR).map(cb) { pc =>
+            val SizedStream(setup, stream, len) = pc.asStream.stream
+
+            def newStream(eltRegion: ChildStagedRegion): Stream[EmitCode] = stream(eltRegion).map { eltt => (eltType, bodyIR.pType) match {
               case (eltType: PCanonicalStream, bodyType: PCanonicalStream) =>
                 val bodyenv = env.bind(name -> new EmitUnrealizableValue(eltType, eltt))
                 val outerRegion = eltRegion.asParent(bodyType.separateRegions, "StreamMap body")
 
-                emitStreamToEmitCode(bodyIR, outerRegion, bodyenv)
+                EmitCode.fromI(mb)(cb => emitStream(bodyIR, cb = cb, env = bodyenv, outerRegion = outerRegion))
               case (eltType: PCanonicalStream, _) =>
                 val bodyenv = env.bind(name -> new EmitUnrealizableValue(eltType, eltt))
 
-                emitIR(bodyIR, region = eltRegion, env = bodyenv)
+                EmitCode.fromI(mb)(cb => emitIR(bodyIR, cb = cb, region = eltRegion, env = bodyenv))
               case (_, bodyType: PCanonicalStream) =>
                 val xElt = mb.newEmitField(name, eltType)
                 val bodyenv = env.bind(name -> xElt)
                 val outerRegion = eltRegion.asParent(bodyType.separateRegions, "StreamMap body")
 
-                EmitCode(
-                  EmitCodeBuilder.scopedVoid(mb)(cb => cb.assign(xElt, eltt)),
-                  emitStreamToEmitCode(bodyIR, outerRegion, env = bodyenv))
+                EmitCode.fromI(mb) { cb =>
+                  cb.assign(xElt, eltt)
+                  emitStream(bodyIR, cb = cb, env = bodyenv, outerRegion = outerRegion)
+                }
               case _ =>
                 val xElt = mb.newEmitField(name, eltType)
                 val bodyenv = env.bind(name -> xElt)
-                val bodyt = emitIR(bodyIR, region = eltRegion, env = bodyenv)
 
-                EmitCodeBuilder.scopedEmitCode(mb){ cb =>
+                EmitCode.fromI(mb) { cb =>
                   cb.assign(xElt, eltt)
-                  bodyt
+                  emitIR(bodyIR, cb = cb, env = bodyenv, region = eltRegion)
                 }
             }}
 
-            sized(setup, newStream, len)
+            interfaces.SStreamCode(
+              pc.st.asInstanceOf[SStream],
+              sized(setup, newStream, len))
           }
 
         case StreamFilter(childIR, name, condIR) =>
           val childEltType = coerce[PStream](childIR.pType).elementType
 
-          val optStream = emitStream(childIR)
-
-          optStream.map { ss =>
+          emitStream(childIR).map(cb) { pc =>
             val newStream = (eltRegion: ChildStagedRegion) => {
               val tmpRegion = eltRegion.createSiblingRegion(mb)
-              ss.getStream(tmpRegion)
+              pc.asStream.stream.getStream(tmpRegion)
                 .map (
                   { elt =>
-                    val xElt = mb.newEmitField(name, childEltType)
-                    val cond = emitIR(condIR, env = env.bind(name -> xElt), region = tmpRegion)
-
                     new COption[EmitCode] {
                       def apply(none: Code[Ctrl], some: EmitCode => Code[Ctrl])(implicit ctx: EmitStreamContext): Code[Ctrl] = {
-                        Code(
-                          EmitCodeBuilder.scopedVoid(mb)(cb => cb.assign(xElt, elt)),
-                          cond.setup,
-                          (cond.m || !cond.value[Boolean]).mux(
-                            Code(tmpRegion.clear(), none),
-                            some(EmitCode.fromI(mb) { cb =>
-                              xElt.toI(cb)
+                        EmitCodeBuilder.scopedVoid(mb) { cb =>
+                          val xElt = mb.newEmitField(name, childEltType)
+                          cb.assign(xElt, elt)
+                          val Lfalse = CodeLabel()
+                          val Ltrue = CodeLabel()
+                          emitIR(condIR, cb = cb, env = env.bind(name -> xElt), region = tmpRegion).consume(cb, {
+                            cb.goto(Lfalse)
+                          }, { cond =>
+                            cb.ifx(cond.asBoolean.boolCode(cb), cb.goto(Ltrue), cb.goto(Lfalse))
+                          })
+                          cb.define(Lfalse)
+                          cb += tmpRegion.clear()
+                          cb += none
+                          cb.define(Ltrue)
+                          cb += some(EmitCode.fromI(mb) { cb =>
+                            xElt.toI(cb)
                                 .mapMissing(cb) { cb += tmpRegion.clear() }
                                 .map(cb) { pc =>
                                   cb += tmpRegion.giveToSibling(eltRegion)
                                   pc
                                 }
-                            })))
+                          })
+                        }
                       }
                     }
                   },
@@ -1632,7 +1652,7 @@ object EmitStream {
                 .flatten
             }
 
-            unsized(newStream)
+            interfaces.SStreamCode(pc.st.asInstanceOf[SStream], unsized(newStream))
           }
 
         case x@StreamMerge(leftIR, rightIR, key) =>
@@ -1652,19 +1672,23 @@ object EmitStream {
             ordering.compare(cb, lhs, rhs)
           }
 
-          emitStream(leftIR).flatMap { case SizedStream(leftSetup, leftStream, leftLen) =>
-            emitStream(rightIR).map { case SizedStream(rightSetup, rightStream, rightLen) =>
-              sized(
+          emitStream(leftIR).flatMap(cb) { leftPC =>
+            emitStream(rightIR).map(cb) { rightPC =>
+              val SizedStream(leftSetup, leftStream, leftLen) = leftPC.asStream.stream
+              val SizedStream(rightSetup, rightStream, rightLen) = rightPC.asStream.stream
+              val newStream = sized(
                 Code(leftSetup, rightSetup),
                 eltRegion => merge(mb,
                   lElemType, leftStream,
                   rElemType, rightStream,
                   outElemType, eltRegion, compare),
                 for (l <- leftLen; r <- rightLen) yield l + r)
+
+              interfaces.SStreamCode(coerce[PCanonicalStream](x.pType).sType, newStream)
             }
           }
 
-        case StreamZip(as, names, bodyIR, behavior) =>
+        case x@StreamZip(as, names, bodyIR, behavior) =>
           // FIXME: should make StreamZip support unrealizable element types
           val eltTypes = {
             val types = as.map(ir => coerce[PStream](ir.pType).elementType)
@@ -1675,9 +1699,8 @@ object EmitStream {
           }
           val eltVars = (names, eltTypes).zipped.map(mb.newEmitField)
 
-          val optStreams = COption.lift(as.map(emitStream(_)))
-
-          optStreams.map { emitStreams =>
+          IEmitCode.sequence(as, (a: IR) => emitStream(a), cb) { pcs =>
+            val emitStreams = pcs.map(_.asStream.stream)
             val lenSetup = Code(emitStreams.map(_.setup))
             val lengths = emitStreams.map(_.length)
 
@@ -1688,8 +1711,12 @@ object EmitStream {
                   multiZip(emitStreams.map(_.stream(eltRegion)))
                     .map { elts =>
                       val bodyEnv = env.bind(names.zip(eltVars): _*)
-                      val body = emitIR(bodyIR, env = bodyEnv, region = eltRegion)
-                      EmitCode(Code(Code((eltVars, elts).zipped.map { (v, x) => EmitCodeBuilder.scopedVoid(mb)(_.assign(v, x)) }), body.setup), body.m, body.pv)
+                      EmitCode.fromI(mb) { cb =>
+                        for((v, x) <- (eltVars, elts).zipped) {
+                          cb.assign(v, x)
+                        }
+                        emitIR(bodyIR, cb = cb, env = bodyEnv, region = eltRegion)
+                      }
                     }
                 val newLength = behavior match {
                   case ArrayZipBehavior.TakeMinLength =>
@@ -1700,7 +1727,9 @@ object EmitStream {
                     lengths.flatten.headOption
                 }
 
-                sized(lenSetup, newStream, newLength)
+                interfaces.SStreamCode(
+                  coerce[PCanonicalStream](x.pType).sType,
+                  sized(lenSetup, newStream, newLength))
 
               case ArrayZipBehavior.AssertSameLength =>
                 val newStream = (eltRegion: ChildStagedRegion) => {
@@ -1729,7 +1758,7 @@ object EmitStream {
                         }
 
                       val bodyEnv = env.bind(names.zip(eltVars): _*)
-                      val body = emitIR(bodyIR, env = bodyEnv, region = eltRegion)
+                      val body = EmitCode.fromI(mb)(cb => emitIR(bodyIR, cb = cb, env = bodyEnv, region = eltRegion))
 
                       Code(
                         allEOS := true,
@@ -1760,7 +1789,9 @@ object EmitStream {
                       len))
                 }
 
-                sized(lenSetup, newStream, newLength)
+                interfaces.SStreamCode(
+                  coerce[PCanonicalStream](x.pType).sType,
+                  sized(lenSetup, newStream, newLength))
 
               case ArrayZipBehavior.ExtendNA =>
                 val newStream = (eltRegion: ChildStagedRegion) => {
@@ -1789,7 +1820,7 @@ object EmitStream {
                           COption.toEmitCode(ctx, optElt, mb)
                         }
                       val bodyEnv = env.bind(names.zip(eltVars): _*)
-                      val body = emitIR(bodyIR, env = bodyEnv, region = eltRegion)
+                      val body = EmitCode.fromI(mb)(cb => emitIR(bodyIR, cb = cb, env = bodyEnv, region = eltRegion))
 
                       Code(
                         allEOS := true,
@@ -1805,7 +1836,9 @@ object EmitStream {
                   case (l1, l2) => l1.max(l2)
                 })
 
-                sized(lenSetup, newStream, newLength)
+                interfaces.SStreamCode(
+                  coerce[PCanonicalStream](x.pType).sType,
+                  sized(lenSetup, newStream, newLength))
             }
           }
 
@@ -1822,13 +1855,15 @@ object EmitStream {
               c < 0 || (c.ceq(0) && li < ri)
             }
 
-          COption.lift(as.map(emitStream(_))).map { sss =>
+          IEmitCode.sequence(as, (a: IR) => emitStream(a), cb) { pcs =>
+            val sss = pcs.map(_.asStream.stream)
             val streams = sss.map { ss => (eltRegion: ChildStagedRegion) =>
               ss.stream(eltRegion).map { ec =>
                 EmitCodeBuilder.scopedCode(mb)(cb => ec.get().castTo(cb, outerRegion.code, eltType).tcode[Long])
               }
             }
-            sized(
+
+            val newStream = sized(
               Code(sss.map(_.setup)),
               eltRegion => kWayMerge[Long](mb, streams, eltRegion, comp).map { case (i, elt) =>
                 EmitCode.present(PCode(eltType, elt))
@@ -1836,6 +1871,8 @@ object EmitStream {
               sss.map(_.length).reduce(_.liftedZip(_).map {
                 case (l, r) => l + r
               }))
+
+            interfaces.SStreamCode(coerce[PCanonicalStream](x.pType).sType, newStream)
           }
 
         case x@StreamZipJoin(as, key, curKey, curVals, joinIR) =>
@@ -1847,65 +1884,68 @@ object EmitStream {
             val xKey = mb.newPresentEmitField("zipjoin_key", keyType)
             val xElts = mb.newPresentEmitField("zipjoin_elts", curValsType)
             val newEnv = env.bind(curKey -> xKey, curVals -> xElts)
-            val joint = joinIR.pType match {
-              case _: PCanonicalStream =>
-                emit(ctx, emitter, joinIR, mb, outerRegion, newEnv, container)
-              case _ =>
-                emitIR(joinIR, env = newEnv, region = eltRegion)
-            }
 
-            EmitCodeBuilder.scopedEmitCode(mb) { cb =>
+            EmitCode.fromI(mb) { cb =>
               cb.assign(xKey, k)
               cb.assign(xElts, vs)
-              joint
+
+              joinIR.pType match {
+                case _: PCanonicalStream =>
+                  emit(ctx, emitter, joinIR, mb, outerRegion, newEnv, container).toI(cb)
+                case _ =>
+                  emitIR(joinIR, cb = cb, env = newEnv, region = eltRegion)
+              }
             }
           }
 
-          COption.lift(as.map(emitStream(_))).map { sss =>
+          IEmitCode.sequence(as, (a: IR) => emitStream(a), cb) { pcs =>
+            val sss = pcs.map(_.asStream.stream)
             val streams = sss.map { ss => (eltRegion: ChildStagedRegion) =>
               ss.getStream(eltRegion).map(_.get())
             }
-            unsized { eltRegion =>
+            val newStream = unsized { eltRegion =>
               kWayZipJoin(mb, streams, eltRegion, curValsType, key)
                 .map(joinF(eltRegion))
             }
+
+            interfaces.SStreamCode(coerce[PCanonicalStream](x.pType).sType, newStream)
           }
 
-        case StreamFlatMap(outerIR, name, innerIR) =>
+        case x@StreamFlatMap(outerIR, name, innerIR) =>
           val outerEltType = coerce[PStream](outerIR.pType).elementType
           val innerStreamType = coerce[PStream](innerIR.pType)
 
-          val optOuter = emitStream(outerIR)
           val outerEltRegion = outerRegion.createChildRegion(mb)
 
-          optOuter.map { outer =>
+          emitStream(outerIR).map(cb) { outer =>
             val newStream = (eltRegion: ChildStagedRegion) => {
-              outer.getStream(outerEltRegion)
+              outer.asStream.stream.getStream(outerEltRegion)
                 .map[COption[Stream[EmitCode]]] { elt =>
                   val innerStreamOuterRegion =
                     outerEltRegion.asParent(innerStreamType.separateRegions, "StreamFlatMap inner")
                   val optInner = if (outerEltType.isRealizable) {
-                    val xElt = mb.newEmitField(name, outerEltType)
-                    val innerEnv = env.bind(name -> xElt)
-                    val optInner = emitStream(
-                      innerIR,
-                      outerRegion = innerStreamOuterRegion,
-                      env = innerEnv)
-
-                    optInner.addSetup(EmitCodeBuilder.scopedVoid(mb)(cb => cb.assign(xElt, elt)))
+                    COption.fromIEmitCode(mb) { cb =>
+                      val xElt = cb.memoizeField(elt, "sfm_elt")
+                      emitStream(
+                        innerIR,
+                        cb = cb,
+                        outerRegion = innerStreamOuterRegion,
+                        env = env.bind(name -> xElt))
+                    }
                   } else {
-                    val innerEnv = env.bind(name -> new EmitUnrealizableValue(outerEltType, elt))
-
-                    emitStream(
-                      innerIR,
-                      outerRegion = innerStreamOuterRegion,
-                      env = innerEnv)
+                    COption.fromIEmitCode(mb) { cb =>
+                      emitStream(
+                        innerIR,
+                        cb = cb,
+                        outerRegion = innerStreamOuterRegion,
+                        env = env.bind(name -> new EmitUnrealizableValue(outerEltType, elt)))
+                    }
                   }
 
                   optInner.map { inner =>
                     // We know that eltRegion is a subregion of innerStreamOuterRegion,
                     // even though the former was constructed before the later.
-                    inner.getStream(eltRegion.asSubregionOf(innerStreamOuterRegion))
+                    inner.asStream.stream.getStream(eltRegion.asSubregionOf(innerStreamOuterRegion))
                       .map(x => x,
                            close = Some(outerEltRegion.clear()))
                   }
@@ -1916,36 +1956,44 @@ object EmitStream {
                      close0 = Some(outerEltRegion.free()))
             }
 
-            unsized(newStream)
+            interfaces.SStreamCode(coerce[PCanonicalStream](x.pType).sType, unsized(newStream))
           }
 
-        case If(condIR, thn, els) =>
+        case x@If(condIR, thn, els) =>
           val eltType = coerce[PStream](thn.pType).elementType
-          val xCond = mb.genFieldThisRef[Boolean]("stream_if_cond")
 
-          val condT = COption.fromEmitCode(emitIR(condIR))
-          val optLeftStream = emitStream(thn)
-          val optRightStream = emitStream(els)
+          emitIR(condIR).flatMap(cb) { cond =>
+            val xCond = mb.genFieldThisRef[Boolean]("stream_if_cond")
+            cb += (xCond := cond.tcode[Boolean])
+            var leftSS: SizedStream = null
+            var rightSS: SizedStream = null
+            val Lmissing = CodeLabel()
+            val Lpresent = CodeLabel()
 
-          condT.flatMap[SizedStream] { cond =>
-            val newOptStream = COption.choose[SizedStream](
-              xCond,
-              optLeftStream,
-              optRightStream,
-              { case (SizedStream(leftSetup, leftStream, lLen), SizedStream(rightSetup, rightStream, rLen)) =>
-                  val newStream = (eltRegion: ChildStagedRegion) => mux(mb, eltType,
-                    xCond,
-                    leftStream(eltRegion),
-                    rightStream(eltRegion))
-                  val newLen = lLen.liftedZip(rLen).map { case (l1, l2) =>
-                    xCond.mux(l1, l2)
-                  }
-                  val newSetup = xCond.mux(leftSetup, rightSetup)
+            cb.ifx(xCond, {
+              emitStream(thn).consume(cb, cb.goto(Lmissing), { s => leftSS = s.asStream.stream; cb.goto(Lpresent) })
+            }, {
+              emitStream(els).consume(cb, cb.goto(Lmissing), { s => rightSS = s.asStream.stream; cb.goto(Lpresent) })
+            })
 
-                  sized(newSetup, newStream, newLen)
-              })
+            val SizedStream(leftSetup, leftStream, lLen) = leftSS
+            val SizedStream(rightSetup, rightStream, rLen) = rightSS
+            val newStream = (eltRegion: ChildStagedRegion) => {
+              mux(mb, eltType,
+                  xCond,
+                  leftStream(eltRegion),
+                  rightStream(eltRegion))
+            }
+            val newLen = lLen.liftedZip(rLen).map { case (l1, l2) =>
+              xCond.mux(l1, l2)
+            }
+            val newSetup = xCond.mux(leftSetup, rightSetup)
 
-            newOptStream.addSetup(xCond := cond.tcode[Boolean])
+            val newSS = interfaces.SStreamCode(
+              coerce[PCanonicalStream](x.pType).sType,
+              sized(newSetup, newStream, newLen))
+
+            IEmitCode(Lmissing, Lpresent, newSS)
           }
 
         case Let(name, valueIR, bodyIR) =>
@@ -1960,25 +2008,23 @@ object EmitStream {
 
             case _ =>
               val xValue = mb.newEmitField(name, valueType)
+              cb.assign(xValue, emitIR(valueIR))
               val bodyEnv = env.bind(name -> xValue)
-              val valuet = emitIR(valueIR)
 
-              emitStream(bodyIR, env = bodyEnv).addSetup(EmitCodeBuilder.scopedVoid(mb)(_.assign(xValue, valuet)))
+              emitStream(bodyIR, env = bodyEnv)
           }
 
         case x@StreamScan(childIR, zeroIR, accName, eltName, bodyIR) =>
           val eltType = coerce[PStream](childIR.pType).elementType
           val accType = x.accPType
 
-          val streamOpt = emitStream(childIR)
-          streamOpt.map { case SizedStream(setup, stream, len) =>
+          emitStream(childIR).map(cb) { pc =>
+            val SizedStream(setup, stream, len) = pc.asStream.stream
             val Lpush = CodeLabel()
             val hasPulled = mb.genFieldThisRef[Boolean]()
 
-            val xElt = mb.newEmitField(eltName, eltType)
             val xAccInEltR = mb.newEmitField(accName, accType)
             val xAccInAccR = mb.newEmitField(accName, accType)
-
 
             val newStream = (eltRegion: ChildStagedRegion) => new Stream[EmitCode] {
               def apply(eos: Code[Ctrl], push: EmitCode => Code[Ctrl])(implicit ctx: EmitStreamContext): Source[EmitCode] = {
@@ -1988,14 +2034,13 @@ object EmitStream {
                   EmitCodeBuilder.scopedVoid(mb) { cb => cb.assign(xAccInAccR, xAccInEltR.map(eltRegion.copyTo(cb, _, accRegion))) },
                   push(xAccInEltR))
 
-                val bodyEnv = env.bind(accName -> xAccInAccR, eltName -> xElt)
-                val body = emitIR(bodyIR, env = bodyEnv, region = eltRegion)
-                  .castTo(mb, eltRegion.code, accType)
-
                 val source = stream(eltRegion).apply(
                   eos = eos,
                   push = a => EmitCodeBuilder.scopedVoid(mb) { cb =>
-                    cb.assign(xElt, a)
+                    val xElt = cb.memoizeField(a, "st_scan_elt")
+                    val bodyEnv = env.bind(accName -> xAccInAccR, eltName -> xElt)
+                    val body = emitIR(bodyIR, cb = cb, env = bodyEnv, region = eltRegion)
+                      .map(cb)(_.castTo(cb, eltRegion.code, accType))
                     cb.assign(xAccInEltR, body)
                     cb.append(accRegion.clear())
                     cb.append(Lpush.goto)
@@ -2010,15 +2055,17 @@ object EmitStream {
                     source.pull,
                     EmitCodeBuilder.scopedVoid(mb) { cb =>
                       cb.assign(hasPulled, true)
-                      cb.assign(xAccInEltR, emitIR(zeroIR, region = eltRegion)
-                        .map(_.castTo(cb, eltRegion.code, accType)))
+                      cb.assign(xAccInEltR, emitIR(zeroIR, cb = cb, region = eltRegion)
+                        .map(cb)(_.castTo(cb, eltRegion.code, accType)))
                       cb.append(Lpush.goto)
                     }))
               }
             }
 
             val newLen = len.map(l => l + 1)
-            sized(setup, newStream, newLen)
+            interfaces.SStreamCode(
+              coerce[PCanonicalStream](x.pType).sType,
+              sized(setup, newStream, newLen))
           }
 
         case x@RunAggScan(array, name, init, seqs, result, states) =>
@@ -2026,38 +2073,40 @@ object EmitStream {
 
           val eltType = coerce[PStream](array.pType).elementType
 
-          val xElt = mb.newEmitField("aggscan_elt", eltType)
-          val xResult = mb.newEmitField("aggscan_result", result.pType)
+          emitStream(array).map(cb) { pc =>
+            val SizedStream(setup, stream, len) = pc.asStream.stream
 
-          val bodyEnv = env.bind(name -> xElt)
-
-          val optStream = emitStream(array)
-
-          optStream.map { case SizedStream(setup, stream, len) =>
             val newStream = (eltRegion: ChildStagedRegion) => {
               val tmpRegion = eltRegion.createSiblingRegion(mb)
-              val cInit = emitVoidIR(init, region = tmpRegion, container = Some(newContainer))
-              val postt = emitIR(result, region = eltRegion, env = bodyEnv, container = Some(newContainer))
-              val seqPerElt = emitVoidIR(seqs, region = eltRegion, env = bodyEnv, container = Some(newContainer))
+
+              val setup = EmitCodeBuilder.scopedVoid(mb) { cb =>
+                cb += tmpRegion.allocateRegion(Region.SMALL, mb.ecb.pool())
+                emitVoidIR(init, cb = cb, region = tmpRegion, container = Some(newContainer))
+                cb += tmpRegion.free()
+              }
+
               stream(eltRegion).map[EmitCode](
                 { eltt =>
-                  EmitCodeBuilder.scopedEmitCode(mb) { cb =>
-                    cb.assign(xElt, eltt)
-                    cb.assign(xResult, postt)
-                    cb.append(seqPerElt)
-                    xResult.load
+                  EmitCode.fromI(mb) { cb =>
+                    val xElt = cb.memoizeField(eltt, "aggscan_elt")
+                    val bodyEnv = env.bind(name -> xElt)
+                    val postt = emitIR(result, cb = cb, region = eltRegion, env = bodyEnv, container = Some(newContainer))
+                    val xResult = cb.memoizeField(postt, "aggscan_result")
+                    emitVoidIR(seqs, cb = cb, region = eltRegion, env = bodyEnv, container = Some(newContainer))
+                    xResult.toI(cb)
                   }
                 },
                 setup0 = Some(aggSetup),
                 close0 = Some(aggCleanup),
-                setup = Some(Code(tmpRegion.allocateRegion(Region.SMALL, mb.ecb.pool()), cInit, tmpRegion.free())))
+                setup = Some(setup))
             }
 
-
-            sized(setup, newStream, len)
+            interfaces.SStreamCode(
+              coerce[PCanonicalStream](x.pType).sType,
+              sized(setup, newStream, len))
           }
 
-        case StreamJoinRightDistinct(leftIR, rightIR, lKey, rKey, leftName, rightName, joinIR, joinType) =>
+        case x@StreamJoinRightDistinct(leftIR, rightIR, lKey, rKey, leftName, rightName, joinIR, joinType) =>
           assert(joinType == "left" || joinType == "outer")
           val lEltType = coerce[PStruct](coerce[PStream](leftIR.pType).elementType)
           val rEltType = coerce[PStruct](coerce[PStream](rightIR.pType).elementType)
@@ -2078,28 +2127,28 @@ object EmitStream {
           }
 
           def joinF: ((EmitCode, EmitCode)) => EmitCode = { case (lelt, relt) =>
-            val joint = joinIR.pType match {
-              case _: PCanonicalStream =>
-                emit(ctx, emitter, joinIR, mb, outerRegion, newEnv, container)
-              case _ =>
-                emitIR (joinIR, newEnv)
-            }
-
-            EmitCodeBuilder.scopedEmitCode(mb) { cb =>
+            EmitCode.fromI(mb) { cb =>
               cb.assign(xLElt, lelt)
               cb.assign(xRElt, relt)
-              joint
+
+              joinIR.pType match {
+                case _: PCanonicalStream =>
+                  emit(ctx, emitter, joinIR, mb, outerRegion, newEnv, container).toI(cb)
+                case _ =>
+                  emitIR (joinIR, cb = cb, newEnv)
+              }
             }
           }
 
-          emitStream(leftIR).flatMap { case SizedStream(leftSetup, leftStream, leftLen) =>
-            emitStream(rightIR).map { rightSS =>
+          emitStream(leftIR).flatMap(cb) { leftPC =>
+            val SizedStream(leftSetup, leftStream, leftLen) = leftPC.asStream.stream
+            emitStream(rightIR).map(cb) { rightSS =>
               val newStream = (eltRegion: ChildStagedRegion) => {
                 if (joinType == "left")
                   leftJoinRightDistinct(
                     mb,
                     lEltType, leftStream,
-                    rEltType, rightSS.getStream,
+                    rEltType, rightSS.asStream.stream.getStream,
                     eltRegion,
                     compare)
                     .map(joinF)
@@ -2107,15 +2156,17 @@ object EmitStream {
                   outerJoinRightDistinct(
                     mb,
                     lEltType, leftStream,
-                    rEltType, rightSS.getStream,
+                    rEltType, rightSS.asStream.stream.getStream,
                     eltRegion,
                     compare)
                     .map(joinF)
               }
 
-              sized(leftSetup,
+              val newSStream = sized(leftSetup,
                     newStream,
                     if (joinType == "left") leftLen else None)
+
+              interfaces.SStreamCode(coerce[PCanonicalStream](x.pType).sType, newSStream)
             }
           }
 
@@ -2127,105 +2178,95 @@ object EmitStream {
           assert(keyType == shuffleType.keyType)
           assert(keyPType == shuffleType.keyDecodedPType)
 
-          COption.fromEmitCode(emitIR(idIR)).doIfNone(
-            Code._fatal[Unit]("ShuffleRead cannot have null ID")
-          ).flatMap { case (idt: SCanonicalShufflePointerCode) =>
-            COption.fromEmitCode(emitIR(keyRangeIR)).doIfNone(
-              Code._fatal[Unit]("ShuffleRead cannot have null key range")
-            ).flatMap { case (keyRangeCode: PIntervalCode) =>
+          val idt = emitIR(idIR).get(cb, "ShuffleRead cannot have null ID").asShuffle
+          val keyRangeCode =
+            emitIR(keyRangeIR).get(cb, "ShuffleRead cannot have null key range").asInterval
 
-              val uuidLocal = mb.newPLocal("shuffleUUID", idt.st.pType.representation)
-                .asInstanceOf[SBinaryPointerSettable]
-              val uuid = new SCanonicalShufflePointerSettable(idt.st, uuidLocal)
-              val keyRange = SIntervalPointerSettable(mb.fieldBuilder, keyRangeCode.st.asInstanceOf[SIntervalPointer], "shuffleClientKeyRange")
-              COption(
-                EmitCodeBuilder.scopedCode(mb) { cb =>
-                  cb.assign(uuid, idt)
-                  cb.assign(keyRange, keyRangeCode)
-                  !keyRange.startDefined(cb) || !keyRange.endDefined(cb)
-                },
-                keyRange
-              ).doIfNone(
-                Code._fatal[Unit]("ShuffleRead cannot have null start or end points of key range")
-              ).map { keyRange =>
+          val uuid = idt.memoize(cb, "shuffleUUID")
+          val keyRange = keyRangeCode.memoizeField(cb, "shuffleClientKeyRange")
 
-                val shuffleLocal = mb.newLocal[ShuffleClient]("shuffleClient")
-                val shuffle = new ValueShuffleClient(shuffleLocal)
+          cb.ifx(!keyRange.startDefined(cb) || !keyRange.endDefined(cb), {
+            Code._fatal[Unit]("ShuffleRead cannot have null start or end points of key range")
+          })
 
-                val stream = (eltRegion: ChildStagedRegion) => unfold[EmitCode](
-                  { (_, k) =>
-                    k(
-                      COption(
-                        shuffle.getValueFinished(),
-                        EmitCode.present(
-                          shuffleType.rowDecodedPType, shuffle.getValue(eltRegion.code))))
-                  },
-                  setup = Some(EmitCodeBuilder.scopedVoid(mb) { cb =>
-                    cb.assign(shuffleLocal, CodeShuffleClient.create(
-                      mb.ecb.getType(shuffleType),
-                      uuid.loadBytes(),
-                      Code._null,
-                      mb.ecb.getPType(keyPType)))
+          val shuffleLocal = mb.newLocal[ShuffleClient]("shuffleClient")
+          val shuffle = new ValueShuffleClient(shuffleLocal)
 
-                    val startt = keyRange.loadStart(cb)
-                        .handle(cb, cb._fatal("shuffle expects defined endpoints"))
-                        .tcode[Long]
-                    val endt =
-                      keyRange.loadEnd(cb)
-                        .handle(cb, cb._fatal("shuffle expects defined endpoints"))
-                        .tcode[Long]
+          val stream = (eltRegion: ChildStagedRegion) => unfold[EmitCode](
+            { (_, k) =>
+              k(
+                COption(
+                  shuffle.getValueFinished(),
+                  EmitCode.present(
+                    shuffleType.rowDecodedPType, shuffle.getValue(eltRegion.code))))
+            },
+            setup = Some(EmitCodeBuilder.scopedVoid(mb) { cb =>
+              cb.assign(shuffleLocal, CodeShuffleClient.create(
+                mb.ecb.getType(shuffleType),
+                uuid.loadBytes(),
+                Code._null,
+                mb.ecb.getPType(keyPType)))
 
-                    cb.append(shuffle.startGet(startt, keyRange.includesStart, endt, keyRange.includesEnd))
-                  }),
-                  close = Some(Code(
-                    shuffle.getDone(),
-                    shuffle.close())))
-                unsized(stream)
-              }
-            }
-          }
+              val startt = keyRange.loadStart(cb)
+                  .get(cb, "shuffle expects defined endpoints")
+                  .asPCode
+                  .tcode[Long]
+              val endt = keyRange.loadEnd(cb)
+                  .get(cb, "shuffle expects defined endpoints")
+                  .asPCode
+                  .tcode[Long]
+
+              cb.append(shuffle.startGet(startt, keyRange.includesStart, endt, keyRange.includesEnd))
+            }),
+            close = Some(Code(
+              shuffle.getDone(),
+              shuffle.close())))
+
+          IEmitCode.present(cb,
+            interfaces.SStreamCode(coerce[PCanonicalStream](x.pType).sType, unsized(stream)))
 
       case x@ShufflePartitionBounds(idIR, nPartitionsIR) =>
           val shuffleType = coerce[TShuffle](idIR.typ)
           assert(shuffleType.keyDecodedPType == coerce[PStream](x.pType).elementType)
-          COption.fromEmitCode(emitIR(idIR)).doIfNone(
-            Code._fatal[Unit]("ShufflePartitionBounds cannot have null ID")
-          ).flatMap { case (idt: SCanonicalShufflePointerCode) =>
-            COption.fromEmitCode(emitIR(nPartitionsIR)).doIfNone(
-              Code._fatal[Unit]("ShufflePartitionBounds cannot have null number of partitions")
-            ).map { case (nPartitionst: SInt32Code) =>
-              val uuidLocal = mb.newLocal[Long]("shuffleUUID")
-              val uuid = new SCanonicalShufflePointerSettable(idt.st, new SBinaryPointerSettable(SBinaryPointer(idt.st.pType.representation), uuidLocal))
-              val shuffleLocal = mb.newLocal[ShuffleClient]("shuffleClient")
-              val shuffle = new ValueShuffleClient(shuffleLocal)
-              val stream = (eltRegion: ChildStagedRegion) => unfold[EmitCode](
-                { (_, k) =>
-                  k(
-                    COption(
-                      shuffle.partitionBoundsValueFinished(),
-                      EmitCode.present(
-                        shuffleType.keyDecodedPType, shuffle.partitionBoundsValue(eltRegion.code))))
-                },
-                setup = Some(EmitCodeBuilder.scopedVoid(mb) { cb =>
-                  uuid.store(cb, idt)
-                  cb.assign(shuffleLocal, CodeShuffleClient.create(mb.ecb.getType(shuffleType), uuid.loadBytes()))
-                  cb += shuffle.startPartitionBounds(nPartitionst.intCode(cb)) }),
-                close = Some(Code(
-                  shuffle.endPartitionBounds(),
-                  shuffle.close())))
-              unsized(stream)
-          }
-        }
+
+        val idt = emitIR(idIR).get(cb, "ShufflePartitionBounds cannot have null ID").asInstanceOf[SCanonicalShufflePointerCode]
+        val nPartitionst = emitIR(nPartitionsIR).get(cb, "ShufflePartitionBounds cannot have null number of partitions").asInt
+
+        val uuidLocal = mb.newLocal[Long]("shuffleUUID")
+        val uuid = new SCanonicalShufflePointerSettable(idt.st, new SBinaryPointerSettable(SBinaryPointer(idt.st.pType.representation), uuidLocal))
+        val shuffleLocal = mb.newLocal[ShuffleClient]("shuffleClient")
+        val shuffle = new ValueShuffleClient(shuffleLocal)
+
+        val stream = (eltRegion: ChildStagedRegion) => unfold[EmitCode](
+          { (_, k) =>
+            k(
+              COption(
+                shuffle.partitionBoundsValueFinished(),
+                EmitCode.present(
+                  shuffleType.keyDecodedPType, shuffle.partitionBoundsValue(eltRegion.code))))
+          },
+          setup = Some(EmitCodeBuilder.scopedVoid(mb) { cb =>
+            uuid.store(cb, idt)
+            cb.assign(shuffleLocal, CodeShuffleClient.create(mb.ecb.getType(shuffleType), uuid.loadBytes()))
+            cb += shuffle.startPartitionBounds(nPartitionst.intCode(cb)) }),
+          close = Some(Code(
+            shuffle.endPartitionBounds(),
+            shuffle.close())))
+
+        IEmitCode.present(cb,
+          interfaces.SStreamCode(coerce[PCanonicalStream](x.pType).sType, unsized(stream)))
 
         case _ =>
           fatal(s"not a streamable IR: ${Pretty(streamIR)}")
       }
+
+      assert(result.pt.isInstanceOf[PStream])
+      result
     }
 
-    COption.toEmitCode(ctx,
-      _emitStream(streamIR0, outerRegion, env0).map { stream =>
-        interfaces.SStreamCode(coerce[PCanonicalStream](streamIR0.pType).sType, stream)
-      }, mb)
+    EmitCode.fromI(mb) { cb =>
+      _emitStream(cb, streamIR0, outerRegion, env0)
+    }
   }
 
   private[ir] def multiplicity(root: IR, refName: String): Int = {

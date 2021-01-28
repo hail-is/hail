@@ -79,17 +79,14 @@ final case class EBlockMatrixNDArray(elementType: EType, encodeRowMajor: Boolean
     cb.forLoop(cb.assign(i, 0), i < n, cb.assign(i, i + 1),
       cb += readElemF(region, t.data.pType.elementOffset(data, n, i), in))
 
-    val shapeBuilder = t.makeShapeBuilder(FastIndexedSeq(nRows, nCols))
-    val stridesBuilder = { srvb: StagedRegionValueBuilder =>
-      Code(
-        srvb.start(),
-        srvb.addLong(transpose.mux(nCols.toL * t.elementType.byteSize, t.elementType.byteSize)),
-        srvb.advance(),
-        srvb.addLong(transpose.mux(t.elementType.byteSize, nRows * t.elementType.byteSize)),
-        srvb.advance())
-    }
+    val shapeStruct = t.makeShapeStruct(FastIndexedSeq(nRows, nCols), region, cb)
 
-    t.construct(shapeBuilder, stridesBuilder, data, cb.emb, region)
+    val stride0 = cb.newLocal[Long]("stride0", transpose.mux(nCols.toL * t.elementType.byteSize, t.elementType.byteSize))
+    val stride1 = cb.newLocal[Long]("stride1", transpose.mux(t.elementType.byteSize, nRows * t.elementType.byteSize))
+
+    val stridesBuilder = t.makeShapeStruct(FastIndexedSeq(stride0, stride1), region, cb)
+
+    t.construct(shapeStruct, stridesBuilder, data, cb, region)
       .tcode[Long]
   }
 

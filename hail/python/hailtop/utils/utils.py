@@ -1,4 +1,6 @@
-from typing import Callable, TypeVar, Awaitable
+from typing import Callable, TypeVar, Awaitable, Optional, Type
+from types import TracebackType
+import subprocess
 import traceback
 import os
 import errno
@@ -218,7 +220,7 @@ class AsyncWorkerPool:
 
 
 class WaitableSharedPool:
-    def __init__(self, worker_pool):
+    def __init__(self, worker_pool: AsyncWorkerPool):
         self._worker_pool = worker_pool
         self._n_submitted = 0
         self._n_complete = 0
@@ -245,6 +247,15 @@ class WaitableSharedPool:
         if self._n_complete == self._n_submitted:
             self._done.set()
         await self._done.wait()
+
+    async def __aenter__(self) -> 'WaitableSharedPool':
+        return self
+
+    async def __aexit__(self,
+                        exc_type: Optional[Type[BaseException]],
+                        exc_val: Optional[BaseException],
+                        exc_tb: Optional[TracebackType]) -> None:
+        await self.wait()
 
 
 RETRYABLE_HTTP_STATUS_CODES = {408, 500, 502, 503, 504}
@@ -585,3 +596,19 @@ class Notice:
     def notify(self):
         for e in self.subscribers:
             e.set()
+
+
+def find_spark_home():
+    spark_home = os.environ.get('SPARK_HOME')
+    if spark_home is None:
+        find_spark_home = subprocess.run('find_spark_home.py',
+                                         capture_output=True,
+                                         check=False)
+        if find_spark_home.returncode != 0:
+            raise ValueError(f'''SPARK_HOME is not set and find_spark_home.py returned non-zero exit code:
+STDOUT:
+{find_spark_home.stdout}
+STDERR:
+{find_spark_home.stderr}''')
+        spark_home = find_spark_home.stdout.decode().strip()
+    return spark_home

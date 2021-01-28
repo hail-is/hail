@@ -1,3 +1,8 @@
+include ../config.mk
+
+NOTEBOOK_LATEST = gcr.io/$(PROJECT)/notebook:latest
+NOTEBOOK_IMAGE = gcr.io/$(PROJECT)/notebook:$(shell docker images -q --no-trunc notebook | sed -e 's,[^:]*:,,')
+
 EXTRA_PYTHONPATH := ../hail/python:../gear:../web_common
 PYTHON := PYTHONPATH=$${PYTHONPATH:+$${PYTHONPATH}:}$(EXTRA_PYTHONPATH) python3
 
@@ -6,3 +11,26 @@ check:
 	$(PYTHON) -m flake8 notebook
 	$(PYTHON) -m pylint --rcfile ../pylintrc notebook --score=n
 	../check-sql.sh
+
+.PHONY: build
+build:
+	$(MAKE) -C ../docker build
+	-docker pull $(NOTEBOOK_LATEST)
+	python3 ../ci/jinja2_render.py '{"service_base_image":{"image":"service-base"}}' Dockerfile Dockerfile.out
+	docker build -t notebook -f Dockerfile.out --cache-from notebook,$(NOTEBOOK_LATEST),service-base ..
+
+.PHONY: push
+push: build
+	docker tag notebook $(NOTEBOOK_LATEST)
+	docker push $(NOTEBOOK_LATEST)
+	docker tag notebook $(NOTEBOOK_IMAGE)
+	docker push $(NOTEBOOK_IMAGE)
+
+JINJA_ENVIRONMENT = '{"code":{"sha":"$(shell git rev-parse --short=12 HEAD)"},"deploy":$(DEPLOY),"notebook_image":{"image":"$(NOTEBOOK_IMAGE)"},"default_ns":{"name":"$(NAMESPACE)"},"notebook_database":{"user_secret_name":"sql-notebook-user-config"},"global":{"project":"$(PROJECT)","domain":"$(DOMAIN)","k8s_server_url":"$(KUBERNETES_SERVER_URL)"},"scope":"$(SCOPE)"}'
+
+.PHONY: deploy
+deploy: push
+	! [ -z $(NAMESPACE) ]  # call this like: make deploy NAMESPACE=default
+	E=$(JINJA_ENVIRONMENT) && \
+	  python3 ../ci/jinja2_render.py $$E deployment.yaml deployment.yaml.out && \
+	kubectl -n $(NAMESPACE) apply -f deployment.yaml.out

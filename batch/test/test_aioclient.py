@@ -9,7 +9,7 @@ pytestmark = pytest.mark.asyncio
 
 @pytest.fixture
 async def client():
-    bc = await BatchClient('test')
+    bc = BatchClient('test')
     yield bc
     await bc.close()
 

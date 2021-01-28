@@ -142,6 +142,8 @@ async def on_cleanup(app):
     try:
         blocking_pool = app['blocking_pool']
         blocking_pool.shutdown()
+        del app['cache'].k8s_client
+        await asyncio.gather(*(t for t in asyncio.all_tasks() if t is not asyncio.current_task()))
     finally:
         app['cache'].shutdown()
 

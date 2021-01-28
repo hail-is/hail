@@ -2075,7 +2075,7 @@ class Table(ExprContainer):
                     raise ValueError(f"cannot unify field {field_name!r}: found fields of types "
                                      f"{[str(t) for t in {e.dtype for e in expr_dict.values()}]}")
                 unified_map = dict(zip(expr_dict.keys(), unified))
-                default = hl.null(unified[0].dtype)
+                default = hl.missing(unified[0].dtype)
                 for i in range(len(all_tables)):
                     all_fields[i][field_name] = unified_map.get(i, default)
 

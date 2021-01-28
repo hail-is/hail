@@ -126,7 +126,7 @@ def generate_datasets(doctest_namespace):
     doctest_namespace['a2'] = hl.literal([1, -1, 1, -1, 1, -1])
     doctest_namespace['t'] = hl.literal(True)
     doctest_namespace['f'] = hl.literal(False)
-    doctest_namespace['na'] = hl.null(hl.tbool)
+    doctest_namespace['na'] = hl.missing(hl.tbool)
     doctest_namespace['call'] = hl.call(0, 1, phased=False)
     doctest_namespace['a'] = hl.literal([1, 2, 3, 4, 5])
     doctest_namespace['d'] = hl.literal({'Alice': 43, 'Bob': 33, 'Charles': 44})

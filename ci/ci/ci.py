@@ -15,11 +15,14 @@ from hailtop.config import get_deploy_config
 from hailtop.tls import internal_server_ssl_context
 from hailtop.hail_logging import AccessLogger
 from hailtop import aiotools
-from gear import (setup_aiohttp_session, rest_authenticated_developers_only,
-                  web_authenticated_developers_only, check_csrf_token,
-                  create_database_pool)
-from web_common import (setup_aiohttp_jinja2, setup_common_static_routes,
-                        render_template, set_message)
+from gear import (
+    setup_aiohttp_session,
+    rest_authenticated_developers_only,
+    web_authenticated_developers_only,
+    check_csrf_token,
+    create_database_pool,
+)
+from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template, set_message
 
 from .environment import BUCKET
 from .github import Repo, FQBranch, WatchedBranch, UnwatchedBranch, MergeFailureBatch
@@ -83,9 +86,7 @@ async def index(request, userdata):  # pylint: disable=unused-argument
         }
         wb_configs.append(wb_config)
 
-    page_context = {
-        'watched_branches': wb_configs
-    }
+    page_context = {'watched_branches': wb_configs}
     return await render_template('ci', request, userdata, 'index.html', page_context)
 
 
@@ -124,11 +125,11 @@ async def get_pr(request, userdata):  # pylint: disable=unused-argument
             page_context['artifacts'] = f'/{BUCKET}/build/{batch.attributes["token"]}'
         else:
             page_context['exception'] = '\n'.join(
-                traceback.format_exception(None, batch.exception, batch.exception.__traceback__))
+                traceback.format_exception(None, batch.exception, batch.exception.__traceback__)
+            )
 
     batch_client = request.app['batch_client']
-    batches = batch_client.list_batches(
-        f'test=1 pr={pr.number}')
+    batches = batch_client.list_batches(f'test=1 pr={pr.number}')
     batches = sorted([b async for b in batches], key=lambda b: b.id, reverse=True)
     page_context['history'] = [await b.last_known_status() for b in batches]
 
@@ -141,10 +142,7 @@ async def retry_pr(wb, pr, request):
 
     if pr.batch is None:
         log.info('retry cannot be requested for PR #{pr.number} because it has no batch')
-        set_message(
-            session,
-            f'Retry cannot be requested for PR #{pr.number} because it has no batch.',
-            'error')
+        set_message(session, f'Retry cannot be requested for PR #{pr.number} because it has no batch.', 'error')
         return
 
     batch_id = pr.batch.id
@@ -165,8 +163,7 @@ async def post_retry_pr(request, userdata):  # pylint: disable=unused-argument
     wb, pr = wb_and_pr_from_request(request)
 
     await asyncio.shield(retry_pr(wb, pr, request))
-    return web.HTTPFound(
-        deploy_config.external_url('ci', f'/watched_branches/{wb.index}/pr/{pr.number}'))
+    return web.HTTPFound(deploy_config.external_url('ci', f'/watched_branches/{wb.index}/pr/{pr.number}'))
 
 
 @routes.get('/batches')
@@ -175,9 +172,7 @@ async def get_batches(request, userdata):
     batch_client = request.app['batch_client']
     batches = [b async for b in batch_client.list_batches()]
     statuses = [await b.last_known_status() for b in batches]
-    page_context = {
-        'batches': statuses
-    }
+    page_context = {'batches': statuses}
     return await render_template('ci', request, userdata, 'batches.html', page_context)
 
 
@@ -191,10 +186,7 @@ async def get_batch(request, userdata):
     jobs = await collect_agen(b.jobs())
     for j in jobs:
         j['duration'] = humanize_timedelta_msecs(j['duration'])
-    page_context = {
-        'batch': status,
-        'jobs': jobs
-    }
+    page_context = {'batch': status, 'jobs': jobs}
     return await render_template('ci', request, userdata, 'batch.html', page_context)
 
 
@@ -210,7 +202,7 @@ async def get_job(request, userdata):
         'job_id': job_id,
         'job_log': await job.log(),
         'job_status': json.dumps(await job.status(), indent=2),
-        'attempts': await job.attempts()
+        'attempts': await job.attempts(),
     }
     return await render_template('ci', request, userdata, 'job.html', page_context)
 
@@ -229,13 +221,13 @@ async def post_authorized_source_sha(request, userdata):  # pylint: disable=unus
     log.info(f'authorized sha: {sha}')
     session = await aiohttp_session.get_session(request)
     set_message(session, f'SHA {sha} authorized.', 'info')
-    return web.HTTPFound(
-        deploy_config.external_url('ci', '/'))
+    return web.HTTPFound(deploy_config.external_url('ci', '/'))
 
 
 @routes.get('/healthcheck')
 async def healthcheck(request):  # pylint: disable=unused-argument
     return web.Response(status=200)
+
 
 gh_router = gh_routing.Router()
 
@@ -255,7 +247,7 @@ async def push_callback(event):
     data = event.data
     ref = data['ref']
     if ref.startswith('refs/heads/'):
-        branch_name = ref[len('refs/heads/'):]
+        branch_name = ref[len('refs/heads/') :]
         branch = FQBranch(Repo.from_gh_json(data['repository']), branch_name)
         for wb in watched_branches:
             if wb.branch == branch or any(pr.branch == branch for pr in wb.prs.values()):
@@ -312,17 +304,21 @@ async def deploy_status(request, userdata):  # pylint: disable=unused-argument
             log = await full_job.log()
             return {**full_job._status, 'log': log}
 
-        return await asyncio.gather(*[fetch_job_and_log(j)
-                                      for j in jobs
-                                      if j['state'] in ('Error', 'Failed')])
-    wb_configs = [{
-        'branch': wb.branch.short_str(),
-        'sha': wb.sha,
-        'deploy_batch_id': wb.deploy_batch.id if wb.deploy_batch and hasattr(wb.deploy_batch, 'id') else None,
-        'deploy_state': wb.deploy_state,
-        'repo': wb.branch.repo.short_str(),
-        'failure_information': None if wb.deploy_state == 'success' else await get_failure_information(wb.deploy_batch)
-    } for wb in watched_branches]
+        return await asyncio.gather(*[fetch_job_and_log(j) for j in jobs if j['state'] in ('Error', 'Failed')])
+
+    wb_configs = [
+        {
+            'branch': wb.branch.short_str(),
+            'sha': wb.sha,
+            'deploy_batch_id': wb.deploy_batch.id if wb.deploy_batch and hasattr(wb.deploy_batch, 'id') else None,
+            'deploy_state': wb.deploy_state,
+            'repo': wb.branch.repo.short_str(),
+            'failure_information': None
+            if wb.deploy_state == 'success'
+            else await get_failure_information(wb.deploy_batch),
+        }
+        for wb in watched_branches
+    ]
     return web.json_response(wb_configs)
 
 
@@ -377,8 +373,7 @@ async def dev_deploy_branch(request, userdata):
         batch_id = await unwatched_branch.deploy(batch_client, steps)
     except Exception as e:  # pylint: disable=broad-except
         message = traceback.format_exc()
-        raise web.HTTPBadRequest(
-            text=f'starting the deploy failed due to\n{message}') from e
+        raise web.HTTPBadRequest(text=f'starting the deploy failed due to\n{message}') from e
     return web.json_response({'sha': sha, 'batch_id': batch_id})
 
 
@@ -402,12 +397,9 @@ async def update_loop(app):
 
 
 async def on_startup(app):
-    app['github_client'] = gh_aiohttp.GitHubAPI(
-        aiohttp.ClientSession(
-            timeout=aiohttp.ClientTimeout(total=5)),
-        'ci',
-        oauth_token=oauth_token)
-    app['batch_client'] = await BatchClient('ci')
+    app['gh_client_session'] = aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=5))
+    app['github_client'] = gh_aiohttp.GitHubAPI(app['gh_client_session'], 'ci', oauth_token=oauth_token)
+    app['batch_client'] = BatchClient('ci')
     app['dbpool'] = await create_database_pool()
 
     app['task_manager'] = aiotools.BackgroundTaskManager()
@@ -419,6 +411,8 @@ async def on_cleanup(app):
         dbpool = app['dbpool']
         dbpool.close()
         await dbpool.wait_closed()
+        await app['gh_client_session'].close()
+        await app['batch_client'].close()
     finally:
         app['task_manager'].shutdown()
 
@@ -434,8 +428,10 @@ def run():
     setup_common_static_routes(routes)
     app.add_routes(routes)
 
-    web.run_app(deploy_config.prefix_application(app, 'ci'),
-                host='0.0.0.0',
-                port=5000,
-                access_log_class=AccessLogger,
-                ssl_context=internal_server_ssl_context())
+    web.run_app(
+        deploy_config.prefix_application(app, 'ci'),
+        host='0.0.0.0',
+        port=5000,
+        access_log_class=AccessLogger,
+        ssl_context=internal_server_ssl_context(),
+    )

@@ -2,7 +2,7 @@ package is.hail.types.physical
 
 import is.hail.annotations.{Region, _}
 import is.hail.asm4s.{Code, _}
-import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder}
+import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, EmitValue, IEmitCode}
 import is.hail.types.physical.stypes.SCode
 import is.hail.types.physical.stypes.concrete.{SIndexablePointer, SIndexablePointerCode, SIndexablePointerSettable}
 import is.hail.types.physical.stypes.interfaces.SContainer
@@ -160,6 +160,8 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
     Code.memoize(aoff, "pcarr_elem_off_aoff") { aoff =>
       firstElementOffset(aoff, loadLength(aoff)) + i.toL * const(elementByteSize)
     }
+
+  private def elementOffsetFromFirst(firstElementAddr: Code[Long], i: Code[Int]): Code[Long] = firstElementAddr + i.toL * const(elementByteSize)
 
   def nextElementAddress(currentOffset: Long) =
     currentOffset + elementByteSize
@@ -459,4 +461,48 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
 
   private def deepRenameArray(t: TArray): PArray =
     PCanonicalArray(this.elementType.deepRename(t.elementType), this.required)
+
+
+  def constructFromElements(cb: EmitCodeBuilder, region: Value[Region], length: Value[Int], deepCopy: Boolean)
+    (f: (EmitCodeBuilder, Value[Int]) => IEmitCode): SIndexablePointerCode = {
+
+    val addr = cb.newLocal[Long]("pcarray_construct1_addr", allocate(region, length))
+    cb += stagedInitialize(addr, length, setMissing = false)
+    val i = cb.newLocal[Int]("pcarray_construct1_i", 0)
+
+    val firstElementAddr = firstElementOffset(addr, length)
+    cb.whileLoop(i < length, {
+      f(cb, i).consume(cb,
+        cb += setElementMissing(addr, i),
+        { sc =>
+          elementType.storeAtAddress(cb, elementOffsetFromFirst(firstElementAddr, i), region, sc, deepCopy = deepCopy)
+        })
+
+      cb.assign(i, i + 1)
+    })
+
+    new SIndexablePointerCode(SIndexablePointer(this), addr)
+  }
+
+  // unsafe StagedArrayBuilder-like interface that gives caller control over adding elements and finishing
+  def constructFromFunctions(cb: EmitCodeBuilder, region: Value[Region], length: Value[Int], deepCopy: Boolean):
+  (((EmitCodeBuilder, Value[Int], IEmitCode) => Unit, (EmitCodeBuilder => SIndexablePointerCode))) = {
+
+    val addr = cb.newLocal[Long]("pcarray_construct2_addr", allocate(region, length))
+    cb += stagedInitialize(addr, length, setMissing = false)
+    val i = cb.newLocal[Int]("pcarray_construct2_i", 0)
+
+    val firstElementAddr = firstElementOffset(addr, length)
+
+    val addElement: (EmitCodeBuilder, Value[Int], IEmitCode) => Unit = { case (cb, i, iec) =>
+      iec.consume(cb,
+        cb += setElementMissing(addr, i),
+        { sc =>
+          elementType.storeAtAddress(cb, elementOffsetFromFirst(firstElementAddr, i), region, sc, deepCopy = deepCopy)
+        })
+    }
+    val finish: EmitCodeBuilder => SIndexablePointerCode = _ => new SIndexablePointerCode(SIndexablePointer(this), addr)
+    (addElement, finish)
+  }
+
 }
