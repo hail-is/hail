@@ -399,7 +399,7 @@ async def update_loop(app):
 async def on_startup(app):
     app['gh_client_session'] = aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=5))
     app['github_client'] = gh_aiohttp.GitHubAPI(app['gh_client_session'], 'ci', oauth_token=oauth_token)
-    app['batch_client'] = await BatchClient('ci')
+    app['batch_client'] = BatchClient('ci')
     app['dbpool'] = await create_database_pool()
 
     app['task_manager'] = aiotools.BackgroundTaskManager()

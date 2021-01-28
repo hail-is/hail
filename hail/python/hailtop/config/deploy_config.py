@@ -1,4 +1,4 @@
-from typing import List, Tuple
+from typing import List, Tuple, Dict
 import aiohttp
 import random
 import os
@@ -13,11 +13,11 @@ log = logging.getLogger('deploy_config')
 
 class DeployConfig:
     @staticmethod
-    def from_config(config):
+    def from_config(config) -> 'DeployConfig':
         domain = config.get('domain', 'hail.is')
         return DeployConfig(config['location'], config['default_namespace'], domain)
 
-    def get_config(self):
+    def get_config(self) -> Dict[str, str]:
         return {
             'location': self._location,
             'default_namespace': self._default_namespace,
@@ -25,7 +25,7 @@ class DeployConfig:
         }
 
     @staticmethod
-    def from_config_file(config_file=None):
+    def from_config_file(config_file=None) -> 'DeployConfig':
         config_file = first_extant_file(
             config_file,
             os.environ.get('HAIL_DEPLOY_CONFIG_FILE'),
@@ -148,7 +148,7 @@ class DeployConfig:
 deploy_config = None
 
 
-def get_deploy_config():
+def get_deploy_config() -> DeployConfig:
     global deploy_config
 
     if not deploy_config:
