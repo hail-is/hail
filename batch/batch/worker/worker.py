@@ -542,6 +542,7 @@ class JVMProcess:
     async def run(self):
         log.info(f'running {self}')
         self.timing['start_time'] = time_msecs()
+        log.info(f'env: {" ".join(self.env)}')
         self.proc = await asyncio.create_subprocess_exec(
             *self.env,
             'java',
@@ -1047,7 +1048,7 @@ class JVMJob(Job):
         if input_files or output_files:
             raise Exception("i/o not supported")
 
-        self.env.append(f"SCRATCH_DIR={self.scratch}")
+        self.env.append(f"HAIL_WORKER_SCRATCH_DIR='{self.scratch}'")
 
         # main container
         self.main_spec = {
