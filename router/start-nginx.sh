@@ -1,5 +1,5 @@
 #!/bin/bash
-set -ex
+set -e
 
 case "$HAIL_DEFAULT_NAMESPACE" in
     default)
