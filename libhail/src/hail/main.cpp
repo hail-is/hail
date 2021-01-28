@@ -44,7 +44,7 @@ main() {
   Module *m = xc.make_module();
   Function *f = xc.make_function(m, "main", {tc.tint32, tc.tbool}, tc.tint32);
 
-  print(f);
+  format(outs, m);
 
   return 0;
 }

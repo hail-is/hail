@@ -1,9 +1,11 @@
 #ifndef HAIL_IR_HPP_INCLUDED
 #define HAIL_IR_HPP_INCLUDED 1
 
+#include <tuple>
 #include <unordered_set>
 
 #include <hail/allocators.hpp>
+#include <hail/hash.hpp>
 #include <hail/type.hpp>
 #include <hail/value.hpp>
 
@@ -36,6 +38,7 @@ public:
 class Module {
   friend class Function;
   friend class IR;
+  friend void format1(FormatStream &s, const Module *m);
   
   std::map<std::string, Function *> functions;
 
@@ -49,6 +52,7 @@ public:
 class Function {
   friend class Module;
   friend class IR;
+  friend class Block;
 
   Module *module;
   std::string name;
@@ -78,9 +82,6 @@ class IR {
   friend class Module;
   friend class Function;
   
-  IR *parent;
-  std::vector<IR *> children;
-  std::unordered_set<std::tuple<IR *, int>> uses;
 public:
   using BaseType = IR;
   enum class Tag {
@@ -104,6 +105,11 @@ public:
     STREAMFOLD
   };
   const Tag tag;
+private:
+  IR *parent;
+  std::vector<IR *> children;
+  std::unordered_set<std::tuple<IR *, int>> uses;
+public:
   IR(Tag tag, IR *parent, size_t arity);
   IR(Tag tag, IR *parent, std::vector<IR *> children);
   virtual ~IR();
@@ -118,16 +124,19 @@ public:
 
   IR *get_parent() const { return parent; }
   void set_parent(IR *new_parent);
-
-  virtual void validate() = 0;
 };
 
 class Block : public IR {
+  friend class Function;
+
+  Function *function_parent;
   std::vector<Input *> inputs;
   std::unordered_set<IR *> nodes;
 public:
   static const Tag self_tag = IR::Tag::BLOCK;
-  Block(IR *parent, size_t arity, size_t input_arity) : IR(self_tag, parent, arity), inputs(input_arity) {}
+  Block(IRContextToken, Function *function_parent, IR *parent, size_t arity, size_t input_arity);
+
+  void remove();
 
   size_t get_input_arity() const;
   void set_input_arity(size_t n);
@@ -149,6 +158,8 @@ public:
   static const Tag self_tag = IR::Tag::NA;
   Value value;
   Literal(IR *parent, Value value) : IR(self_tag, parent, 0), value(std::move(value)) {}
+
+  void validate();
 };
 
 class NA : public IR {
