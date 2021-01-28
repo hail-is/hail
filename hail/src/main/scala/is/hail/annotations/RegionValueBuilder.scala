@@ -415,14 +415,20 @@ class RegionValueBuilder(var region: Region) {
     if (a == null)
       setMissing()
     else {
-      currentType() match {
-        case _: PCanonicalArray | _: PCanonicalString | _: PCanonicalBinary | _: PArrayBackedContainer => {
-          start = currentType().unstagedStoreJavaObject(a, region)
+      if (typestk.isEmpty) { // Top level, have to make a decision
+        root match {
+          case _: PCanonicalArray | _: PCanonicalString | _: PCanonicalBinary | _: PArrayBackedContainer => {
+            start = currentType().unstagedStoreJavaObject(a, region)
+          }
+          case _ => {
+            currentType().unstagedStoreJavaObjectAtAddress(currentOffset(), a, region)
+            advance()
+          }
         }
-        case _ => {
-          currentType().unstagedStoreJavaObjectAtAddress(currentOffset(), a, region)
-          advance()
-        }
+      }
+      else { // Within some struct or something, can trust currentOffset to point to a spot I can write
+        currentType().unstagedStoreJavaObjectAtAddress(currentOffset(), a, region)
+        advance()
       }
     }
 
