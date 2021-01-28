@@ -3304,6 +3304,7 @@ steps:
       to: /site-www.tar.gz
    dependsOn:
      - hail_build_image
+     - deploy
  - kind: buildImage
    name: site_image
    dockerFile: site/Dockerfile
@@ -3316,7 +3317,6 @@ steps:
      - base_image
      - build_site_www
      - hail_ubuntu_image
-     - deploy
  - kind: deploy
    name: deploy_site
    namespace:
