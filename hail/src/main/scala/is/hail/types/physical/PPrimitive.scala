@@ -56,4 +56,6 @@ trait PPrimitive extends PType {
         case _: PFloat64 => PFloat64(required)
       }
   }
+
+  def loadFromNested(cb: EmitCodeBuilder, addr: Code[Long]): Code[Long] = addr
 }

@@ -141,4 +141,6 @@ final case class PCanonicalLocus(rgBc: BroadcastRG, required: Boolean = false) e
         representation.storeAtAddress(cb, addr, region, pt.representation.loadCheapPCode(cb, value.asInstanceOf[SCanonicalLocusPointerCode].a), deepCopy)
     }
   }
+
+  def loadFromNested(cb: EmitCodeBuilder, addr: Code[Long]): Code[Long] = addr
 }

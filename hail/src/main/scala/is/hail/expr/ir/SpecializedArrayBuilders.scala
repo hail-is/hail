@@ -139,7 +139,7 @@ final class IntMissingArrayBuilder(initialCapacity: Int) extends MissingArrayBui
 
   def ensureCapacity(n: Int): Unit = {
     if (b.length < n) {
-      val newCapacity = (b.length * 2).max(n)
+      val newCapacity = math.max(n, b.length * 2)
       val newb = new Array[Int](newCapacity)
       Array.copy(b, 0, newb, 0, size_)
       b = newb
@@ -198,7 +198,7 @@ final class LongMissingArrayBuilder(initialCapacity: Int) extends MissingArrayBu
 
   def ensureCapacity(n: Int): Unit = {
     if (b.length < n) {
-      val newCapacity = (b.length * 2).max(n)
+      val newCapacity = math.max(n, b.length * 2)
       val newb = new Array[Long](newCapacity)
       Array.copy(b, 0, newb, 0, size_)
       b = newb
@@ -257,7 +257,7 @@ final class FloatMissingArrayBuilder(initialCapacity: Int) extends MissingArrayB
 
   def ensureCapacity(n: Int): Unit = {
     if (b.length < n) {
-      val newCapacity = (b.length * 2).max(n)
+      val newCapacity = math.max(n, b.length * 2)
       val newb = new Array[Float](newCapacity)
       Array.copy(b, 0, newb, 0, size_)
       b = newb
@@ -316,7 +316,7 @@ final class DoubleMissingArrayBuilder(initialCapacity: Int) extends MissingArray
 
   def ensureCapacity(n: Int): Unit = {
     if (b.length < n) {
-      val newCapacity = (b.length * 2).max(n)
+      val newCapacity = math.max(n, b.length * 2)
       val newb = new Array[Double](newCapacity)
       Array.copy(b, 0, newb, 0, size_)
       b = newb
@@ -375,7 +375,7 @@ final class BooleanMissingArrayBuilder(initialCapacity: Int) extends MissingArra
 
   def ensureCapacity(n: Int): Unit = {
     if (b.length < n) {
-      val newCapacity = (b.length * 2).max(n)
+      val newCapacity = math.max(n, b.length * 2)
       val newb = new Array[Boolean](newCapacity)
       Array.copy(b, 0, newb, 0, size_)
       b = newb
@@ -443,7 +443,7 @@ final class ByteArrayArrayBuilder(initialCapacity: Int) {
 
   def ensureCapacity(n: Int): Unit = {
     if (b.length < n) {
-      val newCapacity = (b.length * 2).max(n)
+      val newCapacity = math.max(n, b.length * 2)
       val newb = new Array[Array[Byte]](newCapacity)
       Array.copy(b, 0, newb, 0, size_)
       b = newb
@@ -486,7 +486,7 @@ final class LongArrayBuilder(initialCapacity: Int= 16) {
 
   def ensureCapacity(n: Int): Unit = {
     if (b.length < n) {
-      val newCapacity = (b.length * 2).max(n)
+      val newCapacity = math.max(n, (b.length * 2))
       val newb = new Array[Long](newCapacity)
       Array.copy(b, 0, newb, 0, size_)
       b = newb
@@ -544,7 +544,7 @@ final class IntArrayBuilder(initialCapacity: Int = 16) {
 
   def ensureCapacity(n: Int): Unit = {
     if (b.length < n) {
-      val newCapacity = (b.length * 2).max(n)
+      val newCapacity = math.max(n, b.length * 2)
       val newb = new Array[Int](newCapacity)
       Array.copy(b, 0, newb, 0, size_)
       b = newb
@@ -602,7 +602,7 @@ final class DoubleArrayBuilder(initialCapacity: Int = 16) {
 
   def ensureCapacity(n: Int): Unit = {
     if (b.length < n) {
-      val newCapacity = (b.length * 2).max(n)
+      val newCapacity = math.max(n, b.length * 2)
       val newb = new Array[Double](newCapacity)
       Array.copy(b, 0, newb, 0, size_)
       b = newb
@@ -660,7 +660,7 @@ final class AnyRefArrayBuilder[T <: AnyRef](initialCapacity: Int = 16)(implicit 
 
   def ensureCapacity(n: Int): Unit = {
     if (b.length < n) {
-      val newCapacity = (b.length * 2).max(n)
+      val newCapacity = math.max(n, b.length * 2)
       val newb = new Array[T](newCapacity)
       Array.copy(b, 0, newb, 0, size_)
       b = newb

@@ -160,6 +160,8 @@ class PCanonicalBinary(val required: Boolean) extends PBinary {
   def setRequired(required: Boolean) = if (required == this.required) this else PCanonicalBinary(required)
 
   override val encodableType = this
+
+  def loadFromNested(cb: EmitCodeBuilder, addr: Code[Long]): Code[Long] = Region.loadAddress(addr)
 }
 
 object PCanonicalBinary {

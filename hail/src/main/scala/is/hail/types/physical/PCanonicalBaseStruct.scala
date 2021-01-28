@@ -226,4 +226,6 @@ abstract class PCanonicalBaseStruct(val types: Array[PType]) extends PBaseStruct
 
     new SBaseStructPointerCode(SBaseStructPointer(this), addr)
   }
+
+  def loadFromNested(cb: EmitCodeBuilder, addr: Code[Long]): Code[Long] = addr
 }

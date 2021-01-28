@@ -462,7 +462,6 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
   private def deepRenameArray(t: TArray): PArray =
     PCanonicalArray(this.elementType.deepRename(t.elementType), this.required)
 
-
   def constructFromElements(cb: EmitCodeBuilder, region: Value[Region], length: Value[Int], deepCopy: Boolean)
     (f: (EmitCodeBuilder, Value[Int]) => IEmitCode): SIndexablePointerCode = {
 
@@ -505,4 +504,5 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
     (addElement, finish)
   }
 
+  def loadFromNested(cb: EmitCodeBuilder, addr: Code[Long]): Code[Long] = Region.loadAddress(addr)
 }

@@ -249,5 +249,7 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
   override def dataFirstElementPointer(ndAddr: Code[Long]): Code[Long] = data.pType.firstElementOffset(this.dataPArrayPointer(ndAddr))
 
   override def dataPArrayPointer(ndAddr: Code[Long]): Code[Long] = data.load(ndAddr)
+
+  def loadFromNested(cb: EmitCodeBuilder, addr: Code[Long]): Code[Long] = addr
 }
 

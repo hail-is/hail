@@ -99,4 +99,6 @@ final case class PCanonicalInterval(pointType: PType, override val required: Boo
         representation._copyFromAddress(region, t.representation, srcAddress, deepCopy)
     }
   }
+
+  def loadFromNested(cb: EmitCodeBuilder, addr: Code[Long]): Code[Long] = representation.loadFromNested(cb, addr)
 }
