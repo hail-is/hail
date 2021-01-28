@@ -387,7 +387,7 @@ class RegionValueBuilder(var region: Region) {
     val toT = currentType()
 
     if (typestk.isEmpty) {
-      val r = toT.copyFromAddress(region, t.fundamentalType, fromOff, deepCopy)
+      val r = toT.copyFromAddress(region, t, fromOff, deepCopy)
       start = r
       return
     }

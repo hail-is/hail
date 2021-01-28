@@ -448,7 +448,7 @@ abstract class PType extends Serializable with Requiredness {
     // if value is not compatible with this, an exception will be thrown
     (virtualType, srcPType.virtualType) match {
       case (l: TBaseStruct, r: TBaseStruct) => assert(l.isCompatibleWith(r))
-      case _ => assert(virtualType == srcPType.virtualType)
+      case _ => assert(virtualType == srcPType.virtualType, s"virtualType: ${virtualType} != srcPType.virtualType: ${srcPType.virtualType}")
     }
     _copyFromAddress(region, srcPType, srcAddress, deepCopy)
   }
