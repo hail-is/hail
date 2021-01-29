@@ -61,25 +61,23 @@ class SIntervalPointerSettable(
   val includesStart: Settable[Boolean],
   val includesEnd: Settable[Boolean]
 ) extends PIntervalValue with PSettable {
-
   def get: PIntervalCode = new SIntervalPointerCode(st, a)
 
   val pt: PInterval = st.pType
-  private[this] lazy val optPointType = pt.pointType.setRequired(pt.pointType.required && st.pType.required)
 
   def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(a, includesStart, includesEnd)
 
   def loadStart(cb: EmitCodeBuilder): IEmitCode =
     IEmitCode(cb,
       !(pt.startDefined(a)),
-      optPointType.loadCheapPCode(cb, pt.loadStart(a)))
+      pt.pointType.loadCheapPCode(cb, pt.loadStart(a)))
 
   def startDefined(cb: EmitCodeBuilder): Code[Boolean] = pt.startDefined(a)
 
   def loadEnd(cb: EmitCodeBuilder): IEmitCode =
     IEmitCode(cb,
       !(pt.endDefined(a)),
-      optPointType.loadCheapPCode(cb, pt.loadEnd(a)))
+      pt.pointType.loadCheapPCode(cb, pt.loadEnd(a)))
 
   def endDefined(cb: EmitCodeBuilder): Code[Boolean] = pt.endDefined(a)
 

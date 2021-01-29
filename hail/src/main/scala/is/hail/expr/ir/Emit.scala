@@ -2136,52 +2136,6 @@ class Emit[C](
       }
 
     val result: EmitCode = (ir: @unchecked) match {
-      case Coalesce(values) =>
-        val mout = mb.newLocal[Boolean]()
-        val out = mb.newPLocal(pt)
-
-        def f(i: Int): Code[Unit] = {
-          if (i < values.length) {
-            val ec = emit(values(i))
-            Code(ec.setup,
-              ec.m.mux(
-                f(i + 1),
-                Code(mout := false, EmitCodeBuilder.scopedVoid(mb){ cb => cb.assign(out, ec.pv.castTo(cb, region.code, pt)) })))
-          } else
-            mout := true
-        }
-
-        EmitCode(
-          setup = f(0),
-          m = mout,
-          pv = out.get)
-
-      case If(cond, cnsq, altr) =>
-        assert(cnsq.typ == altr.typ)
-
-        val codeCond = emit(cond)
-        val out = mb.newPLocal(pt)
-        val mout = mb.newLocal[Boolean]()
-        val codeCnsq = emit(cnsq)
-        val codeAltr = emit(altr)
-
-        val setup = Code(
-          codeCond.setup,
-          codeCond.m.mux(
-            mout := true,
-            coerce[Boolean](codeCond.v).mux(
-              Code(codeCnsq.setup,
-                mout := codeCnsq.m,
-                mout.mux(
-                  Code._empty,
-                  EmitCodeBuilder.scopedVoid(mb) { cb => cb.assign(out, codeCnsq.pv.castTo(cb, region.code, ir.pType)) })),
-              Code(codeAltr.setup,
-                mout := codeAltr.m,
-                mout.mux(
-                  Code._empty,
-                  EmitCodeBuilder.scopedVoid(mb) { cb => cb.assign(out, codeAltr.pv.castTo(cb, region.code, ir.pType)) })))))
-
-        EmitCode(setup, mout, out.load())
 
       case Let(name, value, body) => value.pType match {
         case streamType: PCanonicalStream =>
