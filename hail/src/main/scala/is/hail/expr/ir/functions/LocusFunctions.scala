@@ -237,7 +237,7 @@ object LocusFunctions extends RegistryFunctions {
         val ncontigs = grouped.loadLength()
         val totalLen = cb.newLocal[Int]("locuswindows_totallen", 0)
 
-        def forAllContigs(f: (EmitCodeBuilder, Value[Int], SIndexableValue) => Unit): Unit = {
+        def forAllContigs(cb: EmitCodeBuilder)(f: (EmitCodeBuilder, Value[Int], SIndexableValue) => Unit): Unit = {
           val iContig = cb.newLocal[Int]("locuswindows_icontig", 0)
           cb.whileLoop(iContig < ncontigs, {
             val coordPerContig = grouped.loadElement(cb, iContig).get(cb, "locus_windows group cannot be missing")
@@ -260,7 +260,7 @@ object LocusFunctions extends RegistryFunctions {
           val lastCoord = cb.newLocal[Double]("locuswindows_coord")
 
           val arrayIndex = cb.newLocal[Int]("locuswindows_arrayidx", 0)
-          forAllContigs { case (cb, contigIdx, coords) =>
+          forAllContigs(cb) { case (cb, contigIdx, coords) =>
             val i = cb.newLocal[Int]("locuswindows_i", 0)
             val idx = cb.newLocal[Int]("locuswindows_idx", 0)
             val len = coords.loadLength()
@@ -311,7 +311,7 @@ object LocusFunctions extends RegistryFunctions {
         }
 
 
-        forAllContigs { case (cb, _, coordsPerContig) =>
+        forAllContigs(cb) { case (cb, _, coordsPerContig) =>
           cb.assign(totalLen, totalLen + coordsPerContig.loadLength())
         }
 
