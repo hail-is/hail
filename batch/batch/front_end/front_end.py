@@ -476,11 +476,11 @@ async def get_job_log(request, userdata):  # pylint: disable=unused-argument
     return web.json_response(job_log)
 
 
-async def _query_batches(request):
+async def _query_batches(request, user):
     db = request.app['db']
 
-    where_conditions = ['NOT deleted']
-    where_args = []
+    where_conditions = ['billing_project_users.`user` = %s', 'NOT deleted']
+    where_args = [user]
 
     last_batch_id = request.query.get('last_batch_id')
     if last_batch_id is not None:
@@ -488,7 +488,7 @@ async def _query_batches(request):
         where_conditions.append('(id < %s)')
         where_args.append(last_batch_id)
 
-    q = request.query.get('q', '')
+    q = request.query.get('q', f'user:{user}')
     terms = q.split()
     for t in terms:
         if t[0] == '!':
@@ -511,6 +511,18 @@ async def _query_batches(request):
 ((batches.id) IN
  (SELECT batch_id FROM batch_attributes
   WHERE `key` = %s))
+'''
+            args = [k]
+        elif t.startswith('user:'):
+            k = t[5:]
+            condition = '''
+(batches.`user` = %s)            
+'''
+            args = [k]
+        elif t.startswith('billing_project:'):
+            k = t[16:]
+            condition = '''
+(batches.`billing_project` = %s)
 '''
             args = [k]
         elif t == 'open':
@@ -553,6 +565,7 @@ LEFT JOIN aggregated_batch_resources
   ON batches.id = aggregated_batch_resources.batch_id
 LEFT JOIN resources
   ON aggregated_batch_resources.resource = resources.resource
+LEFT JOIN billing_project_users ON batches.billing_project = billing_project_users.billing_project
 WHERE {' AND '.join(where_conditions)}
 GROUP BY batches.id
 ORDER BY batches.id DESC
@@ -576,7 +589,8 @@ LIMIT 50;
 @prom_async_time(REQUEST_TIME_GET_BATCHES)
 @rest_authenticated_users_only
 async def get_batches(request, userdata):  # pylint: disable=unused-argument
-    batches, last_batch_id = await _query_batches(request)
+    user = userdata['username']
+    batches, last_batch_id = await _query_batches(request, user)
     body = {
         'batches': batches
     }
@@ -1166,12 +1180,13 @@ async def ui_delete_batch(request, userdata):  # pylint: disable=unused-argument
 @prom_async_time(REQUEST_TIME_GET_BATCHES_UI)
 @web_authenticated_users_only()
 async def ui_batches(request, userdata):
-    batches, last_batch_id = await _query_batches(request)
+    user = userdata['username']
+    batches, last_batch_id = await _query_batches(request, user)
     for batch in batches:
         batch['cost'] = cost_str(batch['cost'])
     page_context = {
         'batches': batches,
-        'q': request.query.get('q'),
+        'q': request.query.get('q', f'user:{user}'),
         'last_batch_id': last_batch_id
     }
     return await render_template('batch', request, userdata, 'batches.html', page_context)
