@@ -429,12 +429,21 @@ async def _query_batches(request, user):
 
     where_conditions = ['user = %s', 'NOT deleted']
     where_args = [user]
+    sort_order = 'DESC'
 
     last_batch_id = request.query.get('last_batch_id')
+    first_batch_id = request.query.get('first_batch_id')
+
     if last_batch_id is not None:
         last_batch_id = int(last_batch_id)
         where_conditions.append('(id < %s)')
         where_args.append(last_batch_id)
+
+    if first_batch_id is not None:
+        first_batch_id = int(first_batch_id)
+        where_conditions.append('(id > %s)')
+        where_args.append(first_batch_id)
+        sort_order = 'ASC'
 
     q = request.query.get('q', '')
     terms = q.split()
@@ -504,21 +513,27 @@ LEFT JOIN resources
   ON aggregated_batch_resources.resource = resources.resource
 WHERE {' AND '.join(where_conditions)}
 GROUP BY batches.id
-ORDER BY batches.id DESC
-LIMIT 50;
+ORDER BY batches.id { sort_order }
+LIMIT 20;
 '''
     sql_args = where_args
 
     batches = [batch_record_to_dict(batch)
                async for batch
                in db.select_and_fetchall(sql, sql_args)]
+    if sort_order == 'ASC':
+        batches.reverse()
+    if True:
+        first_batch_id = batches[0]['id']
+    else:
+        first_batch_id = None
 
-    if len(batches) == 50:
+    if len(batches) == 20:
         last_batch_id = batches[-1]['id']
     else:
         last_batch_id = None
 
-    return (batches, last_batch_id)
+    return (batches, last_batch_id, first_batch_id)
 
 
 @routes.get('/api/v1alpha/batches')
@@ -526,12 +541,15 @@ LIMIT 50;
 @rest_authenticated_users_only
 async def get_batches(request, userdata):
     user = userdata['username']
-    batches, last_batch_id = await _query_batches(request, user)
+    batches, last_batch_id, first_batch_id = await _query_batches(request, user)
     body = {
         'batches': batches
     }
     if last_batch_id is not None:
         body['last_batch_id'] = last_batch_id
+    if first_batch_id is not None:
+        body['first_batch_id']= first_batch_id
+
     return web.json_response(body)
 
 
@@ -1072,13 +1090,14 @@ async def ui_delete_batch(request, userdata):
 @web_authenticated_users_only()
 async def ui_batches(request, userdata):
     user = userdata['username']
-    batches, last_batch_id = await _query_batches(request, user)
+    batches, last_batch_id, first_batch_id = await _query_batches(request, user)
     for batch in batches:
         batch['cost'] = cost_str(batch['cost'])
     page_context = {
         'batches': batches,
         'q': request.query.get('q'),
-        'last_batch_id': last_batch_id
+        'last_batch_id': last_batch_id,
+        'first_batch_id': first_batch_id
     }
     return await render_template('batch', request, userdata, 'batches.html', page_context)
 
