@@ -427,7 +427,7 @@ final class VCFLine(val line: String, arrayElementsRequired: Boolean,
       if (mj)
         rvb.setMissing()
       else
-        rvb.addInt(Call1(j, phased = false))
+        rvb.addCall(Call1(j, phased = false))
       return
     }
 
