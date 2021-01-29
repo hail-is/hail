@@ -15,7 +15,17 @@ message(STATUS "Using LLVMConfig.cmake in: ${LLVM_DIR}")
 include_directories(${LLVM_INCLUDE_DIRS})
 add_definitions(${LLVM_DEFINITIONS})
 
-add_executable(main src/hail/main.cpp src/hail/format.cpp src/hail/type.cpp src/hail/allocators.cpp src/hail/value.cpp src/hail/ptype.cpp src/hail/ir.cpp src/hail/jit.cpp)
+add_executable(main
+  src/hail/allocators.cpp
+  src/hail/format.cpp
+  src/hail/main.cpp
+  src/hail/ptype.cpp
+  src/hail/type.cpp
+  src/hail/value.cpp
+  # query
+  src/hail/query/ir.cpp
+  src/hail/query/backend/jit.cpp
+  src/hail/query/backend/stype.cpp)
 
 llvm_config(main x86asmparser x86codegen orcjit)
 

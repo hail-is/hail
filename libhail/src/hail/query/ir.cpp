@@ -1,6 +1,7 @@
 #include <exception>
-#include <hail/ir.hpp>
+
 #include <hail/format.hpp>
+#include <hail/query/ir.hpp>
 
 namespace hail {
 

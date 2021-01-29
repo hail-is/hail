@@ -5,11 +5,11 @@
 
 #include <hail/allocators.hpp>
 #include <hail/format.hpp>
-#include <hail/ir.hpp>
+#include <hail/query/backend/jit.hpp>
+#include <hail/query/ir.hpp>
 #include <hail/tunion.hpp>
 #include <hail/type.hpp>
 #include <hail/value.hpp>
-#include <hail/jit.hpp>
 
 using namespace hail;
 

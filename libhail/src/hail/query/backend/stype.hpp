@@ -1,3 +1,16 @@
+#ifndef HAIL_QUERY_BACKEND_STYPE_HPP_INCLUDED
+#define HAIL_QUERY_BACKEND_STYPE_HPP_INCLUDED 1
+
+#include <llvm/IR/Value.h>
+#include <hail/type.hpp>
+#include <vector>
+
+namespace hail {
+
+class SValue;
+class SScalarValue;
+class EmitValue;
+
 enum class PrimitiveType {
   INT8,
   INT32,
@@ -28,7 +41,7 @@ public:
   const Type *const type;
 
   std::vector<PrimitiveType> constituent_types() const;
-}
+};
 
 class SScalarType : public SType {
   virtual llvm::Value *get_llvm_value(const SScalarValue *value) const = 0;
@@ -39,18 +52,18 @@ class STupleType : public SType {
 };
 
 class SValue {
+public:
   virtual ~SValue();
 
-public:
-  const std::vector<llvm::Value *> &constituents() const = 0;
+  virtual const std::vector<llvm::Value *> &constituents() const = 0;
 
-  std::shared_ptr<SValue> from_constituents(const std::vector<llvm::Value *> &constituents) const = 0;
+  virtual std::shared_ptr<SValue> from_constituents(const std::vector<llvm::Value *> &constituents) const = 0;
 };
 
 class SScalarValue : public SValue {
 public:
   virtual llvm::Value *get_llvm_value() const = 0;
-}
+};
 
 class SStrValue : public SValue {
 public:
@@ -73,3 +86,6 @@ public:
   std::shared_ptr<SValue> svalue;
 };
 
+}
+
+#endif

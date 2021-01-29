@@ -4,10 +4,10 @@
 #include <llvm/Support/TargetSelect.h>
 #include <llvm/ExecutionEngine/Orc/LLJIT.h>
 
-#include <hail/jit.hpp>
 #include <hail/format.hpp>
+#include <hail/query/backend/jit.hpp>
+#include <hail/query/ir.hpp>
 #include <hail/type.hpp>
-#include <hail/ir.hpp>
 
 namespace hail {
 
