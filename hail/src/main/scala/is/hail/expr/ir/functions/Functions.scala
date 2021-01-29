@@ -229,10 +229,7 @@ object IRFunctionRegistry {
 object RegistryHelpers {
   def stupidUnwrapStruct(r: Region, value: Row, ptype: PType): Long = {
     assert(value != null)
-    val rvb = new RegionValueBuilder(r)
-    rvb.start(ptype.fundamentalType)
-    rvb.addAnnotation(ptype.virtualType, value)
-    rvb.end()
+    ptype.unstagedStoreJavaObject(value, r)
   }
 }
 

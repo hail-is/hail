@@ -87,17 +87,6 @@ class RegionValueBuilder(var region: Region) {
       indexstk(0) = indexstk(0) + 1
   }
 
-  /**
-    * Unsafe unless the bytesize of every type being "advanced past" is size
-    * 0. The primary use-case is when adding an array of hl.PStruct()
-    * (i.e. empty structs).
-    *
-    **/
-  def unsafeAdvance(i: Int) {
-    if (indexstk.nonEmpty)
-      indexstk(0) = indexstk(0) + i
-  }
-
   def startBaseStruct(init: Boolean = true, setMissing: Boolean = false) {
     val t = currentType().asInstanceOf[PBaseStruct]
     if (typestk.isEmpty)
@@ -272,43 +261,12 @@ class RegionValueBuilder(var region: Region) {
     advance()
   }
 
-  def addBinary(bytes: Array[Byte]) {
-    val pbt = currentType() match {
-      case b: PBinary => b
-      case s: PString => s.fundamentalType.asInstanceOf[PBinary]
-    }
-    val valueAddress = pbt.allocate(region, bytes.length)
-    pbt.store(valueAddress, bytes)
-
-    if (typestk.nonEmpty)
-      Region.storeAddress(currentOffset(), valueAddress)
-    else
-      start = valueAddress
-
-    advance()
-  }
-
   def addString(s: String) {
-    addBinary(s.getBytes)
-  }
-
-  def addRow(t: TBaseStruct, r: Row) {
-    assert(r != null)
-    startBaseStruct()
-    var i = 0
-    while (i < t.size) {
-      addAnnotation(t.types(i), r.get(i))
-      i += 1
-    }
-    endBaseStruct()
+    currentType().asInstanceOf[PString].unstagedStoreJavaObjectAtAddress(currentOffset(), s, region)
   }
 
   def addField(t: PBaseStruct, fromRegion: Region, fromOff: Long, i: Int) {
     addField(t, fromOff, i, region.ne(fromRegion))
-  }
-
-  def addField(t: PBaseStruct, rv: RegionValue, i: Int) {
-    addField(t, rv.region, rv.offset, i)
   }
 
   def addField(t: PBaseStruct, fromOff: Long, i: Int, deepCopy: Boolean) {
@@ -350,18 +308,6 @@ class RegionValueBuilder(var region: Region) {
     addFields(t, fromRV.region, fromRV.offset, fieldIdx)
   }
 
-  def addElement(t: PArray, fromRegion: Region, fromAOff: Long, i: Int) {
-    if (t.isElementDefined(fromAOff, i))
-      addRegionValue(t.elementType, fromRegion,
-        t.elementOffset(fromAOff, i))
-    else
-      setMissing()
-  }
-
-  def addElement(t: PArray, rv: RegionValue, i: Int) {
-    addElement(t, rv.region, rv.offset, i)
-  }
-
   def selectRegionValue(fromT: PStruct, fromFieldIdx: Array[Int], fromRV: RegionValue) {
     selectRegionValue(fromT, fromFieldIdx, fromRV.region, fromRV.offset)
   }
@@ -400,56 +346,13 @@ class RegionValueBuilder(var region: Region) {
     advance()
   }
 
-  def addUnsafeRow(t: PBaseStruct, ur: UnsafeRow) {
-    assert(t == ur.t)
-    addRegionValue(t, ur.region, ur.offset)
-  }
-
-  def addUnsafeArray(t: PArray, uis: UnsafeIndexedSeq) {
-    assert(t == uis.t)
-    addRegionValue(t, uis.region, uis.aoff)
-  }
-
   def addAnnotation(t: Type, a: Annotation) {
-    // TODO: Is this all that's needed? I don't think I need to mess with the stacks for this
-    if (typestk.isEmpty) {
-      allocateRoot()
-    }
+    assert(typestk.nonEmpty)
     if (a == null) {
       setMissing()
     } else {
-      if (typestk.isEmpty) { // Top level, have to make a decision
-        root match {
-          case _: PCanonicalArray | _: PCanonicalString | _: PCanonicalBinary | _: PArrayBackedContainer => {
-            start = currentType().unstagedStoreJavaObject(a, region)
-          }
-          case _ => {
-            currentType().unstagedStoreJavaObjectAtAddress(currentOffset(), a, region)
-            advance()
-          }
-        }
-      }
-      else { // Within some struct or something, can trust currentOffset to point to a spot I can write
-        currentType().unstagedStoreJavaObjectAtAddress(currentOffset(), a, region)
-        advance()
-      }
-    }
-
-
-  }
-
-  def addInlineRow(t: PBaseStruct, a: Row) {
-    var i = 0
-    if (a == null) {
-      while (i < t.size) {
-        setMissing()
-        i += 1
-      }
-    } else {
-      while(i < t.size) {
-        addAnnotation(t.types(i).virtualType, a(i))
-        i += 1
-      }
+      currentType().unstagedStoreJavaObjectAtAddress(currentOffset(), a, region)
+      advance()
     }
   }
 

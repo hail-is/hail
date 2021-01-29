@@ -95,9 +95,7 @@ object AbstractRVDSpec {
           val rvb = ctx.rvb
           RichContextRDDRegionValue.writeRowsPartition(codecSpec.buildEncoder(execCtx, rowType))(ctx,
             rows.iterator.map { a =>
-              rvb.start(rowType)
-              rvb.addAnnotation(rowType.virtualType, a)
-              rvb.end()
+              rowType.unstagedStoreJavaObject(a, ctx.r)
             }, os, null)
         }
       }

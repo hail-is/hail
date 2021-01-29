@@ -23,10 +23,7 @@ object BroadcastRow {
 
   def apply(ctx: ExecuteContext, value: Row, t: TBaseStruct): BroadcastRow = {
     val pType = PType.literalPType(t, value).asInstanceOf[PStruct]
-    val rvb = new RegionValueBuilder(ctx.r)
-    rvb.start(pType)
-    rvb.addAnnotation(t, value)
-    val offset = rvb.end()
+    val offset = pType.unstagedStoreJavaObject(value, ctx.r)
     BroadcastRow(ctx, RegionValue(ctx.r, offset), pType)
   }
 }
