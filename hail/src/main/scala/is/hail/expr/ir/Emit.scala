@@ -819,6 +819,28 @@ class Emit[C](
 
           IEmitCode(cb, b, out.load())
         }
+
+      case x@MakeStruct(fields) =>
+        val scode = x.pType.asInstanceOf[PCanonicalBaseStruct].constructFromFields(cb,
+          region.code,
+          fields.map { case (name, x) =>
+            EmitCode.fromI(cb.emb)(cb => emitInNewBuilder(cb, x))
+          }.toFastIndexedSeq,
+          deepCopy = false)
+        presentPC(scode)
+
+      case x@SelectFields(oldStruct, fields) =>
+        emitI(oldStruct)
+          .map(cb) { case sc: SBaseStructCode =>
+            val sv = sc.memoize(cb, "select_fields_scode")
+            x.pType.asInstanceOf[PCanonicalBaseStruct].constructFromFields(cb,
+              region.code,
+              fields.map { field =>
+                EmitCode.fromI(cb.emb)(cb => sv.loadField(cb, field).typecast[PCode])
+              }.toFastIndexedSeq,
+              deepCopy = false)
+          }
+
       case ApplyBinaryPrimOp(op, l, r) =>
         emitI(l).flatMap(cb) { pcL =>
           emitI(r).map(cb)(pcR => PCode(pt, BinaryOp.emit(op, l.typ, r.typ, pcL.code, pcR.code)))
@@ -2103,53 +2125,6 @@ class Emit[C](
                 )
             }
           PCode(x.pType, lenCode)
-        }
-
-      case x@MakeStruct(fields) =>
-        val srvb = new StagedRegionValueBuilder(mb, x.pType, region.code)
-        val addFields = fields.map { case (_, x) =>
-          val v = emit(x)
-          Code(
-            v.setup,
-            v.m.mux(srvb.setMissing(), srvb.addIRIntermediate(x.pType)(v.v)),
-            srvb.advance())
-        }
-        present(pt, Code(srvb.start(init = true), Code(addFields), srvb.offset))
-
-      case x@SelectFields(oldStruct, fields) =>
-        val old = emit(oldStruct)
-
-        if(HailContext.getFlag("use_spicy_ptypes") != null) {
-          EmitCode(
-            old.setup,
-            old.m,
-            PCode(pt, old.value[Long])
-          )
-        } else {
-          val oldt = coerce[PStruct](oldStruct.pType)
-          val oldv = mb.genFieldThisRef[Long]()
-          val srvb = new StagedRegionValueBuilder(mb, x.pType, region.code)
-
-          val addFields = fields.map { name =>
-            val i = oldt.fieldIdx(name)
-            val t = oldt.types(i)
-            val fieldMissing = oldt.isFieldMissing(oldv, i)
-            val fieldValue = Region.loadIRIntermediate(t)(oldt.fieldOffset(oldv, i))
-            Code(
-              fieldMissing.mux(
-                srvb.setMissing(),
-                srvb.addIRIntermediate(t)(fieldValue)),
-              srvb.advance())
-          }
-
-          EmitCode(
-            old.setup,
-            old.m,
-            PCode(pt, Code(
-              oldv := old.value[Long],
-              srvb.start(),
-              Code(addFields),
-              srvb.offset)))
         }
 
       case x@InsertFields(old, fields, fieldOrder) =>
