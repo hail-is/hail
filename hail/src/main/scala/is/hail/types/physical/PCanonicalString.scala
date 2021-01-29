@@ -80,7 +80,7 @@ class PCanonicalString(val required: Boolean) extends PString {
   def loadFromNested(cb: EmitCodeBuilder, addr: Code[Long]): Code[Long] = binaryFundamentalType.loadFromNested(cb, addr)
 
   override def unstagedStoreJavaObject(annotation: Annotation, region: Region): Long = {
-    fundamentalType.unstagedStoreJavaObject(annotation, region)
+    fundamentalType.unstagedStoreJavaObject(annotation.asInstanceOf[String].getBytes(), region)
   }
 
   override def unstagedStoreJavaObjectAtAddress(addr: Long, annotation: Annotation, region: Region): Unit = {
