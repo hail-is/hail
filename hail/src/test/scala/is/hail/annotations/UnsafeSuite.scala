@@ -85,9 +85,7 @@ class UnsafeSuite extends HailSuite {
       BufferSpec.specs.foreach { bufferSpec =>
         val codec = TypedCodecSpec(pt, bufferSpec)
         region.clear()
-        rvb.start(pt)
-        rvb.addAnnotation(t, a)
-        val offset = rvb.end()
+        val offset = pt.unstagedStoreJavaObject(a, region)
 
         val aos = new ByteArrayOutputStream()
         val en = codec.buildEncoder(ctx, pt)(aos)
