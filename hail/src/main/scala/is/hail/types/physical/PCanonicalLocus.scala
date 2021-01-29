@@ -145,12 +145,10 @@ final case class PCanonicalLocus(rgBc: BroadcastRG, required: Boolean = false) e
 
   def loadFromNested(cb: EmitCodeBuilder, addr: Code[Long]): Code[Long] = addr
 
-  override def unstagedStoreJavaObjectAtAddress(addr: Long, annotation: Annotation): Unit = {
-    representation.unstagedStoreJavaObjectAtAddress(addr, annotation)
-
   override def unstagedStoreJavaObjectAtAddress(addr: Long, annotation: Annotation, region: Region): Unit = {
     val myLocus = annotation.asInstanceOf[Locus]
-    representation.unstagedStoreJavaObjectAtAddress(addr, Row(myLocus.contig, myLocus.position), region)
+    contigType.unstagedStoreJavaObjectAtAddress(representation.fieldOffset(addr, 0), myLocus.contig, region)
+    positionType.unstagedStoreJavaObjectAtAddress(representation.fieldOffset(addr, 1), myLocus.position, region)
   }
 
   override def unstagedStoreJavaObject(annotation: Annotation, region: Region): Long = {
