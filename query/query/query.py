@@ -224,6 +224,11 @@ async def on_startup(app):
     app['k8s_client'] = k8s_client
 
 
+def on_cleanup(app):
+    del app['k8s_client']
+    await asyncio.gather(*(t for t in asyncio.all_tasks() if t is not asyncio.current_task()))
+
+
 def run():
     app = web.Application()
 
@@ -232,6 +237,7 @@ def run():
     app.add_routes(routes)
 
     app.on_startup.append(on_startup)
+    app.on_cleanup.append(on_cleanup)
 
     deploy_config = get_deploy_config()
     web.run_app(
