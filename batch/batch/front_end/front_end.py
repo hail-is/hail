@@ -574,7 +574,7 @@ LIMIT 50;
 
 @routes.get('/api/v1alpha/batches')
 @prom_async_time(REQUEST_TIME_GET_BATCHES)
-@rest_billing_project_users_only
+@rest_authenticated_users_only
 async def get_batches(request, userdata):  # pylint: disable=unused-argument
     batches, last_batch_id = await _query_batches(request)
     body = {
@@ -1164,7 +1164,7 @@ async def ui_delete_batch(request, userdata):  # pylint: disable=unused-argument
 
 @routes.get('/batches', name='batches')
 @prom_async_time(REQUEST_TIME_GET_BATCHES_UI)
-@web_billing_project_users_only()
+@web_authenticated_users_only()
 async def ui_batches(request, userdata):
     batches, last_batch_id = await _query_batches(request)
     for batch in batches:
