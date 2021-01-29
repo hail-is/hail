@@ -5,7 +5,7 @@ gnomad_exome_sites
 
 *  **Versions:** 2.1.1
 *  **Reference genome builds:** GRCh37, GRCh38
-*  **Type:** :class:`.Table`
+*  **Type:** :class:`hail.Table`
 
 Schema (2.1.1, GRCh37)
 ~~~~~~~~~~~~~~~~~~~~~~

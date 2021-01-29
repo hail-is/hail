@@ -5,7 +5,7 @@ ldsc_baselineLD_ldscores
 
 *  **Versions:** 2.2
 *  **Reference genome builds:** GRCh37
-*  **Type:** :class:`.MatrixTable`
+*  **Type:** :class:`hail.MatrixTable`
 
 Schema (2.2, GRCh37)
 ~~~~~~~~~~~~~~~~~~~~

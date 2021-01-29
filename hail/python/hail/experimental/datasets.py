@@ -46,7 +46,7 @@ def load_dataset(name: str,
 
     Returns
     -------
-    :class:`.Table` or :class:`.MatrixTable`
+    :class:`.Table`, :class:`.MatrixTable`, or :class:`.BlockMatrix`
     """
 
     valid_regions = {'us', 'eu'}

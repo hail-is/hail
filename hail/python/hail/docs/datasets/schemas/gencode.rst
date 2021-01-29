@@ -5,7 +5,7 @@ gencode
 
 *  **Versions:** v19, v31
 *  **Reference genome builds:** GRCh37, GRCh38
-*  **Type:** :class:`.Table`
+*  **Type:** :class:`hail.Table`
 
 Schema (v19, GRCh37)
 ~~~~~~~~~~~~~~~~~~~~
