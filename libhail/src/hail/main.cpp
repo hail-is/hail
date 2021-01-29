@@ -42,9 +42,18 @@ main() {
   IRContext xc(heap);
 
   Module *m = xc.make_module();
-  Function *f = xc.make_function(m, "main", {tc.tint32, tc.tbool}, tc.tint32);
+  Function *f = xc.make_function(m, "main", {tc.tbool, tc.tint32}, tc.tint32);
 
-  format(outs, m);
+  auto body = f->get_body();
+
+  auto tb = body->make_block({body->inputs[1]});
+
+  auto fb = body->make_block(1, 0);
+  fb->set_child(0, fb->make_literal(i));
+
+  body->set_child(0, body->make_mux(body->inputs[0], tb, fb));
+
+  m->pretty_self(outs);
 
   return 0;
 }

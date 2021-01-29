@@ -1,9 +1,9 @@
+#include <cassert>
 #include <cerrno>
 #include <cstdio>
-
-#include <sstream>
-#include <iomanip>
 #include <exception>
+#include <iomanip>
+#include <sstream>
 
 #include <hail/format.hpp>
 
@@ -124,6 +124,13 @@ format1(FormatStream &s, FormatAddress v) {
   oss << std::hex << std::showbase << std::internal << std::setw(16) << std::setfill('0')
       << reinterpret_cast<uintptr_t>(v.p);
   s.puts(oss.str().c_str());
+}
+
+void
+format1(FormatStream &s, Indent v) {
+  assert(v.indent >= 0);
+  for (int i = 0; i < v.indent; ++i)
+    s.putc(' ');
 }
 
 }

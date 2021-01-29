@@ -30,6 +30,7 @@ extern void format1(FormatStream &s, float v);
 extern void format1(FormatStream &s, double v);
 extern void format1(FormatStream &s, const char *v);
 extern void format1(FormatStream &s, const std::string &t);
+
 class FormatAddress {
 public:
   const void *p;
@@ -37,6 +38,14 @@ public:
 };
 
 extern void format1(FormatStream &s, FormatAddress v);
+
+class Indent {
+public:
+  int indent;
+  Indent(int indent) : indent(indent) {}
+};
+
+extern void format1(FormatStream &s, Indent v);
 
 template<typename... Args> inline void
 format(FormatStream &s, Args &&... args) {

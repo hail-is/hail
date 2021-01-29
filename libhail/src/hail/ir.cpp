@@ -19,12 +19,18 @@ IRContext::make_function(Module *module,
 			 std::string name,
 			 std::vector<const Type *> parameter_types,
 			 const Type *return_type) {
+  size_t n = parameter_types.size();
   auto f = arena.make<Function>(IRContextToken(),
 				module,
 				std::move(name),
-				std::move(parameter_types),
+				// don't move, used below
+				parameter_types,
 				return_type);
-  f->set_body(arena.make<Block>(IRContextToken(), f, nullptr, 1, parameter_types.size()));
+
+  auto body = arena.make<Block>(IRContextToken(), *this, f, nullptr, 1, n);
+  for (size_t i = 0; i < n; ++i)
+    body->inputs[i] = arena.make<Input>(IRContextToken(), body, i);
+  f->set_body(body);
   return f;
 }
 
@@ -38,6 +44,13 @@ Module::add_function(Function *f) {
   f->module = this;
   assert(!functions.contains(f->name));
   functions.insert({f->name, f});
+}
+
+void
+Module::pretty_self(FormatStream &s) {
+  format(s, FormatAddress(this), "  module\n");
+  for (auto p : functions)
+    p.second->pretty_self(s, 4);
 }
 
 Function::Function(IRContextToken,
@@ -73,19 +86,79 @@ Function::set_body(Block *new_body) {
   body->function_parent = this;
 }
 
-IR::IR(Tag tag, IR *parent, size_t arity)
+void
+Function::pretty_self(FormatStream &s, int indent) {
+  format(s, FormatAddress(this), Indent(indent), "function ", return_type, " ", name, "(");
+  bool first = true;
+  for (auto pt : parameter_types) {
+    if (first)
+      first = false;
+    else
+      format(s, ", ");
+    format(s, pt);
+  }
+  format(s, ")\n");
+  pretty(s, get_body(), indent + 2);
+  format(s, "\n");
+}
+
+IR::IR(Tag tag, Block *parent, size_t arity)
   : tag(tag), parent(parent), children(arity) {}
 
-IR::IR(Tag tag, IR *parent, std::vector<IR *> children)
+IR::IR(Tag tag, Block *parent, std::vector<IR *> children)
   : tag(tag), parent(parent), children(std::move(children)) {}
 
 IR::~IR() {}
 
-Block::Block(IRContextToken, Function *function_parent, IR *parent, size_t arity, size_t input_arity)
-  : IR(self_tag, parent, arity),
-    function_parent(function_parent),
-    inputs(input_arity) {
+void
+IR::add_use(IR *u, size_t i) {
+  auto p = uses.insert({u, i});
+  /* make sure the insert happened */
+  assert(p.second);
 }
+
+void
+IR::remove_use(IR *u, size_t i) {
+  auto n = uses.erase({u, i});
+  /* make sure the removal happened */
+  assert(n == 1);
+}
+
+void
+IR::set_child(size_t i, IR *x) {
+  IR *c = children[i];
+  if (c)
+    c->remove_use(this, i);
+  children[i] = x;
+  x->add_use(this, i);
+}
+
+void
+IR::pretty_self(FormatStream &s, int indent) {
+  format(s, FormatAddress(this), Indent(indent), "???");
+}
+
+void
+pretty(FormatStream &s, IR *x, int indent) {
+  if (x) {
+    x->pretty_self(s, indent);
+    return;
+  }
+
+  format(s, FormatAddress(nullptr), Indent(indent), "null");
+}
+
+Block::Block(IRContextToken, IRContext &xc, Function *function_parent, Block *parent, std::vector<IR *> children, size_t input_arity)
+  : IR(self_tag, parent, std::move(children)),
+    xc(xc),
+    function_parent(function_parent),
+    inputs(input_arity) {}
+
+Block::Block(IRContextToken, IRContext &xc, Function *function_parent, Block *parent, size_t arity, size_t input_arity)
+  : IR(self_tag, parent, arity),
+    xc(xc),
+    function_parent(function_parent),
+    inputs(input_arity) {}
 
 void
 Block::remove() {
@@ -95,27 +168,31 @@ Block::remove() {
   }
 }
 
-void format1(FormatStream &s, const Module *m) {
-  format(s, FormatAddress(m), "  module\n");
-  for (auto p : m->functions)
-    format(s, p.second);
+Block *
+Block::make_block(size_t arity, size_t input_arity) {
+  return xc.arena.make<Block>(IRContextToken(),
+			      xc, nullptr, this, arity, input_arity);
 }
 
-void format1(FormatStream &s, const Function *f) {
-  format(s, FormatAddress(f), "    function ", f->return_type, " ", f->get_name(), "(");
-  bool first = true;
-  for (auto pt : f->parameter_types) {
-    if (first)
-      first = false;
-    else
-      format(s, ", ");
-    format(s, pt);
-  }
-  format(s, ")\n");
+Block *
+Block::make_block(std::vector<IR *> children) {
+  return xc.arena.make<Block>(IRContextToken(),
+			      xc, nullptr, this, children, 0);
 }
 
-void format1(FormatStream &s, const IR *x) {
-  abort();
+Input *
+Block::make_input(size_t index) {
+  return xc.arena.make<Input>(IRContextToken(), this, index);
+}
+
+Literal *
+Block::make_literal(const Value &v) {
+  return xc.arena.make<Literal>(IRContextToken(), this, v);
+}
+
+Mux *
+Block::make_mux(IR *x, Block *tb, Block *fb) {
+  return xc.arena.make<Mux>(IRContextToken(), this, x, tb, fb);
 }
 
 }

@@ -15,13 +15,25 @@ class Module;
 class Function;
 class Block;
 class Input;
+class Literal;
+class NA;
+class IsNA;
+class Mux;
+class MakeArray;
+class ArrayRef;
+class ArrayLen;
+class MakeTuple;
+class GetTupleElement;
 
 class IRContextToken {
   friend class IRContext;
+  friend class Block;
   IRContextToken() {}
 };
 
 class IRContext {
+  friend class Block;
+
   ArenaAllocator arena;
 
 public:
@@ -47,6 +59,8 @@ public:
   ~Module();
 
   void add_function(Function *f);
+
+  void pretty_self(FormatStream &s);
 };
 
 class Function {
@@ -72,10 +86,13 @@ public:
 
   void remove();
 
+  Block *get_body() const { return body; }
   void set_body(Block *new_body);
 
   void set_name(std::string new_name);
   const std::string &get_name() const { return name; }
+
+  void pretty_self(FormatStream &s, int indent = 0);
 };
 
 class IR {
@@ -90,7 +107,7 @@ public:
     LITERAL,
     NA,
     ISNA,
-    IF,
+    MUX,
     UNARY,
     BINARY,
     MAKEARRAY,
@@ -106,15 +123,16 @@ public:
   };
   const Tag tag;
 private:
-  IR *parent;
+  Block *parent;
   std::vector<IR *> children;
-  std::unordered_set<std::tuple<IR *, int>> uses;
+  std::unordered_set<std::tuple<IR *, size_t>> uses;
 public:
-  IR(Tag tag, IR *parent, size_t arity);
-  IR(Tag tag, IR *parent, std::vector<IR *> children);
+  IR(Tag tag, Block *parent, size_t arity);
+  IR(Tag tag, Block *parent, std::vector<IR *> children);
   virtual ~IR();
 
-  void remove();
+  void remove_use(IR *u, size_t i);
+  void add_use(IR *u, size_t i);
 
   const std::vector<IR *> &get_children() const { return children; }
   void set_children(std::vector<IR *> new_children);
@@ -122,19 +140,26 @@ public:
   void set_arity(size_t n) const;
   void set_child(size_t i, IR *x);
 
-  IR *get_parent() const { return parent; }
-  void set_parent(IR *new_parent);
+  Block *get_parent() const { return parent; }
+  void set_parent(Block *new_parent);
+
+  virtual void pretty_self(FormatStream &s, int indent);
+  void pretty_self(FormatStream &s);
 };
+
+extern void pretty(FormatStream &s, IR *x, int indent);
 
 class Block : public IR {
   friend class Function;
 
+  IRContext &xc;
   Function *function_parent;
-  std::vector<Input *> inputs;
   std::unordered_set<IR *> nodes;
 public:
   static const Tag self_tag = IR::Tag::BLOCK;
-  Block(IRContextToken, Function *function_parent, IR *parent, size_t arity, size_t input_arity);
+  std::vector<Input *> inputs;
+  Block(IRContextToken, IRContext &xc, Function *function_parent, Block *parent, std::vector<IR *> children, size_t input_arity);
+  Block(IRContextToken, IRContext &xc, Function *function_parent, Block *parent, size_t arity, size_t input_arity);
 
   void remove();
 
@@ -142,42 +167,86 @@ public:
   void set_input_arity(size_t n);
 
   const std::vector<Input *> &get_inputs() const { return inputs; }
-  Input *get_input(size_t i) const;
-  void set_input(size_t i, Input *) const;
+
+  /* Builder methods for building IR. */
+  Block *make_block(size_t arity, size_t input_arity);
+  Block *make_block(std::vector<IR *> children);
+  Input *make_input(size_t index);
+  Literal *make_literal(const Value &v);
+  NA *make_na(const Type *type);
+  IsNA *make_is_na(IR *x);
+  Mux *make_mux(IR *x, Block *tb, Block *fb);
+  MakeArray *make_make_array(std::vector<IR *> elements);
+  MakeArray *make_make_array(const Type *element_type, std::vector<IR *> children);
+  ArrayLen *make_array_len(IR *a, IR *x);
+  MakeTuple *make_make_tuple(std::vector<IR *> elements);
+  GetTupleElement *make_get_tuple_element(IR *t, int i);
 };
 
 class Input : public IR {
 public:
   static const Tag self_tag = IR::Tag::INPUT;
   size_t index;
-  Input(IR *parent, size_t index) : IR(self_tag, parent, 0), index(index) {}
+  Input(IRContextToken, Block *parent, size_t index) : IR(self_tag, parent, 0), index(index) {}
 };
 
 class Literal : public IR {
 public:
   static const Tag self_tag = IR::Tag::NA;
   Value value;
-  Literal(IR *parent, Value value) : IR(self_tag, parent, 0), value(std::move(value)) {}
-
-  void validate();
+  Literal(IRContextToken, Block *parent, Value value) : IR(self_tag, parent, 0), value(std::move(value)) {}
 };
 
 class NA : public IR {
 public:
   static const Tag self_tag = IR::Tag::NA;
   const Type *type;
-  NA(IR *parent, const Type *type) : IR(self_tag, parent, 0), type(type) {}
+  NA(IRContextToken, Block *parent, const Type *type) : IR(self_tag, parent, 0), type(type) {}
+};
+
+class Mux : public IR {
+public:
+  static const Tag self_tag = IR::Tag::ISNA;
+  Mux(IRContextToken, Block *parent, IR *condition, Block *true_block, Block *false_block)
+    : IR(self_tag, parent, {condition, true_block, false_block}) {}
 };
 
 class IsNA : public IR {
 public:
   static const Tag self_tag = IR::Tag::ISNA;
-  IsNA(IR *value, IR *parent) : IR(self_tag, parent, {value}) {}
+  IsNA(IRContextToken, Block *parent, IR *x) : IR(self_tag, parent, {x}) {}
 };
 
-extern void format1(FormatStream &s, const Module *m);
-extern void format1(FormatStream &s, const Function *f);
-extern void format1(FormatStream &s, const IR *x);
+class MakeArray : public IR {
+public:
+  static const Tag self_tag = IR::Tag::MAKEARRAY;
+  MakeArray(IRContextToken, Block *parent, std::vector<IR *> elements) : IR(self_tag, parent, std::move(elements)) {}
+};
+
+class ArrayLen : public IR {
+public:
+  static const Tag self_tag = IR::Tag::ARRAYLEN;
+  ArrayLen(IRContextToken, Block *parent, IR *a) : IR(self_tag, parent, {a}) {}
+};
+
+class ArrayRef : public IR {
+public:
+  static const Tag self_tag = IR::Tag::ARRAYREF;
+  ArrayRef(IRContextToken, Block *parent, IR *a, IR *x) : IR(self_tag, parent, {a, x}) {}
+};
+
+class MakeTuple : public IR {
+public:
+  static const Tag self_tag = IR::Tag::MAKETUPLE;
+  MakeTuple(IRContextToken, Block *parent, std::vector<IR *> elements) : IR(self_tag, parent, std::move(elements)) {}
+};
+
+class GetTupleElement : public IR {
+public:
+  static const Tag self_tag = IR::Tag::GETTUPLEELEMENT;
+  size_t index;
+  GetTupleElement(IRContextToken, Block *parent, IR *t, size_t index) : IR(self_tag, parent, {t}), index(index) {}
+};
 
 }
 

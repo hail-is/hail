@@ -5,6 +5,16 @@
 
 namespace std {
 
+template<typename T>
+size_t hash_value(const T &v) {
+  return std::hash<T>{}(v);
+}
+
+template<typename T> void
+hash_combine(size_t &seed, const T &v) {
+  seed ^= hash_value(v) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
+}
+
 template<typename... T>
 struct hash<tuple<T...>> {
   size_t operator()(const tuple<T...> &t) const;
