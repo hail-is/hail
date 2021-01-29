@@ -998,7 +998,6 @@ VALUES (%s, %s, %s)
     return web.json_response({'id': id})
 
 
-
 async def _get_batch(app, batch_id):
     db: Database = app['db']
 

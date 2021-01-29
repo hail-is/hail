@@ -776,9 +776,9 @@ LOCK IN SHARE MODE;
         log.exception('while checking resource aggregation')
 
 
-async def _cancel_batch(app, batch_id, user):
+async def _cancel_batch(app, batch_id):
     try:
-        await cancel_batch_in_db(app['db'], batch_id, user)
+        await cancel_batch_in_db(app['db'], batch_id)
     except BatchUserError as exc:
         log.info(f'cannot cancel batch because {exc.message}')
         return
@@ -794,13 +794,13 @@ async def monitor_billing_limits(app):
         accrued_cost = record['accrued_cost']
         if limit is not None and accrued_cost >= limit:
             running_batches = db.execute_and_fetchall('''
-SELECT id, user
+SELECT id
 FROM batches
 WHERE billing_project = %s AND state = 'running';
 ''',
                                                       (record['billing_project'],))
             async for batch in running_batches:
-                await _cancel_batch(app, batch['id'], batch['user'])
+                await _cancel_batch(app, batch['id'])
 
 
 async def scheduling_cancelling_bump(app):

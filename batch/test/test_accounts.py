@@ -431,7 +431,7 @@ async def test_all_billing_project_users_operations(make_client, dev_client, new
     assert r['user'] == 'test-dev'
     assert r['billing_project'] == project
 
-    b = await dev_client.create_batch()
+    b = dev_client.create_batch()
     j = b.create_job(DOCKER_ROOT_IMAGE, command=['sleep', '30'])
     b = await b.submit()
 
@@ -455,7 +455,7 @@ async def test_only_one_billing_project_user_operations(make_client, dev_client,
     assert r['billing_project'] == project
 
     client = await make_client(project)
-    b = await client.create_batch()
+    b = client.create_batch()
     j = b.create_job(DOCKER_ROOT_IMAGE, command=['sleep', '30'])
     b = await b.submit()
 
