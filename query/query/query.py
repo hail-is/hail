@@ -224,7 +224,7 @@ async def on_startup(app):
     app['k8s_client'] = k8s_client
 
 
-def on_cleanup(app):
+async def on_cleanup(app):
     del app['k8s_client']
     await asyncio.gather(*(t for t in asyncio.all_tasks() if t is not asyncio.current_task()))
 
