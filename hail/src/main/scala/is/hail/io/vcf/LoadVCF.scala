@@ -372,7 +372,16 @@ final class VCFLine(val line: String, arrayElementsRequired: Boolean,
     nextField()
 
     if (hasLocus) {
-      rvb.addLocus(recodedContig, start)
+      rg match {
+        case Some(_) => rvb.addLocus(recodedContig, start)
+        case None => { // Without a reference genome, we use a struct of two fields rather than a PLocus
+          rvb.startStruct() // pk: Locus
+          rvb.addString(recodedContig)
+          rvb.addInt(start)
+          rvb.endStruct()
+        }
+      }
+
     }
 
     if (hasAlleles) {
