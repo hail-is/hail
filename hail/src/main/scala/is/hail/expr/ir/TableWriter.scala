@@ -226,7 +226,7 @@ case class PartitionNativeWriter(spec: AbstractTypedCodecSpec, partPrefix: Strin
         cb.assign(ob, spec.buildCodeOutputBuffer(Code.checkcast[OutputStream](os)))
         cb.assign(n, 0L)
         cb += eltRegion.allocateRegion(Region.REGULAR, cb.emb.ecb.pool())
-        cb += stream.getStream(eltRegion).forEach(ctx, mb, writeFile)
+        cb += stream.getStream(eltRegion).forEach(mb, writeFile)
         cb += eltRegion.free()
         cb += ob.writeByte(0.asInstanceOf[Byte])
         cb.assign(result, pResultType.allocate(region.code))

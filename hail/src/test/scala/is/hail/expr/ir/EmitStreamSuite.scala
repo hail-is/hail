@@ -109,7 +109,7 @@ class EmitStreamSuite extends HailSuite {
 
       Code(
         r.init,
-        r.stream.forEach(ctx, mb, i => log(i.toS)),
+        r.stream.forEach(mb, i => log(i.toS)),
         r.assertClosed(1))
     }
     for (i <- 0 to 2) { f(i) }
@@ -123,7 +123,7 @@ class EmitStreamSuite extends HailSuite {
 
       Code(
         l.init, r.init,
-        z.forEach(ctx, mb, x => log(const("(").concat(x._1.toS).concat(", ").concat(x._2.toS).concat(")"))),
+        z.forEach(mb, x => log(const("(").concat(x._1.toS).concat(", ").concat(x._2.toS).concat(")"))),
         l.assertClosed(1), r.assertClosed(1))
     }
     for {
@@ -142,7 +142,7 @@ class EmitStreamSuite extends HailSuite {
         inner = checkedRange(0, i, "inner", mb)
         inner.stream
       }
-      val run = outer.stream.flatMap(f).forEach(ctx, mb, i => log(i.toS))
+      val run = outer.stream.flatMap(f).forEach(mb, i => log(i.toS))
 
       Code(
         outer.init, inner.init,
@@ -166,7 +166,7 @@ class EmitStreamSuite extends HailSuite {
       }
       val run = Stream
         .zip(l.stream, rOuter.stream.flatMap(f))
-        .forEach(ctx, mb, x => log(const("(").concat(x._1.toS).concat(", ").concat(x._2.toS).concat(")")))
+        .forEach(mb, x => log(const("(").concat(x._1.toS).concat(", ").concat(x._2.toS).concat(")")))
 
       Code(
         l.init, rOuter.init, rInner.init,
@@ -195,8 +195,8 @@ class EmitStreamSuite extends HailSuite {
         checkedInner.stream
       }
       val checkedOuter = new CheckedStream(outer, "outer", mb)
-      val run = checkedOuter.stream.forEach(ctx, mb, { inner =>
-        inner.forEach(ctx, mb, i => log(i.toS))
+      val run = checkedOuter.stream.forEach(mb, { inner =>
+        inner.forEach(mb, i => log(i.toS))
       })
 
       Code(
@@ -223,8 +223,8 @@ class EmitStreamSuite extends HailSuite {
         checkedInner.stream
       }
       val checkedOuter = new CheckedStream(outer, "outer", mb)
-      val run = checkedOuter.stream.forEach(ctx, mb, { inner =>
-        inner.forEach(ctx, mb, i => log(i.toS))
+      val run = checkedOuter.stream.forEach(mb, { inner =>
+        inner.forEach(mb, i => log(i.toS))
       })
 
       Code(
@@ -246,7 +246,7 @@ class EmitStreamSuite extends HailSuite {
 
       Code(
         s1.init, s2.init, s3.init,
-        z.forEach(ctx, mb, x => log(const("(").concat(x(0).toS).concat(", ").concat(x(1).toS).concat(", ").concat(x(2).toS).concat(")"))),
+        z.forEach(mb, x => log(const("(").concat(x(0).toS).concat(", ").concat(x(1).toS).concat(", ").concat(x(2).toS).concat(")"))),
         s1.assertClosed(1),
         s2.assertClosed(1),
         s3.assertClosed(1))
@@ -276,7 +276,7 @@ class EmitStreamSuite extends HailSuite {
 
         Code(
           Code(ranges.map(_.init)),
-          z.forEach(ctx, mb, { case (i, l) =>
+          z.forEach(mb, { case (i, l) =>
             log(const("(").concat(i.toS).concat(", ").concat(l.toS).concat(")"), enabled = false)
           }),
           Code(ranges.map(_.assertClosed(1))))
@@ -312,7 +312,7 @@ class EmitStreamSuite extends HailSuite {
       EmitStream.emit(ctx, new Emit(ctx, fb.ecb), s, mb, region, Env.empty, None)
     }
     mb.emit {
-      val arrayt = stream.map(s => EmitStream.toArray(ctx, mb, PCanonicalArray(eltType), s.asStream, region))
+      val arrayt = stream.map(s => EmitStream.toArray(mb, PCanonicalArray(eltType), s.asStream, region))
       Code(arrayt.setup, arrayt.m.mux(0L, arrayt.v))
     }
     val f = fb.resultWithIndex()
@@ -368,7 +368,7 @@ class EmitStreamSuite extends HailSuite {
       EmitStream.emit(ctx, new Emit(ctx, fb.ecb), ir, mb, region, Env.empty, None)
     }
     val len = mb.newLocal[Int]()
-    implicit val emitStreamCtx = EmitStreamContext(mb, ctx)
+    implicit val emitStreamCtx = EmitStreamContext(mb)
     fb.emit(Code(
       optStream.setup,
       optStream.m.mux(
