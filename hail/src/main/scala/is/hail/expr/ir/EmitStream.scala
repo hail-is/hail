@@ -956,50 +956,31 @@ object EmitStream {
   }
 
   def toArray(
-    mb: EmitMethodBuilder[_],
-    aTyp: PArray,
+    cb: EmitCodeBuilder,
+    aTyp: PCanonicalArray,
     pcStream: SStreamCode,
     destRegion: ParentStagedRegion
   ): PCode = {
-    val srvb = new StagedRegionValueBuilder(mb, aTyp, destRegion.code)
+    val mb = cb.emb
     val ss = pcStream.stream
+    val xLen = mb.newLocal[Int]("sta_len")
     ss.length match {
       case None =>
-        val xLen = mb.newLocal[Int]("sta_len")
-        val i = mb.newLocal[Int]("sta_i")
         val vab = new StagedArrayBuilder(aTyp.elementType, mb, 0)
-        val ptr = Code(
-          _write(mb, ss, vab, destRegion),
-          xLen := vab.size,
-          srvb.start(xLen),
-          i := const(0),
-          Code.whileLoop(i < xLen,
-            vab.isMissing(i).mux(
-              srvb.setMissing(),
-              srvb.addIRIntermediate(aTyp.elementType)(vab(i))),
-            i := i + 1,
-            srvb.advance()),
-          srvb.offset)
-        PCode(aTyp, ptr)
+        cb += _write(mb, ss, vab, destRegion)
+        cb.assign(xLen, vab.size)
+
+        aTyp.constructFromElements(cb, destRegion.code, xLen, deepCopy = false) { (cb, i) =>
+          IEmitCode(cb, vab.isMissing(i), PCode(aTyp.elementType, vab(i)))
+        }
 
       case Some(len) =>
         val eltRegion = destRegion.createChildRegion(mb)
-        val ptr = Code.sequence1(FastIndexedSeq(
-            eltRegion.allocateRegion(Region.REGULAR, mb.ecb.pool()),
-            ss.setup,
-            srvb.start(len),
-            ss.stream(eltRegion).forEach(mb, { et =>
-              Code(FastSeq(
-                et.setup,
-                et.m.mux(
-                  srvb.setMissing(),
-                  eltRegion.addToParentRVB(srvb, et.pv)),
-                eltRegion.clear(),
-                srvb.advance()))
-            }),
-            eltRegion.clear()),
-          srvb.offset)
-        PCode(aTyp, ptr)
+        cb += eltRegion.allocateRegion(Region.REGULAR, mb.ecb.pool())
+        cb += ss.setup
+        cb.assign(xLen, len)
+
+        aTyp.constructFromStream(cb, ss.stream(eltRegion), destRegion.code, xLen, deepCopy = eltRegion.isStrictChild)
     }
   }
 

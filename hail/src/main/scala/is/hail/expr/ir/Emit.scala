@@ -1591,6 +1591,12 @@ class Emit[C](
         val AggContainer(_, sc, _) = container.get
         presentC(sc.states(i).serializeToRegion(cb, coerce[PBinary](pt), region.code))
 
+      case ToArray(a) =>
+        val outerRegion = region.asParent(coerce[PStream](a.pType).separateRegions, "ToArray")
+        emitStream(a, outerRegion).map(cb) { stream =>
+          EmitStream.toArray(cb, coerce[PCanonicalArray](pt), stream.asStream, outerRegion)
+        }
+
       case x@StreamFold(a, zero, accumName, valueName, body) =>
         val streamType = coerce[PStream](a.pType)
         val eltType = streamType.elementType
@@ -1982,12 +1988,6 @@ class Emit[C](
       case CastToArray(a) =>
         val et = emit(a)
         EmitCode(et.setup, et.m, PCode(pt, et.v))
-
-      case ToArray(a) =>
-        val outerRegion = region.asParent(coerce[PStream](a.pType).separateRegions, "ToArray")
-        emitStream(a, outerRegion).map { stream =>
-          EmitStream.toArray(mb, coerce[PArray](pt), stream.asStream, outerRegion)
-        }
 
       case GroupByKey(collection) =>
         // sort collection by group
