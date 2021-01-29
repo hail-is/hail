@@ -431,20 +431,20 @@ async def test_all_billing_project_users_operations(make_client, dev_client, new
     assert r['user'] == 'test-dev'
     assert r['billing_project'] == project
 
-    b = dev_client.create_batch()
+    client = await make_client(project)
+    b = client.create_batch()
     j = b.create_job(DOCKER_ROOT_IMAGE, command=['sleep', '30'])
     b = await b.submit()
 
-    client = await make_client(project)
-    client_batch = await client.get_batch(b.id)
-    client_job = await client.get_job(j.batch_id, j.job_id)
+    dev_batch = await dev_client.get_batch(b.id)
+    dev_job = await dev_client.get_job(j.batch_id, j.job_id)
 
-    await client_job.attempts()
-    await client_job.log()
-    await client_job.status()
+    await dev_job.attempts()
+    await dev_job.log()
+    await dev_job.status()
 
-    await client_batch.cancel()
-    await client_batch.delete()
+    await dev_batch.cancel()
+    await dev_batch.delete()
 
 
 async def test_only_one_billing_project_user_operations(make_client, dev_client, new_billing_project):
@@ -462,56 +462,56 @@ async def test_only_one_billing_project_user_operations(make_client, dev_client,
     try:
         await dev_client.get_batch(b.id)
     except aiohttp.ClientResponseError as e:
-        assert e.status == 403, e
+        assert e.status == 401, e
     else:
         assert False, 'expected error'
 
     try:
         await dev_client.get_job(j.batch_id, j.job_id)
     except aiohttp.ClientResponseError as e:
-        assert e.status == 403, e
+        assert e.status == 401, e
     else:
         assert False, 'expected error'
 
     try:
         await dev_client.get_job(j.batch_id, j.job_id)
     except aiohttp.ClientResponseError as e:
-        assert e.status == 403, e
+        assert e.status == 401, e
     else:
         assert False, 'expected error'
 
     try:
         await dev_client.get_job(j.batch_id, j.job_id)
     except aiohttp.ClientResponseError as e:
-        assert e.status == 403, e
+        assert e.status == 401, e
     else:
         assert False, 'expected error'
 
     try:
         await dev_client._get(f'/api/v1alpha/batches/{j.batch_id}/jobs/{j.job_id}/log')
     except aiohttp.ClientResponseError as e:
-        assert e.status == 403, e
+        assert e.status == 401, e
     else:
         assert False, 'expected error'
 
     try:
         await dev_client._get(f'/api/v1alpha/batches/{j.batch_id}/jobs/{j.job_id}/attempts')
     except aiohttp.ClientResponseError as e:
-        assert e.status == 403, e
+        assert e.status == 401, e
     else:
         assert False, 'expected error'
 
     try:
         await dev_client._patch(f'/api/v1alpha/batches/{b.id}/cancel')
     except aiohttp.ClientResponseError as e:
-        assert e.status == 403, e
+        assert e.status == 401, e
     else:
         assert False, 'expected error'
 
     try:
         await dev_client._delete(f'/api/v1alpha/batches/{b.id}/delete')
     except aiohttp.ClientResponseError as e:
-        assert e.status == 403, e
+        assert e.status == 401, e
     else:
         assert False, 'expected error'
 
