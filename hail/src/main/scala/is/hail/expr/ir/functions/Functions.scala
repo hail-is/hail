@@ -512,6 +512,24 @@ abstract class RegistryFunctions {
       case (r, cb, rt, Array(a1, a2)) => impl(r, cb, rt, a1, a2)
     }
 
+  def registerPCode3(name: String, mt1: Type, mt2: Type, mt3: Type, rt: Type, pt: (Type, PType, PType, PType) => PType)
+    (impl: (EmitRegion, EmitCodeBuilder, PType, PCode, PCode, PCode) => PCode): Unit =
+    registerPCode(name, Array(mt1, mt2, mt3), rt, unwrappedApply(pt)) {
+      case (r, cb, rt, Array(a1, a2, a3)) => impl(r, cb, rt, a1, a2, a3)
+    }
+
+  def registerPCode4(name: String, mt1: Type, mt2: Type, mt3: Type, mt4: Type, rt: Type, pt: (Type, PType, PType, PType, PType) => PType)
+    (impl: (EmitRegion, EmitCodeBuilder, PType, PCode, PCode, PCode, PCode) => PCode): Unit =
+    registerPCode(name, Array(mt1, mt2, mt3, mt4), rt, unwrappedApply(pt)) {
+      case (r, cb, rt, Array(a1, a2, a3, a4)) => impl(r, cb, rt, a1, a2, a3, a4)
+    }
+
+  def registerPCode5(name: String, mt1: Type, mt2: Type, mt3: Type, mt4: Type, mt5: Type, rt: Type, pt: (Type, PType, PType, PType, PType, PType) => PType)
+    (impl: (EmitRegion, EmitCodeBuilder, PType, PCode, PCode, PCode, PCode, PCode) => PCode): Unit =
+    registerPCode(name, Array(mt1, mt2, mt3, mt4, mt5), rt, unwrappedApply(pt)) {
+      case (r, cb, rt, Array(a1, a2, a3, a4, a5)) => impl(r, cb, rt, a1, a2, a3, a4, a5)
+    }
+
   def registerCode1[A1](name: String, mt1: Type, rt: Type, pt: (Type, PType) => PType)(impl: (EmitRegion, PType, (PType, Code[A1])) => Code[_]): Unit =
     registerCode(name, Array(mt1), rt, unwrappedApply(pt)) {
       case (r, xb, rt, _, Array(a1: (PType, Code[A1]) @unchecked)) => impl(r, rt, a1)
