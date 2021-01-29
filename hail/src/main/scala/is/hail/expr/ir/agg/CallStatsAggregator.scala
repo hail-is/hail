@@ -2,7 +2,7 @@ package is.hail.expr.ir.agg
 
 import is.hail.annotations.{Region, StagedRegionValueBuilder}
 import is.hail.asm4s._
-import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitCodeBuilder, ParamType}
+import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitCodeBuilder, IEmitCode, ParamType}
 import is.hail.types.physical._
 import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer, TypedCodecSpec}
 import is.hail.types.virtual.{TCall, TInt32, Type}
@@ -175,55 +175,45 @@ class CallStatsAggregator extends StagedAggregator {
   }
 
 
-  protected def _result(cb: EmitCodeBuilder, state: State, srvb: StagedRegionValueBuilder): Unit = {
-    val alleleNumber = state.kb.genFieldThisRef[Int]()
-    val i = state.kb.genFieldThisRef[Int]()
-    val x = state.kb.genFieldThisRef[Int]()
-    cb += srvb.addBaseStruct(CallStatsState.resultType, {
-      srvb =>
-        Code(
-          srvb.start(),
-          alleleNumber := 0,
-          srvb.addArray(resultType.fieldType("AC").asInstanceOf[PArray], {
-            srvb =>
-              Code(
-                srvb.start(state.nAlleles),
-                i := 0,
-                Code.whileLoop(i < state.nAlleles,
-                  x := state.alleleCountAtIndex(i, state.nAlleles),
-                  alleleNumber := alleleNumber + x,
-                  srvb.addInt(x),
-                  srvb.advance(),
-                  i := i + 1))
-          }),
-          srvb.advance(),
-          alleleNumber.ceq(0).mux(
-            srvb.setMissing(),
-            srvb.addArray(resultType.fieldType("AF").asInstanceOf[PArray], {
-              srvb =>
-                Code(
-                  srvb.start(state.nAlleles),
-                  i := 0,
-                  Code.whileLoop(i < state.nAlleles,
-                    x := state.alleleCountAtIndex(i, state.nAlleles),
-                    srvb.addDouble(x.toD / alleleNumber.toD),
-                    srvb.advance(),
-                    i := i + 1))
-            })),
-          srvb.advance(),
-          srvb.addInt(alleleNumber),
-          srvb.advance(),
-          srvb.addArray(resultType.fieldType("homozygote_count").asInstanceOf[PArray], {
-            srvb =>
-              Code(
-                srvb.start(state.nAlleles),
-                i := 0,
-                Code.whileLoop(i < state.nAlleles,
-                  x := state.homCountAtIndex(i, state.nAlleles),
-                  srvb.addInt(x),
-                  srvb.advance(),
-                  i := i + 1))
-          }))
-    })
+  protected def _storeResult(cb: EmitCodeBuilder, state: State, pt: PType, addr: Value[Long], region: Value[Region], ifMissing: EmitCodeBuilder => Unit): Unit = {
+    val rt = CallStatsState.resultType
+    assert(pt == rt)
+    cb += rt.stagedInitialize(addr, setMissing = false)
+    val alleleNumber = cb.newLocal[Int]("callstats_result_alleleNumber", 0)
+
+    val acType = resultType.fieldType("AC").asInstanceOf[PCanonicalArray]
+
+    // this is a little weird - computing AC has the side effect of updating AN
+    val ac = acType.constructFromElements(cb, region, state.nAlleles, deepCopy = true) { (cb, i) =>
+      val acAtIndex = cb.newLocal[Int]("callstats_result_acAtIndex", state.alleleCountAtIndex(i, state.nAlleles))
+      cb.assign(alleleNumber, alleleNumber + acAtIndex)
+      IEmitCode.present(cb, PCode(acType.elementType, acAtIndex))
+    }
+
+    acType.storeAtAddress(cb, rt.fieldOffset(addr, "AC"), region, ac, deepCopy = false)
+
+    cb.ifx(alleleNumber.ceq(0),
+      cb += rt.setFieldMissing(addr, "AF"),
+      {
+        val afType = resultType.fieldType("AF").asInstanceOf[PCanonicalArray]
+        val af = afType.constructFromElements(cb, region, state.nAlleles, deepCopy = true) { (cb, i) =>
+          val acAtIndex = cb.newLocal[Int]("callstats_result_acAtIndex", state.alleleCountAtIndex(i, state.nAlleles))
+          IEmitCode.present(cb, PCode(afType.elementType, acAtIndex.toD / alleleNumber.toD))
+        }
+        afType.storeAtAddress(cb, rt.fieldOffset(addr, "AF"), region, af, deepCopy = false)
+      })
+
+    val anType = resultType.fieldType("AN")
+    val an = PCode(anType, alleleNumber)
+    anType.storeAtAddress(cb, rt.fieldOffset(addr, "AN"), region, an, deepCopy = false)
+
+
+    val homCountType = resultType.fieldType("homozygote_count").asInstanceOf[PCanonicalArray]
+    val homCount = homCountType.constructFromElements(cb, region, state.nAlleles, deepCopy = true) { (cb, i) =>
+      val homCountAtIndex = cb.newLocal[Int]("callstats_result_homCountAtIndex", state.homCountAtIndex(i, state.nAlleles))
+      IEmitCode.present(cb, PCode(PInt32Required, homCountAtIndex))
+    }
+
+    homCountType.storeAtAddress(cb, rt.fieldOffset(addr, "homozygote_count"), region, homCount, deepCopy = false)
   }
 }

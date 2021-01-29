@@ -1,11 +1,12 @@
 package is.hail.expr.ir.agg
 
-import is.hail.annotations.{Region, StagedRegionValueBuilder}
+import is.hail.annotations.Region
 import is.hail.asm4s.{Code, _}
 import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitCodeBuilder}
 import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer}
 import is.hail.types.VirtualTypeWithReq
 import is.hail.types.physical._
+import is.hail.types.physical.stypes.concrete.SIndexablePointerCode
 import is.hail.types.virtual.{TInt32, Type}
 import is.hail.utils._
 
@@ -88,21 +89,10 @@ class TakeRVAS(val eltType: VirtualTypeWithReq, val kb: EmitClassBuilder[_]) ext
       })
   }
 
-  def result(cb: EmitCodeBuilder, resultType: PArray, srvb: StagedRegionValueBuilder): Unit = {
-    cb += srvb.addArray(resultType, { rvb =>
-      EmitCodeBuilder.scopedVoid(srvb.mb) { cb =>
-        cb += rvb.start(builder.size)
-        cb.whileLoop(rvb.arrayIdx < builder.size,
-          {
-            builder.loadElement(cb, rvb.arrayIdx)
-              .toI(cb)
-              .consume(cb,
-                cb += rvb.setMissing(),
-                sc => cb += rvb.addIRIntermediate(sc, deepCopy = true))
-            cb += rvb.advance()
-          })
-      }
-    })
+  def resultArray(cb: EmitCodeBuilder, region: Value[Region], resType: PCanonicalArray): SIndexablePointerCode = {
+    resType.constructFromElements(cb, region, builder.size, deepCopy = true) { (cb, idx) =>
+      builder.loadElement(cb, idx).toI(cb)
+    }
   }
 
   def copyFrom(cb: EmitCodeBuilder, srcCode: Code[Long]): Unit = {
@@ -137,5 +127,9 @@ class TakeAggregator(typ: VirtualTypeWithReq) extends StagedAggregator {
 
   protected def _combOp(cb: EmitCodeBuilder, state: State, other: State): Unit = state.combine(cb, other)
 
-  protected def _result(cb: EmitCodeBuilder, state: State, srvb: StagedRegionValueBuilder): Unit = state.result(cb, resultType, srvb)
+  protected def _storeResult(cb: EmitCodeBuilder, state: State, pt: PType, addr: Value[Long], region: Value[Region], ifMissing: EmitCodeBuilder => Unit): Unit = {
+    assert(pt == resultType)
+    // deepCopy is handled by state.resultArray
+    pt.storeAtAddress(cb, addr, region, state.resultArray(cb, region, resultType), deepCopy = false)
+  }
 }

@@ -410,7 +410,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
 
   def sType: SContainer = SIndexablePointer(this)
 
-  def loadCheapPCode(cb: EmitCodeBuilder, addr: Code[Long]): PCode = new SIndexablePointerCode(SIndexablePointer(this), addr)
+  def loadCheapPCode(cb: EmitCodeBuilder, addr: Code[Long]): SIndexablePointerCode = new SIndexablePointerCode(SIndexablePointer(this), addr)
 
   def store(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): Code[Long] = {
     value.st match {
@@ -469,7 +469,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
     cb += stagedInitialize(addr, length, setMissing = false)
     val i = cb.newLocal[Int]("pcarray_construct1_i", 0)
 
-    val firstElementAddr = firstElementOffset(addr, length)
+    val firstElementAddr = cb.newLocal[Long]("pcarray_construct1_firstelementaddr", firstElementOffset(addr, length))
     cb.whileLoop(i < length, {
       f(cb, i).consume(cb,
         cb += setElementMissing(addr, i),
@@ -491,7 +491,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
     cb += stagedInitialize(addr, length, setMissing = false)
     val i = cb.newLocal[Int]("pcarray_construct2_i", 0)
 
-    val firstElementAddr = firstElementOffset(addr, length)
+    val firstElementAddr = cb.newLocal[Long]("pcarray_construct2_firstelementaddr", firstElementOffset(addr, length))
 
     val addElement: (EmitCodeBuilder, Value[Int], IEmitCode) => Unit = { case (cb, i, iec) =>
       iec.consume(cb,

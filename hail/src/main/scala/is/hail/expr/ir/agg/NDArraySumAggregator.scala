@@ -105,11 +105,9 @@ class NDArraySumAggregator(ndVTyp: VirtualTypeWithReq) extends StagedAggregator 
     recur(0)
   }
 
-  override protected def _result(cb: EmitCodeBuilder, state: State, srvb: StagedRegionValueBuilder): Unit = {
-    state.get()
-      .toI(cb)
-      .consume(cb,
-        cb += srvb.setMissing(),
-        { nda => cb += srvb.addIRIntermediate(nda, deepCopy = true) })
+  protected def _storeResult(cb: EmitCodeBuilder, state: State, pt: PType, addr: Value[Long], region: Value[Region], ifMissing: EmitCodeBuilder => Unit): Unit = {
+    state.get().toI(cb).consume(cb,
+      ifMissing(cb),
+      { sc => pt.storeAtAddress(cb, addr, region, sc, deepCopy = true) })
   }
 }

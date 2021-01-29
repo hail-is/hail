@@ -6,6 +6,7 @@ import is.hail.expr.ir._
 import is.hail.io.{InputBuffer, OutputBuffer}
 import is.hail.types.encoded._
 import is.hail.types.physical._
+import is.hail.types.physical.stypes.concrete.SIndexablePointerCode
 import is.hail.utils._
 
 object StagedBlockLinkedList {
@@ -189,17 +190,14 @@ class StagedBlockLinkedList(val elemType: PType, val kb: EmitClassBuilder[_]) {
     cb.invokeVoid(appF, region)
   }
 
-  def writeToSRVB(cb: EmitCodeBuilder, srvb: StagedRegionValueBuilder): Unit = {
-    cb += srvb.start(totalCount, init = true)
+  def resultArray(cb: EmitCodeBuilder, region: Value[Region], resType: PCanonicalArray): SIndexablePointerCode = {
+    val (storeElement, finish) = resType.constructFromFunctions(cb, region, totalCount, deepCopy = true)
+    val idx = cb.newLocal[Int]("sbll_resultarray_i", 0)
     foreach(cb) { (cb, elt) =>
-      elt.toI(cb)
-        .consume(cb,
-          cb += srvb.setMissing(),
-          { ssc =>
-            cb += srvb.addIRIntermediate(ssc, deepCopy = true)
-          })
-      cb += srvb.advance()
+      storeElement(cb, idx, elt.toI(cb))
+      cb.assign(idx, idx + 1)
     }
+    finish(cb)
   }
 
   def serialize(cb: EmitCodeBuilder, region: Value[Region], outputBuffer: Code[OutputBuffer]): Unit = {

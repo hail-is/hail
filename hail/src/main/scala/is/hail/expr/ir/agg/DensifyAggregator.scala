@@ -6,6 +6,7 @@ import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitCodeBuilder}
 import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer, TypedCodecSpec}
 import is.hail.types.VirtualTypeWithReq
 import is.hail.types.physical._
+import is.hail.types.physical.stypes.concrete.SIndexablePointerCode
 import is.hail.types.physical.stypes.interfaces.SIndexableValue
 import is.hail.types.virtual.{TInt32, Type}
 import is.hail.utils._
@@ -115,8 +116,8 @@ class DensifyState(val arrayVType: VirtualTypeWithReq, val kb: EmitClassBuilder[
     gc(cb)
   }
 
-  def result(cb: EmitCodeBuilder, resultType: PArray, srvb: StagedRegionValueBuilder): Unit = {
-    cb += srvb.addIRIntermediate(arrayStorageType.loadCheapPCode(cb, arrayAddr), deepCopy = true)
+  def result(cb: EmitCodeBuilder, region: Value[Region]): SIndexablePointerCode = {
+    arrayStorageType.loadCheapPCode(cb, arrayAddr)
   }
 
   def copyFrom(cb: EmitCodeBuilder, srcCode: Code[Long]): Unit = {
@@ -159,9 +160,8 @@ class DensifyAggregator(val arrayVType: VirtualTypeWithReq) extends StagedAggreg
 
   protected def _combOp(cb: EmitCodeBuilder, state: State, other: State): Unit = state.combine(cb, other)
 
-  protected def _result(cb: EmitCodeBuilder, state: State, srvb: StagedRegionValueBuilder): Unit = {
-    assert(srvb.currentPType().fundamentalType == state.arrayStorageType.fundamentalType,
-      s"mismatch:\n  current=${ srvb.currentPType() }\n  state=  ${ state.arrayStorageType }\n  result= ${ resultType }")
-    state.result(cb, resultType, srvb)
+  protected def _storeResult(cb: EmitCodeBuilder, state: State, pt: PType, addr: Value[Long], region: Value[Region], ifMissing: EmitCodeBuilder => Unit): Unit = {
+    // deepCopy needs to be done here
+    pt.storeAtAddress(cb, addr, region, state.result(cb, region), deepCopy = true)
   }
 }

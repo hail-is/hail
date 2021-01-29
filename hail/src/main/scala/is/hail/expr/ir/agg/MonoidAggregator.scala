@@ -1,10 +1,10 @@
 package is.hail.expr.ir.agg
 
-import is.hail.annotations.StagedRegionValueBuilder
+import is.hail.annotations.{Region, StagedRegionValueBuilder}
 import is.hail.asm4s._
 import is.hail.expr.ir.{coerce => _, _}
 import is.hail.expr.ir.functions.UtilFunctions
-import is.hail.types.physical.{PFloat32, PFloat64, PInt32, PInt64, PType, typeToTypeInfo}
+import is.hail.types.physical.{PCode, PFloat32, PFloat64, PInt32, PInt64, PType, typeToTypeInfo}
 import is.hail.types.virtual.{TFloat32, TFloat64, TInt32, TInt64, Type}
 
 import scala.language.existentials
@@ -60,16 +60,19 @@ class MonoidAggregator(monoid: StagedMonoidSpec) extends StagedAggregator {
     combine(cb, m1, v1, m2.map(_.load), v2.load)
   }
 
-  protected def _result(cb: EmitCodeBuilder, state: State, srvb: StagedRegionValueBuilder): Unit = {
+  protected def _storeResult(cb: EmitCodeBuilder, state: State, pt: PType, addr: Value[Long], region: Value[Region], ifMissing: EmitCodeBuilder => Unit): Unit = {
     val (mOpt, v, _) = state.fields(0)
-    mOpt match {
+
+    val iec = mOpt match {
       case None =>
-        cb += srvb.addIRIntermediate(typ)(v)
+        IEmitCode.present(cb, PCode(typ, v))
       case Some(m) =>
-        cb.ifx(m,
-          cb += srvb.setMissing(),
-          cb += srvb.addIRIntermediate(typ)(v))
+        IEmitCode(cb, m, PCode(typ, v))
     }
+    iec.consume(cb,
+      ifMissing(cb),
+      sc => pt.storeAtAddress(cb, addr, region, sc, deepCopy = true)
+    )
   }
 
   private def combine(
