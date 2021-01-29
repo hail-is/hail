@@ -6,7 +6,6 @@ import is.hail.check.Gen
 import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, IEmitCode, SortOrder}
 import is.hail.types.physical.stypes.interfaces.{SBaseStructCode, SBaseStructValue}
 import is.hail.utils._
-import org.apache.spark.sql.Row
 
 object PBaseStruct {
   def getByteSizeAndOffsets(types: Array[PType], nMissingBytes: Long, byteOffsets: Array[Long]): Long = {
