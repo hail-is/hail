@@ -145,7 +145,10 @@ class RegionValueBuilder(var region: Region) {
   }
 
   private def startArrayInternal(length: Int, init: Boolean, setMissing: Boolean) {
-    val t = currentType().asInstanceOf[PArray]
+    val t = currentType() match {
+      case abc: PArrayBackedContainer => abc.arrayRep
+      case arr: PArray => arr
+    }
     val aoff = t.allocate(region, length)
 
     if (typestk.nonEmpty) {
@@ -227,6 +230,15 @@ class RegionValueBuilder(var region: Region) {
 
   def addInt(i: Int) {
     assert(currentType().isInstanceOf[PInt32])
+    addIntInternal(i)
+  }
+
+  def addCall(c: Int): Unit = {
+    assert(currentType().isInstanceOf[PCall])
+    addIntInternal(c)
+  }
+
+  def addIntInternal(i: Int) {
     if (typestk.isEmpty)
       allocateRoot()
     val off = currentOffset()
@@ -262,7 +274,15 @@ class RegionValueBuilder(var region: Region) {
   }
 
   def addString(s: String) {
+    assert(currentType().isInstanceOf[PString])
     currentType().asInstanceOf[PString].unstagedStoreJavaObjectAtAddress(currentOffset(), s, region)
+    advance()
+  }
+
+  def addLocus(contig: String, pos: Int): Unit = {
+    assert(currentType().isInstanceOf[PLocus])
+    currentType().asInstanceOf[PLocus].unstagedStoreLocus(currentOffset(), contig, pos, region)
+    advance()
   }
 
   def addField(t: PBaseStruct, fromRegion: Region, fromOff: Long, i: Int) {

@@ -372,10 +372,7 @@ final class VCFLine(val line: String, arrayElementsRequired: Boolean,
     nextField()
 
     if (hasLocus) {
-      rvb.startStruct() // pk: Locus
-      rvb.addString(recodedContig)
-      rvb.addInt(start)
-      rvb.endStruct()
+      rvb.addLocus(recodedContig, start)
     }
 
     if (hasAlleles) {
@@ -458,7 +455,7 @@ final class VCFLine(val line: String, arrayElementsRequired: Boolean,
     if (mj || mk)
       rvb.setMissing()
     else {
-      rvb.addInt(Call2(j, k, phased = isPhased))
+      rvb.addCall(Call2(j, k, phased = isPhased))
     }
   }
 
