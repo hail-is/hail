@@ -44,9 +44,9 @@ object Worker {
     if (args.length != 2) {
       throw new IllegalArgumentException(s"expected two arguments, not: ${ args.length }")
     }
-
     val root = args(0)
     val i = args(1).toInt
+    log.info(s"running job $i at root $root")
 
     var scratchDir = System.getenv("HAIL_WORKER_SCRATCH_DIR")
     if (scratchDir == null)
@@ -69,8 +69,6 @@ object Worker {
       length = is.readInt()
     }
 
-    println(s"offset $offset length $length")
-
     val context = using(fs.openNoCompression(s"$root/contexts")) { is =>
       is.seek(offset)
       val context = new Array[Byte](length)
@@ -86,6 +84,7 @@ object Worker {
     using(fs.createNoCompression(s"$root/result.$i")) { os =>
       os.write(result)
     }
+    log.info(s"finished job $i at root $root")
   }
 }
 
