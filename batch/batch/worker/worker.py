@@ -574,7 +574,7 @@ class JVMProcess:
             self.log)
 
         if self.proc.returncode == 0:
-            self.state = 'success'
+            self.state = 'succeeded'
         else:
             self.state = 'error'
 
