@@ -1,6 +1,6 @@
 package is.hail.types.physical
 
-import is.hail.annotations.{Annotation, Region, UnsafeUtils}
+import is.hail.annotations.{Annotation, Region, UnsafeRow, UnsafeUtils}
 import is.hail.asm4s._
 import is.hail.expr.ir.{EmitCodeBuilder, EmitValue}
 import is.hail.types.BaseStruct
@@ -237,16 +237,23 @@ abstract class PCanonicalBaseStruct(val types: Array[PType]) extends PBaseStruct
   override def unstagedStoreJavaObjectAtAddress(addr: Long, annotation: Annotation, region: Region): Unit = {
     initialize(addr)
     val row = annotation.asInstanceOf[Row]
-    // TODO Separate unsafe row handling
-    this.types.zipWithIndex.foreach { case (fieldPt, fieldIdx) =>
-      if (row(fieldIdx) == null) {
-        setFieldMissing(addr, fieldIdx)
+    row match {
+      case ur: UnsafeRow => {
+        this.unstagedStoreAtAddress(addr, region, ur.t, ur.offset, region.ne(ur.region))
       }
-      else {
-        val fieldAddress = fieldOffset(addr, fieldIdx)
-        fieldPt.unstagedStoreJavaObjectAtAddress(fieldAddress, row(fieldIdx), region)
+      case sr: Row => {
+        this.types.zipWithIndex.foreach { case (fieldPt, fieldIdx) =>
+          if (row(fieldIdx) == null) {
+            setFieldMissing(addr, fieldIdx)
+          }
+          else {
+            val fieldAddress = fieldOffset(addr, fieldIdx)
+            fieldPt.unstagedStoreJavaObjectAtAddress(fieldAddress, row(fieldIdx), region)
+          }
+        }
       }
     }
+
   }
 
   def loadFromNested(cb: EmitCodeBuilder, addr: Code[Long]): Code[Long] = addr
