@@ -209,7 +209,7 @@ object CompileIterator {
     val didSetup = stepF.genFieldThisRef[Boolean]("didSetup")
     stepF.cb.emitInit(didSetup := false)
 
-    implicit val ecc: EmitStreamContext = EmitStreamContext(stepF, ctx)
+    implicit val ecc: EmitStreamContext = EmitStreamContext(stepF)
 
     val pullLabel = CodeLabel()
     val eosField = stepF.genFieldThisRef[Boolean]("eos")
