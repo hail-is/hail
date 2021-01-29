@@ -6,47 +6,47 @@
 namespace hail {
 
 StrValue
-Value::make_str(const PStr *ptype, std::shared_ptr<ArenaAllocator> region, size_t size) {
+Value::make_str(const VStr *vtype, std::shared_ptr<ArenaAllocator> region, size_t size) {
   StrData *p = (StrData *)region->allocate(4, 4 + size);
   p->size = size;
-  return StrValue(ptype, std::move(region), p);
+  return StrValue(vtype, std::move(region), p);
 }
 
 ArrayValue
-Value::make_array(const PArray *ptype, std::shared_ptr<ArenaAllocator> region, size_t size) {
+Value::make_array(const VArray *vtype, std::shared_ptr<ArenaAllocator> region, size_t size) {
   ArrayData *p = (ArrayData *)region->allocate(alignof(ArrayData), sizeof(ArrayData));
   p->size = size;
   p->missing_bits = (char *)region->allocate(1, (size + 7) >> 3);
-  p->elements = (char *)region->allocate(ptype->elements_alignment,
-					 size * ptype->element_stride);
-  return ArrayValue(ptype, std::move(region), p);
+  p->elements = (char *)region->allocate(vtype->elements_alignment,
+					 size * vtype->element_stride);
+  return ArrayValue(vtype, std::move(region), p);
 }
 
 TupleValue
-Value::make_tuple(const PTuple *ptype, std::shared_ptr<ArenaAllocator> region) {
-  char *p = (char *)region->allocate(ptype->alignment, ptype->byte_size);
-  return TupleValue(ptype, std::move(region), p);
+Value::make_tuple(const VTuple *vtype, std::shared_ptr<ArenaAllocator> region) {
+  char *p = (char *)region->allocate(vtype->alignment, vtype->byte_size);
+  return TupleValue(vtype, std::move(region), p);
 }
 
 Value
-Value::load(const PType *ptype, std::shared_ptr<ArenaAllocator> region, void *p) {
-  switch (ptype->tag) {
-  case PType::Tag::BOOL:
-    return Value(cast<PBool>(ptype), *(bool *)p);
-  case PType::Tag::INT32:
-    return Value(cast<PInt32>(ptype), *(int32_t *)p);
-  case PType::Tag::INT64:
-    return Value(cast<PInt64>(ptype), *(int64_t *)p);
-  case PType::Tag::FLOAT32:
-    return Value(cast<PFloat32>(ptype), *(float *)p);
-  case PType::Tag::FLOAT64:
-    return Value(cast<PFloat64>(ptype), *(double *)p);
-  case PType::Tag::STR:
-    return Value(cast<PStr>(ptype), std::move(region), *(void **)p);
-  case PType::Tag::ARRAY:
-    return Value(cast<PArray>(ptype), std::move(region), *(void **)p);
-  case PType::Tag::TUPLE:
-      return Value(cast<PTuple>(ptype), std::move(region), p);
+Value::load(const VType *vtype, std::shared_ptr<ArenaAllocator> region, void *p) {
+  switch (vtype->tag) {
+  case VType::Tag::BOOL:
+    return Value(cast<VBool>(vtype), *(bool *)p);
+  case VType::Tag::INT32:
+    return Value(cast<VInt32>(vtype), *(int32_t *)p);
+  case VType::Tag::INT64:
+    return Value(cast<VInt64>(vtype), *(int64_t *)p);
+  case VType::Tag::FLOAT32:
+    return Value(cast<VFloat32>(vtype), *(float *)p);
+  case VType::Tag::FLOAT64:
+    return Value(cast<VFloat64>(vtype), *(double *)p);
+  case VType::Tag::STR:
+    return Value(cast<VStr>(vtype), std::move(region), *(void **)p);
+  case VType::Tag::ARRAY:
+    return Value(cast<VArray>(vtype), std::move(region), *(void **)p);
+  case VType::Tag::TUPLE:
+      return Value(cast<VTuple>(vtype), std::move(region), p);
   default:
     abort();
   }
@@ -54,35 +54,35 @@ Value::load(const PType *ptype, std::shared_ptr<ArenaAllocator> region, void *p)
 
 void
 Value::store(void *p, const Value &value) {
-  auto ptype = value.get_ptype();
-  switch (ptype->tag) {
-  case PType::Tag::BOOL:
+  auto vtype = value.get_vtype();
+  switch (vtype->tag) {
+  case VType::Tag::BOOL:
     *(bool *)p = value.u.b;
     break;
-  case PType::Tag::INT32:
+  case VType::Tag::INT32:
     *(int32_t *)p = value.u.i32;
     break;
-  case PType::Tag::INT64:
+  case VType::Tag::INT64:
     *(int64_t *)p = value.u.i64;
     break;
-  case PType::Tag::FLOAT32:
+  case VType::Tag::FLOAT32:
     *(float *)p = value.u.f;
     break;
-  case PType::Tag::FLOAT64:
+  case VType::Tag::FLOAT64:
     *(float *)p = value.u.d;
     break;
-  case PType::Tag::STR:
+  case VType::Tag::STR:
     *(void **)p = value.u.p;
     break;
-  case PType::Tag::ARRAY:
+  case VType::Tag::ARRAY:
     *(void **)p = value.u.p;
     break;
-  case PType::Tag::TUPLE:
+  case VType::Tag::TUPLE:
     {
-      auto ptuple = cast<PTuple>(ptype);
+      auto ptuple = cast<VTuple>(vtype);
       TupleValue src = value.as_tuple();
       TupleValue dest(ptuple, value.region, (char *)p);
-      size_t n = ptuple->element_ptypes.size();
+      size_t n = ptuple->element_vtypes.size();
       memcpy(p, src.p, (n + 7) / 8);
       for (size_t i = 0; i < n; ++i) {
 	if (src.get_element_present(i))
@@ -99,33 +99,33 @@ Value::store(void *p, const Value &value) {
 
 void
 format1(FormatStream &s, const Value &value) {
-  const PType *ptype = value.get_ptype();
-  switch (ptype->tag) {
-  case PType::Tag::VOID:
+  const VType *vtype = value.get_vtype();
+  switch (vtype->tag) {
+  case VType::Tag::VOID:
     format(s, "()");
     break;
-  case PType::Tag::BOOL:
+  case VType::Tag::BOOL:
     format(s, value.as_bool());
     break;
-  case PType::Tag::INT32:
+  case VType::Tag::INT32:
     format(s, value.as_int32());
     break;
-  case PType::Tag::INT64:
+  case VType::Tag::INT64:
     format(s, value.as_int64());
     break;
-  case PType::Tag::FLOAT32:
+  case VType::Tag::FLOAT32:
     format(s, value.as_float32());
     break;
-  case PType::Tag::FLOAT64:
+  case VType::Tag::FLOAT64:
     format(s, value.as_float64());
     break;
-  case PType::Tag::STR:
+  case VType::Tag::STR:
     {
       auto t = value.as_str();
       s.write(t.get_data(), t.get_size());
     }
     break;
-  case PType::Tag::ARRAY:
+  case VType::Tag::ARRAY:
     {
       auto a = value.as_array();
       s.putc('(');
@@ -138,7 +138,7 @@ format1(FormatStream &s, const Value &value) {
       s.putc(')');
     }
     break;
-  case PType::Tag::TUPLE:
+  case VType::Tag::TUPLE:
     {
       auto t = value.as_tuple();
       s.putc('(');

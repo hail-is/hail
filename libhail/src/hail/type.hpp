@@ -7,7 +7,7 @@
 
 namespace hail {
 
-class PType;
+class VType;
 class FormatStream;
 class TypeContext;
 
@@ -112,7 +112,7 @@ class TypeContext {
   std::map<const Type *, const TStream *> streams;
   std::map<std::vector<const Type *>, const TTuple *> tuples;
 
-  std::map<const Type *, const PType *> canonical_ptypes;
+  std::map<const Type *, const VType *> vtypes;
 
 public:
   const TVoid *const tvoid;
@@ -129,7 +129,7 @@ public:
   const TStream *tstream(const Type *element_type);
   const TTuple *ttuple(const std::vector<const Type *> &element_types);
 
-  const PType *get_canonical_ptype(const Type *type);
+  const VType *get_vtype(const Type *type);
 };
 
 }

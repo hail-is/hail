@@ -5,7 +5,7 @@
 
 #include <hail/allocators.hpp>
 #include <hail/tunion.hpp>
-#include <hail/ptype.hpp>
+#include <hail/vtype.hpp>
 
 namespace hail {
 
@@ -20,17 +20,17 @@ struct StrData {
 class StrValue {
   friend class Value;
 
-  const PStr *ptype;
+  const VStr *vtype;
   std::shared_ptr<ArenaAllocator> region;
   StrData *p;
 
 public:
-  StrValue(const PStr *ptype, std::shared_ptr<ArenaAllocator> region, StrData *p)
-    : ptype(ptype),
+  StrValue(const VStr *vtype, std::shared_ptr<ArenaAllocator> region, StrData *p)
+    : vtype(vtype),
       region(std::move(region)),
       p(p) {}
 
-  const PStr *get_ptype() const { return ptype; }
+  const VStr *get_vtype() const { return vtype; }
   size_t get_size() const { return p->size; }
   char *get_data() { return p->data; }
 
@@ -58,7 +58,7 @@ struct ArrayData {
 class ArrayValue {
   friend class Value;
 
-  const PArray *ptype;
+  const VArray *vtype;
   std::shared_ptr<ArenaAllocator> region;
   ArrayData *p;
   size_t size;
@@ -66,15 +66,15 @@ class ArrayValue {
   char *elements;
 
 public:
-  ArrayValue(const PArray *ptype, std::shared_ptr<ArenaAllocator> region, ArrayData *p)
-    : ptype(ptype),
+  ArrayValue(const VArray *vtype, std::shared_ptr<ArenaAllocator> region, ArrayData *p)
+    : vtype(vtype),
       region(std::move(region)),
       p(p),
       size(p->size),
       missing_bits(p->missing_bits),
       elements(p->elements) {}
 
-  const PArray *get_ptype() const { return ptype; }
+  const VArray *get_vtype() const { return vtype; }
   size_t get_size() const { return size; }
   bool get_element_present(size_t i) const {
     return get_bit(missing_bits, i);
@@ -91,18 +91,18 @@ public:
 class TupleValue {
   friend class Value;
   
-  const PTuple *ptype;
+  const VTuple *vtype;
   std::shared_ptr<ArenaAllocator> region;
   char *p;
 
 public:
-  TupleValue(const PTuple *ptype, std::shared_ptr<ArenaAllocator> region, char *p)
-    : ptype(ptype),
+  TupleValue(const VTuple *vtype, std::shared_ptr<ArenaAllocator> region, char *p)
+    : vtype(vtype),
       region(std::move(region)),
       p(p) {}
 
-  const PTuple *get_ptype() const { return ptype; }
-  size_t get_size() const { return ptype->element_ptypes.size(); }
+  const VTuple *get_vtype() const { return vtype; }
+  size_t get_size() const { return vtype->element_vtypes.size(); }
   bool get_element_present(size_t i) const {
     return get_bit(p, i);
   }
@@ -120,7 +120,7 @@ class Value {
   friend class ArrayValue;
   friend class TupleValue;
 
-  const PType *ptype;
+  const VType *vtype;
   bool present;
   std::shared_ptr<ArenaAllocator> region;
   union u {
@@ -133,25 +133,25 @@ class Value {
   } u;
 
   void set_union_from(const union u &that_u) {
-    switch (ptype->tag) {
-    case PType::Tag::BOOL:
+    switch (vtype->tag) {
+    case VType::Tag::BOOL:
       u.b = that_u.b;
       break;
-    case PType::Tag::INT32:
+    case VType::Tag::INT32:
       u.i32 = that_u.i32;
       break;
-    case PType::Tag::INT64:
+    case VType::Tag::INT64:
       u.i64 = that_u.i64;
       break;
-    case PType::Tag::FLOAT32:
+    case VType::Tag::FLOAT32:
       u.f = that_u.f;
       break;
-    case PType::Tag::FLOAT64:
+    case VType::Tag::FLOAT64:
       u.d = that_u.d;
       break;
-    case PType::Tag::STR:
-    case PType::Tag::ARRAY:
-    case PType::Tag::TUPLE:
+    case VType::Tag::STR:
+    case VType::Tag::ARRAY:
+    case VType::Tag::TUPLE:
       u.p = that_u.p;
       break;
     default:
@@ -159,66 +159,66 @@ class Value {
     }
   }
 
-  /* creates a missing value of ptype `ptype` */
-  Value(const PType *ptype)
-    : ptype(ptype),
+  /* creates a missing value of vtype `vtype` */
+  Value(const VType *vtype)
+    : vtype(vtype),
       present(false) {
   }
-  Value(const PStr *ptype, std::shared_ptr<ArenaAllocator> region, void *p)
-    : ptype(ptype),
+  Value(const VStr *vtype, std::shared_ptr<ArenaAllocator> region, void *p)
+    : vtype(vtype),
       present(true),
       region(std::move(region)) {
     u.p = p;
   }
-  Value(const PArray *ptype, std::shared_ptr<ArenaAllocator> region, void *p)
-    : ptype(ptype),
+  Value(const VArray *vtype, std::shared_ptr<ArenaAllocator> region, void *p)
+    : vtype(vtype),
       present(true),
       region(std::move(region)) {
     u.p = p;
   }
-  Value(const PTuple *ptype, std::shared_ptr<ArenaAllocator> region, void *p)
-    : ptype(ptype),
+  Value(const VTuple *vtype, std::shared_ptr<ArenaAllocator> region, void *p)
+    : vtype(vtype),
       present(true),
       region(std::move(region)) {
     u.p = p;
   }
 
 public:
-  Value(const PBool *ptype, bool b)
-    : ptype(ptype),
+  Value(const VBool *vtype, bool b)
+    : vtype(vtype),
       present(true) {
     u.b = b;
   }
-  Value(const PInt32 *ptype, uint32_t i32)
-    : ptype(ptype),
+  Value(const VInt32 *vtype, uint32_t i32)
+    : vtype(vtype),
       present(true) {
     u.i32 = i32;
   }
-  Value(const PInt64 *ptype, uint32_t i64)
-    : ptype(ptype),
+  Value(const VInt64 *vtype, uint32_t i64)
+    : vtype(vtype),
       present(true) {
     u.i64 = i64;
   }
-  Value(const PFloat32 *ptype, float f)
-    : ptype(ptype),
+  Value(const VFloat32 *vtype, float f)
+    : vtype(vtype),
       present(true) {
     u.f = f;
   }
-  Value(const PFloat64 *ptype, double d)
-    : ptype(ptype),
+  Value(const VFloat64 *vtype, double d)
+    : vtype(vtype),
       present(true) {
     u.d = d;
   }
 
   Value(const Value &that)
-    : ptype(that.ptype),
+    : vtype(that.vtype),
       present(that.present),
       region(that.region) {
     if (present)
       set_union_from(that.u);
   }
   Value(const Value &&that)
-    : ptype(that.ptype),
+    : vtype(that.vtype),
       present(that.present),
       region(std::move(that.region)) {
     if (present)
@@ -226,89 +226,89 @@ public:
   }
 
   const Value &operator=(const Value &that) {
-    ptype = that.ptype;
+    vtype = that.vtype;
     region = that.region;
     set_union_from(that.u);
     return *this;
   }
   const Value &operator=(const Value &&that) {
-    ptype = that.ptype;
+    vtype = that.vtype;
     region = std::move(that.region);
     set_union_from(that.u);
     return *this;
   }
 
-  static StrValue make_str(const PStr *ptype, std::shared_ptr<ArenaAllocator> region, size_t size);
-  static ArrayValue make_array(const PArray *ptype, std::shared_ptr<ArenaAllocator> region, size_t size);
-  static TupleValue make_tuple(const PTuple *ptype, std::shared_ptr<ArenaAllocator> region);
+  static StrValue make_str(const VStr *vtype, std::shared_ptr<ArenaAllocator> region, size_t size);
+  static ArrayValue make_array(const VArray *vtype, std::shared_ptr<ArenaAllocator> region, size_t size);
+  static TupleValue make_tuple(const VTuple *vtype, std::shared_ptr<ArenaAllocator> region);
 
-  static Value load(const PType *ptype, std::shared_ptr<ArenaAllocator> region, void *p);
+  static Value load(const VType *vtype, std::shared_ptr<ArenaAllocator> region, void *p);
   static void store(void *p, const Value &value);
 
-  const PType *get_ptype() const { return ptype; }
+  const VType *get_vtype() const { return vtype; }
   bool get_present() const { return present; }
 
   bool as_bool() const {
-    assert(ptype->tag == PType::Tag::BOOL);
+    assert(vtype->tag == VType::Tag::BOOL);
     return u.b;
   }
   uint32_t as_int32() const {
-    assert(ptype->tag == PType::Tag::INT32);
+    assert(vtype->tag == VType::Tag::INT32);
     return u.i32;
   }
   uint64_t as_int64() const {
-    assert(ptype->tag == PType::Tag::INT64);
+    assert(vtype->tag == VType::Tag::INT64);
     return u.i64;
   }
   float as_float32() const {
-    assert(ptype->tag == PType::Tag::FLOAT32);
+    assert(vtype->tag == VType::Tag::FLOAT32);
     return u.f;
   }
   double as_float64() const {
-    assert(ptype->tag == PType::Tag::FLOAT64);
+    assert(vtype->tag == VType::Tag::FLOAT64);
     return u.d;
   }
   StrValue as_str() const {
-    assert(ptype->tag == PType::Tag::STR);
-    return StrValue(cast<PStr>(ptype), region, (StrData *)u.p);
+    assert(vtype->tag == VType::Tag::STR);
+    return StrValue(cast<VStr>(vtype), region, (StrData *)u.p);
   }
   ArrayValue as_array() const {
-    assert(ptype->tag == PType::Tag::ARRAY);
-    return ArrayValue(cast<PArray>(ptype), region, (ArrayData *)u.p);
+    assert(vtype->tag == VType::Tag::ARRAY);
+    return ArrayValue(cast<VArray>(vtype), region, (ArrayData *)u.p);
   }
   TupleValue as_tuple() const {
-    assert(ptype->tag == PType::Tag::TUPLE);
-    return TupleValue(cast<PTuple>(ptype), region, (char *)u.p);
+    assert(vtype->tag == VType::Tag::TUPLE);
+    return TupleValue(cast<VTuple>(vtype), region, (char *)u.p);
   }
 };
 
 StrValue::operator Value() const {
-  return Value(ptype, region, p);
+  return Value(vtype, region, p);
 }
 
 ArrayValue::operator Value() const {
-  return Value(ptype, region, p);
+  return Value(vtype, region, p);
 }
 
 Value
 ArrayValue::get_element(size_t i) const {
-  return Value::load(ptype->element_ptype,
+  return Value::load(vtype->element_vtype,
 		     region,
-		     p->elements + i * ptype->element_stride);
+		     p->elements + i * vtype->element_stride);
 }
 
 TupleValue::operator Value() const {
-  return Value(ptype, region, p);
+  return Value(vtype, region, p);
 }
 
 Value
 TupleValue::get_element(size_t i) const {
-  return Value::load(ptype->element_ptypes[i], region, p + ptype->element_offsets[i]);
+  return Value::load(vtype->element_vtypes[i], region, p + vtype->element_offsets[i]);
 }
 
 void
 TupleValue::set_element(size_t i, const Value &new_element) const {
-  Value::store(p + ptype->element_offsets[i], new_element);
+  Value::store(p + vtype->element_offsets[i], new_element);
 }
 
 extern void format1(FormatStream &s, const Value &value);

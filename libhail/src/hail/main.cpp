@@ -24,9 +24,9 @@ main() {
 
   auto region = std::make_shared<ArenaAllocator>(heap);
 
-  auto p = cast<PTuple>(tc.get_canonical_ptype(t));
-  auto pint32 = cast<PInt32>(p->element_ptypes[0]);
-  auto pstr = cast<PStr>(p->element_ptypes[1]);
+  auto p = cast<VTuple>(tc.get_vtype(t));
+  auto pint32 = cast<VInt32>(p->element_vtypes[0]);
+  auto pstr = cast<VStr>(p->element_vtypes[1]);
 
   Value i(pint32, 5);
   auto s = Value::make_str(pstr, region, 5);

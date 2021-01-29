@@ -19,9 +19,9 @@ add_executable(main
   src/hail/allocators.cpp
   src/hail/format.cpp
   src/hail/main.cpp
-  src/hail/ptype.cpp
   src/hail/type.cpp
   src/hail/value.cpp
+  src/hail/vtype.cpp
   # query
   src/hail/query/ir.cpp
   src/hail/query/backend/jit.cpp

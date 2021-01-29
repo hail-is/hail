@@ -1,7 +1,7 @@
 #include <hail/format.hpp>
 #include <hail/tunion.hpp>
 #include <hail/type.hpp>
-#include <hail/ptype.hpp>
+#include <hail/vtype.hpp>
 
 namespace hail {
 
@@ -97,57 +97,57 @@ TypeContext::ttuple(const std::vector<const Type *> &element_types) {
   return t;
 }
 
-const PType *
-TypeContext::get_canonical_ptype(const Type *type) {
-  auto p = canonical_ptypes.insert({type, nullptr});
+const VType *
+TypeContext::get_vtype(const Type *type) {
+  auto p = vtypes.insert({type, nullptr});
   if (!p.second)
     return p.first->second;
 
-  const PType *ptype = nullptr;
+  const VType *vtype = nullptr;
   switch(type->tag) {
   case Type::Tag::BOOL:
-    ptype = arena.make<PBool>(TypeContextToken());
+    vtype = arena.make<VBool>(TypeContextToken());
     break;
   case Type::Tag::INT32:
-    ptype = arena.make<PInt32>(TypeContextToken());
+    vtype = arena.make<VInt32>(TypeContextToken());
     break;
   case Type::Tag::INT64:
-    ptype = arena.make<PInt64>(TypeContextToken());
+    vtype = arena.make<VInt64>(TypeContextToken());
     break;
   case Type::Tag::FLOAT32:
-    ptype = arena.make<PFloat32>(TypeContextToken());
+    vtype = arena.make<VFloat32>(TypeContextToken());
     break;
   case Type::Tag::FLOAT64:
-    ptype = arena.make<PFloat64>(TypeContextToken());
+    vtype = arena.make<VFloat64>(TypeContextToken());
     break;
   case Type::Tag::STR:
-    ptype = arena.make<PStr>(TypeContextToken());
+    vtype = arena.make<VStr>(TypeContextToken());
     break;
   case Type::Tag::ARRAY:
-    ptype = arena.make<PArray>(TypeContextToken(), get_canonical_ptype(cast<TArray>(type)->element_type));
+    vtype = arena.make<VArray>(TypeContextToken(), get_vtype(cast<TArray>(type)->element_type));
     break;
   case Type::Tag::TUPLE:
     {
-      std::vector<const PType *> element_ptypes;
+      std::vector<const VType *> element_vtypes;
       std::vector<size_t> element_offsets;
       size_t offset = 0;
       size_t alignment = 1;
       for (auto element_type : cast<TTuple>(type)->element_types) {
-	auto element_ptype = get_canonical_ptype(element_type);
-	element_ptypes.push_back(element_ptype);
-	offset = make_aligned(offset, element_ptype->alignment);
+	auto element_vtype = get_vtype(element_type);
+	element_vtypes.push_back(element_vtype);
+	offset = make_aligned(offset, element_vtype->alignment);
 	element_offsets.push_back(offset);
-	offset += element_ptype->byte_size;
-	alignment = std::max(alignment, element_ptype->alignment);
+	offset += element_vtype->byte_size;
+	alignment = std::max(alignment, element_vtype->alignment);
       }
-      ptype = arena.make<PTuple>(TypeContextToken(), element_ptypes, element_offsets, alignment, offset);
+      vtype = arena.make<VTuple>(TypeContextToken(), element_vtypes, element_offsets, alignment, offset);
     }
     break;
   default:
     abort();
   }
-  p.first->second = ptype;
-  return ptype;
+  p.first->second = vtype;
+  return vtype;
 }
 
 }
