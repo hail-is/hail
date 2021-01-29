@@ -401,10 +401,10 @@ async def on_startup(app):
                                 '/secrets/scorecard-github-access-token.txt')
     with open(token_file, 'r') as f:
         token = f.read().strip()
-    session = aiohttp.ClientSession(
+    app['gh_session'] = aiohttp.ClientSession(
         raise_for_status=True,
         timeout=aiohttp.ClientTimeout(total=5))
-    gh_client = gidgethub.aiohttp.GitHubAPI(session, 'scorecard', oauth_token=token)
+    gh_client = gidgethub.aiohttp.GitHubAPI(app['gh_session'], 'scorecard', oauth_token=token)
     app['gh_client'] = gh_client
 
     asana_client = AsanaClient()
@@ -418,6 +418,7 @@ async def on_startup(app):
 async def on_shutdown(app):
     try:
         await app['asana_client'].close()
+        await app['gh_session'].close()
     finally:
         app['task_manager'].shutdown()
 
