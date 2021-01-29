@@ -2,11 +2,11 @@ package is.hail.types.physical
 
 import is.hail.annotations.{Region, UnsafeUtils}
 import is.hail.asm4s._
-import is.hail.expr.ir.{EmitCode, EmitCodeBuilder, EmitValue}
+import is.hail.expr.ir.{EmitCode, EmitCodeBuilder}
 import is.hail.types.BaseStruct
 import is.hail.types.physical.stypes.SCode
 import is.hail.types.physical.stypes.concrete.{SBaseStructPointer, SBaseStructPointerCode, SBaseStructPointerSettable}
-import is.hail.types.physical.stypes.interfaces.{SBaseStructCode, SBaseStructValue, SStruct}
+import is.hail.types.physical.stypes.interfaces.SStruct
 import is.hail.utils._
 
 abstract class PCanonicalBaseStruct(val types: Array[PType]) extends PBaseStruct {
