@@ -109,12 +109,12 @@ def load_dataset(name: str,
     if path.endswith('.ht'):
         try:
             dataset = hl.read_table(path)
-        except FatalError as e:
+        except FatalError:
             dataset = hl.read_matrix_table(path)
     elif path.endswith('.mt'):
         try:
             dataset = hl.read_matrix_table(path)
-        except FatalError as e:
+        except FatalError:
             dataset = hl.read_table(path)
     else:
         if not path.endswith('.bm'):
