@@ -1039,7 +1039,7 @@ object EmitStream {
     mb: EmitMethodBuilder[_],
     streams: IndexedSeq[ChildStagedRegion => Stream[PCode]],
     destRegion: ChildStagedRegion,
-    resultType: PArray,
+    resultType: PCanonicalArray,
     key: IndexedSeq[String]
   ): Stream[(PCode, PCode)] = new Stream[(PCode, PCode)] {
     def apply(eos: Code[Ctrl], push: ((PCode, PCode)) => Code[Ctrl])(implicit ctx: EmitStreamContext): Source[(PCode, PCode)] = {
@@ -1085,8 +1085,6 @@ object EmitStream {
         .asInstanceOf[CodeOrdering { type T = Long }]
         .equivNonnull
 
-      val srvb = new StagedRegionValueBuilder(mb, resultType, destRegion.code)
-
       val runMatch = CodeLabel()
       val LpullChild = CodeLabel()
       val LloopEnd = CodeLabel()
@@ -1097,15 +1095,14 @@ object EmitStream {
 
       Code(Leos, eos)
 
+      val (pushSetup, curResult) = EmitCodeBuilder.scoped(mb) { cb =>
+        resultType.constructFromElements(cb, destRegion.code, k, deepCopy = false) { (cb, i) =>
+          IEmitCode(cb, result(i).ceq(0L), PCode(eltType, result(i)))
+        }
+      }
       Code(Lpush,
-        srvb.start(k),
-        Code.forLoop(i := 0, i < k, i := i + 1,
-          Code(
-            result(i).ceq(0L).mux(
-              srvb.setMissing(),
-              srvb.addIRIntermediate(eltType)(result(i))),
-            srvb.advance())),
-        push((curKey, PCode(resultType, srvb.offset))))
+        pushSetup,
+        push((curKey, curResult)))
 
       val winnerPc = PCode(keyViewType, heads(winner))
 
