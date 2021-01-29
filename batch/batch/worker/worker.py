@@ -534,7 +534,7 @@ class JVMProcess:
         for var in main_spec.get('env', []):
             self.env[var['name']] = var['value']
 
-        self.flags = ['-classpath', self.classpath, f'-Xmx:{self.heap_size}', f'-Xss:{self.stack_size}']
+        self.flags = ['-classpath', self.classpath, f'-Xmx{self.heap_size}', f'-Xss{self.stack_size}']
         self.java_args = main_spec['command']
 
         self.proc = None
@@ -542,7 +542,7 @@ class JVMProcess:
         self.state = 'pending'
         self.log = ''
 
-    async def run(self):
+    async def run(self, worker):
         log.info(f'running {self}')
         self.timing['start_time'] = time_msecs()
         self.proc = await asyncio.create_subprocess_exec(
@@ -567,6 +567,11 @@ class JVMProcess:
 
         log.info(f'finished {self} with return code {self.proc.returncode}')
         log.info(f'log {self}: {self.log}')
+
+        await worker.log_store.write_log_file(
+            self.job.format_version, self.job.batch_id,
+            self.job.job_id, self.job.attempt_id, 'main',
+            self.log)
 
         if self.proc.returncode == 0:
             self.state = 'success'
@@ -1095,7 +1100,7 @@ class JVMJob(Job):
 
                 log.info(f'{self}: running jvm process')
 
-                await self.process.run()
+                await self.process.run(worker)
                 self.state = self.process.state
                 log.info(f'{self} main: {self.state}')
             except Exception:
