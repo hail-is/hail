@@ -58,6 +58,7 @@ public:
   Module(IRContextToken);
   ~Module();
 
+  const std::map<std::string, Function *> &get_functions() const { return functions; }
   void add_function(Function *f);
 
   void pretty_self(FormatStream &s);

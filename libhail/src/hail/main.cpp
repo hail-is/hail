@@ -9,6 +9,7 @@
 #include <hail/tunion.hpp>
 #include <hail/type.hpp>
 #include <hail/value.hpp>
+#include <hail/jit.hpp>
 
 using namespace hail;
 
@@ -54,6 +55,10 @@ main() {
   body->set_child(0, body->make_mux(body->inputs[0], tb, fb));
 
   m->pretty_self(outs);
+
+  JIT jit;
+  auto fp  = reinterpret_cast<int (*)()>(jit.compile(m));
+  print("result ", fp());
 
   return 0;
 }
