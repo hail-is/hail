@@ -18,17 +18,21 @@ class GroupedBTreeKey(kt: PType, kb: EmitClassBuilder[_], region: Value[Region],
   val compType: PType = kt
   private val kcomp = kb.getCodeOrdering(kt, CodeOrdering.Compare(), ignoreMissingness = false)
 
-  private val compLoader: EmitMethodBuilder[_] = {
-    val mb = kb.genEmitMethod("compWithKey", FastIndexedSeq[ParamType](typeInfo[Long], compType.asEmitParam), typeInfo[Int])
-    val off = mb.getCodeParam[Long](1)
-    val ev1 = EmitCode(Code._empty, isKeyMissing(off), PCode(compType, loadKey(off)))
-    val ev2 = mb.getEmitParam(2)
-    mb.emitWithBuilder(compKeys(_, ev1, ev2))
-    mb
+  // FIXME (k.pt and compType can be mismatched)
+  override def compWithKey(cb: EmitCodeBuilder, off: Code[Long], k: EmitCode): Code[Int] = {
+    val mb = kb.getOrGenEmitMethod("compWithKey",
+      "compWithKey_grouped_btree" -> k.pt,
+      FastIndexedSeq[ParamType](typeInfo[Long], k.pt.asEmitParam),
+      typeInfo[Int]
+    ) { mb =>
+      val comp = kb.getCodeOrdering(compType, k.pt, CodeOrdering.Compare(), ignoreMissingness = false)
+      val off = mb.getCodeParam[Long](1)
+      val ev1 = EmitCode(Code._empty, isKeyMissing(off), PCode(compType, loadKey(off)))
+      val ev2 = mb.getEmitParam(2)
+      mb.emitWithBuilder(comp(_, ev1, ev2))
+    }
+    cb.invokeCode(mb, off, k)
   }
-
-  override def compWithKey(cb: EmitCodeBuilder, off: Code[Long], k: EmitCode): Code[Int] =
-    cb.invokeCode(compLoader, off, k)
 
   val regionIdx: Value[Int] = new Value[Int] {
     def get: Code[Int] = Region.loadInt(storageType.fieldOffset(offset, 1))
