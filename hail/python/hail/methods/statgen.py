@@ -34,6 +34,45 @@ _hwe_normalized_blanczos = pca._hwe_normalized_blanczos
 hwe_normalized_pca = pca.hwe_normalized_pca
 pca = pca.pca
 
+@typecheck(call=expr_call,
+           aaf=expr_any,
+           include_par=bool,
+           female_threshold=numeric,
+           male_threshold=numeric)
+def impute_sex_aggregator(call,
+                          aaf,
+                          aaf_threshold=0.0,
+                          include_par=False,
+                          female_threshold=0.2,
+                          male_threshold=0.8) -> hl.Table:
+    """:func:`.impute_sex` as an aggregator."""
+    mt = call._indices.source
+    rg = mt.locus.dtype.reference_genome
+    x_contigs = hl.literal(
+        hl.eval(
+            hl.map(lambda x_contig: hl.parse_locus_interval(x_contig, rg), rg.x_contigs)))
+
+    inbreeding = hl.agg.inbreeding(call, aaf)
+    is_female = hl.if_else(inbreeding.f_stat < female_threshold,
+                           True,
+                           hl.if_else(inbreeding.f_stat > male_threshold,
+                                      False,
+                                      hl.missing(tbool)))
+    expression = hl.struct(is_female = is_female, **inbreeding)
+
+    if not include_par:
+        interval_type = hl.tarray(hl.tinterval(hl.tlocus(rg)))
+        par_intervals = hl.literal(rg.par, interval_type)
+        expression = hl.agg.filter(
+            ~par_intervals.any(lambda par_interval: par_interval.contains(mt.locus)),
+            expression)
+
+    expression = hl.agg.filter((aaf > aaf_threshold) & (aaf < (1 - aaf_threshold)), expression)
+    expression = hl.agg.filter(
+        x_contigs.any(lambda contig: contig.contains(mt.locus)),
+        expression)
+    return expression
+
 
 @typecheck(call=expr_call,
            aaf_threshold=numeric,
