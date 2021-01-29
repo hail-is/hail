@@ -196,7 +196,9 @@ class ServiceBackend() extends Backend {
               JString(root),
               JString(s"$i"))),
             "type" -> JString("jvm")),
-          "mount_tokens" -> JBool(true))
+          "mount_tokens" -> JBool(true),
+          "resources" -> JObject(
+            "cpu" -> JString("1")))
       i += 1
     }
 
