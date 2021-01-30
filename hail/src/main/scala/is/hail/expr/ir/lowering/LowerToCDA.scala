@@ -38,7 +38,6 @@ object LowerToCDA {
       if (!Compilable(loweredValue))
         throw new LowererUnsupportedOperation(s"lowered to uncompilable IR: ${ Pretty(ir) }")
 
-      println(Pretty(loweredValue))
       val (pt: PTuple, f) = ctx.timer.time("Compile") {
         Compile[AsmFunction1RegionLong](ctx,
           FastIndexedSeq[(String, PType)](),
