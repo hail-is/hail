@@ -311,10 +311,11 @@ class EmitStreamSuite extends HailSuite {
       TypeCheck(s)
       EmitStream.emit(ctx, new Emit(ctx, fb.ecb), s, mb, region, Env.empty, None)
     }
-    mb.emit {
-      val arrayt = stream.map(s => EmitStream.toArray(mb, PCanonicalArray(eltType), s.asStream, region))
-      Code(arrayt.setup, arrayt.m.mux(0L, arrayt.v))
-    }
+    mb.emit(EmitCodeBuilder.scopedCode(mb) { cb =>
+      stream.toI(cb).consumeCode[Long](cb, 0L, { s =>
+        EmitStream.toArray(cb, PCanonicalArray(eltType), s.asStream, region).tcode[Long]
+      })
+    })
     val f = fb.resultWithIndex()
     (arg: T) => pool.scopedRegion { r =>
       val off = call(f(0, r), r, arg)
