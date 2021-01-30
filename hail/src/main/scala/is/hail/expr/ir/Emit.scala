@@ -17,7 +17,7 @@ import is.hail.services.shuffler._
 import is.hail.types.physical._
 import is.hail.types.physical.stypes.SCode
 import is.hail.types.physical.stypes.concrete.{SCanonicalShufflePointerCode, SCanonicalShufflePointerSettable}
-import is.hail.types.physical.stypes.interfaces.SBaseStructCode
+import is.hail.types.physical.stypes.interfaces.{SBaseStructCode, SNDArray}
 import is.hail.types.physical.stypes.primitives.{SFloat32, SFloat64, SInt32, SInt64, SInt64Code}
 import is.hail.types.virtual._
 import is.hail.utils._
@@ -920,9 +920,9 @@ class Emit[C](
         }
 
       case x@MakeNDArray(dataIR, shapeIR, rowMajorIR) =>
-        val xP = x.pType
+        val xP = coerce[PCanonicalNDArray](x.pType)
         val shapePType = coerce[PTuple](shapeIR.pType)
-        val dataPType = xP.data.pType
+        val dataPType = xP.dataType
         val nDims = shapePType.size
 
         emitI(rowMajorIR).flatMap(cb) { isRowMajorCode =>
@@ -936,24 +936,31 @@ class Emit[C](
                   cb.append(Code._fatal[Unit](s"shape missing at index $index")))
               }
 
-              val stridesPSettable = cb.emb.ecb.newPField(x.pType.shape.pType)
+              val stridesSettables = (0 until nDims).map(i => cb.newLocal[Long](s"make_ndarray_stride_$i"))
 
-              val shapeCodeSeq1 = (0 until nDims).map { i =>
+              val shapeValues = (0 until nDims).map { i =>
                 shapeTupleValue.loadField(cb, i).get(cb).memoize(cb, s"make_ndarray_shape_${i}").asPValue.value.asInstanceOf[Value[Long]]
               }
 
               cb.ifx(isRowMajorCode.asBoolean.boolCode(cb), {
-                cb.assign(stridesPSettable, xP.makeRowMajorStridesStruct(shapeCodeSeq1, region.code, cb).toPCode(cb, region.code))
+                val strides = xP.makeRowMajorStrides(shapeValues, region.code, cb)
+
+                stridesSettables.zip(strides).foreach { case (settable, stride) =>
+                  cb.assign(settable, stride)
+                }
               }, {
-                cb.assign(stridesPSettable, xP.makeColumnMajorStridesStruct(shapeCodeSeq1, region.code, cb).toPCode(cb,  region.code))
+                val strides = xP.makeColumnMajorStrides(shapeValues, region.code, cb)
+                stridesSettables.zip(strides).foreach { case (settable, stride) =>
+                  cb.assign(settable, stride)
+                }
               })
 
-              xP.construct(shapeTupleValue.pc.asBaseStruct, stridesPSettable.pc.asBaseStruct, requiredData, cb, region.code)
+              xP.construct(shapeValues, stridesSettables, requiredData, cb, region.code)
             }
           }
         }
       case NDArrayShape(ndIR) =>
-        emitI(ndIR).map(cb){ case pc: PNDArrayCode => pc.shape.asPCode}
+        emitI(ndIR).map(cb){ case pc: PNDArrayCode => pc.shape(cb).asPCode}
       case x@NDArrayReindex(child, indexMap) =>
         val childEC = emitI(child)
         val childPType = coerce[PNDArray](child.pType)
@@ -970,8 +977,8 @@ class Emit[C](
           }
 
           x.pType.construct(
-            x.pType.makeShapeStruct(newShape, region.code, cb),
-            x.pType.makeShapeStruct(newStrides, region.code, cb),
+            newShape,
+            newStrides,
             childPType.dataPArrayPointer(pndVal.tcode[Long]),
             cb,
             region.code)
@@ -1027,8 +1034,8 @@ class Emit[C](
               val LDC = M
 
               cb.ifx((M cne 0L) && (N cne 0L) && (K cne 0L), {
-                cb.assign(answerPArrayAddress, outputPType.data.pType.allocate(region.code, (M * N).toI))
-                cb.append(outputPType.data.pType.stagedInitialize(answerPArrayAddress, (M * N).toI))
+                cb.assign(answerPArrayAddress, outputPType.dataType.allocate(region.code, (M * N).toI))
+                cb.append(outputPType.dataType.stagedInitialize(answerPArrayAddress, (M * N).toI))
                 cb.append(lPType.elementType match {
                   case PFloat32(_) =>
                     Code.invokeScalaObject13[String, String, Int, Int, Int, Float, Long, Int, Long, Int, Float, Long, Int, Unit](BLAS.getClass, method = "sgemm",
@@ -1043,7 +1050,7 @@ class Emit[C](
                       rightDataAddress,
                       LDB.toI,
                       0.0f,
-                      outputPType.data.pType.firstElementOffset(answerPArrayAddress, (M * N).toI),
+                      outputPType.dataType.firstElementOffset(answerPArrayAddress, (M * N).toI),
                       LDC.toI
                     )
                   case PFloat64(_) =>
@@ -1059,18 +1066,18 @@ class Emit[C](
                       rightDataAddress,
                       LDB.toI,
                       0.0,
-                      outputPType.data.pType.firstElementOffset(answerPArrayAddress, (M * N).toI),
+                      outputPType.dataType.firstElementOffset(answerPArrayAddress, (M * N).toI),
                       LDC.toI
                     )
                 })
               },
                 {
-                  cb.assign(answerPArrayAddress, outputPType.data.pType.zeroes(mb, region.code, (M * N).toI))
+                  cb.assign(answerPArrayAddress, outputPType.dataType.zeroes(mb, region.code, (M * N).toI))
                 }
               )
               val res = outputPType.construct(
-                outputPType.makeShapeStruct(IndexedSeq(M, N), region.code, cb),
-                outputPType.makeColumnMajorStridesStruct(IndexedSeq(M, N), region.code, cb),
+                IndexedSeq(M, N),
+                outputPType.makeColumnMajorStrides(IndexedSeq(M, N), region.code, cb),
                 answerPArrayAddress,
                 cb,
                 region.code)
@@ -1135,13 +1142,15 @@ class Emit[C](
           val pndVal = pNDCode.memoize(cb, "ndarray_inverse_nd")
           val shapeArray = pndVal.shapes(cb)
 
+          val ndPT = pndVal.pt.asInstanceOf[PCanonicalNDArray]
+
           assert(shapeArray.length == 2)
 
           val M = shapeArray(0)
           val N = shapeArray(1)
           val LDA = M
 
-          val dataAddress = pndVal.pt.data.load(pndVal.tcode[Long])
+          val dataAddress = pndVal.dataAddress(cb)
 
           val IPIVptype = PCanonicalArray(PInt32Required, true)
           val IPIVaddr = mb.genFieldThisRef[Long]()
@@ -1157,10 +1166,10 @@ class Emit[C](
           cb.append((N cne M).orEmpty(Code._fatal[Unit](const("Can only invert square matrix"))))
 
           cb.assign(An, (M * N).toI)
-          cb.assign(Aaddr, pndVal.pt.data.pType.allocate(region.code, An))
-          cb.append(pndVal.pt.data.pType.stagedInitialize(Aaddr, An))
-          cb.append(Region.copyFrom(pndVal.pt.data.pType.firstElementOffset(dataAddress, An),
-            pndVal.pt.data.pType.firstElementOffset(Aaddr, An), An.toL * 8L))
+          cb.assign(Aaddr, ndPT.dataType.allocate(region.code, An))
+          cb.append(ndPT.dataType.stagedInitialize(Aaddr, An))
+          cb.append(Region.copyFrom(ndPT.dataType.firstElementOffset(dataAddress, An),
+            ndPT.dataType.firstElementOffset(Aaddr, An), An.toL * 8L))
 
           cb.assign(IPIVaddr, IPIVptype.allocate(region.code, N.toI))
           cb.append(IPIVptype.stagedInitialize(IPIVaddr, N.toI))
@@ -1168,7 +1177,7 @@ class Emit[C](
           cb.assign(INFOdgetrf, Code.invokeScalaObject5[Int, Int, Long, Int, Long, Int](LAPACK.getClass, "dgetrf",
             M.toI,
             N.toI,
-            pndVal.pt.data.pType.firstElementOffset(Aaddr, An.toI),
+            ndPT.dataType.firstElementOffset(Aaddr, An.toI),
             LDA.toI,
             IPIVptype.firstElementOffset(IPIVaddr, N.toI)
           ))
@@ -1178,7 +1187,7 @@ class Emit[C](
 
           cb.assign(INFOdgetri, Code.invokeScalaObject6[Int, Long, Int, Long, Long, Int, Int](LAPACK.getClass, "dgetri",
             N.toI,
-            pndVal.pt.data.pType.firstElementOffset(Aaddr, An.toI),
+            ndPT.dataType.firstElementOffset(Aaddr, An.toI),
             LDA.toI,
             IPIVptype.firstElementOffset(IPIVaddr, N.toI),
             WORKaddr,
@@ -1186,10 +1195,9 @@ class Emit[C](
           ))
           cb.append(INFOerror("dgetri", INFOdgetri))
 
-          val shapeStruct = pndVal.pt.makeShapeStruct(shapeArray, region.code, cb)
-          val stridesStruct = pndVal.pt.makeColumnMajorStridesStruct(shapeArray, region.code, cb)
+          val stridesStruct = ndPT.makeColumnMajorStrides(shapeArray, region.code, cb)
 
-          pndVal.pt.construct(shapeStruct, stridesStruct, Aaddr, cb, region.code)
+          ndPT.construct(shapeArray, stridesStruct, Aaddr, cb, region.code)
         }
       case x@NDArraySVD(nd, full_matrices, computeUV) =>
         emitNDArrayColumnMajorStrides(nd).flatMap(cb){ case ndPCode: PNDArrayCode =>
@@ -1218,33 +1226,33 @@ class Emit[C](
           val A = cb.newLocal[Long]("dgesdd_A_address")
           val dataAddress = cb.newLocal[Long]("nd_svd_dataArray_address")
 
-          cb.assign(dataAddress, ndPVal.pt.data.load(ndPVal.value.asInstanceOf[Value[Long]]))
+          cb.assign(dataAddress, ndPVal.dataAddress(cb))
           cb.assign(LWORKAddress, Code.invokeStatic1[Memory, Long, Long]("malloc",  8L))
 
           val (jobz, sPType, optUPType, optVTPType) = if (computeUV) {
             val outputPType = x.pType.asInstanceOf[PTuple]
-            val uPType = outputPType.fields(0).typ.asInstanceOf[PNDArray]
-            val sPType = outputPType.fields(1).typ.asInstanceOf[PNDArray]
-            val vtPType = outputPType.fields(2).typ.asInstanceOf[PNDArray]
+            val uPType = outputPType.fields(0).typ.asInstanceOf[PCanonicalNDArray]
+            val sPType = outputPType.fields(1).typ.asInstanceOf[PCanonicalNDArray]
+            val vtPType = outputPType.fields(2).typ.asInstanceOf[PCanonicalNDArray]
 
-            cb.assign(U_data, uPType.data.pType.allocate(region.code, UCOL.toI * LDU.toI))
-            cb.append(uPType.data.pType.stagedInitialize(U_data, UCOL.toI * LDU.toI))
+            cb.assign(U_data, uPType.dataType.allocate(region.code, UCOL.toI * LDU.toI))
+            cb.append(uPType.dataType.stagedInitialize(U_data, UCOL.toI * LDU.toI))
 
-            cb.assign(vtData, vtPType.data.pType.allocate(region.code, N.toI * LDVT.toI))
-            cb.append(vtPType.data.pType.stagedInitialize(vtData, N.toI * LDVT.toI))
+            cb.assign(vtData, vtPType.dataType.allocate(region.code, N.toI * LDVT.toI))
+            cb.append(vtPType.dataType.stagedInitialize(vtData, N.toI * LDVT.toI))
             (if (full_matrices) "A" else "S", sPType, Some(uPType), Some(vtPType))
           }
           else {
             cb.assign(U_data, 0L)
             cb.assign(vtData, 0L)
-            ("N", x.pType.asInstanceOf[PNDArray], None, None)
+            ("N", x.pType.asInstanceOf[PCanonicalNDArray], None, None)
           }
 
-          cb.assign(sData, sPType.data.pType.allocate(region.code, K.toI))
-          cb.append(sPType.data.pType.stagedInitialize(sData, K.toI))
+          cb.assign(sData, sPType.dataType.allocate(region.code, K.toI))
+          cb.append(sPType.dataType.stagedInitialize(sData, K.toI))
 
-          def uStart = optUPType.map(uPType => uPType.data.pType.firstElementOffset(U_data)).getOrElse(U_data.get)
-          def vtStart = optVTPType.map(vtPType => vtPType.data.pType.firstElementOffset(vtData)).getOrElse(vtData.get)
+          def uStart = optUPType.map(uPType => uPType.dataType.firstElementOffset(U_data)).getOrElse(U_data.get)
+          def vtStart = optVTPType.map(vtPType => vtPType.dataType.firstElementOffset(vtData)).getOrElse(vtData.get)
 
           cb.assign(infoDGESDDResult, Code.invokeScalaObject13[String, Int, Int, Long, Int, Long, Long, Int, Long, Int, Long, Int, Long, Int](LAPACK.getClass, "dgesdd",
             jobz,
@@ -1252,7 +1260,7 @@ class Emit[C](
             N.toI,
             A,
             LDA.toI,
-            sPType.data.pType.firstElementOffset(sData),
+            sPType.dataType.firstElementOffset(sData),
             uStart,
             LDU.toI,
             vtStart,
@@ -1267,7 +1275,7 @@ class Emit[C](
           cb.assign(IWORK, Code.invokeStatic1[Memory, Long, Long]("malloc", K.toL * 8L * 4L)) // 8K 4 byte integers.
           cb.assign(A, Code.invokeStatic1[Memory, Long, Long]("malloc", M * N * 8L))
           // Copy data into A because dgesdd destroys the input array:
-          cb.append(Region.copyFrom(ndPType.data.pType.firstElementOffset(dataAddress, (M * N).toI), A, (M * N) * 8L))
+          cb.append(Region.copyFrom(ndPType.dataType.firstElementOffset(dataAddress, (M * N).toI), A, (M * N) * 8L))
 
           def LWORK = Region.loadDouble(LWORKAddress).toI
           val WORK = cb.newLocal[Long]("dgesdd_work_address")
@@ -1280,7 +1288,7 @@ class Emit[C](
             N.toI,
             A,
             LDA.toI,
-            sPType.data.pType.firstElementOffset(sData),
+            sPType.dataType.firstElementOffset(sData),
             uStart,
             LDU.toI,
             vtStart,
@@ -1298,16 +1306,16 @@ class Emit[C](
           cb.append(infoDGESDDErrorTest("Failed result computation."))
 
           val sShapeSeq = FastIndexedSeq[Value[Long]](K)
-          val s = sPType.construct(sPType.makeShapeStruct(sShapeSeq, region.code, cb), sPType.makeColumnMajorStridesStruct(sShapeSeq, region.code, cb), sData, cb, region.code)
+          val s = sPType.construct(sShapeSeq, sPType.makeColumnMajorStrides(sShapeSeq, region.code, cb), sData, cb, region.code)
 
           val resultPCode = if (computeUV) {
             val uShapeSeq = FastIndexedSeq[Value[Long]](M, UCOL)
             val uPType = optUPType.get
-            val u = uPType.construct(uPType.makeShapeStruct(uShapeSeq, region.code, cb), uPType.makeColumnMajorStridesStruct(uShapeSeq, region.code, cb), U_data, cb, region.code)
+            val u = uPType.construct(uShapeSeq, uPType.makeColumnMajorStrides(uShapeSeq, region.code, cb), U_data, cb, region.code)
 
             val vtShapeSeq = FastIndexedSeq[Value[Long]](LDVT, N)
             val vtPType = optVTPType.get
-            val vt = vtPType.construct(vtPType.makeShapeStruct(vtShapeSeq, region.code, cb), vtPType.makeColumnMajorStridesStruct(vtShapeSeq, region.code, cb), vtData, cb, region.code)
+            val vt = vtPType.construct(vtShapeSeq, vtPType.makeColumnMajorStrides(vtShapeSeq, region.code, cb), vtData, cb, region.code)
 
             val resultSRVB = new StagedRegionValueBuilder(mb, x.pType, region.code)
             cb.append(Code(
@@ -1350,7 +1358,8 @@ class Emit[C](
 
           def LWORK = Region.loadDouble(LWORKAddress).toI
 
-          val dataAddress = pndValue.pt.dataPArrayPointer(pndValue.tcode[Long])
+          val ndPT = pndValue.pt.asInstanceOf[PCanonicalNDArray]
+          val dataAddress = pndValue.dataAddress(cb)
 
           val tauPType = PCanonicalArray(PFloat64Required, true)
           val tauAddress = cb.newLocal[Long]("ndarray_qr_tauAddress")
@@ -1364,11 +1373,11 @@ class Emit[C](
             .orEmpty(Code._fatal[Unit](const(s"LAPACK error DGEQRF. $extraErrorMsg Error code = ").concat(infoDGEQRFResult.toS)))
 
           // Computing H and Tau
-          cb.assign(aNumElements, pndValue.pt.numElements(shapeArray))
-          cb.assign(aAddressDGEQRF, pndValue.pt.data.pType.allocate(region.code, aNumElements.toI))
-          cb.append(pndValue.pt.data.pType.stagedInitialize(aAddressDGEQRF, aNumElements.toI))
-          cb.append(Region.copyFrom(pndValue.pt.data.pType.firstElementOffset(dataAddress, (M * N).toI),
-            pndValue.pt.data.pType.firstElementOffset(aAddressDGEQRF, aNumElements.toI), (M * N) * 8L))
+          cb.assign(aNumElements, ndPT.numElements(shapeArray))
+          cb.assign(aAddressDGEQRF, ndPT.dataType.allocate(region.code, aNumElements.toI))
+          cb.append(ndPT.dataType.stagedInitialize(aAddressDGEQRF, aNumElements.toI))
+          cb.append(Region.copyFrom(ndPT.dataType.firstElementOffset(dataAddress, (M * N).toI),
+            ndPT.dataType.firstElementOffset(aAddressDGEQRF, aNumElements.toI), (M * N) * 8L))
 
           cb.assign(tauAddress, tauPType.allocate(region.code, K.toI))
           cb.append(tauPType.stagedInitialize(tauAddress, K.toI))
@@ -1378,7 +1387,7 @@ class Emit[C](
           cb.assign(infoDGEQRFResult, Code.invokeScalaObject7[Int, Int, Long, Int, Long, Long, Int, Int](LAPACK.getClass, "dgeqrf",
             M.toI,
             N.toI,
-            pndValue.pt.data.pType.firstElementOffset(aAddressDGEQRF, aNumElements.toI),
+            ndPT.dataType.firstElementOffset(aAddressDGEQRF, aNumElements.toI),
             LDA.toI,
             tauPType.firstElementOffset(tauAddress, K.toI),
             LWORKAddress,
@@ -1390,7 +1399,7 @@ class Emit[C](
           cb.assign(infoDGEQRFResult, Code.invokeScalaObject7[Int, Int, Long, Int, Long, Long, Int, Int](LAPACK.getClass, "dgeqrf",
             M.toI,
             N.toI,
-            pndValue.pt.data.pType.firstElementOffset(aAddressDGEQRF, aNumElements.toI),
+            ndPT.dataType.firstElementOffset(aAddressDGEQRF, aNumElements.toI),
             LDA.toI,
             tauPType.firstElementOffset(tauAddress, K.toI),
             workAddress,
@@ -1399,51 +1408,42 @@ class Emit[C](
           cb.append(Code.invokeStatic1[Memory, Long, Unit]("free", workAddress.load()))
           cb.append(infoDGEQRFErrorTest("Failed to compute H and Tau."))
 
-          val result: Code[Long] = if (mode == "raw") {
+          val resultType = x.pType.asInstanceOf[PCanonicalBaseStruct]
+          val result: PCode = if (mode == "raw") {
             val rawPType = x.pType.asInstanceOf[PTuple]
-            val rawOutputSrvb = new StagedRegionValueBuilder(mb, x.pType, region.code)
-            val hPType = rawPType.types(0).asInstanceOf[PNDArray]
-            val tauPType = rawPType.types(1).asInstanceOf[PNDArray]
+            val hPType = rawPType.types(0).asInstanceOf[PCanonicalNDArray]
+            val tauPType = rawPType.types(1).asInstanceOf[PCanonicalNDArray]
 
             val hShapeArray = FastIndexedSeq[Value[Long]](N, M)
-            val hShapeStruct = hPType.makeShapeStruct(hShapeArray, region.code, cb)
-            val hStridesStruct = hPType.makeRowMajorStridesStruct(hShapeArray, region.code, cb)
+            val hStridesStruct = hPType.makeRowMajorStrides(hShapeArray, region.code, cb)
 
-            val tauShapeStruct = tauPType.makeShapeStruct(FastIndexedSeq(K), region.code, cb)
-            val tauStridesStruct = tauPType.makeRowMajorStridesStruct(FastIndexedSeq(K), region.code, cb)
+            val tauStridesStruct = tauPType.makeRowMajorStrides(FastIndexedSeq(K), region.code, cb)
 
-            val h = hPType.construct(hShapeStruct, hStridesStruct, aAddressDGEQRF, cb, region.code)
-            val tau = tauPType.construct(tauShapeStruct, tauStridesStruct, tauAddress, cb, region.code)
+            val h = hPType.construct(hShapeArray, hStridesStruct, aAddressDGEQRF, cb, region.code)
+            val tau = tauPType.construct(FastIndexedSeq(K), tauStridesStruct, tauAddress, cb, region.code)
 
-            val constructHAndTauTuple = Code(
-              rawOutputSrvb.start(),
-              rawOutputSrvb.addIRIntermediate(h),
-              rawOutputSrvb.advance(),
-              rawOutputSrvb.addIRIntermediate(tau),
-              rawOutputSrvb.advance(),
-              rawOutputSrvb.end()
-            )
-
-            constructHAndTauTuple
+            resultType.constructFromFields(cb, region.code, FastIndexedSeq(
+              EmitCode.present(h),
+              EmitCode.present(tau)
+            ), deepCopy = false)
 
           } else {
             val (rPType, rRows, rCols) = if (mode == "r") {
-              (x.pType.asInstanceOf[PNDArray], K, N)
+              (x.pType.asInstanceOf[PCanonicalNDArray], K, N)
             } else if (mode == "complete") {
-              (x.pType.asInstanceOf[PTuple].types(1).asInstanceOf[PNDArray], M, N)
+              (x.pType.asInstanceOf[PTuple].types(1).asInstanceOf[PCanonicalNDArray], M, N)
             } else if (mode == "reduced") {
-              (x.pType.asInstanceOf[PTuple].types(1).asInstanceOf[PNDArray], K, N)
+              (x.pType.asInstanceOf[PTuple].types(1).asInstanceOf[PCanonicalNDArray], K, N)
             } else {
               throw new AssertionError(s"Unsupported QR mode $mode")
             }
 
             val rShapeArray = FastIndexedSeq[Value[Long]](rRows, rCols)
 
-            val rShapeStruct = rPType.makeShapeStruct(rShapeArray, region.code, cb)
-            val rStridesStruct = rPType.makeColumnMajorStridesStruct(rShapeArray, region.code, cb)
+            val rStridesStruct = rPType.makeColumnMajorStrides(rShapeArray, region.code, cb)
 
-            cb.assign(rDataAddress, rPType.data.pType.allocate(region.code, aNumElements.toI))
-            cb.append(rPType.data.pType.stagedInitialize(rDataAddress, (rRows * rCols).toI))
+            cb.assign(rDataAddress, rPType.dataType.allocate(region.code, aNumElements.toI))
+            cb.append(rPType.dataType.stagedInitialize(rDataAddress, (rRows * rCols).toI))
 
             // This block assumes that `rDataAddress` and `aAddressDGEQRF` point to column major arrays.
             // TODO: Abstract this into ndarray ptype/pcode interface methods.
@@ -1453,28 +1453,26 @@ class Emit[C](
             cb.forLoop({cb.assign(currCol, 0)}, currCol < rCols.toI, {cb.assign(currCol, currCol + 1)}, {
               cb.forLoop({cb.assign(currRow, 0)}, currRow < rRows.toI, {cb.assign(currRow, currRow + 1)}, {
                 cb.append(Region.storeDouble(
-                  pndValue.pt.data.pType.elementOffset(rDataAddress, aNumElements.toI, currCol * rRows.toI + currRow),
+                  ndPT.dataType.elementOffset(rDataAddress, aNumElements.toI, currCol * rRows.toI + currRow),
                   (currCol >= currRow).mux(
-                    Region.loadDouble(pndValue.pt.data.pType.elementOffset(aAddressDGEQRF, aNumElements.toI, currCol * M.toI + currRow)),
+                    Region.loadDouble(ndPT.dataType.elementOffset(aAddressDGEQRF, aNumElements.toI, currCol * M.toI + currRow)),
                     0.0
                   )
                 ))
               })
             })
 
-            val computeR = rPType.construct(rShapeStruct, rStridesStruct, rDataAddress, cb, region.code)
+            val computeR = rPType.construct(rShapeArray, rStridesStruct, rDataAddress, cb, region.code)
 
             if (mode == "r") {
-              computeR.tcode[Long]
+              computeR
             }
             else {
               val crPType = x.pType.asInstanceOf[PTuple]
-              val crOutputSrvb = new StagedRegionValueBuilder(mb, crPType, region.code)
 
-              val qPType = crPType.types(0).asInstanceOf[PNDArray]
+              val qPType = crPType.types(0).asInstanceOf[PCanonicalNDArray]
               val qShapeArray = if (mode == "complete") Array(M, M) else Array(M, K)
-              val qShapeStruct = qPType.makeShapeStruct(qShapeArray, region.code, cb)
-              val qStridesStruct = qPType.makeColumnMajorStridesStruct(qShapeArray, region.code, cb)
+              val qStridesStruct = qPType.makeColumnMajorStrides(qShapeArray, region.code, cb)
 
               val qDataAddress = cb.newLocal[Long]("ndarray_qr_qDataAddress")
 
@@ -1495,10 +1493,10 @@ class Emit[C](
               cb.assign(qNumElements, M * numColsToUse)
 
               cb.ifx(qCondition, {
-                cb.assign(aAddressDORGQR, pndValue.pt.data.pType.allocate(region.code, qNumElements.toI))
-                cb.append(qPType.data.pType.stagedInitialize(aAddressDORGQR, qNumElements.toI))
-                cb.append(Region.copyFrom(pndValue.pt.data.pType.firstElementOffset(aAddressDGEQRF, aNumElements.toI),
-                  qPType.data.pType.firstElementOffset(aAddressDORGQR, qNumElements.toI), aNumElements * 8L))
+                cb.assign(aAddressDORGQR, ndPT.dataType.allocate(region.code, qNumElements.toI))
+                cb.append(qPType.dataType.stagedInitialize(aAddressDORGQR, qNumElements.toI))
+                cb.append(Region.copyFrom(ndPT.dataType.firstElementOffset(aAddressDGEQRF, aNumElements.toI),
+                  qPType.dataType.firstElementOffset(aAddressDORGQR, qNumElements.toI), aNumElements * 8L))
               }, {
                 cb.assign(aAddressDORGQR, aAddressDGEQRF)
               })
@@ -1507,7 +1505,7 @@ class Emit[C](
                 M.toI,
                 numColsToUse.toI,
                 K.toI,
-                pndValue.pt.data.pType.firstElementOffset(aAddressDORGQR, aNumElements.toI),
+                ndPT.dataType.firstElementOffset(aAddressDORGQR, aNumElements.toI),
                 LDA.toI,
                 tauPType.firstElementOffset(tauAddress, K.toI),
                 LWORKAddress,
@@ -1519,7 +1517,7 @@ class Emit[C](
                 M.toI,
                 numColsToUse.toI,
                 K.toI,
-                pndValue.pt.data.pType.elementOffset(aAddressDORGQR, (M * numColsToUse).toI, 0),
+                ndPT.dataType.elementOffset(aAddressDORGQR, (M * numColsToUse).toI, 0),
                 LDA.toI,
                 tauPType.elementOffset(tauAddress, K.toI, 0),
                 workAddress,
@@ -1527,24 +1525,18 @@ class Emit[C](
               ))
               cb.append(Code.invokeStatic1[Memory, Long, Unit]("free", workAddress.load()))
               cb.append(infoDORQRErrorTest("Failed to compute Q."))
-              cb.assign(qDataAddress, qPType.data.pType.allocate(region.code, qNumElements.toI))
-              cb.append(qPType.data.pType.stagedInitialize(qDataAddress, qNumElements.toI))
-              cb.append(Region.copyFrom(pndValue.pt.data.pType.firstElementOffset(aAddressDORGQR),
-                qPType.data.pType.firstElementOffset(qDataAddress), (M * numColsToUse) * 8L))
+              cb.assign(qDataAddress, qPType.dataType.allocate(region.code, qNumElements.toI))
+              cb.append(qPType.dataType.stagedInitialize(qDataAddress, qNumElements.toI))
+              cb.append(Region.copyFrom(ndPT.dataType.firstElementOffset(aAddressDORGQR),
+                qPType.dataType.firstElementOffset(qDataAddress), (M * numColsToUse) * 8L))
 
-              val computeCompleteOrReduced = Code(Code(FastIndexedSeq(
-                crOutputSrvb.start(),
-                crOutputSrvb.addIRIntermediate(qPType.construct(qShapeStruct, qStridesStruct, qDataAddress, cb, region.code)),
-                crOutputSrvb.advance(),
-                crOutputSrvb.addIRIntermediate(rNDArray),
-                crOutputSrvb.advance())),
-                crOutputSrvb.end()
-              )
-
-              computeCompleteOrReduced
+              resultType.constructFromFields(cb, region.code, FastIndexedSeq(
+                EmitCode.present(qPType.construct(qShapeArray, qStridesStruct, qDataAddress, cb, region.code)),
+                EmitCode.present(rNDArray)
+              ), deepCopy = false)
             }
           }
-          PCode(pt, result)
+          result
         }
       case x: NDArrayMap  =>  emitDeforestedNDArrayI(x)
       case x: NDArrayMap2 =>  emitDeforestedNDArrayI(x)
@@ -2787,7 +2779,7 @@ class Emit[C](
                 val ndShape = firstND.shapes(cb)
                 cb.assign(localDim, ndShape(dimIdx))
                 cb.forLoop(cb.assign(loopIdx, 1), loopIdx < arrLength, cb.assign(loopIdx, loopIdx + 1), {
-                  val shapeOfNDAtIdx = ndsArrayPValue.loadElement(cb, loopIdx).map(cb) { sCode => sCode.asNDArray }.get(cb).shape.memoize(cb, "ndarray_concat_input_shape")
+                  val shapeOfNDAtIdx = ndsArrayPValue.loadElement(cb, loopIdx).map(cb) { sCode => sCode.asNDArray }.get(cb).shape(cb).memoize(cb, "ndarray_concat_input_shape")
                   val dimLength = shapeOfNDAtIdx.loadField(cb, dimIdx).get(cb).toPCode(cb, region.code).memoize(cb, "dimLength").value.asInstanceOf[Value[Long]]
 
                   if (dimIdx == axis) {
@@ -2812,10 +2804,10 @@ class Emit[C](
                   cb.assign(concatAxisIdx, idxVars(axis))
                   cb.assign(whichNDArrayToRead, 0)
                   val condition = EmitCodeBuilder.scopedCode[Boolean](cb.emb) { cb =>
-                    (concatAxisIdx >= ndsArrayPValue.loadElement(cb, whichNDArrayToRead).get(cb).asNDArray.shape.memoize(cb, "ndarray_concat_condition").loadField(cb, axis).get(cb).asLong.longCode(cb))
+                    (concatAxisIdx >= ndsArrayPValue.loadElement(cb, whichNDArrayToRead).get(cb).asNDArray.shape(cb).memoize(cb, "ndarray_concat_condition").loadField(cb, axis).get(cb).asLong.longCode(cb))
                   }
                   cb.whileLoop(condition, {
-                    cb.assign(concatAxisIdx, concatAxisIdx - ndsArrayPValue.loadElement(cb, whichNDArrayToRead).get(cb).asNDArray.shape.memoize(cb, "ndarray_concat_output_subtract").loadField(cb, axis).get(cb).asLong.longCode(cb))
+                    cb.assign(concatAxisIdx, concatAxisIdx - ndsArrayPValue.loadElement(cb, whichNDArrayToRead).get(cb).asNDArray.shape(cb).memoize(cb, "ndarray_concat_output_subtract").loadField(cb, axis).get(cb).asLong.longCode(cb))
                     cb.assign(whichNDArrayToRead, whichNDArrayToRead + 1)
                   })
                   cb.ifx(whichNDArrayToRead >= arrLength, cb._fatal(const("NDArrayConcat: trying to access element greater than length of concatenation axis: ").concat(whichNDArrayToRead.toS).concat(" > ").concat((arrLength - 1).toS)))
@@ -2842,7 +2834,7 @@ class Emit[C](
       }
     }
 
-    deforest(x0).map(cb)(emitter => emitter.emit(cb, coerce[PNDArray](x0.pType), region.code))
+    deforest(x0).map(cb)(emitter => emitter.emit(cb, coerce[PCanonicalNDArray](x0.pType), region.code))
   }
 }
 
@@ -2942,48 +2934,25 @@ abstract class NDArrayEmitter(val outputShape: IndexedSeq[Value[Long]])
 
   def outputElement(cb: EmitCodeBuilder, idxVars: IndexedSeq[Value[Long]]): PCode
 
-  def emit(cb: EmitCodeBuilder, targetType: PNDArray, region: Value[Region]): PCode = {
+  def emit(cb: EmitCodeBuilder, targetType: PCanonicalNDArray, region: Value[Region]): PCode = {
     val shapeArray = outputShape
-    val dataSrvb = new StagedRegionValueBuilder(cb.emb, targetType.data.pType, region)
-    cb.append(dataSrvb.start(targetType.numElements(shapeArray).toI))
-    emitLoops(cb, shapeArray, targetType.elementType, dataSrvb)
-    val dataAddress: Code[Long] = dataSrvb.end()
+    val len = cb.newLocal[Int]("ndarrayemitter_emitloops_len", targetType.numElements(shapeArray).toI)
+    val (addElement, finish) = targetType.dataType.constructFromFunctions(cb, region, len , false)
+    val idx = cb.newLocal[Int]("ndarrayemitter_emitloops_idx", 0)
+    SNDArray.forEachIndex(cb, shapeArray, "ndarrayemitter_emitloops") { case (cb, idxVars) =>
+      addElement(cb, idx, IEmitCode.present(cb, outputElement(cb, idxVars)))
+      cb.assign(idx, idx + 1)
+    }
+    val dataAddress = finish(cb).a
 
     val ptr = targetType.construct(
-      targetType.makeShapeStruct(outputShape, region, cb),
-      targetType.makeColumnMajorStridesStruct(shapeArray, region, cb),
+      outputShape,
+      targetType.makeColumnMajorStrides(shapeArray, region, cb),
       dataAddress,
       cb,
       region)
 
     ptr
   }
-
-  private def emitLoops(cb: EmitCodeBuilder, outputShapeVariables: IndexedSeq[Value[Long]], outputElementPType: PType, srvb: StagedRegionValueBuilder): Unit = {
-    val idxVars = Array.tabulate(nDims) { i => cb.newField[Long](s"ndarray_emitter_idxVar_$i") }.toFastIndexedSeq
-    val storeElement = cb.emb.newPresentEmitField("nda_elem_out", outputElementPType)//mb.newLocal("nda_elem_out")(typeToTypeInfo(outputElementPType))
-
-    def recurLoopBuilder(dimIdx: Int, innerLambda: () => Unit): Unit = {
-      if (dimIdx == nDims) {
-        innerLambda()
-      }
-      else {
-        val dimVar = idxVars(dimIdx)
-
-        recurLoopBuilder(dimIdx + 1,
-          () => {cb.forLoop({cb.assign(dimVar, 0L)},  dimVar < outputShapeVariables(dimIdx), {cb.assign(dimVar, dimVar + 1L)},
-            innerLambda()
-          )}
-        )
-      }
-    }
-
-    val body = () => {
-      cb.assign(storeElement, outputElement(cb, idxVars))
-      cb.append(srvb.addIRIntermediate(storeElement.pv))
-      cb.append(srvb.advance())
-    }
-
-    recurLoopBuilder(0, body)
-  }
 }
+

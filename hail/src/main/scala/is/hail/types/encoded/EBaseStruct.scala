@@ -42,7 +42,7 @@ final case class EBaseStruct(fields: IndexedSeq[EField], override val required: 
   }
 
   override def _decodeCompatible(pt: PType): Boolean = {
-    val pt2 = if (pt.isInstanceOf[PNDArray]) pt.asInstanceOf[PNDArray].representation else pt
+    val pt2 = if (pt.isInstanceOf[PCanonicalNDArray]) pt.asInstanceOf[PCanonicalNDArray].representation else pt
 
     if (!pt2.isInstanceOf[PBaseStruct])
       false
@@ -153,7 +153,7 @@ final case class EBaseStruct(fields: IndexedSeq[EField], override val required: 
     region: Value[Region],
     in: Value[InputBuffer]
   ): Code[Long] = {
-    val pt = if (_pt.isInstanceOf[PNDArray]) _pt.asInstanceOf[PNDArray].representation
+    val pt = if (_pt.isInstanceOf[PCanonicalNDArray]) _pt.asInstanceOf[PCanonicalNDArray].representation
              else _pt.asInstanceOf[PBaseStruct]
 
     val addr = cb.newLocal[Long]("addr", pt.allocate(region))
@@ -168,7 +168,7 @@ final case class EBaseStruct(fields: IndexedSeq[EField], override val required: 
     addr: Value[Long],
     in: Value[InputBuffer]
   ): Unit = {
-    val pt = if (_pt.isInstanceOf[PNDArray]) _pt.asInstanceOf[PNDArray].representation
+    val pt = if (_pt.isInstanceOf[PCanonicalNDArray]) _pt.asInstanceOf[PCanonicalNDArray].representation
              else _pt.asInstanceOf[PBaseStruct]
     val mbytes = cb.newLocal[Long]("mbytes", region.allocate(const(1), const(nMissingBytes)))
     cb += in.readBytes(region, mbytes, nMissingBytes)
