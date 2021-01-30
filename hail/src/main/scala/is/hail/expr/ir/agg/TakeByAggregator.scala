@@ -7,7 +7,7 @@ import is.hail.expr.ir.{Ascending, EmitClassBuilder, EmitCode, EmitCodeBuilder, 
 import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer}
 import is.hail.types.VirtualTypeWithReq
 import is.hail.types.physical._
-import is.hail.types.physical.stypes.concrete.SIndexablePointerCode
+import is.hail.types.physical.stypes.concrete.{SBaseStructPointerCode, SIndexablePointerCode}
 import is.hail.types.virtual.{TInt32, Type}
 import is.hail.utils._
 
@@ -521,19 +521,16 @@ class TakeByRVAS(val valueVType: VirtualTypeWithReq, val keyVType: VirtualTypeWi
       mb.invokeCode(_, _, _)
     }
 
-    val i = mb.newLocal[Int]("i")
-    val o = mb.newLocal[Long]("i")
-
-    val srvb = (new StagedRegionValueBuilder(mb, resultType, r))
     mb.emitWithBuilder[Long] { cb =>
       val r = mb.getCodeParam[Region](1)
-
 
       val indicesToSort = cb.newLocal[Long]("indices_to_sort",
         r.load().allocate(4L, ab.size.toL * 4L))
 
+      val i = cb.newLocal[Int]("i", 0)
+
       cb.whileLoop(i < ab.size, {
-        Region.storeInt(indicesToSort + i.toL * 4L, i)
+        cb += Region.storeInt(indicesToSort + i.toL * 4L, i)
         cb.assign(i, i + 1)
       })
 
@@ -544,6 +541,9 @@ class TakeByRVAS(val valueVType: VirtualTypeWithReq, val keyVType: VirtualTypeWi
       resultType.constructFromElements(cb, r, ab.size, deepCopy = true) { case (cb, idx) =>
         val sortedIdx = cb.newLocal[Int]("tba_result_sortedidx", Region.loadInt(indexOffset(idx)))
         ab.loadElement(cb, sortedIdx).toI(cb)
+          .flatMap(cb) { case pct: SBaseStructPointerCode =>
+            pct.memoize(cb, "takeby_result_tuple").loadField(cb, 1).typecast[PCode]
+          }
       }.a
     }
     resultType.loadCheapPCode(cb, cb.invokeCode[Long](mb, _r))
