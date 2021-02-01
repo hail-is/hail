@@ -69,7 +69,7 @@ class SNDArrayPointerSettable(
   def store(cb: EmitCodeBuilder, v: PCode): Unit = {
     cb.assign(a, v.asInstanceOf[SNDArrayPointerCode].a)
     pt.loadShapes(cb, a, shape)
-    pt.loadStrides(cb, a, shape)
+    pt.loadStrides(cb, a, strides)
     cb.assign(dataFirstElement, pt.dataFirstElementPointer(a))
   }
 
