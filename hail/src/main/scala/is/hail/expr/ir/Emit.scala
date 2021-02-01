@@ -850,32 +850,27 @@ class Emit[C](
       case x@InsertFields(old, fields, fieldOrder) =>
         if (fields.isEmpty)
           emitI(old)
-        else
-          old.pType match {
-            case _: PStruct =>
-              val codeOld = emitI(old)
-              val updateMap = Map(fields: _*)
+        else {
+          val codeOld = emitI(old)
+          val updateMap = Map(fields: _*)
 
-              codeOld.map(cb) { oldPC =>
-                val oldPV = oldPC.asBaseStruct.memoize(cb, "insert_fields_old")
+          codeOld.map(cb) { oldPC =>
+            val oldPV = oldPC.asBaseStruct.memoize(cb, "insert_fields_old")
 
-                val itemsEC = x.pType.fields.map { f =>
-                  updateMap.get(f.name) match {
-                    case Some(vir) =>
-                      EmitCode.fromI(mb)(emitInNewBuilder(_, vir))
-                    case None =>
-                      EmitCode.fromI(mb)(oldPV.loadField(_, f.index).asInstanceOf[IEmitCode])
-                  }
-                }
-
-                x.pType.asInstanceOf[PCanonicalBaseStruct]
-                 .constructFromFields(cb, region.code, itemsEC, deepCopy = false)
-                 .asPCode
+            val itemsEC = x.pType.fields.map { f =>
+              updateMap.get(f.name) match {
+                case Some(vir) =>
+                  EmitCode.fromI(mb)(emitInNewBuilder(_, vir))
+                case None =>
+                  EmitCode.fromI(mb)(oldPV.loadField(_, f.index).typecast[PCode])
               }
-            case _ =>
-              val newIR = MakeStruct(fields)
-              emitI(newIR)
+            }
+
+            x.pType.asInstanceOf[PCanonicalBaseStruct]
+             .constructFromFields(cb, region.code, itemsEC, deepCopy = false)
+             .asPCode
           }
+        }
 
       case ApplyBinaryPrimOp(op, l, r) =>
         emitI(l).flatMap(cb) { pcL =>
