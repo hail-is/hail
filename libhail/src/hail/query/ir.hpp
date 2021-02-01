@@ -147,7 +147,7 @@ public:
   virtual void pretty_self(FormatStream &s, int indent);
   void pretty_self(FormatStream &s);
 
-  template<typename T> auto dispatch(T &visitor);
+  template<typename F> auto dispatch(F f);
 };
 
 extern void pretty(FormatStream &s, IR *x, int indent);
@@ -251,14 +251,14 @@ public:
   GetTupleElement(IRContextToken, Block *parent, IR *t, size_t index) : IR(self_tag, parent, {t}), index(index) {}
 };
 
-template<typename T> auto
-IR::dispatch(T &visitor) {
+template<typename F> auto
+IR::dispatch(F f) {
   switch(tag) {
-  case IR::Tag::BLOCK: return visitor.visit(cast<Block>(this));
-  case IR::Tag::INPUT: return visitor.visit(cast<Input>(this));
-  case IR::Tag::LITERAL: return visitor.visit(cast<Literal>(this));
-  case IR::Tag::NA: return visitor.visit(cast<NA>(this));
-  case IR::Tag::ISNA: return visitor.visit(cast<IsNA>(this));
+  case IR::Tag::BLOCK: return f(cast<Block>(this));
+  case IR::Tag::INPUT: return f(cast<Input>(this));
+  case IR::Tag::LITERAL: return f(cast<Literal>(this));
+  case IR::Tag::NA: return f(cast<NA>(this));
+  case IR::Tag::ISNA: return f(cast<IsNA>(this));
   default:
     abort();
   }

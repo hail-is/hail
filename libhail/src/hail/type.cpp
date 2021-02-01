@@ -106,33 +106,37 @@ TypeContext::get_vtype(const Type *type) {
   const VType *vtype = nullptr;
   switch(type->tag) {
   case Type::Tag::BOOL:
-    vtype = arena.make<VBool>(TypeContextToken());
+    vtype = arena.make<VBool>(TypeContextToken(), cast<TBool>(type));
     break;
   case Type::Tag::INT32:
-    vtype = arena.make<VInt32>(TypeContextToken());
+    vtype = arena.make<VInt32>(TypeContextToken(), cast<TInt32>(type));
     break;
   case Type::Tag::INT64:
-    vtype = arena.make<VInt64>(TypeContextToken());
+    vtype = arena.make<VInt64>(TypeContextToken(), cast<TInt64>(type));
     break;
   case Type::Tag::FLOAT32:
-    vtype = arena.make<VFloat32>(TypeContextToken());
+    vtype = arena.make<VFloat32>(TypeContextToken(), cast<TFloat32>(type));
     break;
   case Type::Tag::FLOAT64:
-    vtype = arena.make<VFloat64>(TypeContextToken());
+    vtype = arena.make<VFloat64>(TypeContextToken(), cast<TFloat64>(type));
     break;
   case Type::Tag::STR:
-    vtype = arena.make<VStr>(TypeContextToken());
+    vtype = arena.make<VStr>(TypeContextToken(), cast<TStr>(type));
     break;
   case Type::Tag::ARRAY:
-    vtype = arena.make<VArray>(TypeContextToken(), get_vtype(cast<TArray>(type)->element_type));
+    {
+      auto at = cast<TArray>(type);
+      vtype = arena.make<VArray>(TypeContextToken(), at, get_vtype(at->element_type));
+    }
     break;
   case Type::Tag::TUPLE:
     {
+      auto tt = cast<TTuple>(type);
       std::vector<const VType *> element_vtypes;
       std::vector<size_t> element_offsets;
       size_t offset = 0;
       size_t alignment = 1;
-      for (auto element_type : cast<TTuple>(type)->element_types) {
+      for (auto element_type : tt->element_types) {
 	auto element_vtype = get_vtype(element_type);
 	element_vtypes.push_back(element_vtype);
 	offset = make_aligned(offset, element_vtype->alignment);
@@ -140,7 +144,7 @@ TypeContext::get_vtype(const Type *type) {
 	offset += element_vtype->byte_size;
 	alignment = std::max(alignment, element_vtype->alignment);
       }
-      vtype = arena.make<VTuple>(TypeContextToken(), element_vtypes, element_offsets, alignment, offset);
+      vtype = arena.make<VTuple>(TypeContextToken(), tt, element_vtypes, element_offsets, alignment, offset);
     }
     break;
   default:

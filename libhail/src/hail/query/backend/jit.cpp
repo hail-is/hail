@@ -74,17 +74,23 @@ JITContext::get_llvm_type(PrimitiveType pt) {
 }
 
 class JITFunction {
-  friend class EmitIRVisitor;
-
   JITContext &jc;
   llvm::LLVMContext &llvm_context;
   Function *function;
+  llvm::Function *llvm_function;
   IRType ir_type;
   llvm::IRBuilder<> llvm_ir_builder;
 
-  EmitValue emit(IR *x);
-
   llvm::Type *get_llvm_type(PrimitiveType pt) const { return jc.get_llvm_type(pt); }
+
+  llvm::AllocaInst *make_entry_alloca(llvm::Type *llvm_type);
+
+  EmitValue emit(Block *x);
+  EmitValue emit(Input *x);
+  EmitValue emit(Literal *x);
+  EmitValue emit(NA *x);
+  EmitValue emit(IsNA *x);
+  EmitValue emit(IR *x);
 
 public:
   JITFunction(TypeContext &tc,
@@ -115,113 +121,112 @@ JITFunction::JITFunction(TypeContext &tc,
 					: PrimitiveType::POINTER);
 
   auto llvm_ft = llvm::FunctionType::get(llvm_return_type, llvm_param_types, false);
-  auto llvm_f = llvm::Function::Create(llvm_ft,
-				       llvm::Function::ExternalLinkage,
-				       "hl_compiled_main",
-				       jc.llvm_module.get());
+  llvm_function = llvm::Function::Create(llvm_ft,
+					 llvm::Function::ExternalLinkage,
+					 "hl_compiled_main",
+					 jc.llvm_module.get());
 
-  auto entry = llvm::BasicBlock::Create(llvm_context, "entry", llvm_f);
+  auto entry = llvm::BasicBlock::Create(llvm_context, "entry", llvm_function);
   llvm_ir_builder.SetInsertPoint(entry);
 
   emit(f->get_body());
 }
 
-class EmitIRVisitor {
-public:
-  // FIXME explode
-  JITFunction &jf;
-  llvm::LLVMContext &llvm_context;
-  llvm::IRBuilder<> &llvm_ir_builder;
-  IRType &ir_type;
-
-  llvm::AllocaInst *make_entry_alloca(llvm::Type *llvm_type);
-
-  EmitValue visit(Block *x) {
-    abort();
-  }
-
-  EmitValue visit(Input *x) {
-    abort();
-  }
-
-  EmitValue visit(Literal *x) {
-    if (!x->value.get_present()) {
-      auto m = llvm::ConstantInt::get(llvm_context, llvm::APInt(1, true));
-      // FIXME nullptr
-      return EmitValue(m, (const SValue *)nullptr);
-    }
-
-    switch (ir_type(x)->tag) {
-    case Type::Tag::BOOL:
-      {
-	auto m = llvm::ConstantInt::get(llvm_context, llvm::APInt(1, false));
-	auto c = llvm::ConstantInt::get(llvm_context, llvm::APInt(1, x->value.as_bool()));
-	return EmitValue(m, new SBoolValue(new SBool(ir_type(x)), c));
-      }
-    case Type::Tag::INT32:
-      {
-	auto m = llvm::ConstantInt::get(llvm_context, llvm::APInt(1, false));
-	auto c = llvm::ConstantInt::get(llvm_context, llvm::APInt(32, x->value.as_int32()));
-	return EmitValue(m, new SInt32Value(new SInt32(ir_type(x)), c));
-      }
-    case Type::Tag::INT64:
-      {
-	auto m = llvm::ConstantInt::get(llvm_context, llvm::APInt(1, false));
-	auto c = llvm::ConstantInt::get(llvm_context, llvm::APInt(64, x->value.as_int64()));
-	return EmitValue(m, new SInt64Value(new SInt32(ir_type(x)), c));
-      }
-    case Type::Tag::FLOAT32:
-      {
-	auto m = llvm::ConstantInt::get(llvm_context, llvm::APInt(1, false));
-	auto c = llvm::ConstantFP::get(llvm_context, llvm::APFloat(x->value.as_float32()));
-	return EmitValue(m, new SFloat32Value(new SFloat32(ir_type(x)), c));
-      }
-    case Type::Tag::FLOAT64:
-      {
-	auto m = llvm::ConstantInt::get(llvm_context, llvm::APInt(1, false));
-	auto c = llvm::ConstantFP::get(llvm_context, llvm::APFloat(x->value.as_float64()));
-	return EmitValue(m, new SFloat64Value(new SFloat64(ir_type(x)), c));
-      }
-    default:
-      abort();
-    }
-  }
-
-  EmitValue visit(NA *x) {
-    auto m = llvm::ConstantInt::get(llvm_context, llvm::APInt(1, false));
-    // FIXME nullptr
-    return EmitValue(m, nullptr);
-  }
-
-  EmitValue visit(IsNA *x) {
-    auto cond = visit(x->get_child(0)).as_control();
-
-    llvm::AllocaInst *l = make_entry_alloca(llvm::Type::getInt8Ty(llvm_context));
-
-    auto merge_bb = llvm::BasicBlock::Create(llvm_context, "isna_merge");
-    llvm_ir_builder.SetInsertPoint(cond.missing_block);
-    llvm_ir_builder.CreateStore(llvm::ConstantInt::get(llvm::Type::getInt8Ty(llvm_context), 1), l);
-    llvm_ir_builder.CreateBr(merge_bb);
-
-    llvm_ir_builder.SetInsertPoint(cond.present_block);
-    llvm_ir_builder.CreateStore(llvm::ConstantInt::get(llvm::Type::getInt8Ty(llvm_context), 0), l);
-    llvm_ir_builder.CreateBr(merge_bb);
-
-    llvm_ir_builder.SetInsertPoint(merge_bb);
-    llvm::Value *v = llvm_ir_builder.CreateLoad(l);
-
-    auto m = llvm::ConstantInt::get(llvm_context, llvm::APInt(1, false));
-    return EmitValue(m, new SBoolValue(new SBool(ir_type(x)), v));
-  }
-
-  EmitValue visit(IR *x);
-
-  EmitIRVisitor(JITFunction &jf);
-};
+llvm::AllocaInst *
+JITFunction::make_entry_alloca(llvm::Type *llvm_type) {
+  llvm::IRBuilder<> builder(&llvm_function->getEntryBlock(),
+			    llvm_function->getEntryBlock().begin());
+  return builder.CreateAlloca(llvm_type);
+}
 
 EmitValue
-EmitIRVisitor::visit(IR *x) {
-  return x->dispatch(*this);
+JITFunction::emit(Block *x) {
+  abort();
+}
+
+EmitValue
+JITFunction::emit(Input *x) {
+  abort();
+}
+
+EmitValue
+JITFunction::emit(Literal *x) {
+  if (!x->value.get_present()) {
+    auto m = llvm::ConstantInt::get(llvm_context, llvm::APInt(1, true));
+    // FIXME nullptr
+    return EmitValue(m, (const SValue *)nullptr);
+  }
+
+  switch (ir_type(x)->tag) {
+  case Type::Tag::BOOL:
+    {
+      auto m = llvm::ConstantInt::get(llvm_context, llvm::APInt(1, false));
+      auto c = llvm::ConstantInt::get(llvm_context, llvm::APInt(1, x->value.as_bool()));
+      return EmitValue(m, new SBoolValue(new SBool(ir_type(x)), c));
+    }
+  case Type::Tag::INT32:
+    {
+      auto m = llvm::ConstantInt::get(llvm_context, llvm::APInt(1, false));
+      auto c = llvm::ConstantInt::get(llvm_context, llvm::APInt(32, x->value.as_int32()));
+      return EmitValue(m, new SInt32Value(new SInt32(ir_type(x)), c));
+    }
+  case Type::Tag::INT64:
+    {
+      auto m = llvm::ConstantInt::get(llvm_context, llvm::APInt(1, false));
+      auto c = llvm::ConstantInt::get(llvm_context, llvm::APInt(64, x->value.as_int64()));
+      return EmitValue(m, new SInt64Value(new SInt32(ir_type(x)), c));
+    }
+  case Type::Tag::FLOAT32:
+    {
+      auto m = llvm::ConstantInt::get(llvm_context, llvm::APInt(1, false));
+      auto c = llvm::ConstantFP::get(llvm_context, llvm::APFloat(x->value.as_float32()));
+      return EmitValue(m, new SFloat32Value(new SFloat32(ir_type(x)), c));
+    }
+  case Type::Tag::FLOAT64:
+    {
+      auto m = llvm::ConstantInt::get(llvm_context, llvm::APInt(1, false));
+      auto c = llvm::ConstantFP::get(llvm_context, llvm::APFloat(x->value.as_float64()));
+      return EmitValue(m, new SFloat64Value(new SFloat64(ir_type(x)), c));
+    }
+  default:
+    abort();
+  }
+}
+
+EmitValue
+JITFunction::emit(NA *x) {
+  auto m = llvm::ConstantInt::get(llvm_context, llvm::APInt(1, false));
+  // FIXME nullptr
+  return EmitValue(m, nullptr);
+}
+
+EmitValue
+JITFunction::emit(IsNA *x) {
+  auto cond = emit(x->get_child(0)).as_control();
+
+  llvm::AllocaInst *l = make_entry_alloca(llvm::Type::getInt8Ty(llvm_context));
+
+  auto merge_bb = llvm::BasicBlock::Create(llvm_context, "isna_merge");
+  llvm_ir_builder.SetInsertPoint(cond.missing_block);
+  llvm_ir_builder.CreateStore(llvm::ConstantInt::get(llvm::Type::getInt8Ty(llvm_context), 1), l);
+  llvm_ir_builder.CreateBr(merge_bb);
+
+  llvm_ir_builder.SetInsertPoint(cond.present_block);
+  llvm_ir_builder.CreateStore(llvm::ConstantInt::get(llvm::Type::getInt8Ty(llvm_context), 0), l);
+  llvm_ir_builder.CreateBr(merge_bb);
+
+  llvm_ir_builder.SetInsertPoint(merge_bb);
+  llvm::Value *v = llvm_ir_builder.CreateLoad(l);
+
+  auto m = llvm::ConstantInt::get(llvm_context, llvm::APInt(1, false));
+  return EmitValue(m, new SBoolValue(new SBool(ir_type(x)), v));
+}
+
+EmitValue
+JITFunction::emit(IR *x) {
+  return x->dispatch([this](auto x) {
+		       return emit(x);
+		     });
 }
 
 JITModule
@@ -265,7 +270,7 @@ Value
 JITModule::invoke(ArenaAllocator &arena, const std::vector<Value> &args) {
   assert(param_vtypes.size() == args.size());
   for (size_t i = 0; i < param_vtypes.size(); ++i)
-    assert(args[i].get_vtype() == param_vtypes[i]);
+    assert(args[i].vtype == param_vtypes[i]);
 
   assert(isa<VBool>(param_vtypes[0])
 	 && isa<VInt32>(param_vtypes[1])

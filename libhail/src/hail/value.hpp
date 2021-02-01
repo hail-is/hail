@@ -20,7 +20,9 @@ struct StrData {
 class StrValue {
   friend class Value;
 
+public:
   const VStr *vtype;
+private:
   std::shared_ptr<ArenaAllocator> region;
   StrData *p;
 
@@ -30,7 +32,6 @@ public:
       region(std::move(region)),
       p(p) {}
 
-  const VStr *get_vtype() const { return vtype; }
   size_t get_size() const { return p->size; }
   char *get_data() { return p->data; }
 
@@ -58,7 +59,9 @@ struct ArrayData {
 class ArrayValue {
   friend class Value;
 
+public:
   const VArray *vtype;
+private:
   std::shared_ptr<ArenaAllocator> region;
   ArrayData *p;
   size_t size;
@@ -74,7 +77,6 @@ public:
       missing_bits(p->missing_bits),
       elements(p->elements) {}
 
-  const VArray *get_vtype() const { return vtype; }
   size_t get_size() const { return size; }
   bool get_element_present(size_t i) const {
     return get_bit(missing_bits, i);
@@ -90,8 +92,10 @@ public:
 
 class TupleValue {
   friend class Value;
-  
+
+public:
   const VTuple *vtype;
+private:
   std::shared_ptr<ArenaAllocator> region;
   char *p;
 
@@ -101,7 +105,6 @@ public:
       region(std::move(region)),
       p(p) {}
 
-  const VTuple *get_vtype() const { return vtype; }
   size_t get_size() const { return vtype->element_vtypes.size(); }
   bool get_element_present(size_t i) const {
     return get_bit(p, i);
@@ -120,7 +123,9 @@ class Value {
   friend class ArrayValue;
   friend class TupleValue;
 
+public:
   const VType *vtype;
+private:
   bool present;
   std::shared_ptr<ArenaAllocator> region;
   union u {
@@ -245,7 +250,6 @@ public:
   static Value load(const VType *vtype, std::shared_ptr<ArenaAllocator> region, void *p);
   static void store(void *p, const Value &value);
 
-  const VType *get_vtype() const { return vtype; }
   bool get_present() const { return present; }
 
   bool as_bool() const {

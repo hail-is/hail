@@ -38,5 +38,4 @@ EmitValue::as_data() const {
   abort();
 }
 
-
 }

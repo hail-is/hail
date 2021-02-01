@@ -54,7 +54,7 @@ Value::load(const VType *vtype, std::shared_ptr<ArenaAllocator> region, void *p)
 
 void
 Value::store(void *p, const Value &value) {
-  auto vtype = value.get_vtype();
+  auto vtype = value.vtype;
   switch (vtype->tag) {
   case VType::Tag::BOOL:
     *(bool *)p = value.u.b;
@@ -99,7 +99,7 @@ Value::store(void *p, const Value &value) {
 
 void
 format1(FormatStream &s, const Value &value) {
-  const VType *vtype = value.get_vtype();
+  const VType *vtype = value.vtype;
   switch (vtype->tag) {
   case VType::Tag::VOID:
     format(s, "()");
