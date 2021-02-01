@@ -56,6 +56,8 @@ public:
 class CompileFunction {
   TypeContext &tc;
   Function *function;
+  const std::vector<const SType *> &param_stypes;
+  const SType *return_stype;
   llvm::LLVMContext &llvm_context;
   llvm::Module *llvm_module;
 
@@ -82,8 +84,8 @@ class CompileFunction {
 public:
   CompileFunction(TypeContext &tc,
 		  Function *function,
-		  const std::vector<const SType *> &param_types,
-		  const SType *return_type,
+		  const std::vector<const SType *> &param_stypes,
+		  const SType *return_stype,
 		  llvm::LLVMContext &llvm_context,
 		  llvm::Module *llvm_module);
 };
@@ -112,6 +114,8 @@ CompileFunction::CompileFunction(TypeContext &tc,
 				 llvm::Module *llvm_module)
   : tc(tc),
     function(function),
+    param_stypes(param_stypes),
+    return_stype(return_stype),
     llvm_context(llvm_context),
     llvm_ir_builder(llvm_context),
     llvm_module(llvm_module),
@@ -179,16 +183,13 @@ EmitValue
 CompileFunction::emit(Input *x) {
   if (x->get_parent()->get_function_parent()) {
     size_t start = param_llvm_start[x->index];
-    size_t end = (x->index + 1 < function->parameter_types.size()
-		  ? function->parameter_types[x->index + 1]
-		  : function->parameter_types.size());
 
-    std::vector<Value *> param_values;
-    for (size_t i = start; i < end; ++i)
-      param_values.push_back(llvm_function->getArg(i));
+    // FIXME don't construct
+    std::vector<llvm::Value *> param_llvm_values(llvm_function->arg_begin(),
+						 llvm_function->arg_end());
 
     // FIXME vtypes should turn into emittypes, not stypes
-    return param_stypes[x->index]->from_llvm_values(param_values);
+    return param_stypes[x->index]->from_llvm_values(param_llvm_values, start);
   }
 
   abort();
