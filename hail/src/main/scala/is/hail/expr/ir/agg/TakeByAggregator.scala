@@ -529,12 +529,12 @@ class TakeByRVAS(val valueVType: VirtualTypeWithReq, val keyVType: VirtualTypeWi
 
       val i = cb.newLocal[Int]("i", 0)
 
+      def indexOffset(idx: Code[Int]): Code[Long] = indicesToSort + idx.toL * 4L
+
       cb.whileLoop(i < ab.size, {
-        cb += Region.storeInt(indicesToSort + i.toL * 4L, i)
+        cb += Region.storeInt(indexOffset(i), i)
         cb.assign(i, i + 1)
       })
-
-      def indexOffset(idx: Code[Int]): Code[Long] = indicesToSort + idx.toL * 4L
 
       cb += quickSort(indicesToSort, 0, ab.size - 1)
 
