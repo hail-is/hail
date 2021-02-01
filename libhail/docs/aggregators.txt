@@ -32,16 +32,16 @@ base class AggStateType:
     const Type *get_result_type();
   }
 
-  class LinearRegressionStateType {
+  class LinearRegressionStateType : public AggStateType {
     // has no parameters
     LinearRegressionStateType();
   };
 
-  class TakeStateType : public TakeStateType {
+  class TakeStateType : public AggStateType {
     TakeStateType(const Type *element_type);
   };
 
-  class GroupByStateType : public GroupByStateType {
+  class GroupByStateType : public AggStateType {
     GroupByStateType(const Type *key_type,
     	             const AggStateType *value_aggstate_type);
   };
