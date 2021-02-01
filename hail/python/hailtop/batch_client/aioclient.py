@@ -345,7 +345,7 @@ class Batch:
                 break
 
     async def get_job_log(self, job_id: int):
-        return self._client.get_job_log(self.id, job_id)
+        return await self._client.get_job_log(self.id, job_id)
 
     # {
     #   id: int,
