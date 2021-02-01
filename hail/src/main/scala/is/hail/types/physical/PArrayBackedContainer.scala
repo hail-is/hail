@@ -1,6 +1,6 @@
 package is.hail.types.physical
 
-import is.hail.annotations.{Region, UnsafeOrdering}
+import is.hail.annotations.{Annotation, Region, UnsafeOrdering}
 import is.hail.asm4s.{Code, Value}
 import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder}
 import is.hail.types.physical.stypes.SCode
@@ -156,4 +156,8 @@ trait PArrayBackedContainer extends PContainer {
     arrayRep.storeAtAddress(cb, addr, region, value, deepCopy)
 
   def loadFromNested(cb: EmitCodeBuilder, addr: Code[Long]): Code[Long] = arrayRep.loadFromNested(cb, addr)
+
+  def unstagedStoreJavaObjectAtAddress(addr: Long, annotation: Annotation, region: Region): Unit = {
+    Region.storeAddress(addr, unstagedStoreJavaObject(annotation, region))
+  }
 }

@@ -702,10 +702,7 @@ class EmitStreamSuite extends HailSuite {
       ir)
 
     pool.scopedSmallRegion { r =>
-      val rvb = new RegionValueBuilder(r)
-      rvb.start(t)
-      rvb.addAnnotation(t.virtualType, Row(null, IndexedSeq(1d, 2d), IndexedSeq(3d, 4d)))
-      val input = rvb.end()
+      val input = t.unstagedStoreJavaObject(Row(null, IndexedSeq(1d, 2d), IndexedSeq(3d, 4d)), r)
 
       assert(SafeRow.read(pt, f(0, r)(r, input)) == Row(null))
     }

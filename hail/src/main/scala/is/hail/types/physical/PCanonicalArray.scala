@@ -533,4 +533,34 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
   }
 
   def loadFromNested(cb: EmitCodeBuilder, addr: Code[Long]): Code[Long] = Region.loadAddress(addr)
+
+  override def unstagedStoreJavaObject(annotation: Annotation, region: Region): Long = {
+    val is = annotation.asInstanceOf[IndexedSeq[Annotation]]
+    val valueAddress = allocate(region, is.length)
+    assert(is.length >= 0)
+
+    initialize(valueAddress, is.length)
+    var i = 0
+    var curElementAddress = firstElementOffset(valueAddress, is.length)
+    while (i < is.length) {
+      if (is(i) == null) {
+        setElementMissing(valueAddress, i)
+      }
+      else {
+        elementType.unstagedStoreJavaObjectAtAddress(curElementAddress, is(i), region)
+      }
+      curElementAddress = nextElementAddress(curElementAddress)
+      i += 1
+    }
+
+    valueAddress
+  }
+
+  override def unstagedStoreJavaObjectAtAddress(addr: Long, annotation: Annotation, region: Region): Unit = {
+     annotation match {
+       case uis: UnsafeIndexedSeq => this.unstagedStoreAtAddress(addr, region, uis.t, uis.aoff, region.ne(uis.region))
+       case is: IndexedSeq[Annotation] => Region.storeAddress(addr, unstagedStoreJavaObject(annotation, region))
+     }
+  }
+
 }

@@ -6,6 +6,7 @@ import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder}
 import is.hail.types.physical.stypes.SCode
 import is.hail.types.physical.stypes.concrete.{SCanonicalLocusPointer, SCanonicalLocusPointerCode}
 import is.hail.variant._
+import org.apache.spark.sql.Row
 
 object PCanonicalLocus {
   def apply(rg: ReferenceGenome): PLocus = PCanonicalLocus(rg.broadcastRG)
@@ -143,4 +144,20 @@ final case class PCanonicalLocus(rgBc: BroadcastRG, required: Boolean = false) e
   }
 
   def loadFromNested(cb: EmitCodeBuilder, addr: Code[Long]): Code[Long] = addr
+
+  def unstagedStoreLocus(addr: Long, contig: String, position: Int, region: Region): Unit = {
+    contigType.unstagedStoreJavaObjectAtAddress(representation.fieldOffset(addr, 0), contig, region)
+    positionType.unstagedStoreJavaObjectAtAddress(representation.fieldOffset(addr, 1), position, region)
+  }
+
+  override def unstagedStoreJavaObjectAtAddress(addr: Long, annotation: Annotation, region: Region): Unit = {
+    val myLocus = annotation.asInstanceOf[Locus]
+    unstagedStoreLocus(addr, myLocus.contig, myLocus.position, region)
+  }
+
+  override def unstagedStoreJavaObject(annotation: Annotation, region: Region): Long = {
+    val addr = representation.allocate(region)
+    unstagedStoreJavaObjectAtAddress(addr, annotation, region)
+    addr
+  }
 }

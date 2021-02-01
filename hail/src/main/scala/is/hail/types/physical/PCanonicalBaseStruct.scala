@@ -1,6 +1,6 @@
 package is.hail.types.physical
 
-import is.hail.annotations.{Region, UnsafeUtils}
+import is.hail.annotations.{Annotation, Region, UnsafeRow, UnsafeUtils}
 import is.hail.asm4s._
 import is.hail.expr.ir.{EmitCode, EmitCodeBuilder}
 import is.hail.types.BaseStruct
@@ -8,6 +8,7 @@ import is.hail.types.physical.stypes.SCode
 import is.hail.types.physical.stypes.concrete.{SBaseStructPointer, SBaseStructPointerCode, SBaseStructPointerSettable}
 import is.hail.types.physical.stypes.interfaces.SStruct
 import is.hail.utils._
+import org.apache.spark.sql.Row
 
 abstract class PCanonicalBaseStruct(val types: Array[PType]) extends PBaseStruct {
   if (!types.forall(_.isRealizable)) {
@@ -225,6 +226,34 @@ abstract class PCanonicalBaseStruct(val types: Array[PType]) extends PBaseStruct
     }
 
     new SBaseStructPointerCode(SBaseStructPointer(this), addr)
+  }
+
+  override def unstagedStoreJavaObject(annotation: Annotation, region: Region): Long = {
+    val addr = allocate(region)
+    unstagedStoreJavaObjectAtAddress(addr, annotation, region)
+    addr
+  }
+
+  override def unstagedStoreJavaObjectAtAddress(addr: Long, annotation: Annotation, region: Region): Unit = {
+    initialize(addr)
+    val row = annotation.asInstanceOf[Row]
+    row match {
+      case ur: UnsafeRow => {
+        this.unstagedStoreAtAddress(addr, region, ur.t, ur.offset, region.ne(ur.region))
+      }
+      case sr: Row => {
+        this.types.zipWithIndex.foreach { case (fieldPt, fieldIdx) =>
+          if (row(fieldIdx) == null) {
+            setFieldMissing(addr, fieldIdx)
+          }
+          else {
+            val fieldAddress = fieldOffset(addr, fieldIdx)
+            fieldPt.unstagedStoreJavaObjectAtAddress(fieldAddress, row(fieldIdx), region)
+          }
+        }
+      }
+    }
+
   }
 
   def loadFromNested(cb: EmitCodeBuilder, addr: Code[Long]): Code[Long] = addr

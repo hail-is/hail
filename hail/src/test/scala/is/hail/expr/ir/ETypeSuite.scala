@@ -53,10 +53,7 @@ class ETypeSuite extends HailSuite {
     val enc = eType.buildEncoderMethod(inPType, fb.apply_method.ecb)
     fb.emit(enc.invokeCode(arg1, arg2))
 
-    val rvb = new RegionValueBuilder(ctx.r)
-    rvb.start(inPType)
-    rvb.addAnnotation(inPType.virtualType, data)
-    val x = rvb.end()
+    val x = inPType.unstagedStoreJavaObject(data, ctx.r)
 
     val buffer = new MemoryBuffer
     val ob = new MemoryOutputBuffer(buffer)

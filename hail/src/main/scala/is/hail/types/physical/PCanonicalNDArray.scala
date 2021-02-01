@@ -1,13 +1,13 @@
 package is.hail.types.physical
 
-import is.hail.annotations.{Region, StagedRegionValueBuilder, UnsafeOrdering}
+import is.hail.annotations.{Annotation, NDArray, Region, UnsafeOrdering}
 import is.hail.asm4s.{Code, _}
 import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder}
 import is.hail.types.physical.stypes.SCode
-import is.hail.types.physical.stypes.concrete.{SBaseStructPointer, SBaseStructPointerSettable, SNDArrayPointer, SNDArrayPointerCode}
 import is.hail.types.physical.stypes.interfaces.SBaseStructCode
-import is.hail.types.virtual.{TNDArray, Type}
-import is.hail.utils.FastIndexedSeq
+import is.hail.types.virtual.{TNDArray, TStruct, Type}
+import is.hail.types.physical.stypes.concrete.{SBaseStructPointer, SBaseStructPointerSettable, SNDArrayPointer, SNDArrayPointerCode}
+import org.apache.spark.sql.Row
 
 final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boolean = false) extends PNDArray  {
   assert(elementType.required, "elementType must be required")
@@ -251,5 +251,29 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
   override def dataPArrayPointer(ndAddr: Code[Long]): Code[Long] = data.load(ndAddr)
 
   def loadFromNested(cb: EmitCodeBuilder, addr: Code[Long]): Code[Long] = addr
+
+  override def unstagedStoreJavaObject(annotation: Annotation, region: Region): Long = {
+    val addr = this.representation.allocate(region)
+    unstagedStoreJavaObjectAtAddress(addr, annotation, region)
+    addr
+  }
+
+  override def unstagedStoreJavaObjectAtAddress(addr: Long, a: Annotation, region: Region): Unit = {
+    val aNDArray = a.asInstanceOf[NDArray]
+    val shapeRow = Annotation.fromSeq(aNDArray.shape)
+    var runningProduct = this.representation.fieldType("data").asInstanceOf[PArray].elementType.byteSize
+    val stridesArray = new Array[Long](aNDArray.shape.size)
+    ((aNDArray.shape.size - 1) to 0 by -1).foreach { i =>
+      stridesArray(i) = runningProduct
+      runningProduct = runningProduct * (if (aNDArray.shape(i) > 0L) aNDArray.shape(i) else 1L)
+    }
+    var curAddr = addr
+    val stridesRow = Row(stridesArray:_*)
+    shape.pType.unstagedStoreJavaObjectAtAddress(curAddr, shapeRow, region)
+    curAddr += shape.pType.byteSize
+    strides.pType.unstagedStoreJavaObjectAtAddress(curAddr, stridesRow, region)
+    curAddr += strides.pType.byteSize
+    data.pType.unstagedStoreJavaObjectAtAddress(curAddr, aNDArray.getRowMajorElements(), region)
+  }
 }
 
