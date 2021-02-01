@@ -6,27 +6,30 @@ import is.hail.types.physical.stypes.{SCode, SType, SValue}
 
 
 object SNDArray {
+  // Column major order
   def forEachIndex(cb: EmitCodeBuilder, shape: IndexedSeq[Value[Long]], context: String)
     (f: (EmitCodeBuilder, IndexedSeq[Value[Long]]) => Unit): Unit = {
 
-    val indices = new Array[Value[Long]](shape.length)
+    val indices = Array.tabulate(shape.length) {dimIdx => cb.newLocal[Long](s"${ context }_foreach_dim_$dimIdx", 0L)}
 
-    def recur(dimIdx: Int): Unit = {
-      if (dimIdx == indices.length) {
-        f(cb, indices)
-      } else {
-        val currentIdx = cb.newLocal[Long](s"${ context }_foreach_dim_$dimIdx", 0L)
-        indices(dimIdx) = currentIdx
+    def recurLoopBuilder(dimIdx: Int, innerLambda: () => Unit): Unit = {
+      if (dimIdx == shape.length) {
+        innerLambda()
+      }
+      else {
+        val dimVar = indices(dimIdx)
 
-        cb.whileLoop(currentIdx < shape(dimIdx),
-          {
-            recur(dimIdx + 1)
-            cb.assign(currentIdx, currentIdx + 1L)
-          })
+        recurLoopBuilder(dimIdx + 1,
+          () => {cb.forLoop({cb.assign(dimVar, 0L)},  dimVar < shape(dimIdx), {cb.assign(dimVar, dimVar + 1L)},
+            innerLambda()
+          )}
+        )
       }
     }
 
-    recur(0)
+    val body = () => f(cb, indices)
+
+    recurLoopBuilder(0, body)
   }
 }
 
