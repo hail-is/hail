@@ -34,7 +34,7 @@ final class RegionPool private(strictMemoryCheck: Boolean, threadName: String, t
 
   def getTotalAllocatedBytes: Long = totalAllocatedBytes
 
-  private def incrementAllocatedBytes(toAdd: Long): Unit = {
+  private[annotations] def incrementAllocatedBytes(toAdd: Long): Unit = {
     totalAllocatedBytes += toAdd
     if (totalAllocatedBytes >= allocationEchoThreshold) {
       report("REPORT_THRESHOLD")
@@ -135,6 +135,12 @@ final class RegionPool private(strictMemoryCheck: Boolean, threadName: String, t
   def scopedRegion[T](f: Region => T): T = using(Region(pool = this))(f)
   def scopedSmallRegion[T](f: Region => T): T = using(Region(Region.SMALL, pool=this))(f)
   def scopedTinyRegion[T](f: Region => T): T = using(Region(Region.TINY, pool=this))(f)
+
+  def allocateNDArray(nBytes: Long): Long = {
+    val addr = Memory.malloc(nBytes + 8)
+    incrementAllocatedBytes(nBytes)
+    addr
+  }
 
   override def finalize(): Unit = close()
 

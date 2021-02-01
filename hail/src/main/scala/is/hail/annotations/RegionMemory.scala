@@ -3,10 +3,12 @@ package is.hail.annotations
 import is.hail.expr.ir.{AnyRefArrayBuilder, LongArrayBuilder, LongMissingArrayBuilder}
 import is.hail.utils._
 
+
 final class RegionMemory(pool: RegionPool) extends AutoCloseable {
   private[this] val usedBlocks = new LongArrayBuilder(4)
   private[this] val bigChunks = new LongArrayBuilder(4)
   private[this] val jObjects = new AnyRefArrayBuilder[AnyRef](0)
+  private val ndarrayRefs = new LongArrayBuilder(4)
 
   private[this] var totalChunkMemory = 0L
   private[this] var currentBlock: Long = 0L
@@ -127,6 +129,21 @@ final class RegionMemory(pool: RegionPool) extends AutoCloseable {
     usedBlocks.clearAndResize()
   }
 
+  private def releaseNDArrays(): Unit = {
+    this.ndarrayRefs.result().map{ addr =>
+      val curCount = Region.loadLong(addr - 16)
+      if (curCount == 1) {
+        Memory.storeLong(addr - 16, 0L)
+        pool.incrementAllocatedBytes(-Region.loadLong(addr - 8))
+        Memory.free(addr - 16)
+      } else {
+        Region.storeLong(addr - 16, curCount - 1)
+      }
+    }
+
+    this.ndarrayRefs.clear()
+  }
+
   def getTotalChunkMemory(): Long = this.totalChunkMemory
 
   def totalManagedBytes(): Long = this.totalChunkMemory + usedBlocks.size * blockByteSize
@@ -138,6 +155,7 @@ final class RegionMemory(pool: RegionPool) extends AutoCloseable {
       assert(usedBlocks.size == 0)
       assert(bigChunks.size == 0)
       assert(jObjects.size == 0)
+      assert(ndarrayRefs.size == 0)
     } else {
       val freeBlocksOfSize = pool.freeBlocks(blockSize)
       if (currentBlock != 0)
@@ -147,6 +165,7 @@ final class RegionMemory(pool: RegionPool) extends AutoCloseable {
       freeChunks()
       freeObjects()
       releaseReferences()
+      releaseNDArrays()
 
       offsetWithinBlock = 0
       currentBlock = 0
@@ -173,6 +192,7 @@ final class RegionMemory(pool: RegionPool) extends AutoCloseable {
     freeChunks()
     freeObjects()
     releaseReferences()
+    releaseNDArrays()
 
     offsetWithinBlock = 0L
   }
@@ -256,5 +276,33 @@ final class RegionMemory(pool: RegionPool) extends AutoCloseable {
     val r = references(idx)
     r.release()
     references.update(idx, null)
+  }
+
+  def allocateNDArray(size: Long): Long = {
+    if (size <= 0L) {
+      throw new IllegalArgumentException(s"Can't request ndarray of non-positive memory size, got ${size}")
+    }
+
+    val extra = 16L
+
+    // This adjusted address is where the ndarray content starts
+    val allocatedAddr = pool.allocateNDArray(size + extra) + extra
+
+    // The reference count and total size are stored just before the content.
+    Region.storeLong(allocatedAddr - 16L, 0L)
+    Region.storeLong(allocatedAddr - 8L, size)
+    pool.incrementAllocatedBytes(size + extra)
+    this.trackNDArray(allocatedAddr)
+    allocatedAddr
+  }
+
+  def trackNDArray(alloc: Long): Unit = {
+    this.ndarrayRefs.add(alloc)
+    val curRefCount = Region.loadLong(alloc - 16)
+    Region.storeLong(alloc - 16, curRefCount + 1L)
+  }
+
+  def listNDArrayRefs(): IndexedSeq[Long] = {
+    this.ndarrayRefs.result().toIndexedSeq
   }
 }
