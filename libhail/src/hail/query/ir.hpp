@@ -167,6 +167,7 @@ public:
 
   void remove();
 
+  Function *get_function_parent() const { return function_parent; }
   size_t get_input_arity() const;
   void set_input_arity(size_t n);
 

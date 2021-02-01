@@ -58,6 +58,11 @@ class CompileFunction {
   Function *function;
   llvm::LLVMContext &llvm_context;
   llvm::Module *llvm_module;
+
+  /* Indexed by parameter index, the entry is the index of the first
+     `llvm_function` parameter. */
+  std::vector<size_t> param_llvm_start;
+  
   llvm::Function *llvm_function;
   llvm::IRBuilder<> llvm_ir_builder;
 
@@ -112,9 +117,11 @@ CompileFunction::CompileFunction(TypeContext &tc,
     llvm_module(llvm_module),
     ir_type(tc, function) {
   std::vector<llvm::Type *> llvm_param_types;
-  for (auto t : param_stypes)
+  for (auto t : param_stypes) {
+    param_llvm_start.push_back(llvm_param_types.size());
     for (auto pt : t->constituent_types())
       llvm_param_types.push_back(get_llvm_type(pt));
+  }
 
   auto return_constituent_types = return_stype->constituent_types();
   auto llvm_return_type = get_llvm_type(return_constituent_types.size() == 1
@@ -164,11 +171,26 @@ CompileFunction::make_entry_alloca(llvm::Type *llvm_type) {
 
 EmitValue
 CompileFunction::emit(Block *x) {
-  abort();
+  assert(x->get_children().size() == 1);
+  return emit(x->get_child(0));
 }
 
 EmitValue
 CompileFunction::emit(Input *x) {
+  if (x->get_parent()->get_function_parent()) {
+    size_t start = param_llvm_start[x->index];
+    size_t end = (x->index + 1 < function->parameter_types.size()
+		  ? function->parameter_types[x->index + 1]
+		  : function->parameter_types.size());
+
+    std::vector<Value *> param_values;
+    for (size_t i = start; i < end; ++i)
+      param_values.push_back(llvm_function->getArg(i));
+
+    // FIXME vtypes should turn into emittypes, not stypes
+    return param_stypes[x->index]->from_llvm_values(param_values);
+  }
+
   abort();
 }
 

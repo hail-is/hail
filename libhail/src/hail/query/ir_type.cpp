@@ -6,32 +6,27 @@ namespace hail {
 
 const Type *
 IRType::infer(Block *x) {
-  abort();
-  // FIXMEa add BlockType
-#if 0
-  const BlockType *tc.make_block_type(x->inputs.size(), x->children.size());
-  if (x->function_parent) {
+  if (x->get_function_parent()) {
     std::vector<const Type *> input_types, output_types;
-    for (ssize_t i = x->function_parent->paramter_types.size(); i >= 0; --i)
-      input_types.push_back(x->function_parent->paramter_types[i]);
-    for (ssize_t i = x->children.size(); i >= 0; --i)
-      output_types[i] = infer(x->children[i]);
-    return tc.make_block_type(input_types, output_types);
+    for (ssize_t i = x->get_function_parent()->parameter_types.size(); i >= 0; --i)
+      input_types.push_back(x->get_function_parent()->parameter_types[i]);
+    for (ssize_t i = x->get_children().size() - 1; i >= 0; --i)
+      output_types.push_back(infer(x->get_child(i)));
+    return tc.tblock(input_types, output_types);
   }
 
-  IR *parent = x->parent;
+  IR *parent = x->get_parent();
   switch (parent->tag) {
   default:
     abort();
   }
-#endif
 }
 
 const Type *
 IRType::infer(Input *x) {
   abort();
 #if 0
-  cast<BlockType>(infer(x->parent))
+  cast<TBlock>(infer(x->parent))
     ->input_types[x->index];
 #endif
 }

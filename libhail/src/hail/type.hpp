@@ -20,6 +20,7 @@ class Type {
 public:
   using BaseType = Type;
   enum class Tag {
+    BLOCK,
     VOID,
     BOOL,
     INT32,
@@ -41,6 +42,16 @@ public:
 };
 
 void format1(FormatStream &s, const Type *v);
+
+class TBlock : public Type {
+public:
+  static const Tag self_tag = Type::Tag::BLOCK;
+  std::vector<const Type *> input_types;
+  std::vector<const Type *> output_types;
+  TBlock(TypeContextToken,
+	 std::vector<const Type *> input_types,
+	 std::vector<const Type *> output_types);
+};
 
 class TVoid : public Type {
 public:
@@ -108,6 +119,7 @@ public:
 class TypeContext {
   ArenaAllocator arena;
 
+  std::map<std::tuple<const std::vector<const Type *> &, const std::vector<const Type *> &>, const TBlock *> blocks;
   std::map<const Type *, const TArray *> arrays;
   std::map<const Type *, const TStream *> streams;
   std::map<std::vector<const Type *>, const TTuple *> tuples;
@@ -125,6 +137,7 @@ public:
 
   TypeContext(HeapAllocator &heap);
 
+  const TBlock *tblock(const std::vector<const Type *> &input_types, const std::vector<const Type *> &output_types);
   const TArray *tarray(const Type *element_type);
   const TStream *tstream(const Type *element_type);
   const TTuple *ttuple(const std::vector<const Type *> &element_types);

@@ -2,10 +2,16 @@
 #include <hail/tunion.hpp>
 #include <hail/type.hpp>
 #include <hail/vtype.hpp>
+#include <tuple>
 
 namespace hail {
 
 Type::~Type() {}
+
+TBlock::TBlock(TypeContextToken, std::vector<const Type *> input_types, std::vector<const Type *> output_types)
+  : Type(self_tag),
+    input_types(std::move(input_types)),
+    output_types(std::move(output_types)) {}
 
 void
 format1(FormatStream &s, const Type *v) {
@@ -63,26 +69,37 @@ TypeContext::TypeContext(HeapAllocator &heap)
     tfloat64(arena.make<TFloat64>(TypeContextToken())),
     tstr(arena.make<TStr>(TypeContextToken())) {}
 
+const TBlock *
+TypeContext::tblock(const std::vector<const Type *> &input_types, const std::vector<const Type *> &output_types) {
+  auto i = blocks.find(std::make_tuple(input_types, output_types));
+  if (i != blocks.end())
+    return i->second;
+
+  TBlock *t = arena.make<TBlock>(TypeContextToken(), std::move(input_types), std::move(output_types));
+  blocks.insert({std::make_tuple(t->input_types, t->output_types), t});
+  return t;
+}
+
 const TArray *
 TypeContext::tarray(const Type *element_type) {
   auto p = arrays.insert({element_type, nullptr});
-  if (p.second) {
-    TArray *t = arena.make<TArray>(TypeContextToken(), element_type);
-    p.first->second = t;
-    return t;
-  } else
+  if (!p.second)
     return p.first->second;
+
+  TArray *t = arena.make<TArray>(TypeContextToken(), element_type);
+  p.first->second = t;
+  return t;
 }
 
 const TStream *
 TypeContext::tstream(const Type *element_type) {
   auto p = streams.insert({element_type, nullptr});
-  if (p.second) {
-    TStream *t = arena.make<TStream>(TypeContextToken(), element_type);
-    p.first->second = t;
-    return t;
-  } else
+  if (!p.second)
     return p.first->second;
+
+  TStream *t = arena.make<TStream>(TypeContextToken(), element_type);
+  p.first->second = t;
+  return t;
 }
 
 const TTuple *
