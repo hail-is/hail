@@ -212,8 +212,9 @@ object IEmitCode {
 
   def present[A](cb: EmitCodeBuilder, value: => A): IEmitCodeGen[A] = {
     val Lpresent = CodeLabel()
+    val res: A = value
     cb.goto(Lpresent)
-    IEmitCodeGen(CodeLabel(), Lpresent, value)
+    IEmitCodeGen(CodeLabel(), Lpresent, res)
   }
 
   def missing[A](cb: EmitCodeBuilder, defaultValue: A): IEmitCodeGen[A] = {
