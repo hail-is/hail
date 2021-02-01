@@ -1,11 +1,11 @@
 package is.hail.expr.ir.agg
 
-import is.hail.annotations.{Region, StagedRegionValueBuilder}
+import is.hail.annotations.Region
 import is.hail.asm4s._
-import is.hail.expr.ir.{coerce => _, _}
 import is.hail.expr.ir.functions.UtilFunctions
-import is.hail.types.physical.{PCode, PFloat32, PFloat64, PInt32, PInt64, PType, typeToTypeInfo}
-import is.hail.types.virtual.{TFloat32, TFloat64, TInt32, TInt64, Type}
+import is.hail.expr.ir.{coerce => _, _}
+import is.hail.types.physical.{PCode, PType, typeToTypeInfo}
+import is.hail.types.virtual._
 
 import scala.language.existentials
 import scala.reflect.ClassTag

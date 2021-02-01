@@ -1,12 +1,12 @@
 package is.hail.expr.ir.agg
 
-import is.hail.annotations.{Region, StagedRegionValueBuilder}
+import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitCodeBuilder}
 import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer}
 import is.hail.types.physical.stypes.concrete.SBaseStructPointerCode
 import is.hail.types.physical.{PBooleanRequired, PCanonicalStruct, PInt32Required, PStruct, PType}
-import is.hail.types.virtual.{TFloat64, TInt32, TInt64, Type}
+import is.hail.types.virtual.{TFloat64, TInt32, Type}
 import is.hail.utils._
 
 class ApproxCDFState(val kb: EmitClassBuilder[_]) extends AggregatorState {

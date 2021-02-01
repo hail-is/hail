@@ -3,12 +3,11 @@ package is.hail.expr.ir.agg
 import is.hail.annotations.{Region, StagedRegionValueBuilder}
 import is.hail.asm4s
 import is.hail.asm4s.{Code, _}
-import is.hail.expr.ir.{Ascending, EmitClassBuilder, EmitCode, EmitCodeBuilder, ParamType, SortOrder}
+import is.hail.expr.ir.{Ascending, EmitClassBuilder, EmitCode, EmitCodeBuilder, IEmitCode, ParamType, SortOrder}
 import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer}
 import is.hail.types.VirtualTypeWithReq
 import is.hail.types.physical._
-import is.hail.types.physical.stypes.SCode
-import is.hail.types.physical.stypes.concrete.SIndexablePointerCode
+import is.hail.types.physical.stypes.concrete.{SBaseStructPointerCode, SIndexablePointerCode}
 import is.hail.types.virtual.{TInt32, Type}
 import is.hail.utils._
 
@@ -522,39 +521,33 @@ class TakeByRVAS(val valueVType: VirtualTypeWithReq, val keyVType: VirtualTypeWi
       mb.invokeCode(_, _, _)
     }
 
-    val r = mb.getCodeParam[Region](1)
-    val indicesToSort = mb.newLocal[Long]("indices_to_sort")
-    val i = mb.newLocal[Int]("i")
-    val o = mb.newLocal[Long]("i")
+    mb.emitWithBuilder[Long] { cb =>
+      val r = mb.getCodeParam[Region](1)
 
-    def indexOffset(idx: Code[Int]): Code[Long] = indicesToSort + idx.toL * 4L
+      val indicesToSort = cb.newLocal[Long]("indices_to_sort",
+        r.load().allocate(4L, ab.size.toL * 4L))
 
-    def indexAt(idx: Code[Int]): Code[Int] = Region.loadInt(indexOffset(idx))
+      val i = cb.newLocal[Int]("i", 0)
 
-    val srvb = (new StagedRegionValueBuilder(mb, resultType, r))
-    mb.emit(Code(
-      indicesToSort := r.load().allocate(4L, ab.size.toL * 4L),
-      i := 0,
-      Code.whileLoop(i < ab.size,
-        Region.storeInt(indicesToSort + i.toL * 4L, i),
-        i := i + 1),
-      quickSort(indicesToSort, 0, ab.size - 1),
-      srvb.start(ab.size),
-      i := 0,
-      Code.whileLoop(i < ab.size,
-        o := Code.memoize(indexAt(i), "tba_qsort_i") { i => elementOffset(i) },
-        eltTuple.isFieldDefined(o, 1).mux(
-          srvb.addWithDeepCopy(valueType, Region.loadIRIntermediate(valueType)(eltTuple.fieldOffset(o, 1))),
-          srvb.setMissing()
-        ),
-        srvb.advance(),
-        i := i + 1
-      ),
-      srvb.end()
-    ))
+      def indexOffset(idx: Code[Int]): Code[Long] = indicesToSort + idx.toL * 4L
+
+      cb.whileLoop(i < ab.size, {
+        cb += Region.storeInt(indexOffset(i), i)
+        cb.assign(i, i + 1)
+      })
+
+      cb += quickSort(indicesToSort, 0, ab.size - 1)
+
+      resultType.constructFromElements(cb, r, ab.size, deepCopy = true) { case (cb, idx) =>
+        val sortedIdx = cb.newLocal[Int]("tba_result_sortedidx", Region.loadInt(indexOffset(idx)))
+        ab.loadElement(cb, sortedIdx).toI(cb)
+          .flatMap(cb) { case pct: SBaseStructPointerCode =>
+            pct.memoize(cb, "takeby_result_tuple").loadField(cb, 1).typecast[PCode]
+          }
+      }.a
+    }
     resultType.loadCheapPCode(cb, cb.invokeCode[Long](mb, _r))
   }
-
 }
 
 class TakeByAggregator(valueType: VirtualTypeWithReq, keyType: VirtualTypeWithReq) extends StagedAggregator {

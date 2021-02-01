@@ -372,10 +372,16 @@ final class VCFLine(val line: String, arrayElementsRequired: Boolean,
     nextField()
 
     if (hasLocus) {
-      rvb.startStruct() // pk: Locus
-      rvb.addString(recodedContig)
-      rvb.addInt(start)
-      rvb.endStruct()
+      rg match {
+        case Some(_) => rvb.addLocus(recodedContig, start)
+        case None => { // Without a reference genome, we use a struct of two fields rather than a PLocus
+          rvb.startStruct() // pk: Locus
+          rvb.addString(recodedContig)
+          rvb.addInt(start)
+          rvb.endStruct()
+        }
+      }
+
     }
 
     if (hasAlleles) {
@@ -430,7 +436,7 @@ final class VCFLine(val line: String, arrayElementsRequired: Boolean,
       if (mj)
         rvb.setMissing()
       else
-        rvb.addInt(Call1(j, phased = false))
+        rvb.addCall(Call1(j, phased = false))
       return
     }
 
@@ -458,7 +464,7 @@ final class VCFLine(val line: String, arrayElementsRequired: Boolean,
     if (mj || mk)
       rvb.setMissing()
     else {
-      rvb.addInt(Call2(j, k, phased = isPhased))
+      rvb.addCall(Call2(j, k, phased = isPhased))
     }
   }
 

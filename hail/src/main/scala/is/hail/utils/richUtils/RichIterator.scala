@@ -150,11 +150,8 @@ class RichIterator[T](val it: Iterator[T]) extends AnyVal {
 
 class RichRowIterator(val it: Iterator[Row]) extends AnyVal {
   def copyToRegion(region: Region, rowTyp: PStruct): Iterator[Long] = {
-    val rvb = new RegionValueBuilder(region)
     it.map { row =>
-      rvb.start(rowTyp)
-      rvb.addAnnotation(rowTyp.virtualType, row)
-      rvb.end()
+      rowTyp.unstagedStoreJavaObject(row, region)
     }
   }
 }

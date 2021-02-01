@@ -2,10 +2,10 @@ package is.hail.types.physical
 
 import is.hail.annotations.{Region, _}
 import is.hail.asm4s.{Code, _}
-import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, EmitValue, IEmitCode}
+import is.hail.expr.ir.{EmitCode, EmitCodeBuilder, EmitMethodBuilder, EmitValue, ExecuteContext, IEmitCode, ParentStagedRegion, Stream}
 import is.hail.types.physical.stypes.SCode
 import is.hail.types.physical.stypes.concrete.{SIndexablePointer, SIndexablePointerCode, SIndexablePointerSettable}
-import is.hail.types.physical.stypes.interfaces.SContainer
+import is.hail.types.physical.stypes.interfaces.{SContainer, SStreamCode}
 import is.hail.types.virtual.{TArray, Type}
 import is.hail.utils._
 
@@ -504,5 +504,63 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
     (addElement, finish)
   }
 
+  def constructFromStream(
+    cb: EmitCodeBuilder,
+    elts: Stream[EmitCode],
+    region: Value[Region],
+    length: Value[Int],
+    deepCopy: Boolean
+  ): SIndexablePointerCode = {
+    val addr = cb.newLocal[Long]("pcarray_construct1_addr", allocate(region, length))
+    cb += stagedInitialize(addr, length, setMissing = false)
+    val i = cb.newLocal[Int]("pcarray_construct1_i", 0)
+
+    val firstElementAddr = firstElementOffset(addr, length)
+
+    elts.forEachI(cb, { et =>
+      et.toI(cb).consume(cb,
+        cb += setElementMissing(addr, i),
+        { sc =>
+          elementType.storeAtAddress(cb, elementOffsetFromFirst(firstElementAddr, i), region, sc, deepCopy = deepCopy)
+        })
+
+      cb.assign(i, i + 1)
+    })
+
+    cb.ifx(length.cne(i), cb._fatal("PCanonicalArray.constructFromStream: wrong stream length: expected ", length.toS, ", found ", i.toS))
+
+    new SIndexablePointerCode(SIndexablePointer(this), addr)
+  }
+
   def loadFromNested(cb: EmitCodeBuilder, addr: Code[Long]): Code[Long] = Region.loadAddress(addr)
+
+  override def unstagedStoreJavaObject(annotation: Annotation, region: Region): Long = {
+    val is = annotation.asInstanceOf[IndexedSeq[Annotation]]
+    val valueAddress = allocate(region, is.length)
+    assert(is.length >= 0)
+
+    initialize(valueAddress, is.length)
+    var i = 0
+    var curElementAddress = firstElementOffset(valueAddress, is.length)
+    while (i < is.length) {
+      if (is(i) == null) {
+        setElementMissing(valueAddress, i)
+      }
+      else {
+        elementType.unstagedStoreJavaObjectAtAddress(curElementAddress, is(i), region)
+      }
+      curElementAddress = nextElementAddress(curElementAddress)
+      i += 1
+    }
+
+    valueAddress
+  }
+
+  override def unstagedStoreJavaObjectAtAddress(addr: Long, annotation: Annotation, region: Region): Unit = {
+     annotation match {
+       case uis: UnsafeIndexedSeq => this.unstagedStoreAtAddress(addr, region, uis.t, uis.aoff, region.ne(uis.region))
+       case is: IndexedSeq[Annotation] => Region.storeAddress(addr, unstagedStoreJavaObject(annotation, region))
+     }
+  }
+
 }

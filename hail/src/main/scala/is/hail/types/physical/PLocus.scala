@@ -1,5 +1,6 @@
 package is.hail.types.physical
 
+import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.types.physical.stypes.interfaces.{SLocusCode, SLocusValue}
@@ -22,6 +23,8 @@ abstract class PLocus extends PType {
   def position(value: Long): Int
 
   def positionType: PInt32
+
+  def unstagedStoreLocus(addr: Long, contig: String, position: Int, region: Region): Unit
 }
 
 abstract class PLocusValue extends PValue with SLocusValue

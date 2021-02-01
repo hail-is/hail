@@ -1,6 +1,6 @@
 package is.hail.types.physical
 
-import is.hail.annotations.Region
+import is.hail.annotations.{Annotation, Region}
 import is.hail.asm4s.{Code, _}
 import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder}
 import is.hail.types.physical.stypes.SCode
@@ -43,6 +43,12 @@ trait PPrimitive extends PType {
   }
 
   def storePrimitiveAtAddress(cb: EmitCodeBuilder, addr: Code[Long], value: SCode): Unit
+
+  def unstagedStoreJavaObject(annotation: Annotation, region: Region): Long = {
+    val addr = region.allocate(this.byteSize)
+    unstagedStoreJavaObjectAtAddress(addr, annotation, region)
+    addr
+  }
 
   def setRequired(required: Boolean): PPrimitive = {
     if (required == this.required)

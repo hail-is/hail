@@ -1,14 +1,14 @@
 package is.hail.expr.ir.agg
 
-import is.hail.annotations.{CodeOrdering, Region, StagedRegionValueBuilder}
+import is.hail.annotations.{CodeOrdering, Region}
 import is.hail.asm4s._
-import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitCodeBuilder, EmitMethodBuilder, EmitParamType, EmitRegion, IEmitCode, ParamType}
-import is.hail.types.encoded.EType
-import is.hail.types.physical._
-import is.hail.types.virtual._
+import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitCodeBuilder, EmitParamType, EmitRegion, IEmitCode, ParamType}
 import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer}
 import is.hail.types.VirtualTypeWithReq
+import is.hail.types.encoded.EType
+import is.hail.types.physical._
 import is.hail.types.physical.stypes.concrete.SIndexablePointerCode
+import is.hail.types.virtual._
 import is.hail.utils._
 
 

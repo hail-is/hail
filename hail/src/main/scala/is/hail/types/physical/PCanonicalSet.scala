@@ -1,13 +1,14 @@
 package is.hail.types.physical
 
-import is.hail.annotations.Region
+import is.hail.annotations.{Annotation, Region}
 import is.hail.asm4s.Code
 import is.hail.types.virtual.{TSet, Type}
+import is.hail.utils._
 
 final case class PCanonicalSet(elementType: PType,  required: Boolean = false) extends PSet with PArrayBackedContainer {
   val arrayRep = PCanonicalArray(elementType, required)
 
-  def setRequired(required: Boolean) = if(required == this.required) this else PCanonicalSet(elementType, required)
+  def setRequired(required: Boolean) = if (required == this.required) this else PCanonicalSet(elementType, required)
 
   def _asIdent = s"set_of_${elementType.asIdent}"
 
@@ -20,5 +21,12 @@ final case class PCanonicalSet(elementType: PType,  required: Boolean = false) e
   override def deepRename(t: Type) = deepRenameSet(t.asInstanceOf[TSet])
 
   private def deepRenameSet(t: TSet) =
-    PCanonicalSet(this.elementType.deepRename(t.elementType),  this.required)
+    PCanonicalSet(this.elementType.deepRename(t.elementType), this.required)
+
+  override def unstagedStoreJavaObject(annotation: Annotation, region: Region): Long = {
+    val s: IndexedSeq[Annotation] = annotation.asInstanceOf[Set[Annotation]]
+      .toFastIndexedSeq
+      .sorted(elementType.virtualType.ordering.toOrdering)
+    arrayRep.unstagedStoreJavaObject(s, region)
+  }
 }

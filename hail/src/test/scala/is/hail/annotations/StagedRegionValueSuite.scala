@@ -513,9 +513,7 @@ class StagedRegionValueSuite extends HailSuite {
 
     pool.scopedRegion { r =>
       val rvb = new RegionValueBuilder(r)
-      rvb.start(t2)
-      rvb.addAnnotation(t2.virtualType, value)
-      val v1 = rvb.end()
+      val v1 = t2.unstagedStoreJavaObject(value, r)
       assert(SafeRow.read(t2, v1) == value)
 
       rvb.clear()
@@ -543,10 +541,7 @@ class StagedRegionValueSuite extends HailSuite {
 
     val valueT2 = t2.types(0)
     pool.scopedRegion { r =>
-      val rvb = new RegionValueBuilder(r)
-      rvb.start(valueT2)
-      rvb.addAnnotation(valueT2.virtualType, value)
-      val v1 = rvb.end()
+      val v1 = valueT2.unstagedStoreJavaObject(value, r)
       assert(SafeRow.read(valueT2, v1) == value)
 
       val f1 = EmitFunctionBuilder[Long](ctx, "stagedCopy1")
