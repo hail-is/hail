@@ -444,6 +444,12 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
   private def deepRenameArray(t: TArray): PArray =
     PCanonicalArray(this.elementType.deepRename(t.elementType), this.required)
 
+  def constructEmpty(cb: EmitCodeBuilder, region: Value[Region]): SIndexablePointerCode = {
+    val addr = cb.newLocal[Long]("pcarray_construct1_addr", allocate(region, 0))
+    cb += stagedInitialize(addr, 0, setMissing = false)
+    new SIndexablePointerCode(SIndexablePointer(this), addr)
+  }
+
   def constructFromElements(cb: EmitCodeBuilder, region: Value[Region], length: Value[Int], deepCopy: Boolean)
     (f: (EmitCodeBuilder, Value[Int]) => IEmitCode): SIndexablePointerCode = {
 
