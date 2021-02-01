@@ -5,7 +5,7 @@ dbNSFP_variants
 
 *  **Versions:** 4.0
 *  **Reference genome builds:** GRCh37, GRCh38
-*  **Type:** :class:`.Table`
+*  **Type:** :class:`hail.Table`
 
 Schema (4.0, GRCh37)
 ~~~~~~~~~~~~~~~~~~~~
