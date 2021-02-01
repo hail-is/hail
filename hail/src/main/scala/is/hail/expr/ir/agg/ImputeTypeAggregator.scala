@@ -1,11 +1,11 @@
 package is.hail.expr.ir.agg
 
-import is.hail.annotations.{Region, StagedRegionValueBuilder}
+import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitCodeBuilder}
-import is.hail.types.{RPrimitive, VirtualTypeWithReq}
 import is.hail.types.physical._
 import is.hail.types.virtual.{TInt32, TString, Type}
+import is.hail.types.{RPrimitive, VirtualTypeWithReq}
 import is.hail.utils._
 
 import scala.language.existentials
