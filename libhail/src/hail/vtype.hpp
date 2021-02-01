@@ -35,25 +35,25 @@ public:
 
 class VInt32 : public VType {
 public:
-  static const Tag self_tag = VType::Tag::BOOL;
+  static const Tag self_tag = VType::Tag::INT32;
   VInt32(TypeContextToken) : VType(self_tag, 4, 4) {}
 };
 
 class VInt64 : public VType {
 public:
-  static const Tag self_tag = VType::Tag::BOOL;
+  static const Tag self_tag = VType::Tag::INT64;
   VInt64(TypeContextToken) : VType(self_tag, 8, 8) {}
 };
 
 class VFloat32 : public VType {
 public:
-  static const Tag self_tag = VType::Tag::BOOL;
+  static const Tag self_tag = VType::Tag::FLOAT32;
   VFloat32(TypeContextToken) : VType(self_tag, 4, 4) {}
 };
 
 class VFloat64 : public VType {
 public:
-  static const Tag self_tag = VType::Tag::BOOL;
+  static const Tag self_tag = VType::Tag::FLOAT64;
   VFloat64(TypeContextToken) : VType(self_tag, 8, 8) {}
 };
 

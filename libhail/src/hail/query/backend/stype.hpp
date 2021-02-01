@@ -7,13 +7,11 @@
 
 namespace hail {
 
-class SValue;
-class SScalarValue;
-class EmitValue;
-
 enum class PrimitiveType {
+  VOID,
   INT8,
   INT32,
+  INT64,
   FLOAT32,
   FLOAT64,
   POINTER
@@ -38,52 +36,76 @@ enum class PrimitiveType {
 
 class SType {
 public:
+  using BaseType = SType;
+  enum class Tag {
+    VOID,
+    BOOL,
+    INT32,
+    INT64,
+    FLOAT32,
+    FLOAT64,
+    STR,
+    ARRAY,
+    STREAM,
+    TUPLE
+  };
+  const Tag tag;
   const Type *const type;
+  SType(Tag tag, const Type *type) : tag(tag), type(type) {}
+  virtual ~SType();
+
+  // FIXME make return value an iterator?
+  // A generator!
+  virtual std::vector<PrimitiveType> constituent_types() const = 0;
+};
+
+class SBool : public SType {
+public:
+  static const Tag self_tag = SType::Tag::BOOL;
+  SBool(const Type *type);
 
   std::vector<PrimitiveType> constituent_types() const;
 };
 
-class SScalarType : public SType {
-  virtual llvm::Value *get_llvm_value(const SScalarValue *value) const = 0;
-};
-
-class STupleType : public SType {
-  virtual std::shared_ptr<EmitValue> get_element(const SValue *index) const = 0;
-};
-
-class SValue {
+class SInt32 : public SType {
 public:
-  virtual ~SValue();
+  static const Tag self_tag = SType::Tag::INT32;
+  SInt32(const Type *type);
 
-  virtual const std::vector<llvm::Value *> &constituents() const = 0;
-
-  virtual std::shared_ptr<SValue> from_constituents(const std::vector<llvm::Value *> &constituents) const = 0;
+  std::vector<PrimitiveType> constituent_types() const;
 };
 
-class SScalarValue : public SValue {
+class SInt64 : public SType {
 public:
-  virtual llvm::Value *get_llvm_value() const = 0;
+  static const Tag self_tag = SType::Tag::INT64;
+  SInt64(const Type *type);
+
+  std::vector<PrimitiveType> constituent_types() const;
 };
 
-class SStrValue : public SValue {
+class SFloat32 : public SType {
 public:
-  virtual llvm::Value *get_length() const = 0;
+  static const Tag self_tag = SType::Tag::FLOAT32;
+  SFloat32(const Type *type);
 
-  virtual llvm::Value *get_data() const = 0;
+  std::vector<PrimitiveType> constituent_types() const;
 };
 
-class STupleValue : public SValue {
-  virtual std::shared_ptr<EmitValue> get_element(const SValue *index) const = 0;
-};
-
-class SArrayValue : public SValue {
-  virtual std::shared_ptr<EmitValue> get_element(const SValue *index) const = 0;
-};
-
-class EmitValue {
+class SFloat64 : public SType {
 public:
-  llvm::BasicBlock *present_block, *missing_block;
-  std::shared_ptr<SValue> svalue;
+  static const Tag self_tag = SType::Tag::FLOAT64;
+  SFloat64(const Type *type);
+
+  std::vector<PrimitiveType> constituent_types() const;
+};
+
+class EmitType {
+public:
+  const SType *const stype;
+
+  EmitType(const SType *stype) : stype(stype) {}
+
+  std::vector<PrimitiveType> constituent_types() const;
 };
 
 }

@@ -125,8 +125,8 @@ class Value {
   std::shared_ptr<ArenaAllocator> region;
   union u {
     bool b;
-    uint32_t i32;
-    uint64_t i64;
+    int32_t i32;
+    int64_t i64;
     float f;
     double d;
     void *p;
@@ -252,11 +252,11 @@ public:
     assert(vtype->tag == VType::Tag::BOOL);
     return u.b;
   }
-  uint32_t as_int32() const {
+  int32_t as_int32() const {
     assert(vtype->tag == VType::Tag::INT32);
     return u.i32;
   }
-  uint64_t as_int64() const {
+  int64_t as_int64() const {
     assert(vtype->tag == VType::Tag::INT64);
     return u.i64;
   }

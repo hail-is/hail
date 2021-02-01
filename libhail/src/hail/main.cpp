@@ -18,47 +18,64 @@ main() {
   HeapAllocator heap;
   ArenaAllocator arena(heap);
   TypeContext tc(heap);
-  auto t = tc.ttuple({tc.tint32, tc.tstr});
 
-  print("this: ", 5, " is a number and this is a type: ", t);
+  auto vint32 = cast<VInt32>(tc.get_vtype(tc.tint32));
+  auto vstr = cast<VStr>(tc.get_vtype(tc.tstr));
+  auto vbool = cast<VBool>(tc.get_vtype(tc.tbool));
 
-  auto region = std::make_shared<ArenaAllocator>(heap);
+  {
+    auto t = tc.ttuple({tc.tint32, tc.tstr});
 
-  auto p = cast<VTuple>(tc.get_vtype(t));
-  auto pint32 = cast<VInt32>(p->element_vtypes[0]);
-  auto pstr = cast<VStr>(p->element_vtypes[1]);
+    print("this: ", 5, " is a number and this is a type: ", t);
 
-  Value i(pint32, 5);
-  auto s = Value::make_str(pstr, region, 5);
-  assert(s.get_size() == 5);
-  memcpy(s.get_data(), "fooba", 5);
-  auto v = Value::make_tuple(p, region);
-  v.set_element_present(0, true);
-  v.set_element(0, i);
-  v.set_element_present(1, true);
-  v.set_element(1, s);
+    auto region = std::make_shared<ArenaAllocator>(heap);
 
-  print("v = ", v);
+    auto vt = cast<VTuple>(tc.get_vtype(t));
 
-  IRContext xc(heap);
+    Value i(vint32, 5);
+    auto s = Value::make_str(vstr, region, 5);
+    assert(s.get_size() == 5);
+    memcpy(s.get_data(), "fooba", 5);
+    auto tv = Value::make_tuple(vt, region);
+    tv.set_element_present(0, true);
+    tv.set_element(0, i);
+    tv.set_element_present(1, true);
+    tv.set_element(1, s);
 
-  Module *m = xc.make_module();
-  Function *f = xc.make_function(m, "main", {tc.tbool, tc.tint32}, tc.tint32);
+    print("tv = ", tv);
+  }
 
-  auto body = f->get_body();
+  {
+    auto region = std::make_shared<ArenaAllocator>(heap);
+    IRContext xc(heap);
 
-  auto tb = body->make_block({body->inputs[1]});
+    Module *m = xc.make_module();
+    std::vector<const Type *> param_types{tc.tbool, tc.tint32};
+    Function *f = xc.make_function(m, "main", param_types, tc.tint32);
 
-  auto fb = body->make_block(1, 0);
-  fb->set_child(0, fb->make_literal(i));
+    // (mux
+    //   (input 0)
+    //   (input 1)
+    //   (literal int32 5))
+    auto body = f->get_body();
+    body->set_child(0, body->make_mux(body->inputs[0],
+				      body->inputs[1],
+				      body->make_literal(Value(vint32, 5))));
 
-  body->set_child(0, body->make_mux(body->inputs[0], tb, fb));
+    m->pretty_self(outs);
 
-  m->pretty_self(outs);
+    JIT jit;
 
-  JIT jit;
-  auto fp  = reinterpret_cast<int (*)()>(jit.compile(m));
-  print("result ", fp());
+    std::vector<const VType *> param_vtypes;
+    for (auto t : param_types)
+      param_vtypes.push_back(tc.get_vtype(t));
+
+    auto compiled = jit.compile(m, param_vtypes, vint32);
+
+    auto return_value = compiled.invoke(*region, {Value(vbool, true), Value(vint32, -1)});
+
+    print("return_value: ", return_value);
+  }
 
   return 0;
 }

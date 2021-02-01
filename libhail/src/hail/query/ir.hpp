@@ -146,6 +146,8 @@ public:
 
   virtual void pretty_self(FormatStream &s, int indent);
   void pretty_self(FormatStream &s);
+
+  template<typename T> auto dispatch(T &visitor);
 };
 
 extern void pretty(FormatStream &s, IR *x, int indent);
@@ -176,7 +178,7 @@ public:
   Literal *make_literal(const Value &v);
   NA *make_na(const Type *type);
   IsNA *make_is_na(IR *x);
-  Mux *make_mux(IR *x, Block *tb, Block *fb);
+  Mux *make_mux(IR *x, IR *true_value, IR *false_value);
   MakeArray *make_make_array(std::vector<IR *> elements);
   MakeArray *make_make_array(const Type *element_type, std::vector<IR *> children);
   ArrayLen *make_array_len(IR *a, IR *x);
@@ -208,8 +210,8 @@ public:
 class Mux : public IR {
 public:
   static const Tag self_tag = IR::Tag::ISNA;
-  Mux(IRContextToken, Block *parent, IR *condition, Block *true_block, Block *false_block)
-    : IR(self_tag, parent, {condition, true_block, false_block}) {}
+  Mux(IRContextToken, Block *parent, IR *condition, IR *true_value, IR *false_value)
+    : IR(self_tag, parent, {condition, true_value, false_value}) {}
 };
 
 class IsNA : public IR {
@@ -248,6 +250,19 @@ public:
   size_t index;
   GetTupleElement(IRContextToken, Block *parent, IR *t, size_t index) : IR(self_tag, parent, {t}), index(index) {}
 };
+
+template<typename T> auto
+IR::dispatch(T &visitor) {
+  switch(tag) {
+  case IR::Tag::BLOCK: return visitor.visit(cast<Block>(this));
+  case IR::Tag::INPUT: return visitor.visit(cast<Input>(this));
+  case IR::Tag::LITERAL: return visitor.visit(cast<Literal>(this));
+  case IR::Tag::NA: return visitor.visit(cast<NA>(this));
+  case IR::Tag::ISNA: return visitor.visit(cast<IsNA>(this));
+  default:
+    abort();
+  }
+}
 
 }
 

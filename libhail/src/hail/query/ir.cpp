@@ -192,8 +192,8 @@ Block::make_literal(const Value &v) {
 }
 
 Mux *
-Block::make_mux(IR *x, Block *tb, Block *fb) {
-  return xc.arena.make<Mux>(IRContextToken(), this, x, tb, fb);
+Block::make_mux(IR *x, IR *true_value, IR *false_value) {
+  return xc.arena.make<Mux>(IRContextToken(), this, x, true_value, false_value);
 }
 
 }
