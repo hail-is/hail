@@ -113,13 +113,7 @@ def rest_authenticated_developers_or_auth_only(fun):
     return wrapped
 
 
-async def _batch_billing_project_user(request, userdata):
-    app = request.app
-    db: Database = app['db']
-
-    batch_id = int(request.match_info['batch_id'])
-    user = userdata['username']
-
+async def _user_can_access(db: Database, batch_id: int, user: str):
     record = await db.select_and_fetchone(
         '''
 SELECT id
@@ -136,10 +130,13 @@ def rest_billing_project_users_only(fun):
     @rest_authenticated_users_only
     @wraps(fun)
     async def wrapped(request, userdata, *args, **kwargs):
-        permitted_user = await _batch_billing_project_user(request, userdata)
+        db = request.app['db']
+        batch_id = int(request.match_info['batch_id'])
+        user = userdata['username']
+        permitted_user = await _user_can_access(db, batch_id, user)
         if not permitted_user:
-            raise web.HTTPUnauthorized()
-        return await fun(request, userdata, *args, **kwargs)
+            raise web.HTTPNotFound()
+        return await fun(request, userdata, batch_id, *args, **kwargs)
     return wrapped
 
 
@@ -148,10 +145,13 @@ def web_billing_project_users_only(redirect=True):
         @web_authenticated_users_only(redirect)
         @wraps(fun)
         async def wrapped(request, userdata, *args, **kwargs):
-            permitted_user = await _batch_billing_project_user(request, userdata)
+            db = request.app['db']
+            batch_id = int(request.match_info['batch_id'])
+            user = userdata['username']
+            permitted_user = await _user_can_access(db, batch_id, user)
             if not permitted_user:
-                raise web.HTTPUnauthorized()
-            return await fun(request, userdata, *args, **kwargs)
+                raise web.HTTPNotFound()
+            return await fun(request, userdata, batch_id, *args, **kwargs)
         return wrapped
     return wrap
 
@@ -293,9 +293,7 @@ LIMIT 50;
 @routes.get('/api/v1alpha/batches/{batch_id}/jobs')
 @prom_async_time(REQUEST_TIME_GET_JOBS)
 @rest_billing_project_users_only
-async def get_jobs(request, userdata):  # pylint: disable=unused-argument
-    batch_id = int(request.match_info['batch_id'])
-
+async def get_jobs(request, userdata, batch_id):  # pylint: disable=unused-argument
     db = request.app['db']
     record = await db.select_and_fetchone(
         '''
@@ -469,8 +467,7 @@ async def _get_full_job_status(app, record):
 @routes.get('/api/v1alpha/batches/{batch_id}/jobs/{job_id}/log')
 @prom_async_time(REQUEST_TIME_GET_JOB_LOG)
 @rest_billing_project_users_only
-async def get_job_log(request, userdata):  # pylint: disable=unused-argument
-    batch_id = int(request.match_info['batch_id'])
+async def get_job_log(request, userdata, batch_id):  # pylint: disable=unused-argument
     job_id = int(request.match_info['job_id'])
     job_log = await _get_job_log(request.app, batch_id, job_id)
     return web.json_response(job_log)
@@ -1060,16 +1057,14 @@ WHERE id = %s AND NOT deleted;
 @routes.get('/api/v1alpha/batches/{batch_id}')
 @prom_async_time(REQUEST_TIME_POST_GET_BATCH)
 @rest_billing_project_users_only
-async def get_batch(request, userdata):  # pylint: disable=unused-argument
-    batch_id = int(request.match_info['batch_id'])
+async def get_batch(request, userdata, batch_id):  # pylint: disable=unused-argument
     return web.json_response(await _get_batch(request.app, batch_id))
 
 
 @routes.patch('/api/v1alpha/batches/{batch_id}/cancel')
 @prom_async_time(REQUEST_TIME_PATCH_CANCEL_BATCH)
 @rest_billing_project_users_only
-async def cancel_batch(request, userdata):  # pylint: disable=unused-argument
-    batch_id = int(request.match_info['batch_id'])
+async def cancel_batch(request, userdata, batch_id):  # pylint: disable=unused-argument
     await _handle_api_error(_cancel_batch, request.app, batch_id)
     return web.Response()
 
@@ -1118,8 +1113,7 @@ WHERE user = %s AND id = %s AND NOT deleted;
 @routes.delete('/api/v1alpha/batches/{batch_id}')
 @prom_async_time(REQUEST_TIME_DELETE_BATCH)
 @rest_billing_project_users_only
-async def delete_batch(request, userdata):  # pylint: disable=unused-argument
-    batch_id = int(request.match_info['batch_id'])
+async def delete_batch(request, userdata, batch_id):  # pylint: disable=unused-argument
     await _delete_batch(request.app, batch_id)
     return web.Response()
 
@@ -1127,10 +1121,8 @@ async def delete_batch(request, userdata):  # pylint: disable=unused-argument
 @routes.get('/batches/{batch_id}')
 @prom_async_time(REQUEST_TIME_GET_BATCH_UI)
 @web_billing_project_users_only()
-async def ui_batch(request, userdata):
+async def ui_batch(request, userdata, batch_id):
     app = request.app
-    batch_id = int(request.match_info['batch_id'])
-
     batch = await _get_batch(app, batch_id)
 
     jobs, last_job_id = await _query_batch_jobs(request, batch_id)
@@ -1153,8 +1145,7 @@ async def ui_batch(request, userdata):
 @prom_async_time(REQUEST_TIME_POST_CANCEL_BATCH_UI)
 @check_csrf_token
 @web_billing_project_users_only(redirect=False)
-async def ui_cancel_batch(request, userdata):  # pylint: disable=unused-argument
-    batch_id = int(request.match_info['batch_id'])
+async def ui_cancel_batch(request, userdata, batch_id):  # pylint: disable=unused-argument
     session = await aiohttp_session.get_session(request)
     errored = await _handle_ui_error(session, _cancel_batch, request.app, batch_id)
     if not errored:
@@ -1167,8 +1158,7 @@ async def ui_cancel_batch(request, userdata):  # pylint: disable=unused-argument
 @prom_async_time(REQUEST_TIME_POST_DELETE_BATCH_UI)
 @check_csrf_token
 @web_billing_project_users_only(redirect=False)
-async def ui_delete_batch(request, userdata):  # pylint: disable=unused-argument
-    batch_id = int(request.match_info['batch_id'])
+async def ui_delete_batch(request, userdata, batch_id):  # pylint: disable=unused-argument
     await _delete_batch(request.app, batch_id)
     session = await aiohttp_session.get_session(request)
     set_message(session, f'Batch {batch_id} deleted.', 'info')
@@ -1276,8 +1266,7 @@ WHERE jobs.batch_id = %s AND NOT deleted AND jobs.job_id = %s;
 @routes.get('/api/v1alpha/batches/{batch_id}/jobs/{job_id}/attempts')
 @prom_async_time(REQUEST_TIME_GET_ATTEMPTS)
 @rest_billing_project_users_only
-async def get_attempts(request, userdata):  # pylint: disable=unused-argument
-    batch_id = int(request.match_info['batch_id'])
+async def get_attempts(request, userdata, batch_id):  # pylint: disable=unused-argument
     job_id = int(request.match_info['job_id'])
     attempts = await _get_attempts(request.app, batch_id, job_id)
     return web.json_response(attempts)
@@ -1286,8 +1275,7 @@ async def get_attempts(request, userdata):  # pylint: disable=unused-argument
 @routes.get('/api/v1alpha/batches/{batch_id}/jobs/{job_id}')
 @prom_async_time(REQUEST_TIME_GET_JOB)
 @rest_billing_project_users_only
-async def get_job(request, userdata):  # pylint: disable=unused-argument
-    batch_id = int(request.match_info['batch_id'])
+async def get_job(request, userdata, batch_id):  # pylint: disable=unused-argument
     job_id = int(request.match_info['job_id'])
     status = await _get_job(request.app, batch_id, job_id)
     return web.json_response(status)
@@ -1296,9 +1284,8 @@ async def get_job(request, userdata):  # pylint: disable=unused-argument
 @routes.get('/batches/{batch_id}/jobs/{job_id}')
 @prom_async_time(REQUEST_TIME_GET_JOB_UI)
 @web_billing_project_users_only()
-async def ui_get_job(request, userdata):
+async def ui_get_job(request, userdata, batch_id):
     app = request.app
-    batch_id = int(request.match_info['batch_id'])
     job_id = int(request.match_info['job_id'])
 
     job_status, attempts, job_log = await asyncio.gather(_get_job(app, batch_id, job_id),

@@ -170,7 +170,7 @@ async def post_retry_pr(request, userdata):  # pylint: disable=unused-argument
 @web_authenticated_developers_only()
 async def get_batches(request, userdata):
     batch_client = request.app['batch_client']
-    batches = [b async for b in batch_client.list_batches('user:ci')]
+    batches = [b async for b in batch_client.list_batches()]
     statuses = [await b.last_known_status() for b in batches]
     page_context = {'batches': statuses}
     return await render_template('ci', request, userdata, 'batches.html', page_context)
