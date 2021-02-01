@@ -1310,18 +1310,8 @@ class Emit[C](
             val vtPType = optVTPType.get
             val vt = vtPType.construct(vtPType.makeShapeStruct(vtShapeSeq, region.code, cb), vtPType.makeColumnMajorStridesStruct(vtShapeSeq, region.code, cb), vtData, cb, region.code)
 
-            val resultSRVB = new StagedRegionValueBuilder(mb, x.pType, region.code)
-            cb.append(Code(
-              resultSRVB.start(),
-              resultSRVB.addIRIntermediate(u),
-              resultSRVB.advance(),
-              resultSRVB.addIRIntermediate(s),
-              resultSRVB.advance(),
-              resultSRVB.addIRIntermediate(vt),
-              resultSRVB.advance())
-            )
-
-            PCode.apply(x.pType, resultSRVB.end())
+            val outputPType = x.pType.asInstanceOf[PCanonicalTuple]
+            outputPType.constructFromFields(cb, region.code, FastIndexedSeq(EmitCode.present(u), EmitCode.present(s), EmitCode.present(vt)), deepCopy = false)
           } else {
             s
           }
@@ -1400,9 +1390,8 @@ class Emit[C](
           cb.append(Code.invokeStatic1[Memory, Long, Unit]("free", workAddress.load()))
           cb.append(infoDGEQRFErrorTest("Failed to compute H and Tau."))
 
-          val result: Code[Long] = if (mode == "raw") {
-            val rawPType = x.pType.asInstanceOf[PTuple]
-            val rawOutputSrvb = new StagedRegionValueBuilder(mb, x.pType, region.code)
+          if (mode == "raw") {
+            val rawPType = x.pType.asInstanceOf[PCanonicalTuple]
             val hPType = rawPType.types(0).asInstanceOf[PNDArray]
             val tauPType = rawPType.types(1).asInstanceOf[PNDArray]
 
@@ -1416,17 +1405,7 @@ class Emit[C](
             val h = hPType.construct(hShapeStruct, hStridesStruct, aAddressDGEQRF, cb, region.code)
             val tau = tauPType.construct(tauShapeStruct, tauStridesStruct, tauAddress, cb, region.code)
 
-            val constructHAndTauTuple = Code(
-              rawOutputSrvb.start(),
-              rawOutputSrvb.addIRIntermediate(h),
-              rawOutputSrvb.advance(),
-              rawOutputSrvb.addIRIntermediate(tau),
-              rawOutputSrvb.advance(),
-              rawOutputSrvb.end()
-            )
-
-            constructHAndTauTuple
-
+            rawPType.constructFromFields(cb, region.code, FastIndexedSeq(EmitCode.present(h), EmitCode.present(tau)), deepCopy = false)
           } else {
             val (rPType, rRows, rCols) = if (mode == "r") {
               (x.pType.asInstanceOf[PNDArray], K, N)
@@ -1466,11 +1445,10 @@ class Emit[C](
             val computeR = rPType.construct(rShapeStruct, rStridesStruct, rDataAddress, cb, region.code)
 
             if (mode == "r") {
-              computeR.tcode[Long]
+              computeR
             }
             else {
-              val crPType = x.pType.asInstanceOf[PTuple]
-              val crOutputSrvb = new StagedRegionValueBuilder(mb, crPType, region.code)
+              val crPType = x.pType.asInstanceOf[PCanonicalTuple]
 
               val qPType = crPType.types(0).asInstanceOf[PNDArray]
               val qShapeArray = if (mode == "complete") Array(M, M) else Array(M, K)
@@ -1533,19 +1511,10 @@ class Emit[C](
               cb.append(Region.copyFrom(pndValue.pt.data.pType.firstElementOffset(aAddressDORGQR),
                 qPType.data.pType.firstElementOffset(qDataAddress), (M * numColsToUse) * 8L))
 
-              val computeCompleteOrReduced = Code(Code(FastIndexedSeq(
-                crOutputSrvb.start(),
-                crOutputSrvb.addIRIntermediate(qPType.construct(qShapeStruct, qStridesStruct, qDataAddress, cb, region.code)),
-                crOutputSrvb.advance(),
-                crOutputSrvb.addIRIntermediate(rNDArray),
-                crOutputSrvb.advance())),
-                crOutputSrvb.end()
-              )
-
-              computeCompleteOrReduced
+              val q = qPType.construct(qShapeStruct, qStridesStruct, qDataAddress, cb, region.code)
+              crPType.constructFromFields(cb, region.code, FastIndexedSeq(EmitCode.present(q), EmitCode.present(rNDArray)), deepCopy = false)
             }
           }
-          PCode(pt, result)
         }
       case x: NDArrayMap  =>  emitDeforestedNDArrayI(x)
       case x: NDArrayMap2 =>  emitDeforestedNDArrayI(x)
