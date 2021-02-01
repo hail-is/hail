@@ -418,9 +418,11 @@ async def on_startup(app):
 async def on_shutdown(app):
     try:
         await app['asana_client'].close()
-        await app['gh_session'].close()
     finally:
-        app['task_manager'].shutdown()
+        try:
+            await app['gh_session'].close()
+        finally:
+            app['task_manager'].shutdown()
 
 
 def run():
