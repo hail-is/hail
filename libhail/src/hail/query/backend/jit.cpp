@@ -25,63 +25,45 @@ class Module;
 class JITImpl {
   std::unique_ptr<llvm::orc::LLJIT> llvm_jit;
 
+  const SType *stype_from(const VType *vtype);
+
 public:
   JITImpl();
 
-  JITModule compile(Module *m, const std::vector<const VType *> &param_vtypes, const VType *return_vtype);
+  JITModule compile(TypeContext &tc,
+		    Module *m,
+		    const std::vector<const VType *> &param_vtypes,
+		    const VType *return_vtype);
 };
 
 JITImpl::JITImpl()
   : llvm_jit(std::move(exit_on_error(llvm::orc::LLJITBuilder().create()))) {}
 
-class JITContext {
-public:
-  std::unique_ptr<llvm::LLVMContext> llvm_context;
-  std::unique_ptr<llvm::Module> llvm_module;
+class CompileModule {
 private:
-  std::map<const Type *, llvm::Type *> llvm_types;
-
+  TypeContext &tc;
+  llvm::LLVMContext &llvm_context;
+  llvm::Module *llvm_module;
 public:
-  JITContext();
-
-  llvm::Type *get_llvm_type(PrimitiveType pt);
+  CompileModule(TypeContext &tc,
+		Module *module,
+		const std::vector<const SType *> &param_stypes,
+		const SType *return_stype,
+		llvm::LLVMContext &llvm_context,
+		llvm::Module *llvm_module);
 };
 
-JITContext::JITContext()
-  : llvm_context(std::make_unique<llvm::LLVMContext>()),
-    llvm_module(std::make_unique<llvm::Module>("hail", *llvm_context)) {}
-
-llvm::Type *
-JITContext::get_llvm_type(PrimitiveType pt) {
-  switch (pt) {
-  case PrimitiveType::VOID:
-    return llvm::Type::getVoidTy(*llvm_context);
-  case PrimitiveType::INT8:
-    return llvm::Type::getInt8Ty(*llvm_context);
-  case PrimitiveType::INT32:
-    return llvm::Type::getInt32Ty(*llvm_context);
-  case PrimitiveType::INT64:
-    return llvm::Type::getInt64Ty(*llvm_context);
-  case PrimitiveType::FLOAT32:
-    return llvm::Type::getFloatTy(*llvm_context);
-  case PrimitiveType::FLOAT64:
-    return llvm::Type::getDoubleTy(*llvm_context);
-  case PrimitiveType::POINTER:
-    return llvm::Type::getInt8PtrTy(*llvm_context);
-  default:
-    abort();
-  }
-}
-
-class JITFunction {
-  JITContext &jc;
-  llvm::LLVMContext &llvm_context;
+class CompileFunction {
+  TypeContext &tc;
   Function *function;
+  llvm::LLVMContext &llvm_context;
+  llvm::Module *llvm_module;
   llvm::Function *llvm_function;
-  IRType ir_type;
   llvm::IRBuilder<> llvm_ir_builder;
 
-  llvm::Type *get_llvm_type(PrimitiveType pt) const { return jc.get_llvm_type(pt); }
+  IRType ir_type;
+
+  llvm::Type *get_llvm_type(PrimitiveType pt) const;
 
   llvm::AllocaInst *make_entry_alloca(llvm::Type *llvm_type);
 
@@ -93,29 +75,48 @@ class JITFunction {
   EmitValue emit(IR *x);
 
 public:
-  JITFunction(TypeContext &tc,
-	      Function *f,
-	      std::vector<const SType *> &param_types,
-	      const SType *return_type,
-	      JITContext &jc);
+  CompileFunction(TypeContext &tc,
+		  Function *function,
+		  const std::vector<const SType *> &param_types,
+		  const SType *return_type,
+		  llvm::LLVMContext &llvm_context,
+		  llvm::Module *llvm_module);
 };
 
-JITFunction::JITFunction(TypeContext &tc,
-			 Function *f,
-			 std::vector<const SType *> &param_types,
-			 const SType *return_type,
-			 JITContext &jc)
-  : jc(jc),
-    llvm_context(*jc.llvm_context),
+CompileModule::CompileModule(TypeContext &tc,
+			     Module *module,
+			     const std::vector<const SType *> &param_stypes,
+			     const SType *return_stype,
+			     llvm::LLVMContext &llvm_context,
+			     llvm::Module *llvm_module)
+  : tc(tc),
+    llvm_context(llvm_context),
+    llvm_module(llvm_module) {
+  auto main = module->get_function("main");
+  // FIXME
+  assert(main);
+
+  CompileFunction(tc, main, param_stypes, return_stype, llvm_context, llvm_module);
+}
+
+CompileFunction::CompileFunction(TypeContext &tc,
+				 Function *function,
+				 const std::vector<const SType *> &param_stypes,
+				 const SType *return_stype,
+				 llvm::LLVMContext &llvm_context,
+				 llvm::Module *llvm_module)
+  : tc(tc),
     function(function),
-    ir_type(tc, f),
-    llvm_ir_builder(llvm_context) {
+    llvm_context(llvm_context),
+    llvm_ir_builder(llvm_context),
+    llvm_module(llvm_module),
+    ir_type(tc, function) {
   std::vector<llvm::Type *> llvm_param_types;
-  for (auto t : param_types)
+  for (auto t : param_stypes)
     for (auto pt : t->constituent_types())
       llvm_param_types.push_back(get_llvm_type(pt));
 
-  auto return_constituent_types = return_type->constituent_types();
+  auto return_constituent_types = return_stype->constituent_types();
   auto llvm_return_type = get_llvm_type(return_constituent_types.size() == 1
 					? return_constituent_types[0]
 					: PrimitiveType::POINTER);
@@ -124,33 +125,55 @@ JITFunction::JITFunction(TypeContext &tc,
   llvm_function = llvm::Function::Create(llvm_ft,
 					 llvm::Function::ExternalLinkage,
 					 "hl_compiled_main",
-					 jc.llvm_module.get());
+					 llvm_module);
 
   auto entry = llvm::BasicBlock::Create(llvm_context, "entry", llvm_function);
   llvm_ir_builder.SetInsertPoint(entry);
 
-  emit(f->get_body());
+  emit(function->get_body());
+}
+
+llvm::Type *
+CompileFunction::get_llvm_type(PrimitiveType pt) const {
+  switch (pt) {
+  case PrimitiveType::VOID:
+    return llvm::Type::getVoidTy(llvm_context);
+  case PrimitiveType::INT8:
+    return llvm::Type::getInt8Ty(llvm_context);
+  case PrimitiveType::INT32:
+    return llvm::Type::getInt32Ty(llvm_context);
+  case PrimitiveType::INT64:
+    return llvm::Type::getInt64Ty(llvm_context);
+  case PrimitiveType::FLOAT32:
+    return llvm::Type::getFloatTy(llvm_context);
+  case PrimitiveType::FLOAT64:
+    return llvm::Type::getDoubleTy(llvm_context);
+  case PrimitiveType::POINTER:
+    return llvm::Type::getInt8PtrTy(llvm_context);
+  default:
+    abort();
+  }
 }
 
 llvm::AllocaInst *
-JITFunction::make_entry_alloca(llvm::Type *llvm_type) {
+CompileFunction::make_entry_alloca(llvm::Type *llvm_type) {
   llvm::IRBuilder<> builder(&llvm_function->getEntryBlock(),
 			    llvm_function->getEntryBlock().begin());
   return builder.CreateAlloca(llvm_type);
 }
 
 EmitValue
-JITFunction::emit(Block *x) {
+CompileFunction::emit(Block *x) {
   abort();
 }
 
 EmitValue
-JITFunction::emit(Input *x) {
+CompileFunction::emit(Input *x) {
   abort();
 }
 
 EmitValue
-JITFunction::emit(Literal *x) {
+CompileFunction::emit(Literal *x) {
   if (!x->value.get_present()) {
     auto m = llvm::ConstantInt::get(llvm_context, llvm::APInt(1, true));
     // FIXME nullptr
@@ -194,14 +217,14 @@ JITFunction::emit(Literal *x) {
 }
 
 EmitValue
-JITFunction::emit(NA *x) {
+CompileFunction::emit(NA *x) {
   auto m = llvm::ConstantInt::get(llvm_context, llvm::APInt(1, false));
   // FIXME nullptr
   return EmitValue(m, nullptr);
 }
 
 EmitValue
-JITFunction::emit(IsNA *x) {
+CompileFunction::emit(IsNA *x) {
   auto cond = emit(x->get_child(0)).as_control();
 
   llvm::AllocaInst *l = make_entry_alloca(llvm::Type::getInt8Ty(llvm_context));
@@ -223,15 +246,49 @@ JITFunction::emit(IsNA *x) {
 }
 
 EmitValue
-JITFunction::emit(IR *x) {
+CompileFunction::emit(IR *x) {
   return x->dispatch([this](auto x) {
 		       return emit(x);
 		     });
 }
 
+const SType *
+JITImpl::stype_from(const VType *vtype) {
+  switch (vtype->tag) {
+  case VType::Tag::BOOL:
+    return new SBool(vtype->type);
+  case VType::Tag::INT32:
+    return new SInt32(vtype->type);
+  case VType::Tag::INT64:
+    return new SInt64(vtype->type);
+  case VType::Tag::FLOAT32:
+    return new SFloat32(vtype->type);
+  case VType::Tag::FLOAT64:
+    return new SFloat64(vtype->type);
+  default:
+    abort();
+  }
+}
+
 JITModule
-JITImpl::compile(Module *m, const std::vector<const VType *> &param_vtypes, const VType *return_vtype) {
-  auto llvm_context = std::make_unique<llvm::LLVMContext>();
+JITImpl::compile(TypeContext &tc,
+		 Module *module,
+		 const std::vector<const VType *> &param_vtypes,
+		 const VType *return_vtype) {
+  llvm::LLVMContext llvm_context;
+  llvm::Module llvm_module("hail", llvm_context);
+
+  std::vector<const SType *> param_stypes;
+  for (auto vt : param_vtypes)
+    param_stypes.push_back(stype_from(vt));
+  auto return_stype = stype_from(return_vtype);
+
+  CompileModule mc(tc, module, param_stypes, return_stype, llvm_context, &llvm_module);
+
+  uint64_t address = exit_on_error(llvm_jit->lookup("__hail_f")).getAddress();
+  return JITModule(param_vtypes, return_vtype, address);
+
+#if 0
 
   llvm::IRBuilder<> llvm_ir_builder(*llvm_context);
 
@@ -255,6 +312,7 @@ JITImpl::compile(Module *m, const std::vector<const VType *> &param_vtypes, cons
   uint64_t address = exit_on_error(llvm_jit->lookup("__hail_f")).getAddress();
 
   return JITModule(param_vtypes, return_vtype, address);
+#endif
 }
 
 JITModule::JITModule(std::vector<const VType *> param_vtypes,
@@ -291,8 +349,13 @@ JIT::JIT() {
 JIT::~JIT() {}
 
 JITModule
-JIT::compile(Module *m, const std::vector<const VType *> &param_vtypes, const VType *return_vtype) {
-  return std::move(impl->compile(m, param_vtypes, return_vtype));
+JIT::compile(TypeContext &tc,
+	     Module *m,
+	     const std::vector<const VType *> &param_vtypes,
+	     const VType *return_vtype) {
+  // FIXME turn vtypes into stypes
+
+  return std::move(impl->compile(tc, m, param_vtypes, return_vtype));
 }
 
 }

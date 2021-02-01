@@ -58,6 +58,7 @@ public:
   Module(IRContextToken);
   ~Module();
 
+  Function *get_function(const std::string &name);
   const std::map<std::string, Function *> &get_functions() const { return functions; }
   void add_function(Function *f);
 

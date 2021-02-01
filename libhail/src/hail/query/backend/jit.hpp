@@ -34,7 +34,10 @@ public:
   JIT();
   ~JIT();
 
-  JITModule compile(Module *m, const std::vector<const VType *> &param_vtypes, const VType *return_vtype);
+  JITModule compile(TypeContext &tc,
+		    Module *m,
+		    const std::vector<const VType *> &param_vtypes,
+		    const VType *return_vtype);
 };
 
 }

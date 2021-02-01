@@ -39,6 +39,13 @@ Module::Module(IRContextToken) {}
 
 Module::~Module() {}
 
+Function *
+Module::get_function(const std::string &name) {
+  auto i = functions.find(name);
+  assert(i != functions.end());
+  return i->second;
+}
+
 void
 Module::add_function(Function *f) {
   f->remove();

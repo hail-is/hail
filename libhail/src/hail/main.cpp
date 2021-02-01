@@ -70,7 +70,7 @@ main() {
     for (auto t : param_types)
       param_vtypes.push_back(tc.get_vtype(t));
 
-    auto compiled = jit.compile(m, param_vtypes, vint32);
+    auto compiled = jit.compile(tc, m, param_vtypes, vint32);
 
     auto return_value = compiled.invoke(*region, {Value(vbool, true), Value(vint32, -1)});
 
