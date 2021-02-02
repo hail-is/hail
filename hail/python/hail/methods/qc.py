@@ -482,8 +482,9 @@ def concordance(left, right, *, _localize_global_statistics=True) -> Tuple[List[
            config=nullable(str),
            block_size=int,
            name=str,
-           csq=bool)
-def vep(dataset: Union[Table, MatrixTable], config=None, block_size=1000, name='vep', csq=False):
+           csq=bool,
+           tolerate_parse_error=bool)
+def vep(dataset: Union[Table, MatrixTable], config=None, block_size=1000, name='vep', csq=False, tolerate_parse_error=False):
     """Annotate variants with VEP.
 
     .. include:: ../_templates/req_tvariant.rst
@@ -577,6 +578,8 @@ def vep(dataset: Union[Table, MatrixTable], config=None, block_size=1000, name='
     csq : :obj:`bool`
         If ``True``, annotates with the VCF CSQ field as a :py:data:`.tstr`.
         If ``False``, annotates as the `vep_json_schema`.
+    tolerate_parse_error : :obj:`bool`
+        If ``True``, ignore invalid JSON produced by VEP and return a missing annotation.
 
     Returns
     -------
@@ -598,20 +601,24 @@ def vep(dataset: Union[Table, MatrixTable], config=None, block_size=1000, name='
         require_table_key_variant(dataset, 'vep')
         ht = dataset.select()
 
+    ht = ht.distinct()
     annotations = Table(TableToTableApply(ht._tir,
                                           {'name': 'VEP',
                                            'config': config,
                                            'csq': csq,
-                                           'blockSize': block_size})).persist()
+                                           'blockSize': block_size,
+                                           'tolerateParseError': tolerate_parse_error})).persist()
 
     if csq:
         dataset = dataset.annotate_globals(
             **{name + '_csq_header': annotations.index_globals()['vep_csq_header']})
 
     if isinstance(dataset, MatrixTable):
-        return dataset.annotate_rows(**{name: annotations[dataset.row_key].vep})
+        vep = annotations[dataset.row_key]
+        return dataset.annotate_rows(**{name: vep.vep, name + '_proc_id': vep.vep_proc_id})
     else:
-        return dataset.annotate(**{name: annotations[dataset.key].vep})
+        vep = annotations[dataset.key]
+        return dataset.annotate(**{name: vep.vep, name + '_proc_id': vep.vep_proc_id})
 
 
 @typecheck(dataset=oneof(Table, MatrixTable),

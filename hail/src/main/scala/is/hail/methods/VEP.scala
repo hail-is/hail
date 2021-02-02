@@ -1,25 +1,22 @@
 package is.hail.methods
 
-import java.io.BufferedInputStream
-
 import com.fasterxml.jackson.core.JsonParseException
-import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.expr._
-import is.hail.expr.ir.{ExecuteContext, TableValue}
 import is.hail.expr.ir.functions.{RelationalFunctions, TableToTableFunction}
-import is.hail.types._
-import is.hail.types.physical.{PStruct, PType}
-import is.hail.types.virtual._
+import is.hail.expr.ir.{ExecuteContext, TableValue}
+import is.hail.io.fs.FS
 import is.hail.methods.VEP._
 import is.hail.rvd.RVD
 import is.hail.sparkextras.ContextRDD
+import is.hail.types._
+import is.hail.types.physical.PType
+import is.hail.types.virtual._
 import is.hail.utils._
 import is.hail.variant.{Locus, RegionValueVariant, VariantMethods}
-import is.hail.io.fs.FS
 import org.apache.spark.sql.Row
-import org.json4s.{DefaultFormats, Extraction, Formats, JValue}
 import org.json4s.jackson.JsonMethods
+import org.json4s.{Formats, JValue}
 
 import scala.collection.JavaConverters._
 import scala.collection.mutable
@@ -103,8 +100,8 @@ object VEP {
     new VEP(params, conf)
   }
 
-  def apply(fs: FS, config: String, csq: Boolean, blockSize: Int): VEP =
-    VEP(fs, VEPParameters(config, csq, blockSize))
+  def apply(fs: FS, config: String, csq: Boolean, blockSize: Int, tolerateParseError: Boolean): VEP =
+    VEP(fs, VEPParameters(config, csq, blockSize, tolerateParseError))
 
   def fromJValue(fs: FS, jv: JValue): VEP = {
     log.info(s"vep config json: ${ jv.toString }")
@@ -114,7 +111,7 @@ object VEP {
   }
 }
 
-case class VEPParameters(config: String, csq: Boolean, blockSize: Int)
+case class VEPParameters(config: String, csq: Boolean, blockSize: Int, tolerateParseError: Boolean)
 
 class VEP(val params: VEPParameters, conf: VEPConfiguration) extends TableToTableFunction {
   private def vepSignature = conf.vep_json_schema
@@ -149,11 +146,11 @@ class VEP(val params: VEPParameters, conf: VEPConfiguration) extends TableToTabl
     val localBlockSize = params.blockSize
 
     val localRowType = tv.rvd.rowPType
-    val rowKeyOrd = tv.typ.keyType.ordering
+    val localTolerateParseError = params.tolerateParseError
 
     val prev = tv.rvd
     val annotations = prev
-      .mapPartitions { (_, it) =>
+      .mapPartitionsWithIndex { (partIdx, _, it) =>
         val pb = new ProcessBuilder(cmd.toList.asJava)
         val env = pb.environment()
         localConf.env.foreach { case (key, value) =>
@@ -169,7 +166,9 @@ class VEP(val params: VEPParameters, conf: VEPConfiguration) extends TableToTabl
             (rvv.locus(), rvv.alleles(): IndexedSeq[String])
           }
           .grouped(localBlockSize)
-          .flatMap { block =>
+          .zipWithIndex
+          .flatMap { case (block, blockIdx) =>
+            val procID = Annotation(partIdx, blockIdx)
             val (jt, err, proc) = block.iterator.pipe(pb,
               printContext,
               printElement,
@@ -179,7 +178,7 @@ class VEP(val params: VEPParameters, conf: VEPConfiguration) extends TableToTabl
               (locus, alleles.filter(_ != "*")) -> v
             }.toMap
 
-            val kt = jt
+            val kt: Map[Annotation, Annotation] = jt
               .filter(s => !s.isEmpty && s(0) != '#')
               .flatMap { s =>
                 if (csq) {
@@ -216,25 +215,28 @@ class VEP(val params: VEPParameters, conf: VEPConfiguration) extends TableToTabl
                         fatal(s"VEP output variant ${ VariantMethods.locusAllelesToString(vepLocus, vepAlleles) } not found in original variants.\nVEP output: $s")
                     }
                   } catch {
-                    case e: JsonParseException =>
+                    case e: JsonParseException if localTolerateParseError =>
                       log.warn(s"VEP failed to produce parsable JSON!\n  json: $s\n  error: $e")
                       None
                   }
                 }
-              }
-
-            val r = kt.toArray
-              .sortBy(_._1)(rowKeyOrd.toOrdering)
+              }.toMap
 
             waitFor(proc, err, cmd)
 
-            r
+            block.map { case (locus, alleles) =>
+              val variant = Annotation(locus, alleles)
+              val vepAnnotation = kt.get(variant).orNull
+              (variant, vepAnnotation, procID)
+            }
           }
       }
 
     val vepType: Type = if (params.csq) TArray(TString) else vepSignature
 
-    val vepRVDType = prev.typ.copy(rowType = prev.rowPType.appendKey("vep", PType.canonical(vepType)))
+    val vepRVDType = prev.typ.copy(rowType = prev.rowPType
+      .appendKey("vep", PType.canonical(vepType))
+      .appendKey("vep_proc_id", PType.canonical(TStruct("part_idx" -> TInt32, "block_idx" -> TInt32))))
 
     val vepRowType = vepRVDType.rowType
 
@@ -244,12 +246,13 @@ class VEP(val params: VEPParameters, conf: VEPConfiguration) extends TableToTabl
       ContextRDD.weaken(annotations).cmapPartitions { (ctx, it) =>
         val rvb = ctx.rvb
 
-        it.map { case (v, vep) =>
+        it.map { case (v, vep, proc) =>
           rvb.start(vepRowType)
           rvb.startStruct()
           rvb.addAnnotation(vepRowType.types(0).virtualType, v.asInstanceOf[Row].get(0))
           rvb.addAnnotation(vepRowType.types(1).virtualType, v.asInstanceOf[Row].get(1))
           rvb.addAnnotation(vepRowType.types(2).virtualType, vep)
+          rvb.addAnnotation(vepRowType.types(3).virtualType, proc)
           rvb.endStruct()
 
           rvb.end()
