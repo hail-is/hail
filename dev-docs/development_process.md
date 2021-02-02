@@ -23,12 +23,56 @@ feature into smaller components.
 
 ## Implementation
 
-At this stage, you’ll write the code to implement your feature and debug
-it. There are different strategies for debugging depending on whether you are
+### Environment / Tooling
+Before you can write code, there are some setup steps that will allow you to
+develop effectively.
+
+Hail currently does not support versions of python>3.7, so install either 3.6 or
+3.7 and then run
+
+```
+make install-dev-deps
+```
+
+to install the python dependencies.
+
+To make sure that certain formatting requirements are caught early, run
+
+```
+pre-commit install --install-hooks
+```
+
+This creates git hooks that runs certain linting checks and auto-formatting on
+changed files every commit. For example, services code uses the
+[Black python formatter](https://black.readthedocs.io/en/stable/)
+to enforce PEP8 compliance.
+
+#### Services
+If you are working on a services project, make sure you have Docker and Kubernetes
+installed. Then install the [gcloud cli](https://cloud.google.com/sdk/docs/install)
+and run the following to connect `kubectl` to the `hail-vdc` cluster.
+
+```
+gcloud auth login
+gcloud config set project hail-vdc
+gcloud container clusters get-credentials vdc --zone=us-central1-a
+gcloud auth configure-docker
+```
+
+To use BuildKit with Docker for a much faster building experience, add
+
+```
+export DOCKER_BUILDKIT=1
+```
+
+to your `~/.bashrc` or `~/.zshrc`.
+
+
+### Testing / Debugging
+There are different strategies for debugging depending on whether you are
 working on a compiler project or a services project.
 
-
-### Compiler:
+#### Compiler:
 
 For a compiler project, you can build and run the tests locally on your
 computer. To build hail for development purposes, you should run the following
@@ -42,7 +86,7 @@ There are tests written in Python and tests written in Scala. For the python
 tests, we use pytest.
 
 
-### Services:
+#### Services:
 
 For a services project, you can push your branch to GitHub and then run what we
 call “dev deploy”. The command to invoke this is
