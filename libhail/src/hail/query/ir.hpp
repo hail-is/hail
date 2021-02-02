@@ -197,7 +197,7 @@ public:
 
 class Literal : public IR {
 public:
-  static const Tag self_tag = IR::Tag::NA;
+  static const Tag self_tag = IR::Tag::LITERAL;
   Value value;
   Literal(IRContextToken, Block *parent, Value value) : IR(self_tag, parent, 0), value(std::move(value)) {}
 };
@@ -211,7 +211,7 @@ public:
 
 class Mux : public IR {
 public:
-  static const Tag self_tag = IR::Tag::ISNA;
+  static const Tag self_tag = IR::Tag::MUX;
   Mux(IRContextToken, Block *parent, IR *condition, IR *true_value, IR *false_value)
     : IR(self_tag, parent, {condition, true_value, false_value}) {}
 };

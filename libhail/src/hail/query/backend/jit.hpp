@@ -1,5 +1,5 @@
-#ifndef HAIL_JIT_HPP_INCLUDED
-#define HAIL_JIT_HPP_INCLUDED 1
+#ifndef HAIL_QUERY_BACKEND_JIT_HPP_INCLUDED
+#define HAIL_QUERY_BACKEND_JIT_HPP_INCLUDED 1
 
 #include <hail/vtype.hpp>
 #include <memory>
@@ -24,7 +24,7 @@ private:
 public:
   ~JITModule();
 
-  Value invoke(ArenaAllocator &arena, const std::vector<Value> &arguments);
+  Value invoke(std::shared_ptr<ArenaAllocator> arena, const std::vector<Value> &arguments);
 };
 
 class JIT {

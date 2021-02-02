@@ -6,7 +6,7 @@
 
 namespace hail {
 
-class JITContext;
+class CompileFunction;
 class SType;
 
 class SValue {
@@ -25,7 +25,7 @@ public:
 
   virtual ~SValue();
 
-  std::vector<PrimitiveType> constituent_types() const;
+  void get_constituent_values(std::vector<llvm::Value *> &llvm_values) const;
 };
 
 class SBoolValue : public SValue {
@@ -86,15 +86,21 @@ public:
 		const SValue *svalue)
     : missing(missing),
       svalue(svalue) {}
+
+  void get_constituent_values(std::vector<llvm::Value *> &llvm_values) const;
 };
 
 class EmitValue {
+  llvm::Value *missing;
+  llvm::BasicBlock *present_block;
+  llvm::BasicBlock *missing_block;
+  const SValue *svalue;
 public:
   EmitValue(llvm::Value *missing, const SValue *svalue);
   EmitValue(llvm::BasicBlock *present_block, llvm::BasicBlock *missing_block, const SValue *svalue);
 
-  EmitControlValue as_control() const;
-  EmitDataValue as_data() const;
+  EmitControlValue as_control(CompileFunction &cf) const;
+  EmitDataValue as_data(CompileFunction &cf) const;
 };
 
 }

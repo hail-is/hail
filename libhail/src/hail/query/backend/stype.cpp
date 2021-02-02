@@ -1,11 +1,35 @@
 #include <hail/query/backend/stype.hpp>
+#include <hail/query/backend/svalue.hpp>
 
 namespace hail {
 
 SType::~SType() {}
 
+void
+SType::get_constituent_types(std::vector<PrimitiveType> &constituent_types) const {
+  switch (tag) {
+  case SType::Tag::BOOL:
+    constituent_types.push_back(PrimitiveType::INT8);
+    break;
+  case SType::Tag::INT32:
+    constituent_types.push_back(PrimitiveType::INT32);
+    break;
+  case SType::Tag::INT64:
+    constituent_types.push_back(PrimitiveType::INT64);
+    break;
+  case SType::Tag::FLOAT32:
+    constituent_types.push_back(PrimitiveType::FLOAT32);
+    break;
+  case SType::Tag::FLOAT64:
+    constituent_types.push_back(PrimitiveType::FLOAT64);
+    break;
+  default:
+    abort();
+  }
+}
+
 SValue *
-SType::from_llvm_values(std::vector<llvm::Value *> &llvm_values, size_t i) const {
+SType::from_llvm_values(const std::vector<llvm::Value *> &llvm_values, size_t i) const {
   switch (tag) {
   case SType::Tag::BOOL:
     return new SBoolValue(this, llvm_values[i]);
@@ -17,51 +41,34 @@ SType::from_llvm_values(std::vector<llvm::Value *> &llvm_values, size_t i) const
     return new SFloat32Value(this, llvm_values[i]);
   case SType::Tag::FLOAT64:
     return new SFloat64Value(this, llvm_values[i]);
+  default:
+    abort();
   }
 }
 
 SBool::SBool(const Type *type)
   : SType(self_tag, type) {}
 
-std::vector<PrimitiveType>
-SBool::constituent_types() const {
-  return {PrimitiveType::INT8};
-}
-
 SInt32::SInt32(const Type *type)
   : SType(self_tag, type) {}
-
-std::vector<PrimitiveType>
-SInt32::constituent_types() const {
-  return {PrimitiveType::INT32};
-}
 
 SInt64::SInt64(const Type *type)
   : SType(self_tag, type) {}
 
-std::vector<PrimitiveType>
-SInt64::constituent_types() const {
-  return {PrimitiveType::INT64};
-}
-
 SFloat32::SFloat32(const Type *type)
   : SType(self_tag, type) {}
-
-std::vector<PrimitiveType>
-SFloat32::constituent_types() const {
-  return {PrimitiveType::FLOAT32};
-}
 
 SFloat64::SFloat64(const Type *type)
   : SType(self_tag, type) {}
 
-std::vector<PrimitiveType>
-SFloat64::constituent_types() const {
-  return {PrimitiveType::FLOAT64};
+void
+EmitType::get_constituent_types(std::vector<PrimitiveType> &constituent_types) const {
+  constituent_types.push_back(PrimitiveType::INT8);
+  stype->get_constituent_types(constituent_types);
 }
 
 EmitValue
-EmitType::from_llvm_values(const std::vector<llvm::Value *> &llvm_values, size_t i) {
+EmitType::from_llvm_values(const std::vector<llvm::Value *> &llvm_values, size_t i) const {
   llvm::Value *missing = llvm_values[i++];
   SValue *svalue = stype->from_llvm_values(llvm_values, i);
   return EmitValue(missing, svalue);

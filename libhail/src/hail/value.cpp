@@ -99,6 +99,11 @@ Value::store(void *p, const Value &value) {
 
 void
 format1(FormatStream &s, const Value &value) {
+  if (!value.present) {
+    format(s, "null");
+    return;
+  }
+
   const VType *vtype = value.vtype;
   switch (vtype->tag) {
   case VType::Tag::VOID:
@@ -128,14 +133,13 @@ format1(FormatStream &s, const Value &value) {
   case VType::Tag::ARRAY:
     {
       auto a = value.as_array();
-      s.putc('(');
+      s.putc('[');
       for (int i = 0; i < a.get_size(); ++i) {
-	if (a.get_element_present(i))
-	  format(s, a.get_element(i));
-	else
-	  format(s, "null");
+	if (i)
+	  s.puts(", ");
+	format(s, a.get_element(i));
       }
-      s.putc(')');
+      s.putc(']');
     }
     break;
   case VType::Tag::TUPLE:
@@ -145,10 +149,7 @@ format1(FormatStream &s, const Value &value) {
       for (int i = 0; i < t.get_size(); ++i) {
 	if (i)
 	  s.puts(", ");
-	if (t.get_element_present(i))
-	  format(s, t.get_element(i));
-	else
-	  format(s, "null");
+	format(s, t.get_element(i));
       }
       s.putc(')');
     }

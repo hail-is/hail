@@ -50,17 +50,12 @@ main() {
     IRContext xc(heap);
 
     Module *m = xc.make_module();
-    std::vector<const Type *> param_types{tc.tbool, tc.tint32};
-    Function *f = xc.make_function(m, "main", param_types, tc.tint32);
 
-    // (mux
-    //   (input 0)
-    //   (input 1)
-    //   (literal int32 5))
+    std::vector<const Type *> param_types{tc.tint32};
+    const Type *return_type = tc.tint32;
+    Function *f = xc.make_function(m, "main", param_types, return_type);
     auto body = f->get_body();
-    body->set_child(0, body->make_mux(body->inputs[0],
-				      body->inputs[1],
-				      body->make_literal(Value(vint32, 5))));
+    body->set_child(0, body->inputs[0]);
 
     m->pretty_self(outs);
 
@@ -69,11 +64,11 @@ main() {
     std::vector<const VType *> param_vtypes;
     for (auto t : param_types)
       param_vtypes.push_back(tc.get_vtype(t));
+    const VType *return_vtype = tc.get_vtype(return_type);
 
-    auto compiled = jit.compile(tc, m, param_vtypes, vint32);
+    auto compiled = jit.compile(tc, m, param_vtypes, return_vtype);
 
-    auto return_value = compiled.invoke(*region, {Value(vbool, true), Value(vint32, -1)});
-
+    auto return_value = compiled.invoke(region, {Value(vint32)});
     print("return_value: ", return_value);
   }
 

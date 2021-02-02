@@ -1,6 +1,7 @@
 #ifndef HAIL_IR_TYPE_HPP_INCLUDED
 #define HAIL_IR_TYPE_HPP_INCLUDED 1
 
+#include <hail/query/ir.hpp>
 #include <unordered_map>
 
 namespace hail {

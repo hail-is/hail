@@ -118,26 +118,69 @@ public:
   inline operator Value() const;
 };
 
+struct RawValue {
+public:
+  bool missing;
+  union {
+    bool b;
+    uint32_t i32;
+    uint64_t i64;
+    float f;
+    double d;
+    void *p;
+  } u;
+};
+
 class Value {
   friend class StrValue;
   friend class ArrayValue;
   friend class TupleValue;
+  friend void format1(FormatStream &s, const Value &value);
 
 public:
-  const VType *vtype;
-private:
-  bool present;
-  std::shared_ptr<ArenaAllocator> region;
-  union u {
+  union PrimitiveUnion {
     bool b;
     int32_t i32;
     int64_t i64;
     float f;
     double d;
     void *p;
-  } u;
+  };
 
-  void set_union_from(const union u &that_u) {
+  using PrimitiveUnion = union PrimitiveUnion;
+
+  class Raw {
+  public:
+    bool present;
+    PrimitiveUnion u;
+
+    Raw() {}
+    Raw(const Value &value)
+      : present(value.present),
+	u(value.u) {}
+
+    Raw &operator=(const Value &value) {
+      present = value.present;
+      u = value.u;
+      return *this;
+    }
+  };
+
+  static_assert(sizeof(Raw) == 16);
+  static_assert(alignof(Raw) == 8);
+  static_assert(offsetof(Raw, present) == 0);
+  static_assert(offsetof(Raw, u) == 8);
+
+public:
+  const VType *vtype;
+private:
+  // FIXME do we want this?  Any values should be scoped inside a
+  // region.
+  std::shared_ptr<ArenaAllocator> region;
+  bool present;
+  PrimitiveUnion u;
+
+  void set_union_from(const PrimitiveUnion &that_u) {
     switch (vtype->tag) {
     case VType::Tag::BOOL:
       u.b = that_u.b;
@@ -164,31 +207,31 @@ private:
     }
   }
 
+  Value(const VStr *vtype, std::shared_ptr<ArenaAllocator> region, void *p)
+    : vtype(vtype),
+      region(std::move(region)),
+      present(true) {
+    u.p = p;
+  }
+  Value(const VArray *vtype, std::shared_ptr<ArenaAllocator> region, void *p)
+    : vtype(vtype),
+      region(std::move(region)),
+      present(true) {
+    u.p = p;
+  }
+  Value(const VTuple *vtype, std::shared_ptr<ArenaAllocator> region, void *p)
+    : vtype(vtype),
+      region(std::move(region)),
+      present(true) {
+    u.p = p;
+  }
+
+public:
   /* creates a missing value of vtype `vtype` */
   Value(const VType *vtype)
     : vtype(vtype),
       present(false) {
   }
-  Value(const VStr *vtype, std::shared_ptr<ArenaAllocator> region, void *p)
-    : vtype(vtype),
-      present(true),
-      region(std::move(region)) {
-    u.p = p;
-  }
-  Value(const VArray *vtype, std::shared_ptr<ArenaAllocator> region, void *p)
-    : vtype(vtype),
-      present(true),
-      region(std::move(region)) {
-    u.p = p;
-  }
-  Value(const VTuple *vtype, std::shared_ptr<ArenaAllocator> region, void *p)
-    : vtype(vtype),
-      present(true),
-      region(std::move(region)) {
-    u.p = p;
-  }
-
-public:
   Value(const VBool *vtype, bool b)
     : vtype(vtype),
       present(true) {
@@ -214,6 +257,12 @@ public:
       present(true) {
     u.d = d;
   }
+
+  Value(const VType *vtype, std::shared_ptr<ArenaAllocator> region, Raw raw)
+    : vtype(vtype),
+      region(std::move(region)),
+      present(raw.present),
+      u(raw.u) {}
 
   Value(const Value &that)
     : vtype(that.vtype),
@@ -315,7 +364,7 @@ TupleValue::set_element(size_t i, const Value &new_element) const {
   Value::store(p + vtype->element_offsets[i], new_element);
 }
 
-extern void format1(FormatStream &s, const Value &value);
+void format1(FormatStream &s, const Value &value);
 
 }
 

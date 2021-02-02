@@ -24,11 +24,8 @@ IRType::infer(Block *x) {
 
 const Type *
 IRType::infer(Input *x) {
-  abort();
-#if 0
-  cast<TBlock>(infer(x->parent))
+  return cast<TBlock>(infer(x->get_parent()))
     ->input_types[x->index];
-#endif
 }
 
 const Type *
