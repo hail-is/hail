@@ -9,6 +9,8 @@ import is.hail.types.virtual.{TNDArray, Type}
 import is.hail.types.physical.stypes.concrete.{SNDArrayPointer, SNDArrayPointerCode}
 import org.apache.spark.sql.Row
 
+import is.hail.utils._
+
 final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boolean = false) extends PNDArray  {
   assert(elementType.required, "elementType must be required")
 
@@ -152,6 +154,14 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
     elementType.loadFromNested(off)
   }
 
+  def allocate(shape: IndexedSeq[Value[Long]], region: Value[Region]): Code[Long] = {
+    //Need to allocate enough space to construct my tuple, then to construct the array right next to it.
+    val sizeOfArray = this.dataType.contentsByteSize(this.numElements(shape).toI)
+    val sizeOfStruct = this.representation.byteSize
+    // TODO: There might be alignment issues here
+    region.allocateNDArray(sizeOfArray + sizeOfStruct)
+  }
+
   def construct(
     shape: IndexedSeq[Value[Long]],
     strides: IndexedSeq[Value[Long]],
@@ -160,11 +170,11 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
     region: Value[Region]
   ): SNDArrayPointerCode = {
 
-    val dataVal = cb.newLocal[Long]("data_value_store")
-    cb.assign(dataVal, dataCode)
+    val inputDataPointer = cb.newLocal[Long]("data_value_store")
+    cb.assign(inputDataPointer, dataCode)
 
     val ndAddr = cb.newLocal[Long]("ndarray_construct_addr")
-    cb.assign(ndAddr, this.representation.allocate(region))
+    cb.assign(ndAddr, this.allocate(shape, region))
     shapeType.storeAtAddressFromFields(cb, cb.newLocal[Long]("construct_shape", this.representation.fieldOffset(ndAddr, "shape")),
       region,
       shape.map(s => EmitCode.present(cb.emb, primitive(s))),
@@ -173,7 +183,12 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
       region,
       strides.map(s => EmitCode.present(cb.emb, primitive(s))),
       false)
-    cb.append(Region.storeLong(this.representation.fieldOffset(ndAddr, "data"), dataVal))
+
+    val newDataPointer = cb.newLocal("ndarray_construct_new_data_pointer", ndAddr + this.representation.byteSize)
+
+    cb.append(Region.storeLong(this.representation.fieldOffset(ndAddr, "data"), newDataPointer))
+    // TODO Don't keep recomputing num elements
+    cb.append(Region.copyFrom(inputDataPointer, newDataPointer, this.dataType.contentsByteSize(this.numElements(shape).toI)))
 
     new SNDArrayPointerCode(SNDArrayPointer(this), ndAddr)
   }
