@@ -1575,6 +1575,18 @@ steps:
     - scorecard_image
     - deploy_router
     - create_certs
+ - kind: deploy
+   name: deploy_grafana
+   namespace:
+     valueFrom: default_ns.name
+   config: grafana/deployment.yaml
+   scopes:
+    - deploy
+    - dev
+  dependsOn:
+    - default_ns
+    - deploy_router
+    - create_certs
  - kind: runImage
    name: create_dummy_oauth2_client_secret
    image:

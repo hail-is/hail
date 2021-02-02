@@ -111,6 +111,22 @@ server {
 }
 
 server {
+    server_name grafana.*;
+
+    location / {
+        proxy_pass http://grafana/;
+        proxy_set_header Host              $http_host;
+        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Host  $updated_host;
+        proxy_set_header X-Forwarded-Proto $updated_scheme;
+        proxy_set_header X-Real-IP         $http_x_real_ip;
+    }
+
+    listen 443 ssl;
+    listen [::]:443 ssl;
+}
+
+server {
     server_name notebook.*;
 
     # needed to correctly handle error_page with internal handles
