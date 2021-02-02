@@ -382,6 +382,10 @@ class UnsafeNDArray(val pnd: PNDArray, val region: Region, val ndAddr: Long) ext
 
     true
   }
+
+  override def toString: String = {
+    s"UnsafeNDArray of shape (${shape.mkString(", ")}) with elements ${getRowMajorElements()}"
+  }
 }
 
 class SafeNDArray(val shape: IndexedSeq[Long], rowMajorElements: IndexedSeq[Annotation]) extends NDArray {
