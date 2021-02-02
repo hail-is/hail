@@ -37,6 +37,7 @@ object TypeCheck {
             case _: RunAgg if i == 0 =>
             case _: SeqOp => // let seqop checking below catch bad void arguments
             case _: InitOp => // let initop checking below catch bad void arguments
+            case _: If if i != 0 =>
             case _: Begin =>
           }
         }
