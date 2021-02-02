@@ -49,7 +49,7 @@ trait SNDArrayValue extends SValue {
 
   def sameShape(other: SNDArrayValue, cb: EmitCodeBuilder): Code[Boolean]
 
-  def dataAddress(cb: EmitCodeBuilder): Code[Long]
+  def firstDataAddress(cb: EmitCodeBuilder): Value[Long]
 }
 
 trait SNDArrayCode extends SCode {

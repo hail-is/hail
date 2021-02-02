@@ -109,7 +109,7 @@ class SNDArrayPointerSettable(
     comparator.equivNonnull(thisShape, otherShape)
   }
 
-  def dataAddress(cb: EmitCodeBuilder): Code[Long] = pt.dataFirstElementPointer(a)
+  def firstDataAddress(cb: EmitCodeBuilder): Value[Long] = dataFirstElement
 }
 
 class SNDArrayPointerCode(val st: SNDArrayPointer, val a: Code[Long]) extends PNDArrayCode {

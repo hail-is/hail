@@ -703,7 +703,7 @@ class Emit[C](
         {
           cb.assign(pAnswer, LinalgCodeUtils.createColumnMajorCode(pNDValue, cb, region.code))
         })
-        pAnswer.get
+        pAnswer
       }
     }
 
@@ -1151,7 +1151,7 @@ class Emit[C](
           val N = shapeArray(1)
           val LDA = M
 
-          val dataAddress = pndVal.dataAddress(cb)
+          val dataFirstAddress = pndVal.firstDataAddress(cb)
 
           val IPIVptype = PCanonicalArray(PInt32Required, true)
           val IPIVaddr = mb.genFieldThisRef[Long]()
@@ -1169,7 +1169,7 @@ class Emit[C](
           cb.assign(An, (M * N).toI)
           cb.assign(Aaddr, ndPT.dataType.allocate(region.code, An))
           cb.append(ndPT.dataType.stagedInitialize(Aaddr, An))
-          cb.append(Region.copyFrom(ndPT.dataType.firstElementOffset(dataAddress, An),
+          cb.append(Region.copyFrom(dataFirstAddress,
             ndPT.dataType.firstElementOffset(Aaddr, An), An.toL * 8L))
 
           cb.assign(IPIVaddr, IPIVptype.allocate(region.code, N.toI))
@@ -1225,9 +1225,8 @@ class Emit[C](
           val LDVT = if (full_matrices) N else K
           val IWORK = cb.newLocal[Long]("dgesdd_IWORK_address")
           val A = cb.newLocal[Long]("dgesdd_A_address")
-          val dataAddress = cb.newLocal[Long]("nd_svd_dataArray_address")
+          val firstElementDataAddress = ndPVal.firstDataAddress(cb)
 
-          cb.assign(dataAddress, ndPVal.dataAddress(cb))
           cb.assign(LWORKAddress, Code.invokeStatic1[Memory, Long, Long]("malloc",  8L))
 
           val (jobz, sPType, optUPType, optVTPType) = if (computeUV) {
@@ -1276,7 +1275,7 @@ class Emit[C](
           cb.assign(IWORK, Code.invokeStatic1[Memory, Long, Long]("malloc", K.toL * 8L * 4L)) // 8K 4 byte integers.
           cb.assign(A, Code.invokeStatic1[Memory, Long, Long]("malloc", M * N * 8L))
           // Copy data into A because dgesdd destroys the input array:
-          cb.append(Region.copyFrom(ndPType.dataType.firstElementOffset(dataAddress, (M * N).toI), A, (M * N) * 8L))
+          cb.append(Region.copyFrom(firstElementDataAddress, A, (M * N) * 8L))
 
           def LWORK = Region.loadDouble(LWORKAddress).toI
           val WORK = cb.newLocal[Long]("dgesdd_work_address")
@@ -1360,7 +1359,7 @@ class Emit[C](
           def LWORK = Region.loadDouble(LWORKAddress).toI
 
           val ndPT = pndValue.pt.asInstanceOf[PCanonicalNDArray]
-          val dataAddress = pndValue.dataAddress(cb)
+          val dataFirstElementAddress = pndValue.firstDataAddress(cb)
 
           val tauPType = PCanonicalArray(PFloat64Required, true)
           val tauAddress = cb.newLocal[Long]("ndarray_qr_tauAddress")
@@ -1377,7 +1376,7 @@ class Emit[C](
           cb.assign(aNumElements, ndPT.numElements(shapeArray))
           cb.assign(aAddressDGEQRF, ndPT.dataType.allocate(region.code, aNumElements.toI))
           cb.append(ndPT.dataType.stagedInitialize(aAddressDGEQRF, aNumElements.toI))
-          cb.append(Region.copyFrom(ndPT.dataType.firstElementOffset(dataAddress, (M * N).toI),
+          cb.append(Region.copyFrom(dataFirstElementAddress,
             ndPT.dataType.firstElementOffset(aAddressDGEQRF, aNumElements.toI), (M * N) * 8L))
 
           cb.assign(tauAddress, tauPType.allocate(region.code, K.toI))
