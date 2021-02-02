@@ -118,19 +118,6 @@ public:
   inline operator Value() const;
 };
 
-struct RawValue {
-public:
-  bool missing;
-  union {
-    bool b;
-    uint32_t i32;
-    uint64_t i64;
-    float f;
-    double d;
-    void *p;
-  } u;
-};
-
 class Value {
   friend class StrValue;
   friend class ArrayValue;
@@ -171,7 +158,6 @@ public:
   static_assert(offsetof(Raw, present) == 0);
   static_assert(offsetof(Raw, u) == 8);
 
-public:
   const VType *vtype;
 private:
   // FIXME do we want this?  Any values should be scoped inside a
