@@ -484,7 +484,7 @@ def concordance(left, right, *, _localize_global_statistics=True) -> Tuple[List[
            name=str,
            csq=bool,
            tolerate_parse_error=bool)
-def vep(dataset: Union[Table, MatrixTable], config=None, block_size=1000, name='vep', csq=False, tolerate_parse_error=False):
+def vep(dataset: Union[Table, MatrixTable], config=None, block_size=1000, name='vep', csq=False, *, tolerate_parse_error=False):
     """Annotate variants with VEP.
 
     .. include:: ../_templates/req_tvariant.rst
