@@ -775,4 +775,3 @@ def test_job_private_instance_cancel(client):
     b.cancel()
     status = j.wait()
     assert status['state'] == 'Cancelled', str(status)
-    assert 'job-private' in status['status']['worker'], str(status)

@@ -183,8 +183,6 @@ CALL mark_job_creating(%s, %s, %s, %s, %s);
     if rv['delta_cores_mcpu'] != 0 and instance.state == 'pending':
         instance.adjust_free_cores_in_memory(rv['delta_cores_mcpu'])
 
-    log.info(f'job {id} changed state: {rv["old_state"]} => Creating')
-
     await add_attempt_resources(db, batch_id, job_id, attempt_id, resources)
 
 
