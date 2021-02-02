@@ -39,6 +39,9 @@ object TypeCheck {
             case _: InitOp => // let initop checking below catch bad void arguments
             case _: If if i != 0 =>
             case _: Begin =>
+            case _ =>
+              throw new RuntimeException(s"unexpected void-typed IR at child $i of ${ ir.getClass.getSimpleName }" +
+                s"\n  IR: ${ Pretty(ir) }")
           }
         }
       }
