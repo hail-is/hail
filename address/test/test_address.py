@@ -28,7 +28,7 @@ async def test_connect_to_address_on_pod_ip():
             raise_for_status=True,
             timeout=aiohttp.ClientTimeout(total=5),
             headers=service_auth_headers(deploy_config, 'address')) as session:
-        def get():
+        async def get():
             address, port = await deploy_config.address('address')
             session.get(f'https://{address}:{port}{deploy_config.base_path("address")}/api/address')
         await retry_transient_errors(get)
