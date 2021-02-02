@@ -23,7 +23,7 @@ spec:
         image: "{{ image_fetcher_image.image }}"
         resources:
           requests:
-            cpu: 1m
+            cpu: 50m
             memory: 100Mi
         volumeMounts:
          - name: deploy-config

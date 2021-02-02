@@ -1,17 +1,17 @@
-@domain@
-ci.@domain@
-notebook.@domain@
-scorecard.@domain@
-www.@domain@
-batch.@domain@
-batch-driver.@domain@
-benchmark.@domain@
-blog.@domain@
-internal.@domain@
-monitoring.@domain@
-auth.@domain@
-ukbb-rg.@domain@
-query.@domain@
-workshop.@domain@
-atgu.@domain@
-amundsen-frontend.@domain@
+{{ domain }}
+ci.{{ domain }}
+notebook.{{ domain }}
+scorecard.{{ domain }}
+www.{{ domain }}
+batch.{{ domain }}
+batch-driver.{{ domain }}
+benchmark.{{ domain }}
+blog.{{ domain }}
+internal.{{ domain }}
+monitoring.{{ domain }}
+auth.{{ domain }}
+ukbb-rg.{{ domain }}
+query.{{ domain }}
+workshop.{{ domain }}
+atgu.{{ domain }}
+amundsen-frontend.{{ domain }}

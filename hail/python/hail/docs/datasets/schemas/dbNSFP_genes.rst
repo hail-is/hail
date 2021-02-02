@@ -5,7 +5,7 @@ dbNSFP_genes
 
 *  **Versions:** 4.0
 *  **Reference genome builds:** None
-*  **Type:** :class:`.Table`
+*  **Type:** :class:`hail.Table`
 
 Schema (4.0, None)
 ~~~~~~~~~~~~~~~~~~

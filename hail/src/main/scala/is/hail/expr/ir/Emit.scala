@@ -1317,18 +1317,8 @@ class Emit[C](
             val vtPType = optVTPType.get
             val vt = vtPType.construct(vtShapeSeq, vtPType.makeColumnMajorStrides(vtShapeSeq, region.code, cb), vtData, cb, region.code)
 
-            val resultSRVB = new StagedRegionValueBuilder(mb, x.pType, region.code)
-            cb.append(Code(
-              resultSRVB.start(),
-              resultSRVB.addIRIntermediate(u),
-              resultSRVB.advance(),
-              resultSRVB.addIRIntermediate(s),
-              resultSRVB.advance(),
-              resultSRVB.addIRIntermediate(vt),
-              resultSRVB.advance())
-            )
-
-            PCode.apply(x.pType, resultSRVB.end())
+            val outputPType = x.pType.asInstanceOf[PCanonicalTuple]
+            outputPType.constructFromFields(cb, region.code, FastIndexedSeq(EmitCode.present(u), EmitCode.present(s), EmitCode.present(vt)), deepCopy = false)
           } else {
             s
           }
@@ -1408,8 +1398,8 @@ class Emit[C](
           cb.append(Code.invokeStatic1[Memory, Long, Unit]("free", workAddress.load()))
           cb.append(infoDGEQRFErrorTest("Failed to compute H and Tau."))
 
-          val resultType = x.pType.asInstanceOf[PCanonicalBaseStruct]
           val result: PCode = if (mode == "raw") {
+              val resultType = x.pType.asInstanceOf[PCanonicalBaseStruct]
             val rawPType = x.pType.asInstanceOf[PTuple]
             val hPType = rawPType.types(0).asInstanceOf[PCanonicalNDArray]
             val tauPType = rawPType.types(1).asInstanceOf[PCanonicalNDArray]
@@ -1468,7 +1458,7 @@ class Emit[C](
               computeR
             }
             else {
-              val crPType = x.pType.asInstanceOf[PTuple]
+              val crPType = x.pType.asInstanceOf[PCanonicalTuple]
 
               val qPType = crPType.types(0).asInstanceOf[PCanonicalNDArray]
               val qShapeArray = if (mode == "complete") Array(M, M) else Array(M, K)
@@ -1530,7 +1520,7 @@ class Emit[C](
               cb.append(Region.copyFrom(ndPT.dataType.firstElementOffset(aAddressDORGQR),
                 qPType.dataType.firstElementOffset(qDataAddress), (M * numColsToUse) * 8L))
 
-              resultType.constructFromFields(cb, region.code, FastIndexedSeq(
+              crPType.constructFromFields(cb, region.code, FastIndexedSeq(
                 EmitCode.present(qPType.construct(qShapeArray, qStridesStruct, qDataAddress, cb, region.code)),
                 EmitCode.present(rNDArray)
               ), deepCopy = false)

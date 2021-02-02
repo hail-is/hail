@@ -5,7 +5,7 @@ ldsc_baselineLD_annotations
 
 *  **Versions:** 2.2
 *  **Reference genome builds:** GRCh37
-*  **Type:** :class:`.Table`
+*  **Type:** :class:`hail.Table`
 
 Schema (2.2, GRCh37)
 ~~~~~~~~~~~~~~~~~~~~

@@ -5,10 +5,10 @@ gnomad_hgdp_1kg_callset
 
 *  **Versions:** 3.1
 *  **Reference genome builds:** GRCh38
-*  **Type:** :class:`.MatrixTable`
+*  **Type:** :class:`hail.MatrixTable`
 
 Schema (3.1, GRCh38)
-~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~
 
 .. code-block:: text
 
