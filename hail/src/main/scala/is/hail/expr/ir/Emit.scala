@@ -862,7 +862,7 @@ class Emit[C](
                 case Some(vir) =>
                   EmitCode.fromI(mb)(emitInNewBuilder(_, vir))
                 case None =>
-                  EmitCode.fromI(mb)(oldPV.loadField(_, f.index).typecast[PCode])
+                  EmitCode.fromI(mb)(oldPV.loadField(_, f.name).typecast[PCode])
               }
             }
 
