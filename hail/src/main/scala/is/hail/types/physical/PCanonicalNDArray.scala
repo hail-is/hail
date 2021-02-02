@@ -124,7 +124,7 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
 
     cb.newLocal[Long]("pcndarray_get_element_addr", indices.zipWithIndex.map { case (requestedElementIndex, strideIndex) =>
       requestedElementIndex * stridesTuple(strideIndex)
-    }.reduce(_ + _) + dataType.firstElementOffset(dataStore, dataType.loadLength(dataStore)))
+    }.foldLeft(const(0L).get)(_ + _) + dataType.firstElementOffset(dataStore, dataType.loadLength(dataStore)))
   }
 
   def setElement(cb: EmitCodeBuilder, region: Value[Region],
