@@ -25,7 +25,7 @@ build:
 # janky
 	cp ../hail/build/libs/hail-all-spark.jar ./hail.jar
 	-docker pull $(BATCH_WORKER_LATEST)
-	python3 ../ci/jinja2_render.py '{"global":{"project":"$(PROJECT)"}}' Dockerfile.worker Dockerfile.worker.out
+	python3 ../ci/jinja2_render.py '{"global":{"project":"$(PROJECT)"}, "service_base_image":{"image":"service-base"}}' Dockerfile.worker Dockerfile.worker.out
 	docker build -t batch-worker -f Dockerfile.worker.out --cache-from batch-worker,$(BATCH_WORKER_LATEST),service-base ..
 
 .PHONY: push

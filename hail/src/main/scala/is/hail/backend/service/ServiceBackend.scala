@@ -46,11 +46,12 @@ object Worker {
     }
     val root = args(0)
     val i = args(1).toInt
-    log.info(s"running job $i at root $root")
 
     var scratchDir = System.getenv("HAIL_WORKER_SCRATCH_DIR")
     if (scratchDir == null)
       scratchDir = ""
+
+    log.info(s"running job $i at root $root wih scratch directory '$scratchDir'")
 
     val fs = using(new FileInputStream(s"$scratchDir/gsa-key/key.json")) { is =>
       new GoogleStorageFS(IOUtils.toString(is))
@@ -196,9 +197,7 @@ class ServiceBackend() extends Backend {
               JString(root),
               JString(s"$i"))),
             "type" -> JString("jvm")),
-          "mount_tokens" -> JBool(true),
-          "resources" -> JObject(
-            "cpu" -> JString("1")))
+          "mount_tokens" -> JBool(true))
       i += 1
     }
 

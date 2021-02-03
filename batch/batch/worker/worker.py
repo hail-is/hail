@@ -576,7 +576,7 @@ class JVMProcess:
         if self.proc.returncode == 0:
             self.state = 'succeeded'
         else:
-            self.state = 'error'
+            self.state = 'failed'
 
     async def status(self, state=None):
         return {
