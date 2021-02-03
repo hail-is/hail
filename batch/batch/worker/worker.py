@@ -148,7 +148,6 @@ async def create_container(config, name):
         try:
             return await docker.containers.create(config, name=name)
         except DockerError as e:
-            log.exception('while creating container')
             # 409 container with name already exists
             if e.status == 409:
                 try:
