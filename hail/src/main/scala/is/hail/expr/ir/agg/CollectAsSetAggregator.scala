@@ -13,7 +13,6 @@ import is.hail.utils._
 class TypedKey(typ: PType, kb: EmitClassBuilder[_], region: Value[Region]) extends BTreeKey {
   val storageType: PTuple = PCanonicalTuple(false, typ, PCanonicalTuple(false))
   val compType: PType = typ
-  private val kcomp = kb.getCodeOrdering(compType, CodeOrdering.Compare(), ignoreMissingness = false)
 
   def isKeyMissing(src: Code[Long]): Code[Boolean] = storageType.isFieldMissing(src, 0)
 
@@ -46,7 +45,9 @@ class TypedKey(typ: PType, kb: EmitClassBuilder[_], region: Value[Region]) exten
     storageType.storeAtAddress(cb, dest, region, storageType.loadCheapPCode(cb, src), deepCopy = true)
   }
 
-  def compKeys(cb: EmitCodeBuilder, k1: EmitCode, k2: EmitCode): Code[Int] = kcomp(cb, k1, k2)
+  def compKeys(cb: EmitCodeBuilder, k1: EmitCode, k2: EmitCode): Code[Int] = {
+    kb.getCodeOrdering(k1.pt, k2.pt, CodeOrdering.Compare(), ignoreMissingness = false)(cb, k1, k2)
+  }
 
   def loadCompKey(cb: EmitCodeBuilder, off: Value[Long]): EmitCode =
     EmitCode(Code._empty, isKeyMissing(off), PCode(typ, loadKey(off)))
