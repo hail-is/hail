@@ -16,9 +16,7 @@ class GroupedBTreeKey(kt: PType, kb: EmitClassBuilder[_], region: Value[Region],
     "regionIdx" -> PInt32(true),
     "container" -> states.storageType)
   val compType: PType = kt
-  private val kcomp = kb.getCodeOrdering(kt, CodeOrdering.Compare(), ignoreMissingness = false)
 
-  // FIXME (k.pt and compType can be mismatched)
   override def compWithKey(cb: EmitCodeBuilder, off: Code[Long], k: EmitCode): Code[Int] = {
     val mb = kb.getOrGenEmitMethod("compWithKey",
       "compWithKey_grouped_btree" -> k.pt,
@@ -89,7 +87,9 @@ class GroupedBTreeKey(kt: PType, kb: EmitClassBuilder[_], region: Value[Region],
     container.store(cb)
   }
 
-  def compKeys(cb: EmitCodeBuilder, k1: EmitCode, k2: EmitCode): Code[Int] = kcomp(cb, k1, k2)
+  def compKeys(cb: EmitCodeBuilder, k1: EmitCode, k2: EmitCode): Code[Int] = {
+    kb.getCodeOrdering(k1.pt, k2.pt, CodeOrdering.Compare(), ignoreMissingness = false)(cb, k1, k2)
+  }
 
   def loadCompKey(cb: EmitCodeBuilder, off: Value[Long]): EmitCode =
     EmitCode(Code._empty, isKeyMissing(off), PCode(kt, loadKey(off)))
