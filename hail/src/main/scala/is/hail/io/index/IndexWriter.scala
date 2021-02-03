@@ -85,12 +85,8 @@ class IndexWriter(keyType: PType, valueType: PType, comp: CompiledIndexWriter, p
   private val region = Region(pool=pool)
   private val rvb = new RegionValueBuilder(region)
   def appendRow(x: Annotation, offset: Long, annotation: Annotation): Unit = {
-    rvb.start(keyType)
-    rvb.addAnnotation(keyType.virtualType, x)
-    val koff = rvb.end()
-    rvb.start(valueType)
-    rvb.addAnnotation(valueType.virtualType, annotation)
-    val voff = rvb.end()
+    val koff = keyType.unstagedStoreJavaObject(x, region)
+    val voff = valueType.unstagedStoreJavaObject(annotation, region)
     comp.apply(koff, offset, voff)
   }
 

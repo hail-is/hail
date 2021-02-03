@@ -8,7 +8,7 @@ import is.hail.types.physical.stypes.{SCode, SType}
 import is.hail.types.physical.{PBaseStructCode, PCanonicalNDArray, PCode, PNDArray, PNDArrayCode, PNDArrayValue, PSettable, PType, PValue}
 import is.hail.utils.FastIndexedSeq
 
-case class SNDArrayPointer(pType: PNDArray) extends SNDArray {
+case class SNDArrayPointer(pType: PCanonicalNDArray) extends SNDArray {
   def codeOrdering(mb: EmitMethodBuilder[_], other: SType, so: SortOrder): CodeOrdering = pType.codeOrdering(mb)
 
   def coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = {
@@ -57,19 +57,19 @@ class SNDArrayPointerSettable(
    val strides: IndexedSeq[Settable[Long]],
    val dataFirstElement: Settable[Long]
  ) extends PNDArrayValue with PSettable {
-  val pt: PNDArray = st.pType
+  val pt: PCanonicalNDArray = st.pType
 
   def loadElement(indices: IndexedSeq[Value[Long]], cb: EmitCodeBuilder): PCode = {
     assert(indices.size == pt.nDims)
-    pt.elementType.loadCheapPCode(cb, pt.asInstanceOf[PCanonicalNDArray].loadElementFromDataAndStrides(cb, indices, dataFirstElement, strides))
+    pt.elementType.loadCheapPCode(cb, pt.loadElementFromDataAndStrides(cb, indices, dataFirstElement, strides))
   }
 
   def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(a) ++ shape ++ strides ++ FastIndexedSeq(dataFirstElement)
 
   def store(cb: EmitCodeBuilder, v: PCode): Unit = {
     cb.assign(a, v.asInstanceOf[SNDArrayPointerCode].a)
-    (0 until pt.nDims).foreach(i => cb.assign(shape(i), pt.loadShape(cb, a, i)))
-    (0 until pt.nDims).foreach(i => cb.assign(strides(i), pt.loadStride(cb, a, i)))
+    pt.loadShapes(cb, a, shape)
+    pt.loadStrides(cb, a, strides)
     cb.assign(dataFirstElement, pt.dataFirstElementPointer(a))
   }
 
@@ -103,15 +103,17 @@ class SNDArrayPointerSettable(
 
   override def sameShape(other: SNDArrayValue, cb: EmitCodeBuilder): Code[Boolean] = {
     val otherPtr = other.asInstanceOf[SNDArrayPointerSettable]
-    val comparator = this.pt.shape.pType.codeOrdering(cb.emb, otherPtr.pt.shape.pType)
-    val thisShape = PCode(this.pt.shape.pType, this.pt.shape.load(this.a))
-    val otherShape = PCode(otherPtr.pt.shape.pType, otherPtr.pt.shape.load(otherPtr.a))
+    val comparator = this.pt.shapeType.codeOrdering(cb.emb, otherPtr.pt.shapeType)
+    val thisShape = PCode(this.pt.shapeType, this.pt.representation.loadField(a, "shape"))
+    val otherShape = PCode(otherPtr.pt.shapeType, otherPtr.pt.representation.loadField(otherPtr.a, "shape"))
     comparator.equivNonnull(cb, thisShape, otherShape)
   }
+
+  def firstDataAddress(cb: EmitCodeBuilder): Value[Long] = dataFirstElement
 }
 
 class SNDArrayPointerCode(val st: SNDArrayPointer, val a: Code[Long]) extends PNDArrayCode {
-  val pt: PNDArray = st.pType
+  val pt: PCanonicalNDArray = st.pType
 
   override def code: Code[_] = a
 
@@ -127,5 +129,5 @@ class SNDArrayPointerCode(val st: SNDArrayPointer, val a: Code[Long]) extends PN
 
   override def memoizeField(cb: EmitCodeBuilder, name: String): PValue = memoize(cb, name, cb.fieldBuilder)
 
-  override def shape: PBaseStructCode = PCode(pt.shape.pType, pt.shape.load(a)).asBaseStruct
+  override def shape(cb: EmitCodeBuilder): PBaseStructCode = pt.shapeType.loadCheapPCode(cb, pt.representation.loadField(a, "shape"))
 }

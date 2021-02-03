@@ -1562,85 +1562,6 @@ steps:
     - default_ns
     - router_image
     - create_certs
- - kind: runImage
-   name: build_site_www
-   image:
-     valueFrom: hail_build_image.image
-   script: |
-     set -ex
-     cd /io
-     rm -rf repo
-     mkdir repo
-     cd repo
-     {{ code.checkout_script }}
-
-     make -C site render
-
-     make -C hail python/hail/hail_version
-     HAIL_CACHE_VERSION=$(cat hail/python/hail/hail_version)
-     find site/www -iname *.html -type f -exec sed -i -e "s/\.css/\.css\?v\=$HAIL_CACHE_VERSION/" {} +;
-
-     rsync --archive \
-           --verbose \
-           site/www/* \
-           /io/www
-     cd /io/www && tar -cvzf /io/site-www.tar.gz *
-   outputs:
-    - from: /io/site-www.tar.gz
-      to: /site-www.tar.gz
-   dependsOn:
-     - hail_build_image
- - kind: buildImage
-   name: site_image
-   dockerFile: site/Dockerfile
-   contextPath: site
-   publishAs: site
-   inputs:
-     - from: /site-www.tar.gz
-       to: /site-www.tar.gz
-   dependsOn:
-     - base_image
-     - build_site_www
-     - hail_ubuntu_image
- - kind: deploy
-   name: deploy_site
-   namespace:
-     valueFrom: default_ns.name
-   config: site/deployment.yaml
-   wait:
-    - kind: Service
-      name: site
-      for: alive
-   dependsOn:
-    - default_ns
-    - site_image
-    - deploy_router
-    - create_certs
- - kind: runImage
-   name: test_site
-   image:
-     valueFrom: service_base_image.image
-   script: |
-     set -ex
-     hailctl curl {{ default_ns.name }} site / \
-             -vvv \
-             -fsSL \
-             --retry 3 \
-             --retry-delay 5
-   secrets:
-    - name: test-tokens
-      namespace:
-        valueFrom: default_ns.name
-      mountPath: /user-tokens
-    - name: gce-deploy-config
-      namespace:
-        valueFrom: default_ns.name
-      mountPath: /deploy-config
-   dependsOn:
-    - default_ns
-    - create_accounts
-    - service_base_image
-    - deploy_site
  - kind: deploy
    name: deploy_scorecard
    namespace:
@@ -1675,6 +1596,9 @@ steps:
    wait:
     - kind: Service
       name: auth
+      for: alive
+    - kind: Service
+      name: auth-driver
       for: alive
    dependsOn:
     - default_ns
@@ -2316,7 +2240,7 @@ steps:
      hailctl config set batch/bucket hail-test-dmk9z
      python3 -m pytest --log-cli-level=INFO -s -vv --instafail --durations=50 /io/test/
    timeout: 600
-   secrets: 
+   secrets:
     - name: gce-deploy-config
       namespace:
         valueFrom: default_ns.name
@@ -3337,6 +3261,105 @@ steps:
     - copy_files
     - ci_utils_image
     - build_hail
+ - kind: runImage
+   name: build_site_www
+   image:
+     valueFrom: hail_build_image.image
+   script: |
+     set -ex
+     cd /io
+     rm -rf repo
+     mkdir repo
+     cd repo
+     {{ code.checkout_script }}
+
+     make -C site render
+
+     make -C hail python/hail/hail_version
+     HAIL_CACHE_VERSION=$(cat hail/python/hail/hail_version)
+     find site/www -iname *.html -type f -exec sed -i -e "s/\.css/\.css\?v\=$HAIL_CACHE_VERSION/" {} +;
+
+     rsync --archive \
+           --verbose \
+           site/www/* \
+           /io/www
+
+     # Grab the latest release of the docs
+     LATEST_02_SHA=$(gsutil cat gs://hail-common/builds/0.2/latest-hash/cloudtools-5-spark-2.4.0.txt 2>/dev/null)
+     if [[ -z "$LATEST_02_SHA" ]]; then
+       echo "Failed to retrieve latest sha for hail docs"
+       exit 1
+     fi
+     gsutil cat gs://hail-common/builds/0.2/docs/hail-0.2-docs-${LATEST_02_SHA}.tar.gz |
+         tar zxvf - -C /io/www --strip-components=1
+
+     mkdir /io/www/docs/0.1
+     LATEST_01_SHA=$(gsutil cat gs://hail-common/builds/0.1/latest-hash-spark-2.0.2.txt 2>/dev/null)
+     if [[ -z "$LATEST_01_SHA" ]]; then
+       echo "Failed to retrieve latest sha for hail 0.1 docs"
+       exit 1
+     fi
+     gsutil cat gs://hail-common/builds/0.1/docs/hail-0.1-docs-${LATEST_01_SHA}.tar.gz |
+         tar xvf - -C /io/www/docs/0.1 --strip-components=2
+
+     cd /io/www && tar -cvzf /io/site-www.tar.gz *
+   outputs:
+    - from: /io/site-www.tar.gz
+      to: /site-www.tar.gz
+   dependsOn:
+     - hail_build_image
+     - deploy
+ - kind: buildImage
+   name: site_image
+   dockerFile: site/Dockerfile
+   contextPath: site
+   publishAs: site
+   inputs:
+     - from: /site-www.tar.gz
+       to: /site-www.tar.gz
+   dependsOn:
+     - base_image
+     - build_site_www
+     - hail_ubuntu_image
+ - kind: deploy
+   name: deploy_site
+   namespace:
+     valueFrom: default_ns.name
+   config: site/deployment.yaml
+   wait:
+    - kind: Service
+      name: site
+      for: alive
+   dependsOn:
+    - default_ns
+    - site_image
+    - deploy_router
+    - create_certs
+ - kind: runImage
+   name: test_site
+   image:
+     valueFrom: service_base_image.image
+   script: |
+     set -ex
+     hailctl curl {{ default_ns.name }} site / \
+             -vvv \
+             -fsSL \
+             --retry 3 \
+             --retry-delay 5
+   secrets:
+    - name: test-tokens
+      namespace:
+        valueFrom: default_ns.name
+      mountPath: /user-tokens
+    - name: gce-deploy-config
+      namespace:
+        valueFrom: default_ns.name
+      mountPath: /deploy-config
+   dependsOn:
+    - default_ns
+    - create_accounts
+    - service_base_image
+    - deploy_site
  - kind: buildImage
    name: hail_public_image
    dockerFile: docker/hail/Dockerfile

@@ -6,6 +6,7 @@ import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder}
 import is.hail.types.physical.stypes.SCode
 import is.hail.types.physical.stypes.primitives.{SBoolean, SBooleanCode}
 import is.hail.types.virtual.TBoolean
+import is.hail.utils.toRichBoolean
 
 case object PBooleanOptional extends PBoolean(false)
 case object PBooleanRequired extends PBoolean(true)
@@ -42,6 +43,10 @@ class PBoolean(override val required: Boolean) extends PType with PPrimitive {
   }
 
   override def loadCheapPCode(cb: EmitCodeBuilder, addr: Code[Long]): PCode = new SBooleanCode(required, Region.loadBoolean(addr))
+
+  override def unstagedStoreJavaObjectAtAddress(addr: Long, annotation: Annotation, region: Region): Unit = {
+    Region.storeByte(addr, annotation.asInstanceOf[Boolean].toByte)
+  }
 }
 
 object PBoolean {

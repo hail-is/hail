@@ -1,9 +1,10 @@
 package is.hail.types.encoded
 
-import is.hail.annotations.{Region}
+import is.hail.annotations.Region
 import is.hail.asm4s._
-import is.hail.expr.ir.{EmitCodeBuilder}
+import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.io.{InputBuffer, OutputBuffer}
+import is.hail.types.physical.stypes.interfaces.SNDArray
 import is.hail.types.physical.{PCanonicalNDArray, PCode, PType}
 import is.hail.types.virtual.{TNDArray, Type}
 import is.hail.utils._
@@ -29,28 +30,9 @@ case class ENDArrayColumnMajor(elementType: EType, nDims: Int, required: Boolean
     val shapes = ndarray.shapes(cb)
     shapes.foreach(s => cb += out.writeLong(s))
 
-    val idxVars = Array.tabulate(ndarray.pt.nDims)(i => cb.newLocal[Long](s"ndarray_encoder_idxVar_$i"))
-
-    def recurLoopBuilder(dimIdx: Int, innerLambda: () => Unit): Unit = {
-      if (dimIdx == nDims) {
-        innerLambda()
-      }
-      else {
-        val dimVar = idxVars(dimIdx)
-
-        recurLoopBuilder(dimIdx + 1,
-          () => {cb.forLoop({cb.assign(dimVar, 0L)},  dimVar < shapes(dimIdx), {cb.assign(dimVar, dimVar + 1L)},
-            innerLambda()
-          )}
-        )
-      }
-    }
-
-    val body = () => {
+    SNDArray.forEachIndex(cb, shapes, "ndarray_encoder") { case (cb, idxVars) =>
       cb += writeElemF(ndarray.loadElement(idxVars, cb).asPCode.code, out)
     }
-
-    recurLoopBuilder(0, body)
   }
 
   def _buildDecoder(
@@ -69,15 +51,15 @@ case class ENDArrayColumnMajor(elementType: EType, nDims: Int, required: Boolean
     }
 
     val dataAddress = cb.newLocal[Long]("ndarray_decoder_data_addr",
-      pnd.data.pType.allocate(region, totalNumElements.toI))
-    cb += pnd.data.pType.stagedInitialize(dataAddress, totalNumElements.toI)
+      pnd.dataType.allocate(region, totalNumElements.toI))
+    cb += pnd.dataType.stagedInitialize(dataAddress, totalNumElements.toI)
 
     val dataIdx = cb.newLocal[Int]("ndarray_decoder_data_idx")
     cb.forLoop(cb.assign(dataIdx, 0), dataIdx < totalNumElements.toI, cb.assign(dataIdx, dataIdx + 1),
-      cb += readElemF(region, pnd.data.pType.elementOffset(dataAddress, totalNumElements.toI, dataIdx), in))
+      cb += readElemF(region, pnd.dataType.elementOffset(dataAddress, totalNumElements.toI, dataIdx), in))
 
-    pnd.construct(pnd.makeShapeStruct(shapeVars, region, cb),
-      pnd.makeColumnMajorStridesStruct(shapeVars, region, cb),
+    pnd.construct(shapeVars,
+      pnd.makeColumnMajorStrides(shapeVars, region, cb),
       dataAddress, cb, region)
       .tcode[Long]
   }

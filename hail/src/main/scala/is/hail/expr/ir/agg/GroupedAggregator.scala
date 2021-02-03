@@ -1,6 +1,6 @@
 package is.hail.expr.ir.agg
 
-import is.hail.annotations.{CodeOrdering, Region, StagedRegionValueBuilder}
+import is.hail.annotations.{CodeOrdering, Region}
 import is.hail.asm4s._
 import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitCodeBuilder, EmitMethodBuilder, EmitRegion, ParamType}
 import is.hail.io._
@@ -259,7 +259,9 @@ class GroupedAggregator(ktV: VirtualTypeWithReq, nestedAggs: Array[StagedAggrega
 
   private val kt = ktV.canonicalPType
   val resultEltType: PTuple = PCanonicalTuple(true, nestedAggs.map(_.resultType): _*)
-  val resultType: PDict = PCanonicalDict(kt, resultEltType)
+  val resultType: PCanonicalDict = PCanonicalDict(kt, resultEltType)
+  private[this] val arrayRep = resultType.arrayRep
+  private[this] val dictElt = arrayRep.elementType.asInstanceOf[PCanonicalStruct]
   val initOpTypes: Seq[Type] = Array(TVoid)
   val seqOpTypes: Seq[Type] = Array(ktV.t, TVoid)
 
@@ -280,27 +282,36 @@ class GroupedAggregator(ktV: VirtualTypeWithReq, nestedAggs: Array[StagedAggrega
 
   }
 
-  protected def _result(cb: EmitCodeBuilder, state: State, srvb: StagedRegionValueBuilder): Unit = {
-    cb += srvb.addArray(resultType.arrayFundamentalType, sab => EmitCodeBuilder.scopedVoid(cb.emb) { cb =>
-      cb += sab.start(state.size)
-      state.foreach(cb) { (cb, k) =>
-        cb += sab.addBaseStruct(resultType.elementType, ssb => EmitCodeBuilder.scopedVoid(cb.emb) { cb =>
-          cb += ssb.start
-          k.toI(cb)
-            .consume(cb,
-              cb += ssb.setMissing(),
-              { sc => cb += ssb.addIRIntermediate(sc, deepCopy = true) })
-          cb += ssb.advance()
-          cb += ssb.addBaseStruct(resultEltType, svb => EmitCodeBuilder.scopedVoid(cb.emb) { cb =>
-            cb += svb.start()
-            state.nested.toCode({ (i, s) =>
-              nestedAggs(i).result(cb, s, svb)
-              cb += svb.advance()
-            })
-          })
+  protected def _storeResult(cb: EmitCodeBuilder, state: State, pt: PType, addr: Value[Long], region: Value[Region], ifMissing: EmitCodeBuilder => Unit): Unit = {
+    assert(pt == resultType)
+
+    val len = state.size
+    val resultAddr = cb.newLocal[Long]("groupedagg_result_addr", resultType.allocate(region, len))
+    cb += arrayRep.stagedInitialize(resultAddr, len, setMissing = false)
+    val i = cb.newLocal[Int]("groupedagg_result_i", 0)
+
+    state.foreach(cb) { (cb, k) =>
+      val addrAtI = cb.newLocal[Long]("groupedagg_result_addr_at_i", arrayRep.elementOffset(resultAddr, len, i))
+      cb += dictElt.stagedInitialize(addrAtI, setMissing = false)
+      k.toI(cb).consume(cb,
+        cb += dictElt.setFieldMissing(addrAtI, "key"),
+        { sc =>
+          dictElt.fieldType("key").storeAtAddress(cb, dictElt.fieldOffset(addrAtI, "key"), region, sc, deepCopy = true)
         })
-        cb += sab.advance()
+
+      val valueAddr = cb.newLocal[Long]("groupedagg_value_addr", dictElt.fieldOffset(addrAtI, "value"))
+      cb += resultEltType.stagedInitialize(valueAddr, setMissing = false)
+      state.nested.toCode { case (nestedIdx, nestedState) =>
+        val nestedAddr = cb.newLocal[Long](s"groupedagg_result_nested_addr_$nestedIdx", resultEltType.fieldOffset(valueAddr, nestedIdx))
+        nestedAggs(nestedIdx).storeResult(cb, nestedState, resultEltType.types(nestedIdx), nestedAddr, region,
+          (cb: EmitCodeBuilder) => cb += resultEltType.setFieldMissing(valueAddr, nestedIdx))
+
       }
-    })
+
+      cb.assign(i, i + 1)
+    }
+
+    // don't need to deep copy because that's done in nested aggregators
+    pt.storeAtAddress(cb, addr, region, resultType.loadCheapPCode(cb, resultAddr), deepCopy = false)
   }
 }

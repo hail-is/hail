@@ -831,7 +831,11 @@ async def on_cleanup(app):
                         try:
                             app['gce_event_monitor'].shutdown()
                         finally:
-                            app['task_manager'].shutdown()
+                            try:
+                                app['task_manager'].shutdown()
+                            finally:
+                                del app['k8s_cache'].client
+                                await asyncio.gather(*(t for t in asyncio.all_tasks() if t is not asyncio.current_task()))
 
 
 def run():

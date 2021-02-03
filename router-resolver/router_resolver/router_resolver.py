@@ -3,6 +3,7 @@ import uvloop
 from aiohttp import web
 import aiohttp_session
 from kubernetes_asyncio import client, config
+import asyncio
 import logging
 from hailtop.auth import async_get_userinfo
 from hailtop.tls import internal_server_ssl_context
@@ -100,7 +101,13 @@ async def on_startup(app):
     app['k8s_client'] = client.CoreV1Api()
 
 
+async def on_cleanup(app):
+    del app['k8s_client']
+    await asyncio.gather(*(t for t in asyncio.all_tasks() if t is not asyncio.current_task()))
+
+
 app.on_startup.append(on_startup)
+app.on_cleanup.append(on_cleanup)
 
 web.run_app(app,
             host='0.0.0.0',

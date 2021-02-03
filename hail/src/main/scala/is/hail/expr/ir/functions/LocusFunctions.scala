@@ -237,7 +237,7 @@ object LocusFunctions extends RegistryFunctions {
         val ncontigs = grouped.loadLength()
         val totalLen = cb.newLocal[Int]("locuswindows_totallen", 0)
 
-        def forAllContigs(f: (EmitCodeBuilder, Value[Int], SIndexableValue) => Unit): Unit = {
+        def forAllContigs(cb: EmitCodeBuilder)(f: (EmitCodeBuilder, Value[Int], SIndexableValue) => Unit): Unit = {
           val iContig = cb.newLocal[Int]("locuswindows_icontig", 0)
           cb.whileLoop(iContig < ncontigs, {
             val coordPerContig = grouped.loadElement(cb, iContig).get(cb, "locus_windows group cannot be missing")
@@ -252,7 +252,7 @@ object LocusFunctions extends RegistryFunctions {
         assert(rt.types(0) == arrayType)
         assert(rt.types(1) == arrayType)
 
-        def addIdxWithCondition(cond: (EmitCodeBuilder, Value[Int], Value[Int], SIndexableValue) => Code[Boolean]): EmitValue = {
+        def addIdxWithCondition(cb: EmitCodeBuilder)(cond: (EmitCodeBuilder, Value[Int], Value[Int], SIndexableValue) => Code[Boolean]): IEmitCode = {
 
           val (addElement, finish) = arrayType.constructFromFunctions(cb, r.region, totalLen, deepCopy = false)
           val offset = cb.newLocal[Int]("locuswindows_offset", 0)
@@ -260,7 +260,7 @@ object LocusFunctions extends RegistryFunctions {
           val lastCoord = cb.newLocal[Double]("locuswindows_coord")
 
           val arrayIndex = cb.newLocal[Int]("locuswindows_arrayidx", 0)
-          forAllContigs { case (cb, contigIdx, coords) =>
+          forAllContigs(cb) { case (cb, contigIdx, coords) =>
             val i = cb.newLocal[Int]("locuswindows_i", 0)
             val idx = cb.newLocal[Int]("locuswindows_idx", 0)
             val len = coords.loadLength()
@@ -307,26 +307,26 @@ object LocusFunctions extends RegistryFunctions {
 
           cb.ifx(arrayIndex.cne(totalLen),
             cb._fatal("locuswindows: expected arrayIndex == totalLen, got arrayIndex=", arrayIndex.toS, ", totalLen=", totalLen.toS))
-          IEmitCode.present(cb, finish(cb)).memoize(cb, "locuswindows_result")
+          IEmitCode.present(cb, finish(cb))
         }
 
 
-        forAllContigs { case (cb, _, coordsPerContig) =>
+        forAllContigs(cb) { case (cb, _, coordsPerContig) =>
           cb.assign(totalLen, totalLen + coordsPerContig.loadLength())
         }
 
         rt.constructFromFields(cb, r.region,
-          FastIndexedSeq[EmitValue](
-            addIdxWithCondition { case (cb, i, idx, coords) => coords.loadElement(cb, i)
+          FastIndexedSeq[EmitCode](
+            EmitCode.fromI(cb.emb)(cb => addIdxWithCondition(cb) { case (cb, i, idx, coords) => coords.loadElement(cb, i)
               .get(cb, "locus_windows: missing value for 'coord_expr'")
               .asDouble.doubleCode(cb) > (coords.loadElement(cb, idx)
               .get(cb, "locus_windows: missing value for 'coord_expr'").asDouble.doubleCode(cb) + radius)
-            },
-            addIdxWithCondition { case (cb, i, idx, coords) => coords.loadElement(cb, i)
+            }),
+            EmitCode.fromI(cb.emb)(cb => addIdxWithCondition(cb) { case (cb, i, idx, coords) => coords.loadElement(cb, i)
               .get(cb, "locus_windows: missing value for 'coord_expr'")
               .asDouble.doubleCode(cb) >= (coords.loadElement(cb, idx)
               .get(cb, "locus_windows: missing value for 'coord_expr'").asDouble.doubleCode(cb) - radius)
-            }
+            })
           ), deepCopy = false)
     }
 

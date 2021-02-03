@@ -1,8 +1,6 @@
 #!/bin/bash
 set -ex
 
-/bin/bash /poll.sh &
-
 rewrite_conf_location=/etc/nginx/conf.d/rewrite-links-for-namespace.conf
 
 if [ $HAIL_DEFAULT_NAMESPACE == "default" ]

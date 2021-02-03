@@ -55,7 +55,7 @@ final case class TDict(keyType: Type, valueType: Type) extends TContainer {
 
   override def _showStr(a: Annotation): String =
     a.asInstanceOf[Map[Annotation, Annotation]]
-      .map { case (k, v) => s"${keyType.showStr(k)}:${valueType.showStr(v)}}" }
+      .map { case (k, v) => s"${keyType.showStr(k)}:${valueType.showStr(v)}" }
       .mkString("{", ",", "}")
 
   override def str(a: Annotation): String = JsonMethods.compact(toJSON(a))

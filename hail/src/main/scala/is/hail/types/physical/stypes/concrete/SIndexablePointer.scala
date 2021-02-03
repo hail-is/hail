@@ -1,11 +1,11 @@
 package is.hail.types.physical.stypes.concrete
 
 import is.hail.annotations.{CodeOrdering, Region}
-import is.hail.asm4s.{Code, IntInfo, LongInfo, Settable, SettableBuilder, TypeInfo, Value}
+import is.hail.asm4s._
 import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, IEmitCode, SortOrder}
 import is.hail.types.physical.stypes.{SCode, SType}
 import is.hail.types.physical.stypes.interfaces.SContainer
-import is.hail.types.physical.{PCode, PContainer, PIndexableCode, PIndexableValue, PSettable, PType}
+import is.hail.types.physical.{PCanonicalArray, PCode, PContainer, PIndexableCode, PIndexableValue, PSettable, PType}
 import is.hail.utils.FastIndexedSeq
 
 
@@ -100,4 +100,24 @@ class SIndexablePointerSettable(
   }
 
   override def hasMissingValues(cb: EmitCodeBuilder): Code[Boolean] = pt.hasMissingValues(a)
+
+  override def forEachDefined(cb: EmitCodeBuilder)(f: (EmitCodeBuilder, Value[Int], SCode) => Unit) {
+    st.pType match {
+      case pca: PCanonicalArray =>
+        val idx = cb.newLocal[Int]("foreach_pca_idx", 0)
+        val elementPtr = cb.newLocal[Long]("foreach_pca_elt_ptr", elementsAddress)
+        val et = pca.elementType
+        cb.whileLoop(idx < length, {
+          cb.ifx(isElementMissing(idx),
+            {}, // do nothing,
+            {
+              val elt = et.loadCheapPCode(cb, et.loadFromNested(cb, elementPtr))
+              f(cb, idx, elt)
+            })
+          cb.assign(idx, idx + 1)
+          cb.assign(elementPtr, elementPtr + pca.elementByteSize)
+        })
+      case _ => super.forEachDefined(cb)(f)
+    }
+  }
 }

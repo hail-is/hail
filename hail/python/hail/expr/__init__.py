@@ -35,7 +35,7 @@ from .functions import literal, chi_squared_test, if_else, cond, switch, case, \
     is_transition, is_transversion, is_insertion, is_deletion, is_indel, \
     is_star, is_complex, is_strand_ambiguous, allele_type, hamming, \
     mendel_error_code, triangle, downcode, gq_from_pl, parse_call, \
-    unphased_diploid_gt_index_call, argmax, argmin, zip, enumerate, zip_with_index, map, \
+    unphased_diploid_gt_index_call, argmax, argmin, zip, _zip_func, enumerate, zip_with_index, map, \
     flatmap, flatten, any, all, filter, sorted, find, group_by, fold, \
     array_scan, len, min, nanmin, max, nanmax, mean, median, product, sum, \
     cumulative_sum, struct, tuple, set, empty_set, array, empty_array, \
@@ -177,6 +177,7 @@ __all__ = ['HailType',
            'argmax',
            'argmin',
            'zip',
+           '_zip_func',
            'enumerate',
            'zip_with_index',
            'map',

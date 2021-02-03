@@ -1,11 +1,12 @@
 package is.hail.expr.ir.agg
 
-import is.hail.annotations.{Region, StagedRegionValueBuilder}
+import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitCodeBuilder}
 import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer}
-import is.hail.types.physical.{PBooleanRequired, PCanonicalStruct, PInt32Required, PStruct}
-import is.hail.types.virtual.{TFloat64, TInt32, TInt64, Type}
+import is.hail.types.physical.stypes.concrete.SBaseStructPointerCode
+import is.hail.types.physical.{PBooleanRequired, PCanonicalStruct, PInt32Required, PStruct, PType}
+import is.hail.types.virtual.{TFloat64, TInt32, Type}
 import is.hail.utils._
 
 class ApproxCDFState(val kb: EmitClassBuilder[_]) extends AggregatorState {
@@ -41,8 +42,8 @@ class ApproxCDFState(val kb: EmitClassBuilder[_]) extends AggregatorState {
     cb += aggr.invoke[ApproxCDFStateManager, Unit]("combOp", other.aggr)
   }
 
-  def result(cb: EmitCodeBuilder, srvb: StagedRegionValueBuilder): Unit = {
-    cb += srvb.addIRIntermediate(QuantilesAggregator.resultType)(aggr.invoke[Region, Long]("rvResult", srvb.region))
+  def result(cb: EmitCodeBuilder, region: Value[Region]): SBaseStructPointerCode = {
+    QuantilesAggregator.resultType.loadCheapPCode(cb, aggr.invoke[Region, Long]("rvResult", region))
   }
 
   def newState(cb: EmitCodeBuilder, off: Code[Long]): Unit = cb += region.getNewRegion(regionSize)
@@ -136,7 +137,8 @@ class ApproxCDFAggregator extends StagedAggregator {
     state.comb(cb, other)
   }
 
-  protected def _result(cb: EmitCodeBuilder, state: State, srvb: StagedRegionValueBuilder): Unit = {
-    state.result(cb, srvb)
+  protected def _storeResult(cb: EmitCodeBuilder, state: State, pt: PType, addr: Value[Long], region: Value[Region], ifMissing: EmitCodeBuilder => Unit): Unit = {
+    assert(pt == resultType)
+    pt.storeAtAddress(cb, addr, region, state.result(cb, region), deepCopy = true)
   }
 }

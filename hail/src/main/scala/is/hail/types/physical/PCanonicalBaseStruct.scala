@@ -1,13 +1,14 @@
 package is.hail.types.physical
 
-import is.hail.annotations.{Region, UnsafeUtils}
+import is.hail.annotations.{Annotation, Region, UnsafeRow, UnsafeUtils}
 import is.hail.asm4s._
-import is.hail.expr.ir.{EmitCodeBuilder, EmitValue}
+import is.hail.expr.ir.{EmitCode, EmitCodeBuilder}
 import is.hail.types.BaseStruct
 import is.hail.types.physical.stypes.SCode
 import is.hail.types.physical.stypes.concrete.{SBaseStructPointer, SBaseStructPointerCode, SBaseStructPointerSettable}
-import is.hail.types.physical.stypes.interfaces.{SBaseStructCode, SBaseStructValue, SStruct}
+import is.hail.types.physical.stypes.interfaces.SStruct
 import is.hail.utils._
+import org.apache.spark.sql.Row
 
 abstract class PCanonicalBaseStruct(val types: Array[PType]) extends PBaseStruct {
   if (!types.forall(_.isRealizable)) {
@@ -170,7 +171,7 @@ abstract class PCanonicalBaseStruct(val types: Array[PType]) extends PBaseStruct
 
   def sType: SStruct = SBaseStructPointer(this)
 
-  def loadCheapPCode(cb: EmitCodeBuilder, addr: Code[Long]): PCode = new SBaseStructPointerCode(SBaseStructPointer(this), addr)
+  def loadCheapPCode(cb: EmitCodeBuilder, addr: Code[Long]): SBaseStructPointerCode = new SBaseStructPointerCode(SBaseStructPointer(this), addr)
 
   def store(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): Code[Long] = {
     value.st match {
@@ -210,7 +211,22 @@ abstract class PCanonicalBaseStruct(val types: Array[PType]) extends PBaseStruct
     }
   }
 
-  def constructFromFields(cb: EmitCodeBuilder, region: Value[Region], emitFields: IndexedSeq[EmitValue], deepCopy: Boolean): SBaseStructPointerCode = {
+  // FIXME: this doesn't need to exist when we have StackStruct!
+  def storeAtAddressFromFields(cb: EmitCodeBuilder, addr: Value[Long], region: Value[Region], emitFields: IndexedSeq[EmitCode], deepCopy: Boolean): Unit = {
+    require(emitFields.length == size)
+    cb += stagedInitialize(addr, setMissing = false)
+    emitFields.zipWithIndex.foreach { case (ev, i) =>
+      ev.toI(cb)
+        .consume(cb,
+          cb += setFieldMissing(addr, i),
+          { sc =>
+            types(i).storeAtAddress(cb, fieldOffset(addr, i), region, sc, deepCopy = deepCopy)
+          }
+        )
+    }
+  }
+
+  def constructFromFields(cb: EmitCodeBuilder, region: Value[Region], emitFields: IndexedSeq[EmitCode], deepCopy: Boolean): SBaseStructPointerCode = {
     require(emitFields.length == size)
     val addr = cb.newLocal[Long]("pcbs_construct_fields", allocate(region))
     cb += stagedInitialize(addr, setMissing = false)
@@ -226,4 +242,34 @@ abstract class PCanonicalBaseStruct(val types: Array[PType]) extends PBaseStruct
 
     new SBaseStructPointerCode(SBaseStructPointer(this), addr)
   }
+
+  override def unstagedStoreJavaObject(annotation: Annotation, region: Region): Long = {
+    val addr = allocate(region)
+    unstagedStoreJavaObjectAtAddress(addr, annotation, region)
+    addr
+  }
+
+  override def unstagedStoreJavaObjectAtAddress(addr: Long, annotation: Annotation, region: Region): Unit = {
+    initialize(addr)
+    val row = annotation.asInstanceOf[Row]
+    row match {
+      case ur: UnsafeRow => {
+        this.unstagedStoreAtAddress(addr, region, ur.t, ur.offset, region.ne(ur.region))
+      }
+      case sr: Row => {
+        this.types.zipWithIndex.foreach { case (fieldPt, fieldIdx) =>
+          if (row(fieldIdx) == null) {
+            setFieldMissing(addr, fieldIdx)
+          }
+          else {
+            val fieldAddress = fieldOffset(addr, fieldIdx)
+            fieldPt.unstagedStoreJavaObjectAtAddress(fieldAddress, row(fieldIdx), region)
+          }
+        }
+      }
+    }
+
+  }
+
+  def loadFromNested(cb: EmitCodeBuilder, addr: Code[Long]): Code[Long] = addr
 }

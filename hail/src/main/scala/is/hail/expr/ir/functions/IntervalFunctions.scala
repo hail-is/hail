@@ -55,7 +55,7 @@ object IntervalFunctions extends RegistryFunctions {
     registerIEmitCode1("start", TInterval(tv("T")), tv("T"),
       (_: Type, x: PType) => x.asInstanceOf[PInterval].pointType.orMissing(x.required)) {
       case (cb, r, rt, interval) =>
-        interval().flatMap(cb) { case pi: PIntervalCode =>
+        interval.toI(cb).flatMap(cb) { case pi: PIntervalCode =>
           val pv = pi.memoize(cb, "interval")
           pv.loadStart(cb).typecast[PCode]
         }
@@ -64,7 +64,7 @@ object IntervalFunctions extends RegistryFunctions {
     registerIEmitCode1("end", TInterval(tv("T")), tv("T"),
       (_: Type, x: PType) => x.asInstanceOf[PInterval].pointType.orMissing(x.required)) {
       case (cb, r, rt, interval) =>
-        interval().flatMap(cb) { case pi: PIntervalCode =>
+        interval.toI(cb).flatMap(cb) { case pi: PIntervalCode =>
           val pv = pi.memoize(cb, "interval")
           pv.loadEnd(cb).typecast[PCode]
         }
@@ -86,9 +86,9 @@ object IntervalFunctions extends RegistryFunctions {
       case(_: Type, intervalT: PInterval, _: PType) => PBoolean(intervalT.required)
     }) {
       case (cb, r, rt, int, point) =>
-        int().map(cb) { case (intc: PIntervalCode) =>
+        int.toI(cb).map(cb) { case (intc: PIntervalCode) =>
           val interval: PIntervalValue = intc.memoize(cb, "interval")
-          val pointv = cb.memoize(point(), "point")
+          val pointv = cb.memoize(point.toI(cb), "point")
           val compare = cb.emb.getCodeOrdering(pointv.pt, interval.pt.pointType, CodeOrdering.Compare())
 
           val start = EmitCode.fromI(cb.emb)(cb => interval.loadStart(cb).typecast[PCode])

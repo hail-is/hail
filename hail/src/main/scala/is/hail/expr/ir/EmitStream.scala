@@ -14,13 +14,13 @@ import is.hail.utils._
 
 import scala.language.{existentials, higherKinds}
 
-case class EmitStreamContext(mb: EmitMethodBuilder[_], ectx: ExecuteContext)
+case class EmitStreamContext(mb: EmitMethodBuilder[_])
 
 abstract class COption[+A] { self =>
   def apply(none: Code[Ctrl], some: A => Code[Ctrl])(implicit ctx: EmitStreamContext): Code[Ctrl]
 
-  def cases(mb: EmitMethodBuilder[_], ctx: ExecuteContext)(none: Code[Unit], some: A => Code[Unit]): Code[Unit] = {
-    implicit val sctx: EmitStreamContext = EmitStreamContext(mb, ctx)
+  def cases(mb: EmitMethodBuilder[_])(none: Code[Unit], some: A => Code[Unit]): Code[Unit] = {
+    implicit val sctx: EmitStreamContext = EmitStreamContext(mb)
     val L = CodeLabel()
     Code(
       self(Code(none, L.goto), (a) => Code(some(a), L.goto)),
@@ -142,8 +142,8 @@ object COption {
     }
   }
 
-  def toEmitCode(ctx: ExecuteContext, opt: COption[PCode], mb: EmitMethodBuilder[_]): EmitCode = {
-    implicit val sctx = EmitStreamContext(mb, ctx)
+  def toEmitCode(opt: COption[PCode], mb: EmitMethodBuilder[_]): EmitCode = {
+    implicit val sctx = EmitStreamContext(mb)
     val Lmissing = CodeLabel()
     val Lpresent = CodeLabel()
     var value: PCode = null
@@ -162,8 +162,8 @@ abstract class Stream[+A] { self =>
 
   def apply(eos: Code[Ctrl], push: A => Code[Ctrl])(implicit ctx: EmitStreamContext): Source[A]
 
-  def fold(ctx: ExecuteContext, mb: EmitMethodBuilder[_], init: => Code[Unit], f: (A) => Code[Unit], ret: => Code[Ctrl]): Code[Ctrl] = {
-    implicit val sctx = EmitStreamContext(mb, ctx)
+  def fold(mb: EmitMethodBuilder[_], init: => Code[Unit], f: (A) => Code[Unit], ret: => Code[Ctrl]): Code[Ctrl] = {
+    implicit val sctx = EmitStreamContext(mb)
     val Ltop = CodeLabel()
     val Lafter = CodeLabel()
     val s = self(Lafter.goto, (a) => Code(f(a), Ltop.goto: Code[Ctrl]))
@@ -179,21 +179,21 @@ abstract class Stream[+A] { self =>
       ret)
   }
 
-  def forEachCPS(ctx: ExecuteContext, mb: EmitMethodBuilder[_], f: (A, Code[Ctrl]) => Code[Ctrl]): Code[Unit] =
-    mapCPS[Unit]((_, a, k) => f(a, k(()))).run(ctx, mb)
+  def forEachCPS(mb: EmitMethodBuilder[_], f: (A, Code[Ctrl]) => Code[Ctrl]): Code[Unit] =
+    mapCPS[Unit]((_, a, k) => f(a, k(()))).run(mb)
 
-  def forEach(ctx: ExecuteContext, mb: EmitMethodBuilder[_], f: A => Code[Unit]): Code[Unit] =
-    mapCPS[Unit]((_, a, k) => Code(f(a), k(()))).run(ctx, mb)
+  def forEach(mb: EmitMethodBuilder[_], f: A => Code[Unit]): Code[Unit] =
+    mapCPS[Unit]((_, a, k) => Code(f(a), k(()))).run(mb)
 
-  def forEachI(ctx: ExecuteContext, cb: EmitCodeBuilder, f: A => Unit): Unit = {
+  def forEachI(cb: EmitCodeBuilder, f: A => Unit): Unit = {
     val savedCode = cb.code
     cb.code = Code._empty
-    val streamCode = forEach(ctx, cb.emb, a => { f(a); cb.code })
+    val streamCode = forEach(cb.emb, a => { f(a); cb.code })
     cb.code = Code(savedCode, streamCode)
   }
 
-  def run(ctx: ExecuteContext, mb: EmitMethodBuilder[_]): Code[Unit] = {
-    implicit val sctx = EmitStreamContext(mb, ctx)
+  def run(mb: EmitMethodBuilder[_]): Code[Unit] = {
+    implicit val sctx = EmitStreamContext(mb)
     val Leos = CodeLabel()
     val Lpull = CodeLabel()
     val source = self(eos = Leos.goto, push = _ => Lpull.goto)
@@ -924,17 +924,15 @@ object EmitStream {
   import Stream._
 
   def write(
-    ctx: ExecuteContext,
     mb: EmitMethodBuilder[_],
     pcStream: SStreamCode,
     ab: StagedArrayBuilder,
     destRegion: ParentStagedRegion
   ): Code[Unit] = {
-    _write(ctx, mb, pcStream.stream, ab, destRegion)
+    _write(mb, pcStream.stream, ab, destRegion)
   }
 
   private def _write(
-    ctx: ExecuteContext,
     mb: EmitMethodBuilder[_],
     sstream: SizedStream,
     ab: StagedArrayBuilder,
@@ -947,7 +945,7 @@ object EmitStream {
       ssSetup,
       ab.clear,
       ab.ensureCapacity(optLen.getOrElse(16)),
-      stream(eltRegion).forEach(ctx, mb, { elt => Code(
+      stream(eltRegion).forEach(mb, { elt => Code(
         elt.setup,
         elt.m.mux(
           ab.addMissing(),
@@ -958,51 +956,31 @@ object EmitStream {
   }
 
   def toArray(
-    ctx: ExecuteContext,
-    mb: EmitMethodBuilder[_],
-    aTyp: PArray,
+    cb: EmitCodeBuilder,
+    aTyp: PCanonicalArray,
     pcStream: SStreamCode,
     destRegion: ParentStagedRegion
   ): PCode = {
-    val srvb = new StagedRegionValueBuilder(mb, aTyp, destRegion.code)
+    val mb = cb.emb
     val ss = pcStream.stream
+    val xLen = mb.newLocal[Int]("sta_len")
     ss.length match {
       case None =>
-        val xLen = mb.newLocal[Int]("sta_len")
-        val i = mb.newLocal[Int]("sta_i")
         val vab = new StagedArrayBuilder(aTyp.elementType, mb, 0)
-        val ptr = Code(
-          _write(ctx, mb, ss, vab, destRegion),
-          xLen := vab.size,
-          srvb.start(xLen),
-          i := const(0),
-          Code.whileLoop(i < xLen,
-            vab.isMissing(i).mux(
-              srvb.setMissing(),
-              srvb.addIRIntermediate(aTyp.elementType)(vab(i))),
-            i := i + 1,
-            srvb.advance()),
-          srvb.offset)
-        PCode(aTyp, ptr)
+        cb += _write(mb, ss, vab, destRegion)
+        cb.assign(xLen, vab.size)
+
+        aTyp.constructFromElements(cb, destRegion.code, xLen, deepCopy = false) { (cb, i) =>
+          IEmitCode(cb, vab.isMissing(i), PCode(aTyp.elementType, vab(i)))
+        }
 
       case Some(len) =>
         val eltRegion = destRegion.createChildRegion(mb)
-        val ptr = Code.sequence1(FastIndexedSeq(
-            eltRegion.allocateRegion(Region.REGULAR, mb.ecb.pool()),
-            ss.setup,
-            srvb.start(len),
-            ss.stream(eltRegion).forEach(ctx, mb, { et =>
-              Code(FastSeq(
-                et.setup,
-                et.m.mux(
-                  srvb.setMissing(),
-                  eltRegion.addToParentRVB(srvb, et.pv)),
-                eltRegion.clear(),
-                srvb.advance()))
-            }),
-            eltRegion.clear()),
-          srvb.offset)
-        PCode(aTyp, ptr)
+        cb += eltRegion.allocateRegion(Region.REGULAR, mb.ecb.pool())
+        cb += ss.setup
+        cb.assign(xLen, len)
+
+        aTyp.constructFromStream(cb, ss.stream(eltRegion), destRegion.code, xLen, deepCopy = eltRegion.isStrictChild)
     }
   }
 
@@ -1061,7 +1039,7 @@ object EmitStream {
     mb: EmitMethodBuilder[_],
     streams: IndexedSeq[ChildStagedRegion => Stream[PCode]],
     destRegion: ChildStagedRegion,
-    resultType: PArray,
+    resultType: PCanonicalArray,
     key: IndexedSeq[String]
   ): Stream[(PCode, PCode)] = new Stream[(PCode, PCode)] {
     def apply(eos: Code[Ctrl], push: ((PCode, PCode)) => Code[Ctrl])(implicit ctx: EmitStreamContext): Source[(PCode, PCode)] = {
@@ -1105,8 +1083,6 @@ object EmitStream {
         .codeOrdering(mb, keyType, missingFieldsEqual = false)
         .equivNonnull
 
-      val srvb = new StagedRegionValueBuilder(mb, resultType, destRegion.code)
-
       val runMatch = CodeLabel()
       val LpullChild = CodeLabel()
       val LloopEnd = CodeLabel()
@@ -1117,15 +1093,14 @@ object EmitStream {
 
       Code(Leos, eos)
 
+      val (pushSetup, curResult) = EmitCodeBuilder.scoped(mb) { cb =>
+        resultType.constructFromElements(cb, destRegion.code, k, deepCopy = false) { (cb, i) =>
+          IEmitCode(cb, result(i).ceq(0L), PCode(eltType, result(i)))
+        }
+      }
       Code(Lpush,
-        srvb.start(k),
-        Code.forLoop(i := 0, i < k, i := i + 1,
-          Code(
-            result(i).ceq(0L).mux(
-              srvb.setMissing(),
-              srvb.addIRIntermediate(eltType)(result(i))),
-            srvb.advance())),
-        push((curKey, PCode(resultType, srvb.offset))))
+        pushSetup,
+        push((curKey, curResult)))
 
       Code(LstartNewKey,
         Code.forLoop(i := 0, i < k, i := i + 1, result(i) = 0L),
@@ -1699,7 +1674,7 @@ object EmitStream {
           }
           val eltVars = (names, eltTypes).zipped.map(mb.newEmitField)
 
-          IEmitCode.sequence(as, (a: IR) => emitStream(a), cb) { pcs =>
+          IEmitCode.multiMapEmitCodes(cb, as.map(a => EmitCode.fromI(cb.emb)(cb => emitStream(a, cb)))) { pcs =>
             val emitStreams = pcs.map(_.asStream.stream)
             val lenSetup = Code(emitStreams.map(_.setup))
             val lengths = emitStreams.map(_.length)
@@ -1749,7 +1724,7 @@ object EmitStream {
                       // allEOS and anyEOS
                       val checkedElts: IndexedSeq[Code[Unit]] =
                         elts.zip(eltVars).map { case (optEC, eltVar) =>
-                          optEC.cases(mb, ctx)(
+                          optEC.cases(mb)(
                             anyEOS := true,
                             ec => EmitCodeBuilder.scopedVoid(mb) { cb =>
                               cb.assign(allEOS, false)
@@ -1817,7 +1792,7 @@ object EmitStream {
                                      k(COption.fromEmitCode(elt)))
                               }
 
-                          COption.toEmitCode(ctx, optElt, mb)
+                          COption.toEmitCode(optElt, mb)
                         }
                       val bodyEnv = env.bind(names.zip(eltVars): _*)
                       val body = EmitCode.fromI(mb)(cb => emitIR(bodyIR, cb = cb, env = bodyEnv, region = eltRegion))
@@ -1855,7 +1830,7 @@ object EmitStream {
               c < 0 || (c.ceq(0) && li < ri)
             }
 
-          IEmitCode.sequence(as, (a: IR) => emitStream(a), cb) { pcs =>
+          IEmitCode.multiMapEmitCodes(cb, as.map(a => EmitCode.fromI(cb.emb)(cb => emitStream(a, cb)))) { pcs =>
             val sss = pcs.map(_.asStream.stream)
             val streams = sss.map { ss => (eltRegion: ChildStagedRegion) =>
               ss.stream(eltRegion).map { ec =>
@@ -1898,7 +1873,7 @@ object EmitStream {
             }
           }
 
-          IEmitCode.sequence(as, (a: IR) => emitStream(a), cb) { pcs =>
+          IEmitCode.multiMapEmitCodes(cb, as.map(a => EmitCode.fromI(cb.emb)(cb => emitStream(a, cb)))) { pcs =>
             val sss = pcs.map(_.asStream.stream)
             val streams = sss.map { ss => (eltRegion: ChildStagedRegion) =>
               ss.getStream(eltRegion).map(_.get())

@@ -14,6 +14,7 @@ def register_aggregators():
                         dtype('struct{values:array<float64>,ranks:array<int64>,_compaction_counts:array<int32>}'))
 
     register_aggregator('Collect', (), (dtype("?in"),), dtype('array<?in>'))
+    register_aggregator('Densify', (dtype('int32'),), (dtype("?in"),), dtype('?in'))
 
     info_score_aggregator_type = dtype('struct{score:float64,n_included:tint32}')
     register_aggregator('InfoScore', (), (dtype('array<float64>'),), info_score_aggregator_type)

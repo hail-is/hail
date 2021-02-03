@@ -1,6 +1,6 @@
 package is.hail.expr.ir.agg
 
-import is.hail.annotations.{Region, StagedRegionValueBuilder}
+import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.expr.ir._
 import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer}
@@ -79,9 +79,9 @@ class CollectAggregator(val elemType: VirtualTypeWithReq) extends StagedAggregat
   protected def _combOp(cb: EmitCodeBuilder, state: State, other: State): Unit =
     state.bll.append(cb, state.region, other.bll)
 
-  protected def _result(cb: EmitCodeBuilder, state: State, srvb: StagedRegionValueBuilder): Unit = {
-    cb += srvb.addArray(resultType, { srvb =>
-      EmitCodeBuilder.scopedVoid(cb.emb)(state.bll.writeToSRVB(_, srvb))
-    })
+  protected def _storeResult(cb: EmitCodeBuilder, state: State, pt: PType, addr: Value[Long], region: Value[Region], ifMissing: EmitCodeBuilder => Unit): Unit = {
+    assert(pt == resultType)
+    // deepCopy is handled by the blocked linked list
+    pt.storeAtAddress(cb, addr, region, state.bll.resultArray(cb, region, resultType), deepCopy = false)
   }
 }

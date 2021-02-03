@@ -1,6 +1,6 @@
 package is.hail.types.physical
 
-import is.hail.annotations.{Region, UnsafeUtils}
+import is.hail.annotations.{Annotation, Region, UnsafeUtils}
 import is.hail.asm4s.{Code, Settable, SettableBuilder, Value, coerce, const}
 import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, IEmitCode}
 import is.hail.types.BaseStruct
@@ -140,4 +140,12 @@ final case class PSubsetStruct(ps: PStruct, _fieldNames: Array[String]) extends 
   def unstagedStoreAtAddress(addr: Long, region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Unit = {
     throw new UnsupportedOperationException
   }
+
+  def loadFromNested(cb: EmitCodeBuilder, addr: Code[Long]): Code[Long] = addr
+
+  override def unstagedStoreJavaObject(annotation: Annotation, region: Region): Long =
+    throw new UnsupportedOperationException
+
+  override def unstagedStoreJavaObjectAtAddress(addr: Long, annotation: Annotation, region: Region): Unit =
+    throw new UnsupportedOperationException
 }
