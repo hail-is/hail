@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, Dict
 import math
 import random
 import logging
@@ -7,9 +7,8 @@ import functools
 import asyncio
 import aiohttp
 import secrets
-from asyncinit import asyncinit
 
-from hailtop.config import get_deploy_config
+from hailtop.config import get_deploy_config, DeployConfig
 from hailtop.auth import service_auth_headers
 from hailtop.utils import bounded_gather, request_retry_transient_errors, tqdm, TQDM_DEFAULT_DISABLE
 from hailtop.httpx import client_session
@@ -345,6 +344,9 @@ class Batch:
             if last_job_id is None:
                 break
 
+    async def get_job_log(self, job_id: int):
+        return self._client.get_job_log(self.id, job_id)
+
     # {
     #   id: int,
     #   billing_project: str
@@ -588,10 +590,14 @@ class BatchBuilder:
         return batch
 
 
-@asyncinit
 class BatchClient:
-    async def __init__(self, billing_project, deploy_config=None, session=None,
-                       headers=None, _token=None, token_file=None):
+    def __init__(self,
+                 billing_project: str,
+                 deploy_config: Optional[DeployConfig] = None,
+                 session: Optional[aiohttp.ClientSession] = None,
+                 headers: Optional[Dict[str, str]] = None,
+                 _token: Optional[str] = None,
+                 token_file: Optional[str] = None):
         self.billing_project = billing_project
 
         if not deploy_config:
@@ -600,11 +606,10 @@ class BatchClient:
         self.url = deploy_config.base_url('batch')
 
         if session is None:
-            session = client_session(
-                timeout=aiohttp.ClientTimeout(total=60))
+            session = client_session()
         self._session = session
 
-        h = {}
+        h: Dict[str, str] = {}
         if headers:
             h.update(headers)
         if _token:

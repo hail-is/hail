@@ -234,7 +234,7 @@ object InferPType {
           coerce[PStream](left.pType).separateRegions || coerce[PStream](right.pType).separateRegions,
           requiredness(node).required)
       case NDArrayShape(nd) =>
-        val r = nd.pType.asInstanceOf[PNDArray].shape.pType
+        val r = nd.pType.asInstanceOf[PCanonicalNDArray].shapeType
         r.setRequired(requiredness(node).required)
       case NDArrayReshape(nd, shape) =>
         val shapeT = shape.pType.asInstanceOf[PTuple]

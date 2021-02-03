@@ -226,7 +226,7 @@ It's important to note that missingness propagates up in Hail, so if the value
 of the discriminant in a case statement is missing, then the result will be
 missing as well.
 
->>> y = hl.null(hl.tint32)
+>>> y = hl.missing(hl.tint32)
 >>> result = hl.case().when(y > 0, 1).default(-1)
 >>> hl.eval(result)
 
@@ -256,7 +256,7 @@ mutation. If ``csq`` does not match one of the cases specified by
 
 As with case statements, missingness will propagate up through a switch
 statement. If we changed the value of ``csq`` to the missing value
-``hl.null(hl.tstr)``, then the result of the switch statement above would also
+``hl.missing(hl.tstr)``, then the result of the switch statement above would also
 be missing.
 
 Missingness
@@ -268,20 +268,20 @@ takes the type as its single argument.
 
 An example of generating a :class:`.Float64Expression` that is missing is:
 
-    >>> hl.null('float64')
+    >>> hl.missing('float64')
     <Float64Expression of type float64>
 
 These can be used with conditional statements to set values to missing if they
 don't satisfy a condition:
 
-    >>> hl.if_else(x > 2.0, x, hl.null(hl.tfloat))
+    >>> hl.if_else(x > 2.0, x, hl.missing(hl.tfloat))
     <Float64Expression of type float64>
 
 The Python representation of a missing value is ``None``. For example, if
 we define ``cnull`` to be a missing value with type :obj:`.tcall`, calling
 the method `is_het` will return ``None`` and not ``False``.
 
-    >>> cnull = hl.null('call')
+    >>> cnull = hl.missing('call')
     >>> hl.eval(cnull.is_het())
     None
 

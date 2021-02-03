@@ -17,12 +17,12 @@ final class RegionPool private(strictMemoryCheck: Boolean, threadName: String, t
   log.info(s"RegionPool: initialized for thread $threadID: $threadName")
   protected[annotations] val freeBlocks: Array[LongArrayBuilder] = Array.fill[LongArrayBuilder](4)(new LongArrayBuilder(8))
   protected[annotations] val regions = new BoxedArrayBuilder[RegionMemory]()
-  private val freeRegions = new BoxedArrayBuilder[RegionMemory]()
-  private val blocks: Array[Long] = Array(0L, 0L, 0L, 0L)
-  private var totalAllocatedBytes: Long = 0L
-  private var allocationEchoThreshold: Long = 256 * 1024
-  private var numJavaObjects: Long = 0L
-  private var maxNumJavaObjects: Long = 0L
+  private[this] val freeRegions = new BoxedArrayBuilder[RegionMemory]()
+  private[this] val blocks: Array[Long] = Array(0L, 0L, 0L, 0L)
+  private[this] var totalAllocatedBytes: Long = 0L
+  private[this] var allocationEchoThreshold: Long = 256 * 1024
+  private[this] var numJavaObjects: Long = 0L
+  private[this] var maxNumJavaObjects: Long = 0L
 
   def addJavaObject(): Unit = {
     numJavaObjects += 1

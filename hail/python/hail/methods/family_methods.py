@@ -789,7 +789,7 @@ def de_novo(mt: MatrixTable,
     het_hom_hom = tm.proband_entry.GT.is_het() & tm.father_entry.GT.is_hom_ref() & tm.mother_entry.GT.is_hom_ref()
     kid_ad_fail = tm.proband_entry.AD[1] / hl.sum(tm.proband_entry.AD) < min_child_ab
 
-    failure = hl.null(hl.tstruct(p_de_novo=hl.tfloat64, confidence=hl.tstr))
+    failure = hl.missing(hl.tstruct(p_de_novo=hl.tfloat64, confidence=hl.tstr))
 
     kid = tm.proband_entry
     dad = tm.father_entry

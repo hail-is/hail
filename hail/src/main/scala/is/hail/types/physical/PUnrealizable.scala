@@ -1,6 +1,6 @@
 package is.hail.types.physical
 
-import is.hail.annotations.{CodeOrdering, Region}
+import is.hail.annotations.{Annotation, CodeOrdering, Region}
 import is.hail.asm4s.{Code, TypeInfo, Value}
 import is.hail.expr.ir.{Ascending, Descending, EmitCodeBuilder, EmitMethodBuilder, SortOrder}
 import is.hail.types.physical.stypes.SCode
@@ -29,6 +29,12 @@ trait PUnrealizable extends PType {
     unsupported
 
   def unstagedStoreAtAddress(addr: Long, region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Unit =
+    unsupported
+
+  override def unstagedStoreJavaObject(annotation: Annotation, region: Region): Long =
+    unsupported
+
+  override def unstagedStoreJavaObjectAtAddress(addr: Long, annotation: Annotation, region: Region): Unit =
     unsupported
 
   override def loadCheapPCode(cb: EmitCodeBuilder, addr: Code[Long]): PCode = unsupported

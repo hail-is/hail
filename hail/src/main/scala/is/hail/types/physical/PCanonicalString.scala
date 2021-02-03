@@ -1,6 +1,6 @@
 package is.hail.types.physical
 
-import is.hail.annotations.Region
+import is.hail.annotations.{Annotation, Region}
 import is.hail.asm4s.{Code, Value}
 import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder}
 import is.hail.types.physical.stypes.SCode
@@ -75,6 +75,16 @@ class PCanonicalString(val required: Boolean) extends PString {
 
   def storeAtAddress(cb: EmitCodeBuilder, addr: Code[Long], region: Value[Region], value: SCode, deepCopy: Boolean): Unit = {
     cb += Region.storeAddress(addr, store(cb, region, value, deepCopy))
+  }
+
+  def loadFromNested(cb: EmitCodeBuilder, addr: Code[Long]): Code[Long] = binaryFundamentalType.loadFromNested(cb, addr)
+
+  override def unstagedStoreJavaObject(annotation: Annotation, region: Region): Long = {
+    fundamentalType.unstagedStoreJavaObject(annotation.asInstanceOf[String].getBytes(), region)
+  }
+
+  override def unstagedStoreJavaObjectAtAddress(addr: Long, annotation: Annotation, region: Region): Unit = {
+    fundamentalType.unstagedStoreJavaObjectAtAddress(addr, annotation.asInstanceOf[String].getBytes(), region)
   }
 }
 

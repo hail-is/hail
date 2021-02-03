@@ -63,6 +63,10 @@ class PFloat32(override val required: Boolean) extends PNumeric with PPrimitive 
     cb.append(Region.storeFloat(addr, value.asFloat.floatCode(cb)))
 
   override def loadCheapPCode(cb: EmitCodeBuilder, addr: Code[Long]): PCode = new SFloat32Code(required, Region.loadFloat(addr))
+
+  override def unstagedStoreJavaObjectAtAddress(addr: Long, annotation: Annotation, region: Region): Unit = {
+    Region.storeFloat(addr, annotation.asInstanceOf[Float])
+  }
 }
 
 object PFloat32 {

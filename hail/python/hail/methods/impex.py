@@ -490,7 +490,7 @@ def export_vcf(dataset, output, append_to_header=None, parallel=None, metadata=N
         ``'separate_header'``, return a separate VCF header file and a set of
         VCF files (one per partition) without the header. If ``None``,
         concatenate the header and all partitions into one VCF file.
-    metadata : :obj:`dict` [:obj:`str`, :obj:`dict` [:obj:`str`, obj:`dict` [obj:`str`, obj:`str`]]]`, optional
+    metadata : :obj:`dict` [:obj:`str`, :obj:`dict` [:obj:`str`, :obj:`dict` [obj:`str`, obj:`str`]]]`, optional
         Dictionary with information to fill in the VCF header. See
         :func:`get_vcf_metadata` for how this
         dictionary should be structured.
@@ -2482,6 +2482,12 @@ def export_elasticsearch(t, host, port, index, index_type, block_size, config=No
 
     .. warning::
         :func:`.export_elasticsearch` is EXPERIMENTAL.
+
+    .. note::
+        Table rows may be exported more than once. For example, if a task has to be retried after being preempted
+        midway through processing a partition. To avoid duplicate documents in Elasticsearch, use a `config` with the
+        `es.mapping.id <https://www.elastic.co/guide/en/elasticsearch/hadoop/current/configuration.html#cfg-mapping>`__
+        option set to a field that contains a unique value for each row.
     """
 
     jdf = t.expand_types().to_spark(flatten=False)._jdf

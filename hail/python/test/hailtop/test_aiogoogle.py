@@ -1,15 +1,18 @@
 import os
 import secrets
 import shutil
+from itertools import accumulate
 from concurrent.futures import ThreadPoolExecutor
+import asyncio
 import pytest
+from hailtop.utils import secret_alnum_string
 from hailtop.aiotools import LocalAsyncFS, RouterAsyncFS
 from hailtop.aiogoogle import StorageClient, GoogleStorageAsyncFS
 
 
 @pytest.fixture(params=['file', 'gs', 'router/file', 'router/gs'])
 async def filesystem(request):
-    token = secrets.token_hex(16)
+    token = secret_alnum_string()
 
     with ThreadPoolExecutor() as thread_pool:
         if request.param.startswith('router/'):
@@ -27,6 +30,19 @@ async def filesystem(request):
                 bucket = os.environ['HAIL_TEST_BUCKET']
                 base = f'gs://{bucket}/tmp/{token}/'
 
+            await fs.mkdir(base)
+            yield (fs, base)
+            await fs.rmtree(base)
+            assert not await fs.isdir(base)
+
+
+@pytest.fixture
+async def local_filesystem(request):
+    token = secret_alnum_string()
+
+    with ThreadPoolExecutor() as thread_pool:
+        async with LocalAsyncFS(thread_pool) as fs:
+            base = f'/tmp/{token}/'
             await fs.mkdir(base)
             yield (fs, base)
             await fs.rmtree(base)
@@ -248,3 +264,43 @@ async def test_listfiles(filesystem):
         else:
             stat = await entry.status()
             assert await stat.size() == 0
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("permutation", [
+    None,
+    [0, 1, 2],
+    [0, 2, 1],
+    [1, 2, 0],
+    [2, 1, 0]
+])
+async def test_multi_part_create(local_filesystem, permutation):
+    fs, base = local_filesystem
+
+    part_data = [secrets.token_bytes(s) for s in [8192, 600, 20000]]
+
+    s = 0
+    part_start = []
+    for b in part_data:
+        part_start.append(s)
+        s += len(b)
+    print(part_start)
+
+    path = f'{base}a'
+    async with await fs.multi_part_create(path, len(part_data)) as c:
+        async def create_part(i):
+            async with await c.create_part(i, part_start[i]) as f:
+                await f.write(part_data[i])
+
+        if permutation:
+            # do it in a fixed order
+            for i in permutation:
+                await create_part(i)
+        else:
+            # do in parallel
+            await asyncio.gather(*[
+                create_part(i) for i in range(len(part_data))])
+
+    expected = b''.join(part_data)
+    async with await fs.open(path) as f:
+        actual = await f.read()
+    assert expected == actual

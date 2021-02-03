@@ -16,6 +16,8 @@ object AggSignature {
       AggSignature(TakeBy(reverse), FastSeq(n), FastSeq(requestedType.asInstanceOf[TArray].elementType, k))
     case AggSignature(PrevNonnull(), Seq(), Seq(_)) =>
       AggSignature(PrevNonnull(), FastSeq(), FastSeq(requestedType))
+    case AggSignature(Densify(), Seq(), Seq(_)) =>
+      AggSignature(Densify(), FastSeq(), FastSeq(requestedType))
     case _ => agg
   }
 }
@@ -42,6 +44,7 @@ final case class Min() extends AggOp
 final case class Product() extends AggOp
 final case class Sum() extends AggOp
 final case class Take() extends AggOp
+final case class Densify() extends AggOp
 final case class TakeBy(so: SortOrder = Ascending) extends AggOp
 final case class Group() extends AggOp
 final case class AggElements() extends AggOp
@@ -64,6 +67,7 @@ object AggOp {
     case "min" | "Min" => Min()
     case "count" | "Count" => Count()
     case "take" | "Take" => Take()
+    case "densify" | "Densify" => Densify()
     case "takeBy" | "TakeBy" => TakeBy()
     case "callStats" | "CallStats" => CallStats()
     case "linreg" | "LinearRegression" => LinearRegression()

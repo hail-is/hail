@@ -67,9 +67,7 @@ class OrderingSuite extends HailSuite {
       val pType = PType.canonical(t).asInstanceOf[PStruct]
       val rvb = new RegionValueBuilder(region)
 
-      rvb.start(pType)
-      rvb.addAnnotation(t, a)
-      val v = rvb.end()
+      val v = pType.unstagedStoreJavaObject(a, region)
 
       val eordME = t.mkOrdering()
       val eordMNE = t.mkOrdering(missingEqual = false)
@@ -220,13 +218,9 @@ class OrderingSuite extends HailSuite {
         val pType = PType.canonical(t)
         val rvb = new RegionValueBuilder(region)
 
-        rvb.start(pType)
-        rvb.addAnnotation(t, a1)
-        val v1 = rvb.end()
+        val v1 = pType.unstagedStoreJavaObject(a1, region)
 
-        rvb.start(pType)
-        rvb.addAnnotation(t, a2)
-        val v2 = rvb.end()
+        val v2 = pType.unstagedStoreJavaObject(a2, region)
 
         val compare = java.lang.Integer.signum(t.ordering.compare(a1, a2))
         val fcompare = getStagedOrderingFunction(pType, CodeOrdering.Compare(), region)
@@ -276,13 +270,9 @@ class OrderingSuite extends HailSuite {
         val pType = PType.canonical(t)
         val rvb = new RegionValueBuilder(region)
 
-        rvb.start(pType)
-        rvb.addAnnotation(t, a1)
-        val v1 = rvb.end()
+        val v1 = pType.unstagedStoreJavaObject(a1, region)
 
-        rvb.start(pType)
-        rvb.addAnnotation(t, a2)
-        val v2 = rvb.end()
+        val v2 = pType.unstagedStoreJavaObject(a2, region)
 
         val reversedExtendedOrdering = t.ordering.reverse
 
@@ -449,13 +439,9 @@ class OrderingSuite extends HailSuite {
       pool.scopedRegion { region =>
         val rvb = new RegionValueBuilder(region)
 
-        rvb.start(pset)
-        rvb.addAnnotation(pset.virtualType, set)
-        val soff = rvb.end()
+        val soff = pset.unstagedStoreJavaObject(set, region)
 
-        rvb.start(pTuple)
-        rvb.addAnnotation(TTuple(t), Row(elem))
-        val eoff = rvb.end()
+        val eoff = pTuple.unstagedStoreJavaObject(Row(elem), region)
 
         val fb = EmitFunctionBuilder[Region, Long, Long, Int](ctx, "binary_search")
         val cregion = fb.getCodeParam[Region](1).load()
@@ -488,14 +474,10 @@ class OrderingSuite extends HailSuite {
       pool.scopedRegion { region =>
         val rvb = new RegionValueBuilder(region)
 
-        rvb.start(pDict)
-        rvb.addAnnotation(tDict, dict)
-        val soff = rvb.end()
+        val soff = pDict.unstagedStoreJavaObject(dict, region)
 
         val ptuple = PCanonicalTuple(false, FastIndexedSeq(pDict.keyType): _*)
-        rvb.start(ptuple)
-        rvb.addAnnotation(ptuple.virtualType, Row(key))
-        val eoff = rvb.end()
+        val eoff = ptuple.unstagedStoreJavaObject(Row(key), region)
 
         val fb = EmitFunctionBuilder[Region, Long, Long, Int](ctx, "binary_search_dict")
         val cregion = fb.getCodeParam[Region](1)

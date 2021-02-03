@@ -1,12 +1,13 @@
 package is.hail.types.physical
 
-import is.hail.annotations.{Region, StagedRegionValueBuilder, UnsafeOrdering}
+import is.hail.annotations.{Annotation, NDArray, Region, UnsafeOrdering}
 import is.hail.asm4s.{Code, _}
-import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder}
+import is.hail.expr.ir.{EmitCode, EmitCodeBuilder}
 import is.hail.types.physical.stypes.SCode
-import is.hail.types.physical.stypes.concrete.{SNDArrayPointer, SNDArrayPointerCode}
+import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.virtual.{TNDArray, Type}
-import is.hail.utils.FastIndexedSeq
+import is.hail.types.physical.stypes.concrete.{SNDArrayPointer, SNDArrayPointerCode}
+import org.apache.spark.sql.Row
 
 final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boolean = false) extends PNDArray  {
   assert(elementType.required, "elementType must be required")
@@ -21,43 +22,45 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
     sb.append(s",$nDims]")
   }
 
-  @transient lazy val shape = new StaticallyKnownField(
-    PCanonicalTuple(true, Array.tabulate(nDims)(_ => PInt64Required):_*): PTuple,
-    off => representation.loadField(off, "shape")
-  )
+  lazy val shapeType: PCanonicalTuple = PCanonicalTuple(true, Array.tabulate(nDims)(_ => PInt64Required):_*)
+  lazy val strideType: PCanonicalTuple = shapeType
 
   def loadShape(off: Long, idx: Int): Long = {
     val shapeTupleAddr = representation.loadField(off, 0)
-    Region.loadLong(shape.pType.loadField(shapeTupleAddr, idx))
+    Region.loadLong(shapeType.loadField(shapeTupleAddr, idx))
   }
 
   def loadStride(off: Long, idx: Int): Long = {
     val shapeTupleAddr = representation.loadField(off, 1)
-    Region.loadLong(strides.pType.loadField(shapeTupleAddr, idx))
+    Region.loadLong(strideType.loadField(shapeTupleAddr, idx))
   }
 
 
-  def loadShape(cb: EmitCodeBuilder, off: Code[Long], idx: Int): Code[Long] =
-    shape.pType.types(idx).loadCheapPCode(cb, shape.pType.fieldOffset(shape.load(off), idx)).asInt64.longCode(cb)
+  def loadShapes(cb: EmitCodeBuilder, addr: Value[Long], settables: IndexedSeq[Settable[Long]]): Unit = {
+    assert(settables.length == nDims)
+    val shapeTuple = shapeType.loadCheapPCode(cb, representation.loadField(addr, "shape"))
+      .memoize(cb, "pcndarray_shapetuple")
+    (0 until nDims).foreach { dimIdx =>
+      cb.assign(settables(dimIdx), shapeTuple.loadField(cb, dimIdx).get(cb).asLong.longCode(cb))
+    }
+  }
+  
+  def loadStrides(cb: EmitCodeBuilder, addr: Value[Long], settables: IndexedSeq[Settable[Long]]): Unit = {
+    assert(settables.length == nDims)
+    val strideTuple = strideType.loadCheapPCode(cb, representation.loadField(addr, "strides"))
+      .memoize(cb, "pcndarray_stridetuple")
+    (0 until nDims).foreach { dimIdx =>
+      cb.assign(settables(dimIdx), strideTuple.loadField(cb, dimIdx).get(cb).asLong.longCode(cb))
+    }
+  }
+  
+  val dataType: PCanonicalArray = PCanonicalArray(elementType, required = true)  
 
-  def loadStride(cb: EmitCodeBuilder, off: Code[Long], idx: Int): Code[Long] =
-    strides.pType.types(idx).loadCheapPCode(cb, strides.pType.fieldOffset(strides.load(off), idx)).asInt64.longCode(cb)
-
-  @transient lazy val strides = new StaticallyKnownField(
-    PCanonicalTuple(true, Array.tabulate(nDims)(_ => PInt64Required): _*): PTuple,
-    (off) => representation.loadField(off, "strides")
-  )
-
-  @transient lazy val data: StaticallyKnownField[PArray, Long] = new StaticallyKnownField(
-    PCanonicalArray(elementType, required = true),
-    off => representation.loadField(off, "data")
-  )
-
-  lazy val representation: PStruct = {
+  lazy val representation: PCanonicalStruct = {
     PCanonicalStruct(required,
-      ("shape", shape.pType),
-      ("strides", strides.pType),
-      ("data", data.pType))
+      ("shape", shapeType),
+      ("strides", strideType),
+      ("data", dataType))
   }
 
   override lazy val byteSize: Long = representation.byteSize
@@ -70,58 +73,34 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
 
   override lazy val encodableType: PType = PCanonicalNDArray(elementType.encodableType, nDims, required)
 
-  def numElements(shape: IndexedSeq[Value[Long]], mb: EmitMethodBuilder[_]): Code[Long] = {
+  def numElements(shape: IndexedSeq[Value[Long]]): Code[Long] = {
     shape.foldLeft(1L: Code[Long])(_ * _)
   }
 
-  def makeShapeBuilder(shapeArray: IndexedSeq[Value[Long]]): StagedRegionValueBuilder => Code[Unit] = { srvb =>
-    coerce[Unit](Code(
-      srvb.start(),
-      Code(shapeArray.map(shapeElement => Code(
-        srvb.addLong(shapeElement),
-        srvb.advance()
-      )))
-    ))
+  def makeColumnMajorStrides(sourceShapeArray: IndexedSeq[Value[Long]], region: Value[Region], cb: EmitCodeBuilder): IndexedSeq[Value[Long]] = {
+    val runningProduct = cb.newLocal[Long]("make_column_major_strides_prod")
+    val computedStrides = (0 until nDims).map(idx => cb.newField[Long](s"make_column_major_computed_stride_${idx}"))
+
+    cb.assign(runningProduct, elementType.byteSize)
+    (0 until nDims).foreach{ index =>
+      cb.assign(computedStrides(index), runningProduct)
+      cb.assign(runningProduct, runningProduct * (sourceShapeArray(index) > 0L).mux(sourceShapeArray(index), 1L))
+    }
+
+    computedStrides
   }
 
-  def makeColumnMajorStridesBuilder(sourceShapeArray: IndexedSeq[Value[Long]], mb: EmitMethodBuilder[_]): StagedRegionValueBuilder => Code[Unit] = { srvb =>
-    val runningProduct = mb.newLocal[Long]()
-    val tempShapeStorage = mb.newLocal[Long]()
-    Code(
-      srvb.start(),
-      runningProduct := elementType.byteSize,
-      Code.foreach(0 until nDims){ index =>
-        Code(
-          srvb.addLong(runningProduct),
-          srvb.advance(),
-          tempShapeStorage := sourceShapeArray(index),
-          runningProduct := runningProduct * (tempShapeStorage > 0L).mux(tempShapeStorage, 1L)
-        )
-      }
-    )
-  }
+  def makeRowMajorStrides(sourceShapeArray: IndexedSeq[Value[Long]], region: Value[Region], cb: EmitCodeBuilder): IndexedSeq[Value[Long]] = {
+    val runningProduct = cb.newLocal[Long]("make_row_major_strides_prod")
+    val computedStrides = (0 until nDims).map(idx => cb.newField[Long](s"make_row_major_computed_stride_${idx}"))
 
-  def makeRowMajorStridesBuilder(sourceShapeArray: IndexedSeq[Value[Long]], mb: EmitMethodBuilder[_]): StagedRegionValueBuilder => Code[Unit] = { srvb =>
-    val runningProduct = mb.newLocal[Long]()
-    val tempShapeStorage = mb.newLocal[Long]()
-    val computedStrides = (0 until nDims).map(_ => mb.genFieldThisRef[Long]())
-    Code(
-      srvb.start(),
-      runningProduct := elementType.byteSize,
-      Code.foreach((nDims - 1) to 0 by -1){ index =>
-        Code(
-          computedStrides(index) := runningProduct,
-          tempShapeStorage := sourceShapeArray(index),
-          runningProduct := runningProduct * (tempShapeStorage > 0L).mux(tempShapeStorage, 1L)
-        )
-      },
-      Code.foreach(0 until nDims)(index =>
-        Code(
-          srvb.addLong(computedStrides(index)),
-          srvb.advance()
-        )
-      )
-    )
+    cb.assign(runningProduct, elementType.byteSize)
+    ((nDims - 1) to 0 by -1).foreach{ index =>
+      cb.assign(computedStrides(index), runningProduct)
+      cb.assign(runningProduct, runningProduct * (sourceShapeArray(index) > 0L).mux(sourceShapeArray(index), 1L))
+    }
+
+    computedStrides
   }
 
   def getElementAddress(indices: IndexedSeq[Long], nd: Long): Long = {
@@ -133,69 +112,74 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
       bytesAway += requestedIndex * loadStride(nd, strideIndex)
     }
 
-    bytesAway + data.pType.firstElementOffset(dataAddress, dataLength.toInt)
+    bytesAway + dataType.firstElementOffset(dataAddress, dataLength.toInt)
   }
 
-  private def getElementAddress(indices: IndexedSeq[Value[Long]], nd: Value[Long], mb: EmitMethodBuilder[_]): Code[Long] = {
-    val stridesTuple = new CodePTuple(strides.pType, new Value[Long] {
-      def get: Code[Long] = strides.load(nd)
-    })
-    val bytesAway = mb.newLocal[Long]()
-    val dataStore = mb.newLocal[Long]()
+  private def getElementAddress(cb: EmitCodeBuilder, indices: IndexedSeq[Value[Long]], nd: Value[Long]): Value[Long] = {
+    val ndarrayValue = PCode(this, nd).asNDArray.memoize(cb, "getElementAddressNDValue")
+    val stridesTuple = ndarrayValue.strides(cb)
 
-    coerce[Long](Code(
-      dataStore := data.load(nd),
-      bytesAway := 0L,
-      indices.zipWithIndex.foldLeft(Code._empty) { case (codeSoFar: Code[_], (requestedIndex: Value[Long], strideIndex: Int)) =>
-        Code(
-          codeSoFar,
-          bytesAway := bytesAway + requestedIndex * stridesTuple(strideIndex))
-      },
-      bytesAway + data.pType.elementOffset(dataStore, data.pType.loadLength(dataStore), 0)
-    ))
+    val dataStore = cb.newLocal[Long]("nd_get_element_address_data_store",
+      representation.loadField(nd, "data"))
+
+    cb.newLocal[Long]("pcndarray_get_element_addr", indices.zipWithIndex.map { case (requestedElementIndex, strideIndex) =>
+      requestedElementIndex * stridesTuple(strideIndex)
+    }.foldLeft(const(0L).get)(_ + _) + dataType.firstElementOffset(dataStore, dataType.loadLength(dataStore)))
   }
 
   def setElement(cb: EmitCodeBuilder, region: Value[Region],
     indices: IndexedSeq[Value[Long]], ndAddress: Value[Long], newElement: SCode, deepCopy: Boolean): Unit = {
-    elementType.storeAtAddress(cb, getElementAddress(indices, ndAddress, cb.emb), region, newElement, deepCopy)
+    elementType.storeAtAddress(cb, getElementAddress(cb, indices, ndAddress), region, newElement, deepCopy)
   }
 
-  def loadElement(cb: EmitCodeBuilder, indices: IndexedSeq[Value[Long]], ndAddress: Value[Long]): Code[Long] = {
-    val off = getElementAddress(indices, ndAddress, cb.emb)
-    data.pType.elementType.fundamentalType match {
-      case _: PArray | _: PBinary =>
-        Region.loadAddress(off)
-      case _ =>
-        off
+  private def getElementAddressFromDataPointerAndStrides(indices: IndexedSeq[Value[Long]], dataFirstElementPointer: Value[Long], strides: IndexedSeq[Value[Long]], cb: EmitCodeBuilder): Code[Long] = {
+    val address = cb.newLocal[Long]("nd_get_element_address_bytes_away")
+    cb.assign(address, dataFirstElementPointer)
+
+    indices.zipWithIndex.foreach { case (requestedIndex, strideIndex) =>
+      cb.assign(address, address + requestedIndex * strides(strideIndex))
     }
+    address
   }
 
-  def loadElementToIRIntermediate(indices: IndexedSeq[Value[Long]], ndAddress: Value[Long], mb: EmitMethodBuilder[_]): Code[_] = {
-    Region.loadIRIntermediate(data.pType.elementType)(getElementAddress(indices, ndAddress, mb))
+  def loadElement(cb: EmitCodeBuilder, indices: IndexedSeq[Value[Long]], ndAddress: Value[Long]): SCode = {
+    val off = getElementAddress(cb, indices, ndAddress)
+    elementType.loadCheapPCode(cb, elementType.loadFromNested(cb, off))
   }
 
-  override def construct(
-    shapeBuilder: StagedRegionValueBuilder => Code[Unit],
-    stridesBuilder: StagedRegionValueBuilder => Code[Unit],
-    data: Code[Long],
-    mb: EmitMethodBuilder[_],
+  def loadElementFromDataAndStrides(cb: EmitCodeBuilder, indices: IndexedSeq[Value[Long]], ndDataAddress: Value[Long], strides: IndexedSeq[Value[Long]]): Code[Long] = {
+    val off = getElementAddressFromDataPointerAndStrides(indices, ndDataAddress, strides, cb)
+    elementType.loadFromNested(cb, off)
+  }
+
+  def construct(
+    shape: IndexedSeq[Value[Long]],
+    strides: IndexedSeq[Value[Long]],
+    dataCode: Code[Long],
+    cb: EmitCodeBuilder,
     region: Value[Region]
   ): SNDArrayPointerCode = {
-    val srvb = new StagedRegionValueBuilder(mb, this.representation, region)
 
-    new SNDArrayPointerCode(SNDArrayPointer(this), Code(Code(FastIndexedSeq(
-      srvb.start(),
-      srvb.addBaseStruct(this.shape.pType, shapeBuilder),
-      srvb.advance(),
-      srvb.addBaseStruct(this.strides.pType, stridesBuilder),
-      srvb.advance(),
-      srvb.addIRIntermediate(this.representation.fieldType("data"))(data))),
-      srvb.end()
-    ))
+    val dataVal = cb.newLocal[Long]("data_value_store")
+    cb.assign(dataVal, dataCode)
+
+    val ndAddr = cb.newLocal[Long]("ndarray_construct_addr")
+    cb.assign(ndAddr, this.representation.allocate(region))
+    shapeType.storeAtAddressFromFields(cb, cb.newLocal[Long]("construct_shape", this.representation.fieldOffset(ndAddr, "shape")),
+      region,
+      shape.map(s => EmitCode.present(primitive(s))),
+      false)
+    strideType.storeAtAddressFromFields(cb, cb.newLocal[Long]("construct_strides", this.representation.fieldOffset(ndAddr, "strides")),
+      region,
+      strides.map(s => EmitCode.present(primitive(s))),
+      false)
+    cb.append(Region.storeLong(this.representation.fieldOffset(ndAddr, "data"), dataVal))
+
+    new SNDArrayPointerCode(SNDArrayPointer(this), ndAddr)
   }
 
   def _copyFromAddress(region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Long  = {
-    val sourceNDPType = srcPType.asInstanceOf[PNDArray]
+    val sourceNDPType = srcPType.asInstanceOf[PCanonicalNDArray]
     assert(elementType == sourceNDPType.elementType && nDims == sourceNDPType.nDims)
     representation.copyFromAddress(region, sourceNDPType.representation, srcAddress, deepCopy)
   }
@@ -226,6 +210,36 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
       case SNDArrayPointer(t) if t.equalModuloRequired(this) =>
         representation.storeAtAddress(cb, addr, region, representation.loadCheapPCode(cb, value.asInstanceOf[SNDArrayPointerCode].a), deepCopy)
     }
+  }
+
+  override def dataFirstElementPointer(ndAddr: Code[Long]): Code[Long] = dataType.firstElementOffset(this.dataPArrayPointer(ndAddr))
+
+  override def dataPArrayPointer(ndAddr: Code[Long]): Code[Long] = representation.loadField(ndAddr, "data")
+
+  def loadFromNested(cb: EmitCodeBuilder, addr: Code[Long]): Code[Long] = addr
+
+  override def unstagedStoreJavaObject(annotation: Annotation, region: Region): Long = {
+    val addr = this.representation.allocate(region)
+    unstagedStoreJavaObjectAtAddress(addr, annotation, region)
+    addr
+  }
+
+  override def unstagedStoreJavaObjectAtAddress(addr: Long, a: Annotation, region: Region): Unit = {
+    val aNDArray = a.asInstanceOf[NDArray]
+    val shapeRow = Annotation.fromSeq(aNDArray.shape)
+    var runningProduct = this.representation.fieldType("data").asInstanceOf[PArray].elementType.byteSize
+    val stridesArray = new Array[Long](aNDArray.shape.size)
+    ((aNDArray.shape.size - 1) to 0 by -1).foreach { i =>
+      stridesArray(i) = runningProduct
+      runningProduct = runningProduct * (if (aNDArray.shape(i) > 0L) aNDArray.shape(i) else 1L)
+    }
+    var curAddr = addr
+    val stridesRow = Row(stridesArray:_*)
+    shapeType.unstagedStoreJavaObjectAtAddress(curAddr, shapeRow, region)
+    curAddr += shapeType.byteSize
+    strideType.unstagedStoreJavaObjectAtAddress(curAddr, stridesRow, region)
+    curAddr += shapeType.byteSize
+    dataType.unstagedStoreJavaObjectAtAddress(curAddr, aNDArray.getRowMajorElements(), region)
   }
 }
 

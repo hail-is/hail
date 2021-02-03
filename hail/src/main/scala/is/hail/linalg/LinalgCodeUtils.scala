@@ -4,8 +4,9 @@ import is.hail.annotations.{Region, StagedRegionValueBuilder}
 import is.hail.asm4s.{Code, MethodBuilder}
 import is.hail.asm4s._
 import is.hail.utils._
-import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder}
-import is.hail.types.physical.{PBaseStructValue, PCode, PNDArrayCode, PNDArrayValue, PType, typeToTypeInfo}
+import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, IEmitCode}
+import is.hail.types.physical.stypes.interfaces.SNDArray
+import is.hail.types.physical.{PBaseStructValue, PCanonicalNDArray, PCode, PNDArrayCode, PNDArrayValue, PType, typeToTypeInfo}
 
 object LinalgCodeUtils {
   def checkColumnMajor(pndv: PNDArrayValue, cb: EmitCodeBuilder): Value[Boolean] = {
@@ -32,41 +33,19 @@ object LinalgCodeUtils {
 
   def createColumnMajorCode(pndv: PNDArrayValue, cb: EmitCodeBuilder, region: Value[Region]): PNDArrayCode = {
     val shape = pndv.shapes(cb)
-    val shapeBuilder = pndv.pt.makeShapeBuilder(shape)
-    val stridesBuilder = pndv.pt.makeColumnMajorStridesBuilder(shape, cb.emb)
-    val dataLength = pndv.pt.numElements(shape, cb.emb)
+    val pt = pndv.pt.asInstanceOf[PCanonicalNDArray]
+    val strides = pt.makeColumnMajorStrides(shape, region, cb)
+    val dataLength = cb.newLocal[Int]("nda_create_column_major_len", pt.numElements(shape).toI)
+    val dataType = pt.dataType
 
-    val outputElementPType = pndv.pt.elementType
-    val idxVars = Array.tabulate(pndv.pt.nDims) { _ => cb.emb.genFieldThisRef[Long]() }.toFastIndexedSeq
-
-    def loadElement(ndValue: PNDArrayValue) = {
-      ndValue.pt.loadElementToIRIntermediate(idxVars, ndValue.value.asInstanceOf[Value[Long]], cb.emb)
+    val (addElem, finish) = dataType.constructFromFunctions(cb, region, dataLength, deepCopy = false)
+    val idx = cb.newLocal[Int]("nda_create_column_major_idx", 0)
+    SNDArray.forEachIndex(cb, shape, "nda_create_column_major") { case (cb, idxVars) =>
+      addElem(cb, idx, IEmitCode.present(cb, pndv.loadElement(idxVars, cb).asPCode))
+      cb.assign(idx, idx + 1)
     }
-
-    val srvb = new StagedRegionValueBuilder(cb.emb, pndv.pt.data.pType, region)
-
-    val body =
-      Code(
-        srvb.addIRIntermediate(outputElementPType)(loadElement(pndv)),
-        srvb.advance()
-      )
-
-    val columnMajorLoops = idxVars.zipWithIndex.foldLeft(body) { case (innerLoops, (dimVar, dimIdx)) =>
-      Code(
-        dimVar := 0L,
-        Code.whileLoop(dimVar < shape(dimIdx),
-          innerLoops,
-          dimVar := dimVar + 1L
-        )
-      )
-    }
-
-    cb.append(Code(
-      srvb.start(dataLength.toI),
-      columnMajorLoops
-    ))
-
-    pndv.pt.construct(shapeBuilder, stridesBuilder, srvb.end(), cb.emb, region)
+    val newData = finish(cb)
+    pndv.pt.construct(shape, strides, newData.a, cb, region)
   }
 
   def linearizeIndicesRowMajor(indices: IndexedSeq[Code[Long]], shapeArray: IndexedSeq[Value[Long]], mb: EmitMethodBuilder[_]): Code[Long] = {

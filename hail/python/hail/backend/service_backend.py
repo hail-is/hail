@@ -140,7 +140,10 @@ class ServiceBackend(Backend):
         return self.socket.request('references/get', name=name)
 
     def load_references_from_dataset(self, path):
-        raise NotImplementedError("ServiceBackend does not support 'load_references_from_dataset'")
+        return self.socket.request('load_references_from_dataset',
+                                   path=path,
+                                   billing_project=self._billing_project,
+                                   bucket=self._bucket)
 
     def add_sequence(self, name, fasta_file, index_file):
         raise NotImplementedError("ServiceBackend does not support 'add_sequence'")

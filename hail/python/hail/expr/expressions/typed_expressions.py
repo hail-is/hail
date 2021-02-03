@@ -146,7 +146,7 @@ class CollectionExpression(Expression):
         # FIXME this should short-circuit
         return self.fold(lambda accum, x:
                          hl.if_else(hl.is_missing(accum) & f(x), x, accum),
-                         hl.null(self._type.element_type))
+                         hl.missing(self._type.element_type))
 
     @typecheck_method(f=func_spec(1, expr_any))
     def flatmap(self, f):
@@ -2289,7 +2289,7 @@ class BooleanExpression(NumericExpression):
 
     >>> t = hl.literal(True)
     >>> f = hl.literal(False)
-    >>> na = hl.null(hl.tbool)
+    >>> na = hl.missing(hl.tbool)
 
     >>> hl.eval(t)
     True

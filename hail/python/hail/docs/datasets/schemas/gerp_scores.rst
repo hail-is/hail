@@ -5,7 +5,7 @@ gerp_scores
 
 *  **Versions:** hg19
 *  **Reference genome builds:** GRCh37, GRCh38
-*  **Type:** :class:`.Table`
+*  **Type:** :class:`hail.Table`
 
 Schema (hg19, GRCh37)
 ~~~~~~~~~~~~~~~~~~~~~

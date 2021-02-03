@@ -72,24 +72,17 @@ final case class EBlockMatrixNDArray(elementType: EType, encodeRowMajor: Boolean
     val nCols = cb.newLocal[Long]("cols", in.readInt().toL)
     val transpose = cb.newLocal[Boolean]("transpose", in.readBoolean())
     val n = cb.newLocal[Int]("length", nRows.toI * nCols.toI)
-    val data = cb.newLocal[Long]("data", t.data.pType.allocate(region, n))
-    cb += t.data.pType.stagedInitialize(data, n, setMissing=true)
+    val data = cb.newLocal[Long]("data", t.dataType.allocate(region, n))
+    cb += t.dataType.stagedInitialize(data, n, setMissing=true)
 
     val i = cb.newLocal[Int]("i")
     cb.forLoop(cb.assign(i, 0), i < n, cb.assign(i, i + 1),
-      cb += readElemF(region, t.data.pType.elementOffset(data, n, i), in))
+      cb += readElemF(region, t.dataType.elementOffset(data, n, i), in))
 
-    val shapeBuilder = t.makeShapeBuilder(FastIndexedSeq(nRows, nCols))
-    val stridesBuilder = { srvb: StagedRegionValueBuilder =>
-      Code(
-        srvb.start(),
-        srvb.addLong(transpose.mux(nCols.toL * t.elementType.byteSize, t.elementType.byteSize)),
-        srvb.advance(),
-        srvb.addLong(transpose.mux(t.elementType.byteSize, nRows * t.elementType.byteSize)),
-        srvb.advance())
-    }
+    val stride0 = cb.newLocal[Long]("stride0", transpose.mux(nCols.toL * t.elementType.byteSize, t.elementType.byteSize))
+    val stride1 = cb.newLocal[Long]("stride1", transpose.mux(t.elementType.byteSize, nRows * t.elementType.byteSize))
 
-    t.construct(shapeBuilder, stridesBuilder, data, cb.emb, region)
+    t.construct(FastIndexedSeq(nRows, nCols), FastIndexedSeq(stride0, stride1), data, cb, region)
       .tcode[Long]
   }
 

@@ -4,13 +4,9 @@ import is.hail.annotations.{CodeOrdering, Region, StagedRegionValueBuilder}
 import is.hail.asm4s.{Code, _}
 import is.hail.expr.Nat
 import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder}
-import is.hail.types.physical.stypes.interfaces.{SNDArrayCode, SNDArrayValue}
+import is.hail.types.physical.stypes.SCode
+import is.hail.types.physical.stypes.interfaces.{SBaseStructCode, SNDArrayCode, SNDArrayValue}
 import is.hail.types.virtual.TNDArray
-
-final class StaticallyKnownField[T, U](
-  val pType: T,
-  val load: Code[Long] => Code[U]
-)
 
 abstract class PNDArray extends PType {
   val elementType: PType
@@ -23,35 +19,29 @@ abstract class PNDArray extends PType {
 
   def codeOrdering(mb: EmitMethodBuilder[_], other: PType): CodeOrdering = throw new UnsupportedOperationException
 
-  val shape: StaticallyKnownField[PTuple, Long]
-  val data: StaticallyKnownField[PArray, Long]
-
-  val representation: PStruct
-
-  def loadShape(cb: EmitCodeBuilder, off: Code[Long], idx: Int): Code[Long]
+  def dataFirstElementPointer(ndAddr: Code[Long]): Code[Long]
+  def dataPArrayPointer(ndAddr: Code[Long]): Code[Long]
 
   def loadShape(off: Long, idx: Int): Long
 
-  def loadStride(cb: EmitCodeBuilder, off: Code[Long], idx: Int): Code[Long]
+  def loadShapes(cb: EmitCodeBuilder, addr: Value[Long], settables: IndexedSeq[Settable[Long]]): Unit
+  def loadStrides(cb: EmitCodeBuilder, addr: Value[Long], settables: IndexedSeq[Settable[Long]]): Unit
 
-  def numElements(shape: IndexedSeq[Value[Long]], mb: EmitMethodBuilder[_]): Code[Long]
+  def numElements(shape: IndexedSeq[Value[Long]]): Code[Long]
+  
+  def makeRowMajorStrides(sourceShapeArray: IndexedSeq[Value[Long]], region: Value[Region], cb: EmitCodeBuilder): IndexedSeq[Value[Long]]
 
-  def makeShapeBuilder(shapeArray: IndexedSeq[Value[Long]]): StagedRegionValueBuilder => Code[Unit]
-
-  def makeRowMajorStridesBuilder(sourceShapeArray: IndexedSeq[Value[Long]], mb: EmitMethodBuilder[_]): StagedRegionValueBuilder => Code[Unit]
-
-  def makeColumnMajorStridesBuilder(sourceShapeArray: IndexedSeq[Value[Long]], mb: EmitMethodBuilder[_]): StagedRegionValueBuilder => Code[Unit]
+  def makeColumnMajorStrides(sourceShapeArray: IndexedSeq[Value[Long]], region: Value[Region], cb: EmitCodeBuilder): IndexedSeq[Value[Long]]
 
   def getElementAddress(indices: IndexedSeq[Long], nd: Long): Long
 
-  def loadElement(cb: EmitCodeBuilder, indices: IndexedSeq[Value[Long]], ndAddress: Value[Long]): Code[Long]
-  def loadElementToIRIntermediate(indices: IndexedSeq[Value[Long]], ndAddress: Value[Long], mb: EmitMethodBuilder[_]): Code[_]
+  def loadElement(cb: EmitCodeBuilder, indices: IndexedSeq[Value[Long]], ndAddress: Value[Long]): SCode
 
   def construct(
-    shapeBuilder: StagedRegionValueBuilder => Code[Unit],
-    stridesBuilder: StagedRegionValueBuilder => Code[Unit],
+    shape: IndexedSeq[Value[Long]],
+    strides: IndexedSeq[Value[Long]],
     data: Code[Long],
-    mb: EmitMethodBuilder[_],
+    mb: EmitCodeBuilder,
     region: Value[Region]
   ): PNDArrayCode
 }

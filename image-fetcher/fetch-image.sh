@@ -1,5 +1,5 @@
 #!/bin/sh
-set -ex
+set -e
 
 gcloud -q auth activate-service-account \
   --key-file=/secrets/gcr-pull.json
@@ -16,13 +16,19 @@ case $DEFAULT_NAMESPACE in
 	;;
 esac
 
-ln -s /ssl-config/ssl-config.curlrc $HOME/.curlrc
+ln -s /ssl-config/ssl-config.curlrc "$HOME/.curlrc"
 
+echo "Namespace: $DEFAULT_NAMESPACE; Home: $HOME"
 while true; do
-    for image in "gcr.io/$PROJECT/base:latest" \
-                     gcr.io/google.com/cloudsdktool/cloud-sdk:310.0.0-alpine \
-                     $(curl -sSL https://notebook$NOTEBOOK_BASE_PATH/images); do
-        docker pull $image || true
-    done
-    sleep 360
+    if curl -sSL "https://notebook$NOTEBOOK_BASE_PATH/images" > image-fetch-output.log 2>&1;
+    then
+        for image in "gcr.io/$PROJECT/base:latest" \
+                         gcr.io/google.com/cloudsdktool/cloud-sdk:310.0.0-alpine \
+                         $(cat image-fetch-output.log); do
+            docker pull "$image" || true
+        done
+        sleep 360
+    else
+        1>&2 cat image-fetch-output.log
+    fi
 done

@@ -21,10 +21,7 @@ async def wait_for_pod_complete(v1, namespace, name):
     while True:
         try:
             try:
-                pod = await v1.read_namespaced_pod(
-                    name,
-                    namespace,
-                    _request_timeout=5.0)
+                pod = await v1.read_namespaced_pod(name, namespace, _request_timeout=5.0)
                 if pod and pod.status and pod.status.container_statuses:
                     container_statuses = pod.status.container_statuses
                     if all(cs.state and cs.state.terminated for cs in container_statuses):
@@ -67,6 +64,7 @@ async def main():
     t = wait_for_pod_complete(v1, args.namespace, args.name)
 
     await asyncio.gather(timeout(args.timeout_seconds), t)
+
 
 loop = asyncio.get_event_loop()
 loop.run_until_complete(main())

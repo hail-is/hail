@@ -305,12 +305,12 @@ final case class StreamMultiMerge(as: IndexedSeq[IR], key: IndexedSeq[String]) e
 final case class StreamZipJoin(as: IndexedSeq[IR], key: IndexedSeq[String], curKey: String, curVals: String, joinF: IR) extends IR {
   override def typ: TStream = coerce[TStream](super.typ)
   override def pType: PStream = coerce[PStream](super.pType)
-  private var _curValsType: PArray = null
-  def getOrComputeCurValsType(valsType: => PType): PArray = {
-    if (_curValsType == null) _curValsType = valsType.asInstanceOf[PArray]
+  private var _curValsType: PCanonicalArray = null
+  def getOrComputeCurValsType(valsType: => PType): PCanonicalArray = {
+    if (_curValsType == null) _curValsType = valsType.asInstanceOf[PCanonicalArray]
     _curValsType
   }
-  def curValsType: PArray = {
+  def curValsType: PCanonicalArray = {
     assert(_curValsType != null)
     _curValsType
   }
@@ -704,10 +704,10 @@ abstract class PartitionReader {
     context: IR,
     requestedType: Type,
     emitter: Emit[C],
-    mb: EmitMethodBuilder[C],
+    cb: EmitCodeBuilder,
     partitionRegion: StagedRegion,
     env0: Emit.E,
-    container: Option[AggContainer]): COption[SizedStream]
+    container: Option[AggContainer]): IEmitCode
 
   def toJValue: JValue
 }

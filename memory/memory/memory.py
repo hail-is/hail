@@ -114,7 +114,11 @@ async def on_cleanup(app):
         try:
             app['worker_pool'].shutdown()
         finally:
-            app['redis_pool'].close()
+            try:
+                app['redis_pool'].close()
+            finally:
+                del app['k8s_client']
+                await asyncio.gather(*(t for t in asyncio.all_tasks() if t is not asyncio.current_task()))
 
 
 def run():

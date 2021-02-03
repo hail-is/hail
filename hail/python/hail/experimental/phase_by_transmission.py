@@ -186,7 +186,7 @@ def phase_by_transmission(
             hl.array([
                 hl.call(proband_call[0], phased=True),
                 hl.call(father_call[0], phased=True),
-                hl.null(hl.tcall)
+                hl.missing(hl.tcall)
             ])
         )
 

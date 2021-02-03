@@ -1,5 +1,9 @@
-from .stream import ReadableStream, WritableStream, blocking_readable_stream_to_async, blocking_writable_stream_to_async
-from .fs import FileStatus, FileListEntry, AsyncFS, LocalAsyncFS, RouterAsyncFS, Transfer, FileAndDirectoryError
+from .stream import (
+    ReadableStream, WritableStream, blocking_readable_stream_to_async,
+    blocking_writable_stream_to_async)
+from .fs import (
+    FileStatus, FileListEntry, AsyncFS, LocalAsyncFS, RouterAsyncFS, Transfer,
+    FileAndDirectoryError, MultiPartCreate)
 from .utils import FeedableAsyncIterable
 from .tasks import BackgroundTaskManager
 
@@ -16,5 +20,6 @@ __all__ = [
     'FeedableAsyncIterable',
     'BackgroundTaskManager',
     'Transfer',
-    'FileAndDirectoryError'
+    'FileAndDirectoryError',
+    'MultiPartCreate'
 ]
