@@ -420,7 +420,7 @@ class MatrixPLINKReader(
                 if (x == 1)
                   rvb.setMissing()
                 else
-                  rvb.addInt(table(x))
+                  rvb.addCall(table(x))
                 rvb.endStruct() // g
                 i += 1
               }

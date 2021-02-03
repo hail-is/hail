@@ -448,7 +448,7 @@ abstract class PType extends Serializable with Requiredness {
     // if value is not compatible with this, an exception will be thrown
     (virtualType, srcPType.virtualType) match {
       case (l: TBaseStruct, r: TBaseStruct) => assert(l.isCompatibleWith(r))
-      case _ => assert(virtualType == srcPType.virtualType)
+      case _ => assert(virtualType == srcPType.virtualType, s"virtualType: ${virtualType} != srcPType.virtualType: ${srcPType.virtualType}")
     }
     _copyFromAddress(region, srcPType, srcAddress, deepCopy)
   }
@@ -484,4 +484,12 @@ abstract class PType extends Serializable with Requiredness {
     assert(ct.length == 1)
     PCode(this, ct(0))
   }
+
+  // called to load a region value's start address from a nested representation.
+  // Usually a no-op, but may need to dereference a pointer.
+  def loadFromNested(cb: EmitCodeBuilder, addr: Code[Long]): Code[Long]
+
+  def unstagedStoreJavaObject(annotation: Annotation, region: Region): Long
+
+  def unstagedStoreJavaObjectAtAddress(addr: Long, annotation: Annotation, region: Region): Unit
 }

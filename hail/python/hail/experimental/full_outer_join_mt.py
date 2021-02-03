@@ -113,10 +113,10 @@ def full_outer_join_mt(left: hl.MatrixTable, right: hl.MatrixTable) -> hl.Matrix
                                                    right_index=s.right_indices[j]))))
                  .when(hl.is_defined(s.left_indices),
                        s.left_indices.map(
-                           lambda elt: hl.struct(k=s.k, left_index=elt, right_index=hl.null('int32'))))
+                           lambda elt: hl.struct(k=s.k, left_index=elt, right_index=hl.missing('int32'))))
                  .when(hl.is_defined(s.right_indices),
                        s.right_indices.map(
-                           lambda elt: hl.struct(k=s.k, left_index=hl.null('int32'), right_index=elt)))
+                           lambda elt: hl.struct(k=s.k, left_index=hl.missing('int32'), right_index=elt)))
                  .or_error('assertion error')))
     ht = ht.annotate(__entries=ht.key_indices.map(lambda s: hl.struct(left_entry=ht.left_entries[s.left_index],
                                                                       right_entry=ht.right_entries[s.right_index])))

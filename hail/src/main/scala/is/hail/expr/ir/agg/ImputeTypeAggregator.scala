@@ -1,11 +1,11 @@
 package is.hail.expr.ir.agg
 
-import is.hail.annotations.StagedRegionValueBuilder
+import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitCodeBuilder}
-import is.hail.types.{RPrimitive, VirtualTypeWithReq}
 import is.hail.types.physical._
 import is.hail.types.virtual.{TInt32, TString, Type}
+import is.hail.types.{RPrimitive, VirtualTypeWithReq}
 import is.hail.utils._
 
 import scala.language.existentials
@@ -144,21 +144,14 @@ class ImputeTypeAggregator() extends StagedAggregator {
     state.combOp(cb, other)
   }
 
-  protected def _result(cb: EmitCodeBuilder, state: State, srvb: StagedRegionValueBuilder): Unit = {
-    cb += srvb.addBaseStruct(ImputeTypeState.resultType, { srvb =>
-      Code(FastSeq(
-        srvb.start(),
-        srvb.addBoolean(state.getAnyNonMissing),
-        srvb.advance(),
-        srvb.addBoolean(state.getAllDefined),
-        srvb.advance(),
-        srvb.addBoolean(state.getSupportsBool),
-        srvb.advance(),
-        srvb.addBoolean(state.getSupportsI32),
-        srvb.advance(),
-        srvb.addBoolean(state.getSupportsI64),
-        srvb.advance(),
-        srvb.addBoolean(state.getSupportsF64)))
-    })
+  protected def _storeResult(cb: EmitCodeBuilder, state: State, pt: PType, addr: Value[Long], region: Value[Region], ifMissing: EmitCodeBuilder => Unit): Unit = {
+    val rt = ImputeTypeState.resultType
+    assert(pt == rt)
+    cb += rt.stagedInitialize(addr, setMissing = false)
+    Array(state.getAnyNonMissing, state.getAllDefined, state.getSupportsBool,
+      state.getSupportsI32, state.getSupportsI64, state.getSupportsF64)
+      .zipWithIndex.foreach { case (b, idx) =>
+      rt.types(idx).storeAtAddress(cb, rt.fieldOffset(addr, idx), region, PCode(PBooleanRequired, b), deepCopy = true)
+    }
   }
 }

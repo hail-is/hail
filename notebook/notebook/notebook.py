@@ -776,6 +776,11 @@ async def on_startup(app):
     app['dbpool'] = await create_database_pool()
 
 
+async def on_cleanup(app):
+    del app['k8s_client']
+    await asyncio.gather(*(t for t in asyncio.all_tasks() if t is not asyncio.current_task()))
+
+
 def run():
     sass_compile('notebook')
     root = os.path.dirname(os.path.abspath(__file__))
@@ -796,6 +801,7 @@ def run():
     workshop_app = web.Application()
 
     workshop_app.on_startup.append(on_startup)
+    workshop_app.on_cleanup.append(on_cleanup)
 
     setup_aiohttp_jinja2(workshop_app, 'notebook')
     setup_aiohttp_session(workshop_app)

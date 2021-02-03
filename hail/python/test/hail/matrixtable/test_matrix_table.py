@@ -1604,7 +1604,6 @@ class Tests(unittest.TestCase):
             mt.annotate_entries(x = mt2.af)
 
 
-@fails_local_backend()
 def test_read_write_all_types():
     mt = create_all_values_matrix_table()
     tmp_file = new_temp_file()

@@ -2,6 +2,12 @@ package is.hail.utils
 
 import org.apache.log4j.{LogManager, Logger}
 
+object LogHelper {
+  // exposed more directly for generated code
+  def logInfo(msg: String): Unit = log.info(msg)
+  def consoleInfo(msg: String): Unit = info(msg)
+}
+
 trait Logging {
   @transient private var logger: Logger = _
   @transient private var consoleLogger: Logger = _

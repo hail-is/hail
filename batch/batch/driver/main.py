@@ -14,7 +14,7 @@ from prometheus_async.aio.web import server_stats
 from gear import (Database, setup_aiohttp_session,
                   rest_authenticated_developers_only,
                   web_authenticated_developers_only, check_csrf_token,
-                  transaction)
+                  transaction, maybe_parse_bearer_header)
 from hailtop.hail_logging import AccessLogger
 from hailtop.config import get_deploy_config
 from hailtop.utils import (time_msecs, RateLimit, serialization,
@@ -59,9 +59,10 @@ def authorization_token(request):
     auth_header = request.headers.get('Authorization')
     if not auth_header:
         return None
-    if not auth_header.startswith('Bearer '):
+    session_id = maybe_parse_bearer_header(auth_header)
+    if not session_id:
         return None
-    return auth_header[7:]
+    return session_id
 
 
 def batch_only(fun):
@@ -830,7 +831,11 @@ async def on_cleanup(app):
                         try:
                             app['gce_event_monitor'].shutdown()
                         finally:
-                            app['task_manager'].shutdown()
+                            try:
+                                app['task_manager'].shutdown()
+                            finally:
+                                del app['k8s_cache'].client
+                                await asyncio.gather(*(t for t in asyncio.all_tasks() if t is not asyncio.current_task()))
 
 
 def run():

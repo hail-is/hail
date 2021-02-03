@@ -85,9 +85,7 @@ class UnsafeSuite extends HailSuite {
       BufferSpec.specs.foreach { bufferSpec =>
         val codec = TypedCodecSpec(pt, bufferSpec)
         region.clear()
-        rvb.start(pt)
-        rvb.addRow(t, a.asInstanceOf[Row])
-        val offset = rvb.end()
+        val offset = pt.unstagedStoreJavaObject(a, region)
 
         val aos = new ByteArrayOutputStream()
         val en = codec.buildEncoder(ctx, pt)(aos)
@@ -202,9 +200,7 @@ class UnsafeSuite extends HailSuite {
       region.clear()
       region.allocate(1, n) // preallocate
 
-      rvb.start(pt)
-      rvb.addAnnotation(t, a)
-      val offset = rvb.end()
+      val offset = pt.unstagedStoreJavaObject(a, region)
 
       val ur = UnsafeRow.read(pt, region, offset)
       assert(t.valuesSimilar(a, ur), s"$a vs $ur")
@@ -216,9 +212,7 @@ class UnsafeSuite extends HailSuite {
       // test addAnnotation from ur
       region2.clear()
       region2.allocate(1, n2) // preallocate
-      rvb2.start(pt)
-      rvb2.addAnnotation(t, ur)
-      val offset2 = rvb2.end()
+      val offset2 = pt.unstagedStoreJavaObject(ur, region2)
 
       val ur2 = UnsafeRow.read(pt, region2, offset2)
       assert(t.valuesSimilar(a, ur2), s"$a vs $ur2")
@@ -238,9 +232,7 @@ class UnsafeSuite extends HailSuite {
           val ps = pt.asInstanceOf[PStruct]
           region2.clear()
           region2.allocate(1, n) // preallocate
-          rvb2.start(ps)
-          rvb2.addAnnotation(t, Row.fromSeq(a.asInstanceOf[Row].toSeq))
-          val offset4 = rvb2.end()
+          val offset4 = ps.unstagedStoreJavaObject(Row.fromSeq(a.asInstanceOf[Row].toSeq), region2)
           val ur4 = new UnsafeRow(ps, region2, offset4)
           assert(t.valuesSimilar(a, ur4))
         case _ =>
@@ -257,9 +249,7 @@ class UnsafeSuite extends HailSuite {
       t match {
         case t: TStruct =>
           val ps = pt.asInstanceOf[PStruct]
-          rvb.start(ps)
-          rvb.addAnnotation(t, Row.fromSeq(a.asInstanceOf[Row].toSeq))
-          val offset6 = rvb.end()
+          val offset6 = ps.unstagedStoreJavaObject(Row.fromSeq(a.asInstanceOf[Row].toSeq), region)
           val ur6 = new UnsafeRow(ps, region, offset6)
           assert(t.valuesSimilar(a, ur6))
         case _ =>
@@ -343,17 +333,13 @@ class UnsafeSuite extends HailSuite {
       tv.typeCheck(a2)
 
       region.clear()
-      rvb.start(t)
-      rvb.addRow(tv, a1.asInstanceOf[Row])
-      val offset = rvb.end()
+      val offset = t.unstagedStoreJavaObject(a1, region)
 
       val ur1 = new UnsafeRow(t, region, offset)
       assert(tv.valuesSimilar(a1, ur1))
 
       region2.clear()
-      rvb2.start(t)
-      rvb2.addRow(tv, a2.asInstanceOf[Row])
-      val offset2 = rvb2.end()
+      val offset2 = t.unstagedStoreJavaObject(a2, region2)
 
       val ur2 = new UnsafeRow(t, region2, offset2)
       assert(tv.valuesSimilar(a2, ur2))

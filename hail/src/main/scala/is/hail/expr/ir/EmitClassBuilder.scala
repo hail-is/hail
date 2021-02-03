@@ -1036,7 +1036,7 @@ class EmitMethodBuilder[C](
       val pt: PType = _pt
 
       def load: EmitCode = {
-        new EmitCode(Code._empty,
+        EmitCode(Code._empty,
           if (pt.required)
             const(false)
           else
@@ -1060,22 +1060,26 @@ class EmitMethodBuilder[C](
     }
   }
 
-  def getStreamEmitParam(emitIndex: Int): COption[Code[StreamArgType]] = {
+  def getStreamEmitParam(cb: EmitCodeBuilder, emitIndex: Int): IEmitCodeGen[Code[StreamArgType]] = {
     assert(emitIndex != 0)
 
     val pt = emitParamTypes(emitIndex - 1).asInstanceOf[EmitParamType].pt
     val codeIndex = emitParamCodeIndex(emitIndex - 1)
 
-    new COption[Code[StreamArgType]] {
-      def apply(none: Code[Ctrl], some: (Code[StreamArgType]) => Code[Ctrl])(implicit ctx: EmitStreamContext): Code[Ctrl] = {
-        if (pt.required)
-          some(mb.getArg[StreamArgType](codeIndex))
-        else
-          mb.getArg[Boolean](codeIndex + 1).mux(
-            none,
-            some(mb.getArg[StreamArgType](codeIndex)))
-      }
+    val Lpresent = CodeLabel()
+    val Lmissing = CodeLabel()
+
+    if (pt.required) {
+      cb.goto(Lpresent)
+    } else {
+      cb.ifx(mb.getArg[Boolean](codeIndex + 1), {
+        cb.goto(Lmissing)
+      }, {
+        cb.goto(Lpresent)
+      })
     }
+
+    IEmitCodeGen(Lmissing, Lpresent, mb.getArg[StreamArgType](codeIndex))
   }
 
   def getParamsList(): IndexedSeq[Param] = {
@@ -1210,9 +1214,10 @@ class DependentEmitFunctionBuilder[F](
     val v = genFieldThisRef()(ti)
     dep_apply_method.setFields += { (obj: lir.ValueX) =>
       val setup = ec.setup
-      setup.end.append(lir.putField(className, m.name, typeInfo[Boolean], obj, ec.m.v))
-      setup.end.append(lir.putField(className, v.name, ti, obj, ec.v.v))
-      val newC = new VCode(setup.start, setup.end, null)
+      setup.end.append(lir.goto(ec.m.start))
+      ec.m.end.append(lir.putField(className, m.name, typeInfo[Boolean], obj, ec.m.v))
+      ec.m.end.append(lir.putField(className, v.name, ti, obj, ec.v.v))
+      val newC = new VCode(setup.start, ec.m.end, null)
       setup.clear()
       ec.m.clear()
       ec.v.clear()

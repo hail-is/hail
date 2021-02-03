@@ -4,7 +4,7 @@ import aiohttp
 from hailtop.auth import service_auth_headers
 from hailtop.config import get_deploy_config
 from hailtop.tls import _get_ssl_config
-from hailtop.utils import request_retry_transient_errors
+from hailtop.utils import retry_transient_errors
 
 
 deploy_config = get_deploy_config()
@@ -26,10 +26,9 @@ async def test_connect_to_address_on_pod_ip():
     async with aiohttp.ClientSession(
             connector=aiohttp.TCPConnector(ssl=client_ssl_context),
             raise_for_status=True,
-            timeout=aiohttp.ClientTimeout(total=60),
+            timeout=aiohttp.ClientTimeout(total=5),
             headers=service_auth_headers(deploy_config, 'address')) as session:
-        address, port = await deploy_config.address('address')
-        await request_retry_transient_errors(
-            session,
-            'GET',
-            f'https://{address}:{port}{deploy_config.base_path("address")}/api/address')
+        async def get():
+            address, port = await deploy_config.address('address')
+            session.get(f'https://{address}:{port}{deploy_config.base_path("address")}/api/address')
+        await retry_transient_errors(get)

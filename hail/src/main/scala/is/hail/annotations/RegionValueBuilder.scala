@@ -62,7 +62,7 @@ class RegionValueBuilder(var region: Region) {
 
   def start(newRoot: PType) {
     assert(inactive)
-    root = newRoot.fundamentalType
+    root = newRoot
   }
 
   def allocateRoot() {
@@ -85,17 +85,6 @@ class RegionValueBuilder(var region: Region) {
   def advance() {
     if (indexstk.nonEmpty)
       indexstk(0) = indexstk(0) + 1
-  }
-
-  /**
-    * Unsafe unless the bytesize of every type being "advanced past" is size
-    * 0. The primary use-case is when adding an array of hl.PStruct()
-    * (i.e. empty structs).
-    *
-    **/
-  def unsafeAdvance(i: Int) {
-    if (indexstk.nonEmpty)
-      indexstk(0) = indexstk(0) + i
   }
 
   def startBaseStruct(init: Boolean = true, setMissing: Boolean = false) {
@@ -156,7 +145,10 @@ class RegionValueBuilder(var region: Region) {
   }
 
   private def startArrayInternal(length: Int, init: Boolean, setMissing: Boolean) {
-    val t = currentType().asInstanceOf[PArray]
+    val t = currentType() match {
+      case abc: PArrayBackedContainer => abc.arrayRep
+      case arr: PArray => arr
+    }
     val aoff = t.allocate(region, length)
 
     if (typestk.nonEmpty) {
@@ -238,6 +230,15 @@ class RegionValueBuilder(var region: Region) {
 
   def addInt(i: Int) {
     assert(currentType().isInstanceOf[PInt32])
+    addIntInternal(i)
+  }
+
+  def addCall(c: Int): Unit = {
+    assert(currentType().isInstanceOf[PCall])
+    addIntInternal(c)
+  }
+
+  def addIntInternal(i: Int) {
     if (typestk.isEmpty)
       allocateRoot()
     val off = currentOffset()
@@ -272,40 +273,20 @@ class RegionValueBuilder(var region: Region) {
     advance()
   }
 
-  def addBinary(bytes: Array[Byte]) {
-    val pbt = currentType().asInstanceOf[PBinary]
-    val valueAddress = pbt.allocate(region, bytes.length)
-    pbt.store(valueAddress, bytes)
-
-    if (typestk.nonEmpty)
-      Region.storeAddress(currentOffset(), valueAddress)
-    else
-      start = valueAddress
-
+  def addString(s: String) {
+    assert(currentType().isInstanceOf[PString])
+    currentType().asInstanceOf[PString].unstagedStoreJavaObjectAtAddress(currentOffset(), s, region)
     advance()
   }
 
-  def addString(s: String) {
-    addBinary(s.getBytes)
-  }
-
-  def addRow(t: TBaseStruct, r: Row) {
-    assert(r != null)
-    startBaseStruct()
-    var i = 0
-    while (i < t.size) {
-      addAnnotation(t.types(i), r.get(i))
-      i += 1
-    }
-    endBaseStruct()
+  def addLocus(contig: String, pos: Int): Unit = {
+    assert(currentType().isInstanceOf[PLocus])
+    currentType().asInstanceOf[PLocus].unstagedStoreLocus(currentOffset(), contig, pos, region)
+    advance()
   }
 
   def addField(t: PBaseStruct, fromRegion: Region, fromOff: Long, i: Int) {
     addField(t, fromOff, i, region.ne(fromRegion))
-  }
-
-  def addField(t: PBaseStruct, rv: RegionValue, i: Int) {
-    addField(t, rv.region, rv.offset, i)
   }
 
   def addField(t: PBaseStruct, fromOff: Long, i: Int, deepCopy: Boolean) {
@@ -347,25 +328,13 @@ class RegionValueBuilder(var region: Region) {
     addFields(t, fromRV.region, fromRV.offset, fieldIdx)
   }
 
-  def addElement(t: PArray, fromRegion: Region, fromAOff: Long, i: Int) {
-    if (t.isElementDefined(fromAOff, i))
-      addRegionValue(t.elementType, fromRegion,
-        t.elementOffset(fromAOff, i))
-    else
-      setMissing()
-  }
-
-  def addElement(t: PArray, rv: RegionValue, i: Int) {
-    addElement(t, rv.region, rv.offset, i)
-  }
-
   def selectRegionValue(fromT: PStruct, fromFieldIdx: Array[Int], fromRV: RegionValue) {
     selectRegionValue(fromT, fromFieldIdx, fromRV.region, fromRV.offset)
   }
 
   def selectRegionValue(fromT: PStruct, fromFieldIdx: Array[Int], region: Region, offset: Long) {
-    val t = fromT.typeAfterSelect(fromFieldIdx).fundamentalType
-    assert(currentType().setRequired(true) == t.setRequired(true))
+    val t = fromT.typeAfterSelect(fromFieldIdx)
+    assert(currentType().setRequired(true) == t.setRequired(true), s"${currentType()} != ${t}")
     assert(t.size == fromFieldIdx.length)
     startStruct()
     addFields(fromT, region, offset, fromFieldIdx)
@@ -384,7 +353,7 @@ class RegionValueBuilder(var region: Region) {
     val toT = currentType()
 
     if (typestk.isEmpty) {
-      val r = toT.copyFromAddress(region, t.fundamentalType, fromOff, deepCopy)
+      val r = toT.copyFromAddress(region, t, fromOff, deepCopy)
       start = r
       return
     }
@@ -392,131 +361,18 @@ class RegionValueBuilder(var region: Region) {
     val toOff = currentOffset()
     assert(typestk.nonEmpty || toOff == start)
 
-    toT.unstagedStoreAtAddress(toOff, region, t.fundamentalType, fromOff, deepCopy)
+    toT.unstagedStoreAtAddress(toOff, region, t, fromOff, deepCopy)
 
     advance()
   }
 
-  def addUnsafeRow(t: PBaseStruct, ur: UnsafeRow) {
-    assert(t == ur.t)
-    addRegionValue(t, ur.region, ur.offset)
-  }
-
-  def addUnsafeArray(t: PArray, uis: UnsafeIndexedSeq) {
-    assert(t == uis.t)
-    addRegionValue(t, uis.region, uis.aoff)
-  }
-
   def addAnnotation(t: Type, a: Annotation) {
-    if (a == null)
-      setMissing()
-    else
-      t match {
-        case TBoolean => addBoolean(a.asInstanceOf[Boolean])
-        case TInt32 => addInt(a.asInstanceOf[Int])
-        case TInt64 => addLong(a.asInstanceOf[Long])
-        case TFloat32 => addFloat(a.asInstanceOf[Float])
-        case TFloat64 => addDouble(a.asInstanceOf[Double])
-        case TString => addString(a.asInstanceOf[String])
-        case TBinary => addBinary(a.asInstanceOf[Array[Byte]])
-        case _: TShuffle => addBinary(a.asInstanceOf[Array[Byte]])
-
-        case t: TArray =>
-          a match {
-            case uis: UnsafeIndexedSeq if currentType() == uis.t =>
-              addUnsafeArray(uis.t.asInstanceOf[PArray], uis)
-
-            case is: IndexedSeq[Annotation] =>
-              startArray(is.length)
-              var i = 0
-              while (i < is.length) {
-                addAnnotation(t.elementType, is(i))
-                i += 1
-              }
-              endArray()
-          }
-
-        case t: TBaseStruct =>
-          a match {
-            case ur: UnsafeRow if currentType() == ur.t =>
-              addUnsafeRow(ur.t, ur)
-            case r: Row =>
-              addRow(t, r)
-          }
-
-        case TSet(elementType) =>
-          val s = a.asInstanceOf[Set[Annotation]]
-            .toArray
-            .sorted(elementType.ordering.toOrdering)
-          startArray(s.length)
-          s.foreach { x => addAnnotation(elementType, x) }
-          endArray()
-
-        case td: TDict =>
-          val m = a.asInstanceOf[Map[Annotation, Annotation]]
-            .map { case (k, v) => Row(k, v) }
-            .toArray
-            .sorted(td.elementType.ordering.toOrdering)
-          startArray(m.length)
-          m.foreach { case Row(k, v) =>
-            startStruct()
-            addAnnotation(td.keyType, k)
-            addAnnotation(td.valueType, v)
-            endStruct()
-          }
-          endArray()
-
-        case TCall =>
-          addInt(a.asInstanceOf[Int])
-
-        case t: TLocus =>
-          val l = a.asInstanceOf[Locus]
-          startStruct()
-          addString(l.contig)
-          addInt(l.position)
-          endStruct()
-
-        case t: TInterval =>
-          val i = a.asInstanceOf[Interval]
-          startStruct()
-          addAnnotation(t.pointType, i.start)
-          addAnnotation(t.pointType, i.end)
-          addBoolean(i.includesStart)
-          addBoolean(i.includesEnd)
-          endStruct()
-        case t@TNDArray(elementType, _) =>
-          val structWithStrides = TStruct(
-            ("shape", t.shapeType),
-            ("strides", t.shapeType),
-            ("data", TArray(elementType))
-          )
-          val ptype = currentType().asInstanceOf[PBaseStruct]
-          val aNDArray = a.asInstanceOf[NDArray]
-          val shapeRow = Annotation.fromSeq(aNDArray.shape)
-          var runningProduct = ptype.fieldType("data").asInstanceOf[PArray].elementType.byteSize
-          val stridesArray = new Array[Long](aNDArray.shape.size)
-          ((aNDArray.shape.size - 1) to 0 by -1).foreach { i =>
-            stridesArray(i) = runningProduct
-            runningProduct = runningProduct * (if (aNDArray.shape(i) > 0L) aNDArray.shape(i) else 1L)
-          }
-          val stridesRow = Row(stridesArray:_*)
-
-          addAnnotation(structWithStrides, Row(shapeRow, stridesRow, aNDArray.getRowMajorElements()))
-      }
-  }
-
-  def addInlineRow(t: PBaseStruct, a: Row) {
-    var i = 0
+    assert(typestk.nonEmpty)
     if (a == null) {
-      while (i < t.size) {
-        setMissing()
-        i += 1
-      }
+      setMissing()
     } else {
-      while(i < t.size) {
-        addAnnotation(t.types(i).virtualType, a(i))
-        i += 1
-      }
+      currentType().unstagedStoreJavaObjectAtAddress(currentOffset(), a, region)
+      advance()
     }
   }
 

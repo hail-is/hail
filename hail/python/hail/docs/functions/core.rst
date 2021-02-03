@@ -11,6 +11,7 @@ Core language functions
     case
     bind
     rbind
+    missing
     null
     str
     is_missing
@@ -28,6 +29,7 @@ Core language functions
 .. autofunction:: case
 .. autofunction:: bind
 .. autofunction:: rbind
+.. autofunction:: missing
 .. autofunction:: null
 .. autofunction:: str
 .. autofunction:: is_missing

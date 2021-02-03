@@ -16,7 +16,7 @@ from gear import (
     setup_aiohttp_session,
     rest_authenticated_users_only, web_authenticated_developers_only,
     web_maybe_authenticated_user, web_authenticated_users_only, create_session,
-    check_csrf_token, transaction, Database
+    check_csrf_token, transaction, Database, maybe_parse_bearer_header
 )
 from web_common import (
     setup_aiohttp_jinja2, setup_common_static_routes, set_message,
@@ -532,10 +532,10 @@ async def userinfo(request):
         raise web.HTTPUnauthorized()
 
     auth_header = request.headers['Authorization']
-    if not auth_header.startswith('Bearer '):
+    session_id = maybe_parse_bearer_header(auth_header)
+    if not session_id:
         log.info('Bearer not in Authorization header')
         raise web.HTTPUnauthorized()
-    session_id = auth_header[7:]
 
     # b64 encoding of 32-byte session ID is 44 bytes
     if len(session_id) != 44:

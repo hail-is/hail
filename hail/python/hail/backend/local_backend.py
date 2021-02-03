@@ -19,6 +19,8 @@ from hail.utils.java import scala_package_object, scala_object
 from .py4j_backend import Py4JBackend, handle_java_exception
 from ..fs.local_fs import LocalFS
 from ..hail_logging import Logger
+from hailtop.utils import find_spark_home
+
 
 _installed = False
 _original = None
@@ -113,7 +115,7 @@ class Log4jLogger(Logger):
 class LocalBackend(Py4JBackend):
     def __init__(self, tmpdir, log, quiet, append, branching_factor,
                  skip_logging_configuration, optimizer_iterations):
-        SPARK_HOME = os.environ['SPARK_HOME']
+        spark_home = find_spark_home()
         hail_jar_path = os.environ.get('HAIL_JAR')
         if hail_jar_path is None:
             if pkg_resources.resource_exists(__name__, "hail-all-spark.jar"):
@@ -124,8 +126,8 @@ class LocalBackend(Py4JBackend):
         port = launch_gateway(
             redirect_stdout=sys.stdout,
             redirect_stderr=sys.stderr,
-            jarpath=f'{SPARK_HOME}/jars/py4j-0.10.7.jar',
-            classpath=f'{SPARK_HOME}/jars/*:{hail_jar_path}',
+            jarpath=f'{spark_home}/jars/py4j-0.10.7.jar',
+            classpath=f'{spark_home}/jars/*:{hail_jar_path}',
             die_on_exit=True)
         self._gateway = JavaGateway(
             gateway_parameters=GatewayParameters(port=port, auto_convert=True))

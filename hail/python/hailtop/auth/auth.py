@@ -11,8 +11,7 @@ async def async_get_userinfo(*, deploy_config=None, session_id=None, client_sess
     if deploy_config is None:
         deploy_config = get_deploy_config()
     if client_session is None:
-        client_session = http_client_session(
-            timeout=aiohttp.ClientTimeout(total=5))
+        client_session = http_client_session()
 
     if session_id is None:
         headers = service_auth_headers(deploy_config, 'auth')
@@ -69,7 +68,7 @@ async def async_copy_paste_login(copy_paste_token, namespace=None):
 
     async with aiohttp.ClientSession(
             raise_for_status=True,
-            timeout=aiohttp.ClientTimeout(total=60),
+            timeout=aiohttp.ClientTimeout(total=5),
             headers=headers) as session:
         resp = await request_retry_transient_errors(
             session, 'POST', deploy_config.url('auth', '/api/v1alpha/copy-paste-login'),

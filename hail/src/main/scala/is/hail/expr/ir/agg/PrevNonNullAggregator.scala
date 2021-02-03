@@ -1,12 +1,11 @@
 package is.hail.expr.ir.agg
 
-import is.hail.annotations.{Region, RegionUtils, StagedRegionValueBuilder}
+import is.hail.annotations.Region
 import is.hail.asm4s._
-import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitCodeBuilder}
+import is.hail.expr.ir.{EmitCode, EmitCodeBuilder}
 import is.hail.types.VirtualTypeWithReq
 import is.hail.types.physical._
 import is.hail.types.virtual.Type
-import is.hail.utils._
 
 class PrevNonNullAggregator(typ: VirtualTypeWithReq) extends StagedAggregator {
   type State = TypedRegionBackedAggState
@@ -38,12 +37,9 @@ class PrevNonNullAggregator(typ: VirtualTypeWithReq) extends StagedAggregator {
       )
   }
 
-  protected def _result(cb: EmitCodeBuilder, state: State, srvb: StagedRegionValueBuilder): Unit = {
-    val t = state.get()
-    cb += Code(
-      t.setup,
-      t.m.mux(
-        srvb.setMissing(),
-        srvb.addWithDeepCopy(resultType, t.v)))
+  protected def _storeResult(cb: EmitCodeBuilder, state: State, pt: PType, addr: Value[Long], region: Value[Region], ifMissing: EmitCodeBuilder => Unit): Unit = {
+    state.get().toI(cb).consume(cb,
+      ifMissing(cb),
+      { sc => pt.storeAtAddress(cb, addr, region, sc, deepCopy = true) })
   }
 }

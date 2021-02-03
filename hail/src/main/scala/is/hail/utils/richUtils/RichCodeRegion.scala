@@ -38,4 +38,6 @@ class RichCodeRegion(val region: Code[Region]) extends AnyVal {
   def lookupJavaObject(idx: Code[Int]): Code[AnyRef] = region.invoke[Int, AnyRef]("lookupJavaObject", idx)
 
   def getPool(): Code[RegionPool] = region.invoke[RegionPool]("getPool")
+
+  def totalManagedBytes(): Code[Long] = region.invoke[Long]("totalManagedBytes")
 }

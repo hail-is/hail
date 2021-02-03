@@ -49,6 +49,10 @@ trait PFloat64Value extends PValue {
 
 }
 
+object SFloat64Code {
+  def apply(code: Code[Double], required: Boolean = true): SFloat64Code = new SFloat64Code(required, code)
+}
+
 class SFloat64Code(required: Boolean, val code: Code[Double]) extends PCode {
   val pt: PFloat64 = PFloat64(required)
 

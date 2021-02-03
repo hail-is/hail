@@ -1,13 +1,14 @@
 package is.hail.expr.ir.agg
 
-import is.hail.annotations.{CodeOrdering, Region, StagedRegionValueBuilder}
+import is.hail.annotations.{CodeOrdering, Region}
 import is.hail.asm4s._
-import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitCodeBuilder, EmitMethodBuilder, EmitParamType, EmitRegion, ParamType}
-import is.hail.types.encoded.EType
-import is.hail.types.physical._
-import is.hail.types.virtual._
+import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitCodeBuilder, EmitParamType, EmitRegion, IEmitCode, ParamType}
 import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer}
 import is.hail.types.VirtualTypeWithReq
+import is.hail.types.encoded.EType
+import is.hail.types.physical._
+import is.hail.types.physical.stypes.concrete.SIndexablePointerCode
+import is.hail.types.virtual._
 import is.hail.utils._
 
 
@@ -523,35 +524,22 @@ class DownsampleState(val kb: EmitClassBuilder[_], labelType: VirtualTypeWithReq
     cb.invokeVoid(mb)
   }
 
-  def result(cb: EmitCodeBuilder, srvb: StagedRegionValueBuilder, resultType: PArray): Unit = {
-    val eltType = resultType.elementType.asInstanceOf[PBaseStruct]
+  def resultArray(cb: EmitCodeBuilder, region: Value[Region], resType: PCanonicalArray): SIndexablePointerCode = {
+    // dump all elements into tree for simplicity
     dumpBuffer(cb)
-    cb += srvb.addArray(resultType, { srvb =>
-      EmitCodeBuilder.scopedVoid(cb.emb) { cb =>
-        cb += srvb.start(treeSize)
-        cb.ifx(treeSize > 0, {
-          tree.foreach(cb) { (cb, tv) =>
-            val point = cb.newLocal[Long]("point_offset")
-            cb += Code(
-              point := key.storageType.loadField(tv, "point"),
-              srvb.addBaseStruct(eltType, { srvb =>
-                Code(
-                  srvb.start(),
-                  srvb.addDouble(Region.loadDouble(pointType.loadField(point, "x"))),
-                  srvb.advance(),
-                  srvb.addDouble(Region.loadDouble(pointType.loadField(point, "y"))),
-                  srvb.advance(),
-                  pointType.isFieldDefined(point, "label").mux(
-                    srvb.addWithDeepCopy(labelPType, pointType.loadField(point, "label")),
-                    srvb.setMissing()
-                  )
-                )
-              }),
-              srvb.advance())
-          }
-        })
+
+    val eltType = resType.elementType.asInstanceOf[PCanonicalBaseStruct]
+
+    val (storeElement, finish) = resType.constructFromFunctions(cb, region, treeSize, deepCopy = true)
+    val idx = cb.newLocal[Int]("downsample_result_idx", 0)
+    cb.ifx(treeSize > 0, {
+      tree.foreach(cb) { (cb, tv) =>
+        val pointCode = pointType.loadCheapPCode(cb, key.storageType.loadField(tv, "point"))
+        storeElement(cb, idx, IEmitCode.present(cb, pointCode))
+        cb.assign(idx, idx + 1)
       }
     })
+    finish(cb)
   }
 }
 
@@ -562,7 +550,7 @@ object DownsampleAggregator {
 class DownsampleAggregator(arrayType: VirtualTypeWithReq) extends StagedAggregator {
   type State = DownsampleState
 
-  val resultType: PArray = PCanonicalArray(PCanonicalTuple(required = true, PFloat64(true), PFloat64(true), arrayType.canonicalPType))
+  val resultType: PCanonicalArray = PCanonicalArray(PCanonicalTuple(required = true, PFloat64(true), PFloat64(true), arrayType.canonicalPType))
 
   val initOpTypes: Seq[Type] = Array(TInt32)
   val seqOpTypes: Seq[Type] = Array(TFloat64, TFloat64, arrayType.t)
@@ -584,6 +572,9 @@ class DownsampleAggregator(arrayType: VirtualTypeWithReq) extends StagedAggregat
 
   protected def _combOp(cb: EmitCodeBuilder, state: State, other: State): Unit = state.merge(cb, other)
 
-  protected def _result(cb: EmitCodeBuilder, state: State, srvb: StagedRegionValueBuilder): Unit =
-    state.result(cb, srvb, resultType)
+  protected def _storeResult(cb: EmitCodeBuilder, state: State, pt: PType, addr: Value[Long], region: Value[Region], ifMissing: EmitCodeBuilder => Unit): Unit = {
+    assert(pt == resultType)
+    // deepCopy is handled by state.resultArray
+    pt.storeAtAddress(cb, addr, region, state.resultArray(cb, region, resultType), deepCopy = false)
+  }
 }

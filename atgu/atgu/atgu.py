@@ -332,6 +332,10 @@ async def on_startup(app):
     app['storage_client'] = aiogoogle.StorageClient()
 
 
+async def on_cleanup(app):
+    await app['storage_client'].close()
+
+
 def run():
     app = web.Application()
 
@@ -345,6 +349,7 @@ def run():
     app.add_routes(routes)
 
     app.on_startup.append(on_startup)
+    app.on_cleanup.append(on_cleanup)
 
     web.run_app(
         deploy_config.prefix_application(app, 'atgu'),

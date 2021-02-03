@@ -1,0 +1,29 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: letsencrypt
+  labels:
+    app: letsencrypt
+spec:
+  serviceAccountName: letsencrypt
+  tolerations:
+   - key: preemptible
+     value: "false"
+  containers:
+  - name: letsencrypt
+    image: {{ letsencrypt_image.image }}
+    command:
+      - "/bin/sh"
+      - "/letsencrypt.sh"
+    env:
+{% if dry_run %}
+      - name: "DRY_RUN"
+        value: "1"
+{% endif %}
+      - name: "DOMAIN"
+        value: {{ domain }}
+      - name: "DOMAINS"
+        value: {{ domains }}
+    ports:
+    - containerPort: 80
+  restartPolicy: Never

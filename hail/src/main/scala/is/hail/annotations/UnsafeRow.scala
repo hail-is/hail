@@ -338,7 +338,7 @@ class UnsafeNDArray(val pnd: PNDArray, val region: Region, val ndAddr: Long) ext
     val flat = new Array[Annotation](numElements.toInt)
 
     if (numElements > Int.MaxValue) {
-      throw new IllegalArgumentException("Cannot make an UnsafeNDArray with greater than Int.MaxValue entries")
+      throw new IllegalArgumentException(s"Cannot make an UnsafeNDArray with greater than Int.MaxValue entries. Shape was ${shape}")
     }
 
     while (idxIntoFlat < numElements) {
@@ -381,6 +381,10 @@ class UnsafeNDArray(val pnd: PNDArray, val region: Region, val ndAddr: Long) ext
     }
 
     true
+  }
+
+  override def toString: String = {
+    s"UnsafeNDArray of shape (${shape.mkString(", ")}) with elements ${getRowMajorElements()}"
   }
 }
 

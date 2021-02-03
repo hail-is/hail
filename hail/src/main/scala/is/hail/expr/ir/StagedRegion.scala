@@ -2,6 +2,7 @@ package is.hail.expr.ir
 
 import is.hail.annotations.{Region, RegionPool, StagedRegionValueBuilder}
 import is.hail.asm4s._
+import is.hail.types.physical.stypes.SCode
 import is.hail.types.physical.{PCode, PType}
 import is.hail.utils._
 
@@ -150,8 +151,15 @@ abstract class ChildStagedRegion extends StagedRegion {
 
   def copyTo(cb: EmitCodeBuilder, value: PCode, dest: StagedRegion): PCode
 
+  def copyToAtAddress(cb: EmitCodeBuilder, addr: Code[Long], value: SCode, dest: StagedRegion, destType: PType): Unit = {
+    dest assertSubRegion parent
+    destType.storeAtAddress(cb, addr, dest.code, value, deepCopy = isStrictChild)
+  }
+
   final def <=(that: ParentStagedRegion): Boolean =
     (this.parent <= that) || otherAncestors.exists(_ <= that)
+
+  def isStrictChild: Boolean
 
   def description: String = if (otherAncestors.isEmpty)
     parent.description
@@ -176,7 +184,8 @@ trait OwnedStagedRegion extends ChildStagedRegion {
 
   def shareWithSibling(dest: ChildStagedRegion): Code[Unit]
 
-  def addToParentRVB(srvb: StagedRegionValueBuilder, value: PCode): Code[Unit]
+  def addToParentRVB(srvb: StagedRegionValueBuilder, value: PCode): Code[Unit] =
+    srvb.addIRIntermediate(value, deepCopy = isStrictChild)
 }
 
 abstract class OwnedStagedRegionArray {
@@ -220,6 +229,8 @@ class RealOwnedStagedRegion(
   def copyTo(cb: EmitCodeBuilder, value: PCode, dest: StagedRegion): PCode =
     copyTo(cb, value, dest, value.pt)
 
+  def isStrictChild: Boolean = true
+
   def giveToSibling(dest: ChildStagedRegion): Code[Unit] = {
     dest assertSubRegion  parent
     r.invoke[Region, Unit]("move", dest.code)
@@ -229,9 +240,6 @@ class RealOwnedStagedRegion(
     dest assertSubRegion parent
     dest.code.invoke[Region, Unit]("addReferenceTo", r)
   }
-
-  def addToParentRVB(srvb: StagedRegionValueBuilder, value: PCode): Code[Unit] =
-    srvb.addIRIntermediate(value, deepCopy = true)
 }
 
 class DummyOwnedStagedRegion(
@@ -266,6 +274,8 @@ class DummyOwnedStagedRegion(
     value
   }
 
+  def isStrictChild: Boolean = false
+
   def giveToSibling(dest: ChildStagedRegion): Code[Unit] = {
     dest assertSubRegion parent
     Code._empty
@@ -275,7 +285,4 @@ class DummyOwnedStagedRegion(
     dest assertSubRegion parent
     Code._empty
   }
-
-  def addToParentRVB(srvb: StagedRegionValueBuilder, value: PCode): Code[Unit] =
-    srvb.addIRIntermediate(value, deepCopy = false)
 }

@@ -22,8 +22,7 @@ async def test_update_commits():
     headers = service_auth_headers(deploy_config, 'benchmark')
     commit_benchmark_url = deploy_config.url('benchmark', f'/api/v1alpha/benchmark/commit/{sha}')
 
-    async with client_session(
-            timeout=aiohttp.ClientTimeout(total=60)) as session:
+    async with client_session() as session:
 
         commit = None
 

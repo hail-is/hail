@@ -95,7 +95,7 @@ class GCEEventMonitor:
         else:
             instance = self.inst_coll_manager.get_instance(name)
             if not instance:
-                log.warning(f'event for unknown instance {name}')
+                log.warning(f'event for unknown instance {name}: {json.dumps(event)}')
                 return
 
             if event_subtype == 'v1.compute.instances.preempted':
