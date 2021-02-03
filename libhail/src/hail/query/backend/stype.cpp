@@ -1,5 +1,7 @@
+#include <hail/query/backend/compile.hpp>
 #include <hail/query/backend/stype.hpp>
 #include <hail/query/backend/svalue.hpp>
+#include <llvm/IR/Constants.h>
 
 namespace hail {
 
@@ -72,6 +74,20 @@ EmitType::from_llvm_values(const std::vector<llvm::Value *> &llvm_values, size_t
   llvm::Value *missing = llvm_values[i++];
   SValue *svalue = stype->from_llvm_values(llvm_values, i);
   return EmitValue(missing, svalue);
+}
+
+EmitValue
+EmitType::make_na(CompileFunction &cf) const {
+  auto m = llvm::ConstantInt::get(llvm::Type::getInt8Ty(cf.llvm_context), 1);
+
+  std::vector<llvm::Value *> llvm_values;
+  std::vector<PrimitiveType> constituent_types;
+  stype->get_constituent_types(constituent_types);
+  for (auto pt : constituent_types)
+    llvm_values.push_back(llvm::UndefValue::get(cf.get_llvm_type(pt)));
+  auto svalue = stype->from_llvm_values(llvm_values, 0);
+
+  return EmitValue(m, svalue);
 }
 
 }

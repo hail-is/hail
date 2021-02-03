@@ -198,6 +198,16 @@ Block::make_literal(const Value &v) {
   return xc.arena.make<Literal>(IRContextToken(), this, v);
 }
 
+NA *
+Block::make_na(const Type *t) {
+  return xc.arena.make<NA>(IRContextToken(), this, t);
+}
+
+IsNA *
+Block::make_is_na(IR *x) {
+  return xc.arena.make<IsNA>(IRContextToken(), this, x);
+}
+
 Mux *
 Block::make_mux(IR *x, IR *true_value, IR *false_value) {
   return xc.arena.make<Mux>(IRContextToken(), this, x, true_value, false_value);

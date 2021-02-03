@@ -37,9 +37,9 @@ main() {
     assert(s.get_size() == 5);
     memcpy(s.get_data(), "fooba", 5);
     auto tv = Value::make_tuple(vt, region);
-    tv.set_element_present(0, true);
+    tv.set_element_missing(0, false);
     tv.set_element(0, i);
-    tv.set_element_present(1, true);
+    tv.set_element_missing(1, false);
     tv.set_element(1, s);
 
     print("tv = ", tv);
@@ -51,11 +51,12 @@ main() {
 
     Module *m = xc.make_module();
 
-    std::vector<const Type *> param_types{tc.tint32};
-    const Type *return_type = tc.tint32;
+    std::vector<const Type *> param_types;
+    const Type *return_type = tc.tbool;
+
     Function *f = xc.make_function(m, "main", param_types, return_type);
     auto body = f->get_body();
-    body->set_child(0, body->inputs[0]);
+    body->set_child(0, body->make_na(tc.tbool));
 
     m->pretty_self(outs);
 
@@ -68,7 +69,7 @@ main() {
 
     auto compiled = jit.compile(tc, m, param_vtypes, return_vtype);
 
-    auto return_value = compiled.invoke(region, {Value(vint32)});
+    auto return_value = compiled.invoke(region, {});
     print("return_value: ", return_value);
   }
 

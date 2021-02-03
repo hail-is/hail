@@ -7,12 +7,11 @@ namespace hail {
 const Type *
 IRType::infer(Block *x) {
   if (x->get_function_parent()) {
-    std::vector<const Type *> input_types, output_types;
-    for (ssize_t i = x->get_function_parent()->parameter_types.size(); i >= 0; --i)
-      input_types.push_back(x->get_function_parent()->parameter_types[i]);
-    for (ssize_t i = x->get_children().size() - 1; i >= 0; --i)
-      output_types.push_back(infer(x->get_child(i)));
-    return tc.tblock(input_types, output_types);
+    std::vector<const Type *> input_types = x->get_function_parent()->parameter_types;
+    std::vector<const Type *> output_types;
+    for (auto c : x->get_children())
+      output_types.push_back(infer(c));
+    return tc.tblock(std::move(input_types), std::move(output_types));
   }
 
   IR *parent = x->get_parent();
@@ -40,6 +39,7 @@ IRType::infer(NA *x) {
 
 const Type *
 IRType::infer(IsNA *x) {
+  infer(x->get_child(0));
   return tc.tbool;
 }
 

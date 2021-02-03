@@ -78,11 +78,11 @@ public:
       elements(p->elements) {}
 
   size_t get_size() const { return size; }
-  bool get_element_present(size_t i) const {
+  bool get_element_missing(size_t i) const {
     return get_bit(missing_bits, i);
   }
-  void set_element_present(size_t i, bool present) {
-    set_bit(missing_bits, i, present);
+  void set_element_missing(size_t i, bool missing) {
+    set_bit(missing_bits, i, missing);
   }
   inline Value get_element(size_t i) const;
   void set_element(size_t i, const Value &new_element);
@@ -106,11 +106,11 @@ public:
       p(p) {}
 
   size_t get_size() const { return vtype->element_vtypes.size(); }
-  bool get_element_present(size_t i) const {
+  bool get_element_missing(size_t i) const {
     return get_bit(p, i);
   }
-  void set_element_present(size_t i, bool present) const {
-    return set_bit(p, i, present);
+  void set_element_missing(size_t i, bool missing) const {
+    return set_bit(p, i, missing);
   }
   inline Value get_element(size_t i) const;
   inline void set_element(size_t i, const Value &new_element) const;
@@ -138,16 +138,16 @@ public:
 
   class Raw {
   public:
-    bool present;
+    bool missing;
     PrimitiveUnion u;
 
     Raw() {}
     Raw(const Value &value)
-      : present(value.present),
+      : missing(value.missing),
 	u(value.u) {}
 
     Raw &operator=(const Value &value) {
-      present = value.present;
+      missing = value.missing;
       u = value.u;
       return *this;
     }
@@ -155,7 +155,7 @@ public:
 
   static_assert(sizeof(Raw) == 16);
   static_assert(alignof(Raw) == 8);
-  static_assert(offsetof(Raw, present) == 0);
+  static_assert(offsetof(Raw, missing) == 0);
   static_assert(offsetof(Raw, u) == 8);
 
   const VType *vtype;
@@ -163,7 +163,7 @@ private:
   // FIXME do we want this?  Any values should be scoped inside a
   // region.
   std::shared_ptr<ArenaAllocator> region;
-  bool present;
+  bool missing;
   PrimitiveUnion u;
 
   void set_union_from(const PrimitiveUnion &that_u) {
@@ -196,19 +196,19 @@ private:
   Value(const VStr *vtype, std::shared_ptr<ArenaAllocator> region, void *p)
     : vtype(vtype),
       region(std::move(region)),
-      present(true) {
+      missing(true) {
     u.p = p;
   }
   Value(const VArray *vtype, std::shared_ptr<ArenaAllocator> region, void *p)
     : vtype(vtype),
       region(std::move(region)),
-      present(true) {
+      missing(true) {
     u.p = p;
   }
   Value(const VTuple *vtype, std::shared_ptr<ArenaAllocator> region, void *p)
     : vtype(vtype),
       region(std::move(region)),
-      present(true) {
+      missing(true) {
     u.p = p;
   }
 
@@ -216,52 +216,52 @@ public:
   /* creates a missing value of vtype `vtype` */
   Value(const VType *vtype)
     : vtype(vtype),
-      present(false) {
+      missing(true) {
   }
   Value(const VBool *vtype, bool b)
     : vtype(vtype),
-      present(true) {
+      missing(false) {
     u.b = b;
   }
   Value(const VInt32 *vtype, uint32_t i32)
     : vtype(vtype),
-      present(true) {
+      missing(false) {
     u.i32 = i32;
   }
   Value(const VInt64 *vtype, uint32_t i64)
     : vtype(vtype),
-      present(true) {
+      missing(false) {
     u.i64 = i64;
   }
   Value(const VFloat32 *vtype, float f)
     : vtype(vtype),
-      present(true) {
+      missing(false) {
     u.f = f;
   }
   Value(const VFloat64 *vtype, double d)
     : vtype(vtype),
-      present(true) {
+      missing(false) {
     u.d = d;
   }
 
   Value(const VType *vtype, std::shared_ptr<ArenaAllocator> region, Raw raw)
     : vtype(vtype),
       region(std::move(region)),
-      present(raw.present),
+      missing(raw.missing),
       u(raw.u) {}
 
   Value(const Value &that)
     : vtype(that.vtype),
-      present(that.present),
+      missing(that.missing),
       region(that.region) {
-    if (present)
+    if (!missing)
       set_union_from(that.u);
   }
   Value(const Value &&that)
     : vtype(that.vtype),
-      present(that.present),
+      missing(that.missing),
       region(std::move(that.region)) {
-    if (present)
+    if (!missing)
       set_union_from(that.u);
   }
 
@@ -285,7 +285,7 @@ public:
   static Value load(const VType *vtype, std::shared_ptr<ArenaAllocator> region, void *p);
   static void store(void *p, const Value &value);
 
-  bool get_present() const { return present; }
+  bool get_missing() const { return missing; }
 
   bool as_bool() const {
     assert(vtype->tag == VType::Tag::BOOL);

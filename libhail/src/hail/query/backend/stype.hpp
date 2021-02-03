@@ -9,6 +9,7 @@ namespace hail {
 
 class SValue;
 class EmitValue;
+class CompileFunction;
 
 enum class PrimitiveType {
   VOID,
@@ -85,6 +86,8 @@ public:
   void get_constituent_types(std::vector<PrimitiveType> &constituent_types) const;
 
   EmitValue from_llvm_values(const std::vector<llvm::Value *> &llvm_values, size_t i) const;
+
+  EmitValue make_na(CompileFunction &cf) const;
 };
 
 }

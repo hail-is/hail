@@ -85,7 +85,7 @@ Value::store(void *p, const Value &value) {
       size_t n = ptuple->element_vtypes.size();
       memcpy(p, src.p, (n + 7) / 8);
       for (size_t i = 0; i < n; ++i) {
-	if (src.get_element_present(i))
+	if (!src.get_element_missing(i))
 	  dest.set_element(i, src.get_element(i));
       }
     }
@@ -99,7 +99,7 @@ Value::store(void *p, const Value &value) {
 
 void
 format1(FormatStream &s, const Value &value) {
-  if (!value.present) {
+  if (value.missing) {
     format(s, "null");
     return;
   }
