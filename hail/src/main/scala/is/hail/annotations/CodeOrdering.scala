@@ -45,9 +45,8 @@ object CodeOrdering {
   ): CodeOrdering = new CodeOrdering {
     require(sortOrders == null || sortOrders.size == t1.size)
 
-    private val setup: (EmitCodeBuilder, PCode, PCode) => (PBaseStructValue, PBaseStructValue) = {
-      case (cb: EmitCodeBuilder, lhs: PBaseStructCode, rhs: PBaseStructCode) =>
-        lhs.memoize(cb, "structord_lhs") -> rhs.memoize(cb, "structord_rhs")
+    def setup(cb: EmitCodeBuilder, lhs: PCode, rhs: PCode):  (PBaseStructValue, PBaseStructValue) = {
+      lhs.asBaseStruct.memoize(cb, "structord_lhs") -> rhs.asBaseStruct.memoize(cb, "structord_rhs")
     }
 
     private[this] def fieldOrdering(i: Int, op: CodeOrdering.Op): CodeOrdering.F[op.ReturnType] =
