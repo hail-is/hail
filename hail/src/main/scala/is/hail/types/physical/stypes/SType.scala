@@ -8,6 +8,8 @@ import is.hail.types.physical.{PCode, PType}
 import is.hail.types.virtual.Type
 
 trait SType {
+  def virtualType: Type = pType.virtualType
+
   def pType: PType
 
   def loadFrom(cb: EmitCodeBuilder, region: Value[Region], pt: PType, addr: Code[Long]): SCode
@@ -21,4 +23,6 @@ trait SType {
   def fromSettables(settables: IndexedSeq[Settable[_]]): SSettable
 
   def fromCodes(codes: IndexedSeq[Code[_]]): SCode
+
+  def canonicalPType(): PType
 }

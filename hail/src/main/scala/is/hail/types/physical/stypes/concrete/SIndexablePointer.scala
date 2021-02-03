@@ -38,6 +38,8 @@ case class SIndexablePointer(pType: PContainer) extends SContainer {
     assert(a.ti == LongInfo)
     new SIndexablePointerCode(this, a)
   }
+
+  def canonicalPType(): PType = pType
 }
 
 

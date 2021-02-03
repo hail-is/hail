@@ -38,6 +38,8 @@ case class SNDArrayPointer(pType: PCanonicalNDArray) extends SNDArray {
     assert(a.ti == LongInfo)
     new SNDArrayPointerCode(this, a)
   }
+
+  def canonicalPType(): PType = pType
 }
 
 object SNDArrayPointerSettable {

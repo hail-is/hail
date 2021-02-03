@@ -3,7 +3,7 @@ package is.hail.types.physical.stypes.concrete
 import is.hail.annotations.{CodeOrdering, Region}
 import is.hail.asm4s.{Code, LongInfo, Settable, SettableBuilder, TypeInfo, Value}
 import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, SortOrder}
-import is.hail.types.physical.stypes.interfaces.SString
+import is.hail.types.physical.stypes.interfaces.{SString, SStringCode}
 import is.hail.types.physical.stypes.{SCode, SType}
 import is.hail.types.physical.{PBinaryCode, PCanonicalString, PCode, PSettable, PString, PStringCode, PStringValue, PType, PValue}
 import is.hail.utils.FastIndexedSeq
@@ -36,6 +36,12 @@ case class SStringPointer(pType: PString) extends SString {
     assert(a.ti == LongInfo)
     new SStringPointerCode(this, a)
   }
+
+  def constructFromString(cb: EmitCodeBuilder, r: Value[Region], s: Code[String]): SStringPointerCode = {
+    new SStringPointerCode(this, pType.allocateAndStoreString(cb.emb, r, s))
+  }
+
+  override def canonicalPType(): PType = pType
 }
 
 
