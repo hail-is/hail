@@ -243,7 +243,7 @@ object IEmitCode {
     IEmitCodeGen(Lmissing, Lpresent, pc)
   }
 
-  def strictMapEmitCodes(cb: EmitCodeBuilder, seq: IndexedSeq[EmitCode])(f: IndexedSeq[PCode] => PCode): IEmitCode = {
+  def multiMapEmitCodes(cb: EmitCodeBuilder, seq: IndexedSeq[EmitCode])(f: IndexedSeq[PCode] => PCode): IEmitCode = {
     val Lmissing = CodeLabel()
     val Lpresent = CodeLabel()
 
@@ -1005,7 +1005,8 @@ class Emit[C](
         val ndt = emitI(nd)
 
         ndt.flatMap(cb) { case ndCode: PNDArrayCode =>
-          IEmitCode.sequence(idxs, (ir: IR) => emitI(ir), cb) { idxPCodes: IndexedSeq[PCode] =>
+          val indexEmitCodes = idxs.map(idx => EmitCode.fromI(cb.emb)(emitInNewBuilder(_, idx)))
+          IEmitCode.multiMapEmitCodes(cb, indexEmitCodes) { idxPCodes: IndexedSeq[PCode] =>
             val memoizedIndices = idxPCodes.zipWithIndex.map { case (pc, idx) =>
               pc.memoize(cb,s"ref_idx_$idx")
             }
@@ -2217,7 +2218,8 @@ class Emit[C](
           }
         val vars = args.map { a => coerce[Any](mb.newLocal()(typeToTypeInfo(a.pType))) }
         EmitCode.fromI(mb) { cb =>
-          IEmitCode.sequence(args.toIndexedSeq, (arg: IR) => emitI(arg, cb), cb) { codeArgs =>
+          val emitArgs = args.map(a => EmitCode.fromI(cb.emb)(emitI(a, _))).toFastIndexedSeq
+          IEmitCode.multiMapEmitCodes(cb, emitArgs) { codeArgs =>
             for ((l, i) <- vars.zip(codeArgs)) {
               cb.assign(l, i.code)
             }

@@ -653,7 +653,7 @@ abstract class RegistryFunctions {
         }
 
         def applySeededI(seed: Long, cb: EmitCodeBuilder, r: EmitRegion, rpt: PType, args: (PType, EmitCode)*): IEmitCode = {
-          IEmitCode.strictMapEmitCodes(cb, args.map(_._2).toFastIndexedSeq) {
+          IEmitCode.multiMapEmitCodes(cb, args.map(_._2).toFastIndexedSeq) {
             argPCs => PCode(rpt, applySeeded(seed, r, rpt, argPCs.map(pc => pc.pt -> pc.code): _*))
           }
         }
