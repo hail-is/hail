@@ -1668,7 +1668,7 @@ object EmitStream {
           }
           val eltVars = (names, eltTypes).zipped.map(mb.newEmitField)
 
-          IEmitCode.sequence(as, (a: IR) => emitStream(a), cb) { pcs =>
+          IEmitCode.multiMapEmitCodes(cb, as.map(a => EmitCode.fromI(cb.emb)(cb => emitStream(a, cb)))) { pcs =>
             val emitStreams = pcs.map(_.asStream.stream)
             val lenSetup = Code(emitStreams.map(_.setup))
             val lengths = emitStreams.map(_.length)
@@ -1823,7 +1823,7 @@ object EmitStream {
               c < 0 || (c.ceq(0) && li < ri)
             }
 
-          IEmitCode.sequence(as, (a: IR) => emitStream(a), cb) { pcs =>
+          IEmitCode.multiMapEmitCodes(cb, as.map(a => EmitCode.fromI(cb.emb)(cb => emitStream(a, cb)))) { pcs =>
             val sss = pcs.map(_.asStream.stream)
             val streams = sss.map { ss => (eltRegion: ChildStagedRegion) =>
               ss.stream(eltRegion).map { ec =>
@@ -1866,7 +1866,7 @@ object EmitStream {
             }
           }
 
-          IEmitCode.sequence(as, (a: IR) => emitStream(a), cb) { pcs =>
+          IEmitCode.multiMapEmitCodes(cb, as.map(a => EmitCode.fromI(cb.emb)(cb => emitStream(a, cb)))) { pcs =>
             val sss = pcs.map(_.asStream.stream)
             val streams = sss.map { ss => (eltRegion: ChildStagedRegion) =>
               ss.getStream(eltRegion).map(_.get())
