@@ -22,6 +22,30 @@ Please note that **forward compatibility should not be expected, especially
 relating to file formats**: this means that it may not be possible to use
 an earlier version of Hail to read files written in a later version.
 
+## Version 0.2.62
+
+Released 2021-02-03
+
+### New features
+
+- (hail#9936) Deprecated `hl.null` in favor of `hl.missing` for naming consistency.
+- (hail#9973) `hl.vep` now includes a `vep_proc_id` field to aid in debugging unexpected output.
+- (hail#9839) Hail now eagerly deletes temporary files produced by some BlockMatrix operations.
+- (hail#9835) `hl.any` and `hl.all` now also support a single collection argument and a varargs of Boolean expressions.
+- (hail#9816) `hl.pc_relate` now includes values on the diagonal of kinship, IBD-0, IBD-1, and IBD-2
+- (hail#9736) Let NDArrayExpression.reshape take varargs instead of mandating a tuple.
+- (hail#9766) `hl.export_vcf` now warns if INFO field names are invalid according to the VCF 4.3 spec.
+
+### Bug fixes
+
+- (hail#9976) Fixed `show()` representation of Hail dictionaries.
+
+### Performance improvements
+
+- (hail#9909) Improved performance of `hl.experimental.densify` by approximately 35%.
+
+---
+
 ## Version 0.2.61
 
 Released 2020-12-03
