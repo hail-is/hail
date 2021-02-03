@@ -171,20 +171,14 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
 
   def loadElement(aoff: Long, length: Int, i: Int): Long = {
     val off = elementOffset(aoff, length, i)
-    elementType.fundamentalType match {
-      case _: PArray | _: PBinary => Region.loadAddress(off)
-      case _ => off
-    }
+    elementType.unstagedLoadFromNested(off)
   }
 
   def loadElement(aoff: Long, i: Int): Long = loadElement(aoff, loadLength(aoff), i)
 
   def loadElement(aoff: Code[Long], length: Code[Int], i: Code[Int]): Code[Long] = {
     val off = elementOffset(aoff, length, i)
-    elementType.fundamentalType match {
-      case _: PArray | _: PBinary => Region.loadAddress(off)
-      case _ => off
-    }
+    elementType.loadFromNested(off)
   }
 
   def loadElement(aoff: Code[Long], i: Code[Int]): Code[Long] =
