@@ -141,7 +141,7 @@ final case class PSubsetStruct(ps: PStruct, _fieldNames: Array[String]) extends 
     throw new UnsupportedOperationException
   }
 
-  def loadFromNested(cb: EmitCodeBuilder, addr: Code[Long]): Code[Long] = addr
+  def loadFromNested(addr: Code[Long]): Code[Long] = addr
 
   override def unstagedStoreJavaObject(annotation: Annotation, region: Region): Long =
     throw new UnsupportedOperationException

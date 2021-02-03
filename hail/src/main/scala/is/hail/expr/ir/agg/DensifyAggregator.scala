@@ -124,7 +124,7 @@ class DensifyState(val arrayVType: VirtualTypeWithReq, val kb: EmitClassBuilder[
     cb.assign(arrayAddr,
       arrayStorageType.store(cb,
         region,
-        arrayStorageType.loadCheapPCode(cb, arrayStorageType.loadFromNested(cb, srcCode)),
+        arrayStorageType.loadCheapPCode(cb, arrayStorageType.loadFromNested(srcCode)),
         deepCopy = true))
     cb.assign(length, arrayStorageType.loadLength(arrayAddr))
   }

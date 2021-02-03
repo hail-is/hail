@@ -155,7 +155,7 @@ trait PArrayBackedContainer extends PContainer {
   def storeAtAddress(cb: EmitCodeBuilder, addr: Code[Long], region: Value[Region], value: SCode, deepCopy: Boolean): Unit =
     arrayRep.storeAtAddress(cb, addr, region, value, deepCopy)
 
-  def loadFromNested(cb: EmitCodeBuilder, addr: Code[Long]): Code[Long] = arrayRep.loadFromNested(cb, addr)
+  def loadFromNested(addr: Code[Long]): Code[Long] = arrayRep.loadFromNested(addr)
 
   def unstagedStoreJavaObjectAtAddress(addr: Long, annotation: Annotation, region: Region): Unit = {
     Region.storeAddress(addr, unstagedStoreJavaObject(annotation, region))

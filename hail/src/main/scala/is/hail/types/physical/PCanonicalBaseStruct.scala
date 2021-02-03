@@ -271,5 +271,5 @@ abstract class PCanonicalBaseStruct(val types: Array[PType]) extends PBaseStruct
 
   }
 
-  def loadFromNested(cb: EmitCodeBuilder, addr: Code[Long]): Code[Long] = addr
+  def loadFromNested(addr: Code[Long]): Code[Long] = addr
 }

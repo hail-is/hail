@@ -161,7 +161,7 @@ class PCanonicalBinary(val required: Boolean) extends PBinary {
 
   override val encodableType = this
 
-  def loadFromNested(cb: EmitCodeBuilder, addr: Code[Long]): Code[Long] = Region.loadAddress(addr)
+  def loadFromNested(addr: Code[Long]): Code[Long] = Region.loadAddress(addr)
 
   override def unstagedStoreJavaObjectAtAddress(addr: Long, annotation: Annotation, region: Region): Unit = {
     Region.storeAddress(addr, unstagedStoreJavaObject(annotation, region))

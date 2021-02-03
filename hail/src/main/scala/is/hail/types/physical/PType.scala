@@ -487,7 +487,7 @@ abstract class PType extends Serializable with Requiredness {
 
   // called to load a region value's start address from a nested representation.
   // Usually a no-op, but may need to dereference a pointer.
-  def loadFromNested(cb: EmitCodeBuilder, addr: Code[Long]): Code[Long]
+  def loadFromNested(addr: Code[Long]): Code[Long]
 
   def unstagedStoreJavaObject(annotation: Annotation, region: Region): Long
 

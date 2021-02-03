@@ -532,7 +532,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
     new SIndexablePointerCode(SIndexablePointer(this), addr)
   }
 
-  def loadFromNested(cb: EmitCodeBuilder, addr: Code[Long]): Code[Long] = Region.loadAddress(addr)
+  def loadFromNested(addr: Code[Long]): Code[Long] = Region.loadAddress(addr)
 
   override def unstagedStoreJavaObject(annotation: Annotation, region: Region): Long = {
     val is = annotation.asInstanceOf[IndexedSeq[Annotation]]

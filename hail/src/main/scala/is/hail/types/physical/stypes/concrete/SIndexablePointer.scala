@@ -113,7 +113,7 @@ class SIndexablePointerSettable(
           cb.ifx(isElementMissing(idx),
             {}, // do nothing,
             {
-              val elt = et.loadCheapPCode(cb, et.loadFromNested(cb, elementPtr))
+              val elt = et.loadCheapPCode(cb, et.loadFromNested(elementPtr))
               f(cb, idx, elt)
             })
           cb.assign(idx, idx + 1)
