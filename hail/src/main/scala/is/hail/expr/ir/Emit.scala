@@ -897,10 +897,10 @@ class Emit[C](
         val pType = x.pType.asInstanceOf[PCanonicalArray]
         val srvb = new StagedRegionValueBuilder(mb, pType, region.code)
 
-        val (addElement, finish) = pType.constructFromFunctions(cb, region.code, args.size, deepCopy = false)
-        for ((arg, i) <- args.zipWithIndex) {
+        val (pushElement, finish) = pType.constructFromFunctions(cb, region.code, args.size, deepCopy = false)
+        for (arg <- args) {
           val v = emitI(arg)
-          addElement(cb, i, v)
+          pushElement(cb, v)
         }
         presentPC(finish(cb))
 
@@ -2910,11 +2910,9 @@ abstract class NDArrayEmitter(val outputShape: IndexedSeq[Value[Long]])
   def emit(cb: EmitCodeBuilder, targetType: PCanonicalNDArray, region: Value[Region]): PCode = {
     val shapeArray = outputShape
     val len = cb.newLocal[Int]("ndarrayemitter_emitloops_len", targetType.numElements(shapeArray).toI)
-    val (addElement, finish) = targetType.dataType.constructFromFunctions(cb, region, len , false)
-    val idx = cb.newLocal[Int]("ndarrayemitter_emitloops_idx", 0)
+    val (pushElement, finish) = targetType.dataType.constructFromFunctions(cb, region, len , false)
     SNDArray.forEachIndex(cb, shapeArray, "ndarrayemitter_emitloops") { case (cb, idxVars) =>
-      addElement(cb, idx, IEmitCode.present(cb, outputElement(cb, idxVars)))
-      cb.assign(idx, idx + 1)
+      pushElement(cb, IEmitCode.present(cb, outputElement(cb, idxVars)))
     }
     val dataAddress = finish(cb).a
 

@@ -254,12 +254,11 @@ object LocusFunctions extends RegistryFunctions {
 
         def addIdxWithCondition(cb: EmitCodeBuilder)(cond: (EmitCodeBuilder, Value[Int], Value[Int], SIndexableValue) => Code[Boolean]): IEmitCode = {
 
-          val (addElement, finish) = arrayType.constructFromFunctions(cb, r.region, totalLen, deepCopy = false)
+          val (pushElement, finish) = arrayType.constructFromFunctions(cb, r.region, totalLen, deepCopy = false)
           val offset = cb.newLocal[Int]("locuswindows_offset", 0)
 
           val lastCoord = cb.newLocal[Double]("locuswindows_coord")
 
-          val arrayIndex = cb.newLocal[Int]("locuswindows_arrayidx", 0)
           forAllContigs(cb) { case (cb, contigIdx, coords) =>
             val i = cb.newLocal[Int]("locuswindows_i", 0)
             val idx = cb.newLocal[Int]("locuswindows_idx", 0)
@@ -297,16 +296,12 @@ object LocusFunctions extends RegistryFunctions {
               )
               cb.define(Lbreak)
 
-              addElement(cb, arrayIndex, IEmitCode.present(cb, PCode(arrayType.elementType, offset + idx)))
-              cb.assign(arrayIndex, arrayIndex + 1)
+              pushElement(cb, IEmitCode.present(cb, PCode(arrayType.elementType, offset + idx)))
 
               cb.assign(i, i + 1)
             })
             cb.assign(offset, offset + len)
           }
-
-          cb.ifx(arrayIndex.cne(totalLen),
-            cb._fatal("locuswindows: expected arrayIndex == totalLen, got arrayIndex=", arrayIndex.toS, ", totalLen=", totalLen.toS))
           IEmitCode.present(cb, finish(cb))
         }
 

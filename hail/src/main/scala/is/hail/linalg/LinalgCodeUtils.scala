@@ -36,11 +36,9 @@ object LinalgCodeUtils {
     val dataLength = cb.newLocal[Int]("nda_create_column_major_len", pt.numElements(shape).toI)
     val dataType = pt.dataType
 
-    val (addElem, finish) = dataType.constructFromFunctions(cb, region, dataLength, deepCopy = false)
-    val idx = cb.newLocal[Int]("nda_create_column_major_idx", 0)
+    val (pushElement, finish) = dataType.constructFromFunctions(cb, region, dataLength, deepCopy = false)
     SNDArray.forEachIndex(cb, shape, "nda_create_column_major") { case (cb, idxVars) =>
-      addElem(cb, idx, IEmitCode.present(cb, pndv.loadElement(idxVars, cb).asPCode))
-      cb.assign(idx, idx + 1)
+      pushElement(cb, IEmitCode.present(cb, pndv.loadElement(idxVars, cb).asPCode))
     }
     val newData = finish(cb)
     pndv.pt.construct(shape, strides, newData.a, cb, region)

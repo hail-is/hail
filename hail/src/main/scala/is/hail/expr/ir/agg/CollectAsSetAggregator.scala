@@ -171,11 +171,9 @@ class CollectAsSetAggregator(elem: VirtualTypeWithReq) extends StagedAggregator 
 
   protected def _storeResult(cb: EmitCodeBuilder, state: State, pt: PType, addr: Value[Long], region: Value[Region], ifMissing: EmitCodeBuilder => Unit): Unit = {
     assert(pt == resultType)
-    val (storeElement, finish) = arrayRep.constructFromFunctions(cb, region, state.size, deepCopy = true)
-    val idx = cb.newLocal[Int]("collect_as_set_result_i", 0)
+    val (pushElement, finish) = arrayRep.constructFromFunctions(cb, region, state.size, deepCopy = true)
     state.foreach(cb) { (cb, elt) =>
-      storeElement(cb, idx, elt.toI(cb))
-      cb.assign(idx, idx + 1)
+      pushElement(cb, elt.toI(cb))
     }
     // deepCopy is handled by `storeElement` above
     resultType.storeAtAddress(cb, addr, region, finish(cb), deepCopy = false)

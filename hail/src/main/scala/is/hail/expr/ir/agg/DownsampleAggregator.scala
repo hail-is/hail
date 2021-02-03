@@ -526,13 +526,11 @@ class DownsampleState(val kb: EmitClassBuilder[_], labelType: VirtualTypeWithReq
 
     val eltType = resType.elementType.asInstanceOf[PCanonicalBaseStruct]
 
-    val (storeElement, finish) = resType.constructFromFunctions(cb, region, treeSize, deepCopy = true)
-    val idx = cb.newLocal[Int]("downsample_result_idx", 0)
+    val (pushElement, finish) = resType.constructFromFunctions(cb, region, treeSize, deepCopy = true)
     cb.ifx(treeSize > 0, {
       tree.foreach(cb) { (cb, tv) =>
         val pointCode = pointType.loadCheapPCode(cb, key.storageType.loadField(tv, "point"))
-        storeElement(cb, idx, IEmitCode.present(cb, pointCode))
-        cb.assign(idx, idx + 1)
+        pushElement(cb, IEmitCode.present(cb, pointCode))
       }
     })
     finish(cb)
