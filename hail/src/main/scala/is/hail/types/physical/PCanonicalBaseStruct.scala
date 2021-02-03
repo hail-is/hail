@@ -87,20 +87,14 @@ abstract class PCanonicalBaseStruct(val types: Array[PType]) extends PBaseStruct
 
   def loadField(offset: Long, fieldIdx: Int): Long = {
     val off = fieldOffset(offset, fieldIdx)
-    types(fieldIdx).fundamentalType match {
-      case _: PArray | _: PBinary => Region.loadAddress(off)
-      case _ => off
-    }
+    types(fieldIdx).fundamentalType.unstagedLoadFromNested(off)
   }
 
   def loadField(offset: Code[Long], fieldIdx: Int): Code[Long] =
     loadField(fieldOffset(offset, fieldIdx), types(fieldIdx))
 
   private def loadField(fieldOffset: Code[Long], fieldType: PType): Code[Long] = {
-    fieldType.fundamentalType match {
-      case _: PArray | _: PBinary => Region.loadAddress(fieldOffset)
-      case _ => fieldOffset
-    }
+    fieldType.fundamentalType.loadFromNested(fieldOffset)
   }
 
   def deepPointerCopy(cb: EmitCodeBuilder, region: Value[Region], dstStructAddress: Code[Long]): Unit = {
@@ -272,4 +266,6 @@ abstract class PCanonicalBaseStruct(val types: Array[PType]) extends PBaseStruct
   }
 
   def loadFromNested(addr: Code[Long]): Code[Long] = addr
+
+  override def unstagedLoadFromNested(addr: Long): Long = addr
 }

@@ -37,4 +37,6 @@ final case class PCanonicalStream(elementType: PType, separateRegions: Boolean =
   override def sType: SStream = interfaces.SStream(elementType.sType)
 
   def loadFromNested(addr: Code[Long]): Code[Long] = throw new NotImplementedError()
+
+  override def unstagedLoadFromNested(addr: Long): Long = throw new NotImplementedError()
 }

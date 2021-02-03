@@ -534,6 +534,8 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
 
   def loadFromNested(addr: Code[Long]): Code[Long] = Region.loadAddress(addr)
 
+  override def unstagedLoadFromNested(addr: Long): Long = Region.loadAddress(addr)
+
   override def unstagedStoreJavaObject(annotation: Annotation, region: Region): Long = {
     val is = annotation.asInstanceOf[IndexedSeq[Annotation]]
     val valueAddress = allocate(region, is.length)

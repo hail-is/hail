@@ -24,5 +24,7 @@ case object PVoid extends PType with PUnrealizable {
   override def unsafeOrdering(): UnsafeOrdering = throw new NotImplementedError()
 
   def loadFromNested(addr: Code[Long]): Code[Long] = throw new NotImplementedError()
+
+  override def unstagedLoadFromNested(addr: Long): Long = throw new NotImplementedError()
 }
 

@@ -117,6 +117,8 @@ final case class PCanonicalLocus(rgBc: BroadcastRG, required: Boolean = false) e
 
   def loadFromNested(addr: Code[Long]): Code[Long] = addr
 
+  override def unstagedLoadFromNested(addr: Long): Long = addr
+
   def unstagedStoreLocus(addr: Long, contig: String, position: Int, region: Region): Unit = {
     contigType.unstagedStoreJavaObjectAtAddress(representation.fieldOffset(addr, 0), contig, region)
     positionType.unstagedStoreJavaObjectAtAddress(representation.fieldOffset(addr, 1), position, region)
