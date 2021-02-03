@@ -25,7 +25,7 @@ class GroupedBTreeKey(kt: PType, kb: EmitClassBuilder[_], region: Value[Region],
     ) { mb =>
       val comp = kb.getCodeOrdering(compType, k.pt, CodeOrdering.Compare(), ignoreMissingness = false)
       val off = mb.getCodeParam[Long](1)
-      val ev1 = EmitCode(Code._empty, isKeyMissing(off), PCode(compType, loadKey(off)))
+      val ev1 = loadCompKey(cb, off)
       val ev2 = mb.getEmitParam(2)
       mb.emitWithBuilder(comp(_, ev1, ev2))
     }
