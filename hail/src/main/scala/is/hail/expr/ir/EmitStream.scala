@@ -1195,7 +1195,7 @@ object EmitStream {
       val eltType = coerce[PStruct](innerStreamType.elementType)
       val keyType = eltType.selectFields(key)
       val keyViewType = SSubsetStruct(eltType.sType.asInstanceOf[SStruct], key)
-      val ordering = keyType.codeOrdering(mb, keyViewType.pType, missingFieldsEqual = false).asInstanceOf[CodeOrdering { type T = Long }]
+      val ordering = keyType.codeOrdering(mb, keyViewType.pType, missingFieldsEqual = false)
 
       val xCurKey = ctx.mb.newPField("st_grpby_curkey", keyType)
       val xCurElt = ctx.mb.newPField("st_grpby_curelt", eltType)
@@ -1226,14 +1226,16 @@ object EmitStream {
                 EmitCodeBuilder.scopedVoid(mb)(_.assign(xCurElt, a)),
                 // !xInOuter iff this element was requested by an inner stream.
                 // Else we are stepping to the beginning of the next group.
-                (xCurKey.tcode[Long].cne(0L) && EmitCodeBuilder.scopedCode(mb)(ordering.equivNonnull(_, xCurKey, xCurElt))).mux(
+                (xCurKey.tcode[Long].cne(0L) &&
+                  EmitCodeBuilder.scopedCode(mb)(ordering.equivNonnull(_, xCurKey, xCurElt.asBaseStruct.subset(key: _*).asPCode))
+                ).mux(
                   xInOuter.mux(
                     Code(holdingRegion.clear(), LchildPull.goto),
                     LinnerPush.goto),
                   Code(
                     keyRegion.clear(),
                     EmitCodeBuilder.scopedVoid(mb) { cb =>
-                      val pc = new SSubsetStructCode(keyViewType, xCurElt.load().asBaseStruct)
+                      val pc = xCurElt.asBaseStruct.subset(key: _*)
                       cb.assign(xCurKey, pc.castTo(cb, keyRegion.code, keyType, deepCopy = true))
                     },
                     xInOuter.mux(
