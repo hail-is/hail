@@ -714,11 +714,7 @@ class Emit[C](
       return IEmitCode(CodeLabel(), CodeLabel(), PCode._empty)
     }
 
-    def presentPC(pc: PCode): IEmitCode = {
-      val Lpresent = CodeLabel()
-      cb.goto(Lpresent)
-      IEmitCode(CodeLabel(), Lpresent, pc)
-    }
+    def presentPC(pc: PCode): IEmitCode = IEmitCode.present(cb, pc)
 
     def presentC(c: Code[_]): IEmitCode = presentPC(PCode(pt, c))
 
@@ -830,6 +826,15 @@ class Emit[C](
           deepCopy = false)
         presentPC(scode)
 
+      case x@MakeTuple(fields) =>
+        val scode = x.pType.asInstanceOf[PCanonicalBaseStruct].constructFromFields(cb,
+          region.code,
+          fields.map { case (_, x) =>
+            EmitCode.fromI(cb.emb)(emitInNewBuilder(_, x))
+          }.toFastIndexedSeq,
+          deepCopy = false)
+        presentPC(scode)
+
       case x@SelectFields(oldStruct, fields) =>
         emitI(oldStruct)
           .map(cb) { case sc: SBaseStructCode =>
@@ -841,6 +846,31 @@ class Emit[C](
               }.toFastIndexedSeq,
               deepCopy = false)
           }
+
+      case x@InsertFields(old, fields, fieldOrder) =>
+        if (fields.isEmpty)
+          emitI(old)
+        else {
+          val codeOld = emitI(old)
+          val updateMap = Map(fields: _*)
+
+          codeOld.map(cb) { oldPC =>
+            val oldPV = oldPC.asBaseStruct.memoize(cb, "insert_fields_old")
+
+            val itemsEC = x.pType.fields.map { f =>
+              updateMap.get(f.name) match {
+                case Some(vir) =>
+                  EmitCode.fromI(mb)(emitInNewBuilder(_, vir))
+                case None =>
+                  EmitCode.fromI(mb)(oldPV.loadField(_, f.name).typecast[PCode])
+              }
+            }
+
+            x.pType.asInstanceOf[PCanonicalBaseStruct]
+             .constructFromFields(cb, region.code, itemsEC, deepCopy = false)
+             .asPCode
+          }
+        }
 
       case ApplyBinaryPrimOp(op, l, r) =>
         emitI(l).flatMap(cb) { pcL =>
@@ -859,6 +889,17 @@ class Emit[C](
             f((lc.m, lc.v),
               (rc.m, rc.v)))
         }
+
+      case x@MakeArray(args, _) =>
+        val pType = x.pType.asInstanceOf[PCanonicalArray]
+        val srvb = new StagedRegionValueBuilder(mb, pType, region.code)
+
+        val (addElement, finish) = pType.constructFromFunctions(cb, region.code, args.size, deepCopy = false)
+        for ((arg, i) <- args.zipWithIndex) {
+          val v = emitI(arg)
+          addElement(cb, i, v)
+        }
+        presentPC(finish(cb))
 
       case x@ArrayRef(a, i, s) =>
         val errorTransformer: Code[String] => Code[String] = s match {
@@ -1879,21 +1920,6 @@ class Emit[C](
           throw new RuntimeException(s"PValue type did not match inferred ptype:\n name: $name\n  pv: ${ ev.pt }\n  ir: $pt")
         ev.load
 
-      case x@MakeArray(args, _) =>
-        val pType = x.pType.asInstanceOf[PArray]
-        val srvb = new StagedRegionValueBuilder(mb, pType, region.code)
-
-        val addElts = args.map { arg =>
-          val v = emit(arg)
-          Code(
-            v.setup,
-            v.m.mux(srvb.setMissing(), srvb.addIRIntermediate(v.pv, deepCopy = false)),
-            srvb.advance())
-        }
-        present(pt, Code(srvb.start(args.size, init = true),
-          Code(addElts),
-          srvb.offset))
-
       case x@(_: ArraySort | _: ToSet | _: ToDict) =>
         val resultTypeAsIterable = coerce[PIterable](x.pType)
         val eltType = x.children(0).asInstanceOf[IR].pType.asInstanceOf[PIterable].elementType
@@ -2111,60 +2137,6 @@ class Emit[C](
             }
           PCode(x.pType, lenCode)
         }
-
-      case x@InsertFields(old, fields, fieldOrder) =>
-        if (fields.isEmpty)
-          emit(old)
-        else
-          old.pType match {
-            case oldtype: PStruct =>
-              val codeOld = emit(old)
-              val xo = mb.genFieldThisRef[Long]()
-              val updateMap = Map(fields: _*)
-              val srvb = new StagedRegionValueBuilder(mb, x.pType, region.code)
-
-              def addFields(t: PType, v: EmitCode): Code[Unit] = Code(
-                v.setup,
-                v.m.mux(srvb.setMissing(), srvb.addIRIntermediate(t)(v.v)),
-                srvb.advance())
-
-              val items = x.pType.fields.map { f =>
-                updateMap.get(f.name) match {
-                  case Some(vir) =>
-                    addFields(vir.pType, emit(vir))
-                  case None =>
-                    val oldField = oldtype.field(f.name)
-                    Code(
-                      oldtype.isFieldMissing(xo, oldField.index).mux(
-                        srvb.setMissing(),
-                        srvb.addIRIntermediate(f.typ)(Region.loadIRIntermediate(oldField.typ)(oldtype.fieldOffset(xo, oldField.index)))),
-                      srvb.advance())
-                }
-              }
-
-              EmitCode(
-                codeOld.setup,
-                codeOld.m,
-                PCode(pt, Code(
-                  srvb.start(init = true),
-                  xo := coerce[Long](codeOld.v),
-                  Code(items),
-                  srvb.offset)))
-            case _ =>
-              val newIR = MakeStruct(fields)
-              emit(newIR)
-          }
-
-      case x@MakeTuple(fields) =>
-        val srvb = new StagedRegionValueBuilder(mb, x.pType, region.code)
-        val addFields = fields.map { case (_, x) =>
-          val v = emit(x)
-          Code(
-            v.setup,
-            v.m.mux(srvb.setMissing(), srvb.addIRIntermediate(x.pType)(v.v)),
-            srvb.advance())
-        }
-        present(pt, Code(srvb.start(init = true), Code(addFields), srvb.offset))
 
       case In(i, expectedPType) =>
         // this, Code[Region], ...
