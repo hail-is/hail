@@ -193,6 +193,35 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
     new SNDArrayPointerCode(SNDArrayPointer(this), ndAddr)
   }
 
+  def constructDataFunction(
+    shape: IndexedSeq[Value[Long]],
+    strides: IndexedSeq[Value[Long]],
+    cb: EmitCodeBuilder,
+    region: Value[Region]
+  )(writeDataToAddress: (Value[Long], EmitCodeBuilder) => Unit):  SNDArrayPointerCode = {
+
+    val ndAddr = cb.newLocal[Long]("ndarray_construct_addr")
+    cb.assign(ndAddr, this.allocate(shape, region))
+    shapeType.storeAtAddressFromFields(cb, cb.newLocal[Long]("construct_shape", this.representation.fieldOffset(ndAddr, "shape")),
+      region,
+      shape.map(s => EmitCode.present(primitive(s))),
+      false)
+    strideType.storeAtAddressFromFields(cb, cb.newLocal[Long]("construct_strides", this.representation.fieldOffset(ndAddr, "strides")),
+      region,
+      strides.map(s => EmitCode.present(primitive(s))),
+      false)
+
+    val newDataPointer = cb.newLocal("ndarray_construct_new_data_pointer", ndAddr + this.representation.byteSize)
+    //TODO Use the known length here
+    val newFirstElementDataPointer = cb.newLocal[Long]("ndarray_construct_first_element_pointer", dataType.firstElementOffset(newDataPointer))
+
+    cb.append(Region.storeLong(this.representation.fieldOffset(ndAddr, "data"), newDataPointer))
+    cb.append(dataType.stagedInitialize(newDataPointer, this.numElements(shape)))
+    writeDataToAddress(newFirstElementDataPointer, cb)
+
+    new SNDArrayPointerCode(SNDArrayPointer(this), ndAddr)
+  }
+
   def _copyFromAddress(region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Long  = {
     val sourceNDPType = srcPType.asInstanceOf[PCanonicalNDArray]
     assert(elementType == sourceNDPType.elementType && nDims == sourceNDPType.nDims)
