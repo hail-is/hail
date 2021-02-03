@@ -417,7 +417,7 @@ abstract class RegistryFunctions {
     calculateReturnPType: (Type, Seq[PType]) => PType,
     typeParameters: Array[Type] = Array.empty
   )(
-    impl: (EmitCodeBuilder, Value[Region], PType, Array[() => IEmitCode]) => IEmitCode
+    impl: (EmitCodeBuilder, Value[Region], PType, Array[EmitCode]) => IEmitCode
   ) {
     IRFunctionRegistry.addJVMFunction(
       new UnseededMissingnessAwareJVMFunction(name, typeParameters, valueParameterTypes, returnType, calculateReturnPType) {
@@ -426,12 +426,12 @@ abstract class RegistryFunctions {
           r: Value[Region],
           rpt: PType,
           typeParameters: Seq[Type],
-          args: () => IEmitCode*
+          args: EmitCode*
         ): IEmitCode = impl(cb, r, rpt, args.toArray)
 
         override def apply(r: EmitRegion, rpt: PType, typeParameters: Seq[Type], args: EmitCode*): EmitCode = {
           EmitCode.fromI(r.mb) { cb =>
-            apply(cb, r.region, rpt, typeParameters, args.map { ec => (() => ec.toI(cb)) }: _*)
+            apply(cb, r.region, rpt, typeParameters, args: _*)
           }
         }
       })
@@ -593,13 +593,13 @@ abstract class RegistryFunctions {
     }
 
   def registerIEmitCode1(name: String, mt1: Type, rt: Type, pt: (Type, PType) => PType)
-    (impl: (EmitCodeBuilder, Value[Region], PType, () => IEmitCode) => IEmitCode): Unit =
+    (impl: (EmitCodeBuilder, Value[Region], PType, EmitCode) => IEmitCode): Unit =
     registerIEmitCode(name, Array(mt1), rt, unwrappedApply(pt)) { case (cb, r, rt, Array(a1)) =>
       impl(cb, r, rt, a1)
     }
 
   def registerIEmitCode2(name: String, mt1: Type, mt2: Type, rt: Type, pt: (Type, PType, PType) => PType)
-    (impl: (EmitCodeBuilder, Value[Region], PType, () => IEmitCode, () => IEmitCode) => IEmitCode): Unit =
+    (impl: (EmitCodeBuilder, Value[Region], PType, EmitCode, EmitCode) => IEmitCode): Unit =
     registerIEmitCode(name, Array(mt1, mt2), rt, unwrappedApply(pt)) { case (cb, r, rt, Array(a1, a2)) =>
       impl(cb, r, rt, a1, a2)
     }
@@ -652,8 +652,8 @@ abstract class RegistryFunctions {
           impl(r, rpt, seed, args.toArray)
         }
 
-        def applySeededI(seed: Long, cb: EmitCodeBuilder, r: EmitRegion, rpt: PType, args: (PType, () => IEmitCode)*): IEmitCode = {
-          IEmitCode.flatten(args.map(a => a._2).toFastIndexedSeq, cb) {
+        def applySeededI(seed: Long, cb: EmitCodeBuilder, r: EmitRegion, rpt: PType, args: (PType, EmitCode)*): IEmitCode = {
+          IEmitCode.strictMapEmitCodes(cb, args.map(_._2).toFastIndexedSeq) {
             argPCs => PCode(rpt, applySeeded(seed, r, rpt, argPCs.map(pc => pc.pt -> pc.code): _*))
           }
         }
@@ -783,7 +783,7 @@ abstract class UnseededMissingnessAwareJVMFunction (
     r: Value[Region],
     rpt: PType,
     typeParameters: Seq[Type],
-    args: () => IEmitCode*
+    args: EmitCode*
   ): IEmitCode = {
     ???
   }
@@ -800,7 +800,7 @@ abstract class SeededJVMFunction (
 
   def setSeed(s: Long): Unit = { seed = s }
 
-  def applySeededI(seed: Long, cb: EmitCodeBuilder, region: EmitRegion, rpt: PType, args: (PType, () => IEmitCode)*): IEmitCode
+  def applySeededI(seed: Long, cb: EmitCodeBuilder, region: EmitRegion, rpt: PType, args: (PType, EmitCode)*): IEmitCode
 
   def apply(region: EmitRegion, rpt: PType, typeParameters: Seq[Type], args: EmitCode*): EmitCode =
     fatal("seeded functions must go through IEmitCode path")

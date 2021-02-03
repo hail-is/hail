@@ -215,9 +215,9 @@ object StringFunctions extends RegistryFunctions {
     registerIEmitCode2("firstMatchIn", TString, TString, TArray(TString), {
       case(_: Type, _: PType, _: PType) => PCanonicalArray(PCanonicalString(true))
     }) { case (cb: EmitCodeBuilder, region: Value[Region], rt: PArray,
-               s: (() => IEmitCode), r: (() => IEmitCode)) =>
-      s().flatMap(cb) { case sc: PStringCode =>
-        r().flatMap(cb) { case rc: PStringCode =>
+               s: EmitCode, r: EmitCode) =>
+      s.toI(cb).flatMap(cb) { case sc: PStringCode =>
+        r.toI(cb).flatMap(cb) { case rc: PStringCode =>
           val out = cb.newLocal[IndexedSeq[String]]("out",
             Code.invokeScalaObject2[String, String, IndexedSeq[String]](
               thisClass, "firstMatchIn", sc.loadString(), rc.loadString()))

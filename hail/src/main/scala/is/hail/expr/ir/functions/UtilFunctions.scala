@@ -161,7 +161,7 @@ object UtilFunctions extends RegistryFunctions {
       }
       registerIEmitCode1(s"to${name}OrMissing", TString, t, (_: Type, xPT: PType) => rpt.setRequired(xPT.required)) {
         case (cb, r, rt, x) =>
-          x().flatMap(cb) { case (sc: PStringCode) =>
+          x.toI(cb).flatMap(cb) { case (sc: PStringCode) =>
             val sv = cb.newLocal[String]("s", sc.loadString())
             IEmitCode(cb,
               !Code.invokeScalaObject1[String, Boolean](thisClass, s"isValid$name", sv),
