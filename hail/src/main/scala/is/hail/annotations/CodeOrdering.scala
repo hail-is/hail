@@ -249,7 +249,7 @@ object CodeOrdering {
         })
       }
 
-      cb.assign(ret, lt && (!eq || lhs.loadLength() <= rhs.loadLength))
+      cb.assign(ret, lhs.loadLength() < rhs.loadLength())
       cb.define(Lout)
       ret
     }
@@ -277,7 +277,7 @@ object CodeOrdering {
         })
       }
 
-      cb.assign(ret, lteq && (!eq || lhs.loadLength() <= rhs.loadLength))
+      cb.assign(ret, lhs.loadLength() <= rhs.loadLength)
       cb.define(Lout)
       ret
     }
@@ -305,7 +305,7 @@ object CodeOrdering {
         })
       }
 
-      cb.assign(ret, gt || (eq && lhs.loadLength() > rhs.loadLength()))
+      cb.assign(ret, lhs.loadLength() > rhs.loadLength())
       cb.define(Lout)
       ret
     }
@@ -333,7 +333,7 @@ object CodeOrdering {
         })
       }
 
-      cb.assign(ret, gteq && (!eq || lhs.loadLength() >= rhs.loadLength))
+      cb.assign(ret, lhs.loadLength() >= rhs.loadLength)
       cb.define(Lout)
       ret
     }
