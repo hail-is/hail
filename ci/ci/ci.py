@@ -27,8 +27,11 @@ from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_
 from .environment import BUCKET
 from .github import Repo, FQBranch, WatchedBranch, UnwatchedBranch, MergeFailureBatch
 
-with open(os.environ.get('HAIL_CI_OAUTH_TOKEN', 'oauth-token/oauth-token'), 'r') as f:
-    oauth_token = f.read().strip()
+oauth_token = None
+HAIL_CI_OAUTH_TOKEN = os.getenv('HAIL_CI_OAUTH_TOKEN')
+if HAIL_CI_OAUTH_TOKEN:
+    with open(HAIL_CI_OAUTH_TOKEN, 'r') as f:
+        oauth_token = f.read().strip()
 
 log = logging.getLogger('ci')
 
