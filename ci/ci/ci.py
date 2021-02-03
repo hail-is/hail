@@ -47,52 +47,6 @@ watched_branches = [
 routes = web.RouteTableDef()
 
 
-@routes.get('')
-@routes.get('/')
-@web_authenticated_developers_only()
-async def index(request, userdata):  # pylint: disable=unused-argument
-    app = request.app
-    dbpool = app['dbpool']
-    wb_configs = []
-    for i, wb in enumerate(watched_branches):
-        if wb.prs:
-            pr_configs = []
-            for pr in wb.prs.values():
-                batch_id = pr.batch.id if pr.batch and hasattr(pr.batch, 'id') else None
-                build_state = pr.build_state if await pr.authorized(dbpool) else 'unauthorized'
-                if build_state is None and batch_id is not None:
-                    build_state = 'building'
-
-                pr_config = {
-                    'number': pr.number,
-                    'title': pr.title,
-                    # FIXME generate links to the merge log
-                    'batch_id': pr.batch.id if pr.batch and hasattr(pr.batch, 'id') else None,
-                    'build_state': build_state,
-                    'review_state': pr.review_state,
-                    'author': pr.author,
-                    'out_of_date': pr.build_state in ['failure', 'success', None] and not pr.is_up_to_date(),
-                }
-                pr_configs.append(pr_config)
-        else:
-            pr_configs = None
-        # FIXME recent deploy history
-        wb_config = {
-            'index': i,
-            'branch': wb.branch.short_str(),
-            'sha': wb.sha,
-            # FIXME generate links to the merge log
-            'deploy_batch_id': wb.deploy_batch.id if wb.deploy_batch and hasattr(wb.deploy_batch, 'id') else None,
-            'deploy_state': wb.deploy_state,
-            'repo': wb.branch.repo.short_str(),
-            'prs': pr_configs,
-        }
-        wb_configs.append(wb_config)
-
-    page_context = {'watched_branches': wb_configs}
-    return await render_template('ci', request, userdata, 'index.html', page_context)
-
-
 def wb_and_pr_from_request(request):
     watched_branch_index = int(request.match_info['watched_branch_index'])
     pr_number = int(request.match_info['pr_number'])
@@ -139,36 +93,6 @@ async def get_pr(request, userdata):  # pylint: disable=unused-argument
     return await render_template('ci', request, userdata, 'pr.html', page_context)
 
 
-async def retry_pr(wb, pr, request):
-    app = request.app
-    session = await aiohttp_session.get_session(request)
-
-    if pr.batch is None:
-        log.info('retry cannot be requested for PR #{pr.number} because it has no batch')
-        set_message(session, f'Retry cannot be requested for PR #{pr.number} because it has no batch.', 'error')
-        return
-
-    batch_id = pr.batch.id
-    dbpool = app['dbpool']
-    async with dbpool.acquire() as conn:
-        async with conn.cursor() as cursor:
-            await cursor.execute('INSERT INTO invalidated_batches (batch_id) VALUES (%s);', batch_id)
-    await wb.notify_batch_changed(app)
-
-    log.info(f'retry requested for PR: {pr.number}')
-    set_message(session, f'Retry requested for PR #{pr.number}.', 'info')
-
-
-@routes.post('/watched_branches/{watched_branch_index}/pr/{pr_number}/retry')
-@check_csrf_token
-@web_authenticated_developers_only(redirect=False)
-async def post_retry_pr(request, userdata):  # pylint: disable=unused-argument
-    wb, pr = wb_and_pr_from_request(request)
-
-    await asyncio.shield(retry_pr(wb, pr, request))
-    return web.HTTPFound(deploy_config.external_url('ci', f'/watched_branches/{wb.index}/pr/{pr.number}'))
-
-
 @routes.get('/batches')
 @web_authenticated_developers_only()
 async def get_batches(request, userdata):
@@ -208,23 +132,6 @@ async def get_job(request, userdata):
         'attempts': await job.attempts(),
     }
     return await render_template('ci', request, userdata, 'job.html', page_context)
-
-
-@routes.post('/authorize_source_sha')
-@check_csrf_token
-@web_authenticated_developers_only(redirect=False)
-async def post_authorized_source_sha(request, userdata):  # pylint: disable=unused-argument
-    app = request.app
-    dbpool = app['dbpool']
-    post = await request.post()
-    sha = post['sha'].strip()
-    async with dbpool.acquire() as conn:
-        async with conn.cursor() as cursor:
-            await cursor.execute('INSERT INTO authorized_shas (sha) VALUES (%s);', sha)
-    log.info(f'authorized sha: {sha}')
-    session = await aiohttp_session.get_session(request)
-    set_message(session, f'SHA {sha} authorized.', 'info')
-    return web.HTTPFound(deploy_config.external_url('ci', '/'))
 
 
 @routes.get('/healthcheck')
@@ -403,7 +310,6 @@ async def on_startup(app):
     app['gh_client_session'] = aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=5))
     app['github_client'] = gh_aiohttp.GitHubAPI(app['gh_client_session'], 'ci', oauth_token=oauth_token)
     app['batch_client'] = BatchClient('ci')
-    app['dbpool'] = await create_database_pool()
 
     app['task_manager'] = aiotools.BackgroundTaskManager()
     app['task_manager'].ensure_future(update_loop(app))
@@ -411,9 +317,6 @@ async def on_startup(app):
 
 async def on_cleanup(app):
     try:
-        dbpool = app['dbpool']
-        dbpool.close()
-        await dbpool.wait_closed()
         await app['gh_client_session'].close()
         await app['batch_client'].close()
     finally:
