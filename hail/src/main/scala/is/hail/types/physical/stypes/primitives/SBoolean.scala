@@ -40,6 +40,8 @@ case class SBoolean(required: Boolean) extends SType {
     assert(x.ti == BooleanInfo)
     new SBooleanCode(required, x)
   }
+
+  def canonicalPType(): PType = pType
 }
 
 class SBooleanCode(required: Boolean, val code: Code[Boolean]) extends PCode {

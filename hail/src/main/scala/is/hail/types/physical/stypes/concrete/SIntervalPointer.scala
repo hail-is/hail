@@ -40,6 +40,9 @@ case class SIntervalPointer(pType: PInterval) extends SInterval {
     assert(a.ti == LongInfo)
     new SIntervalPointerCode(this, a)
   }
+
+
+  def canonicalPType(): PType = pType
 }
 
 
