@@ -223,26 +223,6 @@ object IEmitCode {
     IEmitCodeGen(Lmissing, CodeLabel(), defaultValue)
   }
 
-  def sequence[A, B, C](seq: IndexedSeq[A], toIec: A => IEmitCodeGen[B], cb: EmitCodeBuilder)
-      (f: IndexedSeq[B] => C): IEmitCodeGen[C] = {
-    val Lmissing = CodeLabel()
-    val Lpresent = CodeLabel()
-
-    val pcs = seq.map { elem =>
-      val iec = toIec(elem)
-
-      cb.define(iec.Lmissing)
-      cb.goto(Lmissing)
-      cb.define(iec.Lpresent)
-
-      iec.value
-    }
-    val pc = f(pcs)
-    cb.goto(Lpresent)
-
-    IEmitCodeGen(Lmissing, Lpresent, pc)
-  }
-
   def multiMapEmitCodes(cb: EmitCodeBuilder, seq: IndexedSeq[EmitCode])(f: IndexedSeq[PCode] => PCode): IEmitCode = {
     val Lmissing = CodeLabel()
     val Lpresent = CodeLabel()
