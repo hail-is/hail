@@ -466,6 +466,36 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
   }
 
   // unsafe StagedArrayBuilder-like interface that gives caller control over adding elements and finishing
+  def constructFromNextAddress(cb: EmitCodeBuilder, region: Value[Region], length: Value[Int], deepCopy: Boolean):
+  ((EmitCodeBuilder => Value[Long], (EmitCodeBuilder => Unit), (EmitCodeBuilder => SIndexablePointerCode))) = {
+
+    val addr = cb.newLocal[Long]("pcarray_construct2_addr", allocate(region, length))
+    cb += stagedInitialize(addr, length, setMissing = false)
+    val currentIndex = cb.newLocal[Int]("pcarray_construct2_i", -1)
+
+    val currentElementAddress = cb.newLocal[Long]("pcarray_construct2_firstelementaddr", firstElementOffset(addr, length) - elementByteSize)
+
+    def nextAddr(cb: EmitCodeBuilder): Value[Long] = {
+      cb.assign(currentIndex, currentIndex + 1)
+      cb.assign(currentElementAddress, currentElementAddress + elementByteSize)
+      currentElementAddress
+    }
+
+    def setMissing(cb: EmitCodeBuilder): Unit = {
+      cb.assign(currentIndex, currentIndex + 1)
+      cb.assign(currentElementAddress, currentElementAddress + elementByteSize)
+      cb += this.setElementMissing(addr, currentIndex)
+    }
+
+    def finish(cb: EmitCodeBuilder): SIndexablePointerCode = {
+      cb.ifx((currentIndex + 1).cne(length), cb._fatal("PCanonicalArray.constructFromNextAddress nextAddress was called the wrong number of times: len=",
+        length.toS, ", calls=", (currentIndex + 1).toS))
+      new SIndexablePointerCode(SIndexablePointer(this), addr)
+    }
+    (nextAddr, setMissing, finish)
+  }
+
+  // unsafe StagedArrayBuilder-like interface that gives caller control over adding elements and finishing
   def constructFromFunctions(cb: EmitCodeBuilder, region: Value[Region], length: Value[Int], deepCopy: Boolean):
   (((EmitCodeBuilder, Value[Int], IEmitCode) => Unit, (EmitCodeBuilder => SIndexablePointerCode))) = {
 

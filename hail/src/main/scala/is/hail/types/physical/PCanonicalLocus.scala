@@ -2,18 +2,19 @@ package is.hail.types.physical
 
 import is.hail.annotations._
 import is.hail.asm4s._
-import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder}
+import is.hail.expr.ir.{EmitCode, EmitCodeBuilder, EmitMethodBuilder}
 import is.hail.types.physical.stypes.SCode
-import is.hail.types.physical.stypes.concrete.{SCanonicalLocusPointer, SCanonicalLocusPointerCode}
+import is.hail.types.physical.stypes.concrete.{SCanonicalLocusPointer, SCanonicalLocusPointerCode, SStringPointer}
+import is.hail.types.physical.stypes.interfaces._
+import is.hail.utils.FastIndexedSeq
 import is.hail.variant._
-import org.apache.spark.sql.Row
 
 object PCanonicalLocus {
   def apply(rg: ReferenceGenome): PLocus = PCanonicalLocus(rg.broadcastRG)
 
   def apply(rg: ReferenceGenome, required: Boolean): PLocus = PCanonicalLocus(rg.broadcastRG, required)
 
-  private def representation(required: Boolean = false): PStruct = PCanonicalStruct(
+  private def representation(required: Boolean = false): PCanonicalStruct = PCanonicalStruct(
     required,
     "contig" -> PCanonicalString(required = true),
     "position" -> PInt32(required = true))
@@ -38,7 +39,7 @@ final case class PCanonicalLocus(rgBc: BroadcastRG, required: Boolean = false) e
 
   def setRequired(required: Boolean) = if (required == this.required) this else PCanonicalLocus(this.rgBc, required)
 
-  val representation: PStruct = PCanonicalLocus.representation(required)
+  val representation: PCanonicalStruct = PCanonicalLocus.representation(required)
 
   private[physical] def contigAddr(address: Code[Long]): Code[Long] = representation.loadField(address, 0)
 
@@ -133,5 +134,12 @@ final case class PCanonicalLocus(rgBc: BroadcastRG, required: Boolean = false) e
     val addr = representation.allocate(region)
     unstagedStoreJavaObjectAtAddress(addr, annotation, region)
     addr
+  }
+
+  def constructFromPositionAndString(cb: EmitCodeBuilder, r: Value[Region], contig: Code[String], pos: Code[Int]): SCanonicalLocusPointerCode = {
+    val contigType = representation.fieldType("contig").asInstanceOf[PCanonicalString]
+    val contigCode = SStringPointer(contigType).constructFromString(cb, r, contig)
+    val repr = representation.constructFromFields(cb, r, FastIndexedSeq(EmitCode.present(contigCode), EmitCode.present(primitive(pos))), deepCopy = false)
+    new SCanonicalLocusPointerCode(SCanonicalLocusPointer(this), repr.a)
   }
 }
