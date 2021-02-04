@@ -4,7 +4,6 @@ from typing import Optional, Union
 
 import hail as hl
 import pkg_resources
-from hail.utils.java import FatalError
 
 
 def load_dataset(name: str,
