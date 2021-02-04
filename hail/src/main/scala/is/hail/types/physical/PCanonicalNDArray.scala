@@ -144,12 +144,12 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
 
   def loadElement(cb: EmitCodeBuilder, indices: IndexedSeq[Value[Long]], ndAddress: Value[Long]): SCode = {
     val off = getElementAddress(cb, indices, ndAddress)
-    elementType.loadCheapPCode(cb, elementType.loadFromNested(cb, off))
+    elementType.loadCheapPCode(cb, elementType.loadFromNested(off))
   }
 
   def loadElementFromDataAndStrides(cb: EmitCodeBuilder, indices: IndexedSeq[Value[Long]], ndDataAddress: Value[Long], strides: IndexedSeq[Value[Long]]): Code[Long] = {
     val off = getElementAddressFromDataPointerAndStrides(indices, ndDataAddress, strides, cb)
-    elementType.loadFromNested(cb, off)
+    elementType.loadFromNested(off)
   }
 
   def construct(
@@ -216,7 +216,9 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
 
   override def dataPArrayPointer(ndAddr: Code[Long]): Code[Long] = representation.loadField(ndAddr, "data")
 
-  def loadFromNested(cb: EmitCodeBuilder, addr: Code[Long]): Code[Long] = addr
+  def loadFromNested(addr: Code[Long]): Code[Long] = addr
+
+  override def unstagedLoadFromNested(addr: Long): Long = addr
 
   override def unstagedStoreJavaObject(annotation: Annotation, region: Region): Long = {
     val addr = this.representation.allocate(region)
