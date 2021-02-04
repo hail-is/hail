@@ -25,6 +25,10 @@ import is.hail.utils._
 import scala.collection.mutable
 import scala.language.{existentials, postfixOps}
 
+// class for holding all information computed ahead-of-time that we need in the emitter
+class EmitContext(val executeContext: ExecuteContext, val req: RequirednessAnalysis)
+
+
 object SetupBuilder {
   def apply(mb: EmitMethodBuilder[_]): SetupBuilder = new SetupBuilder(mb, Code._empty)
 
@@ -74,7 +78,7 @@ class SetupBuilder(mb: EmitMethodBuilder[_], var setup: Code[Unit]) {
 object Emit {
   type E = Env[EmitValue]
 
-  def apply[C](ctx: ExecuteContext, ir: IR, fb: EmitFunctionBuilder[C], aggs: Option[Array[AggStateSig]] = None) {
+  def apply[C](ctx: EmitContext, ir: IR, fb: EmitFunctionBuilder[C], aggs: Option[Array[AggStateSig]] = None) {
     TypeCheck(ir)
 
     val mb = fb.apply_method
@@ -485,7 +489,7 @@ abstract class EstimableEmitter[C] {
 }
 
 class Emit[C](
-  val ctx: ExecuteContext,
+  val ctx: EmitContext,
   val cb: EmitClassBuilder[C]) { emitSelf =>
 
   val methods: mutable.Map[(String, Seq[Type], Seq[PType], PType), EmitMethodBuilder[C]] = mutable.Map()
@@ -497,7 +501,7 @@ class Emit[C](
       this.emit(ir, mb, region, env, container, loopEnv)
 
     def emitStream(ir: IR, outerRegion: ParentStagedRegion, mb: EmitMethodBuilder[C] = mb): EmitCode =
-      EmitStream.emit(ctx, this, ir, mb, outerRegion, env, container)
+      EmitStream.emit(this, ir, mb, outerRegion, env, container)
 
     def emitVoid(ir: IR, cb: EmitCodeBuilder = cb, mb: EmitMethodBuilder[C] = mb, region: StagedRegion = region, env: E = env, container: Option[AggContainer] = container, loopEnv: Option[Env[LoopRef]] = loopEnv): Unit =
       this.emitVoid(cb, ir, mb, region, env, container, loopEnv)
@@ -679,7 +683,7 @@ class Emit[C](
       this.emitI(ir, cb, region, env, container, loopEnv)
 
     def emitStream(ir: IR, outerRegion: ParentStagedRegion): IEmitCode =
-      EmitStream.emit(ctx, this, ir, mb, outerRegion, env, container).toI(cb)
+      EmitStream.emit(this, ir, mb, outerRegion, env, container).toI(cb)
 
     def emitVoid(ir: IR, env: E = env, container: Option[AggContainer] = container, loopEnv: Option[Env[LoopRef]] = loopEnv): Unit =
       this.emitVoid(cb, ir: IR, mb, region, env, container, loopEnv)
@@ -1872,7 +1876,7 @@ class Emit[C](
     }
 
     def emitStream(ir: IR, outerRegion: ParentStagedRegion): EmitCode =
-      EmitStream.emit(ctx, this, ir, mb, outerRegion, env, container)
+      EmitStream.emit(this, ir, mb, outerRegion, env, container)
 
     def emitNDArrayColumnMajorStrides(ir: IR): EmitCode = {
       EmitCode.fromI(mb) { cb =>
@@ -2195,7 +2199,7 @@ class Emit[C](
         val parentCB = mb.ecb
 
         val functionID: String = {
-          val bodyFB = EmitFunctionBuilder[Region, Array[Byte], Array[Byte], Array[Byte]](ctx, "collect_distributed_array")
+          val bodyFB = EmitFunctionBuilder[Region, Array[Byte], Array[Byte], Array[Byte]](ctx.executeContext, "collect_distributed_array")
           val bodyMB = bodyFB.genEmitMethod("cdaBody",
             Array[ParamType](typeInfo[Region], ctxType.asEmitParam, gType.asEmitParam),
             typeInfo[Long])
@@ -2329,7 +2333,7 @@ class Emit[C](
           addGlobals,
           encRes := spark.invoke[BackendContext, String, Array[Array[Byte]], Array[Byte], Option[TableStageDependency], Array[Array[Byte]]](
             "collectDArray",
-            mb.getObject(ctx.backendContext),
+            mb.getObject(ctx.executeContext.backendContext),
             functionID,
             ctxab.invoke[Array[Array[Byte]]]("result"),
             baos.invoke[Array[Byte]]("toByteArray"),
@@ -2385,7 +2389,7 @@ class Emit[C](
         val outerRegion = region.asParent(streamType.separateRegions, "WritePartition")
         COption.toEmitCode(
           COption.fromEmitCode(emitStream(stream, outerRegion)).flatMap { s =>
-            COption.fromEmitCode(writer.consumeStream(ctx, ctxCode, eltType, mb, outerRegion, s.asStream.stream))
+            COption.fromEmitCode(writer.consumeStream(ctx.executeContext, ctxCode, eltType, mb, outerRegion, s.asStream.stream))
           }, mb)
 
       case x =>

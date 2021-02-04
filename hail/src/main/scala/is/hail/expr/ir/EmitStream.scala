@@ -1316,7 +1316,6 @@ object EmitStream {
   }
 
   private[ir] def emit[C](
-    ctx: ExecuteContext,
     emitter: Emit[C],
     streamIR0: IR,
     mb: EmitMethodBuilder[C],
@@ -1434,7 +1433,7 @@ object EmitStream {
           IEmitCode.present(cb, interfaces.SStreamCode(coerce[PCanonicalStream](x.pType).sType, sstream))
 
         case x@ReadPartition(context, rowType, reader) =>
-          reader.emitStream(ctx, context, rowType, emitter, cb, outerRegion, env, container)
+          reader.emitStream(emitter.ctx.executeContext, context, rowType, emitter, cb, outerRegion, env, container)
 
         case In(n, pt@PCanonicalStream(eltType, _, _)) =>
           val xIter = mb.genFieldThisRef[Iterator[java.lang.Long]]("streamInIterator")
@@ -1868,7 +1867,7 @@ object EmitStream {
 
               joinIR.pType match {
                 case _: PCanonicalStream =>
-                  emit(ctx, emitter, joinIR, mb, outerRegion, newEnv, container).toI(cb)
+                  emit(emitter, joinIR, mb, outerRegion, newEnv, container).toI(cb)
                 case _ =>
                   emitIR(joinIR, cb = cb, env = newEnv, region = eltRegion)
               }
@@ -1978,7 +1977,7 @@ object EmitStream {
 
           valueType match {
             case _: PCanonicalStream =>
-              val valuet = emit(ctx, emitter, valueIR, mb, outerRegion, env, container)
+              val valuet = emit(emitter, valueIR, mb, outerRegion, env, container)
               val bodyEnv = env.bind(name -> new EmitUnrealizableValue(valueType, valuet))
 
               emitStream(bodyIR, env = bodyEnv)
@@ -2110,7 +2109,7 @@ object EmitStream {
 
               joinIR.pType match {
                 case _: PCanonicalStream =>
-                  emit(ctx, emitter, joinIR, mb, outerRegion, newEnv, container).toI(cb)
+                  emit(emitter, joinIR, mb, outerRegion, newEnv, container).toI(cb)
                 case _ =>
                   emitIR (joinIR, cb = cb, newEnv)
               }
