@@ -64,7 +64,7 @@ spec:
              value: "{{ global.k8s_server_url }}"
            - name: HAIL_CI_BUCKET_NAME
 {% if deploy %}
-             value: "hail-ci-bpk3h"
+             value: "cpg-hail-ci"
 {% else %}
              value: "hail-test-dmk9z"
 {% endif %}
