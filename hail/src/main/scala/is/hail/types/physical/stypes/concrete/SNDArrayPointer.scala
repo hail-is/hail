@@ -106,9 +106,9 @@ class SNDArrayPointerSettable(
   override def sameShape(other: SNDArrayValue, cb: EmitCodeBuilder): Code[Boolean] = {
     val otherPtr = other.asInstanceOf[SNDArrayPointerSettable]
     val comparator = this.pt.shapeType.codeOrdering(cb.emb, otherPtr.pt.shapeType)
-    val thisShape = this.pt.representation.loadField(a, "shape").asInstanceOf[Code[comparator.T]]
-    val otherShape = otherPtr.pt.representation.loadField(otherPtr.a, "shape").asInstanceOf[Code[comparator.T]]
-    comparator.equivNonnull(thisShape, otherShape)
+    val thisShape = PCode(this.pt.shapeType, this.pt.representation.loadField(a, "shape"))
+    val otherShape = PCode(otherPtr.pt.shapeType, otherPtr.pt.representation.loadField(otherPtr.a, "shape"))
+    comparator.equivNonnull(cb, thisShape, otherShape)
   }
 
   def firstDataAddress(cb: EmitCodeBuilder): Value[Long] = dataFirstElement

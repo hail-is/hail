@@ -38,29 +38,26 @@ abstract class PBinary extends PType {
   def codeOrdering(mb: EmitMethodBuilder[_], other: PType): CodeOrdering = {
     assert(other isOfType this)
     new CodeOrderingCompareConsistentWithOthers {
-      type T = Long
+      def compareNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Int] = {
+        val xv: SBinaryValue = x.asBinary.memoize(cb, "xv")
+        val yv: SBinaryValue = y.asBinary.memoize(cb, "yv")
+        val xlen = cb.newLocal[Int]("xlen", xv.loadLength())
+        val ylen = cb.newLocal[Int]("ylen", yv.loadLength())
+        val lim = cb.newLocal[Int]("lim", (xlen < ylen).mux(xlen, ylen))
+        val i = cb.newLocal[Int]("i", 0)
+        val cmp = cb.newLocal[Int]("cmp", 0)
+        val Lbreak = CodeLabel()
 
-      def compareNonnull(x: Code[T], y: Code[T]): Code[Int] = {
-        val l1 = mb.newLocal[Int]()
-        val l2 = mb.newLocal[Int]()
-        val lim = mb.newLocal[Int]()
-        val i = mb.newLocal[Int]()
-        val cmp = mb.newLocal[Int]()
+        cb.forLoop({}, i < lim, cb.assign(i, i + 1), {
+          val compval = Code.invokeStatic2[java.lang.Integer, Int, Int, Int]("compare",
+                  Code.invokeStatic1[java.lang.Byte, Byte, Int]("toUnsignedInt", xv.loadByte(i)),
+                  Code.invokeStatic1[java.lang.Byte, Byte, Int]("toUnsignedInt", yv.loadByte(i)))
+          cb.assign(cmp, compval)
+          cb.ifx(cmp.cne(0), cb.goto(Lbreak))
+        })
 
-        Code.memoize(x, "pbin_cord_x", y, "pbin_cord_y") { (x, y) =>
-            Code(
-              l1 := loadLength(x),
-              l2 := loadLength(y),
-              lim := (l1 < l2).mux(l1, l2),
-              i := 0,
-              cmp := 0,
-              Code.whileLoop(cmp.ceq(0) && i < lim,
-                cmp := Code.invokeStatic2[java.lang.Integer, Int, Int, Int]("compare",
-                  Code.invokeStatic1[java.lang.Byte, Byte, Int]("toUnsignedInt", Region.loadByte(bytesAddress(x) + i.toL)),
-                  Code.invokeStatic1[java.lang.Byte, Byte, Int]("toUnsignedInt", Region.loadByte(bytesAddress(y) + i.toL))),
-                i += 1),
-              cmp.ceq(0).mux(Code.invokeStatic2[java.lang.Integer, Int, Int, Int]("compare", l1, l2), cmp))
-        }
+        cb.define(Lbreak)
+        cmp.ceq(0).mux(Code.invokeStatic2[java.lang.Integer, Int, Int, Int]("compare", xlen, ylen), cmp)
       }
     }
   }

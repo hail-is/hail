@@ -26,20 +26,18 @@ class PInt64(override val required: Boolean) extends PNumeric with PPrimitive {
   def codeOrdering(mb: EmitMethodBuilder[_], other: PType): CodeOrdering = {
     assert(other isOfType this)
     new CodeOrdering {
-      type T = Long
+      def compareNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Int] =
+        Code.invokeStatic2[java.lang.Long, Long, Long, Int]("compare", x.tcode[Long], y.tcode[Long])
 
-      def compareNonnull(x: Code[T], y: Code[T]): Code[Int] =
-        Code.invokeStatic2[java.lang.Long, Long, Long, Int]("compare", x, y)
+      def ltNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Boolean] = x.tcode[Long] < y.tcode[Long]
 
-      def ltNonnull(x: Code[T], y: Code[T]): Code[Boolean] = x < y
+      def lteqNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Boolean] = x.tcode[Long] <= y.tcode[Long]
 
-      def lteqNonnull(x: Code[T], y: Code[T]): Code[Boolean] = x <= y
+      def gtNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Boolean] = x.tcode[Long] > y.tcode[Long]
 
-      def gtNonnull(x: Code[T], y: Code[T]): Code[Boolean] = x > y
+      def gteqNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Boolean] = x.tcode[Long] >= y.tcode[Long]
 
-      def gteqNonnull(x: Code[T], y: Code[T]): Code[Boolean] = x >= y
-
-      def equivNonnull(x: Code[T], y: Code[T]): Code[Boolean] = x.ceq(y)
+      def equivNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Boolean] = x.tcode[Long].ceq(y.tcode[Long])
     }
   }
 

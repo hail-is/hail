@@ -9,7 +9,9 @@ trait SString extends SType {
   def constructFromString(cb: EmitCodeBuilder, r: Value[Region], s: Code[String]): SStringCode
 }
 
-trait SStringValue extends SValue
+trait SStringValue extends SValue {
+  override def get: SStringCode
+}
 
 trait SStringCode extends SCode {
   def loadLength(): Code[Int]

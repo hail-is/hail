@@ -38,7 +38,9 @@ class OrderingSuite extends HailSuite {
     val fb = EmitFunctionBuilder[Region, Long, Long, op.ReturnType](ctx, "lifted")
     val cv1 = Region.getIRIntermediate(t)(fb.getCodeParam[Long](2))
     val cv2 = Region.getIRIntermediate(t)(fb.getCodeParam[Long](3))
-    fb.emit(fb.apply_method.getCodeOrdering(t, op)((const(false), cv1), (const(false), cv2)))
+    fb.emitWithBuilder { cb =>
+      fb.apply_method.getCodeOrdering(t, op)(cb, EmitCode.present(t, cv1), EmitCode.present(t, cv2))
+    }
     fb.resultWithIndex()(0, r)
   }
 
@@ -55,7 +57,11 @@ class OrderingSuite extends HailSuite {
       val cv1 = Region.getIRIntermediate(t)(fb.getCodeParam[Long](3))
       val m2 = fb.getCodeParam[Boolean](4)
       val cv2 = Region.getIRIntermediate(t)(fb.getCodeParam[Long](5))
-      fb.emit(fb.apply_method.getCodeOrdering(t, op)((m1, cv1), (m2, cv2)))
+      fb.emitWithBuilder { cb =>
+        val ev1 = EmitCode(Code._empty, m1, PCode(t, cv1))
+        val ev2 = EmitCode(Code._empty, m2, PCode(t, cv2))
+        fb.apply_method.getCodeOrdering(t, op)(cb, ev1, ev2)
+      }
       fb.resultWithIndex()(0, r)
     }
 

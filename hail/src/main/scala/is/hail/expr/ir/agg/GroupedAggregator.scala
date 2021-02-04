@@ -2,7 +2,7 @@ package is.hail.expr.ir.agg
 
 import is.hail.annotations.{CodeOrdering, Region}
 import is.hail.asm4s._
-import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitCodeBuilder, EmitRegion, ParamType}
+import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitCodeBuilder, EmitMethodBuilder, EmitRegion, ParamType}
 import is.hail.io._
 import is.hail.types.VirtualTypeWithReq
 import is.hail.types.encoded.EType
@@ -18,17 +18,18 @@ class GroupedBTreeKey(kt: PType, kb: EmitClassBuilder[_], region: Value[Region],
   val compType: PType = kt
 
   override def compWithKey(cb: EmitCodeBuilder, off: Code[Long], k: EmitCode): Code[Int] = {
-    val name = "grouped_compWithKey"
-    val mb = kb.getOrGenEmitMethod(name, (name, compType, k.pv.st), FastIndexedSeq[ParamType](typeInfo[Long], k.pv.st.pType.asEmitParam), typeInfo[Int]) { mb =>
-      mb.emitWithBuilder[Int] { cb =>
-        val addr = mb.getCodeParam[Long](1)
-        val ev = mb.getEmitParam(2)
-
-        compKeys(cb, loadCompKey(cb, addr), ev)
-      }
+    val mb = kb.getOrGenEmitMethod("compWithKey",
+      ("compWithKey_grouped_btree", kt, k.pt),
+      FastIndexedSeq[ParamType](typeInfo[Long], k.pt.asEmitParam),
+      typeInfo[Int]
+    ) { mb =>
+      val comp = kb.getCodeOrdering(compType, k.pt, CodeOrdering.Compare(), ignoreMissingness = false)
+      val off = mb.getCodeParam[Long](1)
+      val ev1 = loadCompKey(cb, off)
+      val ev2 = mb.getEmitParam(2)
+      mb.emitWithBuilder(comp(_, ev1, ev2))
     }
-
-    cb.invokeCode[Int](mb, off, k)
+    cb.invokeCode(mb, off, k)
   }
 
   val regionIdx: Value[Int] = new Value[Int] {
@@ -87,15 +88,11 @@ class GroupedBTreeKey(kt: PType, kb: EmitClassBuilder[_], region: Value[Region],
   }
 
   def compKeys(cb: EmitCodeBuilder, k1: EmitCode, k2: EmitCode): Code[Int] = {
-    cb += k1.setup
-    cb += k2.setup
-    val kcomp = kb.getCodeOrdering(k1.pt, k2.pt, CodeOrdering.Compare(), ignoreMissingness = false)
-    kcomp(k1.m -> k1.v, k2.m -> k2.v)
+    kb.getCodeOrdering(k1.pt, k2.pt, CodeOrdering.Compare(), ignoreMissingness = false)(cb, k1, k2)
   }
 
-  def loadCompKey(cb: EmitCodeBuilder, off: Value[Long]): EmitCode = {
-    EmitCode(Code._empty, isKeyMissing(off), compType.loadCheapPCode(cb, storageType.loadField(off, 0)))
-  }
+  def loadCompKey(cb: EmitCodeBuilder, off: Value[Long]): EmitCode =
+    EmitCode(Code._empty, isKeyMissing(off), PCode(kt, loadKey(off)))
 }
 
 class DictState(val kb: EmitClassBuilder[_], val keyVType: VirtualTypeWithReq, val nested: StateTuple) extends PointerBasedRVAState {
