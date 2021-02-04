@@ -350,13 +350,8 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
     while(currentIdx < numberOfElements) {
       if(this.isElementDefined(dstAddress, currentIdx)) {
         val currentElementAddress = this.elementOffset(dstAddress, numberOfElements, currentIdx)
-        this.elementType.fundamentalType match {
-          case t@(_: PBinary | _: PArray) =>
-            Region.storeAddress(currentElementAddress, t.copyFromAddress(region, t, Region.loadAddress(currentElementAddress), deepCopy = true))
-          case t: PCanonicalBaseStruct =>
-            t.deepPointerCopy(region, currentElementAddress)
-          case t: PType => fatal(s"Type isn't supported ${t}")
-        }
+        val currentElementAddressFromNested = this.elementType.unstagedLoadFromNested(currentElementAddress)
+        this.elementType.unstagedStoreAtAddress(currentElementAddress, region, this.elementType, currentElementAddressFromNested, true)
       }
 
       currentIdx += 1
