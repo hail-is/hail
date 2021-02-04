@@ -1037,17 +1037,20 @@ class Emit[C](
           }, {
             cb += groupSizes.clear
             cb.assign(eltIdx, 1)
-            cb += groupSizes.add(1)
+            cb.assign(groupSize, 1)
             cb.whileLoop(eltIdx < sortedElts.size, {
               cb.ifx(
                 cb.invokeCode[Boolean](isSame, region.code, sortedElts.applyEV(mb, eltIdx - 1), sortedElts.applyEV(mb, eltIdx)),
                 {
-                  cb += groupSizes.update(groupSizes.size - 1, coerce[Int](groupSizes(groupSizes.size - 1)) + 1)
+                  cb.assign(groupSize, groupSize + 1)
                 }, {
-                  cb += groupSizes.add(1)
+                  cb += groupSizes.add(groupSize)
+                  cb.assign(groupSize, 1)
                 })
               cb.assign(eltIdx, eltIdx + 1)
             })
+            cb += groupSizes.add(groupSize)
+            cb.println(groupSizes.size.toS)
 
             cb.assign(outerSize, groupSizes.size)
             val (addGroup, finishOuter) = arrayTyp.constructFromFunctions(cb, region.code, outerSize, deepCopy = false)
