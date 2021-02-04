@@ -2608,6 +2608,45 @@ steps:
     - netcat_ubuntu_image
     - curl_image
  - kind: runImage
+   name: delete_test_billing_projects
+   image: batch_image.image
+   script: |
+     export HAIL_TEST_DEV_TOKEN_FILE=/dev-tokens/tokens.json
+     export HAIL_TOKEN="{{ token }}"
+     cd /io/test
+     python3 -c '
+import test_accounts
+import asyncio
+asyncio.get_event_loop().run_until_complete(test_accounts.delete_test_billing_projects())'
+   inputs:
+    - from: /repo/batch/test
+      to: /io/
+   secrets:
+    - name: gce-deploy-config
+      namespace:
+        valueFrom: default_ns.name
+      mountPath: /deploy-config
+    - name: test-dev-tokens
+      namespace:
+        valueFrom: default_ns.name
+      mountPath: /dev-tokens
+    - name: ssl-config-batch-tests
+      namespace:
+        valueFrom: default_ns.name
+      mountPath: /ssl-config
+   dependsOn:
+    - create_deploy_config
+    - create_accounts
+    - default_ns
+    - copy_files
+    - batch_image
+    - deploy_batch
+    - test_batch_0
+    - test_batch_1
+    - test_batch_2
+    - test_batch_3
+    - test_batch_4
+ - kind: runImage
    name: create_ci_test_repo
    image:
      valueFrom: base_image.image
