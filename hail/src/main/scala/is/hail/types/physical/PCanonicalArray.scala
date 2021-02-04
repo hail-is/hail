@@ -336,14 +336,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
       cb.ifx(isElementDefined(dstAddress, currentIdx),
         {
           cb.assign(currentElementAddress, elementOffset(dstAddress, len, currentIdx))
-          this.elementType.fundamentalType match {
-            // FIXME this logic needs to go before we can create new ptypes
-            case t@(_: PBinary | _: PArray) =>
-              t.storeAtAddress(cb, currentElementAddress, region, t.loadCheapPCode(cb, Region.loadAddress(currentElementAddress)), deepCopy = true)
-            case t: PCanonicalBaseStruct =>
-              t.deepPointerCopy(cb, region, currentElementAddress)
-            case t: PType => throw new RuntimeException(s"Type isn't supported ${ t }")
-          }
+          this.elementType.storeAtAddress(cb, currentElementAddress, region, this.elementType.loadCheapPCode(cb, this.elementType.loadFromNested(currentElementAddress)), true)
         }))
   }
 
