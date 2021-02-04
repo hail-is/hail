@@ -114,15 +114,11 @@ abstract class PCanonicalBaseStruct(val types: Array[PType]) extends PBaseStruct
   def deepPointerCopy(region: Region, dstStructAddress: Long) {
     var i = 0
     while (i < this.size) {
-      val dstFieldType = this.fields(i).typ.fundamentalType
+      val dstFieldType = this.fields(i).typ
       if (dstFieldType.containsPointers && this.isFieldDefined(dstStructAddress, i)) {
         val dstFieldAddress = this.fieldOffset(dstStructAddress, i)
-        dstFieldType match {
-          case t@(_: PBinary | _: PArray) =>
-            Region.storeAddress(dstFieldAddress, t.copyFromAddress(region, dstFieldType, Region.loadAddress(dstFieldAddress), deepCopy = true))
-          case t: PCanonicalBaseStruct =>
-            t.deepPointerCopy(region, dstFieldAddress)
-        }
+        val dstFieldAddressFromNested = dstFieldType.unstagedLoadFromNested(dstFieldAddress)
+        dstFieldType.unstagedStoreAtAddress(dstFieldAddress, region, dstFieldType, dstFieldAddressFromNested, true)
       }
       i += 1
     }
