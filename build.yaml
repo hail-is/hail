@@ -9,18 +9,11 @@ steps:
    namespaceName: default
    public: true
    secrets:
-    - hail-vdc-sa-key
     - gcr-pull-key
     - gcr-push-service-account-key
-    - hail-ci-0-1-github-oauth-token
     - test-gsa-key
     - auth-oauth2-client-secret
-    - scorecard-github-access-token
-    - zulip-config
     - benchmark-gsa-key
-    - billing-monitor-gsa-key
-    - asana-access-token
-    - hail-ci-0-1-service-account-key
  - kind: buildImage
    name: echo_image
    dockerFile: echo/Dockerfile
