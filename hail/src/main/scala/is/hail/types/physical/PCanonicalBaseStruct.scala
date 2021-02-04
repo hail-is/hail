@@ -100,17 +100,12 @@ abstract class PCanonicalBaseStruct(val types: Array[PType]) extends PBaseStruct
   def deepPointerCopy(cb: EmitCodeBuilder, region: Value[Region], dstStructAddress: Code[Long]): Unit = {
     val dstAddr = cb.newLocal[Long]("pcbs_dpcopy_dst", dstStructAddress)
     fields.foreach { f =>
-      val dstFieldType = f.typ.fundamentalType
+      val dstFieldType = f.typ
       if (dstFieldType.containsPointers) {
         cb.ifx(isFieldDefined(dstAddr, f.index),
           {
-            dstFieldType match {
-              case t@(_: PBinary | _: PArray) =>
-                val fieldAddr = cb.newLocal[Long]("pcbs_dpcopy_field", fieldOffset(dstAddr, f.index))
-                t.storeAtAddress(cb, fieldAddr, region, t.loadCheapPCode(cb, Region.loadAddress(fieldAddr)), deepCopy = true)
-              case t: PCanonicalBaseStruct =>
-                t.deepPointerCopy(cb, region, fieldOffset(dstAddr, f.index))
-            }
+            val fieldAddr = cb.newLocal[Long]("pcbs_dpcopy_field", fieldOffset(dstAddr, f.index))
+            dstFieldType.storeAtAddress(cb, fieldAddr, region, dstFieldType.loadCheapPCode(cb, dstFieldType.loadFromNested(fieldAddr)), deepCopy = true)
           })
       }
     }
