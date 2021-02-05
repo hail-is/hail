@@ -226,7 +226,7 @@ object InferPType {
         x.accPType.setRequired(requiredness(node).required)
       case x: StreamFold2 =>
         x.result.pType.setRequired(requiredness(node).required)
-      case x@StreamScan(a, _, _, _, _) =>
+      case x@StreamScan(a, _, _, _, body) =>
         val r = coerce[RIterable](requiredness(node))
         PCanonicalStream(
           x.accPType.setRequired(r.elementType.required),
