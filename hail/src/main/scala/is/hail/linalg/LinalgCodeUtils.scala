@@ -1,12 +1,10 @@
 package is.hail.linalg
 
-import is.hail.annotations.{Region, StagedRegionValueBuilder}
-import is.hail.asm4s.{Code, MethodBuilder}
-import is.hail.asm4s._
-import is.hail.utils._
+import is.hail.annotations.Region
+import is.hail.asm4s.{Code, _}
 import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, IEmitCode}
 import is.hail.types.physical.stypes.interfaces.SNDArray
-import is.hail.types.physical.{PBaseStructValue, PCanonicalNDArray, PCode, PNDArrayCode, PNDArrayValue, PType, typeToTypeInfo}
+import is.hail.types.physical.{PCanonicalNDArray, PNDArrayCode, PNDArrayValue}
 
 object LinalgCodeUtils {
   def checkColumnMajor(pndv: PNDArrayValue, cb: EmitCodeBuilder): Value[Boolean] = {
