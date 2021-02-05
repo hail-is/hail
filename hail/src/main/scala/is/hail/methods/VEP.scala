@@ -150,7 +150,7 @@ class VEP(val params: VEPParameters, conf: VEPConfiguration) extends TableToTabl
 
     val prev = tv.rvd
     val annotations = prev
-      .mapPartitionsWithIndex { (partIdx, _, it) =>
+      .mapPartitionsWithIndex { (partIdx, ctx, it) =>
         val pb = new ProcessBuilder(cmd.toList.asJava)
         val env = pb.environment()
         localConf.env.foreach { case (key, value) =>
@@ -163,7 +163,9 @@ class VEP(val params: VEPParameters, conf: VEPConfiguration) extends TableToTabl
         it
           .map { ptr =>
             rvv.set(ptr)
-            (rvv.locus(), rvv.alleles(): IndexedSeq[String])
+            val res = (rvv.locus(), rvv.alleles(): IndexedSeq[String])
+            ctx.region.clear()
+            res
           }
           .grouped(localBlockSize)
           .zipWithIndex
