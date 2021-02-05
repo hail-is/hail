@@ -171,20 +171,14 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
 
   def loadElement(aoff: Long, length: Int, i: Int): Long = {
     val off = elementOffset(aoff, length, i)
-    elementType.fundamentalType match {
-      case _: PArray | _: PBinary => Region.loadAddress(off)
-      case _ => off
-    }
+    elementType.unstagedLoadFromNested(off)
   }
 
   def loadElement(aoff: Long, i: Int): Long = loadElement(aoff, loadLength(aoff), i)
 
   def loadElement(aoff: Code[Long], length: Code[Int], i: Code[Int]): Code[Long] = {
     val off = elementOffset(aoff, length, i)
-    elementType.fundamentalType match {
-      case _: PArray | _: PBinary => Region.loadAddress(off)
-      case _ => off
-    }
+    elementType.loadFromNested(off)
   }
 
   def loadElement(aoff: Code[Long], i: Code[Int]): Code[Long] =
@@ -342,14 +336,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
       cb.ifx(isElementDefined(dstAddress, currentIdx),
         {
           cb.assign(currentElementAddress, elementOffset(dstAddress, len, currentIdx))
-          this.elementType.fundamentalType match {
-            // FIXME this logic needs to go before we can create new ptypes
-            case t@(_: PBinary | _: PArray) =>
-              t.storeAtAddress(cb, currentElementAddress, region, t.loadCheapPCode(cb, Region.loadAddress(currentElementAddress)), deepCopy = true)
-            case t: PCanonicalBaseStruct =>
-              t.deepPointerCopy(cb, region, currentElementAddress)
-            case t: PType => throw new RuntimeException(s"Type isn't supported ${ t }")
-          }
+          this.elementType.storeAtAddress(cb, currentElementAddress, region, this.elementType.loadCheapPCode(cb, this.elementType.loadFromNested(currentElementAddress)), true)
         }))
   }
 
@@ -363,13 +350,8 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
     while(currentIdx < numberOfElements) {
       if(this.isElementDefined(dstAddress, currentIdx)) {
         val currentElementAddress = this.elementOffset(dstAddress, numberOfElements, currentIdx)
-        this.elementType.fundamentalType match {
-          case t@(_: PBinary | _: PArray) =>
-            Region.storeAddress(currentElementAddress, t.copyFromAddress(region, t, Region.loadAddress(currentElementAddress), deepCopy = true))
-          case t: PCanonicalBaseStruct =>
-            t.deepPointerCopy(region, currentElementAddress)
-          case t: PType => fatal(s"Type isn't supported ${t}")
-        }
+        val currentElementAddressFromNested = this.elementType.unstagedLoadFromNested(currentElementAddress)
+        this.elementType.unstagedStoreAtAddress(currentElementAddress, region, this.elementType, currentElementAddressFromNested, true)
       }
 
       currentIdx += 1
@@ -484,6 +466,36 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
   }
 
   // unsafe StagedArrayBuilder-like interface that gives caller control over adding elements and finishing
+  def constructFromNextAddress(cb: EmitCodeBuilder, region: Value[Region], length: Value[Int], deepCopy: Boolean):
+  ((EmitCodeBuilder => Value[Long], (EmitCodeBuilder => Unit), (EmitCodeBuilder => SIndexablePointerCode))) = {
+
+    val addr = cb.newLocal[Long]("pcarray_construct2_addr", allocate(region, length))
+    cb += stagedInitialize(addr, length, setMissing = false)
+    val currentIndex = cb.newLocal[Int]("pcarray_construct2_i", -1)
+
+    val currentElementAddress = cb.newLocal[Long]("pcarray_construct2_firstelementaddr", firstElementOffset(addr, length) - elementByteSize)
+
+    def nextAddr(cb: EmitCodeBuilder): Value[Long] = {
+      cb.assign(currentIndex, currentIndex + 1)
+      cb.assign(currentElementAddress, currentElementAddress + elementByteSize)
+      currentElementAddress
+    }
+
+    def setMissing(cb: EmitCodeBuilder): Unit = {
+      cb.assign(currentIndex, currentIndex + 1)
+      cb.assign(currentElementAddress, currentElementAddress + elementByteSize)
+      cb += this.setElementMissing(addr, currentIndex)
+    }
+
+    def finish(cb: EmitCodeBuilder): SIndexablePointerCode = {
+      cb.ifx((currentIndex + 1).cne(length), cb._fatal("PCanonicalArray.constructFromNextAddress nextAddress was called the wrong number of times: len=",
+        length.toS, ", calls=", (currentIndex + 1).toS))
+      new SIndexablePointerCode(SIndexablePointer(this), addr)
+    }
+    (nextAddr, setMissing, finish)
+  }
+
+  // unsafe StagedArrayBuilder-like interface that gives caller control over adding elements and finishing
   def constructFromFunctions(cb: EmitCodeBuilder, region: Value[Region], length: Value[Int], deepCopy: Boolean):
   (((EmitCodeBuilder, Value[Int], IEmitCode) => Unit, (EmitCodeBuilder => SIndexablePointerCode))) = {
 
@@ -532,7 +544,9 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
     new SIndexablePointerCode(SIndexablePointer(this), addr)
   }
 
-  def loadFromNested(cb: EmitCodeBuilder, addr: Code[Long]): Code[Long] = Region.loadAddress(addr)
+  def loadFromNested(addr: Code[Long]): Code[Long] = Region.loadAddress(addr)
+
+  override def unstagedLoadFromNested(addr: Long): Long = Region.loadAddress(addr)
 
   override def unstagedStoreJavaObject(annotation: Annotation, region: Region): Long = {
     val is = annotation.asInstanceOf[IndexedSeq[Annotation]]

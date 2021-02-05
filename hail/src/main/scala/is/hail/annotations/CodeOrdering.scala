@@ -1,10 +1,11 @@
 package is.hail.annotations
 
 import is.hail.asm4s._
-import is.hail.expr.ir.{Ascending, Descending, EmitMethodBuilder, SortField, SortOrder}
+import is.hail.expr.ir.{Ascending, Descending, EmitMethodBuilder, EmitCode, EmitCodeBuilder, SortField, SortOrder}
 import is.hail.types._
 import is.hail.asm4s.coerce
 import is.hail.types.physical._
+import is.hail.types.physical.stypes.interfaces._
 import is.hail.utils._
 
 object CodeOrdering {
@@ -33,7 +34,7 @@ object CodeOrdering {
   final case class Gteq(missingEqual: Boolean = true) extends BooleanOp
   final case class Neq(missingEqual: Boolean = true) extends BooleanOp
 
-  type F[R] = ((Code[Boolean], Code[_]), (Code[Boolean], Code[_])) => Code[R]
+  type F[R] = (EmitCodeBuilder, EmitCode, EmitCode) => Code[R]
 
   def rowOrdering(
     t1: PBaseStruct,
@@ -43,22 +44,9 @@ object CodeOrdering {
     missingFieldsEqual: Boolean = true
   ): CodeOrdering = new CodeOrdering {
     require(sortOrders == null || sortOrders.size == t1.size)
-    type T = Long
 
-    val m1: LocalRef[Boolean] = mb.newLocal[Boolean]()
-    val m2: LocalRef[Boolean] = mb.newLocal[Boolean]()
-
-    val v1s: Array[LocalRef[_]] = t1.types.map(tf => mb.newLocal()(typeToTypeInfo(tf)))
-    val v2s: Array[LocalRef[_]] = t2.types.map(tf => mb.newLocal()(typeToTypeInfo(tf)))
-
-    def setup(i: Int)(x: Value[Long], y: Value[Long]): Code[Unit] = {
-      val tf1 = t1.types(i)
-      val tf2 = t2.types(i)
-      Code(
-        m1 := t1.isFieldMissing(x, i),
-        m2 := t2.isFieldMissing(y, i),
-        v1s(i).storeAny(m1.mux(defaultValue(tf1), Region.loadIRIntermediate(tf1)(t1.fieldOffset(x, i)))),
-        v2s(i).storeAny(m2.mux(defaultValue(tf2), Region.loadIRIntermediate(tf2)(t2.fieldOffset(y, i)))))
+    def setup(cb: EmitCodeBuilder, lhs: PCode, rhs: PCode):  (PBaseStructValue, PBaseStructValue) = {
+      lhs.asBaseStruct.memoize(cb, "structord_lhs") -> rhs.asBaseStruct.memoize(cb, "structord_rhs")
     }
 
     private[this] def fieldOrdering(i: Int, op: CodeOrdering.Op): CodeOrdering.F[op.ReturnType] =
@@ -68,294 +56,518 @@ object CodeOrdering {
         if (sortOrders == null) Ascending else sortOrders(i),
         op)
 
-    override def compareNonnull(x: Code[Long], y: Code[Long]): Code[Int] = {
-      val cmp = mb.newLocal[Int]()
+    override def compareNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Int] = {
+      val (lhs, rhs) = setup(cb, x, y)
+      val Lout = CodeLabel()
+      val cmp = cb.newLocal("cmp", 0)
 
-      Code.memoize(x, "cord_row_comp_x", y, "cord_row_comp_y") { (x, y) =>
-        val c = Array.tabulate(t1.size) { i =>
-          val mbcmp = fieldOrdering(i, CodeOrdering.Compare(missingFieldsEqual))
-          Code(setup(i)(x, y),
-            mbcmp((m1, v1s(i)), (m2, v2s(i))))
-        }.foldRight(cmp.get) { (ci, cont) => cmp.ceq(0).mux(Code(cmp := ci, cont), cmp) }
-
-        Code(cmp := 0, c)
+      var i = 0
+      while (i < t1.size) {
+        val fldCmp = fieldOrdering(i, CodeOrdering.Compare(missingFieldsEqual))
+        val l = EmitCode.fromI(cb.emb) { cb => lhs.loadField(cb, i).typecast }
+        val r = EmitCode.fromI(cb.emb) { cb => rhs.loadField(cb, i).typecast }
+        cb.assign(cmp, fldCmp(cb, l, r))
+        cb.ifx(cmp.cne(0), cb.goto(Lout))
+        i += 1
       }
+
+      cb.define(Lout)
+      cmp
     }
 
-    private[this] def dictionaryOrderingFromFields(
-      op: CodeOrdering.BooleanOp,
-      zero: Code[Boolean],
-      combine: (Code[Boolean], Code[Boolean], Code[Boolean]) => Code[Boolean]
-    )(x: Code[Long],
-      y: Code[Long]
-    ): Code[Boolean] =
-      Code.memoize(x, "cord_row_comp_x", y, "cord_row_comp_y") { (x, y) =>
-        Array.tabulate(t1.size) { i =>
-          val mbop = fieldOrdering(i, op)
-          val mbequiv = fieldOrdering(i, CodeOrdering.Equiv(op.missingEqual))
-          (Code(setup(i)(x, y), mbop((m1, v1s(i)), (m2, v2s(i)))),
-            mbequiv((m1, v1s(i)), (m2, v2s(i))))
-        }.foldRight(zero) { case ((cop, ceq), cont) => combine(cop, ceq, cont) }
+    override def ltNonnull(cb:EmitCodeBuilder, x: PCode, y: PCode): Code[Boolean] = {
+      val (lhs, rhs) = setup(cb, x, y)
+      val Lout = CodeLabel()
+      val lt = cb.newLocal("lt", true)
+      val eq = cb.newLocal("eq", true)
+
+      var i = 0
+      while (i < t1.size) {
+        val fldLt = fieldOrdering(i, CodeOrdering.Lt(missingFieldsEqual))
+        val fldEq = fieldOrdering(i, CodeOrdering.Equiv(missingFieldsEqual))
+
+        val l = cb.memoize(EmitCode.fromI(cb.emb) { cb => lhs.loadField(cb, i).typecast }, s"struct_lt_lhs_fld$i")
+        val r = cb.memoize(EmitCode.fromI(cb.emb) { cb => rhs.loadField(cb, i).typecast }, s"struct_lt_rhs_fld$i")
+        cb.assign(lt, fldLt(cb, l, r))
+        cb.assign(eq, !lt && fldEq(cb, l, r))
+        cb.ifx(!eq, cb.goto(Lout))
+        i += 1
       }
 
-    val _ltNonnull = dictionaryOrderingFromFields(
-      CodeOrdering.Lt(missingFieldsEqual),
-      false,
-      { (isLessThan, isEqual, subsequentLt) =>
-        isLessThan || (isEqual && subsequentLt) }) _
-    override def ltNonnull(x: Code[Long], y: Code[Long]): Code[Boolean] = _ltNonnull(x, y)
+      cb.define(Lout)
+      lt
+    }
 
-    val _lteqNonnull = dictionaryOrderingFromFields(
-      CodeOrdering.Lteq(missingFieldsEqual),
-      true,
-      { (isLessThanEq, isEqual, subsequentLtEq) =>
-        isLessThanEq && (!isEqual || subsequentLtEq) }) _
-    override def lteqNonnull(x: Code[Long], y: Code[Long]): Code[Boolean] = _lteqNonnull(x, y)
+    override def lteqNonnull(cb:EmitCodeBuilder, x: PCode, y: PCode): Code[Boolean] = {
+      val (lhs, rhs) = setup(cb, x, y)
+      val Lout = CodeLabel()
+      val lteq = cb.newLocal("lteq", true)
+      val eq = cb.newLocal("eq", true)
 
-    val _gtNonnull = dictionaryOrderingFromFields(
-      CodeOrdering.Gt(missingFieldsEqual),
-      false,
-      { (isGreaterThan, isEqual, subsequentGt) =>
-        isGreaterThan || (isEqual && subsequentGt) }) _
-    override def gtNonnull(x: Code[Long], y: Code[Long]): Code[Boolean] = _gtNonnull(x, y)
+      var i = 0
+      while (i < t1.size) {
+        val fldLtEq = fieldOrdering(i, CodeOrdering.Lteq(missingFieldsEqual))
+        val fldEq = fieldOrdering(i, CodeOrdering.Equiv(missingFieldsEqual))
 
-    val _gteqNonnull = dictionaryOrderingFromFields(
-      CodeOrdering.Gteq(missingFieldsEqual),
-      true,
-      { (isGreaterThanEq, isEqual, subsequentGteq) =>
-        isGreaterThanEq && (!isEqual || subsequentGteq) }) _
-    override def gteqNonnull(x: Code[Long], y: Code[Long]): Code[Boolean] = _gteqNonnull(x, y)
-
-    override def equivNonnull(x: Code[Long], y: Code[Long]): Code[Boolean] =
-      Code.memoize(x, "cord_row_equiv_x", y, "cord_row_equiv_y") { (x, y) =>
-        Array.tabulate(t1.size) { i =>
-          val mbequiv = fieldOrdering(i, CodeOrdering.Equiv(missingFieldsEqual))
-          Code(setup(i)(x, y),
-            mbequiv((m1, v1s(i)), (m2, v2s(i))))
-        }.foldRight[Code[Boolean]](const(true))(_ && _)
+        val l = cb.memoize(EmitCode.fromI(cb.emb) { cb => lhs.loadField(cb, i).typecast }, s"struct_lteq_lhs_fld$i")
+        val r = cb.memoize(EmitCode.fromI(cb.emb) { cb => rhs.loadField(cb, i).typecast }, s"struct_lteq_rhs_fld$i")
+        cb.assign(lteq, fldLtEq(cb, l, r))
+        cb.assign(eq, fldEq(cb, l, r))
+        cb.ifx(!eq, cb.goto(Lout))
+        i += 1
       }
+
+      cb.define(Lout)
+      lteq
+    }
+
+    override def gtNonnull(cb:EmitCodeBuilder, x: PCode, y: PCode): Code[Boolean] = {
+      val (lhs, rhs) = setup(cb, x, y)
+      val Lout = CodeLabel()
+      val gt = cb.newLocal("gt", false)
+      val eq = cb.newLocal("eq", true)
+
+      var i = 0
+      while (i < t1.size) {
+        val fldGt = fieldOrdering(i, CodeOrdering.Gt(missingFieldsEqual))
+        val fldEq = fieldOrdering(i, CodeOrdering.Equiv(missingFieldsEqual))
+
+        val l = cb.memoize(EmitCode.fromI(cb.emb) { cb => lhs.loadField(cb, i).typecast }, s"struct_gt_lhs_fld$i")
+        val r = cb.memoize(EmitCode.fromI(cb.emb) { cb => rhs.loadField(cb, i).typecast }, s"struct_gt_rhs_fld$i")
+        cb.assign(gt, fldGt(cb, l, r))
+        cb.assign(eq, !gt && fldEq(cb, l, r))
+        cb.ifx(!eq, cb.goto(Lout))
+        i += 1
+      }
+
+      cb.define(Lout)
+      gt
+    }
+
+    override def gteqNonnull(cb:EmitCodeBuilder, x: PCode, y: PCode): Code[Boolean] = {
+      val (lhs, rhs) = setup(cb, x, y)
+      val Lout = CodeLabel()
+      val gteq = cb.newLocal("gteq", true)
+      val eq = cb.newLocal("eq", true)
+
+      var i = 0
+      while (i < t1.size) {
+        val fldGtEq = fieldOrdering(i, CodeOrdering.Gteq(missingFieldsEqual))
+        val fldEq = fieldOrdering(i, CodeOrdering.Equiv(missingFieldsEqual))
+
+        val l = cb.memoize(EmitCode.fromI(cb.emb) { cb => lhs.loadField(cb, i).typecast }, s"struct_gteq_lhs_fld$i")
+        val r = cb.memoize(EmitCode.fromI(cb.emb) { cb => rhs.loadField(cb, i).typecast }, s"struct_gteq_rhs_fld$i")
+        cb.assign(gteq, fldGtEq(cb, l, r))
+        cb.assign(eq, fldEq(cb, l, r))
+        cb.ifx(!eq, cb.goto(Lout))
+        i += 1
+      }
+
+      cb.define(Lout)
+      gteq
+    }
+
+    override def equivNonnull(cb:EmitCodeBuilder, x: PCode, y: PCode): Code[Boolean] = {
+      val (lhs, rhs) = setup(cb, x, y)
+      val Lout = CodeLabel()
+      val eq = cb.newLocal("cmp", true)
+
+      var i = 0
+      while (i < t1.size) {
+        val fldEq = fieldOrdering(i, CodeOrdering.Equiv(missingFieldsEqual))
+        val l = EmitCode.fromI(cb.emb) { cb => lhs.loadField(cb, i).typecast }
+        val r = EmitCode.fromI(cb.emb) { cb => rhs.loadField(cb, i).typecast }
+        cb.assign(eq, fldEq(cb, l, r))
+        cb.ifx(!eq, cb.goto(Lout))
+        i += 1
+      }
+
+      cb.define(Lout)
+      eq
+    }
   }
 
   def iterableOrdering(t1: PArray, t2: PArray, mb: EmitMethodBuilder[_]): CodeOrdering = new CodeOrdering {
-    type T = Long
-    val lord: CodeOrdering = PInt32().codeOrdering(mb)
-    val ord: CodeOrdering = t1.elementType.codeOrdering(mb, t2.elementType)
-    val len1: LocalRef[Int] = mb.newLocal[Int]()
-    val len2: LocalRef[Int] = mb.newLocal[Int]()
-    val lim: LocalRef[Int] = mb.newLocal[Int]()
-    val i: LocalRef[Int] = mb.newLocal[Int]()
-    val m1: LocalRef[Boolean] = mb.newLocal[Boolean]()
-    val v1: LocalRef[ord.T] = mb.newLocal()(typeToTypeInfo(t1.elementType)).asInstanceOf[LocalRef[ord.T]]
-    val m2: LocalRef[Boolean] = mb.newLocal[Boolean]()
-    val v2: LocalRef[ord.T] = mb.newLocal()(typeToTypeInfo(t2.elementType)).asInstanceOf[LocalRef[ord.T]]
-    val eq: LocalRef[Boolean] = mb.newLocal[Boolean]()
+    private[this] def setup(cb: EmitCodeBuilder, lhs: PCode, rhs: PCode): (PIndexableValue, PIndexableValue) = {
+      val lhsv = lhs.asIndexable.memoize(cb, "container_ord_lhs")
+      val rhsv = rhs.asIndexable.memoize(cb, "container_ord_rhs")
+      lhsv -> rhsv
+    }
 
-    def loop(cmp: Code[Unit], loopCond: Code[Boolean])
-      (x: Code[Long], y: Code[Long]): Code[Unit] = {
-      Code.memoize(x, "cord_iter_ord_x", y, "cord_iter_ord_y") { (x, y) =>
-        Code(
-          i := 0,
-          len1 := t1.loadLength(x),
-          len2 := t2.loadLength(y),
-          lim := (len1 < len2).mux(len1, len2),
-          Code.whileLoop(loopCond && i < lim,
-            m1 := t1.isElementMissing(x, i),
-            v1.storeAny(Region.loadIRIntermediate(t1.elementType)(t1.elementOffset(x, len1, i))),
-            m2 := t2.isElementMissing(y, i),
-            v2.storeAny(Region.loadIRIntermediate(t2.elementType)(t2.elementOffset(y, len2, i))),
-            cmp, i += 1))
+    private[this] def loop(cb: EmitCodeBuilder, lhs: PIndexableValue, rhs: PIndexableValue)(
+      f: (EmitCode, EmitCode) => Unit
+    ): Unit = {
+      val i = cb.newLocal[Int]("i")
+      val lim = cb.newLocal("lim", lhs.loadLength().min(rhs.loadLength()))
+      cb.forLoop(cb.assign(i, 0), i < lim, cb.assign(i, i + 1), {
+        val left = EmitCode.fromI(cb.emb)(lhs.loadElement(_, i).typecast)
+        val right = EmitCode.fromI(cb.emb)(rhs.loadElement(_, i).typecast)
+        f(left, right)
+      })
+    }
+
+    override def compareNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Int] = {
+      val elemCmp = mb.getCodeOrdering(t1.elementType, t2.elementType, CodeOrdering.Compare())
+
+      val Lout = CodeLabel()
+      val cmp = cb.newLocal[Int]("iterable_cmp", 0)
+
+      val (lhs, rhs) = setup(cb, x, y)
+      loop(cb, lhs, rhs) { (lhs, rhs) =>
+        cb.assign(cmp, elemCmp(cb, lhs, rhs))
+        cb.ifx(cmp.cne(0), cb.goto(Lout))
       }
+
+      // if we get here, cmp is 0
+      cb.assign(cmp,
+        Code.invokeStatic2[java.lang.Integer, Int, Int, Int](
+          "compare", lhs.loadLength(), rhs.loadLength()))
+      cb.define(Lout)
+      cmp
     }
 
-    override def compareNonnull(x: Code[Long], y: Code[Long]): Code[Int] = {
-      val mbcmp = mb.getCodeOrdering(t1.elementType, t2.elementType, CodeOrdering.Compare())
-      val cmp = mb.newLocal[Int]()
+    override def ltNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Boolean] = {
+      val elemLt = mb.getCodeOrdering(t1.elementType, t2.elementType, CodeOrdering.Lt())
+      val elemEq = mb.getCodeOrdering(t1.elementType, t2.elementType, CodeOrdering.Equiv())
 
-      Code(cmp := 0,
-        loop(cmp := mbcmp((m1, v1), (m2, v2)), cmp.ceq(0))(x, y),
-        cmp.ceq(0).mux(
-          lord.compareNonnull(coerce[lord.T](len1.load()), coerce[lord.T](len2.load())),
-          cmp))
+      val ret = cb.newLocal[Boolean]("iterable_lt")
+      val Lout = CodeLabel()
+
+      val (lhs, rhs) = setup(cb, x, y)
+      val lt = cb.newLocal("lt", false)
+      val eq = cb.newLocal("eq", true)
+
+      loop(cb, lhs, rhs) { (lhsEC, rhsEC) =>
+        val lhs = cb.memoize(lhsEC, "lhs_item")
+        val rhs = cb.memoize(rhsEC, "rhs_item")
+        cb.assign(lt, elemLt(cb, lhs, rhs))
+        cb.assign(eq, !lt && elemEq(cb, lhs, rhs))
+
+        cb.ifx(!eq, {
+          cb.assign(ret, lt)
+          cb.goto(Lout)
+        })
+      }
+
+      cb.assign(ret, lhs.loadLength() < rhs.loadLength())
+      cb.define(Lout)
+      ret
     }
 
-    override def ltNonnull(x: Code[Long], y: Code[Long]): Code[Boolean] = {
-      val mblt = mb.getCodeOrdering(t1.elementType, t2.elementType, CodeOrdering.Lt())
-      val mbequiv = mb.getCodeOrdering(t1.elementType, t2.elementType, CodeOrdering.Equiv())
-      val lt = mb.newLocal[Boolean]()
-      val lcmp = Code(
-        lt := mblt((m1, v1), (m2, v2)),
-        eq := mbequiv((m1, v1), (m2, v2)))
+    override def lteqNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Boolean] = {
+      val elemLtEq = mb.getCodeOrdering(t1.elementType, t2.elementType, CodeOrdering.Lteq())
+      val elemEq = mb.getCodeOrdering(t1.elementType, t2.elementType, CodeOrdering.Equiv())
 
-      Code(lt := false, eq := true,
-        loop(lcmp, !lt && eq)(x, y),
-        lt || eq && lord.ltNonnull(coerce[lord.T](len1.load()), coerce[lord.T](len2.load())))
+      val ret = cb.newLocal[Boolean]("iterable_lteq")
+      val Lout = CodeLabel()
+
+      val (lhs, rhs) = setup(cb, x, y)
+      val lteq = cb.newLocal("lteq", false)
+      val eq = cb.newLocal("eq", true)
+
+      loop(cb, lhs, rhs) { (lhsEC, rhsEC) =>
+        val lhs = cb.memoize(lhsEC, "lhs_item")
+        val rhs = cb.memoize(rhsEC, "rhs_item")
+        cb.assign(lteq, elemLtEq(cb, lhs, rhs))
+        cb.assign(eq, elemEq(cb, lhs, rhs))
+
+        cb.ifx(!eq, {
+          cb.assign(ret, lteq)
+          cb.goto(Lout)
+        })
+      }
+
+      cb.assign(ret, lhs.loadLength() <= rhs.loadLength)
+      cb.define(Lout)
+      ret
     }
 
-    override def lteqNonnull(x: Code[Long], y: Code[Long]): Code[Boolean] = {
-      val mblteq = mb.getCodeOrdering(t1.elementType, t2.elementType, CodeOrdering.Lteq())
-      val mbequiv = mb.getCodeOrdering(t1.elementType, t2.elementType, CodeOrdering.Equiv())
+    override def gtNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Boolean] = {
+      val elemGt = mb.getCodeOrdering(t1.elementType, t2.elementType, CodeOrdering.Gt())
+      val elemEq = mb.getCodeOrdering(t1.elementType, t2.elementType, CodeOrdering.Equiv())
 
-      val lteq = mb.newLocal[Boolean]()
-      val lcmp = Code(
-        lteq := mblteq((m1, v1), (m2, v2)),
-        eq := mbequiv((m1, v1), (m2, v2)))
+      val ret = cb.newLocal[Boolean]("iterable_gt")
+      val Lout = CodeLabel()
 
-      Code(lteq := true, eq := true,
-        loop(lcmp, eq)(x, y),
-        lteq && (!eq || lord.lteqNonnull(coerce[lord.T](len1.load()), coerce[lord.T](len2.load()))))
+      val (lhs, rhs) = setup(cb, x, y)
+      val gt = cb.newLocal("gt", false)
+      val eq = cb.newLocal("eq", true)
+
+      loop(cb, lhs, rhs) { (lhsEC, rhsEC) =>
+        val lhs = cb.memoize(lhsEC, "lhs_item")
+        val rhs = cb.memoize(rhsEC, "rhs_item")
+        cb.assign(gt, elemGt(cb, lhs, rhs))
+        cb.assign(eq, !gt && elemEq(cb, lhs, rhs))
+
+        cb.ifx(!eq, {
+          cb.assign(ret, gt)
+          cb.goto(Lout)
+        })
+      }
+
+      cb.assign(ret, lhs.loadLength() > rhs.loadLength())
+      cb.define(Lout)
+      ret
     }
 
-    override def gtNonnull(x: Code[Long], y: Code[Long]): Code[Boolean] = {
-      val mbgt = mb.getCodeOrdering(t1.elementType, t2.elementType, CodeOrdering.Gt())
-      val mbequiv = mb.getCodeOrdering(t1.elementType, t2.elementType, CodeOrdering.Equiv())
-      val gt = mb.newLocal[Boolean]()
-      val lcmp = Code(
-        gt := mbgt((m1, v1), (m2, v2)),
-        eq := !gt && mbequiv((m1, v1), (m2, v2)))
+    override def gteqNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Boolean] = {
+      val elemGtEq = mb.getCodeOrdering(t1.elementType, t2.elementType, CodeOrdering.Gteq())
+      val elemEq = mb.getCodeOrdering(t1.elementType, t2.elementType, CodeOrdering.Equiv())
 
-      Code(gt := false,
-        eq := true,
-        loop(lcmp, eq)(x, y),
-        gt || (eq &&
-            lord.gtNonnull(coerce[lord.T](len1.load()), coerce[lord.T](len2.load()))))
+      val ret = cb.newLocal[Boolean]("iterable_gteq")
+      val Lout = CodeLabel()
+
+      val (lhs, rhs) = setup(cb, x, y)
+      val gteq = cb.newLocal("gteq", true)
+      val eq = cb.newLocal("eq", true)
+
+      loop(cb, lhs, rhs) { (lhsEC, rhsEC) =>
+        val lhs = cb.memoize(lhsEC, "lhs_item")
+        val rhs = cb.memoize(rhsEC, "rhs_item")
+        cb.assign(gteq, elemGtEq(cb, lhs, rhs))
+        cb.assign(eq, elemEq(cb, lhs, rhs))
+
+        cb.ifx(!eq, {
+          cb.assign(ret, gteq)
+          cb.goto(Lout)
+        })
+      }
+
+      cb.assign(ret, lhs.loadLength() >= rhs.loadLength)
+      cb.define(Lout)
+      ret
     }
 
-    override def gteqNonnull(x: Code[Long], y: Code[Long]): Code[Boolean] = {
-      val mbgteq = mb.getCodeOrdering(t1.elementType, t2.elementType, CodeOrdering.Gteq())
-      val mbequiv = mb.getCodeOrdering(t1.elementType, t2.elementType, CodeOrdering.Equiv())
+    override def equivNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Boolean] = {
+      val elemEq = mb.getCodeOrdering(t1.elementType, t2.elementType, CodeOrdering.Equiv())
+      val ret = cb.newLocal[Boolean]("iterable_eq", true)
+      val Lout = CodeLabel()
+      val exitWith = (value: Code[Boolean]) => {
+        cb.assign(ret, value)
+        cb.goto(Lout)
+      }
 
-      val gteq = mb.newLocal[Boolean]()
-      val lcmp = Code(
-        gteq := mbgteq((m1, v1), (m2, v2)),
-        eq := mbequiv((m1, v1), (m2, v2)))
+      val (lhs, rhs) = setup(cb, x, y)
+      cb.ifx(lhs.loadLength().cne(rhs.loadLength()), exitWith(false))
+      loop(cb, lhs, rhs) { (lhs, rhs) =>
+        cb.assign(ret, elemEq(cb, lhs, rhs))
+        cb.ifx(!ret, cb.goto(Lout))
+      }
 
-      Code(gteq := true,
-        eq := true,
-        loop(lcmp, eq)(x, y),
-        gteq && (!eq || lord.gteqNonnull(coerce[lord.T](len1.load()),  coerce[lord.T](len2.load()))))
-    }
-
-    override def equivNonnull(x: Code[Long], y: Code[Long]): Code[Boolean] = {
-      val mbequiv = mb.getCodeOrdering(t1.elementType, t2.elementType, CodeOrdering.Equiv())
-      val lcmp = eq := mbequiv((m1, v1), (m2, v2))
-      Code(eq := true,
-        loop(lcmp, eq)(x, y),
-        eq && lord.equivNonnull(coerce[lord.T](len1.load()), coerce[lord.T](len2.load())))
+      cb.define(Lout)
+      ret
     }
   }
 
   def intervalOrdering(t1: PInterval, t2: PInterval, mb: EmitMethodBuilder[_]): CodeOrdering = new CodeOrdering {
-    type T = Long
-    val mp1: LocalRef[Boolean] = mb.newLocal[Boolean]()
-    val mp2: LocalRef[Boolean] = mb.newLocal[Boolean]()
-    val p1: LocalRef[_] = mb.newLocal()(typeToTypeInfo(t1.pointType))
-    val p2: LocalRef[_] = mb.newLocal()(typeToTypeInfo(t2.pointType))
-
-    def loadStart(x: Value[T], y: Value[T]): Code[Unit] = {
-      Code(
-        mp1 := !t1.startDefined(x),
-        mp2 := !t2.startDefined(y),
-        p1.storeAny(mp1.mux(defaultValue(t1.pointType), Region.loadIRIntermediate(t1.pointType)(t1.startOffset(x)))),
-        p2.storeAny(mp2.mux(defaultValue(t2.pointType), Region.loadIRIntermediate(t2.pointType)(t2.startOffset(y)))))
+    private val setup: (EmitCodeBuilder, PCode, PCode) => (PIntervalValue, PIntervalValue) = {
+      case (cb, lhs: PIntervalCode, rhs: PIntervalCode) =>
+        lhs.memoize(cb, "intervalord_lhs") -> rhs.memoize(cb, "intervalord_rhs")
     }
 
-    def loadEnd(x: Value[T], y: Value[T]): Code[Unit] = {
-      Code(
-        mp1 := !t1.endDefined(x),
-        mp2 := !t2.endDefined(y),
-        p1.storeAny(mp1.mux(defaultValue(t1.pointType), Region.loadIRIntermediate(t1.pointType)(t1.endOffset(x)))),
-        p2.storeAny(mp2.mux(defaultValue(t2.pointType), Region.loadIRIntermediate(t2.pointType)(t2.endOffset(y)))))
+    override def compareNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Int] = {
+      val pointCompare = mb.getCodeOrdering(t1.pointType, t2.pointType, CodeOrdering.Compare())
+      val cmp = cb.newLocal[Int]("intervalord_cmp", 0)
+
+      val (lhs, rhs) = setup(cb, x, y)
+      val lstart = EmitCode.fromI(cb.emb)(lhs.loadStart(_).typecast)
+      val rstart = EmitCode.fromI(cb.emb)(rhs.loadStart(_).typecast)
+      cb.assign(cmp, pointCompare(cb, lstart, rstart))
+      cb.ifx(cmp.ceq(0), {
+        cb.ifx(lhs.includesStart().cne(rhs.includesStart()), {
+          cb.assign(cmp, lhs.includesStart().mux(-1, 1))
+        }, {
+          val lend = EmitCode.fromI(cb.emb)(lhs.loadEnd(_).typecast)
+          val rend = EmitCode.fromI(cb.emb)(rhs.loadEnd(_).typecast)
+          cb.assign(cmp, pointCompare(cb, lend, rend))
+          cb.ifx(cmp.ceq(0), {
+            cb.ifx(lhs.includesEnd().cne(rhs.includesEnd()), {
+              cb.assign(cmp, lhs.includesEnd().mux(1, -1))
+            })
+          })
+        })
+      })
+
+      cmp
     }
 
-    override def compareNonnull(x: Code[T], y: Code[T]): Code[Int] = {
-      val mbcmp = mb.getCodeOrdering(t1.pointType, t2.pointType, CodeOrdering.Compare())
+    override def equivNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Boolean] = {
+      val pointEq = mb.getCodeOrdering(t1.pointType, t2.pointType, CodeOrdering.Equiv())
 
-      val cmp = mb.newLocal[Int]()
-      Code.memoize(x, "cord_int_comp_x", y, "cord_int_comp_y") { (x, y) =>
-        Code(loadStart(x, y),
-          cmp := mbcmp((mp1, p1), (mp2, p2)),
-          cmp.ceq(0).mux(
-            Code(mp1 := t1.includesStart(x),
-              mp1.cne(t2.includesStart(y)).mux(
-                mp1.mux(-1, 1),
-                Code(
-                  loadEnd(x, y),
-                  cmp := mbcmp((mp1, p1), (mp2, p2)),
-                  cmp.ceq(0).mux(
-                    Code(mp1 := t1.includesEnd(x),
-                      mp1.cne(t2.includesEnd(y)).mux(mp1.mux(1, -1), 0)),
-                    cmp)))),
-            cmp))
+      val Lout = CodeLabel()
+      val ret = cb.newLocal[Boolean]("interval_eq", true)
+      val exitWith = (value: Code[Boolean]) => {
+        cb.assign(ret, value)
+        cb.goto(Lout)
       }
+
+      val (lhs, rhs) = setup(cb, x, y)
+
+      cb.ifx(lhs.includesStart().cne(rhs.includesStart()) ||
+        lhs.includesEnd().cne(rhs.includesEnd()), {
+          exitWith(false)
+        })
+
+      val lstart = EmitCode.fromI(cb.emb)(lhs.loadStart(_).typecast)
+      val rstart = EmitCode.fromI(cb.emb)(rhs.loadStart(_).typecast)
+      cb.ifx(!pointEq(cb, lstart, rstart), exitWith(false))
+
+      val lend = EmitCode.fromI(cb.emb)(lhs.loadEnd(_).typecast)
+      val rend = EmitCode.fromI(cb.emb)(rhs.loadEnd(_).typecast)
+      cb.ifx(!pointEq(cb, lend, rend), exitWith(false))
+
+      cb.define(Lout)
+      ret
     }
 
-    override def equivNonnull(x: Code[T], y: Code[T]): Code[Boolean] = {
-      val mbeq = mb.getCodeOrdering(t1.pointType, t2.pointType, CodeOrdering.Equiv())
+    override def ltNonnull(cb:EmitCodeBuilder, x: PCode, y: PCode): Code[Boolean] = {
+      val pointLt = mb.getCodeOrdering(t1.pointType, t2.pointType, CodeOrdering.Lt())
+      val pointEq = mb.getCodeOrdering(t1.pointType, t2.pointType, CodeOrdering.Equiv())
 
-      Code.memoize(x, "cord_int_equiv_x", y, "cord_int_equiv_y") { (x, y) =>
-        Code(loadStart(x, y), mbeq((mp1, p1), (mp2, p2))) &&
-          t1.includesStart(x).ceq(t2.includesStart(y)) &&
-          Code(loadEnd(x, y), mbeq((mp1, p1), (mp2, p2))) &&
-          t1.includesEnd(x).ceq(t2.includesEnd(y))
+      val Lout = CodeLabel()
+      val ret = cb.newLocal[Boolean]("interval_lt")
+      val exitWith = (value: Code[Boolean]) => {
+        cb.assign(ret, value)
+        cb.goto(Lout)
       }
+
+      val (lhs, rhs) = setup(cb, x, y)
+      val lstart = cb.memoize(EmitCode.fromI(cb.emb)(lhs.loadStart(_).typecast), "linterval_start")
+      val rstart = cb.memoize(EmitCode.fromI(cb.emb)(rhs.loadStart(_).typecast), "rinterval_start")
+
+      cb.ifx(pointLt(cb, lstart, rstart), exitWith(true))
+      cb.ifx(!pointEq(cb, lstart, rstart), exitWith(false))
+      cb.ifx(lhs.includesStart() && !rhs.includesStart(), exitWith(true))
+      cb.ifx(lhs.includesStart().cne(rhs.includesStart()), exitWith(false))
+
+      val lend = cb.memoize(EmitCode.fromI(cb.emb)(lhs.loadEnd(_).typecast), "linterval_end")
+      val rend = cb.memoize(EmitCode.fromI(cb.emb)(rhs.loadEnd(_).typecast), "rinterval_end")
+
+      cb.ifx(pointLt(cb, lend, rend), exitWith(true))
+      cb.assign(ret, pointEq(cb, lend, rend) && !lhs.includesEnd() && rhs.includesEnd())
+
+      cb.define(Lout)
+      ret
     }
 
-    override def ltNonnull(x: Code[T], y: Code[T]): Code[Boolean] = {
-      val mblt = mb.getCodeOrdering(t1.pointType, t2.pointType, CodeOrdering.Lt())
-      val mbeq = mb.getCodeOrdering(t1.pointType, t2.pointType, CodeOrdering.Equiv())
+    override def lteqNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Boolean] = {
+      val pointLtEq = mb.getCodeOrdering(t1.pointType, t2.pointType, CodeOrdering.Lteq())
+      val pointEq = mb.getCodeOrdering(t1.pointType, t2.pointType, CodeOrdering.Equiv())
 
-      Code.memoize(x, "cord_int_lt_x", y, "cord_int_lt_y") { (x, y) =>
-        Code(loadStart(x, y), mblt((mp1, p1), (mp2, p2))) || (
-          mbeq((mp1, p1), (mp2, p2)) && (
-            Code(mp1 := t1.includesStart(x), mp2 := t2.includesStart(y), mp1 && !mp2) || (mp1.ceq(mp2) && (
-              Code(loadEnd(x, y), mblt((mp1, p1), (mp2, p2))) || (
-                mbeq((mp1, p1), (mp2, p2)) &&
-                  !t1.includesEnd(x) && t2.includesEnd(y))))))
+      val Lout = CodeLabel()
+      val ret = cb.newLocal[Boolean]("interval_lteq")
+      val exitWith = (value: Code[Boolean]) => {
+        cb.assign(ret, value)
+        cb.goto(Lout)
       }
+
+      val (lhs, rhs) = setup(cb, x, y)
+      val lstart = cb.memoize(EmitCode.fromI(cb.emb)(lhs.loadStart(_).typecast), "linterval_start")
+      val rstart = cb.memoize(EmitCode.fromI(cb.emb)(rhs.loadStart(_).typecast), "rinterval_start")
+
+      cb.ifx(!pointLtEq(cb, lstart, rstart), exitWith(false))
+      cb.ifx(!pointEq(cb, lstart, rstart), exitWith(true))
+      cb.ifx(lhs.includesStart() && !rhs.includesStart(), exitWith(true))
+      cb.ifx(lhs.includesStart().cne(rhs.includesStart()), exitWith(false))
+
+      val lend = cb.memoize(EmitCode.fromI(cb.emb)(lhs.loadEnd(_).typecast), "linterval_end")
+      val rend = cb.memoize(EmitCode.fromI(cb.emb)(rhs.loadEnd(_).typecast), "rinterval_end")
+      cb.ifx(!pointLtEq(cb, lend, rend), exitWith(false))
+      cb.assign(ret, !pointEq(cb, lend, rend) || !lhs.includesEnd() || rhs.includesEnd())
+
+      cb.define(Lout)
+      ret
     }
 
-    override def lteqNonnull(x: Code[T], y: Code[T]): Code[Boolean] = {
-      val mblteq = mb.getCodeOrdering(t1.pointType, t2.pointType, CodeOrdering.Lteq())
-      val mbeq = mb.getCodeOrdering(t1.pointType, t2.pointType, CodeOrdering.Equiv())
+    override def gtNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Boolean] = {
+      val pointGt = mb.getCodeOrdering(t1.pointType, t2.pointType, CodeOrdering.Gt())
+      val pointEq = mb.getCodeOrdering(t1.pointType, t2.pointType, CodeOrdering.Equiv())
 
-      Code.memoize(x, "cord_int_lteq_x", y, "cord_int_lteq_y") { (x, y) =>
-        Code(loadStart(x, y), mblteq((mp1, p1), (mp2, p2))) && (
-          !mbeq((mp1, p1), (mp2, p2)) || (// if not equal, then lt
-            Code(mp1 := t1.includesStart(x), mp2 := t2.includesStart(y), mp1 && !mp2) || (mp1.ceq(mp2) && (
-              Code(loadEnd(x, y), mblteq((mp1, p1), (mp2, p2))) && (
-                !mbeq((mp1, p1), (mp2, p2)) ||
-                  !t1.includesEnd(x) || t2.includesEnd(y))))))
+      val Lout = CodeLabel()
+      val ret = cb.newLocal[Boolean]("interval_gt")
+      val exitWith = (value: Code[Boolean]) => {
+        cb.assign(ret, value)
+        cb.goto(Lout)
       }
+
+      val (lhs, rhs) = setup(cb, x, y)
+      val lstart = cb.memoize(EmitCode.fromI(cb.emb)(lhs.loadStart(_).typecast), "linterval_start")
+      val rstart = cb.memoize(EmitCode.fromI(cb.emb)(rhs.loadStart(_).typecast), "rinterval_start")
+
+      cb.ifx(pointGt(cb, lstart, rstart), exitWith(true))
+      cb.ifx(!pointEq(cb, lstart, rstart), exitWith(false))
+      cb.ifx(!lhs.includesStart() && rhs.includesStart(), exitWith(true))
+      cb.ifx(lhs.includesStart().cne(rhs.includesStart()), exitWith(false))
+
+      val lend = cb.memoize(EmitCode.fromI(cb.emb)(lhs.loadEnd(_).typecast), "linterval_end")
+      val rend = cb.memoize(EmitCode.fromI(cb.emb)(rhs.loadEnd(_).typecast), "rinterval_end")
+
+      cb.ifx(pointGt(cb, lend, rend), exitWith(true))
+      cb.assign(ret, pointEq(cb, lend, rend) && lhs.includesEnd() && !rhs.includesEnd())
+
+      cb.define(Lout)
+      ret
     }
 
-    override def gtNonnull(x: Code[T], y: Code[T]): Code[Boolean] = {
-      val mbgt = mb.getCodeOrdering(t1.pointType, t2.pointType, CodeOrdering.Gt())
-      val mbeq = mb.getCodeOrdering(t1.pointType, t2.pointType, CodeOrdering.Equiv())
+    override def gteqNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Boolean] = {
+      val pointGtEq = mb.getCodeOrdering(t1.pointType, t2.pointType, CodeOrdering.Gteq())
+      val pointEq = mb.getCodeOrdering(t1.pointType, t2.pointType, CodeOrdering.Equiv())
 
-      Code.memoize(x, "cord_int_gt_x", y, "cord_int_gt_y") { (x, y) =>
-        Code(loadStart(x, y), mbgt((mp1, p1), (mp2, p2))) || (
-          mbeq((mp1, p1), (mp2, p2)) && (
-            Code(mp1 := t1.includesStart(x), mp2 := t2.includesStart(y), !mp1 && mp2) || (mp1.ceq(mp2) && (
-              Code(loadEnd(x, y), mbgt((mp1, p1), (mp2, p2))) || (
-                mbeq((mp1, p1), (mp2, p2)) &&
-                  t1.includesEnd(x) && !t2.includesEnd(y))))))
+      val Lout = CodeLabel()
+      val ret = cb.newLocal[Boolean]("interval_gteq")
+      val exitWith = (value: Code[Boolean]) => {
+        cb.assign(ret, value)
+        cb.goto(Lout)
       }
-    }
 
-    override def gteqNonnull(x: Code[T], y: Code[T]): Code[Boolean] = {
-      val mbgteq = mb.getCodeOrdering(t1.pointType, t2.pointType, CodeOrdering.Gteq())
-      val mbeq = mb.getCodeOrdering(t1.pointType, t2.pointType, CodeOrdering.Equiv())
+      val (lhs, rhs) = setup(cb, x, y)
+      val lstart = cb.memoize(EmitCode.fromI(cb.emb)(lhs.loadStart(_).typecast), "linterval_start")
+      val rstart = cb.memoize(EmitCode.fromI(cb.emb)(rhs.loadStart(_).typecast), "rinterval_start")
 
-      Code.memoize(x, "cord_int_gteq_x", y, "cord_int_gteq_y") { (x, y) =>
-        Code(loadStart(x, y), mbgteq((mp1, p1), (mp2, p2))) && (
-          !mbeq((mp1, p1), (mp2, p2)) || (// if not equal, then lt
-            Code(mp1 := t1.includesStart(x), mp2 := t2.includesStart(y), !mp1 && mp2) || (mp1.ceq(mp2) && (
-              Code(loadEnd(x, y), mbgteq((mp1, p1), (mp2, p2))) && (
-                !mbeq((mp1, p1), (mp2, p2)) ||
-                  t1.includesEnd(x) || !t2.includesEnd(y))))))
-      }
+      cb.ifx(!pointGtEq(cb, lstart, rstart), exitWith(false))
+      cb.ifx(!pointEq(cb, lstart, rstart), exitWith(true))
+      cb.ifx(!lhs.includesStart() && rhs.includesStart(), exitWith(true))
+      cb.ifx(lhs.includesStart().cne(rhs.includesStart()), exitWith(false))
+
+      val lend = cb.memoize(EmitCode.fromI(cb.emb)(lhs.loadEnd(_).typecast), "linterval_end")
+      val rend = cb.memoize(EmitCode.fromI(cb.emb)(rhs.loadEnd(_).typecast), "rinterval_end")
+      cb.ifx(!pointGtEq(cb, lend, rend), exitWith(false))
+      cb.assign(ret, !pointEq(cb, lend, rend) || lhs.includesEnd() || !rhs.includesEnd())
+
+      cb.define(Lout)
+      ret
     }
   }
+
+  def locusOrdering(t1: PLocus, t2: PLocus, mb: EmitMethodBuilder[_]): CodeOrdering =
+    new CodeOrderingCompareConsistentWithOthers {
+      require(t1.rg == t2.rg)
+
+      def compareNonnull(cb: EmitCodeBuilder, lhsc: PCode, rhsc: PCode): Code[Int] = {
+        val codeRG = mb.getReferenceGenome(t1.rg)
+        val lhs: PLocusValue = lhsc.asLocus.memoize(cb, "locus_cmp_lhs")
+        val rhs: PLocusValue = rhsc.asLocus.memoize(cb, "locus_cmp_rhs")
+        val lhsContig = lhs.contig(cb).memoize(cb, "locus_cmp_lcontig").asInstanceOf[SStringValue]
+        val rhsContig = rhs.contig(cb).memoize(cb, "locus_cmp_rcontig").asInstanceOf[SStringValue]
+
+        // ugh
+        val lhsContigBinType = lhsContig.get.asBytes().st.pType.asInstanceOf[PBinary]
+        val rhsContigBinType = rhsContig.get.asBytes().st.pType.asInstanceOf[PBinary]
+        val bincmp = lhsContigBinType.codeOrdering(mb, rhsContigBinType)
+
+        val ret = cb.newLocal[Int]("locus_cmp_ret", 0)
+        cb.ifx(bincmp.compareNonnull(cb,
+            lhsContig.get.asBytes().asPCode,
+            rhsContig.get.asBytes().asPCode).ceq(0), {
+          cb.assign(ret, Code.invokeStatic2[java.lang.Integer, Int, Int, Int](
+            "compare", lhs.position(cb), rhs.position(cb)))
+        }, {
+          cb.assign(ret, codeRG.invoke[String, String, Int](
+            "compare", lhsContig.get.loadString(), rhsContig.get.loadString()))
+        })
+        ret
+      }
+    }
 
   def mapOrdering(t1: PDict, t2: PDict, mb: EmitMethodBuilder[_]): CodeOrdering =
     iterableOrdering(PCanonicalArray(t1.elementType, t1.required), PCanonicalArray(t2.elementType, t2.required), mb)
@@ -368,80 +580,133 @@ object CodeOrdering {
 abstract class CodeOrdering {
   outer =>
 
-  type T
-  type P = (Code[Boolean], Code[T])
+  def compareNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Int]
 
-  def compareNonnull(x: Code[T], y: Code[T]): Code[Int]
+  def ltNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Boolean]
 
-  def ltNonnull(x: Code[T], y: Code[T]): Code[Boolean]
+  def lteqNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Boolean]
 
-  def lteqNonnull(x: Code[T], y: Code[T]): Code[Boolean]
+  def gtNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Boolean]
 
-  def gtNonnull(x: Code[T], y: Code[T]): Code[Boolean]
+  def gteqNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Boolean]
 
-  def gteqNonnull(x: Code[T], y: Code[T]): Code[Boolean]
+  def equivNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Boolean]
 
-  def equivNonnull(x: Code[T], y: Code[T]): Code[Boolean]
+  def compare(cb: EmitCodeBuilder, x: EmitCode, y: EmitCode, missingEqual: Boolean = true): Code[Int] = {
+    cb += x.setup
+    cb += y.setup
+    val xm = cb.newLocal("cord_compare_xm", x.m)
+    val ym = cb.newLocal("cord_compare_ym", y.m)
+    val cmp = cb.newLocal[Int]("cmp")
+    cb.ifx(xm,
+      cb.ifx(ym, cb.assign(cmp, if (missingEqual) 0 else -1), cb.assign(cmp, 1)),
+      cb.ifx(ym, cb.assign(cmp, -1), cb.assign(cmp, compareNonnull(cb, x.pv, y.pv))))
+    cmp
+  }
 
-  def compare(x: P, y: P, missingEqual: Boolean = true): Code[Int] = (x, y) match { case ((xm, xv), (ym, yv)) =>
-    Code.memoize(xm, "cord_compare_xm", ym, "cord_compare_ym") { (xm, ym) =>
-      xm.mux(ym.mux(if (missingEqual) 0 else -1, 1),
-             ym.mux(-1, compareNonnull(xv, yv)))
+  def lt(cb: EmitCodeBuilder, x:EmitCode, y: EmitCode, missingEqual: Boolean): Code[Boolean] = {
+    val ret = cb.newLocal[Boolean]("lt")
+    cb += x.setup
+    cb += y.setup
+    if (missingEqual) {
+      cb.ifx(x.m,
+        cb.assign(ret, false),
+        cb.ifx(y.m,
+          cb.assign(ret, true),
+          cb.assign(ret, ltNonnull(cb, x.pv, y.pv))))
+    } else {
+      cb.ifx(y.m,
+        cb.assign(ret, true),
+        cb.ifx(x.m,
+          cb.assign(ret, false),
+          cb.assign(ret, ltNonnull(cb, x.pv, y.pv))))
     }
+    ret
   }
-  def lt(x: P, y: P, missingEqual: Boolean): Code[Boolean] = (x, y) match { case ((xm, xv), (ym, yv)) =>
-    val nonnull = ltNonnull(xv, yv)
-    if (missingEqual)
-      !xm && (ym || nonnull)
-    else
-      ym || (!xm && nonnull)
+
+  def lteq(cb: EmitCodeBuilder, x: EmitCode, y: EmitCode, missingEqual: Boolean): Code[Boolean] = {
+    val ret = cb.newLocal[Boolean]("lteq")
+    cb += x.setup
+    cb += y.setup
+    cb.ifx(y.m,
+      cb.assign(ret, true),
+      cb.ifx(x.m,
+        cb.assign(ret, false),
+        cb.assign(ret, lteqNonnull(cb, x.pv, y.pv))))
+    ret
   }
-  def lteq(x: P, y: P, missingEqual: Boolean): Code[Boolean] = (x, y) match { case ((xm, xv), (ym, yv)) =>
-    ym || (!xm && lteqNonnull(xv, yv))
+
+  def gt(cb: EmitCodeBuilder, x: EmitCode, y: EmitCode, missingEqual: Boolean): Code[Boolean] = {
+    val ret = cb.newLocal[Boolean]("gt")
+    cb += x.setup
+    cb += y.setup
+    cb.ifx(y.m,
+      cb.assign(ret, false),
+      cb.ifx(x.m,
+        cb.assign(ret, true),
+        cb.assign(ret, gtNonnull(cb, x.pv, y.pv))))
+    ret
   }
-  def gt(x: P, y: P, missingEqual: Boolean): Code[Boolean] = (x, y) match { case ((xm, xv), (ym, yv)) =>
-    !ym && (xm || gtNonnull(xv, yv))
+
+  def gteq(cb: EmitCodeBuilder, x: EmitCode, y: EmitCode, missingEqual: Boolean): Code[Boolean] = {
+    val ret = cb.newLocal[Boolean]("gteq")
+    cb += x.setup
+    cb += y.setup
+    if (missingEqual) {
+      cb.ifx(x.m,
+        cb.assign(ret, true),
+        cb.ifx(y.m,
+          cb.assign(ret, false),
+          cb.assign(ret, gteqNonnull(cb, x.pv, y.pv))))
+    } else {
+      cb.ifx(y.m,
+        cb.assign(ret, false),
+        cb.ifx(x.m,
+          cb.assign(ret, true),
+          cb.assign(ret, gteqNonnull(cb, x.pv, y.pv))))
+    }
+    ret
   }
-  def gteq(x: P, y: P, missingEqual: Boolean): Code[Boolean] = (x, y) match { case ((xm, xv), (ym, yv)) =>
-    val nonnull = gteqNonnull(xv, yv)
-    if (missingEqual)
-      xm || (!ym && nonnull)
-    else
-      !ym && (xm || nonnull)
-  }
-  def equiv(x: P, y: P, missingEqual: Boolean): Code[Boolean] = (x, y) match { case ((xm, xv), (ym, yv)) =>
-    val nonnull = equivNonnull(xv, yv)
-    if (missingEqual)
-      Code.memoize(xm, "cord_lift_missing_xm", ym, "cord_lift_missing_ym") { (xm, ym) =>
-        (xm && ym) || (!xm && !ym && nonnull)
-      }
-    else
-      !xm && !ym && nonnull
+
+  def equiv(cb: EmitCodeBuilder, x: EmitCode, y: EmitCode, missingEqual: Boolean): Code[Boolean] = {
+    val ret = cb.newLocal[Boolean]("eq")
+    cb += x.setup
+    cb += y.setup
+    if (missingEqual) {
+      val xm = cb.newLocal("cord_equiv_xm", x.m)
+      val ym = cb.newLocal("cord_equiv_ym", y.m)
+      cb.ifx(xm && ym,
+        cb.assign(ret, true),
+        cb.ifx(!xm && !ym,
+          cb.assign(ret, equivNonnull(cb, x.pv, y.pv)),
+          cb.assign(ret, false)))
+    } else {
+      cb.ifx(!x.m && !y.m, cb.assign(ret, equivNonnull(cb, x.pv, y.pv)), cb.assign(ret, false))
+    }
+    ret
   }
 
   // reverses the sense of the non-null comparison only
   def reverse: CodeOrdering = new CodeOrdering () {
     override def reverse: CodeOrdering = CodeOrdering.this
-    override type T = CodeOrdering.this.T
-    override type P = CodeOrdering.this.P
 
-    override def compareNonnull(x: Code[T], y: Code[T]) = CodeOrdering.this.compareNonnull(y, x)
-    override def ltNonnull(x: Code[T], y: Code[T]) = CodeOrdering.this.ltNonnull(y, x)
-    override def lteqNonnull(x: Code[T], y: Code[T]) = CodeOrdering.this.lteqNonnull(y, x)
-    override def gtNonnull(x: Code[T], y: Code[T]) = CodeOrdering.this.gtNonnull(y, x)
-    override def gteqNonnull(x: Code[T], y: Code[T]) = CodeOrdering.this.gteqNonnull(y, x)
-    override def equivNonnull(x: Code[T], y: Code[T]) = CodeOrdering.this.equivNonnull(y, x)
+    override def compareNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode) = CodeOrdering.this.compareNonnull(cb, y, x)
+    override def ltNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode) = CodeOrdering.this.ltNonnull(cb, y, x)
+    override def lteqNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode) = CodeOrdering.this.lteqNonnull(cb, y, x)
+    override def gtNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode) = CodeOrdering.this.gtNonnull(cb, y, x)
+    override def gteqNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode) = CodeOrdering.this.gteqNonnull(cb, y, x)
+    override def equivNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode) = CodeOrdering.this.equivNonnull(cb, y, x)
   }
 }
 
 abstract class CodeOrderingCompareConsistentWithOthers extends CodeOrdering {
-  def ltNonnull(x: Code[T], y: Code[T]): Code[Boolean] = compareNonnull(x, y) < 0
+  def ltNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Boolean] = compareNonnull(cb, x, y) < 0
 
-  def lteqNonnull(x: Code[T], y: Code[T]): Code[Boolean] = compareNonnull(x, y) <= 0
+  def lteqNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Boolean] = compareNonnull(cb, x, y) <= 0
 
-  def gtNonnull(x: Code[T], y: Code[T]): Code[Boolean] = compareNonnull(x, y) > 0
+  def gtNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Boolean] = compareNonnull(cb, x, y) > 0
 
-  def gteqNonnull(x: Code[T], y: Code[T]): Code[Boolean] = compareNonnull(x, y) >= 0
+  def gteqNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Boolean] = compareNonnull(cb, x, y) >= 0
 
-  def equivNonnull(x: Code[T], y: Code[T]): Code[Boolean] = compareNonnull(x, y).ceq(0)
+  def equivNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Boolean] = compareNonnull(cb, x, y).ceq(0)
 }

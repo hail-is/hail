@@ -42,6 +42,8 @@ case class SFloat32(required: Boolean) extends SType {
     assert(x.ti == FloatInfo)
     new SFloat32Code(required, x)
   }
+
+  def canonicalPType(): PType = pType
 }
 
 trait PFloat32Value extends PValue {

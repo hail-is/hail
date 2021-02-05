@@ -6,6 +6,7 @@ import is.hail.expr.ir._
 import is.hail.types.physical._
 import is.hail.utils._
 import is.hail.types.virtual._
+import is.hail.types.physical.stypes.interfaces._
 import org.apache.spark.sql.Row
 
 import scala.reflect.ClassTag
@@ -125,14 +126,14 @@ object UtilFunctions extends RegistryFunctions {
   def registerAll() {
     val thisClass = getClass
 
-    registerCode4("valuesSimilar", tv("T"), tv("U"), TFloat64, TBoolean, TBoolean, {
-      case(_: Type, _: PType, _: PType, _: PType, _: PType) => PBoolean()
+    registerPCode4("valuesSimilar", tv("T"), tv("U"), TFloat64, TBoolean, TBoolean, {
+      case (_: Type, _: PType, _: PType, _: PType, _: PType) => PBoolean()
     }) {
-      case (er, rt, (lT, l), (rT, r), (tolT, tolerance), (absT, absolute)) =>
-        assert(lT.virtualType == rT.virtualType, s"\n  lt=${lT.virtualType}\n  rt=${rT.virtualType}")
-        val lb = boxArg(er, lT)(l)
-        val rb = boxArg(er, rT)(r)
-        er.mb.getType(lT.virtualType).invoke[Any, Any, Double, Boolean, Boolean]("valuesSimilar", lb, rb, tolerance, absolute)
+      case (er, cb, rt, l, r, tol, abs) =>
+        assert(l.pt.virtualType == r.pt.virtualType, s"\n  lt=${ l.pt.virtualType }\n  rt=${ r.pt.virtualType }")
+        val lb = scodeToJavaValue(cb, er.region, l)
+        val rb = scodeToJavaValue(cb, er.region, r)
+        primitive(er.mb.getType(l.st.virtualType).invoke[Any, Any, Double, Boolean, Boolean]("valuesSimilar", lb, rb, tol.asDouble.doubleCode(cb), abs.asBoolean.boolCode(cb)))
     }
 
     registerCode1[Int]("triangle", TInt32, TInt32, (_: Type, n: PType) => n) { case (_, rt, (nT, n: Code[Int])) =>
@@ -161,7 +162,7 @@ object UtilFunctions extends RegistryFunctions {
       }
       registerIEmitCode1(s"to${name}OrMissing", TString, t, (_: Type, xPT: PType) => rpt.setRequired(xPT.required)) {
         case (cb, r, rt, x) =>
-          x().flatMap(cb) { case (sc: PStringCode) =>
+          x.toI(cb).flatMap(cb) { case (sc: PStringCode) =>
             val sv = cb.newLocal[String]("s", sc.loadString())
             IEmitCode(cb,
               !Code.invokeScalaObject1[String, Boolean](thisClass, s"isValid$name", sv),

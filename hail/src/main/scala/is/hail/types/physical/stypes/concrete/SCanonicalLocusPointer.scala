@@ -39,6 +39,8 @@ case class SCanonicalLocusPointer(pType: PCanonicalLocus) extends SLocus {
     assert(a.ti == LongInfo)
     new SCanonicalLocusPointerCode(this, a)
   }
+
+  def canonicalPType(): PType = pType
 }
 
 

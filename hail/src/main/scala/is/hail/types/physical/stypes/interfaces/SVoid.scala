@@ -21,6 +21,8 @@ case object SVoid extends SType {
   def fromCodes(codes: IndexedSeq[Code[_]]): SCode = throw new UnsupportedOperationException
 
   def fromSettables(settables: IndexedSeq[Settable[_]]): SSettable = throw new UnsupportedOperationException
+
+  def canonicalPType(): PType = pType
 }
 
 case object PVoidCode extends PCode with PUnrealizableCode {

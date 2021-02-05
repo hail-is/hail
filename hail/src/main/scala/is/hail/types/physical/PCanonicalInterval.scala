@@ -102,7 +102,9 @@ final case class PCanonicalInterval(pointType: PType, override val required: Boo
     }
   }
 
-  def loadFromNested(cb: EmitCodeBuilder, addr: Code[Long]): Code[Long] = representation.loadFromNested(cb, addr)
+  def loadFromNested(addr: Code[Long]): Code[Long] = representation.loadFromNested(addr)
+
+  override def unstagedLoadFromNested(addr: Long): Long = representation.unstagedLoadFromNested(addr)
 
   override def unstagedStoreJavaObjectAtAddress(addr: Long, annotation: Annotation, region: Region): Unit = {
     val jInterval = annotation.asInstanceOf[Interval]

@@ -34,11 +34,7 @@ class DownsampleBTreeKey(binType: PBaseStruct, pointType: PBaseStruct, kb: EmitC
     storageType.storeAtAddress(cb, dest, er.region, storageType.loadCheapPCode(cb, src), deepCopy = true)
   }
 
-  def compKeys(cb: EmitCodeBuilder, k1: EmitCode, k2: EmitCode): Code[Int] = {
-    cb += k1.setup
-    cb += k2.setup
-    kcomp(k1.m -> k1.v, k2.m -> k2.v)
-  }
+  def compKeys(cb: EmitCodeBuilder, k1: EmitCode, k2: EmitCode): Code[Int] = kcomp(cb, k1, k2)
 
   def loadCompKey(cb: EmitCodeBuilder, off: Value[Long]): EmitCode = EmitCode.present(binType, storageType.loadField(off, "bin"))
 }

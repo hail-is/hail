@@ -4,7 +4,6 @@ from typing import Optional, Union
 
 import hail as hl
 import pkg_resources
-from hail.utils.java import FatalError
 
 
 def load_dataset(name: str,
@@ -107,19 +106,10 @@ def load_dataset(name: str,
     path = path[0]
 
     if path.endswith('.ht'):
-        try:
-            dataset = hl.read_table(path)
-        except FatalError:
-            dataset = hl.read_matrix_table(path)
+        return hl.read_table(path)
     elif path.endswith('.mt'):
-        try:
-            dataset = hl.read_matrix_table(path)
-        except FatalError:
-            dataset = hl.read_table(path)
-    else:
-        if not path.endswith('.bm'):
-            raise ValueError(f'Invalid path {repr(path)}: can only load'
-                             f' datasets with .ht, .mt, or .bm extensions.')
-        dataset = hl.linalg.BlockMatrix.read(path)
-
-    return dataset
+        return hl.read_matrix_table(path)
+    elif path.endswith('.bm'):
+        return hl.linalg.BlockMatrix.read(path)
+    raise ValueError(f'Invalid path {repr(path)}: can only load'
+                     f' datasets with .ht, .mt, or .bm extensions.')
