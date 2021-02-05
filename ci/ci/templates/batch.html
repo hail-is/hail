@@ -7,8 +7,14 @@
       {% for name, value in batch['attributes'].items() %}
       <div>{{ name }}: {{ value }}</div>
       {% endfor %}
+      <br>
+      {% for field in ['time_created', 'time_completed', 'duration'] %}
+      {% if field in batch %}
+      <div>{{ field }}: {{ batch[field] }}</div>
       {% endif %}
+      {% endfor %}
     </div>
+    {% endif %}
     <h2>Jobs</h2>
     <table class="data-table" style="line-height: 175%">
       <thead>
