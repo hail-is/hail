@@ -158,7 +158,7 @@ class Step(abc.ABC):
         else:
             self.deps = []
 
-        log.info(f'step {self.name} depends on: {", ".join(self.deps)}')
+        log.info(f'step {self.name} depends on: {", ".join(step.name for step in self.deps)}')
 
         self.scopes = json.get('scopes')
         self.run_if_requested = json.get('runIfRequested', False)
