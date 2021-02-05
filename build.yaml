@@ -402,10 +402,6 @@ steps:
       namespace:
         valueFrom: default_ns.name
       mountPath: /deploy-config
-    - name: auth-gsa-key
-      namespace:
-        valueFrom: default_ns.name
-      mountPath: /gsa-key
    inputs:
      - from: /repo/ci/bootstrap_create_accounts.py
        to: /io/bootstrap_create_accounts.py
