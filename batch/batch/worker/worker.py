@@ -562,7 +562,7 @@ async def add_gcsfuse_bucket(mount_path, bucket, key_file, read_only):
         except asyncio.CancelledError:  # pylint: disable=try-except-raise
             raise
 
-    delay = await sleep_and_backoff(delay)
+        delay = await sleep_and_backoff(delay)
 
 
 def copy_command(src, dst, requester_pays_project=None):
