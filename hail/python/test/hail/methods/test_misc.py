@@ -53,7 +53,7 @@ class Tests(unittest.TestCase):
             expr = (hl.case()
                     .when(ann.locus.position <= 14000000, ann.target == 'gene1')
                     .when(ann.locus.position >= 17000000, ann.target == 'gene2')
-                    .default(ann.target == hl.null(hl.tstr)))
+                    .default(ann.target == hl.missing(hl.tstr)))
             self.assertTrue(ann.all(expr))
 
         self.assertTrue(ds.annotate_rows(in_interval=interval_list1[ds.locus]).rows()

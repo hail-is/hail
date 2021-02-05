@@ -107,7 +107,7 @@ class Tests(unittest.TestCase):
         check(mt.x, False, True, True, (a - 1.0) / np.sqrt(2))
         check(mt.x + 1 - 1, False, False, False, a)
 
-        mt = build_mt([0.0, hl.null('float64'), 2.0])
+        mt = build_mt([0.0, hl.misssing('float64'), 2.0])
         check(mt.x, True, False, False, a)
         check(mt.x, True, True, False, a - 1.0)
         check(mt.x, True, False, True, a / np.sqrt(5))
@@ -973,7 +973,7 @@ class Tests(unittest.TestCase):
             hl.linalg.utils.locus_windows(ht.locus, 1.0, ht.y)
         assert "row-indexed" in str(cm.exception)
 
-        ht = hl.Table.parallelize([{'locus': hl.null(hl.tlocus()), 'cm': 1.0}],
+        ht = hl.Table.parallelize([{'locus': hl.misssing(hl.tlocus()), 'cm': 1.0}],
                                   hl.tstruct(locus=hl.tlocus('GRCh37'), cm=hl.tfloat64), key=['locus'])
         with self.assertRaises(HailUserError) as cm:
             hl.linalg.utils.locus_windows(ht.locus, 1.0)
@@ -982,7 +982,7 @@ class Tests(unittest.TestCase):
             hl.linalg.utils.locus_windows(ht.locus, 1.0, coord_expr=ht.cm)
         assert "missing value for 'locus_expr'" in str(cm.exception)
 
-        ht = hl.Table.parallelize([{'locus': hl.Locus('1', 1), 'cm': hl.null(hl.tfloat64)}],
+        ht = hl.Table.parallelize([{'locus': hl.Locus('1', 1), 'cm': hl.misssing(hl.tfloat64)}],
                                   hl.tstruct(locus=hl.tlocus('GRCh37'), cm=hl.tfloat64), key=['locus'])
         with self.assertRaises(FatalError) as cm:
             hl.linalg.utils.locus_windows(ht.locus, 1.0, coord_expr=ht.cm)

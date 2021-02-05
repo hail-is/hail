@@ -88,7 +88,7 @@ class Tests(unittest.TestCase):
         mt = mt.annotate_cols(fam=ht[mt.s].fam_id)
 
         # Make keys all null
-        mt = mt.key_cols_by(s=hl.null(hl.tstr))
+        mt = mt.key_cols_by(s=hl.missing(hl.tstr))
 
         tt = hl.trio_matrix(mt, ped, complete_trios=True)
         self.assertEqual(tt.count_cols(), 0)

@@ -54,7 +54,7 @@ class Tests(unittest.TestCase):
             x11=kt.f[1:2],
             x12=kt.f.map(lambda x: [x, x + 1]),
             x13=kt.f.map(lambda x: [[x, x + 1], [x + 2]]).flatmap(lambda x: x),
-            x14=hl.if_else(kt.a < kt.b, kt.c, hl.null(hl.tint32)),
+            x14=hl.if_else(kt.a < kt.b, kt.c, hl.missing(hl.tint32)),
             x15={1, 2, 3}
         ).take(1)[0])
 
@@ -155,8 +155,8 @@ class Tests(unittest.TestCase):
                 x14=agg.call_stats(kt.GT, ["A", "T"]),
                 x15=agg.collect(hl.Struct(a=5, b="foo", c=hl.Struct(banana='apple')))[0],
                 x16=agg.collect(hl.Struct(a=5, b="foo", c=hl.Struct(banana='apple')).c.banana)[0],
-                x17=agg.explode(lambda elt: agg.collect(elt), hl.null(hl.tarray(hl.tint32))),
-                x18=agg.explode(lambda elt: agg.collect(elt), hl.null(hl.tset(hl.tint32))),
+                x17=agg.explode(lambda elt: agg.collect(elt), hl.missing(hl.tarray(hl.tint32))),
+                x18=agg.explode(lambda elt: agg.collect(elt), hl.missing(hl.tset(hl.tint32))),
                 x19=agg.take(kt.GT, 1, ordering=-kt.qPheno)
             ).take(1)[0])
 
@@ -187,7 +187,7 @@ class Tests(unittest.TestCase):
         r = kt.aggregate(5)
         self.assertEqual(r, 5)
 
-        r = kt.aggregate(hl.null(hl.tint32))
+        r = kt.aggregate(hl.missing(hl.tint32))
         self.assertEqual(r, None)
 
         r = kt.aggregate(agg.filter(kt.idx % 2 != 0, agg.sum(kt.idx + 2)) + kt.g1)
@@ -274,7 +274,7 @@ class Tests(unittest.TestCase):
     def test_filter_missing(self):
         ht = hl.utils.range_table(1, 1)
 
-        self.assertEqual(ht.filter(hl.null(hl.tbool)).count(), 0)
+        self.assertEqual(ht.filter(hl.missing(hl.tbool)).count(), 0)
 
     def test_transmute(self):
         schema = hl.tstruct(a=hl.tint32, b=hl.tint32, c=hl.tint32, d=hl.tint32, e=hl.tstr, f=hl.tarray(hl.tint32),
@@ -509,11 +509,11 @@ class Tests(unittest.TestCase):
         self.assertEqual(joined_nothing._force_count(), 5)
 
     def test_multi_way_zip_join_globals(self):
-        t1 = hl.utils.range_table(1).annotate_globals(x=hl.null(hl.tint32))
+        t1 = hl.utils.range_table(1).annotate_globals(x=hl.missing(hl.tint32))
         t2 = hl.utils.range_table(1).annotate_globals(x=5)
         t3 = hl.utils.range_table(1).annotate_globals(x=0)
         expected = hl.struct(__globals=hl.array([
-            hl.struct(x=hl.null(hl.tint32)),
+            hl.struct(x=hl.missing(hl.tint32)),
             hl.struct(x=5),
             hl.struct(x=0)]))
         joined = hl.Table.multi_way_zip_join([t1, t2, t3], '__data', '__globals')
@@ -940,11 +940,11 @@ class Tests(unittest.TestCase):
     def test_null_joins(self):
         tr = hl.utils.range_table(7, 1)
         table1 = tr.key_by(new_key=hl.if_else((tr.idx == 3) | (tr.idx == 5),
-                                              hl.null(hl.tint32), tr.idx),
+                                              hl.missing(hl.tint32), tr.idx),
                            key2=1)
         table1 = table1.select(idx1=table1.idx)
         table2 = tr.key_by(new_key=hl.if_else((tr.idx == 4) | (tr.idx == 6),
-                                              hl.null(hl.tint32), tr.idx),
+                                              hl.missing(hl.tint32), tr.idx),
                            key2=1)
         table2 = table2.select(idx2=table2.idx)
 
@@ -980,11 +980,11 @@ class Tests(unittest.TestCase):
     def test_null_joins_2(self):
         tr = hl.utils.range_table(7, 1)
         table1 = tr.key_by(new_key=hl.if_else((tr.idx == 3) | (tr.idx == 5),
-                                              hl.null(hl.tint32), tr.idx),
+                                              hl.missing(hl.tint32), tr.idx),
                            key2=tr.idx)
         table1 = table1.select(idx1=table1.idx)
         table2 = tr.key_by(new_key=hl.if_else((tr.idx == 4) | (tr.idx == 6),
-                                              hl.null(hl.tint32), tr.idx),
+                                              hl.missing(hl.tint32), tr.idx),
                            key2=tr.idx)
         table2 = table2.select(idx2=table2.idx)
 
@@ -1021,7 +1021,7 @@ class Tests(unittest.TestCase):
         tr = hl.utils.range_table(7, 1)
         table1 = tr.key_by(new_key=tr.idx)
         table1 = table1.select(idx1=table1.idx)
-        table2 = tr.key_by(new_key=hl.if_else((tr.idx == 4) | (tr.idx == 6), hl.null(hl.tint32), tr.idx))
+        table2 = tr.key_by(new_key=hl.if_else((tr.idx == 4) | (tr.idx == 6), hl.missing(hl.tint32), tr.idx))
         table2 = table2.select(idx2=table2.idx)
 
         left_join = table1.join(table2, 'left')
@@ -1120,8 +1120,8 @@ class Tests(unittest.TestCase):
         ht = hl.utils.range_table(10).annotate(foo=5)
         ht.annotate(a_join=ht[ht.key],
                     a_literal=hl.literal(['a']),
-                    the_row_failure=hl.if_else(True, ht.row, hl.null(ht.row.dtype)),
-                    the_global_failure=hl.if_else(True, ht.globals, hl.null(ht.globals.dtype))).count()
+                    the_row_failure=hl.if_else(True, ht.row, hl.missing(ht.row.dtype)),
+                    the_global_failure=hl.if_else(True, ht.globals, hl.missing(ht.globals.dtype))).count()
 
     def test_aggregate_localize_false(self):
         ht = hl.utils.range_table(10)
