@@ -2,6 +2,7 @@ from typing import Callable, TypeVar, Awaitable, Optional, Type
 from types import TracebackType
 import subprocess
 import traceback
+import sys
 import os
 import errno
 import random
@@ -256,6 +257,65 @@ class WaitableSharedPool:
                         exc_val: Optional[BaseException],
                         exc_tb: Optional[TracebackType]) -> None:
         await self.wait()
+
+
+async def bounded_gather2_return_exceptions(sema, *aws):
+    '''Run the awaitables aws as tasks with parallelism bounded by sema,
+    which should be asyncio.Semaphore whose initial value is the level
+    of parallelism.
+
+    The return value is the list of awaitable results as pairs: the
+    pair (value, None) if the awaitable returned value or (None, exc)
+    if the awaitable raised the exception exc.
+    '''
+    async def run_with_sema_return_exceptions(aw):
+        try:
+            async with sema:
+                return (await aw, None)
+        except:
+            _, exc, _ = sys.exc_info()
+            return (None, exc)
+
+    return await asyncio.gather(*[asyncio.create_task(run_with_sema_return_exceptions(aw)) for aw in aws])
+
+
+async def bounded_gather2_raise_exceptions(sema, *aws, cancel_on_error=False):
+    '''Run the awaitables aws as tasks with parallelism bounded by sema,
+    which should be asyncio.Semaphore whose initial value is the level
+    of parallelism.
+
+    The return value is the list of awaitable results.
+
+    The first exception raised by an awaitable is raised by
+    bounded_gather2_raise_exceptions.
+
+    If cancel_on_error is False (the default), the remaining
+    awaitables continue to run with bounded parallelism.  If
+    cancel_on_error is True, the unfinished tasks are all cancelled.
+    '''
+    async def run_with_sema(aw):
+        async with sema:
+            return await aw
+
+    tasks = [asyncio.create_task(run_with_sema(aw)) for aw in aws]
+    if not cancel_on_error:
+        return await asyncio.gather(*tasks)
+
+    try:
+        return await asyncio.gather(*tasks)
+    finally:
+        _, exc, _ = sys.exc_info()
+        if exc is not None:
+            for task in tasks:
+                if not task.done():
+                    task.cancel()
+
+
+async def bounded_gather2(sema, *aws, return_exceptions=False, cancel_on_error=False):
+    if return_exceptions:
+        await bounded_gather2_return_exceptions(sema, *aws)
+    else:
+        await bounded_gather2_raise_exceptions(sema, *aws, cancel_on_error=cancel_on_error)
 
 
 RETRYABLE_HTTP_STATUS_CODES = {408, 500, 502, 503, 504}
