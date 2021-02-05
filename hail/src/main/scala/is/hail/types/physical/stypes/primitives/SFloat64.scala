@@ -42,6 +42,8 @@ case class SFloat64(required: Boolean) extends SType {
     assert(x.ti == DoubleInfo)
     new SFloat64Code(required, x)
   }
+
+  def canonicalPType(): PType = pType
 }
 
 trait PFloat64Value extends PValue {

@@ -36,6 +36,8 @@ case class SBaseStructPointer(pType: PBaseStruct) extends SStruct {
     assert(a.ti == LongInfo)
     new SBaseStructPointerCode(this, a)
   }
+
+  def canonicalPType(): PType = pType
 }
 
 

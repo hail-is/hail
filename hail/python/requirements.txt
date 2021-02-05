@@ -16,7 +16,7 @@ PyJWT
 pyspark>=2.4,<2.4.2
 python-json-logger==0.1.11
 requests==2.22.0
-scipy>1.2,<1.4
+scipy>1.2,<1.7
 tabulate==0.8.3
 tqdm==4.42.1
 google-cloud-storage==1.25.*

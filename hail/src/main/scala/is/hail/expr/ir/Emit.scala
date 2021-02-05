@@ -223,13 +223,12 @@ object IEmitCode {
     IEmitCodeGen(Lmissing, CodeLabel(), defaultValue)
   }
 
-  def sequence[A, B, C](seq: IndexedSeq[A], toIec: A => IEmitCodeGen[B], cb: EmitCodeBuilder)
-      (f: IndexedSeq[B] => C): IEmitCodeGen[C] = {
+  def multiMapEmitCodes(cb: EmitCodeBuilder, seq: IndexedSeq[EmitCode])(f: IndexedSeq[PCode] => PCode): IEmitCode = {
     val Lmissing = CodeLabel()
     val Lpresent = CodeLabel()
 
     val pcs = seq.map { elem =>
-      val iec = toIec(elem)
+      val iec = elem.toI(cb)
 
       cb.define(iec.Lmissing)
       cb.goto(Lmissing)
@@ -242,9 +241,6 @@ object IEmitCode {
 
     IEmitCodeGen(Lmissing, Lpresent, pc)
   }
-
-  def flatten[A, B](seq: IndexedSeq[() => IEmitCodeGen[A]], cb: EmitCodeBuilder)(f: IndexedSeq[A] => B): IEmitCodeGen[B] =
-    sequence(seq, { (i: () => IEmitCodeGen[A]) => i() }, cb)(f)
 
   def multiFlatMap[A, B, C](seq: IndexedSeq[A], toIec: A => IEmitCodeGen[B], cb: EmitCodeBuilder)
                            (f: IndexedSeq[B] => IEmitCodeGen[C]): IEmitCodeGen[C] = {
@@ -879,15 +875,18 @@ class Emit[C](
       case ApplyUnaryPrimOp(op, x) =>
         emitI(x).map(cb)(pc => PCode(pt, UnaryOp.emit(op, x.typ, pc.code)))
       case ApplyComparisonOp(op, l, r) =>
-        val f = op.codeOrdering(mb, l.pType, r.pType)
         if (op.strict) {
-          emitI(l).flatMap(cb)(l => emitI(r).map(cb)(r => PCode(pt, f((false, l.code), (false, r.code)))))
+          emitI(l).flatMap(cb) { l =>
+            emitI(r).map(cb) { r =>
+              val f = op.codeOrdering(mb, l.pt, r.pt)
+              PCode(pt, f(cb, EmitCode.present(l), EmitCode.present(r)))
+            }
+          }
         } else {
           val lc = emitI(l).memoize(cb, "l")
           val rc = emitI(r).memoize(cb, "r")
-          presentC(
-            f((lc.m, lc.v),
-              (rc.m, rc.v)))
+          val f = op.codeOrdering(mb, lc.pt, rc.pt)
+          presentC(f(cb, lc, rc))
         }
 
       case x@MakeArray(args, _) =>
@@ -1030,7 +1029,8 @@ class Emit[C](
         val ndt = emitI(nd)
 
         ndt.flatMap(cb) { case ndCode: PNDArrayCode =>
-          IEmitCode.sequence(idxs, (ir: IR) => emitI(ir), cb) { idxPCodes: IndexedSeq[PCode] =>
+          val indexEmitCodes = idxs.map(idx => EmitCode.fromI(cb.emb)(emitInNewBuilder(_, idx)))
+          IEmitCode.multiMapEmitCodes(cb, indexEmitCodes) { idxPCodes: IndexedSeq[PCode] =>
             val memoizedIndices = idxPCodes.zipWithIndex.map { case (pc, idx) =>
               pc.memoize(cb,s"ref_idx_$idx")
             }
@@ -1604,7 +1604,7 @@ class Emit[C](
 
         presentPC(pt.loadCheapPCode(cb, addr))
       case x@ApplySeeded(fn, args, seed, rt) =>
-        val codeArgs = args.map(a => (a.pType, () => emitI(a)))
+        val codeArgs = args.map(a => (a.pType, EmitCode.fromI(cb.emb)(emitInNewBuilder(_, a))))
         val impl = x.implementation
         val unified = impl.unify(Array.empty[Type], args.map(_.typ), rt)
         assert(unified)
@@ -2173,7 +2173,8 @@ class Emit[C](
           }
         val vars = args.map { a => coerce[Any](mb.newLocal()(typeToTypeInfo(a.pType))) }
         EmitCode.fromI(mb) { cb =>
-          IEmitCode.sequence(args.toIndexedSeq, (arg: IR) => emitI(arg, cb), cb) { codeArgs =>
+          val emitArgs = args.map(a => EmitCode.fromI(cb.emb)(emitI(a, _))).toFastIndexedSeq
+          IEmitCode.multiMapEmitCodes(cb, emitArgs) { codeArgs =>
             for ((l, i) <- vars.zip(codeArgs)) {
               cb.assign(l, i.code)
             }
@@ -2665,26 +2666,32 @@ class Emit[C](
                     IEmitCode.multiFlatMap(sCodeSlices, { sCodeSlice: SCode =>
                       val sValueSlice = sCodeSlice.asBaseStruct.memoize(cb, "ndarray_slice_sCodeSlice")
                       // I know I have a tuple of three elements here, start, stop, step
-                      val newDimSizeI = IEmitCode.flatten((0 to 2).map(i => () => sValueSlice.loadField(cb, i)), cb)(startStepStopSeq => {
-                        val start = startStepStopSeq(0).memoize(cb, "ndarray_slice_start").asPValue.value.asInstanceOf[Value[Long]]
-                        val stop = startStepStopSeq(1).memoize(cb, "ndarray_slice_stop").asPValue.value.asInstanceOf[Value[Long]]
-                        val step = startStepStopSeq(2).memoize(cb, "ndarray_slice_step").asPValue.value.asInstanceOf[Value[Long]]
 
-                        slicingValueTriples.push((start, stop, step))
+                      val newDimSizeI = sValueSlice.loadField(cb, 0).flatMap(cb) { startC =>
+                        sValueSlice.loadField(cb, 1).flatMap(cb) { stopC =>
+                          sValueSlice.loadField(cb, 2).map(cb) { stepC =>
+                            val start = cb.newLocal[Long]("ndarray_slice_start", startC.asLong.longCode(cb))
+                            val stop = cb.newLocal[Long]("ndarray_slice_stop", stopC.asLong.longCode(cb))
+                            val step = cb.newLocal[Long]("ndarray_slice_step", stepC.asLong.longCode(cb))
 
-                        val newDimSize = cb.newLocal[Long]("new_dim_size")
-                        cb.ifx(step >= 0L && start <= stop, {
-                          cb.assign(newDimSize, const(1L) + ((stop - start) - 1L) / step)
-                        }, {
-                          cb.ifx(step < 0L && start >= stop, {
-                            cb.assign(newDimSize, (((stop - start) + 1L) / step) + 1L)
-                          }, {
-                            cb.assign(newDimSize, 0L)
-                          })
-                        })
+                            slicingValueTriples.push((start, stop, step))
 
-                        newDimSize
-                      })
+                            val newDimSize = cb.newLocal[Long]("new_dim_size")
+                            cb.ifx(step >= 0L && start <= stop, {
+                              cb.assign(newDimSize, const(1L) + ((stop - start) - 1L) / step)
+                            }, {
+                              cb.ifx(step < 0L && start >= stop, {
+                                cb.assign(newDimSize, (((stop - start) + 1L) / step) + 1L)
+                              }, {
+                                cb.assign(newDimSize, 0L)
+                              })
+                            })
+
+                            newDimSize
+
+                          }
+                        }
+                      }
                       newDimSizeI
                     }, cb)(x => IEmitCode(cb, false, x))
                   }

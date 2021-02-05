@@ -99,7 +99,7 @@ case class BgenSettings(
     .fieldOption(MatrixType.entriesIdentifier)
     .map(f => f.typ.asInstanceOf[TArray].elementType.asInstanceOf[TStruct])
 
-  val rowPType: PStruct = PCanonicalStruct(required = true,
+  val rowPType: PCanonicalStruct = PCanonicalStruct(required = true,
     Array(
       "locus" -> PCanonicalLocus.schemaFromRG(rg, required = false),
       "alleles" -> PCanonicalArray(PCanonicalString(false), false),

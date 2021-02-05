@@ -36,6 +36,8 @@ case class SCanonicalShufflePointer(pType: PCanonicalShuffle) extends SShuffle {
   def fromCodes(codes: IndexedSeq[Code[_]]): SCanonicalShufflePointerCode = {
     new SCanonicalShufflePointerCode(this, binarySType.fromCodes(codes))
   }
+
+  def canonicalPType(): PType = pType
 }
 
 object SCanonicalShufflePointerSettable {

@@ -781,36 +781,27 @@ async def on_cleanup(app):
     await asyncio.gather(*(t for t in asyncio.all_tasks() if t is not asyncio.current_task()))
 
 
-def run():
-    sass_compile('notebook')
+def init_app(routes):
+    app = web.Application()
+    app.on_startup.append(on_startup)
+    app.on_cleanup.append(on_cleanup)
+    setup_aiohttp_jinja2(app, 'notebook')
+    setup_aiohttp_session(app)
+
     root = os.path.dirname(os.path.abspath(__file__))
-
-    # notebook
-    notebook_app = web.Application()
-
-    notebook_app.on_startup.append(on_startup)
-
-    setup_aiohttp_jinja2(notebook_app, 'notebook')
-    setup_aiohttp_session(notebook_app)
-
     routes.static('/static', f'{root}/static')
     setup_common_static_routes(routes)
-    notebook_app.add_routes(routes)
+    app.add_routes(routes)
 
-    # workshop
-    workshop_app = web.Application()
+    return app
 
-    workshop_app.on_startup.append(on_startup)
-    workshop_app.on_cleanup.append(on_cleanup)
 
-    setup_aiohttp_jinja2(workshop_app, 'notebook')
-    setup_aiohttp_session(workshop_app)
+def run():
+    sass_compile('notebook')
 
-    workshop_routes.static('/static', f'{root}/static')
-    setup_common_static_routes(workshop_routes)
-    workshop_app.add_routes(workshop_routes)
+    notebook_app = init_app(routes)
+    workshop_app = init_app(workshop_routes)
 
-    # root app
     root_app = web.Application()
     root_app.add_domain('notebook*',
                         deploy_config.prefix_application(notebook_app, 'notebook'))

@@ -45,12 +45,8 @@ class TypedKey(typ: PType, kb: EmitClassBuilder[_], region: Value[Region]) exten
     storageType.storeAtAddress(cb, dest, region, storageType.loadCheapPCode(cb, src), deepCopy = true)
   }
 
-  def compKeys(cb: EmitCodeBuilder, k1c: EmitCode, k2c: EmitCode): Code[Int] = {
-    val k1 = cb.memoize(k1c, "k1c")
-    val k2 = cb.memoize(k2c, "k2c")
-
-    val kcomp = kb.getCodeOrdering(k1.pt, k2.pt, CodeOrdering.Compare(), ignoreMissingness = false)
-    kcomp(k1.m -> k1.v, k2.m -> k2.v)
+  def compKeys(cb: EmitCodeBuilder, k1: EmitCode, k2: EmitCode): Code[Int] = {
+    kb.getCodeOrdering(k1.pt, k2.pt, CodeOrdering.Compare(), ignoreMissingness = false)(cb, k1, k2)
   }
 
   def loadCompKey(cb: EmitCodeBuilder, off: Value[Long]): EmitCode =

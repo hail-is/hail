@@ -138,7 +138,6 @@ class AppendOnlyBTree(kb: EmitClassBuilder[_], val key: BTreeKey, region: Value[
         val upperBound = cb.newLocal("insertKey_upper_bound", maxElements)
         val Lfound = CodeLabel()
 
-
         (0 until maxElements).foreach { i =>
           val b = cb.newLocal[Boolean]("btree_insertkey_b", !hasKey(parent, i))
           cb.ifx(!b, cb.assign(b, key.compWithKey(cb, loadKey(parent, i), ev) >= 0))
@@ -234,9 +233,10 @@ class AppendOnlyBTree(kb: EmitClassBuilder[_], val key: BTreeKey, region: Value[
 
   private def getF(cb: EmitCodeBuilder, root: Code[Long], kc: EmitCode): Code[Long] = {
     val get = kb.genEmitMethod("btree_get", FastIndexedSeq[ParamType](typeInfo[Long], kc.pv.st.pType.asEmitParam), typeInfo[Long])
-    val node = get.getCodeParam[Long](1)
-    val k = get.getEmitParam(2)
     get.emitWithBuilder { cb =>
+      val node = get.getCodeParam[Long](1)
+      val k = get.getEmitParam(2)
+
       val cmp = cb.newLocal("btree_get_cmp", -1)
       val keyV = cb.newLocal("btree_get_keyV", 0L)
 

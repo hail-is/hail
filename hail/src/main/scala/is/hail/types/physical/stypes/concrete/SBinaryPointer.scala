@@ -36,6 +36,8 @@ case class SBinaryPointer(pType: PBinary) extends SBinary {
     assert(a.ti == LongInfo)
     new SBinaryPointerCode(this, a)
   }
+
+  def canonicalPType(): PType = pType
 }
 
 object SBinaryPointerSettable {

@@ -63,5 +63,7 @@ trait PPrimitive extends PType {
       }
   }
 
-  def loadFromNested(cb: EmitCodeBuilder, addr: Code[Long]): Code[Long] = addr
+  def loadFromNested(addr: Code[Long]): Code[Long] = addr
+
+  override def unstagedLoadFromNested(addr: Long): Long = addr
 }
