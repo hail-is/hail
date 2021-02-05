@@ -71,7 +71,7 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
 
   override def unsafeOrdering(): UnsafeOrdering = representation.unsafeOrdering()
 
-  override lazy val fundamentalType: PType = representation.fundamentalType
+  override lazy val fundamentalType: PType = this
 
   override lazy val encodableType: PType = PCanonicalNDArray(elementType.encodableType, nDims, required)
 
@@ -210,6 +210,7 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
 
     val ndAddr = cb.newLocal[Long]("ndarray_construct_addr")
     cb.assign(ndAddr, this.allocate(shape, region))
+    cb.println("Allocated in constructDataFunction, address was: ", ndAddr.toS)
     shapeType.storeAtAddressFromFields(cb, cb.newLocal[Long]("construct_shape", this.representation.fieldOffset(ndAddr, "shape")),
       region,
       shape.map(s => EmitCode.present(primitive(s))),
@@ -262,6 +263,7 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
         // Does requiredness matter?
         val storedAddress = cb.newLocal[Long]("pcanonical_ndarray_store", value.asInstanceOf[SNDArrayPointerCode].a)
         if (deepCopy) {
+          cb.println(s"Asked to deepCopy, going to track ", storedAddress.toS)
           region.trackNDArray(storedAddress)
         }
         storedAddress

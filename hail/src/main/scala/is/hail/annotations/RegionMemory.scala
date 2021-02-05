@@ -292,12 +292,22 @@ final class RegionMemory(pool: RegionPool) extends AutoCloseable {
     Region.storeLong(allocatedAddr - 16L, 0L)
     Region.storeLong(allocatedAddr - 8L, size)
     pool.incrementAllocatedBytes(size + extra)
-    this.trackNDArray(allocatedAddr)
+    this.trackNDArray2(allocatedAddr)
     allocatedAddr
   }
 
   def trackNDArray(alloc: Long): Unit = {
+    println(s"Tracking ${alloc}")
     this.ndarrayRefs.add(alloc)
+    println(s"ndarrayRefs now equals: ${this.ndarrayRefs.b.toIndexedSeq}")
+    val curRefCount = Region.loadLong(alloc - 16)
+    Region.storeLong(alloc - 16, curRefCount + 1L)
+  }
+
+  def trackNDArray2(alloc: Long): Unit = {
+    println(s"Tracking ${alloc} from within allocateNDArray")
+    this.ndarrayRefs.add(alloc)
+    println(s"ndarrayRefs now equals: ${this.ndarrayRefs.b.toIndexedSeq}")
     val curRefCount = Region.loadLong(alloc - 16)
     Region.storeLong(alloc - 16, curRefCount + 1L)
   }
