@@ -4,7 +4,7 @@ import logging
 import secrets
 import humanize
 
-from hailtop.utils import time_msecs, time_msecs_str, is_transient_error, sleep_and_backoff
+from hailtop.utils import (time_msecs, time_msecs_str, retry_transient_errors)
 from gear import Database
 
 from ..database import check_call_procedure
@@ -79,7 +79,6 @@ VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
         self._state = 'active'
         self.ip_address = ip_address
         self.inst_coll.adjust_for_add_instance(self)
-        log.info(f'activated {self}')
         self.inst_coll.scheduler_state_changed.set()
 
         return rv['token']
@@ -108,29 +107,21 @@ VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
         self.inst_coll.scheduler_state_changed.set()
 
     async def kill(self):
-        body = {'name': self.name}
-
-        delay = 0.1
-        while True:
+        async def make_request():
             if self._state in ('inactive', 'deleted'):
-                break
+                return
             try:
                 async with aiohttp.ClientSession(
                         raise_for_status=True, timeout=aiohttp.ClientTimeout(total=30)) as session:
                     url = (f'http://{self.ip_address}:5000'
                            f'/api/v1alpha/kill')
-                    await session.post(url, json=body)
-                    break
-            except Exception as e:
-                if (isinstance(e, aiohttp.ClientResponseError)
-                        and e.status == 403):  # pylint: disable=no-member
+                    await session.post(url)
+            except aiohttp.ClientResponseError as err:
+                if err.status == 403:
                     log.info(f'cannot kill {self} -- does not exist at {self.ip_address}')
-                    break
-                if is_transient_error(e):
-                    pass
-                else:
-                    raise
-            delay = await sleep_and_backoff(delay)
+                    return
+                raise
+        await retry_transient_errors(make_request)
 
     async def mark_deleted(self, reason, timestamp):
         if self._state == 'deleted':

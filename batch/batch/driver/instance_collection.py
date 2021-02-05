@@ -1,11 +1,13 @@
 import aiohttp
 import sortedcontainers
 import logging
+from typing import Dict
 
 from hailtop.utils import time_msecs, secret_alnum_string, periodically_call
 from hailtop import aiotools, aiogoogle
 from gear import Database
 
+from .instance import Instance
 from .zone_monitor import ZoneMonitor
 
 log = logging.getLogger('inst_collection')
@@ -15,14 +17,14 @@ class InstanceCollection:
     def __init__(self, app, name, machine_name_prefix, is_pool):
         self.app = app
         self.db: Database = app['db']
-        self.compute_client: aiogoogle.ComputeClient = app['compute_client']
-        self.zone_monitor: ZoneMonitor = app['zone_monitor']
+        self.compute_client: aiogoogle.ComputeClient = None
+        self.zone_monitor: ZoneMonitor = None
 
         self.name = name
         self.machine_name_prefix = f'{machine_name_prefix}{self.name}-'
         self.is_pool = is_pool
 
-        self.name_instance = {}
+        self.name_instance: Dict[str, Instance] = {}
 
         self.instances_by_last_updated = sortedcontainers.SortedSet(
             key=lambda instance: instance.last_updated)
@@ -44,7 +46,9 @@ class InstanceCollection:
 
         self.task_manager = aiotools.BackgroundTaskManager()
 
-    async def async_init(self):
+    async def run(self):
+        self.compute_client = self.app['compute_client']
+        self.zone_monitor = self.app['zone_monitor']
         self.task_manager.ensure_future(self.monitor_instances_loop())
 
     def shutdown(self):

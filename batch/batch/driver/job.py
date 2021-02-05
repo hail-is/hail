@@ -6,8 +6,7 @@ import base64
 import traceback
 
 from hailtop.aiotools import BackgroundTaskManager
-from hailtop.utils import (
-    time_msecs, sleep_and_backoff, is_transient_error, Notice)
+from hailtop.utils import (time_msecs, Notice, retry_transient_errors)
 from hailtop.httpx import client_session
 from gear import Database
 
@@ -153,7 +152,7 @@ CALL mark_job_started(%s, %s, %s, %s, %s);
 ''',
             (batch_id, job_id, attempt_id, instance.name, start_time))
     except Exception:
-        log.exception(f'error while marking job {id} started on {instance}')
+        log.info(f'error while marking job {id} started on {instance}')
         raise
 
     if rv['delta_cores_mcpu'] != 0 and instance.state == 'active':
@@ -176,7 +175,7 @@ CALL mark_job_creating(%s, %s, %s, %s, %s);
 ''',
             (batch_id, job_id, attempt_id, instance.name, start_time))
     except Exception:
-        log.exception(f'error while marking job {id} creating on {instance}')
+        log.info(f'error while marking job {id} creating on {instance}')
         raise
 
     log.info(rv)
@@ -229,27 +228,23 @@ async def unschedule_job(app, record):
 
     url = (f'http://{instance.ip_address}:5000'
            f'/api/v1alpha/batches/{batch_id}/jobs/{job_id}/delete')
-    delay = 0.1
-    while True:
+
+    async def make_request():
         if instance.state in ('inactive', 'deleted'):
-            break
+            return
         try:
             async with aiohttp.ClientSession(
                     raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
                 await session.delete(url)
                 await instance.mark_healthy()
-                break
-        except Exception as e:
-            if (isinstance(e, aiohttp.ClientResponseError)
-                    and e.status == 404):  # pylint: disable=no-member
+        except aiohttp.ClientResponseError as err:
+            if err.status == 404:
                 await instance.mark_healthy()
-                break
+                return
             await instance.incr_failed_request_count()
-            if is_transient_error(e):
-                pass
-            else:
-                raise
-        delay = await sleep_and_backoff(delay)
+            raise
+
+    await retry_transient_errors(make_request)
 
     if not instance.inst_coll.is_pool:
         await instance.kill()
@@ -362,7 +357,7 @@ users:
         'start_job_id': start_job_id,
         'user': record['user'],
         'gsa_key': gsa_key,
-        'job_spec': job_spec
+        'job_spec': job_spec,
     }
 
 

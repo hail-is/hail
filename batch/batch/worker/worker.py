@@ -935,26 +935,15 @@ class Worker:
         self.cpu_sem = FIFOWeightedSemaphore(self.cores_mcpu)
         self.pool = concurrent.futures.ThreadPoolExecutor()
         self.jobs = {}
+        self.stop_event = asyncio.Event()
 
         # filled in during activation
-        self.site = None
-        self.app_runner = None
         self.log_store = None
         self.headers = None
         self.task_manager = aiotools.BackgroundTaskManager()
 
     def shutdown(self):
-        log.info('shutting down')
         self.task_manager.shutdown()
-
-    async def cleanup(self):
-        if self.site:
-            await self.site.stop()
-            log.info('stopped site')
-
-        if self.app_runner:
-            await self.app_runner.cleanup()
-            log.info('cleaned up app runner')
 
     async def run_job(self, job):
         try:
@@ -1052,6 +1041,8 @@ class Worker:
         return web.json_response(body)
 
     async def run(self):
+        app_runner = None
+        site = None
         try:
             app = web.Application(client_max_size=HTTP_CLIENT_MAX_SIZE)
             app.add_routes([
@@ -1063,22 +1054,30 @@ class Worker:
                 web.get('/healthcheck', self.healthcheck)
             ])
 
-            self.app_runner = web.AppRunner(app)
-            await self.app_runner.setup()
-            self.site = web.TCPSite(self.app_runner, '0.0.0.0', 5000)
-            await self.site.start()
+            app_runner = web.AppRunner(app)
+            await app_runner.setup()
+            site = web.TCPSite(app_runner, '0.0.0.0', 5000)
+            await site.start()
 
             try:
                 await asyncio.wait_for(self.activate(), MAX_IDLE_TIME_MSECS / 1000)
             except asyncio.TimeoutError:
                 log.exception(f'could not activate after trying for {MAX_IDLE_TIME_MSECS} ms, exiting')
             else:
+                stopped = False
                 idle_duration = time_msecs() - self.last_updated
                 while self.jobs or idle_duration < MAX_IDLE_TIME_MSECS:
                     log.info(f'n_jobs {len(self.jobs)} free_cores {self.cpu_sem.value / 1000} idle {idle_duration}')
-                    await asyncio.sleep(15)
-                    idle_duration = time_msecs() - self.last_updated
-                log.info(f'idle {idle_duration} ms, exiting')
+                    try:
+                        await asyncio.wait_for(self.stop_event.wait(), 15)
+                        stopped = True
+                        log.info('received stop event')
+                        break
+                    except asyncio.TimeoutError:
+                        idle_duration = time_msecs() - self.last_updated
+
+                if not stopped:
+                    log.info(f'idle {idle_duration} ms, exiting')
 
                 async with client_session() as session:
                     # Don't retry.  If it doesn't go through, the driver
@@ -1088,32 +1087,24 @@ class Worker:
                     await session.post(
                         deploy_config.url('batch-driver', '/api/v1alpha/instances/deactivate'),
                         headers=self.headers)
-                log.info('deactivated')
+                    log.info('deactivated')
         finally:
-            await self.cleanup()
+            if site:
+                await site.stop()
+                log.info('stopped site')
+
+            if app_runner:
+                await app_runner.cleanup()
+                log.info('cleaned up app runner')
+
             self.shutdown()
+
+    async def kill_1(self, request):  # pylint: disable=unused-argument
+        log.info('killed')
+        self.stop_event.set()
 
     async def kill(self, request):
-        body = await request.json()
-
-        expected_name = body['name']
-        if expected_name != NAME:
-            return web.HTTPForbidden()
-
-        try:
-            async with client_session(
-                    raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
-                # Don't retry.  If it doesn't go through, the driver
-                # monitoring loops will recover.  If the driver is
-                # gone (e.g. testing a PR), this would go into an
-                # infinite loop and the instance won't be deleted.
-                await session.post(
-                    deploy_config.url('batch-driver', '/api/v1alpha/instances/deactivate'),
-                    headers=self.headers)
-            log.info('deactivated')
-        finally:
-            await self.cleanup()
-            self.shutdown()
+        return await asyncio.shield(self.kill_1(request))
 
     async def post_job_complete_1(self, job):
         run_duration = job.end_time - job.start_time

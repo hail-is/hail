@@ -39,8 +39,8 @@
     </tbody>
   </table>
 
-  <h2>Job Private</h2>
-  <table class="data-table" id="job-private-inst-coll">
+  <h2>Job Private Instance Manager</h2>
+  <table class="data-table" id="job-private-inst-manager">
     <thead>
     <tr>
       <th>Name</th>
@@ -53,17 +53,15 @@
     </tr>
     </thead>
     <tbody>
-    {% for inst_coll in job_private_inst_colls %}
     <tr>
-      <td><a href="{{ base_path }}/inst_coll/job-private/{{ inst_coll.name }}">{{ inst_coll.name }}</a></td>
-      <td class="numeric-cell">{{ inst_coll.n_instances_by_state['pending'] }}</td>
-      <td class="numeric-cell">{{ inst_coll.n_instances_by_state['active'] }}</td>
-      <td class="numeric-cell">{{ inst_coll.n_instances_by_state['inactive'] }}</td>
-      <td class="numeric-cell">{{ inst_coll.n_instances_by_state['deleted'] }}</td>
-      <td class="numeric-cell">{{ inst_coll.live_total_cores_mcpu / 1000 }}</td>
-      <td class="numeric-cell">{{ inst_coll.live_free_cores_mcpu / 1000 }}</td>
+      <td><a href="{{ base_path }}/inst_coll/jpim">{{ jpim.name }}</a></td>
+      <td class="numeric-cell">{{ jpim.n_instances_by_state['pending'] }}</td>
+      <td class="numeric-cell">{{ jpim.n_instances_by_state['active'] }}</td>
+      <td class="numeric-cell">{{ jpim.n_instances_by_state['inactive'] }}</td>
+      <td class="numeric-cell">{{ jpim.n_instances_by_state['deleted'] }}</td>
+      <td class="numeric-cell">{{ jpim.live_total_cores_mcpu / 1000 }}</td>
+      <td class="numeric-cell">{{ jpim.live_free_cores_mcpu / 1000 }}</td>
     </tr>
-    {% endfor %}
     </tbody>
   </table>
 

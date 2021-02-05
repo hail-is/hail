@@ -44,12 +44,13 @@ from ..exceptions import (BatchUserError, NonExistentBillingProjectError,
                           BatchOperationAlreadyCompletedError)
 from ..log_store import LogStore
 from ..database import CallError, check_call_procedure
-from ..batch_configuration import (BATCH_BUCKET_NAME, DEFAULT_NAMESPACE)
+from ..batch_configuration import (BATCH_BUCKET_NAME, DEFAULT_NAMESPACE, MACHINE_NAME_PREFIX)
 from ..globals import HTTP_CLIENT_MAX_SIZE, BATCH_FORMAT_VERSION, valid_machine_types
 from ..spec_writer import SpecWriter
 from ..batch_format_version import BatchFormatVersion
 
-from .inst_coll_selector import PoolSelector, JobPrivateInstanceSelector
+from ..driver.instance_collection_manager import InstanceCollectionManager
+
 from .validate import ValidationError, validate_batch, validate_and_clean_jobs
 
 # uvloop.install()
@@ -674,6 +675,8 @@ WHERE user = %s AND id = %s AND NOT deleted;
                     worker_type = BATCH_JOB_DEFAULT_WORKER_TYPE
                     resources['worker_type'] = worker_type
 
+                inst_coll_manager: InstanceCollectionManager = app['inst_coll_manager']
+
                 inst_coll_name = None
                 cores_mcpu = None
 
@@ -682,8 +685,7 @@ WHERE user = %s AND id = %s AND NOT deleted;
                         raise web.HTTPBadRequest(
                             reason='cannot have preemptible specified with a worker_type')
 
-                    pool_selector: PoolSelector = app['pool_selector']
-                    result = pool_selector.select_pool(
+                    result = inst_coll_manager.select_pool(
                         worker_type=worker_type,
                         cores_mcpu=req_cores_mcpu,
                         memory_bytes=req_memory_bytes,
@@ -696,8 +698,9 @@ WHERE user = %s AND id = %s AND NOT deleted;
                     if 'preemptible' not in resources:
                         resources['preemptible'] = BATCH_JOB_DEFAULT_PREEMPTIBLE
 
-                    result = JobPrivateInstanceSelector.parse_machine_spec_from_resource_requests(
-                        machine_type, req_storage_bytes)
+                    result = inst_coll_manager.select_job_private(
+                        machine_type=machine_type,
+                        storage_bytes=req_storage_bytes)
                     if result:
                         inst_coll_name, cores_mcpu, storage_gib = result
                         resources['storage_gib'] = storage_gib
@@ -705,7 +708,7 @@ WHERE user = %s AND id = %s AND NOT deleted;
                 if inst_coll_name is None:
                     raise web.HTTPBadRequest(
                         reason=f'resource requests for job {id} are unsatisfiable: '
-                        f'requested: cpu={resources["cpu"]}, memory={resources["memory"]} storage={resources["storage"]}')
+                        f'requested: cpu={resources["cpu"]}, memory={resources["memory"]}, storage={resources["storage"]}')
 
                 secrets = spec.get('secrets')
                 if not secrets:
@@ -1923,16 +1926,19 @@ SELECT instance_id, internal_token, n_tokens FROM globals;
         'delete_batch_loop',
         run_if_changed, delete_batch_state_changed, delete_batch_loop_body, app))
 
-    pool_selector = PoolSelector(app)
-    app['pool_selector'] = pool_selector
-    await pool_selector.async_init()
+    inst_coll_manager = InstanceCollectionManager(app, MACHINE_NAME_PREFIX)
+    app['inst_coll_manager'] = inst_coll_manager
+    await inst_coll_manager.async_init()
 
 
 async def on_cleanup(app):
     try:
         app['blocking_pool'].shutdown()
     finally:
-        app['task_manager'].shutdown()
+        try:
+            app['inst_coll_manager'].shutdown()
+        finally:
+            app['task_manager'].shutdown()
 
 
 def run():

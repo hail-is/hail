@@ -1,12 +1,13 @@
 import re
 import collections
 import logging
+from typing import Dict
 
 from gear import Database
 
-from .job_private import JobPrivateInstanceCollection
+from .instance_collection import InstanceCollection
+from .job_private import JobPrivateInstanceManager
 from .pool import Pool
-from .zone_monitor import ZoneMonitor
 
 log = logging.getLogger('inst_coll_manager')
 
@@ -15,17 +16,18 @@ class InstanceCollectionManager:
     def __init__(self, app, machine_name_prefix):
         self.app = app
         self.db: Database = app['db']
-        self.zone_monitor: ZoneMonitor = app['zone_monitor']
         self.machine_name_prefix = machine_name_prefix
         self.inst_coll_regex = re.compile(f'{self.machine_name_prefix}(?P<inst_coll>.*)-.*')
 
-        self.name_inst_coll = {}
-        self.name_pool = {}
-        self.name_job_private = {}
+        self.name_inst_coll: Dict[str, InstanceCollection] = {}
+        self.name_pool: Dict[str, Pool] = {}
+        self.job_private_inst_manager: JobPrivateInstanceManager = None
 
     async def async_init(self):
         inst_coll_records = self.db.execute_and_fetchall('''
-SELECT * FROM inst_colls;
+SELECT inst_colls.*, pools.*
+FROM inst_colls
+LEFT JOIN pools ON inst_colls.name = pools.name;
 ''')
 
         async for record in inst_coll_records:
@@ -33,16 +35,18 @@ SELECT * FROM inst_colls;
             is_pool = record['is_pool']
 
             if is_pool:
-                inst_coll = Pool(self.app, inst_coll_name, self.machine_name_prefix)
+                inst_coll = Pool.from_record(self.app, self.machine_name_prefix, record)
                 self.name_pool[inst_coll_name] = inst_coll
             else:
-                inst_coll = JobPrivateInstanceCollection(self.app, inst_coll_name, self.machine_name_prefix)
-                self.name_job_private[inst_coll_name] = inst_coll
+                inst_coll = JobPrivateInstanceManager.from_record(self.app, self.machine_name_prefix, record)
+                assert self.job_private_inst_manager is None
+                self.job_private_inst_manager = inst_coll
 
             self.name_inst_coll[inst_coll_name] = inst_coll
 
-            await inst_coll.async_init()
-
+    async def run(self):
+        for inst_coll in self.name_inst_coll.values():
+            await inst_coll.run()
         log.info('finished initializing instance collections')
 
     def shutdown(self):
@@ -52,10 +56,6 @@ SELECT * FROM inst_colls;
     @property
     def pools(self):
         return self.name_pool
-
-    @property
-    def job_private_inst_colls(self):
-        return self.name_job_private
 
     @property
     def name_instance(self):
@@ -96,4 +96,19 @@ SELECT * FROM inst_colls;
         inst_coll = self.name_inst_coll.get(inst_coll_name)
         if inst_coll:
             return inst_coll.name_instance.get(inst_name)
+        return None
+
+    def select_pool(self, worker_type, cores_mcpu, memory_bytes, storage_bytes):
+        for pool in self.pools.values():
+            if pool.worker_type == worker_type:
+                maybe_cores_mcpu = pool.resources_to_cores_mcpu(cores_mcpu, memory_bytes, storage_bytes)
+                if maybe_cores_mcpu is not None:
+                    return (pool.name, maybe_cores_mcpu)
+        return None
+
+    def select_job_private(self, machine_type, storage_bytes):
+        result = JobPrivateInstanceManager.convert_requests_to_resources(machine_type, storage_bytes)
+        if result:
+            cores_mcpu, storage_gib = result
+            return (self.job_private_inst_manager.name, cores_mcpu, storage_gib)
         return None
