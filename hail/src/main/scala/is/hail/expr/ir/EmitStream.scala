@@ -1507,7 +1507,7 @@ object EmitStream {
 
             emitIR(size).map(cb) { s =>
 
-              val innerSeparateRegions = emitter.ctx.smm.lookup(a).nested.get.separateRegions
+              val innerSeparateRegions = emitter.ctx.smm.lookup(a).separateRegions
               assert(innerSeparateRegions == innerType.separateRegions)
 
               val newStream = (eltRegion: ChildStagedRegion) =>

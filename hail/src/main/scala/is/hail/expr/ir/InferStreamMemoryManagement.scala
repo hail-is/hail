@@ -11,7 +11,14 @@ class StreamMemoryManagement(val m: Memo[StreamMemoType]) {
   }
 }
 
-case class StreamMemoType(separateRegions: Boolean, nested: Option[StreamMemoType])
+case class StreamMemoType(separateRegions: Boolean, nested: Option[StreamMemoType]) {
+  def nestedUnion(other: StreamMemoType): StreamMemoType = {
+    StreamMemoType(separateRegions || other.separateRegions, (nested, other.nested) match {
+      case (None, None) => None
+      case (Some(n1), Some(n2)) => Some(n1.nestedUnion(n2))
+    })
+  }
+}
 
 object InferStreamMemoryManagement {
   def apply(ir: IR, usesAndDefs: UsesAndDefs): StreamMemoryManagement = {
@@ -51,8 +58,8 @@ object InferStreamMemoryManagement {
         m.bind(x, x match {
           case ref: Ref => lookup(ref.name, usesAndDefs.defs.lookup(ref).asInstanceOf[IR])
           case Let(_, _, body) => m.lookup(body)
-          case NA(t) =>
-            var ts: Type = t
+          case NA(t: TStream) =>
+            var ts = t.elementType
             var nestingDepth = 0
             while (ts.isInstanceOf[TStream]) {
               ts = ts.asInstanceOf[TStream].elementType
@@ -85,7 +92,8 @@ object InferStreamMemoryManagement {
           case StreamRange(_, _, _, separateRegions) =>
             StreamMemoType(separateRegions, None)
           case StreamGroupByKey(s, _) =>
-            m.lookup(s)
+            val parent = m.lookup(s)
+            StreamMemoType(parent.separateRegions, Some(parent))
           case StreamGrouped(s, _) =>
             val parent = m.lookup(s)
             StreamMemoType(parent.separateRegions, Some(parent))
@@ -99,8 +107,11 @@ object InferStreamMemoryManagement {
           case StreamMerge(l, r, _) =>
             val ll = m.lookup(l)
             val rr = m.lookup(r)
-            assert(ll.nested == rr.nested)
-            StreamMemoType(ll.separateRegions || rr.separateRegions, ll.nested)
+            ll.nestedUnion(rr)
+          case If(_, l, r) =>
+            val ll = m.lookup(l)
+            val rr = m.lookup(r)
+            ll.nestedUnion(rr)
           case StreamMultiMerge(streams, _) =>
             val separateRegions = streams.map(m.lookup(_).separateRegions).reduce(_ || _)
             StreamMemoType(separateRegions, None)
