@@ -162,6 +162,14 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
     region.allocateNDArray(sizeOfArray + sizeOfStruct)
   }
 
+  def allocate(shape: IndexedSeq[Long], region: Region): Long = {
+    //Need to allocate enough space to construct my tuple, then to construct the array right next to it.
+    val sizeOfArray: Long = this.dataType.contentsByteSize(shape.product.toInt)
+    val sizeOfStruct = this.representation.byteSize
+    // TODO: There might be alignment issues here
+    region.allocateNDArray(sizeOfArray + sizeOfStruct)
+  }
+
   def construct(
     shape: IndexedSeq[Value[Long]],
     strides: IndexedSeq[Value[Long]],
@@ -216,7 +224,7 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
     val newFirstElementDataPointer = cb.newLocal[Long]("ndarray_construct_first_element_pointer", dataType.firstElementOffset(newDataPointer))
 
     cb.append(Region.storeLong(this.representation.fieldOffset(ndAddr, "data"), newDataPointer))
-    cb.append(dataType.stagedInitialize(newDataPointer, this.numElements(shape)))
+    cb.append(dataType.stagedInitialize(newDataPointer, this.numElements(shape).toI))
     writeDataToAddress(newFirstElementDataPointer, cb)
 
     new SNDArrayPointerCode(SNDArrayPointer(this), ndAddr)
@@ -235,8 +243,14 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
 
   def setRequired(required: Boolean) = if(required == this.required) this else PCanonicalNDArray(elementType, nDims, required)
 
-  def unstagedStoreAtAddress(addr: Long, region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Unit =
-    this.fundamentalType.unstagedStoreAtAddress(addr, region, srcPType.fundamentalType, srcAddress, deepCopy)
+  def unstagedStoreAtAddress(addr: Long, region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Unit = {
+    val srcND = srcPType.asInstanceOf[PCanonicalNDArray]
+
+    if (deepCopy) {
+      region.trackNDArray(srcAddress)
+    }
+    Region.storeAddress(addr, copyFromAddress(region, srcND, srcAddress, deepCopy))
+  }
 
   def sType: SNDArrayPointer = SNDArrayPointer(this)
 
@@ -244,34 +258,36 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
 
   def store(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): Code[Long] = {
     value.st match {
-      case SNDArrayPointer(t) if t.equalModuloRequired(this) =>
-          representation.store(cb, region, representation.loadCheapPCode(cb, value.asInstanceOf[SNDArrayPointerCode].a), deepCopy)
+      case SNDArrayPointer(t) if t.equalModuloRequired(this)  =>
+        // Does requiredness matter?
+        val storedAddress = cb.newLocal[Long]("pcanonical_ndarray_store", value.asInstanceOf[SNDArrayPointerCode].a)
+        if (deepCopy) {
+          region.trackNDArray(storedAddress)
+        }
+        storedAddress
+      case SNDArrayPointer(t) =>
+        ???
+      case _ =>
+        throw new UnsupportedOperationException("Only know how to store SNDArrayPointCodes")
     }
   }
 
   def storeAtAddress(cb: EmitCodeBuilder, addr: Code[Long], region: Value[Region], value: SCode, deepCopy: Boolean): Unit = {
-    value.st match {
-      case SNDArrayPointer(t) if t.equalModuloRequired(this) =>
-        representation.storeAtAddress(cb, addr, region, representation.loadCheapPCode(cb, value.asInstanceOf[SNDArrayPointerCode].a), deepCopy)
-    }
+    cb += Region.storeAddress(addr, store(cb, region, value, deepCopy))
   }
 
   override def dataFirstElementPointer(ndAddr: Code[Long]): Code[Long] = dataType.firstElementOffset(this.dataPArrayPointer(ndAddr))
 
   override def dataPArrayPointer(ndAddr: Code[Long]): Code[Long] = representation.loadField(ndAddr, "data")
 
-  def loadFromNested(addr: Code[Long]): Code[Long] = addr
+  def loadFromNested(addr: Code[Long]): Code[Long] = Region.loadAddress(addr)
 
-  override def unstagedLoadFromNested(addr: Long): Long = addr
+  override def unstagedLoadFromNested(addr: Long): Long = Region.loadAddress(addr)
 
   override def unstagedStoreJavaObject(annotation: Annotation, region: Region): Long = {
-    val addr = this.representation.allocate(region)
-    unstagedStoreJavaObjectAtAddress(addr, annotation, region)
-    addr
-  }
+    val aNDArray = annotation.asInstanceOf[NDArray]
+    val addr = this.allocate(aNDArray.shape, region)
 
-  override def unstagedStoreJavaObjectAtAddress(addr: Long, a: Annotation, region: Region): Unit = {
-    val aNDArray = a.asInstanceOf[NDArray]
     val shapeRow = Annotation.fromSeq(aNDArray.shape)
     var runningProduct = this.representation.fieldType("data").asInstanceOf[PArray].elementType.byteSize
     val stridesArray = new Array[Long](aNDArray.shape.size)
@@ -286,6 +302,12 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
     strideType.unstagedStoreJavaObjectAtAddress(curAddr, stridesRow, region)
     curAddr += shapeType.byteSize
     dataType.unstagedStoreJavaObjectAtAddress(curAddr, aNDArray.getRowMajorElements(), region)
+
+    addr
+  }
+
+  override def unstagedStoreJavaObjectAtAddress(addr: Long, annotation: Annotation, region: Region): Unit = {
+    Region.storeAddress(addr, unstagedStoreJavaObject(annotation, region))
   }
 }
 

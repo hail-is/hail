@@ -87,7 +87,7 @@ abstract class PCanonicalBaseStruct(val types: Array[PType]) extends PBaseStruct
 
   def loadField(offset: Long, fieldIdx: Int): Long = {
     val off = fieldOffset(offset, fieldIdx)
-    types(fieldIdx).fundamentalType.unstagedLoadFromNested(off)
+    types(fieldIdx).unstagedLoadFromNested(off)
   }
 
   def loadField(offset: Code[Long], fieldIdx: Int): Code[Long] =

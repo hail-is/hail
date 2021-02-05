@@ -64,7 +64,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
 
   def nMissingBytes(len: Int): Int = UnsafeUtils.packBitsToBytes(len)
 
-  private def contentsByteSize(length: Int): Long =
+  def contentsByteSize(length: Int): Long =
     elementsOffset(length) + length * elementByteSize
 
   def contentsByteSize(length: Code[Int]): Code[Long] = {

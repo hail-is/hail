@@ -85,4 +85,3 @@ class PNDArraySuite extends PhysicalTestUtils {
     assert(region2.memory.listNDArrayRefs().size == 0)
   }
 }
-}
