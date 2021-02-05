@@ -513,7 +513,7 @@ async def _query_batches(request, user):
         elif t.startswith('user:'):
             k = t[5:]
             condition = '''
-(batches.`user` = %s)            
+(batches.`user` = %s)
 '''
             args = [k]
         elif t.startswith('billing_project:'):
