@@ -94,7 +94,7 @@ abstract class PCanonicalBaseStruct(val types: Array[PType]) extends PBaseStruct
     loadField(fieldOffset(offset, fieldIdx), types(fieldIdx))
 
   private def loadField(fieldOffset: Code[Long], fieldType: PType): Code[Long] = {
-    fieldType.fundamentalType.loadFromNested(fieldOffset)
+    fieldType.loadFromNested(fieldOffset)
   }
 
   def deepPointerCopy(cb: EmitCodeBuilder, region: Value[Region], dstStructAddress: Code[Long]): Unit = {
