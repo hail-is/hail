@@ -129,7 +129,9 @@ async def get_pr(request, userdata):  # pylint: disable=unused-argument
             )
 
     batch_client = request.app['batch_client']
-    batches = batch_client.list_batches(f'test=1 pr={pr.number} user:ci')
+    batches = batch_client.list_batches(f'test=1 '
+                                        f'pr={pr.number} '
+                                        f'user:ci')
     batches = sorted([b async for b in batches], key=lambda b: b.id, reverse=True)
     page_context['history'] = [await b.last_known_status() for b in batches]
 
