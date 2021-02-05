@@ -420,7 +420,7 @@ async def test_billing_limit_tiny(make_client, dev_client, new_billing_project):
     assert batch['state'] == 'cancelled', batch
 
 
-async def search_batches(client, expected_batch_id, q=None):
+async def search_batches(client, expected_batch_id, q):
     found = False
     batches = [batch async for batch in client.list_batches(q=q)]
     for batch in batches:
@@ -453,10 +453,6 @@ async def test_user_can_access_batch_made_by_other_user_in_shared_billing_projec
     await user2_job.attempts()
     await user2_job.log()
     await user2_job.status()
-
-    await user2_batch.status()
-    await user2_batch.cancel()
-    await user2_batch.delete()
 
     # list batches results for user1
     found, batches = await search_batches(user1_client, b.id, q='')
@@ -494,6 +490,14 @@ async def test_user_can_access_batch_made_by_other_user_in_shared_billing_projec
     assert not found, str((b.id, batches))
 
     found, batches = await search_batches(user2_client, b.id, q=f'user:test-dev')
+    assert not found, str((b.id, batches))
+
+    await user2_batch.status()
+    await user2_batch.cancel()
+    await user2_batch.delete()
+
+    # make sure deleted batches don't show up
+    found, batches = await search_batches(user1_client, b.id, q='')
     assert not found, str((b.id, batches))
 
 
