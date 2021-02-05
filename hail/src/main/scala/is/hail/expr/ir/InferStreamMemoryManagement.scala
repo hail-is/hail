@@ -110,8 +110,6 @@ object InferStreamMemoryManagement {
           case StreamZipJoin(streams, _, _, _, joinF) =>
             val separateRegions = streams.map(m.lookup(_).separateRegions).reduce(_ || _)
             StreamMemoType(separateRegions, None)
-          case CollectDistributedArray(contexts, globals, cname, gname, body, tsd) =>
-            StreamMemoType(separateRegions, None)
         })
       }
     }
