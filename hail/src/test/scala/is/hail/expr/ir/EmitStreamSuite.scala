@@ -301,7 +301,11 @@ class EmitStreamSuite extends HailSuite {
     val mb = fb.apply_method
     val region = StagedRegion(mb.getCodeParam[Region](1), allowSubregions = false)
     val ir = streamIR.deepCopy()
-    InferPType(ir)
+    val usesAndDefs = ComputeUsesAndDefs(ir, errorIfFreeVariables = false)
+    val requiredness = Requiredness.apply(ir, usesAndDefs, null, Env.empty) // Value IR inference doesn't need context
+    InferPType(ir, Env.empty, requiredness, usesAndDefs)
+
+    val emitContext = new EmitContext(ctx, requiredness)
     val eltType = ir.pType.asInstanceOf[PStream].elementType
     val stream = ExecuteContext.scoped() { ctx =>
       val s = ir match {
@@ -309,7 +313,7 @@ class EmitStreamSuite extends HailSuite {
         case s => s
       }
       TypeCheck(s)
-      EmitStream.emit(ctx, new Emit(ctx, fb.ecb), s, mb, region, Env.empty, None)
+      EmitStream.emit(new Emit(emitContext, fb.ecb), s, mb, region, Env.empty, None)
     }
     mb.emit(EmitCodeBuilder.scopedCode(mb) { cb =>
       stream.toI(cb).consumeCode[Long](cb, 0L, { s =>
@@ -363,10 +367,15 @@ class EmitStreamSuite extends HailSuite {
     val mb = fb.apply_method
     val region = StagedRegion(mb.getCodeParam[Region](1), allowSubregions = false)
     val ir = streamIR.deepCopy()
-    InferPType(ir)
+    val usesAndDefs = ComputeUsesAndDefs(ir, errorIfFreeVariables = false)
+    val requiredness = Requiredness.apply(ir, usesAndDefs, null, Env.empty) // Value IR inference doesn't need context
+    InferPType(ir, Env.empty, requiredness, usesAndDefs)
+
+    val emitContext = new EmitContext(ctx, requiredness)
+
     val optStream = ExecuteContext.scoped() { ctx =>
       TypeCheck(ir)
-      EmitStream.emit(ctx, new Emit(ctx, fb.ecb), ir, mb, region, Env.empty, None)
+      EmitStream.emit(new Emit(emitContext, fb.ecb), ir, mb, region, Env.empty, None)
     }
     val len = mb.newLocal[Int]()
     implicit val emitStreamCtx = EmitStreamContext(mb)
