@@ -157,7 +157,6 @@ class Step(abc.ABC):
             self.deps = [params.name_step[d] for d in json['dependsOn'] if params.name_step[d]]
         else:
             self.deps = []
-
         self.scopes = json.get('scopes')
         self.run_if_requested = json.get('runIfRequested', False)
 
