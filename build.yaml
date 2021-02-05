@@ -219,7 +219,6 @@ steps:
        valueFrom: default_ns.name
    scopes:
     - test
-    - dev
    dependsOn:
     - default_ns
     - base_image
@@ -273,7 +272,6 @@ steps:
    dependsOn:
     - default_ns
     - copy_files
-    - create_database_server_config
     - delete_auth_tables
  - kind: runImage
    name: create_deploy_config
