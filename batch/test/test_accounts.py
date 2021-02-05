@@ -427,7 +427,7 @@ async def search_batches(client, expected_batch_id, q=None):
         if batch.id == expected_batch_id:
             found = True
             break
-    return found, batches
+    return found, [b.id for b in batches]
 
 
 async def test_user_can_access_batch_made_by_other_user_in_shared_billing_project(make_client, dev_client, new_billing_project):
@@ -460,41 +460,41 @@ async def test_user_can_access_batch_made_by_other_user_in_shared_billing_projec
 
     # list batches results for user1
     found, batches = await search_batches(user1_client, b.id, q='')
-    assert found, str(batches)
+    assert found, str((b.id, batches))
 
     found, batches = await search_batches(user1_client, b.id, q=f'billing_project:{project}')
-    assert found, str(batches)
+    assert found, str((b.id, batches))
 
     found, batches = await search_batches(user1_client, b.id, q=f'user:test')
-    assert found, str(batches)
+    assert found, str((b.id, batches))
 
     found, batches = await search_batches(user1_client, b.id, q=f'billing_project:foo')
-    assert not found, str(batches)
+    assert not found, str((b.id, batches))
 
     found, batches = await search_batches(user1_client, b.id, q=None)
-    assert found, str(batches)
+    assert found, str((b.id, batches))
 
     found, batches = await search_batches(user1_client, b.id, q=f'user:test-dev')
-    assert not found, str(batches)
+    assert not found, str((b.id, batches))
 
     # list batches results for user2
     found, batches = await search_batches(user2_client, b.id, q='')
-    assert found, str(batches)
+    assert found, str((b.id, batches))
 
     found, batches = await search_batches(user2_client, b.id, q=f'billing_project:{project}')
-    assert found, str(batches)
+    assert found, str((b.id, batches))
 
     found, batches = await search_batches(user2_client, b.id, q=f'user:test')
-    assert found, str(batches)
+    assert found, str((b.id, batches))
 
     found, batches = await search_batches(user2_client, b.id, q=f'billing_project:foo')
-    assert not found, str(batches)
+    assert not found, str((b.id, batches))
 
     found, batches = await search_batches(user2_client, b.id, q=None)
-    assert not found, str(batches)
+    assert not found, str((b.id, batches))
 
     found, batches = await search_batches(user2_client, b.id, q=f'user:test-dev')
-    assert not found, str(batches)
+    assert not found, str((b.id, batches))
 
 
 async def test_batch_cannot_be_accessed_by_users_outside_the_billing_project(make_client, dev_client, new_billing_project):
@@ -564,19 +564,19 @@ async def test_batch_cannot_be_accessed_by_users_outside_the_billing_project(mak
 
         # list batches results for user2
         found, batches = await search_batches(user2_client, b.id, q='')
-        assert not found, str(batches)
+        assert not found, str((b.id, batches))
 
         found, batches = await search_batches(user2_client, b.id, q=f'billing_project:{project}')
-        assert not found, str(batches)
+        assert not found, str((b.id, batches))
 
         found, batches = await search_batches(user2_client, b.id, q=f'user:test')
-        assert not found, str(batches)
+        assert not found, str((b.id, batches))
 
         found, batches = await search_batches(user2_client, b.id, q=None)
-        assert not found, str(batches)
+        assert not found, str((b.id, batches))
 
         found, batches = await search_batches(user2_client, b.id, q=f'user:test-dev')
-        assert not found, str(batches)
+        assert not found, str((b.id, batches))
 
     finally:
         await b.delete()
