@@ -1,7 +1,7 @@
 package is.hail.expr.ir
 
 import is.hail.types.physical.PStream
-import is.hail.types.virtual.TStream
+import is.hail.types.virtual.{TStream, Type}
 
 
 class StreamMemoryManagement(val m: Memo[StreamMemoType]) {
@@ -50,6 +50,16 @@ object InferStreamMemoryManagement {
 
         m.bind(x, x match {
           case ref: Ref => lookup(ref.name, usesAndDefs.defs.lookup(ref).asInstanceOf[IR])
+          case Let(_, _, body) => m.lookup(body)
+          case NA(t) =>
+            var ts: Type = t
+            var nestingDepth = 0
+            while (ts.isInstanceOf[TStream]) {
+              ts = ts.asInstanceOf[TStream].elementType
+              nestingDepth += 1
+            }
+            (0 until nestingDepth)
+              .foldLeft(StreamMemoType(false, None)) { case (smt, _) => StreamMemoType(false, Some(smt)) }
           case ReadPartition(_, _, _) =>
             StreamMemoType(true, None)
           case In(_, s: PStream) =>
@@ -99,6 +109,8 @@ object InferStreamMemoryManagement {
             StreamMemoType(separateRegions, getOpt(body))
           case StreamZipJoin(streams, _, _, _, joinF) =>
             val separateRegions = streams.map(m.lookup(_).separateRegions).reduce(_ || _)
+            StreamMemoType(separateRegions, None)
+          case CollectDistributedArray(contexts, globals, cname, gname, body, tsd) =>
             StreamMemoType(separateRegions, None)
         })
       }
