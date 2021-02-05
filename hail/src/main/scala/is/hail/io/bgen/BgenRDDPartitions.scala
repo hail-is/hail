@@ -1,21 +1,20 @@
 package is.hail.io.bgen
 
-import is.hail.HailContext
-import is.hail.annotations.{Region, _}
-import is.hail.asm4s.{coerce, _}
+import is.hail.annotations.Region
+import is.hail.asm4s._
 import is.hail.backend.BroadcastValue
-import is.hail.expr.ir.{EmitFunctionBuilder, EmitMethodBuilder, EmitRegion, ExecuteContext, ParamType}
-import is.hail.expr.ir.functions.StringFunctions
-import is.hail.types._
-import is.hail.types.physical.{PArray, PCanonicalArray, PStruct, PType}
-import is.hail.types.virtual.{TArray, TInterval, Type}
-import is.hail.io.index.{IndexReader, IndexReaderBuilder}
+import is.hail.expr.ir.{EmitCode, EmitFunctionBuilder, ExecuteContext, IEmitCode, ParamType}
+import is.hail.io.fs.FS
+import is.hail.io.index.IndexReaderBuilder
 import is.hail.io.{ByteArrayReader, HadoopFSDataBinaryReader}
+import is.hail.types._
+import is.hail.types.physical.stypes.concrete.{SCanonicalCallCode, SStringPointer}
+import is.hail.types.physical.stypes.interfaces._
+import is.hail.types.physical.{PCanonicalArray, PCanonicalLocus, PCanonicalString, PCanonicalStruct, PStruct}
+import is.hail.types.virtual.{TInterval, Type}
 import is.hail.utils._
 import is.hail.variant.{Call2, ReferenceGenome}
-import is.hail.io.fs.FS
-import org.apache.spark.broadcast.Broadcast
-import org.apache.spark.{Partition, SparkContext}
+import org.apache.spark.Partition
 
 trait BgenPartition extends Partition {
   def path: String
@@ -75,9 +74,11 @@ object BgenRDDPartitions extends Logging {
     if (!overlappingBounds.isEmpty)
       fatal(
         s"""Each BGEN file must contain a region of the genome disjoint from other files. Found the following overlapping files:
-          |  ${ overlappingBounds.result().map { case (f1, i1, f2, i2) =>
-          s"file1: $f1\trangeBounds1: $i1\tfile2: $f2\trangeBounds2: $i2"
-        }.mkString("\n  ") })""".stripMargin)
+           |  ${
+          overlappingBounds.result().map { case (f1, i1, f2, i2) =>
+            s"file1: $f1\trangeBounds1: $i1\tfile2: $f2\trangeBounds2: $i2"
+          }.mkString("\n  ")
+        })""".stripMargin)
 
     bounds.map(_._2).toArray
   }
@@ -158,10 +159,10 @@ object BgenRDDPartitions extends Logging {
             )
 
             rangeBounds += Interval(
-                index.queryByIndex(firstVariantIndex).key,
-                index.queryByIndex(lastVariantIndex - 1).key,
-                includesStart = true,
-                includesEnd = true) // this must be true -- otherwise boundaries with duplicates will have the wrong range bounds
+              index.queryByIndex(firstVariantIndex).key,
+              index.queryByIndex(lastVariantIndex - 1).key,
+              includesStart = true,
+              includesEnd = true) // this must be true -- otherwise boundaries with duplicates will have the wrong range bounds
 
             i += 1
           }
@@ -180,139 +181,151 @@ object CompileDecoder {
   ): (Int, Region) => AsmFunction4[Region, BgenPartition, HadoopFSDataBinaryReader, BgenSettings, Long] = {
     val fb = EmitFunctionBuilder[Region, BgenPartition, HadoopFSDataBinaryReader, BgenSettings, Long](ctx, "bgen_rdd_decoder")
     val mb = fb.apply_method
-    val region = mb.getCodeParam[Region](1)
-    val cp = mb.getCodeParam[BgenPartition](2)
-    val cbfis = mb.getCodeParam[HadoopFSDataBinaryReader](3)
-    val csettings = mb.getCodeParam[BgenSettings](4)
+    val rowType = settings.rowPType
+    mb.emitWithBuilder[Long] { cb =>
 
-    val regionField = mb.genFieldThisRef[Region]("region")
-    val srvb = new StagedRegionValueBuilder(mb, settings.rowPType, regionField)
+      val region = mb.getCodeParam[Region](1)
+      val cp = mb.getCodeParam[BgenPartition](2)
+      val cbfis = mb.getCodeParam[HadoopFSDataBinaryReader](3)
+      val csettings = mb.getCodeParam[BgenSettings](4)
 
-    val offset = mb.newLocal[Long]("offset")
-    val fileIdx = mb.newLocal[Int]("fileIdx")
-    val varid = mb.newLocal[String]("varid")
-    val rsid = mb.newLocal[String]("rsid")
-    val contig = mb.newLocal[String]("contig")
-    val contigRecoded = mb.newLocal[String]("contigRecoded")
-    val position = mb.newLocal[Int]("position")
-    val nAlleles = mb.newLocal[Int]("nAlleles")
-    val i = mb.newLocal[Int]("i")
-    val dataSize = mb.newLocal[Int]("dataSize")
-    val invalidLocus = mb.newLocal[Boolean]("invalidLocus")
-    val data = mb.newLocal[Array[Byte]]("data")
-    val uncompressedSize = mb.newLocal[Int]("uncompressedSize")
-    val input = mb.newLocal[Array[Byte]]("input")
-    val reader = mb.newLocal[ByteArrayReader]("reader")
-    val nRow = mb.newLocal[Int]("nRow")
-    val nAlleles2 = mb.newLocal[Int]("nAlleles2")
-    val minPloidy = mb.newLocal[Int]("minPloidy")
-    val maxPloidy = mb.newLocal[Int]("maxPloidy")
-    val longPloidy = mb.newLocal[Long]("longPloidy")
-    val ploidy = mb.newLocal[Int]("ploidy")
-    val phase = mb.newLocal[Int]("phase")
-    val nBitsPerProb = mb.newLocal[Int]("nBitsPerProb")
-    val nExpectedBytesProbs = mb.newLocal[Int]("nExpectedBytesProbs")
-    val c0 = mb.genFieldThisRef[Int]("c0")
-    val c1 = mb.genFieldThisRef[Int]("c1")
-    val c2 = mb.genFieldThisRef[Int]("c2")
-    val c = Code(Code(FastIndexedSeq(
-      offset := cbfis.invoke[Long]("getPosition"),
-      fileIdx := cp.invoke[Int]("index"),
-      if (settings.hasField("varid")) {
-        varid := cbfis.invoke[Int, String]("readLengthAndString", 2)
-      } else {
-        cbfis.invoke[Int, Unit]("readLengthAndSkipString", 2)
-      },
-      if (settings.hasField("rsid")) {
-        rsid := cbfis.invoke[Int, String]("readLengthAndString", 2)
-      } else {
-        cbfis.invoke[Int, Unit]("readLengthAndSkipString", 2)
-      },
-      contig := cbfis.invoke[Int, String]("readLengthAndString", 2),
-      contigRecoded := cp.invoke[String, String]("recodeContig", contig),
-      position := cbfis.invoke[Int]("readInt"),
-      cp.invoke[Boolean]("skipInvalidLoci").mux(
-        Code(
-          invalidLocus :=
-            (if (settings.rgBc.nonEmpty) {
-              !csettings.invoke[Option[ReferenceGenome]]("rg")
-                .invoke[ReferenceGenome]("get")
-                .invoke[String, Int, Boolean]("isValidLocus", contigRecoded, position)
-            } else false),
-          invalidLocus.mux(
-            Code(
-              nAlleles := cbfis.invoke[Int]("readShort"),
-              i := 0,
-              Code.whileLoop(i < nAlleles,
-                cbfis.invoke[Int, Unit]("readLengthAndSkipString", 4),
-                i := i + 1
-              ),
-              dataSize := cbfis.invoke[Int]("readInt"),
-              Code.toUnit(cbfis.invoke[Long, Long]("skipBytes", dataSize.toL)),
-              Code._return(-1L) // return -1 to indicate we are skipping this variant
-            ),
-            Code._empty // if locus is valid, continue
-          )),
-        if (settings.rgBc.nonEmpty) {
-          // verify the locus is valid before continuing
-          csettings.invoke[Option[ReferenceGenome]]("rg")
-            .invoke[ReferenceGenome]("get")
-            .invoke[String, Int, Unit]("checkLocus", contigRecoded, position)
-        } else {
-          Code._empty // if locus is valid continue
-        }
-      ),
-      regionField := region,
-      srvb.start(),
-      if (settings.hasField("locus"))
-        Code(
-        srvb.addBaseStruct(settings.rowPType.field("locus").typ.fundamentalType.asInstanceOf[PStruct], { srvb =>
-          Code(
-            srvb.start(),
-            srvb.addString(contigRecoded),
-            srvb.advance(),
-            srvb.addInt(position))
-        }),
-        srvb.advance())
-      else Code._empty,
-      nAlleles := cbfis.invoke[Int]("readShort"),
-      nAlleles.cne(2).mux(
-        Code._fatal[Unit](
-          const("Only biallelic variants supported, found variant with ")
-            .concat(nAlleles.toS)),
-        Code._empty),
-      if (settings.hasField("alleles"))
-        Code(srvb.addArray(settings.rowPType.field("alleles").typ.fundamentalType.asInstanceOf[PArray], { srvb =>
-          Code(
-            srvb.start(nAlleles),
-            i := 0,
-            Code.whileLoop(i < nAlleles,
-              srvb.addString(cbfis.invoke[Int, String]("readLengthAndString", 4)),
-              srvb.advance(),
-              i := i + 1))
-        }),
-          srvb.advance())
-       else Code._empty,
-      if (settings.hasField("rsid"))
-        Code(srvb.addString(rsid), srvb.advance())
-      else Code._empty,
+      val offset = cb.newLocal[Long]("offset")
+      val fileIdx = cb.newLocal[Int]("fileIdx")
+      val varid = cb.newLocal[String]("varid")
+      val rsid = cb.newLocal[String]("rsid")
+      val contig = cb.newLocal[String]("contig")
+      val contigRecoded = cb.newLocal[String]("contigRecoded")
+      val position = cb.newLocal[Int]("position")
+      val nAlleles = cb.newLocal[Int]("nAlleles")
+      val i = cb.newLocal[Int]("i")
+      val dataSize = cb.newLocal[Int]("dataSize")
+      val invalidLocus = cb.newLocal[Boolean]("invalidLocus")
+      val data = cb.newLocal[Array[Byte]]("data")
+      val uncompressedSize = cb.newLocal[Int]("uncompressedSize")
+      val input = cb.newLocal[Array[Byte]]("input")
+      val reader = cb.newLocal[ByteArrayReader]("reader")
+      val nRow = cb.newLocal[Int]("nRow")
+      val nAlleles2 = cb.newLocal[Int]("nAlleles2")
+      val minPloidy = cb.newLocal[Int]("minPloidy")
+      val maxPloidy = cb.newLocal[Int]("maxPloidy")
+      val longPloidy = cb.newLocal[Long]("longPloidy")
+      val ploidy = cb.newLocal[Int]("ploidy")
+      val phase = cb.newLocal[Int]("phase")
+      val nBitsPerProb = cb.newLocal[Int]("nBitsPerProb")
+      val nExpectedBytesProbs = cb.newLocal[Int]("nExpectedBytesProbs")
+      val c0 = mb.genFieldThisRef[Int]("c0")
+      val c1 = mb.genFieldThisRef[Int]("c1")
+      val c2 = mb.genFieldThisRef[Int]("c2")
+
+      cb.assign(c0, Call2.fromUnphasedDiploidGtIndex(0))
+      cb.assign(c1, Call2.fromUnphasedDiploidGtIndex(1))
+      cb.assign(c2, Call2.fromUnphasedDiploidGtIndex(2))
+
+
+      cb.assign(offset, cbfis.invoke[Long]("getPosition"))
+      cb.assign(fileIdx, cp.invoke[Int]("index"))
+
       if (settings.hasField("varid"))
-        Code(srvb.addString(varid), srvb.advance())
-      else Code._empty,
+        cb.assign(varid, cbfis.invoke[Int, String]("readLengthAndString", 2))
+      else
+        cb += cbfis.invoke[Int, Unit]("readLengthAndSkipString", 2)
+
+      if (settings.hasField("rsid"))
+        cb.assign(rsid, cbfis.invoke[Int, String]("readLengthAndString", 2))
+      else
+        cb += cbfis.invoke[Int, Unit]("readLengthAndSkipString", 2)
+
+      cb.assign(contig, cbfis.invoke[Int, String]("readLengthAndString", 2))
+      cb.assign(contigRecoded, cp.invoke[String, String]("recodeContig", contig))
+      cb.assign(position, cbfis.invoke[Int]("readInt"))
+
+
+      cb.ifx(cp.invoke[Boolean]("skipInvalidLoci"),
+        {
+          if (settings.rgBc.nonEmpty) {
+            cb.assign(invalidLocus, !csettings.invoke[Option[ReferenceGenome]]("rg")
+              .invoke[ReferenceGenome]("get")
+              .invoke[String, Int, Boolean]("isValidLocus", contigRecoded, position))
+          }
+          cb.ifx(invalidLocus,
+            {
+              cb.assign(nAlleles, cbfis.invoke[Int]("readShort"))
+              cb.assign(i, 0)
+              cb.whileLoop(i < nAlleles,
+                {
+                  cb += cbfis.invoke[Int, Unit]("readLengthAndSkipString", 4)
+                  cb.assign(i, i + 1)
+                })
+              cb.assign(dataSize, cbfis.invoke[Int]("readInt"))
+              cb += Code.toUnit(cbfis.invoke[Long, Long]("skipBytes", dataSize.toL))
+              cb += Code._return(-1L)
+            }
+          )
+        },
+        {
+          if (settings.rgBc.nonEmpty)
+            cb += csettings.invoke[Option[ReferenceGenome]]("rg")
+              .invoke[ReferenceGenome]("get")
+              .invoke[String, Int, Unit]("checkLocus", contigRecoded, position)
+        })
+
+      val structFieldCodes = new BoxedArrayBuilder[EmitCode]()
+
+      if (settings.hasField("locus")) {
+        // double-allocates the locus struct, but this is a very minor performance regression
+        // and will be removed soon
+        val pc = settings.rowPType.field("locus").typ match {
+          case t: PCanonicalLocus =>
+            t.constructFromPositionAndString(cb, region, contigRecoded, position)
+          case t: PCanonicalStruct =>
+            val strT = t.field("contig").typ.asInstanceOf[PCanonicalString]
+            val contigPC = SStringPointer(strT).constructFromString(cb, region, contigRecoded)
+            t.constructFromFields(cb, region,
+              FastIndexedSeq(EmitCode.present(contigPC), EmitCode.present(primitive(position))),
+              deepCopy = false)
+        }
+        structFieldCodes += EmitCode.present(pc)
+      }
+
+      cb.assign(nAlleles, cbfis.invoke[Int]("readShort"))
+
+      cb.ifx(nAlleles.cne(2),
+        cb._fatal("Only biallelic variants supported, found variant with ", nAlleles.toS, " alleles: ",
+          contigRecoded, ":", position.toS))
+
+      if (settings.hasField("alleles")) {
+        val allelesType = settings.rowPType.field("alleles").typ.asInstanceOf[PCanonicalArray]
+        val alleleStringType = allelesType.elementType.asInstanceOf[PCanonicalString]
+        val (addElement, finish) = allelesType.constructFromFunctions(cb, region, nAlleles, deepCopy = false)
+
+        cb.assign(i, 0)
+        cb.whileLoop(i < nAlleles, {
+          val st = SStringPointer(alleleStringType)
+          val strCode = st.constructFromString(cb, region, cbfis.invoke[Int, String]("readLengthAndString", 4))
+          addElement(cb, i, IEmitCode.present(cb, strCode))
+          cb.assign(i, i + 1)
+        })
+
+        val allelesArr = finish(cb)
+        structFieldCodes += EmitCode.present(allelesArr)
+      }
+
+      if (settings.hasField("rsid"))
+        structFieldCodes += EmitCode.present(SStringPointer(PCanonicalString(true)).constructFromString(cb, region, rsid))
+      if (settings.hasField("varid"))
+        structFieldCodes += EmitCode.present(SStringPointer(PCanonicalString(true)).constructFromString(cb, region, varid))
       if (settings.hasField("offset"))
-        Code(srvb.addLong(offset), srvb.advance())
-      else Code._empty,
+        structFieldCodes += EmitCode.present(primitive(offset))
       if (settings.hasField("file_idx"))
-        Code(srvb.addInt(fileIdx), srvb.advance())
-      else Code._empty,
-      dataSize := cbfis.invoke[Int]("readInt"),
+        structFieldCodes += EmitCode.present(primitive(fileIdx))
+
+      cb.assign(dataSize, cbfis.invoke[Int]("readInt"))
       settings.entryType match {
         case None =>
-          Code.toUnit(cbfis.invoke[Long, Long]("skipBytes", dataSize.toL))
-
+          cb += Code.toUnit(cbfis.invoke[Long, Long]("skipBytes", dataSize.toL))
         case Some(t) =>
-          val entriesArrayType = settings.rowPType.field(MatrixType.entriesIdentifier).typ.asInstanceOf[PArray]
-          val entryType = entriesArrayType.elementType.asInstanceOf[PStruct]
+          val entriesArrayType = settings.rowPType.field(MatrixType.entriesIdentifier).typ.asInstanceOf[PCanonicalArray]
+          val entryType = entriesArrayType.elementType.asInstanceOf[PCanonicalStruct]
 
           val includeGT = t.hasField("GT")
           val includeGP = t.hasField("GP")
@@ -322,242 +335,209 @@ object CompileDecoder {
           val memoizedEntryData = mb.genFieldThisRef[Long]("memoizedEntryData")
 
           val memoTyp = PCanonicalArray(entryType.setRequired(true), required = true)
-          val memoizeAllValues: Code[Unit] = {
-            val memoMB = mb.genEmitMethod("memoizeEntries", FastIndexedSeq[ParamType](), UnitInfo)
 
-            val d0 = memoMB.newLocal[Int]("memoize_entries_d0")
-            val d1 = memoMB.newLocal[Int]("memoize_entries_d1")
-            val d2 = memoMB.newLocal[Int]("memoize_entries_d2")
+          val memoMB = mb.genEmitMethod("memoizeEntries", FastIndexedSeq[ParamType](), UnitInfo)
+          memoMB.voidWithBuilder { cb =>
 
-            val srvb = new StagedRegionValueBuilder(memoMB, memoTyp, fb.partitionRegion)
+            val partRegion = mb.partitionRegion
 
-            memoMB.emit(
-              alreadyMemoized.mux(
-                Code._empty,
-                Code(
-                  srvb.start(1 << 16),
-                  d0 := 0,
-                  Code.whileLoop(d0 < 256,
-                    d1 := 0,
-                    Code.whileLoop(d1 < 256,
-                      d2 := const(255) - d0 - d1,
-                      srvb.addBaseStruct(entryType, { srvb =>
-                        val addGT: Code[Unit] = if (includeGT) {
+            val LnoOp = CodeLabel()
+            cb.ifx(alreadyMemoized, cb.goto(LnoOp))
 
-                          val addGtMB = mb.genEmitMethod("bgen_add_gt",
-                            FastIndexedSeq[ParamType](IntInfo, IntInfo, IntInfo),
-                            UnitInfo)
-                          val d0arg = addGtMB.getCodeParam[Int](1)
-                          val d1arg = addGtMB.getCodeParam[Int](2)
-                          val d2arg = addGtMB.getCodeParam[Int](3)
+            val (nextAddr, _, finish) = memoTyp.constructFromNextAddress(cb, partRegion, 1 << 16, deepCopy = false)
 
-                          addGtMB.emit(
-                            Code(
-                              (d0arg > d1arg).mux(
-                                (d0arg > d2arg).mux(
-                                  srvb.addInt(c0),
-                                  (d2arg > d0arg).mux(
-                                    srvb.addInt(c2),
-                                    // d0 == d2
-                                    srvb.setMissing())),
-                                // d0 <= d1
-                                (d2arg > d1arg).mux(
-                                  srvb.addInt(c2),
-                                  // d2 <= d1
-                                  (d1arg.ceq(d0arg) || d1arg.ceq(d2arg)).mux(
-                                    srvb.setMissing(),
-                                    srvb.addInt(c1)))),
-                              if (includeGP || includeDosage) srvb.advance() else Code._empty))
-                          addGtMB.invokeCode(d0, d1, d2)
-                        } else Code._empty
+            val d0 = cb.newLocal[Int]("memoize_entries_d0", 0)
+            cb.whileLoop(d0 < 256, {
+              val d1 = cb.newLocal[Int]("memoize_entries_d1", 0)
+              cb.whileLoop(d1 < 256, {
+                val d2 = cb.newLocal[Int]("memoize_entries_d2", const(255) - d0 - d1)
 
-                        val addGP: Code[Unit] = if (includeGP) {
-                          val addGpMB = mb.genEmitMethod("bgen_add_gp",
-                            FastIndexedSeq[ParamType](IntInfo, IntInfo, IntInfo),
-                            UnitInfo)
+                val structAddr = nextAddr(cb)
 
-                          val d0arg = addGpMB.getCodeParam[Int](1)
-                          val d1arg = addGpMB.getCodeParam[Int](2)
-                          val d2arg = addGpMB.getCodeParam[Int](3)
+                val entryFieldCodes = new BoxedArrayBuilder[EmitCode]()
 
-                          val divisor = addGpMB.newLocal[Double]("divisor")
+                if (includeGT)
+                  entryFieldCodes += EmitCode.fromI(cb.emb) { cb =>
+                    val Lmissing = CodeLabel()
+                    val Lpresent = CodeLabel()
+                    val value = cb.newLocal[Int]("bgen_gt_value")
 
-                          addGpMB.emit(Code(
-                            srvb.addArray(entryType.field("GP").typ.asInstanceOf[PArray], { srvb =>
-                              Code(
-                                divisor := 255.0,
-                                srvb.start(3),
-                                srvb.addDouble(d0arg.toD / divisor),
-                                srvb.advance(),
-                                srvb.addDouble(d1arg.toD / divisor),
-                                srvb.advance(),
-                                srvb.addDouble(d2arg.toD / divisor))
-                            }),
-                            if (includeDosage) srvb.advance() else Code._empty))
-                          addGpMB.invokeCode(d0, d1, d2)
-                        } else Code._empty
+                    cb.ifx(d0 > d1,
+                      cb.ifx(d0 > d2,
+                        {
+                          cb.assign(value, c0)
+                          cb.goto(Lpresent)
+                        },
+                        cb.ifx(d2 > d0,
+                          {
+                            cb.assign(value, c2)
+                            cb.goto(Lpresent)
+                          },
+                          // d0 == d2
+                          cb.goto(Lmissing))),
+                      // d0 <= d1
+                      cb.ifx(d2 > d1,
+                        {
+                          cb.assign(value, c2)
+                          cb.goto(Lpresent)
+                        },
+                        // d2 <= d1
+                        cb.ifx(d1.ceq(d0) || d1.ceq(d2),
+                          cb.goto(Lmissing),
+                          {
+                            cb.assign(value, c1)
+                            cb.goto(Lpresent)
+                          })))
 
-                        val addDosage: Code[Unit] = if (includeDosage) {
-                          val addDosageMB = mb.genEmitMethod("bgen_add_dosage",
-                            FastIndexedSeq[ParamType](IntInfo, IntInfo),
-                            UnitInfo)
+                    IEmitCode(Lmissing, Lpresent, new SCanonicalCallCode(false, value))
+                  }
 
-                          val d1arg = addDosageMB.getCodeParam[Int](1)
-                          val d2arg = addDosageMB.getCodeParam[Int](2)
+                if (includeGP)
+                  entryFieldCodes += EmitCode.fromI(cb.emb) { cb =>
 
-                          addDosageMB.emit(srvb.addDouble((d1arg + (d2arg << 1)).toD / 255.0))
-                          addDosageMB.invokeCode(d1, d2)
-                        } else Code._empty
+                    val divisor = cb.newLocal[Double]("divisor", 255.0)
 
-                        Code(srvb.start(), addGT, addGP, addDosage)
-                      }),
-                      srvb.advance(),
-                      d1 := d1 + 1
-                    ),
-                    d0 := d0 + 1
-                ),
-                memoizedEntryData := srvb.end(),
-                alreadyMemoized := true
-              )
-            ))
-            memoMB.invokeCode()
+                    val gpType = entryType.field("GP").typ.asInstanceOf[PCanonicalArray]
+
+                    val (addElem, finish) = gpType.constructFromFunctions(cb, partRegion, 3, deepCopy = false)
+                    addElem(cb, 0, IEmitCode.present(cb, primitive(d0.toD / divisor)))
+                    addElem(cb, 1, IEmitCode.present(cb, primitive(d1.toD / divisor)))
+                    addElem(cb, 2, IEmitCode.present(cb, primitive(d2.toD / divisor)))
+
+                    IEmitCode.present(cb, finish(cb))
+                  }
+
+
+                if (includeDosage)
+                  entryFieldCodes += EmitCode.fromI(cb.emb) { cb =>
+                    IEmitCode.present(cb, primitive((d1 + (d2 << 1)).toD / 255.0))
+                  }
+
+                entryType.storeAtAddressFromFields(cb, structAddr, partRegion, entryFieldCodes.result(), deepCopy = false)
+
+                cb.assign(d1, d1 + 1)
+              })
+
+              cb.assign(d0, d0 + 1)
+            })
+
+            cb.assign(memoizedEntryData, finish(cb).a)
+            //            cb.println(s"done building memoizedEntryData: ", memoizedEntryData.hexString)
+            cb.assign(alreadyMemoized, true)
+
+            cb.define(LnoOp)
           }
 
-          val lookupEntry: (Code[Int], Code[Int]) => Code[Long] = {
-            val lookupMB = mb.genEmitMethod("bgen_look_up_add_entry", FastIndexedSeq[ParamType](IntInfo, IntInfo), LongInfo)
+          cb.ifx(cp.invoke[Boolean]("compressed"), {
+            cb.assign(uncompressedSize, cbfis.invoke[Int]("readInt"))
+            cb.assign(input, cbfis.invoke[Int, Array[Byte]]("readBytes", dataSize - 4))
+            cb.assign(data, Code.invokeScalaObject2[Array[Byte], Int, Array[Byte]](
+              BgenRDD.getClass, "decompress", input, uncompressedSize))
+          }, {
+            cb.assign(data, cbfis.invoke[Int, Array[Byte]]("readBytes", dataSize))
+          })
 
-            val d0 = lookupMB.getCodeParam[Int](1)
-            val d1 = lookupMB.getCodeParam[Int](2)
-            lookupMB.emit(Code(
-              Code._empty,
-              memoTyp.elementOffset(memoizedEntryData, settings.nSamples, (d0 << 8) | d1)
-            ))
-            lookupMB.invokeCode(_, _)
-          }
+          cb.assign(reader, Code.newInstance[ByteArrayReader, Array[Byte]](data))
+          cb.assign(nRow, reader.invoke[Int]("readInt"))
+          cb.ifx(nRow.cne(settings.nSamples), cb._fatal(
+            const("Row nSamples is not equal to header nSamples: ")
+              .concat(nRow.toS)
+              .concat(", ")
+              .concat(settings.nSamples.toString)
+          ))
 
-          val addEntries: Code[Array[Byte]] => Code[Unit] = {
-            val addEntriesMB = mb.genEmitMethod("bgen_add_entries", FastIndexedSeq[ParamType](typeInfo[Array[Byte]]), UnitInfo)
-            val data = addEntriesMB.getCodeParam[Array[Byte]](1)
-            val i = addEntriesMB.newLocal[Int]("i")
-            val off = addEntriesMB.newLocal[Int]("off")
-            val d0 = addEntriesMB.newLocal[Int]("d0")
-            val d1 = addEntriesMB.newLocal[Int]("d1")
-            addEntriesMB.emit(
-              srvb.addArray(entriesArrayType,
-                { srvb =>
-                  Code(
-                    srvb.start(settings.nSamples),
-                    i := 0,
-                    Code.whileLoop(i < settings.nSamples,
-                      (data(i + 8) & 0x80).cne(0).mux(
-                        srvb.setMissing(),
-                        Code(
-                          off := const(settings.nSamples + 10) + i * 2,
-                          d0 := data(off) & 0xff,
-                          d1 := data(off + 1) & 0xff,
-                          srvb.addIRIntermediate(entryType)(lookupEntry(d0, d1))
-                        )),
-                      srvb.advance(),
-                      i := i + 1))
-                })
-            )
-            addEntriesMB.invokeCode(_)
-          }
+          cb.assign(nAlleles2, reader.invoke[Int]("readShort"))
+          cb.ifx(nAlleles.cne(nAlleles2),
+            cb._fatal(const(
+              """Value for 'nAlleles' in genotype probability data storage is
+                |not equal to value in variant identifying data. Expected""".stripMargin)
+              .concat(nAlleles.toS)
+              .concat(" but found ")
+              .concat(nAlleles2.toS)
+              .concat(" at ")
+              .concat(contig)
+              .concat(":")
+              .concat(position.toS)
+              .concat(".")))
 
-          Code(FastIndexedSeq(
-            cp.invoke[Boolean]("compressed").mux(
-              Code(
-                uncompressedSize := cbfis.invoke[Int]("readInt"),
-                input := cbfis.invoke[Int, Array[Byte]]("readBytes", dataSize - 4),
-                data := Code.invokeScalaObject2[Array[Byte], Int, Array[Byte]](
-                  BgenRDD.getClass, "decompress", input, uncompressedSize)),
-              data := cbfis.invoke[Int, Array[Byte]]("readBytes", dataSize)),
-            reader := Code.newInstance[ByteArrayReader, Array[Byte]](data),
-            nRow := reader.invoke[Int]("readInt"),
-            (nRow.cne(settings.nSamples)).mux(
-              Code._fatal[Unit](
-                const("Row nSamples is not equal to header nSamples: ")
-                  .concat(nRow.toS)
-                  .concat(", ")
-                  .concat(settings.nSamples.toString)),
-              Code._empty),
-            nAlleles2 := reader.invoke[Int]("readShort"),
-            (nAlleles.cne(nAlleles2)).mux(
-              Code._fatal[Unit](
-                const("""Value for 'nAlleles' in genotype probability data storage is
-                        |not equal to value in variant identifying data. Expected""".stripMargin)
-                  .concat(nAlleles.toS)
-                  .concat(" but found ")
-                  .concat(nAlleles2.toS)
-                  .concat(" at ")
-                  .concat(contig)
-                  .concat(":")
-                  .concat(position.toS)
-                  .concat(".")),
-              Code._empty),
-            minPloidy := reader.invoke[Int]("read"),
-            maxPloidy := reader.invoke[Int]("read"),
-            (minPloidy.cne(2) || maxPloidy.cne(2)).mux(
-              Code._fatal[Unit](
-                const("Hail only supports diploid genotypes. Found min ploidy '")
-                  .concat(minPloidy.toS)
-                  .concat("' and max ploidy '")
-                  .concat(maxPloidy.toS)
-                  .concat("'.")),
-              Code._empty),
-            i := 0,
-            Code.whileLoop(i < settings.nSamples,
-              ploidy := reader.invoke[Int]("read"),
-              ((ploidy & 0x3f).cne(2)).mux(
-                Code._fatal[Unit](
-                  const("Ploidy value must equal to 2. Found ")
-                    .concat(ploidy.toS)
-                    .concat(".")),
-                Code._empty),
-              i += 1
-            ),
-            phase := reader.invoke[Int]("read"),
-            (phase.cne(0) && phase.cne(1)).mux(
-              Code._fatal[Unit](
-                const("Phase value must be 0 or 1. Found ")
-                  .concat(phase.toS)
-                  .concat(".")),
-              Code._empty),
-            phase.ceq(1).mux(
-              Code._fatal[Unit]("Hail does not support phased genotypes."),
-              Code._empty),
-            nBitsPerProb := reader.invoke[Int]("read"),
-            (nBitsPerProb < 1 || nBitsPerProb > 32).mux(
-              Code._fatal[Unit](
-                const("nBits value must be between 1 and 32 inclusive. Found ")
-                  .concat(nBitsPerProb.toS)
-                  .concat(".")),
-              Code._empty),
-            (nBitsPerProb.cne(8)).mux(
-              Code._fatal[Unit](
-                const("Hail only supports 8-bit probabilities, found ")
-                  .concat(nBitsPerProb.toS)
-                  .concat(".")),
-              Code._empty),
-            nExpectedBytesProbs := settings.nSamples * 2,
-            (reader.invoke[Int]("length").cne(nExpectedBytesProbs + settings.nSamples + 10)).mux(
-              Code._fatal[Unit](
-                const("Number of uncompressed bytes '")
-                  .concat(reader.invoke[Int]("length").toS)
-                  .concat("' does not match the expected size '")
-                  .concat(nExpectedBytesProbs.toS)
-                  .concat("'.")),
-              Code._empty),
-            c0 := Call2.fromUnphasedDiploidGtIndex(0),
-            c1 := Call2.fromUnphasedDiploidGtIndex(1),
-            c2 := Call2.fromUnphasedDiploidGtIndex(2),
-            memoizeAllValues,
-            addEntries(data)
-            ))
-      })),
-      srvb.end())
+          cb.assign(minPloidy, reader.invoke[Int]("read"))
+          cb.assign(maxPloidy, reader.invoke[Int]("read"))
 
-    mb.emit(c)
+          cb.ifx(minPloidy.cne(2) || maxPloidy.cne(2),
+            cb._fatal(const("Hail only supports diploid genotypes. Found min ploidy '")
+              .concat(minPloidy.toS)
+              .concat("' and max ploidy '")
+              .concat(maxPloidy.toS)
+              .concat("'.")))
+
+          cb.assign(i, 0)
+          cb.whileLoop(i < settings.nSamples, {
+            cb.assign(ploidy, reader.invoke[Int]("read"))
+            cb.ifx((ploidy & 0x3f).cne(2),
+              cb._fatal(const("Ploidy value must equal to 2. Found ")
+                .concat(ploidy.toS)
+                .concat(".")))
+            cb.assign(i, i + 1)
+          })
+
+          cb.assign(phase, reader.invoke[Int]("read"))
+          cb.ifx(phase.cne(0) && (phase.cne(1)),
+            cb._fatal(const("Phase value must be 0 or 1. Found ")
+              .concat(phase.toS)
+              .concat(".")))
+
+          cb.ifx(phase.ceq(1), cb._fatal("Hail does not support phased genotypes in 'import_bgen'."))
+
+          cb.assign(nBitsPerProb, reader.invoke[Int]("read"))
+          cb.ifx(nBitsPerProb < 1 || nBitsPerProb > 32,
+            cb._fatal(const("nBits value must be between 1 and 32 inclusive. Found ")
+              .concat(nBitsPerProb.toS)
+              .concat(".")))
+          cb.ifx(nBitsPerProb.cne(8),
+            cb._fatal(const("Hail only supports 8-bit probabilities, found ")
+              .concat(nBitsPerProb.toS)
+              .concat(".")))
+
+          cb.assign(nExpectedBytesProbs, settings.nSamples * 2)
+          cb.ifx(reader.invoke[Int]("length").cne(nExpectedBytesProbs + settings.nSamples + 10),
+            cb._fatal(const("Number of uncompressed bytes '")
+              .concat(reader.invoke[Int]("length").toS)
+              .concat("' does not match the expected size '")
+              .concat(nExpectedBytesProbs.toS)
+              .concat("'.")))
+
+          cb.invokeVoid(memoMB)
+
+          val (addElement, finish) = entriesArrayType.constructFromFunctions(cb, region, settings.nSamples, deepCopy = false)
+
+          cb.assign(i, 0)
+          cb.whileLoop(i < settings.nSamples, {
+
+            val Lmissing = CodeLabel()
+            val Lpresent = CodeLabel()
+
+            cb.ifx((data(i + 8) & 0x80).cne(0), cb.goto(Lmissing))
+            val dataOffset = cb.newLocal[Int]("bgen_add_entries_offset", const(settings.nSamples + 10) + i * 2)
+            val d0 = data(dataOffset) & 0xff
+            val d1 = data(dataOffset + 1) & 0xff
+            //            cb.println(s"trying to copy entry from ", memoTyp.loadElement(memoizedEntryData, settings.nSamples, ((data(dataOffset) & 0xff) << 8) | (data(dataOffset + 1) & 0xff)).hexString)
+            val pc = entryType.loadCheapPCode(cb, memoTyp.loadElement(memoizedEntryData, settings.nSamples, (d0 << 8) | d1))
+            cb.goto(Lpresent)
+            val iec = IEmitCode(Lmissing, Lpresent, pc)
+            addElement(cb, i, iec)
+
+            cb.assign(i, i + 1)
+          })
+
+          val pc = finish(cb)
+
+          structFieldCodes += EmitCode.fromI(cb.emb)(cb => IEmitCode.present(cb, pc))
+      }
+
+      rowType.constructFromFields(cb, region, structFieldCodes.result(), deepCopy = false).a
+    }
+
     fb.resultWithIndex()
   }
 }
+

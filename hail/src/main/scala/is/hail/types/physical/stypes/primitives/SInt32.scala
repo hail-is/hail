@@ -42,6 +42,8 @@ case class SInt32(required: Boolean) extends SType {
     assert(x.ti == IntInfo)
     new SInt32Code(required, x)
   }
+
+  def canonicalPType(): PType = pType
 }
 
 trait PInt32Value extends PValue {

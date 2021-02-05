@@ -42,6 +42,8 @@ case class SInt64(required: Boolean) extends SType {
     assert(x.ti == LongInfo)
     new SInt64Code(required, x)
   }
+
+  def canonicalPType(): PType = pType
 }
 
 trait PInt64Value extends PValue {

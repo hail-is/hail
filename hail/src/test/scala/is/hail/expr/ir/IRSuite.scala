@@ -44,12 +44,12 @@ object IRSuite {
       returnType: Type,
       calculateReturnType: (Type, Seq[PType]) => PType
     )(
-      impl: (EmitCodeBuilder, EmitRegion, PType, Long, Array[() => IEmitCode]) => IEmitCode
+      impl: (EmitCodeBuilder, EmitRegion, PType, Long, Array[EmitCode]) => IEmitCode
     ) {
       IRFunctionRegistry.addJVMFunction(
         new SeededMissingnessAwareJVMFunction(name, valueParameterTypes, returnType, calculateReturnType) {
           val isDeterministic: Boolean = false
-          def applySeededI(seed: Long, cb: EmitCodeBuilder, r: EmitRegion, returnPType: PType, args: (PType, () => IEmitCode)*): IEmitCode = {
+          def applySeededI(seed: Long, cb: EmitCodeBuilder, r: EmitRegion, returnPType: PType, args: (PType, EmitCode)*): IEmitCode = {
             assert(unify(FastSeq(), args.map(_._1.virtualType), returnPType.virtualType))
             impl(cb, r, returnPType, seed, args.map(a => a._2).toArray)
           }
@@ -63,7 +63,7 @@ object IRSuite {
       returnType: Type,
       calculateReturnType: (Type, PType) => PType
     )(
-      impl: (EmitCodeBuilder, EmitRegion, PType, Long, () => IEmitCode) => IEmitCode
+      impl: (EmitCodeBuilder, EmitRegion, PType, Long, EmitCode) => IEmitCode
     ): Unit =
       registerSeededWithMissingness(name, Array(valueParameterType), returnType, unwrappedApply(calculateReturnType)) {
         case (cb, r, rt, seed, Array(a1)) => impl(cb, r, rt, seed, a1)
@@ -72,11 +72,11 @@ object IRSuite {
     def registerAll() {
       registerSeededWithMissingness("incr_s", TBoolean, TBoolean, null) { case (cb, mb, rt,  _, l) =>
         cb += Code.invokeScalaObject0[Unit](outer.getClass, "incr")
-        l()
+        l.toI(cb)
       }
 
       registerSeededWithMissingness("incr_v", TBoolean, TBoolean, null) { case (cb, mb, rt, _, l) =>
-        l().map(cb) { pc =>
+        l.toI(cb).map(cb) { pc =>
           cb += Code.invokeScalaObject0[Unit](outer.getClass, "incr")
           pc
         }
@@ -3692,7 +3692,7 @@ class IRSuite extends HailSuite {
   @DataProvider(name = "relationalFunctions")
   def relationalFunctionsData(): Array[Array[Any]] = Array(
     Array(TableFilterPartitions(Array(1, 2, 3), keep = true)),
-    Array(VEP(fs, "src/test/resources/dummy_vep_config.json", false, 1)),
+    Array(VEP(fs, "src/test/resources/dummy_vep_config.json", false, 1, true)),
     Array(WrappedMatrixToTableFunction(LinearRegressionRowsSingle(Array("foo"), "bar", Array("baz"), 1, Array("a", "b")), "foo", "bar", FastIndexedSeq("ck"))),
     Array(LinearRegressionRowsSingle(Array("foo"), "bar", Array("baz"), 1, Array("a", "b"))),
     Array(LinearRegressionRowsChained(FastIndexedSeq(FastIndexedSeq("foo")), "bar", Array("baz"), 1, Array("a", "b"))),

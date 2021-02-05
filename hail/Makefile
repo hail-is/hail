@@ -13,7 +13,7 @@ BRANCH := $(shell git rev-parse --abbrev-ref HEAD)
 SCALA_VERSION ?= 2.11.12
 SPARK_VERSION ?= 2.4.5
 HAIL_MAJOR_MINOR_VERSION := 0.2
-HAIL_PATCH_VERSION := 61
+HAIL_PATCH_VERSION := 62
 HAIL_PIP_VERSION := $(HAIL_MAJOR_MINOR_VERSION).$(HAIL_PATCH_VERSION)
 HAIL_VERSION := $(HAIL_PIP_VERSION)-$(SHORT_REVISION)
 ELASTIC_MAJOR_VERSION ?= 7
@@ -214,6 +214,11 @@ CLOUD_SUB_FOLDER := $(HAIL_PIP_VERSION)
 UPLOAD_RETENTION = gsutil -m retention temp set "$(cloud_base)/*"
 endif
 
+ifdef SKIP_UPLOAD_ARTIFACTS
+DEV_CLARIFIER =
+CLOUD_SUB_FOLDER := $(HAIL_PIP_VERSION)
+endif
+
 HAILCTL_BUCKET_BASE ?= gs://hail-common/hailctl/dataproc
 
 cloud_base := $(HAILCTL_BUCKET_BASE)/$(DEV_CLARIFIER)$(CLOUD_SUB_FOLDER)
@@ -255,7 +260,11 @@ install-on-cluster: $(WHEEL)
 	$(PIP) install $(WHEEL) --no-deps
 
 .PHONY: install-hailctl
+ifdef SKIP_UPLOAD_ARTIFACTS
+install-hailctl: install
+else
 install-hailctl: install upload-artifacts
+endif
 
 .PHONY: test-dataproc
 test-dataproc: install-hailctl

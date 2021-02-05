@@ -2,18 +2,19 @@ package is.hail.types.physical
 
 import is.hail.annotations._
 import is.hail.asm4s._
-import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder}
+import is.hail.expr.ir.{EmitCode, EmitCodeBuilder, EmitMethodBuilder}
 import is.hail.types.physical.stypes.SCode
-import is.hail.types.physical.stypes.concrete.{SCanonicalLocusPointer, SCanonicalLocusPointerCode}
+import is.hail.types.physical.stypes.concrete.{SCanonicalLocusPointer, SCanonicalLocusPointerCode, SStringPointer}
+import is.hail.types.physical.stypes.interfaces._
+import is.hail.utils.FastIndexedSeq
 import is.hail.variant._
-import org.apache.spark.sql.Row
 
 object PCanonicalLocus {
   def apply(rg: ReferenceGenome): PLocus = PCanonicalLocus(rg.broadcastRG)
 
   def apply(rg: ReferenceGenome, required: Boolean): PLocus = PCanonicalLocus(rg.broadcastRG, required)
 
-  private def representation(required: Boolean = false): PStruct = PCanonicalStruct(
+  private def representation(required: Boolean = false): PCanonicalStruct = PCanonicalStruct(
     required,
     "contig" -> PCanonicalString(required = true),
     "position" -> PInt32(required = true))
@@ -38,7 +39,7 @@ final case class PCanonicalLocus(rgBc: BroadcastRG, required: Boolean = false) e
 
   def setRequired(required: Boolean) = if (required == this.required) this else PCanonicalLocus(this.rgBc, required)
 
-  val representation: PStruct = PCanonicalLocus.representation(required)
+  val representation: PCanonicalStruct = PCanonicalLocus.representation(required)
 
   private[physical] def contigAddr(address: Code[Long]): Code[Long] = representation.loadField(address, 0)
 
@@ -78,36 +79,8 @@ final case class PCanonicalLocus(rgBc: BroadcastRG, required: Boolean = false) e
     }
   }
 
-  def codeOrdering(mb: EmitMethodBuilder[_], other: PType): CodeOrdering = {
-    assert(other isOfType this)
-    new CodeOrderingCompareConsistentWithOthers {
-      type T = Long
-      val bincmp = representation.fundamentalType.fieldType("contig").asInstanceOf[PBinary].codeOrdering(mb)
-
-      override def compareNonnull(x: Code[Long], y: Code[Long]): Code[Int] = {
-        val c1 = mb.newLocal[Long]("c1")
-        val c2 = mb.newLocal[Long]("c2")
-
-        val s1 = contigType.loadString(c1)
-        val s2 = contigType.loadString(c2)
-
-        val cmp = bincmp.compareNonnull(coerce[bincmp.T](c1), coerce[bincmp.T](c2))
-        val codeRG = mb.getReferenceGenome(rg)
-
-        Code.memoize(x, "plocus_code_ord_x", y, "plocus_code_ord_y") { (x, y) =>
-          val p1 = Region.loadInt(representation.fieldOffset(x, 1))
-          val p2 = Region.loadInt(representation.fieldOffset(y, 1))
-
-          Code(
-            c1 := representation.loadField(x, 0),
-            c2 := representation.loadField(y, 0),
-            cmp.ceq(0).mux(
-              Code.invokeStatic2[java.lang.Integer, Int, Int, Int]("compare", p1, p2),
-              codeRG.invoke[String, String, Int]("compare", s1, s2)))
-        }
-      }
-    }
-  }
+  def codeOrdering(mb: EmitMethodBuilder[_], other: PType): CodeOrdering =
+    CodeOrdering.locusOrdering(this, other.asInstanceOf[PLocus], mb)
 
   override def unstagedStoreAtAddress(addr: Long, region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Unit = {
     srcPType match {
@@ -143,7 +116,9 @@ final case class PCanonicalLocus(rgBc: BroadcastRG, required: Boolean = false) e
     }
   }
 
-  def loadFromNested(cb: EmitCodeBuilder, addr: Code[Long]): Code[Long] = addr
+  def loadFromNested(addr: Code[Long]): Code[Long] = addr
+
+  override def unstagedLoadFromNested(addr: Long): Long = addr
 
   def unstagedStoreLocus(addr: Long, contig: String, position: Int, region: Region): Unit = {
     contigType.unstagedStoreJavaObjectAtAddress(representation.fieldOffset(addr, 0), contig, region)
@@ -159,5 +134,12 @@ final case class PCanonicalLocus(rgBc: BroadcastRG, required: Boolean = false) e
     val addr = representation.allocate(region)
     unstagedStoreJavaObjectAtAddress(addr, annotation, region)
     addr
+  }
+
+  def constructFromPositionAndString(cb: EmitCodeBuilder, r: Value[Region], contig: Code[String], pos: Code[Int]): SCanonicalLocusPointerCode = {
+    val contigType = representation.fieldType("contig").asInstanceOf[PCanonicalString]
+    val contigCode = SStringPointer(contigType).constructFromString(cb, r, contig)
+    val repr = representation.constructFromFields(cb, r, FastIndexedSeq(EmitCode.present(contigCode), EmitCode.present(primitive(pos))), deepCopy = false)
+    new SCanonicalLocusPointerCode(SCanonicalLocusPointer(this), repr.a)
   }
 }

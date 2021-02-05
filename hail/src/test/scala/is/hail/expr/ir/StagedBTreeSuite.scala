@@ -36,11 +36,7 @@ class TestBTreeKey(mb: EmitMethodBuilder[_]) extends BTreeKey {
   def deepCopy(cb: EmitCodeBuilder, er: EmitRegion, src: Code[Long], dest: Code[Long]): Unit =
     copy(cb, src, dest)
 
-  def compKeys(cb: EmitCodeBuilder, k1: EmitCode, k2: EmitCode): Code[Int] = {
-    cb += k1.setup
-    cb += k2.setup
-    comp(k1.m -> k1.v, k2.m -> k2.v)
-  }
+  def compKeys(cb: EmitCodeBuilder, k1: EmitCode, k2: EmitCode): Code[Int] = comp(cb, k1, k2)
 
   def loadCompKey(cb: EmitCodeBuilder, off: Value[Long]): EmitCode =
     EmitCode(Code._empty, storageType.isFieldMissing(off, 0), PCode(compType, Region.loadLong(storageType.fieldOffset(off, 0))))

@@ -40,6 +40,9 @@ case class SIntervalPointer(pType: PInterval) extends SInterval {
     assert(a.ti == LongInfo)
     new SIntervalPointerCode(this, a)
   }
+
+
+  def canonicalPType(): PType = pType
 }
 
 
@@ -91,10 +94,12 @@ class SIntervalPointerSettable(
 
     val start = cb.memoize(loadStart(cb), "start")
     val end = cb.memoize(loadEnd(cb), "end")
-    includesStart && includesEnd.mux(
-      gt((start.m, start.v), (end.m, end.v)),
-      gteq((start.m, start.v), (end.m, end.v))
-    )
+    val empty = cb.newLocal("is_empty", includesStart)
+    cb.ifx(empty,
+      cb.ifx(includesEnd,
+        cb.assign(empty, gt(cb, start, end)),
+        cb.assign(empty, gteq(cb, start, end))))
+    empty
   }
 
 }

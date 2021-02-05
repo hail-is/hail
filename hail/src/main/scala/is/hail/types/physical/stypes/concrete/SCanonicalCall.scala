@@ -42,6 +42,8 @@ case class SCanonicalCall(required: Boolean) extends SCall {
     assert(call.ti == IntInfo)
     new SCanonicalCallCode(required, call)
   }
+
+  def canonicalPType(): PType = pType
 }
 
 object SCanonicalCallSettable {

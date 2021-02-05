@@ -38,6 +38,8 @@ case class SSubsetStruct(parent: SStruct, fieldNames: IndexedSeq[String]) extend
   def fromCodes(codes: IndexedSeq[Code[_]]): SSubsetStructCode = {
     new SSubsetStructCode(this, parent.fromCodes(codes).asInstanceOf[PBaseStructCode])
   }
+
+  def canonicalPType(): PType = pType
 }
 
 // FIXME: prev should be SStructSettable, not PStructSettable
