@@ -1020,7 +1020,6 @@ class Emit[C](
           emitInMethod(cb, compare2).consumeCode[Boolean](cb, true, _.tcode[Boolean])
         }
 
-        val xOut = mb.newPLocal("groupByKey_result", arrayTyp)
         val eltIdx = mb.newLocal[Int]("groupByKey_eltIdx")
         val grpIdx = mb.newLocal[Int]("groupByKey_grpIdx")
         val withinGrpIdx = mb.newLocal[Int]("groupByKey_withinGrpIdx")
@@ -1032,57 +1031,60 @@ class Emit[C](
           cb += EmitStream.write(mb, stream.asStream, sortedElts, outerRegion)
           cb += sorter.sort(sortF)
           cb += sorter.pruneMissing
-          cb.ifx(sortedElts.size.ceq(0), {
-            cb.assign(xOut, arrayTyp.constructEmpty(cb, region.code))
-          }, {
-            cb += groupSizes.clear
-            cb.assign(eltIdx, 1)
-            cb.assign(groupSize, 1)
-            cb.whileLoop(eltIdx < sortedElts.size, {
-              cb.ifx(
-                cb.invokeCode[Boolean](isSame, region.code, sortedElts.applyEV(mb, eltIdx - 1), sortedElts.applyEV(mb, eltIdx)),
-                {
-                  cb.assign(groupSize, groupSize + 1)
-                }, {
-                  cb += groupSizes.add(groupSize)
-                  cb.assign(groupSize, 1)
-                })
-              cb.assign(eltIdx, eltIdx + 1)
+          cb += groupSizes.clear
+          cb.assign(eltIdx, 0)
+          cb.assign(groupSize, 0)
+
+          cb.whileLoop(eltIdx < sortedElts.size, {
+            val bottomOfLoop = CodeLabel()
+            val newGroup = CodeLabel()
+
+            cb.assign(groupSize, groupSize + 1)
+            cb.ifx(eltIdx.ceq(sortedElts.size - 1), {
+              cb.goto(newGroup)
+            }, {
+              cb.ifx(cb.invokeCode[Boolean](isSame, region.code, sortedElts.applyEV(mb, eltIdx), sortedElts.applyEV(mb, eltIdx + 1)), {
+                cb.goto(bottomOfLoop)
+              }, {
+                cb.goto(newGroup)
+              })
             })
+            cb.define(newGroup)
             cb += groupSizes.add(groupSize)
-            cb.println(groupSizes.size.toS)
+            cb.assign(groupSize, 0)
 
-            cb.assign(outerSize, groupSizes.size)
-            val (addGroup, finishOuter) = arrayTyp.constructFromFunctions(cb, region.code, outerSize, deepCopy = false)
-
-            cb.assign(eltIdx, 0)
-            cb.assign(grpIdx, 0)
-
-            cb.whileLoop(grpIdx < outerSize, {
-              cb.assign(groupSize, coerce[Int](groupSizes(grpIdx)))
-              cb.assign(withinGrpIdx, 0)
-              val firstStruct = sortedElts.applyEV(mb, eltIdx).get(cb).asBaseStruct.memoize(cb, "GroupByKey_firstStruct")
-              val key = EmitCode.fromI(mb) { cb => firstStruct.loadField(cb, 0).typecast[PCode] }
-              val group = EmitCode.fromI(mb) { cb =>
-                val (addElt, finishInner) = PCanonicalArray(valTyp, required = true)
-                  .constructFromFunctions(cb, region.code, groupSize, deepCopy = false)
-                cb.whileLoop(withinGrpIdx < groupSize, {
-                  val struct = sortedElts.applyEV(mb, eltIdx).get(cb).asBaseStruct.memoize(cb, "GroupByKey_struct")
-                  addElt(cb, withinGrpIdx, struct.loadField(cb, 1).typecast[PCode])
-                  cb.assign(eltIdx, eltIdx + 1)
-                  cb.assign(withinGrpIdx, withinGrpIdx + 1)
-                })
-                IEmitCode.present(cb, finishInner(cb))
-              }
-              val elt = groupTyp.constructFromFields(cb, region.code, FastIndexedSeq(key, group), deepCopy = false)
-              addGroup(cb, grpIdx, IEmitCode.present(cb, elt))
-              cb.assign(grpIdx, grpIdx + 1)
-            })
-
-            cb.assign(xOut, finishOuter(cb))
+            cb.define(bottomOfLoop)
+            cb.assign(eltIdx, eltIdx + 1)
           })
 
-          dictTyp.construct(xOut.asIndexable)
+          cb.assign(outerSize, groupSizes.size)
+          val (addGroup, finishOuter) = arrayTyp.constructFromFunctions(cb, region.code, outerSize, deepCopy = false)
+
+          cb.assign(eltIdx, 0)
+          cb.assign(grpIdx, 0)
+
+          cb.whileLoop(grpIdx < outerSize, {
+            cb.assign(groupSize, coerce[Int](groupSizes(grpIdx)))
+            cb.assign(withinGrpIdx, 0)
+            val firstStruct = sortedElts.applyEV(mb, eltIdx).get(cb).asBaseStruct.memoize(cb, "GroupByKey_firstStruct")
+            val key = EmitCode.fromI(mb) { cb => firstStruct.loadField(cb, 0).typecast[PCode] }
+            val group = EmitCode.fromI(mb) { cb =>
+              val (addElt, finishInner) = PCanonicalArray(valTyp, required = true)
+                .constructFromFunctions(cb, region.code, groupSize, deepCopy = false)
+              cb.whileLoop(withinGrpIdx < groupSize, {
+                val struct = sortedElts.applyEV(mb, eltIdx).get(cb).asBaseStruct.memoize(cb, "GroupByKey_struct")
+                addElt(cb, withinGrpIdx, struct.loadField(cb, 1).typecast[PCode])
+                cb.assign(eltIdx, eltIdx + 1)
+                cb.assign(withinGrpIdx, withinGrpIdx + 1)
+              })
+              IEmitCode.present(cb, finishInner(cb))
+            }
+            val elt = groupTyp.constructFromFields(cb, region.code, FastIndexedSeq(key, group), deepCopy = false)
+            addGroup(cb, grpIdx, IEmitCode.present(cb, elt))
+            cb.assign(grpIdx, grpIdx + 1)
+          })
+
+          dictTyp.construct(finishOuter(cb))
         }
 
       case x@MakeNDArray(dataIR, shapeIR, rowMajorIR) =>
