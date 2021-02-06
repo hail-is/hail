@@ -9,6 +9,7 @@ import asyncio
 import urllib.parse
 import aiohttp
 from hailtop.utils import (
+    secret_alnum_string, bounded_gather2,
     TransientError, retry_transient_errors,
     AsyncWorkerPool, WaitableSharedPool, secret_alnum_string)
 from hailtop.aiotools import (
@@ -448,8 +449,8 @@ class GoogleStorageFileListEntry(FileListEntry):
 
 
 class GoogleStorageMultiPartCreate(MultiPartCreate):
-    def __init__(self, worker_pool: AsyncWorkerPool, fs: 'GoogleStorageAsyncFS', dest_url: str, num_parts: int):
-        self._worker_pool = worker_pool
+    def __init__(self, sema: asyncio.Semaphore, fs: 'GoogleStorageAsyncFS', dest_url: str, num_parts: int):
+        self._sema = sema
         self._fs = fs
         self._dest_url = dest_url
         self._num_parts = num_parts
@@ -490,11 +491,11 @@ class GoogleStorageMultiPartCreate(MultiPartCreate):
             if exc_val is not None:
                 return
 
-            async def tree_compose(pool, names, dest_name):
+            async def tree_compose(names, dest_name):
                 n = len(names)
                 assert n > 0
                 if n <= 32:
-                    await pool.call(self._compose, names, dest_name)
+                    await self._compose(names, dest_name)
                     return
 
                 q, r = divmod(n, 32)
@@ -514,18 +515,15 @@ class GoogleStorageMultiPartCreate(MultiPartCreate):
 
                 chunk_names = [self._tmp_name(f'chunk-{secret_alnum_string()}') for _ in range(32)]
 
-                async with WaitableSharedPool(self._worker_pool) as pool2:
-                    asyncio.gather(*[
-                        tree_compose(pool2, c, n)
-                        for c, n in zip(chunks, chunk_names)])
+                bounded_gather2(self._sema, *[
+                    tree_compose(c, n)
+                    for c, n in zip(chunks, chunk_names)])
 
-                await pool.call(self._compose, chunk_names, dest_name)
+                await self._compose(chunk_names, dest_name)
 
-            async with WaitableSharedPool(self._worker_pool) as pool:
-                await tree_compose(
-                    pool,
-                    [self._part_name(i) for i in range(self._num_parts)],
-                    self._dest_name)
+            await tree_compose(
+                [self._part_name(i) for i in range(self._num_parts)],
+                self._dest_name)
         finally:
             await self._fs.rmtree(f'gs://{self._bucket}/{self._dest_dirname}_')
 
@@ -567,10 +565,10 @@ class GoogleStorageAsyncFS(AsyncFS):
 
     async def multi_part_create(
             self,
-            worker_pool: AsyncWorkerPool,
+            sema: asyncio.Semaphore,
             url: str,
             num_parts: int) -> GoogleStorageMultiPartCreate:
-        return GoogleStorageMultiPartCreate(worker_pool, self, url, num_parts)
+        return GoogleStorageMultiPartCreate(sema, self, url, num_parts)
 
     async def staturl(self, url: str) -> str:
         assert not url.endswith('/')

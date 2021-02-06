@@ -1,4 +1,4 @@
-from typing import Callable, TypeVar, Awaitable, Optional, Type
+from typing import Callable, TypeVar, Awaitable, Optional, Type, List
 from types import TracebackType
 import subprocess
 import traceback
@@ -259,7 +259,58 @@ class WaitableSharedPool:
         await self.wait()
 
 
-async def bounded_gather2_return_exceptions(sema, *aws):
+class Subsemaphore:
+    def __init__(self, sema: asyncio.Semaphore):
+        self._sema = sema
+        self._borrowed = 0
+        self._lent = False
+        self._pending: List[Callable[[], None]] = []
+
+    async def __aenter__(self) -> 'Subsemaphore':
+        if not self._lent:
+            self._lent = True
+            return self
+
+        acquired = asyncio.Event()
+
+        async def borrow():
+            await self._sema.acquire()
+            if acquired.is_set():
+                self._sema.release()
+                return
+            self._borrowed += 1
+            acquired.set()
+
+        def on_return():
+            assert not self._lent
+            if acquired.is_set():
+                return
+            self._lent = True
+            acquired.set()
+
+        asyncio.create_task(borrow())
+        self._pending.append(on_return)
+
+        await acquired.wait()
+
+        return self
+
+    async def __aexit__(self,
+                        exc_type: Optional[Type[BaseException]],
+                        exc_val: Optional[BaseException],
+                        exc_tb: Optional[TracebackType]) -> None:
+        if self._borrowed > 0:
+            self._sema.release()
+            self._borrowed -= 1
+        else:
+            assert self._lent
+            self._lent = False
+            while self._pending and not self._lent:
+                f = self._pending.pop()
+                f()
+
+
+async def bounded_gather2_return_exceptions(sema: asyncio.Semaphore, *aws):
     '''Run the awaitables aws as tasks with parallelism bounded by sema,
     which should be asyncio.Semaphore whose initial value is the level
     of parallelism.
@@ -268,9 +319,11 @@ async def bounded_gather2_return_exceptions(sema, *aws):
     pair (value, None) if the awaitable returned value or (None, exc)
     if the awaitable raised the exception exc.
     '''
+    subsema = Subsemaphore(sema)
+
     async def run_with_sema_return_exceptions(aw):
         try:
-            async with sema:
+            async with subsema:
                 return (await aw, None)
         except:
             _, exc, _ = sys.exc_info()
@@ -279,7 +332,7 @@ async def bounded_gather2_return_exceptions(sema, *aws):
     return await asyncio.gather(*[asyncio.create_task(run_with_sema_return_exceptions(aw)) for aw in aws])
 
 
-async def bounded_gather2_raise_exceptions(sema, *aws, cancel_on_error=False):
+async def bounded_gather2_raise_exceptions(sema: asyncio.Semaphore, *aws, cancel_on_error: bool = False):
     '''Run the awaitables aws as tasks with parallelism bounded by sema,
     which should be asyncio.Semaphore whose initial value is the level
     of parallelism.
@@ -293,11 +346,14 @@ async def bounded_gather2_raise_exceptions(sema, *aws, cancel_on_error=False):
     awaitables continue to run with bounded parallelism.  If
     cancel_on_error is True, the unfinished tasks are all cancelled.
     '''
-    async def run_with_sema(aw):
-        async with sema:
+    subsema = Subsemaphore(sema)
+
+    async def run_with_subsema(aw):
+        async with subsema:
             return await aw
 
-    tasks = [asyncio.create_task(run_with_sema(aw)) for aw in aws]
+    tasks = [asyncio.create_task(run_with_subsema(aw)) for aw in aws]
+
     if not cancel_on_error:
         return await asyncio.gather(*tasks)
 
@@ -311,11 +367,10 @@ async def bounded_gather2_raise_exceptions(sema, *aws, cancel_on_error=False):
                     task.cancel()
 
 
-async def bounded_gather2(sema, *aws, return_exceptions=False, cancel_on_error=False):
+async def bounded_gather2(sema: asyncio.Semaphore, *aws, return_exceptions: bool = False, cancel_on_error: bool = False):
     if return_exceptions:
-        await bounded_gather2_return_exceptions(sema, *aws)
-    else:
-        await bounded_gather2_raise_exceptions(sema, *aws, cancel_on_error=cancel_on_error)
+        return await bounded_gather2_return_exceptions(sema, *aws)
+    return await bounded_gather2_raise_exceptions(sema, *aws, cancel_on_error=cancel_on_error)
 
 
 RETRYABLE_HTTP_STATUS_CODES = {408, 500, 502, 503, 504}
