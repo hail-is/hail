@@ -302,6 +302,7 @@ object CompileDecoder {
           val st = SStringPointer(alleleStringType)
           val strCode = st.constructFromString(cb, region, cbfis.invoke[Int, String]("readLengthAndString", 4))
           pushElement(cb, IEmitCode.present(cb, strCode))
+          cb.assign(i, i + 1)
         })
 
         val allelesArr = finish(cb)
