@@ -296,13 +296,12 @@ object CompileDecoder {
       if (settings.hasField("alleles")) {
         val allelesType = settings.rowPType.field("alleles").typ.asInstanceOf[PCanonicalArray]
         val alleleStringType = allelesType.elementType.asInstanceOf[PCanonicalString]
-        val (addElement, finish) = allelesType.constructFromFunctions(cb, region, nAlleles, deepCopy = false)
+        val (pushElement, finish) = allelesType.constructFromFunctions(cb, region, nAlleles, deepCopy = false)
 
-        cb.assign(i, 0)
         cb.whileLoop(i < nAlleles, {
           val st = SStringPointer(alleleStringType)
           val strCode = st.constructFromString(cb, region, cbfis.invoke[Int, String]("readLengthAndString", 4))
-          addElement(cb, i, IEmitCode.present(cb, strCode))
+          pushElement(cb, IEmitCode.present(cb, strCode))
           cb.assign(i, i + 1)
         })
 
@@ -399,10 +398,10 @@ object CompileDecoder {
 
                     val gpType = entryType.field("GP").typ.asInstanceOf[PCanonicalArray]
 
-                    val (addElem, finish) = gpType.constructFromFunctions(cb, partRegion, 3, deepCopy = false)
-                    addElem(cb, 0, IEmitCode.present(cb, primitive(d0.toD / divisor)))
-                    addElem(cb, 1, IEmitCode.present(cb, primitive(d1.toD / divisor)))
-                    addElem(cb, 2, IEmitCode.present(cb, primitive(d2.toD / divisor)))
+                    val (pushElement, finish) = gpType.constructFromFunctions(cb, partRegion, 3, deepCopy = false)
+                    pushElement(cb, IEmitCode.present(cb, primitive(d0.toD / divisor)))
+                    pushElement(cb, IEmitCode.present(cb, primitive(d1.toD / divisor)))
+                    pushElement(cb, IEmitCode.present(cb, primitive(d2.toD / divisor)))
 
                     IEmitCode.present(cb, finish(cb))
                   }
@@ -422,7 +421,6 @@ object CompileDecoder {
             })
 
             cb.assign(memoizedEntryData, finish(cb).a)
-            //            cb.println(s"done building memoizedEntryData: ", memoizedEntryData.hexString)
             cb.assign(alreadyMemoized, true)
 
             cb.define(LnoOp)
@@ -508,7 +506,7 @@ object CompileDecoder {
 
           cb.invokeVoid(memoMB)
 
-          val (addElement, finish) = entriesArrayType.constructFromFunctions(cb, region, settings.nSamples, deepCopy = false)
+          val (pushElement, finish) = entriesArrayType.constructFromFunctions(cb, region, settings.nSamples, deepCopy = false)
 
           cb.assign(i, 0)
           cb.whileLoop(i < settings.nSamples, {
@@ -520,11 +518,10 @@ object CompileDecoder {
             val dataOffset = cb.newLocal[Int]("bgen_add_entries_offset", const(settings.nSamples + 10) + i * 2)
             val d0 = data(dataOffset) & 0xff
             val d1 = data(dataOffset + 1) & 0xff
-            //            cb.println(s"trying to copy entry from ", memoTyp.loadElement(memoizedEntryData, settings.nSamples, ((data(dataOffset) & 0xff) << 8) | (data(dataOffset + 1) & 0xff)).hexString)
             val pc = entryType.loadCheapPCode(cb, memoTyp.loadElement(memoizedEntryData, settings.nSamples, (d0 << 8) | d1))
             cb.goto(Lpresent)
             val iec = IEmitCode(Lmissing, Lpresent, pc)
-            addElement(cb, i, iec)
+            pushElement(cb, iec)
 
             cb.assign(i, i + 1)
           })
