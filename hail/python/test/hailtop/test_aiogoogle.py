@@ -32,7 +32,8 @@ async def filesystem(request):
 
             await fs.mkdir(base)
             yield (fs, base)
-            await fs.rmtree(base)
+            async with asyncio.Semaphore(10) as sema:
+                await fs.rmtree(sema, base)
             assert not await fs.isdir(base)
 
 
@@ -45,7 +46,8 @@ async def local_filesystem(request):
             base = f'/tmp/{token}/'
             await fs.mkdir(base)
             yield (fs, base)
-            await fs.rmtree(base)
+            async with asyncio.Semaphore(10) as sema:
+                await fs.rmtree(sema, base)
             assert not await fs.isdir(base)
 
 
@@ -170,7 +172,8 @@ async def test_rmtree(filesystem):
 
     assert await fs.isdir(dir)
 
-    await fs.rmtree(dir)
+    async with asyncio.Semaphore(10) as sema:
+        await fs.rmtree(sema, dir)
 
     assert not await fs.isdir(dir)
 

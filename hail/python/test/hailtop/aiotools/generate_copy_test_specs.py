@@ -141,7 +141,8 @@ async def copy_test_specs():
 
                 test_specs.append(config)
 
-                await fs.rmtree(base)
+                sema = asyncio.Semaphore(10)
+                await fs.rmtree(sema, base)
                 assert not await fs.isdir(base)
 
     return test_specs

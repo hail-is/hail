@@ -3,7 +3,7 @@ import secrets
 from concurrent.futures import ThreadPoolExecutor
 import asyncio
 import pytest
-from hailtop.utils import url_scheme
+from hailtop.utils import url_scheme, bounded_gather2
 from hailtop.aiotools import LocalAsyncFS, RouterAsyncFS, Transfer, FileAndDirectoryError
 from hailtop.aiogoogle import StorageClient, GoogleStorageAsyncFS
 
@@ -53,12 +53,13 @@ async def router_filesystem(request):
 
             yield (fs, bases)
 
-            await fs.rmtree(file_base)
+            async with asyncio.Semaphore(10) as sema:
+                await bounded_gather2(sema,
+                                      fs.rmtree(sema, file_base),
+                                      fs.rmtree(sema, gs_base))
+
             assert not await fs.isdir(file_base)
-
-            await fs.rmtree(gs_base)
             assert not await fs.isdir(gs_base)
-
 
 async def fresh_dir(fs, bases, scheme):
     token = secrets.token_hex(16)

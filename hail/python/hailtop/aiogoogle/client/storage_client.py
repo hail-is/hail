@@ -9,7 +9,7 @@ import asyncio
 import urllib.parse
 import aiohttp
 from hailtop.utils import (
-    secret_alnum_string, bounded_gather2,
+    secret_alnum_string, bounded_gather2, OnlineBoundedGather2,
     TransientError, retry_transient_errors,
     AsyncWorkerPool, WaitableSharedPool, secret_alnum_string)
 from hailtop.aiotools import (
@@ -525,7 +525,7 @@ class GoogleStorageMultiPartCreate(MultiPartCreate):
                 [self._part_name(i) for i in range(self._num_parts)],
                 self._dest_name)
         finally:
-            await self._fs.rmtree(f'gs://{self._bucket}/{self._dest_dirname}_')
+            await self._fs.rmtree(self._sema, f'gs://{self._bucket}/{self._dest_dirname}_')
 
 
 class GoogleStorageAsyncFS(AsyncFS):
@@ -694,19 +694,20 @@ class GoogleStorageAsyncFS(AsyncFS):
         async for page in await self._storage_client.list_objects(bucket, params=params):
             prefixes = page.get('prefixes')
             items = page.get('items')
-            return prefixes or items
+            return bool(prefixes or items)
         assert False  # unreachable
 
     async def remove(self, url: str) -> None:
         bucket, name = self._get_bucket_name(url)
         await self._storage_client.delete_object(bucket, name)
 
-    async def rmtree(self, url: str) -> None:
-        try:
-            async for entry in await self.listfiles(url, recursive=True):
-                await self.remove(await entry.url())
-        except FileNotFoundError:
-            pass
+    async def rmtree(self, sema: asyncio.Semaphore, url: str) -> None:
+        async with OnlineBoundedGather2(sema) as pool:
+            try:
+                async for entry in await self.listfiles(url, recursive=True):
+                    await pool.call(self.remove, await entry.url())
+            except FileNotFoundError:
+                pass
 
     async def close(self) -> None:
         await self._storage_client.close()
