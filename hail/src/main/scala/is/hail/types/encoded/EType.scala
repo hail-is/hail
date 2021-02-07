@@ -3,13 +3,13 @@ import java.util
 import java.util.Map.Entry
 
 import is.hail.HailContext
-import is.hail.annotations.{Region, StagedRegionValueBuilder}
+import is.hail.annotations.Region
 import is.hail.asm4s.{coerce => _, _}
 import is.hail.expr.ir.{EmitClassBuilder, EmitCodeBuilder, EmitFunctionBuilder, EmitMethodBuilder, ExecuteContext, IRParser, ParamType, PunctuationToken, TokenIterator}
+import is.hail.io._
+import is.hail.types._
 import is.hail.types.physical._
 import is.hail.types.virtual._
-import is.hail.types._
-import is.hail.io._
 import is.hail.utils._
 import org.json4s.CustomSerializer
 import org.json4s.JsonAST.JString
@@ -265,14 +265,9 @@ object EType {
       val region: Value[Region] = mb.getCodeParam[Region](1)
       val in: Code[InputBuffer] = mb.getCodeParam[InputBuffer](2)
 
-      if (pt.isPrimitive) {
-        val srvb = new StagedRegionValueBuilder(mb, pt, region)
-        mb.emit(Code(
-          srvb.start(),
-          srvb.addIRIntermediate(pt)(f(region, in)),
-          srvb.end()))
-      } else {
-        mb.emit(f(region, in))
+      mb.emitWithBuilder[Long] { cb =>
+        val pc = PCode(pt, f(region, in))
+        pt.store(cb, region, pc, deepCopy = false)
       }
 
       val r = (pt, fb.result())
