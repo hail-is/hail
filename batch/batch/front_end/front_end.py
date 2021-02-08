@@ -516,7 +516,7 @@ LEFT JOIN resources
 WHERE {' AND '.join(where_conditions)}
 GROUP BY batches.id
 ORDER BY batches.id DESC
-LIMIT 50;
+LIMIT 51;
 '''
     sql_args = where_args
 
@@ -524,8 +524,9 @@ LIMIT 50;
                async for batch
                in db.select_and_fetchall(sql, sql_args)]
 
-    if len(batches) == 50:
-        last_batch_id = batches[-1]['id']
+    if len(batches) == 51:
+        last_batch_id = batches[-2]['id']
+        batches = batches[:50]
     else:
         last_batch_id = None
 
