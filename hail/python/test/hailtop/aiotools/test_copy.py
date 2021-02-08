@@ -51,7 +51,8 @@ async def router_filesystem(request):
                 'gs': gs_base
             }
 
-            async with asyncio.Semaphore(10) as sema:
+            sema = asyncio.Semaphore(50)
+            async with sema:
                 yield (sema, fs, bases)
                 await bounded_gather2(sema,
                                       fs.rmtree(sema, file_base),
