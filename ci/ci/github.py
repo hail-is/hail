@@ -661,20 +661,14 @@ class WatchedBranch(Code):
 
         if self.deploy_batch is None:
             running_deploy_batches = batch_client.list_batches(
-                f'!complete '
-                f'deploy=1 '
-                f'target_branch={self.branch.short_str()} '
-                f'user:ci'
+                f'!complete ' f'deploy=1 ' f'target_branch={self.branch.short_str()} ' f'user:ci'
             )
             running_deploy_batches = [b async for b in running_deploy_batches]
             if running_deploy_batches:
                 self.deploy_batch = max(running_deploy_batches, key=lambda b: b.id)
             else:
                 deploy_batches = batch_client.list_batches(
-                    f'deploy=1 '
-                    f'target_branch={self.branch.short_str()} '
-                    f'sha={self.sha} '
-                    f'user:ci'
+                    f'deploy=1 ' f'target_branch={self.branch.short_str()} ' f'sha={self.sha} ' f'user:ci'
                 )
                 deploy_batches = [b async for b in deploy_batches]
                 if deploy_batches:
@@ -757,11 +751,9 @@ url: {url}
             await pr._heal(batch_client, dbpool, pr == merge_candidate, gh)
 
         # cancel orphan builds
-        running_batches = batch_client.list_batches(f'!complete '
-                                                    f'!open '
-                                                    f'test=1 '
-                                                    f'target_branch={self.branch.short_str()} '
-                                                    f'user:ci')
+        running_batches = batch_client.list_batches(
+            f'!complete ' f'!open ' f'test=1 ' f'target_branch={self.branch.short_str()} ' f'user:ci'
+        )
         seen_batch_ids = set(pr.batch.id for pr in self.prs.values() if pr.batch and hasattr(pr.batch, 'id'))
         async for batch in running_batches:
             if batch.id not in seen_batch_ids:
