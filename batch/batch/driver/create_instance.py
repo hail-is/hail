@@ -118,7 +118,7 @@ iptables -I DOCKER-USER -i batch-worker -d 169.254.169.254 -j ACCEPT
 WORKER_DATA_DISK_NAME="{worker_data_disk_name}"
 
 # format local SSD
-sudo mkfs.xfs -m reflink=1 /dev/$WORKER_DATA_DISK_NAME
+sudo mkfs.xfs -m reflink=1 -n ftype=1 /dev/$WORKER_DATA_DISK_NAME
 sudo mkdir -p /mnt/disks/$WORKER_DATA_DISK_NAME
 sudo mount -o prjquota /dev/$WORKER_DATA_DISK_NAME /mnt/disks/$WORKER_DATA_DISK_NAME
 sudo chmod a+w /mnt/disks/$WORKER_DATA_DISK_NAME
