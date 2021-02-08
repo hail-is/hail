@@ -113,20 +113,18 @@ def docker_call_retry(timeout, name):
             except DockerError as e:
                 # 408 request timeout, 503 service unavailable
                 if e.status == 408 or e.status == 503:
-                    log.exception(f'in docker call to {f.__name__} for {name}, retrying', stack_info=True)
+                    log.warning(f'in docker call to {f.__name__} for {name}, retrying', stack_info=True, exc_info=True)
                 # DockerError(500, 'Get https://registry-1.docker.io/v2/: net/http: request canceled while waiting for connection (Client.Timeout exceeded while awaiting headers)
                 # DockerError(500, 'error creating overlay mount to /var/lib/docker/overlay2/545a1337742e0292d9ed197b06fe900146c85ab06e468843cd0461c3f34df50d/merged: device or resource busy'
                 # DockerError(500, 'Get https://gcr.io/v2/: dial tcp: lookup gcr.io: Temporary failure in name resolution')
                 elif e.status == 500 and ("request canceled while waiting for connection" in e.message
                                           or re.match("error creating overlay mount.*device or resource busy", e.message)
                                           or "Temporary failure in name resolution" in e.message):
-                    log.exception(f'in docker call to {f.__name__} for {name}, retrying', stack_info=True)
+                    log.warning(f'in docker call to {f.__name__} for {name}, retrying', stack_info=True, exc_info=True)
                 else:
                     raise
-            except asyncio.CancelledError:  # pylint: disable=try-except-raise
-                raise
             except (aiohttp.client_exceptions.ServerDisconnectedError, asyncio.TimeoutError):
-                log.exception(f'in docker call to {f.__name__} for {name}, retrying', stack_info=True)
+                log.warning(f'in docker call to {f.__name__} for {name}, retrying', stack_info=True, exc_info=True)
                 delay = await sleep_and_backoff(delay)
     return wrapper
 
@@ -141,8 +139,7 @@ async def create_container(config, name):
         if error < 10:
             delay = await sleep_and_backoff(delay)
             return
-        log.exception(f'encountered 10 errors while creating container {name}, aborting', stack_info=True)
-        raise ValueError('too many failures in create_container') from e
+        raise ValueError('encountered {error} failures in create_container; aborting') from e
 
     while True:
         try:
@@ -169,7 +166,6 @@ async def start_container(container):
     try:
         return await container.start()
     except DockerError as e:
-        log.exception('while starting container')
         # 304 container has already started
         if e.status == 304:
             return
@@ -183,7 +179,6 @@ async def stop_container(container):
     try:
         return await container.stop()
     except DockerError as e:
-        log.exception('while stopping container')
         # 304 container has already stopped
         if e.status == 304:
             return
@@ -194,7 +189,6 @@ async def delete_container(container, *args, **kwargs):
     try:
         return await container.delete(*args, **kwargs)
     except DockerError as e:
-        log.exception('while deleting container')
         # 404 container does not exist
         # 409 removal of container is already in progress
         if e.status in (404, 409):
@@ -483,7 +477,7 @@ class Container:
                     delete_container, self.container, v=True)
                 self.container = None
             except Exception:
-                log.exception('while deleting container, ignoring')
+                log.warning('while deleting container, ignoring', exc_info=True)
 
         if self.host_port is not None:
             port_allocator.free(self.host_port)
@@ -1138,7 +1132,7 @@ class Worker:
             except Exception as e:
                 if isinstance(e, aiohttp.ClientResponseError) and e.status == 404:   # pylint: disable=no-member
                     raise
-                log.exception(f'failed to mark {job} complete, retrying')
+                log.warning(f'failed to mark {job} complete, retrying', exc_info=True)
 
             # unlist job after 3m or half the run duration
             now = time_msecs()
