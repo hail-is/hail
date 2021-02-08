@@ -2905,18 +2905,24 @@ abstract class NDArrayEmitter(val outputShape: IndexedSeq[Value[Long]])
   def emit(cb: EmitCodeBuilder, targetType: PCanonicalNDArray, region: Value[Region]): PCode = {
     val shapeArray = outputShape
     val len = cb.newLocal[Int]("ndarrayemitter_emitloops_len", targetType.numElements(shapeArray).toI)
-    val (pushElement, finish) = targetType.dataType.constructFromFunctions(cb, region, len , false)
-    SNDArray.forEachIndex(cb, shapeArray, "ndarrayemitter_emitloops") { case (cb, idxVars) =>
-      pushElement(cb, IEmitCode.present(cb, outputElement(cb, idxVars)))
-    }
-    val dataAddress = finish(cb).a
 
-    val ptr = targetType.construct(
+    val (addElement, finish) = targetType.dataType.constructFromFunctions(cb, region, len , false)
+    val idx = cb.newLocal[Int]("ndarrayemitter_emitloops_idx", 0)
+
+    def writeDataToAddress(firstElementAddress: Value[Long], cb: EmitCodeBuilder): Unit = {
+      SNDArray.forEachIndex(cb, shapeArray, "ndarrayemitter_emitloops") { case (cb, idxVars) =>
+        val element = IEmitCode.present(cb, outputElement(cb, idxVars)).consume(cb,  {cb._fatal("NDArray elements cannot  be missing")}, { elementPc  =>
+          targetType.elementType.storeAtAddress(cb, firstElementAddress + (idx.toL * targetType.elementType.byteSize), region, elementPc,  true)
+        })
+        cb.assign(idx, idx + 1)
+      }
+    }
+
+    val ptr = targetType.constructDataFunction(
       outputShape,
       targetType.makeColumnMajorStrides(shapeArray, region, cb),
-      dataAddress,
       cb,
-      region)
+      region)(writeDataToAddress)
 
     ptr
   }
