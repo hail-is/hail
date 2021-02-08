@@ -343,7 +343,7 @@ object CompileDecoder {
             val LnoOp = CodeLabel()
             cb.ifx(alreadyMemoized, cb.goto(LnoOp))
 
-            val (nextAddr, _, finish) = memoTyp.constructFromNextAddress(cb, partRegion, 1 << 16, deepCopy = false)
+            val (nextAddr, _, finish) = memoTyp.constructFromNextAddress(cb, partRegion, 1 << 16)
 
             val d0 = cb.newLocal[Int]("memoize_entries_d0", 0)
             cb.whileLoop(d0 < 256, {
