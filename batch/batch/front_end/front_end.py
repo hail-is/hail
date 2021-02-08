@@ -473,7 +473,7 @@ async def get_job_log(request, userdata, batch_id):  # pylint: disable=unused-ar
     return web.json_response(job_log)
 
 
-async def _query_batches(request, user):
+async def _query_batches(request, user, q):
     db = request.app['db']
 
     where_conditions = ['billing_project_users.`user` = %s', 'NOT deleted']
@@ -485,7 +485,6 @@ async def _query_batches(request, user):
         where_conditions.append('(id < %s)')
         where_args.append(last_batch_id)
 
-    q = request.query.get('q', f'user:{user}')
     terms = q.split()
     for t in terms:
         if t[0] == '!':
@@ -587,7 +586,8 @@ LIMIT 50;
 @rest_authenticated_users_only
 async def get_batches(request, userdata):  # pylint: disable=unused-argument
     user = userdata['username']
-    batches, last_batch_id = await _query_batches(request, user)
+    q = request.query.get('q', f'user:{user}')
+    batches, last_batch_id = await _query_batches(request, q)
     body = {
         'batches': batches
     }
@@ -1171,12 +1171,13 @@ async def ui_delete_batch(request, userdata, batch_id):  # pylint: disable=unuse
 @web_authenticated_users_only()
 async def ui_batches(request, userdata):
     user = userdata['username']
-    batches, last_batch_id = await _query_batches(request, user)
+    q = request.query.get('q', f'user:{user}')
+    batches, last_batch_id = await _query_batches(request, user, q)
     for batch in batches:
         batch['cost'] = cost_str(batch['cost'])
     page_context = {
         'batches': batches,
-        'q': request.query.get('q', f'user:{user}'),
+        'q': q,
         'last_batch_id': last_batch_id
     }
     return await render_template('batch', request, userdata, 'batches.html', page_context)
