@@ -439,7 +439,7 @@ class SourceCopier:
     created for each source.
     '''
 
-    PART_SIZE = 8 * 1024 * 1024
+    PART_SIZE = 128 * 1024 * 1024
 
     def __init__(self, router_fs: 'RouterAsyncFS', src: str, dest: str, treat_dest_as: str, dest_type_task):
         self.router_fs = router_fs
@@ -665,7 +665,7 @@ class Copier:
     This class implements copy for a list of transfers.
     '''
 
-    BUFFER_SIZE = 8192
+    BUFFER_SIZE = 256 * 1024
 
     def __init__(self, router_fs):
         self.router_fs = router_fs
@@ -846,9 +846,7 @@ class RouterAsyncFS(AsyncFS):
         for fs in self._filesystems:
             await fs.close()
 
-    async def copy(self, transfer: Union[Transfer, List[Transfer]], return_exceptions=False):
-        sema = asyncio.Semaphore(50)
-
+    async def copy(self, sema: asyncio.Semaphore, transfer: Union[Transfer, List[Transfer]], return_exceptions=False):
         copier = Copier(self)
         copy_report = CopyReport(transfer)
         await copier.copy(sema, copy_report, transfer, return_exceptions)

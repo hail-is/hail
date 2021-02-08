@@ -515,7 +515,7 @@ class GoogleStorageMultiPartCreate(MultiPartCreate):
 
                 chunk_names = [self._tmp_name(f'chunk-{secret_alnum_string()}') for _ in range(32)]
 
-                bounded_gather2(self._sema, *[
+                await bounded_gather2(self._sema, *[
                     tree_compose(c, n)
                     for c, n in zip(chunks, chunk_names)])
 
