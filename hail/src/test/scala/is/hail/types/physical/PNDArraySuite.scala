@@ -48,6 +48,8 @@ class PNDArraySuite extends PhysicalTestUtils {
         cb.assign(r2PointerToNDAddress1, codeRegion2.allocate(8L, 8L))
 
         nd.storeAtAddress(cb, r2PointerToNDAddress1, codeRegion2, snd1, true)
+
+        // Return the address of the 1st one
         snd1.tcode[Long]
       }
     } catch {
@@ -78,6 +80,12 @@ class PNDArraySuite extends PhysicalTestUtils {
     // Check that ndarray 1 wasn't actually cleared, ref count should just be 1 now:
     val rc1B = Region.loadLong(result1-16L)
     assert(rc1B == 1)
+
+
+    assert(region3.memory.listNDArrayRefs().size == 0)
+    // Do an unstaged copy into region3
+    nd.copyFromAddress(region3, nd, result1, true)
+    assert(region3.memory.listNDArrayRefs().size == 1)
 
     // Check that clearing region2 removes both ndarrays
     region2.clear()

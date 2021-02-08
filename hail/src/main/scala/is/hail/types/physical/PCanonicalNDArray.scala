@@ -27,13 +27,13 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
   lazy val shapeType: PCanonicalTuple = PCanonicalTuple(true, Array.tabulate(nDims)(_ => PInt64Required):_*)
   lazy val strideType: PCanonicalTuple = shapeType
 
-  def loadShape(off: Long, idx: Int): Long = {
-    val shapeTupleAddr = representation.loadField(off, 0)
+  def loadShape(ndAddr: Long, idx: Int): Long = {
+    val shapeTupleAddr = representation.loadField(ndAddr, 0)
     Region.loadLong(shapeType.loadField(shapeTupleAddr, idx))
   }
 
-  def loadStride(off: Long, idx: Int): Long = {
-    val shapeTupleAddr = representation.loadField(off, 1)
+  def loadStride(ndAddr: Long, idx: Int): Long = {
+    val shapeTupleAddr = representation.loadField(ndAddr, 1)
     Region.loadLong(strideType.loadField(shapeTupleAddr, idx))
   }
 
@@ -44,6 +44,12 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
       .memoize(cb, "pcndarray_shapetuple")
     (0 until nDims).foreach { dimIdx =>
       cb.assign(settables(dimIdx), shapeTuple.loadField(cb, dimIdx).get(cb).asLong.longCode(cb))
+    }
+  }
+
+  def unstagedLoadShapes(addr: Long): IndexedSeq[Long] = {
+    (0 until nDims).map { dimIdx =>
+      this.loadShape(addr, dimIdx)
     }
   }
   
@@ -71,12 +77,16 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
 
   override def unsafeOrdering(): UnsafeOrdering = representation.unsafeOrdering()
 
-  override lazy val fundamentalType: PType = this
+  override lazy val fundamentalType: PType =  PCanonicalNDArray(elementType.fundamentalType, nDims, required)
 
   override lazy val encodableType: PType = PCanonicalNDArray(elementType.encodableType, nDims, required)
 
   def numElements(shape: IndexedSeq[Value[Long]]): Code[Long] = {
     shape.foldLeft(1L: Code[Long])(_ * _)
+  }
+
+  def numElements(shape: IndexedSeq[Long]): Long = {
+    shape.foldLeft(1L)(_ * _)
   }
 
   def makeColumnMajorStrides(sourceShapeArray: IndexedSeq[Value[Long]], region: Value[Region], cb: EmitCodeBuilder): IndexedSeq[Value[Long]] = {
@@ -230,10 +240,53 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
     new SNDArrayPointerCode(SNDArrayPointer(this), ndAddr)
   }
 
-  def _copyFromAddress(region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Long  = {
+  private def deepPointerCopy(region: Region, ndAddress: Long): Unit = {
+    val shape = this.unstagedLoadShapes(ndAddress)
+    val firstElementAddress = this.unstagedDataFirstElementPointer(ndAddress)
+    assert(this.elementType.containsPointers)
+    val numElements = this.numElements(shape)
+
+    var currentIdx = 0
+    while(currentIdx < numElements) {
+      val currentElementAddress = firstElementAddress + currentIdx * elementType.byteSize
+      this.elementType.unstagedStoreAtAddress(currentElementAddress, region, this.elementType, currentElementAddress, true)
+      currentIdx += 1
+    }
+  }
+
+
+    def _copyFromAddress(region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Long  = {
     val sourceNDPType = srcPType.asInstanceOf[PCanonicalNDArray]
     assert(elementType == sourceNDPType.elementType && nDims == sourceNDPType.nDims)
-    ???
+
+
+    // Agh, what are the cases?
+
+    // Deep, or not deep?
+
+    if (equalModuloRequired(srcPType)) { // The situation where you can just memcpy, but then still have to update pointers.
+      if (!deepCopy) {
+        return srcAddress
+      }
+
+      // Deep copy, two scenarios.
+      if (elementType.containsPointers) {
+        // Can't just reference count change, since the elements have to be copied and updated.
+        val numBytes = Region.loadLong(srcAddress - 8L)
+        val newAddress =  region.allocateNDArray(numBytes)
+        Region.copyFrom(srcAddress, newAddress, numBytes)
+        deepPointerCopy(region, newAddress)
+        newAddress
+      }
+      else {
+        region.trackNDArray(srcAddress)
+        srcAddress
+      }
+    }
+    else {  // The situation where maybe the structs inside the ndarray have different requiredness
+      ???
+    }
+
   }
 
   override def deepRename(t: Type) = deepRenameNDArray(t.asInstanceOf[TNDArray])
@@ -275,6 +328,10 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
   def storeAtAddress(cb: EmitCodeBuilder, addr: Code[Long], region: Value[Region], value: SCode, deepCopy: Boolean): Unit = {
     cb += Region.storeAddress(addr, store(cb, region, value, deepCopy))
   }
+
+  def unstagedDataFirstElementPointer(ndAddr: Long): Long = dataType.firstElementOffset(unstagedDataPArrayPointer(ndAddr))
+
+  def unstagedDataPArrayPointer(ndAddr: Long): Long = representation.loadField(ndAddr, "data")
 
   override def dataFirstElementPointer(ndAddr: Code[Long]): Code[Long] = dataType.firstElementOffset(this.dataPArrayPointer(ndAddr))
 

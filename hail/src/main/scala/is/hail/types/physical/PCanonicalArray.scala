@@ -139,6 +139,9 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
   def firstElementOffset(aoff: Long, length: Int): Long =
     aoff + elementsOffset(length)
 
+  def firstElementOffset(aoff: Long): Long =
+    aoff + elementsOffset(loadLength(aoff))
+
   def firstElementOffset(aoff: Code[Long], length: Code[Int]): Code[Long] =
     aoff + elementsOffset(length)
 
