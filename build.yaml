@@ -2609,7 +2609,8 @@ steps:
     - curl_image
  - kind: runImage
    name: delete_test_billing_projects
-   image: batch_image.image
+   image:
+     valueFrom: batch_image.image
    script: |
      export HAIL_TEST_DEV_TOKEN_FILE=/dev-tokens/tokens.json
      export HAIL_TOKEN="{{ token }}"
@@ -2634,6 +2635,7 @@ steps:
       namespace:
         valueFrom: default_ns.name
       mountPath: /ssl-config
+   alwaysRun: true
    dependsOn:
     - create_deploy_config
     - create_accounts

@@ -32,23 +32,26 @@ async def dev_client():
     await bc.close()
 
 
-billing_project_prefix = f'__testproject_{os.environ["HAIL_TOKEN"]}'
+@pytest.fixture
+def billing_project_prefix():
+    return f'__testproject_{os.environ["HAIL_TOKEN"]}'
 
-async def delete_all_test_billing_projects():
+
+async def delete_all_test_billing_projects(billing_project_prefix):
     bc = BatchClient(None, token_file=os.environ['HAIL_TEST_DEV_TOKEN_FILE'])
     try:
-        for project in bc.list_billing_projects():
+        for project in await bc.list_billing_projects():
             if project.startswith(billing_project_prefix):
                 try:
-                    bc.close_billing_project(project)
+                    await bc.close_billing_project(project)
                 finally:
-                    bc.delete_billing_project(project)
+                    await bc.delete_billing_project(project)
     finally:
         await bc.close()
 
 
 @pytest.fixture(scope='module')
-def get_billing_project_name():
+def get_billing_project_name(billing_project_prefix):
     attempt_prefix = f'{billing_project_prefix}_{secret_alnum_string(5)}'
     projects = []
     def get_name():
