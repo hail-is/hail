@@ -587,7 +587,7 @@ LIMIT 50;
 async def get_batches(request, userdata):  # pylint: disable=unused-argument
     user = userdata['username']
     q = request.query.get('q', f'user:{user}')
-    batches, last_batch_id = await _query_batches(request, q)
+    batches, last_batch_id = await _query_batches(request, user, q)
     body = {
         'batches': batches
     }
