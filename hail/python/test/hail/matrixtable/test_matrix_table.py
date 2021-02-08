@@ -223,7 +223,7 @@ class Tests(unittest.TestCase):
             r = f(5)
             self.assertEqual(r, 5)
 
-            r = f(hl.null(hl.tint32))
+            r = f(hl.missing(hl.tint32))
             self.assertEqual(r, None)
 
             r = f(agg.filter(ds[name] % 2 != 0, agg.sum(ds[name] + 2)) + ds.g1)
@@ -278,7 +278,7 @@ class Tests(unittest.TestCase):
         self.assertTrue(mt.annotate_rows(x=[1]).explode_rows('x').drop('x')._same(mt))
 
         self.assertEqual(mt.annotate_rows(x=hl.empty_array('int')).explode_rows('x').count_rows(), 0)
-        self.assertEqual(mt.annotate_rows(x=hl.null('array<int>')).explode_rows('x').count_rows(), 0)
+        self.assertEqual(mt.annotate_rows(x=hl.missing('array<int>')).explode_rows('x').count_rows(), 0)
         self.assertEqual(mt.annotate_rows(x=hl.range(0, mt.row_idx)).explode_rows('x').count_rows(), 6)
         mt = mt.annotate_rows(x=hl.struct(y=hl.range(0, mt.row_idx)))
         self.assertEqual(mt.explode_rows(mt.x.y).count_rows(), 6)
@@ -290,7 +290,7 @@ class Tests(unittest.TestCase):
         self.assertTrue(mt.annotate_cols(x=[1]).explode_cols('x').drop('x')._same(mt))
 
         self.assertEqual(mt.annotate_cols(x=hl.empty_array('int')).explode_cols('x').count_cols(), 0)
-        self.assertEqual(mt.annotate_cols(x=hl.null('array<int>')).explode_cols('x').count_cols(), 0)
+        self.assertEqual(mt.annotate_cols(x=hl.missing('array<int>')).explode_cols('x').count_cols(), 0)
         self.assertEqual(mt.annotate_cols(x=hl.range(0, mt.col_idx)).explode_cols('x').count_cols(), 6)
 
     def test_explode_key_errors(self):
@@ -556,7 +556,7 @@ class Tests(unittest.TestCase):
         mt2 = mt2.key_cols_by(col_idx=mt2.col_idx + c)
         mt2 = mt2.annotate_entries(entry=hl.tuple([mt2.row_idx, mt2.col_idx]))
         expected = hl.utils.range_matrix_table(3*r, 2*c)
-        missing = hl.null(hl.ttuple(hl.tint, hl.tint))
+        missing = hl.missing(hl.ttuple(hl.tint, hl.tint))
         expected = expected.annotate_entries(entry=hl.if_else(
             expected.col_idx < c,
             hl.if_else(expected.row_idx < 2*r, hl.tuple([expected.row_idx, expected.col_idx]), missing),
@@ -947,9 +947,9 @@ class Tests(unittest.TestCase):
     def test_filter_na(self):
         mt = hl.utils.range_matrix_table(1, 1)
 
-        self.assertEqual(mt.filter_rows(hl.null(hl.tbool)).count_rows(), 0)
-        self.assertEqual(mt.filter_cols(hl.null(hl.tbool)).count_cols(), 0)
-        self.assertEqual(mt.filter_entries(hl.null(hl.tbool)).entries().count(), 0)
+        self.assertEqual(mt.filter_rows(hl.missing(hl.tbool)).count_rows(), 0)
+        self.assertEqual(mt.filter_cols(hl.missing(hl.tbool)).count_cols(), 0)
+        self.assertEqual(mt.filter_entries(hl.missing(hl.tbool)).entries().count(), 0)
 
     def test_to_table_on_various_fields(self):
         mt = hl.utils.range_matrix_table(3, 4)
@@ -1090,7 +1090,7 @@ class Tests(unittest.TestCase):
         assert mt.make_table().select(*mt.row_value)._same(mt.rows())
 
     def test_make_table_na_error(self):
-        mt = hl.utils.range_matrix_table(3, 3).key_cols_by(s = hl.null('str'))
+        mt = hl.utils.range_matrix_table(3, 3).key_cols_by(s = hl.missing('str'))
         mt = mt.annotate_entries(e1 = 1)
         with pytest.raises(ValueError):
             mt.make_table()
@@ -1115,9 +1115,9 @@ class Tests(unittest.TestCase):
         t = hl.Table.parallelize([
             hl.struct(a=[1, 2]),
             hl.struct(a=hl.empty_array(hl.tint32)),
-            hl.struct(a=hl.null(hl.tarray(hl.tint32))),
+            hl.struct(a=hl.missing(hl.tarray(hl.tint32))),
             hl.struct(a=[3]),
-            hl.struct(a=[hl.null(hl.tint32)])
+            hl.struct(a=[hl.missing(hl.tint32)])
         ])
         self.assertCountEqual(t.aggregate(hl.agg.explode(lambda elt: hl.agg.collect(elt), t.a)),
                               [1, 2, None, 3])
@@ -1190,9 +1190,9 @@ class Tests(unittest.TestCase):
         # MatrixAnnotateRowsTable uses left distinct join
         mr = hl.utils.range_matrix_table(7, 3, 4)
         matrix1 = mr.key_rows_by(new_key=hl.if_else((mr.row_idx == 3) | (mr.row_idx == 5),
-                                                hl.null(hl.tint32), mr.row_idx))
+                                                hl.missing(hl.tint32), mr.row_idx))
         matrix2 = mr.key_rows_by(new_key=hl.if_else((mr.row_idx == 4) | (mr.row_idx == 6),
-                                                hl.null(hl.tint32), mr.row_idx))
+                                                hl.missing(hl.tint32), mr.row_idx))
 
         joined = matrix1.select_rows(idx1=matrix1.row_idx,
                                      idx2=matrix2.rows()[matrix1.new_key].row_idx)
@@ -1280,10 +1280,10 @@ class Tests(unittest.TestCase):
             a_col_join=hl.is_defined(mt.cols()[mt.col_key]),
             a_row_join=hl.is_defined(mt.rows()[mt.row_key]),
             an_entry_join=hl.is_defined(mt[mt.row_key, mt.col_key]),
-            the_global_failure=hl.if_else(True, mt.globals, hl.null(mt.globals.dtype)),
-            the_row_failure=hl.if_else(True, mt.row, hl.null(mt.row.dtype)),
-            the_col_failure=hl.if_else(True, mt.col, hl.null(mt.col.dtype)),
-            the_entry_failure=hl.if_else(True, mt.entry, hl.null(mt.entry.dtype)),
+            the_global_failure=hl.if_else(True, mt.globals, hl.missing(mt.globals.dtype)),
+            the_row_failure=hl.if_else(True, mt.row, hl.missing(mt.row.dtype)),
+            the_col_failure=hl.if_else(True, mt.col, hl.missing(mt.col.dtype)),
+            the_entry_failure=hl.if_else(True, mt.entry, hl.missing(mt.entry.dtype)),
         )
         mt.count()
 
