@@ -233,7 +233,7 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
   def _copyFromAddress(region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Long  = {
     val sourceNDPType = srcPType.asInstanceOf[PCanonicalNDArray]
     assert(elementType == sourceNDPType.elementType && nDims == sourceNDPType.nDims)
-    representation.copyFromAddress(region, sourceNDPType.representation, srcAddress, deepCopy)
+    ???
   }
 
   override def deepRename(t: Type) = deepRenameNDArray(t.asInstanceOf[TNDArray])
