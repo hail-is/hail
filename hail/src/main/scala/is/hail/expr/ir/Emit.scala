@@ -1073,14 +1073,14 @@ class Emit[C](
                 .constructFromFunctions(cb, region.code, groupSize, deepCopy = false)
               cb.whileLoop(withinGrpIdx < groupSize, {
                 val struct = sortedElts.applyEV(mb, eltIdx).get(cb).asBaseStruct.memoize(cb, "GroupByKey_struct")
-                addElt(cb, withinGrpIdx, struct.loadField(cb, 1).typecast[PCode])
+                addElt(cb, struct.loadField(cb, 1).typecast[PCode])
                 cb.assign(eltIdx, eltIdx + 1)
                 cb.assign(withinGrpIdx, withinGrpIdx + 1)
               })
               IEmitCode.present(cb, finishInner(cb))
             }
             val elt = groupTyp.constructFromFields(cb, region.code, FastIndexedSeq(key, group), deepCopy = false)
-            addGroup(cb, grpIdx, IEmitCode.present(cb, elt))
+            addGroup(cb, IEmitCode.present(cb, elt))
             cb.assign(grpIdx, grpIdx + 1)
           })
 
