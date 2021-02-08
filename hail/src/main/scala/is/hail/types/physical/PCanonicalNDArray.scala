@@ -166,7 +166,6 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
     //Need to allocate enough space to construct my tuple, then to construct the array right next to it.
     val sizeOfArray = this.dataType.contentsByteSize(this.numElements(shape).toI)
     val sizeOfStruct = this.representation.byteSize
-    // TODO: There might be alignment issues here
     region.allocateNDArray(sizeOfArray + sizeOfStruct)
   }
 
@@ -174,7 +173,6 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
     //Need to allocate enough space to construct my tuple, then to construct the array right next to it.
     val sizeOfArray: Long = this.dataType.contentsByteSize(shape.product.toInt)
     val sizeOfStruct = this.representation.byteSize
-    // TODO: There might be alignment issues here
     region.allocateNDArray(sizeOfArray + sizeOfStruct)
   }
 
