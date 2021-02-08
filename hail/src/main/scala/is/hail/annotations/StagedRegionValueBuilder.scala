@@ -9,41 +9,6 @@ import is.hail.types.physical.stypes.SCode
 import is.hail.types.virtual._
 import is.hail.utils._
 
-object StagedRegionValueBuilder {
-  def deepCopy(cb: EmitClassBuilder[_], region: Code[Region], typ: PType, value: Code[_], dest: Code[Long]): Code[Unit] = {
-    val t = typ.fundamentalType
-    val valueTI = typeToTypeInfo(t)
-    val mb = cb.getOrGenEmitMethod("deepCopy", ("deepCopy", typ),
-      FastIndexedSeq[ParamType](classInfo[Region], valueTI, LongInfo), UnitInfo) { mb =>
-      val r = mb.getCodeParam[Region](1)
-      val value = mb.getCodeParam(2)(valueTI)
-      val dest = mb.getCodeParam[Long](3)
-      mb.voidWithBuilder { cb =>
-        typ.storeAtAddress(cb, dest, r, PCode(typ, value), deepCopy = true)
-      }
-    }
-    mb.invokeCode[Unit](region, value, dest)
-  }
-
-  def deepCopyFromOffset(cb: EmitClassBuilder[_], region: Code[Region], typ: PType, value: Code[Long]): Code[Long] = {
-    val mb = cb.getOrGenEmitMethod("deepCopyFromOffset", ("deepCopyFromOffset", typ),
-      FastIndexedSeq[ParamType](classInfo[Region], LongInfo), LongInfo) { mb =>
-      val r = mb.getCodeParam[Region](1)
-      val value = mb.getCodeParam[Long](2)
-      mb.emitWithBuilder { cb =>
-        typ.store(cb, r, typ.loadCheapPCode(cb, value), deepCopy = true)
-      }
-    }
-    mb.invokeCode[Long](region, value)
-  }
-
-  def deepCopyFromOffset(er: EmitRegion, typ: PType, value: Code[Long]): Code[Long] =
-    deepCopyFromOffset(er.mb.ecb, er.region, typ, value)
-
-  def deepCopy(er: EmitRegion, typ: PType, value: Code[_], dest: Code[Long]): Code[Unit] =
-    deepCopy(er.mb.ecb, er.region, typ, value, dest)
-}
-
 class StagedRegionValueBuilder private (val mb: EmitMethodBuilder[_], val typ: PType, var region: Value[Region], val pOffset: Value[Long]) {
   def this(mb: EmitMethodBuilder[_], typ: PType, parent: StagedRegionValueBuilder) = {
     this(mb, typ, parent.region, parent.currentOffset)
@@ -239,15 +204,6 @@ class StagedRegionValueBuilder private (val mb: EmitMethodBuilder[_], val typ: P
 
   def addIRIntermediate(v: SCode): Code[Unit] =
     addIRIntermediate(v, false)
-
-
-  def addWithDeepCopy(t: PType, v: Code[_]): Code[Unit] = {
-    if (!(t.fundamentalType isOfType currentPType()))
-      throw new RuntimeException(s"Fundamental type doesn't match. current=${currentPType()}, t=${t.fundamentalType}, ftype=$ftype")
-    StagedRegionValueBuilder.deepCopy(
-      EmitRegion(mb.asInstanceOf[EmitMethodBuilder[_]], region),
-      t, v, currentOffset)
-  }
 
   def advance(): Code[Unit] = {
     ftype match {

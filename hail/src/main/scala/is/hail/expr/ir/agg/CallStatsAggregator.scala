@@ -1,6 +1,6 @@
 package is.hail.expr.ir.agg
 
-import is.hail.annotations.{Region, StagedRegionValueBuilder}
+import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitCodeBuilder, IEmitCode}
 import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer, TypedCodecSpec}
@@ -90,7 +90,7 @@ class CallStatsState(val kb: EmitClassBuilder[_]) extends PointerBasedRVAState {
   }
 
   def copyFromAddress(cb: EmitCodeBuilder, src: Code[Long]): Unit = {
-    cb.assign(off, StagedRegionValueBuilder.deepCopyFromOffset(kb, region, CallStatsState.stateType, src))
+    cb.assign(off, CallStatsState.stateType.store(cb, region, CallStatsState.stateType.loadCheapPCode(cb, src), deepCopy = true))
     loadNAlleles(cb)
   }
 }
