@@ -671,6 +671,11 @@ class Emit[C](
     }
   }
 
+  private[ir] def emitI(ir: IR, cb: EmitCodeBuilder, env: E, container: Option[AggContainer]): IEmitCode = {
+    val region = StagedRegion(cb.emb.getCodeParam[Region](1))
+    emitI(ir, cb, region, env, container, None)
+  }
+
   private[ir] def emitI(ir: IR, cb: EmitCodeBuilder, region: StagedRegion, env: E,
     container: Option[AggContainer], loopEnv: Option[Env[LoopRef]]
   ): IEmitCode = {
@@ -681,6 +686,9 @@ class Emit[C](
 
     def emitInNewBuilder(cb: EmitCodeBuilder, ir: IR, region: StagedRegion = region, env: E = env, container: Option[AggContainer] = container, loopEnv: Option[Env[LoopRef]] = loopEnv): IEmitCode =
       this.emitI(ir, cb, region, env, container, loopEnv)
+
+    def emitInMethod(cb: EmitCodeBuilder, ir: IR): IEmitCode =
+      this.emitI(ir, cb, Env.empty, container)
 
     def emitStream(ir: IR, outerRegion: ParentStagedRegion): IEmitCode =
       EmitStream.emit(this, ir, mb, outerRegion, env, container).toI(cb)
@@ -962,6 +970,121 @@ class Emit[C](
           val e = EmitCode.fromI(cb.emb)(cb => this.emitI(elem, cb, region, env, container, loopEnv))
           val bs = new BinarySearch[C](mb, typ, e.pt, keyOnly = onKey)
           PCode(pt, bs.getClosestIndex(a.tcode[Long], e.m, e.v))
+        }
+
+      case GroupByKey(collection) =>
+        // sort collection by group
+        val collectionTyp = coerce[PStream](collection.pType)
+        val keyValTyp = coerce[PBaseStruct](collectionTyp.elementType)
+        val keyTyp = keyValTyp.types(0)
+        val valTyp = keyValTyp.types(1)
+        val dictTyp = coerce[PCanonicalDict](ir.pType)
+        val groupTyp = dictTyp.elementType
+        val arrayTyp = PCanonicalArray(groupTyp, required = true)
+
+        val sortedElts = new StagedArrayBuilder(keyValTyp, mb, 16)
+        val sorter = new ArraySorter(EmitRegion(mb, region.code), sortedElts)
+
+        val (k1, k2) = keyValTyp match {
+          case t: PStruct => GetField(In(0, t), "key") -> GetField(In(1, t), "key")
+          case t: PTuple =>
+            assert(t.fields(0).index == 0)
+            GetTupleElement(In(0, t), 0) -> GetTupleElement(In(1, t), 0)
+        }
+
+        val compare = ApplyComparisonOp(Compare(keyValTyp.types(0).virtualType), k1, k2) < 0
+        InferPType(compare)
+        val leftRightComparatorNames = Array.empty[String]
+        val sortF = sortedElts.ti match {
+          case BooleanInfo => makeDependentSortingFunction[Boolean](region.code, keyValTyp, compare, env, leftRightComparatorNames)
+          case IntInfo => makeDependentSortingFunction[Int](region.code, keyValTyp, compare, env, leftRightComparatorNames)
+          case LongInfo => makeDependentSortingFunction[Long](region.code, keyValTyp, compare, env, leftRightComparatorNames)
+          case FloatInfo => makeDependentSortingFunction[Float](region.code, keyValTyp, compare, env, leftRightComparatorNames)
+          case DoubleInfo => makeDependentSortingFunction[Double](region.code, keyValTyp, compare, env, leftRightComparatorNames)
+        }
+
+        val groupSizes = new StagedArrayBuilder(PInt32(), mb, 0)
+
+        val (lastKey, currKey) = (keyValTyp.virtualType: @unchecked) match {
+          case ts: TStruct =>
+            GetField(In(0, keyValTyp), ts.fieldNames(0)) -> GetField(In(1, keyValTyp), ts.fieldNames(0))
+          case tt: TTuple =>
+            GetTupleElement(In(0, keyValTyp), tt.fields(0).index) -> GetTupleElement(In(1, keyValTyp), tt.fields(0).index)
+        }
+        val compare2 = ApplyComparisonOp(EQWithNA(keyTyp.virtualType), lastKey, currKey)
+        InferPType(compare2)
+        val isSame = mb.genEmitMethod("isSame",
+          FastIndexedSeq(typeInfo[Region], keyValTyp.asEmitParam, keyValTyp.asEmitParam),
+          BooleanInfo)
+        isSame.emitWithBuilder { cb =>
+          emitInMethod(cb, compare2).consumeCode[Boolean](cb, true, _.tcode[Boolean])
+        }
+
+        val eltIdx = mb.newLocal[Int]("groupByKey_eltIdx")
+        val grpIdx = mb.newLocal[Int]("groupByKey_grpIdx")
+        val withinGrpIdx = mb.newLocal[Int]("groupByKey_withinGrpIdx")
+        val outerSize = mb.newLocal[Int]("groupByKey_outerSize")
+        val groupSize = mb.newLocal[Int]("groupByKey_groupSize")
+
+        val outerRegion = region.asParent(collectionTyp.separateRegions, "GroupByKey")
+        emitStream(collection, outerRegion).map(cb) { stream =>
+          cb += EmitStream.write(mb, stream.asStream, sortedElts, outerRegion)
+          cb += sorter.sort(sortF)
+          cb += sorter.pruneMissing
+          cb += groupSizes.clear
+          cb.assign(eltIdx, 0)
+          cb.assign(groupSize, 0)
+
+          cb.whileLoop(eltIdx < sortedElts.size, {
+            val bottomOfLoop = CodeLabel()
+            val newGroup = CodeLabel()
+
+            cb.assign(groupSize, groupSize + 1)
+            cb.ifx(eltIdx.ceq(sortedElts.size - 1), {
+              cb.goto(newGroup)
+            }, {
+              cb.ifx(cb.invokeCode[Boolean](isSame, region.code, sortedElts.applyEV(mb, eltIdx), sortedElts.applyEV(mb, eltIdx + 1)), {
+                cb.goto(bottomOfLoop)
+              }, {
+                cb.goto(newGroup)
+              })
+            })
+            cb.define(newGroup)
+            cb += groupSizes.add(groupSize)
+            cb.assign(groupSize, 0)
+
+            cb.define(bottomOfLoop)
+            cb.assign(eltIdx, eltIdx + 1)
+          })
+
+          cb.assign(outerSize, groupSizes.size)
+          val (addGroup, finishOuter) = arrayTyp.constructFromFunctions(cb, region.code, outerSize, deepCopy = false)
+
+          cb.assign(eltIdx, 0)
+          cb.assign(grpIdx, 0)
+
+          cb.whileLoop(grpIdx < outerSize, {
+            cb.assign(groupSize, coerce[Int](groupSizes(grpIdx)))
+            cb.assign(withinGrpIdx, 0)
+            val firstStruct = sortedElts.applyEV(mb, eltIdx).get(cb).asBaseStruct.memoize(cb, "GroupByKey_firstStruct")
+            val key = EmitCode.fromI(mb) { cb => firstStruct.loadField(cb, 0).typecast[PCode] }
+            val group = EmitCode.fromI(mb) { cb =>
+              val (addElt, finishInner) = PCanonicalArray(valTyp, required = true)
+                .constructFromFunctions(cb, region.code, groupSize, deepCopy = false)
+              cb.whileLoop(withinGrpIdx < groupSize, {
+                val struct = sortedElts.applyEV(mb, eltIdx).get(cb).asBaseStruct.memoize(cb, "GroupByKey_struct")
+                addElt(cb, struct.loadField(cb, 1).typecast[PCode])
+                cb.assign(eltIdx, eltIdx + 1)
+                cb.assign(withinGrpIdx, withinGrpIdx + 1)
+              })
+              IEmitCode.present(cb, finishInner(cb))
+            }
+            val elt = groupTyp.constructFromFields(cb, region.code, FastIndexedSeq(key, group), deepCopy = false)
+            addGroup(cb, IEmitCode.present(cb, elt))
+            cb.assign(grpIdx, grpIdx + 1)
+          })
+
+          dictTyp.construct(finishOuter(cb))
         }
 
       case x@MakeNDArray(dataIR, shapeIR, rowMajorIR) =>
@@ -2000,110 +2123,6 @@ class Emit[C](
       case CastToArray(a) =>
         val et = emit(a)
         EmitCode(et.setup, et.m, PCode(pt, et.v))
-
-      case GroupByKey(collection) =>
-        // sort collection by group
-        val atyp = coerce[PStream](collection.pType)
-        val etyp = coerce[PBaseStruct](atyp.elementType)
-        val ktyp = etyp.types(0)
-        val vtyp = etyp.types(1)
-        val eltOut = coerce[PDict](ir.pType).elementType
-
-        val eab = new StagedArrayBuilder(etyp, mb, 16)
-        val sorter = new ArraySorter(EmitRegion(mb, region.code), eab)
-
-        val (k1, k2) = etyp match {
-          case t: PStruct => GetField(In(0, t), "key") -> GetField(In(1, t), "key")
-          case t: PTuple =>
-            assert(t.fields(0).index == 0)
-            GetTupleElement(In(0, t), 0) -> GetTupleElement(In(1, t), 0)
-        }
-
-        val compare = ApplyComparisonOp(Compare(etyp.types(0).virtualType), k1, k2) < 0
-        InferPType(compare)
-        val leftRightComparatorNames = Array.empty[String]
-        val sortF = eab.ti match {
-          case BooleanInfo => makeDependentSortingFunction[Boolean](region.code, etyp, compare, env, leftRightComparatorNames)
-          case IntInfo => makeDependentSortingFunction[Int](region.code, etyp, compare, env, leftRightComparatorNames)
-          case LongInfo => makeDependentSortingFunction[Long](region.code, etyp, compare, env, leftRightComparatorNames)
-          case FloatInfo => makeDependentSortingFunction[Float](region.code, etyp, compare, env, leftRightComparatorNames)
-          case DoubleInfo => makeDependentSortingFunction[Double](region.code, etyp, compare, env, leftRightComparatorNames)
-        }
-
-        val nab = new StagedArrayBuilder(PInt32(), mb, 0)
-        val i = mb.newLocal[Int]()
-
-        def loadKey(n: Code[Int]): Code[_] =
-          Region.loadIRIntermediate(ktyp)(etyp.fieldOffset(coerce[Long](eab(n)), 0))
-
-        def loadValue(n: Code[Int]): Code[_] =
-          Region.loadIRIntermediate(vtyp)(etyp.fieldOffset(coerce[Long](eab(n)), 1))
-
-        val srvb = new StagedRegionValueBuilder(mb, ir.pType, region.code)
-
-        type E = Env[(TypeInfo[_], Code[Boolean], Code[_])]
-
-        val (lastKey, currKey) = (etyp.virtualType: @unchecked) match {
-          case ts: TStruct =>
-            GetField(In(0, etyp), ts.fieldNames(0)) -> GetField(In(1, etyp), ts.fieldNames(0))
-          case tt: TTuple =>
-            GetTupleElement(In(0, etyp), tt.fields(0).index) -> GetTupleElement(In(1, etyp), tt.fields(0).index)
-        }
-        val compare2 = ApplyComparisonOp(EQWithNA(ktyp.virtualType), lastKey, currKey)
-        InferPType(compare2)
-        val isSame = mb.genEmitMethod("isSame",
-          FastIndexedSeq(typeInfo[Region], etyp.asEmitParam, etyp.asEmitParam),
-          BooleanInfo)
-        isSame.emitWithBuilder { cb =>
-          val isSameCode = emitInMethod(compare2, isSame)
-          cb += isSameCode.setup
-          isSameCode.m || isSameCode.value[Boolean]
-        }
-
-        val outerRegion = region.asParent(atyp.separateRegions, "GroupByKey")
-        emitStream(collection, outerRegion).map { stream =>
-          PCode(pt, Code(
-            EmitStream.write(mb, stream.asStream, eab, outerRegion),
-            sorter.sort(sortF),
-            sorter.pruneMissing,
-            eab.size.ceq(0).mux(
-              Code(srvb.start(0), srvb.offset),
-              Code(
-                nab.clear,
-                i := 1,
-                nab.add(1),
-                Code.whileLoop(i < eab.size,
-                  EmitCodeBuilder.scopedCode[Boolean](mb) { cb =>
-                    cb.invokeCode[Boolean](isSame, region.code,
-                      eab.applyEV(mb, i-1), eab.applyEV(mb, i))
-                  }.mux(
-                    nab.update(nab.size - 1, coerce[Int](nab(nab.size - 1)) + 1),
-                    nab.add(1)),
-                  i += 1),
-                i := 0,
-                srvb.start(nab.size),
-                Code.whileLoop(srvb.arrayIdx < nab.size,
-                  srvb.addBaseStruct(eltOut, { structbuilder =>
-                    Code(
-                      structbuilder.start(),
-                      structbuilder.addIRIntermediate(ktyp)(loadKey(i)),
-                      structbuilder.advance(),
-                      structbuilder.addArray(coerce[PArray](eltOut.types(1)), { arraybuilder =>
-                        Code(
-                          arraybuilder.start(coerce[Int](nab(srvb.arrayIdx))),
-                          Code.whileLoop(arraybuilder.arrayIdx < coerce[Int](nab(srvb.arrayIdx)),
-                            etyp.isFieldMissing(coerce[Long](eab(i)), 1).mux(
-                              arraybuilder.setMissing(),
-                              arraybuilder.addIRIntermediate(etyp.types(1))(loadValue(i))
-                              ),
-                            i += 1,
-                            arraybuilder.advance()
-                            ))
-                      }))
-                  }),
-                  srvb.advance()),
-                srvb.offset))))
-        }
 
       case ArrayZeros(length) =>
         val lengthTriplet = emit(length)

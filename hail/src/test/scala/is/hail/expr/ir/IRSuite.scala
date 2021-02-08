@@ -2985,6 +2985,8 @@ class IRSuite extends HailSuite {
 
     val collection1 = groupby(tuple("foo", 0), tuple("bar", 4), tuple("foo", -1), tuple("bar", 0), tuple("foo", 10), tuple("", 0))
     assertEvalsTo(collection1, Map("" -> FastIndexedSeq(0), "bar" -> FastIndexedSeq(4, 0), "foo" -> FastIndexedSeq(0, -1, 10)))
+
+    assertEvalsTo(groupby(), Map())
   }
 
   @DataProvider(name = "compareDifferentTypes")
