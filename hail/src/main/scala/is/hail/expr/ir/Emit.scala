@@ -1878,18 +1878,18 @@ class Emit[C](
         val ctxab = mb.genFieldThisRef[ByteArrayArrayBuilder]()
         val encRes = mb.genFieldThisRef[Array[Array[Byte]]]()
 
-        def etToTuple(et: EmitCode, t: PType): SBaseStructPointerCode = {
+        def etToTuple(cb: EmitCodeBuilder, et: EmitCode, t: PType): SBaseStructPointerCode = {
           PCanonicalTuple(false, t).constructFromFields(cb, region.code, FastIndexedSeq(et), deepCopy = false)
         }
 
-        def addContexts(ctxStream: SizedStream): Unit = {
+        def addContexts(cb: EmitCodeBuilder, ctxStream: SizedStream): Unit = {
           val SizedStream(setup, stream, len) = ctxStream
           val eltRegion = outerRegion.createChildRegion(mb)
           cb += setup
           cb += ctxab.invoke[Int, Unit]("ensureCapacity", len.getOrElse(16))
           cb += eltRegion.allocateRegion(Region.REGULAR, mb.ecb.pool())
           stream(eltRegion).forEachI(cb, { ec =>
-            val offset = etToTuple(ec, ctxType)
+            val offset = etToTuple(cb, ec, ctxType)
             cb += baos.invoke[Unit]("reset")
             cb += cEnc(region.code, coerce[Long](offset.memoize(cb, "cda_add_contexts_addr").value), buf)
             cb += eltRegion.clear()
@@ -1899,13 +1899,13 @@ class Emit[C](
           cb += eltRegion.free()
         }
 
-        def addGlobals(): Unit = {
-          val g = etToTuple(EmitCode.fromI(mb)(cb => emitInNewBuilder(cb, globals)), gType).memoize(cb, "cda_g")
+        def addGlobals(cb: EmitCodeBuilder): Unit = {
+          val g = etToTuple(cb, EmitCode.fromI(mb)(cb => emitInNewBuilder(cb, globals)), gType).memoize(cb, "cda_g")
           cb += gEnc(region.code, coerce[Long](g.value), buf)
           cb += buf.invoke[Unit]("flush")
         }
 
-        def decodeResult(): PCode = {
+        def decodeResult(cb: EmitCodeBuilder): PCode = {
           val len = mb.newLocal[Int]("cda_result_length")
           val ib = mb.newLocal[InputBuffer]("decode_ib")
 
@@ -1921,9 +1921,9 @@ class Emit[C](
           cb.assign(baos, Code.newInstance[ByteArrayOutputStream]())
           cb.assign(buf, x.contextSpec.buildCodeOutputBuffer(baos)) // TODO: take a closer look at whether we need two codec buffers?
           cb.assign(ctxab, Code.newInstance[ByteArrayArrayBuilder, Int](16))
-          addContexts(ctxStream.asStream.stream)
+          addContexts(cb, ctxStream.asStream.stream)
           cb += baos.invoke[Unit]("reset")
-          addGlobals()
+          addGlobals(cb)
           cb.assign(encRes, spark.invoke[BackendContext, String, Array[Array[Byte]], Array[Byte], Option[TableStageDependency], Array[Array[Byte]]](
             "collectDArray",
             mb.getObject(ctx.executeContext.backendContext),
@@ -1931,7 +1931,7 @@ class Emit[C](
             ctxab.invoke[Array[Array[Byte]]]("result"),
             baos.invoke[Array[Byte]]("toByteArray"),
             mb.getObject(tsd)))
-          decodeResult()
+          decodeResult(cb)
         }
 
       case _ =>
