@@ -1,6 +1,7 @@
 package is.hail.annotations
 
 import is.hail.expr.ir.{AnyRefArrayBuilder, LongArrayBuilder, LongMissingArrayBuilder}
+import is.hail.types.physical.PCanonicalNDArray
 import is.hail.utils._
 
 
@@ -134,7 +135,7 @@ final class RegionMemory(pool: RegionPool) extends AutoCloseable {
       val curCount = Region.loadLong(addr - 16)
       if (curCount == 1) {
         Memory.storeLong(addr - 16, 0L)
-        val bytesToFree = Region.loadLong(addr - 8) + 16
+        val bytesToFree = PCanonicalNDArray.unstagedLoadByteSize(addr) + 16
         pool.incrementAllocatedBytes(-bytesToFree)
         Memory.free(addr - 16)
       } else {

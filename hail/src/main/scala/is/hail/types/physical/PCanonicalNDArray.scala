@@ -3,13 +3,17 @@ package is.hail.types.physical
 import is.hail.annotations.{Annotation, NDArray, Region, UnsafeOrdering}
 import is.hail.asm4s.{Code, _}
 import is.hail.expr.ir.{EmitCode, EmitCodeBuilder}
+import is.hail.types.physical.PCanonicalNDArray.unstagedLoadByteSize
 import is.hail.types.physical.stypes.SCode
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.virtual.{TNDArray, Type}
 import is.hail.types.physical.stypes.concrete.{SNDArrayPointer, SNDArrayPointerCode}
 import org.apache.spark.sql.Row
-
 import is.hail.utils._
+
+object PCanonicalNDArray {
+  def unstagedLoadByteSize(ndAddr: Long): Long = Region.loadLong(ndAddr - 8L)
+}
 
 final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boolean = false) extends PNDArray  {
   assert(elementType.required, "elementType must be required")
@@ -248,14 +252,9 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
     }
   }
 
-
-    def _copyFromAddress(region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Long  = {
+  def _copyFromAddress(region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Long  = {
     val sourceNDPType = srcPType.asInstanceOf[PCanonicalNDArray]
     assert(elementType == sourceNDPType.elementType && nDims == sourceNDPType.nDims)
-
-    // Agh, what are the cases?
-
-    // Deep, or not deep?
 
     if (equalModuloRequired(srcPType)) { // The situation where you can just memcpy, but then still have to update pointers.
       if (!deepCopy) {
@@ -265,7 +264,7 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
       // Deep copy, two scenarios.
       if (elementType.containsPointers) {
         // Can't just reference count change, since the elements have to be copied and updated.
-        val numBytes = Region.loadLong(srcAddress - 8L)
+        val numBytes = unstagedLoadByteSize(srcAddress)
         val newAddress =  region.allocateNDArray(numBytes)
         Region.copyFrom(srcAddress, newAddress, numBytes)
         deepPointerCopy(region, newAddress)
