@@ -377,12 +377,6 @@ class SourceReport:
                 'exception': exception
             }
 
-    def raise_first_exception(self):
-        if self._exception:
-            raise self._exception
-        if self._first_file_error:
-            raise self._first_file_error['exception']
-
 
 class TransferReport:
     def __init__(self, transfer: Transfer):
@@ -397,15 +391,6 @@ class TransferReport:
         assert not self._exception
         self._exception = exception
 
-    def raise_first_exception(self):
-        if self._exception:
-            raise self._exception
-        if isinstance(self._source_report, SourceReport):
-            self._source_report.raise_first_exception()
-        else:
-            for s in self._source_report:
-                s.raise_first_exception()
-
 
 class CopyReport:
     def __init__(self, transfer: Union[Transfer, List[Transfer]]):
@@ -418,15 +403,6 @@ class CopyReport:
     def set_exception(self, exception: Exception):
         assert not self._exception
         self._exception = exception
-
-    def raise_first_exception(self):
-        if self._exception:
-            raise self._exception
-        if isinstance(self._transfer_report, TransferReport):
-            self._transfer_report.raise_first_exception()
-        else:
-            for t in self._transfer_report:
-                t.raise_first_exception()
 
 
 class UnexpectedEOFError(Exception):
