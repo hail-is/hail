@@ -153,7 +153,7 @@ object StringFunctions extends RegistryFunctions {
     }) { case (r, rt, a) =>
       val annotation = Code(a.setup, a.m).muxAny(Code._null(boxedTypeInfo(a.pt.virtualType)), boxArg(r, a.pt)(a.v))
       val str = r.mb.getType(a.pt.virtualType).invoke[Any, String]("showStr", annotation)
-      EmitCode.present(PCode(rt, unwrapReturn(r, rt)(str)))
+      EmitCode.present(r.mb, PCode(rt, unwrapReturn(r, rt)(str)))
     }
 
     registerEmitCode2("showStr", tv("T"), TInt32, TString, {

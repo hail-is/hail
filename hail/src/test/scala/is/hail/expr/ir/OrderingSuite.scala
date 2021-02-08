@@ -39,7 +39,7 @@ class OrderingSuite extends HailSuite {
     val cv1 = Region.getIRIntermediate(t)(fb.getCodeParam[Long](2))
     val cv2 = Region.getIRIntermediate(t)(fb.getCodeParam[Long](3))
     fb.emitWithBuilder { cb =>
-      fb.apply_method.getCodeOrdering(t, op)(cb, EmitCode.present(t, cv1), EmitCode.present(t, cv2))
+      fb.apply_method.getCodeOrdering(t, op)(cb, EmitCode.present(cb.emb, PCode(t, cv1)), EmitCode.present(cb.emb, PCode(t, cv2)))
     }
     fb.resultWithIndex()(0, r)
   }

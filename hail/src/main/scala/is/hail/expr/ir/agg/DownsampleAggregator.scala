@@ -36,7 +36,7 @@ class DownsampleBTreeKey(binType: PBaseStruct, pointType: PBaseStruct, kb: EmitC
 
   def compKeys(cb: EmitCodeBuilder, k1: EmitCode, k2: EmitCode): Code[Int] = kcomp(cb, k1, k2)
 
-  def loadCompKey(cb: EmitCodeBuilder, off: Value[Long]): EmitCode = EmitCode.present(binType, storageType.loadField(off, "bin"))
+  def loadCompKey(cb: EmitCodeBuilder, off: Value[Long]): EmitCode = EmitCode.present(cb.emb, binType.loadCheapPCode(cb, storageType.loadField(off, "bin")))
 }
 
 
@@ -289,7 +289,7 @@ class DownsampleState(val kb: EmitClassBuilder[_], labelType: VirtualTypeWithReq
         cb += Region.storeInt(binType.fieldOffset(binStaging, "x"), binX)
         cb += Region.storeInt(binType.fieldOffset(binStaging, "y"), binY)
         cb.assign(insertOffset,
-          tree.getOrElseInitialize(cb, EmitCode.present(storageType.fieldType("binStaging"), binStaging)))
+          tree.getOrElseInitialize(cb, EmitCode.present(cb.emb, storageType.fieldType("binStaging").loadCheapPCode(cb, binStaging))))
         cb.ifx(key.isEmpty(insertOffset), {
           cb.assign(binOffset, key.storageType.loadField(insertOffset, "bin"))
           cb += Region.storeInt(binType.loadField(binOffset, "x"), binX)

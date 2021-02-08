@@ -265,6 +265,13 @@ object IEmitCode {
 
     IEmitCodeGen(Lmissing, iec.Lpresent, iec.value)
   }
+
+  def fromCodeTuple(cb: EmitCodeBuilder, pt: PType, ct: IndexedSeq[Code[_]]): IEmitCode = {
+    if (pt.required)
+      IEmitCode.present(cb, pt.fromCodeTuple(ct))
+    else
+      IEmitCode(cb, coerce[Boolean](ct.last), pt.fromCodeTuple(ct.init))
+  }
 }
 
 object IEmitCodeGen {
@@ -367,14 +374,9 @@ object EmitCode {
     new EmitCode(Lstart, ec.iec)
   }
 
-  def apply(setup: Code[Unit], ev: EmitValue): EmitCode =
-    EmitCode(setup, ev.load)
+  def present(mb: EmitMethodBuilder[_], pc: PCode): EmitCode = EmitCode.fromI(mb)(cb => IEmitCode.present(cb, pc))
 
-  def present(pt: PType, v: Code[_]): EmitCode = EmitCode(Code._empty, false, PCode(pt, v))
-
-  def present(pc: PCode): EmitCode = EmitCode(Code._empty, false, pc)
-
-  def missing(pt: PType): EmitCode = EmitCode(Code._empty, true, pt.defaultValue)
+  def missing(mb: EmitMethodBuilder[_], pt: PType): EmitCode = EmitCode.fromI(mb)(cb => IEmitCode.missing(cb, pt.defaultValue(mb)))
 
   def fromI(mb: EmitMethodBuilder[_])(f: (EmitCodeBuilder) => IEmitCode): EmitCode = {
     val cb = EmitCodeBuilder(mb)
@@ -389,13 +391,6 @@ object EmitCode {
       ts
     else
       ts :+ BooleanInfo
-  }
-
-  def fromCodeTuple(pt: PType, ct: IndexedSeq[Code[_]]): EmitCode = {
-    if (pt.required)
-      EmitCode(Code._empty, const(false), pt.fromCodeTuple(ct))
-    else
-      EmitCode(Code._empty, coerce[Boolean](ct.last), pt.fromCodeTuple(ct.init))
   }
 }
 
@@ -756,7 +751,7 @@ class Emit[C](
         emitI(v)
           .map(cb)(pc => PCode(pt, pc.code))
       case NA(typ) =>
-        IEmitCode(cb, const(true), pt.defaultValue)
+        IEmitCode(cb, const(true), pt.defaultValue(cb.emb))
       case IsNA(v) =>
         val m = emitI(v).consumeCode(cb, true, _ => false)
         presentC(m)
@@ -883,7 +878,7 @@ class Emit[C](
           emitI(l).flatMap(cb) { l =>
             emitI(r).map(cb) { r =>
               val f = op.codeOrdering(mb, l.pt, r.pt)
-              PCode(pt, f(cb, EmitCode.present(l), EmitCode.present(r)))
+              PCode(pt, f(cb, EmitCode.present(cb.emb, l), EmitCode.present(cb.emb, r)))
             }
           }
         } else {
@@ -1363,7 +1358,7 @@ class Emit[C](
             val vt = vtPType.construct(vtShapeSeq, vtPType.makeColumnMajorStrides(vtShapeSeq, region.code, cb), vtData, cb, region.code)
 
             val outputPType = x.pType.asInstanceOf[PCanonicalTuple]
-            outputPType.constructFromFields(cb, region.code, FastIndexedSeq(EmitCode.present(u), EmitCode.present(s), EmitCode.present(vt)), deepCopy = false)
+            outputPType.constructFromFields(cb, region.code, FastIndexedSeq(EmitCode.present(cb.emb, u), EmitCode.present(cb.emb, s), EmitCode.present(cb.emb, vt)), deepCopy = false)
           } else {
             s
           }
@@ -1458,8 +1453,8 @@ class Emit[C](
             val tau = tauPType.construct(FastIndexedSeq(K), tauStridesStruct, tauAddress, cb, region.code)
 
             resultType.constructFromFields(cb, region.code, FastIndexedSeq(
-              EmitCode.present(h),
-              EmitCode.present(tau)
+              EmitCode.present(cb.emb, h),
+              EmitCode.present(cb.emb, tau)
             ), deepCopy = false)
 
           } else {
@@ -1566,8 +1561,8 @@ class Emit[C](
                 qPType.dataType.firstElementOffset(qDataAddress), (M * numColsToUse) * 8L))
 
               crPType.constructFromFields(cb, region.code, FastIndexedSeq(
-                EmitCode.present(qPType.construct(qShapeArray, qStridesStruct, qDataAddress, cb, region.code)),
-                EmitCode.present(rNDArray)
+                EmitCode.present(cb.emb, qPType.construct(qShapeArray, qStridesStruct, qDataAddress, cb, region.code)),
+                EmitCode.present(cb.emb, rNDArray)
               ), deepCopy = false)
             }
           }
@@ -2157,7 +2152,7 @@ class Emit[C](
                 "<exception message missing>",
                 coerce[String](StringFunctions.wrapArg(EmitRegion(mb, region.code), m.pType)(cm.v))), errorId))),
           true,
-          pt.defaultValue)
+          pt.defaultValue(mb))
 
       case ir@Apply(fn, typeArgs, args, rt) =>
         val impl = ir.implementation
@@ -2379,7 +2374,7 @@ class Emit[C](
           cb.assign(loopRef.loopArgs, loopRef.tmpLoopArgs.load())
           cb.append(loopRef.L.goto)
           // dead code
-          EmitCode.missing(pt)
+          EmitCode.missing(cb.emb, pt)
         }
 
       case x@WritePartition(stream, pctx, writer) =>

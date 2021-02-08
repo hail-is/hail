@@ -40,9 +40,9 @@ class DownsampleSuite extends HailSuite {
           cb.assign(y, rng.invoke[Double, Double, Double]("runif", 0d, 1d))
 
           ds1.insert(cb,
-            EmitCode.present(new SFloat64Code(true, x)),
-            EmitCode.present(new SFloat64Code(true, y)),
-            EmitCode.missing(PCanonicalArray(PCanonicalString())))
+            EmitCode.present(cb.emb, new SFloat64Code(true, x)),
+            EmitCode.present(cb.emb, new SFloat64Code(true, y)),
+            EmitCode.missing(cb.emb, PCanonicalArray(PCanonicalString())))
           cb.assign(i, i + const(1))
       })
       ds1.merge(cb, ds2)
