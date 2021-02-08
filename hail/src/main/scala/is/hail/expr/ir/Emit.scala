@@ -2904,9 +2904,7 @@ abstract class NDArrayEmitter(val outputShape: IndexedSeq[Value[Long]])
 
   def emit(cb: EmitCodeBuilder, targetType: PCanonicalNDArray, region: Value[Region]): PCode = {
     val shapeArray = outputShape
-    val len = cb.newLocal[Int]("ndarrayemitter_emitloops_len", targetType.numElements(shapeArray).toI)
 
-    val (addElement, finish) = targetType.dataType.constructFromFunctions(cb, region, len , false)
     val idx = cb.newLocal[Int]("ndarrayemitter_emitloops_idx", 0)
 
     def writeDataToAddress(firstElementAddress: Value[Long], cb: EmitCodeBuilder): Unit = {
