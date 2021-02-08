@@ -466,7 +466,8 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
   }
 
   // unsafe StagedArrayBuilder-like interface that gives caller control over adding elements and finishing
-  def constructFromNextAddress(cb: EmitCodeBuilder, region: Value[Region], length: Value[Int], deepCopy: Boolean):
+  // this won't need to exist when we have SStackStruct
+  def constructFromNextAddress(cb: EmitCodeBuilder, region: Value[Region], length: Value[Int]):
   ((EmitCodeBuilder => Value[Long], (EmitCodeBuilder => Unit), (EmitCodeBuilder => SIndexablePointerCode))) = {
 
     val addr = cb.newLocal[Long]("pcarray_construct2_addr", allocate(region, length))
