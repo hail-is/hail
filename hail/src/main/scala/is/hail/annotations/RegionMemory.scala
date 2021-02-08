@@ -130,10 +130,8 @@ final class RegionMemory(pool: RegionPool) extends AutoCloseable {
   }
 
   private def releaseNDArrays(): Unit = {
-    println(s"Releasing NDArrays. Current totalAllocatedBytes = ${pool.getTotalAllocatedBytes} Num refs: ${this.ndarrayRefs.size}")
     this.ndarrayRefs.result().map{ addr =>
       val curCount = Region.loadLong(addr - 16)
-      println(s"Processing ${addr}, curCount = ${curCount}")
       if (curCount == 1) {
         Memory.storeLong(addr - 16, 0L)
         val bytesToFree = Region.loadLong(addr - 8) + 16
@@ -143,8 +141,6 @@ final class RegionMemory(pool: RegionPool) extends AutoCloseable {
         Region.storeLong(addr - 16, curCount - 1)
       }
     }
-
-    println(s"Done freeing, Current totalAllocatedBytes = ${pool.getTotalAllocatedBytes}")
 
     this.ndarrayRefs.clear()
   }
@@ -296,14 +292,11 @@ final class RegionMemory(pool: RegionPool) extends AutoCloseable {
     // The reference count and total size are stored just before the content.
     Region.storeLong(allocatedAddr - 16L, 0L)
     Region.storeLong(allocatedAddr - 8L, size)
-    println(s"Allocating NDArray ${allocatedAddr}, total size is ${size + extra}")
-    pool.incrementAllocatedBytes(size + extra)
     this.trackNDArray(allocatedAddr)
     allocatedAddr
   }
 
   def trackNDArray(alloc: Long): Unit = {
-    println(s"Region Memory tracking ndarray at ${alloc}")
     this.ndarrayRefs.add(alloc)
     val curRefCount = Region.loadLong(alloc - 16)
     Region.storeLong(alloc - 16, curRefCount + 1L)
