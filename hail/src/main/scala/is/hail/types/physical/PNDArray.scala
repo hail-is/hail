@@ -23,6 +23,11 @@ abstract class PNDArray extends PType {
   def dataPArrayPointer(ndAddr: Code[Long]): Code[Long]
 
   def loadShape(off: Long, idx: Int): Long
+  def unstagedLoadShapes(addr: Long): IndexedSeq[Long] = {
+    (0 until nDims).map { dimIdx =>
+      this.loadShape(addr, dimIdx)
+    }
+  }
 
   def loadShapes(cb: EmitCodeBuilder, addr: Value[Long], settables: IndexedSeq[Settable[Long]]): Unit
   def loadStrides(cb: EmitCodeBuilder, addr: Value[Long], settables: IndexedSeq[Settable[Long]]): Unit

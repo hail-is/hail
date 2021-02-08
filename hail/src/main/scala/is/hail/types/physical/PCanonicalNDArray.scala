@@ -46,12 +46,6 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
       cb.assign(settables(dimIdx), shapeTuple.loadField(cb, dimIdx).get(cb).asLong.longCode(cb))
     }
   }
-
-  def unstagedLoadShapes(addr: Long): IndexedSeq[Long] = {
-    (0 until nDims).map { dimIdx =>
-      this.loadShape(addr, dimIdx)
-    }
-  }
   
   def loadStrides(cb: EmitCodeBuilder, addr: Value[Long], settables: IndexedSeq[Settable[Long]]): Unit = {
     assert(settables.length == nDims)
@@ -230,10 +224,10 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
       false)
 
     val newDataPointer = cb.newLocal("ndarray_construct_new_data_pointer", ndAddr + this.representation.byteSize)
-    //TODO Use the known length here
-    val newFirstElementDataPointer = cb.newLocal[Long]("ndarray_construct_first_element_pointer", dataType.firstElementOffset(newDataPointer))
-
     cb.append(Region.storeLong(this.representation.fieldOffset(ndAddr, "data"), newDataPointer))
+    //TODO Use the known length here
+    val newFirstElementDataPointer = cb.newLocal[Long]("ndarray_construct_first_element_pointer", this.dataFirstElementPointer(ndAddr))
+
     cb.append(dataType.stagedInitialize(newDataPointer, this.numElements(shape).toI))
     writeDataToAddress(newFirstElementDataPointer, cb)
 
@@ -259,7 +253,6 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
     val sourceNDPType = srcPType.asInstanceOf[PCanonicalNDArray]
     assert(elementType == sourceNDPType.elementType && nDims == sourceNDPType.nDims)
 
-
     // Agh, what are the cases?
 
     // Deep, or not deep?
@@ -284,6 +277,10 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
       }
     }
     else {  // The situation where maybe the structs inside the ndarray have different requiredness
+      // Deep copy doesn't matter, we have to make a new one no matter what.
+      val srcShape = srcPType.asInstanceOf[PNDArray].unstagedLoadShapes(srcAddress)
+      val newAddress = this.constructDataFunction(???, ???, ???, ???)(???) // Need an unstaged version
+
       ???
     }
 
@@ -312,16 +309,25 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
   def store(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): Code[Long] = {
     value.st match {
       case SNDArrayPointer(t) if t.equalModuloRequired(this)  =>
-        // Does requiredness matter?
         val storedAddress = cb.newLocal[Long]("pcanonical_ndarray_store", value.asInstanceOf[SNDArrayPointerCode].a)
         if (deepCopy) {
           cb.append(region.trackNDArray(storedAddress))
         }
         storedAddress
       case SNDArrayPointer(t) =>
-        ???
+        val oldND = value.asNDArray.memoize(cb, "pcanonical_ndarray_store_old")
+        val shape = oldND.shapes(cb)
+        val newStrides = makeColumnMajorStrides(shape, region, cb)
+        this.constructDataFunction(shape, newStrides, cb, region) { (targetDataFirstElementAddr, cb) =>
+          val currentOffset = cb.newLocal[Long]("pcanonical_ndarray_store_offset", targetDataFirstElementAddr)
+          SNDArray.forEachIndex(cb, shape, "PCanonicalNDArray_store") { (cb, currentIndices) =>
+            val oldElement = oldND.loadElement(currentIndices, cb)
+            elementType.storeAtAddress(cb, currentOffset, region, oldElement, true)
+            cb.assign(currentOffset, currentOffset + elementType.byteSize)
+          }
+        }.a
       case _ =>
-        throw new UnsupportedOperationException("Only know how to store SNDArrayPointCodes")
+        throw new UnsupportedOperationException("Only know how to store SNDArrayPointerCodes")
     }
   }
 
