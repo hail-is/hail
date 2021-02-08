@@ -2146,7 +2146,10 @@ class Emit[C](
     // ideally, emit would not be called with void values, but initOp args can be void
     // working towards removing this
     if (pt == PVoid)
-      return EmitCode(emitVoid(ir), const(false), PCode._empty)
+      return EmitCode.fromI(mb) { cb =>
+        this.emitVoid(cb, ir, mb, region, env, container, loopEnv)
+        IEmitCode.present(cb, PCode._empty)
+      }
 
     (ir: @unchecked) match {
       case Let(name, value, body) => value.pType match {
