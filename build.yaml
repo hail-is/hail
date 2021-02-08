@@ -1583,7 +1583,7 @@ steps:
    scopes:
     - deploy
     - dev
-  dependsOn:
+   dependsOn:
     - default_ns
     - deploy_router
     - create_certs
