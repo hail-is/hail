@@ -70,8 +70,8 @@ spec:
             value: /deploy-config/deploy-config.json
          resources:
            requests:
-             memory: "250M"
-             cpu: "100m"
+             memory: "5M"
+             cpu: "50m"
            limits:
              memory: "1G"
              cpu: "1"
