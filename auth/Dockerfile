@@ -1,8 +1,8 @@
 FROM {{ service_base_image.image }}
 
 RUN hail-pip-install \
-      google-auth-oauthlib==0.4.1 \
-      google-auth==1.21.1
+      google-auth-oauthlib==0.4.2 \
+      google-auth==1.25.0
 
 COPY auth/setup.py auth/MANIFEST.in /auth/
 COPY auth/auth /auth/auth/
