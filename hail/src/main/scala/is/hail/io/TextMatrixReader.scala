@@ -1,22 +1,20 @@
 package is.hail.io
 
-import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.asm4s._
-import is.hail.backend.BroadcastValue
-import is.hail.backend.spark.SparkBackend
 import is.hail.expr.ir.lowering.TableStage
-import is.hail.expr.ir.{EmitFunctionBuilder, EmitMethodBuilder, ExecuteContext, GenericLine, GenericLines, GenericTableValue, IRParser, IntArrayBuilder, LowerMatrixIR, MatrixHybridReader, MatrixIR, MatrixLiteral, MatrixValue, TableLiteral, TableRead, TableValue, TextReaderOptions}
+import is.hail.expr.ir.{EmitCode, EmitCodeBuilder, EmitFunctionBuilder, EmitMethodBuilder, ExecuteContext, GenericLine, GenericLines, GenericTableValue, IEmitCode, IRParser, IntArrayBuilder, LowerMatrixIR, MatrixHybridReader, TableRead, TableValue, TextReaderOptions}
+import is.hail.io.fs.FS
+import is.hail.rvd.RVDPartitioner
 import is.hail.types._
 import is.hail.types.physical._
+import is.hail.types.physical.stypes.concrete.{SIndexablePointerCode, SStringPointer}
+import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.virtual._
-import is.hail.rvd.{RVD, RVDContext, RVDPartitioner}
-import is.hail.sparkextras.ContextRDD
 import is.hail.utils._
-import is.hail.io.fs.{FS, FileStatus}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
-import org.json4s.{DefaultFormats, Extraction, Formats, JObject, JValue}
+import org.json4s.{DefaultFormats, Formats, JValue}
 
 import scala.collection.mutable
 import scala.io.Source
@@ -48,7 +46,8 @@ object TextMatrixReader {
     opts: TextMatrixReaderOptions
   ): TextMatrixHeaderInfo = {
     val maybeFirstTwoLines = using(fs.open(file)) { s =>
-      Source.fromInputStream(s).getLines().filter(!opts.isComment(_)).take(2).toArray.toSeq }
+      Source.fromInputStream(s).getLines().filter(!opts.isComment(_)).take(2).toArray.toSeq
+    }
 
     (opts.hasHeader, maybeFirstTwoLines) match {
       case (true, Seq()) =>
@@ -58,11 +57,11 @@ object TextMatrixReader {
         val headerValues = header.split(sep)
         if (headerValues.length < nRowFields) {
           fatal(
-            s"""File ${file} contains one line and you told me it had a header,
-               |so I expected to see at least the ${nRowFields} row field names
-               |on the header line, but instead I only saw ${headerValues.length}
+            s"""File ${ file } contains one line and you told me it had a header,
+               |so I expected to see at least the ${ nRowFields } row field names
+               |on the header line, but instead I only saw ${ headerValues.length }
                |separated values. The header was:
-               |    ${header}""".stripMargin)
+               |    ${ header }""".stripMargin)
         }
         TextMatrixHeaderInfo(
           headerValues,
@@ -85,14 +84,14 @@ object TextMatrixReader {
         } else {
           fatal(
             s"""In file $file, expected the header line to match either:
-               |    rowField0 rowField1 ... rowField${nRowFields} colId0 colId1 ...
+               |    rowField0 rowField1 ... rowField${ nRowFields } colId0 colId1 ...
                |or
                |    colId0 colId1 ...
                |Instead the first two lines were:
-               |    ${header.truncate}
-               |    ${dataLine.truncate}
-               |The first line contained ${nHeaderValues} separated values and the
-               |second line contained ${nSeparatedValues} separated values.""".stripMargin)
+               |    ${ header.truncate }
+               |    ${ dataLine.truncate }
+               |The first line contained ${ nHeaderValues } separated values and the
+               |second line contained ${ nSeparatedValues } separated values.""".stripMargin)
         }
       case (false, Seq()) =>
         warn(s"File $file is empty and has no header, so we assume no columns.")
@@ -137,14 +136,14 @@ object TextMatrixReader {
         case Some(t) => (name, t)
         case None =>
           val rowFieldsAsPython = fieldTypes
-            .map { case (fieldName, typ) => s"'${fieldName}': ${typ.toString}" }
+            .map { case (fieldName, typ) => s"'${ fieldName }': ${ typ.toString }" }
             .mkString("{", ",\n       ", "}")
           fatal(
-          s"""In file $fileName, found a row field, $name, that is not in `row_fields':
-             |    row fields found in file:
-             |      ${ fieldNames.mkString("\n      ") }
-             |    row_fields:
-             |      ${ rowFieldsAsPython }
+            s"""In file $fileName, found a row field, $name, that is not in `row_fields':
+               |    row fields found in file:
+               |      ${ fieldNames.mkString("\n      ") }
+               |    row_fields:
+               |      ${ rowFieldsAsPython }
            """.stripMargin)
       }
     }
@@ -167,18 +166,18 @@ object TextMatrixReader {
             if (header1.length != hd.length) {
               fatal(
                 s"""invalid header: lengths of headers differ.
-                   |    ${header1.length} elements in $header1Path
-                   |        ${header1.truncate}
-                   |    ${hd.length} elements in ${partitionPaths(i)}
-                   |        ${hd.truncate}""".stripMargin
+                   |    ${ header1.length } elements in $header1Path
+                   |        ${ header1.truncate }
+                   |    ${ hd.length } elements in ${ partitionPaths(i) }
+                   |        ${ hd.truncate }""".stripMargin
               )
             }
             header1.zip(hd).zipWithIndex.foreach { case ((s1, s2), j) =>
               if (s1 != s2) {
                 fatal(
                   s"""invalid header: expected elements to be identical for all input paths. Found different elements at position $j.
-                     |    ${header1Path}: $s1
-                     |    ${partitionPaths(i)}: $s2""".
+                     |    ${ header1Path }: $s1
+                     |    ${ partitionPaths(i) }: $s2""".
                     stripMargin)
               }
             }
@@ -217,7 +216,7 @@ object TextMatrixReader {
       fatal(
         s"""If no key is specified, `import_matrix_table`, uses 'row_id'
            |as the key, please provide a key or choose a different row field name.\n
-           |  Row field names: ${headerInfo.rowFieldNames}""".stripMargin)
+           |  Row field names: ${ headerInfo.rowFieldNames }""".stripMargin)
     }
     val rowFieldTypeWithoutRowId = verifyRowFields(
       fileStatuses.head.getPath, headerInfo.rowFieldNames, rowFields)
@@ -322,14 +321,14 @@ class TextMatrixReader(
 
     val globals = Row(headerInfo.columnIdentifiers.map(Row(_)).toFastIndexedSeq)
 
-    val bodyPType = (requestedRowType: TStruct) => PType.canonical(requestedRowType, required = true).asInstanceOf[PStruct]
+    val bodyPType = (requestedRowType: TStruct) => PType.canonical(requestedRowType, required = true).asInstanceOf[PCanonicalStruct]
 
     val body = { (requestedType: TStruct) =>
       val linesBody = lines.body
       val requestedPType = bodyPType(requestedType)
       val localOpts = opts
 
-      val partitionRowIdxGlobal = (0 until _partitionCounts.length - 1).scanLeft(0L) { case (acc, i) => acc + _partitionCounts(i)}.toArray
+      val partitionRowIdxGlobal = (0 until _partitionCounts.length - 1).scanLeft(0L) { case (acc, i) => acc + _partitionCounts(i) }.toArray
 
       val compiledLineParser = new CompiledLineParser(ctx,
         rowFieldType,
@@ -373,7 +372,7 @@ class TextMatrixReader(
     executeGeneric(ctx).toTableStage(ctx, requestedType)
 
   def apply(tr: TableRead, ctx: ExecuteContext): TableValue = {
-    executeGeneric(ctx).toTableValue(ctx,tr.typ)
+    executeGeneric(ctx).toTableValue(ctx, tr.typ)
   }
 
   override def toJValue: JValue = {
@@ -395,12 +394,12 @@ class MatrixParseError(
   val line: Long,
   val posStart: Int,
   val posEnd: Int
-) extends RuntimeException(s"${filename}:${posStart}-${posEnd}, ${msg}")
+) extends RuntimeException(s"${ filename }:${ posStart }-${ posEnd }, ${ msg }")
 
 class CompiledLineParser(
   ctx: ExecuteContext,
   onDiskRowFieldsType: TStruct,
-  rowPType: PStruct,
+  rowPType: PCanonicalStruct,
   nCols: Int,
   missingValue: String,
   separator: Char,
@@ -414,7 +413,7 @@ class CompiledLineParser(
   assert(!missingValue.contains(separator))
   @transient private[this] val entriesType = rowPType
     .selfField(MatrixType.entriesIdentifier)
-    .map(f => f.typ.asInstanceOf[PArray])
+    .map(f => f.typ.asInstanceOf[PCanonicalArray])
   @transient private[this] val rowFieldsType = rowPType
     .dropFields(Set(MatrixType.entriesIdentifier))
   @transient private[this] val fb = EmitFunctionBuilder[Region, String, Long, String, Long](ctx, "text_matrix_reader")
@@ -438,225 +437,233 @@ class CompiledLineParser(
 
 
   @transient private[this] val parseStringMb = fb.genEmitMethod[Region, String]("parseString")
-  parseStringMb.emit(parseString(parseStringMb))
+  parseStringMb.emitWithBuilder(parseString(_))
   @transient private[this] val parseIntMb = fb.genEmitMethod[Region, Int]("parseInt")
-  parseIntMb.emit(parseInt(parseIntMb))
+  parseIntMb.emitWithBuilder(parseInt(_))
   @transient private[this] val parseLongMb = fb.genEmitMethod[Region, Long]("parseLong")
-  parseLongMb.emit(parseLong(parseLongMb))
-  @transient private[this] val parseRowFieldsMb = fb.genEmitMethod[Region, Unit]("parseRowFields")
-  parseRowFieldsMb.emit(parseRowFields(parseRowFieldsMb))
+  parseLongMb.emitWithBuilder(parseLong(_))
 
-  @transient private[this] val parseEntriesMbOpt = entriesType.map { entriesType =>
-    val parseEntriesMb = fb.genEmitMethod[Region, Unit]("parseEntries")
-    parseEntriesMb.emit(parseEntries(parseEntriesMb, entriesType))
-    parseEntriesMb
+  @transient private[this] def parseEntriesOpt(cb: EmitCodeBuilder): Option[EmitCode] = entriesType.map { entriesType =>
+    val sc = parseEntries(cb, entriesType)
+    EmitCode.present(sc)
   }
 
-  mb.emit(Code(
-    pos := 0,
-    filename := _filename,
-    lineNumber := _lineNumber,
-    line := _line,
-    srvb.start(),
-    parseRowFieldsMb.invokeCode(region),
-    parseEntriesMbOpt.map(_.invokeCode(region)).getOrElse(Code._empty),
-    srvb.end()))
+  mb.emitWithBuilder[Long] { cb =>
+    cb.assign(pos, 0)
+    cb.assign(filename, _filename)
+    cb.assign(lineNumber, _lineNumber)
+    cb.assign(line, _line)
+    val rowFields = parseRowFields(cb)
+    val entries = parseEntriesOpt(cb)
+    rowPType.constructFromFields(cb, region, rowFields ++ entries, deepCopy = false).a
+  }
 
   private[this] val loadParserOnWorker = fb.result()
 
-  private[this] def parseError[T](msg: Code[String])(implicit tti: TypeInfo[T]): Code[T] =
-    Code._throw[MatrixParseError, T](Code.newInstance[MatrixParseError, String, String, Long, Int, Int](
+  private[this] def parseError(cb: EmitCodeBuilder, msg: Code[String]): Unit =
+    cb += Code._throw[MatrixParseError, Unit](Code.newInstance[MatrixParseError, String, String, Long, Int, Int](
       msg, filename, lineNumber, pos, pos + 1))
 
-  private[this] def numericValue(c: Code[Char]): Code[Int] =
-    Code.memoize(c, "clp_numeric_val_c") { c =>
-      ((c < const('0')) || (c > const('9'))).mux(
-        parseError[Int](const("invalid character '")
-          .concat(c.toS)
-          .concat("' in integer literal")),
-        (c - const('0')).toI)
-    }
+  private[this] def numericValue(cb: EmitCodeBuilder, cCode: Code[Char]): Code[Int] = {
+    val c = cb.newLocal[Char]("clp_numeric_val_c", cCode)
+    cb.ifx(c < const('0') || c > const('9'),
+      parseError(cb, const("invalid character '")
+        .concat(c.toS)
+        .concat("' in integer literal")))
+    (c - const('0')).toI
+  }
 
-  private[this] def endField(p: Code[Int]): Code[Boolean] =
-    Code.memoize(p, "clp_end_field_p") { p =>
-      p.ceq(line.length()) || line(p).ceq(const(separator))
-    }
+  private[this] def endField(cb: EmitCodeBuilder, p: Value[Int]): Code[Boolean] = {
+    p.ceq(line.length()) || line(p).ceq(const(separator))
+  }
 
-  private[this] def endField(): Code[Boolean] =
-    endField(pos)
+  private[this] def endField(cb: EmitCodeBuilder): Code[Boolean] =
+    endField(cb, pos)
 
-  private[this] def missingOr(
-    mb: EmitMethodBuilder[_],
-    srvb: StagedRegionValueBuilder,
-    parse: Code[Unit]
-  ): Code[Unit] = {
+  private[this] def parseOptionalValue(
+    cb: EmitCodeBuilder,
+    parse: EmitCodeBuilder => PCode
+  ): IEmitCode = {
     assert(missingValue.size > 0)
-    val end = mb.genFieldThisRef[Int]()
-    val condition = Code(
-      end := pos + missingValue.size,
-      end <= line.length && endField(end) &&
-      line.invoke[Int, String, Int, Int, Boolean]("regionMatches",
-        pos, missingValue, 0, missingValue.size))
-    condition.mux(
-      Code(
-        pos := end,
-        srvb.setMissing()),
-      parse)
+    val end = cb.newLocal[Int]("parse_optional_value_end", pos + missingValue.size)
+
+    val Ldefined1 = CodeLabel()
+    val Lmissing = CodeLabel()
+
+    cb.ifx(end <= line.length,
+      cb.ifx(endField(cb, end),
+        cb.ifx(line.invoke[Int, String, Int, Int, Boolean]("regionMatches",
+          pos, missingValue, 0, missingValue.size),
+          {
+            cb.assign(pos, end)
+            cb.goto(Lmissing)
+          },
+          cb.goto(Ldefined1)
+        ),
+        cb.goto(Ldefined1)),
+      cb.goto(Ldefined1))
+
+    cb.define(Ldefined1)
+    val pc = parse(cb)
+    val Ldefined2 = CodeLabel()
+    cb.goto(Ldefined2)
+
+    IEmitCode(Lmissing, Ldefined2, pc)
   }
 
-  private[this] def skipMissingOr(mb: EmitMethodBuilder[_], skip: Code[Unit]): Code[Unit] = {
+  private[this] def skipOptionalValue(cb: EmitCodeBuilder, skip: EmitCodeBuilder => Unit): Unit = {
     assert(missingValue.size > 0)
-    val end = mb.genFieldThisRef[Int]()
-    val condition = Code(
-      end := pos + missingValue.size,
-      end < line.length && endField(end) &&
-      line.invoke[Int, String, Int, Int, Boolean]("regionMatches",
-        pos, missingValue, 0, missingValue.size))
-    condition.mux(
-      pos := end,
-      skip)
+    val end = cb.newLocal[Int]("skip_optional_value_end", pos + missingValue.size)
+
+    val Ldefined = CodeLabel()
+    val Lfinished = CodeLabel()
+
+    cb.ifx(end <= line.length,
+      cb.ifx(endField(cb, end),
+        cb.ifx(line.invoke[Int, String, Int, Int, Boolean]("regionMatches",
+          pos, missingValue, 0, missingValue.size),
+          {
+            cb.assign(pos, end)
+            cb.goto(Lfinished)
+          },
+          cb.goto(Ldefined)
+        ),
+        cb.goto(Ldefined)),
+      cb.goto(Ldefined))
+
+    cb.define(Ldefined)
+    skip(cb)
+
+    cb.define(Lfinished)
   }
 
-  private[this] def parseInt(mb: EmitMethodBuilder[_]): Code[Int] = {
-    val mul = mb.newLocal[Int]("mul")
-    val v = mb.newLocal[Int]("v")
-    val c = mb.newLocal[Char]("c")
-    endField().mux(
-      parseError[Int]("empty integer literal"),
-      Code(
-        mul := 1,
-        (line(pos).ceq(const('-'))).orEmpty(
-          Code(
-            mul := -1,
-            pos := pos + 1)),
-        c := line(pos),
-        v := numericValue(c),
-        pos := pos + 1,
-        Code.whileLoop(!endField(),
-          c := line(pos),
-          v := v * 10 + numericValue(c),
-          pos := pos + 1),
-        v * mul))
-  }
+  private[this] def parseInt(cb: EmitCodeBuilder): Code[Int] = {
+    cb.ifx(endField(cb), parseError(cb, "empty integer literal"))
 
-  private[this] def parseLong(mb: EmitMethodBuilder[_]): Code[Long] = {
-    val mul = mb.newLocal[Long]("mulL")
-    val v = mb.newLocal[Long]("vL")
-    val c = mb.newLocal[Char]("c")
-    endField().mux(
-      parseError[Long](const("empty long literal at ")),
-      Code(
-        mul := 1L,
-        (line(pos).ceq(const('-'))).orEmpty(
-          Code(
-            mul := -1L,
-            pos := pos + 1)),
-        c := line(pos),
-        v := numericValue(c).toL,
-        pos := pos + 1,
-        Code.whileLoop(!endField(),
-          c := line(pos),
-          v := v * 10L + numericValue(c).toL,
-          pos := pos + 1),
-        v * mul))
-  }
-
-  private[this] def parseString(mb: EmitMethodBuilder[_]): Code[String] = {
-    val start = mb.newLocal[Int]("start")
-    Code(
-      start := pos,
-      Code.whileLoop(!endField(),
-        pos := pos + 1),
-      line.invoke[Int, Int, String]("substring", start, pos))
-  }
-
-  private[this] def parseType(mb: EmitMethodBuilder[_], srvb: StagedRegionValueBuilder, t: PType): Code[Unit] = {
-    val parseDefinedValue = t match {
-      case _: PInt32 =>
-        srvb.addInt(parseIntMb.invokeCode(region))
-      case _: PInt64 =>
-        srvb.addLong(parseLongMb.invokeCode(region))
-      case _: PFloat32 =>
-        srvb.addFloat(
-          Code.invokeStatic1[java.lang.Float, String, Float]("parseFloat", parseStringMb.invokeCode(region)))
-      case _: PFloat64 =>
-        srvb.addDouble(
-          Code.invokeStatic1[java.lang.Double, String, Double]("parseDouble", parseStringMb.invokeCode(region)))
-      case _: PString =>
-        srvb.addString(parseStringMb.invokeCode(region))
-    }
-    if (t.required) parseDefinedValue else missingOr(mb, srvb, parseDefinedValue)
-  }
-
-  private[this] def skipType(mb: EmitMethodBuilder[_], t: PType): Code[Unit] = {
-    val skipDefinedValue = Code.whileLoop(!endField(), pos := pos + 1)
-    if (t.required) skipDefinedValue else skipMissingOr(mb, skipDefinedValue)
-  }
-
-  private[this] def parseRowFields(mb: EmitMethodBuilder[_]): Code[_] = {
-    var inputIndex = 0
-    var outputIndex = 0
-    assert(onDiskRowFieldsType.size >= rowFieldsType.size)
-    val ab = new BoxedArrayBuilder[Code[Unit]]()
-    while (inputIndex < onDiskRowFieldsType.size) {
-      val onDiskField = onDiskRowFieldsType.fields(inputIndex)
-      val onDiskPType = PType.canonical(onDiskField.typ) // will always be optional
-      val requestedField =
-        if (outputIndex < rowFieldsType.size)
-          rowFieldsType.fields(outputIndex)
-        else
-          null
-      if (requestedField == null || onDiskField.name != requestedField.name) {
-        if (onDiskField.name != "row_id") {
-          ab += Code(
-            skipType(mb, onDiskPType),
-            pos := pos + 1)
-        }
-      } else {
-        assert(onDiskPType == requestedField.typ)
-        val parseAndAddField =
-          if (onDiskField.name == "row_id") srvb.addLong(lineNumber)
-          else Code(
-            parseType(mb, srvb, onDiskPType),
-            pos := pos + 1)
-        ab += (pos < line.length).mux(
-          parseAndAddField,
-          parseError[Unit](
-            const("unexpected end of line while reading row field ")
-              .concat(onDiskField.name)))
-        ab += srvb.advance()
-        outputIndex += 1
-      }
-      inputIndex += 1
-    }
-    assert(outputIndex == rowFieldsType.size)
-    Code(ab.result())
-  }
-
-  private[this] def parseEntries(mb: EmitMethodBuilder[_], entriesType: PArray): Code[Unit] = {
-    val i = mb.newLocal[Int]("i")
-    val entryType = entriesType.elementType.asInstanceOf[PStruct]
-    assert(entryType.fields.size == 1)
-    srvb.addArray(entriesType, { srvb =>
-      Code(
-        srvb.start(nCols),
-        i := 0,
-        Code.whileLoop(i < nCols,
-          srvb.addBaseStruct(entryType, { srvb =>
-            Code(
-              srvb.start(),
-              (pos >= line.length).mux(
-                parseError[Unit](
-                  const("unexpected end of line while reading entry ")
-                    .concat(i.toS)),
-                Code._empty),
-              parseType(mb, srvb, entryType.fields(0).typ),
-              pos := pos + 1,
-              srvb.advance())
-          }),
-          srvb.advance(),
-          i := i + 1))
+    val mul = cb.newLocal[Int]("mul", 1)
+    cb.ifx(line(pos).ceq(const('-')), {
+      cb.assign(mul, -1)
+      cb.assign(pos, pos + 1)
     })
+    val c = cb.newLocal[Char]("c", line(pos))
+    val v = cb.newLocal[Int]("v", numericValue(cb, c))
+    cb.assign(pos, pos + 1)
+
+    cb.whileLoop(!endField(cb), {
+      cb.assign(c, line(pos))
+      cb.assign(v, v * const(10) + numericValue(cb, c))
+      cb.assign(pos, pos + 1)
+    })
+    v * mul
+  }
+
+  private[this] def parseLong(cb: EmitCodeBuilder): Code[Long] = {
+    cb.ifx(endField(cb), parseError(cb, "empty integer literal"))
+
+    val mul = cb.newLocal[Long]("mulL", 1L)
+    cb.ifx(line(pos).ceq(const('-')), {
+      cb.assign(mul, -1L)
+      cb.assign(pos, pos + 1)
+    })
+    val c = cb.newLocal[Char]("cL", line(pos))
+    val v = cb.newLocal[Long]("vL", numericValue(cb, c).toL)
+    cb.assign(pos, pos + 1)
+
+    cb.whileLoop(!endField(cb), {
+      cb.assign(c, line(pos))
+      cb.assign(v, v * const(10L) + numericValue(cb, c).toL)
+      cb.assign(pos, pos + 1)
+    })
+    v * mul
+  }
+
+  private[this] def parseString(cb: EmitCodeBuilder): Code[String] = {
+    val start = cb.newLocal[Int]("start", pos)
+    cb.whileLoop(!endField(cb),
+      cb.assign(pos, pos + 1))
+    line.invoke[Int, Int, String]("substring", start, pos)
+  }
+
+  private[this] def parseValueOfType(cb: EmitCodeBuilder, t: PType): IEmitCode = {
+    def parseDefinedValue(cb: EmitCodeBuilder): PCode = t match {
+      case t: PInt32 =>
+        PCode(t, cb.invokeCode[Int](parseIntMb, region))
+      case t: PInt64 =>
+        PCode(t, cb.invokeCode[Long](parseLongMb, region))
+      case t: PFloat32 =>
+        PCode(t, Code.invokeStatic1[java.lang.Float, String, Float]("parseFloat", cb.invokeCode(parseStringMb, region)))
+      case t: PFloat64 =>
+        PCode(t, Code.invokeStatic1[java.lang.Double, String, Double]("parseDouble", cb.invokeCode(parseStringMb, region)))
+      case t: PString =>
+        val st = SStringPointer(t)
+        st.constructFromString(cb, region, cb.invokeCode[String](parseStringMb, region))
+    }
+    if (t.required)
+      IEmitCode.present(cb, parseDefinedValue(cb))
+    else
+      parseOptionalValue(cb, parseDefinedValue)
+  }
+
+  private[this] def skipValueOfType(cb: EmitCodeBuilder, t: PType): Unit = {
+    def skipDefinedValue(cb: EmitCodeBuilder): Unit = {
+      cb.whileLoop(!endField(cb), cb.assign(pos, pos + 1))
+    }
+
+    if (t.required) skipDefinedValue(cb) else skipOptionalValue(cb, skipDefinedValue)
+  }
+
+  private[this] def parseRowFields(cb: EmitCodeBuilder): Array[EmitCode] = {
+    assert(onDiskRowFieldsType.size >= rowFieldsType.size)
+
+    // need to be careful to ensure parsing code is directly appended to code builder, not EmitCode block
+    val fieldEmitCodes = new Array[EmitCode](rowFieldsType.size)
+
+    onDiskRowFieldsType.fields.foreach { onDiskField =>
+      rowPType.selfField(onDiskField.name) match {
+
+        case Some(requestedField) =>
+          val reqFieldType = requestedField.typ
+          val reqIndex = requestedField.index
+
+
+          val ec = if (onDiskField.name == "row_id")
+            EmitCode.present(primitive(lineNumber))
+          else {
+            cb.ifx(pos >= line.length,
+              parseError(cb, const("unexpected end of line while reading row field ")
+              .concat(onDiskField.name)))
+            val ev = parseValueOfType(cb, reqFieldType).memoize(cb, s"field_${onDiskField.name}")
+            cb.assign(pos, pos + 1)
+            ev.load
+          }
+
+          fieldEmitCodes(reqIndex) = ec
+
+        case None =>
+          skipValueOfType(cb, PType.canonical(onDiskField.typ))  // will always be optional
+          cb.assign(pos, pos + 1)
+      }
+    }
+    fieldEmitCodes
+  }
+
+  private[this] def parseEntries(cb: EmitCodeBuilder, entriesType: PCanonicalArray): SIndexablePointerCode = {
+    val entryType = entriesType.elementType.asInstanceOf[PCanonicalStruct]
+    assert(entryType.fields.size == 1)
+    val (nextAddress, _, finish) = entriesType.constructFromNextAddress(cb, region, nCols, deepCopy = false)
+
+    val i = cb.newLocal[Int]("i", 0)
+    cb.whileLoop(i < nCols, {
+      val nextAddr = nextAddress(cb)
+
+      cb.ifx(pos >= line.length, parseError(cb, const("unexpected end of line while reading entry ").concat(i.toS)))
+
+      val ec = EmitCode.fromI(cb.emb)(cb => parseValueOfType(cb, entryType.fields(0).typ))
+      entryType.storeAtAddressFromFields(cb, nextAddr, region, FastIndexedSeq(ec), deepCopy = false)
+      cb.assign(pos, pos + 1)
+      cb.assign(i, i + 1)
+    })
+    finish(cb)
   }
 
   def apply(
