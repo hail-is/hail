@@ -31,6 +31,7 @@ abstract class PNDArray extends PType {
 
   def loadShapes(cb: EmitCodeBuilder, addr: Value[Long], settables: IndexedSeq[Settable[Long]]): Unit
   def loadStrides(cb: EmitCodeBuilder, addr: Value[Long], settables: IndexedSeq[Settable[Long]]): Unit
+  def unstagedLoadStrides(addr: Long): IndexedSeq[Long]
 
   def numElements(shape: IndexedSeq[Value[Long]]): Code[Long]
   
