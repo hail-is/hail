@@ -487,7 +487,6 @@ class CompiledLineParser(
     assert(missingValue.size > 0)
     val end = cb.newLocal[Int]("parse_optional_value_end", pos + missingValue.size)
 
-    val Ldefined1 = CodeLabel()
     val Lmissing = CodeLabel()
 
     cb.ifx(end <= line.length,
@@ -497,25 +496,19 @@ class CompiledLineParser(
           {
             cb.assign(pos, end)
             cb.goto(Lmissing)
-          },
-          cb.goto(Ldefined1)
-        ),
-        cb.goto(Ldefined1)),
-      cb.goto(Ldefined1))
+          })))
 
-    cb.define(Ldefined1)
     val pc = parse(cb)
-    val Ldefined2 = CodeLabel()
-    cb.goto(Ldefined2)
+    val Ldefined = CodeLabel()
+    cb.goto(Ldefined)
 
-    IEmitCode(Lmissing, Ldefined2, pc)
+    IEmitCode(Lmissing, Ldefined, pc)
   }
 
   private[this] def skipOptionalValue(cb: EmitCodeBuilder, skip: EmitCodeBuilder => Unit): Unit = {
     assert(missingValue.size > 0)
     val end = cb.newLocal[Int]("skip_optional_value_end", pos + missingValue.size)
 
-    val Ldefined = CodeLabel()
     val Lfinished = CodeLabel()
 
     cb.ifx(end <= line.length,
@@ -525,13 +518,8 @@ class CompiledLineParser(
           {
             cb.assign(pos, end)
             cb.goto(Lfinished)
-          },
-          cb.goto(Ldefined)
-        ),
-        cb.goto(Ldefined)),
-      cb.goto(Ldefined))
+          })))
 
-    cb.define(Ldefined)
     skip(cb)
 
     cb.define(Lfinished)
