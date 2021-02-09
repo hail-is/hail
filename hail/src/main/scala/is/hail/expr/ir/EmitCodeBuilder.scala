@@ -139,11 +139,11 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
     _invoke[T](callee, args: _*)
   }
 
-  def invokeEmit(cb: EmitCodeBuilder, callee: EmitMethodBuilder[_], args: Param*): IEmitCode = {
+  def invokeEmit(callee: EmitMethodBuilder[_], args: Param*): IEmitCode = {
     val pt = callee.emitReturnType.asInstanceOf[EmitParamType].pt
     val r = newLocal("invokeEmit_r")(pt.codeReturnType())
-    cb.assignAny(r, _invoke(callee, args: _*))
-    IEmitCode.fromCodeTuple(cb, pt, Code.loadTuple(callee.modb, EmitCode.codeTupleTypes(pt), r))
+    assignAny(r, _invoke(callee, args: _*))
+    IEmitCode.fromCodeTuple(this, pt, Code.loadTuple(callee.modb, EmitCode.codeTupleTypes(pt), r))
   }
 
   // for debugging
