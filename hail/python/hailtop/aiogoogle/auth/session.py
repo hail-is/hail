@@ -78,7 +78,9 @@ class Session(BaseSession):
             kwargs['headers'].update(auth_headers)
         else:
             kwargs['headers'] = auth_headers
-        retry = kwargs.pop('retry', None)
+
+        # retry by default
+        retry = kwargs.pop('retry', True)
         if retry:
             return await request_retry_transient_errors(self._session, method, url, **kwargs)
         return await self._session.request(method, url, **kwargs)
