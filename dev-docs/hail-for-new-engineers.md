@@ -80,9 +80,9 @@ aggregates, the resulting aggregated value is converted to a Python value and re
 ### Hail Batch
 
 Hail Batch is a system for executing arbitrary Linux programs. Each invocation of a program is
-called a "job". Zero or more jobs compose a Batch. Moreover, jobs may depend on the files written by
-other jobs in the same Batch. The job dependencies are allowed to form any [directed, acyclic graph
-(DAG)](https://en.wikipedia.org/wiki/Directed_acyclic_graph).
+called a "job". Zero or more jobs comprise a Batch. Moreover, jobs may depend on the files written
+by other jobs in the same Batch. The job dependencies are allowed to form any [directed, acyclic
+graph (DAG)](https://en.wikipedia.org/wiki/Directed_acyclic_graph).
 
 Users create batches and jobs using a Python library: `hailtop.batch`.
 
