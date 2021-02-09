@@ -1,10 +1,17 @@
 #!/bin/sh
 set -e
 
-gcloud -q auth activate-service-account \
-  --key-file=/secrets/gcr-pull.json
+gcloud_auth() {
+    gcloud -q auth activate-service-account --key-file=/secrets/gcr-pull.json && \
+        gcloud -q auth configure-docker gcr.io
+}
 
-gcloud -q auth configure-docker
+if ! gcloud_auth > gcloud-auth.log 2>&1; then
+    1>&2 cat gcloud-auth.log
+    exit 1
+else
+    cat gcloud-auth.log
+fi
 
 DEFAULT_NAMESPACE=$(jq -r '.default_namespace' < /deploy-config/deploy-config.json)
 case $DEFAULT_NAMESPACE in

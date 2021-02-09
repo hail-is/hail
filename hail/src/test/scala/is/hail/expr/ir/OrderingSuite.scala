@@ -36,10 +36,10 @@ class OrderingSuite extends HailSuite {
   ): AsmFunction3[Region, Long, Long, op.ReturnType] = {
     implicit val x = op.rtti
     val fb = EmitFunctionBuilder[Region, Long, Long, op.ReturnType](ctx, "lifted")
-    val cv1 = Region.getIRIntermediate(t)(fb.getCodeParam[Long](2))
-    val cv2 = Region.getIRIntermediate(t)(fb.getCodeParam[Long](3))
     fb.emitWithBuilder { cb =>
-      fb.apply_method.getCodeOrdering(t, op)(cb, EmitCode.present(t, cv1), EmitCode.present(t, cv2))
+      val cv1 = t.loadCheapPCode(cb, fb.getCodeParam[Long](2))
+      val cv2 = t.loadCheapPCode(cb, fb.getCodeParam[Long](3))
+      fb.apply_method.getCodeOrdering(t, op)(cb, EmitCode.present(cb.emb, cv1), EmitCode.present(cb.emb, cv2))
     }
     fb.resultWithIndex()(0, r)
   }
@@ -53,13 +53,13 @@ class OrderingSuite extends HailSuite {
     ): AsmFunction5[Region, Boolean, Long, Boolean, Long, op.ReturnType] = {
       implicit val x = op.rtti
       val fb = EmitFunctionBuilder[Region, Boolean, Long, Boolean, Long, op.ReturnType](ctx, "lifted")
-      val m1 = fb.getCodeParam[Boolean](2)
-      val cv1 = Region.getIRIntermediate(t)(fb.getCodeParam[Long](3))
-      val m2 = fb.getCodeParam[Boolean](4)
-      val cv2 = Region.getIRIntermediate(t)(fb.getCodeParam[Long](5))
       fb.emitWithBuilder { cb =>
-        val ev1 = EmitCode(Code._empty, m1, PCode(t, cv1))
-        val ev2 = EmitCode(Code._empty, m2, PCode(t, cv2))
+        val m1 = fb.getCodeParam[Boolean](2)
+        val cv1 = t.loadCheapPCode(cb, fb.getCodeParam[Long](3))
+        val m2 = fb.getCodeParam[Boolean](4)
+        val cv2 = t.loadCheapPCode(cb, fb.getCodeParam[Long](5))
+        val ev1 = EmitCode(Code._empty, m1, cv1)
+        val ev2 = EmitCode(Code._empty, m2, cv2)
         fb.apply_method.getCodeOrdering(t, op)(cb, ev1, ev2)
       }
       fb.resultWithIndex()(0, r)
@@ -455,7 +455,7 @@ class OrderingSuite extends HailSuite {
         val cetuple = fb.getCodeParam[Long](3)
 
         val bs = new BinarySearch(fb.apply_method, pset, pset.elementType, keyOnly = false)
-        fb.emit(bs.getClosestIndex(cset, false, Region.loadIRIntermediate(pt)(pTuple.fieldOffset(cetuple, 0))))
+        fb.emitWithBuilder(cb => bs.getClosestIndex(cset, false, pt.loadCheapPCode(cb, pTuple.loadField(cetuple, 0)).code))
 
         val asArray = SafeIndexedSeq(pArray, soff)
 
@@ -492,8 +492,7 @@ class OrderingSuite extends HailSuite {
 
         val bs = new BinarySearch(fb.apply_method, pDict, pDict.keyType, keyOnly = true)
         val m = ptuple.isFieldMissing(cktuple, 0)
-        val v = Region.loadIRIntermediate(pDict.keyType)(ptuple.fieldOffset(cktuple, 0))
-        fb.emit(bs.getClosestIndex(cdict, m, v))
+        fb.emitWithBuilder(cb => bs.getClosestIndex(cdict, m, pDict.keyType.loadCheapPCode(cb, ptuple.loadField(cktuple, 0)).code))
 
         val asArray = SafeIndexedSeq(PCanonicalArray(pDict.elementType), soff)
 

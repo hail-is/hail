@@ -466,7 +466,8 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
   }
 
   // unsafe StagedArrayBuilder-like interface that gives caller control over adding elements and finishing
-  def constructFromNextAddress(cb: EmitCodeBuilder, region: Value[Region], length: Value[Int], deepCopy: Boolean):
+  // this won't need to exist when we have SStackStruct
+  def constructFromNextAddress(cb: EmitCodeBuilder, region: Value[Region], length: Value[Int]):
   ((EmitCodeBuilder => Value[Long], (EmitCodeBuilder => Unit), (EmitCodeBuilder => SIndexablePointerCode))) = {
 
     val addr = cb.newLocal[Long]("pcarray_construct2_addr", allocate(region, length))
@@ -495,25 +496,30 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
     (nextAddr, setMissing, finish)
   }
 
-  // unsafe StagedArrayBuilder-like interface that gives caller control over adding elements and finishing
+  // unsafe StagedArrayBuilder-like interface that gives caller control over pushing elements and finishing
   def constructFromFunctions(cb: EmitCodeBuilder, region: Value[Region], length: Value[Int], deepCopy: Boolean):
-  (((EmitCodeBuilder, Value[Int], IEmitCode) => Unit, (EmitCodeBuilder => SIndexablePointerCode))) = {
+  (((EmitCodeBuilder, IEmitCode) => Unit, (EmitCodeBuilder => SIndexablePointerCode))) = {
 
     val addr = cb.newLocal[Long]("pcarray_construct2_addr", allocate(region, length))
     cb += stagedInitialize(addr, length, setMissing = false)
-    val i = cb.newLocal[Int]("pcarray_construct2_i", 0)
+    val currentElementIndex = cb.newLocal[Int]("pcarray_construct2_current_idx", 0)
+    val currentElementAddress = cb.newLocal[Long]("pcarray_construct2_current_addr", firstElementOffset(addr, length))
 
-    val firstElementAddr = cb.newLocal[Long]("pcarray_construct2_firstelementaddr", firstElementOffset(addr, length))
-
-    val addElement: (EmitCodeBuilder, Value[Int], IEmitCode) => Unit = { case (cb, i, iec) =>
+    val push: (EmitCodeBuilder, IEmitCode) => Unit = { case (cb, iec) =>
       iec.consume(cb,
-        cb += setElementMissing(addr, i),
+        cb += setElementMissing(addr, currentElementIndex),
         { sc =>
-          elementType.storeAtAddress(cb, elementOffsetFromFirst(firstElementAddr, i), region, sc, deepCopy = deepCopy)
+          elementType.storeAtAddress(cb, currentElementAddress, region, sc, deepCopy = deepCopy)
         })
+        cb.assign(currentElementIndex, currentElementIndex + 1)
+        cb.assign(currentElementAddress, currentElementAddress + elementByteSize)
     }
-    val finish: EmitCodeBuilder => SIndexablePointerCode = _ => new SIndexablePointerCode(SIndexablePointer(this), addr)
-    (addElement, finish)
+    val finish: EmitCodeBuilder => SIndexablePointerCode = { (cb: EmitCodeBuilder) =>
+      cb.ifx(currentElementIndex.cne(length), cb._fatal("PCanonicalArray.constructFromFunctions push was called the wrong number of times: len=",
+        length.toS, ", calls=", currentElementIndex.toS))
+      new SIndexablePointerCode(SIndexablePointer(this), addr)
+    }
+    (push, finish)
   }
 
   def constructFromStream(

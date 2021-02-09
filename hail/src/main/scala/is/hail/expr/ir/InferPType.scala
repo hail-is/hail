@@ -38,10 +38,8 @@ object InferPType {
 
   def newBuilder[T](n: Int): AAB[T] = Array.fill(n)(new BoxedArrayBuilder[RecursiveArrayBuilderElement[T]])
 
-  def apply(ir: IR, env: Env[PType]): Unit = {
+  def apply(ir: IR, env: Env[PType], requiredness: RequirednessAnalysis, usesAndDefs: UsesAndDefs): Unit = {
     try {
-      val usesAndDefs = ComputeUsesAndDefs(ir, errorIfFreeVariables = false)
-      val requiredness = Requiredness.apply(ir, usesAndDefs, null, env) // Value IR inference doesn't need context
       requiredness.states.m.foreach { case (ir, types) =>
         ir.t match {
           case x: StreamFold => x.accPTypes = types.map(r => r.canonicalPType(x.zero.typ)).toArray
@@ -61,6 +59,12 @@ object InferPType {
       if (node._pType == null)
         throw new RuntimeException(s"ptype inference failure: node not inferred:\n${Pretty(node)}\n ** Full IR: **\n${Pretty(ir)}")
     }
+  }
+
+  def apply(ir: IR, env: Env[PType]): Unit = {
+    val usesAndDefs = ComputeUsesAndDefs(ir, errorIfFreeVariables = false)
+    val requiredness = Requiredness.apply(ir, usesAndDefs, null, env) // Value IR inference doesn't need context
+    apply(ir, env, requiredness, usesAndDefs)
   }
 
   private def lookup(name: String, r: TypeWithRequiredness, defNode: IR): PType = defNode match {

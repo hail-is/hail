@@ -121,13 +121,13 @@ class VCFTests(unittest.TestCase):
     def test_call_fields(self):
         expected = hl.Table.parallelize(
             [hl.struct(locus = hl.locus("X", 16050036), s = "C1046::HG02024",
-                       GT = hl.call(0, 0), GTA = hl.null(hl.tcall), GTZ = hl.call(0, 1)),
+                       GT = hl.call(0, 0), GTA = hl.missing(hl.tcall), GTZ = hl.call(0, 1)),
              hl.struct(locus = hl.locus("X", 16050036), s = "C1046::HG02025",
-                       GT = hl.call(1), GTA = hl.null(hl.tcall), GTZ = hl.call(0)),
+                       GT = hl.call(1), GTA = hl.missing(hl.tcall), GTZ = hl.call(0)),
              hl.struct(locus = hl.locus("X", 16061250), s = "C1046::HG02024",
                        GT = hl.call(2, 2), GTA = hl.call(2, 1), GTZ = hl.call(1, 1)),
              hl.struct(locus = hl.locus("X", 16061250), s = "C1046::HG02025",
-                       GT = hl.call(2), GTA = hl.null(hl.tcall), GTZ = hl.call(1))],
+                       GT = hl.call(2), GTA = hl.missing(hl.tcall), GTZ = hl.call(1))],
             key=['locus', 's'])
 
         mt = hl.import_vcf(resource('generic.vcf'), call_fields=['GT', 'GTA', 'GTZ'])
@@ -431,9 +431,9 @@ class VCFTests(unittest.TestCase):
                         includes_end=True)
         ]
         vcfs = [transform_one(mt.annotate_rows(info=mt.info.annotate(
-            MQ_DP=hl.null(hl.tint32),
-            VarDP=hl.null(hl.tint32),
-            QUALapprox=hl.null(hl.tint32))))
+            MQ_DP=hl.missing(hl.tint32),
+            VarDP=hl.missing(hl.tint32),
+            QUALapprox=hl.missing(hl.tint32))))
                 for mt in hl.import_gvcfs(paths, parts, reference_genome='GRCh38',
                                          array_elements_required=False)]
         comb = combine_gvcfs(vcfs)
@@ -667,8 +667,8 @@ class PLINKTests(unittest.TestCase):
         mt = get_dataset()
         mt = mt.select_rows(rsid=hl.delimit([mt.locus.contig, hl.str(mt.locus.position), mt.alleles[0], mt.alleles[1]], ':'),
                             cm_position=15.0)
-        mt = mt.select_cols(fam_id=hl.null(hl.tstr), pat_id=hl.null(hl.tstr), mat_id=hl.null(hl.tstr),
-                            is_female=hl.null(hl.tbool), is_case=hl.null(hl.tbool))
+        mt = mt.select_cols(fam_id=hl.missing(hl.tstr), pat_id=hl.missing(hl.tstr), mat_id=hl.missing(hl.tstr),
+                            is_female=hl.missing(hl.tbool), is_case=hl.missing(hl.tbool))
         mt = mt.select_entries('GT')
 
         bfile = '/tmp/test_import_export_plink'
@@ -1723,11 +1723,11 @@ class ImportMatrixTableTests(unittest.TestCase):
         mt = mt.key_rows_by()
         mt = mt.annotate_entries(
             x = hl.if_else(hl.str(mt.x) == missing,
-                           hl.null(entry_type),
+                           hl.missing(entry_type),
                            mt.x))
         mt = mt.annotate_rows(**{
             f: hl.if_else(hl.str(mt[f]) == missing,
-                          hl.null(mt[f].dtype),
+                          hl.missing(mt[f].dtype),
                           mt[f])
             for f in mt.row})
         mt = mt.key_rows_by(*row_key)

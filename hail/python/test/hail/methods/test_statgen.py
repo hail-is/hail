@@ -42,7 +42,7 @@ class Tests(unittest.TestCase):
                               True,
                               hl.if_else(plink_sex.SNPSEX == 1,
                                       False,
-                                      hl.null(hl.tbool))),
+                                      hl.missing(hl.tbool))),
             f_stat=plink_sex.F).key_by('s')
 
         sex = sex.select('is_female', 'f_stat')
@@ -1073,7 +1073,7 @@ class Tests(unittest.TestCase):
                 {'v': '1:3:C:G', 's': '1', 'GT': hl.Call([0, 1])},
                 {'v': '1:3:C:G', 's': '2', 'GT': hl.Call([0, 0])},
                 {'v': '1:3:C:G', 's': '3', 'GT': hl.Call([1, 1])},
-                {'v': '1:3:C:G', 's': '4', 'GT': hl.null(hl.tcall)}]
+                {'v': '1:3:C:G', 's': '4', 'GT': hl.missing(hl.tcall)}]
         ht = hl.Table.parallelize(data, hl.dtype('struct{v: str, s: str, GT: call}'))
         mt = ht.to_matrix_table(['v'], ['s'])
 
@@ -1112,7 +1112,7 @@ class Tests(unittest.TestCase):
                 {'v': '2:1:C:G',       'cm': 0.2, 's': 'a', 'GT': hl.Call([0, 1])},
                 {'v': '2:1:C:G',       'cm': 0.2, 's': 'b', 'GT': hl.Call([0, 0])},
                 {'v': '2:1:C:G',       'cm': 0.2, 's': 'c', 'GT': hl.Call([1, 1])},
-                {'v': '2:1:C:G',       'cm': 0.2, 's': 'd', 'GT': hl.null(hl.tcall)}]
+                {'v': '2:1:C:G',       'cm': 0.2, 's': 'd', 'GT': hl.missing(hl.tcall)}]
         ht = hl.Table.parallelize(data, hl.dtype('struct{v: str, s: str, cm: float64, GT: call}'))
         ht = ht.transmute(**hl.parse_variant(ht.v))
         mt = ht.to_matrix_table(row_key=['locus', 'alleles'], col_key=['s'], row_fields=['cm'])
@@ -1387,7 +1387,7 @@ class Tests(unittest.TestCase):
                                                False,
                                                hl.if_else(ds.pheno == 2.0,
                                                           True,
-                                                          hl.null(hl.tbool))))
+                                                          hl.missing(hl.tbool))))
 
         hl.skat(key_expr=ds.gene,
                 weight_expr=ds.weight,

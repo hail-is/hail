@@ -3,7 +3,7 @@ import json
 import logging
 import aiohttp
 from aiohttp import web
-import uvloop
+import uvloop  # type: ignore
 from gidgethub import aiohttp as gh_aiohttp
 from hailtop.utils import collect_agen, humanize_timedelta_msecs
 from hailtop.batch_client.aioclient import BatchClient

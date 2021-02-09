@@ -101,10 +101,14 @@ class HadoopFS(val conf: SerializableHadoopConfiguration) extends FS {
   def listStatus(filename: String): Array[FileStatus] = {
     val fs = getFileSystem(filename)
     val hPath = new hadoop.fs.Path(filename)
-    fs.globStatus(hPath)
-      .map(_.getPath)
-      .flatMap(fs.listStatus(_))
-      .map(new HadoopFileStatus(_))
+    var statuses = fs.globStatus(hPath)
+    if (statuses == null) {
+      throw new FileNotFoundException(filename)
+    } else {
+      statuses.map(_.getPath)
+        .flatMap(fs.listStatus(_))
+        .map(new HadoopFileStatus(_))
+    }
   }
 
   def mkDir(dirname: String): Unit = {

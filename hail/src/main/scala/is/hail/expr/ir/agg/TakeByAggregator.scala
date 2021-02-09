@@ -1,9 +1,8 @@
 package is.hail.expr.ir.agg
 
-import is.hail.annotations.{Region, StagedRegionValueBuilder}
-import is.hail.asm4s
+import is.hail.annotations.Region
 import is.hail.asm4s.{Code, _}
-import is.hail.expr.ir.{Ascending, EmitClassBuilder, EmitCode, EmitCodeBuilder, IEmitCode, ParamType, SortOrder}
+import is.hail.expr.ir.{Ascending, EmitClassBuilder, EmitCode, EmitCodeBuilder, ParamType, SortOrder}
 import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer}
 import is.hail.types.VirtualTypeWithReq
 import is.hail.types.physical._
@@ -69,7 +68,7 @@ class TakeByRVAS(val valueVType: VirtualTypeWithReq, val keyVType: VirtualTypeWi
     val k1 = cmp.getCodeParam(1)(indexedkeyTypeTypeInfo)
     val k2 = cmp.getCodeParam(2)(indexedkeyTypeTypeInfo)
 
-    cmp.emitWithBuilder(cb => ord.compare(cb , EmitCode.present(indexedKeyType, k1), EmitCode.present(indexedKeyType, k2)))
+    cmp.emitWithBuilder(cb => ord.compare(cb , EmitCode.present(cb.emb, PCode(indexedKeyType, k1)), EmitCode.present(cb.emb, PCode(indexedKeyType, k2))))
 
     cmp.invokeCode(_, _)
   }

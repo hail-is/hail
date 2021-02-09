@@ -82,7 +82,7 @@ class Tests(unittest.TestCase):
         t = ds.annotate_rows(liftover=hl.liftover(hl.liftover(ds.locus, 'GRCh38'), 'GRCh37')).rows()
         assert t.all(t.locus == t.liftover)
 
-        null_locus = hl.null(hl.tlocus('GRCh38'))
+        null_locus = hl.missing(hl.tlocus('GRCh38'))
 
         rows = [
             {'l37': hl.locus('20', 1, 'GRCh37'), 'l38': null_locus},
@@ -111,7 +111,7 @@ class Tests(unittest.TestCase):
         t.count()
         self.assertTrue(list(t.key) == ['l38'])
 
-        null_locus_interval = hl.null(hl.tinterval(hl.tlocus('GRCh38')))
+        null_locus_interval = hl.missing(hl.tinterval(hl.tlocus('GRCh38')))
         rows = [
             {'i37': hl.locus_interval('20', 1, 60000, True, False, 'GRCh37'), 'i38': null_locus_interval},
             {'i37': hl.locus_interval('20', 60001, 82456, True, True, 'GRCh37'),

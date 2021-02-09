@@ -191,11 +191,9 @@ class StagedBlockLinkedList(val elemType: PType, val kb: EmitClassBuilder[_]) {
   }
 
   def resultArray(cb: EmitCodeBuilder, region: Value[Region], resType: PCanonicalArray): SIndexablePointerCode = {
-    val (storeElement, finish) = resType.constructFromFunctions(cb, region, totalCount, deepCopy = true)
-    val idx = cb.newLocal[Int]("sbll_resultarray_i", 0)
+    val (pushElement, finish) = resType.constructFromFunctions(cb, region, totalCount, deepCopy = true)
     foreach(cb) { (cb, elt) =>
-      storeElement(cb, idx, elt.toI(cb))
-      cb.assign(idx, idx + 1)
+      pushElement(cb, elt.toI(cb))
     }
     finish(cb)
   }

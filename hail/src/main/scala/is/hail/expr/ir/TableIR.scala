@@ -501,7 +501,7 @@ case class PartitionRVDReader(rvd: RVD) extends PartitionReader {
               hasNext.orEmpty(next := upcastF.invoke[Region, Long, Long]("apply", eltRegion.code, Code.longValue(iterator.invoke[java.lang.Long]("next")))),
               k(COption(!hasNext, next))))
           .map(
-            pc => EmitCode.present(upcastPType, pc),
+            pc => EmitCode.present(cb.emb, PCode(upcastPType, pc)),
             setup0 = None,
             setup = Some(Code(iterator := broadcastRVD.invoke[Int, Region, Region, Iterator[Long]](
               "computePartition", EmitCodeBuilder.scopedCode[Int](mb)(idx.asInt.intCode(_)), eltRegion.code, outerRegion.code),
@@ -556,7 +556,7 @@ case class PartitionNativeReader(spec: AbstractTypedCodecSpec) extends AbstractN
             hasNext.orEmpty(next := dec(eltRegion.code, xRowBuf)),
             k(COption(!hasNext, next))))
         .map(
-          pc => EmitCode.present(eltType, pc),
+          pc => EmitCode.present(cb.emb, PCode(eltType, pc)),
           setup0 = None,
           setup = Some(xRowBuf := spec
             .buildCodeInputBuffer(mb.open(pathString, true)))))
@@ -616,7 +616,7 @@ case class PartitionNativeReaderIndexed(spec: AbstractTypedCodecSpec, indexSpec:
             hasNext.orEmpty(next := it.invoke[Long]("_next")),
             k(COption(!hasNext, next))))
         .map(
-          pc => EmitCode.present(eltType, pc),
+          pc => EmitCode.present(cb.emb, PCode(eltType, pc)),
           setup0 = None,
           setup = Some(
             EmitCodeBuilder.scopedVoid(mb) { cb =>
@@ -790,7 +790,7 @@ case class PartitionZippedNativeReader(specLeft: AbstractTypedCodecSpec, specRig
             hasNext.orEmpty(next := it.invoke[Long]("_next")),
             k(COption(!hasNext, next))))
         .map(
-          pc => EmitCode.present(eltType, pc),
+          pc => EmitCode.present(cb.emb, PCode(eltType, pc)),
           setup0 = None,
           setup = Some(
             EmitCodeBuilder.scopedVoid(mb) { cb =>

@@ -1,6 +1,6 @@
 package is.hail.expr.ir.agg
 
-import is.hail.annotations.{Region, StagedRegionValueBuilder}
+import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitCodeBuilder}
 import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer, TypedCodecSpec}
@@ -37,11 +37,11 @@ class StagedArrayBuilder(eltType: PType, kb: EmitClassBuilder[_], region: Value[
     cb.assign(tmpOff, src)
     cb.assign(size, Region.loadInt(currentSizeOffset(tmpOff)))
     cb.assign(capacity, Region.loadInt(capacityOffset(tmpOff)))
-    cb.assign(data, StagedRegionValueBuilder.deepCopyFromOffset(kb, region, eltArray, Region.loadAddress(dataOffset(tmpOff))))
+    cb.assign(data, eltArray.store(cb, region, eltArray.loadCheapPCode(cb, Region.loadAddress(dataOffset(tmpOff))), deepCopy = true))
   }
 
   def reallocateData(cb: EmitCodeBuilder): Unit = {
-    cb.assign(data, StagedRegionValueBuilder.deepCopyFromOffset(kb, region, eltArray, data))
+    cb.assign(data, eltArray.store(cb, region, eltArray.loadCheapPCode(cb, data), deepCopy = true))
   }
 
   def storeTo(cb: EmitCodeBuilder, dest: Code[Long]): Unit = {

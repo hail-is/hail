@@ -98,20 +98,27 @@ nohup /bin/bash run.sh >run.log 2>&1 &
 #!/bin/bash
 set -x
 
-# only allow udp/53 (dns) to metadata server
-# -I inserts at the head of the chain, so the ACCEPT rule runs first
-iptables -I DOCKER-USER -d 169.254.169.254 -j DROP
-iptables -I DOCKER-USER -d 169.254.169.254 -p udp -m udp --destination-port 53 -j ACCEPT
-
+# set up docker networks
 docker network create public --opt com.docker.network.bridge.name=public
 docker network create private --opt com.docker.network.bridge.name=private
-# make other docker containers not route-able
-iptables -I DOCKER-USER -i public -d 172.16.0.0/12 -j DROP
-# not used, but ban it anyway!
-iptables -I DOCKER-USER -i public -d 192.168.0.0/16 -j DROP
-
-# create network for batch-worker that allows metadata server
 docker network create batch-worker --opt com.docker.network.bridge.name=batch-worker
+
+# wait for docker to create the DOCKER-USER chain
+while ! iptables -L DOCKER-USER ; do sleep 1; done
+
+# [all docker] ban metadata server
+iptables -I DOCKER-USER           -d 169.254.169.254 -j DROP
+
+# [all docker] override: allow udp/53 (dns) to metadata server
+iptables -I DOCKER-USER           -d 169.254.169.254 -p udp -m udp --destination-port 53 -j ACCEPT
+
+# [public docker] ban inter-container communication
+iptables -I DOCKER-USER -i public -d 172.16.0.0/12   -j DROP
+
+# [public docker] ban unused ip address range
+iptables -I DOCKER-USER -i public -d 192.168.0.0/16  -j DROP
+
+# [batch worker] override: allow metadata server for batch worker
 iptables -I DOCKER-USER -i batch-worker -d 169.254.169.254 -j ACCEPT
 
 

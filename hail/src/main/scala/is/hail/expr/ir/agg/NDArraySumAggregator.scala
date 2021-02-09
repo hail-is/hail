@@ -106,7 +106,7 @@ class NDArraySumAggregator(ndVTyp: VirtualTypeWithReq) extends StagedAggregator 
   }
 
   protected def _storeResult(cb: EmitCodeBuilder, state: State, pt: PType, addr: Value[Long], region: Value[Region], ifMissing: EmitCodeBuilder => Unit): Unit = {
-    state.get().toI(cb).consume(cb,
+    state.get(cb).consume(cb,
       ifMissing(cb),
       { sc => pt.storeAtAddress(cb, addr, region, sc, deepCopy = true) })
   }
