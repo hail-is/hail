@@ -2,11 +2,11 @@ package is.hail.types.physical
 
 import is.hail.annotations._
 import is.hail.asm4s._
-import is.hail.expr.ir.EmitCodeBuilder
+import is.hail.expr.ir.{EmitCode, EmitCodeBuilder}
 import is.hail.types.physical.stypes.SCode
 import is.hail.types.physical.stypes.concrete.{SIntervalPointer, SIntervalPointerCode}
 import is.hail.types.virtual.{TInterval, Type}
-import is.hail.utils.Interval
+import is.hail.utils.{FastIndexedSeq, Interval}
 import org.apache.spark.sql.Row
 
 final case class PCanonicalInterval(pointType: PType, override val required: Boolean = false) extends PInterval {
@@ -23,7 +23,7 @@ final case class PCanonicalInterval(pointType: PType, override val required: Boo
     sb.append("]")
   }
 
-  val representation: PStruct = PCanonicalStruct(
+  val representation: PCanonicalStruct = PCanonicalStruct(
     required,
     "start" -> pointType,
     "end" -> pointType,
@@ -119,5 +119,11 @@ final case class PCanonicalInterval(pointType: PType, override val required: Boo
     val addr = representation.allocate(region)
     unstagedStoreJavaObjectAtAddress(addr, annotation, region)
     addr
+  }
+
+  def constructFromCodes(cb: EmitCodeBuilder, region: Value[Region],
+    start: EmitCode, end: EmitCode, includesStart: EmitCode, includesEnd: EmitCode): SIntervalPointerCode = {
+    val sc = representation.constructFromFields(cb, region, FastIndexedSeq(start, end, includesStart, includesEnd), deepCopy = false)
+    new SIntervalPointerCode(SIntervalPointer(this), sc.a)
   }
 }
