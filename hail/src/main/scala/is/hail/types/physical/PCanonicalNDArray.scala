@@ -218,7 +218,7 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
     strides: IndexedSeq[Value[Long]],
     cb: EmitCodeBuilder,
     region: Value[Region]
-  )(writeDataToAddress: (Value[Long], EmitCodeBuilder) => Unit):  SNDArrayPointerCode = {
+  ): (Value[Long], EmitCodeBuilder =>  SNDArrayPointerCode) = {
 
     val ndAddr = cb.newLocal[Long]("ndarray_construct_addr")
     cb.assign(ndAddr, this.allocate(shape, region))
@@ -237,9 +237,8 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
     val newFirstElementDataPointer = cb.newLocal[Long]("ndarray_construct_first_element_pointer", this.dataFirstElementPointer(ndAddr))
 
     cb.append(dataType.stagedInitialize(newDataPointer, this.numElements(shape).toI))
-    writeDataToAddress(newFirstElementDataPointer, cb)
 
-    new SNDArrayPointerCode(SNDArrayPointer(this), ndAddr)
+    (newFirstElementDataPointer, (cb: EmitCodeBuilder) => new SNDArrayPointerCode(SNDArrayPointer(this), ndAddr))
   }
 
   def unstagedConstructDataFunction(
@@ -352,14 +351,16 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
         val oldND = value.asNDArray.memoize(cb, "pcanonical_ndarray_store_old")
         val shape = oldND.shapes(cb)
         val newStrides = makeColumnMajorStrides(shape, region, cb)
-        this.constructDataFunction(shape, newStrides, cb, region) { (targetDataFirstElementAddr, cb) =>
-          val currentOffset = cb.newLocal[Long]("pcanonical_ndarray_store_offset", targetDataFirstElementAddr)
-          SNDArray.forEachIndex(cb, shape, "PCanonicalNDArray_store") { (cb, currentIndices) =>
-            val oldElement = oldND.loadElement(currentIndices, cb)
-            elementType.storeAtAddress(cb, currentOffset, region, oldElement, true)
-            cb.assign(currentOffset, currentOffset + elementType.byteSize)
-          }
-        }.a
+        val (targetDataFirstElementAddr, finish) = this.constructDataFunction(shape, newStrides, cb, region)
+
+        val currentOffset = cb.newLocal[Long]("pcanonical_ndarray_store_offset", targetDataFirstElementAddr)
+        SNDArray.forEachIndex(cb, shape, "PCanonicalNDArray_store") { (cb, currentIndices) =>
+          val oldElement = oldND.loadElement(currentIndices, cb)
+          elementType.storeAtAddress(cb, currentOffset, region, oldElement, true)
+          cb.assign(currentOffset, currentOffset + elementType.byteSize)
+        }
+
+        finish(cb).a
       case _ =>
         throw new UnsupportedOperationException("Only know how to store SNDArrayPointerCodes")
     }

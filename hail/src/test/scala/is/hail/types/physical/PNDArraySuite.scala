@@ -38,13 +38,14 @@ class PNDArraySuite extends PhysicalTestUtils {
 
         val shapeSeq = IndexedSeq(const(3L))
 
-        def doNothingData(addr: Value[Long], cb: EmitCodeBuilder): Unit = {}
-
         // Region 1 just gets 1 ndarray.
-        val snd1 = nd.constructDataFunction(shapeSeq, shapeSeq, cb, codeRegion1)(doNothingData).memoize(cb, "snd1")
+        val (_, snd1Finisher) = nd.constructDataFunction(shapeSeq, shapeSeq, cb, codeRegion1)
+
+        val snd1 = snd1Finisher(cb).memoize(cb, "snd1")
 
         // Region 2 gets an ndarray at ndaddress2, plus a reference to the one at ndarray 1.
-        val snd2 = nd.constructDataFunction(shapeSeq, shapeSeq, cb, codeRegion2)(doNothingData).memoize(cb, "snd2")
+        val (_, snd2Finisher) = nd.constructDataFunction(shapeSeq, shapeSeq, cb, codeRegion2)
+        val snd2 = snd2Finisher(cb).memoize(cb, "snd2")
         cb.assign(r2PointerToNDAddress1, codeRegion2.allocate(8L, 8L))
 
         nd.storeAtAddress(cb, r2PointerToNDAddress1, codeRegion2, snd1, true)
