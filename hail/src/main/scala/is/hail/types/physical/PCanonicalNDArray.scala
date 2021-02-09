@@ -224,11 +224,11 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
     cb.assign(ndAddr, this.allocate(shape, region))
     shapeType.storeAtAddressFromFields(cb, cb.newLocal[Long]("construct_shape", this.representation.fieldOffset(ndAddr, "shape")),
       region,
-      shape.map(s => EmitCode.present(primitive(s))),
+      shape.map(s => EmitCode.present(cb.emb, primitive(s))),
       false)
     strideType.storeAtAddressFromFields(cb, cb.newLocal[Long]("construct_strides", this.representation.fieldOffset(ndAddr, "strides")),
       region,
-      strides.map(s => EmitCode.present(primitive(s))),
+      strides.map(s => EmitCode.present(cb.emb, primitive(s))),
       false)
 
     val newDataPointer = cb.newLocal("ndarray_construct_new_data_pointer", ndAddr + this.representation.byteSize)

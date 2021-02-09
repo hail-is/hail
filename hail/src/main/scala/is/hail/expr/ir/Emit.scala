@@ -1,7 +1,6 @@
 package is.hail.expr.ir
 
 import java.io._
-
 import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.asm4s._
@@ -17,7 +16,7 @@ import is.hail.services.shuffler._
 import is.hail.types.physical._
 import is.hail.types.physical.stypes.SCode
 import is.hail.types.physical.stypes.concrete.{SBaseStructPointer, SBaseStructPointerCode, SCanonicalShufflePointerCode, SCanonicalShufflePointerSettable}
-import is.hail.types.physical.stypes.interfaces.{SBaseStructCode, SNDArray}
+import is.hail.types.physical.stypes.interfaces.{SBaseStructCode, SNDArray, SNDArrayCode}
 import is.hail.types.physical.stypes.primitives.{SFloat32, SFloat64, SInt32, SInt64, SInt64Code}
 import is.hail.types.virtual._
 import is.hail.utils._
@@ -1359,25 +1358,20 @@ class Emit[C](
       case x@NDArraySVD(nd, full_matrices, computeUV) =>
         emitNDArrayColumnMajorStrides(nd).flatMap(cb){ case ndPCode: PNDArrayCode =>
           val ndPVal = ndPCode.memoize(cb, "nd_svd_value")
-          val ndPType = ndPCode.pt.asInstanceOf[PCanonicalNDArray]
 
           val infoDGESDDResult = cb.newLocal[Int]("infoDGESDD")
           val infoDGESDDErrorTest = (extraErrorMsg: String) => (infoDGESDDResult cne  0)
             .orEmpty(Code._fatal[Unit](const(s"LAPACK error DGESDD. $extraErrorMsg Error code = ").concat(infoDGESDDResult.toS)))
 
-          val LWORKAddress = mb.newLocal[Long]()
-
+          val LWORKAddress = mb.newLocal[Long]("svd_lwork_address")
           val shapes = ndPVal.shapes(cb)
           val M = shapes(0)
           val N = shapes(1)
           val K = cb.newLocal[Long]("nd_svd_K")
           cb.assign(K, (M < N).mux(M, N))
           val LDA = M
-          val sData = cb.newField[Long]("nd_svd_S_address")
-          val U_data = cb.newField[Long]("nd_svd_U_address")
           val LDU = M
           val UCOL: Value[Long] = if (full_matrices) M else K
-          val vtData = cb.newField[Long]("nd_svd_VT_address")
           val LDVT = if (full_matrices) N else K
           val IWORK = cb.newLocal[Long]("dgesdd_IWORK_address")
           val A = cb.newLocal[Long]("dgesdd_A_address")
@@ -1385,30 +1379,25 @@ class Emit[C](
 
           cb.assign(LWORKAddress, Code.invokeStatic1[Memory, Long, Long]("malloc",  8L))
 
-          val (jobz, sPType, optUPType, optVTPType) = if (computeUV) {
+          val (jobz, sPType, uData, uFinisher, vtData, vtFinisher) = if (computeUV) {
             val outputPType = x.pType.asInstanceOf[PTuple]
             val uPType = outputPType.fields(0).typ.asInstanceOf[PCanonicalNDArray]
             val sPType = outputPType.fields(1).typ.asInstanceOf[PCanonicalNDArray]
             val vtPType = outputPType.fields(2).typ.asInstanceOf[PCanonicalNDArray]
 
-            cb.assign(U_data, uPType.dataType.allocate(region.code, UCOL.toI * LDU.toI))
-            cb.append(uPType.dataType.stagedInitialize(U_data, UCOL.toI * LDU.toI))
+            val uShapeSeq = FastIndexedSeq[Value[Long]](M, UCOL)
+            val (uData, uFinisher) = uPType.constructDataFunction(uShapeSeq, uPType.makeColumnMajorStrides(uShapeSeq, region.code, cb), cb, region.code)
+            val vtShapeSeq = FastIndexedSeq[Value[Long]](LDVT, N)
+            val (vtData, vtFinisher) = vtPType.constructDataFunction(vtShapeSeq, vtPType.makeColumnMajorStrides(vtShapeSeq, region.code, cb), cb, region.code)
 
-            cb.assign(vtData, vtPType.dataType.allocate(region.code, N.toI * LDVT.toI))
-            cb.append(vtPType.dataType.stagedInitialize(vtData, N.toI * LDVT.toI))
-            (if (full_matrices) "A" else "S", sPType, Some(uPType), Some(vtPType))
+            (if (full_matrices) "A" else "S", sPType, uData, uFinisher, vtData, vtFinisher)
           }
           else {
-            cb.assign(U_data, 0L)
-            cb.assign(vtData, 0L)
-            ("N", x.pType.asInstanceOf[PCanonicalNDArray], None, None)
+            def noOp(cb: EmitCodeBuilder): SNDArrayCode = { throw new IllegalStateException("Can't happen")}
+            ("N", x.pType.asInstanceOf[PCanonicalNDArray], const(0L), noOp(_), const(0L), noOp(_))
           }
 
-          cb.assign(sData, sPType.dataType.allocate(region.code, K.toI))
-          cb.append(sPType.dataType.stagedInitialize(sData, K.toI))
-
-          def uStart = optUPType.map(uPType => uPType.dataType.firstElementOffset(U_data)).getOrElse(U_data.get)
-          def vtStart = optVTPType.map(vtPType => vtPType.dataType.firstElementOffset(vtData)).getOrElse(vtData.get)
+          val (sDataAddress, sFinisher) = sPType.constructDataFunction(IndexedSeq(K), sPType.makeColumnMajorStrides(IndexedSeq(K), region.code, cb), cb, region.code)
 
           cb.assign(infoDGESDDResult, Code.invokeScalaObject13[String, Int, Int, Long, Int, Long, Long, Int, Long, Int, Long, Int, Long, Int](LAPACK.getClass, "dgesdd",
             jobz,
@@ -1416,10 +1405,10 @@ class Emit[C](
             N.toI,
             A,
             LDA.toI,
-            sPType.dataType.firstElementOffset(sData),
-            uStart,
+            sDataAddress,
+            uData,
             LDU.toI,
-            vtStart,
+            vtData,
             LDVT.toI,
             LWORKAddress,
             -1,
@@ -1444,10 +1433,10 @@ class Emit[C](
             N.toI,
             A,
             LDA.toI,
-            sPType.dataType.firstElementOffset(sData),
-            uStart,
+            sDataAddress,
+            uData,
             LDU.toI,
-            vtStart,
+            vtData,
             LDVT.toI,
             WORK,
             LWORK,
@@ -1461,20 +1450,14 @@ class Emit[C](
 
           cb.append(infoDGESDDErrorTest("Failed result computation."))
 
-          val sShapeSeq = FastIndexedSeq[Value[Long]](K)
-          val s = sPType.construct(sShapeSeq, sPType.makeColumnMajorStrides(sShapeSeq, region.code, cb), sData, cb, region.code)
+          val s = sFinisher(cb)
 
           val resultPCode = if (computeUV) {
-            val uShapeSeq = FastIndexedSeq[Value[Long]](M, UCOL)
-            val uPType = optUPType.get
-            val u = uPType.construct(uShapeSeq, uPType.makeColumnMajorStrides(uShapeSeq, region.code, cb), U_data, cb, region.code)
-
-            val vtShapeSeq = FastIndexedSeq[Value[Long]](LDVT, N)
-            val vtPType = optVTPType.get
-            val vt = vtPType.construct(vtShapeSeq, vtPType.makeColumnMajorStrides(vtShapeSeq, region.code, cb), vtData, cb, region.code)
+            val u = uFinisher(cb)
+            val vt = vtFinisher(cb)
 
             val outputPType = x.pType.asInstanceOf[PCanonicalTuple]
-            outputPType.constructFromFields(cb, region.code, FastIndexedSeq(EmitCode.present(cb.emb, u), EmitCode.present(cb.emb, s), EmitCode.present(cb.emb, vt)), deepCopy = false)
+            outputPType.constructFromFields(cb, region.code, FastIndexedSeq(EmitCode.present(cb.emb, u.asPCode), EmitCode.present(cb.emb, s), EmitCode.present(cb.emb, vt.asPCode)), deepCopy = false)
           } else {
             s
           }
