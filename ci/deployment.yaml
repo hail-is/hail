@@ -41,11 +41,9 @@ spec:
           env:
            - name: HAIL_DEPLOY_CONFIG_FILE
              value: /deploy-config/deploy-config.json
-           - name: HAIL_CI_OAUTH_TOKEN
-             value: /secrets/oauth-token/oauth-token
 {% if deploy %}
            - name: HAIL_WATCHED_BRANCHES
-             value: '[["hail-is/hail:main",true]]'
+             value: '[]'
 {% else %}
            - name: HAIL_WATCHED_BRANCHES
              value: '[["hail-ci-test/ci-test-{{create_ci_test_repo.token}}:master", true]]'
@@ -66,9 +64,9 @@ spec:
              value: "{{ global.k8s_server_url }}"
            - name: HAIL_CI_BUCKET_NAME
 {% if deploy %}
-             value: "hail-ci-bpk3h"
+             value: "cpg-hail-ci"
 {% else %}
-             value: "hail-test-dmk9z"
+             value: "cpg-hail-test"
 {% endif %}
           ports:
             - containerPort: 5000
@@ -79,17 +77,8 @@ spec:
            - name: session-secret-key
              mountPath: /session-secret-key
              readOnly: true
-           - mountPath: /sql-config
-             name: sql-config
-             readOnly: true
-           - mountPath: /secrets/oauth-token
-             name: hail-ci-0-1-github-oauth-token
-             readOnly: true
            - mountPath: /user-tokens
              name: ci-tokens
-             readOnly: true
-           - mountPath: /zulip-config
-             name: zulip-config
              readOnly: true
            - name: ssl-config-ci
              mountPath: /ssl-config
@@ -112,19 +101,9 @@ spec:
          secret:
            optional: false
            secretName: session-secret-key
-       - name: sql-config
-         secret:
-           optional: false
-           secretName: "{{ ci_database.user_secret_name }}"
-       - name: hail-ci-0-1-github-oauth-token
-         secret:
-           secretName: hail-ci-0-1-github-oauth-token
        - name: ci-tokens
          secret:
            secretName: ci-tokens
-       - name: zulip-config
-         secret:
-           secretName: zulip-config
        - name: ssl-config-ci
          secret:
            optional: false

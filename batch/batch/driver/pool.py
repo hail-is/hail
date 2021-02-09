@@ -407,8 +407,7 @@ LIMIT %s;
             while i < len(self.pool.healthy_instances_by_free_cores):
                 instance = self.pool.healthy_instances_by_free_cores[i]
                 assert cores_mcpu <= instance.free_cores_mcpu
-                if user != 'ci' or (user == 'ci' and instance.zone.startswith('us-central1')):
-                    return instance
+                return instance
                 i += 1
             histogram = collections.defaultdict(int)
             for instance in self.pool.healthy_instances_by_free_cores:

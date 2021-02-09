@@ -9,7 +9,7 @@ import org.scalatest.testng.TestNGSuite
 import org.testng.annotations.Test
 
 class GoogleStorageFSSuite extends TestNGSuite with FSSuite {
-  val bucket: String = "hail-test-dmk9z"
+  val bucket: String = "cpg-hail-test"
 
   val root: String = s"gs://$bucket"
 
