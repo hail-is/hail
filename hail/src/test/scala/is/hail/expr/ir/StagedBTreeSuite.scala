@@ -17,7 +17,7 @@ class TestBTreeKey(mb: EmitMethodBuilder[_]) extends BTreeKey {
   private val comp = mb.getCodeOrdering(PInt64(), CodeOrdering.Compare())
   def storageType: PTuple = PCanonicalTuple(required = true, PInt64(), PCanonicalTuple(false))
   def compType: PType = PInt64()
-  def isEmpty(off: Code[Long]): Code[Boolean] =
+  def isEmpty(cb: EmitCodeBuilder, off: Code[Long]): Code[Boolean] =
     storageType.isFieldMissing(off, 1)
   def initializeEmpty(cb: EmitCodeBuilder, off: Code[Long]): Unit =
     cb += storageType.setFieldMissing(off, 1)
@@ -112,7 +112,7 @@ class BTreeBackedSet(ctx: ExecuteContext, region: Region, n: Int) {
       cb.assign(r, fb.getCodeParam[Region](1))
       cb.assign(root, fb.getCodeParam[Long](2))
       cb.assign(elt, btree.getOrElseInitialize(cb, ec))
-      cb.ifx(key.isEmpty(elt), {
+      cb.ifx(key.isEmpty(cb, elt), {
         key.storeKey(cb, elt, m, v)
       })
       root

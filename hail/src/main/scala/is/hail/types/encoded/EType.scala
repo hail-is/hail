@@ -230,9 +230,8 @@ object EType {
 
       val addr: Code[Long] = mb.getCodeParam[Long](1)
       val out: Code[OutputBuffer] = mb.getCodeParam[OutputBuffer](2)
-      val v = Region.getIRIntermediate(pt)(addr)
 
-      mb.emit(f(v, out))
+      mb.emitWithBuilder(cb => f(pt.loadCheapPCode(cb, addr).code, out))
       val func = fb.result()
       encoderCache.put(k, func)
       func

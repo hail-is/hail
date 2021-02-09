@@ -21,7 +21,7 @@ class DownsampleBTreeKey(binType: PBaseStruct, pointType: PBaseStruct, kb: EmitC
   val compType: PType = binType
   private val kcomp = kb.getCodeOrdering(binType, CodeOrdering.Compare(), ignoreMissingness = false)
 
-  def isEmpty(off: Code[Long]): Code[Boolean] = coerce[Boolean](Region.loadIRIntermediate(PBooleanRequired)(storageType.fieldOffset(off, "empty")))
+  def isEmpty(cb: EmitCodeBuilder, off: Code[Long]): Code[Boolean] = PBooleanRequired.loadCheapPCode(cb, storageType.loadField(off, "empty")).boolCode(cb)
 
   def initializeEmpty(cb: EmitCodeBuilder, off: Code[Long]): Unit = cb += Region.storeBoolean(storageType.fieldOffset(off, "empty"), true)
 
@@ -290,7 +290,7 @@ class DownsampleState(val kb: EmitClassBuilder[_], labelType: VirtualTypeWithReq
         cb += Region.storeInt(binType.fieldOffset(binStaging, "y"), binY)
         cb.assign(insertOffset,
           tree.getOrElseInitialize(cb, EmitCode.present(cb.emb, storageType.fieldType("binStaging").loadCheapPCode(cb, binStaging))))
-        cb.ifx(key.isEmpty(insertOffset), {
+        cb.ifx(key.isEmpty(cb, insertOffset), {
           cb.assign(binOffset, key.storageType.loadField(insertOffset, "bin"))
           cb += Region.storeInt(binType.loadField(binOffset, "x"), binX)
           cb += Region.storeInt(binType.loadField(binOffset, "y"), binY)

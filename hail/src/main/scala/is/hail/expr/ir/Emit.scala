@@ -1961,13 +1961,19 @@ class Emit[C](
             val ctxOff = cb.newLocal[Long]("cda_ctx_off", cDec(bodyFB.getCodeParam[Region](1), ctxIB))
             val gOff = cb.newLocal[Long]("cda_g_off", gDec(bodyFB.getCodeParam[Region](1), gIB))
 
+
+            val ctxTuple = x.decodedContextPTuple.loadCheapPCode(cb, ctxOff).asBaseStruct
+              .memoize(cb, "decoded_context_tuple")
+            val globalTuple = x.decodedGlobalPTuple.loadCheapPCode(cb, gOff).asBaseStruct
+              .memoize(cb, "decoded_global_tuple")
+
             val bOffCode = cb.invokeCode[Long](bodyMB, bodyFB.getCodeParam[Region](1),
-              EmitCode(Code._empty,
-                       x.decodedContextPTuple.isFieldMissing(ctxOff, 0),
-                       PCode(ctxType, Region.loadIRIntermediate(ctxType)(x.decodedContextPTuple.fieldOffset(ctxOff, 0)))),
-              EmitCode(Code._empty,
-                       x.decodedGlobalPTuple.isFieldMissing(gOff, 0),
-                       PCode(gType, Region.loadIRIntermediate(gType)(x.decodedGlobalPTuple.fieldOffset(gOff, 0)))))
+              EmitCode.fromI(cb.emb) { cb =>
+                ctxTuple.loadField(cb, 0).typecast[PCode]
+              },
+              EmitCode.fromI(cb.emb) { cb =>
+                globalTuple.loadField(cb, 0).typecast[PCode]
+              })
             val bOff = cb.newLocal[Long]("cda_boff", bOffCode)
             val bOS = cb.newLocal[ByteArrayOutputStream]("cda_baos", Code.newInstance[ByteArrayOutputStream]())
             val bOB = cb.newLocal[OutputBuffer]("cda_ob", x.bodySpec.buildCodeOutputBuffer(bOS))

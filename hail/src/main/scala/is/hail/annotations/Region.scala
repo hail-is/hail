@@ -234,27 +234,6 @@ object Region {
     case _: PFloat64 => v => storeDouble(dest, coerce[Double](v))
   }
 
-  def loadIRIntermediate(typ: PType): Code[Long] => Code[_] = typ.fundamentalType match {
-    case _: PBoolean => loadBoolean
-    case _: PInt32 => loadInt
-    case _: PInt64 => loadLong
-    case _: PFloat32 => loadFloat
-    case _: PFloat64 => loadDouble
-    case _: PArray => loadAddress
-    case _: PBinary => loadAddress
-    case _: PShuffle => loadAddress
-    case _: PBaseStruct => off => off
-  }
-
-  def getIRIntermediate(typ: PType): Code[Long] => Code[_] = typ.fundamentalType match {
-    case _: PBoolean => loadBoolean
-    case _: PInt32 => loadInt
-    case _: PInt64 => loadLong
-    case _: PFloat32 => loadFloat
-    case _: PFloat64 => loadDouble
-    case _ => off => off
-  }
-
   def stagedCreate(blockSize: Size, pool: Code[RegionPool]): Code[Region] =
     Code.invokeScalaObject2[Int, RegionPool, Region](Region.getClass, "apply", asm4s.const(blockSize), pool)
 
