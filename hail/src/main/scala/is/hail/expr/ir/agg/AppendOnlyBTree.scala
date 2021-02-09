@@ -12,7 +12,7 @@ trait BTreeKey {
 
   def compType: PType
 
-  def isEmpty(off: Code[Long]): Code[Boolean]
+  def isEmpty(cb: EmitCodeBuilder, off: Code[Long]): Code[Boolean]
 
   def initializeEmpty(cb: EmitCodeBuilder, off: Code[Long]): Unit
 
