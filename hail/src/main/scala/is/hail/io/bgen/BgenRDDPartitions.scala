@@ -281,10 +281,10 @@ object CompileDecoder {
             val strT = t.field("contig").typ.asInstanceOf[PCanonicalString]
             val contigPC = SStringPointer(strT).constructFromString(cb, region, contigRecoded)
             t.constructFromFields(cb, region,
-              FastIndexedSeq(EmitCode.present(contigPC), EmitCode.present(primitive(position))),
+              FastIndexedSeq(EmitCode.present(cb.emb, contigPC), EmitCode.present(cb.emb, primitive(position))),
               deepCopy = false)
         }
-        structFieldCodes += EmitCode.present(pc)
+        structFieldCodes += EmitCode.present(cb.emb, pc)
       }
 
       cb.assign(nAlleles, cbfis.invoke[Int]("readShort"))
@@ -306,17 +306,17 @@ object CompileDecoder {
         })
 
         val allelesArr = finish(cb)
-        structFieldCodes += EmitCode.present(allelesArr)
+        structFieldCodes += EmitCode.present(cb.emb, allelesArr)
       }
 
       if (settings.hasField("rsid"))
-        structFieldCodes += EmitCode.present(SStringPointer(PCanonicalString(true)).constructFromString(cb, region, rsid))
+        structFieldCodes += EmitCode.present(cb.emb, SStringPointer(PCanonicalString(true)).constructFromString(cb, region, rsid))
       if (settings.hasField("varid"))
-        structFieldCodes += EmitCode.present(SStringPointer(PCanonicalString(true)).constructFromString(cb, region, varid))
+        structFieldCodes += EmitCode.present(cb.emb, SStringPointer(PCanonicalString(true)).constructFromString(cb, region, varid))
       if (settings.hasField("offset"))
-        structFieldCodes += EmitCode.present(primitive(offset))
+        structFieldCodes += EmitCode.present(cb.emb, primitive(offset))
       if (settings.hasField("file_idx"))
-        structFieldCodes += EmitCode.present(primitive(fileIdx))
+        structFieldCodes += EmitCode.present(cb.emb, primitive(fileIdx))
 
       cb.assign(dataSize, cbfis.invoke[Int]("readInt"))
       settings.entryType match {

@@ -531,7 +531,7 @@ object Stream {
           rightSource = mkRight(rightRegion).apply(
             eos = EmitCodeBuilder.scopedVoid(mb){cb =>
               cb.assign(rightEOS, true)
-              cb.assign(rxOut, EmitCode.missing(rElemType))
+              cb.assign(rxOut, EmitCode.missing(mb, rElemType))
               cb.append(Lpush.goto)
             },
             push = b => EmitCodeBuilder.scopedVoid(mb)({ cb =>
@@ -550,7 +550,7 @@ object Stream {
               {
                 cb.ifx(c < 0,
                 {
-                  cb.assign(rxOut, EmitCode.missing(rElemType))
+                  cb.assign(rxOut, EmitCode.missing(mb, rElemType))
                   cb.append(Lpush.goto)
                 },
                 {
@@ -1286,7 +1286,7 @@ object EmitStream {
         close0 = Code(holdingRegion.free(), keyRegion.free(), childSource.close0),
         setup = Code(
           childSource.setup,
-          EmitCodeBuilder.scopedVoid(mb)(_.assign(xCurKey, keyType.defaultValue)),
+          EmitCodeBuilder.scopedVoid(mb)(_.assign(xCurKey, keyType.defaultValue(mb))),
           xEOS := false,
           xNextGrpReady := false),
         close = childSource.close,
@@ -1344,7 +1344,7 @@ object EmitStream {
 
       val result: IEmitCode = streamIR match {
         case x@NA(_) =>
-          IEmitCode.missing(cb, x.pType.defaultValue)
+          IEmitCode.missing(cb, x.pType.defaultValue(mb))
 
         case x@Ref(name, _) =>
           val typ = coerce[PStream](x.pType)
@@ -1449,7 +1449,7 @@ object EmitStream {
                   hasNext.orEmpty(next := xIter.load().next().invoke[Long]("longValue")),
                   k(COption(!hasNext, next)))
                 ).map(
-                rv => EmitCodeBuilder.scopedEmitCode(mb)(cb => EmitCode.present(eltType.loadCheapPCode(cb, (rv)))),
+                rv => EmitCodeBuilder.scopedEmitCode(mb)(cb => EmitCode.present(mb, eltType.loadCheapPCode(cb, (rv)))),
                 setup0 = None,
                 setup = Some(
                   xIter := mkIter.invoke[Region, Region, Iterator[java.lang.Long]](
@@ -1535,11 +1535,11 @@ object EmitStream {
             val newStream = (eltRegion: ChildStagedRegion) =>
               groupBy(mb, nonMissingStream, innerType, key.toArray, eltRegion)
                 .map { inner =>
-                  EmitCode.present(
+                  EmitCode.present(mb,
                     interfaces.SStreamCode(
                       innerType.sType,
                       unsized { innerEltRegion =>
-                        inner(innerEltRegion).map(EmitCode.present)
+                        inner(innerEltRegion).map(pc => EmitCode.present(mb, pc))
                       }))
                 }
 
@@ -1842,7 +1842,7 @@ object EmitStream {
             val newStream = sized(
               Code(sss.map(_.setup)),
               eltRegion => kWayMerge[Long](mb, streams, eltRegion, comp).map { case (i, elt) =>
-                EmitCode.present(PCode(eltType, elt))
+                EmitCode.present(mb, PCode(eltType, elt))
               },
               sss.map(_.length).reduce(_.liftedZip(_).map {
                 case (l, r) => l + r
@@ -2173,8 +2173,8 @@ object EmitStream {
               k(
                 COption(
                   shuffle.getValueFinished(),
-                  EmitCode.present(
-                    shuffleType.rowDecodedPType, shuffle.getValue(eltRegion.code))))
+                  EmitCode.present(mb,
+                    PCode(shuffleType.rowDecodedPType, shuffle.getValue(eltRegion.code)))))
             },
             setup = Some(EmitCodeBuilder.scopedVoid(mb) { cb =>
               cb.assign(shuffleLocal, CodeShuffleClient.create(
@@ -2218,8 +2218,8 @@ object EmitStream {
             k(
               COption(
                 shuffle.partitionBoundsValueFinished(),
-                EmitCode.present(
-                  shuffleType.keyDecodedPType, shuffle.partitionBoundsValue(eltRegion.code))))
+                EmitCode.present(mb,
+                  PCode(shuffleType.keyDecodedPType, shuffle.partitionBoundsValue(eltRegion.code)))))
           },
           setup = Some(EmitCodeBuilder.scopedVoid(mb) { cb =>
             uuid.store(cb, idt)

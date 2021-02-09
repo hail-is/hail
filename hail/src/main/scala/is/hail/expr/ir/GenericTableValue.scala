@@ -7,7 +7,7 @@ import is.hail.backend.spark.SparkBackend
 import is.hail.expr.ir.EmitStream.SizedStream
 import is.hail.expr.ir.lowering.{TableStage, TableStageDependency}
 import is.hail.types.TableType
-import is.hail.types.physical.{PCanonicalStream, PStruct, PType}
+import is.hail.types.physical.{PCanonicalStream, PCode, PStruct, PType}
 import is.hail.types.virtual.{TArray, TStruct, Type}
 import is.hail.rvd.{RVD, RVDCoercer, RVDContext, RVDPartitioner, RVDType}
 import is.hail.sparkextras.ContextRDD
@@ -62,7 +62,7 @@ class PartitionIteratorLongReader(
                   region.code,
                   Code.invokeScalaObject3[PType, Region, Long, java.lang.Object](UnsafeRow.getClass, "read",
                     cb.emb.getPType(contextPC.pt), region.code, contextPC.tcode[Long]))))
-          .map(rv => EmitCode.present(eltPType, Region.loadIRIntermediate(eltPType)(rv)))
+          .map(rv => EmitCode.fromI(cb.emb)(cb => IEmitCode.present(cb, eltPType.loadCheapPCode(cb, rv))))
       }
 
       interfaces.SStreamCode(interfaces.SStream(eltPType.sType), newStream)

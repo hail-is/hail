@@ -68,7 +68,7 @@ class TakeByRVAS(val valueVType: VirtualTypeWithReq, val keyVType: VirtualTypeWi
     val k1 = cmp.getCodeParam(1)(indexedkeyTypeTypeInfo)
     val k2 = cmp.getCodeParam(2)(indexedkeyTypeTypeInfo)
 
-    cmp.emitWithBuilder(cb => ord.compare(cb , EmitCode.present(indexedKeyType, k1), EmitCode.present(indexedKeyType, k2)))
+    cmp.emitWithBuilder(cb => ord.compare(cb , EmitCode.present(cb.emb, PCode(indexedKeyType, k1)), EmitCode.present(cb.emb, PCode(indexedKeyType, k2))))
 
     cmp.invokeCode(_, _)
   }
