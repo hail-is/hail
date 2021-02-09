@@ -2618,7 +2618,7 @@ steps:
      python3 -c '
      import test_accounts
      import asyncio
-     asyncio.get_event_loop().run_until_complete(test_accounts.delete_test_billing_projects())'
+     asyncio.get_event_loop().run_until_complete(test_accounts.delete_all_test_billing_projects())'
    inputs:
     - from: /repo/batch/test
       to: /io/
