@@ -523,12 +523,20 @@ LIMIT 51;
     batches = [batch_record_to_dict(batch)
                async for batch
                in db.select_and_fetchall(sql, sql_args)]
+               
+    row_from_previous_page = db.select_and_fetchone(
+        'select id from batches where id >= %s limit 1',
+        [last_batch_id])
 
     if len(batches) == 51:
         last_batch_id = batches[-2]['id']
         batches = batches[:50]
+
     else:
         last_batch_id = None
+
+
+    if
 
     return (batches, last_batch_id)
 
