@@ -628,8 +628,10 @@ class CompiledLineParser(
           fieldEmitCodes(reqIndex) = ec
 
         case None =>
-          skipValueOfType(cb, PType.canonical(onDiskField.typ))  // will always be optional
-          cb.assign(pos, pos + 1)
+          if (onDiskField.name != "row_id") {
+            skipValueOfType(cb, PType.canonical(onDiskField.typ))  // will always be optional
+            cb.assign(pos, pos + 1)
+          }
       }
     }
     fieldEmitCodes
