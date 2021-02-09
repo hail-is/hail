@@ -31,8 +31,8 @@ Meanwhile, in September of 2018, Hail team began work on a system called "Batch"
 programs in parallel on a cluster of virtual machines. Also in September, Hail team began work on a
 system called "CI". CI is an acronym for Continuous Integration. CI runs the tests for every pull
 request (PR) into the `main` branch of [`hail-is/hail`](https://github.com/hail-is/hail). CI
-automatically merges into main any pull request that passes the tests. CI uses Hail Batch to run the
-tests.
+automatically merges into main any pull request that both passes the tests and has at least one
+"approving" review and no "changes requested" reviews. CI uses Hail Batch to run the tests.
 
 Around this time, the Hail team split organized itself into two sub-teams: "compilers" team and
 "services" team. The compilers team is responsible for the Hail Python library, the compiler, and
