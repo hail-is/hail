@@ -1385,7 +1385,7 @@ object EmitStream {
                 val stream = sized(
                   len := llen.toI,
                   eltRegion => range(mb, start.asInt.intCode(cb), step.asInt.intCode(cb), len)
-                    .map(i => EmitCode(Code._empty, const(false), PCode(eltType, i))),
+                    .map(i => EmitCode.present(mb, PCode(eltType, i))),
                   Some(len))
 
                 interfaces.SStreamCode(coerce[PCanonicalStream](x.pType).sType, stream)
@@ -1507,9 +1507,7 @@ object EmitStream {
               val newStream = (eltRegion: ChildStagedRegion) =>
                 Stream.grouped(mb, stream, innerType, xS, eltRegion)
                   .map { inner =>
-                    EmitCode(
-                      Code._empty,
-                      false,
+                    EmitCode.present(mb,
                       interfaces.SStreamCode(
                         innerType.sType,
                         unsized(inner)))
