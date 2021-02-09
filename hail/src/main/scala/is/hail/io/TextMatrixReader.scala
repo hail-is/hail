@@ -445,7 +445,7 @@ class CompiledLineParser(
 
   @transient private[this] def parseEntriesOpt(cb: EmitCodeBuilder): Option[EmitCode] = entriesType.map { entriesType =>
     val sc = parseEntries(cb, entriesType)
-    EmitCode.present(sc)
+    EmitCode.present(cb.emb, sc)
   }
 
   mb.emitWithBuilder[Long] { cb =>
@@ -615,7 +615,7 @@ class CompiledLineParser(
 
 
           val ec = if (onDiskField.name == "row_id")
-            EmitCode.present(primitive(lineNumber))
+            EmitCode.present(cb.emb, primitive(lineNumber))
           else {
             cb.ifx(pos >= line.length,
               parseError(cb, const("unexpected end of line while reading row field ")
@@ -638,7 +638,7 @@ class CompiledLineParser(
   private[this] def parseEntries(cb: EmitCodeBuilder, entriesType: PCanonicalArray): SIndexablePointerCode = {
     val entryType = entriesType.elementType.asInstanceOf[PCanonicalStruct]
     assert(entryType.fields.size == 1)
-    val (nextAddress, _, finish) = entriesType.constructFromNextAddress(cb, region, nCols, deepCopy = false)
+    val (nextAddress, _, finish) = entriesType.constructFromNextAddress(cb, region, nCols)
 
     val i = cb.newLocal[Int]("i", 0)
     cb.whileLoop(i < nCols, {
