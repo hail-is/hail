@@ -59,8 +59,8 @@ object LocusFunctions extends RegistryFunctions {
       r,
       EmitCode.fromI(cb.emb)(cb => IEmitCode.present(cb, emitLocus(cb, r, interval.invoke[Locus]("start"), pointType))),
       EmitCode.fromI(cb.emb)(cb => IEmitCode.present(cb, emitLocus(cb, r, interval.invoke[Locus]("end"), pointType))),
-      EmitCode.present(primitive(interval.invoke[Boolean]("includesStart"))),
-      EmitCode.present(primitive(interval.invoke[Boolean]("includesEnd")))
+      EmitCode.present(cb.emb, primitive(interval.invoke[Boolean]("includesStart"))),
+      EmitCode.present(cb.emb, primitive(interval.invoke[Boolean]("includesEnd")))
     )
   }
 
@@ -390,9 +390,9 @@ object LocusFunctions extends RegistryFunctions {
             cb.ifx(lifted.isNull, cb.goto(Lmissing))
 
             val locType = rt.types(0).asInstanceOf[PCanonicalLocus]
-            val locusCode = EmitCode.present(emitLocus(cb, r, Code.checkcast[Locus](lifted.getField[java.lang.Object]("_1")), locType))
+            val locusCode = EmitCode.present(cb.emb, emitLocus(cb, r, Code.checkcast[Locus](lifted.getField[java.lang.Object]("_1")), locType))
 
-            val negativeStrandCode = EmitCode.present(
+            val negativeStrandCode = EmitCode.present(cb.emb,
               primitive(Code.checkcast[java.lang.Boolean](lifted.getField[java.lang.Object]("_2"))
                 .invoke[Boolean]("booleanValue")))
 
@@ -432,9 +432,9 @@ object LocusFunctions extends RegistryFunctions {
             cb.ifx(lifted.isNull, cb.goto(Lmissing))
 
             val iType = rt.types(0).asInstanceOf[PCanonicalInterval]
-            val intervalCode = EmitCode.present(emitLocusInterval(cb, r, Code.checkcast[Interval](lifted.getField[java.lang.Object]("_1")), iType))
+            val intervalCode = EmitCode.present(cb.emb, emitLocusInterval(cb, r, Code.checkcast[Interval](lifted.getField[java.lang.Object]("_1")), iType))
 
-            val negativeStrandCode = EmitCode.present(
+            val negativeStrandCode = EmitCode.present(cb.emb,
               primitive(Code.checkcast[java.lang.Boolean](lifted.getField[java.lang.Object]("_2"))
                 .invoke[Boolean]("booleanValue")))
 
