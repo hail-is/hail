@@ -99,7 +99,7 @@ spec:
            value: "7200" # 2 hours
 {% else %}
          - name: HAIL_BATCH_BUCKET_NAME
-           value: hail-test-dmk9z
+           value: cpg-hail-test
          - name: STANDING_WORKER_MAX_IDLE_TIME_SECS
            value: "300"
 {% endif %}
@@ -239,7 +239,7 @@ spec:
            value: "7200" # 2 hours
 {% else %}
          - name: HAIL_BATCH_BUCKET_NAME
-           value: hail-test-dmk9z
+           value: cpg-hail-test
          - name: STANDING_WORKER_MAX_IDLE_TIME_SECS
            value: "300"
 {% endif %}

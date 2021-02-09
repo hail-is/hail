@@ -46,7 +46,7 @@ spec:
              value: hail-query
 {% else %}
            - name: HAIL_QUERY_BUCKET
-             value: hail-test-dmk9z
+             value: cpg-hail-test
 {% endif %}
           ports:
            - containerPort: 5000

@@ -63,7 +63,7 @@ spec:
 {% if deploy %}
            value: hail-atgu-data
 {% else %}
-           value: hail-test-dmk9z
+           value: cpg-hail-test
 {% endif %}
         volumeMounts:
          - name: deploy-config

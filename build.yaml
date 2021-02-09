@@ -743,9 +743,9 @@ steps:
      tar xzf resources.tar.gz -C src/test
      tar xzf splits.tar.gz
      gcloud -q auth activate-service-account --key-file=/test-gsa-key/key.json
-     gsutil -m cp -r src/test/resources/fs gs://hail-test-dmk9z/{{ token }}/test/resources/
+     gsutil -m cp -r src/test/resources/fs gs://cpg-hail-test/{{ token }}/test/resources/
      export HAIL_TEST_SKIP_R=1
-     export HAIL_GS_FS_TEST_RESOURCES=gs://hail-test-dmk9z/{{ token }}/test/resources/fs
+     export HAIL_GS_FS_TEST_RESOURCES=gs://cpg-hail-test/{{ token }}/test/resources/fs
      java -cp hail-test.jar:$SPARK_HOME/jars/* org.testng.TestNG -listener is.hail.LogTestListener testng-splits-0.xml
    inputs:
     - from: /resources.tar.gz
@@ -780,9 +780,9 @@ steps:
      tar xzf resources.tar.gz -C src/test
      tar xzf splits.tar.gz
      gcloud -q auth activate-service-account --key-file=/test-gsa-key/key.json
-     gsutil -m cp -r src/test/resources/fs gs://hail-test-dmk9z/{{ token }}/test/resources/
+     gsutil -m cp -r src/test/resources/fs gs://cpg-hail-test/{{ token }}/test/resources/
      export HAIL_TEST_SKIP_R=1
-     export HAIL_GS_FS_TEST_RESOURCES=gs://hail-test-dmk9z/{{ token }}/test/resources/fs
+     export HAIL_GS_FS_TEST_RESOURCES=gs://cpg-hail-test/{{ token }}/test/resources/fs
      java -cp hail-test.jar:$SPARK_HOME/jars/* org.testng.TestNG -listener is.hail.LogTestListener testng-splits-1.xml
    inputs:
     - from: /resources.tar.gz
@@ -817,9 +817,9 @@ steps:
      tar xzf resources.tar.gz -C src/test
      tar xzf splits.tar.gz
      gcloud -q auth activate-service-account --key-file=/test-gsa-key/key.json
-     gsutil -m cp -r src/test/resources/fs gs://hail-test-dmk9z/{{ token }}/test/resources/
+     gsutil -m cp -r src/test/resources/fs gs://cpg-hail-test/{{ token }}/test/resources/
      export HAIL_TEST_SKIP_R=1
-     export HAIL_GS_FS_TEST_RESOURCES=gs://hail-test-dmk9z/{{ token }}/test/resources/fs
+     export HAIL_GS_FS_TEST_RESOURCES=gs://cpg-hail-test/{{ token }}/test/resources/fs
      java -cp hail-test.jar:$SPARK_HOME/jars/* org.testng.TestNG -listener is.hail.LogTestListener testng-splits-2.xml
    inputs:
     - from: /resources.tar.gz
@@ -854,9 +854,9 @@ steps:
      tar xzf resources.tar.gz -C src/test
      tar xzf splits.tar.gz
      gcloud -q auth activate-service-account --key-file=/test-gsa-key/key.json
-     gsutil -m cp -r src/test/resources/fs gs://hail-test-dmk9z/{{ token }}/test/resources/
+     gsutil -m cp -r src/test/resources/fs gs://cpg-hail-test/{{ token }}/test/resources/
      export HAIL_TEST_SKIP_R=1
-     export HAIL_GS_FS_TEST_RESOURCES=gs://hail-test-dmk9z/{{ token }}/test/resources/fs
+     export HAIL_GS_FS_TEST_RESOURCES=gs://cpg-hail-test/{{ token }}/test/resources/fs
      java -cp hail-test.jar:$SPARK_HOME/jars/* org.testng.TestNG -listener is.hail.LogTestListener testng-splits-3.xml
    inputs:
     - from: /resources.tar.gz
@@ -891,9 +891,9 @@ steps:
      tar xzf resources.tar.gz -C src/test
      tar xzf splits.tar.gz
      gcloud -q auth activate-service-account --key-file=/test-gsa-key/key.json
-     gsutil -m cp -r src/test/resources/fs gs://hail-test-dmk9z/{{ token }}/test/resources/
+     gsutil -m cp -r src/test/resources/fs gs://cpg-hail-test/{{ token }}/test/resources/
      export HAIL_TEST_SKIP_R=1
-     export HAIL_GS_FS_TEST_RESOURCES=gs://hail-test-dmk9z/{{ token }}/test/resources/fs
+     export HAIL_GS_FS_TEST_RESOURCES=gs://cpg-hail-test/{{ token }}/test/resources/fs
      java -cp hail-test.jar:$SPARK_HOME/jars/* org.testng.TestNG -listener is.hail.LogTestListener testng-splits-4.xml
    inputs:
     - from: /resources.tar.gz
@@ -1018,7 +1018,7 @@ steps:
      python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
      export HAIL_TEST_RESOURCES_DIR=./resources
      export HAIL_DOCTEST_DATA_DIR=./data
-     export HAIL_TEST_BUCKET=hail-test-dmk9z
+     export HAIL_TEST_BUCKET=cpg-hail-test
      export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
      export PYSPARK_SUBMIT_ARGS="--driver-memory 6g pyspark-shell"
      export PYTEST_SPLITS=5
@@ -1059,7 +1059,7 @@ steps:
      python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
      export HAIL_TEST_RESOURCES_DIR=./resources
      export HAIL_DOCTEST_DATA_DIR=./data
-     export HAIL_TEST_BUCKET=hail-test-dmk9z
+     export HAIL_TEST_BUCKET=cpg-hail-test
      export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
      export PYSPARK_SUBMIT_ARGS="--driver-memory 6g pyspark-shell"
      export PYTEST_SPLITS=5
@@ -1100,7 +1100,7 @@ steps:
      python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
      export HAIL_TEST_RESOURCES_DIR=./resources
      export HAIL_DOCTEST_DATA_DIR=./data
-     export HAIL_TEST_BUCKET=hail-test-dmk9z
+     export HAIL_TEST_BUCKET=cpg-hail-test
      export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
      export PYSPARK_SUBMIT_ARGS="--driver-memory 6g pyspark-shell"
      export PYTEST_SPLITS=5
@@ -1141,7 +1141,7 @@ steps:
      python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
      export HAIL_TEST_RESOURCES_DIR=./resources
      export HAIL_DOCTEST_DATA_DIR=./data
-     export HAIL_TEST_BUCKET=hail-test-dmk9z
+     export HAIL_TEST_BUCKET=cpg-hail-test
      export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
      export PYSPARK_SUBMIT_ARGS="--driver-memory 6g pyspark-shell"
      export PYTEST_SPLITS=5
@@ -1182,7 +1182,7 @@ steps:
      python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
      export HAIL_TEST_RESOURCES_DIR=./resources
      export HAIL_DOCTEST_DATA_DIR=./data
-     export HAIL_TEST_BUCKET=hail-test-dmk9z
+     export HAIL_TEST_BUCKET=cpg-hail-test
      export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
      export PYSPARK_SUBMIT_ARGS="--driver-memory 6g pyspark-shell"
      export PYTEST_SPLITS=5
@@ -1219,7 +1219,7 @@ steps:
      tar xzf test.tar.gz
      tar xvf debug-wheel-container.tar
      python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
-     export HAIL_TEST_BUCKET=hail-test-dmk9z
+     export HAIL_TEST_BUCKET=cpg-hail-test
      export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
      python3 -m pytest --log-cli-level=INFO -s -vv --instafail --durations=50 -n 10 test/hailtop/aiotools/test_copy.py
    inputs:
@@ -1253,7 +1253,7 @@ steps:
      python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
      export HAIL_TEST_RESOURCES_DIR=./resources
      export HAIL_DOCTEST_DATA_DIR=./data
-     export HAIL_TEST_BUCKET=hail-test-dmk9z
+     export HAIL_TEST_BUCKET=cpg-hail-test
      export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
      export PYSPARK_SUBMIT_ARGS="--driver-memory 6g pyspark-shell"
      python3 -m pytest -m unchecked_allocator --ignore=test/hailtop/batch/ --log-cli-level=INFO -s -vv --instafail --durations=50 test
@@ -1370,7 +1370,7 @@ steps:
      python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
      export HAIL_TEST_RESOURCES_DIR=./resources
      export HAIL_DOCTEST_DATA_DIR=./data
-     export HAIL_TEST_BUCKET=hail-test-dmk9z
+     export HAIL_TEST_BUCKET=cpg-hail-test
      export PYTEST_SPLITS=5
      export PYTEST_SPLIT_INDEX=2
      export HAIL_QUERY_BACKEND=local
@@ -2155,7 +2155,7 @@ steps:
      cd /io
      tar xvf wheel-container.tar
      python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
-     hailctl config set batch/bucket hail-test-dmk9z
+     hailctl config set batch/bucket cpg-hail-test
      HAIL_BILLING_PROJECT=test HAIL_DONT_RETRY_500=1 HAIL_QUERY_BACKEND=service python3 -m pytest --log-cli-level=INFO -s -vv --instafail --durations=50 /io/test/
    timeout: 600
    secrets:
@@ -2222,7 +2222,7 @@ steps:
    script: |
      export HAIL_GSA_KEY_FILE=/test-gsa-key/key.json
      export PROJECT={{ global.project }}
-     hailctl config set batch/bucket hail-test-dmk9z
+     hailctl config set batch/bucket cpg-hail-test
      python3 -m pytest --log-cli-level=INFO -s -vv --instafail --durations=50 /io/test/
    timeout: 600
    secrets:
@@ -2271,7 +2271,7 @@ steps:
      export HAIL_TEST_TOKEN_FILE=/user-tokens/tokens.json
      export HAIL_TEST_DEV_TOKEN_FILE=/dev-tokens/tokens.json
      export HAIL_TOKEN="{{ token }}"
-     hailctl config set batch/bucket hail-test-dmk9z
+     hailctl config set batch/bucket cpg-hail-test
      python3 -m pytest \
              --log-date-format="%Y-%m-%dT%H:%M:%S" \
              --log-format="%(asctime)s %(levelname)s %(name)s %(filename)s:%(lineno)d:%(funcName)s %(message)s" \
@@ -2339,7 +2339,7 @@ steps:
      export HAIL_TEST_TOKEN_FILE=/user-tokens/tokens.json
      export HAIL_TEST_DEV_TOKEN_FILE=/dev-tokens/tokens.json
      export HAIL_TOKEN="{{ token }}"
-     hailctl config set batch/bucket hail-test-dmk9z
+     hailctl config set batch/bucket cpg-hail-test
      python3 -m pytest \
              --log-date-format="%Y-%m-%dT%H:%M:%S" \
              --log-format="%(asctime)s %(levelname)s %(name)s %(filename)s:%(lineno)d:%(funcName)s %(message)s" \
@@ -2407,7 +2407,7 @@ steps:
      export HAIL_TEST_TOKEN_FILE=/user-tokens/tokens.json
      export HAIL_TEST_DEV_TOKEN_FILE=/dev-tokens/tokens.json
      export HAIL_TOKEN="{{ token }}"
-     hailctl config set batch/bucket hail-test-dmk9z
+     hailctl config set batch/bucket cpg-hail-test
      python3 -m pytest \
              --log-date-format="%Y-%m-%dT%H:%M:%S" \
              --log-format="%(asctime)s %(levelname)s %(name)s %(filename)s:%(lineno)d:%(funcName)s %(message)s" \
@@ -2475,7 +2475,7 @@ steps:
      export HAIL_TEST_TOKEN_FILE=/user-tokens/tokens.json
      export HAIL_TEST_DEV_TOKEN_FILE=/dev-tokens/tokens.json
      export HAIL_TOKEN="{{ token }}"
-     hailctl config set batch/bucket hail-test-dmk9z
+     hailctl config set batch/bucket cpg-hail-test
      python3 -m pytest \
              --log-date-format="%Y-%m-%dT%H:%M:%S" \
              --log-format="%(asctime)s %(levelname)s %(name)s %(filename)s:%(lineno)d:%(funcName)s %(message)s" \
@@ -2543,7 +2543,7 @@ steps:
      export HAIL_TEST_TOKEN_FILE=/user-tokens/tokens.json
      export HAIL_TEST_DEV_TOKEN_FILE=/dev-tokens/tokens.json
      export HAIL_TOKEN="{{ token }}"
-     hailctl config set batch/bucket hail-test-dmk9z
+     hailctl config set batch/bucket cpg-hail-test
      python3 -m pytest \
              --log-date-format="%Y-%m-%dT%H:%M:%S" \
              --log-format="%(asctime)s %(levelname)s %(name)s %(filename)s:%(lineno)d:%(funcName)s %(message)s" \
@@ -2718,7 +2718,7 @@ steps:
      export DOCKER_ROOT_IMAGE="gcr.io/{{ global.project }}/ubuntu:18.04"
      export PYTHON_DILL_IMAGE="gcr.io/{{ global.project }}/python-dill:3.7-slim"
      hailctl config set batch/billing_project test
-     hailctl config set batch/bucket hail-test-dmk9z
+     hailctl config set batch/bucket cpg-hail-test
      python3 -m pytest \
              --durations=0 \
              --log-cli-level=INFO \
@@ -2769,7 +2769,7 @@ steps:
      export DOCKER_ROOT_IMAGE="gcr.io/{{ global.project }}/ubuntu:18.04"
      export PYTHON_DILL_IMAGE="gcr.io/{{ global.project }}/python-dill:3.7-slim"
      hailctl config set batch/billing_project test
-     hailctl config set batch/bucket hail-test-dmk9z
+     hailctl config set batch/bucket cpg-hail-test
      python3 -m pytest \
              --durations=0 \
              --log-cli-level=INFO \
@@ -2820,7 +2820,7 @@ steps:
      export DOCKER_ROOT_IMAGE="gcr.io/{{ global.project }}/ubuntu:18.04"
      export PYTHON_DILL_IMAGE="gcr.io/{{ global.project }}/python-dill:3.7-slim"
      hailctl config set batch/billing_project test
-     hailctl config set batch/bucket hail-test-dmk9z
+     hailctl config set batch/bucket cpg-hail-test
      python3 -m pytest \
              --durations=0 \
              --log-cli-level=INFO \
@@ -2871,7 +2871,7 @@ steps:
      export DOCKER_ROOT_IMAGE="gcr.io/{{ global.project }}/ubuntu:18.04"
      export PYTHON_DILL_IMAGE="gcr.io/{{ global.project }}/python-dill:3.7-slim"
      hailctl config set batch/billing_project test
-     hailctl config set batch/bucket hail-test-dmk9z
+     hailctl config set batch/bucket cpg-hail-test
      python3 -m pytest \
              --durations=0 \
              --log-cli-level=INFO \
@@ -2922,7 +2922,7 @@ steps:
      export DOCKER_ROOT_IMAGE="gcr.io/{{ global.project }}/ubuntu:18.04"
      export PYTHON_DILL_IMAGE="gcr.io/{{ global.project }}/python-dill:3.7-slim"
      hailctl config set batch/billing_project test
-     hailctl config set batch/bucket hail-test-dmk9z
+     hailctl config set batch/bucket cpg-hail-test
      python3 -m pytest \
              --durations=0 \
              --log-cli-level=INFO \
@@ -2969,7 +2969,7 @@ steps:
      export HAIL_GSA_KEY_FILE=/test-gsa-key/key.json
      cd /io/hailtop/hailtop/batch
      hailctl config set batch/billing_project test
-     hailctl config set batch/bucket hail-test-dmk9z
+     hailctl config set batch/bucket cpg-hail-test
      python3 -m pytest --instafail \
        --doctest-modules \
        --doctest-glob='*.rst' \
