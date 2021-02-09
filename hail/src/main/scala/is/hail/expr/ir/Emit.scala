@@ -1490,11 +1490,15 @@ class Emit[C](
           val ndPT = pndValue.pt.asInstanceOf[PCanonicalNDArray]
           val dataFirstElementAddress = pndValue.firstDataAddress(cb)
 
+          val hPType = ndPT
+          val hShapeArray = FastIndexedSeq[Value[Long]](N, M)
+          val hStridesStruct = hPType.makeRowMajorStrides(hShapeArray, region.code, cb)
+
           val tauPType = PCanonicalArray(PFloat64Required, true)
           val tauAddress = cb.newLocal[Long]("ndarray_qr_tauAddress")
           val workAddress = cb.newLocal[Long]("ndarray_qr_workAddress")
+
           val aAddressDGEQRF = cb.newLocal[Long]("ndarray_qr_aAddressDGEQRF") // Should be column major
-          val rDataAddress = cb.newLocal[Long]("ndarray_qr_rDataAddress")
           val aNumElements = cb.newLocal[Long]("ndarray_qr_aNumElements")
 
           val infoDGEQRFResult = cb.newLocal[Int]("ndaray_qr_infoDGEQRFResult")
@@ -1505,8 +1509,7 @@ class Emit[C](
           cb.assign(aNumElements, ndPT.numElements(shapeArray))
           cb.assign(aAddressDGEQRF, ndPT.dataType.allocate(region.code, aNumElements.toI))
           cb.append(ndPT.dataType.stagedInitialize(aAddressDGEQRF, aNumElements.toI))
-          cb.append(Region.copyFrom(dataFirstElementAddress,
-            ndPT.dataType.firstElementOffset(aAddressDGEQRF, aNumElements.toI), (M * N) * 8L))
+          cb.append(Region.copyFrom(dataFirstElementAddress, ndPT.dataType.firstElementOffset(aAddressDGEQRF, aNumElements.toI), (M * N) * 8L))
 
           cb.assign(tauAddress, tauPType.allocate(region.code, K.toI))
           cb.append(tauPType.stagedInitialize(tauAddress, K.toI))
@@ -1537,19 +1540,17 @@ class Emit[C](
           cb.append(Code.invokeStatic1[Memory, Long, Unit]("free", workAddress.load()))
           cb.append(infoDGEQRFErrorTest("Failed to compute H and Tau."))
 
+          val h = hPType.construct(hShapeArray, hStridesStruct, aAddressDGEQRF, cb, region.code)
+
           val result: PCode = if (mode == "raw") {
-              val resultType = x.pType.asInstanceOf[PCanonicalBaseStruct]
+            val resultType = x.pType.asInstanceOf[PCanonicalBaseStruct]
             val rawPType = x.pType.asInstanceOf[PTuple]
-            val hPType = rawPType.types(0).asInstanceOf[PCanonicalNDArray]
+            assert(hPType equalModuloRequired rawPType.types(0).asInstanceOf[PCanonicalNDArray],  s"hPType = ${hPType}, other = ${rawPType.types(0).asInstanceOf[PCanonicalNDArray]}")
             val tauPType = rawPType.types(1).asInstanceOf[PCanonicalNDArray]
 
-            val hShapeArray = FastIndexedSeq[Value[Long]](N, M)
-            val hStridesStruct = hPType.makeRowMajorStrides(hShapeArray, region.code, cb)
+            val tauStridesArray = tauPType.makeRowMajorStrides(FastIndexedSeq(K), region.code, cb)
 
-            val tauStridesStruct = tauPType.makeRowMajorStrides(FastIndexedSeq(K), region.code, cb)
-
-            val h = hPType.construct(hShapeArray, hStridesStruct, aAddressDGEQRF, cb, region.code)
-            val tau = tauPType.construct(FastIndexedSeq(K), tauStridesStruct, tauAddress, cb, region.code)
+            val tau = tauPType.construct(FastIndexedSeq(K), tauStridesArray, tauAddress, cb, region.code)
 
             resultType.constructFromFields(cb, region.code, FastIndexedSeq(
               EmitCode.present(cb.emb, h),
@@ -1569,29 +1570,31 @@ class Emit[C](
 
             val rShapeArray = FastIndexedSeq[Value[Long]](rRows, rCols)
 
-            val rStridesStruct = rPType.makeColumnMajorStrides(rShapeArray, region.code, cb)
+            val rStridesArray = rPType.makeColumnMajorStrides(rShapeArray, region.code, cb)
 
-            cb.assign(rDataAddress, rPType.dataType.allocate(region.code, aNumElements.toI))
-            cb.append(rPType.dataType.stagedInitialize(rDataAddress, (rRows * rCols).toI))
+            val (rDataAddress, rFinisher) = rPType.constructDataFunction(rShapeArray, rStridesArray, cb, region.code)
 
             // This block assumes that `rDataAddress` and `aAddressDGEQRF` point to column major arrays.
             // TODO: Abstract this into ndarray ptype/pcode interface methods.
             val currRow = cb.newLocal[Int]("ndarray_qr_currRow")
             val currCol = cb.newLocal[Int]("ndarray_qr_currCol")
 
+            val curWriteAddress = cb.newLocal[Long]("ndarray_qr_curr_write_addr", rDataAddress)
+
             cb.forLoop({cb.assign(currCol, 0)}, currCol < rCols.toI, {cb.assign(currCol, currCol + 1)}, {
               cb.forLoop({cb.assign(currRow, 0)}, currRow < rRows.toI, {cb.assign(currRow, currRow + 1)}, {
                 cb.append(Region.storeDouble(
-                  ndPT.dataType.elementOffset(rDataAddress, aNumElements.toI, currCol * rRows.toI + currRow),
+                  curWriteAddress,
                   (currCol >= currRow).mux(
                     Region.loadDouble(ndPT.dataType.elementOffset(aAddressDGEQRF, aNumElements.toI, currCol * M.toI + currRow)),
                     0.0
                   )
                 ))
+                cb.assign(curWriteAddress, curWriteAddress + rPType.elementType.byteSize)
               })
             })
 
-            val computeR = rPType.construct(rShapeArray, rStridesStruct, rDataAddress, cb, region.code)
+            val computeR = rFinisher(cb)
 
             if (mode == "r") {
               computeR
