@@ -1,12 +1,10 @@
 package is.hail.linalg
 
-import is.hail.annotations.{Region, StagedRegionValueBuilder}
-import is.hail.asm4s.{Code, MethodBuilder}
-import is.hail.asm4s._
-import is.hail.utils._
+import is.hail.annotations.Region
+import is.hail.asm4s.{Code, _}
 import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, IEmitCode}
 import is.hail.types.physical.stypes.interfaces.SNDArray
-import is.hail.types.physical.{PBaseStructValue, PCanonicalNDArray, PCode, PNDArrayCode, PNDArrayValue, PType, typeToTypeInfo}
+import is.hail.types.physical.{PCanonicalNDArray, PNDArrayCode, PNDArrayValue}
 
 object LinalgCodeUtils {
   def checkColumnMajor(pndv: PNDArrayValue, cb: EmitCodeBuilder): Value[Boolean] = {
@@ -38,11 +36,9 @@ object LinalgCodeUtils {
     val dataLength = cb.newLocal[Int]("nda_create_column_major_len", pt.numElements(shape).toI)
     val dataType = pt.dataType
 
-    val (addElem, finish) = dataType.constructFromFunctions(cb, region, dataLength, deepCopy = false)
-    val idx = cb.newLocal[Int]("nda_create_column_major_idx", 0)
+    val (pushElement, finish) = dataType.constructFromFunctions(cb, region, dataLength, deepCopy = false)
     SNDArray.forEachIndex(cb, shape, "nda_create_column_major") { case (cb, idxVars) =>
-      addElem(cb, idx, IEmitCode.present(cb, pndv.loadElement(idxVars, cb).asPCode))
-      cb.assign(idx, idx + 1)
+      pushElement(cb, IEmitCode.present(cb, pndv.loadElement(idxVars, cb).asPCode))
     }
     val newData = finish(cb)
     pndv.pt.construct(shape, strides, newData.a, cb, region)

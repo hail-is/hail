@@ -21,7 +21,7 @@ class DownsampleBTreeKey(binType: PBaseStruct, pointType: PBaseStruct, kb: EmitC
   val compType: PType = binType
   private val kcomp = kb.getCodeOrdering(binType, CodeOrdering.Compare(), ignoreMissingness = false)
 
-  def isEmpty(off: Code[Long]): Code[Boolean] = coerce[Boolean](Region.loadIRIntermediate(PBooleanRequired)(storageType.fieldOffset(off, "empty")))
+  def isEmpty(cb: EmitCodeBuilder, off: Code[Long]): Code[Boolean] = PBooleanRequired.loadCheapPCode(cb, storageType.loadField(off, "empty")).boolCode(cb)
 
   def initializeEmpty(cb: EmitCodeBuilder, off: Code[Long]): Unit = cb += Region.storeBoolean(storageType.fieldOffset(off, "empty"), true)
 
@@ -36,7 +36,7 @@ class DownsampleBTreeKey(binType: PBaseStruct, pointType: PBaseStruct, kb: EmitC
 
   def compKeys(cb: EmitCodeBuilder, k1: EmitCode, k2: EmitCode): Code[Int] = kcomp(cb, k1, k2)
 
-  def loadCompKey(cb: EmitCodeBuilder, off: Value[Long]): EmitCode = EmitCode.present(binType, storageType.loadField(off, "bin"))
+  def loadCompKey(cb: EmitCodeBuilder, off: Value[Long]): EmitCode = EmitCode.present(cb.emb, binType.loadCheapPCode(cb, storageType.loadField(off, "bin")))
 }
 
 
@@ -289,8 +289,8 @@ class DownsampleState(val kb: EmitClassBuilder[_], labelType: VirtualTypeWithReq
         cb += Region.storeInt(binType.fieldOffset(binStaging, "x"), binX)
         cb += Region.storeInt(binType.fieldOffset(binStaging, "y"), binY)
         cb.assign(insertOffset,
-          tree.getOrElseInitialize(cb, EmitCode.present(storageType.fieldType("binStaging"), binStaging)))
-        cb.ifx(key.isEmpty(insertOffset), {
+          tree.getOrElseInitialize(cb, EmitCode.present(cb.emb, storageType.fieldType("binStaging").loadCheapPCode(cb, binStaging))))
+        cb.ifx(key.isEmpty(cb, insertOffset), {
           cb.assign(binOffset, key.storageType.loadField(insertOffset, "bin"))
           cb += Region.storeInt(binType.loadField(binOffset, "x"), binX)
           cb += Region.storeInt(binType.loadField(binOffset, "y"), binY)
@@ -526,13 +526,11 @@ class DownsampleState(val kb: EmitClassBuilder[_], labelType: VirtualTypeWithReq
 
     val eltType = resType.elementType.asInstanceOf[PCanonicalBaseStruct]
 
-    val (storeElement, finish) = resType.constructFromFunctions(cb, region, treeSize, deepCopy = true)
-    val idx = cb.newLocal[Int]("downsample_result_idx", 0)
+    val (pushElement, finish) = resType.constructFromFunctions(cb, region, treeSize, deepCopy = true)
     cb.ifx(treeSize > 0, {
       tree.foreach(cb) { (cb, tv) =>
         val pointCode = pointType.loadCheapPCode(cb, key.storageType.loadField(tv, "point"))
-        storeElement(cb, idx, IEmitCode.present(cb, pointCode))
-        cb.assign(idx, idx + 1)
+        pushElement(cb, IEmitCode.present(cb, pointCode))
       }
     })
     finish(cb)

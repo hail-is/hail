@@ -138,6 +138,9 @@ class Tests(unittest.TestCase):
         ls3 = hl.hadoop_ls(path3)
         assert len(ls3) == 2, ls3
 
+        with self.assertRaisesRegex(Exception, "FileNotFound"):
+            hl.hadoop_ls('a_file_that_does_not_exist')
+
     def test_linked_list(self):
         ll = LinkedList(int)
         self.assertEqual(list(ll), [])

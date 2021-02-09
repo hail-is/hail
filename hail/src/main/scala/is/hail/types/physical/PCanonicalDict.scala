@@ -1,8 +1,8 @@
 package is.hail.types.physical
 
 import is.hail.annotations.{Annotation, Region}
-import is.hail.asm4s.Code
-import is.hail.types.virtual.{TArray, TDict, Type}
+import is.hail.types.virtual.{TDict, Type}
+import is.hail.types.physical.stypes.concrete.{SIndexablePointer, SIndexablePointerCode}
 import org.apache.spark.sql.Row
 
 final case class PCanonicalDict(keyType: PType, valueType: PType, required: Boolean = false) extends PDict with PArrayBackedContainer {
@@ -37,5 +37,10 @@ final case class PCanonicalDict(keyType: PType, valueType: PType, required: Bool
       .sorted(elementType.virtualType.ordering.toOrdering)
       .toIndexedSeq
     this.arrayRep.unstagedStoreJavaObject(sortedArray, region)
+  }
+
+  def construct(contents: PIndexableCode): PIndexableCode = {
+    assert(contents.pt == arrayRep)
+    new SIndexablePointerCode(SIndexablePointer(arrayRep), contents.tcode[Long])
   }
 }

@@ -157,10 +157,10 @@ fi
 
 
 class PR(Code):
-    def __init__(self, number, title, source_repo, source_sha, target_branch, author, labels):
+    def __init__(self, number, title, source_branch, source_sha, target_branch, author, labels):
         self.number = number
         self.title = title
-        self.source_repo = source_repo
+        self.source_branch = source_branch
         self.source_sha = source_sha
         self.target_branch = target_branch
         self.author = author
@@ -244,7 +244,7 @@ class PR(Code):
             self.target_branch.batch_changed = True
             self.target_branch.state_changed = True
 
-        self.source_repo = Repo.from_gh_json(head['repo'])
+        self.source_branch = FQBranch.from_gh_json(head)
 
     @staticmethod
     def from_gh_json(gh_json, target_branch):
@@ -252,7 +252,7 @@ class PR(Code):
         return PR(
             gh_json['number'],
             gh_json['title'],
-            Repo.from_gh_json(head['repo']),
+            FQBranch.from_gh_json(head),
             head['sha'],
             target_branch,
             gh_json['user']['login'],
@@ -264,12 +264,13 @@ class PR(Code):
 
     def config(self):
         assert self.sha is not None
+        source_repo = self.source_branch.repo
         target_repo = self.target_branch.branch.repo
         return {
             'checkout_script': self.checkout_script(),
             'number': self.number,
-            'source_repo': self.source_repo.short_str(),
-            'source_repo_url': self.source_repo.url,
+            'source_repo': source_repo.short_str(),
+            'source_repo_url': source_repo.url,
             'source_sha': self.source_sha,
             'target_repo': target_repo.short_str(),
             'target_repo_url': target_repo.url,
@@ -394,6 +395,7 @@ mkdir -p {shq(repo_dir)}
                 attributes={
                     'token': secrets.token_hex(16),
                     'test': '1',
+                    'source_branch': self.source_branch.short_str(),
                     'target_branch': self.target_branch.branch.short_str(),
                     'pr': str(self.number),
                     'source_sha': self.source_sha,
@@ -516,9 +518,9 @@ mkdir -p {shq(repo_dir)}
         return f'''
 {clone_or_fetch_script(self.target_branch.branch.repo.url)}
 
-git remote add {shq(self.source_repo.short_str())} {shq(self.source_repo.url)} || true
+git remote add {shq(self.source_branch.repo.short_str())} {shq(self.source_branch.repo.url)} || true
 
-time retry git fetch -q {shq(self.source_repo.short_str())}
+time retry git fetch -q {shq(self.source_branch.repo.short_str())}
 git checkout {shq(self.target_branch.sha)}
 git merge {shq(self.source_sha)} -m 'merge PR'
 '''

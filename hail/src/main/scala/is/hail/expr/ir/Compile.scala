@@ -45,7 +45,11 @@ object Compile {
     ir = LoweringPipeline.compileLowerer(optimize).apply(ctx, ir).asInstanceOf[IR].noSharing
 
     TypeCheck(ir, BindingEnv.empty)
-    InferPType(ir)
+
+    val usesAndDefs = ComputeUsesAndDefs(ir, errorIfFreeVariables = false)
+    val requiredness = Requiredness.apply(ir, usesAndDefs, null, Env.empty) // Value IR inference doesn't need context
+    InferPType(ir, Env.empty, requiredness, usesAndDefs)
+
     val returnType = ir.pType
 
     val fb = EmitFunctionBuilder[F](ctx, "Compiled",
@@ -69,7 +73,8 @@ object Compile {
     assert(fb.mb.parameterTypeInfo == expectedCodeParamTypes, s"expected $expectedCodeParamTypes, got ${ fb.mb.parameterTypeInfo }")
     assert(fb.mb.returnTypeInfo == expectedCodeReturnType, s"expected $expectedCodeReturnType, got ${ fb.mb.returnTypeInfo }")
 
-    Emit(ctx, ir, fb)
+    val emitContext = new EmitContext(ctx, requiredness)
+    Emit(emitContext, ir, fb)
 
     val f = fb.resultWithIndex(print)
     codeCache += k -> CodeCacheValue(ir.pType, f)
@@ -107,7 +112,9 @@ object CompileWithAggregators {
 
     TypeCheck(ir, BindingEnv(Env.fromSeq[Type](params.map { case (name, t) => name -> t.virtualType })))
 
-    InferPType(ir, Env.empty[PType])
+    val usesAndDefs = ComputeUsesAndDefs(ir, errorIfFreeVariables = false)
+    val requiredness = Requiredness.apply(ir, usesAndDefs, null, Env.empty) // Value IR inference doesn't need context
+    InferPType(ir, Env.empty, requiredness, usesAndDefs)
 
     val returnType = ir.pType
     val fb = EmitFunctionBuilder[F](ctx, "CompiledWithAggs",
@@ -128,7 +135,8 @@ object CompileWithAggregators {
     }
      */
 
-    Emit(ctx, ir, fb, Some(aggSigs))
+    val emitContext = new EmitContext(ctx, requiredness)
+    Emit(emitContext, ir, fb, Some(aggSigs))
 
     val f = fb.resultWithIndex()
     codeCache += k -> CodeCacheValue(ir.pType, f)
@@ -195,14 +203,20 @@ object CompileIterator {
 
     val outerRegion = StagedRegion(outerRegionField, allowSubregions = false)
     val eltRegion = outerRegion.createChildRegion(stepF)
-    val emitter = new Emit(ctx, stepFECB)
 
     val ir = LoweringPipeline.compileLowerer(true)(ctx, body).asInstanceOf[IR].noSharing
     TypeCheck(ir)
-    InferPType(ir, Env.empty[PType])
+
+    val usesAndDefs = ComputeUsesAndDefs(ir, errorIfFreeVariables = false)
+    val requiredness = Requiredness.apply(ir, usesAndDefs, null, Env.empty) // Value IR inference doesn't need context
+    InferPType(ir, Env.empty, requiredness, usesAndDefs)
+
+    val emitContext = new EmitContext(ctx, requiredness)
+    val emitter = new Emit(emitContext, stepFECB)
+
     val returnType = ir.pType.asInstanceOf[PStream].elementType.asInstanceOf[PStruct].setRequired(true)
 
-    val optStream = EmitStream.emit(ctx, emitter, ir, stepF, outerRegion, Env.empty, None)
+    val optStream = EmitStream.emit(emitter, ir, stepF, outerRegion, Env.empty, None)
 
     val elementAddress = stepF.genFieldThisRef[Long]("elementAddr")
 

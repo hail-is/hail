@@ -23,7 +23,7 @@ spec:
 {% if deploy %}
       priorityClassName: production
       nodeSelector:
-        preemptible: "false"      
+        preemptible: "false"
 {% else %}
       nodeSelector:
         preemptible: "true"
@@ -246,17 +246,12 @@ spec:
         ports:
          - containerPort: 5000
         resources:
-           requests:
-{% if deploy %}
-             memory: 375Mi
-             cpu: 100m
-{% else %}
-             memory: 37Mi
-             cpu: 10m
-{% endif %}
-           limits:
-             memory: 3750Mi
-             cpu: "1"
+          requests:
+            memory: "10M"
+            cpu: "100m"
+          limits:
+            memory: "1G"
+            cpu: "1"
         volumeMounts:
          - name: deploy-config
            mountPath: /deploy-config

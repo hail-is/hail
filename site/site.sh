@@ -1,5 +1,5 @@
 #!/bin/bash
-set -ex
+set -e
 
 rewrite_conf_location=/etc/nginx/conf.d/rewrite-links-for-namespace.conf
 

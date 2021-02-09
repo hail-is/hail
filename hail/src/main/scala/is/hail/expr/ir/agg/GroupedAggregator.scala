@@ -2,7 +2,7 @@ package is.hail.expr.ir.agg
 
 import is.hail.annotations.{CodeOrdering, Region}
 import is.hail.asm4s._
-import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitCodeBuilder, EmitMethodBuilder, EmitRegion, ParamType}
+import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitCodeBuilder, EmitMethodBuilder, EmitRegion, IEmitCode, ParamType}
 import is.hail.io._
 import is.hail.types.VirtualTypeWithReq
 import is.hail.types.encoded.EType
@@ -40,7 +40,9 @@ class GroupedBTreeKey(kt: PType, kb: EmitClassBuilder[_], region: Value[Region],
   def isKeyMissing(off: Code[Long]): Code[Boolean] =
     storageType.isFieldMissing(off, 0)
 
-  def loadKey(off: Code[Long]): Code[_] = Region.loadIRIntermediate(kt)(storageType.fieldOffset(off, 0))
+  def loadKey(cb: EmitCodeBuilder, off: Code[Long]): PCode = {
+    kt.loadCheapPCode(cb, storageType.loadField(off, 0))
+  }
 
   def initValue(cb: EmitCodeBuilder, destc: Code[Long], k: EmitCode, rIdx: Code[Int]): Unit = {
     val dest = cb.newLocal("ga_init_value_dest", destc)
@@ -71,7 +73,7 @@ class GroupedBTreeKey(kt: PType, kb: EmitClassBuilder[_], region: Value[Region],
     def get: Code[Long] = storageType.fieldOffset(off, 2)
   }
 
-  def isEmpty(off: Code[Long]): Code[Boolean] =
+  def isEmpty(cb: EmitCodeBuilder, off: Code[Long]): Code[Boolean] =
     Region.loadInt(storageType.fieldOffset(off, 1)) < 0
 
   def initializeEmpty(cb: EmitCodeBuilder, off: Code[Long]): Unit =
@@ -92,7 +94,7 @@ class GroupedBTreeKey(kt: PType, kb: EmitClassBuilder[_], region: Value[Region],
   }
 
   def loadCompKey(cb: EmitCodeBuilder, off: Value[Long]): EmitCode =
-    EmitCode(Code._empty, isKeyMissing(off), PCode(kt, loadKey(off)))
+    EmitCode.fromI(cb.emb)(cb => IEmitCode(cb, isKeyMissing(off), loadKey(cb, off)))
 }
 
 class DictState(val kb: EmitClassBuilder[_], val keyVType: VirtualTypeWithReq, val nested: StateTuple) extends PointerBasedRVAState {
@@ -127,7 +129,7 @@ class DictState(val kb: EmitClassBuilder[_], val keyVType: VirtualTypeWithReq, v
   def loadContainer(cb: EmitCodeBuilder, kec: EmitCode): Unit = {
     val kev = cb.memoize(kec, "ga_load_cont_k")
     cb.assign(_elt, tree.getOrElseInitialize(cb, kev))
-    cb.ifx(keyed.isEmpty(_elt), {
+    cb.ifx(keyed.isEmpty(cb, _elt), {
       initElement(cb, _elt, kev)
       keyed.copyStatesFrom(cb, initStatesOffset)
     }, {
@@ -180,7 +182,7 @@ class DictState(val kb: EmitClassBuilder[_], val keyVType: VirtualTypeWithReq, v
     tree.foreach(cb) { (cb, kvOff) =>
       cb.assign(_elt, kvOff)
       keyed.loadStates(cb)
-      f(cb, EmitCode(Code._empty, keyed.isKeyMissing(_elt), PCode(keyType, keyed.loadKey(_elt))))
+      f(cb, EmitCode.fromI(cb.emb)(cb => IEmitCode(cb, keyed.isKeyMissing(_elt), keyed.loadKey(cb, _elt))))
     }
 
   def copyFromAddress(cb: EmitCodeBuilder, srcCode: Code[Long]): Unit = {
@@ -207,7 +209,7 @@ class DictState(val kb: EmitClassBuilder[_], val keyVType: VirtualTypeWithReq, v
       tree.bulkStore(cb, ob) { (cb: EmitCodeBuilder, ob: Value[OutputBuffer], kvOff: Code[Long]) =>
         cb.assign(_elt, kvOff)
         cb.assign(km, keyed.isKeyMissing(_elt))
-        cb += (kv.storeAny(keyed.loadKey(_elt)))
+        cb += (kv.storeAny(keyed.loadKey(cb, _elt).code))
         cb += (ob.writeBoolean(km))
         cb.ifx(!km, {
           cb.invokeVoid(kEnc, kv, ob)

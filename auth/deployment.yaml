@@ -55,13 +55,8 @@ spec:
                 key: gsuite_organization
          resources:
            requests:
-{% if deploy %}
-             memory: 375Mi
-             cpu: 100m
-{% else %}
-             memory: 37Mi
-             cpu: 10m
-{% endif %}
+             memory: "5M"
+             cpu: "40m"
            limits:
              memory: 3750Mi
              cpu: "1"
@@ -170,13 +165,8 @@ spec:
                 key: gsuite_organization
          resources:
            requests:
-{% if deploy %}
-             memory: 375Mi
-             cpu: 100m
-{% else %}
-             memory: 37Mi
-             cpu: 10m
-{% endif %}
+             memory: "5M"
+             cpu: "5m"
            limits:
              memory: 3750Mi
              cpu: "1"
