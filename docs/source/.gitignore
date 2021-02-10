@@ -3,6 +3,6 @@
 !index.rst
 !.gitignore
 !_templates
-!_templtes/**
-!_static
-!_static/**
+!_templates/**
+!docs_static
+!docs_static/**
