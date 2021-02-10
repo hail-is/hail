@@ -2250,7 +2250,7 @@ class Emit[C](
           cb += EmitStream.write(cb.emb, stream.asStream, vab, outerRegion)
           cb += sort
           cb += distinct
-          sorter.toRegion(cb, array.pType)
+          sorter.toRegion(cb, x.pType)
         })
 
       case CastToArray(a) =>
