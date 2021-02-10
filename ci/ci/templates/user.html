@@ -1,0 +1,15 @@
+{% extends "layout.html" %}
+{% from "pr-table.html" import pr_table with context %}
+{% from "dev-deploy-table.html" import dev_deploy_table with context %}
+{% block title %}User Homepage{% endblock %}
+{% block content %}
+    <h1>Welcome, {{ username }}!</h1>
+
+    <h2>PRs</h2>
+    {% for wb in watched_branches %}
+    {{ pr_table(wb) }}
+    {% endfor %}
+
+    <h2>Dev Deploys</h2>
+    {{ dev_deploy_table(dev_deploys) }}
+{% endblock %}

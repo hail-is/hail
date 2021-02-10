@@ -858,6 +858,7 @@ mkdir -p {shq(repo_dir)}
                     'target_branch': self.branch.short_str(),
                     'sha': self.sha,
                     'user': self.user,
+                    'dev_deploy': '1',
                 }
             )
             config.build(deploy_batch, self, scope='dev')
