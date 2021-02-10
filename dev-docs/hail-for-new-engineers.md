@@ -25,7 +25,7 @@ In March of 2017, Hail team began work on a compiler.
 In October of 2018, the Hail Python interface was modified, in a backwards-incompatible way. This
 new Python interface was named "Hail 0.2". The old Python interface was retroactively named "Hail
 0.1". Hail team began deploying a Python package named `hail` to [PyPI](https://pypi.org). The Hail
-python package version compiles with [Semantic Versioning](https://semver.org).
+python package version complies with [Semantic Versioning](https://semver.org).
 
 Meanwhile, in September of 2018, Hail team began work on a system called "Batch". Batch runs
 programs in parallel on a cluster of virtual machines. Also in September, Hail team began work on a
@@ -34,9 +34,9 @@ request (PR) into the `main` branch of [`hail-is/hail`](https://github.com/hail-
 automatically merges into main any pull request that both passes the tests and has at least one
 "approving" review and no "changes requested" reviews. CI uses Hail Batch to run the tests.
 
-Around this time, the Hail team split organized itself into two sub-teams: "compilers" team and
-"services" team. The compilers team is responsible for the Hail Python library, the compiler, and
-the associated runtime. The compilers team code is entirely contained in the `hail` directory of the
+Around this time, the Hail team organized itself into two sub-teams: "compilers" team and "services"
+team. The compilers team is responsible for the Hail Python library, the compiler, and the
+associated runtime. The compilers team code is entirely contained in the `hail` directory of the
 `hail-is/hail` repository. The services team is responsible for Batch, CI, and the software
 infrastructure that supports those services. Each service has its own directory in the hail
 repository. More information about the structure of the repository can be found in
@@ -65,8 +65,9 @@ represented as Table or a Matrix Table.
 
 Hail Tables are similar to SQL tables, Pandas Dataframes, Excel spreadsheets, and CSV files.
 
-Hail Matrix Tables do not have analogues in most other systems. Perhaps the only analogue is a
-[SciDB](https://dbdb.io/db/scidb) multi-dimensional array. A Hail Matrix Table can represent dense,
+Hail Matrix Tables do not have analogues in most other systems. Perhaps the only analogue is
+[SciDB](https://dbdb.io/db/scidb) and its descendants: [TileDB](https://tiledb.com) and
+[GenomicsDB](https://github.com/GenomicsDB/GenomicsDB)). A Hail Matrix Table can represent dense,
 two-dimensional, homogeneous data. For example, datasets of Human genetic sequences, dense [numeric
 matrices](https://en.wikipedia.org/wiki/Matrix_(mathematics)), and [astronomical
 surveys](https://en.wikipedia.org/wiki/Astronomical_survey).
@@ -96,38 +97,38 @@ virtual machine is also called "the batch worker".
 The Hail team does not maintain any physical computer infrastructure.
 
 We maintain some virtual infrastructure, almost exclusively within the Google Cloud Platform (GCP). These include:
-- a [Kubernetes](https://kubernetes.io) (k8s) cluster called `vdc` (Virtual Data Center),
-- many Google Cloud Storage ([an object store](https://en.wikipedia.org/wiki/Object_storage)) buckets,
-- one Cloud SQL instance with a production database, ephemeral pull-request-test databases, and one
-  database per developer, and
-- logs for basically anything can be found in [GCP Logs](https://console.cloud.google.com/logs).
+- a [Kubernetes](https://kubernetes.io) (k8s) cluster called `vdc` (Virtual Data Center)
+- many Google Cloud Storage ([an object store](https://en.wikipedia.org/wiki/Object_storage)) buckets
+- one Cloud SQL instance with a production database, ephemeral pull-request-test databases, and a
+  database per developer
+- logs for basically anything can be found in [GCP Logs](https://console.cloud.google.com/logs)
 
 We use a number of technologies:
-- Python is the language of choice for web applications, services, and anything user-facing,
-- Scala is the legacy language of the Hail Query compiler and run-time,
-- the JVM is the legacy target of the Hail Query compiler,
-- C++ is the aspirational language of high-performance services and the Hail Query compiler and run-time,
-- LLVM is the aspirational target of the Hail Query compiler,
-- Docker is our container image and run-time system, and
-- MySQL is our SQL database of choice.
+- Python is the language of choice for web applications, services, and anything user-facing
+- Scala is the legacy language of the Hail Query compiler and run-time
+- the JVM is the legacy target of the Hail Query compiler
+- C++ is the aspirational language of high-performance services and the Hail Query compiler and run-time
+- LLVM is the aspirational target of the Hail Query compiler
+- Docker is our container image and run-time system
+- MySQL is our SQL database of choice
 
 ### Services Technology
 
 We almost exclusively write services in Python 3.7. We use a number of Python packages:
 - [`asyncio`](https://docs.python.org/3.7/library/asyncio.html) for concurrency which is built on
-  [coroutines](https://en.wikipedia.org/wiki/Coroutine) not threads,
+  [coroutines](https://en.wikipedia.org/wiki/Coroutine) not threads
 - [`aiohttp`](https://docs.aiohttp.org/en/stable/) for serving HTTPS requests (most services speak
-  HTTPS, shuffler speaks a custom TCP-based protocol), and
+  HTTPS, shuffler speaks a custom TCP-based protocol)
 - [`jinja2`](https://jinja.palletsprojects.com/en/2.11.x/) for "templating" which simply means
-  programmatically generating text files.
+  programmatically generating text files
 
 A service is realized as:
 
-- a Docker image containing the executable code for the service,
+- a Docker image containing the executable code for the service
 - a Kubernetes deployment (which defines the command to run, how much CPU is needed, what
-  environment variables are set, etc.),
-- a Kubernetes service (which defines which ports are accessible), and
-- possibly a database within our Cloud SQL instance.
+  environment variables are set, etc.)
+- a Kubernetes service (which defines which ports are accessible)
+- possibly a database within our Cloud SQL instance
 
 We call a complete, working set of all services and databases a "namespace". Every namespace
 corresponds to a Kubernetes namespace. All namespaces share one CloudSQL instance, but only have
