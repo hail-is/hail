@@ -2,14 +2,6 @@
 {% block title %}Batch {{ batch['id'] }}{% endblock %}
 {% block content %}
     <h1>Batch {{ batch['id'] }}</h1>
-    {% if 'attributes' in batch %}
-    <h2>Attributes</h2>
-    <div class="attributes">
-      {% for name, value in batch['attributes'].items() %}
-      <div>{{ name }}: {{ value }}</div>
-      {% endfor %}
-    </div>
-    {% endif %}
     <h2>Timing</h2>
     <div class="attributes">
       {% for field in ['time_created', 'time_completed', 'duration'] %}
@@ -18,6 +10,14 @@
       {% endif %}
       {% endfor %}
     </div>
+    {% if 'attributes' in batch %}
+    <h2>Attributes</h2>
+    <div class="attributes">
+      {% for name, value in batch['attributes'].items() %}
+      <div>{{ name }}: {{ value }}</div>
+      {% endfor %}
+    </div>
+    {% endif %}
     <h2>Jobs</h2>
     <table class="data-table" style="line-height: 175%">
       <thead>
