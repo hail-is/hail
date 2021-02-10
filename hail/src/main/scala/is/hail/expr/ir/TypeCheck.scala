@@ -38,6 +38,7 @@ object TypeCheck {
             case _: SeqOp => // let seqop checking below catch bad void arguments
             case _: InitOp => // let initop checking below catch bad void arguments
             case _: If if i != 0 =>
+            case _: RelationalLet if i == 1 =>
             case _: Begin =>
             case _ =>
               throw new RuntimeException(s"unexpected void-typed IR at child $i of ${ ir.getClass.getSimpleName }" +
