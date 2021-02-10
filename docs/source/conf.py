@@ -42,7 +42,7 @@ extensions = [
 ]
 
 # Add any paths that contain templates here, relative to this directory.
-templates_path = ['_templates', '_templates/_autosummary']
+templates_path = [f'{WEB_COMMON_ROOT}/templates', '_templates']
 
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
@@ -73,8 +73,9 @@ intersphinx_mapping = {
 
 
 def setup(app):
-    scss_path = f'_static/common_static/styles'
-    css_path = f'_static/common_static/css'
+    scss_path = '_static/common_static/styles'
+    css_path = '_static/common_static/css'
+    os.makedirs(scss_path, exist_ok=True)
     os.makedirs(css_path, exist_ok=True)
 
     sass.compile(
