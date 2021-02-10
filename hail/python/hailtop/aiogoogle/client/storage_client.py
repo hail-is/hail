@@ -70,22 +70,34 @@ class InsertObjectStream(WritableStream):
 
 class _WriteBuffer:
     def __init__(self):
+        """Long writes that might fail need to be broken into smaller chunks
+        that can be retried.  _WriteBuffer stores data at the end of
+        the write stream that has not been committed and may be needed
+        to retry the failed write of a chunk."""
         self._buffers = collections.deque()
         self._offset = 0
         self._size = 0
         self._iterating = False
 
     def append(self, b: bytes):
+        """`b` can be any length"""
         self._buffers.append(b)
         self._size += len(b)
 
     def size(self) -> int:
+        """Return the total number of bytes stored in the write buffer.  This
+        is the sum of the length of the bytes in `_buffers`."""
         return self._size
 
     def offset(self) -> int:
+        """Return the offset in the write stream of the first byte in the
+        write buffer."""
         return self._offset
 
     def advance_offset(self, new_offset: int):
+        """Inform the write buffer that bytes before `new_offset` have been
+        committed and can be discarded.  After calling advance_offset,
+        `self.offset() == new_offset`."""
         assert not self._iterating
         assert new_offset <= self._offset + self._size
         while self._buffers and new_offset >= self._offset + len(self._buffers[0]):
@@ -104,6 +116,8 @@ class _WriteBuffer:
         assert self._offset == new_offset
 
     def chunks(self, chunk_size: int) -> Iterator[bytes]:
+        """Return an iterator that yields bytes whose total size is
+        `chunk_size` from the beginning of the write buffer."""
         assert not self._iterating
         self._iterating = True
         remaining = chunk_size
@@ -173,6 +187,11 @@ class ResumableInsertObjectStream(WritableStream):
             total_size_str = '*'
 
         if self._broken:
+            # If the last request was unsuccessful, we are out of sync
+            # with the server and we don't know what byte to send
+            # next.  Perform a status check to find out.  See:
+            # https://cloud.google.com/storage/docs/performing-resumable-uploads#status-check
+
             # note: this retries
             resp = self._session.put(self._session_url,
                                      headers={
@@ -211,6 +230,8 @@ class ResumableInsertObjectStream(WritableStream):
         else:
             range = f'bytes */{total_size_str}'
 
+        # Upload a single chunk.  See:
+        # https://cloud.google.com/storage/docs/performing-resumable-uploads#chunked-upload
         it: FeedableAsyncIterable[bytes] = FeedableAsyncIterable()
         async with _TaskManager(
                 self._session.put(self._session_url,
@@ -295,6 +316,8 @@ class StorageClient(BaseClient):
     # https://cloud.google.com/storage/docs/json_api/v1
 
     async def insert_object(self, bucket: str, name: str, **kwargs) -> InsertObjectStream:
+        # Insert an object.  See:
+        # https://cloud.google.com/storage/docs/json_api/v1/objects/insert
         if 'params' in kwargs:
             params = kwargs['params']
         else:
@@ -322,6 +345,8 @@ class StorageClient(BaseClient):
                 **kwargs))
             return InsertObjectStream(it, request_task)
 
+        # Write using resumable uploads.  See:
+        # https://cloud.google.com/storage/docs/performing-resumable-uploads
         assert upload_type == 'resumable'
         chunk_size = kwargs.get('bufsize', 256 * 1024)
         resp = await self._session.post(
