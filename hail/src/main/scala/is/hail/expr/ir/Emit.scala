@@ -898,7 +898,6 @@ class Emit[C](
 
       case x@MakeArray(args, _) =>
         val pType = x.pType.asInstanceOf[PCanonicalArray]
-        val srvb = new StagedRegionValueBuilder(mb, pType, region.code)
 
         val (pushElement, finish) = pType.constructFromFunctions(cb, region.code, args.size, deepCopy = false)
         for (arg <- args) {
