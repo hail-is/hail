@@ -644,20 +644,20 @@ abstract class RegistryFunctions {
     returnType: Type,
     calculateReturnPType: (Type, Seq[PType]) => PType
   )(
-    impl: (EmitRegion, PType, Long, Array[(PType, Code[_])]) => Code[_]
+    impl: (EmitCodeBuilder, Value[Region], PType, Long, Array[SCode]) => SCode
   ) {
     IRFunctionRegistry.addJVMFunction(
       new SeededMissingnessObliviousJVMFunction(name, valueParameterTypes, returnType, calculateReturnPType) {
         val isDeterministic: Boolean = false
 
-        def applySeeded(seed: Long, r: EmitRegion, rpt: PType, args: (PType, Code[_])*): Code[_] = {
-          assert(unify(Array.empty[Type], args.map(_._1.virtualType), rpt.virtualType))
-          impl(r, rpt, seed, args.toArray)
+        def applySeeded(cb: EmitCodeBuilder, seed: Long, r: Value[Region], rpt: PType, args: SCode*): SCode = {
+          assert(unify(Array.empty[Type], args.map(_.st.virtualType), rpt.virtualType))
+          impl(cb, r, rpt, seed, args.toArray)
         }
 
-        def applySeededI(seed: Long, cb: EmitCodeBuilder, r: EmitRegion, rpt: PType, args: (PType, EmitCode)*): IEmitCode = {
+        def applySeededI(seed: Long, cb: EmitCodeBuilder, r: Value[Region], rpt: PType, args: (PType, EmitCode)*): IEmitCode = {
           IEmitCode.multiMapEmitCodes(cb, args.map(_._2).toFastIndexedSeq) {
-            argPCs => PCode(rpt, applySeeded(seed, r, rpt, argPCs.map(pc => pc.pt -> pc.code): _*))
+            argPCs => applySeeded(cb, seed, r, rpt, argPCs: _*).asPCode
           }
         }
 
@@ -665,29 +665,25 @@ abstract class RegistryFunctions {
       })
   }
 
-  def registerSeeded0(name: String, returnType: Type, pt: PType)(impl: (EmitRegion, PType, Long) => Code[_]): Unit =
-    registerSeeded(name, Array[Type](), returnType, if (pt == null) null else (_: Type, _: Seq[PType]) => pt) { case (r, rt, seed, array) => impl(r, rt, seed) }
+  def registerSeeded0(name: String, returnType: Type, pt: PType)(impl: (EmitCodeBuilder, Value[Region], PType, Long) => SCode): Unit =
+    registerSeeded(name, Array[Type](), returnType, if (pt == null) null else (_: Type, _: Seq[PType]) => pt) { case (cb, r, rt, seed, _) => impl(cb, r, rt, seed) }
 
-  def registerSeeded1[A1](name: String, arg1: Type, returnType: Type, pt: (Type, PType) => PType)(impl: (EmitRegion, PType, Long, (PType, Code[A1])) => Code[_]): Unit =
+  def registerSeeded1(name: String, arg1: Type, returnType: Type, pt: (Type, PType) => PType)(impl: (EmitCodeBuilder, Value[Region], PType, Long, SCode) => SCode): Unit =
     registerSeeded(name, Array(arg1), returnType, unwrappedApply(pt)) {
-      case (r, rt, seed, Array(a1: (PType, Code[A1])@unchecked)) => impl(r, rt, seed, a1)
+      case (cb, r, rt, seed, Array(a1)) => impl(cb, r, rt, seed, a1)
     }
 
-  def registerSeeded2[A1, A2](name: String, arg1: Type, arg2: Type, returnType: Type, pt: (Type, PType, PType) => PType)
-    (impl: (EmitRegion, PType, Long, (PType, Code[A1]), (PType, Code[A2])) => Code[_]): Unit =
+  def registerSeeded2(name: String, arg1: Type, arg2: Type, returnType: Type, pt: (Type, PType, PType) => PType)
+    (impl: (EmitCodeBuilder, Value[Region], PType, Long, SCode, SCode) => SCode): Unit =
     registerSeeded(name, Array(arg1, arg2), returnType, unwrappedApply(pt)) { case
-      (r, rt, seed, Array(a1: (PType, Code[A1])@unchecked, a2: (PType, Code[A2])@unchecked)) =>
-      impl(r, rt, seed, a1, a2)
+      (cb, r, rt, seed, Array(a1, a2)) =>
+      impl(cb, r, rt, seed, a1, a2)
     }
 
-  def registerSeeded4[A1, A2, A3, A4](name: String, arg1: Type, arg2: Type, arg3: Type, arg4: Type, returnType: Type, pt: (Type, PType, PType, PType, PType) => PType)
-    (impl: (EmitRegion, PType, Long, (PType, Code[A1]), (PType, Code[A2]), (PType, Code[A3]), (PType, Code[A4])) => Code[_]): Unit =
+  def registerSeeded4(name: String, arg1: Type, arg2: Type, arg3: Type, arg4: Type, returnType: Type, pt: (Type, PType, PType, PType, PType) => PType)
+    (impl: (EmitCodeBuilder, Value[Region], PType, Long, SCode, SCode, SCode, SCode) => SCode): Unit =
     registerSeeded(name, Array(arg1, arg2, arg3, arg4), returnType, unwrappedApply(pt)) {
-        case (r, rt, seed, Array(
-        a1: (PType, Code[A1]) @unchecked,
-        a2: (PType, Code[A2]) @unchecked,
-        a3: (PType, Code[A3]) @unchecked,
-        a4: (PType, Code[A4]) @unchecked)) => impl(r, rt, seed, a1, a2, a3, a4)
+      case (cb, r, rt, seed, Array(a1, a2, a3, a4)) => impl(cb, r, rt, seed, a1, a2, a3, a4)
     }
 }
 
@@ -803,7 +799,7 @@ abstract class SeededJVMFunction (
 
   def setSeed(s: Long): Unit = { seed = s }
 
-  def applySeededI(seed: Long, cb: EmitCodeBuilder, region: EmitRegion, rpt: PType, args: (PType, EmitCode)*): IEmitCode
+  def applySeededI(seed: Long, cb: EmitCodeBuilder, region: Value[Region], rpt: PType, args: (PType, EmitCode)*): IEmitCode
 
   def apply(region: EmitRegion, rpt: PType, typeParameters: Seq[Type], args: EmitCode*): EmitCode =
     fatal("seeded functions must go through IEmitCode path")
