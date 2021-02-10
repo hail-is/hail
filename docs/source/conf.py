@@ -60,7 +60,7 @@ html_theme = 'alabaster'
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
 # so a file named "default.css" will overwrite the builtin "default.css".
-html_static_path = ['_static']
+html_static_path = ['common_static', 'docs_static']
 
 intersphinx_mapping = {
     'python': ('https://docs.python.org/3.7', None),
@@ -72,24 +72,35 @@ intersphinx_mapping = {
     'aiohttp': ('https://docs.aiohttp.org/en/stable/', None)}
 
 
-def setup(app):
-    scss_path = '_static/common_static/styles'
-    css_path = '_static/common_static/css'
-    os.makedirs(scss_path, exist_ok=True)
-    os.makedirs(css_path, exist_ok=True)
+DOCS_SOURCE_DIR = os.path.dirname(os.path.abspath(__file__))
+DOCS_BUILD_DIR = os.path.dirname(DOCS_SOURCE_DIR) + '/build/html'
 
+
+def setup(app):
+    docs_scss_path = f'{DOCS_SOURCE_DIR}/docs_static/styles'
+    docs_css_path = f'{DOCS_BUILD_DIR}/docs_static/css'
+    os.makedirs(docs_scss_path, exist_ok=True)
+    os.makedirs(docs_css_path, exist_ok=True)
     sass.compile(
-        dirname=(scss_path, css_path), output_style='compressed',
-        include_paths=[f'{WEB_COMMON_ROOT}/styles'])
+        dirname=(docs_scss_path, docs_css_path),
+        output_style='compressed')
+
+    web_common_scss_path = f'{WEB_COMMON_ROOT}/styles'
+    web_common_css_path = f'{DOCS_BUILD_DIR}/common_static/css'
+    os.makedirs(web_common_scss_path, exist_ok=True)
+    os.makedirs(web_common_css_path, exist_ok=True)
+    sass.compile(
+        dirname=(web_common_scss_path, web_common_css_path),
+        output_style='compressed')
 
     def apidoc(path):
         from sphinx.ext import apidoc
         apidoc.main(['-o', './source', '-d2', '-feMT', path])
 
     def apidoc_all_the_things(garbage):
-        apidoc('../web_common')
+        apidoc('../web_common/web_common')
         apidoc('../gear/gear')
-        # apidoc('../hail/python/hail')
+        # apidoc('../hail/python/hail')  # hail has a tonne of docs issues
         apidoc('../hail/python/hailtop')
     app.connect('builder-inited', apidoc_all_the_things)
 

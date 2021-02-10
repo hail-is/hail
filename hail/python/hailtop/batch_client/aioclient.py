@@ -10,7 +10,8 @@ import secrets
 
 from hailtop.config import get_deploy_config, DeployConfig
 from hailtop.auth import service_auth_headers
-from hailtop.utils import bounded_gather, request_retry_transient_errors, tqdm, TQDM_DEFAULT_DISABLE
+from hailtop.utils import bounded_gather, request_retry_transient_errors
+from hailtop.utils.tqdm import tqdm, TQDM_DEFAULT_DISABLE
 from hailtop.httpx import client_session
 
 from .globals import tasks, complete_states
