@@ -513,11 +513,6 @@ steps:
    dependsOn:
      - service_base_image
  - kind: buildImage
-   name: batch_worker_image
-   dockerFile: batch/Dockerfile.worker
-   contextPath: .
-   publishAs: batch-worker
- - kind: buildImage
    name: test_ci_image
    dockerFile: ci/Dockerfile.test
    contextPath: .
@@ -666,6 +661,17 @@ steps:
      time retry make jars python-version-info wheel
    dependsOn:
      - hail_build_image
+ - kind: buildImage
+   name: batch_worker_image
+   dockerFile: batch/Dockerfile.worker
+   contextPath: .
+   publishAs: batch-worker
+   inputs:
+     - from: /just-jar/hail.jar
+       to: /batch/hail.jar
+   dependsOn:
+     - service_base_image
+     - build_hail_jar_only
  - kind: buildImage
    name: query_image
    dockerFile: query/Dockerfile

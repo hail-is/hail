@@ -15,16 +15,27 @@ check:
 	$(PYTHON) -m pylint --rcfile ../pylintrc batch --score=n
 	../check-sql.sh
 
-.PHONY: build
-build:
+.PHONY: build-prereqs
+build-prereqs:
 	$(MAKE) -C ../docker build
+
+.PHONY: build-batch
+build-batch: build-prereqs
 	-docker pull $(BATCH_LATEST)
 	python3 ../ci/jinja2_render.py '{"service_base_image":{"image":"service-base"}}' Dockerfile Dockerfile.out
 	docker build -t batch -f Dockerfile.out --cache-from batch,$(BATCH_LATEST),service-base .
-	-docker pull gcr.io/$(PROJECT)/python:3.7-slim-stretch
+
+.PHONY: build-worker
+build-worker: build-prereqs
+	$(MAKE) -C ../hail shadowJar
+# janky
+	cp ../hail/build/libs/hail-all-spark.jar ./hail.jar
 	-docker pull $(BATCH_WORKER_LATEST)
-	python3 ../ci/jinja2_render.py '{"global":{"project":"$(PROJECT)"}}' Dockerfile.worker Dockerfile.worker.out
-	docker build -t batch-worker -f Dockerfile.worker.out --cache-from batch-worker,$(BATCH_WORKER_LATEST),gcr.io/$(PROJECT)/python:3.7-slim-stretch ..
+	python3 ../ci/jinja2_render.py '{"global":{"project":"$(PROJECT)"}, "service_base_image":{"image":"service-base"}}' Dockerfile.worker Dockerfile.worker.out
+	docker build -t batch-worker -f Dockerfile.worker.out --cache-from batch-worker,$(BATCH_WORKER_LATEST),service-base ..
+
+.PHONY: build
+build: build-batch build-worker
 
 .PHONY: push
 push: build

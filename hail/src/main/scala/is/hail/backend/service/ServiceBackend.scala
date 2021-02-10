@@ -44,11 +44,16 @@ object Worker {
     if (args.length != 2) {
       throw new IllegalArgumentException(s"expected two arguments, not: ${ args.length }")
     }
-
     val root = args(0)
     val i = args(1).toInt
 
-    val fs = using(new FileInputStream("/gsa-key/key.json")) { is =>
+    var scratchDir = System.getenv("HAIL_WORKER_SCRATCH_DIR")
+    if (scratchDir == null)
+      scratchDir = ""
+
+    log.info(s"running job $i at root $root wih scratch directory '$scratchDir'")
+
+    val fs = using(new FileInputStream(s"$scratchDir/gsa-key/key.json")) { is =>
       new GoogleStorageFS(IOUtils.toString(is))
     }
 
@@ -65,8 +70,6 @@ object Worker {
       length = is.readInt()
     }
 
-    println(s"offset $offset length $length")
-
     val context = using(fs.openNoCompression(s"$root/contexts")) { is =>
       is.seek(offset)
       val context = new Array[Byte](length)
@@ -82,6 +85,7 @@ object Worker {
     using(fs.createNoCompression(s"$root/result.$i")) { os =>
       os.write(result)
     }
+    log.info(s"finished job $i at root $root")
   }
 }
 
@@ -188,13 +192,11 @@ class ServiceBackend() extends Backend {
           "job_id" -> JInt(i),
           "parent_ids" -> JArray(List()),
           "process" -> JObject(
-            "image" -> JString(workerImage),
-            "mount_docker_socket" -> JBool(false),
             "command" -> JArray(List(
-              JString("/bin/bash"),
-              JString("-c"),
-              JString(s"java -cp $$SPARK_HOME/jars/*:/hail.jar is.hail.backend.service.Worker $root $i"))),
-            "type" -> JString("docker")),
+              JString("is.hail.backend.service.Worker"),
+              JString(root),
+              JString(s"$i"))),
+            "type" -> JString("jvm")),
           "mount_tokens" -> JBool(true))
       i += 1
     }
