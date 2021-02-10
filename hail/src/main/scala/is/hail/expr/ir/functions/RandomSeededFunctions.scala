@@ -129,7 +129,7 @@ object RandomSeededFunctions extends RegistryFunctions {
       cb.whileLoop(i < len, {
         weights.loadElement(cb, i).consume(cb,
           cb._fatal("rand_cat requires all elements of input array to be present"),
-          sc => a.update(i, sc.asDouble.doubleCode(cb))
+          sc => cb += a.update(i, sc.asDouble.doubleCode(cb))
         )
         cb.assign(i, i + 1)
       })
