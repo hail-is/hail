@@ -1,8 +1,8 @@
 {% extends "dev-docs-page.html" %}
-{% block title %} Large-scale Batch Operation {% endblock %}
+{% block title %} Creating a Developer Account {% endblock %}
 
 {% block docs_content %}
-# Creating a Developer Account
+## Creating a Developer Account
 
 Do *not* sign up for a developer account. The "sign up" link on "auth.hail.is"
 can only produce non-developer accounts. Instead, an extant developer must:
@@ -19,7 +19,7 @@ can only produce non-developer accounts. Instead, an extant developer must:
     of "Authorized redirect URIs".
 
 
-# Programmatic manipulation of OAuth 2.0 Client IDs
+## Programmatic manipulation of OAuth 2.0 Client IDs
 
 There is a [GitHub
 issue](https://github.com/hashicorp/terraform-provider-google/issues/6074)
