@@ -11,6 +11,8 @@
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 #
 import os
+import sass
+from web_common import WEB_COMMON_ROOT
 # import sys
 # sys.path.insert(0, os.path.abspath('.'))
 
@@ -69,7 +71,16 @@ intersphinx_mapping = {
     'pandas': ('https://pandas.pydata.org/docs/', None),
     'aiohttp': ('https://docs.aiohttp.org/en/stable/', None)}
 
+
 def setup(app):
+    scss_path = f'_static/common_static/styles'
+    css_path = f'_static/common_static/css'
+    os.makedirs(css_path, exist_ok=True)
+
+    sass.compile(
+        dirname=(scss_path, css_path), output_style='compressed',
+        include_paths=[f'{WEB_COMMON_ROOT}/styles'])
+
     def apidoc(path):
         from sphinx.ext import apidoc
         apidoc.main(['-o', './source', '-d2', '-feMT', path])
