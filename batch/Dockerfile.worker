@@ -1,5 +1,11 @@
 FROM gcr.io/{{ global.project }}/python:3.7-slim-stretch
 
+COPY docker/hail-ubuntu/hail-apt-get-install /bin/hail-apt-get-install
+RUN mkdir -p /usr/share/man/man1 /usr/share/man/man2
+RUN hail-apt-get-install \
+    openjdk-8-jre-headless \
+    liblapack3
+
 COPY docker/hail-ubuntu/pip.conf /root/.config/pip/pip.conf
 COPY docker/hail-ubuntu/hail-pip-install /bin/hail-pip-install
 COPY docker/requirements.txt .
