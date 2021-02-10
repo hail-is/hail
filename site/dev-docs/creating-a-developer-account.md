@@ -1,3 +1,7 @@
+{% extends "dev-docs-page.html" %}
+{% block title %} Large-scale Batch Operation {% endblock %}
+
+{% block docs_content %}
 # Creating a Developer Account
 
 Do *not* sign up for a developer account. The "sign up" link on "auth.hail.is"
@@ -31,3 +35,4 @@ Client IDs even though all they did was provide a very limited API:
 The `gcloud alpha iap oauth-clients list` command does not list our OAuth 2.0
 Client ID. Presumably the type of client id that supports redirect URIs is
 special and completely unsupported by this API.
+{% endblock %}

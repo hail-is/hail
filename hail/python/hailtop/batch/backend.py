@@ -26,8 +26,7 @@ class Backend(abc.ABC):
 
     @abc.abstractmethod
     def _run(self, batch, dry_run, verbose, delete_scratch_on_exit, **backend_kwargs):
-        """
-        Execute a batch.
+        """Execute a batch.
 
         Warning
         -------
