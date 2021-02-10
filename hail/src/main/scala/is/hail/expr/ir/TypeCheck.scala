@@ -40,6 +40,7 @@ object TypeCheck {
             case _: If if i != 0 =>
             case _: RelationalLet if i == 1 =>
             case _: Begin =>
+            case _: WriteMetadata =>
             case _ =>
               throw new RuntimeException(s"unexpected void-typed IR at child $i of ${ ir.getClass.getSimpleName }" +
                 s"\n  IR: ${ Pretty(ir) }")
