@@ -193,12 +193,12 @@ class ResumableInsertObjectStream(WritableStream):
             # https://cloud.google.com/storage/docs/performing-resumable-uploads#status-check
 
             # note: this retries
-            resp = self._session.put(self._session_url,
-                                     headers={
-                                         'Content-Length': '0',
-                                         'Content-Range': f'bytes */{total_size_str}'
-                                     },
-                                     raise_for_status=False)
+            resp = await self._session.put(self._session_url,
+                                           headers={
+                                               'Content-Length': '0',
+                                               'Content-Range': f'bytes */{total_size_str}'
+                                           },
+                                           raise_for_status=False)
             if resp.status >= 200 or resp.status < 300:
                 assert self._closed and self._write_buffer.size() == 0
                 self._done = True
