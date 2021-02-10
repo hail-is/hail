@@ -471,7 +471,7 @@ class ServiceBackend() extends Backend {
     path: String
   ): String = {
     ExecutionTimer.logTime("ServiceBackend.loadReferencesFromDataset") { timer =>
-      userContext(username, timer) { ctx =>
+      userContext(username, sessionID, timer) { ctx =>
         ReferenceGenome.fromHailDataset(ctx.fs, path)
       }
     }
