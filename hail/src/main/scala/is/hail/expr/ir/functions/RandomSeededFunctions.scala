@@ -1,11 +1,10 @@
 package is.hail.expr.ir.functions
 
-import is.hail.annotations.{Region, StagedRegionValueBuilder}
-import is.hail.asm4s.Code
-import is.hail.types._
-import is.hail.types.physical.{PArray, PBoolean, PCanonicalArray, PFloat64, PInt32, PType}
-import is.hail.types.virtual.{TArray, TBoolean, TFloat64, TInt32, Type}
-import is.hail.utils._
+import is.hail.asm4s._
+import is.hail.expr.ir.IEmitCode
+import is.hail.types.physical.stypes.interfaces._
+import is.hail.types.physical.{PBoolean, PCanonicalArray, PCode, PFloat64, PInt32, PType}
+import is.hail.types.virtual._
 import net.sourceforge.jdistlib.rng.MersenneTwister
 import net.sourceforge.jdistlib.{Beta, Gamma, Poisson}
 
@@ -57,88 +56,84 @@ object RandomSeededFunctions extends RegistryFunctions {
 
   def registerAll() {
     registerSeeded2("rand_unif", TFloat64, TFloat64, TFloat64, {
-      case(_: Type, _: PType, _: PType) => PFloat64()
-    }) { case (r, rt, seed, (minT, min), (maxT, max)) =>
-      r.mb.newRNG(seed).invoke[Double, Double, Double]("runif", min, max)
+      case (_: Type, _: PType, _: PType) => PFloat64()
+    }) { case (cb, r, rt, seed, min, max) =>
+      PCode(rt, cb.emb.newRNG(seed).invoke[Double, Double, Double]("runif", min.asDouble.doubleCode(cb), max.asDouble.doubleCode(cb)))
     }
 
     registerSeeded2("rand_norm", TFloat64, TFloat64, TFloat64, {
-      case(_: Type, _: PType, _: PType) => PFloat64()
-    }) { case (r, rt, seed, (meanT, mean), (sdT, sd)) =>
-      r.mb.newRNG(seed).invoke[Double, Double, Double]("rnorm", mean, sd)
+      case (_: Type, _: PType, _: PType) => PFloat64()
+    }) { case (cb, r, rt, seed, mean, sd) =>
+      PCode(rt, cb.emb.newRNG(seed).invoke[Double, Double, Double]("rnorm", mean.asDouble.doubleCode(cb), sd.asDouble.doubleCode(cb)))
     }
 
-    registerSeeded1("rand_bool", TFloat64, TBoolean, (_: Type, _: PType) => PBoolean()) { case (r, rt, seed, (pT, p)) =>
-      r.mb.newRNG(seed).invoke[Double, Boolean]("rcoin", p)
+    registerSeeded1("rand_bool", TFloat64, TBoolean, (_: Type, _: PType) => PBoolean()) { case (cb, r, rt, seed, p) =>
+      PCode(rt, cb.emb.newRNG(seed).invoke[Double, Boolean]("rcoin", p.asDouble.doubleCode(cb)))
     }
 
-    registerSeeded1("rand_pois", TFloat64, TFloat64, (_: Type, _: PType) => PFloat64()) { case (r, rt, seed, (lambdaT, lambda)) =>
-      r.mb.newRNG(seed).invoke[Double, Double]("rpois", lambda)
+    registerSeeded1("rand_pois", TFloat64, TFloat64, (_: Type, _: PType) => PFloat64()) { case (cb, r, rt, seed, lambda) =>
+      PCode(rt, cb.emb.newRNG(seed).invoke[Double, Double]("rpois", lambda.asDouble.doubleCode(cb)))
     }
 
     registerSeeded2("rand_pois", TInt32, TFloat64, TArray(TFloat64), {
-      case(_: Type, _: PType, _: PType) => PCanonicalArray(PFloat64(true))
-    }) { case (r, rt, seed, (nT, n), (lambdaT, lambda)) =>
-      val length = r.mb.newLocal[Int]()
-      val srvb = new StagedRegionValueBuilder(r, rt)
-      Code(
-        length := n,
-        srvb.start(n),
-        Code.whileLoop(srvb.arrayIdx < length,
-          srvb.addDouble(r.mb.newRNG(seed).invoke[Double, Double]("rpois", lambda)),
-          srvb.advance()
-        ),
-        srvb.offset)
+      case (_: Type, _: PType, _: PType) => PCanonicalArray(PFloat64(true))
+    }) { case (cb, r, rt: PCanonicalArray, seed, n, lambdaCode) =>
+      val len = cb.newLocal[Int]("rand_pos_len", n.asInt.intCode(cb))
+      val lambda = cb.newLocal[Double]("rand_pois_lambda", lambdaCode.asDouble.doubleCode(cb))
+
+      rt.constructFromElements(cb, r, len, deepCopy = false) { case (cb, _) =>
+        IEmitCode.present(cb, primitive(cb.emb.newRNG(seed).invoke[Double, Double]("rpois", lambda)))
+      }
     }
 
     registerSeeded2("rand_beta", TFloat64, TFloat64, TFloat64, {
-      case(_: Type, _: PType, _: PType) => PFloat64()
-    }) { case (r, rt, seed, (aT, a), (bT, b)) =>
-      r.mb.newRNG(seed).invoke[Double, Double, Double]("rbeta", a, b)
+      case (_: Type, _: PType, _: PType) => PFloat64()
+    }) { case (cb, r, rt, seed, a, b) =>
+      PCode(rt,
+        cb.emb.newRNG(seed).invoke[Double, Double, Double]("rbeta",
+          a.asDouble.doubleCode(cb), b.asDouble.doubleCode(cb)))
     }
 
     registerSeeded4("rand_beta", TFloat64, TFloat64, TFloat64, TFloat64, TFloat64, {
-      case(_: Type, _: PType, _: PType, _: PType, _: PType) => PFloat64()
+      case (_: Type, _: PType, _: PType, _: PType, _: PType) => PFloat64()
     }) {
-      case (r, rt, seed, (aT, a), (bT, b), (minT, min), (maxT, max)) =>
-        val rng = r.mb.newRNG(seed)
-        val la = r.mb.newLocal[Double]()
-        val lb = r.mb.newLocal[Double]()
-        val value = r.mb.newLocal[Double]()
-        val lmin = r.mb.newLocal[Double]()
-        val lmax = r.mb.newLocal[Double]()
-        Code(
-          la := a,
-          lb := b,
-          lmin := min,
-          lmax := max,
-          value := rng.invoke[Double, Double, Double]("rbeta", la, lb),
-          Code.whileLoop(value < lmin || value > lmax,
-            value := rng.invoke[Double, Double, Double]("rbeta", la, lb)),
-          value)
+      case (cb, r, rt, seed, a, b, min, max) =>
+        val rng = cb.emb.newRNG(seed)
+        val la = cb.newLocal[Double]("la", a.asDouble.doubleCode(cb))
+        val lb = cb.newLocal[Double]("lb", b.asDouble.doubleCode(cb))
+        val lmin = cb.newLocal[Double]("lmin", min.asDouble.doubleCode(cb))
+        val lmax = cb.newLocal[Double]("lmax", max.asDouble.doubleCode(cb))
+        val value = cb.newLocal[Double]("value", rng.invoke[Double, Double, Double]("rbeta", la, lb))
+        cb.whileLoop(value < lmin || value > lmax, {
+          cb.assign(value, rng.invoke[Double, Double, Double]("rbeta", la, lb))
+        })
+        PCode(rt, value)
     }
 
     registerSeeded2("rand_gamma", TFloat64, TFloat64, TFloat64, {
-      case(_: Type, _: PType, _: PType) => PFloat64()
-    }) { case (r, rt, seed, (aT, a), (scaleT, scale)) =>
-      r.mb.newRNG(seed).invoke[Double, Double, Double]("rgamma", a, scale)
+      case (_: Type, _: PType, _: PType) => PFloat64()
+    }) { case (cb, r, rt, seed, a, scale) =>
+      PCode(
+        rt,
+        cb.emb.newRNG(seed).invoke[Double, Double, Double]("rgamma", a.asDouble.doubleCode(cb), scale.asDouble.doubleCode(cb))
+      )
     }
 
-    registerSeeded1("rand_cat", TArray(TFloat64), TInt32, (_: Type, _: PType) => PInt32()) { case (r, rt, seed, (aT: PArray, a)) =>
-      val array = r.mb.newLocal[Array[Double]]()
-      val aoff = r.mb.newLocal[Long]()
-      val length = r.mb.newLocal[Int]()
-      val i = r.mb.newLocal[Int]()
-      Code(
-        aoff := a,
-        i := 0,
-        length := aT.loadLength(aoff),
-        array := Code.newArray[Double](length),
-        Code.whileLoop(i < length,
-          aT.isElementMissing(aoff, i).orEmpty(Code._fatal[Unit]("rand_cat requires all elements of input array to be present")),
-          array.load().update(i, Region.loadDouble(aT.elementOffset(aoff, length, i))),
-          i += 1),
-        r.mb.newRNG(seed).invoke[Array[Double], Int]("rcat", array))
+    registerSeeded1("rand_cat", TArray(TFloat64), TInt32, (_: Type, _: PType) => PInt32()) { case (cb, r, rt, seed, aCode) =>
+      val weights = aCode.asIndexable.memoize(cb, "rand_cat_weights")
+      val len = weights.loadLength()
+
+      val a = cb.newLocal[Array[Double]]("rand_cat_a", Code.newArray[Double](len))
+
+      val i = cb.newLocal[Int]("rand_cat_i", 0)
+      cb.whileLoop(i < len, {
+        weights.loadElement(cb, i).consume(cb,
+          cb._fatal("rand_cat requires all elements of input array to be present"),
+          sc => cb += a.update(i, sc.asDouble.doubleCode(cb))
+        )
+        cb.assign(i, i + 1)
+      })
+      PCode(rt, cb.emb.newRNG(seed).invoke[Array[Double], Int]("rcat", a))
     }
   }
 }

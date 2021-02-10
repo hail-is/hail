@@ -1729,7 +1729,7 @@ class Emit[C](
         val impl = x.implementation
         val unified = impl.unify(Array.empty[Type], args.map(_.typ), rt)
         assert(unified)
-        impl.applySeededI(seed, cb, EmitRegion(mb, region.code), pt, codeArgs: _*)
+        impl.applySeededI(seed, cb, region.code, pt, codeArgs: _*)
 
       case AggStateValue(i, _) =>
         val AggContainer(_, sc, _) = container.get
