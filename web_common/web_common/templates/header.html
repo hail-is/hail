@@ -3,7 +3,7 @@
     <b>/</b>
   </a>
 
-  {% if userdata and userdata['is_developer'] == 1 %}
+  {% if userdata['is_developer'] == 1 %}
   <div class="header-dropdown">
     <div class="header-dropdown-item-margin">
       <span class="disabled-header-dropdown-item">Auth</span>
@@ -21,16 +21,16 @@
       <a href="{{ batch_base_url }}" class="header-dropdown-link">Batch</a>
       <div class="header-dropdown-menu">
         <div class="batch-caret header-dropdown-menu-caret"></div>
-        {% if userdata and userdata['is_developer'] == 1 %}
+        {% if userdata['is_developer'] == 1 %}
         <a class="header-dropdown-menu-link" href="{{ batch_driver_base_url }}">Driver</a>
         <a class="header-dropdown-menu-link" href="{{ batch_base_url }}/billing_projects">Billing Projects</a>
         {% endif %}
 
-        {% if userdata and userdata['username'] %}
+        {% if userdata['username'] %}
         <a class="header-dropdown-menu-link" href="{{ batch_base_url}}/billing_limits">Billing Limits</a>
         {% endif %}
 
-        {% if userdata and userdata['is_developer'] == 1 %}
+        {% if userdata['is_developer'] == 1 %}
         <a class="header-dropdown-menu-link" href="{{ batch_base_url }}/billing">Billing</a>
         <a class="header-dropdown-menu-link" href="{{ batch_driver_base_url }}/user_resources">User Resources</a>
         {% endif %}
@@ -39,22 +39,11 @@
     </div>
   </div>
 
-  {% if userdata and userdata['is_developer'] == 1 %}
+  {% if userdata['is_developer'] == 1 %}
   <a class="header-link" href="{{ ci_base_url }}">CI</a>
   {% endif %}
 
-  <div class="header-dropdown">
-    <div class="header-dropdown-item-margin">
-      <a href="/" class="header-dropdown-link">Documentation</a>
-      <div class="header-dropdown-menu">
-        <div class="batch-caret header-dropdown-menu-caret"></div>
-        <a class="header-dropdown-menu-link" href="/dev-docs">
-          Internal</a>
-      </div>
-    </div>
-  </div>
-
-  {% if userdata and userdata['is_developer'] == 1 %}
+  {% if userdata['is_developer'] == 1 %}
   <div class="header-dropdown">
     <div class="header-dropdown-item-margin">
       <a href="{{ notebook_base_url }}/notebook" class="header-dropdown-link">Notebook</a>
@@ -69,7 +58,7 @@
   <a class="header-link" href="{{ notebook_base_url }}/notebook">Notebook</a>
   {% endif %}
 
-  {% if userdata and userdata['is_developer'] == 1 %}
+  {% if userdata['is_developer'] == 1 %}
   <div class="header-dropdown">
     <div class="header-dropdown-item-margin">
       <span class="disabled-header-dropdown-item">Monitoring</span>
@@ -87,12 +76,12 @@
   </div>
   {% endif %}
 
-  {% if userdata and userdata['is_developer'] == 1 %}
+  {% if userdata['is_developer'] == 1 %}
   <a class="header-link" href="{{ scorecard_base_url }}">
     Scorecard
   </a>
   {% endif %}
-  {% if userdata and userdata['is_developer'] == 1 %}
+  {% if userdata['is_developer'] == 1 %}
   <div class="header-dropdown">
     <div class="header-dropdown-item-margin">
       <a href="{{ benchmark_base_url }}" class="header-dropdown-link">Benchmark</a>
@@ -109,7 +98,7 @@
 
   {% if userdata %}
   <a href="{{ auth_base_url }}/user" class="header-link">
-    <b>{{ userdata and userdata["username"] }}</b>
+    <b>{{ userdata["username"] }}</b>
   </a>
   |
   <form action="{{ auth_base_url }}/logout" method="POST">
