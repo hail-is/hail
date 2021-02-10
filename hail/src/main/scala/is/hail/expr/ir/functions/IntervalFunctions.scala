@@ -1,55 +1,34 @@
 package is.hail.expr.ir.functions
 
-import is.hail.annotations.{CodeOrdering, Region, StagedRegionValueBuilder}
+import is.hail.annotations.CodeOrdering
 import is.hail.asm4s.{Code, _}
 import is.hail.expr.ir._
 import is.hail.types.physical._
-import is.hail.types.virtual.{TArray, TBoolean, TInt32, TInterval, TString, TStruct, TTuple, Type}
-import is.hail.utils._
+import is.hail.types.virtual._
 
 object IntervalFunctions extends RegistryFunctions {
 
   def registerAll(): Unit = {
 
-    registerEmitCode4("Interval", tv("T"), tv("T"), TBoolean, TBoolean, TInterval(tv("T")),
+    registerIEmitCode4("Interval", tv("T"), tv("T"), TBoolean, TBoolean, TInterval(tv("T")),
       { case (_: Type, startpt, endpt, includesStartPT, includesEndPT) =>
         PCanonicalInterval(
           InferPType.getCompatiblePType(Seq(startpt, endpt)),
           required = includesStartPT.required && includesEndPT.required
         )
       }) {
-      case (r, rt, start, end, includesStart, includesEnd) =>
-        val srvb = new StagedRegionValueBuilder(r, rt)
+      case (cb, r, rt: PCanonicalInterval, start, end, includesStart, includesEnd) =>
 
-        val mv = r.mb.newLocal[Boolean]()
-        val vv = r.mb.newLocal[Long]()
+        includesStart.toI(cb).flatMap(cb) { includesStart =>
+          includesEnd.toI(cb).map(cb) { includesEnd =>
 
-        val ctor = Code(
-          mv := includesStart.m || includesEnd.m,
-          vv := 0L,
-          mv.mux(
-            Code._empty,
-            Code(FastIndexedSeq(
-              srvb.start(),
-              start.m.mux(
-                srvb.setMissing(),
-                srvb.addIRIntermediate(start.pv)),
-              srvb.advance(),
-              end.m.mux(
-                srvb.setMissing(),
-                srvb.addIRIntermediate(end.pv)),
-              srvb.advance(),
-              srvb.addBoolean(includesStart.value[Boolean]),
-              srvb.advance(),
-              srvb.addBoolean(includesEnd.value[Boolean]),
-              srvb.advance(),
-              vv := srvb.offset))),
-          Code._empty)
-
-        EmitCode(
-          Code(start.setup, end.setup, includesStart.setup, includesEnd.setup, ctor),
-          mv,
-          PCode(rt, vv))
+            rt.constructFromCodes(cb, r,
+              start,
+              end,
+              EmitCode.present(cb.emb, includesStart),
+              EmitCode.present(cb.emb, includesEnd))
+          }
+        }
     }
 
     registerIEmitCode1("start", TInterval(tv("T")), tv("T"),
