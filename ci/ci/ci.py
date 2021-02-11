@@ -212,9 +212,12 @@ async def get_job(request, userdata):
 @web_authenticated_developers_only()
 async def get_user(request, userdata):
     username = userdata['username']
+    if username in dev_to_gh_user:
+        gh_username = dev_to_gh_user[username]
+    else:
+        return web.Response(text="Please submit a PR to CI with your github username to see your user page!")
     wbs = [
-        await watched_branch_config(request.app, wb, i, pr_author=dev_to_gh_user[username])
-        for i, wb in enumerate(watched_branches)
+        await watched_branch_config(request.app, wb, i, pr_author=gh_username) for i, wb in enumerate(watched_branches)
     ]
     batch_client = request.app['batch_client']
     dev_deploys = batch_client.list_batches(f'user={username} dev_deploy=1', limit=10)

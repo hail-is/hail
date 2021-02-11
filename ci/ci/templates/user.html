@@ -7,9 +7,13 @@
 
     <h2>PRs</h2>
     {% for wb in watched_branches %}
+    {% if wb.prs is not none %}
+    <h2 class="stacked-header">{{ wb.branch }}</h2>
     {{ pr_table(wb) }}
+    {% endif %}
     {% endfor %}
 
+    <br>
     <h2>Dev Deploys</h2>
     {{ dev_deploy_table(dev_deploys) }}
 {% endblock %}

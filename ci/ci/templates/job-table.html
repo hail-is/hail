@@ -13,8 +13,8 @@
     {% for job in jobs %}
     <tr>
       <td class="numeric-cell">
-    <a href="{{ base_path }}/batches/{{ job['batch_id'] }}/jobs/{{ job['job_id'] }}">{{ job['job_id'] }}</a>
-  </td>
+        <a href="{{ base_path }}/batches/{{ job['batch_id'] }}/jobs/{{ job['job_id'] }}">{{ job['job_id'] }}</a>
+      </td>
       <td>{{ job['name'] }}</td>
       <td>{{ job['state'] }}</td>
       <td>
@@ -22,13 +22,14 @@
         {% if job['exit_code'] == 0 %}
         <span style="color: #55aa33;">
           Success 🎉
-          {% else %}
-          <span style="color: #a93333;">
-            Failure 🤷‍♀️
-            {% endif %}
-            ({{ job['exit_code'] }})
-          </span>
-          {% endif %}
+        </span>
+        {% else %}
+        <span style="color: #a93333;">
+          Failure 🤷‍♀️
+          ({{ job['exit_code'] }})
+        </span>
+        {% endif %}
+        {% endif %}
       </td>
       <td>
         {% if 'duration' in job and job['duration'] %}
