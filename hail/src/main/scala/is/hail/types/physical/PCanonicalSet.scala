@@ -1,7 +1,7 @@
 package is.hail.types.physical
 
 import is.hail.annotations.{Annotation, Region}
-import is.hail.asm4s.Code
+import is.hail.types.physical.stypes.concrete.{SIndexablePointer, SIndexablePointerCode}
 import is.hail.types.virtual.{TSet, Type}
 import is.hail.utils._
 
@@ -28,5 +28,10 @@ final case class PCanonicalSet(elementType: PType,  required: Boolean = false) e
       .toFastIndexedSeq
       .sorted(elementType.virtualType.ordering.toOrdering)
     arrayRep.unstagedStoreJavaObject(s, region)
+  }
+
+  def construct(contents: PIndexableCode): PIndexableCode = {
+    assert(contents.pt == arrayRep)
+    new SIndexablePointerCode(SIndexablePointer(arrayRep), contents.tcode[Long])
   }
 }

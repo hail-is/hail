@@ -2245,13 +2245,12 @@ class Emit[C](
 
         val outerRegion = region.asParent(coerce[PStream](array.pType).separateRegions, "ArraySort")
         val optStream = emitStream(array, outerRegion)
-        optStream.map { stream =>
-          PCode(pt, Code(
-            EmitStream.write(mb, stream.asStream, vab, outerRegion),
-            sort,
-            distinct,
-            sorter.toRegion()))
-        }
+        EmitCode.fromI(mb)(cb => optStream.toI(cb).map(cb) { stream =>
+          cb += EmitStream.write(cb.emb, stream.asStream, vab, outerRegion)
+          cb += sort
+          cb += distinct
+          sorter.toRegion(cb, x.pType)
+        })
 
       case CastToArray(a) =>
         val et = emit(a)

@@ -1,8 +1,8 @@
 package is.hail.expr.ir
 
-import is.hail.annotations.{Region, StagedRegionValueBuilder}
+import is.hail.annotations.Region
 import is.hail.asm4s._
-import is.hail.types.physical.{PCanonicalArray, PType, typeToTypeInfo}
+import is.hail.types.physical.{PCanonicalArray, PCanonicalDict, PCanonicalSet, PCode, PIndexableCode, PType, typeToTypeInfo}
 
 class ArraySorter(r: EmitRegion, array: StagedArrayBuilder) {
   val typ: PType = array.elt
@@ -20,16 +20,18 @@ class ArraySorter(r: EmitRegion, array: StagedArrayBuilder) {
     Code(localF.storeAny(Code.checkcast(sorter.newInstance(mb))(localF.ti)), array.sort(localF))
   }
 
-  def toRegion(): Code[Long] = {
-    val srvb = new StagedRegionValueBuilder(r, PCanonicalArray(typ))
-    Code(
-      srvb.start(array.size),
-      Code.whileLoop(srvb.arrayIdx < array.size,
-        array.isMissing(srvb.arrayIdx).mux(
-          srvb.setMissing(),
-          srvb.addIRIntermediate(typ)(array(srvb.arrayIdx))),
-        srvb.advance()),
-      srvb.end())
+  def toRegion(cb: EmitCodeBuilder, t: PType): PIndexableCode = {
+    t match {
+      case pca: PCanonicalArray =>
+        val len = cb.newLocal[Int]("arraysorter_to_region_len", array.size)
+        pca.constructFromElements(cb, r.region, len, deepCopy = false) { (cb, idx) =>
+          IEmitCode(cb, array.isMissing(idx), PCode(typ, array(idx)))
+        }
+      case td: PCanonicalDict =>
+        td.construct(toRegion(cb, td.arrayRep))
+      case ts: PCanonicalSet =>
+        ts.construct(toRegion(cb, ts.arrayRep))
+    }
   }
 
   def pruneMissing: Code[Unit] = {
