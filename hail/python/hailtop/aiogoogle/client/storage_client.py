@@ -199,7 +199,7 @@ class ResumableInsertObjectStream(WritableStream):
                                                'Content-Range': f'bytes */{total_size_str}'
                                            },
                                            raise_for_status=False)
-            if resp.status >= 200 or resp.status < 300:
+            if resp.status >= 200 and resp.status < 300:
                 assert self._closed
                 assert total_size is not None
                 self._write_buffer.advance_offset(total_size)
