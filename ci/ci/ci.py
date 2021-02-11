@@ -64,9 +64,9 @@ async def pr_config(app, pr: PR) -> Dict[str, Any]:
     }
 
 
-async def watched_branch_config(app, wb: WatchedBranch, index: int, user=None) -> Dict[str, Optional[Any]]:
+async def watched_branch_config(app, wb: WatchedBranch, index: int, pr_author=None) -> Dict[str, Optional[Any]]:
     if wb.prs:
-        pr_configs = [await pr_config(app, pr) for pr in wb.prs.values() if user is None or pr.author == user]
+        pr_configs = [await pr_config(app, pr) for pr in wb.prs.values() if pr_author is None or pr.author == pr_author]
     else:
         pr_configs = None
     # FIXME recent deploy history
@@ -213,7 +213,7 @@ async def get_job(request, userdata):
 async def get_user(request, userdata):
     username = userdata['username']
     wbs = [
-        await watched_branch_config(request.app, wb, i, user=dev_to_gh_user[username])
+        await watched_branch_config(request.app, wb, i, pr_author=dev_to_gh_user[username])
         for i, wb in enumerate(watched_branches)
     ]
     batch_client = request.app['batch_client']
