@@ -189,15 +189,25 @@ object AbstractRVDSpec {
     val partitioner = specLeft.partitioner
 
     val extendedNewPartitioner = newPartitioner.map(_.extendKey(partitioner.kType))
-    val tmpPartitioner = extendedNewPartitioner match {
-      case Some(np) => np.intersect(partitioner)
-      case None => partitioner
-    }
+    val (parts, tmpPartitioner) = extendedNewPartitioner match {
+      case Some(np) =>
+        val tmpPart = np.intersect(partitioner)
+        assert(specLeft.key.nonEmpty)
+        val p = tmpPart.rangeBounds.map { b => specLeft.partFiles(partitioner.lowerBoundInterval(b)) }
+        (p, tmpPart)
+      case None =>
+        val partsBuilder = new BoxedArrayBuilder[String]()
+        val rbBuilder = new BoxedArrayBuilder[Interval]()
+        partitioner.rangeBounds.foreach { b =>
+          val idx = partitioner.lowerBoundInterval(b)
+          if (idx < partitioner.numPartitions) {
 
-    val parts = if (specLeft.key.isEmpty)
-      specLeft.partFiles
-    else
-      tmpPartitioner.rangeBounds.map { b => specLeft.partFiles(partitioner.lowerBoundInterval(b)) }
+            partsBuilder += specLeft.partFiles(idx)
+            rbBuilder += b
+          }
+        }
+        (partsBuilder.result(), partitioner.copy(rangeBounds = rbBuilder.result()))
+    }
 
     val (isl, isr) = (specLeft, specRight) match {
       case (l: Indexed, r: Indexed) => (Some(l.indexSpec), Some(r.indexSpec))

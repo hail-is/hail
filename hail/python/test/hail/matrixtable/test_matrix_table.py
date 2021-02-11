@@ -1185,6 +1185,14 @@ class Tests(unittest.TestCase):
         mt2 = hl.read_matrix_table(f)
         self.assertTrue(mt._same(mt2))
 
+    def test_write_no_parts(self):
+        mt = hl.utils.range_matrix_table(10, 10, 2).filter_rows(False)
+        path = new_temp_file(extension='mt')
+        path2 = new_temp_file(extension='mt')
+        assert mt.checkpoint(path)._same(mt)
+        hl.read_matrix_table(path, _drop_rows=True).write(path2)
+
+
     def test_nulls_in_distinct_joins(self):
 
         # MatrixAnnotateRowsTable uses left distinct join
