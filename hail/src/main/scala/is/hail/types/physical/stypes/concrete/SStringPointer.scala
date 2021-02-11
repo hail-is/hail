@@ -56,7 +56,7 @@ class SStringPointerCode(val st: SStringPointer, val a: Code[Long]) extends PStr
 
   def loadString(): Code[String] = pt.loadString(a)
 
-  def asBytes(): PBinaryCode = new SBinaryPointerCode(SBinaryPointer(pt.fundamentalType), a)
+  def asBytes(): PBinaryCode = new SBinaryPointerCode(SBinaryPointer(pt.binaryFundamentalType), a)
 
   private[this] def memoizeWithBuilder(cb: EmitCodeBuilder, name: String, sb: SettableBuilder): PValue = {
     val s = new SStringPointerSettable(st, sb.newSettable[Long]("sstringpointer_memoize"))

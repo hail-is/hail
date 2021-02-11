@@ -8,7 +8,7 @@ import scala.language.implicitConversions
 package object physical {
   implicit def pvalueToPCode(pv: PValue): PCode = pv.get
 
-  def typeToTypeInfo(t: PType): TypeInfo[_] = t.fundamentalType match {
+  def typeToTypeInfo(t: PType): TypeInfo[_] = t match {
     case _: PInt32 => typeInfo[Int]
     case _: PInt64 => typeInfo[Long]
     case _: PFloat32 => typeInfo[Float]

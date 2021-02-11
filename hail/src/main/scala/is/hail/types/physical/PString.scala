@@ -21,7 +21,7 @@ abstract class PString extends PType {
     }
   }
 
-  protected val binaryFundamentalType: PBinary
+  val binaryFundamentalType: PBinary
   override lazy val fundamentalType: PBinary = binaryFundamentalType
 
   protected val binaryEncodableType: PBinary
