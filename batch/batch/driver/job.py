@@ -27,6 +27,10 @@ if TYPE_CHECKING:
 log = logging.getLogger('job')
 
 
+class BadSQLReturnValue(Exception):
+    pass
+
+
 async def notify_batch_job_complete(db, batch_id):
     record = await db.select_and_fetchone(
         '''
@@ -431,6 +435,9 @@ CALL schedule_job(%s, %s, %s, %s);
         if instance.state == 'active':
             instance.adjust_free_cores_in_memory(record['cores_mcpu'])
         return
+
+    if rv['delta_cores_mcpu'] is None:
+        raise BadSQLReturnValue(f'schedule job {id} on {instance}: delta_cores_mcpu is none: {rv}')
 
     if rv['delta_cores_mcpu'] != 0 and instance.state == 'active':
         instance.adjust_free_cores_in_memory(rv['delta_cores_mcpu'])
