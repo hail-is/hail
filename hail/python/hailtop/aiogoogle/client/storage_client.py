@@ -207,7 +207,7 @@ class ResumableInsertObjectStream(WritableStream):
                 self._done = True
                 return
             if resp.status == 308:
-                range = resp.header.get('Range')
+                range = resp.headers.get('Range')
                 if range is not None:
                     new_offset = self._range_upper(range) + 1
                 else:
