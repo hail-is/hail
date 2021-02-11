@@ -1,4 +1,3 @@
-import re
 import random
 import json
 import logging
@@ -6,16 +5,13 @@ import asyncio
 import secrets
 import sortedcontainers
 
-from typing import Optional, Dict, Any
-
 from hailtop.utils import (Notice, run_if_changed,
                            WaitableSharedPool, time_msecs, retry_long_running,
                            secret_alnum_string, AsyncWorkerPool, periodically_call)
 
 from ..batch_format_version import BatchFormatVersion
 from ..batch_configuration import WORKER_MAX_IDLE_TIME_MSECS
-from ..globals import MAX_PERSISTENT_SSD_SIZE_BYTES
-from ..utils import round_storage_bytes_to_gib
+from ..inst_coll_config import machine_type_to_dict, JobPrivateInstanceManagerConfig
 from .create_instance import create_instance
 from .instance_collection import InstanceCollection
 from .instance import Instance
@@ -25,36 +21,9 @@ from ..utils import worker_memory_per_core_bytes, Box, ExceededSharesCounter
 log = logging.getLogger('job_private_inst_coll')
 
 
-MACHINE_TYPE_REGEX = re.compile('(?P<machine_family>[^-]+)-(?P<machine_type>[^-]+)-(?P<cores>\\d+)')
-
-
-def machine_type_to_dict(machine_type: str) -> Optional[Dict[str, Any]]:
-    match = MACHINE_TYPE_REGEX.search(machine_type)
-    return match.groupdict()
-
-
 class JobPrivateInstanceManager(InstanceCollection):
-    @staticmethod
-    def from_record(app, machine_name_prefix, record):
-        return JobPrivateInstanceManager(app, record['name'], machine_name_prefix,
-                                         record['boot_disk_size_gb'], record['max_instances'],
-                                         record['max_live_instances'])
-
-    @staticmethod
-    def convert_requests_to_resources(machine_type, storage_bytes):
-        if storage_bytes > MAX_PERSISTENT_SSD_SIZE_BYTES:
-            return None
-        storage_gib = max(10, round_storage_bytes_to_gib(storage_bytes))
-
-        machine_type_dict = machine_type_to_dict(machine_type)
-        cores = int(machine_type_dict['cores'])
-        cores_mcpu = cores * 1000
-
-        return (cores_mcpu, storage_gib)
-
-    def __init__(self, app, name, machine_name_prefix, boot_disk_size_gb,
-                 max_instances, max_live_instances):
-        super().__init__(app, name, machine_name_prefix, is_pool=False)
+    def __init__(self, app, machine_name_prefix: str, config: JobPrivateInstanceManagerConfig):
+        super().__init__(app, config.name, machine_name_prefix, is_pool=False)
 
         global_scheduler_state_changed: Notice = app['scheduler_state_changed']
         self.create_instances_state_changed = global_scheduler_state_changed.subscribe()
@@ -63,14 +32,14 @@ class JobPrivateInstanceManager(InstanceCollection):
         self.async_worker_pool: AsyncWorkerPool = app['async_worker_pool']
         self.exceeded_shares_counter = ExceededSharesCounter()
 
-        self.boot_disk_size_gb = boot_disk_size_gb
-        self.max_instances = max_instances
-        self.max_live_instances = max_live_instances
+        self.boot_disk_size_gb = config.boot_disk_size_gb
+        self.max_instances = config.max_instances
+        self.max_live_instances = config.max_live_instances
 
-    async def run(self):
+    async def async_init(self):
         log.info(f'initializing {self}')
 
-        await super().run()
+        await super().async_init()
 
         async for record in self.db.select_and_fetchall(
                 'SELECT * FROM instances WHERE removed = 0 AND inst_coll = %s;',

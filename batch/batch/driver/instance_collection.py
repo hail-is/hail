@@ -17,8 +17,8 @@ class InstanceCollection:
     def __init__(self, app, name, machine_name_prefix, is_pool):
         self.app = app
         self.db: Database = app['db']
-        self.compute_client: aiogoogle.ComputeClient = None
-        self.zone_monitor: ZoneMonitor = None
+        self.compute_client: aiogoogle.ComputeClient = self.app['compute_client']
+        self.zone_monitor: ZoneMonitor = self.app['zone_monitor']
 
         self.name = name
         self.machine_name_prefix = f'{machine_name_prefix}{self.name}-'
@@ -46,9 +46,7 @@ class InstanceCollection:
 
         self.task_manager = aiotools.BackgroundTaskManager()
 
-    async def run(self):
-        self.compute_client = self.app['compute_client']
-        self.zone_monitor = self.app['zone_monitor']
+    async def async_init(self):
         self.task_manager.ensure_future(self.monitor_instances_loop())
 
     def shutdown(self):

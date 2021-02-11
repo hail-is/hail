@@ -42,14 +42,13 @@ from ..batch import batch_record_to_dict, job_record_to_dict, cancel_batch_in_db
 from ..exceptions import (BatchUserError, NonExistentBillingProjectError,
                           ClosedBillingProjectError, InvalidBillingLimitError,
                           BatchOperationAlreadyCompletedError)
+from ..inst_coll_config import InstanceCollectionConfigManager
 from ..log_store import LogStore
 from ..database import CallError, check_call_procedure
-from ..batch_configuration import (BATCH_BUCKET_NAME, DEFAULT_NAMESPACE, MACHINE_NAME_PREFIX)
+from ..batch_configuration import (BATCH_BUCKET_NAME, DEFAULT_NAMESPACE)
 from ..globals import HTTP_CLIENT_MAX_SIZE, BATCH_FORMAT_VERSION, valid_machine_types
 from ..spec_writer import SpecWriter
 from ..batch_format_version import BatchFormatVersion
-
-from ..driver.instance_collection_manager import InstanceCollectionManager
 
 from .validate import ValidationError, validate_batch, validate_and_clean_jobs
 
@@ -675,7 +674,7 @@ WHERE user = %s AND id = %s AND NOT deleted;
                     worker_type = BATCH_JOB_DEFAULT_WORKER_TYPE
                     resources['worker_type'] = worker_type
 
-                inst_coll_manager: InstanceCollectionManager = app['inst_coll_manager']
+                inst_coll_config_manager: InstanceCollectionConfigManager = app['inst_coll_config_manager']
 
                 inst_coll_name = None
                 cores_mcpu = None
@@ -685,7 +684,7 @@ WHERE user = %s AND id = %s AND NOT deleted;
                         raise web.HTTPBadRequest(
                             reason='cannot have preemptible specified with a worker_type')
 
-                    result = inst_coll_manager.select_pool(
+                    result = inst_coll_config_manager.select_pool(
                         worker_type=worker_type,
                         cores_mcpu=req_cores_mcpu,
                         memory_bytes=req_memory_bytes,
@@ -698,7 +697,7 @@ WHERE user = %s AND id = %s AND NOT deleted;
                     if 'preemptible' not in resources:
                         resources['preemptible'] = BATCH_JOB_DEFAULT_PREEMPTIBLE
 
-                    result = inst_coll_manager.select_job_private(
+                    result = inst_coll_config_manager.select_job_private(
                         machine_type=machine_type,
                         storage_bytes=req_storage_bytes)
                     if result:
@@ -1912,6 +1911,10 @@ SELECT instance_id, internal_token, n_tokens FROM globals;
         '/gsa-key/key.json')
     app['log_store'] = LogStore(BATCH_BUCKET_NAME, instance_id, pool, credentials=credentials)
 
+    inst_coll_config_manager = InstanceCollectionConfigManager(app)
+    app['inst_coll_config_manager'] = inst_coll_config_manager
+    await inst_coll_config_manager.async_init()
+
     cancel_batch_state_changed = asyncio.Event()
     app['cancel_batch_state_changed'] = cancel_batch_state_changed
 
@@ -1926,19 +1929,12 @@ SELECT instance_id, internal_token, n_tokens FROM globals;
         'delete_batch_loop',
         run_if_changed, delete_batch_state_changed, delete_batch_loop_body, app))
 
-    inst_coll_manager = InstanceCollectionManager(app, MACHINE_NAME_PREFIX)
-    app['inst_coll_manager'] = inst_coll_manager
-    await inst_coll_manager.async_init()
-
 
 async def on_cleanup(app):
     try:
         app['blocking_pool'].shutdown()
     finally:
-        try:
-            app['inst_coll_manager'].shutdown()
-        finally:
-            app['task_manager'].shutdown()
+        app['task_manager'].shutdown()
 
 
 def run():

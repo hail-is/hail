@@ -1,3 +1,4 @@
+import asyncio
 import re
 import collections
 import logging
@@ -5,6 +6,7 @@ from typing import Dict
 
 from gear import Database
 
+from ..inst_coll_config import InstanceCollectionConfigManager
 from .instance_collection import InstanceCollection
 from .job_private import JobPrivateInstanceManager
 from .pool import Pool
@@ -23,30 +25,19 @@ class InstanceCollectionManager:
         self.name_pool: Dict[str, Pool] = {}
         self.job_private_inst_manager: JobPrivateInstanceManager = None
 
-    async def async_init(self):
-        inst_coll_records = self.db.execute_and_fetchall('''
-SELECT inst_colls.*, pools.*
-FROM inst_colls
-LEFT JOIN pools ON inst_colls.name = pools.name;
-''')
+    def async_init(self, config_manager: InstanceCollectionConfigManager):
+        jpim = JobPrivateInstanceManager(self.app, self.machine_name_prefix, config_manager.jpim_config)
+        self.job_private_inst_manager = jpim
+        self.name_inst_coll[jpim.name] = jpim
 
-        async for record in inst_coll_records:
-            inst_coll_name = record['name']
-            is_pool = record['is_pool']
+        for pool_name, config in config_manager.name_pool_config:
+            pool = Pool(self.app, self.machine_name_prefix, config)
+            self.name_pool[pool_name] = pool
+            self.name_inst_coll[pool_name] = pool
 
-            if is_pool:
-                inst_coll = Pool.from_record(self.app, self.machine_name_prefix, record)
-                self.name_pool[inst_coll_name] = inst_coll
-            else:
-                inst_coll = JobPrivateInstanceManager.from_record(self.app, self.machine_name_prefix, record)
-                assert self.job_private_inst_manager is None
-                self.job_private_inst_manager = inst_coll
+        await asyncio.gather(*[inst_coll.async_init()
+                               for inst_coll in self.name_inst_coll.values()])
 
-            self.name_inst_coll[inst_coll_name] = inst_coll
-
-    async def run(self):
-        for inst_coll in self.name_inst_coll.values():
-            await inst_coll.run()
         log.info('finished initializing instance collections')
 
     def shutdown(self):
@@ -96,19 +87,4 @@ LEFT JOIN pools ON inst_colls.name = pools.name;
         inst_coll = self.name_inst_coll.get(inst_coll_name)
         if inst_coll:
             return inst_coll.name_instance.get(inst_name)
-        return None
-
-    def select_pool(self, worker_type, cores_mcpu, memory_bytes, storage_bytes):
-        for pool in self.pools.values():
-            if pool.worker_type == worker_type:
-                maybe_cores_mcpu = pool.resources_to_cores_mcpu(cores_mcpu, memory_bytes, storage_bytes)
-                if maybe_cores_mcpu is not None:
-                    return (pool.name, maybe_cores_mcpu)
-        return None
-
-    def select_job_private(self, machine_type, storage_bytes):
-        result = JobPrivateInstanceManager.convert_requests_to_resources(machine_type, storage_bytes)
-        if result:
-            cores_mcpu, storage_gib = result
-            return (self.job_private_inst_manager.name, cores_mcpu, storage_gib)
         return None

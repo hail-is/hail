@@ -12,6 +12,7 @@ from hailtop.utils import (secret_alnum_string, retry_long_running, run_if_chang
                            periodically_call)
 
 from ..batch_configuration import STANDING_WORKER_MAX_IDLE_TIME_MSECS, WORKER_MAX_IDLE_TIME_MSECS
+from ..inst_coll_config import PoolConfig
 from ..utils import (Box, ExceededSharesCounter, adjust_cores_for_memory_request,
                      adjust_cores_for_packability, adjust_cores_for_storage_request)
 from .create_instance import create_instance
@@ -23,26 +24,8 @@ log = logging.getLogger('pool')
 
 
 class Pool(InstanceCollection):
-    @staticmethod
-    def from_record(app, machine_name_prefix, record):
-        return Pool(app=app,
-                    name=record['name'],
-                    machine_name_prefix=machine_name_prefix,
-                    worker_type=record['worker_type'],
-                    worker_cores=record['record_cores'],
-                    worker_local_ssd_data_disk=record['worker_local_ssd_data_disk'],
-                    worker_pd_ssd_data_disk_size_gb=record['worker_pd_ssd_data_disk_size_gb'],
-                    enable_standing_worker=record['enable_standing_worker'],
-                    standing_worker_cores=record['standing_worker_cores'],
-                    boot_disk_size_gb=record['boot_disk_size_gb'],
-                    max_instances=record['max_instances'],
-                    max_live_instances=record['max_live_instances'])
-
-    def __init__(self, app, name, machine_name_prefix, worker_type,
-                 worker_cores, worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gb,
-                 enable_standing_worker, standing_worker_cores, boot_disk_size_gb,
-                 max_instances, max_live_instances):
-        super().__init__(app, name, machine_name_prefix, is_pool=True)
+    def __init__(self, app, machine_name_prefix: str, config: PoolConfig):
+        super().__init__(app, config.name, machine_name_prefix, is_pool=True)
 
         global_scheduler_state_changed: Notice = app['scheduler_state_changed']
         self.scheduler_state_changed = global_scheduler_state_changed.subscribe()
@@ -51,20 +34,20 @@ class Pool(InstanceCollection):
         self.healthy_instances_by_free_cores = sortedcontainers.SortedSet(
             key=lambda instance: instance.free_cores_mcpu)
 
-        self.worker_type = worker_type
-        self.worker_cores = worker_cores
-        self.worker_local_ssd_data_disk = worker_local_ssd_data_disk
-        self.worker_pd_ssd_data_disk_size_gb = worker_pd_ssd_data_disk_size_gb
-        self.enable_standing_worker = enable_standing_worker
-        self.standing_worker_cores = standing_worker_cores
-        self.boot_disk_size_gb = boot_disk_size_gb
-        self.max_instances = max_instances
-        self.max_live_instances = max_live_instances
+        self.worker_type = config.worker_type
+        self.worker_cores = config.worker_cores
+        self.worker_local_ssd_data_disk = config.worker_local_ssd_data_disk
+        self.worker_pd_ssd_data_disk_size_gb = config.worker_pd_ssd_data_disk_size_gb
+        self.enable_standing_worker = config.enable_standing_worker
+        self.standing_worker_cores = config.standing_worker_cores
+        self.boot_disk_size_gb = config.boot_disk_size_gb
+        self.max_instances = config.max_instances
+        self.max_live_instances = config.max_live_instances
 
     async def run(self):
         log.info(f'initializing {self}')
 
-        await super().run()
+        await super().async_init()
 
         async for record in self.db.select_and_fetchall(
                 'SELECT * FROM instances WHERE removed = 0 AND inst_coll = %s;',
