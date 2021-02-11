@@ -17,31 +17,31 @@ class PCanonicalString(val required: Boolean) extends PString {
 
   override def byteSize: Long = 8
 
-  lazy val binaryFundamentalType: PCanonicalBinary = PCanonicalBinary(required)
-  override lazy val fundamentalType: PCanonicalBinary = binaryFundamentalType
+  lazy val binaryRepresentation: PCanonicalBinary = PCanonicalBinary(required)
+  override lazy val fundamentalType: PCanonicalBinary = binaryRepresentation
   override lazy val binaryEncodableType: PCanonicalBinary = PCanonicalBinary(required)
 
   def _copyFromAddress(region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Long =
-    binaryFundamentalType.copyFromAddress(region, srcPType.asInstanceOf[PString].fundamentalType, srcAddress, deepCopy)
+    binaryRepresentation.copyFromAddress(region, srcPType.asInstanceOf[PString].fundamentalType, srcAddress, deepCopy)
 
   override def containsPointers: Boolean = true
 
   def loadLength(boff: Long): Int =
-    this.binaryFundamentalType.loadLength(boff)
+    this.binaryRepresentation.loadLength(boff)
 
   def loadLength(boff: Code[Long]): Code[Int] =
-    this.binaryFundamentalType.loadLength(boff)
+    this.binaryRepresentation.loadLength(boff)
 
   def loadString(bAddress: Long): String =
-    new String(this.binaryFundamentalType.loadBytes(bAddress))
+    new String(this.binaryRepresentation.loadBytes(bAddress))
 
   def loadString(bAddress: Code[Long]): Code[String] =
-    Code.newInstance[String, Array[Byte]](this.binaryFundamentalType.loadBytes(bAddress))
+    Code.newInstance[String, Array[Byte]](this.binaryRepresentation.loadBytes(bAddress))
 
   def allocateAndStoreString(region: Region, str: String): Long = {
     val byteRep = str.getBytes()
-    val dstAddrss = this.binaryFundamentalType.allocate(region, byteRep.length)
-    this.binaryFundamentalType.store(dstAddrss, byteRep)
+    val dstAddrss = this.binaryRepresentation.allocate(region, byteRep.length)
+    this.binaryRepresentation.store(dstAddrss, byteRep)
     dstAddrss
   }
 
@@ -50,13 +50,13 @@ class PCanonicalString(val required: Boolean) extends PString {
     val byteRep = mb.genFieldThisRef[Array[Byte]]()
     Code(
       byteRep := str.invoke[Array[Byte]]("getBytes"),
-      dstAddress := binaryFundamentalType.allocate(region, byteRep.length),
-      binaryFundamentalType.store(dstAddress, byteRep),
+      dstAddress := binaryRepresentation.allocate(region, byteRep.length),
+      binaryRepresentation.store(dstAddress, byteRep),
       dstAddress)
   }
 
   def unstagedStoreAtAddress(addr: Long, region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Unit =
-    binaryFundamentalType.unstagedStoreAtAddress(addr, region, srcPType.fundamentalType, srcAddress, deepCopy)
+    binaryRepresentation.unstagedStoreAtAddress(addr, region, srcPType.fundamentalType, srcAddress, deepCopy)
 
   def setRequired(required: Boolean) = if (required == this.required) this else PCanonicalString(required)
 
@@ -69,7 +69,7 @@ class PCanonicalString(val required: Boolean) extends PString {
       case SStringPointer(t) if t.equalModuloRequired(this) && !deepCopy =>
         value.asInstanceOf[SStringPointerCode].a
       case _ =>
-        binaryFundamentalType.store(cb, region, value.asString.asBytes(), deepCopy)
+        binaryRepresentation.store(cb, region, value.asString.asBytes(), deepCopy)
     }
   }
 
@@ -77,16 +77,16 @@ class PCanonicalString(val required: Boolean) extends PString {
     cb += Region.storeAddress(addr, store(cb, region, value, deepCopy))
   }
 
-  def loadFromNested(addr: Code[Long]): Code[Long] = binaryFundamentalType.loadFromNested(addr)
+  def loadFromNested(addr: Code[Long]): Code[Long] = binaryRepresentation.loadFromNested(addr)
 
-  override def unstagedLoadFromNested(addr: Long): Long = binaryFundamentalType.unstagedLoadFromNested(addr)
+  override def unstagedLoadFromNested(addr: Long): Long = binaryRepresentation.unstagedLoadFromNested(addr)
 
   override def unstagedStoreJavaObject(annotation: Annotation, region: Region): Long = {
-    binaryFundamentalType.unstagedStoreJavaObject(annotation.asInstanceOf[String].getBytes(), region)
+    binaryRepresentation.unstagedStoreJavaObject(annotation.asInstanceOf[String].getBytes(), region)
   }
 
   override def unstagedStoreJavaObjectAtAddress(addr: Long, annotation: Annotation, region: Region): Unit = {
-    binaryFundamentalType.unstagedStoreJavaObjectAtAddress(addr, annotation.asInstanceOf[String].getBytes(), region)
+    binaryRepresentation.unstagedStoreJavaObjectAtAddress(addr, annotation.asInstanceOf[String].getBytes(), region)
   }
 }
 
