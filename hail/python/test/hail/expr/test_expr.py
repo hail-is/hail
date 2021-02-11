@@ -974,6 +974,13 @@ class Tests(unittest.TestCase):
         self.assertEqual(r.n_smaller, 0)
         self.assertEqual(r.n_larger, 1)
 
+    def test_aggregators_hist_nan(self):
+        ht = hl.utils.range_table(3).annotate(x=hl.float('nan'))
+        r = ht.aggregate(hl.agg.hist(ht.x, 0, 10, 2))
+        assert r.bin_freq == [0, 0]
+        assert r.n_smaller == 0
+        assert r.n_larger == 0
+
     def test_aggregator_cse(self):
         ht = hl.utils.range_table(10)
         x = hl.agg.count()
