@@ -200,7 +200,10 @@ class ResumableInsertObjectStream(WritableStream):
                                            },
                                            raise_for_status=False)
             if resp.status >= 200 or resp.status < 300:
-                assert self._closed and self._write_buffer.size() == 0
+                assert self._closed
+                assert total_size is not None
+                self._write_buffer.advance_offset(total_size)
+                assert self._write_buffer.size() == 0
                 self._done = True
                 return
             if resp.status == 308:
@@ -283,6 +286,7 @@ class ResumableInsertObjectStream(WritableStream):
         assert self._write_buffer.size() < self._chunk_size
 
     async def _wait_closed(self):
+        assert self._closed
         assert self._write_buffer.size() < self._chunk_size
         while not self._done:
             await self._write_chunk()
