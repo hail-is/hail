@@ -180,7 +180,7 @@ class ResumableInsertObjectStream(WritableStream):
 
     async def _write_chunk_1(self):
         assert not self._done
-        assert self._write_buffer.size() >= self._chunk_size
+        assert self._closed or self._write_buffer.size() >= self._chunk_size
 
         if self._closed:
             total_size = self._write_buffer.offset() + self._write_buffer.size()
