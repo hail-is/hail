@@ -196,17 +196,14 @@ object AbstractRVDSpec {
         val p = tmpPart.rangeBounds.map { b => specLeft.partFiles(partitioner.lowerBoundInterval(b)) }
         (p, tmpPart)
       case None =>
-        val partsBuilder = new BoxedArrayBuilder[String]()
-        val rbBuilder = new BoxedArrayBuilder[Interval]()
-        partitioner.rangeBounds.foreach { b =>
-          val idx = partitioner.lowerBoundInterval(b)
-          if (idx < partitioner.numPartitions) {
-
-            partsBuilder += specLeft.partFiles(idx)
-            rbBuilder += b
-          }
-        }
-        (partsBuilder.result(), partitioner.copy(rangeBounds = rbBuilder.result()))
+        // need to remove partitions with degenerate intervals
+        // these partitions are necessarily empty
+        val iOrd = partitioner.kord.intervalEndpointOrdering
+        val includedIndices = (0 until partitioner.numPartitions).filter { i =>
+          val rb = partitioner.rangeBounds(i)
+          rb.isDisjointFrom(iOrd, rb)
+        }.toArray
+        (includedIndices.map(specLeft.partFiles), partitioner.copy(rangeBounds = includedIndices.map(partitioner.rangeBounds)))
     }
 
     val (isl, isr) = (specLeft, specRight) match {
