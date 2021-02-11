@@ -44,7 +44,7 @@ class Pool(InstanceCollection):
         self.max_instances = config.max_instances
         self.max_live_instances = config.max_live_instances
 
-    async def run(self):
+    async def async_init(self):
         log.info(f'initializing {self}')
 
         await super().async_init()

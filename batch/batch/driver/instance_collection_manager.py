@@ -25,7 +25,7 @@ class InstanceCollectionManager:
         self.name_pool: Dict[str, Pool] = {}
         self.job_private_inst_manager: JobPrivateInstanceManager = None
 
-    def async_init(self, config_manager: InstanceCollectionConfigManager):
+    async def async_init(self, config_manager: InstanceCollectionConfigManager):
         jpim = JobPrivateInstanceManager(self.app, self.machine_name_prefix, config_manager.jpim_config)
         self.job_private_inst_manager = jpim
         self.name_inst_coll[jpim.name] = jpim
