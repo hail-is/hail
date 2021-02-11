@@ -1,8 +1,8 @@
 package is.hail.expr.ir
 
-import is.hail.annotations.{Region, StagedRegionValueBuilder}
+import is.hail.annotations.Region
 import is.hail.asm4s._
-import is.hail.types.physical.{PCanonicalArray, PCode, PType, typeToTypeInfo}
+import is.hail.types.physical.{PCanonicalArray, PCanonicalDict, PCanonicalSet, PCode, PIndexableCode, PType, typeToTypeInfo}
 
 class ArraySorter(r: EmitRegion, array: StagedArrayBuilder) {
   val typ: PType = array.elt
@@ -20,13 +20,17 @@ class ArraySorter(r: EmitRegion, array: StagedArrayBuilder) {
     Code(localF.storeAny(Code.checkcast(sorter.newInstance(mb))(localF.ti)), array.sort(localF))
   }
 
-  def toRegion(cb: EmitCodeBuilder, t: PType): PCode = {
+  def toRegion(cb: EmitCodeBuilder, t: PType): PIndexableCode = {
     t match {
       case pca: PCanonicalArray =>
         val len = cb.newLocal[Int]("arraysorter_to_region_len", array.size)
         pca.constructFromElements(cb, r.region, len, deepCopy = false) { (cb, idx) =>
           IEmitCode(cb, array.isMissing(idx), PCode(typ, array(idx)))
         }
+      case td: PCanonicalDict =>
+        td.construct(toRegion(cb, td.arrayRep))
+      case ts: PCanonicalSet =>
+        ts.construct(toRegion(cb, ts.arrayRep))
     }
   }
 
