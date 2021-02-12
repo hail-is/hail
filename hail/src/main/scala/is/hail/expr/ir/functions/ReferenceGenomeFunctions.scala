@@ -3,7 +3,7 @@ package is.hail.expr.ir.functions
 import is.hail.asm4s
 import is.hail.asm4s._
 import is.hail.expr.ir._
-import is.hail.types.physical.{PBoolean, PCanonicalString, PInt32, PLocus, PType}
+import is.hail.types.physical.{PBoolean, PCanonicalString, PInt32, PLocus, PString, PType}
 import is.hail.types.virtual._
 import is.hail.variant.ReferenceGenome
 
@@ -23,10 +23,18 @@ object ReferenceGenomeFunctions extends RegistryFunctions {
         rgCode(r.mb, typeArg.rg).invoke[String, Int, Boolean]("isValidLocus", scontig, pos)
     }
 
-    registerCode4t("getReferenceSequenceFromValidLocus", LocusFunctions.tlocus("R"), TString, TInt32, TInt32, TInt32, TString, (_: Type, _: PType, _: PType, _: PType, _: PType) => PCanonicalString()) {
-      case (r, rt, typeArg: TLocus, (contigT, contig: Code[Long]), (posT, pos: Code[Int]), (beforeT, before: Code[Int]), (afterT, after: Code[Int])) =>
-        val scontig = asm4s.coerce[String](wrapArg(r, contigT)(contig))
-        unwrapReturn(r, rt)(rgCode(r.mb, typeArg.rg).invoke[String, Int, Int, Int, String]("getSequence", scontig, pos, before, after))
+    registerPCode4t("getReferenceSequenceFromValidLocus",
+      Array(LocusFunctions.tlocus("R")),
+      TString, TInt32, TInt32, TInt32, TString,
+      (_: Type, _: PType, _: PType, _: PType, _: PType) => PCanonicalString()) {
+      case (r, cb, Seq(typeParam: TLocus), rt: PString, contig, pos, before, after) =>
+        val scontig = contig.asString.loadString()
+        unwrapReturn(cb, r.region, rt,
+          rgCode(cb.emb, typeParam.rg).invoke[String, Int, Int, Int, String]("getSequence",
+            scontig,
+            pos.asInt.intCode(cb),
+            before.asInt.intCode(cb),
+            after.asInt.intCode(cb)))
     }
 
     registerCode1t("contigLength", LocusFunctions.tlocus("R"), TString, TInt32, (_: Type, _: PType) => PInt32()) {
