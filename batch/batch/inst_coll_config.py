@@ -89,7 +89,7 @@ class JobPrivateInstanceManagerConfig(InstanceCollectionConfig):
         self.max_live_instances = max_live_instances
 
 
-class InstanceCollectionConfigManager:
+class InstanceCollectionConfigs:
     def __init__(self, app):
         self.app = app
         self.db: Database = app['db']

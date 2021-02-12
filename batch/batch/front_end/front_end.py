@@ -42,7 +42,7 @@ from ..batch import batch_record_to_dict, job_record_to_dict, cancel_batch_in_db
 from ..exceptions import (BatchUserError, NonExistentBillingProjectError,
                           ClosedBillingProjectError, InvalidBillingLimitError,
                           BatchOperationAlreadyCompletedError)
-from ..inst_coll_config import InstanceCollectionConfigManager
+from ..inst_coll_config import InstanceCollectionConfigs
 from ..log_store import LogStore
 from ..database import CallError, check_call_procedure
 from ..batch_configuration import (BATCH_BUCKET_NAME, DEFAULT_NAMESPACE)
@@ -674,7 +674,7 @@ WHERE user = %s AND id = %s AND NOT deleted;
                     worker_type = BATCH_JOB_DEFAULT_WORKER_TYPE
                     resources['worker_type'] = worker_type
 
-                inst_coll_config_manager: InstanceCollectionConfigManager = app['inst_coll_config_manager']
+                inst_coll_config_manager: InstanceCollectionConfigs = app['inst_coll_config_manager']
 
                 inst_coll_name = None
                 cores_mcpu = None
@@ -1911,7 +1911,7 @@ SELECT instance_id, internal_token, n_tokens FROM globals;
         '/gsa-key/key.json')
     app['log_store'] = LogStore(BATCH_BUCKET_NAME, instance_id, pool, credentials=credentials)
 
-    inst_coll_config_manager = InstanceCollectionConfigManager(app)
+    inst_coll_config_manager = InstanceCollectionConfigs(app)
     app['inst_coll_config_manager'] = inst_coll_config_manager
     await inst_coll_config_manager.async_init()
 

@@ -32,7 +32,7 @@ from ..batch_configuration import (REFRESH_INTERVAL_IN_SECONDS,
                                    DEFAULT_NAMESPACE, BATCH_BUCKET_NAME, HAIL_SHA, HAIL_SHOULD_PROFILE,
                                    HAIL_SHOULD_CHECK_INVARIANTS, PROJECT, MACHINE_NAME_PREFIX)
 from ..globals import HTTP_CLIENT_MAX_SIZE
-from ..inst_coll_config import InstanceCollectionConfigManager
+from ..inst_coll_config import InstanceCollectionConfigs
 
 from .zone_monitor import ZoneMonitor
 from .gce import GCEEventMonitor
@@ -881,7 +881,7 @@ SELECT instance_id, internal_token FROM globals;
     app['zone_monitor'] = zone_monitor
     await zone_monitor.async_init()
 
-    inst_coll_config_manager = InstanceCollectionConfigManager(app)
+    inst_coll_config_manager = InstanceCollectionConfigs(app)
     await inst_coll_config_manager.async_init()
 
     inst_coll_manager = InstanceCollectionManager(app, MACHINE_NAME_PREFIX)

@@ -6,7 +6,7 @@ from typing import Dict
 
 from gear import Database
 
-from ..inst_coll_config import InstanceCollectionConfigManager
+from ..inst_coll_config import InstanceCollectionConfigs
 from .instance_collection import InstanceCollection
 from .job_private import JobPrivateInstanceManager
 from .pool import Pool
@@ -25,12 +25,12 @@ class InstanceCollectionManager:
         self.name_pool: Dict[str, Pool] = {}
         self.job_private_inst_manager: JobPrivateInstanceManager = None
 
-    async def async_init(self, config_manager: InstanceCollectionConfigManager):
+    async def async_init(self, config_manager: InstanceCollectionConfigs):
         jpim = JobPrivateInstanceManager(self.app, self.machine_name_prefix, config_manager.jpim_config)
         self.job_private_inst_manager = jpim
         self.name_inst_coll[jpim.name] = jpim
 
-        for pool_name, config in config_manager.name_pool_config:
+        for pool_name, config in config_manager.name_pool_config.items():
             pool = Pool(self.app, self.machine_name_prefix, config)
             self.name_pool[pool_name] = pool
             self.name_inst_coll[pool_name] = pool
