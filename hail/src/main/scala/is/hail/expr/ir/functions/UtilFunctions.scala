@@ -4,6 +4,7 @@ import is.hail.asm4s
 import is.hail.asm4s.{coerce => _, _}
 import is.hail.expr.ir._
 import is.hail.types.physical._
+import is.hail.types.physical.stypes.concrete.SStringPointer
 import is.hail.utils._
 import is.hail.types.virtual._
 import is.hail.types.physical.stypes.interfaces._
@@ -237,11 +238,12 @@ object UtilFunctions extends RegistryFunctions {
       }
     }
 
-    registerCode2("format", TString, tv("T", "tuple"), TString, (_: Type, _: PType, _: PType) => PCanonicalString()) {
-      case (r, rt, (fmtT: PString, format: Code[Long]), (argsT: PTuple, args: Code[Long])) =>
-        unwrapReturn(r, rt)(Code.invokeScalaObject2[String, Row, String](thisClass, "format",
-          asm4s.coerce[String](wrapArg(r, fmtT)(format)),
-          Code.checkcast[Row](asm4s.coerce[java.lang.Object](wrapArg(r, argsT)(args)))))
+    registerPCode2("format", TString, tv("T", "tuple"), TString, (_: Type, _: PType, _: PType) => PCanonicalString()) {
+      case (r, cb, rt: PCanonicalString, format, args) =>
+        val javaObjArgs = Code.checkcast[Row](scodeToJavaValue(cb, r.region, args))
+        val formatted = Code.invokeScalaObject2[String, Row, String](thisClass, "format", format.asString.loadString(), javaObjArgs)
+        val st = SStringPointer(rt)
+        st.constructFromString(cb, r.region, formatted)
     }
 
     registerEmitCode2("land", TBoolean, TBoolean, TBoolean, (_: Type, tl: PType, tr: PType) => PBoolean(tl.required && tr.required)) {

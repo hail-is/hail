@@ -147,20 +147,35 @@ object StringFunctions extends RegistryFunctions {
       st.constructFromString(cb, r.region, str)
     }
 
-    registerEmitCode1("showStr", tv("T"), TString, {
+    registerIEmitCode1("showStr", tv("T"), TString, {
       (_: Type, _: PType) => PCanonicalString(true)
-    }) { case (r, rt, a) =>
-      val annotation = Code(a.setup, a.m).muxAny(Code._null(boxedTypeInfo(a.pt.virtualType)), boxArg(r, a.pt)(a.v))
-      val str = r.mb.getType(a.pt.virtualType).invoke[Any, String]("showStr", annotation)
-      EmitCode.present(r.mb, PCode(rt, unwrapReturn(r, rt)(str)))
+    }) { case (cb, r, rt: PCanonicalString, a) =>
+      val jObj = cb.newLocal("showstr_java_obj")(boxedTypeInfo(a.pt.virtualType))
+      a.toI(cb).consume(cb,
+        cb.assignAny(jObj, Code._null(boxedTypeInfo(a.pt.virtualType))),
+        sc => cb.assignAny(jObj, scodeToJavaValue(cb, r, sc)))
+
+      val str = cb.emb.getType(a.pt.virtualType).invoke[Any, String]("showStr", jObj)
+      val st = SStringPointer(rt)
+
+      IEmitCode.present(cb, st.constructFromString(cb, r, str))
     }
 
-    registerEmitCode2("showStr", tv("T"), TInt32, TString, {
+    registerIEmitCode2("showStr", tv("T"), TInt32, TString, {
       (_: Type, _: PType, truncType: PType) => PCanonicalString(truncType.required)
-    }) { case (r, rt, a, trunc) =>
-      val annotation = Code(a.setup, a.m).muxAny(Code._null(boxedTypeInfo(a.pt.virtualType)), boxArg(r, a.pt)(a.v))
-      val str = r.mb.getType(a.pt.virtualType).invoke[Any, Int, String]("showStr", annotation, trunc.value[Int])
-      EmitCode(trunc.setup, trunc.m, PCode(rt, unwrapReturn(r, rt)(str)))
+    }) { case (cb, r, rt: PCanonicalString, a, trunc) =>
+      val jObj = cb.newLocal("showstr_java_obj")(boxedTypeInfo(a.pt.virtualType))
+      trunc.toI(cb).map(cb) { trunc =>
+
+        a.toI(cb).consume(cb,
+          cb.assignAny(jObj, Code._null(boxedTypeInfo(a.pt.virtualType))),
+          sc => cb.assignAny(jObj, scodeToJavaValue(cb, r, sc)))
+
+        val str = cb.emb.getType(a.pt.virtualType).invoke[Any, Int, String]("showStr", jObj, trunc.asInt.intCode(cb))
+        val st = SStringPointer(rt)
+
+        st.constructFromString(cb, r, str)
+      }
     }
 
     registerIEmitCode1("json", tv("T"), TString, (_: Type, _: PType) => PCanonicalString(true)) { case (cb, r, rt: PString, a) =>
@@ -281,12 +296,13 @@ object StringFunctions extends RegistryFunctions {
     })(thisClass, "strptime")
 
     registerPCode("parse_json", Array(TString), TTuple(tv("T")),
-      (rType: Type, _: Seq[PType]) => PType.canonical(rType, true), typeParameters = Array(tv("T"))) { case (er, cb, resultType, Array(s: PStringCode)) =>
+      (rType: Type, _: Seq[PType]) => PType.canonical(rType, true), typeParameters = Array(tv("T"))
+    ) { case (er, cb, _, resultType, Array(s: PStringCode)) =>
 
-      PCode(resultType, StringFunctions.unwrapReturn(er, resultType)(
-        Code.invokeScalaObject2[String, Type, Row](JSONAnnotationImpex.getClass, "irImportAnnotation",
-          s.loadString(), er.mb.ecb.getType(resultType.virtualType.asInstanceOf[TTuple].types(0)))
-      ))
+      val row = Code.invokeScalaObject2[String, Type, Row](JSONAnnotationImpex.getClass, "irImportAnnotation",
+        s.loadString(), er.mb.ecb.getType(resultType.virtualType.asInstanceOf[TTuple].types(0)))
+
+      unwrapReturn(cb, er.region, resultType, row)
     }
   }
 }
