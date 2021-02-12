@@ -125,5 +125,5 @@ LEFT JOIN pools ON inst_colls.name = pools.name;
                     return (pool.name, maybe_cores_mcpu)
         return None
 
-    def select_job_private(self, machine_type, storage_bytes):
+    def select_job_private(self, machine_type, storage_bytes):  # pylint: disable=no-self-use
         return JobPrivateInstanceManagerConfig.convert_requests_to_resources(machine_type, storage_bytes)
