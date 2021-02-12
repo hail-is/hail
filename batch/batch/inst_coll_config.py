@@ -70,8 +70,13 @@ class JobPrivateInstanceManagerConfig(InstanceCollectionConfig):
         return JobPrivateInstanceManagerConfig(record['name'], record['boot_disk_size_gb'],
                                                record['max_instances'], record['max_live_instances'])
 
-    @staticmethod
-    def convert_requests_to_resources(machine_type, storage_bytes):
+    def __init__(self, name, boot_disk_size_gb, max_instances, max_live_instances):
+        self.name = name
+        self.boot_disk_size_gb = boot_disk_size_gb
+        self.max_instances = max_instances
+        self.max_live_instances = max_live_instances
+
+    def convert_requests_to_resources(self, machine_type, storage_bytes):
         if storage_bytes > MAX_PERSISTENT_SSD_SIZE_BYTES:
             return None
         storage_gib = max(10, round_storage_bytes_to_gib(storage_bytes))
@@ -80,13 +85,7 @@ class JobPrivateInstanceManagerConfig(InstanceCollectionConfig):
         cores = int(machine_type_dict['cores'])
         cores_mcpu = cores * 1000
 
-        return (cores_mcpu, storage_gib)
-
-    def __init__(self, name, boot_disk_size_gb, max_instances, max_live_instances):
-        self.name = name
-        self.boot_disk_size_gb = boot_disk_size_gb
-        self.max_instances = max_instances
-        self.max_live_instances = max_live_instances
+        return (self.name, cores_mcpu, storage_gib)
 
 
 class InstanceCollectionConfigs:
@@ -126,4 +125,4 @@ LEFT JOIN pools ON inst_colls.name = pools.name;
         return None
 
     def select_job_private(self, machine_type, storage_bytes):  # pylint: disable=no-self-use
-        return JobPrivateInstanceManagerConfig.convert_requests_to_resources(machine_type, storage_bytes)
+        return self.jpim_config.convert_requests_to_resources(machine_type, storage_bytes)
