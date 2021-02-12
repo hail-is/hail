@@ -191,7 +191,8 @@ def _impute_type(x, partial_type):
                                       "found set with elements of types {} ".format(list(ts)))
         return tset(unified_type)
     elif isinstance(x, dict):
-        user_partial_type = refine(partial_type, hl.tdict(None, None))
+        user_partial_type = partial_type
+        partial_type = refine(partial_type, hl.tdict(None, None))
         if len(x) == 0:
             return partial_type
         kts = {_impute_type(element, partial_type.key_type) for element in x.keys()}
