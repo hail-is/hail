@@ -86,7 +86,7 @@ class WorkerConfig:
         self.config = config
 
         self.version = self.config['version']
-        assert self.version == 2
+        assert self.version == 3
 
         instance = self.config['instance']
         self.disks = self.config['disks']
