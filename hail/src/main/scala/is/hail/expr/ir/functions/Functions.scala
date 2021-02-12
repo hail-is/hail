@@ -330,7 +330,7 @@ abstract class RegistryFunctions {
     case TArray(TInt32) =>
       val pca = pt.asInstanceOf[PCanonicalArray]
       val arr = cb.newLocal[IndexedSeq[Int]]("unrwrap_return_array_int32_arr", coerce[IndexedSeq[Int]](value))
-      val len = cb.newLocal[Int]("unwrap_return_array_int32_len")
+      val len = cb.newLocal[Int]("unwrap_return_array_int32_len", arr.invoke[Int]("length"))
       pca.constructFromElements(cb, r, len, deepCopy = false) { (cb, idx) =>
         val elt = cb.newLocal[java.lang.Integer]("unwrap_return_array_int32_elt",
           Code.checkcast[java.lang.Integer](arr.invoke[Int, java.lang.Object]("apply", idx)))
@@ -339,7 +339,7 @@ abstract class RegistryFunctions {
     case TArray(TFloat64) =>
       val pca = pt.asInstanceOf[PCanonicalArray]
       val arr = cb.newLocal[IndexedSeq[Double]]("unrwrap_return_array_float64_arr", coerce[IndexedSeq[Double]](value))
-      val len = cb.newLocal[Int]("unwrap_return_array_float64_len")
+      val len = cb.newLocal[Int]("unwrap_return_array_float64_len", arr.invoke[Int]("length"))
       pca.constructFromElements(cb, r, len, deepCopy = false) { (cb, idx) =>
         val elt = cb.newLocal[java.lang.Double]("unwrap_return_array_float64_elt",
           Code.checkcast[java.lang.Double](arr.invoke[Int, java.lang.Object]("apply", idx)))
@@ -348,7 +348,7 @@ abstract class RegistryFunctions {
     case TArray(TString) =>
       val pca = pt.asInstanceOf[PCanonicalArray]
       val arr = cb.newLocal[IndexedSeq[String]]("unrwrap_return_array_str_arr", coerce[IndexedSeq[String]](value))
-      val len = cb.newLocal[Int]("unwrap_return_array_str_len")
+      val len = cb.newLocal[Int]("unwrap_return_array_str_len", arr.invoke[Int]("length"))
       pca.constructFromElements(cb, r, len, deepCopy = false) { (cb, idx) =>
         val st = SStringPointer(pca.elementType.asInstanceOf[PCanonicalString])
         val elt = cb.newLocal[String]("unwrap_return_array_str_elt",
