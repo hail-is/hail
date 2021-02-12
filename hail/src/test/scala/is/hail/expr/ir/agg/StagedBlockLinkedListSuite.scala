@@ -1,16 +1,15 @@
 package is.hail.expr.ir.agg
 
 import is.hail.HailSuite
-
-import scala.collection.generic.Growable
-import is.hail.annotations.{Region, SafeRow, ScalaToRegionValue, StagedRegionValueBuilder}
+import is.hail.annotations.{Region, SafeRow, ScalaToRegionValue}
 import is.hail.asm4s.Code
-import is.hail.expr.ir.{EmitCode, EmitCodeBuilder, EmitFunctionBuilder, EmitRegion}
+import is.hail.expr.ir.{EmitCode, EmitFunctionBuilder}
 import is.hail.types.physical._
 import is.hail.utils._
-import org.scalatest.testng.TestNGSuite
-import org.testng.annotations.Test
 import org.testng.Assert._
+import org.testng.annotations.Test
+
+import scala.collection.generic.Growable
 
 class StagedBlockLinkedListSuite extends HailSuite {
 
