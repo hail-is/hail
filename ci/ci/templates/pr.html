@@ -41,13 +41,14 @@
             {% if job['exit_code'] == 0 %}
             <span style="color: #55aa33;">
               Success 🎉
-              {% else %}
-              <span style="color: #a93333;">
-                Failure 🤷‍♀️
-                {% endif %}
-                ({{ job['exit_code'] }})
-              </span>
-              {% endif %}
+            </span>
+            {% else %}
+            <span style="color: #a93333;">
+              Failure 🤷‍♀️
+              ({{ job['exit_code'] }})
+            </span>
+            {% endif %}
+            {% endif %}
           </td>
           <td>
             {% if 'duration' in job and job['duration'] %}
