@@ -715,7 +715,7 @@ class Job:
             cpu_in_mcpu = adjust_cores_for_memory_request(req_cpu_in_mcpu, req_memory_in_bytes, worker_config.instance_type)
             cpu_in_mcpu = adjust_cores_for_storage_request(cpu_in_mcpu, req_storage_in_bytes, CORES, worker_config.local_ssd_data_disk, worker_config.data_disk_size_gb)
             cpu_in_mcpu = adjust_cores_for_packability(cpu_in_mcpu)
-            storage_in_bytes = cores_mcpu_to_storage_bytes(self.cpu_in_mcpu, CORES, worker_config.local_ssd_data_disk, worker_config.data_disk_size_gb)
+            storage_in_bytes = cores_mcpu_to_storage_bytes(cpu_in_mcpu, CORES, worker_config.local_ssd_data_disk, worker_config.data_disk_size_gb)
         else:
             # job private worker
             cpu_in_mcpu = CORES * 1000
