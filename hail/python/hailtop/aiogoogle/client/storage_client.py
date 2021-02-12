@@ -179,6 +179,9 @@ class ResumableInsertObjectStream(WritableStream):
         return int(split_range[1])
 
     async def _write_chunk_1(self):
+        assert not self._done
+        assert self._closed or self._write_buffer.size() >= self._chunk_size
+
         if self._closed:
             total_size = self._write_buffer.offset() + self._write_buffer.size()
             total_size_str = str(total_size)
@@ -225,8 +228,11 @@ class ResumableInsertObjectStream(WritableStream):
         offset = self._write_buffer.offset()
         if self._closed:
             n = self._write_buffer.size()
+        # status check can advance the offset, so there might not be a
+        # full chunk available to write
+        elif self._write_buffer.size() < self._chunk_size:
+            return
         else:
-            assert self._write_buffer.size() >= self._chunk_size
             n = self._chunk_size
         if n > 0:
             range = f'bytes {offset}-{offset + n - 1}/{total_size_str}'
