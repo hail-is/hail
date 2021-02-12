@@ -41,7 +41,7 @@ final case class PCanonicalCall(required: Boolean = false) extends PCall {
 
   def _copyFromAddress(region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Long = {
     srcPType match {
-      case pt: PCanonicalLocus => representation._copyFromAddress(region, pt.representation, srcAddress, deepCopy)
+      case pt: PCanonicalCall => representation._copyFromAddress(region, pt.representation, srcAddress, deepCopy)
     }
   }
 
