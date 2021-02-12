@@ -19,7 +19,7 @@ log.info(f'BATCH_WORKER_IMAGE {BATCH_WORKER_IMAGE}')
 async def create_instance(app, zone, machine_name, machine_type, activation_token,
                           max_idle_time_msecs, worker_local_ssd_data_disk,
                           worker_pd_ssd_data_disk_size_gb, boot_disk_size_gb,
-                          preemptible):
+                          preemptible, job_private):
     log_store: LogStore = app['log_store']
     compute_client: aiogoogle.ComputeClient = app['compute_client']
 
@@ -313,7 +313,7 @@ journalctl -u docker.service > dockerd.log
         },
     }
 
-    worker_config = WorkerConfig.from_instance_config(config)
+    worker_config = WorkerConfig.from_instance_config(config, job_private)
     assert worker_config.is_valid_configuration(app['resources'])
     config['metadata']['items'].append({
         'key': 'worker_config',

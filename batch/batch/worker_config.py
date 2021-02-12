@@ -41,7 +41,7 @@ def is_power_two(n):
 
 class WorkerConfig:
     @staticmethod
-    def from_instance_config(instance_config):
+    def from_instance_config(instance_config, job_private=False):
         instance_info = parse_machine_type_str(instance_config['machineType'])
 
         preemptible = instance_config['scheduling']['preemptible']
@@ -76,7 +76,8 @@ class WorkerConfig:
                 'cores': int(instance_info['cores']),
                 'preemptible': preemptible
             },
-            'disks': disks
+            'disks': disks,
+            'job-private': job_private
         }
 
         return WorkerConfig(config)
@@ -106,6 +107,8 @@ class WorkerConfig:
 
         self.local_ssd_data_disk = (data_disk['type'] == 'local-ssd')
         self.data_disk_size_gb = data_disk['size']
+
+        self.job_private = self.config['job-private']
 
     def is_valid_configuration(self, valid_resources):
         is_valid = True

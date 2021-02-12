@@ -250,7 +250,8 @@ HAVING n_ready_jobs + n_creating_jobs + n_running_jobs > 0;
                                               worker_local_ssd_data_disk=False,
                                               worker_pd_ssd_data_disk_size_gb=storage_gb,
                                               boot_disk_size_gb=self.boot_disk_size_gb,
-                                              preemptible=preemptible)
+                                              preemptible=preemptible,
+                                              job_private=True)
 
         memory_in_bytes = worker_memory_per_core_bytes(worker_type)
         resources = worker_config.resources(cores_mcpu, memory_in_bytes)

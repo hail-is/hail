@@ -176,7 +176,8 @@ WHERE name = %s;
                               worker_local_ssd_data_disk=self.worker_local_ssd_data_disk,
                               worker_pd_ssd_data_disk_size_gb=self.worker_pd_ssd_data_disk_size_gb,
                               boot_disk_size_gb=self.boot_disk_size_gb,
-                              preemptible=True)
+                              preemptible=True,
+                              job_private=False)
 
     async def create_instances(self):
         ready_cores = await self.db.select_and_fetchone(
