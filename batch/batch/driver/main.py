@@ -881,12 +881,12 @@ SELECT instance_id, internal_token FROM globals;
     app['zone_monitor'] = zone_monitor
     await zone_monitor.async_init()
 
-    inst_coll_config_manager = InstanceCollectionConfigs(app)
-    await inst_coll_config_manager.async_init()
+    inst_coll_configs = InstanceCollectionConfigs(app)
+    await inst_coll_configs.async_init()
 
     inst_coll_manager = InstanceCollectionManager(app, MACHINE_NAME_PREFIX)
     app['inst_coll_manager'] = inst_coll_manager
-    await inst_coll_manager.async_init(inst_coll_config_manager)
+    await inst_coll_manager.async_init(inst_coll_configs)
 
     canceller = Canceller(app)
     app['canceller'] = canceller

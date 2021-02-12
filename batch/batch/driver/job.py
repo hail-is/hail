@@ -357,7 +357,7 @@ users:
         'start_job_id': start_job_id,
         'user': record['user'],
         'gsa_key': gsa_key,
-        'job_spec': job_spec,
+        'job_spec': job_spec
     }
 
 

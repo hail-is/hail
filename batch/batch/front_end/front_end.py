@@ -674,7 +674,7 @@ WHERE user = %s AND id = %s AND NOT deleted;
                     worker_type = BATCH_JOB_DEFAULT_WORKER_TYPE
                     resources['worker_type'] = worker_type
 
-                inst_coll_config_manager: InstanceCollectionConfigs = app['inst_coll_config_manager']
+                inst_coll_configs: InstanceCollectionConfigs = app['inst_coll_configs']
 
                 inst_coll_name = None
                 cores_mcpu = None
@@ -684,7 +684,7 @@ WHERE user = %s AND id = %s AND NOT deleted;
                         raise web.HTTPBadRequest(
                             reason='cannot have preemptible specified with a worker_type')
 
-                    result = inst_coll_config_manager.select_pool(
+                    result = inst_coll_configs.select_pool(
                         worker_type=worker_type,
                         cores_mcpu=req_cores_mcpu,
                         memory_bytes=req_memory_bytes,
@@ -697,7 +697,7 @@ WHERE user = %s AND id = %s AND NOT deleted;
                     if 'preemptible' not in resources:
                         resources['preemptible'] = BATCH_JOB_DEFAULT_PREEMPTIBLE
 
-                    result = inst_coll_config_manager.select_job_private(
+                    result = inst_coll_configs.select_job_private(
                         machine_type=machine_type,
                         storage_bytes=req_storage_bytes)
                     if result:
@@ -1911,9 +1911,9 @@ SELECT instance_id, internal_token, n_tokens FROM globals;
         '/gsa-key/key.json')
     app['log_store'] = LogStore(BATCH_BUCKET_NAME, instance_id, pool, credentials=credentials)
 
-    inst_coll_config_manager = InstanceCollectionConfigs(app)
-    app['inst_coll_config_manager'] = inst_coll_config_manager
-    await inst_coll_config_manager.async_init()
+    inst_coll_configs = InstanceCollectionConfigs(app)
+    app['inst_coll_configs'] = inst_coll_configs
+    await inst_coll_configs.async_init()
 
     cancel_batch_state_changed = asyncio.Event()
     app['cancel_batch_state_changed'] = cancel_batch_state_changed

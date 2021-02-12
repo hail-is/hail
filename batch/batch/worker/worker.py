@@ -1087,8 +1087,9 @@ class Worker:
                     await session.post(
                         deploy_config.url('batch-driver', '/api/v1alpha/instances/deactivate'),
                         headers=self.headers)
-                    log.info('deactivated')
+                log.info('deactivated')
         finally:
+            log.info('shutting down')
             if site:
                 await site.stop()
                 log.info('stopped site')
