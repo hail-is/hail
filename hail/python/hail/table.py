@@ -450,8 +450,9 @@ class Table(ExprContainer):
     @typecheck_method(rows=anytype,
                       schema=nullable(hail_type),
                       key=table_key_type,
-                      n_partitions=nullable(int))
-    def parallelize(cls, rows, schema=None, key=None, n_partitions=None) -> 'Table':
+                      n_partitions=nullable(int),
+                      partial_type=nullable(hail_type))
+    def parallelize(cls, rows, schema=None, key=None, n_partitions=None, partial_type=None) -> 'Table':
         """Parallelize a local array of structs into a distributed table.
 
         Examples
@@ -461,6 +462,29 @@ class Table(ExprContainer):
         >>> a = [ {'a': 5, 'b': 10}, {'a': 0, 'b': 200} ]
         >>> table = hl.Table.parallelize(hl.literal(a, 'array<struct{a: int, b: int}>'))
         >>> table.show()
+
+        Parallelize complex JSON with a `partial_type`:
+
+        >>> dicts = [{"number":10038,"state":"open","user":{"login":"tpoterba","site_admin":False,"id":10562794},"milestone":None,"labels":[]},
+                     {"number":10037,"state":"open","user":{"login":"daniel-goldstein","site_admin":False,"id":24440116},"milestone":None,"labels":[]},
+                     {"number":10036,"state":"open","user":{"login":"jigold","site_admin":False,"id":1693348},"milestone":None,"labels":[]},
+                     {"number":10035,"state":"open","user":{"login":"tpoterba","site_admin":False,"id":10562794},"milestone":None,"labels":[]},
+                     {"number":10033,"state":"open","user":{"login":"tpoterba","site_admin":False,"id":10562794},"milestone":None,"labels":[]}]
+        >>> t = hl.Table.parallelize(
+        ...     dicts,
+        ...     partial_type=hl.tstruct(milestone=hl.tstr, labels=hl.tarray(hl.tstr)))
+        >>> t.show()
+        +--------+--------+--------------------+-----------------+----------+-----------+------------+
+        | number | state  | user.login         | user.site_admin |  user.id | milestone | labels     |
+        +--------+--------+--------------------+-----------------+----------+-----------+------------+
+        |  int32 | str    | str                |            bool |    int32 | str       | array<str> |
+        +--------+--------+--------------------+-----------------+----------+-----------+------------+
+        |  10038 | "open" | "tpoterba"         |           false | 10562794 | NA        | []         |
+        |  10037 | "open" | "daniel-goldstein" |           false | 24440116 | NA        | []         |
+        |  10036 | "open" | "jigold"           |           false |  1693348 | NA        | []         |
+        |  10035 | "open" | "tpoterba"         |           false | 10562794 | NA        | []         |
+        |  10033 | "open" | "tpoterba"         |           false | 10562794 | NA        | []         |
+        +--------+--------+--------------------+-----------------+----------+-----------+------------+
 
         Warning
         -------
@@ -475,12 +499,21 @@ class Table(ExprContainer):
         key : Union[str, List[str]]], optional
             Key field(s).
         n_partitions : int, optional
+        partial_type : hail type :ref:`hail_types`, optional
+            A value type which may elide fields or have ``None`` in arbitrary places. The partial
+            type is used by hail where the type cannot be imputed.
 
         Returns
         -------
         :class:`.Table`
+
         """
-        rows = to_expr(rows, dtype=hl.tarray(schema) if schema is not None else None)
+        dtype = schema
+        if schema is not None:
+            dtype = hl.tarray(schema)
+        if partial_type is not None:
+            partial_type = hl.tarray(partial_type)
+        rows = to_expr(rows, dtype=dtype, partial_type=partial_type)
         if not isinstance(rows.dtype.element_type, tstruct):
             raise TypeError("'parallelize' expects an array with element type 'struct', found '{}'"
                             .format(rows.dtype))

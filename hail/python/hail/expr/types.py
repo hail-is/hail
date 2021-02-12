@@ -294,7 +294,7 @@ class HailType(object):
         return self._context
 
 
-hail_type = oneof(HailType, transformed((str, dtype)))
+hail_type = oneof(HailType, transformed((str, dtype)), type(None))
 
 
 class _tvoid(HailType):
@@ -1057,7 +1057,12 @@ class tstruct(HailType, Mapping):
     """
 
     @typecheck_method(field_types=hail_type)
-    def __init__(self, **field_types):
+    def __init__(*args, **field_types):
+        if len(args) < 1:
+            raise TypeError("__init__() missing 1 required positional argument: 'self'")
+        if len(args) > 1:
+            raise TypeError(f"__init__() takes 1 positional argument but {len(args)} were given")
+        self = args[0]
         self._field_types = field_types
         self._fields = tuple(field_types)
         super(tstruct, self).__init__()
