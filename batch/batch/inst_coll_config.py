@@ -126,15 +126,4 @@ LEFT JOIN pools ON inst_colls.name = pools.name;
         return None
 
     def select_job_private(self, machine_type, storage_bytes):
-        if storage_bytes > MAX_PERSISTENT_SSD_SIZE_BYTES:
-            return None
-        storage_gib = max(10, round_storage_bytes_to_gib(storage_bytes))
-
-        machine_type_dict = MACHINE_TYPE_REGEX.match(machine_type)
-        if not machine_type_dict:
-            return None
-
-        cores = int(machine_type_dict.groupdict()['cores'])
-        cores_mcpu = cores * 1000
-
-        return (self.jpim_config.name, cores_mcpu, storage_gib)
+        return JobPrivateInstanceManagerConfig.convert_requests_to_resources(machine_type, storage_bytes)
