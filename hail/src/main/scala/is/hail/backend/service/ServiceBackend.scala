@@ -39,6 +39,22 @@ class ServiceTaskContext(val partitionId: Int) extends HailTaskContext {
   override def attemptNumber(): Int = 0
 }
 
+class WorkerTimer() {
+  var startTimes: mutable.Map[String, Long] = mutable.Map()
+  def start(label: String): Unit = {
+    startTimes.put(label, System.nanoTime())
+  }
+
+  def end(label: String): Unit = {
+    val endTime = System.nanoTime()
+    val startTime = startTimes.get(label)
+    startTime.foreach { s =>
+      val durationMS = "%.6f".format((endTime - s).toDouble / 1000000.0)
+      log.info(s"$label took $durationMS ms.")
+    }
+  }
+}
+
 object Worker {
   def main(args: Array[String]): Unit = {
     if (args.length != 2) {
@@ -46,12 +62,16 @@ object Worker {
     }
     val root = args(0)
     val i = args(1).toInt
+    val timer = new WorkerTimer()
 
     var scratchDir = System.getenv("HAIL_WORKER_SCRATCH_DIR")
     if (scratchDir == null)
       scratchDir = ""
 
     log.info(s"running job $i at root $root wih scratch directory '$scratchDir'")
+
+    timer.start(s"Job $i")
+    timer.start("readInputs")
 
     val fs = using(new FileInputStream(s"$scratchDir/gsa-key/key.json")) { is =>
       new GoogleStorageFS(IOUtils.toString(is))
@@ -76,15 +96,22 @@ object Worker {
       is.readFully(context)
       context
     }
+    timer.end("readInputs")
+    timer.start("executeFunction")
 
     val htc = new ServiceTaskContext(i)
     HailTaskContext.setTaskContext(htc)
     val result = f(context, htc)
     HailTaskContext.finish()
 
+    timer.end("executeFunction")
+    timer.start("writeOutputs")
+
     using(fs.createNoCompression(s"$root/result.$i")) { os =>
       os.write(result)
     }
+    timer.end("writeOutputs")
+    timer.end(s"Job $i")
     log.info(s"finished job $i at root $root")
   }
 }
@@ -116,8 +143,6 @@ final class Response(val status: Int, val value: String)
 
 class ServiceBackend() extends Backend {
   import ServiceBackend.log
-
-  private[this] val workerImage = System.getenv("HAIL_QUERY_WORKER_IMAGE")
 
   private[this] val users = mutable.Map[String, User]()
 
