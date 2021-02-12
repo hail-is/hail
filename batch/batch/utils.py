@@ -126,6 +126,10 @@ def round_storage_bytes_to_gib(storage_bytes):
     return gib
 
 
+def storage_gib_to_bytes(storage_gib):
+    return math.ceil(storage_gib * 1024**3)
+
+
 class Box:
     def __init__(self, value):
         self.value = value
