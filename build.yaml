@@ -21,6 +21,7 @@ steps:
     - billing-monitor-gsa-key
     - asana-access-token
     - hail-ci-0-1-service-account-key
+    - test-dataproc-service-account-key
  - kind: buildImage
    name: echo_image
    dockerFile: echo/Dockerfile
