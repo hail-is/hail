@@ -898,7 +898,6 @@ class Emit[C](
 
       case x@MakeArray(args, _) =>
         val pType = x.pType.asInstanceOf[PCanonicalArray]
-        val srvb = new StagedRegionValueBuilder(mb, pType, region.code)
 
         val (pushElement, finish) = pType.constructFromFunctions(cb, region.code, args.size, deepCopy = false)
         for (arg <- args) {
@@ -1730,7 +1729,7 @@ class Emit[C](
         val impl = x.implementation
         val unified = impl.unify(Array.empty[Type], args.map(_.typ), rt)
         assert(unified)
-        impl.applySeededI(seed, cb, EmitRegion(mb, region.code), pt, codeArgs: _*)
+        impl.applySeededI(seed, cb, region.code, pt, codeArgs: _*)
 
       case AggStateValue(i, _) =>
         val AggContainer(_, sc, _) = container.get
@@ -2246,13 +2245,12 @@ class Emit[C](
 
         val outerRegion = region.asParent(coerce[PStream](array.pType).separateRegions, "ArraySort")
         val optStream = emitStream(array, outerRegion)
-        optStream.map { stream =>
-          PCode(pt, Code(
-            EmitStream.write(mb, stream.asStream, vab, outerRegion),
-            sort,
-            distinct,
-            sorter.toRegion()))
-        }
+        EmitCode.fromI(mb)(cb => optStream.toI(cb).map(cb) { stream =>
+          cb += EmitStream.write(cb.emb, stream.asStream, vab, outerRegion)
+          cb += sort
+          cb += distinct
+          sorter.toRegion(cb, x.pType)
+        })
 
       case CastToArray(a) =>
         val et = emit(a)

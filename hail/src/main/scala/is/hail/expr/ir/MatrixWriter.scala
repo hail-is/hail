@@ -2,12 +2,11 @@ package is.hail.expr.ir
 
 import java.io.OutputStream
 
-import is.hail.annotations.{Region, StagedRegionValueBuilder}
+import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.ir.EmitStream.SizedStream
 import is.hail.expr.ir.lowering.{LowererUnsupportedOperation, TableStage}
-import is.hail.types.virtual.{TArray, TInt64, TStream, TString, TStruct, Type}
 import is.hail.io._
 import is.hail.io.fs.FS
 import is.hail.io.gen.{ExportBGEN, ExportGen}
@@ -16,7 +15,9 @@ import is.hail.io.plink.ExportPlink
 import is.hail.io.vcf.ExportVCF
 import is.hail.rvd.{RVDPartitioner, RVDSpecMaker}
 import is.hail.types.encoded.{EBaseStruct, EType}
-import is.hail.types.physical.{PBaseStructCode, PCanonicalString, PCanonicalStruct, PCode, PIndexableValue, PInt64, PStream, PStruct, PType}
+import is.hail.types.physical.stypes.interfaces._
+import is.hail.types.physical.{PBaseStructCode, PCanonicalBaseStruct, PCanonicalString, PCanonicalStruct, PCode, PIndexableValue, PInt64, PInt64Required, PStream, PStruct, PType}
+import is.hail.types.virtual._
 import is.hail.types.{MatrixType, RTable, TableType}
 import is.hail.utils._
 import is.hail.utils.richUtils.ByteTrackingOutputStream
@@ -176,7 +177,7 @@ case class SplitPartitionNativeWriter(
     val enc1 = spec1.buildEmitEncoder(eltType, mb.ecb)
     val enc2 = spec2.buildEmitEncoder(eltType, mb.ecb)
     val keyType = ifIndexed { index.get._2 }
-    val iAnnotationType = +PCanonicalStruct("entries_offset" -> +PInt64())
+    val iAnnotationType = PCanonicalStruct(required = true, "entries_offset" -> PInt64Required)
     val indexWriter = ifIndexed { StagedIndexWriter.withDefaults(keyType, mb.ecb, annotationType = iAnnotationType) }
 
     context.map { ctxCode: PCode =>
@@ -195,24 +196,16 @@ case class SplitPartitionNativeWriter(
           val pc = codeRow.toI(cb).get(cb, "row can't be missing").asBaseStruct
           val row = pc.memoize(cb, "row")
           if (hasIndex) {
-            val keyRVB = new StagedRegionValueBuilder(mb, keyType, eltRegion.code)
-            val aRVB = new StagedRegionValueBuilder(mb, iAnnotationType, eltRegion.code)
             indexWriter.add(cb, {
-              cb += keyRVB.start()
-              keyType.fields.foreach { f =>
-                row.loadField(cb, f.name).consume(cb,
-                  cb._fatal("index field cannot be missing"),
-                  { fieldCode =>
-                    cb += keyRVB.addIRIntermediate(fieldCode)
-                    cb += keyRVB.advance()
-                  }
-                )
-              }
-              IEmitCode.present(cb, PCode(keyType, keyRVB.offset))
+              IEmitCode.present(cb, keyType.asInstanceOf[PCanonicalBaseStruct]
+                  .constructFromFields(cb, eltRegion.code,
+                    keyType.fields.map(f => EmitCode.fromI(cb.emb)(cb => row.loadField(cb, f.name).typecast[PCode])),
+                    deepCopy = false))
             }, ob1.invoke[Long]("indexOffset"), {
-              cb += aRVB.start()
-              cb += aRVB.addLong(ob2.invoke[Long]("indexOffset"))
-              IEmitCode.present(cb, PCode(iAnnotationType, aRVB.offset))
+              IEmitCode.present(cb,
+                iAnnotationType.constructFromFields(cb, eltRegion.code,
+                  FastIndexedSeq(EmitCode.present(cb.emb, primitive(ob2.invoke[Long]("indexOffset")))),
+                  deepCopy = false))
             })
           }
           cb += ob1.writeByte(1.asInstanceOf[Byte])

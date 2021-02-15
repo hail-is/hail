@@ -1,14 +1,22 @@
 import os
-from typing import Tuple, Any, Set, Optional, Mapping, Dict, AsyncIterator, cast, Type
+from typing import Tuple, Any, Set, Optional, Mapping, Dict, AsyncIterator, cast, Type, Iterator
 from types import TracebackType
+import collections
+from multidict import CIMultiDictProxy  # pylint: disable=unused-import
+import sys
+import logging
 import asyncio
 import urllib.parse
 import aiohttp
+from hailtop.utils import TransientError, retry_transient_errors
 from hailtop.aiotools import (
     FileStatus, FileListEntry, ReadableStream, WritableStream, AsyncFS,
     FeedableAsyncIterable, FileAndDirectoryError, MultiPartCreate)
-from multidict import CIMultiDictProxy  # pylint: disable=unused-import
+
+from hailtop.aiogoogle.auth import Session
 from .base_client import BaseClient
+
+log = logging.getLogger(__name__)
 
 
 class PageIterator:
@@ -60,6 +68,237 @@ class InsertObjectStream(WritableStream):
             self._value = await resp.json()
 
 
+class _WriteBuffer:
+    def __init__(self):
+        """Long writes that might fail need to be broken into smaller chunks
+        that can be retried.  _WriteBuffer stores data at the end of
+        the write stream that has not been committed and may be needed
+        to retry the failed write of a chunk."""
+        self._buffers = collections.deque()
+        self._offset = 0
+        self._size = 0
+        self._iterating = False
+
+    def append(self, b: bytes):
+        """`b` can be any length"""
+        self._buffers.append(b)
+        self._size += len(b)
+
+    def size(self) -> int:
+        """Return the total number of bytes stored in the write buffer.  This
+        is the sum of the length of the bytes in `_buffers`."""
+        return self._size
+
+    def offset(self) -> int:
+        """Return the offset in the write stream of the first byte in the
+        write buffer."""
+        return self._offset
+
+    def advance_offset(self, new_offset: int):
+        """Inform the write buffer that bytes before `new_offset` have been
+        committed and can be discarded.  After calling advance_offset,
+        `self.offset() == new_offset`."""
+        assert not self._iterating
+        assert new_offset <= self._offset + self._size
+        while self._buffers and new_offset >= self._offset + len(self._buffers[0]):
+            b = self._buffers.popleft()
+            n = len(b)
+            self._offset += n
+            self._size -= n
+        if new_offset > self._offset:
+            n = new_offset - self._offset
+            b = self._buffers[0]
+            assert n < len(b)
+            b = b[n:]
+            self._buffers[0] = b
+            self._offset += n
+            self._size -= n
+        assert self._offset == new_offset
+
+    def chunks(self, chunk_size: int) -> Iterator[bytes]:
+        """Return an iterator that yields bytes whose total size is
+        `chunk_size` from the beginning of the write buffer."""
+        assert not self._iterating
+        self._iterating = True
+        remaining = chunk_size
+        i = 0
+        while remaining > 0:
+            b = self._buffers[i]
+            n = len(b)
+            if n <= remaining:
+                yield b
+                remaining -= n
+                i += 1
+            else:
+                yield b[:remaining]
+                break
+        self._iterating = False
+
+
+class _TaskManager:
+    def __init__(self, coro):
+        self._coro = coro
+        self._task = None
+
+    async def __aenter__(self) -> '_TaskManager':
+        self._task = asyncio.create_task(self._coro)
+        return self._task
+
+    async def __aexit__(self,
+                        exc_type: Optional[Type[BaseException]],
+                        exc_val: Optional[BaseException],
+                        exc_tb: Optional[TracebackType]) -> None:
+        if not self._task.done():
+            if exc_val:
+                self._task.cancel()
+                try:
+                    await self._task
+                except:
+                    _, exc, _ = sys.exc_info()
+                    if exc is not exc_val:
+                        log.warning('dropping preempted task exception', exc_info=True)
+            else:
+                await self._task
+
+
+class ResumableInsertObjectStream(WritableStream):
+    def __init__(self, session: Session, session_url: str, chunk_size: int):
+        super().__init__()
+        self._session = session
+        self._session_url = session_url
+        self._write_buffer = _WriteBuffer()
+        self._broken = False
+        self._done = False
+        self._chunk_size = chunk_size
+
+    @staticmethod
+    def _range_upper(range):
+        range = range.split('/', 1)[0]
+        split_range = range.split('-')
+        assert len(split_range) == 2
+        return int(split_range[1])
+
+    async def _write_chunk_1(self):
+        assert not self._done
+        assert self._closed or self._write_buffer.size() >= self._chunk_size
+
+        if self._closed:
+            total_size = self._write_buffer.offset() + self._write_buffer.size()
+            total_size_str = str(total_size)
+        else:
+            total_size = None
+            total_size_str = '*'
+
+        if self._broken:
+            # If the last request was unsuccessful, we are out of sync
+            # with the server and we don't know what byte to send
+            # next.  Perform a status check to find out.  See:
+            # https://cloud.google.com/storage/docs/performing-resumable-uploads#status-check
+
+            # note: this retries
+            resp = await self._session.put(self._session_url,
+                                           headers={
+                                               'Content-Length': '0',
+                                               'Content-Range': f'bytes */{total_size_str}'
+                                           },
+                                           raise_for_status=False)
+            if resp.status >= 200 and resp.status < 300:
+                assert self._closed
+                assert total_size is not None
+                self._write_buffer.advance_offset(total_size)
+                assert self._write_buffer.size() == 0
+                self._done = True
+                return
+            if resp.status == 308:
+                range = resp.headers.get('Range')
+                if range is not None:
+                    new_offset = self._range_upper(range) + 1
+                else:
+                    new_offset = 0
+                self._write_buffer.advance_offset(new_offset)
+                self._broken = False
+            else:
+                assert resp.status >= 400
+                resp.raise_for_status()
+                assert False
+
+        assert not self._broken
+        self._broken = True
+
+        offset = self._write_buffer.offset()
+        if self._closed:
+            n = self._write_buffer.size()
+        # status check can advance the offset, so there might not be a
+        # full chunk available to write
+        elif self._write_buffer.size() < self._chunk_size:
+            return
+        else:
+            n = self._chunk_size
+        if n > 0:
+            range = f'bytes {offset}-{offset + n - 1}/{total_size_str}'
+        else:
+            range = f'bytes */{total_size_str}'
+
+        # Upload a single chunk.  See:
+        # https://cloud.google.com/storage/docs/performing-resumable-uploads#chunked-upload
+        it: FeedableAsyncIterable[bytes] = FeedableAsyncIterable()
+        async with _TaskManager(
+                self._session.put(self._session_url,
+                                  data=aiohttp.AsyncIterablePayload(it),
+                                  headers={
+                                      'Content-Length': f'{n}',
+                                      'Content-Range': range
+                                  },
+                                  raise_for_status=False,
+                                  retry=False)) as put_task:
+            for chunk in self._write_buffer.chunks(n):
+                async with _TaskManager(it.feed(chunk)) as feed_task:
+                    done, _ = await asyncio.wait([put_task, feed_task], return_when=asyncio.FIRST_COMPLETED)
+                    if feed_task not in done:
+                        msg = 'resumable upload chunk PUT request finished before writing data'
+                        log.warning(msg)
+                        raise TransientError(msg)
+
+            await it.stop()
+
+            resp = await put_task
+            if resp.status >= 200 and resp.status < 300:
+                assert self._closed
+                assert total_size is not None
+                self._write_buffer.advance_offset(total_size)
+                assert self._write_buffer.size() == 0
+                self._done = True
+                return
+
+            if resp.status == 308:
+                range = resp.headers['Range']
+                self._write_buffer.advance_offset(self._range_upper(range) + 1)
+                self._broken = False
+                return
+
+            assert resp.status >= 400
+            resp.raise_for_status()
+            assert False
+
+    async def _write_chunk(self):
+        await retry_transient_errors(self._write_chunk_1)
+
+    async def write(self, b):
+        assert not self._closed
+        assert self._write_buffer.size() < self._chunk_size
+        self._write_buffer.append(b)
+        while self._write_buffer.size() >= self._chunk_size:
+            await self._write_chunk()
+        assert self._write_buffer.size() < self._chunk_size
+
+    async def _wait_closed(self):
+        assert self._closed
+        assert self._write_buffer.size() < self._chunk_size
+        while not self._done:
+            await self._write_chunk()
+        assert self._done and self._write_buffer.size() == 0
+
+
 class GetObjectStream(ReadableStream):
     def __init__(self, resp):
         super().__init__()
@@ -87,6 +326,8 @@ class StorageClient(BaseClient):
     # https://cloud.google.com/storage/docs/json_api/v1
 
     async def insert_object(self, bucket: str, name: str, **kwargs) -> InsertObjectStream:
+        # Insert an object.  See:
+        # https://cloud.google.com/storage/docs/json_api/v1/objects/insert
         if 'params' in kwargs:
             params = kwargs['params']
         else:
@@ -94,16 +335,35 @@ class StorageClient(BaseClient):
             kwargs['params'] = params
         assert 'name' not in params
         params['name'] = name
-        assert 'uploadType' not in params
-        params['uploadType'] = 'media'
 
-        assert 'data' not in kwargs
-        it: FeedableAsyncIterable[bytes] = FeedableAsyncIterable()
-        kwargs['data'] = aiohttp.AsyncIterablePayload(it)
-        request_task = asyncio.ensure_future(self._session.post(
+        if 'data' in params:
+            return await self._session.post(
+                f'https://storage.googleapis.com/upload/storage/v1/b/{bucket}/o',
+                **kwargs)
+
+        upload_type = params.get('uploadType')
+        if not upload_type:
+            upload_type = 'resumable'
+            params['uploadType'] = upload_type
+
+        if upload_type == 'media':
+            it: FeedableAsyncIterable[bytes] = FeedableAsyncIterable()
+            kwargs['data'] = aiohttp.AsyncIterablePayload(it)
+            request_task = asyncio.ensure_future(self._session.post(
+                f'https://storage.googleapis.com/upload/storage/v1/b/{bucket}/o',
+                retry=False,
+                **kwargs))
+            return InsertObjectStream(it, request_task)
+
+        # Write using resumable uploads.  See:
+        # https://cloud.google.com/storage/docs/performing-resumable-uploads
+        assert upload_type == 'resumable'
+        chunk_size = kwargs.get('bufsize', 256 * 1024)
+        resp = await self._session.post(
             f'https://storage.googleapis.com/upload/storage/v1/b/{bucket}/o',
-            **kwargs))
-        return InsertObjectStream(it, request_task)
+            **kwargs)
+        session_url = resp.headers['Location']
+        return ResumableInsertObjectStream(self._session, session_url, chunk_size)
 
     async def get_object(self, bucket: str, name: str, **kwargs) -> GetObjectStream:
         if 'params' in kwargs:

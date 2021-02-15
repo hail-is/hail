@@ -1,6 +1,6 @@
 package is.hail.expr.ir
 
-import is.hail.annotations.{Region, RegionPool, StagedRegionValueBuilder}
+import is.hail.annotations.{Region, RegionPool}
 import is.hail.asm4s._
 import is.hail.types.physical.stypes.SCode
 import is.hail.types.physical.{PCode, PType}
@@ -183,9 +183,6 @@ trait OwnedStagedRegion extends ChildStagedRegion {
   def giveToSibling(dest: ChildStagedRegion): Code[Unit]
 
   def shareWithSibling(dest: ChildStagedRegion): Code[Unit]
-
-  def addToParentRVB(srvb: StagedRegionValueBuilder, value: PCode): Code[Unit] =
-    srvb.addIRIntermediate(value, deepCopy = isStrictChild)
 }
 
 abstract class OwnedStagedRegionArray {

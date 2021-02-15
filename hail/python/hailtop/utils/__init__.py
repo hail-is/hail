@@ -9,7 +9,7 @@ from .utils import (
     retry_response_returning_functions, first_extant_file, secret_alnum_string,
     flatten, partition, cost_str, external_requests_client_session, url_basename,
     url_join, is_google_registry_image, url_scheme, Notice, periodically_call,
-    find_spark_home)
+    find_spark_home, TransientError)
 from .process import (
     CalledProcessError, check_shell, check_shell_output, sync_check_shell,
     sync_check_shell_output)
@@ -73,5 +73,6 @@ __all__ = [
     'serialization',
     'Notice',
     'periodically_call',
-    'find_spark_home'
+    'find_spark_home',
+    'TransientError'
 ]

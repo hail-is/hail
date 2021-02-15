@@ -78,7 +78,12 @@ class Session(BaseSession):
             kwargs['headers'].update(auth_headers)
         else:
             kwargs['headers'] = auth_headers
-        return await request_retry_transient_errors(self._session, method, url, **kwargs)
+
+        # retry by default
+        retry = kwargs.pop('retry', True)
+        if retry:
+            return await request_retry_transient_errors(self._session, method, url, **kwargs)
+        return await self._session.request(method, url, **kwargs)
 
     async def close(self) -> None:
         if self._session is not None:

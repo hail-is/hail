@@ -3,7 +3,6 @@ repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v2.3.0
     hooks:
-      - id: check-yaml
       - id: end-of-file-fixer
       - id: trailing-whitespace
   - repo: https://github.com/psf/black
@@ -13,3 +12,9 @@ repos:
         language_version: python3
         files: 'ci/.*'
         args: ['--line-length=120', '--skip-string-normalization']
+  - repo: https://github.com/thibaudcolas/curlylint
+    rev: v0.12.0
+    hooks:
+      - id: curlylint
+        types: [file] # By default only runs on .jinja files, this disables that
+        files: \.html$

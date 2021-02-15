@@ -98,3 +98,6 @@ principals:
 - name: batch-user-code
   domain: batch-user-code
   kind: json
+- name: grafana
+  domain: grafana
+  kind: json
