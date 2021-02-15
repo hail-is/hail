@@ -2,13 +2,22 @@
 {% block title %}Batch {{ batch['id'] }}{% endblock %}
 {% block content %}
     <h1>Batch {{ batch['id'] }}</h1>
+    <h2>Timing</h2>
+    <div class="attributes">
+      {% for field in ['time_created', 'time_completed', 'duration'] %}
+      {% if field in batch %}
+      <div>{{ field }}: {{ batch[field] }}</div>
+      {% endif %}
+      {% endfor %}
+    </div>
     {% if 'attributes' in batch %}
+    <h2>Attributes</h2>
     <div class="attributes">
       {% for name, value in batch['attributes'].items() %}
       <div>{{ name }}: {{ value }}</div>
       {% endfor %}
-      {% endif %}
     </div>
+    {% endif %}
     <h2>Jobs</h2>
     <table class="data-table" style="line-height: 175%">
       <thead>
@@ -24,8 +33,8 @@
         {% for job in jobs %}
         <tr>
           <td class="numeric-cell">
-	    <a href="{{ base_path }}/batches/{{ job['batch_id'] }}/jobs/{{ job['job_id'] }}">{{ job['job_id'] }}</a>
-	  </td>
+            <a href="{{ base_path }}/batches/{{ job['batch_id'] }}/jobs/{{ job['job_id'] }}">{{ job['job_id'] }}</a>
+	        </td>
           <td>{{ job['name'] }}</td>
           <td>{{ job['state'] }}</td>
           <td>
@@ -33,13 +42,14 @@
             {% if job['exit_code'] == 0 %}
             <span style="color: #55aa33;">
               Success 🎉
-              {% else %}
-              <span style="color: #a93333;">
-                Failure 🤷‍♀️
-                {% endif %}
-                ({{ job['exit_code'] }})
-              </span>
-              {% endif %}
+            </span>
+            {% else %}
+            <span style="color: #a93333;">
+              Failure 🤷‍♀️
+              ({{ job['exit_code'] }})
+            </span>
+            {% endif %}
+            {% endif %}
           </td>
           <td>
             {% if 'duration' in job and job['duration'] is not none %}

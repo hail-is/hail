@@ -1277,8 +1277,9 @@ async def ui_get_job(request, userdata):
     job_specification = job_status['spec']
     if 'process' in job_specification:
         process_specification = job_specification['process']
-        assert process_specification['type'] == 'docker'
-        job_specification['image'] = process_specification['image']
+        process_type = process_specification['type']
+        assert process_specification['type'] in {'docker', 'jvm'}
+        job_specification['image'] = process_specification['image'] if process_type == 'docker' else '[jvm]'
         job_specification['command'] = process_specification['command']
     job_specification = dictfix.dictfix(job_specification,
                                         dictfix.NoneOr({'image': str,

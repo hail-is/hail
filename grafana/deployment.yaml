@@ -1,0 +1,80 @@
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: grafana
+  labels:
+    app: grafana
+spec:
+  selector:
+    matchLabels:
+      app: grafana
+  serviceName: "grafana"
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: grafana
+    spec:
+      priorityClassName: infrastructure
+      securityContext:
+        fsGroup: 472
+        runAsNonRoot: true
+        runAsUser: 472
+      volumes:
+        - name: grafana-configmap-volume
+          configMap:
+            name: grafana-config
+      containers:
+       - name: grafana
+         image: grafana/grafana:7.3.7
+         env:
+{% if deploy %}
+          - name: GF_SERVER_DOMAIN
+            value: grafana.hail.is
+          - name: GF_SERVER_ROOT_URL
+            value: "%(protocol)s://%(domain)s/"
+{% else %}
+          - name: GF_SERVER_DOMAIN
+            value: internal.hail.is
+          - name: GF_SERVER_ROOT_URL
+            value: "%(protocol)s://%(domain)s/{{ default_ns.name }}/grafana/"
+{% endif %}
+         volumeMounts:
+          - mountPath: /var/lib/grafana
+            name: grafana-storage
+          - mountPath: /etc/grafana
+            name: grafana-configmap-volume
+         resources:
+           requests:
+             cpu: "10m"
+             memory: "10M"
+           limits:
+             cpu: "1"
+             memory: "1G"
+         ports:
+          - containerPort: 3000
+  volumeClaimTemplates:
+  - metadata:
+      name: grafana-storage
+    spec:
+      accessModes:
+        - ReadWriteOnce
+      resources:
+        requests:
+          storage: 10Gi
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-config
+data:
+  grafana.ini: |
+    [server]
+{% if deploy %}
+    domain = grafana.hail.is
+{% else %}
+    domain = internal.hail.is
+    root_url = %(protocol)s://%(domain)/{{ default_ns.name }}/grafana/
+    serve_from_sub_path = true
+{% endif %}

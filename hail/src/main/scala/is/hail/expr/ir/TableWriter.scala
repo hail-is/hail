@@ -3,18 +3,18 @@ package is.hail.expr.ir
 import java.io.OutputStream
 
 import is.hail.GenericIndexedSeqSerializer
-import is.hail.annotations.{Region, StagedRegionValueBuilder}
+import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.expr.ir.EmitStream.SizedStream
 import is.hail.expr.ir.lowering.{LowererUnsupportedOperation, TableStage}
 import is.hail.io.fs.FS
 import is.hail.io.index.StagedIndexWriter
-import is.hail.types.virtual._
 import is.hail.io.{AbstractTypedCodecSpec, BufferSpec, OutputBuffer, TypedCodecSpec}
 import is.hail.rvd.{AbstractRVDSpec, IndexSpec, RVDPartitioner, RVDSpecMaker}
-import is.hail.types.{RTable, TableType}
 import is.hail.types.encoded.EType
-import is.hail.types.physical.{PCanonicalString, PCanonicalStruct, PCode, PIndexableCode, PInt64, PStream, PStringCode, PStruct, PType}
+import is.hail.types.physical.{PCanonicalBaseStruct, PCanonicalString, PCanonicalStruct, PCode, PIndexableCode, PInt64, PStream, PStringCode, PStruct, PType}
+import is.hail.types.virtual._
+import is.hail.types.{RTable, TableType}
 import is.hail.utils._
 import is.hail.utils.richUtils.ByteTrackingOutputStream
 import is.hail.variant.ReferenceGenome
@@ -189,19 +189,11 @@ case class PartitionNativeWriter(spec: AbstractTypedCodecSpec, partPrefix: Strin
           val pc = codeRow.toI(cb).get(cb, "row can't be missing").asBaseStruct
           val row = pc.memoize(cb, "row")
           if (hasIndex) {
-            val keyRVB = new StagedRegionValueBuilder(mb, keyType, eltRegion.code)
             indexWriter.add(cb, {
-              cb += keyRVB.start()
-              keyType.fields.foreach { f =>
-                row.loadField(cb, f.name).consume(cb,
-                  cb._fatal("index field cannot be missing"),
-                  { fieldCode =>
-                    cb += keyRVB.addIRIntermediate(fieldCode)
-                    cb += keyRVB.advance()
-                  }
-                )
-              }
-              IEmitCode.present(cb, PCode(keyType, keyRVB.offset))
+              IEmitCode.present(cb, keyType.asInstanceOf[PCanonicalBaseStruct]
+                .constructFromFields(cb, eltRegion.code,
+                  keyType.fields.map(f => EmitCode.fromI(cb.emb)(cb => row.loadField(cb, f.name).typecast[PCode])),
+                  deepCopy = false))
             },
               ob.invoke[Long]("indexOffset"),
               IEmitCode.present(cb, PCode(+PCanonicalStruct(), 0L)))

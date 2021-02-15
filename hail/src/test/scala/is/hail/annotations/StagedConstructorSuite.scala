@@ -3,15 +3,17 @@ package is.hail.annotations
 import is.hail.HailSuite
 import is.hail.asm4s._
 import is.hail.check.{Gen, Prop}
-import is.hail.expr.ir.{EmitFunctionBuilder, EmitRegion}
-import is.hail.types._
+import is.hail.expr.ir.{EmitCode, EmitFunctionBuilder, IEmitCode}
 import is.hail.types.physical._
+import is.hail.types.physical.stypes.concrete.SStringPointer
+import is.hail.types.physical.stypes.interfaces._
+import is.hail.types.physical.stypes.primitives.SInt32Code
 import is.hail.types.virtual._
 import is.hail.utils._
 import org.apache.spark.sql.Row
 import org.testng.annotations.Test
 
-class StagedRegionValueSuite extends HailSuite {
+class StagedConstructorSuite extends HailSuite {
 
   val showRVInfo = true
 
@@ -20,15 +22,12 @@ class StagedRegionValueSuite extends HailSuite {
     val rt = PCanonicalString()
     val input = "hello"
     val fb = EmitFunctionBuilder[Region, String, Long](ctx, "fb")
-    val srvb = new StagedRegionValueBuilder(fb.emb, rt, fb.emb.getCodeParam[Region](1))
 
-    fb.emit(
-      Code(
-        srvb.start(),
-        srvb.addString(fb.getCodeParam[String](2)),
-        srvb.end()
-      )
-    )
+    fb.emitWithBuilder { cb =>
+      val st = SStringPointer(rt)
+      val region = fb.emb.getCodeParam[Region](1)
+      rt.store(cb, region, st.constructFromString(cb, region, fb.getCodeParam[String](2)), deepCopy = false)
+    }
 
     val region = Region(pool=pool)
     val rv = RegionValue(region)
@@ -62,15 +61,10 @@ class StagedRegionValueSuite extends HailSuite {
     val rt = PInt32()
     val input = 3
     val fb = EmitFunctionBuilder[Region, Int, Long](ctx, "fb")
-    val srvb = new StagedRegionValueBuilder(fb.emb, rt, fb.emb.getCodeParam[Region](1))
 
-    fb.emit(
-      Code(
-        srvb.start(),
-        srvb.addInt(fb.getCodeParam[Int](2)),
-        srvb.end()
-      )
-    )
+    fb.emitWithBuilder { cb =>
+      rt.store(cb, fb.emb.getCodeParam[Region](1), primitive(fb.getCodeParam[Int](2)), deepCopy = false)
+    }
 
     val region = Region(pool=pool)
     val rv = RegionValue(region)
@@ -100,16 +94,14 @@ class StagedRegionValueSuite extends HailSuite {
     val rt = PCanonicalArray(PInt32())
     val input = 3
     val fb = EmitFunctionBuilder[Region, Int, Long](ctx, "fb")
-    val srvb = new StagedRegionValueBuilder(fb.emb, rt, fb.emb.getCodeParam[Region](1))
 
-    fb.emit(
-      Code(
-        srvb.start(1),
-        srvb.addInt(fb.getCodeParam[Int](2)),
-        srvb.advance(),
-        srvb.end()
-      )
-    )
+    fb.emitWithBuilder { cb =>
+      val region = fb.emb.getCodeParam[Region](1)
+      val elt = fb.getCodeParam[Int](2)
+      rt.constructFromElements(cb, region, const(1), false) { (cb, idx) =>
+        IEmitCode.present(cb, primitive(elt))
+      }.a
+    }
 
     val region = Region(pool=pool)
     val rv = RegionValue(region)
@@ -137,20 +129,23 @@ class StagedRegionValueSuite extends HailSuite {
 
   @Test
   def testStruct() {
-    val rt = PCanonicalStruct("a" -> PCanonicalString(), "b" -> PInt32())
+    val pstring = PCanonicalString()
+    val rt = PCanonicalStruct("a" -> pstring, "b" -> PInt32())
     val input = 3
     val fb = EmitFunctionBuilder[Region, Int, Long](ctx, "fb")
-    val srvb = new StagedRegionValueBuilder(fb.emb, rt, fb.emb.getCodeParam[Region](1))
 
-    fb.emit(
-      Code(
-        srvb.start(),
-        srvb.addString("hello"),
-        srvb.advance(),
-        srvb.addInt(fb.getCodeParam[Int](2)),
-        srvb.end()
-      )
-    )
+    fb.emitWithBuilder { cb =>
+      val region = fb.emb.getCodeParam[Region](1)
+      rt.constructFromFields(cb, region, FastIndexedSeq(
+        EmitCode.fromI(cb.emb) { cb =>
+          val st = SStringPointer(pstring)
+          IEmitCode.present(cb, st.constructFromString(cb, region, const("hello")))
+        },
+        EmitCode.fromI(cb.emb) { cb =>
+          IEmitCode.present(cb, primitive(fb.getCodeParam[Int](2)))
+        }
+      ), deepCopy = false).a
+    }
 
     val region = Region(pool=pool)
     val rv = RegionValue(region)
@@ -179,33 +174,22 @@ class StagedRegionValueSuite extends HailSuite {
 
   @Test
   def testArrayOfStruct() {
-    val rt = PCanonicalArray(PCanonicalStruct("a" -> PInt32(), "b" -> PCanonicalString()))
+    val structType = PCanonicalStruct("a" -> PInt32(), "b" -> PCanonicalString())
+    val arrayType = PCanonicalArray(structType)
     val input = "hello"
     val fb = EmitFunctionBuilder[Region, String, Long](ctx, "fb")
-    val srvb = new StagedRegionValueBuilder(fb.emb, rt, fb.emb.getCodeParam[Region](1))
 
-    val struct = { ssb: StagedRegionValueBuilder =>
-      Code(
-        ssb.start(),
-        ssb.addInt(srvb.arrayIdx + 1),
-        ssb.advance(),
-        ssb.addString(fb.getCodeParam[String](2))
-      )
+    fb.emitWithBuilder { cb =>
+      val region = fb.emb.getCodeParam[Region](1)
+
+      arrayType.constructFromElements(cb, region, const(2), false) { (cb, idx) =>
+        val st = SStringPointer(PCanonicalString())
+        IEmitCode.present(cb, structType.constructFromFields(cb, region, FastIndexedSeq(
+          EmitCode.fromI(cb.emb)(cb => IEmitCode.present(cb, primitive(idx + 1))),
+          EmitCode.fromI(cb.emb)(cb => IEmitCode.present(cb, st.constructFromString(cb, region, fb.getCodeParam[String](2))))
+        ), deepCopy = false))
+      }.a
     }
-
-    fb.emit(
-      Code(
-        srvb.start(2),
-        Code.whileLoop(srvb.arrayIdx < 2,
-          Code(
-            srvb.addBaseStruct(rt.elementType.asInstanceOf[PStruct], struct),
-            srvb.advance()
-          )
-        ),
-        srvb.end()
-      )
-    )
-
 
     val region = Region(pool=pool)
     val rv = RegionValue(region)
@@ -213,13 +197,13 @@ class StagedRegionValueSuite extends HailSuite {
 
     if (showRVInfo) {
       printRegion(region, "array of struct")
-      println(rv.pretty(rt))
+      println(rv.pretty(arrayType))
     }
 
     val region2 = Region(pool=pool)
     val rv2 = RegionValue(region2)
     val rvb = new RegionValueBuilder(region2)
-    rvb.start(rt)
+    rvb.start(arrayType)
     rvb.startArray(2)
     for (i <- 1 to 2) {
       rvb.startStruct()
@@ -232,12 +216,12 @@ class StagedRegionValueSuite extends HailSuite {
 
     if (showRVInfo) {
       printRegion(region2, "array of struct")
-      println(rv2.pretty(rt))
+      println(rv2.pretty(arrayType))
     }
 
-    assert(rv.pretty(rt) == rv2.pretty(rt))
-    assert(new UnsafeIndexedSeq(rt, rv.region, rv.offset).sameElements(
-      new UnsafeIndexedSeq(rt, rv2.region, rv2.offset)))
+    assert(rv.pretty(arrayType) == rv2.pretty(arrayType))
+    assert(new UnsafeIndexedSeq(arrayType, rv.region, rv.offset).sameElements(
+      new UnsafeIndexedSeq(arrayType, rv2.region, rv2.offset)))
   }
 
   @Test
@@ -321,33 +305,18 @@ class StagedRegionValueSuite extends HailSuite {
 
   @Test
   def testStructWithArray() {
-    val rt = PCanonicalStruct("a" -> PCanonicalString(), "b" -> PCanonicalArray(PInt32()))
+    val tArray = PCanonicalArray(PInt32())
+    val rt = PCanonicalStruct("a" -> PCanonicalString(), "b" -> tArray)
     val input = "hello"
     val fb = EmitFunctionBuilder[Region, String, Long](ctx, "fb")
-    val codeInput = fb.getCodeParam[String](2)
-    val srvb = new StagedRegionValueBuilder(fb.emb, rt, fb.emb.getCodeParam[Region](1))
 
-    val array = { sab: StagedRegionValueBuilder =>
-      Code(
-        sab.start(2),
-        Code.whileLoop(sab.arrayIdx < 2,
-          Code(
-            sab.addInt(sab.arrayIdx + 1),
-            sab.advance()
-          )
-        )
-      )
+    fb.emitWithBuilder { cb =>
+      val region = fb.emb.getCodeParam[Region](1)
+      rt.constructFromFields(cb, region, FastIndexedSeq(
+        EmitCode.fromI(cb.emb)(cb => IEmitCode.present(cb, SStringPointer(PCanonicalString()).constructFromString(cb, region, fb.getCodeParam[String](2)))),
+        EmitCode.fromI(cb.emb)(cb => IEmitCode.present(cb, tArray.constructFromElements(cb, region, const(2), deepCopy = false) {(cb, idx) => IEmitCode.present(cb, primitive(idx + 1))}))
+      ), deepCopy = false).a
     }
-
-    fb.emit(
-      Code(
-        srvb.start(),
-        srvb.addString(codeInput),
-        srvb.advance(),
-        srvb.addArray(rt.types(1).asInstanceOf[PArray], array),
-        srvb.end()
-      )
-    )
 
     val region = Region(pool=pool)
     val rv = RegionValue(region)
@@ -389,19 +358,13 @@ class StagedRegionValueSuite extends HailSuite {
     val rt = PCanonicalArray(PInt32())
     val input = 3
     val fb = EmitFunctionBuilder[Region, Int, Long](ctx, "fb")
-    val codeInput = fb.getCodeParam[Int](2)
-    val srvb = new StagedRegionValueBuilder(fb.emb, rt, fb.emb.getCodeParam[Region](1))
 
-    fb.emit(
-      Code(
-        srvb.start(2),
-        srvb.addInt(codeInput),
-        srvb.advance(),
-        srvb.setMissing(),
-        srvb.advance(),
-        srvb.end()
-      )
-    )
+    fb.emitWithBuilder { cb =>
+      val region = fb.emb.getCodeParam[Region](1)
+      rt.constructFromElements(cb, region, const(2), deepCopy = false) { (cb, idx) =>
+        IEmitCode(cb, idx > 0, new SInt32Code(false, fb.getCodeParam[Int](2)))
+      }.a
+    }
 
     val region = Region(pool=pool)
     val rv = RegionValue(region)
@@ -434,20 +397,16 @@ class StagedRegionValueSuite extends HailSuite {
   def testAddPrimitive() {
     val t = PCanonicalStruct("a" -> PInt32(), "b" -> PBoolean(), "c" -> PFloat64())
     val fb = EmitFunctionBuilder[Region, Int, Boolean, Double, Long](ctx, "fb")
-    val srvb = new StagedRegionValueBuilder(fb.emb, t, fb.emb.getCodeParam[Region](1))
 
-    fb.emit(
-      Code(
-        srvb.start(),
-        srvb.addIRIntermediate(PInt32())(fb.getCodeParam[Int](2)),
-        srvb.advance(),
-        srvb.addIRIntermediate(PBoolean())(fb.getCodeParam[Boolean](3)),
-        srvb.advance(),
-        srvb.addIRIntermediate(PFloat64())(fb.getCodeParam[Double](4)),
-        srvb.advance(),
-        srvb.end()
-      )
-    )
+    fb.emitWithBuilder { cb =>
+      val region = fb.emb.getCodeParam[Region](1)
+
+      t.constructFromFields(cb, region, FastIndexedSeq(
+        EmitCode.fromI(cb.emb)(cb => IEmitCode.present(cb, primitive(fb.getCodeParam[Int](2)))),
+        EmitCode.fromI(cb.emb)(cb => IEmitCode.present(cb, primitive(fb.getCodeParam[Boolean](3)))),
+        EmitCode.fromI(cb.emb)(cb => IEmitCode.present(cb, primitive(fb.getCodeParam[Double](4))))
+      ), deepCopy = false).a
+    }
 
     val region = Region(pool=pool)
     val f = fb.result()()
@@ -531,7 +490,7 @@ class StagedRegionValueSuite extends HailSuite {
       "x3" -> PCanonicalArray(PInt32(true), required = true),
       "x4" -> PCanonicalSet(PCanonicalStruct(true, "y" -> PCanonicalString(true)), required = false)
     ), required = false))
-    val t2 = t1.deepInnerRequired(false).asInstanceOf[PStruct]
+    val t2 = t1.deepInnerRequired(false).asInstanceOf[PCanonicalStruct]
 
     val value = IndexedSeq(
       Row(1, IndexedSeq(1,2,3), IndexedSeq(0, -1), Set(Row("asdasdasd"), Row(""))),
@@ -544,22 +503,18 @@ class StagedRegionValueSuite extends HailSuite {
       assert(SafeRow.read(valueT2, v1) == value)
 
       val f1 = EmitFunctionBuilder[Long](ctx, "stagedCopy1")
-      val srvb = new StagedRegionValueBuilder(f1.apply_method, t2, f1.partitionRegion)
-      f1.emit(Code(
-        srvb.start(),
-        srvb.addIRIntermediate(t2.types(0))(v1),
-        srvb.end()
-      ))
+      f1.emitWithBuilder { cb =>
+        val region = f1.partitionRegion
+        t2.constructFromFields(cb, region, FastIndexedSeq(EmitCode.present(cb.emb, t2.types(0).loadCheapPCode(cb, v1))), deepCopy = false).a
+      }
       val cp1 = f1.resultWithIndex()(0, r)()
       assert(SafeRow.read(t2, cp1) == Row(value))
 
       val f2 = EmitFunctionBuilder[Long](ctx, "stagedCopy2")
-      val srvb2 = new StagedRegionValueBuilder(f2.apply_method, t1, f2.partitionRegion)
-      f2.emit(Code(
-        srvb2.start(),
-        srvb2.addIRIntermediate(t2.types(0))(v1),
-        srvb2.end()
-      ))
+      f2.emitWithBuilder { cb =>
+        val region = f2.partitionRegion
+        t1.constructFromFields(cb, region, FastIndexedSeq(EmitCode.present(cb.emb, t2.types(0).loadCheapPCode(cb, v1))), deepCopy = false).a
+      }
       val cp2 = f2.resultWithIndex()(0, r)()
       assert(SafeRow.read(t1, cp2) == Row(value))
     }

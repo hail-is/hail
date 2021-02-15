@@ -1283,7 +1283,7 @@ def hist(expr, start, end, bins) -> StructExpression:
             hl.tfloat64, hl.tfloat64, hl.tint32, hl.tfloat64, hl.tfloat64)
 
     freq_dict = hl.bind(
-        lambda expr: hl.agg.filter(hl.is_defined(expr),
+        lambda expr: hl.agg.filter(hl.is_defined(expr) & ~hl.is_nan(expr),
                                    hl.agg.group_by(
                                        _bin_idx_f(start, end, bins, hl.float64(end - start) / bins, expr),
                                        hl.agg.count())),

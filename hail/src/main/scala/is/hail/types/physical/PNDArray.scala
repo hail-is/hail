@@ -1,11 +1,11 @@
 package is.hail.types.physical
 
-import is.hail.annotations.{CodeOrdering, Region, StagedRegionValueBuilder}
+import is.hail.annotations.{CodeOrdering, Region}
 import is.hail.asm4s.{Code, _}
 import is.hail.expr.Nat
 import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder}
 import is.hail.types.physical.stypes.SCode
-import is.hail.types.physical.stypes.interfaces.{SBaseStructCode, SNDArrayCode, SNDArrayValue}
+import is.hail.types.physical.stypes.interfaces.{SNDArrayCode, SNDArrayValue}
 import is.hail.types.virtual.TNDArray
 
 abstract class PNDArray extends PType {

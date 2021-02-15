@@ -25,7 +25,28 @@ object TypeCheck {
     ir.children
       .iterator
       .zipWithIndex
-      .foreach { case (child, i) => check(child, ChildBindings(ir, i, env)) }
+      .foreach { case (child, i) =>
+
+        check(child, ChildBindings(ir, i, env))
+
+        if (child.typ == TVoid) {
+          ir match {
+            case _: Let if i == 1 =>
+            case _: StreamFor if i == 1 =>
+            case _: RunAggScan if (i == 1 || i == 2) =>
+            case _: RunAgg if i == 0 =>
+            case _: SeqOp => // let seqop checking below catch bad void arguments
+            case _: InitOp => // let initop checking below catch bad void arguments
+            case _: If if i != 0 =>
+            case _: RelationalLet if i == 1 =>
+            case _: Begin =>
+            case _: WriteMetadata =>
+            case _ =>
+              throw new RuntimeException(s"unexpected void-typed IR at child $i of ${ ir.getClass.getSimpleName }" +
+                s"\n  IR: ${ Pretty(ir) }")
+          }
+        }
+      }
 
     ir match {
       case I32(x) =>

@@ -514,7 +514,9 @@ class ArrayExpression(CollectionExpression):
 
     @deprecated(version="0.2.58", reason="Replaced by first")
     def head(self):
-        """Returns the first element of the array, or missing if empty.
+        """Deprecated in favor of :meth:`~.ArrayExpression.first`.
+
+        Returns the first element of the array, or missing if empty.
 
         Returns
         -------
@@ -527,6 +529,7 @@ class ArrayExpression(CollectionExpression):
         'Alice'
 
         If the array has no elements, then the result is missing:
+
         >>> hl.eval(names.filter(lambda x: x.startswith('D')).head())
         None
         """

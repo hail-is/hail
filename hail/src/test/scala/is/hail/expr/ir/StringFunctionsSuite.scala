@@ -1,15 +1,14 @@
 package is.hail.expr.ir
 
-import is.hail.ExecStrategy
 import is.hail.TestUtils._
 import is.hail.expr.ir.TestUtils._
 import is.hail.types.virtual._
 import is.hail.utils.FastIndexedSeq
+import is.hail.{ExecStrategy, HailSuite}
 import org.json4s.jackson.JsonMethods
 import org.testng.annotations.{DataProvider, Test}
-import org.scalatest.testng.TestNGSuite
 
-class StringFunctionsSuite extends TestNGSuite {
+class StringFunctionsSuite extends HailSuite {
   implicit val execStrats = ExecStrategy.javaOnly
 
   @Test def testRegexMatch() {

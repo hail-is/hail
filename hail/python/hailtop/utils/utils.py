@@ -263,6 +263,10 @@ if os.environ.get('HAIL_DONT_RETRY_500') == '1':
     RETRYABLE_HTTP_STATUS_CODES.remove(500)
 
 
+class TransientError(Exception):
+    pass
+
+
 def is_transient_error(e):
     # observed exceptions:
     #
@@ -345,6 +349,8 @@ def is_transient_error(e):
         return True
     if isinstance(e, google.auth.exceptions.TransportError):
         return is_transient_error(e.__cause__)
+    if isinstance(e, TransientError):
+        return True
     return False
 
 

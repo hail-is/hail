@@ -2,8 +2,8 @@ package is.hail.expr.ir
 
 import is.hail.ExecStrategy.ExecStrategy
 import is.hail.TestUtils._
-import is.hail.annotations.BroadcastRow
-import is.hail.asm4s.Code
+import is.hail.annotations.{BroadcastRow, Region}
+import is.hail.asm4s.{Code, Value}
 import is.hail.expr.ir.ArrayZipBehavior.ArrayZipBehavior
 import is.hail.expr.ir.IRBuilder._
 import is.hail.expr.ir.IRSuite.TestFunctions
@@ -44,12 +44,12 @@ object IRSuite {
       returnType: Type,
       calculateReturnType: (Type, Seq[PType]) => PType
     )(
-      impl: (EmitCodeBuilder, EmitRegion, PType, Long, Array[EmitCode]) => IEmitCode
+      impl: (EmitCodeBuilder, Value[Region], PType, Long, Array[EmitCode]) => IEmitCode
     ) {
       IRFunctionRegistry.addJVMFunction(
         new SeededMissingnessAwareJVMFunction(name, valueParameterTypes, returnType, calculateReturnType) {
           val isDeterministic: Boolean = false
-          def applySeededI(seed: Long, cb: EmitCodeBuilder, r: EmitRegion, returnPType: PType, args: (PType, EmitCode)*): IEmitCode = {
+          def applySeededI(seed: Long, cb: EmitCodeBuilder, r: Value[Region], returnPType: PType, args: (PType, EmitCode)*): IEmitCode = {
             assert(unify(FastSeq(), args.map(_._1.virtualType), returnPType.virtualType))
             impl(cb, r, returnPType, seed, args.map(a => a._2).toArray)
           }
@@ -63,7 +63,7 @@ object IRSuite {
       returnType: Type,
       calculateReturnType: (Type, PType) => PType
     )(
-      impl: (EmitCodeBuilder, EmitRegion, PType, Long, EmitCode) => IEmitCode
+      impl: (EmitCodeBuilder, Value[Region], PType, Long, EmitCode) => IEmitCode
     ): Unit =
       registerSeededWithMissingness(name, Array(valueParameterType), returnType, unwrappedApply(calculateReturnType)) {
         case (cb, r, rt, seed, Array(a1)) => impl(cb, r, rt, seed, a1)
