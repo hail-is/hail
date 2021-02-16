@@ -135,9 +135,9 @@ final class RegionMemory(pool: RegionPool) extends AutoCloseable {
       val curCount = PNDArray.getReferenceCount(addr)
       if (curCount == 1) {
         PNDArray.storeReferenceCount(addr, 0L)
-        val bytesToFree = PNDArray.getByteSize(addr) + 16
+        val bytesToFree = PNDArray.getByteSize(addr) + PNDArray.headerBytes
         pool.incrementAllocatedBytes(-bytesToFree)
-        Memory.free(addr - 16)
+        Memory.free(addr - PNDArray.headerBytes)
       } else {
         PNDArray.storeReferenceCount(addr, curCount - 1)
       }
@@ -285,7 +285,7 @@ final class RegionMemory(pool: RegionPool) extends AutoCloseable {
       throw new IllegalArgumentException(s"Can't request ndarray of non-positive memory size, got ${size}")
     }
 
-    val extra = 16L
+    val extra = PNDArray.headerBytes
 
     // This adjusted address is where the ndarray content starts
     val allocatedAddr = pool.getChunk(size + extra) + extra
