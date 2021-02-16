@@ -866,7 +866,7 @@ def hardy_weinberg_test(n_hom_ref, n_het, n_hom_var) -> StructExpression:
     This method performs a two-sided exact test with mid-p-value correction of
     `Hardy-Weinberg equilibrium <https://en.wikipedia.org/wiki/Hardy%E2%80%93Weinberg_principle>`__
     via an efficient implementation of the
-    `Levene-Haldane distribution <https://hail.is/docs/0.2/LeveneHaldane.pdf>`__,
+    `Levene-Haldane distribution <../_static/LeveneHaldane.pdf>`__,
     which models the number of heterozygous individuals under equilibrium.
 
     The mean of this distribution is ``(n_hom_ref * n_hom_var) / (2n - 1)`` where

@@ -121,6 +121,7 @@ class DeployConfig:
         root_app.add_routes(root_routes)
         root_app.add_subapp(base_path, app)
 
+        log.info(f'serving paths at {base_path}')
         return root_app
 
     async def addresses(self, service: str) -> List[Tuple[str, int]]:

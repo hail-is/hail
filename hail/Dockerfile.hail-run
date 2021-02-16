@@ -5,12 +5,3 @@ COPY python/dev-requirements.txt .
 RUN hail-pip-install -r requirements.txt -r dev-requirements.txt
 
 RUN hail-apt-get-install liblz4-dev
-
-# FIXME belongs in hail-test image
-RUN mkdir -p plink && \
-  cd plink && \
-  wget -O plink_linux_x86_64.zip https://storage.googleapis.com/hail-common/plink_linux_x86_64_20181202.zip && \
-  unzip plink_linux_x86_64.zip && \
-  mv plink /usr/local/bin && \
-  cd .. && \
-  rm -rf plink

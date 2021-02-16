@@ -976,7 +976,7 @@ def hardy_weinberg_test(expr) -> StructExpression:
 
     Hail computes the exact p-value with mid-p-value correction, i.e. the
     probability of a less-likely outcome plus one-half the probability of an
-    equally-likely outcome. See this `document <LeveneHaldane.pdf>`__ for
+    equally-likely outcome. See this `document <_static/LeveneHaldane.pdf>`__ for
     details on the Levene-Haldane distribution and references.
 
     Warning

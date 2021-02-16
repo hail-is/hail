@@ -47,7 +47,7 @@ the string. Therefore, we get 'x = 6' as the resulting string.
 
 To use an f-string and output a single curly brace in the output string, escape the curly
 brace by duplicating the character. For example, `{` becomes `{{` in the string definition,
-but will print as `{`. Likewise, `}` becomes `}}`, but will print as `}`.
+but will print as `{`. Likewise, `}` becomes `{{`, but will print as `}`.
 
 .. code-block:: python
 
