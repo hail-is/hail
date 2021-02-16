@@ -99,8 +99,14 @@ class PNDArraySuite extends PhysicalTestUtils {
     val pNd = PCanonicalNDArray(PFloat64Required, 2, true)
     val addr1 = pNd.unstagedStoreJavaObject(x, region=region1)
     val addr2 = pNd.copyFromAddress(region2, pNd, addr1, true)
-    // Deep copy just increments reference count, doesn't change the address.
+    // Deep copy same ptype just increments reference count, doesn't change the address.
     assert(addr1 == addr2)
     assert(PNDArray.getReferenceCount(addr1) == 2)
+
+    val pNDOfArrays = PCanonicalNDArray(PCanonicalArray(PInt32Required, true), 1)
+    val annotationNDOfArrays = new SafeNDArray(IndexedSeq(3L), (0 until 3).map(idx => (0 to 5).toArray.toIndexedSeq))
+    val addr3 = pNDOfArrays.unstagedStoreJavaObject(annotationNDOfArrays, region=region1)
+    println(UnsafeRow.read(pNDOfArrays, region1, addr3))
+    val addr4 = pNDOfArrays.copyFromAddress(region2, pNDOfArrays, addr3, true)
   }
 }
