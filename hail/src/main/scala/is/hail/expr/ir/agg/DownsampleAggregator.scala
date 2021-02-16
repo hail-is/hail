@@ -191,9 +191,6 @@ class DownsampleState(val kb: EmitClassBuilder[_], labelType: VirtualTypeWithReq
   }
 
   def serialize(codec: BufferSpec): (EmitCodeBuilder, Value[OutputBuffer]) => Unit = {
-    val binEnc = binET.buildEncoderMethod(binType, kb)
-    val pointEnc = pointET.buildEncoderMethod(pointType, kb)
-
     { (cb: EmitCodeBuilder, ob: Value[OutputBuffer]) =>
       val mb = kb.genEmitMethod("downsample_serialize", FastIndexedSeq[ParamType](typeInfo[OutputBuffer]), UnitInfo)
       mb.emitWithBuilder { cb =>
@@ -209,8 +206,11 @@ class DownsampleState(val kb: EmitClassBuilder[_], labelType: VirtualTypeWithReq
         tree.bulkStore(cb, ob) { (cb, ob, srcCode) =>
           val src = cb.newLocal("downsample_state_ser_src", srcCode)
           cb += Region.loadBoolean(key.storageType.loadField(src, "empty")).orEmpty(Code._fatal[Unit]("bad"))
-          cb.invokeVoid(binEnc, key.storageType.loadField(src, "bin"), ob)
-          cb.invokeVoid(pointEnc, key.storageType.loadField(src, "point"), ob)
+          val binCode = binType.loadCheapPCode(cb, key.storageType.loadField(src, "bin"))
+          binET.buildEncoder(binCode.st, kb).apply(cb, binCode, ob)
+
+          val pointCode = pointType.loadCheapPCode(cb, key.storageType.loadField(src, "point"))
+          pointET.buildEncoder(pointCode.st, kb).apply(cb, pointCode, ob)
         }
         cb += ob.writeInt(DownsampleState.serializationEndMarker)
         Code._empty

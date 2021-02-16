@@ -48,6 +48,8 @@ object SBinaryPointerSettable {
 class SBinaryPointerSettable(val st: SBinaryPointer, val a: Settable[Long]) extends PBinaryValue with PSettable {
   val pt: PBinary = st.pType
 
+  override def bytesAddress(): Code[Long] = st.pType.bytesAddress(a)
+
   def get: SBinaryPointerCode = new SBinaryPointerCode(st, a)
 
   def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(a)

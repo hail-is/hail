@@ -540,28 +540,30 @@ case class PartitionNativeReader(spec: AbstractTypedCodecSpec) extends AbstractN
     def emitIR(ir: IR, env: Emit.E = env, region: StagedRegion = partitionRegion, container: Option[AggContainer] = container): IEmitCode =
       emitter.emitI(ir, cb, region, env, container, None)
 
-    val (eltType, dec) = spec.buildTypedEmitDecoderF[Long](requestedType, mb.ecb)
-
     emitIR(context).map(cb) { path =>
       val pathString = path.asString.loadString()
       val xRowBuf = mb.newLocal[InputBuffer]()
-      val decRes = mb.newEmitLocal(PInt64Optional)
       val hasNext = mb.newLocal[Boolean]("pnr_hasNext")
-      val next = mb.newLocal[Long]("pnr_next")
+      val next = mb.newPSettable(mb.fieldBuilder, spec.decodedPType(), "pnr_next")
 
-      val newStream = SizedStream.unsized(eltRegion => Stream.unfold[Code[Long]](
+      val newStream = SizedStream.unsized(eltRegion => Stream.unfold[PCode](
         (_, k) =>
-          Code(
-            hasNext := xRowBuf.readByte().toZ,
-            hasNext.orEmpty(next := dec(eltRegion.code, xRowBuf)),
-            k(COption(!hasNext, next))))
+          EmitCodeBuilder.scopedVoid(mb) { cb =>
+            cb.assign(hasNext, xRowBuf.readByte().toZ)
+            cb.ifx(hasNext, {
+              val decValue = spec.encodedType.buildDecoder(spec.encodedVirtualType, cb.emb.ecb)
+                .apply(cb, eltRegion.code, xRowBuf)
+              cb.assign(next, decValue)
+            })
+            cb += k(COption(!hasNext, next))
+          })
         .map(
-          pc => EmitCode.present(cb.emb, PCode(eltType, pc)),
+          pc => EmitCode.present(cb.emb, pc),
           setup0 = None,
           setup = Some(xRowBuf := spec
             .buildCodeInputBuffer(mb.open(pathString, true)))))
 
-      interfaces.SStreamCode(interfaces.SStream(eltType.sType, separateRegions = true), newStream)
+      interfaces.SStreamCode(interfaces.SStream(next.st, separateRegions = true), newStream)
     }
   }
 

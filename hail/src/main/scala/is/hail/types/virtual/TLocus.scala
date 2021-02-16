@@ -24,7 +24,7 @@ object TLocus {
   }
 }
 
-case class TLocus(rgBc: BroadcastRG) extends ComplexType {
+case class TLocus(rgBc: BroadcastRG) extends Type {
   def rg: ReferenceGenome = rgBc.value
 
   def _toPretty = s"Locus($rg)"

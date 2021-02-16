@@ -10,6 +10,8 @@ import is.hail.utils.FastIndexedSeq
 
 
 case class SIndexablePointer(pType: PContainer) extends SContainer {
+  override def elementType: SType = pType.elementType.sType
+
   def codeOrdering(mb: EmitMethodBuilder[_], other: SType, so: SortOrder): CodeOrdering = pType.codeOrdering(mb, other.pType, so)
 
   def coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = {

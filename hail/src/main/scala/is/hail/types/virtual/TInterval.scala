@@ -7,7 +7,7 @@ import is.hail.utils.{FastSeq, Interval}
 
 import scala.reflect.{ClassTag, classTag}
 
-case class TInterval(pointType: Type) extends ComplexType {
+case class TInterval(pointType: Type) extends Type {
   override def children = FastSeq(pointType)
 
   def _toPretty = s"""Interval[$pointType]"""
@@ -37,7 +37,7 @@ case class TInterval(pointType: Type) extends ComplexType {
   override def mkOrdering(missingEqual: Boolean): ExtendedOrdering =
     Interval.ordering(pointType.ordering, startPrimary=true, missingEqual)
 
-  lazy val representation: TStruct = {
+  lazy val structRepresentation: TStruct = {
     TStruct(
       "start" -> pointType,
       "end" -> pointType,

@@ -53,7 +53,7 @@ object SCanonicalShufflePointerSettable {
   }
 }
 
-class SCanonicalShufflePointerSettable(val st: SCanonicalShufflePointer, shuffle: SBinaryPointerSettable) extends PShuffleValue with PSettable {
+class SCanonicalShufflePointerSettable(val st: SCanonicalShufflePointer, val shuffle: SBinaryPointerSettable) extends PShuffleValue with PSettable {
   val pt: PShuffle = st.pType
 
   def get: PShuffleCode = new SCanonicalShufflePointerCode(st, shuffle.get)

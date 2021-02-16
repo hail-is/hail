@@ -8,7 +8,7 @@ import is.hail.variant.Call
 
 import scala.reflect.{ClassTag, _}
 
-case object TCall extends ComplexType {
+case object TCall extends Type {
   def _toPretty = "Call"
 
   override def pyString(sb: StringBuilder): Unit = {
