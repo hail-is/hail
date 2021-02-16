@@ -678,7 +678,7 @@ steps:
    dependsOn:
     - hail_build_image
  - kind: runImage
-   name: build_hail_spark3
+   name: build_hail_spark2
    image:
      valueFrom: hail_build_image.image
    resources:
@@ -693,7 +693,7 @@ steps:
      {{ code.checkout_script }}
      cd hail
      time retry ./gradlew --version
-     export SPARK_VERSION="3.0.1" SCALA_VERSION="2.12.12"
+     export SPARK_VERSION="2.4.5" SCALA_VERSION="2.11.12"
      time retry make jars python-version-info wheel
    dependsOn:
      - hail_build_image
