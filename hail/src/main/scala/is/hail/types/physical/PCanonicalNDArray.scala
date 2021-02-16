@@ -258,15 +258,22 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
   }
 
   private def deepPointerCopy(region: Region, ndAddress: Long): Unit = {
+    // Tricky, need to rewrite the address of the data pointer to point to directly after the struct.
     val shape = this.unstagedLoadShapes(ndAddress)
-    val firstElementAddress = this.unstagedDataFirstElementPointer(ndAddress)
+    val firstElementAddressOld = this.unstagedDataFirstElementPointer(ndAddress)
     assert(this.elementType.containsPointers)
+    val arrayAddressNew = ndAddress + this.representation.byteSize
     val numElements = this.numElements(shape)
+    this.dataType.initialize(arrayAddressNew, numElements.toInt)
+    Region.storeLong(this.representation.fieldOffset(ndAddress, 2), arrayAddressNew)
+    val firstElementAddressNew = this.dataType.firstElementOffset(arrayAddressNew)
+
 
     var currentIdx = 0
     while(currentIdx < numElements) {
-      val currentElementAddress = firstElementAddress + currentIdx * elementType.byteSize
-      this.elementType.unstagedStoreAtAddress(currentElementAddress, region, this.elementType, currentElementAddress, true)
+      val currentElementAddressOld = firstElementAddressOld + currentIdx * elementType.byteSize
+      val currentElementAddressNew = firstElementAddressNew + currentIdx * elementType.byteSize
+      this.elementType.unstagedStoreAtAddress(currentElementAddressNew, region, this.elementType, elementType.unstagedLoadFromNested(currentElementAddressOld), true)
       currentIdx += 1
     }
   }
