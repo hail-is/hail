@@ -1,7 +1,6 @@
 package is.hail.types.physical
 
-import is.hail.HailSuite
-import is.hail.annotations.{Annotation, Region, SafeNDArray, ScalaToRegionValue}
+import is.hail.annotations.{Annotation, Region, SafeNDArray, ScalaToRegionValue, UnsafeRow}
 import is.hail.asm4s._
 import is.hail.expr.ir.{EmitCodeBuilder, EmitFunctionBuilder}
 import is.hail.utils._
@@ -91,5 +90,17 @@ class PNDArraySuite extends PhysicalTestUtils {
     // Check that clearing region2 removes both ndarrays
     region2.clear()
     assert(region2.memory.listNDArrayRefs().size == 0)
+  }
+
+  @Test def testUnstagedCopy(): Unit = {
+    val region1 = Region(pool=this.pool)
+    val region2 = Region(pool=this.pool)
+    val x = new SafeNDArray(IndexedSeq(3L, 2L), (0 until 6).map(_.toDouble))
+    val pNd = PCanonicalNDArray(PFloat64Required, 2, true)
+    val addr1 = pNd.unstagedStoreJavaObject(x, region=region1)
+    val addr2 = pNd.copyFromAddress(region2, pNd, addr1, true)
+    // Deep copy just increments reference count, doesn't change the address.
+    assert(addr1 == addr2)
+    assert(PNDArray.getReferenceCount(addr1) == 2)
   }
 }

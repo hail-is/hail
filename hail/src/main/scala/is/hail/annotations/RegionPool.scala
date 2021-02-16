@@ -136,12 +136,6 @@ final class RegionPool private(strictMemoryCheck: Boolean, threadName: String, t
   def scopedSmallRegion[T](f: Region => T): T = using(Region(Region.SMALL, pool=this))(f)
   def scopedTinyRegion[T](f: Region => T): T = using(Region(Region.TINY, pool=this))(f)
 
-  def allocateNDArray(nBytes: Long): Long = {
-    val addr = Memory.malloc(nBytes + 8)
-    incrementAllocatedBytes(nBytes)
-    addr
-  }
-
   override def finalize(): Unit = close()
 
   def close(): Unit = {

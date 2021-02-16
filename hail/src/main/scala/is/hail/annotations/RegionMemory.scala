@@ -1,7 +1,7 @@
 package is.hail.annotations
 
 import is.hail.expr.ir.{AnyRefArrayBuilder, LongArrayBuilder, LongMissingArrayBuilder}
-import is.hail.types.physical.PCanonicalNDArray
+import is.hail.types.physical.{PCanonicalNDArray, PNDArray}
 import is.hail.utils._
 
 
@@ -132,14 +132,14 @@ final class RegionMemory(pool: RegionPool) extends AutoCloseable {
 
   private def releaseNDArrays(): Unit = {
     this.ndarrayRefs.result().map{ addr =>
-      val curCount = Region.loadLong(addr - 16)
+      val curCount = PNDArray.getReferenceCount(addr)
       if (curCount == 1) {
-        Memory.storeLong(addr - 16, 0L)
-        val bytesToFree = PCanonicalNDArray.unstagedLoadByteSize(addr) + 16
+        PNDArray.storeReferenceCount(addr, 0L)
+        val bytesToFree = PNDArray.getByteSize(addr) + 16
         pool.incrementAllocatedBytes(-bytesToFree)
         Memory.free(addr - 16)
       } else {
-        Region.storeLong(addr - 16, curCount - 1)
+        PNDArray.storeReferenceCount(addr, curCount - 1)
       }
     }
 
@@ -288,11 +288,11 @@ final class RegionMemory(pool: RegionPool) extends AutoCloseable {
     val extra = 16L
 
     // This adjusted address is where the ndarray content starts
-    val allocatedAddr = pool.allocateNDArray(size + extra) + extra
+    val allocatedAddr = pool.getChunk(size + extra) + extra
 
     // The reference count and total size are stored just before the content.
-    Region.storeLong(allocatedAddr - 16L, 0L)
-    Region.storeLong(allocatedAddr - 8L, size)
+    PNDArray.storeReferenceCount(allocatedAddr, 0L)
+    PNDArray.storeByteSize(allocatedAddr, size)
     this.trackNDArray(allocatedAddr)
     allocatedAddr
   }
