@@ -29,7 +29,7 @@ rm -rf /var/lib/apt/lists/*
 
 [ -f /etc/docker/daemon.json ] || echo "{}" > /etc/docker/daemon.json
 
-VERSION=1.5.0
+VERSION=2.0.4
 OS=linux
 ARCH=amd64
 
@@ -39,10 +39,12 @@ curl -fsSL "https://github.com/GoogleCloudPlatform/docker-credential-gcr/release
 
 # avoid "unable to get current user home directory: os/user lookup failed"
 export HOME=/root
-docker-credential-gcr configure-docker
 
-GCP_PROJECT=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/project/project-id")
-docker pull gcr.io/$GCP_PROJECT/ubuntu:18.04
+DOCKER_PREFIX=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/docker_prefix")
+
+docker-credential-gcr configure-docker --include-artifact-registry
+
+docker pull ${DOCKER_PREFIX}/ubuntu:18.04
 docker pull gcr.io/google.com/cloudsdktool/cloud-sdk:310.0.0-alpine
 
 # add docker daemon debug logging

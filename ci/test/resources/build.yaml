@@ -7,7 +7,7 @@ steps:
    name: inline_image
    dockerFile:
      inline: |
-       FROM gcr.io/{{ global.project }}/ubuntu:18.04
+       FROM {{ global.region }}-docker.pkg.dev/{{ global.project }}/hail/ubuntu:18.04
        RUN apt-get update && apt-get install -y git
    contextPath: .
  - kind: runImage

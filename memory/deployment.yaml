@@ -22,7 +22,7 @@ spec:
 {% endif %}
       containers:
         - name: redis
-          image: gcr.io/{{ global.project }}/redis:6.0.6-alpine
+          image: {{ global.docker_prefix }}/redis:6.0.6-alpine
           command:
            - redis-server
            - --port 

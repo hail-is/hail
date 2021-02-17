@@ -8,6 +8,7 @@ PROJECT = os.environ['PROJECT']
 
 GCP_REGION = os.environ['HAIL_GCP_REGION']
 GCP_ZONE = os.environ['HAIL_GCP_ZONE']
+DOCKER_PREFIX = os.environ['HAIL_DOCKER_PREFIX']
 
 BATCH_GCP_REGIONS = set(json.loads(os.environ['HAIL_BATCH_GCP_REGIONS']))
 BATCH_GCP_REGIONS.add(GCP_REGION)

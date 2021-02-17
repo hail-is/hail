@@ -1,4 +1,4 @@
-FROM gcr.io/{{ global.project }}/ubuntu:18.04
+FROM {{ global.docker_prefix }}/ubuntu:18.04
 
 ENV LANG C.UTF-8
 
