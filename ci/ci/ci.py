@@ -27,6 +27,7 @@ from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_
 
 from .environment import BUCKET
 from .github import Repo, FQBranch, WatchedBranch, UnwatchedBranch, MergeFailureBatch, PR
+from .constants import AUTHORIZED_USERS
 
 with open(os.environ.get('HAIL_CI_OAUTH_TOKEN', 'oauth-token/oauth-token'), 'r') as f:
     oauth_token = f.read().strip()
@@ -41,8 +42,6 @@ watched_branches = [
     WatchedBranch(index, FQBranch.from_short_str(bss), deployable)
     for (index, [bss, deployable]) in enumerate(json.loads(os.environ.get('HAIL_WATCHED_BRANCHES', '[]')))
 ]
-
-dev_to_gh_user = {'dgoldste': 'daniel-goldstein'}
 
 routes = web.RouteTableDef()
 
@@ -212,18 +211,23 @@ async def get_job(request, userdata):
 @web_authenticated_developers_only()
 async def get_user(request, userdata):
     username = userdata['username']
-    if username in dev_to_gh_user:
-        gh_username = dev_to_gh_user[username]
+    for user in AUTHORIZED_USERS:
+        if user.hail_username == username:
+            gh_username = user.gh_username
+            wbs = [
+                await watched_branch_config(request.app, wb, i, pr_author=gh_username)
+                for i, wb in enumerate(watched_branches)
+            ]
+            break
     else:
-        return web.Response(text="Please submit a PR to CI with your github username to see your user page!")
-    wbs = [
-        await watched_branch_config(request.app, wb, i, pr_author=gh_username) for i, wb in enumerate(watched_branches)
-    ]
+        gh_username = None
+        wbs = []
     batch_client = request.app['batch_client']
     dev_deploys = batch_client.list_batches(f'user={username} dev_deploy=1', limit=10)
     dev_deploys = sorted([b async for b in dev_deploys], key=lambda b: b.id, reverse=True)
     page_context = {
         'username': username,
+        'gh_username': gh_username,
         'watched_branches': wbs,
         'dev_deploys': [await b.last_known_status() for b in dev_deploys],
     }

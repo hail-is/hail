@@ -1,23 +1,32 @@
+from typing import Optional
+
 GITHUB_CLONE_URL = 'https://github.com/'
 GITHUB_STATUS_CONTEXT = 'ci-test'
 
-AUTHORIZED_USERS = {
-    'danking',
-    'cseed',
-    'konradjk',
-    'jigold',
-    'patrick-schultz',
-    'lfrancioli',
-    'tpoterba',
-    'chrisvittal',
-    'catoverdrive',
-    'johnc1231',
-    'nawatts',
-    'mkveerapen',
-    'Dania-Abuhijleh',
-    'bw2',
-    'pwc2',
-    'lgruen',
-    'CDiaz96',
-    'daniel-goldstein',
-}
+
+class User:
+    def __init__(self, gh_username: str, hail_username: Optional[str]):
+        self.gh_username = gh_username
+        self.hail_username = hail_username
+
+
+AUTHORIZED_USERS = [
+    User('danking', None),
+    User('cseed', None),
+    User('konradjk', None),
+    User('jigold', None),
+    User('patrick-schultz', None),
+    User('lfrancioli', None),
+    User('tpoterba', None),
+    User('chrisvittal', None),
+    User('catoverdrive', None),
+    User('johnc1231', None),
+    User('nawatts', None),
+    User('mkveerapen', None),
+    User('Dania-Abuhijleh', None),
+    User('bw2', None),
+    User('pwc2', None),
+    User('lgruen', None),
+    User('CDiaz96', None),
+    User('daniel-goldstein', 'dgoldste'),
+]

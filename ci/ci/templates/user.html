@@ -5,6 +5,7 @@
 {% block content %}
     <h1>Welcome, {{ username }}!</h1>
 
+    GitHub username: {{ gh_username }}
     <h2>PRs</h2>
     {% for wb in watched_branches %}
     {% if wb.prs is not none %}

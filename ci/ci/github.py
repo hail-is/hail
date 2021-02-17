@@ -195,7 +195,7 @@ class PR(Code):
                 self.target_branch.state_changed = True
 
     async def authorized(self, dbpool):
-        if self.author in AUTHORIZED_USERS:
+        if self.author in {user.gh_username for user in AUTHORIZED_USERS}:
             return True
 
         async with dbpool.acquire() as conn:
