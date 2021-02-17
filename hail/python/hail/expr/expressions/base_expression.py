@@ -169,7 +169,8 @@ def _impute_type(x, partial_type):
         return t
     elif isinstance(x, tuple):
         partial_type = refine(partial_type, hl.ttuple())
-        return ttuple(*(_impute_type(element, partial_type.get(index)) for index, element in enumerate(x)))
+        return ttuple(*[_impute_type(element, partial_type[index] if index < len(partial_type) else None)
+                        for index, element in enumerate(x)])
     elif isinstance(x, list):
         partial_type = refine(partial_type, hl.tarray(None))
         if len(x) == 0:
