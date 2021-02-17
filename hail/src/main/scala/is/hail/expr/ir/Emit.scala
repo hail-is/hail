@@ -1594,9 +1594,7 @@ class Emit[C](
 
               val qPType = crPType.types(0).asInstanceOf[PCanonicalNDArray]
               val qShapeArray = if (mode == "complete") Array(M, M) else Array(M, K)
-              val qStridesStruct = qPType.makeColumnMajorStrides(qShapeArray, region.code, cb)
-
-              val qDataAddress = cb.newLocal[Long]("ndarray_qr_qDataAddress")
+              val qStridesArray = qPType.makeColumnMajorStrides(qShapeArray, region.code, cb)
 
               val infoDORGQRResult = cb.newLocal[Int]("ndarray_qr_DORGQR_info")
               val infoDORQRErrorTest = (extraErrorMsg: String) => (infoDORGQRResult cne 0)
@@ -1647,13 +1645,12 @@ class Emit[C](
               ))
               cb.append(Code.invokeStatic1[Memory, Long, Unit]("free", workAddress.load()))
               cb.append(infoDORQRErrorTest("Failed to compute Q."))
-              cb.assign(qDataAddress, qPType.dataType.allocate(region.code, qNumElements.toI))
-              cb.append(qPType.dataType.stagedInitialize(qDataAddress, qNumElements.toI))
+              val (qFirstElementAddress, qFinisher) = qPType.constructDataFunction(qShapeArray, qStridesArray, cb, region.code)
               cb.append(Region.copyFrom(aAddressDORGQRFirstElement,
-                qPType.dataType.firstElementOffset(qDataAddress), (M * numColsToUse) * 8L))
+                qFirstElementAddress, (M * numColsToUse) * 8L))
 
               crPType.constructFromFields(cb, region.code, FastIndexedSeq(
-                EmitCode.present(cb.emb, qPType.construct(qShapeArray, qStridesStruct, qDataAddress, cb, region.code)),
+                EmitCode.present(cb.emb, qFinisher(cb)),
                 EmitCode.present(cb.emb, rNDArray)
               ), deepCopy = false)
             }
