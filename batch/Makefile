@@ -31,7 +31,7 @@ build-worker: build-prereqs
 # janky
 	cp ../hail/build/libs/hail-all-spark.jar ./hail.jar
 	-docker pull $(BATCH_WORKER_LATEST)
-	python3 ../ci/jinja2_render.py '{"global":{"docker_prefix":"$(DOCKER_PREFIX)"}}}' Dockerfile.worker Dockerfile.worker.out
+	python3 ../ci/jinja2_render.py '{"global":{"docker_prefix":"$(DOCKER_PREFIX)"}}' Dockerfile.worker Dockerfile.worker.out
 	docker build -t batch-worker -f Dockerfile.worker.out --cache-from batch-worker,$(BATCH_WORKER_LATEST),service-base ..
 
 .PHONY: build
