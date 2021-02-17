@@ -1489,13 +1489,13 @@ class Emit[C](
 
           val hPType = ndPT
           val hShapeArray = FastIndexedSeq[Value[Long]](N, M)
-          val hStridesStruct = hPType.makeRowMajorStrides(hShapeArray, region.code, cb)
+          val hStridesArray = hPType.makeRowMajorStrides(hShapeArray, region.code, cb)
+          val (hFirstElement, hFinisher) = hPType.constructDataFunction(hShapeArray, hStridesArray, cb, region.code)
 
           val tauPType = PCanonicalArray(PFloat64Required, true)
           val tauAddress = cb.newLocal[Long]("ndarray_qr_tauAddress")
           val workAddress = cb.newLocal[Long]("ndarray_qr_workAddress")
 
-          val aAddressDGEQRF = cb.newLocal[Long]("ndarray_qr_aAddressDGEQRF") // Should be column major
           val aNumElements = cb.newLocal[Long]("ndarray_qr_aNumElements")
 
           val infoDGEQRFResult = cb.newLocal[Int]("ndaray_qr_infoDGEQRFResult")
@@ -1504,9 +1504,7 @@ class Emit[C](
 
           // Computing H and Tau
           cb.assign(aNumElements, ndPT.numElements(shapeArray))
-          cb.assign(aAddressDGEQRF, ndPT.dataType.allocate(region.code, aNumElements.toI))
-          cb.append(ndPT.dataType.stagedInitialize(aAddressDGEQRF, aNumElements.toI))
-          cb.append(Region.copyFrom(dataFirstElementAddress, ndPT.dataType.firstElementOffset(aAddressDGEQRF, aNumElements.toI), (M * N) * 8L))
+          cb.append(Region.copyFrom(dataFirstElementAddress, hFirstElement, (M * N) * 8L))
 
           cb.assign(tauAddress, tauPType.allocate(region.code, K.toI))
           cb.append(tauPType.stagedInitialize(tauAddress, K.toI))
@@ -1516,7 +1514,7 @@ class Emit[C](
           cb.assign(infoDGEQRFResult, Code.invokeScalaObject7[Int, Int, Long, Int, Long, Long, Int, Int](LAPACK.getClass, "dgeqrf",
             M.toI,
             N.toI,
-            ndPT.dataType.firstElementOffset(aAddressDGEQRF, aNumElements.toI),
+            hFirstElement,
             LDA.toI,
             tauPType.firstElementOffset(tauAddress, K.toI),
             LWORKAddress,
@@ -1528,7 +1526,7 @@ class Emit[C](
           cb.assign(infoDGEQRFResult, Code.invokeScalaObject7[Int, Int, Long, Int, Long, Long, Int, Int](LAPACK.getClass, "dgeqrf",
             M.toI,
             N.toI,
-            ndPT.dataType.firstElementOffset(aAddressDGEQRF, aNumElements.toI),
+            hFirstElement,
             LDA.toI,
             tauPType.firstElementOffset(tauAddress, K.toI),
             workAddress,
@@ -1537,7 +1535,7 @@ class Emit[C](
           cb.append(Code.invokeStatic1[Memory, Long, Unit]("free", workAddress.load()))
           cb.append(infoDGEQRFErrorTest("Failed to compute H and Tau."))
 
-          val h = hPType.construct(hShapeArray, hStridesStruct, aAddressDGEQRF, cb, region.code)
+          val h = hFinisher(cb)//hPType.construct(hShapeArray, hStridesArray, aAddressDGEQRF, cb, region.code)
           val hMemo = h.memoize(cb, "ndarray_qr_h_memo")
 
           val result: PCode = if (mode == "raw") {
@@ -1613,7 +1611,7 @@ class Emit[C](
 
               val qCondition = cb.newLocal[Boolean]("ndarray_qr_qCondition")
               val numColsToUse = cb.newLocal[Long]("ndarray_qr_numColsToUse")
-              val aAddressDORGQR = cb.newLocal[Long]("ndarray_qr_dorgqr_a")
+              val aAddressDORGQRFirstElement = cb.newLocal[Long]("ndarray_qr_dorgqr_a")
 
               val qNumElements = cb.newLocal[Long]("ndarray_qr_qNumElements")
 
@@ -1624,19 +1622,19 @@ class Emit[C](
               cb.assign(qNumElements, M * numColsToUse)
 
               cb.ifx(qCondition, {
-                cb.assign(aAddressDORGQR, ndPT.dataType.allocate(region.code, qNumElements.toI))
-                cb.append(qPType.dataType.stagedInitialize(aAddressDORGQR, qNumElements.toI))
-                cb.append(Region.copyFrom(ndPT.dataType.firstElementOffset(aAddressDGEQRF, aNumElements.toI),
-                  qPType.dataType.firstElementOffset(aAddressDORGQR, qNumElements.toI), aNumElements * 8L))
+                cb.assign(aAddressDORGQRFirstElement, region.code.allocate(8L, qNumElements * ndPT.elementType.byteSize))
+                cb.append(Region.copyFrom(hFirstElement,
+                  aAddressDORGQRFirstElement, aNumElements * 8L))
               }, {
-                cb.assign(aAddressDORGQR, aAddressDGEQRF)
+                // We are intentionally clobbering h, since we aren't going to return it to anyone.
+                cb.assign(aAddressDORGQRFirstElement, hFirstElement)
               })
 
               cb.assign(infoDORGQRResult, Code.invokeScalaObject8[Int, Int, Int, Long, Int, Long, Long, Int, Int](LAPACK.getClass, "dorgqr",
                 M.toI,
                 numColsToUse.toI,
                 K.toI,
-                ndPT.dataType.firstElementOffset(aAddressDORGQR, aNumElements.toI),
+                aAddressDORGQRFirstElement,
                 LDA.toI,
                 tauPType.firstElementOffset(tauAddress, K.toI),
                 LWORKAddress,
@@ -1648,7 +1646,7 @@ class Emit[C](
                 M.toI,
                 numColsToUse.toI,
                 K.toI,
-                ndPT.dataType.elementOffset(aAddressDORGQR, (M * numColsToUse).toI, 0),
+                aAddressDORGQRFirstElement,
                 LDA.toI,
                 tauPType.elementOffset(tauAddress, K.toI, 0),
                 workAddress,
@@ -1658,7 +1656,7 @@ class Emit[C](
               cb.append(infoDORQRErrorTest("Failed to compute Q."))
               cb.assign(qDataAddress, qPType.dataType.allocate(region.code, qNumElements.toI))
               cb.append(qPType.dataType.stagedInitialize(qDataAddress, qNumElements.toI))
-              cb.append(Region.copyFrom(ndPT.dataType.firstElementOffset(aAddressDORGQR),
+              cb.append(Region.copyFrom(aAddressDORGQRFirstElement,
                 qPType.dataType.firstElementOffset(qDataAddress), (M * numColsToUse) * 8L))
 
               crPType.constructFromFields(cb, region.code, FastIndexedSeq(
