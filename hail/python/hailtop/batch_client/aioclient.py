@@ -1,4 +1,4 @@
-from typing import Optional, Dict
+from typing import Optional, Dict, Any
 import math
 import random
 import logging
@@ -344,7 +344,7 @@ class Batch:
             if last_job_id is None:
                 break
 
-    async def get_job_log(self, job_id: int):
+    async def get_job_log(self, job_id: int) -> Optional[Dict[str, Any]]:
         return await self._client.get_job_log(self.id, job_id)
 
     # {
@@ -669,7 +669,7 @@ class BatchClient:
             j['job_id'],
             _status=j)
 
-    async def get_job_log(self, batch_id, job_id):
+    async def get_job_log(self, batch_id, job_id) -> Optional[Dict[str, Any]]:
         resp = await self._get(
             f'/api/v1alpha/batches/{batch_id}/jobs/{job_id}/log')
         return await resp.json()
