@@ -177,7 +177,7 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
     region.allocateNDArray(sizeOfArray + sizeOfStruct)
   }
 
-  def construct(
+  def constructByCopyingArray(
     shape: IndexedSeq[Value[Long]],
     strides: IndexedSeq[Value[Long]],
     dataCode: Code[Long],

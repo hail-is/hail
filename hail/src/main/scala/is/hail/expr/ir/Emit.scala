@@ -1111,7 +1111,7 @@ class Emit[C](
                 }
               })
 
-              xP.construct(shapeValues, stridesSettables, requiredData, cb, region.code)
+              xP.constructByCopyingArray(shapeValues, stridesSettables, requiredData, cb, region.code)
             }
           }
         }
@@ -1132,7 +1132,7 @@ class Emit[C](
             if (childIndex < childPType.nDims) childStrides(childIndex) else const(0L)
           }
 
-          x.pType.construct(
+          x.pType.constructByCopyingArray(
             newShape,
             newStrides,
             childPType.dataPArrayPointer(pndVal.tcode[Long]),

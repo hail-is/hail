@@ -51,7 +51,7 @@ abstract class PNDArray extends PType {
 
   def loadElement(cb: EmitCodeBuilder, indices: IndexedSeq[Value[Long]], ndAddress: Value[Long]): SCode
 
-  def construct(
+  def constructByCopyingArray(
     shape: IndexedSeq[Value[Long]],
     strides: IndexedSeq[Value[Long]],
     data: Code[Long],

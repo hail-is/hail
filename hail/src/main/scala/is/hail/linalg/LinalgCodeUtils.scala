@@ -41,7 +41,7 @@ object LinalgCodeUtils {
       pushElement(cb, IEmitCode.present(cb, pndv.loadElement(idxVars, cb).asPCode))
     }
     val newData = finish(cb)
-    pndv.pt.construct(shape, strides, newData.a, cb, region)
+    pndv.pt.constructByCopyingArray(shape, strides, newData.a, cb, region)
   }
 
   def linearizeIndicesRowMajor(indices: IndexedSeq[Code[Long]], shapeArray: IndexedSeq[Value[Long]], mb: EmitMethodBuilder[_]): Code[Long] = {
