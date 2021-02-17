@@ -1492,8 +1492,8 @@ class Emit[C](
           val hStridesArray = hPType.makeRowMajorStrides(hShapeArray, region.code, cb)
           val (hFirstElement, hFinisher) = hPType.constructDataFunction(hShapeArray, hStridesArray, cb, region.code)
 
-          val tauPType = PCanonicalArray(PFloat64Required, true)
-          val tauAddress = cb.newLocal[Long]("ndarray_qr_tauAddress")
+          val tauNDPType = PCanonicalNDArray(PFloat64Required, 1, true)
+          val (tauFirstElementAddress, tauFinisher) = tauNDPType.constructDataFunction(IndexedSeq(K), IndexedSeq(const(8L)), cb, region.code)
           val workAddress = cb.newLocal[Long]("ndarray_qr_workAddress")
 
           val aNumElements = cb.newLocal[Long]("ndarray_qr_aNumElements")
@@ -1506,9 +1506,6 @@ class Emit[C](
           cb.assign(aNumElements, ndPT.numElements(shapeArray))
           cb.append(Region.copyFrom(dataFirstElementAddress, hFirstElement, (M * N) * 8L))
 
-          cb.assign(tauAddress, tauPType.allocate(region.code, K.toI))
-          cb.append(tauPType.stagedInitialize(tauAddress, K.toI))
-
           cb.assign(LWORKAddress, region.code.allocate(8L, 8L))
 
           cb.assign(infoDGEQRFResult, Code.invokeScalaObject7[Int, Int, Long, Int, Long, Long, Int, Int](LAPACK.getClass, "dgeqrf",
@@ -1516,7 +1513,7 @@ class Emit[C](
             N.toI,
             hFirstElement,
             LDA.toI,
-            tauPType.firstElementOffset(tauAddress, K.toI),
+            tauFirstElementAddress,
             LWORKAddress,
             -1
           ))
@@ -1528,25 +1525,21 @@ class Emit[C](
             N.toI,
             hFirstElement,
             LDA.toI,
-            tauPType.firstElementOffset(tauAddress, K.toI),
+            tauFirstElementAddress,
             workAddress,
             LWORK
           ))
           cb.append(Code.invokeStatic1[Memory, Long, Unit]("free", workAddress.load()))
           cb.append(infoDGEQRFErrorTest("Failed to compute H and Tau."))
 
-          val h = hFinisher(cb)//hPType.construct(hShapeArray, hStridesArray, aAddressDGEQRF, cb, region.code)
+          val h = hFinisher(cb)
           val hMemo = h.memoize(cb, "ndarray_qr_h_memo")
 
           val result: PCode = if (mode == "raw") {
             val resultType = x.pType.asInstanceOf[PCanonicalBaseStruct]
             val rawPType = x.pType.asInstanceOf[PTuple]
             assert(hPType equalModuloRequired rawPType.types(0).asInstanceOf[PCanonicalNDArray],  s"hPType = ${hPType}, other = ${rawPType.types(0).asInstanceOf[PCanonicalNDArray]}")
-            val tauPType = rawPType.types(1).asInstanceOf[PCanonicalNDArray]
-
-            val tauStridesArray = tauPType.makeRowMajorStrides(FastIndexedSeq(K), region.code, cb)
-
-            val tau = tauPType.construct(FastIndexedSeq(K), tauStridesArray, tauAddress, cb, region.code)
+            val tau = tauFinisher(cb)
 
             resultType.constructFromFields(cb, region.code, FastIndexedSeq(
               EmitCode.present(cb.emb, hMemo),
@@ -1636,7 +1629,7 @@ class Emit[C](
                 K.toI,
                 aAddressDORGQRFirstElement,
                 LDA.toI,
-                tauPType.firstElementOffset(tauAddress, K.toI),
+                tauFirstElementAddress,
                 LWORKAddress,
                 -1
               ))
@@ -1648,7 +1641,7 @@ class Emit[C](
                 K.toI,
                 aAddressDORGQRFirstElement,
                 LDA.toI,
-                tauPType.elementOffset(tauAddress, K.toI, 0),
+                tauFirstElementAddress,
                 workAddress,
                 LWORK
               ))
