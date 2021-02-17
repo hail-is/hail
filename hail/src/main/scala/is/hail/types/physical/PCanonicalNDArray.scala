@@ -362,8 +362,6 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
         }
 
         finish(cb).a
-      case _ =>
-        throw new UnsupportedOperationException("Only know how to store SNDArrayPointerCodes")
     }
   }
 
