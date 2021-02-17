@@ -25,7 +25,7 @@ from hailtop.utils import (time_msecs, request_retry_transient_errors,
                            find_spark_home)
 from hailtop.httpx import client_session
 from hailtop.batch_client.parse import (parse_cpu_in_mcpu, parse_image_tag,
-                                        parse_memory_in_bytes)
+                                        parse_memory_in_bytes, parse_storage_in_bytes)
 from hailtop.batch.hail_genetics_images import HAIL_GENETICS, HAIL_GENETICS_IMAGES
 from hailtop import aiotools
 # import uvloop
@@ -35,7 +35,7 @@ from hailtop.hail_logging import configure_logging
 
 from ..utils import (adjust_cores_for_memory_request, cores_mcpu_to_memory_bytes,
                      adjust_cores_for_packability, adjust_cores_for_storage_request,
-                     cores_mcpu_to_storage_bytes)
+                     cores_mcpu_to_storage_bytes, storage_gib_to_bytes)
 from ..semaphore import FIFOWeightedSemaphore
 from ..log_store import LogStore
 from ..globals import HTTP_CLIENT_MAX_SIZE, STATUS_FORMAT_VERSION
@@ -773,15 +773,20 @@ class Job:
 
         req_cpu_in_mcpu = parse_cpu_in_mcpu(job_spec['resources']['cpu'])
         req_memory_in_bytes = parse_memory_in_bytes(job_spec['resources']['memory'])
-        req_storage_in_bytes = parse_memory_in_bytes(job_spec['resources']['storage'])
+        req_storage_in_bytes = parse_storage_in_bytes(job_spec['resources']['storage'])
 
-        cpu_in_mcpu = adjust_cores_for_memory_request(req_cpu_in_mcpu, req_memory_in_bytes, worker_config.instance_type)
-        cpu_in_mcpu = adjust_cores_for_storage_request(cpu_in_mcpu, req_storage_in_bytes, CORES, worker_config.local_ssd_data_disk, worker_config.data_disk_size_gb)
-        cpu_in_mcpu = adjust_cores_for_packability(cpu_in_mcpu)
+        if worker_config.job_private:
+            cpu_in_mcpu = CORES * 1000
+            storage_in_bytes = storage_gib_to_bytes(worker_config.data_disk_size_gb)
+        else:
+            cpu_in_mcpu = adjust_cores_for_memory_request(req_cpu_in_mcpu, req_memory_in_bytes, worker_config.instance_type)
+            cpu_in_mcpu = adjust_cores_for_storage_request(cpu_in_mcpu, req_storage_in_bytes, CORES, worker_config.local_ssd_data_disk, worker_config.data_disk_size_gb)
+            cpu_in_mcpu = adjust_cores_for_packability(cpu_in_mcpu)
+            storage_in_bytes = cores_mcpu_to_storage_bytes(cpu_in_mcpu, CORES, worker_config.local_ssd_data_disk, worker_config.data_disk_size_gb)
 
         self.cpu_in_mcpu = cpu_in_mcpu
         self.memory_in_bytes = cores_mcpu_to_memory_bytes(self.cpu_in_mcpu, worker_config.instance_type)
-        self.storage_in_bytes = cores_mcpu_to_storage_bytes(self.cpu_in_mcpu, CORES, worker_config.local_ssd_data_disk, worker_config.data_disk_size_gb)
+        self.storage_in_bytes = storage_in_bytes
 
         self.resources = worker_config.resources(self.cpu_in_mcpu, self.memory_in_bytes)
 
@@ -1168,6 +1173,7 @@ class Worker:
         self.cpu_sem = FIFOWeightedSemaphore(self.cores_mcpu)
         self.pool = concurrent.futures.ThreadPoolExecutor()
         self.jobs = {}
+        self.stop_event = asyncio.Event()
 
         # filled in during activation
         self.log_store = None
@@ -1278,6 +1284,7 @@ class Worker:
         try:
             app = web.Application(client_max_size=HTTP_CLIENT_MAX_SIZE)
             app.add_routes([
+                web.post('/api/v1alpha/kill', self.kill),
                 web.post('/api/v1alpha/batches/jobs/create', self.create_job),
                 web.delete('/api/v1alpha/batches/{batch_id}/jobs/{job_id}/delete', self.delete_job),
                 web.get('/api/v1alpha/batches/{batch_id}/jobs/{job_id}/log', self.get_job_log),
@@ -1295,12 +1302,20 @@ class Worker:
             except asyncio.TimeoutError:
                 log.exception(f'could not activate after trying for {MAX_IDLE_TIME_MSECS} ms, exiting')
             else:
+                stopped = False
                 idle_duration = time_msecs() - self.last_updated
                 while self.jobs or idle_duration < MAX_IDLE_TIME_MSECS:
                     log.info(f'n_jobs {len(self.jobs)} free_cores {self.cpu_sem.value / 1000} idle {idle_duration}')
-                    await asyncio.sleep(15)
-                    idle_duration = time_msecs() - self.last_updated
-                log.info(f'idle {idle_duration} ms, exiting')
+                    try:
+                        await asyncio.wait_for(self.stop_event.wait(), 15)
+                        stopped = True
+                        log.info('received stop event')
+                        break
+                    except asyncio.TimeoutError:
+                        idle_duration = time_msecs() - self.last_updated
+
+                if not stopped:
+                    log.info(f'idle {idle_duration} ms, exiting')
 
                 async with client_session() as session:
                     # Don't retry.  If it doesn't go through, the driver
@@ -1316,9 +1331,19 @@ class Worker:
             if site:
                 await site.stop()
                 log.info('stopped site')
+
             if app_runner:
                 await app_runner.cleanup()
                 log.info('cleaned up app runner')
+
+            self.shutdown()
+
+    async def kill_1(self, request):  # pylint: disable=unused-argument
+        log.info('killed')
+        self.stop_event.set()
+
+    async def kill(self, request):
+        return await asyncio.shield(self.kill_1(request))
 
     async def post_job_complete_1(self, job):
         run_duration = job.end_time - job.start_time

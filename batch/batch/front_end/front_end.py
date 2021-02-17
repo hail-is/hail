@@ -37,22 +37,19 @@ from web_common import (setup_aiohttp_jinja2, setup_common_static_routes,
 
 # import uvloop
 
-from ..utils import (adjust_cores_for_memory_request, worker_memory_per_core_mib,
-                     cost_from_msec_mcpu, adjust_cores_for_packability, coalesce,
-                     adjust_cores_for_storage_request, total_worker_storage_gib,
-                     query_billing_projects)
+from ..utils import cost_from_msec_mcpu, coalesce, query_billing_projects
 from ..batch import batch_record_to_dict, job_record_to_dict, cancel_batch_in_db
 from ..exceptions import (BatchUserError, NonExistentBillingProjectError,
                           ClosedBillingProjectError, InvalidBillingLimitError,
                           BatchOperationAlreadyCompletedError)
+from ..inst_coll_config import InstanceCollectionConfigs
 from ..log_store import LogStore
 from ..database import CallError, check_call_procedure
 from ..batch_configuration import (BATCH_BUCKET_NAME, DEFAULT_NAMESPACE)
-from ..globals import HTTP_CLIENT_MAX_SIZE, BATCH_FORMAT_VERSION
+from ..globals import HTTP_CLIENT_MAX_SIZE, BATCH_FORMAT_VERSION, valid_machine_types
 from ..spec_writer import SpecWriter
 from ..batch_format_version import BatchFormatVersion
 
-from .pool_selector import PoolSelector
 from .validate import ValidationError, validate_batch, validate_and_clean_jobs
 
 # uvloop.install()
@@ -103,6 +100,7 @@ BATCH_JOB_DEFAULT_CPU = os.environ.get('HAIL_BATCH_JOB_DEFAULT_CPU', '1')
 BATCH_JOB_DEFAULT_MEMORY = os.environ.get('HAIL_BATCH_JOB_DEFAULT_MEMORY', '3.75Gi')
 BATCH_JOB_DEFAULT_STORAGE = os.environ.get('HAIL_BATCH_JOB_DEFAULT_STORAGE', '10Gi')
 BATCH_JOB_DEFAULT_WORKER_TYPE = os.environ.get('HAIL_BATCH_JOB_DEFAULT_WORKER_TYPE', 'standard')
+BATCH_JOB_DEFAULT_PREEMPTIBLE = True
 
 
 def rest_authenticated_developers_or_auth_only(fun):
@@ -150,8 +148,9 @@ async def _query_batch_jobs(request, batch_id):
     state_query_values = {
         'pending': ['Pending'],
         'ready': ['Ready'],
+        'creating': ['Creating'],
         'running': ['Running'],
-        'live': ['Ready', 'Running'],
+        'live': ['Ready', 'Creating', 'Running'],
         'cancelled': ['Cancelled'],
         'error': ['Error'],
         'failed': ['Failed'],
@@ -392,7 +391,7 @@ async def _get_full_job_status(app, record):
     state = record['state']
     format_version = BatchFormatVersion(record['format_version'])
 
-    if state in ('Pending', 'Ready', 'Cancelled'):
+    if state in ('Pending', 'Creating', 'Ready', 'Cancelled'):
         return None
 
     if state in ('Error', 'Failed', 'Success'):
@@ -646,14 +645,13 @@ WHERE user = %s AND id = %s AND NOT deleted;
                 if not resources:
                     resources = {}
                     spec['resources'] = resources
+
                 if 'cpu' not in resources:
                     resources['cpu'] = BATCH_JOB_DEFAULT_CPU
                 if 'memory' not in resources:
                     resources['memory'] = BATCH_JOB_DEFAULT_MEMORY
                 if 'storage' not in resources:
                     resources['storage'] = BATCH_JOB_DEFAULT_STORAGE
-                if 'worker_type' not in resources:
-                    resources['worker_type'] = BATCH_JOB_DEFAULT_WORKER_TYPE
 
                 req_cores_mcpu = parse_cpu_in_mcpu(resources['cpu'])
                 req_memory_bytes = parse_memory_in_bytes(resources['memory'])
@@ -664,30 +662,52 @@ WHERE user = %s AND id = %s AND NOT deleted;
                         reason=f'bad resource request for job {id}: '
                         f'cpu cannot be 0')
 
-                worker_type = resources['worker_type']
+                worker_type = resources.get('worker_type')
+                machine_type = resources.get('machine_type')
+                preemptible = resources.get('preemptible')
 
-                pool_selector: PoolSelector = app['pool_selector']
-                pool = pool_selector.select_pool(worker_type=worker_type)
-
-                if not pool:
-                    raise web.HTTPBadRequest(reason=f'unsupported worker type {worker_type}')
-
-                worker_cores = pool.worker_cores
-                worker_local_ssd_data_disk = pool.worker_local_ssd_data_disk
-                worker_pd_ssd_data_disk_size_gb = pool.worker_pd_ssd_data_disk_size_gb
-
-                cores_mcpu = adjust_cores_for_memory_request(req_cores_mcpu, req_memory_bytes, worker_type)
-                cores_mcpu = adjust_cores_for_storage_request(cores_mcpu, req_storage_bytes, worker_cores,
-                                                              worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gb)
-                cores_mcpu = adjust_cores_for_packability(cores_mcpu)
-
-                if cores_mcpu > worker_cores * 1000:
-                    total_memory_available = worker_memory_per_core_mib(worker_type) * worker_cores
-                    total_storage_available = total_worker_storage_gib(worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gb)
+                if worker_type and machine_type:
                     raise web.HTTPBadRequest(
-                        reason=f'resource requests for job {id} with worker_type {worker_type} are unsatisfiable: '
-                        f'requested: cpu={resources["cpu"]}, memory={resources["memory"]} storage={resources["storage"]}'
-                        f'maximum: cpu={worker_cores}, memory={total_memory_available}Mi, storage={total_storage_available}G')
+                        reason='cannot specify both worker_type and machine_type')
+
+                if not machine_type and not worker_type:
+                    worker_type = BATCH_JOB_DEFAULT_WORKER_TYPE
+                    resources['worker_type'] = worker_type
+
+                inst_coll_configs: InstanceCollectionConfigs = app['inst_coll_configs']
+
+                inst_coll_name = None
+                cores_mcpu = None
+
+                if worker_type:
+                    if preemptible is not None:
+                        raise web.HTTPBadRequest(
+                            reason='cannot have preemptible specified with a worker_type')
+
+                    result = inst_coll_configs.select_pool(
+                        worker_type=worker_type,
+                        cores_mcpu=req_cores_mcpu,
+                        memory_bytes=req_memory_bytes,
+                        storage_bytes=req_storage_bytes)
+                    if result:
+                        inst_coll_name, cores_mcpu = result
+                else:
+                    assert machine_type and machine_type in valid_machine_types
+
+                    if 'preemptible' not in resources:
+                        resources['preemptible'] = BATCH_JOB_DEFAULT_PREEMPTIBLE
+
+                    result = inst_coll_configs.select_job_private(
+                        machine_type=machine_type,
+                        storage_bytes=req_storage_bytes)
+                    if result:
+                        inst_coll_name, cores_mcpu, storage_gib = result
+                        resources['storage_gib'] = storage_gib
+
+                if inst_coll_name is None:
+                    raise web.HTTPBadRequest(
+                        reason=f'resource requests for job {id} are unsatisfiable: '
+                        f'requested: cpu={resources["cpu"]}, memory={resources["memory"]}, storage={resources["storage"]}')
 
                 secrets = spec.get('secrets')
                 if not secrets:
@@ -742,7 +762,7 @@ WHERE user = %s AND id = %s AND NOT deleted;
                 sa = spec.get('service_account')
                 check_service_account_permissions(user, sa)
 
-                icr = inst_coll_resources[pool.name]
+                icr = inst_coll_resources[inst_coll_name]
                 icr['n_jobs'] += 1
                 if len(parent_ids) == 0:
                     state = 'Ready'
@@ -763,7 +783,7 @@ WHERE user = %s AND id = %s AND NOT deleted;
 
                 jobs_args.append(
                     (batch_id, job_id, state, json.dumps(db_spec),
-                     always_run, cores_mcpu, len(parent_ids), pool.name))
+                     always_run, cores_mcpu, len(parent_ids), inst_coll_name))
 
                 for parent_id in parent_ids:
                     job_parents_args.append(
@@ -1892,6 +1912,10 @@ SELECT instance_id, internal_token, n_tokens FROM globals;
         '/gsa-key/key.json')
     app['log_store'] = LogStore(BATCH_BUCKET_NAME, instance_id, pool, credentials=credentials)
 
+    inst_coll_configs = InstanceCollectionConfigs(app)
+    app['inst_coll_configs'] = inst_coll_configs
+    await inst_coll_configs.async_init()
+
     cancel_batch_state_changed = asyncio.Event()
     app['cancel_batch_state_changed'] = cancel_batch_state_changed
 
@@ -1905,10 +1929,6 @@ SELECT instance_id, internal_token, n_tokens FROM globals;
     app['task_manager'].ensure_future(retry_long_running(
         'delete_batch_loop',
         run_if_changed, delete_batch_state_changed, delete_batch_loop_body, app))
-
-    pool_selector = PoolSelector(app)
-    app['pool_selector'] = pool_selector
-    await pool_selector.async_init()
 
 
 async def on_cleanup(app):
