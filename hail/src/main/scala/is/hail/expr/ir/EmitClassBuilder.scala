@@ -662,6 +662,7 @@ class EmitClassBuilder[C](
     }
     val codeReturnInfo = returnInfo match {
       case CodeParamType(ti) => ti
+      case PCodeParamType(pt) => pt.ti
       case EmitParamType(pt) =>
         val ts = EmitCode.codeTupleTypes(pt)
         if (ts.length == 1)
@@ -1006,16 +1007,9 @@ class EmitMethodBuilder[C](
     val ts = _pt.codeTupleTypes()
     val codeIndex = emitParamCodeIndex(emitIndex - static)
 
-    // FIXME this isn't great, but it shouldn't fail
-    new PValue {
-      val pt: PType = _pt
-      val st: SType = _pt.sType
-
-      def get: PCode =
-        pt.fromCodeTuple(ts.zipWithIndex.map { case (t, i) =>
-          mb.getArg(codeIndex + i)(t).get
-        })
-    }
+    _pt.sType.fromSettables(ts.zipWithIndex.map { case (t, i) =>
+      mb.getArg(codeIndex + i)(t)
+    }).asPValue
   }
 
   def getEmitParam(emitIndex: Int): EmitValue = {

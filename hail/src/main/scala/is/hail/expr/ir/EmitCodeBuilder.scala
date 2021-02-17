@@ -173,7 +173,7 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
   // FIXME: this should be invokeSCode and should allocate/destructure a tuple when more than one code is present
   def invokePCode(callee: EmitMethodBuilder[_], args: Param*): PCode = {
     val pt = callee.emitReturnType.asInstanceOf[PCodeParamType].pt
-    PCode(pt, invokeCode(callee, args: _*))
+    PCode(pt, _invoke(callee, args: _*))
   }
 
   // for debugging
