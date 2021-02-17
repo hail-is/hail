@@ -30,7 +30,7 @@ cleanup_image:
 
 PROJECT := hail-vdc
 BENCHMARK_DOCKER_TAG := benchmark_$(shell whoami)
-BENCHMARK_REPO_BASE = gcr.io/$(PROJECT)/$(BENCHMARK_DOCKER_TAG)
+BENCHMARK_REPO_BASE = $(DOCKER_PREFIX)/$(BENCHMARK_DOCKER_TAG)
 
 ifndef HAIL_WHEEL
 image_sha:
@@ -42,7 +42,7 @@ image_sha: wheel cleanup_image
 	cp $(BENCHMARK_WHEEL) .
 	# it's possible that the HAIL_WHEEL installs different dependencies, but this generally creates less work for docker
 	cp ../hail/python/requirements.txt .
-	python3 ../ci/jinja2_render.py '{"global":{"project":"$(PROJECT)"}}' Dockerfile Dockerfile.out
+	python3 ../ci/jinja2_render.py '{"global":{"docker_prefix":"$(DOCKER_PREFIX)"}' Dockerfile Dockerfile.out
 	docker build -f Dockerfile.out -t $(BENCHMARK_DOCKER_TAG) . --build-arg HAIL_WHEEL=$(notdir $(HAIL_WHEEL)) --build-arg BENCHMARK_WHEEL=$(notdir $(BENCHMARK_WHEEL))
 	@printf $$(docker images -q --no-trunc $(BENCHMARK_DOCKER_TAG) | sed -e 's,[^:]*:,,') > image_sha
 	@echo Image sha is `cat image_sha`
@@ -72,4 +72,3 @@ clean:
 	rm -f $(notdir $(HAIL_WHEEL))
 	rm -f $(notdir $(BENCHMARK_WHEEL))
 	rm -f requirements.txt
-

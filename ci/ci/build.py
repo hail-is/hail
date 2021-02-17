@@ -174,7 +174,10 @@ class Step(abc.ABC):
             'project': GCP_PROJECT,
             'zone': GCP_ZONE,
             'docker_prefix': DOCKER_PREFIX,
+<<<<<<< HEAD
             'docker_root_image': DOCKER_ROOT_IMAGE,
+=======
+>>>>>>> 2cfc712c1... Switch to Artifact Registry (#29)
             'domain': DOMAIN,
             'ip': IP,
             'k8s_server_url': KUBERNETES_SERVER_URL,
@@ -243,9 +246,9 @@ class BuildImageStep(Step):
         self.publish_as = publish_as
         self.inputs = inputs
         if params.scope == 'deploy' and publish_as and not is_test_deployment:
-            self.base_image = f'gcr.io/{GCP_PROJECT}/{self.publish_as}'
+            self.base_image = f'{DOCKER_PREFIX}/{self.publish_as}'
         else:
-            self.base_image = f'gcr.io/{GCP_PROJECT}/ci-intermediate'
+            self.base_image = f'{DOCKER_PREFIX}/ci-intermediate'
         self.image = f'{self.base_image}:{self.token}'
         self.job = None
 
@@ -296,7 +299,7 @@ class BuildImageStep(Step):
         )
 
         if self.publish_as:
-            published_latest = shq(f'gcr.io/{GCP_PROJECT}/{self.publish_as}:latest')
+            published_latest = shq(f'{DOCKER_PREFIX}/{self.publish_as}:latest')
             pull_published_latest = f'time retry docker pull {shq(published_latest)} || true'
             cache_from_published_latest = f'--cache-from {shq(published_latest)}'
         else:
@@ -327,6 +330,7 @@ cp {shq(f'/io/{i["to"]}')} {shq(f'{context}{i["to"]}')}
 '''
                 )
 
+        docker_registry = DOCKER_PREFIX.split('/')[0]
         script = f'''
 set -ex
 date
@@ -344,7 +348,7 @@ FROM_IMAGE=$(awk '$1 == "FROM" {{ print $2; exit }}' {shq(rendered_dockerfile)})
 
 time gcloud -q auth activate-service-account \
   --key-file=/secrets/gcr-push-service-account-key/gcr-push-service-account-key.json
-time gcloud -q auth configure-docker
+time gcloud -q auth configure-docker {docker_registry}
 
 time retry docker pull $FROM_IMAGE
 {pull_published_latest}
