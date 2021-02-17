@@ -5,6 +5,7 @@ import is.hail.asm4s.{Code, _}
 import is.hail.expr.Nat
 import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder}
 import is.hail.types.physical.stypes.SCode
+import is.hail.types.physical.stypes.concrete.SNDArrayPointerCode
 import is.hail.types.physical.stypes.interfaces.{SNDArrayCode, SNDArrayValue}
 import is.hail.types.virtual.TNDArray
 
@@ -58,6 +59,13 @@ abstract class PNDArray extends PType {
     mb: EmitCodeBuilder,
     region: Value[Region]
   ): PNDArrayCode
+
+  def constructDataFunction(
+    shape: IndexedSeq[Value[Long]],
+    strides: IndexedSeq[Value[Long]],
+    cb: EmitCodeBuilder,
+    region: Value[Region]
+  ): (Value[Long], EmitCodeBuilder =>  SNDArrayPointerCode)
 }
 
 abstract class PNDArrayValue extends PValue with SNDArrayValue {
