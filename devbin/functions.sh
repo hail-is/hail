@@ -162,10 +162,10 @@ download-secret() {
 }
 
 upload-secret() {
-    # upload-secret secret-name namespace
+    # upload-secret
     #
     # Upload a secret that has been previously downloaded using download-secret. If you intend to
-    # upload to a different namespace, ensure you've also modified contents.json.
+    # upload to a different namespace, ensure you've also modified secret.json.
 	  name=$(jq -r '.metadata.name' secret.json)
 	  namespace=$(jq -r '.metadata.namespace' secret.json)
 	  kubectl create secret generic $name --namespace $namespace $(for i in $(ls contents); do echo "--from-file=contents/$i" ; done) --dry-run -o yaml \
