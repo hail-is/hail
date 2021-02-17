@@ -765,7 +765,6 @@ class Emit[C](
         presentC(m)
 
       case Coalesce(values) =>
-        val missing = cb.newLocal[Boolean]("coalesce_missing")
         val coalescedValue = mb.newPLocal("coalesce_value", pt)
 
         val emittedValues = values.map(v => EmitCode.fromI(cb.emb)(cb => emitInNewBuilder(cb, v)))
@@ -782,9 +781,6 @@ class Emit[C](
         }
 
         cb.goto(Lmissing)
-
-        cb.define(Ldefined)
-        cb.assign(missing, false)
 
         IEmitCode(Lmissing, Ldefined, coalescedValue.load())
 
