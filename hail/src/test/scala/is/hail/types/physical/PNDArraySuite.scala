@@ -4,6 +4,7 @@ import is.hail.annotations.{Annotation, Region, SafeNDArray, ScalaToRegionValue,
 import is.hail.asm4s._
 import is.hail.expr.ir.{EmitCodeBuilder, EmitFunctionBuilder}
 import is.hail.utils._
+import org.apache.spark.sql.Row
 import org.testng.annotations.Test
 
 class PNDArraySuite extends PhysicalTestUtils {
@@ -108,8 +109,9 @@ class PNDArraySuite extends PhysicalTestUtils {
     region1.clear()
     assert(PNDArray.getReferenceCount(addr1) == 1)
 
+    // Deep copy with elements that contain pointers, so have to actually do a full copy
     val pNDOfArrays = PCanonicalNDArray(PCanonicalArray(PInt32Required, true), 1)
-    val annotationNDOfArrays = new SafeNDArray(IndexedSeq(3L), (0 until 3).map(idx => (0 to 5).toArray.toIndexedSeq))
+    val annotationNDOfArrays = new SafeNDArray(IndexedSeq(3L), (0 until 3).map(idx => (0 to idx).toArray.toIndexedSeq))
     val addr3 = pNDOfArrays.unstagedStoreJavaObject(annotationNDOfArrays, region=region1)
     val unsafe3 = UnsafeRow.read(pNDOfArrays, region1, addr3)
     val addr4 = pNDOfArrays.copyFromAddress(region2, pNDOfArrays, addr3, true)
@@ -119,5 +121,15 @@ class PNDArraySuite extends PhysicalTestUtils {
     assert(PNDArray.getReferenceCount(addr3) == 1L)
     assert(PNDArray.getReferenceCount(addr4) == 1L)
 
+    // Deep copy with PTypes with different requirements
+    val pNDOfStructs1 = PCanonicalNDArray(PCanonicalStruct(true, ("x", PInt32Required), ("y", PInt32())), 1)
+    val pNDOfStructs2 = PCanonicalNDArray(PCanonicalStruct(true, ("x", PInt32()), ("y", PInt32Required)), 1)
+    val annotationNDOfStructs = new SafeNDArray(IndexedSeq(5L), (0 until 5).map(idx => Row(idx, idx + 100)))
+
+    val addr5 = pNDOfStructs1.unstagedStoreJavaObject(annotationNDOfStructs, region=region1)
+    val unsafe5 = UnsafeRow.read(pNDOfStructs1, region1, addr5)
+    val addr6 = pNDOfStructs2.copyFromAddress(region2, pNDOfStructs1, addr5, true)
+    val unsafe6 = UnsafeRow.read(pNDOfStructs2, region2, addr6)
+    assert(unsafe5 == unsafe6)
   }
 }

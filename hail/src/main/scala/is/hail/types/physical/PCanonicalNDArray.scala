@@ -247,10 +247,9 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
     strideType.unstagedStoreJavaObjectAtAddress(ndAddr + shapeType.byteSize, Row(strides:_*), region)
 
     val newDataPointer = ndAddr + this.representation.byteSize
-    Region.storeLong(this.representation.fieldOffset(ndAddr, "data"), newDataPointer)
+    Region.storeLong(this.representation.fieldOffset(ndAddr, 2), newDataPointer)
 
     val newFirstElementDataPointer = this.unstagedDataFirstElementPointer(ndAddr)
-
     dataType.initialize(newDataPointer, numElements(shape).toInt)
     writeDataToAddress(newFirstElementDataPointer)
 
@@ -280,7 +279,7 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
 
   def _copyFromAddress(region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Long  = {
     val srcNDPType = srcPType.asInstanceOf[PCanonicalNDArray]
-    assert(elementType == srcNDPType.elementType && nDims == srcNDPType.nDims)
+    assert(nDims == srcNDPType.nDims)
 
 
     if (equalModuloRequired(srcPType)) { // The situation where you can just memcpy, but then still have to update pointers.
