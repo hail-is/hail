@@ -3,7 +3,7 @@
 This folder contains a conda recipe to build the `hail` package for
 the [`cpg` Anaconda channel](https://anaconda.org/cpg/hail).
 
-Note that there is also a package in the
+Note that there is also a `hail` package in the
 [`bioconda` channel](https://github.com/bioconda/bioconda-recipes/tree/master/recipes/hail)
 synced with the [official PyPI release](https://pypi.org/project/hail). However, having
 a separate conda package in the `cpg` channel allows us to build it against the codebase
