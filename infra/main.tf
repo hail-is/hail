@@ -18,8 +18,29 @@ variable "gcp_location" {}
 variable "gcp_region" {}
 variable "gcp_zone" {}
 variable "domain" {}
+variable "use_artifact_registry" { 
+  type = bool
+  description = "pull the ubuntu image from Artifact Registry. Otherwise, GCR"
+}
+
+locals {
+  docker_prefix = (
+    var.use_artifact_registry ?
+    "${var.gcp_region}-docker.pkg.dev/${var.gcp_project}/hail" : 
+    "gcr.io/${var.gcp_project}"
+  )
+  docker_root_image = "${local.docker_prefix}/ubuntu:18.04"
+}
 
 provider "google" {
+  credentials = file("~/.hail/terraform_sa_key.json")
+
+  project = var.gcp_project
+  region = var.gcp_region
+  zone = var.gcp_zone
+}
+
+provider "google-beta" {
   credentials = file("~/.hail/terraform_sa_key.json")
 
   project = var.gcp_project
@@ -141,7 +162,10 @@ resource "random_id" "db_name_suffix" {
 }
 
 # Without this, I get:
-# Error: Error, failed to create instance because the network doesn't have at least 1 private services connection. Please see https://cloud.google.com/sql/docs/mysql/private-ip#network_requirements for how to create this connection.
+# Error: Error, failed to create instance because the network doesn't have at least 
+# 1 private services connection. Please see 
+# https://cloud.google.com/sql/docs/mysql/private-ip#network_requirements 
+# for how to create this connection.
 resource "google_compute_global_address" "google_managed_services_default" {
   name = "google-managed-services-default"
   purpose = "VPC_PEERING"
@@ -207,11 +231,12 @@ resource "kubernetes_secret" "global_config" {
     batch_gcp_regions = var.batch_gcp_regions
     batch_logs_bucket = google_storage_bucket.batch_logs.name
     default_namespace = "default"
-    docker_root_image = "gcr.io/${var.gcp_project}/ubuntu:18.04"
+    docker_root_image = local.docker_root_image
     domain = var.domain
     gcp_project = var.gcp_project
     gcp_region = var.gcp_region
     gcp_zone = var.gcp_zone
+    docker_prefix = local.docker_prefix
     gsuite_organization = var.gsuite_organization
     internal_ip = google_compute_address.internal_gateway.address
     ip = google_compute_address.gateway.address
@@ -255,7 +280,7 @@ ssl-mode=VERIFY_CA
 END
     "sql-config.json" = <<END
 {
-    "docker_root_image": "gcr.io/${var.gcp_project}/ubuntu:18.04",
+    "docker_root_image": "${local.docker_root_image}",
     "host": "${google_sql_database_instance.db.ip_address[0].ip_address}",
     "port": 3306,
     "user": "root",
@@ -272,6 +297,13 @@ END
 }
 
 resource "google_container_registry" "registry" {
+}
+
+resource "google_artifact_registry_repository" "repository" {
+  provider = google-beta
+  format = "DOCKER"
+  repository_id = "hail"
+  location = var.gcp_location
 }
 
 resource "google_service_account" "gcr_pull" {
@@ -298,9 +330,33 @@ resource "google_storage_bucket_iam_member" "gcr_pull_viewer" {
   member = "serviceAccount:${google_service_account.gcr_pull.email}"
 }
 
+resource "google_artifact_registry_repository_iam_member" "artifact_registry_pull_viewer" {
+  provider = google-beta
+  repository = google_artifact_registry_repository.repository.name
+  location = var.gcp_location
+  role = "roles/artifactregistry.reader"
+  member = "serviceAccount:${google_service_account.gcr_pull.email}"
+}
+
+resource "google_artifact_registry_repository_iam_member" "artifact_registry_ci_viewer" {
+  provider = google-beta
+  repository = google_artifact_registry_repository.repository.name
+  location = var.gcp_location
+  role = "roles/artifactregistry.reader"
+  member = "serviceAccount:${google_service_account.ci.email}"
+}
+
 resource "google_storage_bucket_iam_member" "gcr_push_admin" {
   bucket = google_container_registry.registry.id
   role = "roles/storage.admin"
+  member = "serviceAccount:${google_service_account.gcr_push.email}"
+}
+
+resource "google_artifact_registry_repository_iam_member" "artifact_registry_push_admin" {
+  provider = google-beta
+  repository = google_artifact_registry_repository.repository.name
+  location = var.gcp_location
+  role = "roles/artifactregistry.admin"
   member = "serviceAccount:${google_service_account.gcr_push.email}"
 }
 
@@ -495,6 +551,14 @@ resource "random_id" "ci_name_suffix" {
 
 resource "google_service_account" "ci" {
   account_id = "ci-${random_id.ci_name_suffix.hex}"
+}
+
+resource "google_artifact_registry_repository_iam_member" "artifact_registry_viewer" {
+  provider = google-beta
+  repository = google_artifact_registry_repository.repository.name
+  location = var.gcp_location
+  role = "roles/artifactregistry.reader"
+  member = "serviceAccount:${google_service_account.ci.email}"
 }
 
 resource "google_service_account_key" "ci_key" {

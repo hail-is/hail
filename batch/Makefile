@@ -1,10 +1,10 @@
 include ../config.mk
 
-BATCH_LATEST = gcr.io/$(PROJECT)/batch:latest
-BATCH_IMAGE = gcr.io/$(PROJECT)/batch:$(shell docker images -q --no-trunc batch | sed -e 's,[^:]*:,,')
+BATCH_LATEST = $(DOCKER_PREFIX)/batch:latest
+BATCH_IMAGE = $(DOCKER_PREFIX)/batch:$(shell docker images -q --no-trunc batch | sed -e 's,[^:]*:,,')
 
-BATCH_WORKER_LATEST = gcr.io/$(PROJECT)/batch-worker:latest
-BATCH_WORKER_IMAGE = gcr.io/$(PROJECT)/batch-worker:$(shell docker images -q --no-trunc batch-worker | sed -e 's,[^:]*:,,')
+BATCH_WORKER_LATEST = $(DOCKER_PREFIX)/batch-worker:latest
+BATCH_WORKER_IMAGE = $(DOCKER_PREFIX)/batch-worker:$(shell docker images -q --no-trunc batch-worker | sed -e 's,[^:]*:,,')
 
 EXTRA_PYTHONPATH := ../hail/python:../gear:../web_common
 PYTHON := PYTHONPATH=$${PYTHONPATH:+$${PYTHONPATH}:}$(EXTRA_PYTHONPATH) python3
@@ -31,7 +31,7 @@ build-worker: build-prereqs
 # janky
 	cp ../hail/build/libs/hail-all-spark.jar ./hail.jar
 	-docker pull $(BATCH_WORKER_LATEST)
-	python3 ../ci/jinja2_render.py '{"global":{"project":"$(PROJECT)"}, "service_base_image":{"image":"service-base"}}' Dockerfile.worker Dockerfile.worker.out
+	python3 ../ci/jinja2_render.py '{"global":{"docker_prefix":"$(DOCKER_PREFIX)"}}}' Dockerfile.worker Dockerfile.worker.out
 	docker build -t batch-worker -f Dockerfile.worker.out --cache-from batch-worker,$(BATCH_WORKER_LATEST),service-base ..
 
 .PHONY: build
@@ -48,7 +48,7 @@ push: build
 	docker tag batch-worker $(BATCH_WORKER_IMAGE)
 	docker push $(BATCH_WORKER_IMAGE)
 
-JINJA_ENVIRONMENT = '{"code":{"sha":"$(shell git rev-parse --short=12 HEAD)"},"deploy":$(DEPLOY),"batch_image":{"image":"$(BATCH_IMAGE)"},"batch_worker_image":{"image":"$(BATCH_WORKER_IMAGE)"},"default_ns":{"name":"$(NAMESPACE)"},"batch_database":{"user_secret_name":"sql-batch-user-config"},"global":{"project":"$(PROJECT)","domain":"$(DOMAIN)","k8s_server_url":"$(KUBERNETES_SERVER_URL)"},"scope":"$(SCOPE)"}'
+JINJA_ENVIRONMENT = '{"code":{"sha":"$(shell git rev-parse --short=12 HEAD)"},"deploy":$(DEPLOY),"batch_image":{"image":"$(BATCH_IMAGE)"},"batch_worker_image":{"image":"$(BATCH_WORKER_IMAGE)"},"default_ns":{"name":"$(NAMESPACE)"},"batch_database":{"user_secret_name":"sql-batch-user-config"},"global":{"project":"$(PROJECT)","domain":"$(DOMAIN)","k8s_server_url":"$(KUBERNETES_SERVER_URL)","docker_prefix":"$(DOCKER_PREFIX)"},"scope":"$(SCOPE)"}'
 
 .PHONY: deploy
 deploy: push

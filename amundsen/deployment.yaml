@@ -30,7 +30,7 @@ spec:
 {% endif %}
       containers:
       - name: amundsen-frontend
-        image: gcr.io/{{ global.project }}/amundsendev/amundsen-frontend:2.3.0
+        image: {{ global.docker_prefix }}/amundsendev/amundsen-frontend:2.3.0
         imagePullPolicy: Always
         resources:
           requests:

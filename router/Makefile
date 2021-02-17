@@ -1,7 +1,7 @@
 include ../config.mk
 
-ROUTER_LATEST = gcr.io/$(PROJECT)/router:latest
-ROUTER_IMAGE = gcr.io/$(PROJECT)/router:$(shell docker images -q --no-trunc router | sed -e 's,[^:]*:,,')
+ROUTER_LATEST = $(DOCKER_PREFIX)/router:latest
+ROUTER_IMAGE = $(DOCKER_PREFIX)/router:$(shell docker images -q --no-trunc router | sed -e 's,[^:]*:,,')
 
 .PHONY: build
 build:

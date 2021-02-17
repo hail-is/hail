@@ -57,6 +57,8 @@ gcloud auth login
 gcloud config set project hail-vdc
 gcloud container clusters get-credentials vdc --zone=us-central1-a
 gcloud auth configure-docker
+# If you are using the Artifact Registry:
+# gcloud auth configure-docker $REGION-docker.pkg.dev
 ```
 
 To use BuildKit with Docker for a much faster building experience, add

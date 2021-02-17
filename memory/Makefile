@@ -3,8 +3,8 @@ include ../config.mk
 PYTHONPATH := $${PYTHONPATH:+$${PYTHONPATH}:}../hail/python:../gear
 PYTHON := PYTHONPATH=$(PYTHONPATH) python3
 
-MEMORY_LATEST = gcr.io/$(PROJECT)/memory:latest
-MEMORY_IMAGE = gcr.io/$(PROJECT)/memory:$(shell docker images -q --no-trunc memory | sed -e 's,[^:]*:,,')
+MEMORY_LATEST = $(DOCKER_PREFIX)/memory:latest
+MEMORY_IMAGE = $(DOCKER_PREFIX)/memory:$(shell docker images -q --no-trunc memory | sed -e 's,[^:]*:,,')
 
 .PHONY: check
 check:
@@ -31,5 +31,5 @@ deploy: push
 	! [ -z $(NAMESPACE) ]  # call this like: make deploy NAMESPACE=default
 	kubectl -n $(NAMESPACE) apply -f service-account.yaml
 	python3 ../ci/jinja2_render.py '{"default_ns":{"name":"$(NAMESPACE)"}}' service-account-batch-pods.yaml service-account-batch-pods.yaml.out
-	python3 ../ci/jinja2_render.py '{"code":{"sha":"$(shell git rev-parse --short=12 HEAD)"},"deploy":$(DEPLOY),"memory_image":{"image":"$(MEMORY_IMAGE)"},"global":{"project":"$(PROJECT)","domain":"$(DOMAIN)"}}' deployment.yaml deployment.yaml.out
+	python3 ../ci/jinja2_render.py '{"code":{"sha":"$(shell git rev-parse --short=12 HEAD)"},"deploy":$(DEPLOY),"memory_image":{"image":"$(MEMORY_IMAGE)"},"global":{"docker_prefix":"$(DOCKER_PREFIX)","domain":"$(DOMAIN)"}}' deployment.yaml deployment.yaml.out
 	kubectl -n $(NAMESPACE) apply -f deployment.yaml.out

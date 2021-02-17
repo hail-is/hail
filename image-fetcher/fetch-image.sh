@@ -1,9 +1,11 @@
 #!/bin/sh
 set -e
 
+docker_registry=${DOCKER_PREFIX%%/*}
+
 gcloud_auth() {
     gcloud -q auth activate-service-account --key-file=/secrets/gcr-pull.json && \
-        gcloud -q auth configure-docker gcr.io
+        gcloud -q auth configure-docker "${docker_registry}"
 }
 
 if ! gcloud_auth > gcloud-auth.log 2>&1; then
@@ -29,7 +31,7 @@ echo "Namespace: $DEFAULT_NAMESPACE; Home: $HOME"
 while true; do
     if curl -sSL "https://notebook$NOTEBOOK_BASE_PATH/images" > image-fetch-output.log 2>&1;
     then
-        for image in "gcr.io/$PROJECT/base:latest" \
+        for image in "$DOCKER_PREFIX/base:latest" \
                          gcr.io/google.com/cloudsdktool/cloud-sdk:310.0.0-alpine \
                          $(cat image-fetch-output.log); do
             docker pull "$image" || true

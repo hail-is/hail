@@ -1,4 +1,4 @@
-FROM gcr.io/{{ global.project }}/ubuntu:focal-20201106
+FROM {{ global.docker_prefix }}/ubuntu:focal-20201106
 ENV LANG C.UTF-8
 COPY hail-apt-get-install /bin/hail-apt-get-install
 # We need software-properties-common for add-apt-repository; however, that
