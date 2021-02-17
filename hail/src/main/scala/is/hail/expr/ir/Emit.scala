@@ -1181,7 +1181,6 @@ class Emit[C](
               val leftDataAddress = lPType.dataFirstElementPointer(leftPVal.tcode[Long])
               val rightDataAddress = rPType.dataFirstElementPointer(rightPVal.tcode[Long])
 
-              val answerPArrayAddress = mb.genFieldThisRef[Long]()
               val M = lShape(lPType.nDims - 2)
               val N = rShape(rPType.nDims - 1)
               val K = lShape(lPType.nDims - 1)
@@ -1190,9 +1189,13 @@ class Emit[C](
               val LDB = K
               val LDC = M
 
+              val (answerFirstElementAddr, answerFinisher) = outputPType.constructDataFunction(
+                IndexedSeq(M, N),
+                outputPType.makeColumnMajorStrides(IndexedSeq(M, N), region.code, cb),
+                cb,
+                region.code)
+
               cb.ifx((M cne 0L) && (N cne 0L) && (K cne 0L), {
-                cb.assign(answerPArrayAddress, outputPType.dataType.allocate(region.code, (M * N).toI))
-                cb.append(outputPType.dataType.stagedInitialize(answerPArrayAddress, (M * N).toI))
                 cb.append(lPType.elementType match {
                   case PFloat32(_) =>
                     Code.invokeScalaObject13[String, String, Int, Int, Int, Float, Long, Int, Long, Int, Float, Long, Int, Unit](BLAS.getClass, method = "sgemm",
@@ -1207,7 +1210,7 @@ class Emit[C](
                       rightDataAddress,
                       LDB.toI,
                       0.0f,
-                      outputPType.dataType.firstElementOffset(answerPArrayAddress, (M * N).toI),
+                      answerFirstElementAddr,
                       LDC.toI
                     )
                   case PFloat64(_) =>
@@ -1223,23 +1226,17 @@ class Emit[C](
                       rightDataAddress,
                       LDB.toI,
                       0.0,
-                      outputPType.dataType.firstElementOffset(answerPArrayAddress, (M * N).toI),
+                      answerFirstElementAddr,
                       LDC.toI
                     )
                 })
               },
-                {
-                  cb.assign(answerPArrayAddress, outputPType.dataType.zeroes(mb, region.code, (M * N).toI))
+                { // Fill with zeroes
+                  cb.append(Region.setMemory(answerFirstElementAddr, (M * N) * outputPType.elementType.byteSize, 0.toByte))
                 }
               )
-              val res = outputPType.construct(
-                IndexedSeq(M, N),
-                outputPType.makeColumnMajorStrides(IndexedSeq(M, N), region.code, cb),
-                answerPArrayAddress,
-                cb,
-                region.code)
 
-              res
+              answerFinisher(cb)
             } else {
               val numericElementType = coerce[PNumeric](lPType.elementType)
               val eVti = typeToTypeInfo(numericElementType)
@@ -1541,6 +1538,7 @@ class Emit[C](
           cb.append(infoDGEQRFErrorTest("Failed to compute H and Tau."))
 
           val h = hPType.construct(hShapeArray, hStridesStruct, aAddressDGEQRF, cb, region.code)
+          val hMemo = h.memoize(cb, "ndarray_qr_h_memo")
 
           val result: PCode = if (mode == "raw") {
             val resultType = x.pType.asInstanceOf[PCanonicalBaseStruct]
@@ -1553,7 +1551,7 @@ class Emit[C](
             val tau = tauPType.construct(FastIndexedSeq(K), tauStridesArray, tauAddress, cb, region.code)
 
             resultType.constructFromFields(cb, region.code, FastIndexedSeq(
-              EmitCode.present(cb.emb, h),
+              EmitCode.present(cb.emb, hMemo),
               EmitCode.present(cb.emb, tau)
             ), deepCopy = false)
 
@@ -1576,17 +1574,18 @@ class Emit[C](
 
             // This block assumes that `rDataAddress` and `aAddressDGEQRF` point to column major arrays.
             // TODO: Abstract this into ndarray ptype/pcode interface methods.
-            val currRow = cb.newLocal[Int]("ndarray_qr_currRow")
-            val currCol = cb.newLocal[Int]("ndarray_qr_currCol")
+            val currRow = cb.newLocal[Long]("ndarray_qr_currRow")
+            val currCol = cb.newLocal[Long]("ndarray_qr_currCol")
 
             val curWriteAddress = cb.newLocal[Long]("ndarray_qr_curr_write_addr", rDataAddress)
 
-            cb.forLoop({cb.assign(currCol, 0)}, currCol < rCols.toI, {cb.assign(currCol, currCol + 1)}, {
-              cb.forLoop({cb.assign(currRow, 0)}, currRow < rRows.toI, {cb.assign(currRow, currRow + 1)}, {
+            // I think this just copies out the upper triangle into new ndarray in column major order
+            cb.forLoop({cb.assign(currCol, 0L)}, currCol < rCols, {cb.assign(currCol, currCol + 1L)}, {
+              cb.forLoop({cb.assign(currRow, 0L)}, currRow < rRows, {cb.assign(currRow, currRow + 1L)}, {
                 cb.append(Region.storeDouble(
                   curWriteAddress,
                   (currCol >= currRow).mux(
-                    Region.loadDouble(ndPT.dataType.elementOffset(aAddressDGEQRF, aNumElements.toI, currCol * M.toI + currRow)),
+                    hMemo.loadElement(IndexedSeq(currCol, currRow), cb).asDouble.doubleCode(cb),
                     0.0
                   )
                 ))
