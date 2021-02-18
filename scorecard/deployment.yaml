@@ -34,8 +34,8 @@ spec:
            value: "{{ global.domain }}"
         resources:
           requests:
-            memory: 5Mi
-            cpu: 1m
+            memory: 50Mi
+            cpu: 5m
           limits:
             memory: 3750Mi
             cpu: "1"
