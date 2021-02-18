@@ -218,20 +218,22 @@ object Region {
     false
   }
 
-  def loadPrimitive(typ: PType): Code[Long] => Code[_] = typ.fundamentalType match {
+  def loadPrimitive(typ: PType): Code[Long] => Code[_] = typ match {
     case _: PBoolean => loadBoolean
     case _: PInt32 => loadInt
     case _: PInt64 => loadLong
     case _: PFloat32 => loadFloat
     case _: PFloat64 => loadDouble
+    case _: PCanonicalCall => loadInt
   }
 
-  def storePrimitive(typ: PType, dest: Code[Long]): Code[_] => Code[Unit] = typ.fundamentalType match {
+  def storePrimitive(typ: PType, dest: Code[Long]): Code[_] => Code[Unit] = typ match {
     case _: PBoolean => v => storeBoolean(dest, coerce[Boolean](v))
     case _: PInt32 => v => storeInt(dest, coerce[Int](v))
     case _: PInt64 => v => storeLong(dest, coerce[Long](v))
     case _: PFloat32 => v => storeFloat(dest, coerce[Float](v))
     case _: PFloat64 => v => storeDouble(dest, coerce[Double](v))
+    case _: PCanonicalCall => v => storeInt(dest, coerce[Int](v))
   }
 
   def stagedCreate(blockSize: Size, pool: Code[RegionPool]): Code[Region] =

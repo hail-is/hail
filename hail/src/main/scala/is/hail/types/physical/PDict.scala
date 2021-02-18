@@ -13,8 +13,6 @@ abstract class PDict extends PContainer {
 
   def elementType: PStruct
 
-  def arrayFundamentalType: PArray = fundamentalType.asInstanceOf[PArray]
-
   def codeOrdering(mb: EmitMethodBuilder[_], other: PType): CodeOrdering = {
     assert(other isOfType this)
     CodeOrdering.mapOrdering(this, other.asInstanceOf[PDict], mb)

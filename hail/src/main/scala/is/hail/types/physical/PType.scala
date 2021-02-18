@@ -360,10 +360,6 @@ abstract class PType extends Serializable with Requiredness {
 
   def alignment: Long = byteSize
 
-  /*  Fundamental types are types that can be handled natively by RegionValueBuilder: primitive
-      types, Array and Struct. */
-  def fundamentalType: PType = this
-
   final def unary_+(): PType = setRequired(true)
 
   final def unary_-(): PType = setRequired(false)
@@ -382,15 +378,16 @@ abstract class PType extends Serializable with Requiredness {
   final def isOfType(t: PType): Boolean = this.virtualType == t.virtualType
 
   final def isPrimitive: Boolean =
-    fundamentalType.isInstanceOf[PBoolean] || isNumeric
+    isInstanceOf[PBoolean] || isNumeric
 
   final def isRealizable: Boolean = !isInstanceOf[PUnrealizable]
 
   final def isNumeric: Boolean =
-    fundamentalType.isInstanceOf[PInt32] ||
-      fundamentalType.isInstanceOf[PInt64] ||
-      fundamentalType.isInstanceOf[PFloat32] ||
-      fundamentalType.isInstanceOf[PFloat64]
+    isInstanceOf[PInt32] ||
+      isInstanceOf[PInt64] ||
+      isInstanceOf[PFloat32] ||
+      isInstanceOf[PFloat64] ||
+      isInstanceOf[PCanonicalCall] // :(
 
   def containsPointers: Boolean
 

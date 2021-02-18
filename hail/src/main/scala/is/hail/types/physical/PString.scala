@@ -22,7 +22,6 @@ abstract class PString extends PType {
   }
 
   val binaryRepresentation: PBinary
-  override lazy val fundamentalType: PType = this
 
   def loadLength(boff: Long): Int
 

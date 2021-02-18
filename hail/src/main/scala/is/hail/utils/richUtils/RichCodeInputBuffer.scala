@@ -87,11 +87,12 @@ class RichCodeInputBuffer(
       ib.invoke[Region, Long, Int, Unit]("readBytes", toRegion, toOff, n)
   }
 
-  def readPrimitive(typ: PType): Code[_] = typ.fundamentalType match {
+  def readPrimitive(typ: PType): Code[_] = typ match {
     case _: PBoolean => readBoolean()
     case _: PInt32 => readInt()
     case _: PInt64 => readLong()
     case _: PFloat32 => readFloat()
     case _: PFloat64 => readDouble()
+    case _: PCanonicalCall => readInt()
   }
 }
