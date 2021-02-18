@@ -29,7 +29,6 @@ hail/python/hailtop/batch/docs/api/
 web_common/web_common/static/css/
 website/docs.tar.gz
 website/website/static/css/
-hail/prebuilt/lib/darwin/libboot.dylib
-hail/prebuilt/lib/darwin/libhail.dylib
-query/hail.jar
+*.dylib
+*/hail.jar
 infra/.terraform.lock.hcl
