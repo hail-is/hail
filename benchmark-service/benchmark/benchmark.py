@@ -325,7 +325,7 @@ async def get_commit(app, sha):  # pylint: disable=unused-argument
     title = message_dict['title']
 
     has_results_file = gs_reader.file_exists(file_path)
-    batch_statuses = [b._last_known_status async for b in batch_client.list_batches(q=f'sha={sha}')]
+    batch_statuses = [b._last_known_status async for b in batch_client.list_batches(q=f'sha={sha} user:benchmark')]
     complete_batch_statuses = [bs for bs in batch_statuses if bs['complete']]
     running_batch_statuses = [bs for bs in batch_statuses if not bs['complete']]
 
@@ -410,7 +410,7 @@ async def delete_commit(request):  # pylint: disable=unused-argument
         gs_reader.delete_file(file_path)
         log.info(f'deleted file for sha {sha}')
 
-    async for b in batch_client.list_batches(q=f'sha={sha}'):
+    async for b in batch_client.list_batches(q=f'sha={sha} user:benchmark'):
         await b.delete()
         log.info(f'deleted batch for sha {sha}')
 
