@@ -338,6 +338,14 @@ resource "google_artifact_registry_repository_iam_member" "artifact_registry_pul
   member = "serviceAccount:${google_service_account.gcr_pull.email}"
 }
 
+resource "google_artifact_registry_repository_iam_member" "artifact_registry_batch_agent_viewer" {
+  provider = google-beta
+  repository = google_artifact_registry_repository.repository.name
+  location = var.gcp_location
+  role = "roles/artifactregistry.reader"
+  member = "serviceAccount:${google_service_account.batch_agent.email}"
+}
+
 resource "google_artifact_registry_repository_iam_member" "artifact_registry_ci_viewer" {
   provider = google-beta
   repository = google_artifact_registry_repository.repository.name
