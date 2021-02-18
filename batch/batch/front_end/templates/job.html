@@ -62,6 +62,22 @@
 {% endif %}
 
 <h2>Step Status</h2>
+<section class="progress_bar">
+  {% for step in step_statuses %}
+{% if step %}
+  {% for name, timing in step['timing'].items() %}
+  <div class="main">
+  <div class="bar" style="width:{{timing['duration']/50}}px">
+    <div class="textbox">
+      <div class="mainText"> {{ step['name']}} {{name}}</div>
+      </div>
+  </div>
+  </div>
+  {% endfor %}
+{% endif %}
+{% endfor %}
+</section>
+
 <table class="data-table">
   <thead>
     <tr>
