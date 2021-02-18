@@ -1,4 +1,4 @@
-FROM {{ base_image.image }}
+FROM australia-southeast1-docker.pkg.dev/hail-295901/hail/service-base:latest
 
 RUN hail-apt-get-install build-essential python3-dev
 
@@ -9,7 +9,7 @@ COPY hail/python/setup-hailtop.py /hailtop/setup.py
 COPY hail/python/hailtop /hailtop/hailtop/
 COPY hail/Makefile hail/env_var.mk hail/
 RUN mkdir -p hail/python/hail hail/python/hailtop/hailctl hail/python/hail/docs/_static && \
-    make -C hail python-version-info && \
+    (cd hail && echo $(pwd) && make python-version-info) && \
     rm hail/Makefile hail/env_var.mk
 RUN hail-pip-install /hailtop && rm -rf /hailtop
 

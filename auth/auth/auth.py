@@ -561,7 +561,10 @@ WHERE users.state = 'active' AND (sessions.session_id = %s) AND (ISNULL(sessions
 
 @routes.get('/api/v1alpha/version')
 async def rest_get_version(request):  # pylint: disable=W0613
-    return version()
+    try:
+        return web.Response(text=version())
+    except Exception as e:
+        return web.json_response({"error": str(e)})
 
 
 async def on_startup(app):
