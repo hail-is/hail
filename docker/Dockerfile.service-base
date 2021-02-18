@@ -7,10 +7,11 @@ RUN hail-pip-install -r service-base-requirements.txt
 
 COPY hail/python/setup-hailtop.py /hailtop/setup.py
 COPY hail/python/hailtop /hailtop/hailtop/
-COPY hail/Makefile hail/env_var.mk hail/
-RUN mkdir -p hail/python/hail hail/python/hailtop/hailctl hail/python/hail/docs/_static && \
-    (cd hail && echo $(pwd) && make python-version-info) && \
-    rm hail/Makefile hail/env_var.mk
+COPY hail/Makefile hail/env_var.mk .git/ hailtop/
+RUN mkdir -p hailtop/python/hail hailtop/python/hailtop/hailctl hailtop/python/hail/docs/_static && \
+    (cd hailtop && echo $(pwd) && make python-version-info) && \
+    cp hailtop/python/hail/hail_*version hailtop/hailtop/hailctl && \
+    rm -rf hailtop/Makefile hailtop/env_var.mk .git/
 RUN hail-pip-install /hailtop && rm -rf /hailtop
 
 COPY gear/setup.py /gear/setup.py
