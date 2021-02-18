@@ -5,6 +5,7 @@ import pytest
 import secrets
 from hailtop.auth import session_id_encode_to_str
 from hailtop.batch_client.aioclient import BatchClient
+from hailtop.utils import secret_alnum_string
 
 pytestmark = pytest.mark.asyncio
 
@@ -31,12 +32,31 @@ async def dev_client():
     await bc.close()
 
 
+def get_billing_project_prefix():
+    return f'__testproject_{os.environ["HAIL_TOKEN"]}'
+
+
+async def delete_all_test_billing_projects():
+    billing_project_prefix = get_billing_project_prefix()
+    bc = BatchClient(None, token_file=os.environ['HAIL_TEST_DEV_TOKEN_FILE'])
+    try:
+        for project in await bc.list_billing_projects():
+            if project['billing_project'].startswith(billing_project_prefix):
+                try:
+                    await bc.close_billing_project(project['billing_project'])
+                finally:
+                    await bc.delete_billing_project(project['billing_project'])
+    finally:
+        await bc.close()
+
+
 @pytest.fixture(scope='module')
 def get_billing_project_name():
-    prefix = f'__testproject_{os.environ["HAIL_TOKEN"]}'
+    billing_project_prefix = get_billing_project_prefix()
+    attempt_prefix = f'{billing_project_prefix}_{secret_alnum_string(5)}'
     projects = []
     def get_name():
-        name = f'{prefix}_{len(projects)}'
+        name = f'{attempt_prefix}_{len(projects)}'
         projects.append(name)
         return name
     return get_name
