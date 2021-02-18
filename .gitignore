@@ -24,7 +24,6 @@ hs_err_pid*.log
 GPATH
 GRTAGS
 GTAGS
-hail/prebuilt/lib/darwin/libboot.dylib
-hail/prebuilt/lib/darwin/libhail.dylib
-query/hail.jar
+*.dylib
+*/hail.jar
 infra/.terraform.lock.hcl
