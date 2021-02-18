@@ -1078,14 +1078,15 @@ class Emit[C](
       case x@MakeNDArray(dataIR, shapeIR, rowMajorIR) =>
         val xP = coerce[PCanonicalNDArray](x.pType)
         val shapePType = coerce[PTuple](shapeIR.pType)
-        val dataPType = xP.dataType
         val nDims = shapePType.size
 
         emitI(rowMajorIR).flatMap(cb) { isRowMajorCode =>
           emitI(shapeIR).flatMap(cb) { case shapeTupleCode: PBaseStructCode =>
             emitI(dataIR).map(cb) { case dataCode: PIndexableCode =>
               val shapeTupleValue = shapeTupleCode.memoize(cb, "make_ndarray_shape")
-              val requiredData = dataPType.store(cb, region.code, dataCode, false)
+              val memoData = dataCode.memoize(cb, "make_nd_array_memoizd_data")
+
+              cb.ifx(memoData.hasMissingValues(cb), {cb._fatal("Cannot construct an ndarray with missing values.")})
 
               (0 until nDims).foreach { index =>
                 cb.ifx(shapeTupleValue.isFieldMissing(index),
@@ -1111,7 +1112,7 @@ class Emit[C](
                 }
               })
 
-              xP.constructByCopyingArray(shapeValues, stridesSettables, requiredData, cb, region.code)
+              xP.constructByCopyingArray(shapeValues, stridesSettables, memoData.asPCode.tcode[Long], cb, region.code)
             }
           }
         }
