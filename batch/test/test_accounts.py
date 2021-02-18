@@ -41,11 +41,11 @@ async def delete_all_test_billing_projects():
     bc = BatchClient(None, token_file=os.environ['HAIL_TEST_DEV_TOKEN_FILE'])
     try:
         for project in await bc.list_billing_projects():
-            if project['name'].startswith(billing_project_prefix):
+            if project['billing_project'].startswith(billing_project_prefix):
                 try:
-                    await bc.close_billing_project(project['name'])
+                    await bc.close_billing_project(project['billing_project'])
                 finally:
-                    await bc.delete_billing_project(project['name'])
+                    await bc.delete_billing_project(project['billing_project'])
     finally:
         await bc.close()
 
