@@ -430,3 +430,37 @@ pre {
   word-wrap: normal;
   white-space: pre;
 }
+
+//Progress bar css
+
+div {
+  display: inline-block;
+  margin: 0;
+}
+.textbox {
+  display: none;
+}
+.caret {
+  display: none;
+}
+.bar:hover .caret {
+  position: absolute;
+  display: block;
+  width: 20px;
+  height: 20px;
+  background-color: #fff;
+  border: 1px solid black;
+  transform: rotate(45deg);
+top: 35px;
+}
+.bar:hover .textbox {
+  display: block;
+  background-color: #fff;
+  border: 1px solid black;
+  position: absolute;
+  margin-top: 10px;
+  padding: 9px;
+}
+.main .bar {
+  border-top: 20px solid blue;
+}
