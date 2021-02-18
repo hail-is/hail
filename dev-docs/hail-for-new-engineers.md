@@ -1,14 +1,60 @@
 # Hail for New Engineers
 
-This document introduces the entire Hail project to software engineers. We assume no previous
-knowledge of Hail.
+Hail exists to accelerate research on the genetics of human disease. We originally focused on the
+needs of statistical geneticists working with very large human genetic datasets. These datasets
+motivated the "Hail Query" project, which we describe later.
+
+## Genetics, Briefly
+
+Hail team is a part of Ben Neale's lab which is part of the Analytical and Translational Genetics
+Unit (ATGU) at the Massachusetts General Hospital (MGH) and part of the Stanley Center (SC) at the
+Broad Institute (Broad). Ben's lab studies, among other things, [statistical
+genetics](https://en.wikipedia.org/wiki/Statistical_genetics) (statgen). The Broad Institute's
+self-description, which follows, highlights a different field of study: genomics.
+
+> [The] Broad Institute of MIT and Harvard was launched in 2004 to improve human health by using
+> genomics to advance our understanding of the biology and treatment of human disease, and to help
+> lay the groundwork for a new generation of therapies.
+
+Genetics and genomics may seem similar to a software engineer's ear; however, genetics is the study
+of heredity whereas genomics is the study of the genome.[^1] The [history of
+genetics](https://en.wikipedia.org/wiki/History_of_genetics) is deeply intertwined with statistics
+which perhaps explains some of the distinction from genomics whose history lies more firmly in
+biology.
+
+The history of genetics is also deeply intertwined with
+[eugenics](https://en.wikipedia.org/wiki/History_of_eugenics) and
+[racism](https://en.wikipedia.org/wiki/Scientific_racism). Sadly, this continues today (see: [James
+Watson](https://en.wikipedia.org/wiki/James_Watson)). The team Zulip channel and private messages
+are both valid forums for discussing these issues.
+
+The Neale Lab manifests the Broad's credo by studying the relationship between human disease and
+human genetics. This is sometimes called "genetic epidemiology". One common
+statistical-epidemiological study design is the case-control study. A case-control study involves
+two groups of people. The "case" group has been diagnosed with the disease. The "control" group has
+not. We collect genetic material from both groups and search for a correlation between the material
+and the groups.
+
+There is at least one successful example of genetic studies leading to the development of a drug:
+the discovery of PCSK9. In 2013, the New York Times [reported on the
+discovery](https://www.nytimes.com/2013/07/10/health/rare-mutation-prompts-race-for-cholesterol-drug.html)
+of an association between mutations in the PCSK9 gene and high levels of LDL cholesterol. By 2017,
+[further
+studies](https://www.nytimes.com/2017/03/17/health/cholesterol-drugs-repatha-amgen-pcsk9-inhibitors.html)
+demonstrated *remarkable* reduction in LDL cholesterol levels. Unfortunately, as late as 2020, these
+drugs [remain extraordinarily
+expensive](https://www.nytimes.com/2018/10/02/health/pcsk9-cholesterol-prices.html).
 
 ## A Brief History
 
-The Hail project started in 2015 to facilitate the interactive analysis of large human genetic
-datasets. Hail was a command-line program that used Apache Spark to run analysis on partitioned
-genetic datasets simultaneously using hundreds of computer cores. To use Hail, a user needs an
-Apache Spark cluster. Most Hail users use Google Dataproc Spark clusters.
+Around 2015, human genetic datasets had grown so large that analysis on a single computer was
+prohibitively time-consuming. Moreover, partitioning the dataset and analyzing each partition
+separately necessitated increasingly complex software engineering. We started the Hail project to
+re-enable simple and interactive (i.e. fast) analysis of these large datasets.
+
+Hail was a command-line program that used Apache Spark to run analysis on partitioned genetic
+datasets simultaneously using hundreds of computer cores. To use Hail, a user needs an Apache Spark
+cluster. Most Hail users use Google Dataproc Spark clusters.
 
 The essential feature of a human genetic dataset is a two-dimensional matrix of human
 genotypes. Every genotype has the property "number of alternate alleles". This property allows a
@@ -29,10 +75,10 @@ python package version complies with [Semantic Versioning](https://semver.org).
 
 Meanwhile, in September of 2018, Hail team began work on a system called "Batch". Batch runs
 programs in parallel on a cluster of virtual machines. Also in September, Hail team began work on a
-system called "CI". CI is an acronym for Continuous Integration. CI runs the tests for every pull
-request (PR) into the `main` branch of [`hail-is/hail`](https://github.com/hail-is/hail). CI
-automatically merges into main any pull request that both passes the tests and has at least one
-"approving" review and no "changes requested" reviews. CI uses Hail Batch to run the tests.
+system called "CI" (Continuous Integration). CI runs the tests for every pull request (PR) into the
+`main` branch of [`hail-is/hail`](https://github.com/hail-is/hail). CI automatically merges into
+main any pull request that both passes the tests and has at least one "approving" review and no
+"changes requested" reviews. CI uses Hail Batch to run the tests.
 
 Around this time, the Hail team organized itself into two sub-teams: "compilers" team and "services"
 team. The compilers team is responsible for the Hail Python library, the compiler, and the
@@ -47,12 +93,6 @@ Beginning in early 2020, beta users were given access to Hail Batch.
 In April of 2020, the Hail team began referring to the Hail python library as "Hail Query" and
 created a system called "the Query Service". Inside the Hail Query Service, Hail Query uses Hail
 Batch to run an analysis across many computer cores instead of using Apache Spark.
-
-## Project Goals
-
-Hail exists to accelerate research on the genetics of human disease. We originally focused on the
-needs of statistical geneticists working with very large datasets of human genetic sequences. This
-project lead to the development of Hail Query.
 
 ## Hail Products, Briefly
 
@@ -147,44 +187,5 @@ cluster through the gateway which routes traffic to the appropriate namespace an
 traffic from the Batch workers enters through the internal-gateway. The router-resolver assists the
 gateway in routing.
 
-## Genetics, Briefly
 
-Hail team is a part of Ben Neale's lab which is part of the Analytical and Translational Genetics
-Unit (ATGU) at the Massachusetts General Hospital (MGH) and part of the Stanley Center (SC) at the
-Broad Institute (Broad). Ben's lab studies, among other things, [statistical
-genetics](https://en.wikipedia.org/wiki/Statistical_genetics) (statgen). The Broad Institute's
-self-description, which follows, highlights a different field of study: genomics.
-
-> [The] Broad Institute of MIT and Harvard was launched in 2004 to improve human health by using
-> genomics to advance our understanding of the biology and treatment of human disease, and to help
-> lay the groundwork for a new generation of therapies.
-
-Genetics and genomics may seem similar to a software engineer's ear; however, [they are quite
-different](https://www.who.int/genomics/geneticsVSgenomics/en/). Genetics is the study of heredity
-whereas genomics is the study of the genome. The [history of
-genetics](https://en.wikipedia.org/wiki/History_of_genetics) is deeply intertwined with statistics
-which perhaps explains some of the distinction from genomics whose history lies more firmly in
-biology.
-
-The history of genetics is also deeply intertwined with
-[eugenics](https://en.wikipedia.org/wiki/History_of_eugenics) and
-[racism](https://en.wikipedia.org/wiki/Scientific_racism). Sadly, this continues today (see: [James
-Watson](https://en.wikipedia.org/wiki/James_Watson)). The team Zulip channel and private messages
-are both valid forums for discussing these issues.
-
-The Neale Lab manifests the Broad's credo by studying the relationship between human disease and
-human genetics. This is sometimes called "genetic epidemiology". One common
-statistical-epidemiological study design is the case-control study. A case-control study involves
-two groups of people: the "case" group has been diagnosed with the disease and the "control" group
-has not. We collect genetic material from both groups and search for a correlation between the
-material and the groups.
-
-There is at least one successful example of genetic studies leading to the development of a drug:
-the discovery of PCSK9. In 2013, the New York Times [reported on the
-discovery](https://www.nytimes.com/2013/07/10/health/rare-mutation-prompts-race-for-cholesterol-drug.html)
-of an association between mutations in the PCSK9 gene and high levels of LDL cholesterol. By 2017,
-[further
-studies](https://www.nytimes.com/2017/03/17/health/cholesterol-drugs-repatha-amgen-pcsk9-inhibitors.html)
-demonstrated *remarkable* reduction in LDL cholesterol levels. Unfortunately, as late as 2020, these
-drugs [remain extraordinarily
-expensive](https://www.nytimes.com/2018/10/02/health/pcsk9-cholesterol-prices.html).
+[^1]: https://www.who.int/genomics/geneticsVSgenomics/en/
