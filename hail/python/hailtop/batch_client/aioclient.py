@@ -606,7 +606,7 @@ class BatchClient:
         self.url = deploy_config.base_url('batch')
 
         if session is None:
-            session = client_session()
+            session = client_session(timeout=aiohttp.ClientTimeout(60))
         self._session = session
 
         h: Dict[str, str] = {}

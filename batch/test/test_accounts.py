@@ -421,6 +421,7 @@ async def test_billing_limit_tiny(make_client, dev_client, new_billing_project):
 
 
 async def search_batches(client, expected_batch_id, q):
+    print(expected_batch_id, q)
     found = False
     batches = [batch async for batch in client.list_batches(q=q)]
     for batch in batches:
