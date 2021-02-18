@@ -441,12 +441,14 @@ class DownsampleState(val kb: EmitClassBuilder[_], labelType: VirtualTypeWithReq
   def insert(cb: EmitCodeBuilder, x: EmitCode, y: EmitCode, l: EmitCode): Unit = {
     val name = "downsample_insert"
     val mb = kb.getOrGenEmitMethod(name, (this, name), FastIndexedSeq[ParamType](x.pv.st.pType.asParam, y.pv.st.pType.asParam, EmitParamType(l.pv.st.pType)), UnitInfo) { mb =>
-      val x = mb.getPCodeParam(1)
-      val y = mb.getPCodeParam(2)
-      val l = mb.getEmitParam(3)
 
       val pointStaging = mb.newLocal[Long]("pointStaging")
       mb.voidWithBuilder { cb =>
+        val x = mb.getPCodeParam(1)
+          .memoize(cb, "downsample_insert_x")
+        val y = mb.getPCodeParam(2)
+          .memoize(cb, "downsample_insert_y")
+        val l = mb.getEmitParam(3)
 
         def xx = x.asDouble.doubleCode(cb)
 

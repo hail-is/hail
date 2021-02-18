@@ -71,7 +71,6 @@ final case class EBaseStruct(fields: IndexedSeq[EField], override val required: 
   }
 
   override def _buildEncoder(cb: EmitCodeBuilder, v: PValue, out: Value[OutputBuffer]): Unit = {
-
     val structValue = v.st match {
       case SIntervalPointer(t: PCanonicalInterval) => new SBaseStructPointerSettable(
         SBaseStructPointer(t.representation),
@@ -120,7 +119,10 @@ final case class EBaseStruct(fields: IndexedSeq[EField], override val required: 
     // Write fields
     fields.foreach { ef =>
       structValue.loadField(cb, ef.name).consume(cb,
-        {}, /* do nothing */
+        {
+          if (ef.typ.required)
+            cb._fatal(s"required field ${ ef.name } saw missing value in encode")
+        },
         { _pc =>
           val pc = _pc.asPCode
           ef.typ.buildEncoder(pc.st, cb.emb.ecb)
@@ -131,7 +133,7 @@ final case class EBaseStruct(fields: IndexedSeq[EField], override val required: 
 
   override def _buildDecoder(cb: EmitCodeBuilder, t: Type, region: Value[Region], in: Value[InputBuffer]): PCode = {
     val pt = decodedPType(t)
-    val addr = cb.newLocal[Long]("base_struct_dec_addr", region.allocate(pt.byteSize, pt.alignment))
+    val addr = cb.newLocal[Long]("base_struct_dec_addr", region.allocate(pt.alignment, pt.byteSize))
     _buildInplaceDecoder(cb, pt, region, addr, in)
     pt.loadCheapPCode(cb, addr)
   }

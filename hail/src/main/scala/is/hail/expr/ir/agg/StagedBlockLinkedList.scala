@@ -77,12 +77,10 @@ class StagedBlockLinkedList(val elemType: PType, val kb: EmitClassBuilder[_]) {
     Region.storeAddress(nodeType.fieldOffset(n, "next"), nNext)
 
   private def initNode(n: Node, buf: Code[Long], count: Code[Int]): Code[Unit] =
-    Code.memoize(n, "sbll_init_node_n") { n =>
-      Code(
-        Region.storeAddress(nodeType.fieldOffset(n, "buf"), buf),
-        Region.storeInt(nodeType.fieldOffset(n, "count"), count),
-        Region.storeAddress(nodeType.fieldOffset(n, "next"), nil))
-    }
+    Code(
+      Region.storeAddress(nodeType.fieldOffset(n, "buf"), buf),
+      Region.storeInt(nodeType.fieldOffset(n, "count"), count),
+      Region.storeAddress(nodeType.fieldOffset(n, "next"), nil))
 
   private def pushPresent(cb: EmitCodeBuilder, n: Node)(store: (EmitCodeBuilder, Code[Long]) => Unit): Unit = {
     cb += bufferType.setElementPresent(buffer(n), count(n))
@@ -229,6 +227,7 @@ class StagedBlockLinkedList(val elemType: PType, val kb: EmitClassBuilder[_]) {
         appendShallow(cb, r, dec(cb, r, ib))
       })
     }
+    cb.invokeVoid(desF, region, inputBuffer)
   }
 
   private def appendShallow(cb: EmitCodeBuilder, r: Code[Region], aCode: PCode): Unit = {

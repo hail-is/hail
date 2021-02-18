@@ -34,7 +34,6 @@ final case class EArray(val elementType: EType, override val required: Boolean =
 
     cb += out.writeInt(prefixLen)
 
-
     value.st match {
       case s@SIndexablePointer(_: PCanonicalArray | _: PCanonicalSet | _:PCanonicalDict)
         if s.pType.elementType.required == elementType.required =>
@@ -72,9 +71,12 @@ final case class EArray(val elementType: EType, override val required: Boolean =
     }
 
     cb.forLoop(cb.assign(i, 0), i < prefixLen, cb.assign(i, i + 1), {
-      value.loadElement(cb, i).consume(cb, { /* do nothing */ }, { pc =>
+      value.loadElement(cb, i).consume(cb, {
+        if (elementType.required)
+          cb._fatal(s"required array element saw missing value at index ", i.toS, " in encode")
+      }, { pc =>
         elementType.buildEncoder(pc.st, cb.emb.ecb)
-            .apply(cb, pc, out)
+          .apply(cb, pc, out)
       })
     })
   }

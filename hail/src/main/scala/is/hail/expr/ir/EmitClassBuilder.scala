@@ -998,7 +998,7 @@ class EmitMethodBuilder[C](
     }
   }
 
-  def getPCodeParam(emitIndex: Int): PValue = {
+  def getPCodeParam(emitIndex: Int): PCode = {
     assert(mb.isStatic || emitIndex != 0)
     val static = (!mb.isStatic).toInt
     val _pt = emitParamTypes(emitIndex - static).asInstanceOf[PCodeParamType].pt
@@ -1007,9 +1007,9 @@ class EmitMethodBuilder[C](
     val ts = _pt.codeTupleTypes()
     val codeIndex = emitParamCodeIndex(emitIndex - static)
 
-    _pt.sType.fromSettables(ts.zipWithIndex.map { case (t, i) =>
-      mb.getArg(codeIndex + i)(t)
-    }).asPValue
+    _pt.sType.fromCodes(ts.zipWithIndex.map { case (t, i) =>
+      mb.getArg(codeIndex + i)(t).load()
+    }).asPCode
   }
 
   def getEmitParam(emitIndex: Int): EmitValue = {
