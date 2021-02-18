@@ -53,6 +53,8 @@
 	  <tr>
 	    <th>ID</th>
 	    <th>Name</th>
+	    <th>User</th>
+	    <th>Billing Project</th>
 	    <th>Submitted</th>
 	    <th>Completed</th>
 	    <th>State</th>
@@ -74,6 +76,8 @@
 	      {{ batch['attributes']['name'] }}
 	      {% endif %}
 	    </td>
+	    <td>{{ batch['user'] }}</td>
+	    <td>{{ batch['billing_project'] }}</td>
 	    <td>
 	      {% if 'time_closed' in batch and batch['time_closed'] is not none %}
 	      {{ batch['time_closed'] }}
