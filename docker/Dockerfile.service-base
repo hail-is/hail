@@ -1,4 +1,4 @@
-FROM australia-southeast1-docker.pkg.dev/hail-295901/hail/service-base:latest
+FROM {{ base_image.image }}
 
 RUN hail-apt-get-install build-essential python3-dev
 
