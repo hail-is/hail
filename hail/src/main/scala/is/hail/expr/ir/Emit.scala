@@ -765,12 +765,11 @@ class Emit[C](
         presentC(m)
 
       case Coalesce(values) =>
-        val missing = cb.newLocal[Boolean]("coalesce_missing")
         val coalescedValue = mb.newPLocal("coalesce_value", pt)
 
         val emittedValues = values.map(v => EmitCode.fromI(cb.emb)(cb => emitInNewBuilder(cb, v)))
         val Ldefined = CodeLabel()
-        val Lend = CodeLabel()
+        val Lmissing = CodeLabel()
 
         emittedValues.foreach { value =>
           value.toI(cb).consume(cb,
@@ -781,15 +780,9 @@ class Emit[C](
             })
         }
 
-        // base case
-        cb.assign(missing, true)
-        cb.goto(Lend)
+        cb.goto(Lmissing)
 
-        cb.define(Ldefined)
-        cb.assign(missing, false)
-        cb.define(Lend)
-
-        IEmitCode(cb, missing, coalescedValue.load())
+        IEmitCode(Lmissing, Ldefined, coalescedValue.load())
 
       case If(cond, cnsq, altr) =>
         assert(cnsq.typ == altr.typ)
@@ -799,25 +792,27 @@ class Emit[C](
           val codeCnsq = EmitCode.fromI(cb.emb)(cb => emitInNewBuilder(cb, cnsq))
           val codeAltr = EmitCode.fromI(cb.emb)(cb => emitInNewBuilder(cb, altr))
 
-          val b = cb.newLocal[Boolean]("if_m", false)
+          val Lmissing = CodeLabel()
+          val Ldefined = CodeLabel()
           val out = mb.newPLocal(pt)
           cb.ifx(condValue.asBoolean.boolCode(cb), {
             codeCnsq.toI(cb).consume(cb,
               {
-                cb.assign(b, true)
+                cb.goto(Lmissing)
               }, {sc =>
                 cb.assign(out, sc.castTo(cb, region.code, pt))
               })
           }, {
             codeAltr.toI(cb).consume(cb,
               {
-                cb.assign(b, true)
+                cb.goto(Lmissing)
               }, {sc =>
                 cb.assign(out, sc.castTo(cb, region.code, pt))
               })
           })
+          cb.goto(Ldefined)
 
-          IEmitCode(cb, b, out.load())
+          IEmitCode(Lmissing, Ldefined, out.load())
         }
 
       case x@MakeStruct(fields) =>

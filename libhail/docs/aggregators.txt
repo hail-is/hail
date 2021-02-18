@@ -1,0 +1,174 @@
+The describe the design for aggregators.
+
+The state of an aggregator, created by RunAgg and manipulated by
+InitOp, SeqOp, etc. will be called an *aggstate*.  An aggstate isn't
+or doesn't necessarily correspond to a Hail value, although it can be
+converted to one with AggStateValue.  Interacting with aggstates is
+done through dedicated IRs like SeqOp, AggStateValue, etc.
+
+First, I will focus on code generation and the structure of the IR
+when code is generated.  The motivation for the design was:
+
+ - Preserve the parts of the current design that are working (mainly,
+   the IRs for manipulating aggstates like InitOp and SeqOp, etc.)
+
+ - Hide the implementation details of aggregators from the level of
+   the IR.  In particular, there should be no mention of PhysicalBlah
+   or TypesWithRequiredness.
+
+ - When you need something in the course of generating code for
+   aggregators, the thing you need should be in the place where you
+   need it.
+
+To begin, we promote AggStateSig and related structures to types, with
+base class AggStateType:
+
+  class AggStateType : public Type {
+    AggStateType();
+
+    const Type *get_value_type();
+    generator<const Type *> get_init_parameter_types();
+    generator<const Type *> get_seq_parameter_types();
+    const Type *get_result_type();
+  }
+
+  class LinearRegressionStateType : public AggStateType {
+    // has no parameters
+    LinearRegressionStateType();
+  };
+
+  class TakeStateType : public AggStateType {
+    TakeStateType(const Type *element_type);
+  };
+
+  class GroupByStateType : public AggStateType {
+    GroupByStateType(const Type *key_type,
+    	             const AggStateType *value_aggstate_type);
+  };
+
+Aggstate types are unrealizable and they do not mention requiredness.
+There is one aggstate type class for each aggregator.
+
+There are two ways of obtaining aggstates: referencing one of the
+aggstates defined at the toplevel (referenced by number in the current
+code), or obtaining an aggstate from a compound aggregator.  Thus, we
+add the following additional IRs for working with aggstate:
+
+  class AggStateRef : public IR {
+    AggStateRef(size_t index);
+  };
+
+  class GroupByStateRef : public IR {
+    GroupByStateRef(IR *aggstate,
+                    IR *key);
+  };
+
+aggstate is the GroupBy's own aggstate.  GroupByStateRef's result is
+the aggstate for key.
+
+RunAgg still manages aggstates and wraps the aggregation process.  It
+look like:
+
+  class RunAgg : public IR {
+    RunAgg(std::vector<AggStateType> signatures,
+	   IR *body,
+	   IR *result);
+  };
+
+There are several IR nodes for interacting with aggstates.  They are
+mostly unchanged, except they now take an `IR *aggstate` instead of an
+integer to refer to the aggstate.
+
+ - InitOp.  InitOp initializes and allocated but uninitialized empty
+   agg state.
+
+  class InitOp : public IR {
+    InitOp(IR *aggstate,
+	   std::vector<IR *> init_args);
+  };
+
+Note, none of these classes have anything that corresponds to
+PhysicalAggSig (which obviously shouldn't belong at the level of the
+IR).
+
+ - InitFromValue.
+
+  class InitFromValue : public IR {
+    InitFromValue(IR *aggstate, *R *aggstate_value);
+  };
+
+Only toplevel aggregators need to be initialized.  Compound
+aggregators are responsible for initializing aggstates that they
+create.  This means that the InitOp for GroupBy(AggX) needs to take
+the InitOp arguments for AggX since it will create instances of AggX's
+aggstate.
+
+ - SeqOp.
+
+  class SeqOp : public IR {
+    SeqOp(IR *aggstate, std::vector<IR *> args);
+  };
+
+ - CombOp.
+
+  class CombOp : public IR {
+    SeqOp(IR *aggstate, IR *src_aggstate);
+  };
+
+ - CombOpValue.
+
+  class ResultOp : public IR {
+    SeqOp(IR *aggstate, IR *aggstate_value);
+  };
+
+ - ResultOp.
+
+  class ResultOp : public IR {
+    SeqOp(IR *aggstate);
+  };
+
+ - AggStateValue.  Converts an aggstate to a Hail value.
+
+  class ResultOp : public IR {
+    SeqOp(IR *aggstate);
+  };
+
+I think of RunAgg as creating (and then cleaning up) a scope of
+aggstates, and managing the aggregation process by running the body
+and result IR.  The signatures are the types of the aggstates bound in
+the scope.
+
+This perspective can be generalized to TableAggregate, allowing us to
+get rid of ApplyAggOp and giving a uniform treatment of aggregators in
+the IR.
+
+Relational nodes that perform aggregations also introduce aggregations
+scopes.  TableAggregate now looks like:
+
+  class TableAggregate {
+    std::vector<const AggStateType *> signatures;
+    TableAggregate(TableIR *table,
+                   IR *init,
+		   IR *body,
+		   IR *result);
+  };
+
+`init` has type void, and is run once to on the master to initialize
+the aggstates.  body also has type void, and is executed once per row
+of the input table.  The result of the `TableAggregate` is the result
+of evaluating `result`.
+
+The code generator for allocators will have the following functions:
+ - allocate: Allocate a new aggstate.
+ - init
+ - init_from_value
+ - sequence
+ - combine
+ - combine_value
+ - get_result
+ - get_value
+ - destroy: clean up aggstate, for example, free memory managed by the
+   aggstate.
+
+Usurprisingly, these are essentially in one to one correspondence with
+the IR for interacting with aggstates.

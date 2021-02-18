@@ -11,7 +11,7 @@ import org.json4s.jackson.{JsonMethods, Serialization}
 
 object Pretty {
 
-  def short(ir: BaseIR, elideLiterals: Boolean = false, maxLen: Int = 100): String = {
+  def short(ir: BaseIR, elideLiterals: Boolean = true, maxLen: Int = 100): String = {
     val s = Pretty(ir, elideLiterals = elideLiterals, maxLen = maxLen)
     if (s.length < maxLen) s else s.substring(0, maxLen) + "..."
   }

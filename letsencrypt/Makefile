@@ -21,7 +21,8 @@ start-service:
 DRY_RUN ?= false
 run: push
 	python3 ../ci/jinja2_render.py '{"domain":"$(DOMAIN)"}' domains.txt domains.txt.out
-	python3 ../ci/jinja2_render.py '{"letsencrypt_image":{"image":"$(LETSENCRYPT_IMAGE)"},"domain":"$(DOMAIN)","domains":"$(shell paste -s -d, domains.txt.out)","dry_run":$(DRY_RUN)}' letsencrypt-pod.yaml letsencrypt-pod.yaml.out
+	python3 ../ci/jinja2_render.py '{"letsencrypt_image":{"image":"$(LETSENCRYPT_IMAGE)"},"domain":"$(DOMAIN)","domains":"'$$(paste -s -d, domains.txt.out)'","dry_run":$(DRY_RUN)}' letsencrypt-pod.yaml letsencrypt-pod.yaml.out
+	/bin/bash run-letsencrypt.sh
 
 .PHONY: clean
 clean:

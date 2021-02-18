@@ -674,6 +674,11 @@ class BatchClient:
             f'/api/v1alpha/batches/{batch_id}/jobs/{job_id}/log')
         return await resp.json()
 
+    async def get_job_attempts(self, batch_id, job_id):
+        resp = await self._get(
+            f'/api/v1alpha/batches/{batch_id}/jobs/{job_id}/attempts')
+        return await resp.json()
+
     async def get_batch(self, id):
         b_resp = await self._get(f'/api/v1alpha/batches/{id}')
         b = await b_resp.json()
