@@ -1964,6 +1964,8 @@ steps:
       script: /io/sql/add-job-private-inst-coll.sql
     - name: insert-nonpreemptible-resources
       script: /io/sql/insert_nonpreemptible_resources.py
+    - name: fix-schedule-job
+      script: /io/sql/fix-schedule-job.sql
    inputs:
     - from: /repo/batch/sql
       to: /io/

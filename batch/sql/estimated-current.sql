@@ -926,8 +926,7 @@ BEGIN
   INTO cur_job_state, cur_cores_mcpu, cur_attempt_id, cur_job_cancel
   FROM jobs
   INNER JOIN batches ON batches.id = jobs.batch_id
-  WHERE batch_id = in_batch_id AND batches.`state` = 'running'
-    AND job_id = in_job_id
+  WHERE batch_id = in_batch_id AND job_id = in_job_id
   FOR UPDATE;
 
   SELECT is_pool
