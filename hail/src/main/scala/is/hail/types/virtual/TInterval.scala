@@ -3,11 +3,15 @@ package is.hail.types.virtual
 import is.hail.annotations.{Annotation, ExtendedOrdering}
 import is.hail.check.Gen
 import is.hail.types.physical.PInterval
+import is.hail.types.virtual.TCall.representation
 import is.hail.utils.{FastSeq, Interval}
 
 import scala.reflect.{ClassTag, classTag}
 
 case class TInterval(pointType: Type) extends Type {
+
+  override def fundamentalType: Type = representation.fundamentalType
+
   override def children = FastSeq(pointType)
 
   def _toPretty = s"""Interval[$pointType]"""
