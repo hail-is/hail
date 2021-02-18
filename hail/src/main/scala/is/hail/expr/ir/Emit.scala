@@ -2098,21 +2098,6 @@ class Emit[C](
     def emitStream(ir: IR, outerRegion: ParentStagedRegion): EmitCode =
       EmitStream.emit(this, ir, mb, outerRegion, env, container)
 
-    def emitNDArrayColumnMajorStrides(ir: IR): EmitCode = {
-      EmitCode.fromI(mb) { cb =>
-        emit(ir).toI(cb).map(cb) { case pNDCode: PNDArrayCode =>
-          val pNDValue = pNDCode.memoize(cb, "ndarray_column_major_check")
-          val isColumnMajor = LinalgCodeUtils.checkColumnMajor(pNDValue, cb)
-          val pAnswer = cb.emb.newPField("ndarray_output_column_major", pNDValue.pt)
-          cb.ifx(isColumnMajor, {cb.assign(pAnswer, pNDValue) },
-            {
-              cb.assign(pAnswer, LinalgCodeUtils.createColumnMajorCode(pNDValue, cb, region.code))
-            })
-          pAnswer
-        }
-      }
-    }
-
     val pt = ir.pType
 
     // ideally, emit would not be called with void values, but initOp args can be void
