@@ -89,12 +89,16 @@ async def dev_deploy_branch(request, userdata):
         branch = FQBranch.from_short_str(params['branch'])
         steps = params['steps']
     except Exception as e:
-        message = f'parameters are wrong; check the branch and steps syntax.\n\n{params}'
+        message = (
+            f'parameters are wrong; check the branch and steps syntax.\n\n{params}'
+        )
         log.info('dev deploy failed: ' + message, exc_info=True)
         raise web.HTTPBadRequest(text=message) from e
 
     gh = app['github_client']
-    request_string = f'/repos/{branch.repo.owner}/{branch.repo.name}/git/refs/heads/{branch.name}'
+    request_string = (
+        f'/repos/{branch.repo.owner}/{branch.repo.name}/git/refs/heads/{branch.name}'
+    )
 
     try:
         branch_gh_json = await gh.getitem(request_string)
@@ -113,12 +117,16 @@ async def dev_deploy_branch(request, userdata):
     except Exception as e:  # pylint: disable=broad-except
         message = traceback.format_exc()
         log.info('dev deploy failed: ' + message, exc_info=True)
-        raise web.HTTPBadRequest(text=f'starting the deploy failed due to\n{message}') from e
+        raise web.HTTPBadRequest(
+            text=f'starting the deploy failed due to\n{message}'
+        ) from e
     return web.json_response({'sha': sha, 'batch_id': batch_id})
 
 
 async def on_startup(app):
-    app['gh_client_session'] = aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=5))
+    app['gh_client_session'] = aiohttp.ClientSession(
+        timeout=aiohttp.ClientTimeout(total=5)
+    )
     app['github_client'] = gh_aiohttp.GitHubAPI(app['gh_client_session'], 'ci')
     app['batch_client'] = BatchClient('ci')
 

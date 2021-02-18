@@ -8,9 +8,9 @@ import aiohttp
 import pytest
 
 from hailtop.config import get_deploy_config, get_user_config
-from hailtop.auth import service_auth_headers, get_userinfo
+from hailtop.auth import service_auth_headers
 from hailtop.utils import (retry_response_returning_functions,
-                           external_requests_client_session)
+                           external_requests_client_session, sync_sleep_and_backoff)
 from hailtop.batch_client.client import BatchClient
 
 from .utils import legacy_batch_status
@@ -717,19 +717,61 @@ def test_verify_private_network_is_restricted(client):
         assert False
 
 
-def test_highmem_instance(client):
+def test_pool_highmem_instance(client):
     builder = client.create_batch()
     resources = {'worker_type': 'highmem'}
     j = builder.create_job(DOCKER_ROOT_IMAGE, ['true'], resources=resources)
     builder.submit()
     status = j.wait()
     assert status['state'] == 'Success', str(j.log()['main'], status)
+    assert 'highmem' in status['status']['worker'], str(status)
 
 
-def test_highcpu_instance(client):
+def test_pool_highcpu_instance(client):
     builder = client.create_batch()
     resources = {'worker_type': 'highcpu'}
     j = builder.create_job(DOCKER_ROOT_IMAGE, ['true'], resources=resources)
     builder.submit()
     status = j.wait()
     assert status['state'] == 'Success', str(j.log()['main'], status)
+    assert 'highcpu' in status['status']['worker'], str(status)
+
+
+def test_job_private_instance_preemptible(client):
+    builder = client.create_batch()
+    resources = {'machine_type': 'n1-standard-1'}
+    j = builder.create_job(DOCKER_ROOT_IMAGE, ['true'], resources=resources)
+    builder.submit()
+    status = j.wait()
+    assert status['state'] == 'Success', str(j.log()['main'], status)
+    assert 'job-private' in status['status']['worker'], str(status)
+
+def test_job_private_instance_nonpreemptible(client):
+    builder = client.create_batch()
+    resources = {'machine_type': 'n1-standard-1', 'preemptible': False}
+    j = builder.create_job(DOCKER_ROOT_IMAGE, ['true'], resources=resources)
+    builder.submit()
+    status = j.wait()
+    assert status['state'] == 'Success', str(j.log()['main'], status)
+    assert 'job-private' in status['status']['worker'], str(status)
+
+
+def test_job_private_instance_cancel(client):
+    builder = client.create_batch()
+    resources = {'machine_type': 'n1-standard-1'}
+    j = builder.create_job(DOCKER_ROOT_IMAGE, ['true'], resources=resources)
+    b = builder.submit()
+
+    delay = 0.1
+    start = time.time()
+    while True:
+        status = j.status()
+        if time.time() - start > 60:
+            assert False, f'timed out waiting for creating state: {status}'
+        if status['state'] == 'Creating':
+            break
+        delay = sync_sleep_and_backoff(delay)
+
+    b.cancel()
+    status = j.wait()
+    assert status['state'] == 'Cancelled', str(status)

@@ -230,7 +230,7 @@ spec:
            value: "375M"
          - name: HAIL_BATCH_JOB_DEFAULT_STORAGE
            value: "1G"
-         - name: HAIL_BATCH_JOB_WORKER_TYPE
+         - name: HAIL_BATCH_JOB_DEFAULT_WORKER_TYPE
            value: "standard"
 {% endif %}
 {% if deploy %}

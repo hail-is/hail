@@ -5,8 +5,8 @@ import aiohttp
 import base64
 import traceback
 
-from hailtop.utils import (
-    time_msecs, sleep_and_backoff, is_transient_error, Notice)
+from hailtop.aiotools import BackgroundTaskManager
+from hailtop.utils import (time_msecs, Notice, retry_transient_errors)
 from hailtop.httpx import client_session
 from gear import Database
 
@@ -86,6 +86,7 @@ async def mark_job_complete(app, batch_id, job_id, attempt_id, instance_name, ne
     cancel_ready_state_changed: asyncio.Event = app['cancel_ready_state_changed']
     db: Database = app['db']
     inst_coll_manager: 'InstanceCollectionManager' = app['inst_coll_manager']
+    task_manager: BackgroundTaskManager = app['task_manager']
 
     id = (batch_id, job_id)
 
@@ -105,6 +106,8 @@ async def mark_job_complete(app, batch_id, job_id, attempt_id, instance_name, ne
 
     scheduler_state_changed.notify()
     cancel_ready_state_changed.set()
+
+    instance = None
 
     if instance_name:
         instance = inst_coll_manager.get_instance(instance_name)
@@ -131,6 +134,9 @@ async def mark_job_complete(app, batch_id, job_id, attempt_id, instance_name, ne
 
     await notify_batch_job_complete(db, batch_id)
 
+    if instance and not instance.inst_coll.is_pool and instance.state == 'active':
+        task_manager.ensure_future(instance.kill())
+
 
 async def mark_job_started(app, batch_id, job_id, attempt_id, instance, start_time, resources):
     db: Database = app['db']
@@ -142,14 +148,38 @@ async def mark_job_started(app, batch_id, job_id, attempt_id, instance, start_ti
     try:
         rv = await db.execute_and_fetchone(
             '''
-    CALL mark_job_started(%s, %s, %s, %s, %s);
-    ''',
+CALL mark_job_started(%s, %s, %s, %s, %s);
+''',
             (batch_id, job_id, attempt_id, instance.name, start_time))
     except Exception:
-        log.exception(f'error while marking job {id} started on {instance}')
+        log.info(f'error while marking job {id} started on {instance}')
         raise
 
     if rv['delta_cores_mcpu'] != 0 and instance.state == 'active':
+        instance.adjust_free_cores_in_memory(rv['delta_cores_mcpu'])
+
+    await add_attempt_resources(db, batch_id, job_id, attempt_id, resources)
+
+
+async def mark_job_creating(app, batch_id, job_id, attempt_id, instance, start_time, resources):
+    db: Database = app['db']
+
+    id = (batch_id, job_id)
+
+    log.info(f'mark job {id} creating')
+
+    try:
+        rv = await db.execute_and_fetchone(
+            '''
+CALL mark_job_creating(%s, %s, %s, %s, %s);
+''',
+            (batch_id, job_id, attempt_id, instance.name, start_time))
+    except Exception:
+        log.info(f'error while marking job {id} creating on {instance}')
+        raise
+
+    log.info(rv)
+    if rv['delta_cores_mcpu'] != 0 and instance.state == 'pending':
         instance.adjust_free_cores_in_memory(rv['delta_cores_mcpu'])
 
     await add_attempt_resources(db, batch_id, job_id, attempt_id, resources)
@@ -198,27 +228,26 @@ async def unschedule_job(app, record):
 
     url = (f'http://{instance.ip_address}:5000'
            f'/api/v1alpha/batches/{batch_id}/jobs/{job_id}/delete')
-    delay = 0.1
-    while True:
+
+    async def make_request():
         if instance.state in ('inactive', 'deleted'):
-            break
+            return
         try:
             async with aiohttp.ClientSession(
                     raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
                 await session.delete(url)
                 await instance.mark_healthy()
-                break
-        except Exception as e:
-            if (isinstance(e, aiohttp.ClientResponseError)
-                    and e.status == 404):  # pylint: disable=no-member
+        except aiohttp.ClientResponseError as err:
+            if err.status == 404:
                 await instance.mark_healthy()
-                break
+                return
             await instance.incr_failed_request_count()
-            if is_transient_error(e):
-                pass
-            else:
-                raise
-        delay = await sleep_and_backoff(delay)
+            raise
+
+    await retry_transient_errors(make_request)
+
+    if not instance.inst_coll.is_pool:
+        await instance.kill()
 
     log.info(f'unschedule job {id}, attempt {attempt_id}: called delete job')
 

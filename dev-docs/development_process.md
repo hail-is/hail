@@ -48,10 +48,13 @@ changed files every commit. For example, services code uses the
 to enforce PEP8 compliance.
 
 #### Services
-If you are working on a services project, make sure you have Docker and Kubernetes
-installed. Then install the [gcloud cli](https://cloud.google.com/sdk/docs/install)
-and run the following to connect `kubectl` to the `hail-vdc` cluster.
 
+Install and configure tools necessary for working on the Hail Services:
+
+1. Install [Docker](https://docker.com)
+2. Install [`kubectl`](https://kubernetes.io/docs/tasks/tools/install-kubectl/)
+3. Install [`gcloud`](https://cloud.google.com/sdk/docs/install)
+4. Configure gcloud and Docker for Hail:
 ```
 gcloud auth login
 gcloud config set project hail-vdc
@@ -60,15 +63,13 @@ gcloud auth configure-docker
 # If you are using the Artifact Registry:
 # gcloud auth configure-docker $REGION-docker.pkg.dev
 ```
-
-To use BuildKit with Docker for a much faster building experience, add
-
+5. Add these lines to `~/.zshrc` or `~/.bashrc` to configure your shell and environment for Hail:
 ```
+# BuildKit, a fast docker backend
 export DOCKER_BUILDKIT=1
+# Shell utilities for managing the Hail kubernetes cluster
+source /path/to/hail-repository/devbin/functions.sh
 ```
-
-to your `~/.bashrc` or `~/.zshrc`.
-
 
 ### Testing / Debugging
 There are different strategies for debugging depending on whether you are
