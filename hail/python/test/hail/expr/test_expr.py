@@ -3,14 +3,12 @@ import pytest
 import random
 from scipy.stats import pearsonr
 import numpy as np
-import tempfile
 
 import hail as hl
 import hail.expr.aggregators as agg
 from hail.expr.types import *
 from hail.expr.functions import _error_from_cdf
 from ..helpers import *
-from hailtop.utils import secret_alnum_string
 
 setUpModule = startTestHailContext
 tearDownModule = stopTestHailContext
@@ -2657,19 +2655,19 @@ class Tests(unittest.TestCase):
         mt = mt.key_cols_by(col_idx = mt.col_idx + 1)
         mt = mt.annotate_entries(x = mt.row_idx * mt.col_idx)
         mt = mt.annotate_entries(x = hl.or_missing(mt.x != 4, mt.x))
-        with tempfile.NamedTemporaryFile() as f:
-            mt.x.export(f.name,
+        with hl.TemporaryFilename() as f:
+            mt.x.export(f,
                         delimiter=delimiter,
                         header=header,
                         missing=missing)
             if header:
-                actual = hl.import_matrix_table(f.name,
+                actual = hl.import_matrix_table(f,
                                                 row_fields={'row_idx': hl.tint32},
                                                 row_key=['row_idx'],
                                                 sep=delimiter,
                                                 missing=missing)
             else:
-                actual = hl.import_matrix_table(f.name,
+                actual = hl.import_matrix_table(f,
                                                 row_fields={'f0': hl.tint32},
                                                 row_key=['f0'],
                                                 sep=delimiter,
@@ -2694,9 +2692,9 @@ class Tests(unittest.TestCase):
     def test_export_genetic_data(self):
         mt = hl.balding_nichols_model(1, 3, 3)
         mt = mt.key_cols_by(s = 's' + hl.str(mt.sample_idx))
-        with tempfile.NamedTemporaryFile() as f:
-            mt.GT.export(f.name)
-            actual = hl.import_matrix_table(f.name,
+        with hl.TemporaryFilename() as f:
+            mt.GT.export(f)
+            actual = hl.import_matrix_table(f,
                                             row_fields={'locus': hl.tstr,
                                                         'alleles': hl.tstr},
                                             row_key=['locus', 'alleles'],
@@ -3561,14 +3559,15 @@ class Tests(unittest.TestCase):
     def test_expr_persist(self):
         # need to test laziness, so we will overwrite a file
         ht2 = hl.utils.range_table(100)
-        with tempfile.TemporaryDirectory() as f:
-             hl.utils.range_table(10).write(f, overwrite=True)
-             ht = hl.read_table(f)
-             count1 = ht.aggregate(hl.agg.count(), _localize=False)._persist()
-             assert hl.eval(count1) == 10
 
-             hl.utils.range_table(100).write(f, overwrite=True)
-             assert hl.eval(count1) == 10
+        with hl.TemporaryDirectory(ensure_exists=False) as f:
+            hl.utils.range_table(10).write(f, overwrite=True)
+            ht = hl.read_table(f)
+            count1 = ht.aggregate(hl.agg.count(), _localize=False)._persist()
+            assert hl.eval(count1) == 10
+
+            hl.utils.range_table(100).write(f, overwrite=True)
+            assert hl.eval(count1) == 10
 
     def test_struct_expression_expr_rename(self):
         s = hl.struct(f1=1, f2=2, f3=3)

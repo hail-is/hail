@@ -15,6 +15,7 @@ from hail.ir.renderer import CSERenderer
 
 from .backend import Backend
 from ..hail_logging import PythonOnlyLogger
+from ..fs.google_fs import GoogleCloudStorageFS
 
 
 class ServiceSocket:
@@ -82,7 +83,7 @@ class ServiceBackend(Backend):
         return self._logger
 
     @property
-    def fs(self):
+    def fs(self) -> GoogleCloudStorageFS:
         if self._fs is None:
             from hail.fs.google_fs import GoogleCloudStorageFS
             self._fs = GoogleCloudStorageFS()

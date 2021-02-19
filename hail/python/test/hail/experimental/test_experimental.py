@@ -2,7 +2,7 @@ import numpy as np
 import hail as hl
 import unittest
 from ..helpers import *
-from hail.utils import new_temp_file, new_local_temp_dir
+from hail.utils import new_temp_file
 
 setUpModule = startTestHailContext
 tearDownModule = stopTestHailContext
@@ -337,12 +337,13 @@ class Tests(unittest.TestCase):
             hl.linalg.BlockMatrix._create(11, 12, data[0].tolist(), block_size=4),
             hl.linalg.BlockMatrix._create(5, 17, data[1].tolist(), block_size=8)
         ]
-        prefix = new_local_temp_dir()
-        hl.experimental.block_matrices_tofiles(bms, f'{prefix}/files')
-        for i in range(len(bms)):
-            a = data[i]
-            a2 = np.fromfile(f'{prefix}/files/{i}')
-            self.assertTrue(np.array_equal(a, a2))
+        with hl.TemporaryDirectory() as prefix:
+            hl.experimental.block_matrices_tofiles(bms, f'{prefix}/files')
+            for i in range(len(bms)):
+                a = data[i]
+                a2 = np.frombuffer(
+                    hl.current_backend().fs.open(f'{prefix}/files/{i}', mode='rb').read())
+                self.assertTrue(np.array_equal(a, a2))
 
     @fails_service_backend()
     @fails_local_backend()
@@ -359,20 +360,22 @@ class Tests(unittest.TestCase):
             hl.linalg.BlockMatrix._create(11, 12, data[0].tolist(), block_size=4),
             hl.linalg.BlockMatrix._create(5, 17, data[1].tolist(), block_size=8)
         ]
-        prefix = new_local_temp_dir()
-        hl.experimental.export_block_matrices(bms, f'{prefix}/files')
-        for i in range(len(bms)):
-            a = arrs[i]
-            a2 = np.loadtxt(f'{prefix}/files/{i}.tsv')
-            self.assertTrue(np.array_equal(a, a2))
+        with hl.TemporaryDirectory() as prefix:
+            hl.experimental.export_block_matrices(bms, f'{prefix}/files')
+            for i in range(len(bms)):
+                a = arrs[i]
+                a2 = np.loadtxt(
+                    hl.current_backend().fs.open(f'{prefix}/files/{i}.tsv'))
+                self.assertTrue(np.array_equal(a, a2))
 
-        prefix2 = new_local_temp_dir()
-        custom_names = ["nameA", "inner/nameB.tsv"]
-        hl.experimental.export_block_matrices(bms, f'{prefix2}/files', custom_filenames=custom_names)
-        for i in range(len(bms)):
-            a = arrs[i]
-            a2 = np.loadtxt(f'{prefix2}/files/{custom_names[i]}')
-            self.assertTrue(np.array_equal(a, a2))
+        with hl.TemporaryDirectory() as prefix2:
+            custom_names = ["nameA", "inner/nameB.tsv"]
+            hl.experimental.export_block_matrices(bms, f'{prefix2}/files', custom_filenames=custom_names)
+            for i in range(len(bms)):
+                a = arrs[i]
+                a2 = np.loadtxt(
+                    hl.current_backend().fs.open(f'{prefix2}/files/{custom_names[i]}'))
+                self.assertTrue(np.array_equal(a, a2))
 
     def test_loop(self):
         def triangle_with_ints(n):
