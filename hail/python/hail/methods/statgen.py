@@ -447,44 +447,41 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, pass_through=())
     def array_from_struct(struct, field_names):
         return hl.array([struct[field_name] for field_name in field_names])
 
+    def no_missing(hail_array):
+        return hail_array.all(lambda element: hl.is_defined(element))
+
     ht_local = mt._localize_entries(entries_field_name, sample_field_name)
 
     ht = ht_local.transmute(**{entries_field_name: ht_local[entries_field_name][x_field_name]})
 
-    def make_one_cov_matrix(ys_and_covs_to_keep):
-        return hl.nd.array(ys_and_covs_to_keep.map(lambda struct: array_from_struct(struct, cov_field_names))) \
-            if cov_field_names else hl.nd.zeros((hl.len(ys_and_covs_to_keep), 0))
-
-    def make_one_y_matrix(ys_and_covs_to_keep, one_y_field_name_set):
-        return hl.nd.array(ys_and_covs_to_keep.map(lambda struct: array_from_struct(struct, one_y_field_name_set)))
-
     def setup_globals(ht):
         # cov_arrays is per sample, then per cov.
         ht = ht.annotate_globals(cov_arrays=ht[sample_field_name].map(lambda sample_struct: [sample_struct[cov_name] for cov_name in cov_field_names]))
-        #ht = ht.annotate_globals(y_arrays_per_group=hl.array([ht[sample_field_name.map(lambda sample_struct: [sample_struct[y_name] for y_name in one_y_field_name_set])] for one_y_field_name_set in y_field_names]))
+        ht = ht.annotate_globals(
+            y_arrays_per_group=[ht[sample_field_name].map(lambda sample_struct: [sample_struct[y_name] for y_name in one_y_field_name_set]) for one_y_field_name_set in y_field_names]
+        )
         all_covs_defined = ht.cov_arrays.map(lambda sample_covs: sample_covs.all(lambda a: hl.is_defined(a)))
 
-        list_of_ys_and_covs_to_keep_with_indices = [
-            hl.enumerate(ht[sample_field_name]).filter(
-                lambda struct_with_index:
-                all_covs_defined[struct_with_index[0]] & all_defined(struct_with_index[1], one_y_field_name_set))
-            for one_y_field_name_set in y_field_names
-        ]
+        # Create a hail array of length g (g is number of groups / length of `y_field_names`
+        # Each entry will be a list of structs. Each struct will contain an `idx`, an array `ys`, and an array `covs`
 
-        list_of_ys_and_covs_to_keep = [inner_list.map(lambda pair: pair[1]) for inner_list in list_of_ys_and_covs_to_keep_with_indices]
-        kept_samples = [inner_list.map(lambda pair: pair[0]) for inner_list in list_of_ys_and_covs_to_keep_with_indices]
+        def make_idx_ys_covs_struct(sample_ys):
+            # sample_ys is an array of samples, with each element being an array of the y_values
+            return hl.enumerate(sample_ys).filter(
+                lambda idx_and_y_values: all_covs_defined[idx_and_y_values[0]] & no_missing(idx_and_y_values[1])
+            ).map(lambda idx_and_y_values: hl.struct(idx=idx_and_y_values[0], ys=idx_and_y_values[1], covs=ht.cov_arrays[idx_and_y_values[0]]))
 
-        cov_nds = hl.array([make_one_cov_matrix(ys_and_covs_to_keep) for ys_and_covs_to_keep in list_of_ys_and_covs_to_keep])
-
-        y_nds = hl.array([make_one_y_matrix(ys_and_covs_to_keep, one_y_field_name_set)
-                          for ys_and_covs_to_keep, one_y_field_name_set in zip(list_of_ys_and_covs_to_keep, y_field_names)])
+        kept_data_per_y_group = ht.y_arrays_per_group.map(make_idx_ys_covs_struct)
+        kept_samples = kept_data_per_y_group.idx
+        y_nds = kept_data_per_y_group.ys.map(lambda y_2d: hl.nd.array(y_2d))
+        cov_nds = kept_data_per_y_group.covs.map(lambda cov_2d: hl.nd.array(cov_2d))
 
         k = builtins.len(covariates)
-        ns = hl.array(kept_samples).map(lambda one_sample_set: hl.len(one_sample_set))
+        ns = kept_samples.map(lambda one_sample_set: hl.len(one_sample_set))
         cov_Qts = hl.if_else(k > 0,
                              cov_nds.map(lambda one_cov_nd: hl.nd.qr(one_cov_nd)[0].T),
                              ns.map(lambda n: hl.nd.zeros((0, n))))
-        Qtys = hl.range(num_y_lists).map(lambda i: cov_Qts[i] @ hl.array(y_nds)[i])
+        Qtys = hl.zip(cov_Qts, y_nds).map(lambda cov_qt_and_y: cov_qt_and_y[0] @ cov_qt_and_y[1])
         return ht.annotate_globals(
             kept_samples=kept_samples,
             __y_nds=y_nds,
