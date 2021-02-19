@@ -81,8 +81,8 @@ spec:
                 key: gsuite_organization
          resources:
            requests:
-             memory: "5M"
-             cpu: "40m"
+             memory: "75M"
+             cpu: "100m"
            limits:
              memory: "1G"
              cpu: "1"
@@ -191,7 +191,7 @@ spec:
                 key: gsuite_organization
          resources:
            requests:
-             memory: "5M"
+             memory: "50M"
              cpu: "5m"
            limits:
              memory: "1G"
