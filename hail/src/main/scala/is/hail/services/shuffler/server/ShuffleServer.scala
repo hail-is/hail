@@ -17,6 +17,8 @@ import javax.net.ssl._
 import org.apache.log4j.Logger
 
 import scala.annotation.switch
+import is.hail.backend.local.LocalBackend
+import is.hail.HailContext
 
 class Handler (
   private[this] val server: ShuffleServer,
@@ -232,6 +234,8 @@ class ShuffleServer() extends AutoCloseable {
 
   val executor = Executors.newCachedThreadPool()
   var stopped = false
+
+  val context = HailContext(LocalBackend("/tmp"), skipLoggingConfiguration = true)
 
   def serveInBackground(): Future[_] =
     executor.submit(new Runnable() { def run(): Unit = serve() })
