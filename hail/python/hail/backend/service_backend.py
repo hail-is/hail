@@ -3,7 +3,7 @@ import aiohttp
 import json
 
 from hail.utils import FatalError
-from hail.expr.types import dtype
+from hail.expr.types import dtype, tvoid
 from hail.expr.table_type import ttable
 from hail.expr.matrix_type import tmatrix
 from hail.expr.blockmatrix_type import tblockmatrix
@@ -103,7 +103,10 @@ class ServiceBackend(Backend):
                                    billing_project=self._billing_project,
                                    bucket=self._bucket)
         typ = dtype(resp['type'])
-        value = typ._convert_from_json_na(resp['value'])
+        if typ == tvoid:
+            value = None
+        else:
+            value = typ._convert_from_json_na(resp['value'])
         # FIXME put back timings
 
         return (value, None) if timed else value
