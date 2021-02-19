@@ -77,19 +77,19 @@ class Tests(unittest.TestCase):
                 y=mt.pheno, x=mt.x, covariates=[1.0, mt.cov.Cov1, mt.cov.Cov2])
             t2 = t2.select(p=t2.p_value)
 
-            # t3 = linreg_function(
-            #     y=[mt.pheno], x=mt.x, covariates=[1.0, mt.cov.Cov1, mt.cov.Cov2])
-            # t3 = t3.select(p=t3.p_value[0])
-            #
-            # t4 = linreg_function(
-            #     y=[mt.pheno, mt.pheno], x=mt.x, covariates=[1.0, mt.cov.Cov1, mt.cov.Cov2])
-            # t4a = t4.select(p=t4.p_value[0])
-            # t4b = t4.select(p=t4.p_value[1])
+            t3 = linreg_function(
+                y=[mt.pheno], x=mt.x, covariates=[1.0, mt.cov.Cov1, mt.cov.Cov2])
+            t3 = t3.select(p=t3.p_value[0])
+
+            t4 = linreg_function(
+                y=[mt.pheno, mt.pheno], x=mt.x, covariates=[1.0, mt.cov.Cov1, mt.cov.Cov2])
+            t4a = t4.select(p=t4.p_value[0])
+            t4b = t4.select(p=t4.p_value[1])
 
             self.assertTrue(t1._same(t2))
-            # self.assertTrue(t1._same(t3))
-            # self.assertTrue(t1._same(t4a))
-            # self.assertTrue(t1._same(t4b))
+            self.assertTrue(t1._same(t3))
+            self.assertTrue(t1._same(t4a))
+            self.assertTrue(t1._same(t4b))
 
     def test_linreg_pass_through(self):
         phenos = hl.import_table(resource('regressionLinear.pheno'),

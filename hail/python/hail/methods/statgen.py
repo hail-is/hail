@@ -425,13 +425,6 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, pass_through=())
 
     num_y_lists = len(y_field_name_groups)
 
-    def all_defined(struct_root, field_names):
-        if field_names:
-            defined_array = hl.array([hl.is_defined(struct_root[field_name]) for field_name in field_names])
-            return defined_array.all(lambda a: a)
-        else:
-            return hl.bool(True)
-
     # Given a hail array, get the mean of the nonmissing entries and
     # return new array where the missing entries are the mean.
     def mean_impute(hl_array):
@@ -443,9 +436,6 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, pass_through=())
 
     def dot_rows_with_themselves(matrix):
         return (matrix * matrix) @ hl.nd.ones(matrix.shape[1])
-
-    def array_from_struct(struct, field_names):
-        return hl.array([struct[field_name] for field_name in field_names])
 
     def no_missing(hail_array):
         return hail_array.all(lambda element: hl.is_defined(element))
