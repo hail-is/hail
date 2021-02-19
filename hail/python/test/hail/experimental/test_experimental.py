@@ -93,6 +93,7 @@ class Tests(unittest.TestCase):
         _, aucs = hl.experimental.plot_roc_curve(ht, ['score1', 'score2', 'score3'])
 
     @pytest.mark.unchecked_allocator
+    @fails_service_backend()
     @fails_local_backend()
     def test_ld_score_regression(self):
 
@@ -262,6 +263,7 @@ class Tests(unittest.TestCase):
             results[1]['snp_heritability_standard_error'],
             0.0416, places=4)
 
+    @fails_service_backend()
     def test_sparse(self):
         expected_split_mt = hl.import_vcf(resource('sparse_split_test_b.vcf'))
         unsplit_mt = hl.import_vcf(resource('sparse_split_test.vcf'), call_fields=['LGT', 'LPGT'])
@@ -269,6 +271,7 @@ class Tests(unittest.TestCase):
               .drop('a_index', 'was_split').select_entries(*expected_split_mt.entry.keys()))
         assert mt._same(expected_split_mt)
 
+    @fails_service_backend()
     def test_define_function(self):
         f1 = hl.experimental.define_function(
             lambda a, b: (a + 7) * b, hl.tint32, hl.tint32)
@@ -277,7 +280,8 @@ class Tests(unittest.TestCase):
             lambda a, b: (a + 7) * b, hl.tint32, hl.tint32)
         self.assertEqual(hl.eval(f1(1, 3)), 24) # idempotent
         self.assertEqual(hl.eval(f2(1, 3)), 24) # idempotent
-        
+
+    @fails_service_backend()
     @fails_local_backend()
     def test_pc_project(self):
         mt = hl.balding_nichols_model(3, 100, 50)
@@ -288,6 +292,7 @@ class Tests(unittest.TestCase):
         ht = hl.experimental.pc_project(mt_to_project.GT, loadings_ht.loadings, loadings_ht.af)
         assert ht._force_count() == 100
 
+    @fails_service_backend()
     def test_mt_full_outer_join(self):
         mt1 = hl.utils.range_matrix_table(10, 10)
         mt1 = mt1.annotate_cols(c1=hl.rand_unif(0, 1))
@@ -309,6 +314,7 @@ class Tests(unittest.TestCase):
 
         assert(mtj.count() == (15, 15))
 
+    @fails_service_backend()
     def test_mt_full_outer_join_self(self):
         mt = hl.import_vcf(resource('sample.vcf'))
         jmt = hl.experimental.full_outer_join_mt(mt, mt)
@@ -316,6 +322,7 @@ class Tests(unittest.TestCase):
         assert jmt.filter_rows(hl.is_defined(jmt.left_row) & hl.is_defined(jmt.right_row)).count_rows() == mt.count_rows()
         assert jmt.filter_entries(hl.is_defined(jmt.left_entry) & hl.is_defined(jmt.right_entry)).entries().count() == mt.entries().count()
 
+    @fails_service_backend()
     @fails_local_backend()
     def test_block_matrices_tofiles(self):
         data = [
@@ -337,6 +344,7 @@ class Tests(unittest.TestCase):
             a2 = np.fromfile(f'{prefix}/files/{i}')
             self.assertTrue(np.array_equal(a, a2))
 
+    @fails_service_backend()
     @fails_local_backend()
     def test_export_block_matrices(self):
         data = [

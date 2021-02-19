@@ -135,6 +135,13 @@ fails_local_backend = pytest.mark.xfail(
     reason="doesn't yet work on local backend",
     strict=True)
 
+
+fails_service_backend = pytest.mark.xfail(
+    os.environ.get('HAIL_QUERY_BACKEND') == 'service',
+    reason="doesn't yet work on service backend",
+    strict=True)
+
+
 def run_with_cxx_compile():
     @decorator
     def wrapper(func, *args, **kwargs):
