@@ -31,20 +31,6 @@ def java_to_web_response(jresp):
     return web.json_response(status=status, text=value)
 
 
-async def send_ws_response(thread_pool, endpoint, ws, f, *args, **kwargs):
-    try:
-        jresp = await blocking_to_async(thread_pool, f, *args, **kwargs)
-    except Exception:
-        log.exception(f'error calling {f.__name__} for {endpoint}')
-        status = 500
-        value = traceback.format_exc()
-    else:
-        status = jresp.status()
-        value = jresp.value()
-    log.info(f'{endpoint}: response status {status} value {value}')
-    await ws.send_json({'status': status, 'value': value})
-
-
 async def add_user(app, userdata):
     username = userdata['username']
     users = app['users']
@@ -98,30 +84,45 @@ def blocking_get_reference(jbackend, userdata, body):   # pylint: disable=unused
 
 
 async def handle_ws_response(request, userdata, endpoint, f):
+    async def receiver():
+        # receive automatically ping-pongs which keeps the socket alive
+        r = await ws.receive()
+        assert r.type in (aiohttp.WSMsgType.CLOSE, aiohttp.WSMsgType.CLOSING), (
+            f'{endpoint}: Received websocket message. Expected CLOSE or CLOSING, got {r}')
+
+    async def sender():
+        try:
+            status = 200
+            value = await blocking_to_async(app['thread_pool'], f, app, userdata, body)
+        except Exception:
+            log.exception(f'error calling {f.__name__} for {endpoint}')
+            status = 500
+            value = traceback.format_exc()
+        await ws.send_json({'status': status, 'value': value})
+
     app = request.app
-    jbackend = app['jbackend']
 
     await add_user(app, userdata)
-    log.info(f'{endpoint}: connecting websocket')
     ws = web.WebSocketResponse(heartbeat=30, max_msg_size=0)
-    task = None
+    tasks = []
     await ws.prepare(request)
     try:
-        log.info(f'{endpoint}: websocket prepared {ws}')
         body = await ws.receive_json()
-        log.info(f'{endpoint}: {body}')
-        task = asyncio.ensure_future(send_ws_response(app['thread_pool'], endpoint, ws, f, jbackend, userdata, body))
-        r = await ws.receive()
-        log.info(f'{endpoint}: Received websocket message. Expected CLOSE, got {r}')
-        return ws
+        tasks = [asyncio.ensure_future(sender()),
+                 asyncio.ensure_future(receiver())]
+        done, _ = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
+        assert len(done) == 1
+        done.pop().result()
     finally:
-        if not ws.closed:
-            await ws.close()
-            log.info(f'{endpoint}: Websocket was not closed. Closing.')
-        if task is not None and not task.done():
-            task.cancel()
-            log.info(f'{endpoint}: Task has been cancelled due to websocket closure.')
-        log.info(f'{endpoint}: websocket connection closed')
+        await ws.close()
+        for task in tasks:
+            if not task.done():
+                task.cancel()
+                try:
+                    task.result()  # retrieve, but do not raise, any exceptions in the pending task
+                except:
+                    log.info(f'exception while cleaning up {task}', exc_info=True)
+    return ws
 
 
 @routes.get('/api/v1alpha/execute')
