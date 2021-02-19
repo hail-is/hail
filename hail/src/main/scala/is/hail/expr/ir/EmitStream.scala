@@ -1015,15 +1015,15 @@ object EmitStream {
       SizedStream(Code._empty, stream, None)
   }
 
-  def mux(mb: EmitMethodBuilder[_], eltType: PType, cond: Code[Boolean], left: Stream[EmitCode], right: Stream[EmitCode]): Stream[EmitCode] = new Stream[EmitCode] {
+  def mux(mb: EmitMethodBuilder[_], eltType: PType, cond: Code[Boolean], region: ChildStagedRegion, left: Stream[EmitCode], right: Stream[EmitCode]): Stream[EmitCode] = new Stream[EmitCode] {
     def apply(eos: Code[Ctrl], push: EmitCode => Code[Ctrl])(implicit ctx: EmitStreamContext): Source[EmitCode] = {
       val b = mb.genFieldThisRef[Boolean]()
       val Leos = CodeLabel()
       val elt = mb.newEmitField("stream_mux_elt", eltType)
       val Lpush = CodeLabel()
 
-      val l = left(Code(Leos, eos), (a) => Code(EmitCodeBuilder.scopedVoid(mb)(_.assign(elt, a)), Lpush, push(elt)))
-      val r = right(Leos.goto, (a) => Code(EmitCodeBuilder.scopedVoid(mb)(_.assign(elt, a)), Lpush.goto))
+      val l = left(Code(Leos, eos), (a) => Code(EmitCodeBuilder.scopedVoid(mb)(_.assign(elt, a.castTo(mb, region.code, eltType))), Lpush, push(elt)))
+      val r = right(Leos.goto, (a) => Code(EmitCodeBuilder.scopedVoid(mb)(_.assign(elt, a.castTo(mb, region.code, eltType))), Lpush.goto))
 
       Source[EmitCode](
         setup0 = Code(l.setup0, r.setup0),
@@ -1934,7 +1934,7 @@ object EmitStream {
           }
 
         case x@If(condIR, thn, els) =>
-          val eltType = coerce[PStream](thn.pType).elementType
+          val eltType = coerce[PStream](x.pType).elementType
 
           emitIR(condIR).flatMap(cb) { cond =>
             val xCond = mb.genFieldThisRef[Boolean]("stream_if_cond")
@@ -1954,9 +1954,10 @@ object EmitStream {
             val SizedStream(rightSetup, rightStream, rLen) = rightSS
             val newStream = (eltRegion: ChildStagedRegion) => {
               mux(mb, eltType,
-                  xCond,
-                  leftStream(eltRegion),
-                  rightStream(eltRegion))
+                xCond,
+                eltRegion,
+                leftStream(eltRegion),
+                rightStream(eltRegion))
             }
             val newLen = lLen.liftedZip(rLen).map { case (l1, l2) =>
               xCond.mux(l1, l2)
