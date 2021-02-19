@@ -4,7 +4,7 @@ import json
 import kubernetes_asyncio as kube
 from hailtop import aiogoogle
 from hailtop.utils import async_to_blocking
-from gear import Database
+from gear import Database, transaction
 
 from auth.driver.driver import create_user
 
@@ -16,30 +16,32 @@ async def insert_user_if_not_exists(app, username, email, is_developer, is_servi
     db = app['db']
     k8s_client = app['k8s_client']
 
-    row = await db.execute_and_fetchone('SELECT id, state FROM users where username = %s;', (username,))
-    if row:
-        if row['state'] == 'active':
-            return None
-        return row['id']
+    @transaction(db)
+    async def insert(tx):
+        row = await tx.execute_and_fetchone('SELECT id, state FROM users where username = %s;', (username,))
+        if row:
+            if row['state'] == 'active':
+                return None
+            return row['id']
 
-    gsa_key_secret_name = f'{username}-gsa-key'
+        gsa_key_secret_name = f'{username}-gsa-key'
 
-    secret = await k8s_client.read_namespaced_secret(gsa_key_secret_name, DEFAULT_NAMESPACE)
-    key_json = base64.b64decode(secret.data['key.json']).decode()
-    key = json.loads(key_json)
-    gsa_email = key['client_email']
+        secret = await k8s_client.read_namespaced_secret(gsa_key_secret_name, DEFAULT_NAMESPACE)
+        key_json = base64.b64decode(secret.data['key.json']).decode()
+        key = json.loads(key_json)
+        gsa_email = key['client_email']
 
-    if is_developer and SCOPE != 'deploy':
-        namespace_name = DEFAULT_NAMESPACE
-    else:
-        namespace_name = None
+        if is_developer and SCOPE != 'deploy':
+            namespace_name = DEFAULT_NAMESPACE
+        else:
+            namespace_name = None
 
-    return await db.execute_insertone(
-        '''
-INSERT INTO users (state, username, email, is_developer, is_service_account, gsa_email, gsa_key_secret_name, namespace_name)
-VALUES (%s, %s, %s, %s, %s, %s, %s, %s);
-''',
-        ('creating', username, email, is_developer, is_service_account, gsa_email, gsa_key_secret_name, namespace_name))
+        return await tx.execute_insertone(
+            '''
+    INSERT INTO users (state, username, email, is_developer, is_service_account, gsa_email, gsa_key_secret_name, namespace_name)
+    VALUES (%s, %s, %s, %s, %s, %s, %s, %s);
+    ''',
+            ('creating', username, email, is_developer, is_service_account, gsa_email, gsa_key_secret_name, namespace_name))
 
 
 async def main():

@@ -1,22 +1,26 @@
 import sys
 import argparse
 from hailtop.utils import async_to_blocking
-from gear import Database
+from gear import Database, transaction
 
 
 async def insert_user_if_not_exists(db, username, email):
-    row = await db.execute_and_fetchone('SELECT id, state FROM users where username = %s;', (username,))
-    if row:
-        if row['state'] == 'active':
-            return None
-        return row['id']
+    @transaction(db)
+    async def insert(tx):
+        row = await db.execute_and_fetchone('SELECT id, state FROM users where username = %s;', (username,))
+        if row:
+            if row['state'] == 'active':
+                return None
+            return row['id']
 
-    return await db.execute_insertone(
-        '''
-INSERT INTO users (state, username, email, is_developer, is_service_account)
-VALUES (%s, %s, %s, %s, %s);
-''',
-        ('creating', username, email, 1, 0))
+        return await db.execute_insertone(
+            '''
+    INSERT INTO users (state, username, email, is_developer, is_service_account)
+    VALUES (%s, %s, %s, %s, %s);
+    ''',
+            ('creating', username, email, 1, 0))
+
+    return await insert(db)
 
 
 async def main():

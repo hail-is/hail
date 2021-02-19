@@ -20,7 +20,7 @@ metadata:
   name: user
 value: 500000
 globalDefault: true
-description: "For user activities like user batch jobs."
+description: "For user activities like notebooks, developer workloads, etc."
 ---
 apiVersion: scheduling.k8s.io/v1
 kind: PriorityClass

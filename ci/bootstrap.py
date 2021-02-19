@@ -1,3 +1,4 @@
+from typing import Dict, List, Optional, Tuple
 import os
 import json
 from shlex import quote as shq
@@ -18,7 +19,7 @@ from batch.driver.k8s_cache import K8sCache
 KUBERNETES_SERVER_URL = os.environ['KUBERNETES_SERVER_URL']
 
 
-def populate_secret_host_path(host_path, secret_data):
+def populate_secret_host_path(host_path: str, secret_data: Union[str, bytes]):
     os.makedirs(host_path)
     if secret_data is not None:
         for filename, data in secret_data.items():
@@ -27,9 +28,19 @@ def populate_secret_host_path(host_path, secret_data):
 
 
 class LocalJob:
-    def __init__(self, index, image, command, *,
-                 env=None, mount_docker_socket=False, secrets=None, service_account=None, attributes=None, parents=None,
-                 input_files=None, output_files=None,
+    def __init__(self,
+                 index: int,
+                 image: str,
+                 command: List[str],
+                 *,
+                 env: Optional[Dict[str, str]] = None,
+                 mount_docker_socket: bool = False,
+                 secrets: Optional[List[Dict[str, str]]] = None,
+                 service_account: Optional[str] = None,
+                 attributes: Optional[Dict[str, str]] = None,
+                 parents: Optional[List[LocalJob]] = None,
+                 input_files: Optional[List[Tuple[str, str]]] = None,
+                 output_files: Optional[List[Tuple[str, str]]] = None,
                  **kwargs):
         self._index = index
         self._image = image
@@ -45,11 +56,10 @@ class LocalJob:
         self._output_files = output_files
         self._kwargs = kwargs
 
-        self._done = False
         self._succeeded = None
 
 
-async def docker_run(*args):
+async def docker_run(*args: str):
     script = ' '.join([shq(a) for a in args])
     outerr = await check_shell_output(script)
 
@@ -62,20 +72,20 @@ async def docker_run(*args):
 
 
 class LocalBatchBuilder:
-    def __init__(self, attributes, callback):
+    def __init__(self, attributes: Dict[str, str], callback: str):
         self._attributes = attributes
         self._callback = callback
         self._jobs = []
 
     @property
-    def attributes(self):
+    def attributes(self) -> Dict[str, str]:
         return self._attributes
 
     @property
-    def callback(self):
+    def callback(self) -> str:
         return self._callback
 
-    def create_job(self, image, command, **kwargs):
+    def create_job(self, image: str, command: List[str], **kwargs):
         index = len(self._jobs)
         job = LocalJob(index, image, command, **kwargs)
         self._jobs.append(job)
@@ -99,11 +109,13 @@ class LocalBatchBuilder:
 
             if j._parents:
                 for p in j._parents:
-                    assert p._done
+                    assert p._succeeded is not None
                     if not p._succeeded:
                         print(f'{j._index}: {job_name}: SKIPPED: parent {p._index} failed')
-                        j._done = True
-                        j._failed = True
+                        j._succeeded = False
+
+            if j._succeeded is False:
+                continue
 
             job_root = f'{root}/{j._index}'
 
@@ -116,10 +128,10 @@ class LocalBatchBuilder:
                     assert src.startswith(prefix), (prefix, src)
                     src = f'/shared{src[len(prefix):]}'
                     if dest.endswith('/'):
-                        copy_script = copy_script + f'mkdir -p {dest}\n'
+                        copy_script += f'mkdir -p {dest}\n'
                     else:
-                        copy_script = copy_script + f'mkdir -p {os.path.dirname(dest)}\n'
-                    copy_script = copy_script + f'cp -a {src} {dest}\n'
+                        copy_script += f'mkdir -p {os.path.dirname(dest)}\n'
+                    copy_script += f'cp -a {src} {dest}\n'
                 input_cid, input_ok = await docker_run(
                     'docker', 'run', '-d', '-v', f'{root}/shared:/shared', '-v', f'{job_root}/io:/io', 'ubuntu:18.04', '/bin/bash', '-c', copy_script)
 
@@ -231,10 +243,10 @@ users:
                         assert dest.startswith(prefix), (prefix, dest)
                         dest = f'/shared{dest[len(prefix):]}'
                         if dest.endswith('/'):
-                            copy_script = copy_script + f'mkdir -p {dest}\n'
+                            copy_script += f'mkdir -p {dest}\n'
                         else:
-                            copy_script = copy_script + f'mkdir -p {os.path.dirname(dest)}\n'
-                        copy_script = copy_script + f'cp -a {src} {dest}\n'
+                            copy_script += f'mkdir -p {os.path.dirname(dest)}\n'
+                        copy_script += f'cp -a {src} {dest}\n'
                     output_cid, output_ok = await docker_run(
                         'docker', 'run', '-d', '-v', f'{root}/shared:/shared', '-v', f'{job_root}/io:/io', 'ubuntu:18.04', '/bin/bash', '-c', copy_script)
                     print(f'{j._index}: {job_name}/output: {output_cid} {"OK" if output_ok else "FAILED"}')
@@ -245,40 +257,36 @@ users:
                 output_ok = True
 
             j._succeeded = (input_ok and main_ok and output_ok)
-            j._done = True
 
 
 class Branch(Code):
-    def __init__(self, owner, repo, branch, sha, extra_config):
+    def __init__(self, owner: str, repo: str, branch: str, sha: str, extra_config: Dict[str, str]):
         self._owner = owner
         self._repo = repo
         self._branch = branch
         self._sha = sha
         self._extra_config = extra_config
 
-    def short_str(self):
+    def short_str(self) -> str:
         return f'br-{self._owner}-{self._repo}-{self._branch}'
 
-    def repo_dir(self):
-        return '.'
-
-    def branch_url(self):
+    def repo_url(self) -> str:
         return f'https://github.com/{self._owner}/{self._repo}'
 
-    def config(self):
+    def config(self) -> Dict[str, str]:
         config = {
             'checkout_script': self.checkout_script(),
             'branch': self._branch,
             'repo': f'{self._owner}/{self._repo}',
-            'repo_url': self.branch_url(),
+            'repo_url': self.repo_url(),
             'sha': self._sha
         }
         config.update(self._extra_config)
         return config
 
-    def checkout_script(self):
+    def checkout_script(self) -> str:
         return f'''
-{clone_or_fetch_script(self.branch_url())}
+{clone_or_fetch_script(self.repo_url())}
 
 git checkout {shq(self._sha)}
 '''
@@ -287,9 +295,10 @@ git checkout {shq(self._sha)}
 async def main():
     await kube.config.load_kube_config()
 
-    parser = argparse.ArgumentParser(description='Create initial Hail as a service account.')
+    parser = argparse.ArgumentParser(description='Bootstrap a Hail as a service installation.')
 
     parser.add_argument('--extra-code-config', dest='extra_code_config',
+                        default='{}',
                         help='Extra code config in JSON format.')
     parser.add_argument('branch',
                         help='Github branch to run.  It should be the same branch bootstrap.py is being run from.')
@@ -310,10 +319,7 @@ async def main():
 
     branch_name = branch_pieces[1]
 
-    if args.extra_code_config is not None:
-        extra_code_config = json.loads(args.extra_code_config)
-    else:
-        extra_code_config = {}
+    extra_code_config = json.loads(args.extra_code_config)
 
     scope = 'deploy'
     code = Branch(owner, repo_name, branch_name, args.sha, extra_code_config)
