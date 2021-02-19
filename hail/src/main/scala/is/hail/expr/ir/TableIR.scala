@@ -544,14 +544,14 @@ case class PartitionNativeReader(spec: AbstractTypedCodecSpec) extends AbstractN
       val pathString = path.asString.loadString()
       val xRowBuf = mb.newLocal[InputBuffer]()
       val hasNext = mb.newLocal[Boolean]("pnr_hasNext")
-      val next = mb.newPSettable(mb.fieldBuilder, spec.decodedPType(), "pnr_next")
+      val next = mb.newPSettable(mb.fieldBuilder, spec.decodedPType(requestedType), "pnr_next")
 
       val newStream = SizedStream.unsized(eltRegion => Stream.unfold[PCode](
         (_, k) =>
           EmitCodeBuilder.scopedVoid(mb) { cb =>
             cb.assign(hasNext, xRowBuf.readByte().toZ)
             cb.ifx(hasNext, {
-              val decValue = spec.encodedType.buildDecoder(spec.encodedVirtualType, cb.emb.ecb)
+              val decValue = spec.encodedType.buildDecoder(requestedType, cb.emb.ecb)
                 .apply(cb, eltRegion.code, xRowBuf)
               cb.assign(next, decValue)
             })
@@ -1161,7 +1161,9 @@ case class TableParallelize(rowsAndGlobal: IR, nPartitions: Option[Int] = None) 
       case Right((t: PTuple, off)) => (t.fields(0).typ, t.loadField(off, 0))
     }
 
-    val globalsT = ptype.types(1).asInstanceOf[PStruct]
+    val globalsT = ptype.types(1).setRequired(true).asInstanceOf[PStruct]
+    if (ptype.isFieldMissing(res, 1))
+      fatal("'parallelize': found missing global value")
     val globals = BroadcastRow(ctx, RegionValue(ctx.r, ptype.loadField(res, 1)), globalsT)
 
     val rowsT = ptype.types(0).asInstanceOf[PArray]

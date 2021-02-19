@@ -53,6 +53,7 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
   }
 
   def assign(s: PSettable, v: PCode): Unit = {
+    assert(s.pt.equalModuloRequired(v.pt))
     s.store(this, v)
   }
 
