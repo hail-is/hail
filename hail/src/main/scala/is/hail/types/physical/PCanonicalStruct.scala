@@ -99,10 +99,6 @@ final case class PCanonicalStruct(fields: IndexedSeq[PField], required: Boolean 
   def loadField(offset: Code[Long], fieldName: String): Code[Long] =
     loadField(offset, fieldIdx(fieldName))
 
-  def loadField(offset: Long, fieldName: String): Long = {
-    loadField(offset, fieldIdx(fieldName))
-  }
-
   def isFieldMissing(offset: Code[Long], field: String): Code[Boolean] =
     isFieldMissing(offset, fieldIdx(field))
 
