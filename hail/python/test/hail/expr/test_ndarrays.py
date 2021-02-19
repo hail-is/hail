@@ -27,6 +27,7 @@ def assert_ndarrays_almost_eq(*expr_and_expected):
     assert_ndarrays(np.allclose, expr_and_expected)
 
 
+@fails_service_backend()
 def test_ndarray_ref():
 
     scalar = 5.0
@@ -62,6 +63,7 @@ def test_ndarray_ref():
     assert "Index 4 is out of bounds for axis 0 with size 3" in str(exc)
 
 
+@fails_service_backend()
 def test_ndarray_slice():
     np_rect_prism = np.arange(24).reshape((2, 3, 4))
     rect_prism = hl.nd.array(np_rect_prism)
@@ -161,6 +163,7 @@ def test_ndarray_transposed_slice():
     )
 
 
+@fails_service_backend()
 def test_ndarray_eval():
     data_list = [[1, 2, 3], [4, 5, 6], [7, 8, 9]]
     mishapen_data_list1 = [[4], [1, 2, 3]]
@@ -243,6 +246,7 @@ def test_ndarray_shape():
     )
 
 
+@fails_service_backend()
 def test_ndarray_reshape():
     np_single = np.array([8])
     single = hl.nd.array([8])
@@ -519,6 +523,7 @@ def test_ndarray_transpose():
     assert "Axes cannot contain duplicates" in str(exc.value)
 
 
+@fails_service_backend()
 def test_ndarray_matmul():
     np_v = np.array([1, 2])
     np_y = np.array([1, 1, 1])
@@ -628,6 +633,7 @@ def test_ndarray_full():
     assert hl.eval(hl.nd.full((5, 6, 7), hl.int32(3), dtype=hl.tfloat64)).dtype, np.float64
 
 
+@fails_service_backend()
 def test_ndarray_arange():
     assert_ndarrays_eq(
         (hl.nd.arange(40), np.arange(40)),
@@ -1015,6 +1021,7 @@ def test_identity():
         assert(np.array_equal(hl.eval(hl.nd.identity(i)), np.identity(i)))
 
 
+@fails_service_backend()
 def test_agg_ndarray_sum():
     no_values = hl.utils.range_table(0).annotate(x=hl.nd.arange(5))
     assert no_values.aggregate(hl.agg.ndarray_sum(no_values.x)) is None

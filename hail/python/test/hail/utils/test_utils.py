@@ -13,6 +13,7 @@ tearDownModule = stopTestHailContext
 
 class Tests(unittest.TestCase):
 
+    @fails_service_backend()
     @fails_local_backend()
     def test_hadoop_methods(self):
         data = ['foo', 'bar', 'baz']
@@ -58,6 +59,7 @@ class Tests(unittest.TestCase):
         with self.assertRaises(Exception):
             hadoop_open('/tmp/randomBytesOut', 'xb')
 
+    @fails_service_backend()
     def test_hadoop_exists(self):
         self.assertTrue(hl.hadoop_exists(resource('ls_test')))
         self.assertFalse(hl.hadoop_exists(resource('doesnt.exist')))
@@ -82,6 +84,7 @@ class Tests(unittest.TestCase):
 
         self.assertFalse(hl.hadoop_exists(resource('./some2')))
 
+    @fails_service_backend()
     @fails_local_backend()
     def test_hadoop_copy_log(self):
         with with_local_temp_file('log') as r:
@@ -89,16 +92,19 @@ class Tests(unittest.TestCase):
             stats = hl.hadoop_stat(r)
             self.assertTrue(stats['size_bytes'] > 0)
 
+    @fails_service_backend()
     def test_hadoop_is_file(self):
         self.assertTrue(hl.hadoop_is_file(resource('ls_test/f_50')))
         self.assertFalse(hl.hadoop_is_file(resource('ls_test/subdir')))
         self.assertFalse(hl.hadoop_is_file(resource('ls_test/invalid-path')))
 
+    @fails_service_backend()
     def test_hadoop_is_dir(self):
         self.assertTrue(hl.hadoop_is_dir(resource('ls_test/subdir')))
         self.assertFalse(hl.hadoop_is_dir(resource('ls_test/f_50')))
         self.assertFalse(hl.hadoop_is_dir(resource('ls_test/invalid-path')))
 
+    @fails_service_backend()
     def test_hadoop_stat(self):
         path1 = resource('ls_test')
         stat1 = hl.hadoop_stat(path1)
@@ -112,6 +118,7 @@ class Tests(unittest.TestCase):
         self.assertTrue('owner' in stat2)
         self.assertTrue('modification_time' in stat2)
 
+    @fails_service_backend()
     @fails_local_backend()
     def test_hadoop_ls(self):
         path1 = resource('ls_test/f_50')
