@@ -399,12 +399,12 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, pass_through=())
 
     x_field_name = Env.get_uid()
     if is_chained:
-        y_field_names = [[f'__y_{i}_{j}' for j in range(len(y[i]))] for i in range(len(y))]
-        y_dict = dict(zip(itertools.chain.from_iterable(y_field_names), itertools.chain.from_iterable(y)))
+        y_field_name_groups = [[f'__y_{i}_{j}' for j in range(len(y[i]))] for i in range(len(y))]
+        y_dict = dict(zip(itertools.chain.from_iterable(y_field_name_groups), itertools.chain.from_iterable(y)))
 
     else:
-        y_field_names = list(f'__y_{i}' for i in range(len(y)))
-        y_dict = dict(zip(y_field_names, y))
+        y_field_name_groups = list(f'__y_{i}' for i in range(len(y)))
+        y_dict = dict(zip(y_field_name_groups, y))
 
     cov_field_names = list(f'__cov{i}' for i in range(len(covariates)))
 
@@ -421,9 +421,9 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, pass_through=())
     sample_field_name = "by_sample"
 
     if not is_chained:
-        y_field_names = [y_field_names]
+        y_field_name_groups = [y_field_name_groups]
 
-    num_y_lists = len(y_field_names)
+    num_y_lists = len(y_field_name_groups)
 
     def all_defined(struct_root, field_names):
         if field_names:
@@ -458,11 +458,11 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, pass_through=())
         # cov_arrays is per sample, then per cov.
         ht = ht.annotate_globals(cov_arrays=ht[sample_field_name].map(lambda sample_struct: [sample_struct[cov_name] for cov_name in cov_field_names]))
         ht = ht.annotate_globals(
-            y_arrays_per_group=[ht[sample_field_name].map(lambda sample_struct: [sample_struct[y_name] for y_name in one_y_field_name_set]) for one_y_field_name_set in y_field_names]
+            y_arrays_per_group=[ht[sample_field_name].map(lambda sample_struct: [sample_struct[y_name] for y_name in one_y_field_name_set]) for one_y_field_name_set in y_field_name_groups]
         )
         all_covs_defined = ht.cov_arrays.map(lambda sample_covs: sample_covs.all(lambda a: hl.is_defined(a)))
 
-        # Create a hail array of length g (g is number of groups / length of `y_field_names`
+        # Create a hail array of length g (g is number of groups / length of `y_field_name_groups`
         # Each entry will be a list of structs. Each struct will contain an `idx`, an array `ys`, and an array `covs`
 
         def make_idx_ys_covs_struct(sample_ys):
