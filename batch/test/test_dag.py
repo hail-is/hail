@@ -156,6 +156,7 @@ def test_callback(client):
         callback_body.pop('duration')
         assert (callback_body == {
             'id': b.id,
+            'user': 'test',
             'billing_project': 'test',
             'token': token,
             'state': 'success',

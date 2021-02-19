@@ -82,6 +82,8 @@ class Job:
     # {
     #   batch_id: int
     #   job_id: int
+    #   user: str
+    #   billing_project: str
     #   name: optional(str)
     #   state: str (Ready, Running, Success, Error, Failure, Cancelled)
     #   exit_code: optional(int)
@@ -128,7 +130,8 @@ class Batch:
         async_to_blocking(self._async_batch.cancel())
 
     # {
-    #   id: int,
+    #   id: int
+    #   user: str
     #   billing_project: str
     #   token: str
     #   state: str, (open, failure, cancelled, success, running)
