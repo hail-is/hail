@@ -143,15 +143,21 @@ class InstanceCollection:
 
         log.info(f'{instance} gce_state {gce_state} last_start_timestamp {last_start_timestamp}')
 
+        if (gce_state == 'PROVISIONING'
+                and instance.state == 'pending'
+                and time_msecs() - instance.time_created > 5 * 60 * 1000):
+            log.info(f'{instance} did not provision within 5m after creation, deleting')
+            await self.call_delete_instance(instance, 'activation_timeout')
+
         if gce_state in ('STOPPING', 'TERMINATED'):
             log.info(f'{instance} live but stopping or terminated, deactivating')
             await instance.deactivate('terminated')
 
-        if (gce_state in ('PROVISIONING', 'STAGING', 'RUNNING')
+        if (gce_state in ('STAGING', 'RUNNING')
                 and instance.state == 'pending'
                 and last_start_time_msecs is not None
-                and time_msecs() - last_start_time_msecs > 60 * 1000):
-            log.info(f'{instance} did not activate within 1m after starting, deleting')
+                and time_msecs() - last_start_time_msecs > 5 * 60 * 1000):
+            log.info(f'{instance} did not activate within 5m after starting, deleting')
             await self.call_delete_instance(instance, 'activation_timeout')
 
         if instance.state == 'inactive':
