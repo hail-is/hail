@@ -389,15 +389,13 @@ object LoweredTableReader {
             ToStream(Literal(TArray(contextType), partOrigIndex.map(i => contexts(i)))),
             body)
 
-          val tableType = TableType(tableStage.rowType, tableStage.key, tableStage.globalType)
-
-          val rTable = BaseTypeWithRequiredness(tableType).asInstanceOf[RTable]
+          val rowRType = TypeWithRequiredness(tableStage.rowType).asInstanceOf[RStruct]
 
           ctx.backend.lowerDistributedSort(ctx,
             tableStage,
             keyType.fieldNames.map(f => SortField(f, Ascending)),
             Map.empty,
-            rTable
+            rowRType
           )
         }
       }
