@@ -1061,6 +1061,19 @@ class JVMJob(Job):
         if input_files or output_files:
             raise Exception("i/o not supported")
 
+        for envvar in self.env:
+            assert envvar['name'] not in {'HAIL_DEPLOY_CONFIG_FILE', 'HAIL_TOKENS_FILE',
+                                          'HAIL_SSL_CONFIG_FILE', 'HAIL_GSA_KEY_FILE',
+                                          'HAIL_WORKER_SCRATCH_DIR'}, envvar
+
+        self.env.append({'name': 'HAIL_DEPLOY_CONFIG_FILE',
+                         'value': f'{self.scratch}/secrets/deploy-config/deploy-config.json'})
+        self.env.append({'name': 'HAIL_TOKENS_FILE',
+                         'value': f'{self.scratch}/secrets/user-tokens/tokens.json'})
+        self.env.append({'name': 'HAIL_SSL_CONFIG_FILE',
+                         'value': f'{self.scratch}/secrets/ssl-config/ssl-config.json'})
+        self.env.append({'name': 'HAIL_GSA_KEY_FILE',
+                         'value': f'{self.scratch}/secrets/gsa-key/key.json'})
         self.env.append({'name': 'HAIL_WORKER_SCRATCH_DIR', 'value': self.scratch})
 
         # main container
