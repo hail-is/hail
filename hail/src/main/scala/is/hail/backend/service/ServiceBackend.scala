@@ -16,9 +16,9 @@ import is.hail.services.{DeployConfig, Tokens}
 import is.hail.services.batch_client.BatchClient
 import is.hail.services.shuffler.ShuffleClient
 import is.hail.types._
-import is.hail.types.encoded.{EBaseStruct, EType}
-import is.hail.types.physical.{PBaseStruct, PType}
-import is.hail.types.virtual.{TArray, TInt64, TInterval, TShuffle, TStruct, Type}
+import is.hail.types.encoded._
+import is.hail.types.physical._
+import is.hail.types.virtual._
 import is.hail.utils._
 import is.hail.variant.ReferenceGenome
 import org.apache.commons.io.IOUtils
@@ -342,18 +342,29 @@ class ServiceBackend() extends Backend {
     }
   }
 
-  private[this] def execute(ctx: ExecuteContext, _x: IR): (Annotation, PType) = {
+  private[this] def execute(ctx: ExecuteContext, _x: IR): Option[(Annotation, PType)] = {
     val x = LoweringPipeline.darrayLowerer(true)(DArrayLowering.All).apply(ctx, _x)
       .asInstanceOf[IR]
-    val (pt, f) = Compile[AsmFunction1RegionLong](ctx,
-      FastIndexedSeq[(String, PType)](),
-      FastIndexedSeq[TypeInfo[_]](classInfo[Region]), LongInfo,
-      MakeTuple.ordered(FastIndexedSeq(x)),
-      optimize = true)
+    if (x.typ == TVoid) {
+      val (_, f) = Compile[AsmFunction1RegionUnit](ctx,
+        FastIndexedSeq[(String, PType)](),
+        FastIndexedSeq[TypeInfo[_]](classInfo[Region]), UnitInfo,
+        x,
+        optimize = true)
 
-    val a = f(0, ctx.r)(ctx.r)
-    val retPType = pt.asInstanceOf[PBaseStruct]
-    (new UnsafeRow(retPType, ctx.r, a).get(0), retPType.types(0))
+      f(0, ctx.r)(ctx.r)
+      None
+    } else {
+      val (pt, f) = Compile[AsmFunction1RegionLong](ctx,
+        FastIndexedSeq[(String, PType)](),
+        FastIndexedSeq[TypeInfo[_]](classInfo[Region]), LongInfo,
+        MakeTuple.ordered(FastIndexedSeq(x)),
+        optimize = true)
+
+      val a = f(0, ctx.r)(ctx.r)
+      val retPType = pt.asInstanceOf[PBaseStruct]
+      Some((new UnsafeRow(retPType, ctx.r, a).get(0), retPType.types(0)))
+    }
   }
   def execute(username: String, sessionID: String, billingProject: String, bucket: String, code: String): Response = {
     statusForException {
@@ -361,11 +372,15 @@ class ServiceBackend() extends Backend {
         userContext(username, timer) { ctx =>
           ctx.backendContext = new ServiceBackendContext(username, sessionID, billingProject, bucket)
 
-          val (v, t) = execute(ctx, IRParser.parse_value_ir(ctx, code))
-
-          JsonMethods.compact(
-            JObject(List("value" -> JSONAnnotationImpex.exportAnnotation(v, t.virtualType),
-              "type" -> JString(t.virtualType.toString))))
+          execute(ctx, IRParser.parse_value_ir(ctx, code)) match {
+            case Some((v, t)) =>
+              JsonMethods.compact(
+                JObject(List("value" -> JSONAnnotationImpex.exportAnnotation(v, t.virtualType),
+                  "type" -> JString(t.virtualType.toString))))
+            case None =>
+              JsonMethods.compact(
+                JObject(List("value" -> null, "type" -> JString(TVoid.toString))))
+          }
         }
       }
     }
