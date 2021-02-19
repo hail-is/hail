@@ -286,6 +286,8 @@ object EType {
       assert(t.size == rstruct.size, s"different number of fields: ${t} ${r}")
       EBaseStruct(Array.tabulate(t.size) { i =>
         val f = rstruct.fields(i)
+        if (f.index != i)
+          throw new AssertionError(s"${t} [$i]")
         EField(f.name, fromTypeAndAnalysis(t.fields(i).typ, f.typ), f.index)
       }, required = r.required)
     case t: TNDArray =>

@@ -2016,8 +2016,8 @@ object PruneDeadFields {
           val rt = rType.asInstanceOf[TTuple]
           val uid = genUID()
           val ref = Ref(uid, ir.typ)
-          val mt = MakeTuple(rt.fields.map { fd =>
-            fd.index -> upcast(GetTupleElement(ref, fd.index), fd.typ)
+          val mt = MakeTuple(rt._types.map { tupleField =>
+            tupleField.index -> upcast(GetTupleElement(ref, tupleField.index), tupleField.typ)
           })
           Let(uid, ir, If(IsNA(ref), NA(mt.typ), mt))
         case _: TDict =>

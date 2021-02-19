@@ -65,7 +65,7 @@ final case class EBaseStruct(fields: IndexedSeq[EField], override val required: 
     case t: TTuple =>
       val pFields = t.fields.map { case Field(name, typ, idx) =>
         val pt = fieldType(name).decodedPType(typ)
-        PTupleField(idx, pt)
+        PTupleField(t._types(idx).index, pt)
       }
       SBaseStructPointer(PCanonicalTuple(pFields, required))
   }

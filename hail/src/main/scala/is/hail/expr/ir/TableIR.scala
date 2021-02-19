@@ -1191,7 +1191,8 @@ case class TableParallelize(rowsAndGlobal: IR, nPartitions: Option[Int] = None) 
     }
 
     val (resultRowType: PStruct, makeDec) = spec.buildDecoder(ctx, typ.rowType)
-    assert(resultRowType.virtualType == typ.rowType)
+    assert(resultRowType.virtualType == typ.rowType, s"typ mismatch:" +
+      s"\n  res=${ resultRowType.virtualType }\n  typ=${ typ.rowType }")
 
     log.info(s"parallelized $nRows rows in $nSplits partitions")
 
