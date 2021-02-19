@@ -303,7 +303,7 @@ LIMIT %s;
                 '''
 SELECT attempts.*
 FROM attempts
-INNER JOIN jobs ON batches.id = jobs.batch_id
+INNER JOIN jobs ON attempts.batch_id = jobs.batch_id AND attempts.job_id = jobs.job_id
 LEFT JOIN instances ON attempts.instance_name = instances.name
 WHERE attempts.start_time IS NOT NULL
   AND attempts.end_time IS NULL
