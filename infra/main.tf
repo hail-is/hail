@@ -9,6 +9,9 @@ terraform {
       version = "1.13.3"
     }
   }
+  backend "gcs" {
+    bucket = "cpg-hail-terraform"
+  }
 }
 
 variable "gsuite_organization" {}
