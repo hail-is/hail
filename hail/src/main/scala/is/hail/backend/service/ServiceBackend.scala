@@ -448,10 +448,13 @@ class ServiceBackend() extends Backend {
     })
 
     try {
-      val successfulPartitionIds = execute(
+      val Some((successfulPartitionIdsAndGlobals, pType)) = execute(
         ctx,
-        stage.mapCollect(relationalLetsAbove)(
-          ShuffleWrite(Literal(shuffleType, uuid), _)))
+        stage.mapCollectWithGlobals
+          (relationalLetsAbove)
+          { partition => ShuffleWrite(Literal(shuffleType, uuid), partition) }
+          { (rows, globals) => MakeTuple.ordered(Seq(rows, globals)) })
+      val globals = successfulPartitionIdsAndGlobals.asInstanceOf[UnsafeRow].get(1)
 
       val partitionBoundsPointers = shuffleClient.partitionBounds(region, stage.numPartitions)
       val partitionIntervals = partitionBoundsPointers.zip(partitionBoundsPointers.drop(1)).map { case (l, r) =>
@@ -464,7 +467,7 @@ class ServiceBackend() extends Backend {
       val partitioner = new RVDPartitioner(keyType, partitionIntervals.toFastIndexedSeq)
 
       TableStage(
-        globals = Literal(TStruct(), Row()),
+        globals = Literal(stage.globalType, globals),
         partitioner = partitioner,
         TableStageDependency.none,
         contexts = ToStream(MakeArray(
