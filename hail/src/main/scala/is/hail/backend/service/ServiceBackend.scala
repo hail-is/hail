@@ -1,6 +1,7 @@
 package is.hail.backend.service
 
 import java.io._
+import java.util.concurrent.ConcurrentHashMap
 
 import is.hail.HailContext
 import is.hail.annotations.{Annotation, Region, SafeRow, UnsafeRow}
@@ -144,20 +145,21 @@ final class Response(val status: Int, val value: String)
 class ServiceBackend() extends Backend {
   import ServiceBackend.log
 
-  private[this] val users = mutable.Map[String, User]()
+  private[this] val users = new ConcurrentHashMap[String, User]()
 
-  def addUser(username: String, key: String): Unit = {
-    assert(!users.contains(username))
-    users += username -> new User(username, "/tmp", new GoogleStorageFS(key))
+  def addUser(username: String, key: String): Unit = synchronized {
+    val previousValue = users.put(username, new User(username, "/tmp", new GoogleStorageFS(key)))
+    assert(previousValue == null)
   }
 
-  def removeUser(username: String): Unit = {
-    assert(users.contains(username))
-    users -= username
+  def removeUser(username: String): Unit = synchronized {
+    val previousValue = users.remove(username)
+    assert(previousValue != null)
   }
 
   def userContext[T](username: String, timer: ExecutionTimer)(f: (ExecuteContext) => T): T = {
-    val user = users(username)
+    val user = users.get(username)
+    assert(user != null, username)
     ExecuteContext.scoped(user.tmpdir, "file:///tmp", this, user.fs, timer)(f)
   }
 
@@ -170,7 +172,8 @@ class ServiceBackend() extends Backend {
   def parallelizeAndComputeWithIndex(_backendContext: BackendContext, collection: Array[Array[Byte]], dependency: Option[TableStageDependency] = None)(f: (Array[Byte], HailTaskContext) => Array[Byte]): Array[Array[Byte]] = {
     val backendContext = _backendContext.asInstanceOf[ServiceBackendContext]
 
-    val user = users(backendContext.username)
+    val user = users.get(backendContext.username)
+    assert(user != null, backendContext.username)
     val fs = user.fs
 
     val n = collection.length
