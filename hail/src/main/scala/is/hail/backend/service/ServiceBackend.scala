@@ -408,14 +408,14 @@ class ServiceBackend() extends Backend {
     stage: TableStage,
     sortFields: IndexedSeq[SortField],
     relationalLetsAbove: Map[String, IR],
-    tableTypeRequiredness: RTable
+    rowTypeRequiredness: RStruct
   ): TableStage = {
     val region = ctx.r
     val rowType = stage.rowType
     val keyFields = sortFields.map(_.field).toArray
     val keyType = rowType.typeAfterSelectNames(keyFields)
-    val rowEType = EType.fromTypeAndAnalysis(rowType, tableTypeRequiredness.rowType).asInstanceOf[EBaseStruct]
-    val keyEType = EType.fromTypeAndAnalysis(keyType, tableTypeRequiredness.rowType.select(keyFields)).asInstanceOf[EBaseStruct]
+    val rowEType = EType.fromTypeAndAnalysis(rowType, rowTypeRequiredness).asInstanceOf[EBaseStruct]
+    val keyEType = EType.fromTypeAndAnalysis(keyType, rowTypeRequiredness.select(keyFields)).asInstanceOf[EBaseStruct]
     val shuffleType = TShuffle(sortFields, rowType, rowEType, keyEType)
     val shuffleClient = new ShuffleClient(shuffleType, ctx)
     assert(keyType == shuffleClient.codecs.keyType)
