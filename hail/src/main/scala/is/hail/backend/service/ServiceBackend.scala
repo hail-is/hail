@@ -108,6 +108,7 @@ object Worker {
     timer.end("readInputs")
     timer.start("executeFunction")
 
+    val hailContext = HailContext(ServiceBackend())
     val htc = new ServiceTaskContext(i)
     HailTaskContext.setTaskContext(htc)
     val result = f(context, htc)
