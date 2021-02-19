@@ -36,6 +36,14 @@ class FS(abc.ABC):
     def ls(self, path: str) -> List[Dict]:
         pass
 
+    @abc.abstractmethod
+    def remove(self, path: str):
+        pass
+
+    @abc.abstractmethod
+    def rmtree(self, path: str):
+        pass
+
     def copy_log(self, path: str) -> None:
         log = Env.hc()._log
         try:
@@ -46,3 +54,27 @@ class FS(abc.ABC):
             self.copy(local_path_uri(Env.hc()._log), path)
         except Exception as e:
             sys.stderr.write(f'Could not copy log: encountered error:\n  {e}')
+
+
+class DeletingFile:
+    def __init__(self, fs: FS, fname: str):
+        self.fs = fs
+        self.fname = fname
+
+    def __enter__(self):
+        return self.fname
+
+    def __exit__(self, type, value, traceback):
+        return self.fs.remove(self.fname)
+
+
+class DeletingDirectory:
+    def __init__(self, fs: FS, dirname: str):
+        self.fs = fs
+        self.dirname = dirname
+
+    def __enter__(self):
+        return self.dirname
+
+    def __exit__(self, type, value, traceback):
+        return self.fs.rmtree(self.dirname)

@@ -11,6 +11,11 @@ from hail.typecheck import nullable, typecheck, typecheck_method, enumeration, d
 from hail.utils import get_env_or_default
 from hail.utils.java import Env, FatalError, warning
 from hail.backend import Backend
+from hailtop.utils import secret_alnum_string
+from .fs.fs import DeletingDirectory, DeletingFile
+from .fs.hadoop_fs import HadoopFS
+from .fs.local_fs import LocalFS
+from .fs.google_fs import GoogleCloudStorageFS
 
 
 def _get_tmpdir(tmpdir):
@@ -230,8 +235,11 @@ def init(sc=None, app_name='Hail', master=None, local='local[*]',
         quiet, append, min_block_size, branching_factor, tmpdir, local_tmpdir,
         skip_logging_configuration, optimizer_iterations)
 
+    if not backend.fs.exists(tmpdir):
+        backend.fs.mkdir(tmpdir)
+
     HailContext(
-        log, quiet, append, tmp_dir, local_tmpdir, default_reference,
+        log, quiet, append, tmpdir, local_tmpdir, default_reference,
         global_seed, backend)
 
 
@@ -261,7 +269,9 @@ def init_service(
     backend = ServiceBackend(billing_project, bucket, skip_logging_configuration=skip_logging_configuration)
 
     log = _get_log(log)
-    tmpdir = _get_tmpdir(tmpdir)
+    if tmpdir is None:
+        tmpdir = 'gs://' + backend._bucket + '/' + secret_alnum_string()
+    assert tmpdir.startswith('gs://')
     local_tmpdir = _get_local_tmpdir(local_tmpdir)
 
     HailContext(
@@ -298,6 +308,9 @@ def init_local(
     backend = LocalBackend(
         tmpdir, log, quiet, append, branching_factor,
         skip_logging_configuration, optimizer_iterations)
+
+    if not backend.fs.exists(tmpdir):
+        backend.fs.mkdir(tmpdir)
 
     HailContext(
         log, quiet, append, tmpdir, tmpdir, default_reference,
@@ -371,7 +384,7 @@ def spark_context():
     return Env.spark_backend('spark_context').sc
 
 
-def tmp_dir():
+def tmp_dir() -> str:
     """Returns the Hail shared temporary directory.
 
     Returns
@@ -381,7 +394,55 @@ def tmp_dir():
     return Env.hc()._tmpdir
 
 
-def current_backend():
+def mktemp(*, suffix: str = '') -> DeletingFile:
+    """A temporary file that is deleted when it exits this context.
+
+    Examples
+    --------
+
+    >>> with mktemp() as f:  # doctest: +SKIP
+    ...     open(f, 'w').write('hello hail')
+    ...     print(open(f).read())
+    hello hail
+
+    Returns
+    -------
+    :class:`.DeletingFile` or :class:`.DeletingDirectory`
+    """
+    return DeletingFile(
+        current_backend().fs,
+        tmp_dir() + '/' + secret_alnum_string(10) + suffix)
+
+
+def mktempd(*, ensure_exists: bool = True) -> DeletingDirectory:
+    """A temporary directory that is recursively deleted when it exits this context.
+
+    If the filesystem has a notion of directories, then we ensure the directory exists.
+
+    Examples
+    --------
+
+    >>> with mktempd() as dir:  # doctest: +SKIP
+    ...     open(f'{dir}/hello', 'w').write('hello hail')
+    ...     print(open(f'{dir}/hello').read())
+    hello hail
+
+    Returns
+    -------
+    :class:`.DeletingFile` or :class:`.DeletingDirectory`
+
+    """
+    dirname = tmp_dir() + '/' + secret_alnum_string(10)
+    fs = current_backend().fs
+    if ensure_exists:
+        if isinstance(fs, (HadoopFS, LocalFS)):
+            fs.mkdir(dirname)
+        else:
+            assert isinstance(fs, GoogleCloudStorageFS)
+    return DeletingDirectory(fs, dirname)
+
+
+def current_backend() -> Backend:
     return Env.hc()._backend
 
 

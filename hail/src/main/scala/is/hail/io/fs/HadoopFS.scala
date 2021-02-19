@@ -115,6 +115,14 @@ class HadoopFS(val conf: SerializableHadoopConfiguration) extends FS {
     getFileSystem(dirname).mkdirs(new hadoop.fs.Path(dirname))
   }
 
+  def remove(fname: String): Unit = {
+    getFileSystem(fname).delete(new hadoop.fs.Path(fname), false)
+  }
+
+  def rmtree(dirname: String): Unit = {
+    getFileSystem(dirname).delete(new hadoop.fs.Path(dirname), true)
+  }
+
   def delete(filename: String, recursive: Boolean) {
     getFileSystem(filename).delete(new hadoop.fs.Path(filename), recursive)
   }

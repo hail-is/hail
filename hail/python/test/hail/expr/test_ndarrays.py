@@ -1,6 +1,5 @@
 import numpy as np
 from ..helpers import *
-import tempfile
 import pytest
 
 from hail.utils.java import FatalError, HailUserError
@@ -470,7 +469,7 @@ def test_ndarray_save():
     ]
 
     for expected in arrs:
-        with tempfile.NamedTemporaryFile(suffix='.npy') as f:
+        with hl.mktemp(suffix='.npy') as f:
             hl.nd.array(expected).save(f.name)
             actual = np.load(f.name)
 

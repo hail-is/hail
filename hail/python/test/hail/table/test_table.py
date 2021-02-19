@@ -1263,13 +1263,13 @@ class Tests(unittest.TestCase):
 
     @fails_service_backend()
     def test_rvd_key_write(self):
-        tempfile = new_temp_file(extension='ht')
-        ht1 = hl.utils.range_table(1).key_by(foo='a', bar='b')
-        ht1.write(tempfile)  # write ensures that table is written with both key fields
+        with hl.mktemp(suffix='.ht') as tempfile:
+            ht1 = hl.utils.range_table(1).key_by(foo='a', bar='b')
+            ht1.write(tempfile)  # write ensures that table is written with both key fields
 
-        ht1 = hl.read_table(tempfile)
-        ht2 = hl.utils.range_table(1).annotate(foo='a')
-        assert ht2.annotate(x = ht1.key_by('foo')[ht2.foo])._force_count() == 1
+            ht1 = hl.read_table(tempfile)
+            ht2 = hl.utils.range_table(1).annotate(foo='a')
+            assert ht2.annotate(x = ht1.key_by('foo')[ht2.foo])._force_count() == 1
 
     def test_show_long_field_names(self):
         hl.utils.range_table(1).annotate(**{'a' * 256: 5}).show()
