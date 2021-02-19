@@ -52,7 +52,7 @@ class IRRandomness(seed: Long) {
   }
 }
 
-object RandomSeededFunctions extends RegistryFunctions {
+class RandomSeededFunctions(registry: IRFunctionRegistry) extends RegistryFunctions(registry) {
 
   def registerAll() {
     registerSeeded2("rand_unif", TFloat64, TFloat64, TFloat64, {

@@ -1,5 +1,7 @@
 package is.hail.expr.ir
 
+import java.util.function.Supplier
+
 import is.hail.ExecStrategy.ExecStrategy
 import is.hail.TestUtils._
 import is.hail.annotations.{BroadcastRow, Region}
@@ -36,7 +38,19 @@ object IRSuite {
     globalCounter += 1
   }
 
-  object TestFunctions extends RegistryFunctions {
+  object TestFunctions {
+    private[this] val threadLocal = ThreadLocal.withInitial(new Supplier[TestFunctions]() {
+      def get(): TestFunctions = {
+        val tf = new TestFunctions(IRFunctionRegistry.threadLocal.get)
+        tf.registerAll()
+        tf
+      }
+    })
+
+    def ensureInitializedInThisThread: Unit = threadLocal.get
+  }
+
+  class TestFunctions(registry: IRFunctionRegistry) extends RegistryFunctions(registry) {
 
     def registerSeededWithMissingness(
       name: String,
@@ -46,7 +60,7 @@ object IRSuite {
     )(
       impl: (EmitCodeBuilder, Value[Region], PType, Long, Array[EmitCode]) => IEmitCode
     ) {
-      IRFunctionRegistry.addJVMFunction(
+      registry.addJVMFunction(
         new SeededMissingnessAwareJVMFunction(name, valueParameterTypes, returnType, calculateReturnType) {
           val isDeterministic: Boolean = false
           def applySeededI(seed: Long, cb: EmitCodeBuilder, r: Value[Region], returnPType: PType, args: (PType, EmitCode)*): IEmitCode = {
@@ -3545,7 +3559,7 @@ class IRSuite extends HailSuite {
   }
 
   @Test def testEvaluations() {
-    TestFunctions.registerAll()
+    IRSuite.TestFunctions.ensureInitializedInThisThread
 
     def test(x: IR, i: java.lang.Boolean, expectedEvaluations: Int) {
       val env = Env.empty[(Any, Type)]

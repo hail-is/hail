@@ -9,7 +9,7 @@ import is.hail.backend.BackendContext
 import is.hail.expr.ir.Emit.E
 import is.hail.expr.ir.EmitStream.SizedStream
 import is.hail.expr.ir.agg.{AggStateSig, ArrayAggStateSig, GroupedStateSig}
-import is.hail.expr.ir.functions.StringFunctions
+import is.hail.expr.ir.functions._
 import is.hail.expr.ir.lowering.TableStageDependency
 import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer}
 import is.hail.linalg.{BLAS, LAPACK, LinalgCodeUtils}
@@ -2301,7 +2301,7 @@ class Emit[C](
             Code._throw[HailException, Unit](Code.newInstance[HailException, String, Int](
               cm.m.mux[String](
                 "<exception message missing>",
-                coerce[String](StringFunctions.wrapArg(EmitRegion(mb, region.code), m.pType)(cm.v))), errorId))),
+                coerce[String](wrapArg(EmitRegion(mb, region.code), m.pType)(cm.v))), errorId))),
           true,
           pt.defaultValue(mb))
 

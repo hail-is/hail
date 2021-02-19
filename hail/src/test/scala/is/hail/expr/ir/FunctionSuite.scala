@@ -1,11 +1,12 @@
 package is.hail.expr.ir
 
 import java.io.PrintWriter
+import java.util.function.Supplier
 
 import is.hail.{ExecStrategy, HailSuite}
 import is.hail.annotations._
 import is.hail.asm4s._
-import is.hail.expr.ir.functions.{IRFunctionRegistry, RegistryFunctions}
+import is.hail.expr.ir.functions._
 import is.hail.types.virtual._
 import is.hail.utils.{FastIndexedSeq, FastSeq}
 import is.hail.variant.Call2
@@ -24,8 +25,19 @@ class ScalaTestCompanion {
   def testFunction(): Int = 3
 }
 
+object TestRegisterFunctions {
+  private[this] val threadLocal = ThreadLocal.withInitial(new Supplier[TestRegisterFunctions]() {
+    def get(): TestRegisterFunctions = {
+      val trf = new TestRegisterFunctions(IRFunctionRegistry.threadLocal.get)
+      trf.registerAll()
+      trf
+    }
+  })
 
-object TestRegisterFunctions extends RegistryFunctions {
+  def ensureInitializedInThisThread: Unit = threadLocal.get
+}
+
+class TestRegisterFunctions(registry: IRFunctionRegistry) extends RegistryFunctions(registry) {
   def registerAll() {
     registerIR1("addone", TInt32, TInt32)((_, a) => ApplyBinaryPrimOp(Add(), a, I32(1)))
     registerJavaStaticFunction("compare", Array(TInt32, TInt32), TInt32, null)(classOf[java.lang.Integer], "compare")
@@ -39,10 +51,9 @@ object TestRegisterFunctions extends RegistryFunctions {
 }
 
 class FunctionSuite extends HailSuite {
+  TestRegisterFunctions.ensureInitializedInThisThread
 
   implicit val execStrats = ExecStrategy.javaOnly
-
-  TestRegisterFunctions.registerAll()
 
   def lookup(meth: String, rt: Type, types: Type*)(irs: IR*): IR = {
     val l = IRFunctionRegistry.lookupUnseeded(meth, rt, types).get

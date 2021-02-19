@@ -8,7 +8,7 @@ import is.hail.types.physical.stypes.SCode
 import is.hail.types.physical.{PArray, PCode, PFloat64, PIndexableCode, PInt32, PType}
 import is.hail.types.virtual.{TArray, TFloat64, TInt32, Type}
 
-object GenotypeFunctions extends RegistryFunctions {
+class GenotypeFunctions(registry: IRFunctionRegistry) extends RegistryFunctions(registry) {
 
   def registerAll() {
     registerPCode1("gqFromPL", TArray(tv("N", "int32")), TInt32, (_: Type, _: PType) => PInt32())

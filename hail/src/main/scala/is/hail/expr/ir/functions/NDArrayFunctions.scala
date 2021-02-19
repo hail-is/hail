@@ -5,9 +5,11 @@ import is.hail.expr.ir._
 import is.hail.types.coerce
 import is.hail.types.virtual._
 
-object NDArrayFunctions extends RegistryFunctions {
+class NDArrayFunctions(registry: IRFunctionRegistry) extends RegistryFunctions(registry) {
+  val arrayOps = ArrayFunctions.makeArrayOps
+
   override def registerAll() {
-    for ((stringOp, argType, retType, irOp) <- ArrayFunctions.arrayOps) {
+    for ((stringOp, argType, retType, irOp) <- arrayOps) {
       val nDimVar = NatVariable()
       registerIR2(stringOp, TNDArray(argType, nDimVar), argType, TNDArray(retType, nDimVar)) { (_, a, c) =>
         val i = genUID()

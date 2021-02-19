@@ -12,8 +12,7 @@ import is.hail.types.virtual._
 import is.hail.utils._
 import is.hail.variant._
 
-object LocusFunctions extends RegistryFunctions {
-
+object LocusFunctions {
   def rgCode(mb: EmitMethodBuilder[_], rg: ReferenceGenome): Code[ReferenceGenome] =
     mb.getReferenceGenome(rg)
 
@@ -64,9 +63,6 @@ object LocusFunctions extends RegistryFunctions {
     )
   }
 
-  def registerLocusCode(methodName: String)(f: IR => IR): Unit =
-    registerIR1(methodName, tlocus("T"), TBoolean)((_, a) => f(a))
-
   def inX(locus: IR): IR = {
     val xContigs = Literal(TSet(TString), locus.typ.asInstanceOf[TLocus].rg.xContigs)
     invoke("contains", TBoolean, xContigs, invoke("contig", TString, locus))
@@ -89,6 +85,13 @@ object LocusFunctions extends RegistryFunctions {
   }
 
   def isAutosomal(locus: IR): IR = !(inX(locus) || inY(locus) || isMitochondrial(locus))
+}
+
+class LocusFunctions(registry: IRFunctionRegistry) extends RegistryFunctions(registry) {
+  import LocusFunctions._
+
+  def registerLocusCode(methodName: String)(f: IR => IR): Unit =
+    registerIR1(methodName, tlocus("T"), TBoolean)((_, a) => f(a))
 
   def registerAll() {
     val locusClass = Locus.getClass

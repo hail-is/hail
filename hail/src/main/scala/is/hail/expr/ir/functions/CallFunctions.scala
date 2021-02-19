@@ -7,7 +7,7 @@ import is.hail.types.virtual._
 import is.hail.utils.FastSeq
 import is.hail.variant._
 
-object CallFunctions extends RegistryFunctions {
+class CallFunctions(registry: IRFunctionRegistry) extends RegistryFunctions(registry) {
   def registerAll() {
     registerWrappedScalaFunction1("Call", TString, TCall, (rt: Type, st: PType) => PCanonicalCall(st.required))(Call.getClass, "parse")
 

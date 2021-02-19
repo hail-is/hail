@@ -1,9 +1,11 @@
 package is.hail.expr.ir
 
+import java.util.function.Supplier
+
 import is.hail.TestUtils._
 import is.hail.expr.ir.TestUtils._
 import is.hail.asm4s.Code
-import is.hail.expr.ir.functions.{IRRandomness, RegistryFunctions}
+import is.hail.expr.ir.functions._
 import is.hail.types.physical.{PCode, PInt32, PInt64}
 import is.hail.types.virtual.{TArray, TFloat64, TInt32, TInt64, TStream}
 import is.hail.utils._
@@ -27,7 +29,19 @@ class TestIRRandomness(val seed: Long) extends IRRandomness(seed) {
   }
 }
 
-object TestRandomFunctions extends RegistryFunctions {
+object TestRandomFunctions {
+  private[this] val threadLocal = ThreadLocal.withInitial(new Supplier[TestRandomFunctions]() {
+    def get(): TestRandomFunctions = {
+      val trf = new TestRandomFunctions(IRFunctionRegistry.threadLocal.get)
+      trf.registerAll()
+      trf
+    }
+  })
+
+  def ensureInitializedInThisThread: Unit = threadLocal.get
+}
+
+class TestRandomFunctions(registry: IRFunctionRegistry) extends RegistryFunctions(registry) {
   def getTestRNG(mb: EmitMethodBuilder[_], seed: Long): Code[TestIRRandomness] = {
     val rng = mb.genFieldThisRef[IRRandomness]()
     mb.ecb.rngs += rng -> Code.checkcast[IRRandomness](Code.newInstance[TestIRRandomness, Long](seed))
@@ -50,7 +64,6 @@ object TestRandomFunctions extends RegistryFunctions {
 }
 
 class RandomFunctionsSuite extends HailSuite {
-
   implicit val execStrats = ExecStrategy.javaOnly
 
   def counter = ApplySeeded("counter_seeded", FastSeq(), 0L, TInt32)
@@ -64,7 +77,7 @@ class RandomFunctionsSuite extends HailSuite {
         "counter" -> counter)))
 
   @BeforeClass def registerFunctions() {
-    TestRandomFunctions.registerAll()
+    TestRandomFunctions.ensureInitializedInThisThread
   }
 
   @Test def testRandomAcrossJoins() {

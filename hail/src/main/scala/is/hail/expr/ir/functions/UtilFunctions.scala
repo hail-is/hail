@@ -12,7 +12,8 @@ import org.apache.spark.sql.Row
 
 import scala.reflect.ClassTag
 
-object UtilFunctions extends RegistryFunctions {
+object UtilFunctions {
+  val objectClass = getClass
 
   def parseBoolean(s: String): Boolean = s.toBoolean
 
@@ -123,10 +124,12 @@ object UtilFunctions extends RegistryFunctions {
 
   def format(f: String, args: Row): String =
     String.format(f, args.toSeq.map(_.asInstanceOf[java.lang.Object]): _*)
+}
+
+class UtilFunctions(registry: IRFunctionRegistry) extends RegistryFunctions(registry) {
+  import UtilFunctions._
 
   def registerAll() {
-    val thisClass = getClass
-
     registerPCode4("valuesSimilar", tv("T"), tv("U"), TFloat64, TBoolean, TBoolean, {
       case (_: Type, _: PType, _: PType, _: PType, _: PType) => PBoolean()
     }) {
@@ -159,15 +162,15 @@ object UtilFunctions extends RegistryFunctions {
       registerCode1(s"to$name", TString, t, (_: Type, _: PType) => rpt) {
         case (r, rt, (xT: PString, x: Code[Long])) =>
           val s = asm4s.coerce[String](wrapArg(r, xT)(x))
-          Code.invokeScalaObject1(thisClass, s"parse$name", s)(ctString, ct)
+          Code.invokeScalaObject1(objectClass, s"parse$name", s)(ctString, ct)
       }
       registerIEmitCode1(s"to${name}OrMissing", TString, t, (_: Type, xPT: PType) => rpt.setRequired(xPT.required)) {
         case (cb, r, rt, x) =>
           x.toI(cb).flatMap(cb) { case (sc: PStringCode) =>
             val sv = cb.newLocal[String]("s", sc.loadString())
             IEmitCode(cb,
-              !Code.invokeScalaObject1[String, Boolean](thisClass, s"isValid$name", sv),
-              PCode(rt, Code.invokeScalaObject1(thisClass, s"parse$name", sv)(ctString, ct)))
+              !Code.invokeScalaObject1[String, Boolean](objectClass, s"isValid$name", sv),
+              PCode(rt, Code.invokeScalaObject1(objectClass, s"parse$name", sv)(ctString, ct)))
           }
       }
     }
@@ -194,12 +197,12 @@ object UtilFunctions extends RegistryFunctions {
 
       registerCode2(ignoreNanName, TFloat32, TFloat32, TFloat32, (_: Type, _: PType, _: PType) => PFloat32()) {
         case (r, rt, (t1, v1: Code[Float]), (t2, v2: Code[Float])) =>
-          Code.invokeScalaObject2[Float, Float, Float](thisClass, ignoreNanName, v1, v2)
+          Code.invokeScalaObject2[Float, Float, Float](objectClass, ignoreNanName, v1, v2)
       }
 
       registerCode2(ignoreNanName, TFloat64, TFloat64, TFloat64, (_: Type, _: PType, _: PType) => PFloat64()) {
         case (r, rt, (t1, v1: Code[Double]), (t2, v2: Code[Double])) =>
-          Code.invokeScalaObject2[Double, Double, Double](thisClass, ignoreNanName, v1, v2)
+          Code.invokeScalaObject2[Double, Double, Double](objectClass, ignoreNanName, v1, v2)
       }
 
       def ignoreMissingTriplet[T](rt: PType, v1: EmitCode, v2: EmitCode, name: String)(implicit ct: ClassTag[T], ti: TypeInfo[T]): EmitCode = {
@@ -208,7 +211,7 @@ object UtilFunctions extends RegistryFunctions {
         EmitCode(
           Code(v1.setup, v2.setup, m1 := v1.m, m2 := v2.m),
           m1 && m2,
-          PCode(rt, Code.invokeScalaObject4[T, Boolean, T, Boolean, T](thisClass, name,
+          PCode(rt, Code.invokeScalaObject4[T, Boolean, T, Boolean, T](objectClass, name,
             m1.mux(coerce[T](defaultValue(ti)), v1.value[T]), m1,
             m2.mux(coerce[T](defaultValue(ti)), v2.value[T]), m2)))
       }
@@ -241,7 +244,7 @@ object UtilFunctions extends RegistryFunctions {
     registerPCode2("format", TString, tv("T", "tuple"), TString, (_: Type, _: PType, _: PType) => PCanonicalString()) {
       case (r, cb, rt: PCanonicalString, format, args) =>
         val javaObjArgs = Code.checkcast[Row](scodeToJavaValue(cb, r.region, args))
-        val formatted = Code.invokeScalaObject2[String, Row, String](thisClass, "format", format.asString.loadString(), javaObjArgs)
+        val formatted = Code.invokeScalaObject2[String, Row, String](objectClass, "format", format.asString.loadString(), javaObjArgs)
         val st = SStringPointer(rt)
         st.constructFromString(cb, r.region, formatted)
     }

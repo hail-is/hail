@@ -18,7 +18,8 @@ import org.json4s.jackson.JsonMethods
 
 import scala.collection.mutable
 
-object StringFunctions extends RegistryFunctions {
+object StringFunctions {
+  val objectClass = getClass
 
   def reverse(s: String): String = {
     val sb = new StringBuilder
@@ -94,10 +95,12 @@ object StringFunctions extends RegistryFunctions {
     DateFormatUtils.parseDateFormat(fmtStr, locale).withZone(ZoneId.of(zoneId))
       .parse(timeStr)
       .getLong(ChronoField.INSTANT_SECONDS)
+}
+
+class StringFunctions(registry: IRFunctionRegistry) extends RegistryFunctions(registry) {
+  import StringFunctions._
 
   def registerAll(): Unit = {
-    val thisClass = getClass
-
     registerPCode1("length", TString, TInt32, (_: Type, _: PType) => PInt32()) { case (r: EmitRegion, cb, rt, s: PStringCode) =>
       PCode(rt, s.loadString().invoke[Int]("length"))
     }
@@ -193,50 +196,50 @@ object StringFunctions extends RegistryFunctions {
       IEmitCode.present(cb, st.constructFromString(cb, r, str))
     }
 
-    registerWrappedScalaFunction1("reverse", TString, TString, (_: Type, _: PType) => PCanonicalString())(thisClass, "reverse")
-    registerWrappedScalaFunction1("upper", TString, TString, (_: Type, _: PType) => PCanonicalString())(thisClass, "upper")
-    registerWrappedScalaFunction1("lower", TString, TString, (_: Type, _: PType) => PCanonicalString())(thisClass, "lower")
-    registerWrappedScalaFunction1("strip", TString, TString, (_: Type, _: PType) => PCanonicalString())(thisClass, "strip")
+    registerWrappedScalaFunction1("reverse", TString, TString, (_: Type, _: PType) => PCanonicalString())(objectClass,"reverse")
+    registerWrappedScalaFunction1("upper", TString, TString, (_: Type, _: PType) => PCanonicalString())(objectClass,"upper")
+    registerWrappedScalaFunction1("lower", TString, TString, (_: Type, _: PType) => PCanonicalString())(objectClass,"lower")
+    registerWrappedScalaFunction1("strip", TString, TString, (_: Type, _: PType) => PCanonicalString())(objectClass,"strip")
     registerWrappedScalaFunction2("contains", TString, TString, TBoolean, {
       case (_: Type, _: PType, _: PType) => PBoolean()
-    })(thisClass, "contains")
+    })(objectClass, "contains")
     registerWrappedScalaFunction2("translate", TString, TDict(TString, TString), TString, {
       case (_: Type, _: PType, _: PType) => PCanonicalString()
-    })(thisClass, "translate")
+    })(objectClass, "translate")
     registerWrappedScalaFunction2("startswith", TString, TString, TBoolean, {
       case (_: Type, _: PType, _: PType) => PBoolean()
-    })(thisClass, "startswith")
+    })(objectClass, "startswith")
     registerWrappedScalaFunction2("endswith", TString, TString, TBoolean, {
       case (_: Type, _: PType, _: PType) => PBoolean()
-    })(thisClass, "endswith")
+    })(objectClass, "endswith")
     registerWrappedScalaFunction2("regexMatch", TString, TString, TBoolean, {
       case (_: Type, _: PType, _: PType) => PBoolean()
-    })(thisClass, "regexMatch")
+    })(objectClass, "regexMatch")
     registerWrappedScalaFunction2("concat", TString, TString, TString, {
       case (_: Type, _: PType, _: PType) => PCanonicalString()
-    })(thisClass, "concat")
+    })(objectClass, "concat")
 
     registerWrappedScalaFunction2("split", TString, TString, TArray(TString), {
       case (_: Type, _: PType, _: PType) =>
         PCanonicalArray(PCanonicalString(true))
-    })(thisClass, "split")
+    })(objectClass, "split")
 
     registerWrappedScalaFunction3("split", TString, TString, TInt32, TArray(TString), {
       case (_: Type, _: PType, _: PType, _: PType) =>
         PCanonicalArray(PCanonicalString(true))
-    })(thisClass, "splitLimited")
+    })(objectClass, "splitLimited")
 
     registerWrappedScalaFunction3("replace", TString, TString, TString, TString, {
       case (_: Type, _: PType, _: PType, _: PType) => PCanonicalString()
-    })(thisClass, "replace")
+    })(objectClass, "replace")
 
     registerWrappedScalaFunction2("mkString", TSet(TString), TString, TString, {
       case (_: Type, _: PType, _: PType) => PCanonicalString()
-    })(thisClass, "setMkString")
+    })(objectClass, "setMkString")
 
     registerWrappedScalaFunction2("mkString", TArray(TString), TString, TString, {
       case (_: Type, _: PType, _: PType) => PCanonicalString()
-    })(thisClass, "arrayMkString")
+    })(objectClass, "arrayMkString")
 
     registerIEmitCode2("firstMatchIn", TString, TString, TArray(TString), {
       case (_: Type, _: PType, _: PType) => PCanonicalArray(PCanonicalString(true))
@@ -246,7 +249,7 @@ object StringFunctions extends RegistryFunctions {
         r.toI(cb).flatMap(cb) { case rc: PStringCode =>
           val out = cb.newLocal[IndexedSeq[String]]("out",
             Code.invokeScalaObject2[String, String, IndexedSeq[String]](
-              thisClass, "firstMatchIn", sc.loadString(), rc.loadString()))
+              objectClass, "firstMatchIn", sc.loadString(), rc.loadString()))
           IEmitCode(cb, out.isNull, {
             val len = cb.newLocal[Int]("len", out.invoke[Int]("size"))
             val eltType = rt.elementType.asInstanceOf[PCanonicalString]
@@ -287,13 +290,13 @@ object StringFunctions extends RegistryFunctions {
       }
     }
 
-    registerWrappedScalaFunction1("escapeString", TString, TString, (_: Type, _: PType) => PCanonicalString())(thisClass, "escapeString")
+    registerWrappedScalaFunction1("escapeString", TString, TString, (_: Type, _: PType) => PCanonicalString())(objectClass, "escapeString")
     registerWrappedScalaFunction3("strftime", TString, TInt64, TString, TString, {
       case (_: Type, _: PType, _: PType, _: PType) => PCanonicalString()
-    })(thisClass, "strftime")
+    })(objectClass, "strftime")
     registerWrappedScalaFunction3("strptime", TString, TString, TString, TInt64, {
       case (_: Type, _: PType, _: PType, _: PType) => PInt64()
-    })(thisClass, "strptime")
+    })(objectClass, "strptime")
 
     registerPCode("parse_json", Array(TString), TTuple(tv("T")),
       (rType: Type, _: Seq[PType]) => PType.canonical(rType, true), typeParameters = Array(tv("T"))

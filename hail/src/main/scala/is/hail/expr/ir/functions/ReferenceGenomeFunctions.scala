@@ -7,7 +7,7 @@ import is.hail.types.physical.{PBoolean, PCanonicalString, PInt32, PLocus, PStri
 import is.hail.types.virtual._
 import is.hail.variant.ReferenceGenome
 
-object ReferenceGenomeFunctions extends RegistryFunctions {
+class ReferenceGenomeFunctions(registry: IRFunctionRegistry) extends RegistryFunctions(registry) {
   def rgCode(mb: EmitMethodBuilder[_], rg: ReferenceGenome): Code[ReferenceGenome] = mb.getReferenceGenome(rg)
 
   def registerAll() {
@@ -45,12 +45,12 @@ object ReferenceGenomeFunctions extends RegistryFunctions {
 
     registerIR("getReferenceSequence", Array(TString, TInt32, TInt32, TInt32), TString, typeParameters = Array(LocusFunctions.tlocus("R"))) {
       case (tl, Seq(contig, pos, before, after)) =>
-        val getRef = IRFunctionRegistry.lookupUnseeded(
+        val getRef = registry.lookupUnseeded(
           name = "getReferenceSequenceFromValidLocus",
           returnType = TString,
           typeParameters = tl,
           arguments = Seq(TString, TInt32, TInt32, TInt32)).get
-        val isValid = IRFunctionRegistry.lookupUnseeded(
+        val isValid = registry.lookupUnseeded(
           "isValidLocus",
           TBoolean,
           typeParameters = tl,

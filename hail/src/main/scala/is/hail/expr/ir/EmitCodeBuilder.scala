@@ -2,11 +2,11 @@ package is.hail.expr.ir
 
 import is.hail.annotations.Region
 import is.hail.asm4s.{coerce => _, _}
-import is.hail.expr.ir.functions.StringFunctions
 import is.hail.lir
 import is.hail.types.physical.stypes.{SType, SValue}
 import is.hail.types.physical.{PCode, PSettable, PType, PValue}
 import is.hail.utils.FastIndexedSeq
+import is.hail.expr.ir.functions._
 
 object EmitCodeBuilder {
   def apply(mb: EmitMethodBuilder[_]): EmitCodeBuilder = new EmitCodeBuilder(mb, Code._empty)
@@ -148,12 +148,12 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
 
   // for debugging
   def printRegionValue(value: Code[_], typ: PType, region: Value[Region]): Unit = {
-    append(Code._println(StringFunctions.boxArg(EmitRegion(emb, region), typ)(value)))
+    append(Code._println(boxArg(EmitRegion(emb, region), typ)(value)))
   }
 
   // for debugging
   def strValue(r: Value[Region], t: PType, code: Code[_]): Code[String] = {
-    StringFunctions.boxArg(EmitRegion(emb, r), t)(code).invoke[String]("toString")
+    boxArg(EmitRegion(emb, r), t)(code).invoke[String]("toString")
   }
 
   // for debugging

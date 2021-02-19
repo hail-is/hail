@@ -8,20 +8,7 @@ import is.hail.types.physical.{PArray, PCode, PFloat64, PType}
 import is.hail.types.virtual._
 import is.hail.utils._
 
-object ArrayFunctions extends RegistryFunctions {
-  val arrayOps: Array[(String, Type, Type, (IR, IR) => IR)] =
-    Array(
-      ("mul", tnum("T"), tv("T"), ApplyBinaryPrimOp(Multiply(), _, _)),
-      ("div", TInt32, TFloat32, ApplyBinaryPrimOp(FloatingPointDivide(), _, _)),
-      ("div", TInt64, TFloat32, ApplyBinaryPrimOp(FloatingPointDivide(), _, _)),
-      ("div", TFloat32, TFloat32, ApplyBinaryPrimOp(FloatingPointDivide(), _, _)),
-      ("div", TFloat64, TFloat64, ApplyBinaryPrimOp(FloatingPointDivide(), _, _)),
-      ("floordiv", tnum("T"), tv("T"), ApplyBinaryPrimOp(RoundToNegInfDivide(), _, _)),
-      ("add", tnum("T"), tv("T"), ApplyBinaryPrimOp(Add(), _, _)),
-      ("sub", tnum("T"), tv("T"), ApplyBinaryPrimOp(Subtract(), _, _)),
-      ("pow", tnum("T"), TFloat64, (ir1: IR, ir2: IR) => Apply("pow", Seq(), Seq(ir1, ir2), TFloat64)),
-      ("mod", tnum("T"), tv("T"), (ir1: IR, ir2: IR) => Apply("mod", Seq(), Seq(ir1, ir2), ir2.typ)))
-
+object ArrayFunctions {
   def mean(args: Seq[IR]): IR = {
     val Seq(a) = args
     val t = coerce[TArray](a.typ).elementType
@@ -86,6 +73,25 @@ object ArrayFunctions extends RegistryFunctions {
     val one = Cast(I64(1), t)
     StreamFold(ToStream(a), one, product, v, ApplyBinaryPrimOp(Multiply(), Ref(product, t), Ref(v, t)))
   }
+
+  def makeArrayOps: Array[(String, Type, Type, (IR, IR) => IR)] =
+    Array(
+      ("mul", tnum("T"), tv("T"), ApplyBinaryPrimOp(Multiply(), _, _)),
+      ("div", TInt32, TFloat32, ApplyBinaryPrimOp(FloatingPointDivide(), _, _)),
+      ("div", TInt64, TFloat32, ApplyBinaryPrimOp(FloatingPointDivide(), _, _)),
+      ("div", TFloat32, TFloat32, ApplyBinaryPrimOp(FloatingPointDivide(), _, _)),
+      ("div", TFloat64, TFloat64, ApplyBinaryPrimOp(FloatingPointDivide(), _, _)),
+      ("floordiv", tnum("T"), tv("T"), ApplyBinaryPrimOp(RoundToNegInfDivide(), _, _)),
+      ("add", tnum("T"), tv("T"), ApplyBinaryPrimOp(Add(), _, _)),
+      ("sub", tnum("T"), tv("T"), ApplyBinaryPrimOp(Subtract(), _, _)),
+      ("pow", tnum("T"), TFloat64, (ir1: IR, ir2: IR) => Apply("pow", Seq(), Seq(ir1, ir2), TFloat64)),
+      ("mod", tnum("T"), tv("T"), (ir1: IR, ir2: IR) => Apply("mod", Seq(), Seq(ir1, ir2), ir2.typ)))
+}
+
+class ArrayFunctions(registry: IRFunctionRegistry) extends RegistryFunctions(registry) {
+  import ArrayFunctions._
+
+  val arrayOps = makeArrayOps
 
   def registerAll() {
     registerIR1("isEmpty", TArray(tv("T")), TBoolean)((_, a) => isEmpty(a))

@@ -4,7 +4,7 @@ import is.hail.expr.ir.functions._
 import is.hail.types.physical.{PCanonicalArray, PFloat64, PType}
 import is.hail.types.virtual.{TArray, TFloat64, TInt32, Type}
 
-object ExperimentalFunctions extends RegistryFunctions {
+class ExperimentalFunctions(registry: IRFunctionRegistry) extends RegistryFunctions(registry) {
 
   def registerAll() {
     val experimentalPackageClass = Class.forName("is.hail.experimental.package$")

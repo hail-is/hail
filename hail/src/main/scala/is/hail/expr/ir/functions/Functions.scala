@@ -19,28 +19,103 @@ import org.apache.spark.sql.Row
 import scala.collection.JavaConverters._
 import scala.collection.mutable
 import scala.reflect._
+import java.util.function.Supplier
+import scala.collection.mutable.ArrayBuffer
 
 object IRFunctionRegistry {
-  private val userAddedFunctions: mutable.Set[(String, (Type, Seq[Type], Seq[Type]))] = mutable.HashSet.empty
-
-  def clearUserFunctions() {
-    userAddedFunctions.foreach { case (name, (rt, typeParameters, valueParameterTypes)) =>
-      removeJVMFunction(name, rt, typeParameters, valueParameterTypes) }
-    userAddedFunctions.clear()
-  }
-
   type IRFunctionSignature = (Seq[Type], Seq[Type], Type, Boolean)
   type IRFunctionImplementation = (Seq[Type], Seq[IR]) => IR
+
+  private[this] val registries = new ArrayBuffer[IRFunctionRegistry]()
+
+  val threadLocal = ThreadLocal.withInitial(new Supplier[IRFunctionRegistry]() {
+    def get(): IRFunctionRegistry = {
+       new IRFunctionRegistry()
+    }
+  })
+
+  def lookupFunction(
+    name: String,
+    returnType: Type,
+    typeParameters: Seq[Type],
+    valueParameterTypes: Seq[Type]
+  ): Option[JVMFunction] =
+    threadLocal.get.lookupFunction(name, returnType, typeParameters, valueParameterTypes)
+
+  def lookupFunctionOrFail(
+    name: String,
+    returnType: Type,
+    typeParameters: Seq[Type],
+    valueParameterTypes: Seq[Type]
+  ): JVMFunction =
+    threadLocal.get.lookupFunctionOrFail(name, returnType, typeParameters, valueParameterTypes)
+
+  def lookupIR(
+    name: String,
+    returnType: Type,
+    typeParameters: Seq[Type],
+    valueParameterTypes: Seq[Type]
+  ): Option[(IRFunctionSignature, IRFunctionImplementation)] =
+    threadLocal.get.lookupIR(name, returnType, typeParameters, valueParameterTypes)
+
+  def lookupSeeded(name: String, seed: Long, returnType: Type, arguments: Seq[Type]): Option[(Seq[IR]) => IR] =
+    threadLocal.get.lookupSeeded(name, seed, returnType, arguments)
+
+  def lookupUnseeded(name: String, returnType: Type, arguments: Seq[Type]): Option[(Seq[Type], Seq[IR]) => IR] =
+    threadLocal.get.lookupUnseeded(name, returnType, arguments)
+
+  def lookupUnseeded(name: String, returnType: Type, typeParameters: Seq[Type], arguments: Seq[Type]): Option[(Seq[Type], Seq[IR]) => IR] =
+    threadLocal.get.lookupUnseeded(name, returnType, typeParameters, arguments)
+
+  private[this] val userAddedFunctions: mutable.Set[(String, (Type, Seq[Type], Seq[Type]))] = mutable.HashSet.empty
+
+  def pyRegisterIR(
+    name: String,
+    typeParamStrs: java.util.ArrayList[String],
+    argNames: java.util.ArrayList[String],
+    argTypeStrs: java.util.ArrayList[String],
+    returnType: String,
+    body: IR
+  ): Unit = synchronized {
+    requireJavaIdentifier(name)
+
+    val typeParameters = typeParamStrs.asScala.map(IRParser.parseType).toFastIndexedSeq
+    val valueParameterTypes = argTypeStrs.asScala.map(IRParser.parseType).toFastIndexedSeq
+    userAddedFunctions += ((name, (body.typ, typeParameters, valueParameterTypes)))
+    for (registry <- registries) {
+      registry.synchronized {
+        registry.addIR(name,
+          typeParameters,
+          valueParameterTypes, IRParser.parseType(returnType), false, { (_, args) =>
+            Subst(body,
+              BindingEnv(Env[IR](argNames.asScala.zip(args): _*)))
+          })
+      }
+    }
+  }
+
+  def clearUserFunctions(): Unit = synchronized {
+    for (registry <- registries) {
+      registry.synchronized {
+        userAddedFunctions.foreach { case (name, (rt, typeParameters, valueParameterTypes)) =>
+          registry.removeJVMFunction(name, rt, typeParameters, valueParameterTypes) }
+      }
+    }
+  }
+
+  private def requireJavaIdentifier(name: String): Unit = {
+    if (!isJavaIdentifier(name))
+      throw new IllegalArgumentException(s"Illegal function name, not Java identifier: ${ name }")
+  }
+}
+
+class IRFunctionRegistry {
+  import IRFunctionRegistry._
 
   val irRegistry: mutable.Map[String, mutable.Map[IRFunctionSignature, IRFunctionImplementation]] = new mutable.HashMap()
 
   val jvmRegistry: mutable.MultiMap[String, JVMFunction] =
     new mutable.HashMap[String, mutable.Set[JVMFunction]] with mutable.MultiMap[String, JVMFunction]
-
-  private[this] def requireJavaIdentifier(name: String): Unit = {
-    if (!isJavaIdentifier(name))
-      throw new IllegalArgumentException(s"Illegal function name, not Java identifier: ${ name }")
-  }
 
   def addJVMFunction(f: JVMFunction): Unit = {
     requireJavaIdentifier(f.name)
@@ -59,27 +134,6 @@ object IRFunctionRegistry {
 
     val m = irRegistry.getOrElseUpdate(name, new mutable.HashMap())
     m.update((typeParameters, valueParameterTypes, returnType, alwaysInline), f)
-  }
-
-  def pyRegisterIR(
-    name: String,
-    typeParamStrs: java.util.ArrayList[String],
-    argNames: java.util.ArrayList[String],
-    argTypeStrs: java.util.ArrayList[String],
-    returnType: String,
-    body: IR
-  ): Unit = {
-    requireJavaIdentifier(name)
-
-    val typeParameters = typeParamStrs.asScala.map(IRParser.parseType).toFastIndexedSeq
-    val valueParameterTypes = argTypeStrs.asScala.map(IRParser.parseType).toFastIndexedSeq
-    userAddedFunctions += ((name, (body.typ, typeParameters, valueParameterTypes)))
-    addIR(name,
-      typeParameters,
-      valueParameterTypes, IRParser.parseType(returnType), false, { (_, args) =>
-        Subst(body,
-          BindingEnv(Env[IR](argNames.asScala.zip(args): _*)))
-      })
   }
 
   def removeJVMFunction(
@@ -192,20 +246,20 @@ object IRFunctionRegistry {
   }
 
   Seq(
-    ArrayFunctions,
-    NDArrayFunctions,
-    CallFunctions,
-    DictFunctions,
-    GenotypeFunctions,
-    IntervalFunctions,
-    LocusFunctions,
-    MathFunctions,
-    RandomSeededFunctions,
-    SetFunctions,
-    StringFunctions,
-    UtilFunctions,
-    ExperimentalFunctions,
-    ReferenceGenomeFunctions
+    new ArrayFunctions(this),
+    new NDArrayFunctions(this),
+    new CallFunctions(this),
+    new DictFunctions(this),
+    new GenotypeFunctions(this),
+    new IntervalFunctions(this),
+    new LocusFunctions(this),
+    new MathFunctions(this),
+    new RandomSeededFunctions(this),
+    new SetFunctions(this),
+    new StringFunctions(this),
+    new UtilFunctions(this),
+    new ExperimentalFunctions(this),
+    new ReferenceGenomeFunctions(this)
   ).foreach(_.registerAll())
 
   def dumpFunctions(): Unit = {
@@ -237,129 +291,10 @@ object RegistryHelpers {
   }
 }
 
-abstract class RegistryFunctions {
-
+abstract class RegistryFunctions(registry: IRFunctionRegistry) {
   def registerAll(): Unit
 
   private val boxes = mutable.Map[String, Box[Type]]()
-
-  def tv(name: String): TVariable =
-    TVariable(name)
-
-  def tv(name: String, cond: String): TVariable =
-    TVariable(name, cond)
-
-  def tnum(name: String): TVariable =
-    tv(name, "numeric")
-
-  def wrapArg(r: EmitRegion, t: PType): Code[_] => Code[_] = t match {
-    case _: PBoolean => coerce[Boolean]
-    case _: PInt32 => coerce[Int]
-    case _: PInt64 => coerce[Long]
-    case _: PFloat32 => coerce[Float]
-    case _: PFloat64 => coerce[Double]
-    case _: PCall => coerce[Int]
-    case t: PString => c => t.loadString(coerce[Long](c))
-    case t: PLocus => c => EmitCodeBuilder.scopedCode(r.mb)(cb => PCode(t, c).asLocus.getLocusObj(cb))
-    case _ => c =>
-      Code.invokeScalaObject3[PType, Region, Long, Any](
-        UnsafeRow.getClass, "read",
-        r.mb.getPType(t),
-        r.region, coerce[Long](c))
-  }
-
-  def boxedTypeInfo(t: Type): TypeInfo[_ >: Null] = t match {
-    case TBoolean => classInfo[java.lang.Boolean]
-    case TInt32 => classInfo[java.lang.Integer]
-    case TInt64 => classInfo[java.lang.Long]
-    case TFloat32 => classInfo[java.lang.Float]
-    case TFloat64 => classInfo[java.lang.Double]
-    case TCall => classInfo[java.lang.Integer]
-    case TString => classInfo[java.lang.String]
-    case _: TLocus => classInfo[Locus]
-    case _ => classInfo[AnyRef]
-  }
-
-  def scodeToJavaValue(cb: EmitCodeBuilder, r: Value[Region], sc: SCode): Code[AnyRef] = {
-    sc.st match {
-      case _: SInt32 => Code.boxInt(sc.asInt32.intCode(cb))
-      case _: SInt64 => Code.boxLong(sc.asInt64.longCode(cb))
-      case _: SFloat32 => Code.boxFloat(sc.asFloat32.floatCode(cb))
-      case _: SFloat64 => Code.boxDouble(sc.asFloat64.doubleCode(cb))
-      case _: SBoolean => Code.boxBoolean(sc.asBoolean.boolCode(cb))
-      case _: SCall => Code.boxInt(coerce[Int](sc.asPCode.code))
-      case _: SString => sc.asString.loadString()
-      case _: SLocus => sc.asLocus.getLocusObj(cb)
-      case t =>
-        val pt = t.canonicalPType()
-        val addr = pt.store(cb, r, sc, deepCopy = false)
-        Code.invokeScalaObject3[PType, Region, Long, AnyRef](
-          UnsafeRow.getClass, "readAnyRef",
-          cb.emb.getPType(pt),
-          r, addr)
-
-    }
-  }
-
-  def boxArg(r: EmitRegion, t: PType): Code[_] => Code[AnyRef] = t match {
-    case _: PBoolean => c => Code.boxBoolean(coerce[Boolean](c))
-    case _: PInt32 => c => Code.boxInt(coerce[Int](c))
-    case _: PInt64 => c => Code.boxLong(coerce[Long](c))
-    case _: PFloat32 => c => Code.boxFloat(coerce[Float](c))
-    case _: PFloat64 => c => Code.boxDouble(coerce[Double](c))
-    case _: PCall => c => Code.boxInt(coerce[Int](c))
-    case t: PString => c => t.loadString(coerce[Long](c))
-    case t: PLocus => c => EmitCodeBuilder.scopedCode(r.mb)(cb => PCode(t, c).asLocus.getLocusObj(cb))
-    case _ => c =>
-      Code.invokeScalaObject3[PType, Region, Long, AnyRef](
-        UnsafeRow.getClass, "readAnyRef",
-        r.mb.getPType(t),
-        r.region, coerce[Long](c))
-  }
-
-  def unwrapReturn(cb: EmitCodeBuilder, r: Value[Region], pt: PType, value: Code[_]): PCode = pt.virtualType match {
-    case TBoolean => PCode(pt, value)
-    case TInt32 => PCode(pt, value)
-    case TInt64 => PCode(pt, value)
-    case TFloat32 => PCode(pt, value)
-    case TFloat64 => PCode(pt, value)
-    case TString =>
-      val st = SStringPointer(pt.asInstanceOf[PCanonicalString])
-      st.constructFromString(cb, r, coerce[String](value))
-    case TCall => PCode(pt, value)
-    case TArray(TInt32) =>
-      val pca = pt.asInstanceOf[PCanonicalArray]
-      val arr = cb.newLocal[IndexedSeq[Int]]("unrwrap_return_array_int32_arr", coerce[IndexedSeq[Int]](value))
-      val len = cb.newLocal[Int]("unwrap_return_array_int32_len", arr.invoke[Int]("length"))
-      pca.constructFromElements(cb, r, len, deepCopy = false) { (cb, idx) =>
-        val elt = cb.newLocal[java.lang.Integer]("unwrap_return_array_int32_elt",
-          Code.checkcast[java.lang.Integer](arr.invoke[Int, java.lang.Object]("apply", idx)))
-        IEmitCode(cb, elt.isNull, primitive(elt.invoke[Int]("intValue")))
-      }
-    case TArray(TFloat64) =>
-      val pca = pt.asInstanceOf[PCanonicalArray]
-      val arr = cb.newLocal[IndexedSeq[Double]]("unrwrap_return_array_float64_arr", coerce[IndexedSeq[Double]](value))
-      val len = cb.newLocal[Int]("unwrap_return_array_float64_len", arr.invoke[Int]("length"))
-      pca.constructFromElements(cb, r, len, deepCopy = false) { (cb, idx) =>
-        val elt = cb.newLocal[java.lang.Double]("unwrap_return_array_float64_elt",
-          Code.checkcast[java.lang.Double](arr.invoke[Int, java.lang.Object]("apply", idx)))
-        IEmitCode(cb, elt.isNull, primitive(elt.invoke[Double]("doubleValue")))
-      }
-    case TArray(TString) =>
-      val pca = pt.asInstanceOf[PCanonicalArray]
-      val arr = cb.newLocal[IndexedSeq[String]]("unrwrap_return_array_str_arr", coerce[IndexedSeq[String]](value))
-      val len = cb.newLocal[Int]("unwrap_return_array_str_len", arr.invoke[Int]("length"))
-      pca.constructFromElements(cb, r, len, deepCopy = false) { (cb, idx) =>
-        val st = SStringPointer(pca.elementType.asInstanceOf[PCanonicalString])
-        val elt = cb.newLocal[String]("unwrap_return_array_str_elt",
-          Code.checkcast[String](arr.invoke[Int, java.lang.Object]("apply", idx)))
-        IEmitCode(cb, elt.isNull, st.constructFromString(cb, r, elt))
-      }
-    case t: TBaseStruct =>
-      val addr = Code.invokeScalaObject3[Region, Row, PType, Long](
-        RegistryHelpers.getClass, "stupidUnwrapStruct", r.region, coerce[Row](value), cb.emb.ecb.getPType(pt))
-      new SBaseStructPointerCode(SBaseStructPointer(pt.asInstanceOf[PBaseStruct]), addr)
-  }
 
   def registerPCode(
     name: String,
@@ -370,7 +305,7 @@ abstract class RegistryFunctions {
   )(
     impl: (EmitRegion, EmitCodeBuilder, Seq[Type], PType, Array[PCode]) => PCode
   ) {
-    IRFunctionRegistry.addJVMFunction(
+    registry.addJVMFunction(
       new UnseededMissingnessObliviousJVMFunction(name, typeParameters, valueParameterTypes, returnType, calculateReturnPType) {
         override def apply(r: EmitRegion, cb: EmitCodeBuilder, returnPType: PType, typeParameters: Seq[Type], args: PCode*): PCode =
           impl(r, cb, typeParameters, returnPType, args.toArray)
@@ -390,7 +325,7 @@ abstract class RegistryFunctions {
   )(
     impl: (EmitRegion, EmitCodeBuilder, PType, Array[Type], Array[(PType, Code[_])]) => Code[_]
   ) {
-    IRFunctionRegistry.addJVMFunction(
+    registry.addJVMFunction(
       new UnseededMissingnessObliviousJVMFunction(name, typeParameters, valueParameterTypes, returnType, calculateReturnPType) {
         override def apply(r: EmitRegion, cb: EmitCodeBuilder, returnPType: PType, typeParameters: Seq[Type], args: (PType, Code[_])*): Code[_] = {
           assert(unify(typeParameters, args.map(_._1.virtualType), returnPType.virtualType))
@@ -408,7 +343,7 @@ abstract class RegistryFunctions {
   )(
     impl: (EmitRegion,PType, Array[EmitCode]) => EmitCode
   ) {
-    IRFunctionRegistry.addJVMFunction(
+    registry.addJVMFunction(
       new UnseededMissingnessAwareJVMFunction(name, typeParameters, valueParameterTypes, returnType, calculateReturnPType) {
         override def apply(r: EmitRegion, rpt: PType, typeParameters: Seq[Type], args: EmitCode*): EmitCode = {
           assert(unify(typeParameters, args.map(_.pt.virtualType), rpt.virtualType))
@@ -426,7 +361,7 @@ abstract class RegistryFunctions {
   )(
     impl: (EmitCodeBuilder, Value[Region], PType, Array[EmitCode]) => IEmitCode
   ) {
-    IRFunctionRegistry.addJVMFunction(
+    registry.addJVMFunction(
       new UnseededMissingnessAwareJVMFunction(name, typeParameters, valueParameterTypes, returnType, calculateReturnPType) {
         override def apply(
           cb: EmitCodeBuilder,
@@ -503,7 +438,7 @@ abstract class RegistryFunctions {
   }
 
   def registerIR(name: String, valueParameterTypes: Array[Type], returnType: Type, inline: Boolean = false, typeParameters: Array[Type] = Array.empty)(f: (Seq[Type], Seq[IR]) => IR): Unit =
-    IRFunctionRegistry.addIR(name, typeParameters, valueParameterTypes, returnType, inline, f)
+    registry.addIR(name, typeParameters, valueParameterTypes, returnType, inline, f)
 
   def registerPCode1(name: String, mt1: Type, rt: Type, pt: (Type, PType) => PType)(impl: (EmitRegion, EmitCodeBuilder, PType, PCode) => PCode): Unit =
     registerPCode(name, Array(mt1), rt, unwrappedApply(pt)) {
@@ -628,7 +563,7 @@ abstract class RegistryFunctions {
   )(
     impl: (EmitCodeBuilder, Value[Region], PType, Long, Array[SCode]) => SCode
   ) {
-    IRFunctionRegistry.addJVMFunction(
+    registry.addJVMFunction(
       new SeededMissingnessObliviousJVMFunction(name, valueParameterTypes, returnType, calculateReturnPType) {
         val isDeterministic: Boolean = false
 

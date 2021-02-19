@@ -5,7 +5,7 @@ import is.hail.types
 import is.hail.types._
 import is.hail.types.virtual._
 
-object DictFunctions extends RegistryFunctions {
+class DictFunctions(registry: IRFunctionRegistry) extends RegistryFunctions(registry) {
   def contains(dict: IR, key: IR) = {
     val i = Ref(genUID(), TInt32)
 

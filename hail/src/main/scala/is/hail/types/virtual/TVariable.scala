@@ -6,6 +6,7 @@ import is.hail.types.physical.PType
 
 import scala.collection.mutable
 import scala.reflect.ClassTag
+import java.util.function.Supplier
 
 object TVariable {
   val condMap: Map[String, (Type) => Boolean] = Map(
@@ -18,14 +19,19 @@ object TVariable {
     "struct" -> ((t: Type) => t.isInstanceOf[TStruct]),
     "tuple" -> ((t: Type) => t.isInstanceOf[TTuple]))
 
-  private[this] val namedBoxes: mutable.Map[String, Box[Type]] = mutable.Map()
+  private[this] val namedBoxes = ThreadLocal.withInitial(new Supplier[mutable.Map[String, Box[Type]]]() {
+    def get(): mutable.Map[String, Box[Type]] = {
+      mutable.Map()
+    }
+  })
 
   def fromName(name: String): Box[Type] = this.synchronized {
-    namedBoxes.get(name) match {
+    val m = namedBoxes.get
+    m.get(name) match {
       case Some(b) => b
       case None =>
         val b = Box[Type](matchCond = _ == _)
-        namedBoxes(name) = b
+        m(name) = b
         b
     }
   }

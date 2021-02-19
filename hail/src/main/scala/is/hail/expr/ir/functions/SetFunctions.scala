@@ -4,7 +4,7 @@ import is.hail.expr.ir._
 import is.hail.types.virtual._
 import is.hail.utils.FastSeq
 
-object SetFunctions extends RegistryFunctions {
+class SetFunctions(registry: IRFunctionRegistry) extends RegistryFunctions(registry) {
   def contains(set: IR, elem: IR) = {
     val i = Ref(genUID(), TInt32)
 

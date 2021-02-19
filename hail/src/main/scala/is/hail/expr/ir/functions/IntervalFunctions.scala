@@ -6,7 +6,7 @@ import is.hail.expr.ir._
 import is.hail.types.physical._
 import is.hail.types.virtual._
 
-object IntervalFunctions extends RegistryFunctions {
+class IntervalFunctions(registry: IRFunctionRegistry) extends RegistryFunctions(registry) {
 
   def registerAll(): Unit = {
 
