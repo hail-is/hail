@@ -307,9 +307,7 @@ INNER JOIN jobs ON batches.id = jobs.batch_id
 LEFT JOIN instances ON attempts.instance_name = instances.name
 WHERE attempts.start_time IS NOT NULL
   AND attempts.end_time IS NULL
-  AND jobs.state != 'Running'
-  AND NOT jobs.always_run
-  AND jobs.cancelled
+  AND (jobs.state != 'Running' OR jobs.attempt_id != attempts.attempt_id)
   AND instances.`state` = 'active'
 ORDER BY attempts.start_time ASC
 LIMIT 300;
