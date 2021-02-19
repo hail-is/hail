@@ -43,7 +43,7 @@ class ServiceSocket:
             result = json.loads(self.handle_response(await socket.receive()))
             if result['status'] != 200:
                 raise FatalError(f'Error from server: {result["value"]}')
-            return json.loads(result['value'])
+            return result['value']
 
     def request(self, endpoint, **data):
         return async_to_blocking(retry_transient_errors(self.async_request, endpoint, **data))
