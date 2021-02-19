@@ -407,6 +407,24 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
         } else {
           value.asInstanceOf[SIndexablePointerCode].a
         }
+      case SIndexablePointer(PCanonicalArray(otherElementType, _)) if otherElementType.equalModuloRequired(elementType) =>
+        val newAddr = cb.newLocal[Long]("pcarray_store_newaddr")
+        val pcInd = value.memoize(cb, "pcarray_store_src_difftype").asInstanceOf[SIndexablePointerSettable]
+        val length = pcInd.loadLength()
+        cb.assign(newAddr, allocate(region, length))
+
+        // other is optional, constructing required
+        if (elementType.required) {
+          cb.ifx(pcInd.hasMissingValues(cb),
+            cb._fatal("tried to copy array with missing values to array of required elements"))
+        }
+        cb += stagedInitialize(newAddr, length, setMissing = false)
+
+        val otherType = pcInd.st.pType.asInstanceOf[PCanonicalArray]
+        cb += Region.copyFrom(otherType.firstElementOffset(pcInd.a), this.firstElementOffset(newAddr), pcInd.length.toL * otherType.elementByteSize)
+        if (deepCopy)
+          deepPointerCopy(cb, region, newAddr, pcInd.length)
+        newAddr
       case _ =>
         val newAddr = cb.newLocal[Long]("pcarray_store_newaddr")
         val indexable = value.asIndexable.memoize(cb, "pcarray_store_src_difftype")
