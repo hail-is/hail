@@ -20,10 +20,10 @@ import is.hail.types._
 import is.hail.types.encoded._
 import is.hail.types.physical._
 import is.hail.types.virtual._
-import is.hail.utils._
+import is.hail.utils.{log => donotuseme, _}
 import is.hail.variant.ReferenceGenome
 import org.apache.commons.io.IOUtils
-import org.apache.log4j.LogManager
+import org.apache.log4j.Logger
 import org.apache.spark.sql.Row
 import org.json4s.JsonAST._
 import org.json4s.jackson.JsonMethods
@@ -40,7 +40,13 @@ class ServiceTaskContext(val partitionId: Int) extends HailTaskContext {
   override def attemptNumber(): Int = 0
 }
 
+object WorkerTimer {
+  private val log = Logger.getLogger(getClass.getName())
+}
+
 class WorkerTimer() {
+  import WorkerTimer._
+
   var startTimes: mutable.Map[String, Long] = mutable.Map()
   def start(label: String): Unit = {
     startTimes.put(label, System.nanoTime())
@@ -57,6 +63,8 @@ class WorkerTimer() {
 }
 
 object Worker {
+  private val log = Logger.getLogger(getClass.getName())
+
   def main(args: Array[String]): Unit = {
     if (args.length != 2) {
       throw new IllegalArgumentException(s"expected two arguments, not: ${ args.length }")
@@ -128,7 +136,7 @@ class ServiceBackendContext(
 }
 
 object ServiceBackend {
-  lazy val log = LogManager.getLogger("is.hail.backend.service.ServiceBackend")
+  private val log = Logger.getLogger(getClass.getName())
 
   def apply(): ServiceBackend = {
     new ServiceBackend()
