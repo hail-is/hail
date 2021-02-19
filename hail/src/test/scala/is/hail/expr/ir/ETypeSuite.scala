@@ -155,22 +155,5 @@ class ETypeSuite extends HailSuite {
 
     assert(encodeDecode(pStructContainingNDArray, eStructContainingNDArray, pOnlyReadB, dataStruct) ==
       Row(3))
-
-    // Try reading a EBaseStruct into a PNDArray, backwards compatibility.
-    val shapeAndStrideType = EBaseStruct(FastIndexedSeq(
-      EField("0", EInt64Required, 0),
-      EField("1", EInt64Required, 1)
-    ), true)
-    val eTypeStructInt2 = EBaseStruct(
-      FastIndexedSeq(
-        EField("shape", shapeAndStrideType, 0),
-        EField("strides", shapeAndStrideType, 1),
-        EField("data", EArray(EInt32Required, true), 2)
-      ),
-      true)
-    val dataStructInt2 = Row(Row(2L, 2L), Row(4L, 8L), FastIndexedSeq(10, 20, 30, 40))
-    val outputNDArray = new SafeNDArray(IndexedSeq(2L, 2L), FastIndexedSeq(10, 30, 20, 40))
-
-    assert(encodeDecode(pTypeInt2.representation, eTypeStructInt2, pTypeInt2, dataStructInt2) == outputNDArray)
   }
 }
