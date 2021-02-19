@@ -462,9 +462,6 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, pass_through=())
         )
         all_covs_defined = ht.cov_arrays.map(lambda sample_covs: sample_covs.all(lambda a: hl.is_defined(a)))
 
-        # Create a hail array of length g (g is number of groups / length of `y_field_name_groups`
-        # Each entry will be a list of structs. Each struct will contain an `idx`, an array `ys`, and an array `covs`
-
         def make_idx_ys_covs_struct(sample_ys):
             # sample_ys is an array of samples, with each element being an array of the y_values
             return hl.enumerate(sample_ys).filter(
