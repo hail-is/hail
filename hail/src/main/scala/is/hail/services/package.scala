@@ -4,6 +4,7 @@ import javax.net.ssl.SSLException
 import java.net.SocketException
 import java.io.EOFException
 
+import org.apache.http.NoHttpResponseException
 import org.apache.http.conn.HttpHostConnectException
 import org.apache.log4j.{LogManager, Logger}
 
@@ -28,6 +29,8 @@ package object services {
 
   def isTransientError(e: Throwable): Boolean = {
     e match {
+      case e: NoHttpResponseException =>
+        true
       case e: ClientResponseException =>
         RETRYABLE_HTTP_STATUS_CODES.contains(e.status)
       case e: HttpHostConnectException =>
