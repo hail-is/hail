@@ -292,7 +292,9 @@ class ShuffleClient (
   }
 
   def partitionBoundsValueFinished(): Boolean = {
-    keyDecoder.readByte() == 0.toByte
+    val b = keyDecoder.readByte()
+    assert(b == 0.toByte || b == 1.toByte, b)
+    b == 0.toByte
   }
 
   def endPartitionBounds(): Unit = {
@@ -303,14 +305,16 @@ class ShuffleClient (
     startOperation(Wire.STOP)
     out.flush()
     log.info(s"stop")
-    assert(in.readByte() == 0.toByte)
+    val byte = in.readByte()
+    assert(byte == 0.toByte, byte)
     log.info(s"stop done")
   }
 
   def close(): Unit = {
     out.writeByte(Wire.EOS)
     out.flush()
-    assert(in.readByte() == Wire.EOS)
+    val byte = in.readByte()
+    assert(byte == Wire.EOS, byte)
     s.close()
   }
 }
