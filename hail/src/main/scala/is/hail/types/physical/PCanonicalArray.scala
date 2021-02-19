@@ -421,7 +421,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
         cb += stagedInitialize(newAddr, length, setMissing = false)
 
         val otherType = pcInd.st.pType.asInstanceOf[PCanonicalArray]
-        cb += Region.copyFrom(otherType.firstElementOffset(pcInd.a), this.firstElementOffset(newAddr), contentsByteSize(pcInd.length))
+        cb += Region.copyFrom(otherType.firstElementOffset(pcInd.a), this.firstElementOffset(newAddr), pcInd.length.toL * otherType.elementByteSize)
         if (deepCopy)
           deepPointerCopy(cb, region, newAddr, pcInd.length)
         newAddr
