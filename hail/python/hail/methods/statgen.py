@@ -459,7 +459,11 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, pass_through=())
         return hl.nd.array(ys_and_covs_to_keep.map(lambda struct: array_from_struct(struct, one_y_field_name_set)))
 
     def setup_globals(ht):
-        all_covs_defined = ht[sample_field_name].map(lambda sample_struct: all_defined(sample_struct, cov_field_names))
+        # cov_arrays is per sample, then per cov.
+        ht = ht.annotate_globals(cov_arrays=ht[sample_field_name].map(lambda sample_struct: [sample_struct[cov_name] for cov_name in cov_field_names]))
+        #ht = ht.annotate_globals(y_arrays_per_group=hl.array([ht[sample_field_name.map(lambda sample_struct: [sample_struct[y_name] for y_name in one_y_field_name_set])] for one_y_field_name_set in y_field_names]))
+        all_covs_defined = ht.cov_arrays.map(lambda sample_covs: sample_covs.all(lambda a: hl.is_defined(a)))
+
         list_of_ys_and_covs_to_keep_with_indices = [
             hl.enumerate(ht[sample_field_name]).filter(
                 lambda struct_with_index:
