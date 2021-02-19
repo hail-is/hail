@@ -142,10 +142,6 @@ class Shuffle (
       }
     }
   }
-  log.info(s"rowDecodedPType: ${codecs.rowDecodedPType}")
-  log.info(s"rowEncodingPType: ${codecs.rowEncodingPType}")
-  log.info(s"keyDecodedPType: ${codecs.keyDecodedPType}")
-  log.info(s"keyEncodingPType: ${codecs.keyEncodingPType}")
 
   private[this] val store = new LSM(s"/tmp/${uuidToString(uuid)}", codecs, pool)
 
