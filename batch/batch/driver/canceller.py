@@ -294,7 +294,7 @@ LIMIT %s;
         return should_wait
 
     async def cancel_orphaned_attempts_loop_body(self):
-        log.info(f'cancelling orphaned attempts')
+        log.info('cancelling orphaned attempts')
         waitable_pool = WaitableSharedPool(self.async_worker_pool)
 
         n_unscheduled = 0
@@ -312,7 +312,7 @@ WHERE attempts.start_time IS NOT NULL
 ORDER BY attempts.start_time ASC
 LIMIT 300;
 ''',
-                timer_description=f'in cancel_orphaned_attempts'):
+                timer_description='in cancel_orphaned_attempts'):
             batch_id = record['batch_id']
             job_id = record['job_id']
             attempt_id = record['attempt_id']
