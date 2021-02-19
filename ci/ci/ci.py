@@ -17,7 +17,7 @@ from gear import (
 )
 from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template
 
-from .github import FQBranch, UnwatchedBranch
+from .github import FQBranch, WatchedBranch, UnwatchedBranch
 
 log = logging.getLogger('ci')
 
@@ -121,6 +121,37 @@ async def dev_deploy_branch(request, userdata):
             text=f'starting the deploy failed due to\n{message}'
         ) from e
     return web.json_response({'sha': sha, 'batch_id': batch_id})
+
+
+# This is CPG-specific, as the Hail team redeploys by watching the main branch.
+@routes.post('/api/v1alpha/prod_deploy')
+@rest_authenticated_developers_only
+async def prod_deploy(request, unused_userdata):
+    """Deploys the main branch to the production namespace ("default")."""
+
+    app = request.app
+    try:
+        params = await request.json()
+    except Exception as e:
+        message = 'could not read body as JSON'
+        log.info('prod deploy failed: ' + message, exc_info=True)
+        raise web.HTTPBadRequest(text=message) from e
+
+    try:
+        steps = params['steps']
+    except Exception as e:
+        message = f'parameters are wrong; check the steps syntax.\n\n{params}'
+        log.info('prod deploy failed: ' + message, exc_info=True)
+        raise web.HTTPBadRequest(text=message) from e
+
+    watched_branch = WatchedBranch(
+        0, FQBranch.from_short_str('populationgenomics/hail:main'), True
+    )
+    watched_branch.sha = 'HEAD'
+    await watched_branch._start_deploy(request.app['batch_client'], steps)
+
+    url = deploy_config.external_url('ci', '/batches')
+    return web.Response(text=f'{url}\n')
 
 
 async def on_startup(app):

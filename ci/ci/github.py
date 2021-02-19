@@ -6,7 +6,6 @@ import asyncio
 import concurrent.futures
 import aiohttp
 import gidgethub
-import zulip
 
 from hailtop.config import get_deploy_config
 from hailtop.batch_client.aioclient import Batch
@@ -24,7 +23,7 @@ deploy_config = get_deploy_config()
 
 CALLBACK_URL = deploy_config.url('ci', '/api/v1alpha/batch_callback')
 
-zulip_client = None # zulip.Client(config_file="/zulip-config/.zuliprc")
+zulip_client = None  # zulip.Client(config_file="/zulip-config/.zuliprc")
 
 
 class Repo:
@@ -761,7 +760,7 @@ url: {url}
                 log.info(f'cancel batch {batch.id} for {attrs["pr"]} {attrs["source_sha"]} => {attrs["target_sha"]}')
                 await batch.cancel()
 
-    async def _start_deploy(self, batch_client):
+    async def _start_deploy(self, batch_client, steps=()):
         # not deploying
         assert not self.deploy_batch or self.deploy_state
 
@@ -778,7 +777,7 @@ mkdir -p {shq(repo_dir)}
 '''
             )
             with open(f'{repo_dir}/build.yaml', 'r') as f:
-                config = BuildConfiguration(self, f.read(), scope='deploy')
+                config = BuildConfiguration(self, f.read(), scope='deploy', requested_step_names=steps)
 
             log.info(f'creating deploy batch for {self.branch.short_str()}')
             deploy_batch = batch_client.create_batch(
