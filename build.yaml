@@ -2021,6 +2021,8 @@ steps:
       script: /io/sql/fix-schedule-job.sql
     - name: increase-test-and-dev-pool-sizes
       script: /io/sql/increase-test-and-dev-pool-sizes.py
+    - name: fix-provisioning-bug
+      script: /io/sql/fix-provisioning-bug.sql
    inputs:
     - from: /repo/batch/sql
       to: /io/sql
