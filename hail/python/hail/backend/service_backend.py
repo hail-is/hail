@@ -1,3 +1,4 @@
+from typing import Optional
 import os
 import aiohttp
 import json
@@ -8,7 +9,7 @@ from hail.expr.table_type import ttable
 from hail.expr.matrix_type import tmatrix
 from hail.expr.blockmatrix_type import tblockmatrix
 
-from hailtop.config import get_deploy_config, get_user_config
+from hailtop.config import get_deploy_config, get_user_config, DeployConfig
 from hailtop.auth import service_auth_headers
 from hailtop.utils import async_to_blocking, retry_transient_errors
 from hail.ir.renderer import CSERenderer
@@ -19,15 +20,23 @@ from ..fs.google_fs import GoogleCloudStorageFS
 
 
 class ServiceSocket:
-    def __init__(self, *, deploy_config=None):
+    def __init__(self, *, deploy_config: Optional[DeployConfig] = None):
         if not deploy_config:
             deploy_config = get_deploy_config()
+        self.deploy_config = deploy_config
         self.url = deploy_config.base_url('query')
-        self.session = aiohttp.ClientSession(headers=service_auth_headers(deploy_config, 'query'))
+        self._session: Optional[aiohttp.ClientSession] = None
+
+    async def session(self) -> aiohttp.ClientSession:
+        if self._session is None:
+            self._session = aiohttp.ClientSession(
+                headers=service_auth_headers(self.deploy_config, 'query'))
+        return self._session
 
     def close(self):
-        async_to_blocking(self.session.close())
-        self.session = None
+        if self._session is not None:
+            async_to_blocking(self._session.close())
+            self._session = None
 
     def handle_response(self, resp):
         if resp.type == aiohttp.WSMsgType.CLOSE:
@@ -38,7 +47,8 @@ class ServiceSocket:
         return resp.data
 
     async def async_request(self, endpoint, **data):
-        async with self.session.ws_connect(f'{self.url}/api/v1alpha/{endpoint}') as socket:
+        session = await self.session()
+        async with session.ws_connect(f'{self.url}/api/v1alpha/{endpoint}') as socket:
             await socket.send_str(json.dumps(data))
             result = json.loads(self.handle_response(await socket.receive()))
             if result['status'] != 200:
