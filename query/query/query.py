@@ -111,8 +111,8 @@ async def handle_ws_response(request, userdata, endpoint, f):
         tasks = [asyncio.ensure_future(sender()),
                  asyncio.ensure_future(receiver())]
         done, _ = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
-        assert len(done) == 1
-        done.pop().result()
+        for t in done:
+            t.result()
     finally:
         await ws.close()
         for task in tasks:
