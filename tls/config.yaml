@@ -101,3 +101,6 @@ principals:
 - name: grafana
   domain: grafana
   kind: json
+- name: query-tests
+  domain: query-tests
+  kind: json
