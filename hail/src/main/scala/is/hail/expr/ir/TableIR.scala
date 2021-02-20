@@ -683,8 +683,16 @@ case class PartitionZippedNativeReader(specLeft: AbstractTypedCodecSpec, specRig
 
   private[this] def splitRequestedTypes(requestedType: Type): (TStruct, TStruct) = {
     val reqStruct = requestedType.asInstanceOf[TStruct]
-    val leftStruct = reqStruct.filterSet(specLeft.encodedVirtualType.asInstanceOf[TStruct].fieldNames.toSet)._1
-    val rightStruct = reqStruct.filterSet(specRight.encodedVirtualType.asInstanceOf[TStruct].fieldNames.toSet)._1
+    val neededFields = reqStruct.fieldNames.toSet
+
+    val leftProvidedFields = specLeft.encodedVirtualType.asInstanceOf[TStruct].fieldNames.toSet
+    val rightProvidedFields = specRight.encodedVirtualType.asInstanceOf[TStruct].fieldNames.toSet
+    val leftNeededFields = leftProvidedFields.intersect(neededFields)
+    val rightNeededFields = rightProvidedFields.intersect(neededFields)
+    assert(leftNeededFields.intersect(rightNeededFields).isEmpty)
+
+    val leftStruct = reqStruct.filterSet(leftNeededFields)._1
+    val rightStruct = reqStruct.filterSet(rightNeededFields)._1
     (leftStruct, rightStruct)
   }
 
