@@ -395,7 +395,7 @@ def tmp_dir() -> str:
 
 
 def mktemp(*, suffix: str = '') -> DeletingFile:
-    """A temporary file that is deleted when it exits this context.
+    """A context manager that creates a temporary file name and deletes the file when the context exits.
 
     Examples
     --------
@@ -408,6 +408,7 @@ def mktemp(*, suffix: str = '') -> DeletingFile:
     Returns
     -------
     :class:`.DeletingFile` or :class:`.DeletingDirectory`
+
     """
     return DeletingFile(
         current_backend().fs,
@@ -415,7 +416,8 @@ def mktemp(*, suffix: str = '') -> DeletingFile:
 
 
 def mktempd(*, ensure_exists: bool = True) -> DeletingDirectory:
-    """A temporary directory that is recursively deleted when it exits this context.
+    """A context manager that creates a temporary directory name and recursively deletes the directory
+    when the context exits.
 
     If the filesystem has a notion of directories, then we ensure the directory exists.
 
