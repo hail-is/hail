@@ -5,6 +5,8 @@ import is.hail.asm4s._
 import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.io.{InputBuffer, OutputBuffer}
 import is.hail.types.physical._
+import is.hail.types.physical.stypes.SType
+import is.hail.types.physical.stypes.concrete.SNDArrayPointer
 import is.hail.types.virtual._
 import is.hail.utils._
 
@@ -13,33 +15,19 @@ final case class EBlockMatrixNDArray(elementType: EType, encodeRowMajor: Boolean
 
   def setRequired(newRequired: Boolean): EBlockMatrixNDArray = EBlockMatrixNDArray(elementType, newRequired)
 
-  override def decodeCompatible(pt: PType): Boolean = {
-    pt.required == required &&
-      pt.isInstanceOf[DecodedPType] &&
-      pt.asInstanceOf[DecodedPType].nDims == 2 &&
-      elementType.decodeCompatible(pt.asInstanceOf[DecodedPType].elementType)
-  }
-
-  override def encodeCompatible(pt: PType): Boolean = {
-    pt.required == required &&
-      pt.isInstanceOf[DecodedPType] &&
-      pt.asInstanceOf[DecodedPType].nDims == 2 &&
-      elementType.encodeCompatible(pt.asInstanceOf[DecodedPType].elementType)
-  }
-
-  def _decodedPType(requestedType: Type): PType = {
+  def _decodedSType(requestedType: Type): SType = {
     val elementPType = elementType.decodedPType(requestedType.asInstanceOf[TNDArray].elementType)
-    PCanonicalNDArray(elementPType, 2, required)
+    SNDArrayPointer(PCanonicalNDArray(elementPType, 2, required))
   }
 
-  def _buildEncoder(cb: EmitCodeBuilder, pt: PType, v: Value[_], out: Value[OutputBuffer]): Unit = {
-    val ndarray = PCode(pt, v).asNDArray.memoize(cb, "ndarray")
+  override def _buildEncoder(cb: EmitCodeBuilder, v: PValue, out: Value[OutputBuffer]): Unit = {
+    val ndarray = v.asInstanceOf[PNDArrayValue]
     val shapes = ndarray.shapes(cb)
     val r = cb.newLocal[Long]("r", shapes(0))
     val c = cb.newLocal[Long]("c", shapes(1))
     val i = cb.newLocal[Long]("i")
     val j = cb.newLocal[Long]("j")
-    val writeElemF = elementType.buildEncoder(ndarray.pt.elementType, cb.emb.ecb)
+    val writeElemF = elementType.buildEncoder(ndarray.st.elementType, cb.emb.ecb)
 
     cb += out.writeInt(r.toI)
     cb += out.writeInt(c.toI)
@@ -47,43 +35,38 @@ final case class EBlockMatrixNDArray(elementType: EType, encodeRowMajor: Boolean
     if (encodeRowMajor) {
       cb.forLoop(cb.assign(i, 0L), i < r, cb.assign(i, i + 1L), {
         cb.forLoop(cb.assign(j, 0L), j < c, cb.assign(j, j + 1L), {
-          cb += writeElemF(ndarray.loadElement(FastIndexedSeq(i, j), cb).asPCode.code, out)
+          writeElemF(cb, ndarray.loadElement(FastIndexedSeq(i, j), cb).asPCode, out)
         })
       })
     } else {
       cb.forLoop(cb.assign(j, 0L), j < c, cb.assign(j, j + 1L), {
         cb.forLoop(cb.assign(i, 0L), i < r, cb.assign(i, i + 1L), {
-          cb += writeElemF(ndarray.loadElement(FastIndexedSeq(i, j), cb).asPCode.code, out)
+          writeElemF(cb, ndarray.loadElement(FastIndexedSeq(i, j), cb).asPCode, out)
         })
       })
     }
   }
 
-  def _buildDecoder(
-    cb: EmitCodeBuilder,
-    pt: PType,
-    region: Value[Region],
-    in: Value[InputBuffer]
-  ): Code[Long] = {
-    val t = pt.asInstanceOf[PCanonicalNDArray]
-    val readElemF = elementType.buildInplaceDecoder(t.elementType, cb.emb.ecb)
+  override def _buildDecoder(cb: EmitCodeBuilder, t: Type, region: Value[Region], in: Value[InputBuffer]): PCode = {
+    val st = decodedSType(t).asInstanceOf[SNDArrayPointer]
+    val pt = st.pType
+    val readElemF = elementType.buildInplaceDecoder(pt.elementType, cb.emb.ecb)
 
     val nRows = cb.newLocal[Long]("rows", in.readInt().toL)
     val nCols = cb.newLocal[Long]("cols", in.readInt().toL)
     val transpose = cb.newLocal[Boolean]("transpose", in.readBoolean())
     val n = cb.newLocal[Int]("length", nRows.toI * nCols.toI)
-    val data = cb.newLocal[Long]("data", t.dataType.allocate(region, n))
-    cb += t.dataType.stagedInitialize(data, n, setMissing=true)
+    val data = cb.newLocal[Long]("data", pt.dataType.allocate(region, n))
+    cb += pt.dataType.stagedInitialize(data, n, setMissing = true)
 
     val i = cb.newLocal[Int]("i")
     cb.forLoop(cb.assign(i, 0), i < n, cb.assign(i, i + 1),
-      cb += readElemF(region, t.dataType.elementOffset(data, n, i), in))
+      readElemF(cb, region, pt.dataType.elementOffset(data, n, i), in))
 
-    val stride0 = cb.newLocal[Long]("stride0", transpose.mux(nCols.toL * t.elementType.byteSize, t.elementType.byteSize))
-    val stride1 = cb.newLocal[Long]("stride1", transpose.mux(t.elementType.byteSize, nRows * t.elementType.byteSize))
+    val stride0 = cb.newLocal[Long]("stride0", transpose.mux(nCols.toL * pt.elementType.byteSize, pt.elementType.byteSize))
+    val stride1 = cb.newLocal[Long]("stride1", transpose.mux(pt.elementType.byteSize, nRows * pt.elementType.byteSize))
 
-    t.construct(FastIndexedSeq(nRows, nCols), FastIndexedSeq(stride0, stride1), data, cb, region)
-      .tcode[Long]
+    pt.construct(FastIndexedSeq(nRows, nCols), FastIndexedSeq(stride0, stride1), data, cb, region)
   }
 
   def _buildSkip(cb: EmitCodeBuilder, r: Value[Region], in: Value[InputBuffer]): Unit = {
@@ -95,7 +78,8 @@ final case class EBlockMatrixNDArray(elementType: EType, encodeRowMajor: Boolean
     cb.forLoop(cb.assign(i, 0), i < len, cb.assign(i, i + 1), cb += skip(r, in))
   }
 
-  def _asIdent = s"ndarray_of_${elementType.asIdent}"
+  def _asIdent = s"ndarray_of_${ elementType.asIdent }"
+
   def _toPretty = s"ENDArray[$elementType]"
 
   override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean = false) {

@@ -364,9 +364,6 @@ abstract class PType extends Serializable with Requiredness {
       types, Array and Struct. */
   def fundamentalType: PType = this
 
-  // Encodable types are types that can have corresponding ETypes
-  def encodableType: PType
-
   final def unary_+(): PType = setRequired(true)
 
   final def unary_-(): PType = setRequired(false)

@@ -43,8 +43,6 @@ trait PUnrealizable extends PType {
 
   override def storeAtAddress(cb: EmitCodeBuilder, addr: Code[Long], region: Value[Region], value: SCode, deepCopy: Boolean): Unit = unsupported
 
-  override def encodableType: PType = unsupported
-
   override def containsPointers: Boolean = {
     throw new UnsupportedOperationException("containsPointers not supported on PUnrealizable")
   }

@@ -54,20 +54,25 @@ class DensifyState(val arrayVType: VirtualTypeWithReq, val kb: EmitClassBuilder[
   }
 
   def serialize(codec: BufferSpec): (EmitCodeBuilder, Value[OutputBuffer]) => Unit = {
-    val enc = TypedCodecSpec(arrayStorageType, codec).buildTypedEmitEncoderF[Long](arrayStorageType, kb)
+    val codecSpec = TypedCodecSpec(arrayStorageType, codec)
     (cb: EmitCodeBuilder, ob: Value[OutputBuffer]) => {
 
-      cb += enc(region, arrayAddr, ob)
+      val arrayCode = arrayStorageType.loadCheapPCode(cb, arrayAddr)
+      codecSpec.encodedType.buildEncoder(arrayCode.st, kb)
+        .apply(cb, arrayCode, ob)
       cb += ob.writeInt(const(DensifyAggregator.END_SERIALIZATION))
     }
   }
 
   def deserialize(codec: BufferSpec): (EmitCodeBuilder, Value[InputBuffer]) => Unit = {
-    val (decType, dec) = TypedCodecSpec(arrayStorageType, codec).buildEmitDecoderF[Long](kb)
-    assert(decType == arrayStorageType)
+    val codecSpec = TypedCodecSpec(arrayStorageType, codec)
 
     (cb: EmitCodeBuilder, ib: Value[InputBuffer]) => {
-      cb.assign(arrayAddr, dec(region, ib))
+
+      val decValue = codecSpec.encodedType.buildDecoder(arrayStorageType.virtualType, kb)
+        .apply(cb, region, ib)
+
+      cb.assign(arrayAddr, arrayStorageType.store(cb, region, decValue, deepCopy = false))
       cb.assign(length, arrayStorageType.loadLength(arrayAddr))
       cb.ifx(ib.readInt().cne(const(DensifyAggregator.END_SERIALIZATION)),
         cb += Code._fatal[Unit](s"densify serialization failed"))

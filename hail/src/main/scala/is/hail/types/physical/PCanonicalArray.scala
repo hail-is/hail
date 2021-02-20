@@ -2,7 +2,7 @@ package is.hail.types.physical
 
 import is.hail.annotations.{Region, _}
 import is.hail.asm4s.{Code, _}
-import is.hail.expr.ir.{EmitCode, EmitCodeBuilder, EmitMethodBuilder, EmitValue, ExecuteContext, IEmitCode, ParentStagedRegion, Stream}
+import is.hail.expr.ir.{EmitCode, EmitCodeBuilder, EmitMethodBuilder, EmitValue, ExecuteContext, IEmitCode, IEmitSCode, ParentStagedRegion, Stream}
 import is.hail.types.physical.stypes.SCode
 import is.hail.types.physical.stypes.concrete.{SIndexablePointer, SIndexablePointerCode, SIndexablePointerSettable}
 import is.hail.types.physical.stypes.interfaces.{SContainer, SStreamCode}
@@ -35,14 +35,6 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
       this
     } else {
       this.copy(elementType = elementType.fundamentalType)
-    }
-  }
-
-  override val encodableType: PCanonicalArray = {
-    if (elementType == elementType.encodableType) {
-      this
-    } else {
-      this.copy(elementType = elementType.encodableType)
     }
   }
 
@@ -463,7 +455,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
     PCanonicalArray(this.elementType.deepRename(t.elementType), this.required)
 
   def constructFromElements(cb: EmitCodeBuilder, region: Value[Region], length: Value[Int], deepCopy: Boolean)
-    (f: (EmitCodeBuilder, Value[Int]) => IEmitCode): SIndexablePointerCode = {
+    (f: (EmitCodeBuilder, Value[Int]) => IEmitSCode): SIndexablePointerCode = {
 
     val addr = cb.newLocal[Long]("pcarray_construct1_addr", allocate(region, length))
     cb += stagedInitialize(addr, length, setMissing = false)

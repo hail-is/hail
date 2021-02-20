@@ -57,7 +57,7 @@ object SIntervalPointerSettable {
 
 class SIntervalPointerSettable(
   val st: SIntervalPointer,
-  a: Settable[Long],
+  val a: Settable[Long],
   val includesStart: Settable[Boolean],
   val includesEnd: Settable[Boolean]
 ) extends PIntervalValue with PSettable {

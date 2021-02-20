@@ -116,32 +116,29 @@ class AppendOnlySetState(val kb: EmitClassBuilder[_], vt: VirtualTypeWithReq) ex
   }
 
   def serialize(codec: BufferSpec): (EmitCodeBuilder, Value[OutputBuffer]) => Unit = {
-    val kEnc = et.buildEncoderMethod(t, kb)
-
     { (cb: EmitCodeBuilder, ob: Value[OutputBuffer]) =>
       tree.bulkStore(cb, ob) { (cb, ob, srcCode) =>
         val src = cb.newLocal("aoss_ser_src", srcCode)
         cb += ob.writeBoolean(key.isKeyMissing(src))
         cb.ifx(!key.isKeyMissing(src), {
-          cb += kEnc.invokeCode(key.loadKey(cb, src).code, ob)
+          val k = key.loadKey(cb, src)
+          et.buildEncoder(k.st, kb)
+              .apply(cb, k, ob)
         })
       }
     }
   }
 
   def deserialize(codec: BufferSpec): (EmitCodeBuilder, Value[InputBuffer]) => Unit = {
-    val kDec = et.buildDecoderMethod(t, kb)
+    val kDec = et.buildDecoder(t.virtualType, kb)
     val km = kb.genFieldThisRef[Boolean]("km")
     val kv = kb.genFieldThisRef("kv")(typeToTypeInfo(t))
 
     { (cb: EmitCodeBuilder, ib: Value[InputBuffer]) =>
       init(cb)
       tree.bulkLoad(cb, ib) { (cb, ib, dest) =>
-        cb.assign(km, ib.readBoolean())
-        cb.ifx(!km, {
-          cb += kv.storeAny(kDec.invokeCode(region, ib))
-        })
-        key.store(cb, dest, EmitCode(Code._empty, km, PCode(t, kv)))
+        val km = cb.newLocal[Boolean]("collect_as_set_deser_km", ib.readBoolean())
+        key.store(cb, dest, EmitCode.fromI(cb.emb)(cb => IEmitCode(cb, km, kDec(cb, region, ib))))
         cb.assign(size, size + 1)
       }
     }

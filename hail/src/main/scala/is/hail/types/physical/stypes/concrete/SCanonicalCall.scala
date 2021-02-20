@@ -51,9 +51,11 @@ object SCanonicalCallSettable {
     new SCanonicalCallSettable(required, sb.newSettable[Int](s"${ name }_call"))
 }
 
-class SCanonicalCallSettable(required: Boolean, call: Settable[Int]) extends PCallValue with PSettable {
+class SCanonicalCallSettable(required: Boolean, val call: Settable[Int]) extends PCallValue with PSettable {
 
   val pt: PCall = PCanonicalCall(required)
+
+  override def canonicalCall(cb: EmitCodeBuilder): Code[Int] = call
 
   override def store(cb: EmitCodeBuilder, v: PCode): Unit = cb.assign(call, v.asInstanceOf[SCanonicalCallCode].call)
 

@@ -540,28 +540,30 @@ case class PartitionNativeReader(spec: AbstractTypedCodecSpec) extends AbstractN
     def emitIR(ir: IR, env: Emit.E = env, region: StagedRegion = partitionRegion, container: Option[AggContainer] = container): IEmitCode =
       emitter.emitI(ir, cb, region, env, container, None)
 
-    val (eltType, dec) = spec.buildTypedEmitDecoderF[Long](requestedType, mb.ecb)
-
     emitIR(context).map(cb) { path =>
       val pathString = path.asString.loadString()
       val xRowBuf = mb.newLocal[InputBuffer]()
-      val decRes = mb.newEmitLocal(PInt64Optional)
       val hasNext = mb.newLocal[Boolean]("pnr_hasNext")
-      val next = mb.newLocal[Long]("pnr_next")
+      val next = mb.newPSettable(mb.fieldBuilder, spec.decodedPType(requestedType), "pnr_next")
 
-      val newStream = SizedStream.unsized(eltRegion => Stream.unfold[Code[Long]](
+      val newStream = SizedStream.unsized(eltRegion => Stream.unfold[PCode](
         (_, k) =>
-          Code(
-            hasNext := xRowBuf.readByte().toZ,
-            hasNext.orEmpty(next := dec(eltRegion.code, xRowBuf)),
-            k(COption(!hasNext, next))))
+          EmitCodeBuilder.scopedVoid(mb) { cb =>
+            cb.assign(hasNext, xRowBuf.readByte().toZ)
+            cb.ifx(hasNext, {
+              val decValue = spec.encodedType.buildDecoder(requestedType, cb.emb.ecb)
+                .apply(cb, eltRegion.code, xRowBuf)
+              cb.assign(next, decValue)
+            })
+            cb += k(COption(!hasNext, next))
+          })
         .map(
-          pc => EmitCode.present(cb.emb, PCode(eltType, pc)),
+          pc => EmitCode.present(cb.emb, pc),
           setup0 = None,
           setup = Some(xRowBuf := spec
             .buildCodeInputBuffer(mb.open(pathString, true)))))
 
-      interfaces.SStreamCode(interfaces.SStream(eltType.sType, separateRegions = true), newStream)
+      interfaces.SStreamCode(interfaces.SStream(next.st, separateRegions = true), newStream)
     }
   }
 
@@ -1167,7 +1169,9 @@ case class TableParallelize(rowsAndGlobal: IR, nPartitions: Option[Int] = None) 
       case Right((t: PTuple, off)) => (t.fields(0).typ, t.loadField(off, 0))
     }
 
-    val globalsT = ptype.types(1).asInstanceOf[PStruct]
+    val globalsT = ptype.types(1).setRequired(true).asInstanceOf[PStruct]
+    if (ptype.isFieldMissing(res, 1))
+      fatal("'parallelize': found missing global value")
     val globals = BroadcastRow(ctx, RegionValue(ctx.r, ptype.loadField(res, 1)), globalsT)
 
     val rowsT = ptype.types(0).asInstanceOf[PArray]
@@ -1197,7 +1201,8 @@ case class TableParallelize(rowsAndGlobal: IR, nPartitions: Option[Int] = None) 
     }
 
     val (resultRowType: PStruct, makeDec) = spec.buildDecoder(ctx, typ.rowType)
-    assert(resultRowType.virtualType == typ.rowType)
+    assert(resultRowType.virtualType == typ.rowType, s"typ mismatch:" +
+      s"\n  res=${ resultRowType.virtualType }\n  typ=${ typ.rowType }")
 
     log.info(s"parallelized $nRows rows in $nSplits partitions")
 

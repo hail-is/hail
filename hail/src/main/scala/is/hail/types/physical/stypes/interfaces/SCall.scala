@@ -13,6 +13,8 @@ trait SCallValue extends SValue {
   def isPhased(): Code[Boolean]
 
   def forEachAllele(cb: EmitCodeBuilder)(alleleCode: Value[Int] => Unit): Unit
+
+  def canonicalCall(cb: EmitCodeBuilder): Code[Int]
 }
 
 trait SCallCode extends SCode {

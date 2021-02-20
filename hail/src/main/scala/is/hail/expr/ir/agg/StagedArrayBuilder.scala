@@ -52,24 +52,28 @@ class StagedArrayBuilder(eltType: PType, kb: EmitClassBuilder[_], region: Value[
   }
 
   def serialize(codec: BufferSpec): (EmitCodeBuilder, Value[OutputBuffer]) => Unit = {
-    val enc = TypedCodecSpec(eltArray, codec).buildTypedEmitEncoderF[Long](eltArray, kb)
+    val codecSpec = TypedCodecSpec(eltArray, codec)
     (cb: EmitCodeBuilder, ob: Value[OutputBuffer]) => {
 
       cb += ob.writeInt(size)
       cb += ob.writeInt(capacity)
-      cb += enc(region, data, ob)
+      codecSpec.encodedType.buildEncoder(eltArray.sType, kb)
+        .apply(cb, eltArray.loadCheapPCode(cb, data), ob)
       cb += ob.writeInt(const(StagedArrayBuilder.END_SERIALIZATION))
     }
   }
 
   def deserialize(codec: BufferSpec): (EmitCodeBuilder, Value[InputBuffer]) => Unit = {
-    val (decType, dec) = TypedCodecSpec(eltArray, codec).buildEmitDecoderF[Long](kb)
-    assert(decType == eltArray)
+    val codecSpec = TypedCodecSpec(eltArray, codec)
 
     (cb: EmitCodeBuilder, ib: Value[InputBuffer]) => {
       cb.assign(size, ib.readInt())
       cb.assign(capacity, ib.readInt())
-      cb.assign(data, dec(region, ib))
+
+      val decValue = codecSpec.encodedType.buildDecoder(eltArray.virtualType, kb)
+        .apply(cb, region, ib)
+      cb.assign(data, eltArray.store(cb, region, decValue, deepCopy = false))
+
       cb += ib.readInt()
         .cne(const(StagedArrayBuilder.END_SERIALIZATION))
         .orEmpty(Code._fatal[Unit](s"StagedArrayBuilder serialization failed"))
