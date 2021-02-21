@@ -152,14 +152,15 @@ class ShuffleClient (
   def this(shuffleType: TShuffle, uuid: Array[Byte]) =
     this(shuffleType, uuid, None, None, None)
 
-  val codecs = {
-    ExecutionTimer.logTime("ShuffleClient.codecs") { timer =>
-      RegionPool.scoped(rp =>
-        using(new ExecuteContext("/tmp", "file:///tmp", null, null, Region(pool=rp), timer, null)) { ctx =>
+  val codecs = ctx match {
+    case None =>
+      ExecutionTimer.logTime("ShuffleClient.codecs") { timer =>
+        ExecuteContext.scoped("/tmp", "file:///tmp", null, null, timer, null) { ctx =>
           new ShuffleCodecSpec(ctx, shuffleType, rowEncodingPType, keyEncodingPType)
         }
-      )
-    }
+      }
+    case Some(ctx) =>
+      new ShuffleCodecSpec(ctx, shuffleType, rowEncodingPType, keyEncodingPType)
   }
 
   private[this] val s = ShuffleClient.socket(ctx)
