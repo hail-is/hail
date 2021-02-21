@@ -14,7 +14,7 @@ check:
 .PHONY: build
 build:
 	$(MAKE) -C ../docker build
-	$(MAKE) -C ../hail shadowJar
+	$(MAKE) -C ../hail shadowJar HAIL_DEBUG_MODE=1
 # janky
 	cp ../hail/build/libs/hail-all-spark.jar ./hail.jar
 	-docker pull $(QUERY_LATEST)
