@@ -29,17 +29,17 @@ class PFloat32(override val required: Boolean) extends PNumeric with PPrimitive 
     assert(other isOfType this)
     new CodeOrdering {
       def compareNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Int] =
-        Code.invokeStatic2[java.lang.Float, Float, Float, Int]("compare", x.tcode[Float], y.tcode[Float])
+        Code.invokeStatic2[java.lang.Float, Float, Float, Int]("compare", x.asFloat.floatCode(cb), y.asFloat.floatCode(cb))
 
-      def ltNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Boolean] = x.tcode[Float] < y.tcode[Float]
+      def ltNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Boolean] = x.asFloat.floatCode(cb) < y.asFloat.floatCode(cb)
 
-      def lteqNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Boolean] = x.tcode[Float] <= y.tcode[Float]
+      def lteqNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Boolean] = x.asFloat.floatCode(cb) <= y.asFloat.floatCode(cb)
 
-      def gtNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Boolean] = x.tcode[Float] > y.tcode[Float]
+      def gtNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Boolean] = x.asFloat.floatCode(cb) > y.asFloat.floatCode(cb)
 
-      def gteqNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Boolean] = x.tcode[Float] >= y.tcode[Float]
+      def gteqNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Boolean] = x.asFloat.floatCode(cb) >= y.asFloat.floatCode(cb)
 
-      def equivNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Boolean] = x.tcode[Float].ceq(y.tcode[Float])
+      def equivNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Boolean] = x.asFloat.floatCode(cb).ceq(y.asFloat.floatCode(cb))
     }
   }
 

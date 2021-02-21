@@ -2184,8 +2184,15 @@ class Emit[C](
               typeInfo[Boolean])
             val cmp2 = ApplyComparisonOp(EQWithNA(eltVType), In(0, eltType), In(1, eltType))
             InferPType(cmp2)
-            val EmitCode(s, m, pv) = emitInMethod(cmp2, discardNext)
-            discardNext.emit(Code(s, m || pv.tcode[Boolean]))
+            discardNext.emitWithBuilder[Boolean] { cb =>
+              val r = cb.newLocal[Boolean]("discardnext_res")
+              emitI(cmp2, cb).consume(cb,
+                cb.assign(r, true),
+                {
+                  sc => cb.assign(r, sc.asBoolean.boolCode(cb))
+                })
+              r
+            }
             val lessThan = ApplyComparisonOp(Compare(eltVType), In(0, eltType), In(1, eltType)) < 0
             InferPType(lessThan)
             (a, lessThan, sorter.distinctFromSorted { (r, v1, m1, v2, m2) =>

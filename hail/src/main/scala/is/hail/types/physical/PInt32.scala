@@ -26,17 +26,17 @@ class PInt32(override val required: Boolean) extends PNumeric with PPrimitive {
     assert(other isOfType this)
     new CodeOrdering {
       def compareNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Int] =
-        Code.invokeStatic2[java.lang.Integer, Int, Int, Int]("compare", x.tcode[Int], y.tcode[Int])
+        Code.invokeStatic2[java.lang.Integer, Int, Int, Int]("compare", x.asInt.intCode(cb), y.asInt.intCode(cb))
 
-      def ltNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Boolean] = x.tcode[Int] < y.tcode[Int]
+      def ltNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Boolean] = x.asInt.intCode(cb) < y.asInt.intCode(cb)
 
-      def lteqNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Boolean] = x.tcode[Int] <= y.tcode[Int]
+      def lteqNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Boolean] = x.asInt.intCode(cb) <= y.asInt.intCode(cb)
 
-      def gtNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Boolean] = x.tcode[Int] > y.tcode[Int]
+      def gtNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Boolean] = x.asInt.intCode(cb) > y.asInt.intCode(cb)
 
-      def gteqNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Boolean] = x.tcode[Int] >= y.tcode[Int]
+      def gteqNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Boolean] = x.asInt.intCode(cb) >= y.asInt.intCode(cb)
 
-      def equivNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Boolean] = x.tcode[Int].ceq(y.tcode[Int])
+      def equivNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Boolean] = x.asInt.intCode(cb).ceq(y.asInt.intCode(cb))
     }
   }
 
