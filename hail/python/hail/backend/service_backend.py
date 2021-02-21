@@ -2,6 +2,7 @@ from typing import Optional
 import os
 import aiohttp
 import json
+import warnings
 
 from hail.utils import FatalError
 from hail.expr.types import dtype, tvoid
@@ -11,7 +12,7 @@ from hail.expr.blockmatrix_type import tblockmatrix
 
 from hailtop.config import get_deploy_config, get_user_config, DeployConfig
 from hailtop.auth import service_auth_headers
-from hailtop.utils import async_to_blocking, retry_transient_errors
+from hailtop.utils import async_to_blocking, retry_transient_errors, TransientError
 from hail.ir.renderer import CSERenderer
 
 from .backend import Backend
@@ -50,7 +51,15 @@ class ServiceSocket:
         session = await self.session()
         async with session.ws_connect(f'{self.url}/api/v1alpha/{endpoint}') as socket:
             await socket.send_str(json.dumps(data))
-            result = json.loads(self.handle_response(await socket.receive()))
+            response = await socket.receive()
+            if response.type in (aiohttp.WSMsgType.CLOSE,
+                                 aiohttp.WSMsgType.CLOSED,
+                                 aiohttp.WSMsgType.ERROR):
+                # FIXME(DK): resubmitting an execute could cost a lot
+                warnings.warn(f'Network error ({response.type}), resubmitting {endpoint}')
+                raise TransientError()
+            assert response.type == aiohttp.WSMsgType.TEXT
+            result = json.loads(response.data)
             if result['status'] != 200:
                 raise FatalError(f'Error from server: {result["value"]}')
             return result['value']
