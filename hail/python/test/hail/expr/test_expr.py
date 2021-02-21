@@ -297,10 +297,10 @@ class Tests(unittest.TestCase):
         assert hl.eval(hl.literal(rna_strs).map(lambda s: hl.reverse_complement(s, rna=True))) == ['UGUAAUCNN', 'UGUAAUCNN'.lower(), 'oof']
 
     def test_matches(self):
-        self.assertEqual(hl.eval('\d+'), '\d+')
+        self.assertEqual(hl.eval('\\d+'), '\\d+')
         string = hl.literal('12345')
-        self.assertTrue(hl.eval(string.matches('\d+')))
-        self.assertTrue(hl.eval(string.matches(hl.str('\d+'))))
+        self.assertTrue(hl.eval(string.matches('\\d+')))
+        self.assertTrue(hl.eval(string.matches(hl.str('\\d+'))))
         self.assertFalse(hl.eval(string.matches(r'\\d+')))
 
     def test_string_reverse(self):
