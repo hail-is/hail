@@ -2675,7 +2675,7 @@ class Tests(unittest.TestCase):
                                             entry_type=hl.tstr)
             actual = actual.rename({'col_id': 's'})
             actual = actual.key_rows_by(locus = hl.parse_locus(actual.locus),
-                                        alleles = actual.alleles.replace('"', '').replace('\[', '').replace('\]', '').split(','))
+                                        alleles = actual.alleles.replace('"', '').replace(r'\[', '').replace(r'\]', '').split(','))
             actual = actual.transmute_entries(GT = hl.parse_call(actual.x))
             expected = mt.select_cols().select_globals().select_rows()
             expected.show()
@@ -3059,7 +3059,7 @@ class Tests(unittest.TestCase):
         self.assertAlmostEqual(hl.eval(hl.uniroot(lambda x: x - 1, 0, 3, tolerance=tol)), 1)
         self.assertAlmostEqual(hl.eval(hl.uniroot(lambda x: hl.log(x) - 1, 0, 3, tolerance=tol)), 2.718281828459045, delta=tol)
 
-        with self.assertRaisesRegex(hl.utils.FatalError, "value of f\(x\) is missing"):
+        with self.assertRaisesRegex(hl.utils.FatalError, r"value of f\(x\) is missing"):
             hl.eval(hl.uniroot(lambda x: hl.missing('float'), 0, 1))
         with self.assertRaisesRegex(hl.utils.HailUserError, 'opposite signs'):
             hl.eval(hl.uniroot(lambda x: x ** 2 - 0.5, -1, 1))
