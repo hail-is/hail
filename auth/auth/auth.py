@@ -9,6 +9,7 @@ import google.auth.transport.requests
 import google.oauth2.id_token
 import google_auth_oauthlib.flow
 from prometheus_async.aio.web import server_stats  # type: ignore
+from hailtop.hailctl import version
 from hailtop.config import get_deploy_config
 from hailtop.tls import internal_server_ssl_context
 from hailtop.hail_logging import AccessLogger
@@ -604,6 +605,14 @@ async def verify_dev_credentials(request):
     if not is_developer:
         raise web.HTTPUnauthorized()
     return web.Response(status=200)
+
+
+@routes.get('/api/v1alpha/version')
+async def rest_get_version(request):  # pylint: disable=W0613
+    try:
+        return web.Response(text=version())
+    except Exception as e:
+        return web.json_response({"error": str(e)})
 
 
 async def on_startup(app):
