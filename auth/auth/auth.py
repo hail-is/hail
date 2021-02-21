@@ -8,6 +8,7 @@ import uvloop
 import google.auth.transport.requests
 import google.oauth2.id_token
 import google_auth_oauthlib.flow
+from hailtop.hailctl import version
 from hailtop.config import get_deploy_config
 from hailtop.tls import internal_server_ssl_context
 from hailtop.hail_logging import AccessLogger
@@ -556,6 +557,14 @@ WHERE users.state = 'active' AND (sessions.session_id = %s) AND (ISNULL(sessions
     user = users[0]
 
     return web.json_response(user)
+
+
+@routes.get('/api/v1alpha/version')
+async def rest_get_version(request):  # pylint: disable=W0613
+    try:
+        return web.Response(text=version())
+    except Exception as e:
+        return web.json_response({"error": str(e)})
 
 
 async def on_startup(app):
