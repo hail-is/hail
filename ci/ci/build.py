@@ -985,8 +985,12 @@ EOF
 
         if not self.cant_create_database:
             password_files_input = [
-                (f'gs://{BUCKET}/build/{batch.attributes["token"]}/{self.admin_password_file}', self.admin_password_file),
-                (f'gs://{BUCKET}/build/{batch.attributes["token"]}/{self.user_password_file}', self.user_password_file)]
+                (
+                    f'gs://{BUCKET}/build/{batch.attributes["token"]}/{self.admin_password_file}',
+                    self.admin_password_file,
+                ),
+                (f'gs://{BUCKET}/build/{batch.attributes["token"]}/{self.user_password_file}', self.user_password_file),
+            ]
             input_files.extend(password_files_input)
 
             self.create_passwords_job = batch.create_job(

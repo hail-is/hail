@@ -10,26 +10,29 @@ Instructions:
    gcloud config set compute/zone <gcp-zone>
    ```
 
-- Delete the default network if it exists.
-
-- Create a service account for Terraform with Owner role, create a
-  service account key and place it in
-  `$HOME/.hail/terraform_sa_key.json`.
+- Create a service account for Terraform with Owner role.  We use
+  service account name `terraform`.  Create a JSON service account key
+  and place it in `$HOME/.hail/terraform_sa_key.json`.
 
 - Enable the the GCP services needed by Hail:
 
    ```
    gcloud services enable \
+       container.googleapis.com \
        compute.googleapis.com \
        cloudresourcemanager.googleapis.com \
        servicenetworking.googleapis.com \
        sqladmin.googleapis.com \
-       container.googleapis.com \
        serviceusage.googleapis.com \
        dns.googleapis.com \
        logging.googleapis.com \
-       cloudprofiler.googleapis.com
+       cloudprofiler.googleapis.com \
+       monitoring.googleapis.com \
+       iam.googleapis.com
    ```
+
+- Delete the default network if it exists.  Enabling the networking
+  API creates it.
 
 - Install terraform.
 
@@ -37,32 +40,49 @@ Instructions:
 
    ```
    gsuite_organization = "<gsuite-organization>"
+
    # batch_gcp_regions is a JSON array of string, the names of the gcp
    # regions to schedule over in Batch.
    batch_gcp_regions = "<batch-gcp-regions>"
+
    gcp_project = "<gcp-project-id>"
+
    # gcp_location is the bucket location that spans the regions you're
    # going to schedule across in Batch.  If you are running on one
    # region, it can just be that region.
    gcp_location = "<gcp-location>"
+
+   # This is the bucket location that spans the regions you're going to
+   # schedule across in Batch.  If you are running on one region, it can
+   # just be that region.
+   batch_logs_bucket_location = "<bucket-location>"
+
+   # The storage class for the batch logs bucket.  It should span the
+   # batch regions and be compatible with the bucket location.
+   batch_logs_bucket_storage_class = "MULTI_REGIONAL"
+
    gcp_region = "<gcp-region>"
+
    gcp_zone = "<gcp-zone>"
+
    domain = "<domain>"
    ```
 
 - Run `terraform init`.
 
-- Run `terraform apply -var-file="$HOME/.hail/global.tfvars"`.
-  Terraform has created a GKE cluster named `vdc`.  Configure
-  `kubectl` to point at the vdc cluster:
-
-  ```
-  gcloud container clusters get-credentials --zone <gcp-zone> vdc
-  ```
+- Run `terraform apply -var-file="$HOME/.hail/global.tfvars"`.  At the
+  time of writing, this takes ~15m.
 
 - Go to the Google Cloud console, VPC networks > default > Private
   service connection > Private connections to services, and enable
   Export custom routes to both connections.
+
+ - Terraform created a GKE cluster named `vdc`.  Configure `kubectl`
+   to point at the vdc cluster:
+
+   ```
+   gcloud container clusters get-credentials --zone <gcp-zone> vdc
+   ```
 
 You can now install Hail:
 
