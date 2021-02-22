@@ -93,6 +93,5 @@ class RichCodeInputBuffer(
     case _: PInt64 => readLong()
     case _: PFloat32 => readFloat()
     case _: PFloat64 => readDouble()
-    case _: PCanonicalCall => readInt()
   }
 }

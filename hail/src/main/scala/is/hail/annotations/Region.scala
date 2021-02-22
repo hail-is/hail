@@ -224,7 +224,6 @@ object Region {
     case _: PInt64 => loadLong
     case _: PFloat32 => loadFloat
     case _: PFloat64 => loadDouble
-    case _: PCanonicalCall => loadInt
   }
 
   def storePrimitive(typ: PType, dest: Code[Long]): Code[_] => Code[Unit] = typ match {
@@ -233,7 +232,6 @@ object Region {
     case _: PInt64 => v => storeLong(dest, coerce[Long](v))
     case _: PFloat32 => v => storeFloat(dest, coerce[Float](v))
     case _: PFloat64 => v => storeDouble(dest, coerce[Double](v))
-    case _: PCanonicalCall => v => storeInt(dest, coerce[Int](v))
   }
 
   def stagedCreate(blockSize: Size, pool: Code[RegionPool]): Code[Region] =

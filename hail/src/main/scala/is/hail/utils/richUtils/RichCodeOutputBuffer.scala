@@ -62,6 +62,5 @@ class RichCodeOutputBuffer(
     case _: PInt64 => v => writeLong(coerce[Long](v))
     case _: PFloat32 => v => writeFloat(coerce[Float](v))
     case _: PFloat64 => v => writeDouble(coerce[Double](v))
-    case _: PCanonicalCall => v => writeInt(coerce[Int](v))
   }
 }

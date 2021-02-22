@@ -386,8 +386,7 @@ abstract class PType extends Serializable with Requiredness {
     isInstanceOf[PInt32] ||
       isInstanceOf[PInt64] ||
       isInstanceOf[PFloat32] ||
-      isInstanceOf[PFloat64] ||
-      isInstanceOf[PCanonicalCall] // :(
+      isInstanceOf[PFloat64]
 
   def containsPointers: Boolean
 
