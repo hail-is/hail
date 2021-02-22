@@ -62,6 +62,7 @@ main() {
 
     JIT jit;
 
+
     std::vector<const VType *> param_vtypes;
     for (auto t : param_types)
       param_vtypes.push_back(tc.get_vtype(t));
@@ -71,6 +72,11 @@ main() {
 
     auto return_value = compiled.invoke(region, {});
     print("return_value: ", return_value);
+  }
+
+  {
+    auto region = std::make_shared<ArenaAllocator>(heap);
+    auto varray = cast<VArray>(tc.get_vtype(tc.tarray(tc.tfloat64)));
   }
 
   return 0;
