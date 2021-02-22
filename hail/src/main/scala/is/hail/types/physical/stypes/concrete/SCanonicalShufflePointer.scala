@@ -19,7 +19,7 @@ case class SCanonicalShufflePointer(pType: PCanonicalShuffle) extends SShuffle {
     new SCanonicalShufflePointerCode(this, pType.representation.loadCheapPCode(cb, pType.store(cb, region, value, deepCopy)))
   }
 
-  def codeTupleTypes(): IndexedSeq[TypeInfo[_]] = FastIndexedSeq(LongInfo, IntInfo, IntInfo)
+  def codeTupleTypes(): IndexedSeq[TypeInfo[_]] = FastIndexedSeq(LongInfo)
 
   def loadFrom(cb: EmitCodeBuilder, region: Value[Region], pt: PType, addr: Code[Long]): SCode = {
     pt match {
@@ -53,7 +53,7 @@ object SCanonicalShufflePointerSettable {
   }
 }
 
-class SCanonicalShufflePointerSettable(val st: SCanonicalShufflePointer, shuffle: SBinaryPointerSettable) extends PShuffleValue with PSettable {
+class SCanonicalShufflePointerSettable(val st: SCanonicalShufflePointer, val shuffle: SBinaryPointerSettable) extends PShuffleValue with PSettable {
   val pt: PShuffle = st.pType
 
   def get: PShuffleCode = new SCanonicalShufflePointerCode(st, shuffle.get)

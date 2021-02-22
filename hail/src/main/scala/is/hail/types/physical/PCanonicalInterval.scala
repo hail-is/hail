@@ -69,8 +69,6 @@ final case class PCanonicalInterval(pointType: PType, override val required: Boo
 
   def containsPointers: Boolean = representation.containsPointers
 
-  def encodableType: PType = representation.encodableType
-
   def sType: SIntervalPointer = SIntervalPointer(this)
 
   def loadCheapPCode(cb: EmitCodeBuilder, addr: Code[Long]): PCode = new SIntervalPointerCode(SIntervalPointer(this), addr)

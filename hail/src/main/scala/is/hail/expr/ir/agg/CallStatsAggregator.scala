@@ -74,17 +74,18 @@ class CallStatsState(val kb: EmitClassBuilder[_]) extends PointerBasedRVAState {
   }
 
   def serialize(codec: BufferSpec): (EmitCodeBuilder, Value[OutputBuffer]) => Unit = { (cb, ob) =>
-    cb += TypedCodecSpec(CallStatsState.stateType, codec)
-      .buildTypedEmitEncoderF[Long](CallStatsState.stateType, kb)(region, off, ob)
+    val codecSpec = TypedCodecSpec(CallStatsState.stateType, codec)
+    codecSpec.encodedType.buildEncoder(CallStatsState.stateType.sType, kb)
+      .apply(cb, CallStatsState.stateType.loadCheapPCode(cb, off), ob)
   }
 
   def deserialize(codec: BufferSpec): (EmitCodeBuilder, Value[InputBuffer]) => Unit = {
-    val (decType, dec) = TypedCodecSpec(CallStatsState.stateType, codec)
-      .buildEmitDecoderF[Long](kb)
-    assert(decType == CallStatsState.stateType)
-
     { (cb: EmitCodeBuilder, ib: Value[InputBuffer]) =>
-      cb.assign(off, dec(region, ib))
+      val codecSpec = TypedCodecSpec(CallStatsState.stateType, codec)
+      val decValue = codecSpec.encodedType.buildDecoder(CallStatsState.stateType.virtualType, kb)
+        .apply(cb, region, ib)
+
+      cb.assign(off, CallStatsState.stateType.store(cb, region, decValue, deepCopy = false))
       loadNAlleles(cb)
     }
   }

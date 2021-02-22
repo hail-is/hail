@@ -83,12 +83,8 @@ spec:
            value: "{{ global.k8s_server_url }}"
          - name: HAIL_SHA
            value: "{{ code.sha }}"
-{% if deploy or scope == "dev" %}
+{% if scope != "test" %}
          - name: HAIL_SHOULD_PROFILE
-           value: "1"
-{% endif %}
-{% if scope == "test" or scope == "dev" %}
-         - name: HAIL_SHOULD_CHECK_INVARIANTS
            value: "1"
 {% endif %}
 {% if deploy %}
@@ -100,6 +96,8 @@ spec:
          - name: STANDING_WORKER_MAX_IDLE_TIME_SECS
            value: "7200" # 2 hours
 {% else %}
+         - name: HAIL_SHOULD_CHECK_INVARIANTS
+           value: "1"
          - name: HAIL_BATCH_BUCKET_NAME
            value: cpg-hail-test
          - name: STANDING_WORKER_MAX_IDLE_TIME_SECS
@@ -251,7 +249,7 @@ spec:
          - containerPort: 5000
         resources:
           requests:
-            memory: "10M"
+            memory: "100M"
             cpu: "100m"
           limits:
             memory: "1G"

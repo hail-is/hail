@@ -32,6 +32,6 @@ final case class PCanonicalSet(elementType: PType,  required: Boolean = false) e
 
   def construct(contents: PIndexableCode): PIndexableCode = {
     assert(contents.pt == arrayRep)
-    new SIndexablePointerCode(SIndexablePointer(arrayRep), contents.tcode[Long])
+    new SIndexablePointerCode(SIndexablePointer(this), contents.tcode[Long])
   }
 }

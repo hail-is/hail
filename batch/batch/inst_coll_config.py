@@ -59,7 +59,7 @@ class PoolConfig(InstanceCollectionConfig):
                                                       self.worker_local_ssd_data_disk, self.worker_pd_ssd_data_disk_size_gb)
         cores_mcpu = adjust_cores_for_packability(cores_mcpu)
 
-        if cores_mcpu < self.worker_cores * 1000:
+        if cores_mcpu <= self.worker_cores * 1000:
             return cores_mcpu
         return None
 
