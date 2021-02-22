@@ -6,7 +6,7 @@ import is.hail.expr.ir.{EmitCode, EmitCodeBuilder}
 import is.hail.types.physical.stypes.SCode
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.virtual.{TNDArray, Type}
-import is.hail.types.physical.stypes.concrete.{SNDArrayPointer, SNDArrayPointerCode}
+import is.hail.types.physical.stypes.concrete.{SIndexablePointer, SNDArrayPointer, SNDArrayPointerCode}
 import org.apache.spark.sql.Row
 import is.hail.utils._
 
@@ -183,8 +183,9 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
     region: Value[Region]
   ): SNDArrayPointerCode = {
 
-    val inputDataPointer = cb.newLocal[Long]("data_value_store")
-    cb.assign(inputDataPointer, dataCode)
+    //val inputDataPointer = cb.newLocal[Long]("data_value_store")
+    val dataPCode = dataType.loadCheapPCode(cb, dataCode)
+    val dataValue = dataPCode.memoize(cb, "pndarray_copy_data_constructor_data")
 
     val ndAddr = cb.newLocal[Long]("ndarray_construct_addr")
     cb.assign(ndAddr, this.allocate(shape, region))
@@ -200,8 +201,7 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
     val newDataPointer = cb.newLocal("ndarray_construct_new_data_pointer", ndAddr + this.representation.byteSize)
 
     cb.append(Region.storeLong(this.representation.fieldOffset(ndAddr, "data"), newDataPointer))
-    // TODO Don't keep recomputing num elements
-    cb.append(Region.copyFrom(inputDataPointer, newDataPointer, this.dataType.contentsByteSize(this.numElements(shape).toI)))
+    dataType.storeContentsAtAddress(cb, newDataPointer, region, dataValue, true)
 
     new SNDArrayPointerCode(SNDArrayPointer(this), ndAddr)
   }
