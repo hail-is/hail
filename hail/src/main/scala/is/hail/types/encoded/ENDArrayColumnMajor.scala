@@ -44,11 +44,11 @@ case class ENDArrayColumnMajor(elementType: EType, nDims: Int, required: Boolean
 
     val dataIdx = cb.newLocal[Int]("ndarray_decoder_data_idx")
     cb.forLoop(cb.assign(dataIdx, 0), dataIdx < totalNumElements.toI, cb.assign(dataIdx, dataIdx + 1), {
-      cb += readElemF(region, currElementAddress, in)
+      readElemF(cb, region, currElementAddress, in)
       cb.assign(currElementAddress, currElementAddress + pnd.elementType.byteSize)
     })
 
-    pndFinisher(cb).tcode[Long]
+    pndFinisher(cb)
   }
 
   def _buildSkip(cb: EmitCodeBuilder, r: Value[Region], in: Value[InputBuffer]): Unit = {

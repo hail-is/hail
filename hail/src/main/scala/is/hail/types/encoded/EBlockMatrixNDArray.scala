@@ -61,16 +61,16 @@ final case class EBlockMatrixNDArray(elementType: EType, encodeRowMajor: Boolean
 
     val n = cb.newLocal[Int]("length", nRows.toI * nCols.toI)
 
-    val (tFirstElementAddress, tFinisher) = t.constructDataFunction(IndexedSeq(nRows, nCols), IndexedSeq(stride0, stride1), cb, region)
+    val (tFirstElementAddress, tFinisher) = pt.constructDataFunction(IndexedSeq(nRows, nCols), IndexedSeq(stride0, stride1), cb, region)
     val currElementAddress = cb.newLocal[Long]("eblockmatrix_ndarray_currElementAddress", tFirstElementAddress)
 
     val i = cb.newLocal[Int]("i")
     cb.forLoop(cb.assign(i, 0), i < n, cb.assign(i, i + 1), {
-      cb += readElemF(region, currElementAddress, in)
-      cb.assign(currElementAddress, currElementAddress + t.elementType.byteSize)
+      readElemF(cb, region, currElementAddress, in)
+      cb.assign(currElementAddress, currElementAddress + pt.elementType.byteSize)
     })
 
-    tFinisher(cb).tcode[Long]
+    tFinisher(cb)
   }
 
   def _buildSkip(cb: EmitCodeBuilder, r: Value[Region], in: Value[InputBuffer]): Unit = {
