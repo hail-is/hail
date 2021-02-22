@@ -13,7 +13,6 @@ final case class PCanonicalInterval(pointType: PType, override val required: Boo
 
   def byteSize: Long = representation.byteSize
   override def alignment: Long = representation.alignment
-  override lazy val fundamentalType: PStruct = representation.fundamentalType
 
   def _asIdent = s"interval_of_${ pointType.asIdent }"
 

@@ -45,7 +45,7 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
       cb.assign(settables(dimIdx), shapeTuple.loadField(cb, dimIdx).get(cb).asLong.longCode(cb))
     }
   }
-  
+
   def loadStrides(cb: EmitCodeBuilder, addr: Value[Long], settables: IndexedSeq[Settable[Long]]): Unit = {
     assert(settables.length == nDims)
     val strideTuple = strideType.loadCheapPCode(cb, representation.loadField(addr, "strides"))
@@ -75,8 +75,6 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
   override lazy val alignment: Long = representation.alignment
 
   override def unsafeOrdering(): UnsafeOrdering = representation.unsafeOrdering()
-
-  override lazy val fundamentalType: PType =  PCanonicalNDArray(elementType.fundamentalType, nDims, required)
 
   def numElements(shape: IndexedSeq[Value[Long]]): Code[Long] = {
     shape.foldLeft(1L: Code[Long])(_ * _)
@@ -405,4 +403,3 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
     Region.storeAddress(addr, unstagedStoreJavaObject(annotation, region))
   }
 }
-

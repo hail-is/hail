@@ -195,7 +195,7 @@ class PR(Code):
                 self.target_branch.state_changed = True
 
     async def authorized(self, dbpool):
-        if self.author in AUTHORIZED_USERS:
+        if self.author in {user.gh_username for user in AUTHORIZED_USERS}:
             return True
 
         async with dbpool.acquire() as conn:
@@ -863,6 +863,7 @@ mkdir -p {shq(repo_dir)}
                     'target_branch': self.branch.short_str(),
                     'sha': self.sha,
                     'user': self.user,
+                    'dev_deploy': '1',
                 }
             )
             config.build(deploy_batch, self, scope='dev')

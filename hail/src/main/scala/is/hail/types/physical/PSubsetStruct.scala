@@ -35,7 +35,6 @@ final case class PSubsetStruct(ps: PStruct, _fieldNames: Array[String]) extends 
   override lazy val virtualType = TStruct(fields.map(f => (f.name -> f.typ.virtualType)):_*)
   override val types: Array[PType] = fields.map(_.typ).toArray
 
-  lazy val structFundamentalType: PStruct = PSubsetStruct(ps.structFundamentalType, _fieldNames)
   override val byteSize: Long = 8
 
   override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean) {

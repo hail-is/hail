@@ -926,7 +926,7 @@ def grep(regex, path, max_count=100, *, show=True):
 
     Print all lines containing digits in *file1.txt* and *file2.txt*:
 
-    >>> hl.grep('\d', ['data/file1.txt','data/file2.txt'])
+    >>> hl.grep('\\d', ['data/file1.txt','data/file2.txt'])
 
     Notes
     -----

@@ -30,14 +30,6 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
 
   override val byteSize: Long = 8
 
-  override val fundamentalType: PCanonicalArray = {
-    if (elementType == elementType.fundamentalType) {
-      this
-    } else {
-      this.copy(elementType = elementType.fundamentalType)
-    }
-  }
-
   def setRequired(required: Boolean) = if (required == this.required) this else PCanonicalArray(elementType, required)
 
   def loadLength(aoff: Long): Int =
@@ -316,7 +308,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
   }
 
   def deepPointerCopy(cb: EmitCodeBuilder, region: Value[Region], dstAddressCode: Code[Long], len: Value[Int]): Unit = {
-    if (!this.elementType.fundamentalType.containsPointers) {
+    if (!this.elementType.containsPointers) {
       return
     }
 
@@ -336,7 +328,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
   }
 
   def deepPointerCopy(region: Region, dstAddress: Long) {
-    if(!this.elementType.fundamentalType.containsPointers) {
+    if(!this.elementType.containsPointers) {
       return
     }
 

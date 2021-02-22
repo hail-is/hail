@@ -44,9 +44,6 @@ trait PStruct extends PBaseStruct {
 
   final def typeAfterSelect(keep: IndexedSeq[Int]): PCanonicalStruct = PCanonicalStruct(required, keep.map(i => fieldNames(i) -> types(i)): _*)
 
-  val structFundamentalType: PStruct
-  override lazy val fundamentalType: PStruct = structFundamentalType
-
   def loadField(offset: Code[Long], fieldName: String): Code[Long]
 
   final def isFieldDefined(offset: Code[Long], fieldName: String): Code[Boolean] = !isFieldMissing(offset, fieldName)

@@ -218,7 +218,7 @@ object Region {
     false
   }
 
-  def loadPrimitive(typ: PType): Code[Long] => Code[_] = typ.fundamentalType match {
+  def loadPrimitive(typ: PType): Code[Long] => Code[_] = typ match {
     case _: PBoolean => loadBoolean
     case _: PInt32 => loadInt
     case _: PInt64 => loadLong
@@ -226,7 +226,7 @@ object Region {
     case _: PFloat64 => loadDouble
   }
 
-  def storePrimitive(typ: PType, dest: Code[Long]): Code[_] => Code[Unit] = typ.fundamentalType match {
+  def storePrimitive(typ: PType, dest: Code[Long]): Code[_] => Code[Unit] = typ match {
     case _: PBoolean => v => storeBoolean(dest, coerce[Boolean](v))
     case _: PInt32 => v => storeInt(dest, coerce[Int](v))
     case _: PInt64 => v => storeLong(dest, coerce[Long](v))
