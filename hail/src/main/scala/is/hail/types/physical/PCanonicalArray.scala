@@ -426,7 +426,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
 
   def store(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): Code[Long] = {
     value.st match {
-      case SIndexablePointer(PCanonicalArray(otherElementType, _)) if otherElementType == elementType && deepCopy =>
+      case SIndexablePointer(PCanonicalArray(otherElementType, _)) if otherElementType == elementType && !deepCopy =>
         value.asInstanceOf[SIndexablePointerCode].a
       case _ =>
         val newAddr = cb.newLocal[Long]("pcarray_store_newaddr")
