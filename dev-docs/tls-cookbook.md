@@ -101,7 +101,8 @@ openssl req -new -x509 \
         -newkey rsa:4096 \
         -keyout hail-root-key.pem \
         -out hail-root-cert.pem \
-        -days 365
+        -days 365 \
+        -sha256
 ```
 
 2. Update kubernetes with the new root certificate:
