@@ -131,7 +131,9 @@ final class RegionMemory(pool: RegionPool) extends AutoCloseable {
   }
 
   private def releaseNDArrays(): Unit = {
-    this.ndarrayRefs.result().map{ addr =>
+    var i = 0
+    while (i < ndarrayRefs.size) {
+      val addr = this.ndarrayRefs(i)
       val curCount = PNDArray.getReferenceCount(addr)
       if (curCount == 1) {
         PNDArray.storeReferenceCount(addr, 0L)
@@ -141,6 +143,7 @@ final class RegionMemory(pool: RegionPool) extends AutoCloseable {
       } else {
         PNDArray.storeReferenceCount(addr, curCount - 1)
       }
+      i += 1
     }
 
     this.ndarrayRefs.clear()
