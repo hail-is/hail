@@ -1857,8 +1857,6 @@ class Emit[C](
       case ShuffleWrite(idIR, rowsIR) =>
         val shuffleType = coerce[TShuffle](idIR.typ)
         val rowsPType = coerce[PStream](rowsIR.pType)
-        assert(shuffleType.rowEType._encodeCompatible(rowsPType.elementType),
-          s"Incompatible:\n${shuffleType.rowEType}\n\n${rowsPType.elementType}")
         val uuid = emitI(idIR)
           .get(cb, "shuffle ID must be non-missing")
           .asInstanceOf[SCanonicalShufflePointerCode]
@@ -1883,7 +1881,7 @@ class Emit[C](
             row.m.mux(
               Code._fatal[Unit]("cannot handle empty rows in shuffle put"),
               Code(shuffle.putValue(row.value[Long]),
-                   eltRegion.clear())))
+                eltRegion.clear())))
         })
         cb += eltRegion.free()
         cb += shuffle.putValueDone()
@@ -1892,7 +1890,7 @@ class Emit[C](
 
         val resPType = pt.asInstanceOf[PCanonicalBinary]
         // FIXME: server needs to send uuid for the successful partition
-        val boff = cb.memoize(resPType.loadCheapPCode(cb, resPType.allocate(region.code, 0)),"shuffleWriteBOff")
+        val boff = cb.memoize(resPType.loadCheapPCode(cb, resPType.allocate(region.code, 0)), "shuffleWriteBOff")
         cb += resPType.storeLength(boff.tcode[Long], 0)
         presentPC(boff)
 
@@ -1900,7 +1898,7 @@ class Emit[C](
         emitI(path).map(cb) { pv =>
           val ib = cb.newLocal[InputBuffer]("read_ib")
           cb.assign(ib, spec.buildCodeInputBuffer(mb.open(pv.asString.loadString(), checkCodec = true)))
-          spec.buildEmitDecoder(requestedType, mb.ecb)(region.code, ib)
+          spec.encodedType.buildDecoder(requestedType, mb.ecb)(cb, region.code, ib)
         }
 
       case WriteValue(value, path, spec) =>
@@ -1909,8 +1907,8 @@ class Emit[C](
           emitI(value).map(cb) { v =>
             val ob = cb.newLocal[OutputBuffer]("write_ob")
             cb.assign(ob, spec.buildCodeOutputBuffer(mb.create(pv.asString.loadString())))
-            val enc = spec.buildEmitEncoder(v.pt, cb.emb.ecb)
-            cb += enc(region.code, v.memoize(cb, "write_value"), ob)
+            spec.encodedType.buildEncoder(v.st, cb.emb.ecb)
+              .apply(cb, v.memoize(cb, "write_value"), ob)
             cb += ob.invoke[Unit]("close")
             pv
           }
@@ -1925,26 +1923,11 @@ class Emit[C](
 
         val functionID: String = {
           val bodyFB = EmitFunctionBuilder[Region, Array[Byte], Array[Byte], Array[Byte]](ctx.executeContext, "collect_distributed_array")
-          val bodyMB = bodyFB.genEmitMethod("cdaBody",
-            Array[ParamType](typeInfo[Region], ctxType.asEmitParam, gType.asEmitParam),
-            typeInfo[Long])
 
-          val (cRetPtype, cDec) = x.contextSpec.buildEmitDecoderF[Long](bodyFB.ecb)
-          assert(cRetPtype == x.decodedContextPTuple)
-          val (gRetPtype, gDec) = x.globalSpec.buildEmitDecoderF[Long](bodyFB.ecb)
-          assert(gRetPtype == x.decodedGlobalPTuple)
-          val bEnc = x.bodySpec.buildTypedEmitEncoderF[Long](x.bodyPTuple, bodyFB.ecb)
-          val bOB = bodyFB.genFieldThisRef[OutputBuffer]()
-
-          val env = Env[EmitValue](
-            (cname, bodyMB.getEmitParam(2)),
-            (gname, bodyMB.getEmitParam(3)))
-
-          // FIXME fix number of aggs here
+          // FIXME this is terrible
           val m = MakeTuple.ordered(FastSeq(body))
-          m._pType = PCanonicalTuple(true, body.pType)
-          val t = new Emit(ctx, bodyFB.ecb).emit(m, bodyMB, env, None)
-          bodyMB.emit(Code(t.setup, t.m.mux(Code._fatal[Long]("return cannot be missing"), t.v)))
+          val bodyReturnPType = PCanonicalTuple(true, body.pType)
+          m._pType = bodyReturnPType
 
           bodyFB.emitWithBuilder { cb =>
             val ctxIB = cb.newLocal[InputBuffer]("cda_ctx_ib", x.contextSpec.buildCodeInputBuffer(
@@ -1952,26 +1935,35 @@ class Emit[C](
             val gIB = cb.newLocal[InputBuffer]("cda_g_ib", x.globalSpec.buildCodeInputBuffer(
               Code.newInstance[ByteArrayInputStream, Array[Byte]](bodyFB.getCodeParam[Array[Byte]](3))))
 
-            val ctxOff = cb.newLocal[Long]("cda_ctx_off", cDec(bodyFB.getCodeParam[Region](1), ctxIB))
-            val gOff = cb.newLocal[Long]("cda_g_off", gDec(bodyFB.getCodeParam[Region](1), gIB))
-
-
-            val ctxTuple = x.decodedContextPTuple.loadCheapPCode(cb, ctxOff).asBaseStruct
+            val decodedContext = x.contextSpec.encodedType.buildDecoder(x.contextSpec.encodedVirtualType, bodyFB.ecb)
+              .apply(cb, bodyFB.getCodeParam[Region](1), ctxIB)
+              .asBaseStruct
               .memoize(cb, "decoded_context_tuple")
-            val globalTuple = x.decodedGlobalPTuple.loadCheapPCode(cb, gOff).asBaseStruct
-              .memoize(cb, "decoded_global_tuple")
+              .loadField(cb, 0)
+              .typecast[PCode]
+              .memoize(cb, "decoded_context")
 
-            val bOffCode = cb.invokeCode[Long](bodyMB, bodyFB.getCodeParam[Region](1),
-              EmitCode.fromI(cb.emb) { cb =>
-                ctxTuple.loadField(cb, 0).typecast[PCode]
-              },
-              EmitCode.fromI(cb.emb) { cb =>
-                globalTuple.loadField(cb, 0).typecast[PCode]
-              })
-            val bOff = cb.newLocal[Long]("cda_boff", bOffCode)
+            val decodedGlobal = x.globalSpec.encodedType.buildDecoder(x.globalSpec.encodedVirtualType, bodyFB.ecb)
+              .apply(cb, bodyFB.getCodeParam[Region](1), gIB)
+              .asBaseStruct
+              .memoize(cb, "decoded_global_tuple")
+              .loadField(cb, 0)
+              .typecast[PCode]
+              .memoize(cb, "decoded_global")
+
+            val env = Env[EmitValue](
+              (cname, decodedContext),
+              (gname, decodedGlobal))
+
+            val bodyResult = new Emit(ctx, bodyFB.ecb)
+              .emitI(m, cb, env, None)
+              .get(cb, "cda return cannot be missing!")
+              .memoize(cb, "cda_body_result")
+
             val bOS = cb.newLocal[ByteArrayOutputStream]("cda_baos", Code.newInstance[ByteArrayOutputStream]())
             val bOB = cb.newLocal[OutputBuffer]("cda_ob", x.bodySpec.buildCodeOutputBuffer(bOS))
-            cb += bEnc(bodyFB.getCodeParam[Region](1), bOff, bOB)
+            x.bodySpec.encodedType.buildEncoder(bodyResult.st, cb.emb.ecb)
+                .apply(cb, bodyResult, bOB)
             cb += bOB.invoke[Unit]("flush")
             cb += bOB.invoke[Unit]("close")
             bOS.invoke[Array[Byte]]("toByteArray")
@@ -1985,11 +1977,6 @@ class Emit[C](
         val spark = parentCB.backend()
 
         val outerRegion = region.asParent(ctxsType.separateRegions, "CDA")
-
-        val cEnc = x.contextSpec.buildTypedEmitEncoderF[Long](x.contextPTuple, parentCB)
-        val gEnc = x.globalSpec.buildTypedEmitEncoderF[Long](x.globalPTuple, parentCB)
-        val (bRetPType, bDec) = x.bodySpec.buildEmitDecoderF[Long](parentCB)
-        assert(bRetPType == x.decodedBodyPTuple)
 
         val baos = mb.genFieldThisRef[ByteArrayOutputStream]()
         val buf = mb.genFieldThisRef[OutputBuffer]()
@@ -2007,9 +1994,11 @@ class Emit[C](
           cb += ctxab.invoke[Int, Unit]("ensureCapacity", len.getOrElse(16))
           cb += eltRegion.allocateRegion(Region.REGULAR, mb.ecb.pool())
           stream(eltRegion).forEachI(cb, { ec =>
-            val offset = etToTuple(cb, ec, ctxType)
             cb += baos.invoke[Unit]("reset")
-            cb += cEnc(region.code, coerce[Long](offset.memoize(cb, "cda_add_contexts_addr").value), buf)
+            val ctxTuple = etToTuple(cb, ec, ctxType)
+                .memoize(cb, "cda_add_contexts_addr")
+            x.contextSpec.encodedType.buildEncoder(ctxTuple.st, parentCB)
+                .apply(cb, ctxTuple, buf)
             cb += eltRegion.clear()
             cb += buf.invoke[Unit]("flush")
             cb += ctxab.invoke[Array[Byte], Unit]("add", baos.invoke[Array[Byte]]("toByteArray"))
@@ -2019,7 +2008,8 @@ class Emit[C](
 
         def addGlobals(cb: EmitCodeBuilder): Unit = {
           val g = etToTuple(cb, EmitCode.fromI(mb)(cb => emitInNewBuilder(cb, globals)), gType).memoize(cb, "cda_g")
-          cb += gEnc(region.code, coerce[Long](g.value), buf)
+          x.globalSpec.encodedType.buildEncoder(g.st, parentCB)
+              .apply(cb, g, buf)
           cb += buf.invoke[Unit]("flush")
         }
 
@@ -2030,8 +2020,11 @@ class Emit[C](
           cb.assign(len, encRes.length())
           x.pType.asInstanceOf[PCanonicalArray].constructFromElements(cb, region.code, len, deepCopy = false) { (cb, i) =>
             cb.assign(ib, x.bodySpec.buildCodeInputBuffer(Code.newInstance[ByteArrayInputStream, Array[Byte]](encRes(i))))
-            val eltTupled = new SBaseStructPointerCode(x.decodedBodyPTuple.sType.asInstanceOf[SBaseStructPointer], bDec(region.code, ib)).memoize(cb, "cda_eltTupled")
-            eltTupled.loadField(cb, 0).typecast[PCode]
+            val eltTupled = x.bodySpec.encodedType.buildDecoder(x.bodySpec.encodedVirtualType, parentCB)
+              .apply(cb, region.code, ib)
+              .asBaseStruct
+              .memoize(cb, "cda_eltTupled")
+            eltTupled.loadField(cb, 0)
           }
         }
 

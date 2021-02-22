@@ -10,9 +10,9 @@ import is.hail.utils.FastIndexedSeq
 import is.hail.variant._
 
 object PCanonicalLocus {
-  def apply(rg: ReferenceGenome): PLocus = PCanonicalLocus(rg.broadcastRG)
+  def apply(rg: ReferenceGenome): PCanonicalLocus = PCanonicalLocus(rg.broadcastRG)
 
-  def apply(rg: ReferenceGenome, required: Boolean): PLocus = PCanonicalLocus(rg.broadcastRG, required)
+  def apply(rg: ReferenceGenome, required: Boolean): PCanonicalLocus = PCanonicalLocus(rg.broadcastRG, required)
 
   private def representation(required: Boolean = false): PCanonicalStruct = PCanonicalStruct(
     required,
@@ -87,8 +87,6 @@ final case class PCanonicalLocus(rgBc: BroadcastRG, required: Boolean = false) e
       case pt: PCanonicalLocus => representation.unstagedStoreAtAddress(addr, region, pt.representation, srcAddress, deepCopy)
     }
   }
-
-  override def encodableType: PType = representation.encodableType
 
   override def containsPointers: Boolean = representation.containsPointers
 

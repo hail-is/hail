@@ -9,6 +9,7 @@ import is.hail.expr.ir.{EmitClassBuilder, EmitCodeBuilder, EmitFunctionBuilder, 
 import is.hail.io._
 import is.hail.types._
 import is.hail.types.physical._
+import is.hail.types.physical.stypes.{SCode, SType}
 import is.hail.types.virtual._
 import is.hail.utils._
 import org.json4s.CustomSerializer
@@ -23,9 +24,9 @@ class ETypeSerializer extends CustomSerializer[EType](format => ( {
 
 
 abstract class EType extends BaseType with Serializable with Requiredness {
-  type StagedEncoder = (Code[_], Code[OutputBuffer]) => Code[Unit]
-  type StagedDecoder[T] = (Code[Region], Code[InputBuffer]) => Code[T]
-  type StagedInplaceDecoder = (Code[Region], Code[Long], Code[InputBuffer]) => Code[Unit]
+  type StagedEncoder = (EmitCodeBuilder, SCode, Code[OutputBuffer]) => Unit
+  type StagedDecoder = (EmitCodeBuilder, Code[Region], Code[InputBuffer]) => PCode
+  type StagedInplaceDecoder = (EmitCodeBuilder, Code[Region], Code[Long], Code[InputBuffer]) => Unit
 
   final def buildEncoder(ctx: ExecuteContext, t: PType): (OutputBuffer) => Encoder = {
     val f = EType.buildEncoder(ctx, this, t)
@@ -33,7 +34,7 @@ abstract class EType extends BaseType with Serializable with Requiredness {
   }
 
   final def buildDecoder(ctx: ExecuteContext, requestedType: Type): (PType, (InputBuffer) => Decoder) = {
-    val (rt, f) = EType.buildDecoder(ctx, this, requestedType)
+    val (rt, f) = EType.buildDecoderToRegionValue(ctx, this, requestedType)
     (rt, (in: InputBuffer) => new CompiledDecoder(in, f))
   }
 
@@ -42,66 +43,69 @@ abstract class EType extends BaseType with Serializable with Requiredness {
     pType -> makeDec
   }
 
-  final def buildEncoder(pt: PType, kb: EmitClassBuilder[_]): StagedEncoder = {
-    buildEncoderMethod(pt, kb).invokeCode(_, _)
+  final def buildEncoder(st: SType, kb: EmitClassBuilder[_]): StagedEncoder = {
+    val mb = buildEncoderMethod(st, kb);
+    { (cb: EmitCodeBuilder, sc: SCode, ob: Code[OutputBuffer]) => cb.invokeVoid(mb, sc.asPCode, ob) }
   }
 
-  final def buildEncoderMethod(pt: PType, kb: EmitClassBuilder[_]): EmitMethodBuilder[_] = {
-    if (!encodeCompatible(pt))
-      throw new RuntimeException(s"encode incompatible:\n  PT: $pt\n  ET: ${ parsableString() }")
-    val ptti = typeToTypeInfo(pt)
-    kb.getOrGenEmitMethod(s"ENCODE_${ pt.asIdent }_TO_${ asIdent }",
-      (pt, this, "ENCODE"),
-      FastIndexedSeq[ParamType](ptti, classInfo[OutputBuffer]),
+  final def buildEncoderMethod(st: SType, kb: EmitClassBuilder[_]): EmitMethodBuilder[_] = {
+    kb.getOrGenEmitMethod(s"ENCODE_${ st.asIdent }_TO_${ asIdent }",
+      (st, this, "ENCODE"),
+      FastIndexedSeq[ParamType](st.paramType, classInfo[OutputBuffer]),
       UnitInfo) { mb =>
 
-      mb.emitWithBuilder { cb =>
-        val arg = mb.getCodeParam(1)(ptti)
+      mb.voidWithBuilder { cb =>
+        val arg = mb.getPCodeParam(1)
+          .memoize(cb, "encoder_method_arg")
         val out = mb.getCodeParam[OutputBuffer](2)
-        _buildEncoder(cb, pt, arg, out)
-        Code._empty
+        _buildEncoder(cb, arg, out)
       }
     }
   }
 
-  final def buildDecoder[T](pt: PType, kb: EmitClassBuilder[_]): StagedDecoder[T] = {
-    buildDecoderMethod(pt, kb).invokeCode(_, _)
+  final def buildDecoder(t: Type, kb: EmitClassBuilder[_]): StagedDecoder = {
+    val mb = buildDecoderMethod(t: Type, kb);
+    { (cb: EmitCodeBuilder, r: Code[Region], ib: Code[InputBuffer]) =>
+      cb.invokePCode(mb, r, ib)
+    }
   }
 
-  final def buildDecoderMethod[T](pt: PType, kb: EmitClassBuilder[_]): EmitMethodBuilder[_] = {
-    if (!decodeCompatible(pt))
-      throw new RuntimeException(s"decode incompatible:\n  PT: $pt }\n  ET: ${ parsableString() }")
-    kb.getOrGenEmitMethod(s"DECODE_${ asIdent }_TO_${ pt.asIdent }",
-      (pt, this, "DECODE"),
+  final def buildDecoderMethod[T](t: Type, kb: EmitClassBuilder[_]): EmitMethodBuilder[_] = {
+    val st = decodedSType(t)
+    kb.getOrGenEmitMethod(s"DECODE_${ asIdent }_TO_${ st.asIdent }",
+      (t, this, "DECODE"),
       FastIndexedSeq[ParamType](typeInfo[Region], classInfo[InputBuffer]),
-      typeToTypeInfo(pt)) { mb =>
+      st.paramType) { mb =>
 
-      mb.emitWithBuilder { cb =>
+      mb.emitPCode { cb =>
         val region: Value[Region] = mb.getCodeParam[Region](1)
         val in: Value[InputBuffer] = mb.getCodeParam[InputBuffer](2)
-        _buildDecoder(cb, pt, region, in)
+        val sc = _buildDecoder(cb, t, region, in)
+        if (sc.st != st)
+          throw new RuntimeException(s"decoder type mismatch:\n  inferred: $st\n  returned: ${ sc.st }")
+        sc
       }
     }
   }
 
   final def buildInplaceDecoder(pt: PType, kb: EmitClassBuilder[_]): StagedInplaceDecoder = {
-    buildInplaceDecoderMethod(pt, kb).invokeCode(_, _, _)
+    val mb = buildInplaceDecoderMethod(pt, kb);
+    { (cb: EmitCodeBuilder, r: Code[Region], addr: Code[Long], ib: Code[InputBuffer]) =>
+      cb.invokeVoid(mb, r, addr, ib)
+    }
   }
 
   final def buildInplaceDecoderMethod(pt: PType, kb: EmitClassBuilder[_]): EmitMethodBuilder[_] = {
-    if (!decodeCompatible(pt))
-      throw new RuntimeException(s"decode incompatible:\n  PT: $pt\n  ET: ${ parsableString() }")
     kb.getOrGenEmitMethod(s"INPLACE_DECODE_${ asIdent }_TO_${ pt.asIdent }",
       (pt, this, "INPLACE_DECODE"),
       FastIndexedSeq[ParamType](typeInfo[Region], typeInfo[Long], classInfo[InputBuffer]),
       UnitInfo)({ mb =>
 
-      mb.emitWithBuilder { cb =>
+      mb.voidWithBuilder { cb =>
         val region: Value[Region] = mb.getCodeParam[Region](1)
         val addr: Value[Long] = mb.getCodeParam[Long](2)
         val in: Value[InputBuffer] = mb.getCodeParam[InputBuffer](3)
-        _buildInplaceDecoder(cb, pt.encodableType, region, addr, in)
-        Code._empty
+        _buildInplaceDecoder(cb, pt, region, addr, in)
       }
     })
   }
@@ -111,18 +115,17 @@ abstract class EType extends BaseType with Serializable with Requiredness {
       (this, "SKIP"),
       FastIndexedSeq[ParamType](classInfo[Region], classInfo[InputBuffer]),
       UnitInfo)({ mb =>
-      mb.emitWithBuilder { cb =>
+      mb.voidWithBuilder { cb =>
         val r: Value[Region] = mb.getCodeParam[Region](1)
         val in: Value[InputBuffer] = mb.getCodeParam[InputBuffer](2)
         _buildSkip(cb, r, in)
-        Code._empty
       }
     }).invokeCode(_, _)
   }
 
-  def _buildEncoder(cb: EmitCodeBuilder, pt: PType, v: Value[_], out: Value[OutputBuffer]): Unit
+  def _buildEncoder(cb: EmitCodeBuilder, v: PValue, out: Value[OutputBuffer]): Unit
 
-  def _buildDecoder(cb: EmitCodeBuilder, pt: PType, region: Value[Region], in: Value[InputBuffer]): Code[_]
+  def _buildDecoder(cb: EmitCodeBuilder, t: Type, region: Value[Region], in: Value[InputBuffer]): PCode
 
   def _buildInplaceDecoder(
     cb: EmitCodeBuilder,
@@ -132,19 +135,11 @@ abstract class EType extends BaseType with Serializable with Requiredness {
     in: Value[InputBuffer]
   ): Unit = {
     assert(!pt.isInstanceOf[PBaseStruct]) // should be overridden for structs
-    val decoded = _buildDecoder(cb, pt, region, in)
-    pt.storeAtAddress(cb, addr, region, PCode(pt, decoded), false)
+    val decoded = _buildDecoder(cb, pt.virtualType, region, in).memoize(cb, "Asd")
+    pt.storeAtAddress(cb, addr, region, decoded, false)
   }
 
   def _buildSkip(cb: EmitCodeBuilder, r: Value[Region], in: Value[InputBuffer]): Unit
-
-  def _compatible(pt: PType): Boolean = fatal("EType subclasses must override either `_compatible` or both `_encodeCompatible` and `_decodeCompatible`")
-
-  // Can this etype encode from this ptype
-  def encodeCompatible(pt: PType): Boolean = _compatible(pt)
-
-  // Can this etype decode to this ptype
-  def decodeCompatible(pt: PType): Boolean = _compatible(pt)
 
   final def pretty(sb: StringBuilder, indent: Int, compact: Boolean) {
     if (required)
@@ -162,37 +157,17 @@ abstract class EType extends BaseType with Serializable with Requiredness {
     sb.append(_toPretty)
   }
 
-  final def decodedPType(requestedType: Type): PType = {
-    val ret: PType = _decodedPType(requestedType)
-
-    assert(decodeCompatible(ret),
-      s"""Invalid requested type, cannot decode
-         |encoded type  : ${ this }
-         |requested type: $requestedType
-         |chosen ptype  : $ret""".stripMargin)
-    ret
+  final def decodedSType(requestedType: Type): SType = {
+    _decodedSType(requestedType)
   }
 
-  def _decodedPType(requestedType: Type): PType
+  final def decodedPType(requestedType: Type): PType = {
+    decodedSType(requestedType).canonicalPType()
+  }
+
+  def _decodedSType(requestedType: Type): SType
 
   def setRequired(required: Boolean): EType
-}
-
-trait EFundamentalType extends EType {
-  def _decodeCompatible(pt: PType): Boolean = _compatible(pt)
-  def _encodeCompatible(pt: PType): Boolean = _compatible(pt)
-  def _buildFundamentalEncoder(cb: EmitCodeBuilder, pt: PType, v: Value[_], out: Value[OutputBuffer]): Unit
-  def _buildFundamentalDecoder(cb: EmitCodeBuilder, pt: PType, region: Value[Region], in: Value[InputBuffer]): Code[_]
-
-  final def _buildEncoder(cb: EmitCodeBuilder, pt: PType, v: Value[_], out: Value[OutputBuffer]): Unit =
-    _buildFundamentalEncoder(cb, pt.encodableType, v, out)
-
-  final def _buildDecoder(cb: EmitCodeBuilder, pt: PType, region: Value[Region], in: Value[InputBuffer]): Code[_] =
-    _buildFundamentalDecoder(cb, pt.encodableType, region, in)
-
-  final override def decodeCompatible(pt: PType): Boolean = _decodeCompatible(pt.encodableType)
-
-  final override def encodeCompatible(pt: PType): Boolean = _encodeCompatible(pt.encodableType)
 }
 
 trait DecoderAsmFunction { def apply(r: Region, in: InputBuffer): Long }
@@ -226,12 +201,14 @@ object EType {
         Array(NotGenericTypeInfo[Long], NotGenericTypeInfo[OutputBuffer]),
         NotGenericTypeInfo[Unit])
       val mb = fb.apply_method
-      val f = et.buildEncoder(pt, mb.ecb)
 
-      val addr: Code[Long] = mb.getCodeParam[Long](1)
-      val out: Code[OutputBuffer] = mb.getCodeParam[OutputBuffer](2)
-
-      mb.emitWithBuilder(cb => f(pt.loadCheapPCode(cb, addr).code, out))
+      mb.voidWithBuilder { cb =>
+        val addr: Code[Long] = mb.getCodeParam[Long](1)
+        val out: Code[OutputBuffer] = mb.getCodeParam[OutputBuffer](2)
+        val pc = pt.loadCheapPCode(cb, addr)
+        val f = et.buildEncoder(pc.st, mb.ecb)
+        f(cb, pc, out)
+      }
       val func = fb.result()
       encoderCache.put(k, func)
       func
@@ -244,7 +221,7 @@ object EType {
   protected var decoderCacheHits: Long = 0L
   protected var decoderCacheMisses: Long = 0L
 
-  def buildDecoder(ctx: ExecuteContext, et: EType, t: Type): (PType, () => DecoderAsmFunction) = {
+  def buildDecoderToRegionValue(ctx: ExecuteContext, et: EType, t: Type): (PType, () => DecoderAsmFunction) = {
     val k = (et, t)
     if (decoderCache.containsKey(k)) {
       decoderCacheHits += 1
@@ -259,14 +236,14 @@ object EType {
         NotGenericTypeInfo[Long])
       val mb = fb.apply_method
       val pt = et.decodedPType(t)
-      val f = et.buildDecoder(pt, mb.ecb)
+      val f = et.buildDecoder(t, mb.ecb)
 
       val region: Value[Region] = mb.getCodeParam[Region](1)
       val in: Code[InputBuffer] = mb.getCodeParam[InputBuffer](2)
 
       mb.emitWithBuilder[Long] { cb =>
-        val pc = PCode(pt, f(region, in))
-        pt.store(cb, region, pc, deepCopy = false)
+        val pc = f(cb, region, in)
+        pt.store(cb, region, pc, false)
       }
 
       val r = (pt, fb.result())
@@ -276,32 +253,8 @@ object EType {
   }
 
   def defaultFromPType(pt: PType): EType = {
-    pt.encodableType match {
-      case t: PInt32 => EInt32(t.required)
-      case t: PInt64 => EInt64(t.required)
-      case t: PFloat32 => EFloat32(t.required)
-      case t: PFloat64 => EFloat64(t.required)
-      case t: PBoolean => EBoolean(t.required)
-      case t: PBinary => EBinary(t.required)
-      case t: PShuffle => EShuffle(t.required)
-      // FIXME(chrisvittal): turn this on when performance is adequate
-      case t: PArray if t.elementType.fundamentalType.isOfType(PInt32(t.elementType.required)) &&
-          HailContext.getFlag("use_packed_int_encoding") != null =>
-         EPackedIntArray(t.required, t.elementType.required)
-      // FIXME(chrisvittal): Turn this on when it works
-      case t: PArray if t.elementType.isInstanceOf[PBaseStruct] &&
-          HailContext.getFlag("use_column_encoding") != null =>
-        val et = t.elementType.asInstanceOf[PBaseStruct]
-        ETransposedArrayOfStructs(
-          et.fields.map(f => EField(f.name, defaultFromPType(f.typ), f.index)),
-          required = t.required,
-          structRequired = et.required
-        )
-      case t: PArray => EArray(defaultFromPType(t.elementType), t.required)
-      case t: PBaseStruct => EBaseStruct(t.fields.map(f =>
-          EField(f.name, defaultFromPType(f.typ), f.index)), t.required)
-      case t: PNDArray => ENDArrayColumnMajor(defaultFromPType(t.elementType), t.nDims, t.required)
-    }
+    val r = VirtualTypeWithReq(pt)
+    fromTypeAndAnalysis(r.t, r.r)
   }
 
   def fromTypeAndAnalysis(t: Type, r: TypeWithRequiredness): EType = t match {
@@ -327,27 +280,14 @@ object EType {
           EField("includesStart", EBoolean(true), 2),
           EField("includesEnd", EBoolean(true), 3)),
         required = rinterval.required)
-    // FIXME(chrisvittal): turn this on when performance is adequate
-    case t: TIterable if t.elementType == TInt32 &&
-      HailContext.getFlag("use_packed_int_encoding") != null =>
-      EPackedIntArray(r.required, coerce[RIterable](r).elementType.required)
-    // FIXME(chrisvittal): Turn this on when it works
-    case t: TIterable if t.elementType.isInstanceOf[TBaseStruct] &&
-      HailContext.getFlag("use_column_encoding") != null =>
-      val et = t.elementType.asInstanceOf[TBaseStruct]
-      val rstruct = coerce[RBaseStruct](coerce[RIterable](r).elementType)
-      ETransposedArrayOfStructs(
-        Array.tabulate(et.size) { i =>
-          val f = rstruct.fields(i)
-          EField(f.name, fromTypeAndAnalysis(et.fields(i).typ, f.typ), f.index)
-        }, required = r.required,
-        structRequired = rstruct.required)
     case t: TIterable => EArray(fromTypeAndAnalysis(t.elementType, coerce[RIterable](r).elementType), r.required)
     case t: TBaseStruct =>
       val rstruct = coerce[RBaseStruct](r)
       assert(t.size == rstruct.size, s"different number of fields: ${t} ${r}")
       EBaseStruct(Array.tabulate(t.size) { i =>
         val f = rstruct.fields(i)
+        if (f.index != i)
+          throw new AssertionError(s"${t} [$i]")
         EField(f.name, fromTypeAndAnalysis(t.fields(i).typ, f.typ), f.index)
       }, required = r.required)
     case t: TNDArray =>
@@ -370,11 +310,6 @@ object EType {
       case "EFloat32" => EFloat32(req)
       case "EFloat64" => EFloat64(req)
       case "EBinary" => EBinary(req)
-      case "EPackedIntArray" =>
-        IRParser.punctuation(it, "[")
-        val elementsRequired = IRParser.boolean_literal(it)
-        IRParser.punctuation(it, "]")
-        EPackedIntArray(req, elementsRequired)
       case "EArray" =>
         IRParser.punctuation(it, "[")
         val elementType = eTypeParser(it)
@@ -385,14 +320,6 @@ object EType {
         val args = IRParser.repsepUntil(it, IRParser.struct_field(eTypeParser), PunctuationToken(","), PunctuationToken("}"))
         IRParser.punctuation(it, "}")
         EBaseStruct(args.zipWithIndex.map { case ((name, t), i) => EField(name, t, i) }, req)
-      case "ETransposedArrayOfStructs" =>
-        IRParser.punctuation(it, "[")
-        val structRequired = IRParser.boolean_literal(it)
-        IRParser.punctuation(it, "]")
-        IRParser.punctuation(it, "{")
-        val args = IRParser.repsepUntil(it, IRParser.struct_field(eTypeParser), PunctuationToken(","), PunctuationToken("}"))
-        IRParser.punctuation(it, "}")
-        ETransposedArrayOfStructs(args.zipWithIndex.map { case ((name, t), i) => EField(name, t, i) }, req, structRequired)
       case "ENDArrayColumnMajor" =>
         IRParser.punctuation(it, "[")
         val elementType = eTypeParser(it)

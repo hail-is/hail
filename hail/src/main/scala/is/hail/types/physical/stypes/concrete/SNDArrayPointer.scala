@@ -9,6 +9,10 @@ import is.hail.types.physical.{PBaseStructCode, PCanonicalNDArray, PCode, PNDArr
 import is.hail.utils.FastIndexedSeq
 
 case class SNDArrayPointer(pType: PCanonicalNDArray) extends SNDArray {
+  def nDims: Int = pType.nDims
+
+  override def elementType: SType = pType.elementType.sType
+
   def codeOrdering(mb: EmitMethodBuilder[_], other: SType, so: SortOrder): CodeOrdering = pType.codeOrdering(mb)
 
   def coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = {
@@ -80,8 +84,6 @@ class SNDArrayPointerSettable(
   override def outOfBounds(indices: IndexedSeq[Value[Long]], cb: EmitCodeBuilder): Code[Boolean] = {
     val shape = this.shapes(cb)
     val outOfBounds = cb.newLocal[Boolean]("sndarray_out_of_bounds", false)
-
-    val idx = cb.newLocal[Int]("i")
 
     (0 until pt.nDims).foreach { dimIndex =>
       cb.assign(outOfBounds, outOfBounds || (indices(dimIndex) >= shape(dimIndex)))

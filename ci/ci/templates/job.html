@@ -3,6 +3,10 @@
 {% block content %}
     <h1>Batch {{ batch_id }} Job {{ job_id }}</h1>
 
+    <form method="GET" action="{{ base_path }}/batches/{{ batch_id }}">
+      <button>Back to batch</button>
+    </form>
+
     <h2>Attempts</h2>
     {% if attempts %}
     <table class="data-table">

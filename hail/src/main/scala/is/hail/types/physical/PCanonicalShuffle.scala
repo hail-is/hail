@@ -32,8 +32,6 @@ final case class PCanonicalShuffle(
 
   override def fundamentalType: PType = representation.fundamentalType
 
-  override def encodableType: PType = this
-
   override def containsPointers: Boolean = representation.containsPointers
 
   def _copyFromAddress(region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Long = {

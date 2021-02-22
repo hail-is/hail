@@ -4,7 +4,6 @@ import is.hail.annotations.Region
 import is.hail.asm4s.{coerce => _, _}
 import is.hail.expr.ir.functions.StringFunctions
 import is.hail.lir
-import is.hail.types.physical.stypes.{SType, SValue}
 import is.hail.types.physical.{PCode, PSettable, PType, PValue}
 import is.hail.utils.FastIndexedSeq
 
@@ -54,6 +53,7 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
   }
 
   def assign(s: PSettable, v: PCode): Unit = {
+    assert(s.pt.equalModuloRequired(v.pt), s"type mismatch!\n  settable=${s.pt}\n     passed=${v.pt}")
     s.store(this, v)
   }
 
@@ -105,13 +105,33 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
     l
   }
 
-  private def _invoke[T](callee: EmitMethodBuilder[_], args: Param*): Code[T] = {
-      val codeArgs = args.flatMap {
-        case CodeParam(c) =>
+  private def _invoke[T](callee: EmitMethodBuilder[_], _args: Param*): Code[T] = {
+    val expectedArgs = callee.emitParamTypes
+    val args = _args.toArray
+    if (expectedArgs.size != args.length)
+      throw new RuntimeException(s"invoke ${ callee.mb.methodName }: wrong number of parameters: " +
+        s"expected ${ expectedArgs.size }, found ${ args.length }")
+    val codeArgs = args.indices.flatMap { i =>
+      val arg = args(i)
+      val pt = expectedArgs(i)
+      (arg, pt) match {
+        case (CodeParam(c), cpt: CodeParamType) =>
+          if (c.ti != cpt.ti)
+            throw new RuntimeException(s"invoke ${ callee.mb.methodName }: arg $i: type mismatch:" +
+              s"\n  got ${ c.ti }" +
+              s"\n  expected ${ cpt.ti }")
           FastIndexedSeq(c)
-        case PCodeParam(pc) =>
+        case (PCodeParam(pc), pcpt: PCodeParamType) =>
+          if (pc.pt != pcpt.pt)
+            throw new RuntimeException(s"invoke ${ callee.mb.methodName }: arg $i: type mismatch:" +
+              s"\n  got ${ pc.pt }" +
+              s"\n  expected ${ pcpt.pt }")
           pc.codeTuple()
-        case EmitParam(ec) =>
+        case (EmitParam(ec), EmitParamType(pt)) =>
+          if (ec.pt != pt)
+            throw new RuntimeException(s"invoke ${ callee.mb.methodName }: arg $i: type mismatch:" +
+              s"\n  got ${ ec.pt }" +
+              s"\n  expected ${ pt }")
           if (ec.pt.required) {
             append(ec.setup)
             append(Code.toUnit(ec.m))
@@ -120,8 +140,13 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
             val ev = memoize(ec, "cb_invoke_setup_params")
             ev.codeTuple()
           }
+        case (arg, expected) =>
+          throw new RuntimeException(s"invoke ${ callee.mb.methodName }: arg $i: type mismatch:" +
+            s"\n  got ${ arg }" +
+            s"\n  expected ${ expected }")
       }
-      callee.mb.invoke(codeArgs: _*)
+    }
+    callee.mb.invoke(codeArgs: _*)
   }
 
   def invokeVoid(callee: EmitMethodBuilder[_], args: Param*): Unit = {
@@ -144,6 +169,12 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
     val r = newLocal("invokeEmit_r")(pt.codeReturnType())
     assignAny(r, _invoke(callee, args: _*))
     IEmitCode.fromCodeTuple(this, pt, Code.loadTuple(callee.modb, EmitCode.codeTupleTypes(pt), r))
+  }
+
+  // FIXME: this should be invokeSCode and should allocate/destructure a tuple when more than one code is present
+  def invokePCode(callee: EmitMethodBuilder[_], args: Param*): PCode = {
+    val pt = callee.emitReturnType.asInstanceOf[PCodeParamType].pt
+    PCode(pt, _invoke(callee, args: _*))
   }
 
   // for debugging

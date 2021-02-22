@@ -2,35 +2,33 @@ package is.hail.types.encoded
 
 import is.hail.annotations.Region
 import is.hail.asm4s._
-import is.hail.expr.ir.{EmitCodeBuilder}
-import is.hail.types.BaseType
-import is.hail.types.physical._
-import is.hail.types.virtual._
+import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.io.{InputBuffer, OutputBuffer}
+import is.hail.types.physical._
+import is.hail.types.physical.stypes.SType
+import is.hail.types.physical.stypes.primitives.{SInt64, SInt64Code}
+import is.hail.types.virtual._
 import is.hail.utils._
 
 case object EInt64Optional extends EInt64(false)
+
 case object EInt64Required extends EInt64(true)
 
-class EInt64(override val required: Boolean) extends EFundamentalType {
-  def _buildFundamentalEncoder(cb: EmitCodeBuilder, pt: PType, v: Value[_], out: Value[OutputBuffer]): Unit = {
-    cb += out.writeLong(coerce[Long](v))
+class EInt64(override val required: Boolean) extends EType {
+  override def _buildEncoder(cb: EmitCodeBuilder, v: PValue, out: Value[OutputBuffer]): Unit = {
+    cb += out.writeLong(v.asLong.longCode(cb))
   }
 
-  def _buildFundamentalDecoder(
-    cb: EmitCodeBuilder,
-    pt: PType,
-    region: Value[Region],
-    in: Value[InputBuffer]
-  ): Code[Long] = in.readLong()
+  override def _buildDecoder(cb: EmitCodeBuilder, t: Type, region: Value[Region], in: Value[InputBuffer]): PCode = {
+    new SInt64Code(required, in.readLong())
+  }
 
   def _buildSkip(cb: EmitCodeBuilder, r: Value[Region], in: Value[InputBuffer]): Unit = cb += in.skipLong()
 
-  override def _compatible(pt: PType): Boolean = pt.isInstanceOf[PInt64]
-
-  def _decodedPType(requestedType: Type): PType = PInt64(required)
+  def _decodedSType(requestedType: Type): SType = SInt64(required)
 
   def _asIdent = "int64"
+
   def _toPretty = "EInt64"
 
   def setRequired(newRequired: Boolean): EInt64 = EInt64(newRequired)

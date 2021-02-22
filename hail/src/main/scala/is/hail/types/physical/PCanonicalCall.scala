@@ -35,8 +35,6 @@ final case class PCanonicalCall(required: Boolean = false) extends PCall {
     }
   }
 
-  override def encodableType: PType = representation.encodableType
-
   override def containsPointers: Boolean = representation.containsPointers
 
   def _copyFromAddress(region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Long = {
