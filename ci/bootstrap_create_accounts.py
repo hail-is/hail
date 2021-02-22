@@ -12,6 +12,7 @@ SCOPE = os.environ['HAIL_SCOPE']
 PROJECT = os.environ['HAIL_PROJECT']
 DEFAULT_NAMESPACE = os.environ['HAIL_DEFAULT_NAMESPACE']
 
+
 async def insert_user_if_not_exists(app, username, email, is_developer, is_service_account):
     db = app['db']
     k8s_client = app['k8s_client']
@@ -42,6 +43,8 @@ async def insert_user_if_not_exists(app, username, email, is_developer, is_servi
     VALUES (%s, %s, %s, %s, %s, %s, %s, %s);
     ''',
             ('creating', username, email, is_developer, is_service_account, gsa_email, gsa_key_secret_name, namespace_name))
+
+    return await insert()
 
 
 async def main():
