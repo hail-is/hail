@@ -22,10 +22,12 @@ from gear import (
     check_csrf_token,
     create_database_pool,
 )
+from typing import Dict, Any, Optional
 from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template, set_message
 
 from .environment import BUCKET
-from .github import Repo, FQBranch, WatchedBranch, UnwatchedBranch, MergeFailureBatch
+from .github import Repo, FQBranch, WatchedBranch, UnwatchedBranch, MergeFailureBatch, PR
+from .constants import AUTHORIZED_USERS
 
 with open(os.environ.get('HAIL_CI_OAUTH_TOKEN', 'oauth-token/oauth-token'), 'r') as f:
     oauth_token = f.read().strip()
@@ -44,48 +46,46 @@ watched_branches = [
 routes = web.RouteTableDef()
 
 
+async def pr_config(app, pr: PR) -> Dict[str, Any]:
+    batch_id = pr.batch.id if pr.batch and hasattr(pr.batch, 'id') else None
+    build_state = pr.build_state if await pr.authorized(app['dbpool']) else 'unauthorized'
+    if build_state is None and batch_id is not None:
+        build_state = 'building'
+    return {
+        'number': pr.number,
+        'title': pr.title,
+        # FIXME generate links to the merge log
+        'batch_id': pr.batch.id if pr.batch and hasattr(pr.batch, 'id') else None,
+        'build_state': build_state,
+        'review_state': pr.review_state,
+        'author': pr.author,
+        'out_of_date': pr.build_state in ['failure', 'success', None] and not pr.is_up_to_date(),
+    }
+
+
+async def watched_branch_config(app, wb: WatchedBranch, index: int, pr_author=None) -> Dict[str, Optional[Any]]:
+    if wb.prs:
+        pr_configs = [await pr_config(app, pr) for pr in wb.prs.values() if pr_author is None or pr.author == pr_author]
+    else:
+        pr_configs = None
+    # FIXME recent deploy history
+    return {
+        'index': index,
+        'branch': wb.branch.short_str(),
+        'sha': wb.sha,
+        # FIXME generate links to the merge log
+        'deploy_batch_id': wb.deploy_batch.id if wb.deploy_batch and hasattr(wb.deploy_batch, 'id') else None,
+        'deploy_state': wb.deploy_state,
+        'repo': wb.branch.repo.short_str(),
+        'prs': pr_configs,
+    }
+
+
 @routes.get('')
 @routes.get('/')
 @web_authenticated_developers_only()
 async def index(request, userdata):  # pylint: disable=unused-argument
-    app = request.app
-    dbpool = app['dbpool']
-    wb_configs = []
-    for i, wb in enumerate(watched_branches):
-        if wb.prs:
-            pr_configs = []
-            for pr in wb.prs.values():
-                batch_id = pr.batch.id if pr.batch and hasattr(pr.batch, 'id') else None
-                build_state = pr.build_state if await pr.authorized(dbpool) else 'unauthorized'
-                if build_state is None and batch_id is not None:
-                    build_state = 'building'
-
-                pr_config = {
-                    'number': pr.number,
-                    'title': pr.title,
-                    # FIXME generate links to the merge log
-                    'batch_id': pr.batch.id if pr.batch and hasattr(pr.batch, 'id') else None,
-                    'build_state': build_state,
-                    'review_state': pr.review_state,
-                    'author': pr.author,
-                    'out_of_date': pr.build_state in ['failure', 'success', None] and not pr.is_up_to_date(),
-                }
-                pr_configs.append(pr_config)
-        else:
-            pr_configs = None
-        # FIXME recent deploy history
-        wb_config = {
-            'index': i,
-            'branch': wb.branch.short_str(),
-            'sha': wb.sha,
-            # FIXME generate links to the merge log
-            'deploy_batch_id': wb.deploy_batch.id if wb.deploy_batch and hasattr(wb.deploy_batch, 'id') else None,
-            'deploy_state': wb.deploy_state,
-            'repo': wb.branch.repo.short_str(),
-            'prs': pr_configs,
-        }
-        wb_configs.append(wb_config)
-
+    wb_configs = [await watched_branch_config(request.app, wb, i) for i, wb in enumerate(watched_branches)]
     page_context = {'watched_branches': wb_configs}
     return await render_template('ci', request, userdata, 'index.html', page_context)
 
@@ -205,6 +205,33 @@ async def get_job(request, userdata):
         'attempts': await job.attempts(),
     }
     return await render_template('ci', request, userdata, 'job.html', page_context)
+
+
+@routes.get('/me')
+@web_authenticated_developers_only()
+async def get_user(request, userdata):
+    username = userdata['username']
+    for user in AUTHORIZED_USERS:
+        if user.hail_username == username:
+            gh_username = user.gh_username
+            wbs = [
+                await watched_branch_config(request.app, wb, i, pr_author=gh_username)
+                for i, wb in enumerate(watched_branches)
+            ]
+            break
+    else:
+        gh_username = None
+        wbs = []
+    batch_client = request.app['batch_client']
+    dev_deploys = batch_client.list_batches(f'user={username} dev_deploy=1', limit=10)
+    dev_deploys = sorted([b async for b in dev_deploys], key=lambda b: b.id, reverse=True)
+    page_context = {
+        'username': username,
+        'gh_username': gh_username,
+        'watched_branches': wbs,
+        'dev_deploys': [await b.last_known_status() for b in dev_deploys],
+    }
+    return await render_template('ci', request, userdata, 'user.html', page_context)
 
 
 @routes.post('/authorize_source_sha')

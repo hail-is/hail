@@ -1,7 +1,9 @@
+{% from "job-table.html" import job_table with context %}
 {% extends "layout.html" %}
 {% block title %}PR {{ number }}{% endblock %}
 {% block content %}
     <h1>{{ pr.title }} <a href="https://github.com/{{ repo }}/pull/{{ pr.number }}"><span class="gh-number">#{{ pr.number }}</span></a></h1>
+
     {% if batch is defined %}
     <div class="attributes">
       <div>batch: <a href="{{ base_path }}/batches/{{ batch['id'] }}">{{ batch['id'] }}</a></div>
@@ -18,47 +20,7 @@
       <button type="submit">Retry</button>
     </form>
     <h2>Jobs</h2>
-    <table class="data-table" style="line-height: 175%">
-      <thead>
-        <tr>
-          <th>id</th>
-          <th>name</th>
-          <th>state</th>
-          <th>exit_code</th>
-          <th>duration</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for job in jobs %}
-        <tr>
-          <td class="numeric-cell">
-	    <a href="{{ base_path }}/batches/{{ job['batch_id'] }}/jobs/{{ job['job_id'] }}">{{ job['job_id'] }}</a>
-	  </td>
-          <td>{{ job['name'] }}</td>
-          <td>{{ job['state'] }}</td>
-          <td>
-            {% if 'exit_code' in job and job['exit_code'] is not none %}
-            {% if job['exit_code'] == 0 %}
-            <span style="color: #55aa33;">
-              Success 🎉
-            </span>
-            {% else %}
-            <span style="color: #a93333;">
-              Failure 🤷‍♀️
-              ({{ job['exit_code'] }})
-            </span>
-            {% endif %}
-            {% endif %}
-          </td>
-          <td>
-            {% if 'duration' in job and job['duration'] %}
-            {{ job['duration'] }}
-            {% endif %}
-          </td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
+    {{ job_table(jobs) }}
     {% elif exception is defined %}
     <p>Build error:</p>
     <pre>
