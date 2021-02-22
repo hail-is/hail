@@ -860,7 +860,7 @@ object IRParser {
         for {
           l <- ir_value_expr(env)(it)
           r <- ir_value_expr(env)(it)
-        } yield ApplyComparisonOp(ComparisonOp.fromStringAndTypes(opName, l.typ, r.typ), l, r)
+        } yield ApplyComparisonOp(ComparisonOp.fromStringAndTypes((opName, l.typ, r.typ)), l, r)
       case "MakeArray" =>
         val typ = opt(it, type_expr(env.typEnv)).map(_.asInstanceOf[TArray]).orNull
         ir_value_children(env)(it).map { args =>
