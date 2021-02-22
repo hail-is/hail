@@ -19,6 +19,7 @@ from .failure_injecting_client_session import FailureInjectingClientSession
 deploy_config = get_deploy_config()
 
 DOCKER_ROOT_IMAGE = os.environ.get('DOCKER_ROOT_IMAGE', 'gcr.io/hail-vdc/ubuntu:18.04')
+SCOPE = os.environ.get('HAIL_SCOPE', 'test')
 
 
 def poll_until(p, max_polls=None):
@@ -145,6 +146,12 @@ def test_invalid_resource_requests(client):
     resources = {'cpu': '0.1', 'memory': '1Gi', 'storage': '1Gi'}
     builder.create_job(DOCKER_ROOT_IMAGE, ['true'], resources=resources)
     with pytest.raises(aiohttp.client.ClientResponseError, match='bad resource request for job.*cpu must be a power of two with a min of 0.25; found.*'):
+        builder.submit()
+
+    builder = client.create_batch()
+    resources = {'cpu': '0.1', 'memory': 'foo', 'storage': '1Gi'}
+    builder.create_job(DOCKER_ROOT_IMAGE, ['true'], resources=resources)
+    with pytest.raises(aiohttp.client.ClientResponseError, match=".*.resources.memory must match regex:.*.resources.memory must be one of:.*"):
         builder.submit()
 
 
@@ -748,22 +755,54 @@ def test_verify_private_network_is_restricted(client):
 
 def test_pool_highmem_instance(client):
     builder = client.create_batch()
-    resources = {'worker_type': 'highmem'}
+    resources = {'cpu': '0.25', 'memory': 'highmem'}
     j = builder.create_job(DOCKER_ROOT_IMAGE, ['true'], resources=resources)
     builder.submit()
     status = j.wait()
     assert status['state'] == 'Success', str(j.log()['main'], status)
     assert 'highmem' in status['status']['worker'], str(status)
 
+    builder = client.create_batch()
+    resources = {'cpu': '1', 'memory': '5Gi'}
+    j = builder.create_job(DOCKER_ROOT_IMAGE, ['true'], resources=resources)
+    builder.submit()
+    status = j.wait()
+    assert status['state'] == 'Success', str(j.log()['main'], status)
+    assert 'highmem' in status['status']['worker'], str(status)
+
+    builder = client.create_batch()
+    resources = {'cpu': '0.25', 'memory': '500Mi'}
+    j = builder.create_job(DOCKER_ROOT_IMAGE, ['true'], resources=resources)
+    builder.submit()
+    status = j.wait()
+    assert status['state'] == 'Success', str(j.log()['main'], status)
+    assert 'standard' in status['status']['worker'], str(status)
+
 
 def test_pool_highcpu_instance(client):
     builder = client.create_batch()
-    resources = {'worker_type': 'highcpu'}
+    resources = {'cpu': '0.25', 'memory': 'lowmem'}
     j = builder.create_job(DOCKER_ROOT_IMAGE, ['true'], resources=resources)
     builder.submit()
     status = j.wait()
     assert status['state'] == 'Success', str(j.log()['main'], status)
     assert 'highcpu' in status['status']['worker'], str(status)
+
+    builder = client.create_batch()
+    resources = {'cpu': '0.25', 'memory': '50Mi'}
+    j = builder.create_job(DOCKER_ROOT_IMAGE, ['true'], resources=resources)
+    builder.submit()
+    status = j.wait()
+    assert status['state'] == 'Success', str(j.log()['main'], status)
+    assert 'highcpu' in status['status']['worker'], str(status)
+
+    builder = client.create_batch()
+    resources = {'cpu': '0.5', 'memory': '1Gi'}
+    j = builder.create_job(DOCKER_ROOT_IMAGE, ['true'], resources=resources)
+    builder.submit()
+    status = j.wait()
+    assert status['state'] == 'Success', str(j.log()['main'], status)
+    assert 'standard' in status['status']['worker'], str(status)
 
 
 def test_job_private_instance_preemptible(client):
@@ -774,6 +813,7 @@ def test_job_private_instance_preemptible(client):
     status = j.wait()
     assert status['state'] == 'Success', str(j.log()['main'], status)
     assert 'job-private' in status['status']['worker'], str(status)
+
 
 def test_job_private_instance_nonpreemptible(client):
     builder = client.create_batch()

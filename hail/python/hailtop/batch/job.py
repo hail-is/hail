@@ -55,13 +55,13 @@ class Job:
         self._shell = shell
         self.name = name
         self.attributes = attributes
-        self._cpu: Optional[Union[float, int, str]] = None
-        self._memory: Optional[Union[int, str]] = None
-        self._storage: Optional[Union[int, str]] = None
+        self._cpu: Optional[str] = None
+        self._memory: Optional[str] = None
+        self._storage: Optional[str] = None
         self._image: Optional[str] = None
         self._always_run: bool = False
         self._preemptible: Optional[bool] = None
-        self._machine_type: Optional[bool] = None
+        self._machine_type: Optional[str] = None
         self._timeout: Optional[Union[int, float]] = None
         self._gcsfuse: List[Tuple[str, str, bool]] = []
         self._env: Dict[str, str] = dict()
@@ -214,6 +214,11 @@ class Job:
         where valid optional suffixes are *K*, *Ki*, *M*, *Mi*,
         *G*, *Gi*, *T*, *Ti*, *P*, and *Pi*. Omitting a suffix means
         the value is in bytes.
+
+        For the :class:`.ServiceBackend`, the values 'lowmem', 'standard',
+        and 'highmem' are also valid arguments. 'lowmem' corresponds to
+        approximately 1 Gi/core, 'standard' corresponds to approximately
+        4 Gi/core, and 'highmem' corresponds to approximately 7 Gi/core.
 
         Parameters
         ----------
