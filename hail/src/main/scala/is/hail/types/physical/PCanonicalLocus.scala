@@ -56,7 +56,7 @@ final case class PCanonicalLocus(rgBc: BroadcastRG, required: Boolean = false) e
   // FIXME: Remove when representation of contig/position is a naturally-ordered Long
   override def unsafeOrdering(): UnsafeOrdering = {
     val localRGBc = rgBc
-    val binaryOrd = representation.fieldType("contig").asInstanceOf[PBinary].unsafeOrdering()
+    val binaryOrd = representation.fieldType("contig").unsafeOrdering()
 
     new UnsafeOrdering {
       def compare(o1: Long, o2: Long): Int = {
