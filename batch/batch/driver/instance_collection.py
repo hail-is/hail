@@ -135,13 +135,7 @@ class InstanceCollection:
         # PROVISIONING, STAGING, RUNNING, STOPPING, TERMINATED
         gce_state = spec['status']
 
-        last_start_timestamp = spec.get('lastStartTimestamp')
-        if last_start_timestamp:
-            last_start_time_msecs = dateutil.parser.isoparse(last_start_timestamp).timestamp() * 1000
-        else:
-            last_start_time_msecs = None
-
-        log.info(f'{instance} gce_state {gce_state} last_start_timestamp {last_start_timestamp}')
+        log.info(f'{instance} gce_state {gce_state}')
 
         if (gce_state == 'PROVISIONING'
                 and instance.state == 'pending'
@@ -153,12 +147,15 @@ class InstanceCollection:
             log.info(f'{instance} live but stopping or terminated, deactivating')
             await instance.deactivate('terminated')
 
-        if (gce_state in ('STAGING', 'RUNNING')
-                and instance.state == 'pending'
-                and last_start_time_msecs is not None
-                and time_msecs() - last_start_time_msecs > 5 * 60 * 1000):
-            log.info(f'{instance} did not activate within 5m after starting, deleting')
-            await self.call_delete_instance(instance, 'activation_timeout')
+        if gce_state in ('STAGING', 'RUNNING'):
+            last_start_timestamp = spec.get('lastStartTimestamp')
+            assert last_start_timestamp is not None, f'lastStartTimestamp does not exist {spec}'
+            last_start_time_msecs = dateutil.parser.isoparse(last_start_timestamp).timestamp() * 1000
+            
+            if (instance.state == 'pending'
+                    and time_msecs() - last_start_time_msecs > 5 * 60 * 1000):
+                log.info(f'{instance} did not activate within 5m after starting, deleting')
+                await self.call_delete_instance(instance, 'activation_timeout')
 
         if instance.state == 'inactive':
             log.info(f'{instance} is inactive, deleting')
