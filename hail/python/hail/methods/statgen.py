@@ -446,7 +446,11 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, pass_through=())
 
     def setup_globals(ht):
         # cov_arrays is per sample, then per cov.
-        ht = ht.annotate_globals(cov_arrays=ht[sample_field_name].map(lambda sample_struct: [sample_struct[cov_name] for cov_name in cov_field_names]))
+        if covariates:
+            ht = ht.annotate_globals(cov_arrays=ht[sample_field_name].map(lambda sample_struct: [sample_struct[cov_name] for cov_name in cov_field_names]))
+        else:
+            ht = ht.annotate_globals(cov_arrays=ht[sample_field_name].map(lambda sample_struct: hl.empty_array(hl.tfloat64)))
+
         ht = ht.annotate_globals(
             y_arrays_per_group=[ht[sample_field_name].map(lambda sample_struct: [sample_struct[y_name] for y_name in one_y_field_name_set]) for one_y_field_name_set in y_field_name_groups]
         )
