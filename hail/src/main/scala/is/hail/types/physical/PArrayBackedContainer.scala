@@ -20,8 +20,6 @@ trait PArrayBackedContainer extends PContainer {
 
   override lazy val fundamentalType = PCanonicalArray(elementType.fundamentalType, required)
 
-  override lazy val encodableType = PCanonicalArray(elementType.encodableType, required)
-
   def loadLength(aoff: Long): Int =
     arrayRep.loadLength(aoff)
 

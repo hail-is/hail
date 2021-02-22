@@ -78,8 +78,6 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
 
   override lazy val fundamentalType: PType =  PCanonicalNDArray(elementType.fundamentalType, nDims, required)
 
-  override lazy val encodableType: PType = PCanonicalNDArray(elementType.encodableType, nDims, required)
-
   def numElements(shape: IndexedSeq[Value[Long]]): Code[Long] = {
     shape.foldLeft(1L: Code[Long])(_ * _)
   }

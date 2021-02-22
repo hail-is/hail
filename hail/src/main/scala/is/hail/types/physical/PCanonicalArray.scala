@@ -2,7 +2,7 @@ package is.hail.types.physical
 
 import is.hail.annotations.{Region, _}
 import is.hail.asm4s.{Code, _}
-import is.hail.expr.ir.{EmitCode, EmitCodeBuilder, EmitMethodBuilder, EmitValue, ExecuteContext, IEmitCode, ParentStagedRegion, Stream}
+import is.hail.expr.ir.{EmitCode, EmitCodeBuilder, EmitMethodBuilder, EmitValue, ExecuteContext, IEmitCode, IEmitSCode, ParentStagedRegion, Stream}
 import is.hail.types.physical.stypes.SCode
 import is.hail.types.physical.stypes.concrete.{SIndexablePointer, SIndexablePointerCode, SIndexablePointerSettable}
 import is.hail.types.physical.stypes.interfaces.{SContainer, SStreamCode}
@@ -35,14 +35,6 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
       this
     } else {
       this.copy(elementType = elementType.fundamentalType)
-    }
-  }
-
-  override val encodableType: PCanonicalArray = {
-    if (elementType == elementType.encodableType) {
-      this
-    } else {
-      this.copy(elementType = elementType.encodableType)
     }
   }
 
@@ -410,6 +402,24 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
         } else {
           value.asInstanceOf[SIndexablePointerCode].a
         }
+      case SIndexablePointer(PCanonicalArray(otherElementType, _)) if otherElementType.equalModuloRequired(elementType) =>
+        val newAddr = cb.newLocal[Long]("pcarray_store_newaddr")
+        val pcInd = value.memoize(cb, "pcarray_store_src_difftype").asInstanceOf[SIndexablePointerSettable]
+        val length = pcInd.loadLength()
+        cb.assign(newAddr, allocate(region, length))
+
+        // other is optional, constructing required
+        if (elementType.required) {
+          cb.ifx(pcInd.hasMissingValues(cb),
+            cb._fatal("tried to copy array with missing values to array of required elements"))
+        }
+        cb += stagedInitialize(newAddr, length, setMissing = false)
+
+        val otherType = pcInd.st.pType.asInstanceOf[PCanonicalArray]
+        cb += Region.copyFrom(otherType.firstElementOffset(pcInd.a), this.firstElementOffset(newAddr), pcInd.length.toL * otherType.elementByteSize)
+        if (deepCopy)
+          deepPointerCopy(cb, region, newAddr, pcInd.length)
+        newAddr
       case _ =>
         val newAddr = cb.newLocal[Long]("pcarray_store_newaddr")
         val indexable = value.asIndexable.memoize(cb, "pcarray_store_src_difftype")
@@ -448,7 +458,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
     PCanonicalArray(this.elementType.deepRename(t.elementType), this.required)
 
   def constructFromElements(cb: EmitCodeBuilder, region: Value[Region], length: Value[Int], deepCopy: Boolean)
-    (f: (EmitCodeBuilder, Value[Int]) => IEmitCode): SIndexablePointerCode = {
+    (f: (EmitCodeBuilder, Value[Int]) => IEmitSCode): SIndexablePointerCode = {
 
     val addr = cb.newLocal[Long]("pcarray_construct1_addr", allocate(region, length))
     cb += stagedInitialize(addr, length, setMissing = false)

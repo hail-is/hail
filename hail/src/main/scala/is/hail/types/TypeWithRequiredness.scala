@@ -353,9 +353,8 @@ sealed abstract class RBaseStruct extends TypeWithRequiredness {
       PCanonicalStruct(required = required,
         fields.map(f => f.name -> f.typ.canonicalPType(ts.fieldType(f.name))): _*)
     case ts: TTuple =>
-      PCanonicalTuple(fields.zip(ts.fields).map { case(fr, ft) =>
-        assert(fr.index == ft.index)
-        PTupleField(fr.index, fr.typ.canonicalPType(ft.typ))
+      PCanonicalTuple(fields.zip(ts._types).map { case(fr, ft) =>
+        PTupleField(ft.index, fr.typ.canonicalPType(ft.typ))
       }, required = required)
   }
 }
@@ -378,8 +377,8 @@ case class RStruct(fields: IndexedSeq[RField]) extends RBaseStruct {
 }
 
 case class RTuple(fields: IndexedSeq[RField]) extends RBaseStruct {
-  val fieldType: Map[Int, TypeWithRequiredness] = fields.map(f => f.index -> f.typ).toMap
-  def field(idx: Int): TypeWithRequiredness = fieldType(idx)
+  val fieldType: Map[String, TypeWithRequiredness] = fields.map(f => f.name -> f.typ).toMap
+  def field(idx: Int): TypeWithRequiredness = fieldType(idx.toString)
   def copy(newChildren: Seq[BaseTypeWithRequiredness]): RTuple = {
     assert(newChildren.length == fields.length)
     RTuple(fields.zip(newChildren).map { case (f, c) => RField(f.name, coerce[TypeWithRequiredness](c), f.index) })

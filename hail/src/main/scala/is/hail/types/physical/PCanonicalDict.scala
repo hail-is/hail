@@ -8,7 +8,7 @@ import org.apache.spark.sql.Row
 final case class PCanonicalDict(keyType: PType, valueType: PType, required: Boolean = false) extends PDict with PArrayBackedContainer {
   val elementType = PCanonicalStruct(required = true, "key" -> keyType, "value" -> valueType)
 
-  val arrayRep: PArray = PCanonicalArray(elementType, required)
+  val arrayRep: PCanonicalArray = PCanonicalArray(elementType, required)
 
   def setRequired(required: Boolean) = if(required == this.required) this else PCanonicalDict(keyType, valueType, required)
 
@@ -41,6 +41,6 @@ final case class PCanonicalDict(keyType: PType, valueType: PType, required: Bool
 
   def construct(contents: PIndexableCode): PIndexableCode = {
     assert(contents.pt == arrayRep)
-    new SIndexablePointerCode(SIndexablePointer(arrayRep), contents.tcode[Long])
+    new SIndexablePointerCode(SIndexablePointer(this), contents.tcode[Long])
   }
 }

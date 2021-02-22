@@ -1,10 +1,9 @@
 import aiohttp
-import base64
 import os
 import pytest
 import secrets
 from hailtop.auth import session_id_encode_to_str
-from hailtop.batch_client.aioclient import BatchClient
+from hailtop.batch_client.aioclient import BatchClient, Batch
 from hailtop.utils import secret_alnum_string
 
 pytestmark = pytest.mark.asyncio
@@ -261,6 +260,7 @@ async def test_add_and_delete_user(dev_client, new_billing_project):
     r = await dev_client.remove_user('test', project)
     # test idempotent
     r = await dev_client.remove_user('test', project)
+
     assert r['user'] == 'test'
     assert r['billing_project'] == project
 
@@ -418,3 +418,169 @@ async def test_billing_limit_tiny(make_client, dev_client, new_billing_project):
     batch = await batch.submit()
     batch = await batch.wait()
     assert batch['state'] == 'cancelled', batch
+
+
+async def search_batches(client, expected_batch_id, q):
+    found = False
+    batches = [batch async for batch in client.list_batches(q=q, limit=200)]
+    for batch in batches:
+        if batch.id == expected_batch_id:
+            found = True
+            break
+    return found, [b.id for b in batches]
+
+
+async def test_user_can_access_batch_made_by_other_user_in_shared_billing_project(make_client, dev_client, new_billing_project):
+    project = new_billing_project
+
+    r = await dev_client.add_user("test", project)
+    assert r['user'] == 'test'
+    assert r['billing_project'] == project
+
+    r = await dev_client.add_user("test-dev", project)
+    assert r['user'] == 'test-dev'
+    assert r['billing_project'] == project
+
+    user1_client = await make_client(project)
+    b = user1_client.create_batch()
+    j = b.create_job(DOCKER_ROOT_IMAGE, command=['sleep', '30'])
+    b = await b.submit()
+
+    user2_client = dev_client
+    user2_batch = await user2_client.get_batch(b.id)
+    user2_job = await user2_client.get_job(j.batch_id, j.job_id)
+
+    await user2_job.attempts()
+    await user2_job.log()
+    await user2_job.status()
+
+    # list batches results for user1
+    found, batches = await search_batches(user1_client, b.id, q='')
+    assert found, str((b.id, batches))
+
+    found, batches = await search_batches(user1_client, b.id, q=f'billing_project:{project}')
+    assert found, str((b.id, batches))
+
+    found, batches = await search_batches(user1_client, b.id, q=f'user:test')
+    assert found, str((b.id, batches))
+
+    found, batches = await search_batches(user1_client, b.id, q=f'billing_project:foo')
+    assert not found, str((b.id, batches))
+
+    found, batches = await search_batches(user1_client, b.id, q=None)
+    assert found, str((b.id, batches))
+
+    found, batches = await search_batches(user1_client, b.id, q=f'user:test-dev')
+    assert not found, str((b.id, batches))
+
+    # list batches results for user2
+    found, batches = await search_batches(user2_client, b.id, q='')
+    assert found, str((b.id, batches))
+
+    found, batches = await search_batches(user2_client, b.id, q=f'billing_project:{project}')
+    assert found, str((b.id, batches))
+
+    found, batches = await search_batches(user2_client, b.id, q=f'user:test')
+    assert found, str((b.id, batches))
+
+    found, batches = await search_batches(user2_client, b.id, q=f'billing_project:foo')
+    assert not found, str((b.id, batches))
+
+    found, batches = await search_batches(user2_client, b.id, q=None)
+    assert not found, str((b.id, batches))
+
+    found, batches = await search_batches(user2_client, b.id, q=f'user:test-dev')
+    assert not found, str((b.id, batches))
+
+    await user2_batch.status()
+    await user2_batch.cancel()
+    await user2_batch.delete()
+
+    # make sure deleted batches don't show up
+    found, batches = await search_batches(user1_client, b.id, q='')
+    assert not found, str((b.id, batches))
+
+
+async def test_batch_cannot_be_accessed_by_users_outside_the_billing_project(make_client, dev_client, new_billing_project):
+    project = new_billing_project
+
+    r = await dev_client.add_user("test", project)
+    assert r['user'] == 'test'
+    assert r['billing_project'] == project
+
+    user1_client = await make_client(project)
+    b = user1_client.create_batch()
+    j = b.create_job(DOCKER_ROOT_IMAGE, command=['sleep', '30'])
+    b = await b.submit()
+
+    user2_client = dev_client
+    user2_batch = Batch(user2_client, b.id, b.attributes, b.n_jobs)
+
+    try:
+        try:
+            await user2_client.get_batch(b.id)
+        except aiohttp.ClientResponseError as e:
+            assert e.status == 404, e
+        else:
+            assert False, 'expected error'
+
+        try:
+            await user2_client.get_job(j.batch_id, j.job_id)
+        except aiohttp.ClientResponseError as e:
+            assert e.status == 404, e
+        else:
+            assert False, 'expected error'
+
+        try:
+            await user2_client.get_job_log(j.batch_id, j.job_id)
+        except aiohttp.ClientResponseError as e:
+            assert e.status == 404, e
+        else:
+            assert False, 'expected error'
+
+        try:
+            await user2_client.get_job_attempts(j.batch_id, j.job_id)
+        except aiohttp.ClientResponseError as e:
+            assert e.status == 404, e
+        else:
+            assert False, 'expected error'
+
+        try:
+            await user2_batch.status()
+        except aiohttp.ClientResponseError as e:
+            assert e.status == 404, e
+        else:
+            assert False, 'expected error'
+
+        try:
+            await user2_batch.cancel()
+        except aiohttp.ClientResponseError as e:
+            assert e.status == 404, e
+        else:
+            assert False, 'expected error'
+
+        try:
+            await user2_batch.delete()
+        except aiohttp.ClientResponseError as e:
+            assert e.status == 404, e
+        else:
+            assert False, 'expected error'
+
+        # list batches results for user2
+        found, batches = await search_batches(user2_client, b.id, q='')
+        assert not found, str((b.id, batches))
+
+        found, batches = await search_batches(user2_client, b.id, q=f'billing_project:{project}')
+        assert not found, str((b.id, batches))
+
+        found, batches = await search_batches(user2_client, b.id, q=f'user:test')
+        assert not found, str((b.id, batches))
+
+        found, batches = await search_batches(user2_client, b.id, q=None)
+        assert not found, str((b.id, batches))
+
+        found, batches = await search_batches(user2_client, b.id, q=f'user:test-dev')
+        assert not found, str((b.id, batches))
+
+    finally:
+        await b.delete()

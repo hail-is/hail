@@ -194,9 +194,6 @@ class DictState(val kb: EmitClassBuilder[_], val keyVType: VirtualTypeWithReq, v
 
   def serialize(codec: BufferSpec): (EmitCodeBuilder, Value[OutputBuffer]) => Unit = {
     val serializers = nested.states.map(_.serialize(codec))
-    val kEnc = keyEType.buildEncoderMethod(keyType, kb)
-    val km = kb.genFieldThisRef[Boolean]()
-    val kv = kb.genFieldThisRef()(typeToTypeInfo(keyType))
 
     { (cb: EmitCodeBuilder, ob: Value[OutputBuffer]) =>
       initContainer.load(cb)
@@ -208,11 +205,12 @@ class DictState(val kb: EmitClassBuilder[_], val keyVType: VirtualTypeWithReq, v
         })
       tree.bulkStore(cb, ob) { (cb: EmitCodeBuilder, ob: Value[OutputBuffer], kvOff: Code[Long]) =>
         cb.assign(_elt, kvOff)
-        cb.assign(km, keyed.isKeyMissing(_elt))
-        cb += (kv.storeAny(keyed.loadKey(cb, _elt).code))
+        val km = cb.newLocal[Boolean]("grouped_ser_m", keyed.isKeyMissing(_elt))
         cb += (ob.writeBoolean(km))
         cb.ifx(!km, {
-          cb.invokeVoid(kEnc, kv, ob)
+          val k = keyed.loadKey(cb, _elt)
+          keyEType.buildEncoder(k.st, kb)
+            .apply(cb, k, ob)
         })
         keyed.loadStates(cb)
         nested.toCodeWithArgs(cb,
@@ -227,8 +225,6 @@ class DictState(val kb: EmitClassBuilder[_], val keyVType: VirtualTypeWithReq, v
 
   def deserialize(codec: BufferSpec): (EmitCodeBuilder, Value[InputBuffer]) => Unit = {
     val deserializers = nested.states.map(_.deserialize(codec))
-    val kDec = keyEType.buildDecoderMethod(keyType, kb)
-    val k = kb.newEmitField(keyType)
 
     { (cb: EmitCodeBuilder, ib: Value[InputBuffer]) =>
       init(cb, { cb =>
@@ -241,9 +237,10 @@ class DictState(val kb: EmitClassBuilder[_], val keyVType: VirtualTypeWithReq, v
       })
       tree.bulkLoad(cb, ib) { (cb, ib, koff) =>
         cb.assign(_elt, koff)
-        val kc = EmitCode(Code._empty, ib.readBoolean(), PCode(keyType, cb.invokeCode(kDec, region, ib)))
-        cb.assign(k, kc)
-        initElement(cb, _elt, k)
+
+        val kc = EmitCode.fromI(cb.emb)(cb =>
+          IEmitCode(cb, ib.readBoolean(), keyEType.buildDecoder(keyType.virtualType, kb).apply(cb, region, ib)))
+        initElement(cb, _elt, kc)
         nested.toCodeWithArgs(cb,
           FastIndexedSeq(ib),
           { (cb, i, _, args) =>

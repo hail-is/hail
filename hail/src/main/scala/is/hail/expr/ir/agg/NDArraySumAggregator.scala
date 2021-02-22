@@ -5,6 +5,7 @@ import is.hail.asm4s._
 import is.hail.expr.ir.{CodeParamType, EmitCode, EmitCodeBuilder, EmitParamType}
 import is.hail.types.VirtualTypeWithReq
 import is.hail.types.physical.stypes.SCode
+import is.hail.types.physical.stypes.interfaces.SNDArray
 import is.hail.types.physical.{PCanonicalNDArray, PNDArrayCode, PNDArrayValue, PType}
 import is.hail.types.virtual.Type
 import is.hail.utils._
@@ -84,25 +85,10 @@ class NDArraySumAggregator(ndVTyp: VirtualTypeWithReq) extends StagedAggregator 
     cb.ifx(!leftNdValue.sameShape(rightNdValue, cb),
       cb += Code._fatal[Unit]("Can't sum ndarrays of different shapes."))
 
-    val shape = leftNdValue.shapes(cb)
-    val indices = new Array[Value[Long]](ndTyp.nDims)
-
-    def recur(dimIdx: Int): Unit = {
-      if (dimIdx == indices.length) {
-        val newElement = SCode.add(cb, leftNdValue.loadElement(indices, cb), rightNdValue.loadElement(indices, cb), true)
-        ndTyp.setElement(cb, region, indices, leftNdValue.value.asInstanceOf[Value[Long]], newElement, deepCopy = true)
-      } else {
-        val currentIdx = cb.newLocal[Long](s"ndarray_sum_addvalues_$dimIdx", 0L)
-        indices(dimIdx) = currentIdx
-
-        cb.whileLoop(currentIdx < shape(dimIdx),
-        {
-          recur(dimIdx + 1)
-          cb.assign(currentIdx, currentIdx + 1L)
-        })
-      }
+    SNDArray.forEachIndex(cb, leftNdValue.shapes(cb), "ndarray_sum_addvalues") { case (cb, indices) =>
+      val newElement = SCode.add(cb, leftNdValue.loadElement(indices, cb), rightNdValue.loadElement(indices, cb), true)
+      ndTyp.setElement(cb, region, indices, leftNdValue.value.asInstanceOf[Value[Long]], newElement, deepCopy = true)
     }
-    recur(0)
   }
 
   protected def _storeResult(cb: EmitCodeBuilder, state: State, pt: PType, addr: Value[Long], region: Value[Region], ifMissing: EmitCodeBuilder => Unit): Unit = {
