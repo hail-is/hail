@@ -3,6 +3,7 @@ package is.hail.types.physical
 import is.hail.annotations._
 import is.hail.asm4s.{Code, _}
 import is.hail.check.Gen
+import is.hail.expr.ir.orderings.CodeOrdering
 import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, IEmitCode, SortOrder}
 import is.hail.types.physical.stypes.interfaces.{SBaseStructCode, SBaseStructValue}
 import is.hail.utils._
@@ -93,17 +94,6 @@ abstract class PBaseStruct extends PType {
     sb.append("END")
     sb.result()
   }
-
-  final def codeOrdering(mb: EmitMethodBuilder[_], other: PType): CodeOrdering =
-    codeOrdering(mb, other, null, true)
-
-  final def codeOrdering(mb: EmitMethodBuilder[_], other: PType, missingFieldsEqual: Boolean): CodeOrdering =
-    codeOrdering(mb, other, null, missingFieldsEqual)
-
-  final def codeOrdering(mb: EmitMethodBuilder[_], other: PType, so: Array[SortOrder]): CodeOrdering =
-    codeOrdering(mb, other, so, true)
-
-  def codeOrdering(mb: EmitMethodBuilder[_], other: PType, so: Array[SortOrder], missingFieldsEqual: Boolean): CodeOrdering
 
   def isPrefixOf(other: PBaseStruct): Boolean =
     size <= other.size && isCompatibleWith(other)

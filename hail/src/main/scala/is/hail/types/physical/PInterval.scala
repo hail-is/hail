@@ -1,8 +1,9 @@
 package is.hail.types.physical
 
-import is.hail.annotations.{CodeOrdering, _}
+import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.check.Gen
+import is.hail.expr.ir.orderings.CodeOrdering
 import is.hail.expr.ir.{EmitCode, EmitCodeBuilder, EmitMethodBuilder, IEmitCode}
 import is.hail.types.physical.stypes.interfaces.{SIntervalCode, SIntervalValue}
 import is.hail.types.virtual.TInterval
@@ -12,11 +13,6 @@ abstract class PInterval extends PType {
   val pointType: PType
 
   lazy val virtualType: TInterval = TInterval(pointType.virtualType)
-
-  def codeOrdering(mb: EmitMethodBuilder[_], other: PType): CodeOrdering = {
-    assert(other isOfType this)
-    CodeOrdering.intervalOrdering(this, other.asInstanceOf[PInterval], mb)
-  }
 
   override def unsafeOrdering(): UnsafeOrdering =
     new UnsafeOrdering {

@@ -7,7 +7,7 @@ import is.hail.services.shuffler._
 import is.hail.types.physical._
 import is.hail.types.physical.stypes.concrete.{SBinaryPointer, SBinaryPointerSettable, SCanonicalShufflePointerCode, SCanonicalShufflePointerSettable, SIntervalPointer, SIntervalPointerSettable, SSubsetStruct, SSubsetStructCode}
 import is.hail.types.physical.stypes.{interfaces, _}
-import is.hail.types.physical.stypes.interfaces.{SStream, SStreamCode, SStruct}
+import is.hail.types.physical.stypes.interfaces.{SStream, SStreamCode, SBaseStruct}
 import is.hail.types.physical.stypes.primitives.SInt32Code
 import is.hail.types.virtual._
 import is.hail.utils._
@@ -1075,14 +1075,6 @@ object EmitStream {
       val curKey = ctx.mb.newPField("st_grpby_curkey", keyType)
       val eltRegions = destRegion.createSiblingRegionArray(mb, k)
 
-      val keyViewType = PSubsetStruct(eltType, key: _*)
-      val lt: (EmitCodeBuilder, PCode, PCode) => Code[Boolean] = keyViewType
-        .codeOrdering(mb, keyViewType, missingFieldsEqual = false)
-        .lteqNonnull
-      val hasKey: (EmitCodeBuilder, PCode, PCode) => Code[Boolean] = keyViewType
-        .codeOrdering(mb, keyType, missingFieldsEqual = false)
-        .equivNonnull
-
       val runMatch = CodeLabel()
       val LpullChild = CodeLabel()
       val LloopEnd = CodeLabel()
@@ -1105,7 +1097,7 @@ object EmitStream {
       Code(LstartNewKey,
         Code.forLoop(i := 0, i < k, i := i + 1, result(i) = 0L),
         EmitCodeBuilder.scopedVoid(mb) { cb =>
-          cb.assign(curKey, eltRegions(winner).copyTo(cb, PCode(keyViewType, heads(winner)), destRegion, keyType))
+          cb.assign(curKey, eltRegions(winner).copyTo(cb, eltType.loadCheapPCode(cb, heads(winner)).subset(key: _*), destRegion, keyType))
         },
         LaddToResult.goto)
 
@@ -1126,9 +1118,13 @@ object EmitStream {
         challenger := bracket(matchIdx),
         (matchIdx.ceq(0) || challenger.ceq(-1)).orEmpty(LloopEnd.goto),
         (challenger.cne(k) && (winner.ceq(k)
-            || EmitCodeBuilder.scopedCode(mb)(
-                lt(_, PCode(keyViewType, heads(challenger)), PCode(keyViewType, heads(winner)))))
-        ).orEmpty(Code(
+          || EmitCodeBuilder.scopedCode(mb) { cb =>
+          val left = eltType.loadCheapPCode(cb, heads(challenger)).subset(key: _*)
+          val right = eltType.loadCheapPCode(cb, heads(winner)).subset(key: _*)
+          val ord = mb.ecb.getOrdering(left.st, right.st)
+          ord.ltNonnull(cb, left, right)
+        })
+          ).orEmpty(Code(
           bracket(matchIdx) = winner,
           winner := challenger)),
         matchIdx := matchIdx >>> 1,
@@ -1143,9 +1139,12 @@ object EmitStream {
               Leos.goto,
               Code(result := Code.newArray[Long](k), LstartNewKey.goto)),
             (winner.cne(k)
-                && EmitCodeBuilder.scopedCode(mb)(
-                    hasKey(_, PCode(keyViewType, heads(winner)), curKey))
-            ).mux(
+              && EmitCodeBuilder.scopedCode(mb) { cb =>
+              val left = eltType.loadCheapPCode(cb, heads(winner)).subset(key: _*)
+              val right = curKey
+              val ord = mb.ecb.getOrdering(left.st, right.st)
+              ord.equivNonnull(cb, left, right)
+            }).mux(
               LaddToResult.goto,
               Lpush.goto)),
           // We're still in the setup phase
@@ -1195,8 +1194,6 @@ object EmitStream {
     def apply(outerEos: Code[Ctrl], outerPush: (ChildStagedRegion => Stream[PCode]) => Code[Ctrl])(implicit ctx: EmitStreamContext): Source[ChildStagedRegion => Stream[PCode]] = {
       val eltType = coerce[PStruct](innerStreamType.elementType)
       val keyType = eltType.selectFields(key)
-      val keyViewType = SSubsetStruct(eltType.sType.asInstanceOf[SStruct], key)
-      val ordering = keyType.codeOrdering(mb, keyViewType.pType, missingFieldsEqual = false)
 
       val xCurKey = ctx.mb.newPField("st_grpby_curkey", keyType)
       val xCurElt = ctx.mb.newPField("st_grpby_curelt", eltType)
@@ -1228,8 +1225,11 @@ object EmitStream {
                 // !xInOuter iff this element was requested by an inner stream.
                 // Else we are stepping to the beginning of the next group.
                 (xCurKey.tcode[Long].cne(0L) &&
-                  EmitCodeBuilder.scopedCode(mb)(ordering.equivNonnull(_, xCurKey, xCurElt.asBaseStruct.subset(key: _*).asPCode))
-                ).mux(
+                  EmitCodeBuilder.scopedCode(mb) { cb =>
+                    val right = xCurElt.asBaseStruct.subset(key: _*).asPCode
+                    mb.ecb.getOrdering(xCurKey.st, right.st)
+                      .equivNonnull(cb, xCurKey, right)
+                  }).mux(
                   xInOuter.mux(
                     Code(holdingRegion.clear(), LchildPull.goto),
                     LinnerPush.goto),
@@ -1644,16 +1644,14 @@ object EmitStream {
           val rElemType = coerce[PStruct](coerce[PStream](rightIR.pType).elementType)
           val outElemType = coerce[PStream](x.pType).elementType
 
-          val lKeyViewType = PSubsetStruct(lElemType, key: _*)
-          val rKeyViewType = PSubsetStruct(rElemType, key: _*)
-          val ordering = lKeyViewType.codeOrdering(mb, rKeyViewType, missingFieldsEqual = false)
 
           def compare(lelt: EmitValue, relt: EmitValue): Code[Int] = EmitCodeBuilder.scopedCode(mb) { cb =>
             assert(lelt.pt == lElemType)
             assert(relt.pt == rElemType)
             val lhs = lelt.map(_.asBaseStruct.subset(key: _*).asPCode)
             val rhs = relt.map(_.asBaseStruct.subset(key: _*).asPCode)
-            ordering.compare(cb, lhs, rhs)
+            val ord = cb.emb.ecb.getOrdering(lhs.st, rhs.st)
+            ord.compare(cb, lhs, rhs, missingEqual = true)
           }
 
           emitStream(leftIR).flatMap(cb) { leftPC =>
@@ -1830,11 +1828,11 @@ object EmitStream {
           val eltType = x.pType.elementType.asInstanceOf[PStruct]
 
           val keyViewType = PSubsetStruct(eltType, key: _*)
-          val ord = keyViewType.codeOrdering(mb, keyViewType)
           def comp(li: Code[Int], lv: Code[Long], ri: Code[Int], rv: Code[Long]): Code[Boolean] =
             EmitCodeBuilder.scopedCode(mb) { cb =>
               val l = PCode(keyViewType, lv)
               val r = PCode(keyViewType, rv)
+              val ord = cb.emb.ecb.getOrdering(l.st, r.st)
               val c = cb.newLocal("stream_merge_comp", ord.compareNonnull(cb, l, r))
               c < 0 || (c.ceq(0) && li < ri)
             }
@@ -2102,16 +2100,13 @@ object EmitStream {
           val xRElt = mb.newEmitField("join_relt", rEltType.setRequired(false))
           val newEnv = env.bind(leftName -> xLElt, rightName -> xRElt)
 
-          val lKeyViewType = PSubsetStruct(lEltType, lKey: _*)
-          val rKeyViewType = PSubsetStruct(rEltType, rKey: _*)
-          val ordering = lKeyViewType.codeOrdering(mb, rKeyViewType, missingFieldsEqual = false)
-
           def compare(lelt: EmitValue, relt: EmitValue): Code[Int] = {
             assert(lelt.pt == lEltType)
             assert(relt.pt == rEltType)
             val lhs = lelt.map(_.asBaseStruct.subset(lKey: _*).asPCode)
             val rhs = relt.map(_.asBaseStruct.subset(rKey: _*).asPCode)
-            EmitCodeBuilder.scopedCode(mb) { cb => ordering.compare(cb, lhs, rhs) }
+            val ord = mb.ecb.getOrdering(lhs.st, rhs.st)
+            EmitCodeBuilder.scopedCode(mb) { cb => ord.compare(cb, lhs, rhs, false) }
           }
 
           def joinF: ((EmitCode, EmitCode)) => EmitCode = { case (lelt, relt) =>

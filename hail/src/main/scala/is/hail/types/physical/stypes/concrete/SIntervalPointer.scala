@@ -1,7 +1,8 @@
 package is.hail.types.physical.stypes.concrete
 
-import is.hail.annotations.{CodeOrdering, Region}
+import is.hail.annotations.Region
 import is.hail.asm4s.{BooleanInfo, Code, IntInfo, LongInfo, Settable, SettableBuilder, TypeInfo, Value}
+import is.hail.expr.ir.orderings.CodeOrdering
 import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, IEmitCode, SortOrder}
 import is.hail.types.physical.stypes.interfaces.SInterval
 import is.hail.types.physical.stypes.{SCode, SType}
@@ -10,8 +11,6 @@ import is.hail.utils.FastIndexedSeq
 
 
 case class SIntervalPointer(pType: PInterval) extends SInterval {
-  def codeOrdering(mb: EmitMethodBuilder[_], other: SType, so: SortOrder): CodeOrdering = pType.codeOrdering(mb, other.pType, so)
-
   def coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = {
     new SIntervalPointerCode(this, pType.store(cb, region, value, deepCopy))
   }
@@ -41,6 +40,7 @@ case class SIntervalPointer(pType: PInterval) extends SInterval {
     new SIntervalPointerCode(this, a)
   }
 
+  override def pointType: SType = pType.pointType.sType
 
   def canonicalPType(): PType = pType
 }
@@ -89,8 +89,8 @@ class SIntervalPointerSettable(
 
   // FIXME orderings should take emitcodes/iemitcodes
   def isEmpty(cb: EmitCodeBuilder): Code[Boolean] = {
-    val gt = cb.emb.getCodeOrdering(pt.pointType, CodeOrdering.Gt())
-    val gteq = cb.emb.getCodeOrdering(pt.pointType, CodeOrdering.Gteq())
+    val gt = cb.emb.ecb.getOrderingFunction(st.pointType, CodeOrdering.Gt())
+    val gteq = cb.emb.ecb.getOrderingFunction(st.pointType, CodeOrdering.Gteq())
 
     val start = cb.memoize(loadStart(cb), "start")
     val end = cb.memoize(loadEnd(cb), "end")

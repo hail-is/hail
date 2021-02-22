@@ -14,7 +14,7 @@ import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer}
 import is.hail.linalg.{BLAS, LAPACK, LinalgCodeUtils}
 import is.hail.services.shuffler._
 import is.hail.types.physical._
-import is.hail.types.physical.stypes.SCode
+import is.hail.types.physical.stypes.{SCode, SType}
 import is.hail.types.physical.stypes.concrete.{SBaseStructPointer, SBaseStructPointerCode, SCanonicalShufflePointerCode, SCanonicalShufflePointerSettable}
 import is.hail.types.physical.stypes.interfaces.{SBaseStructCode, SNDArray, SNDArrayCode}
 import is.hail.types.physical.stypes.primitives.{SFloat32, SFloat64, SInt32, SInt64, SInt64Code}
@@ -394,6 +394,8 @@ object EmitCode {
 }
 
 class EmitCode(private val start: CodeLabel, private val iec: IEmitCode) {
+  def st: SType = iec.value.st
+
   def pv: PCode = iec.value
 
   def setup: Code[Unit] = Code._empty
@@ -883,14 +885,14 @@ class Emit[C](
         if (op.strict) {
           emitI(l).flatMap(cb) { l =>
             emitI(r).map(cb) { r =>
-              val f = op.codeOrdering(mb, l.pt, r.pt)
+              val f = op.codeOrdering(cb.emb.ecb, l.st, r.st)
               PCode(pt, f(cb, EmitCode.present(cb.emb, l), EmitCode.present(cb.emb, r)))
             }
           }
         } else {
           val lc = emitI(l).memoize(cb, "l")
           val rc = emitI(r).memoize(cb, "r")
-          val f = op.codeOrdering(mb, lc.pt, rc.pt)
+          val f = op.codeOrdering(cb.emb.ecb, lc.st, rc.st)
           presentC(f(cb, lc, rc))
         }
 

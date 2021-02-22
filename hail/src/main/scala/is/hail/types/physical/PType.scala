@@ -342,20 +342,6 @@ abstract class PType extends Serializable with Requiredness {
 
   def _pretty(sb: StringBuilder, indent: Int, compact: Boolean)
 
-  def codeOrdering(mb: EmitMethodBuilder[_]): CodeOrdering =
-    codeOrdering(mb, this)
-
-  def codeOrdering(mb: EmitMethodBuilder[_], so: SortOrder): CodeOrdering =
-    codeOrdering(mb, this, so)
-
-  def codeOrdering(mb: EmitMethodBuilder[_], other: PType, so: SortOrder): CodeOrdering =
-    so match {
-      case Ascending => codeOrdering(mb, other)
-      case Descending => codeOrdering(mb, other).reverse
-    }
-
-  def codeOrdering(mb: EmitMethodBuilder[_], other: PType): CodeOrdering
-
   def byteSize: Long
 
   def alignment: Long = byteSize

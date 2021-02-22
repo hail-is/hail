@@ -3,6 +3,7 @@ package is.hail.types.physical
 import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.expr.ir._
+import is.hail.expr.ir.orderings.CodeOrdering
 import is.hail.types.physical.stypes.SCode
 import is.hail.types.physical.stypes.concrete.{SBinaryPointerCode, SCanonicalShufflePointer, SCanonicalShufflePointerCode}
 import is.hail.types.virtual._
@@ -16,11 +17,6 @@ final case class PCanonicalShuffle(
   override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean): Unit = sb.append("PCShuffle")
 
   val representation: PCanonicalBinary = PCanonicalBinary(required)
-
-  def codeOrdering(mb: EmitMethodBuilder[_], other: PType): CodeOrdering = {
-    assert(other isOfType this)
-    representation.codeOrdering(mb)
-  }
 
   def setRequired(required: Boolean) = if (required == this.required) this else PCanonicalShuffle(tShuffle, required)
 
