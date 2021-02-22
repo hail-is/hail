@@ -14,7 +14,8 @@ openssl req -x509 \
         -out server-cert.pem \
         -days 365 \
         -subj '/CN=localhost' \
-        -nodes
+        -nodes \
+        -sha256
 ```
 
 ## Bundle a Key and Certificate into a PKCS12 File
