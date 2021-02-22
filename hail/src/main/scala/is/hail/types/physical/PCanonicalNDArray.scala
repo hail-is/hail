@@ -44,7 +44,7 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
       cb.assign(settables(dimIdx), shapeTuple.loadField(cb, dimIdx).get(cb).asLong.longCode(cb))
     }
   }
-  
+
   def loadStrides(cb: EmitCodeBuilder, addr: Value[Long], settables: IndexedSeq[Settable[Long]]): Unit = {
     assert(settables.length == nDims)
     val strideTuple = strideType.loadCheapPCode(cb, representation.loadField(addr, "strides"))
@@ -53,8 +53,8 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
       cb.assign(settables(dimIdx), strideTuple.loadField(cb, dimIdx).get(cb).asLong.longCode(cb))
     }
   }
-  
-  val dataType: PCanonicalArray = PCanonicalArray(elementType, required = true)  
+
+  val dataType: PCanonicalArray = PCanonicalArray(elementType, required = true)
 
   lazy val representation: PCanonicalStruct = {
     PCanonicalStruct(required,
@@ -68,8 +68,6 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
   override lazy val alignment: Long = representation.alignment
 
   override def unsafeOrdering(): UnsafeOrdering = representation.unsafeOrdering()
-
-  override lazy val fundamentalType: PType = representation.fundamentalType
 
   def numElements(shape: IndexedSeq[Value[Long]]): Code[Long] = {
     shape.foldLeft(1L: Code[Long])(_ * _)
@@ -190,7 +188,7 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
   def setRequired(required: Boolean) = if(required == this.required) this else PCanonicalNDArray(elementType, nDims, required)
 
   def unstagedStoreAtAddress(addr: Long, region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Unit =
-    this.fundamentalType.unstagedStoreAtAddress(addr, region, srcPType.fundamentalType, srcAddress, deepCopy)
+    representation.unstagedStoreAtAddress(addr, region, srcPType.asInstanceOf[PCanonicalNDArray].representation, srcAddress, deepCopy)
 
   def sType: SNDArrayPointer = SNDArrayPointer(this)
 
@@ -242,4 +240,3 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
     dataType.unstagedStoreJavaObjectAtAddress(curAddr, aNDArray.getRowMajorElements(), region)
   }
 }
-
