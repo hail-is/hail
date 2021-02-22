@@ -51,7 +51,7 @@ class PNDArraySuite extends PhysicalTestUtils {
         nd.storeAtAddress(cb, r2PointerToNDAddress1, codeRegion2, snd1, true)
 
         // Return the address of the 1st one
-        snd1.tcode[Long]
+        Region.loadAddress(r2PointerToNDAddress1)
       }
     } catch {
       case e: AssertionError =>
