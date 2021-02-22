@@ -121,7 +121,7 @@ object TypeCheck {
         assert(op.t1 == l.typ)
         assert(op.t2 == r.typ)
         op match {
-          case _: Compare | _: CompareStructs => assert(x.typ == TInt32)
+          case _: Compare => assert(x.typ == TInt32)
           case _ => assert(x.typ == TBoolean)
         }
       case x@MakeArray(args, typ) =>
