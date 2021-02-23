@@ -405,6 +405,8 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, pass_through=())
     else:
         y_field_name_groups = list(f'__y_{i}' for i in range(len(y)))
         y_dict = dict(zip(y_field_name_groups, y))
+        # Wrapping in a list since the code is written for the more general chained case.
+        y_field_name_groups = [y_field_name_groups]
 
     cov_field_names = list(f'__cov{i}' for i in range(len(covariates)))
 
@@ -419,9 +421,6 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, pass_through=())
 
     entries_field_name = 'ent'
     sample_field_name = "by_sample"
-
-    if not is_chained:
-        y_field_name_groups = [y_field_name_groups]
 
     num_y_lists = len(y_field_name_groups)
 
@@ -454,7 +453,7 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, pass_through=())
         ht = ht.annotate_globals(
             y_arrays_per_group=[ht[sample_field_name].map(lambda sample_struct: [sample_struct[y_name] for y_name in one_y_field_name_set]) for one_y_field_name_set in y_field_name_groups]
         )
-        all_covs_defined = ht.cov_arrays.map(lambda sample_covs: sample_covs.all(lambda a: hl.is_defined(a)))
+        all_covs_defined = ht.cov_arrays.map(lambda sample_covs: no_missing(sample_covs))
 
         def make_idx_ys_covs_struct(sample_ys):
             # sample_ys is an array of samples, with each element being an array of the y_values
