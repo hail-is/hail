@@ -1,4 +1,4 @@
-from typing import Optional, Dict
+from typing import Optional, Dict, Any
 import aiohttp
 import asyncio
 
@@ -151,7 +151,7 @@ class Batch:
     def jobs(self, q=None):
         return agen_to_blocking(self._async_batch.jobs(q=q))
 
-    def get_job_log(self, job_id: int):
+    def get_job_log(self, job_id: int) -> Optional[Dict[str, Any]]:
         return async_to_blocking(self._async_batch.get_job_log(job_id))
 
     def wait(self):
@@ -231,7 +231,7 @@ class BatchClient:
         j = async_to_blocking(self._async_client.get_job(batch_id, job_id))
         return Job.from_async_job(j)
 
-    def get_job_log(self, batch_id, job_id):
+    def get_job_log(self, batch_id, job_id) -> Optional[Dict[str, Any]]:
         log = async_to_blocking(self._async_client.get_job_log(batch_id, job_id))
         return log
 
