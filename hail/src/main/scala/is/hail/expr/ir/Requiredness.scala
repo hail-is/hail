@@ -568,7 +568,7 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
           initOpArgs.map(i => i -> lookup(i)),
           seqOpArgs.map(s => s -> lookup(s)))).pResultType
         requiredness.fromPType(pResult)
-      case MakeNDArray(data, shape, rowMajor) =>
+      case MakeNDArray(data, shape, rowMajor, _) =>
         requiredness.unionFrom(lookup(data))
         requiredness.union(lookup(shape).required)
       case NDArrayShape(nd) =>

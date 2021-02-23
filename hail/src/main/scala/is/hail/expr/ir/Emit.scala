@@ -1075,7 +1075,7 @@ class Emit[C](
           dictTyp.construct(finishOuter(cb))
         }
 
-      case x@MakeNDArray(dataIR, shapeIR, rowMajorIR) =>
+      case x@MakeNDArray(dataIR, shapeIR, rowMajorIR, errorId) =>
         val xP = coerce[PCanonicalNDArray](x.pType)
         val shapePType = coerce[PTuple](shapeIR.pType)
         val nDims = shapePType.size
