@@ -6,7 +6,7 @@ import is.hail.expr.Nat
 import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder}
 import is.hail.types.physical.stypes.SCode
 import is.hail.types.physical.stypes.concrete.SNDArrayPointerCode
-import is.hail.types.physical.stypes.interfaces.{SNDArrayCode, SNDArrayValue}
+import is.hail.types.physical.stypes.interfaces.{SIndexableCode, SNDArrayCode, SNDArrayValue}
 import is.hail.types.virtual.TNDArray
 
 object PNDArray {
@@ -55,8 +55,8 @@ abstract class PNDArray extends PType {
   def constructByCopyingArray(
     shape: IndexedSeq[Value[Long]],
     strides: IndexedSeq[Value[Long]],
-    data: Code[Long],
-    mb: EmitCodeBuilder,
+    data: SIndexableCode,
+    cb: EmitCodeBuilder,
     region: Value[Region]
   ): PNDArrayCode
 

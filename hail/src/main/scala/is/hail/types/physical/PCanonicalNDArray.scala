@@ -176,14 +176,12 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
   def constructByCopyingArray(
     shape: IndexedSeq[Value[Long]],
     strides: IndexedSeq[Value[Long]],
-    dataCode: Code[Long],
+    dataCode: SIndexableCode,
     cb: EmitCodeBuilder,
     region: Value[Region]
-  ): SNDArrayPointerCode = {
+  ): PNDArrayCode = {
 
-    //val inputDataPointer = cb.newLocal[Long]("data_value_store")
-    val dataPCode = dataType.loadCheapPCode(cb, dataCode)
-    val dataValue = dataPCode.memoize(cb, "pndarray_copy_data_constructor_data")
+    val dataValue = dataCode.memoize(cb, "pndarray_copy_data_constructor_data")
 
     val ndAddr = cb.newLocal[Long]("ndarray_construct_addr")
     cb.assign(ndAddr, this.allocate(shape, region))

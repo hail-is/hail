@@ -1112,7 +1112,7 @@ class Emit[C](
                 }
               })
 
-              xP.constructByCopyingArray(shapeValues, stridesSettables, memoData.asPCode.tcode[Long], cb, region.code)
+              xP.constructByCopyingArray(shapeValues, stridesSettables, memoData.pc.asIndexable, cb, region.code)
             }
           }
         }
@@ -1120,11 +1120,13 @@ class Emit[C](
         emitI(ndIR).map(cb){ case pc: PNDArrayCode => pc.shape(cb).asPCode}
       case x@NDArrayReindex(child, indexMap) =>
         val childEC = emitI(child)
-        val childPType = coerce[PNDArray](child.pType)
+        val childPType = coerce[PCanonicalNDArray](child.pType)
         childEC.map(cb){ case pndCode: PNDArrayCode =>
           val pndVal = pndCode.memoize(cb, "ndarray_reindex_child")
           val childShape = pndVal.shapes(cb)
           val childStrides = pndVal.strides(cb)
+
+          val dataArray = childPType.dataType.loadCheapPCode(cb, childPType.dataPArrayPointer(pndVal.tcode[Long]))
 
           val newShape = indexMap.map { childIndex =>
             if (childIndex < childPType.nDims) childShape(childIndex) else const(1L)
@@ -1136,7 +1138,7 @@ class Emit[C](
           x.pType.constructByCopyingArray(
             newShape,
             newStrides,
-            childPType.dataPArrayPointer(pndVal.tcode[Long]),
+            dataArray,
             cb,
             region.code)
         }
