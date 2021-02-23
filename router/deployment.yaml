@@ -269,6 +269,18 @@ spec:
   selector:
     app: grafana
 ---
+apiVersion: v1
+kind: Service
+metadata:
+  name: prometheus
+spec:
+  ports:
+   - port: 443
+     protocol: TCP
+     targetPort: 443
+  selector:
+    app: prometheus
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:

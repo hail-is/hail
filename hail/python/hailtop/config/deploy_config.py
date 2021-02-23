@@ -117,6 +117,10 @@ class DeployConfig:
         async def get_healthcheck(request):  # pylint: disable=unused-argument,unused-variable
             return web.Response()
 
+        @root_routes.get('/metrics')
+        async def get_metrics(request):  # pylint: disable=unused-argument,unused-variable
+            return web.HTTPFound(location=f'{base_path}/metrics')
+
         root_app = web.Application(**kwargs)
         root_app.add_routes(root_routes)
         root_app.add_subapp(base_path, app)
