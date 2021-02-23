@@ -43,7 +43,6 @@ class MonoidAggregator(monoid: StagedMonoidSpec) extends StagedAggregator {
   protected def _seqOp(cb: EmitCodeBuilder, state: State, seq: Array[EmitCode]): Unit = {
     val Array(elt) = seq
     val ev = state.fields(0)
-    assert(ev.pt == elt.pt) // these should really match up
     val update = cb.memoizeField(elt, "monoid_elt")
     combine(cb, ev, update)
   }
