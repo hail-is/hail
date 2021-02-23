@@ -36,18 +36,19 @@ case class ENDArrayColumnMajor(elementType: EType, nDims: Int, required: Boolean
     shapeVars.foreach { s =>
       cb.assign(totalNumElements, totalNumElements * s)
     }
+    val strides = pnd.makeColumnMajorStrides(shapeVars, region, cb)
 
-    val dataAddress = cb.newLocal[Long]("ndarray_decoder_data_addr",
-      pnd.dataType.allocate(region, totalNumElements.toI))
-    cb += pnd.dataType.stagedInitialize(dataAddress, totalNumElements.toI)
+    val (pndFirstElementAddress, pndFinisher) = pnd.constructDataFunction(shapeVars, strides, cb, region)
+
+    val currElementAddress = cb.newLocal[Long]("eblockmatrix_ndarray_currElementAddress", pndFirstElementAddress)
 
     val dataIdx = cb.newLocal[Int]("ndarray_decoder_data_idx")
-    cb.forLoop(cb.assign(dataIdx, 0), dataIdx < totalNumElements.toI, cb.assign(dataIdx, dataIdx + 1),
-      readElemF(cb, region, pnd.dataType.elementOffset(dataAddress, totalNumElements.toI, dataIdx), in))
+    cb.forLoop(cb.assign(dataIdx, 0), dataIdx < totalNumElements.toI, cb.assign(dataIdx, dataIdx + 1), {
+      readElemF(cb, region, currElementAddress, in)
+      cb.assign(currElementAddress, currElementAddress + pnd.elementType.byteSize)
+    })
 
-    pnd.construct(shapeVars,
-      pnd.makeColumnMajorStrides(shapeVars, region, cb),
-      dataAddress, cb, region)
+    pndFinisher(cb)
   }
 
   def _buildSkip(cb: EmitCodeBuilder, r: Value[Region], in: Value[InputBuffer]): Unit = {
