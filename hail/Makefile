@@ -291,6 +291,12 @@ python/hail/docs/change_log.rst: python/hail/docs/change_log.md
 	  < $< \
 	  | pandoc -o $@
 
+ifeq ($(shell uname -s),Darwin)
+SED_INPLACE := sed -i ''
+else
+SED_INPLACE := sed -i
+endif
+
 .PHONY: batch-docs
 batch-docs:
 	$(MAKE) -C python/hailtop/batch/docs \
@@ -301,7 +307,7 @@ batch-docs:
 	find build/www/docs/batch \
 	     -iname *.html \
 	     -type f \
-	     -exec sed -i '' -e "s/\.css/\.css\?v\=$(HAIL_CACHE_VERSION)/" {} +;
+	     -exec $(SED_INPLACE) -e "s/\.css/\.css\?v\=$(HAIL_CACHE_VERSION)/" {} +;
 	@echo Built Batch docs: build/www/docs/batch/index.html
 
 HAIL_CACHE_VERSION = $(shell cat python/hail/hail_version)
@@ -317,7 +323,7 @@ hail-docs: $(PYTHON_VERSION_INFO) python/hail/docs/change_log.rst
 	find build/www/docs/$(HAIL_MAJOR_MINOR_VERSION) \
 	     -iname *.html \
 	     -type f \
-	     -exec sed -i '' -e "s/\.css/\.css\?v\=$(HAIL_CACHE_VERSION)/" {} +;
+	     -exec $(SED_INPLACE) -e "s/\.css/\.css\?v\=$(HAIL_CACHE_VERSION)/" {} +;
 	@echo Built Hail docs: build/www/docs/$(HAIL_MAJOR_MINOR_VERSION)/index.html
 
 .PHONY: hail-docs-no-test
@@ -331,7 +337,7 @@ hail-docs-no-test: $(PYTHON_VERSION_INFO) python/hail/docs/change_log.rst
 	find build/www/docs/$(HAIL_MAJOR_MINOR_VERSION) \
 	     -iname *.html \
 	     -type f \
-	     -exec sed -i '' -e "s/\.css/\.css\?v\=$(HAIL_CACHE_VERSION)/" {} +;
+	     -exec $(SED_INPLACE) -e "s/\.css/\.css\?v\=$(HAIL_CACHE_VERSION)/" {} +;
 	@echo Built docs: file://$(HAIL_DIR)/build/www/docs/$(HAIL_MAJOR_MINOR_VERSION)/index.html
 
 .PHONY: upload-docs

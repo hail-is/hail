@@ -1534,7 +1534,7 @@ steps:
      mv python/hailtop/batch/docs/_build/html www/docs/batch
 
      HAIL_CACHE_VERSION=$(cat python/hail/hail_version)
-     find www -iname *.html -type f -exec sed -i '' -e "s/\.css/\.css\?v\=$HAIL_CACHE_VERSION/" {} +;
+     find www -iname *.html -type f -exec sed -i -e "s/\.css/\.css\?v\=$HAIL_CACHE_VERSION/" {} +;
 
      tar czf /io/www.tar.gz www
    resources:
