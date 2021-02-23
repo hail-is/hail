@@ -409,8 +409,6 @@ mkdir -p {shq(repo_dir)}
         except concurrent.futures.CancelledError:
             raise
         except Exception as e:  # pylint: disable=broad-except
-            log.exception('could not start build')
-
             # FIXME save merge failure output for UI
             self.batch = MergeFailureBatch(
                 e,
