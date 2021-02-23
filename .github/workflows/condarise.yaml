@@ -19,6 +19,7 @@ jobs:
         run: |
           make -C hail python-version-info
           VERSION=$(cat hail/python/hail/hail_version)
+          VERSION=${VERSION/-/.dev}
           cat conda/hail/meta-template.yaml \
           | sed s/{version}/${VERSION}/ > conda/hail/meta.yaml
 
