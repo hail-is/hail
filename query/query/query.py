@@ -229,6 +229,10 @@ async def on_cleanup(app):
     await asyncio.gather(*(t for t in asyncio.all_tasks() if t is not asyncio.current_task()))
 
 
+async def on_shutdown(app):
+    await asyncio.gather(*(t for t in asyncio.all_tasks() if t is not asyncio.current_task()))
+
+
 def run():
     app = web.Application()
 
@@ -238,6 +242,7 @@ def run():
 
     app.on_startup.append(on_startup)
     app.on_cleanup.append(on_cleanup)
+    app.on_shutdown.append(on_shutdown)
 
     deploy_config = get_deploy_config()
     web.run_app(
