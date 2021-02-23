@@ -31,7 +31,7 @@ class MonoidAggregator(monoid: StagedMonoidSpec) extends StagedAggregator {
     assert(init.length == 0)
     val stateRequired = state.vtypes.head.r.required
     val ev = state.fields(0)
-    if (ev.pt.required) {
+    if (!ev.pt.required) {
         assert(!stateRequired, s"monoid=$monoid, stateRequired=$stateRequired")
         cb.assign(ev, EmitCode.missing(cb.emb, ev.pt))
     } else {
