@@ -19,7 +19,7 @@ object PSubsetStruct {
 
 // Semantics: PSubsetStruct is a non-constructible view of another PStruct, which is not allowed to mutate
 // that underlying PStruct's region data
-final case class PSubsetStruct(ps: PStruct, _fieldNames: Array[String]) extends PStruct {
+final case class PSubsetStruct(ps: PStruct, _fieldNames: IndexedSeq[String]) extends PStruct {
   val fields: IndexedSeq[PField] = _fieldNames.zipWithIndex.map { case (name, i) => PField(name, ps.fieldType(name), i)}
   val required = ps.required
 
@@ -27,7 +27,7 @@ final case class PSubsetStruct(ps: PStruct, _fieldNames: Array[String]) extends 
     log.warn("PSubsetStruct used without subsetting input PStruct")
   }
 
-  private val idxMap: Array[Int] = _fieldNames.map(f => ps.fieldIdx(f))
+  private val idxMap: Array[Int] = _fieldNames.map(f => ps.fieldIdx(f)).toArray
 
   lazy val missingIdx: Array[Int] = idxMap.map(i => ps.missingIdx(i))
   lazy val nMissing: Int = missingIdx.length
@@ -38,22 +38,12 @@ final case class PSubsetStruct(ps: PStruct, _fieldNames: Array[String]) extends 
   override val byteSize: Long = 8
 
   override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean) {
-    if (compact) {
-      sb.append("PSubsetStruct{")
-      fields.foreachBetween(_.pretty(sb, indent, compact))(sb += ',')
-      sb += '}'
-    } else {
-      if (size == 0)
-        sb.append("Struct { }")
-      else {
-        sb.append("Struct {")
-        sb += '\n'
-        fields.foreachBetween(_.pretty(sb, indent + 4, compact))(sb.append(",\n"))
-        sb += '\n'
-        sb.append(" " * indent)
-        sb += '}'
-      }
-    }
+    sb.append("PSubsetStruct{")
+    ps.pretty(sb, indent, compact)
+    sb += '{'
+    fieldNames.foreachBetween(f => sb.append(prettyIdentifier(f)))(sb += ',')
+    sb += '}'
+    sb += '}'
   }
 
   override def rename(m: Map[String, String]): PStruct = {

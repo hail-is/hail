@@ -26,7 +26,7 @@ class ShuffleCodecSpec(
     if (keyDecodedPType == rowDecodedPType) {
       rowDecodedPType
     } else {
-      new PSubsetStruct(rowDecodedPType, shuffleType.keyFields.map(_.field).toArray)
+      new PSubsetStruct(rowDecodedPType, shuffleType.keyFields.map(_.field))
     }
   }
   def constructKeyFromDecodedRow(r: Region, row: Long): Long =

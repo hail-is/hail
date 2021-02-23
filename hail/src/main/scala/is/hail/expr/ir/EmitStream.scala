@@ -1123,7 +1123,7 @@ object EmitStream {
           val left = eltType.loadCheapPCode(cb, heads(challenger)).subset(key: _*)
           val right = eltType.loadCheapPCode(cb, heads(winner)).subset(key: _*)
           val ord = StructOrdering.make(left.st, right.st, cb.emb.ecb, missingFieldsEqual = false)
-          ord.ltNonnull(cb, left, right)
+          ord.lteqNonnull(cb, left, right)
         })
           ).orEmpty(Code(
           bracket(matchIdx) = winner,
@@ -2111,7 +2111,6 @@ object EmitStream {
             val lhs = lelt.map(_.asBaseStruct.subset(lKey: _*).asPCode)
             val rhs = relt.map(_.asBaseStruct.subset(rKey: _*).asPCode)
 
-            val ord = mb.ecb.getOrdering(lhs.st, rhs.st)
             EmitCodeBuilder.scopedCode(mb) { cb =>
               StructOrdering.make(lhs.st.asInstanceOf[SBaseStruct], rhs.st.asInstanceOf[SBaseStruct],
                 cb.emb.ecb, missingFieldsEqual = false)
