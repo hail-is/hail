@@ -196,12 +196,8 @@ class PrimitiveRVAState(val vtypes: Array[VirtualTypeWithReq], val kb: EmitClass
   }
 
   def store(cb: EmitCodeBuilder, regionStorer: (EmitCodeBuilder, Value[Region]) => Unit, destc: Code[Long]): Unit = {
-    // everything is primitives, so this is fine! :)
-    val r = new Value[Region] {
-      def get: Code[Region] = Code._null[Region]
-    }
     val dest = cb.newLocal("prim_rvastate_store_dest", destc)
-    storageType.storeAtAddressFromFields(cb, dest, r, fields.map(_.load), false)
+    storageType.storeAtAddressFromFields(cb, dest, null, fields.map(_.load), false)
   }
 
   def copyFrom(cb: EmitCodeBuilder, src: Code[Long]): Unit = loadVarsFromRegion(cb, src)
