@@ -778,33 +778,6 @@ class IRSuite extends HailSuite {
     assertComparesTo(TFloat64, 1.0, 0.0, expected = true)
   }
 
-  @Test def testApplyComparisonOpCompareStructs() {
-    def assertComparesTo(t: TStruct, sf: IndexedSeq[SortField], x: Any, y: Any, expected: Int) {
-      assertEvalsTo(ApplyComparisonOp(CompareStructs(t, sf), In(0, t), In(1, t)), FastIndexedSeq(x -> t, y -> t), expected)
-    }
-
-    val t1 = TStruct("x" -> TInt32, "y" -> TFloat64)
-    val ascAsc = FastIndexedSeq(SortField("x", Ascending), SortField("y", Ascending))
-    val ascDesc = FastIndexedSeq(SortField("x", Ascending), SortField("y", Descending))
-    val descAsc = FastIndexedSeq(SortField("x", Descending), SortField("y", Ascending))
-    val descDesc = FastIndexedSeq(SortField("x", Descending), SortField("y", Descending))
-
-    assertComparesTo(t1, ascAsc, Row(0, 0d), Row(0, 0d), 0)
-    assertComparesTo(t1, ascDesc, Row(0, 0d), Row(0, 0d), 0)
-    assertComparesTo(t1, descAsc, Row(0, 0d), Row(0, 0d), 0)
-    assertComparesTo(t1, descDesc, Row(0, 0d), Row(0, 0d), 0)
-
-    assertComparesTo(t1, ascAsc, Row(1, 0d), Row(0, 0d), 1)
-    assertComparesTo(t1, ascDesc, Row(1, 0d), Row(0, 0d), 1)
-    assertComparesTo(t1, descAsc, Row(1, 0d), Row(0, 0d), -1)
-    assertComparesTo(t1, descDesc, Row(1, 0d), Row(0, 0d), -1)
-
-    assertComparesTo(t1, ascAsc, Row(0, 1d), Row(0, 0d), 1)
-    assertComparesTo(t1, ascDesc, Row(0, 1d), Row(0, 0d), -1)
-    assertComparesTo(t1, descAsc, Row(0, 1d), Row(0, 0d), 1)
-    assertComparesTo(t1, descDesc, Row(0, 1d), Row(0, 0d), -1)
-  }
-
   @Test def testDieCodeBUilder() {
     assertFatal(Die("msg1", TInt32) + Die("msg2", TInt32), "msg1")
   }
@@ -3091,10 +3064,6 @@ class IRSuite extends HailSuite {
       ApplyBinaryPrimOp(Add(), i, j),
       ApplyUnaryPrimOp(Negate(), i),
       ApplyComparisonOp(EQ(TInt32), i, j),
-      ApplyComparisonOp(CompareStructs(
-        TStruct("x" -> TInt32, "y" -> TFloat64),
-        FastIndexedSeq(SortField("x", Ascending), SortField("y", Descending))),
-        In(0, TStruct("x" -> TInt32, "y" -> TFloat64)), In(1, TStruct("x" -> TInt32, "y" -> TFloat64))),
       MakeArray(FastSeq(i, NA(TInt32), I32(-3)), TArray(TInt32)),
       MakeStream(FastSeq(i, NA(TInt32), I32(-3)), TStream(TInt32)),
       nd,

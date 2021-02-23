@@ -68,7 +68,7 @@ object InferType {
       case ApplyComparisonOp(op, l, r) =>
         assert(l.typ == r.typ)
         op match {
-          case _: Compare | _: CompareStructs => TInt32
+          case _: Compare => TInt32
           case _ => TBoolean
         }
       case a: ApplyIR => a.explicitNode.typ
