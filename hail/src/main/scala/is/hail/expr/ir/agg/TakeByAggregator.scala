@@ -2,11 +2,13 @@ package is.hail.expr.ir.agg
 
 import is.hail.annotations.Region
 import is.hail.asm4s.{Code, _}
+import is.hail.expr.ir.orderings.StructOrdering
 import is.hail.expr.ir.{Ascending, EmitClassBuilder, EmitCode, EmitCodeBuilder, ParamType, SortOrder}
 import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer}
 import is.hail.types.VirtualTypeWithReq
 import is.hail.types.physical._
 import is.hail.types.physical.stypes.concrete.{SBaseStructPointerCode, SIndexablePointerCode}
+import is.hail.types.physical.stypes.interfaces.SBaseStruct
 import is.hail.types.virtual.{TInt32, Type}
 import is.hail.utils._
 
@@ -55,7 +57,7 @@ class TakeByRVAS(val valueVType: VirtualTypeWithReq, val keyVType: VirtualTypeWi
   }
 
   private def compareIndexedKey(cb: EmitCodeBuilder, k1: PCode, k2: PCode): Code[Int] = {
-    val ord = kb.getOrdering(k1.st, k2.st)
+    val ord = StructOrdering.make(k1.st.asInstanceOf[SBaseStruct], k2.st.asInstanceOf[SBaseStruct], cb.emb.ecb, Array(so, Ascending), true)
     ord.compareNonnull(cb, k1, k2)
   }
 

@@ -42,7 +42,11 @@ object CodeOrdering {
   type F[R] = (EmitCodeBuilder, EmitCode, EmitCode) => Code[R]
 
   def makeOrdering(t1: SType, t2: SType, ecb: EmitClassBuilder[_]): CodeOrdering = {
-    if (t1.virtualType != t2.virtualType) {
+    val canCompare = (t1.virtualType, t2.virtualType) match {
+      case (t1: TStruct, t2: TStruct) => t1.isIsomorphicTo(t2)
+      case (t1, t2) if t1 == t2 => t1 == t2
+    }
+    if (!canCompare) {
       throw new RuntimeException(s"ordering: type mismatch:\n  left: ${ t1.virtualType }\n right: ${ t2.virtualType }")
     }
 
