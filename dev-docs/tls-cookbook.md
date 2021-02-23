@@ -14,7 +14,8 @@ openssl req -x509 \
         -out server-cert.pem \
         -days 365 \
         -subj '/CN=localhost' \
-        -nodes
+        -nodes \
+        -sha256
 ```
 
 ## Bundle a Key and Certificate into a PKCS12 File
@@ -100,7 +101,8 @@ openssl req -new -x509 \
         -newkey rsa:4096 \
         -keyout hail-root-key.pem \
         -out hail-root-cert.pem \
-        -days 365
+        -days 365 \
+        -sha256
 ```
 
 2. Update kubernetes with the new root certificate:
