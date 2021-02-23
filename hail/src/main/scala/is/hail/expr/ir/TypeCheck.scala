@@ -148,7 +148,7 @@ object TypeCheck {
         assert(c.typ == TInt32)
       case x@ArrayZeros(length) =>
         assert(length.typ == TInt32)
-      case x@MakeNDArray(data, shape, rowMajor) =>
+      case x@MakeNDArray(data, shape, rowMajor, _) =>
         assert(data.typ.isInstanceOf[TArray])
         assert(shape.typ.asInstanceOf[TTuple].types.forall(t => t == TInt64))
         assert(rowMajor.typ == TBoolean)

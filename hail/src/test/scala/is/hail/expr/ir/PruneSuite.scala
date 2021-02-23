@@ -552,7 +552,7 @@ class PruneSuite extends HailSuite {
   val ref = Ref("x", TStruct("a" -> TInt32, "b" -> TInt32, "c" -> TInt32))
   val arr = MakeArray(FastIndexedSeq(ref, ref), TArray(ref.typ))
   val st = MakeStream(FastIndexedSeq(ref, ref), TStream(ref.typ))
-  val ndArr = MakeNDArray(arr, MakeTuple(IndexedSeq((0, I64(2l)))), True())
+  val ndArr = MakeNDArray(arr, MakeTuple(IndexedSeq((0, I64(2l)))), True(), ErrorIDs.NO_ERROR)
   val empty = TStruct.empty
   val justA = TStruct("a" -> TInt32)
   val justB = TStruct("b" -> TInt32)
@@ -702,7 +702,7 @@ class PruneSuite extends HailSuite {
       MakeNDArray(
         Ref("x", TArray(TStruct("a" -> TInt32, "b" -> TInt64))),
         Ref("y", TTuple(TInt32, TInt32)),
-        True()),
+        True(), ErrorIDs.NO_ERROR),
       TNDArray(TStruct("a" -> TInt32), Nat(2)),
       Array(
         TArray(TStruct("a" -> TInt32)),
@@ -1309,7 +1309,7 @@ class PruneSuite extends HailSuite {
       })
   }
 
-  val ndArrayTS = MakeNDArray(MakeArray(ArrayBuffer(NA(ts)), TArray(ts)), MakeTuple(IndexedSeq((0, I64(1l)))), True())
+  val ndArrayTS = MakeNDArray(MakeArray(ArrayBuffer(NA(ts)), TArray(ts)), MakeTuple(IndexedSeq((0, I64(1l)))), True(), ErrorIDs.NO_ERROR)
 
   @Test def testNDArrayMapRebuild() {
     checkRebuild(NDArrayMap(ndArrayTS, "x", Ref("x", ts)), TNDArray(subsetTS("b"), Nat(1)),

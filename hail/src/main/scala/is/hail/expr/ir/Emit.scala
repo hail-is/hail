@@ -1075,7 +1075,7 @@ class Emit[C](
           dictTyp.construct(finishOuter(cb))
         }
 
-      case x@MakeNDArray(dataIR, shapeIR, rowMajorIR) =>
+      case x@MakeNDArray(dataIR, shapeIR, rowMajorIR, errorId) =>
         val xP = coerce[PCanonicalNDArray](x.pType)
         val shapePType = coerce[PTuple](shapeIR.pType)
         val nDims = shapePType.size
@@ -1084,9 +1084,12 @@ class Emit[C](
           emitI(shapeIR).flatMap(cb) { case shapeTupleCode: PBaseStructCode =>
             emitI(dataIR).map(cb) { case dataCode: PIndexableCode =>
               val shapeTupleValue = shapeTupleCode.memoize(cb, "make_ndarray_shape")
-              val memoData = dataCode.memoize(cb, "make_nd_array_memoizd_data")
+              val memoData = dataCode.memoize(cb, "make_nd_array_memoized_data")
 
-              cb.ifx(memoData.hasMissingValues(cb), {cb._fatal("Cannot construct an ndarray with missing values.")})
+              cb.ifx(memoData.hasMissingValues(cb), {
+                cb._throw(Code.newInstance[HailException, String, Int](
+                    "Cannot construct an ndarray with missing values.", errorId
+              ))})
 
               (0 until nDims).foreach { index =>
                 cb.ifx(shapeTupleValue.isFieldMissing(index),

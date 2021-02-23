@@ -902,11 +902,12 @@ object IRParser {
           lessThan <- ir_value_expr(env + (l -> elt) + (r -> elt))(it)
         } yield ArraySort(a, l, r, lessThan)
       case "MakeNDArray" =>
+        val errorId = int32_literal(it)
         for {
           data <- ir_value_expr(env)(it)
           shape <- ir_value_expr(env)(it)
           rowMajor <- ir_value_expr(env)(it)
-        } yield MakeNDArray(data, shape, rowMajor)
+        } yield MakeNDArray(data, shape, rowMajor, errorId)
       case "NDArrayShape" => ir_value_expr(env)(it).map(NDArrayShape)
       case "NDArrayReshape" =>
         for {
