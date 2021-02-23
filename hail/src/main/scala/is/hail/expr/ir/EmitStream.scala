@@ -3,11 +3,12 @@ package is.hail.expr.ir
 import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.asm4s.joinpoint.Ctrl
+import is.hail.expr.ir.orderings.StructOrdering
 import is.hail.services.shuffler._
 import is.hail.types.physical._
 import is.hail.types.physical.stypes.concrete.{SBinaryPointer, SBinaryPointerSettable, SCanonicalShufflePointerCode, SCanonicalShufflePointerSettable, SIntervalPointer, SIntervalPointerSettable, SSubsetStruct, SSubsetStructCode}
 import is.hail.types.physical.stypes.{interfaces, _}
-import is.hail.types.physical.stypes.interfaces.{SStream, SStreamCode, SBaseStruct}
+import is.hail.types.physical.stypes.interfaces.{SBaseStruct, SStream, SStreamCode}
 import is.hail.types.physical.stypes.primitives.SInt32Code
 import is.hail.types.virtual._
 import is.hail.utils._
@@ -1121,7 +1122,7 @@ object EmitStream {
           || EmitCodeBuilder.scopedCode(mb) { cb =>
           val left = eltType.loadCheapPCode(cb, heads(challenger)).subset(key: _*)
           val right = eltType.loadCheapPCode(cb, heads(winner)).subset(key: _*)
-          val ord = mb.ecb.getOrdering(left.st, right.st)
+          val ord = StructOrdering.make(left.st, right.st, cb.emb.ecb, missingFieldsEqual = false)
           ord.ltNonnull(cb, left, right)
         })
           ).orEmpty(Code(
@@ -1142,7 +1143,8 @@ object EmitStream {
               && EmitCodeBuilder.scopedCode(mb) { cb =>
               val left = eltType.loadCheapPCode(cb, heads(winner)).subset(key: _*)
               val right = curKey
-              val ord = mb.ecb.getOrdering(left.st, right.st)
+              val ord = StructOrdering.make(left.st, right.st.asInstanceOf[SBaseStruct],
+                cb.emb.ecb, missingFieldsEqual = false)
               ord.equivNonnull(cb, left, right)
             }).mux(
               LaddToResult.goto,
@@ -1227,7 +1229,8 @@ object EmitStream {
                 (xCurKey.tcode[Long].cne(0L) &&
                   EmitCodeBuilder.scopedCode(mb) { cb =>
                     val right = xCurElt.asBaseStruct.subset(key: _*).asPCode
-                    mb.ecb.getOrdering(xCurKey.st, right.st)
+                    StructOrdering.make(xCurKey.st.asInstanceOf[SBaseStruct], right.st.asInstanceOf[SBaseStruct],
+                      cb.emb.ecb, missingFieldsEqual = false)
                       .equivNonnull(cb, xCurKey, right)
                   }).mux(
                   xInOuter.mux(
@@ -1650,8 +1653,10 @@ object EmitStream {
             assert(relt.pt == rElemType)
             val lhs = lelt.map(_.asBaseStruct.subset(key: _*).asPCode)
             val rhs = relt.map(_.asBaseStruct.subset(key: _*).asPCode)
-            val ord = cb.emb.ecb.getOrdering(lhs.st, rhs.st)
-            ord.compare(cb, lhs, rhs, missingEqual = true)
+
+            StructOrdering.make(lhs.st.asInstanceOf[SBaseStruct], rhs.st.asInstanceOf[SBaseStruct],
+              cb.emb.ecb, missingFieldsEqual = false)
+              .compare(cb, lhs, rhs, missingEqual = true)
           }
 
           emitStream(leftIR).flatMap(cb) { leftPC =>
@@ -2105,8 +2110,13 @@ object EmitStream {
             assert(relt.pt == rEltType)
             val lhs = lelt.map(_.asBaseStruct.subset(lKey: _*).asPCode)
             val rhs = relt.map(_.asBaseStruct.subset(rKey: _*).asPCode)
+
             val ord = mb.ecb.getOrdering(lhs.st, rhs.st)
-            EmitCodeBuilder.scopedCode(mb) { cb => ord.compare(cb, lhs, rhs, false) }
+            EmitCodeBuilder.scopedCode(mb) { cb =>
+              StructOrdering.make(lhs.st.asInstanceOf[SBaseStruct], rhs.st.asInstanceOf[SBaseStruct],
+                cb.emb.ecb, missingFieldsEqual = false)
+                .compare(cb, lhs, rhs, missingEqual = false)
+            }
           }
 
           def joinF: ((EmitCode, EmitCode)) => EmitCode = { case (lelt, relt) =>
