@@ -27,7 +27,7 @@ bash miniconda.sh
 When installing, to prioritize the CPG package, list the `cpg` channel before `bioconda`:
 
 ```
-conda create --name hail -c cpg -c bioconda -c conda-forge hail
+conda create --name hail -c cpg -c conda-forge hail
 conda activate hail
 ```
 
