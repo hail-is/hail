@@ -30,13 +30,6 @@ spec:
               ln -s /sql-config/sql-config.cnf $HOME/.my.cnf
               while true; do sleep 1000; done
          image: {{ service_base_image.image }}
-         resources:
-           requests:
-             memory: "20M"
-             cpu: "10m"
-           limits:
-             memory: "1G"
-             cpu: "1"
          volumeMounts:
           - name: deploy-config
             mountPath: /deploy-config
