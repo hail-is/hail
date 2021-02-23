@@ -647,13 +647,15 @@ class MakeNDArray(IR):
         self.data = data
         self.shape = shape
         self.row_major = row_major
+        self._error_id = error_id
+        self._stack_trace = stack_trace
 
         if error_id is None or stack_trace is None:
             self.save_error_info()
 
     @typecheck_method(data=IR, shape=IR, row_major=IR)
     def copy(self, data, shape, row_major):
-        return MakeNDArray(data, shape, row_major)
+        return MakeNDArray(data, shape, row_major, self._error_id, self._stack_trace)
 
     def _compute_type(self, env, agg_env):
         self.data._compute_type(env, agg_env)
