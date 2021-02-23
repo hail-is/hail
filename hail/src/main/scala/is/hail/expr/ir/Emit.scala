@@ -1087,9 +1087,9 @@ class Emit[C](
               val memoData = dataCode.memoize(cb, "make_nd_array_memoized_data")
 
               cb.ifx(memoData.hasMissingValues(cb), {
-                cb.append(Code._throw[HailException, Unit](Code.newInstance[HailException, String, Int](
+                cb._throw(Code.newInstance[HailException, String, Int](
                     "Cannot construct an ndarray with missing values.", errorId
-              )))})
+              ))})
 
               (0 until nDims).foreach { index =>
                 cb.ifx(shapeTupleValue.isFieldMissing(index),
