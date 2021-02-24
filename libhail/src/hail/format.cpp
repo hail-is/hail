@@ -115,7 +115,7 @@ format1(FormatStream &s, float v) {
 
 void
 format1(FormatStream &s, double v) {
-  write_with_iostream<unsigned long>(s, v);
+  write_with_iostream<double>(s, v);
 }
 
 void
