@@ -366,7 +366,7 @@ class OnlineBoundedGather2:
             if not self._pending:
                 self._done_event.set()
 
-        assert self._pending
+        assert self._pending is not None
         t = asyncio.create_task(run_and_cleanup())
         self._pending[id] = t
         return t
