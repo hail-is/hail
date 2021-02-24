@@ -50,7 +50,13 @@ class ServiceSocket:
         session = await self.session()
         async with session.ws_connect(f'{self.url}/api/v1alpha/{endpoint}') as socket:
             await socket.send_str(json.dumps(data))
-            result = json.loads(self.handle_response(await socket.receive()))
+            response = await socket.receive()
+            if response.type in (aiohttp.WSMsgType.CLOSE,
+                                 aiohttp.WSMsgType.CLOSED,
+                                 aiohttp.WSMsgType.ERROR):
+                raise ValueError(f'bad response {response}')
+            assert response.type == aiohttp.WSMsgType.TEXT
+            result = json.loads(response.data)
             if result['status'] != 200:
                 raise FatalError(f'Error from server: {result["value"]}')
             return result['value']
