@@ -25,7 +25,7 @@ import scala.collection.mutable
 import scala.language.{existentials, postfixOps}
 
 // class for holding all information computed ahead-of-time that we need in the emitter
-class EmitContext(val executeContext: ExecuteContext, val req: RequirednessAnalysis)
+class EmitContext(val executeContext: ExecuteContext, val req: RequirednessAnalysis, val smm: StreamMemoryManagement)
 
 
 object SetupBuilder {
@@ -517,7 +517,9 @@ class Emit[C](
 
       case Let(name, value, body) => value.pType match {
         case streamType: PCanonicalStream =>
-          val outerRegion = region.asParent(streamType.separateRegions, "Let value")
+          val separateRegions = ctx.smm.lookup(value).separateRegions
+          assert(separateRegions == streamType.separateRegions)
+          val outerRegion = region.asParent(separateRegions, "Let value")
           val valuet = emitStream(value, outerRegion)
           val bodyEnv = env.bind(name -> new EmitUnrealizableValue(streamType, valuet))
 
@@ -533,7 +535,9 @@ class Emit[C](
         val streamType = coerce[PStream](a.pType)
         val eltType = streamType.elementType
 
-        val outerRegion = region.asParent(streamType.separateRegions, "StreamFor")
+        val separateRegions = ctx.smm.lookup(a).separateRegions
+        assert(separateRegions == streamType.separateRegions)
+        val outerRegion = region.asParent(separateRegions, "StreamFor")
         val eltRegion = outerRegion.createChildRegion(mb)
         val streamOpt = emitStream(a, outerRegion)
 
@@ -1014,7 +1018,10 @@ class Emit[C](
         val outerSize = mb.newLocal[Int]("groupByKey_outerSize")
         val groupSize = mb.newLocal[Int]("groupByKey_groupSize")
 
-        val outerRegion = region.asParent(collectionTyp.separateRegions, "GroupByKey")
+        val separateRegions = ctx.smm.lookup(collection).separateRegions
+        assert(separateRegions == collectionTyp.separateRegions)
+
+        val outerRegion = region.asParent(separateRegions, "GroupByKey")
         emitStream(collection, outerRegion).map(cb) { stream =>
           cb += EmitStream.write(mb, stream.asStream, sortedElts, outerRegion)
           cb += sorter.sort(sortF)
@@ -1709,7 +1716,10 @@ class Emit[C](
         presentC(sc.states(i).serializeToRegion(cb, coerce[PBinary](pt), region.code))
 
       case ToArray(a) =>
-        val outerRegion = region.asParent(coerce[PStream](a.pType).separateRegions, "ToArray")
+        val streamType = coerce[PStream](a.pType)
+        val separateRegions = ctx.smm.lookup(a).separateRegions
+        assert(separateRegions == streamType.separateRegions)
+        val outerRegion = region.asParent(separateRegions, "ToArray")
         emitStream(a, outerRegion).map(cb) { stream =>
           EmitStream.toArray(cb, coerce[PCanonicalArray](pt), stream.asStream, outerRegion)
         }
@@ -1718,7 +1728,10 @@ class Emit[C](
         val streamType = coerce[PStream](a.pType)
         val eltType = streamType.elementType
         val accType = x.accPType
-        val outerRegion = region.asParent(streamType.separateRegions, "StreamFold")
+
+        val separateRegions = ctx.smm.lookup(a).separateRegions
+        assert(separateRegions == streamType.separateRegions)
+        val outerRegion = region.asParent(separateRegions, "StreamFold")
         val eltRegion = outerRegion.createChildRegion(mb)
         val tmpRegion = outerRegion.createChildRegion(mb)
 
@@ -1760,7 +1773,10 @@ class Emit[C](
         val accVars = (names, accTypes).zipped.map(mb.newEmitField)
         val tmpAccVars = (names, accTypes).zipped.map(mb.newEmitField)
 
-        val outerRegion = region.asParent(streamType.separateRegions, "StreamFold2")
+        val separateRegions = ctx.smm.lookup(a).separateRegions
+        assert(separateRegions == streamType.separateRegions)
+
+        val outerRegion = region.asParent(separateRegions, "StreamFold2")
         val eltRegion = outerRegion.createChildRegion(mb)
         val tmpRegion = outerRegion.createChildRegion(mb)
 
@@ -1846,6 +1862,9 @@ class Emit[C](
           mb.ecb.getPType(rowsPType.elementType),
           Code._null)
         cb += shuffle.startPut()
+
+        val separateRegions = ctx.smm.lookup(rowsIR).separateRegions
+        assert(separateRegions == rowsPType.separateRegions)
 
         val outerRegion = region.asParent(rowsPType.separateRegions, "ShuffleWrite")
         val eltRegion = outerRegion.createChildRegion(mb)
@@ -1954,7 +1973,10 @@ class Emit[C](
 
         val spark = parentCB.backend()
 
-        val outerRegion = region.asParent(ctxsType.separateRegions, "CDA")
+        val separateRegions = ctx.smm.lookup(contexts).separateRegions
+        assert(separateRegions == ctxsType.separateRegions)
+
+        val outerRegion = region.asParent(separateRegions, "CDA")
 
         val baos = mb.genFieldThisRef[ByteArrayOutputStream]()
         val buf = mb.genFieldThisRef[OutputBuffer]()
@@ -2110,7 +2132,10 @@ class Emit[C](
     (ir: @unchecked) match {
       case Let(name, value, body) => value.pType match {
         case streamType: PCanonicalStream =>
-          val outerRegion = region.asParent(streamType.separateRegions, "Let value")
+
+          val separateRegions = ctx.smm.lookup(value).separateRegions
+          assert(separateRegions == streamType.separateRegions)
+          val outerRegion = region.asParent(separateRegions, "Let value")
           val valuet = emitStream(value, outerRegion)
           val bodyEnv = env.bind(name -> new EmitUnrealizableValue(streamType, valuet))
 
@@ -2194,7 +2219,10 @@ class Emit[C](
             region.code, eltType, lessThan, env, leftRightComparatorNames))
         }
 
-        val outerRegion = region.asParent(coerce[PStream](array.pType).separateRegions, "ArraySort")
+        val separateRegions = ctx.smm.lookup(array).separateRegions
+        assert(separateRegions == coerce[PStream](array.pType).separateRegions)
+
+        val outerRegion = region.asParent(separateRegions, "ArraySort")
         val optStream = emitStream(array, outerRegion)
         EmitCode.fromI(mb)(cb => optStream.toI(cb).map(cb) { stream =>
           cb += EmitStream.write(cb.emb, stream.asStream, vab, outerRegion)
@@ -2223,7 +2251,10 @@ class Emit[C](
         EmitCode(lengthTriplet.setup, lengthTriplet.m, PCode(pt, result))
 
       case x@StreamLen(a) =>
-        val outerRegion = region.asParent(coerce[PStream](a.pType).separateRegions, "StreamLen")
+        val separateRegions = ctx.smm.lookup(a).separateRegions
+        assert(separateRegions == coerce[PStream](a.pType).separateRegions)
+
+        val outerRegion = region.asParent(separateRegions, "StreamLen")
         emitStream(a, outerRegion).map { ss =>
           val count = mb.newLocal[Int]("stream_length")
           val SizedStream(setup, stream, length) = ss.asStream.stream
@@ -2337,7 +2368,11 @@ class Emit[C](
         val ctxCode = emit(pctx)
         val streamType = coerce[PStream](stream.pType)
         val eltType = coerce[PStruct](streamType.elementType)
-        val outerRegion = region.asParent(streamType.separateRegions, "WritePartition")
+
+        val separateRegions = ctx.smm.lookup(stream).separateRegions
+        assert(separateRegions == streamType.separateRegions)
+
+        val outerRegion = region.asParent(separateRegions, "WritePartition")
         COption.toEmitCode(
           COption.fromEmitCode(emitStream(stream, outerRegion)).flatMap { s =>
             COption.fromEmitCode(writer.consumeStream(ctx.executeContext, ctxCode, eltType, mb, outerRegion, s.asStream.stream))

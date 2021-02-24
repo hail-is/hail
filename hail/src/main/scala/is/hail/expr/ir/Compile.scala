@@ -48,6 +48,7 @@ object Compile {
 
     val usesAndDefs = ComputeUsesAndDefs(ir, errorIfFreeVariables = false)
     val requiredness = Requiredness.apply(ir, usesAndDefs, null, Env.empty) // Value IR inference doesn't need context
+    val smm = InferStreamMemoryManagement(ir, usesAndDefs)
     InferPType(ir, Env.empty, requiredness, usesAndDefs)
 
     val returnType = ir.pType
@@ -73,7 +74,7 @@ object Compile {
     assert(fb.mb.parameterTypeInfo == expectedCodeParamTypes, s"expected $expectedCodeParamTypes, got ${ fb.mb.parameterTypeInfo }")
     assert(fb.mb.returnTypeInfo == expectedCodeReturnType, s"expected $expectedCodeReturnType, got ${ fb.mb.returnTypeInfo }")
 
-    val emitContext = new EmitContext(ctx, requiredness)
+    val emitContext = new EmitContext(ctx, requiredness, smm)
     Emit(emitContext, ir, fb)
 
     val f = fb.resultWithIndex(print)
@@ -114,6 +115,7 @@ object CompileWithAggregators {
 
     val usesAndDefs = ComputeUsesAndDefs(ir, errorIfFreeVariables = false)
     val requiredness = Requiredness.apply(ir, usesAndDefs, null, Env.empty) // Value IR inference doesn't need context
+    val smm = InferStreamMemoryManagement(ir, usesAndDefs)
     InferPType(ir, Env.empty, requiredness, usesAndDefs)
 
     val returnType = ir.pType
@@ -135,7 +137,7 @@ object CompileWithAggregators {
     }
      */
 
-    val emitContext = new EmitContext(ctx, requiredness)
+    val emitContext = new EmitContext(ctx, requiredness, smm)
     Emit(emitContext, ir, fb, Some(aggSigs))
 
     val f = fb.resultWithIndex()
@@ -209,9 +211,10 @@ object CompileIterator {
 
     val usesAndDefs = ComputeUsesAndDefs(ir, errorIfFreeVariables = false)
     val requiredness = Requiredness.apply(ir, usesAndDefs, null, Env.empty) // Value IR inference doesn't need context
+    val smm = InferStreamMemoryManagement(ir, usesAndDefs)
     InferPType(ir, Env.empty, requiredness, usesAndDefs)
 
-    val emitContext = new EmitContext(ctx, requiredness)
+    val emitContext = new EmitContext(ctx, requiredness, smm)
     val emitter = new Emit(emitContext, stepFECB)
 
     val returnType = ir.pType.asInstanceOf[PStream].elementType.asInstanceOf[PStruct].setRequired(true)
