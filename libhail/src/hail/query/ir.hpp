@@ -3,6 +3,7 @@
 
 #include <tuple>
 #include <unordered_set>
+#include <string>
 
 #include <hail/allocators.hpp>
 #include <hail/hash.hpp>

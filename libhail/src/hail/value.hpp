@@ -85,7 +85,7 @@ public:
     set_bit(missing_bits, i, missing);
   }
   inline Value get_element(size_t i) const;
-  void set_element(size_t i, const Value &new_element);
+  inline void set_element(size_t i, const Value &new_element);
 
   inline operator Value() const;
 };
@@ -196,19 +196,19 @@ private:
   Value(const VStr *vtype, std::shared_ptr<ArenaAllocator> region, void *p)
     : vtype(vtype),
       region(std::move(region)),
-      missing(true) {
+      missing(false) {
     u.p = p;
   }
   Value(const VArray *vtype, std::shared_ptr<ArenaAllocator> region, void *p)
     : vtype(vtype),
       region(std::move(region)),
-      missing(true) {
+      missing(false) {
     u.p = p;
   }
   Value(const VTuple *vtype, std::shared_ptr<ArenaAllocator> region, void *p)
     : vtype(vtype),
       region(std::move(region)),
-      missing(true) {
+      missing(false) {
     u.p = p;
   }
 
@@ -334,6 +334,11 @@ ArrayValue::get_element(size_t i) const {
   return Value::load(vtype->element_vtype,
 		     region,
 		     p->elements + i * vtype->element_stride);
+}
+
+void 
+ArrayValue::set_element(size_t i, const Value &new_element) {
+  Value::store(p->elements + i * vtype->element_stride, new_element);
 }
 
 TupleValue::operator Value() const {
