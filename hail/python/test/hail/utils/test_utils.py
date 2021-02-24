@@ -231,5 +231,11 @@ class Tests(unittest.TestCase):
         my_frozen_dict = frozendict({"a": "apple", "h": "hail"})
         self.assertEqual(my_frozen_dict["a"], "apple")
 
+        # Make sure mutating old dict doesn't change frozen counterpart.
+        regular_dict = {"a": "b"}
+        frozen_counterpart = frozendict(regular_dict)
+        regular_dict["a"] = "d"
+        self.assertEqual(frozen_counterpart["a"], "b")
+
         with pytest.raises(TypeError, match="does not support item assignment"):
             my_frozen_dict["a"] = "b"
