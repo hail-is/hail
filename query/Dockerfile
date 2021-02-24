@@ -1,5 +1,6 @@
 FROM {{ service_base_image.image }}
 
+COPY query/log4j.properties /
 COPY query/hail.jar /
 COPY query/setup.py /query/
 COPY query/query /query/query/

@@ -113,7 +113,7 @@ object Worker {
     timer.end("readInputs")
     timer.start("executeFunction")
 
-    val hailContext = HailContext(ServiceBackend())
+    val hailContext = HailContext(ServiceBackend(), skipLoggingConfiguration = true)
     val htc = new ServiceTaskContext(i)
     HailTaskContext.setTaskContext(htc)
     val result = f(context, htc)
@@ -761,7 +761,7 @@ object ServiceBackendMain {
     val udsAddress = argv(0)
     val executor = Executors.newCachedThreadPool()
     val backend = new ServiceBackend()
-    HailContext(backend, "hail.log", false, false, 50, false, 3)
+    HailContext(backend, "hail.log", false, false, 50, skipLoggingConfiguration = true, 3)
 
     val ss = AFUNIXServerSocket.newInstance()
     ss.bind(new AFUNIXSocketAddress(new File(udsAddress)))

@@ -523,7 +523,7 @@ class Container:
 
 
 class JVMProcess:
-    classpath = f'{find_spark_home()}/jars/*:/hail.jar'
+    classpath = f'{find_spark_home()}/jars/*:/hail.jar:/log4j.properties'
     stack_size = 512 * 1024
     thread_pool = None
 
