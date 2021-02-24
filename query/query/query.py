@@ -249,7 +249,10 @@ async def on_cleanup(app):
 
 
 async def on_shutdown(app):
-    await asyncio.gather(*(t for t in asyncio.all_tasks() if t is not asyncio.current_task()))
+    remaining_tasks = [t for t in asyncio.all_tasks() if t is not asyncio.current_task()]
+    log.info(f"On shutdown request received, with {len(remaining_tasks)} tasks left")
+    await asyncio.gather(*remaining_tasks)
+    log.info("Tasks have all completed.")
 
 
 def run():
