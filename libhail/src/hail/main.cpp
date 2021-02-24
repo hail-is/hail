@@ -83,7 +83,7 @@ main() {
     int array_length = 8;
     auto my_array = Value::make_array(varray, region, array_length);
     print("array_length = ", my_array.get_size());
-    for(int i = 0; i < array_length; ++i) {
+    for (int i = 0; i < array_length; ++i) {
       Value element(vfloat64, 5.2 + i);
       my_array.set_element(i, element);
     }
