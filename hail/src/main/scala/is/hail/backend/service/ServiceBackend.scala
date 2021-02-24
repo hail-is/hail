@@ -15,7 +15,7 @@ import is.hail.expr.ir.{Compile, ExecuteContext, IR, IRParser, Literal, MakeArra
 import is.hail.io.fs.GoogleStorageFS
 import is.hail.linalg.BlockMatrix
 import is.hail.rvd.RVDPartitioner
-import is.hail.services.{DeployConfig, Tokens}
+import is.hail.services._
 import is.hail.services.batch_client.BatchClient
 import is.hail.services.shuffler.ShuffleClient
 import is.hail.types._
@@ -87,33 +87,42 @@ object Worker {
     timer.start(s"Job $i")
     timer.start("readInputs")
 
-    val fs = using(new FileInputStream(s"$scratchDir/gsa-key/key.json")) { is =>
-      new GoogleStorageFS(IOUtils.toString(is))
+    val fs = retryTransientErrors {
+      using(new FileInputStream(s"$scratchDir/gsa-key/key.json")) { is =>
+        new GoogleStorageFS(IOUtils.toString(is))
+      }
     }
 
-    val f = using(new ObjectInputStream(fs.openNoCompression(s"$root/f"))) { is =>
-      is.readObject().asInstanceOf[(Array[Byte], HailTaskContext) => Array[Byte]]
+    val f = retryTransientErrors {
+      using(new ObjectInputStream(fs.openNoCompression(s"$root/f"))) { is =>
+        is.readObject().asInstanceOf[(Array[Byte], HailTaskContext) => Array[Byte]]
+      }
     }
 
     var offset = 0L
     var length = 0
 
-    using(fs.openNoCompression(s"$root/context.offsets")) { is =>
-      is.seek(i * 12)
-      offset = is.readLong()
-      length = is.readInt()
+    retryTransientErrors {
+      using(fs.openNoCompression(s"$root/context.offsets")) { is =>
+        is.seek(i * 12)
+        offset = is.readLong()
+        length = is.readInt()
+      }
     }
 
-    val context = using(fs.openNoCompression(s"$root/contexts")) { is =>
-      is.seek(offset)
-      val context = new Array[Byte](length)
-      is.readFully(context)
-      context
+    val context = retryTransientErrors {
+      using(fs.openNoCompression(s"$root/contexts")) { is =>
+        is.seek(offset)
+        val context = new Array[Byte](length)
+        is.readFully(context)
+        context
+      }
     }
     timer.end("readInputs")
     timer.start("executeFunction")
 
-    val hailContext = HailContext(ServiceBackend(), skipLoggingConfiguration = true)
+    val hailContext = HailContext(
+      ServiceBackend(), skipLoggingConfiguration = true, quiet = true)
     val htc = new ServiceTaskContext(i)
     HailTaskContext.setTaskContext(htc)
     val result = f(context, htc)
