@@ -3544,6 +3544,7 @@ steps:
       namespace:
         valueFrom: default_ns.name
       mountPath: /ssl-config
+   timeout: 1200
    dependsOn:
     - default_ns
     - create_certs
