@@ -99,6 +99,16 @@ format1(FormatStream &s, unsigned long v) {
 }
 
 void
+format1(FormatStream &s, long long v) {
+  write_with_iostream<long long>(s, v);
+}
+
+void
+format1(FormatStream &s, unsigned long long v) {
+  write_with_iostream<unsigned long long>(s, v);
+}
+
+void
 format1(FormatStream &s, float v) {
   write_with_iostream<unsigned long>(s, v);
 }
