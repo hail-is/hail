@@ -130,11 +130,11 @@ steps:
      - from: /io/repo/atgu/sql
        to: /repo/atgu/
      - from: /io/repo/hail/python/hailtop
-       to: /repo/
+       to: /repo/hailtop/
      - from: /io/repo/hail/python/test
-       to: /repo/
+       to: /repo/test/
      - from: /io/repo/hail/python/cluster-tests
-       to: /repo/hail/python/
+       to: /repo/hail/python/cluster-tests/
      - from: /io/repo/hail/python/hail/hail_version
        to: /hail_version
      - from: /io/repo/hail/python/hail/hail_pip_version
