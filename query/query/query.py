@@ -196,25 +196,6 @@ async def set_flag(request, userdata):  # pylint: disable=unused-argument
     return java_to_web_response(jresp)
 
 
-@routes.get('/api/v1alpha/wait')
-async def wait_seconds(request):
-    """
-    Wait query.duration seconds before returning the request.
-    """
-    duration = request.query.get('duration')
-    try:
-        duration = int(duration)
-    except Exception as e:
-        return web.json_response({
-            'error': f'Invalid parameter duration "{duration}": {e}',
-        }, status=422)
-
-    await asyncio.sleep(int(duration))
-    e = os.getenv("TEST_VALUE", "None")
-    # remove_request_from_weakref_set(request)
-    return web.json_response({"d": f"You waited '{duration}' seconds!!", "env": e})
-
-
 async def on_startup(app):
     thread_pool = concurrent.futures.ThreadPoolExecutor(max_workers=16)
     app['thread_pool'] = thread_pool
