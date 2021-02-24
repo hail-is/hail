@@ -29,6 +29,7 @@ push: build
 .PHONY: deploy
 deploy: push
 	! [ -z $(NAMESPACE) ]  # call this like: make deploy NAMESPACE=default
+	kubectl -n $(NAMESPACE) apply -f auth-driver-service-account.yaml
 	python3 ../ci/jinja2_render.py '{"code":{"sha":"$(shell git rev-parse --short=12 HEAD)"},"deploy":$(DEPLOY),"default_ns":{"name":"$(NAMESPACE)"},"auth_image":{"image":"$(AUTH_IMAGE)"},"auth_database":{"user_secret_name":"sql-auth-user-config"},"global":{"project":"$(PROJECT)","zone":"$(ZONE)","domain":"$(DOMAIN)"}}' deployment.yaml deployment.yaml.out
 	kubectl -n $(NAMESPACE) apply -f deployment.yaml.out
 

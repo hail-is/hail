@@ -25,13 +25,13 @@ spec:
       affinity:
         podAntiAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
-            - labelSelector:
-                matchExpressions:
-                  - key: "app"
-                    operator: In
-                    values:
-                    - gateway
-              topologyKey: "kubernetes.io/hostname"
+           - labelSelector:
+               matchExpressions:
+                - key: "app"
+                  operator: In
+                  values:
+                   - gateway
+             topologyKey: "kubernetes.io/hostname"
       containers:
        - name: gateway
          image: "{{ gateway_image.image }}"
@@ -42,20 +42,6 @@ spec:
          ports:
           - containerPort: 80
           - containerPort: 443
-         volumeMounts:
-          - mountPath: /etc/letsencrypt
-            name: letsencrypt-config
-          - name: ssl-config-gateway
-            mountPath: /ssl-config
-            readOnly: true
-      volumes:
-        - name: letsencrypt-config
-          secret:
-            secretName: letsencrypt-config
-        - name: ssl-config-gateway
-          secret:
-            optional: false
-            secretName: ssl-config-gateway
 ---
 apiVersion: autoscaling/v2beta1
 kind: HorizontalPodAutoscaler
@@ -83,18 +69,3 @@ spec:
   selector:
     matchLabels:
       app: gateway
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: router
-  labels:
-    app: router
-spec:
-  ports:
-  - name: https
-    port: 443
-    protocol: TCP
-    targetPort: 443
-  selector:
-    app: router

@@ -1,5 +1,4 @@
-PROJECT = $(shell gcloud config get-value project)
-DOMAIN ?= hail.is
+include ../config.mk
 
 MONITORING_LATEST = gcr.io/$(PROJECT)/monitoring:latest
 MONITORING_IMAGE = gcr.io/$(PROJECT)/monitoring:$(shell docker images -q --no-trunc monitoring:latest | sed -e 's,[^:]*:,,')

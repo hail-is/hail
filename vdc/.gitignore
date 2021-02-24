@@ -1,5 +1,0 @@
-/secrets.yaml
-/gcp-config.yaml
-/gcr-pull.json
-/gcr-push-service-account-key.json
-/letsencrypt-config.yaml
