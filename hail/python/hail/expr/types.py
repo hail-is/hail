@@ -890,7 +890,7 @@ class tset(HailType):
         return "Set[" + self.element_type._parsable_string() + "]"
 
     def _convert_from_json(self, x):
-        return {self.element_type._convert_from_json_na(elt) for elt in x}
+        return frozenset({self.element_type._convert_from_json_na(elt) for elt in x})
 
     def _convert_to_json(self, x):
         return [self.element_type._convert_to_json_na(elt) for elt in x]
