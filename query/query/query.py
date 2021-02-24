@@ -94,6 +94,8 @@ async def handle_ws_response(request, userdata, endpoint, f):
         try:
             status = 200
             value = await blocking_to_async(app['thread_pool'], f, app, userdata, body)
+        except asyncio.CancelledError:
+            raise
         except Exception:
             log.exception(f'error calling {f.__name__} for {endpoint}')
             status = 500
