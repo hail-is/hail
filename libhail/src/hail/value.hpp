@@ -85,7 +85,7 @@ public:
     set_bit(missing_bits, i, missing);
   }
   inline Value get_element(size_t i) const;
-  void set_element(size_t i, const Value &new_element);
+  inline void set_element(size_t i, const Value &new_element);
 
   inline operator Value() const;
 };
@@ -334,6 +334,11 @@ ArrayValue::get_element(size_t i) const {
   return Value::load(vtype->element_vtype,
 		     region,
 		     p->elements + i * vtype->element_stride);
+}
+
+void 
+ArrayValue::set_element(size_t i, const Value &new_element) {
+  Value::store(p->elements + i * vtype->element_stride, new_element);
 }
 
 TupleValue::operator Value() const {
