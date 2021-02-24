@@ -13,6 +13,7 @@ from .type_parsing import type_grammar, type_node_visitor
 from hail.genetics.reference_genome import reference_genome_type
 from hail.typecheck import typecheck, typecheck_method, oneof, transformed
 from hail.utils.java import escape_parsable
+from hail.utils import frozendict
 
 __all__ = [
     'dtype',
@@ -993,8 +994,8 @@ class tdict(HailType):
         return "Dict[{},{}]".format(self.key_type._parsable_string(), self.value_type._parsable_string())
 
     def _convert_from_json(self, x):
-        return {self.key_type._convert_from_json_na(elt['key']): self.value_type._convert_from_json_na(elt['value']) for
-                elt in x}
+        return frozendict({self.key_type._convert_from_json_na(elt['key']): self.value_type._convert_from_json_na(elt['value']) for
+                            elt in x})
 
     def _convert_to_json(self, x):
         return [{'key': self.key_type._convert_to_json(k),

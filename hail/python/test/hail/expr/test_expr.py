@@ -3244,6 +3244,11 @@ class Tests(unittest.TestCase):
         # Test that it's evalable, since python sets aren't hashable.
         assert hl.eval(dict_with_set_key) == {frozenset([1, 2, 3]): 4}
 
+    def test_dict_keyed_by_dict(self):
+        dict_with_dict_key = hl.dict({hl.dict({1:2, 3:5}): 4})
+        # Test that it's evalable, since python dicts aren't hashable.
+        assert hl.eval(dict_with_dict_key) == {hl.utils.frozendict({1:2, 3:5}): 4}
+
     def test_nan_roundtrip(self):
         a = [math.nan, math.inf, -math.inf, 0, 1]
         round_trip = hl.eval(hl.literal(a))
