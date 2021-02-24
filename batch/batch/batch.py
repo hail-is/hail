@@ -42,6 +42,7 @@ def batch_record_to_dict(record):
     d = {
         'id': record['id'],
         'billing_project': record['billing_project'],
+        'token': record['token'],
         'state': state,
         'complete': record['state'] == 'complete',
         'closed': record['state'] != 'open',
