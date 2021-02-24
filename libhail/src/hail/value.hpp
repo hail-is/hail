@@ -196,19 +196,19 @@ private:
   Value(const VStr *vtype, std::shared_ptr<ArenaAllocator> region, void *p)
     : vtype(vtype),
       region(std::move(region)),
-      missing(true) {
+      missing(false) {
     u.p = p;
   }
   Value(const VArray *vtype, std::shared_ptr<ArenaAllocator> region, void *p)
     : vtype(vtype),
       region(std::move(region)),
-      missing(true) {
+      missing(false) {
     u.p = p;
   }
   Value(const VTuple *vtype, std::shared_ptr<ArenaAllocator> region, void *p)
     : vtype(vtype),
       region(std::move(region)),
-      missing(true) {
+      missing(false) {
     u.p = p;
   }
 
