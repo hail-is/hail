@@ -325,7 +325,7 @@ class OnlineBoundedGather2:
         self._done_event = asyncio.Event()
         self._exception: Optional[BaseException] = None
 
-    async def _shutdown(self):
+    async def _shutdown(self) -> None:
         if self._pending is None:
             return
 
@@ -343,7 +343,7 @@ class OnlineBoundedGather2:
         if tasks:
             await asyncio.wait(tasks)
 
-    async def call(self, f, *args, **kwargs):
+    async def call(self, f, *args, **kwargs) -> asyncio.Task:
         if self._exception:
             raise self._exception
 
@@ -352,15 +352,13 @@ class OnlineBoundedGather2:
 
         async def run_and_cleanup():
             try:
-                print(f'in run_and_cleanup {f}')
-                await f(*args, **kwargs)
+                async with self._subsema:
+                    await f(*args, **kwargs)
             except:
                 if not self._exception:
                     _, exc, _ = sys.exc_info()
                     self._exception = exc
                     await self._shutdown()
-            finally:
-                self._subsema.release()
 
             if self._pending is None:
                 return
@@ -368,16 +366,19 @@ class OnlineBoundedGather2:
             if not self._pending:
                 self._done_event.set()
 
-        await self._subsema.acquire()
-
-        if self._pending is None:
-            self._subsema.release()
-            return
-
+        assert self._pending
         t = asyncio.create_task(run_and_cleanup())
         self._pending[id] = t
+        return t
 
-    async def wait(self):
+    async def wait(self, tasks: List[asyncio.Task]) -> None:
+        self._subsema.release()
+        try:
+            await asyncio.wait(tasks)
+        finally:
+            await self._subsema.acquire()
+
+    async def wait_done(self) -> None:
         while self._pending:
             if self._exception:
                 raise self._exception
@@ -389,17 +390,20 @@ class OnlineBoundedGather2:
             raise self._exception
 
     async def __aenter__(self) -> 'OnlineBoundedGather2':
+        await self._subsema.acquire()
         return self
 
     async def __aexit__(self,
                         exc_type: Optional[Type[BaseException]],
                         exc_val: Optional[BaseException],
                         exc_tb: Optional[TracebackType]) -> None:
+        self._subsema.release()
+
         _, exc, _ = sys.exc_info()
         if exc:
             await self._shutdown()
         else:
-            await self.wait()
+            await self.wait_done()
 
 
 async def bounded_gather2_return_exceptions(sema: asyncio.Semaphore, *aws):

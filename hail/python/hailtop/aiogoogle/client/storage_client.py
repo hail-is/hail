@@ -9,7 +9,7 @@ import asyncio
 import urllib.parse
 import aiohttp
 from hailtop.utils import (
-    secret_alnum_string, bounded_gather2, OnlineBoundedGather2,
+    secret_alnum_string, OnlineBoundedGather2,
     TransientError, retry_transient_errors)
 from hailtop.aiotools import (
     FileStatus, FileListEntry, ReadableStream, WritableStream, AsyncFS,
@@ -292,6 +292,7 @@ class ResumableInsertObjectStream(WritableStream):
         while self._write_buffer.size() >= self._chunk_size:
             await self._write_chunk()
         assert self._write_buffer.size() < self._chunk_size
+        return len(b)
 
     async def _wait_closed(self):
         assert self._closed
@@ -486,45 +487,55 @@ class GoogleStorageMultiPartCreate(MultiPartCreate):
                         exc_type: Optional[Type[BaseException]],
                         exc_val: Optional[BaseException],
                         exc_tb: Optional[TracebackType]) -> None:
-        try:
-            if exc_val is not None:
-                return
-
-            async def tree_compose(names, dest_name):
-                n = len(names)
-                assert n > 0
-                if n <= 32:
-                    await self._compose(names, dest_name)
+        async with OnlineBoundedGather2(self._sema) as pool:
+            cleanup_tasks = []
+            try:
+                if exc_val is not None:
                     return
 
-                q, r = divmod(n, 32)
-                i = 0
-                p = 0
-                chunks = []
-                while i < 32:
-                    # each chunk gets q, and the first r get one more
-                    chunk_size = q
-                    if i < r:
-                        chunk_size += 1
-                    chunks.append(names[p:p + chunk_size])
-                    p += chunk_size
-                    i += 1
-                assert p == n
-                assert len(chunks) == 32
+                async def tree_compose(names, dest_name):
+                    n = len(names)
+                    assert n > 0
+                    if n <= 32:
+                        await self._compose(names, dest_name)
+                        return
 
-                chunk_names = [self._tmp_name(f'chunk-{secret_alnum_string()}') for _ in range(32)]
+                    q, r = divmod(n, 32)
+                    i = 0
+                    p = 0
+                    chunks = []
+                    while i < 32:
+                        # each chunk gets q, and the first r get one more
+                        chunk_size = q
+                        if i < r:
+                            chunk_size += 1
+                        chunks.append(names[p:p + chunk_size])
+                        p += chunk_size
+                        i += 1
+                    assert p == n
+                    assert len(chunks) == 32
 
-                await bounded_gather2(self._sema, *[
-                    tree_compose(c, n)
-                    for c, n in zip(chunks, chunk_names)])
+                    chunk_names = [self._tmp_name(f'chunk-{secret_alnum_string()}') for _ in range(32)]
 
-                await self._compose(chunk_names, dest_name)
+                    chunk_tasks = [
+                        await pool.call(tree_compose, c, n)
+                        for c, n in zip(chunks, chunk_names)
+                    ]
 
-            await tree_compose(
-                [self._part_name(i) for i in range(self._num_parts)],
-                self._dest_name)
-        finally:
-            await self._fs.rmtree(self._sema, f'gs://{self._bucket}/{self._dest_dirname}_')
+                    await pool.wait(chunk_tasks)
+
+                    await self._compose(chunk_names, dest_name)
+
+                    for n in chunk_names:
+                        cleanup_tasks.append(
+                            await pool.call(self._fs._remove_doesnt_exist_ok(n)))
+
+                await pool.call(
+                    tree_compose,
+                    [self._part_name(i) for i in range(self._num_parts)],
+                    self._dest_name)
+            finally:
+                await self._fs.rmtree(self._sema, f'gs://{self._bucket}/{self._dest_dirname}_')
 
 
 class GoogleStorageAsyncFS(AsyncFS):
@@ -700,13 +711,17 @@ class GoogleStorageAsyncFS(AsyncFS):
         bucket, name = self._get_bucket_name(url)
         await self._storage_client.delete_object(bucket, name)
 
+    async def _remove_doesnt_exist_ok(self, url: str) -> None:
+        bucket, name = self._get_bucket_name(url)
+        try:
+            await self._storage_client.delete_object(bucket, name)
+        except FileNotFoundError:
+            pass
+
     async def rmtree(self, sema: asyncio.Semaphore, url: str) -> None:
         async with OnlineBoundedGather2(sema) as pool:
-            try:
-                async for entry in await self.listfiles(url, recursive=True):
-                    await pool.call(self.remove, await entry.url())
-            except FileNotFoundError:
-                pass
+            async for entry in await self.listfiles(url, recursive=True):
+                await pool.call(self._remove_doesnt_exist_ok, await entry.url())
 
     async def close(self) -> None:
         await self._storage_client.close()
