@@ -1,36 +1,26 @@
 import json
 import time
 import os
-import subprocess
 import socket
-import secrets
 import struct
 import logging
-from hailtop.utils import find_spark_home, sync_retry_transient_errors
+from hailtop.utils import sync_retry_transient_errors
 
 
 log = logging.getLogger('query.sockets')
 
 
-class ServiceBackendJavaProcess:
+class ServiceBackendJavaConnector:
     def __init__(self):
-        token = secrets.token_hex(16)
-        self._address = f'/tmp/hail.uds.{token}'
-        spark_home = find_spark_home()
-        self._process = subprocess.Popen(
-            ['java', '-cp', f'{spark_home}/jars/*:hail.jar',
-             'is.hail.backend.service.ServiceBackendMain', self._address])
-        while not os.path.exists(self._address):
+        self.fname = '/sock/sock'
+        while not os.path.exists(self.fname):
             time.sleep(1)
 
     def connect(self) -> 'ServiceBackendSocketSession':
         sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-        sync_retry_transient_errors(sock.connect, self._address)
+        sync_retry_transient_errors(sock.connect, self.fname)
         return ServiceBackendSocketSession(
             ServiceBackendSocketAPI(sock))
-
-    def close(self):
-        self._process.kill()
 
 
 class ServiceBackendSocketSession:

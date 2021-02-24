@@ -14,7 +14,7 @@ from hailtop.tls import internal_server_ssl_context
 from hailtop.hail_logging import AccessLogger
 from gear import setup_aiohttp_session, rest_authenticated_users_only, rest_authenticated_developers_only
 
-from .sockets import ServiceBackendSocketSession, ServiceBackendJavaProcess
+from .sockets import ServiceBackendSocketSession, ServiceBackendJavaConnector
 
 uvloop.install()
 
@@ -207,7 +207,7 @@ def jbackend(app) -> ServiceBackendSocketSession:
 async def on_startup(app):
     thread_pool = concurrent.futures.ThreadPoolExecutor(max_workers=16)
     app['thread_pool'] = thread_pool
-    app['java_process'] = ServiceBackendJavaProcess()
+    app['java_process'] = ServiceBackendJavaConnector()
     app['user_keys'] = dict()
     app['users'] = set()
 
@@ -217,8 +217,6 @@ async def on_startup(app):
 
 
 async def on_cleanup(app):
-    if 'java_process' in app:
-        app['java_process'].close()
     if 'k8s_client' in app:
         del app['k8s_client']
     await asyncio.gather(*(t for t in asyncio.all_tasks() if t is not asyncio.current_task()))
