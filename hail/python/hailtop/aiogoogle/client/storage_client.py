@@ -530,12 +530,17 @@ class GoogleStorageMultiPartCreate(MultiPartCreate):
                         cleanup_tasks.append(
                             await pool.call(self._fs._remove_doesnt_exist_ok(n)))
 
-                await pool.call(
-                    tree_compose,
+                await tree_compose(
                     [self._part_name(i) for i in range(self._num_parts)],
                     self._dest_name)
             finally:
                 await self._fs.rmtree(self._sema, f'gs://{self._bucket}/{self._dest_dirname}_')
+                # after the rmtree, all temporary files should be gone
+                # cancel any cleanup tasks that are still running
+                # exiting the pool will wait for everything to finish
+                for t in cleanup_tasks:
+                    if not t.done():
+                        t.cancel()
 
 
 class GoogleStorageAsyncFS(AsyncFS):
