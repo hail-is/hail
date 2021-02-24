@@ -323,6 +323,7 @@ class ServiceBackend(Backend):
              open: bool = False,
              disable_progress_bar: bool = False,
              callback: Optional[str] = None,
+             token: Optional[str] = None,
              **backend_kwargs
              ):  # pylint: disable-msg=too-many-statements
         """Execute a batch.
@@ -351,6 +352,8 @@ class ServiceBackend(Backend):
         callback:
             If not `None`, a URL that will receive at most one POST request
             after the entire batch completes.
+        token:
+            If not `None`, a string used for idempotency of batch submission.
         """
 
         if backend_kwargs:
@@ -358,9 +361,9 @@ class ServiceBackend(Backend):
 
         build_dag_start = time.time()
 
-        token = uuid.uuid4().hex[:6]
-        remote_tmpdir = f'gs://{self._bucket_name}/batch/{token}'
-        local_tmpdir = f'/io/batch/{token}'
+        uid = uuid.uuid4().hex[:6]
+        remote_tmpdir = f'gs://{self._bucket_name}/batch/{uid}'
+        local_tmpdir = f'/io/batch/{uid}'
 
         default_image = 'ubuntu:18.04'
 
@@ -368,7 +371,8 @@ class ServiceBackend(Backend):
         if batch.name is not None:
             attributes['name'] = batch.name
 
-        bc_batch = self._batch_client.create_batch(attributes=attributes, callback=callback)
+        bc_batch = self._batch_client.create_batch(attributes=attributes, callback=callback,
+                                                   token=token)
 
         n_jobs_submitted = 0
         used_remote_tmpdir = False
