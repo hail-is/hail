@@ -197,13 +197,14 @@ class ServiceBackendSocketAPI:
         jstacktrace = self.read_str()
         raise ValueError(jstacktrace)
 
-    def execute(self, username: str, session_id: str, billing_project: str, bucket: str, code: str):
+    def execute(self, username: str, session_id: str, billing_project: str, bucket: str, code: str, token: str):
         self.write_int(ServiceBackendSocketAPI.EXECUTE)
         self.write_str(username)
         self.write_str(session_id)
         self.write_str(billing_project)
         self.write_str(bucket)
         self.write_str(code)
+        self.write_str(token)
         success = self.read_bool()
         if success:
             s = self.read_str()

@@ -11,7 +11,7 @@ from hail.expr.blockmatrix_type import tblockmatrix
 
 from hailtop.config import get_deploy_config, get_user_config, DeployConfig
 from hailtop.auth import service_auth_headers
-from hailtop.utils import async_to_blocking, retry_transient_errors
+from hailtop.utils import async_to_blocking, retry_transient_errors, secret_alnum_string
 from hail.ir.renderer import CSERenderer
 
 from .backend import Backend
@@ -114,10 +114,12 @@ class ServiceBackend(Backend):
         return r(ir)
 
     def execute(self, ir, timed=False):
+        token = secret_alnum_string(n=32)
         resp = self.socket.request('execute',
                                    code=self._render(ir),
                                    billing_project=self._billing_project,
-                                   bucket=self._bucket)
+                                   bucket=self._bucket,
+                                   token=token)
         typ = dtype(resp['type'])
         if typ == tvoid:
             value = None

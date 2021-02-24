@@ -355,9 +355,10 @@ class ServiceBackend() extends Backend {
     }
   }
 
-  def execute(username: String, sessionID: String, billingProject: String, bucket: String, code: String): String = {
+  def execute(username: String, sessionID: String, billingProject: String, bucket: String, code: String, token: String): String = {
     ExecutionTimer.logTime("ServiceBackend.execute") { timer =>
       userContext(username, timer) { ctx =>
+        log.info(s"executing: ${token}")
         ctx.backendContext = new ServiceBackendContext(username, sessionID, billingProject, bucket)
 
         execute(ctx, IRParser.parse_value_ir(ctx, code)) match {
@@ -652,8 +653,9 @@ class ServiceBackendSocketAPI(backend: ServiceBackend, socket: Socket) extends T
           val billingProject = readString()
           val bucket = readString()
           val code = readString()
+          val token = readString()
           try {
-            val result = backend.execute(username, sessionId, billingProject, bucket, code)
+            val result = backend.execute(username, sessionId, billingProject, bucket, code, token)
             writeBool(true)
             writeString(result)
           } catch {

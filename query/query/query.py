@@ -48,8 +48,9 @@ async def healthcheck(request):  # pylint: disable=unused-argument
 
 def blocking_execute(app, userdata, body):
     with jbackend(app) as jb:
+        log.info(f'executing {body["token"]}')
         return jb.execute(
-            userdata['username'], userdata['session_id'], body['billing_project'], body['bucket'], body['code'])
+            userdata['username'], userdata['session_id'], body['billing_project'], body['bucket'], body['code'], body['token'])
 
 
 def blocking_load_references_from_dataset(app, userdata, body):
