@@ -81,8 +81,9 @@ spec:
            - /controller.sh
 {% endif %}
            - java
+           - -Dlog4j.configuration=file:/log4j.properties
            - -cp
-           - /hail.jar:/log4j.properties:/usr/local/lib/python3.7/dist-packages/pyspark/jars/*
+           - /hail.jar:/usr/local/lib/python3.7/dist-packages/pyspark/jars/*
            - is.hail.backend.service.ServiceBackendMain
            - /sock/sock
           env:

@@ -271,15 +271,6 @@ class ServiceBackend() extends Backend {
 
   def stop(): Unit = ()
 
-  def formatException(e: Exception): String = {
-    using(new StringWriter()) { sw =>
-      using(new PrintWriter(sw)) { pw =>
-        e.printStackTrace(pw)
-        sw.toString
-      }
-    }
-  }
-
   def valueType(username: String, s: String): String = {
     ExecutionTimer.logTime("ServiceBackend.valueType") { timer =>
       userContext(username, timer) { ctx =>
@@ -565,12 +556,6 @@ class ServiceBackendSocketAPI(backend: ServiceBackend, socket: Socket) extends T
 
   def writeString(s: String): Unit = writeBytes(s.getBytes(StandardCharsets.UTF_8))
 
-  def throwableToString(t: Throwable): String = {
-    val sw = new StringWriter();
-    t.printStackTrace(new PrintWriter(sw));
-    return sw.toString();
-  }
-
   def eventLoop(): Unit = {
     var continue = true
     while (continue) {
@@ -590,7 +575,7 @@ class ServiceBackendSocketAPI(backend: ServiceBackend, socket: Socket) extends T
           } catch {
             case t: Throwable =>
               writeBool(false)
-              writeString(throwableToString(t))
+              writeString(formatException(t))
           }
 
         case VALUE_TYPE =>
@@ -603,7 +588,7 @@ class ServiceBackendSocketAPI(backend: ServiceBackend, socket: Socket) extends T
           } catch {
             case t: Throwable =>
               writeBool(false)
-              writeString(throwableToString(t))
+              writeString(formatException(t))
           }
 
         case TABLE_TYPE =>
@@ -616,7 +601,7 @@ class ServiceBackendSocketAPI(backend: ServiceBackend, socket: Socket) extends T
           } catch {
             case t: Throwable =>
               writeBool(false)
-              writeString(throwableToString(t))
+              writeString(formatException(t))
           }
 
         case MATRIX_TABLE_TYPE =>
@@ -629,7 +614,7 @@ class ServiceBackendSocketAPI(backend: ServiceBackend, socket: Socket) extends T
           } catch {
             case t: Throwable =>
               writeBool(false)
-              writeString(throwableToString(t))
+              writeString(formatException(t))
           }
 
         case BLOCK_MATRIX_TYPE =>
@@ -642,7 +627,7 @@ class ServiceBackendSocketAPI(backend: ServiceBackend, socket: Socket) extends T
           } catch {
             case t: Throwable =>
               writeBool(false)
-              writeString(throwableToString(t))
+              writeString(formatException(t))
           }
 
         case REFERENCE_GENOME =>
@@ -655,7 +640,7 @@ class ServiceBackendSocketAPI(backend: ServiceBackend, socket: Socket) extends T
           } catch {
             case t: Throwable =>
               writeBool(false)
-              writeString(throwableToString(t))
+              writeString(formatException(t))
           }
 
         case EXECUTE =>
@@ -671,7 +656,7 @@ class ServiceBackendSocketAPI(backend: ServiceBackend, socket: Socket) extends T
           } catch {
             case t: Throwable =>
               writeBool(false)
-              writeString(throwableToString(t))
+              writeString(formatException(t))
           }
 
         case FLAGS =>
@@ -682,7 +667,7 @@ class ServiceBackendSocketAPI(backend: ServiceBackend, socket: Socket) extends T
           } catch {
             case t: Throwable =>
               writeBool(false)
-              writeString(throwableToString(t))
+              writeString(formatException(t))
           }
 
         case GET_FLAG =>
@@ -694,7 +679,7 @@ class ServiceBackendSocketAPI(backend: ServiceBackend, socket: Socket) extends T
           } catch {
             case t: Throwable =>
               writeBool(false)
-              writeString(throwableToString(t))
+              writeString(formatException(t))
           }
 
         case SET_FLAG =>
@@ -707,7 +692,7 @@ class ServiceBackendSocketAPI(backend: ServiceBackend, socket: Socket) extends T
           } catch {
             case t: Throwable =>
               writeBool(false)
-              writeString(throwableToString(t))
+              writeString(formatException(t))
           }
 
         case UNSET_FLAG =>
@@ -719,7 +704,7 @@ class ServiceBackendSocketAPI(backend: ServiceBackend, socket: Socket) extends T
           } catch {
             case t: Throwable =>
               writeBool(false)
-              writeString(throwableToString(t))
+              writeString(formatException(t))
           }
 
         case ADD_USER =>
@@ -731,7 +716,7 @@ class ServiceBackendSocketAPI(backend: ServiceBackend, socket: Socket) extends T
           } catch {
             case t: Throwable =>
               writeBool(false)
-              writeString(throwableToString(t))
+              writeString(formatException(t))
           }
 
         case GOODBYE =>

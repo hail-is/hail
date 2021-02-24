@@ -3,12 +3,14 @@ package is.hail
 import javax.net.ssl.SSLException
 import java.net.SocketException
 import java.io.EOFException
+import is.hail.utils._
 
 import org.apache.http.NoHttpResponseException
 import org.apache.http.conn.HttpHostConnectException
 import org.apache.log4j.{LogManager, Logger}
 
 import scala.util.Random
+import java.io._
 
 package object services {
   lazy val log: Logger = LogManager.getLogger("is.hail.services")
@@ -65,5 +67,14 @@ package object services {
     }
 
     throw new AssertionError("unreachable")
+  }
+
+  def formatException(e: Throwable): String = {
+    using(new StringWriter()) { sw =>
+      using(new PrintWriter(sw)) { pw =>
+        e.printStackTrace(pw)
+        sw.toString
+      }
+    }
   }
 }
