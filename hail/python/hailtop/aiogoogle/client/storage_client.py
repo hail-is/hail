@@ -10,8 +10,7 @@ import urllib.parse
 import aiohttp
 from hailtop.utils import (
     secret_alnum_string, bounded_gather2, OnlineBoundedGather2,
-    TransientError, retry_transient_errors,
-    AsyncWorkerPool, WaitableSharedPool, secret_alnum_string)
+    TransientError, retry_transient_errors)
 from hailtop.aiotools import (
     FileStatus, FileListEntry, ReadableStream, WritableStream, AsyncFS,
     FeedableAsyncIterable, FileAndDirectoryError, MultiPartCreate)
