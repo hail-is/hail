@@ -712,15 +712,19 @@ class GoogleStorageAsyncFS(AsyncFS):
         await self._storage_client.delete_object(bucket, name)
 
     async def _remove_doesnt_exist_ok(self, url: str) -> None:
-        bucket, name = self._get_bucket_name(url)
         try:
+            bucket, name = self._get_bucket_name(url)
             await self._storage_client.delete_object(bucket, name)
         except FileNotFoundError:
             pass
 
     async def rmtree(self, sema: asyncio.Semaphore, url: str) -> None:
         async with OnlineBoundedGather2(sema) as pool:
-            async for entry in await self.listfiles(url, recursive=True):
+            try:
+                it = await self.listfiles(url, recursive=True)
+            except FileNotFoundError:
+                return
+            async for entry in it:
                 await pool.call(self._remove_doesnt_exist_ok, await entry.url())
 
     async def close(self) -> None:
