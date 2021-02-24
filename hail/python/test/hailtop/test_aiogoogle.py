@@ -319,12 +319,11 @@ async def test_multi_part_create(filesystem, permutation):
     for b in part_data:
         part_start.append(s)
         s += len(b)
-    print(part_start)
 
     path = f'{base}a'
-    worker_pool = AsyncWorkerPool(50)
-    try:
-        async with await fs.multi_part_create(worker_pool, path, len(part_data)) as c:
+    sema = asyncio.Semaphore(50)
+    async with sema:
+        async with await fs.multi_part_create(sema, path, len(part_data)) as c:
             async def create_part(i):
                 async with await c.create_part(i, part_start[i]) as f:
                     await f.write(part_data[i])
@@ -342,5 +341,3 @@ async def test_multi_part_create(filesystem, permutation):
         async with await fs.open(path) as f:
             actual = await f.read()
         assert expected == actual
-    finally:
-        worker_pool.shutdown()
