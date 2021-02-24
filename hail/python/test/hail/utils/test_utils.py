@@ -225,3 +225,11 @@ class Tests(unittest.TestCase):
         self.assertEqual(escape_id("cat"), "cat")
         self.assertEqual(escape_id("abc123"), "abc123")
         self.assertEqual(escape_id("123abc"), "`123abc`")
+
+    def test_frozen_dict(self):
+        self.assertEqual(frozendict({1:2, 4:7}), frozendict({1:2, 4:7}))
+        my_frozen_dict = frozendict({"a": "apple", "h": "hail"})
+        self.assertEqual(my_frozen_dict["a"], "apple")
+
+        with pytest.raises(TypeError, match="does not support item assignment"):
+            my_frozen_dict["a"] = "b"
