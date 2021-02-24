@@ -61,7 +61,7 @@ class SSubsetStructSettable(val st: SSubsetStruct, prev: PStructSettable) extend
   def isFieldMissing(fieldIdx: Int): Code[Boolean] =
     prev.isFieldMissing(st.newToOldFieldMapping(fieldIdx))
 
-  def store(cb: EmitCodeBuilder, pv: PCode): Unit = prev.store(cb, pv)
+  def store(cb: EmitCodeBuilder, pv: PCode): Unit = prev.store(cb, pv.asInstanceOf[SSubsetStructCode].prev)
 }
 
 class SSubsetStructCode(val st: SSubsetStruct, val prev: PBaseStructCode) extends PBaseStructCode {

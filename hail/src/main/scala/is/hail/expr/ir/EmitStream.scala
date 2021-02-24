@@ -2108,10 +2108,10 @@ object EmitStream {
           def compare(lelt: EmitValue, relt: EmitValue): Code[Int] = {
             assert(lelt.pt == lEltType)
             assert(relt.pt == rEltType)
-            val lhs = lelt.map(_.asBaseStruct.subset(lKey: _*).asPCode)
-            val rhs = relt.map(_.asBaseStruct.subset(rKey: _*).asPCode)
 
             EmitCodeBuilder.scopedCode(mb) { cb =>
+              val lhs = lelt.map(_.asBaseStruct.subset(lKey: _*).asPCode)
+              val rhs = relt.map(_.asBaseStruct.subset(rKey: _*).asPCode)
               StructOrdering.make(lhs.st.asInstanceOf[SBaseStruct], rhs.st.asInstanceOf[SBaseStruct],
                 cb.emb.ecb, missingFieldsEqual = false)
                 .compare(cb, lhs, rhs, missingEqual = false)

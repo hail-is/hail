@@ -75,6 +75,8 @@ abstract class CodeOrdering {
   val type1: SType
   val type2: SType
 
+  def reversed: Boolean = false
+
   final def checkedPCode[T](cb: EmitCodeBuilder, arg1: PCode, arg2: PCode, context: String,
     f: (EmitCodeBuilder, PCode, PCode) => Code[T])(implicit ti: TypeInfo[T]): Code[T] = {
     if (!arg1.st.equalsExceptTopLevelRequiredness(type1))
@@ -82,7 +84,7 @@ abstract class CodeOrdering {
     if (!arg2.st.equalsExceptTopLevelRequiredness(type2))
       throw new RuntimeException(s"CodeOrdering: $context: type mismatch (right)\n  generated: $type2\n  argument:  ${ arg2.st }")
 
-    val cacheKey = ("ordering", type1, type2, context)
+    val cacheKey = ("ordering", reversed, type1, type2, context)
     val mb = cb.emb.ecb.getOrGenEmitMethod(s"ord_$context", cacheKey,
       FastIndexedSeq(arg1.st.paramType, arg2.st.paramType), ti) { mb =>
 
@@ -102,7 +104,7 @@ abstract class CodeOrdering {
     if (!arg2.st.equalsExceptTopLevelRequiredness(type2))
       throw new RuntimeException(s"CodeOrdering: $context: type mismatch (right)\n  generated: $type2\n  argument:  ${ arg2.st }")
 
-    val cacheKey = ("ordering", type1, type2, context, missingEqual)
+    val cacheKey = ("ordering", reversed, type1, type2, context, missingEqual)
     val mb = cb.emb.ecb.getOrGenEmitMethod(s"ord_$context", cacheKey,
       FastIndexedSeq(arg1.st.asEmitParam, arg2.st.asEmitParam), ti) { mb =>
 
@@ -272,22 +274,24 @@ abstract class CodeOrdering {
 
   // reverses the sense of the non-null comparison only
   def reverse: CodeOrdering = new CodeOrdering() {
-    override def reverse: CodeOrdering = CodeOrdering.this
+    override def reverse: CodeOrdering = outer
 
     val type1: SType = outer.type1
     val type2: SType = outer.type2
 
-    override def _compareNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode) = CodeOrdering.this.compareNonnull(cb, y, x)
+    override def reversed: Boolean = true
 
-    override def _ltNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode) = CodeOrdering.this.ltNonnull(cb, y, x)
+    override def _compareNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Int] = outer._compareNonnull(cb, y, x)
 
-    override def _lteqNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode) = CodeOrdering.this.lteqNonnull(cb, y, x)
+    override def _ltNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Boolean] = outer._ltNonnull(cb, y, x)
 
-    override def _gtNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode) = CodeOrdering.this.gtNonnull(cb, y, x)
+    override def _lteqNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Boolean] = outer._lteqNonnull(cb, y, x)
 
-    override def _gteqNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode) = CodeOrdering.this.gteqNonnull(cb, y, x)
+    override def _gtNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Boolean] = outer._gtNonnull(cb, y, x)
 
-    override def _equivNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode) = CodeOrdering.this.equivNonnull(cb, y, x)
+    override def _gteqNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Boolean] = outer._gteqNonnull(cb, y, x)
+
+    override def _equivNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Boolean] = outer._equivNonnull(cb, y, x)
   }
 }
 
