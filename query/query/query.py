@@ -226,7 +226,16 @@ async def on_startup(app):
 
 async def on_cleanup(app):
     del app['k8s_client']
-    await asyncio.gather(*(t for t in asyncio.all_tasks() if t is not asyncio.current_task()))
+    await asyncio.wait(*(t for t in asyncio.all_tasks() if t is not asyncio.current_task()))
+
+
+async def on_shutdown(app):
+    # Filter the asyncio.current_task(), because if we await
+    # the current task we'll end up in a deadlock
+    remaining_tasks = [t for t in asyncio.all_tasks() if t is not asyncio.current_task()]
+    log.info(f"On shutdown request received, with {len(remaining_tasks)} remaining tasks")
+    await asyncio.wait(*remaining_tasks)
+    log.info("All tasks on shutdown have completed")
 
 
 def run():
@@ -238,6 +247,7 @@ def run():
 
     app.on_startup.append(on_startup)
     app.on_cleanup.append(on_cleanup)
+    app.on_shutdown.append(on_shutdown)
 
     deploy_config = get_deploy_config()
     web.run_app(
