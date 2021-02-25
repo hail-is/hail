@@ -41,8 +41,7 @@ curl -fsSL "https://github.com/GoogleCloudPlatform/docker-credential-gcr/release
 export HOME=/root
 
 docker-credential-gcr configure-docker --include-artifact-registry
-DOCKER_ROOT_IMAGE=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/docker_root_image")
-docker pull ${DOCKER_ROOT_IMAGE}
+docker pull {{ global.docker_root_image }}
 docker pull gcr.io/google.com/cloudsdktool/cloud-sdk:310.0.0-alpine
 
 # add docker daemon debug logging
