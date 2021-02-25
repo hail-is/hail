@@ -18,6 +18,7 @@ from batch.driver.k8s_cache import K8sCache
 
 KUBERNETES_SERVER_URL = os.environ['KUBERNETES_SERVER_URL']
 DOCKER_PREFIX = os.environ['DOCKER_PREFIX']
+DOCKER_ROOT_IMAGE = f'{DOCKER_PREFIX}/ubuntu:18.04'
 
 
 def populate_secret_host_path(host_path: str, secret_data: Union[str, bytes]):
@@ -134,7 +135,7 @@ class LocalBatchBuilder:
                         copy_script += f'mkdir -p {os.path.dirname(dest)}\n'
                     copy_script += f'cp -a {src} {dest}\n'
                 input_cid, input_ok = await docker_run(
-                    'docker', 'run', '-d', '-v', f'{root}/shared:/shared', '-v', f'{job_root}/io:/io', f'{DOCKER_PREFIX}/ubuntu:18.04', '/bin/bash', '-c', copy_script)
+                    'docker', 'run', '-d', '-v', f'{root}/shared:/shared', '-v', f'{job_root}/io:/io', DOCKER_ROOT_IMAGE, '/bin/bash', '-c', copy_script)
 
                 print(f'{j._index}: {job_name}/input: {input_cid} {"OK" if input_ok else "FAILED"}')
             else:
@@ -249,7 +250,7 @@ users:
                             copy_script += f'mkdir -p {os.path.dirname(dest)}\n'
                         copy_script += f'cp -a {src} {dest}\n'
                     output_cid, output_ok = await docker_run(
-                        'docker', 'run', '-d', '-v', f'{root}/shared:/shared', '-v', f'{job_root}/io:/io', f'{DOCKER_PREFIX}/ubuntu:18.04', '/bin/bash', '-c', copy_script)
+                        'docker', 'run', '-d', '-v', f'{root}/shared:/shared', '-v', f'{job_root}/io:/io', DOCKER_ROOT_IMAGE, '/bin/bash', '-c', copy_script)
                     print(f'{j._index}: {job_name}/output: {output_cid} {"OK" if output_ok else "FAILED"}')
                 else:
                     output_ok = False
