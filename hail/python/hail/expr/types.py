@@ -978,8 +978,8 @@ class tdict(HailType):
 
     def _typecheck_one_level(self, annotation):
         if annotation is not None:
-            if not isinstance(annotation, dict):
-                raise TypeError("type 'dict' expected Python 'dict', but found type '%s'" % type(annotation))
+            if not isinstance(annotation, Mapping):
+                raise TypeError("type 'dict' expected Python 'Mapping', but found type '%s'" % type(annotation))
 
     def __str__(self):
         return "dict<{}, {}>".format(self.key_type, self.value_type)
