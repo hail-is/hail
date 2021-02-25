@@ -4,6 +4,7 @@ from collections.abc import Mapping
 T = TypeVar("T")
 U = TypeVar("U")
 
+
 class frozendict(Mapping):
     """
     An object representing an immutable dictionary.

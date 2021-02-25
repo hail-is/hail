@@ -994,8 +994,7 @@ class tdict(HailType):
         return "Dict[{},{}]".format(self.key_type._parsable_string(), self.value_type._parsable_string())
 
     def _convert_from_json(self, x):
-        return frozendict({self.key_type._convert_from_json_na(elt['key']): self.value_type._convert_from_json_na(elt['value']) for
-                            elt in x})
+        return frozendict({self.key_type._convert_from_json_na(elt['key']): self.value_type._convert_from_json_na(elt['value']) for elt in x})
 
     def _convert_to_json(self, x):
         return [{'key': self.key_type._convert_to_json(k),
