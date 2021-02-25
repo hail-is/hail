@@ -828,6 +828,7 @@ class tstream(HailType):
     def _get_context(self):
         return self.element_type.get_context()
 
+
 def is_setlike(maybe_setlike):
     return isinstance(maybe_setlike, set) or isinstance(maybe_setlike, frozenset)
 

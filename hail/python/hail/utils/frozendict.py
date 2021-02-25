@@ -11,6 +11,10 @@ class frozendict(Mapping):
 
     >>> my_frozen_dict = hl.utils.frozendict({1:2, 7:5})
 
+    To get a normal python dictionary with the same elements from a `frozendict`:
+
+    >>> dict(frozendict({'a': 1, 'b': 2}))
+
     Note
     ----
     This object refers to the Python value returned by taking or collecting
@@ -35,3 +39,6 @@ class frozendict(Mapping):
 
     def __iter__(self):
         return iter(self.d)
+
+    def __repr__(self): 
+        return f'frozendict({self.d!r})'  
