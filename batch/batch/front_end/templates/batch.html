@@ -85,7 +85,7 @@
       <tbody>
         {% for job in batch['jobs'] %}
         <tr>
-          <td class="numeric-cell">
+          <td class="numeric-cell" onClick="document.location.href='{{ base_path }}/batches/{{ job['batch_id'] }}/jobs/{{ job['job_id'] }}';">
             <a href="{{ base_path }}/batches/{{ job['batch_id'] }}/jobs/{{ job['job_id'] }}">{{ job['job_id'] }}</a>
           </td>
           <td>
