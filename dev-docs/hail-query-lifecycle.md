@@ -4,8 +4,10 @@ As a user builds a query, the Python front-end constructs an IR
 representation of the query that will be sent to the backend for
 execution.
 
+```
 >>> import hail as hl
 >>> t = hl.utils.range_table(100)
+```
 
 Python objects that represent (possibly partial) computations
 (expression, table, matrix table or block matrix) carry an IR that
