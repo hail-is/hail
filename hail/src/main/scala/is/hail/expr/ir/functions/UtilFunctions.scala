@@ -219,9 +219,10 @@ object UtilFunctions extends RegistryFunctions {
               )
             },
             { sc1 =>
+              cb.assign(value, sc1.asPrimitive.primitiveCode[T])
               v2Value.toI(cb).consume(cb,
-                cb.assign(value, sc1.asPrimitive.primitiveCode[T]),
-                sc2 => cb.assignAny(value, f(sc1.asPrimitive.primitiveCode[T], sc2.asPrimitive.primitiveCode[T]))
+                {},
+                sc2 => cb.assignAny(value, f(value, sc2.asPrimitive.primitiveCode[T]))
               )
             })
         cb.goto(Ldefined)
