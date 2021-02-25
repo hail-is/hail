@@ -828,6 +828,9 @@ class tstream(HailType):
     def _get_context(self):
         return self.element_type.get_context()
 
+def is_setlike(maybe_setlike):
+    return isinstance(maybe_setlike, set) or isinstance(maybe_setlike, frozenset)
+
 
 class tset(HailType):
     """Hail type for collections of distinct elements.
@@ -873,7 +876,7 @@ class tset(HailType):
 
     def _typecheck_one_level(self, annotation):
         if annotation is not None:
-            if not isinstance(annotation, set):
+            if not is_setlike(annotation):
                 raise TypeError("type 'set' expected Python 'set', but found type '%s'" % type(annotation))
 
     def __str__(self):
