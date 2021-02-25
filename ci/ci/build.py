@@ -174,10 +174,7 @@ class Step(abc.ABC):
             'project': GCP_PROJECT,
             'zone': GCP_ZONE,
             'docker_prefix': DOCKER_PREFIX,
-<<<<<<< HEAD
             'docker_root_image': DOCKER_ROOT_IMAGE,
-=======
->>>>>>> 2cfc712c1... Switch to Artifact Registry (#29)
             'domain': DOMAIN,
             'ip': IP,
             'k8s_server_url': KUBERNETES_SERVER_URL,
