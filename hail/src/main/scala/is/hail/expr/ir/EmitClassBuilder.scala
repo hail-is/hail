@@ -601,9 +601,6 @@ class EmitClassBuilder[C](
         val v2 = newMB.getEmitParam(2).pv
         newMB.emitWithBuilder { cb =>
           op match {
-            case CodeOrdering.CompareStructs(sf, missingEqual) =>
-              val ord = CodeOrdering.rowOrdering(t1.asInstanceOf[PStruct], t2.asInstanceOf[PStruct], newMB, sf.map(_.sortOrder).toArray, missingEqual)
-              ord.compareNonnull(cb, v1, v2)
             case CodeOrdering.Compare(_) => ord.compareNonnull(cb, v1, v2)
             case CodeOrdering.Equiv(_) => ord.equivNonnull(cb, v1, v2)
             case CodeOrdering.Lt(_) => ord.ltNonnull(cb, v1, v2)
@@ -621,9 +618,6 @@ class EmitClassBuilder[C](
         val v2 = newMB.getEmitParam(2)
         newMB.emitWithBuilder { cb =>
           op match {
-            case CodeOrdering.CompareStructs(sf, missingEqual) =>
-              val ord = CodeOrdering.rowOrdering(t1.asInstanceOf[PStruct], t2.asInstanceOf[PStruct], newMB, sf.map(_.sortOrder).toArray, missingEqual)
-              ord.compare(cb, v1, v2, missingEqual)
             case CodeOrdering.Compare(missingEqual) => ord.compare(cb, v1, v2, missingEqual)
             case CodeOrdering.Equiv(missingEqual) => ord.equiv(cb, v1, v2, missingEqual)
             case CodeOrdering.Lt(missingEqual) => ord.lt(cb, v1, v2, missingEqual)

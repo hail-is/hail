@@ -19,10 +19,6 @@ object CodeOrdering {
     type ReturnType = Int
     val rtti = typeInfo[Int]
   }
-  final case class CompareStructs(sf: IndexedSeq[SortField], missingEqual: Boolean = true) extends Op {
-    type ReturnType = Int
-    val rtti = typeInfo[Int]
-  }
   sealed trait BooleanOp extends Op {
     type ReturnType = Boolean
     val rtti = typeInfo[Boolean]

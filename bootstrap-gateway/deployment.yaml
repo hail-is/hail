@@ -25,13 +25,13 @@ spec:
       affinity:
         podAntiAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
-            - labelSelector:
-                matchExpressions:
-                  - key: "app"
-                    operator: In
-                    values:
-                    - gateway
-              topologyKey: "kubernetes.io/hostname"
+           - labelSelector:
+               matchExpressions:
+                - key: "app"
+                  operator: In
+                  values:
+                   - gateway
+             topologyKey: "kubernetes.io/hostname"
       containers:
        - name: gateway
          image: "{{ gateway_image.image }}"

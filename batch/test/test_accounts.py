@@ -514,7 +514,7 @@ async def test_batch_cannot_be_accessed_by_users_outside_the_billing_project(mak
     b = await b.submit()
 
     user2_client = dev_client
-    user2_batch = Batch(user2_client, b.id, b.attributes, b.n_jobs)
+    user2_batch = Batch(user2_client, b.id, b.attributes, b.n_jobs, b.token)
 
     try:
         try:

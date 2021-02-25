@@ -406,10 +406,10 @@ object MakeNDArray {
   def fill(elt: IR, shape: IndexedSeq[Long], rowMajor: IR): MakeNDArray =
     MakeNDArray(
       ToArray(StreamMap(StreamRange(0, shape.product.toInt, 1), genUID(), elt)),
-      MakeTuple.ordered(shape.map(I64)), rowMajor)
+      MakeTuple.ordered(shape.map(I64)), rowMajor, ErrorIDs.NO_ERROR)
 }
 
-final case class MakeNDArray(data: IR, shape: IR, rowMajor: IR) extends NDArrayIR
+final case class MakeNDArray(data: IR, shape: IR, rowMajor: IR, errorId: Int) extends NDArrayIR
 
 final case class NDArrayShape(nd: IR) extends IR
 
@@ -550,7 +550,7 @@ final case class In(i: Int, _typ: PType) extends IR
 
 // FIXME: should be type any
 object Die {
-  def apply(message: String, typ: Type): Die = Die(Str(message), typ, -1)
+  def apply(message: String, typ: Type): Die = Die(Str(message), typ, ErrorIDs.NO_ERROR)
   def apply(message: String, typ: Type, errorId: Int): Die = Die(Str(message), typ, errorId)
 }
 
@@ -804,3 +804,7 @@ final case class ShuffleRead(
   id: IR,
   keyRange: IR
 ) extends IR
+
+object ErrorIDs {
+  val NO_ERROR = -1
+}

@@ -33,15 +33,16 @@ object LinalgCodeUtils {
     val shape = pndv.shapes(cb)
     val pt = pndv.pt.asInstanceOf[PCanonicalNDArray]
     val strides = pt.makeColumnMajorStrides(shape, region, cb)
-    val dataLength = cb.newLocal[Int]("nda_create_column_major_len", pt.numElements(shape).toI)
-    val dataType = pt.dataType
 
-    val (pushElement, finish) = dataType.constructFromFunctions(cb, region, dataLength, deepCopy = false)
+    val (dataFirstElementAddress, dataFinisher) = pndv.pt.constructDataFunction(shape, strides, cb, region)
+
+    val curAddr = cb.newLocal[Long]("create_column_major_cur_addr", dataFirstElementAddress)
+
     SNDArray.forEachIndex(cb, shape, "nda_create_column_major") { case (cb, idxVars) =>
-      pushElement(cb, IEmitCode.present(cb, pndv.loadElement(idxVars, cb).asPCode))
+      pt.elementType.storeAtAddress(cb, curAddr, region, pndv.loadElement(idxVars, cb), true)
+      cb.assign(curAddr, curAddr + pt.elementType.byteSize)
     }
-    val newData = finish(cb)
-    pndv.pt.construct(shape, strides, newData.a, cb, region)
+    dataFinisher(cb)
   }
 
   def linearizeIndicesRowMajor(indices: IndexedSeq[Code[Long]], shapeArray: IndexedSeq[Value[Long]], mb: EmitMethodBuilder[_]): Code[Long] = {

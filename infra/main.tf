@@ -21,7 +21,7 @@ variable "gcp_location" {}
 variable "gcp_region" {}
 variable "gcp_zone" {}
 variable "domain" {}
-variable "use_artifact_registry" { 
+variable "use_artifact_registry" {
   type = bool
   description = "pull the ubuntu image from Artifact Registry. Otherwise, GCR"
 }
@@ -29,7 +29,7 @@ variable "use_artifact_registry" {
 locals {
   docker_prefix = (
     var.use_artifact_registry ?
-    "${var.gcp_region}-docker.pkg.dev/${var.gcp_project}/hail" : 
+    "${var.gcp_region}-docker.pkg.dev/${var.gcp_project}/hail" :
     "gcr.io/${var.gcp_project}"
   )
   docker_root_image = "${local.docker_prefix}/ubuntu:18.04"
@@ -165,10 +165,7 @@ resource "random_id" "db_name_suffix" {
 }
 
 # Without this, I get:
-# Error: Error, failed to create instance because the network doesn't have at least 
-# 1 private services connection. Please see 
-# https://cloud.google.com/sql/docs/mysql/private-ip#network_requirements 
-# for how to create this connection.
+# Error: Error, failed to create instance because the network doesn't have at least 1 private services connection. Please see https://cloud.google.com/sql/docs/mysql/private-ip#network_requirements for how to create this connection.
 resource "google_compute_global_address" "google_managed_services_default" {
   name = "google-managed-services-default"
   purpose = "VPC_PEERING"
@@ -694,7 +691,7 @@ resource "google_project_iam_member" "batch_agent_object_viewer" {
 }
 
 resource "google_compute_firewall" "default_allow_internal" {
-  name    = "default-allow-internal"
+  name = "default-allow-internal"
   network = google_compute_network.default.name
 
   priority = 65534
@@ -703,12 +700,12 @@ resource "google_compute_firewall" "default_allow_internal" {
 
   allow {
     protocol = "tcp"
-    ports    = ["0-65535"]
+    ports = ["0-65535"]
   }
 
   allow {
     protocol = "udp"
-    ports    = ["0-65535"]
+    ports = ["0-65535"]
   }
 
   allow {
@@ -717,7 +714,7 @@ resource "google_compute_firewall" "default_allow_internal" {
 }
 
 resource "google_compute_firewall" "allow_ssh" {
-  name    = "allow-ssh"
+  name = "allow-ssh"
   network = google_compute_network.default.name
 
   priority = 65534
@@ -726,12 +723,12 @@ resource "google_compute_firewall" "allow_ssh" {
 
   allow {
     protocol = "tcp"
-    ports    = ["22"]
+    ports = ["22"]
   }
 }
 
 resource "google_compute_firewall" "vdc_to_batch_worker" {
-  name    = "vdc-to-batch-worker"
+  name = "vdc-to-batch-worker"
   network = google_compute_network.default.name
 
   source_ranges = [google_container_cluster.vdc.cluster_ipv4_cidr]
@@ -744,12 +741,12 @@ resource "google_compute_firewall" "vdc_to_batch_worker" {
 
   allow {
     protocol = "tcp"
-    ports    = ["1-65535"]
+    ports = ["1-65535"]
   }
 
   allow {
     protocol = "udp"
-    ports    = ["1-65535"]
+    ports = ["1-65535"]
   }
 }
 
@@ -759,9 +756,9 @@ resource "random_id" "batch_logs_bucket_name_suffix" {
 
 resource "google_storage_bucket" "batch_logs" {
   name = "batch-logs-${random_id.batch_logs_bucket_name_suffix.hex}"
-  location = var.gcp_location
+  location = var.batch_logs_bucket_location
   force_destroy = true
-  storage_class = "STANDARD"
+  storage_class = var.batch_logs_bucket_storage_class
 }
 
 resource "google_dns_managed_zone" "dns_zone" {

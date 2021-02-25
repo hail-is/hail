@@ -123,11 +123,11 @@ steps:
      - from: /io/repo/atgu/sql
        to: /repo/atgu/
      - from: /io/repo/hail/python/hailtop
-       to: /repo/
+       to: /repo/hailtop/
      - from: /io/repo/hail/python/test
-       to: /repo/
+       to: /repo/test/
      - from: /io/repo/hail/python/cluster-tests
-       to: /repo/hail/python/
+       to: /repo/hail/python/cluster-tests/
      - from: /io/repo/hail/python/hail/hail_version
        to: /hail_version
      - from: /io/repo/hail/python/hail/hail_pip_version
@@ -136,12 +136,12 @@ steps:
        to: /git_version
      - from: /io/repo/address/test
        to: /repo/address/
+     - from: /io/repo/lsm
+       to: /repo/lsm
      - from: /io/repo/ci/bootstrap_create_accounts.py
        to: /repo/ci/
      - from: /io/repo/ci/create_initial_account.py
        to: /repo/ci/
-     - from: /io/repo/lsm
-       to: /repo/lsm
    dependsOn:
      - base_image
  - kind: buildImage
@@ -343,20 +343,19 @@ steps:
    image:
      valueFrom: service_base_image.image
    script: |
-     # auth, atgu, batch, benchmark, ci, test-dev gsa keys
-     kubectl -n {{ default_ns.name }} get -o json secret test-gsa-key | jq '{apiVersion, kind, type, data, metadata: {name: "auth-gsa-key"}}' | kubectl -n {{ default_ns.name }} apply -f -
      kubectl -n {{ default_ns.name }} get -o json secret test-gsa-key | jq '{apiVersion, kind, type, data, metadata: {name: "atgu-gsa-key"}}' | kubectl -n {{ default_ns.name }} apply -f -
+     kubectl -n {{ default_ns.name }} get -o json secret test-gsa-key | jq '{apiVersion, kind, type, data, metadata: {name: "auth-gsa-key"}}' | kubectl -n {{ default_ns.name }} apply -f -
      kubectl -n {{ default_ns.name }} get -o json secret test-gsa-key | jq '{apiVersion, kind, type, data, metadata: {name: "batch-gsa-key"}}' | kubectl -n {{ default_ns.name }} apply -f -
      kubectl -n {{ default_ns.name }} get -o json secret test-gsa-key | jq '{apiVersion, kind, type, data, metadata: {name: "benchmark-gsa-key"}}' | kubectl -n {{ default_ns.name }} apply -f -
      kubectl -n {{ default_ns.name }} get -o json secret test-gsa-key | jq '{apiVersion, kind, type, data, metadata: {name: "ci-gsa-key"}}' | kubectl -n {{ default_ns.name }} apply -f -
      kubectl -n {{ default_ns.name }} get -o json secret test-gsa-key | jq '{apiVersion, kind, type, data, metadata: {name: "test-dev-gsa-key"}}' | kubectl -n {{ default_ns.name }} apply -f -
+   scopes:
+    - test
+    - dev
    serviceAccount:
      name: admin
      namespace:
        valueFrom: default_ns.name
-   scopes:
-    - test
-    - dev
    dependsOn:
      - default_ns
      - service_base_image

@@ -1129,7 +1129,7 @@ object PruneDeadFields {
           bodyEnv.deleteEval(valueName),
           memoizeValueIR(a, TStream(valueType), memo)
         )
-      case MakeNDArray(data, shape, rowMajor) =>
+      case MakeNDArray(data, shape, rowMajor, errorId) =>
         val elementType = requestedType.asInstanceOf[TNDArray].elementType
         unifyEnvs(
           memoizeValueIR(data, TArray(elementType), memo),
@@ -1835,11 +1835,11 @@ object PruneDeadFields {
         val et = a2.typ.asInstanceOf[TStream].elementType
         val lessThan2 = rebuildIR(lessThan, env.bindEval(left -> et, right -> et), memo)
         ArraySort(a2, left, right, lessThan2)
-      case MakeNDArray(data, shape, rowMajor) =>
+      case MakeNDArray(data, shape, rowMajor, errorId) =>
         val data2 = rebuildIR(data, env, memo)
         val shape2 = rebuildIR(shape, env, memo)
         val rowMajor2 = rebuildIR(rowMajor, env, memo)
-        MakeNDArray(data2, shape2, rowMajor2)
+        MakeNDArray(data2, shape2, rowMajor2, errorId)
       case NDArrayMap(nd, valueName, body) =>
         val nd2 = rebuildIR(nd, env, memo)
         NDArrayMap(nd2, valueName, rebuildIR(body, env.bindEval(valueName, nd2.typ.asInstanceOf[TNDArray].elementType), memo))
