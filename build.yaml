@@ -123,7 +123,7 @@ steps:
      - from: /io/repo/atgu/sql
        to: /repo/atgu/
      - from: /io/repo/hail/python/hailtop
-       to: /repo/
+       to: /repo/hailtop/
      - from: /io/repo/hail/python/test
        to: /repo/test/
      - from: /io/repo/hail/python/cluster-tests
@@ -136,10 +136,6 @@ steps:
        to: /git_version
      - from: /io/repo/address/test
        to: /repo/address/
-     - from: /io/repo/ci/bootstrap_create_accounts.py
-       to: /repo/ci/
-     - from: /io/repo/ci/create_initial_account.py
-       to: /repo/ci/
      - from: /io/repo/lsm
        to: /repo/lsm
      - from: /io/repo/ci/bootstrap_create_accounts.py
@@ -353,42 +349,9 @@ steps:
      kubectl -n {{ default_ns.name }} get -o json secret test-gsa-key | jq '{apiVersion, kind, type, data, metadata: {name: "benchmark-gsa-key"}}' | kubectl -n {{ default_ns.name }} apply -f -
      kubectl -n {{ default_ns.name }} get -o json secret test-gsa-key | jq '{apiVersion, kind, type, data, metadata: {name: "ci-gsa-key"}}' | kubectl -n {{ default_ns.name }} apply -f -
      kubectl -n {{ default_ns.name }} get -o json secret test-gsa-key | jq '{apiVersion, kind, type, data, metadata: {name: "test-dev-gsa-key"}}' | kubectl -n {{ default_ns.name }} apply -f -
-   serviceAccount:
-     name: admin
-     namespace:
-       valueFrom: default_ns.name
    scopes:
     - test
     - dev
-   dependsOn:
-     - default_ns
-     - service_base_image
- - kind: buildImage
-   name: auth_image
-   dockerFile: auth/Dockerfile
-   contextPath: .
-   publishAs: auth
-   dependsOn:
-     - service_base_image
- - kind: deploy
-   name: deploy_auth_driver_service_account
-   namespace:
-     valueFrom: default_ns.name
-   config: auth/auth-driver-service-account.yaml
-   dependsOn:
-    - default_ns
- - kind: runImage
-   name: create_accounts
-   image:
-     valueFrom: auth_image.image
-   script: |
-     set -ex
-     export PROJECT={{ global.project }}
-     export ZONE={{ global.zone }}
-     export HAIL_PROJECT={{ global.project }}
-     export HAIL_DEFAULT_NAMESPACE={{ default_ns.name }}
-     export HAIL_SCOPE={{ scope }}
-     python3 /io/bootstrap_create_accounts.py
    serviceAccount:
      name: admin
      namespace:
