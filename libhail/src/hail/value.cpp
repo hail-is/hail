@@ -69,7 +69,7 @@ Value::store(void *p, const Value &value) {
     *(float *)p = value.u.f;
     break;
   case VType::Tag::FLOAT64:
-    *(float *)p = value.u.d;
+    *(double *)p = value.u.d;
     break;
   case VType::Tag::STR:
     *(void **)p = value.u.p;

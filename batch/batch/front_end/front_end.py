@@ -1736,7 +1736,7 @@ async def post_create_billing_projects(request, userdata):  # pylint: disable=un
     billing_project = post['billing_project']
 
     session = await aiohttp_session.get_session(request)
-    errored = await _handle_ui_error(session, _close_billing_project, db, billing_project)
+    errored = await _handle_ui_error(session, _create_billing_project, db, billing_project)
     if not errored:
         set_message(session, f'Added billing project {billing_project}.', 'info')
 

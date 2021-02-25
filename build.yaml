@@ -125,9 +125,9 @@ steps:
      - from: /io/repo/hail/python/hailtop
        to: /repo/
      - from: /io/repo/hail/python/test
-       to: /repo/
+       to: /repo/test/
      - from: /io/repo/hail/python/cluster-tests
-       to: /repo/hail/python/
+       to: /repo/hail/python/cluster-tests/
      - from: /io/repo/hail/python/hail/hail_version
        to: /hail_version
      - from: /io/repo/hail/python/hail/hail_pip_version
@@ -142,6 +142,10 @@ steps:
        to: /repo/ci/
      - from: /io/repo/lsm
        to: /repo/lsm
+     - from: /io/repo/ci/bootstrap_create_accounts.py
+       to: /repo/ci/
+     - from: /io/repo/ci/create_initial_account.py
+       to: /repo/ci/
    dependsOn:
      - base_image
  - kind: buildImage
@@ -343,9 +347,8 @@ steps:
    image:
      valueFrom: service_base_image.image
    script: |
-     # auth, atgu, batch, benchmark, ci, test-dev gsa keys
-     kubectl -n {{ default_ns.name }} get -o json secret test-gsa-key | jq '{apiVersion, kind, type, data, metadata: {name: "auth-gsa-key"}}' | kubectl -n {{ default_ns.name }} apply -f -
      kubectl -n {{ default_ns.name }} get -o json secret test-gsa-key | jq '{apiVersion, kind, type, data, metadata: {name: "atgu-gsa-key"}}' | kubectl -n {{ default_ns.name }} apply -f -
+     kubectl -n {{ default_ns.name }} get -o json secret test-gsa-key | jq '{apiVersion, kind, type, data, metadata: {name: "auth-gsa-key"}}' | kubectl -n {{ default_ns.name }} apply -f -
      kubectl -n {{ default_ns.name }} get -o json secret test-gsa-key | jq '{apiVersion, kind, type, data, metadata: {name: "batch-gsa-key"}}' | kubectl -n {{ default_ns.name }} apply -f -
      kubectl -n {{ default_ns.name }} get -o json secret test-gsa-key | jq '{apiVersion, kind, type, data, metadata: {name: "benchmark-gsa-key"}}' | kubectl -n {{ default_ns.name }} apply -f -
      kubectl -n {{ default_ns.name }} get -o json secret test-gsa-key | jq '{apiVersion, kind, type, data, metadata: {name: "ci-gsa-key"}}' | kubectl -n {{ default_ns.name }} apply -f -
@@ -357,6 +360,39 @@ steps:
    scopes:
     - test
     - dev
+   dependsOn:
+     - default_ns
+     - service_base_image
+ - kind: buildImage
+   name: auth_image
+   dockerFile: auth/Dockerfile
+   contextPath: .
+   publishAs: auth
+   dependsOn:
+     - service_base_image
+ - kind: deploy
+   name: deploy_auth_driver_service_account
+   namespace:
+     valueFrom: default_ns.name
+   config: auth/auth-driver-service-account.yaml
+   dependsOn:
+    - default_ns
+ - kind: runImage
+   name: create_accounts
+   image:
+     valueFrom: auth_image.image
+   script: |
+     set -ex
+     export PROJECT={{ global.project }}
+     export ZONE={{ global.zone }}
+     export HAIL_PROJECT={{ global.project }}
+     export HAIL_DEFAULT_NAMESPACE={{ default_ns.name }}
+     export HAIL_SCOPE={{ scope }}
+     python3 /io/bootstrap_create_accounts.py
+   serviceAccount:
+     name: admin
+     namespace:
+       valueFrom: default_ns.name
    dependsOn:
      - default_ns
      - service_base_image

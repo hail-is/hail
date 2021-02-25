@@ -36,6 +36,34 @@ object SNDArray {
 
     recurLoopBuilder(0, body)
   }
+
+  // Column major order
+  def unstagedForEachIndex(shape: IndexedSeq[Long])
+                          (f: IndexedSeq[Long] => Unit): Unit = {
+
+    val indices = Array.tabulate(shape.length) {dimIdx =>  0L}
+
+    def recurLoopBuilder(dimIdx: Int, innerLambda: () => Unit): Unit = {
+      if (dimIdx == shape.length) {
+        innerLambda()
+      }
+      else {
+
+        recurLoopBuilder(dimIdx + 1,
+          () => {
+            (0 until shape(dimIdx).toInt).foreach(_ => {
+              innerLambda()
+              indices(dimIdx) += 1
+            })
+          }
+        )
+      }
+    }
+
+    val body = () => f(indices)
+
+    recurLoopBuilder(0, body)
+  }
 }
 
 

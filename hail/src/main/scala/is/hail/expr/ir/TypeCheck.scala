@@ -121,7 +121,7 @@ object TypeCheck {
         assert(op.t1 == l.typ)
         assert(op.t2 == r.typ)
         op match {
-          case _: Compare | _: CompareStructs => assert(x.typ == TInt32)
+          case _: Compare => assert(x.typ == TInt32)
           case _ => assert(x.typ == TBoolean)
         }
       case x@MakeArray(args, typ) =>
@@ -148,7 +148,7 @@ object TypeCheck {
         assert(c.typ == TInt32)
       case x@ArrayZeros(length) =>
         assert(length.typ == TInt32)
-      case x@MakeNDArray(data, shape, rowMajor) =>
+      case x@MakeNDArray(data, shape, rowMajor, _) =>
         assert(data.typ.isInstanceOf[TArray])
         assert(shape.typ.asInstanceOf[TTuple].types.forall(t => t == TInt64))
         assert(rowMajor.typ == TBoolean)

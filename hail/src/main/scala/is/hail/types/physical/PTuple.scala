@@ -17,9 +17,6 @@ trait PTuple extends PBaseStruct {
   lazy val fields: IndexedSeq[PField] = _types.zipWithIndex.map { case (PTupleField(tidx, t), i) => PField(s"$tidx", t, i) }
   lazy val nFields: Int = fields.size
 
-  protected val tupleFundamentalType: PTuple
-  override lazy val fundamentalType: PTuple = tupleFundamentalType
-
   final def codeOrdering(mb: EmitMethodBuilder[_], other: PType, so: Array[SortOrder], missingFieldsEqual: Boolean): CodeOrdering = {
     assert(other isOfType this, s"$other != $this")
     assert(so == null || so.size == types.size)

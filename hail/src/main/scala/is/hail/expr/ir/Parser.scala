@@ -857,16 +857,10 @@ object IRParser {
         ir_value_expr(env)(it).map(ApplyUnaryPrimOp(op, _))
       case "ApplyComparisonOp" =>
         val opName = identifier(it)
-        val op: (Type, Type) => ComparisonOp[_] = opName match {
-          case "CompareStructs" =>
-            val sf = sort_fields(it);
-            { (t1: Type, t2: Type) => assert(t1 == t2); CompareStructs(t1.asInstanceOf[TStruct], sf) }
-          case _ => (t1: Type, t2: Type) => ComparisonOp.fromStringAndTypes((opName, t1, t2))
-        }
         for {
           l <- ir_value_expr(env)(it)
           r <- ir_value_expr(env)(it)
-        } yield ApplyComparisonOp(op(l.typ, r.typ), l, r)
+        } yield ApplyComparisonOp(ComparisonOp.fromStringAndTypes((opName, l.typ, r.typ)), l, r)
       case "MakeArray" =>
         val typ = opt(it, type_expr(env.typEnv)).map(_.asInstanceOf[TArray]).orNull
         ir_value_children(env)(it).map { args =>
@@ -908,11 +902,12 @@ object IRParser {
           lessThan <- ir_value_expr(env + (l -> elt) + (r -> elt))(it)
         } yield ArraySort(a, l, r, lessThan)
       case "MakeNDArray" =>
+        val errorId = int32_literal(it)
         for {
           data <- ir_value_expr(env)(it)
           shape <- ir_value_expr(env)(it)
           rowMajor <- ir_value_expr(env)(it)
-        } yield MakeNDArray(data, shape, rowMajor)
+        } yield MakeNDArray(data, shape, rowMajor, errorId)
       case "NDArrayShape" => ir_value_expr(env)(it).map(NDArrayShape)
       case "NDArrayReshape" =>
         for {

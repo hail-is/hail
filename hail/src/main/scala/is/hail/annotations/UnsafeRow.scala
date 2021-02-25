@@ -328,7 +328,7 @@ class UnsafeNDArray(val pnd: PNDArray, val region: Region, val ndAddr: Long) ext
 
   def lookupElement(indices: IndexedSeq[Long]): Annotation = {
     val elementAddress = pnd.getElementAddress(indices, ndAddr)
-    UnsafeRow.read(pnd.elementType, region, elementAddress)
+    UnsafeRow.read(pnd.elementType, region, pnd.elementType.unstagedLoadFromNested(elementAddress))
   }
 
   def getRowMajorElements(): IndexedSeq[Annotation] = {

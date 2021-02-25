@@ -350,21 +350,6 @@ spec:
            optional: false
            secretName: ssl-config-router
 ---
-apiVersion: v1
-kind: Service
-metadata:
-  name: router
-  labels:
-    app: router
-spec:
-  ports:
-  - name: https
-    port: 443
-    protocol: TCP
-    targetPort: 443
-  selector:
-    app: router
----
 apiVersion: autoscaling/v2beta1
 kind: HorizontalPodAutoscaler
 metadata:

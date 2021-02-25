@@ -1,5 +1,6 @@
 FROM {{ global.docker_prefix }}/ubuntu:focal-20201106
 ENV LANG C.UTF-8
+COPY retry /bin/retry
 COPY hail-apt-get-install /bin/hail-apt-get-install
 # We need software-properties-common for add-apt-repository; however, that
 # package depends on Python 3.8, which installs PyGObject with missing
