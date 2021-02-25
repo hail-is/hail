@@ -29,6 +29,6 @@ hail/python/hailtop/batch/docs/api/
 web_common/web_common/static/css/
 website/docs.tar.gz
 website/website/static/css/
-*.dylib
+*.dylib  # macOS dynamic libraries 
 */hail.jar
 infra/.terraform.lock.hcl
