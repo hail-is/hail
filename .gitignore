@@ -24,6 +24,6 @@ hs_err_pid*.log
 GPATH
 GRTAGS
 GTAGS
-*.dylib
+*.dylib  # macOS dynamic libraries 
 */hail.jar
 infra/.terraform.lock.hcl
