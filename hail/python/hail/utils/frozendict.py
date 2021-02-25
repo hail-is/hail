@@ -40,5 +40,5 @@ class frozendict(Mapping):
     def __iter__(self):
         return iter(self.d)
 
-    def __repr__(self): 
-        return f'frozendict({self.d!r})'  
+    def __repr__(self):
+        return f'frozendict({self.d!r})'
