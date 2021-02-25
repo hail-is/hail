@@ -7,6 +7,7 @@ assert GCP_ZONE != ''
 GCP_REGION = '-'.join(GCP_ZONE.split('-')[:-1])  # us-west1-a -> us-west1
 DOCKER_PREFIX = os.environ.get('HAIL_DOCKER_PREFIX', f'gcr.io/{GCP_REGION}')
 assert DOCKER_PREFIX != ''
+DOCKER_ROOT_IMAGE = os.environ['HAIL_DOCKER_ROOT_IMAGE']
 DOMAIN = os.environ['HAIL_DOMAIN']
 assert DOMAIN != ''
 IP = os.environ.get('HAIL_IP')
