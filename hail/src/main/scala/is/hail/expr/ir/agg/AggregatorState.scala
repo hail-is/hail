@@ -209,7 +209,7 @@ class PrimitiveRVAState(val vtypes: Array[VirtualTypeWithReq], val kb: EmitClass
           cb += ob.writePrimitive(es.pt)(es.v)
         } else {
           cb += ob.writeBoolean(es.m)
-          cb += ob.writePrimitive(es.pt)(es.v)
+          cb.ifx(!es.m, cb += ob.writePrimitive(es.pt)(es.v))
         }
       }
   }
