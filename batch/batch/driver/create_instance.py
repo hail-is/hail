@@ -5,7 +5,7 @@ import json
 
 from hailtop import aiogoogle
 
-from ..batch_configuration import PROJECT, DOCKER_PREFIX, DEFAULT_NAMESPACE
+from ..batch_configuration import PROJECT, DOCKER_ROOT_IMAGE, DEFAULT_NAMESPACE
 from ..worker_config import WorkerConfig
 from ..log_store import LogStore
 
@@ -173,7 +173,7 @@ NAME=$(curl -s http://metadata.google.internal/computeMetadata/v1/instance/name 
 ZONE=$(curl -s http://metadata.google.internal/computeMetadata/v1/instance/zone -H 'Metadata-Flavor: Google')
 
 BATCH_WORKER_IMAGE=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/batch_worker_image")
-DOCKER_PREFIX=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/docker_prefix")
+DOCKER_ROOT_IMAGE=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/docker_root_image")
 
 # Setup fluentd
 touch /worker.log
@@ -250,7 +250,7 @@ docker run \
 -e BATCH_LOGS_BUCKET_NAME=$BATCH_LOGS_BUCKET_NAME \
 -e INSTANCE_ID=$INSTANCE_ID \
 -e PROJECT=$PROJECT \
--e DOCKER_PREFIX=$DOCKER_PREFIX \
+-e DOCKER_ROOT_IMAGE=$DOCKER_ROOT_IMAGE \
 -e WORKER_CONFIG=$WORKER_CONFIG \
 -e MAX_IDLE_TIME_MSECS=$MAX_IDLE_TIME_MSECS \
 -e WORKER_DATA_DISK_MOUNT=/mnt/disks/$WORKER_DATA_DISK_NAME \
@@ -295,8 +295,8 @@ journalctl -u docker.service > dockerd.log
                 'key': 'batch_worker_image',
                 'value': BATCH_WORKER_IMAGE
             }, {
-                'key': 'docker_prefix',
-                'value': DOCKER_PREFIX
+                'key': 'docker_root_image',
+                'value': DOCKER_ROOT_IMAGE
             }, {
                 'key': 'namespace',
                 'value': DEFAULT_NAMESPACE

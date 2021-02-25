@@ -56,8 +56,8 @@ spec:
            value: "{{ default_ns.name }}"
          - name: PROJECT
            value: "{{ global.project }}"
-         - name: HAIL_DOCKER_PREFIX
-           value: "{{ global.docker_prefix }}"
+         - name: HAIL_DOCKER_ROOT_IMAGE
+           value: "{{ global.docker_root_image }}"
          - name: HAIL_GCP_REGION
            valueFrom:
              secretKeyRef:
@@ -194,8 +194,8 @@ spec:
            value: "{{ default_ns.name }}"
          - name: PROJECT
            value: "{{ global.project }}"
-         - name: HAIL_DOCKER_PREFIX
-           value: "{{ global.docker_prefix }}"
+         - name: HAIL_DOCKER_ROOT_IMAGE
+           value: "{{ global.docker_root_image }}"
          - name: HAIL_GCP_REGION
            valueFrom:
              secretKeyRef:
