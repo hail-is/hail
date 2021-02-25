@@ -1,4 +1,4 @@
-FROM {{ global.docker_prefix }}/ubuntu:18.04
+FROM {{ global.docker_root_image }}
 
 ENV LANG C.UTF-8
 
