@@ -66,9 +66,10 @@ Instructions:
    gcp_zone = "<gcp-zone>"
 
    domain = "<domain>"
+  
    # If set to true, pull the base ubuntu image from Artifact Registry.
    # Otherwise, assumes GCR.
-   use_artifact_registry = true
+   use_artifact_registry = false
    ```
 
 - Run `terraform init`.
