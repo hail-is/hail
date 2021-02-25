@@ -600,10 +600,6 @@ abstract class RegistryFunctions {
       impl(cb, r, rt, a1, a2, a3, a4, a5, a6)
     }
 
-  def registerEmitCode1(name: String, mt1: Type, rt: Type, pt: (Type, PType) => PType)
-    (impl: (EmitRegion, PType, EmitCode) => EmitCode): Unit =
-    registerEmitCode(name, Array(mt1), rt, unwrappedApply(pt)) { case (r, rt, Array(a1)) => impl(r, rt, a1) }
-
   def registerEmitCode2(name: String, mt1: Type, mt2: Type, rt: Type, pt: (Type, PType, PType) => PType)
     (impl: (EmitRegion, PType, EmitCode, EmitCode) => EmitCode): Unit =
     registerEmitCode(name, Array(mt1, mt2), rt, unwrappedApply(pt)) { case (r, rt, Array(a1, a2)) => impl(r, rt, a1, a2) }
