@@ -22,27 +22,7 @@ def main(args, pass_through_args):  # pylint: disable=unused-argument
     files = ''
     if args.files:
         files = args.files
-    pyfiles = []
-    if args.pyfiles:
-        pyfiles.extend(args.pyfiles.split(','))
-    pyfiles.extend(os.environ.get('HAIL_SCRIPTS', '').split(':'))
-    if pyfiles:
-        tfile = tempfile.mkstemp(suffix='.zip', prefix='pyscripts_')[1]
-        zipf = zipfile.ZipFile(tfile, 'w', zipfile.ZIP_DEFLATED)
-        for hail_script_entry in pyfiles:
-            if hail_script_entry.endswith('.py'):
-                zipf.write(hail_script_entry, arcname=os.path.basename(hail_script_entry))
-            else:
-                for root, _, pyfiles_walk in os.walk(hail_script_entry):
-                    for pyfile in pyfiles_walk:
-                        if pyfile.endswith('.py'):
-                            zipf.write(os.path.join(root, pyfile),
-                                       os.path.relpath(os.path.join(root, pyfile),
-                                                       os.path.join(hail_script_entry, '..')))
-        zipf.close()
-        pyfiles = tfile
-    else:
-        pyfiles = ''
+    pyfiles = args.pyfiles
 
     # create properties argument
     properties = ''
