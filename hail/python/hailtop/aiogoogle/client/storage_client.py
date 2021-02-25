@@ -528,7 +528,7 @@ class GoogleStorageMultiPartCreate(MultiPartCreate):
 
                     for n in chunk_names:
                         cleanup_tasks.append(
-                            await pool.call(self._fs._remove_doesnt_exist_ok(n)))
+                            await pool.call(self._fs._remove_doesnt_exist_ok, f'gs://{self._bucket}/{n}'))
 
                 await tree_compose(
                     [self._part_name(i) for i in range(self._num_parts)],
@@ -722,6 +722,9 @@ class GoogleStorageAsyncFS(AsyncFS):
             await self._storage_client.delete_object(bucket, name)
         except FileNotFoundError:
             pass
+        except aiohttp.ClientResponseError as e:
+            if e.status != 404:
+                raise
 
     async def rmtree(self, sema: asyncio.Semaphore, url: str) -> None:
         async with OnlineBoundedGather2(sema) as pool:

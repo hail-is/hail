@@ -458,11 +458,9 @@ async def bounded_gather2_raise_exceptions(sema: asyncio.Semaphore, *aws, cancel
     finally:
         _, exc, _ = sys.exc_info()
         if exc is not None:
-            tasks = []
             for task in tasks:
                 if not task.done():
                     task.cancel()
-                    tasks.append(task)
             if tasks:
                 await asyncio.wait(tasks)
 
