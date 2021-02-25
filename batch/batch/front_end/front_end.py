@@ -525,8 +525,8 @@ LIMIT 51;
                in db.select_and_fetchall(sql, sql_args)]
 
     if len(batches) == 51:
-        last_batch_id = batches[-2]['id']
-        batches = batches[:50]
+        batches.pop()
+        last_batch_id = batches[-1]['id']
     else:
         last_batch_id = None
 
