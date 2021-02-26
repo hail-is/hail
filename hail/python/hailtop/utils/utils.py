@@ -1,7 +1,8 @@
-from typing import Callable, TypeVar, Awaitable, Optional, Type
+from typing import Callable, TypeVar, Awaitable, Optional, Type, List, Dict
 from types import TracebackType
 import subprocess
 import traceback
+import sys
 import os
 import errno
 import random
@@ -256,6 +257,218 @@ class WaitableSharedPool:
                         exc_val: Optional[BaseException],
                         exc_tb: Optional[TracebackType]) -> None:
         await self.wait()
+
+
+class Subsemaphore:
+    def __init__(self, sema: asyncio.Semaphore):
+        self._sema = sema
+        self._borrowed = 0
+        self._lent = False
+        self._pending: List[Callable[[], None]] = []
+
+    async def acquire(self):
+        if not self._lent:
+            self._lent = True
+            return self
+
+        acquired = asyncio.Event()
+
+        async def borrow():
+            await self._sema.acquire()
+            if acquired.is_set():
+                self._sema.release()
+                return
+            self._borrowed += 1
+            acquired.set()
+
+        def on_return():
+            assert not self._lent
+            if acquired.is_set():
+                return
+            self._lent = True
+            acquired.set()
+
+        asyncio.create_task(borrow())
+        self._pending.append(on_return)
+
+        await acquired.wait()
+
+        return self
+
+    def release(self):
+        if self._borrowed > 0:
+            self._sema.release()
+            self._borrowed -= 1
+        else:
+            assert self._lent
+            self._lent = False
+            while self._pending and not self._lent:
+                f = self._pending.pop()
+                f()
+
+    async def __aenter__(self) -> 'Subsemaphore':
+        await self.acquire()
+        return self
+
+    async def __aexit__(self,
+                        exc_type: Optional[Type[BaseException]],
+                        exc_val: Optional[BaseException],
+                        exc_tb: Optional[TracebackType]) -> None:
+        self.release()
+
+
+class OnlineBoundedGather2:
+    def __init__(self, sema: asyncio.Semaphore):
+        self._counter = 0
+        self._subsema = Subsemaphore(sema)
+        self._pending: Optional[Dict[int, asyncio.Task]] = {}
+        self._done_event = asyncio.Event()
+        self._exception: Optional[BaseException] = None
+
+    async def _shutdown(self) -> None:
+        if self._pending is None:
+            return
+
+        # shut down the pending tasks
+        tasks = []
+        for _, t in self._pending.items():
+            if not t.done():
+                t.cancel()
+            tasks.append(t)
+        self._pending = None
+
+        # wake up if waiting
+        self._done_event.set()
+
+        if tasks:
+            await asyncio.wait(tasks)
+
+    async def call(self, f, *args, **kwargs) -> asyncio.Task:
+        if self._exception:
+            raise self._exception
+
+        id = self._counter
+        self._counter += 1
+
+        async def run_and_cleanup():
+            try:
+                async with self._subsema:
+                    await f(*args, **kwargs)
+            except:
+                if not self._exception:
+                    _, exc, _ = sys.exc_info()
+                    self._exception = exc
+                    await self._shutdown()
+
+            if self._pending is None:
+                return
+            del self._pending[id]
+            if not self._pending:
+                self._done_event.set()
+
+        assert self._pending is not None
+        t = asyncio.create_task(run_and_cleanup())
+        self._pending[id] = t
+        return t
+
+    async def wait(self, tasks: List[asyncio.Task]) -> None:
+        self._subsema.release()
+        try:
+            await asyncio.wait(tasks)
+        finally:
+            await self._subsema.acquire()
+
+    async def wait_done(self) -> None:
+        while self._pending:
+            if self._exception:
+                raise self._exception
+
+            self._done_event.clear()
+            await self._done_event.wait()
+
+        if self._exception:
+            raise self._exception
+
+    async def __aenter__(self) -> 'OnlineBoundedGather2':
+        await self._subsema.acquire()
+        return self
+
+    async def __aexit__(self,
+                        exc_type: Optional[Type[BaseException]],
+                        exc_val: Optional[BaseException],
+                        exc_tb: Optional[TracebackType]) -> None:
+        self._subsema.release()
+
+        _, exc, _ = sys.exc_info()
+        if exc:
+            await self._shutdown()
+        else:
+            await self.wait_done()
+
+
+async def bounded_gather2_return_exceptions(sema: asyncio.Semaphore, *aws):
+    '''Run the awaitables aws as tasks with parallelism bounded by sema,
+    which should be asyncio.Semaphore whose initial value is the level
+    of parallelism.
+
+    The return value is the list of awaitable results as pairs: the
+    pair (value, None) if the awaitable returned value or (None, exc)
+    if the awaitable raised the exception exc.
+    '''
+    subsema = Subsemaphore(sema)
+
+    async def run_with_sema_return_exceptions(aw):
+        try:
+            async with subsema:
+                return (await aw, None)
+        except:
+            _, exc, _ = sys.exc_info()
+            return (None, exc)
+
+    return await asyncio.gather(*[asyncio.create_task(run_with_sema_return_exceptions(aw)) for aw in aws])
+
+
+async def bounded_gather2_raise_exceptions(sema: asyncio.Semaphore, *aws, cancel_on_error: bool = False):
+    '''Run the awaitables aws as tasks with parallelism bounded by sema,
+    which should be asyncio.Semaphore whose initial value is the level
+    of parallelism.
+
+    The return value is the list of awaitable results.
+
+    The first exception raised by an awaitable is raised by
+    bounded_gather2_raise_exceptions.
+
+    If cancel_on_error is False (the default), the remaining
+    awaitables continue to run with bounded parallelism.  If
+    cancel_on_error is True, the unfinished tasks are all cancelled.
+    '''
+    subsema = Subsemaphore(sema)
+
+    async def run_with_subsema(aw):
+        async with subsema:
+            return await aw
+
+    tasks = [asyncio.create_task(run_with_subsema(aw)) for aw in aws]
+
+    if not cancel_on_error:
+        return await asyncio.gather(*tasks)
+
+    try:
+        return await asyncio.gather(*tasks)
+    finally:
+        _, exc, _ = sys.exc_info()
+        if exc is not None:
+            for task in tasks:
+                if not task.done():
+                    task.cancel()
+            if tasks:
+                await asyncio.wait(tasks)
+
+
+async def bounded_gather2(sema: asyncio.Semaphore, *aws, return_exceptions: bool = False, cancel_on_error: bool = False):
+    if return_exceptions:
+        return await bounded_gather2_return_exceptions(sema, *aws)
+    return await bounded_gather2_raise_exceptions(sema, *aws, cancel_on_error=cancel_on_error)
 
 
 RETRYABLE_HTTP_STATUS_CODES = {408, 500, 502, 503, 504}
@@ -572,17 +785,17 @@ def url_join(url: str, path: str) -> str:
     return urllib.parse.urlunparse(parsed._replace(path=os.path.join(parsed.path, path)))
 
 
+def url_scheme(url: str) -> str:
+    """Return scheme of `url`, or the empty string if there is no scheme."""
+    parsed = urllib.parse.urlparse(url)
+    return parsed.scheme
+
+
 def is_google_registry_image(path: str) -> bool:
     """Returns true if the given Docker image path points to either the Google
     Container Registry or the Artifact Registry."""
     host = path.partition('/')[0]
     return host == 'gcr.io' or host.endswith('docker.pkg.dev')
-
-
-def url_scheme(url: str) -> str:
-    """Return scheme of `url`, or the empty string if there is no scheme."""
-    parsed = urllib.parse.urlparse(url)
-    return parsed.scheme
 
 
 class Notice:

@@ -21,6 +21,7 @@ steps:
     - billing-monitor-gsa-key
     - asana-access-token
     - hail-ci-0-1-service-account-key
+    - test-dataproc-service-account-key
  - kind: buildImage
    name: echo_image
    dockerFile: echo/Dockerfile
@@ -2180,45 +2181,6 @@ steps:
     - deploy_memory_sa
     - create_certs
  - kind: runImage
-   name: test_query
-   image:
-     valueFrom: hail_run_image.image
-   resources:
-     memory: "3.75G"
-     cpu: "1"
-   script: |
-     set -ex
-     cd /io
-     tar xvf wheel-container.tar
-     python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
-     hailctl config set batch/bucket hail-test-dmk9z
-     HAIL_BILLING_PROJECT=test HAIL_DONT_RETRY_500=1 HAIL_QUERY_BACKEND=service python3 -m pytest --log-cli-level=INFO -s -vv --instafail --durations=50 /io/test/
-   timeout: 600
-   secrets:
-    - name: gce-deploy-config
-      namespace:
-        valueFrom: default_ns.name
-      mountPath: /deploy-config
-    - name: test-dev-tokens
-      namespace:
-        valueFrom: default_ns.name
-      mountPath: /user-tokens
-    - name: ssl-config-query-tests
-      namespace:
-        valueFrom: default_ns.name
-      mountPath: /ssl-config
-   inputs:
-     - from: /wheel-container.tar
-       to: /io/wheel-container.tar
-     - from: /repo/query/test
-       to: /io/
-   dependsOn:
-    - default_ns
-    - create_certs
-    - build_hail
-    - hail_run_image
-    - deploy_query
- - kind: runImage
    name: test_lsm
    image:
      valueFrom: base_image.image
@@ -3539,6 +3501,7 @@ steps:
       namespace:
         valueFrom: default_ns.name
       mountPath: /ssl-config
+   timeout: 1200
    dependsOn:
     - default_ns
     - create_certs
@@ -3591,7 +3554,6 @@ steps:
     - test_hailtop_batch_2
     - test_hailtop_batch_3
     - test_hailtop_batch_4
-    - test_query
  - kind: runImage
    name: delete_batch_instances
    image:
@@ -3629,7 +3591,6 @@ steps:
     - test_hailtop_batch_2
     - test_hailtop_batch_3
     - test_hailtop_batch_4
-    - test_query
  - kind: runImage
    name: delete_atgu_tables
    image:

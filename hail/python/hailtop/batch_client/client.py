@@ -285,3 +285,9 @@ class BatchClient:
 
     def close(self):
         async_to_blocking(self._async_client.close())
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()

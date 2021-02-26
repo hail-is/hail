@@ -59,7 +59,7 @@ class BlockingClientResponse:
         self.client_response.__del__()
 
     def history(self) -> Tuple[aiohttp.ClientResponse, ...]:
-        return self.client_response.history()
+        return self.client_response.history
 
     def __repr__(self) -> str:
         return f'BlockingClientRepsonse({repr(self.client_response)})'

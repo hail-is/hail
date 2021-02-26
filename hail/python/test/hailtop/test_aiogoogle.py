@@ -5,7 +5,7 @@ from itertools import accumulate
 from concurrent.futures import ThreadPoolExecutor
 import asyncio
 import pytest
-from hailtop.utils import secret_alnum_string
+from hailtop.utils import secret_alnum_string, bounded_gather2
 from hailtop.aiotools import LocalAsyncFS, RouterAsyncFS
 from hailtop.aiogoogle import StorageClient, GoogleStorageAsyncFS
 
@@ -31,8 +31,10 @@ async def filesystem(request):
                 base = f'gs://{bucket}/tmp/{token}/'
 
             await fs.mkdir(base)
-            yield (fs, base)
-            await fs.rmtree(base)
+            sema = asyncio.Semaphore(50)
+            async with sema:
+                yield (sema, fs, base)
+                await fs.rmtree(sema, base)
             assert not await fs.isdir(base)
 
 
@@ -44,8 +46,10 @@ async def local_filesystem(request):
         async with LocalAsyncFS(thread_pool) as fs:
             base = f'/tmp/{token}/'
             await fs.mkdir(base)
-            yield (fs, base)
-            await fs.rmtree(base)
+            sema = asyncio.Semaphore(50)
+            async with sema:
+                yield (sema, fs, base)
+                await fs.rmtree(sema, base)
             assert not await fs.isdir(base)
 
 
@@ -62,7 +66,7 @@ async def file_data(request):
 
 @pytest.mark.asyncio
 async def test_write_read(filesystem, file_data):
-    fs, base = filesystem
+    sema, fs, base = filesystem
 
     file = f'{base}foo'
 
@@ -78,8 +82,22 @@ async def test_write_read(filesystem, file_data):
 
 
 @pytest.mark.asyncio
+async def test_open_from(filesystem):
+    sema, fs, base = filesystem
+
+    file = f'{base}foo'
+
+    async with await fs.create(file) as f:
+        await f.write(b'abcde')
+
+    async with await fs.open_from(file, 2) as f:
+        r = await f.read()
+        assert r == b'cde'
+
+
+@pytest.mark.asyncio
 async def test_isfile(filesystem):
-    fs, base = filesystem
+    sema, fs, base = filesystem
 
     file = f'{base}foo'
 
@@ -93,7 +111,7 @@ async def test_isfile(filesystem):
 
 @pytest.mark.asyncio
 async def test_isdir(filesystem):
-    fs, base = filesystem
+    sema, fs, base = filesystem
 
     # mkdir with trailing slash
     dir = f'{base}dir/'
@@ -115,7 +133,7 @@ async def test_isdir(filesystem):
 
 @pytest.mark.asyncio
 async def test_isdir_subdir_only(filesystem):
-    fs, base = filesystem
+    sema, fs, base = filesystem
 
     dir = f'{base}dir/'
     await fs.mkdir(dir)
@@ -132,7 +150,7 @@ async def test_isdir_subdir_only(filesystem):
 
 @pytest.mark.asyncio
 async def test_remove(filesystem):
-    fs, base = filesystem
+    sema, fs, base = filesystem
 
     file = f'{base}foo'
 
@@ -146,7 +164,7 @@ async def test_remove(filesystem):
 
 @pytest.mark.asyncio
 async def test_rmtree(filesystem):
-    fs, base = filesystem
+    sema, fs, base = filesystem
 
     dir = f'{base}foo/'
 
@@ -156,7 +174,7 @@ async def test_rmtree(filesystem):
 
     assert await fs.isdir(dir)
 
-    await fs.rmtree(dir)
+    await fs.rmtree(sema, dir)
 
     assert not await fs.isdir(dir)
 
@@ -192,8 +210,27 @@ async def test_get_object_headers():
 
 
 @pytest.mark.asyncio
+async def test_compose():
+    bucket = os.environ['HAIL_TEST_BUCKET']
+    token = secret_alnum_string()
+
+    part_data = [b'a', b'bb', b'ccc']
+
+    async with StorageClient() as client:
+        for i, b in enumerate(part_data):
+            async with await client.insert_object(bucket, f'{token}/{i}') as f:
+                await f.write(b)
+        await client.compose(bucket, [f'{token}/{i}' for i in range(len(part_data))], f'{token}/combined')
+
+        expected = b''.join(part_data)
+        async with await client.get_object(bucket, f'{token}/combined') as f:
+            actual = await f.read()
+        assert actual == expected
+
+
+@pytest.mark.asyncio
 async def test_statfile_nonexistent_file(filesystem):
-    fs, base = filesystem
+    sema, fs, base = filesystem
 
     with pytest.raises(FileNotFoundError):
         await fs.statfile(f'{base}foo')
@@ -201,7 +238,7 @@ async def test_statfile_nonexistent_file(filesystem):
 
 @pytest.mark.asyncio
 async def test_statfile_directory(filesystem):
-    fs, base = filesystem
+    sema, fs, base = filesystem
 
     await fs.mkdir(f'{base}dir/')
     await fs.touch(f'{base}dir/foo')
@@ -213,7 +250,7 @@ async def test_statfile_directory(filesystem):
 
 @pytest.mark.asyncio
 async def test_statfile(filesystem):
-    fs, base = filesystem
+    sema, fs, base = filesystem
 
     n = 37
     file = f'{base}bar'
@@ -225,7 +262,7 @@ async def test_statfile(filesystem):
 
 @pytest.mark.asyncio
 async def test_listfiles(filesystem):
-    fs, base = filesystem
+    sema, fs, base = filesystem
 
     with pytest.raises(FileNotFoundError):
         await fs.listfiles(f'{base}does/not/exist')
@@ -273,8 +310,8 @@ async def test_listfiles(filesystem):
     [1, 2, 0],
     [2, 1, 0]
 ])
-async def test_multi_part_create(local_filesystem, permutation):
-    fs, base = local_filesystem
+async def test_multi_part_create(filesystem, permutation):
+    sema, fs, base = filesystem
 
     part_data = [secrets.token_bytes(s) for s in [8192, 600, 20000]]
 
@@ -283,10 +320,9 @@ async def test_multi_part_create(local_filesystem, permutation):
     for b in part_data:
         part_start.append(s)
         s += len(b)
-    print(part_start)
 
     path = f'{base}a'
-    async with await fs.multi_part_create(path, len(part_data)) as c:
+    async with await fs.multi_part_create(sema, path, len(part_data)) as c:
         async def create_part(i):
             async with await c.create_part(i, part_start[i]) as f:
                 await f.write(part_data[i])
@@ -299,6 +335,35 @@ async def test_multi_part_create(local_filesystem, permutation):
             # do in parallel
             await asyncio.gather(*[
                 create_part(i) for i in range(len(part_data))])
+
+    expected = b''.join(part_data)
+    async with await fs.open(path) as f:
+        actual = await f.read()
+    assert expected == actual
+
+
+@pytest.mark.asyncio
+async def test_multi_part_create_many(filesystem):
+    sema, fs, base = filesystem
+
+    # > 32 so we perform at least 2 layers of merging
+    part_data = [secrets.token_bytes(100) for _ in range(80)]
+
+    s = 0
+    part_start = []
+    for b in part_data:
+        part_start.append(s)
+        s += len(b)
+
+    path = f'{base}a'
+    async with await fs.multi_part_create(sema, path, len(part_data)) as c:
+        async def create_part(i):
+            async with await c.create_part(i, part_start[i]) as f:
+                await f.write(part_data[i])
+
+        # do in parallel
+        await bounded_gather2(sema, *[
+            create_part(i) for i in range(len(part_data))])
 
     expected = b''.join(part_data)
     async with await fs.open(path) as f:
