@@ -538,13 +538,13 @@ class JVMProcess:
         self.java_args = main_spec['command']
 
         self.proc = None
-        self.timing = {}
+        self.timing = {'running': None}
         self.state = 'pending'
         self.log = ''
 
     async def run(self, worker):
         log.info(f'running {self}')
-        self.timing['start_time'] = time_msecs()
+        self.timing['running']['start_time'] = time_msecs()
         self.proc = await asyncio.create_subprocess_exec(
             'java',
             *self.flags,
@@ -555,9 +555,9 @@ class JVMProcess:
         out, err = await self.proc.communicate()
 
         finish_time = time_msecs()
-        self.timing['finish_time'] = finish_time
-        start_time = self.timing['start_time']
-        self.timing['duration'] = finish_time - start_time
+        self.timing['running']['finish_time'] = finish_time
+        start_time = self.timing['running']['start_time']
+        self.timing['running']['duration'] = finish_time - start_time
 
         self.log += 'STDOUT:\n'
         self.log += out.decode()
