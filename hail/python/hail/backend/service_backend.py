@@ -2,6 +2,7 @@ from typing import Optional
 import os
 import aiohttp
 import json
+import warnings
 
 from hail.utils import FatalError
 from hail.expr.types import dtype, tvoid
@@ -11,7 +12,7 @@ from hail.expr.blockmatrix_type import tblockmatrix
 
 from hailtop.config import get_deploy_config, get_user_config, DeployConfig
 from hailtop.auth import service_auth_headers
-from hailtop.utils import async_to_blocking, retry_transient_errors, secret_alnum_string
+from hailtop.utils import async_to_blocking, retry_transient_errors, secret_alnum_string, TransientError
 from hail.ir.renderer import CSERenderer
 
 from .backend import Backend
@@ -51,10 +52,12 @@ class ServiceSocket:
         async with session.ws_connect(f'{self.url}/api/v1alpha/{endpoint}') as socket:
             await socket.send_str(json.dumps(data))
             response = await socket.receive()
-            if response.type in (aiohttp.WSMsgType.CLOSE,
-                                 aiohttp.WSMsgType.CLOSED,
-                                 aiohttp.WSMsgType.ERROR):
+            if response.type == aiohttp.WSMsgType.ERROR:
                 raise ValueError(f'bad response: {endpoint}; {data}; {response}')
+            if response.type in (aiohttp.WSMsgType.CLOSE,
+                                 aiohttp.WSMsgType.CLOSED):
+                warnings.warn(f'retrying after losing connection {endpoint}; {data}; {response}')
+                raise TransientError()
             assert response.type == aiohttp.WSMsgType.TEXT
             result = json.loads(response.data)
             if result['status'] != 200:
