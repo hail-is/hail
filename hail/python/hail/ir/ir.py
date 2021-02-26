@@ -553,21 +553,26 @@ class MakeArray(IR):
 
 
 class ArrayRef(IR):
-    @typecheck_method(a=IR, i=IR, s=IR)
-    def __init__(self, a, i, s):
-        super().__init__(a, i, s)
+    @typecheck_method(a=IR, i=IR, error_id=nullable(int), stack_trace=nullable(str))
+    def __init__(self, a, i, error_id, stack_trace):
+        super().__init__(a, i)
         self.a = a
         self.i = i
-        self.s = s
+        self._error_id = error_id
+        self._stack_trace = stack_trace
+        if error_id is None or stack_trace is None:
+            self.save_error_info()
 
-    @typecheck_method(a=IR, i=IR, s=IR)
-    def copy(self, a, i, s):
-        return ArrayRef(a, i, s)
+    def head_str(self):
+        return str(self._error_id)
+
+    @typecheck_method(a=IR, i=IR)
+    def copy(self, a, i):
+        return ArrayRef(a, i, self._error_id, self._stack_trace)
 
     def _compute_type(self, env, agg_env):
         self.a._compute_type(env, agg_env)
         self.i._compute_type(env, agg_env)
-        self.s._compute_type(env, agg_env)
         self._type = self.a.typ.element_type
 
 

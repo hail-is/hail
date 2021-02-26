@@ -77,7 +77,7 @@ object InferType {
         val argTypes = a.args.map(_.typ)
         assert(a.implementation.unify(typeArgs, argTypes, a.returnType))
         a.returnType
-      case ArrayRef(a, i, s) =>
+      case ArrayRef(a, i, _) =>
         assert(i.typ == TInt32)
         coerce[TArray](a.typ).elementType
       case ArraySort(a, _, _, lessThan) =>

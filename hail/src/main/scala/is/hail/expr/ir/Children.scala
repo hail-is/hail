@@ -52,8 +52,8 @@ object Children {
       args.toFastIndexedSeq
     case MakeStream(args, _, _) =>
       args.toFastIndexedSeq
-    case ArrayRef(a, i, s) =>
-      Array(a, i, s)
+    case ArrayRef(a, i, _) =>
+      Array(a, i)
     case ArrayLen(a) =>
       Array(a)
     case StreamRange(start, stop, step, _) =>

@@ -147,7 +147,7 @@ object InferPType {
       case Let(_, _, body) => body.pType
       case TailLoop(_, _, body) => body.pType
       case a: AbstractApplyNode[_] => a.implementation.returnPType(a.returnType, a.args.map(_.pType))
-      case ArrayRef(a, i, s) =>
+      case ArrayRef(a, i, _) =>
         assert(i.pType isOfType PInt32())
         coerce[PArray](a.pType).elementType.setRequired(requiredness(node).required)
       case ArraySort(a, leftName, rightName, lessThan) =>

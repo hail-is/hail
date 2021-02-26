@@ -63,9 +63,9 @@ object Copy {
       case MakeStream(args, typ, separateRegions) =>
         assert(args.length == newChildren.length)
         MakeStream(newChildren.map(_.asInstanceOf[IR]), typ, separateRegions)
-      case ArrayRef(_, _, _) =>
-        assert(newChildren.length == 3)
-        ArrayRef(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR], newChildren(2).asInstanceOf[IR])
+      case ArrayRef(_, _, errorId) =>
+        assert(newChildren.length == 2)
+        ArrayRef(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR], errorId)
       case ArrayLen(_) =>
         assert(newChildren.length == 1)
         ArrayLen(newChildren(0).asInstanceOf[IR])

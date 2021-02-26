@@ -939,11 +939,10 @@ object PruneDeadFields {
       case MakeStream(args, _, _) =>
         val eltType = requestedType.asInstanceOf[TStream].elementType
         unifyEnvsSeq(args.map(a => memoizeValueIR(a, eltType, memo)))
-      case ArrayRef(a, i, s) =>
+      case ArrayRef(a, i, _) =>
         unifyEnvs(
           memoizeValueIR(a, TArray(requestedType), memo),
-          memoizeValueIR(i, i.typ, memo),
-          memoizeValueIR(s, s.typ, memo)
+          memoizeValueIR(i, i.typ, memo)
         )
       case ArrayLen(a) =>
         memoizeValueIR(a, minimal(a.typ), memo)
@@ -1738,6 +1737,8 @@ object PruneDeadFields {
         )
       case Ref(name, t) =>
         Ref(name, env.eval.lookupOption(name).getOrElse(t))
+      case ArrayRef(a, i, errorId) =>
+        ArrayRef(rebuildIR(a, env, memo), rebuildIR(i, env, memo), errorId)
       case RelationalLet(name, value, body) =>
         val value2 = rebuildIR(value, BindingEnv.empty, memo)
         memo.relationalRefs += name -> value2.typ

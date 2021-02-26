@@ -138,7 +138,6 @@ object TypeCheck {
         }
       case x@ArrayRef(a, i, s) =>
         assert(i.typ == TInt32)
-        assert(s.typ == TString)
         assert(x.typ == coerce[TArray](a.typ).elementType)
       case ArrayLen(a) =>
         assert(a.typ.isInstanceOf[TArray])

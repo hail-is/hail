@@ -190,6 +190,7 @@ object Pretty {
     case NDArrayConcat(_, axis) => single(axis.toString)
     case NDArrayAgg(_, axes) => single(prettyInts(axes, elideLiterals))
     case NDArrayRef(_, _, errorId) => single(s"$errorId")
+    case ArrayRef(_, _, errorId) => single(s"$errorId")
     case ArraySort(_, l, r, _) => FastSeq(prettyIdentifier(l), prettyIdentifier(r))
     case ApplyIR(function, typeArgs, _) => FastSeq(prettyIdentifier(function), prettyTypes(typeArgs), ir.typ.parsableString())
     case Apply(function, typeArgs, _, t) => FastSeq(prettyIdentifier(function), prettyTypes(typeArgs), t.parsableString())

@@ -904,7 +904,7 @@ class Emit[C](
         }
         presentPC(finish(cb))
 
-      case x@ArrayRef(a, i, s) =>
+      case x@ArrayRef(a, i, errorId) =>
         val errorTransformer: Code[String] => Code[String] = s match {
           case Str("") =>
             val prettied = Pretty.short(x)

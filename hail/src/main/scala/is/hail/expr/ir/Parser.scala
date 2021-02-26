@@ -873,11 +873,11 @@ object IRParser {
           MakeStream(args, typ, separateRegions)
         }
       case "ArrayRef" =>
+        val errorId = int32_literal(it)
         for {
           a <- ir_value_expr(env)(it)
           i <- ir_value_expr(env)(it)
-          s <- ir_value_expr(env)(it)
-        } yield ArrayRef(a, i, s)
+        } yield ArrayRef(a, i, errorId)
       case "ArrayLen" => ir_value_expr(env)(it).map(ArrayLen)
       case "StreamLen" => ir_value_expr(env)(it).map(StreamLen)
       case "StreamRange" =>

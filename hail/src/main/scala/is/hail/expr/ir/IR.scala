@@ -228,10 +228,10 @@ object MakeStream {
 final case class MakeStream(args: Seq[IR], _typ: TStream, separateRegions: Boolean = false) extends IR
 
 object ArrayRef {
-  def apply(a: IR, i: IR): ArrayRef = ArrayRef(a, i, Str(""))
+  def apply(a: IR, i: IR): ArrayRef = ArrayRef(a, i, -1)
 }
 
-final case class ArrayRef(a: IR, i: IR, msg: IR) extends IR
+final case class ArrayRef(a: IR, i: IR, errorId: Int) extends IR
 final case class ArrayLen(a: IR) extends IR
 final case class ArrayZeros(length: IR) extends IR
 final case class StreamRange(start: IR, stop: IR, step: IR, separateRegions: Boolean = false) extends IR
