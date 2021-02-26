@@ -22,12 +22,13 @@ from gear import (
     check_csrf_token,
     create_database_pool,
 )
+import random
 from typing import Dict, Any, Optional
 from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template, set_message
 
 from .environment import BUCKET
 from .github import Repo, FQBranch, WatchedBranch, UnwatchedBranch, MergeFailureBatch, PR
-from .constants import AUTHORIZED_USERS
+from .constants import AUTHORIZED_USERS, TEAMS
 
 with open(os.environ.get('HAIL_CI_OAUTH_TOKEN', 'oauth-token/oauth-token'), 'r') as f:
     oauth_token = f.read().strip()
@@ -59,15 +60,16 @@ async def pr_config(app, pr: PR) -> Dict[str, Any]:
         'build_state': build_state,
         'review_state': pr.review_state,
         'author': pr.author,
+        'assignees': pr.assignees,
         'out_of_date': pr.build_state in ['failure', 'success', None] and not pr.is_up_to_date(),
     }
 
 
-async def watched_branch_config(app, wb: WatchedBranch, index: int, pr_author=None) -> Dict[str, Optional[Any]]:
+async def watched_branch_config(app, wb: WatchedBranch, index: int) -> Dict[str, Optional[Any]]:
     if wb.prs:
-        pr_configs = [await pr_config(app, pr) for pr in wb.prs.values() if pr_author is None or pr.author == pr_author]
+        pr_configs = [await pr_config(app, pr) for pr in wb.prs.values()]
     else:
-        pr_configs = None
+        pr_configs = []
     # FIXME recent deploy history
     return {
         'index': index,
@@ -207,28 +209,38 @@ async def get_job(request, userdata):
     return await render_template('ci', request, userdata, 'job.html', page_context)
 
 
+def filter_wbs(wbs, pred):
+    return [{**wb, 'prs': [pr for pr in wb['prs'] if pred(pr)]} for wb in wbs]
+
+
 @routes.get('/me')
 @web_authenticated_developers_only()
 async def get_user(request, userdata):
     username = userdata['username']
+    gh_username = None
+    pr_wbs = []
+    review_wbs = []
     for user in AUTHORIZED_USERS:
         if user.hail_username == username:
             gh_username = user.gh_username
-            wbs = [
-                await watched_branch_config(request.app, wb, i, pr_author=gh_username)
-                for i, wb in enumerate(watched_branches)
-            ]
+            wbs = [await watched_branch_config(request.app, wb, i) for i, wb in enumerate(watched_branches)]
+            pr_wbs = filter_wbs(wbs, lambda pr: gh_username == pr['author'])
+            review_wbs = filter_wbs(wbs, lambda pr: gh_username in pr['assignees'])
             break
-    else:
-        gh_username = None
-        wbs = []
     batch_client = request.app['batch_client']
     dev_deploys = batch_client.list_batches(f'user={username} dev_deploy=1', limit=10)
     dev_deploys = sorted([b async for b in dev_deploys], key=lambda b: b.id, reverse=True)
+
+    team_random_member = {
+        team: random.choice([user for user in AUTHORIZED_USERS if team in user.teams]).gh_username for team in TEAMS
+    }
+
     page_context = {
         'username': username,
         'gh_username': gh_username,
-        'watched_branches': wbs,
+        'pr_wbs': pr_wbs,
+        'review_wbs': review_wbs,
+        'team_member': team_random_member,
         'dev_deploys': [await b.last_known_status() for b in dev_deploys],
     }
     return await render_template('ci', request, userdata, 'user.html', page_context)
