@@ -3251,7 +3251,7 @@ class Tests(unittest.TestCase):
 
     def test_frozendict_as_literal(self):
         fd = hl.utils.frozendict({"a": 4, "b": 8})
-        assert hl.eval(hl.literal(fs)) == hl.utils.frozendict({"a": 4, "b": 8})
+        assert hl.eval(hl.literal(fd)) == hl.utils.frozendict({"a": 4, "b": 8})
 
     def test_nan_roundtrip(self):
         a = [math.nan, math.inf, -math.inf, 0, 1]
