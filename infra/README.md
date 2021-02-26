@@ -176,13 +176,16 @@ You can now install Hail:
   make create-build-worker-image-instance
   ```
 
-  Wait for the `build-batch-worker-image` instance to be stopped.  Then run:
+  Wait for the `build-batch-worker-image` instance to be stopped. Then run:
 
   ```
   make create-worker-image
   ```
 
-- Bootstrap the cluster by running:
+- Bootstrap the cluster. Make sure to substitute the values for the exported
+  environment variables. Note that if you set `use_artifact_registry` for Terraform
+  above, make sure your `HAIL_DOCKER_PREFIX` has the format of
+  `<region>-docker.pkg.dev/<project>/hail`.
 
   ```
   cd $HAIL
@@ -195,23 +198,15 @@ You can now install Hail:
   export HAIL_GCP_ZONE=<gcp-zone>
   export HAIL_GCP_PROJECT=<gcp-project>
   export PYTHONPATH=$HOME/hail/ci:$HOME/hail/batch:$HOME/hail/hail/python
+
   python3 ci/bootstrap.py hail-is/hail:main $(git rev-parse HEAD) test_batch_0
   ```
 
-- Create the initial (developer) user:
+- Create the initial (developer) user. Make sure to use the same environment
+  variables as in the block above.
 
   ```
-  cd $HAIL
-  HAIL_DOCKER_PREFIX=gcr.io/<gcp-project>
-  HAIL_CI_UTILS_IMAGE=$HAIL_DOCKER_PREFIX/ci-utils:latest
-  HAIL_CI_BUCKET_NAME=dummy
-  KUBERNETES_SERVER_URL='<k8s-server-url>'
-  HAIL_DEFAULT_NAMESPACE='default'
-  HAIL_DOMAIN=<domain>
-  HAIL_GCP_ZONE=<gcp-zone>
-  HAIL_GCP_PROJECT=<gcp-project>
-  PYTHONPATH=$HOME/hail/ci:$HOME/hail/batch:$HOME/hail/hail/python
-  python3 ci/bootstrap.py --extra-code-config '{"username":"<username>","email":"<email>"}' hail-is/hail:main $(git rev-parse HEAD) create_initial_user
+  [ -z "${HAIL_GCP_PROJECT}" ] || python3 ci/bootstrap.py --extra-code-config '{"username":"<username>","email":"<email>"}' hail-is/hail:main $(git rev-parse HEAD) create_initial_user
   ```
 
   Additional users can be added by the initial user by going to auth.<domain>/users.
