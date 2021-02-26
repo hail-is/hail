@@ -43,8 +43,11 @@ spec:
          - batch.driver
         resources:
           requests:
-            memory: "1G"
+            cpu: "600m"
+            memory: "2150M"
+          limits:
             cpu: "1"
+            memory: "2.5G"
         env:
          - name: HAIL_DOMAIN
            value: "{{ global.domain }}"
@@ -239,11 +242,11 @@ spec:
          - containerPort: 5000
         resources:
           requests:
-            memory: "100M"
-            cpu: "100m"
+            cpu: "20m"
+            memory: "20M"
           limits:
-            memory: "1G"
             cpu: "1"
+            memory: "1G"
         volumeMounts:
          - name: deploy-config
            mountPath: /deploy-config

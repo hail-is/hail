@@ -48,11 +48,11 @@ spec:
              readOnly: true
           resources:
             requests:
-              memory: "3.75G"
-              cpu: "800m"
+              cpu: "600m"
+              memory: "2150M"
             limits:
-              memory: "3.75G"
               cpu: "1"
+              memory: "2.5G"
       volumes:
        - name: deploy-config
          secret:

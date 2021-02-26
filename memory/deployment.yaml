@@ -25,11 +25,11 @@ spec:
           image: gcr.io/{{ global.project }}/redis:6.0.6-alpine
           command:
            - redis-server
-           - --port 
+           - --port
            - "0"
            - --unixsocket
            - /redis/redis.sock
-           - --timeout 
+           - --timeout
            - "0"
            - --maxmemory
            - 2gb
@@ -40,16 +40,16 @@ spec:
              mountPath: /redis
           resources:
             requests:
-              memory: "2.5G"
-              cpu: "400m"
+              cpu: "600m"
+              memory: "2150M"
             limits:
-              memory: "3.75G"
               cpu: "1"
+              memory: "2.5G"
           readinessProbe:
             exec:
               command:
                - redis-cli
-               - -s 
+               - -s
                - /redis/redis.sock
                - ping
             initialDelaySeconds: 5
