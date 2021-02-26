@@ -148,9 +148,10 @@ async def prod_deploy(request, unused_userdata):
         0, FQBranch.from_short_str('populationgenomics/hail:main'), True
     )
     watched_branch.sha = 'HEAD'
-    await watched_branch._start_deploy(request.app['batch_client'], steps)
+    await watched_branch._start_deploy(app['batch_client'], steps)
 
-    url = deploy_config.external_url('ci', '/batches')
+    batch_id = watched_branch.deploy_batch.id
+    url = deploy_config.external_url('ci', f'/batches/{batch_id}')
     return web.Response(text=f'{url}\n')
 
 
