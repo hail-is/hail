@@ -126,8 +126,6 @@ LIMIT 300;
             await waitable_pool.call(
                 schedule_with_error_handling, self.app, record, id, instance)
 
-            n_scheduled += 1
-
         await waitable_pool.wait()
 
         log.info(f'scheduled {n_scheduled} jobs for {self}')
