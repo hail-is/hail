@@ -40,11 +40,8 @@ curl -fsSL "https://github.com/GoogleCloudPlatform/docker-credential-gcr/release
 # avoid "unable to get current user home directory: os/user lookup failed"
 export HOME=/root
 
-DOCKER_PREFIX=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/docker_prefix")
-
 docker-credential-gcr configure-docker --include-artifact-registry
-
-docker pull ${DOCKER_PREFIX}/ubuntu:18.04
+docker pull {{ global.docker_root_image }}
 docker pull gcr.io/google.com/cloudsdktool/cloud-sdk:310.0.0-alpine
 
 # add docker daemon debug logging

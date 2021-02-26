@@ -17,6 +17,8 @@ from ci.utils import generate_token
 from batch.driver.k8s_cache import K8sCache
 
 KUBERNETES_SERVER_URL = os.environ['KUBERNETES_SERVER_URL']
+DOCKER_PREFIX = os.environ['DOCKER_PREFIX']
+DOCKER_ROOT_IMAGE = f'{DOCKER_PREFIX}/ubuntu:18.04'
 
 
 def populate_secret_host_path(host_path: str, secret_data: Union[str, bytes]):
@@ -144,7 +146,7 @@ class LocalBatchBuilder:
                     f'{root}/shared:/shared',
                     '-v',
                     f'{job_root}/io:/io',
-                    'ubuntu:18.04',
+                    DOCKER_ROOT_IMAGE,
                     '/bin/bash',
                     '-c',
                     copy_script,
@@ -282,7 +284,7 @@ users:
                         f'{root}/shared:/shared',
                         '-v',
                         f'{job_root}/io:/io',
-                        'ubuntu:18.04',
+                        DOCKER_ROOT_IMAGE,
                         '/bin/bash',
                         '-c',
                         copy_script,
