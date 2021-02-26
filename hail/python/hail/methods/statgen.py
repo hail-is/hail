@@ -455,15 +455,16 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, pass_through=())
         )
         all_covs_defined = ht.cov_arrays.map(lambda sample_covs: no_missing(sample_covs))
 
-        def make_idx_ys_covs_struct(sample_ys):
+        def get_kept_samples(sample_ys):
             # sample_ys is an array of samples, with each element being an array of the y_values
             return hl.enumerate(sample_ys).filter(
                 lambda idx_and_y_values: all_covs_defined[idx_and_y_values[0]] & no_missing(idx_and_y_values[1])
-            ).map(lambda idx_and_y_values: hl.struct(idx=idx_and_y_values[0], ys=idx_and_y_values[1]))
+            ).map(lambda idx_and_y_values: idx_and_y_values[0])
 
-        kept_data_per_y_group = ht.y_arrays_per_group.map(make_idx_ys_covs_struct)
-        kept_samples = kept_data_per_y_group.idx
-        y_nds = kept_data_per_y_group.ys.map(lambda y_2d: hl.nd.array(y_2d))
+        kept_samples = ht.y_arrays_per_group.map(get_kept_samples)
+        y_nds = hl.zip(kept_samples, ht.y_arrays_per_group).map(lambda sample_indices_and_y_arrays:
+                                                                hl.nd.array(sample_indices_and_y_arrays[0].map(lambda idx:
+                                                                                                               sample_indices_and_y_arrays[1][idx])))
         cov_nds = kept_samples.map(lambda group: hl.nd.array(group.map(lambda idx: ht.cov_arrays[idx])))
 
         k = builtins.len(covariates)
