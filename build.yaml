@@ -669,6 +669,13 @@ steps:
      - service_base_image
      - build_hail_jar_only
  - kind: buildImage
+   name: service_java_run_base_image
+   dockerFile: docker/Dockerfile.service-java-run-base
+   contextPath: .
+   publishAs: service-java-run-base
+   dependsOn:
+     - hail_ubuntu_image
+ - kind: buildImage
    name: query_image
    dockerFile: query/Dockerfile
    contextPath: .
@@ -677,7 +684,7 @@ steps:
      - from: /just-jar/hail.jar
        to: /query/hail.jar
    dependsOn:
-     - service_base_image
+     - service_java_run_base_image
      - build_hail_jar_only
  - kind: deploy
    name: deploy_query_sa
