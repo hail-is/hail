@@ -17,8 +17,8 @@ using this recipe and push it to Anaconda on every push event to the `main` bran
 the
 [CPG hail fork](https://github.com/populationgenomics/hail).
 
-When installing the package, list the `cpg` channel before `bioconda` to prioritize it
-in the channel order:
+When installing the package, list the `cpg` channel before `bioconda` to prioritize
+the channel order:
 
 ```
 conda create --name hail -c cpg -c bioconda -c conda-forge hail
