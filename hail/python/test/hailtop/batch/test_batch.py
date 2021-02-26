@@ -355,7 +355,7 @@ class LocalTests(unittest.TestCase):
 
     def test_backend_context_manager(self):
         with LocalBackend() as backend:
-            b = hb.Batch(backend=backend)
+            b = Batch(backend=backend)
             b.run()
 
 
