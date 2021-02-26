@@ -151,7 +151,7 @@ class InstanceCollection:
             last_start_timestamp = spec.get('lastStartTimestamp')
             assert last_start_timestamp is not None, f'lastStartTimestamp does not exist {spec}'
             last_start_time_msecs = dateutil.parser.isoparse(last_start_timestamp).timestamp() * 1000
-            
+
             if (instance.state == 'pending'
                     and time_msecs() - last_start_time_msecs > 5 * 60 * 1000):
                 log.exception(f'{instance} did not activate within 5m after starting, deleting')
