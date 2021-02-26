@@ -38,7 +38,7 @@ spec:
             value: /deploy-config/deploy-config.json
           - name: HAIL_SHA
             value: "{{ code.sha }}"
-{% if deploy or scope == "dev" %}
+{% if scope != "test" %}
           - name: HAIL_USE_FULL_QUERY
             value: "1"
 {% endif %}

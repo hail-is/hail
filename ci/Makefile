@@ -1,10 +1,10 @@
 include ../config.mk
 
-CI_UTILS_LATEST = gcr.io/$(PROJECT)/ci-utils:latest
-CI_UTILS_IMAGE = gcr.io/$(PROJECT)/ci-utils:$(shell docker images -q --no-trunc ci-utils | sed -e 's,[^:]*:,,')
+CI_UTILS_LATEST = $(DOCKER_PREFIX)/ci-utils:latest
+CI_UTILS_IMAGE = $(DOCKER_PREFIX)/ci-utils:$(shell docker images -q --no-trunc ci-utils | sed -e 's,[^:]*:,,')
 
-CI_LATEST = gcr.io/$(PROJECT)/ci:latest
-CI_IMAGE = gcr.io/$(PROJECT)/ci:$(shell docker images -q --no-trunc ci | sed -e 's,[^:]*:,,')
+CI_LATEST = $(DOCKER_PREFIX)/ci:latest
+CI_IMAGE = $(DOCKER_PREFIX)/ci:$(shell docker images -q --no-trunc ci | sed -e 's,[^:]*:,,')
 
 EXTRA_PYTHONPATH := ../batch:../hail/python:../gear:../web_common
 PYTHON := PYTHONPATH=$${PYTHONPATH:+$${PYTHONPATH}:}$(EXTRA_PYTHONPATH) python3
@@ -13,7 +13,7 @@ PYTHON := PYTHONPATH=$${PYTHONPATH:+$${PYTHONPATH}:}$(EXTRA_PYTHONPATH) python3
 check:
 	$(PYTHON) -m flake8 ci
 	$(PYTHON) -m pylint --rcfile ../pylintrc ci --score=n
-	$(PYTHON) -m black ci --check --line-length=120 --skip-string-normalization
+	$(PYTHON) -m black ci --check --diff --line-length=120 --skip-string-normalization
 	../check-sql.sh
 
 .PHONY: build-ci-utils
@@ -47,5 +47,5 @@ push: build
 .PHONY: deploy
 deploy: push push-ci-utils
 	! [ -z $(NAMESPACE) ]  # call this like: make deploy NAMESPACE=default
-	python3 jinja2_render.py '{"code":{"sha":"$(shell git rev-parse --short=12 HEAD)"},"deploy":$(DEPLOY),"default_ns":{"name":"$(NAMESPACE)"},"ci_image":{"image":"$(CI_IMAGE)"},"global":{"project":"$(PROJECT)","zone":"$(ZONE)","ip":"$(IP)","domain":"$(DOMAIN)", "k8s_server_url":"$(KUBERNETES_SERVER_URL)"},"ci_utils_image":{"image":"$(CI_UTILS_IMAGE)"},"ci_database":{"user_secret_name":"sql-ci-user-config"}}' deployment.yaml deployment.yaml.out
+	python3 jinja2_render.py '{"code":{"sha":"$(shell git rev-parse --short=12 HEAD)"},"deploy":$(DEPLOY),"default_ns":{"name":"$(NAMESPACE)"},"ci_image":{"image":"$(CI_IMAGE)"},"global":{"project":"$(PROJECT)","zone":"$(ZONE)","docker_prefix":"$(DOCKER_PREFIX)","docker_root_image":"$(DOCKER_ROOT_IMAGE)","ip":"$(IP)","domain":"$(DOMAIN)", "k8s_server_url":"$(KUBERNETES_SERVER_URL)"},"ci_utils_image":{"image":"$(CI_UTILS_IMAGE)"},"ci_database":{"user_secret_name":"sql-ci-user-config"}}' deployment.yaml deployment.yaml.out
 	kubectl -n $(NAMESPACE) apply -f deployment.yaml.out

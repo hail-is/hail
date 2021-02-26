@@ -6,7 +6,6 @@ import asyncio
 import concurrent.futures
 import aiohttp
 import gidgethub
-import zulip
 
 from hailtop.config import get_deploy_config
 from hailtop.batch_client.aioclient import Batch
@@ -24,7 +23,7 @@ deploy_config = get_deploy_config()
 
 CALLBACK_URL = deploy_config.url('ci', '/api/v1alpha/batch_callback')
 
-zulip_client = None # zulip.Client(config_file="/zulip-config/.zuliprc")
+zulip_client = None  # zulip.Client(config_file="/zulip-config/.zuliprc")
 
 
 class Repo:
@@ -195,7 +194,7 @@ class PR(Code):
                 self.target_branch.state_changed = True
 
     async def authorized(self, dbpool):
-        if self.author in AUTHORIZED_USERS:
+        if self.author in {user.gh_username for user in AUTHORIZED_USERS}:
             return True
 
         async with dbpool.acquire() as conn:
@@ -409,8 +408,6 @@ mkdir -p {shq(repo_dir)}
         except concurrent.futures.CancelledError:
             raise
         except Exception as e:  # pylint: disable=broad-except
-            log.exception('could not start build')
-
             # FIXME save merge failure output for UI
             self.batch = MergeFailureBatch(
                 e,
@@ -442,7 +439,10 @@ mkdir -p {shq(repo_dir)}
     async def _update_batch(self, batch_client, dbpool):
         # find the latest non-cancelled batch for source
         batches = batch_client.list_batches(
-            f'test=1 ' f'target_branch={self.target_branch.branch.short_str()} ' f'source_sha={self.source_sha}'
+            f'test=1 '
+            f'target_branch={self.target_branch.branch.short_str()} '
+            f'source_sha={self.source_sha} '
+            f'user:ci'
         )
         min_batch = None
         min_batch_status = None
@@ -658,14 +658,14 @@ class WatchedBranch(Code):
 
         if self.deploy_batch is None:
             running_deploy_batches = batch_client.list_batches(
-                f'!complete deploy=1 target_branch={self.branch.short_str()}'
+                f'!complete ' f'deploy=1 ' f'target_branch={self.branch.short_str()} ' f'user:ci'
             )
             running_deploy_batches = [b async for b in running_deploy_batches]
             if running_deploy_batches:
                 self.deploy_batch = max(running_deploy_batches, key=lambda b: b.id)
             else:
                 deploy_batches = batch_client.list_batches(
-                    f'deploy=1 ' f'target_branch={self.branch.short_str()} ' f'sha={self.sha}'
+                    f'deploy=1 ' f'target_branch={self.branch.short_str()} ' f'sha={self.sha} ' f'user:ci'
                 )
                 deploy_batches = [b async for b in deploy_batches]
                 if deploy_batches:
@@ -748,7 +748,9 @@ url: {url}
             await pr._heal(batch_client, dbpool, pr == merge_candidate, gh)
 
         # cancel orphan builds
-        running_batches = batch_client.list_batches(f'!complete !open test=1 target_branch={self.branch.short_str()}')
+        running_batches = batch_client.list_batches(
+            f'!complete ' f'!open ' f'test=1 ' f'target_branch={self.branch.short_str()} ' f'user:ci'
+        )
         seen_batch_ids = set(pr.batch.id for pr in self.prs.values() if pr.batch and hasattr(pr.batch, 'id'))
         async for batch in running_batches:
             if batch.id not in seen_batch_ids:
@@ -756,7 +758,7 @@ url: {url}
                 log.info(f'cancel batch {batch.id} for {attrs["pr"]} {attrs["source_sha"]} => {attrs["target_sha"]}')
                 await batch.cancel()
 
-    async def _start_deploy(self, batch_client):
+    async def _start_deploy(self, batch_client, steps=()):
         # not deploying
         assert not self.deploy_batch or self.deploy_state
 
@@ -773,7 +775,7 @@ mkdir -p {shq(repo_dir)}
 '''
             )
             with open(f'{repo_dir}/build.yaml', 'r') as f:
-                config = BuildConfiguration(self, f.read(), scope='deploy')
+                config = BuildConfiguration(self, f.read(), scope='deploy', requested_step_names=steps)
 
             log.info(f'creating deploy batch for {self.branch.short_str()}')
             deploy_batch = batch_client.create_batch(
@@ -858,6 +860,7 @@ mkdir -p {shq(repo_dir)}
                     'target_branch': self.branch.short_str(),
                     'sha': self.sha,
                     'user': self.user,
+                    'dev_deploy': '1',
                 }
             )
             config.build(deploy_batch, self, scope='dev')

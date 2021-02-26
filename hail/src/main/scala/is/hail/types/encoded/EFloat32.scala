@@ -2,35 +2,33 @@ package is.hail.types.encoded
 
 import is.hail.annotations.Region
 import is.hail.asm4s._
-import is.hail.expr.ir.{EmitCodeBuilder}
-import is.hail.types.BaseType
-import is.hail.types.physical._
-import is.hail.types.virtual._
+import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.io.{InputBuffer, OutputBuffer}
+import is.hail.types.physical._
+import is.hail.types.physical.stypes.SType
+import is.hail.types.physical.stypes.primitives.{SFloat32, SFloat32Code}
+import is.hail.types.virtual._
 import is.hail.utils._
 
 case object EFloat32Optional extends EFloat32(false)
+
 case object EFloat32Required extends EFloat32(true)
 
-class EFloat32(override val required: Boolean) extends EFundamentalType {
-  def _buildFundamentalEncoder(cb: EmitCodeBuilder, pt: PType, v: Value[_], out: Value[OutputBuffer]): Unit = {
-    cb += out.writeFloat(coerce[Float](v))
+class EFloat32(override val required: Boolean) extends EType {
+  override def _buildEncoder(cb: EmitCodeBuilder, v: PValue, out: Value[OutputBuffer]): Unit = {
+    cb += out.writeFloat(v.asFloat.floatCode(cb))
   }
 
-  def _buildFundamentalDecoder(
-    cb: EmitCodeBuilder,
-    pt: PType,
-    region: Value[Region],
-    in: Value[InputBuffer]
-  ): Code[Float] = in.readFloat()
+  override def _buildDecoder(cb: EmitCodeBuilder, t: Type, region: Value[Region], in: Value[InputBuffer]): PCode = {
+    new SFloat32Code(required, in.readFloat())
+  }
 
   def _buildSkip(cb: EmitCodeBuilder, r: Value[Region], in: Value[InputBuffer]): Unit = cb += in.skipFloat()
 
-  override def _compatible(pt: PType): Boolean = pt.isInstanceOf[PFloat32]
-
-  def _decodedPType(requestedType: Type): PType = PFloat32(required)
+  def _decodedSType(requestedType: Type): SType = SFloat32(required)
 
   def _asIdent = "float32"
+
   def _toPretty = "EFloat32"
 
   def setRequired(newRequired: Boolean): EFloat32 = EFloat32(newRequired)

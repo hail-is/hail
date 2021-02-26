@@ -30,10 +30,6 @@ final case class PCanonicalShuffle(
 
   override def alignment: Long = representation.alignment
 
-  override def fundamentalType: PType = representation.fundamentalType
-
-  override def encodableType: PType = this
-
   override def containsPointers: Boolean = representation.containsPointers
 
   def _copyFromAddress(region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Long = {
@@ -44,7 +40,7 @@ final case class PCanonicalShuffle(
   }
 
   def unstagedStoreAtAddress(addr: Long, region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Unit =
-    this.representation.unstagedStoreAtAddress(addr, region, srcPType.fundamentalType, srcAddress, deepCopy)
+    this.representation.unstagedStoreAtAddress(addr, region, srcPType.asInstanceOf[PCanonicalShuffle].representation, srcAddress, deepCopy)
 
   override def unstagedStoreJavaObjectAtAddress(addr: Long, annotation: Annotation, region: Region): Unit =
     this.representation.unstagedStoreJavaObjectAtAddress(addr, annotation, region)
@@ -92,4 +88,3 @@ final case class PCanonicalShuffle(
 
   def unstagedLoadFromNested(addr: Long): Long = representation.unstagedLoadFromNested(addr)
 }
-

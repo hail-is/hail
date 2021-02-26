@@ -3,7 +3,6 @@ package is.hail.expr.ir
 import java.io._
 import java.util.Base64
 
-
 import is.hail.{HailContext, lir}
 import is.hail.annotations.{CodeOrdering, Region, RegionPool, RegionValueBuilder, SafeRow}
 import is.hail.asm4s._
@@ -13,7 +12,7 @@ import is.hail.expr.ir.functions.IRRandomness
 import is.hail.io.fs.FS
 import is.hail.io.{BufferSpec, InputBuffer, TypedCodecSpec}
 import is.hail.lir
-import is.hail.types.physical.stypes.SType
+import is.hail.types.physical.stypes.{SCode, SType}
 import is.hail.types.physical.{PBaseStructValue, PCanonicalTuple, PCode, PSettable, PStream, PStruct, PType, PValue, typeToTypeInfo}
 import is.hail.types.virtual.Type
 import is.hail.utils._
@@ -392,8 +391,6 @@ class EmitClassBuilder[C](
     val litType = PCanonicalTuple(true, literals.map(_._1._1): _*)
     val spec = TypedCodecSpec(litType, BufferSpec.defaultUncompressed)
 
-    val (litRType, dec) = spec.buildEmitDecoderF[Long](this)
-    assert(litRType == litType)
     cb.addInterface(typeInfo[FunctionWithLiterals].iname)
     val mb2 = newEmitMethod("addLiterals", FastIndexedSeq[ParamType](typeInfo[Array[Array[Byte]]]), typeInfo[Unit])
 
@@ -402,28 +399,29 @@ class EmitClassBuilder[C](
     mb2.voidWithBuilder { cb =>
       val allEncodedFields = mb2.getCodeParam[Array[Array[Byte]]](1)
 
-      val litSType = litType.sType
-      val lits = cb.emb.newPLocal("lits", litType)
       val ib = cb.newLocal[InputBuffer]("ib",
         spec.buildCodeInputBuffer(Code.newInstance[ByteArrayInputStream, Array[Byte]](allEncodedFields(0))))
-      cb.assign(lits, litSType.loadFrom(cb, partitionRegion, litType, dec(partitionRegion, ib)).asPCode)
+
+      val lits = spec.encodedType.buildDecoder(spec.encodedVirtualType, this)
+        .apply(cb, partitionRegion, ib)
+        .asBaseStruct
+        .memoize(cb, "cb_lits")
       literals.zipWithIndex.foreach { case (((_, _), f), i) =>
-        lits.asInstanceOf[PBaseStructValue]
-          .loadField(cb, i)
+        lits.loadField(cb, i)
           .consume(cb,
             cb._fatal("expect non-missing literals!"),
             { pc => f.store(cb, pc.asPCode) })
       }
       // Handle the pre-encoded literals, which only need to be decoded.
       preEncodedLiterals.zipWithIndex.foreach { case ((encLit, f), index) =>
-        val (preEncLitRType, preEncLitDec) = encLit.codec.buildEmitDecoderF[Long](this)
-        assert(preEncLitRType == encLit.pType)
         val spec = encLit.codec
+        cb.assign(ib, spec.buildCodeInputBuffer(Code.newInstance[ByteArrayInputStream, Array[Byte]](allEncodedFields(index + 1))))
+        val decodedValue = encLit.codec.encodedType.buildDecoder(encLit.typ, this)
+          .apply(cb, partitionRegion, ib)
+        assert(decodedValue.st == f.st)
 
         // Because 0th index is for the regular literals
-        cb.assign(ib, spec.buildCodeInputBuffer(Code.newInstance[ByteArrayInputStream, Array[Byte]](allEncodedFields(index + 1))))
-        f.store(cb, preEncLitRType.sType
-          .loadFrom(cb, partitionRegion, preEncLitRType, preEncLitDec(partitionRegion, ib)).asPCode)
+        f.store(cb, decodedValue)
       }
     }
 
@@ -603,9 +601,6 @@ class EmitClassBuilder[C](
         val v2 = newMB.getEmitParam(2).pv
         newMB.emitWithBuilder { cb =>
           op match {
-            case CodeOrdering.CompareStructs(sf, missingEqual) =>
-              val ord = CodeOrdering.rowOrdering(t1.asInstanceOf[PStruct], t2.asInstanceOf[PStruct], newMB, sf.map(_.sortOrder).toArray, missingEqual)
-              ord.compareNonnull(cb, v1, v2)
             case CodeOrdering.Compare(_) => ord.compareNonnull(cb, v1, v2)
             case CodeOrdering.Equiv(_) => ord.equivNonnull(cb, v1, v2)
             case CodeOrdering.Lt(_) => ord.ltNonnull(cb, v1, v2)
@@ -623,9 +618,6 @@ class EmitClassBuilder[C](
         val v2 = newMB.getEmitParam(2)
         newMB.emitWithBuilder { cb =>
           op match {
-            case CodeOrdering.CompareStructs(sf, missingEqual) =>
-              val ord = CodeOrdering.rowOrdering(t1.asInstanceOf[PStruct], t2.asInstanceOf[PStruct], newMB, sf.map(_.sortOrder).toArray, missingEqual)
-              ord.compare(cb, v1, v2, missingEqual)
             case CodeOrdering.Compare(missingEqual) => ord.compare(cb, v1, v2, missingEqual)
             case CodeOrdering.Equiv(missingEqual) => ord.equiv(cb, v1, v2, missingEqual)
             case CodeOrdering.Lt(missingEqual) => ord.lt(cb, v1, v2, missingEqual)
@@ -664,6 +656,7 @@ class EmitClassBuilder[C](
     }
     val codeReturnInfo = returnInfo match {
       case CodeParamType(ti) => ti
+      case PCodeParamType(pt) => pt.ti
       case EmitParamType(pt) =>
         val ts = EmitCode.codeTupleTypes(pt)
         if (ts.length == 1)
@@ -999,7 +992,7 @@ class EmitMethodBuilder[C](
     }
   }
 
-  def getPCodeParam(emitIndex: Int): PValue = {
+  def getPCodeParam(emitIndex: Int): PCode = {
     assert(mb.isStatic || emitIndex != 0)
     val static = (!mb.isStatic).toInt
     val _pt = emitParamTypes(emitIndex - static).asInstanceOf[PCodeParamType].pt
@@ -1008,16 +1001,9 @@ class EmitMethodBuilder[C](
     val ts = _pt.codeTupleTypes()
     val codeIndex = emitParamCodeIndex(emitIndex - static)
 
-    // FIXME this isn't great, but it shouldn't fail
-    new PValue {
-      val pt: PType = _pt
-      val st: SType = _pt.sType
-
-      def get: PCode =
-        pt.fromCodeTuple(ts.zipWithIndex.map { case (t, i) =>
-          mb.getArg(codeIndex + i)(t).get
-        })
-    }
+    _pt.sType.fromCodes(ts.zipWithIndex.map { case (t, i) =>
+      mb.getArg(codeIndex + i)(t).load()
+    }).asPCode
   }
 
   def getEmitParam(emitIndex: Int): EmitValue = {
@@ -1119,6 +1105,14 @@ class EmitMethodBuilder[C](
   def emitWithBuilder[T](f: (EmitCodeBuilder) => Code[T]): Unit = emit(EmitCodeBuilder.scopedCode[T](this)(f))
 
   def voidWithBuilder(f: (EmitCodeBuilder) => Unit): Unit = emit(EmitCodeBuilder.scopedVoid(this)(f))
+
+  def emitPCode(f: (EmitCodeBuilder) => PCode): Unit = {
+    // FIXME: this should optionally construct a tuple to support multiple-code SCodes
+    emit(EmitCodeBuilder.scopedCode(this) { cb =>
+      val res = f(cb)
+      res.code
+    })
+  }
 }
 
 trait WrappedEmitMethodBuilder[C] extends WrappedEmitClassBuilder[C] {

@@ -297,10 +297,10 @@ class Tests(unittest.TestCase):
         assert hl.eval(hl.literal(rna_strs).map(lambda s: hl.reverse_complement(s, rna=True))) == ['UGUAAUCNN', 'UGUAAUCNN'.lower(), 'oof']
 
     def test_matches(self):
-        self.assertEqual(hl.eval('\d+'), '\d+')
+        self.assertEqual(hl.eval('\\d+'), '\\d+')
         string = hl.literal('12345')
-        self.assertTrue(hl.eval(string.matches('\d+')))
-        self.assertTrue(hl.eval(string.matches(hl.str('\d+'))))
+        self.assertTrue(hl.eval(string.matches('\\d+')))
+        self.assertTrue(hl.eval(string.matches(hl.str('\\d+'))))
         self.assertFalse(hl.eval(string.matches(r'\\d+')))
 
     def test_string_reverse(self):
@@ -2459,11 +2459,6 @@ class Tests(unittest.TestCase):
             self.assertEqual(hl.eval(hl._sort_by([hl.Struct(x=i, y="foo", z=5.5) for i in [5, 3, 8, 2, 5, hl.missing(hl.tint32)]], lambda l, r: l.x < r.x)),
                              [hl.Struct(x=i, y="foo", z=5.5) for i in [2, 3, 5, 5, 8, None]])
 
-    def test_array_head(self):
-        a = hl.array([1,2,3])
-        assert hl.eval(a.head()) == 1
-        assert hl.eval(a.filter(lambda x: x > 5).head()) is None
-
     def test_array_first(self):
         a = hl.array([1,2,3])
         assert hl.eval(a.first()) == 1
@@ -2675,7 +2670,7 @@ class Tests(unittest.TestCase):
                                             entry_type=hl.tstr)
             actual = actual.rename({'col_id': 's'})
             actual = actual.key_rows_by(locus = hl.parse_locus(actual.locus),
-                                        alleles = actual.alleles.replace('"', '').replace('\[', '').replace('\]', '').split(','))
+                                        alleles = actual.alleles.replace('"', '').replace(r'\[', '').replace(r'\]', '').split(','))
             actual = actual.transmute_entries(GT = hl.parse_call(actual.x))
             expected = mt.select_cols().select_globals().select_rows()
             expected.show()
@@ -3059,7 +3054,7 @@ class Tests(unittest.TestCase):
         self.assertAlmostEqual(hl.eval(hl.uniroot(lambda x: x - 1, 0, 3, tolerance=tol)), 1)
         self.assertAlmostEqual(hl.eval(hl.uniroot(lambda x: hl.log(x) - 1, 0, 3, tolerance=tol)), 2.718281828459045, delta=tol)
 
-        with self.assertRaisesRegex(hl.utils.FatalError, "value of f\(x\) is missing"):
+        with self.assertRaisesRegex(hl.utils.FatalError, r"value of f\(x\) is missing"):
             hl.eval(hl.uniroot(lambda x: hl.missing('float'), 0, 1))
         with self.assertRaisesRegex(hl.utils.HailUserError, 'opposite signs'):
             hl.eval(hl.uniroot(lambda x: x ** 2 - 0.5, -1, 1))

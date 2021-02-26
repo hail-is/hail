@@ -1,7 +1,7 @@
 include ../config.mk
 
-ROUTER_RESOLVER_LATEST = gcr.io/$(PROJECT)/router-resolver:latest
-ROUTER_RESOLVER_IMAGE = gcr.io/$(PROJECT)/router-resolver:$(shell docker images -q --no-trunc router-resolver:latest | sed -e 's,[^:]*:,,')
+ROUTER_RESOLVER_LATEST = $(DOCKER_PREFIX)/router-resolver:latest
+ROUTER_RESOLVER_IMAGE = $(DOCKER_PREFIX)/router-resolver:$(shell docker images -q --no-trunc router-resolver:latest | sed -e 's,[^:]*:,,')
 
 EXTRA_PYTHONPATH := ../hail/python:../gear
 PYTHON := PYTHONPATH=$${PYTHONPATH:+$${PYTHONPATH}:}$(EXTRA_PYTHONPATH) python3

@@ -1,7 +1,7 @@
 include ../config.mk
 
-MONITORING_LATEST = gcr.io/$(PROJECT)/monitoring:latest
-MONITORING_IMAGE = gcr.io/$(PROJECT)/monitoring:$(shell docker images -q --no-trunc monitoring:latest | sed -e 's,[^:]*:,,')
+MONITORING_LATEST = $(DOCKER_PREFIX)/monitoring:latest
+MONITORING_IMAGE = $(DOCKER_PREFIX)/monitoring:$(shell docker images -q --no-trunc monitoring:latest | sed -e 's,[^:]*:,,')
 
 PYTHONPATH := $${PYTHONPATH:+$${PYTHONPATH}:}
 PYTHON := PYTHONPATH=$(PYTHONPATH)../hail/python:../gear:../web_common python3

@@ -9,6 +9,9 @@ terraform {
       version = "1.13.3"
     }
   }
+  backend "gcs" {
+    bucket = "cpg-hail-terraform"
+  }
 }
 
 variable "gsuite_organization" {}
@@ -18,8 +21,29 @@ variable "gcp_location" {}
 variable "gcp_region" {}
 variable "gcp_zone" {}
 variable "domain" {}
+variable "use_artifact_registry" {
+  type = bool
+  description = "pull the ubuntu image from Artifact Registry. Otherwise, GCR"
+}
+
+locals {
+  docker_prefix = (
+    var.use_artifact_registry ?
+    "${var.gcp_region}-docker.pkg.dev/${var.gcp_project}/hail" :
+    "gcr.io/${var.gcp_project}"
+  )
+  docker_root_image = "${local.docker_prefix}/ubuntu:18.04"
+}
 
 provider "google" {
+  credentials = file("~/.hail/terraform_sa_key.json")
+
+  project = var.gcp_project
+  region = var.gcp_region
+  zone = var.gcp_zone
+}
+
+provider "google-beta" {
   credentials = file("~/.hail/terraform_sa_key.json")
 
   project = var.gcp_project
@@ -207,11 +231,12 @@ resource "kubernetes_secret" "global_config" {
     batch_gcp_regions = var.batch_gcp_regions
     batch_logs_bucket = google_storage_bucket.batch_logs.name
     default_namespace = "default"
-    docker_root_image = "gcr.io/${var.gcp_project}/ubuntu:18.04"
+    docker_root_image = local.docker_root_image
     domain = var.domain
     gcp_project = var.gcp_project
     gcp_region = var.gcp_region
     gcp_zone = var.gcp_zone
+    docker_prefix = local.docker_prefix
     gsuite_organization = var.gsuite_organization
     internal_ip = google_compute_address.internal_gateway.address
     ip = google_compute_address.gateway.address
@@ -255,7 +280,7 @@ ssl-mode=VERIFY_CA
 END
     "sql-config.json" = <<END
 {
-    "docker_root_image": "gcr.io/${var.gcp_project}/ubuntu:18.04",
+    "docker_root_image": "${local.docker_root_image}",
     "host": "${google_sql_database_instance.db.ip_address[0].ip_address}",
     "port": 3306,
     "user": "root",
@@ -272,6 +297,13 @@ END
 }
 
 resource "google_container_registry" "registry" {
+}
+
+resource "google_artifact_registry_repository" "repository" {
+  provider = google-beta
+  format = "DOCKER"
+  repository_id = "hail"
+  location = var.gcp_location
 }
 
 resource "google_service_account" "gcr_pull" {
@@ -298,9 +330,41 @@ resource "google_storage_bucket_iam_member" "gcr_pull_viewer" {
   member = "serviceAccount:${google_service_account.gcr_pull.email}"
 }
 
+resource "google_artifact_registry_repository_iam_member" "artifact_registry_pull_viewer" {
+  provider = google-beta
+  repository = google_artifact_registry_repository.repository.name
+  location = var.gcp_location
+  role = "roles/artifactregistry.reader"
+  member = "serviceAccount:${google_service_account.gcr_pull.email}"
+}
+
+resource "google_artifact_registry_repository_iam_member" "artifact_registry_batch_agent_viewer" {
+  provider = google-beta
+  repository = google_artifact_registry_repository.repository.name
+  location = var.gcp_location
+  role = "roles/artifactregistry.reader"
+  member = "serviceAccount:${google_service_account.batch_agent.email}"
+}
+
+resource "google_artifact_registry_repository_iam_member" "artifact_registry_ci_viewer" {
+  provider = google-beta
+  repository = google_artifact_registry_repository.repository.name
+  location = var.gcp_location
+  role = "roles/artifactregistry.reader"
+  member = "serviceAccount:${google_service_account.ci.email}"
+}
+
 resource "google_storage_bucket_iam_member" "gcr_push_admin" {
   bucket = google_container_registry.registry.id
   role = "roles/storage.admin"
+  member = "serviceAccount:${google_service_account.gcr_push.email}"
+}
+
+resource "google_artifact_registry_repository_iam_member" "artifact_registry_push_admin" {
+  provider = google-beta
+  repository = google_artifact_registry_repository.repository.name
+  location = var.gcp_location
+  role = "roles/artifactregistry.admin"
   member = "serviceAccount:${google_service_account.gcr_push.email}"
 }
 
@@ -497,6 +561,14 @@ resource "google_service_account" "ci" {
   account_id = "ci-${random_id.ci_name_suffix.hex}"
 }
 
+resource "google_artifact_registry_repository_iam_member" "artifact_registry_viewer" {
+  provider = google-beta
+  repository = google_artifact_registry_repository.repository.name
+  location = var.gcp_location
+  role = "roles/artifactregistry.reader"
+  member = "serviceAccount:${google_service_account.ci.email}"
+}
+
 resource "google_service_account_key" "ci_key" {
   service_account_id = google_service_account.ci.name
 }
@@ -619,7 +691,7 @@ resource "google_project_iam_member" "batch_agent_object_viewer" {
 }
 
 resource "google_compute_firewall" "default_allow_internal" {
-  name    = "default-allow-internal"
+  name = "default-allow-internal"
   network = google_compute_network.default.name
 
   priority = 65534
@@ -628,12 +700,12 @@ resource "google_compute_firewall" "default_allow_internal" {
 
   allow {
     protocol = "tcp"
-    ports    = ["0-65535"]
+    ports = ["0-65535"]
   }
 
   allow {
     protocol = "udp"
-    ports    = ["0-65535"]
+    ports = ["0-65535"]
   }
 
   allow {
@@ -642,7 +714,7 @@ resource "google_compute_firewall" "default_allow_internal" {
 }
 
 resource "google_compute_firewall" "allow_ssh" {
-  name    = "allow-ssh"
+  name = "allow-ssh"
   network = google_compute_network.default.name
 
   priority = 65534
@@ -651,12 +723,12 @@ resource "google_compute_firewall" "allow_ssh" {
 
   allow {
     protocol = "tcp"
-    ports    = ["22"]
+    ports = ["22"]
   }
 }
 
 resource "google_compute_firewall" "vdc_to_batch_worker" {
-  name    = "vdc-to-batch-worker"
+  name = "vdc-to-batch-worker"
   network = google_compute_network.default.name
 
   source_ranges = [google_container_cluster.vdc.cluster_ipv4_cidr]
@@ -669,12 +741,12 @@ resource "google_compute_firewall" "vdc_to_batch_worker" {
 
   allow {
     protocol = "tcp"
-    ports    = ["1-65535"]
+    ports = ["1-65535"]
   }
 
   allow {
     protocol = "udp"
-    ports    = ["1-65535"]
+    ports = ["1-65535"]
   }
 }
 
@@ -684,9 +756,9 @@ resource "random_id" "batch_logs_bucket_name_suffix" {
 
 resource "google_storage_bucket" "batch_logs" {
   name = "batch-logs-${random_id.batch_logs_bucket_name_suffix.hex}"
-  location = var.gcp_location
+  location = var.batch_logs_bucket_location
   force_destroy = true
-  storage_class = "STANDARD"
+  storage_class = var.batch_logs_bucket_storage_class
 }
 
 resource "google_dns_managed_zone" "dns_zone" {

@@ -57,13 +57,17 @@ def combine(output, files):
             data['median'] = np.median(flat_times)
             data['mean'] = np.mean(flat_times)
             data['stdev'] = np.std(flat_times)
-            f_stat, p_value = stats.f_oneway(*data['trials'])
-            data['f-stat'] = f_stat
-            data['p-value'] = p_value
-            if p_value < 0.001:
-                logging.warning(
-                    f'benchmark {name} had significantly different trial distributions (p={p_value}, F={f_stat}):' +
-                    ''.join('\n  ' + ', '.join([f'{x:.2f}s' for x in trial]) for trial in data['trials']))
+            if len(data['trials']) > 1:
+                f_stat, p_value = stats.f_oneway(*data['trials'])
+                data['f-stat'] = f_stat
+                data['p-value'] = p_value
+                if p_value < 0.001:
+                    logging.warning(
+                        f'benchmark {name} had significantly different trial distributions (p={p_value}, F={f_stat}):' +
+                        ''.join('\n  ' + ', '.join([f'{x:.2f}s' for x in trial]) for trial in data['trials']))
+            else:
+                data['f-stat'] = float('nan')
+                data['p-value'] = float('nan')
 
         benchmark_json.append(data)
 

@@ -42,6 +42,7 @@ def batch_record_to_dict(record):
     d = {
         'id': record['id'],
         'billing_project': record['billing_project'],
+        'token': record['token'],
         'state': state,
         'complete': record['state'] == 'complete',
         'closed': record['state'] != 'open',
@@ -98,15 +99,15 @@ def job_record_to_dict(record, name):
     return result
 
 
-async def cancel_batch_in_db(db, batch_id, user):
+async def cancel_batch_in_db(db, batch_id):
     @transaction(db)
     async def cancel(tx):
         record = await tx.execute_and_fetchone('''
 SELECT `state` FROM batches
-WHERE user = %s AND id = %s AND NOT deleted
+WHERE id = %s AND NOT deleted
 FOR UPDATE;
 ''',
-                                               (user, batch_id))
+                                               (batch_id,))
         if not record:
             raise NonExistentBatchError(batch_id)
 

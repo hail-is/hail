@@ -4,28 +4,7 @@ on:
     branches:
       - main
 jobs:
-  set-conda-pkg-version:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@main
-
-      - name: Fix meta YAML
-        run: |
-          MKFILE=hail/Makefile
-          MAJOR_MINOR=$(grep -Po 'HAIL_MAJOR_MINOR_VERSION := \K.*(?=)' ${MKFILE})
-          PATCH=$(grep -Po 'HAIL_PATCH_VERSION := \K.*(?=)' ${MKFILE})
-          VERSION=${MAJOR_MINOR}.${PATCH}.dev${GITHUB_SHA:0:7}
-          cat conda/hail/meta-template.yaml \
-          | sed s/{version}/${VERSION}/ > conda/hail/meta.yaml
-
-      - name: Upload meta YAML for build job
-        uses: actions/upload-artifact@v2
-        with:
-          name: meta.yaml
-          path: conda/hail/meta.yaml
-
   build-publish:
-    needs: set-conda-pkg-version
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest]
@@ -36,11 +15,13 @@ jobs:
     steps:
       - uses: actions/checkout@main
 
-      - name: Download meta YAML
-        uses: actions/download-artifact@v2
-        with:
-          name: meta.yaml
-          path: conda/hail/
+      - name: Fix meta YAML
+        run: |
+          make -C hail python-version-info
+          VERSION=$(cat hail/python/hail/hail_version)
+          VERSION=${VERSION/-/.dev}
+          cat conda/hail/meta-template.yaml \
+          | sed s/{version}/${VERSION}/ > conda/hail/meta.yaml
 
       - uses: conda-incubator/setup-miniconda@v2
         with:

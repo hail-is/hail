@@ -33,8 +33,8 @@ spec:
           image: "{{ ci_image.image }}"
           resources:
             requests:
-              memory: "20M"
-              cpu: "50m"
+              memory: "200M"
+              cpu: "100m"
             limits:
               memory: 3750Mi
               cpu: "1"
@@ -52,6 +52,10 @@ spec:
              value: "{{ global.project }}"
            - name: HAIL_GCP_ZONE
              value: "{{ global.zone }}"
+           - name: HAIL_DOCKER_PREFIX
+             value: "{{ global.docker_prefix }}"
+           - name: HAIL_DOCKER_ROOT_IMAGE
+             value: "{{ global.docker_root_image }}"
            - name: HAIL_CI_UTILS_IMAGE
              value: "{{ ci_utils_image.image }}"
            - name: HAIL_IP

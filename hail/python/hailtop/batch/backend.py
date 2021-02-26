@@ -325,7 +325,9 @@ class ServiceBackend(Backend):
              open: bool = False,
              disable_progress_bar: bool = False,
              callback: Optional[str] = None,
-             **backend_kwargs):  # pylint: disable-msg=too-many-statements
+             token: Optional[str] = None,
+             **backend_kwargs
+             ):  # pylint: disable-msg=too-many-statements
         """Execute a batch.
 
         Warning
@@ -352,6 +354,8 @@ class ServiceBackend(Backend):
         callback:
             If not `None`, a URL that will receive at most one POST request
             after the entire batch completes.
+        token:
+            If not `None`, a string used for idempotency of batch submission.
         """
 
         if backend_kwargs:
@@ -359,9 +363,9 @@ class ServiceBackend(Backend):
 
         build_dag_start = time.time()
 
-        token = uuid.uuid4().hex[:6]
-        remote_tmpdir = f'gs://{self._bucket_name}/batch/{token}'
-        local_tmpdir = f'/io/batch/{token}'
+        uid = uuid.uuid4().hex[:6]
+        remote_tmpdir = f'gs://{self._bucket_name}/batch/{uid}'
+        local_tmpdir = f'/io/batch/{uid}'
 
         default_image = 'ubuntu:18.04'
 
@@ -369,7 +373,8 @@ class ServiceBackend(Backend):
         if batch.name is not None:
             attributes['name'] = batch.name
 
-        bc_batch = self._batch_client.create_batch(attributes=attributes, callback=callback)
+        bc_batch = self._batch_client.create_batch(attributes=attributes, callback=callback,
+                                                   token=token)
 
         n_jobs_submitted = 0
         used_remote_tmpdir = False
@@ -474,6 +479,10 @@ class ServiceBackend(Backend):
                 resources['memory'] = job._memory
             if job._storage:
                 resources['storage'] = job._storage
+            if job._machine_type:
+                resources['machine_type'] = job._machine_type
+            if job._preemptible is not None:
+                resources['preemptible'] = job._preemptible
 
             image = job._image if job._image else default_image
             if not is_google_registry_image(image) and image not in HAIL_GENETICS_IMAGES:

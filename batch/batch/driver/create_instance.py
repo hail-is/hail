@@ -5,7 +5,7 @@ import json
 
 from hailtop import aiogoogle
 
-from ..batch_configuration import PROJECT, DEFAULT_NAMESPACE
+from ..batch_configuration import PROJECT, DOCKER_ROOT_IMAGE, DEFAULT_NAMESPACE
 from ..worker_config import WorkerConfig
 from ..log_store import LogStore
 
@@ -18,7 +18,8 @@ log.info(f'BATCH_WORKER_IMAGE {BATCH_WORKER_IMAGE}')
 
 async def create_instance(app, zone, machine_name, machine_type, activation_token,
                           max_idle_time_msecs, worker_local_ssd_data_disk,
-                          worker_pd_ssd_data_disk_size_gb, boot_disk_size_gb):
+                          worker_pd_ssd_data_disk_size_gb, boot_disk_size_gb,
+                          preemptible, job_private):
     log_store: LogStore = app['log_store']
     compute_client: aiogoogle.ComputeClient = app['compute_client']
 
@@ -71,7 +72,7 @@ async def create_instance(app, zone, machine_name, machine_type, activation_toke
         'scheduling': {
             'automaticRestart': False,
             'onHostMaintenance': "TERMINATE",
-            'preemptible': True
+            'preemptible': preemptible
         },
 
         'serviceAccounts': [{
@@ -172,6 +173,7 @@ NAME=$(curl -s http://metadata.google.internal/computeMetadata/v1/instance/name 
 ZONE=$(curl -s http://metadata.google.internal/computeMetadata/v1/instance/zone -H 'Metadata-Flavor: Google')
 
 BATCH_WORKER_IMAGE=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/batch_worker_image")
+DOCKER_ROOT_IMAGE=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/docker_root_image")
 
 # Setup fluentd
 touch /worker.log
@@ -248,6 +250,7 @@ docker run \
 -e BATCH_LOGS_BUCKET_NAME=$BATCH_LOGS_BUCKET_NAME \
 -e INSTANCE_ID=$INSTANCE_ID \
 -e PROJECT=$PROJECT \
+-e DOCKER_ROOT_IMAGE=$DOCKER_ROOT_IMAGE \
 -e WORKER_CONFIG=$WORKER_CONFIG \
 -e MAX_IDLE_TIME_MSECS=$MAX_IDLE_TIME_MSECS \
 -e WORKER_DATA_DISK_MOUNT=/mnt/disks/$WORKER_DATA_DISK_NAME \
@@ -292,6 +295,9 @@ journalctl -u docker.service > dockerd.log
                 'key': 'batch_worker_image',
                 'value': BATCH_WORKER_IMAGE
             }, {
+                'key': 'docker_root_image',
+                'value': DOCKER_ROOT_IMAGE
+            }, {
                 'key': 'namespace',
                 'value': DEFAULT_NAMESPACE
             }, {
@@ -312,7 +318,7 @@ journalctl -u docker.service > dockerd.log
         },
     }
 
-    worker_config = WorkerConfig.from_instance_config(config)
+    worker_config = WorkerConfig.from_instance_config(config, job_private)
     assert worker_config.is_valid_configuration(app['resources'])
     config['metadata']['items'].append({
         'key': 'worker_config',
@@ -323,3 +329,5 @@ journalctl -u docker.service > dockerd.log
         f'/zones/{zone}/instances', json=config)
 
     log.info(f'created machine {machine_name}')
+
+    return worker_config

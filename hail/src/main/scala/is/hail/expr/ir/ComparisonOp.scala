@@ -32,8 +32,6 @@ object ComparisonOp {
     case ("Compare", t1, t2) =>
       checkCompatible(t1, t2)
       Compare(t1, t2)
-    case ("CompareStructs", _, _) =>
-      throw new RuntimeException("CompareStructs must go through a custom parse rule to include sort fields")
   }
 
   def invert[T](op: ComparisonOp[Boolean]): ComparisonOp[Boolean] = {
@@ -91,14 +89,3 @@ case class Compare(t1: Type, t2: Type) extends ComparisonOp[Int] {
   val op: CodeOrdering.Op = CodeOrdering.Compare()
 }
 object Compare { def apply(typ: Type): Compare = Compare(typ, typ) }
-
-case class CompareStructs(t: TStruct, sortFields: IndexedSeq[SortField]) extends ComparisonOp[Int] {
-  if (!t.fieldNames.sameElements(sortFields.map(_.field)))
-    throw new RuntimeException(s"invalid CompareStructs: struct must have the same fields as sortFields.\n  t=$t\n  SF:$sortFields")
-  def t1: TStruct = t
-  def t2: TStruct = t
-  override val strict: Boolean = false
-  val op: CodeOrdering.Op = CodeOrdering.CompareStructs(sortFields)
-
-  override def render(): is.hail.utils.prettyPrint.Doc = is.hail.utils.prettyPrint.hsep(super.render(), Pretty.prettySortFields(sortFields))
-}

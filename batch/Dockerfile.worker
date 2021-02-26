@@ -1,5 +1,6 @@
-FROM gcr.io/{{ global.project }}/python:3.7-slim-stretch
+FROM {{ global.docker_prefix }}/python:3.7-slim-stretch
 
+COPY docker/hail-ubuntu/retry /bin/retry
 COPY docker/hail-ubuntu/hail-apt-get-install /bin/hail-apt-get-install
 RUN mkdir -p /usr/share/man/man1 /usr/share/man/man2
 RUN hail-apt-get-install \

@@ -12,6 +12,8 @@ trait SBinaryValue extends SValue {
 
   def loadBytes(): Code[Array[Byte]]
 
+  def bytesAddress(): Code[Long]
+
   def loadByte(i: Code[Int]): Code[Byte]
 }
 

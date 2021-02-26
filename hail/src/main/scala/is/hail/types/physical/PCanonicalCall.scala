@@ -17,7 +17,6 @@ final case class PCanonicalCall(required: Boolean = false) extends PCall {
 
   def byteSize: Long = representation.byteSize
   override def alignment: Long = representation.alignment
-  override lazy val fundamentalType: PInt32 = representation
 
   override def unsafeOrdering(): UnsafeOrdering = representation.unsafeOrdering() // this was a terrible idea
 
@@ -34,8 +33,6 @@ final case class PCanonicalCall(required: Boolean = false) extends PCall {
         representation.unstagedStoreAtAddress(addr, region, pt.representation, srcAddress, deepCopy)
     }
   }
-
-  override def encodableType: PType = representation.encodableType
 
   override def containsPointers: Boolean = representation.containsPointers
 

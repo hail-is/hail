@@ -2,7 +2,7 @@ package is.hail.types.physical.stypes
 
 import is.hail.annotations.{CodeOrdering, Region}
 import is.hail.asm4s.{Code, Settable, TypeInfo, Value}
-import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, SortOrder}
+import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, PCodeParamType, SortOrder}
 import is.hail.types.TypeWithRequiredness
 import is.hail.types.physical.{PCode, PType}
 import is.hail.types.virtual.Type
@@ -25,4 +25,8 @@ trait SType {
   def fromCodes(codes: IndexedSeq[Code[_]]): SCode
 
   def canonicalPType(): PType
+
+  def paramType: PCodeParamType = PCodeParamType(pType)
+
+  def asIdent: String = pType.asIdent
 }

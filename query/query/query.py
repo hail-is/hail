@@ -12,6 +12,7 @@ from hailtop.utils import blocking_to_async, retry_transient_errors, find_spark_
 from hailtop.config import get_deploy_config
 from hailtop.tls import internal_server_ssl_context
 from hailtop.hail_logging import AccessLogger
+from hailtop.hailctl import version
 from gear import setup_aiohttp_session, rest_authenticated_users_only, rest_authenticated_developers_only
 
 uvloop.install()
@@ -19,6 +20,8 @@ uvloop.install()
 DEFAULT_NAMESPACE = os.environ['HAIL_DEFAULT_NAMESPACE']
 log = logging.getLogger('batch')
 routes = web.RouteTableDef()
+# Store this value once so we don't hit the desk
+HAIL_VERSION = version()
 
 
 def java_to_web_response(jresp):
@@ -196,6 +199,14 @@ async def set_flag(request, userdata):  # pylint: disable=unused-argument
     return java_to_web_response(jresp)
 
 
+@routes.get('/api/v1alpha/version')
+async def rest_get_version(request):  # pylint: disable=W0613
+    try:
+        return web.Response(text=HAIL_VERSION)
+    except Exception as e:
+        return web.json_response({"error": str(e)})
+
+
 async def on_startup(app):
     thread_pool = concurrent.futures.ThreadPoolExecutor(max_workers=16)
     app['thread_pool'] = thread_pool
@@ -226,7 +237,16 @@ async def on_startup(app):
 
 async def on_cleanup(app):
     del app['k8s_client']
-    await asyncio.gather(*(t for t in asyncio.all_tasks() if t is not asyncio.current_task()))
+    await asyncio.wait(*(t for t in asyncio.all_tasks() if t is not asyncio.current_task()))
+
+
+async def on_shutdown(app):
+    # Filter the asyncio.current_task(), because if we await
+    # the current task we'll end up in a deadlock
+    remaining_tasks = [t for t in asyncio.all_tasks() if t is not asyncio.current_task()]
+    log.info(f"On shutdown request received, with {len(remaining_tasks)} remaining tasks")
+    await asyncio.wait(*remaining_tasks)
+    log.info("All tasks on shutdown have completed")
 
 
 def run():
@@ -238,6 +258,7 @@ def run():
 
     app.on_startup.append(on_startup)
     app.on_cleanup.append(on_cleanup)
+    app.on_shutdown.append(on_shutdown)
 
     deploy_config = get_deploy_config()
     web.run_app(
