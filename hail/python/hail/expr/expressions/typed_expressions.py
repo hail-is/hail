@@ -77,7 +77,7 @@ class CollectionExpression(Expression):
         [2, 4]
 
         >>> hl.eval(s3.filter(lambda x: ~(x[-1] == 'e')))  # doctest: +SKIP_OUTPUT_CHECK
-        {'Bob'}
+        frozenset({'Bob'})
 
         Notes
         -----
@@ -1138,10 +1138,10 @@ class SetExpression(CollectionExpression):
         --------
 
         >>> hl.eval(s1.difference(s2))
-        {2}
+        frozenset({2})
 
         >>> hl.eval(s2.difference(s1))
-        {5}
+        frozenset({5})
 
         Parameters
         ----------
