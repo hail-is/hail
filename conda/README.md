@@ -9,9 +9,8 @@ synced with the [official PyPI release](https://pypi.org/project/hail). However,
 a separate conda package in the `cpg` channel allows us to build it against the codebase
 in our fork.
 
-Because we don't control versioning of Hail project, the `cpg` conda package is
-versioned specifically: we append the git commit hash to the official version tag,
-e.g. `0.2.62.dev289c163`.
+We don't control versioning of original Hail project, so our `cpg` conda release name 
+is the official version tag appended with the git commit has, e.g. `0.2.62.dev289c163`.
 
 [GitHub Actions CI](../.github/workflows/condarise.yaml) is set up to build the package
 using this recipe and push it to Anaconda on every push event to the `main` branch in
