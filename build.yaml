@@ -3553,7 +3553,6 @@ steps:
     - test_hailtop_batch_2
     - test_hailtop_batch_3
     - test_hailtop_batch_4
-    - test_query
  - kind: runImage
    name: delete_batch_instances
    image:
@@ -3591,7 +3590,6 @@ steps:
     - test_hailtop_batch_2
     - test_hailtop_batch_3
     - test_hailtop_batch_4
-    - test_query
  - kind: runImage
    name: delete_atgu_tables
    image:
