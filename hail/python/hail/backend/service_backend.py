@@ -54,7 +54,7 @@ class ServiceSocket:
             if response.type in (aiohttp.WSMsgType.CLOSE,
                                  aiohttp.WSMsgType.CLOSED,
                                  aiohttp.WSMsgType.ERROR):
-                raise ValueError(f'bad response {response}')
+                raise ValueError(f'bad response: {endpoint}; {data}; {response}')
             assert response.type == aiohttp.WSMsgType.TEXT
             result = json.loads(response.data)
             if result['status'] != 200:
