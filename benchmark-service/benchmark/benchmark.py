@@ -439,7 +439,8 @@ async def github_polling_loop(app):
 
 async def on_startup(app):
     app['gs_reader'] = ReadGoogleStorage(service_account_key_file='/benchmark-gsa-key/key.json')
-    app['github_client'] = gidgethub.aiohttp.GitHubAPI(aiohttp.ClientSession(),
+    app['gh_client_session'] = aiohttp.ClientSession()
+    app['github_client'] = gidgethub.aiohttp.GitHubAPI(app['gh_client_session'],
                                                        'hail-is/hail',
                                                        oauth_token=oauth_token)
     app['batch_client'] = bc.BatchClient(billing_project='benchmark')
@@ -449,6 +450,7 @@ async def on_startup(app):
 
 
 async def on_cleanup(app):
+    await app['gh_client_session'].close()
     app['task_manager'].shutdown()
 
 
