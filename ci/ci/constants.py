@@ -6,6 +6,7 @@ TEAMS = ['Services', 'Compiler']
 
 
 class User:
+    # pylint: disable=dangerous-default-value
     def __init__(self, gh_username: str, hail_username: Optional[str] = None, teams: List[str] = []):
         self.gh_username = gh_username
         self.hail_username = hail_username
