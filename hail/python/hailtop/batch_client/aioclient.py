@@ -737,3 +737,9 @@ class BatchClient:
     async def close(self):
         await self._session.close()
         self._session = None
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self):
+        await self.close()
