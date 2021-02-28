@@ -76,11 +76,12 @@ class Code(abc.ABC):
 
 
 class StepParameters:
-    def __init__(self, code, scope, json, name_step):
+    def __init__(self, code, scope, json, name_step, batch_token: str):
         self.code = code
         self.scope = scope
         self.json = json
         self.name_step = name_step
+        self.batch_token = batch_token
 
 
 class BuildConfigurationError(Exception):
@@ -92,12 +93,13 @@ class BuildConfiguration:
         config = yaml.safe_load(config_str)
         name_step = {}
         self.steps = []
+        self.batch_token = generate_token()
 
         if requested_step_names:
             log.info(f"Constructing build configuration with steps: {requested_step_names}")
 
         for step_config in config['steps']:
-            step_params = StepParameters(code, scope, step_config, name_step)
+            step_params = StepParameters(code, scope, step_config, name_step, self.batch_token)
             step = Step.from_json(step_params)
             if not step.run_if_requested or step.name in requested_step_names:
                 self.steps.append(step)
@@ -146,7 +148,7 @@ class BuildConfiguration:
 
 
 class Step(abc.ABC):
-    def __init__(self, params):
+    def __init__(self, params: StepParameters):
         json = params.json
 
         self.name = json['name']
@@ -161,6 +163,7 @@ class Step(abc.ABC):
         self.run_if_requested = json.get('runIfRequested', False)
 
         self.token = generate_token()
+        self.batch_token = params.batch_token
 
     def input_config(self, code, scope):
         config = {}
@@ -172,6 +175,7 @@ class Step(abc.ABC):
             'k8s_server_url': KUBERNETES_SERVER_URL,
         }
         config['token'] = self.token
+        config['batch_token'] = self.batch_token
         config['deploy'] = scope == 'deploy'
         config['scope'] = scope
         config['code'] = code.config()
@@ -198,7 +202,7 @@ class Step(abc.ABC):
         return visited
 
     @staticmethod
-    def from_json(params):
+    def from_json(params: StepParameters):
         kind = params.json['kind']
         if kind == 'buildImage':
             return BuildImageStep.from_json(params)
@@ -228,7 +232,7 @@ class Step(abc.ABC):
 
 
 class BuildImageStep(Step):
-    def __init__(self, params, dockerfile, context_path, publish_as, inputs):  # pylint: disable=unused-argument
+    def __init__(self, params: StepParameters, dockerfile, context_path, publish_as, inputs):  # pylint: disable=unused-argument
         super().__init__(params)
         self.dockerfile = dockerfile
         self.context_path = context_path
@@ -247,7 +251,7 @@ class BuildImageStep(Step):
         return []
 
     @staticmethod
-    def from_json(params):
+    def from_json(params: StepParameters):
         json = params.json
         return BuildImageStep(
             params, json['dockerFile'], json.get('contextPath'), json.get('publishAs'), json.get('inputs')
@@ -412,7 +416,7 @@ true
 
 class RunImageStep(Step):
     def __init__(
-        self, params, image, script, inputs, outputs, port, resources, service_account, secrets, always_run, timeout
+        self, params: StepParameters, image, script, inputs, outputs, port, resources, service_account, secrets, always_run, timeout
     ):  # pylint: disable=unused-argument
         super().__init__(params)
         self.image = expand_value_from(image, self.input_config(params.code, params.scope))
@@ -439,7 +443,7 @@ class RunImageStep(Step):
         return []
 
     @staticmethod
-    def from_json(params):
+    def from_json(params: StepParameters):
         json = params.json
         return RunImageStep(
             params,
@@ -507,7 +511,7 @@ class RunImageStep(Step):
 
 
 class CreateNamespaceStep(Step):
-    def __init__(self, params, namespace_name, admin_service_account, public, secrets):
+    def __init__(self, params: StepParameters, namespace_name, admin_service_account, public, secrets):
         super().__init__(params)
         self.namespace_name = namespace_name
         if admin_service_account:
@@ -543,7 +547,7 @@ class CreateNamespaceStep(Step):
         return []
 
     @staticmethod
-    def from_json(params):
+    def from_json(params: StepParameters):
         json = params.json
         return CreateNamespaceStep(
             params,
@@ -720,7 +724,7 @@ true
 
 
 class DeployStep(Step):
-    def __init__(self, params, namespace, config_file, link, wait):  # pylint: disable=unused-argument
+    def __init__(self, params: StepParameters, namespace, config_file, link, wait):  # pylint: disable=unused-argument
         super().__init__(params)
         self.namespace = get_namespace(namespace, self.input_config(params.code, params.scope))
         self.config_file = config_file
@@ -734,7 +738,7 @@ class DeployStep(Step):
         return []
 
     @staticmethod
-    def from_json(params):
+    def from_json(params: StepParameters):
         json = params.json
         return DeployStep(
             params,
@@ -871,7 +875,7 @@ date
 
 
 class CreateDatabaseStep(Step):
-    def __init__(self, params, database_name, namespace, migrations, shutdowns, inputs):
+    def __init__(self, params: StepParameters, database_name, namespace, migrations, shutdowns, inputs):
         super().__init__(params)
 
         config = self.input_config(params.code, params.scope)
@@ -929,7 +933,7 @@ class CreateDatabaseStep(Step):
         return []
 
     @staticmethod
-    def from_json(params):
+    def from_json(params: StepParameters):
         json = params.json
         return CreateDatabaseStep(
             params,

@@ -329,10 +329,9 @@ async def main():
     with open('build.yaml', 'r') as f:
         config = BuildConfiguration(code, f.read(), scope, requested_step_names=steps)
 
-    token = generate_token()
     batch = LocalBatchBuilder(
         attributes={
-            'token': token
+            'token': config.batch_token
         }, callback=None)
     config.build(batch, code, scope)
 
