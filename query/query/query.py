@@ -1,3 +1,4 @@
+from typing import Any, Dict
 import traceback
 import os
 import base64
@@ -85,46 +86,40 @@ def blocking_get_reference(app, userdata, body):   # pylint: disable=unused-argu
 
 
 async def handle_ws_response(request, userdata, endpoint, f):
-    async def receiver():
-        # receive automatically ping-pongs which keeps the socket alive
-        r = await ws.receive()
-        assert r.type in (aiohttp.WSMsgType.CLOSE, aiohttp.WSMsgType.CLOSING), (
-            f'{endpoint}: Received websocket message. Expected CLOSE or CLOSING, got {r}')
-
-    async def sender():
-        try:
-            status = 200
-            value = await blocking_to_async(app['thread_pool'], f, app, userdata, body)
-        except asyncio.CancelledError:
-            raise
-        except Exception:
-            log.exception(f'error calling {f.__name__} for {endpoint}')
-            status = 500
-            value = traceback.format_exc()
-        await ws.send_json({'status': status, 'value': value})
-
     app = request.app
+    queries: Dict[str, Any] = request.app['queries']
 
-    await add_user(app, userdata)
     ws = web.WebSocketResponse(heartbeat=30, max_msg_size=0)
-    tasks = []
     await ws.prepare(request)
+    body = await ws.receive_json()
+
+    query: asyncio.Future = queries.get(body['token'])
+    if query is None:
+        await add_user(app, userdata)
+        query = asyncio.ensure_future(
+            retry_transient_errors(blocking_to_async, app['thread_pool'], f, app, userdata, body))
+        queries[body['token']] = query
+
     try:
-        body = await ws.receive_json()
-        tasks = [asyncio.ensure_future(sender()),
-                 asyncio.ensure_future(receiver())]
-        done, _ = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
-        for t in done:
-            t.result()
+        receive = asyncio.ensure_future(ws.receive())  # receive automatically ping-pongs which keeps the socket alive
+        await asyncio.wait([receive, query], return_when=asyncio.FIRST_COMPLETED)
+        if receive.done():
+            # we expect no messages from the client
+            response = receive.result()
+            assert response.type in (aiohttp.WSMsgType.CLOSE, aiohttp.WSMsgType.CLOSING), (
+                f'{endpoint}: Received websocket message. Expected CLOSE or CLOSING, got {response}')
+        if not query.done():
+            return
+        if query.exception() is not None:
+            exc = query.exception()
+            exc_str = traceback.format_exception(type(exc), exc, exc.__traceback__)
+            await ws.send_json({'status': 500, 'value': exc_str})
+        else:
+            await ws.send_json({'status': 200, 'value': query.result()})
     finally:
+        receive.cancel()
+        query.cancel()
         await ws.close()
-        for task in tasks:
-            if not task.done():
-                task.cancel()
-                try:
-                    task.result()  # retrieve, but do not raise, any exceptions in the pending task
-                except:
-                    log.info(f'exception while cleaning up {task}', exc_info=True)
     return ws
 
 
@@ -213,6 +208,7 @@ async def on_startup(app):
     app['java_process'] = ServiceBackendJavaConnector()
     app['user_keys'] = dict()
     app['users'] = set()
+    app['queries'] = dict()
 
     kube.config.load_incluster_config()
     k8s_client = kube.client.CoreV1Api()

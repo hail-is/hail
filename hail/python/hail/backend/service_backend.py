@@ -48,6 +48,7 @@ class ServiceSocket:
         return resp.data
 
     async def async_request(self, endpoint, **data):
+        data['token'] = secret_alnum_string(n=32)
         session = await self.session()
         async with session.ws_connect(f'{self.url}/api/v1alpha/{endpoint}') as socket:
             await socket.send_str(json.dumps(data))
@@ -117,12 +118,10 @@ class ServiceBackend(Backend):
         return r(ir)
 
     def execute(self, ir, timed=False):
-        token = secret_alnum_string(n=32)
         resp = self.socket.request('execute',
                                    code=self._render(ir),
                                    billing_project=self._billing_project,
-                                   bucket=self._bucket,
-                                   token=token)
+                                   bucket=self._bucket)
         typ = dtype(resp['type'])
         if typ == tvoid:
             value = None
