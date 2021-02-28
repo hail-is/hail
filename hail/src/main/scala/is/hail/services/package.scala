@@ -38,9 +38,11 @@ package object services {
       case e: HttpHostConnectException =>
         true
       case e: SocketException =>
-        e.getMessage.contains("Connection reset") || e.getMessage.contains("Broken pipe")
+        e.getMessage != null && (
+          e.getMessage.contains("Connection reset") || e.getMessage.contains("Broken pipe"))
       case e: EOFException =>
-        e.getMessage.contains("SSL peer shut down incorrectly")
+        e.getMessage != null && (
+          e.getMessage.contains("SSL peer shut down incorrectly"))
       case e: SSLException =>
         val cause = e.getCause
         cause != null && isTransientError(cause)
