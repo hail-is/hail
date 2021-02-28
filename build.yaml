@@ -666,7 +666,6 @@ steps:
      - from: /just-jar/hail.jar
        to: /batch/hail.jar
    dependsOn:
-     - service_base_image
      - build_hail_jar_only
  - kind: buildImage
    name: service_java_run_base_image
