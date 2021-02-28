@@ -12,6 +12,7 @@ def init_parser(parser):
     parser.add_argument('--pyfiles', required=False, type=str, help='Comma-separated list of files (or directories with python files) to add to the PYTHONPATH.')
     parser.add_argument('--properties', '-p', required=False, type=str, help='Extra Spark properties to set.')
     parser.add_argument('--gcloud_configuration', help='Google Cloud configuration to submit job (defaults to currently set configuration).')
+    parser.add_argument('--region', help='Region.')
     parser.add_argument('--dry-run', action='store_true', help="Print gcloud dataproc command, but don't run it.")
 
 
@@ -39,7 +40,8 @@ def main(args, pass_through_args):  # pylint: disable=unused-argument
         '--cluster={}'.format(args.name),
         '--files={}'.format(files),
         '--py-files={}'.format(pyfiles),
-        '--properties={}'.format(properties)
+        '--properties={}'.format(properties),
+        '--region={}'.format(args.region)
     ]
     if args.gcloud_configuration:
         cmd.append('--configuration={}'.format(args.gcloud_configuration))
