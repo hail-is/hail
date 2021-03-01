@@ -2049,11 +2049,14 @@ class Emit[C](
         emitFallback(ir)
     }
 
-    val resultCastRequiredness = result.copy(result.Lmissing, result.Lpresent, PCode(result.pc.pt.setRequired(pt.required), result.pc.code))
-    if (resultCastRequiredness.value.pt != ir.pType)
-      throw new RuntimeException(s"ptype mismatch:\n  emitted:  ${result.pt}\n  inferred: ${ir.pType}\n  ir: $ir")
-
-    resultCastRequiredness
+    if (result.pt != pt) {
+      if (!result.pt.equalModuloRequired(pt))
+        throw new RuntimeException(s"ptype mismatch:\n  emitted:  ${ result.pt }\n  inferred: ${ ir.pType }\n  ir: $ir")
+      (result.pt.required, pt.required) match {
+        case (true, false) => result.map(cb)(pc => PCode(pc.pt.setRequired(pt.required), pc.code))
+        case (false, true) => IEmitCode.present(cb, result.get(cb))
+      }
+    } else result
   }
 
   /**
@@ -2394,11 +2397,14 @@ class Emit[C](
         }
     }
 
-    val resultCastRequiredness = result.map(pc => PCode(pc.pt.setRequired(pt.required), pc.code))
-    if (resultCastRequiredness.pt != ir.pType)
-      throw new RuntimeException(s"ptype mismatch:\n  emitted:  ${result.pt}\n  inferred: ${ir.pType}\n  ir: $ir")
-
-    resultCastRequiredness
+    if (result.pt != pt) {
+      if (!result.pt.equalModuloRequired(pt))
+        throw new RuntimeException(s"ptype mismatch:\n  emitted:  ${ result.pt }\n  inferred: ${ ir.pType }\n  ir: $ir")
+      (result.pt.required, pt.required) match {
+        case (true, false) => result.map(pc => PCode(pc.pt.setRequired(pt.required), pc.code))
+        case (false, true) => EmitCode.fromI(mb) { cb => IEmitCode.present(cb, result.toI(cb).get(cb)) }
+      }
+    } else result
   }
 
   private def capturedReferences(ir: IR): (IR, (Emit.E, DependentEmitFunctionBuilder[_]) => Emit.E) = {
