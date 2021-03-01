@@ -1984,6 +1984,8 @@ steps:
       script: /io/sql/insert_nonpreemptible_resources.py
     - name: fix-schedule-job
       script: /io/sql/fix-schedule-job.sql
+    - name: increase-test-and-dev-pool-sizes
+      script: /io/sql/increase-test-and-dev-pool-sizes.py
    inputs:
     - from: /repo/batch/sql
       to: /io/
