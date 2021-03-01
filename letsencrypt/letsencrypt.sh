@@ -30,8 +30,8 @@ metadata:
   namespace: default
 type: Opaque
 data:
-  fullchain.pem: $(cat /etc/letsencrypt/live/hail.is/fullchain.pem | base64 | tr -d \\n)
-  privkey.pem: $(cat /etc/letsencrypt/live/hail.is/privkey.pem | base64 | tr -d \\n)
+  fullchain.pem: $(cat /etc/letsencrypt/live/$DOMAIN/fullchain.pem | base64 | tr -d \\n)
+  privkey.pem: $(cat /etc/letsencrypt/live/$DOMAIN/privkey.pem | base64 | tr -d \\n)
   options-ssl-nginx.conf: $(cat /options-ssl-nginx.conf | base64 | tr -d \\n)
   ssl-dhparams.pem: $(cat /opt/certbot/src/certbot/certbot/ssl-dhparams.pem | base64 | tr -d \\n)
 EOF
