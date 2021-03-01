@@ -233,8 +233,11 @@ SStackTuple::SStackTuple(STypeContextToken, const Type *type, std::vector<EmitTy
   : SType(Tag::STACKTUPLE, type),
     element_types(std::move(element_types)) {}
 
-SCanonicalArray::SCanonicalArray(const Type *type)
-  : SType(self_tag, type) {}
+SArray::SArray(const Type *type, const SType *elementType)
+  : SType(self_tag, type), elementType(elementType) {}
+
+SCanonicalArray::SCanonicalArray(const Type *type, const SType *elementType)
+  : SArray(type, elementType) {}
 
 void
 EmitType::get_constituent_types(std::vector<PrimitiveType> &constituent_types) const {
