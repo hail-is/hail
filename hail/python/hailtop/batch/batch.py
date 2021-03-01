@@ -1,11 +1,11 @@
 import os
-
+import sys
 import re
 from typing import Optional, Dict, Union, List, Any, Set
 
 from hailtop.utils import secret_alnum_string
 
-from . import backend as _backend, job, resource as _resource  # pylint: disable=cyclic-import
+from . import backend as _backend, job, resource as _resource, utils as _utils  # pylint: disable=cyclic-import
 from .exceptions import BatchException
 
 
@@ -67,6 +67,22 @@ class Batch:
         Maximum time in seconds for a job to run before being killed. Only
         applicable for the :class:`.ServiceBackend`. If `None`, there is no
         timeout.
+    default_python_image:
+        Default image to use for all Python jobs. Must have the `dill` Python
+        package installed. If None, then a Docker image will be
+        built locally with the Python packages listed by `python_requirements`
+        installed. If the :class:`.ServiceBackend` is used as the backend, then
+        locally built Docker images are pushed to `image_repository`
+        with the name `batch-python` unless `python_build_image_name` is given.
+    python_requirements:
+        Pip packages to install for Python jobs if `default_python_image` is None.
+    python_build_image_name:
+        Name for the image that is built by Batch.
+    image_repository:
+        Name of image repository to push Batch-built images to. For example,
+        `gcr.io/my-project`.
+    docker_build_dir:
+        Local directory to use for building Docker images.
     """
 
     _counter = 0
@@ -89,12 +105,20 @@ class Batch:
                  default_cpu: Optional[str] = None,
                  default_storage: Optional[str] = None,
                  default_timeout: Optional[Union[float, int]] = None,
-                 default_shell: Optional[str] = None):
+                 default_shell: Optional[str] = None,
+                 default_python_image: Optional[str] = None,
+                 python_requirements: Optional[List[str]] = None,
+                 python_build_image_name: Optional[str] = None,
+                 image_repository: Optional[str] = None,
+                 docker_build_dir: Optional[str] = '/tmp'):
         self._jobs: List[job.Job] = []
         self._resource_map: Dict[str, _resource.Resource] = {}
         self._allocated_files: Set[str] = set()
         self._input_resources: Set[_resource.InputResourceFile] = set()
         self._uid = Batch._get_uid()
+        self._n_python_jobs = 0
+
+        self._backend = backend if backend else _backend.LocalBackend()
 
         self.name = name
 
@@ -113,22 +137,54 @@ class Batch:
         self._default_timeout = default_timeout
         self._default_shell = default_shell
 
-        self._backend = backend if backend else _backend.LocalBackend()
+        if default_python_image and python_requirements:
+            raise BatchException("cannot specify both 'default_python_image' and 'python_requirements'")
+        if default_python_image and python_build_image_name:
+            raise BatchException("cannot specify both 'default_python_image' and 'python_build_image_name'")
+
+        self._build_python_image = (default_python_image is None)
+
+        if default_python_image is None:
+            if not python_build_image_name:
+                python_build_image_name = f'batch-python:{secret_alnum_string(8, case="lower")}'
+            if isinstance(self._backend, _backend.ServiceBackend):
+                image_repository = image_repository.rstrip('/')
+                if image_repository is None:
+                    raise BatchException(f'Must define `image_repository` when using the ServiceBackend with Python jobs and building an image locally')
+                python_build_image_name = f'{image_repository}/{python_build_image_name}'
+
+        self._python_image = python_build_image_name
+
+        self._python_requirements = python_requirements or []
+        if 'dill' not in self._python_requirements:
+            self._python_requirements.append('dill')
+
+        self._docker_build_dir = docker_build_dir
 
     def new_job(self,
                 name: Optional[str] = None,
                 attributes: Optional[Dict[str, str]] = None,
-                shell: Optional[str] = None) -> job.Job:
+                shell: Optional[str] = None) -> job.BashJob:
         """
-        Initialize a new job object with default memory, docker image,
-        and CPU settings (defined in :class:`.Batch`) upon batch creation.
+        Alias for :meth:`.Batch.new_bash_job`
+        """
+
+        return self.new_bash_job(name, attributes, shell)
+
+    def new_bash_job(self,
+                     name: Optional[str] = None,
+                     attributes: Optional[Dict[str, str]] = None,
+                     shell: Optional[str] = None) -> job.BashJob:
+        """
+        Initialize a new job object :class:`.BashJob` with default memory, storage,
+        image, and CPU settings (defined in :class:`.Batch`) upon batch creation.
 
         Examples
         --------
         Create and execute a batch `b` with one job `j` that prints "hello world":
 
         >>> b = Batch()
-        >>> j = b.new_job(name='hello', attributes={'language': 'english'})
+        >>> j = b.new_bash_job(name='hello', attributes={'language': 'english'})
         >>> j.command('echo "hello world"')
         >>> b.run()
 
@@ -147,7 +203,7 @@ class Batch:
         if shell is None:
             shell = self._default_shell
 
-        j = job.Job(batch=self, name=name, attributes=attributes, shell=shell)
+        j = job.BashJob(batch=self, name=name, attributes=attributes, shell=shell)
 
         if self._default_image is not None:
             j.image(self._default_image)
@@ -160,6 +216,51 @@ class Batch:
         if self._default_timeout is not None:
             j.timeout(self._default_timeout)
 
+        self._jobs.append(j)
+        return j
+
+    def new_python_job(self,
+                       name: Optional[str] = None,
+                       attributes: Optional[Dict[str, str]] = None) -> job.PythonJob:
+        """
+        Initialize a new job object :class:`.PythonJob` with the default
+        Python image, memory, storage, and CPU settings (defined in :class:`.Batch`)
+        upon batch creation.
+
+        Examples
+        --------
+        Create and execute a batch `b` with one job `j` that prints "hello world":
+
+        >>> b = Batch()
+        >>> j = b.new_job(name='hello', attributes={'language': 'english'})
+        >>> j.command('echo "hello world"')
+        >>> b.run()
+
+        Parameters
+        ----------
+        name:
+            Name of the job.
+        attributes:
+            Key-value pairs of additional attributes. 'name' is not a valid keyword.
+            Use the name argument instead.
+        """
+        if attributes is None:
+            attributes = {}
+
+        j = job.PythonJob(batch=self, name=name, attributes=attributes)
+
+        j._image = self._python_image
+
+        if self._default_memory is not None:
+            j.memory(self._default_memory)
+        if self._default_cpu is not None:
+            j.cpu(self._default_cpu)
+        if self._default_storage is not None:
+            j.storage(self._default_storage)
+        if self._default_timeout is not None:
+            j.timeout(self._default_timeout)
+
+        self._n_python_jobs += 1
         self._jobs.append(j)
         return j
 
@@ -196,6 +297,13 @@ class Batch:
         rg = _resource.ResourceGroup(source, root, **d)
         self._resource_map.update({rg._uid: rg})
         return rg
+
+    def _new_python_result(self, source, value=None):
+        if value is None:
+            value = secret_alnum_string(5)
+        jrf = _resource.PythonResult(value, source)
+        self._resource_map[jrf._uid] = jrf  # pylint: disable=no-member
+        return jrf
 
     def read_input(self, path: str) -> _resource.InputResourceFile:
         """
@@ -276,7 +384,7 @@ class Batch:
 
         The file extensions for each file are derived from the identifier.  This
         is equivalent to `"{root}.identifier"` from
-        :meth:`.Job.declare_resource_group`. We are planning on adding
+        :meth:`.BashJob.declare_resource_group`. We are planning on adding
         flexibility to incorporate more complicated extensions in the future
         such as `.vcf.bgz`.  For now, use :meth:`.JobResourceFile.add_extension`
         to add an extension to a resource file.
@@ -336,11 +444,20 @@ class Batch:
 
         if not isinstance(resource, _resource.Resource):
             raise BatchException(f"'write_output' only accepts Resource inputs. Found '{type(resource)}'.")
-        if isinstance(resource, _resource.JobResourceFile) and resource not in resource._source._mentioned:
+        if (isinstance(resource, _resource.JobResourceFile) and
+                isinstance(resource._source, job.BashJob) and
+                resource not in resource._source._mentioned):
             name = resource._source._resources_inverse
             raise BatchException(f"undefined resource '{name}'\n"
                                  f"Hint: resources must be defined within the "
                                  f"job methods 'command' or 'declare_resource_group'")
+        if (isinstance(resource, (_resource.JobResourceFile, _resource.PythonResult)) and
+                isinstance(resource._source, job.PythonJob) and
+                resource not in resource._source._mentioned):
+            name = resource._source._resources_inverse
+            raise BatchException(f"undefined resource '{name}'\n"
+                                 f"Hint: resources must be bound as a result "
+                                 f"using the PythonJob 'call' method")
 
         if isinstance(self._backend, _backend.LocalBackend):
             dest = os.path.abspath(dest)
@@ -399,6 +516,19 @@ class Batch:
         backend_kwargs:
             See :meth:`.Backend._run` for backend-specific arguments.
         """
+
+        if self._n_python_jobs > 0 and self._build_python_image:
+            version = sys.version_info
+            if version.major != 3 or version.minor not in (6, 7, 8):
+                raise ValueError(
+                    f'You must specify a Python image if you are using a Python version other than 3.6, 3.7, or 3.8 (you are using {version})')
+            base_image = f'hailgenetics/python-dill:{version.major}.{version.minor}-slim'
+
+            _utils.build_python_image(self._docker_build_dir,
+                                      base_image,
+                                      self._python_image,
+                                      python_requirements=self._python_requirements,
+                                      verbose=verbose)
 
         seen = set()
         ordered_jobs = []

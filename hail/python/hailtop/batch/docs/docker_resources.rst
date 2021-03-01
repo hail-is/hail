@@ -103,5 +103,5 @@ Docker Hub. Below is an example of pushing the image to the Google Container Reg
     docker push gcr.io/<my-project>/<my-image>:<tag>
 
 
-Now you can use your Docker image with Batch to run your code with the method :meth:`.Job.image`
+Now you can use your Docker image with Batch to run your code with the method :meth:`.BashJob.image`
 specifying the image as `gcr.io/<my-project>/<my-image>:<tag>`!

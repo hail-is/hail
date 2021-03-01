@@ -154,7 +154,7 @@ A couple of things to note about this function:
 
  - The `run_gwas.py` script takes an output-file parameter and then creates files ending with
    the extensions `.bed`, `.bim`, `.fam`, and `.assoc`. In order for Batch to know the script is
-   creating files as a group with a common file root, we need to use the :meth:`.Job.declare_resource_group`
+   creating files as a group with a common file root, we need to use the :meth:`.BashJob.declare_resource_group`
    method. We then pass ``g.ofile`` as the output file root to `run_gwas.py` as that represents the temporary file
    root given to all files in the resource group (`{root}` when declaring the resource group).
 
@@ -163,9 +163,9 @@ Clumping By Chromosome
 ~~~~~~~~~~~~~~~~~~~~~~
 
 The second function performs clumping for a given chromosome. The input arguments are the :class:`.Batch`
-for which to create a new :class:`.Job`, the PLINK binary file **root**, the association results
+for which to create a new :class:`.BashJob`, the PLINK binary file **root**, the association results
 with at least two columns (SNP and P), and the chromosome for which to do the clumping for.
-The return value is the new :class:`.Job` created.
+The return value is the new :class:`.BashJob` created.
 
 .. code-block:: python
 
@@ -209,9 +209,9 @@ Merge Clumping Results
 ~~~~~~~~~~~~~~~~~~~~~~
 
 The third function concatenates all of the clumping results per chromosome into a single file
-with one header line. The inputs are the :class:`.Batch` for which to create a new :class:`.Job`
+with one header line. The inputs are the :class:`.Batch` for which to create a new :class:`.BashJob`
 and a list containing all of the individual clumping results files. We use the ``ubuntu:18.04``
-Docker image for this job. The return value is the new :class:`.Job` created.
+Docker image for this job. The return value is the new :class:`.BashJob` created.
 
 .. code-block:: python
 
@@ -256,7 +256,7 @@ and give it the name 'clumping'.
 
 We create :class:`.InputResourceFile` objects for the VCF file and
 phenotypes file using the :meth:`.Batch.read_input` method. These
-are the inputs to the entire Batch and are not outputs of a :class:`.Job`.
+are the inputs to the entire Batch and are not outputs of a :class:`.BashJob`.
 
 .. code-block:: python
 

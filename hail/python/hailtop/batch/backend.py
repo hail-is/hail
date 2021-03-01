@@ -158,7 +158,7 @@ class LocalBackend(Backend):
 
                 return []
 
-            assert isinstance(r, resource.JobResourceFile)
+            assert isinstance(r, (resource.JobResourceFile, resource.PythonResult))
             return []
 
         def copy_external_output(r):
@@ -174,7 +174,7 @@ class LocalBackend(Backend):
                 return [f'{_cp(dest)} {shq(r._input_path)} {shq(dest)}'
                         for dest in r._output_paths]
 
-            assert isinstance(r, resource.JobResourceFile)
+            assert isinstance(r, (resource.JobResourceFile, resource.PythonResult))
             return [f'{_cp(dest)} {r._get_path(tmpdir)} {shq(dest)}'
                     for dest in r._output_paths]
 
@@ -194,6 +194,9 @@ class LocalBackend(Backend):
             lines += ['\n']
 
         for job in batch._jobs:
+            if isinstance(job, _job.PythonJob):
+                job._compile(tmpdir, tmpdir)
+
             os.makedirs(f'{tmpdir}/{job._job_id}/', exist_ok=True)
 
             lines.append(f"# {job._job_id}: {job.name if job.name else ''}")
@@ -208,6 +211,7 @@ class LocalBackend(Backend):
 
             defs = '; '.join(resource_defs) + '; ' if resource_defs else ''
             joined_env = '; '.join(env) + '; ' if env else ''
+
             cmd = " && ".join(f'{{\n{x}\n}}' for x in job._command)
 
             quoted_job_script = shq(joined_env + defs + cmd)
@@ -287,10 +291,11 @@ class ServiceBackend(Backend):
     bucket:
         Name of bucket to use.  Should not include the ``gs://``
         prefix.
-
     """
 
-    def __init__(self, billing_project: str = None, bucket: str = None):
+    def __init__(self,
+                 billing_project: str = None,
+                 bucket: str = None):
         if billing_project is None:
             billing_project = get_user_config().get('batch', 'billing_project', fallback=None)
         if billing_project is None:
@@ -394,17 +399,17 @@ class ServiceBackend(Backend):
         def copy_input(r):
             if isinstance(r, resource.InputResourceFile):
                 return [(r._input_path, r._get_path(local_tmpdir))]
-            assert isinstance(r, resource.JobResourceFile)
+            assert isinstance(r, (resource.JobResourceFile, resource.PythonResult))
             return [(r._get_path(remote_tmpdir), r._get_path(local_tmpdir))]
 
         def copy_internal_output(r):
-            assert isinstance(r, resource.JobResourceFile)
+            assert isinstance(r, (resource.JobResourceFile, resource.PythonResult))
             return [(r._get_path(local_tmpdir), r._get_path(remote_tmpdir))]
 
         def copy_external_output(r):
             if isinstance(r, resource.InputResourceFile):
                 return [(r._input_path, dest) for dest in r._output_paths]
-            assert isinstance(r, resource.JobResourceFile)
+            assert isinstance(r, (resource.JobResourceFile, resource.PythonResult))
             return [(r._get_path(local_tmpdir), dest) for dest in r._output_paths]
 
         def symlink_input_resource_group(r):
@@ -437,6 +442,9 @@ class ServiceBackend(Backend):
                 n_jobs_submitted += 1
 
         for job in batch._jobs:
+            if isinstance(job, _job.PythonJob):
+                job._compile(local_tmpdir, remote_tmpdir)
+
             inputs = [x for r in job._inputs for x in copy_input(r)]
 
             outputs = [x for r in job._internal_outputs for x in copy_internal_output(r)]
@@ -455,6 +463,7 @@ class ServiceBackend(Backend):
                     print(f"Using image '{default_image}' since no image was specified.")
 
             make_local_tmpdir = f'mkdir -p {local_tmpdir}/{job._job_id}'
+
             job_command = [cmd.strip() for cmd in job._command]
 
             prepared_job_command = (f'{{\n{x}\n}}' for x in job_command)

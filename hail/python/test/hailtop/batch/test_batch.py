@@ -645,3 +645,103 @@ class ServiceTests(unittest.TestCase):
         j.command(f'ls {input2}/hello.txt')
         res = b.run()
         assert res.status()['state'] == 'success', debug_info(res)
+
+    def test_python_job(self):
+        b = self.batch(default_python_image='gcr.io/hail-vdc/python-dill:3.7-slim')
+        head = b.new_job()
+        head.command(f'echo "5" > {head.r5}')
+        head.command(f'echo "3" > {head.r3}')
+
+        def read(path):
+            with open(path, 'r') as f:
+                i = f.read()
+            return int(i)
+
+        def multiply(x, y):
+            return x * y
+
+        def reformat(x, y):
+            return {'x': x, 'y': y}
+
+        middle = b.new_python_job()
+        r3 = middle.call(read, head.r3)
+        r5 = middle.call(read, head.r5)
+        r_mult = middle.call(multiply, r3, r5)
+
+        middle2 = b.new_python_job()
+        r_mult = middle2.call(multiply, r_mult, 2)
+        r_dict = middle2.call(reformat, r3, r5)
+
+        tail = b.new_job()
+        tail.command(f'cat {r3.as_str()} {r5.as_repr()} {r_mult.as_str()} {r_dict.as_json()}')
+
+        res = b.run()
+        assert res.status()['state'] == 'success', debug_info(res)
+        assert res.get_job_log(3)['main'] == "3\n5\n30\n{\"x\": 3, \"y\": 5}\n", debug_info(res)
+
+    def test_python_job_w_resource_group_unpack_individually(self):
+        b = self.batch(default_python_image='gcr.io/hail-vdc/python-dill:3.7-slim')
+        head = b.new_job()
+        head.declare_resource_group(count={'r5': '{root}.r5',
+                                           'r3': '{root}.r3'})
+
+        head.command(f'echo "5" > {head.count.r5}')
+        head.command(f'echo "3" > {head.count.r3}')
+
+        def read(path):
+            with open(path, 'r') as f:
+                r = int(f.read())
+            return r
+
+        def multiply(x, y):
+            return x * y
+
+        def reformat(x, y):
+            return {'x': x, 'y': y}
+
+        middle = b.new_python_job()
+        r3 = middle.call(read, head.count.r3)
+        r5 = middle.call(read, head.count.r5)
+        r_mult = middle.call(multiply, r3, r5)
+
+        middle2 = b.new_python_job()
+        r_mult = middle2.call(multiply, r_mult, 2)
+        r_dict = middle2.call(reformat, r3, r5)
+
+        tail = b.new_job()
+        tail.command(f'cat {r3.as_str()} {r5.as_repr()} {r_mult.as_str()} {r_dict.as_json()}')
+
+        res = b.run()
+        assert res.status()['state'] == 'success', debug_info(res)
+        assert res.get_job_log(3)['main'] == "3\n5\n30\n{\"x\": 3, \"y\": 5}\n", debug_info(res)
+
+    def test_python_job_w_resource_group_unpack_jointly(self):
+        b = self.batch(default_python_image='gcr.io/hail-vdc/python-dill:3.7-slim')
+        head = b.new_job()
+        head.declare_resource_group(count={'r5': '{root}.r5',
+                                           'r3': '{root}.r3'})
+
+        head.command(f'echo "5" > {head.count.r5}')
+        head.command(f'echo "3" > {head.count.r3}')
+
+        def read_rg(root):
+            with open(root['r3'], 'r') as f:
+                r3 = int(f.read())
+            with open(root['r5'], 'r') as f:
+                r5 = int(f.read())
+            return (r3, r5)
+
+        def multiply(r):
+            x, y = r
+            return x * y
+
+        middle = b.new_python_job()
+        r = middle.call(read_rg, head.count)
+        r_mult = middle.call(multiply, r)
+
+        tail = b.new_job()
+        tail.command(f'cat {r_mult.as_str()}')
+
+        res = b.run()
+        assert res.status()['state'] == 'success', debug_info(res)
+        assert res.get_job_log(3)['main'] == "15\n", debug_info(res)
