@@ -554,7 +554,7 @@ def counter(expr, *, weight=None) -> DictExpression:
     Compute the total height for each unique `SEX` value:
 
     >>> table1.aggregate(hl.agg.counter(table1.SEX, weight=table1.HT))
-    {'F': 130, 'M': 137}
+    frozendict({'F': 130, 'M': 137})
     <BLANKLINE>
 
     Notes

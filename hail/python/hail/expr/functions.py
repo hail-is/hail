@@ -3119,7 +3119,7 @@ def filter(f: Callable, collection):
     [2, 4]
 
     >>> hl.eval(hl.filter(lambda x: ~(x[-1] == 'e'), s))
-    {'Bob'}
+    frozenset({'Bob'})
 
     Notes
     -----
