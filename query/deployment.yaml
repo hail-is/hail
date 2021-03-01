@@ -138,6 +138,24 @@ spec:
          secret:
            optional: false
            secretName: ssl-config-query
+{% if not deploy %}
+---
+apiVersion: autoscaling/v2beta1
+kind: HorizontalPodAutoscaler
+metadata:
+  name: query
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: query
+  minReplicas: 3
+  maxReplicas: 32
+  metrics:
+   - type: Resource
+     resource:
+       name: cpu
+       targetAverageUtilization: 80
 ---
 apiVersion: policy/v1beta1
 kind: PodDisruptionBudget
@@ -148,3 +166,4 @@ spec:
   selector:
     matchLabels:
       app: query
+{% endif %}
