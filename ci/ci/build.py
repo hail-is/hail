@@ -232,7 +232,9 @@ class Step(abc.ABC):
 
 
 class BuildImageStep(Step):
-    def __init__(self, params: StepParameters, dockerfile, context_path, publish_as, inputs):  # pylint: disable=unused-argument
+    def __init__(
+        self, params: StepParameters, dockerfile, context_path, publish_as, inputs
+    ):  # pylint: disable=unused-argument
         super().__init__(params)
         self.dockerfile = dockerfile
         self.context_path = context_path
@@ -416,7 +418,18 @@ true
 
 class RunImageStep(Step):
     def __init__(
-        self, params: StepParameters, image, script, inputs, outputs, port, resources, service_account, secrets, always_run, timeout
+        self,
+        params: StepParameters,
+        image,
+        script,
+        inputs,
+        outputs,
+        port,
+        resources,
+        service_account,
+        secrets,
+        always_run,
+        timeout,
     ):  # pylint: disable=unused-argument
         super().__init__(params)
         self.image = expand_value_from(image, self.input_config(params.code, params.scope))
