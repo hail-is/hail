@@ -4,7 +4,7 @@ import os
 import socket
 import struct
 import logging
-from hailtop.utils import sync_retry_transient_errors
+from hailtop.utils import sync_retry_transient_errors, TransientError
 
 
 log = logging.getLogger('query.sockets')
@@ -37,7 +37,7 @@ class ServiceBackendSocketSession:
         self.api.close()
 
 
-class EndOfStream(Exception):
+class EndOfStream(TransientError):
     pass
 
 
@@ -82,6 +82,7 @@ class ServiceBackendSocketAPI:
         while left > 0:
             t = self._conn.recv(left)
             if not t:
+                log.warning('unexpected EOS, Java violated protocol, this will be retried')
                 raise EndOfStream()
             left -= len(t)
             b.extend(t)
