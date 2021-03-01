@@ -102,6 +102,15 @@ SStackTupleValue::get_element(CompileFunction &cf, size_t i) const {
   return EmitValue(element_emit_values[i]);
 }
 
+SCanonicalArrayValue::SCanonicalArrayValue(const SType *stype, llvm::Value length, llvm::Value missing, llvm::Value data)
+  : SArrayValue(stype) {
+
+}
+
+SCanonicalArrayValue::loadElement(SInt64Value idx) {
+
+}
+
 void
 EmitDataValue::get_constituent_values(std::vector<llvm::Value *> &llvm_values) const {
   llvm_values.push_back(missing);

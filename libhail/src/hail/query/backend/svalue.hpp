@@ -23,6 +23,7 @@ public:
     FLOAT64,
     CANONICALTUPLE,
     STACKTUPLE
+    ARRAY
   };
   const Tag tag;
   const SType *const stype;
@@ -94,6 +95,19 @@ public:
   std::vector<EmitDataValue> element_emit_values;
   SStackTupleValue(const SType *stype, std::vector<EmitDataValue> element_emit_values);
   EmitValue get_element(CompileFunction &cf, size_t i) const;
+};
+
+class SArrayValue : public SValue {
+public:
+  static const Tag self_tag = SValue::Tag::ARRAY;
+  SArrayValue(const SType *stype): SValue(self_tag, stype) {};
+  virtual SValue getElement(SInt64Value idx)=0;
+  virtual SInt64 getLength()=0;
+};
+
+class SCanonicalArrayValue : public SArrayValue {
+  public:
+    SCanonicalArrayValue(const SType *stype, llvm::Value length, llvm::Value missing, llvm::Value data);
 };
 
 class EmitControlValue {
