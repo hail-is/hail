@@ -329,6 +329,7 @@ class StorageClient(BaseClient):
     # https://cloud.google.com/storage/docs/json_api/v1
 
     async def insert_object(self, bucket: str, name: str, **kwargs) -> InsertObjectStream:
+        assert name
         # Insert an object.  See:
         # https://cloud.google.com/storage/docs/json_api/v1/objects/insert
         if 'params' in kwargs:
@@ -369,6 +370,7 @@ class StorageClient(BaseClient):
         return ResumableInsertObjectStream(self._session, session_url, chunk_size)
 
     async def get_object(self, bucket: str, name: str, **kwargs) -> GetObjectStream:
+        assert name
         if 'params' in kwargs:
             params = kwargs['params']
         else:
@@ -382,17 +384,20 @@ class StorageClient(BaseClient):
         return GetObjectStream(resp)
 
     async def get_object_metadata(self, bucket: str, name: str, **kwargs) -> Dict[str, str]:
+        assert name
         params = kwargs.get('params')
         assert not params or 'alt' not in params
         return cast(Dict[str, str], await self.get(f'/b/{bucket}/o/{urllib.parse.quote(name, safe="")}', **kwargs))
 
     async def delete_object(self, bucket: str, name: str, **kwargs) -> None:
+        assert name
         await self.delete(f'/b/{bucket}/o/{urllib.parse.quote(name, safe="")}', **kwargs)
 
     async def list_objects(self, bucket: str, **kwargs) -> PageIterator:
         return PageIterator(self, f'/b/{bucket}/o', kwargs)
 
     async def compose(self, bucket: str, names: List[str], destination: str, **kwargs) -> None:
+        assert destination
         n = len(names)
         if n == 0:
             raise ValueError('no components in compose')
@@ -630,7 +635,7 @@ class GoogleStorageAsyncFS(AsyncFS):
             raise
 
     async def _listfiles_recursive(self, bucket: str, name: str) -> AsyncIterator[FileListEntry]:
-        assert name.endswith('/')
+        assert not name or name.endswith('/')
         params = {
             'prefix': name
         }
@@ -644,7 +649,7 @@ class GoogleStorageAsyncFS(AsyncFS):
                     yield GoogleStorageFileListEntry(f'gs://{bucket}/{item["name"]}', item)
 
     async def _listfiles_flat(self, bucket: str, name: str) -> AsyncIterator[FileListEntry]:
-        assert name.endswith('/')
+        assert not name or name.endswith('/')
         params = {
             'prefix': name,
             'delimiter': '/',
@@ -665,7 +670,7 @@ class GoogleStorageAsyncFS(AsyncFS):
 
     async def listfiles(self, url: str, recursive: bool = False) -> AsyncIterator[FileListEntry]:
         bucket, name = self._get_bucket_name(url)
-        if not name.endswith('/'):
+        if name and not name.endswith('/'):
             name = f'{name}/'
 
         if recursive:
@@ -692,7 +697,11 @@ class GoogleStorageAsyncFS(AsyncFS):
     async def isfile(self, url: str) -> bool:
         try:
             bucket, name = self._get_bucket_name(url)
-            await self._storage_client.get_object_metadata(bucket, name)
+            # if name is empty, get_object_metadata behaves like list objects
+            # the urls are the same modulo the object name
+            if not name:
+                return False
+            data = await self._storage_client.get_object_metadata(bucket, name)
             return True
         except aiohttp.ClientResponseError as e:
             if e.status == 404:
@@ -701,7 +710,7 @@ class GoogleStorageAsyncFS(AsyncFS):
 
     async def isdir(self, url: str) -> bool:
         bucket, name = self._get_bucket_name(url)
-        assert name.endswith('/')
+        assert not name or name.endswith('/')
         params = {
             'prefix': name,
             'delimiter': '/',
