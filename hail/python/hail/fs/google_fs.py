@@ -84,14 +84,19 @@ class GoogleCloudStorageFS(FS):
         if self._is_local(path):
             return self._format_stat_local_file(os.stat(path), path)
 
-        return self._format_stat_gs_file(self.client.info(path))
+        return self._format_stat_gs_file(self.client.info(path), path)
 
-    def _format_stat_gs_file(self, stats: Dict) -> Dict:
+    def _format_stat_gs_file(self, stats: Dict, path: str) -> Dict:
+        path_from_stats = stats.get('path')
+        if path_from_stats is not None:
+            path_from_stats = self._add_gs_path_prefix(path_from_stats)
+        else:
+            path_from_stats = path
         return {
             'is_dir': self._stat_is_gs_dir(stats),
             'size_bytes': stats['size'],
             'size': size(stats['size']),
-            'path': self._add_gs_path_prefix(stats['path']),
+            'path': path_from_stats,
             'owner': stats['bucket'],
             'modification_time': stats.get('updated')
         }

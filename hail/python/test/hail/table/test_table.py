@@ -1313,6 +1313,7 @@ class Tests(unittest.TestCase):
         ht = ht.annotate(fd=hl.sorted(a))
         assert ht.fd.collect()[0] == ["e", "é"]
 
+    @fails_service_backend()
     def test_physical_key_truncation(self):
         path = new_temp_file(extension='ht')
         hl.import_vcf(resource('sample.vcf')).rows().key_by('locus').write(path)
