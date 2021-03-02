@@ -1,4 +1,4 @@
-from typing import Any, Dict
+from typing import Dict
 import traceback
 import os
 import base64
@@ -120,6 +120,8 @@ async def handle_ws_response(request, userdata, endpoint, f):
             await ws.send_json({'status': 500, 'value': exc_str})
         else:
             await ws.send_json({'status': 200, 'value': query.result()})
+        assert await ws.receive_str() == 'bye'
+        del user_queries[body['token']]
     finally:
         receive.cancel()
         query.cancel()

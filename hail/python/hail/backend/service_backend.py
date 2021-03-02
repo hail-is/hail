@@ -53,6 +53,7 @@ class ServiceSocket:
         async with session.ws_connect(f'{self.url}/api/v1alpha/{endpoint}') as socket:
             await socket.send_str(json.dumps(data))
             response = await socket.receive()
+            await socket.send_str('bye')
             if response.type == aiohttp.WSMsgType.ERROR:
                 raise ValueError(f'bad response: {endpoint}; {data}; {response}')
             if response.type in (aiohttp.WSMsgType.CLOSE,
