@@ -199,10 +199,7 @@ async def set_flag(request, userdata):  # pylint: disable=unused-argument
 
 @routes.get('/api/v1alpha/version')
 async def rest_get_version(request):  # pylint: disable=W0613
-    try:
-        return web.Response(text=version())
-    except Exception as e:
-        return web.json_response({"error": str(e)})
+    return web.Response(text=version())
 
 
 async def on_startup(app):
