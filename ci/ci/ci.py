@@ -17,7 +17,7 @@ from gear import (
 )
 from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template
 
-from .github import FQBranch, WatchedBranch, UnwatchedBranch
+from .github import FQBranch, WatchedBranch, UnwatchedBranch, MergeFailureBatch
 
 log = logging.getLogger('ci')
 
@@ -154,9 +154,16 @@ async def prod_deploy(request, userdata):
     watched_branch.sha = 'HEAD'
     await watched_branch._start_deploy(app['batch_client'], steps)
 
-    batch_id = watched_branch.deploy_batch.id
-    url = deploy_config.external_url('ci', f'/batches/{batch_id}')
-    return web.Response(text=f'{url}\n')
+    batch = watched_branch.deploy_batch
+    if not isinstance(batch, MergeFailureBatch):
+        url = deploy_config.external_url('ci', f'/batches/{batch.id}')
+        return web.Response(text=f'{url}\n')
+    else:
+        message = traceback.format_exc()
+        log.info('prod deploy failed: ' + message, exc_info=True)
+        raise web.HTTPBadRequest(
+            text=f'starting prod deploy failed due to\n{message}'
+        ) from batch.exception
 
 
 async def on_startup(app):
