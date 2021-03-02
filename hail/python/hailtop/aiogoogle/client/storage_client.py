@@ -322,8 +322,14 @@ class GetObjectStream(ReadableStream):
 
 
 class StorageClient(BaseClient):
-    def __init__(self, **kwargs):
-        super().__init__('https://storage.googleapis.com/storage/v1', **kwargs)
+    def __init__(self, *,
+                 requester_pays_project: Optional[str] = None,
+                 **kwargs):
+        if requester_pays_project:
+            params = {'userProject': requester_pays_project}
+        else:
+            params = {}
+        super().__init__('https://storage.googleapis.com/storage/v1', params=params, **kwargs)
 
     # docs:
     # https://cloud.google.com/storage/docs/json_api/v1

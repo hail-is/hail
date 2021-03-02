@@ -66,6 +66,7 @@ PUBLIC_GCR_IMAGES = public_gcr_images(PROJECT)
 WORKER_CONFIG = json.loads(base64.b64decode(os.environ['WORKER_CONFIG']).decode())
 MAX_IDLE_TIME_MSECS = int(os.environ['MAX_IDLE_TIME_MSECS'])
 WORKER_DATA_DISK_MOUNT = os.environ['WORKER_DATA_DISK_MOUNT']
+BATCH_WORKER_IMAGE = os.environ['BATCH_WORKER_IMAGE']
 
 log.info(f'CORES {CORES}')
 log.info(f'NAME {NAME}')
@@ -634,63 +635,18 @@ async def add_gcsfuse_bucket(mount_path, bucket, key_file, read_only):
         delay = await sleep_and_backoff(delay)
 
 
-def copy_command(src, dst, requester_pays_project=None):
-    src = src.rstrip('/')  # ensure that the source_basename is always non-empty
-    if requester_pays_project:
-        requester_pays_project = f'-u {requester_pays_project}'
-    else:
-        requester_pays_project = ''
-
-    def gsutil_cp_r(src, dst, *, recursive):
-        flags = '-R' if recursive else ''
-        return f'retry gsutil {requester_pays_project} -m cp {flags} {shq(src)} {shq(dst)}'
-
-    if not dst.startswith('gs://'):
-        target_directory = os.path.dirname(dst)
-        target_basename = os.path.basename(dst)
-        source_basename = os.path.basename(src)
-
-        mkdirs = f'mkdir -p { shq(target_directory) } && '
-        cp_dir = gsutil_cp_r(src, target_directory, recursive=True)
-
-        if target_basename not in ('', source_basename):
-            current_location = target_directory + '/' + source_basename
-            desired_location = target_directory + '/' + target_basename
-            cp_dir = f'{{ {cp_dir} && mv {current_location} {desired_location} ; }}'
-    else:
-        mkdirs = ''
-        cp_dir = gsutil_cp_r(src, dst, recursive=True)
-
-    cp_file = gsutil_cp_r(src, dst, recursive=False)
-
-    return f'{mkdirs} {cp_file} || {cp_dir}'
-
-
-def copy(files, name, requester_pays_project):
-    assert files
-
-    if name == 'input':
-        copies = ' && '.join([copy_command(f['from'], f['to'], requester_pays_project) for f in files])
-    else:
-        assert name == 'output'
-        copies = ' && '.join([copy_command(f['from'], f['to'], requester_pays_project) for f in files])
-    return f'''
-set -ex
-
-{ RETRY_FUNCTION_SCRIPT }
-
-retry gcloud -q auth activate-service-account --key-file=/gsa-key/key.json
-
-{copies}
-'''
-
-
 def copy_container(job, name, files, volume_mounts, cpu, memory, requester_pays_project):
-    sh_expression = copy(files, name, requester_pays_project)
+    assert files
     copy_spec = {
-        'image': 'gcr.io/google.com/cloudsdktool/cloud-sdk:310.0.0-alpine',
+        'image': BATCH_WORKER_IMAGE,
         'name': name,
-        'command': ['/bin/bash', '-c', sh_expression],
+        'command': [
+            '/usr/bin/python3',
+            '-m',
+            'batch.copy',
+            json.dumps(requester_pays_project),
+            json.dumps(files)
+        ],
         'cpu': cpu,
         'memory': memory,
         'volume_mounts': volume_mounts
