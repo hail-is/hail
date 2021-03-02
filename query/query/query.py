@@ -20,7 +20,7 @@ from .sockets import ServiceBackendSocketSession, ServiceBackendJavaConnector
 uvloop.install()
 
 DEFAULT_NAMESPACE = os.environ['HAIL_DEFAULT_NAMESPACE']
-log = logging.getLogger('query.query')
+log = logging.getLogger(__name__)
 routes = web.RouteTableDef()
 
 
