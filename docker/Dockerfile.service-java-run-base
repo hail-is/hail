@@ -19,8 +19,6 @@ RUN curl --silent --show-error --location \
          > ${SPARK_HOME}/jars/gcs-connector-hadoop2-2.0.1.jar
 COPY docker/core-site.xml ${SPARK_HOME}/conf/core-site.xml
 
-COPY pylintrc setup.cfg /
-
 COPY docker/service-base-requirements.txt .
 RUN hail-pip-install -r service-base-requirements.txt
 
