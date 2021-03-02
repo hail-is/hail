@@ -10,38 +10,15 @@ from hailtop.utils import sync_retry_transient_errors, TransientError
 log = logging.getLogger('query.sockets')
 
 
-class ServiceBackendJavaConnector:
-    def __init__(self):
-        self.fname = '/sock/sock'
-        while not os.path.exists(self.fname):
-            time.sleep(1)
-
-    def connect(self) -> 'ServiceBackendSocketSession':
-        sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-        sync_retry_transient_errors(sock.connect, self.fname)
-        return ServiceBackendSocketSession(
-            ServiceBackendSocketAPI(sock))
-
-
-class ServiceBackendSocketSession:
-    def __init__(self, api: 'ServiceBackendSocketAPI'):
-        self.api = api
-
-    def __enter__(self) -> 'ServiceBackendSocketAPI':
-        return self.api
-
-    def __exit__(self, type, value, traceback):
-        self.api.write_int(ServiceBackendSocketAPI.GOODBYE)
-        response = self.api.read_int()
-        assert response == ServiceBackendSocketAPI.GOODBYE, response
-        self.api.close()
+def connect_to_java() -> 'ServiceBackendSocketConnection':
+    return ServiceBackendSocketConnection()
 
 
 class EndOfStream(TransientError):
     pass
 
 
-class ServiceBackendSocketAPI:
+class ServiceBackendSocketConnection:
     LOAD_REFERENCES_FROM_DATASET = 1
     VALUE_TYPE = 2
     TABLE_TYPE = 3
@@ -56,8 +33,23 @@ class ServiceBackendSocketAPI:
     ADD_USER = 12
     GOODBYE = 254
 
-    def __init__(self, conn: socket.socket):
-        self._conn: socket.socket = conn
+    FNAME = '/sock/sock'
+
+    def __init__(self):
+        self._conn: Optional[socket.socket] = None
+
+    def __enter__(self) -> 'ServiceBackendSocketConnection':
+        self._conn = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        sync_retry_transient_errors(
+            self._conn.connect,
+            ServiceBackendSocketConnection.FNAME)
+        return self
+
+    def __exit__(self, type, value, traceback):
+        self._conn.write_int(ServiceBackendSocketConnection.GOODBYE)
+        response = self.api.read_int()
+        assert response == ServiceBackendSocketConnection.GOODBYE, response
+        self._conn.close()
 
     def close(self):
         self._conn.close()
@@ -112,7 +104,7 @@ class ServiceBackendSocketAPI:
         return b.decode('utf-8')
 
     def load_references_from_dataset(self, username: str, session_id: str, billing_project: str, bucket: str, path: str):
-        self.write_int(ServiceBackendSocketAPI.LOAD_REFERENCES_FROM_DATASET)
+        self.write_int(ServiceBackendSocketConnection.LOAD_REFERENCES_FROM_DATASET)
         self.write_str(username)
         self.write_str(session_id)
         self.write_str(billing_project)
@@ -129,7 +121,7 @@ class ServiceBackendSocketAPI:
         raise ValueError(jstacktrace)
 
     def value_type(self, username: str, s: str):
-        self.write_int(ServiceBackendSocketAPI.VALUE_TYPE)
+        self.write_int(ServiceBackendSocketConnection.VALUE_TYPE)
         self.write_str(username)
         self.write_str(s)
         success = self.read_bool()
@@ -143,7 +135,7 @@ class ServiceBackendSocketAPI:
         raise ValueError(jstacktrace)
 
     def table_type(self, username: str, s: str):
-        self.write_int(ServiceBackendSocketAPI.TABLE_TYPE)
+        self.write_int(ServiceBackendSocketConnection.TABLE_TYPE)
         self.write_str(username)
         self.write_str(s)
         success = self.read_bool()
@@ -157,7 +149,7 @@ class ServiceBackendSocketAPI:
         raise ValueError(jstacktrace)
 
     def matrix_table_type(self, username: str, s: str):
-        self.write_int(ServiceBackendSocketAPI.MATRIX_TABLE_TYPE)
+        self.write_int(ServiceBackendSocketConnection.MATRIX_TABLE_TYPE)
         self.write_str(username)
         self.write_str(s)
         success = self.read_bool()
@@ -171,7 +163,7 @@ class ServiceBackendSocketAPI:
         raise ValueError(jstacktrace)
 
     def block_matrix_type(self, username: str, s: str):
-        self.write_int(ServiceBackendSocketAPI.BLOCK_MATRIX_TYPE)
+        self.write_int(ServiceBackendSocketConnection.BLOCK_MATRIX_TYPE)
         self.write_str(username)
         self.write_str(s)
         success = self.read_bool()
@@ -185,7 +177,7 @@ class ServiceBackendSocketAPI:
         raise ValueError(jstacktrace)
 
     def reference_genome(self, username: str, name: str):
-        self.write_int(ServiceBackendSocketAPI.REFERENCE_GENOME)
+        self.write_int(ServiceBackendSocketConnection.REFERENCE_GENOME)
         self.write_str(username)
         self.write_str(name)
         success = self.read_bool()
@@ -199,7 +191,7 @@ class ServiceBackendSocketAPI:
         raise ValueError(jstacktrace)
 
     def execute(self, username: str, session_id: str, billing_project: str, bucket: str, code: str, token: str):
-        self.write_int(ServiceBackendSocketAPI.EXECUTE)
+        self.write_int(ServiceBackendSocketConnection.EXECUTE)
         self.write_str(username)
         self.write_str(session_id)
         self.write_str(billing_project)
@@ -217,7 +209,7 @@ class ServiceBackendSocketAPI:
         raise ValueError(jstacktrace)
 
     def flags(self):
-        self.write_int(ServiceBackendSocketAPI.FLAGS)
+        self.write_int(ServiceBackendSocketConnection.FLAGS)
         success = self.read_bool()
         if success:
             s = self.read_str()
@@ -229,7 +221,7 @@ class ServiceBackendSocketAPI:
         raise ValueError(jstacktrace)
 
     def get_flag(self, name: str):
-        self.write_int(ServiceBackendSocketAPI.GET_FLAG)
+        self.write_int(ServiceBackendSocketConnection.GET_FLAG)
         self.write_str(name)
         success = self.read_bool()
         if success:
@@ -242,7 +234,7 @@ class ServiceBackendSocketAPI:
         raise ValueError(jstacktrace)
 
     def unset_flag(self, name: str):
-        self.write_int(ServiceBackendSocketAPI.UNSET_FLAG)
+        self.write_int(ServiceBackendSocketConnection.UNSET_FLAG)
         self.write_str(name)
         success = self.read_bool()
         if success:
@@ -255,7 +247,7 @@ class ServiceBackendSocketAPI:
         raise ValueError(jstacktrace)
 
     def add_user(self, name: str, gsa_key: str):
-        self.write_int(ServiceBackendSocketAPI.ADD_USER)
+        self.write_int(ServiceBackendSocketConnection.ADD_USER)
         self.write_str(name)
         self.write_str(gsa_key)
         success = self.read_bool()

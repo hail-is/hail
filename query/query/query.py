@@ -16,7 +16,7 @@ from hailtop.tls import internal_server_ssl_context
 from hailtop.hail_logging import AccessLogger
 from gear import setup_aiohttp_session, rest_authenticated_users_only, rest_authenticated_developers_only
 
-from .sockets import ServiceBackendSocketSession, ServiceBackendJavaConnector
+from .sockets import connect_to_java
 
 uvloop.install()
 
@@ -41,8 +41,8 @@ async def add_user(app, userdata):
     if username in users:
         return
     gsa_key = base64.b64decode(gsa_key_secret.data['key.json']).decode()
-    with jbackend(app) as jb:
-        jb.add_user(username, gsa_key)
+    with connect_to_java() as java:
+        java.add_user(username, gsa_key)
     users.add(username)
 
 
@@ -52,41 +52,41 @@ async def healthcheck(request):  # pylint: disable=unused-argument
 
 
 def blocking_execute(app, userdata, body):
-    with jbackend(app) as jb:
+    with connect_to_java() as java:
         log.info(f'executing {body["token"]}')
-        return jb.execute(
+        return java.execute(
             userdata['username'], userdata['session_id'], body['billing_project'], body['bucket'], body['code'], body['token'])
 
 
 def blocking_load_references_from_dataset(app, userdata, body):
-    with jbackend(app) as jb:
-        return jb.load_references_from_dataset(
+    with connect_to_java() as java:
+        return java.load_references_from_dataset(
             userdata['username'], userdata['session_id'], body['billing_project'], body['bucket'], body['path'])
 
 
 def blocking_value_type(app, userdata, body):
-    with jbackend(app) as jb:
-        return jb.value_type(userdata['username'], body['code'])
+    with connect_to_java() as java:
+        return java.value_type(userdata['username'], body['code'])
 
 
 def blocking_table_type(app, userdata, body):
-    with jbackend(app) as jb:
-        return jb.table_type(userdata['username'], body['code'])
+    with connect_to_java() as java:
+        return java.table_type(userdata['username'], body['code'])
 
 
 def blocking_matrix_type(app, userdata, body):
-    with jbackend(app) as jb:
-        return jb.matrix_table_type(userdata['username'], body['code'])
+    with connect_to_java() as java:
+        return java.matrix_table_type(userdata['username'], body['code'])
 
 
 def blocking_blockmatrix_type(app, userdata, body):
-    with jbackend(app) as jb:
-        return jb.block_matrix_type(userdata['username'], body['code'])
+    with connect_to_java() as java:
+        return java.block_matrix_type(userdata['username'], body['code'])
 
 
 def blocking_get_reference(app, userdata, body):   # pylint: disable=unused-argument
-    with jbackend(app) as jb:
-        return jb.reference_genome(userdata['username'], body['name'])
+    with connect_to_java() as java:
+        return java.reference_genome(userdata['username'], body['name'])
 
 
 async def handle_ws_response(request, userdata, endpoint, f):
@@ -175,8 +175,8 @@ async def get_reference(request, userdata):  # pylint: disable=unused-argument
 @rest_authenticated_developers_only
 async def get_flags(request, userdata):  # pylint: disable=unused-argument
     app = request.app
-    with jbackend(app) as jb:
-        jresp = await blocking_to_async(app['thread_pool'], jb.flags)
+    with connect_to_java() as java:
+        jresp = await blocking_to_async(app['thread_pool'], java.flags)
     return web.json_response(jresp)
 
 
@@ -185,8 +185,8 @@ async def get_flags(request, userdata):  # pylint: disable=unused-argument
 async def get_flag(request, userdata):  # pylint: disable=unused-argument
     app = request.app
     f = request.match_info['flag']
-    with jbackend(app) as jb:
-        jresp = await blocking_to_async(app['thread_pool'], jb.get_flag, f)
+    with connect_to_java() as java:
+        jresp = await blocking_to_async(app['thread_pool'], java.get_flag, f)
     return web.json_response(jresp)
 
 
@@ -196,16 +196,12 @@ async def set_flag(request, userdata):  # pylint: disable=unused-argument
     app = request.app
     f = request.match_info['flag']
     v = request.query.get('value')
-    with jbackend(app) as jb:
+    with connect_to_java() as java:
         if v is None:
-            jresp = await blocking_to_async(app['thread_pool'], jb.unset_flag, f)
+            jresp = await blocking_to_async(app['thread_pool'], java.unset_flag, f)
         else:
-            jresp = await blocking_to_async(app['thread_pool'], jb.set_flag, f, v)
+            jresp = await blocking_to_async(app['thread_pool'], java.set_flag, f, v)
     return web.json_response(jresp)
-
-
-def jbackend(app) -> ServiceBackendSocketSession:
-    return app['java_process'].connect()
 
 
 async def on_startup(app):
