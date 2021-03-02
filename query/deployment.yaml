@@ -41,13 +41,6 @@ spec:
              value: "{{ code.sha }}"
            - name: HAIL_QUERY_WORKER_IMAGE
              value: {{ query_image.image }}
-{% if deploy %}
-           - name: HAIL_QUERY_BUCKET
-             value: hail-query
-{% else %}
-           - name: HAIL_QUERY_BUCKET
-             value: hail-test-dmk9z
-{% endif %}
           ports:
            - containerPort: 5000
           volumeMounts:
@@ -97,13 +90,6 @@ spec:
              value: "{{ code.sha }}"
            - name: HAIL_QUERY_WORKER_IMAGE
              value: {{ query_image.image }}
-{% if deploy %}
-           - name: HAIL_QUERY_BUCKET
-             value: hail-query
-{% else %}
-           - name: HAIL_QUERY_BUCKET
-             value: hail-test-dmk9z
-{% endif %}
           ports:
            - containerPort: 5000
           volumeMounts:
