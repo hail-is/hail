@@ -5,4 +5,6 @@ gcp_location = "australia-southeast1"
 gcp_region = "australia-southeast1"
 gcp_zone = "australia-southeast1-b"
 domain = "hail.populationgenomics.org.au"
+batch_logs_bucket_location = "australia-southeast1"
+batch_logs_bucket_storage_class = "STANDARD"
 use_artifact_registry = true
