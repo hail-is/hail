@@ -2938,7 +2938,7 @@ steps:
              -s \
              -vv \
              --instafail \
-             /io/test/test/hailtop/batch/
+             /io/test/hailtop/batch/
    inputs:
     - from: /repo/test
       to: /io/test
