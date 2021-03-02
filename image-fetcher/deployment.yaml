@@ -23,8 +23,11 @@ spec:
         image: "{{ image_fetcher_image.image }}"
         resources:
           requests:
-            cpu: 50m
-            memory: 100Mi
+            cpu: "20m"
+            memory: "20M"
+          limits:
+            cpu: "1"
+            memory: "1G"
         volumeMounts:
          - name: deploy-config
            mountPath: /deploy-config
