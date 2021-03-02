@@ -506,6 +506,41 @@ steps:
    publishAs: batch
    dependsOn:
      - service_base_image
+ - kind: runImage
+   name: render_grafana_nginx_conf
+   image:
+     valueFrom: service_base_image.image
+   script: |
+     set -ex
+     cd /io
+     rm -rf repo
+     mkdir repo
+     cd repo
+     {{ code.checkout_script }}
+     cd grafana
+     if [[ {{ deploy }} = True ]]; then
+      DEPLOY=true
+     else
+      DEPLOY=false
+     fi
+     python3 ../ci/jinja2_render.py '{"deploy": '${DEPLOY}', "default_ns": {"name": "{{ default_ns.name }}"}}' nginx.conf nginx.conf.out
+   outputs:
+     - from: /io/repo/grafana/nginx.conf.out
+       to: /nginx.conf.out
+   dependsOn:
+    - default_ns
+    - service_base_image
+ - kind: buildImage
+   name: grafana_nginx_image
+   dockerFile: grafana/Dockerfile.nginx
+   contextPath: grafana
+   publishAs: grafana
+   inputs:
+     - from: /nginx.conf.out
+       to: /nginx.conf.out
+   dependsOn:
+     - hail_ubuntu_image
+     - render_grafana_nginx_conf
  - kind: buildImage
    name: test_ci_image
    dockerFile: ci/Dockerfile.test
@@ -1607,6 +1642,7 @@ steps:
     - dev
    dependsOn:
     - default_ns
+    - grafana_nginx_image
     - deploy_router
     - create_certs
  - kind: runImage
