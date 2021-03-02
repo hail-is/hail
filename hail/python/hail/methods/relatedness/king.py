@@ -220,6 +220,7 @@ def king(call_expr, *, block_size=None):
        `call-expr`'s column keys. It has one entry field, `phi`.
     """
     mt = matrix_table_source('king/call_expr', call_expr)
+    mt = mt.unfilter_entries()
 
     is_hom_ref = Env.get_uid()
     is_het = Env.get_uid()
