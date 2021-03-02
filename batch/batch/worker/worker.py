@@ -640,7 +640,7 @@ def copy_container(job, name, files, volume_mounts, cpu, memory, requester_pays_
         'image': BATCH_WORKER_IMAGE,
         'name': name,
         'command': [
-            '/usr/bin/python3',
+            '/usr/local/bin/python3',
             '-m',
             'batch.copy',
             json.dumps(requester_pays_project),
