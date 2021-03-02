@@ -3,7 +3,6 @@ import os
 import json
 import sys
 import re
-from shlex import quote as shq
 import logging
 import asyncio
 import random
@@ -20,7 +19,7 @@ import aiodocker
 from aiodocker.exceptions import DockerError
 import google.oauth2.service_account
 from hailtop.utils import (time_msecs, request_retry_transient_errors,
-                           RETRY_FUNCTION_SCRIPT, sleep_and_backoff, retry_all_errors, check_shell,
+                           sleep_and_backoff, retry_all_errors, check_shell,
                            CalledProcessError, check_shell_output, is_google_registry_image,
                            find_spark_home)
 from hailtop.httpx import client_session
