@@ -8,9 +8,13 @@ from hailtop.aiogoogle import GoogleStorageAsyncFS
 
 
 async def copy(requester_pays_project: Optional[str], transfer: Union[Transfer, List[Transfer]]) -> None:
+    if requester_pays_project:
+        params = {'userProject': requester_pays_project}
+    else:
+        params = None
     with ThreadPoolExecutor() as thread_pool:
         fs = RouterAsyncFS(
-            'file', [LocalAsyncFS(thread_pool), GoogleStorageAsyncFS(requester_pays_project=requester_pays_project)])
+            'file', [LocalAsyncFS(thread_pool), GoogleStorageAsyncFS(params=params)])
         sema = asyncio.Semaphore(50)
         async with sema:
             await fs.copy(sema, transfer)
