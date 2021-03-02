@@ -1,6 +1,4 @@
 import json
-import time
-import os
 import socket
 import struct
 import logging
@@ -36,7 +34,7 @@ class ServiceBackendSocketConnection:
     FNAME = '/sock/sock'
 
     def __init__(self):
-        self._conn: Optional[socket.socket] = None
+        pass
 
     def __enter__(self) -> 'ServiceBackendSocketConnection':
         self._conn = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)

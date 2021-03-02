@@ -207,7 +207,6 @@ async def set_flag(request, userdata):  # pylint: disable=unused-argument
 async def on_startup(app):
     thread_pool = concurrent.futures.ThreadPoolExecutor(max_workers=16)
     app['thread_pool'] = thread_pool
-    app['java_process'] = ServiceBackendJavaConnector()
     app['user_keys'] = dict()
     app['users'] = set()
     app['queries'] = defaultdict(dict)
