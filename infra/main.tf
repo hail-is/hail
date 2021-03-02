@@ -21,6 +21,8 @@ variable "gcp_location" {}
 variable "gcp_region" {}
 variable "gcp_zone" {}
 variable "domain" {}
+variable "batch_logs_bucket_location" {}
+variable "batch_logs_bucket_storage_class" {}
 variable "use_artifact_registry" {
   type = bool
   description = "pull the ubuntu image from Artifact Registry. Otherwise, GCR"
