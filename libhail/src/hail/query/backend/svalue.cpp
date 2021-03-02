@@ -102,8 +102,8 @@ SStackTupleValue::get_element(CompileFunction &cf, size_t i) const {
   return EmitValue(element_emit_values[i]);
 }
 
-SCanonicalArrayValue::SCanonicalArrayValue(const SArray *stype, llvm::Value *length, llvm::Value *missing, llvm::Value *data)
-  : SArrayValue(stype), length(length) {
+SCanonicalArrayValue::SCanonicalArrayValue(const SCanonicalArray *stype, llvm::Value *length, llvm::Value *missing, llvm::Value *data)
+  : SArrayValue(stype), length(length), missing(missing), data(data) {
 }
 
 SCanonicalArrayValue::~SCanonicalArrayValue() {
@@ -111,7 +111,7 @@ SCanonicalArrayValue::~SCanonicalArrayValue() {
 }
 
 SInt64Value*
-SCanonicalArrayValue::getLength(TypeContext *tc) {
+SCanonicalArrayValue::get_length(TypeContext *tc) {
   auto returnType = new SInt64(tc->tint32);
   return new SInt64Value(returnType, length);
 }

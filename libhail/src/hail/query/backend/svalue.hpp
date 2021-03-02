@@ -100,20 +100,21 @@ public:
 class SArrayValue : public SValue {
 public:
   static const Tag self_tag = SValue::Tag::ARRAY;
-  const SArray *const stype;
-  SArrayValue(const SArray *stype): SValue(self_tag, stype), stype(stype) {};
+  const SCanonicalArray *const stype;
+  SArrayValue(const SCanonicalArray *stype): SValue(self_tag, stype), stype(stype) {};
   virtual SValue getElement(SInt64Value idx)=0;
   virtual SInt64 getLength()=0;
  };
 
 class SCanonicalArrayValue : public SArrayValue {
   public:
-    SCanonicalArrayValue(const SArray *stype, llvm::Value *length, llvm::Value *missing, llvm::Value *data);
-    SInt64Value* getLength(TypeContext *tc);
+    SCanonicalArrayValue(const SCanonicalArray *stype, llvm::Value *length, llvm::Value *missing, llvm::Value *data);
+    SInt64Value* get_length(TypeContext *tc);
     ~SCanonicalArrayValue();
   private:
     llvm::Value *data;
     llvm::Value *length;
+    llvm::Value *missing;
 };
 
 class EmitControlValue {
