@@ -16,7 +16,7 @@ async def copy(requester_pays_project: Optional[str], transfer: Union[Transfer, 
             await fs.copy(sema, transfer)
 
 
-def main() -> None:
+async def main() -> None:
     assert len(sys.argv) == 3
     requster_pays_project = json.loads(sys.argv[1])
     files = json.loads(sys.argv[2])
