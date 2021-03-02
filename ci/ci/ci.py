@@ -151,12 +151,15 @@ async def prod_deploy(request, unused_userdata):
     await watched_branch._start_deploy(app['batch_client'], steps)
 
     batch = watched_branch.deploy_batch
-    if isinstance(batch, MergeFailureBatch):
-        path = f'/batches'
+    if not isinstance(batch, MergeFailureBatch):
+        url = deploy_config.external_url('ci', f'/batches/{batch.id}')
+        return web.Response(text=f'{url}\n')
     else:
-        path = f'/batches/{batch.id}'
-    url = deploy_config.external_url('ci', path)
-    return web.Response(text=f'{url}\n')
+        message = traceback.format_exc()
+        log.info('prod deploy failed: ' + message, exc_info=True)
+        raise web.HTTPBadRequest(
+            text=f'starting prod deploy failed due to\n{message}'
+        ) from batch.exception
 
 
 async def on_startup(app):
