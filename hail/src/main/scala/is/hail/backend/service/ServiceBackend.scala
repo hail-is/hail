@@ -169,7 +169,8 @@ class ServiceBackend() extends Backend {
   private[this] val users = new ConcurrentHashMap[String, User]()
 
   def addUser(username: String, key: String): Unit = synchronized {
-    users.put(username, new User(username, "/tmp", new GoogleStorageFS(key)))
+    val previous = users.put(username, new User(username, "/tmp", new GoogleStorageFS(key)))
+    assert(previous == null)
   }
 
   def userContext[T](username: String, timer: ExecutionTimer)(f: (ExecuteContext) => T): T = {

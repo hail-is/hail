@@ -36,6 +36,9 @@ async def add_user(app, userdata):
         userdata['gsa_key_secret_name'],
         DEFAULT_NAMESPACE,
         _request_timeout=5.0)
+
+    if username in users:
+        return
     gsa_key = base64.b64decode(gsa_key_secret.data['key.json']).decode()
     with jbackend(app) as jb:
         jb.add_user(username, gsa_key)
