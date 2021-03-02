@@ -64,13 +64,6 @@ steps:
    publishAs: base
    dependsOn:
     - hail_ubuntu_image
- - kind: buildImage
-   name: service_base_image
-   dockerFile: docker/Dockerfile.service-base
-   contextPath: .
-   publishAs: service-base
-   dependsOn:
-    - base_image
  - kind: runImage
    name: check_hail
    image:
@@ -83,21 +76,6 @@ steps:
      make check-hail
    dependsOn:
      - base_image
- - kind: runImage
-   name: check_services
-   image:
-     valueFrom: service_base_image.image
-   script: |
-     set -ex
-     mkdir repo
-     cd repo
-     {{ code.checkout_script }}
-     {% if 'target_sha' in code %}
-     export HAIL_TARGET_SHA={{ code.target_sha }}
-     {% endif %}
-     make -k check-services
-   dependsOn:
-     - service_base_image
  - kind: runImage
    name: copy_files
    image:
@@ -147,6 +125,32 @@ steps:
        to: /repo/lsm
    dependsOn:
      - base_image
+ - kind: buildImage
+   name: service_base_image
+   dockerFile: docker/Dockerfile.service-base
+   contextPath: .
+   publishAs: service-base
+   dependsOn:
+    - base_image
+    - copy_files
+   inputs:
+    - from: /hail_version
+      to: /hail_version
+ - kind: runImage
+   name: check_services
+   image:
+     valueFrom: service_base_image.image
+   script: |
+     set -ex
+     mkdir repo
+     cd repo
+     {{ code.checkout_script }}
+     {% if 'target_sha' in code %}
+     export HAIL_TARGET_SHA={{ code.target_sha }}
+     {% endif %}
+     make -k check-services
+   dependsOn:
+     - service_base_image
  - kind: buildImage
    name: create_certs_image
    dockerFile: tls/Dockerfile
@@ -520,8 +524,12 @@ steps:
    scopes:
     - test
     - dev
+   inputs:
+    - from: /hail_version
+      to: /hail_version
    dependsOn:
      - base_image
+     - copy_files
  - kind: buildImage
    name: test_monitoring_image
    dockerFile: monitoring/Dockerfile.test
@@ -669,9 +677,11 @@ steps:
    inputs:
      - from: /just-jar/hail.jar
        to: /batch/hail.jar
+     - from: /hail_version
+       to: /hail_version
    dependsOn:
-     - service_base_image
      - build_hail_jar_only
+     - copy_files
  - kind: buildImage
    name: query_image
    dockerFile: query/Dockerfile

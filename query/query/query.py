@@ -12,7 +12,7 @@ from hailtop.utils import blocking_to_async, retry_transient_errors, find_spark_
 from hailtop.config import get_deploy_config
 from hailtop.tls import internal_server_ssl_context
 from hailtop.hail_logging import AccessLogger
-from hailtop.hailctl import version
+from hailtop import version
 from gear import setup_aiohttp_session, rest_authenticated_users_only, rest_authenticated_developers_only
 
 uvloop.install()
@@ -20,8 +20,6 @@ uvloop.install()
 DEFAULT_NAMESPACE = os.environ['HAIL_DEFAULT_NAMESPACE']
 log = logging.getLogger('batch')
 routes = web.RouteTableDef()
-# Store this value once so we don't hit the desk
-HAIL_VERSION = version()
 
 
 def java_to_web_response(jresp):
@@ -202,7 +200,7 @@ async def set_flag(request, userdata):  # pylint: disable=unused-argument
 @routes.get('/api/v1alpha/version')
 async def rest_get_version(request):  # pylint: disable=W0613
     try:
-        return web.Response(text=HAIL_VERSION)
+        return web.Response(text=version())
     except Exception as e:
         return web.json_response({"error": str(e)})
 

@@ -33,6 +33,7 @@ RUN python3 -m pip install --upgrade --no-cache-dir pip
 
 COPY hail/python/setup-hailtop.py /hailtop/setup.py
 COPY hail/python/hailtop /hailtop/hailtop/
+COPY /hail_version /hailtop/hailtop/hail_version
 RUN hail-pip-install --no-deps /hailtop && rm -rf /hailtop
 
 COPY gear/setup.py /gear/setup.py
