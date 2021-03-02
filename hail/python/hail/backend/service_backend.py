@@ -48,7 +48,7 @@ class ServiceSocket:
         return resp.data
 
     async def async_request(self, endpoint, **data):
-        data['token'] = secret_alnum_string(n=32)
+        data['token'] = secret_alnum_string()
         session = await self.session()
         async with session.ws_connect(f'{self.url}/api/v1alpha/{endpoint}') as socket:
             await socket.send_str(json.dumps(data))
