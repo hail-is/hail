@@ -647,6 +647,7 @@ def copy_container(job, name, files, volume_mounts, cpu, memory, requester_pays_
             json.dumps(requester_pays_project),
             json.dumps(files)
         ],
+        'env': ['GOOGLE_APPLICATION_CREDENTIALS=/gsa-key/key.json'],
         'cpu': cpu,
         'memory': memory,
         'volume_mounts': volume_mounts
