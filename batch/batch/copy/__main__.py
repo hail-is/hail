@@ -13,11 +13,11 @@ async def copy(requester_pays_project: Optional[str], transfer: Union[Transfer, 
     else:
         params = None
     with ThreadPoolExecutor() as thread_pool:
-        fs = RouterAsyncFS(
-            'file', [LocalAsyncFS(thread_pool), GoogleStorageAsyncFS(params=params)])
-        sema = asyncio.Semaphore(50)
-        async with sema:
-            await fs.copy(sema, transfer)
+        async with RouterAsyncFS(
+                'file', [LocalAsyncFS(thread_pool), GoogleStorageAsyncFS(params=params)]) as fs:
+            sema = asyncio.Semaphore(50)
+            async with sema:
+                await fs.copy(sema, transfer)
 
 
 async def main() -> None:
