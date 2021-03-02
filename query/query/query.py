@@ -9,6 +9,7 @@ import asyncio
 import aiohttp
 from aiohttp import web
 import kubernetes_asyncio as kube
+from collections import defaultdict
 from hailtop.utils import blocking_to_async, retry_transient_errors
 from hailtop.config import get_deploy_config
 from hailtop.tls import internal_server_ssl_context
@@ -90,18 +91,18 @@ def blocking_get_reference(app, userdata, body):   # pylint: disable=unused-argu
 
 async def handle_ws_response(request, userdata, endpoint, f):
     app = request.app
-    queries: Dict[str, Any] = request.app['queries']
+    user_queries: Dict[str, asyncio.Future] = request.app['queries'][userdata['username']]
 
     ws = web.WebSocketResponse(heartbeat=30, max_msg_size=0)
     await ws.prepare(request)
     body = await ws.receive_json()
 
-    query: asyncio.Future = queries.get(body['token'])
+    query = user_queries.get(body['token'])
     if query is None:
         await add_user(app, userdata)
         query = asyncio.ensure_future(
             retry_transient_errors(blocking_to_async, app['thread_pool'], f, app, userdata, body))
-        queries[body['token']] = query
+        user_queries[body['token']] = query
 
     try:
         receive = asyncio.ensure_future(ws.receive())  # receive automatically ping-pongs which keeps the socket alive
@@ -211,7 +212,7 @@ async def on_startup(app):
     app['java_process'] = ServiceBackendJavaConnector()
     app['user_keys'] = dict()
     app['users'] = set()
-    app['queries'] = dict()
+    app['queries'] = defaultdict(dict)
 
     kube.config.load_incluster_config()
     k8s_client = kube.client.CoreV1Api()
