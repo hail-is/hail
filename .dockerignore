@@ -9,6 +9,7 @@ hail/.bloop/
 hail/.gradle/
 hail/.idea/
 hail/.pytest_cache/
+.git/
 hail/.ensime.cache.d/
 hail/.ensime_cache.d/
 hail/.ensime_cache/
