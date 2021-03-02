@@ -1,5 +1,5 @@
 import os
-from typing import Tuple, Any, Set, Optional, Mapping, Dict, AsyncIterator, cast, Type, Iterator
+from typing import Tuple, Any, Set, Optional, Mapping, Dict, AsyncIterator, cast, Type, Iterator, List
 from types import TracebackType
 import collections
 from multidict import CIMultiDictProxy  # pylint: disable=unused-import
@@ -8,7 +8,9 @@ import logging
 import asyncio
 import urllib.parse
 import aiohttp
-from hailtop.utils import TransientError, retry_transient_errors
+from hailtop.utils import (
+    secret_alnum_string, OnlineBoundedGather2,
+    TransientError, retry_transient_errors)
 from hailtop.aiotools import (
     FileStatus, FileListEntry, ReadableStream, WritableStream, AsyncFS,
     FeedableAsyncIterable, FileAndDirectoryError, MultiPartCreate)
@@ -290,6 +292,7 @@ class ResumableInsertObjectStream(WritableStream):
         while self._write_buffer.size() >= self._chunk_size:
             await self._write_chunk()
         assert self._write_buffer.size() < self._chunk_size
+        return len(b)
 
     async def _wait_closed(self):
         assert self._closed
@@ -389,6 +392,19 @@ class StorageClient(BaseClient):
     async def list_objects(self, bucket: str, **kwargs) -> PageIterator:
         return PageIterator(self, f'/b/{bucket}/o', kwargs)
 
+    async def compose(self, bucket: str, names: List[str], destination: str, **kwargs) -> None:
+        n = len(names)
+        if n == 0:
+            raise ValueError('no components in compose')
+        if n > 32:
+            raise ValueError(f'too many components in compose, maximum of 32: {n}')
+        assert 'json' not in kwargs
+        assert 'body' not in kwargs
+        kwargs['json'] = {
+            'sourceObjects': [{'name': name} for name in names]
+        }
+        await self.post(f'/b/{bucket}/o/{urllib.parse.quote(destination, safe="")}/compose', **kwargs)
+
 
 class GetObjectFileStatus(FileStatus):
     def __init__(self, items: Dict[str, str]):
@@ -433,22 +449,98 @@ class GoogleStorageFileListEntry(FileListEntry):
 
 
 class GoogleStorageMultiPartCreate(MultiPartCreate):
-    def __init__(self, fs, url, num_parts):
+    def __init__(self, sema: asyncio.Semaphore, fs: 'GoogleStorageAsyncFS', dest_url: str, num_parts: int):
+        self._sema = sema
         self._fs = fs
-        self._url = url
+        self._dest_url = dest_url
         self._num_parts = num_parts
+        bucket, dest_name = fs._get_bucket_name(dest_url)
+        self._bucket = bucket
+        self._dest_name = dest_name
 
-    async def create_part(self, number: int, start: int):
-        raise NotImplementedError
+        # compute dest_dirname so gs://{bucket}/{dest_dirname}file
+        # refers to a file in dest_dirname with no double slashes
+        dest_dirname = os.path.dirname(dest_name)
+        if dest_dirname:
+            dest_dirname = dest_dirname + '/'
+        self._dest_dirname = dest_dirname
+
+        self._token = secret_alnum_string()
+
+    def _tmp_name(self, filename: str) -> str:
+        return f'{self._dest_dirname}_/{self._token}/{filename}'
+
+    def _part_name(self, number: int) -> str:
+        return self._tmp_name(f'part-{number}')
+
+    async def create_part(self, number: int, start: int) -> WritableStream:
+        part_name = self._part_name(number)
+        return await self._fs._storage_client.insert_object(self._bucket, part_name)
 
     async def __aenter__(self) -> 'GoogleStorageMultiPartCreate':
-        raise NotImplementedError
+        return self
+
+    async def _compose(self, names: List[str], dest_name: str):
+        await self._fs._storage_client.compose(self._bucket, names, dest_name)
 
     async def __aexit__(self,
                         exc_type: Optional[Type[BaseException]],
                         exc_val: Optional[BaseException],
                         exc_tb: Optional[TracebackType]) -> None:
-        raise NotImplementedError
+        async with OnlineBoundedGather2(self._sema) as pool:
+            cleanup_tasks = []
+            try:
+                if exc_val is not None:
+                    return
+
+                async def tree_compose(names, dest_name):
+                    n = len(names)
+                    assert n > 0
+                    if n <= 32:
+                        await self._compose(names, dest_name)
+                        return
+
+                    q, r = divmod(n, 32)
+                    i = 0
+                    p = 0
+                    chunks = []
+                    while i < 32:
+                        # each chunk gets q, and the first r get one more
+                        chunk_size = q
+                        if i < r:
+                            chunk_size += 1
+                        chunks.append(names[p:p + chunk_size])
+                        p += chunk_size
+                        i += 1
+                    assert p == n
+                    assert len(chunks) == 32
+
+                    chunk_names = [self._tmp_name(f'chunk-{secret_alnum_string()}') for _ in range(32)]
+
+                    chunk_tasks = [
+                        await pool.call(tree_compose, c, n)
+                        for c, n in zip(chunks, chunk_names)
+                    ]
+
+                    await pool.wait(chunk_tasks)
+
+                    await self._compose(chunk_names, dest_name)
+
+                    for n in chunk_names:
+                        cleanup_tasks.append(
+                            await pool.call(self._fs._remove_doesnt_exist_ok, f'gs://{self._bucket}/{n}'))
+
+                await tree_compose(
+                    [self._part_name(i) for i in range(self._num_parts)],
+                    self._dest_name)
+            finally:
+                await self._fs.rmtree(self._sema, f'gs://{self._bucket}/{self._dest_dirname}_')
+                # after the rmtree, all temporary files should be gone
+                # cancel any cleanup tasks that are still running
+                # exiting the pool will wait for everything to finish
+                for t in cleanup_tasks:
+                    if not t.done():
+                        t.cancel()
 
 
 class GoogleStorageAsyncFS(AsyncFS):
@@ -477,12 +569,21 @@ class GoogleStorageAsyncFS(AsyncFS):
         bucket, name = self._get_bucket_name(url)
         return await self._storage_client.get_object(bucket, name)
 
+    async def open_from(self, url: str, start: int) -> ReadableStream:
+        bucket, name = self._get_bucket_name(url)
+        return await self._storage_client.get_object(
+            bucket, name, headers={'Range': f'bytes={start}-'})
+
     async def create(self, url: str) -> WritableStream:
         bucket, name = self._get_bucket_name(url)
         return await self._storage_client.insert_object(bucket, name)
 
-    async def multi_part_create(self, url: str, num_parts: int) -> GoogleStorageMultiPartCreate:
-        return GoogleStorageMultiPartCreate(self, url, num_parts)
+    async def multi_part_create(
+            self,
+            sema: asyncio.Semaphore,
+            url: str,
+            num_parts: int) -> GoogleStorageMultiPartCreate:
+        return GoogleStorageMultiPartCreate(sema, self, url, num_parts)
 
     async def staturl(self, url: str) -> str:
         assert not url.endswith('/')
@@ -608,19 +709,31 @@ class GoogleStorageAsyncFS(AsyncFS):
         async for page in await self._storage_client.list_objects(bucket, params=params):
             prefixes = page.get('prefixes')
             items = page.get('items')
-            return prefixes or items
+            return bool(prefixes or items)
         assert False  # unreachable
 
     async def remove(self, url: str) -> None:
         bucket, name = self._get_bucket_name(url)
         await self._storage_client.delete_object(bucket, name)
 
-    async def rmtree(self, url: str) -> None:
+    async def _remove_doesnt_exist_ok(self, url: str) -> None:
         try:
-            async for entry in await self.listfiles(url, recursive=True):
-                await self.remove(await entry.url())
+            bucket, name = self._get_bucket_name(url)
+            await self._storage_client.delete_object(bucket, name)
         except FileNotFoundError:
             pass
+        except aiohttp.ClientResponseError as e:
+            if e.status != 404:
+                raise
+
+    async def rmtree(self, sema: asyncio.Semaphore, url: str) -> None:
+        async with OnlineBoundedGather2(sema) as pool:
+            try:
+                it = await self.listfiles(url, recursive=True)
+            except FileNotFoundError:
+                return
+            async for entry in it:
+                await pool.call(self._remove_doesnt_exist_ok, await entry.url())
 
     async def close(self) -> None:
         await self._storage_client.close()

@@ -166,7 +166,7 @@ spec:
          resources:
            requests:
              memory: "50M"
-             cpu: "5m"
+             cpu: "15m"
            limits:
              memory: 3750Mi
              cpu: "1"
@@ -232,7 +232,7 @@ spec:
    - type: Resource
      resource:
        name: cpu
-       targetAverageUtilization: 80
+       targetAverageUtilization: 95
 ---
 apiVersion: policy/v1beta1
 kind: PodDisruptionBudget

@@ -8,7 +8,7 @@ import is.hail.asm4s._
 import is.hail.backend.{Backend, BackendContext, BroadcastValue, HailTaskContext}
 import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.ir.lowering.{DArrayLowering, LowerDistributedSort, LoweringPipeline, TableStage, TableStageDependency}
-import is.hail.expr.ir.{Compile, ExecuteContext, IR, IRParser, Literal, MakeArray, MakeTuple, ShuffleRead, ShuffleWrite, SortField, ToStream}
+import is.hail.expr.ir.{Compile, ExecuteContext, IR, IRParser, Literal, MakeArray, MakeTuple, OwningTempFileManager, ShuffleRead, ShuffleWrite, SortField, ToStream}
 import is.hail.io.fs.GoogleStorageFS
 import is.hail.linalg.BlockMatrix
 import is.hail.rvd.RVDPartitioner
@@ -158,7 +158,7 @@ class ServiceBackend() extends Backend {
 
   def userContext[T](username: String, timer: ExecutionTimer)(f: (ExecuteContext) => T): T = {
     val user = users(username)
-    ExecuteContext.scoped(user.tmpdir, "file:///tmp", this, user.fs, timer)(f)
+    ExecuteContext.scoped(user.tmpdir, "file:///tmp", this, user.fs, timer, null)(f)
   }
 
   def defaultParallelism: Int = 10

@@ -3119,7 +3119,7 @@ def filter(f: Callable, collection):
     [2, 4]
 
     >>> hl.eval(hl.filter(lambda x: ~(x[-1] == 'e'), s))
-    {'Bob'}
+    frozenset({'Bob'})
 
     Notes
     -----
@@ -4209,7 +4209,7 @@ def empty_set(t: Union[HailType, builtins.str]) -> SetExpression:
     --------
 
     >>> hl.eval(hl.empty_set(hl.tstr))
-    set()
+    frozenset()
 
     Parameters
     ----------
@@ -4385,7 +4385,7 @@ def empty_dict(key_type: Union[HailType, builtins.str], value_type: Union[HailTy
     --------
 
     >>> hl.eval(hl.empty_dict(hl.tstr, hl.tint32))
-    {}
+    frozendict({})
 
     Parameters
     ----------

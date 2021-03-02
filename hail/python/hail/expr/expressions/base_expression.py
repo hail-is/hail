@@ -1,4 +1,4 @@
-from typing import Tuple
+from typing import Tuple, Mapping
 import numpy as np
 
 import hail
@@ -171,7 +171,7 @@ def impute_type(x):
             raise ExpressionException("Hail does not support heterogeneous sets: "
                                       "found set with elements of types {} ".format(list(ts)))
         return tset(unified_type)
-    elif isinstance(x, dict):
+    elif isinstance(x, Mapping):
         if len(x) == 0:
             raise ExpressionException("Cannot impute type of empty dict. Use 'hl.empty_dict' to create an empty dict.")
         kts = {impute_type(element) for element in x.keys()}

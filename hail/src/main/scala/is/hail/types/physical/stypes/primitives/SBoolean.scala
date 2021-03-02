@@ -8,7 +8,9 @@ import is.hail.types.physical.{PBoolean, PCode, PSettable, PType, PValue}
 import is.hail.utils.FastIndexedSeq
 
 
-case class SBoolean(required: Boolean) extends SType {
+case class SBoolean(required: Boolean) extends SPrimitive {
+  def ti: TypeInfo[_] = BooleanInfo
+
   override def pType: PBoolean = PBoolean(required)
 
   def codeOrdering(mb: EmitMethodBuilder[_], other: SType, so: SortOrder): CodeOrdering = pType.codeOrdering(mb, other.pType, so)
@@ -44,7 +46,9 @@ case class SBoolean(required: Boolean) extends SType {
   def canonicalPType(): PType = pType
 }
 
-class SBooleanCode(required: Boolean, val code: Code[Boolean]) extends PCode {
+class SBooleanCode(required: Boolean, val code: Code[Boolean]) extends PCode with SPrimitiveCode {
+  override def _primitiveCode: Code[_] = code
+
   val pt: PBoolean = PBoolean(required)
 
   def st: SBoolean = SBoolean(required)

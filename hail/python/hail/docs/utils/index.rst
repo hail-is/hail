@@ -7,6 +7,7 @@ utils
 
     Interval
     Struct
+    frozendict
     hadoop_open
     hadoop_copy
     hadoop_exists
@@ -22,6 +23,7 @@ utils
 
 .. autoclass:: Interval
 .. autoclass:: Struct
+.. autoclass:: frozendict
 .. autofunction:: hadoop_open
 .. autofunction:: hadoop_copy
 .. autofunction:: hadoop_exists

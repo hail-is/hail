@@ -1,20 +1,46 @@
 {% from "pr-table.html" import pr_table with context %}
 {% from "dev-deploy-table.html" import dev_deploy_table with context %}
+{% from "team-table.html" import team_table with context %}
 {% extends "layout.html" %}
+
 {% block title %}User Homepage{% endblock %}
+
 {% block content %}
-    <h1>Welcome, {{ username }}!</h1>
+<h1>Welcome, {{ username }}!</h1>
 
-    GitHub username: {{ gh_username }}
-    <h2>PRs</h2>
-    {% for wb in watched_branches %}
-    {% if wb.prs is not none %}
-    <h2 class="stacked-header">{{ wb.branch }}</h2>
-    {{ pr_table(wb) }}
-    {% endif %}
-    {% endfor %}
+GitHub username: {{ gh_username }}
 
-    <br>
+<div style='display: flex; flex-flow: row wrap;'>
+  <div style='flex: 40%'>
+    <div style='margin-bottom: 5%'>
+      <h2>My PRs</h2>
+      {% for wb in pr_wbs %}
+      {% if wb.prs is not none %}
+      <h3 class="stacked-header">{{ wb.branch }}</h3>
+      {{ pr_table(wb) }}
+      {% endif %}
+      {% endfor %}
+    </div>
+
+    <div style='margin-bottom: 5%'>
+      <h2>Assigned Reviews</h2>
+      {% for wb in review_wbs %}
+      {% if wb.prs is not none %}
+      <h3 class="stacked-header">{{ wb.branch }}</h3>
+      {{ pr_table(wb) }}
+      {% endif %}
+      {% endfor %}
+    </div>
+
+    <div style='margin-bottom: 5%'>
+      {{ team_table(team_member) }}
+    </div>
+  </div>
+
+  <div style='flex: 40%; padding-left: 10px'>
     <h2>Dev Deploys</h2>
     {{ dev_deploy_table(dev_deploys) }}
+  </div>
+</div>
+
 {% endblock %}

@@ -8,6 +8,7 @@ import is.hail.types.physical.stypes.concrete.SStringPointer
 import is.hail.utils._
 import is.hail.types.virtual._
 import is.hail.types.physical.stypes.interfaces._
+import is.hail.types.physical.stypes.primitives.SPrimitive
 import org.apache.spark.sql.Row
 
 import scala.reflect.ClassTag
@@ -202,39 +203,55 @@ object UtilFunctions extends RegistryFunctions {
           Code.invokeScalaObject2[Double, Double, Double](thisClass, ignoreNanName, v1, v2)
       }
 
-      def ignoreMissingTriplet[T](rt: PType, v1: EmitCode, v2: EmitCode, name: String)(implicit ct: ClassTag[T], ti: TypeInfo[T]): EmitCode = {
-        val m1 = Code.newLocal[Boolean]("min_max_igno_miss_m1")
-        val m2 = Code.newLocal[Boolean]("min_max_igno_miss_m2")
-        EmitCode(
-          Code(v1.setup, v2.setup, m1 := v1.m, m2 := v2.m),
-          m1 && m2,
-          PCode(rt, Code.invokeScalaObject4[T, Boolean, T, Boolean, T](thisClass, name,
-            m1.mux(coerce[T](defaultValue(ti)), v1.value[T]), m1,
-            m2.mux(coerce[T](defaultValue(ti)), v2.value[T]), m2)))
+      def ignoreMissingTriplet[T](cb: EmitCodeBuilder, rt: PType, v1: EmitCode, v2: EmitCode, name: String, f: (Code[T], Code[T]) => Code[T])(implicit ct: ClassTag[T], ti: TypeInfo[T]): IEmitCode = {
+        val value = cb.newLocal[T](s"ignore_missing_${ name }_value")
+        val v1Value = v1.toI(cb).memoize(cb, "ignore_missing_v1")
+        val v2Value = v2.toI(cb).memoize(cb, "ignore_missing_v2")
+
+        val Lmissing = CodeLabel()
+        val Ldefined = CodeLabel()
+        v1Value.toI(cb)
+          .consume(cb,
+            {
+              v2Value.toI(cb).consume(cb,
+                cb.goto(Lmissing),
+                sc2 => cb.assignAny(value, sc2.asPrimitive.primitiveCode[T])
+              )
+            },
+            { sc1 =>
+              cb.assign(value, sc1.asPrimitive.primitiveCode[T])
+              v2Value.toI(cb).consume(cb,
+                {},
+                sc2 => cb.assignAny(value, f(value, sc2.asPrimitive.primitiveCode[T]))
+              )
+            })
+        cb.goto(Ldefined)
+
+        IEmitCode(Lmissing, Ldefined, PCode(rt, value.load()))
       }
 
-      registerEmitCode2(ignoreMissingName, TInt32, TInt32, TInt32, (_: Type, t1: PType, t2: PType) => PInt32(t1.required && t2.required)) {
-        case (r, rt, v1, v2) => ignoreMissingTriplet[Int](rt, v1, v2, ignoreMissingName)
+      registerIEmitCode2(ignoreMissingName, TInt32, TInt32, TInt32, (_: Type, t1: PType, t2: PType) => PInt32(t1.required && t2.required)) {
+        case (cb, r, rt, v1, v2) => ignoreMissingTriplet[Int](cb, rt, v1, v2, name, Code.invokeStatic2[Math, Int, Int, Int](name, _, _))
       }
 
-      registerEmitCode2(ignoreMissingName, TInt64, TInt64, TInt64, (_: Type, t1: PType, t2: PType) => PInt64(t1.required && t2.required)) {
-        case (r, rt, v1, v2) => ignoreMissingTriplet[Long](rt, v1, v2, ignoreMissingName)
+      registerIEmitCode2(ignoreMissingName, TInt64, TInt64, TInt64, (_: Type, t1: PType, t2: PType) => PInt64(t1.required && t2.required)) {
+        case (cb, r, rt, v1, v2) => ignoreMissingTriplet[Long](cb, rt, v1, v2, name, Code.invokeStatic2[Math, Long, Long, Long](name, _, _))
       }
 
-      registerEmitCode2(ignoreMissingName, TFloat32, TFloat32, TFloat32, (_: Type, t1: PType, t2: PType) => PFloat32(t1.required && t2.required)) {
-        case (r, rt, v1, v2) => ignoreMissingTriplet[Float](rt, v1, v2, ignoreMissingName)
+      registerIEmitCode2(ignoreMissingName, TFloat32, TFloat32, TFloat32, (_: Type, t1: PType, t2: PType) => PFloat32(t1.required && t2.required)) {
+        case (cb, r, rt, v1, v2) => ignoreMissingTriplet[Float](cb, rt, v1, v2, name, Code.invokeStatic2[Math, Float, Float, Float](name, _, _))
       }
 
-      registerEmitCode2(ignoreMissingName, TFloat64, TFloat64, TFloat64, (_: Type, t1: PType, t2: PType) => PFloat64(t1.required && t2.required)) {
-        case (r, rt, v1, v2) => ignoreMissingTriplet[Double](rt, v1, v2, ignoreMissingName)
+      registerIEmitCode2(ignoreMissingName, TFloat64, TFloat64, TFloat64, (_: Type, t1: PType, t2: PType) => PFloat64(t1.required && t2.required)) {
+        case (cb, r, rt, v1, v2) => ignoreMissingTriplet[Double](cb, rt, v1, v2, name, Code.invokeStatic2[Math, Double, Double, Double](name, _, _))
       }
 
-      registerEmitCode2(ignoreBothName, TFloat32, TFloat32, TFloat32, (_: Type, t1: PType, t2: PType) => PFloat32(t1.required && t2.required)) {
-        case (r, rt, v1, v2) => ignoreMissingTriplet[Float](rt, v1, v2, ignoreBothName)
+      registerIEmitCode2(ignoreBothName, TFloat32, TFloat32, TFloat32, (_: Type, t1: PType, t2: PType) => PFloat32(t1.required && t2.required)) {
+        case (cb, r, rt, v1, v2) => ignoreMissingTriplet[Float](cb, rt, v1, v2, ignoreNanName, Code.invokeScalaObject2[Float, Float, Float](thisClass, ignoreNanName, _, _))
       }
 
-      registerEmitCode2(ignoreBothName, TFloat64, TFloat64, TFloat64, (_: Type, t1: PType, t2: PType) => PFloat64(t1.required && t2.required)) {
-        case (r, rt, v1, v2) => ignoreMissingTriplet[Double](rt, v1, v2, ignoreBothName)
+      registerIEmitCode2(ignoreBothName, TFloat64, TFloat64, TFloat64, (_: Type, t1: PType, t2: PType) => PFloat64(t1.required && t2.required)) {
+        case (cb, r, rt, v1, v2) => ignoreMissingTriplet[Double](cb, rt, v1, v2, ignoreNanName, Code.invokeScalaObject2[Double, Double, Double](thisClass, ignoreNanName, _, _))
       }
     }
 
@@ -246,64 +263,62 @@ object UtilFunctions extends RegistryFunctions {
         st.constructFromString(cb, r.region, formatted)
     }
 
-    registerEmitCode2("land", TBoolean, TBoolean, TBoolean, (_: Type, tl: PType, tr: PType) => PBoolean(tl.required && tr.required)) {
-      case (er, rt, l, r) =>
-        val lv = l.value[Boolean]
-        val rv = r.value[Boolean]
+    registerIEmitCode2("land", TBoolean, TBoolean, TBoolean, (_: Type, tl: PType, tr: PType) => PBoolean(tl.required && tr.required)) {
+      case (cb, _, rt, l, r) =>
 
         // 00 ... 00 rv rm lv lm
-        val w = er.mb.newLocal[Int]()
+        val w = cb.newLocal[Int]("land_w")
 
         // m/m, t/m, m/t
         val M = const((1 << 5) | (1 << 6) | (1 << 9))
 
-        val setup = Code(l.setup,
-          w := l.m.mux(const(1),
-            lv.mux(
-              const(2),
-              const(0))),
-          w.cne(0).mux(
-            Code(
-              r.setup,
-              w := w | r.m.mux(const(4),
-              rv.mux(
-                const(8),
-                const(0)))),
-            Code._empty))
+        l.toI(cb)
+          .consume(cb,
+            cb.assign(w, 1),
+            b1 => cb.assign(w, b1.asBoolean.boolCode(cb).mux(const(2), const(0)))
+          )
 
-        EmitCode(setup,
-          ((M >> w) & 1).cne(0),
-          PCode(rt, w.ceq(10)))
+        cb.ifx(w.cne(0),
+          {
+            r.toI(cb).consume(cb,
+              cb.assign(w, w | const(4)),
+              { b2 =>
+                cb.assign(w, w | b2.asBoolean.boolCode(cb).mux(const(8), const(0)))
+              }
+            )
+          })
+
+        IEmitCode(cb, ((M >> w) & 1).cne(0), PCode(rt, w.ceq(10)))
     }
 
-    registerEmitCode2("lor", TBoolean, TBoolean, TBoolean, (_: Type, tl: PType, tr: PType) => PBoolean(tl.required && tr.required)) {
-      case (er, rt, l, r) =>
+    registerIEmitCode2("lor", TBoolean, TBoolean, TBoolean, (_: Type, tl: PType, tr: PType) => PBoolean(tl.required && tr.required)) {
+      case (cb, _, rt, l, r) =>
         val lv = l.value[Boolean]
         val rv = r.value[Boolean]
 
         // 00 ... 00 rv rm lv lm
-        val w = er.mb.newLocal[Int]()
+        val w = cb.newLocal[Int]("lor_w")
 
         // m/m, f/m, m/f
         val M = const((1 << 5) | (1 << 1) | (1 << 4))
 
-        val setup = Code(l.setup,
-          w := l.m.mux(const(1),
-            lv.mux(
-              const(2),
-              const(0))),
-          w.cne(2).mux(
-            Code(
-              r.setup,
-              w := w | r.m.mux(const(4),
-                rv.mux(
-                  const(8),
-                  const(0)))),
-            Code._empty))
+        l.toI(cb)
+          .consume(cb,
+            cb.assign(w, 1),
+            b1 => cb.assign(w, b1.asBoolean.boolCode(cb).mux(const(2), const(0)))
+          )
 
-        EmitCode(setup,
-          ((M >> w) & 1).cne(0),
-          PCode(rt, w.cne(0)))
+        cb.ifx(w.cne(2),
+          {
+            r.toI(cb).consume(cb,
+              cb.assign(w, w | const(4)),
+              { b2 =>
+                cb.assign(w, w | b2.asBoolean.boolCode(cb).mux(const(8), const(0)))
+              }
+            )
+          })
+
+        IEmitCode(cb, ((M >> w) & 1).cne(0), PCode(rt, w.cne(0)))
     }
   }
 }
