@@ -22,7 +22,7 @@ async def main() -> None:
     files = json.loads(sys.argv[2])
 
     await copy(requster_pays_project, [
-        Transfer(f['from'], f['to'], treat_test_as=Transfer.DEST_IS_TARGET)
+        Transfer(f['from'], f['to'], treat_dest_as=Transfer.DEST_IS_TARGET)
         for f in files])
 
 
