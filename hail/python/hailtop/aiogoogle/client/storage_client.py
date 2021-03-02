@@ -701,7 +701,7 @@ class GoogleStorageAsyncFS(AsyncFS):
             # the urls are the same modulo the object name
             if not name:
                 return False
-            data = await self._storage_client.get_object_metadata(bucket, name)
+            await self._storage_client.get_object_metadata(bucket, name)
             return True
         except aiohttp.ClientResponseError as e:
             if e.status == 404:
