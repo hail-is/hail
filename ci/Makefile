@@ -9,12 +9,18 @@ CI_IMAGE = $(DOCKER_PREFIX)/ci:$(shell docker images -q --no-trunc ci | sed -e '
 EXTRA_PYTHONPATH := ../batch:../hail/python:../gear:../web_common
 PYTHON := PYTHONPATH=$${PYTHONPATH:+$${PYTHONPATH}:}$(EXTRA_PYTHONPATH) python3
 
+BLACK := $(PYTHON) -m black ci --line-length=120 --skip-string-normalization
+
 .PHONY: check
 check:
 	$(PYTHON) -m flake8 ci
 	$(PYTHON) -m pylint --rcfile ../pylintrc ci --score=n
-	$(PYTHON) -m black ci --check --diff --line-length=120 --skip-string-normalization
+	$(BLACK) --check --diff
 	../check-sql.sh
+
+.PHONY: blacken
+blacken:
+	$(BLACK)
 
 .PHONY: build-ci-utils
 build-ci-utils:

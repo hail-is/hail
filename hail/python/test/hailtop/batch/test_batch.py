@@ -353,6 +353,11 @@ class LocalTests(unittest.TestCase):
         assert len(b._jobs) == 10 + (5 + 3 + 2 + 1)
         b.run()
 
+    def test_backend_context_manager(self):
+        with LocalBackend() as backend:
+            b = Batch(backend=backend)
+            b.run()
+
 
 class ServiceTests(unittest.TestCase):
     def setUp(self):

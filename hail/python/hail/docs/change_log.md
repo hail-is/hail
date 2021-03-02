@@ -22,6 +22,25 @@ Please note that **forward compatibility should not be expected, especially
 relating to file formats**: this means that it may not be possible to use
 an earlier version of Hail to read files written in a later version.
 
+## Version 0.2.63
+
+Released 2021-03-01
+
+- (hail#10105) Hail will now return `frozenset` and `hail.utils.frozendict` instead of normal sets and dicts.
+  
+
+### Bug fixes
+
+- (hail#10035) Fix mishandling of NaN values in `hl.agg.hist`, where they were unintentionally included in the first bin.
+- (hail#10007) Improve error message from hadoop_ls when file does not exist.
+
+### Performance Improvements
+
+- (hail#10068) Make certain array copies faster.
+- (hail#10061) Improve code generation of `hl.if_else` and `hl.coalesce`.
+
+---
+
 ## Version 0.2.62
 
 Released 2021-02-03

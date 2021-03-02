@@ -42,6 +42,12 @@ class Backend(abc.ABC):
         """
         return
 
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
+
 
 class LocalBackend(Backend):
     """
@@ -326,8 +332,7 @@ class ServiceBackend(Backend):
              disable_progress_bar: bool = False,
              callback: Optional[str] = None,
              token: Optional[str] = None,
-             **backend_kwargs
-             ):  # pylint: disable-msg=too-many-statements
+             **backend_kwargs):  # pylint: disable-msg=too-many-statements
         """Execute a batch.
 
         Warning

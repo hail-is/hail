@@ -2,7 +2,7 @@ package is.hail.types.physical
 
 import is.hail.annotations.{Annotation, NDArray, Region, UnsafeOrdering}
 import is.hail.asm4s.{Code, _}
-import is.hail.expr.ir.{EmitCode, EmitCodeBuilder}
+import is.hail.expr.ir.{CodeParam, CodeParamType, EmitCode, EmitCodeBuilder, PCodeParam, Param, ParamType}
 import is.hail.types.physical.stypes.SCode
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.virtual.{TNDArray, Type}
@@ -181,25 +181,39 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
     region: Value[Region]
   ): PNDArrayCode = {
 
-    val dataValue = dataCode.memoize(cb, "pndarray_copy_data_constructor_data")
+    val cacheKey = ("constructByCopyingArray", this, dataCode.st)
+    val mb = cb.emb.ecb.getOrGenEmitMethod("pcndarray_construct_by_copying_array", cacheKey,
+      FastIndexedSeq[ParamType](classInfo[Region], dataCode.st.paramType) ++ (0 until 2 * nDims).map(_ => CodeParamType(LongInfo)),
+      sType.paramType) { mb =>
+      mb.emitPCode { cb =>
 
-    val ndAddr = cb.newLocal[Long]("ndarray_construct_addr")
-    cb.assign(ndAddr, this.allocate(shape, region))
-    shapeType.storeAtAddressFromFields(cb, cb.newLocal[Long]("construct_shape", this.representation.fieldOffset(ndAddr, "shape")),
-      region,
-      shape.map(s => EmitCode.present(cb.emb, primitive(s))),
-      false)
-    strideType.storeAtAddressFromFields(cb, cb.newLocal[Long]("construct_strides", this.representation.fieldOffset(ndAddr, "strides")),
-      region,
-      strides.map(s => EmitCode.present(cb.emb, primitive(s))),
-      false)
+        val region = mb.getCodeParam[Region](1)
+        val dataValue = mb.getPCodeParam(2).asIndexable.memoize(cb, "pcndarray_construct_by_copying_array_datavalue")
+        val shape = (0 until nDims).map(i => mb.getCodeParam[Long](3 + i))
+        val strides = (0 until nDims).map(i => mb.getCodeParam[Long](3 + nDims + i))
 
-    val newDataPointer = cb.newLocal("ndarray_construct_new_data_pointer", ndAddr + this.representation.byteSize)
+        val ndAddr = cb.newLocal[Long]("ndarray_construct_addr")
+        cb.assign(ndAddr, this.allocate(shape, region))
+        shapeType.storeAtAddressFromFields(cb, cb.newLocal[Long]("construct_shape", this.representation.fieldOffset(ndAddr, "shape")),
+          region,
+          shape.map(s => EmitCode.present(cb.emb, primitive(s))),
+          false)
+        strideType.storeAtAddressFromFields(cb, cb.newLocal[Long]("construct_strides", this.representation.fieldOffset(ndAddr, "strides")),
+          region,
+          strides.map(s => EmitCode.present(cb.emb, primitive(s))),
+          false)
 
-    cb.append(Region.storeLong(this.representation.fieldOffset(ndAddr, "data"), newDataPointer))
-    dataType.storeContentsAtAddress(cb, newDataPointer, region, dataValue, true)
+        val newDataPointer = cb.newLocal("ndarray_construct_new_data_pointer", ndAddr + this.representation.byteSize)
 
-    new SNDArrayPointerCode(SNDArrayPointer(this), ndAddr)
+        cb.append(Region.storeLong(this.representation.fieldOffset(ndAddr, "data"), newDataPointer))
+        dataType.storeContentsAtAddress(cb, newDataPointer, region, dataValue, true)
+
+        new SNDArrayPointerCode(SNDArrayPointer(this), ndAddr)
+      }
+    }
+
+    cb.invokePCode(mb, FastIndexedSeq[Param](region, PCodeParam(dataCode.asPCode)) ++ (shape.map(CodeParam(_)) ++ strides.map(CodeParam(_))): _*)
+      .asNDArray
   }
 
   def constructDataFunction(
