@@ -141,9 +141,8 @@ final class RegionPool private(strictMemoryCheck: Boolean, threadName: String, t
   private[this] var closed: Boolean = false
 
   def close(): Unit = {
-    if (closed) {
+    if (closed)
       return
-    }
     closed = true
 
     report("FREE")
