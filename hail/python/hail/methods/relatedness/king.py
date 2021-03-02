@@ -220,7 +220,6 @@ def king(call_expr, *, block_size=None):
        `call-expr`'s column keys. It has one entry field, `phi`.
     """
     mt = matrix_table_source('king/call_expr', call_expr)
-    mt = mt.unfilter_entries()
 
     is_hom_ref = Env.get_uid()
     is_het = Env.get_uid()
@@ -232,6 +231,7 @@ def king(call_expr, *, block_size=None):
         is_hom_var: hl.float(hl.or_else(call_expr.is_hom_var(), 0)),
         is_defined: hl.float(hl.is_defined(call_expr))
     })
+    mt = mt.unfilter_entries()
     ref = hl.linalg.BlockMatrix.from_entry_expr(mt[is_hom_ref], block_size=block_size)
     het = hl.linalg.BlockMatrix.from_entry_expr(mt[is_het], block_size=block_size)
     var = hl.linalg.BlockMatrix.from_entry_expr(mt[is_hom_var], block_size=block_size)
