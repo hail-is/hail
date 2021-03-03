@@ -12,7 +12,7 @@ from .utils import (
     find_spark_home, TransientError, bounded_gather2, OnlineBoundedGather2)
 from .process import (
     CalledProcessError, check_shell, check_shell_output, sync_check_shell,
-    sync_check_shell_output)
+    sync_check_shell_output, check_call)
 from .tqdm import tqdm, TQDM_DEFAULT_DISABLE
 from .rates import (
     rate_cpu_hour_to_mcpu_msec, rate_gib_hour_to_mib_msec, rate_gib_month_to_mib_msec,
@@ -66,6 +66,7 @@ __all__ = [
     'partition',
     'cost_str',
     'external_requests_client_session',
+    'check_call',
     'url_basename',
     'url_join',
     'is_google_registry_image',
