@@ -32,7 +32,7 @@
     <h2>PRs</h2>
     {% if wb.prs is not none %}
     {% if wb.prs|length > 0 %}
-    {{ pr_table(wb) }}
+    {{ pr_table(wb, "prs") }}
     {% else %}
     No PRs.
     {% endif %}
