@@ -538,7 +538,7 @@ class JVMProcess:
         self.java_args = main_spec['command']
 
         self.proc = None
-        self.timing = {'running': None}
+        self.timing = {'running': dict()}
         self.state = 'pending'
         self.log = ''
 
