@@ -399,12 +399,14 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, pass_through=())
 
     x_field_name = Env.get_uid()
     if is_chained:
-        y_field_names = [[f'__y_{i}_{j}' for j in range(len(y[i]))] for i in range(len(y))]
-        y_dict = dict(zip(itertools.chain.from_iterable(y_field_names), itertools.chain.from_iterable(y)))
+        y_field_name_groups = [[f'__y_{i}_{j}' for j in range(len(y[i]))] for i in range(len(y))]
+        y_dict = dict(zip(itertools.chain.from_iterable(y_field_name_groups), itertools.chain.from_iterable(y)))
 
     else:
-        y_field_names = list(f'__y_{i}' for i in range(len(y)))
-        y_dict = dict(zip(y_field_names, y))
+        y_field_name_groups = list(f'__y_{i}' for i in range(len(y)))
+        y_dict = dict(zip(y_field_name_groups, y))
+        # Wrapping in a list since the code is written for the more general chained case.
+        y_field_name_groups = [y_field_name_groups]
 
     cov_field_names = list(f'__cov{i}' for i in range(len(covariates)))
 
@@ -420,17 +422,7 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, pass_through=())
     entries_field_name = 'ent'
     sample_field_name = "by_sample"
 
-    if not is_chained:
-        y_field_names = [y_field_names]
-
-    num_y_lists = len(y_field_names)
-
-    def all_defined(struct_root, field_names):
-        if field_names:
-            defined_array = hl.array([hl.is_defined(struct_root[field_name]) for field_name in field_names])
-            return defined_array.all(lambda a: a)
-        else:
-            return hl.bool(True)
+    num_y_lists = len(y_field_name_groups)
 
     # Given a hail array, get the mean of the nonmissing entries and
     # return new array where the missing entries are the mean.
@@ -444,43 +436,43 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, pass_through=())
     def dot_rows_with_themselves(matrix):
         return (matrix * matrix) @ hl.nd.ones(matrix.shape[1])
 
-    def array_from_struct(struct, field_names):
-        return hl.array([struct[field_name] for field_name in field_names])
+    def no_missing(hail_array):
+        return hail_array.all(lambda element: hl.is_defined(element))
 
     ht_local = mt._localize_entries(entries_field_name, sample_field_name)
 
     ht = ht_local.transmute(**{entries_field_name: ht_local[entries_field_name][x_field_name]})
 
-    def make_one_cov_matrix(ys_and_covs_to_keep):
-        return hl.nd.array(ys_and_covs_to_keep.map(lambda struct: array_from_struct(struct, cov_field_names))) \
-            if cov_field_names else hl.nd.zeros((hl.len(ys_and_covs_to_keep), 0))
-
-    def make_one_y_matrix(ys_and_covs_to_keep, one_y_field_name_set):
-        return hl.nd.array(ys_and_covs_to_keep.map(lambda struct: array_from_struct(struct, one_y_field_name_set)))
-
     def setup_globals(ht):
-        all_covs_defined = ht[sample_field_name].map(lambda sample_struct: all_defined(sample_struct, cov_field_names))
-        list_of_ys_and_covs_to_keep_with_indices = [
-            hl.enumerate(ht[sample_field_name]).filter(
-                lambda struct_with_index:
-                all_covs_defined[struct_with_index[0]] & all_defined(struct_with_index[1], one_y_field_name_set))
-            for one_y_field_name_set in y_field_names
-        ]
+        # cov_arrays is per sample, then per cov.
+        if covariates:
+            ht = ht.annotate_globals(cov_arrays=ht[sample_field_name].map(lambda sample_struct: [sample_struct[cov_name] for cov_name in cov_field_names]))
+        else:
+            ht = ht.annotate_globals(cov_arrays=ht[sample_field_name].map(lambda sample_struct: hl.empty_array(hl.tfloat64)))
 
-        list_of_ys_and_covs_to_keep = [inner_list.map(lambda pair: pair[1]) for inner_list in list_of_ys_and_covs_to_keep_with_indices]
-        kept_samples = [inner_list.map(lambda pair: pair[0]) for inner_list in list_of_ys_and_covs_to_keep_with_indices]
+        ht = ht.annotate_globals(
+            y_arrays_per_group=[ht[sample_field_name].map(lambda sample_struct: [sample_struct[y_name] for y_name in one_y_field_name_set]) for one_y_field_name_set in y_field_name_groups]
+        )
+        all_covs_defined = ht.cov_arrays.map(lambda sample_covs: no_missing(sample_covs))
 
-        cov_nds = hl.array([make_one_cov_matrix(ys_and_covs_to_keep) for ys_and_covs_to_keep in list_of_ys_and_covs_to_keep])
+        def get_kept_samples(sample_ys):
+            # sample_ys is an array of samples, with each element being an array of the y_values
+            return hl.enumerate(sample_ys).filter(
+                lambda idx_and_y_values: all_covs_defined[idx_and_y_values[0]] & no_missing(idx_and_y_values[1])
+            ).map(lambda idx_and_y_values: idx_and_y_values[0])
 
-        y_nds = hl.array([make_one_y_matrix(ys_and_covs_to_keep, one_y_field_name_set)
-                          for ys_and_covs_to_keep, one_y_field_name_set in zip(list_of_ys_and_covs_to_keep, y_field_names)])
+        kept_samples = ht.y_arrays_per_group.map(get_kept_samples)
+        y_nds = hl.zip(kept_samples, ht.y_arrays_per_group).map(lambda sample_indices_and_y_arrays:
+                                                                hl.nd.array(sample_indices_and_y_arrays[0].map(lambda idx:
+                                                                                                               sample_indices_and_y_arrays[1][idx])))
+        cov_nds = kept_samples.map(lambda group: hl.nd.array(group.map(lambda idx: ht.cov_arrays[idx])))
 
         k = builtins.len(covariates)
-        ns = hl.array(kept_samples).map(lambda one_sample_set: hl.len(one_sample_set))
+        ns = kept_samples.map(lambda one_sample_set: hl.len(one_sample_set))
         cov_Qts = hl.if_else(k > 0,
                              cov_nds.map(lambda one_cov_nd: hl.nd.qr(one_cov_nd)[0].T),
                              ns.map(lambda n: hl.nd.zeros((0, n))))
-        Qtys = hl.range(num_y_lists).map(lambda i: cov_Qts[i] @ hl.array(y_nds)[i])
+        Qtys = hl.zip(cov_Qts, y_nds).map(lambda cov_qt_and_y: cov_qt_and_y[0] @ cov_qt_and_y[1])
         return ht.annotate_globals(
             kept_samples=kept_samples,
             __y_nds=y_nds,

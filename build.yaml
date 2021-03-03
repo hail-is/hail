@@ -21,6 +21,7 @@ steps:
     - billing-monitor-gsa-key
     - asana-access-token
     - hail-ci-0-1-service-account-key
+    - test-dataproc-service-account-key
  - kind: buildImage
    name: echo_image
    dockerFile: echo/Dockerfile
@@ -111,8 +112,8 @@ steps:
        to: /repo/hailtop/
      - from: /io/repo/hail/python/test
        to: /repo/test/
-     - from: /io/repo/hail/python/cluster-tests/
-       to: /repo/hail/python/cluster-tests
+     - from: /io/repo/hail/python/cluster-tests
+       to: /repo/hail/python/cluster-tests/
      - from: /io/repo/hail/python/hail/hail_version
        to: /hail_version
      - from: /io/repo/hail/python/hail/hail_pip_version
@@ -123,6 +124,10 @@ steps:
        to: /repo/address/
      - from: /io/repo/lsm
        to: /repo/lsm
+     - from: /io/repo/ci/bootstrap_create_accounts.py
+       to: /repo/ci/
+     - from: /io/repo/ci/create_initial_account.py
+       to: /repo/ci/
    dependsOn:
      - base_image
  - kind: buildImage
@@ -288,13 +293,13 @@ steps:
      set -ex
      # k8s deploy config
      cat > deploy-config.json <<EOF
-     {"location":"k8s","default_namespace":"{{ default_ns.name }}","service_namespace":{}}
+     {"location":"k8s","default_namespace":"{{ default_ns.name }}","domain":"{{ global.domain }}"}
      EOF
      kubectl -n {{ default_ns.name }} delete --ignore-not-found secret deploy-config
      kubectl -n {{ default_ns.name }} create secret generic deploy-config --from-file=./deploy-config.json
      # gce deploy config
      cat > deploy-config.json <<EOF
-     {"location":"gce","default_namespace":"{{ default_ns.name }}","service_namespace":{}}
+     {"location":"gce","default_namespace":"{{ default_ns.name }}","domain":"{{ global.domain }}"}
      EOF
      kubectl -n {{ default_ns.name }} delete --ignore-not-found secret gce-deploy-config
      kubectl -n {{ default_ns.name }} create secret generic gce-deploy-config --from-file=./deploy-config.json
@@ -346,89 +351,52 @@ steps:
     - default_ns
     - base_image
  - kind: runImage
-   name: create_accounts
+   name: create_test_gsa_keys
    image:
      valueFrom: service_base_image.image
    script: |
-     set -ex
-     # create accounts
-     mkdir /user-tokens
-     cat > create-session.py <<EOF
-     import sys
-     import json
-     import asyncio
-     from hailtop.config import get_deploy_config
-     from hailtop.auth import get_tokens
-     from hailtop.utils import async_to_blocking
-     from gear import Database, insert_user, create_session
-     async def main():
-         db = Database()
-         try:
-             await db.async_init()
-             tokens = get_tokens()
-             user_spec = json.loads(sys.argv[1])
-             user_id = await insert_user(db, user_spec)
-             deploy_config = get_deploy_config()
-             auth_ns = deploy_config.service_ns('auth')
-             tokens[auth_ns] = await create_session(db, user_id)
-             tokens.write()
-         finally:
-             await db.async_close()
-     async_to_blocking(main())
-     EOF
-     # batch, benchmark, auth gsa keys
+     kubectl -n {{ default_ns.name }} get -o json secret test-gsa-key | jq '{apiVersion, kind, type, data, metadata: {name: "atgu-gsa-key"}}' | kubectl -n {{ default_ns.name }} apply -f -
      kubectl -n {{ default_ns.name }} get -o json secret test-gsa-key | jq '{apiVersion, kind, type, data, metadata: {name: "auth-gsa-key"}}' | kubectl -n {{ default_ns.name }} apply -f -
      kubectl -n {{ default_ns.name }} get -o json secret test-gsa-key | jq '{apiVersion, kind, type, data, metadata: {name: "batch-gsa-key"}}' | kubectl -n {{ default_ns.name }} apply -f -
-     kubectl -n {{ default_ns.name }} get -o json secret test-gsa-key | jq '{apiVersion, kind, type, data, metadata: {name: "atgu-gsa-key"}}' | kubectl -n {{ default_ns.name }} apply -f -
      kubectl -n {{ default_ns.name }} get -o json secret test-gsa-key | jq '{apiVersion, kind, type, data, metadata: {name: "benchmark-gsa-key"}}' | kubectl -n {{ default_ns.name }} apply -f -
-     # create auth
-     N=$(kubectl -n {{ default_ns.name }} get secret --ignore-not-found=true --no-headers auth-tokens | wc -l | tr -d '[:space:]')
-     if [[ $N = 0 ]]; then
-         rm -f /user-tokens/tokens.json
-         kubectl -n {{ default_ns.name }} get -o json secret test-gsa-key | jq '{apiVersion, kind, type, data, metadata: {name: "auth-gsa-key"}}' | kubectl -n {{ default_ns.name }} apply -f -
-         python3 create-session.py '{"state":"active","username":"auth","is_service_account":1,"gsa_email":"hail-test@hail-vdc.iam.gserviceaccount.com","gsa_key_secret_name":"auth-gsa-key","tokens_secret_name":"auth-tokens"}'
-         kubectl -n {{ default_ns.name }} create secret generic auth-tokens --from-file=/user-tokens/tokens.json
-     fi
-     # created auth
-     # create ci
-     N=$(kubectl -n {{ default_ns.name }} get secret --ignore-not-found=true --no-headers ci-tokens | wc -l | tr -d '[:space:]')
-     if [[ $N = 0 ]]; then
-         rm -f /user-tokens/tokens.json
-         kubectl -n {{ default_ns.name }} get -o json secret test-gsa-key | jq '{apiVersion, kind, type, data, metadata: {name: "ci-gsa-key"}}' | kubectl -n {{ default_ns.name }} apply -f -
-         python3 create-session.py '{"state":"active","username":"ci","is_service_account":1,"gsa_email":"hail-test@hail-vdc.iam.gserviceaccount.com","gsa_key_secret_name":"ci-gsa-key","tokens_secret_name":"ci-tokens"}'
-         kubectl -n {{ default_ns.name }} create secret generic ci-tokens --from-file=/user-tokens/tokens.json
-     fi
-     # created ci
-     # create test
-     N=$(kubectl -n {{ default_ns.name }} get secret --ignore-not-found=true --no-headers test-tokens | wc -l | tr -d '[:space:]')
-     if [[ $N = 0 ]]; then
-         # if test-tokens does not exist
-         rm -f /user-tokens/tokens.json
-         python3 create-session.py '{"state":"active","username":"test","gsa_email":"hail-test@hail-vdc.iam.gserviceaccount.com","gsa_key_secret_name":"test-gsa-key","tokens_secret_name":"test-tokens"}'
-         kubectl -n {{ default_ns.name }} create secret generic test-tokens --from-file=/user-tokens/tokens.json
-     fi
-     # created test
-     # create test-dev
-     N=$(kubectl -n {{ default_ns.name }} get secret --ignore-not-found=true --no-headers test-dev-tokens | wc -l | tr -d '[:space:]')
-     if [[ $N = 0 ]]; then
-         # if test-dev-tokens does not exist
-         rm -f /user-tokens/tokens.json
-         python3 create-session.py '{"state":"active","username":"test-dev","gsa_email":"hail-test@hail-vdc.iam.gserviceaccount.com","gsa_key_secret_name":"test-gsa-key","tokens_secret_name":"test-dev-tokens","is_developer":1}'
-         kubectl -n {{ default_ns.name }} create secret generic test-dev-tokens --from-file=/user-tokens/tokens.json
-     fi
-     # created test-dev
-     # create benchmark
-     N=$(kubectl -n {{ default_ns.name }} get secret --ignore-not-found=true --no-headers benchmark-tokens | wc -l | tr -d '[:space:]')
-     if [[ $N = 0 ]]; then
-         # if benchmark does not exist
-         rm -f /user-tokens/tokens.json
-         python3 create-session.py '{"state":"active","username":"benchmark","gsa_email":"benchmark@hail-vdc.iam.gserviceaccount.com","gsa_key_secret_name":"benchmark-gsa-key","tokens_secret_name":"benchmark-tokens"}'
-         kubectl -n {{ default_ns.name }} create secret generic benchmark-tokens --from-file=/user-tokens/tokens.json
-     fi
-     # created benchmark
+     kubectl -n {{ default_ns.name }} get -o json secret test-gsa-key | jq '{apiVersion, kind, type, data, metadata: {name: "ci-gsa-key"}}' | kubectl -n {{ default_ns.name }} apply -f -
+     kubectl -n {{ default_ns.name }} get -o json secret test-gsa-key | jq '{apiVersion, kind, type, data, metadata: {name: "test-dev-gsa-key"}}' | kubectl -n {{ default_ns.name }} apply -f -
    scopes:
     - test
     - dev
+   serviceAccount:
+     name: admin
+     namespace:
+       valueFrom: default_ns.name
+   dependsOn:
+     - default_ns
+     - service_base_image
+ - kind: buildImage
+   name: auth_image
+   dockerFile: auth/Dockerfile
+   contextPath: .
+   publishAs: auth
+   dependsOn:
+     - service_base_image
+ - kind: deploy
+   name: deploy_auth_driver_service_account
+   namespace:
+     valueFrom: default_ns.name
+   config: auth/auth-driver-service-account.yaml
+   dependsOn:
+    - default_ns
+ - kind: runImage
+   name: create_accounts
+   image:
+     valueFrom: auth_image.image
+   script: |
+     set -ex
+     export PROJECT={{ global.project }}
+     export ZONE={{ global.zone }}
+     export HAIL_PROJECT={{ global.project }}
+     export HAIL_DEFAULT_NAMESPACE={{ default_ns.name }}
+     export HAIL_SCOPE={{ scope }}
+     python3 /io/bootstrap_create_accounts.py
    serviceAccount:
      name: admin
      namespace:
@@ -439,16 +407,51 @@ steps:
       namespace:
         valueFrom: default_ns.name
       mountPath: /sql-config
+    - name: database-server-config
+      namespace:
+        valueFrom: default_ns.name
+      mountPath: /database-server-config
     - name: gce-deploy-config
       namespace:
         valueFrom: default_ns.name
       mountPath: /deploy-config
+    - name: auth-gsa-key
+      namespace:
+        valueFrom: default_ns.name
+      mountPath: /auth-gsa-key
+   inputs:
+     - from: /repo/ci/bootstrap_create_accounts.py
+       to: /io/bootstrap_create_accounts.py
    dependsOn:
     - default_ns
     - deploy_test_batch_sa
     - auth_database
-    - service_base_image
+    - auth_image
     - create_deploy_config
+    - deploy_auth_driver_service_account
+    - create_test_gsa_keys
+ - kind: runImage
+   name: create_initial_user
+   runIfRequested: true
+   image:
+     valueFrom: service_base_image.image
+   script: |
+     set -ex
+     python3 /io/create_initial_account.py {{ code.username }} {{ code.email }}
+   secrets:
+    - name:
+        valueFrom: auth_database.user_secret_name
+      namespace:
+        valueFrom: default_ns.name
+      mountPath: /sql-config
+   inputs:
+     - from: /repo/ci/create_initial_account.py
+       to: /io/create_initial_account.py
+   dependsOn:
+    - default_ns
+    - service_base_image
+    - copy_files
+    - auth_database
  - kind: buildImage
    name: hail_build_image
    dockerFile: hail/Dockerfile.hail-build
@@ -493,13 +496,6 @@ steps:
    dockerFile: monitoring/Dockerfile
    contextPath: .
    publishAs: monitoring
-   dependsOn:
-     - service_base_image
- - kind: buildImage
-   name: auth_image
-   dockerFile: auth/Dockerfile
-   contextPath: .
-   publishAs: auth
    dependsOn:
      - service_base_image
  - kind: buildImage
@@ -2195,45 +2191,6 @@ steps:
     - deploy_memory_sa
     - create_certs
  - kind: runImage
-   name: test_query
-   image:
-     valueFrom: hail_run_image.image
-   resources:
-     memory: "3.75G"
-     cpu: "1"
-   script: |
-     set -ex
-     cd /io
-     tar xvf wheel-container.tar
-     python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
-     hailctl config set batch/bucket hail-test-dmk9z
-     HAIL_BILLING_PROJECT=test HAIL_DONT_RETRY_500=1 HAIL_QUERY_BACKEND=service python3 -m pytest --log-cli-level=INFO -s -vv --instafail --durations=50 /io/test/
-   timeout: 600
-   secrets:
-    - name: gce-deploy-config
-      namespace:
-        valueFrom: default_ns.name
-      mountPath: /deploy-config
-    - name: test-dev-tokens
-      namespace:
-        valueFrom: default_ns.name
-      mountPath: /user-tokens
-    - name: ssl-config-query-tests
-      namespace:
-        valueFrom: default_ns.name
-      mountPath: /ssl-config
-   inputs:
-     - from: /wheel-container.tar
-       to: /io/wheel-container.tar
-     - from: /repo/query/test
-       to: /io/
-   dependsOn:
-    - default_ns
-    - create_certs
-    - build_hail
-    - hail_run_image
-    - deploy_query
- - kind: runImage
    name: test_lsm
    image:
      valueFrom: base_image.image
@@ -3554,6 +3511,7 @@ steps:
       namespace:
         valueFrom: default_ns.name
       mountPath: /ssl-config
+   timeout: 1200
    dependsOn:
     - default_ns
     - create_certs
@@ -3606,7 +3564,6 @@ steps:
     - test_hailtop_batch_2
     - test_hailtop_batch_3
     - test_hailtop_batch_4
-    - test_query
  - kind: runImage
    name: delete_batch_instances
    image:
@@ -3644,7 +3601,6 @@ steps:
     - test_hailtop_batch_2
     - test_hailtop_batch_3
     - test_hailtop_batch_4
-    - test_query
  - kind: runImage
    name: delete_atgu_tables
    image:

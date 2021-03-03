@@ -7,7 +7,9 @@ import is.hail.types.physical.stypes.{SCode, SType}
 import is.hail.types.physical.{PCode, PFloat64, PSettable, PType, PValue}
 import is.hail.utils.FastIndexedSeq
 
-case class SFloat64(required: Boolean) extends SType {
+case class SFloat64(required: Boolean) extends SPrimitive {
+  def ti: TypeInfo[_] = DoubleInfo
+
   override def pType: PFloat64  = PFloat64(required)
 
   def codeOrdering(mb: EmitMethodBuilder[_], other: SType, so: SortOrder): CodeOrdering = pType.codeOrdering(mb, other.pType, so)
@@ -55,7 +57,9 @@ object SFloat64Code {
   def apply(code: Code[Double], required: Boolean = true): SFloat64Code = new SFloat64Code(required, code)
 }
 
-class SFloat64Code(required: Boolean, val code: Code[Double]) extends PCode {
+class SFloat64Code(required: Boolean, val code: Code[Double]) extends PCode with SPrimitiveCode {
+  override def _primitiveCode: Code[_] = code
+
   val pt: PFloat64 = PFloat64(required)
 
   def st: SFloat64 = SFloat64(required)

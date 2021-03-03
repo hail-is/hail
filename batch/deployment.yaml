@@ -43,8 +43,11 @@ spec:
          - batch.driver
         resources:
           requests:
-            memory: "1G"
+            cpu: "600m"
+            memory: "2G"
+          limits:
             cpu: "1"
+            memory: "2.5G"
         env:
          - name: HAIL_DOMAIN
            value: "{{ global.domain }}"
@@ -81,7 +84,10 @@ spec:
 {% endif %}
 {% if deploy %}
          - name: HAIL_BATCH_BUCKET_NAME
-           value: hail-batch
+           valueFrom:
+             secretKeyRef:
+               name: global-config
+               key: batch_logs_bucket
          - name: STANDING_WORKER_MAX_IDLE_TIME_SECS
            value: "7200" # 2 hours
 {% else %}
@@ -220,7 +226,10 @@ spec:
 {% endif %}
 {% if deploy %}
          - name: HAIL_BATCH_BUCKET_NAME
-           value: hail-batch
+           valueFrom:
+             secretKeyRef:
+               name: global-config
+               key: batch_logs_bucket
          - name: STANDING_WORKER_MAX_IDLE_TIME_SECS
            value: "7200" # 2 hours
 {% else %}
@@ -233,11 +242,11 @@ spec:
          - containerPort: 5000
         resources:
           requests:
-            memory: "100M"
-            cpu: "100m"
+            cpu: "20m"
+            memory: "20M"
           limits:
-            memory: "1G"
             cpu: "1"
+            memory: "1G"
         volumeMounts:
          - name: deploy-config
            mountPath: /deploy-config

@@ -189,8 +189,7 @@ class EmitStreamSuite extends HailSuite {
       var checkedInner: CheckedStream[Code[Int]] = null
       val rootRegion = StagedRegion(new Value[Region] { def get: Code[Region] = Code._null[Region] }, allowSubregions = false)
       val eltRegion = rootRegion.createChildRegion(mb)
-      val innerStreamType = PCanonicalStream(PInt32())
-      val outer = Stream.grouped(mb, _ => r.stream, innerStreamType, 2, eltRegion).map { inner =>
+      val outer = Stream.grouped(mb, _ => r.stream, false, 2, eltRegion).map { inner =>
         checkedInner = new CheckedStream(inner(eltRegion), "inner", mb)
         checkedInner.stream
       }
@@ -215,8 +214,7 @@ class EmitStreamSuite extends HailSuite {
       var checkedInner: CheckedStream[Code[Int]] = null
       val rootRegion = StagedRegion(new Value[Region] { def get: Code[Region] = Code._null[Region] }, allowSubregions = false)
       val eltRegion = rootRegion.createChildRegion(mb)
-      val innerStreamType = PCanonicalStream(PInt32())
-      val outer = Stream.grouped(mb, _ => r.stream, innerStreamType, 2, eltRegion).map { inner =>
+      val outer = Stream.grouped(mb, _ => r.stream, false, 2, eltRegion).map { inner =>
         val take = Stream.zip(inner(eltRegion), Stream.range(mb, 0, 1, 1))
                          .map { case (i, count) => i }
         checkedInner = new CheckedStream(take, "inner", mb)
@@ -303,9 +301,10 @@ class EmitStreamSuite extends HailSuite {
     val ir = streamIR.deepCopy()
     val usesAndDefs = ComputeUsesAndDefs(ir, errorIfFreeVariables = false)
     val requiredness = Requiredness.apply(ir, usesAndDefs, null, Env.empty) // Value IR inference doesn't need context
+    val smm = InferStreamMemoryManagement(ir, usesAndDefs)
     InferPType(ir, Env.empty, requiredness, usesAndDefs)
 
-    val emitContext = new EmitContext(ctx, requiredness)
+    val emitContext = new EmitContext(ctx, requiredness, smm)
     val eltType = ir.pType.asInstanceOf[PStream].elementType
     val stream = ExecuteContext.scoped() { ctx =>
       val s = ir match {
@@ -369,9 +368,10 @@ class EmitStreamSuite extends HailSuite {
     val ir = streamIR.deepCopy()
     val usesAndDefs = ComputeUsesAndDefs(ir, errorIfFreeVariables = false)
     val requiredness = Requiredness.apply(ir, usesAndDefs, null, Env.empty) // Value IR inference doesn't need context
+    val smm = InferStreamMemoryManagement(ir, usesAndDefs)
     InferPType(ir, Env.empty, requiredness, usesAndDefs)
 
-    val emitContext = new EmitContext(ctx, requiredness)
+    val emitContext = new EmitContext(ctx, requiredness, smm)
 
     val optStream = ExecuteContext.scoped() { ctx =>
       TypeCheck(ir)

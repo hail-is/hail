@@ -55,18 +55,22 @@ final case class EBlockMatrixNDArray(elementType: EType, encodeRowMajor: Boolean
     val nRows = cb.newLocal[Long]("rows", in.readInt().toL)
     val nCols = cb.newLocal[Long]("cols", in.readInt().toL)
     val transpose = cb.newLocal[Boolean]("transpose", in.readBoolean())
-    val n = cb.newLocal[Int]("length", nRows.toI * nCols.toI)
-    val data = cb.newLocal[Long]("data", pt.dataType.allocate(region, n))
-    cb += pt.dataType.stagedInitialize(data, n, setMissing = true)
-
-    val i = cb.newLocal[Int]("i")
-    cb.forLoop(cb.assign(i, 0), i < n, cb.assign(i, i + 1),
-      readElemF(cb, region, pt.dataType.elementOffset(data, n, i), in))
 
     val stride0 = cb.newLocal[Long]("stride0", transpose.mux(nCols.toL * pt.elementType.byteSize, pt.elementType.byteSize))
     val stride1 = cb.newLocal[Long]("stride1", transpose.mux(pt.elementType.byteSize, nRows * pt.elementType.byteSize))
 
-    pt.construct(FastIndexedSeq(nRows, nCols), FastIndexedSeq(stride0, stride1), data, cb, region)
+    val n = cb.newLocal[Int]("length", nRows.toI * nCols.toI)
+
+    val (tFirstElementAddress, tFinisher) = pt.constructDataFunction(IndexedSeq(nRows, nCols), IndexedSeq(stride0, stride1), cb, region)
+    val currElementAddress = cb.newLocal[Long]("eblockmatrix_ndarray_currElementAddress", tFirstElementAddress)
+
+    val i = cb.newLocal[Int]("i")
+    cb.forLoop(cb.assign(i, 0), i < n, cb.assign(i, i + 1), {
+      readElemF(cb, region, currElementAddress, in)
+      cb.assign(currElementAddress, currElementAddress + pt.elementType.byteSize)
+    })
+
+    tFinisher(cb)
   }
 
   def _buildSkip(cb: EmitCodeBuilder, r: Value[Region], in: Value[InputBuffer]): Unit = {

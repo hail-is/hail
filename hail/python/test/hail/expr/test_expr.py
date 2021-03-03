@@ -297,10 +297,10 @@ class Tests(unittest.TestCase):
         assert hl.eval(hl.literal(rna_strs).map(lambda s: hl.reverse_complement(s, rna=True))) == ['UGUAAUCNN', 'UGUAAUCNN'.lower(), 'oof']
 
     def test_matches(self):
-        self.assertEqual(hl.eval('\d+'), '\d+')
+        self.assertEqual(hl.eval('\\d+'), '\\d+')
         string = hl.literal('12345')
-        self.assertTrue(hl.eval(string.matches('\d+')))
-        self.assertTrue(hl.eval(string.matches(hl.str('\d+'))))
+        self.assertTrue(hl.eval(string.matches('\\d+')))
+        self.assertTrue(hl.eval(string.matches(hl.str('\\d+'))))
         self.assertFalse(hl.eval(string.matches(r'\\d+')))
 
     def test_string_reverse(self):
@@ -2670,7 +2670,7 @@ class Tests(unittest.TestCase):
                                             entry_type=hl.tstr)
             actual = actual.rename({'col_id': 's'})
             actual = actual.key_rows_by(locus = hl.parse_locus(actual.locus),
-                                        alleles = actual.alleles.replace('"', '').replace('\[', '').replace('\]', '').split(','))
+                                        alleles = actual.alleles.replace('"', '').replace(r'\[', '').replace(r'\]', '').split(','))
             actual = actual.transmute_entries(GT = hl.parse_call(actual.x))
             expected = mt.select_cols().select_globals().select_rows()
             expected.show()
@@ -3054,7 +3054,7 @@ class Tests(unittest.TestCase):
         self.assertAlmostEqual(hl.eval(hl.uniroot(lambda x: x - 1, 0, 3, tolerance=tol)), 1)
         self.assertAlmostEqual(hl.eval(hl.uniroot(lambda x: hl.log(x) - 1, 0, 3, tolerance=tol)), 2.718281828459045, delta=tol)
 
-        with self.assertRaisesRegex(hl.utils.FatalError, "value of f\(x\) is missing"):
+        with self.assertRaisesRegex(hl.utils.FatalError, r"value of f\(x\) is missing"):
             hl.eval(hl.uniroot(lambda x: hl.missing('float'), 0, 1))
         with self.assertRaisesRegex(hl.utils.HailUserError, 'opposite signs'):
             hl.eval(hl.uniroot(lambda x: x ** 2 - 0.5, -1, 1))
@@ -3238,6 +3238,20 @@ class Tests(unittest.TestCase):
 
         self.assertTrue(hl.eval(s.contains(5)))
         self.assertTrue(hl.eval(~s.contains(2)))
+
+    def test_dict_keyed_by_set(self):
+        dict_with_set_key = hl.dict({hl.set([1, 2, 3]): 4})
+        # Test that it's evalable, since python sets aren't hashable.
+        assert hl.eval(dict_with_set_key) == {frozenset([1, 2, 3]): 4}
+
+    def test_dict_keyed_by_dict(self):
+        dict_with_dict_key = hl.dict({hl.dict({1:2, 3:5}): 4})
+        # Test that it's evalable, since python dicts aren't hashable.
+        assert hl.eval(dict_with_dict_key) == {hl.utils.frozendict({1:2, 3:5}): 4}
+
+    def test_frozendict_as_literal(self):
+        fd = hl.utils.frozendict({"a": 4, "b": 8})
+        assert hl.eval(hl.literal(fd)) == hl.utils.frozendict({"a": 4, "b": 8})
 
     def test_nan_roundtrip(self):
         a = [math.nan, math.inf, -math.inf, 0, 1]

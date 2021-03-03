@@ -68,7 +68,7 @@ class LocalBackend(
   val fs: FS = new HadoopFS(new SerializableHadoopConfiguration(hadoopConf))
 
   def withExecuteContext[T](timer: ExecutionTimer)(f: ExecuteContext => T): T = {
-    ExecuteContext.scoped(tmpdir, tmpdir, this, fs, timer)(f)
+    ExecuteContext.scoped(tmpdir, tmpdir, this, fs, timer, null)(f)
   }
 
   def broadcast[T : ClassTag](value: T): BroadcastValue[T] = new LocalBroadcastValue[T](value)

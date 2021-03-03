@@ -32,7 +32,7 @@ object HadoopFS {
 
       override def write(bytes: Array[Byte], off: Int, len: Int): Unit = os.write(bytes, off, len)
 
-      override def flush(): Unit = os.flush()
+      override def flush(): Unit = if (!closed) os.flush()
 
       override def close(): Unit = {
         if (!closed) {

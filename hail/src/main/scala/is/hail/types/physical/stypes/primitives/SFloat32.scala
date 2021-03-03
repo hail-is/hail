@@ -7,7 +7,9 @@ import is.hail.types.physical.stypes.{SCode, SType}
 import is.hail.types.physical.{PCode, PFloat32, PSettable, PType, PValue}
 import is.hail.utils.FastIndexedSeq
 
-case class SFloat32(required: Boolean) extends SType {
+case class SFloat32(required: Boolean) extends SPrimitive {
+  def ti: TypeInfo[_] = FloatInfo
+
   override def pType: PFloat32  = PFloat32(required)
 
   def codeOrdering(mb: EmitMethodBuilder[_], other: SType, so: SortOrder): CodeOrdering = pType.codeOrdering(mb, other.pType, so)
@@ -51,7 +53,9 @@ trait PFloat32Value extends PValue {
 
 }
 
-class SFloat32Code(required: Boolean, val code: Code[Float]) extends PCode {
+class SFloat32Code(required: Boolean, val code: Code[Float]) extends PCode with SPrimitiveCode {
+  override def _primitiveCode: Code[_] = code
+
   val pt: PFloat32 = PFloat32(required)
 
   def st: SFloat32 = SFloat32(required)

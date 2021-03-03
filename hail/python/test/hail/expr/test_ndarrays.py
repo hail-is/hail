@@ -215,6 +215,9 @@ def test_ndarray_eval():
         hl.nd.array(mishapen_data_list3)
     assert "inner dimensions do not match" in str(exc.value)
 
+    with pytest.raises(HailUserError) as exc:
+        hl.eval(hl.nd.array([1, hl.null(hl.tint32), 3]))
+
 
 def test_ndarray_shape():
     np_e = np.array(3)

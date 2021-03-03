@@ -20,6 +20,7 @@ main() {
   TypeContext tc(heap);
 
   auto vint32 = cast<VInt32>(tc.get_vtype(tc.tint32));
+  auto vfloat64 = cast<VFloat64>(tc.get_vtype(tc.tfloat64));
   auto vstr = cast<VStr>(tc.get_vtype(tc.tstr));
   auto vbool = cast<VBool>(tc.get_vtype(tc.tbool));
 
@@ -62,6 +63,7 @@ main() {
 
     JIT jit;
 
+
     std::vector<const VType *> param_vtypes;
     for (auto t : param_types)
       param_vtypes.push_back(tc.get_vtype(t));
@@ -72,6 +74,21 @@ main() {
     auto return_value = compiled.invoke(region, {});
     print("return_value: ", return_value);
   }
+
+  {
+    print("Array testing:");
+    auto region = std::make_shared<ArenaAllocator>(heap);
+    auto varray = cast<VArray>(tc.get_vtype(tc.tarray(tc.tfloat64)));
+
+    int array_length = 8;
+    auto my_array = Value::make_array(varray, region, array_length);
+    print("array_length = ", my_array.get_size());
+    for (int i = 0; i < array_length; ++i) {
+      Value element(vfloat64, 5.2 + i);
+      my_array.set_element(i, element);
+    }
+    print(my_array);
+   }
 
   return 0;
 }

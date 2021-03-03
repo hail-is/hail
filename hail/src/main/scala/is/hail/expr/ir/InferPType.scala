@@ -137,7 +137,7 @@ object InferPType {
         env.lookup(x.name)
       case x: BaseRef =>
         lookup(x.name, requiredness(node), usesAndDefs.defs.lookup(node).asInstanceOf[IR])
-      case MakeNDArray(data, shape, rowMajor) =>
+      case MakeNDArray(data, shape, rowMajor, _) =>
         val nElem = shape.pType.asInstanceOf[PTuple].size
         PCanonicalNDArray(coerce[PArray](data.pType).elementType.setRequired(true), nElem, requiredness(node).required)
       case StreamRange(start: IR, stop: IR, step: IR, separateRegions) =>
@@ -226,7 +226,7 @@ object InferPType {
         x.accPType.setRequired(requiredness(node).required)
       case x: StreamFold2 =>
         x.result.pType.setRequired(requiredness(node).required)
-      case x@StreamScan(a, _, _, _, _) =>
+      case x@StreamScan(a, _, _, _, body) =>
         val r = coerce[RIterable](requiredness(node))
         PCanonicalStream(
           x.accPType.setRequired(r.elementType.required),

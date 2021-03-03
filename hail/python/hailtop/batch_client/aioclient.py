@@ -1,4 +1,4 @@
-from typing import Optional, Dict
+from typing import Optional, Dict, Any
 import math
 import random
 import logging
@@ -318,11 +318,12 @@ class SubmittedJob:
 
 
 class Batch:
-    def __init__(self, client, id, attributes, n_jobs, last_known_status=None):
+    def __init__(self, client, id, attributes, n_jobs, token, last_known_status=None):
         self._client = client
         self.id = id
         self.attributes = attributes
         self.n_jobs = n_jobs
+        self.token = token
         self._last_known_status = last_known_status
 
     async def cancel(self):
@@ -344,12 +345,13 @@ class Batch:
             if last_job_id is None:
                 break
 
-    async def get_job_log(self, job_id: int):
-        return self._client.get_job_log(self.id, job_id)
+    async def get_job_log(self, job_id: int) -> Optional[Dict[str, Any]]:
+        return await self._client.get_job_log(self.id, job_id)
 
     # {
     #   id: int,
     #   billing_project: str
+    #   token: str
     #   state: str, (open, failure, cancelled, success, running)
     #   complete: bool
     #   closed: bool
@@ -397,7 +399,7 @@ class Batch:
 
 
 class BatchBuilder:
-    def __init__(self, client, attributes, callback):
+    def __init__(self, client, attributes, callback, token=None):
         self._client = client
         self._job_idx = 0
         self._job_specs = []
@@ -405,6 +407,10 @@ class BatchBuilder:
         self._submitted = False
         self.attributes = attributes
         self.callback = callback
+
+        if token is None:
+            token = secrets.token_urlsafe(32)
+        self.token = token
 
     def create_job(self, image, command, env=None, mount_docker_socket=False,
                    port=None, resources=None, secrets=None,
@@ -514,19 +520,18 @@ class BatchBuilder:
                 b, content_type='application/json', encoding='utf-8'))
         pbar.update(n_jobs)
 
-    async def _create(self, batch_token=None):
-        batch_token = batch_token or secrets.token_urlsafe(32)
+    async def _create(self):
         n_jobs = len(self._job_specs)
         batch_spec = {'billing_project': self._client.billing_project,
                       'n_jobs': n_jobs,
-                      'token': batch_token}
+                      'token': self.token}
         if self.attributes:
             batch_spec['attributes'] = self.attributes
         if self.callback:
             batch_spec['callback'] = self.callback
         batch_json = await (await self._client._post('/api/v1alpha/batches/create',
                                                      json=batch_spec)).json()
-        return Batch(self._client, batch_json['id'], self.attributes, n_jobs)
+        return Batch(self._client, batch_json['id'], self.attributes, n_jobs, self.token)
 
     MAX_BUNCH_BYTESIZE = 1024 * 1024
     MAX_BUNCH_SIZE = 1024
@@ -655,7 +660,7 @@ class BatchClient:
                     return
                 n += 1
                 yield Batch(self, batch['id'], attributes=batch.get('attributes'),
-                            n_jobs=int(batch['n_jobs']), last_known_status=batch)
+                            n_jobs=int(batch['n_jobs']), token=batch['token'], last_known_status=batch)
             last_batch_id = body.get('last_batch_id')
             if last_batch_id is None:
                 break
@@ -669,7 +674,7 @@ class BatchClient:
             j['job_id'],
             _status=j)
 
-    async def get_job_log(self, batch_id, job_id):
+    async def get_job_log(self, batch_id, job_id) -> Optional[Dict[str, Any]]:
         resp = await self._get(
             f'/api/v1alpha/batches/{batch_id}/jobs/{job_id}/log')
         return await resp.json()
@@ -686,10 +691,11 @@ class BatchClient:
                      b['id'],
                      attributes=b.get('attributes'),
                      n_jobs=int(b['n_jobs']),
+                     token=b['token'],
                      last_known_status=b)
 
-    def create_batch(self, attributes=None, callback=None):
-        return BatchBuilder(self, attributes, callback)
+    def create_batch(self, attributes=None, callback=None, token=None):
+        return BatchBuilder(self, attributes, callback, token)
 
     async def get_billing_project(self, billing_project):
         bp_resp = await self._get(f'/api/v1alpha/billing_projects/{billing_project}')
@@ -731,3 +737,9 @@ class BatchClient:
     async def close(self):
         await self._session.close()
         self._session = None
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        await self.close()

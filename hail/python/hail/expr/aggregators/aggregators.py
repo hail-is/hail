@@ -390,7 +390,7 @@ def collect_as_set(expr) -> SetExpression:
     Collect the unique `ID` field where `HT` is greater than 68:
 
     >>> table1.aggregate(hl.agg.filter(table1.HT > 68, hl.agg.collect_as_set(table1.ID)))
-    {2, 3}
+    frozenset({2, 3})
 
     Warning
     -------
@@ -548,13 +548,13 @@ def counter(expr, *, weight=None) -> DictExpression:
     Count the number of individuals for each unique `SEX` value:
 
     >>> table1.aggregate(hl.agg.counter(table1.SEX))
-    {'F': 2, 'M': 2}
+    frozendict({'F': 2, 'M': 2})
     <BLANKLINE>
 
     Compute the total height for each unique `SEX` value:
 
     >>> table1.aggregate(hl.agg.counter(table1.SEX, weight=table1.HT))
-    {'F': 130, 'M': 137}
+    frozendict({'F': 130, 'M': 137})
     <BLANKLINE>
 
     Notes
@@ -862,8 +862,7 @@ def stats(expr) -> StructExpression:
             lambda aggs: hl.bind(
                 lambda mean: hl.struct(
                     mean=mean,
-                    stdev=hl.sqrt(hl.float64(
-                        aggs.sumsq - (2 * mean * aggs.sum) + (aggs.n_def * mean ** 2)) / aggs.n_def),
+                    stdev=hl.sqrt(hl.float64(aggs.sumsq - mean * aggs.sum) / aggs.n_def),
                     min=hl.float64(aggs.min),
                     max=hl.float64(aggs.max),
                     n=aggs.n_def,
@@ -1022,7 +1021,7 @@ def explode(f, array_agg_expr) -> Expression:
     Compute the set of all observed elements in the `filters` field (``Set[String]``):
 
     >>> dataset.aggregate_rows(hl.agg.explode(lambda elt: hl.agg.collect_as_set(elt), dataset.filters))
-    {'VQSRTrancheINDEL97.00to99.00'}
+    frozenset({'VQSRTrancheINDEL97.00to99.00'})
 
     Notes
     -----

@@ -47,8 +47,8 @@ spec:
             name: grafana-configmap-volume
          resources:
            requests:
-             cpu: "10m"
-             memory: "100M"
+             cpu: "100m"
+             memory: "200M"
            limits:
              cpu: "1"
              memory: "1G"

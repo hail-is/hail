@@ -1,6 +1,7 @@
 import time
 import re
 import os
+import secrets
 import pytest
 from flask import Response
 from hailtop.config import get_user_config
@@ -128,9 +129,11 @@ def test_callback(client):
     try:
         server = ServerThread(app)
         server.start()
+        token = secrets.token_urlsafe(32)
         b = client.create_batch(
             callback=server.url_for('/test'),
-            attributes={'foo': 'bar'})
+            attributes={'foo': 'bar'},
+            token=token)
         head = b.create_job('alpine:3.8', command=['echo', 'head'])
         tail = b.create_job('alpine:3.8', command=['echo', 'tail'], parents=[head])
         b = b.submit()
@@ -154,6 +157,7 @@ def test_callback(client):
         assert (callback_body == {
             'id': b.id,
             'billing_project': 'test',
+            'token': token,
             'state': 'success',
             'complete': True,
             'closed': True,

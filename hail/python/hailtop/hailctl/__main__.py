@@ -61,7 +61,7 @@ def check_for_update():
             except Exception:  # pylint: disable=broad-except
                 pip_out = sp.check_output(['pip3', 'search', 'hail'], stderr=sp.STDOUT)
 
-            latest = re.search(r'hail \((\d+)\.(\d+)\.(\d+).*', pip_out.decode()).groups()
+            latest = re.search(r'hail \((\\d+)\.(\\d+)\.(\\d+).*', pip_out.decode()).groups()
             installed = re.search(r'(\d+)\.(\d+)\.(\d+).*', version()).groups()
 
             def int_version(version):

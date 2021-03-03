@@ -39,11 +39,11 @@ spec:
          image: "{{ site_image.image }}"
          resources:
            requests:
+             cpu: "20m"
              memory: "20M"
-             cpu: "10m"
            limits:
-             memory: "1G"
              cpu: "1"
+             memory: "1G"
          ports:
           - containerPort: 443
          env:

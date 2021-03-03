@@ -1,0 +1,74 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gateway-deployment
+  labels:
+    app: gateway
+    hail.is/sha: "{{ code.sha }}"
+spec:
+  selector:
+    matchLabels:
+      app: gateway
+  replicas: 3
+  template:
+    metadata:
+      labels:
+        app: gateway
+        hail.is/sha: "{{ code.sha }}"
+    spec:
+      priorityClassName: infrastructure
+      nodeSelector:
+        preemptible: "true"
+      tolerations:
+       - key: preemptible
+         value: "true"
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+           - labelSelector:
+               matchExpressions:
+                - key: "app"
+                  operator: In
+                  values:
+                   - gateway
+             topologyKey: "kubernetes.io/hostname"
+      containers:
+       - name: gateway
+         image: "{{ gateway_image.image }}"
+         resources:
+           requests:
+             cpu: "100m"
+             memory: "200M"
+           limits:
+             cpu: "1"
+             memory: "1G"
+         ports:
+          - containerPort: 80
+          - containerPort: 443
+---
+apiVersion: autoscaling/v2beta1
+kind: HorizontalPodAutoscaler
+metadata:
+  name: gateway
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: gateway
+  minReplicas: 3
+  maxReplicas: 10
+  metrics:
+   - type: Resource
+     resource:
+       name: cpu
+       targetAverageUtilization: 80
+---
+apiVersion: policy/v1beta1
+kind: PodDisruptionBudget
+metadata:
+  name: gateway
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: gateway

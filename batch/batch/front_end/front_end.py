@@ -564,7 +564,7 @@ LEFT JOIN resources
 WHERE {' AND '.join(where_conditions)}
 GROUP BY batches.id
 ORDER BY batches.id DESC
-LIMIT 50;
+LIMIT 51;
 '''
     sql_args = where_args
 
@@ -572,7 +572,8 @@ LIMIT 50;
                async for batch
                in db.select_and_fetchall(sql, sql_args)]
 
-    if len(batches) == 50:
+    if len(batches) == 51:
+        batches.pop()
         last_batch_id = batches[-1]['id']
     else:
         last_batch_id = None
@@ -1736,7 +1737,7 @@ async def post_create_billing_projects(request, userdata):  # pylint: disable=un
     billing_project = post['billing_project']
 
     session = await aiohttp_session.get_session(request)
-    errored = await _handle_ui_error(session, _close_billing_project, db, billing_project)
+    errored = await _handle_ui_error(session, _create_billing_project, db, billing_project)
     if not errored:
         set_message(session, f'Added billing project {billing_project}.', 'info')
 

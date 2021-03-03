@@ -137,7 +137,7 @@ class Shuffle (
   private[this] val rootRegion = Region(pool=pool)
   private[this] val codecs = {
     ExecutionTimer.logTime("Shuffle.codecs") { timer =>
-      using(new ExecuteContext("/tmp", "file:///tmp", null, null, rootRegion, timer)) { ctx =>
+      using(new ExecuteContext("/tmp", "file:///tmp", null, null, rootRegion, timer, null)) { ctx =>
         new ShuffleCodecSpec(ctx, shuffleType)
       }
     }

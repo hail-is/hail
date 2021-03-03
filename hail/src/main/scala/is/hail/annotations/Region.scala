@@ -218,22 +218,6 @@ object Region {
     false
   }
 
-  def loadPrimitive(typ: PType): Code[Long] => Code[_] = typ.fundamentalType match {
-    case _: PBoolean => loadBoolean
-    case _: PInt32 => loadInt
-    case _: PInt64 => loadLong
-    case _: PFloat32 => loadFloat
-    case _: PFloat64 => loadDouble
-  }
-
-  def storePrimitive(typ: PType, dest: Code[Long]): Code[_] => Code[Unit] = typ.fundamentalType match {
-    case _: PBoolean => v => storeBoolean(dest, coerce[Boolean](v))
-    case _: PInt32 => v => storeInt(dest, coerce[Int](v))
-    case _: PInt64 => v => storeLong(dest, coerce[Long](v))
-    case _: PFloat32 => v => storeFloat(dest, coerce[Float](v))
-    case _: PFloat64 => v => storeDouble(dest, coerce[Double](v))
-  }
-
   def stagedCreate(blockSize: Size, pool: Code[RegionPool]): Code[Region] =
     Code.invokeScalaObject2[Int, RegionPool, Region](Region.getClass, "apply", asm4s.const(blockSize), pool)
 
@@ -354,6 +338,15 @@ final class Region protected[annotations](var blockSize: Region.Size, var pool: 
       memory.release()
       memory = pool.getMemory(blockSize)
     }
+  }
+
+  def allocateNDArray(nBytes: Long): Long = {
+    assert(nBytes >= 0L)
+    memory.allocateNDArray(nBytes)
+  }
+
+  def trackNDArray(addr: Long): Unit = {
+    memory.trackNDArray(addr)
   }
 
   def close(): Unit = {
