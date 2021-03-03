@@ -1336,8 +1336,6 @@ class Worker:
                 await app_runner.cleanup()
                 log.info('cleaned up app runner')
 
-            self.shutdown()
-
     async def kill_1(self, request):  # pylint: disable=unused-argument
         log.info('killed')
         self.stop_event.set()
@@ -1483,12 +1481,14 @@ async def async_main():
     finally:
         try:
             worker.shutdown()
+            log.info(f'worker shutdown')
         finally:
             await docker.close()
+            log.info(f'docker closed')
 
 loop = asyncio.get_event_loop()
 loop.run_until_complete(async_main())
-loop.run_until_complete(loop.shutdown_asyncgens())
+log.info(f'closing loop')
 loop.close()
 log.info('closed')
 sys.exit(0)
