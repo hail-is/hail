@@ -29,7 +29,7 @@ def main(args, pass_through_args):  # pylint: disable=unused-argument
         pyfiles = args.pyfiles
     else:
         pyfiles = []
-        elif args.pyfiles:
+        if args.pyfiles:
             pyfiles.extend(args.pyfiles.split(','))
         pyfiles.extend(os.environ.get('HAIL_SCRIPTS', '').split(':'))
         if pyfiles:
