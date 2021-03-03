@@ -213,6 +213,22 @@ def filter_wbs(wbs, pred):
     return [{**wb, 'prs': [pr for pr in wb['prs'] if pred(pr)]} for wb in wbs]
 
 
+def is_pr_author(gh_username, pr_config):
+    return gh_username == pr_config['author']
+
+
+def is_pr_reviewer(gh_username, pr_config):
+    return gh_username in pr_config['assignees']
+
+
+def pr_requires_action(gh_username, pr_config):
+    build_state = pr_config['build_state']
+    review_state = pr_config['review_state']
+    return (
+        is_pr_author(gh_username, pr_config) and (build_state == 'failure' or review_state == 'changes_requested')
+    ) or (is_pr_reviewer(gh_username, pr_config) and review_state == 'pending')
+
+
 @routes.get('/me')
 @web_authenticated_developers_only()
 async def get_user(request, userdata):
@@ -220,13 +236,16 @@ async def get_user(request, userdata):
     gh_username = None
     pr_wbs = []
     review_wbs = []
+    actionable_wbs = []
     for user in AUTHORIZED_USERS:
         if user.hail_username == username:
             gh_username = user.gh_username
             wbs = [await watched_branch_config(request.app, wb, i) for i, wb in enumerate(watched_branches)]
-            pr_wbs = filter_wbs(wbs, lambda pr: gh_username == pr['author'])
-            review_wbs = filter_wbs(wbs, lambda pr: gh_username in pr['assignees'])
+            pr_wbs = filter_wbs(wbs, lambda pr: is_pr_author(gh_username, pr))
+            review_wbs = filter_wbs(wbs, lambda pr: is_pr_reviewer(gh_username, pr))
+            actionable_wbs = filter_wbs(wbs, lambda pr: pr_requires_action(gh_username, pr))
             break
+
     batch_client = request.app['batch_client']
     dev_deploys = batch_client.list_batches(f'user={username} dev_deploy=1', limit=10)
     dev_deploys = sorted([b async for b in dev_deploys], key=lambda b: b.id, reverse=True)
@@ -240,6 +259,7 @@ async def get_user(request, userdata):
         'gh_username': gh_username,
         'pr_wbs': pr_wbs,
         'review_wbs': review_wbs,
+        'actionable_wbs': actionable_wbs,
         'team_member': team_random_member,
         'dev_deploys': [await b.last_known_status() for b in dev_deploys],
     }

@@ -1,6 +1,9 @@
 {% from "job-table.html" import job_table with context %}
 {% extends "layout.html" %}
 {% block title %}Batch {{ batch['id'] }}{% endblock %}
+{% block head %}
+    <script src="{{ base_path }}/common_static/focus_on_keyup.js"></script>
+{% endblock %}
 {% block content %}
     <h1>Batch {{ batch['id'] }}</h1>
     <h2>Timing</h2>
@@ -20,5 +23,8 @@
     </div>
     {% endif %}
     <h2>Jobs</h2>
-    {{ job_table(jobs) }}
+    {{ job_table(jobs, "jobs", "jobsSearchBar") }}
+    <script type="text/javascript">
+      focusOnSlash("jobsSearchBar");
+    </script>
 {% endblock %}
