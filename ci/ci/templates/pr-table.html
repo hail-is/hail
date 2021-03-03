@@ -1,7 +1,7 @@
-{% macro pr_table(wb) %}
+{% macro pr_table(wb, id) %}
 <div class="searchbar-table">
-  <input type="text" id="searchBar" onkeyup="searchTable('prs', 'searchBar')" placeholder="Search terms..."/>
-  <table id="prs" class="data-table">
+  <input type="text" id="{{ id }}SearchBar" onkeyup="searchTable('prs', '{{ id }}SearchBar')" placeholder="Search terms..."/>
+  <table id={{ id }} class="data-table">
   <thead>
     <tr>
       <th>PR</th>

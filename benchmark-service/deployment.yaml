@@ -60,11 +60,11 @@ spec:
             - containerPort: 5000
           resources:
             requests:
-              memory: "10M"
-              cpu: "40m"
+              cpu: "20m"
+              memory: "20M"
             limits:
-              memory: "1G"
               cpu: "1"
+              memory: "1G"
           volumeMounts:
             - name: session-secret-key
               mountPath: /session-secret-key

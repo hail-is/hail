@@ -40,11 +40,11 @@ spec:
              mountPath: /redis
           resources:
             requests:
-              memory: 187Mi
-              cpu: 50m
+              cpu: "600m"
+              memory: "2G"
             limits:
-              memory: 1875i
-              cpu: 500m
+              cpu: "1"
+              memory: "2.5G"
           readinessProbe:
             exec:
               command:

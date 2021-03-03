@@ -26,11 +26,11 @@ spec:
           image: "{{ hello_image.image }}"
           resources:
             requests:
-              memory: 37Mi
-              cpu: 10m
+              cpu: "20m"
+              memory: "20M"
             limits:
-              memory: 375Mi
-              cpu: 100m
+              cpu: "1"
+              memory: "1G"
           ports:
             - containerPort: 5000
           livenessProbe:
