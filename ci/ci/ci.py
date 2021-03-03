@@ -13,6 +13,7 @@ from hailtop.hail_logging import AccessLogger
 from gear import (
     setup_aiohttp_session,
     rest_authenticated_developers_only,
+    rest_authenticated_users_only,
     web_authenticated_developers_only,
 )
 from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template
