@@ -205,7 +205,7 @@ You can now install Hail:
   variables as in the block above.
 
   ```
-  [ -z "${HAIL_GCP_PROJECT}" ] || python3 ci/bootstrap.py --extra-code-config '{"username":"<username>","email":"<email>"}' hail-is/hail:main $(git rev-parse HEAD) create_initial_user
+  [ -z "${HAIL_DOCKER_PREFIX}" ] || python3 ci/bootstrap.py --extra-code-config '{"username":"<username>","email":"<email>"}' hail-is/hail:main $(git rev-parse HEAD) create_initial_user
   ```
 
   Additional users can be added by the initial user by going to auth.<domain>/users.

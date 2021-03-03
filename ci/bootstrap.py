@@ -17,7 +17,7 @@ from ci.utils import generate_token
 from batch.driver.k8s_cache import K8sCache
 
 KUBERNETES_SERVER_URL = os.environ['KUBERNETES_SERVER_URL']
-DOCKER_PREFIX = os.environ['DOCKER_PREFIX']
+DOCKER_PREFIX = os.environ['HAIL_DOCKER_PREFIX']
 DOCKER_ROOT_IMAGE = f'{DOCKER_PREFIX}/ubuntu:18.04'
 
 
