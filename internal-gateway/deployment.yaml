@@ -37,11 +37,11 @@ spec:
          image: "{{ internal_gateway_image.image }}"
          resources:
            requests:
-             memory: 375Mi
-             cpu: 100m
+             cpu: "100m"
+             memory: "200M"
            limits:
-             memory: 3750Mi
              cpu: "1"
+             memory: "1G"
          ports:
           - containerPort: 80
          volumeMounts:

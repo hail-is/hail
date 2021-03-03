@@ -55,11 +55,11 @@ spec:
                 key: gsuite_organization
          resources:
            requests:
-             memory: "75M"
-             cpu: "100m"
+             cpu: "20m"
+             memory: "20M"
            limits:
-             memory: 3750Mi
              cpu: "1"
+             memory: "1G"
          volumeMounts:
           - name: deploy-config
             mountPath: /deploy-config
@@ -165,11 +165,11 @@ spec:
                 key: gsuite_organization
          resources:
            requests:
-             memory: "50M"
-             cpu: "15m"
+             cpu: "20m"
+             memory: "20M"
            limits:
-             memory: 3750Mi
              cpu: "1"
+             memory: "1G"
          volumeMounts:
           - name: deploy-config
             mountPath: /deploy-config
