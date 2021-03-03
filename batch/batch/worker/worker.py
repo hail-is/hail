@@ -1267,6 +1267,8 @@ class Worker:
         if job is None:
             raise web.HTTPNotFound()
 
+        self.last_updated = time_msecs()
+
         self.task_manager.ensure_future(job.delete())
 
         return web.Response()
