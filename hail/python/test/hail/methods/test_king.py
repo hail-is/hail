@@ -51,3 +51,13 @@ def test_king_large():
                          reference_genome=None)
     kinship = hl.king(mt.GT)
     assert_c_king_same_as_hail_king(resource('fastlmmTest.kin0.bgz'), kinship)
+
+
+@fails_local_backend()
+def test_king_filtered_entries_no_error():
+    plink_path = resource('balding-nichols-1024-variants-4-samples-3-populations')
+    mt = hl.import_plink(bed=f'{plink_path}.bed',
+                         bim=f'{plink_path}.bim',
+                         fam=f'{plink_path}.fam')
+    mt = mt.filter_entries(hl.rand_bool(0.5))
+    hl.king(mt.GT)._force_count_rows()
