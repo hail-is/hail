@@ -37,19 +37,16 @@ class ServiceBackendSocketConnection:
         pass
 
     def __enter__(self) -> 'ServiceBackendSocketConnection':
-        self._conn = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        self._conn = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)  # pylint: disable=attribute-defined-outside-init
         sync_retry_transient_errors(
             self._conn.connect,
             ServiceBackendSocketConnection.FNAME)
         return self
 
     def __exit__(self, type, value, traceback):
-        self._conn.write_int(ServiceBackendSocketConnection.GOODBYE)
-        response = self.api.read_int()
+        self.write_int(ServiceBackendSocketConnection.GOODBYE)
+        response = self.read_int()
         assert response == ServiceBackendSocketConnection.GOODBYE, response
-        self._conn.close()
-
-    def close(self):
         self._conn.close()
 
     def write_int(self, v: int):
@@ -234,6 +231,20 @@ class ServiceBackendSocketConnection:
     def unset_flag(self, name: str):
         self.write_int(ServiceBackendSocketConnection.UNSET_FLAG)
         self.write_str(name)
+        success = self.read_bool()
+        if success:
+            s = self.read_str()
+            try:
+                return json.loads(s)
+            except json.decoder.JSONDecodeError as err:
+                raise ValueError(f'could not decode {s}') from err
+        jstacktrace = self.read_str()
+        raise ValueError(jstacktrace)
+
+    def set_flag(self, name: str, value: str):
+        self.write_int(ServiceBackendSocketConnection.SET_FLAG)
+        self.write_str(name)
+        self.write_str(value)
         success = self.read_bool()
         if success:
             s = self.read_str()

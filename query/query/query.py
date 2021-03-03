@@ -51,40 +51,40 @@ async def healthcheck(request):  # pylint: disable=unused-argument
     return web.Response()
 
 
-def blocking_execute(app, userdata, body):
+def blocking_execute(userdata, body):
     with connect_to_java() as java:
         log.info(f'executing {body["token"]}')
         return java.execute(
             userdata['username'], userdata['session_id'], body['billing_project'], body['bucket'], body['code'], body['token'])
 
 
-def blocking_load_references_from_dataset(app, userdata, body):
+def blocking_load_references_from_dataset(userdata, body):
     with connect_to_java() as java:
         return java.load_references_from_dataset(
             userdata['username'], userdata['session_id'], body['billing_project'], body['bucket'], body['path'])
 
 
-def blocking_value_type(app, userdata, body):
+def blocking_value_type(userdata, body):
     with connect_to_java() as java:
         return java.value_type(userdata['username'], body['code'])
 
 
-def blocking_table_type(app, userdata, body):
+def blocking_table_type(userdata, body):
     with connect_to_java() as java:
         return java.table_type(userdata['username'], body['code'])
 
 
-def blocking_matrix_type(app, userdata, body):
+def blocking_matrix_type(userdata, body):
     with connect_to_java() as java:
         return java.matrix_table_type(userdata['username'], body['code'])
 
 
-def blocking_blockmatrix_type(app, userdata, body):
+def blocking_blockmatrix_type(userdata, body):
     with connect_to_java() as java:
         return java.block_matrix_type(userdata['username'], body['code'])
 
 
-def blocking_get_reference(app, userdata, body):   # pylint: disable=unused-argument
+def blocking_get_reference(userdata, body):   # pylint: disable=unused-argument
     with connect_to_java() as java:
         return java.reference_genome(userdata['username'], body['name'])
 
@@ -101,7 +101,7 @@ async def handle_ws_response(request, userdata, endpoint, f):
     if query is None:
         await add_user(app, userdata)
         query = asyncio.ensure_future(
-            retry_transient_errors(blocking_to_async, app['thread_pool'], f, app, userdata, body))
+            retry_transient_errors(blocking_to_async, app['thread_pool'], f, userdata, body))
         user_queries[body['token']] = query
 
     try:
