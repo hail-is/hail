@@ -60,7 +60,7 @@ def copy_test_configurations():
     for src_type in ['file', 'dir', 'noexist']:
         for dest_type in ['file', 'dir', 'noexist']:
             for dest_basename in [None, 'a', 'x']:
-                for treat_dest_as in [Transfer.TARGET_DIR, Transfer.TARGET_FILE, Transfer.INFER_TARGET]:
+                for treat_dest_as in [Transfer.DEST_DIR, Transfer.DEST_IS_TARGET, Transfer.INFER_DEST]:
                     for src_trailing_slash in [True, False]:
                         for dest_trailing_slash in [True, False]:
                             yield {
@@ -137,7 +137,7 @@ async def copy_test_specs():
                     pass
 
                 sema = asyncio.Semaphore(50)
-                with sema:
+                async with sema:
                     result = await run_test_spec(sema, fs, config, src_base, dest_base)
                     config['result'] = result
 
