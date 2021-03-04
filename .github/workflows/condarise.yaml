@@ -22,6 +22,7 @@ jobs:
           VERSION=${VERSION/-/.dev}
           cat conda/hail/meta-template.yaml \
           | sed s/{version}/${VERSION}/ > conda/hail/meta.yaml
+          echo "version=$VERSION" >> $GITHUB_ENV
 
       - uses: conda-incubator/setup-miniconda@v2
         with:
@@ -40,3 +41,12 @@ jobs:
         run: |
           anaconda -t ${{ secrets.ANACONDA_TOKEN }} \
           upload ${CONDA_PREFIX}/conda-bld/**/*.tar.bz2
+      
+      - name: Redeploy the analysis-server
+        run: |
+          curl --fail \
+            -X POST \
+            -H "Authorization: token ${{ secrets.ANALYSIS_SERVER_GITHUB_TOKEN }}" \
+            -H "Accept: application/vnd.github.v3+json" \
+            https://api.github.com/repos/populationgenomics/analysis-runner/actions/workflows/6364059/dispatches \
+            -d "{\"ref\": \"main\", \"inputs\": {\"hail_version\": \"${{ env.version }}\"}}"
