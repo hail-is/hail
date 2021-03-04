@@ -24,6 +24,7 @@ def main(args, pass_through_args):  # pylint: disable=unused-argument
     if args.files:
         files = args.files
 
+    # If you only provide one (comma-sep) argument, and it's a zip file, use that file directly
     if args.pyfiles and args.pyfiles.endswith('.zip') and not ',' in args.pyfiles:
         # Adding the zip archive directly
         pyfiles = args.pyfiles
