@@ -1,7 +1,8 @@
 package is.hail.types.physical.stypes.concrete
 
-import is.hail.annotations.{CodeOrdering, Region}
+import is.hail.annotations.Region
 import is.hail.asm4s._
+import is.hail.expr.ir.orderings.CodeOrdering
 import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, SortOrder}
 import is.hail.types.physical.stypes.interfaces.SCall
 import is.hail.types.physical.stypes.{SCode, SType}
@@ -12,8 +13,6 @@ import is.hail.variant.Genotype
 
 case class SCanonicalCall(required: Boolean) extends SCall {
   override def pType: PCall = PCanonicalCall(required)
-
-  def codeOrdering(mb: EmitMethodBuilder[_], other: SType, so: SortOrder): CodeOrdering = pType.codeOrdering(mb, other.pType, so)
 
   def coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = {
     value.st match {
@@ -122,4 +121,6 @@ class SCanonicalCallCode(required: Boolean, val call: Code[Int]) extends PCallCo
   def memoizeField(cb: EmitCodeBuilder, name: String): PCallValue = memoize(cb, name, cb.fieldBuilder)
 
   def store(mb: EmitMethodBuilder[_], r: Value[Region], dst: Code[Long]): Code[Unit] = Region.storeInt(dst, call)
+
+  def loadCanonicalRepresentation(cb: EmitCodeBuilder): Code[Int] = call
 }

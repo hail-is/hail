@@ -2,6 +2,7 @@ package is.hail.types.physical
 
 import is.hail.annotations._
 import is.hail.asm4s._
+import is.hail.expr.ir.orderings.CodeOrdering
 import is.hail.expr.ir.{EmitCode, EmitCodeBuilder, EmitMethodBuilder}
 import is.hail.types.physical.stypes.SCode
 import is.hail.types.physical.stypes.concrete.{SCanonicalLocusPointer, SCanonicalLocusPointerCode, SStringPointer}
@@ -75,9 +76,6 @@ final case class PCanonicalLocus(rgBc: BroadcastRG, required: Boolean = false) e
       }
     }
   }
-
-  def codeOrdering(mb: EmitMethodBuilder[_], other: PType): CodeOrdering =
-    CodeOrdering.locusOrdering(this, other.asInstanceOf[PLocus], mb)
 
   override def unstagedStoreAtAddress(addr: Long, region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Unit = {
     srcPType match {

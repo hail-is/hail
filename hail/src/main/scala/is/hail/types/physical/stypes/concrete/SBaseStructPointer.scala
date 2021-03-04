@@ -1,16 +1,17 @@
 package is.hail.types.physical.stypes.concrete
 
-import is.hail.annotations.{CodeOrdering, Region}
+import is.hail.annotations.Region
 import is.hail.asm4s._
+import is.hail.expr.ir.orderings.CodeOrdering
 import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, IEmitCode, SortOrder}
-import is.hail.types.physical.stypes.interfaces.{SStruct, SStructSettable}
+import is.hail.types.physical.stypes.interfaces.{SBaseStruct, SStructSettable}
 import is.hail.types.physical.stypes.{SCode, SSettable, SType}
 import is.hail.types.physical.{PBaseStruct, PBaseStructCode, PBaseStructValue, PCode, PStructSettable, PType}
 import is.hail.utils.FastIndexedSeq
 
 
-case class SBaseStructPointer(pType: PBaseStruct) extends SStruct {
-  def codeOrdering(mb: EmitMethodBuilder[_], other: SType, so: SortOrder): CodeOrdering = pType.codeOrdering(mb, other.pType, so)
+case class SBaseStructPointer(pType: PBaseStruct) extends SBaseStruct {
+  def size: Int = pType.size
 
   def coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = {
     new SBaseStructPointerCode(this, pType.store(cb, region, value, deepCopy))
@@ -38,6 +39,8 @@ case class SBaseStructPointer(pType: PBaseStruct) extends SStruct {
   }
 
   def canonicalPType(): PType = pType
+
+  override val fieldTypes: Array[SType] = pType.types.map(_.sType)
 }
 
 

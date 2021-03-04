@@ -1,7 +1,8 @@
 package is.hail.types.physical.stypes.concrete
 
-import is.hail.annotations.{CodeOrdering, Region}
+import is.hail.annotations.Region
 import is.hail.asm4s.{Code, IntInfo, LongInfo, Settable, SettableBuilder, TypeInfo, Value}
+import is.hail.expr.ir.orderings.CodeOrdering
 import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, SortOrder}
 import is.hail.services.shuffler.Wire
 import is.hail.types.physical.stypes.interfaces.SShuffle
@@ -12,8 +13,6 @@ import is.hail.utils.FastIndexedSeq
 case class SCanonicalShufflePointer(pType: PCanonicalShuffle) extends SShuffle {
 
   lazy val binarySType = SBinaryPointer(pType.representation)
-
-  def codeOrdering(mb: EmitMethodBuilder[_], other: SType, so: SortOrder): CodeOrdering = pType.codeOrdering(mb, other.pType, so)
 
   def coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = {
     new SCanonicalShufflePointerCode(this, pType.representation.loadCheapPCode(cb, pType.store(cb, region, value, deepCopy)))
@@ -85,4 +84,6 @@ class SCanonicalShufflePointerCode(val st: SCanonicalShufflePointer, val shuffle
   def memoizeField(cb: EmitCodeBuilder, name: String): SCanonicalShufflePointerSettable = memoize(cb, name, cb.fieldBuilder)
 
   def store(mb: EmitMethodBuilder[_], r: Value[Region], dst: Code[Long]): Code[Unit] = shuffle.store(mb, r, dst)
+
+  def binaryRepr: SBinaryPointerCode = shuffle
 }

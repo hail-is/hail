@@ -2,11 +2,13 @@ package is.hail.expr.ir.agg
 
 import is.hail.annotations.Region
 import is.hail.asm4s.{Code, _}
+import is.hail.expr.ir.orderings.StructOrdering
 import is.hail.expr.ir.{Ascending, EmitClassBuilder, EmitCode, EmitCodeBuilder, ParamType, SortOrder}
 import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer}
 import is.hail.types.VirtualTypeWithReq
 import is.hail.types.physical._
 import is.hail.types.physical.stypes.concrete.{SBaseStructPointerCode, SIndexablePointerCode}
+import is.hail.types.physical.stypes.interfaces.SBaseStruct
 import is.hail.types.virtual.{TInt32, Type}
 import is.hail.utils._
 
@@ -17,7 +19,7 @@ object TakeByRVAS {
 class TakeByRVAS(val valueVType: VirtualTypeWithReq, val keyVType: VirtualTypeWithReq, val kb: EmitClassBuilder[_], so: SortOrder = Ascending) extends AggregatorState {
   private val r: Settable[Region] = kb.genFieldThisRef[Region]("takeby_region")
 
-  val valueType: PType  = valueVType.canonicalPType
+  val valueType: PType = valueVType.canonicalPType
   val keyType: PType = keyVType.canonicalPType
 
   val region: Value[Region] = r
@@ -50,27 +52,13 @@ class TakeByRVAS(val valueVType: VirtualTypeWithReq, val keyVType: VirtualTypeWi
     )
 
   def compareKey(cb: EmitCodeBuilder, k1: EmitCode, k2: EmitCode): Code[Int] = {
-    val cmp = kb.genEmitMethod("compare", FastIndexedSeq[ParamType](k1.pv.st.pType.asEmitParam, k2.pv.st.pType.asEmitParam), IntInfo)
-    val ord = k1.pv.st.pType.codeOrdering(cmp, k2.pv.st.pType, so)
-
-    cmp.emitWithBuilder {
-      val k1 = cmp.getEmitParam(1)
-      val k2 = cmp.getEmitParam(2)
-      cb => ord.compare(cb, k1, k2)
-    }
-    cb.invokeCode(cmp, k1, k2)
+    val ord = cb.emb.ecb.getOrdering(k1.st, k2.st, so)
+    ord.compare(cb, k1, k2, true)
   }
 
-  private val compareIndexedKey: (Code[Long], Code[Long]) => Code[Int] = {
-    val indexedkeyTypeTypeInfo = typeToTypeInfo(indexedKeyType)
-    val cmp = kb.genEmitMethod("take_by_compare", FastIndexedSeq[ParamType](indexedkeyTypeTypeInfo, indexedkeyTypeTypeInfo), IntInfo)
-    val ord = indexedKeyType.codeOrdering(cmp, indexedKeyType, Array(so, Ascending), true)
-    val k1 = cmp.getCodeParam(1)(indexedkeyTypeTypeInfo)
-    val k2 = cmp.getCodeParam(2)(indexedkeyTypeTypeInfo)
-
-    cmp.emitWithBuilder(cb => ord.compare(cb , EmitCode.present(cb.emb, PCode(indexedKeyType, k1)), EmitCode.present(cb.emb, PCode(indexedKeyType, k2))))
-
-    cmp.invokeCode(_, _)
+  private def compareIndexedKey(cb: EmitCodeBuilder, k1: PCode, k2: PCode): Code[Int] = {
+    val ord = StructOrdering.make(k1.st.asInstanceOf[SBaseStruct], k2.st.asInstanceOf[SBaseStruct], cb.emb.ecb, Array(so, Ascending), true)
+    ord.compareNonnull(cb, k1, k2)
   }
 
   private def maybeGCCode(cb: EmitCodeBuilder, alwaysRun: EmitCodeBuilder => Unit)(runIfGarbage: EmitCodeBuilder => Unit, runBefore: Boolean = false): Unit = {
@@ -220,7 +208,9 @@ class TakeByRVAS(val valueVType: VirtualTypeWithReq, val keyVType: VirtualTypeWi
     val i = mb.getCodeParam[Long](1)
     val j = mb.getCodeParam[Long](2)
 
-    mb.emit(compareIndexedKey(eltTuple.fieldOffset(i, 0), eltTuple.fieldOffset(j, 0)))
+    mb.emitWithBuilder(cb => compareIndexedKey(cb,
+      indexedKeyType.loadCheapPCode(cb, eltTuple.fieldOffset(i, 0)),
+      indexedKeyType.loadCheapPCode(cb, eltTuple.fieldOffset(j, 0))))
 
     mb.invokeCode(_, _)
   }
