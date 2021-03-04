@@ -128,7 +128,7 @@ configurations {
             eachDependency { DependencyResolveDetails details ->
                 if (details.requested.group == 'org.json4s') {
                     // JSON4S 3.6.0+ contain a known bug (https://github.com/json4s/json4s/issues/507)
-                    details.useVersion('3.6.10')
+                    details.useVersion('3.5.3')
                 } else if (details.requested.group == 'org.scalanlp' && details.requested.version == '1.0') {
                     // Breeze 1.0 contains a known bug (https://github.com/scalanlp/breeze/issues/772)
                     details.useVersion('1.1')
