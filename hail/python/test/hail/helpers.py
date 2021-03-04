@@ -141,9 +141,9 @@ def skip_when_service_backend(message='does not work on ServiceBackend'):
     @decorator
     def wrapper(func, *args, **kwargs):
         if isinstance(hl.utils.java.Env.backend(), ServiceBackend):
-            return func(*args, **kwargs)
-        else:
             raise unittest.SkipTest(message)
+        else:
+            return func(*args, **kwargs)
 
     return wrapper
 
