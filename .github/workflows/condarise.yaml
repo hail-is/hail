@@ -43,6 +43,8 @@ jobs:
           upload ${CONDA_PREFIX}/conda-bld/**/*.tar.bz2
       
       - name: Redeploy the analysis-server
+        # Only run this step once.
+        if: ${{ matrix.os == 'ubuntu-latest' }}
         run: |
           curl --fail \
             -X POST \
