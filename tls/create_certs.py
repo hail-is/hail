@@ -1,12 +1,11 @@
-import os
-import asyncio
 import argparse
 import json
 import yaml
 import shutil
+import subprocess as sp
 import tempfile
 
-from hailtop.utils import check_shell, check_call
+from hailtop.utils import sync_check_shell
 
 parser = argparse.ArgumentParser(prog='create_certs.py',
                                  description='create hail certs')
@@ -23,11 +22,14 @@ root_key_file = args.root_key_file
 root_cert_file = args.root_cert_file
 
 
-async def echo_check_call(cmd):
-    await check_shell(' '.join(cmd), echo=True)
+def echo_check_call(cmd):
+    sync_check_shell(' '.join(cmd), echo=True)
 
 
-async def create_key_and_cert(name, domain, unmanaged):
+def create_key_and_cert(p):
+    name = p['name']
+    domain = p['domain']
+    unmanaged = p.get('unmanaged', False)
     if unmanaged and namespace != 'default':
         return
     key_file = f'{name}-key.pem'
@@ -40,12 +42,12 @@ async def create_key_and_cert(name, domain, unmanaged):
         f'{domain}.{namespace}.svc.cluster.local'
     ]
 
-    await echo_check_call([
+    echo_check_call([
         'openssl', 'genrsa',
         '-out', key_file,
         '4096'
     ])
-    await echo_check_call([
+    echo_check_call([
         'openssl', 'req',
         '-new',
         '-subj', f'/CN={names[0]}',
@@ -59,8 +61,8 @@ async def create_key_and_cert(name, domain, unmanaged):
     # https://security.stackexchange.com/questions/150078/missing-x509-extensions-with-an-openssl-generated-certificate
     extfile.write(f'subjectAltName = {",".join("DNS:" + n for n in names)}\n')
     extfile.close()
-    await echo_check_call(['cat', extfile.name])
-    await echo_check_call([
+    echo_check_call(['cat', extfile.name])
+    echo_check_call([
         'openssl', 'x509',
         '-req',
         '-in', csr_file,
@@ -72,7 +74,7 @@ async def create_key_and_cert(name, domain, unmanaged):
         '-days', '365',
         '-sha256'
     ])
-    await echo_check_call([
+    echo_check_call([
         'openssl',
         'pkcs12',
         '-export',
@@ -85,18 +87,18 @@ async def create_key_and_cert(name, domain, unmanaged):
     return {'key': key_file, 'cert': cert_file, 'key_store': key_store_file}
 
 
-async def create_trust(principal_name, trust_type):  # pylint: disable=unused-argument
-    trust_file = f'{principal_name}-{trust_type}.pem'
-    trust_store_file = f'{principal_name}-{trust_type}-store.jks'
+def create_trust(principal, trust_type):  # pylint: disable=unused-argument
+    trust_file = f'{principal}-{trust_type}.pem'
+    trust_store_file = f'{principal}-{trust_type}-store.jks'
     with open(trust_file, 'w') as out:
         # FIXME: mTLS, only trust certain principals
         with open(root_cert_file, 'r') as root_cert:
             shutil.copyfileobj(root_cert, out)
-    await echo_check_call([
+    echo_check_call([
         'keytool',
         '-noprompt',
         '-import',
-        '-alias', f'{principal_name}-{trust_type}-cert',
+        '-alias', f'{trust_type}-cert',
         '-file', trust_file,
         '-keystore', trust_store_file,
         '-storepass', 'dummypw'
@@ -104,7 +106,7 @@ async def create_trust(principal_name, trust_type):  # pylint: disable=unused-ar
     return {'trust': trust_file, 'trust_store': trust_store_file}
 
 
-async def create_json_config(principal_name, incoming_trust, outgoing_trust, key, cert, key_store):
+def create_json_config(principal, incoming_trust, outgoing_trust, key, cert, key_store):
     principal_config = {
         'outgoing_trust': f'/ssl-config/{outgoing_trust["trust"]}',
         'outgoing_trust_store': f'/ssl-config/{outgoing_trust["trust_store"]}',
@@ -114,15 +116,15 @@ async def create_json_config(principal_name, incoming_trust, outgoing_trust, key
         'cert': f'/ssl-config/{cert}',
         'key_store': f'/ssl-config/{key_store}'
     }
-    config_file = f'{principal_name}/ssl-config.json'
+    config_file = 'ssl-config.json'
     with open(config_file, 'w') as out:
-        json.dump(principal_config, out)
+        out.write(json.dumps(principal_config))
         return [config_file]
 
 
-async def create_nginx_config(principal_name, incoming_trust, outgoing_trust, key, cert):
-    http_config_file = f'{principal_name}/ssl-config-http.conf'
-    proxy_config_file = f'{principal_name}/ssl-config-proxy.conf'
+def create_nginx_config(principal, incoming_trust, outgoing_trust, key, cert):
+    http_config_file = 'ssl-config-http.conf'
+    proxy_config_file = 'ssl-config-proxy.conf'
     with open(proxy_config_file, 'w') as proxy, open(http_config_file, 'w') as http:
         proxy.write(f'proxy_ssl_certificate         /ssl-config/{cert};\n')
         proxy.write(f'proxy_ssl_certificate_key     /ssl-config/{key};\n')
@@ -140,8 +142,8 @@ async def create_nginx_config(principal_name, incoming_trust, outgoing_trust, ke
     return [http_config_file, proxy_config_file]
 
 
-async def create_curl_config(principal_name, incoming_trust, outgoing_trust, key, cert):
-    config_file = f'{principal_name}/ssl-config.curlrc'
+def create_curl_config(principal, incoming_trust, outgoing_trust, key, cert):
+    config_file = 'ssl-config.curlrc'
     with open(config_file, 'w') as out:
         out.write(f'key       /ssl-config/{key}\n')
         out.write(f'cert      /ssl-config/{cert}\n')
@@ -149,33 +151,24 @@ async def create_curl_config(principal_name, incoming_trust, outgoing_trust, key
     return [config_file]
 
 
-async def create_config(principal_name, incoming_trust, outgoing_trust, key, cert, key_store, kind):
+def create_config(principal, incoming_trust, outgoing_trust, key, cert, key_store, kind):
     if kind == 'json':
-        return await create_json_config(principal_name, incoming_trust, outgoing_trust, key, cert, key_store)
+        return create_json_config(principal, incoming_trust, outgoing_trust, key, cert, key_store)
     if kind == 'curl':
-        return await create_curl_config(principal_name, incoming_trust, outgoing_trust, key, cert)
+        return create_curl_config(principal, incoming_trust, outgoing_trust, key, cert)
     assert kind == 'nginx'
-    return await create_nginx_config(principal_name, incoming_trust, outgoing_trust, key, cert)
+    return create_nginx_config(principal, incoming_trust, outgoing_trust, key, cert)
 
 
-async def create_principal(name, kind, domain, unmanaged):
+def create_principal(principal, domain, kind, key, cert, key_store, unmanaged):
     if unmanaged and namespace != 'default':
         return
-
-    os.makedirs(name, exist_ok=True)
-
-    credentials = await create_key_and_cert(name, domain, unmanaged)
-    key = credentials['key']
-    cert = credentials['cert']
-    key_store = credentials['key_store']
-
-    incoming_trust, outgoing_trust = await asyncio.gather(
-        create_trust(name, 'incoming'),
-        create_trust(name, 'outgoing'))
-    configs = await create_config(name, incoming_trust, outgoing_trust, key, cert, key_store, kind)
+    incoming_trust = create_trust(principal, 'incoming')
+    outgoing_trust = create_trust(principal, 'outgoing')
+    configs = create_config(principal, incoming_trust, outgoing_trust, key, cert, key_store, kind)
     with tempfile.NamedTemporaryFile() as k8s_secret:
-        await check_call(
-            ['kubectl', 'create', 'secret', 'generic', f'ssl-config-{name}',
+        sp.check_call(
+            ['kubectl', 'create', 'secret', 'generic', f'ssl-config-{principal}',
              f'--namespace={namespace}',
              f'--from-file={key}',
              f'--from-file={cert}',
@@ -187,18 +180,21 @@ async def create_principal(name, kind, domain, unmanaged):
              *[f'--from-file={c}' for c in configs],
              '--dry-run', '-o', 'yaml'],
             stdout=k8s_secret)
-        await check_call(['kubectl', 'apply', '-f', k8s_secret.name])
+        sp.check_call(['kubectl', 'apply', '-f', k8s_secret.name])
 
 
-async def main():
-    assert 'principals' in arg_config, arg_config
-    await asyncio.gather(*[
-        create_principal(p['name'],
-                         p['kind'],
-                         p['domain'],
-                         p.get('unmanaged', False))
-        for p in arg_config['principals']])
+assert 'principals' in arg_config, arg_config
 
-
-loop = asyncio.get_event_loop()
-loop.run_until_complete(main())
+principal_by_name = {
+    p['name']: {**p,
+                **create_key_and_cert(p)}
+    for p in arg_config['principals']
+}
+for name, p in principal_by_name.items():
+    create_principal(name,
+                     p['domain'],
+                     p['kind'],
+                     p['key'],
+                     p['cert'],
+                     p['key_store'],
+                     p.get('unmanaged', False))
