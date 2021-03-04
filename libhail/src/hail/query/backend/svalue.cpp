@@ -116,6 +116,12 @@ SCanonicalArrayValue::get_length(TypeContext *tc) {
   return new SInt64Value(returnType, length);
 }
 
+SValue*
+SCanonicalArrayValue::get_element(SInt64Value *idx) {
+
+  return idx;
+}
+
 void
 EmitDataValue::get_constituent_values(std::vector<llvm::Value *> &llvm_values) const {
   llvm_values.push_back(missing);
