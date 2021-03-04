@@ -55,6 +55,7 @@ def test_king_large():
     assert_c_king_same_as_hail_king(resource('fastlmmTest.kin0.bgz'), kinship)
 
 
+@fails_service_backend()
 @fails_local_backend()
 def test_king_filtered_entries_no_error():
     plink_path = resource('balding-nichols-1024-variants-4-samples-3-populations')
