@@ -5,6 +5,7 @@ import is.hail.types.virtual.Type
 import is.hail.types.{BlockMatrixType, MatrixType, RTable, TableType, TypeWithRequiredness}
 import is.hail.linalg.BlockMatrix
 import is.hail.methods._
+import is.hail.utils._
 import is.hail.rvd.RVDType
 import org.json4s.{Extraction, JValue, ShortTypeHints}
 import org.json4s.jackson.{JsonMethods, Serialization}
@@ -135,8 +136,10 @@ object RelationalFunctions {
     val jv = JsonMethods.parse(config)
     (jv \ "name").extract[String] match {
       case "VEP" => VEP.fromJValue(ctx.fs, jv).asInstanceOf[T]
-      case _ =>
+      case _ => {
+        log.info("JSON: " + jv.toString)
         jv.extract[T]
+      }
     }
   }
 

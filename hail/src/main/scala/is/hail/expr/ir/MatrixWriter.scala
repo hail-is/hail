@@ -28,8 +28,7 @@ object MatrixWriter {
   implicit val formats: Formats = new DefaultFormats() {
     override val typeHints = ShortTypeHints(
       List(classOf[MatrixNativeWriter], classOf[MatrixVCFWriter], classOf[MatrixGENWriter],
-        classOf[MatrixBGENWriter], classOf[MatrixPLINKWriter], classOf[WrappedMatrixWriter]))
-    override val typeHintFieldName = "name"
+        classOf[MatrixBGENWriter], classOf[MatrixPLINKWriter], classOf[WrappedMatrixWriter]), typeHintFieldName = "name")
   }
 }
 
@@ -339,8 +338,7 @@ case class MatrixPLINKWriter(
 
 object MatrixNativeMultiWriter {
   implicit val formats: Formats = new DefaultFormats() {
-    override val typeHints = ShortTypeHints(List(classOf[MatrixNativeMultiWriter]))
-    override val typeHintFieldName = "name"
+    override val typeHints = ShortTypeHints(List(classOf[MatrixNativeMultiWriter]), typeHintFieldName = "name")
   }
 }
 

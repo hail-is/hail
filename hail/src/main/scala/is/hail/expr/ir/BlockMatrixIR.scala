@@ -92,8 +92,8 @@ case class BlockMatrixRead(reader: BlockMatrixReader) extends BlockMatrixIR {
 object BlockMatrixReader {
   implicit val formats: Formats = new DefaultFormats() {
     override val typeHints = ShortTypeHints(
-      List(classOf[BlockMatrixNativeReader], classOf[BlockMatrixBinaryReader], classOf[BlockMatrixPersistReader]))
-    override val typeHintFieldName: String = "name"
+      List(classOf[BlockMatrixNativeReader], classOf[BlockMatrixBinaryReader], classOf[BlockMatrixPersistReader]),
+      typeHintFieldName = "name")
   }
 
   def fromJValue(ctx: ExecuteContext, jv: JValue): BlockMatrixReader = {
