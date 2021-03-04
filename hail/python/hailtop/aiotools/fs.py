@@ -497,7 +497,7 @@ class SourceCopier:
             part_creator = await self.router_fs.multi_part_create(sema, destfile, n_parts)
 
         async with part_creator:
-            bounded_gather2(sema, *[
+            await bounded_gather2(sema, *[
                 self._copy_part(source_report, srcfile, i, part_creator)
                 for i in range(n_parts)
             ], cancel_on_error=True)
