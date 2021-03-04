@@ -44,7 +44,7 @@ jobs:
       
       - name: Redeploy the analysis-server
         run: |
-          curl \
+          curl --fail \
             -X POST \
             -H "Authorization: token ${{ secrets.ANALYSIS_SERVER_GITHUB_TOKEN }}" \
             -H "Accept: application/vnd.github.v3+json" \
