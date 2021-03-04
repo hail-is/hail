@@ -12,6 +12,7 @@ def init_parser(parser):
     parser.add_argument('--pyfiles', required=False, type=str, help='Comma-separated list of files (or directories with python files) to add to the PYTHONPATH.')
     parser.add_argument('--properties', '-p', required=False, type=str, help='Extra Spark properties to set.')
     parser.add_argument('--gcloud_configuration', help='Google Cloud configuration to submit job (defaults to currently set configuration).')
+    parser.add_argument('--region', help='Region.', required=True)
     parser.add_argument('--dry-run', action='store_true', help="Print gcloud dataproc command, but don't run it.")
 
 
@@ -22,27 +23,33 @@ def main(args, pass_through_args):  # pylint: disable=unused-argument
     files = ''
     if args.files:
         files = args.files
-    pyfiles = []
-    if args.pyfiles:
-        pyfiles.extend(args.pyfiles.split(','))
-    pyfiles.extend(os.environ.get('HAIL_SCRIPTS', '').split(':'))
-    if pyfiles:
-        tfile = tempfile.mkstemp(suffix='.zip', prefix='pyscripts_')[1]
-        zipf = zipfile.ZipFile(tfile, 'w', zipfile.ZIP_DEFLATED)
-        for hail_script_entry in pyfiles:
-            if hail_script_entry.endswith('.py'):
-                zipf.write(hail_script_entry, arcname=os.path.basename(hail_script_entry))
-            else:
-                for root, _, pyfiles_walk in os.walk(hail_script_entry):
-                    for pyfile in pyfiles_walk:
-                        if pyfile.endswith('.py'):
-                            zipf.write(os.path.join(root, pyfile),
-                                       os.path.relpath(os.path.join(root, pyfile),
-                                                       os.path.join(hail_script_entry, '..')))
-        zipf.close()
-        pyfiles = tfile
+
+    # If you only provide one (comma-sep) argument, and it's a zip file, use that file directly
+    if args.pyfiles and args.pyfiles.endswith('.zip') and not ',' in args.pyfiles:
+        # Adding the zip archive directly
+        pyfiles = args.pyfiles
     else:
-        pyfiles = ''
+        pyfiles = []
+        if args.pyfiles:
+            pyfiles.extend(args.pyfiles.split(','))
+        pyfiles.extend(os.environ.get('HAIL_SCRIPTS', '').split(':'))
+        if pyfiles:
+            tfile = tempfile.mkstemp(suffix='.zip', prefix='pyscripts_')[1]
+            zipf = zipfile.ZipFile(tfile, 'w', zipfile.ZIP_DEFLATED)
+            for hail_script_entry in pyfiles:
+                if hail_script_entry.endswith('.py'):
+                    zipf.write(hail_script_entry, arcname=os.path.basename(hail_script_entry))
+                else:
+                    for root, _, pyfiles_walk in os.walk(hail_script_entry):
+                        for pyfile in pyfiles_walk:
+                            if pyfile.endswith('.py'):
+                                zipf.write(os.path.join(root, pyfile),
+                                           os.path.relpath(os.path.join(root, pyfile),
+                                                           os.path.join(hail_script_entry, '..')))
+            zipf.close()
+            pyfiles = tfile
+        else:
+            pyfiles = ''
 
     # create properties argument
     properties = ''
@@ -59,7 +66,8 @@ def main(args, pass_through_args):  # pylint: disable=unused-argument
         '--cluster={}'.format(args.name),
         '--files={}'.format(files),
         '--py-files={}'.format(pyfiles),
-        '--properties={}'.format(properties)
+        '--properties={}'.format(properties),
+        '--region={}'.format(args.region)
     ]
     if args.gcloud_configuration:
         cmd.append('--configuration={}'.format(args.gcloud_configuration))
