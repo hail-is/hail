@@ -525,7 +525,7 @@ class Container:
 
 
 class JVMProcess:
-    classpath = f'{find_spark_home()}/jars/*:/hail.jar'
+    classpath = f'{find_spark_home()}/jars/*:/hail.jar:/log4j.properties'
     stack_size = 512 * 1024
     thread_pool = None
 
@@ -540,13 +540,13 @@ class JVMProcess:
         self.java_args = main_spec['command']
 
         self.proc = None
-        self.timing = {}
+        self.timing = {'running': dict()}
         self.state = 'pending'
         self.log = ''
 
     async def run(self, worker):
         log.info(f'running {self}')
-        self.timing['start_time'] = time_msecs()
+        self.timing['running']['start_time'] = time_msecs()
         self.proc = await asyncio.create_subprocess_exec(
             'java',
             *self.flags,
@@ -557,9 +557,9 @@ class JVMProcess:
         out, err = await self.proc.communicate()
 
         finish_time = time_msecs()
-        self.timing['finish_time'] = finish_time
-        start_time = self.timing['start_time']
-        self.timing['duration'] = finish_time - start_time
+        self.timing['running']['finish_time'] = finish_time
+        start_time = self.timing['running']['start_time']
+        self.timing['running']['duration'] = finish_time - start_time
 
         self.log += 'STDOUT:\n'
         self.log += out.decode()
@@ -1063,6 +1063,19 @@ class JVMJob(Job):
         if input_files or output_files:
             raise Exception("i/o not supported")
 
+        for envvar in self.env:
+            assert envvar['name'] not in {'HAIL_DEPLOY_CONFIG_FILE', 'HAIL_TOKENS_FILE',
+                                          'HAIL_SSL_CONFIG_FILE', 'HAIL_GSA_KEY_FILE',
+                                          'HAIL_WORKER_SCRATCH_DIR'}, envvar
+
+        self.env.append({'name': 'HAIL_DEPLOY_CONFIG_FILE',
+                         'value': f'{self.scratch}/secrets/deploy-config/deploy-config.json'})
+        self.env.append({'name': 'HAIL_TOKENS_FILE',
+                         'value': f'{self.scratch}/secrets/user-tokens/tokens.json'})
+        self.env.append({'name': 'HAIL_SSL_CONFIG_FILE',
+                         'value': f'{self.scratch}/secrets/ssl-config/ssl-config.json'})
+        self.env.append({'name': 'HAIL_GSA_KEY_FILE',
+                         'value': f'{self.scratch}/secrets/gsa-key/key.json'})
         self.env.append({'name': 'HAIL_WORKER_SCRATCH_DIR', 'value': self.scratch})
 
         # main container

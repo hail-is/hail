@@ -4,7 +4,7 @@ import is.hail.expr.ir._
 import is.hail.methods.{ForceCountTable, NPartitionsTable}
 import is.hail.rvd.{PartitionBoundOrdering, RVDPartitioner}
 import is.hail.types.virtual._
-import is.hail.types.{RTable, TableType}
+import is.hail.types.{RTable, TableType, RStruct, RField}
 import is.hail.utils._
 import org.apache.spark.sql.Row
 
@@ -494,7 +494,7 @@ object LowerTableIR {
             }
 
         // TODO: This ignores nPartitions and bufferSize
-        case self@TableKeyByAndAggregate(child, expr, newKey, nPartitions, bufferSize) =>
+        case TableKeyByAndAggregate(child, expr, newKey, nPartitions, bufferSize) =>
           val loweredChild = lower(child)
           val newKeyType = newKey.typ.asInstanceOf[TStruct]
           val oldRowType = child.typ.rowType
@@ -511,8 +511,12 @@ object LowerTableIR {
           val shuffledRowType = withNewKeyFields.rowType
 
           val sortFields = newKeyType.fieldNames.map(fieldName => SortField(fieldName, Ascending)).toIndexedSeq
+          val childRowRType = r.lookup(child).asInstanceOf[RTable].rowType
+          val newKeyRType = r.lookup(newKey).asInstanceOf[RStruct]
+          val withNewKeyRType = RStruct(
+            newKeyRType.fields ++ Seq(RField(fullRowUID, childRowRType, newKeyRType.fields.length)))
           val shuffled = ctx.backend.lowerDistributedSort(
-            ctx, withNewKeyFields, sortFields, relationalLetsAbove, r.lookup(self).asInstanceOf[RTable])
+            ctx, withNewKeyFields, sortFields, relationalLetsAbove, withNewKeyRType)
           val repartitioned = shuffled.repartitionNoShuffle(shuffled.partitioner.strictify)
 
           repartitioned.mapPartition(None) { partition =>
@@ -898,7 +902,7 @@ object LowerTableIR {
               )
             }
 
-        case self@TableKeyBy(child, newKey, isSorted: Boolean) =>
+        case TableKeyBy(child, newKey, isSorted: Boolean) =>
           val loweredChild = lower(child)
 
           val nPreservedFields = loweredChild.kType.fieldNames
@@ -913,8 +917,9 @@ object LowerTableIR {
             loweredChild.changePartitionerNoRepartition(loweredChild.partitioner.coarsen(nPreservedFields))
               .extendKeyPreservesPartitioning(newKey)
           else {
+            val rowRType = r.lookup(child).asInstanceOf[RTable].rowType
             val sorted = ctx.backend.lowerDistributedSort(
-              ctx, loweredChild, newKey.map(k => SortField(k, Ascending)), relationalLetsAbove, r.lookup(self).asInstanceOf[RTable])
+              ctx, loweredChild, newKey.map(k => SortField(k, Ascending)), relationalLetsAbove, rowRType)
             assert(sorted.kType.fieldNames.sameElements(newKey))
             sorted
           }
@@ -1030,12 +1035,15 @@ object LowerTableIR {
                 InsertFields(keyRef, FastSeq(fieldName -> projectedVals)))
             )
 
-        case self@TableOrderBy(child, sortFields) =>
+        case TableOrderBy(child, sortFields) =>
           val loweredChild = lower(child)
-          if (TableOrderBy.isAlreadyOrdered(sortFields, loweredChild.partitioner.kType.fieldNames))
+          if (TableOrderBy.isAlreadyOrdered(sortFields, loweredChild.partitioner.kType.fieldNames)) {
             loweredChild.changePartitionerNoRepartition(RVDPartitioner.unkeyed(loweredChild.partitioner.numPartitions))
-          else
-            ctx.backend.lowerDistributedSort(ctx, loweredChild, sortFields, relationalLetsAbove, r.lookup(self).asInstanceOf[RTable])
+          } else {
+            val rowRType = r.lookup(child).asInstanceOf[RTable].rowType
+            ctx.backend.lowerDistributedSort(
+              ctx, loweredChild, sortFields, relationalLetsAbove, rowRType)
+          }
 
         case TableExplode(child, path) =>
           lower(child).mapPartition(Some(child.typ.key.takeWhile(k => k != path(0)))) { rows =>

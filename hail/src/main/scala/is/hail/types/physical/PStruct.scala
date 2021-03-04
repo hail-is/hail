@@ -2,17 +2,13 @@ package is.hail.types.physical
 
 import is.hail.annotations._
 import is.hail.asm4s.Code
-import is.hail.expr.ir.{EmitMethodBuilder, SortOrder}
+import is.hail.expr.ir.orderings.CodeOrdering
+import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, SortOrder}
+import is.hail.types.physical.stypes.interfaces.SBaseStructCode
 import is.hail.types.virtual.{Field, TStruct}
 
 trait PStruct extends PBaseStruct {
   lazy val virtualType: TStruct = TStruct(fields.map(f => Field(f.name, f.typ.virtualType, f.index)))
-
-  final def codeOrdering(mb: EmitMethodBuilder[_], other: PType, so: Array[SortOrder], missingFieldsEqual: Boolean): CodeOrdering = {
-    assert(other.asInstanceOf[PStruct].isIsomorphicTo(this))
-    assert(so == null || so.size == types.size)
-    CodeOrdering.rowOrdering(this, other.asInstanceOf[PStruct], mb, so, missingFieldsEqual)
-  }
 
   final def deleteField(key: String): PCanonicalStruct = {
     assert(fieldIdx.contains(key))
@@ -57,4 +53,6 @@ trait PStruct extends PBaseStruct {
   def setFieldMissing(offset: Code[Long], fieldName: String): Code[Unit]
 
   def insertFields(fieldsToInsert: TraversableOnce[(String, PType)]): PStruct
+
+  def loadCheapPCode(cb: EmitCodeBuilder, addr: Code[Long]): PBaseStructCode
 }

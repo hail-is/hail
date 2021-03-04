@@ -1,7 +1,8 @@
 package is.hail.expr.ir.agg
 
-import is.hail.annotations.{CodeOrdering, Region}
+import is.hail.annotations.Region
 import is.hail.asm4s._
+import is.hail.expr.ir.orderings.CodeOrdering
 import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitCodeBuilder, EmitParamType, EmitRegion, IEmitCode, ParamType}
 import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer}
 import is.hail.types.VirtualTypeWithReq
@@ -19,7 +20,7 @@ class DownsampleBTreeKey(binType: PBaseStruct, pointType: PBaseStruct, kb: EmitC
     "empty" -> PBooleanRequired)
 
   val compType: PType = binType
-  private val kcomp = kb.getCodeOrdering(binType, CodeOrdering.Compare(), ignoreMissingness = false)
+  private val kcomp = kb.getOrderingFunction(binType.sType, CodeOrdering.Compare())
 
   def isEmpty(cb: EmitCodeBuilder, off: Code[Long]): Code[Boolean] = PBooleanRequired.loadCheapPCode(cb, storageType.loadField(off, "empty")).boolCode(cb)
 

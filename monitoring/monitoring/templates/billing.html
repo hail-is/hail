@@ -1,5 +1,9 @@
 {% extends "layout.html" %}
 {% block title %}Billing{% endblock %}
+{% block head %}
+    <script src="{{ base_path }}/common_static/search_bar.js"></script>
+    <script src="{{ base_path }}/common_static/focus_on_keyup.js"></script>
+{% endblock %}
 {% block content %}
 <div class="flex-col-align-left">
     <form method="GET" action="{{ base_path }}/billing">
@@ -52,28 +56,31 @@
 </table>
 
 <h1>Costs by Product</h1>
-<table class="data-table">
-    <thead>
-    <tr>
-        <th>Service</th>
-        <th>Product</th>
-        <th>Source</th>
-        <th>Cost</th>
-    </tr>
-    </thead>
-    <tbody>
-    {% for record in cost_by_sku_label %}
-    <tr>
-        <td>{{ record['service_description'] }}</td>
-        <td>{{ record['sku_description'] }}</td>
-        <td>
-            {% if record['source'] is not none %}
-            {{ record['source'] }}
-            {% endif %}
-        </td>
-        <td class="numeric-cell">{{ record['cost'] }}</td>
-    </tr>
-    {% endfor %}
-    </tbody>
-</table>
+<div class="searchbar-table">
+  <input type="text" id="searchBar" onkeyup="searchTable('productCost', 'searchBar')" placeholder="Search terms...">
+  <table id="productCost" class="data-table">
+      <thead>
+      <tr>
+          <th>Service</th>
+          <th>Product</th>
+          <th>Source</th>
+          <th>Cost</th>
+      </tr>
+      </thead>
+      <tbody>
+      {% for record in cost_by_sku_label %}
+      <tr>
+          <td>{{ record['service_description'] }}</td>
+          <td>{{ record['sku_description'] }}</td>
+          <td>
+              {% if record['source'] is not none %}
+              {{ record['source'] }}
+              {% endif %}
+          </td>
+          <td class="numeric-cell">{{ record['cost'] }}</td>
+      </tr>
+      {% endfor %}
+      </tbody>
+  </table>
+</div>
 {% endblock %}

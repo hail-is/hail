@@ -4,11 +4,12 @@ import java.io._
 import java.util.Base64
 
 import is.hail.{HailContext, lir}
-import is.hail.annotations.{CodeOrdering, Region, RegionPool, RegionValueBuilder, SafeRow}
+import is.hail.annotations.{Region, RegionPool, RegionValueBuilder, SafeRow}
 import is.hail.asm4s._
 import is.hail.asm4s.joinpoint.Ctrl
 import is.hail.backend.BackendUtils
 import is.hail.expr.ir.functions.IRRandomness
+import is.hail.expr.ir.orderings.CodeOrdering
 import is.hail.io.fs.FS
 import is.hail.io.{BufferSpec, InputBuffer, TypedCodecSpec}
 import is.hail.lir
@@ -174,11 +175,6 @@ trait WrappedEmitClassBuilder[C] extends WrappedEmitModuleBuilder {
   def genStaticEmitMethod(baseName: String, argsInfo: IndexedSeq[ParamType], returnInfo: ParamType): EmitMethodBuilder[C] =
     ecb.genStaticEmitMethod(baseName, argsInfo, returnInfo)
 
-  def getCodeOrdering(
-    t1: PType, t2: PType, sortOrder: SortOrder, op: CodeOrdering.Op, ignoreMissingness: Boolean
-  ): CodeOrdering.F[op.ReturnType] =
-    ecb.getCodeOrdering(t1, t2, sortOrder, op, ignoreMissingness)
-
   def addAggStates(aggSigs: Array[agg.AggStateSig]): agg.TupleAggregatorState = ecb.addAggStates(aggSigs)
 
   def genDependentFunction[F](baseName: String,
@@ -193,24 +189,6 @@ trait WrappedEmitClassBuilder[C] extends WrappedEmitModuleBuilder {
   def getOrGenEmitMethod(
     baseName: String, key: Any, argsInfo: IndexedSeq[ParamType], returnInfo: ParamType
   )(body: EmitMethodBuilder[C] => Unit): EmitMethodBuilder[C] = ecb.getOrGenEmitMethod(baseName, key, argsInfo, returnInfo)(body)
-
-  // derived functions
-  def getCodeOrdering(t: PType, op: CodeOrdering.Op): CodeOrdering.F[op.ReturnType] =
-    getCodeOrdering(t, t, sortOrder = Ascending, op, ignoreMissingness = false)
-
-  def getCodeOrdering(t: PType, op: CodeOrdering.Op, ignoreMissingness: Boolean): CodeOrdering.F[op.ReturnType] =
-    getCodeOrdering(t, t, sortOrder = Ascending, op, ignoreMissingness)
-
-  def getCodeOrdering(t1: PType, t2: PType, op: CodeOrdering.Op): CodeOrdering.F[op.ReturnType] =
-    getCodeOrdering(t1, t2, sortOrder = Ascending, op, ignoreMissingness = false)
-
-  def getCodeOrdering(t1: PType, t2: PType, op: CodeOrdering.Op, ignoreMissingness: Boolean): CodeOrdering.F[op.ReturnType] =
-    getCodeOrdering(t1, t2, sortOrder = Ascending, op, ignoreMissingness)
-
-  def getCodeOrdering(
-    t1: PType, t2: PType, sortOrder: SortOrder, op: CodeOrdering.Op
-  ): CodeOrdering.F[op.ReturnType] =
-    getCodeOrdering(t1, t2, sortOrder, op, ignoreMissingness = false)
 
   def genEmitMethod[R: TypeInfo](baseName: String): EmitMethodBuilder[C] =
     ecb.genEmitMethod[R](baseName)
@@ -353,9 +331,9 @@ class EmitClassBuilder[C](
 
   private[this] val pTypeMap: mutable.Map[PType, Value[_ <: PType]] = mutable.Map()
 
-  private[this] type CompareMapKey = (PType, PType, CodeOrdering.Op, SortOrder, Boolean)
-  private[this] val compareMap: mutable.Map[CompareMapKey, CodeOrdering.F[_]] =
-    mutable.Map[CompareMapKey, CodeOrdering.F[_]]()
+  private[this] type CompareMapKey = (SType, SType)
+  private[this] val memoizedComparisons: mutable.Map[CompareMapKey, CodeOrdering] =
+    mutable.Map[CompareMapKey, CodeOrdering]()
 
 
   def numTypes: Int = typMap.size
@@ -585,68 +563,55 @@ class EmitClassBuilder[C](
       genLazyFieldThisRef[T](setup)).get.asInstanceOf[Code[T]]
   }
 
-  def getCodeOrdering(
-    t1: PType,
-    t2: PType,
-    sortOrder: SortOrder,
-    op: CodeOrdering.Op,
-    ignoreMissingness: Boolean
-  ): CodeOrdering.F[op.ReturnType] = {
-    val f = compareMap.getOrElseUpdate((t1, t2, op, sortOrder, ignoreMissingness), {
-      val rt = op.rtti
-      val newMB = if (ignoreMissingness) {
-        val newMB = genEmitMethod("cord", FastIndexedSeq[ParamType](t1.asEmitParam, t2.asEmitParam), rt)
-        lazy val ord = t1.codeOrdering(newMB, t2, sortOrder)
-        val v1 = newMB.getEmitParam(1).pv
-        val v2 = newMB.getEmitParam(2).pv
-        newMB.emitWithBuilder { cb =>
-          op match {
-            case CodeOrdering.Compare(_) => ord.compareNonnull(cb, v1, v2)
-            case CodeOrdering.Equiv(_) => ord.equivNonnull(cb, v1, v2)
-            case CodeOrdering.Lt(_) => ord.ltNonnull(cb, v1, v2)
-            case CodeOrdering.Lteq(_) => ord.lteqNonnull(cb, v1, v2)
-            case CodeOrdering.Gt(_) => ord.gtNonnull(cb, v1, v2)
-            case CodeOrdering.Gteq(_) => ord.gteqNonnull(cb, v1, v2)
-            case CodeOrdering.Neq(_) => !ord.equivNonnull(cb, v1, v2)
-          }
-        }
-        newMB
-      } else {
-        val newMB = genEmitMethod("cord", FastIndexedSeq[ParamType](t1.asEmitParam, t2.asEmitParam), rt)
-        lazy val ord = t1.codeOrdering(newMB, t2, sortOrder)
-        val v1 = newMB.getEmitParam(1)
-        val v2 = newMB.getEmitParam(2)
-        newMB.emitWithBuilder { cb =>
-          op match {
-            case CodeOrdering.Compare(missingEqual) => ord.compare(cb, v1, v2, missingEqual)
-            case CodeOrdering.Equiv(missingEqual) => ord.equiv(cb, v1, v2, missingEqual)
-            case CodeOrdering.Lt(missingEqual) => ord.lt(cb, v1, v2, missingEqual)
-            case CodeOrdering.Lteq(missingEqual) => ord.lteq(cb, v1, v2, missingEqual)
-            case CodeOrdering.Gt(missingEqual) => ord.gt(cb, v1, v2, missingEqual)
-            case CodeOrdering.Gteq(missingEqual) => ord.gteq(cb, v1, v2, missingEqual)
-            case CodeOrdering.Neq(missingEqual) => !ord.equiv(cb, v1, v2, missingEqual)
-          }
-        }
-        newMB
-      }
-      { (cb: EmitCodeBuilder, elhs: EmitCode, erhs: EmitCode) =>
-        if (t1 != elhs.pt)
-          fatal(s"ordering types do not match (lhs), requested type=$t1, code type=${elhs.pt}")
-        if (t2 != erhs.pt)
-          fatal(s"ordering types do not match (rhs), requested type=$t2, code type=${erhs.pt}")
-        cb.invokeCode(newMB, elhs, erhs)
-      }
+  def getOrdering(t1: SType,
+    t2: SType,
+    sortOrder: SortOrder = Ascending
+  ): CodeOrdering = {
+    val baseOrd = memoizedComparisons.getOrElseUpdate((t1, t2), {
+      CodeOrdering.makeOrdering(t1, t2, this)
     })
-    ((cb: EmitCodeBuilder, elhs: EmitCode, erhs: EmitCode) => coerce[op.ReturnType](f(cb, elhs, erhs)))
+    sortOrder match {
+      case Ascending => baseOrd
+      case Descending => baseOrd.reverse
+    }
   }
 
-  def getCodeOrdering(
-    t: PType,
-    op: CodeOrdering.Op,
+  def getOrderingFunction(
+    t1: SType,
+    t2: SType,
     sortOrder: SortOrder,
-    ignoreMissingness: Boolean
+    op: CodeOrdering.Op
+  ): CodeOrdering.F[op.ReturnType] = {
+    val ord = getOrdering(t1, t2, sortOrder);
+
+    { (cb: EmitCodeBuilder, v1: EmitCode, v2: EmitCode) =>
+
+      val r = op match {
+        case CodeOrdering.Compare(missingEqual) => ord.compare(cb, v1, v2, missingEqual)
+        case CodeOrdering.Equiv(missingEqual) => ord.equiv(cb, v1, v2, missingEqual)
+        case CodeOrdering.Lt(missingEqual) => ord.lt(cb, v1, v2, missingEqual)
+        case CodeOrdering.Lteq(missingEqual) => ord.lteq(cb, v1, v2, missingEqual)
+        case CodeOrdering.Gt(missingEqual) => ord.gt(cb, v1, v2, missingEqual)
+        case CodeOrdering.Gteq(missingEqual) => ord.gteq(cb, v1, v2, missingEqual)
+        case CodeOrdering.Neq(missingEqual) => !ord.equiv(cb, v1, v2, missingEqual)
+      }
+      coerce[op.ReturnType](r)
+    }
+  }
+
+  // derived functions
+  def getOrderingFunction(t: SType, op: CodeOrdering.Op): CodeOrdering.F[op.ReturnType] =
+    getOrderingFunction(t, t, sortOrder = Ascending, op)
+
+  def getOrderingFunction(t1: SType, t2: SType, op: CodeOrdering.Op): CodeOrdering.F[op.ReturnType] =
+    getOrderingFunction(t1, t2, sortOrder = Ascending, op)
+
+  def getOrderingFunction(
+    t: SType,
+    op: CodeOrdering.Op,
+    sortOrder: SortOrder
   ): CodeOrdering.F[op.ReturnType] =
-    getCodeOrdering(t, t, sortOrder, op, ignoreMissingness)
+    getOrderingFunction(t, t, sortOrder, op)
 
   private def getCodeArgsInfo(argsInfo: IndexedSeq[ParamType], returnInfo: ParamType): (IndexedSeq[TypeInfo[_]], TypeInfo[_]) = {
     val codeArgsInfo = argsInfo.flatMap {
@@ -816,24 +781,6 @@ class EmitClassBuilder[C](
       mb
     })
   }
-
-  // derived functions
-  def getCodeOrdering(t: PType, op: CodeOrdering.Op): CodeOrdering.F[op.ReturnType] =
-    getCodeOrdering(t, t, sortOrder = Ascending, op, ignoreMissingness = false)
-
-  def getCodeOrdering(t: PType, op: CodeOrdering.Op, ignoreMissingness: Boolean): CodeOrdering.F[op.ReturnType] =
-    getCodeOrdering(t, t, sortOrder = Ascending, op, ignoreMissingness)
-
-  def getCodeOrdering(t1: PType, t2: PType, op: CodeOrdering.Op): CodeOrdering.F[op.ReturnType] =
-    getCodeOrdering(t1, t2, sortOrder = Ascending, op, ignoreMissingness = false)
-
-  def getCodeOrdering(t1: PType, t2: PType, op: CodeOrdering.Op, ignoreMissingness: Boolean): CodeOrdering.F[op.ReturnType] =
-    getCodeOrdering(t1, t2, sortOrder = Ascending, op, ignoreMissingness)
-
-  def getCodeOrdering(
-    t1: PType, t2: PType, sortOrder: SortOrder, op: CodeOrdering.Op
-  ): CodeOrdering.F[op.ReturnType] =
-    getCodeOrdering(t1, t2, sortOrder, op, ignoreMissingness = false)
 
   def genEmitMethod(baseName: String, argsInfo: IndexedSeq[ParamType], returnInfo: ParamType): EmitMethodBuilder[C] =
     newEmitMethod(genName("m", baseName), argsInfo, returnInfo)

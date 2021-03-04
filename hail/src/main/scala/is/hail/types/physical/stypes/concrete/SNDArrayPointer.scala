@@ -1,7 +1,8 @@
 package is.hail.types.physical.stypes.concrete
 
-import is.hail.annotations.{CodeOrdering, Region}
+import is.hail.annotations.Region
 import is.hail.asm4s.{Code, IntInfo, LongInfo, Settable, SettableBuilder, TypeInfo, Value, const}
+import is.hail.expr.ir.orderings.CodeOrdering
 import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, SortOrder}
 import is.hail.types.physical.stypes.interfaces.{SNDArray, SNDArrayValue}
 import is.hail.types.physical.stypes.{SCode, SType}
@@ -12,8 +13,6 @@ case class SNDArrayPointer(pType: PCanonicalNDArray) extends SNDArray {
   def nDims: Int = pType.nDims
 
   override def elementType: SType = pType.elementType.sType
-
-  def codeOrdering(mb: EmitMethodBuilder[_], other: SType, so: SortOrder): CodeOrdering = pType.codeOrdering(mb)
 
   def coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = {
     new SNDArrayPointerCode(this, pType.store(cb, region, value, deepCopy))
@@ -106,11 +105,13 @@ class SNDArrayPointerSettable(
   override def strides(cb: EmitCodeBuilder): IndexedSeq[Value[Long]] = strides
 
   override def sameShape(other: SNDArrayValue, cb: EmitCodeBuilder): Code[Boolean] = {
-    val otherPtr = other.asInstanceOf[SNDArrayPointerSettable]
-    val comparator = this.pt.shapeType.codeOrdering(cb.emb, otherPtr.pt.shapeType)
-    val thisShape = PCode(this.pt.shapeType, this.pt.representation.loadField(a, "shape"))
-    val otherShape = PCode(otherPtr.pt.shapeType, otherPtr.pt.representation.loadField(otherPtr.a, "shape"))
-    comparator.equivNonnull(cb, thisShape, otherShape)
+    val otherShapes = other.shapes(cb)
+    val b = cb.newLocal[Boolean]("sameShape_b", true)
+    assert(shape.length == otherShapes.length)
+    shape.zip(otherShapes).foreach { case (s1, s2) =>
+      cb.assign(b, b && s1.ceq(s2))
+    }
+    b
   }
 
   def firstDataAddress(cb: EmitCodeBuilder): Value[Long] = dataFirstElement
