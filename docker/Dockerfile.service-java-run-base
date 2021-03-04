@@ -1,0 +1,35 @@
+FROM {{ hail_ubuntu_image.image }}
+
+RUN hail-apt-get-install \
+    htop \
+    curl \
+    rsync \
+    openjdk-8-jdk-headless \
+    liblapack3
+
+COPY docker/requirements.txt .
+RUN hail-pip-install -r requirements.txt pyspark==2.4.0
+
+ENV SPARK_HOME /usr/local/lib/python3.7/dist-packages/pyspark
+ENV PYSPARK_PYTHON python3
+
+# Regarding explicitly selecting 2.0.1: https://github.com/hail-is/hail/issues/8343
+RUN curl --silent --show-error --location \
+         https://storage.googleapis.com/hadoop-lib/gcs/gcs-connector-hadoop2-2.0.1.jar \
+         > ${SPARK_HOME}/jars/gcs-connector-hadoop2-2.0.1.jar
+COPY docker/core-site.xml ${SPARK_HOME}/conf/core-site.xml
+
+COPY docker/service-base-requirements.txt .
+RUN hail-pip-install -r service-base-requirements.txt
+
+COPY hail/python/setup-hailtop.py /hailtop/setup.py
+COPY hail/python/hailtop /hailtop/hailtop/
+RUN hail-pip-install /hailtop && rm -rf /hailtop
+
+COPY gear/setup.py /gear/setup.py
+COPY gear/gear /gear/gear/
+RUN hail-pip-install /gear && rm -rf /gear
+
+COPY web_common/setup.py web_common/MANIFEST.in /web_common/
+COPY web_common/web_common /web_common/web_common/
+RUN hail-pip-install /web_common && rm -rf /web_common

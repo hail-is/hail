@@ -8,6 +8,7 @@ tearDownModule = stopTestHailContext
 
 
 class GroupedTableTests(unittest.TestCase):
+    @fails_service_backend()
     def test_aggregate_by(self):
         ht = hl.utils.range_table(4)
         ht = ht.annotate(foo=0, group=ht.idx < 2, bar='hello').annotate_globals(glob=5)
@@ -27,6 +28,7 @@ class GroupedTableTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             grouped.aggregate(group=hl.agg.sum(ht.idx))
 
+    @fails_service_backend()
     def test_aggregate_by_with_joins(self):
         ht = hl.utils.range_table(4)
         ht2 = hl.utils.range_table(4)
@@ -47,6 +49,7 @@ class GroupedTableTests(unittest.TestCase):
 
         self.assertTrue(result._same(expected))
 
+    @fails_service_backend()
     def test_issue_2446_takeby(self):
         t = hl.utils.range_table(10)
         result = t.group_by(foo=5).aggregate(x=hl.agg.take(t.idx, 3, ordering=t.idx))

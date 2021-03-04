@@ -31,7 +31,7 @@ kssh() {
     #
     #     # kssh admin-pod
     #     root@admin-pod-5d77d69445-86m2h:/#
-    kubectl -n ${2:-default} exec -it "$(kfind1 "$1" "$2")" -- /bin/bash
+    kubectl -n ${2:-default} exec -it "$(kfind1 "$1" "$2")" ${3:+--container="$3"} -- /bin/bash
 }
 
 klog() {
@@ -48,7 +48,7 @@ klog() {
     mkdir -p $dir
     for x in $(kubectl get pods -l app="${1}" -n "${2}" | tail -n +2 | awk '{print $1}')
     do
-        kubectl logs --tail=999999999999999 $x -n "${2}" \
+        kubectl logs --tail=999999999999999 $x -n "${2}" --all-containers \
             | grep -Ev 'healthcheck|metrics' \
                    > $dir/$x &
     done
@@ -66,22 +66,22 @@ kjlog() {
     #
     #     # kjlog batch dking
     #     ...
-    #     {"asctime":"2021-02-12 16:58:49,540","container":"batch-8c6c74ffd-d498g","x_real_ip":"35.187.114.193","connection_id":null,"exc_info":null,"message":"https GET / done in 0.0015127049991860986s: 302"}
-    #     {"asctime":"2021-02-12 16:58:57,850","container":"batch-8c6c74ffd-lzfdh","x_real_ip":"104.197.30.241","connection_id":null,"exc_info":null,"message":"https GET / done in 0.0010090250007124268s: 302"}
-    #     {"asctime":"2021-02-12 16:59:11,747","container":"batch-8c6c74ffd-lzfdh","x_real_ip":"18.31.31.24","connection_id":null,"exc_info":null,"message":"https GET /api/v1alpha/batches/182764 done in 0.04281349099983345s: 200"}
-    #     {"asctime":"2021-02-12 16:59:12,907","container":"batch-8c6c74ffd-jmhmq","x_real_ip":"35.198.194.122","connection_id":null,"exc_info":null,"message":"https GET / done in 0.0008628759969724342s: 302"}
+    #     {"asctime":"2021-02-12 16:58:49,540","pod":"batch-8c6c74ffd-d498g","x_real_ip":"35.187.114.193","connection_id":null,"exc_info":null,"message":"https GET / done in 0.0015127049991860986s: 302"}
+    #     {"asctime":"2021-02-12 16:58:57,850","pod":"batch-8c6c74ffd-lzfdh","x_real_ip":"104.197.30.241","connection_id":null,"exc_info":null,"message":"https GET / done in 0.0010090250007124268s: 302"}
+    #     {"asctime":"2021-02-12 16:59:11,747","pod":"batch-8c6c74ffd-lzfdh","x_real_ip":"18.31.31.24","connection_id":null,"exc_info":null,"message":"https GET /api/v1alpha/batches/182764 done in 0.04281349099983345s: 200"}
+    #     {"asctime":"2021-02-12 16:59:12,907","pod":"batch-8c6c74ffd-jmhmq","x_real_ip":"35.198.194.122","connection_id":null,"exc_info":null,"message":"https GET / done in 0.0008628759969724342s: 302"}
     dir=$(mktemp -d)
     mkdir -p $dir
     for x in $(kubectl get pods -l app="${1}" -n "${2}" | tail -n +2 | awk '{print $1}')
     do
-        kubectl logs --tail=999999999999999 $x -n "${2}" \
+        kubectl logs --tail=999999999999999 $x -n "${2}" --all-containers \
             | grep -Ev 'healthcheck|metrics' \
             | grep '^{' \
-            | jq -c '{asctime, container: "'$x'", x_real_ip, connection_id, exc_info, message}' \
+            | jq -c '{time: (if .asctime then .asctime else .["@timestamp"] end), pod: "'$x'", x_real_ip, connection_id, exc_info, message}' \
                  > $dir/$x &
     done
     wait
-    cat $dir/* | sort | jq -c '{asctime, container, x_real_ip, connection_id, exc_info, message}'
+    cat $dir/* | sort | jq -c '{time, pod, x_real_ip, connection_id, exc_info, message}'
 }
 
 kjlogs() {
@@ -94,8 +94,8 @@ kjlogs() {
     #
     #     # kjlogs default batch batch-driver
     #     ...
-    #     {"asctime":"2021-02-12 17:01:53,832","container":"batch-8c6c74ffd-lzfdh","x_real_ip":null,"connection_id":null,"exc_info":null,"message":"https GET /api/v1alpha/batches/182767 done in 0.0401439390006999s: 200"}
-    #     {"asctime":"2021-02-12 17:01:55,553","container":"batch-driver-6748cd87f9-kdjv8","x_real_ip":null,"connection_id":null,"exc_info":null,"message":"marking job (182768, 140) complete new_state Success"}
+    #     {"asctime":"2021-02-12 17:01:53,832","pod":"batch-8c6c74ffd-lzfdh","x_real_ip":null,"connection_id":null,"exc_info":null,"message":"https GET /api/v1alpha/batches/182767 done in 0.0401439390006999s: 200"}
+    #     {"asctime":"2021-02-12 17:01:55,553","pod":"batch-driver-6748cd87f9-kdjv8","x_real_ip":null,"connection_id":null,"exc_info":null,"message":"marking job (182768, 140) complete new_state Success"}
     dir=$(mktemp -d)
     mkdir -p $dir
     namespace="${1}"
@@ -104,15 +104,15 @@ kjlogs() {
     do
         for x in $(kubectl get pods -l app="${app}" -n "${namespace}" | tail -n +2 | awk '{print $1}')
         do
-            kubectl logs --tail=999999999999999 $x -n "${namespace}" \
+            kubectl logs --tail=999999999999999 $x -n "${namespace}" --all-containers \
                 | grep -Ev 'healthcheck|metrics' \
                 | grep '^{' \
-                | jq -c '{asctime, x_real_ip, connection_id, exc_info, message, container: "'$x'"}' \
+                | jq -c '{time: (if .asctime then .asctime else .["@timestamp"] end), pod: "'$x'", x_real_ip, connection_id, exc_info, message}' \
                      > $dir/$x &
         done
     done
     wait
-    cat $dir/* | sort | jq -c '{asctime, container, x_real_ip, connection_id, exc_info, message}'
+    cat $dir/* | sort | jq -c '{time, pod, x_real_ip, connection_id, exc_info, message}'
 }
 
 knodes() {

@@ -1,4 +1,4 @@
-from ..helpers import startTestHailContext, stopTestHailContext
+from ..helpers import startTestHailContext, stopTestHailContext, fails_service_backend
 import unittest
 
 import hail as hl
@@ -8,6 +8,7 @@ tearDownModule = stopTestHailContext
 
 
 class Tests(unittest.TestCase):
+    @fails_service_backend()
     def test(self):
         mt = hl.balding_nichols_model(3, 10, 10)
         t = mt.rows()

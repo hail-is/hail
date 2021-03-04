@@ -621,7 +621,6 @@ package object utils extends Logging
         caught = true
         try {
           r.close()
-          throw original
         } catch {
           case duringClose: Exception =>
             if (original == duringClose) {
@@ -633,6 +632,7 @@ package object utils extends Logging
               throw duringClose
             }
         }
+        throw original
     } finally {
       if (!caught) {
         r.close()
