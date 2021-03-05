@@ -85,7 +85,7 @@ async def copy_test_context(request, router_filesystem):
 
 
 @pytest.mark.asyncio
-async def copy_behavior(copy_test_context, test_spec):
+async def test_copy_behavior(copy_test_context, test_spec):
     sema, fs, src_base, dest_base = copy_test_context
 
     result = await run_test_spec(sema, fs, test_spec, src_base, dest_base)
