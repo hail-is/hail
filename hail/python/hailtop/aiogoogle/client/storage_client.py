@@ -478,9 +478,12 @@ class GoogleStorageMultiPartCreate(MultiPartCreate):
     def _part_name(self, number: int) -> str:
         return self._tmp_name(f'part-{number}')
 
-    async def create_part(self, number: int, start: int) -> WritableStream:
+    async def create_part(self, number: int, start: int, *, retry_writes: bool = True) -> WritableStream:
         part_name = self._part_name(number)
-        return await self._fs._storage_client.insert_object(self._bucket, part_name)
+        params = {
+            'uploadType': 'resumable' if retry_writes else 'media'
+        }
+        return await self._fs._storage_client.insert_object(self._bucket, part_name, params=params)
 
     async def __aenter__(self) -> 'GoogleStorageMultiPartCreate':
         return self
@@ -581,9 +584,12 @@ class GoogleStorageAsyncFS(AsyncFS):
         return await self._storage_client.get_object(
             bucket, name, headers={'Range': f'bytes={start}-'})
 
-    async def create(self, url: str) -> WritableStream:
+    async def create(self, url: str, retry_writes: bool = True) -> WritableStream:
         bucket, name = self._get_bucket_name(url)
-        return await self._storage_client.insert_object(bucket, name)
+        params = {
+            'uploadType': 'resumable' if retry_writes else 'media'
+        }
+        return await self._storage_client.insert_object(bucket, name, params=params)
 
     async def multi_part_create(
             self,

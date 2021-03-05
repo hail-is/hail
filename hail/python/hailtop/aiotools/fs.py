@@ -9,7 +9,7 @@ import shutil
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
 import urllib.parse
-from hailtop.utils import blocking_to_async, url_basename, url_join, bounded_gather2
+from hailtop.utils import retry_transient_errors, blocking_to_async, url_basename, url_join, bounded_gather2
 from .stream import ReadableStream, WritableStream, blocking_readable_stream_to_async, blocking_writable_stream_to_async
 
 AsyncFSType = TypeVar('AsyncFSType', bound='AsyncFS')
@@ -53,7 +53,7 @@ class FileListEntry(abc.ABC):
 
 class MultiPartCreate(abc.ABC):
     @abc.abstractmethod
-    async def create_part(self, number: int, start: int):
+    async def create_part(self, number: int, start: int, *, retry_writes: bool = True):
         pass
 
     @abc.abstractmethod
@@ -85,7 +85,7 @@ class AsyncFS(abc.ABC):
         pass
 
     @abc.abstractmethod
-    async def create(self, url: str) -> WritableStream:
+    async def create(self, url: str, *, retry_writes: bool = True) -> WritableStream:
         pass
 
     @abc.abstractmethod
@@ -201,7 +201,7 @@ class LocalMultiPartCreate(MultiPartCreate):
         self._path = path
         self._num_parts = num_parts
 
-    async def create_part(self, number: int, start: int):
+    async def create_part(self, number: int, start: int, *, retry_writes: bool = True):  # pylint: disable=unused-argument
         assert 0 <= number < self._num_parts
         f = await blocking_to_async(self._fs._thread_pool, open, self._path, 'r+b')
         f.seek(start)
@@ -246,7 +246,7 @@ class LocalAsyncFS(AsyncFS):
         f.seek(start, io.SEEK_SET)
         return blocking_readable_stream_to_async(self._thread_pool, cast(BinaryIO, f))
 
-    async def create(self, url: str) -> WritableStream:
+    async def create(self, url: str, *, retry_writes: bool = True) -> WritableStream:  # pylint: disable=unused-argument
         f = await blocking_to_async(self._thread_pool, open, self._get_path(url), 'wb')
         return blocking_writable_stream_to_async(self._thread_pool, cast(BinaryIO, f))
 
@@ -447,7 +447,7 @@ class SourceCopier:
 
         async with await self.router_fs.open(srcfile) as srcf:
             try:
-                destf = await self.router_fs.create(destfile)
+                destf = await self.router_fs.create(destfile, retry_writes=False)
             except FileNotFoundError:
                 await self.router_fs.makedirs(os.path.dirname(destfile), exist_ok=True)
                 destf = await self.router_fs.create(destfile)
@@ -463,7 +463,7 @@ class SourceCopier:
     async def _copy_part(self, source_report, srcfile, part_number, part_creator):
         try:
             async with await self.router_fs.open_from(srcfile, part_number * self.PART_SIZE) as srcf:
-                async with await part_creator.create_part(part_number, part_number * self.PART_SIZE) as destf:
+                async with await part_creator.create_part(part_number, part_number * self.PART_SIZE, retry_writes=False) as destf:
                     n = self.PART_SIZE
                     while n > 0:
                         b = await srcf.read(min(Copier.BUFFER_SIZE, n))
@@ -485,7 +485,7 @@ class SourceCopier:
             destfile: str):
         size = await srcstat.size()
         if size <= self.PART_SIZE:
-            await self._copy_file(srcfile, destfile)
+            await retry_transient_errors(self._copy_file, srcfile, destfile)
             return
 
         n_parts = int((size + self.PART_SIZE - 1) / self.PART_SIZE)
@@ -498,7 +498,7 @@ class SourceCopier:
 
         async with part_creator:
             await bounded_gather2(sema, *[
-                self._copy_part(source_report, srcfile, i, part_creator)
+                retry_transient_errors(self._copy_part, source_report, srcfile, i, part_creator)
                 for i in range(n_parts)
             ], cancel_on_error=True)
 
@@ -768,9 +768,9 @@ class RouterAsyncFS(AsyncFS):
         fs = self._get_fs(url)
         return await fs.open_from(url, start)
 
-    async def create(self, url: str) -> WritableStream:
+    async def create(self, url: str, *, retry_writes: bool = True) -> WritableStream:
         fs = self._get_fs(url)
-        return await fs.create(url)
+        return await fs.create(url, retry_writes=retry_writes)
 
     async def multi_part_create(
             self,
