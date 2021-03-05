@@ -440,7 +440,7 @@ class CopyReport:
         print('Transfer summary:')
         print(f'  Sources: {total_sources}')
         print(f'  Files: {total_files}')
-        print(f'  Bytes: {total_bytes}')
+        print(f'  Bytes: {humanize.naturalsize(total_bytes)}')
         print(f'  Average transfer rate: {humanize.naturalsize(total_bytes / (self._duration / 1000))}/s')
 
         print('Sources:')
