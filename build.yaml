@@ -122,8 +122,6 @@ steps:
        to: /repo/batch/test
      - from: /io/repo/memory/test
        to: /repo/memory/test
-     - from: /io/repo/query/test
-       to: /repo/query/test
      - from: /io/repo/notebook/sql
        to: /repo/notebook/sql
      - from: /io/repo/monitoring/sql
