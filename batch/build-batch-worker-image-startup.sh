@@ -43,7 +43,6 @@ docker-credential-gcr configure-docker
 
 GCP_PROJECT=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/project/project-id")
 docker pull gcr.io/$GCP_PROJECT/ubuntu:18.04
-docker pull gcr.io/google.com/cloudsdktool/cloud-sdk:310.0.0-alpine
 
 # add docker daemon debug logging
 jq '.debug = true' /etc/docker/daemon.json > daemon.json.tmp

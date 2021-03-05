@@ -113,29 +113,29 @@ steps:
      git rev-parse HEAD > git_version
    outputs:
      - from: /io/repo/auth/sql
-       to: /repo/auth/
+       to: /repo/auth/sql
      - from: /io/repo/ci/sql
-       to: /repo/ci/
+       to: /repo/ci/sql
      - from: /io/repo/batch/sql
-       to: /repo/batch/
+       to: /repo/batch/sql
      - from: /io/repo/batch/test
-       to: /repo/batch/
+       to: /repo/batch/test
      - from: /io/repo/memory/test
-       to: /repo/memory/
+       to: /repo/memory/test
      - from: /io/repo/query/test
-       to: /repo/query/
+       to: /repo/query/test
      - from: /io/repo/notebook/sql
-       to: /repo/notebook/
+       to: /repo/notebook/sql
      - from: /io/repo/monitoring/sql
-       to: /repo/monitoring/
+       to: /repo/monitoring/sql
      - from: /io/repo/atgu/sql
-       to: /repo/atgu/
+       to: /repo/atgu/sql
      - from: /io/repo/hail/python/hailtop
-       to: /repo/hailtop/
+       to: /repo/hailtop
      - from: /io/repo/hail/python/test
-       to: /repo/test/
+       to: /repo/test
      - from: /io/repo/hail/python/cluster-tests
-       to: /repo/hail/python/cluster-tests/
+       to: /repo/hail/python/cluster-tests
      - from: /io/repo/hail/python/hail/hail_version
        to: /hail_version
      - from: /io/repo/hail/python/hail/hail_pip_version
@@ -143,13 +143,13 @@ steps:
      - from: /io/repo/git_version
        to: /git_version
      - from: /io/repo/address/test
-       to: /repo/address/
+       to: /repo/address/test
      - from: /io/repo/lsm
        to: /repo/lsm
      - from: /io/repo/ci/bootstrap_create_accounts.py
-       to: /repo/ci/
+       to: /repo/ci/bootstrap_create_accounts.py
      - from: /io/repo/ci/create_initial_account.py
-       to: /repo/ci/
+       to: /repo/ci/create_initial_account.py
    dependsOn:
      - base_image
  - kind: buildImage
@@ -240,7 +240,7 @@ steps:
      mysql --defaults-extra-file=/sql-config/sql-config.cnf < /io/sql/delete-auth-tables.sql
    inputs:
     - from: /repo/auth/sql
-      to: /io/
+      to: /io/sql
    secrets:
     - name: database-server-config
       namespace:
@@ -269,7 +269,7 @@ steps:
       script: /io/sql/add-roles.sql
    inputs:
     - from: /repo/auth/sql
-      to: /io/
+      to: /io/sql
    namespace:
      valueFrom: default_ns.name
    shutdowns:
@@ -1666,7 +1666,7 @@ steps:
      mysql --defaults-extra-file=/sql-config/sql-config.cnf < /io/sql/delete-monitoring-tables.sql
    inputs:
     - from: /repo/monitoring/sql
-      to: /io/
+      to: /io/sql
    secrets:
     - name: database-server-config
       namespace:
@@ -1687,7 +1687,7 @@ steps:
       script: /io/sql/initial.sql
    inputs:
     - from: /repo/monitoring/sql
-      to: /io/
+      to: /io/sql
    namespace:
      valueFrom: default_ns.name
    shutdowns:
@@ -1859,7 +1859,7 @@ steps:
      mysql --defaults-extra-file=/sql-config/sql-config.cnf < /io/sql/delete-batch-tables.sql
    inputs:
     - from: /repo/batch/sql
-      to: /io/
+      to: /io/sql
    secrets:
     - name: database-server-config
       namespace:
@@ -1881,7 +1881,7 @@ steps:
      mysql --defaults-extra-file=/sql-config/sql-config.cnf < /io/sql/delete-ci-tables.sql
    inputs:
     - from: /repo/ci/sql
-      to: /io/
+      to: /io/sql
    secrets:
     - name: database-server-config
       namespace:
@@ -1904,7 +1904,7 @@ steps:
       script: /io/sql/invalidated-batches.sql
    inputs:
     - from: /repo/ci/sql
-      to: /io/
+      to: /io/sql
    namespace:
      valueFrom: default_ns.name
    shutdowns:
@@ -1988,7 +1988,7 @@ steps:
       script: /io/sql/increase-test-and-dev-pool-sizes.py
    inputs:
     - from: /repo/batch/sql
-      to: /io/
+      to: /io/sql
    namespace:
      valueFrom: default_ns.name
    shutdowns:
@@ -2364,7 +2364,7 @@ steps:
      make test
    inputs:
      - from: /repo/lsm
-       to: /io/
+       to: /io/lsm
    dependsOn:
      - base_image
      - copy_files
@@ -2416,7 +2416,7 @@ steps:
       mountPath: /test-gsa-key
    inputs:
     - from: /repo/memory/test
-      to: /io/
+      to: /io/test
    dependsOn:
     - create_deploy_config
     - create_accounts
@@ -2456,7 +2456,7 @@ steps:
              /io/test/
    inputs:
     - from: /repo/batch/test
-      to: /io/
+      to: /io/test
    port: 5000
    timeout: 1200
    secrets:
@@ -2524,7 +2524,7 @@ steps:
              /io/test/
    inputs:
     - from: /repo/batch/test
-      to: /io/
+      to: /io/test
    port: 5000
    timeout: 1200
    secrets:
@@ -2592,7 +2592,7 @@ steps:
              /io/test/
    inputs:
     - from: /repo/batch/test
-      to: /io/
+      to: /io/test
    port: 5000
    timeout: 1200
    secrets:
@@ -2660,7 +2660,7 @@ steps:
              /io/test/
    inputs:
     - from: /repo/batch/test
-      to: /io/
+      to: /io/test
    port: 5000
    timeout: 1200
    secrets:
@@ -2728,7 +2728,7 @@ steps:
              /io/test/
    inputs:
     - from: /repo/batch/test
-      to: /io/
+      to: /io/test
    port: 5000
    timeout: 1200
    secrets:
@@ -2778,7 +2778,7 @@ steps:
      asyncio.get_event_loop().run_until_complete(test_accounts.delete_all_test_billing_projects())'
    inputs:
     - from: /repo/batch/test
-      to: /io/
+      to: /io/test
    secrets:
     - name: gce-deploy-config
       namespace:
@@ -2938,12 +2938,12 @@ steps:
              -s \
              -vv \
              --instafail \
-             /io/test/test/hailtop/batch/
+             /io/test/hailtop/batch/
    inputs:
     - from: /repo/test
-      to: /io/
+      to: /io/test
     - from: /repo/hailtop
-      to: /io/
+      to: /io/hailtop
    timeout: 1200
    secrets:
     - name: gce-deploy-config
@@ -2989,12 +2989,12 @@ steps:
              -s \
              -vv \
              --instafail \
-             /io/test/test/hailtop/batch/
+             /io/test/hailtop/batch/
    inputs:
     - from: /repo/test
-      to: /io/
+      to: /io/test
     - from: /repo/hailtop
-      to: /io/
+      to: /io/hailtop
    timeout: 1200
    secrets:
     - name: gce-deploy-config
@@ -3040,12 +3040,12 @@ steps:
              -s \
              -vv \
              --instafail \
-             /io/test/test/hailtop/batch/
+             /io/test/hailtop/batch/
    inputs:
     - from: /repo/test
-      to: /io/
+      to: /io/test
     - from: /repo/hailtop
-      to: /io/
+      to: /io/hailtop
    timeout: 1200
    secrets:
     - name: gce-deploy-config
@@ -3091,12 +3091,12 @@ steps:
              -s \
              -vv \
              --instafail \
-             /io/test/test/hailtop/batch/
+             /io/test/hailtop/batch/
    inputs:
     - from: /repo/test
-      to: /io/
+      to: /io/test
     - from: /repo/hailtop
-      to: /io/
+      to: /io/hailtop
    timeout: 1200
    secrets:
     - name: gce-deploy-config
@@ -3142,12 +3142,12 @@ steps:
              -s \
              -vv \
              --instafail \
-             /io/test/test/hailtop/batch/
+             /io/test/hailtop/batch/
    inputs:
     - from: /repo/test
-      to: /io/
+      to: /io/test
     - from: /repo/hailtop
-      to: /io/
+      to: /io/hailtop
    timeout: 1200
    secrets:
     - name: gce-deploy-config
@@ -3180,7 +3180,7 @@ steps:
    script: |
      set -ex
      export HAIL_GSA_KEY_FILE=/test-gsa-key/key.json
-     cd /io/hailtop/hailtop/batch
+     cd /io/hailtop/batch
      hailctl config set batch/billing_project test
      hailctl config set batch/bucket hail-test-dmk9z
      python3 -m pytest --instafail \
@@ -3211,7 +3211,7 @@ steps:
    timeout: 1200
    inputs:
     - from: /repo/hailtop
-      to: /io/
+      to: /io/hailtop
  - kind: createDatabase
    name: notebook_database
    databaseName: notebook
@@ -3220,7 +3220,7 @@ steps:
       script: /io/sql/initial.sql
    inputs:
     - from: /repo/notebook/sql
-      to: /io/
+      to: /io/sql
    namespace:
      valueFrom: default_ns.name
    shutdowns:
@@ -3614,7 +3614,7 @@ steps:
      python3 -m pytest --log-date-format="%Y-%m-%dT%H:%M:%S" --log-format="%(asctime)s %(levelname)s %(name)s %(filename)s:%(lineno)d:%(funcName)s %(message)s" --log-cli-level=INFO -s -vv --instafail /io/test/
    inputs:
     - from: /repo/address/test
-      to: /io/
+      to: /io/test
    port: 5000
    timeout: 1200
    secrets:
@@ -3692,7 +3692,7 @@ steps:
      python3 -m pytest --log-date-format="%Y-%m-%dT%H:%M:%S" --log-format="%(asctime)s %(levelname)s %(name)s %(filename)s:%(lineno)d:%(funcName)s %(message)s" --log-cli-level=INFO -s -vv --instafail -k "test_invariants" /io/test/
    inputs:
     - from: /repo/batch/test
-      to: /io/
+      to: /io/test
    timeout: 300
    secrets:
     - name: gce-deploy-config
@@ -3774,7 +3774,7 @@ steps:
      mysql --defaults-extra-file=/sql-config/sql-config.cnf < /io/sql/delete-atgu-tables.sql
    inputs:
     - from: /repo/atgu/sql
-      to: /io/
+      to: /io/sql
    secrets:
     - name: database-server-config
       namespace:
@@ -3802,7 +3802,7 @@ steps:
       script: /io/sql/initial.sql
    inputs:
     - from: /repo/atgu/sql
-      to: /io/
+      to: /io/sql
    namespace:
      valueFrom: default_ns.name
    shutdowns:

@@ -30,7 +30,7 @@ steps:
    timeout: 300
    outputs:
     - from: /io/repo
-      to: /
+      to: /repo
    dependsOn:
     - inline_image
  - kind: buildImage
@@ -78,7 +78,7 @@ steps:
       script: /io/sql/insert.py
    inputs:
     - from: /repo/ci/test/resources/sql
-      to: /io/
+      to: /io/sql
    namespace:
      valueFrom: default_ns.name
    shutdowns:
