@@ -3646,8 +3646,11 @@ steps:
    script: |
      set -ex
      cd /io
+     ls -l hail-test.jar
+     md5sum hail-test.jar
+     jar tf hail-test.jar
      mkdir -p src/test
-     tar xzf resources.tar.gz -C src/test
+     tar xzvf resources.tar.gz -C src/test
      java -Xms7500M -Xmx7500M \
           -cp hail-test.jar:$SPARK_HOME/jars/* \
           org.testng.TestNG \
