@@ -542,6 +542,12 @@ def is_transient_error(e):
         return True
     if isinstance(e, aiohttp.client_exceptions.ClientConnectorError):
         return hasattr(e, 'os_error') and is_transient_error(e.os_error)
+    # appears to happen when the connection is lost prematurely, see:
+    # https://github.com/aio-libs/aiohttp/issues/4581
+    # https://github.com/aio-libs/aiohttp/blob/v3.7.4/aiohttp/client_proto.py#L85
+    if (isinstance(e, aiohttp.ClientPayloadError)
+            and e.args[0] == "Response payload is not completed"):
+        return True
     if (isinstance(e, OSError)
             and e.errno in (errno.ETIMEDOUT,
                             errno.ECONNREFUSED,
