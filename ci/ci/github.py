@@ -788,7 +788,7 @@ mkdir -p {shq(repo_dir)}
                     log.exception(msg)
                     raise ValueError(msg)
 
-            with open(f'{shq(repo_dir)}/build.yaml', 'r') as f:
+            with open(f'{repo_dir}/build.yaml', 'r') as f:
                 config = BuildConfiguration(self, f.read(), scope='deploy', requested_step_names=steps)
 
             log.info(f'creating deploy batch for {self.branch.short_str()}')
