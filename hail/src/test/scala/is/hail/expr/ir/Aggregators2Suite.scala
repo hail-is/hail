@@ -17,6 +17,11 @@ import org.testng.annotations.Test
 
 class Aggregators2Suite extends HailSuite {
 
+  def printVersion(clazz: Class[_]): Unit = {
+    val p = clazz.getPackage
+    System.out.printf("%s%n  Title: %s%n  Version: %s%n  Vendor: %s%n", clazz.getName, p.getImplementationTitle, p.getImplementationVersion, p.getImplementationVendor)
+  }
+
   def assertAggEqualsProcessed(
     aggSig: PhysicalAggSig,
     initOp: IR,
@@ -166,6 +171,7 @@ class Aggregators2Suite extends HailSuite {
 
   @Test def TestCount() {
     val seqOpArgs = Array.fill(rows.length)(FastIndexedSeq[IR]())
+    printVersion(org.json4s.JArray.getClass)
     assertAggEquals(countAggSig, FastIndexedSeq(), seqOpArgs, expected = rows.length.toLong, args = FastIndexedSeq(("rows", (arrayType, rows))))
   }
 

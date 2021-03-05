@@ -194,6 +194,10 @@ dependencies {
     bundled group: 'org.ow2.asm', name: 'asm-util', version: '7.3.1'
     bundled group: 'org.ow2.asm', name: 'asm-analysis', version: '7.3.1'
 
+    bundled group: 'org.json4s', name: 'json4s-core_' + scalaMajorVersion, version: '3.5.3'
+    bundled group: 'org.json4s', name: 'json4s-ast_' + scalaMajorVersion, version: '3.5.3'
+    bundled group: 'org.json4s', name: 'json4s-jackson_' + scalaMajorVersion, version: '3.5.3'
+
     bundled 'net.java.dev.jna:jna:4.2.2'
     bundled('net.sourceforge.jdistlib:jdistlib:0.4.5') {
         transitive = false
@@ -314,6 +318,7 @@ tasks.withType(ShadowJar) {
     relocate 'com.github.samtools', 'is.hail.relocated.com.github.samtools'
     relocate 'org.lz4', 'is.hail.relocated.org.lz4'
     relocate 'org.freemarker', 'is.hail.relocated.org.freemarker'
+    relocate 'org.json4s', 'is.hail.org.json4s'
 
     exclude 'META-INF/*.RSA'
     exclude 'META-INF/*.SF'
@@ -331,3 +336,5 @@ task shadowTestJar(type: ShadowJar) {
     from project.sourceSets.main.output, project.sourceSets.test.output
     configurations = [project.configurations.hailTestJar]
 }
+
+assemble.dependsOn shadowJar
