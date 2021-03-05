@@ -158,7 +158,7 @@ async def prod_deploy(request, userdata):
     await watched_branch._start_deploy(
         app['batch_client'],
         steps,
-        sha_must_be=params.get('sha'),
+        expected_sha=params.get('expected_sha'),
     )
 
     batch = watched_branch.deploy_batch
