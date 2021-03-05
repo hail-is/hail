@@ -17,7 +17,8 @@ async def copy(requester_pays_project: Optional[str], transfer: Union[Transfer, 
                 'file', [LocalAsyncFS(thread_pool), GoogleStorageAsyncFS(params=params)]) as fs:
             sema = asyncio.Semaphore(50)
             async with sema:
-                await fs.copy(sema, transfer)
+                copy_report = await fs.copy(sema, transfer)
+                copy_report.summarize()
 
 
 async def main() -> None:

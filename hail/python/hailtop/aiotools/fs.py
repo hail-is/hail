@@ -9,7 +9,9 @@ import shutil
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
 import urllib.parse
-from hailtop.utils import retry_transient_errors, blocking_to_async, url_basename, url_join, bounded_gather2
+import humanize
+from hailtop.utils import (
+    retry_transient_errors, blocking_to_async, url_basename, url_join, bounded_gather2, time_msecs)
 from .stream import ReadableStream, WritableStream, blocking_readable_stream_to_async, blocking_writable_stream_to_async
 
 AsyncFSType = TypeVar('AsyncFSType', bound='AsyncFS')
@@ -363,6 +365,7 @@ class SourceReport:
         self._source = source
         self._source_type: Optional[str] = None
         self._files = 0
+        self._bytes = 0
         self._errors = 0
         self._complete = 0
         self._first_file_error: Optional[Dict[str, Any]] = None
@@ -397,6 +400,9 @@ class TransferReport:
 
 class CopyReport:
     def __init__(self, transfer: Union[Transfer, List[Transfer]]):
+        self._start_time = time_msecs()
+        self._end_time = None
+        self._duration = None
         if isinstance(transfer, Transfer):
             self._transfer_report = TransferReport(transfer)
         else:
@@ -406,6 +412,40 @@ class CopyReport:
     def set_exception(self, exception: Exception):
         assert not self._exception
         self._exception = exception
+
+    def mark_done(self):
+        self._end_time = time_msecs()
+        self._duration = self._end_time - self._start_time
+
+    def summarize(self):
+        source_reports = []
+        def add_source_reports(transfer_report):
+            if isinstance(transfer_report._source_report, SourceReport):
+                source_reports.append(transfer_report._source_report)
+            else:
+                source_reports.extend(transfer_report._source_report)
+
+        if isinstance(self._transfer_report, Transfer):
+            total_transfers = 1
+            add_source_reports(self._transfer_report)
+        else:
+            total_transfers = len(self._transfer_report)
+            for t in self._transfer_report:
+                add_source_reports(t)
+
+        total_sources = len(source_reports)
+        total_files = sum([sr._files for sr in source_reports])
+        total_bytes = sum([sr._bytes for sr in source_reports])
+
+        print('Transfer summary:')
+        print(f'  Sources: {total_sources}')
+        print(f'  Files: {total_files}')
+        print(f'  Bytes: {total_bytes}')
+        print(f'  Average transfer rate: {humanize.naturalsize(total_bytes / (self._duration / 1000))}/s')
+
+        print('Sources:')
+        for sr in source_reports:
+            print(f'  {sr._source}: {sr._files} files, {humanize.naturalsize(sr._bytes)}')
 
 
 class UnexpectedEOFError(Exception):
@@ -511,6 +551,7 @@ class SourceCopier:
             destfile: str,
             return_exceptions: bool):
         source_report._files += 1
+        source_report._bytes += await srcstat.size()
         success = False
         try:
             await self._copy_file_multi_part_main(sema, source_report, srcfile, srcstat, destfile)
@@ -820,7 +861,9 @@ class RouterAsyncFS(AsyncFS):
         for fs in self._filesystems:
             await fs.close()
 
-    async def copy(self, sema: asyncio.Semaphore, transfer: Union[Transfer, List[Transfer]], return_exceptions=False):
+    async def copy(self, sema: asyncio.Semaphore, transfer: Union[Transfer, List[Transfer]], return_exceptions: bool = False) -> CopyReport:
         copier = Copier(self)
         copy_report = CopyReport(transfer)
         await copier.copy(sema, copy_report, transfer, return_exceptions)
+        copy_report.mark_done()
+        return copy_report
