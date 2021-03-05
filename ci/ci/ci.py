@@ -149,13 +149,22 @@ async def prod_deploy(request, userdata):
         log.info('prod deploy failed: ' + message, exc_info=True)
         raise web.HTTPBadRequest(text=message) from e
 
+    if 'sha' not in params:
+        message = f'parameter "sha" is required.\n\n{params}'
+        log.info('prod deploy failed: ' + message, exc_info=True)
+        raise web.HTTPBadRequest(text=message)
+    if params['sha'] == 'HEAD':
+        message = (
+            f'SHA must be a specific commit hash, and can\'t be a HEAD reference. '
+            f'The reason is that HEAD can change in the middle of the deploy.\n\n{params}'
+        )
+        log.info('prod deploy failed: ' + message, exc_info=True)
+        raise web.HTTPBadRequest(text=message)
+
     watched_branch = WatchedBranch(
         0, FQBranch.from_short_str('populationgenomics/hail:main'), True
     )
-    if params.get('sha'):
-        watched_branch.sha = params['sha']
-    else:
-        watched_branch.sha = 'HEAD'
+    watched_branch.sha = params['sha']
     await watched_branch._start_deploy(app['batch_client'], steps)
 
     batch = watched_branch.deploy_batch
