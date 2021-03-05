@@ -517,6 +517,7 @@ class SourceCopier:
                         written = await destf.write(b)
                         assert written == len(b)
                         n -= len(b)
+                print(f'_copy_part created {part_number}')
         except Exception as e:
             if return_exceptions:
                 source_report.set_exception(e)
@@ -537,7 +538,7 @@ class SourceCopier:
             return
 
         n_parts = int((size + self.PART_SIZE - 1) / self.PART_SIZE)
-
+        print(f'n_parts {srcfile} {n_parts}')
         try:
             part_creator = await self.router_fs.multi_part_create(sema, destfile, n_parts)
         except FileNotFoundError:
@@ -549,6 +550,8 @@ class SourceCopier:
                 retry_transient_errors(self._copy_part, source_report, srcfile, i, part_creator, return_exceptions)
                 for i in range(n_parts)
             ], cancel_on_error=True)
+            print(f'_copy_parts done {srcfile}')
+        print('ALL DONE')
 
     async def _copy_file_multi_part(
             self,
