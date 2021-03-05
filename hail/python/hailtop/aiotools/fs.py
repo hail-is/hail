@@ -11,7 +11,8 @@ from concurrent.futures import ThreadPoolExecutor
 import urllib.parse
 import humanize
 from hailtop.utils import (
-    retry_transient_errors, blocking_to_async, url_basename, url_join, bounded_gather2, time_msecs)
+    retry_transient_errors, blocking_to_async, url_basename, url_join, bounded_gather2,
+    time_msecs, humanize_timedelta_msecs)
 from .stream import ReadableStream, WritableStream, blocking_readable_stream_to_async, blocking_writable_stream_to_async
 
 AsyncFSType = TypeVar('AsyncFSType', bound='AsyncFS')
@@ -441,6 +442,7 @@ class CopyReport:
         print(f'  Sources: {total_sources}')
         print(f'  Files: {total_files}')
         print(f'  Bytes: {humanize.naturalsize(total_bytes)}')
+        print(f'  Time: {humanize_timedelta_msecs(self._duration)}')
         print(f'  Average transfer rate: {humanize.naturalsize(total_bytes / (self._duration / 1000))}/s')
 
         print('Sources:')
