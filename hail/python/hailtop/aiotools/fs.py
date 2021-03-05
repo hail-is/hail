@@ -439,6 +439,7 @@ class CopyReport:
         total_bytes = sum([sr._bytes for sr in source_reports])
 
         print('Transfer summary:')
+        print(f'  Transfers: {total_transfers}')
         print(f'  Sources: {total_sources}')
         print(f'  Files: {total_files}')
         print(f'  Bytes: {humanize.naturalsize(total_bytes)}')
