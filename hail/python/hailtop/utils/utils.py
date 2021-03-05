@@ -562,6 +562,8 @@ def is_transient_error(e):
         return True
     if isinstance(e, google.auth.exceptions.TransportError):
         return is_transient_error(e.__cause__)
+    if isinstance(e, google.api_core.exceptions.GatewayTimeout):
+        return True
     if isinstance(e, TransientError):
         return True
     return False
