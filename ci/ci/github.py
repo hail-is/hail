@@ -781,8 +781,9 @@ mkdir -p {shq(repo_dir)}
             # To make sure that the revision is consistent during the entire build,
             # we are replacing HEAD with the actual SHA of the revision.
             if self.sha == 'HEAD':
-                self.sha = sync_check_shell_output(
+                out, err = sync_check_shell_output(
                     f'(cd {shq(repo_dir)}; git rev-parse {self.sha})')
+                self.sha = out.decode().strip()
 
             with open(f'{repo_dir}/build.yaml', 'r') as f:
                 config = BuildConfiguration(self, f.read(), scope='deploy', requested_step_names=steps)
