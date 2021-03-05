@@ -61,6 +61,7 @@ async def pr_config(app, pr: PR) -> Dict[str, Any]:
         'review_state': pr.review_state,
         'author': pr.author,
         'assignees': pr.assignees,
+        'reviewers': pr.reviewers,
         'out_of_date': pr.build_state in ['failure', 'success', None] and not pr.is_up_to_date(),
     }
 
@@ -218,7 +219,7 @@ def is_pr_author(gh_username, pr_config):
 
 
 def is_pr_reviewer(gh_username, pr_config):
-    return gh_username in pr_config['assignees']
+    return gh_username in pr_config['assignees'] or gh_username in pr_config['reviewers']
 
 
 def pr_requires_action(gh_username, pr_config):
