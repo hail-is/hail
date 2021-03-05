@@ -420,6 +420,7 @@ class CopyReport:
 
     def summarize(self):
         source_reports = []
+
         def add_source_reports(transfer_report):
             if isinstance(transfer_report._source_report, SourceReport):
                 source_reports.append(transfer_report._source_report)
