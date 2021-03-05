@@ -455,6 +455,7 @@ class GoogleStorageFileListEntry(FileListEntry):
 
 class GoogleStorageMultiPartCreate(MultiPartCreate):
     def __init__(self, sema: asyncio.Semaphore, fs: 'GoogleStorageAsyncFS', dest_url: str, num_parts: int):
+        print(f'GoogleStorageMultiPartCreate {dest_url} {num_parts}')
         self._sema = sema
         self._fs = fs
         self._dest_url = dest_url
@@ -479,6 +480,7 @@ class GoogleStorageMultiPartCreate(MultiPartCreate):
         return self._tmp_name(f'part-{number}')
 
     async def create_part(self, number: int, start: int, *, retry_writes: bool = True) -> WritableStream:
+        print(f'create_part {number} {start}')
         part_name = self._part_name(number)
         params = {
             'uploadType': 'resumable' if retry_writes else 'media'
@@ -495,6 +497,8 @@ class GoogleStorageMultiPartCreate(MultiPartCreate):
                         exc_type: Optional[Type[BaseException]],
                         exc_val: Optional[BaseException],
                         exc_tb: Optional[TracebackType]) -> None:
+        print(f'aexit {exc_val}')
+
         async with OnlineBoundedGather2(self._sema) as pool:
             cleanup_tasks = []
             try:

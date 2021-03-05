@@ -504,7 +504,7 @@ class SourceCopier:
                     written = await destf.write(b)
                     assert written == len(b)
 
-    async def _copy_part(self, source_report, srcfile, part_number, part_creator):
+    async def _copy_part(self, source_report, srcfile, part_number, part_creator, return_exceptions):
         try:
             async with await self.router_fs.open_from(srcfile, part_number * self.PART_SIZE) as srcf:
                 async with await part_creator.create_part(part_number, part_number * self.PART_SIZE, retry_writes=False) as destf:
@@ -518,7 +518,10 @@ class SourceCopier:
                         assert written == len(b)
                         n -= len(b)
         except Exception as e:
-            source_report.set_exception(e)
+            if return_exceptions:
+                source_report.set_exception(e)
+            else:
+                raise
 
     async def _copy_file_multi_part_main(
             self,
@@ -526,7 +529,8 @@ class SourceCopier:
             source_report: SourceReport,
             srcfile: str,
             srcstat: FileStatus,
-            destfile: str):
+            destfile: str,
+            return_exceptions: bool):
         size = await srcstat.size()
         if size <= self.PART_SIZE:
             await retry_transient_errors(self._copy_file, srcfile, destfile)
@@ -542,7 +546,7 @@ class SourceCopier:
 
         async with part_creator:
             await bounded_gather2(sema, *[
-                retry_transient_errors(self._copy_part, source_report, srcfile, i, part_creator)
+                retry_transient_errors(self._copy_part, source_report, srcfile, i, part_creator, return_exceptions)
                 for i in range(n_parts)
             ], cancel_on_error=True)
 
@@ -558,7 +562,7 @@ class SourceCopier:
         source_report._bytes += await srcstat.size()
         success = False
         try:
-            await self._copy_file_multi_part_main(sema, source_report, srcfile, srcstat, destfile)
+            await self._copy_file_multi_part_main(sema, source_report, srcfile, srcstat, destfile, return_exceptions)
             source_report._complete += 1
             success = True
         except Exception as e:
