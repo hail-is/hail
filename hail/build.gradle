@@ -126,10 +126,7 @@ configurations {
                 }
 	        }
             eachDependency { DependencyResolveDetails details ->
-                if (details.requested.group == 'org.json4s') {
-                    // JSON4S 3.6.0+ contain a known bug (https://github.com/json4s/json4s/issues/507)
-                    details.useVersion('3.5.3')
-                } else if (details.requested.group == 'org.scalanlp' && details.requested.version == '1.0') {
+                if (details.requested.group == 'org.scalanlp' && details.requested.version == '1.0') {
                     // Breeze 1.0 contains a known bug (https://github.com/scalanlp/breeze/issues/772)
                     details.useVersion('1.1')
                 }
@@ -193,6 +190,12 @@ dependencies {
     bundled group: 'org.ow2.asm', name: 'asm', version: '7.3.1'
     bundled group: 'org.ow2.asm', name: 'asm-util', version: '7.3.1'
     bundled group: 'org.ow2.asm', name: 'asm-analysis', version: '7.3.1'
+
+    // Spark 3 and spark 2 use different, incompatible versions of this package. Pin and relocate 3.5.3
+    // Also: JSON4S 3.6.0+ contain a known bug (https://github.com/json4s/json4s/issues/507).
+    bundled group: 'org.json4s', name: 'json4s-core_' + scalaMajorVersion, version: '3.5.3'
+    bundled group: 'org.json4s', name: 'json4s-ast_' + scalaMajorVersion, version: '3.5.3'
+    bundled group: 'org.json4s', name: 'json4s-jackson_' + scalaMajorVersion, version: '3.5.3'
 
     bundled 'net.java.dev.jna:jna:4.2.2'
     bundled('net.sourceforge.jdistlib:jdistlib:0.4.5') {
@@ -314,6 +317,7 @@ tasks.withType(ShadowJar) {
     relocate 'com.github.samtools', 'is.hail.relocated.com.github.samtools'
     relocate 'org.lz4', 'is.hail.relocated.org.lz4'
     relocate 'org.freemarker', 'is.hail.relocated.org.freemarker'
+    relocate 'org.json4s', 'is.hail.org.relocated.json4s'
 
     exclude 'META-INF/*.RSA'
     exclude 'META-INF/*.SF'
