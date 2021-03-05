@@ -761,7 +761,7 @@ url: {url}
                 log.info(f'cancel batch {batch.id} for {attrs["pr"]} {attrs["source_sha"]} => {attrs["target_sha"]}')
                 await batch.cancel()
 
-    async def _start_deploy(self, batch_client, steps=(), expected_sha=None):
+    async def _start_deploy(self, batch_client, steps=()):
         # not deploying
         assert not self.deploy_batch or self.deploy_state
 
@@ -777,16 +777,12 @@ mkdir -p {shq(repo_dir)}
 (cd {shq(repo_dir)}; {self.checkout_script()})
 '''
             )
-            if expected_sha is not None:
-                out, err = sync_check_shell_output(f'(cd {shq(repo_dir)}; git rev-parse {self.sha})')
-                current_sha = out.decode().strip()
-                if current_sha != expected_sha:
-                    msg = (
-                        f'SHA of the cloned repository {current_sha} does not match'
-                        f'the expected SHA {expected_sha}'
-                    )
-                    log.exception(msg)
-                    raise ValueError(msg)
+            # The repository is cloned multiple times during the build process.
+            # To make sure that the revision is consistent during the entire build,
+            # we are replacing HEAD with the actual SHA of the revision.
+            if self.sha == 'HEAD':
+                self.sha = sync_check_shell_output(
+                    f'(cd {shq(repo_dir)}; git rev-parse {self.sha})')
 
             with open(f'{repo_dir}/build.yaml', 'r') as f:
                 config = BuildConfiguration(self, f.read(), scope='deploy', requested_step_names=steps)

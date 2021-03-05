@@ -152,14 +152,11 @@ async def prod_deploy(request, userdata):
     watched_branch = WatchedBranch(
         0, FQBranch.from_short_str('populationgenomics/hail:main'), True
     )
-    # We only allow to deploy to prod from the HEAD revision; however we are using
-    # the sha parameter to verify that HEAD points to what we expect
-    watched_branch.sha = 'HEAD'
-    await watched_branch._start_deploy(
-        app['batch_client'],
-        steps,
-        expected_sha=params.get('expected_sha'),
-    )
+    if params.get('sha'):
+        watched_branch.sha = params['sha']
+    else:
+        watched_branch.sha = 'HEAD'
+    await watched_branch._start_deploy(app['batch_client'], steps)
 
     batch = watched_branch.deploy_batch
     if not isinstance(batch, MergeFailureBatch):
