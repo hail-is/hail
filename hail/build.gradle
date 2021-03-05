@@ -148,20 +148,27 @@ configurations {
 }
 
 dependencies {
-    justSpark 'org.apache.spark:spark-mllib_' + scalaMajorVersion + ':' + sparkVersion
+    justSpark ('org.apache.spark:spark-mllib_' + scalaMajorVersion + ':' + sparkVersion) {
+        exclude group: 'org.json4s'
+    }
 
     unbundled 'org.scala-lang:scala-library:' + scalaVersion
     unbundled 'org.scala-lang:scala-reflect:' + scalaVersion
 
     unbundled('org.apache.spark:spark-core_' + scalaMajorVersion + ':' + sparkVersion) {
         exclude module: 'hadoop-client'
+        exclude group: 'org.json4s'
     }
     unbundled('org.apache.hadoop:hadoop-client:2.7.1') {
         exclude module: 'servlet-api'
         exclude module: 'asm'
     }
-    unbundled 'org.apache.spark:spark-sql_' + scalaMajorVersion + ':' + sparkVersion
-    unbundled 'org.apache.spark:spark-mllib_' + scalaMajorVersion + ':' + sparkVersion
+    unbundled ('org.apache.spark:spark-sql_' + scalaMajorVersion + ':' + sparkVersion) {
+        exclude group: 'org.json4s'
+    }
+    unbundled ('org.apache.spark:spark-mllib_' + scalaMajorVersion + ':' + sparkVersion) {
+        exclude group: 'org.json4s'
+    }
 
     bundled 'org.lz4:lz4-java:1.4.0'
 
