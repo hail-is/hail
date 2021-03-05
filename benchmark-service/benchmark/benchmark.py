@@ -315,8 +315,15 @@ async def get_commit(app, sha):  # pylint: disable=unused-argument
     gs_reader = app['gs_reader']
 
     file_path = f'{BENCHMARK_RESULTS_PATH}/0-{sha}.json'
+
     request_string = f'/repos/hail-is/hail/commits/{sha}'
-    gh_commit = await github_client.getitem(request_string)
+
+    try:
+        gh_commit = await github_client.getitem(request_string)
+    except gidgethub.BadRequest as e:
+        if e.status_code == 404:
+            log.exception(f'commit with sha {sha} not found')
+        return None
 
     message = gh_commit['commit']['message']
     match = GH_COMMIT_MESSAGE_REGEX.search(message)
@@ -361,7 +368,11 @@ async def update_commit(app, sha):  # pylint: disable=unused-argument
     log.info('in update_commit')
     global benchmark_data
     gs_reader = app['gs_reader']
+
     commit = await get_commit(app, sha)
+    if commit is None:
+        return commit
+
     file_path = f'{BENCHMARK_RESULTS_PATH}/0-{sha}.json'
 
     if commit['status'] is None:
@@ -394,6 +405,8 @@ async def get_status(request):  # pylint: disable=unused-argument
     sha = str(request.match_info['sha'])
     app = request.app
     commit = await get_commit(app, sha)
+    if commit is None:
+        return web.HTTPBadRequest()
     return web.json_response(commit)
 
 
@@ -421,12 +434,14 @@ async def delete_commit(request):  # pylint: disable=unused-argument
     return web.Response()
 
 
-@router.post('/api/v1alpha/benchmark/commit/{sha}')
+@router.post('/api/v1alpha/benchmark/commit/{sha}/update')
 async def call_update_commit(request):  # pylint: disable=unused-argument
     body = await request.json()
     sha = body['sha']
-    log.info('call_update_commit')
+    log.info(f'call_update_commit for {sha}')
     commit = await update_commit(request.app, sha)
+    if commit is None:
+        raise web.HTTPBadRequest()
     return web.json_response(commit)
 
 

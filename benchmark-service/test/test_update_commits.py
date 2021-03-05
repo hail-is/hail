@@ -1,8 +1,5 @@
-import json
 import logging
-import asyncio
 import pytest
-import aiohttp
 
 from hailtop.config import get_deploy_config
 from hailtop.auth import service_auth_headers
@@ -23,30 +20,24 @@ async def test_update_commits():
     commit_benchmark_url = deploy_config.url('benchmark', f'/api/v1alpha/benchmark/commit/{sha}')
 
     async with client_session() as session:
-
-        commit = None
-
         await utils.request_retry_transient_errors(
             session, 'DELETE', f'{commit_benchmark_url}', headers=headers, json={'sha': sha})
 
         resp_status = await utils.request_retry_transient_errors(
-            session, 'GET', f'{commit_benchmark_url}', headers=headers, json={'sha': sha})
+            session, 'GET', f'{commit_benchmark_url}', headers=headers)
         commit = await resp_status.json()
         assert commit['status'] is None, commit
 
         resp_commit = await utils.request_retry_transient_errors(
-            session, 'POST', f'{commit_benchmark_url}', headers=headers, json={'sha': sha})
+            session, 'POST', f'{commit_benchmark_url}/update', headers=headers, json={'sha': sha})
         commit = await resp_commit.json()
+        assert 'status' in commit, commit
 
-        async def wait_forever():
-            nonlocal commit
-            while commit is None or not commit['status']['complete']:
-                resp = await utils.request_retry_transient_errors(
-                    session, 'GET', f'{commit_benchmark_url}', headers=headers, json={'sha': sha})
-                commit = await resp.json()
-                await asyncio.sleep(5)
-                print(commit['status'])
-            return commit
-
-        commit = await wait_forever()
-        assert commit['status']['complete'] == True, commit
+        delay = 0.1
+        while not commit['status']['complete']:
+            resp = await utils.request_retry_transient_errors(
+                session, 'GET', f'{commit_benchmark_url}', headers=headers)
+            commit = await resp.json()
+            print(commit)
+            assert 'status' in commit, commit
+            delay = utils.utils.sync_sleep_and_backoff(delay)
