@@ -1,8 +1,9 @@
 package is.hail.types.physical
 
-import is.hail.annotations.{CodeOrdering, Region}
+import is.hail.annotations.Region
 import is.hail.asm4s.{Code, _}
 import is.hail.expr.Nat
+import is.hail.expr.ir.orderings.CodeOrdering
 import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder}
 import is.hail.types.physical.stypes.SCode
 import is.hail.types.physical.stypes.concrete.SNDArrayPointerCode
@@ -25,8 +26,6 @@ abstract class PNDArray extends PType {
 
   lazy val virtualType: TNDArray = TNDArray(elementType.virtualType, Nat(nDims))
   assert(elementType.required, "elementType must be required")
-
-  def codeOrdering(mb: EmitMethodBuilder[_], other: PType): CodeOrdering = throw new UnsupportedOperationException
 
   def dataFirstElementPointer(ndAddr: Code[Long]): Code[Long]
   def dataPArrayPointer(ndAddr: Code[Long]): Code[Long]

@@ -3,18 +3,20 @@ package is.hail.expr.ir
 import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
 
 import is.hail.HailSuite
-import is.hail.annotations.{CodeOrdering, Region}
+import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.check.{Gen, Prop}
 import is.hail.expr.ir.agg._
+import is.hail.expr.ir.orderings.CodeOrdering
 import is.hail.types.physical._
 import is.hail.io.{InputBuffer, OutputBuffer, StreamBufferSpec}
+import is.hail.types.physical.stypes.primitives.SInt64
 import is.hail.utils._
 import org.testng.annotations.Test
 
 import scala.collection.mutable
 class TestBTreeKey(mb: EmitMethodBuilder[_]) extends BTreeKey {
-  private val comp = mb.getCodeOrdering(PInt64(), CodeOrdering.Compare())
+  private val comp = mb.ecb.getOrderingFunction(SInt64(false), SInt64(false), CodeOrdering.Compare())
   def storageType: PTuple = PCanonicalTuple(required = true, PInt64(), PCanonicalTuple(false))
   def compType: PType = PInt64()
   def isEmpty(cb: EmitCodeBuilder, off: Code[Long]): Code[Boolean] =

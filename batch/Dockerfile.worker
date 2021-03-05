@@ -46,3 +46,4 @@ COPY batch/batch /batch/batch/
 RUN hail-pip-install --no-deps /batch && rm -rf /batch
 
 COPY batch/hail.jar /
+COPY query/log4j.properties /

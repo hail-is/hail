@@ -1,8 +1,8 @@
 package is.hail.expr.ir.functions
 
-import is.hail.annotations.CodeOrdering
 import is.hail.asm4s.{Code, _}
 import is.hail.expr.ir._
+import is.hail.expr.ir.orderings.CodeOrdering
 import is.hail.types.physical._
 import is.hail.types.virtual._
 
@@ -68,7 +68,7 @@ object IntervalFunctions extends RegistryFunctions {
         int.toI(cb).map(cb) { case (intc: PIntervalCode) =>
           val interval: PIntervalValue = intc.memoize(cb, "interval")
           val pointv = cb.memoize(point.toI(cb), "point")
-          val compare = cb.emb.getCodeOrdering(pointv.pt, interval.pt.pointType, CodeOrdering.Compare())
+          val compare = cb.emb.ecb.getOrderingFunction(pointv.st, interval.st.pointType, CodeOrdering.Compare())
 
           val start = EmitCode.fromI(cb.emb)(cb => interval.loadStart(cb).typecast[PCode])
           val cmp = cb.newLocal("cmp", compare(cb, pointv, start))
@@ -97,7 +97,7 @@ object IntervalFunctions extends RegistryFunctions {
         val overlap = EmitCodeBuilder.scopedCode(r.mb) { cb =>
           val interval1 = int1.memoize(cb, "interval1")
           val interval2 = int2.memoize(cb, "interval2")
-          val compare = cb.emb.getCodeOrdering(int1.pt.pointType, int2.pt.pointType, CodeOrdering.Compare())
+          val compare = cb.emb.ecb.getOrderingFunction(int1.st.pointType, int2.st.pointType, CodeOrdering.Compare())
 
           def isAboveOnNonempty(cb: EmitCodeBuilder, lhs: PIntervalValue, rhs: PIntervalValue): Code[Boolean] = {
             val start = EmitCode.fromI(cb.emb)(cb => lhs.loadStart(cb).typecast[PCode])

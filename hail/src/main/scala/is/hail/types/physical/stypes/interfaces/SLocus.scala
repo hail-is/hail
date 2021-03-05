@@ -2,11 +2,12 @@ package is.hail.types.physical.stypes.interfaces
 
 import is.hail.asm4s.Code
 import is.hail.expr.ir.EmitCodeBuilder
-import is.hail.types.physical.{PCode, PLocus, PStringCode, PValue}
 import is.hail.types.physical.stypes.{SCode, SType, SValue}
-import is.hail.variant.Locus
+import is.hail.variant.{Locus, ReferenceGenome}
 
-trait SLocus extends SType
+trait SLocus extends SType {
+  def rg: ReferenceGenome
+}
 
 trait SLocusValue extends SValue {
   def contig(cb: EmitCodeBuilder): SStringCode

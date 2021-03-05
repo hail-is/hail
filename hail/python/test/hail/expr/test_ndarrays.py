@@ -1,6 +1,5 @@
 import numpy as np
 from ..helpers import *
-import tempfile
 import pytest
 
 from hail.utils.java import FatalError, HailUserError
@@ -27,6 +26,7 @@ def assert_ndarrays_almost_eq(*expr_and_expected):
     assert_ndarrays(np.allclose, expr_and_expected)
 
 
+@fails_service_backend()
 def test_ndarray_ref():
 
     scalar = 5.0
@@ -62,6 +62,7 @@ def test_ndarray_ref():
     assert "Index 4 is out of bounds for axis 0 with size 3" in str(exc)
 
 
+@fails_service_backend()
 def test_ndarray_slice():
     np_rect_prism = np.arange(24).reshape((2, 3, 4))
     rect_prism = hl.nd.array(np_rect_prism)
@@ -161,6 +162,7 @@ def test_ndarray_transposed_slice():
     )
 
 
+@fails_service_backend()
 def test_ndarray_eval():
     data_list = [[1, 2, 3], [4, 5, 6], [7, 8, 9]]
     mishapen_data_list1 = [[4], [1, 2, 3]]
@@ -469,7 +471,7 @@ def test_ndarray_save():
     ]
 
     for expected in arrs:
-        with tempfile.NamedTemporaryFile(suffix='.npy') as f:
+        with hl.TemporaryFilename(suffix='.npy') as f:
             hl.nd.array(expected).save(f.name)
             actual = np.load(f.name)
 

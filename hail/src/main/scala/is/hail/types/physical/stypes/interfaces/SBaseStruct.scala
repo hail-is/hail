@@ -3,11 +3,15 @@ package is.hail.types.physical.stypes.interfaces
 import is.hail.asm4s.Code
 import is.hail.expr.ir.{EmitCodeBuilder, IEmitSCode}
 import is.hail.types.physical.PBaseStruct
-import is.hail.types.physical.stypes.{SCode, SSettable, SType, SValue}
 import is.hail.types.physical.stypes.concrete.{SSubsetStruct, SSubsetStructCode}
+import is.hail.types.physical.stypes.{SCode, SSettable, SType, SValue}
 
-trait SStruct extends SType {
+trait SBaseStruct extends SType {
   override def fromCodes(codes: IndexedSeq[Code[_]]): SBaseStructCode
+
+  def size: Int
+
+  val fieldTypes: Array[SType]
 }
 
 trait SStructSettable extends SBaseStructValue with SSettable
@@ -25,7 +29,7 @@ trait SBaseStructValue extends SValue {
 }
 
 trait SBaseStructCode extends SCode { self =>
-  def st: SStruct
+  def st: SBaseStruct
 
   def memoize(cb: EmitCodeBuilder, name: String): SBaseStructValue
 

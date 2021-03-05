@@ -12,6 +12,9 @@ BASE_IMAGE = gcr.io/$(PROJECT)/base:$(shell docker images -q --no-trunc base:lat
 SERVICE_BASE_LATEST = gcr.io/$(PROJECT)/service-base:latest
 SERVICE_BASE_IMAGE = gcr.io/$(PROJECT)/service-base:$(shell docker images -q --no-trunc service-base:latest | sed -e 's,[^:]*:,,')
 
+SERVICE_JAVA_RUN_BASE_LATEST = gcr.io/$(PROJECT)/service-java-run-base:latest
+SERVICE_JAVA_RUN_BASE_IMAGE = gcr.io/$(PROJECT)/service-java-run-base:$(shell docker images -q --no-trunc service-java-run-base:latest | sed -e 's,[^:]*:,,')
+
 HAIL_PUBLIC_LATEST = gcr.io/$(PROJECT)/hail-public:latest
 HAIL_PUBLIC_IMAGE = gcr.io/$(PROJECT)/hail-public:$(shell docker images -q --no-trunc hail-public:latest | sed -e 's,[^:]*:,,')
 
@@ -52,6 +55,13 @@ service-base: base-stmp
 	[ "$(shell bash stat-permissions.sh service-base-requirements.txt)" = "644" ]
 	docker build -t service-base -f Dockerfile.service-base.out --cache-from service-base,$(SERVICE_BASE_LATEST),base,hail-ubuntu ..
 
+.PHONY: service-java-run-base
+service-java-run-base: hail-ubuntu-stmp
+	-docker pull $(SERVICE_JAVA_RUN_BASE_LATEST)
+	python3 ../ci/jinja2_render.py '{"hail_ubuntu_image":{"image":"hail-ubuntu"}}' Dockerfile.service-java-run-base Dockerfile.service-java-run-base.out
+	[ "$(shell bash stat-permissions.sh Dockerfile.service-java-run-base.out)" = "644" ]
+	docker build -t service-java-run-base -f Dockerfile.service-java-run-base.out --cache-from service-java-run-base,$(SERVICE_JAVA_RUN_BASE_LATEST),base,hail-ubuntu ..
+
 .PHONY: hail-public-image
 hail-public-image:
 	$(MAKE) -C ../hail wheel
@@ -85,6 +95,10 @@ push: build
 	docker push $(SERVICE_BASE_LATEST)
 	docker tag service-base $(SERVICE_BASE_IMAGE)
 	docker push $(SERVICE_BASE_IMAGE)
+	docker tag service-java-run-base $(SERVICE_JAVA_RUN_BASE_LATEST)
+	docker push $(SERVICE_JAVA_RUN_BASE_LATEST)
+	docker tag service-java-run-base $(SERVICE_JAVA_RUN_BASE_IMAGE)
+	docker push $(SERVICE_JAVA_RUN_BASE_IMAGE)
 
 .PHONY: deploy
 deploy: push

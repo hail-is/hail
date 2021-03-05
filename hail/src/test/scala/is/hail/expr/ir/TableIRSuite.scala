@@ -539,10 +539,13 @@ class TableIRSuite extends HailSuite {
 
   // Catches a bug in the partitioner created by the importer.
   @Test def testTableJoinOfImport() {
+    val mnr = MatrixNativeReader(fs, "src/test/resources/sample.vcf.mt")
+    val mt2 = MatrixRead(mnr.fullMatrixType, false, false, mnr)
+    val t2 = MatrixRowsTable(mt2)
     val mt = importVCF(ctx, "src/test/resources/sample.vcf")
     var t: TableIR = MatrixRowsTable(mt)
     t = TableMapRows(t, SelectFields(Ref("row", t.typ.rowType), Seq("locus", "alleles")))
-    val join: TableIR = TableJoin(t, t, "inner", 2)
+    val join: TableIR = TableJoin(t, t2, "inner", 2)
     assertEvalsTo(TableCount(join), 346L)
   }
 

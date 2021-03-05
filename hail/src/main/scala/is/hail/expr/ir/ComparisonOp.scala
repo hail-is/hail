@@ -1,7 +1,8 @@
 package is.hail.expr.ir
 
-import is.hail.annotations.CodeOrdering
+import is.hail.expr.ir.orderings.CodeOrdering
 import is.hail.types.physical.PType
+import is.hail.types.physical.stypes.SType
 import is.hail.types.virtual.{TStruct, Type}
 
 object ComparisonOp {
@@ -54,9 +55,9 @@ sealed trait ComparisonOp[ReturnType] {
   def t2: Type
   val op: CodeOrdering.Op
   val strict: Boolean = true
-  def codeOrdering(mb: EmitMethodBuilder[_], t1p: PType, t2p: PType): CodeOrdering.F[op.ReturnType] = {
+  def codeOrdering(ecb: EmitClassBuilder[_], t1p: SType, t2p: SType): CodeOrdering.F[op.ReturnType] = {
     ComparisonOp.checkCompatible(t1p.virtualType, t2p.virtualType)
-    mb.getCodeOrdering(t1p, t2p, op)
+    ecb.getOrderingFunction(t1p, t2p, op).asInstanceOf[CodeOrdering.F[op.ReturnType]]
   }
 
   def render(): is.hail.utils.prettyPrint.Doc = Pretty.prettyClass(this)
