@@ -9,8 +9,7 @@ import gidgethub
 
 from hailtop.config import get_deploy_config
 from hailtop.batch_client.aioclient import Batch
-from hailtop.utils import check_shell, check_shell_output, RETRY_FUNCTION_SCRIPT, \
-    sync_check_shell_output
+from hailtop.utils import check_shell, check_shell_output, RETRY_FUNCTION_SCRIPT
 from .constants import GITHUB_CLONE_URL, AUTHORIZED_USERS, GITHUB_STATUS_CONTEXT
 from .build import BuildConfiguration, Code
 from .globals import is_test_deployment
