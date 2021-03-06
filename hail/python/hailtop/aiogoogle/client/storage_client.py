@@ -542,7 +542,7 @@ class GoogleStorageMultiPartCreate(MultiPartCreate):
                     [self._part_name(i) for i in range(self._num_parts)],
                     self._dest_name)
             finally:
-                await self._fs.rmtree(self._sema, f'gs://{self._bucket}/{self._dest_dirname}_')
+                await self._fs.rmtree(self._sema, f'gs://{self._bucket}/{self._dest_dirname}_/{self._token}')
                 # after the rmtree, all temporary files should be gone
                 # cancel any cleanup tasks that are still running
                 # exiting the pool will wait for everything to finish
