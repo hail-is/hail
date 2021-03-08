@@ -1481,14 +1481,14 @@ async def async_main():
     finally:
         try:
             worker.shutdown()
-            log.info(f'worker shutdown')
+            log.info('worker shutdown')
         finally:
             await docker.close()
-            log.info(f'docker closed')
+            log.info('docker closed')
 
 loop = asyncio.get_event_loop()
 loop.run_until_complete(async_main())
-log.info(f'closing loop')
+log.info('closing loop')
 loop.close()
 log.info('closed')
 sys.exit(0)
