@@ -1420,18 +1420,13 @@ class Worker:
     async def activate(self):
         async with client_session() as session:
             resp = await request_retry_transient_errors(
-                session, 'POST',
-                deploy_config.url('batch-driver', '/api/v1alpha/instances/activate'),
-                json={'ip_address': os.environ['IP_ADDRESS']},
+                session, 'GET',
+                deploy_config.url('batch-driver', '/api/v1alpha/instances/gsa_key'),
                 headers={
                     'X-Hail-Instance-Name': NAME,
                     'Authorization': f'Bearer {os.environ["ACTIVATION_TOKEN"]}'
                 })
             resp_json = await resp.json()
-            self.headers = {
-                'X-Hail-Instance-Name': NAME,
-                'Authorization': f'Bearer {resp_json["token"]}'
-            }
 
             with open('key.json', 'w') as f:
                 f.write(json.dumps(resp_json['key']))
@@ -1440,6 +1435,21 @@ class Worker:
                 'key.json')
             self.log_store = LogStore(BATCH_LOGS_BUCKET_NAME, INSTANCE_ID, self.pool,
                                       project=PROJECT, credentials=credentials)
+
+            resp = await request_retry_transient_errors(
+                session, 'POST',
+                deploy_config.url('batch-driver', '/api/v1alpha/instances/activate'),
+                json={'ip_address': os.environ['IP_ADDRESS']},
+                headers={
+                    'X-Hail-Instance-Name': NAME,
+                    'Authorization': f'Bearer {os.environ["ACTIVATION_TOKEN"]}'
+                })
+            resp_json = await resp.json()
+
+            self.headers = {
+                'X-Hail-Instance-Name': NAME,
+                'Authorization': f'Bearer {resp_json["token"]}'
+            }
 
 
 async def async_main():
