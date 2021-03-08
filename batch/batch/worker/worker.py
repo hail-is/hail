@@ -197,6 +197,10 @@ async def delete_container(container, *args, **kwargs):
         raise
 
 
+class JobDeletedError(Exception):
+    pass
+
+
 class JobTimeoutError(Exception):
     pass
 
@@ -212,8 +216,7 @@ class ContainerStepManager:
     async def __aenter__(self):
         if self.container.job.deleted:
             self._deleted = True
-            log.info(f'job {self.container} already deleted')
-            return
+            raise JobDeletedError()
         if self.state:
             log.info(f'{self.container} state changed: {self.container.state} => {self.state}')
             self.container.state = self.state
@@ -454,8 +457,9 @@ class Container:
                 self.state = 'succeeded'
             else:
                 self.state = 'failed'
-        except Exception:
-            log.exception(f'while running {self}')
+        except Exception as e:
+            if not isinstance(e, (JobDeletedError, JobTimeoutError)):
+                log.exception(f'while running {self}')
 
             self.state = 'error'
             self.error = traceback.format_exc()
