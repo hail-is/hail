@@ -21,7 +21,7 @@ import org.json4s.{DefaultFormats, Formats, JValue, ShortTypeHints}
 object AbstractRVDSpec {
   implicit val formats: Formats = new DefaultFormats() {
     override val typeHints = ShortTypeHints(List(
-//      classOf[AbstractRVDSpec],
+      classOf[AbstractRVDSpec],
       classOf[OrderedRVDSpec2],
       classOf[IndexedRVDSpec2],
       classOf[IndexSpec2],
@@ -29,7 +29,7 @@ object AbstractRVDSpec {
       classOf[compatibility.IndexedRVDSpec],
       classOf[compatibility.IndexSpec],
       classOf[compatibility.UnpartitionedRVDSpec],
-//      classOf[AbstractTypedCodecSpec],
+      classOf[AbstractTypedCodecSpec],
       classOf[TypedCodecSpec]),
     typeHintFieldName = "name") + BufferSpec.shortTypeHints
   }  +
