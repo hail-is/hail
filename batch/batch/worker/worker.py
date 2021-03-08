@@ -235,6 +235,15 @@ def worker_fraction_in_1024ths(cpu_in_mcpu):
     return 1024 * cpu_in_mcpu // (CORES * 1000)
 
 
+def user_error(e):
+    if isinstance(e, DockerError):
+        if e.status == 404 and 'pull access denied' in e.message:
+            return True
+        elif e.status == 400 and 'executable file not found' in e.message:
+            return True
+    return False
+
+
 class Container:
     def __init__(self, job, name, spec):
         self.job = job
@@ -945,8 +954,10 @@ class DockerJob(Job):
                         self.state = 'succeeded'
                 else:
                     self.state = input.state
-            except Exception:
-                log.info(f'while running {self}')
+            except Exception as e:
+                if not user_error(e):
+                    log.exception(f'while running {self}')
+
                 self.state = 'error'
                 self.error = traceback.format_exc()
             finally:
