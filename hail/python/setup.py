@@ -41,6 +41,7 @@ setup(
                  'hail_version',
                  'experimental/datasets.json'],
         'hail.backend': ['hail-all-spark.jar'],
+        'hailtop': ['hail_version'],
         'hailtop.hailctl': ['hail_version', 'deploy.yaml']},
     classifiers=[
         "Programming Language :: Python :: 3",
