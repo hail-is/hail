@@ -17,14 +17,14 @@ spec:
         app: grafana
     spec:
       priorityClassName: infrastructure
-      securityContext:
-        fsGroup: 472
-        runAsNonRoot: true
-        runAsUser: 472
       volumes:
         - name: grafana-configmap-volume
           configMap:
             name: grafana-config
+        - name: ssl-config-grafana
+          secret:
+            optional: false
+            secretName: ssl-config-grafana
       containers:
        - name: grafana
          image: grafana/grafana:7.3.7
@@ -54,6 +54,26 @@ spec:
              memory: "1G"
          ports:
           - containerPort: 3000
+       - name: nginx
+         image: {{ grafana_nginx_image.image }}
+         resources:
+           requests:
+             cpu: "20m"
+             memory: "20M"
+           limits:
+             cpu: "1"
+             memory: "1G"
+         ports:
+          - containerPort: 443
+         volumeMounts:
+          - name: ssl-config-grafana
+            mountPath: /ssl-config
+            readOnly: true
+         readinessProbe:
+           tcpSocket:
+             port: 443
+           initialDelaySeconds: 5
+           periodSeconds: 5
   volumeClaimTemplates:
   - metadata:
       name: grafana-storage

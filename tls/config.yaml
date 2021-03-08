@@ -97,4 +97,4 @@ principals:
   kind: json
 - name: grafana
   domain: grafana
-  kind: json
+  kind: nginx
