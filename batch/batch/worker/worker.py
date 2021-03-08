@@ -197,10 +197,6 @@ async def delete_container(container, *args, **kwargs):
         raise
 
 
-class JobDeletedError(Exception):
-    pass
-
-
 class JobTimeoutError(Exception):
     pass
 
@@ -211,10 +207,13 @@ class ContainerStepManager:
         self.state = state
         self.name = name
         self.timing = None
+        self._deleted = False
 
     async def __aenter__(self):
         if self.container.job.deleted:
-            raise JobDeletedError()
+            self._deleted = True
+            log.info(f'job {self.container} already deleted')
+            return
         if self.state:
             log.info(f'{self.container} state changed: {self.container.state} => {self.state}')
             self.container.state = self.state
@@ -223,6 +222,9 @@ class ContainerStepManager:
         self.container.timing[self.name] = self.timing
 
     async def __aexit__(self, exc_type, exc, tb):
+        if self._deleted:
+            return
+
         finish_time = time_msecs()
         self.timing['finish_time'] = finish_time
         start_time = self.timing['start_time']
@@ -944,8 +946,7 @@ class DockerJob(Job):
                 else:
                     self.state = input.state
             except Exception:
-                log.exception(f'while running {self}')
-
+                log.info(f'while running {self}')
                 self.state = 'error'
                 self.error = traceback.format_exc()
             finally:
