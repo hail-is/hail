@@ -297,6 +297,7 @@ batch-docs:
 	      BUILDDIR=$(HAIL_DIR)/build/docs/batch \
 	      html
 	rm -rf build/www/docs/batch
+	mkdir -p build/www/docs
 	cp -R build/docs/batch/html build/www/docs/batch
 	find build/www/docs/batch \
 	     -iname *.html \

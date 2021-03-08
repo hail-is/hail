@@ -6,7 +6,7 @@ server {
     }
 
     location / {
-        proxy_pass https://site/;
+        proxy_pass https://website/;
         include /etc/nginx/proxy.conf;
     }
 
