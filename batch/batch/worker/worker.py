@@ -239,7 +239,7 @@ def user_error(e):
     if isinstance(e, DockerError):
         if e.status == 404 and 'pull access denied' in e.message:
             return True
-        elif e.status == 400 and 'executable file not found' in e.message:
+        if e.status == 400 and 'executable file not found' in e.message:
             return True
     return False
 
