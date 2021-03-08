@@ -1,3 +1,4 @@
+import asyncio
 import hashlib
 import os
 
@@ -19,3 +20,7 @@ def pytest_collection_modifyitems(config, items):
     for item in items:
         if not digest(item.name) % n_splits == split_index:
             item.add_marker(skip_this)
+
+@pytest.fixture(scope="session", autouse=True)
+def ensure_event_loop_is_initialized_in_main_thread():
+    asyncio.get_event_loop()
