@@ -130,7 +130,7 @@ object RelationalFunctions {
     classOf[WrappedMatrixToTableFunction],
     classOf[WrappedMatrixToValueFunction],
     classOf[PCRelate]
-  ))
+  ), typeHintFieldName = "name")
 
   def extractTo[T: Manifest](ctx: ExecuteContext, config: String): T = {
     val jv = JsonMethods.parse(config)
