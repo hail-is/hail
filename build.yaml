@@ -518,11 +518,11 @@ steps:
      cd repo
      {{ code.checkout_script }}
      cd grafana
-     if [[ {{ deploy }} = True ]]; then
-      DEPLOY=true
-     else
-      DEPLOY=false
-     fi
+     {% if deploy %}
+     DEPLOY=true
+     {% else %}
+     DEPLOY=false
+     {% endif %}
      python3 ../ci/jinja2_render.py '{"deploy": '${DEPLOY}', "default_ns": {"name": "{{ default_ns.name }}"}}' nginx.conf nginx.conf.out
    outputs:
      - from: /io/repo/grafana/nginx.conf.out
