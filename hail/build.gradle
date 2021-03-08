@@ -148,6 +148,13 @@ configurations {
 }
 
 dependencies {
+    // Spark 3 and spark 2 use different, incompatible versions of this package. Pin and relocate 3.5.3
+    // Also: JSON4S 3.6.0+ contain a known bug (https://github.com/json4s/json4s/issues/507).
+    bundled group: 'org.json4s', name: 'json4s-core_' + scalaMajorVersion, version: '3.5.3'
+    bundled group: 'org.json4s', name: 'json4s-ast_' + scalaMajorVersion, version: '3.5.3'
+    bundled group: 'org.json4s', name: 'json4s-jackson_' + scalaMajorVersion, version: '3.5.3'
+
+
     justSpark ('org.apache.spark:spark-mllib_' + scalaMajorVersion + ':' + sparkVersion) {
         exclude group: 'org.json4s'
     }
@@ -169,6 +176,10 @@ dependencies {
     unbundled ('org.apache.spark:spark-mllib_' + scalaMajorVersion + ':' + sparkVersion) {
         exclude group: 'org.json4s'
     }
+
+    runtime group: 'org.json4s', name: 'json4s-core_' + scalaMajorVersion, version: '3.7.M5'
+    runtime group: 'org.json4s', name: 'json4s-ast_' + scalaMajorVersion, version: '3.7.M5'
+    runtime group: 'org.json4s', name: 'json4s-jackson_' + scalaMajorVersion, version: '3.7.M5'
 
     bundled 'org.lz4:lz4-java:1.4.0'
 
@@ -197,12 +208,6 @@ dependencies {
     bundled group: 'org.ow2.asm', name: 'asm', version: '7.3.1'
     bundled group: 'org.ow2.asm', name: 'asm-util', version: '7.3.1'
     bundled group: 'org.ow2.asm', name: 'asm-analysis', version: '7.3.1'
-
-    // Spark 3 and spark 2 use different, incompatible versions of this package. Pin and relocate 3.5.3
-    // Also: JSON4S 3.6.0+ contain a known bug (https://github.com/json4s/json4s/issues/507).
-    bundled group: 'org.json4s', name: 'json4s-core_' + scalaMajorVersion, version: '3.5.3'
-    bundled group: 'org.json4s', name: 'json4s-ast_' + scalaMajorVersion, version: '3.5.3'
-    bundled group: 'org.json4s', name: 'json4s-jackson_' + scalaMajorVersion, version: '3.5.3'
 
     bundled 'net.java.dev.jna:jna:4.2.2'
     bundled('net.sourceforge.jdistlib:jdistlib:0.4.5') {
@@ -301,16 +306,22 @@ task testServices(type: Test) {
 
 test.dependsOn(checkSettings)
 testServices.dependsOn(checkSettings)
+tasks.build.dependsOn(ShadowJar)
+
 
 tasks.withType(ShadowJar) {
     manifest {
         attributes 'Implementation-Title': 'Hail',
                    'Implementation-Version': '0.0.1-SNAPSHOT'
     }
+
+    dependencies {
+        include("org.json4s.json4s-core_" + scalaMajorVersion + ":3.5.3")
+    }
+
     baseName = project.name + '-all'
     mergeServiceFiles()
     zip64 true
-
     relocate 'org.apache.http', 'is.hail.relocated.org.apache.http'
     relocate 'com.google.common', 'is.hail.relocated.com.google.common'
     relocate 'org.objectweb', 'is.hail.relocated.org.objectweb'
