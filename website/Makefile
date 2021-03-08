@@ -27,7 +27,7 @@ push: build
 deploy: push
 	! [ -z $(NAMESPACE) ]  # call this like: make deploy NAMESPACE=default
 	$(MAKE) -C ../docker hail-ubuntu
-  python3 ../ci/jinja2_render.py '{"global": {"domain":"$(DOMAIN)"},"default_ns":{"name":"$(NAMESPACE)"},"code":{"sha":"$(shell git rev-parse --short=12 HEAD)"},"deploy":$(DEPLOY),"website_image":{"image":"$(IMAGE)"}' deployment.yaml deployment.yaml.out
+	python3 ../ci/jinja2_render.py '{"global": {"domain":"$(DOMAIN)"},"default_ns":{"name":"$(NAMESPACE)"},"code":{"sha":"$(shell git rev-parse --short=12 HEAD)"},"deploy":$(DEPLOY),"website_image":{"image":"$(IMAGE)"}' deployment.yaml deployment.yaml.out
 	kubectl -n $(NAMESPACE) apply -f deployment.yaml.out
 
 clean:
