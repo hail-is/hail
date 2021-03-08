@@ -7,7 +7,7 @@ import is.hail.linalg.BlockMatrix
 object BlockMatrixSparsity {
   private val builder: BoxedArrayBuilder[(Int, Int)] = new BoxedArrayBuilder[(Int, Int)]
 
-  val dense: BlockMatrixSparsity = BlockMatrixSparsity(None)
+  val dense: BlockMatrixSparsity = new BlockMatrixSparsity(None: Option[IndexedSeq[(Int, Int)]])
 
   def apply(definedBlocks: IndexedSeq[(Int, Int)]): BlockMatrixSparsity = BlockMatrixSparsity(Some(definedBlocks))
 
