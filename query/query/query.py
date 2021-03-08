@@ -28,8 +28,6 @@ uvloop.install()
 DEFAULT_NAMESPACE = os.environ['HAIL_DEFAULT_NAMESPACE']
 log = logging.getLogger(__name__)
 routes = web.RouteTableDef()
-# Store this value once so we don't hit the desk
-HAIL_VERSION = version()
 
 
 async def add_user(app, userdata):
@@ -245,14 +243,6 @@ async def set_flag(request, userdata):  # pylint: disable=unused-argument
         else:
             jresp = await blocking_to_async(app['thread_pool'], java.set_flag, f, v)
     return web.json_response(jresp)
-
-
-@routes.get('/api/v1alpha/version')
-async def rest_get_version(request):  # pylint: disable=W0613
-    try:
-        return web.Response(text=HAIL_VERSION)
-    except Exception as e:
-        return web.json_response({"error": str(e)})
 
 
 async def on_startup(app):
