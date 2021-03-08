@@ -105,13 +105,12 @@ async def handle_ws_response(request, userdata, endpoint, f):
         user_queries[body['token']] = query
 
     try:
-        receive = asyncio.ensure_future(ws.receive())  # receive automatically ping-pongs which keeps the socket alive
+        receive = asyncio.ensure_future(ws.receive_str())  # receive automatically ping-pongs which keeps the socket alive
         await asyncio.wait([receive, query], return_when=asyncio.FIRST_COMPLETED)
         if receive.done():
             # we expect no messages from the client
             response = receive.result()
-            assert response.type in (aiohttp.WSMsgType.CLOSE, aiohttp.WSMsgType.CLOSING), (
-                f'{endpoint}: Received websocket message. Expected CLOSE or CLOSING, got {response}')
+            raise AssertionError(f'client broke the protocol by sending: {response}')
         if not query.done():
             return
         if query.exception() is not None:
@@ -120,7 +119,7 @@ async def handle_ws_response(request, userdata, endpoint, f):
             await ws.send_json({'status': 500, 'value': exc_str})
         else:
             await ws.send_json({'status': 200, 'value': query.result()})
-        assert await ws.receive_str() == 'bye'
+        assert (await receive) == 'bye'
         del user_queries[body['token']]
     finally:
         receive.cancel()
