@@ -228,6 +228,8 @@ class PR(Code):
         assert self.number == gh_json['number']
         self.title = gh_json['title']
         self.author = gh_json['user']['login']
+        self.assignees = {user['login'] for user in gh_json['assignees']}
+        self.reviewers = {user['login'] for user in gh_json['requested_reviewers']}
 
         new_labels = {label['name'] for label in gh_json['labels']}
         if new_labels != self.labels:
