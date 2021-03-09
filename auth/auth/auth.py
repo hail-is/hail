@@ -8,6 +8,7 @@ import uvloop
 import google.auth.transport.requests
 import google.oauth2.id_token
 import google_auth_oauthlib.flow
+from hailtop.auth import async_get_userinfo
 from hailtop.config import get_deploy_config
 from hailtop.tls import internal_server_ssl_context
 from hailtop.hail_logging import AccessLogger
@@ -556,6 +557,19 @@ WHERE users.state = 'active' AND (sessions.session_id = %s) AND (ISNULL(sessions
     user = users[0]
 
     return web.json_response(user)
+
+
+@routes.get('/api/v1alpha/verify_dev_credentials')
+async def verify_dev_credentials(request):
+    session = await aiohttp_session.get_session(request)
+    session_id = session.get('session_id')
+    if not session_id:
+        raise web.HTTPUnauthorized()
+    userdata = await async_get_userinfo(session_id=session_id)
+    is_developer = userdata is not None and userdata['is_developer'] == 1
+    if not is_developer:
+        raise web.HTTPUnauthorized()
+    return web.Response(status=200)
 
 
 async def on_startup(app):

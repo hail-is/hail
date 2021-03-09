@@ -23,6 +23,8 @@ from gear import (
 
 from .sockets import connect_to_java
 
+from .sockets import connect_to_java
+
 uvloop.install()
 
 DEFAULT_NAMESPACE = os.environ['HAIL_DEFAULT_NAMESPACE']

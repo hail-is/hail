@@ -60,7 +60,7 @@ for result in {" ".join(results)}
 do
     tail -n +2 "$result" >> {merger.ofile}
 done
-sed -i '/^$/d' {merger.ofile}
+sed -i -e '/^$/d' {merger.ofile}
 ''')
     return merger
 

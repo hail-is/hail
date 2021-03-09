@@ -21,7 +21,7 @@
       }
     }
 
-    if (cpage === "/" || cpage === "/index.html") {
+    if (cpage === "{{ base_path }}/" || cpage === "{{ base_path }}/index.html") {
       document.getElementById('hail-navbar-brand').className = "active";
     };
   })();
@@ -39,7 +39,7 @@
 
     function handleSearchKeyUp(query, ev) {
       if(ev.keyCode == 13 && !isHighlighted) {
-        location.href = `/search.html?query=${query}`;
+        location.href = `{{ base_path }}/search.html?query=${query}`;
       }
     }
 

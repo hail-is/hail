@@ -13,13 +13,13 @@
         <div style="display: flex;" id="hero-button-container">
           <a class="button" href="#install">Install</a>
           <a class="button" href="#features">Features</a>
-          <a class="button" href="/gethelp.html">Get Help</a>
+          <a class="button" href="{{ base_path }}/gethelp.html">Get Help</a>
         </div>
       </div>
 
       <div id="hero-content-right">
         <pre class="right language-python" style="display:flex;min-width: 500px;">
-          <img id="reveal-img" src="/hail-tutorial-gwas-plot-cropped-opt.png" style="cursor: pointer;width:600px;height:360px;" onclick="reveal(this);" />
+          <img id="reveal-img" src="{{ base_path }}/static/hail-tutorial-gwas-plot-cropped-opt.png" style="cursor: pointer;width:600px;height:360px;" onclick="reveal(this);" />
           <code id="reveal-code" class="language-python" style="display:none;width:600px;height:360px; cursor: pointer;" onclick="hide(this);">import hail as hl
 
 mt = hl.read_matrix_table('resources/post_qc.mt')
@@ -58,7 +58,7 @@ show(p)
         </p>
         <p>GNU/Linux wil also need C and C++ standard libraries if not already installed</p>
         <p>
-          <a href="/docs/0.2/getting_started.html">Detailed instructions</a>
+          <a href="{{ base_path }}/docs/0.2/getting_started.html">Detailed instructions</a>
         </p>
       </section>
     </div>
@@ -85,19 +85,19 @@ show(p)
             matrices and structured entries (genotypes) like tables or dataframes.
             To support genomic analysis, Hail introduces a powerful,
             distributed data structure combining features of matrices and dataframes called
-            <a href="/docs/0.2/overview/matrix_table.html?highlight=matrix%20table" target="_blank">MatrixTable</a>.
+            <a href="{{ base_path }}/docs/0.2/overview/matrix_table.html?highlight=matrix%20table" target="_blank">MatrixTable</a>.
           </p>
         </section>
         <section>
           <h4>Input Unification</h4>
-          <p>The <a href="/docs/0.2/overview/matrix_table.html?highlight=matrix%20table" target="_blank">Hail
+          <p>The <a href="{{ base_path }}/docs/0.2/overview/matrix_table.html?highlight=matrix%20table" target="_blank">Hail
               MatrixTable</a> unifies a wide range of input formats (e.g. vcf, bgen, plink, tsv, gtf, bed files),
             and supports scalable queries, even on petabyte-size datasets.
             By leveraging MatrixTable, Hail provides an integrated, scalable analysis platform for science.
           </p>
         </section>
       </div>
-      <a class="button" href="/tutorial.html" style='align-self:flex-end; margin-top:1rem;'>Learn More ></a>
+      <a class="button" href="{{ base_path }}/tutorial.html" style='align-self:flex-end; margin-top:1rem;'>Learn More ></a>
     </div>
   </div>
   <div class="about dark">

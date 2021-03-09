@@ -325,6 +325,11 @@ BEGIN
     SET NEW.start_time = OLD.start_time;
   END IF;
 
+  # for job private instances that do not finish creating
+  IF NEW.reason = 'activation_timeout' THEN
+    SET NEW.start_time = NULL;
+  END IF;
+
   IF OLD.reason IS NOT NULL AND (OLD.end_time IS NULL OR NEW.end_time IS NULL OR NEW.end_time >= OLD.end_time) THEN
     SET NEW.end_time = OLD.end_time;
     SET NEW.reason = OLD.reason;

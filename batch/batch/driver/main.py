@@ -207,6 +207,15 @@ async def delete_batch(request):
     return web.Response()
 
 
+async def get_gsa_key_1(instance):
+    log.info(f'returning gsa-key to activating instance {instance}')
+    with open('/gsa-key/key.json', 'r') as f:
+        key = json.loads(f.read())
+    return web.json_response({
+        'key': key
+    })
+
+
 async def activate_instance_1(request, instance):
     body = await request.json()
     ip_address = body['ip_address']
@@ -216,12 +225,15 @@ async def activate_instance_1(request, instance):
     token = await instance.activate(ip_address, timestamp)
     await instance.mark_healthy()
 
-    with open('/gsa-key/key.json', 'r') as f:
-        key = json.loads(f.read())
     return web.json_response({
-        'token': token,
-        'key': key
+        'token': token
     })
+
+
+@routes.get('/api/v1alpha/instances/gsa_key')
+@activating_instances_only
+async def get_gsa_key(request, instance):  # pylint: disable=unused-argument
+    return await asyncio.shield(get_gsa_key_1(instance))
 
 
 @routes.post('/api/v1alpha/instances/activate')

@@ -1,11 +1,11 @@
-{% extends "base.html" %}
+{% extends "dynamic-base.html" %}
 
 {# TEMPLATE VAR SETTINGS #}
 {%- set url_root = pathto('', 1) %}
 {%- if url_root == '#' %}{% set url_root = '' %}{% endif %}
 
 {%- set script_files = script_files + ['_static/toggle.js'] %}
-{%- set css_files = css_files + ['/navbar.css', '_static/rtd_modifications.css'] %}
+{%- set css_files = css_files + ['_static/rtd_modifications.css'] %}
 
 {% if pagename == "annotation_database_ui" %}
 {%- set css_files = css_files + [ '_static/annotationdb/annotationdb.css'] %}

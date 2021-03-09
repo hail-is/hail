@@ -329,6 +329,7 @@ class StorageClient(BaseClient):
     # https://cloud.google.com/storage/docs/json_api/v1
 
     async def insert_object(self, bucket: str, name: str, **kwargs) -> InsertObjectStream:
+        assert name
         # Insert an object.  See:
         # https://cloud.google.com/storage/docs/json_api/v1/objects/insert
         if 'params' in kwargs:
@@ -369,6 +370,7 @@ class StorageClient(BaseClient):
         return ResumableInsertObjectStream(self._session, session_url, chunk_size)
 
     async def get_object(self, bucket: str, name: str, **kwargs) -> GetObjectStream:
+        assert name
         if 'params' in kwargs:
             params = kwargs['params']
         else:
@@ -382,17 +384,20 @@ class StorageClient(BaseClient):
         return GetObjectStream(resp)
 
     async def get_object_metadata(self, bucket: str, name: str, **kwargs) -> Dict[str, str]:
+        assert name
         params = kwargs.get('params')
         assert not params or 'alt' not in params
         return cast(Dict[str, str], await self.get(f'/b/{bucket}/o/{urllib.parse.quote(name, safe="")}', **kwargs))
 
     async def delete_object(self, bucket: str, name: str, **kwargs) -> None:
+        assert name
         await self.delete(f'/b/{bucket}/o/{urllib.parse.quote(name, safe="")}', **kwargs)
 
     async def list_objects(self, bucket: str, **kwargs) -> PageIterator:
         return PageIterator(self, f'/b/{bucket}/o', kwargs)
 
     async def compose(self, bucket: str, names: List[str], destination: str, **kwargs) -> None:
+        assert destination
         n = len(names)
         if n == 0:
             raise ValueError('no components in compose')
@@ -473,9 +478,12 @@ class GoogleStorageMultiPartCreate(MultiPartCreate):
     def _part_name(self, number: int) -> str:
         return self._tmp_name(f'part-{number}')
 
-    async def create_part(self, number: int, start: int) -> WritableStream:
+    async def create_part(self, number: int, start: int, *, retry_writes: bool = True) -> WritableStream:
         part_name = self._part_name(number)
-        return await self._fs._storage_client.insert_object(self._bucket, part_name)
+        params = {
+            'uploadType': 'resumable' if retry_writes else 'media'
+        }
+        return await self._fs._storage_client.insert_object(self._bucket, part_name, params=params)
 
     async def __aenter__(self) -> 'GoogleStorageMultiPartCreate':
         return self
@@ -534,7 +542,7 @@ class GoogleStorageMultiPartCreate(MultiPartCreate):
                     [self._part_name(i) for i in range(self._num_parts)],
                     self._dest_name)
             finally:
-                await self._fs.rmtree(self._sema, f'gs://{self._bucket}/{self._dest_dirname}_')
+                await self._fs.rmtree(self._sema, f'gs://{self._bucket}/{self._dest_dirname}_/{self._token}')
                 # after the rmtree, all temporary files should be gone
                 # cancel any cleanup tasks that are still running
                 # exiting the pool will wait for everything to finish
@@ -544,9 +552,11 @@ class GoogleStorageMultiPartCreate(MultiPartCreate):
 
 
 class GoogleStorageAsyncFS(AsyncFS):
-    def __init__(self, storage_client: Optional[StorageClient] = None):
+    def __init__(self, *,
+                 storage_client: Optional[StorageClient] = None,
+                 **kwargs):
         if not storage_client:
-            storage_client = StorageClient()
+            storage_client = StorageClient(**kwargs)
         self._storage_client = storage_client
 
     def schemes(self) -> Set[str]:
@@ -574,9 +584,12 @@ class GoogleStorageAsyncFS(AsyncFS):
         return await self._storage_client.get_object(
             bucket, name, headers={'Range': f'bytes={start}-'})
 
-    async def create(self, url: str) -> WritableStream:
+    async def create(self, url: str, retry_writes: bool = True) -> WritableStream:
         bucket, name = self._get_bucket_name(url)
-        return await self._storage_client.insert_object(bucket, name)
+        params = {
+            'uploadType': 'resumable' if retry_writes else 'media'
+        }
+        return await self._storage_client.insert_object(bucket, name, params=params)
 
     async def multi_part_create(
             self,
@@ -628,7 +641,7 @@ class GoogleStorageAsyncFS(AsyncFS):
             raise
 
     async def _listfiles_recursive(self, bucket: str, name: str) -> AsyncIterator[FileListEntry]:
-        assert name.endswith('/')
+        assert not name or name.endswith('/')
         params = {
             'prefix': name
         }
@@ -642,7 +655,7 @@ class GoogleStorageAsyncFS(AsyncFS):
                     yield GoogleStorageFileListEntry(f'gs://{bucket}/{item["name"]}', item)
 
     async def _listfiles_flat(self, bucket: str, name: str) -> AsyncIterator[FileListEntry]:
-        assert name.endswith('/')
+        assert not name or name.endswith('/')
         params = {
             'prefix': name,
             'delimiter': '/',
@@ -663,7 +676,7 @@ class GoogleStorageAsyncFS(AsyncFS):
 
     async def listfiles(self, url: str, recursive: bool = False) -> AsyncIterator[FileListEntry]:
         bucket, name = self._get_bucket_name(url)
-        if not name.endswith('/'):
+        if name and not name.endswith('/'):
             name = f'{name}/'
 
         if recursive:
@@ -690,6 +703,10 @@ class GoogleStorageAsyncFS(AsyncFS):
     async def isfile(self, url: str) -> bool:
         try:
             bucket, name = self._get_bucket_name(url)
+            # if name is empty, get_object_metadata behaves like list objects
+            # the urls are the same modulo the object name
+            if not name:
+                return False
             await self._storage_client.get_object_metadata(bucket, name)
             return True
         except aiohttp.ClientResponseError as e:
@@ -699,7 +716,7 @@ class GoogleStorageAsyncFS(AsyncFS):
 
     async def isdir(self, url: str) -> bool:
         bucket, name = self._get_bucket_name(url)
-        assert name.endswith('/')
+        assert not name or name.endswith('/')
         params = {
             'prefix': name,
             'delimiter': '/',
