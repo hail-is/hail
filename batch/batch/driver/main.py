@@ -81,8 +81,7 @@ def batch_only(fun):
 
 def instance_name_from_request(request):
     instance_name = request.headers.get('X-Hail-Instance-Name')
-    if not instance_name:
-        return None
+    return instance_name
 
 
 def instance_from_request(request):
