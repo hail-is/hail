@@ -1,5 +1,3 @@
-import json
-
 import hail as hl
 from hail.expr.types import dtype
 from hail.ir.base_ir import BaseIR, TableIR
