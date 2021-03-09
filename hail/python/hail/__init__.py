@@ -1,5 +1,8 @@
-import pkg_resources
-import sys
+import nest_asyncio
+nest_asyncio.apply()
+
+import pkg_resources  # noqa: E402
+import sys  # noqa: E402
 
 if sys.version_info < (3, 6):
     raise EnvironmentError('Hail requires Python 3.6 or later, found {}.{}'.format(
