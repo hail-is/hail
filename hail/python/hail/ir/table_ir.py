@@ -250,26 +250,6 @@ class TableRead(TableIR):
         self._type = Env.backend().table_type(self)
 
 
-class TableImport(TableIR):
-    def __init__(self, paths, typ, reader_options):
-        super().__init__()
-        self.paths = paths
-        self._typ = typ
-        self.reader_options = reader_options
-
-    def head_str(self):
-        return '(({}) {} {}'.format(
-            ' '.join([escape_str(path) for path in self.paths]),
-            self._typ._parsable_string(),
-            escape_str(json.dumps(self.reader_options)))
-
-    def _eq(self, other):
-        return self.paths == other.paths and self.typ == other.typ and self.reader_options == other.reader_options
-
-    def _compute_type(self):
-        self._type = Env.backend().table_type(self)
-
-
 class MatrixEntriesTable(TableIR):
     def __init__(self, child):
         super().__init__(child)

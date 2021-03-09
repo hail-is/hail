@@ -1317,7 +1317,8 @@ def import_gen(path,
            force_bgz=bool,
            filter=nullable(str),
            find_replace=nullable(sized_tupleof(str, str)),
-           force=bool)
+           force=bool,
+           source_file_field=nullable(str))
 def import_table(paths,
                  key=None,
                  min_partitions=None,
@@ -1332,7 +1333,8 @@ def import_table(paths,
                  force_bgz=False,
                  filter=None,
                  find_replace=None,
-                 force=False) -> Table:
+                 force=False,
+                 source_file_field=None) -> Table:
     """Import delimited text file (text table) as :class:`.Table`.
 
     The resulting :class:`.Table` will have no key fields. Use
@@ -1520,7 +1522,9 @@ def import_table(paths,
         If ``True``, load gzipped files serially on one core. This should
         be used only when absolutely necessary, as processing time will be
         increased due to lack of parallelism.
-
+    source_file_field : :class:`str`, optional
+        If defined, the source file name for each line will be a field of the table
+        with this name. Can be useful when importing multiple tables using glob patterns.
     Returns
     -------
     :class:`.Table`
@@ -1532,7 +1536,7 @@ def import_table(paths,
     tr = ir.TextTableReader(paths, min_partitions, types, comment,
                             delimiter, missing, no_header, quote,
                             skip_blank_lines, force_bgz, filter, find_replace,
-                            force)
+                            force, source_file_field)
     ht = Table(ir.TableRead(tr))
 
     strs = []
@@ -1572,7 +1576,7 @@ def import_table(paths,
         tr = ir.TextTableReader(paths, min_partitions, all_types, comment,
                                 delimiter, missing, no_header, quote,
                                 skip_blank_lines, force_bgz, filter, find_replace,
-                                force)
+                                force, source_file_field)
         ht = Table(ir.TableRead(tr))
 
     else:
