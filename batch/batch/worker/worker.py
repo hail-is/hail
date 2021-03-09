@@ -3,7 +3,6 @@ import os
 import json
 import sys
 import re
-from shlex import quote as shq
 import logging
 import asyncio
 import random
@@ -20,7 +19,7 @@ import aiodocker
 from aiodocker.exceptions import DockerError
 import google.oauth2.service_account
 from hailtop.utils import (time_msecs, request_retry_transient_errors,
-                           RETRY_FUNCTION_SCRIPT, sleep_and_backoff, retry_all_errors, check_shell,
+                           sleep_and_backoff, retry_all_errors, check_shell,
                            CalledProcessError, check_shell_output, is_google_registry_image,
                            find_spark_home)
 from hailtop.httpx import client_session
@@ -66,6 +65,7 @@ PUBLIC_GCR_IMAGES = public_gcr_images(PROJECT)
 WORKER_CONFIG = json.loads(base64.b64decode(os.environ['WORKER_CONFIG']).decode())
 MAX_IDLE_TIME_MSECS = int(os.environ['MAX_IDLE_TIME_MSECS'])
 WORKER_DATA_DISK_MOUNT = os.environ['WORKER_DATA_DISK_MOUNT']
+BATCH_WORKER_IMAGE = os.environ['BATCH_WORKER_IMAGE']
 
 log.info(f'CORES {CORES}')
 log.info(f'NAME {NAME}')
@@ -523,7 +523,7 @@ class Container:
 
 
 class JVMProcess:
-    classpath = f'{find_spark_home()}/jars/*:/hail.jar'
+    classpath = f'{find_spark_home()}/jars/*:/hail.jar:/log4j.properties'
     stack_size = 512 * 1024
     thread_pool = None
 
@@ -538,13 +538,13 @@ class JVMProcess:
         self.java_args = main_spec['command']
 
         self.proc = None
-        self.timing = {}
+        self.timing = {'running': dict()}
         self.state = 'pending'
         self.log = ''
 
     async def run(self, worker):
         log.info(f'running {self}')
-        self.timing['start_time'] = time_msecs()
+        self.timing['running']['start_time'] = time_msecs()
         self.proc = await asyncio.create_subprocess_exec(
             'java',
             *self.flags,
@@ -555,9 +555,9 @@ class JVMProcess:
         out, err = await self.proc.communicate()
 
         finish_time = time_msecs()
-        self.timing['finish_time'] = finish_time
-        start_time = self.timing['start_time']
-        self.timing['duration'] = finish_time - start_time
+        self.timing['running']['finish_time'] = finish_time
+        start_time = self.timing['running']['start_time']
+        self.timing['running']['duration'] = finish_time - start_time
 
         self.log += 'STDOUT:\n'
         self.log += out.decode()
@@ -634,63 +634,19 @@ async def add_gcsfuse_bucket(mount_path, bucket, key_file, read_only):
         delay = await sleep_and_backoff(delay)
 
 
-def copy_command(src, dst, requester_pays_project=None):
-    src = src.rstrip('/')  # ensure that the source_basename is always non-empty
-    if requester_pays_project:
-        requester_pays_project = f'-u {requester_pays_project}'
-    else:
-        requester_pays_project = ''
-
-    def gsutil_cp_r(src, dst, *, recursive):
-        flags = '-R' if recursive else ''
-        return f'retry gsutil {requester_pays_project} -m cp {flags} {shq(src)} {shq(dst)}'
-
-    if not dst.startswith('gs://'):
-        target_directory = os.path.dirname(dst)
-        target_basename = os.path.basename(dst)
-        source_basename = os.path.basename(src)
-
-        mkdirs = f'mkdir -p { shq(target_directory) } && '
-        cp_dir = gsutil_cp_r(src, target_directory, recursive=True)
-
-        if target_basename not in ('', source_basename):
-            current_location = target_directory + '/' + source_basename
-            desired_location = target_directory + '/' + target_basename
-            cp_dir = f'{{ {cp_dir} && mv {current_location} {desired_location} ; }}'
-    else:
-        mkdirs = ''
-        cp_dir = gsutil_cp_r(src, dst, recursive=True)
-
-    cp_file = gsutil_cp_r(src, dst, recursive=False)
-
-    return f'{mkdirs} {cp_file} || {cp_dir}'
-
-
-def copy(files, name, requester_pays_project):
-    assert files
-
-    if name == 'input':
-        copies = ' && '.join([copy_command(f['from'], f['to'], requester_pays_project) for f in files])
-    else:
-        assert name == 'output'
-        copies = ' && '.join([copy_command(f['from'], f['to'], requester_pays_project) for f in files])
-    return f'''
-set -ex
-
-{ RETRY_FUNCTION_SCRIPT }
-
-retry gcloud -q auth activate-service-account --key-file=/gsa-key/key.json
-
-{copies}
-'''
-
-
 def copy_container(job, name, files, volume_mounts, cpu, memory, requester_pays_project):
-    sh_expression = copy(files, name, requester_pays_project)
+    assert files
     copy_spec = {
-        'image': 'gcr.io/google.com/cloudsdktool/cloud-sdk:310.0.0-alpine',
+        'image': BATCH_WORKER_IMAGE,
         'name': name,
-        'command': ['/bin/bash', '-c', sh_expression],
+        'command': [
+            '/usr/local/bin/python3',
+            '-m',
+            'batch.copy',
+            json.dumps(requester_pays_project),
+            json.dumps(files)
+        ],
+        'env': ['GOOGLE_APPLICATION_CREDENTIALS=/gsa-key/key.json'],
         'cpu': cpu,
         'memory': memory,
         'volume_mounts': volume_mounts
@@ -1061,6 +1017,19 @@ class JVMJob(Job):
         if input_files or output_files:
             raise Exception("i/o not supported")
 
+        for envvar in self.env:
+            assert envvar['name'] not in {'HAIL_DEPLOY_CONFIG_FILE', 'HAIL_TOKENS_FILE',
+                                          'HAIL_SSL_CONFIG_FILE', 'HAIL_GSA_KEY_FILE',
+                                          'HAIL_WORKER_SCRATCH_DIR'}, envvar
+
+        self.env.append({'name': 'HAIL_DEPLOY_CONFIG_FILE',
+                         'value': f'{self.scratch}/secrets/deploy-config/deploy-config.json'})
+        self.env.append({'name': 'HAIL_TOKENS_FILE',
+                         'value': f'{self.scratch}/secrets/user-tokens/tokens.json'})
+        self.env.append({'name': 'HAIL_SSL_CONFIG_FILE',
+                         'value': f'{self.scratch}/secrets/ssl-config/ssl-config.json'})
+        self.env.append({'name': 'HAIL_GSA_KEY_FILE',
+                         'value': f'{self.scratch}/secrets/gsa-key/key.json'})
         self.env.append({'name': 'HAIL_WORKER_SCRATCH_DIR', 'value': self.scratch})
 
         # main container
@@ -1267,6 +1236,8 @@ class Worker:
         if job is None:
             raise web.HTTPNotFound()
 
+        self.last_updated = time_msecs()
+
         self.task_manager.ensure_future(job.delete())
 
         return web.Response()
@@ -1449,18 +1420,13 @@ class Worker:
     async def activate(self):
         async with client_session() as session:
             resp = await request_retry_transient_errors(
-                session, 'POST',
-                deploy_config.url('batch-driver', '/api/v1alpha/instances/activate'),
-                json={'ip_address': os.environ['IP_ADDRESS']},
+                session, 'GET',
+                deploy_config.url('batch-driver', '/api/v1alpha/instances/gsa_key'),
                 headers={
                     'X-Hail-Instance-Name': NAME,
                     'Authorization': f'Bearer {os.environ["ACTIVATION_TOKEN"]}'
                 })
             resp_json = await resp.json()
-            self.headers = {
-                'X-Hail-Instance-Name': NAME,
-                'Authorization': f'Bearer {resp_json["token"]}'
-            }
 
             with open('key.json', 'w') as f:
                 f.write(json.dumps(resp_json['key']))
@@ -1469,6 +1435,21 @@ class Worker:
                 'key.json')
             self.log_store = LogStore(BATCH_LOGS_BUCKET_NAME, INSTANCE_ID, self.pool,
                                       project=PROJECT, credentials=credentials)
+
+            resp = await request_retry_transient_errors(
+                session, 'POST',
+                deploy_config.url('batch-driver', '/api/v1alpha/instances/activate'),
+                json={'ip_address': os.environ['IP_ADDRESS']},
+                headers={
+                    'X-Hail-Instance-Name': NAME,
+                    'Authorization': f'Bearer {os.environ["ACTIVATION_TOKEN"]}'
+                })
+            resp_json = await resp.json()
+
+            self.headers = {
+                'X-Hail-Instance-Name': NAME,
+                'Authorization': f'Bearer {resp_json["token"]}'
+            }
 
 
 async def async_main():

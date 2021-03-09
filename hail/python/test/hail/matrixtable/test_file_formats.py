@@ -37,6 +37,7 @@ class Tests(unittest.TestCase):
     def test_write(self):
         create_backward_compatibility_files()
 
+    @fails_service_backend()
     @fails_local_backend()
     def test_backward_compatability(self):
         import os

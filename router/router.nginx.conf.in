@@ -6,7 +6,7 @@ server {
     }
 
     location / {
-        proxy_pass https://site/;
+        proxy_pass https://website/;
         include /etc/nginx/proxy.conf;
     }
 
@@ -20,17 +20,6 @@ server {
     location / {
         proxy_pass https://scorecard/;
         include /etc/nginx/proxy.conf;
-    }
-
-    listen 443 ssl;
-    listen [::]:443 ssl;
-}
-
-server {
-    server_name amundsen-frontend.*;
-
-    location / {
-        proxy_pass http://amundsen-frontend/;
     }
 
     listen 443 ssl;
@@ -114,12 +103,8 @@ server {
     server_name grafana.*;
 
     location / {
-        proxy_pass http://grafana/;
-        proxy_set_header Host              $http_host;
-        proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Host  $updated_host;
-        proxy_set_header X-Forwarded-Proto $updated_scheme;
-        proxy_set_header X-Real-IP         $http_x_real_ip;
+        proxy_pass https://grafana/;
+        include /etc/nginx/proxy.conf;
     }
 
     listen 443 ssl;

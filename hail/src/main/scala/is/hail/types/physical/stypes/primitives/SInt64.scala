@@ -1,9 +1,9 @@
 package is.hail.types.physical.stypes.primitives
 
-import is.hail.annotations.{CodeOrdering, Region}
-import is.hail.asm4s.{BooleanInfo, Code, LongInfo, Settable, SettableBuilder, TypeInfo, Value}
-import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, SortOrder}
-import is.hail.types.physical.stypes.{SCode, SType}
+import is.hail.annotations.Region
+import is.hail.asm4s.{Code, LongInfo, Settable, SettableBuilder, TypeInfo, Value}
+import is.hail.expr.ir.EmitCodeBuilder
+import is.hail.types.physical.stypes.SCode
 import is.hail.types.physical.{PCode, PInt64, PSettable, PType, PValue}
 import is.hail.utils.FastIndexedSeq
 
@@ -11,8 +11,6 @@ case class SInt64(required: Boolean) extends SPrimitive {
   def ti: TypeInfo[_] = LongInfo
 
   override def pType: PInt64  = PInt64(required)
-
-  def codeOrdering(mb: EmitMethodBuilder[_], other: SType, so: SortOrder): CodeOrdering = pType.codeOrdering(mb, other.pType, so)
 
   def coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = {
     value.st match {

@@ -1,8 +1,9 @@
 package is.hail.types.physical
 
-import is.hail.annotations.{Annotation, CodeOrdering}
+import is.hail.annotations.Annotation
 import is.hail.check.Gen
 import is.hail.expr.ir.EmitMethodBuilder
+import is.hail.expr.ir.orderings.CodeOrdering
 import is.hail.types.virtual.TArray
 
 trait PArrayIterator {
@@ -15,11 +16,6 @@ trait PArrayIterator {
 abstract class PArray extends PContainer {
   lazy val virtualType: TArray = TArray(elementType.virtualType)
   protected[physical] final val elementRequired = elementType.required
-
-  def codeOrdering(mb: EmitMethodBuilder[_], other: PType): CodeOrdering = {
-    assert(this isOfType other)
-    CodeOrdering.iterableOrdering(this, other.asInstanceOf[PArray], mb)
-  }
 
   def elementIterator(aoff: Long, length: Int): PArrayIterator
 

@@ -2,6 +2,7 @@ package is.hail.types.physical
 
 import is.hail.annotations._
 import is.hail.asm4s.{Code, _}
+import is.hail.expr.ir.orderings.CodeOrdering
 import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder}
 import is.hail.types.physical.stypes.primitives.{SFloat32, SFloat32Code}
 import is.hail.types.physical.stypes.{SCode, SType}
@@ -22,24 +23,6 @@ class PFloat32(override val required: Boolean) extends PNumeric with PPrimitive 
   override def unsafeOrdering(): UnsafeOrdering = new UnsafeOrdering {
     def compare(o1: Long, o2: Long): Int = {
       java.lang.Float.compare(Region.loadFloat(o1), Region.loadFloat(o2))
-    }
-  }
-
-  def codeOrdering(mb: EmitMethodBuilder[_], other: PType): CodeOrdering = {
-    assert(other isOfType this)
-    new CodeOrdering {
-      def compareNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Int] =
-        Code.invokeStatic2[java.lang.Float, Float, Float, Int]("compare", x.tcode[Float], y.tcode[Float])
-
-      def ltNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Boolean] = x.tcode[Float] < y.tcode[Float]
-
-      def lteqNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Boolean] = x.tcode[Float] <= y.tcode[Float]
-
-      def gtNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Boolean] = x.tcode[Float] > y.tcode[Float]
-
-      def gteqNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Boolean] = x.tcode[Float] >= y.tcode[Float]
-
-      def equivNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Boolean] = x.tcode[Float].ceq(y.tcode[Float])
     }
   }
 

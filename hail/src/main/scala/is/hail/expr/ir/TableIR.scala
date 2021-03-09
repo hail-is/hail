@@ -389,15 +389,13 @@ object LoweredTableReader {
             ToStream(Literal(TArray(contextType), partOrigIndex.map(i => contexts(i)))),
             body)
 
-          val tableType = TableType(tableStage.rowType, tableStage.key, tableStage.globalType)
-
-          val rTable = BaseTypeWithRequiredness(tableType).asInstanceOf[RTable]
+          val rowRType = TypeWithRequiredness(tableStage.rowType).asInstanceOf[RStruct]
 
           ctx.backend.lowerDistributedSort(ctx,
             tableStage,
             keyType.fieldNames.map(f => SortField(f, Ascending)),
             Map.empty,
-            rTable
+            rowRType
           )
         }
       }
@@ -764,7 +762,7 @@ case class PartitionZippedNativeReader(specLeft: AbstractTypedCodecSpec, specRig
               .asString
               .loadString()
             Code.checkcast[IndexReader](
-              makeIndex.invoke[AnyRef, AnyRef, AnyRef, AnyRef]("apply", mb.getFS, indexPath, Code.boxInt(8)))
+              makeIndex.invoke[AnyRef, AnyRef, AnyRef, AnyRef, AnyRef]("apply", mb.getFS, indexPath, Code.boxInt(8), cb.emb.ecb.pool()))
           case None =>
             Code._null[IndexReader]
         }

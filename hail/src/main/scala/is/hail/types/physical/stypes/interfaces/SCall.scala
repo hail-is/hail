@@ -25,4 +25,6 @@ trait SCallCode extends SCode {
   def memoize(cb: EmitCodeBuilder, name: String): SCallValue
 
   def memoizeField(cb: EmitCodeBuilder, name: String): SCallValue
+
+  def loadCanonicalRepresentation(cb: EmitCodeBuilder): Code[Int]
 }

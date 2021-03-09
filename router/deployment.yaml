@@ -1,31 +1,17 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: site
+  name: website
   labels:
-    app: site
+    app: website
 spec:
   ports:
   - name: https
     port: 443
     protocol: TCP
-    targetPort: 443
-  selector:
-    app: site
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: amundsen-frontend
-  labels:
-    app: amundsen-frontend
-spec:
-  selector:
-    app: amundsen-frontend
-  ports:
-  - name: http
-    port: 80
     targetPort: 5000
+  selector:
+    app: website
 ---
 apiVersion: v1
 kind: Service
@@ -277,8 +263,9 @@ metadata:
   name: grafana
 spec:
   ports:
-   - port: 80
-     targetPort: 3000
+   - port: 443
+     protocol: TCP
+     targetPort: 443
   selector:
     app: grafana
 ---
@@ -323,11 +310,11 @@ spec:
          image: {{ router_image.image }}
          resources:
            requests:
-             memory: "5M"
-             cpu: "10m"
+             cpu: "20m"
+             memory: "20M"
            limits:
-             memory: "250M"
              cpu: "1"
+             memory: "1G"
          env:
           - name: HAIL_DOMAIN
             value: {{ global.domain }}

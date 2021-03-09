@@ -1,7 +1,8 @@
 package is.hail.types.physical.stypes.concrete
 
-import is.hail.annotations.{CodeOrdering, Region}
+import is.hail.annotations.Region
 import is.hail.asm4s._
+import is.hail.expr.ir.orderings.CodeOrdering
 import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, SortOrder}
 import is.hail.types.physical.stypes.interfaces.SBinary
 import is.hail.types.physical.stypes.{SCode, SType}
@@ -10,8 +11,6 @@ import is.hail.utils._
 
 
 case class SBinaryPointer(pType: PBinary) extends SBinary {
-  def codeOrdering(mb: EmitMethodBuilder[_], other: SType, so: SortOrder): CodeOrdering = pType.codeOrdering(mb, other.pType, so)
-
   def coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = {
     new SBinaryPointerCode(this, pType.store(cb, region, value, deepCopy))
   }

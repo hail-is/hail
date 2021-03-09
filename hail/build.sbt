@@ -51,6 +51,7 @@ lazy val root = (project in file(".")).
         , "org.testng" % "testng" % "6.8.21" % Test
         , "com.indeed" % "lsmtree-core" % "1.0.7"
         , "com.indeed" % "util-serialization" % "1.0.30"
+        , "com.kohlschutter.junixsocket" % "junixsocket-core" % "2.3.2"
     ),
     unmanagedClasspath in Test += baseDirectory.value / "prebuilt" / "lib"
   )

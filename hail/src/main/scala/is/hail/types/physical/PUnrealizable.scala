@@ -1,7 +1,8 @@
 package is.hail.types.physical
 
-import is.hail.annotations.{Annotation, CodeOrdering, Region}
+import is.hail.annotations.{Annotation, Region}
 import is.hail.asm4s.{Code, TypeInfo, Value}
+import is.hail.expr.ir.orderings.CodeOrdering
 import is.hail.expr.ir.{Ascending, Descending, EmitCodeBuilder, EmitMethodBuilder, SortOrder}
 import is.hail.types.physical.stypes.SCode
 
@@ -12,12 +13,6 @@ trait PUnrealizable extends PType {
   override def byteSize: Long = unsupported
 
   override def alignment: Long = unsupported
-
-  override def codeOrdering(mb: EmitMethodBuilder[_], other: PType, so: SortOrder): CodeOrdering =
-    unsupported
-
-  def codeOrdering(mb: EmitMethodBuilder[_], other: PType): CodeOrdering =
-    unsupported
 
   protected[physical] def _copyFromAddress(region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Long =
     unsupported

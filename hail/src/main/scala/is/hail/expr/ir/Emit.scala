@@ -14,7 +14,7 @@ import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer}
 import is.hail.linalg.{BLAS, LAPACK, LinalgCodeUtils}
 import is.hail.services.shuffler._
 import is.hail.types.physical._
-import is.hail.types.physical.stypes.SCode
+import is.hail.types.physical.stypes.{SCode, SType}
 import is.hail.types.physical.stypes.concrete.{SBaseStructPointer, SBaseStructPointerCode, SCanonicalShufflePointerCode, SCanonicalShufflePointerSettable}
 import is.hail.types.physical.stypes.interfaces.{SBaseStructCode, SNDArray, SNDArrayCode}
 import is.hail.types.physical.stypes.primitives.{SFloat32, SFloat64, SInt32, SInt64, SInt64Code}
@@ -394,6 +394,8 @@ object EmitCode {
 }
 
 class EmitCode(private val start: CodeLabel, private val iec: IEmitCode) {
+  def st: SType = iec.value.st
+
   def pv: PCode = iec.value
 
   def setup: Code[Unit] = Code._empty
@@ -724,7 +726,7 @@ class Emit[C](
 
     def presentC(c: Code[_]): IEmitCode = presentPC(PCode(pt, c))
 
-    (ir: @unchecked) match {
+    val result: IEmitCode = (ir: @unchecked) match {
       case I32(x) =>
         presentC(const(x))
       case I64(x) =>
@@ -883,14 +885,14 @@ class Emit[C](
         if (op.strict) {
           emitI(l).flatMap(cb) { l =>
             emitI(r).map(cb) { r =>
-              val f = op.codeOrdering(mb, l.pt, r.pt)
+              val f = op.codeOrdering(cb.emb.ecb, l.st, r.st)
               PCode(pt, f(cb, EmitCode.present(cb.emb, l), EmitCode.present(cb.emb, r)))
             }
           }
         } else {
           val lc = emitI(l).memoize(cb, "l")
           val rc = emitI(r).memoize(cb, "r")
-          val f = op.codeOrdering(mb, lc.pt, rc.pt)
+          val f = op.codeOrdering(cb.emb.ecb, lc.st, rc.st)
           presentC(f(cb, lc, rc))
         }
 
@@ -941,7 +943,7 @@ class Emit[C](
 
       case ArrayLen(a) =>
         emitI(a).map(cb) { (ac) =>
-          PCode(PInt32Required, ac.asIndexable.loadLength())
+          PCode(pt, ac.asIndexable.loadLength())
         }
 
       case GetField(o, name) =>
@@ -1188,7 +1190,7 @@ class Emit[C](
             val leftBroadcastMask = if (lPType.nDims > 2) NDArrayEmitter.broadcastMask(lShape) else IndexedSeq[Value[Long]]()
             val rightBroadcastMask = if (rPType.nDims > 2) NDArrayEmitter.broadcastMask(rShape) else IndexedSeq[Value[Long]]()
 
-            val outputPType = PCanonicalNDArray(lPType.elementType, TNDArray.matMulNDims(lPType.nDims, rPType.nDims), true)
+            val outputPType = PCanonicalNDArray(lPType.elementType, TNDArray.matMulNDims(lPType.nDims, rPType.nDims), pt.required)
 
             if ((lPType.elementType.isInstanceOf[PFloat64] || lPType.elementType.isInstanceOf[PFloat32]) && lPType.nDims == 2 && rPType.nDims == 2) {
               val leftDataAddress = lPType.dataFirstElementPointer(leftPVal.tcode[Long])
@@ -2048,6 +2050,15 @@ class Emit[C](
       case _ =>
         emitFallback(ir)
     }
+
+    if (result.pt != pt) {
+      if (!result.pt.equalModuloRequired(pt))
+        throw new RuntimeException(s"ptype mismatch:\n  emitted:  ${ result.pt }\n  inferred: ${ ir.pType }\n  ir: $ir")
+      (result.pt.required, pt.required) match {
+        case (true, false) => result.map(cb)(pc => PCode(pc.pt.setRequired(pt.required), pc.code))
+        case (false, true) => IEmitCode.present(cb, result.get(cb))
+      }
+    } else result
   }
 
   /**
@@ -2129,7 +2140,8 @@ class Emit[C](
         IEmitCode.present(cb, PCode._empty)
       }
 
-    (ir: @unchecked) match {
+    val result: EmitCode = (ir: @unchecked) match {
+
       case Let(name, value, body) => value.pType match {
         case streamType: PCanonicalStream =>
 
@@ -2386,6 +2398,15 @@ class Emit[C](
           emitI(ir, cb)
         }
     }
+
+    if (result.pt != pt) {
+      if (!result.pt.equalModuloRequired(pt))
+        throw new RuntimeException(s"ptype mismatch:\n  emitted:  ${ result.pt }\n  inferred: ${ ir.pType }\n  ir: $ir")
+      (result.pt.required, pt.required) match {
+        case (true, false) => result.map(pc => PCode(pc.pt.setRequired(pt.required), pc.code))
+        case (false, true) => EmitCode.fromI(mb) { cb => IEmitCode.present(cb, result.toI(cb).get(cb)) }
+      }
+    } else result
   }
 
   private def capturedReferences(ir: IR): (IR, (Emit.E, DependentEmitFunctionBuilder[_]) => Emit.E) = {

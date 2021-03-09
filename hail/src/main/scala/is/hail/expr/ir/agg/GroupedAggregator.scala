@@ -1,7 +1,8 @@
 package is.hail.expr.ir.agg
 
-import is.hail.annotations.{CodeOrdering, Region}
+import is.hail.annotations.Region
 import is.hail.asm4s._
+import is.hail.expr.ir.orderings.CodeOrdering
 import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitCodeBuilder, EmitMethodBuilder, EmitRegion, IEmitCode, ParamType}
 import is.hail.io._
 import is.hail.types.VirtualTypeWithReq
@@ -23,7 +24,7 @@ class GroupedBTreeKey(kt: PType, kb: EmitClassBuilder[_], region: Value[Region],
       FastIndexedSeq[ParamType](typeInfo[Long], k.pt.asEmitParam),
       typeInfo[Int]
     ) { mb =>
-      val comp = kb.getCodeOrdering(compType, k.pt, CodeOrdering.Compare(), ignoreMissingness = false)
+      val comp = kb.getOrderingFunction(compType.sType, k.st, CodeOrdering.Compare())
       val off = mb.getCodeParam[Long](1)
       val ev1 = loadCompKey(cb, off)
       val ev2 = mb.getEmitParam(2)
@@ -90,7 +91,7 @@ class GroupedBTreeKey(kt: PType, kb: EmitClassBuilder[_], region: Value[Region],
   }
 
   def compKeys(cb: EmitCodeBuilder, k1: EmitCode, k2: EmitCode): Code[Int] = {
-    kb.getCodeOrdering(k1.pt, k2.pt, CodeOrdering.Compare(), ignoreMissingness = false)(cb, k1, k2)
+    kb.getOrderingFunction(k1.st, k2.st, CodeOrdering.Compare())(cb, k1, k2)
   }
 
   def loadCompKey(cb: EmitCodeBuilder, off: Value[Long]): EmitCode =

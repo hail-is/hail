@@ -24,7 +24,7 @@ import org.apache.spark.sql.{DataFrame, SparkSession}
 import scala.collection.mutable
 import scala.reflect.ClassTag
 import scala.collection.JavaConverters._
-import java.io.PrintWriter
+import java.io.{Closeable, PrintWriter}
 
 import is.hail.io.plink.LoadPlink
 import is.hail.io.vcf.VCFsReader
@@ -233,10 +233,11 @@ class SparkBackend(
   val tmpdir: String,
   val localTmpdir: String,
   val sc: SparkContext
-) extends Backend {
+) extends Backend with Closeable {
   lazy val sparkSession: SparkSession = SparkSession.builder().config(sc.getConf).getOrCreate()
 
   val fs: HadoopFS = new HadoopFS(new SerializableHadoopConfiguration(sc.hadoopConfiguration))
+  private[this] val longLifeTempFileManager: TempFileManager = new OwningTempFileManager(fs)
 
   val bmCache: SparkBlockMatrixCache = SparkBlockMatrixCache()
 
@@ -250,8 +251,9 @@ class SparkBackend(
 
   def unpersist(id: String): Unit = bmCache.unpersistBlockMatrix(id)
 
-  def withExecuteContext[T](timer: ExecutionTimer)(f: ExecuteContext => T): T = {
-    ExecuteContext.scoped(tmpdir, localTmpdir, this, fs, timer)(f)
+  def withExecuteContext[T](timer: ExecutionTimer, selfContainedExecution: Boolean = true)(f: ExecuteContext => T): T = {
+    ExecuteContext.scoped(tmpdir, localTmpdir, this, fs, timer,
+      if (selfContainedExecution) null else new NonOwningTempFileManager(longLifeTempFileManager))(f)
   }
 
   def broadcast[T : ClassTag](value: T): BroadcastValue[T] = new SparkBroadcastValue[T](sc.broadcast(value))
@@ -439,7 +441,7 @@ class SparkBackend(
     ExecutionTimer.logTime("SparkBackend.pyFromDF") { timer =>
       val key = jKey.asScala.toArray.toFastIndexedSeq
       val signature = SparkAnnotationImpex.importType(df.schema).setRequired(true).asInstanceOf[PStruct]
-      withExecuteContext(timer) { ctx =>
+      withExecuteContext(timer, selfContainedExecution = false) { ctx =>
         TableLiteral(TableValue(ctx, signature.virtualType.asInstanceOf[TStruct], key, df.rdd, Some(signature)))
       }
     }
@@ -454,7 +456,7 @@ class SparkBackend(
           fatal(s"unknown StorageLevel: $storageLevel")
       }
 
-      withExecuteContext(timer) { ctx =>
+      withExecuteContext(timer, selfContainedExecution = false) { ctx =>
         val tv = Interpret(mir, ctx, optimize = true)
         MatrixLiteral(mir.typ, TableLiteral(tv.persist(ctx, level)))
       }
@@ -470,7 +472,7 @@ class SparkBackend(
           fatal(s"unknown StorageLevel: $storageLevel")
       }
 
-      withExecuteContext(timer) { ctx =>
+      withExecuteContext(timer, selfContainedExecution = false) { ctx =>
         val tv = Interpret(tir, ctx, optimize = true)
         TableLiteral(tv.persist(ctx, level))
       }
@@ -479,7 +481,7 @@ class SparkBackend(
 
   def pyToDF(tir: TableIR): DataFrame = {
     ExecutionTimer.logTime("SparkBackend.pyToDF") { timer =>
-      withExecuteContext(timer) { ctx =>
+      withExecuteContext(timer, selfContainedExecution = false) { ctx =>
         Interpret(tir, ctx).toDF()
       }
     }
@@ -582,7 +584,7 @@ class SparkBackend(
 
   def pyFitLinearMixedModel(lmm: LinearMixedModel, pa_t: RowMatrix, a_t: RowMatrix): TableIR = {
     ExecutionTimer.logTime("SparkBackend.pyAddSequence") { timer =>
-      withExecuteContext(timer) { ctx =>
+      withExecuteContext(timer, selfContainedExecution = false) { ctx =>
         lmm.fit(ctx, pa_t, Option(a_t))
       }
     }
@@ -598,7 +600,7 @@ class SparkBackend(
 
   def parse_table_ir(s: String, refMap: java.util.Map[String, String], irMap: java.util.Map[String, BaseIR]): TableIR = {
     ExecutionTimer.logTime("SparkBackend.parse_table_ir") { timer =>
-      withExecuteContext(timer) { ctx =>
+      withExecuteContext(timer, selfContainedExecution = false) { ctx =>
         IRParser.parse_table_ir(s, IRParserEnvironment(ctx, refMap.asScala.toMap.mapValues(IRParser.parseType), irMap.asScala.toMap))
       }
     }
@@ -606,7 +608,7 @@ class SparkBackend(
 
   def parse_matrix_ir(s: String, refMap: java.util.Map[String, String], irMap: java.util.Map[String, BaseIR]): MatrixIR = {
     ExecutionTimer.logTime("SparkBackend.parse_matrix_ir") { timer =>
-      withExecuteContext(timer) { ctx =>
+      withExecuteContext(timer, selfContainedExecution = false) { ctx =>
         IRParser.parse_matrix_ir(s, IRParserEnvironment(ctx, refMap.asScala.toMap.mapValues(IRParser.parseType), irMap.asScala.toMap))
       }
     }
@@ -616,7 +618,7 @@ class SparkBackend(
     s: String, refMap: java.util.Map[String, String], irMap: java.util.Map[String, BaseIR]
   ): BlockMatrixIR = {
     ExecutionTimer.logTime("SparkBackend.parse_blockmatrix_ir") { timer =>
-      withExecuteContext(timer) { ctx =>
+      withExecuteContext(timer, selfContainedExecution = false) { ctx =>
         IRParser.parse_blockmatrix_ir(s, IRParserEnvironment(ctx, refMap.asScala.toMap.mapValues(IRParser.parseType), irMap.asScala.toMap))
       }
     }
@@ -627,7 +629,7 @@ class SparkBackend(
     stage: TableStage,
     sortFields: IndexedSeq[SortField],
     relationalLetsAbove: Map[String, IR],
-    tableTypeRequiredness: RTable
+    rowTypeRequiredness: RStruct
   ): TableStage = {
     val (globals, rvd) = TableStageToRVD(ctx, stage, relationalLetsAbove)
 
@@ -655,6 +657,10 @@ class SparkBackend(
 
   def pyImportFam(path: String, isQuantPheno: Boolean, delimiter: String, missingValue: String): String =
     LoadPlink.importFamJSON(fs, path, isQuantPheno, delimiter, missingValue)
+
+  def close(): Unit = {
+    longLifeTempFileManager.cleanup()
+  }
 }
 
 case class SparkBackendComputeRDDPartition(data: Array[Byte], index: Int) extends Partition

@@ -1,3 +1,4 @@
+import asyncio
 import os
 from timeit import default_timer as timer
 import unittest
@@ -12,6 +13,11 @@ _initialized = False
 
 
 def startTestHailContext():
+    try:
+        asyncio.get_event_loop()
+    except RuntimeError as err:
+        if 'There is no current event loop in thread' in err.args[0]:
+            asyncio.set_event_loop(asyncio.new_event_loop())
     global _initialized
     if not _initialized:
         backend_name = os.environ.get('HAIL_QUERY_BACKEND', 'spark')
@@ -130,10 +136,29 @@ def skip_unless_spark_backend():
     return wrapper
 
 
+def skip_when_service_backend(message='does not work on ServiceBackend'):
+    from hail.backend.service_backend import ServiceBackend
+    @decorator
+    def wrapper(func, *args, **kwargs):
+        if isinstance(hl.utils.java.Env.backend(), ServiceBackend):
+            raise unittest.SkipTest(message)
+        else:
+            return func(*args, **kwargs)
+
+    return wrapper
+
+
 fails_local_backend = pytest.mark.xfail(
     os.environ.get('HAIL_QUERY_BACKEND') == 'local',
     reason="doesn't yet work on local backend",
     strict=True)
+
+
+fails_service_backend = pytest.mark.xfail(
+    os.environ.get('HAIL_QUERY_BACKEND') == 'service',
+    reason="doesn't yet work on service backend",
+    strict=True)
+
 
 def run_with_cxx_compile():
     @decorator

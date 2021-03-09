@@ -14,5 +14,4 @@ ukbb-rg.{{ domain }}
 query.{{ domain }}
 workshop.{{ domain }}
 atgu.{{ domain }}
-amundsen-frontend.{{ domain }}
 grafana.{{ domain }}

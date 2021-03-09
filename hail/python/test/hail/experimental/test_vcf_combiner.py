@@ -4,7 +4,7 @@ import hail as hl
 from hail.experimental.vcf_combiner import vcf_combiner as vc
 from hail.utils.java import Env
 from hail.utils.misc import new_temp_file
-from ..helpers import resource, startTestHailContext, stopTestHailContext, fails_local_backend
+from ..helpers import resource, startTestHailContext, stopTestHailContext, fails_local_backend, fails_service_backend
 
 setUpModule = startTestHailContext
 tearDownModule = stopTestHailContext
@@ -22,6 +22,7 @@ all_samples = ['HG00308', 'HG00592', 'HG02230', 'NA18534', 'NA20760',
                'NA20796', 'HG00323', 'HG01384', 'NA18613', 'NA20802']
 
 
+@fails_service_backend()
 @fails_local_backend()
 def test_1kg_chr22():
     out_file = new_temp_file(extension='mt')
@@ -57,18 +58,21 @@ def test_1kg_chr22():
 def default_exome_intervals(rg):
     return vc.calculate_even_genome_partitioning(rg, 2 ** 32)  # 4 billion, larger than any contig
 
+@fails_service_backend()
 @fails_local_backend()
 def test_gvcf_1k_same_as_import_vcf():
     path = os.path.join(resource('gvcfs'), '1kg_chr22', f'HG00308.hg38.g.vcf.gz')
     [mt] = hl.import_gvcfs([path], default_exome_intervals('GRCh38'), reference_genome='GRCh38')
     assert mt._same(hl.import_vcf(path, force_bgz=True, reference_genome='GRCh38').key_rows_by('locus'))
 
+@fails_service_backend()
 @fails_local_backend()
 def test_gvcf_subset_same_as_import_vcf():
     path = os.path.join(resource('gvcfs'), 'subset', f'HG00187.hg38.g.vcf.gz')
     [mt] = hl.import_gvcfs([path], default_exome_intervals('GRCh38'), reference_genome='GRCh38')
     assert mt._same(hl.import_vcf(path, force_bgz=True, reference_genome='GRCh38').key_rows_by('locus'))
 
+@fails_service_backend()
 @fails_local_backend()
 def test_key_by_locus_alleles():
     out_file = new_temp_file(extension='mt')
@@ -87,6 +91,7 @@ def test_key_by_locus_alleles():
     mt._force_count_rows()
 
 
+@fails_service_backend()
 @fails_local_backend()
 def test_non_ref_alleles_set_to_missing():
     path = os.path.join(resource('gvcfs'), 'non_ref_call.g.vcf.gz')
@@ -105,6 +110,7 @@ def test_non_ref_alleles_set_to_missing():
     assert mt.aggregate_entries(
         hl.agg.all(gt_idx < (n_alleles * (n_alleles + 1)) / 2))
 
+@fails_service_backend()
 @fails_local_backend()
 def test_contig_recoding():
     path1 = os.path.join(resource('gvcfs'), 'recoding', 'HG00187.hg38.g.vcf.gz')
@@ -129,6 +135,7 @@ def test_contig_recoding():
     assert mt1.count() == mt2.count()
     assert mt1._same(mt2)
 
+@fails_service_backend()
 @fails_local_backend()
 def test_sample_override():
     out_file = new_temp_file(extension='mt')

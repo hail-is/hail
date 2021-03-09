@@ -9,7 +9,10 @@ import shutil
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
 import urllib.parse
-from hailtop.utils import blocking_to_async, url_basename, url_join, bounded_gather2
+import humanize
+from hailtop.utils import (
+    retry_transient_errors, blocking_to_async, url_basename, url_join, bounded_gather2,
+    time_msecs, humanize_timedelta_msecs)
 from .stream import ReadableStream, WritableStream, blocking_readable_stream_to_async, blocking_writable_stream_to_async
 
 AsyncFSType = TypeVar('AsyncFSType', bound='AsyncFS')
@@ -53,7 +56,7 @@ class FileListEntry(abc.ABC):
 
 class MultiPartCreate(abc.ABC):
     @abc.abstractmethod
-    async def create_part(self, number: int, start: int):
+    async def create_part(self, number: int, start: int, *, retry_writes: bool = True):
         pass
 
     @abc.abstractmethod
@@ -85,7 +88,7 @@ class AsyncFS(abc.ABC):
         pass
 
     @abc.abstractmethod
-    async def create(self, url: str) -> WritableStream:
+    async def create(self, url: str, *, retry_writes: bool = True) -> WritableStream:
         pass
 
     @abc.abstractmethod
@@ -201,7 +204,7 @@ class LocalMultiPartCreate(MultiPartCreate):
         self._path = path
         self._num_parts = num_parts
 
-    async def create_part(self, number: int, start: int):
+    async def create_part(self, number: int, start: int, *, retry_writes: bool = True):  # pylint: disable=unused-argument
         assert 0 <= number < self._num_parts
         f = await blocking_to_async(self._fs._thread_pool, open, self._path, 'r+b')
         f.seek(start)
@@ -246,7 +249,7 @@ class LocalAsyncFS(AsyncFS):
         f.seek(start, io.SEEK_SET)
         return blocking_readable_stream_to_async(self._thread_pool, cast(BinaryIO, f))
 
-    async def create(self, url: str) -> WritableStream:
+    async def create(self, url: str, *, retry_writes: bool = True) -> WritableStream:  # pylint: disable=unused-argument
         f = await blocking_to_async(self._thread_pool, open, self._get_path(url), 'wb')
         return blocking_writable_stream_to_async(self._thread_pool, cast(BinaryIO, f))
 
@@ -339,16 +342,19 @@ class FileAndDirectoryError(Exception):
 
 
 class Transfer:
-    TARGET_DIR = 'target_dir'
-    TARGET_FILE = 'target_file'
-    INFER_TARGET = 'infer_target'
+    DEST_DIR = 'dest_dir'
+    DEST_IS_TARGET = 'dest_is_target'
+    INFER_DEST = 'infer_dest'
 
-    def __init__(self, src: Union[str, List[str]], dest: str, *, treat_dest_as: str = INFER_TARGET):
-        if treat_dest_as not in (Transfer.TARGET_DIR, Transfer.TARGET_FILE, Transfer.INFER_TARGET):
+    def __init__(self, src: Union[str, List[str]], dest: str, *, treat_dest_as: str = INFER_DEST):
+        if treat_dest_as not in (Transfer.DEST_DIR, Transfer.DEST_IS_TARGET, Transfer.INFER_DEST):
             raise ValueError(f'treat_dest_as invalid: {treat_dest_as}')
 
-        if treat_dest_as == Transfer.TARGET_FILE and isinstance(src, list):
+        if treat_dest_as == Transfer.DEST_IS_TARGET and isinstance(src, list):
             raise NotADirectoryError(dest)
+        if (treat_dest_as == Transfer.INFER_DEST
+                and dest.endswith('/')):
+            treat_dest_as = Transfer.DEST_DIR
 
         self.src = src
         self.dest = dest
@@ -360,6 +366,7 @@ class SourceReport:
         self._source = source
         self._source_type: Optional[str] = None
         self._files = 0
+        self._bytes = 0
         self._errors = 0
         self._complete = 0
         self._first_file_error: Optional[Dict[str, Any]] = None
@@ -394,6 +401,9 @@ class TransferReport:
 
 class CopyReport:
     def __init__(self, transfer: Union[Transfer, List[Transfer]]):
+        self._start_time = time_msecs()
+        self._end_time = None
+        self._duration = None
         if isinstance(transfer, Transfer):
             self._transfer_report = TransferReport(transfer)
         else:
@@ -403,6 +413,43 @@ class CopyReport:
     def set_exception(self, exception: Exception):
         assert not self._exception
         self._exception = exception
+
+    def mark_done(self):
+        self._end_time = time_msecs()
+        self._duration = self._end_time - self._start_time
+
+    def summarize(self):
+        source_reports = []
+
+        def add_source_reports(transfer_report):
+            if isinstance(transfer_report._source_report, SourceReport):
+                source_reports.append(transfer_report._source_report)
+            else:
+                source_reports.extend(transfer_report._source_report)
+
+        if isinstance(self._transfer_report, Transfer):
+            total_transfers = 1
+            add_source_reports(self._transfer_report)
+        else:
+            total_transfers = len(self._transfer_report)
+            for t in self._transfer_report:
+                add_source_reports(t)
+
+        total_sources = len(source_reports)
+        total_files = sum([sr._files for sr in source_reports])
+        total_bytes = sum([sr._bytes for sr in source_reports])
+
+        print('Transfer summary:')
+        print(f'  Transfers: {total_transfers}')
+        print(f'  Sources: {total_sources}')
+        print(f'  Files: {total_files}')
+        print(f'  Bytes: {humanize.naturalsize(total_bytes)}')
+        print(f'  Time: {humanize_timedelta_msecs(self._duration)}')
+        print(f'  Average transfer rate: {humanize.naturalsize(total_bytes / (self._duration / 1000))}/s')
+
+        print('Sources:')
+        for sr in source_reports:
+            print(f'  {sr._source}: {sr._files} files, {humanize.naturalsize(sr._bytes)}')
 
 
 class UnexpectedEOFError(Exception):
@@ -444,7 +491,7 @@ class SourceCopier:
 
         async with await self.router_fs.open(srcfile) as srcf:
             try:
-                destf = await self.router_fs.create(destfile)
+                destf = await self.router_fs.create(destfile, retry_writes=False)
             except FileNotFoundError:
                 await self.router_fs.makedirs(os.path.dirname(destfile), exist_ok=True)
                 destf = await self.router_fs.create(destfile)
@@ -457,10 +504,10 @@ class SourceCopier:
                     written = await destf.write(b)
                     assert written == len(b)
 
-    async def _copy_part(self, source_report, srcfile, part_number, part_creator):
+    async def _copy_part(self, source_report, srcfile, part_number, part_creator, return_exceptions):
         try:
             async with await self.router_fs.open_from(srcfile, part_number * self.PART_SIZE) as srcf:
-                async with await part_creator.create_part(part_number, part_number * self.PART_SIZE) as destf:
+                async with await part_creator.create_part(part_number, part_number * self.PART_SIZE, retry_writes=False) as destf:
                     n = self.PART_SIZE
                     while n > 0:
                         b = await srcf.read(min(Copier.BUFFER_SIZE, n))
@@ -471,7 +518,10 @@ class SourceCopier:
                         assert written == len(b)
                         n -= len(b)
         except Exception as e:
-            source_report.set_exception(e)
+            if return_exceptions:
+                source_report.set_exception(e)
+            else:
+                raise
 
     async def _copy_file_multi_part_main(
             self,
@@ -479,10 +529,11 @@ class SourceCopier:
             source_report: SourceReport,
             srcfile: str,
             srcstat: FileStatus,
-            destfile: str):
+            destfile: str,
+            return_exceptions: bool):
         size = await srcstat.size()
         if size <= self.PART_SIZE:
-            await self._copy_file(srcfile, destfile)
+            await retry_transient_errors(self._copy_file, srcfile, destfile)
             return
 
         n_parts = int((size + self.PART_SIZE - 1) / self.PART_SIZE)
@@ -494,8 +545,8 @@ class SourceCopier:
             part_creator = await self.router_fs.multi_part_create(sema, destfile, n_parts)
 
         async with part_creator:
-            bounded_gather2(sema, *[
-                self._copy_part(source_report, srcfile, i, part_creator)
+            await bounded_gather2(sema, *[
+                retry_transient_errors(self._copy_part, source_report, srcfile, i, part_creator, return_exceptions)
                 for i in range(n_parts)
             ], cancel_on_error=True)
 
@@ -508,9 +559,10 @@ class SourceCopier:
             destfile: str,
             return_exceptions: bool):
         source_report._files += 1
+        source_report._bytes += await srcstat.size()
         success = False
         try:
-            await self._copy_file_multi_part_main(sema, source_report, srcfile, srcstat, destfile)
+            await self._copy_file_multi_part_main(sema, source_report, srcfile, srcstat, destfile, return_exceptions)
             source_report._complete += 1
             success = True
         except Exception as e:
@@ -523,22 +575,22 @@ class SourceCopier:
                 source_report._errors += 1
 
     async def _full_dest(self):
-        dest_type = await self.dest_type_task
+        if self.dest_type_task:
+            dest_type = await self.dest_type_task
+        else:
+            dest_type = None
 
-        if (self.treat_dest_as == Transfer.TARGET_DIR
-                or self.dest.endswith('/')
-                or (self.treat_dest_as == Transfer.INFER_TARGET
+        if (self.treat_dest_as == Transfer.DEST_DIR
+                or (self.treat_dest_as == Transfer.INFER_DEST
                     and dest_type == AsyncFS.DIR)):
-            if dest_type is None:
-                raise FileNotFoundError(self.dest)
-            if dest_type == AsyncFS.FILE:
-                raise NotADirectoryError(self.dest)
-            assert dest_type == AsyncFS.DIR
             # We know dest is a dir, but we're copying to
             # dest/basename(src), and we don't know its type.
             return url_join(self.dest, url_basename(self.src.rstrip('/'))), None
 
-        assert not self.dest.endswith('/')
+        if (self.treat_dest_as == Transfer.DEST_IS_TARGET
+                and self.dest.endswith('/')):
+            dest_type = AsyncFS.DIR
+
         return self.dest, dest_type
 
     async def copy_as_file(self,
@@ -653,13 +705,12 @@ class Copier:
         than the real type.  A return value of `None` mean `dest` does
         not exist.
         '''
-        if (transfer.treat_dest_as == Transfer.TARGET_DIR
+        assert transfer.treat_dest_as != Transfer.DEST_IS_TARGET
+
+        if (transfer.treat_dest_as == Transfer.DEST_DIR
                 or isinstance(transfer.src, list)
                 or transfer.dest.endswith('/')):
             return AsyncFS.DIR
-
-        if transfer.treat_dest_as == Transfer.TARGET_FILE:
-            return AsyncFS.FILE
 
         assert not transfer.dest.endswith('/')
         try:
@@ -675,15 +726,17 @@ class Copier:
 
     async def _copy_one_transfer(self, sema: asyncio.Semaphore, transfer_report: TransferReport, transfer: Transfer, return_exceptions: bool):
         try:
-            dest_type_task = asyncio.create_task(self._dest_type(transfer))
-            dest_type_task_awaited = False
+            if transfer.treat_dest_as == Transfer.INFER_DEST:
+                dest_type_task = asyncio.create_task(self._dest_type(transfer))
+            else:
+                dest_type_task = None
 
             try:
                 src = transfer.src
                 if isinstance(src, str):
                     await self.copy_source(sema, transfer, transfer_report._source_report, src, dest_type_task, return_exceptions)
                 else:
-                    if transfer.treat_dest_as == Transfer.TARGET_FILE:
+                    if transfer.treat_dest_as == Transfer.DEST_IS_TARGET:
                         raise NotADirectoryError(transfer.dest)
 
                     await bounded_gather2(sema, *[
@@ -692,17 +745,11 @@ class Copier:
                     ], cancel_on_error=True)
 
                 # raise potential exception
-                dest_type_task_awaited = True
-                await dest_type_task
+                if dest_type_task:
+                    await dest_type_task
             finally:
-                if not dest_type_task_awaited:
-                    # retrieve dest_type_task exception to avoid
-                    # "Task exception was never retrieved" errors
-                    try:
-                        dest_type_task_awaited = True
-                        await dest_type_task
-                    except:
-                        pass
+                if dest_type_task:
+                    await asyncio.wait([dest_type_task])
         except Exception as e:
             if return_exceptions:
                 transfer_report.set_exception(e)
@@ -770,9 +817,9 @@ class RouterAsyncFS(AsyncFS):
         fs = self._get_fs(url)
         return await fs.open_from(url, start)
 
-    async def create(self, url: str) -> WritableStream:
+    async def create(self, url: str, *, retry_writes: bool = True) -> WritableStream:
         fs = self._get_fs(url)
-        return await fs.create(url)
+        return await fs.create(url, retry_writes=retry_writes)
 
     async def multi_part_create(
             self,
@@ -822,7 +869,9 @@ class RouterAsyncFS(AsyncFS):
         for fs in self._filesystems:
             await fs.close()
 
-    async def copy(self, sema: asyncio.Semaphore, transfer: Union[Transfer, List[Transfer]], return_exceptions=False):
+    async def copy(self, sema: asyncio.Semaphore, transfer: Union[Transfer, List[Transfer]], return_exceptions: bool = False) -> CopyReport:
         copier = Copier(self)
         copy_report = CopyReport(transfer)
         await copier.copy(sema, copy_report, transfer, return_exceptions)
+        copy_report.mark_done()
+        return copy_report

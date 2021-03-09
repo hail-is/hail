@@ -128,18 +128,31 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
               s"\n  expected ${ pcpt.pt }")
           pc.codeTuple()
         case (EmitParam(ec), EmitParamType(pt)) =>
-          if (ec.pt != pt)
-            throw new RuntimeException(s"invoke ${ callee.mb.methodName }: arg $i: type mismatch:" +
-              s"\n  got ${ ec.pt }" +
-              s"\n  expected ${ pt }")
-          if (ec.pt.required) {
-            append(ec.setup)
-            append(Code.toUnit(ec.m))
-            ec.codeTuple()
+          if (!ec.pt.equalModuloRequired(pt)) {
+            throw new RuntimeException(s"invoke ${callee.mb.methodName}: arg $i: type mismatch:" +
+              s"\n  got ${ec.pt}" +
+              s"\n  expected ${pt}")
+          }
+
+          val castEc = (ec.pt.required, pt.required) match {
+            case (true, false) => {
+              ec.map(pc => PCode(pc.pt.setRequired(pt.required), pc.code))
+            }
+            case (false, true) => {
+              EmitCode.fromI(callee) { cb => IEmitCode.present(this, ec.toI(this).get(this))}
+            }
+            case _ => ec
+          }
+
+          if (castEc.pt.required) {
+            append(castEc.setup)
+            append(Code.toUnit(castEc.m))
+            castEc.codeTuple()
           } else {
-            val ev = memoize(ec, "cb_invoke_setup_params")
+            val ev = memoize(castEc, "cb_invoke_setup_params")
             ev.codeTuple()
           }
+
         case (arg, expected) =>
           throw new RuntimeException(s"invoke ${ callee.mb.methodName }: arg $i: type mismatch:" +
             s"\n  got ${ arg }" +
@@ -186,6 +199,8 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
   def strValue(r: Value[Region], t: PType, code: Code[_]): Code[String] = {
     StringFunctions.boxArg(EmitRegion(emb, r), t)(code).invoke[String]("toString")
   }
+
+  def strValue(r: Value[Region], x: PCode): Code[String] = strValue(r, x.pt, x.code)
 
   // for debugging
   def println(cString: Code[String]*) = this += Code._printlns(cString:_*)

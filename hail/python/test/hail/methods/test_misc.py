@@ -28,6 +28,7 @@ class Tests(unittest.TestCase):
             'foo'
         )['foo'].dtype == hl.tstr
 
+    @fails_service_backend()
     @fails_local_backend()
     def test_annotate_intervals(self):
         ds = get_dataset()
@@ -185,6 +186,7 @@ class Tests(unittest.TestCase):
                                  hl.Struct(locus=hl.Locus('20', 10644700), alleles=['A', 'T']))]
         self.assertEqual(hl.filter_intervals(ds, intervals).count_rows(), 3)
 
+    @fails_service_backend()
     def test_summarize_variants(self):
         mt = hl.utils.range_matrix_table(3, 3)
         variants = hl.literal({0: hl.Struct(locus=hl.Locus('1', 1), alleles=['A', 'T', 'C']),
@@ -197,6 +199,7 @@ class Tests(unittest.TestCase):
         self.assertEqual(r.allele_types, {'SNP': 2, 'MNP': 1, 'Unknown': 1, 'Insertion': 1})
         self.assertEqual(r.allele_counts, {2: 1, 3: 2})
 
+    @fails_service_backend()
     def test_verify_biallelic(self):
         mt = hl.import_vcf(resource('sample2.vcf'))  # has multiallelics
         with self.assertRaises(hl.utils.HailUserError):
