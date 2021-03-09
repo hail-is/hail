@@ -6,6 +6,7 @@ import re
 import time
 
 from hailtop import hailctl
+from hailtop import version
 
 
 def print_help():
@@ -61,7 +62,7 @@ def check_for_update():
                 pip_out = sp.check_output(['pip3', 'search', 'hail'], stderr=sp.STDOUT)
 
             latest = re.search(r'hail \((\\d+)\.(\\d+)\.(\\d+).*', pip_out.decode()).groups()
-            installed = re.search(r'(\d+)\.(\d+)\.(\d+).*', hailctl.version()).groups()
+            installed = re.search(r'(\d+)\.(\d+)\.(\d+).*', version()).groups()
 
             def int_version(version):
                 return tuple(map(int, version))
@@ -81,7 +82,7 @@ def check_for_update():
 
 
 def print_version():
-    print(hailctl.version())
+    print(version())
 
 
 def main():
