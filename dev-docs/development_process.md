@@ -127,7 +127,7 @@ $ mysql
 Once you have a branch that you are happy with, then you create a Pull Request
 on the GitHub UI.
 
-You’ll want to add an appropriate reviewer as an “assignee” which is on the
+You’ll want to add an appropriate reviewer in the "Reviewers" box on the
 right hand side of the page.
 
 You can also give the PR a set of labels. The important ones are “WIP” to make
@@ -172,7 +172,7 @@ logs for your PR at [ci.hail.is](https://ci.hail.is).
 
 ## Review
 
-Once the PR has been created, it is the responsibility of the assignee(s) to
+Once the PR has been created, it is the responsibility of the reviewer(s) to
 review the PR. Our goal as a team is to give comments within 24 hours. To review
 someone else’s changes, click on “Files changed”. This will show the diff
 between the old code and the new proposed changes. You can make comments on
@@ -190,8 +190,13 @@ can “Approve” the PR.
 
 If you are the person whose code is being reviewed and your PR is in the Request
 Changes state, then you’ll need to address their comments by pushing new commit
-changes or answering questions. Once you are done, then you can dismiss their
-review towards the bottom of the Conversation page.
+changes or answering questions. Once you are done, then you can re-request a review
+in the "Reviewers" box.
+
+If your review is requested on a PR submitted by an outside contributor, you should
+"assign" yourself or the appropriate team member to the PR. The assignee is
+responsible for ensuring that the PR does not go stale and is eventually
+merged or closed.
 
 ![](dismiss_review.png)
 
