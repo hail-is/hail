@@ -1,3 +1,4 @@
+from functools import wraps
 import prometheus_client as pc  # type: ignore
 from prometheus_async.aio import time as prom_async_time  # type: ignore
 
@@ -6,6 +7,7 @@ REQUEST_COUNT = pc.Counter('http_request_count', 'Number of HTTP requests', ['en
 
 
 def monitor_endpoint(handler):
+    @wraps(handler)
     async def wrapped(request, *args, **kwargs):
         # Use the path template given to @route.<METHOD>, not the fully resolved one
         endpoint = request.match_info.route.resource.canonical
