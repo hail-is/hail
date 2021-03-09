@@ -8,6 +8,7 @@ import aiohttp
 from aiohttp import web
 import aiohttp_session  # type: ignore
 import uvloop  # type: ignore
+from prometheus_async.aio.web import server_stats  # type: ignore
 from gidgethub import aiohttp as gh_aiohttp, routing as gh_routing, sansio as gh_sansio
 from hailtop.utils import collect_agen, humanize_timedelta_msecs
 from hailtop.batch_client.aioclient import BatchClient
@@ -21,6 +22,7 @@ from gear import (
     web_authenticated_developers_only,
     check_csrf_token,
     create_database_pool,
+    monitor_endpoint,
 )
 import random
 from typing import Dict, Any, Optional
@@ -86,6 +88,7 @@ async def watched_branch_config(app, wb: WatchedBranch, index: int) -> Dict[str,
 
 @routes.get('')
 @routes.get('/')
+@monitor_endpoint
 @web_authenticated_developers_only()
 async def index(request, userdata):  # pylint: disable=unused-argument
     wb_configs = [await watched_branch_config(request.app, wb, i) for i, wb in enumerate(watched_branches)]
@@ -107,6 +110,7 @@ def wb_and_pr_from_request(request):
 
 
 @routes.get('/watched_branches/{watched_branch_index}/pr/{pr_number}')
+@monitor_endpoint
 @web_authenticated_developers_only()
 async def get_pr(request, userdata):  # pylint: disable=unused-argument
     wb, pr = wb_and_pr_from_request(request)
@@ -161,6 +165,7 @@ async def retry_pr(wb, pr, request):
 
 @routes.post('/watched_branches/{watched_branch_index}/pr/{pr_number}/retry')
 @check_csrf_token
+@monitor_endpoint
 @web_authenticated_developers_only(redirect=False)
 async def post_retry_pr(request, userdata):  # pylint: disable=unused-argument
     wb, pr = wb_and_pr_from_request(request)
@@ -170,6 +175,7 @@ async def post_retry_pr(request, userdata):  # pylint: disable=unused-argument
 
 
 @routes.get('/batches')
+@monitor_endpoint
 @web_authenticated_developers_only()
 async def get_batches(request, userdata):
     batch_client = request.app['batch_client']
@@ -180,6 +186,7 @@ async def get_batches(request, userdata):
 
 
 @routes.get('/batches/{batch_id}')
+@monitor_endpoint
 @web_authenticated_developers_only()
 async def get_batch(request, userdata):
     batch_id = int(request.match_info['batch_id'])
@@ -194,6 +201,7 @@ async def get_batch(request, userdata):
 
 
 @routes.get('/batches/{batch_id}/jobs/{job_id}')
+@monitor_endpoint
 @web_authenticated_developers_only()
 async def get_job(request, userdata):
     batch_id = int(request.match_info['batch_id'])
@@ -231,6 +239,7 @@ def pr_requires_action(gh_username, pr_config):
 
 
 @routes.get('/me')
+@monitor_endpoint
 @web_authenticated_developers_only()
 async def get_user(request, userdata):
     username = userdata['username']
@@ -269,6 +278,7 @@ async def get_user(request, userdata):
 
 @routes.post('/authorize_source_sha')
 @check_csrf_token
+@monitor_endpoint
 @web_authenticated_developers_only(redirect=False)
 async def post_authorized_source_sha(request, userdata):  # pylint: disable=unused-argument
     app = request.app
@@ -350,6 +360,7 @@ async def batch_callback_handler(request):
 
 
 @routes.get('/api/v1alpha/deploy_status')
+@monitor_endpoint
 @rest_authenticated_developers_only
 async def deploy_status(request, userdata):  # pylint: disable=unused-argument
     batch_client = request.app['batch_client']
@@ -383,6 +394,7 @@ async def deploy_status(request, userdata):  # pylint: disable=unused-argument
 
 
 @routes.post('/api/v1alpha/update')
+@monitor_endpoint
 @rest_authenticated_developers_only
 async def post_update(request, userdata):  # pylint: disable=unused-argument
     log.info('developer triggered update')
@@ -396,6 +408,7 @@ async def post_update(request, userdata):  # pylint: disable=unused-argument
 
 
 @routes.post('/api/v1alpha/dev_deploy_branch')
+@monitor_endpoint
 @rest_authenticated_developers_only
 async def dev_deploy_branch(request, userdata):
     app = request.app
@@ -438,6 +451,7 @@ async def dev_deploy_branch(request, userdata):
 
 
 @routes.post('/api/v1alpha/batch_callback')
+@monitor_endpoint
 async def batch_callback(request):
     await asyncio.shield(batch_callback_handler(request))
     return web.Response(status=200)
@@ -487,6 +501,7 @@ def run():
 
     setup_common_static_routes(routes)
     app.add_routes(routes)
+    app.router.add_get("/metrics", server_stats)
 
     web.run_app(
         deploy_config.prefix_application(app, 'ci'),

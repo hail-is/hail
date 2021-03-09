@@ -112,6 +112,18 @@ server {
 }
 
 server {
+    server_name prometheus.*;
+
+    location / {
+        proxy_pass https://prometheus/;
+        include /etc/nginx/proxy.conf;
+    }
+
+    listen 443 ssl;
+    listen [::]:443 ssl;
+}
+
+server {
     server_name notebook.*;
 
     # needed to correctly handle error_page with internal handles

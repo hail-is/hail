@@ -98,3 +98,6 @@ principals:
 - name: grafana
   domain: grafana
   kind: nginx
+- name: prometheus
+  domain: prometheus
+  kind: nginx
