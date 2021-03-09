@@ -17,6 +17,8 @@ spec:
         app: grafana
     spec:
       priorityClassName: infrastructure
+      securityContext:
+        fsGroup: 472
       volumes:
         - name: grafana-configmap-volume
           configMap:
