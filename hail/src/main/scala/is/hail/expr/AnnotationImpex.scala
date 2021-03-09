@@ -140,10 +140,10 @@ object JSONAnnotationImpex {
       }
     }
 
-  def irImportAnnotation(s: String, t: Type): Row = {
+  def irImportAnnotation(s: String, t: Type, warnContext: mutable.HashSet[String]): Row = {
     try {
       // wraps in a Row to handle returned missingness
-      Row(importAnnotation(JsonMethods.parse(s), t, true, null))
+      Row(importAnnotation(JsonMethods.parse(s), t, true, warnContext))
     } catch {
       case e: Throwable =>
         fatal(s"Error parsing JSON:\n  type: $t\n  value: $s", e)

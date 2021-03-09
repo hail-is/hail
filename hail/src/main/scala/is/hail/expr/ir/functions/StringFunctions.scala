@@ -299,8 +299,11 @@ object StringFunctions extends RegistryFunctions {
       (rType: Type, _: Seq[PType]) => PType.canonical(rType, true), typeParameters = Array(tv("T"))
     ) { case (er, cb, _, resultType, Array(s: PStringCode)) =>
 
-      val row = Code.invokeScalaObject2[String, Type, Row](JSONAnnotationImpex.getClass, "irImportAnnotation",
-        s.loadString(), er.mb.ecb.getType(resultType.virtualType.asInstanceOf[TTuple].types(0)))
+      val warnCtx = cb.emb.genFieldThisRef[mutable.HashSet[String]]("parse_json_context")
+      cb.ifx(warnCtx.load().isNull, cb.assign(warnCtx, Code.newInstance[mutable.HashSet[String]]()))
+
+      val row = Code.invokeScalaObject3[String, Type, mutable.HashSet[String], Row](JSONAnnotationImpex.getClass, "irImportAnnotation",
+        s.loadString(), er.mb.ecb.getType(resultType.virtualType.asInstanceOf[TTuple].types(0)), warnCtx)
 
       unwrapReturn(cb, er.region, resultType, row)
     }
