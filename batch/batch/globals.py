@@ -1,4 +1,13 @@
-states = {'Pending', 'Ready', 'Creating', 'Running', 'Cancelled', 'Error', 'Failed', 'Success'}
+states = {
+    'Pending',
+    'Ready',
+    'Creating',
+    'Running',
+    'Cancelled',
+    'Error',
+    'Failed',
+    'Success',
+}
 
 complete_states = ('Cancelled', 'Error', 'Failed', 'Success')
 
@@ -28,7 +37,7 @@ HTTP_CLIENT_MAX_SIZE = 8 * 1024 * 1024
 
 BATCH_FORMAT_VERSION = 5
 STATUS_FORMAT_VERSION = 3
-INSTANCE_VERSION = 16
+INSTANCE_VERSION = 17
 WORKER_CONFIG_VERSION = 3
 
-MAX_PERSISTENT_SSD_SIZE_BYTES = 65536 * (1024**3)
+MAX_PERSISTENT_SSD_SIZE_BYTES = 65536 * (1024 ** 3)
