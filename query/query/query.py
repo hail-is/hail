@@ -6,7 +6,6 @@ import concurrent
 import logging
 import uvloop
 import asyncio
-import aiohttp
 from aiohttp import web
 import kubernetes_asyncio as kube
 from collections import defaultdict
