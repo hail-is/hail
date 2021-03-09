@@ -20,8 +20,13 @@ import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
 repositories {
     mavenCentral()
     jcenter()
+    // Necessary for elasticsearch spark 3 snapshot.
+    // maven { url "https://oss.sonatype.org/content/repositories/snapshots/"}
     maven { url "https://repository.cloudera.com/artifactory/cloudera-repos/" }
     maven { url "https://repo.spring.io/plugins-release/" }
+    flatDir {
+        dirs 'libs'
+    }
 }
 
 sourceSets.main.scala.srcDir "src/main/java"
@@ -126,9 +131,8 @@ configurations {
                 }
 	        }
             eachDependency { DependencyResolveDetails details ->
-                if (details.requested.group == 'org.json4s') {
-                    // JSON4S 3.6.0+ contain a known bug (https://github.com/json4s/json4s/issues/507)
-                    details.useVersion('3.7.0-M5')
+                if (details.requested.group == 'org.apache.spark') {
+                    details.useVersion(sparkVersion)
                 } else if (details.requested.group == 'org.scalanlp' && details.requested.version == '1.0') {
                     // Breeze 1.0 contains a known bug (https://github.com/scalanlp/breeze/issues/772)
                     details.useVersion('1.1')
@@ -181,7 +185,7 @@ dependencies {
 
     bundled group: 'org.slf4j', name: 'slf4j-api', version: '1.7.25'
 
-    bundled 'org.elasticsearch:elasticsearch-spark-20_2.11:' + elasticHadoopVersion()
+    bundled 'org.elasticsearch:elasticsearch-spark-30_2.12-8.0.0-SNAPSHOT'
 
     bundled 'com.google.cloud:google-cloud-storage:1.106.0'
 
