@@ -59,11 +59,19 @@ SHADOW_TEST_JAR := build/libs/hail-all-spark-test.jar
 PYTHON_JAR := python/hail/backend/hail-all-spark.jar
 WHEEL := build/deploy/dist/hail-$(HAIL_PIP_VERSION)-py3-none-any.whl
 EGG := build/deploy/dist/hail-$(HAIL_PIP_VERSION)-py3.6.egg
+ELASTICSEARCH_JAR := libs/elasticsearch-spark-30_2.12-8.0.0-SNAPSHOT.jar
 
 GRADLE_ARGS += -Dscala.version=$(SCALA_VERSION) -Dspark.version=$(SPARK_VERSION) -Delasticsearch.major-version=$(ELASTIC_MAJOR_VERSION)
 
+.PHONY: elasticsearchJar
+elasticsearchJar: $(ELASTICSEARCH_JAR)
+
+$(ELASTICSEARCH_JAR):
+	@mkdir -p libs
+	gsutil cp gs://hail-common/elasticsearch-libs/elasticsearch-spark-30_2.12-8.0.0-SNAPSHOT.jar  libs/
+
 .PHONY: shadowJar
-shadowJar: $(SHADOW_JAR)
+shadowJar: $(ELASTICSEARCH_JAR) $(SHADOW_JAR)
 
 ifdef HAIL_COMPILE_NATIVES
 $(SHADOW_JAR): native-lib-prebuilt
@@ -83,7 +91,7 @@ endif
 $(SHADOW_TEST_JAR): $(SCALA_BUILD_INFO) $(JAR_SOURCES) $(JAR_TEST_SOURCES)
 	./gradlew shadowTestJar $(GRADLE_ARGS)
 
-jars: $(SHADOW_JAR) $(SHADOW_TEST_JAR)
+jars: $(ELASTICSEARCH_JAR) $(SHADOW_JAR) $(SHADOW_TEST_JAR)
 
 .PHONY: jvm-test
 ifdef HAIL_COMPILE_NATIVES

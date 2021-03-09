@@ -18,15 +18,13 @@ plugins {
 import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
 
 repositories {
-    mavenCentral()
-    jcenter()
-    // Necessary for elasticsearch spark 3 snapshot.
-    // maven { url "https://oss.sonatype.org/content/repositories/snapshots/"}
-    maven { url "https://repository.cloudera.com/artifactory/cloudera-repos/" }
-    maven { url "https://repo.spring.io/plugins-release/" }
     flatDir {
         dirs 'libs'
     }
+    mavenCentral()
+    jcenter()
+    maven { url "https://repository.cloudera.com/artifactory/cloudera-repos/" }
+    maven { url "https://repo.spring.io/plugins-release/" }
 }
 
 sourceSets.main.scala.srcDir "src/main/java"
@@ -105,19 +103,6 @@ String breezeVersion() {
   return cachedBreezeVersion
 }
 
-String elasticHadoopVersion() {
-    def elasticMajorVersion = System.getProperty("elasticsearch.major-version", "7")
-    if (elasticMajorVersion == "6") {
-        return "6.8.13"
-    }
-    else if (elasticMajorVersion == "7") {
-        return "7.8.1"
-    }
-    else {
-        throw new UnsupportedOperationException("elasticsearch.major-version must be 6 or 7")
-    }
-}
-
 configurations {
     justSpark
 
@@ -185,6 +170,7 @@ dependencies {
 
     bundled group: 'org.slf4j', name: 'slf4j-api', version: '1.7.25'
 
+    // This comes from a local libs directory, see Makefile
     bundled 'org.elasticsearch:elasticsearch-spark-30_2.12-8.0.0-SNAPSHOT'
 
     bundled 'com.google.cloud:google-cloud-storage:1.106.0'
@@ -314,7 +300,6 @@ tasks.withType(ShadowJar) {
     // we should really shade indeed, but it has native libraries
     // relocate 'com.indeed', 'is.hail.relocated.com.indeed'
     relocate 'com.google.cloud', 'is.hail.relocated.com.google.cloud'
-    relocate 'org.elasticsearch', 'is.hail.relocated.org.elasticsearch'
     relocate 'com.github.samtools', 'is.hail.relocated.com.github.samtools'
     relocate 'org.lz4', 'is.hail.relocated.org.lz4'
     relocate 'org.freemarker', 'is.hail.relocated.org.freemarker'
