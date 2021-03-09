@@ -1,5 +1,5 @@
 from types import TracebackType
-from typing import Optional, Type, TypeVar
+from typing import Optional, Type, TypeVar, Mapping
 import abc
 import aiohttp
 from hailtop.utils import request_retry_transient_errors, RateLimit, RateLimiter
@@ -63,12 +63,13 @@ class Session(BaseSession):
     _session: Optional[aiohttp.ClientSession]
     _access_token: Optional[AccessToken]
 
-    def __init__(self, *, credentials: Credentials = None, **kwargs):
+    def __init__(self, *, credentials: Credentials = None, params: Optional[Mapping[str, str]] = None, **kwargs):
         if credentials is None:
             credentials = Credentials.default_credentials()
 
         if 'raise_for_status' not in kwargs:
             kwargs['raise_for_status'] = True
+        self._params = params
         self._session = aiohttp.ClientSession(**kwargs)
         self._access_token = AccessToken(credentials)
 
@@ -78,6 +79,16 @@ class Session(BaseSession):
             kwargs['headers'].update(auth_headers)
         else:
             kwargs['headers'] = auth_headers
+
+        if self._params:
+            if 'params' in kwargs:
+                request_params = kwargs['params']
+            else:
+                request_params = {}
+                kwargs['params'] = request_params
+            for k, v in self._params.items():
+                if k not in request_params:
+                    request_params[k] = v
 
         # retry by default
         retry = kwargs.pop('retry', True)

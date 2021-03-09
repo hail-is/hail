@@ -7,14 +7,17 @@
     <meta name="description" content="{% block meta_description %}{% endblock meta_description %}"/>
     <meta name="viewport" content="width=device-width, initial-scale=1"></meta>
 
-    <link rel="shortcut icon" href="/hail_logo_sq-sm-opt.ico" type="image/x-icon">
-
     <link href="https://fonts.googleapis.com/css?family=Open+Sans:400,700" rel="stylesheet">
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
-    <link rel="stylesheet" href="/style.css">
-    <link rel="stylesheet" href="/navbar.css">
+
+    {% raw %}
+    <link rel="shortcut icon" href="{{ base_path }}/static/hail_logo_sq-sm-opt.ico" type="image/x-icon">
+
+    <link rel="stylesheet" href="{{ base_path }}/static/css/style.css">
+    <link rel="stylesheet" href="{{ base_path }}/static/css/navbar.css">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/docsearch.js@2/dist/cdn/docsearch.min.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/prism/1.20.0/themes/prism.min.css"></link>
+    {% endraw %}
 
     <script>
       (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
@@ -28,11 +31,17 @@
     {% block head %}{% endblock %}
   </head>
   <body>
+    {% raw %}
     {% include "nav-top.html" %}
+    {% endraw %}
     <div id="main">
-      {%block content %}{% endblock %}
+      {{ '{% raw %}' }}
+      {% block content %}{% endblock %}
+      {{ '{% endraw %}' }}
     </div>
+    {% raw %}
     {% include "nav-bottom.html" %}
+    {% endraw %}
     <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.20.0/components/prism-core.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.20.0/components/prism-python.min.js"></script>
   </body>

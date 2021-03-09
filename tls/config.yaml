@@ -27,9 +27,9 @@ principals:
 - name: router
   domain: router
   kind: nginx
-- name: site
-  domain: site
-  kind: nginx
+- name: website
+  domain: website
+  kind: json
 - name: scorecard
   domain: scorecard
   kind: json
@@ -97,4 +97,4 @@ principals:
   kind: json
 - name: grafana
   domain: grafana
-  kind: json
+  kind: nginx
