@@ -47,7 +47,6 @@ redirect('/docs/0.2/', 'index.html')
 DOCS_PATH = f'{MODULE_PATH}/docs/'
 STATIC_DOCS_PATHS = ['0.2/_static',
                      '0.2/_sources',
-                     '0.2/tutorials',
                      'batch/_static',
                      'batch/_images',
                      'batch/_sources']
