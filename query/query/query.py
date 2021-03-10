@@ -109,7 +109,7 @@ async def handle_ws_response(request, userdata, endpoint, f):
         if receive.done():
             # we expect no messages from the client
             response = receive.result()
-            raise AssertionError(f'client broke the protocol by sending: {response}')
+            raise AssertionError(f'{endpoint}: client broke the protocol by sending: {response}')
         if not query.done():
             return
         if query.exception() is not None:
