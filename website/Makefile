@@ -4,6 +4,9 @@ include ../config.mk
 
 IMAGE = gcr.io/$(PROJECT)/website:$(shell docker images -q --no-trunc website | sed -e 's,[^:]*:,,')
 
+check:
+	curlylint .
+
 docs:
 	$(MAKE) -C ../hail hail-docs-no-test batch-docs
 	tar czf docs.tar.gz -C ../hail/build/www .
