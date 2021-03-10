@@ -400,6 +400,6 @@ update-hail-repl: wheel
 configure-gcloud:
 	gcloud config set project $(PROJECT)
 	gcloud container clusters get-credentials vdc --zone=$(ZONE)
-	docker_prefix=$(DOCKER_PREFIX)
-	docker_registry=${DOCKER_PREFIX%%/*}
-	gcloud auth -q configure-docker $docker_registry
+	DOCKER_PREFIX=$(DOCKER_PREFIX)
+	DOCKER_REGISTRY=${DOCKER_PREFIX%%/*}
+	gcloud auth -q configure-docker $DOCKER_REGISTRY
