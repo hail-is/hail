@@ -33,7 +33,7 @@ async def get_healthcheck(request):  # pylint: disable=unused-argument
 
 @routes.get('/robots.txt')
 async def get_robots(request):  # pylint: disable=unused-argument
-    return web.Response('user-agent: *\nAllow: /')
+    return web.Response(text='user-agent: *\nAllow: /')
 
 
 routes.static('/static', f'{MODULE_PATH}/static')
