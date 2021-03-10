@@ -22,7 +22,7 @@
             <button class="dangerous">Close</button>
           </form>
         </td>
-      {% for user in billing_project['users'] %}
+        {% for user in billing_project['users'] %}
         <td>{{ user }}</td>
         <td>
           <form action="{{ base_path }}/billing_projects/{{ billing_project['billing_project'] }}/users/{{ user }}/remove" method="POST">
@@ -35,13 +35,13 @@
         {% endfor %}
       </tr>
       <tr>
-      <form action="{{ base_path }}/billing_projects/{{ billing_project['billing_project'] }}/users/add" method="POST">
-        <input type="hidden" name="_csrf" value="{{ csrf_token }}">
-          <td><input type="text" name="user"></td>
-          <td>
-            <button>Add</button>
-          </td>
-      </form>
+        <form action="{{ base_path }}/billing_projects/{{ billing_project['billing_project'] }}/users/add" method="POST">
+          <input type="hidden" name="_csrf" value="{{ csrf_token }}">
+            <td><input type="text" name="user"></td>
+            <td>
+              <button>Add</button>
+            </td>
+        </form>
       </tr>
     </tbody>
     {% endfor %}
