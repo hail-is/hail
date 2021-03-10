@@ -79,11 +79,13 @@ def batch_only(fun):
     return wrapped
 
 
-def instance_from_request(request):
+def instance_name_from_request(request):
     instance_name = request.headers.get('X-Hail-Instance-Name')
-    if not instance_name:
-        return None
+    return instance_name
 
+
+def instance_from_request(request):
+    instance_name = instance_name_from_request(request)
     inst_coll_manager = request.app['inst_coll_manager']
     return inst_coll_manager.get_instance(instance_name)
 
@@ -93,16 +95,17 @@ def activating_instances_only(fun):
     async def wrapped(request):
         instance = instance_from_request(request)
         if not instance:
-            log.info('instance not found')
+            instance_name = instance_name_from_request(request)
+            log.info(f'instance {instance_name} not found')
             raise web.HTTPUnauthorized()
 
         if instance.state != 'pending':
-            log.info('instance not pending')
+            log.info(f'instance {instance.name} not pending')
             raise web.HTTPUnauthorized()
 
         activation_token = authorization_token(request)
         if not activation_token:
-            log.info('activation token not found')
+            log.info(f'activation token not found for instance {instance.name}')
             raise web.HTTPUnauthorized()
 
         db = request.app['db']
@@ -110,7 +113,7 @@ def activating_instances_only(fun):
             'SELECT state FROM instances WHERE name = %s AND activation_token = %s;',
             (instance.name, activation_token))
         if not record:
-            log.info('instance, activation token not found in database')
+            log.info(f'instance {instance.name}, activation token not found in database')
             raise web.HTTPUnauthorized()
 
         resp = await fun(request, instance)
@@ -124,16 +127,17 @@ def active_instances_only(fun):
     async def wrapped(request):
         instance = instance_from_request(request)
         if not instance:
-            log.info('instance not found')
+            instance_name = instance_name_from_request(request)
+            log.info(f'instance not found {instance_name}')
             raise web.HTTPUnauthorized()
 
         if instance.state != 'active':
-            log.info('instance not active')
+            log.info(f'instance not active {instance.name}')
             raise web.HTTPUnauthorized()
 
         token = authorization_token(request)
         if not token:
-            log.info('token not found')
+            log.info(f'token not found for instance {instance.name}')
             raise web.HTTPUnauthorized()
 
         db = request.app['db']
@@ -141,7 +145,7 @@ def active_instances_only(fun):
             'SELECT state FROM instances WHERE name = %s AND token = %s;',
             (instance.name, token))
         if not record:
-            log.info('instance, token not found in database')
+            log.info(f'instance {instance.name}, token not found in database')
             raise web.HTTPUnauthorized()
 
         await instance.mark_healthy()
@@ -207,6 +211,15 @@ async def delete_batch(request):
     return web.Response()
 
 
+async def get_gsa_key_1(instance):
+    log.info(f'returning gsa-key to activating instance {instance}')
+    with open('/gsa-key/key.json', 'r') as f:
+        key = json.loads(f.read())
+    return web.json_response({
+        'key': key
+    })
+
+
 async def activate_instance_1(request, instance):
     body = await request.json()
     ip_address = body['ip_address']
@@ -216,12 +229,15 @@ async def activate_instance_1(request, instance):
     token = await instance.activate(ip_address, timestamp)
     await instance.mark_healthy()
 
-    with open('/gsa-key/key.json', 'r') as f:
-        key = json.loads(f.read())
     return web.json_response({
-        'token': token,
-        'key': key
+        'token': token
     })
+
+
+@routes.get('/api/v1alpha/instances/gsa_key')
+@activating_instances_only
+async def get_gsa_key(request, instance):  # pylint: disable=unused-argument
+    return await asyncio.shield(get_gsa_key_1(instance))
 
 
 @routes.post('/api/v1alpha/instances/activate')

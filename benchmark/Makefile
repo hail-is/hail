@@ -28,6 +28,7 @@ cleanup_image:
 	rm -f image_sha
 	rm -f pushed_image
 
+PROJECT := hail-vdc
 BENCHMARK_DOCKER_TAG := benchmark_$(shell whoami)
 BENCHMARK_REPO_BASE = $(DOCKER_PREFIX)/$(BENCHMARK_DOCKER_TAG)
 

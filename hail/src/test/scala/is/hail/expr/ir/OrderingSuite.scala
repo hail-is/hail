@@ -6,6 +6,7 @@ import is.hail.annotations._
 import is.hail.check.{Gen, Prop}
 import is.hail.asm4s._
 import is.hail.TestUtils._
+import is.hail.expr.ir.orderings.CodeOrdering
 import is.hail.rvd.RVDType
 import is.hail.types.physical._
 import is.hail.types.virtual._
@@ -39,7 +40,8 @@ class OrderingSuite extends HailSuite {
     fb.emitWithBuilder { cb =>
       val cv1 = t.loadCheapPCode(cb, fb.getCodeParam[Long](2))
       val cv2 = t.loadCheapPCode(cb, fb.getCodeParam[Long](3))
-      fb.apply_method.getCodeOrdering(t, op)(cb, EmitCode.present(cb.emb, cv1), EmitCode.present(cb.emb, cv2))
+      fb.ecb.getOrderingFunction(cv1.st, cv2.st, op)
+          .apply(cb, EmitCode.present(cb.emb, cv1), EmitCode.present(cb.emb, cv2))
     }
     fb.resultWithIndex()(0, r)
   }
@@ -60,7 +62,8 @@ class OrderingSuite extends HailSuite {
         val cv2 = t.loadCheapPCode(cb, fb.getCodeParam[Long](5))
         val ev1 = EmitCode(Code._empty, m1, cv1)
         val ev2 = EmitCode(Code._empty, m2, cv2)
-        fb.apply_method.getCodeOrdering(t, op)(cb, ev1, ev2)
+        fb.ecb.getOrderingFunction(ev1.st, ev2.st, op)
+          .apply(cb, ev1, ev2)
       }
       fb.resultWithIndex()(0, r)
     }

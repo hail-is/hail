@@ -2,7 +2,7 @@ import logging
 import asyncio
 
 from hailtop.utils import (WaitableSharedPool, retry_long_running, run_if_changed,
-                           AsyncWorkerPool, time_msecs)
+                           AsyncWorkerPool, time_msecs, periodically_call)
 from hailtop import aiotools, aiogoogle
 from gear import Database
 
@@ -36,6 +36,8 @@ class Canceller:
         self.task_manager.ensure_future(retry_long_running(
             'cancel_cancelled_running_jobs_loop',
             run_if_changed, self.cancel_running_state_changed, self.cancel_cancelled_running_jobs_loop_body))
+
+        self.task_manager.ensure_future(periodically_call(60, self.cancel_orphaned_attempts_loop_body))
 
     def shutdown(self):
         try:
@@ -290,3 +292,44 @@ LIMIT %s;
         await waitable_pool.wait()
 
         return should_wait
+
+    async def cancel_orphaned_attempts_loop_body(self):
+        log.info('cancelling orphaned attempts')
+        waitable_pool = WaitableSharedPool(self.async_worker_pool)
+
+        n_unscheduled = 0
+
+        async for record in self.db.select_and_fetchall(
+                '''
+SELECT attempts.*
+FROM attempts
+INNER JOIN jobs ON attempts.batch_id = jobs.batch_id AND attempts.job_id = jobs.job_id
+LEFT JOIN instances ON attempts.instance_name = instances.name
+WHERE attempts.start_time IS NOT NULL
+  AND attempts.end_time IS NULL
+  AND (jobs.state != 'Running' OR jobs.attempt_id != attempts.attempt_id)
+  AND instances.`state` = 'active'
+ORDER BY attempts.start_time ASC
+LIMIT 300;
+''',
+                timer_description='in cancel_orphaned_attempts'):
+            batch_id = record['batch_id']
+            job_id = record['job_id']
+            attempt_id = record['attempt_id']
+            instance_name = record['instance_name']
+            id = (batch_id, job_id)
+
+            n_unscheduled += 1
+
+            async def unschedule_with_error_handling(app, record, instance_name, id, attempt_id):
+                try:
+                    await unschedule_job(app, record)
+                except Exception:
+                    log.info(f'unscheduling job {id} with orphaned attempt {attempt_id} on instance {instance_name}', exc_info=True)
+
+            await waitable_pool.call(
+                unschedule_with_error_handling, self.app, record, instance_name, id, attempt_id)
+
+        await waitable_pool.wait()
+
+        log.info(f'cancelled {n_unscheduled} orphaned attempts')

@@ -1,0 +1,16 @@
+{% macro team_table(team_member) %}
+<table class="data-table">
+  <thead>
+    <th>component</th>
+    <th>reviewer</th>
+  </thead>
+  <tbody>
+    {% for team, member in team_member.items() %}
+    <tr>
+      <td>{{ team }}</td>
+      <td>{{ member }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endmacro %}

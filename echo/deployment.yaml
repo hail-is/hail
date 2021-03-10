@@ -29,8 +29,11 @@ spec:
         image: "{{ echo_image.image }}"
         resources:
           requests:
-            memory: "100M"
-            cpu: "100m"
+            cpu: "20m"
+            memory: "20M"
+          limits:
+            cpu: "1"
+            memory: "1G"
         ports:
         - containerPort: 5000
         readinessProbe:

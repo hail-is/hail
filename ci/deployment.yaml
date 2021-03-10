@@ -15,6 +15,7 @@ spec:
       labels:
         app: ci
         hail.is/sha: "{{ code.sha }}"
+        grafanak8sapp: "true"
     spec:
 {% if deploy %}
       priorityClassName: production
@@ -33,11 +34,11 @@ spec:
           image: "{{ ci_image.image }}"
           resources:
             requests:
-              memory: "200M"
               cpu: "100m"
+              memory: "200M"
             limits:
-              memory: "1G"
               cpu: "1"
+              memory: "1G"
           env:
            - name: HAIL_DEPLOY_CONFIG_FILE
              value: /deploy-config/deploy-config.json

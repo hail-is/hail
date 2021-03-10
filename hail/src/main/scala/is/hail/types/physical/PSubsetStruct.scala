@@ -4,7 +4,7 @@ import is.hail.annotations.{Annotation, Region, UnsafeUtils}
 import is.hail.asm4s.{Code, Settable, SettableBuilder, Value, coerce, const}
 import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, IEmitCode}
 import is.hail.types.BaseStruct
-import is.hail.types.physical.stypes.interfaces.SStruct
+import is.hail.types.physical.stypes.interfaces.SBaseStruct
 import is.hail.types.physical.stypes.{SCode, SType}
 import is.hail.types.physical.stypes.concrete.SSubsetStruct
 import is.hail.types.virtual.TStruct
@@ -19,7 +19,7 @@ object PSubsetStruct {
 
 // Semantics: PSubsetStruct is a non-constructible view of another PStruct, which is not allowed to mutate
 // that underlying PStruct's region data
-final case class PSubsetStruct(ps: PStruct, _fieldNames: Array[String]) extends PStruct {
+final case class PSubsetStruct(ps: PStruct, _fieldNames: IndexedSeq[String]) extends PStruct {
   val fields: IndexedSeq[PField] = _fieldNames.zipWithIndex.map { case (name, i) => PField(name, ps.fieldType(name), i)}
   val required = ps.required
 
@@ -27,7 +27,7 @@ final case class PSubsetStruct(ps: PStruct, _fieldNames: Array[String]) extends 
     log.warn("PSubsetStruct used without subsetting input PStruct")
   }
 
-  private val idxMap: Array[Int] = _fieldNames.map(f => ps.fieldIdx(f))
+  private val idxMap: Array[Int] = _fieldNames.map(f => ps.fieldIdx(f)).toArray
 
   lazy val missingIdx: Array[Int] = idxMap.map(i => ps.missingIdx(i))
   lazy val nMissing: Int = missingIdx.length
@@ -38,22 +38,12 @@ final case class PSubsetStruct(ps: PStruct, _fieldNames: Array[String]) extends 
   override val byteSize: Long = 8
 
   override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean) {
-    if (compact) {
-      sb.append("PSubsetStruct{")
-      fields.foreachBetween(_.pretty(sb, indent, compact))(sb += ',')
-      sb += '}'
-    } else {
-      if (size == 0)
-        sb.append("Struct { }")
-      else {
-        sb.append("Struct {")
-        sb += '\n'
-        fields.foreachBetween(_.pretty(sb, indent + 4, compact))(sb.append(",\n"))
-        sb += '\n'
-        sb.append(" " * indent)
-        sb += '}'
-      }
-    }
+    sb.append("PSubsetStruct{")
+    ps.pretty(sb, indent, compact)
+    sb += '{'
+    fieldNames.foreachBetween(f => sb.append(prettyIdentifier(f)))(sb += ',')
+    sb += '}'
+    sb += '}'
   }
 
   override def rename(m: Map[String, String]): PStruct = {
@@ -125,7 +115,7 @@ final case class PSubsetStruct(ps: PStruct, _fieldNames: Array[String]) extends 
   override def _copyFromAddress(region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Long =
     throw new UnsupportedOperationException
 
-  def sType: SSubsetStruct = SSubsetStruct(ps.sType.asInstanceOf[SStruct], _fieldNames)
+  def sType: SSubsetStruct = SSubsetStruct(ps.sType.asInstanceOf[SBaseStruct], _fieldNames)
 
   def store(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): Code[Long] = throw new UnsupportedOperationException
 
@@ -133,7 +123,7 @@ final case class PSubsetStruct(ps: PStruct, _fieldNames: Array[String]) extends 
     throw new UnsupportedOperationException
   }
 
-  def loadCheapPCode(cb: EmitCodeBuilder, addr: Code[Long]): PCode = throw new UnsupportedOperationException
+  def loadCheapPCode(cb: EmitCodeBuilder, addr: Code[Long]): PBaseStructCode = throw new UnsupportedOperationException
 
   def unstagedStoreAtAddress(addr: Long, region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Unit = {
     throw new UnsupportedOperationException

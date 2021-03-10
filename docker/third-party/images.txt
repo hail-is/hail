@@ -1,7 +1,4 @@
 alpine:3.8
-amundsendev/amundsen-frontend:2.3.0
-amundsendev/amundsen-metadata:2.5.5
-amundsendev/amundsen-search:2.4.0
 debian:9.5
 ghost:3.0-alpine
 google/cloud-sdk:305.0.0-slim

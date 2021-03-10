@@ -50,11 +50,11 @@ spec:
          - containerPort: 5000
         resources:
           requests:
-            memory: "5M"
-            cpu: "5m"
+            cpu: "20m"
+            memory: "20M"
           limits:
-            memory: "1G"
             cpu: "1"
+            memory: "1G"
         env:
          - name: HAIL_DOMAIN
            value: "{{ global.domain }}"

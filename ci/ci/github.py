@@ -157,13 +157,15 @@ fi
 
 
 class PR(Code):
-    def __init__(self, number, title, source_branch, source_sha, target_branch, author, labels):
+    def __init__(self, number, title, source_branch, source_sha, target_branch, author, assignees, reviewers, labels):
         self.number = number
         self.title = title
         self.source_branch = source_branch
         self.source_sha = source_sha
         self.target_branch = target_branch
         self.author = author
+        self.assignees = assignees
+        self.reviewers = reviewers
         self.labels = labels
 
         # pending, changes_requested, approve
@@ -256,6 +258,8 @@ class PR(Code):
             head['sha'],
             target_branch,
             gh_json['user']['login'],
+            {user['login'] for user in gh_json['assignees']},
+            {user['login'] for user in gh_json['requested_reviewers']},
             {label['name'] for label in gh_json['labels']},
         )
 

@@ -1,17 +1,18 @@
 package is.hail.types.physical.stypes.primitives
 
-import is.hail.annotations.{CodeOrdering, Region}
+import is.hail.annotations.Region
 import is.hail.asm4s.{BooleanInfo, Code, Settable, SettableBuilder, TypeInfo, Value}
+import is.hail.expr.ir.orderings.CodeOrdering
 import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, SortOrder}
 import is.hail.types.physical.stypes.{SCode, SType}
 import is.hail.types.physical.{PBoolean, PCode, PSettable, PType, PValue}
 import is.hail.utils.FastIndexedSeq
 
 
-case class SBoolean(required: Boolean) extends SType {
-  override def pType: PBoolean = PBoolean(required)
+case class SBoolean(required: Boolean) extends SPrimitive {
+  def ti: TypeInfo[_] = BooleanInfo
 
-  def codeOrdering(mb: EmitMethodBuilder[_], other: SType, so: SortOrder): CodeOrdering = pType.codeOrdering(mb, other.pType, so)
+  override def pType: PBoolean = PBoolean(required)
 
   def coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = {
     value.st match {
@@ -44,7 +45,9 @@ case class SBoolean(required: Boolean) extends SType {
   def canonicalPType(): PType = pType
 }
 
-class SBooleanCode(required: Boolean, val code: Code[Boolean]) extends PCode {
+class SBooleanCode(required: Boolean, val code: Code[Boolean]) extends PCode with SPrimitiveCode {
+  override def _primitiveCode: Code[_] = code
+
   val pt: PBoolean = PBoolean(required)
 
   def st: SBoolean = SBoolean(required)

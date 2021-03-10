@@ -1,0 +1,5 @@
+recursive-include website/docs *
+recursive-include website/pages *
+recursive-include website/static *
+recursive-include website/templates *
+recursive-include website/styles *

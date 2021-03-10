@@ -32,7 +32,7 @@
     <h2>PRs</h2>
     {% if wb.prs is not none %}
     {% if wb.prs|length > 0 %}
-    {{ pr_table(wb) }}
+    {{ pr_table(wb, "prs", "prsSearchBar") }}
     {% else %}
     No PRs.
     {% endif %}
@@ -49,6 +49,6 @@
       <button type="submit">Authorize</button>
     </form>
     <script type="text/javascript">
-      focusOnSlash("searchBar");
+      focusOnSlash("prsSearchBar");
     </script>
 {% endblock %}

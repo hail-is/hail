@@ -1,7 +1,8 @@
 package is.hail.types.physical.stypes.concrete
 
-import is.hail.annotations.{CodeOrdering, Region}
+import is.hail.annotations.Region
 import is.hail.asm4s.{Code, LongInfo, Settable, SettableBuilder, TypeInfo, Value}
+import is.hail.expr.ir.orderings.CodeOrdering
 import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, SortOrder}
 import is.hail.types.physical.stypes.interfaces.{SString, SStringCode}
 import is.hail.types.physical.stypes.{SCode, SType}
@@ -10,8 +11,6 @@ import is.hail.utils.FastIndexedSeq
 
 
 case class SStringPointer(pType: PString) extends SString {
-  def codeOrdering(mb: EmitMethodBuilder[_], other: SType, so: SortOrder): CodeOrdering = pType.codeOrdering(mb, other.pType, so)
-
   def coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = {
     new SStringPointerCode(this, pType.store(cb, region, value, deepCopy))
   }
@@ -67,6 +66,8 @@ class SStringPointerCode(val st: SStringPointer, val a: Code[Long]) extends PStr
   def memoize(cb: EmitCodeBuilder, name: String): PValue = memoizeWithBuilder(cb, name, cb.localBuilder)
 
   def memoizeField(cb: EmitCodeBuilder, name: String): PValue = memoizeWithBuilder(cb, name, cb.fieldBuilder)
+
+  def binaryRepr: SBinaryPointerCode = new SBinaryPointerCode(SBinaryPointer(st.pType.binaryRepresentation), a)
 }
 
 object SStringPointerSettable {

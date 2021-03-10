@@ -27,9 +27,9 @@ principals:
 - name: router
   domain: router
   kind: nginx
-- name: site
-  domain: site
-  kind: nginx
+- name: website
+  domain: website
+  kind: json
 - name: scorecard
   domain: scorecard
   kind: json
@@ -71,9 +71,6 @@ principals:
 - name: shuffler
   domain: shuffler
   kind: json
-- name: image-fetcher
-  domain: image-fetcher
-  kind: curl
 - name: benchmark
   domain: benchmark
   kind: json
@@ -100,4 +97,7 @@ principals:
   kind: json
 - name: grafana
   domain: grafana
-  kind: json
+  kind: nginx
+- name: prometheus
+  domain: prometheus
+  kind: nginx

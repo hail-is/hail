@@ -13,6 +13,7 @@ from .type_parsing import type_grammar, type_node_visitor
 from hail.genetics.reference_genome import reference_genome_type
 from hail.typecheck import typecheck, typecheck_method, oneof, transformed
 from hail.utils.java import escape_parsable
+from hail.utils import frozendict
 
 __all__ = [
     'dtype',
@@ -828,6 +829,10 @@ class tstream(HailType):
         return self.element_type.get_context()
 
 
+def is_setlike(maybe_setlike):
+    return isinstance(maybe_setlike, set) or isinstance(maybe_setlike, frozenset)
+
+
 class tset(HailType):
     """Hail type for collections of distinct elements.
 
@@ -872,7 +877,7 @@ class tset(HailType):
 
     def _typecheck_one_level(self, annotation):
         if annotation is not None:
-            if not isinstance(annotation, set):
+            if not is_setlike(annotation):
                 raise TypeError("type 'set' expected Python 'set', but found type '%s'" % type(annotation))
 
     def __str__(self):
@@ -890,7 +895,7 @@ class tset(HailType):
         return "Set[" + self.element_type._parsable_string() + "]"
 
     def _convert_from_json(self, x):
-        return {self.element_type._convert_from_json_na(elt) for elt in x}
+        return frozenset({self.element_type._convert_from_json_na(elt) for elt in x})
 
     def _convert_to_json(self, x):
         return [self.element_type._convert_to_json_na(elt) for elt in x]
@@ -973,8 +978,8 @@ class tdict(HailType):
 
     def _typecheck_one_level(self, annotation):
         if annotation is not None:
-            if not isinstance(annotation, dict):
-                raise TypeError("type 'dict' expected Python 'dict', but found type '%s'" % type(annotation))
+            if not isinstance(annotation, Mapping):
+                raise TypeError("type 'dict' expected Python 'Mapping', but found type '%s'" % type(annotation))
 
     def __str__(self):
         return "dict<{}, {}>".format(self.key_type, self.value_type)
@@ -993,8 +998,7 @@ class tdict(HailType):
         return "Dict[{},{}]".format(self.key_type._parsable_string(), self.value_type._parsable_string())
 
     def _convert_from_json(self, x):
-        return {self.key_type._convert_from_json_na(elt['key']): self.value_type._convert_from_json_na(elt['value']) for
-                elt in x}
+        return frozendict({self.key_type._convert_from_json_na(elt['key']): self.value_type._convert_from_json_na(elt['value']) for elt in x})
 
     def _convert_to_json(self, x):
         return [{'key': self.key_type._convert_to_json(k),

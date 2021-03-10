@@ -13,6 +13,7 @@ tearDownModule = stopTestHailContext
 
 class Tests(unittest.TestCase):
 
+    @fails_service_backend()
     @fails_local_backend()
     def test_hadoop_methods(self):
         data = ['foo', 'bar', 'baz']
@@ -82,6 +83,7 @@ class Tests(unittest.TestCase):
 
         self.assertFalse(hl.hadoop_exists(resource('./some2')))
 
+    @fails_service_backend()
     @fails_local_backend()
     def test_hadoop_copy_log(self):
         with with_local_temp_file('log') as r:
@@ -112,6 +114,7 @@ class Tests(unittest.TestCase):
         self.assertTrue('owner' in stat2)
         self.assertTrue('modification_time' in stat2)
 
+    @fails_service_backend()
     @fails_local_backend()
     def test_hadoop_ls(self):
         path1 = resource('ls_test/f_50')
@@ -225,3 +228,17 @@ class Tests(unittest.TestCase):
         self.assertEqual(escape_id("cat"), "cat")
         self.assertEqual(escape_id("abc123"), "abc123")
         self.assertEqual(escape_id("123abc"), "`123abc`")
+
+    def test_frozen_dict(self):
+        self.assertEqual(frozendict({1:2, 4:7}), frozendict({1:2, 4:7}))
+        my_frozen_dict = frozendict({"a": "apple", "h": "hail"})
+        self.assertEqual(my_frozen_dict["a"], "apple")
+
+        # Make sure mutating old dict doesn't change frozen counterpart.
+        regular_dict = {"a": "b"}
+        frozen_counterpart = frozendict(regular_dict)
+        regular_dict["a"] = "d"
+        self.assertEqual(frozen_counterpart["a"], "b")
+
+        with pytest.raises(TypeError, match="does not support item assignment"):
+            my_frozen_dict["a"] = "b"

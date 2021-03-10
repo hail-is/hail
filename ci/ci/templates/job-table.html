@@ -1,11 +1,10 @@
-{% macro job_table(jobs) %}
+{% macro job_table(jobs, id, searchBarId) %}
 {% block head %}
     <script src="{{ base_path }}/common_static/search_bar.js"></script>
-    <script src="{{ base_path }}/common_static/focus_on_keyup.js"></script>
 {% endblock %}
 <div class="searchbar-table">
-  <input type="text" id="searchBar" onkeyup="searchTable('jobs', 'searchBar')" placeholder="Search terms...">
-  <table id='jobs' class="data-table" style="line-height: 175%">
+  <input type="text" id="{{ searchBarId }}" onkeyup="searchTable('{{ id }}', '{{ searchBarId }}')" placeholder="Search terms...">
+  <table id="{{ id }}" class="data-table" style="line-height: 175%">
     <thead>
       <tr>
         <th>id</th>

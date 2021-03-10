@@ -10,7 +10,7 @@ import is.hail.expr.ir.lowering.TableStage
 import is.hail.io.fs.{FS, FileStatus}
 import is.hail.rvd.RVDPartitioner
 import is.hail.types._
-import is.hail.types.physical.{PCanonicalStruct, PStruct, PType}
+import is.hail.types.physical.{PCanonicalStringRequired, PCanonicalStruct, PStruct, PType}
 import is.hail.types.virtual._
 import is.hail.utils.StringEscapeUtils._
 import is.hail.utils._
@@ -44,7 +44,8 @@ case class TextTableReaderParameters(
   skipBlankLines: Boolean,
   forceBGZ: Boolean,
   filterAndReplace: TextInputFilterAndReplace,
-  forceGZ: Boolean) extends TextReaderOptions {
+  forceGZ: Boolean,
+  sourceFileField: Option[String]) extends TextReaderOptions {
   @transient val typeMap: Map[String, Type] = typeMapStr.mapValues(s => IRParser.parseType(s)).map(identity)
 
   val quote: java.lang.Character = if (quoteStr != null) quoteStr(0) else null
@@ -245,7 +246,7 @@ object TextTableReader {
   }
 
   def readMetadata(fs: FS, options: TextTableReaderParameters): TextTableReaderMetadata = {
-    val TextTableReaderParameters(files, _, _, separator, missing, hasHeader, _, _, skipBlankLines, forceBGZ, filterAndReplace, forceGZ) = options
+    val TextTableReaderParameters(files, _, _, separator, missing, hasHeader, _, _, skipBlankLines, forceBGZ, filterAndReplace, forceGZ, sourceFileField) = options
 
     val fileStatuses: Array[FileStatus] = {
       val status = fs.globAllStatuses(files)
@@ -290,6 +291,7 @@ object TextTableReader {
         duplicates.map { case (pre, post) => s"'$pre' -> '$post'" }.truncatable("\n  "))
     }
 
+    val sourceTypeOption = sourceFileField.map(f => (f, PCanonicalStringRequired)).toIndexedSeq
     val namesAndTypes =
       columns.map { c =>
         types.get(c) match {
@@ -299,7 +301,7 @@ object TextTableReader {
             (c, PType.canonical(TString))
         }
       }
-    TextTableReaderMetadata(fileStatuses, header, PCanonicalStruct(true, namesAndTypes: _*))
+    TextTableReaderMetadata(fileStatuses, header, PCanonicalStruct(true, (namesAndTypes ++ sourceTypeOption): _*))
   }
 
   def apply(fs: FS, params: TextTableReaderParameters): TextTableReader = {
@@ -344,11 +346,14 @@ class TextTableReader(
     val localFullRowType = fullRowPType
     val bodyPType: TStruct => PStruct = (requestedRowType: TStruct) => localFullRowType.subsetTo(requestedRowType).asInstanceOf[PStruct]
     val linesBody = lines.body
-    val nFieldOrig = localFullRowType.size
+    val nFieldOrig = localFullRowType.size - (params.sourceFileField.isDefined).toInt
 
     val transformer = localParams.filterAndReplace.transformer()
     val body = { (requestedRowType: TStruct) =>
-      val useColIndices = requestedRowType.fieldNames.map(localFullRowType.virtualType.fieldIdx)
+
+      val includeFileName = localParams.sourceFileField.exists(requestedRowType.hasField)
+      val dataFieldNames = if (includeFileName) requestedRowType.fieldNames.init else requestedRowType.fieldNames
+      val useColIndices = dataFieldNames.map(localFullRowType.virtualType.fieldIdx)
       val rowFields = requestedRowType.fields.toArray
       val requestedPType = bodyPType(requestedRowType)
 
@@ -390,6 +395,9 @@ class TextTableReader(
                   }
                   i += 1
                 }
+
+                if (includeFileName)
+                  rvb.addString(bline.file)
 
                 rvb.endStruct()
                 rvb.end()

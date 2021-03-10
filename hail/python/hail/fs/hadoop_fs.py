@@ -44,6 +44,12 @@ class HadoopFS(FS):
     def mkdir(self, path: str) -> None:
         return self._jfs.mkDir(path)
 
+    def remove(self, path: str):
+        return self._jfs.remove(path)
+
+    def rmtree(self, path: str):
+        return self._jfs.rmtree(path)
+
 
 class HadoopReader(io.RawIOBase):
     def __init__(self, hfs, path, buffer_size):

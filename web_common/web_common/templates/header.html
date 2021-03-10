@@ -40,7 +40,15 @@
   </div>
 
   {% if userdata['is_developer'] == 1 %}
-  <a class="header-link" href="{{ ci_base_url }}">CI</a>
+  <div class="header-dropdown">
+    <div class="header-dropdown-item-margin">
+      <a href="{{ ci_base_url }}" class="header-dropdown-link">CI</a>
+      <div class="header-dropdown-menu">
+        <div class="ci-caret header-dropdown-menu-caret"></div>
+        <a class="header-dropdown-menu-link" href="{{ ci_base_url }}/me">Me</a>
+      </div>
+    </div>
+  </div>
   {% endif %}
 
   {% if userdata['is_developer'] == 1 %}
@@ -64,9 +72,7 @@
       <span class="disabled-header-dropdown-item">Monitoring</span>
       <div class="header-dropdown-menu">
         <div class="monitoring-caret header-dropdown-menu-caret"></div>
-        <a target="_blank" class="header-dropdown-menu-link" href="https://console.cloud.google.com/monitoring">
-          Monitoring<i class="material-icons text-icon">open_in_new</i>
-	      </a>
+        <a class="header-dropdown-menu-link" href="{{ grafana_base_url }}">Grafana</a>
         <a target="_blank" class="header-dropdown-menu-link" href="https://console.cloud.google.com/logs">
           Log Viewer<i class="material-icons text-icon">open_in_new</i>
 	      </a>
