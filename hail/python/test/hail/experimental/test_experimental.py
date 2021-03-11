@@ -439,3 +439,10 @@ class Tests(unittest.TestCase):
                 hl.if_else(my_nd[0, 0] == 1000, my_nd, f(my_nd + 1)),
                 hl.tndarray(hl.tint32, 2), hl.nd.zeros((20, 10), hl.tfloat64))
 
+    def test_loop_memory(self):
+        result = hl.experimental.loop(
+            lambda f, my_nd:
+            hl.if_else(my_nd[0, 0] == 1000, my_nd, f(my_nd + 1)),
+            hl.tndarray(hl.tfloat64, 2), hl.nd.zeros((40_000, 40_000), hl.tfloat64))
+
+        np_result = hl.eval(result)
