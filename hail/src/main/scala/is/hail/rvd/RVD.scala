@@ -629,15 +629,15 @@ class RVD(
     val kRowFieldIdx = typ.kFieldIdx
     val rowPType = typ.rowType
 
-    mapPartitions(typ) { (ctx, it) =>
-      val kUR = new UnsafeRow(kPType)
-      it.filter { ptr =>
+    filterWithContext[UnsafeRow](
+      { (_, _) => new UnsafeRow(kPType) },
+      { case (kUR, ctx, ptr) =>
         ctx.rvb.start(kType)
         ctx.rvb.selectRegionValue(rowPType, kRowFieldIdx, ctx.r, ptr)
         kUR.set(ctx.region, ctx.rvb.end())
         !intervalsBc.value.contains(kUR)
       }
-    }
+    )
   }
 
   def filterToIntervals(intervals: RVDPartitioner): RVD = {
