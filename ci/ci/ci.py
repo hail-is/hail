@@ -186,7 +186,6 @@ async def post_update(request, userdata):  # pylint: disable=unused-argument
     return web.Response(status=200)
 
 
->>>>>>> upstream/main
 @routes.post('/api/v1alpha/dev_deploy_branch')
 @monitor_endpoint
 @rest_authenticated_developers_only
