@@ -317,8 +317,9 @@ class GoogleStorageFS(serviceAccountKey: String) extends FS {
     val blobs = storage.list(bucket, BlobListOption.prefix(path), BlobListOption.currentDirectory())
 
     blobs.getValues.iterator.asScala
-      .map(b => GoogleStorageFileStatus(b))
-      .filter(fs => !(fs.isDirectory && fs.getPath == path))
+      .map(b => (b, GoogleStorageFileStatus(b)))
+      .filter { case (b, fs) => !(fs.isDirectory && b.getName == path) } // elide directory markers created by Hadoop
+      .map { case (b, fs) => fs }
       .toArray
   }
 
