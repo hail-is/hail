@@ -533,7 +533,7 @@ steps:
      python3 ../ci/jinja2_render.py '{"deploy": '${DEPLOY}', "default_ns": {"name": "{{ default_ns.name }}"}}' nginx.conf nginx.conf.out
    outputs:
      - from: /io/repo/grafana/nginx.conf.out
-       to: /nginx.conf.out
+       to: /grafana/nginx.conf.out
    dependsOn:
     - default_ns
     - service_base_image
@@ -543,7 +543,7 @@ steps:
    contextPath: grafana
    publishAs: grafana
    inputs:
-     - from: /nginx.conf.out
+     - from: /grafana/nginx.conf.out
        to: /nginx.conf.out
    dependsOn:
      - hail_ubuntu_image
@@ -1707,7 +1707,7 @@ steps:
      python3 ../ci/jinja2_render.py '{"deploy": '${DEPLOY}', "default_ns": {"name": "{{ default_ns.name }}"}}' nginx.conf nginx.conf.out
    outputs:
      - from: /io/repo/prometheus/nginx.conf.out
-       to: /nginx.conf.out
+       to: /prometheus/nginx.conf.out
    dependsOn:
      - default_ns
      - service_base_image
@@ -1717,7 +1717,7 @@ steps:
    contextPath: prometheus
    publishAs: prometheus
    inputs:
-     - from: /nginx.conf.out
+     - from: /prometheus/nginx.conf.out
        to: /nginx.conf.out
    dependsOn:
      - hail_ubuntu_image
