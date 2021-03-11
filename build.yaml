@@ -154,7 +154,7 @@ steps:
    image:
      valueFrom: create_certs_image.image
    script: |
-     until ! kubectl get secret -n {{ default_ns.name }} ssl-config-hail-root
+     until ! kubectl get secret -n {{ default_ns.name }} ssl-config-hail-root 2>/dev/null
      do
          kubectl delete secret -n {{ default_ns.name }} ssl-config-hail-root
      done
