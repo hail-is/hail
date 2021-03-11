@@ -1625,8 +1625,13 @@ steps:
      # dev deploy elides the hail-is remote, add it and retrieve the tags
      git remote add hail-is https://github.com/hail-is/hail.git
      git fetch hail-is
-     # if the tag doesn't exist, this commit is the release
-     git checkout $(cat hail/python/hail/hail_pip_version) || true
+
+     # 0.2.63 was the last old-style docs
+     if [[ "$(cat hail/python/hail/hail_pip_version)" != "0.2.63" ]]
+     then
+         # if the tag doesn't exist, this commit is the release
+         git checkout $(cat hail/python/hail/hail_pip_version) || true
+     fi
 
      PYTHONPATH=$PYTHONPATH:$(pwd)/hail/python make -C hail hail-docs-no-test batch-docs
 
