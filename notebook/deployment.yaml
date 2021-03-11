@@ -66,8 +66,8 @@ spec:
          image: "{{ notebook_image.image }}"
          resources:
            requests:
-             memory: 1Mi
-             cpu: 1m
+             memory: 20M
+             cpu: 20m
            limits:
              memory: 200Mi
              cpu: "1"
