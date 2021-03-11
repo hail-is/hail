@@ -22,12 +22,30 @@ Please note that **forward compatibility should not be expected, especially
 relating to file formats**: this means that it may not be possible to use
 an earlier version of Hail to read files written in a later version.
 
+## Version 0.2.64
+
+Released 2021-03-11
+
+### New features
+- (hail#10164) Add source_file_field parameter to hl.import_table to allow lines to be associated with their original source file.
+
+### Bug fixes
+
+- (hail#10182) Fixed serious memory leak in certain uses of `filter_intervals`.
+- (hail#10133) Fix bug where some pipelines incorrectly infer missingness, leading to a type error.
+- (hail#10134) Teach `hl.king` to treat filtered entries as missing values.
+- (hail#10158) Fixes hail usage in latest versions of jupyter that rely on `asyncio`.
+- (hail#10174) Fixed bad error message when incorrect return type specified with `hl.loop`.
+
+---
+
+
 ## Version 0.2.63
 
 Released 2021-03-01
 
 - (hail#10105) Hail will now return `frozenset` and `hail.utils.frozendict` instead of normal sets and dicts.
-  
+
 
 ### Bug fixes
 
@@ -77,7 +95,7 @@ Released 2020-12-03
 
 - (hail#9775) Fixed race condition leading to invalid intermediate files in VCF combiner.
 - (hail#9751) Fix bug where constructing an array of empty structs causes type error.
-- (hail#9731) Fix error and incorrect behavior when using `hl.import_matrix_table` with int64 data types. 
+- (hail#9731) Fix error and incorrect behavior when using `hl.import_matrix_table` with int64 data types.
 
 ---
 
@@ -128,7 +146,7 @@ Released 2020-10-08
 
 ### Bug fixes
 - (hail#9503) NDArrays can now hold arbitrary data types, though only ndarrays of primitives can be collected to Python.
-- (hail#9501) Remove memory leak in `BlockMatrix.to_matrix_table_row_major` and `BlockMatrix.to_table_row_major`. 
+- (hail#9501) Remove memory leak in `BlockMatrix.to_matrix_table_row_major` and `BlockMatrix.to_table_row_major`.
 - (hail#9424) `hl.experimental.writeBlockMatrices` didn't correctly support `overwrite` flag.
 
 ### Performance improvements
@@ -173,7 +191,7 @@ Released 2020-08-31
 
 ### hailctl dataproc
 
-- (hail#9263) Add support for `--expiration-time` argument to `hailctl dataproc start`. 
+- (hail#9263) Add support for `--expiration-time` argument to `hailctl dataproc start`.
 - (hail#9263) Add support for `--no-max-idle`, `no-max-age`, `--max-age`, and `--expiration-time` to `hailctl dataproc --modify`.
 
 ---
@@ -204,7 +222,7 @@ Released 2020-08-07
 ### VCF Combiner
 
 - (hail#9224)(hail#9237) **Breaking change**: Users are now required to pass a partitioning argument to the command-line interface or `run_combiner` method. See documentation for details.
-- (hail#8963) Improved performance of VCF combiner by ~4x. 
+- (hail#8963) Improved performance of VCF combiner by ~4x.
 
 
 ### New features
@@ -214,7 +232,7 @@ Released 2020-08-07
 ### Bug fixes
 
 - (hail#9206)(hail#9207) Improved error messages from invalid usages of Hail expressions.
-- (hail#9223) Fixed error in bounds checking for NDArray slicing. 
+- (hail#9223) Fixed error in bounds checking for NDArray slicing.
 
 ---
 
@@ -299,8 +317,8 @@ Released 2020-06-23
 ### Bug fixes
 
 - (hail#9009) Fix memory leak when counting per-partition. This caused excessive memory use in `BlockMatrix.write_from_entry_expr`, and likely in many other places.
-- (hail#9006) Fix memory leak in `hl.export_bgen`. 
-- (hail#9001) Fix double close error that showed up on Azure Cloud. 
+- (hail#9006) Fix memory leak in `hl.export_bgen`.
+- (hail#9001) Fix double close error that showed up on Azure Cloud.
 
 ## Version 0.2.46
 
