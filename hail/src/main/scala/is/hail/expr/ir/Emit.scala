@@ -1678,6 +1678,7 @@ class Emit[C](
       case x: NDArrayConcat => emitDeforestedNDArrayI(x)
       case x: NDArraySlice => emitDeforestedNDArrayI(x)
       case x: NDArrayFilter => emitDeforestedNDArrayI(x)
+      case x: NDArrayAgg => emitDeforestedNDArrayI(x)
       case x@RunAgg(body, result, states) =>
         val newContainer = AggContainer.fromBuilder(cb, states.toArray, "run_agg")
         emitVoid(body, container = Some(newContainer))
@@ -2817,7 +2818,7 @@ class Emit[C](
                   val fullIndicesForChild = (0 until childDims).map(idx =>
                     if (axesToSumOut.contains(idx)) summedOutIt.next() else idxVarsIt.next()
                   )
-                  runningSum = SCode.add(cb, runningSum, childEmitter.outputElement(cb, fullIndicesForChild))
+                  runningSum = SCode.add(cb, runningSum, childEmitter.outputElement(cb, fullIndicesForChild), runningSum.st.pType.required)
                 }
 
                 runningSum.toPCode(cb, region.code)

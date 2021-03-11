@@ -14,7 +14,7 @@ from hail.expr.types import HailType, tint32, tint64, tfloat32, \
     tndarray, tlocus, tinterval, is_numeric
 import hail.ir as ir
 from hail.typecheck import typecheck, typecheck_method, func_spec, oneof, \
-    identity, nullable, tupleof, sliceof, dictof
+    identity, nullable, tupleof, sliceof, dictof, sequenceof
 from hail.utils.java import Env, warning
 from hail.utils.linkedlist import LinkedList
 from hail.utils.misc import wrap_to_list, get_nice_field_error, get_nice_attr_error
@@ -4098,6 +4098,18 @@ class NDArrayNumericExpression(NDArrayExpression):
         res = construct_expr(ir.NDArrayMatMul(left._ir, right._ir), ret_type, self._indices, self._aggregations)
 
         return res if result_ndim > 0 else res[()]
+
+
+    @typecheck_method(axes=oneof(int, sequenceof(int)))
+    def sum(self, axes):
+        axes = wrap_to_list(axes)
+        res_ir = ir.NDArrayAgg(self._ir, axes)
+
+        num_axes_deleted = len(set(axes))
+        if num_axes_deleted > self.ndim:
+            raise ValueError(f"axes list was of length {num_axes_deleted} but ndarray dim is only {self.ndim}")
+
+        return construct_expr(res_ir, tndarray(self._type.element_type, self.ndim - num_axes_deleted), self._indices, self._aggregations)
 
 
 scalars = {tbool: BooleanExpression,
