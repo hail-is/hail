@@ -10,6 +10,7 @@ PYTHON := PYTHONPATH=$(PYTHONPATH)../hail/python:../gear:../web_common python3
 check:
 	$(PYTHON) -m flake8 monitoring
 	$(PYTHON) -m pylint --rcfile ../pylintrc monitoring --score=n
+	curlylint .
 	../check-sql.sh
 
 .PHONY: build
