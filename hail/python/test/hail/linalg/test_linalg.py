@@ -1097,11 +1097,11 @@ class Tests(unittest.TestCase):
 
         with pytest.raises(ValueError) as exc:
             bm.filter_cols([0]).filter_cols([3]).to_numpy()
-        assert "index" in str(exc)
+        assert "index" in str(exc.value)
 
         with pytest.raises(ValueError) as exc:
             bm.filter_rows([0]).filter_rows([3]).to_numpy()
-        assert "index" in str(exc)
+        assert "index" in str(exc.value)
 
     @skip_unless_spark_backend()
     def test_sparsify_blocks(self):
