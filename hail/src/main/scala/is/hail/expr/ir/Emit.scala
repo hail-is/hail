@@ -2804,24 +2804,26 @@ class Emit[C](
           deforest(child).map(cb) { childEmitter =>
             val childDims = child.typ.asInstanceOf[TNDArray].nDims
             val axesToKeep = (0 until childDims).filter(axis => !axesToSumOut.contains(axis))
-            // axes is the list of indices we don't want any longer.
             val newOutputShape = axesToKeep.map(idx => childEmitter.outputShape(idx))
+            val newOutputShapeComplement = axesToSumOut.map(idx => childEmitter.outputShape(idx))
 
             new NDArrayEmitter(newOutputShape) {
               override def outputElement(cb: EmitCodeBuilder, idxVars: IndexedSeq[Value[Long]]): PCode = {
-                // I get in some fixed idxVars, I need to generate one loop per idx var.
-                var runningSum = SCode.zero(child.pType.asInstanceOf[PNDArray].elementType.sType)
-                SNDArray.forEachIndex(cb, newOutputShape, "NDArrayAgg_Sum_loop"){ case (cb, coordsBeingSummedOut) =>
+                val numericElementType = coerce[PNumeric](child.pType.asInstanceOf[PNDArray].elementType)
+                val runningSum = coerce[Any](cb.newLocal("running_sum")(typeToTypeInfo(numericElementType)))
+                cb.assign(runningSum, numericElementType.zero)
+
+                SNDArray.forEachIndex(cb, newOutputShapeComplement, "NDArrayAgg_Sum_loop"){ case (cb, coordsBeingSummedOut) =>
                   // Build the new list we need to pass down into child
                   val idxVarsIt = idxVars.toIterator
-                  val summedOutIt = idxVars.toIterator
+                  val summedOutIt = coordsBeingSummedOut.toIterator
                   val fullIndicesForChild = (0 until childDims).map(idx =>
                     if (axesToSumOut.contains(idx)) summedOutIt.next() else idxVarsIt.next()
                   )
-                  runningSum = SCode.add(cb, runningSum, childEmitter.outputElement(cb, fullIndicesForChild), runningSum.st.pType.required)
+                  cb.assign(runningSum, numericElementType.add(runningSum, childEmitter.outputElement(cb, fullIndicesForChild).code))
                 }
 
-                runningSum.toPCode(cb, region.code)
+                PCode.apply(numericElementType, runningSum)
               }
             }
           }

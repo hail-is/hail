@@ -8,14 +8,6 @@ import is.hail.types.physical.stypes.primitives._
 import is.hail.types.physical.{PCode, PIntervalCode, PNDArrayCode, PShuffleCode, PType, PValue}
 
 object SCode {
-  def zero(typ: SType): SCode = {
-    typ match {
-      case _: SInt32 => new SInt32Code(typ.pType.required, 0)
-      case _: SInt64 => new SInt64Code(typ.pType.required, 0L)
-      case _: SFloat32 => new SFloat32Code(typ.pType.required, 0f)
-      case _: SFloat64 => new SFloat64Code(typ.pType.required, 0d)
-    }
-  }
 
   def add(cb: EmitCodeBuilder, left: SCode, right: SCode, required: Boolean): SCode = {
     (left.st, right.st) match {
