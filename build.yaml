@@ -2811,6 +2811,8 @@ steps:
      mkdir -p ./ci/test ./hail/python
      cp /repo/hail/ci/test/resources/build.yaml ./
      cp -R /repo/hail/ci/test/resources ./ci/test/
+     cp /repo/hail/tls/Dockerfile ./ci/test/resources/Dockerfile.certs
+     cp /repo/hail/tls/create_certs.py ./ci/test/resources/
      cp /repo/hail/pylintrc ./
      cp /repo/hail/setup.cfg ./
      cp -R /repo/hail/docker ./

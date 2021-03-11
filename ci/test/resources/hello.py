@@ -2,6 +2,7 @@ import os
 from aiohttp import web
 
 from hailtop.config import get_deploy_config
+from hailtop.tls import internal_server_ssl_context
 from gear import setup_aiohttp_session
 
 
@@ -19,10 +20,12 @@ async def get_healthcheck(request):  # pylint: disable=W0613
 
 
 @routes.get('/sha')
-async def get_sha(request):
+async def get_sha(request):  # pylint: disable=W0613
     return web.Response(text=SHA)
 
 
 setup_aiohttp_session(app)
 app.add_routes(routes)
-web.run_app(deploy_config.prefix_application(app, 'hello'), host='0.0.0.0', port=5000)
+web.run_app(
+    deploy_config.prefix_application(app, 'hello'), host='0.0.0.0', port=5000, ssl_context=internal_server_ssl_context()
+)
