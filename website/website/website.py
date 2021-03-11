@@ -33,7 +33,7 @@ async def get_healthcheck(request):  # pylint: disable=unused-argument
 
 @routes.get('/robots.txt')
 async def get_robots(request):  # pylint: disable=unused-argument
-    return web.Response('user-agent: *\nAllow: /')
+    return web.Response(text='user-agent: *\nAllow: /')
 
 
 routes.static('/static', f'{MODULE_PATH}/static')
@@ -47,7 +47,6 @@ redirect('/docs/0.2/', 'index.html')
 DOCS_PATH = f'{MODULE_PATH}/docs/'
 STATIC_DOCS_PATHS = ['0.2/_static',
                      '0.2/_sources',
-                     '0.2/tutorials',
                      'batch/_static',
                      'batch/_images',
                      'batch/_sources']

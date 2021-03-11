@@ -1451,7 +1451,6 @@ object IRParser {
   }
 
   def table_ir_1(env: IRParserEnvironment)(it: TokenIterator): StackFrame[TableIR] = {
-    // FIXME TableImport
     identifier(it) match {
       case "TableKeyBy" =>
         val keys = identifiers(it)

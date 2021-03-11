@@ -15,6 +15,7 @@ spec:
       labels:
         app: ci
         hail.is/sha: "{{ code.sha }}"
+        grafanak8sapp: "true"
     spec:
 {% if deploy %}
       priorityClassName: production

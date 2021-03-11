@@ -13,11 +13,6 @@ _initialized = False
 
 
 def startTestHailContext():
-    try:
-        asyncio.get_event_loop()
-    except RuntimeError as err:
-        if 'There is no current event loop in thread' in err.args[0]:
-            asyncio.set_event_loop(asyncio.new_event_loop())
     global _initialized
     if not _initialized:
         backend_name = os.environ.get('HAIL_QUERY_BACKEND', 'spark')

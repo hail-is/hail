@@ -1976,6 +1976,15 @@ class ImportTableTests(unittest.TestCase):
         ]
         return hl.Table.parallelize(data, key='Sample')
 
+    def test_source_file(self):
+        ht = hl.import_table(resource('variantAnnotations.split.*.tsv'), source_file_field='source')
+        ht = ht.add_index()
+        assert ht.aggregate(hl.agg.all(
+            hl.if_else(ht.idx < 239,
+                       ht.source.endswith('variantAnnotations.split.1.tsv'),
+                       ht.source.endswith('variantAnnotations.split.2.tsv'))))
+
+
     @fails_service_backend()
     def test_read_write_identity(self):
         ht = self.small_dataset_1()

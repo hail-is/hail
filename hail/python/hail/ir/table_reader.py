@@ -67,7 +67,7 @@ class TextTableReader(TableReader):
     def __init__(self, paths, min_partitions, types, comment,
                  delimiter, missing, no_header, quote,
                  skip_blank_lines, force_bgz, filter, find_replace,
-                 force_gz):
+                 force_gz, source_file_field):
         self.config = {
             'files': paths,
             'typeMapStr': {f: t._parsable_string() for f, t in types.items()},
@@ -80,7 +80,8 @@ class TextTableReader(TableReader):
             'skipBlankLines': skip_blank_lines,
             'forceBGZ': force_bgz,
             'filterAndReplace': make_filter_and_replace(filter, find_replace),
-            'forceGZ': force_gz
+            'forceGZ': force_gz,
+            'sourceFileField': source_file_field
         }
 
     def render(self):

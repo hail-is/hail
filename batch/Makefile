@@ -13,6 +13,7 @@ PYTHON := PYTHONPATH=$${PYTHONPATH:+$${PYTHONPATH}:}$(EXTRA_PYTHONPATH) python3
 check:
 	$(PYTHON) -m flake8  --config ../setup.cfg batch
 	$(PYTHON) -m pylint --rcfile ../pylintrc batch --score=n
+	curlylint .
 	../check-sql.sh
 
 .PHONY: build-prereqs

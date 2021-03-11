@@ -5,6 +5,7 @@ from .auth import userdata_from_web_request, userdata_from_rest_request, \
     web_authenticated_developers_only, rest_authenticated_developers_only, maybe_parse_bearer_header
 from .csrf import new_csrf_token, check_csrf_token
 from .auth_utils import insert_user, create_session
+from .metrics import monitor_endpoint
 
 __all__ = [
     'create_database_pool',
@@ -22,5 +23,6 @@ __all__ = [
     'insert_user',
     'create_session',
     'transaction',
-    'maybe_parse_bearer_header'
+    'maybe_parse_bearer_header',
+    'monitor_endpoint'
 ]

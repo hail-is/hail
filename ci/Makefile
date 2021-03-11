@@ -16,6 +16,7 @@ check:
 	$(PYTHON) -m flake8 ci
 	$(PYTHON) -m pylint --rcfile ../pylintrc ci --score=n
 	$(BLACK) --check --diff
+	curlylint .
 	../check-sql.sh
 
 .PHONY: blacken

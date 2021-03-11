@@ -24,9 +24,6 @@
           {% if 'state' in batch and batch['state'] %}
           {{ batch['state'] }}
           {% endif %}
-          {% if not batch['complete'] %}
-          running
-          {% endif %}
         </td>
       </tr>
       {% endfor %}

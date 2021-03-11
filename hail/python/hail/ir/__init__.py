@@ -23,7 +23,7 @@ from .register_functions import register_functions
 from .register_aggregators import register_aggregators
 from .table_ir import MatrixRowsTable, TableJoin, TableLeftJoinRightDistinct, \
     TableIntervalJoin, TableUnion, TableRange, TableMapGlobals, TableExplode, \
-    TableKeyBy, TableMapRows, TableRead, TableImport, MatrixEntriesTable, \
+    TableKeyBy, TableMapRows, TableRead, MatrixEntriesTable, \
     TableFilter, TableKeyByAndAggregate, \
     TableAggregateByKey, MatrixColsTable, TableParallelize, TableHead, \
     TableTail, TableOrderBy, TableDistinct, RepartitionStrategy, \
@@ -272,7 +272,6 @@ __all__ = [
     'TableMapRows',
     'TableMapPartitions',
     'TableRead',
-    'TableImport',
     'MatrixEntriesTable',
     'TableFilter',
     'TableKeyByAndAggregate',

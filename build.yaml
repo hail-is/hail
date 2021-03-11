@@ -525,7 +525,7 @@ steps:
      python3 ../ci/jinja2_render.py '{"deploy": '${DEPLOY}', "default_ns": {"name": "{{ default_ns.name }}"}}' nginx.conf nginx.conf.out
    outputs:
      - from: /io/repo/grafana/nginx.conf.out
-       to: /nginx.conf.out
+       to: /grafana/nginx.conf.out
    dependsOn:
     - default_ns
     - service_base_image
@@ -535,7 +535,7 @@ steps:
    contextPath: grafana
    publishAs: grafana
    inputs:
-     - from: /nginx.conf.out
+     - from: /grafana/nginx.conf.out
        to: /nginx.conf.out
    dependsOn:
      - hail_ubuntu_image
@@ -1617,8 +1617,13 @@ steps:
      # dev deploy elides the hail-is remote, add it and retrieve the tags
      git remote add hail-is https://github.com/hail-is/hail.git
      git fetch hail-is
-     # if the tag doesn't exist, this commit is the release
-     git checkout $(cat hail/python/hail/hail_pip_version) || true
+
+     # 0.2.63 was the last old-style docs
+     if [[ "$(cat hail/python/hail/hail_pip_version)" != "0.2.63" ]]
+     then
+         # if the tag doesn't exist, this commit is the release
+         git checkout $(cat hail/python/hail/hail_pip_version) || true
+     fi
 
      PYTHONPATH=$PYTHONPATH:$(pwd)/hail/python make -C hail hail-docs-no-test batch-docs
 
@@ -1672,6 +1677,54 @@ steps:
    dependsOn:
     - default_ns
     - grafana_nginx_image
+    - deploy_router
+    - create_certs
+ - kind: runImage
+   name: render_prom_nginx_conf
+   image:
+     valueFrom: service_base_image.image
+   script: |
+     set -ex
+     cd /io
+     rm -rf repo
+     mkdir repo
+     cd repo
+     {{ code.checkout_script }}
+     cd prometheus
+     {% if deploy %}
+     DEPLOY=true
+     {% else %}
+     DEPLOY=false
+     {% endif %}
+     python3 ../ci/jinja2_render.py '{"deploy": '${DEPLOY}', "default_ns": {"name": "{{ default_ns.name }}"}}' nginx.conf nginx.conf.out
+   outputs:
+     - from: /io/repo/prometheus/nginx.conf.out
+       to: /prometheus/nginx.conf.out
+   dependsOn:
+     - default_ns
+     - service_base_image
+ - kind: buildImage
+   name: prom_nginx_image
+   dockerFile: prometheus/Dockerfile.nginx
+   contextPath: prometheus
+   publishAs: prometheus
+   inputs:
+     - from: /prometheus/nginx.conf.out
+       to: /nginx.conf.out
+   dependsOn:
+     - hail_ubuntu_image
+     - render_prom_nginx_conf
+ - kind: deploy
+   name: deploy_prometheus
+   namespace:
+     valueFrom: default_ns.name
+   config: prometheus/prometheus.yaml
+   scopes:
+    - deploy
+    - dev
+   dependsOn:
+    - default_ns
+    - prom_nginx_image
     - deploy_router
     - create_certs
  - kind: runImage
@@ -2269,156 +2322,6 @@ steps:
     - memory_image
     - deploy_memory_sa
     - create_certs
- - kind: runImage
-   name: test_hail_python_service_backend_0
-   image:
-     valueFrom: hail_run_image.image
-   script: |
-     set -ex
-     cd /io
-     tar xzf test.tar.gz
-     tar xvf wheel-container.tar
-     python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
-     export PYTEST_SPLITS=3
-     export PYTEST_SPLIT_INDEX=0
-     export HAIL_TEST_RESOURCES_DIR=gs://cpg-hail-test/{{ upload_test_resources_to_gcs.token }}/test/resources
-     export HAIL_DOCTEST_DATA_DIR=gs://cpg-hail-test/{{ upload_test_resources_to_gcs.token }}/doctest/data
-     export HAIL_QUERY_BACKEND=service
-     export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
-     hailctl config set batch/billing_project test
-     hailctl config set batch/bucket cpg-hail-test
-     python3 -m pytest -n 8 --ignore=test/hailtop/ --log-cli-level=INFO -s -vv --instafail --durations=50 test
-   inputs:
-     - from: /wheel-container.tar
-       to: /io/wheel-container.tar
-     - from: /test.tar.gz
-       to: /io/test.tar.gz
-   secrets:
-     - name: gce-deploy-config
-       namespace:
-         valueFrom: default_ns.name
-       mountPath: /deploy-config
-     - name: test-tokens
-       namespace:
-         valueFrom: default_ns.name
-       mountPath: /user-tokens
-     - name: ssl-config-query-tests
-       namespace:
-         valueFrom: default_ns.name
-       mountPath: /ssl-config
-     - name: test-gsa-key
-       namespace:
-         valueFrom: default_ns.name
-       mountPath: /test-gsa-key
-   timeout: 3600
-   dependsOn:
-     - default_ns
-     - upload_test_resources_to_gcs
-     - deploy_query
-     - deploy_memory
-     - deploy_shuffler
-     - hail_run_image
-     - build_hail
- - kind: runImage
-   name: test_hail_python_service_backend_1
-   image:
-     valueFrom: hail_run_image.image
-   script: |
-     set -ex
-     cd /io
-     tar xzf test.tar.gz
-     tar xvf wheel-container.tar
-     python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
-     export PYTEST_SPLITS=3
-     export PYTEST_SPLIT_INDEX=1
-     export HAIL_TEST_RESOURCES_DIR=gs://cpg-hail-test/{{ upload_test_resources_to_gcs.token }}/test/resources
-     export HAIL_DOCTEST_DATA_DIR=gs://cpg-hail-test/{{ upload_test_resources_to_gcs.token }}/doctest/data
-     export HAIL_QUERY_BACKEND=service
-     export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
-     hailctl config set batch/billing_project test
-     hailctl config set batch/bucket cpg-hail-test
-     python3 -m pytest -n 8 --ignore=test/hailtop/ --log-cli-level=INFO -s -vv --instafail --durations=50 test
-   inputs:
-     - from: /wheel-container.tar
-       to: /io/wheel-container.tar
-     - from: /test.tar.gz
-       to: /io/test.tar.gz
-   secrets:
-     - name: gce-deploy-config
-       namespace:
-         valueFrom: default_ns.name
-       mountPath: /deploy-config
-     - name: test-tokens
-       namespace:
-         valueFrom: default_ns.name
-       mountPath: /user-tokens
-     - name: ssl-config-query-tests
-       namespace:
-         valueFrom: default_ns.name
-       mountPath: /ssl-config
-     - name: test-gsa-key
-       namespace:
-         valueFrom: default_ns.name
-       mountPath: /test-gsa-key
-   timeout: 3600
-   dependsOn:
-     - default_ns
-     - upload_test_resources_to_gcs
-     - deploy_query
-     - deploy_memory
-     - deploy_shuffler
-     - hail_run_image
-     - build_hail
- - kind: runImage
-   name: test_hail_python_service_backend_2
-   image:
-     valueFrom: hail_run_image.image
-   script: |
-     set -ex
-     cd /io
-     tar xzf test.tar.gz
-     tar xvf wheel-container.tar
-     python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
-     export PYTEST_SPLITS=3
-     export PYTEST_SPLIT_INDEX=2
-     export HAIL_TEST_RESOURCES_DIR=gs://cpg-hail-test/{{ upload_test_resources_to_gcs.token }}/test/resources
-     export HAIL_DOCTEST_DATA_DIR=gs://cpg-hail-test/{{ upload_test_resources_to_gcs.token }}/doctest/data
-     export HAIL_QUERY_BACKEND=service
-     export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
-     hailctl config set batch/billing_project test
-     hailctl config set batch/bucket cpg-hail-test
-     python3 -m pytest -n 8 --ignore=test/hailtop/ --log-cli-level=INFO -s -vv --instafail --durations=50 test
-   inputs:
-     - from: /wheel-container.tar
-       to: /io/wheel-container.tar
-     - from: /test.tar.gz
-       to: /io/test.tar.gz
-   secrets:
-     - name: gce-deploy-config
-       namespace:
-         valueFrom: default_ns.name
-       mountPath: /deploy-config
-     - name: test-tokens
-       namespace:
-         valueFrom: default_ns.name
-       mountPath: /user-tokens
-     - name: ssl-config-query-tests
-       namespace:
-         valueFrom: default_ns.name
-       mountPath: /ssl-config
-     - name: test-gsa-key
-       namespace:
-         valueFrom: default_ns.name
-       mountPath: /test-gsa-key
-   timeout: 3600
-   dependsOn:
-     - default_ns
-     - upload_test_resources_to_gcs
-     - deploy_query
-     - deploy_memory
-     - deploy_shuffler
-     - hail_run_image
-     - build_hail
  - kind: runImage
    name: test_lsm
    image:
@@ -3779,9 +3682,6 @@ steps:
     - test_hailtop_batch_2
     - test_hailtop_batch_3
     - test_hailtop_batch_4
-    - test_hail_python_service_backend_0
-    - test_hail_python_service_backend_1
-    - test_hail_python_service_backend_2
  - kind: runImage
    name: delete_atgu_tables
    image:
