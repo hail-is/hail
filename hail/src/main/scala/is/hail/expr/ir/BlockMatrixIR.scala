@@ -270,6 +270,17 @@ case class BlockMatrixMap(child: BlockMatrixIR, eltName: String, f: IR, needsDen
   override protected[ir] def execute(ctx: ExecuteContext): BlockMatrix = {
     val prev = child.execute(ctx)
 
+    val functionArgs = f match {
+      case ApplyUnaryPrimOp(_, arg1) => IndexedSeq(arg1)
+      case Apply(_, _, args, _) => args
+      case ApplyBinaryPrimOp(_, l, r) => IndexedSeq(l, r)
+    }
+
+    assert(functionArgs.forall(ir => IsConstant(ir) || ir.isInstanceOf[Ref]),
+      "Spark backend without lowering does not support general mapping over " +
+        "BlockMatrix entries. Use predefined functions like `BlockMatrix.abs`.")
+
+
     val (name, breezeF): (String, DenseMatrix[Double] => DenseMatrix[Double]) = f match {
       case ApplyUnaryPrimOp(Negate(), _) => ("negate", BlockMatrix.negationOp)
       case Apply("abs", _, _, _) => ("abs", numerics.abs(_))

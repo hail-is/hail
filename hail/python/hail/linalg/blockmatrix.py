@@ -1528,6 +1528,9 @@ class BlockMatrix(object):
         """
         return self._apply_map(lambda i: i ** x, needs_dense=False)
 
+    def map(self, func):
+        return self._apply_map(func, True)
+
     def sqrt(self):
         """Element-wise square root.
 
