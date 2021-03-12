@@ -10,7 +10,7 @@ COPY hail/python/hailtop /hailtop/hailtop/
 COPY /hail_version /hailtop/hailtop/hail_version
 RUN cat /hailtop/hailtop/hail_version
 COPY hail/python/MANIFEST.in /hailtop/MANIFEST.in
-RUN hail-pip-install /hailtop && rm -rf /hailtop
+RUN hail-pip-install /hailtop # && rm -rf /hailtop
 
 COPY gear/setup.py /gear/setup.py
 COPY gear/gear /gear/gear/
