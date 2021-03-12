@@ -162,6 +162,13 @@ steps:
    image:
      valueFrom: create_certs_image.image
    script: |
+     # Create dev certificates, or overwrite the existing ones. The usecase for 
+     # overwriting is to update the dev certificates, as they expire after 30 days
+     # (the default `-days` parameter value for `openssl req`).
+     until ! kubectl get secret -n {{ default_ns.name }} ssl-config-hail-root 2>/dev/null
+     do
+         kubectl delete secret -n {{ default_ns.name }} ssl-config-hail-root
+     done     
      openssl req -new -x509 -subj /CN=hail-root -nodes -newkey rsa:4096 -keyout hail-root-key.pem -out hail-root-cert.pem
      until kubectl get secret -n {{ default_ns.name }} ssl-config-hail-root
      do
