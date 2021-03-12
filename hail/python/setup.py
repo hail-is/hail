@@ -53,5 +53,6 @@ setup(
         'console_scripts': ['hailctl = hailtop.hailctl.__main__:main']
     },
     setup_requires=["pytest-runner", "wheel"],
-    tests_require=["pytest"]
+    tests_require=["pytest"],
+    include_package_data=True
 )
