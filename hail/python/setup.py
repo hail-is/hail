@@ -41,7 +41,6 @@ setup(
                  'hail_version',
                  'experimental/datasets.json'],
         'hail.backend': ['hail-all-spark.jar'],
-        'hailtop': ['hail_version'],
         'hailtop.hailctl': ['hail_version', 'deploy.yaml']},
     classifiers=[
         "Programming Language :: Python :: 3",
@@ -53,6 +52,5 @@ setup(
         'console_scripts': ['hailctl = hailtop.hailctl.__main__:main']
     },
     setup_requires=["pytest-runner", "wheel"],
-    tests_require=["pytest"],
-    include_package_data=True,
+    tests_require=["pytest"]
 )

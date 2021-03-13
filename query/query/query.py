@@ -13,12 +13,14 @@ from hailtop.utils import blocking_to_async, retry_transient_errors
 from hailtop.config import get_deploy_config
 from hailtop.tls import internal_server_ssl_context
 from hailtop.hail_logging import AccessLogger
-from hailtop import version
+from hailtop.hailctl import version
 from gear import (
     setup_aiohttp_session,
     rest_authenticated_users_only,
     rest_authenticated_developers_only,
 )
+
+from .sockets import connect_to_java
 
 from .sockets import connect_to_java
 
@@ -237,11 +239,6 @@ async def set_flag(request, userdata):  # pylint: disable=unused-argument
         else:
             jresp = await blocking_to_async(app['thread_pool'], java.set_flag, f, v)
     return web.json_response(jresp)
-
-
-@routes.get('/api/v1alpha/version')
-async def rest_get_version(request):  # pylint: disable=W0613
-    return web.Response(text=version())
 
 
 async def on_startup(app):
