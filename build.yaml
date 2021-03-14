@@ -705,6 +705,7 @@ steps:
    publishAs: service-java-run-base
    dependsOn:
      - hail_ubuntu_image
+     - copy_files
    inputs:
      - from: /hail_version
        to: /hail_version
