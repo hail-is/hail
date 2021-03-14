@@ -30,6 +30,15 @@ deploy_config = get_deploy_config()
 routes = web.RouteTableDef()
 
 
+@routes.get('')
+@routes.get('/')
+@monitor_endpoint
+@web_authenticated_developers_only()
+async def index(request, userdata):  # pylint: disable=unused-argument
+    # Redirect to /batches.
+    return web.HTTPFound(deploy_config.external_url('ci', '/batches'))
+
+
 @routes.get('/batches')
 @monitor_endpoint
 @web_authenticated_developers_only()
