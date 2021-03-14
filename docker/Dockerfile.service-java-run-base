@@ -24,7 +24,10 @@ RUN hail-pip-install -r service-base-requirements.txt
 
 COPY hail/python/setup-hailtop.py /hailtop/setup.py
 COPY hail/python/hailtop /hailtop/hailtop/
+COPY /hail_version /hailtop/hailtop/hail_version
+COPY hail/python/MANIFEST.in /hailtop/MANIFEST.in
 RUN hail-pip-install /hailtop && rm -rf /hailtop
+RUN echo 'from hailtop import version; print(version());' | python3
 
 COPY gear/setup.py /gear/setup.py
 COPY gear/gear /gear/gear/
