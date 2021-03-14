@@ -10,7 +10,6 @@ COPY hail/python/hailtop /hailtop/hailtop/
 COPY /hail_version /hailtop/hailtop/hail_version
 COPY hail/python/MANIFEST.in /hailtop/MANIFEST.in
 RUN hail-pip-install /hailtop && rm -rf /hailtop
-RUN echo 'from hailtop import version; print(version());' | python3
 
 COPY gear/setup.py /gear/setup.py
 COPY gear/gear /gear/gear/
@@ -19,3 +18,4 @@ RUN hail-pip-install /gear && rm -rf /gear
 COPY web_common/setup.py web_common/MANIFEST.in /web_common/
 COPY web_common/web_common /web_common/web_common/
 RUN hail-pip-install /web_common && rm -rf /web_common
+RUN echo 'from hailtop import version; print(version());' | python3
