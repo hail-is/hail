@@ -42,13 +42,8 @@ spec:
           env:
            - name: HAIL_DEPLOY_CONFIG_FILE
              value: /deploy-config/deploy-config.json
-{% if deploy %}
            - name: HAIL_WATCHED_BRANCHES
              value: '[]'
-{% else %}
-           - name: HAIL_WATCHED_BRANCHES
-             value: '[["hail-ci-test/ci-test-{{create_ci_test_repo.token}}:master", true]]'
-{% endif %}
            - name: HAIL_GCP_PROJECT
              value: "{{ global.project }}"
            - name: HAIL_GCP_ZONE

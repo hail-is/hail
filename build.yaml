@@ -2856,7 +2856,6 @@ steps:
     - ci_database
     - deploy_auth
     - deploy_batch
-    - create_ci_test_repo
     - deploy_ci_agent
     - create_certs
  - kind: runImage
