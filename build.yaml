@@ -725,6 +725,9 @@ steps:
    publishAs: service-java-run-base
    dependsOn:
      - hail_ubuntu_image
+   inputs:
+     - from: /hail_version
+       to: /hail_version
  - kind: buildImage
    name: query_image
    dockerFile: query/Dockerfile
