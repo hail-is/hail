@@ -1,6 +1,9 @@
 {% from "job-table.html" import job_table with context %}
 {% extends "layout.html" %}
 {% block title %}PR {{ number }}{% endblock %}
+{% block head %}
+    <script src="{{ base_path }}/common_static/focus_on_keyup.js"></script>
+{% endblock %}
 {% block content %}
     <h1>{{ pr.title }} <a href="https://github.com/{{ repo }}/pull/{{ pr.number }}"><span class="gh-number">#{{ pr.number }}</span></a></h1>
 
@@ -20,7 +23,7 @@
       <button type="submit">Retry</button>
     </form>
     <h2>Jobs</h2>
-    {{ job_table(jobs) }}
+    {{ job_table(jobs, "jobs", "jobsSearchBar") }}
     {% elif exception is defined %}
     <p>Build error:</p>
     <pre>
@@ -57,4 +60,7 @@
     {% else %}
     No builds.
     {% endif %}
+    <script type="text/javascript">
+      focusOnSlash("jobsSearchBar");
+    </script>
 {% endblock %}
