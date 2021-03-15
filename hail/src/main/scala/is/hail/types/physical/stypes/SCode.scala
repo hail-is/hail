@@ -8,7 +8,6 @@ import is.hail.types.physical.stypes.primitives._
 import is.hail.types.physical.{PCode, PIntervalCode, PNDArrayCode, PShuffleCode, PType, PValue}
 
 object SCode {
-
   def add(cb: EmitCodeBuilder, left: SCode, right: SCode, required: Boolean): SCode = {
     (left.st, right.st) match {
       case (_: SInt32, _: SInt32) => new SInt32Code(required, left.asInt.intCode(cb) + right.asInt.intCode(cb))

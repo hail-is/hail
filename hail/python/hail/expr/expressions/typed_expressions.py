@@ -14,7 +14,7 @@ from hail.expr.types import HailType, tint32, tint64, tfloat32, \
     tndarray, tlocus, tinterval, is_numeric
 import hail.ir as ir
 from hail.typecheck import typecheck, typecheck_method, func_spec, oneof, \
-    identity, nullable, tupleof, sliceof, dictof, sequenceof
+    identity, nullable, tupleof, sliceof, dictof
 from hail.utils.java import Env, warning
 from hail.utils.linkedlist import LinkedList
 from hail.utils.misc import wrap_to_list, wrap_to_tuple, get_nice_field_error, get_nice_attr_error
