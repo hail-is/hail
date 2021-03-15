@@ -4107,9 +4107,14 @@ class NDArrayNumericExpression(NDArrayExpression):
         axis = wrap_to_tuple(axis)
         res_ir = ir.NDArrayAgg(self._ir, axis)
 
-        num_axes_deleted = len(set(axis))
-        if num_axes_deleted > self.ndim:
-            raise ValueError(f"axes list was of length {num_axes_deleted} but ndarray dim is only {self.ndim}")
+        axes_set = set(axis)
+        if len(axes_set) < len(axis):
+            raise ValueError("duplicate value in 'axis'")
+        for element in axes_set:
+            if element < 0 or element >= self.ndim:
+                raise ValueError(f"axis {element} is out of bounds for ndarray of dimension {self.ndim}")
+
+        num_axes_deleted = len(axes_set)
 
         return construct_expr(res_ir, tndarray(self._type.element_type, self.ndim - num_axes_deleted), self._indices, self._aggregations)
 

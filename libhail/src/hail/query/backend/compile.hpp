@@ -47,7 +47,7 @@ public:
   /* Indexed by parameter index, the entry is the index of the first
      `llvm_function` parameter. */
   std::vector<size_t> param_llvm_start;
-  
+
   llvm::Function *llvm_function;
   // FIXME rename llvm_builder
   llvm::IRBuilder<> llvm_ir_builder;
@@ -56,7 +56,7 @@ public:
 
   // FIXME move to SType
   const SType *get_default_stype(const Type *t);
-  
+
   llvm::Type *get_llvm_type(PrimitiveType pt) const;
   llvm::AllocaInst *make_entry_alloca(llvm::Type *llvm_type);
 

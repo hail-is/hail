@@ -491,6 +491,14 @@ def test_ndarray_sum():
         (m.sum((0, 1)), np_m.sum((0, 1)))
     )
 
+    with pytest.raises(ValueError) as exc:
+        m.sum(3)
+    assert "out of bounds for ndarray of dimension 2" in str(exc.value)
+
+    with pytest.raises(ValueError) as exc:
+        m.sum((1, 1))
+    assert "duplicate" in str(exc.value)
+
 
 def test_ndarray_transpose():
     np_v = np.array([1, 2, 3])
