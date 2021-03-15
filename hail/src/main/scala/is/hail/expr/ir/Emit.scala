@@ -2810,7 +2810,7 @@ class Emit[C](
             new NDArrayEmitter(newOutputShape) {
               override def outputElement(cb: EmitCodeBuilder, idxVars: IndexedSeq[Value[Long]]): PCode = {
                 val numericElementType = coerce[PNumeric](child.pType.asInstanceOf[PNDArray].elementType)
-                val runningSum = coerce[Any](cb.newLocal("running_sum")(typeToTypeInfo(numericElementType)))
+                val runningSum = NumericPrimitives.newLocal(cb, "ndarray_agg_running_sum", numericElementType.virtualType)
                 cb.assign(runningSum, numericElementType.zero)
 
                 SNDArray.forEachIndex(cb, newOutputShapeComplement, "NDArrayAgg_Sum_loop"){ case (cb, coordsBeingSummedOut) =>
