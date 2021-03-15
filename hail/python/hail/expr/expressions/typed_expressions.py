@@ -4099,7 +4099,6 @@ class NDArrayNumericExpression(NDArrayExpression):
 
         return res if result_ndim > 0 else res[()]
 
-
     @typecheck_method(axis=nullable(oneof(int, tupleof(int))))
     def sum(self, axis=None):
         if axis is None:
