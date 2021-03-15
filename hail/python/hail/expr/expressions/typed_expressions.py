@@ -17,7 +17,7 @@ from hail.typecheck import typecheck, typecheck_method, func_spec, oneof, \
     identity, nullable, tupleof, sliceof, dictof, sequenceof
 from hail.utils.java import Env, warning
 from hail.utils.linkedlist import LinkedList
-from hail.utils.misc import wrap_to_list, get_nice_field_error, get_nice_attr_error
+from hail.utils.misc import wrap_to_list, wrap_to_tuple, get_nice_field_error, get_nice_attr_error
 
 import numpy as np
 
@@ -4100,12 +4100,15 @@ class NDArrayNumericExpression(NDArrayExpression):
         return res if result_ndim > 0 else res[()]
 
 
-    @typecheck_method(axes=oneof(int, sequenceof(int)))
-    def sum(self, axes):
-        axes = wrap_to_list(axes)
-        res_ir = ir.NDArrayAgg(self._ir, axes)
+    @typecheck_method(axis=nullable(oneof(int, tupleof(int))))
+    def sum(self, axis=None):
+        if axis is None:
+            axis = tuple(range(self.ndim))
 
-        num_axes_deleted = len(set(axes))
+        axis = wrap_to_tuple(axis)
+        res_ir = ir.NDArrayAgg(self._ir, axis)
+
+        num_axes_deleted = len(set(axis))
         if num_axes_deleted > self.ndim:
             raise ValueError(f"axes list was of length {num_axes_deleted} but ndarray dim is only {self.ndim}")
 
