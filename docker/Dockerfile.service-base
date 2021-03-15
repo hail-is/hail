@@ -7,11 +7,8 @@ RUN hail-pip-install -r service-base-requirements.txt
 
 COPY hail/python/setup-hailtop.py /hailtop/setup.py
 COPY hail/python/hailtop /hailtop/hailtop/
-COPY hail/Makefile hail/env_var.mk .git/ hailtop/
-RUN mkdir -p hailtop/python/hail hailtop/python/hailtop/hailctl hailtop/python/hail/docs/_static && \
-    (cd hailtop && echo $(pwd) && make python-version-info) && \
-    cp hailtop/python/hail/hail_*version hailtop/hailtop/hailctl && \
-    rm -rf hailtop/Makefile hailtop/env_var.mk .git/
+COPY /hail_version /hailtop/hailtop/hail_version
+COPY hail/python/MANIFEST.in /hailtop/MANIFEST.in
 RUN hail-pip-install /hailtop && rm -rf /hailtop
 
 COPY gear/setup.py /gear/setup.py
@@ -21,3 +18,4 @@ RUN hail-pip-install /gear && rm -rf /gear
 COPY web_common/setup.py web_common/MANIFEST.in /web_common/
 COPY web_common/web_common /web_common/web_common/
 RUN hail-pip-install /web_common && rm -rf /web_common
+RUN echo 'from hailtop import version; print(version());' | python3
