@@ -491,7 +491,7 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, pass_through=())
         def process_y_group(idx):
             X = hl.nd.array(block[entries_field_name].map(lambda row: mean_impute(select_array_indices(row, ht.kept_samples[idx])))).T
             n = ht.ns[idx]
-            sum_x = X.sum(1)
+            sum_x = X.sum(0)
             Qtx = ht.__cov_Qts[idx] @ X
             ytx = ht.__y_nds[idx].T @ X
             xyp = ytx - (ht.__Qtys[idx].T @ Qtx)
