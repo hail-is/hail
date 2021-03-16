@@ -4101,6 +4101,17 @@ class NDArrayNumericExpression(NDArrayExpression):
 
     @typecheck_method(axis=nullable(oneof(int, tupleof(int))))
     def sum(self, axis=None):
+        """Sum out one or more axes of an ndarray.
+
+        Parameters
+        ----------
+        axis : :class:`int` :class:`tuple`
+            The axis or axes to sum out.
+
+        Returns
+        -------
+        :class:`.NDArrayNumericExpression`
+        """
         if axis is None:
             axis = tuple(range(self.ndim))
 
