@@ -15,12 +15,12 @@ SHA = os.environ['HAIL_SHA']
 
 
 @routes.get('/healthcheck')
-async def get_healthcheck(request):  # pylint: disable=W0613
+async def get_healthcheck(request):  # pylint: disable=unused-argument
     return web.Response()
 
 
 @routes.get('/sha')
-async def get_sha(request):  # pylint: disable=W0613
+async def get_sha(request):  # pylint: disable=unused-argument
     return web.Response(text=SHA)
 
 
