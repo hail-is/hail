@@ -83,11 +83,6 @@ async def get_job(request, userdata):
     return await render_template('ci', request, userdata, 'job.html', page_context)
 
 
-@routes.get('/healthcheck')
-async def healthcheck(request):  # pylint: disable=unused-argument
-    return web.Response(status=200)
-
-
 @routes.post('/api/v1alpha/dev_deploy_branch')
 @monitor_endpoint
 @rest_authenticated_developers_only
@@ -216,6 +211,7 @@ def run():
 
     setup_common_static_routes(routes)
     app.add_routes(routes)
+    app.router.add_get("/metrics", server_stats)
 
     web.run_app(
         deploy_config.prefix_application(app, 'ci'),

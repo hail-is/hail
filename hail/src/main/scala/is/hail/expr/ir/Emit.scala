@@ -1678,6 +1678,7 @@ class Emit[C](
       case x: NDArrayConcat => emitDeforestedNDArrayI(x)
       case x: NDArraySlice => emitDeforestedNDArrayI(x)
       case x: NDArrayFilter => emitDeforestedNDArrayI(x)
+      case x: NDArrayAgg => emitDeforestedNDArrayI(x)
       case x@RunAgg(body, result, states) =>
         val newContainer = AggContainer.fromBuilder(cb, states.toArray, "run_agg")
         emitVoid(body, container = Some(newContainer))
@@ -2798,6 +2799,33 @@ class Emit[C](
                 }
               }
             })
+          }
+        case NDArrayAgg(child, axesToSumOut) =>
+          deforest(child).map(cb) { childEmitter =>
+            val childDims = child.typ.asInstanceOf[TNDArray].nDims
+            val axesToKeep = (0 until childDims).filter(axis => !axesToSumOut.contains(axis))
+            val newOutputShape = axesToKeep.map(idx => childEmitter.outputShape(idx))
+            val newOutputShapeComplement = axesToSumOut.map(idx => childEmitter.outputShape(idx))
+
+            new NDArrayEmitter(newOutputShape) {
+              override def outputElement(cb: EmitCodeBuilder, idxVars: IndexedSeq[Value[Long]]): PCode = {
+                val numericElementType = coerce[PNumeric](child.pType.asInstanceOf[PNDArray].elementType)
+                val runningSum = NumericPrimitives.newLocal(cb, "ndarray_agg_running_sum", numericElementType.virtualType)
+                cb.assign(runningSum, numericElementType.zero)
+
+                SNDArray.forEachIndex(cb, newOutputShapeComplement, "NDArrayAgg_Sum_loop"){ case (cb, coordsBeingSummedOut) =>
+                  // Build the new list we need to pass down into child
+                  val idxVarsIt = idxVars.toIterator
+                  val summedOutIt = coordsBeingSummedOut.toIterator
+                  val fullIndicesForChild = (0 until childDims).map(idx =>
+                    if (axesToSumOut.contains(idx)) summedOutIt.next() else idxVarsIt.next()
+                  )
+                  cb.assign(runningSum, numericElementType.add(runningSum, childEmitter.outputElement(cb, fullIndicesForChild).code))
+                }
+
+                PCode.apply(numericElementType, runningSum)
+              }
+            }
           }
         case _ =>
           val ndI = emit(x)

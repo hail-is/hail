@@ -13,17 +13,17 @@ object Int32Ordering {
       val type2: SInt32 = t2
 
       def _compareNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Int] =
-        Code.invokeStatic2[java.lang.Integer, Int, Int, Int]("compare", x.tcode[Int], y.tcode[Int])
+        Code.invokeStatic2[java.lang.Integer, Int, Int, Int]("compare", x.asInt.intCode(cb), y.asInt.intCode(cb))
 
-      def _ltNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Boolean] = x.tcode[Int] < y.tcode[Int]
+      def _ltNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Boolean] = x.asInt.intCode(cb) < y.asInt.intCode(cb)
 
-      def _lteqNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Boolean] = x.tcode[Int] <= y.tcode[Int]
+      def _lteqNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Boolean] = x.asInt.intCode(cb) <= y.asInt.intCode(cb)
 
-      def _gtNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Boolean] = x.tcode[Int] > y.tcode[Int]
+      def _gtNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Boolean] = x.asInt.intCode(cb) > y.asInt.intCode(cb)
 
-      def _gteqNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Boolean] = x.tcode[Int] >= y.tcode[Int]
+      def _gteqNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Boolean] = x.asInt.intCode(cb) >= y.asInt.intCode(cb)
 
-      def _equivNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Boolean] = x.tcode[Int].ceq(y.tcode[Int])
+      def _equivNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Boolean] = x.asInt.intCode(cb).ceq(y.asInt.intCode(cb))
     }
   }
 }
@@ -37,17 +37,17 @@ object Int64Ordering {
       val type2: SInt64 = t2
 
       def _compareNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Int] =
-        Code.invokeStatic2[java.lang.Long, Long, Long, Int]("compare", x.tcode[Long], y.tcode[Long])
+        Code.invokeStatic2[java.lang.Long, Long, Long, Int]("compare", x.asLong.longCode(cb), y.asLong.longCode(cb))
 
-      def _ltNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Boolean] = x.tcode[Long] < y.tcode[Long]
+      def _ltNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Boolean] = x.asLong.longCode(cb) < y.asLong.longCode(cb)
 
-      def _lteqNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Boolean] = x.tcode[Long] <= y.tcode[Long]
+      def _lteqNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Boolean] = x.asLong.longCode(cb) <= y.asLong.longCode(cb)
 
-      def _gtNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Boolean] = x.tcode[Long] > y.tcode[Long]
+      def _gtNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Boolean] = x.asLong.longCode(cb) > y.asLong.longCode(cb)
 
-      def _gteqNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Boolean] = x.tcode[Long] >= y.tcode[Long]
+      def _gteqNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Boolean] = x.asLong.longCode(cb) >= y.asLong.longCode(cb)
 
-      def _equivNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Boolean] = x.tcode[Long].ceq(y.tcode[Long])
+      def _equivNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Boolean] = x.asLong.longCode(cb).ceq(y.asLong.longCode(cb))
     }
   }
 }
@@ -60,17 +60,17 @@ object Float32Ordering {
       val type2: SFloat32 = t2
 
       def _compareNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Int] =
-        Code.invokeStatic2[java.lang.Float, Float, Float, Int]("compare", x.tcode[Float], y.tcode[Float])
+        Code.invokeStatic2[java.lang.Float, Float, Float, Int]("compare", x.asFloat.floatCode(cb), y.asFloat.floatCode(cb))
 
-      def _ltNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Boolean] = x.tcode[Float] < y.tcode[Float]
+      def _ltNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Boolean] = x.asFloat.floatCode(cb) < y.asFloat.floatCode(cb)
 
-      def _lteqNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Boolean] = x.tcode[Float] <= y.tcode[Float]
+      def _lteqNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Boolean] = x.asFloat.floatCode(cb) <= y.asFloat.floatCode(cb)
 
-      def _gtNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Boolean] = x.tcode[Float] > y.tcode[Float]
+      def _gtNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Boolean] = x.asFloat.floatCode(cb) > y.asFloat.floatCode(cb)
 
-      def _gteqNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Boolean] = x.tcode[Float] >= y.tcode[Float]
+      def _gteqNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Boolean] = x.asFloat.floatCode(cb) >= y.asFloat.floatCode(cb)
 
-      def _equivNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Boolean] = x.tcode[Float].ceq(y.tcode[Float])
+      def _equivNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Boolean] = x.asFloat.floatCode(cb).ceq(y.asFloat.floatCode(cb))
     }
   }
 }
@@ -83,17 +83,17 @@ object Float64Ordering {
       val type2: SFloat64 = t2
 
       def _compareNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Int] =
-        Code.invokeStatic2[java.lang.Double, Double, Double, Int]("compare", x.tcode[Double], y.tcode[Double])
+        Code.invokeStatic2[java.lang.Double, Double, Double, Int]("compare", x.asDouble.doubleCode(cb), y.asDouble.doubleCode(cb))
 
-      def _ltNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Boolean] = x.tcode[Double] < y.tcode[Double]
+      def _ltNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Boolean] = x.asDouble.doubleCode(cb) < y.asDouble.doubleCode(cb)
 
-      def _lteqNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Boolean] = x.tcode[Double] <= y.tcode[Double]
+      def _lteqNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Boolean] = x.asDouble.doubleCode(cb) <= y.asDouble.doubleCode(cb)
 
-      def _gtNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Boolean] = x.tcode[Double] > y.tcode[Double]
+      def _gtNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Boolean] = x.asDouble.doubleCode(cb) > y.asDouble.doubleCode(cb)
 
-      def _gteqNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Boolean] = x.tcode[Double] >= y.tcode[Double]
+      def _gteqNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Boolean] = x.asDouble.doubleCode(cb) >= y.asDouble.doubleCode(cb)
 
-      def _equivNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Boolean] = x.tcode[Double].ceq(y.tcode[Double])
+      def _equivNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Boolean] = x.asDouble.doubleCode(cb).ceq(y.asDouble.doubleCode(cb))
     }
   }
 }
@@ -106,7 +106,7 @@ object BooleanOrdering {
       val type2: SBoolean = t2
 
       def _compareNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Int] =
-        Code.invokeStatic2[java.lang.Boolean, Boolean, Boolean, Int]("compare", x.tcode[Boolean], y.tcode[Boolean])
+        Code.invokeStatic2[java.lang.Boolean, Boolean, Boolean, Int]("compare", x.asBoolean.boolCode(cb), y.asBoolean.boolCode(cb))
     }
   }
 }
