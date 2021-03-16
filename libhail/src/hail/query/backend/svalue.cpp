@@ -46,6 +46,39 @@ SFloat32Value::SFloat32Value(const SType *stype, llvm::Value *value)
 SFloat64Value::SFloat64Value(const SType *stype, llvm::Value *value)
   : SValue(self_tag, stype), value(value) {}
 
+STupleValue::STupleValue(Tag tag, const SType *stype)
+  : SValue(tag, stype) {}
+
+SCanonicalTupleValue::SCanonicalTupleValue(const SType *stype, llvm::Value *address)
+  : STupleValue(self_tag, stype), address(address) {}
+
+EmitValue
+SCanonicalTupleValue::get_element(CompileFunction &cf, size_t i) const {
+  const SCanonicalTuple *st = cast<SCanonicalTuple>(stype);
+
+  auto missing_bb = llvm::BasicBlock::Create(cf.llvm_context, "gettupleelement_missing", cf.llvm_function);
+  auto present_bb = llvm::BasicBlock::Create(cf.llvm_context, "gettupleelement_present", cf.llvm_function);
+
+  llvm::Value *missing_address =
+    cf.llvm_ir_builder.CreateGEP(address,
+				 llvm::ConstantInt::get(cf.llvm_context,
+							llvm::APInt(64, i >> 3)));
+  llvm::Value *mask = llvm::ConstantInt::get(cf.llvm_context,
+					     llvm::APInt(8, 1 << (i & 0x7)));
+  llvm::Value *b = cf.llvm_ir_builder.CreateLoad(missing_address);
+  llvm::Value *cond = cf.llvm_ir_builder.CreateICmpEQ(cf.llvm_ir_builder.CreateAnd(b, mask), mask);
+  cf.llvm_ir_builder.CreateCondBr(cond, missing_bb, present_bb);
+
+  cf.llvm_ir_builder.SetInsertPoint(present_bb);
+  llvm::Value *element_address =
+    cf.llvm_ir_builder.CreateGEP(address,
+				 llvm::ConstantInt::get(cf.llvm_context,
+							llvm::APInt(64, st->element_offsets[i])));
+  const SValue *sv = st->element_stypes[i]->load_from_address(cf, element_address);
+
+  return EmitValue(present_bb, missing_bb, sv);
+}
+
 void
 EmitDataValue::get_constituent_values(std::vector<llvm::Value *> &llvm_values) const {
   llvm_values.push_back(missing);
@@ -84,21 +117,35 @@ EmitValue::as_data(CompileFunction &cf) const {
   if (missing)
     return EmitDataValue(missing, svalue);
 
-  llvm::AllocaInst *l = cf.make_entry_alloca(llvm::Type::getInt8Ty(cf.llvm_context));
-
   auto merge_bb = llvm::BasicBlock::Create(cf.llvm_context, "as_data", cf.llvm_function);
+
   cf.llvm_ir_builder.SetInsertPoint(missing_block);
-  cf.llvm_ir_builder.CreateStore(llvm::ConstantInt::get(llvm::Type::getInt8Ty(cf.llvm_context), 1), l);
   cf.llvm_ir_builder.CreateBr(merge_bb);
 
   cf.llvm_ir_builder.SetInsertPoint(present_block);
-  cf.llvm_ir_builder.CreateStore(llvm::ConstantInt::get(llvm::Type::getInt8Ty(cf.llvm_context), 0), l);
   cf.llvm_ir_builder.CreateBr(merge_bb);
 
   cf.llvm_ir_builder.SetInsertPoint(merge_bb);
-  llvm::Value *m = cf.llvm_ir_builder.CreateLoad(l);
+  llvm::PHINode *phi_m = cf.llvm_ir_builder.CreatePHI(llvm::Type::getInt8Ty(cf.llvm_context), 2);
+  phi_m->addIncoming(llvm::ConstantInt::get(llvm::Type::getInt8Ty(cf.llvm_context), 1),
+		     missing_block);
+  phi_m->addIncoming(llvm::ConstantInt::get(llvm::Type::getInt8Ty(cf.llvm_context), 0),
+		     present_block);
 
-  return EmitDataValue(m, svalue);
+  std::vector<llvm::Value *> llvm_values;
+  svalue->get_constituent_values(llvm_values);
+
+  std::vector<llvm::Value *> llvm_phi_values;
+  for (auto v : llvm_values) {
+    llvm::PHINode *phi = cf.llvm_ir_builder.CreatePHI(v->getType(), 2);
+    phi->addIncoming(llvm::UndefValue::get(v->getType()), missing_block);
+    phi->addIncoming(v, present_block);
+    llvm_phi_values.push_back(phi);
+  }
+
+  auto new_svalue = svalue->stype->from_llvm_values(llvm_phi_values, 0);
+
+  return EmitDataValue(phi_m, new_svalue);
 }
 
 }

@@ -34,7 +34,7 @@ public:
     STR,
     ARRAY,
     STREAM,
-    TUPLE
+    CANONICALTUPLE
   };
   const Tag tag;
   const Type *const type;
@@ -45,6 +45,8 @@ public:
   void get_constituent_types(std::vector<PrimitiveType> &constituent_types) const;
 
   SValue *from_llvm_values(const std::vector<llvm::Value *> &llvm_values, size_t i) const;
+
+  const SValue *load_from_address(CompileFunction &cf, llvm::Value *address) const;
 };
 
 class SBool : public SType {
@@ -75,6 +77,14 @@ class SFloat64 : public SType {
 public:
   static const Tag self_tag = SType::Tag::FLOAT64;
   SFloat64(const Type *type);
+};
+
+class SCanonicalTuple : public SType {
+public:
+  static const Tag self_tag = SType::Tag::CANONICALTUPLE;
+  std::vector<const SType *> element_stypes;
+  std::vector<size_t> element_offsets;
+  SCanonicalTuple(const Type *type, std::vector<const SType *> element_stypes, std::vector<size_t> element_offsets);
 };
 
 class EmitType {

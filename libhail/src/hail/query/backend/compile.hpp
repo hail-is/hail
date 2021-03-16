@@ -56,7 +56,7 @@ public:
 
   // FIXME move to SType
   const SType *get_default_stype(const Type *t);
-  
+
   llvm::Type *get_llvm_type(PrimitiveType pt) const;
   llvm::AllocaInst *make_entry_alloca(llvm::Type *llvm_type);
 
@@ -65,6 +65,7 @@ public:
   EmitValue emit(Literal *x);
   EmitValue emit(NA *x);
   EmitValue emit(IsNA *x);
+  EmitValue emit(GetTupleElement *x);
   EmitValue emit(IR *x);
 
   CompileFunction(TypeContext &tc,

@@ -17,7 +17,8 @@ public:
     INT32,
     INT64,
     FLOAT32,
-    FLOAT64
+    FLOAT64,
+    CANONICALTUPLE
   };
   const Tag tag;
   const SType *const stype;
@@ -61,6 +62,20 @@ public:
   static const Tag self_tag = SValue::Tag::FLOAT64;
   llvm::Value *value;
   SFloat64Value(const SType *stype, llvm::Value *value);
+};
+
+class STupleValue : public SValue {
+public:
+  STupleValue(Tag tag, const SType *stype);
+  virtual EmitValue get_element(CompileFunction &cf, size_t i) const = 0;
+};
+
+class SCanonicalTupleValue : public STupleValue {
+public:
+  static const Tag self_tag = SValue::Tag::CANONICALTUPLE;
+  llvm::Value *address;
+  SCanonicalTupleValue(const SType *stype, llvm::Value *address);
+  EmitValue get_element(CompileFunction &cf, size_t i) const;
 };
 
 class EmitControlValue {

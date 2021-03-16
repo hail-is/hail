@@ -125,6 +125,7 @@ public:
     STREAMFOLD
   };
   const Tag tag;
+  static const std::vector<std::string> tag_name;
 private:
   Block *parent;
   std::vector<IR *> children;
@@ -262,6 +263,7 @@ IR::dispatch(F f) {
   case IR::Tag::LITERAL: return f(cast<Literal>(this));
   case IR::Tag::NA: return f(cast<NA>(this));
   case IR::Tag::ISNA: return f(cast<IsNA>(this));
+  case IR::Tag::GETTUPLEELEMENT: return f(cast<GetTupleElement>(this));
   default:
     abort();
   }

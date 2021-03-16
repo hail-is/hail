@@ -48,6 +48,7 @@ CompileFunction::CompileFunction(TypeContext &tc,
   llvm_ir_builder.SetInsertPoint(entry);
 
   auto result = emit(function->get_body()).as_data(*this);
+
   std::vector<llvm::Value *> result_llvm_values;
   result.get_constituent_values(result_llvm_values);
   assert(result_llvm_values.size() == 2);
@@ -216,6 +217,20 @@ CompileFunction::emit(IsNA *x) {
 
   auto m = llvm::ConstantInt::get(llvm::Type::getInt8Ty(llvm_context), 0);
   return EmitValue(m, new SBoolValue(new SBool(ir_type(x)), v));
+}
+
+EmitValue
+CompileFunction::emit(GetTupleElement *x) {
+  auto t = emit(x->get_child(0)).as_control(*this);
+
+  llvm_ir_builder.SetInsertPoint(t.present_block);
+  // FIXME any tuple value
+  auto elem = cast<SCanonicalTupleValue>(t.svalue)->get_element(*this, x->index).as_control(*this);
+
+  llvm_ir_builder.SetInsertPoint(elem.missing_block);
+  llvm_ir_builder.CreateBr(t.missing_block);
+
+  return EmitValue(elem.present_block, t.missing_block, elem.svalue);
 }
 
 EmitValue

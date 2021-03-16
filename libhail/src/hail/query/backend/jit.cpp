@@ -21,6 +21,7 @@ class JITImpl {
   llvm::ExitOnError exit_on_error;
   std::unique_ptr<llvm::orc::LLJIT> llvm_jit;
 
+  const SType *stype_from(const VType *vtype);
   EmitType emit_type_from(const VType *vtype);
 
 public:
@@ -37,17 +38,30 @@ JITImpl::JITImpl()
 
 EmitType
 JITImpl::emit_type_from(const VType *vtype) {
+  return EmitType(stype_from(vtype));
+}
+
+const SType *
+JITImpl::stype_from(const VType *vtype) {
   switch (vtype->tag) {
   case VType::Tag::BOOL:
-    return EmitType(new SBool(vtype->type));
+    return new SBool(vtype->type);
   case VType::Tag::INT32:
-    return EmitType(new SInt32(vtype->type));
+    return new SInt32(vtype->type);
   case VType::Tag::INT64:
-    return EmitType(new SInt64(vtype->type));
+    return new SInt64(vtype->type);
   case VType::Tag::FLOAT32:
-    return EmitType(new SFloat32(vtype->type));
+    return new SFloat32(vtype->type);
   case VType::Tag::FLOAT64:
-    return EmitType(new SFloat64(vtype->type));
+    return new SFloat64(vtype->type);
+  case VType::Tag::TUPLE:
+    {
+      const VTuple *vt = cast<VTuple>(vtype);
+      std::vector<const SType *> element_stypes;
+      for (auto et : vt->element_vtypes)
+	element_stypes.push_back(stype_from(et));
+      return new SCanonicalTuple(vt->type, element_stypes, vt->element_offsets);
+    }
   default:
     abort();
   }

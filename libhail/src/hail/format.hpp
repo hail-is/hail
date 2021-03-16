@@ -18,6 +18,7 @@ public:
 
 extern FormatStream &outs, &errs;
 
+extern void format1(FormatStream &s, bool v);
 extern void format1(FormatStream &s, signed char v);
 extern void format1(FormatStream &s, unsigned char v);
 extern void format1(FormatStream &s, short v);

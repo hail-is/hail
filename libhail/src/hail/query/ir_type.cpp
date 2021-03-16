@@ -44,6 +44,11 @@ IRType::infer(IsNA *x) {
 }
 
 const Type *
+IRType::infer(GetTupleElement *x) {
+  return cast<TTuple>(infer(x->get_child(0)))->element_types[x->index];
+}
+
+const Type *
 IRType::infer(IR *x) {
   auto p = ir_type.insert({x, nullptr});
   if (!p.second)
