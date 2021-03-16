@@ -24,6 +24,7 @@ public:
     CANONICALTUPLE,
     STACKTUPLE
     ARRAY
+    CANONICALARRAY
   };
   const Tag tag;
   const SType *const stype;
@@ -99,7 +100,7 @@ public:
 
 class SArrayValue : public SValue {
 public:
-  static const Tag self_tag = SValue::Tag::ARRAY;
+  static const Tag self_tag = SValue::Tag::CANONICALARRAY;
   const SCanonicalArray *const stype;
   SArrayValue(const SCanonicalArray *stype): SValue(self_tag, stype), stype(stype) {};
   virtual SValue* get_element(CompileFunction &cf, SInt64Value *idx) = 0;

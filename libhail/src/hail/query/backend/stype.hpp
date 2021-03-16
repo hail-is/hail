@@ -43,6 +43,10 @@ public:
     FLOAT64,
     CANONICALTUPLE,
     STACKTUPLE
+    STR,
+    CANONICALARRAY,
+    STREAM,
+    TUPLE
   };
   const Tag tag;
   const Type *const type;
@@ -54,7 +58,6 @@ public:
 
   SValue *from_llvm_values(const std::vector<llvm::Value *> &llvm_values, size_t i) const;
 
-<<<<<<< HEAD
   const SValue *load_from_address(CompileFunction &cf, llvm::Value *address) const;
 
   const SValue *construct_from_value(CompileFunction &cf, const SValue *from) const;
@@ -64,9 +67,6 @@ public:
   MemorySize get_memory_size() const;
 
   template<typename F> auto dispatch(F f) const;
-=======
-  SValue *load_from_address(CompileFunction &cf, llvm::Value *address) const;
->>>>>>> Added load_from_address from Cotton
 };
 
 class MemorySize {
@@ -139,7 +139,7 @@ public:
 
 class SCanonicalArray : public SType{
   public:
-    static const Tag self_tag = SType::Tag::ARRAY;
+    static const Tag self_tag = SType::Tag::CANONICALARRAY;
     const SType *element_type;
     size_t elements_alignment;
     size_t element_stride;
