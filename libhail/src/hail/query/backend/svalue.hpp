@@ -102,7 +102,7 @@ public:
   static const Tag self_tag = SValue::Tag::ARRAY;
   const SCanonicalArray *const stype;
   SArrayValue(const SCanonicalArray *stype): SValue(self_tag, stype), stype(stype) {};
-  virtual SValue* get_element(SInt64Value *idx) = 0;
+  virtual SValue* get_element(CompileFunction &cf, SInt64Value *idx) = 0;
   virtual SInt64Value* get_length(TypeContext *tc) = 0;
  };
 
@@ -110,7 +110,7 @@ class SCanonicalArrayValue : public SArrayValue {
   public:
     SCanonicalArrayValue(const SCanonicalArray *stype, llvm::Value *length, llvm::Value *missing, llvm::Value *data);
     SInt64Value* get_length(TypeContext *tc) override;
-    SValue* get_element(SInt64Value *idx) override;
+    SValue* get_element(CompileFunction &cf, SInt64Value *idx) override;
     ~SCanonicalArrayValue();
   private:
     llvm::Value *data;

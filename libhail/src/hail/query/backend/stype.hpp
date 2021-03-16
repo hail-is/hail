@@ -54,6 +54,7 @@ public:
 
   SValue *from_llvm_values(const std::vector<llvm::Value *> &llvm_values, size_t i) const;
 
+<<<<<<< HEAD
   const SValue *load_from_address(CompileFunction &cf, llvm::Value *address) const;
 
   const SValue *construct_from_value(CompileFunction &cf, const SValue *from) const;
@@ -63,6 +64,9 @@ public:
   MemorySize get_memory_size() const;
 
   template<typename F> auto dispatch(F f) const;
+=======
+  SValue *load_from_address(CompileFunction &cf, llvm::Value *address) const;
+>>>>>>> Added load_from_address from Cotton
 };
 
 class MemorySize {
