@@ -141,6 +141,8 @@ class SCanonicalArray : public SType{
   public:
     static const Tag self_tag = SType::Tag::ARRAY;
     const SType *element_type;
+    size_t elements_alignment;
+    size_t element_stride;
     SCanonicalArray(const Type *type, const SType *element_type);
 };
 

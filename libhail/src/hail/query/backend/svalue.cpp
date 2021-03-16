@@ -118,8 +118,9 @@ SCanonicalArrayValue::get_length(TypeContext *tc) {
 
 SValue*
 SCanonicalArrayValue::get_element(CompileFunction &cf, SInt64Value *idx) {
-  auto element_addr = this->data + idx->value * this->stype->element_type
-  this->stype->element_type->load_from_address(cf, ...)
+  auto idx_value = idx->value;
+  auto element_addr = this->data + (idx_value * this->stype->element_stride);
+  this->stype->element_type->load_from_address(cf, ...);
   return idx;
 }
 
