@@ -8,6 +8,8 @@ namespace hail {
 
 class CompileFunction;
 class SType;
+class EmitValue;
+class EmitDataValue;
 
 class SValue {
 public:
@@ -18,7 +20,8 @@ public:
     INT64,
     FLOAT32,
     FLOAT64,
-    CANONICALTUPLE
+    CANONICALTUPLE,
+    STACKTUPLE
   };
   const Tag tag;
   const SType *const stype;
@@ -78,6 +81,14 @@ public:
   EmitValue get_element(CompileFunction &cf, size_t i) const;
 };
 
+class SStackTupleValue : public STupleValue {
+public:
+  static const Tag self_tag = SValue::Tag::STACKTUPLE;
+  std::vector<EmitDataValue> element_emit_values;
+  SStackTupleValue(const SType *stype, std::vector<EmitDataValue> element_emit_values);
+  EmitValue get_element(CompileFunction &cf, size_t i) const;
+};
+
 class EmitControlValue {
 public:
   llvm::BasicBlock *present_block;
@@ -113,6 +124,8 @@ class EmitValue {
 public:
   EmitValue(llvm::Value *missing, const SValue *svalue);
   EmitValue(llvm::BasicBlock *present_block, llvm::BasicBlock *missing_block, const SValue *svalue);
+  EmitValue(const EmitDataValue &data_value);
+  EmitValue(const EmitControlValue &data_value);
 
   EmitControlValue as_control(CompileFunction &cf) const;
   EmitDataValue as_data(CompileFunction &cf) const;

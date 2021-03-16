@@ -25,6 +25,13 @@ SValue::get_constituent_values(std::vector<llvm::Value *> &llvm_values) const {
   case SValue::Tag::FLOAT64:
     llvm_values.push_back(cast<SFloat64Value>(this)->value);
     break;
+  case SValue::Tag::CANONICALTUPLE:
+    llvm_values.push_back(cast<SCanonicalTupleValue>(this)->address);
+    break;
+  case SValue::Tag::STACKTUPLE:
+    for (auto v : cast<SStackTupleValue>(this)->element_emit_values)
+      v.get_constituent_values(llvm_values);
+    break;
   default:
     abort();
   }
@@ -79,6 +86,14 @@ SCanonicalTupleValue::get_element(CompileFunction &cf, size_t i) const {
   return EmitValue(present_bb, missing_bb, sv);
 }
 
+SStackTupleValue::SStackTupleValue(const SType *stype, std::vector<EmitDataValue> element_emit_values)
+  : STupleValue(self_tag, stype), element_emit_values(std::move(element_emit_values)) {}
+
+EmitValue
+SStackTupleValue::get_element(CompileFunction &cf, size_t i) const {
+  return EmitValue(element_emit_values[i]);
+}
+
 void
 EmitDataValue::get_constituent_values(std::vector<llvm::Value *> &llvm_values) const {
   llvm_values.push_back(missing);
@@ -96,6 +111,18 @@ EmitValue::EmitValue(llvm::BasicBlock *present_block, llvm::BasicBlock *missing_
     present_block(present_block),
     missing_block(missing_block),
     svalue(svalue) {}
+
+EmitValue::EmitValue(const EmitDataValue &data_value)
+  : missing(data_value.missing),
+    present_block(nullptr),
+    missing_block(nullptr),
+    svalue(data_value.svalue) {}
+
+EmitValue:: EmitValue(const EmitControlValue &control_value)
+  : missing(nullptr),
+    present_block(control_value.present_block),
+    missing_block(control_value.missing_block),
+    svalue(control_value.svalue) {}
 
 EmitControlValue
 EmitValue::as_control(CompileFunction &cf) const {

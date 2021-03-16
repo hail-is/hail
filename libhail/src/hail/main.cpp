@@ -57,9 +57,14 @@ main() {
     param_types.push_back(param_type);
     const Type *return_type = tc.tbool;
 
+    Value i(vint32, 5);
+
     Function *f = xc.make_function(m, "main", param_types, return_type);
     auto body = f->get_body();
-    body->set_child(0, body->make_get_tuple_element(body->make_input(0), 1));
+    body->set_child(0, body->make_tuple({
+          body->make_na(tc.tint32),
+	  body->make_literal(i)
+	}));
 
     m->pretty_self(outs);
 

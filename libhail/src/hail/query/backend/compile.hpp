@@ -65,6 +65,7 @@ public:
   EmitValue emit(Literal *x);
   EmitValue emit(NA *x);
   EmitValue emit(IsNA *x);
+  EmitValue emit(MakeTuple *x);
   EmitValue emit(GetTupleElement *x);
   EmitValue emit(IR *x);
 

@@ -186,7 +186,7 @@ public:
   MakeArray *make_make_array(std::vector<IR *> elements);
   MakeArray *make_make_array(const Type *element_type, std::vector<IR *> children);
   ArrayLen *make_array_len(IR *a, IR *x);
-  MakeTuple *make_make_tuple(std::vector<IR *> elements);
+  MakeTuple *make_tuple(std::vector<IR *> elements);
   GetTupleElement *make_get_tuple_element(IR *t, int i);
 };
 
@@ -263,6 +263,7 @@ IR::dispatch(F f) {
   case IR::Tag::LITERAL: return f(cast<Literal>(this));
   case IR::Tag::NA: return f(cast<NA>(this));
   case IR::Tag::ISNA: return f(cast<IsNA>(this));
+  case IR::Tag::MAKETUPLE: return f(cast<MakeTuple>(this));
   case IR::Tag::GETTUPLEELEMENT: return f(cast<GetTupleElement>(this));
   default:
     abort();

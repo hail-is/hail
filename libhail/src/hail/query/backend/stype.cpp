@@ -118,6 +118,10 @@ SCanonicalTuple::SCanonicalTuple(const Type *type, std::vector<const SType *> el
     element_stypes(std::move(element_stypes)),
     element_offsets(std::move(element_offsets)) {}
 
+SStackTuple::SStackTuple(const Type *type, std::vector<const SType *> element_stypes)
+  : SType(self_tag, type),
+    element_stypes(std::move(element_stypes)) {}
+
 void
 EmitType::get_constituent_types(std::vector<PrimitiveType> &constituent_types) const {
   constituent_types.push_back(PrimitiveType::INT8);

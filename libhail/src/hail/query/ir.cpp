@@ -234,6 +234,11 @@ Block::make_mux(IR *x, IR *true_value, IR *false_value) {
   return xc.arena.make<Mux>(IRContextToken(), this, x, true_value, false_value);
 }
 
+MakeTuple *
+Block::make_tuple(std::vector<IR *> elements) {
+  return xc.arena.make<MakeTuple>(IRContextToken(), this, std::move(elements));
+}
+
 GetTupleElement *
 Block::make_get_tuple_element(IR *t, int i) {
   return xc.arena.make<GetTupleElement>(IRContextToken(), this, t, i);

@@ -220,6 +220,20 @@ CompileFunction::emit(IsNA *x) {
 }
 
 EmitValue
+CompileFunction::emit(MakeTuple *x) {
+  std::vector<const SType *> element_stypes;
+  std::vector<EmitDataValue> element_emit_values;
+  for (auto c : x->get_children()) {
+    auto cv = emit(c).as_data(*this);
+    element_stypes.push_back(cv.svalue->stype);
+    element_emit_values.push_back(cv);
+  }
+  return EmitValue(llvm::ConstantInt::get(llvm::Type::getInt8Ty(llvm_context), 0),
+		   new SStackTupleValue(new SStackTuple(ir_type(x), element_stypes),
+					element_emit_values));
+}
+
+EmitValue
 CompileFunction::emit(GetTupleElement *x) {
   auto t = emit(x->get_child(0)).as_control(*this);
 

@@ -34,7 +34,8 @@ public:
     STR,
     ARRAY,
     STREAM,
-    CANONICALTUPLE
+    CANONICALTUPLE,
+    STACKTUPLE
   };
   const Tag tag;
   const Type *const type;
@@ -85,6 +86,13 @@ public:
   std::vector<const SType *> element_stypes;
   std::vector<size_t> element_offsets;
   SCanonicalTuple(const Type *type, std::vector<const SType *> element_stypes, std::vector<size_t> element_offsets);
+};
+
+class SStackTuple : public SType {
+public:
+  static const Tag self_tag = SType::Tag::STACKTUPLE;
+  std::vector<const SType *> element_stypes;
+  SStackTuple(const Type *type, std::vector<const SType *> element_stypes);
 };
 
 class EmitType {
