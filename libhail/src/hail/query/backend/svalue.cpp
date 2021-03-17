@@ -88,7 +88,7 @@ SCanonicalTupleValue::get_element(CompileFunction &cf, size_t i) const {
     cf.llvm_ir_builder.CreateGEP(address,
 				 llvm::ConstantInt::get(cf.llvm_context,
 							llvm::APInt(64, st->element_offsets[i])));
-  const SValue *sv = st->element_stypes[i].stype->load_from_address(cf, element_address);
+  const SValue *sv = st->element_types[i].stype->load_from_address(cf, element_address);
 
   return EmitValue(missing_bb, sv);
 }

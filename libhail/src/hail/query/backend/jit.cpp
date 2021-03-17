@@ -81,8 +81,10 @@ JITModule::invoke(std::shared_ptr<ArenaAllocator> region, const std::vector<Valu
     raw_args[i] = args[i];
   Value::Raw raw_return_value;
 
-  reinterpret_cast<void (*)(char *, char *)>(address)(reinterpret_cast<char *>(&raw_return_value),
-						      reinterpret_cast<char *>(&raw_args));
+  reinterpret_cast<void (*)(char *, char *, char *)>
+    (address)(reinterpret_cast<char *>(&region->raw_arena),
+	      reinterpret_cast<char *>(&raw_return_value),
+	      reinterpret_cast<char *>(&raw_args));
 
   return Value(return_vtype, std::move(region), raw_return_value);
 }

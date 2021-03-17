@@ -103,37 +103,51 @@ SType::construct_from_value(CompileFunction &cf, const SValue *from) const {
   if (from->stype == this)
     return from;
 
-  abort();
+  auto runtime_allocate_ft =
+    llvm::FunctionType::get(llvm::Type::getInt8PtrTy(cf.llvm_context),
+			    {llvm::Type::getInt8PtrTy(cf.llvm_context),
+			     llvm::Type::getInt64Ty(cf.llvm_context),
+			     llvm::Type::getInt64Ty(cf.llvm_context)},
+			    false);
+  auto runtime_allocate_f = llvm::Function::Create(runtime_allocate_ft,
+						   llvm::Function::ExternalLinkage,
+						   "hl_runtime_region_allocate",
+						   cf.llvm_module);
 
-  // auto address = ...;
-  // return construct_at_address_from_value(cf, address, from);
+  auto memory_size = get_memory_size();
+  auto address = cf.llvm_ir_builder.CreateCall(runtime_allocate_f,
+					       {cf.llvm_function->getArg(0),
+						llvm::ConstantInt::get(cf.llvm_context, llvm::APInt(64, memory_size.byte_size)),
+						llvm::ConstantInt::get(cf.llvm_context, llvm::APInt(64, memory_size.alignment))});
+  construct_at_address_from_value(cf, address, from);
+  return load_from_address(cf, address);
 }
 
 void
 SType::construct_at_address_from_value(CompileFunction &cf, llvm::Value *address, const SValue *from) const {
   switch (tag) {
   case SType::Tag::BOOL:
-    cf.llvm_ir_builder.CreateStore(address, cast<SBoolValue>(from)->value);
+    cf.llvm_ir_builder.CreateStore(cast<SBoolValue>(from)->value, address);
     break;
   case SType::Tag::INT32:
-    cf.llvm_ir_builder.CreateStore(cf.llvm_ir_builder.CreateBitCast(address,
-								    llvm::PointerType::get(llvm::Type::getInt32Ty(cf.llvm_context), 0)),
-				   cast<SInt32Value>(from)->value);
+    cf.llvm_ir_builder.CreateStore(cast<SInt32Value>(from)->value,
+				   cf.llvm_ir_builder.CreateBitCast(address,
+								    llvm::PointerType::get(llvm::Type::getInt32Ty(cf.llvm_context), 0)));
     break;
   case SType::Tag::INT64:
-    cf.llvm_ir_builder.CreateStore(cf.llvm_ir_builder.CreateBitCast(address,
-								    llvm::PointerType::get(llvm::Type::getInt64Ty(cf.llvm_context), 0)),
-				   cast<SInt64Value>(from)->value);
+    cf.llvm_ir_builder.CreateStore(cast<SInt64Value>(from)->value,
+				   cf.llvm_ir_builder.CreateBitCast(address,
+								    llvm::PointerType::get(llvm::Type::getInt64Ty(cf.llvm_context), 0)));
     break;
   case SType::Tag::FLOAT32:
-    cf.llvm_ir_builder.CreateStore(cf.llvm_ir_builder.CreateBitCast(address,
-								    llvm::PointerType::get(llvm::Type::getFloatTy(cf.llvm_context), 0)),
-				   cast<SFloat32Value>(from)->value);
+    cf.llvm_ir_builder.CreateStore(cast<SFloat32Value>(from)->value,
+				   cf.llvm_ir_builder.CreateBitCast(address,
+								    llvm::PointerType::get(llvm::Type::getFloatTy(cf.llvm_context), 0)));
     break;
   case SType::Tag::FLOAT64:
-    cf.llvm_ir_builder.CreateStore(cf.llvm_ir_builder.CreateBitCast(address,
-								    llvm::PointerType::get(llvm::Type::getDoubleTy(cf.llvm_context), 0)),
-				   cast<SFloat64Value>(from)->value);
+    cf.llvm_ir_builder.CreateStore(cast<SFloat64Value>(from)->value,
+				   cf.llvm_ir_builder.CreateBitCast(address,
+								    llvm::PointerType::get(llvm::Type::getDoubleTy(cf.llvm_context), 0)));
     break;
   case SType::Tag::CANONICALTUPLE:
     {
@@ -148,7 +162,7 @@ SType::construct_at_address_from_value(CompileFunction &cf, llvm::Value *address
 							    llvm::ConstantInt::get(cf.llvm_context, llvm::APInt(64, t->element_offsets[i])));
 
 	t->set_element_missing(cf, address, i, 0);
-	t->element_stypes[i].stype->construct_at_address_from_value(cf, element_address, c.svalue);
+	t->element_types[i].stype->construct_at_address_from_value(cf, element_address, c.svalue);
 	cf.llvm_ir_builder.CreateBr(merge_block);
 
 	cf.llvm_ir_builder.SetInsertPoint(c.missing_block);
@@ -164,24 +178,39 @@ SType::construct_at_address_from_value(CompileFunction &cf, llvm::Value *address
   }
 }
 
+MemorySize
+SType::get_memory_size() const {
+  return dispatch([](auto t) -> MemorySize {
+		    if constexpr (std::is_convertible_v<decltype(*t), MemorySize>)
+		      return MemorySize(*t);
+		    abort();
+		  });
+}
+
 SBool::SBool(STypeContextToken, const Type *type)
-  : SType(Tag::BOOL, type) {}
+  : SType(Tag::BOOL, type), MemorySize(1, 1) {}
 
 SInt32::SInt32(STypeContextToken, const Type *type)
-  : SType(Tag::INT32, type) {}
+  : SType(Tag::INT32, type), MemorySize(4, 4) {}
 
 SInt64::SInt64(STypeContextToken, const Type *type)
-  : SType(Tag::INT64, type) {}
+  : SType(Tag::INT64, type), MemorySize(8, 8) {}
 
 SFloat32::SFloat32(STypeContextToken, const Type *type)
-  : SType(Tag::FLOAT32, type) {}
+  : SType(Tag::FLOAT32, type), MemorySize(4, 4) {}
 
 SFloat64::SFloat64(STypeContextToken, const Type *type)
-  : SType(Tag::FLOAT64, type) {}
+  : SType(Tag::FLOAT64, type), MemorySize(8, 8) {}
 
-SCanonicalTuple::SCanonicalTuple(STypeContextToken, const Type *type, std::vector<EmitType> element_stypes, std::vector<size_t> element_offsets)
+SCanonicalTuple::SCanonicalTuple(STypeContextToken,
+				 const Type *type,
+				 std::vector<EmitType> element_types,
+				 size_t byte_size,
+				 size_t alignment,
+				 std::vector<size_t> element_offsets)
   : SType(Tag::CANONICALTUPLE, type),
-    element_stypes(std::move(element_stypes)),
+    MemorySize(byte_size, alignment),
+    element_types(std::move(element_types)),
     element_offsets(std::move(element_offsets)) {}
 
 void
@@ -196,12 +225,12 @@ SCanonicalTuple::set_element_missing(CompileFunction &cf, llvm::Value *address, 
   else
     b = cf.llvm_ir_builder.CreateAnd(b,
 				     llvm::ConstantInt::get(cf.llvm_context, llvm::APInt(8, ~(1 << (i & 0x7)))));
-  cf.llvm_ir_builder.CreateStore(missing_address, b);
+  cf.llvm_ir_builder.CreateStore(b, missing_address);
 }
 
-SStackTuple::SStackTuple(STypeContextToken, const Type *type, std::vector<EmitType> element_stypes)
+SStackTuple::SStackTuple(STypeContextToken, const Type *type, std::vector<EmitType> element_types)
   : SType(Tag::STACKTUPLE, type),
-    element_stypes(std::move(element_stypes)) {}
+    element_types(std::move(element_types)) {}
 
 void
 EmitType::get_constituent_types(std::vector<PrimitiveType> &constituent_types) const {
@@ -240,13 +269,16 @@ STypeContext::STypeContext(HeapAllocator &heap, TypeContext &tc)
     sfloat64(arena.make<SFloat64>(STypeContextToken(), tc.tfloat64)) {}
 
 const SCanonicalTuple *
-STypeContext::canonical_stuple(const Type *type, const std::vector<EmitType> &element_types, const std::vector<size_t> &element_offsets) {
+STypeContext::canonical_stuple(const Type *type, const std::vector<EmitType> &element_types, const VTuple *vtuple) {
   // FIXME offsets not hashed
   auto p = canonical_stuples.insert({element_types, nullptr});
   if (!p.second)
     return p.first->second;
 
-  const SCanonicalTuple *t = arena.make<SCanonicalTuple>(STypeContextToken(), type, element_types, element_offsets);
+  const SCanonicalTuple *t = arena.make<SCanonicalTuple>(STypeContextToken(), type, element_types,
+							 vtuple->byte_size,
+							 vtuple->alignment,
+							 vtuple->element_offsets);
   p.first->second = t;
   return t;
 }
@@ -286,7 +318,7 @@ STypeContext::stype_from(const VType *vtype) {
       std::vector<EmitType> element_types;
       for (auto et : vt->element_vtypes)
 	element_types.push_back(emit_type_from(et));
-      return canonical_stuple(vt->type, element_types, vt->element_offsets);
+      return canonical_stuple(vt->type, element_types, vt);
     }
   default:
     abort();

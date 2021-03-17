@@ -104,10 +104,12 @@ class ArenaAllocator {
     }
   };
 
-  RawArenaAllocator raw_arena;
   std::vector<DestructorClosure> destructors;
 
 public:
+  // FIXME public?  pass in?
+  RawArenaAllocator raw_arena;
+
   ArenaAllocator(HeapAllocator &heap)
     : raw_arena(heap) {}
   ~ArenaAllocator() { free(); }

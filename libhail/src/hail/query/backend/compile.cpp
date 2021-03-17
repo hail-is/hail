@@ -41,6 +41,7 @@ CompileFunction::CompileFunction(TypeContext &tc,
     ir_type(tc, function) {
   auto llvm_ft = llvm::FunctionType::get(llvm::Type::getVoidTy(llvm_context),
 					 {llvm::Type::getInt8PtrTy(llvm_context),
+					  llvm::Type::getInt8PtrTy(llvm_context),
 					  llvm::Type::getInt8PtrTy(llvm_context)},
 					 false);
   llvm_function = llvm::Function::Create(llvm_ft,
@@ -57,7 +58,7 @@ CompileFunction::CompileFunction(TypeContext &tc,
   result.get_constituent_values(result_llvm_values);
   assert(result_llvm_values.size() == 2);
 
-  auto return_address = llvm_function->getArg(0);
+  auto return_address = llvm_function->getArg(1);
   llvm_ir_builder.CreateStore(result_llvm_values[0], return_address);
 
   llvm::Value *value_address = llvm_ir_builder.CreateGEP(return_address,
@@ -116,7 +117,7 @@ CompileFunction::emit(Input *x) {
     assert(constituent_types.size() == 2);
     assert(constituent_types[0] == PrimitiveType::INT8);
 
-    auto params_address = llvm_function->getArg(1);
+    auto params_address = llvm_function->getArg(2);
     auto param_address = llvm_ir_builder.CreateGEP(params_address,
 						   {llvm::ConstantInt::get(llvm_context, llvm::APInt(64, x->index * 16))});
     auto m = llvm_ir_builder.CreateLoad(get_llvm_type(constituent_types[0]),

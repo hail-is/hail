@@ -53,9 +53,7 @@ main() {
     Module *m = xc.make_module();
 
     std::vector<const Type *> param_types;
-    const Type *param_type = tc.ttuple({tc.tint32, tc.tbool});
-    param_types.push_back(param_type);
-    const Type *return_type = tc.tbool;
+    const Type *return_type = tc.ttuple({tc.tint32, tc.tint32});
 
     Value i(vint32, 5);
 
@@ -77,13 +75,7 @@ main() {
 
     auto compiled = jit.compile(heap, tc, m, param_vtypes, return_vtype);
 
-    auto vt = cast<VTuple>(tc.get_vtype(param_type));
-    auto tv = Value::make_tuple(vt, region);
-    tv.set_element_missing(0, true);
-    tv.set_element_missing(1, false);
-    tv.set_element(1, Value(vbool, false));
-
-    auto return_value = compiled.invoke(region, {tv});
+    auto return_value = compiled.invoke(region, {});
     print("return_value: ", return_value);
   }
 

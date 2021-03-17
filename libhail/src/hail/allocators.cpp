@@ -26,7 +26,7 @@ RawArenaAllocator::allocate_in_new_block(size_t align, size_t size) {
   assert(is_power_of_two(align) && align <= 8);
   assert(size <= block_size);
 
-  char *new_block = static_cast<char *>(heap.malloc(block_size));
+  char *new_block = (char *)heap.malloc(block_size);
   blocks.push_back(new_block);
   free_start = new_block + size;
   block_end = new_block + block_size;
