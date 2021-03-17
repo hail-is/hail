@@ -50,6 +50,9 @@ spec:
            - name: session-secret-key
              mountPath: /session-secret-key
              readOnly: true
+           - name: ssl-config
+             mountPath: /ssl-config
+             readOnly: true
           env:
            - name: HAIL_IP
              valueFrom:
@@ -74,6 +77,10 @@ spec:
          secret:
            optional: false
            secretName: session-secret-key
+       - name: ssl-config
+         secret:
+           optional: false
+           secretName: ssl-config-hello
 ---
 apiVersion: v1
 kind: Service
@@ -83,8 +90,7 @@ metadata:
     app: hello
 spec:
   ports:
-    - name: http
-      port: 80
+    - port: 443
       protocol: TCP
       targetPort: 5000
   selector:

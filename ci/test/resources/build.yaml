@@ -53,6 +53,36 @@ steps:
    dependsOn:
     - base_image
  - kind: buildImage
+   name: create_certs_image
+   dockerFile: ci/test/resources/Dockerfile.certs
+   contextPath: ci/test/resources
+   publishAs: test_hello_create_certs_image
+   dependsOn:
+     - service_base_image
+ - kind: runImage
+   name: create_certs
+   image:
+     valueFrom: create_certs_image.image
+   script: |
+     set -ex
+     python3 create_certs.py \
+             {{ default_ns.name }} \
+             config.yaml \
+             /ssl-config-hail-root/hail-root-key.pem \
+             /ssl-config-hail-root/hail-root-cert.pem
+   serviceAccount:
+     name: admin
+     namespace:
+       valueFrom: default_ns.name
+   secrets:
+     - name: ssl-config-hail-root
+       namespace:
+         valueFrom: default_ns.name
+       mountPath: /ssl-config-hail-root
+   dependsOn:
+     - default_ns
+     - create_certs_image
+ - kind: buildImage
    name: hello_image
    dockerFile: ci/test/resources/Dockerfile
    contextPath: .
