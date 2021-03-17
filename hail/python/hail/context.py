@@ -129,7 +129,7 @@ class HailContext(object):
            _optimizer_iterations=nullable(int))
 def init(sc=None, app_name='Hail', master=None, local='local[*]',
          log=None, quiet=False, append=False,
-         min_block_size=0, branching_factor=50, tmp_dir='/tmp',
+         min_block_size=0, branching_factor=50, tmp_dir=None,
          default_reference='GRCh37', idempotent=False,
          global_seed=6348563392232659379,
          spark_conf=None,
@@ -239,7 +239,7 @@ def init(sc=None, app_name='Hail', master=None, local='local[*]',
     from hail.backend.spark_backend import SparkBackend
 
     log = _get_log(log)
-    tmpdir = _get_tmpdir(tmp_dir)
+    tmpdir = _get_tmpdir(tmp_dir if tmp_dir else '/tmp')
     local_tmpdir = _get_local_tmpdir(local_tmpdir)
     optimizer_iterations = get_env_or_default(_optimizer_iterations, 'HAIL_OPTIMIZER_ITERATIONS', 3)
 
