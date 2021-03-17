@@ -13,7 +13,7 @@ isa(const typename T::BaseType *p) {
 template<class T> T *
 cast(typename T::BaseType *p) {
   assert(isa<T>(p));
-  return static_cast<T *>(p); 
+  return static_cast<T *>(p);
 }
 
 template<class T> const T *

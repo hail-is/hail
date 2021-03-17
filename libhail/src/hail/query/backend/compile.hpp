@@ -72,6 +72,7 @@ public:
   EmitValue emit(MakeTuple *x);
   EmitValue emit(GetTupleElement *x);
   EmitValue emit(ArrayLen *x);
+  EmitValue emit(ArrayRef *x);
   EmitValue emit(IR *x);
 
   CompileFunction(TypeContext &tc,

@@ -261,6 +261,18 @@ CompileFunction::emit(ArrayLen *x) {
 }
 
 EmitValue
+CompileFunction::emit(ArrayRef *x) {
+  // TODO: Handle misssingness
+  auto arrayDataValue = emit(x->get_child(0)).as_data(*this);
+  auto arrayIdx = emit(x->get_child(1)).as_data(*this);
+  auto arraySValue = cast<SArrayValue>(arrayDataValue.svalue);
+  auto idxSValue = cast<SInt64Value>(arrayIdx.svalue);
+
+  auto elementLookedUp = arraySValue->get_element(*this, idxSValue);
+  return EmitValue(arrayDataValue.missing, elementLookedUp);
+}
+
+EmitValue
 CompileFunction::emit(IR *x) {
   return x->dispatch([this](auto x) {
 		       return emit(x);

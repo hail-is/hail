@@ -95,5 +95,20 @@ main() {
     print(my_array);
   }
 
+  {
+    print("Array compile testing");
+    auto region = std::make_shared<ArenaAllocator>(heap);
+    IRContext xc(heap);
+
+    Module *m = xc.make_module();
+
+    std::vector<const Type *> param_types;
+    const VType *return_vtype =
+
+    JIT jit;
+
+    auto compiled = jit.compile(tc, m, param_types, ...)
+  }
+
   return 0;
 }
