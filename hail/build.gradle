@@ -50,7 +50,13 @@ project.ext {
     cachedBreezeVersion = null
 
     sparkVersion = System.getProperty("spark.version", "3.1.1")
+    if (sparkVersion != "3.1.1") {
+        throw new UnsupportedOperationException("Hail currently only supports Spark 3.1.1")
+    }
     scalaVersion = System.getProperty("scala.version", "2.12.13")
+    if (!scalaVersion.startsWith("2.12.")) {
+        throw new UnsupportedOperationException("Hail currently only supports Scala 2.12")
+    }
     scalaMajorVersion = (scalaVersion =~ /^\d+.\d+/)[0]
 }
 
