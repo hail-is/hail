@@ -170,6 +170,10 @@ dependencies {
 
     bundled group: 'org.slf4j', name: 'slf4j-api', version: '1.7.25'
 
+    def elasticMajorVersion = System.getProperty("elasticsearch.major-version", "7")
+    if (elasticMajorVersion != "7") {
+        throw new UnsupportedOperationException("elasticsearch.major-version must be 7")
+    }
     // This comes from a local libs directory, see Makefile
     bundled 'org.elasticsearch:elasticsearch-spark-30_2.12-8.0.0-SNAPSHOT-custom-hail-spark311'
 
