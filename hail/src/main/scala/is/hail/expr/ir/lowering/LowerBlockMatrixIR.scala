@@ -311,8 +311,10 @@ object LowerBlockMatrixIR {
             MakeTuple.ordered(FastSeq(rows, cols))
           }.mapBody { (ctx, body) => NDArraySlice(body, GetField(ctx, "new")) }
 
-      case BlockMatrixDensify(child) => unimplemented(bmir)
-      case BlockMatrixSparsify(child, sparsifier) => unimplemented(bmir)
+      // Both densify and sparsify change the sparsity pattern tracked on the BlockMatrixType.
+      case BlockMatrixDensify(child) => lower(child)
+      case BlockMatrixSparsify(child, sparsifier) => lower(child)
+
       case RelationalLetBlockMatrix(name, value, body) => unimplemented(bmir)
       case ValueToBlockMatrix(child, shape, blockSize) if !child.typ.isInstanceOf[TArray] =>
         throw new LowererUnsupportedOperation("use explicit broadcast for scalars!")
