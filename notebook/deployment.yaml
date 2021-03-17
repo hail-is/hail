@@ -41,6 +41,7 @@ spec:
       labels:
         app: notebook
         hail.is/sha: "{{ code.sha }}"
+        grafanak8sapp: "true"
     spec:
       serviceAccountName: notebook
 {% if deploy %}
