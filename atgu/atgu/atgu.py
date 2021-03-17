@@ -6,6 +6,7 @@ import jinja2
 import aiohttp
 from aiohttp import web
 import aiohttp_jinja2
+from prometheus_async.aio.web import server_stats  # type: ignore
 
 from hailtop.utils import time_msecs, secret_alnum_string
 from hailtop.hail_logging import AccessLogger
@@ -347,6 +348,7 @@ def run():
         ]))
 
     app.add_routes(routes)
+    app.router.add_get("/metrics", server_stats)
 
     app.on_startup.append(on_startup)
     app.on_cleanup.append(on_cleanup)
