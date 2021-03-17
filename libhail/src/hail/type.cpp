@@ -9,7 +9,7 @@ namespace hail {
 Type::~Type() {}
 
 TBlock::TBlock(TypeContextToken, std::vector<const Type *> input_types, std::vector<const Type *> output_types)
-  : Type(self_tag),
+  : Type(Type::Tag::BLOCK),
     input_types(std::move(input_types)),
     output_types(std::move(output_types)) {}
 

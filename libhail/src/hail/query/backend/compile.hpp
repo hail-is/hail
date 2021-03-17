@@ -24,10 +24,12 @@ class Function;
 class CompileModule {
 public:
   TypeContext &tc;
+  STypeContext &stc;
   llvm::LLVMContext &llvm_context;
   llvm::Module *llvm_module;
 
   CompileModule(TypeContext &tc,
+		STypeContext &stc,
 		Module *module,
 		const std::vector<EmitType> &param_types,
 		EmitType return_type,
@@ -38,6 +40,7 @@ public:
 class CompileFunction {
 public:
   TypeContext &tc;
+  STypeContext &stc;
   Function *function;
   const std::vector<EmitType> &param_types;
   EmitType return_type;
@@ -70,6 +73,7 @@ public:
   EmitValue emit(IR *x);
 
   CompileFunction(TypeContext &tc,
+		  STypeContext &stc,
 		  Function *function,
 		  const std::vector<EmitType> &param_types,
 		  EmitType return_type,

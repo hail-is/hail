@@ -178,13 +178,13 @@ pretty(FormatStream &s, IR *x, int indent) {
 }
 
 Block::Block(IRContextToken, IRContext &xc, Function *function_parent, Block *parent, std::vector<IR *> children, size_t input_arity)
-  : IR(self_tag, parent, std::move(children)),
+  : IR(Tag::BLOCK, parent, std::move(children)),
     xc(xc),
     function_parent(function_parent),
     inputs(input_arity) {}
 
 Block::Block(IRContextToken, IRContext &xc, Function *function_parent, Block *parent, size_t arity, size_t input_arity)
-  : IR(self_tag, parent, arity),
+  : IR(Tag::BLOCK, parent, arity),
     xc(xc),
     function_parent(function_parent),
     inputs(input_arity) {}

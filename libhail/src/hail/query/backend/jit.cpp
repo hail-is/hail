@@ -27,8 +27,9 @@ class JITImpl {
 public:
   JITImpl();
 
-  JITModule compile(TypeContext &tc,
-		    Module *m,
+  JITModule compile(HeapAllocator &heap,
+		    TypeContext &tc,
+		    Module *module,
 		    const std::vector<const VType *> &param_vtypes,
 		    const VType *return_vtype);
 };
@@ -36,51 +37,22 @@ public:
 JITImpl::JITImpl()
   : llvm_jit(std::move(exit_on_error(llvm::orc::LLJITBuilder().create()))) {}
 
-EmitType
-JITImpl::emit_type_from(const VType *vtype) {
-  return EmitType(stype_from(vtype));
-}
-
-const SType *
-JITImpl::stype_from(const VType *vtype) {
-  switch (vtype->tag) {
-  case VType::Tag::BOOL:
-    return new SBool(vtype->type);
-  case VType::Tag::INT32:
-    return new SInt32(vtype->type);
-  case VType::Tag::INT64:
-    return new SInt64(vtype->type);
-  case VType::Tag::FLOAT32:
-    return new SFloat32(vtype->type);
-  case VType::Tag::FLOAT64:
-    return new SFloat64(vtype->type);
-  case VType::Tag::TUPLE:
-    {
-      const VTuple *vt = cast<VTuple>(vtype);
-      std::vector<const SType *> element_stypes;
-      for (auto et : vt->element_vtypes)
-	element_stypes.push_back(stype_from(et));
-      return new SCanonicalTuple(vt->type, element_stypes, vt->element_offsets);
-    }
-  default:
-    abort();
-  }
-}
-
 JITModule
-JITImpl::compile(TypeContext &tc,
+JITImpl::compile(HeapAllocator &heap,
+		 TypeContext &tc,
 		 Module *module,
 		 const std::vector<const VType *> &param_vtypes,
 		 const VType *return_vtype) {
   auto llvm_context = std::make_unique<llvm::LLVMContext>();
   auto llvm_module = std::make_unique<llvm::Module>("hail", *llvm_context);
 
+  STypeContext stc(heap, tc);
   std::vector<EmitType> param_types;
   for (auto vt : param_vtypes)
-    param_types.push_back(emit_type_from(vt));
-  auto return_type = emit_type_from(return_vtype);
+    param_types.push_back(stc.emit_type_from(vt));
+  auto return_type = stc.emit_type_from(return_vtype);
 
-  CompileModule mc(tc, module, param_types, return_type, *llvm_context, llvm_module.get());
+  CompileModule mc(tc, stc, module, param_types, return_type, *llvm_context, llvm_module.get());
 
   if (auto err = llvm_jit->addIRModule(llvm::orc::ThreadSafeModule(std::move(llvm_module), std::move(llvm_context))))
     exit_on_error(std::move(err));
@@ -127,13 +99,14 @@ JIT::JIT() {
 JIT::~JIT() {}
 
 JITModule
-JIT::compile(TypeContext &tc,
+JIT::compile(HeapAllocator &heap,
+	     TypeContext &tc,
 	     Module *m,
 	     const std::vector<const VType *> &param_vtypes,
 	     const VType *return_vtype) {
   // FIXME turn vtypes into emit types
   // FIXME then call impl with emit types
-  return std::move(impl->compile(tc, m, param_vtypes, return_vtype));
+  return std::move(impl->compile(heap, tc, m, param_vtypes, return_vtype));
 }
 
 }

@@ -75,7 +75,7 @@ main() {
       param_vtypes.push_back(tc.get_vtype(t));
     const VType *return_vtype = tc.get_vtype(return_type);
 
-    auto compiled = jit.compile(tc, m, param_vtypes, return_vtype);
+    auto compiled = jit.compile(heap, tc, m, param_vtypes, return_vtype);
 
     auto vt = cast<VTuple>(tc.get_vtype(param_type));
     auto tv = Value::make_tuple(vt, region);

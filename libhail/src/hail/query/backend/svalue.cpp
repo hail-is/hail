@@ -37,41 +37,48 @@ SValue::get_constituent_values(std::vector<llvm::Value *> &llvm_values) const {
   }
 }
 
+const SValue *
+SValue::cast_to(CompileFunction &cf, const SType *desired_type) const {
+  if (desired_type == stype)
+    return this;
+
+  return desired_type->construct_from_value(cf, this);
+}
+
 SBoolValue::SBoolValue(const SType *stype, llvm::Value *value)
-  : SValue(self_tag, stype), value(value) {}
+  : SValue(Tag::BOOL, stype), value(value) {}
 
 
 SInt32Value::SInt32Value(const SType *stype, llvm::Value *value)
-  : SValue(self_tag, stype), value(value) {}
+  : SValue(Tag::INT32, stype), value(value) {}
 
 SInt64Value::SInt64Value(const SType *stype, llvm::Value *value)
-  : SValue(self_tag, stype), value(value) {}
+  : SValue(Tag::INT64, stype), value(value) {}
 
 SFloat32Value::SFloat32Value(const SType *stype, llvm::Value *value)
-  : SValue(self_tag, stype), value(value) {}
+  : SValue(Tag::FLOAT32, stype), value(value) {}
 
 SFloat64Value::SFloat64Value(const SType *stype, llvm::Value *value)
-  : SValue(self_tag, stype), value(value) {}
+  : SValue(Tag::FLOAT64, stype), value(value) {}
 
 STupleValue::STupleValue(Tag tag, const SType *stype)
   : SValue(tag, stype) {}
 
 SCanonicalTupleValue::SCanonicalTupleValue(const SType *stype, llvm::Value *address)
-  : STupleValue(self_tag, stype), address(address) {}
+  : STupleValue(Tag::CANONICALTUPLE, stype), address(address) {}
 
 EmitValue
 SCanonicalTupleValue::get_element(CompileFunction &cf, size_t i) const {
   const SCanonicalTuple *st = cast<SCanonicalTuple>(stype);
 
-  auto missing_bb = llvm::BasicBlock::Create(cf.llvm_context, "gettupleelement_missing", cf.llvm_function);
   auto present_bb = llvm::BasicBlock::Create(cf.llvm_context, "gettupleelement_present", cf.llvm_function);
+  auto missing_bb = llvm::BasicBlock::Create(cf.llvm_context, "gettupleelement_missing", cf.llvm_function);
 
   llvm::Value *missing_address =
     cf.llvm_ir_builder.CreateGEP(address,
 				 llvm::ConstantInt::get(cf.llvm_context,
 							llvm::APInt(64, i >> 3)));
-  llvm::Value *mask = llvm::ConstantInt::get(cf.llvm_context,
-					     llvm::APInt(8, 1 << (i & 0x7)));
+  llvm::Value *mask = llvm::ConstantInt::get(cf.llvm_context, llvm::APInt(8, 1 << (i & 0x7)));
   llvm::Value *b = cf.llvm_ir_builder.CreateLoad(missing_address);
   llvm::Value *cond = cf.llvm_ir_builder.CreateICmpEQ(cf.llvm_ir_builder.CreateAnd(b, mask), mask);
   cf.llvm_ir_builder.CreateCondBr(cond, missing_bb, present_bb);
@@ -81,13 +88,13 @@ SCanonicalTupleValue::get_element(CompileFunction &cf, size_t i) const {
     cf.llvm_ir_builder.CreateGEP(address,
 				 llvm::ConstantInt::get(cf.llvm_context,
 							llvm::APInt(64, st->element_offsets[i])));
-  const SValue *sv = st->element_stypes[i]->load_from_address(cf, element_address);
+  const SValue *sv = st->element_stypes[i].stype->load_from_address(cf, element_address);
 
-  return EmitValue(present_bb, missing_bb, sv);
+  return EmitValue(missing_bb, sv);
 }
 
 SStackTupleValue::SStackTupleValue(const SType *stype, std::vector<EmitDataValue> element_emit_values)
-  : STupleValue(self_tag, stype), element_emit_values(std::move(element_emit_values)) {}
+  : STupleValue(Tag::STACKTUPLE, stype), element_emit_values(std::move(element_emit_values)) {}
 
 EmitValue
 SStackTupleValue::get_element(CompileFunction &cf, size_t i) const {
@@ -102,32 +109,44 @@ EmitDataValue::get_constituent_values(std::vector<llvm::Value *> &llvm_values) c
 
 EmitValue::EmitValue(llvm::Value *missing, const SValue *svalue)
   : missing(missing),
-    present_block(nullptr),
     missing_block(nullptr),
     svalue(svalue) {}
 
-EmitValue::EmitValue(llvm::BasicBlock *present_block, llvm::BasicBlock *missing_block, const SValue *svalue)
+EmitValue::EmitValue(llvm::BasicBlock *missing_block, const SValue *svalue)
   : missing(nullptr),
-    present_block(present_block),
     missing_block(missing_block),
     svalue(svalue) {}
 
 EmitValue::EmitValue(const EmitDataValue &data_value)
   : missing(data_value.missing),
-    present_block(nullptr),
     missing_block(nullptr),
     svalue(data_value.svalue) {}
 
 EmitValue:: EmitValue(const EmitControlValue &control_value)
   : missing(nullptr),
-    present_block(control_value.present_block),
     missing_block(control_value.missing_block),
     svalue(control_value.svalue) {}
 
+EmitType
+EmitDataValue::get_type() const {
+  return EmitType(svalue->stype);
+}
+
+EmitType
+EmitControlValue::get_type() const {
+  return EmitType(svalue->stype);
+}
+
+EmitType
+EmitValue::get_type() const {
+  return EmitType(svalue->stype);
+
+}
+
 EmitControlValue
 EmitValue::as_control(CompileFunction &cf) const {
-  if (!missing)
-    return EmitControlValue(present_block, missing_block, svalue);
+  if (missing_block)
+    return EmitControlValue(missing_block, svalue);
 
   auto present_bb = llvm::BasicBlock::Create(cf.llvm_context, "as_control_present", cf.llvm_function);
   auto missing_bb = llvm::BasicBlock::Create(cf.llvm_context, "as_control_missing", cf.llvm_function);
@@ -136,7 +155,9 @@ EmitValue::as_control(CompileFunction &cf) const {
   auto cond = cf.llvm_ir_builder.CreateICmpNE(missing, i8zero);
   cf.llvm_ir_builder.CreateCondBr(cond, missing_bb, present_bb);
 
-  return EmitControlValue(present_bb, missing_bb, svalue);
+  cf.llvm_ir_builder.SetInsertPoint(present_bb);
+
+  return EmitControlValue(missing_bb, svalue);
 }
 
 EmitDataValue
@@ -144,12 +165,12 @@ EmitValue::as_data(CompileFunction &cf) const {
   if (missing)
     return EmitDataValue(missing, svalue);
 
+  auto present_block = cf.llvm_ir_builder.GetInsertBlock();
   auto merge_bb = llvm::BasicBlock::Create(cf.llvm_context, "as_data", cf.llvm_function);
 
-  cf.llvm_ir_builder.SetInsertPoint(missing_block);
   cf.llvm_ir_builder.CreateBr(merge_bb);
 
-  cf.llvm_ir_builder.SetInsertPoint(present_block);
+  cf.llvm_ir_builder.SetInsertPoint(missing_block);
   cf.llvm_ir_builder.CreateBr(merge_bb);
 
   cf.llvm_ir_builder.SetInsertPoint(merge_bb);
@@ -173,6 +194,16 @@ EmitValue::as_data(CompileFunction &cf) const {
   auto new_svalue = svalue->stype->from_llvm_values(llvm_phi_values, 0);
 
   return EmitDataValue(phi_m, new_svalue);
+}
+
+EmitValue
+EmitValue::cast_to(CompileFunction &cf, EmitType desired_type) {
+  if (desired_type == get_type())
+    return *this;
+
+  auto c = as_control(cf);
+  auto casted_svalue = c.svalue->cast_to(cf, desired_type.stype);
+  return EmitControlValue(c.missing_block, casted_svalue);
 }
 
 }

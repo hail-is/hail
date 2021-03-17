@@ -162,7 +162,7 @@ class Block : public IR {
   Function *function_parent;
   std::unordered_set<IR *> nodes;
 public:
-  static const Tag self_tag = IR::Tag::BLOCK;
+  static bool is_instance_tag(Tag tag) { return tag == Tag::BLOCK; }
   std::vector<Input *> inputs;
   Block(IRContextToken, IRContext &xc, Function *function_parent, Block *parent, std::vector<IR *> children, size_t input_arity);
   Block(IRContextToken, IRContext &xc, Function *function_parent, Block *parent, size_t arity, size_t input_arity);
@@ -192,67 +192,67 @@ public:
 
 class Input : public IR {
 public:
-  static const Tag self_tag = IR::Tag::INPUT;
+  static bool is_instance_tag(Tag tag) { return tag == Tag::INPUT; }
   size_t index;
-  Input(IRContextToken, Block *parent, size_t index) : IR(self_tag, parent, 0), index(index) {}
+  Input(IRContextToken, Block *parent, size_t index) : IR(Tag::INPUT, parent, 0), index(index) {}
 };
 
 class Literal : public IR {
 public:
-  static const Tag self_tag = IR::Tag::LITERAL;
+  static bool is_instance_tag(Tag tag) { return tag == Tag::LITERAL; }
   Value value;
-  Literal(IRContextToken, Block *parent, Value value) : IR(self_tag, parent, 0), value(std::move(value)) {}
+  Literal(IRContextToken, Block *parent, Value value) : IR(Tag::LITERAL, parent, 0), value(std::move(value)) {}
 };
 
 class NA : public IR {
 public:
-  static const Tag self_tag = IR::Tag::NA;
+  static bool is_instance_tag(Tag tag) { return tag == Tag::NA; }
   const Type *type;
-  NA(IRContextToken, Block *parent, const Type *type) : IR(self_tag, parent, 0), type(type) {}
+  NA(IRContextToken, Block *parent, const Type *type) : IR(Tag::NA, parent, 0), type(type) {}
 };
 
 class Mux : public IR {
 public:
-  static const Tag self_tag = IR::Tag::MUX;
+  static bool is_instance_tag(Tag tag) { return tag == Tag::MUX; }
   Mux(IRContextToken, Block *parent, IR *condition, IR *true_value, IR *false_value)
-    : IR(self_tag, parent, {condition, true_value, false_value}) {}
+    : IR(Tag::MUX, parent, {condition, true_value, false_value}) {}
 };
 
 class IsNA : public IR {
 public:
-  static const Tag self_tag = IR::Tag::ISNA;
-  IsNA(IRContextToken, Block *parent, IR *x) : IR(self_tag, parent, {x}) {}
+  static bool is_instance_tag(Tag tag) { return tag == Tag::ISNA; }
+  IsNA(IRContextToken, Block *parent, IR *x) : IR(Tag::ISNA, parent, {x}) {}
 };
 
 class MakeArray : public IR {
 public:
-  static const Tag self_tag = IR::Tag::MAKEARRAY;
-  MakeArray(IRContextToken, Block *parent, std::vector<IR *> elements) : IR(self_tag, parent, std::move(elements)) {}
+  static bool is_instance_tag(Tag tag) { return tag == Tag::MAKEARRAY; }
+  MakeArray(IRContextToken, Block *parent, std::vector<IR *> elements) : IR(Tag::MAKEARRAY, parent, std::move(elements)) {}
 };
 
 class ArrayLen : public IR {
 public:
-  static const Tag self_tag = IR::Tag::ARRAYLEN;
-  ArrayLen(IRContextToken, Block *parent, IR *a) : IR(self_tag, parent, {a}) {}
+  static bool is_instance_tag(Tag tag) { return tag == Tag::ARRAYLEN; }
+  ArrayLen(IRContextToken, Block *parent, IR *a) : IR(Tag::ARRAYLEN, parent, {a}) {}
 };
 
 class ArrayRef : public IR {
 public:
-  static const Tag self_tag = IR::Tag::ARRAYREF;
-  ArrayRef(IRContextToken, Block *parent, IR *a, IR *x) : IR(self_tag, parent, {a, x}) {}
+  static bool is_instance_tag(Tag tag) { return tag == Tag::ARRAYREF; }
+  ArrayRef(IRContextToken, Block *parent, IR *a, IR *x) : IR(Tag::ARRAYREF, parent, {a, x}) {}
 };
 
 class MakeTuple : public IR {
 public:
-  static const Tag self_tag = IR::Tag::MAKETUPLE;
-  MakeTuple(IRContextToken, Block *parent, std::vector<IR *> elements) : IR(self_tag, parent, std::move(elements)) {}
+  static bool is_instance_tag(Tag tag) { return tag == Tag::MAKETUPLE; }
+  MakeTuple(IRContextToken, Block *parent, std::vector<IR *> elements) : IR(Tag::MAKETUPLE, parent, std::move(elements)) {}
 };
 
 class GetTupleElement : public IR {
 public:
-  static const Tag self_tag = IR::Tag::GETTUPLEELEMENT;
+  static bool is_instance_tag(Tag tag) { return tag == Tag::GETTUPLEELEMENT; }
   size_t index;
-  GetTupleElement(IRContextToken, Block *parent, IR *t, size_t index) : IR(self_tag, parent, {t}), index(index) {}
+  GetTupleElement(IRContextToken, Block *parent, IR *t, size_t index) : IR(Tag::GETTUPLEELEMENT, parent, {t}), index(index) {}
 };
 
 template<typename F> auto
