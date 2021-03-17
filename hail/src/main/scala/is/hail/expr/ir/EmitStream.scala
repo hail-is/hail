@@ -1954,7 +1954,7 @@ object EmitStream {
 
           emitIR(condIR).flatMap(cb) { cond =>
             val xCond = mb.genFieldThisRef[Boolean]("stream_if_cond")
-            cb += (xCond := cond.tcode[Boolean])
+            cb.assign(xCond, cond.asBoolean.boolCode(cb))
             var leftSS: SizedStream = null
             var rightSS: SizedStream = null
             val Lmissing = CodeLabel()
