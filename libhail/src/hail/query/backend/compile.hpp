@@ -71,6 +71,7 @@ public:
   EmitValue emit(IsNA *x);
   EmitValue emit(MakeTuple *x);
   EmitValue emit(GetTupleElement *x);
+  EmitValue emit(ArrayLen *x);
   EmitValue emit(IR *x);
 
   CompileFunction(TypeContext &tc,

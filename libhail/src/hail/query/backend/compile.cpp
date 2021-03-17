@@ -254,6 +254,13 @@ CompileFunction::emit(GetTupleElement *x) {
 }
 
 EmitValue
+CompileFunction::emit(ArrayLen *x) {
+  auto arrayDataValue = emit(x->get_child(0)).as_data(*this);
+  auto arraySValue = cast<SArrayValue>(arrayDataValue.svalue);
+  return EmitValue(arrayDataValue.missing, arraySValue->get_length(&this->tc));
+}
+
+EmitValue
 CompileFunction::emit(IR *x) {
   return x->dispatch([this](auto x) {
 		       return emit(x);

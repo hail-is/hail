@@ -112,7 +112,7 @@ SCanonicalArrayValue::~SCanonicalArrayValue() {
 }
 
 SInt64Value*
-SCanonicalArrayValue::get_length(TypeContext *tc) {
+SCanonicalArrayValue::get_length(TypeContext *tc) const {
   auto returnType = new SInt64(tc->tint32);
   return new SInt64Value(returnType, length);
 }
