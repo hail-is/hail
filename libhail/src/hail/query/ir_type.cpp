@@ -54,6 +54,15 @@ IRType::infer(MakeTuple *x) {
 const Type *
 IRType::infer(GetTupleElement *x) {
   return cast<TTuple>(infer(x->get_child(0)))->element_types[x->index];
+IRType::infer(ArrayLen *x) {
+  infer(x->get_child(0));
+  return tc.tint64;
+}
+
+const Type *
+IRType::infer(ArrayRef *x) {
+  auto inferedChild = infer(x->get_child(0));
+  return cast<TArray>(inferedChild)->element_type;
 }
 
 const Type *
