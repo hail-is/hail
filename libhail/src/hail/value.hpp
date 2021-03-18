@@ -355,8 +355,10 @@ TupleValue::get_element(size_t i) const {
 
 void
 TupleValue::set_element(size_t i, const Value &new_element) const {
-  set_element_missing(i, 0);
-  Value::store(p + vtype->element_offsets[i], new_element);
+  auto missing = new_element.get_missing();
+  set_element_missing(i, missing);
+  if (!missing)
+    Value::store(p + vtype->element_offsets[i], new_element);
 }
 
 void format1(FormatStream &s, const Value &value);

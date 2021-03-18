@@ -161,12 +161,12 @@ SType::construct_at_address_from_value(CompileFunction &cf, llvm::Value *address
 	auto element_address = cf.llvm_ir_builder.CreateGEP(address,
 							    llvm::ConstantInt::get(cf.llvm_context, llvm::APInt(64, t->element_offsets[i])));
 
-	t->set_element_missing(cf, address, i, 0);
+	t->set_element_missing(cf, address, i, false);
 	t->element_types[i].stype->construct_at_address_from_value(cf, element_address, c.svalue);
 	cf.llvm_ir_builder.CreateBr(merge_block);
 
 	cf.llvm_ir_builder.SetInsertPoint(c.missing_block);
-	t->set_element_missing(cf, address, i, 1);
+	t->set_element_missing(cf, address, i, true);
 	cf.llvm_ir_builder.CreateBr(merge_block);
 
 	cf.llvm_ir_builder.SetInsertPoint(merge_block);
