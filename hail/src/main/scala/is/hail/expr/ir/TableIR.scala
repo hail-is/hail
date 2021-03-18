@@ -483,7 +483,7 @@ case class PartitionRVDReader(rvd: RVD) extends PartitionReader {
     assert(upcastPType == rowPType(requestedType),
       s"ptype mismatch:\n  upcast: $upcastPType\n  computed: ${ rowPType(requestedType) }")
 
-    emitter.emitI(context, cb, outerRegion, env0, container, None).map(cb) { idx =>
+    emitter.emitI(context, cb, outerRegion.code, env0, container, None).map(cb) { idx =>
       val iterator = mb.genFieldThisRef[Iterator[Long]]("rvdreader_iterator")
       val hasNext = mb.genFieldThisRef[Boolean]("rvdreader_hasNext")
       val next = mb.genFieldThisRef[Long]("rvdreader_next")
@@ -536,7 +536,7 @@ case class PartitionNativeReader(spec: AbstractTypedCodecSpec) extends AbstractN
     val mb = cb.emb
 
     def emitIR(ir: IR, env: Emit.E = env, region: StagedRegion = partitionRegion, container: Option[AggContainer] = container): IEmitCode =
-      emitter.emitI(ir, cb, region, env, container, None)
+      emitter.emitI(ir, cb, region.code, env, container, None)
 
     emitIR(context).map(cb) { path =>
       val pathString = path.asString.loadString()
@@ -586,7 +586,7 @@ case class PartitionNativeReaderIndexed(spec: AbstractTypedCodecSpec, indexSpec:
     val mb = cb.emb
 
     def emitIR(ir: IR, env: Emit.E = env, region: StagedRegion = partitionRegion, container: Option[AggContainer] = container): IEmitCode =
-      emitter.emitI(ir, cb, region, env, container, None)
+      emitter.emitI(ir, cb, region.code, env, container, None)
 
     val (eltType, makeDec) = spec.buildDecoder(ctx, requestedType)
 
@@ -715,7 +715,7 @@ case class PartitionZippedNativeReader(specLeft: AbstractTypedCodecSpec, specRig
     val mb = cb.emb
 
     def emitIR(ir: IR, env: Emit.E = env, region: StagedRegion = partitionRegion, container: Option[AggContainer] = container): IEmitCode =
-      emitter.emitI(ir, cb, region, env, container, None)
+      emitter.emitI(ir, cb, region.code, env, container, None)
 
     val (leftRType, rightRType) = splitRequestedTypes(requestedType)
 

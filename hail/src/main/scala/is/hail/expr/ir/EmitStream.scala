@@ -1336,10 +1336,10 @@ object EmitStream {
         _emitStream(cb, streamIR, outerRegion, env)
 
       def emitIR(ir: IR, cb: EmitCodeBuilder = cb, env: Emit.E = env, region: StagedRegion = outerRegion, container: Option[AggContainer] = container): IEmitCode =
-        emitter.emitI(ir, cb, region, env, container, None)
+        emitter.emitI(ir, cb, region.code, env, container, None)
 
       def emitVoidIR(ir: IR, cb: EmitCodeBuilder = cb, env: Emit.E = env, region: StagedRegion = outerRegion, container: Option[AggContainer] = container): Unit =
-        emitter.emitVoid(cb, ir, mb, region, env, container, None)
+        emitter.emitVoid(cb, ir, mb, region.code, env, container, None)
 
       def sized(setup: Code[Unit], stream: ChildStagedRegion => Stream[EmitCode], length: Option[Code[Int]], outerRegion: ParentStagedRegion = outerRegion): SizedStream =
         SizedStream(setup, r => { r assertSubRegion outerRegion; stream(r) }, length)

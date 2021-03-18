@@ -36,7 +36,7 @@ class PartitionIteratorLongReader(
     container: Option[AggContainer]): IEmitCode = {
 
     def emitIR(ir: IR, env: Emit.E = env, region: StagedRegion = region, container: Option[AggContainer] = container): IEmitCode =
-      emitter.emitI(ir, cb, region, env, container, None)
+      emitter.emitI(ir, cb, region.code, env, container, None)
 
     val eltPType = bodyPType(requestedType)
 
