@@ -221,10 +221,10 @@ SCanonicalTuple::set_element_missing(CompileFunction &cf, llvm::Value *address, 
   llvm::Value *b = cf.llvm_ir_builder.CreateLoad(missing_address);
   if (missing)
     b = cf.llvm_ir_builder.CreateOr(b,
-				    llvm::ConstantInt::get(cf.llvm_context, llvm::APInt(8, 1 << (i & 0x7))));
+				    llvm::ConstantInt::get(cf.llvm_context, llvm::APInt(8, 1 << (i & 7))));
   else
     b = cf.llvm_ir_builder.CreateAnd(b,
-				     llvm::ConstantInt::get(cf.llvm_context, llvm::APInt(8, ~(1 << (i & 0x7)))));
+				     llvm::ConstantInt::get(cf.llvm_context, llvm::APInt(8, ~(1 << (i & 7)))));
   cf.llvm_ir_builder.CreateStore(b, missing_address);
 }
 

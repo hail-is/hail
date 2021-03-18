@@ -5,6 +5,7 @@
 #include <hail/query/backend/svalue.hpp>
 #include <hail/query/ir.hpp>
 #include <hail/query/ir_type.hpp>
+#include <hail/runtime/runtime.hpp>
 #include <hail/type.hpp>
 #include <hail/tunion.hpp>
 #include <hail/vtype.hpp>
@@ -35,7 +36,18 @@ public:
 };
 
 JITImpl::JITImpl()
-  : llvm_jit(std::move(exit_on_error(llvm::orc::LLJITBuilder().create()))) {}
+  : llvm_jit(std::move(exit_on_error(llvm::orc::LLJITBuilder().create()))) {
+  auto &llvm_data_layout = llvm_jit->getDataLayout();
+  llvm::orc::MangleAndInterner mangle(llvm_jit->getExecutionSession(), llvm_data_layout);
+  auto &jit_dylib = llvm_jit->getMainJITDylib();
+  auto sym = llvm::orc::absoluteSymbols({
+					 {mangle("hl_runtime_region_allocate"),
+					  llvm::JITEvaluatedSymbol(llvm::pointerToJITTargetAddress(&hl_runtime_region_allocate),
+								   llvm::JITSymbolFlags::Exported)}
+    });
+  if (auto err = jit_dylib.define(sym))
+    exit_on_error(std::move(err));
+}
 
 JITModule
 JITImpl::compile(HeapAllocator &heap,
