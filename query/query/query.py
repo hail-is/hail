@@ -222,7 +222,7 @@ async def on_cleanup(app):
     await asyncio.gather(*(t for t in asyncio.all_tasks() if t is not asyncio.current_task()))
 
 
-async def on_shutdown(app):
+async def on_shutdown(_):
     # Filter the asyncio.current_task(), because if we await
     # the current task we'll end up in a deadlock
     remaining_tasks = [t for t in asyncio.all_tasks() if t is not asyncio.current_task()]
