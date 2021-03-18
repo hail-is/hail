@@ -300,10 +300,10 @@ def _blanczos_pca(entry_expr, k=10, compute_loadings=False, q_iterations=2, over
     (:obj:`list` of :obj:`float`, :class:`.Table`, :class:`.Table`)
         List of eigenvalues, table with column scores, table with row loadings.
     """
-
+    check_entry_indexed('mt_to_table_of_ndarray/entry_expr', entry_expr)
     mt = matrix_table_source('pca/entry_expr', entry_expr)
 
-    A = mt_to_table_of_ndarray(entry_expr, block_size)
+    A, ht = mt_to_table_of_ndarray(entry_expr, block_size, return_checkpointed_table_also=True)
     A = A.persist()
 
     # Set Parameters
@@ -365,10 +365,12 @@ def _blanczos_pca(entry_expr, k=10, compute_loadings=False, q_iterations=2, over
     cols_and_scores = hl.zip(A.index_globals().cols, hail_array_scores).map(lambda tup: tup[0].annotate(scores=tup[1]))
     st = hl.Table.parallelize(cols_and_scores, key=list(mt.col_key))
 
-    lt = mt.rows().select()
+    lt = ht.select()
     lt = lt.annotate_globals(U=U)
-    lt = lt.add_index()
-    lt = lt.annotate(loadings=lt.U[lt.idx, :]._data_array()).select_globals()
+    idx_name = '_tmp_pca_loading_index'
+    lt = lt.add_index(idx_name)
+    lt = lt.annotate(loadings=lt.U[lt[idx_name], :]._data_array()).select_globals()
+    lt = lt.drop(lt[idx_name])
 
     if compute_loadings:
         return eigens, st, lt
