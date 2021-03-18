@@ -1914,6 +1914,18 @@ class Emit[C](
           }
         }
 
+      case Recur(name, args, _) =>
+        val loopRef = loopEnv.get.lookup(name)
+
+        cb.assignECs(loopRef.tmpLoopArgs, loopRef.loopTypes.zip(args).map { case (pt, arg) =>
+          EmitCode.fromI(mb)(cb => emitI(arg, loopEnv = None).map(cb)(_.castTo(cb, region.code, pt)))
+        })
+        cb.assignECs(loopRef.loopArgs, loopRef.tmpLoopArgs.load())
+        cb.append(loopRef.L.goto)
+        // dead code
+        IEmitCode.missing(cb, pt.defaultValue(cb.emb))
+
+
       case x@CollectDistributedArray(contexts, globals, cname, gname, body, tsd) =>
         val ctxsType = coerce[PStream](contexts.pType)
         val ctxType = ctxsType.elementType
@@ -2363,25 +2375,12 @@ class Emit[C](
           cb.ifx(!m, cb.assign(v, bodyT.pv))
         }
         val initArgs = EmitCodeBuilder.scopedVoid(mb) { cb =>
-          cb.assign(loopRef.loopArgs, inits.map { case ((_, x), pt) =>
+          cb.assignECs(loopRef.loopArgs, inits.map { case ((_, x), pt) =>
             emit(x).castTo(mb, region.code, pt)
           })
         }
 
         EmitCode(Code(initArgs, label, bodyF), m, v.load())
-
-      case Recur(name, args, _) =>
-        val loopRef = loopEnv.get.lookup(name)
-
-        EmitCodeBuilder.scopedEmitCode(mb) { cb =>
-          cb.assign(loopRef.tmpLoopArgs, loopRef.loopTypes.zip(args).map { case (pt, arg) =>
-            emit(arg, loopEnv = None).castTo(mb, region.code, pt)
-          })
-          cb.assign(loopRef.loopArgs, loopRef.tmpLoopArgs.load())
-          cb.append(loopRef.L.goto)
-          // dead code
-          EmitCode.missing(cb.emb, pt)
-        }
 
       case x@WritePartition(stream, pctx, writer) =>
         val ctxCode = emit(pctx)
