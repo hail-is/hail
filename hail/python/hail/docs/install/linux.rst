@@ -3,7 +3,7 @@ Install Hail on GNU/Linux
 =========================
 
 - Install Java 8.
-- Install Python 3.6 or 3.7.
+- Install Python 3.6+.
 - Install a recent version of the C and C++ standard libraries. GCC 5.0, LLVM
   version 3.4, or any later versions suffice.
 - Install BLAS and LAPACK.
