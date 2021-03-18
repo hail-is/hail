@@ -119,7 +119,7 @@ class HailContext(object):
            append=bool,
            min_block_size=int,
            branching_factor=int,
-           tmp_dir=str,
+           tmp_dir=nullable(str),
            default_reference=enumeration('GRCh37', 'GRCh38', 'GRCm38', 'CanFam3'),
            idempotent=bool,
            global_seed=nullable(int),
@@ -239,7 +239,7 @@ def init(sc=None, app_name='Hail', master=None, local='local[*]',
     from hail.backend.spark_backend import SparkBackend
 
     log = _get_log(log)
-    tmpdir = _get_tmpdir(tmp_dir if tmp_dir else '/tmp')
+    tmpdir = _get_tmpdir(tmp_dir)
     local_tmpdir = _get_local_tmpdir(local_tmpdir)
     optimizer_iterations = get_env_or_default(_optimizer_iterations, 'HAIL_OPTIMIZER_ITERATIONS', 3)
 
