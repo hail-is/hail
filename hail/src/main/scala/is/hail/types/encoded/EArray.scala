@@ -2,66 +2,63 @@ package is.hail.types.encoded
 
 import is.hail.annotations.{Region, UnsafeUtils}
 import is.hail.asm4s._
-import is.hail.expr.ir.{EmitCodeBuilder}
+import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.types.BaseType
 import is.hail.types.physical._
 import is.hail.types.virtual._
 import is.hail.io.{InputBuffer, OutputBuffer}
+import is.hail.types.physical.stypes.SType
+import is.hail.types.physical.stypes.concrete.{SIndexablePointer, SIndexablePointerCode, SIndexablePointerSettable}
+import is.hail.types.physical.stypes.interfaces.SIndexableValue
 import is.hail.utils._
 
-final case class EArray(val elementType: EType, override val required: Boolean = false) extends EContainer with EFundamentalType {
-  override def _decodeCompatible(pt: PType): Boolean = {
-    pt.required <= required &&
-      pt.isInstanceOf[PArray] &&
-      elementType.decodeCompatible(pt.asInstanceOf[PArray].elementType)
-  }
-
-  override def _encodeCompatible(pt: PType): Boolean = {
-    pt.required >= required &&
-      pt.isInstanceOf[PArray] &&
-      elementType.encodeCompatible(pt.asInstanceOf[PArray].elementType)
-  }
-
-  def _decodedPType(requestedType: Type): PType = {
+final case class EArray(val elementType: EType, override val required: Boolean = false) extends EContainer {
+  def _decodedSType(requestedType: Type): SType = {
     val elementPType = elementType.decodedPType(requestedType.asInstanceOf[TContainer].elementType)
     requestedType match {
       case _: TSet =>
-        PCanonicalSet(elementPType, required)
+        SIndexablePointer(PCanonicalSet(elementPType, required))
       case _: TArray =>
-        PCanonicalArray(elementPType, required)
+        SIndexablePointer(PCanonicalArray(elementPType, required))
       case _: TDict =>
         val et = elementPType.asInstanceOf[PStruct]
-        PCanonicalDict(et.fieldType("key"), et.fieldType("value"), required)
+        SIndexablePointer(PCanonicalDict(et.fieldType("key"), et.fieldType("value"), required))
     }
   }
 
-  def buildPrefixEncoder(cb: EmitCodeBuilder, pt: PArray, array: Value[Long],
+  def buildPrefixEncoder(cb: EmitCodeBuilder, value: SIndexableValue,
     out: Value[OutputBuffer], prefixLength: Code[Int]
   ): Unit = {
-    val arr: PIndexableValue = PCode(pt, array).asIndexable.memoize(cb, "encode_array_a")
     val prefixLen = cb.newLocal[Int]("prefixLen", prefixLength)
     val i = cb.newLocal[Int]("i", 0)
 
     cb += out.writeInt(prefixLen)
 
-    pt match {
-      case t: PCanonicalArray if t.elementType.required == elementType.required =>
+    value.st match {
+      case s@SIndexablePointer(_: PCanonicalArray | _: PCanonicalSet | _:PCanonicalDict)
+        if s.pType.elementType.required == elementType.required =>
+        val pArray = s.pType match {
+          case t: PCanonicalArray => t
+          case t: PCanonicalSet => t.arrayRep
+          case t: PCanonicalDict => t.arrayRep
+        }
+
+        val array = value.asInstanceOf[SIndexablePointerSettable].a
         if (!elementType.required) {
-          val nMissingLocal = cb.newLocal[Int]("nMissingBytes", pt.nMissingBytes(prefixLen))
+          val nMissingLocal = cb.newLocal[Int]("nMissingBytes", pArray.nMissingBytes(prefixLen))
           cb.ifx(nMissingLocal > 0, {
-            cb += out.writeBytes(array + const(pt.lengthHeaderBytes), nMissingLocal - 1)
-            cb += out.writeByte((Region.loadByte(array + const(pt.lengthHeaderBytes)
+            cb += out.writeBytes(array + const(pArray.lengthHeaderBytes), nMissingLocal - 1)
+            cb += out.writeByte((Region.loadByte(array + const(pArray.lengthHeaderBytes)
               + (nMissingLocal - 1).toL) & EType.lowBitMask(prefixLen)).toB)
           })
         }
       case _ =>
         val b = Code.newLocal[Int]("b")
         val shift = Code.newLocal[Int]("shift")
-        cb.assign(i, 0)
         cb.assign(b, 0)
         cb.assign(shift, 0)
         cb.whileLoop(i < prefixLen, {
-          cb.ifx(pt.isElementMissing(array, i), cb.assign(b, b | (const(1) << shift)))
+          cb.ifx(value.isElementMissing(i), cb.assign(b, b | (const(1) << shift)))
           cb.assign(shift, shift + 1)
           cb.assign(i, i + 1)
           cb.ifx(shift.ceq(7), {
@@ -73,64 +70,51 @@ final case class EArray(val elementType: EType, override val required: Boolean =
         cb.ifx(shift > 0, cb += out.writeByte(b.toB))
     }
 
-    val writeElemF = elementType.buildEncoder(pt.elementType, cb.emb.ecb)
     cb.forLoop(cb.assign(i, 0), i < prefixLen, cb.assign(i, i + 1), {
-      arr.loadElement(cb, i).consume(cb, { /* do nothing */ }, { pc =>
-        cb += writeElemF(pc.asPCode.code, out)
+      value.loadElement(cb, i).consume(cb, {
+        if (elementType.required)
+          cb._fatal(s"required array element saw missing value at index ", i.toS, " in encode")
+      }, { pc =>
+        elementType.buildEncoder(pc.st, cb.emb.ecb)
+          .apply(cb, pc, out)
       })
     })
   }
 
-  def _buildFundamentalEncoder(cb: EmitCodeBuilder, pt: PType, v: Value[_], out: Value[OutputBuffer]): Unit = {
-    val pa = pt.asInstanceOf[PArray]
-    val array = coerce[Long](v)
-    buildPrefixEncoder(cb, pa, array, out, pa.loadLength(array))
+  override def _buildEncoder(cb: EmitCodeBuilder, v: PValue, out: Value[OutputBuffer]): Unit = {
+    val ind = v.asInstanceOf[SIndexableValue]
+    buildPrefixEncoder(cb, ind, out, ind.loadLength())
   }
 
-  def _buildFundamentalDecoder(
-    cb: EmitCodeBuilder,
-    pt: PType,
-    region: Value[Region],
-    in: Value[InputBuffer]
-  ): Code[Long] = {
-    val t = pt.asInstanceOf[PArray]
+  override def _buildDecoder(cb: EmitCodeBuilder, t: Type, region: Value[Region], in: Value[InputBuffer]): PCode = {
+    val st = decodedSType(t).asInstanceOf[SIndexablePointer]
 
-    val len = cb.newLocal[Int]("len", in.readInt())
-    val array = cb.newLocal[Long]("array", t.allocate(region, len))
-    cb += t.storeLength(array, len)
-
-    val i = cb.newLocal[Int]("i")
-    val readElemF = elementType.buildInplaceDecoder(t.elementType, cb.emb.ecb)
-
-    pt match {
-      case t: PCanonicalArray if t.elementType.required == elementType.required =>
-        if (!elementType.required)
-          cb += in.readBytes(region, array + const(t.lengthHeaderBytes), t.nMissingBytes(len))
-      case _ =>
-        if (elementType.required) {
-          cb.forLoop(cb.assign(i, 0), i < len, cb.assign(i, i + 1),
-            cb += t.setElementPresent(array, i))
-        } else {
-          val missingBitsAddr = cb.newLocal[Long]("missingBitsAddr",
-            region.allocate(1L, t.nMissingBytes(len).toL))
-          cb += in.readBytes(region, missingBitsAddr, t.nMissingBytes(len))
-          cb.forLoop(cb.assign(i, 0), i < len, cb.assign(i, i + 1),
-            cb.ifx(Region.loadBit(missingBitsAddr, i.toL),
-              cb += t.setElementMissing(array, i),
-              cb += t.setElementPresent(array, i)))
-        }
+    val arrayType: PCanonicalArray = st.pType match {
+      case t: PCanonicalArray => t
+      case t: PCanonicalSet => t.arrayRep
+      case t: PCanonicalDict => t.arrayRep
     }
 
+    val len = cb.newLocal[Int]("len", in.readInt())
+    val array = cb.newLocal[Long]("array", arrayType.allocate(region, len))
+    cb += arrayType.storeLength(array, len)
+
+    val i = cb.newLocal[Int]("i")
+    val readElemF = elementType.buildInplaceDecoder(arrayType.elementType, cb.emb.ecb)
+
+    if (!elementType.required)
+      cb += in.readBytes(region, array + const(arrayType.lengthHeaderBytes), arrayType.nMissingBytes(len))
+
     cb.forLoop(cb.assign(i, 0), i < len, cb.assign(i, i + 1), {
-      val elemAddr = t.elementOffset(array, len, i)
+      val elemAddr = arrayType.elementOffset(array, len, i)
       if (elementType.required)
-        cb += readElemF(region, elemAddr, in)
+        readElemF(cb, region, elemAddr, in)
       else
-        cb.ifx(t.isElementDefined(array, i),
-          cb += readElemF(region, elemAddr, in))
+        cb.ifx(arrayType.isElementDefined(array, i),
+          readElemF(cb, region, elemAddr, in))
     })
 
-    array.load()
+    new SIndexablePointerCode(st, array.load())
   }
 
   def _buildSkip(cb: EmitCodeBuilder, r: Value[Region], in: Value[InputBuffer]): Unit = {
@@ -141,7 +125,7 @@ final case class EArray(val elementType: EType, override val required: Boolean =
       cb.forLoop(cb.assign(i, 0), i < len, cb.assign(i, i + 1), cb += skip(r, in))
     } else {
       val nMissing = cb.newLocal[Int]("nMissing", UnsafeUtils.packBitsToBytes(len))
-      val mbytes = cb.newLocal[Long]("mbytes", r.allocate(const(1), nMissing.toL))
+      val mbytes = cb.newLocal[Long]("mbytes", r.allocate(const(1L), nMissing.toL))
       cb += in.readBytes(r, mbytes, nMissing)
       cb.forLoop(cb.assign(i, 0), i < len, cb.assign(i, i + 1),
         cb.ifx(!Region.loadBit(mbytes, i.toL), cb += skip(r, in)))

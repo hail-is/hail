@@ -4,12 +4,13 @@ import pytest
 import numpy as np
 
 import hail as hl
-from ..helpers import resource, startTestHailContext, stopTestHailContext, fails_local_backend
+from ..helpers import resource, startTestHailContext, stopTestHailContext, fails_local_backend, fails_service_backend
 
 setUpModule = startTestHailContext
 tearDownModule = stopTestHailContext
 
 
+@fails_service_backend()
 @fails_local_backend()
 def test_hwe_normalized_pca():
     mt = hl.balding_nichols_model(3, 100, 50)
@@ -24,6 +25,7 @@ def test_hwe_normalized_pca():
     assert loadings is None
 
 
+@fails_service_backend()
 @fails_local_backend()
 def test_pca_against_numpy():
     mt = hl.import_vcf(resource('tiny_m.vcf'))
@@ -66,6 +68,7 @@ def test_pca_against_numpy():
     np.testing.assert_allclose(hail_scores, np_scores, rtol=1e-5)
     np.testing.assert_allclose(hail_loadings, np_loadings, rtol=1e-5)
 
+@fails_service_backend()
 @fails_local_backend()
 def test_blanczos_against_numpy():
 
@@ -126,6 +129,7 @@ def test_blanczos_against_numpy():
     assert bound(np_loadings, loadings) > 0.9
 
 
+@fails_service_backend()
 @fails_local_backend()
 def test_blanczos_against_hail():
     k = 10
@@ -161,6 +165,7 @@ def test_blanczos_against_hail():
     assert MEV > 0.9
 
 
+@fails_service_backend()
 @fails_local_backend()
 def test_spectra():
     def make_spectral_matrix(index_func, k, m, n):

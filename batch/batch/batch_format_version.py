@@ -33,11 +33,28 @@ class BatchFormatVersion:
         if service_account:
             service_account = [service_account['namespace'], service_account['name']]
 
+        machine_spec = None
+        resources = spec.get('resources')
+        machine_type = resources.get('machine_type')
+        if machine_type:
+            preemptible = int(resources['preemptible'])
+            storage = resources['storage_gib']
+            machine_spec = [machine_type, preemptible, storage]
+
+        if self.format_version < 5:
+            return [
+                secrets,
+                service_account,
+                int(len(spec.get('input_files', [])) > 0),
+                int(len(spec.get('output_files', [])) > 0)
+            ]
+
         return [
             secrets,
             service_account,
             int(len(spec.get('input_files', [])) > 0),
-            int(len(spec.get('output_files', [])) > 0)
+            int(len(spec.get('output_files', [])) > 0),
+            machine_spec
         ]
 
     def get_spec_secrets(self, spec):
@@ -69,6 +86,16 @@ class BatchFormatVersion:
         if self.format_version == 1:
             return len(spec.get('output_files', [])) > 0
         return bool(spec[3])
+
+    def get_spec_machine_spec(self, spec):
+        if self.format_version < 5:
+            return None
+        machine_type_spec = spec[4]
+        if machine_type_spec:
+            return {'machine_type': machine_type_spec[0],
+                    'preemptible': bool(machine_type_spec[1]),
+                    'storage_gib': machine_type_spec[2]}
+        return None
 
     def db_status(self, status):
         if self.format_version == 1:

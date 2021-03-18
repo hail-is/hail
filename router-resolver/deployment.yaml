@@ -70,11 +70,11 @@ spec:
             value: /deploy-config/deploy-config.json
          resources:
            requests:
-             memory: "5M"
-             cpu: "50m"
+             cpu: "20m"
+             memory: "20M"
            limits:
-             memory: "1G"
              cpu: "1"
+             memory: "1G"
          ports:
           - containerPort: 5000
          volumeMounts:

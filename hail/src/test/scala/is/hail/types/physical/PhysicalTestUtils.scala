@@ -20,7 +20,7 @@ abstract class PhysicalTestUtils extends HailSuite {
 
     if (interpret) {
       try {
-        val copyOff = destType.fundamentalType.copyFromAddress(region, sourceType.fundamentalType, srcAddress, deepCopy = deepCopy)
+        val copyOff = destType.copyFromAddress(region, sourceType, srcAddress, deepCopy = deepCopy)
         val copy = UnsafeRow.read(destType, region, copyOff)
 
         log.info(s"Copied value: ${copy}, Source value: ${sourceValue}")
@@ -54,7 +54,7 @@ abstract class PhysicalTestUtils extends HailSuite {
     val value = fb.getCodeParam[Long](2)
 
     try {
-      fb.emitWithBuilder(cb => destType.fundamentalType.store(cb, codeRegion, sourceType.fundamentalType.loadCheapPCode(cb, value), deepCopy = deepCopy))
+      fb.emitWithBuilder(cb => destType.store(cb, codeRegion, sourceType.loadCheapPCode(cb, value), deepCopy = deepCopy))
       compileSuccess = true
     } catch {
       case e: Throwable =>

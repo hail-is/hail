@@ -16,11 +16,12 @@
 # import sys
 # sys.path.insert(0, os.path.abspath('.'))
 import inspect
+import datetime
 
 # -- Project information -----------------------------------------------------
 
 project = 'Batch'
-copyright = '2020, Hail Team'
+copyright = '{}, Hail Team'.format(datetime.datetime.now().year)
 author = 'Hail Team'
 
 # The short X.Y version

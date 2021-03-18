@@ -1,55 +1,34 @@
 package is.hail.expr.ir.functions
 
-import is.hail.annotations.{CodeOrdering, Region, StagedRegionValueBuilder}
 import is.hail.asm4s.{Code, _}
 import is.hail.expr.ir._
+import is.hail.expr.ir.orderings.CodeOrdering
 import is.hail.types.physical._
-import is.hail.types.virtual.{TArray, TBoolean, TInt32, TInterval, TString, TStruct, TTuple, Type}
-import is.hail.utils._
+import is.hail.types.virtual._
 
 object IntervalFunctions extends RegistryFunctions {
 
   def registerAll(): Unit = {
 
-    registerEmitCode4("Interval", tv("T"), tv("T"), TBoolean, TBoolean, TInterval(tv("T")),
+    registerIEmitCode4("Interval", tv("T"), tv("T"), TBoolean, TBoolean, TInterval(tv("T")),
       { case (_: Type, startpt, endpt, includesStartPT, includesEndPT) =>
         PCanonicalInterval(
           InferPType.getCompatiblePType(Seq(startpt, endpt)),
           required = includesStartPT.required && includesEndPT.required
         )
       }) {
-      case (r, rt, start, end, includesStart, includesEnd) =>
-        val srvb = new StagedRegionValueBuilder(r, rt)
+      case (cb, r, rt: PCanonicalInterval, start, end, includesStart, includesEnd) =>
 
-        val mv = r.mb.newLocal[Boolean]()
-        val vv = r.mb.newLocal[Long]()
+        includesStart.toI(cb).flatMap(cb) { includesStart =>
+          includesEnd.toI(cb).map(cb) { includesEnd =>
 
-        val ctor = Code(
-          mv := includesStart.m || includesEnd.m,
-          vv := 0L,
-          mv.mux(
-            Code._empty,
-            Code(FastIndexedSeq(
-              srvb.start(),
-              start.m.mux(
-                srvb.setMissing(),
-                srvb.addIRIntermediate(start.pv)),
-              srvb.advance(),
-              end.m.mux(
-                srvb.setMissing(),
-                srvb.addIRIntermediate(end.pv)),
-              srvb.advance(),
-              srvb.addBoolean(includesStart.value[Boolean]),
-              srvb.advance(),
-              srvb.addBoolean(includesEnd.value[Boolean]),
-              srvb.advance(),
-              vv := srvb.offset))),
-          Code._empty)
-
-        EmitCode(
-          Code(start.setup, end.setup, includesStart.setup, includesEnd.setup, ctor),
-          mv,
-          PCode(rt, vv))
+            rt.constructFromCodes(cb, r,
+              start,
+              end,
+              EmitCode.present(cb.emb, includesStart),
+              EmitCode.present(cb.emb, includesEnd))
+          }
+        }
     }
 
     registerIEmitCode1("start", TInterval(tv("T")), tv("T"),
@@ -89,7 +68,7 @@ object IntervalFunctions extends RegistryFunctions {
         int.toI(cb).map(cb) { case (intc: PIntervalCode) =>
           val interval: PIntervalValue = intc.memoize(cb, "interval")
           val pointv = cb.memoize(point.toI(cb), "point")
-          val compare = cb.emb.getCodeOrdering(pointv.pt, interval.pt.pointType, CodeOrdering.Compare())
+          val compare = cb.emb.ecb.getOrderingFunction(pointv.st, interval.st.pointType, CodeOrdering.Compare())
 
           val start = EmitCode.fromI(cb.emb)(cb => interval.loadStart(cb).typecast[PCode])
           val cmp = cb.newLocal("cmp", compare(cb, pointv, start))
@@ -118,7 +97,7 @@ object IntervalFunctions extends RegistryFunctions {
         val overlap = EmitCodeBuilder.scopedCode(r.mb) { cb =>
           val interval1 = int1.memoize(cb, "interval1")
           val interval2 = int2.memoize(cb, "interval2")
-          val compare = cb.emb.getCodeOrdering(int1.pt.pointType, int2.pt.pointType, CodeOrdering.Compare())
+          val compare = cb.emb.ecb.getOrderingFunction(int1.st.pointType, int2.st.pointType, CodeOrdering.Compare())
 
           def isAboveOnNonempty(cb: EmitCodeBuilder, lhs: PIntervalValue, rhs: PIntervalValue): Code[Boolean] = {
             val start = EmitCode.fromI(cb.emb)(cb => lhs.loadStart(cb).typecast[PCode])

@@ -34,7 +34,7 @@ final class RegionPool private(strictMemoryCheck: Boolean, threadName: String, t
 
   def getTotalAllocatedBytes: Long = totalAllocatedBytes
 
-  private def incrementAllocatedBytes(toAdd: Long): Unit = {
+  private[annotations] def incrementAllocatedBytes(toAdd: Long): Unit = {
     totalAllocatedBytes += toAdd
     if (totalAllocatedBytes >= allocationEchoThreshold) {
       report("REPORT_THRESHOLD")
@@ -138,7 +138,13 @@ final class RegionPool private(strictMemoryCheck: Boolean, threadName: String, t
 
   override def finalize(): Unit = close()
 
+  private[this] var closed: Boolean = false
+
   def close(): Unit = {
+    if (closed)
+      return
+    closed = true
+
     report("FREE")
 
     var i = 0

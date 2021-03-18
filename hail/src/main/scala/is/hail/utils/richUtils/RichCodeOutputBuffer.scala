@@ -56,7 +56,7 @@ class RichCodeOutputBuffer(
   def writeUTF(s: Code[String]): Code[Unit] =
     ob.invoke[String, Unit]("writeUTF", s)
 
-  def writePrimitive(typ: PType): Code[_] => Code[Unit] = typ.fundamentalType match {
+  def writePrimitive(typ: PType): Code[_] => Code[Unit] = typ match {
     case _: PBoolean => v => writeBoolean(coerce[Boolean](v))
     case _: PInt32 => v => writeInt(coerce[Int](v))
     case _: PInt64 => v => writeLong(coerce[Long](v))

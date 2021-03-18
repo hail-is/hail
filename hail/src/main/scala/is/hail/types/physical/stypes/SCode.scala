@@ -69,6 +69,8 @@ abstract class SCode {
 
   def asDouble: SFloat64Code = asInstanceOf[SFloat64Code]
 
+  def asPrimitive: SPrimitiveCode = asInstanceOf[SPrimitiveCode]
+
   def asBinary: SBinaryCode = asInstanceOf[SBinaryCode]
 
   def asIndexable: SIndexableCode = asInstanceOf[SIndexableCode]

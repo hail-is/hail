@@ -71,7 +71,8 @@ def create_key_and_cert(p):
         '-extfile', extfile.name,
         '-CAcreateserial',
         '-out', cert_file,
-        '-days', '365'
+        '-days', '365',
+        '-sha256'
     ])
     echo_check_call([
         'openssl',

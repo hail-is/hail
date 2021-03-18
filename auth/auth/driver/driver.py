@@ -349,22 +349,22 @@ class BillingProjectResource:
         self.billing_project = None
 
 
-async def _create_user(app, user, cleanup):
+async def _create_user(app, user, skip_trial_bp, cleanup):
     db_instance = app['db_instance']
     db = app['db']
     k8s_client = app['k8s_client']
     iam_client = app['iam_client']
-    batch_client = app['batch_client']
 
+    username = user['username']
     if user['is_service_account'] != 1:
         token = secret_alnum_string(5, case='lower')
-        ident_token = f'{user["username"]}-{token}'
+        ident_token = f'{username}-{token}'
     else:
         token = secret_alnum_string(3, case='numbers')
-        ident_token = f'{user["username"]}-{token}'
+        ident_token = f'{username}-{token}'
 
-    if user['is_developer'] == 1 or user['is_service_account'] == 1:
-        ident = user['username']
+    if user['is_developer'] == 1 or user['is_service_account'] == 1 or username == 'test':
+        ident = username
     else:
         ident = ident_token
 
@@ -424,14 +424,15 @@ async def _create_user(app, user, cleanup):
         await db_secret.create(
             'database-server-config', namespace_name, db_resource.secret_data())
 
-    trial_bp = user['trial_bp_name']
-    if trial_bp is None:
-        username = user['username']
-        billing_project_name = f'{username}-trial'
-        billing_project = BillingProjectResource(batch_client)
-        cleanup.append(billing_project.delete)
-        await billing_project.create(username, billing_project_name)
-        updates['trial_bp_name'] = billing_project_name
+    if not skip_trial_bp and user['is_service_account'] != 1:
+        trial_bp = user['trial_bp_name']
+        if trial_bp is None:
+            batch_client = app['batch_client']
+            billing_project_name = f'{username}-trial'
+            billing_project = BillingProjectResource(batch_client)
+            cleanup.append(billing_project.delete)
+            await billing_project.create(username, billing_project_name)
+            updates['trial_bp_name'] = billing_project_name
 
     n_rows = await db.execute_update(f'''
 UPDATE users
@@ -444,12 +445,12 @@ WHERE id = %(id)s AND state = 'creating';
         raise DatabaseConflictError
 
 
-async def create_user(app, user):
+async def create_user(app, user, skip_trial_bp=False):
     cleanup = []
     try:
-        await _create_user(app, user, cleanup)
+        await _create_user(app, user, skip_trial_bp, cleanup)
     except Exception:
-        log.exception(f'create user {user} failed, will retry')
+        log.exception(f'create user {user} failed')
 
         for f in cleanup:
             try:
@@ -465,7 +466,6 @@ async def delete_user(app, user):
     db = app['db']
     k8s_client = app['k8s_client']
     iam_client = app['iam_client']
-    batch_client = app['batch_client']
 
     tokens_secret_name = user['tokens_secret_name']
     if tokens_secret_name is not None:
@@ -498,6 +498,7 @@ async def delete_user(app, user):
 
     trial_bp_name = user['trial_bp_name']
     if trial_bp_name is not None:
+        batch_client = app['batch_client']
         bp = BillingProjectResource(batch_client, user['username'], trial_bp_name)
         await bp.delete()
 

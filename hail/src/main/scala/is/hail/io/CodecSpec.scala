@@ -17,9 +17,6 @@ trait AbstractTypedCodecSpec extends Spec {
   def encodedType: EType
   def encodedVirtualType: Type
 
-  type StagedEncoderF[T] = (Value[Region], Value[T], Value[OutputBuffer]) => Code[Unit]
-  type StagedDecoderF[T] = (Value[Region], Value[InputBuffer]) => Code[T]
-
   def buildEncoder(ctx: ExecuteContext, t: PType): (OutputStream) => Encoder
 
   def encodeValue(ctx: ExecuteContext, t: PType, valueAddr: Long): Array[Byte] = {
@@ -52,38 +49,6 @@ trait AbstractTypedCodecSpec extends Spec {
   def buildCodeInputBuffer(is: Code[InputStream]): Code[InputBuffer]
 
   def buildCodeOutputBuffer(os: Code[OutputStream]): Code[OutputBuffer]
-
-  def buildEmitDecoder(requestedType: Type, cb: EmitClassBuilder[_]): (Value[Region], Value[InputBuffer]) => PCode = {
-    def typedBuilder[T](ti: TypeInfo[T]): (Value[Region], Value[InputBuffer]) => PCode = {
-      val (ptype, dec) = buildTypedEmitDecoderF[T](requestedType, cb);
-      { (r: Value[Region], ib: Value[InputBuffer]) => PCode(ptype, dec(r, ib)) }
-    }
-    typedBuilder(typeToTypeInfo(decodedPType(requestedType)))
-  }
-
-  def buildEmitEncoder(t: PType, cb: EmitClassBuilder[_]): (Value[Region], PValue, Value[OutputBuffer]) => Code[Unit] = {
-    def typedBuilder[T](ti: TypeInfo[T]): (Value[Region], PValue, Value[OutputBuffer]) => Code[Unit] = {
-      val enc = buildTypedEmitEncoderF[T](t, cb);
-      { (r: Value[Region], v: PValue, ob: Value[OutputBuffer]) =>
-        enc(r, v.value.asInstanceOf[Value[T]], ob)
-      }
-    }
-    typedBuilder(typeToTypeInfo(t))
-  }
-
-  def buildTypedEmitDecoderF[T](requestedType: Type, cb: EmitClassBuilder[_]): (PType, StagedDecoderF[T]) = {
-    val rt = encodedType.decodedPType(requestedType)
-    val mb = encodedType.buildDecoderMethod(rt, cb)
-    (rt, (region: Value[Region], buf: Value[InputBuffer]) => mb.invokeCode[T](region, buf))
-  }
-
-  def buildEmitDecoderF[T](cb: EmitClassBuilder[_]): (PType, StagedDecoderF[T]) =
-    buildTypedEmitDecoderF(encodedVirtualType, cb)
-
-  def buildTypedEmitEncoderF[T](t: PType, cb: EmitClassBuilder[_]): StagedEncoderF[T] = {
-    val mb = encodedType.buildEncoderMethod(t, cb)
-    (region: Value[Region], off: Value[T], buf: Value[OutputBuffer]) => mb.invokeCode[Unit](off, buf)
-  }
 
   // FIXME: is there a better place for this to live?
   def decodeRDD(ctx: ExecuteContext, requestedType: Type, bytes: RDD[Array[Byte]]): (PType, ContextRDD[Long]) = {

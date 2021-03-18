@@ -75,9 +75,9 @@ object Copy {
       case ArrayZeros(_) =>
         assert(newChildren.length == 1)
         ArrayZeros(newChildren(0).asInstanceOf[IR])
-      case MakeNDArray(_, _, _) =>
+      case MakeNDArray(_, _, _, errorId) =>
         assert(newChildren.length == 3)
-        MakeNDArray(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR], newChildren(2).asInstanceOf[IR])
+        MakeNDArray(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR], newChildren(2).asInstanceOf[IR], errorId)
       case NDArrayShape(_) =>
         assert(newChildren.length == 1)
         NDArrayShape(newChildren(0).asInstanceOf[IR])

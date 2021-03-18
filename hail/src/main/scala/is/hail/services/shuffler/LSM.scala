@@ -162,7 +162,7 @@ class LSM (
     else if (processed == 1)
       assert(least != -1 && greatest == -1)
     else if (processed >= 2)
-      assert(keyOrd.compare(least, greatest) < 0)
+      assert(keyOrd.compare(least, greatest) <= 0)
     assert(samplesEnd <= samples.length)
 
     if (processed == 0) {

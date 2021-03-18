@@ -9,13 +9,6 @@ import is.hail.types.physical.stypes.interfaces.{SStream, SStreamCode}
 import is.hail.types.virtual.{TStream, Type}
 
 final case class PCanonicalStream(elementType: PType, separateRegions: Boolean = false, required: Boolean = false) extends PStream {
-  override val fundamentalType: PStream = {
-    if (elementType == elementType.fundamentalType)
-      this
-    else
-      this.copy(elementType = elementType.fundamentalType)
-  }
-
   override def unsafeOrdering(): UnsafeOrdering = throw new NotImplementedError()
 
   override def _pretty(sb: StringBuilder, indent: Int, compact: Boolean = false) {

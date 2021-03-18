@@ -4,7 +4,9 @@ import is.hail.asm4s._
 import is.hail.expr.ir.{EmitCodeBuilder, IEmitSCode}
 import is.hail.types.physical.stypes.{SCode, SType, SValue}
 
-trait SContainer extends SType
+trait SContainer extends SType {
+  def elementType: SType
+}
 
 trait SIndexableValue extends SValue {
   def loadLength(): Value[Int]

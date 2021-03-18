@@ -18,7 +18,8 @@ log.info(f'BATCH_WORKER_IMAGE {BATCH_WORKER_IMAGE}')
 
 async def create_instance(app, zone, machine_name, machine_type, activation_token,
                           max_idle_time_msecs, worker_local_ssd_data_disk,
-                          worker_pd_ssd_data_disk_size_gb, boot_disk_size_gb):
+                          worker_pd_ssd_data_disk_size_gb, boot_disk_size_gb,
+                          preemptible, job_private):
     log_store: LogStore = app['log_store']
     compute_client: aiogoogle.ComputeClient = app['compute_client']
 
@@ -71,7 +72,7 @@ async def create_instance(app, zone, machine_name, machine_type, activation_toke
         'scheduling': {
             'automaticRestart': False,
             'onHostMaintenance': "TERMINATE",
-            'preemptible': True
+            'preemptible': preemptible
         },
 
         'serviceAccounts': [{
@@ -125,7 +126,7 @@ iptables -I DOCKER-USER -i batch-worker -d 169.254.169.254 -j ACCEPT
 WORKER_DATA_DISK_NAME="{worker_data_disk_name}"
 
 # format local SSD
-sudo mkfs.xfs -m reflink=1 /dev/$WORKER_DATA_DISK_NAME
+sudo mkfs.xfs -m reflink=1 -n ftype=1 /dev/$WORKER_DATA_DISK_NAME
 sudo mkdir -p /mnt/disks/$WORKER_DATA_DISK_NAME
 sudo mount -o prjquota /dev/$WORKER_DATA_DISK_NAME /mnt/disks/$WORKER_DATA_DISK_NAME
 sudo chmod a+w /mnt/disks/$WORKER_DATA_DISK_NAME
@@ -251,6 +252,7 @@ docker run \
 -e WORKER_CONFIG=$WORKER_CONFIG \
 -e MAX_IDLE_TIME_MSECS=$MAX_IDLE_TIME_MSECS \
 -e WORKER_DATA_DISK_MOUNT=/mnt/disks/$WORKER_DATA_DISK_NAME \
+-e BATCH_WORKER_IMAGE=$BATCH_WORKER_IMAGE \
 -v /var/run/docker.sock:/var/run/docker.sock \
 -v /usr/bin/docker:/usr/bin/docker \
 -v /usr/sbin/xfs_quota:/usr/sbin/xfs_quota \
@@ -312,7 +314,7 @@ journalctl -u docker.service > dockerd.log
         },
     }
 
-    worker_config = WorkerConfig.from_instance_config(config)
+    worker_config = WorkerConfig.from_instance_config(config, job_private)
     assert worker_config.is_valid_configuration(app['resources'])
     config['metadata']['items'].append({
         'key': 'worker_config',
@@ -323,3 +325,5 @@ journalctl -u docker.service > dockerd.log
         f'/zones/{zone}/instances', json=config)
 
     log.info(f'created machine {machine_name}')
+
+    return worker_config

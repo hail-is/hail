@@ -221,12 +221,6 @@ object Interpret {
             case LTEQ(t, _) => t.ordering.lteq(lValue, rValue)
             case GTEQ(t, _) => t.ordering.gteq(lValue, rValue)
             case Compare(t, _) => t.ordering.compare(lValue, rValue)
-            case CompareStructs(t, sf) => ExtendedOrdering.rowOrdering(t.fields.zip(sf).map { case (f, sf) =>
-              sf match {
-                case SortField(_, Ascending) => f.typ.ordering
-                case SortField(_, Descending) => f.typ.ordering.reverse
-              }
-            }.toArray).compare(lValue, rValue)
           }
 
       case MakeArray(elements, _) => elements.map(interpret(_, env, args)).toFastIndexedSeq

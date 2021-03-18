@@ -342,30 +342,9 @@ abstract class PType extends Serializable with Requiredness {
 
   def _pretty(sb: StringBuilder, indent: Int, compact: Boolean)
 
-  def codeOrdering(mb: EmitMethodBuilder[_]): CodeOrdering =
-    codeOrdering(mb, this)
-
-  def codeOrdering(mb: EmitMethodBuilder[_], so: SortOrder): CodeOrdering =
-    codeOrdering(mb, this, so)
-
-  def codeOrdering(mb: EmitMethodBuilder[_], other: PType, so: SortOrder): CodeOrdering =
-    so match {
-      case Ascending => codeOrdering(mb, other)
-      case Descending => codeOrdering(mb, other).reverse
-    }
-
-  def codeOrdering(mb: EmitMethodBuilder[_], other: PType): CodeOrdering
-
   def byteSize: Long
 
   def alignment: Long = byteSize
-
-  /*  Fundamental types are types that can be handled natively by RegionValueBuilder: primitive
-      types, Array and Struct. */
-  def fundamentalType: PType = this
-
-  // Encodable types are types that can have corresponding ETypes
-  def encodableType: PType
 
   final def unary_+(): PType = setRequired(true)
 
@@ -385,15 +364,15 @@ abstract class PType extends Serializable with Requiredness {
   final def isOfType(t: PType): Boolean = this.virtualType == t.virtualType
 
   final def isPrimitive: Boolean =
-    fundamentalType.isInstanceOf[PBoolean] || isNumeric
+    isInstanceOf[PBoolean] || isNumeric
 
   final def isRealizable: Boolean = !isInstanceOf[PUnrealizable]
 
   final def isNumeric: Boolean =
-    fundamentalType.isInstanceOf[PInt32] ||
-      fundamentalType.isInstanceOf[PInt64] ||
-      fundamentalType.isInstanceOf[PFloat32] ||
-      fundamentalType.isInstanceOf[PFloat64]
+    isInstanceOf[PInt32] ||
+      isInstanceOf[PInt64] ||
+      isInstanceOf[PFloat32] ||
+      isInstanceOf[PFloat64]
 
   def containsPointers: Boolean
 

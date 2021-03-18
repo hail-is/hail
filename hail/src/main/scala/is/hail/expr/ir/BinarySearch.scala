@@ -1,7 +1,8 @@
 package is.hail.expr.ir
 
-import is.hail.annotations.{CodeOrdering, Region}
+import is.hail.annotations.Region
 import is.hail.asm4s._
+import is.hail.expr.ir.orderings.CodeOrdering
 import is.hail.types.physical._
 import is.hail.types.physical.stypes._
 import is.hail.utils.FastIndexedSeq
@@ -34,7 +35,7 @@ class BinarySearch[C](mb: EmitMethodBuilder[C], typ: PContainer, eltType: PType,
               v2.memoize(cb, "bs_comp_v2").loadStart(cb)
           }.map(cb)(_.asPCode)
         }
-        findMB.getCodeOrdering(eltType, kt, CodeOrdering.Compare())(cb, ec1, ec2)
+        findMB.ecb.getOrderingFunction(eltType.sType, kt.sType, CodeOrdering.Compare())(cb, ec1, ec2)
     }
     val ceq: CodeOrdering.F[Boolean] = {
       (cb: EmitCodeBuilder, ec1: EmitCode, _ec2: EmitCode) =>
@@ -47,12 +48,12 @@ class BinarySearch[C](mb: EmitMethodBuilder[C], typ: PContainer, eltType: PType,
               v2.memoize(cb, "bs_comp_v2").loadStart(cb)
           }.map(cb)(_.asPCode)
         }
-      findMB.getCodeOrdering(eltType, kt, CodeOrdering.Equiv())(cb, ec1, ec2)
+      findMB.ecb.getOrderingFunction(eltType.sType, kt.sType, CodeOrdering.Equiv())(cb, ec1, ec2)
     }
     (comp, ceq, findMB)
   } else
-    (mb.getCodeOrdering(eltType, elt, CodeOrdering.Compare()),
-      mb.getCodeOrdering(eltType, elt, CodeOrdering.Equiv()),
+    (mb.ecb.getOrderingFunction(eltType.sType, elt.sType, CodeOrdering.Compare()),
+      mb.ecb.getOrderingFunction(eltType.sType, elt.sType, CodeOrdering.Equiv()),
       mb.genEmitMethod("findElt", FastIndexedSeq[ParamType](typeInfo[Long], typeInfo[Boolean], elt.ti), typeInfo[Int]))
 
   private[this] val array = findElt.getCodeParam[Long](1)

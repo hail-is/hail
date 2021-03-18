@@ -3,7 +3,6 @@ import pytest
 import random
 from scipy.stats import pearsonr
 import numpy as np
-import tempfile
 
 import hail as hl
 import hail.expr.aggregators as agg
@@ -19,6 +18,7 @@ class Tests(unittest.TestCase):
     def collect_unindexed_expression(self):
         self.assertEqual(hl.array([4,1,2,3]).collect(), [4,1,2,3])
 
+    @fails_service_backend()
     def test_key_by_random(self):
         ht = hl.utils.range_table(10, 4)
         ht = ht.annotate(new_key=hl.rand_unif(0, 1))
@@ -64,6 +64,7 @@ class Tests(unittest.TestCase):
             evaled = hl.eval(hl.zeros(size))
             assert evaled == [0 for i in range(size)]
 
+    @fails_service_backend()
     @fails_local_backend()
     def test_seeded_sampling(self):
         sampled1 = hl.utils.range_table(50, 6).filter(hl.rand_bool(0.5))
@@ -79,6 +80,7 @@ class Tests(unittest.TestCase):
             self.assertEqual(set(s1.idx.collect()), expected)
             self.assertEqual(set(s2.idx.collect()), expected)
 
+    @fails_service_backend()
     def test_order_by_head_optimization_with_randomness(self):
         ht = hl.utils.range_table(10, 6).annotate(x=hl.rand_unif(0, 1))
         expected = sorted(ht.collect(), key=lambda x: x['x'])[:5]
@@ -243,6 +245,7 @@ class Tests(unittest.TestCase):
         for f, t in kt.row.dtype.items():
             self.assertEqual(expected_schema[f], t)
 
+    @fails_service_backend()
     def test_genetics_constructors(self):
         rg = hl.ReferenceGenome("foo", ["1"], {"1": 100})
 
@@ -297,10 +300,10 @@ class Tests(unittest.TestCase):
         assert hl.eval(hl.literal(rna_strs).map(lambda s: hl.reverse_complement(s, rna=True))) == ['UGUAAUCNN', 'UGUAAUCNN'.lower(), 'oof']
 
     def test_matches(self):
-        self.assertEqual(hl.eval('\d+'), '\d+')
+        self.assertEqual(hl.eval('\\d+'), '\\d+')
         string = hl.literal('12345')
-        self.assertTrue(hl.eval(string.matches('\d+')))
-        self.assertTrue(hl.eval(string.matches(hl.str('\d+'))))
+        self.assertTrue(hl.eval(string.matches('\\d+')))
+        self.assertTrue(hl.eval(string.matches(hl.str('\\d+'))))
         self.assertFalse(hl.eval(string.matches(r'\\d+')))
 
     def test_string_reverse(self):
@@ -395,6 +398,7 @@ class Tests(unittest.TestCase):
         table = hl.utils.range_table(10).annotate(foo=hl.missing(tint))
         table.aggregate(hl.agg.approx_quantiles(table.foo, qs=[0.5]))
 
+    @fails_service_backend()
     def test_approx_cdf_col_aggregate(self):
         mt = hl.utils.range_matrix_table(10, 10)
         mt = mt.annotate_entries(foo=mt.row_idx + mt.col_idx)
@@ -469,6 +473,7 @@ class Tests(unittest.TestCase):
         for aggregation, expected in tests:
             self.assertEqual(t.aggregate(aggregation), expected)
 
+    @fails_service_backend()
     @fails_local_backend()
     def test_agg_densify(self):
         mt = hl.utils.range_matrix_table(5, 5, 3)
@@ -824,6 +829,7 @@ class Tests(unittest.TestCase):
         assert t.annotate(x=hl.bind(lambda i: hl.scan.sum(t.idx + i), 1, _ctx='scan')).x.collect() == [0, 1, 3, 6, 10]
         assert t.aggregate(hl.bind(lambda i: hl.agg.collect(i), t.idx * t.idx, _ctx='agg')) == [0, 1, 4, 9, 16]
 
+    @fails_service_backend()
     def test_scan(self):
         table = hl.utils.range_table(10)
 
@@ -871,6 +877,7 @@ class Tests(unittest.TestCase):
         for aggregation, expected in tests:
             self.assertEqual(aggregation.collect(), expected)
 
+    @fails_service_backend()
     def test_scan_explode(self):
         t = hl.utils.range_table(5)
         tests = [
@@ -902,6 +909,7 @@ class Tests(unittest.TestCase):
         for aggregation, expected in tests:
             self.assertEqual(aggregation.collect(), expected)
 
+    @fails_service_backend()
     def test_scan_group_by(self):
         t = hl.utils.range_table(5)
         tests = [
@@ -960,11 +968,13 @@ class Tests(unittest.TestCase):
             self.assertTrue(r.sum_x == -15 and r.sum_y == 10 and r.sum_empty == 0 and
                             r.prod_x == -120 and r.prod_y == 0 and r.prod_empty == 1)
 
+    @fails_service_backend
     def test_aggregators_hist(self):
         table = hl.utils.range_table(11)
         r = table.aggregate(hl.agg.hist(table.idx - 1, 0, 8, 4))
         self.assertTrue(r.bin_edges == [0, 2, 4, 6, 8] and r.bin_freq == [2, 2, 2, 3] and r.n_smaller == 1 and r.n_larger == 1)
 
+    @fails_service_backend()
     def test_aggregators_hist_neg0(self):
         table = hl.utils.range_table(32)
         table = table.annotate(d=hl.if_else(table.idx == 11, -0.0, table.idx / 3))
@@ -974,6 +984,15 @@ class Tests(unittest.TestCase):
         self.assertEqual(r.n_smaller, 0)
         self.assertEqual(r.n_larger, 1)
 
+    @fails_service_backend()
+    def test_aggregators_hist_nan(self):
+        ht = hl.utils.range_table(3).annotate(x=hl.float('nan'))
+        r = ht.aggregate(hl.agg.hist(ht.x, 0, 10, 2))
+        assert r.bin_freq == [0, 0]
+        assert r.n_smaller == 0
+        assert r.n_larger == 0
+
+    @fails_service_backend()
     def test_aggregator_cse(self):
         ht = hl.utils.range_table(10)
         x = hl.agg.count()
@@ -1002,6 +1021,7 @@ class Tests(unittest.TestCase):
     # r2adj = sumfit$adj.r.squared
     # f = sumfit$fstatistic
     # p = pf(f[1],f[2],f[3],lower.tail=F)
+    @fails_service_backend()
     def test_aggregators_linreg(self):
         t = hl.Table.parallelize([
             {"y": None, "x": 1.0},
@@ -1059,6 +1079,7 @@ class Tests(unittest.TestCase):
         self.assertAlmostEqual(r.multiple_p_value, 0.56671386)
         self.assertAlmostEqual(r.n, 5)
 
+    @fails_service_backend()
     def test_linreg_no_data(self):
         ht = hl.utils.range_table(1).filter(False)
         r = ht.aggregate(hl.agg.linreg(ht.idx, 0))
@@ -1092,6 +1113,7 @@ class Tests(unittest.TestCase):
         r = ht.aggregate(hl.agg.downsample(ht.idx, ht.y, n_divisions=10))
         self.assertTrue(len(r) == 0)
 
+    @fails_service_backend()
     def test_downsample_in_array_agg(self):
         mt = hl.utils.range_matrix_table(50, 50)
         mt = mt.annotate_rows(y = hl.rand_unif(0, 1))
@@ -1105,6 +1127,7 @@ class Tests(unittest.TestCase):
         )
         mt.cols()._force_count()
 
+    @fails_service_backend()
     @fails_local_backend()
     def test_aggregator_info_score(self):
         gen_file = resource('infoScoreTest.gen')
@@ -1132,6 +1155,7 @@ class Tests(unittest.TestCase):
             violations.show()
             self.fail("disagreement between computed info score and truth")
 
+    @fails_service_backend()
     @fails_local_backend()
     def test_aggregator_info_score_works_with_bgen_import(self):
         sample_file = resource('random.sample')
@@ -1174,6 +1198,7 @@ class Tests(unittest.TestCase):
         table2 = hl.utils.range_table(10)
         self.assertEqual(table.aggregate(hl.agg.count_where(hl.is_defined(table2[table.idx]))), 10)
 
+    @fails_service_backend()
     def test_switch(self):
         x = hl.literal('1')
         na = hl.missing(tint32)
@@ -1218,6 +1243,7 @@ class Tests(unittest.TestCase):
             hl.eval(hl.switch(x).when('0', 0).or_error("foo"))
         assert '.or_error("foo")' in str(exc.value)
 
+    @fails_service_backend()
     def test_case(self):
         def make_case(x):
             x = hl.literal(x)
@@ -2074,6 +2100,7 @@ class Tests(unittest.TestCase):
         self.assertIsNone(hl.eval(hl.literal(None, dtype='int32')))
         self.assertIsNone(hl.eval(hl.literal(None, dtype='int64')))
 
+    @fails_service_backend()
     def test_is_transition(self):
         self.assertTrue(hl.eval(hl.is_transition("A", "G")))
         self.assertTrue(hl.eval(hl.is_transition("C", "T")))
@@ -2082,6 +2109,7 @@ class Tests(unittest.TestCase):
         self.assertFalse(hl.eval(hl.is_transition("ACA", "AGA")))
         self.assertFalse(hl.eval(hl.is_transition("A", "T")))
 
+    @fails_service_backend()
     def test_is_transversion(self):
         self.assertTrue(hl.eval(hl.is_transversion("A", "T")))
         self.assertFalse(hl.eval(hl.is_transversion("A", "G")))
@@ -2089,6 +2117,7 @@ class Tests(unittest.TestCase):
         self.assertFalse(hl.eval(hl.is_transversion("AA", "T")))
         self.assertFalse(hl.eval(hl.is_transversion("ACCC", "ACCT")))
 
+    @fails_service_backend()
     def test_is_snp(self):
         self.assertTrue(hl.eval(hl.is_snp("A", "T")))
         self.assertTrue(hl.eval(hl.is_snp("A", "G")))
@@ -2097,28 +2126,34 @@ class Tests(unittest.TestCase):
         self.assertTrue(hl.eval(hl.is_snp("AT", "AG")))
         self.assertTrue(hl.eval(hl.is_snp("ATCCC", "AGCCC")))
 
+    @fails_service_backend()
     def test_is_mnp(self):
         self.assertTrue(hl.eval(hl.is_mnp("ACTGAC", "ATTGTT")))
         self.assertTrue(hl.eval(hl.is_mnp("CA", "TT")))
 
+    @fails_service_backend()
     def test_is_insertion(self):
         self.assertTrue(hl.eval(hl.is_insertion("A", "ATGC")))
         self.assertTrue(hl.eval(hl.is_insertion("ATT", "ATGCTT")))
 
+    @fails_service_backend()
     def test_is_deletion(self):
         self.assertTrue(hl.eval(hl.is_deletion("ATGC", "A")))
         self.assertTrue(hl.eval(hl.is_deletion("GTGTA", "GTA")))
 
+    @fails_service_backend()
     def test_is_indel(self):
         self.assertTrue(hl.eval(hl.is_indel("A", "ATGC")))
         self.assertTrue(hl.eval(hl.is_indel("ATT", "ATGCTT")))
         self.assertTrue(hl.eval(hl.is_indel("ATGC", "A")))
         self.assertTrue(hl.eval(hl.is_indel("GTGTA", "GTA")))
 
+    @fails_service_backend()
     def test_is_complex(self):
         self.assertTrue(hl.eval(hl.is_complex("CTA", "ATTT")))
         self.assertTrue(hl.eval(hl.is_complex("A", "TATGC")))
 
+    @fails_service_backend()
     def test_is_star(self):
         self.assertTrue(hl.eval(hl.is_star("ATC", "*")))
         self.assertTrue(hl.eval(hl.is_star("A", "*")))
@@ -2127,6 +2162,7 @@ class Tests(unittest.TestCase):
         self.assertTrue(hl.eval(hl.is_strand_ambiguous("A", "T")))
         self.assertFalse(hl.eval(hl.is_strand_ambiguous("G", "T")))
 
+    @fails_service_backend()
     def test_allele_type(self):
         self.assertEqual(
             hl.eval(hl.tuple((
@@ -2452,11 +2488,6 @@ class Tests(unittest.TestCase):
             self.assertEqual(hl.eval(hl._sort_by([hl.Struct(x=i, y="foo", z=5.5) for i in [5, 3, 8, 2, 5, hl.missing(hl.tint32)]], lambda l, r: l.x < r.x)),
                              [hl.Struct(x=i, y="foo", z=5.5) for i in [2, 3, 5, 5, 8, None]])
 
-    def test_array_head(self):
-        a = hl.array([1,2,3])
-        assert hl.eval(a.head()) == 1
-        assert hl.eval(a.filter(lambda x: x > 5).head()) is None
-
     def test_array_first(self):
         a = hl.array([1,2,3])
         assert hl.eval(a.first()) == 1
@@ -2611,6 +2642,7 @@ class Tests(unittest.TestCase):
         ds = hl.utils.range_matrix_table(3, 3)
         ds.col_idx.show(3)
 
+    @fails_service_backend()
     @fails_local_backend()
     def test_export(self):
         for delimiter in ['\t', ',', '@']:
@@ -2623,19 +2655,19 @@ class Tests(unittest.TestCase):
         mt = mt.key_cols_by(col_idx = mt.col_idx + 1)
         mt = mt.annotate_entries(x = mt.row_idx * mt.col_idx)
         mt = mt.annotate_entries(x = hl.or_missing(mt.x != 4, mt.x))
-        with tempfile.NamedTemporaryFile() as f:
-            mt.x.export(f.name,
+        with hl.TemporaryFilename() as f:
+            mt.x.export(f,
                         delimiter=delimiter,
                         header=header,
                         missing=missing)
             if header:
-                actual = hl.import_matrix_table(f.name,
+                actual = hl.import_matrix_table(f,
                                                 row_fields={'row_idx': hl.tint32},
                                                 row_key=['row_idx'],
                                                 sep=delimiter,
                                                 missing=missing)
             else:
-                actual = hl.import_matrix_table(f.name,
+                actual = hl.import_matrix_table(f,
                                                 row_fields={'f0': hl.tint32},
                                                 row_key=['f0'],
                                                 sep=delimiter,
@@ -2655,20 +2687,21 @@ class Tests(unittest.TestCase):
                                 2, None, 6]
             assert expected_collect == actual.x.collect()
 
+    @fails_service_backend()
     @fails_local_backend()
     def test_export_genetic_data(self):
         mt = hl.balding_nichols_model(1, 3, 3)
         mt = mt.key_cols_by(s = 's' + hl.str(mt.sample_idx))
-        with tempfile.NamedTemporaryFile() as f:
-            mt.GT.export(f.name)
-            actual = hl.import_matrix_table(f.name,
+        with hl.TemporaryFilename() as f:
+            mt.GT.export(f)
+            actual = hl.import_matrix_table(f,
                                             row_fields={'locus': hl.tstr,
                                                         'alleles': hl.tstr},
                                             row_key=['locus', 'alleles'],
                                             entry_type=hl.tstr)
             actual = actual.rename({'col_id': 's'})
             actual = actual.key_rows_by(locus = hl.parse_locus(actual.locus),
-                                        alleles = actual.alleles.replace('"', '').replace('\[', '').replace('\]', '').split(','))
+                                        alleles = actual.alleles.replace('"', '').replace(r'\[', '').replace(r'\]', '').split(','))
             actual = actual.transmute_entries(GT = hl.parse_call(actual.x))
             expected = mt.select_cols().select_globals().select_rows()
             expected.show()
@@ -2803,6 +2836,7 @@ class Tests(unittest.TestCase):
             hl.eval(hl.contig_length('chr5', 'GRCh37'))
 
 
+    @fails_service_backend()
     def test_initop(self):
         t = (hl.utils.range_table(5, 3)
              .annotate(GT=hl.call(0, 1))
@@ -3044,6 +3078,7 @@ class Tests(unittest.TestCase):
         self.assert_evals_to(hl.mean(s), 3)
         self.assert_evals_to(hl.median(s), 3)
 
+    @fails_service_backend()
     def test_uniroot(self):
         tol = 1.220703e-4
 
@@ -3052,7 +3087,7 @@ class Tests(unittest.TestCase):
         self.assertAlmostEqual(hl.eval(hl.uniroot(lambda x: x - 1, 0, 3, tolerance=tol)), 1)
         self.assertAlmostEqual(hl.eval(hl.uniroot(lambda x: hl.log(x) - 1, 0, 3, tolerance=tol)), 2.718281828459045, delta=tol)
 
-        with self.assertRaisesRegex(hl.utils.FatalError, "value of f\(x\) is missing"):
+        with self.assertRaisesRegex(hl.utils.FatalError, r"value of f\(x\) is missing"):
             hl.eval(hl.uniroot(lambda x: hl.missing('float'), 0, 1))
         with self.assertRaisesRegex(hl.utils.HailUserError, 'opposite signs'):
             hl.eval(hl.uniroot(lambda x: x ** 2 - 0.5, -1, 1))
@@ -3237,6 +3272,20 @@ class Tests(unittest.TestCase):
         self.assertTrue(hl.eval(s.contains(5)))
         self.assertTrue(hl.eval(~s.contains(2)))
 
+    def test_dict_keyed_by_set(self):
+        dict_with_set_key = hl.dict({hl.set([1, 2, 3]): 4})
+        # Test that it's evalable, since python sets aren't hashable.
+        assert hl.eval(dict_with_set_key) == {frozenset([1, 2, 3]): 4}
+
+    def test_dict_keyed_by_dict(self):
+        dict_with_dict_key = hl.dict({hl.dict({1:2, 3:5}): 4})
+        # Test that it's evalable, since python dicts aren't hashable.
+        assert hl.eval(dict_with_dict_key) == {hl.utils.frozendict({1:2, 3:5}): 4}
+
+    def test_frozendict_as_literal(self):
+        fd = hl.utils.frozendict({"a": 4, "b": 8})
+        assert hl.eval(hl.literal(fd)) == hl.utils.frozendict({"a": 4, "b": 8})
+
     def test_nan_roundtrip(self):
         a = [math.nan, math.inf, -math.inf, 0, 1]
         round_trip = hl.eval(hl.literal(a))
@@ -3363,9 +3412,10 @@ class Tests(unittest.TestCase):
         assert hl.eval(hl.bit_rshift(hl.int64(-1), 64)) == -1
         assert hl.eval(hl.bit_rshift(hl.int64(-11), 64, logical=True)) == 0
 
+    @fails_service_backend()
     def test_bit_shift_errors(self):
         with pytest.raises(hl.utils.HailUserError):
-                hl.eval(hl.bit_lshift(1, -1))
+            hl.eval(hl.bit_lshift(1, -1))
 
         with pytest.raises(hl.utils.HailUserError):
             hl.eval(hl.bit_rshift(1, -1))
@@ -3505,10 +3555,12 @@ class Tests(unittest.TestCase):
         ]
         assert hl.eval(hl._compare(hl.tuple(values), hl.tuple(hl.parse_json(hl.json(v), v.dtype) for v in values)) == 0)
 
+    @fails_service_backend()
     def test_expr_persist(self):
         # need to test laziness, so we will overwrite a file
         ht2 = hl.utils.range_table(100)
-        with tempfile.TemporaryDirectory() as f:
+
+        with hl.TemporaryDirectory(ensure_exists=False) as f:
             hl.utils.range_table(10).write(f, overwrite=True)
             ht = hl.read_table(f)
             count1 = ht.aggregate(hl.agg.count(), _localize=False)._persist()

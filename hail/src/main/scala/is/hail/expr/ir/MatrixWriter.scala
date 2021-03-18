@@ -174,8 +174,6 @@ case class SplitPartitionNativeWriter(
     mb: EmitMethodBuilder[_],
     region: ParentStagedRegion,
     stream: SizedStream): EmitCode = {
-    val enc1 = spec1.buildEmitEncoder(eltType, mb.ecb)
-    val enc2 = spec2.buildEmitEncoder(eltType, mb.ecb)
     val keyType = ifIndexed { index.get._2 }
     val iAnnotationType = PCanonicalStruct(required = true, "entries_offset" -> PInt64Required)
     val indexWriter = ifIndexed { StagedIndexWriter.withDefaults(keyType, mb.ecb, annotationType = iAnnotationType) }
@@ -209,9 +207,15 @@ case class SplitPartitionNativeWriter(
             })
           }
           cb += ob1.writeByte(1.asInstanceOf[Byte])
-          cb += enc1(eltRegion.code, row, ob1)
+
+          spec1.encodedType.buildEncoder(row.st, cb.emb.ecb)
+            .apply(cb, row, ob1)
+
           cb += ob2.writeByte(1.asInstanceOf[Byte])
-          cb += enc2(eltRegion.code, row, ob2)
+
+          spec2.encodedType.buildEncoder(row.st, cb.emb.ecb)
+            .apply(cb, row, ob2)
+
           cb += eltRegion.clear()
           cb.assign(n, n + 1L)
         }

@@ -3,6 +3,7 @@ from .hadoop_utils import hadoop_copy, hadoop_open, hadoop_exists, hadoop_is_dir
 from .struct import Struct
 from .linkedlist import LinkedList
 from .interval import Interval
+from .frozendict import frozendict
 from .java import error, warning, info, FatalError, HailUserError
 from .tutorial import get_1kg, get_movie_lens
 from .deduplicate import deduplicate
@@ -26,6 +27,7 @@ __all__ = ['hadoop_open',
            'run_command',
            'Struct',
            'Interval',
+           'frozendict',
            'error',
            'warning',
            'info',

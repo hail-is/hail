@@ -40,4 +40,10 @@ class RichCodeRegion(val region: Code[Region]) extends AnyVal {
   def getPool(): Code[RegionPool] = region.invoke[RegionPool]("getPool")
 
   def totalManagedBytes(): Code[Long] = region.invoke[Long]("totalManagedBytes")
+
+  def allocateNDArray(nBytes: Code[Long]): Code[Long] =
+    region.invoke[Long, Long]("allocateNDArray", nBytes)
+
+  def trackNDArray(addr: Code[Long]): Code[Unit] =
+    region.invoke[Long, Unit]("trackNDArray", addr)
 }

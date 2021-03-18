@@ -5,9 +5,13 @@ import is.hail.expr.ir.{EmitCodeBuilder, IEmitSCode}
 import is.hail.types.physical.PInterval
 import is.hail.types.physical.stypes.{SCode, SType, SValue}
 
-trait SInterval extends SType
+trait SInterval extends SType {
+  def pointType: SType
+}
 
 trait SIntervalValue extends SValue {
+  def st: SInterval
+
   def includesStart(): Value[Boolean]
 
   def includesEnd(): Value[Boolean]
@@ -24,6 +28,8 @@ trait SIntervalValue extends SValue {
 }
 
 trait SIntervalCode extends SCode {
+  def st: SInterval
+
   def includesStart(): Code[Boolean]
 
   def includesEnd(): Code[Boolean]

@@ -8,7 +8,7 @@ import scala.language.implicitConversions
 package object physical {
   implicit def pvalueToPCode(pv: PValue): PCode = pv.get
 
-  def typeToTypeInfo(t: PType): TypeInfo[_] = t.fundamentalType match {
+  def typeToTypeInfo(t: PType): TypeInfo[_] = t match {
     case _: PInt32 => typeInfo[Int]
     case _: PInt64 => typeInfo[Long]
     case _: PFloat32 => typeInfo[Float]
@@ -20,6 +20,10 @@ package object physical {
     case _: PBaseStruct => typeInfo[Long]
     case _: PNDArray => typeInfo[Long]
     case _: PContainer => typeInfo[Long]
+    case _: PString => typeInfo[Long]
+    case _: PCanonicalCall => typeInfo[Int]
+    case _: PInterval => typeInfo[Long]
+    case _: PLocus => typeInfo[Long]
     case _ => throw new RuntimeException(s"unsupported type found, $t")
   }
 

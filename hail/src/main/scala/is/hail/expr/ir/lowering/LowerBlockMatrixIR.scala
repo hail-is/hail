@@ -153,7 +153,7 @@ abstract class BlockMatrixStage(val globalVals: Array[(String, IR)], val ctxType
                     ToArray(mapIR(
                       rangeIR((GetTupleElement(shape, 0) * GetTupleElement(shape, 1)).toI)
                     )(_ => zero(typ.elementType))),
-                    shape, False())
+                    shape, False(), ErrorIDs.NO_ERROR)
                 },
                 outer.blockBody(ctx))
             }
@@ -196,7 +196,7 @@ object LowerBlockMatrixIR {
           }
           def blockBody(ctxRef: Ref): IR = {
             val len = (GetTupleElement(ctxRef, 0) * GetTupleElement(ctxRef, 1)).toI
-            MakeNDArray(ToArray(mapIR(rangeIR(len))(_ => generator)), ctxRef, True())
+            MakeNDArray(ToArray(mapIR(rangeIR(len))(_ => generator)), ctxRef, True(), ErrorIDs.NO_ERROR)
           }
         }
       case x: BlockMatrixLiteral => unimplemented(bmir)
@@ -227,7 +227,7 @@ object LowerBlockMatrixIR {
           }
           def blockBody(ctxRef: Ref): IR =
             MakeNDArray(ToArray(mapIR(rangeIR(GetTupleElement(ctxRef, 0) * GetTupleElement(ctxRef, 1)))(_ => elt)),
-              ctxRef, True())
+              ctxRef, True(), ErrorIDs.NO_ERROR)
         }
       case x@BlockMatrixBroadcast(child, IndexedSeq(axis), _, _) =>
         val len = child.typ.shape.max
@@ -253,7 +253,7 @@ object LowerBlockMatrixIR {
             }
           }
           MakeNDArray(ToArray(flatten(MakeStream(vectorBlocks, TStream(TStream(x.typ.elementType))))),
-            MakeTuple.ordered(FastSeq(I64(java.lang.Math.min(child.typ.nRows, child.typ.nCols)))), true)
+            MakeTuple.ordered(FastSeq(I64(java.lang.Math.min(child.typ.nRows, child.typ.nCols)))), true, ErrorIDs.NO_ERROR)
         }
         BlockMatrixStage.broadcastVector(vector, x.typ, asRowVector = axis == 1)
 
@@ -311,13 +311,15 @@ object LowerBlockMatrixIR {
             MakeTuple.ordered(FastSeq(rows, cols))
           }.mapBody { (ctx, body) => NDArraySlice(body, GetField(ctx, "new")) }
 
-      case BlockMatrixDensify(child) => unimplemented(bmir)
-      case BlockMatrixSparsify(child, sparsifier) => unimplemented(bmir)
+      // Both densify and sparsify change the sparsity pattern tracked on the BlockMatrixType.
+      case BlockMatrixDensify(child) => lower(child)
+      case BlockMatrixSparsify(child, sparsifier) => lower(child)
+
       case RelationalLetBlockMatrix(name, value, body) => unimplemented(bmir)
       case ValueToBlockMatrix(child, shape, blockSize) if !child.typ.isInstanceOf[TArray] =>
         throw new LowererUnsupportedOperation("use explicit broadcast for scalars!")
       case x@ValueToBlockMatrix(child, _, blockSize) => // row major or scalar
-        val nd = MakeNDArray(child, MakeTuple.ordered(FastSeq(I64(x.typ.nRows), I64(x.typ.nCols))), True())
+        val nd = MakeNDArray(child, MakeTuple.ordered(FastSeq(I64(x.typ.nRows), I64(x.typ.nCols))), True(), ErrorIDs.NO_ERROR)
         val v = Ref(genUID(), nd.typ)
         new BlockMatrixStage(
           Array(v.name -> nd),

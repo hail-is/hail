@@ -30,92 +30,44 @@ class MonoidAggregator(monoid: StagedMonoidSpec) extends StagedAggregator {
   protected def _initOp(cb: EmitCodeBuilder, state: State, init: Array[EmitCode]): Unit = {
     assert(init.length == 0)
     val stateRequired = state.vtypes.head.r.required
-    val (mOpt, v, _) = state.fields(0)
-    (mOpt, monoid.neutral) match {
-      case (Some(m), _) =>
+    val ev = state.fields(0)
+    if (!ev.pt.required) {
         assert(!stateRequired, s"monoid=$monoid, stateRequired=$stateRequired")
-        cb.assign(m, true)
-      case (_, Some(v0)) =>
+        cb.assign(ev, EmitCode.missing(cb.emb, ev.pt))
+    } else {
         assert(stateRequired, s"monoid=$monoid, stateRequired=$stateRequired")
-        cb.assignAny(v, v0)
+        cb.assign(ev, EmitCode.present(cb.emb, PCode(ev.pt, monoid.neutral.get)))
     }
   }
 
   protected def _seqOp(cb: EmitCodeBuilder, state: State, seq: Array[EmitCode]): Unit = {
     val Array(elt) = seq
-    val (mOpt, v, _) = state.fields(0)
-    val eltm = state.kb.genFieldThisRef[Boolean]()
-    val eltv = state.kb.genFieldThisRef()(typeToTypeInfo(typ))
-    cb += elt.setup
-    cb.assign(eltm, elt.m)
-    cb.ifx(eltm,
-      {},
-      cb.assign(eltv, elt.value))
-    combine(cb, mOpt, v, Some(eltm), eltv)
+    val ev = state.fields(0)
+    val update = cb.memoizeField(elt, "monoid_elt")
+    combine(cb, ev, update)
   }
 
   protected def _combOp(cb: EmitCodeBuilder, state: State, other: State): Unit = {
-    val (m1, v1, _) = state.fields(0)
-    val (m2, v2, _) = other.fields(0)
-    combine(cb, m1, v1, m2.map(_.load), v2.load)
+    val ev1 = state.fields(0)
+    val ev2 = other.fields(0)
+    combine(cb, ev1, ev2)
   }
 
   protected def _storeResult(cb: EmitCodeBuilder, state: State, pt: PType, addr: Value[Long], region: Value[Region], ifMissing: EmitCodeBuilder => Unit): Unit = {
-    val (mOpt, v, _) = state.fields(0)
-
-    val iec = mOpt match {
-      case None =>
-        IEmitCode.present(cb, PCode(typ, v))
-      case Some(m) =>
-        IEmitCode(cb, m, PCode(typ, v))
-    }
-    iec.consume(cb,
+    state.fields(0).toI(cb).consume(cb,
       ifMissing(cb),
-      sc => pt.storeAtAddress(cb, addr, region, sc, deepCopy = true)
-    )
+      sc => pt.storeAtAddress(cb, addr, region, sc, deepCopy = true))
   }
 
   private def combine(
     cb: EmitCodeBuilder,
-    m1Opt: Option[Settable[Boolean]],
-    v1: Settable[_],
-    m2Opt: Option[Code[Boolean]],
-    v2: Code[_]
+    ev1: EmitSettable,
+    ev2: EmitValue
   ): Unit = {
-    val ti = typeToTypeInfo(typ)
-    ti match {
-      case ti: TypeInfo[t] =>
-        (m1Opt, m2Opt) match {
-          case (None, None) =>
-            cb.assignAny(v1, monoid(v1, v2))
-          case (None, Some(m2)) =>
-            // only update if the element is not missing
-            cb.ifx(!m2, cb.assignAny(v1, monoid(v1, v2)))
-          case (Some(m1), None) =>
-            val v2var = cb.newLocalAny("mon_agg_combine_v2", v2)(ti)
-            cb.ifx(m1,
-              {
-                cb.assign(m1, false)
-                cb.assignAny(v1, v2var)
-              },
-              {
-                cb.assignAny(v1, monoid(v1, v2))
-              })
-          case (Some(m1), Some(m2)) =>
-            val m2var = cb.newLocal[Boolean]("mon_agg_combine_m2", m2)
-            val v2var = cb.newLocalAny("mon_agg_combine_v2", v2)(ti)
-            cb.ifx(m1,
-              {
-                cb.assign(m1, m2var)
-                cb.assignAny(v1, v2var)
-              },
-              {
-                cb.ifx(m2var,
-                  {},
-                  cb.assignAny(v1, monoid(v1, v2var)))
-              })
-        }
-    }
+    cb.ifx(ev1.m,
+      cb.ifx(!ev2.m, cb.assign(ev1, ev2)),
+      cb.ifx(!ev2.m,
+        cb.assign(ev1, EmitCode.present(cb.emb, PCode(ev1.pt, monoid(ev1.v, ev2.v))))))
   }
 }
 

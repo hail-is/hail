@@ -60,7 +60,7 @@ object Children {
       Array(start, stop, step)
     case ArrayZeros(length) =>
       Array(length)
-    case MakeNDArray(data, shape, rowMajor) =>
+    case MakeNDArray(data, shape, rowMajor, _) =>
       Array(data, shape, rowMajor)
     case NDArrayShape(nd) =>
       Array(nd)

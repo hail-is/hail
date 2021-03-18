@@ -24,7 +24,7 @@ object Type {
     Gen.oneOf(TBoolean, TInt32, TInt64, TFloat32,
       TFloat64, TString, TCall)
 
-  def genComplexType(): Gen[ComplexType] = {
+  def genComplexType(): Gen[Type] = {
     val rgDependents = ReferenceGenome.references.values.toArray.map(rg =>
       TLocus(rg))
     val others = Array(TCall)

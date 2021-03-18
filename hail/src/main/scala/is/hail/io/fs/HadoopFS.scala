@@ -32,7 +32,7 @@ object HadoopFS {
 
       override def write(bytes: Array[Byte], off: Int, len: Int): Unit = os.write(bytes, off, len)
 
-      override def flush(): Unit = os.flush()
+      override def flush(): Unit = if (!closed) os.flush()
 
       override def close(): Unit = {
         if (!closed) {
@@ -113,6 +113,14 @@ class HadoopFS(val conf: SerializableHadoopConfiguration) extends FS {
 
   def mkDir(dirname: String): Unit = {
     getFileSystem(dirname).mkdirs(new hadoop.fs.Path(dirname))
+  }
+
+  def remove(fname: String): Unit = {
+    getFileSystem(fname).delete(new hadoop.fs.Path(fname), false)
+  }
+
+  def rmtree(dirname: String): Unit = {
+    getFileSystem(dirname).delete(new hadoop.fs.Path(dirname), true)
   }
 
   def delete(filename: String, recursive: Boolean) {

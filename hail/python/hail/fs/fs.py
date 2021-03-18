@@ -36,6 +36,27 @@ class FS(abc.ABC):
     def ls(self, path: str) -> List[Dict]:
         pass
 
+    @abc.abstractmethod
+    def mkdir(self, path: str):
+        """Ensure files can be created whose dirname is `path`.
+
+        Warning
+        -------
+
+        On file systems without a notion of directories, this function will do nothing. For example,
+        on Google Cloud Storage, this operation does nothing.
+
+        """
+        pass
+
+    @abc.abstractmethod
+    def remove(self, path: str):
+        pass
+
+    @abc.abstractmethod
+    def rmtree(self, path: str):
+        pass
+
     def copy_log(self, path: str) -> None:
         log = Env.hc()._log
         try:

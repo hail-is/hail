@@ -90,6 +90,7 @@ class Tests(unittest.TestCase):
         d = mt.group_cols_by(group5=(mt['group4']['a'] + 1)).aggregate_cols(x=hl.agg.count())
         self.assertRaises(ExpressionException, d.aggregate_cols, x=hl.agg.count()) # duplicate field
 
+    @fails_service_backend()
     def test_fields_work_correctly(self):
         mt = self.get_groupable_matrix()
         a = mt.group_rows_by(mt['group1']).aggregate(c=hl.agg.sum(mt['c']))
@@ -100,6 +101,7 @@ class Tests(unittest.TestCase):
         self.assertEqual(b.count_cols(), 6)
         self.assertTrue('group3' in b.col_key)
 
+    @fails_service_backend()
     def test_nested_fields_work_correctly(self):
         mt = self.get_groupable_matrix()
         a = mt.group_rows_by(mt['group2']['a']).aggregate(c=hl.agg.sum(mt['c']))
@@ -110,6 +112,7 @@ class Tests(unittest.TestCase):
         self.assertEqual(b.count_cols(), 6)
         self.assertTrue('a' in b.col_key)
 
+    @fails_service_backend()
     def test_named_fields_work_correctly(self):
         mt = self.get_groupable_matrix()
         a = mt.group_rows_by(group5=(mt['group2']['a'] + 1)).aggregate(c=hl.agg.sum(mt['c']))
@@ -120,6 +123,7 @@ class Tests(unittest.TestCase):
         self.assertEqual(b.count_cols(), 6)
         self.assertTrue('group5' in b.col_key)
 
+    @fails_service_backend()
     def test_joins_work_correctly(self):
         mt, mt2 = self.get_groupable_matrix2()
 
@@ -163,6 +167,7 @@ class Tests(unittest.TestCase):
 
         self.assertTrue(row_result.entries()._same(row_expected))
 
+    @fails_service_backend()
     def test_group_rows_by_aggregate(self):
         mt, mt2 = self.get_groupable_matrix2()
 
@@ -192,6 +197,7 @@ class Tests(unittest.TestCase):
 
         self.assertTrue(row_result.entries()._same(row_expected))
 
+    @fails_service_backend()
     def test_group_cols_by_aggregate(self):
         mt, mt2 = self.get_groupable_matrix2()
 

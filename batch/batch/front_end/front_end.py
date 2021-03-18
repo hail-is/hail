@@ -11,12 +11,10 @@ import asyncio
 import aiohttp
 from aiohttp import web
 import aiohttp_session
-import prometheus_client as pc
 import pymysql
-from prometheus_async.aio import time as prom_async_time
-from prometheus_async.aio.web import server_stats
 import google.oauth2.service_account
 import google.api_core.exceptions
+from prometheus_async.aio.web import server_stats  # type: ignore
 from hailtop.utils import (time_msecs, time_msecs_str, humanize_timedelta_msecs,
                            request_retry_transient_errors, run_if_changed,
                            retry_long_running, LoggingTimer, cost_str)
@@ -31,69 +29,31 @@ from gear import (Database, setup_aiohttp_session,
                   rest_authenticated_users_only,
                   web_authenticated_users_only,
                   web_authenticated_developers_only,
-                  check_csrf_token, transaction)
+                  check_csrf_token, transaction,
+                  monitor_endpoint)
 from web_common import (setup_aiohttp_jinja2, setup_common_static_routes,
                         render_template, set_message)
 
 # import uvloop
 
-from ..utils import (adjust_cores_for_memory_request, worker_memory_per_core_mib,
-                     cost_from_msec_mcpu, adjust_cores_for_packability, coalesce,
-                     adjust_cores_for_storage_request, total_worker_storage_gib,
-                     query_billing_projects)
+from ..utils import cost_from_msec_mcpu, coalesce, query_billing_projects
 from ..batch import batch_record_to_dict, job_record_to_dict, cancel_batch_in_db
 from ..exceptions import (BatchUserError, NonExistentBillingProjectError,
                           ClosedBillingProjectError, InvalidBillingLimitError,
                           BatchOperationAlreadyCompletedError)
+from ..inst_coll_config import InstanceCollectionConfigs
 from ..log_store import LogStore
 from ..database import CallError, check_call_procedure
 from ..batch_configuration import (BATCH_BUCKET_NAME, DEFAULT_NAMESPACE)
-from ..globals import HTTP_CLIENT_MAX_SIZE, BATCH_FORMAT_VERSION
+from ..globals import HTTP_CLIENT_MAX_SIZE, BATCH_FORMAT_VERSION, valid_machine_types
 from ..spec_writer import SpecWriter
 from ..batch_format_version import BatchFormatVersion
 
-from .pool_selector import PoolSelector
 from .validate import ValidationError, validate_batch, validate_and_clean_jobs
 
 # uvloop.install()
 
 log = logging.getLogger('batch.front_end')
-
-REQUEST_TIME = pc.Summary('batch_request_latency_seconds', 'Batch request latency in seconds', ['endpoint', 'verb'])
-REQUEST_TIME_GET_JOBS = REQUEST_TIME.labels(endpoint='/api/v1alpha/batches/batch_id/jobs', verb="GET")
-REQUEST_TIME_GET_JOB = REQUEST_TIME.labels(endpoint='/api/v1alpha/batches/batch_id/jobs/job_id', verb="GET")
-REQUEST_TIME_GET_JOB_LOG = REQUEST_TIME.labels(endpoint='/api/v1alpha/batches/batch_id/jobs/job_id/log', verb="GET")
-REQUEST_TIME_GET_ATTEMPTS = REQUEST_TIME.labels(endpoint='/api/v1alpha/batches/batch_id/jobs/job_id/attempts', verb="GET")
-REQUEST_TIME_GET_BATCHES = REQUEST_TIME.labels(endpoint='/api/v1alpha/batches', verb="GET")
-REQUEST_TIME_POST_CREATE_JOBS = REQUEST_TIME.labels(endpoint='/api/v1alpha/batches/batch_id/jobs/create', verb="POST")
-REQUEST_TIME_POST_CREATE_BATCH = REQUEST_TIME.labels(endpoint='/api/v1alpha/batches/create', verb='POST')
-REQUEST_TIME_POST_GET_BATCH = REQUEST_TIME.labels(endpoint='/api/v1alpha/batches/batch_id', verb='GET')
-REQUEST_TIME_PATCH_CANCEL_BATCH = REQUEST_TIME.labels(endpoint='/api/v1alpha/batches/batch_id/cancel', verb="PATCH")
-REQUEST_TIME_PATCH_CLOSE_BATCH = REQUEST_TIME.labels(endpoint='/api/v1alpha/batches/batch_id/close', verb="PATCH")
-REQUEST_TIME_DELETE_BATCH = REQUEST_TIME.labels(endpoint='/api/v1alpha/batches/batch_id', verb="DELETE")
-REQUEST_TIME_GET_BATCH_UI = REQUEST_TIME.labels(endpoint='/batches/batch_id', verb='GET')
-REQUEST_TIME_POST_CANCEL_BATCH_UI = REQUEST_TIME.labels(endpoint='/batches/batch_id/cancel', verb='POST')
-REQUEST_TIME_POST_DELETE_BATCH_UI = REQUEST_TIME.labels(endpoint='/batches/batch_id/delete', verb='POST')
-REQUEST_TIME_GET_BATCHES_UI = REQUEST_TIME.labels(endpoint='/batches', verb='GET')
-REQUEST_TIME_GET_JOB_UI = REQUEST_TIME.labels(endpoint='/batches/batch_id/jobs/job_id', verb="GET")
-REQUEST_TIME_GET_BILLING_PROJECTS = REQUEST_TIME.labels(endpoint='/api/v1alpha/billing_projects', verb="GET")
-REQUEST_TIME_GET_BILLING_PROJECT = REQUEST_TIME.labels(endpoint='/api/v1alpha/billing_projects/billing_project', verb="GET")
-REQUEST_TIME_GET_BILLING_LIMITS_UI = REQUEST_TIME.labels(endpoint='/billing_limits', verb="GET")
-REQUEST_TIME_POST_BILLING_LIMITS_EDIT_UI = REQUEST_TIME.labels(endpoint='/billing_projects/billing_project/edit', verb="POST")
-REQUEST_TIME_POST_BILLING_LIMITS_EDIT = REQUEST_TIME.labels(endpoint='/api/v1alpha/billing_projects/billing_project/edit', verb="POST")
-REQUEST_TIME_GET_BILLING_UI = REQUEST_TIME.labels(endpoint='/billing', verb="GET")
-REQUEST_TIME_GET_BILLING_PROJECTS_UI = REQUEST_TIME.labels(endpoint='/billing_projects', verb="GET")
-REQUEST_TIME_POST_BILLING_PROJECT_REMOVE_USER_UI = REQUEST_TIME.labels(endpoint='/billing_projects/billing_project/users/user/remove', verb="POST")
-REQUEST_TIME_POST_BILLING_PROJECT_REMOVE_USER_API = REQUEST_TIME.labels(endpoint='/api/v1alpha/billing_projects/billing_project/users/{user}/remove', verb="POST")
-REQUEST_TIME_POST_BILLING_PROJECT_ADD_USER_UI = REQUEST_TIME.labels(endpoint='/billing_projects/billing_project/users/add', verb="POST")
-REQUEST_TIME_POST_BILLING_PROJECT_ADD_USER_API = REQUEST_TIME.labels(endpoint='/api/v1alpha/billing_projects/{billing_project}/users/{user}/add', verb="POST")
-REQUEST_TIME_POST_CREATE_BILLING_PROJECT_UI = REQUEST_TIME.labels(endpoint='/billing_projects/create', verb="POST")
-REQUEST_TIME_POST_CREATE_BILLING_PROJECT_API = REQUEST_TIME.labels(endpoint='/api/v1alpha/billing_projects/{billing_project}/create', verb="POST")
-REQUEST_TIME_POST_CLOSE_BILLING_PROJECT_UI = REQUEST_TIME.labels(endpoint='/billing_projects/{billing_project}/close', verb="POST")
-REQUEST_TIME_POST_CLOSE_BILLING_PROJECT_API = REQUEST_TIME.labels(endpoint='/api/v1alpha/billing_projects/{billing_project}/close', verb="POST")
-REQUEST_TIME_POST_REOPEN_BILLING_PROJECT_UI = REQUEST_TIME.labels(endpoint='/billing_projects/{billing_project}/reopen', verb="POST")
-REQUEST_TIME_POST_REOPEN_BILLING_PROJECT_API = REQUEST_TIME.labels(endpoint='/api/v1alpha/billing_projects/{billing_project}/reopen', verb="POST")
-REQUEST_TIME_POST_DELETE_BILLING_PROJECT_API = REQUEST_TIME.labels(endpoint='/api/v1alpha/billing_projects/{billing_project}/reopen', verb="POST")
 
 routes = web.RouteTableDef()
 
@@ -103,6 +63,7 @@ BATCH_JOB_DEFAULT_CPU = os.environ.get('HAIL_BATCH_JOB_DEFAULT_CPU', '1')
 BATCH_JOB_DEFAULT_MEMORY = os.environ.get('HAIL_BATCH_JOB_DEFAULT_MEMORY', '3.75Gi')
 BATCH_JOB_DEFAULT_STORAGE = os.environ.get('HAIL_BATCH_JOB_DEFAULT_STORAGE', '10Gi')
 BATCH_JOB_DEFAULT_WORKER_TYPE = os.environ.get('HAIL_BATCH_JOB_DEFAULT_WORKER_TYPE', 'standard')
+BATCH_JOB_DEFAULT_PREEMPTIBLE = True
 
 
 def rest_authenticated_developers_or_auth_only(fun):
@@ -113,6 +74,49 @@ def rest_authenticated_developers_or_auth_only(fun):
             return await fun(request, userdata, *args, **kwargs)
         raise web.HTTPUnauthorized()
     return wrapped
+
+
+async def _user_can_access(db: Database, batch_id: int, user: str):
+    record = await db.select_and_fetchone(
+        '''
+SELECT id
+FROM batches
+LEFT JOIN billing_project_users ON batches.billing_project = billing_project_users.billing_project
+WHERE id = %s AND billing_project_users.`user` = %s;
+''',
+        (batch_id, user))
+
+    return record is not None
+
+
+def rest_billing_project_users_only(fun):
+    @rest_authenticated_users_only
+    @wraps(fun)
+    async def wrapped(request, userdata, *args, **kwargs):
+        db = request.app['db']
+        batch_id = int(request.match_info['batch_id'])
+        user = userdata['username']
+        permitted_user = await _user_can_access(db, batch_id, user)
+        if not permitted_user:
+            raise web.HTTPNotFound()
+        return await fun(request, userdata, batch_id, *args, **kwargs)
+    return wrapped
+
+
+def web_billing_project_users_only(redirect=True):
+    def wrap(fun):
+        @web_authenticated_users_only(redirect)
+        @wraps(fun)
+        async def wrapped(request, userdata, *args, **kwargs):
+            db = request.app['db']
+            batch_id = int(request.match_info['batch_id'])
+            user = userdata['username']
+            permitted_user = await _user_can_access(db, batch_id, user)
+            if not permitted_user:
+                raise web.HTTPNotFound()
+            return await fun(request, userdata, batch_id, *args, **kwargs)
+        return wrapped
+    return wrap
 
 
 @routes.get('/healthcheck')
@@ -150,8 +154,9 @@ async def _query_batch_jobs(request, batch_id):
     state_query_values = {
         'pending': ['Pending'],
         'ready': ['Ready'],
+        'creating': ['Creating'],
         'running': ['Running'],
-        'live': ['Ready', 'Running'],
+        'live': ['Ready', 'Creating', 'Running'],
         'cancelled': ['Cancelled'],
         'error': ['Error'],
         'failed': ['Failed'],
@@ -249,18 +254,15 @@ LIMIT 50;
 
 
 @routes.get('/api/v1alpha/batches/{batch_id}/jobs')
-@prom_async_time(REQUEST_TIME_GET_JOBS)
-@rest_authenticated_users_only
-async def get_jobs(request, userdata):
-    batch_id = int(request.match_info['batch_id'])
-    user = userdata['username']
-
+@monitor_endpoint
+@rest_billing_project_users_only
+async def get_jobs(request, userdata, batch_id):  # pylint: disable=unused-argument
     db = request.app['db']
     record = await db.select_and_fetchone(
         '''
 SELECT * FROM batches
-WHERE user = %s AND id = %s AND NOT deleted;
-''', (user, batch_id))
+WHERE id = %s AND NOT deleted;
+''', (batch_id,))
     if not record:
         raise web.HTTPNotFound()
 
@@ -321,7 +323,7 @@ async def _get_job_log_from_record(app, batch_id, job_id, record):
     return None
 
 
-async def _get_job_log(app, batch_id, job_id, user):
+async def _get_job_log(app, batch_id, job_id):
     db: Database = app['db']
 
     record = await db.select_and_fetchone('''
@@ -333,9 +335,9 @@ LEFT JOIN attempts
   ON jobs.batch_id = attempts.batch_id AND jobs.job_id = attempts.job_id AND jobs.attempt_id = attempts.attempt_id
 LEFT JOIN instances
   ON attempts.instance_name = instances.name
-WHERE user = %s AND jobs.batch_id = %s AND NOT deleted AND jobs.job_id = %s;
+WHERE jobs.batch_id = %s AND NOT deleted AND jobs.job_id = %s;
 ''',
-                                          (user, batch_id, job_id))
+                                          (batch_id, job_id))
     if not record:
         raise web.HTTPNotFound()
     return await _get_job_log_from_record(app, batch_id, job_id, record)
@@ -392,7 +394,7 @@ async def _get_full_job_status(app, record):
     state = record['state']
     format_version = BatchFormatVersion(record['format_version'])
 
-    if state in ('Pending', 'Ready', 'Cancelled'):
+    if state in ('Pending', 'Creating', 'Ready', 'Cancelled'):
         return None
 
     if state in ('Error', 'Failed', 'Success'):
@@ -426,20 +428,18 @@ async def _get_full_job_status(app, record):
 
 
 @routes.get('/api/v1alpha/batches/{batch_id}/jobs/{job_id}/log')
-@prom_async_time(REQUEST_TIME_GET_JOB_LOG)
-@rest_authenticated_users_only
-async def get_job_log(request, userdata):  # pylint: disable=R1710
-    batch_id = int(request.match_info['batch_id'])
+@monitor_endpoint
+@rest_billing_project_users_only
+async def get_job_log(request, userdata, batch_id):  # pylint: disable=unused-argument
     job_id = int(request.match_info['job_id'])
-    user = userdata['username']
-    job_log = await _get_job_log(request.app, batch_id, job_id, user)
+    job_log = await _get_job_log(request.app, batch_id, job_id)
     return web.json_response(job_log)
 
 
-async def _query_batches(request, user):
+async def _query_batches(request, user, q):
     db = request.app['db']
 
-    where_conditions = ['user = %s', 'NOT deleted']
+    where_conditions = ['EXISTS (SELECT * FROM billing_project_users WHERE billing_project_users.`user` = %s AND billing_project_users.billing_project = batches.billing_project)', 'NOT deleted']
     where_args = [user]
 
     last_batch_id = request.query.get('last_batch_id')
@@ -448,7 +448,6 @@ async def _query_batches(request, user):
         where_conditions.append('(id < %s)')
         where_args.append(last_batch_id)
 
-    q = request.query.get('q', '')
     terms = q.split()
     for t in terms:
         if t[0] == '!':
@@ -471,6 +470,18 @@ async def _query_batches(request, user):
 ((batches.id) IN
  (SELECT batch_id FROM batch_attributes
   WHERE `key` = %s))
+'''
+            args = [k]
+        elif t.startswith('user:'):
+            k = t[5:]
+            condition = '''
+(batches.`user` = %s)
+'''
+            args = [k]
+        elif t.startswith('billing_project:'):
+            k = t[16:]
+            condition = '''
+(batches.`billing_project` = %s)
 '''
             args = [k]
         elif t == 'open':
@@ -516,7 +527,7 @@ LEFT JOIN resources
 WHERE {' AND '.join(where_conditions)}
 GROUP BY batches.id
 ORDER BY batches.id DESC
-LIMIT 50;
+LIMIT 51;
 '''
     sql_args = where_args
 
@@ -524,7 +535,8 @@ LIMIT 50;
                async for batch
                in db.select_and_fetchall(sql, sql_args)]
 
-    if len(batches) == 50:
+    if len(batches) == 51:
+        batches.pop()
         last_batch_id = batches[-1]['id']
     else:
         last_batch_id = None
@@ -533,11 +545,12 @@ LIMIT 50;
 
 
 @routes.get('/api/v1alpha/batches')
-@prom_async_time(REQUEST_TIME_GET_BATCHES)
+@monitor_endpoint
 @rest_authenticated_users_only
-async def get_batches(request, userdata):
+async def get_batches(request, userdata):  # pylint: disable=unused-argument
     user = userdata['username']
-    batches, last_batch_id = await _query_batches(request, user)
+    q = request.query.get('q', f'user:{user}')
+    batches, last_batch_id = await _query_batches(request, user, q)
     body = {
         'batches': batches
     }
@@ -560,7 +573,7 @@ def check_service_account_permissions(user, sa):
 
 
 @routes.post('/api/v1alpha/batches/{batch_id}/jobs/create')
-@prom_async_time(REQUEST_TIME_POST_CREATE_JOBS)
+@monitor_endpoint
 @rest_authenticated_users_only
 async def create_jobs(request, userdata):
     app = request.app
@@ -646,14 +659,13 @@ WHERE user = %s AND id = %s AND NOT deleted;
                 if not resources:
                     resources = {}
                     spec['resources'] = resources
+
                 if 'cpu' not in resources:
                     resources['cpu'] = BATCH_JOB_DEFAULT_CPU
                 if 'memory' not in resources:
                     resources['memory'] = BATCH_JOB_DEFAULT_MEMORY
                 if 'storage' not in resources:
                     resources['storage'] = BATCH_JOB_DEFAULT_STORAGE
-                if 'worker_type' not in resources:
-                    resources['worker_type'] = BATCH_JOB_DEFAULT_WORKER_TYPE
 
                 req_cores_mcpu = parse_cpu_in_mcpu(resources['cpu'])
                 req_memory_bytes = parse_memory_in_bytes(resources['memory'])
@@ -664,30 +676,52 @@ WHERE user = %s AND id = %s AND NOT deleted;
                         reason=f'bad resource request for job {id}: '
                         f'cpu cannot be 0')
 
-                worker_type = resources['worker_type']
+                worker_type = resources.get('worker_type')
+                machine_type = resources.get('machine_type')
+                preemptible = resources.get('preemptible')
 
-                pool_selector: PoolSelector = app['pool_selector']
-                pool = pool_selector.select_pool(worker_type=worker_type)
-
-                if not pool:
-                    raise web.HTTPBadRequest(reason=f'unsupported worker type {worker_type}')
-
-                worker_cores = pool.worker_cores
-                worker_local_ssd_data_disk = pool.worker_local_ssd_data_disk
-                worker_pd_ssd_data_disk_size_gb = pool.worker_pd_ssd_data_disk_size_gb
-
-                cores_mcpu = adjust_cores_for_memory_request(req_cores_mcpu, req_memory_bytes, worker_type)
-                cores_mcpu = adjust_cores_for_storage_request(cores_mcpu, req_storage_bytes, worker_cores,
-                                                              worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gb)
-                cores_mcpu = adjust_cores_for_packability(cores_mcpu)
-
-                if cores_mcpu > worker_cores * 1000:
-                    total_memory_available = worker_memory_per_core_mib(worker_type) * worker_cores
-                    total_storage_available = total_worker_storage_gib(worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gb)
+                if worker_type and machine_type:
                     raise web.HTTPBadRequest(
-                        reason=f'resource requests for job {id} with worker_type {worker_type} are unsatisfiable: '
-                        f'requested: cpu={resources["cpu"]}, memory={resources["memory"]} storage={resources["storage"]}'
-                        f'maximum: cpu={worker_cores}, memory={total_memory_available}Mi, storage={total_storage_available}G')
+                        reason='cannot specify both worker_type and machine_type')
+
+                if not machine_type and not worker_type:
+                    worker_type = BATCH_JOB_DEFAULT_WORKER_TYPE
+                    resources['worker_type'] = worker_type
+
+                inst_coll_configs: InstanceCollectionConfigs = app['inst_coll_configs']
+
+                inst_coll_name = None
+                cores_mcpu = None
+
+                if worker_type:
+                    if preemptible is not None:
+                        raise web.HTTPBadRequest(
+                            reason='cannot have preemptible specified with a worker_type')
+
+                    result = inst_coll_configs.select_pool(
+                        worker_type=worker_type,
+                        cores_mcpu=req_cores_mcpu,
+                        memory_bytes=req_memory_bytes,
+                        storage_bytes=req_storage_bytes)
+                    if result:
+                        inst_coll_name, cores_mcpu = result
+                else:
+                    assert machine_type and machine_type in valid_machine_types
+
+                    if 'preemptible' not in resources:
+                        resources['preemptible'] = BATCH_JOB_DEFAULT_PREEMPTIBLE
+
+                    result = inst_coll_configs.select_job_private(
+                        machine_type=machine_type,
+                        storage_bytes=req_storage_bytes)
+                    if result:
+                        inst_coll_name, cores_mcpu, storage_gib = result
+                        resources['storage_gib'] = storage_gib
+
+                if inst_coll_name is None:
+                    raise web.HTTPBadRequest(
+                        reason=f'resource requests for job {id} are unsatisfiable: '
+                        f'requested: cpu={resources["cpu"]}, memory={resources["memory"]}, storage={resources["storage"]}')
 
                 secrets = spec.get('secrets')
                 if not secrets:
@@ -742,7 +776,7 @@ WHERE user = %s AND id = %s AND NOT deleted;
                 sa = spec.get('service_account')
                 check_service_account_permissions(user, sa)
 
-                icr = inst_coll_resources[pool.name]
+                icr = inst_coll_resources[inst_coll_name]
                 icr['n_jobs'] += 1
                 if len(parent_ids) == 0:
                     state = 'Ready'
@@ -763,7 +797,7 @@ WHERE user = %s AND id = %s AND NOT deleted;
 
                 jobs_args.append(
                     (batch_id, job_id, state, json.dumps(db_spec),
-                     always_run, cores_mcpu, len(parent_ids), pool.name))
+                     always_run, cores_mcpu, len(parent_ids), inst_coll_name))
 
                 for parent_id in parent_ids:
                     job_parents_args.append(
@@ -861,7 +895,7 @@ VALUES (%s, %s, %s);
 
 
 @routes.post('/api/v1alpha/batches/create')
-@prom_async_time(REQUEST_TIME_POST_CREATE_BATCH)
+@monitor_endpoint
 @rest_authenticated_users_only
 async def create_batch(request, userdata):
     app = request.app
@@ -938,7 +972,7 @@ VALUES (%s, %s, %s)
     return web.json_response({'id': id})
 
 
-async def _get_batch(app, batch_id, user):
+async def _get_batch(app, batch_id):
     db: Database = app['db']
 
     record = await db.select_and_fetchone('''
@@ -947,32 +981,30 @@ LEFT JOIN aggregated_batch_resources
        ON batches.id = aggregated_batch_resources.batch_id
 LEFT JOIN resources
        ON aggregated_batch_resources.resource = resources.resource
-WHERE user = %s AND id = %s AND NOT deleted
+WHERE id = %s AND NOT deleted
 GROUP BY batches.id;
-''', (user, batch_id))
+''', (batch_id))
     if not record:
         raise web.HTTPNotFound()
 
     return batch_record_to_dict(record)
 
 
-async def _cancel_batch(app, batch_id, user):
-    await cancel_batch_in_db(app['db'], batch_id, user)
-
+async def _cancel_batch(app, batch_id):
+    await cancel_batch_in_db(app['db'], batch_id)
     app['cancel_batch_state_changed'].set()
-
     return web.Response()
 
 
-async def _delete_batch(app, batch_id, user):
+async def _delete_batch(app, batch_id):
     db: Database = app['db']
 
     record = await db.select_and_fetchone(
         '''
 SELECT `state` FROM batches
-WHERE user = %s AND id = %s AND NOT deleted;
+WHERE id = %s AND NOT deleted;
 ''',
-        (user, batch_id))
+        (batch_id,))
     if not record:
         raise web.HTTPNotFound()
 
@@ -986,26 +1018,22 @@ WHERE user = %s AND id = %s AND NOT deleted;
 
 
 @routes.get('/api/v1alpha/batches/{batch_id}')
-@prom_async_time(REQUEST_TIME_POST_GET_BATCH)
-@rest_authenticated_users_only
-async def get_batch(request, userdata):
-    batch_id = int(request.match_info['batch_id'])
-    user = userdata['username']
-    return web.json_response(await _get_batch(request.app, batch_id, user))
+@monitor_endpoint
+@rest_billing_project_users_only
+async def get_batch(request, userdata, batch_id):  # pylint: disable=unused-argument
+    return web.json_response(await _get_batch(request.app, batch_id))
 
 
 @routes.patch('/api/v1alpha/batches/{batch_id}/cancel')
-@prom_async_time(REQUEST_TIME_PATCH_CANCEL_BATCH)
-@rest_authenticated_users_only
-async def cancel_batch(request, userdata):
-    batch_id = int(request.match_info['batch_id'])
-    user = userdata['username']
-    await _handle_api_error(_cancel_batch, request.app, batch_id, user)
+@monitor_endpoint
+@rest_billing_project_users_only
+async def cancel_batch(request, userdata, batch_id):  # pylint: disable=unused-argument
+    await _handle_api_error(_cancel_batch, request.app, batch_id)
     return web.Response()
 
 
 @routes.patch('/api/v1alpha/batches/{batch_id}/close')
-@prom_async_time(REQUEST_TIME_PATCH_CLOSE_BATCH)
+@monitor_endpoint
 @rest_authenticated_users_only
 async def close_batch(request, userdata):
     batch_id = int(request.match_info['batch_id'])
@@ -1046,24 +1074,19 @@ WHERE user = %s AND id = %s AND NOT deleted;
 
 
 @routes.delete('/api/v1alpha/batches/{batch_id}')
-@prom_async_time(REQUEST_TIME_DELETE_BATCH)
-@rest_authenticated_users_only
-async def delete_batch(request, userdata):
-    batch_id = int(request.match_info['batch_id'])
-    user = userdata['username']
-    await _delete_batch(request.app, batch_id, user)
+@monitor_endpoint
+@rest_billing_project_users_only
+async def delete_batch(request, userdata, batch_id):  # pylint: disable=unused-argument
+    await _delete_batch(request.app, batch_id)
     return web.Response()
 
 
 @routes.get('/batches/{batch_id}')
-@prom_async_time(REQUEST_TIME_GET_BATCH_UI)
-@web_authenticated_users_only()
-async def ui_batch(request, userdata):
+@monitor_endpoint
+@web_billing_project_users_only()
+async def ui_batch(request, userdata, batch_id):
     app = request.app
-    batch_id = int(request.match_info['batch_id'])
-    user = userdata['username']
-
-    batch = await _get_batch(app, batch_id, user)
+    batch = await _get_batch(app, batch_id)
 
     jobs, last_job_id = await _query_batch_jobs(request, batch_id)
     for j in jobs:
@@ -1082,14 +1105,12 @@ async def ui_batch(request, userdata):
 
 
 @routes.post('/batches/{batch_id}/cancel')
-@prom_async_time(REQUEST_TIME_POST_CANCEL_BATCH_UI)
+@monitor_endpoint
 @check_csrf_token
-@web_authenticated_users_only(redirect=False)
-async def ui_cancel_batch(request, userdata):
-    batch_id = int(request.match_info['batch_id'])
-    user = userdata['username']
+@web_billing_project_users_only(redirect=False)
+async def ui_cancel_batch(request, userdata, batch_id):  # pylint: disable=unused-argument
     session = await aiohttp_session.get_session(request)
-    errored = await _handle_ui_error(session, _cancel_batch, request.app, batch_id, user)
+    errored = await _handle_ui_error(session, _cancel_batch, request.app, batch_id)
     if not errored:
         set_message(session, f'Batch {batch_id} cancelled.', 'info')
     location = request.app.router['batches'].url_for()
@@ -1097,13 +1118,11 @@ async def ui_cancel_batch(request, userdata):
 
 
 @routes.post('/batches/{batch_id}/delete')
-@prom_async_time(REQUEST_TIME_POST_DELETE_BATCH_UI)
+@monitor_endpoint
 @check_csrf_token
-@web_authenticated_users_only(redirect=False)
-async def ui_delete_batch(request, userdata):
-    batch_id = int(request.match_info['batch_id'])
-    user = userdata['username']
-    await _delete_batch(request.app, batch_id, user)
+@web_billing_project_users_only(redirect=False)
+async def ui_delete_batch(request, userdata, batch_id):  # pylint: disable=unused-argument
+    await _delete_batch(request.app, batch_id)
     session = await aiohttp_session.get_session(request)
     set_message(session, f'Batch {batch_id} deleted.', 'info')
     location = request.app.router['batches'].url_for()
@@ -1111,22 +1130,23 @@ async def ui_delete_batch(request, userdata):
 
 
 @routes.get('/batches', name='batches')
-@prom_async_time(REQUEST_TIME_GET_BATCHES_UI)
+@monitor_endpoint
 @web_authenticated_users_only()
 async def ui_batches(request, userdata):
     user = userdata['username']
-    batches, last_batch_id = await _query_batches(request, user)
+    q = request.query.get('q', f'user:{user}')
+    batches, last_batch_id = await _query_batches(request, user, q)
     for batch in batches:
         batch['cost'] = cost_str(batch['cost'])
     page_context = {
         'batches': batches,
-        'q': request.query.get('q'),
+        'q': q,
         'last_batch_id': last_batch_id
     }
     return await render_template('batch', request, userdata, 'batches.html', page_context)
 
 
-async def _get_job(app, batch_id, job_id, user):
+async def _get_job(app, batch_id, job_id):
     db: Database = app['db']
 
     record = await db.select_and_fetchone('''
@@ -1143,10 +1163,10 @@ LEFT JOIN aggregated_job_resources
      jobs.job_id = aggregated_job_resources.job_id
 LEFT JOIN resources
   ON aggregated_job_resources.resource = resources.resource
-WHERE user = %s AND jobs.batch_id = %s AND NOT deleted AND jobs.job_id = %s
+WHERE jobs.batch_id = %s AND NOT deleted AND jobs.job_id = %s
 GROUP BY jobs.batch_id, jobs.job_id;
 ''',
-                                          (user, batch_id, job_id))
+                                          (batch_id, job_id))
     if not record:
         raise web.HTTPNotFound()
 
@@ -1164,7 +1184,7 @@ GROUP BY jobs.batch_id, jobs.job_id;
     return job
 
 
-async def _get_attempts(app, batch_id, job_id, user):
+async def _get_attempts(app, batch_id, job_id):
     db: Database = app['db']
 
     attempts = db.select_and_fetchall('''
@@ -1172,9 +1192,9 @@ SELECT attempts.*
 FROM jobs
 INNER JOIN batches ON jobs.batch_id = batches.id
 LEFT JOIN attempts ON jobs.batch_id = attempts.batch_id and jobs.job_id = attempts.job_id
-WHERE user = %s AND jobs.batch_id = %s AND NOT deleted AND jobs.job_id = %s;
+WHERE jobs.batch_id = %s AND NOT deleted AND jobs.job_id = %s;
 ''',
-                                      (user, batch_id, job_id))
+                                      (batch_id, job_id))
 
     attempts = [attempt async for attempt in attempts]
     if len(attempts) == 0:
@@ -1208,41 +1228,33 @@ WHERE user = %s AND jobs.batch_id = %s AND NOT deleted AND jobs.job_id = %s;
 
 
 @routes.get('/api/v1alpha/batches/{batch_id}/jobs/{job_id}/attempts')
-@prom_async_time(REQUEST_TIME_GET_ATTEMPTS)
-@rest_authenticated_users_only
-async def get_attempts(request, userdata):
-    batch_id = int(request.match_info['batch_id'])
+@monitor_endpoint
+@rest_billing_project_users_only
+async def get_attempts(request, userdata, batch_id):  # pylint: disable=unused-argument
     job_id = int(request.match_info['job_id'])
-    user = userdata['username']
-
-    attempts = await _get_attempts(request.app, batch_id, job_id, user)
+    attempts = await _get_attempts(request.app, batch_id, job_id)
     return web.json_response(attempts)
 
 
 @routes.get('/api/v1alpha/batches/{batch_id}/jobs/{job_id}')
-@prom_async_time(REQUEST_TIME_GET_JOB)
-@rest_authenticated_users_only
-async def get_job(request, userdata):
-    batch_id = int(request.match_info['batch_id'])
+@monitor_endpoint
+@rest_billing_project_users_only
+async def get_job(request, userdata, batch_id):  # pylint: disable=unused-argument
     job_id = int(request.match_info['job_id'])
-    user = userdata['username']
-
-    status = await _get_job(request.app, batch_id, job_id, user)
+    status = await _get_job(request.app, batch_id, job_id)
     return web.json_response(status)
 
 
 @routes.get('/batches/{batch_id}/jobs/{job_id}')
-@prom_async_time(REQUEST_TIME_GET_JOB_UI)
-@web_authenticated_users_only()
-async def ui_get_job(request, userdata):
+@monitor_endpoint
+@web_billing_project_users_only()
+async def ui_get_job(request, userdata, batch_id):
     app = request.app
-    batch_id = int(request.match_info['batch_id'])
     job_id = int(request.match_info['job_id'])
-    user = userdata['username']
 
-    job_status, attempts, job_log = await asyncio.gather(_get_job(app, batch_id, job_id, user),
-                                                         _get_attempts(app, batch_id, job_id, user),
-                                                         _get_job_log(app, batch_id, job_id, user))
+    job_status, attempts, job_log = await asyncio.gather(_get_job(app, batch_id, job_id),
+                                                         _get_attempts(app, batch_id, job_id),
+                                                         _get_job_log(app, batch_id, job_id))
 
     job_status_status = job_status['status']
     container_status_spec = dictfix.NoneOr({
@@ -1287,7 +1299,7 @@ async def ui_get_job(request, userdata):
 
 
 @routes.get('/billing_limits')
-@prom_async_time(REQUEST_TIME_GET_BILLING_LIMITS_UI)
+@monitor_endpoint
 @web_authenticated_users_only()
 async def ui_get_billing_limits(request, userdata):
     app = request.app
@@ -1348,7 +1360,7 @@ UPDATE billing_projects SET `limit` = %s WHERE name = %s;
 
 
 @routes.post('/api/v1alpha/billing_limits/{billing_project}/edit')
-@prom_async_time(REQUEST_TIME_POST_BILLING_LIMITS_EDIT)
+@monitor_endpoint
 @rest_authenticated_developers_or_auth_only
 async def post_edit_billing_limits(request, userdata):  # pylint: disable=unused-argument
     db: Database = request.app['db']
@@ -1360,7 +1372,7 @@ async def post_edit_billing_limits(request, userdata):  # pylint: disable=unused
 
 
 @routes.post('/billing_limits/{billing_project}/edit')
-@prom_async_time(REQUEST_TIME_POST_BILLING_LIMITS_EDIT_UI)
+@monitor_endpoint
 @check_csrf_token
 @web_authenticated_developers_only(redirect=False)
 async def post_edit_billing_limits_ui(request, userdata):  # pylint: disable=unused-argument
@@ -1444,7 +1456,7 @@ GROUP BY billing_project, `user`;
 
 
 @routes.get('/billing')
-@prom_async_time(REQUEST_TIME_GET_BILLING_UI)
+@monitor_endpoint
 @web_authenticated_developers_only()
 async def ui_get_billing(request, userdata):
     billing, start, end = await _query_billing(request)
@@ -1485,7 +1497,7 @@ async def ui_get_billing(request, userdata):
 
 
 @routes.get('/billing_projects')
-@prom_async_time(REQUEST_TIME_GET_BILLING_PROJECTS_UI)
+@monitor_endpoint
 @web_authenticated_developers_only()
 async def ui_get_billing_projects(request, userdata):
     db: Database = request.app['db']
@@ -1498,7 +1510,7 @@ async def ui_get_billing_projects(request, userdata):
 
 
 @routes.get('/api/v1alpha/billing_projects')
-@prom_async_time(REQUEST_TIME_GET_BILLING_PROJECTS)
+@monitor_endpoint
 @rest_authenticated_users_only
 async def get_billing_projects(request, userdata):
     db: Database = request.app['db']
@@ -1514,7 +1526,7 @@ async def get_billing_projects(request, userdata):
 
 
 @routes.get('/api/v1alpha/billing_projects/{billing_project}')
-@prom_async_time(REQUEST_TIME_GET_BILLING_PROJECT)
+@monitor_endpoint
 @rest_authenticated_users_only
 async def get_billing_project(request, userdata):
     db: Database = request.app['db']
@@ -1568,7 +1580,7 @@ WHERE billing_project = %s AND user = %s;
 
 
 @routes.post('/billing_projects/{billing_project}/users/{user}/remove')
-@prom_async_time(REQUEST_TIME_POST_BILLING_PROJECT_REMOVE_USER_UI)
+@monitor_endpoint
 @check_csrf_token
 @web_authenticated_developers_only(redirect=False)
 async def post_billing_projects_remove_user(request, userdata):  # pylint: disable=unused-argument
@@ -1584,7 +1596,7 @@ async def post_billing_projects_remove_user(request, userdata):  # pylint: disab
 
 
 @routes.post('/api/v1alpha/billing_projects/{billing_project}/users/{user}/remove')
-@prom_async_time(REQUEST_TIME_POST_BILLING_PROJECT_REMOVE_USER_API)
+@monitor_endpoint
 @rest_authenticated_developers_or_auth_only
 async def api_get_billing_projects_remove_user(request, userdata):  # pylint: disable=unused-argument
     db: Database = request.app['db']
@@ -1627,7 +1639,7 @@ VALUES (%s, %s);
 
 
 @routes.post('/billing_projects/{billing_project}/users/add')
-@prom_async_time(REQUEST_TIME_POST_BILLING_PROJECT_ADD_USER_UI)
+@monitor_endpoint
 @check_csrf_token
 @web_authenticated_developers_only(redirect=False)
 async def post_billing_projects_add_user(request, userdata):  # pylint: disable=unused-argument
@@ -1645,7 +1657,7 @@ async def post_billing_projects_add_user(request, userdata):  # pylint: disable=
 
 
 @routes.post('/api/v1alpha/billing_projects/{billing_project}/users/{user}/add')
-@prom_async_time(REQUEST_TIME_POST_BILLING_PROJECT_ADD_USER_API)
+@monitor_endpoint
 @rest_authenticated_developers_or_auth_only
 async def api_billing_projects_add_user(request, userdata):  # pylint: disable=unused-argument
     db: Database = request.app['db']
@@ -1679,7 +1691,7 @@ VALUES (%s);
 
 
 @routes.post('/billing_projects/create')
-@prom_async_time(REQUEST_TIME_POST_CREATE_BILLING_PROJECT_UI)
+@monitor_endpoint
 @check_csrf_token
 @web_authenticated_developers_only(redirect=False)
 async def post_create_billing_projects(request, userdata):  # pylint: disable=unused-argument
@@ -1688,7 +1700,7 @@ async def post_create_billing_projects(request, userdata):  # pylint: disable=un
     billing_project = post['billing_project']
 
     session = await aiohttp_session.get_session(request)
-    errored = await _handle_ui_error(session, _close_billing_project, db, billing_project)
+    errored = await _handle_ui_error(session, _create_billing_project, db, billing_project)
     if not errored:
         set_message(session, f'Added billing project {billing_project}.', 'info')
 
@@ -1696,7 +1708,7 @@ async def post_create_billing_projects(request, userdata):  # pylint: disable=un
 
 
 @routes.post('/api/v1alpha/billing_projects/{billing_project}/create')
-@prom_async_time(REQUEST_TIME_POST_CREATE_BILLING_PROJECT_API)
+@monitor_endpoint
 @rest_authenticated_developers_or_auth_only
 async def api_get_create_billing_projects(request, userdata):  # pylint: disable=unused-argument
     db: Database = request.app['db']
@@ -1733,7 +1745,7 @@ WHERE name = %s LIMIT 1 FOR UPDATE;
 
 
 @routes.post('/billing_projects/{billing_project}/close')
-@prom_async_time(REQUEST_TIME_POST_CLOSE_BILLING_PROJECT_UI)
+@monitor_endpoint
 @check_csrf_token
 @web_authenticated_developers_only(redirect=False)
 async def post_close_billing_projects(request, userdata):  # pylint: disable=unused-argument
@@ -1748,7 +1760,7 @@ async def post_close_billing_projects(request, userdata):  # pylint: disable=unu
 
 
 @routes.post('/api/v1alpha/billing_projects/{billing_project}/close')
-@prom_async_time(REQUEST_TIME_POST_CLOSE_BILLING_PROJECT_API)
+@monitor_endpoint
 @rest_authenticated_developers_or_auth_only
 async def api_close_billing_projects(request, userdata):  # pylint: disable=unused-argument
     db: Database = request.app['db']
@@ -1779,7 +1791,7 @@ async def _reopen_billing_project(db, billing_project):
 
 
 @routes.post('/billing_projects/{billing_project}/reopen')
-@prom_async_time(REQUEST_TIME_POST_REOPEN_BILLING_PROJECT_UI)
+@monitor_endpoint
 @check_csrf_token
 @web_authenticated_developers_only(redirect=False)
 async def post_reopen_billing_projects(request, userdata):  # pylint: disable=unused-argument
@@ -1794,7 +1806,7 @@ async def post_reopen_billing_projects(request, userdata):  # pylint: disable=un
 
 
 @routes.post('/api/v1alpha/billing_projects/{billing_project}/reopen')
-@prom_async_time(REQUEST_TIME_POST_REOPEN_BILLING_PROJECT_API)
+@monitor_endpoint
 @rest_authenticated_developers_or_auth_only
 async def api_reopen_billing_projects(request, userdata):  # pylint: disable=unused-argument
     db: Database = request.app['db']
@@ -1824,7 +1836,7 @@ async def _delete_billing_project(db, billing_project):
 
 
 @routes.post('/api/v1alpha/billing_projects/{billing_project}/delete')
-@prom_async_time(REQUEST_TIME_POST_DELETE_BILLING_PROJECT_API)
+@monitor_endpoint
 @rest_authenticated_developers_or_auth_only
 async def api_delete_billing_projects(request, userdata):  # pylint: disable=unused-argument
     db: Database = request.app['db']
@@ -1892,6 +1904,10 @@ SELECT instance_id, internal_token, n_tokens FROM globals;
         '/gsa-key/key.json')
     app['log_store'] = LogStore(BATCH_BUCKET_NAME, instance_id, pool, credentials=credentials)
 
+    inst_coll_configs = InstanceCollectionConfigs(app)
+    app['inst_coll_configs'] = inst_coll_configs
+    await inst_coll_configs.async_init()
+
     cancel_batch_state_changed = asyncio.Event()
     app['cancel_batch_state_changed'] = cancel_batch_state_changed
 
@@ -1905,10 +1921,6 @@ SELECT instance_id, internal_token, n_tokens FROM globals;
     app['task_manager'].ensure_future(retry_long_running(
         'delete_batch_loop',
         run_if_changed, delete_batch_state_changed, delete_batch_loop_body, app))
-
-    pool_selector = PoolSelector(app)
-    app['pool_selector'] = pool_selector
-    await pool_selector.async_init()
 
 
 async def on_cleanup(app):

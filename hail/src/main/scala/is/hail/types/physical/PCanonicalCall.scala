@@ -1,7 +1,8 @@
 package is.hail.types.physical
 
-import is.hail.annotations.{Annotation, CodeOrdering, Region, UnsafeOrdering}
+import is.hail.annotations.{Annotation, Region, UnsafeOrdering}
 import is.hail.asm4s._
+import is.hail.expr.ir.orderings.CodeOrdering
 import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder}
 import is.hail.types.physical.stypes.SCode
 import is.hail.types.physical.stypes.concrete.{SCanonicalCall, SCanonicalCallCode}
@@ -17,14 +18,8 @@ final case class PCanonicalCall(required: Boolean = false) extends PCall {
 
   def byteSize: Long = representation.byteSize
   override def alignment: Long = representation.alignment
-  override lazy val fundamentalType: PInt32 = representation
 
   override def unsafeOrdering(): UnsafeOrdering = representation.unsafeOrdering() // this was a terrible idea
-
-  def codeOrdering(mb: EmitMethodBuilder[_], other: PType): CodeOrdering = {
-    assert(other isOfType this)
-    PInt32().codeOrdering(mb)
-  }
 
   def setRequired(required: Boolean) = if (required == this.required) this else PCanonicalCall(required)
 
@@ -35,13 +30,11 @@ final case class PCanonicalCall(required: Boolean = false) extends PCall {
     }
   }
 
-  override def encodableType: PType = representation.encodableType
-
   override def containsPointers: Boolean = representation.containsPointers
 
   def _copyFromAddress(region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Long = {
     srcPType match {
-      case pt: PCanonicalLocus => representation._copyFromAddress(region, pt.representation, srcAddress, deepCopy)
+      case pt: PCanonicalCall => representation._copyFromAddress(region, pt.representation, srcAddress, deepCopy)
     }
   }
 

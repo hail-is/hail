@@ -6,44 +6,44 @@
 <h2>Attempts</h2>
 {% if attempts %}
 <table class="data-table">
-    <thead>
+  <thead>
     <tr>
-        <th>Attempt ID</th>
-        <th>Instance</th>
-        <th>Start</th>
-        <th>End</th>
-        <th>Duration</th>
-        <th>Reason</th>
+      <th>Attempt ID</th>
+      <th>Instance</th>
+      <th>Start</th>
+      <th>End</th>
+      <th>Duration</th>
+      <th>Reason</th>
     </tr>
-    </thead>
-    <tbody>
+  </thead>
+  <tbody>
     {% for attempt in attempts %}
     <tr>
-        <td class="numeric-cell">{{ attempt['attempt_id'] }}</td>
-        <td>{{ attempt['instance_name'] }}</td>
-        <td>
-            {% if 'start_time' in attempt and attempt['start_time'] is not none %}
-            {{ attempt['start_time'] }}
-            {% endif %}
-        </td>
-        <td>
-            {% if 'end_time' in attempt and attempt['end_time'] is not none %}
-            {{ attempt['end_time'] }}
-            {% endif %}
-        </td>
-        <td>
-            {% if 'duration' in attempt and attempt['duration'] is not none %}
-            {{ attempt['duration'] }}
-            {% endif %}
-        </td>
-        <td>
-            {% if 'reason' in attempt and attempt['reason'] is not none %}
-            {{ attempt['reason'] }}
-            {% endif %}
-        </td>
+      <td class="numeric-cell">{{ attempt['attempt_id'] }}</td>
+      <td>{{ attempt['instance_name'] }}</td>
+      <td>
+        {% if 'start_time' in attempt and attempt['start_time'] is not none %}
+        {{ attempt['start_time'] }}
+        {% endif %}
+      </td>
+      <td>
+        {% if 'end_time' in attempt and attempt['end_time'] is not none %}
+        {{ attempt['end_time'] }}
+        {% endif %}
+      </td>
+      <td>
+        {% if 'duration' in attempt and attempt['duration'] is not none %}
+        {{ attempt['duration'] }}
+        {% endif %}
+      </td>
+      <td>
+        {% if 'reason' in attempt and attempt['reason'] is not none %}
+        {{ attempt['reason'] }}
+        {% endif %}
+      </td>
     </tr>
     {% endfor %}
-    </tbody>
+  </tbody>
 </table>
 {% else %}
 <p>No attempts</p>
@@ -53,21 +53,22 @@
 <h2>Log</h2>
 
 {% if 'input' in job_log %}
-<h3 class="stacked-header">Input</h2>
-    <pre>{{ job_log['input'] }}</pre>
-    {% endif %}
+<h3 class="stacked-header">Input</h3>
+<pre>{{ job_log['input'] }}</pre>
+{% endif %}
 
-    {% if 'main' in job_log %}
-    <h3>Main</h2>
-        <pre>{{ job_log['main'] }}</pre>
-        {% endif %}
+{% if 'main' in job_log %}
+<h3>Main</h3>
+<pre>{{ job_log['main'] }}</pre>
+{% endif %}
 
-        {% if 'output' in job_log %}
-        <h3>Output</h3>
-        <pre>{{ job_log['output'] }}</pre>
-        {% endif %}
-        {% endif %}
+{% if 'output' in job_log %}
+<h3>Output</h3>
+<pre>{{ job_log['output'] }}</pre>
+{% endif %}
 
-        <h2>Status</h2>
-        <pre>{{ job_status }}</pre>
-        {% endblock %}
+{% endif %}
+
+<h2>Status</h2>
+<pre>{{ job_status }}</pre>
+{% endblock %}

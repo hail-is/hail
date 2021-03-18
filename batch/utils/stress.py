@@ -30,8 +30,12 @@ def stress():
                  .new_job(name=f'child_{i}_{k}')
                  .command(f'sleep {d}; echo child {i} {k}'))
             c.depends_on(j)
-            if flip(0.2):
+            if flip(0.1):
                 c._always_run = True
+            if flip(0.01):
+                c._machine_type = 'n1-standard-1'
+                if flip(0.5):
+                    c._preemptible = False
 
     b.run(open=False, wait=False)
 

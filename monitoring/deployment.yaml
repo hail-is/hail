@@ -38,7 +38,7 @@ spec:
             value: /deploy-config/deploy-config.json
           - name: HAIL_SHA
             value: "{{ code.sha }}"
-{% if deploy or scope == "dev" %}
+{% if scope != "test" %}
           - name: HAIL_USE_FULL_QUERY
             value: "1"
 {% endif %}
@@ -46,11 +46,11 @@ spec:
             - containerPort: 5000
           resources:
             requests:
+              cpu: "20m"
               memory: "20M"
-              cpu: "10m"
             limits:
-              memory: "1G"
               cpu: "1"
+              memory: "1G"
           volumeMounts:
             - name: session-secret-key
               mountPath: /session-secret-key

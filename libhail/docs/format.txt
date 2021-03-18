@@ -1,0 +1,82 @@
+This note describes the infrastructure for formatting found in
+<hail/format.hpp>.  This formatting is intended to be used to used for
+formatting that is not performance sensitive, like user messages, logs
+and maybe some kinds of metadata.  It is not intended for things like
+formatting user data or things like compiler IRs.  It will be used for
+pretty printing types.
+
+A natural question is why we're not using fmt.  I'm concerned about
+C++ developer ergonomics (e.g. compile time) and I'm skeptical of
+template heavy libraries that hurt compile time when the performance
+of features gained are not otherwise justified.  fmt is a template
+heavy library that optimizes performance at the cost of compile time.
+fmt is 10x slower to compile than printf by their benchmarks.
+hail::format makes the opposite trade-off.
+
+So the goal for hail::format is:
+ - to be as simple as possible,
+ - support various output formats, e.g. to strings or directly to files or the network, 
+ - provide type safe formatting, 
+ - support user-defined formatters for new types.
+
+## The User Interface
+
+We now describe the user interface for formatting.  There are two
+parts.
+
+Formatting goes into FormatStream objects.  They are modeled on on the
+C file I/O interace and support two operations, putc and puts:
+
+  class FormatStream {
+  public:
+    virtual ~FormatStream();
+
+    virtual void putc(int c) = 0;
+    virtual void puts(const char *s) = 0;
+  };
+
+Format streams for standard output and standard error are provided:
+
+  extern FormatStream &outs, &errs;
+
+More format streams will be added as needed.
+
+Then there are the format functions:
+
+  void format(FormatStream &s, ...);
+  void print(...);
+
+format formats the arguments, sequentially, to the FormatStream s.
+print formats the arguments to outs, followed by a newline.  The
+arguments to format and print must support formatting.  format.hpp
+provides formatters for builtin types (int, float, const char *, etc.)
+
+Example.  This code:
+
+  auto ab = type_context.tarray(type_context.tbool);
+  print("this is a number: ", 5, ", and this is a type: ", ab);
+
+prints:
+
+  this is a number: 5, and this is a type: array<bool>
+
+This is not as good as f-strings (which I don't see how to do in C++)
+and comparable to the Python format interface.
+
+## User-defined formatters
+
+To define a user-defined formatter, simply overload format1 to handle
+the type:
+
+  void format1(FormatStream &s, T v);
+
+(or const T &v, etc.)  The format1 definition needs to be visible at
+the point of call to format or print to be cosidered.
+
+The implementation of format is basically trivial, it just calls
+format1 for each argment:
+
+  template<typename... Args> void
+  format(FormatStream &s, Args &&... args) {
+    (format1(s, std::forward<Args>(args)),...);
+  }

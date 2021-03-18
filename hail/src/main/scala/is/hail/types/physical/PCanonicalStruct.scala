@@ -76,26 +76,6 @@ final case class PCanonicalStruct(fields: IndexedSeq[PField], required: Boolean 
     }
   }
 
-  lazy val structFundamentalType: PStruct = {
-    val fundamentalFieldTypes = fields.map(f => f.typ.fundamentalType)
-    if ((fields, fundamentalFieldTypes).zipped
-      .forall { case (f, ft) => f.typ == ft })
-      this
-    else {
-      PCanonicalStruct(required, (fields, fundamentalFieldTypes).zipped.map { case (f, ft) => (f.name, ft) }: _*)
-    }
-  }
-
-  override lazy val structEncodableType: PStruct = {
-    val encodableFieldTypes = fields.map(f => f.typ.encodableType)
-    if ((fields, encodableFieldTypes).zipped
-      .forall { case (f, ft) => f.typ == ft })
-      this
-    else {
-      PCanonicalStruct(required, (fields, encodableFieldTypes).zipped.map { case (f, ft) => (f.name, ft) }: _*)
-    }
-  }
-
   def loadField(offset: Code[Long], fieldName: String): Code[Long] =
     loadField(offset, fieldIdx(fieldName))
 

@@ -64,6 +64,7 @@ class Tests(unittest.TestCase):
                 else:
                     self.assertNotEqual(ts[i], ts2[j])
 
+    @fails_service_backend()
     def test_type_jvm_roundtrip(self):
         ts = self.types_to_test()
         for t in ts:
@@ -86,6 +87,7 @@ class Tests(unittest.TestCase):
             self.assertTrue(c.can_coerce(t))
             self.assertFalse(c.requires_conversion(t))
 
+    @fails_service_backend()
     @fails_local_backend()
     def test_nested_type_to_spark(self):
         ht = hl.utils.range_table(10)

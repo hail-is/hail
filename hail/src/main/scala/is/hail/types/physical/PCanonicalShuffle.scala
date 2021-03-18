@@ -3,6 +3,7 @@ package is.hail.types.physical
 import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.expr.ir._
+import is.hail.expr.ir.orderings.CodeOrdering
 import is.hail.types.physical.stypes.SCode
 import is.hail.types.physical.stypes.concrete.{SBinaryPointerCode, SCanonicalShufflePointer, SCanonicalShufflePointerCode}
 import is.hail.types.virtual._
@@ -17,11 +18,6 @@ final case class PCanonicalShuffle(
 
   val representation: PCanonicalBinary = PCanonicalBinary(required)
 
-  def codeOrdering(mb: EmitMethodBuilder[_], other: PType): CodeOrdering = {
-    assert(other isOfType this)
-    representation.codeOrdering(mb)
-  }
-
   def setRequired(required: Boolean) = if (required == this.required) this else PCanonicalShuffle(tShuffle, required)
 
   def unsafeOrdering(): UnsafeOrdering = representation.unsafeOrdering()
@@ -29,10 +25,6 @@ final case class PCanonicalShuffle(
   override def byteSize: Long = representation.byteSize
 
   override def alignment: Long = representation.alignment
-
-  override def fundamentalType: PType = representation.fundamentalType
-
-  override def encodableType: PType = this
 
   override def containsPointers: Boolean = representation.containsPointers
 
@@ -44,7 +36,7 @@ final case class PCanonicalShuffle(
   }
 
   def unstagedStoreAtAddress(addr: Long, region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Unit =
-    this.representation.unstagedStoreAtAddress(addr, region, srcPType.fundamentalType, srcAddress, deepCopy)
+    this.representation.unstagedStoreAtAddress(addr, region, srcPType.asInstanceOf[PCanonicalShuffle].representation, srcAddress, deepCopy)
 
   override def unstagedStoreJavaObjectAtAddress(addr: Long, annotation: Annotation, region: Region): Unit =
     this.representation.unstagedStoreJavaObjectAtAddress(addr, annotation, region)
@@ -92,4 +84,3 @@ final case class PCanonicalShuffle(
 
   def unstagedLoadFromNested(addr: Long): Long = representation.unstagedLoadFromNested(addr)
 }
-

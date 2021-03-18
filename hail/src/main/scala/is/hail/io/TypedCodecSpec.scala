@@ -20,10 +20,6 @@ final case class TypedCodecSpec(_eType: EType, _vType: Type, _bufferSpec: Buffer
   def encodedType: EType = _eType
   def encodedVirtualType: Type = _vType
 
-  def computeSubsetPType(requestedType: Type): PType = {
-    _eType._decodedPType(requestedType)
-  }
-
   def buildEncoder(ctx: ExecuteContext, t: PType): (OutputStream) => Encoder = {
     val bufferToEncoder = encodedType.buildEncoder(ctx, t)
     out: OutputStream => bufferToEncoder(_bufferSpec.buildOutputBuffer(out))

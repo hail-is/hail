@@ -43,8 +43,11 @@ spec:
          - batch.driver
         resources:
           requests:
-            memory: "1G"
+            cpu: "600m"
+            memory: "2G"
+          limits:
             cpu: "1"
+            memory: "2.5G"
         env:
          - name: HAIL_DOMAIN
            value: "{{ global.domain }}"
@@ -75,20 +78,21 @@ spec:
            value: "{{ global.k8s_server_url }}"
          - name: HAIL_SHA
            value: "{{ code.sha }}"
-{% if deploy or scope == "dev" %}
+{% if scope != "test" %}
          - name: HAIL_SHOULD_PROFILE
-           value: "1"
-{% endif %}
-{% if scope == "test" or scope == "dev" %}
-         - name: HAIL_SHOULD_CHECK_INVARIANTS
            value: "1"
 {% endif %}
 {% if deploy %}
          - name: HAIL_BATCH_BUCKET_NAME
-           value: hail-batch
+           valueFrom:
+             secretKeyRef:
+               name: global-config
+               key: batch_logs_bucket
          - name: STANDING_WORKER_MAX_IDLE_TIME_SECS
            value: "7200" # 2 hours
 {% else %}
+         - name: HAIL_SHOULD_CHECK_INVARIANTS
+           value: "1"
          - name: HAIL_BATCH_BUCKET_NAME
            value: hail-test-dmk9z
          - name: STANDING_WORKER_MAX_IDLE_TIME_SECS
@@ -210,19 +214,12 @@ spec:
            value: "{{ global.k8s_server_url }}"
          - name: HAIL_SHA
            value: "{{ code.sha }}"
-{% if not deploy %}
-         - name: HAIL_BATCH_JOB_DEFAULT_CPU
-           value: "0.1"
-         - name: HAIL_BATCH_JOB_DEFAULT_MEMORY
-           value: "375M"
-         - name: HAIL_BATCH_JOB_DEFAULT_STORAGE
-           value: "1G"
-         - name: HAIL_BATCH_JOB_WORKER_TYPE
-           value: "standard"
-{% endif %}
 {% if deploy %}
          - name: HAIL_BATCH_BUCKET_NAME
-           value: hail-batch
+           valueFrom:
+             secretKeyRef:
+               name: global-config
+               key: batch_logs_bucket
          - name: STANDING_WORKER_MAX_IDLE_TIME_SECS
            value: "7200" # 2 hours
 {% else %}
@@ -235,11 +232,11 @@ spec:
          - containerPort: 5000
         resources:
           requests:
-            memory: "10M"
-            cpu: "100m"
+            cpu: "20m"
+            memory: "20M"
           limits:
-            memory: "1G"
             cpu: "1"
+            memory: "1G"
         volumeMounts:
          - name: deploy-config
            mountPath: /deploy-config

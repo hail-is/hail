@@ -2,6 +2,7 @@ package is.hail.types.physical
 
 import is.hail.annotations.{Region, UnsafeOrdering, _}
 import is.hail.asm4s.{Code, coerce, const, _}
+import is.hail.expr.ir.orderings.CodeOrdering
 import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder}
 import is.hail.types.physical.stypes.primitives.{SInt64, SInt64Code}
 import is.hail.types.physical.stypes.{SCode, SType}
@@ -20,24 +21,6 @@ class PInt64(override val required: Boolean) extends PNumeric with PPrimitive {
   override def unsafeOrdering(): UnsafeOrdering = new UnsafeOrdering {
     def compare(o1: Long, o2: Long): Int = {
       java.lang.Long.compare(Region.loadLong(o1), Region.loadLong(o2))
-    }
-  }
-
-  def codeOrdering(mb: EmitMethodBuilder[_], other: PType): CodeOrdering = {
-    assert(other isOfType this)
-    new CodeOrdering {
-      def compareNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Int] =
-        Code.invokeStatic2[java.lang.Long, Long, Long, Int]("compare", x.tcode[Long], y.tcode[Long])
-
-      def ltNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Boolean] = x.tcode[Long] < y.tcode[Long]
-
-      def lteqNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Boolean] = x.tcode[Long] <= y.tcode[Long]
-
-      def gtNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Boolean] = x.tcode[Long] > y.tcode[Long]
-
-      def gteqNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Boolean] = x.tcode[Long] >= y.tcode[Long]
-
-      def equivNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Boolean] = x.tcode[Long].ceq(y.tcode[Long])
     }
   }
 

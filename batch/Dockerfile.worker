@@ -1,5 +1,6 @@
 FROM gcr.io/{{ global.project }}/python:3.7-slim-stretch
 
+COPY docker/hail-ubuntu/retry /bin/retry
 COPY docker/hail-ubuntu/hail-apt-get-install /bin/hail-apt-get-install
 RUN mkdir -p /usr/share/man/man1 /usr/share/man/man2
 RUN hail-apt-get-install \
@@ -44,3 +45,4 @@ COPY batch/batch /batch/batch/
 RUN hail-pip-install --no-deps /batch && rm -rf /batch
 
 COPY batch/hail.jar /
+COPY query/log4j.properties /

@@ -1,16 +1,17 @@
 package is.hail.types.physical.stypes.primitives
 
-import is.hail.annotations.{CodeOrdering, Region}
+import is.hail.annotations.Region
 import is.hail.asm4s.{Code, FloatInfo, Settable, SettableBuilder, TypeInfo, Value}
+import is.hail.expr.ir.orderings.CodeOrdering
 import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, SortOrder}
 import is.hail.types.physical.stypes.{SCode, SType}
 import is.hail.types.physical.{PCode, PFloat32, PSettable, PType, PValue}
 import is.hail.utils.FastIndexedSeq
 
-case class SFloat32(required: Boolean) extends SType {
-  override def pType: PFloat32  = PFloat32(required)
+case class SFloat32(required: Boolean) extends SPrimitive {
+  def ti: TypeInfo[_] = FloatInfo
 
-  def codeOrdering(mb: EmitMethodBuilder[_], other: SType, so: SortOrder): CodeOrdering = pType.codeOrdering(mb, other.pType, so)
+  override def pType: PFloat32  = PFloat32(required)
 
   def coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = {
     value.st match {
@@ -51,7 +52,9 @@ trait PFloat32Value extends PValue {
 
 }
 
-class SFloat32Code(required: Boolean, val code: Code[Float]) extends PCode {
+class SFloat32Code(required: Boolean, val code: Code[Float]) extends PCode with SPrimitiveCode {
+  override def _primitiveCode: Code[_] = code
+
   val pt: PFloat32 = PFloat32(required)
 
   def st: SFloat32 = SFloat32(required)

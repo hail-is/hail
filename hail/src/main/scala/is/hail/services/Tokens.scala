@@ -25,7 +25,10 @@ object Tokens {
   }
 
   def getTokensFile(): String = {
-    if (DeployConfig.get.location == "external")
+    val file = System.getenv("HAIL_TOKENS_FILE")
+    if (file != null)
+      file
+    else if (DeployConfig.get.location == "external")
       s"${ System.getenv("HOME") }/.hail/tokens.json"
     else
       "/user-tokens/tokens.json"

@@ -87,11 +87,11 @@ spec:
             name: blog-content
         resources:
           requests:
-            memory: 250Mi
-            cpu: 300m
+            cpu: "100m"
+            memory: "200M"
           limits:
-            memory: 250Mi
             cpu: "1"
+            memory: "1G"
   volumeClaimTemplates:
     - metadata:
         name: blog-content

@@ -1,5 +1,3 @@
-import json
-
 import hail as hl
 from hail.expr.types import dtype
 from hail.ir.base_ir import BaseIR, TableIR
@@ -245,26 +243,6 @@ class TableRead(TableIR):
 
     def _eq(self, other):
         return self.reader == other.reader and self.drop_rows == other.drop_rows
-
-    def _compute_type(self):
-        self._type = Env.backend().table_type(self)
-
-
-class TableImport(TableIR):
-    def __init__(self, paths, typ, reader_options):
-        super().__init__()
-        self.paths = paths
-        self._typ = typ
-        self.reader_options = reader_options
-
-    def head_str(self):
-        return '(({}) {} {}'.format(
-            ' '.join([escape_str(path) for path in self.paths]),
-            self._typ._parsable_string(),
-            escape_str(json.dumps(self.reader_options)))
-
-    def _eq(self, other):
-        return self.paths == other.paths and self.typ == other.typ and self.reader_options == other.reader_options
 
     def _compute_type(self):
         self._type = Env.backend().table_type(self)

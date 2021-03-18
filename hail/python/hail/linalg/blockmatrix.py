@@ -1375,6 +1375,8 @@ class BlockMatrix(object):
         -------
         :class:`.BlockMatrix`
         """
+        if isinstance(b, (int, float)):
+            return self._map_dense(lambda entry: entry + b)
         return self._apply_map2(BlockMatrix._binary_op('+'), b, sparsity_strategy="Union")
 
     @typecheck_method(b=oneof(numeric, np.ndarray, block_matrix_type))
@@ -1389,6 +1391,8 @@ class BlockMatrix(object):
         -------
         :class:`.BlockMatrix`
         """
+        if isinstance(b, (int, float)):
+            return self._map_dense(lambda entry: entry - b)
         return self._apply_map2(BlockMatrix._binary_op('-'), b, sparsity_strategy="Union")
 
     @typecheck_method(b=oneof(numeric, np.ndarray, block_matrix_type))
@@ -1403,6 +1407,9 @@ class BlockMatrix(object):
         -------
         :class:`.BlockMatrix`
         """
+        if isinstance(b, (int, float)):
+            # sparse since multiplying by zero is zero
+            return self._map_sparse(lambda entry: entry * b)
         return self._apply_map2(BlockMatrix._binary_op('*'), b, sparsity_strategy="Intersection")
 
     @typecheck_method(b=oneof(numeric, np.ndarray, block_matrix_type))
@@ -1417,6 +1424,9 @@ class BlockMatrix(object):
         -------
         :class:`.BlockMatrix`
         """
+        if isinstance(b, (int, float)):
+            # sparse since dividing by zero is zero
+            return self._map_sparse(lambda entry: entry / b)
         return self._apply_map2(BlockMatrix._binary_op('/'), b, sparsity_strategy="NeedsDense")
 
     @typecheck_method(b=numeric)
@@ -1527,6 +1537,12 @@ class BlockMatrix(object):
         :class:`.BlockMatrix`
         """
         return self._apply_map(lambda i: i ** x, needs_dense=False)
+
+    def _map_dense(self, func):
+        return self._apply_map(func, True)
+
+    def _map_sparse(self, func):
+        return self._apply_map(func, False)
 
     def sqrt(self):
         """Element-wise square root.

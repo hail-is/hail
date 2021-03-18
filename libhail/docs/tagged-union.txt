@@ -17,20 +17,20 @@ number.
 
 First, let's create the base class:
 
-  class literal {
+  class Literal {
   public:
-    using base_type = literal;
-    enum class tag_type {
+    using BaseType = Literal;
+    enum class Tag {
       INT,
       DOUBLE
     };
-    const tag_type tag;
-    literal(tag_type tag) : tag(tag) {}
-    virtual ~const();
+    const Tag tag;
+    Literal(Tag tag) : tag(tag) {}
+    virtual ~Literal();
   };
 
-The literal base class has some notable features:
- - All literals know their base class, in this case, literal.
+The Literal base class has some notable features:
+ - All literals know their base class, in this case, Literal.
  - The base class defines a tag type that enumerates all the cases.
  - The base class stores a single member, the tag, which is defined at
    construction time.
@@ -38,49 +38,49 @@ The literal base class has some notable features:
 
 Now let's implement one of the cases:
 
-  class int_literal : public literal {
+  class IntLiteral : public Literal {
   public:
-    static const tag_type self_tag = literal::INT;
+    static const Tag self_tag = Literal::Tag::INT;
     int value;
-    int_interal(int value) : literal(self_tag), value(value) {}
+    IntInteral(int value) : Literal(self_tag), value(value) {}
   };
 
-Each case knows its own tag as self_tag.  double_literal is
+Each case knows its own tag as self_tag.  DoubleLiteral is
 defined similarly.
 
 What are the operations on tagged unions, and how are they used?
 Tagged unions are normally manipulated as pointers and allocated with
 operator new:
 
-  literal *l = new int_literal(5);
+  Literal *l = new IntLiteral(5);
 
 Once you have a literal pointer, there are a few things you can do
 with it.
 
 You can grab its tag with l->tag:
 
-  const char *literal_type(literal *l) {
+  const char *literal_type(Literal *l) {
     switch(l->tag) {
-      case literal::INT: return "int";
-      case literal::DOUBLE: retrn "double";
+      case Literal::Tag::INT: return "int";
+      case Literal::Tag::DOUBLE: retrn "double";
       default: abort();
     }
   }
 
-You can ask if it is a particular case: isa<int_literal>(l).  isa is
+You can ask if it is a particular case: isa<IntLiteral>(l).  isa is
 implemented as:
 
   template<class T> bool
-  isa(const typename T::base_type *p) {
+  isa(const typename T::BaseType *p) {
     return p->tag == T::self_tag;
   }
 
 You might want to downcast l to a specific case.  Downcast has two
 forms.  The first asserts if the pointer is not of the expected case:
-cast<int_literal>(l).  It is implemented as:
+cast<IntLiteral>(l).  It is implemented as:
 
   template<class T> T *
-  cast(typename T::base_type *p) {
+  cast(typename T::BaseType *p) {
     assert(isa<T>(p));
     return static_cast<T *>(p);
   }
@@ -91,7 +91,7 @@ The second form returns null if the pointer is not of the expected
 case:
 
   template<class T> T *
-  dyn_cast(typename T::base_type *p) {
+  dyn_cast(typename T::BaseType *p) {
     if (isa<T>(p))
       return static_cast<T *>(p);
     else
@@ -100,7 +100,7 @@ case:
 
 It can be used like this:
 
-  if (auto il = dyn_cast<int_literal>(l)) {
+  if (auto il = dyn_cast<IntLiteral>(l)) {
     ..
   }
 

@@ -51,20 +51,20 @@ object ImputeTypeState {
 }
 
 class ImputeTypeState(kb: EmitClassBuilder[_]) extends PrimitiveRVAState(Array(VirtualTypeWithReq(TInt32,RPrimitive()).setRequired(true)), kb) {
+  private def repr: Code[Int] = _repr.value[Int]
+  private val _repr = fields(0)
 
-  private val repr = fields(0)._2.asInstanceOf[Settable[Int]]
+  def getAnyNonMissing: Code[Boolean] = (repr & 1).cne(0)
 
-  def getAnyNonMissing: Code[Boolean] = (repr.load() & 1).cne(0)
+  def getAllDefined: Code[Boolean] = (repr & 1 << 1).cne(0)
 
-  def getAllDefined: Code[Boolean] = (repr.load() & 1 << 1).cne(0)
+  def getSupportsBool: Code[Boolean] = (repr & 1 << 2).cne(0)
 
-  def getSupportsBool: Code[Boolean] = (repr.load() & 1 << 2).cne(0)
+  def getSupportsI32: Code[Boolean] = (repr & 1 << 3).cne(0)
 
-  def getSupportsI32: Code[Boolean] = (repr.load() & 1 << 3).cne(0)
+  def getSupportsI64: Code[Boolean] = (repr & 1 << 4).cne(0)
 
-  def getSupportsI64: Code[Boolean] = (repr.load() & 1 << 4).cne(0)
-
-  def getSupportsF64: Code[Boolean] = (repr.load() & 1 << 5).cne(0)
+  def getSupportsF64: Code[Boolean] = (repr & 1 << 5).cne(0)
 
   private def setRepr(cb: EmitCodeBuilder,
     anyNonMissing: Code[Boolean],
@@ -74,14 +74,13 @@ class ImputeTypeState(kb: EmitClassBuilder[_]) extends PrimitiveRVAState(Array(V
     supportsI64: Code[Boolean],
     supportsF64: Code[Boolean]
   ): Unit = {
-
-    cb += repr.store(anyNonMissing.toI
+    val value = (anyNonMissing.toI
       | (allDefined.toI << 1)
       | (supportsBool.toI << 2)
       | (supportsI32.toI << 3)
       | (supportsI64.toI << 4)
-      | (supportsF64.toI << 5)
-    )
+      | (supportsF64.toI << 5))
+    cb.assign(_repr, EmitCode.present(cb.emb, PCode(_repr.pt, value)))
   }
 
   def initialize(cb: EmitCodeBuilder): Unit = {
@@ -91,7 +90,7 @@ class ImputeTypeState(kb: EmitClassBuilder[_]) extends PrimitiveRVAState(Array(V
   def seqOp(cb: EmitCodeBuilder, ec: EmitCode): Unit = {
     ec.toI(cb)
       .consume(cb,
-        cb += repr.store(repr & (~(1 << 1))),
+        cb.assign(_repr, EmitCode.present(cb.emb, PCode(_repr.pt, _repr.value[Int] & (~(1 << 1))))),
         { case (pc: PStringCode) =>
           val s = cb.newLocal[String]("impute_type_agg_seq_str")
           cb.assign(s, pc.loadString())

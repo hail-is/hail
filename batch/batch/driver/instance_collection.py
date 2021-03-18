@@ -1,27 +1,31 @@
 import aiohttp
 import sortedcontainers
 import logging
+import dateutil.parser
+from typing import Dict
 
 from hailtop.utils import time_msecs, secret_alnum_string, periodically_call
 from hailtop import aiotools, aiogoogle
 from gear import Database
 
+from .instance import Instance
 from .zone_monitor import ZoneMonitor
 
 log = logging.getLogger('inst_collection')
 
 
 class InstanceCollection:
-    def __init__(self, app, name, machine_name_prefix):
+    def __init__(self, app, name, machine_name_prefix, is_pool):
         self.app = app
         self.db: Database = app['db']
-        self.compute_client: aiogoogle.ComputeClient = app['compute_client']
-        self.zone_monitor: ZoneMonitor = app['zone_monitor']
+        self.compute_client: aiogoogle.ComputeClient = self.app['compute_client']
+        self.zone_monitor: ZoneMonitor = self.app['zone_monitor']
 
         self.name = name
         self.machine_name_prefix = f'{machine_name_prefix}{self.name}-'
+        self.is_pool = is_pool
 
-        self.name_instance = {}
+        self.name_instance: Dict[str, Instance] = {}
 
         self.instances_by_last_updated = sortedcontainers.SortedSet(
             key=lambda instance: instance.last_updated)
@@ -36,6 +40,10 @@ class InstanceCollection:
         # pending and active
         self.live_free_cores_mcpu = 0
         self.live_total_cores_mcpu = 0
+
+        self.boot_disk_size_gb = None
+        self.max_instances = None
+        self.max_live_instances = None
 
         self.task_manager = aiotools.BackgroundTaskManager()
 
@@ -126,18 +134,28 @@ class InstanceCollection:
 
         # PROVISIONING, STAGING, RUNNING, STOPPING, TERMINATED
         gce_state = spec['status']
+
         log.info(f'{instance} gce_state {gce_state}')
+
+        if (gce_state == 'PROVISIONING'
+                and instance.state == 'pending'
+                and time_msecs() - instance.time_created > 5 * 60 * 1000):
+            log.exception(f'{instance} did not provision within 5m after creation, deleting')
+            await self.call_delete_instance(instance, 'activation_timeout')
 
         if gce_state in ('STOPPING', 'TERMINATED'):
             log.info(f'{instance} live but stopping or terminated, deactivating')
             await instance.deactivate('terminated')
 
-        if (gce_state in ('STAGING', 'RUNNING')
-                and instance.state == 'pending'
-                and time_msecs() - instance.time_created > 5 * 60 * 1000):
-            # FIXME shouldn't count time in PROVISIONING
-            log.info(f'{instance} did not activate within 5m, deleting')
-            await self.call_delete_instance(instance, 'activation_timeout')
+        if gce_state in ('STAGING', 'RUNNING'):
+            last_start_timestamp = spec.get('lastStartTimestamp')
+            assert last_start_timestamp is not None, f'lastStartTimestamp does not exist {spec}'
+            last_start_time_msecs = dateutil.parser.isoparse(last_start_timestamp).timestamp() * 1000
+
+            if (instance.state == 'pending'
+                    and time_msecs() - last_start_time_msecs > 5 * 60 * 1000):
+                log.exception(f'{instance} did not activate within 5m after starting, deleting')
+                await self.call_delete_instance(instance, 'activation_timeout')
 
         if instance.state == 'inactive':
             log.info(f'{instance} is inactive, deleting')

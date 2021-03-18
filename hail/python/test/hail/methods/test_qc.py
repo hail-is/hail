@@ -9,6 +9,7 @@ tearDownModule = stopTestHailContext
 
 
 class Tests(unittest.TestCase):
+    @fails_service_backend()
     def test_sample_qc(self):
         data = [
             {'v': '1:1:A:T', 's': '1', 'GT': hl.Call([0, 0]), 'GQ': 10, 'DP': 0},
@@ -50,6 +51,7 @@ class Tests(unittest.TestCase):
         self.assertAlmostEqual(r[0].sqc.r_het_hom_var, 0.3333333333)
         self.assertAlmostEqual(r[0].sqc.r_insertion_deletion, None)
 
+    @fails_service_backend()
     def test_variant_qc(self):
         data = [
             {'v': '1:1:A:T', 's': '1', 'GT': hl.Call([0, 0]), 'GQ': 10, 'DP': 0},
@@ -108,6 +110,7 @@ class Tests(unittest.TestCase):
         self.assertEqual(r[1].vqc.gq_stats.mean, 10)
         self.assertEqual(r[1].vqc.gq_stats.stdev, 0)
 
+    @fails_service_backend()
     @fails_local_backend()
     def test_concordance(self):
         dataset = get_dataset()
@@ -136,6 +139,7 @@ class Tests(unittest.TestCase):
         cols_conc.write('/tmp/foo.kt', overwrite=True)
         rows_conc.write('/tmp/foo.kt', overwrite=True)
 
+    @fails_service_backend()
     @fails_local_backend()
     def test_concordance_n_discordant(self):
         dataset = get_dataset()
@@ -214,13 +218,13 @@ class Tests(unittest.TestCase):
                       n_discordant=0),
         ]
 
+    @fails_service_backend()
     @fails_local_backend()
     def test_concordance_no_values_doesnt_error(self):
         dataset = get_dataset().filter_rows(False)
         _, cols_conc, rows_conc = hl.concordance(dataset, dataset)
         cols_conc._force_count()
         rows_conc._force_count()
-
 
     def test_filter_alleles(self):
         # poor man's Gen
@@ -233,6 +237,7 @@ class Tests(unittest.TestCase):
                 hl.filter_alleles(ds, lambda a, i: False).count_rows(), 0)
             self.assertEqual(hl.filter_alleles(ds, lambda a, i: True).count_rows(), ds.count_rows())
 
+    @fails_service_backend()
     @fails_local_backend()
     def test_filter_alleles_hts(self):
         # 1 variant: A:T,G
@@ -261,6 +266,7 @@ class Tests(unittest.TestCase):
                 ._same(hl.import_vcf(resource('filter_alleles/keep_allele2_downcode.vcf')))
         )
 
+    @fails_service_backend()
     def test_sample_and_variant_qc_call_rate(self):
         mt = hl.import_vcf(resource('sample.vcf'))
 
@@ -271,6 +277,7 @@ class Tests(unittest.TestCase):
         assert mt.aggregate_cols(hl.agg.all(hl.approx_equal(mt.sample_qc.call_rate, mt.sample_qc.n_called / n_rows)))
         assert mt.aggregate_rows(hl.agg.all(hl.approx_equal(mt.variant_qc.call_rate, mt.variant_qc.n_called / n_cols)))
 
+    @fails_service_backend()
     def test_summarize_variants_ti_tv(self):
         mt = hl.import_vcf(resource('sample.vcf'))
         # check that summarize can run with the print control flow

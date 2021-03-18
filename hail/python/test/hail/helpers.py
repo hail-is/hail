@@ -1,3 +1,4 @@
+import asyncio
 import os
 from timeit import default_timer as timer
 import unittest
@@ -130,10 +131,29 @@ def skip_unless_spark_backend():
     return wrapper
 
 
+def skip_when_service_backend(message='does not work on ServiceBackend'):
+    from hail.backend.service_backend import ServiceBackend
+    @decorator
+    def wrapper(func, *args, **kwargs):
+        if isinstance(hl.utils.java.Env.backend(), ServiceBackend):
+            raise unittest.SkipTest(message)
+        else:
+            return func(*args, **kwargs)
+
+    return wrapper
+
+
 fails_local_backend = pytest.mark.xfail(
     os.environ.get('HAIL_QUERY_BACKEND') == 'local',
     reason="doesn't yet work on local backend",
     strict=True)
+
+
+fails_service_backend = pytest.mark.xfail(
+    os.environ.get('HAIL_QUERY_BACKEND') == 'service',
+    reason="doesn't yet work on service backend",
+    strict=True)
+
 
 def run_with_cxx_compile():
     @decorator

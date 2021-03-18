@@ -72,9 +72,9 @@ class StagedInternalNodeBuilder(maxSize: Int, keyType: PType, annotationType: PT
   }
 
   def encode(cb: EmitCodeBuilder, ob: Value[OutputBuffer]): Unit = {
-    val enc = EType.defaultFromPType(pType).buildEncoder(pType, cb.emb.ecb)
+    val enc = EType.defaultFromPType(pType).buildEncoder(SBaseStructPointer(pType), cb.emb.ecb)
     ab.storeLength(cb)
-    cb += enc(node.a, ob)
+    enc(cb, node, ob)
   }
 
   def nodeAddress: PBaseStructValue = node

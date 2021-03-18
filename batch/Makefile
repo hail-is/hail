@@ -13,6 +13,7 @@ PYTHON := PYTHONPATH=$${PYTHONPATH:+$${PYTHONPATH}:}$(EXTRA_PYTHONPATH) python3
 check:
 	$(PYTHON) -m flake8  --config ../setup.cfg batch
 	$(PYTHON) -m pylint --rcfile ../pylintrc batch --score=n
+	curlylint .
 	../check-sql.sh
 
 .PHONY: build-prereqs
@@ -62,7 +63,7 @@ deploy: push
 .PHONY: create-build-worker-image-instance
 create-build-worker-image-instance:
 	-gcloud -q compute --project $(PROJECT) instances delete --zone=$(ZONE) build-batch-worker-image
-	gcloud -q compute --project $(PROJECT) instances create --zone=$(ZONE) build-batch-worker-image --machine-type=n1-standard-1 --network=default --network-tier=PREMIUM --metadata-from-file startup-script=build-batch-worker-image-startup.sh --no-restart-on-failure --maintenance-policy=MIGRATE --scopes=https://www.googleapis.com/auth/cloud-platform --image=ubuntu-minimal-1804-bionic-v20200923 --image-project=ubuntu-os-cloud --boot-disk-size=10GB --boot-disk-type=pd-ssd
+	gcloud -q compute --project $(PROJECT) instances create --zone=$(ZONE) build-batch-worker-image --machine-type=n1-standard-1 --network=default --network-tier=PREMIUM --metadata-from-file startup-script=build-batch-worker-image-startup.sh --no-restart-on-failure --maintenance-policy=MIGRATE --scopes=https://www.googleapis.com/auth/cloud-platform --image=$$(gcloud compute images list --standard-images --filter 'family="ubuntu-minimal-2004-lts"' --format='value(name)') --image-project=ubuntu-os-cloud --boot-disk-size=10GB --boot-disk-type=pd-ssd
 
 .PHONY: create-worker-image
 create-worker-image:

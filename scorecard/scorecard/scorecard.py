@@ -26,7 +26,7 @@ log = logging.getLogger('scorecard')
 deploy_config = get_deploy_config()
 
 team_members = {
-    'Services Team': ['jigold', 'danking', 'catoverdrive', 'Dania-Abuhijleh', 'daniel-goldstein'],
+    'Services Team': ['jigold', 'danking', 'catoverdrive', 'Dania-Abuhijleh', 'daniel-goldstein', 'CDiaz96'],
     'Compilers Team': ['tpoterba', 'catoverdrive', 'patrick-schultz', 'chrisvittal', 'johnc1231'],
 }
 

@@ -22,14 +22,13 @@
   <tbody>
     {% for row in rows %}
     <tr>
-        <td>{{ row["name"] }}</td>
-        <td>{{ row["addresses"] }}</td>
-        <td>{{ row["ports"] }}</td>
-        <td>{{ row["lifetime"] }}</td>
-        <td>{{ row["lock"] }}</td>
-      </tr>
+      <td>{{ row["name"] }}</td>
+      <td>{{ row["addresses"] }}</td>
+      <td>{{ row["ports"] }}</td>
+      <td>{{ row["lifetime"] }}</td>
+      <td>{{ row["lock"] }}</td>
+    </tr>
     {% endfor %}
   </tbody>
 </table>
-</div>
 {% endblock %}

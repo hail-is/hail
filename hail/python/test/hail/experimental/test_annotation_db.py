@@ -1,5 +1,4 @@
 import unittest
-import tempfile
 
 import hail as hl
 from ..helpers import startTestHailContext, stopTestHailContext
@@ -12,10 +11,10 @@ class AnnotationDBTests(unittest.TestCase):
         t = hl.utils.range_table(10)
         t = t.annotate(locus=hl.locus('1', t.idx + 1))
         t = t.annotate(annotation=hl.str(t.idx))
-        d = tempfile.TemporaryDirectory()
-        fname = d.name + '/f.mt'
+        cls.tempdir_manager = hl.TemporaryDirectory()
+        d = cls.tempdir_manager.__enter__()
+        fname = d + '/f.mt'
         t.write(fname)
-        cls.temp_dir = d
         cls.db_json = {
             'unique_dataset': {
                 'description': 'now with unique rows!',
@@ -44,7 +43,7 @@ class AnnotationDBTests(unittest.TestCase):
     @classmethod
     def tearDownAnnotationDBTests(cls):
         stopTestHailContext()
-        AnnotationDBTests.temp_dir.cleanup()
+        cls.tempdir_manager.__exit__(None, None, None)
 
     setUpClass = setupAnnotationDBTests
     tearDownClass = tearDownAnnotationDBTests

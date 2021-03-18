@@ -17,6 +17,8 @@ import javax.net.ssl._
 import org.apache.log4j.Logger
 
 import scala.annotation.switch
+import is.hail.backend.local.LocalBackend
+import is.hail.HailContext
 
 class Handler (
   private[this] val server: ShuffleServer,
@@ -137,15 +139,11 @@ class Shuffle (
   private[this] val rootRegion = Region(pool=pool)
   private[this] val codecs = {
     ExecutionTimer.logTime("Shuffle.codecs") { timer =>
-      using(new ExecuteContext("/tmp", "file:///tmp", null, null, rootRegion, timer)) { ctx =>
+      using(new ExecuteContext("/tmp", "file:///tmp", null, null, rootRegion, timer, null)) { ctx =>
         new ShuffleCodecSpec(ctx, shuffleType)
       }
     }
   }
-  log.info(s"rowDecodedPType: ${codecs.rowDecodedPType}")
-  log.info(s"rowEncodingPType: ${codecs.rowEncodingPType}")
-  log.info(s"keyDecodedPType: ${codecs.keyDecodedPType}")
-  log.info(s"keyEncodingPType: ${codecs.keyEncodingPType}")
 
   private[this] val store = new LSM(s"/tmp/${uuidToString(uuid)}", codecs, pool)
 
@@ -236,6 +234,8 @@ class ShuffleServer() extends AutoCloseable {
 
   val executor = Executors.newCachedThreadPool()
   var stopped = false
+
+  val context = HailContext(LocalBackend("/tmp"), skipLoggingConfiguration = true)
 
   def serveInBackground(): Future[_] =
     executor.submit(new Runnable() { def run(): Unit = serve() })

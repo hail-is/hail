@@ -228,7 +228,7 @@ Docker image for this job. The return value is the new :class:`.Job` created.
     do
         tail -n +2 "$result" >> {merger.ofile}
     done
-    sed -i '/^$/d' {merger.ofile}
+    sed -i -e '/^$/d' {merger.ofile}
     ''')
         return merger
 

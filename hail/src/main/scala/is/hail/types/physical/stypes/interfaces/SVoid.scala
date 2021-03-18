@@ -1,7 +1,8 @@
 package is.hail.types.physical.stypes.interfaces
 
-import is.hail.annotations.{CodeOrdering, Region}
+import is.hail.annotations.Region
 import is.hail.asm4s.{Code, Settable, TypeInfo, UnitInfo, Value}
+import is.hail.expr.ir.orderings.CodeOrdering
 import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, SortOrder}
 import is.hail.types.physical.stypes.{SCode, SSettable, SType}
 import is.hail.types.physical.{PCode, PType, PUnrealizableCode, PValue, PVoid}
@@ -11,8 +12,6 @@ case object SVoid extends SType {
   def pType: PType = PVoid
 
   def coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = value
-
-  def codeOrdering(mb: EmitMethodBuilder[_], other: SType, so: SortOrder): CodeOrdering = throw new UnsupportedOperationException
 
   def codeTupleTypes(): IndexedSeq[TypeInfo[_]] = IndexedSeq()
 

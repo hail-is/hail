@@ -17,6 +17,7 @@ tearDownModule = stopTestHailContext
 
 
 class Tests(unittest.TestCase):
+    @fails_service_backend()
     def test_annotate(self):
         schema = hl.tstruct(a=hl.tint32, b=hl.tint32, c=hl.tint32, d=hl.tint32, e=hl.tstr, f=hl.tarray(hl.tint32))
 
@@ -129,6 +130,7 @@ class Tests(unittest.TestCase):
         self.assertEqual(set(results.q4), {"hello", "cat"})
         self.assertAlmostEqual(results.q5, 4)
 
+    @fails_service_backend()
     def test_aggregate2(self):
         schema = hl.tstruct(status=hl.tint32, GT=hl.tcall, qPheno=hl.tint32)
 
@@ -193,6 +195,7 @@ class Tests(unittest.TestCase):
         r = kt.aggregate(agg.filter(kt.idx % 2 != 0, agg.sum(kt.idx + 2)) + kt.g1)
         self.assertEqual(r, 40)
 
+    @fails_service_backend()
     def test_to_matrix_table(self):
         N, M = 50, 50
         mt = hl.utils.range_matrix_table(N, M)
@@ -207,6 +210,7 @@ class Tests(unittest.TestCase):
 
         assert re_mt.choose_cols(mapping).drop('col_idx')._same(mt.drop('col_idx'))
 
+    @fails_service_backend()
     def test_to_matrix_table_row_major(self):
         t = hl.utils.range_table(10)
         t = t.annotate(foo=t.idx, bar=2 * t.idx, baz=3 * t.idx)
@@ -232,12 +236,14 @@ class Tests(unittest.TestCase):
         self.assertRaises(ValueError, lambda: t.to_matrix_table_row_major(['d'], entry_field_name='c'))
         self.assertRaises(ValueError, lambda: t.to_matrix_table_row_major([]))
 
+    @fails_service_backend()
     def test_group_by_field_lifetimes(self):
         ht = hl.utils.range_table(3)
         ht2 = (ht.group_by(idx='100')
                .aggregate(x=hl.agg.collect_as_set(ht.idx + 5)))
         assert (ht2.all(ht2.x == hl.set({5, 6, 7})))
 
+    @fails_service_backend()
     def test_group_aggregate_by_key(self):
         ht = hl.utils.range_table(100, n_partitions=10)
 
@@ -246,6 +252,7 @@ class Tests(unittest.TestCase):
         assert r1.all(r1.n == 20)
         assert r2.all(r2.n == 20)
 
+    @fails_service_backend()
     def test_aggregate_by_key_partitioning(self):
         ht1 = hl.Table.parallelize([
             {'k': 'foo', 'b': 1},
@@ -361,6 +368,7 @@ class Tests(unittest.TestCase):
         assert ht.semi_join(ht2).count() == 3
         assert ht.anti_join(ht2).count() == 7
 
+    @fails_service_backend()
     def test_indirected_joins(self):
         kt = hl.utils.range_table(1)
         kt = kt.annotate(a='foo')
@@ -379,6 +387,7 @@ class Tests(unittest.TestCase):
 
         assert kt.aggregate(agg.collect(kt4[kt3[kt2[kt1[kt.a].b].c].d].e)) == ['quam']
 
+    @fails_service_backend()
     def test_table_matrix_join_combinations(self):
         m = hl.import_vcf(resource('sample.vcf'))
         vkt = m.rows()
@@ -403,6 +412,7 @@ class Tests(unittest.TestCase):
         ht = hl.import_vcf(resource('sample.vcf')).rows()
         assert ht.filter(ht.locus > hl.locus('20', 17434581)).count() == 100
 
+    @fails_service_backend()
     @fails_local_backend()
     def test_interval_join(self):
         left = hl.utils.range_table(50, n_partitions=10)
@@ -413,6 +423,7 @@ class Tests(unittest.TestCase):
                                  .when(left.idx % 10 < 5, left.interval_matches.idx == left.idx // 10)
                                  .default(hl.is_missing(left.interval_matches))))
 
+    @fails_service_backend()
     @fails_local_backend()
     def test_interval_product_join(self):
         left = hl.utils.range_table(50, n_partitions=8)
@@ -425,6 +436,7 @@ class Tests(unittest.TestCase):
         self.assertTrue(left.all(hl.sorted(left.interval_matches.map(lambda x: x.i))
                                  == hl.range(0, hl.min(left.idx % 10, 10 - left.idx % 10))))
 
+    @fails_service_backend()
     @fails_local_backend()
     def test_interval_product_join_long_key(self):
         left = hl.utils.range_table(50, n_partitions=8)
@@ -451,6 +463,7 @@ class Tests(unittest.TestCase):
         ht1 = ht.annotate(foo=5)
         self.assertTrue(ht.all(ht1[ht.key].foo == 5))
 
+    @fails_service_backend()
     def test_product_join(self):
         left = hl.utils.range_table(5)
         right = hl.utils.range_table(5)
@@ -466,6 +479,7 @@ class Tests(unittest.TestCase):
         mt.select_entries(a=mt2[mt.row_idx, mt.col_idx].x,
                           b=mt2[mt.row_idx, mt.col_idx].x)
 
+    @fails_service_backend()
     @fails_local_backend()
     def test_multi_way_zip_join(self):
         d1 = [{"id": 0, "name": "a", "data": 0.0},
@@ -519,6 +533,7 @@ class Tests(unittest.TestCase):
         joined = hl.Table.multi_way_zip_join([t1, t2, t3], '__data', '__globals')
         self.assertEqual(hl.eval(joined.globals), hl.eval(expected))
 
+    @fails_service_backend()
     def test_multi_way_zip_join_key_downcast(self):
         mt = hl.import_vcf(resource('sample.vcf.bgz'))
         mt = mt.key_rows_by('locus')
@@ -526,6 +541,7 @@ class Tests(unittest.TestCase):
         j = hl.Table.multi_way_zip_join([ht, ht], 'd', 'g')
         j._force_count()
 
+    @fails_service_backend()
     def test_multi_way_zip_join_key_downcast2(self):
         vcf2 = hl.import_vcf(resource('gvcfs/HG00268.g.vcf.gz'), force_bgz=True, reference_genome='GRCh38')
         vcf1 = hl.import_vcf(resource('gvcfs/HG00096.g.vcf.gz'), force_bgz=True, reference_genome='GRCh38')
@@ -558,10 +574,12 @@ class Tests(unittest.TestCase):
         with self.assertRaisesRegex(hl.expr.ExpressionException, "Table key: *<<<empty key>>>"):
             t[t.idx]
 
+    @fails_service_backend()
     def test_aggregation_with_no_aggregators(self):
         ht = hl.utils.range_table(3)
         self.assertEqual(ht.group_by(ht.idx).aggregate().count(), 3)
 
+    @fails_service_backend()
     def test_drop(self):
         kt = hl.utils.range_table(10)
         kt = kt.annotate(sq=kt.idx ** 2, foo='foo', bar='bar').key_by('foo')
@@ -651,6 +669,7 @@ class Tests(unittest.TestCase):
         with self.assertRaises(LookupError):
             kt.rename({'hello': 'a'})
 
+    @fails_service_backend()
     def test_distinct(self):
         t1 = hl.Table.parallelize([
             {'a': 'foo', 'b': 1},
@@ -673,6 +692,7 @@ class Tests(unittest.TestCase):
         self.assertTrue(dist.all(hl.len(dist.values) == 1))
         self.assertEqual(dist.count(), len(t1.aggregate(hl.agg.collect_as_set(t1.a))))
 
+    @fails_service_backend()
     def test_group_by_key(self):
         t1 = hl.Table.parallelize([
             {'a': 'foo', 'b': 1},
@@ -746,6 +766,7 @@ class Tests(unittest.TestCase):
         with pytest.raises(ValueError):
             t.explode(t.foo.bar, name='baz')
 
+    @fails_service_backend()
     @fails_local_backend()
     def test_export(self):
         t = hl.utils.range_table(1).annotate(foo=3)
@@ -755,6 +776,7 @@ class Tests(unittest.TestCase):
         with hl.hadoop_open(tmp_file, 'r') as f_in:
             assert f_in.read() == 'idx\tfoo\n0\t3\n'
 
+    @fails_service_backend()
     @fails_local_backend()
     def test_export_delim(self):
         t = hl.utils.range_table(1).annotate(foo = 3)
@@ -764,6 +786,7 @@ class Tests(unittest.TestCase):
         with hl.hadoop_open(tmp_file, 'r') as f_in:
             assert f_in.read() == 'idx,foo\n0,3\n'
 
+    @fails_service_backend()
     @fails_local_backend()
     def test_write_stage_locally(self):
         t = hl.utils.range_table(5)
@@ -775,6 +798,7 @@ class Tests(unittest.TestCase):
     def test_min_partitions(self):
         assert hl.import_table(resource('variantAnnotations.tsv'), min_partitions=50).n_partitions() == 50
 
+    @fails_service_backend()
     @fails_local_backend()
     def test_read_back_same_as_exported(self):
         t, _ = create_all_values_datasets()
@@ -783,6 +807,7 @@ class Tests(unittest.TestCase):
         t_read_back = hl.import_table(tmp_file, types=dict(t.row.dtype)).key_by('idx')
         self.assertTrue(t.select_globals()._same(t_read_back, tolerance=1e-4, absolute=True))
 
+    @fails_service_backend()
     def test_indexed_read(self):
         t = hl.utils.range_table(2000, 10)
         f = new_temp_file(extension='ht')
@@ -802,14 +827,17 @@ class Tests(unittest.TestCase):
         self.assertEqual(t2.n_partitions(), 3)
         self.assertTrue(t.filter((t.idx >= 150) & (t.idx < 500))._same(t2))
 
+    @fails_service_backend()
     def test_order_by_parsing(self):
         hl.utils.range_table(1).annotate(**{'a b c' : 5}).order_by('a b c')._force_count()
 
+    @fails_service_backend()
     def test_take_order(self):
         t = hl.utils.range_table(20, n_partitions=2)
         t = t.key_by(rev_idx=-t.idx)
         assert t.take(10) == [hl.Struct(idx=idx, rev_idx=-idx) for idx in range(19, 9, -1)]
 
+    @fails_service_backend()
     @fails_local_backend()
     def test_filter_partitions(self):
         ht = hl.utils.range_table(23, n_partitions=8)
@@ -826,6 +854,7 @@ class Tests(unittest.TestCase):
             ht._filter_partitions([0, 7]).idx.collect(),
             [0, 1, 2, 21, 22])
 
+    @fails_service_backend()
     def test_localize_entries(self):
         ref_schema = hl.tstruct(row_idx=hl.tint32,
                                 __entries=hl.tarray(hl.tstruct(v=hl.tint32)))
@@ -838,6 +867,7 @@ class Tests(unittest.TestCase):
         t = mt._localize_entries('__entries', '__cols')
         self.assertTrue(t._same(ref_tab))
 
+    @fails_service_backend()
     def test_localize_self_join(self):
         ref_schema = hl.tstruct(row_idx=hl.tint32,
                                 __entries=hl.tarray(hl.tstruct(v=hl.tint32)))
@@ -851,6 +881,7 @@ class Tests(unittest.TestCase):
         t = t.join(t, how='outer')
         self.assertTrue(t._same(ref_tab))
 
+    @fails_service_backend()
     def test_union(self):
         t1 = hl.utils.range_table(5)
 
@@ -864,6 +895,7 @@ class Tests(unittest.TestCase):
         self.assertTrue(t1.key_by().union(t2.key_by(), t3.key_by())
                         ._same(hl.utils.range_table(15).key_by()))
 
+    @fails_service_backend()
     @fails_local_backend()
     def test_nested_union(self):
         N = 10
@@ -914,6 +946,7 @@ class Tests(unittest.TestCase):
             self.assertEqual(table.head(0).count(), 0)
             self.assertEqual(table.head(0)._force_count(), 0)
 
+    @fails_service_backend()
     def test_table_order_by_head_rewrite(self):
         rt = hl.utils.range_table(10, 2)
         rt = rt.annotate(x = 10 - rt.idx)
@@ -921,6 +954,7 @@ class Tests(unittest.TestCase):
         self.assertEqual(rt.order_by('x').idx.take(10), expected)
         self.assertEqual(rt.order_by('x').idx.collect(), expected)
 
+    @fails_service_backend()
     def test_order_by_expr(self):
         ht = hl.utils.range_table(10, 3)
         ht = ht.annotate(xs = hl.range(0, 1).map(lambda x: hl.int(hl.rand_unif(0, 100))))
@@ -937,6 +971,7 @@ class Tests(unittest.TestCase):
         assert desc.xs[0].collect() == res_desc
         assert [s['xs'][0] for s in desc.take(5)] == res_desc[:5]
 
+    @fails_service_backend()
     def test_null_joins(self):
         tr = hl.utils.range_table(7, 1)
         table1 = tr.key_by(new_key=hl.if_else((tr.idx == 3) | (tr.idx == 5),
@@ -977,6 +1012,7 @@ class Tests(unittest.TestCase):
         self.assertEqual(inner_join.collect(), inner_join_expected)
         self.assertEqual(outer_join.collect(), outer_join_expected)
 
+    @fails_service_backend()
     def test_null_joins_2(self):
         tr = hl.utils.range_table(7, 1)
         table1 = tr.key_by(new_key=hl.if_else((tr.idx == 3) | (tr.idx == 5),
@@ -1017,6 +1053,7 @@ class Tests(unittest.TestCase):
         self.assertEqual(inner_join.collect(), inner_join_expected)
         self.assertEqual(outer_join.collect(), outer_join_expected)
 
+    @fails_service_backend()
     def test_joins_one_null(self):
         tr = hl.utils.range_table(7, 1)
         table1 = tr.key_by(new_key=tr.idx)
@@ -1051,6 +1088,7 @@ class Tests(unittest.TestCase):
         self.assertEqual(inner_join.collect(), inner_join_expected)
         self.assertEqual(outer_join.collect(), outer_join_expected)
 
+    @fails_service_backend()
     @fails_local_backend()
     def test_partitioning_rewrite(self):
         ht = hl.utils.range_table(10, 3)
@@ -1058,6 +1096,7 @@ class Tests(unittest.TestCase):
         self.assertEqual(ht1.x.collect()[:5], ht1.head(5).x.collect())
         self.assertEqual(ht1.x.collect()[-5:], ht1.tail(5).x.collect())
 
+    @fails_service_backend()
     def test_flatten(self):
         t1 = hl.utils.range_table(10)
         t1 = t1.key_by(x = hl.struct(a=t1.idx, b=0)).flatten()
@@ -1065,6 +1104,7 @@ class Tests(unittest.TestCase):
         t2 = t2.annotate(**{'x.a': t2.idx, 'x.b': 0})
         self.assertTrue(t1._same(t2))
 
+    @fails_service_backend()
     def test_expand_types(self):
         t1 = hl.utils.range_table(10)
         t1 = t1.key_by(x = hl.locus('1', t1.idx+1)).expand_types()
@@ -1088,6 +1128,7 @@ class Tests(unittest.TestCase):
         assert j.globals.dtype == hl.tstruct(glob1=hl.tint32, glob1_1=hl.tint32)
         j._force_count()
 
+    @fails_service_backend()
     def test_join_with_filter_intervals(self):
         ht = hl.utils.range_table(100, 5)
         ht = ht.key_by(idx2=ht.idx // 2)
@@ -1104,6 +1145,7 @@ class Tests(unittest.TestCase):
         ht3 = ht1.join(ht2)
         assert ht3.filter(ht3.idx2 == 10).count() == 4
 
+    @fails_service_backend()
     def test_key_by_aggregate_rewriting(self):
         ht = hl.utils.range_table(10)
         ht = ht.group_by(x=ht.idx % 5).aggregate(aggr = hl.agg.count())
@@ -1140,6 +1182,7 @@ class Tests(unittest.TestCase):
         ht = hl.utils.range_table(10)
         assert hl.eval(ht.idx.collect(_localize=False)) == ht.idx.collect()
 
+    @fails_service_backend()
     def test_expr_collect(self):
         t = hl.utils.range_table(3)
 
@@ -1177,10 +1220,12 @@ class Tests(unittest.TestCase):
     def test_no_row_fields_show(self):
         hl.utils.range_table(5).key_by().select().show()
 
+    @fails_service_backend()
     def test_same_equal(self):
         t1 = hl.utils.range_table(1)
         self.assertTrue(t1._same(t1))
 
+    @fails_service_backend()
     def test_same_within_tolerance(self):
         t = hl.utils.range_table(1)
         t1 = t.annotate(x = 1.0)
@@ -1205,6 +1250,7 @@ class Tests(unittest.TestCase):
         t2 = t1.annotate_globals(x = 8)
         self.assertFalse(t1._same(t2))
 
+    @fails_service_backend()
     def test_same_different_rows(self):
         t1 = (hl.utils.range_table(2)
               .annotate(x = 7))
@@ -1215,14 +1261,15 @@ class Tests(unittest.TestCase):
         t3 = t1.filter(t1.idx == 0)
         self.assertFalse(t1._same(t3))
 
+    @fails_service_backend()
     def test_rvd_key_write(self):
-        tempfile = new_temp_file(extension='ht')
-        ht1 = hl.utils.range_table(1).key_by(foo='a', bar='b')
-        ht1.write(tempfile)  # write ensures that table is written with both key fields
+        with hl.TemporaryDirectory(suffix='.ht', ensure_exists=False) as tempfile:
+            ht1 = hl.utils.range_table(1).key_by(foo='a', bar='b')
+            ht1.write(tempfile)  # write ensures that table is written with both key fields
 
-        ht1 = hl.read_table(tempfile)
-        ht2 = hl.utils.range_table(1).annotate(foo='a')
-        assert ht2.annotate(x = ht1.key_by('foo')[ht2.foo])._force_count() == 1
+            ht1 = hl.read_table(tempfile)
+            ht2 = hl.utils.range_table(1).annotate(foo='a')
+            assert ht2.annotate(x = ht1.key_by('foo')[ht2.foo])._force_count() == 1
 
     def test_show_long_field_names(self):
         hl.utils.range_table(1).annotate(**{'a' * 256: 5}).show()
@@ -1266,11 +1313,13 @@ class Tests(unittest.TestCase):
         ht = ht.annotate(fd=hl.sorted(a))
         assert ht.fd.collect()[0] == ["e", "é"]
 
+    @fails_service_backend()
     def test_physical_key_truncation(self):
         path = new_temp_file(extension='ht')
         hl.import_vcf(resource('sample.vcf')).rows().key_by('locus').write(path)
         hl.read_table(path).select()._force_count()
 
+    @fails_service_backend()
     @fails_local_backend()
     def test_repartition_empty_key(self):
         data = [{'x': i} for i in range(1000)]
@@ -1278,6 +1327,7 @@ class Tests(unittest.TestCase):
         assert ht.naive_coalesce(4)._same(ht)
         assert ht.repartition(3, shuffle=False)._same(ht)
 
+    @fails_service_backend()
     def test_path_collision_error(self):
         path = new_temp_file(extension='ht')
         ht = hl.utils.range_table(10)
@@ -1287,6 +1337,7 @@ class Tests(unittest.TestCase):
             ht.write(path)
         assert "both an input and output source" in str(exc.value)
 
+@fails_service_backend()
 def test_large_number_of_fields(tmpdir):
     ht = hl.utils.range_table(100)
     ht = ht.annotate(**{
@@ -1301,6 +1352,7 @@ def test_large_number_of_fields(tmpdir):
 def test_import_many_fields():
     assert_time(lambda: hl.import_table(resource('many_cols.txt')), 5)
 
+@fails_service_backend()
 def test_segfault():
     t = hl.utils.range_table(1)
     t2 = hl.utils.range_table(3)
@@ -1311,6 +1363,7 @@ def test_segfault():
     assert joined.collect() == []
 
 
+@fails_service_backend()
 def test_maybe_flexindex_table_by_expr_direct_match():
     t1 = hl.utils.range_table(1)
     t2 = hl.utils.range_table(1)
@@ -1330,6 +1383,7 @@ def test_maybe_flexindex_table_by_expr_direct_match():
     assert t1._maybe_flexindex_table_by_expr(hl.str(mt1.row_key)) is None
 
 
+@fails_service_backend()
 def test_maybe_flexindex_table_by_expr_prefix_match():
     t1 = hl.utils.range_table(1)
     t2 = hl.utils.range_table(1)
@@ -1349,6 +1403,7 @@ def test_maybe_flexindex_table_by_expr_prefix_match():
     assert t1._maybe_flexindex_table_by_expr((hl.str(mt1.row_idx), mt1.row_idx)) is None
 
 
+@fails_service_backend()
 @fails_local_backend()
 def test_maybe_flexindex_table_by_expr_direct_interval_match():
     t1 = hl.utils.range_table(1)
@@ -1370,6 +1425,7 @@ def test_maybe_flexindex_table_by_expr_direct_interval_match():
     assert t1._maybe_flexindex_table_by_expr(hl.str(mt1.row_key)) is None
 
 
+@fails_service_backend()
 @fails_local_backend()
 def test_maybe_flexindex_table_by_expr_prefix_interval_match():
     t1 = hl.utils.range_table(1)
@@ -1394,6 +1450,7 @@ def test_maybe_flexindex_table_by_expr_prefix_interval_match():
 widths = [256, 512, 1024, 2048, 4096]
 
 
+@fails_service_backend()
 def test_can_process_wide_tables():
     for w in widths:
         print(f'working on width {w}')
@@ -1436,6 +1493,7 @@ def create_width_scale_files():
         write_file(w)
 
 
+@fails_service_backend()
 def test_join_distinct_preserves_count():
     left_pos = [1, 2, 4, 4, 5, 5, 9, 13, 13, 14, 15]
     right_pos = [1, 1, 1, 3, 4, 4, 6, 6, 8, 9, 13, 15]
@@ -1452,6 +1510,7 @@ def test_join_distinct_preserves_count():
     assert n_defined_2 == 0
     assert keys_2 == left_pos
 
+@fails_service_backend()
 def test_write_table_containing_ndarray():
     t = hl.utils.range_table(5)
     t = t.annotate(n = hl.nd.arange(t.idx))
@@ -1510,6 +1569,7 @@ def test_range_annotate_range():
     ht2 = hl.utils.range_table(5).annotate(x = 1)
     ht1.annotate(x = ht2[ht1.idx].x)._force_count()
 
+@fails_service_backend()
 def test_read_write_all_types():
     ht = create_all_values_table()
     tmp_file = new_temp_file()
@@ -1530,6 +1590,7 @@ def test_map_partitions_errors():
     with pytest.raises(ValueError, match='must preserve key fields'):
         ht._map_partitions(lambda rows: rows.map(lambda r: r.drop('idx')))
 
+@fails_service_backend()
 def test_map_partitions_indexed():
     tmp_file = new_temp_file()
     hl.utils.range_table(100, 8).write(tmp_file)
@@ -1538,6 +1599,8 @@ def test_map_partitions_indexed():
     assert [inner.idx for outer in ht.foo.collect() for inner in outer] == list(range(11, 55))
 
 
+
+@fails_service_backend()
 @lower_only()
 def test_lowered_persist():
     ht = hl.utils.range_table(100, 10).persist()
@@ -1545,12 +1608,15 @@ def test_lowered_persist():
     assert ht.filter(ht.idx == 55).count() == 1
 
 
+
+@fails_service_backend()
 @lower_only()
 def test_lowered_shuffle():
     ht = hl.utils.range_table(100, 10)
     ht = ht.order_by(-ht.idx)
     assert ht.aggregate(hl.agg.take(ht.idx, 3)) == [99, 98, 97]
 
+@fails_service_backend()
 @fails_local_backend()
 def test_read_partitions():
     ht = hl.utils.range_table(100, 3)

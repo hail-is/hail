@@ -157,13 +157,15 @@ fi
 
 
 class PR(Code):
-    def __init__(self, number, title, source_branch, source_sha, target_branch, author, labels):
+    def __init__(self, number, title, source_branch, source_sha, target_branch, author, assignees, reviewers, labels):
         self.number = number
         self.title = title
         self.source_branch = source_branch
         self.source_sha = source_sha
         self.target_branch = target_branch
         self.author = author
+        self.assignees = assignees
+        self.reviewers = reviewers
         self.labels = labels
 
         # pending, changes_requested, approve
@@ -195,7 +197,7 @@ class PR(Code):
                 self.target_branch.state_changed = True
 
     async def authorized(self, dbpool):
-        if self.author in AUTHORIZED_USERS:
+        if self.author in {user.gh_username for user in AUTHORIZED_USERS}:
             return True
 
         async with dbpool.acquire() as conn:
@@ -226,6 +228,8 @@ class PR(Code):
         assert self.number == gh_json['number']
         self.title = gh_json['title']
         self.author = gh_json['user']['login']
+        self.assignees = {user['login'] for user in gh_json['assignees']}
+        self.reviewers = {user['login'] for user in gh_json['requested_reviewers']}
 
         new_labels = {label['name'] for label in gh_json['labels']}
         if new_labels != self.labels:
@@ -256,6 +260,8 @@ class PR(Code):
             head['sha'],
             target_branch,
             gh_json['user']['login'],
+            {user['login'] for user in gh_json['assignees']},
+            {user['login'] for user in gh_json['requested_reviewers']},
             {label['name'] for label in gh_json['labels']},
         )
 
@@ -409,8 +415,6 @@ mkdir -p {shq(repo_dir)}
         except concurrent.futures.CancelledError:
             raise
         except Exception as e:  # pylint: disable=broad-except
-            log.exception('could not start build')
-
             # FIXME save merge failure output for UI
             self.batch = MergeFailureBatch(
                 e,
@@ -442,7 +446,10 @@ mkdir -p {shq(repo_dir)}
     async def _update_batch(self, batch_client, dbpool):
         # find the latest non-cancelled batch for source
         batches = batch_client.list_batches(
-            f'test=1 ' f'target_branch={self.target_branch.branch.short_str()} ' f'source_sha={self.source_sha}'
+            f'test=1 '
+            f'target_branch={self.target_branch.branch.short_str()} '
+            f'source_sha={self.source_sha} '
+            f'user:ci'
         )
         min_batch = None
         min_batch_status = None
@@ -658,14 +665,14 @@ class WatchedBranch(Code):
 
         if self.deploy_batch is None:
             running_deploy_batches = batch_client.list_batches(
-                f'!complete deploy=1 target_branch={self.branch.short_str()}'
+                f'!complete ' f'deploy=1 ' f'target_branch={self.branch.short_str()} ' f'user:ci'
             )
             running_deploy_batches = [b async for b in running_deploy_batches]
             if running_deploy_batches:
                 self.deploy_batch = max(running_deploy_batches, key=lambda b: b.id)
             else:
                 deploy_batches = batch_client.list_batches(
-                    f'deploy=1 ' f'target_branch={self.branch.short_str()} ' f'sha={self.sha}'
+                    f'deploy=1 ' f'target_branch={self.branch.short_str()} ' f'sha={self.sha} ' f'user:ci'
                 )
                 deploy_batches = [b async for b in deploy_batches]
                 if deploy_batches:
@@ -691,7 +698,7 @@ class WatchedBranch(Code):
                         'to': 'team',
                         'topic': 'CI Deploy Failure',
                         'content': f'''
-@*dev*
+@**daniel king**
 state: {self.deploy_state}
 branch: {self.branch.short_str()}
 sha: {self.sha}
@@ -748,7 +755,9 @@ url: {url}
             await pr._heal(batch_client, dbpool, pr == merge_candidate, gh)
 
         # cancel orphan builds
-        running_batches = batch_client.list_batches(f'!complete !open test=1 target_branch={self.branch.short_str()}')
+        running_batches = batch_client.list_batches(
+            f'!complete ' f'!open ' f'test=1 ' f'target_branch={self.branch.short_str()} ' f'user:ci'
+        )
         seen_batch_ids = set(pr.batch.id for pr in self.prs.values() if pr.batch and hasattr(pr.batch, 'id'))
         async for batch in running_batches:
             if batch.id not in seen_batch_ids:
@@ -858,6 +867,7 @@ mkdir -p {shq(repo_dir)}
                     'target_branch': self.branch.short_str(),
                     'sha': self.sha,
                     'user': self.user,
+                    'dev_deploy': '1',
                 }
             )
             config.build(deploy_batch, self, scope='dev')

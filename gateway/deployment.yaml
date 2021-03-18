@@ -37,8 +37,11 @@ spec:
          image: "{{ gateway_image.image }}"
          resources:
            requests:
-             memory: "250M"
-             cpu: "100m"
+             cpu: "20m"
+             memory: "20M"
+           limits:
+             cpu: "1"
+             memory: "1G"
          ports:
           - containerPort: 80
           - containerPort: 443
@@ -83,3 +86,18 @@ spec:
   selector:
     matchLabels:
       app: gateway
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: router
+  labels:
+    app: router
+spec:
+  ports:
+  - name: https
+    port: 443
+    protocol: TCP
+    targetPort: 443
+  selector:
+    app: router

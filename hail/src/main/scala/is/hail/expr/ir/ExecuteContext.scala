@@ -11,18 +11,41 @@ import is.hail.io.fs.FS
 
 import scala.collection.mutable
 
+trait TempFileManager {
+  def own(path: String): Unit
+
+  def cleanup(): Unit
+}
+
+class OwningTempFileManager(fs: FS) extends TempFileManager {
+  private[this] val tmpPaths = mutable.ArrayBuffer[String]()
+
+  def own(path: String): Unit = tmpPaths += path
+
+  override def cleanup(): Unit = {
+    for (p <- tmpPaths)
+      fs.delete(p, recursive = true)
+    tmpPaths.clear()
+  }
+}
+
+class NonOwningTempFileManager(owner: TempFileManager) extends TempFileManager {
+  def own(path: String): Unit = owner.own(path)
+
+  override def cleanup(): Unit = ()
+}
+
 object ExecuteContext {
   def scoped[T]()(f: ExecuteContext => T): T = {
     val (result, _) = ExecutionTimer.time("ExecuteContext.scoped") { timer =>
-      HailContext.sparkBackend("ExecuteContext.scoped").withExecuteContext(timer)(f)
+      HailContext.sparkBackend("ExecuteContext.scoped").withExecuteContext(timer, selfContainedExecution = false)(f)
     }
     result
   }
 
-  def scoped[T](tmpdir: String, localTmpdir: String, backend: Backend, fs: FS, timer: ExecutionTimer)(f: ExecuteContext => T): T = {
-    RegionPool.scoped {rp =>
-      val ctx = new ExecuteContext(tmpdir, localTmpdir, backend, fs, Region(pool = rp), timer)
-      f(ctx)
+  def scoped[T](tmpdir: String, localTmpdir: String, backend: Backend, fs: FS, timer: ExecutionTimer, tempFileManager: TempFileManager)(f: ExecuteContext => T): T = {
+    RegionPool.scoped { rp =>
+      using(new ExecuteContext(tmpdir, localTmpdir, backend, fs, Region(pool = rp), timer, tempFileManager))(f(_))
     }
   }
 
@@ -55,20 +78,25 @@ class ExecuteContext(
   val backend: Backend,
   val fs: FS,
   var r: Region,
-  val timer: ExecutionTimer
+  val timer: ExecutionTimer,
+  _tempFileManager: TempFileManager
 ) extends Closeable {
   var backendContext: BackendContext = _
 
+  private val tempFileManager: TempFileManager = if (_tempFileManager != null)
+    _tempFileManager
+  else
+    new OwningTempFileManager(fs)
+
   def fsBc: BroadcastValue[FS] = fs.broadcast
 
-  private val tmpPaths = mutable.ArrayBuffer[String]()
   private val cleanupFunctions = mutable.ArrayBuffer[() => Unit]()
 
   val memo: mutable.Map[Any, Any] = new mutable.HashMap[Any, Any]()
 
   def createTmpPath(prefix: String, extension: String = null): String = {
     val path = ExecuteContext.createTmpPathNoCleanup(tmpdir, prefix, extension)
-    tmpPaths += path
+    tempFileManager.own(path)
     path
   }
 
@@ -81,9 +109,7 @@ class ExecuteContext(
   }
 
   def close(): Unit = {
-    for (p <- tmpPaths)
-      fs.delete(p, recursive = true)
-    tmpPaths.clear()
+    tempFileManager.cleanup()
 
     var exception: Exception = null
     for (cleanupFunction <- cleanupFunctions) {

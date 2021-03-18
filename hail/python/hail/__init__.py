@@ -1,5 +1,8 @@
-import pkg_resources
-import sys
+import nest_asyncio
+nest_asyncio.apply()
+
+import pkg_resources  # noqa: E402
+import sys  # noqa: E402
 
 if sys.version_info < (3, 6):
     raise EnvironmentError('Hail requires Python 3.6 or later, found {}.{}'.format(
@@ -50,7 +53,8 @@ from hail.utils import (Struct, Interval, hadoop_copy, hadoop_open, hadoop_ls,  
 
 from .context import (init, init_local, stop, spark_context, tmp_dir, default_reference,  # noqa: E402
                       get_reference, set_global_seed, _set_flags, _get_flags, current_backend,
-                      debug_info, citation, cite_hail, cite_hail_bibtex, version)
+                      debug_info, citation, cite_hail, cite_hail_bibtex, version, TemporaryFilename,
+                      TemporaryDirectory)
 
 scan = agg.aggregators.ScanFunctions({name: getattr(agg, name) for name in agg.__all__})
 
@@ -60,6 +64,8 @@ __all__ = [
     'stop',
     'spark_context',
     'tmp_dir',
+    'TemporaryFilename',
+    'TemporaryDirectory',
     'default_reference',
     'get_reference',
     'set_global_seed',

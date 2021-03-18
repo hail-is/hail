@@ -50,7 +50,7 @@ object UnsafeRow {
     new UnsafeRow(t, region, offset)
 
   def readString(boff: Long, t: PString): String =
-    new String(readBinary(boff, t.fundamentalType))
+    new String(readBinary(boff, t.binaryRepresentation))
 
   def readLocus(offset: Long, t: PLocus): Locus = {
     Locus(
@@ -328,7 +328,7 @@ class UnsafeNDArray(val pnd: PNDArray, val region: Region, val ndAddr: Long) ext
 
   def lookupElement(indices: IndexedSeq[Long]): Annotation = {
     val elementAddress = pnd.getElementAddress(indices, ndAddr)
-    UnsafeRow.read(pnd.elementType, region, elementAddress)
+    UnsafeRow.read(pnd.elementType, region, pnd.elementType.unstagedLoadFromNested(elementAddress))
   }
 
   def getRowMajorElements(): IndexedSeq[Annotation] = {

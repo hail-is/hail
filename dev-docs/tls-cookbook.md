@@ -14,7 +14,8 @@ openssl req -x509 \
         -out server-cert.pem \
         -days 365 \
         -subj '/CN=localhost' \
-        -nodes
+        -nodes \
+        -sha256
 ```
 
 ## Bundle a Key and Certificate into a PKCS12 File
@@ -100,7 +101,8 @@ openssl req -new -x509 \
         -newkey rsa:4096 \
         -keyout hail-root-key.pem \
         -out hail-root-cert.pem \
-        -days 365
+        -days 365 \
+        -sha256
 ```
 
 2. Update kubernetes with the new root certificate:
@@ -117,9 +119,10 @@ kubectl create secret generic \
 3. Update all the service certificates:
 
 ```
-python3 $HAIL_HOME/tls/create_certs.py \
+PYTHONPATH=$HAIL/hail/python \
+        python3 $HAIL/tls/create_certs.py \
         default \
-        $HAIL_HOME/tls/config.yaml \
+        $HAIL/tls/config.yaml \
         hail-root-key.pem \
         hail-root-cert.pem
 ```

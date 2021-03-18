@@ -8,6 +8,8 @@ import org.objectweb.asm.Opcodes._
 import org.objectweb.asm.util.{CheckClassAdapter, Textifier, TraceClassVisitor}
 
 import scala.collection.mutable
+import java.io.ByteArrayOutputStream
+import java.nio.charset.StandardCharsets
 
 object Emit {
   def emitMethod(cv: ClassVisitor, m: Method, debugInformation: Boolean): Int = {
@@ -221,8 +223,11 @@ object Emit {
       b
     } catch {
       case e: Exception =>
-        val trace = new TraceClassVisitor(new PrintWriter(System.err))
+        val buffer = new ByteArrayOutputStream()
+        val trace = new TraceClassVisitor(new PrintWriter(buffer))
         val check = new CheckClassAdapter(trace)
+        val classJVMByteCodeAsEscapedStr = buffer.toString(StandardCharsets.UTF_8.name())
+        log.error(s"lir exception ${e}:\n" + classJVMByteCodeAsEscapedStr)
         emitClass(c, check, logMethodSizes = false)
         throw e
     }

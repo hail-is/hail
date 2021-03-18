@@ -1,6 +1,7 @@
 import time
 import re
 import os
+import secrets
 import pytest
 from flask import Response
 from hailtop.config import get_user_config
@@ -128,9 +129,11 @@ def test_callback(client):
     try:
         server = ServerThread(app)
         server.start()
+        token = secrets.token_urlsafe(32)
         b = client.create_batch(
             callback=server.url_for('/test'),
-            attributes={'foo': 'bar'})
+            attributes={'foo': 'bar'},
+            token=token)
         head = b.create_job('alpine:3.8', command=['echo', 'head'])
         tail = b.create_job('alpine:3.8', command=['echo', 'tail'], parents=[head])
         b = b.submit()
@@ -154,6 +157,7 @@ def test_callback(client):
         assert (callback_body == {
             'id': b.id,
             'billing_project': 'test',
+            'token': token,
             'state': 'success',
             'complete': True,
             'closed': True,
@@ -187,12 +191,12 @@ def test_input_dependency(client):
     batch = client.create_batch()
     head = batch.create_job(DOCKER_ROOT_IMAGE,
                             command=['/bin/sh', '-c', 'echo head1 > /io/data1; echo head2 > /io/data2'],
-                            output_files=[('/io/data1', f'gs://{bucket_name}'),
-                                          ('/io/data2', f'gs://{bucket_name}')])
+                            output_files=[('/io/data1', f'gs://{bucket_name}/data1'),
+                                          ('/io/data2', f'gs://{bucket_name}/data2')])
     tail = batch.create_job(DOCKER_ROOT_IMAGE,
                             command=['/bin/sh', '-c', 'cat /io/data1; cat /io/data2'],
-                            input_files=[(f'gs://{bucket_name}/data1', '/io/'),
-                                         (f'gs://{bucket_name}/data2', '/io/')],
+                            input_files=[(f'gs://{bucket_name}/data1', '/io/data1'),
+                                         (f'gs://{bucket_name}/data2', '/io/data2')],
                             parents=[head])
     batch.submit()
     tail.wait()
@@ -205,10 +209,12 @@ def test_input_dependency_wildcard(client):
     batch = client.create_batch()
     head = batch.create_job(DOCKER_ROOT_IMAGE,
                             command=['/bin/sh', '-c', 'echo head1 > /io/data1 ; echo head2 > /io/data2'],
-                            output_files=[('/io/data*', f'gs://{bucket_name}')])
+                            output_files=[('/io/data1', f'gs://{bucket_name}/data1'),
+                                          ('/io/data2', f'gs://{bucket_name}/data2')])
     tail = batch.create_job(DOCKER_ROOT_IMAGE,
                             command=['/bin/sh', '-c', 'cat /io/data1 ; cat /io/data2'],
-                            input_files=[(f'gs://{bucket_name}/data*', '/io/')],
+                            input_files=[(f'gs://{bucket_name}/data1', '/io/data1'),
+                                         (f'gs://{bucket_name}/data2', '/io/data2')],
                             parents=[head])
     batch.submit()
     tail.wait()
@@ -221,10 +227,10 @@ def test_input_dependency_directory(client):
     batch = client.create_batch()
     head = batch.create_job(DOCKER_ROOT_IMAGE,
                             command=['/bin/sh', '-c', 'mkdir -p /io/test/; echo head1 > /io/test/data1 ; echo head2 > /io/test/data2'],
-                            output_files=[('/io/test/', f'gs://{bucket_name}')])
+                            output_files=[('/io/test', f'gs://{bucket_name}/test')])
     tail = batch.create_job(DOCKER_ROOT_IMAGE,
                             command=['/bin/sh', '-c', 'cat /io/test/data1; cat /io/test/data2'],
-                            input_files=[(f'gs://{bucket_name}/test', '/io/')],
+                            input_files=[(f'gs://{bucket_name}/test', '/io/test')],
                             parents=[head])
     batch.submit()
     tail.wait()

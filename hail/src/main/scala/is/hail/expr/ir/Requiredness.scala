@@ -432,7 +432,7 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
       case _: I32 | _: I64 | _: F32 | _: F64 | _: Str | True() | False() | _: IsNA | _: Die | _: UUID4 | _: Consume =>
       case _: CombOpValue | _: AggStateValue =>
       case x if x.typ == TVoid =>
-      case ApplyComparisonOp(EQWithNA(_, _), _, _) | ApplyComparisonOp(NEQWithNA(_, _), _, _) | ApplyComparisonOp(Compare(_, _), _, _) | ApplyComparisonOp(CompareStructs(_, _), _, _) =>
+      case ApplyComparisonOp(EQWithNA(_, _), _, _) | ApplyComparisonOp(NEQWithNA(_, _), _, _) | ApplyComparisonOp(Compare(_, _), _, _) =>
       case ApplyComparisonOp(op, l, r) =>
         fatal(s"non-strict comparison op $op must have explicit case")
       case TableCount(t) =>
@@ -568,7 +568,7 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
           initOpArgs.map(i => i -> lookup(i)),
           seqOpArgs.map(s => s -> lookup(s)))).pResultType
         requiredness.fromPType(pResult)
-      case MakeNDArray(data, shape, rowMajor) =>
+      case MakeNDArray(data, shape, rowMajor, _) =>
         requiredness.unionFrom(lookup(data))
         requiredness.union(lookup(shape).required)
       case NDArrayShape(nd) =>

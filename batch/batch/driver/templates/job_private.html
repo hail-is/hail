@@ -1,0 +1,106 @@
+{% extends "layout.html" %}
+{% block title %}Job Private Instance Manager{% endblock %}
+{% block content %}
+
+<h1>{{ jpim.name }}</h1>
+
+<h2>Configuration</h2>
+<div class="attributes">
+  <form action="{{ base_path }}/config-update/jpim" method="POST">
+    <div>Boot disk size (in GB): <input name="boot_disk_size_gb" value="{{ jpim.boot_disk_size_gb }}" /></div>
+    <div>Max instances: <input name="max_instances" value="{{ jpim.max_instances }}" /></div>
+    <div>Max live instances: <input name="max_live_instances" value="{{ jpim.max_live_instances }}" /></div>
+    <input type="hidden" name="_csrf" value="{{ csrf_token }}"/>
+    <button>
+      Update
+    </button>
+  </form>
+</div>
+
+<h2>User Resources</h2>
+<table class="data-table" id="user_resources">
+  <thead>
+  <tr>
+    <th>User</th>
+    <th>Ready Jobs</th>
+    <th>Allocated Jobs</th>
+    <th>Creating Jobs</th>
+    <th>Running Jobs</th>
+  </tr>
+  </thead>
+  <tbody>
+  {% for user in user_resources %}
+  <tr>
+    <td>{{ user['user'] }}</td>
+    <td class="numeric-cell">{{ user['n_ready_jobs'] }}</td>
+    <td class="numeric-cell">{{ user['n_allocated_jobs'] }}</td>
+    <td class="numeric-cell">{{ user['n_creating_jobs'] }}</td>
+    <td class="numeric-cell">{{ user['n_running_jobs'] }}</td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table>
+
+<h2>Status</h2>
+<div class="attributes">
+  <div>Ready jobs: {{ n_ready_jobs }}</div>
+  <div>Creating jobs: {{ n_creating_jobs }}</div>
+  <div>Running jobs: {{ n_running_jobs }}</div>
+</div>
+<table class="data-table" id="status">
+  <thead>
+  <tr>
+    <th>Pending</th>
+    <th>Active</th>
+    <th>Inactive</th>
+    <th>Deleted</th>
+    <th>Live Total Cores</th>
+    <th>Live Free Cores</th>
+  </tr>
+  </thead>
+  <tbody>
+  <tr>
+    <td class="numeric-cell">{{ jpim.n_instances_by_state['pending'] }}</td>
+    <td class="numeric-cell">{{ jpim.n_instances_by_state['active'] }}</td>
+    <td class="numeric-cell">{{ jpim.n_instances_by_state['inactive'] }}</td>
+    <td class="numeric-cell">{{ jpim.n_instances_by_state['deleted'] }}</td>
+    <td class="numeric-cell">{{ jpim.live_total_cores_mcpu / 1000 }}</td>
+    <td class="numeric-cell">{{ jpim.live_free_cores_mcpu / 1000 }}</td>
+  </tr>
+  </tbody>
+</table>
+
+<h2>Instances</h2>
+<table class="data-table" id="instances">
+  <thead>
+  <tr>
+    <th>Name</th>
+    <th>Machine Type</th>
+    <th>Preemptible</th>
+    <th>Zone</th>
+    <th>Version</th>
+    <th>State</th>
+    <th>Free Cores</th>
+    <th>Failed Requests</th>
+    <th>Time Created</th>
+    <th>Last Updated</th>
+  </tr>
+  </thead>
+  <tbody>
+  {% for instance in instances %}
+  <tr>
+    <td>{{ instance.name }}</td>
+    <td>{{ instance.machine_type }}</td>
+    <td>{{ instance.preemptible }}</td>
+    <td>{{ instance.zone }}</td>
+    <td class="numeric-cell">{{ instance.version }}</td>
+    <td>{{ instance.state }}</td>
+    <td class="numeric-cell">{{ instance.free_cores_mcpu / 1000 }} / {{ instance.cores_mcpu / 1000 }}</td>
+    <td class="numeric-cell">{{ instance.failed_request_count }}</td>
+    <td>{{ instance.time_created_str() }}</td>
+    <td>{{ instance.last_updated_str() }} ago</td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

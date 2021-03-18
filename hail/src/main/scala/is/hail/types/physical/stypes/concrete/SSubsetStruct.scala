@@ -1,22 +1,26 @@
 package is.hail.types.physical.stypes.concrete
 
-import is.hail.annotations.{CodeOrdering, Region}
+import is.hail.annotations.Region
 import is.hail.asm4s.{Code, LongInfo, Settable, TypeInfo, Value}
+import is.hail.expr.ir.orderings.CodeOrdering
 import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, IEmitCode, IEmitSCode, SortOrder}
 import is.hail.types.physical.stypes.{SCode, SType}
-import is.hail.types.physical.stypes.interfaces.{SStruct, SStructSettable}
+import is.hail.types.physical.stypes.interfaces.{SBaseStruct, SStructSettable}
 import is.hail.types.physical.{PBaseStruct, PBaseStructCode, PBaseStructValue, PCode, PStruct, PStructSettable, PSubsetStruct, PType}
 import is.hail.types.virtual.TStruct
 
-case class SSubsetStruct(parent: SStruct, fieldNames: IndexedSeq[String]) extends SStruct {
+case class SSubsetStruct(parent: SBaseStruct, fieldNames: IndexedSeq[String]) extends SBaseStruct {
+
+  val size: Int = fieldNames.size
+
   val fieldIdx: Map[String, Int] = fieldNames.zipWithIndex.toMap
   val newToOldFieldMapping: Map[Int, Int] = fieldIdx
     .map { case (f, i) => (i, parent.pType.virtualType.asInstanceOf[TStruct].fieldIdx(f)) }
 
+  val fieldTypes: Array[SType] = Array.tabulate(size)(i => parent.fieldTypes(newToOldFieldMapping(i)))
+
   val pType: PSubsetStruct = PSubsetStruct(parent.pType.asInstanceOf[PStruct], fieldNames.toArray
   )
-
-  def codeOrdering(mb: EmitMethodBuilder[_], other: SType, so: SortOrder): CodeOrdering = pType.codeOrdering(mb)
 
   def coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = {
     value.st match {
@@ -57,7 +61,7 @@ class SSubsetStructSettable(val st: SSubsetStruct, prev: PStructSettable) extend
   def isFieldMissing(fieldIdx: Int): Code[Boolean] =
     prev.isFieldMissing(st.newToOldFieldMapping(fieldIdx))
 
-  def store(cb: EmitCodeBuilder, pv: PCode): Unit = prev.store(cb, pv)
+  def store(cb: EmitCodeBuilder, pv: PCode): Unit = prev.store(cb, pv.asInstanceOf[SSubsetStructCode].prev)
 }
 
 class SSubsetStructCode(val st: SSubsetStruct, val prev: PBaseStructCode) extends PBaseStructCode {

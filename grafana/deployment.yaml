@@ -1,0 +1,102 @@
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: grafana
+  labels:
+    app: grafana
+spec:
+  selector:
+    matchLabels:
+      app: grafana
+  serviceName: "grafana"
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: grafana
+    spec:
+      priorityClassName: infrastructure
+      securityContext:
+        fsGroup: 472
+      volumes:
+        - name: grafana-configmap-volume
+          configMap:
+            name: grafana-config
+        - name: ssl-config-grafana
+          secret:
+            optional: false
+            secretName: ssl-config-grafana
+      containers:
+       - name: grafana
+         image: grafana/grafana:7.3.7
+         env:
+{% if deploy %}
+          - name: GF_SERVER_DOMAIN
+            value: grafana.hail.is
+          - name: GF_SERVER_ROOT_URL
+            value: "%(protocol)s://%(domain)s/"
+{% else %}
+          - name: GF_SERVER_DOMAIN
+            value: internal.hail.is
+          - name: GF_SERVER_ROOT_URL
+            value: "%(protocol)s://%(domain)s/{{ default_ns.name }}/grafana/"
+{% endif %}
+         volumeMounts:
+          - mountPath: /var/lib/grafana
+            name: grafana-storage
+          - mountPath: /etc/grafana
+            name: grafana-configmap-volume
+         resources:
+           requests:
+             cpu: "100m"
+             memory: "200M"
+           limits:
+             cpu: "1"
+             memory: "1G"
+         ports:
+          - containerPort: 3000
+       - name: nginx
+         image: {{ grafana_nginx_image.image }}
+         resources:
+           requests:
+             cpu: "20m"
+             memory: "20M"
+           limits:
+             cpu: "1"
+             memory: "1G"
+         ports:
+          - containerPort: 443
+         volumeMounts:
+          - name: ssl-config-grafana
+            mountPath: /ssl-config
+            readOnly: true
+         readinessProbe:
+           tcpSocket:
+             port: 443
+           initialDelaySeconds: 5
+           periodSeconds: 5
+  volumeClaimTemplates:
+  - metadata:
+      name: grafana-storage
+    spec:
+      accessModes:
+        - ReadWriteOnce
+      resources:
+        requests:
+          storage: 10Gi
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-config
+data:
+  grafana.ini: |
+    [server]
+{% if deploy %}
+    domain = grafana.hail.is
+{% else %}
+    domain = internal.hail.is
+    root_url = %(protocol)s://%(domain)/{{ default_ns.name }}/grafana/
+    serve_from_sub_path = true
+{% endif %}

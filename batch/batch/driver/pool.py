@@ -12,7 +12,9 @@ from hailtop.utils import (secret_alnum_string, retry_long_running, run_if_chang
                            periodically_call)
 
 from ..batch_configuration import STANDING_WORKER_MAX_IDLE_TIME_MSECS, WORKER_MAX_IDLE_TIME_MSECS
-from ..utils import WindowFractionCounter, Box
+from ..inst_coll_config import PoolConfig
+from ..utils import (Box, ExceededSharesCounter, adjust_cores_for_memory_request,
+                     adjust_cores_for_packability, adjust_cores_for_storage_request)
 from .create_instance import create_instance
 from .instance import Instance
 from .instance_collection import InstanceCollection
@@ -22,8 +24,8 @@ log = logging.getLogger('pool')
 
 
 class Pool(InstanceCollection):
-    def __init__(self, app, name, machine_name_prefix):
-        super().__init__(app, name, machine_name_prefix)
+    def __init__(self, app, machine_name_prefix: str, config: PoolConfig):
+        super().__init__(app, config.name, machine_name_prefix, is_pool=True)
 
         global_scheduler_state_changed: Notice = app['scheduler_state_changed']
         self.scheduler_state_changed = global_scheduler_state_changed.subscribe()
@@ -32,41 +34,20 @@ class Pool(InstanceCollection):
         self.healthy_instances_by_free_cores = sortedcontainers.SortedSet(
             key=lambda instance: instance.free_cores_mcpu)
 
-        self.worker_type = None
-        self.worker_cores = None
-        self.boot_disk_size_gb = None
-        self.worker_local_ssd_data_disk = None
-        self.worker_pd_ssd_data_disk_size_gb = None
-        self.enable_standing_worker = None
-        self.standing_worker_cores = None
-        self.max_instances = None
-        self.max_live_instances = None
+        self.worker_type = config.worker_type
+        self.worker_cores = config.worker_cores
+        self.worker_local_ssd_data_disk = config.worker_local_ssd_data_disk
+        self.worker_pd_ssd_data_disk_size_gb = config.worker_pd_ssd_data_disk_size_gb
+        self.enable_standing_worker = config.enable_standing_worker
+        self.standing_worker_cores = config.standing_worker_cores
+        self.boot_disk_size_gb = config.boot_disk_size_gb
+        self.max_instances = config.max_instances
+        self.max_live_instances = config.max_live_instances
 
     async def async_init(self):
         log.info(f'initializing {self}')
 
         await super().async_init()
-
-        row = await self.db.select_and_fetchone('''
-SELECT worker_type, worker_cores,
-  worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gb,
-  enable_standing_worker, standing_worker_cores,
-  boot_disk_size_gb, max_instances, max_live_instances
-FROM pools
-LEFT JOIN inst_colls ON inst_colls.name = pools.name
-WHERE inst_colls.name = %s;
-''',
-                                                (self.name,))
-
-        self.worker_type = row['worker_type']
-        self.worker_cores = row['worker_cores']
-        self.boot_disk_size_gb = row['boot_disk_size_gb']
-        self.worker_local_ssd_data_disk = bool(row['worker_local_ssd_data_disk'])
-        self.worker_pd_ssd_data_disk_size_gb = row['worker_pd_ssd_data_disk_size_gb']
-        self.enable_standing_worker = bool(row['enable_standing_worker'])
-        self.standing_worker_cores = row['standing_worker_cores']
-        self.max_instances = row['max_instances']
-        self.max_live_instances = row['max_live_instances']
 
         async for record in self.db.select_and_fetchall(
                 'SELECT * FROM instances WHERE removed = 0 AND inst_coll = %s;',
@@ -136,6 +117,16 @@ WHERE name = %s;
         self.max_instances = max_instances
         self.max_live_instances = max_live_instances
 
+    def resources_to_cores_mcpu(self, cores_mcpu, memory_bytes, storage_bytes):
+        cores_mcpu = adjust_cores_for_memory_request(cores_mcpu, memory_bytes, self.worker_type)
+        cores_mcpu = adjust_cores_for_storage_request(cores_mcpu, storage_bytes, self.worker_cores,
+                                                      self.worker_local_ssd_data_disk, self.worker_pd_ssd_data_disk_size_gb)
+        cores_mcpu = adjust_cores_for_packability(cores_mcpu)
+
+        if cores_mcpu < self.worker_cores * 1000:
+            return cores_mcpu
+        return None
+
     def adjust_for_remove_instance(self, instance):
         super().adjust_for_remove_instance(instance)
         if instance in self.healthy_instances_by_free_cores:
@@ -161,18 +152,32 @@ WHERE name = %s;
         if zone is None:
             return
 
+        machine_type = f'n1-{self.worker_type}-{cores}'
+
         activation_token = secrets.token_urlsafe(32)
-        instance = await Instance.create(self.app, self, machine_name, activation_token, cores * 1000, zone)
+
+        instance = await Instance.create(app=self.app,
+                                         inst_coll=self,
+                                         name=machine_name,
+                                         activation_token=activation_token,
+                                         worker_cores_mcpu=cores * 1000,
+                                         zone=zone,
+                                         machine_type=machine_type,
+                                         preemptible=True)
         self.add_instance(instance)
         log.info(f'created {instance}')
 
-        machine_type = f'n1-{self.worker_type}-{cores}'
-        await create_instance(app=self.app, zone=zone, machine_name=machine_name,
-                              machine_type=machine_type, activation_token=activation_token,
+        await create_instance(app=self.app,
+                              zone=zone,
+                              machine_name=machine_name,
+                              machine_type=machine_type,
+                              activation_token=activation_token,
                               max_idle_time_msecs=max_idle_time_msecs,
                               worker_local_ssd_data_disk=self.worker_local_ssd_data_disk,
                               worker_pd_ssd_data_disk_size_gb=self.worker_pd_ssd_data_disk_size_gb,
-                              boot_disk_size_gb=self.boot_disk_size_gb)
+                              boot_disk_size_gb=self.boot_disk_size_gb,
+                              preemptible=True,
+                              job_private=False)
 
     async def create_instances(self):
         ready_cores = await self.db.select_and_fetchone(
@@ -226,20 +231,6 @@ LOCK IN SHARE MODE;
 
     def __str__(self):
         return f'pool {self.name}'
-
-
-class ExceededSharesCounter:
-    def __init__(self):
-        self._global_counter = WindowFractionCounter(10)
-
-    def push(self, success: bool):
-        self._global_counter.push('exceeded_shares', success)
-
-    def rate(self) -> float:
-        return self._global_counter.fraction()
-
-    def __repr__(self):
-        return f'global {self._global_counter}'
 
 
 class PoolScheduler:

@@ -216,6 +216,7 @@ class SparkBackend(Py4JBackend):
         return self._utils_package_object
 
     def stop(self):
+        self._jbackend.close()
         self._jhc.stop()
         self._jhc = None
         self.sc.stop()

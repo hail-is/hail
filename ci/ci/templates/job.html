@@ -3,6 +3,10 @@
 {% block content %}
     <h1>Batch {{ batch_id }} Job {{ job_id }}</h1>
 
+    <form method="GET" action="{{ base_path }}/batches/{{ batch_id }}">
+      <button>Back to batch</button>
+    </form>
+
     <h2>Attempts</h2>
     {% if attempts %}
     <table class="data-table">
@@ -53,12 +57,12 @@
       <h2>Log</h2>
 
       {% if 'input' in job_log %}
-      <h3 class="stacked-header">Input</h2>
+      <h3 class="stacked-header">Input</h3>
       <pre>{{ job_log['input'] }}</pre>
       {% endif %}
 
       {% if 'main' in job_log %}
-      <h3>Main</h2>
+      <h3>Main</h3>
       <pre>{{ job_log['main'] }}</pre>
       {% endif %}
 

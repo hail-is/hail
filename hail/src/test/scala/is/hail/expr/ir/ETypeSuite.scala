@@ -50,7 +50,7 @@ class ETypeSuite extends HailSuite {
     val fb = EmitFunctionBuilder[Long, OutputBuffer, Unit](ctx, "fb")
     val arg1 = fb.apply_method.getCodeParam[Long](1)
     val arg2 = fb.apply_method.getCodeParam[OutputBuffer](2)
-    val enc = eType.buildEncoderMethod(inPType, fb.apply_method.ecb)
+    val enc = eType.buildEncoderMethod(inPType.sType, fb.apply_method.ecb)
     fb.emit(enc.invokeCode(arg1, arg2))
 
     val x = inPType.unstagedStoreJavaObject(data, ctx.r)
@@ -65,8 +65,11 @@ class ETypeSuite extends HailSuite {
     val fb2 = EmitFunctionBuilder[Region, InputBuffer, Long](ctx, "fb2")
     val regArg = fb2.apply_method.getCodeParam[Region](1)
     val ibArg = fb2.apply_method.getCodeParam[InputBuffer](2)
-    val dec = eType.buildDecoderMethod(outPType, fb2.apply_method.ecb)
-    fb2.emit(dec.invokeCode(regArg, ibArg))
+    val dec = eType.buildDecoderMethod(outPType.virtualType, fb2.apply_method.ecb)
+    fb2.emitWithBuilder[Long] { cb =>
+      val decoded = cb.invokePCode(dec, regArg, ibArg)
+      outPType.store(cb, regArg, decoded, deepCopy = false)
+    }
 
     val result = fb2.resultWithIndex()(0, ctx.r).apply(ctx.r, new MemoryInputBuffer(buffer))
     SafeRow.read(outPType, result)
@@ -152,22 +155,5 @@ class ETypeSuite extends HailSuite {
 
     assert(encodeDecode(pStructContainingNDArray, eStructContainingNDArray, pOnlyReadB, dataStruct) ==
       Row(3))
-
-    // Try reading a EBaseStruct into a PNDArray, backwards compatibility.
-    val shapeAndStrideType = EBaseStruct(FastIndexedSeq(
-      EField("0", EInt64Required, 0),
-      EField("1", EInt64Required, 1)
-    ), true)
-    val eTypeStructInt2 = EBaseStruct(
-      FastIndexedSeq(
-        EField("shape", shapeAndStrideType, 0),
-        EField("strides", shapeAndStrideType, 1),
-        EField("data", EArray(EInt32Required, true), 2)
-      ),
-      true)
-    val dataStructInt2 = Row(Row(2L, 2L), Row(4L, 8L), FastIndexedSeq(10, 20, 30, 40))
-    val outputNDArray = new SafeNDArray(IndexedSeq(2L, 2L), FastIndexedSeq(10, 30, 20, 40))
-
-    assert(encodeDecode(pTypeInt2.representation, eTypeStructInt2, pTypeInt2, dataStructInt2) == outputNDArray)
   }
 }

@@ -68,7 +68,7 @@ class LocalBackend(
   val fs: FS = new HadoopFS(new SerializableHadoopConfiguration(hadoopConf))
 
   def withExecuteContext[T](timer: ExecutionTimer)(f: ExecuteContext => T): T = {
-    ExecuteContext.scoped(tmpdir, tmpdir, this, fs, timer)(f)
+    ExecuteContext.scoped(tmpdir, tmpdir, this, fs, timer, null)(f)
   }
 
   def broadcast[T : ClassTag](value: T): BroadcastValue[T] = new LocalBroadcastValue[T](value)
@@ -270,7 +270,7 @@ class LocalBackend(
     stage: TableStage,
     sortFields: IndexedSeq[SortField],
     relationalLetsAbove: Map[String, IR],
-    tableTypeRequiredness: RTable
+    rowTypeRequiredness: RStruct
   ): TableStage = {
     // Use a local sort for the moment to enable larger pipelines to run
     LowerDistributedSort.localSort(ctx, stage, sortFields, relationalLetsAbove)

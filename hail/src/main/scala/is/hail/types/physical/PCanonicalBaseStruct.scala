@@ -6,7 +6,7 @@ import is.hail.expr.ir.{EmitCode, EmitCodeBuilder}
 import is.hail.types.BaseStruct
 import is.hail.types.physical.stypes.SCode
 import is.hail.types.physical.stypes.concrete.{SBaseStructPointer, SBaseStructPointerCode, SBaseStructPointerSettable}
-import is.hail.types.physical.stypes.interfaces.SStruct
+import is.hail.types.physical.stypes.interfaces.SBaseStruct
 import is.hail.utils._
 import org.apache.spark.sql.Row
 
@@ -87,14 +87,14 @@ abstract class PCanonicalBaseStruct(val types: Array[PType]) extends PBaseStruct
 
   def loadField(offset: Long, fieldIdx: Int): Long = {
     val off = fieldOffset(offset, fieldIdx)
-    types(fieldIdx).fundamentalType.unstagedLoadFromNested(off)
+    types(fieldIdx).unstagedLoadFromNested(off)
   }
 
   def loadField(offset: Code[Long], fieldIdx: Int): Code[Long] =
     loadField(fieldOffset(offset, fieldIdx), types(fieldIdx))
 
   private def loadField(fieldOffset: Code[Long], fieldType: PType): Code[Long] = {
-    fieldType.fundamentalType.loadFromNested(fieldOffset)
+    fieldType.loadFromNested(fieldOffset)
   }
 
   def deepPointerCopy(cb: EmitCodeBuilder, region: Value[Region], dstStructAddress: Code[Long]): Unit = {
@@ -154,7 +154,7 @@ abstract class PCanonicalBaseStruct(val types: Array[PType]) extends PBaseStruct
     }
   }
 
-  def sType: SStruct = SBaseStructPointer(this)
+  def sType: SBaseStruct = SBaseStructPointer(this)
 
   def loadCheapPCode(cb: EmitCodeBuilder, addr: Code[Long]): SBaseStructPointerCode = new SBaseStructPointerCode(SBaseStructPointer(this), addr)
 

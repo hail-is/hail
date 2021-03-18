@@ -16,27 +16,27 @@ object CountAggregator extends StagedAggregator {
   protected def _initOp(cb: EmitCodeBuilder, state: State, init: Array[EmitCode]): Unit = {
     assert(init.length == 0)
     assert(state.vtypes.head.r.required)
-    val (_, v, _) = state.fields(0)
-    cb.assignAny(v, 0L)
+    val ev = state.fields(0)
+    cb.assign(ev, EmitCode.present(cb.emb, PCode(resultType, 0L)))
   }
 
   protected def _seqOp(cb: EmitCodeBuilder, state: State, seq: Array[EmitCode]): Unit = {
     assert(seq.length == 0)
     assert(state.vtypes.head.r.required)
-    val (_, v, _) = state.fields(0)
-    cb.assignAny(v, coerce[Long](v) + 1L)
+    val ev = state.fields(0)
+    cb.assign(ev, EmitCode.present(cb.emb, PCode(resultType, ev.value[Long] + 1L)))
   }
 
   protected def _combOp(cb: EmitCodeBuilder, state: State, other: State): Unit = {
     assert(state.vtypes.head.r.required)
-    val (_, v1, _) = state.fields(0)
-    val (_, v2, _) = other.fields(0)
-    cb.assignAny(v1, coerce[Long](v1) + coerce[Long](v2))
+    val v1 = state.fields(0)
+    val v2 = other.fields(0)
+    cb.assign(v1, EmitCode.present(cb.emb, PCode(resultType, v1.value[Long] + v2.value[Long])))
   }
 
   protected def _storeResult(cb: EmitCodeBuilder, state: State, pt: PType, addr: Value[Long], region: Value[Region], ifMissing: EmitCodeBuilder => Unit): Unit = {
     assert(state.vtypes.head.r.required)
-    val (_, v, _) = state.fields(0)
-    pt.storeAtAddress(cb, addr, region, PCode(PInt64Required, v), deepCopy = true)
+    val ev = state.fields(0)
+    pt.storeAtAddress(cb, addr, region, ev.pv, deepCopy = true)
   }
 }

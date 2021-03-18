@@ -3,7 +3,6 @@ import os
 import json
 import sys
 import re
-from shlex import quote as shq
 import logging
 import asyncio
 import random
@@ -20,12 +19,12 @@ import aiodocker
 from aiodocker.exceptions import DockerError
 import google.oauth2.service_account
 from hailtop.utils import (time_msecs, request_retry_transient_errors,
-                           RETRY_FUNCTION_SCRIPT, sleep_and_backoff, retry_all_errors, check_shell,
+                           sleep_and_backoff, retry_all_errors, check_shell,
                            CalledProcessError, check_shell_output, is_google_registry_image,
                            find_spark_home)
 from hailtop.httpx import client_session
 from hailtop.batch_client.parse import (parse_cpu_in_mcpu, parse_image_tag,
-                                        parse_memory_in_bytes)
+                                        parse_memory_in_bytes, parse_storage_in_bytes)
 from hailtop.batch.hail_genetics_images import HAIL_GENETICS, HAIL_GENETICS_IMAGES
 from hailtop import aiotools
 # import uvloop
@@ -35,7 +34,7 @@ from hailtop.hail_logging import configure_logging
 
 from ..utils import (adjust_cores_for_memory_request, cores_mcpu_to_memory_bytes,
                      adjust_cores_for_packability, adjust_cores_for_storage_request,
-                     cores_mcpu_to_storage_bytes)
+                     cores_mcpu_to_storage_bytes, storage_gib_to_bytes)
 from ..semaphore import FIFOWeightedSemaphore
 from ..log_store import LogStore
 from ..globals import HTTP_CLIENT_MAX_SIZE, STATUS_FORMAT_VERSION
@@ -66,6 +65,7 @@ PUBLIC_GCR_IMAGES = public_gcr_images(PROJECT)
 WORKER_CONFIG = json.loads(base64.b64decode(os.environ['WORKER_CONFIG']).decode())
 MAX_IDLE_TIME_MSECS = int(os.environ['MAX_IDLE_TIME_MSECS'])
 WORKER_DATA_DISK_MOUNT = os.environ['WORKER_DATA_DISK_MOUNT']
+BATCH_WORKER_IMAGE = os.environ['BATCH_WORKER_IMAGE']
 
 log.info(f'CORES {CORES}')
 log.info(f'NAME {NAME}')
@@ -211,9 +211,11 @@ class ContainerStepManager:
         self.state = state
         self.name = name
         self.timing = None
+        self._deleted = False
 
     async def __aenter__(self):
         if self.container.job.deleted:
+            self._deleted = True
             raise JobDeletedError()
         if self.state:
             log.info(f'{self.container} state changed: {self.container.state} => {self.state}')
@@ -223,6 +225,9 @@ class ContainerStepManager:
         self.container.timing[self.name] = self.timing
 
     async def __aexit__(self, exc_type, exc, tb):
+        if self._deleted:
+            return
+
         finish_time = time_msecs()
         self.timing['finish_time'] = finish_time
         start_time = self.timing['start_time']
@@ -231,6 +236,15 @@ class ContainerStepManager:
 
 def worker_fraction_in_1024ths(cpu_in_mcpu):
     return 1024 * cpu_in_mcpu // (CORES * 1000)
+
+
+def user_error(e):
+    if isinstance(e, DockerError):
+        if e.status == 404 and 'pull access denied' in e.message:
+            return True
+        if e.status == 400 and 'executable file not found' in e.message:
+            return True
+    return False
 
 
 class Container:
@@ -443,8 +457,9 @@ class Container:
                 self.state = 'succeeded'
             else:
                 self.state = 'failed'
-        except Exception:
-            log.exception(f'while running {self}')
+        except Exception as e:
+            if not isinstance(e, (JobDeletedError, JobTimeoutError)):
+                log.exception(f'while running {self}')
 
             self.state = 'error'
             self.error = traceback.format_exc()
@@ -523,7 +538,7 @@ class Container:
 
 
 class JVMProcess:
-    classpath = f'{find_spark_home()}/jars/*:/hail.jar'
+    classpath = f'{find_spark_home()}/jars/*:/hail.jar:/log4j.properties'
     stack_size = 512 * 1024
     thread_pool = None
 
@@ -538,13 +553,13 @@ class JVMProcess:
         self.java_args = main_spec['command']
 
         self.proc = None
-        self.timing = {}
+        self.timing = {'running': dict()}
         self.state = 'pending'
         self.log = ''
 
     async def run(self, worker):
         log.info(f'running {self}')
-        self.timing['start_time'] = time_msecs()
+        self.timing['running']['start_time'] = time_msecs()
         self.proc = await asyncio.create_subprocess_exec(
             'java',
             *self.flags,
@@ -555,9 +570,9 @@ class JVMProcess:
         out, err = await self.proc.communicate()
 
         finish_time = time_msecs()
-        self.timing['finish_time'] = finish_time
-        start_time = self.timing['start_time']
-        self.timing['duration'] = finish_time - start_time
+        self.timing['running']['finish_time'] = finish_time
+        start_time = self.timing['running']['start_time']
+        self.timing['running']['duration'] = finish_time - start_time
 
         self.log += 'STDOUT:\n'
         self.log += out.decode()
@@ -634,63 +649,19 @@ async def add_gcsfuse_bucket(mount_path, bucket, key_file, read_only):
         delay = await sleep_and_backoff(delay)
 
 
-def copy_command(src, dst, requester_pays_project=None):
-    src = src.rstrip('/')  # ensure that the source_basename is always non-empty
-    if requester_pays_project:
-        requester_pays_project = f'-u {requester_pays_project}'
-    else:
-        requester_pays_project = ''
-
-    def gsutil_cp_r(src, dst, *, recursive):
-        flags = '-R' if recursive else ''
-        return f'retry gsutil {requester_pays_project} -m cp {flags} {shq(src)} {shq(dst)}'
-
-    if not dst.startswith('gs://'):
-        target_directory = os.path.dirname(dst)
-        target_basename = os.path.basename(dst)
-        source_basename = os.path.basename(src)
-
-        mkdirs = f'mkdir -p { shq(target_directory) } && '
-        cp_dir = gsutil_cp_r(src, target_directory, recursive=True)
-
-        if target_basename not in ('', source_basename):
-            current_location = target_directory + '/' + source_basename
-            desired_location = target_directory + '/' + target_basename
-            cp_dir = f'{{ {cp_dir} && mv {current_location} {desired_location} ; }}'
-    else:
-        mkdirs = ''
-        cp_dir = gsutil_cp_r(src, dst, recursive=True)
-
-    cp_file = gsutil_cp_r(src, dst, recursive=False)
-
-    return f'{mkdirs} {cp_file} || {cp_dir}'
-
-
-def copy(files, name, requester_pays_project):
-    assert files
-
-    if name == 'input':
-        copies = ' && '.join([copy_command(f['from'], f['to'], requester_pays_project) for f in files])
-    else:
-        assert name == 'output'
-        copies = ' && '.join([copy_command(f['from'], f['to'], requester_pays_project) for f in files])
-    return f'''
-set -ex
-
-{ RETRY_FUNCTION_SCRIPT }
-
-retry gcloud -q auth activate-service-account --key-file=/gsa-key/key.json
-
-{copies}
-'''
-
-
 def copy_container(job, name, files, volume_mounts, cpu, memory, requester_pays_project):
-    sh_expression = copy(files, name, requester_pays_project)
+    assert files
     copy_spec = {
-        'image': 'gcr.io/google.com/cloudsdktool/cloud-sdk:310.0.0-alpine',
+        'image': BATCH_WORKER_IMAGE,
         'name': name,
-        'command': ['/bin/bash', '-c', sh_expression],
+        'command': [
+            '/usr/local/bin/python3',
+            '-m',
+            'batch.copy',
+            json.dumps(requester_pays_project),
+            json.dumps(files)
+        ],
+        'env': ['GOOGLE_APPLICATION_CREDENTIALS=/gsa-key/key.json'],
         'cpu': cpu,
         'memory': memory,
         'volume_mounts': volume_mounts
@@ -773,15 +744,20 @@ class Job:
 
         req_cpu_in_mcpu = parse_cpu_in_mcpu(job_spec['resources']['cpu'])
         req_memory_in_bytes = parse_memory_in_bytes(job_spec['resources']['memory'])
-        req_storage_in_bytes = parse_memory_in_bytes(job_spec['resources']['storage'])
+        req_storage_in_bytes = parse_storage_in_bytes(job_spec['resources']['storage'])
 
-        cpu_in_mcpu = adjust_cores_for_memory_request(req_cpu_in_mcpu, req_memory_in_bytes, worker_config.instance_type)
-        cpu_in_mcpu = adjust_cores_for_storage_request(cpu_in_mcpu, req_storage_in_bytes, CORES, worker_config.local_ssd_data_disk, worker_config.data_disk_size_gb)
-        cpu_in_mcpu = adjust_cores_for_packability(cpu_in_mcpu)
+        if worker_config.job_private:
+            cpu_in_mcpu = CORES * 1000
+            storage_in_bytes = storage_gib_to_bytes(worker_config.data_disk_size_gb)
+        else:
+            cpu_in_mcpu = adjust_cores_for_memory_request(req_cpu_in_mcpu, req_memory_in_bytes, worker_config.instance_type)
+            cpu_in_mcpu = adjust_cores_for_storage_request(cpu_in_mcpu, req_storage_in_bytes, CORES, worker_config.local_ssd_data_disk, worker_config.data_disk_size_gb)
+            cpu_in_mcpu = adjust_cores_for_packability(cpu_in_mcpu)
+            storage_in_bytes = cores_mcpu_to_storage_bytes(cpu_in_mcpu, CORES, worker_config.local_ssd_data_disk, worker_config.data_disk_size_gb)
 
         self.cpu_in_mcpu = cpu_in_mcpu
         self.memory_in_bytes = cores_mcpu_to_memory_bytes(self.cpu_in_mcpu, worker_config.instance_type)
-        self.storage_in_bytes = cores_mcpu_to_storage_bytes(self.cpu_in_mcpu, CORES, worker_config.local_ssd_data_disk, worker_config.data_disk_size_gb)
+        self.storage_in_bytes = storage_in_bytes
 
         self.resources = worker_config.resources(self.cpu_in_mcpu, self.memory_in_bytes)
 
@@ -982,8 +958,9 @@ class DockerJob(Job):
                         self.state = 'succeeded'
                 else:
                     self.state = input.state
-            except Exception:
-                log.exception(f'while running {self}')
+            except Exception as e:
+                if not user_error(e):
+                    log.exception(f'while running {self}')
 
                 self.state = 'error'
                 self.error = traceback.format_exc()
@@ -1056,6 +1033,19 @@ class JVMJob(Job):
         if input_files or output_files:
             raise Exception("i/o not supported")
 
+        for envvar in self.env:
+            assert envvar['name'] not in {'HAIL_DEPLOY_CONFIG_FILE', 'HAIL_TOKENS_FILE',
+                                          'HAIL_SSL_CONFIG_FILE', 'HAIL_GSA_KEY_FILE',
+                                          'HAIL_WORKER_SCRATCH_DIR'}, envvar
+
+        self.env.append({'name': 'HAIL_DEPLOY_CONFIG_FILE',
+                         'value': f'{self.scratch}/secrets/deploy-config/deploy-config.json'})
+        self.env.append({'name': 'HAIL_TOKENS_FILE',
+                         'value': f'{self.scratch}/secrets/user-tokens/tokens.json'})
+        self.env.append({'name': 'HAIL_SSL_CONFIG_FILE',
+                         'value': f'{self.scratch}/secrets/ssl-config/ssl-config.json'})
+        self.env.append({'name': 'HAIL_GSA_KEY_FILE',
+                         'value': f'{self.scratch}/secrets/gsa-key/key.json'})
         self.env.append({'name': 'HAIL_WORKER_SCRATCH_DIR', 'value': self.scratch})
 
         # main container
@@ -1168,6 +1158,7 @@ class Worker:
         self.cpu_sem = FIFOWeightedSemaphore(self.cores_mcpu)
         self.pool = concurrent.futures.ThreadPoolExecutor()
         self.jobs = {}
+        self.stop_event = asyncio.Event()
 
         # filled in during activation
         self.log_store = None
@@ -1261,6 +1252,8 @@ class Worker:
         if job is None:
             raise web.HTTPNotFound()
 
+        self.last_updated = time_msecs()
+
         self.task_manager.ensure_future(job.delete())
 
         return web.Response()
@@ -1278,6 +1271,7 @@ class Worker:
         try:
             app = web.Application(client_max_size=HTTP_CLIENT_MAX_SIZE)
             app.add_routes([
+                web.post('/api/v1alpha/kill', self.kill),
                 web.post('/api/v1alpha/batches/jobs/create', self.create_job),
                 web.delete('/api/v1alpha/batches/{batch_id}/jobs/{job_id}/delete', self.delete_job),
                 web.get('/api/v1alpha/batches/{batch_id}/jobs/{job_id}/log', self.get_job_log),
@@ -1295,12 +1289,20 @@ class Worker:
             except asyncio.TimeoutError:
                 log.exception(f'could not activate after trying for {MAX_IDLE_TIME_MSECS} ms, exiting')
             else:
+                stopped = False
                 idle_duration = time_msecs() - self.last_updated
                 while self.jobs or idle_duration < MAX_IDLE_TIME_MSECS:
                     log.info(f'n_jobs {len(self.jobs)} free_cores {self.cpu_sem.value / 1000} idle {idle_duration}')
-                    await asyncio.sleep(15)
-                    idle_duration = time_msecs() - self.last_updated
-                log.info(f'idle {idle_duration} ms, exiting')
+                    try:
+                        await asyncio.wait_for(self.stop_event.wait(), 15)
+                        stopped = True
+                        log.info('received stop event')
+                        break
+                    except asyncio.TimeoutError:
+                        idle_duration = time_msecs() - self.last_updated
+
+                if not stopped:
+                    log.info(f'idle {idle_duration} ms, exiting')
 
                 async with client_session() as session:
                     # Don't retry.  If it doesn't go through, the driver
@@ -1316,9 +1318,17 @@ class Worker:
             if site:
                 await site.stop()
                 log.info('stopped site')
+
             if app_runner:
                 await app_runner.cleanup()
                 log.info('cleaned up app runner')
+
+    async def kill_1(self, request):  # pylint: disable=unused-argument
+        log.info('killed')
+        self.stop_event.set()
+
+    async def kill(self, request):
+        return await asyncio.shield(self.kill_1(request))
 
     async def post_job_complete_1(self, job):
         run_duration = job.end_time - job.start_time
@@ -1424,18 +1434,13 @@ class Worker:
     async def activate(self):
         async with client_session() as session:
             resp = await request_retry_transient_errors(
-                session, 'POST',
-                deploy_config.url('batch-driver', '/api/v1alpha/instances/activate'),
-                json={'ip_address': os.environ['IP_ADDRESS']},
+                session, 'GET',
+                deploy_config.url('batch-driver', '/api/v1alpha/instances/gsa_key'),
                 headers={
                     'X-Hail-Instance-Name': NAME,
                     'Authorization': f'Bearer {os.environ["ACTIVATION_TOKEN"]}'
                 })
             resp_json = await resp.json()
-            self.headers = {
-                'X-Hail-Instance-Name': NAME,
-                'Authorization': f'Bearer {resp_json["token"]}'
-            }
 
             with open('key.json', 'w') as f:
                 f.write(json.dumps(resp_json['key']))
@@ -1444,6 +1449,21 @@ class Worker:
                 'key.json')
             self.log_store = LogStore(BATCH_LOGS_BUCKET_NAME, INSTANCE_ID, self.pool,
                                       project=PROJECT, credentials=credentials)
+
+            resp = await request_retry_transient_errors(
+                session, 'POST',
+                deploy_config.url('batch-driver', '/api/v1alpha/instances/activate'),
+                json={'ip_address': os.environ['IP_ADDRESS']},
+                headers={
+                    'X-Hail-Instance-Name': NAME,
+                    'Authorization': f'Bearer {os.environ["ACTIVATION_TOKEN"]}'
+                })
+            resp_json = await resp.json()
+
+            self.headers = {
+                'X-Hail-Instance-Name': NAME,
+                'Authorization': f'Bearer {resp_json["token"]}'
+            }
 
 
 async def async_main():
@@ -1458,12 +1478,14 @@ async def async_main():
     finally:
         try:
             worker.shutdown()
+            log.info('worker shutdown')
         finally:
             await docker.close()
+            log.info('docker closed')
 
 loop = asyncio.get_event_loop()
 loop.run_until_complete(async_main())
-loop.run_until_complete(loop.shutdown_asyncgens())
+log.info('closing loop')
 loop.close()
 log.info('closed')
 sys.exit(0)

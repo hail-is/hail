@@ -778,33 +778,6 @@ class IRSuite extends HailSuite {
     assertComparesTo(TFloat64, 1.0, 0.0, expected = true)
   }
 
-  @Test def testApplyComparisonOpCompareStructs() {
-    def assertComparesTo(t: TStruct, sf: IndexedSeq[SortField], x: Any, y: Any, expected: Int) {
-      assertEvalsTo(ApplyComparisonOp(CompareStructs(t, sf), In(0, t), In(1, t)), FastIndexedSeq(x -> t, y -> t), expected)
-    }
-
-    val t1 = TStruct("x" -> TInt32, "y" -> TFloat64)
-    val ascAsc = FastIndexedSeq(SortField("x", Ascending), SortField("y", Ascending))
-    val ascDesc = FastIndexedSeq(SortField("x", Ascending), SortField("y", Descending))
-    val descAsc = FastIndexedSeq(SortField("x", Descending), SortField("y", Ascending))
-    val descDesc = FastIndexedSeq(SortField("x", Descending), SortField("y", Descending))
-
-    assertComparesTo(t1, ascAsc, Row(0, 0d), Row(0, 0d), 0)
-    assertComparesTo(t1, ascDesc, Row(0, 0d), Row(0, 0d), 0)
-    assertComparesTo(t1, descAsc, Row(0, 0d), Row(0, 0d), 0)
-    assertComparesTo(t1, descDesc, Row(0, 0d), Row(0, 0d), 0)
-
-    assertComparesTo(t1, ascAsc, Row(1, 0d), Row(0, 0d), 1)
-    assertComparesTo(t1, ascDesc, Row(1, 0d), Row(0, 0d), 1)
-    assertComparesTo(t1, descAsc, Row(1, 0d), Row(0, 0d), -1)
-    assertComparesTo(t1, descDesc, Row(1, 0d), Row(0, 0d), -1)
-
-    assertComparesTo(t1, ascAsc, Row(0, 1d), Row(0, 0d), 1)
-    assertComparesTo(t1, ascDesc, Row(0, 1d), Row(0, 0d), -1)
-    assertComparesTo(t1, descAsc, Row(0, 1d), Row(0, 0d), 1)
-    assertComparesTo(t1, descDesc, Row(0, 1d), Row(0, 0d), -1)
-  }
-
   @Test def testDieCodeBUilder() {
     assertFatal(Die("msg1", TInt32) + Die("msg2", TInt32), "msg1")
   }
@@ -2032,7 +2005,7 @@ class IRSuite extends HailSuite {
   }
 
   def makeNDArray(data: Seq[Double], shape: Seq[Long], rowMajor: IR): MakeNDArray = {
-    MakeNDArray(MakeArray(data.map(F64), TArray(TFloat64)), MakeTuple.ordered(shape.map(I64)), rowMajor)
+    MakeNDArray(MakeArray(data.map(F64), TArray(TFloat64)), MakeTuple.ordered(shape.map(I64)), rowMajor, ErrorIDs.NO_ERROR)
   }
 
   def makeNDArrayRef(nd: IR, indxs: IndexedSeq[Long]): NDArrayRef = NDArrayRef(nd, indxs.map(I64), -1)
@@ -2102,7 +2075,7 @@ class IRSuite extends HailSuite {
       MakeArray(ndData.map { case (values, nRows, nCols) =>
         if (values == null) NA(TNDArray(TInt32, Nat(2))) else
           MakeNDArray(Literal(TArray(TInt32), values),
-            Literal(TTuple(TInt64, TInt64), Row(nRows, nCols)), True())
+            Literal(TTuple(TInt64, TInt64), Row(nRows, nCols)), True(), ErrorIDs.NO_ERROR)
       }, TArray(TNDArray(TInt32, Nat(2))))
     }
 
@@ -2158,13 +2131,13 @@ class IRSuite extends HailSuite {
     assertEvalsTo(makeNDArrayRef(positives, FastSeq(1L, 0L)), 5.0)
     assertEvalsTo(makeNDArrayRef(negatives, FastSeq(1L, 0L)), -5.0)
 
-    val trues = MakeNDArray(MakeArray(data.map(_ => True()), TArray(TBoolean)), MakeTuple.ordered(shape.map(I64)), True())
+    val trues = MakeNDArray(MakeArray(data.map(_ => True()), TArray(TBoolean)), MakeTuple.ordered(shape.map(I64)), True(), ErrorIDs.NO_ERROR)
     val falses = NDArrayMap(trues, "e", ApplyUnaryPrimOp(Bang(), Ref("e", TBoolean)))
     assertEvalsTo(makeNDArrayRef(trues, FastSeq(1L, 0L)), true)
     assertEvalsTo(makeNDArrayRef(falses, FastSeq(1L, 0L)), false)
 
     val bools = MakeNDArray(MakeArray(data.map(i => if (i % 2 == 0) True() else False()), TArray(TBoolean)),
-      MakeTuple.ordered(shape.map(I64)), False())
+      MakeTuple.ordered(shape.map(I64)), False(), ErrorIDs.NO_ERROR)
     val boolsToBinary = NDArrayMap(bools, "e", If(Ref("e", TBoolean), I64(1L), I64(0L)))
     val one = makeNDArrayRef(boolsToBinary, FastSeq(0L, 0L))
     val zero = makeNDArrayRef(boolsToBinary, FastSeq(1L, 1L))
@@ -2176,8 +2149,8 @@ class IRSuite extends HailSuite {
     implicit val execStrats: Set[ExecStrategy] = ExecStrategy.compileOnly
 
     val shape = MakeTuple.ordered(FastSeq(2L, 2L).map(I64))
-    val numbers = MakeNDArray(MakeArray((0 until 4).map { i => F64(i.toDouble) }, TArray(TFloat64)), shape, True())
-    val bools = MakeNDArray(MakeArray(Seq(True(), False(), False(), True()), TArray(TBoolean)), shape, True())
+    val numbers = MakeNDArray(MakeArray((0 until 4).map { i => F64(i.toDouble) }, TArray(TFloat64)), shape, True(), ErrorIDs.NO_ERROR)
+    val bools = MakeNDArray(MakeArray(Seq(True(), False(), False(), True()), TArray(TBoolean)), shape, True(), ErrorIDs.NO_ERROR)
 
     val actual = NDArrayMap2(numbers, bools, "n", "b",
       ApplyBinaryPrimOp(Add(), Ref("n", TFloat64), If(Ref("b", TBoolean), F64(10), F64(20))))
@@ -3075,7 +3048,7 @@ class IRSuite extends HailSuite {
     val blockMatrixMultiWriter = BlockMatrixBinaryMultiWriter("/path/to/prefix", false)
     val nd = MakeNDArray(MakeArray(FastSeq(I32(-1), I32(1)), TArray(TInt32)),
       MakeTuple.ordered(FastSeq(I64(1), I64(2))),
-      True())
+      True(), ErrorIDs.NO_ERROR)
 
     val irs = Array(
       i, I64(5), F32(3.14f), F64(3.14), str, True(), False(), Void(),
@@ -3091,10 +3064,6 @@ class IRSuite extends HailSuite {
       ApplyBinaryPrimOp(Add(), i, j),
       ApplyUnaryPrimOp(Negate(), i),
       ApplyComparisonOp(EQ(TInt32), i, j),
-      ApplyComparisonOp(CompareStructs(
-        TStruct("x" -> TInt32, "y" -> TFloat64),
-        FastIndexedSeq(SortField("x", Ascending), SortField("y", Descending))),
-        In(0, TStruct("x" -> TInt32, "y" -> TFloat64)), In(1, TStruct("x" -> TInt32, "y" -> TFloat64))),
       MakeArray(FastSeq(i, NA(TInt32), I32(-3)), TArray(TInt32)),
       MakeStream(FastSeq(i, NA(TInt32), I32(-3)), TStream(TInt32)),
       nd,

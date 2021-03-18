@@ -4,7 +4,7 @@ import logging
 import secrets
 import humanize
 
-from hailtop.utils import time_msecs, time_msecs_str
+from hailtop.utils import (time_msecs, time_msecs_str, retry_transient_errors)
 from gear import Database
 
 from ..database import check_call_procedure
@@ -21,10 +21,11 @@ class Instance:
             record['cores_mcpu'], record['free_cores_mcpu'],
             record['time_created'], record['failed_request_count'],
             record['last_updated'], record['ip_address'], record['version'],
-            record['zone'])
+            record['zone'], record['machine_type'], bool(record['preemptible']))
 
     @staticmethod
-    async def create(app, inst_coll, name, activation_token, worker_cores_mcpu, zone):
+    async def create(app, inst_coll, name, activation_token, worker_cores_mcpu,
+                     zone, machine_type, preemptible):
         db: Database = app['db']
 
         state = 'pending'
@@ -32,18 +33,20 @@ class Instance:
         token = secrets.token_urlsafe(32)
         await db.just_execute(
             '''
-INSERT INTO instances (name, state, activation_token, token, cores_mcpu, free_cores_mcpu, time_created, last_updated, version, zone, inst_coll)
-VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
+INSERT INTO instances (name, state, activation_token, token, cores_mcpu, free_cores_mcpu,
+  time_created, last_updated, version, zone, inst_coll, machine_type, preemptible)
+VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
 ''',
             (name, state, activation_token, token, worker_cores_mcpu,
-             worker_cores_mcpu, now, now, INSTANCE_VERSION, zone, inst_coll.name))
+             worker_cores_mcpu, now, now, INSTANCE_VERSION, zone, inst_coll.name,
+             machine_type, preemptible))
         return Instance(
             app, inst_coll, name, state, worker_cores_mcpu, worker_cores_mcpu, now,
-            0, now, None, INSTANCE_VERSION, zone)
+            0, now, None, INSTANCE_VERSION, zone, machine_type, preemptible)
 
     def __init__(self, app, inst_coll, name, state, cores_mcpu, free_cores_mcpu,
                  time_created, failed_request_count, last_updated, ip_address,
-                 version, zone):
+                 version, zone, machine_type, preemptible):
         self.db: Database = app['db']
         self.inst_coll = inst_coll
         # pending, active, inactive, deleted
@@ -57,6 +60,8 @@ VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
         self.ip_address = ip_address
         self.version = version
         self.zone = zone
+        self.machine_type = machine_type
+        self.preemptible = preemptible
 
     @property
     def state(self):
@@ -74,7 +79,6 @@ VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
         self._state = 'active'
         self.ip_address = ip_address
         self.inst_coll.adjust_for_add_instance(self)
-
         self.inst_coll.scheduler_state_changed.set()
 
         return rv['token']
@@ -101,6 +105,23 @@ VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
 
         # there might be jobs to reschedule
         self.inst_coll.scheduler_state_changed.set()
+
+    async def kill(self):
+        async def make_request():
+            if self._state in ('inactive', 'deleted'):
+                return
+            try:
+                async with aiohttp.ClientSession(
+                        raise_for_status=True, timeout=aiohttp.ClientTimeout(total=30)) as session:
+                    url = (f'http://{self.ip_address}:5000'
+                           f'/api/v1alpha/kill')
+                    await session.post(url)
+            except aiohttp.ClientResponseError as err:
+                if err.status == 403:
+                    log.info(f'cannot kill {self} -- does not exist at {self.ip_address}')
+                    return
+                raise
+        await retry_transient_errors(make_request)
 
     async def mark_deleted(self, reason, timestamp):
         if self._state == 'deleted':

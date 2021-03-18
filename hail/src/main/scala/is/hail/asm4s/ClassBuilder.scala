@@ -13,6 +13,7 @@ import org.objectweb.asm.ClassReader
 
 import scala.collection.mutable
 import scala.reflect.ClassTag
+import java.nio.charset.StandardCharsets
 
 class Field[T: TypeInfo](classBuilder: ClassBuilder[_], val name: String) {
   val ti: TypeInfo[T] = implicitly
@@ -60,7 +61,10 @@ class ClassesBytes(classesBytes: Array[(String, Array[Byte])]) extends Serializa
               HailClassLoader.loadOrDefineClass(n, bytes)
             } catch {
               case e: Exception =>
-                FunctionBuilder.bytesToBytecodeString(bytes, FunctionBuilder.stderrAndLoggerErrorOS)
+                val buffer = new ByteArrayOutputStream()
+                FunctionBuilder.bytesToBytecodeString(bytes, buffer)
+                val classJVMByteCodeAsEscapedStr = buffer.toString(StandardCharsets.UTF_8.name())
+                log.error(s"Failed to load bytecode ${e}:\n" + classJVMByteCodeAsEscapedStr)
                 throw e
             }
           }
@@ -404,8 +408,6 @@ class ClassBuilder[C](
 }
 
 object FunctionBuilder {
-  val stderrAndLoggerErrorOS = getStderrAndLogOutputStream[FunctionBuilder[_]]
-
   def bytesToBytecodeString(bytes: Array[Byte], out: OutputStream) {
     val tcv = new TraceClassVisitor(null, new Textifier, new PrintWriter(out))
     new ClassReader(bytes).accept(tcv, 0)

@@ -1,16 +1,16 @@
 package is.hail.types.physical.stypes.primitives
 
-import is.hail.annotations.{CodeOrdering, Region}
+import is.hail.annotations.Region
 import is.hail.asm4s.{Code, LongInfo, Settable, SettableBuilder, TypeInfo, Value}
-import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, SortOrder}
-import is.hail.types.physical.stypes.{SCode, SType}
+import is.hail.expr.ir.EmitCodeBuilder
+import is.hail.types.physical.stypes.SCode
 import is.hail.types.physical.{PCode, PInt64, PSettable, PType, PValue}
 import is.hail.utils.FastIndexedSeq
 
-case class SInt64(required: Boolean) extends SType {
-  override def pType: PInt64  = PInt64(required)
+case class SInt64(required: Boolean) extends SPrimitive {
+  def ti: TypeInfo[_] = LongInfo
 
-  def codeOrdering(mb: EmitMethodBuilder[_], other: SType, so: SortOrder): CodeOrdering = pType.codeOrdering(mb, other.pType, so)
+  override def pType: PInt64  = PInt64(required)
 
   def coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = {
     value.st match {
@@ -51,7 +51,9 @@ trait PInt64Value extends PValue {
 
 }
 
-class SInt64Code(required: Boolean, val code: Code[Long]) extends PCode {
+class SInt64Code(required: Boolean, val code: Code[Long]) extends PCode with SPrimitiveCode {
+  override def _primitiveCode: Code[_] = code
+
   val pt: PInt64 = PInt64(required)
 
   def st: SInt64 = SInt64(required)

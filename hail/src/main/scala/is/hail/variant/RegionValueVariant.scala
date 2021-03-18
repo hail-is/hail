@@ -10,7 +10,6 @@ class RegionValueVariant(rowType: PStruct) extends View {
   private val allelesField = rowType.fieldByName("alleles")
   private val locusIdx = locusField.index
   private val allelesIdx = allelesField.index
-  private val tl: PStruct = locusPType.fundamentalType.asInstanceOf[PStruct]
   private val taa: PArray = allelesField.typ.asInstanceOf[PArray]
   private val allelePType = taa.elementType.asInstanceOf[PString]
   private var locusAddress: Long = _
@@ -37,9 +36,7 @@ class RegionValueVariant(rowType: PStruct) extends View {
     cachedContig
   }
 
-  def position(): Int = {
-    Region.loadInt(tl.loadField(locusAddress, 1))
-  }
+  def position(): Int = locusPType.position(locusAddress)
 
   def alleles(): Array[String] = {
     if (cachedAlleles == null) {

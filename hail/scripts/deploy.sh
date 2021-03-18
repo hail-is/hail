@@ -50,15 +50,6 @@ then
     exit 1
 fi
 
-docs_location=gs://hail-common/builds/0.2/docs/hail-0.2-docs-$GIT_VERSION.tar.gz
-
-if ! gsutil ls $docs_location
-then
-    echo "docs for $GIT_VERSION do not exist"
-    exit 1
-fi
-
-
 # push git tag
 git tag $HAIL_PIP_VERSION -m "Hail version $HAIL_PIP_VERSION."
 git push origin $HAIL_PIP_VERSION

@@ -1,0 +1,88 @@
+{% from "pr-table.html" import pr_table with context %}
+{% from "dev-deploy-table.html" import dev_deploy_table with context %}
+{% from "team-table.html" import team_table with context %}
+{% extends "layout.html" %}
+
+{% block title %}User Homepage{% endblock %}
+
+{% block head %}
+<style>
+.dashboard-grid {
+  display: flex;
+  flex-flow: row wrap;
+  width: 100%;
+}
+
+.col {
+  flex: 50%;
+  align-self: flex-start;
+}
+
+.col > * {
+  margin-bottom: 5%;
+}
+
+.searchbar-table {
+  align-items: flex-start;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<h1>Welcome, {{ username }}!</h1>
+
+GitHub username: {{ gh_username }}
+<br/>
+<div class="dashboard-grid">
+  <div class="col">
+    <div>
+      {% for wb in actionable_wbs %}
+      {% if wb.prs is not none %}
+      <h2>{{ wb.branch }} Awaiting Action</h2>
+      {{ pr_table(wb, "actionitems", "actionitemsSearchBar") }}
+      {% endif %}
+      {% endfor %}
+    </div>
+
+    <div>
+      {% for wb in pr_wbs %}
+      {% if wb.prs is not none %}
+      <h2>{{ wb.branch }} PRs</h2>
+      {{ pr_table(wb, "myprs", "myprsSearchBar") }}
+      {% endif %}
+      {% endfor %}
+    </div>
+
+    <div>
+      {% for wb in review_wbs %}
+      {% if wb.prs is not none %}
+      <h2>{{ wb.branch }} Reviews</h2>
+      {{ pr_table(wb, "reviews", "reviewsSearchBar") }}
+      {% endif %}
+      {% endfor %}
+    </div>
+
+    <div>
+      <h2>Authorize SHA</h2>
+      <form action="{{ base_path }}/authorize_source_sha" method="post">
+        <label for="sha">SHA:</label>
+        <input type="hidden" name="_csrf" value="{{ csrf_token }}"/>
+        <input type="text" name="sha" id="sha">
+        <button type="submit">Authorize</button>
+      </form>
+    </div>
+
+    <div>
+      {{ team_table(team_member) }}
+    </div>
+  </div>
+
+  <div class="col">
+    <div>
+      <h2>Dev Deploys</h2>
+      {{ dev_deploy_table(dev_deploys) }}
+    </div>
+  </div>
+</div>
+
+{% endblock %}

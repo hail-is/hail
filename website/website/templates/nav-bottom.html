@@ -1,0 +1,97 @@
+<script>
+  const cached = document.getElementById("hail-navbar-collapse");
+  const initialStyle = cached.style.display;
+  document.getElementById("navbar-toggler").addEventListener("click", () => {
+    const computed = getComputedStyle(cached);
+
+    if (computed.display == 'none') {
+      cached.style.display = 'block';
+    } else {
+      cached.style.display = initialStyle;
+    }
+  });
+  (function () {
+    var cpage = location.pathname;
+    var menuItems = document.querySelectorAll('#hail-menu a');
+
+    for (var i = 0; i < menuItems.length; i++) {
+      if (menuItems[i].pathname === cpage && menuItems[i].host == location.host) {
+        menuItems[i].className = "active";
+        return;
+      }
+    }
+
+    if (cpage === "{{ base_path }}/" || cpage === "{{ base_path }}/index.html") {
+      document.getElementById('hail-navbar-brand').className = "active";
+    };
+  })();
+</script>
+<script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+<script type="text/javascript">
+  requirejs(["https://cdn.jsdelivr.net/npm/docsearch.js@2/dist/cdn/docsearch.min.js"], function(docsearch) {
+    let isHighlighted = false;
+    const cachedSearchInput = document.getElementById("search");
+
+    const cachedNavbar = document.getElementById("hail-navbar")
+    cachedSearchInput.addEventListener("keyup", (ev) => {
+      handleSearchKeyUp(cachedSearchInput.value, ev)
+    });
+
+    function handleSearchKeyUp(query, ev) {
+      if(ev.keyCode == 13 && !isHighlighted) {
+        location.href = `{{ base_path }}/search.html?query=${query}`;
+      }
+    }
+
+    window.addEventListener("keyup", (ev) => {
+      if(ev.keyCode != 191) {
+        return;
+      }
+
+      cachedSearchInput.focus();
+    })
+
+    const algoliaOptions = {
+      hitsPerPage: 10,
+      exactOnSingleWordQuery: "word",
+      queryType: "prefixAll",
+      advancedSyntax: true,
+    };
+
+    docsearch({
+      apiKey: 'd2dee24912091336c40033044c9bac58',
+      indexName: 'hail_is',
+      inputSelector: '#search',
+      debug: false, // hide on blur
+      handleSelected: function(input, event, suggestion, datasetNumber, context) {
+        isHighlighted = !!suggestion;
+        location.href = suggestion.url;
+      },
+      queryHook: function(query) {
+        // algolia seems to split on period, but not split queries on period, affects methods search
+        return query.replace(/\./g, " ");
+      },
+      autocompleteOptions: {
+        autoselect: false
+      },
+      algoliaOptions: algoliaOptions,
+    });
+
+    const cachedAlgolia = document.querySelector("#algolia-autocomplete-listbox-0 > .ds-dataset-1");
+
+    cachedAlgolia.style.overflow = 'scroll';
+
+    cachedAlgolia.style.maxHeight = `${window.innerHeight - cachedNavbar.offsetHeight}px`;
+    let evTimeout = null;
+    const ev = window.addEventListener("resize", () => {
+      if (evTimeout) {
+        clearTimeout(evTimeout);
+      }
+
+      evTimeout = setTimeout(() => {
+        cachedAlgolia.style.maxHeight = `${window.innerHeight - cachedNavbar.offsetHeight}px`;
+        evTimeout = null;
+      }, 100);
+    })
+  });
+</script>

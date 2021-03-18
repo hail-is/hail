@@ -17,7 +17,7 @@ from hail.typecheck import typecheck, typecheck_method, func_spec, oneof, \
     identity, nullable, tupleof, sliceof, dictof
 from hail.utils.java import Env, warning
 from hail.utils.linkedlist import LinkedList
-from hail.utils.misc import wrap_to_list, get_nice_field_error, get_nice_attr_error
+from hail.utils.misc import wrap_to_list, wrap_to_tuple, get_nice_field_error, get_nice_attr_error
 
 import numpy as np
 
@@ -77,7 +77,7 @@ class CollectionExpression(Expression):
         [2, 4]
 
         >>> hl.eval(s3.filter(lambda x: ~(x[-1] == 'e')))  # doctest: +SKIP_OUTPUT_CHECK
-        {'Bob'}
+        frozenset({'Bob'})
 
         Notes
         -----
@@ -319,7 +319,7 @@ class CollectionExpression(Expression):
         [1.0, 8.0, 27.0, 64.0, 125.0]
 
         >>> hl.eval(s3.map(lambda x: x.length()))
-        {3, 5, 7}
+        frozenset({3, 5, 7})
 
         Parameters
         ----------
@@ -1083,7 +1083,7 @@ class SetExpression(CollectionExpression):
         --------
 
         >>> hl.eval(s1.remove(1))
-        {2, 3}
+        frozenset({2, 3})
 
         Parameters
         ----------
@@ -1138,10 +1138,10 @@ class SetExpression(CollectionExpression):
         --------
 
         >>> hl.eval(s1.difference(s2))
-        {2}
+        frozenset({2})
 
         >>> hl.eval(s2.difference(s1))
-        {5}
+        frozenset({5})
 
         Parameters
         ----------
@@ -1167,7 +1167,7 @@ class SetExpression(CollectionExpression):
         --------
 
         >>> hl.eval(s1.intersection(s2))
-        {1, 3}
+        frozenset({1, 3})
 
         Parameters
         ----------
@@ -1222,7 +1222,7 @@ class SetExpression(CollectionExpression):
         --------
 
         >>> hl.eval(s1.union(s2))
-        {1, 2, 3, 5}
+        frozenset({1, 2, 3, 5})
 
         Parameters
         ----------
@@ -4098,6 +4098,36 @@ class NDArrayNumericExpression(NDArrayExpression):
         res = construct_expr(ir.NDArrayMatMul(left._ir, right._ir), ret_type, self._indices, self._aggregations)
 
         return res if result_ndim > 0 else res[()]
+
+    @typecheck_method(axis=nullable(oneof(int, tupleof(int))))
+    def sum(self, axis=None):
+        """Sum out one or more axes of an ndarray.
+
+        Parameters
+        ----------
+        axis : :class:`int` :class:`tuple`
+            The axis or axes to sum out.
+
+        Returns
+        -------
+        :class:`.NDArrayNumericExpression`
+        """
+        if axis is None:
+            axis = tuple(range(self.ndim))
+
+        axis = wrap_to_tuple(axis)
+        res_ir = ir.NDArrayAgg(self._ir, axis)
+
+        axes_set = set(axis)
+        if len(axes_set) < len(axis):
+            raise ValueError("duplicate value in 'axis'")
+        for element in axes_set:
+            if element < 0 or element >= self.ndim:
+                raise ValueError(f"axis {element} is out of bounds for ndarray of dimension {self.ndim}")
+
+        num_axes_deleted = len(axes_set)
+
+        return construct_expr(res_ir, tndarray(self._type.element_type, self.ndim - num_axes_deleted), self._indices, self._aggregations)
 
 
 scalars = {tbool: BooleanExpression,

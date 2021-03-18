@@ -6,7 +6,7 @@ import is.hail.expr.ir._
 import is.hail.io.{InputBuffer, OutputBuffer}
 import is.hail.types.encoded._
 import is.hail.types.physical._
-import is.hail.types.physical.stypes.concrete.SIndexablePointerCode
+import is.hail.types.physical.stypes.concrete.{SIndexablePointerCode, SIndexablePointerSettable}
 import is.hail.utils._
 
 object StagedBlockLinkedList {
@@ -77,12 +77,10 @@ class StagedBlockLinkedList(val elemType: PType, val kb: EmitClassBuilder[_]) {
     Region.storeAddress(nodeType.fieldOffset(n, "next"), nNext)
 
   private def initNode(n: Node, buf: Code[Long], count: Code[Int]): Code[Unit] =
-    Code.memoize(n, "sbll_init_node_n") { n =>
-      Code(
-        Region.storeAddress(nodeType.fieldOffset(n, "buf"), buf),
-        Region.storeInt(nodeType.fieldOffset(n, "count"), count),
-        Region.storeAddress(nodeType.fieldOffset(n, "next"), nil))
-    }
+    Code(
+      Region.storeAddress(nodeType.fieldOffset(n, "buf"), buf),
+      Region.storeInt(nodeType.fieldOffset(n, "count"), count),
+      Region.storeAddress(nodeType.fieldOffset(n, "next"), nil))
 
   private def pushPresent(cb: EmitCodeBuilder, n: Node)(store: (EmitCodeBuilder, Code[Long]) => Unit): Unit = {
     cb += bufferType.setElementPresent(buffer(n), count(n))
@@ -210,7 +208,7 @@ class StagedBlockLinkedList(val elemType: PType, val kb: EmitClassBuilder[_]) {
       foreachNode(cb, n) { cb =>
         cb += ob.writeBoolean(true)
         cb.assign(b, buffer(n))
-        bufferEType.buildPrefixEncoder(cb, bufferType.encodableType, b, ob, count(n))
+        bufferEType.buildPrefixEncoder(cb, bufferType.loadCheapPCode(cb, b).memoize(cb, "sbll_serialize_v"), ob, count(n))
       }
       cb += ob.writeBoolean(false)
     }
@@ -223,30 +221,22 @@ class StagedBlockLinkedList(val elemType: PType, val kb: EmitClassBuilder[_]) {
       typeInfo[Unit])
     val r = desF.getCodeParam[Region](1)
     val ib = desF.getCodeParam[InputBuffer](2)
-    val array = desF.newLocal[Long]("array")
-    val dec = bufferEType.buildDecoder(bufferType, desF.ecb)
-    desF.emit(
-      Code.whileLoop(ib.readBoolean(),
-        array := dec(r, ib),
-        appendShallow(desF, r, array))
-    )
+    val dec = bufferEType.buildDecoder(bufferType.virtualType, desF.ecb)
+    desF.voidWithBuilder { cb =>
+      cb.whileLoop(ib.readBoolean(), {
+        appendShallow(cb, r, dec(cb, r, ib))
+      })
+    }
     cb.invokeVoid(desF, region, inputBuffer)
   }
 
-  private def appendShallow(mb: EmitMethodBuilder[_], r: Code[Region], aoff: Code[Long]): Code[Unit] = {
-    Code.memoize(aoff, "sbll_append_shallow_aoff") { aoff =>
-      Code.memoize(bufferType.loadLength(aoff), "sbll_append_shallow_len") { len =>
-        val newNode = mb.newLocal[Long]()
-        Code(
-          newNode := r.allocate(nodeType.alignment, nodeType.byteSize),
-          initNode(newNode,
-            buf = aoff,
-            count = len),
-          setNext(lastNode, newNode),
-          lastNode := newNode,
-          totalCount := totalCount + len)
-      }
-    }
+  private def appendShallow(cb: EmitCodeBuilder, r: Code[Region], aCode: PCode): Unit = {
+    val buff = cb.memoize(aCode, "sbll_append_shallow_a").asInstanceOf[SIndexablePointerSettable]
+    val newNode = cb.newLocal[Long]("sbll_append_shallow_newnode", nodeType.allocate(r))
+    cb += initNode(newNode, buf = buff.a, count = buff.length)
+    cb += setNext(lastNode, newNode)
+    cb.assign(lastNode, newNode)
+    cb.assign(totalCount, totalCount + buff.length)
   }
 
   def initWithDeepCopy(cb: EmitCodeBuilder, region: Value[Region], other: StagedBlockLinkedList): Unit = {

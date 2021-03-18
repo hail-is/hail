@@ -1,17 +1,18 @@
 package is.hail.types.physical.stypes.concrete
 
-import is.hail.annotations.{CodeOrdering, Region}
+import is.hail.annotations.Region
 import is.hail.asm4s._
+import is.hail.expr.ir.orderings.CodeOrdering
 import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, SortOrder}
 import is.hail.types.physical.stypes.interfaces.SLocus
 import is.hail.types.physical.stypes.{SCode, SType}
 import is.hail.types.physical.{PCanonicalLocus, PCode, PLocusCode, PLocusValue, PSettable, PStringCode, PType}
 import is.hail.utils.FastIndexedSeq
-import is.hail.variant.Locus
+import is.hail.variant.{Locus, ReferenceGenome}
 
 
 case class SCanonicalLocusPointer(pType: PCanonicalLocus) extends SLocus {
-  def codeOrdering(mb: EmitMethodBuilder[_], other: SType, so: SortOrder): CodeOrdering = pType.codeOrdering(mb, other.pType, so)
+  override def rg: ReferenceGenome = pType.rg
 
   def coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = {
     new SCanonicalLocusPointerCode(this, pType.store(cb, region, value, deepCopy))

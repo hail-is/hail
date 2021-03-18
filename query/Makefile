@@ -13,12 +13,12 @@ check:
 
 .PHONY: build
 build:
-	$(MAKE) -C ../docker build
+	$(MAKE) -C ../docker service-java-run-base
 	$(MAKE) -C ../hail shadowJar
 # janky
 	cp ../hail/build/libs/hail-all-spark.jar ./hail.jar
 	-docker pull $(QUERY_LATEST)
-	python3 ../ci/jinja2_render.py '{"service_base_image":{"image":"service-base"}}' Dockerfile Dockerfile.out
+	python3 ../ci/jinja2_render.py '{"service_java_run_base_image":{"image":"service-java-run-base"}}' Dockerfile Dockerfile.out
 	docker build -t query -f Dockerfile.out --cache-from query,$(QUERY_LATEST),service-base ..
 
 .PHONY: push

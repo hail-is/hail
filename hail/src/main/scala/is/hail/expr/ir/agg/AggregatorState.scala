@@ -7,6 +7,7 @@ import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer, TypedCodecSpec}
 import is.hail.types.VirtualTypeWithReq
 import is.hail.types.physical._
 import is.hail.types.physical.stypes.SCode
+import is.hail.types.physical.stypes.concrete.{SBaseStructPointer, SBaseStructPointerCode}
 import is.hail.utils._
 
 trait AggregatorState {
@@ -150,31 +151,30 @@ abstract class AbstractTypedRegionBackedAggState(val ptype: PType) extends Regio
   }
 
   def serialize(codec: BufferSpec): (EmitCodeBuilder, Value[OutputBuffer]) => Unit = {
-    val enc = TypedCodecSpec(storageType, codec).buildTypedEmitEncoderF[Long](storageType, kb)
-    (cb, ob: Value[OutputBuffer]) => cb += enc(region, off, ob)
+    val codecSpec = TypedCodecSpec(storageType, codec)
+    val enc = codecSpec.encodedType.buildEncoder(storageType.sType, kb)
+    (cb, ob: Value[OutputBuffer]) => enc(cb, storageType.loadCheapPCode(cb, off), ob)
   }
 
   def deserialize(codec: BufferSpec): (EmitCodeBuilder, Value[InputBuffer]) => Unit = {
-    val (t, dec) = TypedCodecSpec(storageType, codec).buildTypedEmitDecoderF[Long](storageType.virtualType, kb)
-    val off2: Settable[Long] = kb.genFieldThisRef[Long]()
-    (cb, ib: Value[InputBuffer]) => cb += Code(off2 := dec(region, ib), Region.copyFrom(off2, off, const(storageType.byteSize)))
+    val codecSpec = TypedCodecSpec(storageType, codec)
+
+    val dec = codecSpec.encodedType.buildDecoder(storageType.virtualType, kb)
+    ((cb: EmitCodeBuilder, ib: Value[InputBuffer]) =>
+      storageType.storeAtAddress(cb, off, region, dec(cb, region, ib), deepCopy = false))
   }
 }
 
 class PrimitiveRVAState(val vtypes: Array[VirtualTypeWithReq], val kb: EmitClassBuilder[_]) extends AggregatorState {
   private[this] val ptypes = vtypes.map(_.canonicalPType)
-  type ValueField = (Option[Settable[Boolean]], Settable[_], PType)
   assert(ptypes.forall(_.isPrimitive))
 
   val nFields: Int = ptypes.length
-  val fields: Array[ValueField] = Array.tabulate(nFields) { i =>
-    val m = if (ptypes(i).required) None else Some(kb.genFieldThisRef[Boolean](s"primitiveRVA_${ i }_m"))
-    val v = kb.genFieldThisRef(s"primitiveRVA_${ i }_v")(typeToTypeInfo(ptypes(i)))
-    (m, v, ptypes(i))
-  }
-  val storageType: PTuple = PCanonicalTuple(true, ptypes: _*)
+  val fields: Array[EmitSettable] = Array.tabulate(nFields) { i => kb.newEmitField(s"primitiveRVA_${ i }_v", ptypes(i)) }
+  val storageType = PCanonicalTuple(true, ptypes: _*)
+  val sStorageType = SBaseStructPointer(storageType)
 
-  def foreachField(f: (Int, ValueField) => Unit): Unit = {
+  def foreachField(f: (Int, EmitSettable) => Unit): Unit = {
     (0 until nFields).foreach { i =>
       f(i, fields(i))
     }
@@ -185,13 +185,9 @@ class PrimitiveRVAState(val vtypes: Array[VirtualTypeWithReq], val kb: EmitClass
   def createState(cb: EmitCodeBuilder): Unit = {}
 
   private[this] def loadVarsFromRegion(cb: EmitCodeBuilder, srcc: Code[Long]): Unit = {
-    val src = cb.newLocal("prim_rvastate_load_vars_src", srcc)
-    foreachField {
-      case (i, (None, v, t)) =>
-        cb.assignAny(v, Region.loadPrimitive(t)(storageType.fieldOffset(src, i)))
-      case (i, (Some(m), v, t)) =>
-        cb.assign(m, storageType.isFieldMissing(src, i))
-        cb.ifx(!m, cb.assignAny(v, Region.loadPrimitive(t)(storageType.fieldOffset(src, i))))
+    val pv = new SBaseStructPointerCode(sStorageType, srcc).memoize(cb, "prim_rvastate_load_vars")
+    foreachField { (i, es) =>
+      cb.assign(es, pv.loadField(cb, i).map(cb)(_.asPCode))
     }
   }
 
@@ -200,41 +196,34 @@ class PrimitiveRVAState(val vtypes: Array[VirtualTypeWithReq], val kb: EmitClass
   }
 
   def store(cb: EmitCodeBuilder, regionStorer: (EmitCodeBuilder, Value[Region]) => Unit, destc: Code[Long]): Unit = {
-    foreachField({
-      case (i, (None, v, t)) =>
-        cb += Region.storePrimitive(t, storageType.fieldOffset(destc, i))(v)
-      case (i, (Some(m), v, t)) =>
-        val dest = cb.newLocal("prim_rvastate_store_dest", destc)
-        cb.ifx(m,
-          cb += storageType.setFieldMissing(dest, i),
-          {
-            cb += storageType.setFieldPresent(dest, i)
-            cb += Region.storePrimitive(t, storageType.fieldOffset(dest, i))(v)
-          })
-    })
+    val dest = cb.newLocal("prim_rvastate_store_dest", destc)
+    storageType.storeAtAddressFromFields(cb, dest, null, fields.map(_.load), false)
   }
 
   def copyFrom(cb: EmitCodeBuilder, src: Code[Long]): Unit = loadVarsFromRegion(cb, src)
 
   def serialize(codec: BufferSpec): (EmitCodeBuilder, Value[OutputBuffer]) => Unit = {
     (cb, ob: Value[OutputBuffer]) =>
-      foreachField {
-        case (_, (None, v, t)) =>
-          cb += ob.writePrimitive(t)(v)
-        case (_, (Some(m), v, t)) =>
-          cb += ob.writeBoolean(m)
-          cb.ifx(!m, cb += ob.writePrimitive(t)(v))
+      foreachField { case (_, es) =>
+        if (es.pt.required) {
+          cb += ob.writePrimitive(es.pt)(es.v)
+        } else {
+          cb += ob.writeBoolean(es.m)
+          cb.ifx(!es.m, cb += ob.writePrimitive(es.pt)(es.v))
+        }
       }
   }
 
   def deserialize(codec: BufferSpec): (EmitCodeBuilder, Value[InputBuffer]) => Unit = {
     (cb, ib: Value[InputBuffer]) =>
-      foreachField {
-        case (_, (None, v, t)) =>
-          cb.assignAny(v, ib.readPrimitive(t))
-        case (_, (Some(m), v, t)) =>
-          cb.assign(m, ib.readBoolean())
-          cb.ifx(!m, cb.assignAny(v, ib.readPrimitive(t)))
+      foreachField { case (_, es) =>
+        if (es.pt.required) {
+          cb.assign(es, EmitCode.present(cb.emb, PCode(es.pt, ib.readPrimitive(es.pt))))
+        } else {
+          cb.ifx(ib.readBoolean(),
+            cb.assign(es, EmitCode.missing(cb.emb, es.pt)),
+            cb.assign(es, EmitCode.present(cb.emb, PCode(es.pt, ib.readPrimitive(es.pt)))))
+        }
       }
   }
 }

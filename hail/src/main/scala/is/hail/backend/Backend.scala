@@ -48,6 +48,6 @@ abstract class Backend {
     stage: TableStage,
     sortFields: IndexedSeq[SortField],
     relationalLetsAbove: Map[String, IR],
-    tableTypeRequiredness: RTable
+    rowTypeRequiredness: RStruct
   ): TableStage
 }

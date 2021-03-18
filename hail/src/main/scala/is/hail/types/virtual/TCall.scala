@@ -8,13 +8,15 @@ import is.hail.variant.Call
 
 import scala.reflect.{ClassTag, _}
 
-case object TCall extends ComplexType {
+case object TCall extends Type {
   def _toPretty = "Call"
 
   override def pyString(sb: StringBuilder): Unit = {
     sb.append("call")
   }
   val representation: Type = TInt32
+
+  override def fundamentalType: Type = representation.fundamentalType
 
   def _typeCheck(a: Any): Boolean = a.isInstanceOf[Int]
 

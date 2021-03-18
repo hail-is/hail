@@ -85,9 +85,9 @@ intersphinx_mapping = {
     'pandas': ('https://pandas.pydata.org/docs/', None)}
 
 # Add any paths that contain templates here, relative to this directory.
-site_templates = os.environ.get('HAIL_SITE_DIR', '../../../../site/') + 'templates'
+site_templates = os.environ.get('HAIL_WEBSITE_DIR', '../../../../website/website/') + 'templates'
 if not os.path.isdir(site_templates):
-    raise ValueError(f'{os.path.abspath(site_templates)} should point to the site service Jinja2 templates folder')
+    raise ValueError(f'{os.path.abspath(site_templates)} should point to the website service Jinja2 templates folder')
 templates_path = ['_templates', '_templates/_autosummary', site_templates]
 
 # The suffix(es) of source filenames.
@@ -207,7 +207,7 @@ html_title = u'Hail'
 # the docs.  This file should be a Windows icon file (.ico) being 16x16 or 32x32
 # pixels large.
 #
-html_favicon = "misc/hail_logo_sq.ico"
+html_favicon = "_static/hail_logo_sq.ico"
 
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
@@ -218,7 +218,7 @@ html_static_path = ['_static']
 # .htaccess) here, relative to this directory. These files are copied
 # directly to the root of the documentation.
 #
-html_extra_path = ['misc/']
+html_extra_path = []
 
 # If not None, a 'Last updated on:' timestamp is inserted at every page
 # bottom, using the given strftime format.

@@ -4,6 +4,7 @@ import is.hail.annotations._
 import is.hail.backend.BroadcastValue
 import is.hail.check._
 import is.hail.types.physical.PLocus
+import is.hail.types.virtual.TCall.representation
 import is.hail.utils._
 import is.hail.variant._
 
@@ -24,7 +25,10 @@ object TLocus {
   }
 }
 
-case class TLocus(rgBc: BroadcastRG) extends ComplexType {
+case class TLocus(rgBc: BroadcastRG) extends Type {
+
+  override def fundamentalType: Type = representation.fundamentalType
+
   def rg: ReferenceGenome = rgBc.value
 
   def _toPretty = s"Locus($rg)"

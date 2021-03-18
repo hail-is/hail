@@ -23,24 +23,6 @@ final case class PCanonicalTuple(_types: IndexedSeq[PTupleField], override val r
     sb += ']'
   }
 
-  lazy val tupleFundamentalType: PTuple = {
-    val fundamentalFieldTypes = _types.map(tf => tf.copy(typ = tf.typ.fundamentalType))
-    if ((_types, fundamentalFieldTypes).zipped
-      .forall { case (t, ft) => t == ft })
-      this
-    else
-      PCanonicalTuple(fundamentalFieldTypes, required)
-  }
-
-  override lazy val tupleEncodableType: PTuple = {
-    val encodableFieldTypes = _types.map(tf => tf.copy(typ = tf.typ.encodableType))
-    if ((_types, encodableFieldTypes).zipped
-      .forall { case (t, ft) => t == ft })
-      this
-    else
-      PCanonicalTuple(encodableFieldTypes, required)
-  }
-
   override def deepRename(t: Type) = deepTupleRename(t.asInstanceOf[TTuple])
 
   private def deepTupleRename(t: TTuple) = {

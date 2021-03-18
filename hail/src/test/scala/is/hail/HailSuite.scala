@@ -59,7 +59,7 @@ class HailSuite extends TestNGSuite {
     timer = new ExecutionTimer("HailSuite")
     assert(ctx == null)
     pool = RegionPool()
-    ctx = new ExecuteContext(backend.tmpdir, backend.localTmpdir, backend, fs, Region(pool=pool), timer)
+    ctx = new ExecuteContext(backend.tmpdir, backend.localTmpdir, backend, fs, Region(pool=pool), timer, null)
   }
 
   @AfterMethod
