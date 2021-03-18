@@ -40,6 +40,6 @@ def mt_to_table_of_ndarray(entry_expr, block_size=16, return_checkpointed_table_
     grouped = new_part_ht._group_within_partitions("groups", block_size)
     A = grouped.select(ndarray=hl.nd.array(grouped.groups.map(lambda group: group.xs)))
 
-    if return_ungrouped_table_also:
+    if return_checkpointed_table_also:
         return A, ht
     return A

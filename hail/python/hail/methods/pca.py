@@ -365,10 +365,12 @@ def _blanczos_pca(entry_expr, k=10, compute_loadings=False, q_iterations=2, over
     cols_and_scores = hl.zip(A.index_globals().cols, hail_array_scores).map(lambda tup: tup[0].annotate(scores=tup[1]))
     st = hl.Table.parallelize(cols_and_scores, key=list(mt.col_key))
 
-    lt = ht
+    lt = ht.select()
     lt = lt.annotate_globals(U=U)
-    lt = lt.add_index()
-    lt = lt.annotate(loadings=lt.U[lt.idx, :]._data_array()).select_globals()
+    idx_name = '_tmp_pca_loading_index'
+    lt = lt.add_index(idx_name)
+    lt = lt.annotate(loadings=lt.U[lt[idx_name], :]._data_array()).select_globals()
+    lt = lt.drop(lt[idx_name])
 
     if compute_loadings:
         return eigens, st, lt
