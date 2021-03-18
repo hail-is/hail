@@ -337,7 +337,7 @@ def _blanczos_pca(entry_expr, k=10, compute_loadings=False, q_iterations=2, over
         localized_H_i = hl.nd.vstack(result)
         h_list.append(localized_H_i)
         H = hl.nd.hstack(h_list)
-        Q, R = hl.nd.qr(H)
+        Q = hl.nd.qr(H)[0]._persist()
         A = A.annotate(part_size=A.ndarray.shape[0])
         A = A.annotate(rows_preceeding=hl.int32(hl.scan.sum(A.part_size)))
         A = A.annotate_globals(Qt=Q.T)
