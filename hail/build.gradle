@@ -50,8 +50,11 @@ project.ext {
     cachedBreezeVersion = null
 
     sparkVersion = System.getProperty("spark.version", "3.1.1")
-    if (sparkVersion != "3.1.1") {
-        throw new UnsupportedOperationException("Hail currently only supports Spark 3.1.1")
+    if (sparkVersion.startsWith("2.")) {
+        throw new UnsupportedOperationException("Hail no longer supports Spark 2.")
+    }
+    else if (sparkVersion != "3.1.1") {
+        project.logger.lifecycle("WARNING: Hail only tested with Spark 3.1.1, use other versions at your own risk.")
     }
     scalaVersion = System.getProperty("scala.version", "2.12.13")
     if (!scalaVersion.startsWith("2.12.")) {
