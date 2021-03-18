@@ -559,10 +559,20 @@ WHERE users.state = 'active' AND (sessions.session_id = %s) AND (ISNULL(sessions
     return web.json_response(user)
 
 
+async def get_session_id(request):
+    if 'X-Hail-Internal-Authorization' in request.headers:
+        return maybe_parse_bearer_header(request.headers['X-Hail-Internal-Authorization'])
+
+    if 'Authorization' in request.headers:
+        return maybe_parse_bearer_header(request.headers['Authorization'])
+
+    session = await aiohttp_session.get_session(request)
+    return session.get('session_id')
+
+
 @routes.get('/api/v1alpha/verify_dev_credentials')
 async def verify_dev_credentials(request):
-    session = await aiohttp_session.get_session(request)
-    session_id = session.get('session_id')
+    session_id = await get_session_id(request)
     if not session_id:
         raise web.HTTPUnauthorized()
     userdata = await async_get_userinfo(session_id=session_id)
