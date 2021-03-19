@@ -12,6 +12,7 @@ class Resource:
     """
 
     _uid: str
+    _source: Optional[job.Job]
 
     @abc.abstractmethod
     def _get_path(self, directory: str) -> str:
@@ -19,10 +20,6 @@ class Resource:
 
     @abc.abstractmethod
     def _add_output_path(self, path: str) -> None:
-        pass
-
-    @abc.abstractmethod
-    def _source(self):
         pass
 
     def _declare(self, directory: str) -> str:
@@ -323,7 +320,7 @@ class PythonResult(Resource, str):
         r._uid = uid
         return r
 
-    def __init__(self, value: Optional[str], source: job.PythonJob):
+    def __init__(self, value: str, source: job.PythonJob):
         super().__init__()
         assert value is None or isinstance(value, str)
         self._value = value

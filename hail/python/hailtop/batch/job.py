@@ -662,10 +662,12 @@ class PythonJob(Job):
                  name: Optional[str] = None,
                  attributes: Optional[Dict[str, str]] = None):
         super().__init__(batch, name, attributes, None)
+        self._resources: Dict[str, _resource.PythonResult] = {}
+        self._resources_inverse: Dict[_resource.PythonResult, str] = {}
         self._functions: List[Tuple[_resource.PythonResult, Callable, Tuple[Any, ...], Dict[str, Any]]] = []
         self.n_results = 0
 
-    def _get_resource(self, item: str) -> '_resource.Resource':
+    def _get_resource(self, item: str) -> '_resource.PythonResult':
         if item not in self._resources:
             r = self._batch._new_python_result(self, value=item)
             self._resources[item] = r
@@ -799,11 +801,11 @@ class PythonJob(Job):
 
         for arg in args:
             if isinstance(arg, Job):
-                raise BatchException(f'arguments to a PythonJob cannot be other job objects.')
+                raise BatchException('arguments to a PythonJob cannot be other job objects.')
 
         for value in kwargs.values():
             if isinstance(value, Job):
-                raise BatchException(f'arguments to a PythonJob cannot be other job objects.')
+                raise BatchException('arguments to a PythonJob cannot be other job objects.')
 
         def handle_arg(r):
             if r._source != self:
@@ -828,7 +830,7 @@ class PythonJob(Job):
                 handle_arg(value)
 
         self.n_results += 1
-        result: _resource.PythonResult = self._get_resource(f'result{self.n_results}')
+        result = self._get_resource(f'result{self.n_results}')
         handle_arg(result)
 
         self._functions.append((result, unapplied, args, kwargs))

@@ -19,9 +19,10 @@ def random_forest(df_x_path: str, df_y_path: str, window_name: str, cores: int =
     y_test = df_y[df_y.index == window_name]
 
     # run random forest
+    max_features = 3 / 4
     rf = RandomForestRegressor(n_estimators=100,
                                n_jobs=cores,
-                               max_features=3/4,
+                               max_features=max_features,
                                oob_score=True,
                                verbose=False)
 

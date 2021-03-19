@@ -2,13 +2,15 @@ import math
 import os
 import shutil
 
-from typing import List, Optional
+from typing import List, Optional, TYPE_CHECKING
 
 from ..utils.utils import grouped, digits_needed, secret_alnum_string
 from ..utils.process import sync_check_shell_output
 from .exceptions import BatchException
-from . import batch as _batch  # pylint: disable=cyclic-import
 from .resource import ResourceGroup, ResourceFile
+
+if TYPE_CHECKING:
+    from . import batch as _batch  # pylint: disable=cyclic-import
 
 
 def build_python_image(build_dir: str,

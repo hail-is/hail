@@ -110,7 +110,7 @@ class Batch:
                  python_requirements: Optional[List[str]] = None,
                  python_build_image_name: Optional[str] = None,
                  image_repository: Optional[str] = None,
-                 docker_build_dir: Optional[str] = '/tmp'):
+                 docker_build_dir: str = '/tmp'):
         self._jobs: List[job.Job] = []
         self._resource_map: Dict[str, _resource.Resource] = {}
         self._allocated_files: Set[str] = set()
@@ -145,13 +145,16 @@ class Batch:
         self._build_python_image = (default_python_image is None)
 
         if default_python_image is None:
-            if not python_build_image_name:
+            if python_build_image_name is None:
                 python_build_image_name = f'batch-python:{secret_alnum_string(8, case="lower")}'
+
             if isinstance(self._backend, _backend.ServiceBackend):
-                image_repository = image_repository.rstrip('/')
                 if image_repository is None:
-                    raise BatchException(f'Must define `image_repository` when using the ServiceBackend with Python jobs and building an image locally')
+                    raise BatchException('Must define `image_repository` when using the ServiceBackend with Python jobs and building an image locally')
+                image_repository = image_repository.rstrip('/')
                 python_build_image_name = f'{image_repository}/{python_build_image_name}'
+        else:
+            python_build_image_name = default_python_image
 
         self._python_image = python_build_image_name
 
@@ -444,16 +447,16 @@ class Batch:
 
         if not isinstance(resource, _resource.Resource):
             raise BatchException(f"'write_output' only accepts Resource inputs. Found '{type(resource)}'.")
-        if (isinstance(resource, _resource.JobResourceFile) and
-                isinstance(resource._source, job.BashJob) and
-                resource not in resource._source._mentioned):
+        if (isinstance(resource, _resource.JobResourceFile)
+                and isinstance(resource._source, job.BashJob)
+                and resource not in resource._source._mentioned):
             name = resource._source._resources_inverse
             raise BatchException(f"undefined resource '{name}'\n"
                                  f"Hint: resources must be defined within the "
                                  f"job methods 'command' or 'declare_resource_group'")
-        if (isinstance(resource, (_resource.JobResourceFile, _resource.PythonResult)) and
-                isinstance(resource._source, job.PythonJob) and
-                resource not in resource._source._mentioned):
+        if (isinstance(resource, (_resource.JobResourceFile, _resource.PythonResult))
+                and isinstance(resource._source, job.PythonJob)
+                and resource not in resource._source._mentioned):
             name = resource._source._resources_inverse
             raise BatchException(f"undefined resource '{name}'\n"
                                  f"Hint: resources must be bound as a result "
