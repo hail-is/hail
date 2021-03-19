@@ -39,6 +39,8 @@ jobs:
 
       # Remove old packages to save space on anaconda
       - name: Remove old versions
+        # Only run this step once.
+        if: ${{ matrix.os == 'ubuntu-latest' }}
         run: |
           # Keep 8 latest versions
           KEEP=8
