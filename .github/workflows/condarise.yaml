@@ -37,6 +37,12 @@ jobs:
       - name: Build package
         run: conda build conda/hail
 
+      - name: Remove old versions
+        run: |
+          anaconda -t ${{ secrets.ANACONDA_TOKEN }} show cpg/hail 2>&1 \
+          | grep "^   +" | head -n-8 | sed 's#   \+ ##' \
+          | xargs -I '{}' -L1 echo anaconda -t ${{ secrets.ANACONDA_TOKEN }} remove -f cpg/hail/{}
+
       - name: Upload to anaconda package repository
         run: |
           anaconda -t ${{ secrets.ANACONDA_TOKEN }} \
