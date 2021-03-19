@@ -10,7 +10,7 @@ RUN hail-apt-get-install \
 COPY docker/hail-ubuntu/pip.conf /root/.config/pip/pip.conf
 COPY docker/hail-ubuntu/hail-pip-install /bin/hail-pip-install
 COPY docker/requirements.txt .
-RUN hail-pip-install -r requirements.txt pyspark==2.4.0
+RUN hail-pip-install -r requirements.txt pyspark==3.1.1
 
 ENV SPARK_HOME /usr/local/lib/python3.7/site-packages/pyspark
 ENV PATH "$PATH:$SPARK_HOME/sbin:$SPARK_HOME/bin"

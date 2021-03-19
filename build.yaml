@@ -3248,7 +3248,7 @@ steps:
    script: |
      set -ex
      gcloud auth activate-service-account --key-file=/secrets/ci-deploy-0-1--hail-is-hail.json
-     SPARK_VERSION=2.4.5
+     SPARK_VERSION=3.1.1
      BRANCH=0.2
      SHA="{{ code.sha }}"
      GS_JAR=gs://hail-common/builds/${BRANCH}/jars/hail-${BRANCH}-${SHA}-Spark-${SPARK_VERSION}.jar
