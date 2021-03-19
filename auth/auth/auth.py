@@ -8,7 +8,6 @@ import uvloop
 import google.auth.transport.requests
 import google.oauth2.id_token
 import google_auth_oauthlib.flow
-from hailtop.auth import async_get_userinfo
 from hailtop.config import get_deploy_config
 from hailtop.tls import internal_server_ssl_context
 from hailtop.hail_logging import AccessLogger
@@ -526,18 +525,7 @@ async def rest_logout(request, userdata):
     return web.Response(status=200)
 
 
-@routes.get('/api/v1alpha/userinfo')
-async def userinfo(request):
-    if 'Authorization' not in request.headers:
-        log.info('Authorization not in request.headers')
-        raise web.HTTPUnauthorized()
-
-    auth_header = request.headers['Authorization']
-    session_id = maybe_parse_bearer_header(auth_header)
-    if not session_id:
-        log.info('Bearer not in Authorization header')
-        raise web.HTTPUnauthorized()
-
+async def get_userinfo(request, session_id):
     # b64 encoding of 32-byte session ID is 44 bytes
     if len(session_id) != 44:
         log.info('Session id != 44 bytes')
@@ -554,18 +542,41 @@ WHERE users.state = 'active' AND (sessions.session_id = %s) AND (ISNULL(sessions
     if len(users) != 1:
         log.info(f'Unknown session id: {session_id}')
         raise web.HTTPUnauthorized()
-    user = users[0]
+    return users[0]
 
-    return web.json_response(user)
+
+@routes.get('/api/v1alpha/userinfo')
+async def userinfo(request):
+    if 'Authorization' not in request.headers:
+        log.info('Authorization not in request.headers')
+        raise web.HTTPUnauthorized()
+
+    auth_header = request.headers['Authorization']
+    session_id = maybe_parse_bearer_header(auth_header)
+    if not session_id:
+        log.info('Bearer not in Authorization header')
+        raise web.HTTPUnauthorized()
+
+    return web.json_response(await get_userinfo(request, session_id))
+
+
+async def get_session_id(request):
+    if 'X-Hail-Internal-Authorization' in request.headers:
+        return maybe_parse_bearer_header(request.headers['X-Hail-Internal-Authorization'])
+
+    if 'Authorization' in request.headers:
+        return maybe_parse_bearer_header(request.headers['Authorization'])
+
+    session = await aiohttp_session.get_session(request)
+    return session.get('session_id')
 
 
 @routes.get('/api/v1alpha/verify_dev_credentials')
 async def verify_dev_credentials(request):
-    session = await aiohttp_session.get_session(request)
-    session_id = session.get('session_id')
+    session_id = await get_session_id(request)
     if not session_id:
         raise web.HTTPUnauthorized()
-    userdata = await async_get_userinfo(session_id=session_id)
+    userdata = await get_userinfo(request, session_id)
     is_developer = userdata is not None and userdata['is_developer'] == 1
     if not is_developer:
         raise web.HTTPUnauthorized()
