@@ -293,9 +293,9 @@ class EmitStreamSuite extends HailSuite {
 
   private def compileStream[F: TypeInfo, T](
     streamIR: IR,
-    inputTypes: IndexedSeq[PType]
+    inputTypes: IndexedSeq[EmitParamType]
   )(call: (F, Region, T) => Long): T => IndexedSeq[Any] = {
-    val fb = EmitFunctionBuilder[F](ctx, "F", (classInfo[Region]: ParamType) +: inputTypes.map(pt => EmitParamType(pt): ParamType), LongInfo)
+    val fb = EmitFunctionBuilder[F](ctx, "F", (classInfo[Region]: ParamType) +: inputTypes.map(pt => pt: ParamType), LongInfo)
     val mb = fb.apply_method
     val region = StagedRegion(mb.getCodeParam[Region](1), allowSubregions = false)
     val ir = streamIR.deepCopy()
@@ -331,7 +331,7 @@ class EmitStreamSuite extends HailSuite {
 
   private def compileStream(ir: IR, inputType: PType): Any => IndexedSeq[Any] = {
     type F = AsmFunction3RegionLongBooleanLong
-    compileStream[F, Any](ir, FastIndexedSeq(inputType)) { (f: F, r: Region, arg: Any) =>
+    compileStream[F, Any](ir, FastIndexedSeq(SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(inputType)))) { (f: F, r: Region, arg: Any) =>
       if (arg == null)
         f(r, 0L, true)
       else
@@ -343,7 +343,8 @@ class EmitStreamSuite extends HailSuite {
     trait F {
       def apply(o: Region, a: StreamArgType, b: Boolean): Long
     }
-    compileStream[F, Iterator[Any]](ir, IndexedSeq(streamType)) { (f: F, r: Region, it: Iterator[Any]) =>
+    compileStream[F, Iterator[Any]](ir,
+      IndexedSeq(SingleCodeEmitParamType(true, StreamSingleCodeType(streamType.separateRegions, streamType.elementType)))) { (f: F, r: Region, it: Iterator[Any]) =>
       val rvi = new StreamArgType {
         def apply(outerRegion: Region, eltRegion: Region): Iterator[java.lang.Long] =
           new Iterator[java.lang.Long] {
@@ -418,7 +419,10 @@ class EmitStreamSuite extends HailSuite {
   @Test def testEmitRange() {
     val tripleType = PCanonicalStruct(false, "start" -> PInt32(), "stop" -> PInt32(), "step" -> PInt32())
     val range = compileStream(
-      StreamRange(GetField(In(0, tripleType), "start"), GetField(In(0, tripleType), "stop"), GetField(In(0, tripleType), "step")),
+      StreamRange(
+        GetField(In(0, SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(tripleType))), "start"),
+        GetField(In(0, SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(tripleType))), "stop"),
+        GetField(In(0, SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(tripleType))), "step")),
       tripleType)
     for {
       start <- -2 to 2
@@ -639,7 +643,7 @@ class EmitStreamSuite extends HailSuite {
     val intsPType = PCanonicalStream(PInt32())
 
     val f1 = compileStreamWithIter(
-      StreamScan(In(0, intsPType),
+      StreamScan(In(0, SingleCodeEmitParamType(true, StreamSingleCodeType(false, PInt32()))),
         zero = 0,
         "a", "x", Ref("a", TInt32) + Ref("x", TInt32) * Ref("x", TInt32)
       ), intsPType)
@@ -649,14 +653,14 @@ class EmitStreamSuite extends HailSuite {
 
     val f2 = compileStreamWithIter(
       StreamFlatMap(
-        In(0, intsPType),
+        In(0, SingleCodeEmitParamType(true, StreamSingleCodeType(false, PInt32()))),
         "n", StreamRange(0, Ref("n", TInt32), 1)
       ), intsPType)
     assert(f2(Seq(1, 5, 2, 9).iterator) == IndexedSeq(1, 5, 2, 9).flatMap(0 until _))
     assert(f2(null) == null)
 
     val f3 = compileStreamWithIter(
-      StreamRange(0, StreamLen(In(0, intsPType)), 1), intsPType)
+      StreamRange(0, StreamLen(In(0, SingleCodeEmitParamType(true, StreamSingleCodeType(false, PInt32())))), 1), intsPType)
     assert(f3(Seq(1, 5, 2, 9).iterator) == IndexedSeq(0, 1, 2, 3))
     assert(f3(Seq().iterator) == IndexedSeq())
   }
@@ -705,8 +709,8 @@ class EmitStreamSuite extends HailSuite {
       Ref("foldAcc", TFloat64) + Ref("foldVal", TFloat64)
     )))
 
-    val (pt, f) = Compile[AsmFunction2RegionLongLong](ctx,
-      FastIndexedSeq(("in", t)),
+    val (Some(PTypeReferenceSingleCodeType(pt)), f) = Compile[AsmFunction2RegionLongLong](ctx,
+      FastIndexedSeq(("in", SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(t)))),
       FastIndexedSeq(classInfo[Region], LongInfo), LongInfo,
       ir)
 

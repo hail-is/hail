@@ -9,7 +9,7 @@ import is.hail.HailContext
 import is.hail.expr.{JSONAnnotationImpex, SparkAnnotationImpex, Validate}
 import is.hail.expr.ir.lowering._
 import is.hail.expr.ir._
-import is.hail.types.physical.{PStruct, PTuple, PType}
+import is.hail.types.physical.{PStruct, PTuple, PType, PTypeReferenceSingleCodeType}
 import is.hail.types.virtual.{TStruct, TVoid, Type}
 import is.hail.backend.{Backend, BackendContext, BroadcastValue, HailTaskContext}
 import is.hail.io.fs.HadoopFS
@@ -318,7 +318,7 @@ class SparkBackend(
       case TVoid =>
         val (_, f) = ctx.timer.time("Compile") {
           Compile[AsmFunction1RegionUnit](ctx,
-            FastIndexedSeq[(String, PType)](),
+            FastIndexedSeq(),
             FastIndexedSeq(classInfo[Region]), UnitInfo,
             ir,
             print = print)
@@ -326,9 +326,9 @@ class SparkBackend(
         ctx.timer.time("Run")(Left(f(0, ctx.r)(ctx.r)))
 
       case _ =>
-        val (pt: PTuple, f) = ctx.timer.time("Compile") {
+        val (Some(PTypeReferenceSingleCodeType(pt: PTuple)), f) = ctx.timer.time("Compile") {
           Compile[AsmFunction1RegionLong](ctx,
-            FastIndexedSeq[(String, PType)](),
+            FastIndexedSeq(),
             FastIndexedSeq(classInfo[Region]), LongInfo,
             MakeTuple.ordered(FastSeq(ir)),
             print = print)

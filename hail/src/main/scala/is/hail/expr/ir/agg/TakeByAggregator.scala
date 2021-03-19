@@ -353,12 +353,12 @@ class TakeByRVAS(val valueVType: VirtualTypeWithReq, val keyVType: VirtualTypeWi
 
   def seqOp(cb: EmitCodeBuilder, v: EmitCode, k: EmitCode): Unit = {
     val mb = kb.genEmitMethod("take_by_seqop",
-      FastIndexedSeq[ParamType](v.pv.st.pType.asEmitParam, k.pv.st.pType.asEmitParam),
+      FastIndexedSeq[ParamType](v.emitParamType, k.emitParamType),
       UnitInfo)
 
     mb.voidWithBuilder { cb =>
-      val value = mb.getEmitParam(1)
-      val key = mb.getEmitParam(2)
+      val value = mb.getEmitParam(1, null) // don't need region
+      val key = mb.getEmitParam(2, null) // don't need region
 
       cb.ifx(maxSize > 0, {
         cb.ifx(ab.size < maxSize, {

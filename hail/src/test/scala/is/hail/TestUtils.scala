@@ -10,7 +10,7 @@ import is.hail.backend.spark.SparkBackend
 import is.hail.expr.ir._
 import is.hail.expr.ir.{BindingEnv, MakeTuple, Subst}
 import is.hail.expr.ir.lowering.LowererUnsupportedOperation
-import is.hail.types.physical.{PBaseStruct, PCanonicalArray, PType}
+import is.hail.types.physical.{PBaseStruct, PCanonicalArray, PType, PTypeReferenceSingleCodeType}
 import is.hail.types.virtual._
 import is.hail.io.vcf.MatrixVCFReader
 import is.hail.utils._
@@ -217,9 +217,9 @@ object TestUtils {
             aggElementVar,
             MakeTuple.ordered(FastSeq(rewrite(Subst(x, BindingEnv(eval = substEnv, agg = Some(substAggEnv)))))))
 
-          val (resultType2, f) = Compile[AsmFunction3RegionLongLongLong](ctx,
-            FastIndexedSeq((argsVar, argsPType),
-              (aggArrayVar, aggArrayPType)),
+          val (Some(PTypeReferenceSingleCodeType(resultType2)), f) = Compile[AsmFunction3RegionLongLongLong](ctx,
+            FastIndexedSeq((argsVar, SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(argsPType))),
+              (aggArrayVar, SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(aggArrayPType)))),
             FastIndexedSeq(classInfo[Region], LongInfo, LongInfo), LongInfo,
             aggIR,
             print = bytecodePrinter,
@@ -251,8 +251,8 @@ object TestUtils {
           }
 
         case None =>
-          val (resultType2, f) = Compile[AsmFunction2RegionLongLong](ctx,
-            FastIndexedSeq((argsVar, argsPType)),
+          val (Some(PTypeReferenceSingleCodeType(resultType2)), f) = Compile[AsmFunction2RegionLongLong](ctx,
+            FastIndexedSeq((argsVar, SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(argsPType)))),
             FastIndexedSeq(classInfo[Region], LongInfo), LongInfo,
             MakeTuple.ordered(FastSeq(rewrite(Subst(x, BindingEnv(substEnv))))),
             optimize = optimize,

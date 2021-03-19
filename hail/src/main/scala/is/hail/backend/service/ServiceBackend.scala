@@ -336,7 +336,7 @@ class ServiceBackend() extends Backend {
       .asInstanceOf[IR]
     if (x.typ == TVoid) {
       val (_, f) = Compile[AsmFunction1RegionUnit](ctx,
-        FastIndexedSeq[(String, PType)](),
+        FastIndexedSeq(),
         FastIndexedSeq[TypeInfo[_]](classInfo[Region]), UnitInfo,
         x,
         optimize = true)
@@ -344,8 +344,8 @@ class ServiceBackend() extends Backend {
       f(0, ctx.r)(ctx.r)
       None
     } else {
-      val (pt, f) = Compile[AsmFunction1RegionLong](ctx,
-        FastIndexedSeq[(String, PType)](),
+      val (Some(PTypeReferenceSingleCodeType(pt)), f) = Compile[AsmFunction1RegionLong](ctx,
+        FastIndexedSeq(),
         FastIndexedSeq[TypeInfo[_]](classInfo[Region]), LongInfo,
         MakeTuple.ordered(FastIndexedSeq(x)),
         optimize = true)

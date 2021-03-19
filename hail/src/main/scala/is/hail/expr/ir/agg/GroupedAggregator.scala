@@ -3,7 +3,7 @@ package is.hail.expr.ir.agg
 import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.expr.ir.orderings.CodeOrdering
-import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitCodeBuilder, EmitMethodBuilder, EmitRegion, IEmitCode, ParamType}
+import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitCodeBuilder, EmitRegion, IEmitCode, ParamType}
 import is.hail.io._
 import is.hail.types.VirtualTypeWithReq
 import is.hail.types.encoded.EType
@@ -21,13 +21,13 @@ class GroupedBTreeKey(kt: PType, kb: EmitClassBuilder[_], region: Value[Region],
   override def compWithKey(cb: EmitCodeBuilder, off: Code[Long], k: EmitCode): Code[Int] = {
     val mb = kb.getOrGenEmitMethod("compWithKey",
       ("compWithKey_grouped_btree", kt, k.pt),
-      FastIndexedSeq[ParamType](typeInfo[Long], k.pt.asEmitParam),
+      FastIndexedSeq[ParamType](typeInfo[Long], k.emitParamType),
       typeInfo[Int]
     ) { mb =>
       val comp = kb.getOrderingFunction(compType.sType, k.st, CodeOrdering.Compare())
       val off = mb.getCodeParam[Long](1)
       val ev1 = loadCompKey(cb, off)
-      val ev2 = mb.getEmitParam(2)
+      val ev2 = mb.getEmitParam(2, null) // don't need region
       mb.emitWithBuilder(comp(_, ev1, ev2))
     }
     cb.invokeCode(mb, off, k)

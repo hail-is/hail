@@ -1440,30 +1440,8 @@ object EmitStream {
         case x@ReadPartition(context, rowType, reader) =>
           reader.emitStream(emitter.ctx.executeContext, context, rowType, emitter, cb, outerRegion, env, container)
 
-        case In(n, pt@PCanonicalStream(eltType, _, _)) =>
-          val xIter = mb.genFieldThisRef[Iterator[java.lang.Long]]("streamInIterator")
-          val hasNext = mb.genFieldThisRef[Boolean]("streamInHasNext")
-          val next = mb.genFieldThisRef[Long]("streamInNext")
-
-          // this, Region, ...
-          mb.getStreamEmitParam(cb, 2 + n).map(cb) { mkIter =>
-            val stream = unsized { eltRegion =>
-              unfold[Code[Long]](
-                (_, k) => Code(
-                  hasNext := xIter.load().hasNext,
-                  hasNext.orEmpty(next := xIter.load().next().invoke[Long]("longValue")),
-                  k(COption(!hasNext, next)))
-                ).map(
-                rv => EmitCodeBuilder.scopedEmitCode(mb)(cb => EmitCode.present(mb, eltType.loadCheapPCode(cb, (rv)))),
-                setup0 = None,
-                setup = Some(
-                  xIter := mkIter.invoke[Region, Region, Iterator[java.lang.Long]](
-                    "apply", outerRegion.code, eltRegion.code))
-                )
-            }
-
-            interfaces.SStreamCode(pt.sType, stream)
-          }
+        case In(n, _) =>
+          mb.getEmitParam(n, outerRegion.code).load.toI(cb)
 
         case StreamTake(a, num) =>
           val xN = mb.genFieldThisRef[Int]("st_n")
