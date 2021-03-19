@@ -21,8 +21,7 @@ object RelationalSpec {
   implicit val formats: Formats = new DefaultFormats() {
     override val typeHints = ShortTypeHints(List(
       classOf[ComponentSpec], classOf[RVDComponentSpec], classOf[PartitionCountsComponentSpec],
-      classOf[RelationalSpec], classOf[MatrixTableSpec], classOf[TableSpec]))
-    override val typeHintFieldName = "name"
+      classOf[RelationalSpec], classOf[MatrixTableSpec], classOf[TableSpec]), typeHintFieldName="name")
   } +
     new TableTypeSerializer +
     new MatrixTypeSerializer
@@ -150,8 +149,7 @@ object MatrixTableSpec {
   def fromJValue(fs: FS, path: String, jv: JValue): MatrixTableSpec = {
     implicit val formats: Formats = new DefaultFormats() {
       override val typeHints = ShortTypeHints(List(
-        classOf[ComponentSpec], classOf[RVDComponentSpec], classOf[PartitionCountsComponentSpec]))
-      override val typeHintFieldName = "name"
+        classOf[ComponentSpec], classOf[RVDComponentSpec], classOf[PartitionCountsComponentSpec]), typeHintFieldName = "name")
     } +
       new MatrixTypeSerializer
     val params = jv.extract[MatrixTableSpecParameters]

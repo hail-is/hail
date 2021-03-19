@@ -22,8 +22,7 @@ object BlockMatrixWriter {
     override val typeHints = ShortTypeHints(
       List(classOf[BlockMatrixNativeWriter], classOf[BlockMatrixBinaryWriter], classOf[BlockMatrixRectanglesWriter],
         classOf[BlockMatrixBinaryMultiWriter], classOf[BlockMatrixTextMultiWriter],
-        classOf[BlockMatrixPersistWriter], classOf[BlockMatrixNativeMultiWriter]))
-    override val typeHintFieldName: String = "name"
+        classOf[BlockMatrixPersistWriter], classOf[BlockMatrixNativeMultiWriter]), typeHintFieldName = "name")
   }
 }
 
