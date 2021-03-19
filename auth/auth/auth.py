@@ -8,7 +8,6 @@ import uvloop
 import google.auth.transport.requests
 import google.oauth2.id_token
 import google_auth_oauthlib.flow
-from hailtop.auth import async_get_userinfo
 from hailtop.config import get_deploy_config
 from hailtop.tls import internal_server_ssl_context
 from hailtop.hail_logging import AccessLogger
