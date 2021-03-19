@@ -37,6 +37,17 @@ jobs:
       - name: Build package
         run: conda build conda/hail
 
+      # Remove old packages to save space on anaconda
+      - name: Remove old versions
+        # Only run this step once.
+        if: ${{ matrix.os == 'ubuntu-latest' }}
+        run: |
+          # Keep 8 latest versions
+          KEEP=8
+          anaconda -t ${{ secrets.ANACONDA_TOKEN }} show cpg/hail 2>&1 \
+          | grep "^   +" | head -n-${KEEP} | sed 's#   \+ ##' \
+          | xargs -I '{}' -L1 echo anaconda -t ${{ secrets.ANACONDA_TOKEN }} remove -f cpg/hail/{}
+
       - name: Upload to anaconda package repository
         run: |
           anaconda -t ${{ secrets.ANACONDA_TOKEN }} \
