@@ -44,7 +44,7 @@ class Aggregators2Suite extends HailSuite {
           SerializeAggs(0, 0, spec, Array(aggSig.state)) :+
           DeserializeAggs(1, 0, spec, Array(aggSig.state))))
 
-    val (rt: PTuple, resF) = CompileWithAggregators[AsmFunction1RegionLong](ctx,
+    val (Some(PTypeReferenceSingleCodeType(rt: PTuple)), resF) = CompileWithAggregators[AsmFunction1RegionLong](ctx,
       Array.fill(nPartitions)(aggSig.state),
       FastIndexedSeq(),
       FastIndexedSeq(classInfo[Region]), LongInfo,

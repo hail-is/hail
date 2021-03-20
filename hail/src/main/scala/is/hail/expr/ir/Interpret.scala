@@ -836,7 +836,7 @@ object Interpret {
         val extracted = agg.Extract(query, res, Requiredness(x, ctx))
 
         val wrapped = if (extracted.aggs.isEmpty) {
-          val (rt: PTuple, f) = Compile[AsmFunction2RegionLongLong](ctx,
+          val (Some(PTypeReferenceSingleCodeType(rt: PTuple)), f) = Compile[AsmFunction2RegionLongLong](ctx,
             FastIndexedSeq(("global", SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(value.globals.t)))),
             FastIndexedSeq(classInfo[Region], LongInfo), LongInfo,
             MakeTuple.ordered(FastSeq(extracted.postAggIR)))
