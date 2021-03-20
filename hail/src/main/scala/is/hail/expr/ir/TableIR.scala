@@ -301,14 +301,14 @@ object LoweredTableReader {
                       "minkey")))))),
           "sortedPartData" -> Ref("sortedPartData", sortedPartDataIR.typ))))
 
-    val (resultPType, f) = Compile[AsmFunction1RegionLong](ctx,
+    val (Some(PTypeReferenceSingleCodeType(resultPType: PStruct)), f) = Compile[AsmFunction1RegionLong](ctx,
       FastIndexedSeq(),
       FastIndexedSeq[TypeInfo[_]](classInfo[Region]), LongInfo,
       summary,
       optimize = true)
 
     val a = f(0, ctx.r)(ctx.r)
-    val s = SafeRow(resultPType.asInstanceOf[PStruct], a)
+    val s = SafeRow(resultPType, a)
 
     val ksorted = s.getBoolean(0)
     val pksorted = s.getBoolean(1)
@@ -725,7 +725,7 @@ case class PartitionZippedNativeReader(specLeft: AbstractTypedCodecSpec, specRig
     // copied from TableNativeReader, but hard to pass it through to here and slightly different signature
     // plan is to remove the interpreted readers when we can evaluate TableStage to TableValue
     def fieldInserter(ctx: ExecuteContext, pLeft: PStruct, pRight: PStruct): (PStruct, Function2[java.lang.Integer, Region, AsmFunction3RegionLongLongLong]) = {
-      val (t: PStruct, mk) = ir.Compile[AsmFunction3RegionLongLongLong](ctx,
+      val (Some(PTypeReferenceSingleCodeType(t: PStruct)), mk) = ir.Compile[AsmFunction3RegionLongLongLong](ctx,
         FastIndexedSeq("left" -> SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType((pLeft))), "right" -> SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(pRight))),
         FastIndexedSeq(typeInfo[Region], LongInfo, LongInfo), LongInfo,
         InsertFields(Ref("left", pLeft.virtualType),
@@ -2408,7 +2408,7 @@ case class TableKeyByAndAggregate(
     val prev = child.execute(ctx)
 
     val localKeyType = keyType
-    val (localKeyPType: PStruct, makeKeyF) = ir.Compile[AsmFunction3RegionLongLongLong](ctx,
+    val (Some(PTypeReferenceSingleCodeType(localKeyPType: PStruct)), makeKeyF) = ir.Compile[AsmFunction3RegionLongLongLong](ctx,
       FastIndexedSeq(("row", SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(prev.rvd.rowPType))),
         ("global", SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(prev.globals.t)))),
       FastIndexedSeq(classInfo[Region], LongInfo, LongInfo), LongInfo,

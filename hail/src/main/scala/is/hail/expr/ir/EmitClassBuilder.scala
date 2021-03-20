@@ -954,7 +954,10 @@ class EmitMethodBuilder[C](
   def getEmitParam(emitIndex: Int, r: Value[Region]): EmitValue = {
     assert(mb.isStatic || emitIndex != 0)
     val static = (!mb.isStatic).toInt
-    val et = emitParamTypes(emitIndex - static).asInstanceOf[EmitParamType]
+    val et = emitParamTypes(emitIndex - static) match {
+      case t: EmitParamType => t
+      case _ => throw new RuntimeException(s"isStatic=${ mb.isStatic }, emitIndex=$emitIndex, params=$emitParamTypes")
+    }
     val codeIndex = emitParamCodeIndex(emitIndex - static)
 
     et match {

@@ -1,14 +1,13 @@
 package is.hail.expr.ir
 
 import java.io.PrintWriter
-
 import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.expr.ir.Stream.Source
 import is.hail.expr.ir.agg.AggStateSig
 import is.hail.expr.ir.lowering.LoweringPipeline
 import is.hail.rvd.RVDContext
-import is.hail.types.physical.{PStream, PStruct, PType, SingleCodeType}
+import is.hail.types.physical.{PStream, PStruct, PType, PTypeReferenceSingleCodeType, SingleCodeType, StreamSingleCodeType}
 import is.hail.types.virtual.Type
 import is.hail.utils._
 
@@ -276,8 +275,8 @@ object CompileIterator {
       ctx, ir,
       Array[ParamType](
         CodeParamType(typeInfo[Object]),
-        PCodeEmitParamType(typ0),
-        PCodeEmitParamType(typ1)),
+        SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(typ0)),
+        SingleCodeEmitParamType(true, StreamSingleCodeType(typ1.separateRegions, typ1.elementType))),
       None)
     (eltPType, (idx, consumerCtx, v0, part) => {
       val stepper = makeStepper(idx, consumerCtx.partitionRegion)
@@ -301,8 +300,8 @@ object CompileIterator {
       ctx, ir,
       Array[ParamType](
         CodeParamType(typeInfo[Object]),
-        PCodeEmitParamType(ctxType),
-        PCodeEmitParamType(bcValsType)),
+        SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(ctxType)),
+        SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(bcValsType))),
       None)
     (eltPType, (idx, consumerCtx, v0, v1) => {
       val stepper = makeStepper(idx, consumerCtx.partitionRegion)

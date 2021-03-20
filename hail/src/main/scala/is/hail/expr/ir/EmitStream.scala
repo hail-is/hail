@@ -1441,7 +1441,13 @@ object EmitStream {
           reader.emitStream(emitter.ctx.executeContext, context, rowType, emitter, cb, outerRegion, env, container)
 
         case In(n, _) =>
-          mb.getEmitParam(n, outerRegion.code).load.toI(cb)
+          // this, Code[Region], ...
+          val param = mb.getEmitParam(2 + n, outerRegion.code)
+          param.st match {
+            case _: SStream =>
+            case t => throw new RuntimeException(s"parameter ${ 2 + n } is not a stream! t=$t, params=${ mb.emitParamTypes }")
+          }
+          param.load.toI(cb)
 
         case StreamTake(a, num) =>
           val xN = mb.genFieldThisRef[Int]("st_n")
@@ -2230,7 +2236,8 @@ object EmitStream {
           fatal(s"not a streamable IR: ${Pretty(streamIR)}")
       }
 
-      assert(result.pt.isInstanceOf[PStream])
+      if (!result.pt.isInstanceOf[PStream])
+        throw new RuntimeException(s"expected stream, got ${ result.pt }")
       result
     }
 
