@@ -331,7 +331,7 @@ class EmitStreamSuite extends HailSuite {
 
   private def compileStream(ir: IR, inputType: PType): Any => IndexedSeq[Any] = {
     type F = AsmFunction3RegionLongBooleanLong
-    compileStream[F, Any](ir, FastIndexedSeq(SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(inputType)))) { (f: F, r: Region, arg: Any) =>
+    compileStream[F, Any](ir, FastIndexedSeq(SingleCodeEmitParamType(false, PTypeReferenceSingleCodeType(inputType)))) { (f: F, r: Region, arg: Any) =>
       if (arg == null)
         f(r, 0L, true)
       else
@@ -341,7 +341,7 @@ class EmitStreamSuite extends HailSuite {
 
   private def compileStreamWithIter(ir: IR, streamType: PStream): Iterator[Any] => IndexedSeq[Any] = {
     trait F {
-      def apply(o: Region, a: StreamArgType, b: Boolean): Long
+      def apply(o: Region, a: StreamArgType): Long
     }
     compileStream[F, Iterator[Any]](ir,
       IndexedSeq(SingleCodeEmitParamType(true, StreamSingleCodeType(streamType.separateRegions, streamType.elementType)))) { (f: F, r: Region, it: Iterator[Any]) =>
@@ -354,7 +354,8 @@ class EmitStreamSuite extends HailSuite {
             }
           }
       }
-      f(r, rvi, it == null)
+      assert(it != null, "null iterators not supported")
+      f(r, rvi)
     }
   }
 
@@ -420,9 +421,9 @@ class EmitStreamSuite extends HailSuite {
     val tripleType = PCanonicalStruct(false, "start" -> PInt32(), "stop" -> PInt32(), "step" -> PInt32())
     val range = compileStream(
       StreamRange(
-        GetField(In(0, SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(tripleType))), "start"),
-        GetField(In(0, SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(tripleType))), "stop"),
-        GetField(In(0, SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(tripleType))), "step")),
+        GetField(In(0, SingleCodeEmitParamType(false, PTypeReferenceSingleCodeType(tripleType))), "start"),
+        GetField(In(0, SingleCodeEmitParamType(false, PTypeReferenceSingleCodeType(tripleType))), "stop"),
+        GetField(In(0, SingleCodeEmitParamType(false, PTypeReferenceSingleCodeType(tripleType))), "step")),
       tripleType)
     for {
       start <- -2 to 2
@@ -649,7 +650,6 @@ class EmitStreamSuite extends HailSuite {
       ), intsPType)
     assert(f1((1 to 4).iterator) == IndexedSeq(0, 1, 1+4, 1+4+9, 1+4+9+16))
     assert(f1(Iterator.empty) == IndexedSeq(0))
-    assert(f1(null) == null)
 
     val f2 = compileStreamWithIter(
       StreamFlatMap(
@@ -657,7 +657,6 @@ class EmitStreamSuite extends HailSuite {
         "n", StreamRange(0, Ref("n", TInt32), 1)
       ), intsPType)
     assert(f2(Seq(1, 5, 2, 9).iterator) == IndexedSeq(1, 5, 2, 9).flatMap(0 until _))
-    assert(f2(null) == null)
 
     val f3 = compileStreamWithIter(
       StreamRange(0, StreamLen(In(0, SingleCodeEmitParamType(true, StreamSingleCodeType(false, PInt32())))), 1), intsPType)
