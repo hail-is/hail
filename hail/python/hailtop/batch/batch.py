@@ -143,14 +143,12 @@ class Batch:
             raise BatchException("cannot specify both 'default_python_image' and 'python_build_image_name'")
 
         self._build_python_image = (default_python_image is None)
+        self._image_repository = image_repository
 
         if default_python_image is None:
             if python_build_image_name is None:
                 python_build_image_name = f'batch-python:{secret_alnum_string(8, case="lower")}'
-
-            if isinstance(self._backend, _backend.ServiceBackend):
-                if image_repository is None:
-                    raise BatchException('Must define `image_repository` when using the ServiceBackend with Python jobs and building an image locally')
+            if image_repository and isinstance(self._backend, _backend.ServiceBackend):
                 image_repository = image_repository.rstrip('/')
                 python_build_image_name = f'{image_repository}/{python_build_image_name}'
         else:
@@ -526,6 +524,9 @@ class Batch:
                 raise ValueError(
                     f'You must specify a Python image if you are using a Python version other than 3.6, 3.7, or 3.8 (you are using {version})')
             base_image = f'hailgenetics/python-dill:{version.major}.{version.minor}-slim'
+
+            if self._image_repository is None and isinstance(self._backend, _backend.ServiceBackend):
+                raise BatchException('Must define `image_repository` when using the ServiceBackend with Python jobs and building an image locally')
 
             _utils.build_python_image(self._docker_build_dir,
                                       base_image,
