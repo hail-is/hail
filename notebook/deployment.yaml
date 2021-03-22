@@ -95,6 +95,26 @@ spec:
           - name: ssl-config-notebook
             mountPath: /ssl-config
             readOnly: true
+       - name: nginx
+         image: {{ notebook_nginx_image.image }}
+         resources:
+           requests:
+             cpu: "20m"
+             memory: "20M"
+           limits:
+             cpu: "1"
+             memory: "1G"
+         ports:
+          - containerPort: 443
+         volumeMounts:
+          - name: ssl-config-notebook-nginx
+            mountPath: /ssl-config
+            readOnly: true
+         readinessProbe:
+           tcpSocket:
+             port: 443
+           initialDelaySeconds: 5
+           periodSeconds: 5
       volumes:
        - name: deploy-config
          secret:
@@ -112,6 +132,10 @@ spec:
          secret:
            optional: false
            secretName: ssl-config-notebook
+       - name: ssl-config-notebook-nginx
+         secret:
+           optional: false
+           secretName: ssl-config-notebook-nginx
 ---
 apiVersion: autoscaling/v2beta1
 kind: HorizontalPodAutoscaler
