@@ -5,7 +5,7 @@ import asyncio
 import pytest
 from hailtop.utils import url_scheme, bounded_gather2
 from hailtop.aiotools import LocalAsyncFS, RouterAsyncFS, Transfer, FileAndDirectoryError
-from hailtop.aiogoogle import StorageClient, GoogleStorageAsyncFS
+from hailtop.aiogoogle import GoogleStorageAsyncFS
 
 from .generate_copy_test_specs import (
     run_test_spec, create_test_file, create_test_dir)
@@ -60,6 +60,7 @@ async def router_filesystem(request):
 
             assert not await fs.isdir(file_base)
             assert not await fs.isdir(gs_base)
+
 
 async def fresh_dir(fs, bases, scheme):
     token = secrets.token_hex(16)
@@ -416,3 +417,22 @@ async def test_copy_src_parts(copy_test_context):
 
     await expect_file(fs, f'{dest_base}file1', 'src/a/file1')
     await expect_file(fs, f'{dest_base}subdir/file2', 'src/a/subdir/file2')
+
+
+@pytest.mark.asyncio
+async def test_file_and_directory_error_with_slash(router_filesystem):
+    sema, fs, bases = router_filesystem
+
+    src_base = await fresh_dir(fs, bases, 'gs')
+    dest_base = await fresh_dir(fs, bases, 'file')
+
+    await fs.create(f'{src_base}empty/')
+
+    async with await fs.create(f'{src_base}not-empty/') as f:
+        await f.write('foo'.encode('utf-8'))
+
+    await fs.copy(sema, Transfer(f'{src_base}empty'), dest_base.rstrip('/'))
+    assert not (await fs.isfile(f'{src_base}empty'))
+
+    with pytest.raises(FileAndDirectoryError):
+        await fs.copy(sema, Transfer(f'{src_base}not-empty/', dest_base.rstrip('/')))
