@@ -92,9 +92,6 @@ spec:
           - name: sql-config
             mountPath: /sql-config
             readOnly: true
-          - name: ssl-config-notebook
-            mountPath: /ssl-config
-            readOnly: true
        - name: nginx
          image: {{ notebook_nginx_image.image }}
          resources:
@@ -107,7 +104,7 @@ spec:
          ports:
           - containerPort: 443
          volumeMounts:
-          - name: ssl-config-notebook-nginx
+          - name: ssl-config-notebook
             mountPath: /ssl-config
             readOnly: true
          readinessProbe:
@@ -132,10 +129,6 @@ spec:
          secret:
            optional: false
            secretName: ssl-config-notebook
-       - name: ssl-config-notebook-nginx
-         secret:
-           optional: false
-           secretName: ssl-config-notebook-nginx
 ---
 apiVersion: autoscaling/v2beta1
 kind: HorizontalPodAutoscaler

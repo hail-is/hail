@@ -19,9 +19,6 @@ principals:
   kind: json
 - name: notebook
   domain: notebook
-  kind: json
-- name: notebook-nginx
-  domain: notebook
   kind: nginx
 - name: gateway
   domain: gateway
