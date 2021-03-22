@@ -4,7 +4,28 @@
   <script src="{{ base_path }}/common_static/focus_on_keyup.js"></script>
 {% endblock %}
 {% block content %}
+
 <h1>Batch {{ batch['id'] }}</h1>
+
+<h2>Properties</h2>
+<ul>
+  <li>User: {{ batch['user'] }}</li>
+  <li>Billing Project: {{ batch['billing_project'] }}</li>
+  <li>Time Created: {% if 'time_created' in batch and batch['time_created'] is not none %}{{ batch['time_created'] }}{% endif %}</li>
+  <li>Time Closed: {% if 'time_closed' in batch and batch['time_closed'] is not none %}{{ batch['time_closed'] }}{% endif %}</li>
+  <li>Time Completed: {% if 'time_completed' in batch and batch['time_completed'] is not none %}{{ batch['time_completed'] }}{% endif %}</li>
+  <li>Total Jobs: {{ batch['n_jobs'] }}</li>
+  <ul>
+    <li>Pending Jobs: {{ batch['n_jobs'] - batch['n_completed'] }}</li>
+    <li>Succeeded Jobs: {{ batch['n_succeeded'] }}</li>
+    <li>Failed Jobs: {{ batch['n_failed'] }}</li>
+    <li>Cancelled Jobs: {{ batch['n_cancelled'] }}</li>
+  </ul>
+  <li>Duration: {% if 'duration' in batch and batch['duration'] is not none %}{{ batch['duration'] }}{% endif %}</li>
+  <li>Cost: {% if 'cost' in batch and batch['cost'] is not none %}{{ batch['cost'] }}{% endif %}</li>
+</ul>
+
+<h2>Attributes</h2>
 {% if 'attributes' in batch %}
 {% for name, value in batch['attributes'].items() %}
 <p>{{ name }}: {{ value }}</p>
@@ -64,7 +85,7 @@
       <tbody>
         {% for job in batch['jobs'] %}
         <tr>
-          <td class="numeric-cell">
+          <td class="numeric-cell" onClick="document.location.href='{{ base_path }}/batches/{{ job['batch_id'] }}/jobs/{{ job['job_id'] }}';">
             <a href="{{ base_path }}/batches/{{ job['batch_id'] }}/jobs/{{ job['job_id'] }}">{{ job['job_id'] }}</a>
           </td>
           <td>
