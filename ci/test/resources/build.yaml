@@ -27,10 +27,13 @@ steps:
      mkdir repo
      cd repo
      {{ code.checkout_script }}
+     make -C hail python-version-info
    timeout: 300
    outputs:
     - from: /io/repo
       to: /repo
+    - from: /io/repo/hail/python/hail/hail_version
+      to: /hail_version
    dependsOn:
     - inline_image
  - kind: buildImage
@@ -52,6 +55,10 @@ steps:
    publishAs: service-base
    dependsOn:
     - base_image
+    - copy_files
+   inputs:
+    - from: /hail_version
+      to: /hail_version
  - kind: buildImage
    name: create_certs_image
    dockerFile: ci/test/resources/Dockerfile.certs
