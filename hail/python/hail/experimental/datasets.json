@@ -1583,7 +1583,7 @@
     ]
   },
   "panukb_ld_block_matrix_AFR": {
-    "description": "Pan-UKB: linkage disequilibrium (LD) matrix Hail BlockMatrix for African ancestry population.",
+    "description": "Pan-UKB: linkage disequilibrium (LD) matrix Hail BlockMatrix for African ancestry population. To determine which row/column corresponds to which variant, see the associated variant indices Hail Table: panukb_ld_variant_indices_AFR.",
     "url": "https://pan.ukbb.broadinstitute.org/docs/technical-overview",
     "versions": [
       {
@@ -1598,7 +1598,7 @@
     ]
   },
   "panukb_ld_block_matrix_AMR": {
-    "description": "Pan-UKB: linkage disequilibrium (LD) matrix Hail BlockMatrix for Admixed American ancestry population.",
+    "description": "Pan-UKB: linkage disequilibrium (LD) matrix Hail BlockMatrix for Admixed American ancestry population. To determine which row/column corresponds to which variant, see the associated variant indices Hail Table: panukb_ld_variant_indices_AMR.",
     "url": "https://pan.ukbb.broadinstitute.org/docs/technical-overview",
     "versions": [
       {
@@ -1613,7 +1613,7 @@
     ]
   },
   "panukb_ld_block_matrix_CSA": {
-    "description": "Pan-UKB: linkage disequilibrium (LD) matrix Hail BlockMatrix for Central/South Asian ancestry population.",
+    "description": "Pan-UKB: linkage disequilibrium (LD) matrix Hail BlockMatrix for Central/South Asian ancestry population. To determine which row/column corresponds to which variant, see the associated variant indices Hail Table: panukb_ld_variant_indices_CSA.",
     "url": "https://pan.ukbb.broadinstitute.org/docs/technical-overview",
     "versions": [
       {
@@ -1628,7 +1628,7 @@
     ]
   },
   "panukb_ld_block_matrix_EAS": {
-    "description": "Pan-UKB: linkage disequilibrium (LD) matrix Hail BlockMatrix for East Asian ancestry population.",
+    "description": "Pan-UKB: linkage disequilibrium (LD) matrix Hail BlockMatrix for East Asian ancestry population. To determine which row/column corresponds to which variant, see the associated variant indices Hail Table: panukb_ld_variant_indices_EAS.",
     "url": "https://pan.ukbb.broadinstitute.org/docs/technical-overview",
     "versions": [
       {
@@ -1643,7 +1643,7 @@
     ]
   },
   "panukb_ld_block_matrix_EUR": {
-    "description": "Pan-UKB: linkage disequilibrium (LD) matrix Hail BlockMatrix for European ancestry population.",
+    "description": "Pan-UKB: linkage disequilibrium (LD) matrix Hail BlockMatrix for European ancestry population. To determine which row/column corresponds to which variant, see the associated variant indices Hail Table: panukb_ld_variant_indices_EUR.",
     "url": "https://pan.ukbb.broadinstitute.org/docs/technical-overview",
     "versions": [
       {
@@ -1658,7 +1658,7 @@
     ]
   },
   "panukb_ld_block_matrix_MID": {
-    "description": "Pan-UKB: linkage disequilibrium (LD) matrix Hail BlockMatrix for Middle Eastern ancestry population.",
+    "description": "Pan-UKB: linkage disequilibrium (LD) matrix Hail BlockMatrix for Middle Eastern ancestry population. To determine which row/column corresponds to which variant, see the associated variant indices Hail Table: panukb_ld_variant_indices_MID.",
     "url": "https://pan.ukbb.broadinstitute.org/docs/technical-overview",
     "versions": [
       {
