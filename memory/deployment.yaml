@@ -15,6 +15,7 @@ spec:
       labels:
         app: memory
         hail.is/sha: "{{ code.sha }}"
+        grafanak8sapp: "true"
     spec:
       serviceAccountName: memory
 {% if deploy %}
