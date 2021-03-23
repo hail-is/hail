@@ -392,11 +392,12 @@ class ServiceTests(unittest.TestCase):
     def tearDown(self):
         self.backend.close()
 
-    def batch(self, requester_pays_project=None):
+    def batch(self, requester_pays_project=None, default_python_image=None):
         return Batch(backend=self.backend,
                      default_image=DOCKER_ROOT_IMAGE,
                      attributes={'foo': 'a', 'bar': 'b'},
-                     requester_pays_project=requester_pays_project)
+                     requester_pays_project=requester_pays_project,
+                     default_python_image=default_python_image)
 
     def test_single_task_no_io(self):
         b = self.batch()
