@@ -1,6 +1,6 @@
 import abc
 from shlex import quote as shq
-from typing import Optional, Set
+from typing import Optional, Set, cast
 
 from . import job  # pylint: disable=cyclic-import
 from .exceptions import BatchException
@@ -326,9 +326,9 @@ class PythonResult(Resource, str):
         self._value = value
         self._source = source
         self._output_paths: Set[str] = set()
-        self._json: JobResourceFile = None
-        self._str: JobResourceFile = None
-        self._repr: JobResourceFile = None
+        self._json = None
+        self._str = None
+        self._repr = None
 
     def _get_path(self, directory: str) -> str:
         assert self._source is not None
@@ -377,7 +377,7 @@ class PythonResult(Resource, str):
             jrf = self._add_converted_resource(self._value + '-json')
             jrf.add_extension('.json')
             self._json = jrf
-        return self._json
+        return cast(JobResourceFile, self._json)
 
     def as_str(self) -> JobResourceFile:
         """
@@ -408,7 +408,7 @@ class PythonResult(Resource, str):
             jrf = self._add_converted_resource(self._value + '-str')
             jrf.add_extension('.txt')
             self._str = jrf
-        return self._str
+        return cast(JobResourceFile, self._str)
 
     def as_repr(self) -> JobResourceFile:
         """
@@ -439,7 +439,7 @@ class PythonResult(Resource, str):
             jrf = self._add_converted_resource(self._value + '-repr')
             jrf.add_extension('.txt')
             self._repr = jrf
-        return self._repr
+        return cast(JobResourceFile, self._repr)
 
     def __str__(self):
         return f'"{self._uid}"'  # pylint: disable=no-member
