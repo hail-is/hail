@@ -61,3 +61,18 @@ spec:
          secret:
            optional: false
            secretName: ssl-config-shuffler
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: shuffler
+  labels:
+    app: shuffler
+spec:
+  ports:
+  - name: shuffler
+    port: 443
+    protocol: TCP
+    targetPort: 443
+  selector:
+    app: shuffler
