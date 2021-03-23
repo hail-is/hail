@@ -1,11 +1,15 @@
 import os
 import sys
 import re
+import concurrent
 from typing import Optional, Dict, Union, List, Any, Set
 
 from hailtop.utils import secret_alnum_string
 
+from ..google_storage import GCS
+
 from . import backend as _backend, job, resource as _resource, utils as _utils  # pylint: disable=cyclic-import
+from .docker import build_python_image
 from .exceptions import BatchException
 
 
@@ -83,6 +87,10 @@ class Batch:
         `gcr.io/my-project`.
     docker_build_dir:
         Local directory to use for building Docker images.
+    project:
+        If specified, the project to use when authenticating with Google
+        Storage. Google Storage is used to transfer serialized values between
+        this computer and the cloud machines that execute Python jobs.
     """
 
     _counter = 0
@@ -110,7 +118,8 @@ class Batch:
                  python_requirements: Optional[List[str]] = None,
                  python_build_image_name: Optional[str] = None,
                  image_repository: Optional[str] = None,
-                 docker_build_dir: str = '/tmp'):
+                 docker_build_dir: str = '/tmp',
+                 project: Optional[str] = None):
         self._jobs: List[job.Job] = []
         self._resource_map: Dict[str, _resource.Resource] = {}
         self._allocated_files: Set[str] = set()
@@ -161,6 +170,9 @@ class Batch:
             self._python_requirements.append('dill')
 
         self._docker_build_dir = docker_build_dir
+
+        self.gcs = GCS(blocking_pool=concurrent.futures.ThreadPoolExecutor(),
+                       project=project)
 
     def new_job(self,
                 name: Optional[str] = None,
@@ -299,7 +311,7 @@ class Batch:
         self._resource_map.update({rg._uid: rg})
         return rg
 
-    def _new_python_result(self, source, value=None):
+    def _new_python_result(self, source, value=None) -> _resource.PythonResult:
         if value is None:
             value = secret_alnum_string(5)
         jrf = _resource.PythonResult(value, source)
@@ -448,14 +460,14 @@ class Batch:
         if (isinstance(resource, _resource.JobResourceFile)
                 and isinstance(resource._source, job.BashJob)
                 and resource not in resource._source._mentioned):
-            name = resource._source._resources_inverse
+            name = resource._source._resources_inverse[resource]
             raise BatchException(f"undefined resource '{name}'\n"
                                  f"Hint: resources must be defined within the "
                                  f"job methods 'command' or 'declare_resource_group'")
-        if (isinstance(resource, (_resource.JobResourceFile, _resource.PythonResult))
+        if (isinstance(resource, _resource.PythonResult)
                 and isinstance(resource._source, job.PythonJob)
                 and resource not in resource._source._mentioned):
-            name = resource._source._resources_inverse
+            name = resource._source._resources_inverse[resource]
             raise BatchException(f"undefined resource '{name}'\n"
                                  f"Hint: resources must be bound as a result "
                                  f"using the PythonJob 'call' method")
@@ -528,11 +540,11 @@ class Batch:
             if self._image_repository is None and isinstance(self._backend, _backend.ServiceBackend):
                 raise BatchException('Must define `image_repository` when using the ServiceBackend with Python jobs and building an image locally')
 
-            _utils.build_python_image(self._docker_build_dir,
-                                      base_image,
-                                      self._python_image,
-                                      python_requirements=self._python_requirements,
-                                      verbose=verbose)
+            build_python_image(self._docker_build_dir,
+                               base_image,
+                               self._python_image,
+                               python_requirements=self._python_requirements,
+                               verbose=verbose)
 
         seen = set()
         ordered_jobs = []

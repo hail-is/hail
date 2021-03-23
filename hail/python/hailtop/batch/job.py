@@ -4,7 +4,6 @@ import os
 import functools
 from io import BytesIO
 from typing import Union, Optional, Dict, List, Set, Tuple, Callable, Any
-import hail as hl
 
 from . import backend, resource as _resource, batch  # pylint: disable=cyclic-import
 from .exceptions import BatchException
@@ -662,12 +661,12 @@ class PythonJob(Job):
                  name: Optional[str] = None,
                  attributes: Optional[Dict[str, str]] = None):
         super().__init__(batch, name, attributes, None)
-        self._resources: Dict[str, _resource.PythonResult] = {}
-        self._resources_inverse: Dict[_resource.PythonResult, str] = {}
+        self._resources: Dict[str, _resource.Resource] = {}
+        self._resources_inverse: Dict[_resource.Resource, str] = {}
         self._functions: List[Tuple[_resource.PythonResult, Callable, Tuple[Any, ...], Dict[str, Any]]] = []
         self.n_results = 0
 
-    def _get_resource(self, item: str) -> '_resource.PythonResult':
+    def _get_resource(self, item: str) -> '_resource.Resource':
         if item not in self._resources:
             r = self._batch._new_python_result(self, value=item)
             self._resources[item] = r
@@ -830,7 +829,7 @@ class PythonJob(Job):
                 handle_arg(value)
 
         self.n_results += 1
-        result = self._get_resource(f'result{self.n_results}')
+        result = self._get_resource(f'result{self.n_results}')  # type: _resource.PythonResult
         handle_arg(result)
 
         self._functions.append((result, unapplied, args, kwargs))
@@ -876,8 +875,7 @@ class PythonJob(Job):
             job_path = os.path.dirname(result._get_path(remote_tmpdir))
             code_path = f'{job_path}/code{i}.p'
 
-            with hl.hadoop_open(code_path, 'wb') as f:
-                f.write(pipe.getvalue())
+            self.gcs._write_gs_file_from_file_like_object(code_path, pipe)
 
             code = self._batch.read_input(code_path)
             self._add_inputs(code)

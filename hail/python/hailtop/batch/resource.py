@@ -326,9 +326,9 @@ class PythonResult(Resource, str):
         self._value = value
         self._source = source
         self._output_paths: Set[str] = set()
-        self._json = None
-        self._str = None
-        self._repr = None
+        self._json = None  # type: JobResourceFile
+        self._str = None  # type: JobResourceFile
+        self._repr = None  # type: JobResourceFile
 
     def _get_path(self, directory: str) -> str:
         assert self._source is not None

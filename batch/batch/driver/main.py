@@ -92,7 +92,7 @@ def instance_from_request(request):
 
 def activating_instances_only(fun):
     @wraps(fun)
-    async def wrapped(request):
+    async def wrapped(r:
         instance = instance_from_request(request)
         if not instance:
             instance_name = instance_name_from_request(request)
