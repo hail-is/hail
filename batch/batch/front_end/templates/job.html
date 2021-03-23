@@ -64,18 +64,20 @@
 <h2>Step Status</h2>
 <section class="progress_bar">
   {% for step in step_statuses %}
-{% if step %}
-  {% for name, timing in step['timing'].items() %}
+    {% if step %}
+      {% for name, timing in step['timing'].items() %}
+        {% if 'duration' in timing %}
   <div class="main">
-  <div class="bar" style="width:{{timing['duration']/50}}px">
-    <div class="textbox">
-      <div class="mainText"> {{ step['name']}} {{name}}</div>
+    <div class="bar" style="width:{{timing['duration']/100}}px">
+      <div class="textbox">
+        <div class="mainText"> {{ step['name']}} {{name}}</div>
       </div>
+    </div>
   </div>
-  </div>
+        {% endif %}
+      {% endfor %}
+    {% endif %}
   {% endfor %}
-{% endif %}
-{% endfor %}
 </section>
 
 <table class="data-table">
@@ -174,12 +176,12 @@
   </thead>
   {% if job_specification %}
   <tbody>
-  {% for envvar in job_specification['env'] %}
+    {% for envvar in job_specification['env'] %}
     <tr>
       <td>{{ envvar['name'] }}</td>
       <td>{{ envvar['value'] }}</td>
     </tr>
-  {% endfor %}
+    {% endfor %}
   </tbody>
   {% endif %}
 </table>
