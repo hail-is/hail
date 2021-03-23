@@ -21,10 +21,9 @@ import is.hail.variant.ReferenceGenome
 import org.json4s.{DefaultFormats, Formats, ShortTypeHints}
 
 object TableWriter {
-  implicit val formats: Formats = new DefaultFormats() {
+  implicit val formats: Formats = new DefaultFormats()  {
     override val typeHints = ShortTypeHints(
-      List(classOf[TableNativeWriter], classOf[TableTextWriter]))
-    override val typeHintFieldName = "name"
+      List(classOf[TableNativeWriter], classOf[TableTextWriter]), typeHintFieldName = "name")
   }
 }
 

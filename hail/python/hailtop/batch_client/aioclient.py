@@ -203,6 +203,8 @@ class Job:
     # {
     #   batch_id: int
     #   job_id: int
+    #   user: str
+    #   billing_project: str
     #   name: optional(str)
     #   state: str (Ready, Running, Success, Error, Failure, Cancelled)
     #   exit_code: optional(int)
@@ -349,7 +351,8 @@ class Batch:
         return await self._client.get_job_log(self.id, job_id)
 
     # {
-    #   id: int,
+    #   id: int
+    #   user: str
     #   billing_project: str
     #   token: str
     #   state: str, (open, failure, cancelled, success, running)

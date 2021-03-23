@@ -24,7 +24,7 @@ google-cloud-logging==1.12.1
 google-cloud-storage==1.25.0
 humanize==1.0.0
 hurry.filesize==0.9
-Jinja2==2.10.1
+Jinja2==2.11.3
 # keyrings.alt>3.1: https://bugs.launchpad.net/usd-importer/+bug/1794041/comments/6
 keyrings.alt>=3.1
 kubernetes-asyncio==9.1.0
@@ -38,11 +38,11 @@ pyjwt==1.7.1
 pylint==2.6.0
 astroid<2.5  # https://github.com/PyCQA/pylint/issues/4131
 PyMySQL==0.9.2
-pytest==4.6.3
-pytest-asyncio==0.10.0
+pytest==6.2.2
+pytest-asyncio==0.14.0
 pytest-html==1.20.0
-pytest-instafail==0.4.1
-pytest-xdist==1.28
+pytest-instafail==0.4.2
+pytest-xdist==2.2.1
 python-dateutil==2.8.1
 python-json-logger==0.1.11
 requests==2.22.0

@@ -222,7 +222,8 @@ async def _query_batch_jobs(request, batch_id):
         where_args.extend(args)
 
     sql = f'''
-SELECT jobs.*, batches.format_version, job_attributes.value AS name, SUM(`usage` * rate) AS cost
+SELECT jobs.*, batches.user, batches.billing_project,  batches.format_version,
+  job_attributes.value AS name, SUM(`usage` * rate) AS cost
 FROM jobs
 INNER JOIN batches ON jobs.batch_id = batches.id
 LEFT JOIN job_attributes
@@ -1150,7 +1151,7 @@ async def _get_job(app, batch_id, job_id):
     db: Database = app['db']
 
     record = await db.select_and_fetchone('''
-SELECT jobs.*, ip_address, format_version, SUM(`usage` * rate) AS cost
+SELECT jobs.*, user, billing_project, ip_address, format_version, SUM(`usage` * rate) AS cost
 FROM jobs
 INNER JOIN batches
   ON jobs.batch_id = batches.id
@@ -1252,28 +1253,31 @@ async def ui_get_job(request, userdata, batch_id):
     app = request.app
     job_id = int(request.match_info['job_id'])
 
-    job_status, attempts, job_log = await asyncio.gather(_get_job(app, batch_id, job_id),
-                                                         _get_attempts(app, batch_id, job_id),
-                                                         _get_job_log(app, batch_id, job_id))
+    job, attempts, job_log = await asyncio.gather(_get_job(app, batch_id, job_id),
+                                                  _get_attempts(app, batch_id, job_id),
+                                                  _get_job_log(app, batch_id, job_id))
 
-    job_status_status = job_status['status']
+    job['duration'] = humanize_timedelta_msecs(job['duration'])
+    job['cost'] = cost_str(job['cost'])
+
+    job_status = job['status']
     container_status_spec = dictfix.NoneOr({
         'name': str,
         'timing': {'pulling': dictfix.NoneOr({'duration': dictfix.NoneOr(Number)}),
                    'running': dictfix.NoneOr({'duration': dictfix.NoneOr(Number)})},
         'container_status': {'out_of_memory': False},
         'state': str})
-    job_status_status_spec = {
+    job_status_spec = {
         'container_statuses': {'input': container_status_spec,
                                'main': container_status_spec,
                                'output': container_status_spec}}
-    job_status_status = dictfix.dictfix(job_status_status, job_status_status_spec)
-    container_statuses = job_status_status['container_statuses']
+    job_status = dictfix.dictfix(job_status, job_status_spec)
+    container_statuses = job_status['container_statuses']
     step_statuses = [container_statuses['input'],
                      container_statuses['main'],
                      container_statuses['output']]
 
-    job_specification = job_status['spec']
+    job_specification = job['spec']
     if 'process' in job_specification:
         process_specification = job_specification['process']
         process_type = process_specification['type']
@@ -1289,11 +1293,12 @@ async def ui_get_job(request, userdata, batch_id):
     page_context = {
         'batch_id': batch_id,
         'job_id': job_id,
+        'job': job,
         'job_log': job_log,
         'attempts': attempts,
         'step_statuses': step_statuses,
         'job_specification': job_specification,
-        'job_status_str': json.dumps(job_status, indent=2)
+        'job_status_str': json.dumps(job, indent=2)
     }
     return await render_template('batch', request, userdata, 'job.html', page_context)
 

@@ -684,26 +684,6 @@ steps:
        to: /cluster-tests.tar.gz
    dependsOn:
     - hail_build_image
- - kind: runImage
-   name: build_hail_spark3
-   image:
-     valueFrom: hail_build_image.image
-   resources:
-     memory: "7.5G"
-     cpu: "4"
-   script: |
-     set -ex
-     cd /
-     rm -rf repo
-     mkdir repo
-     cd repo
-     {{ code.checkout_script }}
-     cd hail
-     time retry ./gradlew --version
-     export SPARK_VERSION="3.0.1" SCALA_VERSION="2.12.12"
-     time retry make jars python-version-info wheel
-   dependsOn:
-     - hail_build_image
  - kind: buildImage
    name: batch_worker_image
    dockerFile: batch/Dockerfile.worker
@@ -2830,6 +2810,8 @@ steps:
      mkdir -p ./ci/test ./hail/python
      cp /repo/hail/ci/test/resources/build.yaml ./
      cp -R /repo/hail/ci/test/resources ./ci/test/
+     cp /repo/hail/tls/Dockerfile ./ci/test/resources/Dockerfile.certs
+     cp /repo/hail/tls/create_certs.py ./ci/test/resources/
      cp /repo/hail/pylintrc ./
      cp /repo/hail/setup.cfg ./
      cp -R /repo/hail/docker ./
@@ -3289,7 +3271,7 @@ steps:
    script: |
      set -ex
      gcloud auth activate-service-account --key-file=/secrets/ci-deploy-0-1--hail-is-hail.json
-     SPARK_VERSION=2.4.5
+     SPARK_VERSION=3.1.1
      BRANCH=0.2
      SHA="{{ code.sha }}"
      GS_JAR=gs://hail-common/builds/${BRANCH}/jars/hail-${BRANCH}-${SHA}-Spark-${SPARK_VERSION}.jar

@@ -3,6 +3,18 @@
 {% block content %}
 <h1>Batch {{ batch_id }} Job {{ job_id }}</h1>
 
+<h2>Properties</h2>
+<ul>
+  <li><a href="{{ base_path }}/batches/{{ batch_id }}">Batch ID: {{ batch_id }}</a></li>
+  <li>Job ID: {{ job_id }}</li>
+  <li>User: {{ job['user'] }} </li>
+  <li>Billing Project: {{ job['billing_project'] }}</li>
+  <li>State: {{ job['state'] }}</li>
+  <li>Exit Code: {% if 'exit_code' in job and job['exit_code'] is not none %}{{ job['exit_code'] }}{% endif %}</li>
+  <li>Duration: {% if 'duration' in job and job['duration'] is not none %}{{ job['duration'] }}{% endif %}</li>
+  <li>Cost: {% if 'cost' in job and job['cost'] is not none %}{{ job['cost'] }}{% endif %}</li>
+</ul>
+
 <h2>Attempts</h2>
 {% if attempts %}
 <table class="data-table">

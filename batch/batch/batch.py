@@ -41,6 +41,7 @@ def batch_record_to_dict(record):
 
     d = {
         'id': record['id'],
+        'user': record['user'],
         'billing_project': record['billing_project'],
         'token': record['token'],
         'state': state,
@@ -85,6 +86,8 @@ def job_record_to_dict(record, name):
         'batch_id': record['batch_id'],
         'job_id': record['job_id'],
         'name': name,
+        'user': record['user'],
+        'billing_project': record['billing_project'],
         'state': record['state'],
         'exit_code': exit_code,
         'duration': duration

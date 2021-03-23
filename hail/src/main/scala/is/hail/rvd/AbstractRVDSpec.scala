@@ -30,9 +30,8 @@ object AbstractRVDSpec {
       classOf[compatibility.IndexSpec],
       classOf[compatibility.UnpartitionedRVDSpec],
       classOf[AbstractTypedCodecSpec],
-      classOf[TypedCodecSpec])
-    ) + BufferSpec.shortTypeHints
-    override val typeHintFieldName = "name"
+      classOf[TypedCodecSpec]),
+    typeHintFieldName = "name") + BufferSpec.shortTypeHints
   }  +
     new TStructSerializer +
     new TypeSerializer +

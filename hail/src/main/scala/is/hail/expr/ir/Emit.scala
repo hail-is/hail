@@ -515,7 +515,7 @@ class Emit[C](
       case If(cond, cnsq, altr) =>
         assert(cnsq.typ == TVoid && altr.typ == TVoid)
 
-        emitI(cond).consume(cb, {}, m => cb.ifx(m.tcode[Boolean], emitVoid(cnsq), emitVoid(altr)))
+        emitI(cond).consume(cb, {}, m => cb.ifx(m.asBoolean.boolCode(cb), emitVoid(cnsq), emitVoid(altr)))
 
       case Let(name, value, body) => value.pType match {
         case streamType: PCanonicalStream =>
@@ -1011,7 +1011,7 @@ class Emit[C](
           FastIndexedSeq(typeInfo[Region], keyValTyp.asEmitParam, keyValTyp.asEmitParam),
           BooleanInfo)
         isSame.emitWithBuilder { cb =>
-          emitInMethod(cb, compare2).consumeCode[Boolean](cb, true, _.tcode[Boolean])
+          emitInMethod(cb, compare2).consumeCode[Boolean](cb, true, _.asBoolean.boolCode(cb))
         }
 
         val eltIdx = mb.newLocal[Int]("groupByKey_eltIdx")
@@ -2186,7 +2186,10 @@ class Emit[C](
             val cmp2 = ApplyComparisonOp(EQWithNA(eltVType), In(0, eltType), In(1, eltType))
             InferPType(cmp2)
             val EmitCode(s, m, pv) = emitInMethod(cmp2, discardNext)
-            discardNext.emit(Code(s, m || pv.tcode[Boolean]))
+            discardNext.emitWithBuilder { cb =>
+              cb += s
+              m || pv.asBoolean.boolCode(cb)
+            }
             val lessThan = ApplyComparisonOp(Compare(eltVType), In(0, eltType), In(1, eltType)) < 0
             InferPType(lessThan)
             (a, lessThan, sorter.distinctFromSorted { (r, v1, m1, v2, m2) =>
@@ -2208,7 +2211,10 @@ class Emit[C](
             val cmp2 = ApplyComparisonOp(EQWithNA(keyType.virtualType), k0, k1).deepCopy()
             InferPType(cmp2)
             val EmitCode(s, m, pv) = emitInMethod(cmp2, discardNext)
-            discardNext.emit(Code(s, m || pv.tcode[Boolean]))
+            discardNext.emitWithBuilder { cb =>
+              cb += s
+              m || pv.asBoolean.boolCode(cb)
+            }
             val lessThan = (ApplyComparisonOp(Compare(keyType.virtualType), k0, k1) < 0).deepCopy()
             InferPType(lessThan)
             (a, lessThan, Code(sorter.pruneMissing, sorter.distinctFromSorted { (r, v1, m1, v2, m2) =>
@@ -2963,4 +2969,3 @@ abstract class NDArrayEmitter(val outputShape: IndexedSeq[Value[Long]])
     finish(cb)
   }
 }
-

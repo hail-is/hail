@@ -4,4 +4,3 @@ COPY hail/python/setup-hailtop.py /hailtop/setup.py
 COPY hail/python/hailtop /hailtop/hailtop/
 RUN hail-pip-install /hailtop && rm -rf /hailtop
 COPY ci/test/ /test/
-RUN hail-pip-install pytest-instafail==0.4.1 pytest-asyncio==0.10.0
