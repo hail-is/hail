@@ -433,17 +433,15 @@ pre {
 
 //Progress bar css
 
-div {
+div .bar {
   display: inline-block;
   margin: 0;
 }
 .textbox {
   display: none;
 }
-.caret {
-  display: none;
-}
-.bar:hover .caret {
+
+.bar:hover {
   position: absolute;
   display: block;
   width: 20px;
@@ -451,7 +449,7 @@ div {
   background-color: #fff;
   border: 1px solid black;
   transform: rotate(45deg);
-top: 35px;
+  top: 35px;
 }
 .bar:hover .textbox {
   display: block;
