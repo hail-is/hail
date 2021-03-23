@@ -829,7 +829,7 @@ class PythonJob(Job):
                 handle_arg(value)
 
         self.n_results += 1
-        result = self._get_resource(f'result{self.n_results}')  # type: _resource.PythonResult
+        result: _resource.PythonResult = self._get_resource(f'result{self.n_results}')
         handle_arg(result)
 
         self._functions.append((result, unapplied, args, kwargs))
