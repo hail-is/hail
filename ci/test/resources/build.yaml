@@ -18,10 +18,22 @@ steps:
      git init
    dependsOn:
      - inline_image
+ - kind: buildImage
+   name: hail_ubuntu_image
+   dockerFile: docker/hail-ubuntu/Dockerfile
+   contextPath: docker/hail-ubuntu
+   publishAs: hail-ubuntu
+ - kind: buildImage
+   name: base_image
+   dockerFile: docker/Dockerfile.base
+   contextPath: .
+   publishAs: base
+   dependsOn:
+    - hail_ubuntu_image
  - kind: runImage
    name: copy_files
    image:
-     valueFrom: inline_image.image
+     valueFrom: base_image.image
    script: |
      cd /io
      mkdir repo
@@ -35,19 +47,7 @@ steps:
     - from: /io/repo/hail/python/hail/hail_version
       to: /hail_version
    dependsOn:
-    - inline_image
- - kind: buildImage
-   name: hail_ubuntu_image
-   dockerFile: docker/hail-ubuntu/Dockerfile
-   contextPath: docker/hail-ubuntu
-   publishAs: hail-ubuntu
- - kind: buildImage
-   name: base_image
-   dockerFile: docker/Dockerfile.base
-   contextPath: .
-   publishAs: base
-   dependsOn:
-    - hail_ubuntu_image
+     - base_image
  - kind: buildImage
    name: service_base_image
    dockerFile: docker/Dockerfile.service-base
