@@ -500,13 +500,6 @@ steps:
    dependsOn:
      - service_base_image
  - kind: buildImage
-   name: router_image
-   dockerFile: router/Dockerfile
-   contextPath: router
-   publishAs: router
-   dependsOn:
-     - hail_ubuntu_image
- - kind: buildImage
    name: batch_image
    dockerFile: batch/Dockerfile
    contextPath: batch/
@@ -1660,23 +1653,6 @@ steps:
    dependsOn:
     - hail_run_image
  - kind: deploy
-   name: deploy_router
-   namespace:
-     valueFrom: default_ns.name
-   config: router/deployment.yaml
-   wait:
-     - kind: Service
-       name: router
-       for: alive
-   link:
-    - www
-    - notebook
-    - ci
-   dependsOn:
-    - default_ns
-    - router_image
-    - create_certs
- - kind: deploy
    name: deploy_scorecard
    namespace:
      valueFrom: default_ns.name
@@ -1687,7 +1663,6 @@ steps:
    dependsOn:
     - default_ns
     - scorecard_image
-    - deploy_router
     - create_certs
  - kind: deploy
    name: deploy_grafana
@@ -1700,7 +1675,6 @@ steps:
    dependsOn:
     - default_ns
     - grafana_nginx_image
-    - deploy_router
     - create_certs
  - kind: runImage
    name: render_prom_nginx_conf
@@ -1748,7 +1722,6 @@ steps:
    dependsOn:
     - default_ns
     - prom_nginx_image
-    - deploy_router
     - create_certs
  - kind: runImage
    name: create_dummy_oauth2_client_secret
@@ -1779,7 +1752,6 @@ steps:
     - default_ns
     - create_deploy_config
     - create_session_key
-    - deploy_router
     - auth_database
     - auth_image
     - create_dummy_oauth2_client_secret
@@ -1852,7 +1824,6 @@ steps:
     - monitoring_image
     - monitoring_database
     - deploy_auth
-    - deploy_router
     - create_certs
     - create_accounts
  - kind: runImage
@@ -2159,7 +2130,6 @@ steps:
       for: alive
    dependsOn:
     - default_ns
-    - deploy_router
     - deploy_batch_sa
     - create_accounts
     - batch_image
@@ -2239,7 +2209,6 @@ steps:
    dependsOn:
     - default_ns
     - benchmark_image
-    - deploy_router
     - create_certs
     - deploy_auth
     - create_accounts
@@ -2310,7 +2279,6 @@ steps:
    dependsOn:
     - default_ns
     - deploy_address_sa
-    - deploy_router
     - address_image
     - create_certs
  - kind: deploy
@@ -3234,7 +3202,6 @@ steps:
     - create_session_key
     - notebook_image
     - notebook_nginx_image
-    - deploy_router
     - deploy_auth
     - notebook_database
     - create_certs
@@ -3330,7 +3297,6 @@ steps:
       resource_type: statefulset
    dependsOn:
     - default_ns
-    - deploy_router
     - blog_nginx_image
     - create_certs
  - kind: runImage
@@ -3464,7 +3430,6 @@ steps:
    dependsOn:
     - default_ns
     - website_image
-    - deploy_router
     - create_certs
  - kind: runImage
    name: test_website
@@ -3764,7 +3729,6 @@ steps:
     - default_ns
     - create_certs
     - create_accounts
-    - deploy_router
     - deploy_auth
     - atgu_image
     - atgu_database

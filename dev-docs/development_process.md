@@ -99,12 +99,14 @@ hailctl dev deploy -b <github_user_name>/hail:<branch_name> -s <step1>,<step2>,.
 Dev deploy creates a batch that deploys the build steps specified by the `-s` in
 your own Kubernetes namespace, MySQL database. For example, if we want to test
 whether the Batch tests still pass, we would specify -s test_batch. This will
-run all the dependent steps for testing Batch such as a working router in your
-namespace, credentials, a live Auth service, a MySQL database for Batch, and a
-live Batch deployment. Your namespace name is the same as your
-username. Submitting a dev deploy with hailctl will give you the link to a UI
+run all the dependent steps for testing Batch such as creating credentials,
+a live Auth service, a MySQL database for Batch, and a live Batch deployment.
+Your namespace name is the same as your username.
+Submitting a dev deploy with hailctl will give you the link to a UI
 where you can monitor the progress of everything deploying and get the logs for
-any steps that fail.
+any steps that fail. You can also see a recent history of your dev deploys at
+[ci.hail.is/me](ci.hail.is/me).
+
 
 If the tests fail, you can then examine the Kubernetes logs for the service
 using something like

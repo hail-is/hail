@@ -104,7 +104,6 @@ Services (see below for descriptions):
 * $HAIL/internal-gateway
 * $HAIL/notebook: notebook and workshop services
 * $HAIL/query
-* $HAIL/router
 * $HAIL/scorecard
 * $HAIL/site
 
@@ -244,7 +243,7 @@ There is a collection of libraries to facilitate service development:
   connections and forwards requests to services in K8s.  It is
   possible to run multiple copies of the Hail services in K8s, each
   set in a separate K8s namespace.  gateway forwards requests to the
-  router service (see below) in the appropriate namespace.
+  K8s service in the appropriate namespace.
 
 * internal-gateway: batch workers run on GCE VMs, not in K8s.  The
   internal-gateway is an nginx reverse proxy that terminates
@@ -258,12 +257,6 @@ There is a collection of libraries to facilitate service development:
   service is not currently used.
 
 * query: The query service implements the Hail Query service.
-
-* router: It is possible to spin up multiple copies of the Hail
-  services inside K8s for development and testing, each set in a
-  separate K8s namespace.  Thus, requests undergo two levels of
-  indirection: gateway forwards requests to the router in the correct
-  namespace, and the router forwards requests to the correct service.
 
 * scorecard: scorecard implements the developer status board found at
   https://scorecard.hail.is/.
