@@ -42,6 +42,11 @@ spec:
         app: notebook
         hail.is/sha: "{{ code.sha }}"
     spec:
+      hostAliases:
+       - ip: "127.0.0.1"
+         hostnames:
+         - "notebook.local"
+         - "workshop.local"
       serviceAccountName: notebook
 {% if deploy %}
       priorityClassName: production
