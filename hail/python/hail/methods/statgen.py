@@ -1510,6 +1510,7 @@ def split_multi(ds, keep_star=False, left_aligned=False, *, permit_shuffle=False
     non-split variants.
 
     >>> bi = mt.filter_rows(hl.len(mt.alleles) == 2)
+    >>> bi = bi.annotate_rows(was_split=False)
     >>> multi = mt.filter_rows(hl.len(mt.alleles) > 2)
     >>> split = hl.split_multi_hts(multi)
     >>> mt = split.union_rows(bi)
@@ -1683,6 +1684,7 @@ def split_multi_hts(ds, keep_star=False, left_aligned=False, vep_root='vep', *, 
     non-split variants.
 
     >>> bi = mt.filter_rows(hl.len(mt.alleles) == 2)
+    >>> bi = bi.annotate_rows(was_split=False)
     >>> multi = mt.filter_rows(hl.len(mt.alleles) > 2)
     >>> split = hl.split_multi_hts(multi)
     >>> mt = split.union_rows(bi)
