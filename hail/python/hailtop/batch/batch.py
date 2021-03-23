@@ -8,7 +8,7 @@ from hailtop.utils import secret_alnum_string
 
 from ..google_storage import GCS
 
-from . import backend as _backend, job, resource as _resource, utils as _utils  # pylint: disable=cyclic-import
+from . import backend as _backend, job, resource as _resource  # pylint: disable=cyclic-import
 from .docker import build_python_image
 from .exceptions import BatchException
 
