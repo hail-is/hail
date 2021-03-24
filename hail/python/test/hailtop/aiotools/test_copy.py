@@ -424,14 +424,14 @@ async def test_file_and_directory_error_with_slash(router_filesystem):
     sema, fs, bases = router_filesystem
 
     src_base = await fresh_dir(fs, bases, 'gs')
-    dest_base = await fresh_dir(fs, bases, 'file')
+    dest_base = await fresh_dir(fs, bases, 'gs')
 
     await fs.create(f'{src_base}empty/')
 
     async with await fs.create(f'{src_base}not-empty/') as f:
         await f.write('foo'.encode('utf-8'))
 
-    await fs.copy(sema, Transfer(f'{src_base}empty/'), dest_base.rstrip('/'))
+    await fs.copy(sema, Transfer(f'{src_base}empty/', dest_base.rstrip('/')))
     assert not (await fs.isfile(f'{dest_base}empty/'))
 
     with pytest.raises(FileAndDirectoryError):
