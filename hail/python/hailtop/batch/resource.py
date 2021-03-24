@@ -290,12 +290,12 @@ class PythonResult(Resource, str):
             return x ** 2
 
 
-        >>> b = Batch()
-        >>> j = b.new_python_job(name='add')
-        >>> result = j.call(add, 3, 2)
-        >>> result = j.call(square, result)
-        >>> b.write_output(result.as_str(), 'output/squared.txt')
-        >>> b.run()
+        b = Batch()
+        j = b.new_python_job(name='add')
+        result = j.call(add, 3, 2)
+        result = j.call(square, result)
+        b.write_output(result.as_str(), 'output/squared.txt')
+        b.run()
 
     Notes
     -----
