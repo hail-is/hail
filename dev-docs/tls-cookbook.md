@@ -112,7 +112,9 @@ kubectl create secret generic \
         -n default ssl-config-hail-root \
         --from-file=hail-root-key.pem \
         --from-file=hail-root-cert.pem \
-        --dry-run -o yaml \
+        --save-config \
+        --dry-run=client \
+        -o yaml \
     | kubectl apply -f -
 ```
 

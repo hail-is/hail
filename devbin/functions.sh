@@ -168,6 +168,6 @@ upload-secret() {
     # upload to a different namespace, ensure you've also modified secret.json.
 	  name=$(jq -r '.metadata.name' secret.json)
 	  namespace=$(jq -r '.metadata.namespace' secret.json)
-	  kubectl create secret generic $name --namespace $namespace $(for i in $(ls contents); do echo "--from-file=contents/$i" ; done) --dry-run -o yaml \
+	  kubectl create secret generic $name --namespace $namespace $(for i in $(ls contents); do echo "--from-file=contents/$i" ; done) --save-config --dry-run=client -o yaml \
 	      | kubectl apply -f -
 }
