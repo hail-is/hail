@@ -81,6 +81,8 @@ def batch_only(fun):
 
 def instance_name_from_request(request):
     instance_name = request.headers.get('X-Hail-Instance-Name')
+    if instance_name is None:
+        raise ValueError(f'request is missing required header X-Hail-Instance-Name: {request}')
     return instance_name
 
 
