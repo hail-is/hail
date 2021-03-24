@@ -713,8 +713,9 @@ async def retry_long_running(name, f, *args, **kwargs):
 
             log.exception(f'in {name}')
 
-            if isinstance(e, aiohttp.ClientResponseError) and e.status == 429:
-                log.info(f'{e} {e.headers}')
+            if isinstance(e, aiohttp.ClientResponseError):
+                if e.status == 429:
+                    log.info(f'{e} {e.headers}')
 
             t = delay_secs * random.uniform(0.7, 1.3)
             await asyncio.sleep(t)
