@@ -449,6 +449,21 @@ of the methods to convert a :class:`.PythonResult` to a file: :meth:`.PythonResu
 :meth:`.PythonResult.as_repr`, and :meth:`.PythonResult.as_json`.
 
 In the example below, we first define two Python functions: `hello_world()` and `upper()`.
+Next, we create a batch and then create a new PythonJob with :meth:`.Batch.new_python_job`.
+Then we use :meth:`.PythonJob.call` and pass the `hello_world` function that we want to call.
+Notice we just passed the reference to the function and not ``hello_world()``. We also add
+a Python string `alice` as an argument to the function. The result of the ``j.call()`` is
+a :class:`.PythonResult` which we've assigned to the variable `hello_str`.
+
+We want to use the `hello_str` result and make all the letters in upper case. We call
+:meth:`.PythonJob.call` and pass a reference to the `upper` function.
+But now the argument is `hello_str` which holds the result from calling `hello_world`
+above. We assign the new output to the variable `result`.
+
+At this point, we want to write out the transformed hello world result to a text file.
+However, `result` is a :class:`.PythonResult`. Therefore, we need to use the :meth:`.PythonResult.as_str`
+to convert `result` to a :class:`.JobResourceFile` with the string output `HELLO WORLD ALICE`. Now
+we can write the result to a file.
 
 .. code-block:: python
 
@@ -460,45 +475,12 @@ In the example below, we first define two Python functions: `hello_world()` and 
         return s.upper()
 
 
-Next, we create a batch and then create a new PythonJob with :meth:`.Batch.new_python_job`:
-
-.. code-block:: python
-
-    >>> b = hb.Batch(name='hello')
-    >>> j = b.new_python_job()
-
-Then we use :meth:`.PythonJob.call` and pass the `hello_world` function that we want to call.
-Notice we just passed the reference to the function and not ``hello_world()``. We also add
-a Python string `alice` as an argument to the function. The result of the ``j.call()`` is
-a :class:`.PythonResult` which we've assigned to the variable `hello_str`.
-
-.. code-block:: python
-
-    >>> hello_str = j.call(hello_world, 'alice')
-
-We want to use the `hello_str` result and make all the letters in upper case. Similar to
-above, we call :meth:`.PythonJob.call` and pass a reference to the `upper` function.
-But now the argument is `hello_str` which holds the result from calling `hello_world`
-above. We assign the new output to the variable `result`.
-
-.. code-block:: python
-
-    >>> result = j.call(upper, hello_str)
-
-At this point, we want to write out the transformed hello world result to a text file.
-However, `result` is a :class:`.PythonResult`. Therefore, we need to use the :meth:`.PythonResult.as_str`
-to convert `result` to a :class:`.JobResourceFile` with the string output `HELLO WORLD ALICE`. Now
-we can write the result to a file.
-
-.. code-block:: python
-
-    >>> b.write_output(result.as_str(), 'output/hello-alice.txt')
-
-Finally, we execute the batch with :meth:`.Batch.run`.
-
-.. code-block:: python
-
-    >>> b.run()
+    b = hb.Batch(name='hello')
+    j = b.new_python_job()
+    hello_str = j.call(hello_world, 'alice')
+    result = j.call(upper, hello_str)
+    b.write_output(result.as_str(), 'output/hello-alice.txt')
+    b.run()
 
 
 Backends

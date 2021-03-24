@@ -614,13 +614,13 @@ class PythonJob(Job):
     Examples
     --------
 
-    Create a batch object with a default Python image:
-
-    >>> b = Batch(default_python_image='gcr.io/hail-vdc/python-dill:3.7-slim')
-
     Create a new Python job that multiplies two numbers and then adds 5 to the result:
 
     .. code-block:: python
+
+        # Create a batch object with a default Python image
+
+        b = Batch(default_python_image='gcr.io/hail-vdc/python-dill:3.7-slim')
 
         def multiply(x, y):
             return x * y
@@ -632,13 +632,11 @@ class PythonJob(Job):
         j.call(multiply, 2, 3)
         j.call(add, result, 5)
 
-    Write the result as a string to a permanent location
+        # Write out the str representation of result to a file
 
-    >>> b.write_output(result.as_str(), 'hello.txt')
+        b.write_output(result.as_str(), 'hello.txt')
 
-    Execute the DAG:
-
-    >>> b.run()
+        b.run()
 
     Notes
     -----
@@ -679,26 +677,18 @@ class PythonJob(Job):
         Examples
         --------
 
-        Write some Python functions
-
         .. code-block:: python
+
+            import json
 
             def add(x, y):
                 return x + y
 
-        .. code-block:: python
-
             def multiply(x, y):
                 return x * y
 
-        .. code-block:: python
-
             def format_as_csv(x, y, add_result, mult_result):
                 return f'{x},{y},{add_result},{mult_result}'
-
-        .. code-block:: python
-
-            import json
 
             def csv_to_json(path):
                 data = []
@@ -714,9 +704,7 @@ class PythonJob(Job):
                 return json.dumps(data)
 
 
-        Get all the multiplication and addition table results
-
-        .. code-block:: python
+            # Get all the multiplication and addition table results
 
             b = Batch(name='add-mult-table',
                       default_python_image='gcr.io/hail-vdc/python-dill:3.7-slim')
