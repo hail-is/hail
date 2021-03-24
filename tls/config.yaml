@@ -39,10 +39,6 @@ principals:
 - name: blog
   domain: blog
   kind: nginx
-- name: router-resolver
-  domain: router-resolver
-  unmanged: True
-  kind: json
 - name: internal-gateway
   domain: internal-gateway
   unmanged: True

@@ -105,7 +105,6 @@ Services (see below for descriptions):
 * $HAIL/notebook: notebook and workshop services
 * $HAIL/query
 * $HAIL/router
-* $HAIL/router-resolver
 * $HAIL/scorecard
 * $HAIL/site
 
@@ -141,7 +140,7 @@ This section is not complete.
   heap called a region value.  Annotation also sometimes refer to just
   the JVM object representation.  Explicitly managed off-(Java-)heap
   values are also referred to as "unsafe".
-  
+
 * is.hail.asm4s: The Hail Query optimizer generates JVM bytecode to
   implement queries.  asm4s is a high-level Scala interface for
   generating JVM bytecode.
@@ -266,9 +265,6 @@ There is a collection of libraries to facilitate service development:
   indirection: gateway forwards requests to the router in the correct
   namespace, and the router forwards requests to the correct service.
 
-* router-resolver: router-resolver verifies whether or not a request
-  is allowed to be forwarded to its destination namespace.
-
 * scorecard: scorecard implements the developer status board found at
   https://scorecard.hail.is/.
 
@@ -276,7 +272,7 @@ There is a collection of libraries to facilitate service development:
   including the landing page and Hail Query and Hail Batch
   documentation.
 
-There are two types of services: regular and infrastructure.
-Deployment of regular services is managed by ci.  Infrastructure
-services are currently managed by hand.  The infrastructure services
-include: gateway, internal-gateway and router-resolver.
+There are two types of services: managed and unmanaged.
+CI handles deployment of managed services, while unmanaged services
+are deployed by hand using their respective Makefiles. The
+unmanaged services are gateway and internal-gateway.
