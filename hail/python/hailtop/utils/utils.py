@@ -708,10 +708,13 @@ async def retry_long_running(name, f, *args, **kwargs):
         try:
             start_time = time_msecs()
             return await f(*args, **kwargs)
-        except Exception:
+        except Exception as e:
             end_time = time_msecs()
 
             log.exception(f'in {name}')
+
+            if isinstance(e, aiohttp.ClientResponseError) and e.status == 429:
+                log.info(f'{e} {e.headers}')
 
             t = delay_secs * random.uniform(0.7, 1.3)
             await asyncio.sleep(t)
