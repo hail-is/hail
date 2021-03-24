@@ -6,7 +6,6 @@ batch
 batch-driver
 benchmark
 blog
-internal
 monitoring
 auth
 ukbb-rg
