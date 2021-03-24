@@ -8,6 +8,7 @@ import uvloop
 import google.auth.transport.requests
 import google.oauth2.id_token
 import google_auth_oauthlib.flow
+from prometheus_async.aio.web import server_stats  # type: ignore
 from hailtop.config import get_deploy_config
 from hailtop.tls import internal_server_ssl_context
 from hailtop.hail_logging import AccessLogger
@@ -16,7 +17,8 @@ from gear import (
     setup_aiohttp_session,
     rest_authenticated_users_only, web_authenticated_developers_only,
     web_maybe_authenticated_user, web_authenticated_users_only, create_session,
-    check_csrf_token, transaction, Database, maybe_parse_bearer_header
+    check_csrf_token, transaction, Database, maybe_parse_bearer_header,
+    monitor_endpoint
 )
 from web_common import (
     setup_aiohttp_jinja2, setup_common_static_routes, set_message,
@@ -75,11 +77,13 @@ async def get_healthcheck(request):  # pylint: disable=W0613
 
 @routes.get('')
 @routes.get('/')
+@monitor_endpoint
 async def get_index(request):  # pylint: disable=unused-argument
     return aiohttp.web.HTTPFound(deploy_config.external_url('auth', '/login'))
 
 
 @routes.get('/creating')
+@monitor_endpoint
 @web_maybe_authenticated_user
 async def creating_account(request, userdata):
     db = request.app['db']
@@ -122,6 +126,7 @@ async def creating_account(request, userdata):
 
 
 @routes.get('/creating/wait')
+@monitor_endpoint
 async def creating_account_wait(request):
     session = await aiohttp_session.get_session(request)
     if 'pending' not in session:
@@ -166,6 +171,7 @@ async def _wait_websocket(request, email):
 
 
 @routes.get('/signup')
+@monitor_endpoint
 async def signup(request):
     next_page = request.query.get('next', deploy_config.external_url('notebook', ''))
 
@@ -185,6 +191,7 @@ async def signup(request):
 
 
 @routes.get('/login')
+@monitor_endpoint
 async def login(request):
     next_page = request.query.get('next', deploy_config.external_url('notebook', ''))
 
@@ -205,6 +212,7 @@ async def login(request):
 
 
 @routes.get('/oauth2callback')
+@monitor_endpoint
 async def callback(request):
     session = await aiohttp_session.get_session(request)
     if 'state' not in session:
@@ -284,6 +292,7 @@ async def callback(request):
 
 
 @routes.get('/user')
+@monitor_endpoint
 @web_authenticated_users_only()
 async def user_page(request, userdata):
     return await render_template('auth', request, userdata, 'user.html', {})
@@ -299,6 +308,7 @@ async def create_copy_paste_token(db, session_id, max_age_secs=300):
 
 @routes.post('/copy-paste-token')
 @check_csrf_token
+@monitor_endpoint
 @web_authenticated_users_only()
 async def get_copy_paste_token(request, userdata):
     session = await aiohttp_session.get_session(request)
@@ -312,6 +322,7 @@ async def get_copy_paste_token(request, userdata):
 
 
 @routes.post('/api/v1alpha/copy-paste-token')
+@monitor_endpoint
 @rest_authenticated_users_only
 async def get_copy_paste_token_api(request, userdata):
     session_id = userdata['session_id']
@@ -322,6 +333,7 @@ async def get_copy_paste_token_api(request, userdata):
 
 @routes.post('/logout')
 @check_csrf_token
+@monitor_endpoint
 @web_maybe_authenticated_user
 async def logout(request, userdata):
     if not userdata:
@@ -338,6 +350,7 @@ async def logout(request, userdata):
 
 
 @routes.get('/api/v1alpha/login')
+@monitor_endpoint
 async def rest_login(request):
     callback_port = request.query['callback_port']
 
@@ -353,6 +366,7 @@ async def rest_login(request):
 
 
 @routes.get('/roles')
+@monitor_endpoint
 @web_authenticated_developers_only()
 async def get_roles(request, userdata):
     db = request.app['db']
@@ -366,6 +380,7 @@ async def get_roles(request, userdata):
 
 @routes.post('/roles')
 @check_csrf_token
+@monitor_endpoint
 @web_authenticated_developers_only()
 async def post_create_role(request, userdata):  # pylint: disable=unused-argument
     session = await aiohttp_session.get_session(request)
@@ -386,6 +401,7 @@ VALUES (%s);
 
 
 @routes.get('/users')
+@monitor_endpoint
 @web_authenticated_developers_only()
 async def get_users(request, userdata):
     db = request.app['db']
@@ -399,6 +415,7 @@ async def get_users(request, userdata):
 
 @routes.post('/users')
 @check_csrf_token
+@monitor_endpoint
 @web_authenticated_developers_only()
 async def post_create_user(request, userdata):  # pylint: disable=unused-argument
     session = await aiohttp_session.get_session(request)
@@ -433,6 +450,7 @@ VALUES (%s, %s, %s, %s, %s);
 
 @routes.post('/users/delete')
 @check_csrf_token
+@monitor_endpoint
 @web_authenticated_developers_only()
 async def delete_user(request, userdata):  # pylint: disable=unused-argument
     session = await aiohttp_session.get_session(request)
@@ -458,6 +476,7 @@ WHERE id = %s AND username = %s;
 
 
 @routes.get('/api/v1alpha/oauth2callback')
+@monitor_endpoint
 async def rest_callback(request):
     state = request.query['state']
     code = request.query['code']
@@ -490,6 +509,7 @@ async def rest_callback(request):
 
 
 @routes.post('/api/v1alpha/copy-paste-login')
+@monitor_endpoint
 async def rest_copy_paste_login(request):
     copy_paste_token = request.query['copy_paste_token']
     db = request.app['db']
@@ -516,6 +536,7 @@ WHERE copy_paste_tokens.id = %s
 
 
 @routes.post('/api/v1alpha/logout')
+@monitor_endpoint
 @rest_authenticated_users_only
 async def rest_logout(request, userdata):
     session_id = userdata['session_id']
@@ -546,6 +567,7 @@ WHERE users.state = 'active' AND (sessions.session_id = %s) AND (ISNULL(sessions
 
 
 @routes.get('/api/v1alpha/userinfo')
+@monitor_endpoint
 async def userinfo(request):
     if 'Authorization' not in request.headers:
         log.info('Authorization not in request.headers')
@@ -572,6 +594,7 @@ async def get_session_id(request):
 
 
 @routes.get('/api/v1alpha/verify_dev_credentials')
+@monitor_endpoint
 async def verify_dev_credentials(request):
     session_id = await get_session_id(request)
     if not session_id:
@@ -601,6 +624,8 @@ def run():
 
     setup_common_static_routes(routes)
     app.add_routes(routes)
+    app.router.add_get("/metrics", server_stats)
+
     app.on_startup.append(on_startup)
     app.on_cleanup.append(on_cleanup)
 

@@ -5,6 +5,7 @@ import jinja2
 import logging
 import aiohttp_session
 import glob
+from prometheus_async.aio.web import server_stats  # type: ignore
 
 from hailtop.config import get_deploy_config
 from hailtop.tls import internal_server_ssl_context
@@ -110,6 +111,7 @@ def run(local_mode):
                          jinja2.PackageLoader('website', 'docs'))
     setup_common_static_routes(routes)
     app.add_routes(routes)
+    app.router.add_get("/metrics", server_stats)
     sass_compile('website')
     web.run_app(deploy_config.prefix_application(app, 'website'),
                 host='0.0.0.0',
