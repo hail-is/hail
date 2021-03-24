@@ -391,22 +391,21 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
 
   override def unstagedStoreJavaObject(annotation: Annotation, region: Region): Long = {
     val aNDArray = annotation.asInstanceOf[NDArray]
-    val addr = this.allocate(aNDArray.shape, region)
 
-    val shapeRow = Annotation.fromSeq(aNDArray.shape)
     var runningProduct = this.representation.fieldType("data").asInstanceOf[PArray].elementType.byteSize
     val stridesArray = new Array[Long](aNDArray.shape.size)
     ((aNDArray.shape.size - 1) to 0 by -1).foreach { i =>
       stridesArray(i) = runningProduct
       runningProduct = runningProduct * (if (aNDArray.shape(i) > 0L) aNDArray.shape(i) else 1L)
     }
-    var curAddr = addr
-    val stridesRow = Row(stridesArray:_*)
-    shapeType.unstagedStoreJavaObjectAtAddress(curAddr, shapeRow, region)
-    curAddr += shapeType.byteSize
-    strideType.unstagedStoreJavaObjectAtAddress(curAddr, stridesRow, region)
-    curAddr += shapeType.byteSize
-    dataType.unstagedStoreJavaObjectAtAddress(curAddr, aNDArray.getRowMajorElements(), region)
+
+    val addr = unstagedConstructDataFunction(aNDArray.shape, stridesArray, region) { dataFirstElementAddress =>
+      var curElementAddress = dataFirstElementAddress
+      aNDArray.getRowMajorElements().foreach{ element =>
+        dataType.elementType.unstagedStoreJavaObjectAtAddress(curElementAddress, element, region)
+        curElementAddress += dataType.elementType.byteSize
+      }
+    }
 
     addr
   }
