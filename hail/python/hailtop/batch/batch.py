@@ -171,8 +171,8 @@ class Batch:
 
         self._docker_build_dir = docker_build_dir
 
-        self.gcs = GCS(blocking_pool=concurrent.futures.ThreadPoolExecutor(),
-                       project=project)
+        self._gcs = GCS(blocking_pool=concurrent.futures.ThreadPoolExecutor(),
+                        project=project)
 
     def new_job(self,
                 name: Optional[str] = None,

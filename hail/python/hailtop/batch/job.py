@@ -875,7 +875,7 @@ class PythonJob(Job):
             job_path = os.path.dirname(result._get_path(remote_tmpdir))
             code_path = f'{job_path}/code{i}.p'
 
-            self.gcs._write_gs_file_from_file_like_object(code_path, pipe)
+            self._batch._gcs._write_gs_file_from_file_like_object(code_path, pipe)
 
             code = self._batch.read_input(code_path)
             self._add_inputs(code)
