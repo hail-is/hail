@@ -20,6 +20,8 @@ requirements:
     - lz4
     - pytest-runner
     - pip
+    - google-cloud-sdk
+    - google-cloud-storage
   run:
     - python
     - openjdk 8.*
