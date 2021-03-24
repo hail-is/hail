@@ -123,8 +123,13 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
   def firstElementOffset(aoff: Long, length: Int): Long =
     aoff + elementsOffset(length)
 
-  def firstElementOffset(aoff: Long): Long =
+  def firstElementOffset(aoff: Long): Long = {
+    val loadedLength = loadLength(aoff)
+    if (loadedLength < 0L) {
+      throw new IllegalStateException(s"Loaded length was negative. aoff = ${aoff}, length = ${loadedLength}")
+    }
     aoff + elementsOffset(loadLength(aoff))
+  }
 
   def firstElementOffset(aoff: Code[Long], length: Code[Int]): Code[Long] =
     aoff + elementsOffset(length)
