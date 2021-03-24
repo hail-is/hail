@@ -678,7 +678,7 @@ class ServiceTests(unittest.TestCase):
 
         res = b.run()
         assert res.status()['state'] == 'success', debug_info(res)
-        assert res.get_job_log(3)['main'] == "3\n5\n30\n{\"x\": 3, \"y\": 5}\n", debug_info(res)
+        assert res.get_job_log(4)['main'] == "3\n5\n30\n{\"x\": 3, \"y\": 5}\n", debug_info(res)
 
     def test_python_job_w_resource_group_unpack_individually(self):
         b = self.batch(default_python_image='gcr.io/hail-vdc/python-dill:3.7-slim')
@@ -714,7 +714,7 @@ class ServiceTests(unittest.TestCase):
 
         res = b.run()
         assert res.status()['state'] == 'success', debug_info(res)
-        assert res.get_job_log(3)['main'] == "3\n5\n30\n{\"x\": 3, \"y\": 5}\n", debug_info(res)
+        assert res.get_job_log(4)['main'] == "3\n5\n30\n{\"x\": 3, \"y\": 5}\n", debug_info(res)
 
     def test_python_job_w_resource_group_unpack_jointly(self):
         b = self.batch(default_python_image='gcr.io/hail-vdc/python-dill:3.7-slim')

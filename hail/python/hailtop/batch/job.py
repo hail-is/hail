@@ -628,9 +628,9 @@ class PythonJob(Job):
         def add(x, y):
             return x + y
 
-    >>> j = b.new_python_job()
-    >>> result = j.call(multiply, 2, 3)
-    >>> result = j.call(add, result, 5)
+        j = b.new_python_job()
+        j.call(multiply, 2, 3)
+        j.call(add, result, 5)
 
     Write the result as a string to a permanent location
 
