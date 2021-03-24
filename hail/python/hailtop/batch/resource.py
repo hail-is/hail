@@ -348,6 +348,12 @@ class PythonResult(Resource, str):
         if self._source is not None:
             self._source._external_outputs.add(self)
 
+    def source(self) -> 'job.Job':
+        """
+        Get the job that created the Python result.
+        """
+        return self._source
+
     def as_json(self) -> JobResourceFile:
         """
         Convert a Python result to a file with a JSON representation of the object.
@@ -361,11 +367,11 @@ class PythonResult(Resource, str):
                 return {'result': x + y}
 
 
-            >>> b = Batch()
-            >>> j = b.new_python_job(name='add')
-            >>> result = j.call(add, 3, 2)
-            >>> b.write_output(result.as_json(), 'output/add.json')
-            >>> b.run()
+            b = Batch()
+            j = b.new_python_job(name='add')
+            result = j.call(add, 3, 2)
+            b.write_output(result.as_json(), 'output/add.json')
+            b.run()
 
         Returns
         -------
@@ -392,11 +398,11 @@ class PythonResult(Resource, str):
                 return x + y
 
 
-            >>> b = Batch()
-            >>> j = b.new_python_job(name='add')
-            >>> result = j.call(add, 3, 2)
-            >>> b.write_output(result.as_str(), 'output/add.txt')
-            >>> b.run()
+            b = Batch()
+            j = b.new_python_job(name='add')
+            result = j.call(add, 3, 2)
+            b.write_output(result.as_str(), 'output/add.txt')
+            b.run()
 
         Returns
         -------
@@ -423,11 +429,11 @@ class PythonResult(Resource, str):
                 return x + y
 
 
-            >>> b = Batch()
-            >>> j = b.new_python_job(name='add')
-            >>> result = j.call(add, 3, 2)
-            >>> b.write_output(result.as_repr(), 'output/add.txt')
-            >>> b.run()
+            b = Batch()
+            j = b.new_python_job(name='add')
+            result = j.call(add, 3, 2)
+            b.write_output(result.as_repr(), 'output/add.txt')
+            b.run()
 
         Returns
         -------
