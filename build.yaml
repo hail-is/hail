@@ -2803,7 +2803,7 @@ steps:
      git clone https://$TOKEN@github.com/hail-ci-test/$REPO_NAME.git
      cd $REPO_NAME
 
-     mkdir -p ./ci/test ./hail/python
+     mkdir -p ./ci/test ./hail/
      cp /repo/hail/ci/test/resources/build.yaml ./
      cp -R /repo/hail/ci/test/resources ./ci/test/
      cp /repo/hail/tls/Dockerfile ./ci/test/resources/Dockerfile.certs
@@ -2812,7 +2812,8 @@ steps:
      cp /repo/hail/setup.cfg ./
      cp -R /repo/hail/docker ./
      cp -R /repo/hail/gear ./
-     cp -R /repo/hail/hail/python/hailtop ./hail/python/
+     cp -R /repo/hail/hail/python ./hail/
+     cp /repo/hail/hail/Makefile ./hail/
      cp -R /repo/hail/web_common ./
      cp /repo/hail/hail/python/setup-hailtop.py ./hail/python/
 
