@@ -348,11 +348,11 @@ class PythonResult(Resource, str):
         if self._source is not None:
             self._source._external_outputs.add(self)
 
-    def source(self) -> 'job.Job':
+    def source(self) -> job.PythonJob:
         """
         Get the job that created the Python result.
         """
-        return self._source
+        return cast(job.PythonJob, self._source)
 
     def as_json(self) -> JobResourceFile:
         """
