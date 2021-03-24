@@ -1117,7 +1117,7 @@ steps:
     - upload_test_resources_to_gcs
     - hail_run_tests_image
     - build_hail
-- kind: runImage
+ - kind: runImage
    name: test_hail_java_3_6
    image:
      valueFrom: hail_run_tests_image.image
@@ -1153,7 +1153,7 @@ steps:
     - upload_test_resources_to_gcs
     - hail_run_tests_image
     - build_hail
-- kind: runImage
+ - kind: runImage
    name: test_hail_java_3_7
    image:
      valueFrom: hail_run_tests_image.image
@@ -1189,44 +1189,8 @@ steps:
     - upload_test_resources_to_gcs
     - hail_run_tests_image
     - build_hail
-- kind: runImage
+ - kind: runImage
    name: test_hail_java_3_8
-   image:
-     valueFrom: hail_run_tests_image.image
-   resources:
-     memory: "7.5G"
-     cpu: "2"
-   script: |
-     set -ex
-     cd /io
-     mkdir -p src/test
-     tar xzf resources.tar.gz -C src/test
-     tar xzf splits.tar.gz
-     export HAIL_TEST_SKIP_R=1
-     export HAIL_GS_FS_TEST_RESOURCES=gs://hail-test-dmk9z/{{ upload_test_resources_to_gcs.token }}/test/resources/fs
-     java -cp hail-test.jar:$SPARK_HOME/jars/* org.testng.TestNG -listener is.hail.LogTestListener testng-splits-3.xml
-   inputs:
-    - from: /resources.tar.gz
-      to: /io/resources.tar.gz
-    - from: /hail-debug-test.jar
-      to: /io/hail-test.jar
-    - from: /splits.tar.gz
-      to: /io/splits.tar.gz
-   outputs:
-    - from: /io/test-output
-      to: /test-output
-   secrets:
-    - name: test-gsa-key
-      namespace:
-        valueFrom: default_ns.name
-      mountPath: /test-gsa-key
-   dependsOn:
-    - default_ns
-    - upload_test_resources_to_gcs
-    - hail_run_tests_image
-    - build_hail
-- kind: runImage
-   name: test_hail_java_3_9
    image:
      valueFrom: hail_run_tests_image.image
    resources:
