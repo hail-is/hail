@@ -433,8 +433,7 @@ async def test_file_and_directory_error_with_slash(router_filesystem):
 
     await fs.copy(sema, Transfer(f'{src_base}empty/', dest_base.rstrip('/')))
     await expect_file(fs, f'{dest_base}empty/foo', 'foo')
-    with pytest.raises(AssertionError):
-        await expect_file(fs, f'{dest_base}empty/', '')
+    assert await fs.exists(f'{dest_base}empty/')
 
     # Test non-empty file ending in slash and directory
     async with await fs.create(f'{src_base}not-empty/') as f:
@@ -452,3 +451,4 @@ async def test_file_and_directory_error_with_slash(router_filesystem):
     # Test empty file that ends in a slash
     await fs.create(f'{src_base}empty-only/')
     await fs.copy(sema, Transfer(f'{src_base}empty-only/', dest_base.rstrip('/')))
+    assert await fs.exists(f'{dest_base}empty-only/')
