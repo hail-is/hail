@@ -1055,6 +1055,15 @@ class EmitMethodBuilder[C](
       res.code
     })
   }
+
+  def defineHangingLabel(f: EmitCodeBuilder => Unit): CodeLabel = {
+    val label = CodeLabel()
+    EmitCodeBuilder.scoped(this) { cb =>
+      cb.define(label)
+      f(cb)
+    }
+    label
+  }
 }
 
 trait WrappedEmitMethodBuilder[C] extends WrappedEmitClassBuilder[C] {

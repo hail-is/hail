@@ -10,6 +10,7 @@ import is.hail.expr.ir.EmitStream.SizedStream
 import is.hail.expr.ir.agg.{AggStateSig, ArrayAggStateSig, GroupedStateSig}
 import is.hail.expr.ir.functions.StringFunctions
 import is.hail.expr.ir.lowering.TableStageDependency
+import is.hail.expr.ir.streams.{EmitStream2, StreamConsumer}
 import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer}
 import is.hail.linalg.{BLAS, LAPACK, LinalgCodeUtils}
 import is.hail.services.shuffler._
@@ -1732,52 +1733,70 @@ class Emit[C](
         presentC(sc.states(i).serializeToRegion(cb, coerce[PBinary](pt), region.code))
 
       case ToArray(a) =>
-        val streamType = coerce[PStream](a.pType)
-        val separateRegions = ctx.smm.lookup(a).separateRegions
-        assert(separateRegions == streamType.separateRegions)
-        val outerRegion = region.asParent(separateRegions, "ToArray")
-        emitStream(a, outerRegion).map(cb) { stream =>
-          EmitStream.toArray(cb, coerce[PCanonicalArray](pt), stream.asStream, outerRegion)
-        }
+        val consumer = new streams.WriteToArrayConsumer(mb, region.code)
+        EmitStream2.feed(this, cb, consumer, a, region.code, env, container)
 
       case x@StreamFold(a, zero, accumName, valueName, body) =>
-        val streamType = coerce[PStream](a.pType)
-        val eltType = streamType.elementType
-        val accType = x.accPType
+        val consumer = new StreamConsumer {
+          private[this] var eltRegion: Settable[Region] = _
+          private[this] var tmpRegion: Settable[Region] = _
+          private[this] var separateRegions: Boolean = _
 
-        val separateRegions = ctx.smm.lookup(a).separateRegions
-        assert(separateRegions == streamType.separateRegions)
-        val outerRegion = region.asParent(separateRegions, "StreamFold")
-        val eltRegion = outerRegion.createChildRegion(mb)
-        val tmpRegion = outerRegion.createChildRegion(mb)
-
-        val streamOpt = emitStream(a, outerRegion)
-        streamOpt.flatMap(cb) { stream =>
-          val xAcc = mb.newEmitField(accumName, accType)
-          val xElt = mb.newEmitField(valueName, eltType)
+          private[this] var xAcc: EmitSettable = _
+          private[this] var xElt: EmitSettable = _
 
 
-          cb += eltRegion.allocateRegion(Region.REGULAR, cb.emb.ecb.pool())
-          cb += tmpRegion.allocateRegion(Region.REGULAR, cb.emb.ecb.pool())
-          cb.assign(xAcc, emitI(zero, eltRegion).map(cb)(_.castTo(cb, eltRegion.code, accType)))
+          def init(cb: EmitCodeBuilder, eltType: SType, length: Option[Code[Int]], eltRegion: Settable[Region], separateRegions: Boolean): Unit = {
+            this.eltRegion = eltRegion
+            this.separateRegions = separateRegions
+            this.xAcc = mb.newEmitField(accumName, x.accPType) // in future, will choose compatible type for zero/body with requiredness
+            this.xElt = mb.newEmitField(valueName, eltType.pType)
 
-          stream.asStream.stream.getStream(eltRegion).forEachI(cb, { elt =>
-            // pre- and post-condition: 'xAcc' contains current accumulator,
-            // whose heap memory is contained in 'eltRegion'. 'tmpRegion' is
-            // empty.
+            if (separateRegions) {
+              cb.assign(eltRegion, Region.stagedCreate(Region.REGULAR, region.code.getPool()))
+
+              this.tmpRegion = mb.genFieldThisRef[Region]("streamfold_tmpregion")
+              cb.assign(tmpRegion, Region.stagedCreate(Region.REGULAR, region.code.getPool()))
+
+              cb.assign(xAcc, emitI(zero, StagedRegion(tmpRegion), env.bind(accumName -> xAcc, valueName -> xElt))
+                .map(cb)(pc => pc.castTo(cb, tmpRegion, x.accPType)))
+            } else {
+              cb.assign(eltRegion, region.code)
+              cb.assign(xAcc, emitI(zero, StagedRegion(eltRegion), env.bind(accumName -> xAcc, valueName -> xElt))
+                .map(cb)(pc => pc.castTo(cb, eltRegion, x.accPType)))
+            }
+          }
+
+          def consumeElement(cb: EmitCodeBuilder, elt: EmitCode): Unit = {
             cb.assign(xElt, elt)
-            cb.assign(xAcc, emitI(body, eltRegion, env.bind(accumName -> xAcc, valueName -> xElt))
-              .map(cb)(eltRegion.copyTo(cb, _, tmpRegion, accType)))
-            cb += eltRegion.clear()
-            cb += StagedRegion.swap(mb, eltRegion, tmpRegion)
-          })
 
-          cb += tmpRegion.free()
-          cb.assign(xAcc, xAcc.map(eltRegion.copyToParent(cb, _)))
-          cb += eltRegion.free()
+            if (separateRegions) {
+              cb.assign(xAcc, emitI(body, StagedRegion(eltRegion), env.bind(accumName -> xAcc, valueName -> xElt))
+                .map(cb)(pc => pc.castTo(cb, tmpRegion, x.accPType, deepCopy = true)))
+              cb += eltRegion.clearRegion()
+              val swapRegion = cb.newLocal[Region]("streamfold_swap_region", eltRegion)
+              cb.assign(eltRegion, tmpRegion.load())
+              cb.assign(tmpRegion, swapRegion.load())
+            } else {
+              cb.assign(xAcc, emitI(body, StagedRegion(eltRegion), env.bind(accumName -> xAcc, valueName -> xElt))
+                .map(cb)(pc => pc.castTo(cb, eltRegion, x.accPType, deepCopy = true)))
+            }
+          }
 
-          xAcc.toI(cb)
+          val done: CodeLabel = CodeLabel()
+
+          def finish(cb: EmitCodeBuilder): IEmitCode = {
+            if (separateRegions) {
+              cb.assign(xAcc, xAcc.map(pc => pc.castTo(cb, region.code, pc.pt, deepCopy = true)))
+              cb += eltRegion.freeRegion()
+              cb += tmpRegion.freeRegion()
+            }
+            xAcc.toI(cb)
+          }
         }
+
+        EmitStream2.feed(this, cb, consumer, a, region.code, env, container)
+
 
       case x@StreamFold2(a, acc, valueName, seq, res) =>
         val streamType = coerce[PStream](a.pType)

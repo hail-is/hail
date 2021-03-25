@@ -4,12 +4,12 @@ import is.hail.annotations.Region
 import is.hail.asm4s.{Code, Settable, TypeInfo, Value}
 import is.hail.expr.ir.EmitStream.SizedStream
 import is.hail.expr.ir.orderings.CodeOrdering
-import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, SortOrder}
+import is.hail.expr.ir.{EmitCode, EmitCodeBuilder, EmitMethodBuilder, SortOrder, Stream}
 import is.hail.types.physical.stypes.{SCode, SSettable, SType}
 import is.hail.types.physical.{PCanonicalStream, PCode, PStream, PStreamCode, PType, PValue}
 
-case class SStream(elementType: SType, separateRegions: Boolean = false) extends SType {
-  def pType: PStream = PCanonicalStream(elementType.pType, separateRegions, false)
+case class SStream(elementType: SType, required: Boolean, separateRegions: Boolean = false) extends SType {
+  def pType: PStream = PCanonicalStream(elementType.pType, required)
 
   def coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = {
     if (deepCopy) throw new UnsupportedOperationException

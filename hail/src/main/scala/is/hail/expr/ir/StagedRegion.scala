@@ -214,7 +214,7 @@ class RealOwnedStagedRegion(
 
   def free(): Code[Unit] = Code(r.invalidate(), r := Code._null)
 
-  def clear(): Code[Unit] = (r: Value[Region]).clear()
+  def clear(): Code[Unit] = (r: Value[Region]).clearRegion()
 
   def giveToParent(): Code[Unit] = r.invoke[Region, Unit]("move", parent.code)
 

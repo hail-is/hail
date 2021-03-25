@@ -65,7 +65,7 @@ class PartitionIteratorLongReader(
           .map(rv => EmitCode.fromI(cb.emb)(cb => IEmitCode.present(cb, eltPType.loadCheapPCode(cb, rv))))
       }
 
-      interfaces.SStreamCode(interfaces.SStream(eltPType.sType), newStream)
+      interfaces.SStreamCode(interfaces.SStream(eltPType.sType, true), newStream)
     }
   }
 

@@ -506,7 +506,7 @@ case class PartitionRVDReader(rvd: RVD) extends PartitionReader {
               upcastF := Code.checkcast[AsmFunction2RegionLongLong](upcastCode.invoke[AnyRef, AnyRef, AnyRef]("apply", Code.boxInt(0), outerRegion.code)))))
       }
 
-      interfaces.SStreamCode(interfaces.SStream(upcastPType.sType, separateRegions = true), newStream)
+      interfaces.SStreamCode(interfaces.SStream(upcastPType.sType, required = true, separateRegions = true), newStream)
     }
   }
 
@@ -561,7 +561,7 @@ case class PartitionNativeReader(spec: AbstractTypedCodecSpec) extends AbstractN
           setup = Some(xRowBuf := spec
             .buildCodeInputBuffer(mb.open(pathString, true)))))
 
-      interfaces.SStreamCode(interfaces.SStream(next.st, separateRegions = true), newStream)
+      interfaces.SStreamCode(interfaces.SStream(next.st, required = true, separateRegions = true), newStream)
     }
   }
 
@@ -659,7 +659,7 @@ case class PartitionNativeReaderIndexed(spec: AbstractTypedCodecSpec, indexSpec:
             }),
           close = Some(it.invoke[Unit]("close"))))
 
-      interfaces.SStreamCode(interfaces.SStream(eltType.sType, separateRegions = true), newStream)
+      interfaces.SStreamCode(interfaces.SStream(eltType.sType, required = true, separateRegions = true), newStream)
     }
   }
 
@@ -838,7 +838,7 @@ case class PartitionZippedNativeReader(specLeft: AbstractTypedCodecSpec, specRig
           close = Some(it.invoke[Unit]("close")))
       )
 
-      interfaces.SStreamCode(interfaces.SStream(eltType.sType, separateRegions = true), newStream)
+      interfaces.SStreamCode(interfaces.SStream(eltType.sType, required = true, separateRegions = true), newStream)
     }
   }
 

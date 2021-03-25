@@ -27,7 +27,7 @@ final case class PCanonicalStream(elementType: PType, separateRegions: Boolean =
 
   def setRequired(required: Boolean): PCanonicalStream = if(required == this.required) this else this.copy(required = required)
 
-  override def sType: SStream = interfaces.SStream(elementType.sType)
+  override def sType: SStream = interfaces.SStream(elementType.sType, required, separateRegions)
 
   def loadFromNested(addr: Code[Long]): Code[Long] = throw new NotImplementedError()
 
