@@ -379,7 +379,11 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
 
   def unstagedDataFirstElementPointer(ndAddr: Long): Long = dataType.firstElementOffset(unstagedDataPArrayPointer(ndAddr))
 
-  def unstagedDataPArrayPointer(ndAddr: Long): Long = representation.loadField(ndAddr, 2)
+  def unstagedDataPArrayPointer(ndAddr: Long): Long = {
+    val loaded = representation.loadField(ndAddr, 2)
+    assert(loaded == ndAddr + shapeType.byteSize + strideType.byteSize + 8L, s"$ndAddr vs $loaded")
+    loaded
+  }
 
   override def dataFirstElementPointer(ndAddr: Code[Long]): Code[Long] = dataType.firstElementOffset(this.dataPArrayPointer(ndAddr))
 
