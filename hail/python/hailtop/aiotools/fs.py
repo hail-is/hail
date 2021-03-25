@@ -482,10 +482,6 @@ class SourceCopier:
         if self.pending == 0:
             self.barrier.set()
 
-    async def release_barrier_and_wait(self):
-        await self.release_barrier()
-        await self.barrier.wait()
-
     async def _copy_file(self, srcfile: str, destfile: str) -> None:
         assert not destfile.endswith('/')
 
@@ -597,20 +593,20 @@ class SourceCopier:
                            sema: asyncio.Semaphore,  # pylint: disable=unused-argument
                            source_report: SourceReport,
                            return_exceptions: bool):
-        src = self.src
-        if src.endswith('/'):
-            await self.release_barrier()
-            return
-
         try:
-            srcstat = await self.router_fs.statfile(src)
-        except FileNotFoundError:
-            self.src_is_file = False
+            src = self.src
+            if src.endswith('/'):
+                return
+            try:
+                srcstat = await self.router_fs.statfile(src)
+            except FileNotFoundError:
+                self.src_is_file = False
+                return
+            self.src_is_file = True
+        finally:
             await self.release_barrier()
-            return
 
-        self.src_is_file = True
-        await self.release_barrier_and_wait()
+        await self.barrier.wait()
 
         if self.src_is_dir:
             raise FileAndDirectoryError(self.src)
@@ -624,19 +620,20 @@ class SourceCopier:
         await self._copy_file_multi_part(sema, source_report, src, srcstat, full_dest, return_exceptions)
 
     async def copy_as_dir(self, sema: asyncio.Semaphore, source_report: SourceReport, return_exceptions: bool):
-        src = self.src
-        if not src.endswith('/'):
-            src = src + '/'
-
         try:
-            srcentries = await self.router_fs.listfiles(src, recursive=True)
-        except (NotADirectoryError, FileNotFoundError):
-            self.src_is_dir = False
+            src = self.src
+            if not src.endswith('/'):
+                src = src + '/'
+            try:
+                srcentries = await self.router_fs.listfiles(src, recursive=True)
+            except (NotADirectoryError, FileNotFoundError):
+                self.src_is_dir = False
+                return
+            self.src_is_dir = True
+        finally:
             await self.release_barrier()
-            return
 
-        self.src_is_dir = True
-        await self.release_barrier_and_wait()
+        await self.barrier.wait()
 
         if self.src_is_file:
             raise FileAndDirectoryError(self.src)
@@ -673,14 +670,16 @@ class SourceCopier:
                 return_exceptions=True)
 
             assert self.pending == 0
-            assert (self.src_is_file is None) == self.src.endswith('/')
-            assert self.src_is_dir is not None
 
-            if (self.src_is_file is False or self.src.endswith('/')) and not self.src_is_dir:
-                raise FileNotFoundError(self.src)
             for result in results:
                 if isinstance(result, Exception):
                     raise result
+
+            assert (self.src_is_file is None) == self.src.endswith('/')
+            assert self.src_is_dir is not None
+            if (self.src_is_file is False or self.src.endswith('/')) and not self.src_is_dir:
+                raise FileNotFoundError(self.src)
+
         except Exception as e:
             if return_exceptions:
                 source_report.set_exception(e)
