@@ -59,7 +59,7 @@ spec:
           - name: session-secret-key
             mountPath: /session-secret-key
             readOnly: true
-          - name: ssl-config-website
+          - name: ssl-config-www
             mountPath: /ssl-config
             readOnly: true
          livenessProbe:
@@ -79,10 +79,10 @@ spec:
        - name: session-secret-key
          secret:
            secretName: session-secret-key
-       - name: ssl-config-website
+       - name: ssl-config-www
          secret:
            optional: false
-           secretName: ssl-config-website
+           secretName: ssl-config-www
 ---
 apiVersion: autoscaling/v2beta1
 kind: HorizontalPodAutoscaler

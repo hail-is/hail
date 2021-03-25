@@ -30,8 +30,8 @@ principals:
 - name: router
   domain: router
   kind: nginx
-- name: website
-  domain: website
+- name: www
+  domain: www
   kind: json
 - name: scorecard
   domain: scorecard
