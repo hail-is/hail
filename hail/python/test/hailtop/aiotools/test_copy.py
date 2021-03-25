@@ -426,7 +426,7 @@ async def test_file_and_directory_error_with_slash(router_filesystem):
     src_base = await fresh_dir(fs, bases, 'gs')
     dest_base = await fresh_dir(fs, bases, 'gs')
 
-    # test empty file ending in slash and directory
+    # Test empty file ending in slash and directory
     await fs.create(f'{src_base}empty/')
     async with await fs.create(f'{src_base}empty/foo') as f:
         await f.write(b'foo')
@@ -451,6 +451,4 @@ async def test_file_and_directory_error_with_slash(router_filesystem):
 
     # Test empty file that ends in a slash
     await fs.create(f'{src_base}empty-only/')
-
-    with pytest.raises(FileNotFoundError):
-        await fs.copy(sema, Transfer(f'{src_base}empty-only/', dest_base.rstrip('/')))
+    await fs.copy(sema, Transfer(f'{src_base}empty-only/', dest_base.rstrip('/')))
