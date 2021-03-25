@@ -1917,10 +1917,11 @@ class Emit[C](
       case Recur(name, args, _) =>
         val loopRef = loopEnv.get.lookup(name)
 
-        cb.assignECs(loopRef.tmpLoopArgs, loopRef.loopTypes.zip(args).map { case (pt, arg) =>
-          EmitCode.fromI(mb)(cb => emitI(arg, loopEnv = None).map(cb)(_.castTo(cb, region.code, pt)))
-        })
-        cb.assignECs(loopRef.loopArgs, loopRef.tmpLoopArgs.load())
+        (loopRef.tmpLoopArgs, loopRef.loopTypes, args).zipped.map { case (tmpLoopArg, pt, arg) =>
+          tmpLoopArg.store(cb, emitI(arg, loopEnv = None).map(cb)(_.castTo(cb, region.code, pt)))
+        }
+
+        cb.assign(loopRef.loopArgs, loopRef.tmpLoopArgs.load())
         cb.append(loopRef.L.goto)
         // dead code
         IEmitCode.missing(cb, pt.defaultValue(cb.emb))
@@ -2375,7 +2376,7 @@ class Emit[C](
           cb.ifx(!m, cb.assign(v, bodyT.pv))
         }
         val initArgs = EmitCodeBuilder.scopedVoid(mb) { cb =>
-          cb.assignECs(loopRef.loopArgs, inits.map { case ((_, x), pt) =>
+          cb.assign(loopRef.loopArgs, inits.map { case ((_, x), pt) =>
             emit(x).castTo(mb, region.code, pt)
           })
         }

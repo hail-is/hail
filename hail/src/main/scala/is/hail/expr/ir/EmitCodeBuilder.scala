@@ -65,11 +65,7 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
     s.store(this, v)
   }
 
-  def assignECs(is: IndexedSeq[EmitSettable], ix: IndexedSeq[EmitCode]): Unit = {
-    (is, ix).zipped.foreach { case (s, c) => s.store(this, c) }
-  }
-
-  def assign(is: IndexedSeq[EmitSettable], ix: IndexedSeq[IEmitCode]): Unit = {
+  def assign(is: IndexedSeq[EmitSettable], ix: IndexedSeq[EmitCode]): Unit = {
     (is, ix).zipped.foreach { case (s, c) => s.store(this, c) }
   }
 
