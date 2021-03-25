@@ -6,7 +6,7 @@ import is.hail.expr.ir.{CodeParam, CodeParamType, EmitCode, EmitCodeBuilder, PCo
 import is.hail.types.physical.stypes.SCode
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.virtual.{TNDArray, Type}
-import is.hail.types.physical.stypes.concrete.{SIndexablePointer, SNDArrayPointer, SNDArrayPointerCode}
+import is.hail.types.physical.stypes.concrete.{SNDArrayPointer, SNDArrayPointerCode}
 import org.apache.spark.sql.Row
 import is.hail.utils._
 
@@ -257,7 +257,7 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
     val newDataPointer = ndAddr + this.representation.byteSize
     Region.storeLong(this.representation.fieldOffset(ndAddr, 2), newDataPointer)
 
-    val newFirstElementDataPointer = this.unstagedDataFirstElementPointer(ndAddr)
+    val newFirstElementDataPointer = this.unstagedDataFirstElementPointer(ndAddr, shape)
     dataType.initialize(newDataPointer, numElements(shape).toInt)
     writeDataToAddress(newFirstElementDataPointer)
 
@@ -267,7 +267,7 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
   private def deepPointerCopy(region: Region, ndAddress: Long): Unit = {
     // Tricky, need to rewrite the address of the data pointer to point to directly after the struct.
     val shape = this.unstagedLoadShapes(ndAddress)
-    val firstElementAddressOld = this.unstagedDataFirstElementPointer(ndAddress)
+    val firstElementAddressOld = this.unstagedDataFirstElementPointer(ndAddress, shape)
     assert(this.elementType.containsPointers)
     val arrayAddressNew = ndAddress + this.representation.byteSize
     val numElements = this.numElements(shape)
@@ -377,13 +377,11 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
     cb += Region.storeAddress(addr, store(cb, region, value, deepCopy))
   }
 
-  def unstagedDataFirstElementPointer(ndAddr: Long): Long = dataType.firstElementOffset(unstagedDataPArrayPointer(ndAddr))
+  def unstagedDataFirstElementPointer(ndAddr: Long, shape: IndexedSeq[Long]): Long =
+    dataType.firstElementOffset(unstagedDataPArrayPointer(ndAddr), numElements(shape).toInt)
 
-  def unstagedDataPArrayPointer(ndAddr: Long): Long = {
-    val loaded = representation.loadField(ndAddr, 2)
-    assert(loaded == ndAddr + shapeType.byteSize + strideType.byteSize + 8L, s"$ndAddr vs $loaded")
-    loaded
-  }
+  def unstagedDataPArrayPointer(ndAddr: Long): Long =
+    representation.loadField(ndAddr, 2)
 
   override def dataFirstElementPointer(ndAddr: Code[Long]): Code[Long] = dataType.firstElementOffset(this.dataPArrayPointer(ndAddr))
 
