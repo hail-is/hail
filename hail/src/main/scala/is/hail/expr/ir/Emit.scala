@@ -1486,7 +1486,7 @@ class Emit[C](
 
           val shapeArray = pndValue.shapes(cb)
 
-          val LWORKAddress = mb.newLocal[Long]()
+          val LWORKAddress = cb.newLocal[Long]("dgeqrf_lwork_address")
 
           val M = shapeArray(0)
           val N = shapeArray(1)
@@ -1497,7 +1497,7 @@ class Emit[C](
             override def get: Code[Long] = (M > 1L).mux(M, 1L) // Possible stride tricks could change this in the future.
           }
 
-          def LWORK = Region.loadDouble(LWORKAddress).toI
+          def LWORK = (Region.loadDouble(LWORKAddress).toI > 0).mux(Region.loadDouble(LWORKAddress).toI, 1)
 
           val ndPT = pndValue.pt.asInstanceOf[PCanonicalNDArray]
           val dataFirstElementAddress = pndValue.firstDataAddress(cb)
