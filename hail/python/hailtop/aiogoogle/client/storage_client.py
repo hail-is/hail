@@ -645,13 +645,13 @@ class GoogleStorageAsyncFS(AsyncFS):
             if items is not None:
                 for item in page['items']:
                     url = f'gs://{bucket}/{item["name"]}'
-                    if url.endswith('/') and item is not None:
-                        status = GetObjectFileStatus(item)
+                    entry = GoogleStorageFileListEntry(url, item)
+                    if url.endswith('/'):
+                        status = await entry.status()
                         size = await status.size()
                         if size != 0:
                             raise FileAndDirectoryError(url)
-                        continue
-                    yield GoogleStorageFileListEntry(url, item)
+                    yield entry
 
     async def _listfiles_flat(self, bucket: str, name: str) -> AsyncIterator[FileListEntry]:
         assert not name or name.endswith('/')
@@ -672,13 +672,13 @@ class GoogleStorageAsyncFS(AsyncFS):
             if items:
                 for item in page['items']:
                     url = f'gs://{bucket}/{item["name"]}'
-                    if url.endswith('/') and item is not None:
-                        status = GetObjectFileStatus(item)
+                    entry = GoogleStorageFileListEntry(url, item)
+                    if url.endswith('/'):
+                        status = await entry.status()
                         size = await status.size()
                         if size != 0:
                             raise FileAndDirectoryError(url)
-                        continue
-                    yield GoogleStorageFileListEntry(f'gs://{bucket}/{item["name"]}', item)
+                    yield entry
 
     async def listfiles(self, url: str, recursive: bool = False) -> AsyncIterator[FileListEntry]:
         bucket, name = self._get_bucket_name(url)

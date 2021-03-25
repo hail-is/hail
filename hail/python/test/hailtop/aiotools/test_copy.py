@@ -426,13 +426,25 @@ async def test_file_and_directory_error_with_slash(router_filesystem):
     src_base = await fresh_dir(fs, bases, 'gs')
     dest_base = await fresh_dir(fs, bases, 'gs')
 
-    await fs.create(f'{src_base}empty/')
+    await fs.create(f'{src_base}a/empty/')
+    await fs.create(f'{src_base}a/foo')
 
-    async with await fs.create(f'{src_base}not-empty/') as f:
-        await f.write('foo'.encode('utf-8'))
+    async with await fs.create(f'{src_base}b/not-empty/') as f:
+        await f.write(b'not-empty')
 
-    with pytest.raises(FileNotFoundError):
-        await fs.copy(sema, Transfer(f'{src_base}empty/', dest_base.rstrip('/')))
+    async with await fs.create(f'{src_base}b/bar') as f:
+        await f.write(b'bar')
+
+    await fs.copy(sema, Transfer(f'{src_base}a/foo', dest_base.rstrip('/')))
+    await fs.copy(sema, Transfer(f'{src_base}b/bar', dest_base.rstrip('/')))
+
+    await fs.copy(sema, Transfer(f'{src_base}a/', dest_base.rstrip('/')))
 
     with pytest.raises(FileAndDirectoryError):
-        await fs.copy(sema, Transfer(f'{src_base}not-empty/', dest_base.rstrip('/')))
+        await fs.copy(sema, Transfer(f'{src_base}b/', dest_base.rstrip('/')))
+
+    with pytest.raises(FileNotFoundError):
+        await fs.copy(sema, Transfer(f'{src_base}a/empty/', dest_base.rstrip('/')))
+
+    with pytest.raises(FileAndDirectoryError):
+        await fs.copy(sema, Transfer(f'{src_base}b/not-empty/', dest_base.rstrip('/')))
