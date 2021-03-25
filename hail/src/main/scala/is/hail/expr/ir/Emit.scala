@@ -1922,8 +1922,12 @@ class Emit[C](
         }
 
         cb.assign(loopRef.loopArgs, loopRef.tmpLoopArgs.load())
-        cb.append(loopRef.L.goto)
-        // dead code
+        cb.goto(loopRef.L)
+
+        // Dead code. The dead label is necessary because you can't append anything else to a code builder
+        // after a goto.
+        val deadLabel = CodeLabel()
+        cb.define(deadLabel)
         IEmitCode.missing(cb, pt.defaultValue(cb.emb))
 
 
