@@ -426,25 +426,31 @@ async def test_file_and_directory_error_with_slash(router_filesystem):
     src_base = await fresh_dir(fs, bases, 'gs')
     dest_base = await fresh_dir(fs, bases, 'gs')
 
-    await fs.create(f'{src_base}a/empty/')
-    await fs.create(f'{src_base}a/foo')
+    # test empty file ending in slash and directory
+    await fs.create(f'{src_base}empty/')
+    async with await fs.create(f'{src_base}empty/foo') as f:
+        await f.write(b'foo')
 
-    async with await fs.create(f'{src_base}b/not-empty/') as f:
+    await fs.copy(sema, Transfer(f'{src_base}empty/', dest_base.rstrip('/')))
+    await expect_file(fs, f'{dest_base}empty/foo', 'foo')
+    with pytest.raises(AssertionError):
+        await expect_file(fs, f'{dest_base}empty/', '')
+
+    # Test non-empty file ending in slash and directory
+    async with await fs.create(f'{src_base}not-empty/') as f:
         await f.write(b'not-empty')
 
-    async with await fs.create(f'{src_base}b/bar') as f:
+    async with await fs.create(f'{src_base}not-empty/bar') as f:
         await f.write(b'bar')
 
-    await fs.copy(sema, Transfer(f'{src_base}a/foo', dest_base.rstrip('/')))
-    await fs.copy(sema, Transfer(f'{src_base}b/bar', dest_base.rstrip('/')))
-
-    await fs.copy(sema, Transfer(f'{src_base}a/', dest_base.rstrip('/')))
+    await fs.copy(sema, Transfer(f'{src_base}not-empty/bar', dest_base.rstrip('/')))
+    await expect_file(fs, f'{dest_base}not-empty/bar', 'bar')
 
     with pytest.raises(FileAndDirectoryError):
-        await fs.copy(sema, Transfer(f'{src_base}b/', dest_base.rstrip('/')))
+        await fs.copy(sema, Transfer(f'{src_base}not-empty/', dest_base.rstrip('/')))
+
+    # Test empty file that ends in a slash
+    await fs.create(f'{src_base}empty-only/')
 
     with pytest.raises(FileNotFoundError):
-        await fs.copy(sema, Transfer(f'{src_base}a/empty/', dest_base.rstrip('/')))
-
-    with pytest.raises(FileAndDirectoryError):
-        await fs.copy(sema, Transfer(f'{src_base}b/not-empty/', dest_base.rstrip('/')))
+        await fs.copy(sema, Transfer(f'{src_base}empty-only/', dest_base.rstrip('/')))
