@@ -59,6 +59,11 @@ write_with_iostream(FormatStream &s, T v) {
 }
 
 void
+format1(FormatStream &s, bool v) {
+  s.puts(v ? "true" : "false");
+}
+
+void
 format1(FormatStream &s, signed char v) {
   write_with_iostream<signed char>(s, v);
 }

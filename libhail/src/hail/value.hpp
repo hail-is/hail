@@ -347,12 +347,18 @@ TupleValue::operator Value() const {
 
 Value
 TupleValue::get_element(size_t i) const {
-  return Value::load(vtype->element_vtypes[i], region, p + vtype->element_offsets[i]);
+  if (get_element_missing(i))
+    return Value(vtype->element_vtypes[i]);
+  else
+    return Value::load(vtype->element_vtypes[i], region, p + vtype->element_offsets[i]);
 }
 
 void
 TupleValue::set_element(size_t i, const Value &new_element) const {
-  Value::store(p + vtype->element_offsets[i], new_element);
+  auto missing = new_element.get_missing();
+  set_element_missing(i, missing);
+  if (!missing)
+    Value::store(p + vtype->element_offsets[i], new_element);
 }
 
 void format1(FormatStream &s, const Value &value);

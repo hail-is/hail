@@ -28,7 +28,9 @@ add_executable(main
   src/hail/query/backend/compile.cpp
   src/hail/query/backend/jit.cpp
   src/hail/query/backend/stype.cpp
-  src/hail/query/backend/svalue.cpp)
+  src/hail/query/backend/svalue.cpp
+  # runtime
+  src/hail/runtime/runtime.cpp)
 
 llvm_config(main x86asmparser x86codegen orcjit)
 

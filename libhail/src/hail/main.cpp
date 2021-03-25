@@ -53,23 +53,27 @@ main() {
     Module *m = xc.make_module();
 
     std::vector<const Type *> param_types;
-    const Type *return_type = tc.tbool;
+    const Type *return_type = tc.ttuple({tc.tint32, tc.tint32});
+
+    Value i(vint32, 5);
 
     Function *f = xc.make_function(m, "main", param_types, return_type);
     auto body = f->get_body();
-    body->set_child(0, body->make_na(tc.tbool));
+    body->set_child(0, body->make_tuple({
+          body->make_na(tc.tint32),
+	  body->make_literal(i)
+	}));
 
     m->pretty_self(outs);
 
     JIT jit;
-
 
     std::vector<const VType *> param_vtypes;
     for (auto t : param_types)
       param_vtypes.push_back(tc.get_vtype(t));
     const VType *return_vtype = tc.get_vtype(return_type);
 
-    auto compiled = jit.compile(tc, m, param_vtypes, return_vtype);
+    auto compiled = jit.compile(heap, tc, m, param_vtypes, return_vtype);
 
     auto return_value = compiled.invoke(region, {});
     print("return_value: ", return_value);
@@ -88,7 +92,7 @@ main() {
       my_array.set_element(i, element);
     }
     print(my_array);
-   }
+  }
 
   return 0;
 }
