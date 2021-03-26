@@ -1944,7 +1944,12 @@ class Emit[C](
 
         cb.define(loopStartLabel)
 
-        emitI(body, env = argEnv, loopEnv = Some(newLoopEnv.bind(name, loopRef)))
+        emitI(body, env = argEnv, loopEnv = Some(newLoopEnv.bind(name, loopRef))).map(cb) { pc =>
+          val answerInRightRegion = pc.copyToRegion(cb, region.code)
+          cb.append(new RichCodeRegion(loopRef.r1).clear())
+          cb.append(new RichCodeRegion(loopRef.r2).clear())
+          answerInRightRegion
+        }
 
       case Recur(name, args, _) =>
         val loopRef = loopEnv.get.lookup(name)
