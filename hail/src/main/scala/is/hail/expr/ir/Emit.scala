@@ -1914,6 +1914,24 @@ class Emit[C](
           }
         }
 
+      case x@TailLoop(name, args, body) =>
+        val label = CodeLabel()
+        val inits = args.zip(x.accPTypes)
+        val loopRef = LoopRef(mb, label, inits.map { case ((name, _), pt) => (name, pt) })
+
+        val argEnv = env
+          .bind((args.map(_._1), loopRef.loopArgs).zipped.toArray: _*)
+
+        val newLoopEnv = loopEnv.getOrElse(Env.empty)
+
+        loopRef.loopArgs.zip(inits).foreach { case (settable, ((_, x), pt)) =>
+          settable.store(cb, emitI(x).map(cb)(_.castTo(cb, region.code, pt)))
+        }
+
+        cb.define(label)
+
+        emitI(body, env = argEnv, loopEnv = Some(newLoopEnv.bind(name, loopRef)))
+
       case Recur(name, args, _) =>
         val loopRef = loopEnv.get.lookup(name)
 
@@ -1929,7 +1947,6 @@ class Emit[C](
         val deadLabel = CodeLabel()
         cb.define(deadLabel)
         IEmitCode.missing(cb, pt.defaultValue(cb.emb))
-
 
       case x@CollectDistributedArray(contexts, globals, cname, gname, body, tsd) =>
         val ctxsType = coerce[PStream](contexts.pType)
@@ -2360,32 +2377,6 @@ class Emit[C](
         val unified = impl.unify(typeArgs, args.map(_.typ), rt)
         assert(unified)
         impl.apply(EmitRegion(mb, region.code), pt, typeArgs, codeArgs: _*)
-
-      case x@TailLoop(name, args, body) =>
-        val label = CodeLabel()
-        val inits = args.zip(x.accPTypes)
-        val loopRef = LoopRef(mb, label, inits.map { case ((name, _), pt) => (name, pt) })
-
-        val m = mb.genFieldThisRef[Boolean]()
-        val v = mb.newPField(x.pType)
-
-        val argEnv = env
-          .bind((args.map(_._1), loopRef.loopArgs).zipped.toArray: _*)
-
-        val newLoopEnv = loopEnv.getOrElse(Env.empty)
-        val bodyT = emit(body, env = argEnv, loopEnv = Some(newLoopEnv.bind(name, loopRef)))
-        val bodyF = EmitCodeBuilder.scopedVoid(mb) { cb =>
-          cb.append(bodyT.setup)
-          cb.assign(m, bodyT.m)
-          cb.ifx(!m, cb.assign(v, bodyT.pv))
-        }
-        val initArgs = EmitCodeBuilder.scopedVoid(mb) { cb =>
-          cb.assign(loopRef.loopArgs, inits.map { case ((_, x), pt) =>
-            emit(x).castTo(mb, region.code, pt)
-          })
-        }
-
-        EmitCode(Code(initArgs, label, bodyF), m, v.load())
 
       case x@WritePartition(stream, pctx, writer) =>
         val ctxCode = emit(pctx)
