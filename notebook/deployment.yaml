@@ -67,10 +67,10 @@ spec:
          image: "{{ notebook_image.image }}"
          resources:
            requests:
-             memory: 1Mi
-             cpu: 1m
+             memory: 20M
+             cpu: 20m
            limits:
-             memory: 200Mi
+             memory: 200M
              cpu: "1"
          env:
           - name: HAIL_DEPLOY_CONFIG_FILE
