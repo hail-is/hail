@@ -5,6 +5,7 @@ import is.hail.asm4s._
 import is.hail.expr.ir.EmitStream.SizedStream
 import is.hail.expr.ir.Stream.unfold
 import is.hail.expr.ir._
+import is.hail.expr.ir.streams.{SStreamCode2, StreamProducer}
 import is.hail.types.physical.stypes._
 import is.hail.types.physical.stypes.concrete._
 import is.hail.types.physical.stypes.interfaces.{PVoidCode, SStream}
@@ -117,7 +118,7 @@ case object BooleanSingleCodeType extends SingleCodeType {
   def coercePCode(cb: EmitCodeBuilder, pc: PCode, region: Value[Region], deepCopy: Boolean): SingleCodePCode = SingleCodePCode(this, pc.asBoolean.boolCode(cb))
 }
 
-case class StreamSingleCodeType(separateRegions: Boolean, eltType: PType) extends SingleCodeType {
+case class StreamSingleCodeType(separateRegions: Boolean, eltType: PType) extends SingleCodeType { self =>
 
   def virtualType: Type = TStream(eltType.virtualType)
 
@@ -126,27 +127,31 @@ case class StreamSingleCodeType(separateRegions: Boolean, eltType: PType) extend
   def loadToPCode(cb: EmitCodeBuilder, r: Value[Region], c: Code[_]): PCode = {
     val mb = cb.emb
     val xIter = mb.genFieldThisRef[Iterator[java.lang.Long]]("streamInIterator")
-    val hasNext = mb.genFieldThisRef[Boolean]("streamInHasNext")
-    val next = mb.genFieldThisRef[Long]("streamInNext")
 
     // this, Region, ...
     val mkIter = coerce[StreamArgType](c)
-    val stream = SizedStream.unsized { eltRegion =>
-      unfold[Code[Long]](
-        (_, k) => Code(
-          hasNext := xIter.load().hasNext,
-          hasNext.orEmpty(next := xIter.load().next().invoke[Long]("longValue")),
-          k(COption(!hasNext, next)))
-      ).map(
-        rv => EmitCodeBuilder.scopedEmitCode(mb)(cb => EmitCode.present(mb, eltType.loadCheapPCode(cb, (rv)))),
-        setup0 = None,
-        setup = Some(
-          xIter := mkIter.invoke[Region, Region, Iterator[java.lang.Long]](
-            "apply", r, eltRegion.code))
-      )
-    }
+    val eltRegion = mb.genFieldThisRef[Region]("stream_input_element_region")
+    val rvAddr = mb.genFieldThisRef[Long]("stream_input_addr")
+    cb.assign(xIter, mkIter.invoke[Region, Region, Iterator[java.lang.Long]]("apply", r, eltRegion))
 
-    interfaces.SStreamCode(SStream(eltType.sType, separateRegions), stream)
+    val producer = new StreamProducer {
+      override val length: Option[Code[Int]] = None
+      override val elementRegion: Settable[Region] = eltRegion
+      override val separateRegions: Boolean = self.separateRegions
+      override val LproduceElementDone: CodeLabel = CodeLabel()
+      override val LendOfStream: CodeLabel = CodeLabel()
+      override val LproduceElement: CodeLabel = mb.defineHangingLabel { cb =>
+        val hasNext = cb.newLocal[Boolean]("stream_in_hasnext", xIter.load().hasNext)
+        cb.ifx(!hasNext, cb.goto(LendOfStream))
+        cb.assign(rvAddr, xIter.load().next().invoke[Long]("longValue"))
+        cb.goto(LproduceElementDone)
+      }
+
+      override val element: EmitCode = EmitCode.fromI(mb)(cb => IEmitCode.present(cb, eltType.loadCheapPCode(cb, rvAddr)))
+
+      override def close(cb: EmitCodeBuilder): Unit = {}
+    }
+    SStreamCode2(SStream(eltType.sType, true, separateRegions), producer)
   }
 
   def coercePCode(cb: EmitCodeBuilder, pc: PCode, region: Value[Region], deepCopy: Boolean): SingleCodePCode = throw new UnsupportedOperationException

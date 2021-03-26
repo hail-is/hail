@@ -7,6 +7,7 @@ import is.hail.types.physical.stypes.SType
 import is.hail.types.physical.stypes.interfaces.{SIndexableCode, SStream}
 import is.hail.types.physical.stypes.primitives.{SInt32, SInt32Code}
 import is.hail.types.physical.{PCanonicalStream, PCode, PStream, PStreamCode, PValue}
+import is.hail.types.virtual.TStream
 import is.hail.utils._
 
 abstract class StreamProducer {
@@ -16,16 +17,17 @@ abstract class StreamProducer {
   val elementRegion: Settable[Region]
   val separateRegions: Boolean
 
-  // defined by producer, producer jumps to LproduceElementDone
-  val LproduceElement: CodeLabel
-
-  // defined by consumer, producer can jump to
+  // defined by consumer
   val LproduceElementDone: CodeLabel
+
+  // defined by consumer
+  val LendOfStream: CodeLabel
+
+  // defined by producer. Jumps to either LproduceElementDone or LendOfStream
+  val LproduceElement: CodeLabel
 
   val element: EmitCode
 
-  // defined by consumer, producer can jump to
-  val LendOfStream: CodeLabel
 
   def close(cb: EmitCodeBuilder): Unit
 }
@@ -111,6 +113,21 @@ object EmitStream2 {
 
 
     streamIR match {
+
+      case Ref(name, _typ) =>
+        assert(_typ.isInstanceOf[TStream])
+        env.lookup(name).toI(cb)
+
+      case In(n, _) =>
+        // this, Code[Region], ...
+        val param = mb.getEmitParam(2 + n, outerRegion)
+        param.st match {
+          case _: SStream =>
+          case t => throw new RuntimeException(s"parameter ${ 2 + n } is not a stream! t=$t, params=${ mb.emitParamTypes }")
+        }
+        param.load.toI(cb)
+
+
       case ToStream(a, _separateRegions) =>
         val idx = mb.genFieldThisRef[Int]("tostream_idx")
         val regionVar = mb.genFieldThisRef[Region]("tostream_region")
