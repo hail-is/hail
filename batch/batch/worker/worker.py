@@ -1279,16 +1279,16 @@ class Worker:
                 web.get('/healthcheck', self.healthcheck)
             ])
 
-            app_runner = web.AppRunner(app)
-            await app_runner.setup()
-            site = web.TCPSite(app_runner, '0.0.0.0', 5000)
-            await site.start()
-
             try:
                 await asyncio.wait_for(self.activate(), MAX_IDLE_TIME_MSECS / 1000)
             except asyncio.TimeoutError:
                 log.exception(f'could not activate after trying for {MAX_IDLE_TIME_MSECS} ms, exiting')
             else:
+                app_runner = web.AppRunner(app)
+                await app_runner.setup()
+                site = web.TCPSite(app_runner, '0.0.0.0', 5000)
+                await site.start()
+
                 stopped = False
                 idle_duration = time_msecs() - self.last_updated
                 while self.jobs or idle_duration < MAX_IDLE_TIME_MSECS:
