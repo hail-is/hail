@@ -3243,7 +3243,7 @@ class MatrixTable(ExprContainer):
         int
             Number of partitions.
         """
-        return Env.backend().execute(ir.MatrixToValueApply(self._mir, {'name': 'NPartitionsMatrixTable'}))
+        return Env.backend().execute(ir.MatrixToValueApply(self._mir, {'jsonClass': 'NPartitionsMatrixTable'}))
 
     @typecheck_method(n_partitions=int,
                       shuffle=bool)
