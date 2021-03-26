@@ -17,9 +17,12 @@ principals:
 - name: ci
   domain: ci
   kind: json
-- name: notebook
+- name: notebook-python
   domain: notebook
   kind: json
+- name: notebook
+  domain: notebook
+  kind: nginx
 - name: gateway
   domain: gateway
   unmanged: True
