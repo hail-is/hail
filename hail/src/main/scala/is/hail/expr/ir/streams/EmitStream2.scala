@@ -101,7 +101,7 @@ object EmitStream2 {
     val mb = cb.emb
 
 
-    def emitIR(ir: IR, cb: EmitCodeBuilder = cb, env: Emit.E = env, region: Value[Region] = outerRegion, container: Option[AggContainer] = container): IEmitCode =
+    def emitIR(ir: IR, cb: EmitCodeBuilder, env: Emit.E = env, region: Value[Region] = outerRegion, container: Option[AggContainer] = container): IEmitCode =
       emitter.emitI(ir, cb, StagedRegion(region), env, container, None)
 
 
@@ -115,7 +115,7 @@ object EmitStream2 {
         val idx = mb.genFieldThisRef[Int]("tostream_idx")
         val regionVar = mb.genFieldThisRef[Region]("tostream_region")
 
-        emitIR(a).map(cb) { case ind: SIndexableCode =>
+        emitIR(a, cb).map(cb) { case ind: SIndexableCode =>
           val container = ind.memoizeField(cb, "tostream_a")
           cb.assign(idx, -1)
 
@@ -149,9 +149,9 @@ object EmitStream2 {
 
         val regionVar = mb.genFieldThisRef[Region]("sr_region")
 
-        emitIR(startIR).flatMap(cb) { startc =>
-          emitIR(stopIR).flatMap(cb) { stopc =>
-            emitIR(stepIR).map(cb) { stepc =>
+        emitIR(startIR, cb).flatMap(cb) { startc =>
+          emitIR(stopIR, cb).flatMap(cb) { stopc =>
+            emitIR(stepIR, cb).map(cb) { stepc =>
               val start = cb.memoizeField(startc, "sr_step").asInt.intCode(cb)
               val stop = cb.memoizeField(stopc, "sr_stop").asInt.intCode(cb)
               val step = cb.memoizeField(stepc, "sr_step").asInt.intCode(cb)
@@ -258,7 +258,11 @@ object EmitStream2 {
 
                 val element: EmitCode = childProducer.element
 
-                def close(cb: EmitCodeBuilder): Unit = childProducer.close(cb)
+                def close(cb: EmitCodeBuilder): Unit = {
+                  childProducer.close(cb)
+                  if (separateRegions)
+                    cb += childProducer.elementRegion.freeRegion()
+                }
 
               })
           }
@@ -301,6 +305,80 @@ object EmitStream2 {
               producer
             )
           }
+
+      case x@StreamScan(childIR, zeroIR, accName, eltName, bodyIR) =>
+        produce(cb, childIR).map(cb) { case (childStream: SStreamCode2) =>
+          val childProducer = childStream.producer
+
+
+          val accValueAccRegion = mb.newEmitField(x.accPType)
+          val accValueEltRegion = mb.newEmitField(x.accPType)
+
+          val accRegion = mb.genFieldThisRef[Region]("streamscan_acc_region")
+          if (childProducer.separateRegions)
+            cb.assign(accRegion, Region.stagedCreate(Region.REGULAR, outerRegion.getPool()))
+
+          // accRegion is unused if separateRegions is false
+
+
+          val first = mb.genFieldThisRef[Boolean]("streamscan_has_pulled")
+          cb.assign(first, true)
+
+          val producer = new StreamProducer {
+            override val length: Option[Code[Int]] = childProducer.length.map(_ + const(1))
+
+            override val elementRegion: Settable[Region] = childProducer.elementRegion
+
+            override val separateRegions: Boolean = childProducer.separateRegions
+
+            override val LendOfStream: CodeLabel = childProducer.LendOfStream
+            override val LproduceElementDone: CodeLabel = CodeLabel()
+            override val LproduceElement: CodeLabel = mb.defineHangingLabel { cb =>
+
+              val LcopyAndReturn = CodeLabel()
+
+              cb.ifx(first, {
+
+                cb.assign(first, false)
+                cb.assign(accValueEltRegion, emitIR(zeroIR, cb, region = elementRegion))
+
+                cb.goto(LcopyAndReturn)
+              })
+
+
+              cb.goto(childProducer.LproduceElement)
+              cb.define(childProducer.LproduceElementDone)
+
+              if (separateRegions) {
+                // deep copy accumulator into element region, then clear accumulator region
+                cb.assign(accValueEltRegion, accValueAccRegion.map(_.castTo(cb, childProducer.elementRegion, x.accPType, deepCopy = true)))
+                cb += accRegion.clearRegion()
+              }
+
+              val childEltValue = cb.memoizeField(childProducer.element, "scan_child_elt")
+              cb.assign(accValueEltRegion,
+                emitIR(bodyIR, cb, env = env.bind((accName, accValueEltRegion), (eltName, childEltValue)), region = childProducer.elementRegion)
+                  .map(cb)(pc => pc.castTo(cb, childProducer.elementRegion, x.accPType, deepCopy = false)))
+
+              cb.define(LcopyAndReturn)
+
+              if (separateRegions) {
+                cb.assign(accValueAccRegion, accValueEltRegion.map(pc => pc.castTo(cb, accRegion, x.accPType, deepCopy = true)))
+              }
+
+              cb.goto(LproduceElementDone)
+            }
+
+            val element: EmitCode = accValueEltRegion.load
+
+            override def close(cb: EmitCodeBuilder): Unit = {
+              childProducer.close(cb)
+              if (separateRegions)
+                cb += accRegion.freeRegion()
+            }
+          }
+          SStreamCode2(SStream(accValueEltRegion.st, childStream.st.required, producer.separateRegions), producer)
+        }
 
       case StreamFlatMap(a, name, body) =>
         produce(cb, a).map(cb) { case (outerStream: SStreamCode2) =>
