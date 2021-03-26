@@ -91,7 +91,7 @@ object Emit {
     val region = StagedRegion(mb.getCodeParam[Region](1))
     val returnTypeOption: Option[SingleCodeType] = if (ir.typ == TVoid) {
       fb.apply_method.voidWithBuilder { cb =>
-        emitter.emitVoid(cb, ir, mb, region, Env.empty, container, None)
+        emitter.emitVoid(cb, ir, region, Env.empty, container, None)
       }
       None
     } else {
@@ -505,7 +505,8 @@ class Emit[C](
   val methods: mutable.Map[(String, Seq[Type], Seq[PType], PType), EmitMethodBuilder[C]] = mutable.Map()
 
 
-  private[ir] def emitVoid(cb: EmitCodeBuilder, ir: IR, mb: EmitMethodBuilder[C], region: StagedRegion, env: E, container: Option[AggContainer], loopEnv: Option[Env[LoopRef]]): Unit = {
+  private[ir] def emitVoid(cb: EmitCodeBuilder, ir: IR, region: StagedRegion, env: E, container: Option[AggContainer], loopEnv: Option[Env[LoopRef]]): Unit = {
+    val mb: EmitMethodBuilder[C] = cb.emb.asInstanceOf[EmitMethodBuilder[C]]
 
     def emit(ir: IR, mb: EmitMethodBuilder[C] = mb, region: StagedRegion = region, env: E = env, container: Option[AggContainer] = container, loopEnv: Option[Env[LoopRef]] = loopEnv): EmitCode =
       this.emit(ir, mb, region, env, container, loopEnv)
@@ -513,8 +514,8 @@ class Emit[C](
     def emitStream(ir: IR, outerRegion: ParentStagedRegion, mb: EmitMethodBuilder[C] = mb): EmitCode =
       EmitStream.emit(this, ir, mb, outerRegion, env, container)
 
-    def emitVoid(ir: IR, cb: EmitCodeBuilder = cb, mb: EmitMethodBuilder[C] = mb, region: StagedRegion = region, env: E = env, container: Option[AggContainer] = container, loopEnv: Option[Env[LoopRef]] = loopEnv): Unit =
-      this.emitVoid(cb, ir, mb, region, env, container, loopEnv)
+    def emitVoid(ir: IR, cb: EmitCodeBuilder = cb, region: StagedRegion = region, env: E = env, container: Option[AggContainer] = container, loopEnv: Option[Env[LoopRef]] = loopEnv): Unit =
+      this.emitVoid(cb, ir, region, env, container, loopEnv)
 
     def emitI(ir: IR, region: StagedRegion = region, env: E = env, container: Option[AggContainer] = container, loopEnv: Option[Env[LoopRef]] = loopEnv): IEmitCode =
       this.emitI(ir, cb, region, env, container, loopEnv)
@@ -708,7 +709,7 @@ class Emit[C](
       EmitStream.emit(this, ir, mb, outerRegion, env, container).toI(cb)
 
     def emitVoid(ir: IR, env: E = env, container: Option[AggContainer] = container, loopEnv: Option[Env[LoopRef]] = loopEnv): Unit =
-      this.emitVoid(cb, ir: IR, mb, region, env, container, loopEnv)
+      this.emitVoid(cb, ir: IR, region, env, container, loopEnv)
 
     def emitFallback(ir: IR, env: E = env, container: Option[AggContainer] = container, loopEnv: Option[Env[LoopRef]] = loopEnv): IEmitCode =
       this.emit(ir, mb, region, env, container, loopEnv, fallingBackFromEmitI = true).toI(cb)
@@ -2208,7 +2209,7 @@ class Emit[C](
 
     def emitVoid(ir: IR, env: E = env, container: Option[AggContainer] = container, loopEnv: Option[Env[LoopRef]] = loopEnv): Code[Unit] = {
       EmitCodeBuilder.scopedVoid(mb) { cb =>
-        this.emitVoid(cb, ir, mb, region, env, container, loopEnv)
+        this.emitVoid(cb, ir, region, env, container, loopEnv)
       }
     }
 
@@ -2221,7 +2222,7 @@ class Emit[C](
     // working towards removing this
     if (pt == PVoid)
       return EmitCode.fromI(mb) { cb =>
-        this.emitVoid(cb, ir, mb, region, env, container, loopEnv)
+        this.emitVoid(cb, ir, region, env, container, loopEnv)
         IEmitCode.present(cb, PCode._empty)
       }
 

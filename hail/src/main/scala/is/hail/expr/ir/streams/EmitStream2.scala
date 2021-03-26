@@ -28,7 +28,6 @@ abstract class StreamProducer {
 
   val element: EmitCode
 
-
   def close(cb: EmitCodeBuilder): Unit
 }
 
@@ -123,9 +122,11 @@ object EmitStream2 {
     val mb = cb.emb
 
 
+    def emitVoid(ir: IR, cb: EmitCodeBuilder, env: Emit.E = env, region: Value[Region] = outerRegion, container: Option[AggContainer] = container): Unit =
+      emitter.emitVoid(cb, ir, StagedRegion(region), env, container, None)
+
     def emitIR(ir: IR, cb: EmitCodeBuilder, env: Emit.E = env, region: Value[Region] = outerRegion, container: Option[AggContainer] = container): IEmitCode =
       emitter.emitI(ir, cb, StagedRegion(region), env, container, None)
-
 
     def produce(cb: EmitCodeBuilder, streamIR: IR, outerRegion: Value[Region] = outerRegion,
       env: Emit.E = env, container: Option[AggContainer] = container): IEmitCode =
@@ -415,6 +416,46 @@ object EmitStream2 {
             }
           }
           SStreamCode2(SStream(accValueEltRegion.st, childStream.st.required, producer.separateRegions), producer)
+        }
+
+      case RunAggScan(child, name, init, seqs, result, states) =>
+        val (newContainer, aggSetup, aggCleanup) = AggContainer.fromMethodBuilder(states.toArray, mb,"run_agg_scan")
+
+        produce(cb, child).map(cb) { case (childStream: SStreamCode2) =>
+          val childProducer = childStream.producer
+
+          val childEltField = mb.newEmitField("runaggscan_child_elt", childProducer.element.pt)
+          val bodyEnv = env.bind(name -> childEltField)
+          val bodyResult = EmitCode.fromI(mb)(cb => emitIR(result, cb = cb, region = childProducer.elementRegion,
+            env = bodyEnv, container = Some(newContainer)))
+          val bodyResultField = mb.newEmitField("runaggscan_result_elt", bodyResult.pt)
+
+          cb += aggSetup
+          emitVoid(init, cb = cb, region = outerRegion, container = Some(newContainer))
+
+          val producer = new StreamProducer {
+            override val length: Option[Code[Int]] = childProducer.length
+            override val elementRegion: Settable[Region] = childProducer.elementRegion
+            override val separateRegions: Boolean = childProducer.separateRegions
+            override val LendOfStream: CodeLabel = childProducer.LendOfStream
+            override val LproduceElementDone: CodeLabel = CodeLabel()
+            override val LproduceElement: CodeLabel = mb.defineHangingLabel { cb =>
+              cb.goto(childProducer.LproduceElement)
+              cb.define(childProducer.LproduceElementDone)
+              cb.assign(childEltField, childProducer.element)
+              cb.assign(bodyResultField, bodyResult.toI(cb))
+              emitVoid(seqs, cb, region = elementRegion, env = bodyEnv, container = Some(newContainer))
+              cb.goto(LproduceElementDone)
+            }
+            override val element: EmitCode = bodyResultField.load
+
+            override def close(cb: EmitCodeBuilder): Unit = {
+              childProducer.close(cb)
+              cb += aggCleanup
+            }
+          }
+
+          SStreamCode2(SStream(producer.element.st, childStream.st.required, producer.separateRegions), producer)
         }
 
       case StreamFlatMap(a, name, body) =>
