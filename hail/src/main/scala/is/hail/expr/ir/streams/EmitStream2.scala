@@ -2,9 +2,11 @@ package is.hail.expr.ir.streams
 
 import is.hail.annotations.Region
 import is.hail.asm4s._
+import is.hail.expr.ir.EmitStream.emit
 import is.hail.expr.ir._
+import is.hail.expr.ir.orderings.StructOrdering
 import is.hail.types.physical.stypes.SType
-import is.hail.types.physical.stypes.interfaces.{SIndexableCode, SStream}
+import is.hail.types.physical.stypes.interfaces.{SBaseStruct, SIndexableCode, SStream}
 import is.hail.types.physical.stypes.primitives.{SInt32, SInt32Code}
 import is.hail.types.physical.{PCanonicalStream, PCode, PStream, PStreamCode, PValue}
 import is.hail.types.virtual.TStream
@@ -73,11 +75,11 @@ object EmitStream2 {
 
     val mb = cb.emb
 
-    def emitIR(cb: EmitCodeBuilder, ir: IR, env: Emit.E = env0, region: Value[Region] = outerRegion, container: Option[AggContainer] = container): IEmitCode =
+    def emitIR(ir: IR, cb: EmitCodeBuilder, env: Emit.E = env0, region: Value[Region] = outerRegion, container: Option[AggContainer] = container): IEmitCode =
       emitter.emitI(ir, cb, StagedRegion(region), env, container, None)
 
-    def produce(cb: EmitCodeBuilder, streamIR: IR, outerRegion: Value[Region] = outerRegion, env: Emit.E = env0, container: Option[AggContainer] = container): IEmitCode = {
-      EmitStream2.produce(emitter, cb, streamIR, outerRegion, env, container)
+    def produce(streamIR: IR, cb: EmitCodeBuilder, outerRegion: Value[Region] = outerRegion, env: Emit.E = env0, container: Option[AggContainer] = container): IEmitCode = {
+      EmitStream2.produce(emitter, streamIR, cb, outerRegion, env, container)
     }
 
     def feed(cb: EmitCodeBuilder,
@@ -90,7 +92,7 @@ object EmitStream2 {
 
     streamIR match {
       case _ =>
-        produce(cb, streamIR).flatMap(cb) { case (sc: SStreamCode2) =>
+        produce(streamIR, cb).flatMap(cb) { case (sc: SStreamCode2) =>
 
           val producer = sc.producer
 
@@ -112,8 +114,8 @@ object EmitStream2 {
 
   private[ir] def produce(
     emitter: Emit[_],
-    cb: EmitCodeBuilder,
     streamIR: IR,
+    cb: EmitCodeBuilder,
     outerRegion: Value[Region],
     env: Emit.E,
     container: Option[AggContainer]
@@ -122,16 +124,18 @@ object EmitStream2 {
     val mb = cb.emb
 
 
-    def emitVoid(ir: IR, cb: EmitCodeBuilder, env: Emit.E = env, region: Value[Region] = outerRegion, container: Option[AggContainer] = container): Unit =
+    def emitVoid(ir: IR, cb: EmitCodeBuilder, region: Value[Region] = outerRegion, env: Emit.E = env, container: Option[AggContainer] = container): Unit =
       emitter.emitVoid(cb, ir, StagedRegion(region), env, container, None)
 
-    def emitIR(ir: IR, cb: EmitCodeBuilder, env: Emit.E = env, region: Value[Region] = outerRegion, container: Option[AggContainer] = container): IEmitCode =
-      emitter.emitI(ir, cb, StagedRegion(region), env, container, None)
+    def emit(ir: IR, cb: EmitCodeBuilder, region: Value[Region] = outerRegion, env: Emit.E = env, container: Option[AggContainer] = container): IEmitCode = {
+      ir.typ match {
+        case _: TStream => produce(ir, cb, outerRegion, env, container)
+        case _ => emitter.emitI(ir, cb, StagedRegion(region), env, container, None)
+      }
+    }
 
-    def produce(cb: EmitCodeBuilder, streamIR: IR, outerRegion: Value[Region] = outerRegion,
-      env: Emit.E = env, container: Option[AggContainer] = container): IEmitCode =
-      EmitStream2.produce(emitter, cb, streamIR, outerRegion, env, container)
-
+    def produce(streamIR: IR, cb: EmitCodeBuilder, region: Value[Region] = outerRegion, env: Emit.E = env, container: Option[AggContainer] = container): IEmitCode =
+      EmitStream2.produce(emitter, streamIR, cb, region, env, container)
 
     streamIR match {
 
@@ -153,7 +157,7 @@ object EmitStream2 {
         val idx = mb.genFieldThisRef[Int]("tostream_idx")
         val regionVar = mb.genFieldThisRef[Region]("tostream_region")
 
-        emitIR(a, cb).map(cb) { case ind: SIndexableCode =>
+        emit(a, cb).map(cb) { case ind: SIndexableCode =>
           val container = ind.memoizeField(cb, "tostream_a")
           cb.assign(idx, -1)
 
@@ -187,9 +191,9 @@ object EmitStream2 {
 
         val regionVar = mb.genFieldThisRef[Region]("sr_region")
 
-        emitIR(startIR, cb).flatMap(cb) { startc =>
-          emitIR(stopIR, cb).flatMap(cb) { stopc =>
-            emitIR(stepIR, cb).map(cb) { stepc =>
+        emit(startIR, cb).flatMap(cb) { startc =>
+          emit(stopIR, cb).flatMap(cb) { stopc =>
+            emit(stepIR, cb).map(cb) { stepc =>
               val start = cb.memoizeField(startc, "sr_step").asInt.intCode(cb)
               val stop = cb.memoizeField(stopc, "sr_stop").asInt.intCode(cb)
               val step = cb.memoizeField(stepc, "sr_step").asInt.intCode(cb)
@@ -246,7 +250,7 @@ object EmitStream2 {
         }
 
       case StreamFilter(a, name, cond) =>
-        produce(cb, a)
+        produce(a, cb)
           .map(cb) { case (childStream: SStreamCode2) =>
             val childProducer = childStream.producer
 
@@ -275,7 +279,7 @@ object EmitStream2 {
 
                   // false and NA both fail the filter
                   val childProducerElement = cb.memoize(childProducer.element, "streamfilter_cond")
-                  emitIR(cond, cb = cb, env = env.bind(name, childProducerElement), region = childProducer.elementRegion)
+                  emit(cond, cb = cb, env = env.bind(name, childProducerElement), region = childProducer.elementRegion)
                     .consume(cb,
                       cb.goto(Lfiltered),
                       { sc =>
@@ -306,9 +310,9 @@ object EmitStream2 {
           }
 
       case StreamTake(a, num) =>
-        produce(cb, a)
+        produce(a, cb)
           .flatMap(cb) { case (childStream: SStreamCode2) =>
-            emitIR(num, cb).map(cb) { case (num: SInt32Code) =>
+            emit(num, cb).map(cb) { case (num: SInt32Code) =>
               val childProducer = childStream.producer
               val n = mb.genFieldThisRef[Int]("stream_take_n")
               cb.assign(n, num.intCode(cb))
@@ -344,9 +348,9 @@ object EmitStream2 {
           }
 
       case StreamDrop(a, num) =>
-        produce(cb, a)
+        produce(a, cb)
           .flatMap(cb) { case (childStream: SStreamCode2) =>
-            emitIR(num, cb).map(cb) { case (num: SInt32Code) =>
+            emit(num, cb).map(cb) { case (num: SInt32Code) =>
               val childProducer = childStream.producer
               val n = mb.genFieldThisRef[Int]("stream_drop_n")
               cb.assign(n, num.intCode(cb))
@@ -386,13 +390,13 @@ object EmitStream2 {
           }
 
       case StreamMap(a, name, body) =>
-        produce(cb, a)
+        produce(a, cb)
           .map(cb) { case (childStream: SStreamCode2) =>
             val childProducer = childStream.producer
 
             val bodyResult = EmitCode.fromI(mb) { cb =>
               val childProducerElement = cb.memoize(childProducer.element, "streammap_element")
-              emitIR(body,
+              emit(body,
                 cb = cb,
                 env = env.bind(name, childProducerElement),
                 region = childProducer.elementRegion)
@@ -425,7 +429,7 @@ object EmitStream2 {
           }
 
       case x@StreamScan(childIR, zeroIR, accName, eltName, bodyIR) =>
-        produce(cb, childIR).map(cb) { case (childStream: SStreamCode2) =>
+        produce(childIR, cb).map(cb) { case (childStream: SStreamCode2) =>
           val childProducer = childStream.producer
 
 
@@ -458,7 +462,7 @@ object EmitStream2 {
               cb.ifx(first, {
 
                 cb.assign(first, false)
-                cb.assign(accValueEltRegion, emitIR(zeroIR, cb, region = elementRegion))
+                cb.assign(accValueEltRegion, emit(zeroIR, cb, region = elementRegion))
 
                 cb.goto(LcopyAndReturn)
               })
@@ -475,7 +479,7 @@ object EmitStream2 {
 
               val childEltValue = cb.memoizeField(childProducer.element, "scan_child_elt")
               cb.assign(accValueEltRegion,
-                emitIR(bodyIR, cb, env = env.bind((accName, accValueEltRegion), (eltName, childEltValue)), region = childProducer.elementRegion)
+                emit(bodyIR, cb, env = env.bind((accName, accValueEltRegion), (eltName, childEltValue)), region = childProducer.elementRegion)
                   .map(cb)(pc => pc.castTo(cb, childProducer.elementRegion, x.accPType, deepCopy = false)))
 
               cb.define(LcopyAndReturn)
@@ -501,12 +505,12 @@ object EmitStream2 {
       case RunAggScan(child, name, init, seqs, result, states) =>
         val (newContainer, aggSetup, aggCleanup) = AggContainer.fromMethodBuilder(states.toArray, mb, "run_agg_scan")
 
-        produce(cb, child).map(cb) { case (childStream: SStreamCode2) =>
+        produce(child, cb).map(cb) { case (childStream: SStreamCode2) =>
           val childProducer = childStream.producer
 
           val childEltField = mb.newEmitField("runaggscan_child_elt", childProducer.element.pt)
           val bodyEnv = env.bind(name -> childEltField)
-          val bodyResult = EmitCode.fromI(mb)(cb => emitIR(result, cb = cb, region = childProducer.elementRegion,
+          val bodyResult = EmitCode.fromI(mb)(cb => emit(result, cb = cb, region = childProducer.elementRegion,
             env = bodyEnv, container = Some(newContainer)))
           val bodyResultField = mb.newEmitField("runaggscan_result_elt", bodyResult.pt)
 
@@ -539,7 +543,7 @@ object EmitStream2 {
         }
 
       case StreamFlatMap(a, name, body) =>
-        produce(cb, a).map(cb) { case (outerStream: SStreamCode2) =>
+        produce(a, cb).map(cb) { case (outerStream: SStreamCode2) =>
           val outerProducer = outerStream.producer
 
           // variables used in control flow
@@ -555,7 +559,7 @@ object EmitStream2 {
 
           val innerStreamEmitCode = EmitCode.fromI(mb) { cb =>
             val outerProducerValue = cb.memoize(outerProducer.element, "flatmap_outer_element")
-            emitIR(body,
+            emit(body,
               cb = cb,
               env = env.bind(name, outerProducerValue),
               region = outerProducer.elementRegion)
@@ -633,8 +637,245 @@ object EmitStream2 {
           )
         }
 
+      case x@StreamJoinRightDistinct(leftIR, rightIR, lKey, rKey, leftName, rightName, joinIR, joinType) =>
+        produce(leftIR, cb).flatMap(cb) { case (leftStream: SStreamCode2) =>
+          produce(rightIR, cb).map(cb) { case (rightStream: SStreamCode2) =>
+
+            val leftProducer = leftStream.producer
+            val rightProducer = rightStream.producer
+
+            val lEltType = leftProducer.element.pt
+            val rEltType = rightProducer.element.pt
+
+            // these variables are used as inputs to the joinF
+
+            def compare(cb: EmitCodeBuilder, lelt: EmitValue, relt: EmitValue): Code[Int] = {
+              assert(lelt.pt == lEltType)
+              assert(relt.pt == rEltType)
+
+              val lhs = lelt.map(_.asBaseStruct.subset(lKey: _*).asPCode)
+              val rhs = relt.map(_.asBaseStruct.subset(rKey: _*).asPCode)
+              StructOrdering.make(lhs.st.asInstanceOf[SBaseStruct], rhs.st.asInstanceOf[SBaseStruct],
+                cb.emb.ecb, missingFieldsEqual = false)
+                .compare(cb, lhs, rhs, missingEqual = false)
+            }
+
+
+            joinType match {
+              case "left" =>
+                val lx = mb.newEmitField(lEltType) // last value received from left
+                val rx = mb.newEmitField(rEltType) // last value received from right
+                val rxOut = mb.newEmitField(rEltType.setRequired(false)) // right value in joinF (may be missing while rx is not)
+
+                val joinResult = EmitCode.fromI(mb)(cb => emit(joinIR, cb,
+                  region = leftProducer.elementRegion,
+                  env = env.bind(leftName -> lx, rightName -> rxOut)))
+
+                val rightEOS = mb.genFieldThisRef[Boolean]("left_join_right_distinct_rightEOS")
+                val pulledRight = mb.genFieldThisRef[Boolean]("left_join_right_distinct_pulledRight]")
+                cb.assign(rightEOS, false)
+                cb.assign(pulledRight, false)
+
+                if (rightProducer.separateRegions)
+                  cb.assign(rightProducer.elementRegion, Region.stagedCreate(Region.REGULAR, outerRegion.getPool()))
+
+                val producer = new StreamProducer {
+                  override val length: Option[Code[Int]] = leftProducer.length
+                  override val elementRegion: Settable[Region] = leftProducer.elementRegion
+                  override val separateRegions: Boolean = leftProducer.separateRegions
+                  override val LproduceElementDone: CodeLabel = CodeLabel()
+                  override val LendOfStream: CodeLabel = leftProducer.LendOfStream
+                  override val LproduceElement: CodeLabel = mb.defineHangingLabel { cb =>
+
+                    cb.goto(leftProducer.LproduceElement)
+                    cb.define(leftProducer.LproduceElementDone)
+                    cb.assign(lx, leftProducer.element)
+
+                    // if right stream is exhausted, return immediately
+                    cb.ifx(rightEOS, cb.goto(LproduceElementDone))
+
+                    val LpullRight = CodeLabel()
+                    cb.ifx(!pulledRight, {
+                      cb.assign(pulledRight, true)
+                      cb.goto(LpullRight)
+                    })
+
+                    val Lcompare = CodeLabel()
+                    cb.define(Lcompare)
+                    val c = cb.newLocal[Int]("left_join_right_distinct_c", compare(cb, lx, rx))
+                    cb.ifx(c > 0, cb.goto(LpullRight))
+
+                    cb.ifx(c < 0, {
+                      cb.assign(rxOut, EmitCode.missing(mb, rxOut.pt))
+                    }, {
+                      // c == 0
+                      if (rightProducer.separateRegions)
+                        cb += rightProducer.elementRegion.addReferenceTo(elementRegion)
+                      cb.assign(rxOut, rx)
+                    })
+
+                    cb.goto(LproduceElementDone)
+
+                    cb.define(LpullRight)
+                    if (rightProducer.separateRegions) {
+                      cb += rightProducer.elementRegion.clearRegion()
+                    }
+
+                    cb.goto(rightProducer.LproduceElement)
+                    cb.define(rightProducer.LproduceElementDone)
+                    cb.assign(rx, rightProducer.element)
+                    cb.goto(Lcompare)
+
+                    // if right stream ends before left
+                    cb.define(rightProducer.LendOfStream)
+                    cb.assign(rxOut, EmitCode.missing(mb, rxOut.pt))
+                    cb.assign(rightEOS, true)
+                    cb.goto(LproduceElementDone)
+                  }
+                  override val element: EmitCode = joinResult
+
+                  override def close(cb: EmitCodeBuilder): Unit = {
+                    leftProducer.close(cb)
+                    rightProducer.close(cb)
+                    if (rightProducer.separateRegions)
+                      cb += rightProducer.elementRegion.freeRegion()
+                  }
+                }
+
+                SStreamCode2(SStream(producer.element.st, leftStream.st.required && rightStream.st.required, producer.separateRegions), producer)
+
+              case "outer" =>
+
+                val lx = mb.newEmitField(lEltType) // last value received from left
+                val rx = mb.newEmitField(rEltType) // last value received from right
+                val lxOut = mb.newEmitField(lEltType.setRequired(false)) // left value in joinF (may be missing while lx is not)
+                val rxOut = mb.newEmitField(rEltType.setRequired(false)) // right value in joinF (may be missing while rx is not)
+
+                val pulledRight = mb.genFieldThisRef[Boolean]("join_right_distinct_pulledRight")
+                val rightEOS = mb.genFieldThisRef[Boolean]("join_right_distinct_rightEOS")
+                val leftMissing = mb.genFieldThisRef[Boolean]("join_right_distinct_leftMissing")
+                val rightMissing = mb.genFieldThisRef[Boolean]("join_right_distinct_rightMissing")
+                val leftEOS = mb.genFieldThisRef[Boolean]("join_right_distinct_leftEOS")
+                val compResult = mb.genFieldThisRef[Int]("join_right_distinct_compResult")
+
+                cb.assign(pulledRight, false)
+                cb.assign(leftEOS, false)
+                cb.assign(rightEOS, false)
+                cb.assign(compResult, 0) // lets us start stream with a pull from both
+
+                if (rightProducer.separateRegions)
+                  cb.assign(rightProducer.elementRegion, Region.stagedCreate(Region.REGULAR, outerRegion.getPool()))
+
+                val elementRegion = mb.genFieldThisRef[Region]("join_right_distinct_element_region")
+
+                val joinResult = EmitCode.fromI(mb)(cb => emit(joinIR, cb,
+                  region = elementRegion,
+                  env = env.bind(leftName -> lxOut, rightName -> rxOut)))
+
+                val producer = new StreamProducer {
+                  override val length: Option[Code[Int]] = None
+                  override val elementRegion: Settable[Region] = elementRegion
+                  override val separateRegions: Boolean = leftProducer.separateRegions || rightProducer.separateRegions
+                  override val LproduceElementDone: CodeLabel = CodeLabel()
+                  override val LendOfStream: CodeLabel = CodeLabel()
+                  override val LproduceElement: CodeLabel = mb.defineHangingLabel { cb =>
+
+                    val Lcompare = CodeLabel()
+                    val LclearingLeftProduceElement = CodeLabel()
+                    val LclearingRightProduceElement = CodeLabel()
+
+                    val Lstart = CodeLabel()
+                    val Ldone = CodeLabel()
+                    cb.define(Lstart)
+
+                    cb.ifx(rightEOS, cb.goto(LclearingLeftProduceElement))
+                    cb.ifx(leftEOS, cb.goto(LclearingRightProduceElement))
+                    cb.ifx(compResult <= 0,
+                      cb.goto(LclearingLeftProduceElement),
+                      cb.goto(LclearingRightProduceElement))
+
+                    cb.define(rightProducer.LproduceElementDone)
+                    cb.assign(rx, rightProducer.element)
+                    cb.assign(pulledRight, true)
+                    cb.goto(Lcompare)
+
+                    cb.define(leftProducer.LproduceElementDone)
+                    cb.assign(lx, leftProducer.element)
+                    cb.ifx((compResult <= 0) && !pulledRight,
+                      cb.goto(LclearingRightProduceElement))
+                    cb.goto(Lcompare)
+
+                    cb.define(Lcompare)
+                    cb.ifx(rightEOS || leftEOS, cb.goto(Ldone))
+                    cb.assign(compResult, compare(cb, lx, rx))
+                    cb.ifx(compResult < 0, {
+                      cb.assign(leftMissing, false)
+                      cb.assign(rightMissing, true)
+                    }, {
+                      cb.ifx(compResult > 0, {
+                        cb.assign(leftMissing, true)
+                        cb.assign(rightMissing, false)
+                      }, {
+                        // compResult == 0
+                        cb.assign(leftMissing, false)
+                        cb.assign(rightMissing, false)
+                      })
+                    })
+
+                    cb.define(Ldone)
+                    cb.ifx(leftMissing,
+                      cb.assign(lxOut, EmitCode.missing(mb, lxOut.pt)),
+                      cb.assign(lxOut, lx)
+                    )
+                    cb.ifx(rightMissing,
+                      cb.assign(lxOut, EmitCode.missing(mb, lxOut.pt)),
+                      cb.assign(lxOut, lx)
+                    )
+
+                    cb.goto(LproduceElementDone)
+
+
+                    // EOS labels
+                    cb.define(rightProducer.LendOfStream)
+                    cb.ifx(leftEOS, cb.goto(LendOfStream))
+                    cb.assign(rightEOS, true)
+                    cb.assign(rightMissing, true)
+                    cb.goto(Lstart)
+
+                    cb.define(leftProducer.LendOfStream)
+                    cb.ifx(rightEOS, cb.goto(LendOfStream))
+                    cb.assign(leftEOS, true)
+                    cb.assign(leftMissing, true)
+                    cb.goto(Lstart)
+
+                    // clear regions before producing next elements
+                    cb.define(LclearingLeftProduceElement)
+                    if (leftProducer.separateRegions)
+                      cb += leftProducer.elementRegion.clearRegion()
+                    cb.goto(leftProducer.LproduceElement)
+
+                    cb.define(LclearingRightProduceElement)
+                    if (rightProducer.separateRegions)
+                      cb += rightProducer.elementRegion.clearRegion()
+                    cb.goto(rightProducer.LproduceElement)
+                  }
+                  override val element: EmitCode = joinResult
+
+                  override def close(cb: EmitCodeBuilder): Unit = {
+                    leftProducer.close(cb)
+                    rightProducer.close(cb)
+                    if (rightProducer.separateRegions)
+                      cb += rightProducer.elementRegion.freeRegion()
+                  }
+                }
+
+                SStreamCode2(SStream(producer.element.st, leftStream.st.required && rightStream.st.required, producer.separateRegions), producer)
+            }
+          }
+        }
+
       case StreamZip(as, names, body, behavior) =>
-        IEmitCode.multiMapEmitCodes(cb, as.map(a => EmitCode.fromI(mb)(cb => produce(cb, a)))) { childStreams =>
+        IEmitCode.multiMapEmitCodes(cb, as.map(a => EmitCode.fromI(mb)(cb => produce(a, cb)))) { childStreams =>
 
           val producers = childStreams.map(_.asInstanceOf[SStreamCode2].producer)
 
@@ -645,7 +886,7 @@ object EmitStream2 {
               val vars = names.zip(producers).map { case (name, p) => mb.newEmitField(name, p.element.pt) }
 
               val eltRegion = mb.genFieldThisRef[Region]("streamzip_eltregion")
-              val bodyCode = EmitCode.fromI(mb)(cb => emitIR(body, cb, env.bind(names.zip(vars): _*), eltRegion))
+              val bodyCode = EmitCode.fromI(mb)(cb => emit(body, cb, region = eltRegion, env = env.bind(names.zip(vars): _*)))
 
               producers.foreach { p =>
                 if (p.separateRegions)
@@ -700,7 +941,7 @@ object EmitStream2 {
               val vars = names.zip(producers).map { case (name, p) => mb.newEmitField(name, p.element.pt.setRequired(false)) }
 
               val eltRegion = mb.genFieldThisRef[Region]("streamzip_eltregion")
-              val bodyCode = EmitCode.fromI(mb)(cb => emitIR(body, cb, env.bind(names.zip(vars): _*), eltRegion))
+              val bodyCode = EmitCode.fromI(mb)(cb => emit(body, cb, region = eltRegion, env = env.bind(names.zip(vars): _*)))
 
               val anyEOS = mb.genFieldThisRef[Boolean]("zip_any_eos")
               val allEOS = mb.genFieldThisRef[Boolean]("zip_all_eos")
@@ -779,7 +1020,7 @@ object EmitStream2 {
               val vars = names.zip(producers).map { case (name, p) => mb.newEmitField(name, p.element.pt.setRequired(false)) }
 
               val eltRegion = mb.genFieldThisRef[Region]("streamzip_eltregion")
-              val bodyCode = EmitCode.fromI(mb)(cb => emitIR(body, cb, env.bind(names.zip(vars): _*), eltRegion))
+              val bodyCode = EmitCode.fromI(mb)(cb => emit(body, cb, region = eltRegion, env = env.bind(names.zip(vars): _*)))
 
               val eosPerStream = producers.indices.map(i => mb.genFieldThisRef[Boolean](s"zip_eos_$i"))
               val nEOS = mb.genFieldThisRef[Int]("zip_n_eos")
