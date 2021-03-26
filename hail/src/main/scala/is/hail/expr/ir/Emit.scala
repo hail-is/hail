@@ -1939,18 +1939,10 @@ class Emit[C](
 
         // Emit into LoopRef's current region. (region 1)
         loopRef.loopArgs.zip(inits).foreach { case (settable, ((_, x), pt)) =>
-          settable.store(cb, emitI(x).map(cb)(_.castTo(cb, loopRef.r1, pt)))
+          settable.store(cb, emitI(x, StagedRegion(loopRef.r1)).map(cb)(_.castTo(cb, loopRef.r1, pt)))
         }
 
         cb.define(loopStartLabel)
-        val b1 = cb.newLocal[Long]("b1")
-        val b2 = cb.newLocal[Long]("b2")
-
-        cb.assign(b1, loopRef.r1.totalManagedBytes())
-        cb.assign(b2, loopRef.r2.totalManagedBytes())
-
-        cb.println("r1 Bytes = ", b1.get.toS)
-        cb.println("r2 Bytes = ", b2.get.toS)
 
         emitI(body, env = argEnv, loopEnv = Some(newLoopEnv.bind(name, loopRef)))
 
@@ -1959,7 +1951,7 @@ class Emit[C](
 
         // Need to emit into region 2, clear region 1, then swap them.
         (loopRef.tmpLoopArgs, loopRef.loopTypes, args).zipped.map { case (tmpLoopArg, pt, arg) =>
-          tmpLoopArg.store(cb, emitI(arg, loopEnv = None).map(cb)(_.castTo(cb, loopRef.r2, pt)))
+          tmpLoopArg.store(cb, emitI(arg, loopEnv = None, region=StagedRegion(loopRef.r2)).map(cb)(_.castTo(cb, loopRef.r2, pt)))
         }
 
         cb.append(new RichCodeRegion(loopRef.r1).clear())
