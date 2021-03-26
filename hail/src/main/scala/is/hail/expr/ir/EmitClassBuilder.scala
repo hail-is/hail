@@ -1056,9 +1056,16 @@ class EmitMethodBuilder[C](
     })
   }
 
+  def implementLabel(label: CodeLabel)(f: EmitCodeBuilder => Unit): Unit = {
+    EmitCodeBuilder.scopedVoid(this) { cb =>
+      cb.define(label)
+      f(cb)
+    }
+  }
+
   def defineHangingLabel(f: EmitCodeBuilder => Unit): CodeLabel = {
     val label = CodeLabel()
-    EmitCodeBuilder.scoped(this) { cb =>
+    EmitCodeBuilder.scopedVoid(this) { cb =>
       cb.define(label)
       f(cb)
     }
