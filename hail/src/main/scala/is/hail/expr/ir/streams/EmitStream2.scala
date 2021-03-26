@@ -305,6 +305,86 @@ object EmitStream2 {
               })
           }
 
+      case StreamTake(a, num) =>
+        produce(cb, a)
+          .flatMap(cb) { case (childStream: SStreamCode2) =>
+            emitIR(num, cb).map(cb) { case (num: SInt32Code) =>
+              val childProducer = childStream.producer
+              val n = mb.genFieldThisRef[Int]("stream_take_n")
+              cb.assign(n, num.intCode(cb))
+              cb.ifx(n < 0, cb._fatal(s"stream take: negative number of elements to take: ", n.toS))
+
+              val idx = mb.genFieldThisRef[Int]("stream_take_idx")
+
+              val producer = new StreamProducer {
+                override val length: Option[Code[Int]] = childProducer.length.map(_.min(n))
+                override val elementRegion: Settable[Region] = childProducer.elementRegion
+                override val separateRegions: Boolean = childProducer.separateRegions
+                override val LproduceElementDone: CodeLabel = CodeLabel()
+                override val LendOfStream: CodeLabel = CodeLabel()
+                override val LproduceElement: CodeLabel = mb.defineHangingLabel { cb =>
+                  cb.ifx(idx >= n, cb.goto(LendOfStream))
+                  cb.assign(idx, idx + 1)
+                  cb.goto(childProducer.LproduceElement)
+                  cb.define(childProducer.LproduceElementDone)
+                  cb.goto(LproduceElementDone)
+
+                  cb.define(childProducer.LendOfStream)
+                  cb.goto(LendOfStream)
+                }
+                override val element: EmitCode = childProducer.element
+
+                override def close(cb: EmitCodeBuilder): Unit = {
+                  childProducer.close(cb)
+                }
+              }
+
+              SStreamCode2(childStream.st, producer)
+            }
+          }
+
+      case StreamDrop(a, num) =>
+        produce(cb, a)
+          .flatMap(cb) { case (childStream: SStreamCode2) =>
+            emitIR(num, cb).map(cb) { case (num: SInt32Code) =>
+              val childProducer = childStream.producer
+              val n = mb.genFieldThisRef[Int]("stream_drop_n")
+              cb.assign(n, num.intCode(cb))
+              cb.ifx(n < 0, cb._fatal(s"stream drop: negative number of elements to drop: ", n.toS))
+
+              val idx = mb.genFieldThisRef[Int]("stream_drop_idx")
+
+              val producer = new StreamProducer {
+                override val length: Option[Code[Int]] = childProducer.length.map(l => (l - n).max(0))
+                override val elementRegion: Settable[Region] = childProducer.elementRegion
+                override val separateRegions: Boolean = childProducer.separateRegions
+                override val LproduceElementDone: CodeLabel = CodeLabel()
+                override val LendOfStream: CodeLabel = CodeLabel()
+                override val LproduceElement: CodeLabel = mb.defineHangingLabel { cb =>
+                  cb.goto(childProducer.LproduceElement)
+                  cb.define(childProducer.LproduceElementDone)
+                  cb.assign(idx, idx + 1)
+                  cb.ifx(idx <= n, {
+                    if (childProducer.separateRegions)
+                      cb += childProducer.elementRegion.clearRegion()
+                    cb.goto(childProducer.LproduceElement)
+                  })
+                  cb.goto(LproduceElementDone)
+
+                  cb.define(childProducer.LendOfStream)
+                  cb.goto(LendOfStream)
+                }
+                override val element: EmitCode = childProducer.element
+
+                override def close(cb: EmitCodeBuilder): Unit = {
+                  childProducer.close(cb)
+                }
+              }
+
+              SStreamCode2(childStream.st, producer)
+            }
+          }
+
       case StreamMap(a, name, body) =>
         produce(cb, a)
           .map(cb) { case (childStream: SStreamCode2) =>
@@ -419,7 +499,7 @@ object EmitStream2 {
         }
 
       case RunAggScan(child, name, init, seqs, result, states) =>
-        val (newContainer, aggSetup, aggCleanup) = AggContainer.fromMethodBuilder(states.toArray, mb,"run_agg_scan")
+        val (newContainer, aggSetup, aggCleanup) = AggContainer.fromMethodBuilder(states.toArray, mb, "run_agg_scan")
 
         produce(cb, child).map(cb) { case (childStream: SStreamCode2) =>
           val childProducer = childStream.producer
