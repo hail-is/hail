@@ -18,6 +18,7 @@ add_definitions(${LLVM_DEFINITIONS})
 add_executable(test
   src/hail/allocators.cpp
   src/hail/format.cpp
+  src/hail/test_format.cpp
   src/hail/type.cpp
   src/hail/value.cpp
   src/hail/test_value.cpp

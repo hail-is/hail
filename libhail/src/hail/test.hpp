@@ -1,6 +1,7 @@
 #ifndef HAIL_TEST_HPP_INCLUDED
 #define HAIL_TEST_HPP_INCLUDED 1
 
+#include <hail/format.hpp>
 #include <string>
 #include <vector>
 
@@ -34,6 +35,21 @@ public:
 static void test_name();				\
 static Test test_name##_obj(#test_name, test_name);	\
 void test_name()
+
+template<typename L, typename R> void
+check_eq_impl(const char *lstr, const char *rstr, const L &l, const R &r) {
+  if (l != r) {
+    format(errs, __FILE__, ":", __LINE__, ": assert failed:\n");
+    format(errs, "  CHECK_EQ(", lstr, ", ", rstr, ")\n");
+    format(errs, "with values:\n");
+    // FIXME what if l, r don't support format?
+    format(errs, "  CHECK_EQ(", l, ", ", r, ")\n");
+    // FIXME throw so the rest of the tests run
+    abort();
+  }
+}
+
+#define CHECK_EQ(l, r)	check_eq_impl(#l, #r, l, r)
 
 }
 
