@@ -20,6 +20,7 @@ import is.hail.types.physical.stypes.interfaces.{SBaseStructCode, SNDArray, SNDA
 import is.hail.types.physical.stypes.primitives.{SFloat32, SFloat64, SInt32, SInt64, SInt64Code}
 import is.hail.types.virtual._
 import is.hail.utils._
+import is.hail.utils.richUtils.RichCodeRegion
 
 import scala.collection.mutable
 import scala.language.{existentials, postfixOps}
@@ -464,11 +465,18 @@ class RichIndexedSeqEmitSettable(is: IndexedSeq[EmitSettable]) {
 }
 
 object LoopRef {
-  def apply(mb: EmitMethodBuilder[_], L: CodeLabel, args: IndexedSeq[(String, PType)]): LoopRef = {
+  def apply(cb: EmitCodeBuilder, L: CodeLabel, args: IndexedSeq[(String, PType)], pool: Value[RegionPool]): LoopRef = {
     val (loopArgs, tmpLoopArgs) = args.zipWithIndex.map { case ((name, pt), i) =>
-      (mb.newEmitField(s"$name$i", pt), mb.newEmitField(s"tmp$name$i", pt))
+      (cb.emb.newEmitField(s"$name$i", pt), cb.emb.newEmitField(s"tmp$name$i", pt))
     }.unzip
-    LoopRef(L, args.map(_._2), loopArgs, tmpLoopArgs)
+
+    val r1: Settable[Region] = cb.newLocal[Region]("loop_ref_r1")
+    cb.assign(r1, Region.stagedCreate(Region.REGULAR, pool))
+
+    val r2: Settable[Region] = cb.newLocal[Region]("loop_ref_r2")
+    cb.assign(r2, Region.stagedCreate(Region.REGULAR, pool))
+
+    LoopRef(L, args.map(_._2), loopArgs, tmpLoopArgs, r1, r2)
   }
 }
 
@@ -476,7 +484,9 @@ case class LoopRef(
   L: CodeLabel,
   loopTypes: IndexedSeq[PType],
   loopArgs: IndexedSeq[EmitSettable],
-  tmpLoopArgs: IndexedSeq[EmitSettable])
+  tmpLoopArgs: IndexedSeq[EmitSettable],
+  r1: Settable[Region],
+  r2: Settable[Region])
 
 abstract class EstimableEmitter[C] {
   def emit(mb: EmitMethodBuilder[C]): Code[Unit]
@@ -1915,29 +1925,50 @@ class Emit[C](
         }
 
       case x@TailLoop(name, args, body) =>
-        val label = CodeLabel()
+        val loopStartLabel = CodeLabel()
         val inits = args.zip(x.accPTypes)
-        val loopRef = LoopRef(mb, label, inits.map { case ((name, _), pt) => (name, pt) })
+
+        val stagedPool = cb.newLocal[RegionPool]("tail_loop_pool_ref")
+        cb.assign(stagedPool, region.code.getPool())
+        val loopRef = LoopRef(cb, loopStartLabel, inits.map { case ((name, _), pt) => (name, pt) }, stagedPool)
 
         val argEnv = env
           .bind((args.map(_._1), loopRef.loopArgs).zipped.toArray: _*)
 
         val newLoopEnv = loopEnv.getOrElse(Env.empty)
 
+        // Emit into LoopRef's current region. (region 1)
         loopRef.loopArgs.zip(inits).foreach { case (settable, ((_, x), pt)) =>
-          settable.store(cb, emitI(x).map(cb)(_.castTo(cb, region.code, pt)))
+          settable.store(cb, emitI(x).map(cb)(_.castTo(cb, loopRef.r1, pt)))
         }
 
-        cb.define(label)
+        cb.define(loopStartLabel)
+        val b1 = cb.newLocal[Long]("b1")
+        val b2 = cb.newLocal[Long]("b2")
+
+        cb.assign(b1, loopRef.r1.totalManagedBytes())
+        cb.assign(b2, loopRef.r2.totalManagedBytes())
+
+        cb.println("r1 Bytes = ", b1.get.toS)
+        cb.println("r2 Bytes = ", b2.get.toS)
 
         emitI(body, env = argEnv, loopEnv = Some(newLoopEnv.bind(name, loopRef)))
 
       case Recur(name, args, _) =>
         val loopRef = loopEnv.get.lookup(name)
 
+        // Need to emit into region 2, clear region 1, then swap them.
         (loopRef.tmpLoopArgs, loopRef.loopTypes, args).zipped.map { case (tmpLoopArg, pt, arg) =>
-          tmpLoopArg.store(cb, emitI(arg, loopEnv = None).map(cb)(_.castTo(cb, region.code, pt)))
+          tmpLoopArg.store(cb, emitI(arg, loopEnv = None).map(cb)(_.castTo(cb, loopRef.r2, pt)))
         }
+
+        cb.append(new RichCodeRegion(loopRef.r1).clear())
+
+        // Swap
+        val temp = cb.newLocal[Region]("recur_temp_swap_region")
+        cb.assign(temp, loopRef.r1)
+        cb.assign(loopRef.r1, loopRef.r2)
+        cb.assign(loopRef.r2, temp)
 
         cb.assign(loopRef.loopArgs, loopRef.tmpLoopArgs.load())
         cb.goto(loopRef.L)
