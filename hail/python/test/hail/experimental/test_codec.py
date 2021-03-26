@@ -4,9 +4,9 @@ from test.hail.helpers import *
 setUpModule = startTestHailContext
 tearDownModule = stopTestHailContext
 
-UNBLOCKED_UNBUFFERED_SPEC = '{"name":"StreamBufferSpec"}'
-BLOCKED_UNBUFFERED_SPEC = '''{"name":"BlockingBufferSpec","blockSize":65536,
-                              "child":{"name":"StreamBlockBufferSpec"}}'''
+UNBLOCKED_UNBUFFERED_SPEC = '{"jsonClass":"StreamBufferSpec"}'
+BLOCKED_UNBUFFERED_SPEC = '''{"jsonClass":"BlockingBufferSpec","blockSize":65536,
+                              "child":{"jsonClass":"StreamBlockBufferSpec"}}'''
 
 
 def assert_round_trip(exp, codec):
@@ -22,10 +22,10 @@ def assert_round_trip_all_specs(exp):
 
 @skip_unless_spark_backend()
 def test_encode_basics():
-    (_, b) = hl.experimental.encode(hl.literal(1), codec='{"name":"StreamBufferSpec"}')
+    (_, b) = hl.experimental.encode(hl.literal(1), codec='{"jsonClass":"StreamBufferSpec"}')
     assert b.hex() == '01000000'
 
-    (_, b) = hl.experimental.encode(hl.literal(-1), codec='{"name":"StreamBufferSpec"}')
+    (_, b) = hl.experimental.encode(hl.literal(-1), codec='{"jsonClass":"StreamBufferSpec"}')
     assert b.hex() == 'ffffffff'
 
 

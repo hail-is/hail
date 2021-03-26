@@ -649,8 +649,7 @@ object PartitionReader {
       classOf[PartitionNativeReaderIndexed],
       classOf[PartitionZippedNativeReader],
       classOf[AbstractTypedCodecSpec],
-      classOf[TypedCodecSpec]),
-      typeHintFieldName = "name") + BufferSpec.shortTypeHints
+      classOf[TypedCodecSpec])) + BufferSpec.shortTypeHints
   }  +
     new TStructSerializer +
     new TypeSerializer +
@@ -663,7 +662,7 @@ object PartitionWriter {
     override val typeHints = ShortTypeHints(List(
       classOf[PartitionNativeWriter],
       classOf[AbstractTypedCodecSpec],
-      classOf[TypedCodecSpec]), typeHintFieldName = "name"
+      classOf[TypedCodecSpec])
     ) + BufferSpec.shortTypeHints
   }  +
     new TStructSerializer +
@@ -681,8 +680,7 @@ object MetadataWriter {
       classOf[RelationalWriter],
       classOf[RVDSpecMaker],
       classOf[AbstractTypedCodecSpec],
-      classOf[TypedCodecSpec]),
-      typeHintFieldName = "name"
+      classOf[TypedCodecSpec])
     ) + BufferSpec.shortTypeHints
   }  +
     new TStructSerializer +

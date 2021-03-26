@@ -48,12 +48,12 @@ class MatrixNativeReader(MatrixReader):
             self.intervals = intervals
 
     def render(self, r):
-        reader = {'name': 'MatrixNativeReader',
+        reader = {'jsonClass': 'MatrixNativeReader',
                   'path': self.path}
         if self.intervals is not None:
             assert self._interval_type is not None
             reader['options'] = {
-                'name': 'NativeReaderOptions',
+                'jsonClass': 'NativeReaderOptions',
                 'intervals': self._interval_type._convert_to_json(self.intervals),
                 'intervalPointType': self._interval_type.element_type.point_type._parsable_string(),
                 'filterIntervals': self.filter_intervals,
@@ -77,7 +77,7 @@ class MatrixRangeReader(MatrixReader):
         self.n_partitions = n_partitions
 
     def render(self, r):
-        reader = {'name': 'MatrixRangeReader',
+        reader = {'jsonClass': 'MatrixRangeReader',
                   'nRows': self.n_rows,
                   'nCols': self.n_cols,
                   'nPartitions': self.n_partitions}
@@ -142,7 +142,7 @@ class MatrixVCFReader(MatrixReader):
         self._partitions_json = _partitions_json
 
     def render(self, r):
-        reader = {'name': 'MatrixVCFReader',
+        reader = {'jsonClass': 'MatrixVCFReader',
                   'files': self.path,
                   'callFields': self.call_fields,
                   'entryFloatTypeName': self.entry_float_type,
@@ -198,7 +198,7 @@ class MatrixBGENReader(MatrixReader):
         self.included_variants = included_variants
 
     def render(self, r):
-        reader = {'name': 'MatrixBGENReader',
+        reader = {'jsonClass': 'MatrixBGENReader',
                   'files': self.path,
                   'sampleFile': self.sample_file,
                   'indexFileMap': self.index_file_map,
@@ -251,7 +251,7 @@ class TextMatrixReader(MatrixReader):
         self.comment = comment
 
     def render(self, r):
-        reader = {'name': 'TextMatrixReader',
+        reader = {'jsonClass': 'TextMatrixReader',
                   'paths': self.paths,
                   'nPartitions': self.n_partitions,
                   'rowFieldsStr': {k: v._parsable_string()
@@ -303,7 +303,7 @@ class MatrixPLINKReader(MatrixReader):
         self.skip_invalid_loci = skip_invalid_loci
 
     def render(self, r):
-        reader = {'name': 'MatrixPLINKReader',
+        reader = {'jsonClass': 'MatrixPLINKReader',
                   'bed': self.bed,
                   'bim': self.bim,
                   'fam': self.fam,
@@ -341,7 +341,7 @@ class MatrixGENReader(MatrixReader):
     def __init__(self, files, sample_file, chromosome, min_partitions, tolerance,
                  rg, contig_recoding, skip_invalid_loci):
         self.config = {
-            'name': 'MatrixGENReader',
+            'jsonClass': 'MatrixGENReader',
             'files': files,
             'sampleFile': sample_file,
             'chromosome': chromosome,

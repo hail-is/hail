@@ -21,7 +21,7 @@ object RelationalSpec {
   implicit val formats: Formats = new DefaultFormats() {
     override val typeHints = ShortTypeHints(List(
       classOf[ComponentSpec], classOf[RVDComponentSpec], classOf[PartitionCountsComponentSpec],
-      classOf[RelationalSpec], classOf[MatrixTableSpec], classOf[TableSpec]), typeHintFieldName="name")
+      classOf[RelationalSpec], classOf[MatrixTableSpec], classOf[TableSpec]))
   } +
     new TableTypeSerializer +
     new MatrixTypeSerializer
@@ -50,7 +50,7 @@ object RelationalSpec {
   }
 
   def read(fs: FS, path: String): RelationalSpec = {
-    val jv = readMetadata(fs, path)
+    val jv = readMetadata(fs, path).transformField { case ("name", value) => ("jsonClass", value)}
     val references = readReferences(fs, path, jv)
 
     references.foreach { rg =>
@@ -58,7 +58,7 @@ object RelationalSpec {
         ReferenceGenome.addReference(rg)
     }
 
-    (jv \ "name").extract[String] match {
+    (jv \ "jsonClass").extract[String] match {
       case "TableSpec" => TableSpec.fromJValue(fs, path, jv)
       case "MatrixTableSpec" => MatrixTableSpec.fromJValue(fs, path, jv)
     }
@@ -149,7 +149,7 @@ object MatrixTableSpec {
   def fromJValue(fs: FS, path: String, jv: JValue): MatrixTableSpec = {
     implicit val formats: Formats = new DefaultFormats() {
       override val typeHints = ShortTypeHints(List(
-        classOf[ComponentSpec], classOf[RVDComponentSpec], classOf[PartitionCountsComponentSpec]), typeHintFieldName = "name")
+        classOf[ComponentSpec], classOf[RVDComponentSpec], classOf[PartitionCountsComponentSpec]))
     } +
       new MatrixTypeSerializer
     val params = jv.extract[MatrixTableSpecParameters]

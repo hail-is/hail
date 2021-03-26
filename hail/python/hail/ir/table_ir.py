@@ -544,7 +544,7 @@ class TableToTableApply(TableIR):
         return self.config == other.config
 
     def _compute_type(self):
-        name = self.config['name']
+        name = self.config['jsonClass']
         if name == 'TableFilterPartitions':
             self._type = self.child.typ
         else:

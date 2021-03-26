@@ -44,12 +44,12 @@ class TableNativeReader(TableReader):
             self.intervals = intervals
 
     def render(self):
-        reader = {'name': 'TableNativeReader',
+        reader = {'jsonClass': 'TableNativeReader',
                   'path': self.path}
         if self.intervals is not None:
             assert self._interval_type is not None
             reader['options'] = {
-                'name': 'NativeReaderOptions',
+                'jsonClass': 'NativeReaderOptions',
                 'intervals': self._interval_type._convert_to_json(self.intervals),
                 'intervalPointType': self._interval_type.element_type.point_type._parsable_string(),
                 'filterIntervals': self.filter_intervals
@@ -86,7 +86,7 @@ class TextTableReader(TableReader):
 
     def render(self):
         reader = dict(self.config)
-        reader['name'] = 'TextTableReader'
+        reader['jsonClass'] = 'TextTableReader'
         return escape_str(json.dumps(reader))
 
     def __eq__(self, other):
@@ -102,7 +102,7 @@ class TableFromBlockMatrixNativeReader(TableReader):
         self.maximum_cache_memory_in_bytes = maximum_cache_memory_in_bytes
 
     def render(self):
-        reader = {'name': 'TableFromBlockMatrixNativeReader',
+        reader = {'jsonClass': 'TableFromBlockMatrixNativeReader',
                   'path': self.path,
                   'nPartitions': self.n_partitions,
                   'maximumCacheMemoryInBytes': self.maximum_cache_memory_in_bytes}

@@ -130,17 +130,22 @@ object RelationalFunctions {
     classOf[WrappedMatrixToTableFunction],
     classOf[WrappedMatrixToValueFunction],
     classOf[PCRelate]
-  ), typeHintFieldName = "name")
+  ))
 
   def extractTo[T: Manifest](ctx: ExecuteContext, config: String): T = {
-    val jv = JsonMethods.parse(config)
-    (jv \ "name").extract[String] match {
-      case "VEP" => VEP.fromJValue(ctx.fs, jv).asInstanceOf[T]
-      case _ => {
-        log.info("JSON: " + jv.toString)
-        jv.extract[T]
+    try {
+      val jv = JsonMethods.parse(config)
+      (jv \ "jsonClass").extract[String] match {
+        case "VEP" => VEP.fromJValue(ctx.fs, jv).asInstanceOf[T]
+        case _ => {
+          log.info("JSON: " + jv.toString)
+          jv.extract[T]
+        }
       }
+    } catch {
+      case e: Throwable => throw new IllegalStateException(config)
     }
+
   }
 
   def lookupMatrixToMatrix(ctx: ExecuteContext, config: String): MatrixToMatrixFunction = extractTo[MatrixToMatrixFunction](ctx, config)

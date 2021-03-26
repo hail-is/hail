@@ -413,7 +413,7 @@ class Table(ExprContainer):
         -------
         :obj:`int`
         """
-        return Env.backend().execute(ir.TableToValueApply(self._tir, {'name': 'NPartitionsTable'}))
+        return Env.backend().execute(ir.TableToValueApply(self._tir, {'jsonClass': 'NPartitionsTable'}))
 
     def count(self):
         """Count the number of rows in the table.
@@ -431,7 +431,7 @@ class Table(ExprContainer):
         return Env.backend().execute(ir.TableCount(self._tir))
 
     def _force_count(self):
-        return Env.backend().execute(ir.TableToValueApply(self._tir, {'name': 'ForceCountTable'}))
+        return Env.backend().execute(ir.TableToValueApply(self._tir, {'jsonClass': 'ForceCountTable'}))
 
     @typecheck_method(caller=str,
                       row=expr_struct())
@@ -1220,15 +1220,15 @@ class Table(ExprContainer):
         """
         if _codec_spec is None:
             _codec_spec = """{
-  "name": "LEB128BufferSpec",
+  "jsonClass": "LEB128BufferSpec",
   "child": {
-    "name": "BlockingBufferSpec",
+    "jsonClass": "BlockingBufferSpec",
     "blockSize": 32768,
     "child": {
-      "name": "LZ4FastBlockBufferSpec",
+      "jsonClass": "LZ4FastBlockBufferSpec",
       "blockSize": 32768,
       "child": {
-        "name": "StreamBlockBufferSpec"
+        "jsonClass": "StreamBlockBufferSpec"
       }
     }
   }
@@ -3434,7 +3434,7 @@ class Table(ExprContainer):
 
     @typecheck_method(parts=sequenceof(int), keep=bool)
     def _filter_partitions(self, parts, keep=True) -> 'Table':
-        return Table(ir.TableToTableApply(self._tir, {'name': 'TableFilterPartitions', 'parts': parts, 'keep': keep}))
+        return Table(ir.TableToTableApply(self._tir, {'jsonClass': 'TableFilterPartitions', 'parts': parts, 'keep': keep}))
 
     @typecheck_method(entries_field_name=str,
                       cols_field_name=str,
@@ -3518,7 +3518,7 @@ class Table(ExprContainer):
         """returns a set of range bounds that can be passed to write"""
         return Env.backend().execute(ir.TableToValueApply(
             self._tir,
-            {'name': 'TableCalculateNewPartitions',
+            {'jsonClass': 'TableCalculateNewPartitions',
              'nPartitions': n_partitions}))
 
 

@@ -30,8 +30,7 @@ object AbstractRVDSpec {
       classOf[compatibility.IndexSpec],
       classOf[compatibility.UnpartitionedRVDSpec],
       classOf[AbstractTypedCodecSpec],
-      classOf[TypedCodecSpec]),
-    typeHintFieldName = "name") + BufferSpec.shortTypeHints
+      classOf[TypedCodecSpec])) + BufferSpec.shortTypeHints
   }  +
     new TStructSerializer +
     new TypeSerializer +

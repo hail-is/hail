@@ -81,7 +81,7 @@ case class MatrixLiteral(typ: MatrixType, tl: TableLiteral) extends MatrixIR {
 object MatrixReader {
   def fromJson(env: IRParserEnvironment, jv: JValue): MatrixReader = {
     implicit val formats: Formats = DefaultFormats
-    (jv \ "name").extract[String] match {
+    (jv \ "jsonClass").extract[String] match {
       case "MatrixRangeReader" => MatrixRangeReader.fromJValue(env.ctx, jv)
       case "MatrixNativeReader" => MatrixNativeReader.fromJValue(env.ctx.fs, jv)
       case "MatrixBGENReader" => MatrixBGENReader.fromJValue(env, jv)

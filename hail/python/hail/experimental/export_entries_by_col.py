@@ -77,7 +77,7 @@ def export_entries_by_col(mt: hl.MatrixTable,
         raise ValueError(f'parameter "use_string_key_as_file_name" requires a single string column key, found {list(mt.col_key.dtype.values())}')
     hl.utils.java.Env.backend().execute(
         hl.ir.MatrixToValueApply(mt._mir,
-                                 {'name': 'MatrixExportEntriesByCol',
+                                 {'jsonClass': 'MatrixExportEntriesByCol',
                                   'parallelism': batch_size,
                                   'path': path,
                                   'bgzip': bgzip,

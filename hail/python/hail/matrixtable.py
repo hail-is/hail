@@ -2382,7 +2382,7 @@ class MatrixTable(ExprContainer):
             return construct_expr(ir.LiftMeOut(count_ir), hl.tint64)
 
     def _force_count_rows(self):
-        return Env.backend().execute(ir.MatrixToValueApply(self._mir, {'name': 'ForceCountMatrixTable'}))
+        return Env.backend().execute(ir.MatrixToValueApply(self._mir, {'jsonClass': 'ForceCountMatrixTable'}))
 
     def _force_count_cols(self):
         return self.cols()._force_count()

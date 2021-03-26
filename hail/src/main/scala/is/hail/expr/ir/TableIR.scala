@@ -100,7 +100,7 @@ object TableReader {
   ) + new NativeReaderOptionsSerializer()
 
   def fromJValue(fs: FS, jv: JValue): TableReader = {
-    (jv \ "name").extract[String] match {
+    (jv \ "jsonClass").extract[String] match {
       case "TableNativeReader" => TableNativeReader.fromJValue(fs, jv)
       case "TextTableReader" => TextTableReader.fromJValue(fs, jv)
       case "TableFromBlockMatrixNativeReader" => TableFromBlockMatrixNativeReader.fromJValue(fs, jv)

@@ -92,12 +92,11 @@ case class BlockMatrixRead(reader: BlockMatrixReader) extends BlockMatrixIR {
 object BlockMatrixReader {
   implicit val formats: Formats = new DefaultFormats() {
     override val typeHints = ShortTypeHints(
-      List(classOf[BlockMatrixNativeReader], classOf[BlockMatrixBinaryReader], classOf[BlockMatrixPersistReader]),
-      typeHintFieldName = "name")
+      List(classOf[BlockMatrixNativeReader], classOf[BlockMatrixBinaryReader], classOf[BlockMatrixPersistReader]))
   }
 
   def fromJValue(ctx: ExecuteContext, jv: JValue): BlockMatrixReader = {
-    (jv \ "name").extract[String] match {
+    (jv \ "jsonClass").extract[String] match {
       case "BlockMatrixNativeReader" => BlockMatrixNativeReader.fromJValue(ctx.fs, jv)
       case "BlockMatrixPersistReader" => BlockMatrixPersistReader.fromJValue(ctx.backendContext, jv)
       case _ => jv.extract[BlockMatrixReader]

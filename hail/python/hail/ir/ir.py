@@ -2353,7 +2353,7 @@ class TableToValueApply(IR):
         return other.config == self.config
 
     def _compute_type(self, env, agg_env):
-        name = self.config['name']
+        name = self.config['jsonClass']
         if name == 'ForceCountTable':
             self._type = tint64
         elif name == 'TableCalculateNewPartitions':
@@ -2380,7 +2380,7 @@ class MatrixToValueApply(IR):
         return other.config == self.config
 
     def _compute_type(self, env, agg_env):
-        name = self.config['name']
+        name = self.config['jsonClass']
         if name == 'ForceCountMatrixTable':
             self._type = tint64
         elif name == 'NPartitionsMatrixTable':
@@ -2410,7 +2410,7 @@ class BlockMatrixToValueApply(IR):
         return other.config == self.config
 
     def _compute_type(self, env, agg_env):
-        assert self.config['name'] == 'GetElement'
+        assert self.config['jsonClass'] == 'GetElement'
         self._type = tfloat64
 
 

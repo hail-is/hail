@@ -23,7 +23,7 @@ import org.json4s.{DefaultFormats, Formats, ShortTypeHints}
 object TableWriter {
   implicit val formats: Formats = new DefaultFormats()  {
     override val typeHints = ShortTypeHints(
-      List(classOf[TableNativeWriter], classOf[TableTextWriter]), typeHintFieldName = "name")
+      List(classOf[TableNativeWriter], classOf[TableTextWriter]))
   }
 }
 

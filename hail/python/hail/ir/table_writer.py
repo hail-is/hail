@@ -28,7 +28,7 @@ class TableNativeWriter(TableWriter):
         self.codec_spec = codec_spec
 
     def render(self):
-        writer = {'name': 'TableNativeWriter',
+        writer = {'jsonClass': 'TableNativeWriter',
                   'path': self.path,
                   'overwrite': self.overwrite,
                   'stageLocally': self.stage_locally,
@@ -58,7 +58,7 @@ class TableTextWriter(TableWriter):
         self.delimiter = delimiter
 
     def render(self):
-        writer = {'name': 'TableTextWriter',
+        writer = {'jsonClass': 'TableTextWriter',
                   'path': self.path,
                   'typesFile': self.types_file,
                   'header': self.header,
