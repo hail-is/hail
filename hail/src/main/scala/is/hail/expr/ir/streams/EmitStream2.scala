@@ -42,6 +42,26 @@ abstract class StreamConsumer {
   def finish(cb: EmitCodeBuilder): IEmitCode
 }
 
+
+final case class SStreamCode2(st: SStream, producer: StreamProducer) extends PStreamCode {
+  self =>
+  override def pt: PStream = st.pType
+
+  def memoize(cb: EmitCodeBuilder, name: String): PValue = new PValue {
+    def pt: PStream = PCanonicalStream(st.pType)
+
+    override def st: SType = self.st
+
+    var used: Boolean = false
+
+    def get: PCode = {
+      assert(!used)
+      used = true
+      self
+    }
+  }
+}
+
 object EmitStream2 {
 
   private[ir] def feed(emitter: Emit[_],
@@ -713,220 +733,3 @@ object EmitStream2 {
   }
 }
 
-
-//      def writeToArray(
-//        cb: EmitCodeBuilder,
-//        //      stream: SStreamCode,
-//        ab: StagedArrayBuilder,
-//        destRegion: Value[Region]
-//      ): StreamConsumer = {
-//
-//
-//        new StreamConsumer {
-//          private[this] var elementType: SType = _
-//          private[this] var ab: StagedArrayBuilder = _
-//
-//          def initType(elementType: SType): Unit = this.elementType = elementType
-//
-//          def init(cb: EmitCodeBuilder, len: Option[Code[Int]]): Unit = {
-//
-//
-//            cb += ab.clear
-//            cb += ab.ensureCapacity(len.getOrElse(const(16)))
-//          }
-//
-//          def consumeElement(cb: EmitCodeBuilder, element: EmitCode, eltRegion: Option[Settable[Region]]): Unit = {
-//            element.toI(cb).consume(cb,
-//              cb += ab.addMissing(),
-//              { pc =>
-//                val pcCopy = if (eltRegion.isDefined) pc.copyToRegion(cb, destRegion) else pc
-//                cb += ab.add(SingleCodePCode.fromPCode(cb, pcCopy, destRegion).code)
-//              }
-//            )
-//            eltRegion.foreach { region =>
-//              cb += region.clearRegion()
-//            }
-//          }
-//
-//          val done: CodeLabel = CodeLabel()
-//
-//          def close(cb: EmitCodeBuilder): Unit = {}
-//
-//          def finish(cb: EmitCodeBuilder): IEmitCode = {
-//
-//          }
-//        }
-//
-//        if (stream.separateRegions)
-//          cb.assign(stream.region, Region.stagedCreate(Region.REGULAR, destRegion.getPool()))
-//        else
-//          cb.assign(stream.region, destRegion)
-//        cb += stream.setup
-//        cb += ab.clear
-//        cb += ab.ensureCapacity(stream.length.getOrElse(const(16)))
-//
-//        stream.stream.forEachI(cb) { case (cb, elt) =>
-//          elt.toI(cb)
-//            .consume(cb,
-//              cb += ab.addMissing(),
-//              { pc =>
-//                val pcCopy = if (stream.separateRegions) pc.copyToRegion(cb, destRegion) else pc
-//                cb += ab.add(SingleCodePCode.fromPCode(cb, pcCopy, destRegion).code)
-//              }
-//            )
-//          if (stream.separateRegions)
-//            cb += stream.region.clear()
-//        }
-//      }
-//
-//      def toArray(
-//        cb: EmitCodeBuilder,
-//        aTyp: PCanonicalArray,
-//        stream: SStreamCode,
-//        destRegion: Value[Region]
-//      ): PCode = {
-//        val mb = cb.emb
-//        val xLen = mb.newLocal[Int]("sta_len")
-//        stream.length match {
-//          case None =>
-//            val vab = new StagedArrayBuilder(aTyp.elementType, mb, 0)
-//            write(cb, stream, vab, destRegion)
-//            cb.assign(xLen, vab.size)
-//
-//            aTyp.constructFromElements(cb, destRegion, xLen, deepCopy = false) { (cb, i) =>
-//              IEmitCode(cb, vab.isMissing(i), PCode(aTyp.elementType, vab(i)))
-//            }
-//
-//          case Some(len) =>
-//            if (stream.separateRegions)
-//              cb.assign(stream.region, Region.stagedCreate(Region.REGULAR, destRegion.getPool()))
-//            else
-//              cb.assign(stream.region, destRegion)
-//            cb += stream.setup
-//            cb.assign(xLen, len)
-//
-//            val (push, finish) = aTyp.constructFromFunctions(cb, destRegion, xLen, deepCopy = stream.separateRegions)
-//            stream.stream.forEachI(cb) { case (cb, elt) =>
-//              push(cb, elt.toI(cb))
-//              if (stream.separateRegions)
-//                cb += stream.region.clear()
-//            }
-//            finish(cb)
-//        }
-//      }
-
-final case class SStreamCode2(st: SStream, producer: StreamProducer) extends PStreamCode {
-  self =>
-  override def pt: PStream = st.pType
-
-  def memoize(cb: EmitCodeBuilder, name: String): PValue = new PValue {
-    def pt: PStream = PCanonicalStream(st.pType)
-
-    override def st: SType = self.st
-
-    var used: Boolean = false
-
-    def get: PCode = {
-      assert(!used)
-      used = true
-      self
-    }
-  }
-}
-
-//
-//object EmitStream2 {
-//
-//  def iota(mb: EmitMethodBuilder[_], start: Code[Int], step: Code[Int]): StreamProducer = {
-//    val lstep = mb.genFieldThisRef[Int]("sr_lstep")
-//    val cur = mb.genFieldThisRef[Int]("sr_cur")
-//
-//    StreamProducer(
-//      Code(lstep := step, cur := start - lstep).start,
-//      Code._empty.start,
-//      Code._empty.start,
-//      EmitCode.present(mb, new SInt32Code(true, cur)),
-//      CodeLabel()
-//    )
-//    unfold[Code[Int]](
-//      f = {
-//        case (_ctx, k) =>
-//          implicit val ctx = _ctx
-//          Code(cur := cur + lstep, k(COption.present(cur)))
-//      },
-//      setup = Some())
-//  }
-//
-//  private[ir] def emit(
-//    emitter: Emit[_],
-//    streamIR0: IR,
-//    mb: EmitMethodBuilder[_],
-//    outerRegion: Value[Region],
-//    env0: Emit.E,
-//    container: Option[AggContainer]
-//  ): EmitCode = {
-//
-//    def _emitStream(cb: EmitCodeBuilder, streamIR: IR, outerRegion: Value[Region], env: Emit.E): IEmitCode = {
-//      assert(cb.isOpenEnded)
-//
-//      def emitVoidIR(ir: IR, cb: EmitCodeBuilder = cb, env: Emit.E = env, region: Value[Region] = outerRegion, container: Option[AggContainer] = container): Unit =
-//        emitter.emitVoid(cb, ir, mb, region, env, container, None)
-//
-//      def emitStream(streamIR: IR, cb: EmitCodeBuilder = cb, env: Emit.E = env, outerRegion: Value[Region] = outerRegion): IEmitCode =
-//        _emitStream(cb, streamIR, outerRegion, env)
-//
-//      def emitIR(ir: IR, cb: EmitCodeBuilder = cb, env: Emit.E = env, region: Value[Region] = outerRegion, container: Option[AggContainer] = container): IEmitCode =
-//        emitter.emitI(ir, cb, region, env, container, None)
-//
-//
-//      val result: IEmitCode = streamIR match {
-//        case x@NA(_) =>
-//          IEmitCode.missing(cb, x.pType.defaultValue(mb))
-//
-//
-//        case x@StreamRange(startIR, stopIR, stepIR, separateRegions) =>
-//          val llen = mb.genFieldThisRef[Long]("sr_llen")
-//          val len = mb.genFieldThisRef[Int]("sr_len")
-//
-//          emitIR(startIR).flatMap(cb) { startc =>
-//            emitIR(stopIR).flatMap(cb) { stopc =>
-//              emitIR(stepIR).map(cb) { stepc =>
-//                val start = cb.memoizeField(startc, "sr_step")
-//                val stop = cb.memoizeField(stopc, "sr_stop")
-//                val step = cb.memoizeField(stepc, "sr_step")
-//                cb.ifx(step.asInt.intCode(cb) ceq const(0), cb._fatal("Array range cannot have step size 0."))
-//                cb.ifx(step.asInt.intCode(cb) < const(0), {
-//                  cb.ifx(start.asInt.intCode(cb).toL <= stop.asInt.intCode(cb).toL, {
-//                    cb.assign(llen, 0L)
-//                  }, {
-//                    cb.assign(llen, (start.asInt.intCode(cb).toL - stop.asInt.intCode(cb).toL - 1L) / (-step.asInt.intCode(cb).toL) + 1L)
-//                  })
-//                }, {
-//                  cb.ifx(start.asInt.intCode(cb).toL >= stop.asInt.intCode(cb).toL, {
-//                    cb.assign(llen, 0L)
-//                  }, {
-//                    cb.assign(llen, (stop.asInt.intCode(cb).toL - start.asInt.intCode(cb).toL - 1L) / step.asInt.intCode(cb).toL + 1L)
-//                  })
-//                })
-//                cb.ifx(llen > const(Int.MaxValue.toLong), {
-//                  cb._fatal("Array range cannot have more than MAXINT elements.")
-//                })
-//
-//                val region = cb.emb.genFieldThisRef[Region]("streamrange_region")
-//                new SStreamCode2(
-//                  SStream(SInt32(true), required = true),
-//                  region,
-//                  range(mb, start.asInt.intCode(cb), step.asInt.intCode(cb), len)
-//                    .map(i => EmitCode.present(mb, new SInt32Code(true, i))),
-//                  separateRegions = separateRegions,
-//                  Code._empty,
-//                  Some(len)
-//                )
-//              }
-//            }
-//          }
-//
-//
-//      }
-//    }
-//  }
