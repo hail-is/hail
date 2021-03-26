@@ -42,7 +42,10 @@ object AbstractRVDSpec {
     try {
       val metadataFile = path + "/metadata.json.gz"
       using(fs.open(metadataFile)) { in => JsonMethods.parse(in) }
-        .transformField { case ("orvdType", value) => ("rvdType", value) } // ugh
+        .transformField {
+          case ("orvdType", value) => ("rvdType", value)
+          case ("name", value) => ("jsonClass", value)
+        } // ugh
         .extract[AbstractRVDSpec]
     } catch {
       case e: Exception => fatal(s"failed to read RVD spec $path", e)
