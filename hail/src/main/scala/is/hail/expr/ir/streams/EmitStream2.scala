@@ -12,6 +12,8 @@ import is.hail.types.physical.{PCanonicalStream, PCode, PStream, PStreamCode, PV
 import is.hail.types.virtual.TStream
 import is.hail.utils._
 
+
+
 abstract class StreamProducer {
   val length: Option[Code[Int]]
 
@@ -31,18 +33,17 @@ abstract class StreamProducer {
   val element: EmitCode
 
   def close(cb: EmitCodeBuilder): Unit
+
+  final def consume(cb: EmitCodeBuilder)(perElement: EmitCodeBuilder => Unit): Unit = {
+
+    cb.define(this.LproduceElementDone)
+    perElement(cb)
+    cb.goto(this.LproduceElement)
+
+    cb.define(this.LendOfStream)
+    this.close(cb)
+  }
 }
-
-abstract class StreamConsumer {
-  def init(cb: EmitCodeBuilder, eltType: SType, length: Option[Code[Int]], eltRegion: Settable[Region], separateRegions: Boolean): Unit
-
-  def consumeElement(cb: EmitCodeBuilder, elt: EmitCode): Unit
-
-  def done: CodeLabel
-
-  def finish(cb: EmitCodeBuilder): IEmitCode
-}
-
 
 final case class SStreamCode2(st: SStream, producer: StreamProducer) extends PStreamCode {
   self =>
@@ -64,54 +65,6 @@ final case class SStreamCode2(st: SStream, producer: StreamProducer) extends PSt
 }
 
 object EmitStream2 {
-
-  private[ir] def feed(emitter: Emit[_],
-    cb: EmitCodeBuilder,
-    consumer: StreamConsumer,
-    streamIR: IR,
-    outerRegion: Value[Region],
-    env0: Emit.E,
-    container: Option[AggContainer]): IEmitCode = {
-
-    val mb = cb.emb
-
-    def emitIR(ir: IR, cb: EmitCodeBuilder, env: Emit.E = env0, region: Value[Region] = outerRegion, container: Option[AggContainer] = container): IEmitCode =
-      emitter.emitI(ir, cb, StagedRegion(region), env, container, None)
-
-    def produce(streamIR: IR, cb: EmitCodeBuilder, outerRegion: Value[Region] = outerRegion, env: Emit.E = env0, container: Option[AggContainer] = container): IEmitCode = {
-      EmitStream2.produce(emitter, streamIR, cb, outerRegion, env, container)
-    }
-
-    def feed(cb: EmitCodeBuilder,
-      consumer: StreamConsumer,
-      streamIR: IR,
-      outerRegion: Value[Region] = outerRegion,
-      env0: Emit.E = env0,
-      container: Option[AggContainer] = container): IEmitCode = EmitStream2.feed(emitter, cb, consumer, streamIR, outerRegion, env0, container)
-
-
-    streamIR match {
-      case _ =>
-        produce(streamIR, cb).flatMap(cb) { case (sc: SStreamCode2) =>
-
-          val producer = sc.producer
-
-          consumer.init(cb, producer.element.st, producer.length, producer.elementRegion, producer.separateRegions)
-
-          cb.goto(producer.LproduceElement)
-          cb.define(producer.LproduceElementDone)
-          consumer.consumeElement(cb, producer.element)
-          cb.goto(producer.LproduceElement)
-
-          cb.define(consumer.done)
-          cb.define(producer.LendOfStream)
-          producer.close(cb)
-          consumer.finish(cb)
-        }
-    }
-  }
-
-
   private[ir] def produce(
     emitter: Emit[_],
     streamIR: IR,
@@ -766,15 +719,15 @@ object EmitStream2 {
                 if (rightProducer.separateRegions)
                   cb.assign(rightProducer.elementRegion, Region.stagedCreate(Region.REGULAR, outerRegion.getPool()))
 
-                val elementRegion = mb.genFieldThisRef[Region]("join_right_distinct_element_region")
+                val _elementRegion = mb.genFieldThisRef[Region]("join_right_distinct_element_region")
 
                 val joinResult = EmitCode.fromI(mb)(cb => emit(joinIR, cb,
-                  region = elementRegion,
+                  region = _elementRegion,
                   env = env.bind(leftName -> lxOut, rightName -> rxOut)))
 
                 val producer = new StreamProducer {
                   override val length: Option[Code[Int]] = None
-                  override val elementRegion: Settable[Region] = elementRegion
+                  override val elementRegion: Settable[Region] = _elementRegion
                   override val separateRegions: Boolean = leftProducer.separateRegions || rightProducer.separateRegions
                   override val LproduceElementDone: CodeLabel = CodeLabel()
                   override val LendOfStream: CodeLabel = CodeLabel()
