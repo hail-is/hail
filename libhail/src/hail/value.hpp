@@ -96,6 +96,7 @@ class TupleValue {
 public:
   const VTuple *vtype;
 private:
+
   std::shared_ptr<ArenaAllocator> region;
   char *p;
 

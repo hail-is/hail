@@ -8,6 +8,7 @@
 #include <hail/query/backend/jit.hpp>
 #include <hail/query/ir.hpp>
 #include <hail/tunion.hpp>
+#include <hail/test.hpp>
 #include <hail/type.hpp>
 #include <hail/value.hpp>
 
