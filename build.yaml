@@ -2814,6 +2814,7 @@ steps:
      cp -R /repo/hail/gear ./
      cp -R /repo/hail/hail/python ./hail/
      cp /repo/hail/hail/Makefile ./hail/
+     cp /repo/hail/hail/env_var.mk ./hail/
      cp -R /repo/hail/web_common ./
      cp /repo/hail/hail/python/setup-hailtop.py ./hail/python/
 
