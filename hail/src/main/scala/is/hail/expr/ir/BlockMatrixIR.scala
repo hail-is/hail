@@ -96,11 +96,16 @@ object BlockMatrixReader {
   }
 
   def fromJValue(ctx: ExecuteContext, jv: JValue): BlockMatrixReader = {
-    (jv \ "jsonClass").extract[String] match {
-      case "BlockMatrixNativeReader" => BlockMatrixNativeReader.fromJValue(ctx.fs, jv)
-      case "BlockMatrixPersistReader" => BlockMatrixPersistReader.fromJValue(ctx.backendContext, jv)
-      case _ => jv.extract[BlockMatrixReader]
+    try {
+      (jv \ "jsonClass").extract[String] match {
+        case "BlockMatrixNativeReader" => BlockMatrixNativeReader.fromJValue(ctx.fs, jv)
+        case "BlockMatrixPersistReader" => BlockMatrixPersistReader.fromJValue(ctx.backendContext, jv)
+        case _ => jv.extract[BlockMatrixReader]
+      }
+    } catch {
+      case e: Throwable => throw new IllegalStateException(jv.toString)
     }
+
   }
 }
 

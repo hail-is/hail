@@ -875,7 +875,7 @@ package object utils extends Logging
 
   def decomposeWithName(v: Any, name: String)(implicit formats: Formats): JObject = {
     val jo = Extraction.decompose(v).asInstanceOf[JObject]
-    jo.merge(JObject("name" -> JString(name)))
+    jo.merge(JObject("jsonClass" -> JString(name)))
   }
 
   def makeVirtualOffset(fileOffset: Long, blockOffset: Int): Long = {

@@ -50,13 +50,13 @@ class DNDArray:
 
     default_block_size = 4096
     fast_codec_spec = json.dumps({
-        "name": "BlockingBufferSpec",
+        "jsonClass": "BlockingBufferSpec",
         "blockSize": 64 * 1024,
         "child": {
-            "name": "LZ4FastBlockBufferSpec",
+            "jsonClass": "LZ4FastBlockBufferSpec",
             "blockSize": 64 * 1024,
             "child": {
-                "name": "StreamBlockBufferSpec"}}})
+                "jsonClass": "StreamBlockBufferSpec"}}})
 
     @staticmethod
     def from_matrix_table(
