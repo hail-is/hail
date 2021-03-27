@@ -33,7 +33,8 @@ principals:
     - workshop
   kind: json
 - name: notebook
-  domain: notebook
+  domains:
+    - notebook
   kind: nginx
 - name: gateway
   domains:
