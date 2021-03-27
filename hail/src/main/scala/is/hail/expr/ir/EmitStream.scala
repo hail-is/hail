@@ -1545,14 +1545,14 @@ object EmitStream {
 
             def newStream(eltRegion: ChildStagedRegion): Stream[EmitCode] = stream(eltRegion).map { eltt => (eltType, bodyIR.pType) match {
               case (eltType: PCanonicalStream, bodyType: PCanonicalStream) =>
-                val bodyenv = env.bind(name -> new EmitUnrealizableValue(eltType, eltt))
+                val bodyenv = env.bind(name -> new EmitUnrealizableValue(eltt))
                 val bodySeparateRegions = emitter.ctx.smm.lookup(bodyIR).separateRegions
                 assert(bodySeparateRegions == bodyType.separateRegions)
                 val outerRegion = eltRegion.asParent(bodySeparateRegions, "StreamMap body")
 
                 EmitCode.fromI(mb)(cb => emitStream(bodyIR, cb = cb, env = bodyenv, outerRegion = outerRegion))
               case (eltType: PCanonicalStream, _) =>
-                val bodyenv = env.bind(name -> new EmitUnrealizableValue(eltType, eltt))
+                val bodyenv = env.bind(name -> new EmitUnrealizableValue(eltt))
 
                 EmitCode.fromI(mb)(cb => emitIR(bodyIR, cb = cb, region = eltRegion, env = bodyenv))
               case (_, bodyType: PCanonicalStream) =>
@@ -1912,7 +1912,7 @@ object EmitStream {
                         innerIR,
                         cb = cb,
                         outerRegion = innerStreamOuterRegion,
-                        env = env.bind(name -> new EmitUnrealizableValue(outerEltType, elt)))
+                        env = env.bind(name -> new EmitUnrealizableValue(elt)))
                     }
                   }
 
@@ -1977,7 +1977,7 @@ object EmitStream {
           valueType match {
             case _: PCanonicalStream =>
               val valuet = emit(emitter, valueIR, mb, outerRegion, env, container)
-              val bodyEnv = env.bind(name -> new EmitUnrealizableValue(valueType, valuet))
+              val bodyEnv = env.bind(name -> new EmitUnrealizableValue(valuet))
 
               emitStream(bodyIR, env = bodyEnv)
 

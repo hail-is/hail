@@ -216,6 +216,8 @@ object EmitStream2 {
             else
               cb.assign(childProducer.elementRegion, outerRegion)
 
+            val elementField = cb.emb.newEmitField("streamfilter_cond", childStream.st.elementType.pType)
+
             SStreamCode2(
               childStream.st,
               new StreamProducer {
@@ -232,9 +234,9 @@ object EmitStream2 {
                   cb.goto(childProducer.LproduceElement)
                   cb.define(childProducer.LproduceElementDone)
 
+                  cb.assign(elementField, childProducer.element)
                   // false and NA both fail the filter
-                  val childProducerElement = cb.memoize(childProducer.element, "streamfilter_cond")
-                  emit(cond, cb = cb, env = env.bind(name, childProducerElement), region = childProducer.elementRegion)
+                  emit(cond, cb = cb, env = env.bind(name, elementField), region = childProducer.elementRegion)
                     .consume(cb,
                       cb.goto(Lfiltered),
                       { sc =>
@@ -253,7 +255,7 @@ object EmitStream2 {
 
                 }
 
-                val element: EmitCode = childProducer.element
+                val element: EmitCode = elementField
 
                 def close(cb: EmitCodeBuilder): Unit = {
                   childProducer.close(cb)

@@ -189,7 +189,8 @@ abstract class EmitValue {
   def get(cb: EmitCodeBuilder): PCode
 }
 
-class EmitUnrealizableValue(val pt: PType, private val ec: EmitCode) extends EmitValue {
+class EmitUnrealizableValue(private val ec: EmitCode) extends EmitValue {
+  val pt: PType = ec.pt
   assert(!pt.isRealizable)
   private var used: Boolean = false
 
@@ -537,7 +538,7 @@ class Emit[C](
           assert(separateRegions == streamType.separateRegions)
           val outerRegion = region.asParent(separateRegions, "Let value")
           val valuet = emitStream(value, outerRegion)
-          val bodyEnv = env.bind(name -> new EmitUnrealizableValue(streamType, valuet))
+          val bodyEnv = env.bind(name -> new EmitUnrealizableValue(valuet))
 
           emitVoid(body, env = bodyEnv)
 
@@ -2234,7 +2235,7 @@ class Emit[C](
         case streamType: TStream =>
 
           val valueCode = emitStream(body, region.code)
-          val bodyEnv = env.bind(name -> new EmitUnrealizableValue(valueCode.pt, valueCode))
+          val bodyEnv = env.bind(name -> new EmitUnrealizableValue(valueCode))
           emit(body, env = bodyEnv)
 
         case valueType =>
