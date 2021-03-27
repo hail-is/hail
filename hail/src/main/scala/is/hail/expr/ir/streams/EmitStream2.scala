@@ -203,6 +203,74 @@ object EmitStream2 {
             def close(cb: EmitCodeBuilder): Unit = {}
           }))
 
+      case x@If(cond, cnsq, altr) =>
+        emit(cond, cb).flatMap(cb) { cond =>
+          val xCond = mb.genFieldThisRef[Boolean]("stream_if_cond")
+          cb.assign(xCond, cond.asBoolean.boolCode(cb))
+
+          val Lmissing = CodeLabel()
+          val Lpresent = CodeLabel()
+
+          val leftEC = EmitCode.fromI(mb)(cb => produce(cnsq, cb))
+          val rightEC = EmitCode.fromI(mb)(cb => produce(altr, cb))
+
+          val leftProducer = leftEC.pv.asStream2.producer
+          val rightProducer = rightEC.pv.asStream2.producer
+
+          val xElt = mb.newEmitField(x.pType.asInstanceOf[PCanonicalStream].elementType) // FIXME unify here
+
+          val region = mb.genFieldThisRef[Region]("streamif_region")
+          val _separateRegions = leftProducer.separateRegions || rightProducer.separateRegions
+          cb.ifx(xCond,
+            {
+              if (_separateRegions)
+                cb.assign(leftProducer.elementRegion, region)
+              leftEC.toI(cb).consume(cb, cb.goto(Lmissing), _ => cb.goto(Lpresent))
+            },
+            {
+              if (_separateRegions)
+                cb.assign(rightProducer.elementRegion, region)
+              rightEC.toI(cb).consume(cb, cb.goto(Lmissing), _ => cb.goto(Lpresent))
+            })
+
+          val producer = new StreamProducer {
+            override val length: Option[Code[Int]] = leftProducer.length
+              .liftedZip(rightProducer.length).map { case (l1, l2) =>
+              xCond.mux(l1, l2)
+            }
+            override val elementRegion: Settable[Region] = region
+            override val separateRegions: Boolean = _separateRegions
+            override val LproduceElementDone: CodeLabel = CodeLabel()
+            override val LendOfStream: CodeLabel = CodeLabel()
+            override val LproduceElement: CodeLabel = mb.defineHangingLabel { cb =>
+              cb.ifx(xCond, cb.goto(leftProducer.LproduceElement), cb.goto(rightProducer.LproduceElement))
+
+              cb.define(leftProducer.LproduceElementDone)
+              cb.assign(xElt, leftProducer.element.map(_.castTo(cb, region, xElt.pt)))
+              cb.goto(LproduceElementDone)
+
+              cb.define(rightProducer.LproduceElementDone)
+              cb.assign(xElt, rightProducer.element.map(_.castTo(cb, region, xElt.pt)))
+              cb.goto(LproduceElementDone)
+
+              cb.define(leftProducer.LendOfStream)
+              cb.goto(LendOfStream)
+
+              cb.define(rightProducer.LendOfStream)
+              cb.goto(LendOfStream)
+            }
+
+            override val element: EmitCode = xElt.load
+
+            override def close(cb: EmitCodeBuilder): Unit = {
+              cb.ifx(xCond, leftProducer.close(cb), rightProducer.close(cb))
+            }
+          }
+
+          IEmitCode(Lmissing, Lpresent,
+            SStreamCode2(SStream(xElt.st, required = leftEC.pt.required && rightEC.pt.required, _separateRegions), producer))
+        }
+
       case StreamRange(startIR, stopIR, stepIR, _separateRegions) =>
         val llen = mb.genFieldThisRef[Long]("sr_llen")
         val len = mb.genFieldThisRef[Int]("sr_len")
