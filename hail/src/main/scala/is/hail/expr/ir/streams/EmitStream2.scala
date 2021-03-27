@@ -139,6 +139,47 @@ object EmitStream2 {
 
         }
 
+      case x@MakeStream(args, _, _separateRegions) =>
+        val region = mb.genFieldThisRef[Region]("makestream_region")
+        val emittedArgs = args.map(a => EmitCode.fromI(mb)(cb => emit(a, cb, region))).toFastIndexedSeq
+
+        val unifiedType = x.pType.asInstanceOf[PCanonicalStream].elementType.sType // FIXME
+        val eltField = mb.newEmitField("makestream_elt", unifiedType.pType)
+
+        val staticLen = args.size
+        val current = mb.genFieldThisRef[Int]("makestream_current")
+        cb.assign(current, 0) // switches on 1..N
+
+        IEmitCode.present(cb, SStreamCode2(
+          SStream(unifiedType, required = true, separateRegions = _separateRegions),
+          new StreamProducer {
+            override val length: Option[Code[Int]] = Some(staticLen)
+
+            override val elementRegion: Settable[Region] = region
+
+            override val separateRegions: Boolean = _separateRegions
+
+            override val LendOfStream: CodeLabel = CodeLabel()
+            override val LproduceElementDone: CodeLabel = CodeLabel()
+            override val LproduceElement: CodeLabel = mb.defineHangingLabel { cb =>
+
+              val LendOfSwitch = CodeLabel()
+              cb += Code.switch(current, LendOfStream.goto,
+                emittedArgs.map(elem => EmitCodeBuilder.scopedVoid(mb) { cb =>
+                  cb.assign(eltField, elem.map(pc => pc.castTo(cb, region, unifiedType.pType, false)))
+                  cb.goto(LendOfSwitch)
+                }))
+              cb.define(LendOfSwitch)
+              cb.assign(current, current + 1)
+
+              cb.goto(LproduceElementDone)
+            }
+
+            val element: EmitCode = eltField.load
+
+            def close(cb: EmitCodeBuilder): Unit = {}
+          }))
+
       case StreamRange(startIR, stopIR, stepIR, _separateRegions) =>
         val llen = mb.genFieldThisRef[Long]("sr_llen")
         val len = mb.genFieldThisRef[Int]("sr_len")
@@ -240,7 +281,7 @@ object EmitStream2 {
                     .consume(cb,
                       cb.goto(Lfiltered),
                       { sc =>
-                        cb.ifx(sc.asBoolean.boolCode(cb), cb.goto(Lfiltered))
+                        cb.ifx(!sc.asBoolean.boolCode(cb), cb.goto(Lfiltered))
                       })
 
                   if (separateRegions)

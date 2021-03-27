@@ -313,7 +313,6 @@ class EmitStreamSuite extends HailSuite {
         case ToArray(s) => s
         case s => s
       }
-      println(Pretty(s))
       TypeCheck(s)
       EmitStream2.produce(new Emit(emitContext, fb.ecb), s, cb, region, Env.empty, None)
         .consumeCode[Long](cb, 0L, { s =>
