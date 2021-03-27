@@ -93,9 +93,32 @@ object EmitStream2 {
 
     streamIR match {
 
+      case NA(_typ) =>
+        val eltType = streamIR.pType.asInstanceOf[PCanonicalStream].elementType
+        val st = SStream(eltType.sType, false, false)
+        val region = mb.genFieldThisRef[Region]("na_region")
+        val producer = new StreamProducer {
+          override val length: Option[Code[Int]] = None
+          override val elementRegion: Settable[Region] = region
+          override val separateRegions: Boolean = false
+          override val LproduceElementDone: CodeLabel = CodeLabel()
+          override val LendOfStream: CodeLabel = CodeLabel()
+          override val LproduceElement: CodeLabel = mb.defineHangingLabel { cb =>
+            cb.goto(LendOfStream)
+          }
+          override val element: EmitCode = EmitCode.missing(mb, eltType)
+
+          override def close(cb: EmitCodeBuilder): Unit = {}
+        }
+        IEmitCode.missing(cb, SStreamCode2(st, producer))
+
       case Ref(name, _typ) =>
         assert(_typ.isInstanceOf[TStream])
         env.lookup(name).toI(cb)
+
+      case Let(name, value, body) =>
+        val xValue = cb.memoizeField(emit(value, cb),"let_stream_value")
+        produce(body, cb, env = env.bind(name, xValue))
 
       case In(n, _) =>
         // this, Code[Region], ...
@@ -434,14 +457,12 @@ object EmitStream2 {
           val accValueAccRegion = mb.newEmitField(x.accPType)
           val accValueEltRegion = mb.newEmitField(x.accPType)
 
+          // accRegion is unused if separateRegions is false
           val accRegion = mb.genFieldThisRef[Region]("streamscan_acc_region")
           if (childProducer.separateRegions)
             cb.assign(accRegion, Region.stagedCreate(Region.REGULAR, outerRegion.getPool()))
 
-          // accRegion is unused if separateRegions is false
-
-
-          val first = mb.genFieldThisRef[Boolean]("streamscan_has_pulled")
+          val first = mb.genFieldThisRef[Boolean]("streamscan_first")
           cb.assign(first, true)
 
           val producer = new StreamProducer {
