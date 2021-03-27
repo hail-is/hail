@@ -36,6 +36,7 @@ abstract class StreamProducer {
 
   final def consume(cb: EmitCodeBuilder)(perElement: EmitCodeBuilder => Unit): Unit = {
 
+    cb.goto(this.LproduceElement)
     cb.define(this.LproduceElementDone)
     perElement(cb)
     cb.goto(this.LproduceElement)
@@ -147,9 +148,9 @@ object EmitStream2 {
         emit(startIR, cb).flatMap(cb) { startc =>
           emit(stopIR, cb).flatMap(cb) { stopc =>
             emit(stepIR, cb).map(cb) { stepc =>
-              val start = cb.memoizeField(startc, "sr_step").asInt.intCode(cb)
-              val stop = cb.memoizeField(stopc, "sr_stop").asInt.intCode(cb)
-              val step = cb.memoizeField(stepc, "sr_step").asInt.intCode(cb)
+              val start = cb.newField[Int]("sr_step", startc.asInt.intCode(cb))
+              val stop = cb.newField[Int]("sr_stop", stopc.asInt.intCode(cb))
+              val step = cb.newField[Int]("sr_step", stepc.asInt.intCode(cb))
               cb.ifx(step ceq const(0), cb._fatal("Array range cannot have step size 0."))
               cb.ifx(step < const(0), {
                 cb.ifx(start.toL <= stop.toL, {
@@ -167,6 +168,7 @@ object EmitStream2 {
               cb.ifx(llen > const(Int.MaxValue.toLong), {
                 cb._fatal("Array range cannot have more than MAXINT elements.")
               })
+              cb.assign(len, llen.toI)
 
               val curr = mb.genFieldThisRef[Int]("streamrange_curr")
               val idx = mb.genFieldThisRef[Int]("streamrange_idx")

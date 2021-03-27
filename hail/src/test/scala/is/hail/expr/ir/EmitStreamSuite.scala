@@ -9,6 +9,7 @@ import is.hail.utils._
 import is.hail.variant.Call2
 import is.hail.HailSuite
 import is.hail.expr.ir.lowering.LoweringPipeline
+import is.hail.expr.ir.streams.{EmitStream2, StreamUtils}
 import org.apache.spark.sql.Row
 import org.testng.annotations.Test
 
@@ -297,7 +298,6 @@ class EmitStreamSuite extends HailSuite {
   )(call: (F, Region, T) => Long): T => IndexedSeq[Any] = {
     val fb = EmitFunctionBuilder[F](ctx, "F", (classInfo[Region]: ParamType) +: inputTypes.map(pt => pt: ParamType), LongInfo)
     val mb = fb.apply_method
-    val region = StagedRegion(mb.getCodeParam[Region](1), allowSubregions = false)
     val ir = streamIR.deepCopy()
     val usesAndDefs = ComputeUsesAndDefs(ir, errorIfFreeVariables = false)
     val requiredness = Requiredness.apply(ir, usesAndDefs, null, Env.empty) // Value IR inference doesn't need context
@@ -305,28 +305,33 @@ class EmitStreamSuite extends HailSuite {
     InferPType(ir, Env.empty, requiredness, usesAndDefs)
 
     val emitContext = new EmitContext(ctx, requiredness, smm)
-    val eltType = ir.pType.asInstanceOf[PStream].elementType
-    val stream = ExecuteContext.scoped() { ctx =>
+
+    var arrayType: PType = null
+    mb.emit(EmitCodeBuilder.scopedCode(mb) { cb =>
+      val region = mb.getCodeParam[Region](1)
       val s = ir match {
         case ToArray(s) => s
         case s => s
       }
       TypeCheck(s)
-      EmitStream.emit(new Emit(emitContext, fb.ecb), s, mb, region, Env.empty, None)
-    }
-    mb.emit(EmitCodeBuilder.scopedCode(mb) { cb =>
-      stream.toI(cb).consumeCode[Long](cb, 0L, { s =>
-        EmitStream.toArray(cb, PCanonicalArray(eltType), s.asStream, region).tcode[Long]
-      })
+      EmitStream2.produce(new Emit(emitContext, fb.ecb), s, cb, region, Env.empty, None)
+        .consumeCode[Long](cb, 0L, { s =>
+          val arr = StreamUtils.toArray(cb, s.asStream2.producer, region)
+          val scp = SingleCodePCode.fromPCode(cb, arr, region, false)
+          arrayType = scp.typ.asInstanceOf[PTypeReferenceSingleCodeType].pt
+
+          coerce[Long](scp.code)
+        })
     })
     val f = fb.resultWithIndex()
-    (arg: T) => pool.scopedRegion { r =>
-      val off = call(f(0, r), r, arg)
-      if (off == 0L)
-        null
-      else
-        SafeRow.read(PCanonicalArray(eltType), off).asInstanceOf[IndexedSeq[Any]]
-    }
+    (arg: T) =>
+      pool.scopedRegion { r =>
+        val off = call(f(0, r), r, arg)
+        if (off == 0L)
+          null
+        else
+          SafeRow.read(arrayType, off).asInstanceOf[IndexedSeq[Any]]
+      }
   }
 
   private def compileStream(ir: IR, inputType: PType): Any => IndexedSeq[Any] = {
