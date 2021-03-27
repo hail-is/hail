@@ -7,6 +7,7 @@ import is.hail.expr.ir.EmitStream.SizedStream
 import is.hail.expr.ir.agg.{AggStateSig, PhysicalAggSig}
 import is.hail.expr.ir.functions._
 import is.hail.expr.ir.lowering.TableStageDependency
+import is.hail.expr.ir.streams.StreamProducer
 import is.hail.io.{AbstractTypedCodecSpec, BufferSpec, TypedCodecSpec}
 import is.hail.rvd.RVDSpecMaker
 import is.hail.types.encoded._
@@ -721,11 +722,10 @@ abstract class PartitionReader {
 abstract class PartitionWriter {
   def consumeStream(
     ctx: ExecuteContext,
+    cb: EmitCodeBuilder,
+    stream: StreamProducer,
     context: EmitCode,
-    eltType: PStruct,
-    mb: EmitMethodBuilder[_],
-    region: ParentStagedRegion,
-    stream: SizedStream): EmitCode
+    region: Value[Region]): IEmitCode
 
   def ctxType: Type
   def returnType: Type
