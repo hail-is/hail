@@ -27,14 +27,11 @@ principals:
   domains:
     - notebook
     - workshop
-- name: notebook
-  domains:
-    - notebook
-    - workshop
   kind: json
 - name: notebook
   domains:
     - notebook
+    - workshop
   kind: nginx
 - name: gateway
   domains:
