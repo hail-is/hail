@@ -7,11 +7,12 @@ import concurrent.futures
 import aiohttp
 import gidgethub
 import zulip
+import random
 
 from hailtop.config import get_deploy_config
 from hailtop.batch_client.aioclient import Batch
 from hailtop.utils import check_shell, check_shell_output, RETRY_FUNCTION_SCRIPT
-from .constants import GITHUB_CLONE_URL, AUTHORIZED_USERS, GITHUB_STATUS_CONTEXT
+from .constants import GITHUB_CLONE_URL, AUTHORIZED_USERS, GITHUB_STATUS_CONTEXT, SERVICES_TEAM, COMPILER_TEAM
 from .build import BuildConfiguration, Code
 from .globals import is_test_deployment
 
@@ -25,6 +26,10 @@ deploy_config = get_deploy_config()
 CALLBACK_URL = deploy_config.url('ci', '/api/v1alpha/batch_callback')
 
 zulip_client = zulip.Client(config_file="/zulip-config/.zuliprc")
+
+
+def select_random_teammate(team):
+    return random.choice([user for user in AUTHORIZED_USERS if team in user.teams])
 
 
 class Repo:
@@ -128,6 +133,9 @@ class MergeFailureBatch:
         self.attributes = attributes
 
 
+ASSIGN_SERVICES = '#assign services'
+ASSIGN_COMPILER = '#assign compiler'
+
 HIGH_PRIORITY = 'prio:high'
 STACKED_PR = 'stacked PR'
 WIP = 'WIP'
@@ -157,9 +165,12 @@ fi
 
 
 class PR(Code):
-    def __init__(self, number, title, source_branch, source_sha, target_branch, author, assignees, reviewers, labels):
+    def __init__(
+        self, number, title, body, source_branch, source_sha, target_branch, author, assignees, reviewers, labels
+    ):
         self.number = number
         self.title = title
+        self.body = body
         self.source_branch = source_branch
         self.source_sha = source_sha
         self.target_branch = target_branch
@@ -227,6 +238,7 @@ class PR(Code):
     def update_from_gh_json(self, gh_json):
         assert self.number == gh_json['number']
         self.title = gh_json['title']
+        self.body = gh_json['body']
         self.author = gh_json['user']['login']
         self.assignees = {user['login'] for user in gh_json['assignees']}
         self.reviewers = {user['login'] for user in gh_json['requested_reviewers']}
@@ -256,6 +268,7 @@ class PR(Code):
         return PR(
             gh_json['number'],
             gh_json['title'],
+            gh_json['body'],
             FQBranch.from_gh_json(head),
             head['sha'],
             target_branch,
@@ -317,6 +330,23 @@ class PR(Code):
             log.info(f'{self.short_str()}: notify github of build state failed due to exception: {data}', exc_info=True)
         except aiohttp.client_exceptions.ClientResponseError:
             log.exception(f'{self.short_str()}: Unexpected exception in post to github: {data}')
+
+    async def assign_gh_reviewer_if_requested(self, gh_client):
+        if len(self.assignees) == 0 and len(self.reviewers) == 0:
+            assignees = set()
+            if ASSIGN_SERVICES in self.body:
+                assignees.add(select_random_teammate(SERVICES_TEAM).gh_username)
+            if ASSIGN_COMPILER in self.body:
+                assignees.add(select_random_teammate(COMPILER_TEAM).gh_username)
+            data = {'assignees': list(assignees)}
+            try:
+                await gh_client.post(
+                    f'/repos/{self.target_branch.branch.repo.short_str()}/issues/{self.number}/assignees', data=data
+                )
+            except gidgethub.HTTPException:
+                log.info(f'{self.short_str()}: post assignees to github failed due to exception: {data}', exc_info=True)
+            except aiohttp.client_exceptions.ClientResponseError:
+                log.exception(f'{self.short_str()}: Unexpected exception in post to github: {data}')
 
     async def _update_github(self, gh):
         await self._update_last_known_github_status(gh)
@@ -652,6 +682,9 @@ class WatchedBranch(Code):
                 pr = PR.from_gh_json(gh_json_pr, self)
             new_prs[number] = pr
         self.prs = new_prs
+
+        for pr in new_prs.values():
+            await pr.assign_gh_reviewer_if_requested(gh)
 
         for pr in new_prs.values():
             await pr._update_github(gh)
