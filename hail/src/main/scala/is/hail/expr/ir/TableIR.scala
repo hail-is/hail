@@ -1,34 +1,32 @@
 package is.hail.expr.ir
 
-import java.io.{ByteArrayInputStream, ByteArrayOutputStream, DataInputStream, DataOutputStream, InputStream}
-
 import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.backend.HailTaskContext
 import is.hail.backend.spark.SparkBackend
 import is.hail.expr.ir
-import is.hail.expr.ir.EmitStream.SizedStream
 import is.hail.expr.ir.functions.{BlockMatrixToTableFunction, MatrixToTableFunction, TableToTableFunction}
 import is.hail.expr.ir.lowering.{LowererUnsupportedOperation, TableStage, TableStageDependency}
-import is.hail.types._
-import is.hail.types.physical._
-import is.hail.types.virtual._
+import is.hail.expr.ir.streams.{SStreamCode2, StreamProducer}
 import is.hail.io._
 import is.hail.io.fs.FS
 import is.hail.io.index.{IndexReadIterator, IndexReader, IndexReaderBuilder, MaybeIndexedReadZippedIterator}
 import is.hail.linalg.{BlockMatrix, BlockMatrixMetadata, BlockMatrixReadRowBlockedRDD}
 import is.hail.rvd._
 import is.hail.sparkextras.ContextRDD
-import is.hail.types.physical.stypes.interfaces
+import is.hail.types._
+import is.hail.types.physical._
+import is.hail.types.physical.stypes.interfaces.SStream
+import is.hail.types.virtual._
 import is.hail.utils._
 import org.apache.spark.TaskContext
 import org.apache.spark.executor.InputMetrics
-import org.apache.spark.sql.{DataFrame, Row}
-import org.apache.spark.storage.StorageLevel
-import org.json4s.JsonAST.{JNothing, JString}
-import org.json4s.{DefaultFormats, Extraction, Formats, JObject, JValue, ShortTypeHints}
+import org.apache.spark.sql.Row
+import org.json4s.JsonAST.JString
+import org.json4s.{DefaultFormats, Extraction, Formats, JValue, ShortTypeHints}
 
+import java.io.{ByteArrayInputStream, DataInputStream, DataOutputStream, InputStream}
 import scala.reflect.ClassTag
 
 object TableIR {
@@ -461,14 +459,12 @@ case class PartitionRVDReader(rvd: RVD) extends PartitionReader {
 
   override def fullRowType: Type = rvd.rowType
 
-  def emitStream[C](ctx: ExecuteContext,
-    context: IR,
-    requestedType: Type,
-    emitter: Emit[C],
+  def emitStream(
+    ctx: ExecuteContext,
     cb: EmitCodeBuilder,
-    outerRegion: StagedRegion,
-    env0: Emit.E,
-    container: Option[AggContainer]): IEmitCode = {
+    context: EmitCode,
+    partitionRegion: Value[Region],
+    requestedType: Type): IEmitCode = {
 
     val mb = cb.emb
 
@@ -483,30 +479,44 @@ case class PartitionRVDReader(rvd: RVD) extends PartitionReader {
     assert(upcastPType == rowPType(requestedType),
       s"ptype mismatch:\n  upcast: $upcastPType\n  computed: ${ rowPType(requestedType) }")
 
-    emitter.emitI(context, cb, outerRegion, env0, container, None).map(cb) { idx =>
+    context.toI(cb).map(cb) { idx =>
       val iterator = mb.genFieldThisRef[Iterator[Long]]("rvdreader_iterator")
-      val hasNext = mb.genFieldThisRef[Boolean]("rvdreader_hasNext")
       val next = mb.genFieldThisRef[Long]("rvdreader_next")
 
+      val first = mb.genFieldThisRef[Boolean]("rvdreader_first")
+      val region = mb.genFieldThisRef[Region]("rvdreader_region")
       val upcastF = mb.genFieldThisRef[AsmFunction2RegionLongLong]("rvdreader_upcast")
 
       val broadcastRVD = mb.getObject[BroadcastRVD](new BroadcastRVD(ctx.backend.asSpark("RVDReader"), rvd))
-      val newStream = SizedStream.unsized { eltRegion =>
-        Stream.unfold[Code[Long]](
-          (_, k) =>
-            Code(
-              hasNext := iterator.invoke[Boolean]("hasNext"),
-              hasNext.orEmpty(next := upcastF.invoke[Region, Long, Long]("apply", eltRegion.code, Code.longValue(iterator.invoke[java.lang.Long]("next")))),
-              k(COption(!hasNext, next))))
-          .map(
-            pc => EmitCode.present(cb.emb, PCode(upcastPType, pc)),
-            setup0 = None,
-            setup = Some(Code(iterator := broadcastRVD.invoke[Int, Region, Region, Iterator[Long]](
-              "computePartition", EmitCodeBuilder.scopedCode[Int](mb)(idx.asInt.intCode(_)), eltRegion.code, outerRegion.code),
-              upcastF := Code.checkcast[AsmFunction2RegionLongLong](upcastCode.invoke[AnyRef, AnyRef, AnyRef]("apply", Code.boxInt(0), outerRegion.code)))))
+
+      cb.assign(first, true)
+
+      val producer = new StreamProducer {
+        override val length: Option[Code[Int]] = None
+        override val elementRegion: Settable[Region] = region
+        override val separateRegions: Boolean = true
+        override val LproduceElementDone: CodeLabel = CodeLabel()
+        override val LendOfStream: CodeLabel = CodeLabel()
+        override val LproduceElement: CodeLabel = mb.defineHangingLabel { cb =>
+
+          // could lift this out into a setup method that is run after consumers assign element region
+          cb.ifx(first, {
+            cb.assign(first, false)
+            cb.assign(iterator, broadcastRVD.invoke[Int, Region, Region, Iterator[Long]](
+              "computePartition", EmitCodeBuilder.scopedCode[Int](mb)(idx.asInt.intCode(_)), region, partitionRegion))
+            cb.assign(upcastF, Code.checkcast[AsmFunction2RegionLongLong](upcastCode.invoke[AnyRef, AnyRef, AnyRef]("apply", Code.boxInt(0), partitionRegion)))
+          })
+
+          cb.ifx(!iterator.invoke[Boolean]("hasNext"), cb.goto(LendOfStream))
+          cb.assign(next, upcastF.invoke[Region, Long, Long]("apply", region, Code.longValue(iterator.invoke[java.lang.Long]("next"))))
+          cb.goto(LproduceElementDone)
+        }
+        override val element: EmitCode = EmitCode.fromI(mb)(cb => IEmitCode.present(cb, upcastPType.loadCheapPCode(cb, next)))
+
+        override def close(cb: EmitCodeBuilder): Unit = {}
       }
 
-      interfaces.SStreamCode(interfaces.SStream(upcastPType.sType, required = true, separateRegions = true), newStream)
+      SStreamCode2(SStream(producer.element.st, true, true), producer)
     }
   }
 
@@ -524,44 +534,42 @@ trait AbstractNativeReader extends PartitionReader {
 case class PartitionNativeReader(spec: AbstractTypedCodecSpec) extends AbstractNativeReader {
   def contextType: Type = TString
 
-  def emitStream[C](ctx: ExecuteContext,
-    context: IR,
-    requestedType: Type,
-    emitter: Emit[C],
+  def emitStream(
+    ctx: ExecuteContext,
     cb: EmitCodeBuilder,
-    partitionRegion: StagedRegion,
-    env: Emit.E,
-    container: Option[AggContainer]): IEmitCode = {
+    context: EmitCode,
+    partitionRegion: Value[Region],
+    requestedType: Type): IEmitCode = {
 
     val mb = cb.emb
 
-    def emitIR(ir: IR, env: Emit.E = env, region: StagedRegion = partitionRegion, container: Option[AggContainer] = container): IEmitCode =
-      emitter.emitI(ir, cb, region, env, container, None)
-
-    emitIR(context).map(cb) { path =>
+    context.toI(cb).map(cb) { path =>
       val pathString = path.asString.loadString()
-      val xRowBuf = mb.newLocal[InputBuffer]()
+      val xRowBuf = mb.genFieldThisRef[InputBuffer]("pnr_xrowbuf")
       val hasNext = mb.newLocal[Boolean]("pnr_hasNext")
       val next = mb.newPSettable(mb.fieldBuilder, spec.decodedPType(requestedType), "pnr_next")
 
-      val newStream = SizedStream.unsized(eltRegion => Stream.unfold[PCode](
-        (_, k) =>
-          EmitCodeBuilder.scopedVoid(mb) { cb =>
-            cb.assign(hasNext, xRowBuf.readByte().toZ)
-            cb.ifx(hasNext, {
-              val decValue = spec.encodedType.buildDecoder(requestedType, cb.emb.ecb)
-                .apply(cb, eltRegion.code, xRowBuf)
-              cb.assign(next, decValue)
-            })
-            cb += k(COption(!hasNext, next))
-          })
-        .map(
-          pc => EmitCode.present(cb.emb, pc),
-          setup0 = None,
-          setup = Some(xRowBuf := spec
-            .buildCodeInputBuffer(mb.open(pathString, true)))))
+      val region = mb.genFieldThisRef[Region]("pnr_region")
 
-      interfaces.SStreamCode(interfaces.SStream(next.st, required = true, separateRegions = true), newStream)
+      cb.assign(xRowBuf, spec.buildCodeInputBuffer(mb.open(pathString, checkCodec = true)))
+
+      val producer = new StreamProducer {
+        override val length: Option[Code[Int]] = None
+        override val elementRegion: Settable[Region] = region
+        override val separateRegions: Boolean = true
+        override val LproduceElementDone: CodeLabel = CodeLabel()
+        override val LendOfStream: CodeLabel = CodeLabel()
+        override val LproduceElement: CodeLabel = mb.defineHangingLabel { cb =>
+          cb.ifx(!xRowBuf.readByte().toZ, cb.goto(LendOfStream))
+          cb.assign(next, spec.encodedType.buildDecoder(requestedType, cb.emb.ecb).apply(cb, region, xRowBuf))
+          cb.goto(LproduceElementDone)
+        }
+
+        override val element: EmitCode = EmitCode.present(mb, next)
+
+        override def close(cb: EmitCodeBuilder): Unit = cb += xRowBuf.close()
+      }
+      SStreamCode2(SStream(producer.element.st, true, true), producer)
     }
   }
 
@@ -574,19 +582,14 @@ case class PartitionNativeReaderIndexed(spec: AbstractTypedCodecSpec, indexSpec:
     "indexPath" -> TString,
     "interval" -> RVDPartitioner.intervalIRRepresentation(spec.encodedVirtualType.asInstanceOf[TStruct].select(key)._1))
 
-  def emitStream[C](ctx: ExecuteContext,
-    context: IR,
-    requestedType: Type,
-    emitter: Emit[C],
+  def emitStream(
+    ctx: ExecuteContext,
     cb: EmitCodeBuilder,
-    partitionRegion: StagedRegion,
-    env: Emit.E,
-    container: Option[AggContainer]): IEmitCode = {
+    context: EmitCode,
+    partitionRegion: Value[Region],
+    requestedType: Type): IEmitCode = {
 
     val mb = cb.emb
-
-    def emitIR(ir: IR, env: Emit.E = env, region: StagedRegion = partitionRegion, container: Option[AggContainer] = container): IEmitCode =
-      emitter.emitI(ir, cb, region, env, container, None)
 
     val (eltType, makeDec) = spec.buildDecoder(ctx, requestedType)
 
@@ -598,7 +601,9 @@ case class PartitionNativeReaderIndexed(spec: AbstractTypedCodecSpec, indexSpec:
     val makeIndexCode = mb.getObject[Function4[FS, String, Int, RegionPool, IndexReader]](mkIndexReader)
     val makeDecCode = mb.getObject[(InputStream => Decoder)](makeDec)
 
-    emitIR(context).map(cb) { ctxStruct =>
+    context.toI(cb).map(cb) { ctxStruct =>
+      val ctxMemo = ctxStruct.asBaseStruct.memoize(cb, "pnri_ctx_struct")
+
       val getIndexReader: Code[String] => Code[IndexReader] = { (indexPath: Code[String]) =>
         Code.checkcast[IndexReader](
           makeIndexCode.invoke[AnyRef, AnyRef, AnyRef, AnyRef, AnyRef]("apply", mb.getFS, indexPath, Code.boxInt(8), mb.ecb.pool()))
@@ -609,57 +614,69 @@ case class PartitionNativeReaderIndexed(spec: AbstractTypedCodecSpec, indexSpec:
       val idxr = mb.genFieldThisRef[IndexReader]("pnri_idx_reader")
       val it = mb.genFieldThisRef[IndexReadIterator]("pnri_idx_iterator")
 
-      val newStream = SizedStream.unsized(eltRegion => Stream.unfold[Code[Long]](
-        (_, k) =>
-          Code(
-            hasNext := it.invoke[Boolean]("hasNext"),
-            hasNext.orEmpty(next := it.invoke[Long]("_next")),
-            k(COption(!hasNext, next))))
-        .map(
-          pc => EmitCode.present(cb.emb, PCode(eltType, pc)),
-          setup0 = None,
-          setup = Some(
-            EmitCodeBuilder.scopedVoid(mb) { cb =>
-              val ctxMemo = ctxStruct.asBaseStruct.memoize(cb, "pnri_ctx_struct")
-              cb.assign(idxr, getIndexReader(ctxMemo
-                .loadField(cb, "indexPath")
-                .get(cb)
-                .asString
-                .loadString()))
-              cb.assign(it,
-                Code.newInstance7[IndexReadIterator,
-                  (InputStream) => Decoder,
-                  Region,
-                  InputStream,
-                  IndexReader,
-                  String,
-                  Interval,
-                  InputMetrics](makeDecCode,
-                  eltRegion.code,
-                  mb.open(ctxMemo.loadField(cb, "partitionPath")
-                    .get(cb)
-                    .asString
-                    .loadString(), true),
-                  idxr,
-                  Code._null[String],
-                  ctxMemo.loadField(cb, "interval")
-                    .consumeCode[Interval](cb,
-                      Code._fatal[Interval](""),
-                      { pc =>
-                        val pcm = pc.memoize(cb, "pnri_interval").asPValue
-                        Code.invokeScalaObject2[PType, Long, Interval](
-                          PartitionBoundOrdering.getClass,
-                          "regionValueToJavaObject",
-                          mb.getPType(pcm.pt),
-                          coerce[Long](pcm.code))
-                      }
-                    ),
-                  Code._null[InputMetrics]
-                ))
-            }),
-          close = Some(it.invoke[Unit]("close"))))
+      val region = mb.genFieldThisRef[Region]("pnr_region")
+      val first = mb.genFieldThisRef[Boolean]("pnr_first")
 
-      interfaces.SStreamCode(interfaces.SStream(eltType.sType, required = true, separateRegions = true), newStream)
+      cb.assign(first, true)
+
+      val producer = new StreamProducer {
+        override val length: Option[Code[Int]] = None
+        override val elementRegion: Settable[Region] = region
+        override val separateRegions: Boolean = true
+        override val LproduceElementDone: CodeLabel = CodeLabel()
+        override val LendOfStream: CodeLabel = CodeLabel()
+        override val LproduceElement: CodeLabel = mb.defineHangingLabel { cb =>
+
+          // could lift this out into a setup method that is run after consumers assign element region
+          cb.ifx(first, {
+            cb.assign(first, false)
+            cb.assign(idxr, getIndexReader(ctxMemo
+              .loadField(cb, "indexPath")
+              .get(cb)
+              .asString
+              .loadString()))
+            cb.assign(it,
+              Code.newInstance7[IndexReadIterator,
+                (InputStream) => Decoder,
+                Region,
+                InputStream,
+                IndexReader,
+                String,
+                Interval,
+                InputMetrics](makeDecCode,
+                region,
+                mb.open(ctxMemo.loadField(cb, "partitionPath")
+                  .get(cb)
+                  .asString
+                  .loadString(), true),
+                idxr,
+                Code._null[String],
+                ctxMemo.loadField(cb, "interval")
+                  .consumeCode[Interval](cb,
+                    Code._fatal[Interval](""),
+                    { pc =>
+                      val pcm = pc.memoize(cb, "pnri_interval").asPValue
+                      Code.invokeScalaObject2[PType, Long, Interval](
+                        PartitionBoundOrdering.getClass,
+                        "regionValueToJavaObject",
+                        mb.getPType(pcm.pt),
+                        coerce[Long](pcm.code))
+                    }
+                  ),
+                Code._null[InputMetrics]
+              ))
+          })
+
+          cb.ifx(!it.invoke[Boolean]("hasNext"), cb.goto(LendOfStream))
+          cb.assign(next, it.invoke[Long]("_next"))
+          cb.goto(LproduceElementDone)
+
+        }
+        override val element: EmitCode = EmitCode.fromI(mb)(cb => IEmitCode.present(cb, eltType.loadCheapPCode(cb, next)))
+
+        override def close(cb: EmitCodeBuilder): Unit = cb += it.invoke[Unit]("close")
+      }
+      SStreamCode2(SStream(producer.element.st, true, true), producer)
     }
   }
 
@@ -703,19 +720,14 @@ case class PartitionZippedNativeReader(specLeft: AbstractTypedCodecSpec, specRig
 
   def fullRowType: TStruct = specLeft.encodedVirtualType.asInstanceOf[TStruct] ++ specRight.encodedVirtualType.asInstanceOf[TStruct]
 
-  def emitStream[C](ctx: ExecuteContext,
-    context: IR,
-    requestedType: Type,
-    emitter: Emit[C],
+  def emitStream(
+    ctx: ExecuteContext,
     cb: EmitCodeBuilder,
-    partitionRegion: StagedRegion,
-    env: Emit.E,
-    container: Option[AggContainer]): IEmitCode = {
+    context: EmitCode,
+    partitionRegion: Value[Region],
+    requestedType: Type): IEmitCode = {
 
     val mb = cb.emb
-
-    def emitIR(ir: IR, env: Emit.E = env, region: StagedRegion = partitionRegion, container: Option[AggContainer] = container): IEmitCode =
-      emitter.emitI(ir, cb, region, env, container, None)
 
     val (leftRType, rightRType) = splitRequestedTypes(requestedType)
 
@@ -751,7 +763,7 @@ case class PartitionZippedNativeReader(specLeft: AbstractTypedCodecSpec, specRig
     val leftOffsetField = indexSpecLeft.flatMap(_.offsetField)
     val rightOffsetField = indexSpecRight.flatMap(_.offsetField)
 
-    emitIR(context).map(cb) { ctxStruct =>
+    context.toI(cb).map(cb) { ctxStruct =>
 
       def getIndexReader(cb: EmitCodeBuilder, ctxMemo: PBaseStructValue): Code[IndexReader] = {
         makeIndexCode match {
@@ -787,58 +799,67 @@ case class PartitionZippedNativeReader(specLeft: AbstractTypedCodecSpec, specRig
         }
       }
 
-      val hasNext = mb.newLocal[Boolean]("pnr_hasNext")
-      val next = mb.newLocal[Long]("pnr_next")
+      val next = mb.genFieldThisRef[Long]("pnr_next")
       val it = mb.genFieldThisRef[MaybeIndexedReadZippedIterator]("pnri_idx_iterator")
+      val first = mb.genFieldThisRef[Boolean]("pnri_first")
+      val region = mb.genFieldThisRef[Region]("pnri_region")
+      val ctxMemo = ctxStruct.asBaseStruct.memoize(cb, "pnri_ctx_struct")
 
-      val newStream = SizedStream.unsized(eltRegion => Stream.unfold[Code[Long]](
-        (_, k) =>
-          Code(
-            hasNext := it.invoke[Boolean]("hasNext"),
-            hasNext.orEmpty(next := it.invoke[Long]("_next")),
-            k(COption(!hasNext, next))))
-        .map(
-          pc => EmitCode.present(cb.emb, PCode(eltType, pc)),
-          setup0 = None,
-          setup = Some(
-            EmitCodeBuilder.scopedVoid(mb) { cb =>
-              val ctxMemo = ctxStruct.asBaseStruct.memoize(cb, "pnri_ctx_struct")
-              cb.assign(it,
-                Code.newInstance11[MaybeIndexedReadZippedIterator,
-                  (InputStream) => Decoder,
-                  (InputStream) => Decoder,
-                  AsmFunction3RegionLongLongLong,
-                  Region,
-                  InputStream,
-                  InputStream,
-                  IndexReader,
-                  String,
-                  String,
-                  Interval,
-                  InputMetrics](
-                  makeLeftDecCode,
-                  makeRightDecCode,
-                  Code.checkcast[AsmFunction3RegionLongLongLong](makeInserterCode.invoke[AnyRef, AnyRef, AnyRef]("apply", Code.boxInt(0), eltRegion.code)),
-                  eltRegion.code,
-                  mb.open(ctxMemo.loadField(cb, "leftPartitionPath")
-                    .handle(cb, cb._fatal(""))
-                    .asString
-                    .loadString(), true),
-                  mb.open(ctxMemo.loadField(cb, "rightPartitionPath")
-                    .handle(cb, cb._fatal(""))
-                    .asString
-                    .loadString(), true),
-                  getIndexReader(cb, ctxMemo),
-                  leftOffsetField.map[Code[String]](const(_)).getOrElse(Code._null[String]),
-                  rightOffsetField.map[Code[String]](const(_)).getOrElse(Code._null[String]),
-                  getInterval(cb, ctxMemo),
-                  Code._null[InputMetrics]
-                ))
-            }),
-          close = Some(it.invoke[Unit]("close")))
-      )
+      cb.assign(first, true)
 
-      interfaces.SStreamCode(interfaces.SStream(eltType.sType, required = true, separateRegions = true), newStream)
+      val producer = new StreamProducer {
+        override val length: Option[Code[Int]] = None
+        override val elementRegion: Settable[Region] = region
+        override val separateRegions: Boolean = true
+        override val LproduceElementDone: CodeLabel = CodeLabel()
+        override val LendOfStream: CodeLabel = CodeLabel()
+        override val LproduceElement: CodeLabel = mb.defineHangingLabel { cb =>
+
+          // could lift this out into a setup method that is run after consumers assign element region
+          cb.ifx(first, {
+            cb.assign(first, false)
+            cb.assign(it,
+              Code.newInstance11[MaybeIndexedReadZippedIterator,
+                (InputStream) => Decoder,
+                (InputStream) => Decoder,
+                AsmFunction3RegionLongLongLong,
+                Region,
+                InputStream,
+                InputStream,
+                IndexReader,
+                String,
+                String,
+                Interval,
+                InputMetrics](
+                makeLeftDecCode,
+                makeRightDecCode,
+                Code.checkcast[AsmFunction3RegionLongLongLong](makeInserterCode.invoke[AnyRef, AnyRef, AnyRef]("apply", Code.boxInt(0), region)),
+                region,
+                mb.open(ctxMemo.loadField(cb, "leftPartitionPath")
+                  .handle(cb, cb._fatal(""))
+                  .asString
+                  .loadString(), true),
+                mb.open(ctxMemo.loadField(cb, "rightPartitionPath")
+                  .handle(cb, cb._fatal(""))
+                  .asString
+                  .loadString(), true),
+                getIndexReader(cb, ctxMemo),
+                leftOffsetField.map[Code[String]](const(_)).getOrElse(Code._null[String]),
+                rightOffsetField.map[Code[String]](const(_)).getOrElse(Code._null[String]),
+                getInterval(cb, ctxMemo),
+                Code._null[InputMetrics]
+              ))
+          })
+
+          cb.ifx(!it.invoke[Boolean]("hasNext"), cb.goto(LendOfStream))
+          cb.assign(next, it.invoke[Long]("_next"))
+          cb.goto(LproduceElementDone)
+        }
+        override val element: EmitCode = EmitCode.fromI(mb)(cb => IEmitCode.present(cb, eltType.loadCheapPCode(cb, next)))
+
+        override def close(cb: EmitCodeBuilder): Unit = cb += it.invoke[Unit]("close")
+      }
+      SStreamCode2(SStream(producer.element.st, true, true), producer)
     }
   }
 

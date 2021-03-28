@@ -2,16 +2,19 @@ package is.hail.expr.ir
 
 import is.hail.utils._
 import is.hail.annotations.{BroadcastRow, Region, UnsafeRow}
-import is.hail.asm4s.Code
+import is.hail.asm4s.{Code, CodeLabel, Settable, Value}
 import is.hail.backend.spark.SparkBackend
 import is.hail.expr.ir.EmitStream.SizedStream
+import is.hail.expr.ir.functions.UtilFunctions
 import is.hail.expr.ir.lowering.{TableStage, TableStageDependency}
+import is.hail.expr.ir.streams.{SStreamCode2, StreamProducer}
 import is.hail.types.TableType
 import is.hail.types.physical.{PCanonicalStream, PCode, PStruct, PType}
 import is.hail.types.virtual.{TArray, TStruct, Type}
 import is.hail.rvd.{RVD, RVDCoercer, RVDContext, RVDPartitioner, RVDType}
 import is.hail.sparkextras.ContextRDD
 import is.hail.types.physical.stypes.interfaces
+import is.hail.types.physical.stypes.interfaces.SStream
 import org.apache.spark.{Partition, TaskContext}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
@@ -26,46 +29,51 @@ class PartitionIteratorLongReader(
 
   def rowPType(requestedType: Type): PType = bodyPType(requestedType.asInstanceOf[TStruct])
 
-  def emitStream[C](ctx: ExecuteContext,
-    context: IR,
-    requestedType: Type,
-    emitter: Emit[C],
+  def emitStream(
+    ctx: ExecuteContext,
     cb: EmitCodeBuilder,
-    region: StagedRegion,
-    env: Emit.E,
-    container: Option[AggContainer]): IEmitCode = {
-
-    def emitIR(ir: IR, env: Emit.E = env, region: StagedRegion = region, container: Option[AggContainer] = container): IEmitCode =
-      emitter.emitI(ir, cb, region, env, container, None)
+    context: EmitCode,
+    partitionRegion: Value[Region],
+    requestedType: Type): IEmitCode = {
 
     val eltPType = bodyPType(requestedType)
+    val mb = cb.emb
 
-    emitIR(context).map(cb) { contextPC =>
-      // FIXME SafeRow.read can only handle address values
-      assert(contextPC.pt.isInstanceOf[PStruct])
+    context.toI(cb).map(cb) { contextPC =>
+      val ctxJavaValue = UtilFunctions.scodeToJavaValue(cb, partitionRegion, contextPC)
+      val region = mb.genFieldThisRef[Region]("pilr_region")
+      val first = mb.genFieldThisRef[Boolean]("pilr_first")
+      val it = mb.genFieldThisRef[Iterator[java.lang.Long]]("pilr_it")
 
-      val it = cb.newLocal[Iterator[java.lang.Long]]("pilr_it")
-      val hasNext = cb.newLocal[Boolean]("pilr_hasNext")
-      val next = cb.newLocal[Long]("pilr_next")
+      val rv = mb.genFieldThisRef[Long]("pilr_rv")
 
-      val newStream = SizedStream.unsized { eltRegion =>
-        Stream
-          .unfold[Code[Long]](
-            (_, k) =>
-              Code(
-                hasNext := it.get.hasNext,
-                hasNext.orEmpty(next := Code.longValue(it.get.next())),
-                k(COption(!hasNext, next))),
-            setup = Some(
-              it := cb.emb.getObject(body(requestedType))
-                .invoke[java.lang.Object, java.lang.Object, Iterator[java.lang.Long]]("apply",
-                  region.code,
-                  Code.invokeScalaObject3[PType, Region, Long, java.lang.Object](UnsafeRow.getClass, "read",
-                    cb.emb.getPType(contextPC.pt), region.code, contextPC.tcode[Long]))))
-          .map(rv => EmitCode.fromI(cb.emb)(cb => IEmitCode.present(cb, eltPType.loadCheapPCode(cb, rv))))
+      cb.assign(first, true)
+
+      val producer = new StreamProducer {
+        override val length: Option[Code[Int]] = None
+        override val elementRegion: Settable[Region] = region
+        override val separateRegions: Boolean = true
+        override val LproduceElementDone: CodeLabel = CodeLabel()
+        override val LendOfStream: CodeLabel = CodeLabel()
+        override val LproduceElement: CodeLabel = mb.defineHangingLabel { cb =>
+          cb.ifx(first, {
+            cb.assign(first, false)
+            cb.assign(it, cb.emb.getObject(body(requestedType))
+              .invoke[java.lang.Object, java.lang.Object, Iterator[java.lang.Long]]("apply", region, ctxJavaValue))
+          })
+
+          cb.ifx(!it.get.hasNext,
+            cb.goto(LendOfStream))
+          cb.assign(rv, Code.longValue(it.get.next()))
+
+          cb.goto(LproduceElementDone)
+        }
+        override val element: EmitCode = EmitCode.fromI(mb)(cb => IEmitCode.present(cb, eltPType.loadCheapPCode(cb, rv)))
+
+        override def close(cb: EmitCodeBuilder): Unit = {}
       }
 
-      interfaces.SStreamCode(interfaces.SStream(eltPType.sType, true), newStream)
+      SStreamCode2(SStream(producer.element.st, true, true), producer)
     }
   }
 

@@ -1282,6 +1282,10 @@ object EmitStream2 {
 
           SStreamCode2(SStream(producer.element.st, childStreams.forall(_.pt.required)), producer)
         }
+
+      case ReadPartition(context, rowType, reader) =>
+        val ctxCode = EmitCode.fromI(mb)(cb => emit(context, cb))
+        reader.emitStream(emitter.ctx.executeContext, cb, ctxCode, outerRegion, rowType)
     }
   }
 }

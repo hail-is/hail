@@ -707,14 +707,12 @@ abstract class PartitionReader {
 
   def rowPType(requestedType: Type): PType
 
-  def emitStream[C](ctx: ExecuteContext,
-    context: IR,
-    requestedType: Type,
-    emitter: Emit[C],
+  def emitStream(
+    ctx: ExecuteContext,
     cb: EmitCodeBuilder,
-    partitionRegion: StagedRegion,
-    env0: Emit.E,
-    container: Option[AggContainer]): IEmitCode
+    context: EmitCode,
+    partitionRegion: Value[Region],
+    requestedType: Type): IEmitCode
 
   def toJValue: JValue
 }

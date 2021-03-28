@@ -132,7 +132,7 @@ case class StreamSingleCodeType(separateRegions: Boolean, eltType: PType) extend
     val mkIter = coerce[StreamArgType](c)
     val eltRegion = mb.genFieldThisRef[Region]("stream_input_element_region")
     val rvAddr = mb.genFieldThisRef[Long]("stream_input_addr")
-    cb.assign(xIter, mkIter.invoke[Region, Region, Iterator[java.lang.Long]]("apply", r, eltRegion))
+    cb.assign(xIter, Code._null[Iterator[java.lang.Long]])
 
     val producer = new StreamProducer {
       override val length: Option[Code[Int]] = None
@@ -141,6 +141,9 @@ case class StreamSingleCodeType(separateRegions: Boolean, eltType: PType) extend
       override val LproduceElementDone: CodeLabel = CodeLabel()
       override val LendOfStream: CodeLabel = CodeLabel()
       override val LproduceElement: CodeLabel = mb.defineHangingLabel { cb =>
+        cb.ifx(xIter.isNull,
+          cb.assign(xIter, mkIter.invoke[Region, Region, Iterator[java.lang.Long]]("apply", r, eltRegion)))
+
         val hasNext = cb.newLocal[Boolean]("stream_in_hasnext", xIter.load().hasNext)
         cb.ifx(!hasNext, cb.goto(LendOfStream))
         cb.assign(rvAddr, xIter.load().next().invoke[Long]("longValue"))

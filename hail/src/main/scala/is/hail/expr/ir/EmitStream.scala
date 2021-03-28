@@ -1437,8 +1437,8 @@ object EmitStream {
           val sstream = sized(Code._empty, stream, Some(elements.length))
           IEmitCode.present(cb, interfaces.SStreamCode(coerce[PCanonicalStream](x.pType).sType, sstream))
 
-        case x@ReadPartition(context, rowType, reader) =>
-          reader.emitStream(emitter.ctx.executeContext, context, rowType, emitter, cb, outerRegion, env, container)
+//        case x@ReadPartition(context, rowType, reader) =>
+//          reader.emitStream(emitter.ctx.executeContext, context, rowType, emitter, cb, outerRegion, env, container)
 
         case In(n, _) =>
           // this, Code[Region], ...
