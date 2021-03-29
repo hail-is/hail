@@ -1319,7 +1319,6 @@ class Tests(unittest.TestCase):
         self.assertEqual(hl.eval(glob.bn.pop_dist), [1, 2])
         self.assertEqual(hl.eval(glob.bn.fst), [.02, .06])
 
-    @fails_service_backend()
     def test_balding_nichols_model_same_results(self):
         for mixture in [True, False]:
             hl.set_global_seed(1)

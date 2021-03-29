@@ -18,7 +18,6 @@ class Tests(unittest.TestCase):
     def collect_unindexed_expression(self):
         self.assertEqual(hl.array([4,1,2,3]).collect(), [4,1,2,3])
 
-    @fails_service_backend()
     def test_key_by_random(self):
         ht = hl.utils.range_table(10, 4)
         ht = ht.annotate(new_key=hl.rand_unif(0, 1))
@@ -829,7 +828,6 @@ class Tests(unittest.TestCase):
         assert t.annotate(x=hl.bind(lambda i: hl.scan.sum(t.idx + i), 1, _ctx='scan')).x.collect() == [0, 1, 3, 6, 10]
         assert t.aggregate(hl.bind(lambda i: hl.agg.collect(i), t.idx * t.idx, _ctx='agg')) == [0, 1, 4, 9, 16]
 
-    @fails_service_backend()
     def test_scan(self):
         table = hl.utils.range_table(10)
 
@@ -877,7 +875,6 @@ class Tests(unittest.TestCase):
         for aggregation, expected in tests:
             self.assertEqual(aggregation.collect(), expected)
 
-    @fails_service_backend()
     def test_scan_explode(self):
         t = hl.utils.range_table(5)
         tests = [
@@ -909,7 +906,6 @@ class Tests(unittest.TestCase):
         for aggregation, expected in tests:
             self.assertEqual(aggregation.collect(), expected)
 
-    @fails_service_backend()
     def test_scan_group_by(self):
         t = hl.utils.range_table(5)
         tests = [
@@ -992,7 +988,6 @@ class Tests(unittest.TestCase):
         assert r.n_smaller == 0
         assert r.n_larger == 0
 
-    @fails_service_backend()
     def test_aggregator_cse(self):
         ht = hl.utils.range_table(10)
         x = hl.agg.count()
@@ -1113,7 +1108,6 @@ class Tests(unittest.TestCase):
         r = ht.aggregate(hl.agg.downsample(ht.idx, ht.y, n_divisions=10))
         self.assertTrue(len(r) == 0)
 
-    @fails_service_backend()
     def test_downsample_in_array_agg(self):
         mt = hl.utils.range_matrix_table(50, 50)
         mt = mt.annotate_rows(y = hl.rand_unif(0, 1))

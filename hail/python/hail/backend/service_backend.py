@@ -58,12 +58,12 @@ class ServiceSocket:
                 raise ValueError(f'bad response: {endpoint}; {data}; {response}')
             if response.type in (aiohttp.WSMsgType.CLOSE,
                                  aiohttp.WSMsgType.CLOSED):
-                warnings.warn(f'retrying after losing connection {endpoint}; {data}; {response}')
+                warnings.warn(f'retrying after losing connection {endpoint}; {json.dumps(data)}; {response}')
                 raise TransientError()
             assert response.type == aiohttp.WSMsgType.TEXT
             result = json.loads(response.data)
             if result['status'] != 200:
-                raise FatalError(f'Error from server: {result["value"]}')
+                raise FatalError(f'Error from server:\n\n{json.dumps(data)}\n\n{result["value"]}')
             return result['value']
 
     def request(self, endpoint, **data):

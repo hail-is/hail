@@ -4,6 +4,8 @@ import java.io._
 import java.net._
 import java.nio.charset.StandardCharsets
 import java.util.concurrent._
+
+import is.hail.HAIL_REVISION
 import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.asm4s._
@@ -46,10 +48,6 @@ class ServiceBackendContext(
 
 object ServiceBackend {
   private val log = Logger.getLogger(getClass.getName())
-
-  def apply(): ServiceBackend = {
-    new ServiceBackend()
-  }
 }
 
 class User(
@@ -57,7 +55,9 @@ class User(
   val tmpdir: String,
   val fs: GoogleStorageFS)
 
-class ServiceBackend() extends Backend {
+class ServiceBackend(
+  private[this] val queryGCSPath: String
+) extends Backend {
   import ServiceBackend.log
 
   private[this] val users = new ConcurrentHashMap[String, User]()
@@ -132,6 +132,8 @@ class ServiceBackend() extends Backend {
           "process" -> JObject(
             "command" -> JArray(List(
               JString("is.hail.backend.service.Worker"),
+              JString(HAIL_REVISION),
+              JString(queryGCSPath + HAIL_REVISION + ".jar"),
               JString(root),
               JString(s"$i"))),
             "type" -> JString("jvm")),
@@ -326,7 +328,10 @@ class ServiceBackend() extends Backend {
           (relationalLetsAbove)
           { partition => ShuffleWrite(Literal(shuffleType, uuid), partition) }
           { (rows, globals) => MakeTuple.ordered(Seq(rows, globals)) })
-      val globals = successfulPartitionIdsAndGlobals.asInstanceOf[UnsafeRow].get(1)
+      val globals = SafeRow(
+        successfulPartitionIdsAndGlobals.asInstanceOf[UnsafeRow].t,
+        successfulPartitionIdsAndGlobals.asInstanceOf[UnsafeRow].offset
+      ).get(1)
 
       val partitionBoundsPointers = shuffleClient.partitionBounds(region, stage.numPartitions)
       val partitionIntervals = partitionBoundsPointers.zip(partitionBoundsPointers.drop(1)).map { case (l, r) =>
@@ -644,8 +649,16 @@ object ServiceBackendMain {
   def main(argv: Array[String]): Unit = {
     assert(argv.length == 1, argv.toFastIndexedSeq)
     val udsAddress = argv(0)
+    val queryGCSPathEnvVar = System.getenv("HAIL_QUERY_GCS_PATH")
+    val queryGCSBucketEnvVar = System.getenv("HAIL_QUERY_GCS_BUCKET")
+    val queryGCSPath = if (queryGCSPathEnvVar != null) {
+      assert(queryGCSBucketEnvVar == null, queryGCSBucketEnvVar)
+      queryGCSPathEnvVar
+    } else {
+      s"gs://${queryGCSBucketEnvVar}/jars/"
+    }
     val executor = Executors.newCachedThreadPool()
-    val backend = new ServiceBackend()
+    val backend = new ServiceBackend(queryGCSPath)
     HailContext(backend, "hail.log", false, false, 50, skipLoggingConfiguration = true, 3)
 
     val ss = AFUNIXServerSocket.newInstance()
