@@ -96,7 +96,7 @@ def identity_by_descent(dataset, maf=None, bounded=True, min=None, max=None) -> 
     dataset = require_biallelic(dataset, 'ibd')
 
     return Table(ir.MatrixToTableApply(dataset._mir, {
-        'name': 'IBD',
+        'jsonClass': 'IBD',
         'mafFieldName': '__maf' if maf is not None else None,
         'bounded': bounded,
         'min': min,

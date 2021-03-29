@@ -21,7 +21,7 @@ class BlockMatrixNativeReader(BlockMatrixReader):
         self.path = path
 
     def render(self):
-        reader = {'name': 'BlockMatrixNativeReader',
+        reader = {'jsonClass': 'BlockMatrixNativeReader',
                   'path': self.path}
         return escape_str(json.dumps(reader))
 
@@ -38,7 +38,7 @@ class BlockMatrixBinaryReader(BlockMatrixReader):
         self.block_size = block_size
 
     def render(self):
-        reader = {'name': 'BlockMatrixBinaryReader',
+        reader = {'jsonClass': 'BlockMatrixBinaryReader',
                   'path': self.path,
                   'shape': self.shape,
                   'blockSize': self.block_size}
@@ -57,7 +57,7 @@ class BlockMatrixPersistReader(BlockMatrixReader):
         self.original = original
 
     def render(self):
-        reader = {'name': 'BlockMatrixPersistReader',
+        reader = {'jsonClass': 'BlockMatrixPersistReader',
                   'id': self.id}
         return escape_str(json.dumps(reader))
 

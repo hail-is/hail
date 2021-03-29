@@ -194,7 +194,7 @@ def pca(entry_expr, k=10, compute_loadings=False) -> Tuple[List[float], Table, T
     mt = mt.select_cols().select_rows().select_globals()
 
     t = (Table(ir.MatrixToTableApply(mt._mir, {
-        'name': 'PCA',
+        'jsonClass': 'PCA',
         'entryField': field,
         'k': k,
         'computeLoadings': compute_loadings

@@ -354,7 +354,7 @@ def linear_regression_rows(y, x, covariates, block_size=16, pass_through=()) -> 
                         entry_exprs={x_field_name: x})
 
     config = {
-        'name': func,
+        'jsonClass': func,
         'yFields': y_field_names,
         'xField': x_field_name,
         'covFields': cov_field_names,
@@ -799,7 +799,7 @@ def logistic_regression_rows(test, y, x, covariates, pass_through=()) -> hail.Ta
                         entry_exprs={x_field_name: x})
 
     config = {
-        'name': 'LogisticRegression',
+        'jsonClass': 'LogisticRegression',
         'test': test,
         'yFields': y_field,
         'xField': x_field_name,
@@ -879,7 +879,7 @@ def poisson_regression_rows(test, y, x, covariates, pass_through=()) -> Table:
                         entry_exprs={x_field_name: x})
 
     config = {
-        'name': 'PoissonRegression',
+        'jsonClass': 'PoissonRegression',
         'test': test,
         'yField': y_field_name,
         'xField': x_field_name,
@@ -1411,7 +1411,7 @@ def skat(key_expr, weight_expr, y, x, covariates, logistic=False,
                         entry_exprs=entry_expr)
 
     config = {
-        'name': 'Skat',
+        'jsonClass': 'Skat',
         'keyField': key_field_name,
         'weightField': weight_field_name,
         'xField': x_field_name,
@@ -2856,7 +2856,7 @@ def _local_ld_prune(mt, call_field, r2=0.2, bp_window_size=1000000, memory_per_c
     info(f'ld_prune: running local pruning stage with max queue size of {max_queue_size} variants')
 
     return Table(ir.MatrixToTableApply(mt._mir, {
-        'name': 'LocalLDPrune',
+        'jsonClass': 'LocalLDPrune',
         'callField': call_field,
         'r2Threshold': float(r2),
         'windowSize': bp_window_size,

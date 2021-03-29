@@ -19,7 +19,8 @@ from ..pca import hwe_normalized_pca
            statistics=enumeration('kin', 'kin2', 'kin20', 'all'),
            block_size=nullable(int),
            include_self_kinship=bool)
-def pc_relate(call_expr, min_individual_maf, *, k=None, scores_expr=None,
+def \
+        pc_relate(call_expr, min_individual_maf, *, k=None, scores_expr=None,
               min_kinship=None, statistics="all", block_size=None,
               include_self_kinship=False) -> Table:
     r"""Compute relatedness estimates between individuals using a variant of the
@@ -321,7 +322,7 @@ def pc_relate(call_expr, min_individual_maf, *, k=None, scores_expr=None,
     pcs = scores_table.collect(_localize=False).map(lambda x: x.__scores)
 
     ht = Table(ir.BlockMatrixToTableApply(g._bmir, pcs._ir, {
-        'name': 'PCRelate',
+        'jsonClass': 'PCRelate',
         'maf': min_individual_maf,
         'blockSize': block_size,
         'minKinship': min_kinship,
