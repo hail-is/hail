@@ -667,7 +667,7 @@ class BlockMatrixToTableApply(TableIR):
         return self.config == other.config
 
     def _compute_type(self):
-        name = self.config['name']
+        name = self.config['jsonClass']
         assert name == 'PCRelate', name
         self._type = hl.ttable(
             hl.tstruct(),
