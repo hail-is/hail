@@ -110,17 +110,17 @@ SCanonicalArrayValue::SCanonicalArrayValue(const SCanonicalArray *stype, llvm::V
 SCanonicalArrayValue::~SCanonicalArrayValue() {}
 
 SInt64Value *
-SCanonicalArrayValue::get_length(TypeContext *tc) const {
-  auto returnType = new SInt64(tc->tint32);
-  return new SInt64Value(returnType, length);
+SCanonicalArrayValue::get_length(TypeContext &tc) const {
+  auto return_type = new SInt64(tc->tint32);
+  return new SInt64Value(return_type, length);
 }
 
 SValue*
 SCanonicalArrayValue::get_element(CompileFunction &cf, SInt64Value *idx) const {
   // TODO check for missing.
-  auto stride_value = llvm::ConstantInt::get(llvm::Type::getInt64Ty(cf.llvm_context), static_cast<uint64_t>(this->stype->element_stride));
+  auto stride_value = llvm::ConstantInt::get(llvm::Type::getInt64Ty(cf.llvm_context), static_cast<uint64_t>(stype->element_stride));
   auto element_addr = cf.llvm_ir_builder.CreateGEP(this->data, cf.llvm_ir_builder.CreateMul(idx->value, stride_value));
-  return this->stype->element_type->load_from_address(cf, element_addr);
+  return stype->element_type->load_from_address(cf, element_addr);
 }
 
 void
