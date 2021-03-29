@@ -19,8 +19,7 @@ from ..pca import hwe_normalized_pca
            statistics=enumeration('kin', 'kin2', 'kin20', 'all'),
            block_size=nullable(int),
            include_self_kinship=bool)
-def \
-        pc_relate(call_expr, min_individual_maf, *, k=None, scores_expr=None,
+def pc_relate(call_expr, min_individual_maf, *, k=None, scores_expr=None,
               min_kinship=None, statistics="all", block_size=None,
               include_self_kinship=False) -> Table:
     r"""Compute relatedness estimates between individuals using a variant of the
