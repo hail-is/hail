@@ -28,19 +28,17 @@ def echo_check_call(cmd):
 
 def create_key_and_cert(p):
     name = p['name']
-    domain = p['domain']
+    domains = p['domains']
     unmanaged = p.get('unmanaged', False)
     if unmanaged and namespace != 'default':
-        return
+        return {}
     key_file = f'{name}-key.pem'
     csr_file = f'{name}-csr.csr'
     cert_file = f'{name}-cert.pem'
     key_store_file = f'{name}-key-store.p12'
-    names = [
-        domain,
-        f'{domain}.{namespace}',
-        f'{domain}.{namespace}.svc.cluster.local'
-    ]
+    names = [domain_name
+             for domain in domains
+             for domain_name in [domain, f'{domain}.{namespace}', f'{domain}.{namespace}.svc.cluster.local']]
 
     echo_check_call([
         'openssl', 'genrsa',
@@ -106,7 +104,7 @@ def create_trust(principal, trust_type):  # pylint: disable=unused-argument
     return {'trust': trust_file, 'trust_store': trust_store_file}
 
 
-def create_json_config(principal, incoming_trust, outgoing_trust, key, cert, key_store):
+def create_json_config(incoming_trust, outgoing_trust, key, cert, key_store):
     principal_config = {
         'outgoing_trust': f'/ssl-config/{outgoing_trust["trust"]}',
         'outgoing_trust_store': f'/ssl-config/{outgoing_trust["trust_store"]}',
@@ -122,7 +120,7 @@ def create_json_config(principal, incoming_trust, outgoing_trust, key, cert, key
         return [config_file]
 
 
-def create_nginx_config(principal, incoming_trust, outgoing_trust, key, cert):
+def create_nginx_config(incoming_trust, outgoing_trust, key, cert):
     http_config_file = 'ssl-config-http.conf'
     proxy_config_file = 'ssl-config-proxy.conf'
     with open(proxy_config_file, 'w') as proxy, open(http_config_file, 'w') as http:
@@ -142,7 +140,7 @@ def create_nginx_config(principal, incoming_trust, outgoing_trust, key, cert):
     return [http_config_file, proxy_config_file]
 
 
-def create_curl_config(principal, incoming_trust, outgoing_trust, key, cert):
+def create_curl_config(outgoing_trust, key, cert):
     config_file = 'ssl-config.curlrc'
     with open(config_file, 'w') as out:
         out.write(f'key       /ssl-config/{key}\n')
@@ -151,21 +149,21 @@ def create_curl_config(principal, incoming_trust, outgoing_trust, key, cert):
     return [config_file]
 
 
-def create_config(principal, incoming_trust, outgoing_trust, key, cert, key_store, kind):
+def create_config(incoming_trust, outgoing_trust, key, cert, key_store, kind):
     if kind == 'json':
-        return create_json_config(principal, incoming_trust, outgoing_trust, key, cert, key_store)
+        return create_json_config(incoming_trust, outgoing_trust, key, cert, key_store)
     if kind == 'curl':
-        return create_curl_config(principal, incoming_trust, outgoing_trust, key, cert)
+        return create_curl_config(outgoing_trust, key, cert)
     assert kind == 'nginx'
-    return create_nginx_config(principal, incoming_trust, outgoing_trust, key, cert)
+    return create_nginx_config(incoming_trust, outgoing_trust, key, cert)
 
 
-def create_principal(principal, domain, kind, key, cert, key_store, unmanaged):
+def create_principal(principal, kind, key, cert, key_store, unmanaged):
     if unmanaged and namespace != 'default':
         return
     incoming_trust = create_trust(principal, 'incoming')
     outgoing_trust = create_trust(principal, 'outgoing')
-    configs = create_config(principal, incoming_trust, outgoing_trust, key, cert, key_store, kind)
+    configs = create_config(incoming_trust, outgoing_trust, key, cert, key_store, kind)
     with tempfile.NamedTemporaryFile() as k8s_secret:
         sp.check_call(
             ['kubectl', 'create', 'secret', 'generic', f'ssl-config-{principal}',
@@ -192,7 +190,6 @@ principal_by_name = {
 }
 for name, p in principal_by_name.items():
     create_principal(name,
-                     p['domain'],
                      p['kind'],
                      p['key'],
                      p['cert'],

@@ -3472,7 +3472,7 @@ steps:
      valueFrom: service_base_image.image
    script: |
      set -ex
-     hailctl curl {{ default_ns.name }} website / \
+     hailctl curl {{ default_ns.name }} www / \
              -vvv \
              -fsSL \
              --retry 3 \
