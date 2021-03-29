@@ -1,6 +1,6 @@
 #include <llvm/IR/BasicBlock.h>
 #include <llvm/IR/IRBuilder.h>
-#include <stdint.h>
+#include <cstdint.h>
 
 #include "hail/query/backend/compile.hpp"
 #include "hail/query/backend/svalue.hpp"
@@ -107,11 +107,9 @@ SCanonicalArrayValue::SCanonicalArrayValue(const SCanonicalArray *stype, llvm::V
   : SArrayValue(stype), length(length), missing(missing), data(data) {
 }
 
-SCanonicalArrayValue::~SCanonicalArrayValue() {
-  // TODO: Implement?
-}
+SCanonicalArrayValue::~SCanonicalArrayValue() {}
 
-SInt64Value*
+SInt64Value *
 SCanonicalArrayValue::get_length(TypeContext *tc) const {
   auto returnType = new SInt64(tc->tint32);
   return new SInt64Value(returnType, length);

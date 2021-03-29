@@ -255,21 +255,21 @@ CompileFunction::emit(GetTupleElement *x) {
 
 EmitValue
 CompileFunction::emit(ArrayLen *x) {
-  auto arrayDataValue = emit(x->get_child(0)).as_data(*this);
-  auto arraySValue = cast<SArrayValue>(arrayDataValue.svalue);
-  return EmitValue(arrayDataValue.missing, arraySValue->get_length(&this->tc));
+  auto array_data_value = emit(x->get_child(0)).as_data(*this);
+  auto array_svalue = cast<SArrayValue>(array_data_value.svalue);
+  return EmitValue(array_data_value.missing, array_svalue->get_length(&tc));
 }
 
 EmitValue
 CompileFunction::emit(ArrayRef *x) {
   // TODO: Handle misssingness
-  auto arrayDataValue = emit(x->get_child(0)).as_data(*this);
-  auto arrayIdx = emit(x->get_child(1)).as_data(*this);
-  auto arraySValue = cast<SArrayValue>(arrayDataValue.svalue);
-  auto idxSValue = cast<SInt64Value>(arrayIdx.svalue);
+  auto array_data_value = emit(x->get_child(0)).as_data(*this);
+  auto array_idx = emit(x->get_child(1)).as_data(*this);
+  auto array_svalue = cast<SArrayValue>(array_data_value.svalue);
+  auto idx_svalue = cast<SInt64Value>(array_idx.svalue);
 
-  auto elementLookedUp = arraySValue->get_element(*this, idxSValue);
-  return EmitValue(arrayDataValue.missing, elementLookedUp);
+  auto element_looked_up = array_svalue->get_element(*this, idx_svalue);
+  return EmitValue(array_data_value.missing, element_looked_up);
 }
 
 EmitValue

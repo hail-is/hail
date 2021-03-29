@@ -137,13 +137,13 @@ public:
   SStackTuple(STypeContextToken, const Type *type, std::vector<EmitType> element_types);
 };
 
-class SCanonicalArray : public SType{
-  public:
-    static const Tag self_tag = SType::Tag::CANONICALARRAY;
-    const SType *element_type;
-    size_t elements_alignment;
-    size_t element_stride;
-    SCanonicalArray(const Type *type, const SType *element_type);
+class SCanonicalArray : public SType {
+public:
+  static const Tag self_tag = SType::Tag::CANONICALARRAY;
+  const SType *element_type;
+  size_t elements_alignment;
+  size_t element_stride;
+  SCanonicalArray(const Type *type, const SType *element_type);
 };
 
 class EmitType {
