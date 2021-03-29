@@ -1,4 +1,5 @@
 principals:
 - name: hello
-  domain: hello
+  domains:
+    - hello
   kind: json

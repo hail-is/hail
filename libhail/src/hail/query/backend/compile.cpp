@@ -6,28 +6,32 @@
 namespace hail {
 
 CompileModule::CompileModule(TypeContext &tc,
+			     STypeContext &stc,
 			     Module *module,
 			     const std::vector<EmitType> &param_types,
 			     EmitType return_type,
 			     llvm::LLVMContext &llvm_context,
 			     llvm::Module *llvm_module)
   : tc(tc),
+    stc(stc),
     llvm_context(llvm_context),
     llvm_module(llvm_module) {
   auto main = module->get_function("main");
   // FIXME
   assert(main);
 
-  CompileFunction(tc, main, param_types, return_type, llvm_context, llvm_module);
+  CompileFunction(tc, stc, main, param_types, return_type, llvm_context, llvm_module);
 }
 
 CompileFunction::CompileFunction(TypeContext &tc,
+				 STypeContext &stc,
 				 Function *function,
 				 const std::vector<EmitType> &param_types,
 				 EmitType return_type,
 				 llvm::LLVMContext &llvm_context,
 				 llvm::Module *llvm_module)
   : tc(tc),
+    stc(stc),
     function(function),
     param_types(param_types),
     return_type(return_type),
@@ -37,6 +41,7 @@ CompileFunction::CompileFunction(TypeContext &tc,
     ir_type(tc, function) {
   auto llvm_ft = llvm::FunctionType::get(llvm::Type::getVoidTy(llvm_context),
 					 {llvm::Type::getInt8PtrTy(llvm_context),
+					  llvm::Type::getInt8PtrTy(llvm_context),
 					  llvm::Type::getInt8PtrTy(llvm_context)},
 					 false);
   llvm_function = llvm::Function::Create(llvm_ft,
@@ -47,12 +52,13 @@ CompileFunction::CompileFunction(TypeContext &tc,
   auto entry = llvm::BasicBlock::Create(llvm_context, "entry", llvm_function);
   llvm_ir_builder.SetInsertPoint(entry);
 
-  auto result = emit(function->get_body()).as_data(*this);
+  auto result = emit(function->get_body()).cast_to(*this, return_type).as_data(*this);
+
   std::vector<llvm::Value *> result_llvm_values;
   result.get_constituent_values(result_llvm_values);
   assert(result_llvm_values.size() == 2);
 
-  auto return_address = llvm_function->getArg(0);
+  auto return_address = llvm_function->getArg(1);
   llvm_ir_builder.CreateStore(result_llvm_values[0], return_address);
 
   llvm::Value *value_address = llvm_ir_builder.CreateGEP(return_address,
@@ -111,7 +117,7 @@ CompileFunction::emit(Input *x) {
     assert(constituent_types.size() == 2);
     assert(constituent_types[0] == PrimitiveType::INT8);
 
-    auto params_address = llvm_function->getArg(1);
+    auto params_address = llvm_function->getArg(2);
     auto param_address = llvm_ir_builder.CreateGEP(params_address,
 						   {llvm::ConstantInt::get(llvm_context, llvm::APInt(64, x->index * 16))});
     auto m = llvm_ir_builder.CreateLoad(get_llvm_type(constituent_types[0]),
@@ -134,15 +140,15 @@ const SType *
 CompileFunction::get_default_stype(const Type *t) {
   switch (t->tag) {
   case Type::Tag::BOOL:
-    return new SBool(t);
+    return stc.sbool;
   case Type::Tag::INT32:
-    return new SInt32(t);
+    return stc.sint32;
   case Type::Tag::INT64:
-    return new SInt64(t);
+    return stc.sint64;
   case Type::Tag::FLOAT32:
-    return new SFloat32(t);
+    return stc.sfloat32;
   case Type::Tag::FLOAT64:
-    return new SFloat64(t);
+    return stc.sfloat64;
   default:
     abort();
   }
@@ -160,31 +166,31 @@ CompileFunction::emit(Literal *x) {
     {
       auto m = llvm::ConstantInt::get(llvm::Type::getInt8Ty(llvm_context), 0);
       auto c = llvm::ConstantInt::get(llvm_context, llvm::APInt(1, x->value.as_bool()));
-      return EmitValue(m, new SBoolValue(new SBool(t), c));
+      return EmitValue(m, new SBoolValue(stc.sbool, c));
     }
   case Type::Tag::INT32:
     {
       auto m = llvm::ConstantInt::get(llvm::Type::getInt8Ty(llvm_context), 0);
       auto c = llvm::ConstantInt::get(llvm_context, llvm::APInt(32, x->value.as_int32()));
-      return EmitValue(m, new SInt32Value(new SInt32(t), c));
+      return EmitValue(m, new SInt32Value(stc.sint32, c));
     }
   case Type::Tag::INT64:
     {
       auto m = llvm::ConstantInt::get(llvm::Type::getInt8Ty(llvm_context), 0);
       auto c = llvm::ConstantInt::get(llvm_context, llvm::APInt(64, x->value.as_int64()));
-      return EmitValue(m, new SInt64Value(new SInt32(t), c));
+      return EmitValue(m, new SInt64Value(stc.sint64, c));
     }
   case Type::Tag::FLOAT32:
     {
       auto m = llvm::ConstantInt::get(llvm::Type::getInt8Ty(llvm_context), 0);
       auto c = llvm::ConstantFP::get(llvm_context, llvm::APFloat(x->value.as_float32()));
-      return EmitValue(m, new SFloat32Value(new SFloat32(t), c));
+      return EmitValue(m, new SFloat32Value(stc.sfloat32, c));
     }
   case Type::Tag::FLOAT64:
     {
   auto m = llvm::ConstantInt::get(llvm::Type::getInt8Ty(llvm_context), 0);
       auto c = llvm::ConstantFP::get(llvm_context, llvm::APFloat(x->value.as_float64()));
-      return EmitValue(m, new SFloat64Value(new SFloat64(t), c));
+      return EmitValue(m, new SFloat64Value(stc.sfloat64, c));
     }
   default:
     abort();
@@ -203,19 +209,47 @@ CompileFunction::emit(IsNA *x) {
   llvm::AllocaInst *l = make_entry_alloca(llvm::Type::getInt8Ty(llvm_context));
 
   auto merge_bb = llvm::BasicBlock::Create(llvm_context, "isna_merge", llvm_function);
-  llvm_ir_builder.SetInsertPoint(cond.missing_block);
-  llvm_ir_builder.CreateStore(llvm::ConstantInt::get(llvm::Type::getInt8Ty(llvm_context), 1), l);
+
+  // present
+  llvm_ir_builder.CreateStore(llvm::ConstantInt::get(llvm::Type::getInt8Ty(llvm_context), 0), l);
   llvm_ir_builder.CreateBr(merge_bb);
 
-  llvm_ir_builder.SetInsertPoint(cond.present_block);
-  llvm_ir_builder.CreateStore(llvm::ConstantInt::get(llvm::Type::getInt8Ty(llvm_context), 0), l);
+  llvm_ir_builder.SetInsertPoint(cond.missing_block);
+  llvm_ir_builder.CreateStore(llvm::ConstantInt::get(llvm::Type::getInt8Ty(llvm_context), 1), l);
   llvm_ir_builder.CreateBr(merge_bb);
 
   llvm_ir_builder.SetInsertPoint(merge_bb);
   llvm::Value *v = llvm_ir_builder.CreateLoad(l);
 
   auto m = llvm::ConstantInt::get(llvm::Type::getInt8Ty(llvm_context), 0);
-  return EmitValue(m, new SBoolValue(new SBool(ir_type(x)), v));
+  return EmitValue(m, new SBoolValue(stc.sbool, v));
+}
+
+EmitValue
+CompileFunction::emit(MakeTuple *x) {
+  std::vector<EmitType> element_stypes;
+  std::vector<EmitDataValue> element_emit_values;
+  for (auto c : x->get_children()) {
+    auto cv = emit(c).as_data(*this);
+    element_stypes.push_back(cv.get_type());
+    element_emit_values.push_back(cv);
+  }
+  return EmitValue(llvm::ConstantInt::get(llvm::Type::getInt8Ty(llvm_context), 0),
+		   new SStackTupleValue(stc.stack_stuple(ir_type(x), element_stypes),
+					element_emit_values));
+}
+
+EmitValue
+CompileFunction::emit(GetTupleElement *x) {
+  auto t = emit(x->get_child(0)).as_control(*this);
+
+  // FIXME any tuple value
+  auto elem = cast<SCanonicalTupleValue>(t.svalue)->get_element(*this, x->index).as_control(*this);
+
+  llvm_ir_builder.SetInsertPoint(elem.missing_block);
+  llvm_ir_builder.CreateBr(t.missing_block);
+
+  return EmitValue(t.missing_block, elem.svalue);
 }
 
 EmitValue

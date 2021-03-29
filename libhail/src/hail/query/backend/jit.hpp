@@ -34,7 +34,8 @@ public:
   JIT();
   ~JIT();
 
-  JITModule compile(TypeContext &tc,
+  JITModule compile(HeapAllocator &heap,
+		    TypeContext &tc,
 		    Module *m,
 		    const std::vector<const VType *> &param_vtypes,
 		    const VType *return_vtype);

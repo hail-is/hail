@@ -41,7 +41,13 @@ spec:
       labels:
         app: notebook
         hail.is/sha: "{{ code.sha }}"
+        grafanak8sapp: "true"
     spec:
+      hostAliases:
+       - ip: "127.0.0.1"
+         hostnames:
+         - "notebook.local"
+         - "workshop.local"
       serviceAccountName: notebook
 {% if deploy %}
       priorityClassName: production
@@ -66,10 +72,10 @@ spec:
          image: "{{ notebook_image.image }}"
          resources:
            requests:
-             memory: 1Mi
-             cpu: 1m
+             memory: 20M
+             cpu: 20m
            limits:
-             memory: 200Mi
+             memory: 200M
              cpu: "1"
          env:
           - name: HAIL_DEPLOY_CONFIG_FILE
@@ -92,9 +98,29 @@ spec:
           - name: sql-config
             mountPath: /sql-config
             readOnly: true
+          - name: ssl-config-notebook-python
+            mountPath: /ssl-config
+            readOnly: true
+       - name: nginx
+         image: {{ notebook_nginx_image.image }}
+         resources:
+           requests:
+             cpu: "20m"
+             memory: "20M"
+           limits:
+             cpu: "1"
+             memory: "1G"
+         ports:
+          - containerPort: 443
+         volumeMounts:
           - name: ssl-config-notebook
             mountPath: /ssl-config
             readOnly: true
+         readinessProbe:
+           tcpSocket:
+             port: 443
+           initialDelaySeconds: 5
+           periodSeconds: 5
       volumes:
        - name: deploy-config
          secret:
@@ -112,6 +138,10 @@ spec:
          secret:
            optional: false
            secretName: ssl-config-notebook
+       - name: ssl-config-notebook-python
+         secret:
+           optional: false
+           secretName: ssl-config-notebook-python
 ---
 apiVersion: autoscaling/v2beta1
 kind: HorizontalPodAutoscaler

@@ -6,6 +6,7 @@ import jinja2
 import aiohttp
 from aiohttp import web
 import aiohttp_jinja2
+from prometheus_async.aio.web import server_stats  # type: ignore
 
 from hailtop.utils import time_msecs, secret_alnum_string
 from hailtop.hail_logging import AccessLogger
@@ -14,7 +15,8 @@ from hailtop.config import get_deploy_config
 from hailtop import aiogoogle
 from gear import (Database, setup_aiohttp_session,
                   web_authenticated_developers_only,
-                  check_csrf_token, new_csrf_token)
+                  check_csrf_token, new_csrf_token,
+                  monitor_endpoint)
 
 
 # styling of embedded editor
@@ -63,6 +65,7 @@ def resource_record_to_dict(record):
 @routes.get('')
 @routes.get('/')
 @routes.get('/resources')
+@monitor_endpoint
 @web_authenticated_developers_only()
 @render_template('resources.html')
 async def get_resources(request, userdata):  # pylint: disable=unused-argument
@@ -77,6 +80,7 @@ ORDER BY time_created DESC;
 
 
 @routes.get('/resources/create')
+@monitor_endpoint
 @web_authenticated_developers_only()
 @render_template('create_resource.html')
 async def get_create_resource(request, userdata):  # pylint: disable=unused-argument
@@ -86,6 +90,7 @@ async def get_create_resource(request, userdata):  # pylint: disable=unused-argu
 @routes.post('/resources/create')
 # this method has special content handling, can't call `request.post()`
 # @check_csrf_token
+@monitor_endpoint
 @web_authenticated_developers_only(redirect=False)
 async def post_create_resource(request, userdata):  # pylint: disable=unused-argument
     db = request.app['db']
@@ -140,6 +145,7 @@ VALUES (%s, %s, %s, %s, %s, %s, %s);
 
 
 @routes.get('/resources/{id}')
+@monitor_endpoint
 @web_authenticated_developers_only()
 @render_template('resource.html')
 async def get_resource(request, userdata):  # pylint: disable=unused-argument
@@ -156,6 +162,7 @@ WHERE id = %s;
 
 
 @routes.get('/resources/{id}/edit')
+@monitor_endpoint
 @web_authenticated_developers_only()
 @render_template('edit_resource.html')
 async def get_edit_resource(request, userdata):  # pylint: disable=unused-argument
@@ -174,6 +181,7 @@ WHERE id = %s;
 @routes.post('/resources/{id}/edit')
 # this method has special content handling, can't call `request.post()`
 # @check_csrf_token
+@monitor_endpoint
 @web_authenticated_developers_only(redirect=False)
 async def post_edit_resource(request, userdata):  # pylint: disable=unused-argument
     db = request.app['db']
@@ -247,6 +255,7 @@ WHERE id = %s
 
 @routes.post('/resources/{id}/delete')
 @check_csrf_token
+@monitor_endpoint
 @web_authenticated_developers_only(redirect=False)
 async def post_delete_resource(request, userdata):  # pylint: disable=unused-argument
     db = request.app['db']
@@ -279,6 +288,7 @@ WHERE id = %s;
 
 
 @routes.get('/resources/{resource_id}/attachments/{attachment_id}')
+@monitor_endpoint
 @web_authenticated_developers_only()
 async def get_attachment(request, userdata):  # pylint: disable=unused-argument
     db = request.app['db']
@@ -347,6 +357,7 @@ def run():
         ]))
 
     app.add_routes(routes)
+    app.router.add_get("/metrics", server_stats)
 
     app.on_startup.append(on_startup)
     app.on_cleanup.append(on_cleanup)

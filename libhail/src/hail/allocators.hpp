@@ -54,6 +54,40 @@ public:
   }
 };
 
+class RawArenaAllocator {
+  static const size_t block_size = 64 * 1024;
+
+  HeapAllocator &heap;
+  std::vector<void *> blocks;
+  std::vector<void *> chunks;
+
+  char *free_start;
+  char *block_end;
+
+public:
+  RawArenaAllocator(HeapAllocator &heap);
+  ~RawArenaAllocator() { free(); }
+
+  void *allocate_in_new_block(size_t align, size_t size);
+
+  void *allocate_as_chunk(size_t align, size_t size);
+
+  void *allocate_slow(size_t align, size_t size);
+
+  void *allocate(size_t align, size_t size) {
+    char *p = make_aligned(free_start, align);
+    if (size <= block_end - p) {
+      free_start = p + size;
+      return p;
+    }
+
+    return allocate_slow(align, size);
+  }
+
+  void free();
+};
+
+
 /* Arena allocator with high-level `make<T>(...)` object
    constructor */
 class ArenaAllocator {
@@ -70,45 +104,23 @@ class ArenaAllocator {
     }
   };
 
-  static const size_t block_size = 8 * 1024;
-
-  HeapAllocator &heap;
   std::vector<DestructorClosure> destructors;
-  std::vector<void *> blocks;
-  std::vector<void *> chunks;
-
-  char *free_start;
-  char *block_end;
 
 public:
+  // FIXME public?  pass in?
+  RawArenaAllocator raw_arena;
+
   ArenaAllocator(HeapAllocator &heap)
-    : heap(heap),
-      free_start(nullptr),
-      block_end(nullptr) {}
-   ~ArenaAllocator() { free(); }
-
-  void *allocate_in_new_block(size_t align, size_t size);
-
-  void *allocate_as_chunk(size_t align, size_t size);
+    : raw_arena(heap) {}
+  ~ArenaAllocator() { free(); }
 
   void *allocate(size_t align, size_t size) {
-    if (size > block_size / 4)
-      return allocate_as_chunk(align, size);
-
-    char *p = make_aligned(free_start, align);
-    if (size <= block_end - p) {
-      free_start = p + size;
-      return p;
-    }
-
-    return allocate_in_new_block(align, size);
+    return raw_arena.allocate(align, size);
   }
-
-  void free();
 
   template<typename T, typename... Args> T *
   make(Args &&... args) {
-    void *p = allocate(alignof(T), sizeof(T));
+    void *p = raw_arena.allocate(alignof(T), sizeof(T));
     new (p) T(std::forward<Args>(args)...);
     destructors.emplace_back(p,
 			     [](void *p) {
@@ -116,6 +128,8 @@ public:
 			     });
     return static_cast<T *>(p);
   }
+
+  void free();
 };
 
 }

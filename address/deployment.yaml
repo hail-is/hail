@@ -15,7 +15,6 @@ spec:
       labels:
         app: address
         hail.is/sha: "{{ code.sha }}"
-        grafanak8sapp: "true"
     spec:
       serviceAccountName: address
 {% if deploy %}

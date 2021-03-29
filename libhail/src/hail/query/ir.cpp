@@ -110,6 +110,27 @@ Function::pretty_self(FormatStream &s, int indent) {
   format(s, "\n");
 }
 
+const std::vector<std::string> IR::tag_name = {
+  "block",
+  "input",
+  "literal",
+  "na",
+  "isna",
+  "mux",
+  "unary",
+  "binary",
+  "makearray",
+  "arraylen",
+  "arrayref",
+  "maketuple",
+  "gettupleelement",
+  "tostream",
+  "streammap",
+  "streamflatmap",
+  "streamfilter",
+  "streamfold"
+};
+
 IR::IR(Tag tag, Block *parent, size_t arity)
   : tag(tag), parent(parent), children(arity) {}
 
@@ -143,7 +164,7 @@ IR::set_child(size_t i, IR *x) {
 
 void
 IR::pretty_self(FormatStream &s, int indent) {
-  format(s, FormatAddress(this), Indent(indent), "???");
+  format(s, FormatAddress(this), Indent(indent), "(", tag_name[static_cast<int>(tag)], " ...)");
 }
 
 void
@@ -157,13 +178,13 @@ pretty(FormatStream &s, IR *x, int indent) {
 }
 
 Block::Block(IRContextToken, IRContext &xc, Function *function_parent, Block *parent, std::vector<IR *> children, size_t input_arity)
-  : IR(self_tag, parent, std::move(children)),
+  : IR(Tag::BLOCK, parent, std::move(children)),
     xc(xc),
     function_parent(function_parent),
     inputs(input_arity) {}
 
 Block::Block(IRContextToken, IRContext &xc, Function *function_parent, Block *parent, size_t arity, size_t input_arity)
-  : IR(self_tag, parent, arity),
+  : IR(Tag::BLOCK, parent, arity),
     xc(xc),
     function_parent(function_parent),
     inputs(input_arity) {}
@@ -211,6 +232,16 @@ Block::make_is_na(IR *x) {
 Mux *
 Block::make_mux(IR *x, IR *true_value, IR *false_value) {
   return xc.arena.make<Mux>(IRContextToken(), this, x, true_value, false_value);
+}
+
+MakeTuple *
+Block::make_tuple(std::vector<IR *> elements) {
+  return xc.arena.make<MakeTuple>(IRContextToken(), this, std::move(elements));
+}
+
+GetTupleElement *
+Block::make_get_tuple_element(IR *t, int i) {
+  return xc.arena.make<GetTupleElement>(IRContextToken(), this, t, i);
 }
 
 }

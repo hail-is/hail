@@ -15,6 +15,7 @@ spec:
       labels:
         app: website
         hail.is/sha: "{{ code.sha }}"
+        grafanak8sapp: "true"
     spec:
 {% if deploy %}
       priorityClassName: production
@@ -109,3 +110,18 @@ spec:
   selector:
     matchLabels:
       app: website
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: www
+  labels:
+    app: www
+spec:
+  ports:
+  - name: https
+    port: 443
+    protocol: TCP
+    targetPort: 5000
+  selector:
+    app: website

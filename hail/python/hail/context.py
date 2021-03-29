@@ -119,7 +119,7 @@ class HailContext(object):
            append=bool,
            min_block_size=int,
            branching_factor=int,
-           tmp_dir=str,
+           tmp_dir=nullable(str),
            default_reference=enumeration('GRCh37', 'GRCh38', 'GRCm38', 'CanFam3'),
            idempotent=bool,
            global_seed=nullable(int),
@@ -129,7 +129,7 @@ class HailContext(object):
            _optimizer_iterations=nullable(int))
 def init(sc=None, app_name='Hail', master=None, local='local[*]',
          log=None, quiet=False, append=False,
-         min_block_size=0, branching_factor=50, tmp_dir='/tmp',
+         min_block_size=0, branching_factor=50, tmp_dir=None,
          default_reference='GRCh37', idempotent=False,
          global_seed=6348563392232659379,
          spark_conf=None,

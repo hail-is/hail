@@ -24,3 +24,8 @@ hs_err_pid*.log
 GPATH
 GRTAGS
 GTAGS
+hail/python/hail/docs/experimental/hail.experimental.DB.rst
+hail/python/hailtop/batch/docs/api/
+web_common/web_common/static/css/
+website/docs.tar.gz
+website/website/static/css/

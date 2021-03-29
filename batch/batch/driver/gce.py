@@ -125,6 +125,7 @@ protoPayload.resourceName:"{self.machine_name_prefix}" AND
 timestamp >= "{mark}"
 '''
 
+        log.info(f'querying logging client with mark {mark}')
         mark = None
         async for event in await self.logging_client.list_entries(
                 body={

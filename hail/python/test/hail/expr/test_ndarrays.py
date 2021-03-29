@@ -743,6 +743,16 @@ def test_ndarray_qr():
 
     assert_same_qr(identity4, np_identity4)
 
+    np_size_zero_n = np.zeros((10, 0))
+    size_zero_n = hl.nd.zeros((10, 0))
+
+    assert_same_qr(size_zero_n, np_size_zero_n)
+
+    np_size_zero_m = np.zeros((0, 10))
+    size_zero_m = hl.nd.zeros((0, 10))
+
+    assert_same_qr(size_zero_m, np_size_zero_m)
+
     np_all3 = np.full((3, 3), 3)
     all3 = hl.nd.full((3, 3), 3)
 
