@@ -15,3 +15,4 @@ query.{{ domain }}
 workshop.{{ domain }}
 atgu.{{ domain }}
 grafana.{{ domain }}
+prometheus.{{ domain }}

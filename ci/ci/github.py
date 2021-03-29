@@ -157,7 +157,7 @@ fi
 
 
 class PR(Code):
-    def __init__(self, number, title, source_branch, source_sha, target_branch, author, assignees, labels):
+    def __init__(self, number, title, source_branch, source_sha, target_branch, author, assignees, reviewers, labels):
         self.number = number
         self.title = title
         self.source_branch = source_branch
@@ -165,6 +165,7 @@ class PR(Code):
         self.target_branch = target_branch
         self.author = author
         self.assignees = assignees
+        self.reviewers = reviewers
         self.labels = labels
 
         # pending, changes_requested, approve
@@ -227,6 +228,8 @@ class PR(Code):
         assert self.number == gh_json['number']
         self.title = gh_json['title']
         self.author = gh_json['user']['login']
+        self.assignees = {user['login'] for user in gh_json['assignees']}
+        self.reviewers = {user['login'] for user in gh_json['requested_reviewers']}
 
         new_labels = {label['name'] for label in gh_json['labels']}
         if new_labels != self.labels:
@@ -258,6 +261,7 @@ class PR(Code):
             target_branch,
             gh_json['user']['login'],
             {user['login'] for user in gh_json['assignees']},
+            {user['login'] for user in gh_json['requested_reviewers']},
             {label['name'] for label in gh_json['labels']},
         )
 
@@ -694,7 +698,7 @@ class WatchedBranch(Code):
                         'to': 'team',
                         'topic': 'CI Deploy Failure',
                         'content': f'''
-@*dev*
+@**daniel king**
 state: {self.deploy_state}
 branch: {self.branch.short_str()}
 sha: {self.sha}

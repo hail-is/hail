@@ -515,7 +515,7 @@ class Emit[C](
       case If(cond, cnsq, altr) =>
         assert(cnsq.typ == TVoid && altr.typ == TVoid)
 
-        emitI(cond).consume(cb, {}, m => cb.ifx(m.tcode[Boolean], emitVoid(cnsq), emitVoid(altr)))
+        emitI(cond).consume(cb, {}, m => cb.ifx(m.asBoolean.boolCode(cb), emitVoid(cnsq), emitVoid(altr)))
 
       case Let(name, value, body) => value.pType match {
         case streamType: PCanonicalStream =>
@@ -1011,7 +1011,7 @@ class Emit[C](
           FastIndexedSeq(typeInfo[Region], keyValTyp.asEmitParam, keyValTyp.asEmitParam),
           BooleanInfo)
         isSame.emitWithBuilder { cb =>
-          emitInMethod(cb, compare2).consumeCode[Boolean](cb, true, _.tcode[Boolean])
+          emitInMethod(cb, compare2).consumeCode[Boolean](cb, true, _.asBoolean.boolCode(cb))
         }
 
         val eltIdx = mb.newLocal[Int]("groupByKey_eltIdx")
@@ -1678,6 +1678,7 @@ class Emit[C](
       case x: NDArrayConcat => emitDeforestedNDArrayI(x)
       case x: NDArraySlice => emitDeforestedNDArrayI(x)
       case x: NDArrayFilter => emitDeforestedNDArrayI(x)
+      case x: NDArrayAgg => emitDeforestedNDArrayI(x)
       case x@RunAgg(body, result, states) =>
         val newContainer = AggContainer.fromBuilder(cb, states.toArray, "run_agg")
         emitVoid(body, container = Some(newContainer))
@@ -2185,7 +2186,10 @@ class Emit[C](
             val cmp2 = ApplyComparisonOp(EQWithNA(eltVType), In(0, eltType), In(1, eltType))
             InferPType(cmp2)
             val EmitCode(s, m, pv) = emitInMethod(cmp2, discardNext)
-            discardNext.emit(Code(s, m || pv.tcode[Boolean]))
+            discardNext.emitWithBuilder { cb =>
+              cb += s
+              m || pv.asBoolean.boolCode(cb)
+            }
             val lessThan = ApplyComparisonOp(Compare(eltVType), In(0, eltType), In(1, eltType)) < 0
             InferPType(lessThan)
             (a, lessThan, sorter.distinctFromSorted { (r, v1, m1, v2, m2) =>
@@ -2207,7 +2211,10 @@ class Emit[C](
             val cmp2 = ApplyComparisonOp(EQWithNA(keyType.virtualType), k0, k1).deepCopy()
             InferPType(cmp2)
             val EmitCode(s, m, pv) = emitInMethod(cmp2, discardNext)
-            discardNext.emit(Code(s, m || pv.tcode[Boolean]))
+            discardNext.emitWithBuilder { cb =>
+              cb += s
+              m || pv.asBoolean.boolCode(cb)
+            }
             val lessThan = (ApplyComparisonOp(Compare(keyType.virtualType), k0, k1) < 0).deepCopy()
             InferPType(lessThan)
             (a, lessThan, Code(sorter.pruneMissing, sorter.distinctFromSorted { (r, v1, m1, v2, m2) =>
@@ -2799,6 +2806,33 @@ class Emit[C](
               }
             })
           }
+        case NDArrayAgg(child, axesToSumOut) =>
+          deforest(child).map(cb) { childEmitter =>
+            val childDims = child.typ.asInstanceOf[TNDArray].nDims
+            val axesToKeep = (0 until childDims).filter(axis => !axesToSumOut.contains(axis))
+            val newOutputShape = axesToKeep.map(idx => childEmitter.outputShape(idx))
+            val newOutputShapeComplement = axesToSumOut.map(idx => childEmitter.outputShape(idx))
+
+            new NDArrayEmitter(newOutputShape) {
+              override def outputElement(cb: EmitCodeBuilder, idxVars: IndexedSeq[Value[Long]]): PCode = {
+                val numericElementType = coerce[PNumeric](child.pType.asInstanceOf[PNDArray].elementType)
+                val runningSum = NumericPrimitives.newLocal(cb, "ndarray_agg_running_sum", numericElementType.virtualType)
+                cb.assign(runningSum, numericElementType.zero)
+
+                SNDArray.forEachIndex(cb, newOutputShapeComplement, "NDArrayAgg_Sum_loop"){ case (cb, coordsBeingSummedOut) =>
+                  // Build the new list we need to pass down into child
+                  val idxVarsIt = idxVars.toIterator
+                  val summedOutIt = coordsBeingSummedOut.toIterator
+                  val fullIndicesForChild = (0 until childDims).map(idx =>
+                    if (axesToSumOut.contains(idx)) summedOutIt.next() else idxVarsIt.next()
+                  )
+                  cb.assign(runningSum, numericElementType.add(runningSum, childEmitter.outputElement(cb, fullIndicesForChild).code))
+                }
+
+                PCode.apply(numericElementType, runningSum)
+              }
+            }
+          }
         case _ =>
           val ndI = emit(x)
           ndI.map(cb){ ndPCode =>
@@ -2935,4 +2969,3 @@ abstract class NDArrayEmitter(val outputShape: IndexedSeq[Value[Long]])
     finish(cb)
   }
 }
-

@@ -160,6 +160,10 @@ def init(sc=None, app_name='Hail', master=None, local='local[*]',
     To initialize Hail explicitly with non-default arguments, be sure to do so
     directly after importing the module, as in the above example.
 
+    To facilitate the migration from Spark to the ServiceBackend, this method
+    calls init_service when the environment variable HAIL_QUERY_BACKEND is set
+    to "service".
+
     Note
     ----
     If a :class:`pyspark.SparkContext` is already running, then Hail must be
@@ -214,14 +218,25 @@ def init(sc=None, app_name='Hail', master=None, local='local[*]',
         Local temporary directory.  Used on driver and executor nodes.
         Must use the file scheme.  Defaults to TMPDIR, or /tmp.
     """
-    from hail.backend.spark_backend import SparkBackend
-
     if Env._hc:
         if idempotent:
             return
         else:
             warning('Hail has already been initialized. If this call was intended to change configuration,'
                     ' close the session with hl.stop() first.')
+
+    if os.environ.get('HAIL_QUERY_BACKEND') == 'service':
+        return init_service(
+            log=log,
+            quiet=quiet,
+            append=append,
+            tmpdir=tmp_dir,
+            local_tmpdir=local_tmpdir,
+            default_reference=default_reference,
+            global_seed=global_seed,
+            skip_logging_configuration=skip_logging_configuration)
+
+    from hail.backend.spark_backend import SparkBackend
 
     log = _get_log(log)
     tmpdir = _get_tmpdir(tmp_dir)

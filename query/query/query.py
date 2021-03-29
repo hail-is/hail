@@ -6,7 +6,6 @@ import concurrent
 import logging
 import uvloop
 import asyncio
-import aiohttp
 from aiohttp import web
 import kubernetes_asyncio as kube
 from collections import defaultdict
@@ -106,13 +105,12 @@ async def handle_ws_response(request, userdata, endpoint, f):
         user_queries[body['token']] = query
 
     try:
-        receive = asyncio.ensure_future(ws.receive())  # receive automatically ping-pongs which keeps the socket alive
+        receive = asyncio.ensure_future(ws.receive_str())  # receive automatically ping-pongs which keeps the socket alive
         await asyncio.wait([receive, query], return_when=asyncio.FIRST_COMPLETED)
         if receive.done():
             # we expect no messages from the client
             response = receive.result()
-            assert response.type in (aiohttp.WSMsgType.CLOSE, aiohttp.WSMsgType.CLOSING), (
-                f'{endpoint}: Received websocket message. Expected CLOSE or CLOSING, got {response}')
+            raise AssertionError(f'{endpoint}: client broke the protocol by sending: {response}')
         if not query.done():
             return
         if query.exception() is not None:
@@ -121,7 +119,7 @@ async def handle_ws_response(request, userdata, endpoint, f):
             await ws.send_json({'status': 500, 'value': exc_str})
         else:
             await ws.send_json({'status': 200, 'value': query.result()})
-        assert await ws.receive_str() == 'bye'
+        assert (await receive) == 'bye'
         del user_queries[body['token']]
     finally:
         receive.cancel()
@@ -228,6 +226,15 @@ async def on_cleanup(app):
     await asyncio.gather(*(t for t in asyncio.all_tasks() if t is not asyncio.current_task()))
 
 
+async def on_shutdown(_):
+    # Filter the asyncio.current_task(), because if we await
+    # the current task we'll end up in a deadlock
+    remaining_tasks = [t for t in asyncio.all_tasks() if t is not asyncio.current_task()]
+    log.info(f"On shutdown request received, with {len(remaining_tasks)} remaining tasks")
+    await asyncio.wait(*remaining_tasks)
+    log.info("All tasks on shutdown have completed")
+
+
 def run():
     app = web.Application()
 
@@ -237,6 +244,7 @@ def run():
 
     app.on_startup.append(on_startup)
     app.on_cleanup.append(on_cleanup)
+    app.on_shutdown.append(on_shutdown)
 
     deploy_config = get_deploy_config()
     web.run_app(

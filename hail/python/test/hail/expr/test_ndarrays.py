@@ -59,7 +59,7 @@ def test_ndarray_ref():
 
     with pytest.raises(HailUserError) as exc:
         hl.eval(hl.nd.array([1, 2, 3])[4])
-    assert "Index 4 is out of bounds for axis 0 with size 3" in str(exc)
+    assert "Index 4 is out of bounds for axis 0 with size 3" in str(exc.value)
 
 
 @fails_service_backend()
@@ -295,31 +295,31 @@ def test_ndarray_reshape():
 
     with pytest.raises(FatalError) as exc:
         hl.eval(hl.literal(np_cube).reshape((-1, -1)))
-    assert "more than one -1" in str(exc)
+    assert "more than one -1" in str(exc.value)
 
     with pytest.raises(FatalError) as exc:
         hl.eval(hl.literal(np_cube).reshape((20,)))
-    assert "requested shape is incompatible with number of elements" in str(exc)
+    assert "requested shape is incompatible with number of elements" in str(exc.value)
 
     with pytest.raises(FatalError) as exc:
         hl.eval(a.reshape((3,)))
-    assert "requested shape is incompatible with number of elements" in str(exc)
+    assert "requested shape is incompatible with number of elements" in str(exc.value)
 
     with pytest.raises(FatalError) as exc:
         hl.eval(a.reshape(()))
-    assert "requested shape is incompatible with number of elements" in str(exc)
+    assert "requested shape is incompatible with number of elements" in str(exc.value)
 
     with pytest.raises(FatalError) as exc:
         hl.eval(hl.literal(np_cube).reshape((0, 2, 2)))
-    assert "requested shape is incompatible with number of elements" in str(exc)
+    assert "requested shape is incompatible with number of elements" in str(exc.value)
 
     with pytest.raises(FatalError) as exc:
         hl.eval(hl.literal(np_cube).reshape((2, 2, -2)))
-    assert "must contain only nonnegative numbers or -1" in str(exc)
+    assert "must contain only nonnegative numbers or -1" in str(exc.value)
 
     with pytest.raises(FatalError) as exc:
         hl.eval(shape_zero.reshape((0, -1)))
-    assert "Can't reshape" in str(exc)
+    assert "Can't reshape" in str(exc.value)
 
     with pytest.raises(TypeError):
         a.reshape(hl.tuple(['4', '5']))
@@ -479,16 +479,25 @@ def test_ndarray_save():
             assert np.array_equal(expected, actual)
 
 
-@skip_unless_spark_backend()
-@run_with_cxx_compile()
 def test_ndarray_sum():
     np_m = np.array([[1, 2], [3, 4]])
     m = hl.nd.array(np_m)
 
-    assert_all_eval_to(
+    assert_ndarrays_eq(
         (m.sum(axis=0), np_m.sum(axis=0)),
         (m.sum(axis=1), np_m.sum(axis=1)),
-        (m.sum(), np_m.sum()))
+        (m.sum(), np_m.sum()),
+        (m.sum(tuple([])), np_m.sum(tuple([]))),
+        (m.sum((0, 1)), np_m.sum((0, 1)))
+    )
+
+    with pytest.raises(ValueError) as exc:
+        m.sum(3)
+    assert "out of bounds for ndarray of dimension 2" in str(exc.value)
+
+    with pytest.raises(ValueError) as exc:
+        m.sum((1, 1))
+    assert "duplicate" in str(exc.value)
 
 
 def test_ndarray_transpose():
@@ -607,11 +616,11 @@ def test_ndarray_matmul():
 
     with pytest.raises(FatalError) as exc:
         hl.eval(r @ r)
-    assert "Matrix dimensions incompatible: 3 2" in str(exc)
+    assert "Matrix dimensions incompatible: 3 2" in str(exc.value)
 
     with pytest.raises(FatalError) as exc:
         hl.eval(hl.nd.array([1, 2]) @ hl.nd.array([1, 2, 3]))
-    assert "Matrix dimensions incompatible" in str(exc)
+    assert "Matrix dimensions incompatible" in str(exc.value)
 
 
 def test_ndarray_big():
@@ -642,7 +651,7 @@ def test_ndarray_arange():
 
     with pytest.raises(FatalError) as exc:
         hl.eval(hl.nd.arange(5, 20, 0))
-    assert "Array range cannot have step size 0" in str(exc)
+    assert "Array range cannot have step size 0" in str(exc.value)
 
 
 def test_ndarray_mixed():
@@ -671,7 +680,7 @@ def test_ndarray_diagonal():
 
     with pytest.raises(AssertionError) as exc:
         hl.nd.diagonal(hl.nd.array([1, 2]))
-    assert "2 dimensional" in str(exc)
+    assert "2 dimensional" in str(exc.value)
 
 
 def test_ndarray_qr():
@@ -773,11 +782,11 @@ def test_ndarray_qr():
 
     with pytest.raises(ValueError) as exc:
         hl.nd.qr(wiki_example, mode="invalid")
-    assert "Unrecognized mode" in str(exc)
+    assert "Unrecognized mode" in str(exc.value)
 
     with pytest.raises(AssertionError) as exc:
         hl.nd.qr(hl.nd.arange(6))
-    assert "requires 2 dimensional" in str(exc)
+    assert "requires 2 dimensional" in str(exc.value)
 
 
 def test_svd():
@@ -1044,4 +1053,4 @@ def test_agg_ndarray_sum():
         mismatched = hl.utils.range_table(5)
         mismatched = mismatched.annotate(x=hl.nd.ones((mismatched.idx,)))
         mismatched.aggregate(hl.agg.ndarray_sum(mismatched.x))
-    assert "Can't sum" in str(exc)
+    assert "Can't sum" in str(exc.value)

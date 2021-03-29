@@ -161,6 +161,11 @@ a {
     left: 20px;
 }
 
+.ci-caret:after {
+    /* 18 (measured width of CI) / 2 + 9 - 20 / 2 = 8px */
+    left: 8px;
+}
+
 .monitoring-caret:after {
     /* 82 (measured width of Monitoring) / 2 + 9 - 20 / 2 = 42px */
     left: 40px;

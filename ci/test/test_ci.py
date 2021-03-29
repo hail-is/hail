@@ -9,12 +9,11 @@ from hailtop.auth import service_auth_headers
 from hailtop.httpx import client_session
 import hailtop.utils as utils
 
-pytestmark = pytest.mark.asyncio
-
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger(__name__)
 
 
+@pytest.mark.asyncio
 async def test_deploy():
     deploy_config = get_deploy_config()
     ci_deploy_status_url = deploy_config.url('ci', '/api/v1alpha/deploy_status')

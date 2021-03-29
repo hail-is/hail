@@ -1581,5 +1581,311 @@
         "version": "1.1"
       }
     ]
+  },
+  "panukb_ld_block_matrix_AFR": {
+    "description": "Pan-UKB: linkage disequilibrium (LD) matrix Hail BlockMatrix for African ancestry population. To determine which row/column corresponds to which variant, see the associated variant indices Hail Table: panukb_ld_variant_indices_AFR.",
+    "url": "https://pan.ukbb.broadinstitute.org/docs/technical-overview",
+    "versions": [
+      {
+        "reference_genome": "GRCh37",
+        "url": {
+          "aws": {
+            "us": "s3://pan-ukb-us-east-1/ld_release/UKBB.AFR.ldadj.bm"
+          }
+        },
+        "version": "0.2"
+      }
+    ]
+  },
+  "panukb_ld_block_matrix_AMR": {
+    "description": "Pan-UKB: linkage disequilibrium (LD) matrix Hail BlockMatrix for Admixed American ancestry population. To determine which row/column corresponds to which variant, see the associated variant indices Hail Table: panukb_ld_variant_indices_AMR.",
+    "url": "https://pan.ukbb.broadinstitute.org/docs/technical-overview",
+    "versions": [
+      {
+        "reference_genome": "GRCh37",
+        "url": {
+          "aws": {
+            "us": "s3://pan-ukb-us-east-1/ld_release/UKBB.AMR.ldadj.bm"
+          }
+        },
+        "version": "0.2"
+      }
+    ]
+  },
+  "panukb_ld_block_matrix_CSA": {
+    "description": "Pan-UKB: linkage disequilibrium (LD) matrix Hail BlockMatrix for Central/South Asian ancestry population. To determine which row/column corresponds to which variant, see the associated variant indices Hail Table: panukb_ld_variant_indices_CSA.",
+    "url": "https://pan.ukbb.broadinstitute.org/docs/technical-overview",
+    "versions": [
+      {
+        "reference_genome": "GRCh37",
+        "url": {
+          "aws": {
+            "us": "s3://pan-ukb-us-east-1/ld_release/UKBB.CSA.ldadj.bm"
+          }
+        },
+        "version": "0.2"
+      }
+    ]
+  },
+  "panukb_ld_block_matrix_EAS": {
+    "description": "Pan-UKB: linkage disequilibrium (LD) matrix Hail BlockMatrix for East Asian ancestry population. To determine which row/column corresponds to which variant, see the associated variant indices Hail Table: panukb_ld_variant_indices_EAS.",
+    "url": "https://pan.ukbb.broadinstitute.org/docs/technical-overview",
+    "versions": [
+      {
+        "reference_genome": "GRCh37",
+        "url": {
+          "aws": {
+            "us": "s3://pan-ukb-us-east-1/ld_release/UKBB.EAS.ldadj.bm"
+          }
+        },
+        "version": "0.2"
+      }
+    ]
+  },
+  "panukb_ld_block_matrix_EUR": {
+    "description": "Pan-UKB: linkage disequilibrium (LD) matrix Hail BlockMatrix for European ancestry population. To determine which row/column corresponds to which variant, see the associated variant indices Hail Table: panukb_ld_variant_indices_EUR.",
+    "url": "https://pan.ukbb.broadinstitute.org/docs/technical-overview",
+    "versions": [
+      {
+        "reference_genome": "GRCh37",
+        "url": {
+          "aws": {
+            "us": "s3://pan-ukb-us-east-1/ld_release/UKBB.EUR.ldadj.bm"
+          }
+        },
+        "version": "0.2"
+      }
+    ]
+  },
+  "panukb_ld_block_matrix_MID": {
+    "description": "Pan-UKB: linkage disequilibrium (LD) matrix Hail BlockMatrix for Middle Eastern ancestry population. To determine which row/column corresponds to which variant, see the associated variant indices Hail Table: panukb_ld_variant_indices_MID.",
+    "url": "https://pan.ukbb.broadinstitute.org/docs/technical-overview",
+    "versions": [
+      {
+        "reference_genome": "GRCh37",
+        "url": {
+          "aws": {
+            "us": "s3://pan-ukb-us-east-1/ld_release/UKBB.MID.ldadj.bm"
+          }
+        },
+        "version": "0.2"
+      }
+    ]
+  },
+  "panukb_ld_scores_AFR": {
+    "description": "Pan-UKB: linkage disequilibrium (LD) scores Hail Table for African ancestry population.",
+    "url": "https://pan.ukbb.broadinstitute.org/docs/technical-overview",
+    "versions": [
+      {
+        "reference_genome": "GRCh37",
+        "url": {
+          "aws": {
+            "us": "s3://pan-ukb-us-east-1/ld_release/UKBB.AFR.ldscore.ht"
+          }
+        },
+        "version": "0.2"
+      }
+    ]
+  },
+  "panukb_ld_scores_AMR": {
+    "description": "Pan-UKB: linkage disequilibrium (LD) scores Hail Table for Admixed American ancestry population.",
+    "url": "https://pan.ukbb.broadinstitute.org/docs/technical-overview",
+    "versions": [
+      {
+        "reference_genome": "GRCh37",
+        "url": {
+          "aws": {
+            "us": "s3://pan-ukb-us-east-1/ld_release/UKBB.AMR.ldscore.ht"
+          }
+        },
+        "version": "0.2"
+      }
+    ]
+  },
+  "panukb_ld_scores_CSA": {
+    "description": "Pan-UKB: linkage disequilibrium (LD) scores Hail Table for Central/South Asian ancestry population.",
+    "url": "https://pan.ukbb.broadinstitute.org/docs/technical-overview",
+    "versions": [
+      {
+        "reference_genome": "GRCh37",
+        "url": {
+          "aws": {
+            "us": "s3://pan-ukb-us-east-1/ld_release/UKBB.CSA.ldscore.ht"
+          }
+        },
+        "version": "0.2"
+      }
+    ]
+  },
+  "panukb_ld_scores_EAS": {
+    "description": "Pan-UKB: linkage disequilibrium (LD) scores Hail Table for East Asian ancestry population.",
+    "url": "https://pan.ukbb.broadinstitute.org/docs/technical-overview",
+    "versions": [
+      {
+        "reference_genome": "GRCh37",
+        "url": {
+          "aws": {
+            "us": "s3://pan-ukb-us-east-1/ld_release/UKBB.EAS.ldscore.ht"
+          }
+        },
+        "version": "0.2"
+      }
+    ]
+  },
+  "panukb_ld_scores_EUR": {
+    "description": "Pan-UKB: linkage disequilibrium (LD) scores Hail Table for European ancestry population.",
+    "url": "https://pan.ukbb.broadinstitute.org/docs/technical-overview",
+    "versions": [
+      {
+        "reference_genome": "GRCh37",
+        "url": {
+          "aws": {
+            "us": "s3://pan-ukb-us-east-1/ld_release/UKBB.EUR.ldscore.ht"
+          }
+        },
+        "version": "0.2"
+      }
+    ]
+  },
+  "panukb_ld_scores_MID": {
+    "description": "Pan-UKB: linkage disequilibrium (LD) scores Hail Table for Middle Eastern ancestry population.",
+    "url": "https://pan.ukbb.broadinstitute.org/docs/technical-overview",
+    "versions": [
+      {
+        "reference_genome": "GRCh37",
+        "url": {
+          "aws": {
+            "us": "s3://pan-ukb-us-east-1/ld_release/UKBB.MID.ldscore.ht"
+          }
+        },
+        "version": "0.2"
+      }
+    ]
+  },
+  "panukb_ld_variant_indices_AFR": {
+    "description": "Pan-UKB: variant indices Hail Table for African ancestry population.",
+    "url": "https://pan.ukbb.broadinstitute.org/docs/technical-overview",
+    "versions": [
+      {
+        "reference_genome": "GRCh37",
+        "url": {
+          "aws": {
+            "us": "s3://pan-ukb-us-east-1/ld_release/UKBB.AFR.ldadj.variant.ht"
+          }
+        },
+        "version": "0.2"
+      }
+    ]
+  },
+  "panukb_ld_variant_indices_AMR": {
+    "description": "Pan-UKB: variant indices Hail Table for Admixed American ancestry population.",
+    "url": "https://pan.ukbb.broadinstitute.org/docs/technical-overview",
+    "versions": [
+      {
+        "reference_genome": "GRCh37",
+        "url": {
+          "aws": {
+            "us": "s3://pan-ukb-us-east-1/ld_release/UKBB.AMR.ldadj.variant.ht"
+          }
+        },
+        "version": "0.2"
+      }
+    ]
+  },
+  "panukb_ld_variant_indices_CSA": {
+    "description": "Pan-UKB: variant indices Hail Table for Central/South Asian ancestry population.",
+    "url": "https://pan.ukbb.broadinstitute.org/docs/technical-overview",
+    "versions": [
+      {
+        "reference_genome": "GRCh37",
+        "url": {
+          "aws": {
+            "us": "s3://pan-ukb-us-east-1/ld_release/UKBB.CSA.ldadj.variant.ht"
+          }
+        },
+        "version": "0.2"
+      }
+    ]
+  },
+  "panukb_ld_variant_indices_EAS": {
+    "description": "Pan-UKB: variant indices Hail Table for East Asian ancestry population.",
+    "url": "https://pan.ukbb.broadinstitute.org/docs/technical-overview",
+    "versions": [
+      {
+        "reference_genome": "GRCh37",
+        "url": {
+          "aws": {
+            "us": "s3://pan-ukb-us-east-1/ld_release/UKBB.EAS.ldadj.variant.ht"
+          }
+        },
+        "version": "0.2"
+      }
+    ]
+  },
+  "panukb_ld_variant_indices_EUR": {
+    "description": "Pan-UKB: variant indices Hail Table for European ancestry population.",
+    "url": "https://pan.ukbb.broadinstitute.org/docs/technical-overview",
+    "versions": [
+      {
+        "reference_genome": "GRCh37",
+        "url": {
+          "aws": {
+            "us": "s3://pan-ukb-us-east-1/ld_release/UKBB.EUR.ldadj.variant.ht"
+          }
+        },
+        "version": "0.2"
+      }
+    ]
+  },
+  "panukb_ld_variant_indices_MID": {
+    "description": "Pan-UKB: variant indices Hail Table for Middle Eastern ancestry population.",
+    "url": "https://pan.ukbb.broadinstitute.org/docs/technical-overview",
+    "versions": [
+      {
+        "reference_genome": "GRCh37",
+        "url": {
+          "aws": {
+            "us": "s3://pan-ukb-us-east-1/ld_release/UKBB.MID.ldadj.variant.ht"
+          }
+        },
+        "version": "0.2"
+      }
+    ]
+  },
+  "panukb_meta_analysis": {
+    "description": "Pan-UKB: pan-ancestry GWAS of UK Biobank, full meta-analysis Hail MatrixTable.",
+    "url": "https://pan.ukbb.broadinstitute.org/docs/technical-overview/index.html",
+    "versions": [
+      {
+        "reference_genome": "GRCh37",
+        "url": {
+          "aws": {
+            "us": "s3://pan-ukb-us-east-1/sumstats_release/meta_analysis.mt"
+          },
+          "gcp": {
+            "us": "gs://ukb-diverse-pops-public/sumstats_release/meta_analysis.mt"
+          }
+        },
+        "version": "0.1"
+      }
+    ]
+  },
+  "panukb_summary_stats": {
+    "description": "Pan-UKB: pan-ancestry GWAS of UK Biobank, full summary statistics Hail MatrixTable.",
+    "url": "https://pan.ukbb.broadinstitute.org/docs/technical-overview/index.html",
+    "versions": [
+      {
+        "reference_genome": "GRCh37",
+        "url": {
+          "aws": {
+            "us": "s3://pan-ukb-us-east-1/sumstats_release/results_full.mt"
+          },
+          "gcp": {
+            "us": "gs://ukb-diverse-pops-public/sumstats_release/results_full.mt"
+          }
+        },
+        "version": "0.1"
+      }
+    ]
   }
 }

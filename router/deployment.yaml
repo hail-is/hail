@@ -176,8 +176,7 @@ metadata:
     app: hello
 spec:
   ports:
-    - name: http
-      port: 80
+    - port: 443
       protocol: TCP
       targetPort: 5000
   selector:
@@ -268,6 +267,18 @@ spec:
      targetPort: 443
   selector:
     app: grafana
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: prometheus
+spec:
+  ports:
+   - port: 443
+     protocol: TCP
+     targetPort: 443
+  selector:
+    app: prometheus
 ---
 apiVersion: apps/v1
 kind: Deployment

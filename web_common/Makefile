@@ -5,3 +5,4 @@ PYTHON := PYTHONPATH=$${PYTHONPATH:+$${PYTHONPATH}:}$(EXTRA_PYTHONPATH) python3
 check:
 	$(PYTHON) -m flake8 web_common
 	$(PYTHON) -m pylint --rcfile ../pylintrc web_common --score=n
+	curlylint .

@@ -290,7 +290,6 @@ class RVDPartitioner(
   }
 
   def keysIfOneToOne(): Option[IndexedSeq[Row]] = {
-    log.info(s"keysIfOneToOne ${kType} ${this}")
     if (kType.size == 0) {
       return None
     }

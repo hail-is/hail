@@ -211,9 +211,11 @@ class ContainerStepManager:
         self.state = state
         self.name = name
         self.timing = None
+        self._deleted = False
 
     async def __aenter__(self):
         if self.container.job.deleted:
+            self._deleted = True
             raise JobDeletedError()
         if self.state:
             log.info(f'{self.container} state changed: {self.container.state} => {self.state}')
@@ -223,6 +225,9 @@ class ContainerStepManager:
         self.container.timing[self.name] = self.timing
 
     async def __aexit__(self, exc_type, exc, tb):
+        if self._deleted:
+            return
+
         finish_time = time_msecs()
         self.timing['finish_time'] = finish_time
         start_time = self.timing['start_time']
@@ -231,6 +236,15 @@ class ContainerStepManager:
 
 def worker_fraction_in_1024ths(cpu_in_mcpu):
     return 1024 * cpu_in_mcpu // (CORES * 1000)
+
+
+def user_error(e):
+    if isinstance(e, DockerError):
+        if e.status == 404 and 'pull access denied' in e.message:
+            return True
+        if e.status == 400 and 'executable file not found' in e.message:
+            return True
+    return False
 
 
 class Container:
@@ -443,8 +457,9 @@ class Container:
                 self.state = 'succeeded'
             else:
                 self.state = 'failed'
-        except Exception:
-            log.exception(f'while running {self}')
+        except Exception as e:
+            if not isinstance(e, (JobDeletedError, JobTimeoutError)):
+                log.exception(f'while running {self}')
 
             self.state = 'error'
             self.error = traceback.format_exc()
@@ -943,8 +958,9 @@ class DockerJob(Job):
                         self.state = 'succeeded'
                 else:
                     self.state = input.state
-            except Exception:
-                log.exception(f'while running {self}')
+            except Exception as e:
+                if not user_error(e):
+                    log.exception(f'while running {self}')
 
                 self.state = 'error'
                 self.error = traceback.format_exc()
@@ -1307,8 +1323,6 @@ class Worker:
                 await app_runner.cleanup()
                 log.info('cleaned up app runner')
 
-            self.shutdown()
-
     async def kill_1(self, request):  # pylint: disable=unused-argument
         log.info('killed')
         self.stop_event.set()
@@ -1464,12 +1478,14 @@ async def async_main():
     finally:
         try:
             worker.shutdown()
+            log.info('worker shutdown')
         finally:
             await docker.close()
+            log.info('docker closed')
 
 loop = asyncio.get_event_loop()
 loop.run_until_complete(async_main())
-loop.run_until_complete(loop.shutdown_asyncgens())
+log.info('closing loop')
 loop.close()
 log.info('closed')
 sys.exit(0)
