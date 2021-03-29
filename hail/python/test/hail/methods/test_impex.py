@@ -58,7 +58,6 @@ class VCFTests(unittest.TestCase):
         for f in _FLOAT_ARRAY_INFO_FIELDS:
             self.assertEqual(mt['info'][f].dtype, hl.tarray(hl.tfloat64))
 
-    @fails_service_backend()
     def test_glob(self):
         full = hl.import_vcf(resource('sample.vcf'))
         parts = hl.import_vcf(resource('samplepart*.vcf'))
@@ -1999,7 +1998,6 @@ class ImportTableTests(unittest.TestCase):
         ht.write(f)
         assert ht._same(hl.read_table(f))
 
-    @fails_service_backend()
     def test_import_same(self):
         ht = hl.import_table(resource('sampleAnnotations.tsv'))
         ht2 = hl.import_table(resource('sampleAnnotations.tsv'))

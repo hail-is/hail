@@ -16,6 +16,7 @@ package object physical {
     case _: PBoolean => typeInfo[Boolean]
     case PVoid => typeInfo[Unit]
     case _: PBinary => typeInfo[Long]
+    case _: PShuffle => typeInfo[Long]
     case _: PStream => classInfo[StreamArgType]
     case _: PBaseStruct => typeInfo[Long]
     case _: PNDArray => typeInfo[Long]

@@ -210,7 +210,6 @@ class Tests(unittest.TestCase):
 
         assert re_mt.choose_cols(mapping).drop('col_idx')._same(mt.drop('col_idx'))
 
-    @fails_service_backend()
     def test_to_matrix_table_row_major(self):
         t = hl.utils.range_table(10)
         t = t.annotate(foo=t.idx, bar=2 * t.idx, baz=3 * t.idx)
@@ -252,7 +251,6 @@ class Tests(unittest.TestCase):
         assert r1.all(r1.n == 20)
         assert r2.all(r2.n == 20)
 
-    @fails_service_backend()
     def test_aggregate_by_key_partitioning(self):
         ht1 = hl.Table.parallelize([
             {'k': 'foo', 'b': 1},
@@ -574,7 +572,6 @@ class Tests(unittest.TestCase):
         with self.assertRaisesRegex(hl.expr.ExpressionException, "Table key: *<<<empty key>>>"):
             t[t.idx]
 
-    @fails_service_backend()
     def test_aggregation_with_no_aggregators(self):
         ht = hl.utils.range_table(3)
         self.assertEqual(ht.group_by(ht.idx).aggregate().count(), 3)
@@ -669,7 +666,6 @@ class Tests(unittest.TestCase):
         with self.assertRaises(LookupError):
             kt.rename({'hello': 'a'})
 
-    @fails_service_backend()
     def test_distinct(self):
         t1 = hl.Table.parallelize([
             {'a': 'foo', 'b': 1},
@@ -854,7 +850,6 @@ class Tests(unittest.TestCase):
             ht._filter_partitions([0, 7]).idx.collect(),
             [0, 1, 2, 21, 22])
 
-    @fails_service_backend()
     def test_localize_entries(self):
         ref_schema = hl.tstruct(row_idx=hl.tint32,
                                 __entries=hl.tarray(hl.tstruct(v=hl.tint32)))
@@ -867,7 +862,6 @@ class Tests(unittest.TestCase):
         t = mt._localize_entries('__entries', '__cols')
         self.assertTrue(t._same(ref_tab))
 
-    @fails_service_backend()
     def test_localize_self_join(self):
         ref_schema = hl.tstruct(row_idx=hl.tint32,
                                 __entries=hl.tarray(hl.tstruct(v=hl.tint32)))
@@ -1012,7 +1006,6 @@ class Tests(unittest.TestCase):
         self.assertEqual(inner_join.collect(), inner_join_expected)
         self.assertEqual(outer_join.collect(), outer_join_expected)
 
-    @fails_service_backend()
     def test_null_joins_2(self):
         tr = hl.utils.range_table(7, 1)
         table1 = tr.key_by(new_key=hl.if_else((tr.idx == 3) | (tr.idx == 5),
@@ -1145,7 +1138,6 @@ class Tests(unittest.TestCase):
         ht3 = ht1.join(ht2)
         assert ht3.filter(ht3.idx2 == 10).count() == 4
 
-    @fails_service_backend()
     def test_key_by_aggregate_rewriting(self):
         ht = hl.utils.range_table(10)
         ht = ht.group_by(x=ht.idx % 5).aggregate(aggr = hl.agg.count())
@@ -1182,7 +1174,6 @@ class Tests(unittest.TestCase):
         ht = hl.utils.range_table(10)
         assert hl.eval(ht.idx.collect(_localize=False)) == ht.idx.collect()
 
-    @fails_service_backend()
     def test_expr_collect(self):
         t = hl.utils.range_table(3)
 
@@ -1220,12 +1211,10 @@ class Tests(unittest.TestCase):
     def test_no_row_fields_show(self):
         hl.utils.range_table(5).key_by().select().show()
 
-    @fails_service_backend()
     def test_same_equal(self):
         t1 = hl.utils.range_table(1)
         self.assertTrue(t1._same(t1))
 
-    @fails_service_backend()
     def test_same_within_tolerance(self):
         t = hl.utils.range_table(1)
         t1 = t.annotate(x = 1.0)
@@ -1250,7 +1239,6 @@ class Tests(unittest.TestCase):
         t2 = t1.annotate_globals(x = 8)
         self.assertFalse(t1._same(t2))
 
-    @fails_service_backend()
     def test_same_different_rows(self):
         t1 = (hl.utils.range_table(2)
               .annotate(x = 7))
@@ -1352,7 +1340,6 @@ def test_large_number_of_fields(tmpdir):
 def test_import_many_fields():
     assert_time(lambda: hl.import_table(resource('many_cols.txt')), 5)
 
-@fails_service_backend()
 def test_segfault():
     t = hl.utils.range_table(1)
     t2 = hl.utils.range_table(3)
@@ -1363,7 +1350,6 @@ def test_segfault():
     assert joined.collect() == []
 
 
-@fails_service_backend()
 def test_maybe_flexindex_table_by_expr_direct_match():
     t1 = hl.utils.range_table(1)
     t2 = hl.utils.range_table(1)
@@ -1383,7 +1369,6 @@ def test_maybe_flexindex_table_by_expr_direct_match():
     assert t1._maybe_flexindex_table_by_expr(hl.str(mt1.row_key)) is None
 
 
-@fails_service_backend()
 def test_maybe_flexindex_table_by_expr_prefix_match():
     t1 = hl.utils.range_table(1)
     t2 = hl.utils.range_table(1)
@@ -1403,7 +1388,6 @@ def test_maybe_flexindex_table_by_expr_prefix_match():
     assert t1._maybe_flexindex_table_by_expr((hl.str(mt1.row_idx), mt1.row_idx)) is None
 
 
-@fails_service_backend()
 @fails_local_backend()
 def test_maybe_flexindex_table_by_expr_direct_interval_match():
     t1 = hl.utils.range_table(1)
