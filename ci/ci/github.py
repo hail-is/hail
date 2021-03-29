@@ -327,7 +327,9 @@ class PR(Code):
                 f'/repos/{self.target_branch.branch.repo.short_str()}/statuses/{self.source_sha}', data=data
             )
         except gidgethub.HTTPException:
-            log.info(f'{self.short_str()}: notify github of build state failed due to exception: {data}', exc_info=True)
+            log.exception(
+                f'{self.short_str()}: notify github of build state failed due to exception: {data}', exc_info=True
+            )
         except aiohttp.client_exceptions.ClientResponseError:
             log.exception(f'{self.short_str()}: Unexpected exception in post to github: {data}')
 
@@ -344,7 +346,9 @@ class PR(Code):
                     f'/repos/{self.target_branch.branch.repo.short_str()}/issues/{self.number}/assignees', data=data
                 )
             except gidgethub.HTTPException:
-                log.info(f'{self.short_str()}: post assignees to github failed due to exception: {data}', exc_info=True)
+                log.exception(
+                    f'{self.short_str()}: post assignees to github failed due to exception: {data}', exc_info=True
+                )
             except aiohttp.client_exceptions.ClientResponseError:
                 log.exception(f'{self.short_str()}: Unexpected exception in post to github: {data}')
 
@@ -489,7 +493,7 @@ mkdir -p {shq(repo_dir)}
             try:
                 s = await b.status()
             except Exception:
-                log.info(f'failed to get the status for batch {b.id}', exc_info=True)
+                log.exception(f'failed to get the status for batch {b.id}', exc_info=True)
                 raise
             if s['state'] != 'cancelled':
                 if min_batch is None or b.id > min_batch.id:
@@ -548,7 +552,7 @@ mkdir -p {shq(repo_dir)}
             )
             return True
         except (gidgethub.HTTPException, aiohttp.client_exceptions.ClientResponseError):
-            log.info(f'merge {self.target_branch.branch.short_str()} {self.number} failed', exc_info=True)
+            log.exception(f'merge {self.target_branch.branch.short_str()} {self.number} failed', exc_info=True)
         return False
 
     def checkout_script(self):
@@ -715,7 +719,9 @@ class WatchedBranch(Code):
             try:
                 status = await self.deploy_batch.status()
             except aiohttp.client_exceptions.ClientResponseError as exc:
-                log.info(f'Could not update deploy_batch status due to exception {exc}, setting deploy_batch to None')
+                log.exception(
+                    f'Could not update deploy_batch status due to exception {exc}, setting deploy_batch to None'
+                )
                 self.deploy_batch = None
                 return
             if status['complete']:
