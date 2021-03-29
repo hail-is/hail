@@ -579,7 +579,7 @@ class MatrixToTableApply(TableIR):
         return self.config == other.config
 
     def _compute_type(self):
-        name = self.config['name']
+        name = self.config['jsonClass']
         child_typ = self.child.typ
         if name == 'LinearRegressionRowsChained':
             pass_through = self.config['passThrough']
