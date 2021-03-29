@@ -39,7 +39,7 @@ steps:
      mkdir repo
      cd repo
      {{ code.checkout_script }}
-     make -C hail python-version-info
+     make -C hail python/hailtop/hail_version
    timeout: 300
    outputs:
     - from: /io/repo
