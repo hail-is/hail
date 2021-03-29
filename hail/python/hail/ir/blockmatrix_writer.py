@@ -24,7 +24,7 @@ class BlockMatrixNativeWriter(BlockMatrixWriter):
         self.stage_locally = stage_locally
 
     def render(self):
-        writer = {'name': 'BlockMatrixNativeWriter',
+        writer = {'jsonClass': 'BlockMatrixNativeWriter',
                   'path': self.path,
                   'overwrite': self.overwrite,
                   'forceRowMajor': self.force_row_major,
@@ -45,7 +45,7 @@ class BlockMatrixBinaryWriter(BlockMatrixWriter):
         self.path = path
 
     def render(self):
-        writer = {'name': 'BlockMatrixBinaryWriter',
+        writer = {'jsonClass': 'BlockMatrixBinaryWriter',
                   'path': self.path}
         return escape_str(json.dumps(writer))
 
@@ -66,7 +66,7 @@ class BlockMatrixRectanglesWriter(BlockMatrixWriter):
         self.binary = binary
 
     def render(self):
-        writer = {'name': 'BlockMatrixRectanglesWriter',
+        writer = {'jsonClass': 'BlockMatrixRectanglesWriter',
                   'path': self.path,
                   'rectangles': self.rectangles,
                   'delimiter': self.delimiter,
@@ -98,7 +98,7 @@ class BlockMatrixBinaryMultiWriter(BlockMatrixMultiWriter):
         self.overwrite = overwrite
 
     def render(self):
-        writer = {'name': 'BlockMatrixBinaryMultiWriter',
+        writer = {'jsonClass': 'BlockMatrixBinaryMultiWriter',
                   'prefix': self.prefix,
                   'overwrite': self.overwrite}
         return escape_str(json.dumps(writer))
@@ -122,7 +122,7 @@ class BlockMatrixTextMultiWriter(BlockMatrixMultiWriter):
         self.custom_filenames = custom_filenames
 
     def render(self):
-        writer = {'name': 'BlockMatrixTextMultiWriter',
+        writer = {'jsonClass': 'BlockMatrixTextMultiWriter',
                   'prefix': self.prefix,
                   'overwrite': self.overwrite,
                   'delimiter': self.delimiter,
@@ -150,7 +150,7 @@ class BlockMatrixPersistWriter(BlockMatrixWriter):
         self.storage_level = storage_level
 
     def render(self):
-        writer = {'name': 'BlockMatrixPersistWriter',
+        writer = {'jsonClass': 'BlockMatrixPersistWriter',
                   'id': self.id,
                   'storageLevel': self.storage_level}
         return escape_str(json.dumps(writer))
@@ -170,7 +170,7 @@ class BlockMatrixNativeMultiWriter(BlockMatrixMultiWriter):
         self.stage_locally = stage_locally
 
     def render(self):
-        writer = {'name': 'BlockMatrixNativeMultiWriter',
+        writer = {'jsonClass': 'BlockMatrixNativeMultiWriter',
                   'prefix': self.prefix,
                   'overwrite': self.overwrite,
                   'forceRowMajor': self.force_row_major,
