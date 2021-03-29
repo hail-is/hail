@@ -32,7 +32,7 @@ class MatrixNativeWriter(MatrixWriter):
         self.partitions_type = partitions_type
 
     def render(self):
-        writer = {'name': 'MatrixNativeWriter',
+        writer = {'jsonClass': 'MatrixNativeWriter',
                   'path': self.path,
                   'overwrite': self.overwrite,
                   'stageLocally': self.stage_locally,
@@ -65,7 +65,7 @@ class MatrixVCFWriter(MatrixWriter):
         self.tabix = tabix
 
     def render(self):
-        writer = {'name': 'MatrixVCFWriter',
+        writer = {'jsonClass': 'MatrixVCFWriter',
                   'path': self.path,
                   'append': self.append,
                   'exportType': self.export_type,
@@ -90,7 +90,7 @@ class MatrixGENWriter(MatrixWriter):
         self.precision = precision
 
     def render(self):
-        writer = {'name': 'MatrixGENWriter',
+        writer = {'jsonClass': 'MatrixGENWriter',
                   'path': self.path,
                   'precision': self.precision}
         return escape_str(json.dumps(writer))
@@ -108,7 +108,7 @@ class MatrixBGENWriter(MatrixWriter):
         self.export_type = export_type
 
     def render(self):
-        writer = {'name': 'MatrixBGENWriter',
+        writer = {'jsonClass': 'MatrixBGENWriter',
                   'path': self.path,
                   'exportType': self.export_type}
         return escape_str(json.dumps(writer))
@@ -125,7 +125,7 @@ class MatrixPLINKWriter(MatrixWriter):
         self.path = path
 
     def render(self):
-        writer = {'name': 'MatrixPLINKWriter',
+        writer = {'jsonClass': 'MatrixPLINKWriter',
                   'path': self.path}
         return escape_str(json.dumps(writer))
 
@@ -144,7 +144,7 @@ class MatrixNativeMultiWriter(object):
         self.stage_locally = stage_locally
 
     def render(self):
-        writer = {'name': 'MatrixNativeMultiWriter',
+        writer = {'jsonClass': 'MatrixNativeMultiWriter',
                   'prefix': self.prefix,
                   'overwrite': self.overwrite,
                   'stageLocally': self.stage_locally}
