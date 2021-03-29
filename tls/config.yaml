@@ -136,6 +136,3 @@ principals:
   domains:
     - prometheus
   kind: nginx
-- name: prometheus
-  domain: prometheus
-  kind: nginx
