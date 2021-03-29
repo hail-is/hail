@@ -14,7 +14,7 @@ Currently, all traffic in our cluster should be encrypted except for:
 - from the batch-driver to the batch workers
 - from the batch workers to the internal-gateway
 - to ukbb-rg
-- from the router to the notebook workers
+- from the notebook service to the notebook workers
 - to letsencrypt (oh the irony)
 
 Known issues:

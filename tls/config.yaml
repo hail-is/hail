@@ -1,103 +1,138 @@
 principals:
 - name: admin-pod
-  domain: admin-pod
+  domains:
+    - admin-pod
   kind: curl
 - name: auth-driver
-  domain: auth-driver
+  domains:
+    - auth-driver
   kind: json
 - name: auth
-  domain: auth
+  domains:
+    - auth
   kind: json
 - name: batch
-  domain: batch
+  domains:
+    - batch
   kind: json
 - name: batch-driver
-  domain: batch-driver
+  domains:
+    - batch-driver
   kind: json
 - name: ci
-  domain: ci
+  domains:
+    - ci
+  kind: json
+- name: notebook-python
+  domains:
+    - notebook
+    - workshop
   kind: json
 - name: notebook
-  domain: notebook
-  kind: json
+  domains:
+    - notebook
+    - workshop
+  kind: nginx
 - name: gateway
-  domain: gateway
+  domains:
+    - gateway
   unmanged: True
   kind: nginx
 - name: router
-  domain: router
+  domains:
+    - router
   kind: nginx
 - name: website
-  domain: website
+  domains:
+    - website
+    - www
   kind: json
 - name: scorecard
-  domain: scorecard
+  domains:
+    - scorecard
   kind: json
 - name: image-fetcher
-  domain: image-fetcher
+  domains:
+    - image-fetcher
   kind: curl
 - name: blog
-  domain: blog
+  domains:
+    - blog
   kind: nginx
-- name: router-resolver
-  domain: router-resolver
-  unmanged: True
-  kind: json
 - name: internal-gateway
-  domain: internal-gateway
+  domains:
+    - internal-gateway
   unmanged: True
   kind: nginx
 - name: batch-tests
-  domain: batch-tests
+  domains:
+    - batch-tests
   kind: json
 - name: ci-tests
-  domain: ci-tests
+  domains:
+    - ci-tests
   kind: json
 - name: memory
-  domain: memory
+  domains:
+    - memory
   kind: json
 - name: memory-tests
-  domain: memory-tests
+  domains:
+    - memory-tests
   kind: json
 - name: query
-  domain: query
+  domains:
+    - query
   kind: json
 - name: services-java-tests
-  domain: services-java-tests
+  domains:
+    - services-java-tests
   kind: json
 - name: query-tests
-  domain: query-tests
+  domains:
+    - query-tests
   kind: json
 - name: shuffler
-  domain: shuffler
+  domains:
+    - shuffler
   kind: json
 - name: benchmark
-  domain: benchmark
+  domains:
+    - benchmark
   kind: json
 - name: benchmark-tests
-  domain: benchmark-tests
+  domains:
+    - benchmark-tests
   kind: json
 - name: address
-  domain: address
+  domains:
+    - address
   kind: json
 - name: address-tests
-  domain: address-tests
+  domains:
+    - address-tests
   kind: json
 - name: monitoring
-  domain: monitoring
+  domains:
+    - monitoring
   kind: json
 - name: monitoring-tests
-  domain: monitoring-tests
+  domains:
+    - monitoring-tests
   kind: json
 - name: atgu
-  domain: atgu
+  domains:
+    - atgu
   kind: json
 - name: batch-user-code
-  domain: batch-user-code
+  domains:
+    - batch-user-code
   kind: json
 - name: grafana
-  domain: grafana
+  domains:
+    - grafana
   kind: nginx
 - name: prometheus
-  domain: prometheus
+  domains:
+    - prometheus
   kind: nginx

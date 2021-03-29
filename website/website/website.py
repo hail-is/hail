@@ -5,6 +5,7 @@ import jinja2
 import logging
 import aiohttp_session
 import glob
+from prometheus_async.aio.web import server_stats  # type: ignore
 
 from hailtop.config import get_deploy_config
 from hailtop.tls import internal_server_ssl_context
@@ -70,7 +71,7 @@ async def serve_docs(request, userdata):
     tail = request.match_info['tail']
     if tail in docs_pages:
         if tail.endswith('.html'):
-            return await render_template('website', request, userdata, tail, dict())
+            return await render_template('www', request, userdata, tail, dict())
         return web.FileResponse(f'{DOCS_PATH}/{tail}')
     raise web.HTTPNotFound()
 
@@ -79,13 +80,14 @@ def make_template_handler(template_fname):
     @web_maybe_authenticated_user
     async def serve(request, userdata):
         return await render_template(
-            'website', request, userdata, template_fname, dict())
+            'www', request, userdata, template_fname, dict())
     return serve
 
 
 for fname in os.listdir(f'{MODULE_PATH}/pages'):
     routes.get(f'/{fname}')(make_template_handler(fname))
     if fname == 'index.html':
+        routes.get('')(make_template_handler(fname))  # so internal.hail.is/<namespace>/www can work without a /
         routes.get('/')(make_template_handler(fname))
 
 
@@ -110,8 +112,9 @@ def run(local_mode):
                          jinja2.PackageLoader('website', 'docs'))
     setup_common_static_routes(routes)
     app.add_routes(routes)
+    app.router.add_get("/metrics", server_stats)
     sass_compile('website')
-    web.run_app(deploy_config.prefix_application(app, 'website'),
+    web.run_app(deploy_config.prefix_application(app, 'www'),
                 host='0.0.0.0',
                 port=5000,
                 access_log_class=AccessLogger,

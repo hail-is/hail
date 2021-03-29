@@ -11,6 +11,35 @@ namespace hail {
 
 FormatStream::~FormatStream() {}
 
+StringFormatStream::StringFormatStream() {}
+StringFormatStream::~StringFormatStream() {}
+
+void
+StringFormatStream::write(const char *p, size_t n) {
+  const char *end = p + n;
+  for (; p < end; ++p)
+    contents.push_back(*p);
+}
+
+void
+StringFormatStream::putc(int c) {
+  contents.push_back(c);
+}
+
+void
+StringFormatStream::puts(const char *s) {
+  char c = *s;
+  while (c) {
+    contents.push_back(c);
+    c = *(++s);
+  }
+}
+
+std::string
+StringFormatStream::get_contents() {
+  return std::move(contents);
+}
+
 class StdFILEStream : public FormatStream {
   FILE *fp;
 
@@ -18,16 +47,16 @@ public:
   StdFILEStream(FILE *fp) : fp(fp) {}
   ~StdFILEStream();
 
-  void write(void *p, size_t n);
-  void putc(int c);
-  void puts(const char *s);
+  void write(const char *p, size_t n) override;
+  void putc(int c) override;
+  void puts(const char *s) override;
 };
 
 /* don't close standard streams */
 StdFILEStream::~StdFILEStream() {}
 
 void
-StdFILEStream::write(void *p, size_t n) {
+StdFILEStream::write(const char *p, size_t n) {
   int rc = fwrite(p, n, 1, fp);
   if (rc != 1)
     throw std::system_error(errno, std::generic_category(), "in fwrite");
@@ -56,6 +85,11 @@ write_with_iostream(FormatStream &s, T v) {
   std::ostringstream oss;
   oss << v;
   s.puts(oss.str().c_str());
+}
+
+void
+format1(FormatStream &s, bool v) {
+  s.puts(v ? "true" : "false");
 }
 
 void
