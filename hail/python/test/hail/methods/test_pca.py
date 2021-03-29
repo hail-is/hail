@@ -69,6 +69,7 @@ def test_pca_against_numpy():
     np.testing.assert_allclose(hail_loadings, np_loadings, rtol=1e-5)
 
 
+@fails_service_backend(reason='persist_ir')
 def test_blanczos_against_numpy():
 
     def concatToNumpy(field, horizontal=True):
@@ -128,6 +129,7 @@ def test_blanczos_against_numpy():
     assert bound(np_loadings, loadings) > 0.9
 
 
+@fails_service_backend(reason='persist_ir')
 def test_spectra():
     def make_spectral_matrix(index_func, k, m, n):
         sigma_dim = min(m, n)

@@ -1,10 +1,10 @@
 package is.hail.backend.service
 
 import java.io._
-import java.nio.charset.Charset
+import java.nio.charset._
 
-import is.hail.HailContext
-import is.hail.backend._
+import is.hail.{HAIL_REVISION, HailContext}
+import is.hail.backend.HailTaskContext
 import is.hail.io.fs._
 import is.hail.services._
 import is.hail.utils._
@@ -44,21 +44,20 @@ class WorkerTimer() {
 }
 
 object Worker {
-  private val log = Logger.getLogger(getClass.getName())
+  private[this] val log = Logger.getLogger(getClass.getName())
+  private[this] val myRevision = HAIL_REVISION
+  private[this] val scratchDir = sys.env.get("HAIL_WORKER_SCRATCH_DIR").getOrElse("")
 
   def main(args: Array[String]): Unit = {
-    if (args.length != 2) {
-      throw new IllegalArgumentException(s"expected two arguments, not: ${ args.length }")
+    if (args.length != 4) {
+      throw new IllegalArgumentException(s"expected at least four arguments, not: ${ args.length }")
     }
-    val root = args(0)
-    val i = args(1).toInt
+    val root = args(2)
+    val i = args(3).toInt
     val timer = new WorkerTimer()
 
-    var scratchDir = System.getenv("HAIL_WORKER_SCRATCH_DIR")
-    if (scratchDir == null)
-      scratchDir = ""
-
-    log.info(s"running job $i at root $root wih scratch directory '$scratchDir'")
+    log.info(s"is.hail.backend.service.Worker $myRevision")
+    log.info(s"running job $i at root $root with scratch directory '$scratchDir'")
 
     timer.start(s"Job $i")
 
@@ -100,7 +99,7 @@ object Worker {
     timer.start("executeFunction")
 
     val hailContext = HailContext(
-      ServiceBackend(), skipLoggingConfiguration = true, quiet = true)
+      new ServiceBackend(null), skipLoggingConfiguration = true, quiet = true)
     val htc = new ServiceTaskContext(i)
     val result = f(context, htc, fs)
     htc.finish()

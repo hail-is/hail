@@ -16,6 +16,8 @@ variable "batch_gcp_regions" {}
 variable "gcp_project" {}
 variable "batch_logs_bucket_location" {}
 variable "batch_logs_bucket_storage_class" {}
+variable "hail_query_bucket_location" {}
+variable "hail_query_bucket_storage_class" {}
 variable "gcp_region" {}
 variable "gcp_zone" {}
 variable "domain" {}
@@ -227,6 +229,7 @@ resource "kubernetes_secret" "global_config" {
   data = {
     batch_gcp_regions = var.batch_gcp_regions
     batch_logs_bucket = google_storage_bucket.batch_logs.name
+    hail_query_bucket = google_storage_bucket.hail_query.name
     default_namespace = "default"
     docker_root_image = local.docker_root_image
     domain = var.domain
@@ -532,6 +535,34 @@ resource "google_project_iam_member" "batch_storage_admin" {
   member = "serviceAccount:${google_service_account.batch.email}"
 }
 
+resource "random_id" "query_name_suffix" {
+  byte_length = 2
+}
+
+resource "google_service_account" "query" {
+  account_id = "query-${random_id.query_name_suffix.hex}"
+}
+
+resource "google_service_account_key" "query_key" {
+  service_account_id = google_service_account.query.name
+}
+
+resource "kubernetes_secret" "query_gsa_key" {
+  metadata {
+    name = "query-gsa-key"
+  }
+
+  data = {
+    "key.json" = base64decode(google_service_account_key.query_key.private_key)
+  }
+}
+
+resource "google_storage_bucket_iam_member" "query_hail_query_bucket_storage_admin" {
+  bucket = google_storage_bucket.hail_query.name
+  role = "roles/storage.admin"
+  member = "serviceAccount:${google_service_account.query.email}"
+}
+
 resource "google_service_account" "benchmark" {
   account_id = "benchmark"
 }
@@ -742,6 +773,17 @@ resource "google_storage_bucket" "batch_logs" {
   location = var.batch_logs_bucket_location
   force_destroy = true
   storage_class = var.batch_logs_bucket_storage_class
+}
+
+resource "random_id" "hail_query_bucket_name_suffix" {
+  byte_length = 2
+}
+
+resource "google_storage_bucket" "hail_query" {
+  name = "hail-query-${random_id.hail_query_bucket_name_suffix.hex}"
+  location = var.hail_query_bucket_location
+  force_destroy = true
+  storage_class = var.hail_query_bucket_storage_class
 }
 
 resource "google_dns_managed_zone" "dns_zone" {

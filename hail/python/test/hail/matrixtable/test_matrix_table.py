@@ -73,7 +73,6 @@ class Tests(unittest.TestCase):
             self.assertTrue(f(hl.eval(mt.annotate_globals(foo=hl.literal(x, t)).foo), x), f"{x}, {t}")
             self.assertTrue(f(hl.eval(ht.annotate_globals(foo=hl.literal(x, t)).foo), x), f"{x}, {t}")
 
-    @fails_service_backend()
     def test_head(self):
         # no empty partitions
         mt1 = hl.utils.range_matrix_table(10, 10)
@@ -100,7 +99,6 @@ class Tests(unittest.TestCase):
         assert mt1.head(1, None).count() == (1, 10)
         assert mt1.head(None, 1).count() == (10, 1)
 
-    @fails_service_backend()
     def test_tail(self):
         # no empty partitions
         mt1 = hl.utils.range_matrix_table(10, 10)
@@ -279,7 +277,6 @@ class Tests(unittest.TestCase):
         self.assertTrue('GT' not in mt2.entry)
         mt2._force_count_rows()
 
-    @fails_service_backend()
     def test_explode_rows(self):
         mt = hl.utils.range_matrix_table(4, 4)
         mt = mt.annotate_entries(e=mt.row_idx * 10 + mt.col_idx)
@@ -292,7 +289,6 @@ class Tests(unittest.TestCase):
         mt = mt.annotate_rows(x=hl.struct(y=hl.range(0, mt.row_idx)))
         self.assertEqual(mt.explode_rows(mt.x.y).count_rows(), 6)
 
-    @fails_service_backend()
     def test_explode_cols(self):
         mt = hl.utils.range_matrix_table(4, 4)
         mt = mt.annotate_entries(e=mt.row_idx * 10 + mt.col_idx)
@@ -310,7 +306,6 @@ class Tests(unittest.TestCase):
         with self.assertRaises(ValueError):
             mt.explode_rows('b')
 
-    @fails_service_backend()
     def test_group_by_field_lifetimes(self):
         mt = hl.utils.range_matrix_table(3, 3)
         mt2 = (mt.group_rows_by(row_idx='100')
@@ -321,7 +316,6 @@ class Tests(unittest.TestCase):
                .aggregate(x=hl.agg.collect_as_set(mt.col_idx + 5)))
         assert mt3.aggregate_entries(hl.agg.all(mt3.x == hl.set({5, 6, 7})))
 
-    @fails_service_backend()
     def test_aggregate_cols_by(self):
         mt = hl.utils.range_matrix_table(2, 4)
         mt = (mt.annotate_cols(group=mt.col_idx < 2)
@@ -351,7 +345,6 @@ class Tests(unittest.TestCase):
             mt.aggregate_cols(hl.agg.filter(False, hl.agg.sum(mt.GT.is_non_ref())))
         assert "scope violation" in str(exc.value)
 
-    @fails_service_backend()
     def test_aggregate_rows_by(self):
         mt = hl.utils.range_matrix_table(4, 2)
         mt = (mt.annotate_rows(group=mt.row_idx < 2)
@@ -479,14 +472,16 @@ class Tests(unittest.TestCase):
         with self.assertRaisesRegex(hl.expr.ExpressionException, "MatrixTable col key: *<<<empty key>>>"):
             mt.key_cols_by().index_cols(mt.col_idx)
 
-    @fails_service_backend()
     def test_table_join(self):
         ds = self.get_mt()
         # test different row schemas
         self.assertTrue(ds.union_cols(ds.drop(ds.info))
                         .count_rows(), 346)
 
-    @fails_service_backend()
+    @skip_when_service_backend('''The Service and Shuffler have no way of knowing the order in which rows appear in the original
+dataset, as such it is impossible to guarantee the ordering in `matches`.
+
+https://hail.zulipchat.com/#narrow/stream/123011-Hail-Dev/topic/test_drop/near/235425714''')
     def test_table_product_join(self):
         left = hl.utils.range_matrix_table(5, 1)
         right = hl.utils.range_table(5)
@@ -532,7 +527,6 @@ class Tests(unittest.TestCase):
          .aggregate(bar=hl.agg.collect(mt.globals == lit))
          ._force_count_rows())
 
-    @fails_service_backend()
     def test_unions(self):
         dataset = hl.import_vcf(resource('sample2.vcf'))
 
@@ -554,7 +548,6 @@ class Tests(unittest.TestCase):
         for s, count in ds.aggregate_cols(agg.counter(ds.s)).items():
             self.assertEqual(count, 3)
 
-    @fails_service_backend()
     def test_union_cols_example(self):
         joined = hl.import_vcf(resource('joined.vcf'))
 
@@ -563,13 +556,11 @@ class Tests(unittest.TestCase):
 
         self.assertTrue(left.union_cols(right)._same(joined))
 
-    @fails_service_backend()
     def test_union_cols_distinct(self):
         mt = hl.utils.range_matrix_table(10, 10)
         mt = mt.key_rows_by(x = mt.row_idx // 2)
         assert mt.union_cols(mt).count_rows() == 5
 
-    @fails_service_backend()
     def test_union_cols_outer(self):
         r, c = 10, 10
         mt = hl.utils.range_matrix_table(2*r, c)
@@ -617,7 +608,6 @@ class Tests(unittest.TestCase):
         self.assertEqual(ds.choose_cols(list(range(10))).s.collect(),
                          old_order[:10])
 
-    @fails_service_backend()
     def test_choose_cols_vs_explode(self):
         ds = self.get_mt()
 
@@ -625,7 +615,6 @@ class Tests(unittest.TestCase):
 
         self.assertTrue(ds.choose_cols(sorted(list(range(ds.count_cols())) * 2))._same(ds2))
 
-    @fails_service_backend()
     def test_distinct_by_row(self):
         orig_mt = hl.utils.range_matrix_table(10, 10)
         mt = orig_mt.key_rows_by(row_idx=orig_mt.row_idx // 2)
@@ -633,7 +622,6 @@ class Tests(unittest.TestCase):
 
         self.assertTrue(orig_mt.union_rows(orig_mt).distinct_by_row()._same(orig_mt))
 
-    @fails_service_backend()
     def test_distinct_by_col(self):
         orig_mt = hl.utils.range_matrix_table(10, 10)
         mt = orig_mt.key_cols_by(col_idx=orig_mt.col_idx // 2)
@@ -810,7 +798,6 @@ class Tests(unittest.TestCase):
         self.assertEqual(
             ds.filter_rows(ds.alleles.length() == 2).count_rows(), 0)
 
-    @fails_service_backend()
     def test_field_groups(self):
         ds = self.get_mt()
 
@@ -840,7 +827,6 @@ class Tests(unittest.TestCase):
                 ds._filter_partitions([0, 3, 7]),
                 ds._filter_partitions([0, 3, 7], keep=False))))
 
-    @fails_service_backend()
     def test_from_rows_table(self):
         mt = hl.import_vcf(resource('sample.vcf'))
         mt = mt.annotate_globals(foo='bar')
@@ -863,7 +849,6 @@ class Tests(unittest.TestCase):
         t = hl.read_table(f + '/cols')
         self.assertTrue(ds.cols()._same(t))
 
-    @fails_service_backend()
     def test_read_stored_rows(self):
         ds = self.get_mt()
         ds = ds.annotate_globals(x='foo')
@@ -872,7 +857,6 @@ class Tests(unittest.TestCase):
         t = hl.read_table(f + '/rows')
         self.assertTrue(ds.rows()._same(t))
 
-    @fails_service_backend()
     def test_read_stored_globals(self):
         ds = self.get_mt()
         ds = ds.annotate_globals(x=5, baz='foo')
@@ -1051,7 +1035,6 @@ class Tests(unittest.TestCase):
         self.assertEqual(ht.order_by(hl.asc('idx')).idx.collect(), list(range(10)))
         self.assertEqual(ht.order_by(hl.desc('idx')).idx.collect(), list(range(10))[::-1])
 
-    @fails_service_backend()
     def test_order_by_complex_exprs(self):
         ht = hl.utils.range_table(10)
         assert ht.order_by(-ht.idx).idx.collect() == list(range(10))[::-1]
@@ -1094,7 +1077,6 @@ class Tests(unittest.TestCase):
         mt = mt.annotate_entries(x=mt.row_idx * mt.col_idx)
         self.assertEqual(mt.x.collect(), [])
 
-    @fails_service_backend()
     def test_make_table(self):
         mt = hl.utils.range_matrix_table(3, 2)
         mt = mt.select_entries(x=mt.row_idx * mt.col_idx)
@@ -1130,7 +1112,6 @@ class Tests(unittest.TestCase):
         t = mt.make_table(separator='__')
         assert list(t.row) == ['row_idx', '0__x', '1__x']
 
-    @fails_service_backend()
     def test_make_table_row_equivalence(self):
         mt = hl.utils.range_matrix_table(3, 3)
         mt = mt.annotate_rows(r1 = hl.rand_norm(), r2 = hl.rand_norm())
@@ -1506,7 +1487,6 @@ class Tests(unittest.TestCase):
                                                  fraction_filtered=hl.float32(0.0))})
         assert mt.aggregate_cols(hl.agg.all(mt.entry_stats_col == col_expected[mt.col_idx % 4 == 0]))
 
-    @fails_service_backend()
     def test_annotate_col_agg_lowering(self):
         mt = hl.utils.range_matrix_table(10, 10, 2)
         mt = mt.annotate_cols(c1=[mt.col_idx, mt.col_idx * 2])
@@ -1518,7 +1498,6 @@ class Tests(unittest.TestCase):
                               grouped=hl.agg.group_by(mt.e1 % 5, hl.agg.sum(mt.e1) + common_ref))
         mt.cols()._force_count()
 
-    @fails_service_backend()
     def test_annotate_rows_scan_lowering(self):
         mt = hl.utils.range_matrix_table(10, 10, 2)
         mt = mt.annotate_rows(r1=[mt.row_idx, mt.row_idx * 2])
@@ -1549,7 +1528,6 @@ class Tests(unittest.TestCase):
         actual = mt.show(handler=str)
         assert actual == expected
 
-    @fails_service_backend()
     def test_partitioned_write(self):
         mt = hl.utils.range_matrix_table(40, 3, 5)
 
@@ -1589,7 +1567,6 @@ class Tests(unittest.TestCase):
         ],
                    mt.filter_rows((mt.row_idx >= 5) & (mt.row_idx < 35)))
 
-    @fails_service_backend()
     def test_partitioned_write_coerce(self):
         mt = hl.import_vcf(resource('sample.vcf'))
         parts = [
@@ -1616,12 +1593,10 @@ class Tests(unittest.TestCase):
         with pytest.raises(hl.utils.FatalError, match='metadata does not contain file version'):
             hl.read_matrix_table(resource('0.1-1fd5cc7.vds'))
 
-    @fails_service_backend()
     def test_legacy_files_with_required_globals(self):
         hl.read_table(resource('required_globals.ht'))._force_count()
         hl.read_matrix_table(resource('required_globals.mt'))._force_count_rows()
 
-    @fails_service_backend()
     def test_matrix_native_write_range(self):
         mt = hl.utils.range_matrix_table(11, 3, n_partitions=3)
         f = new_temp_file()
@@ -1646,7 +1621,6 @@ class Tests(unittest.TestCase):
         mt = mt.add_col_index()
         mt.show()
 
-    @fails_service_backend()
     def test_filtered_entries_group_rows_by(self):
         mt = hl.utils.range_matrix_table(1, 1)
         mt = mt.filter_entries(False)
@@ -1672,7 +1646,6 @@ class Tests(unittest.TestCase):
             mt.annotate_entries(x = mt2.af)
 
 
-@fails_service_backend()
 def test_read_write_all_types():
     mt = create_all_values_matrix_table()
     tmp_file = new_temp_file()

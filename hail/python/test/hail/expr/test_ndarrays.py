@@ -685,6 +685,7 @@ def test_ndarray_diagonal():
     assert "2 dimensional" in str(exc.value)
 
 
+@fails_service_backend()
 def test_ndarray_solve():
     a = hl.nd.array([[1, 2], [3, 5]])
     b = hl.nd.array([1, 2])

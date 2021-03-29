@@ -17,7 +17,9 @@ spec:
         hail.is/sha: "{{ code.sha }}"
         grafanak8sapp: "true"
     spec:
-      terminationGracePeriodSeconds: 28800  # 8 hours
+      # This does not actually work. Java dies immediately and python gets stuck waiting for java
+      # to come back
+      # terminationGracePeriodSeconds: 28800  # 8 hours
       serviceAccountName: query
 {% if deploy %}
       priorityClassName: production
@@ -62,8 +64,7 @@ spec:
               cpu: "300m"
               memory: "1G"
             limits:
-              cpu: "1"
-              memory: "2.5G"
+              memory: "7.5G"
           readinessProbe:
             tcpSocket:
               port: 5000
@@ -94,6 +95,16 @@ spec:
              value: "{{ code.sha }}"
            - name: HAIL_QUERY_WORKER_IMAGE
              value: {{ query_image.image }}
+{% if deploy %}
+           - name: HAIL_QUERY_GCS_BUCKET
+             valueFrom:
+             secretKeyRef:
+               name: global-config
+               key: hail_query_bucket
+{% else %}
+           - name: HAIL_QUERY_GCS_PATH
+             value: gs://hail-test-dmk9z/{{ upload_query_jar.token }}/jars/
+{% endif %}
           ports:
            - containerPort: 5000
           volumeMounts:
@@ -128,35 +139,6 @@ spec:
          secret:
            optional: false
            secretName: ssl-config-query
-{% if not deploy %}
----
-apiVersion: autoscaling/v2beta1
-kind: HorizontalPodAutoscaler
-metadata:
-  name: query
-spec:
-  scaleTargetRef:
-    apiVersion: apps/v1
-    kind: Deployment
-    name: query
-  minReplicas: 3
-  maxReplicas: 32
-  metrics:
-   - type: Resource
-     resource:
-       name: cpu
-       targetAverageUtilization: 80
----
-apiVersion: policy/v1beta1
-kind: PodDisruptionBudget
-metadata:
-  name: query
-spec:
-  minAvailable: 2
-  selector:
-    matchLabels:
-      app: query
-{% endif %}
 ---
 apiVersion: v1
 kind: Service
