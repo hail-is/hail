@@ -878,7 +878,7 @@ class BlockMatrix(object):
             j = BlockMatrix._pos_index(col_idx, self.n_cols, 'col index')
 
             return Env.backend().execute(BlockMatrixToValueApply(self._bmir,
-                                                                 {'name': 'GetElement', 'index': [i, j]}))
+                                                                 {'jsonClass': 'GetElement', 'index': [i, j]}))
 
         rows_to_keep = BlockMatrix._range_to_keep(row_idx, self.n_rows)
         cols_to_keep = BlockMatrix._range_to_keep(col_idx, self.n_cols)
