@@ -1497,7 +1497,7 @@ class Emit[C](
             override def get: Code[Long] = (M > 1L).mux(M, 1L) // Possible stride tricks could change this in the future.
           }
 
-          def LWORK = (Region.loadDouble(LWORKAddress).toI > 0).mux(Region.loadDouble(LWORKAddress).toI, 1)
+          def LWORK = Region.loadDouble(LWORKAddress).toI
 
           val ndPT = pndValue.pt.asInstanceOf[PCanonicalNDArray]
           val dataFirstElementAddress = pndValue.firstDataAddress(cb)
@@ -1534,7 +1534,7 @@ class Emit[C](
           ))
           cb.append(infoDGEQRFErrorTest("Failed size query."))
 
-          cb.assign(workAddress, Code.invokeStatic1[Memory, Long, Long]("malloc", LWORK.toL * 8L))
+          cb.assign(workAddress, Code.invokeStatic1[Memory, Long, Long]("malloc", (LWORK > 0).mux(LWORK, 1).toL * 8L))
           cb.assign(infoDGEQRFResult, Code.invokeScalaObject7[Int, Int, Long, Int, Long, Long, Int, Int](LAPACK.getClass, "dgeqrf",
             M.toI,
             N.toI,
@@ -1542,7 +1542,7 @@ class Emit[C](
             LDA.toI,
             tauFirstElementAddress,
             workAddress,
-            LWORK
+            (LWORK > 0).mux(LWORK, 1)
           ))
           cb.append(Code.invokeStatic1[Memory, Long, Unit]("free", workAddress.load()))
           cb.append(infoDGEQRFErrorTest("Failed to compute H and Tau."))
