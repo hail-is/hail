@@ -107,4 +107,4 @@ deploy: push
 
 .PHONY: clean
 clean:
-	rm -f base-stmp
+	rm -f base-stmp hail-ubuntu-stmp

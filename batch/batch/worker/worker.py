@@ -1463,11 +1463,11 @@ class Worker:
                 })
             resp_json = await resp.json()
 
-            with open('key.json', 'w') as f:
+            with open('/worker-key.json', 'w') as f:
                 f.write(json.dumps(resp_json['key']))
 
             credentials = google.oauth2.service_account.Credentials.from_service_account_file(
-                'key.json')
+                '/worker-key.json')
             self.log_store = LogStore(BATCH_LOGS_BUCKET_NAME, INSTANCE_ID, self.pool,
                                       project=PROJECT, credentials=credentials)
 

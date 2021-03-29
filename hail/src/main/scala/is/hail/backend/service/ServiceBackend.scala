@@ -5,6 +5,9 @@ import java.net._
 import java.nio.charset.StandardCharsets
 import java.util.concurrent._
 
+
+
+import is.hail.HAIL_REVISION
 import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.asm4s._
@@ -47,10 +50,6 @@ class ServiceBackendContext(
 
 object ServiceBackend {
   private val log = Logger.getLogger(getClass.getName())
-
-  def apply(): ServiceBackend = {
-    new ServiceBackend()
-  }
 }
 
 class User(
@@ -58,7 +57,9 @@ class User(
   val tmpdir: String,
   val fs: GoogleStorageFS)
 
-class ServiceBackend() extends Backend {
+class ServiceBackend(
+  private[this] val queryGCSPath: String
+) extends Backend {
   import ServiceBackend.log
 
   private[this] val users = new ConcurrentHashMap[String, User]()
@@ -133,6 +134,8 @@ class ServiceBackend() extends Backend {
           "process" -> JObject(
             "command" -> JArray(List(
               JString("is.hail.backend.service.Worker"),
+              JString(HAIL_REVISION),
+              JString(queryGCSPath + HAIL_REVISION + ".jar"),
               JString(root),
               JString(s"$i"))),
             "type" -> JString("jvm")),
@@ -645,8 +648,15 @@ object ServiceBackendMain {
   def main(argv: Array[String]): Unit = {
     assert(argv.length == 1, argv.toFastIndexedSeq)
     val udsAddress = argv(0)
+
+    val queryGCSBucket = System.getenv("HAIL_QUERY_GCS_BUCKET")
+    val queryGCSPath = if (queryGCSBucket == null) {
+      System.getenv("HAIL_QUERY_GCS_PATH")
+    } else {
+      s"gs://${queryGCSBucket}/jars/"
+    }
     val executor = Executors.newCachedThreadPool()
-    val backend = new ServiceBackend()
+    val backend = new ServiceBackend(queryGCSPath)
     HailContext(backend, "hail.log", false, false, 50, skipLoggingConfiguration = true, 3)
 
     val ss = AFUNIXServerSocket.newInstance()

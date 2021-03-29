@@ -4,6 +4,7 @@ import javax.net.ssl.SSLException
 import java.net.SocketException
 import java.io.EOFException
 import is.hail.utils._
+import com.google.cloud.storage.StorageException
 
 import org.apache.http.NoHttpResponseException
 import org.apache.http.conn.HttpHostConnectException
@@ -43,7 +44,7 @@ package object services {
       case e: EOFException =>
         e.getMessage != null && (
           e.getMessage.contains("SSL peer shut down incorrectly"))
-      case e: SSLException =>
+      case e @ (_: SSLException | _: StorageException) =>
         val cause = e.getCause
         cause != null && isTransientError(cause)
       case _ =>
