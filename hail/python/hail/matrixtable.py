@@ -2470,15 +2470,15 @@ class MatrixTable(ExprContainer):
         """
         if _codec_spec is None:
             _codec_spec = """{
-  "name": "LEB128BufferSpec",
+  "jsonClass": "LEB128BufferSpec",
   "child": {
-    "name": "BlockingBufferSpec",
+    "jsonClass": "BlockingBufferSpec",
     "blockSize": 32768,
     "child": {
-      "name": "LZ4FastBlockBufferSpec",
+      "jsonClass": "LZ4FastBlockBufferSpec",
       "blockSize": 32768,
       "child": {
-        "name": "StreamBlockBufferSpec"
+        "jsonClass": "StreamBlockBufferSpec"
       }
     }
   }
@@ -3793,7 +3793,7 @@ class MatrixTable(ExprContainer):
 
     @typecheck_method(parts=sequenceof(int), keep=bool)
     def _filter_partitions(self, parts, keep=True) -> 'MatrixTable':
-        return MatrixTable(ir.MatrixToMatrixApply(self._mir, {'name': 'MatrixFilterPartitions', 'parts': parts, 'keep': keep}))
+        return MatrixTable(ir.MatrixToMatrixApply(self._mir, {'jsonClass': 'MatrixFilterPartitions', 'parts': parts, 'keep': keep}))
 
     @classmethod
     @typecheck_method(table=Table)
@@ -4114,7 +4114,7 @@ class MatrixTable(ExprContainer):
         mt = mt._select_all(entry_exprs={entry_field: mt[entry_field]})
         Env.backend().execute(ir.MatrixToValueApply(
             mt._mir,
-            {'name': 'MatrixWriteBlockMatrix',
+            {'jsonClass': 'MatrixWriteBlockMatrix',
              'path': path,
              'overwrite': overwrite,
              'entryField': entry_field,
@@ -4126,7 +4126,7 @@ class MatrixTable(ExprContainer):
         mt = mt.select()
         return Env.backend().execute(ir.TableToValueApply(
             mt._tir,
-            {'name': 'TableCalculateNewPartitions',
+            {'jsonClass': 'TableCalculateNewPartitions',
              'nPartitions': n_partitions}))
 
 
