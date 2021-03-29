@@ -379,8 +379,10 @@ class Container:
 
     async def batch_worker_access_token(self):
         async with aiohttp.ClientSession(raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
-            async with session.post('http://169.254.169.254/computeMetadata/v1/instance/service-accounts/default/token',
-                                    headers={'Metadata-Flavor': 'Google'}) as resp:
+            async with await request_retry_transient_errors(
+                    session, 'POST',
+                    'http://169.254.169.254/computeMetadata/v1/instance/service-accounts/default/token',
+                    headers={'Metadata-Flavor': 'Google'}) as resp:
                 access_token = (await resp.json())['access_token']
                 return {'username': 'oauth2accesstoken', 'password': access_token}
 
@@ -1281,16 +1283,16 @@ class Worker:
                 web.get('/healthcheck', self.healthcheck)
             ])
 
-            app_runner = web.AppRunner(app)
-            await app_runner.setup()
-            site = web.TCPSite(app_runner, '0.0.0.0', 5000)
-            await site.start()
-
             try:
                 await asyncio.wait_for(self.activate(), MAX_IDLE_TIME_MSECS / 1000)
             except asyncio.TimeoutError:
                 log.exception(f'could not activate after trying for {MAX_IDLE_TIME_MSECS} ms, exiting')
             else:
+                app_runner = web.AppRunner(app)
+                await app_runner.setup()
+                site = web.TCPSite(app_runner, '0.0.0.0', 5000)
+                await site.start()
+
                 stopped = False
                 idle_duration = time_msecs() - self.last_updated
                 while self.jobs or idle_duration < MAX_IDLE_TIME_MSECS:

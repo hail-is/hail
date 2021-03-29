@@ -43,48 +43,48 @@ public:
 
 class VBool : public VType {
 public:
-  static const Tag self_tag = VType::Tag::BOOL;
-  VBool(TypeContextToken, const TBool *type) : VType(self_tag, type, 1, 1) {}
+  static bool is_instance_tag(Tag tag) { return tag == VType::Tag::BOOL; }
+  VBool(TypeContextToken, const TBool *type) : VType(VType::Tag::BOOL, type, 1, 1) {}
 };
 
 class VInt32 : public VType {
 public:
-  static const Tag self_tag = VType::Tag::INT32;
-  VInt32(TypeContextToken, const TInt32 *type) : VType(self_tag, type, 4, 4) {}
+  static bool is_instance_tag(Tag tag) { return tag == VType::Tag::INT32; }
+  VInt32(TypeContextToken, const TInt32 *type) : VType(VType::Tag::INT32, type, 4, 4) {}
 };
 
 class VInt64 : public VType {
 public:
-  static const Tag self_tag = VType::Tag::INT64;
-  VInt64(TypeContextToken, const TInt64 *type) : VType(self_tag, type, 8, 8) {}
+  static bool is_instance_tag(Tag tag) { return tag == VType::Tag::INT64; }
+  VInt64(TypeContextToken, const TInt64 *type) : VType(VType::Tag::INT64, type, 8, 8) {}
 };
 
 class VFloat32 : public VType {
 public:
-  static const Tag self_tag = VType::Tag::FLOAT32;
-  VFloat32(TypeContextToken, const TFloat32 *type) : VType(self_tag, type, 4, 4) {}
+  static bool is_instance_tag(Tag tag) { return tag == VType::Tag::FLOAT32; }
+  VFloat32(TypeContextToken, const TFloat32 *type) : VType(VType::Tag::FLOAT32, type, 4, 4) {}
 };
 
 class VFloat64 : public VType {
 public:
-  static const Tag self_tag = VType::Tag::FLOAT64;
-  VFloat64(TypeContextToken, const TFloat64 *type) : VType(self_tag, type, 8, 8) {}
+  static bool is_instance_tag(Tag tag) { return tag == VType::Tag::FLOAT64; }
+  VFloat64(TypeContextToken, const TFloat64 *type) : VType(VType::Tag::FLOAT64, type, 8, 8) {}
 };
 
 class VStr : public VType {
 public:
-  static const Tag self_tag = VType::Tag::STR;
-  VStr(TypeContextToken, const TStr *type) : VType(self_tag, type, 8, 8) {}
+  static bool is_instance_tag(Tag tag) { return tag == VType::Tag::STR; }
+  VStr(TypeContextToken, const TStr *type) : VType(VType::Tag::STR, type, 8, 8) {}
 };
 
 class VArray : public VType {
 public:
-  static const Tag self_tag = VType::Tag::ARRAY;
+  static bool is_instance_tag(Tag tag) { return tag == VType::Tag::ARRAY; }
   const VType *const element_vtype;
   size_t elements_alignment;
   size_t element_stride;
   VArray(TypeContextToken, const TArray *type, const VType *element_vtype)
-    : VType(self_tag, type, 8, 8),
+    : VType(VType::Tag::ARRAY, type, 8, 8),
       element_vtype(element_vtype),
       elements_alignment(make_aligned(element_vtype->byte_size, element_vtype->alignment)),
       element_stride(make_aligned(element_vtype->byte_size, element_vtype->alignment)) {}
@@ -93,7 +93,7 @@ public:
 class VTuple : public VType {
   friend class TypeContext;
 public:
-  static const Tag self_tag = VType::Tag::TUPLE;
+  static bool is_instance_tag(Tag tag) { return tag == VType::Tag::TUPLE; }
   const std::vector<const VType *> element_vtypes;
   const std::vector<size_t> element_offsets;
   VTuple(TypeContextToken,
@@ -102,7 +102,7 @@ public:
 	 std::vector<size_t> element_offsets,
 	 size_t alignment,
 	 size_t byte_size)
-    : VType(self_tag, type, alignment, byte_size),
+    : VType(VType::Tag::TUPLE, type, alignment, byte_size),
       element_vtypes(element_vtypes),
       element_offsets(element_offsets) {}
 };

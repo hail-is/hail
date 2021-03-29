@@ -32,6 +32,20 @@ hash<tuple<T...>>::operator()(const tuple<T...> &t) const {
   return hash_tuple_impl(t, std::make_index_sequence<sizeof...(T)>{});
 }
 
+
+template<typename T>
+struct hash<vector<T>> {
+  size_t operator()(const vector<T> &v) const;
+};
+
+template<typename T> size_t
+hash<vector<T>>::operator()(const vector<T> &v) const {
+  size_t h = v.size();
+  for (const auto &x : v)
+    hash_combine(h, x);
+  return h;
+}
+
 }
 
 #endif

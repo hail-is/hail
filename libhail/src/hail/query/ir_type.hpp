@@ -23,6 +23,8 @@ class IRType {
   const Type *infer(Literal *x);
   const Type *infer(NA *x);
   const Type *infer(IsNA *x);
+  const Type *infer(MakeTuple *x);
+  const Type *infer(GetTupleElement *x);
   const Type *infer(IR *x);
 
 public:

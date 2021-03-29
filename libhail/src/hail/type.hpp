@@ -45,7 +45,7 @@ void format1(FormatStream &s, const Type *v);
 
 class TBlock : public Type {
 public:
-  static const Tag self_tag = Type::Tag::BLOCK;
+  static bool is_instance_tag(Tag tag) { return tag == Type::Tag::BLOCK; }
   std::vector<const Type *> input_types;
   std::vector<const Type *> output_types;
   TBlock(TypeContextToken,
@@ -55,65 +55,65 @@ public:
 
 class TVoid : public Type {
 public:
-  static const Tag self_tag = Type::Tag::VOID;
-  TVoid(TypeContextToken) : Type(self_tag) {}
+  static bool is_instance_tag(Tag tag) { return tag == Type::Tag::VOID; }
+  TVoid(TypeContextToken) : Type(Type::Tag::VOID) {}
 };
 
 class TBool : public Type {
 public:
-  static const Tag self_tag = Type::Tag::BOOL;
-  TBool(TypeContextToken) : Type(self_tag) {}
+  static bool is_instance_tag(Tag tag) { return tag == Type::Tag::BOOL; }
+  TBool(TypeContextToken) : Type(Type::Tag::BOOL) {}
 };
 
 class TInt32 : public Type {
 public:
-  static const Tag self_tag = Type::Tag::INT32;
-  TInt32(TypeContextToken) : Type(self_tag) {}
+  static bool is_instance_tag(Tag tag) { return tag == Type::Tag::INT32; }
+  TInt32(TypeContextToken) : Type(Type::Tag::INT32) {}
 };
 
 class TInt64 : public Type {
 public:
-  static const Tag self_tag = Type::Tag::INT64;
-  TInt64(TypeContextToken) : Type(self_tag) {}
+  static bool is_instance_tag(Tag tag) { return tag == Type::Tag::INT64; }
+  TInt64(TypeContextToken) : Type(Type::Tag::INT64) {}
 };
 
 class TFloat32 : public Type {
 public:
-  static const Tag self_tag = Type::Tag::FLOAT32;
-  TFloat32(TypeContextToken) : Type(self_tag) {}
+  static bool is_instance_tag(Tag tag) { return tag == Type::Tag::FLOAT32; }
+  TFloat32(TypeContextToken) : Type(Type::Tag::FLOAT32) {}
 };
 
 class TFloat64 : public Type {
 public:
-  static const Tag self_tag = Type::Tag::FLOAT64;
-  TFloat64(TypeContextToken) : Type(self_tag) {}
+  static bool is_instance_tag(Tag tag) { return tag == Type::Tag::FLOAT64; }
+  TFloat64(TypeContextToken) : Type(Type::Tag::FLOAT64) {}
 };
 
 class TStr : public Type {
 public:
-  static const Tag self_tag = Type::Tag::STR;
-  TStr(TypeContextToken) : Type(self_tag) {}
+  static bool is_instance_tag(Tag tag) { return tag == Type::Tag::STR; }
+  TStr(TypeContextToken) : Type(Type::Tag::STR) {}
 };
 
 class TArray : public Type {
 public:
-  static const Tag self_tag = Type::Tag::ARRAY;
+  static bool is_instance_tag(Tag tag) { return tag == Type::Tag::ARRAY; }
   const Type *const element_type;
-  TArray(TypeContextToken, const Type *element_type) : Type(self_tag), element_type(element_type) {}
+  TArray(TypeContextToken, const Type *element_type) : Type(Type::Tag::ARRAY), element_type(element_type) {}
 };
 
 class TStream : public Type {
 public:
-  static const Tag self_tag = Type::Tag::STREAM;
+  static bool is_instance_tag(Tag tag) { return tag == Type::Tag::STREAM; }
   const Type *const element_type;
-  TStream(TypeContextToken, const Type *element_type) : Type(self_tag), element_type(element_type) {}
+  TStream(TypeContextToken, const Type *element_type) : Type(Type::Tag::STREAM), element_type(element_type) {}
 };
 
 class TTuple : public Type {
 public:
-  static const Tag self_tag = Type::Tag::TUPLE;
+  static bool is_instance_tag(Tag tag) { return tag == Type::Tag::TUPLE; }
   const std::vector<const Type *> element_types;
-  TTuple(TypeContextToken, std::vector<const Type *> element_types) : Type(self_tag), element_types(std::move(element_types)) {}
+  TTuple(TypeContextToken, std::vector<const Type *> element_types) : Type(Type::Tag::TUPLE), element_types(std::move(element_types)) {}
 };
 
 class TypeContext {
