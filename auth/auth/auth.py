@@ -8,10 +8,7 @@ import uvloop
 import google.auth.transport.requests
 import google.oauth2.id_token
 import google_auth_oauthlib.flow
-<<<<<<< HEAD
-=======
 from prometheus_async.aio.web import server_stats  # type: ignore
->>>>>>> upstream/main
 from hailtop.config import get_deploy_config
 from hailtop.tls import internal_server_ssl_context
 from hailtop.hail_logging import AccessLogger
