@@ -6,6 +6,7 @@ import aiomysql
 import logging
 import functools
 import ssl
+import traceback
 
 from hailtop.utils import sleep_and_backoff, LoggingTimer
 from hailtop.auth.sql_config import SQLConfig
@@ -29,7 +30,8 @@ def retry_transient_mysql_errors(f):
                 return await f(*args, **kwargs)
             except pymysql.err.OperationalError as e:
                 if e.args[0] in retry_codes:
-                    log.warning(f'encountered pymysql error, retrying {e}', exc_info=True)
+                    log.warning(f'encountered pymysql error, retrying {e}', exc_info=True,
+                                extra={'full_stacktrace' : '\n'.join(traceback.format_stack())})
                 else:
                     raise
             delay = await sleep_and_backoff(delay)
