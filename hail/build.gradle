@@ -9,7 +9,6 @@ plugins {
   id 'java'
   id 'scala'
   id 'idea'
-  id 'maven'
   id 'com.github.johnrengelman.shadow' version '5.0.0'
   id "de.undercouch.download" version "3.2.0"
   id 'eclipse'
@@ -300,7 +299,7 @@ tasks.withType(ShadowJar) {
         attributes 'Implementation-Title': 'Hail',
                    'Implementation-Version': '0.0.1-SNAPSHOT'
     }
-    baseName = project.name + '-all'
+    archiveBaseName = project.name + '-all'
     mergeServiceFiles()
     zip64 true
 
