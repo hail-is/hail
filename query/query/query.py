@@ -14,6 +14,7 @@ from hailtop.utils import blocking_to_async, retry_transient_errors
 from hailtop.config import get_deploy_config
 from hailtop.tls import internal_server_ssl_context
 from hailtop.hail_logging import AccessLogger
+from hailtop import version
 from gear import setup_aiohttp_session, rest_authenticated_users_only, rest_authenticated_developers_only, monitor_endpoint
 
 from .sockets import connect_to_java
@@ -308,4 +309,3 @@ def run():
         access_log_class=AccessLogger,
         ssl_context=internal_server_ssl_context(),
     )
-
