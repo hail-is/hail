@@ -43,7 +43,7 @@ class PTypeSuite extends HailSuite {
   @Test(dataProvider="ptypes")
   def testSerialization(ptype: PType): Unit = {
     implicit val formats = AbstractRVDSpec.formats
-    val s = Serialization.write(ptype)
+    val s = HailJSONSerialization.write(ptype)
     assert(Serialization.read[PType](s) == ptype)
   }
 

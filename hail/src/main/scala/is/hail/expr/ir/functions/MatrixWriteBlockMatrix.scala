@@ -1,12 +1,12 @@
 package is.hail.expr.ir.functions
 
 import java.io.DataOutputStream
-
 import is.hail.HailContext
 import is.hail.expr.ir.{ExecuteContext, MatrixValue}
 import is.hail.types.{MatrixType, RPrimitive, RTable, TypeWithRequiredness}
 import is.hail.types.virtual.{TVoid, Type}
 import is.hail.linalg.{BlockMatrix, BlockMatrixMetadata, GridPartitioner, WriteBlocksRDD}
+import is.hail.misc.HailJSONSerialization
 import is.hail.utils._
 import org.json4s.jackson
 
@@ -53,7 +53,7 @@ case class MatrixWriteBlockMatrix(path: String,
     // write metadata
     using(new DataOutputStream(fs.create(path + BlockMatrix.metadataRelativePath))) { os =>
       implicit val formats = defaultJSONFormats
-      jackson.Serialization.write(
+      HailJSONSerialization.write(
         BlockMatrixMetadata(blockSize, nRows, localNCols, gp.partitionIndexToBlockIndex, partFiles),
         os)
     }

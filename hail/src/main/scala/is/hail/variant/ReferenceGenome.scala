@@ -1,7 +1,6 @@
 package is.hail.variant
 
 import java.io.InputStream
-
 import htsjdk.samtools.reference.FastaSequenceIndex
 import is.hail.HailContext
 import is.hail.asm4s.Code
@@ -12,6 +11,7 @@ import is.hail.expr.{JSONExtractContig, JSONExtractIntervalLocus, JSONExtractRef
 import is.hail.io.fs.FS
 import is.hail.io.reference.LiftOver
 import is.hail.io.reference.{FASTAReader, FASTAReaderConfig}
+import is.hail.misc.HailJSONSerialization
 import is.hail.types._
 import is.hail.types.virtual.{TInt64, TLocus, Type}
 import is.hail.utils._
@@ -22,6 +22,7 @@ import scala.language.implicitConversions
 import org.apache.spark.TaskContext
 import org.json4s._
 import org.json4s.jackson.{JsonMethods, Serialization}
+
 import java.lang.ThreadLocal
 
 
@@ -475,7 +476,7 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
         xContigs, yContigs, mtContigs,
         par.map(i => JSONExtractIntervalLocus(i.start.asInstanceOf[Locus], i.end.asInstanceOf[Locus])))
       implicit val formats: Formats = defaultJSONFormats
-      Serialization.write(jrg, out)
+      HailJSONSerialization.write(jrg, out)
     }
 
   def toJSON: JSONExtractReferenceGenome = JSONExtractReferenceGenome(name,
@@ -485,7 +486,7 @@ case class ReferenceGenome(name: String, contigs: Array[String], lengths: Map[St
 
   def toJSONString: String = {
     implicit val formats: Formats = defaultJSONFormats
-    Serialization.write(toJSON)
+    HailJSONSerialization.write(toJSON)
   }
 
   def codeSetup(localTmpdir: String, cb: EmitClassBuilder[_]): Code[ReferenceGenome] = {
@@ -595,7 +596,7 @@ object ReferenceGenome {
   def fromHailDataset(fs: FS, path: String): String = {
     val references = RelationalSpec.readReferences(fs, path)
     implicit val formats: Formats = defaultJSONFormats
-    Serialization.write(references.map(_.toJSON).toFastIndexedSeq)
+    HailJSONSerialization.write(references.map(_.toJSON).toFastIndexedSeq)
   }
 
   def fromJSON(config: String): ReferenceGenome = {

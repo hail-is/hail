@@ -3,6 +3,7 @@ package is.hail.expr.ir
 import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.ir.agg.{AggElementsAggSig, AggStateSig, ArrayLenAggSig, GroupedAggSig, PhysicalAggSig}
 import is.hail.expr.ir.functions.RelationalFunctions
+import is.hail.misc.HailJSONSerialization
 import is.hail.types.virtual.{TArray, TInterval, Type}
 import is.hail.utils.{space => _, _}
 import is.hail.utils.prettyPrint._
@@ -207,15 +208,15 @@ object Pretty {
         prettyBooleanLiteral(dropRows),
         '"' + StringEscapeUtils.escapeString(JsonMethods.compact(reader.toJValue)) + '"')
     case MatrixWrite(_, writer) =>
-      single('"' + StringEscapeUtils.escapeString(Serialization.write(writer)(MatrixWriter.formats)) + '"')
+      single('"' + StringEscapeUtils.escapeString(HailJSONSerialization.write(writer)(MatrixWriter.formats)) + '"')
     case MatrixMultiWrite(_, writer) =>
-      single('"' + StringEscapeUtils.escapeString(Serialization.write(writer)(MatrixNativeMultiWriter.formats)) + '"')
+      single('"' + StringEscapeUtils.escapeString(HailJSONSerialization.write(writer)(MatrixNativeMultiWriter.formats)) + '"')
     case BlockMatrixRead(reader) =>
       single('"' + StringEscapeUtils.escapeString(JsonMethods.compact(reader.toJValue)) + '"')
     case BlockMatrixWrite(_, writer) =>
-      single('"' + StringEscapeUtils.escapeString(Serialization.write(writer)(BlockMatrixWriter.formats)) + '"')
+      single('"' + StringEscapeUtils.escapeString(HailJSONSerialization.write(writer)(BlockMatrixWriter.formats)) + '"')
     case BlockMatrixMultiWrite(_, writer) =>
-      single('"' + StringEscapeUtils.escapeString(Serialization.write(writer)(BlockMatrixWriter.formats)) + '"')
+      single('"' + StringEscapeUtils.escapeString(HailJSONSerialization.write(writer)(BlockMatrixWriter.formats)) + '"')
     case BlockMatrixBroadcast(_, inIndexExpr, shape, blockSize) =>
       FastSeq(prettyInts(inIndexExpr, elideLiterals),
         prettyLongs(shape, elideLiterals),
@@ -258,9 +259,9 @@ object Pretty {
         prettyBooleanLiteral(dropRows),
         '"' + StringEscapeUtils.escapeString(JsonMethods.compact(tr.toJValue)) + '"')
     case TableWrite(_, writer) =>
-      single('"' + StringEscapeUtils.escapeString(Serialization.write(writer)(TableWriter.formats)) + '"')
+      single('"' + StringEscapeUtils.escapeString(HailJSONSerialization.write(writer)(TableWriter.formats)) + '"')
     case TableMultiWrite(_, writer) =>
-      single('"' + StringEscapeUtils.escapeString(Serialization.write(writer)(WrappedMatrixNativeMultiWriter.formats)) + '"')
+      single('"' + StringEscapeUtils.escapeString(HailJSONSerialization.write(writer)(WrappedMatrixNativeMultiWriter.formats)) + '"')
     case TableKeyBy(_, keys, isSorted) =>
       FastSeq(prettyIdentifiers(keys), prettyBooleanLiteral(isSorted))
     case TableRange(n, nPartitions) => FastSeq(n.toString, nPartitions.toString)
@@ -284,17 +285,17 @@ object Pretty {
     case CastTableToMatrix(_, entriesFieldName, colsFieldName, colKey) =>
       FastSeq(prettyIdentifier(entriesFieldName), prettyIdentifier(colsFieldName), prettyIdentifiers(colKey))
     case MatrixToMatrixApply(_, function) =>
-      single(prettyStringLiteral(Serialization.write(function)(RelationalFunctions.formats)))
+      single(prettyStringLiteral(HailJSONSerialization.write(function)(RelationalFunctions.formats)))
     case MatrixToTableApply(_, function) =>
-      single(prettyStringLiteral(Serialization.write(function)(RelationalFunctions.formats)))
+      single(prettyStringLiteral(HailJSONSerialization.write(function)(RelationalFunctions.formats)))
     case TableToTableApply(_, function) =>
       single(prettyStringLiteral(JsonMethods.compact(function.toJValue)))
     case TableToValueApply(_, function) =>
-      single(prettyStringLiteral(Serialization.write(function)(RelationalFunctions.formats)))
+      single(prettyStringLiteral(HailJSONSerialization.write(function)(RelationalFunctions.formats)))
     case MatrixToValueApply(_, function) =>
-      single(prettyStringLiteral(Serialization.write(function)(RelationalFunctions.formats)))
+      single(prettyStringLiteral(HailJSONSerialization.write(function)(RelationalFunctions.formats)))
     case BlockMatrixToTableApply(_, _, function) =>
-      single(prettyStringLiteral(Serialization.write(function)(RelationalFunctions.formats)))
+      single(prettyStringLiteral(HailJSONSerialization.write(function)(RelationalFunctions.formats)))
     case TableRename(_, rowMap, globalMap) =>
       val rowKV = rowMap.toArray
       val globalKV = globalMap.toArray
@@ -311,13 +312,13 @@ object Pretty {
         prettyStrings(entryKV.map(_._1)), prettyStrings(entryKV.map(_._2)))
     case TableFilterIntervals(child, intervals, keep) =>
       FastSeq(
-        prettyStringLiteral(Serialization.write(
+        prettyStringLiteral(HailJSONSerialization.write(
           JSONAnnotationImpex.exportAnnotation(intervals, TArray(TInterval(child.typ.keyType)))
         )(RelationalSpec.formats)),
         prettyBooleanLiteral(keep))
     case MatrixFilterIntervals(child, intervals, keep) =>
       FastSeq(
-        prettyStringLiteral(Serialization.write(
+        prettyStringLiteral(HailJSONSerialization.write(
           JSONAnnotationImpex.exportAnnotation(intervals, TArray(TInterval(child.typ.rowKeyStruct)))
         )(RelationalSpec.formats)),
         prettyBooleanLiteral(keep))

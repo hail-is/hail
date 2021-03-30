@@ -387,7 +387,7 @@ class SparkBackend(
       val value = execute(timer, ir, optimize = true)
       JsonMethods.compact(JSONAnnotationImpex.exportAnnotation(value, t))
     }
-    Serialization.write(Map("value" -> jsonValue, "timings" -> timer.toMap))(new DefaultFormats {})
+    HailJSONSerialization.write(Map("value" -> jsonValue, "timings" -> timer.toMap))(new DefaultFormats {})
   }
 
   // Called from python

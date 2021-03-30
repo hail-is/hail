@@ -5,6 +5,7 @@ import is.hail.annotations.{Annotation, Region, RegionValueBuilder, SafeNDArray,
 import is.hail.types.encoded._
 import is.hail.types.physical.{PCanonicalArray, PCanonicalNDArray, PCanonicalStringOptional, PCanonicalStringRequired, PCanonicalStruct, PFloat32Required, PFloat64Required, PInt32Optional, PInt32Required, PInt64Optional, PInt64Required, PType}
 import is.hail.io.{InputBuffer, MemoryBuffer, MemoryInputBuffer, MemoryOutputBuffer, OutputBuffer}
+import is.hail.misc.HailJSONSerialization
 import is.hail.rvd.AbstractRVDSpec
 import is.hail.utils._
 import org.apache.spark.sql.Row
@@ -42,7 +43,7 @@ class ETypeSuite extends HailSuite {
   @Test(dataProvider="etypes")
   def testSerialization(etype: EType): Unit = {
     implicit val formats = AbstractRVDSpec.formats
-    val s = Serialization.write(etype)
+    val s = HailJSONSerialization.write(etype)
     assert(Serialization.read[EType](s) == etype)
   }
 

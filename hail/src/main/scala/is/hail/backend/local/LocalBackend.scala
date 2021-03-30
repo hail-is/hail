@@ -148,7 +148,7 @@ class LocalBackend(
       JsonMethods.compact(JSONAnnotationImpex.exportAnnotation(value, t))
     }
     timer.logInfo()
-    Serialization.write(Map("value" -> jsonValue, "timings" -> timer.toMap))(new DefaultFormats {})
+    HailJSONSerialization.write(Map("value" -> jsonValue, "timings" -> timer.toMap))(new DefaultFormats {})
   }
 
   def executeLiteral(ir: IR): IR = {
