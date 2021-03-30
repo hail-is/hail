@@ -138,8 +138,6 @@ case class StreamSingleCodeType(separateRegions: Boolean, eltType: PType) extend
       override val length: Option[Code[Int]] = None
       override val elementRegion: Settable[Region] = eltRegion
       override val separateRegions: Boolean = self.separateRegions
-      override val LproduceElementDone: CodeLabel = CodeLabel()
-      override val LendOfStream: CodeLabel = CodeLabel()
       override val LproduceElement: CodeLabel = mb.defineHangingLabel { cb =>
         cb.ifx(xIter.isNull,
           cb.assign(xIter, mkIter.invoke[Region, Region, Iterator[java.lang.Long]]("apply", r, eltRegion)))

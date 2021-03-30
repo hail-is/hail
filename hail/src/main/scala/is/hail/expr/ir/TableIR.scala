@@ -495,8 +495,6 @@ case class PartitionRVDReader(rvd: RVD) extends PartitionReader {
         override val length: Option[Code[Int]] = None
         override val elementRegion: Settable[Region] = region
         override val separateRegions: Boolean = true
-        override val LproduceElementDone: CodeLabel = CodeLabel()
-        override val LendOfStream: CodeLabel = CodeLabel()
         override val LproduceElement: CodeLabel = mb.defineHangingLabel { cb =>
 
           // could lift this out into a setup method that is run after consumers assign element region
@@ -557,8 +555,6 @@ case class PartitionNativeReader(spec: AbstractTypedCodecSpec) extends AbstractN
         override val length: Option[Code[Int]] = None
         override val elementRegion: Settable[Region] = region
         override val separateRegions: Boolean = true
-        override val LproduceElementDone: CodeLabel = CodeLabel()
-        override val LendOfStream: CodeLabel = CodeLabel()
         override val LproduceElement: CodeLabel = mb.defineHangingLabel { cb =>
           cb.ifx(!xRowBuf.readByte().toZ, cb.goto(LendOfStream))
           cb.assign(next, spec.encodedType.buildDecoder(requestedType, cb.emb.ecb).apply(cb, region, xRowBuf))
@@ -623,8 +619,6 @@ case class PartitionNativeReaderIndexed(spec: AbstractTypedCodecSpec, indexSpec:
         override val length: Option[Code[Int]] = None
         override val elementRegion: Settable[Region] = region
         override val separateRegions: Boolean = true
-        override val LproduceElementDone: CodeLabel = CodeLabel()
-        override val LendOfStream: CodeLabel = CodeLabel()
         override val LproduceElement: CodeLabel = mb.defineHangingLabel { cb =>
 
           // could lift this out into a setup method that is run after consumers assign element region
@@ -811,8 +805,6 @@ case class PartitionZippedNativeReader(specLeft: AbstractTypedCodecSpec, specRig
         override val length: Option[Code[Int]] = None
         override val elementRegion: Settable[Region] = region
         override val separateRegions: Boolean = true
-        override val LproduceElementDone: CodeLabel = CodeLabel()
-        override val LendOfStream: CodeLabel = CodeLabel()
         override val LproduceElement: CodeLabel = mb.defineHangingLabel { cb =>
 
           // could lift this out into a setup method that is run after consumers assign element region

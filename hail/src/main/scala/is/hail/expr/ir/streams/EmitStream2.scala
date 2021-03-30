@@ -13,7 +13,6 @@ import is.hail.types.virtual.TStream
 import is.hail.utils._
 
 
-
 abstract class StreamProducer {
   val length: Option[Code[Int]]
 
@@ -21,15 +20,20 @@ abstract class StreamProducer {
   val elementRegion: Settable[Region]
   val separateRegions: Boolean
 
-  // defined by consumer
-  val LproduceElementDone: CodeLabel
+  // must be defined by the immediate consumer, even just as a trivial jump-through.
+  final val LproduceElementDone: CodeLabel = CodeLabel()
 
-  // defined by consumer
-  val LendOfStream: CodeLabel
+  // must be defined by the immediate consumer, even just as a trivial jump-through.
+  final val LendOfStream: CodeLabel = CodeLabel()
 
   // defined by producer. Jumps to either LproduceElementDone or LendOfStream
   val LproduceElement: CodeLabel
 
+  /**
+    * valid after producer jumps to `LproduceElementDone`,
+    * until consumer jumps to `LproduceElement` again,
+    * or calls close()
+    */
   val element: EmitCode
 
   def close(cb: EmitCodeBuilder): Unit
@@ -43,6 +47,30 @@ abstract class StreamProducer {
 
     cb.define(this.LendOfStream)
     this.close(cb)
+  }
+
+  // only valid if `perElement` does not retain pointers into the element region after it returns (or adds region references)
+  final def memoryManagedConsume(outerRegion: Value[Region], cb: EmitCodeBuilder)(perElement: EmitCodeBuilder => Unit): Unit = {
+
+    if (separateRegions)
+      cb.assign(elementRegion, Region.stagedCreate(Region.REGULAR, outerRegion.getPool()))
+    else
+      cb.assign(elementRegion, outerRegion)
+
+    cb.goto(this.LproduceElement)
+    cb.define(this.LproduceElementDone)
+    perElement(cb)
+
+    if (separateRegions)
+      cb += elementRegion.clearRegion()
+
+    cb.goto(this.LproduceElement)
+
+    cb.define(this.LendOfStream)
+    this.close(cb)
+
+    if (separateRegions)
+      cb += elementRegion.freeRegion()
   }
 }
 
@@ -101,8 +129,6 @@ object EmitStream2 {
           override val length: Option[Code[Int]] = None
           override val elementRegion: Settable[Region] = region
           override val separateRegions: Boolean = false
-          override val LproduceElementDone: CodeLabel = CodeLabel()
-          override val LendOfStream: CodeLabel = CodeLabel()
           override val LproduceElement: CodeLabel = mb.defineHangingLabel { cb =>
             cb.goto(LendOfStream)
           }
@@ -115,9 +141,29 @@ object EmitStream2 {
       case Ref(name, _typ) =>
         assert(_typ.isInstanceOf[TStream])
         env.lookup(name).toI(cb)
+          .map(cb) { case (stream: SStreamCode2) =>
+            val childProducer = stream.producer
+            val producer = new StreamProducer {
+              override val length: Option[Code[Int]] = childProducer.length
+              override val elementRegion: Settable[Region] = childProducer.elementRegion
+              override val separateRegions: Boolean = childProducer.separateRegions
+              override val LproduceElement: CodeLabel = mb.defineHangingLabel { cb =>
+                cb.goto(childProducer.LproduceElement)
+                cb.define(childProducer.LproduceElementDone)
+                cb.goto(LproduceElementDone)
+              }
+              override val element: EmitCode = childProducer.element
+
+              override def close(cb: EmitCodeBuilder): Unit = childProducer.close(cb)
+            }
+            mb.implementLabel(childProducer.LendOfStream) { cb =>
+              cb.goto(producer.LendOfStream)
+            }
+            stream.copy(producer = producer)
+          }
 
       case Let(name, value, body) =>
-        val xValue = cb.memoizeField(emit(value, cb),"let_stream_value")
+        val xValue = cb.memoizeField(emit(value, cb), "let_stream_value")
         produce(body, cb, env = env.bind(name, xValue))
 
       case In(n, _) =>
@@ -147,8 +193,6 @@ object EmitStream2 {
 
               override val separateRegions: Boolean = _separateRegions
 
-              override val LendOfStream: CodeLabel = CodeLabel()
-              override val LproduceElementDone: CodeLabel = CodeLabel()
               override val LproduceElement: CodeLabel = mb.defineHangingLabel { cb =>
                 cb.assign(idx, idx + 1)
                 cb.ifx(idx >= container.loadLength(), cb.goto(LendOfStream))
@@ -182,8 +226,6 @@ object EmitStream2 {
 
             override val separateRegions: Boolean = _separateRegions
 
-            override val LendOfStream: CodeLabel = CodeLabel()
-            override val LproduceElementDone: CodeLabel = CodeLabel()
             override val LproduceElement: CodeLabel = mb.defineHangingLabel { cb =>
 
               val LendOfSwitch = CodeLabel()
@@ -240,8 +282,6 @@ object EmitStream2 {
             }
             override val elementRegion: Settable[Region] = region
             override val separateRegions: Boolean = _separateRegions
-            override val LproduceElementDone: CodeLabel = CodeLabel()
-            override val LendOfStream: CodeLabel = CodeLabel()
             override val LproduceElement: CodeLabel = mb.defineHangingLabel { cb =>
               cb.ifx(xCond, cb.goto(leftProducer.LproduceElement), cb.goto(rightProducer.LproduceElement))
 
@@ -315,8 +355,6 @@ object EmitStream2 {
 
                 override val separateRegions: Boolean = _separateRegions
 
-                override val LendOfStream: CodeLabel = CodeLabel()
-                override val LproduceElementDone: CodeLabel = CodeLabel()
                 override val LproduceElement: CodeLabel = mb.defineHangingLabel { cb =>
                   cb.ifx(idx >= len, cb.goto(LendOfStream))
                   cb.assign(curr, curr + step)
@@ -350,52 +388,53 @@ object EmitStream2 {
 
             val elementField = cb.emb.newEmitField("streamfilter_cond", childStream.st.elementType.pType)
 
+            val producer = new StreamProducer {
+              override val length: Option[Code[Int]] = None
+
+              override val elementRegion: Settable[Region] = filterEltRegion
+
+              override val separateRegions: Boolean = childProducer.separateRegions
+
+              override val LproduceElement: CodeLabel = mb.defineHangingLabel { cb =>
+                val Lfiltered = CodeLabel()
+                cb.goto(childProducer.LproduceElement)
+                cb.define(childProducer.LproduceElementDone)
+
+                cb.assign(elementField, childProducer.element)
+                // false and NA both fail the filter
+                emit(cond, cb = cb, env = env.bind(name, elementField), region = childProducer.elementRegion)
+                  .consume(cb,
+                    cb.goto(Lfiltered),
+                    { sc =>
+                      cb.ifx(!sc.asBoolean.boolCode(cb), cb.goto(Lfiltered))
+                    })
+
+                if (separateRegions)
+                  cb += childProducer.elementRegion.addReferenceTo(filterEltRegion)
+
+                cb.goto(LproduceElementDone)
+
+                cb.define(Lfiltered)
+                if (separateRegions)
+                  cb += childProducer.elementRegion.clearRegion()
+                cb.goto(childProducer.LproduceElement)
+              }
+
+              val element: EmitCode = elementField
+
+              def close(cb: EmitCodeBuilder): Unit = {
+                childProducer.close(cb)
+                if (separateRegions)
+                  cb += childProducer.elementRegion.freeRegion()
+              }
+            }
+            mb.implementLabel(childProducer.LendOfStream) { cb =>
+              cb.goto(producer.LendOfStream)
+            }
+
             SStreamCode2(
               childStream.st,
-              new StreamProducer {
-                override val length: Option[Code[Int]] = None
-
-                override val elementRegion: Settable[Region] = filterEltRegion
-
-                override val separateRegions: Boolean = childProducer.separateRegions
-
-                override val LendOfStream: CodeLabel = childProducer.LendOfStream
-                override val LproduceElementDone: CodeLabel = CodeLabel()
-                override val LproduceElement: CodeLabel = mb.defineHangingLabel { cb =>
-                  val Lfiltered = CodeLabel()
-                  cb.goto(childProducer.LproduceElement)
-                  cb.define(childProducer.LproduceElementDone)
-
-                  cb.assign(elementField, childProducer.element)
-                  // false and NA both fail the filter
-                  emit(cond, cb = cb, env = env.bind(name, elementField), region = childProducer.elementRegion)
-                    .consume(cb,
-                      cb.goto(Lfiltered),
-                      { sc =>
-                        cb.ifx(!sc.asBoolean.boolCode(cb), cb.goto(Lfiltered))
-                      })
-
-                  if (separateRegions)
-                    cb += childProducer.elementRegion.addReferenceTo(filterEltRegion)
-
-                  cb.goto(LproduceElementDone)
-
-                  cb.define(Lfiltered)
-                  if (separateRegions)
-                    cb += childProducer.elementRegion.clearRegion()
-                  cb.goto(childProducer.LproduceElement)
-
-                }
-
-                val element: EmitCode = elementField
-
-                def close(cb: EmitCodeBuilder): Unit = {
-                  childProducer.close(cb)
-                  if (separateRegions)
-                    cb += childProducer.elementRegion.freeRegion()
-                }
-
-              })
+              producer)
           }
 
       case StreamTake(a, num) =>
@@ -413,8 +452,6 @@ object EmitStream2 {
                 override val length: Option[Code[Int]] = childProducer.length.map(_.min(n))
                 override val elementRegion: Settable[Region] = childProducer.elementRegion
                 override val separateRegions: Boolean = childProducer.separateRegions
-                override val LproduceElementDone: CodeLabel = CodeLabel()
-                override val LendOfStream: CodeLabel = CodeLabel()
                 override val LproduceElement: CodeLabel = mb.defineHangingLabel { cb =>
                   cb.ifx(idx >= n, cb.goto(LendOfStream))
                   cb.assign(idx, idx + 1)
@@ -451,8 +488,6 @@ object EmitStream2 {
                 override val length: Option[Code[Int]] = childProducer.length.map(l => (l - n).max(0))
                 override val elementRegion: Settable[Region] = childProducer.elementRegion
                 override val separateRegions: Boolean = childProducer.separateRegions
-                override val LproduceElementDone: CodeLabel = CodeLabel()
-                override val LendOfStream: CodeLabel = CodeLabel()
                 override val LproduceElement: CodeLabel = mb.defineHangingLabel { cb =>
                   cb.goto(childProducer.LproduceElement)
                   cb.define(childProducer.LproduceElementDone)
@@ -484,11 +519,15 @@ object EmitStream2 {
             val childProducer = childStream.producer
 
             val bodyResult = EmitCode.fromI(mb) { cb =>
-              val childProducerElement = cb.memoize(childProducer.element, "streammap_element")
-              emit(body,
+              val (fixUnusedStreamLabels, childProducerElement) = cb.memoizeMaybeUnrealizableField(childProducer.element, "streammap_element")
+
+              val emitted = emit(body,
                 cb = cb,
                 env = env.bind(name, childProducerElement),
                 region = childProducer.elementRegion)
+
+              fixUnusedStreamLabels()
+              emitted
             }
 
             val producer: StreamProducer = new StreamProducer {
@@ -498,8 +537,6 @@ object EmitStream2 {
 
               override val separateRegions: Boolean = childProducer.separateRegions
 
-              override val LendOfStream: CodeLabel = childProducer.LendOfStream
-              override val LproduceElementDone: CodeLabel = CodeLabel()
               override val LproduceElement: CodeLabel = mb.defineHangingLabel { cb =>
                 cb.goto(childProducer.LproduceElement)
                 cb.define(childProducer.LproduceElementDone)
@@ -509,6 +546,10 @@ object EmitStream2 {
               val element: EmitCode = bodyResult
 
               def close(cb: EmitCodeBuilder): Unit = childProducer.close(cb)
+            }
+
+            mb.implementLabel(childProducer.LendOfStream) { cb =>
+              cb.goto(producer.LendOfStream)
             }
 
             SStreamCode2(
@@ -540,8 +581,6 @@ object EmitStream2 {
 
             override val separateRegions: Boolean = childProducer.separateRegions
 
-            override val LendOfStream: CodeLabel = childProducer.LendOfStream
-            override val LproduceElementDone: CodeLabel = CodeLabel()
             override val LproduceElement: CodeLabel = mb.defineHangingLabel { cb =>
 
               val LcopyAndReturn = CodeLabel()
@@ -564,10 +603,16 @@ object EmitStream2 {
                 cb += accRegion.clearRegion()
               }
 
-              val childEltValue = cb.memoizeField(childProducer.element, "scan_child_elt")
-              cb.assign(accValueEltRegion,
-                emit(bodyIR, cb, env = env.bind((accName, accValueEltRegion), (eltName, childEltValue)), region = childProducer.elementRegion)
-                  .map(cb)(pc => pc.castTo(cb, childProducer.elementRegion, x.accPType, deepCopy = false)))
+              val bodyCode = {
+                val (fixUnusedStreamLabels, childEltValue) = cb.memoizeMaybeUnrealizableField(childProducer.element, "scan_child_elt")
+                val bodyCode = emit(bodyIR, cb, env = env.bind((accName, accValueEltRegion), (eltName, childEltValue)), region = childProducer.elementRegion)
+                  .map(cb)(pc => pc.castTo(cb, childProducer.elementRegion, x.accPType, deepCopy = false))
+
+                fixUnusedStreamLabels()
+                bodyCode
+              }
+
+              cb.assign(accValueEltRegion, bodyCode)
 
               cb.define(LcopyAndReturn)
 
@@ -586,6 +631,11 @@ object EmitStream2 {
                 cb += accRegion.freeRegion()
             }
           }
+
+          mb.implementLabel(childProducer.LendOfStream) { cb =>
+            cb.goto(producer.LendOfStream)
+          }
+
           SStreamCode2(SStream(accValueEltRegion.st, childStream.st.required, producer.separateRegions), producer)
         }
 
@@ -608,8 +658,6 @@ object EmitStream2 {
             override val length: Option[Code[Int]] = childProducer.length
             override val elementRegion: Settable[Region] = childProducer.elementRegion
             override val separateRegions: Boolean = childProducer.separateRegions
-            override val LendOfStream: CodeLabel = childProducer.LendOfStream
-            override val LproduceElementDone: CodeLabel = CodeLabel()
             override val LproduceElement: CodeLabel = mb.defineHangingLabel { cb =>
               cb.goto(childProducer.LproduceElement)
               cb.define(childProducer.LproduceElementDone)
@@ -624,6 +672,10 @@ object EmitStream2 {
               childProducer.close(cb)
               cb += aggCleanup
             }
+          }
+
+          mb.implementLabel(childProducer.LendOfStream) { cb =>
+            cb.goto(producer.LendOfStream)
           }
 
           SStreamCode2(SStream(producer.element.st, childStream.st.required, producer.separateRegions), producer)
@@ -645,11 +697,14 @@ object EmitStream2 {
             cb.assign(outerProducer.elementRegion, outerRegion)
 
           val innerStreamEmitCode = EmitCode.fromI(mb) { cb =>
-            val outerProducerValue = cb.memoize(outerProducer.element, "flatmap_outer_element")
-            emit(body,
+            val (fixUnusedStreamLabels, outerProducerValue) = cb.memoizeMaybeUnrealizableField(outerProducer.element, "flatmap_outer_value")
+            val emitted = emit(body,
               cb = cb,
               env = env.bind(name, outerProducerValue),
               region = outerProducer.elementRegion)
+
+            fixUnusedStreamLabels()
+            emitted
           }
 
           // grabbing emitcode.pv weird pattern but should be safe
@@ -662,8 +717,6 @@ object EmitStream2 {
 
             override val separateRegions: Boolean = innerProducer.separateRegions || outerProducer.separateRegions
 
-            override val LendOfStream: CodeLabel = outerProducer.LendOfStream
-            override val LproduceElementDone: CodeLabel = CodeLabel()
             override val LproduceElement: CodeLabel = mb.defineHangingLabel { cb =>
               val LnextOuter = CodeLabel()
               val LnextInner = CodeLabel()
@@ -718,6 +771,10 @@ object EmitStream2 {
             }
           }
 
+          mb.implementLabel(outerProducer.LendOfStream) { cb =>
+            cb.goto(producer.LendOfStream)
+          }
+
           SStreamCode2(
             SStream(innerProducer.element.st, required = outerStream.st.required),
             producer
@@ -770,8 +827,6 @@ object EmitStream2 {
                   override val length: Option[Code[Int]] = leftProducer.length
                   override val elementRegion: Settable[Region] = leftProducer.elementRegion
                   override val separateRegions: Boolean = leftProducer.separateRegions
-                  override val LproduceElementDone: CodeLabel = CodeLabel()
-                  override val LendOfStream: CodeLabel = leftProducer.LendOfStream
                   override val LproduceElement: CodeLabel = mb.defineHangingLabel { cb =>
 
                     cb.goto(leftProducer.LproduceElement)
@@ -829,6 +884,11 @@ object EmitStream2 {
                   }
                 }
 
+                mb.implementLabel(leftProducer.LendOfStream) { cb =>
+                  cb.goto(producer.LendOfStream)
+                }
+
+
                 SStreamCode2(SStream(producer.element.st, leftStream.st.required && rightStream.st.required, producer.separateRegions), producer)
 
               case "outer" =>
@@ -863,8 +923,6 @@ object EmitStream2 {
                   override val length: Option[Code[Int]] = None
                   override val elementRegion: Settable[Region] = _elementRegion
                   override val separateRegions: Boolean = leftProducer.separateRegions || rightProducer.separateRegions
-                  override val LproduceElementDone: CodeLabel = CodeLabel()
-                  override val LendOfStream: CodeLabel = CodeLabel()
                   override val LproduceElement: CodeLabel = mb.defineHangingLabel { cb =>
 
                     val Lcompare = CodeLabel()
@@ -961,6 +1019,180 @@ object EmitStream2 {
           }
         }
 
+      case StreamGroupByKey(a, key) =>
+        produce(a, cb).map(cb) { case (childStream: SStreamCode2) =>
+
+          val childProducer = childStream.producer
+
+          val xCurElt = mb.newPField("st_grpby_curelt", childProducer.element.pt)
+
+          val keyRegion = mb.genFieldThisRef[Region]("st_groupby_key_region")
+          val subsetCode = xCurElt.asBaseStruct.subset(key: _*)
+          val curKey = mb.newPField("st_grpby_curkey", subsetCode.st.pType)
+          val lastKey = mb.newPField("st_grpby_lastkey", subsetCode.st.pType)
+
+          val eos = mb.genFieldThisRef[Boolean]("st_grpby_eos")
+          val nextReady = mb.genFieldThisRef[Boolean]("streamgrouped_nextready")
+          val inOuter = mb.genFieldThisRef[Boolean]("streamgrouped_inouter")
+          val first = mb.genFieldThisRef[Boolean]("streamgrouped_first")
+
+          cb.assign(nextReady, false)
+          cb.assign(eos, false)
+          cb.assign(inOuter, true)
+          cb.assign(first, true)
+
+          // cannot reuse childProducer.elementRegion because consumers might free the region, even though
+          // the outer producer needs to continue pulling. We could add more control flow that sets some
+          // boolean flag when the inner stream is closed, and the outer producer reassigns a region if
+          // that flag is set, but that design seems more complicated
+          val innerResultRegion = mb.genFieldThisRef[Region]("streamgrouped_inner_result_region")
+
+          val outerElementRegion = mb.genFieldThisRef[Region]("streamgrouped_outer_elt_region")
+
+          if (childProducer.separateRegions) {
+            cb.assign(keyRegion, Region.stagedCreate(Region.REGULAR, outerRegion.getPool()))
+            cb.assign(childProducer.elementRegion, Region.stagedCreate(Region.REGULAR, outerRegion.getPool()))
+          } else {
+            cb.assign(keyRegion, outerRegion)
+            cb.assign(childProducer.elementRegion, outerRegion)
+          }
+
+          val LchildProduceDoneInner = CodeLabel()
+          val LchildProduceDoneOuter = CodeLabel()
+          val innerProducer = new StreamProducer {
+            override val length: Option[Code[Int]] = None
+            override val elementRegion: Settable[Region] = innerResultRegion
+            override val separateRegions: Boolean = childProducer.separateRegions
+            override val LproduceElement: CodeLabel = mb.defineHangingLabel { cb =>
+              val LelementReady = CodeLabel()
+
+              cb.ifx(nextReady, {
+                cb.assign(nextReady, false)
+                cb.goto(LelementReady)
+              })
+
+              cb.goto(childProducer.LproduceElement)
+              // xElt and curKey are assigned before this label is jumped to
+              cb.define(LchildProduceDoneInner)
+
+              // the first element of the outer stream has not yet initialized lastKey
+              cb.ifx(first, {
+                cb.assign(first, false)
+                cb.assign(lastKey, subsetCode.castTo(cb, keyRegion, lastKey.pt, deepCopy = true))
+                cb.goto(LelementReady)
+              })
+
+              val equiv = cb.emb.ecb.getOrdering(curKey.st, lastKey.st).equivNonnull(cb, curKey, lastKey)
+
+              // if not equivalent, end inner stream and prepare for next outer iteration
+              cb.ifx(!equiv, {
+                if (separateRegions)
+                  cb += keyRegion.clearRegion()
+
+                cb.assign(lastKey, subsetCode.castTo(cb, keyRegion, lastKey.pt, deepCopy = true))
+                cb.assign(nextReady, true)
+                cb.assign(inOuter, true)
+                cb.goto(LendOfStream)
+              })
+
+              cb.define(LelementReady)
+
+              if (separateRegions) {
+                cb += childProducer.elementRegion.addReferenceTo(innerResultRegion)
+                cb += childProducer.elementRegion.clearRegion()
+              }
+
+              cb.goto(LproduceElementDone)
+            }
+            override val element: EmitCode = EmitCode.present(mb, xCurElt)
+
+            override def close(cb: EmitCodeBuilder): Unit = {}
+          }
+
+          val innerStreamCode = EmitCode.fromI(mb) { cb =>
+            if (childProducer.separateRegions)
+              cb.assign(innerProducer.elementRegion, Region.stagedCreate(Region.REGULAR, outerRegion.getPool()))
+            else
+              cb.assign(innerProducer.elementRegion, outerRegion)
+
+            IEmitCode.present(cb, SStreamCode2(SStream(innerProducer.element.st, true, childProducer.separateRegions), innerProducer))
+          }
+
+          val outerProducer = new StreamProducer {
+            override val length: Option[Code[Int]] = None
+            override val elementRegion: Settable[Region] = outerElementRegion
+            override val separateRegions: Boolean = childProducer.separateRegions
+            override val LproduceElement: CodeLabel = mb.defineHangingLabel { cb =>
+              cb.ifx(eos, {
+                cb.goto(LendOfStream)
+              })
+
+              val LinnerStreamReady = CodeLabel()
+
+              // if !nextReady, there is no key available, and it must be assigned
+              cb.ifx(inOuter, cb.goto(LinnerStreamReady))
+
+              // inOuter == false, so inner stream didn't reach completion and find the next key
+
+              cb.goto(childProducer.LproduceElement)
+              // xElt and curKey are assigned before this label is jumped to
+              cb.define(LchildProduceDoneOuter)
+
+              // it's possible to end up in the outer stream with first=true if the inner stream never iterates
+              // in this case, the first element (and its equal keys) should be skipped, not returned
+              cb.ifx(first, {
+                cb.assign(first, false)
+                cb.assign(lastKey, subsetCode.castTo(cb, keyRegion, lastKey.pt, deepCopy = true))
+                cb.goto(childProducer.LproduceElement)
+              })
+
+              val equiv = cb.emb.ecb.getOrdering(curKey.st, lastKey.st).equivNonnull(cb, curKey, lastKey)
+
+              // if not equivalent, end inner stream and prepare for next outer iteration
+              cb.ifx(!equiv, {
+                if (separateRegions)
+                  cb += keyRegion.clearRegion()
+
+                cb.assign(lastKey, subsetCode.castTo(cb, keyRegion, lastKey.pt, deepCopy = true))
+                cb.assign(nextReady, true)
+                cb.goto(LinnerStreamReady)
+              },{
+                cb.goto(childProducer.LproduceElement)
+              })
+
+              cb.define(LinnerStreamReady)
+              cb.assign(inOuter, false)
+              cb.goto(LproduceElementDone)
+            }
+
+            override val element: EmitCode = innerStreamCode
+
+            override def close(cb: EmitCodeBuilder): Unit = {
+              childProducer.close(cb)
+              if (childProducer.separateRegions) {
+                cb += keyRegion.freeRegion()
+                cb += childProducer.elementRegion.freeRegion()
+              }
+            }
+          }
+
+          mb.implementLabel(childProducer.LendOfStream) { cb =>
+            cb.assign(eos, true)
+            cb.ifx(inOuter,
+              cb.goto(outerProducer.LendOfStream),
+              cb.goto(innerProducer.LendOfStream)
+            )
+          }
+
+          mb.implementLabel(childProducer.LproduceElementDone) { cb =>
+            cb.assign(xCurElt, childProducer.element.get())
+            cb.assign(curKey, subsetCode)
+            cb.ifx(inOuter, cb.goto(LchildProduceDoneOuter), cb.goto(LchildProduceDoneInner))
+          }
+
+          SStreamCode2(SStream(outerProducer.element.st, required = childStream.st.required, childProducer.separateRegions), outerProducer)
+        }
+
       case StreamGrouped(a, groupSize) =>
         produce(a, cb).flatMap(cb) { case (childStream: SStreamCode2) =>
 
@@ -976,24 +1208,24 @@ object EmitStream2 {
             val inOuter = mb.genFieldThisRef[Boolean]("streamgrouped_io")
             val eos = mb.genFieldThisRef[Boolean]("streamgrouped_eos")
 
-            cb.assign(inOuter, false)
+            cb.assign(inOuter, true)
             cb.assign(eos, false)
+            cb.assign(xCounter, 0)
 
             val outerElementRegion = mb.genFieldThisRef[Region]("streamgrouped_outer_elt_region")
 
-            if (childProducer.separateRegions)
-              cb.assign(outerElementRegion, Region.stagedCreate(Region.REGULAR, outerRegion.getPool()))
-            else
-              cb.assign(outerElementRegion, outerRegion)
+            // cannot reuse childProducer.elementRegion because consumers might free the region, even though
+            // the outer producer needs to continue pulling. We could add more control flow that sets some
+            // boolean flag when the inner stream is closed, and the outer producer reassigns a region if
+            // that flag is set, but that design seems more complicated
+            val innerResultRegion = mb.genFieldThisRef[Region]("streamgrouped_inner_result_region")
 
             val LchildProduceDoneInner = CodeLabel()
             val LchildProduceDoneOuter = CodeLabel()
             val innerProducer = new StreamProducer {
               override val length: Option[Code[Int]] = None
-              override val elementRegion: Settable[Region] = childProducer.elementRegion
+              override val elementRegion: Settable[Region] = innerResultRegion
               override val separateRegions: Boolean = childProducer.separateRegions
-              override val LproduceElementDone: CodeLabel = CodeLabel()
-              override val LendOfStream: CodeLabel = CodeLabel()
               override val LproduceElement: CodeLabel = mb.defineHangingLabel { cb =>
                 cb.ifx(inOuter, {
                   cb.assign(inOuter, false)
@@ -1008,6 +1240,9 @@ object EmitStream2 {
                 cb.goto(childProducer.LproduceElement)
                 cb.define(LchildProduceDoneInner)
 
+                cb += childProducer.elementRegion.addReferenceTo(innerResultRegion)
+
+                cb.goto(LproduceElementDone)
               }
               override val element: EmitCode = childProducer.element
 
@@ -1019,8 +1254,6 @@ object EmitStream2 {
               override val length: Option[Code[Int]] = childProducer.length.map(l => ((l.toL + n.toL - 1L) / n.toL).toI)
               override val elementRegion: Settable[Region] = outerElementRegion
               override val separateRegions: Boolean = childProducer.separateRegions
-              override val LproduceElementDone: CodeLabel = CodeLabel()
-              override val LendOfStream: CodeLabel = CodeLabel()
               override val LproduceElement: CodeLabel = mb.defineHangingLabel { cb =>
                 cb.ifx(eos, {
                   cb.goto(LendOfStream)
@@ -1044,7 +1277,7 @@ object EmitStream2 {
               override def close(cb: EmitCodeBuilder): Unit = {
                 childProducer.close(cb)
                 if (childProducer.separateRegions)
-                  cb += outerElementRegion.freeRegion()
+                  cb += childProducer.elementRegion.freeRegion()
               }
             }
 
@@ -1102,8 +1335,6 @@ object EmitStream2 {
 
                 override val separateRegions: Boolean = producers.exists(_.separateRegions)
 
-                override val LendOfStream: CodeLabel = CodeLabel()
-                override val LproduceElementDone: CodeLabel = CodeLabel()
                 override val LproduceElement: CodeLabel = mb.defineHangingLabel { cb =>
 
                   producers.foreach { p =>
@@ -1169,8 +1400,6 @@ object EmitStream2 {
 
                 override val separateRegions: Boolean = producers.exists(_.separateRegions)
 
-                override val LendOfStream: CodeLabel = CodeLabel()
-                override val LproduceElementDone: CodeLabel = CodeLabel()
                 override val LproduceElement: CodeLabel = mb.defineHangingLabel { cb =>
 
                   producers.zipWithIndex.foreach { case (p, i) =>
@@ -1237,8 +1466,6 @@ object EmitStream2 {
 
                 override val separateRegions: Boolean = producers.exists(_.separateRegions)
 
-                override val LendOfStream: CodeLabel = CodeLabel()
-                override val LproduceElementDone: CodeLabel = CodeLabel()
                 override val LproduceElement: CodeLabel = mb.defineHangingLabel { cb =>
 
                   producers.zipWithIndex.foreach { case (p, i) =>

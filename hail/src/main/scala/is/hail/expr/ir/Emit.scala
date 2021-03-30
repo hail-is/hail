@@ -192,7 +192,7 @@ abstract class EmitValue {
 class EmitUnrealizableValue(private val ec: EmitCode) extends EmitValue {
   val pt: PType = ec.pt
   assert(!pt.isRealizable)
-  private var used: Boolean = false
+  private[this] var used: Boolean = false
 
   def load: EmitCode = {
     assert(!used)
@@ -532,21 +532,10 @@ class Emit[C](
 
         emitI(cond).consume(cb, {}, m => cb.ifx(m.asBoolean.boolCode(cb), emitVoid(cnsq), emitVoid(altr)))
 
-      case Let(name, value, body) => value.pType match {
-        case streamType: PCanonicalStream =>
-          val separateRegions = ctx.smm.lookup(value).separateRegions
-          assert(separateRegions == streamType.separateRegions)
-          val outerRegion = region.asParent(separateRegions, "Let value")
-          val valuet = emitStream(value, outerRegion)
-          val bodyEnv = env.bind(name -> new EmitUnrealizableValue(valuet))
-
-          emitVoid(body, env = bodyEnv)
-
-        case valueType =>
-          val x = mb.newEmitField(name, valueType)
-          cb.assign(x, emit(value))
-          emitVoid(body, env = env.bind(name, x))
-      }
+      case Let(name, value, body) =>
+        val (fixUnusedStreamLabels, memoValue) = cb.memoizeMaybeUnrealizableField(emit(value), s"let_$name")
+        emitVoid(body, env = env.bind(name, memoValue))
+        fixUnusedStreamLabels()
 
       case StreamFor(a, valueName, body) =>
         val streamType = coerce[PStream](a.pType)
@@ -2231,22 +2220,14 @@ class Emit[C](
 
     val result: EmitCode = (ir: @unchecked) match {
 
-      case Let(name, value, body) => value.typ match {
-        case streamType: TStream =>
-
-          val valueCode = emitStream(body, region.code)
-          val bodyEnv = env.bind(name -> new EmitUnrealizableValue(valueCode))
-          emit(body, env = bodyEnv)
-
-        case valueType =>
+      case Let(name, value, body) =>
+        EmitCode.fromI(mb) { cb =>
           val valueCode = emit(value)
-          val x = mb.newEmitField(name, valueCode.pt)
-          EmitCodeBuilder.scopedEmitCode(mb) { cb =>
-            x.store(cb, valueCode)
-            val bodyenv = env.bind(name, x)
-            emit(body, env = bodyenv)
-          }
-      }
+          val (fixupUnusedStreamLabels, valueMemo) = cb.memoizeMaybeUnrealizableField(valueCode, s"let_$name")
+          val emitted = emitI(body, cb, env = env.bind(name, valueMemo))
+          fixupUnusedStreamLabels()
+          emitted
+        }
 
       case Ref(name, _) =>
         val ev = env.lookup(name)

@@ -3,6 +3,7 @@ package is.hail.expr.ir
 import is.hail.annotations.Region
 import is.hail.asm4s.{coerce => _, _}
 import is.hail.expr.ir.functions.StringFunctions
+import is.hail.expr.ir.streams.SStreamCode2
 import is.hail.lir
 import is.hail.types.physical.{PCode, PSettable, PType, PValue}
 import is.hail.utils.FastIndexedSeq
@@ -82,7 +83,7 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
   }
 
   def memoize(v: EmitCode, name: String): EmitValue = {
-    if (!v.pt.isRealizable)
+    require(v.pt.isRealizable)
       return new EmitUnrealizableValue(v)
     val l = emb.newEmitLocal(name, v.pt)
     assign(l, v)
@@ -90,24 +91,56 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
   }
 
   def memoize(v: IEmitCode, name: String): EmitValue = {
-    if (!v.pt.isRealizable)
-      return new EmitUnrealizableValue(EmitCode.fromI(emb)(_ => v))
+    require(v.pt.isRealizable)
     val l = emb.newEmitLocal(name, v.pt)
     assign(l, v)
     l
   }
 
   def memoizeField[T](ec: EmitCode, name: String): EmitValue = {
-    if (!ec.pt.isRealizable)
-      return new EmitUnrealizableValue(ec)
+    require(ec.pt.isRealizable)
     val l = emb.newEmitField(name, ec.pt)
     l.store(this, ec)
     l
   }
 
+  private[this] def defineNestedUnusedLabels(x: EmitCode): Unit = {
+    x.pv match {
+      case SStreamCode2(_, producer) =>
+        // check if producer labels are defined and define them
+
+        (producer.LendOfStream.isImplemented, producer.LproduceElementDone.isImplemented) match {
+          case (true, true) =>
+          case (false, false) =>
+
+            EmitCodeBuilder.scopedVoid(emb) { cb =>
+              cb.define(producer.LendOfStream)
+              cb.define(producer.LproduceElementDone)
+              cb._fatal("unreachable")
+            }
+
+          case (eos, ped) => throw new RuntimeException(s"unrealizable value unused asymmetrically: eos=$eos, ped=$ped")
+        }
+        defineNestedUnusedLabels(producer.element)
+      case _ =>
+    }
+  }
+
+  def memoizeMaybeUnrealizableField(ec: EmitCode, name: String): (() => Unit, EmitValue) = {
+    if (ec.pt.isRealizable)
+      return (() => (), memoizeField(ec, name))
+    (() => defineNestedUnusedLabels(ec), new EmitUnrealizableValue(ec))
+  }
+
+  def memoizeMaybeUnrealizableLocal(ec: EmitCode, name: String): (() => Unit, EmitValue) = {
+    if (ec.pt.isRealizable)
+      return (() => (), memoize(ec, name))
+    (() => defineNestedUnusedLabels(ec), new EmitUnrealizableValue(ec))
+  }
+
+
   def memoizeField(v: IEmitCode, name: String): EmitValue = {
-    if (!v.pt.isRealizable)
-      return new EmitUnrealizableValue(EmitCode.fromI(emb)(_ => v))
+    require(v.pt.isRealizable)
     val l = emb.newEmitField(name, v.pt)
     assign(l, v)
     l

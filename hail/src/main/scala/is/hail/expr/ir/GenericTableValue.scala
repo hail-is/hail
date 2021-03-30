@@ -53,8 +53,6 @@ class PartitionIteratorLongReader(
         override val length: Option[Code[Int]] = None
         override val elementRegion: Settable[Region] = region
         override val separateRegions: Boolean = true
-        override val LproduceElementDone: CodeLabel = CodeLabel()
-        override val LendOfStream: CodeLabel = CodeLabel()
         override val LproduceElement: CodeLabel = mb.defineHangingLabel { cb =>
           cb.ifx(first, {
             cb.assign(first, false)
