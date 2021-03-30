@@ -25,10 +25,10 @@ import scala.collection.mutable
 import scala.reflect.ClassTag
 import scala.collection.JavaConverters._
 import java.io.{Closeable, PrintWriter}
-
 import is.hail.io.plink.LoadPlink
 import is.hail.io.vcf.VCFsReader
 import is.hail.linalg.{BlockMatrix, RowMatrix}
+import is.hail.misc.HailJSONSerialization
 import is.hail.rvd.RVD
 import is.hail.stats.LinearMixedModel
 import is.hail.types._

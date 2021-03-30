@@ -1,7 +1,6 @@
 package is.hail.backend.local
 
 import java.io.PrintWriter
-
 import is.hail.annotations.{Region, SafeRow, UnsafeRow}
 import is.hail.asm4s._
 import is.hail.backend.{Backend, BackendContext, BroadcastValue, HailTaskContext}
@@ -13,6 +12,7 @@ import is.hail.io.fs.{FS, HadoopFS}
 import is.hail.io.plink.LoadPlink
 import is.hail.io.{BufferSpec, TypedCodecSpec}
 import is.hail.linalg.BlockMatrix
+import is.hail.misc.HailJSONSerialization
 import is.hail.types._
 import is.hail.types.encoded.EType
 import is.hail.types.physical.{PTuple, PType, PVoid}

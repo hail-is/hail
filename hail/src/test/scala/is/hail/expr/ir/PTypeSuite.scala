@@ -1,6 +1,7 @@
 package is.hail.expr.ir
 
 import is.hail.HailSuite
+import is.hail.misc.HailJSONSerialization
 import is.hail.types.physical._
 import is.hail.types.virtual
 import is.hail.types.virtual.{TArray, TDict, TInt32, TInterval, TStruct}
