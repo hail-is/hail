@@ -9,6 +9,7 @@ import is.hail.types.encoded._
 import is.hail.types.{MatrixType, TableType, TypeWithRequiredness, VirtualTypeWithReq}
 import is.hail.expr.{JSONAnnotationImpex, Nat, ParserUtils}
 import is.hail.io.{AbstractTypedCodecSpec, BufferSpec}
+import is.hail.misc.HailJSONSerialization
 import is.hail.rvd.{AbstractRVDSpec, RVDType}
 import is.hail.utils.StackSafe._
 import is.hail.utils.StringEscapeUtils._
@@ -1699,7 +1700,7 @@ object IRParser {
         val dropCols = boolean_literal(it)
         val dropRows = boolean_literal(it)
         val readerStr = string_literal(it)
-        val reader = MatrixReader.fromJson(env, JsonMethods.parse(readerStr).asInstanceOf[JObject])
+        val reader = MatrixReader.fromJson(env, HailJSONSerialization.parseSerializedClass(readerStr).asInstanceOf[JObject])
         done(MatrixRead(requestedType.getOrElse(reader.fullMatrixType), dropCols, dropRows, reader))
       case "MatrixAnnotateRowsTable" =>
         val root = string_literal(it)

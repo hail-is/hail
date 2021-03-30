@@ -5,6 +5,7 @@ import is.hail.types.virtual.Type
 import is.hail.types.{BlockMatrixType, MatrixType, RTable, TableType, TypeWithRequiredness}
 import is.hail.linalg.BlockMatrix
 import is.hail.methods._
+import is.hail.misc.HailJSONSerialization
 import is.hail.utils._
 import is.hail.rvd.RVDType
 import org.json4s.{Extraction, JValue, ShortTypeHints}
@@ -134,7 +135,7 @@ object RelationalFunctions {
 
   def extractTo[T: Manifest](ctx: ExecuteContext, config: String): T = {
     try {
-      val jv = JsonMethods.parse(config)
+      val jv = HailJSONSerialization.parseSerializedClass(config)
       (jv \ "jsonClass").extract[String] match {
         case "VEP" => VEP.fromJValue(ctx.fs, jv).asInstanceOf[T]
         case _ => {
