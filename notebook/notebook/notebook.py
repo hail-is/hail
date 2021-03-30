@@ -14,6 +14,7 @@ from prometheus_async.aio.web import server_stats  # type: ignore
 
 from hailtop.config import get_deploy_config
 from hailtop.hail_logging import AccessLogger
+from hailtop.tls import internal_server_ssl_context
 from gear import (setup_aiohttp_session, create_database_pool,
                   web_authenticated_users_only, web_maybe_authenticated_user,
                   web_authenticated_developers_only, check_csrf_token,
@@ -808,6 +809,7 @@ def init_app(routes):
     routes.static('/static', f'{root}/static')
     setup_common_static_routes(routes)
     app.add_routes(routes)
+    app.router.add_get("/metrics", server_stats)
 
     return app
 
@@ -827,4 +829,5 @@ def run():
     web.run_app(root_app,
                 host='0.0.0.0',
                 port=5000,
-                access_log_class=AccessLogger)
+                access_log_class=AccessLogger,
+                ssl_context=internal_server_ssl_context())
