@@ -89,7 +89,7 @@ object Worker {
 
     val fs = retryTransientErrors {
       using(new FileInputStream(s"$scratchDir/gsa-key/key.json")) { is =>
-        new GoogleStorageFS(IOUtils.toString(is, Charset.defaultCharset()))
+        new GoogleStorageFS(IOUtils.toString(is, Charset.defaultCharset().toString()))
       }
     }
 
