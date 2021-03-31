@@ -24,6 +24,8 @@ repositories {
     jcenter()
     maven { url "https://repository.cloudera.com/artifactory/cloudera-repos/" }
     maven { url "https://repo.spring.io/plugins-release/" }
+    // Necessary for elasticsearch spark 3.0.1 snapshot.
+    maven { url "https://oss.sonatype.org/content/repositories/snapshots/"}
 }
 
 sourceSets.main.scala.srcDir "src/main/java"
@@ -179,8 +181,20 @@ dependencies {
     if (elasticMajorVersion != "7") {
         throw new UnsupportedOperationException("elasticsearch.major-version must be 7")
     }
-    // This comes from a local libs directory, see Makefile
-    bundled 'org.elasticsearch:elasticsearch-spark-30_2.12-8.0.0-SNAPSHOT-custom-hail-spark311'
+
+    if (sparkVersion == "3.1.1") {
+        // This comes from a local libs directory, see Makefile
+        assert(scalaMajorVersion == "2.12")
+        bundled 'org.elasticsearch:elasticsearch-spark-30_2.12-8.0.0-SNAPSHOT-custom-hail-spark311'
+    }
+    else if (sparkVersion == "3.0.1") {
+        assert(scalaMajorVersion == "2.12")
+        bundled 'org.elasticsearch:elasticsearch-spark-30_2.12:7.13.0-SNAPSHOT'
+    }
+    else if (sparkVersion.startsWith("2.4.")) {
+        assert(scalaMajorVersion == "2.11")
+        bundled 'org.elasticsearch:elasticsearch-spark-20_2.11:7.8.1'
+    }
 
     bundled 'com.google.cloud:google-cloud-storage:1.106.0'
 
@@ -314,6 +328,7 @@ tasks.withType(ShadowJar) {
     relocate 'org.freemarker', 'is.hail.relocated.org.freemarker'
     relocate 'org.json4s', 'is.hail.relocated.org.json4s'
     relocate 'com.fasterxml.jackson', 'is.hail.relocated.com.fasterxml.jackson'
+    relocate 'org.elasticsearch', 'is.hail.relocated.org.elasticsearch'
 
     exclude 'META-INF/*.RSA'
     exclude 'META-INF/*.SF'
