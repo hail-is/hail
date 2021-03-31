@@ -3,13 +3,16 @@ package is.hail.expr.ir.streams
 import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.expr.ir.EmitStream.emit
+import is.hail.expr.ir.Stream.unfold
 import is.hail.expr.ir._
 import is.hail.expr.ir.orderings.StructOrdering
-import is.hail.types.physical.stypes.SType
+import is.hail.services.shuffler.{CodeShuffleClient, ShuffleClient, ValueShuffleClient}
+import is.hail.types.physical.stypes.concrete.{SBinaryPointer, SBinaryPointerSettable, SCanonicalShufflePointerCode, SCanonicalShufflePointerSettable}
+import is.hail.types.physical.stypes.{SType, interfaces}
 import is.hail.types.physical.stypes.interfaces.{SBaseStruct, SIndexableCode, SIndexableValue, SStream}
 import is.hail.types.physical.stypes.primitives.{SInt32, SInt32Code}
-import is.hail.types.physical.{PCanonicalStream, PCode, PStream, PStreamCode, PValue}
-import is.hail.types.virtual.TStream
+import is.hail.types.physical.{PCanonicalStream, PCode, PInterval, PStream, PStreamCode, PValue}
+import is.hail.types.virtual.{TInterval, TShuffle, TStream}
 import is.hail.utils._
 
 
@@ -758,6 +761,7 @@ object EmitStream2 {
               emitVoid(init, cb = cb, region = outerRegion, container = Some(newContainer))
               childProducer.initialize(cb)
             }
+
             override val elementRegion: Settable[Region] = childProducer.elementRegion
             override val separateRegions: Boolean = childProducer.separateRegions
             override val LproduceElement: CodeLabel = mb.defineHangingLabel { cb =>
@@ -937,6 +941,7 @@ object EmitStream2 {
                     leftProducer.initialize(cb)
                     rightProducer.initialize(cb)
                   }
+
                   override val elementRegion: Settable[Region] = leftProducer.elementRegion
                   override val separateRegions: Boolean = leftProducer.separateRegions
                   override val LproduceElement: CodeLabel = mb.defineHangingLabel { cb =>
@@ -1042,6 +1047,7 @@ object EmitStream2 {
                     leftProducer.initialize(cb)
                     rightProducer.initialize(cb)
                   }
+
                   override val elementRegion: Settable[Region] = _elementRegion
                   override val separateRegions: Boolean = leftProducer.separateRegions || rightProducer.separateRegions
                   override val LproduceElement: CodeLabel = mb.defineHangingLabel { cb =>
@@ -1171,6 +1177,7 @@ object EmitStream2 {
             override val length: Option[Code[Int]] = None
 
             override def initialize(cb: EmitCodeBuilder): Unit = {}
+
             override val elementRegion: Settable[Region] = innerResultRegion
             override val separateRegions: Boolean = childProducer.separateRegions
             override val LproduceElement: CodeLabel = mb.defineHangingLabel { cb =>
@@ -1247,6 +1254,7 @@ object EmitStream2 {
 
               childProducer.initialize(cb)
             }
+
             override val elementRegion: Settable[Region] = outerElementRegion
             override val separateRegions: Boolean = childProducer.separateRegions
             override val LproduceElement: CodeLabel = mb.defineHangingLabel { cb =>
@@ -1347,6 +1355,7 @@ object EmitStream2 {
               override val length: Option[Code[Int]] = None
 
               override def initialize(cb: EmitCodeBuilder): Unit = {}
+
               override val elementRegion: Settable[Region] = innerResultRegion
               override val separateRegions: Boolean = childProducer.separateRegions
               override val LproduceElement: CodeLabel = mb.defineHangingLabel { cb =>
@@ -1383,6 +1392,7 @@ object EmitStream2 {
                 cb.assign(eos, false)
                 cb.assign(xCounter, 0)
               }
+
               override val elementRegion: Settable[Region] = outerElementRegion
               override val separateRegions: Boolean = childProducer.separateRegions
               override val LproduceElement: CodeLabel = mb.defineHangingLabel { cb =>
@@ -1501,7 +1511,6 @@ object EmitStream2 {
 
               val anyEOS = mb.genFieldThisRef[Boolean]("zip_any_eos")
               val allEOS = mb.genFieldThisRef[Boolean]("zip_all_eos")
-
 
 
               new StreamProducer {
@@ -1655,6 +1664,106 @@ object EmitStream2 {
       case ReadPartition(context, rowType, reader) =>
         val ctxCode = EmitCode.fromI(mb)(cb => emit(context, cb))
         reader.emitStream(emitter.ctx.executeContext, cb, ctxCode, outerRegion, rowType)
+
+      case ShuffleRead(idIR, keyRangeIR) =>
+        val shuffleType = coerce[TShuffle](idIR.typ)
+        val keyType = coerce[TInterval](keyRangeIR.typ).pointType
+        val keyPType = coerce[PInterval](keyRangeIR.pType).pointType
+        assert(keyType == shuffleType.keyType)
+        assert(keyPType == shuffleType.keyDecodedPType)
+
+
+        val region = mb.genFieldThisRef[Region]("shuffleread_region")
+        val clientVar = mb.genFieldThisRef[ShuffleClient]("shuffleClient")
+        val shuffle = new ValueShuffleClient(clientVar)
+
+        val producer = new StreamProducer {
+          override val length: Option[Code[Int]] = None
+
+          override def initialize(cb: EmitCodeBuilder): Unit = {
+            val idt = emit(idIR, cb).get(cb, "ShuffleRead cannot have null ID").asShuffle
+            val keyRangeCode =
+              emit(keyRangeIR, cb).get(cb, "ShuffleRead cannot have null key range").asInterval
+
+            val uuid = idt.memoize(cb, "shuffleUUID")
+            val keyRange = keyRangeCode.memoizeField(cb, "shuffleClientKeyRange")
+
+            cb.ifx(!keyRange.startDefined(cb) || !keyRange.endDefined(cb), {
+              Code._fatal[Unit]("ShuffleRead cannot have null start or end points of key range")
+            })
+
+            val keyPType = keyRange.st.pointType.canonicalPType()
+            cb.assign(clientVar, CodeShuffleClient.create(
+              mb.ecb.getType(shuffleType),
+              uuid.loadBytes(),
+              Code._null,
+              mb.ecb.getPType(keyPType)))
+
+            val startt = keyPType.store(cb, outerRegion, keyRange.loadStart(cb)
+              .get(cb, "shuffle expects defined endpoints")
+              .asPCode, false)
+            val endt = keyPType.store(cb, outerRegion, keyRange.loadEnd(cb)
+              .get(cb, "shuffle expects defined endpoints")
+              .asPCode, false)
+
+            cb.append(shuffle.startGet(startt, keyRange.includesStart(), endt, keyRange.includesEnd()))
+          }
+
+          override val elementRegion: Settable[Region] = region
+          override val separateRegions: Boolean = true
+          override val LproduceElement: CodeLabel = mb.defineHangingLabel { cb =>
+            cb.ifx(shuffle.getValueFinished(), cb.goto(LendOfStream))
+            cb.goto(LproduceElementDone)
+          }
+          override val element: EmitCode = EmitCode.present(mb, PCode(shuffleType.rowDecodedPType, shuffle.getValue(region)))
+
+          override def close(cb: EmitCodeBuilder): Unit = {
+            cb += shuffle.getDone()
+            cb += shuffle.close()
+          }
+        }
+
+        IEmitCode.present(cb, SStreamCode2(SStream(producer.element.st, true, producer.separateRegions), producer))
+
+      case ShufflePartitionBounds(idIR, nPartitionsIR) =>
+
+        val region = mb.genFieldThisRef[Region]("shuffle_partition_bounds_region")
+        val shuffleLocal = mb.genFieldThisRef[ShuffleClient]("shuffle_partition_bounds_client")
+        val shuffle = new ValueShuffleClient(shuffleLocal)
+
+        val shuffleType = coerce[TShuffle](idIR.typ)
+
+        val producer = new StreamProducer {
+          override val length: Option[Code[Int]] = None
+
+          override def initialize(cb: EmitCodeBuilder): Unit = {
+
+            val idt = emit(idIR, cb).get(cb, "ShufflePartitionBounds cannot have null ID").asInstanceOf[SCanonicalShufflePointerCode]
+            val nPartitionst = emit(nPartitionsIR, cb).get(cb, "ShufflePartitionBounds cannot have null number of partitions").asInt
+
+            val uuidLocal = mb.newLocal[Long]("shuffleUUID")
+            val uuid = new SCanonicalShufflePointerSettable(idt.st, new SBinaryPointerSettable(SBinaryPointer(idt.st.pType.representation), uuidLocal))
+            uuid.store(cb, idt)
+            cb.assign(shuffleLocal, CodeShuffleClient.create(mb.ecb.getType(shuffleType), uuid.loadBytes()))
+            cb += shuffle.startPartitionBounds(nPartitionst.intCode(cb))
+          }
+
+          override val elementRegion: Settable[Region] = region
+          override val separateRegions: Boolean = false
+          override val LproduceElement: CodeLabel = mb.defineHangingLabel { cb =>
+            cb.ifx(shuffle.partitionBoundsValueFinished(), cb.goto(LendOfStream))
+            cb.goto(LproduceElementDone)
+          }
+          override val element: EmitCode = EmitCode.present(mb, PCode(shuffleType.keyDecodedPType, shuffle.partitionBoundsValue(region)))
+
+          override def close(cb: EmitCodeBuilder): Unit = {
+            cb += shuffle.endPartitionBounds()
+            ,
+            cb += shuffle.close()
+            )
+          }
+        }
+        IEmitCode.present(cb, SStreamCode2(SStream(producer.element.st, true, producer.separateRegions), producer))
     }
   }
 }
