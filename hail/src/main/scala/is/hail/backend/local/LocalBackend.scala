@@ -15,7 +15,7 @@ import is.hail.io.{BufferSpec, TypedCodecSpec}
 import is.hail.linalg.BlockMatrix
 import is.hail.types._
 import is.hail.types.encoded.EType
-import is.hail.types.physical.{PTuple, PType, PVoid}
+import is.hail.types.physical.{PTuple, PType, PTypeReferenceSingleCodeType, PVoid, SingleCodeType}
 import is.hail.types.virtual.TVoid
 import is.hail.utils._
 import is.hail.variant.ReferenceGenome
@@ -86,7 +86,7 @@ class LocalBackend(
 
   def stop(): Unit = LocalBackend.stop()
 
-  private[this] def _jvmLowerAndExecute(ctx: ExecuteContext, ir0: IR, print: Option[PrintWriter] = None): (PType, Long) = {
+  private[this] def _jvmLowerAndExecute(ctx: ExecuteContext, ir0: IR, print: Option[PrintWriter] = None): (Option[SingleCodeType], Long) = {
     val ir = LoweringPipeline.darrayLowerer(true)(DArrayLowering.All).apply(ctx, ir0).asInstanceOf[IR]
 
     if (!Compilable(ir))
@@ -95,7 +95,7 @@ class LocalBackend(
     if (ir.typ == TVoid) {
       val (pt, f) = ctx.timer.time("Compile") {
         Compile[AsmFunction1RegionUnit](ctx,
-          FastIndexedSeq[(String, PType)](),
+          FastIndexedSeq(),
           FastIndexedSeq(classInfo[Region]), UnitInfo,
           ir,
           print = print)
@@ -108,7 +108,7 @@ class LocalBackend(
     } else {
       val (pt, f) = ctx.timer.time("Compile") {
         Compile[AsmFunction1RegionLong](ctx,
-          FastIndexedSeq[(String, PType)](),
+          FastIndexedSeq(),
           FastIndexedSeq(classInfo[Region]), LongInfo,
           MakeTuple.ordered(FastSeq(ir)),
           print = print)
@@ -120,7 +120,7 @@ class LocalBackend(
     }
   }
 
-  private[this] def _execute(ctx: ExecuteContext, ir: IR): (PType, Long) = {
+  private[this] def _execute(ctx: ExecuteContext, ir: IR): (Option[SingleCodeType], Long) = {
     TypeCheck(ir)
     Validate(ir)
     _jvmLowerAndExecute(ctx, ir)
@@ -133,9 +133,9 @@ class LocalBackend(
       val (pt, a) = _execute(ctx, ir)
       log.info(s"finished execution of query $queryID")
       val result = pt match {
-        case PVoid =>
+        case None =>
           (null, ctx.timer)
-        case pt: PTuple =>
+        case Some(PTypeReferenceSingleCodeType(pt: PTuple)) =>
           (SafeRow(pt, a).get(0), ctx.timer)
       }
       result

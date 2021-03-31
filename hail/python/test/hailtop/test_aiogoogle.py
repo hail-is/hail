@@ -5,6 +5,7 @@ from itertools import accumulate
 from concurrent.futures import ThreadPoolExecutor
 import asyncio
 import pytest
+import concurrent
 from hailtop.utils import secret_alnum_string, bounded_gather2
 from hailtop.aiotools import LocalAsyncFS, RouterAsyncFS
 from hailtop.aiogoogle import StorageClient, GoogleStorageAsyncFS
@@ -344,28 +345,31 @@ async def test_multi_part_create(filesystem, permutation):
 
 @pytest.mark.asyncio
 async def test_multi_part_create_many(filesystem):
-    sema, fs, base = filesystem
+    try:
+        sema, fs, base = filesystem
 
-    # > 32 so we perform at least 2 layers of merging
-    part_data = [secrets.token_bytes(100) for _ in range(80)]
+        # > 32 so we perform at least 2 layers of merging
+        part_data = [secrets.token_bytes(100) for _ in range(80)]
 
-    s = 0
-    part_start = []
-    for b in part_data:
-        part_start.append(s)
-        s += len(b)
+        s = 0
+        part_start = []
+        for b in part_data:
+            part_start.append(s)
+            s += len(b)
 
-    path = f'{base}a'
-    async with await fs.multi_part_create(sema, path, len(part_data)) as c:
-        async def create_part(i):
-            async with await c.create_part(i, part_start[i]) as f:
-                await f.write(part_data[i])
+        path = f'{base}a'
+        async with await fs.multi_part_create(sema, path, len(part_data)) as c:
+            async def create_part(i):
+                async with await c.create_part(i, part_start[i]) as f:
+                    await f.write(part_data[i])
 
-        # do in parallel
-        await bounded_gather2(sema, *[
-            create_part(i) for i in range(len(part_data))])
+            # do in parallel
+            await bounded_gather2(sema, *[
+                create_part(i) for i in range(len(part_data))])
 
-    expected = b''.join(part_data)
-    async with await fs.open(path) as f:
-        actual = await f.read()
-    assert expected == actual
+        expected = b''.join(part_data)
+        async with await fs.open(path) as f:
+            actual = await f.read()
+        assert expected == actual
+    except (concurrent.futures._base.CancelledError, asyncio.CancelledError) as err:
+        raise AssertionError('uncaught cancelled error') from err

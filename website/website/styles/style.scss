@@ -719,13 +719,6 @@ pre, code {
   background-color: inherit;
 }
 
-pre, blockquote {
-  border: 1px solid;
-  border-color: inherit;
-  padding-right: 1em;
-  page-break-inside: avoid;
-}
-
 code {
   white-space: pre-wrap;
   padding: 3px;
@@ -733,6 +726,10 @@ code {
 }
 
 pre {
+  border: 1px solid;
+  border-color: inherit;
+  padding-right: 1em;
+  page-break-inside: avoid;
   display: block;
   padding: 9.5px;
   margin: 0 0 10px;

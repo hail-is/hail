@@ -79,7 +79,7 @@ steps:
      mkdir repo
      cd repo
      {{ code.checkout_script }}
-     make -C hail python/hail/hail_version python/hail/hail_pip_version
+     make -C hail python-version-info
      git rev-parse HEAD > git_version
    outputs:
      - from: /io/repo/auth/sql
@@ -158,7 +158,7 @@ steps:
    image:
      valueFrom: create_certs_image.image
    script: |
-     # Create dev certificates, or overwrite the existing ones. The usecase for 
+     # Create dev certificates, or overwrite the existing ones. The usecase for
      # overwriting is to update the dev certificates, as they expire after 30 days
      # (the default `-days` parameter value for `openssl req`).
      until ! kubectl get secret -n {{ default_ns.name }} ssl-config-hail-root 2>/dev/null
@@ -684,6 +684,46 @@ steps:
        to: /cluster-tests.tar.gz
    dependsOn:
     - hail_build_image
+ - kind: runImage
+   name: build_hail_spark2.4.5
+   image:
+     valueFrom: hail_build_image.image
+   resources:
+     memory: "7.5G"
+     cpu: "4"
+   script: |
+     set -ex
+     cd /
+     rm -rf repo
+     mkdir repo
+     cd repo
+     {{ code.checkout_script }}
+     cd hail
+     time retry ./gradlew --version
+     export SPARK_VERSION="2.4.5" SCALA_VERSION="2.11.12"
+     time retry make jars python-version-info wheel
+   dependsOn:
+     - hail_build_image
+ - kind: runImage
+   name: build_hail_spark3.0.1
+   image:
+     valueFrom: hail_build_image.image
+   resources:
+     memory: "7.5G"
+     cpu: "4"
+   script: |
+     set -ex
+     cd /
+     rm -rf repo
+     mkdir repo
+     cd repo
+     {{ code.checkout_script }}
+     cd hail
+     time retry ./gradlew --version
+     export SPARK_VERSION="3.0.1" SCALA_VERSION="2.12.12"
+     time retry make jars python-version-info wheel
+   dependsOn:
+     - hail_build_image
  - kind: buildImage
    name: batch_worker_image
    dockerFile: batch/Dockerfile.worker
@@ -2842,7 +2882,7 @@ steps:
      git clone https://$TOKEN@github.com/hail-ci-test/$REPO_NAME.git
      cd $REPO_NAME
 
-     mkdir -p ./ci/test ./hail/python
+     mkdir -p ./ci/test ./hail/
      cp /repo/hail/ci/test/resources/build.yaml ./
      cp -R /repo/hail/ci/test/resources ./ci/test/
      cp /repo/hail/tls/Dockerfile ./ci/test/resources/Dockerfile.certs
@@ -2851,7 +2891,9 @@ steps:
      cp /repo/hail/setup.cfg ./
      cp -R /repo/hail/docker ./
      cp -R /repo/hail/gear ./
-     cp -R /repo/hail/hail/python/hailtop ./hail/python/
+     cp -R /repo/hail/hail/python ./hail/
+     cp /repo/hail/hail/Makefile ./hail/
+     cp /repo/hail/hail/env_var.mk ./hail/
      cp -R /repo/hail/web_common ./
      cp /repo/hail/hail/python/setup-hailtop.py ./hail/python/
 

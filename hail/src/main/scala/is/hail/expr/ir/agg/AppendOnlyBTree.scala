@@ -97,11 +97,12 @@ class AppendOnlyBTree(kb: EmitClassBuilder[_], val key: BTreeKey, region: Value[
 
   private def insert(cb: EmitCodeBuilder, nodec: Code[Long], insertIdxc: Code[Int], kc: EmitCode, childC: Code[Long]): Code[Long] = {
     val kt = key.compType.sType
+    val castKCode = kc.map(k => kt.coerceOrCopy(cb, region, k, false).asPCode)
     val insertAt = kb.getOrGenEmitMethod("btree_insert", (this, "insert", kt),
-      FastIndexedSeq[ParamType](typeInfo[Long], typeInfo[Int], kt.pType.asEmitParam, typeInfo[Long]), typeInfo[Long]) { insertAt =>
+      FastIndexedSeq[ParamType](typeInfo[Long], typeInfo[Int], castKCode.emitParamType, typeInfo[Long]), typeInfo[Long]) { insertAt =>
       val node: Value[Long] = insertAt.getCodeParam[Long](1)
       val insertIdx: Value[Int] = insertAt.getCodeParam[Int](2)
-      val k: EmitValue = insertAt.getEmitParam(3)
+      val k: EmitValue = insertAt.getEmitParam(3, region)
       val child: Value[Long] = insertAt.getCodeParam[Long](4)
 
       def parent: Code[Long] = getParent(node)
@@ -228,14 +229,14 @@ class AppendOnlyBTree(kb: EmitClassBuilder[_], val key: BTreeKey, region: Value[
       }
     }
 
-    cb.invokeCode[Long](insertAt, nodec, insertIdxc, kc.map(k => kt.coerceOrCopy(cb, region, k, false).asPCode), childC)
+    cb.invokeCode[Long](insertAt, nodec, insertIdxc, castKCode, childC)
   }
 
   private def getF(cb: EmitCodeBuilder, root: Code[Long], kc: EmitCode): Code[Long] = {
-    val get = kb.genEmitMethod("btree_get", FastIndexedSeq[ParamType](typeInfo[Long], kc.pv.st.pType.asEmitParam), typeInfo[Long])
+    val get = kb.genEmitMethod("btree_get", FastIndexedSeq[ParamType](typeInfo[Long], kc.emitParamType), typeInfo[Long])
     get.emitWithBuilder { cb =>
       val node = get.getCodeParam[Long](1)
-      val k = get.getEmitParam(2)
+      val k = get.getEmitParam(2, region)
 
       val cmp = cb.newLocal("btree_get_cmp", -1)
       val keyV = cb.newLocal("btree_get_keyV", 0L)

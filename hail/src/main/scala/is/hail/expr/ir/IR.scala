@@ -542,11 +542,19 @@ final case class MakeTuple(fields: Seq[(Int, IR)]) extends IR
 final case class GetTupleElement(o: IR, idx: Int) extends IR
 
 object In {
-  def apply(i: Int, typ: Type): In = In(i, PType.canonical(typ))
+  def apply(i: Int, typ: Type): In = In(i, SingleCodeEmitParamType(false, typ match {
+    case TInt32 => Int32SingleCodeType
+    case TInt64 => Int64SingleCodeType
+    case TFloat32 => Float32SingleCodeType
+    case TFloat64 => Float64SingleCodeType
+    case TBoolean => BooleanSingleCodeType
+    case ts: TStream => throw new UnsupportedOperationException
+    case t => PTypeReferenceSingleCodeType(PType.canonical(t))
+  }))
 }
 
 // Function Input
-final case class In(i: Int, _typ: PType) extends IR
+final case class In(i: Int, _typ: EmitParamType) extends IR
 
 // FIXME: should be type any
 object Die {

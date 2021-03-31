@@ -9,7 +9,6 @@ plugins {
   id 'java'
   id 'scala'
   id 'idea'
-  id 'maven'
   id 'com.github.johnrengelman.shadow' version '5.0.0'
   id "de.undercouch.download" version "3.2.0"
   id 'eclipse'
@@ -50,16 +49,11 @@ project.ext {
     cachedBreezeVersion = null
 
     sparkVersion = System.getProperty("spark.version", "3.1.1")
-    if (sparkVersion.startsWith("2.")) {
-        throw new UnsupportedOperationException("Hail no longer supports Spark 2.")
-    }
-    else if (sparkVersion != "3.1.1") {
-        project.logger.lifecycle("WARNING: Hail only tested with Spark 3.1.1, use other versions at your own risk.")
+
+    if (sparkVersion != "3.1.1") {
+        project.logger.lifecycle("WARNING: Hail primarily tested with Spark 3.1.1, use other versions at your own risk.")
     }
     scalaVersion = System.getProperty("scala.version", "2.12.13")
-    if (!scalaVersion.startsWith("2.12.")) {
-        throw new UnsupportedOperationException("Hail currently only supports Scala 2.12")
-    }
     scalaMajorVersion = (scalaVersion =~ /^\d+.\d+/)[0]
 }
 
@@ -163,6 +157,8 @@ dependencies {
     }
     unbundled 'org.apache.spark:spark-sql_' + scalaMajorVersion + ':' + sparkVersion
     unbundled 'org.apache.spark:spark-mllib_' + scalaMajorVersion + ':' + sparkVersion
+
+    bundled 'org.json4s:json4s-jackson_' + scalaMajorVersion + ':3.7.0-M5'
 
     bundled 'org.lz4:lz4-java:1.4.0'
 
@@ -300,7 +296,7 @@ tasks.withType(ShadowJar) {
         attributes 'Implementation-Title': 'Hail',
                    'Implementation-Version': '0.0.1-SNAPSHOT'
     }
-    baseName = project.name + '-all'
+    archiveBaseName = project.name + '-all'
     mergeServiceFiles()
     zip64 true
 
@@ -316,6 +312,8 @@ tasks.withType(ShadowJar) {
     relocate 'com.github.samtools', 'is.hail.relocated.com.github.samtools'
     relocate 'org.lz4', 'is.hail.relocated.org.lz4'
     relocate 'org.freemarker', 'is.hail.relocated.org.freemarker'
+    relocate 'org.json4s', 'is.hail.relocated.org.json4s'
+    relocate 'com.fasterxml.jackson', 'is.hail.relocated.com.fasterxml.jackson'
 
     exclude 'META-INF/*.RSA'
     exclude 'META-INF/*.SF'

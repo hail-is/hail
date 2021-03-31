@@ -49,7 +49,7 @@ base-stmp: hail-ubuntu-stmp Dockerfile.base core-site.xml requirements.txt ../py
 service-base: base-stmp
 	-docker pull $(SERVICE_BASE_LATEST)
 	$(MAKE) -C ../hail python/hailtop/hail_version
-	cp ../hail/python/hailtop/hail_version /hail_version
+	cp ../hail/python/hailtop/hail_version ../hail_version
 	python3 ../ci/jinja2_render.py '{"base_image":{"image":"base"}}' Dockerfile.service-base Dockerfile.service-base.out
 	[ "$(shell bash stat-permissions.sh Dockerfile.service-base.out)" = "644" ]
 	[ "$(shell bash stat-permissions.sh service-base-requirements.txt)" = "644" ]
