@@ -2,6 +2,7 @@
 #define HAIL_QUERY_BACKEND_STYPE_HPP_INCLUDED 1
 
 #include <vector>
+#include <unordered_map>
 #include <llvm/IR/Value.h>
 
 #include "hail/hash.hpp"

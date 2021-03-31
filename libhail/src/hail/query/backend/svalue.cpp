@@ -1,6 +1,6 @@
 #include <llvm/IR/BasicBlock.h>
 #include <llvm/IR/IRBuilder.h>
-#include <cstdint.h>
+#include <stdint.h>
 
 #include "hail/query/backend/compile.hpp"
 #include "hail/query/backend/svalue.hpp"
@@ -116,7 +116,7 @@ SCanonicalArrayValue::get_length(TypeContext &tc) const {
 }
 
 SValue*
-SCanonicalArrayValue::get_element(CompileFunction &cf, SInt64Value *idx) const {
+SCanonicalArrayValue::get_element(CompileFunction &cf, const SInt64Value *idx) const {
   // TODO check for missing.
   auto stride_value = llvm::ConstantInt::get(llvm::Type::getInt64Ty(cf.llvm_context), static_cast<uint64_t>(stype->element_stride));
   auto element_addr = cf.llvm_ir_builder.CreateGEP(this->data, cf.llvm_ir_builder.CreateMul(idx->value, stride_value));
