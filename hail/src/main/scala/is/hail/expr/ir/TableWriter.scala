@@ -216,19 +216,9 @@ case class PartitionNativeWriter(spec: AbstractTypedCodecSpec, partPrefix: Strin
         cb.assign(ob, spec.buildCodeOutputBuffer(Code.checkcast[OutputStream](os)))
         cb.assign(n, 0L)
 
-        if (stream.separateRegions)
-          cb.assign(stream.elementRegion, Region.stagedCreate(Region.REGULAR, region.getPool()))
-        else
-          cb.assign(stream.elementRegion, region)
-
-        stream.consume(cb) { cb =>
+        stream.memoryManagedConsume(region, cb) { cb =>
           writeFile(cb, stream.element)
-          if (stream.separateRegions)
-            cb += stream.elementRegion.clearRegion()
         }
-
-        if (stream.separateRegions)
-          cb += stream.elementRegion.freeRegion()
 
         cb += ob.writeByte(0.asInstanceOf[Byte])
         cb.assign(result, pResultType.allocate(region))

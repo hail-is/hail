@@ -1751,7 +1751,7 @@ class Emit[C](
                 .map(cb)(pc => pc.castTo(cb, producer.elementRegion, x.accPType)))
             }
 
-            producer.consume(cb) { cb =>
+            producer.consume2(cb) { cb =>
               cb.assign(xElt, producer.element)
 
               if (producer.separateRegions) {
@@ -1807,7 +1807,7 @@ class Emit[C](
               }
             }
 
-            producer.consume(cb) { cb =>
+            producer.consume2(cb) { cb =>
               cb.assign(xElt, producer.element)
               if (producer.separateRegions) {
                 (tmpAccVars, seq).zipped.foreach { (accVar, ir) =>
@@ -1893,22 +1893,11 @@ class Emit[C](
           Code._null)
         cb += shuffle.startPut()
 
-        if (producer.separateRegions)
-          cb.assign(producer.elementRegion, Region.stagedCreate(Region.REGULAR, region.code.getPool()))
-        else
-          cb.assign(producer.elementRegion, region.code)
-
-        producer.consume(cb) { cb =>
+        producer.memoryManagedConsume(region.code, cb) { cb =>
           producer.element.toI(cb).consume(cb,
             cb._fatal(s"empty row in shuffle put"),
             sc => shuffle.putValue(rowPType.store(cb, producer.elementRegion, sc, deepCopy = false)))
-
-          if (producer.separateRegions)
-            cb += producer.elementRegion.clearRegion()
         }
-
-        if (producer.separateRegions)
-          cb += producer.elementRegion.freeRegion()
 
         cb += shuffle.putValueDone()
         cb += shuffle.endPut()
@@ -2061,26 +2050,15 @@ class Emit[C](
         }
 
         def addContexts(cb: EmitCodeBuilder, ctxStream: StreamProducer): Unit = {
-          if (ctxStream.separateRegions)
-            cb.assign(ctxStream.elementRegion, Region.stagedCreate(Region.REGULAR, region.code.getPool()))
-          else
-            cb.assign(ctxStream.elementRegion, region.code)
-
           cb += ctxab.invoke[Int, Unit]("ensureCapacity", ctxStream.length.getOrElse(16))
 
-          ctxStream.consume(cb) { cb =>
+          ctxStream.memoryManagedConsume(region.code, cb) { cb =>
             cb += baos.invoke[Unit]("reset")
             val ctxTuple = wrapInTuple(cb, ctxStream.element)
               .memoize(cb, "cda_add_contexts_addr")
             x.contextSpec.encodedType.buildEncoder(ctxTuple.st, parentCB)
               .apply(cb, ctxTuple, buf)
-
-            if (ctxStream.separateRegions)
-              cb += ctxStream.elementRegion.clearRegion()
           }
-
-          if (ctxStream.separateRegions)
-            cb += ctxStream.elementRegion.freeRegion()
 
           cb += buf.invoke[Unit]("flush")
           cb += ctxab.invoke[Array[Byte], Unit]("add", baos.invoke[Array[Byte]]("toByteArray"))
@@ -2338,29 +2316,22 @@ class Emit[C](
         val separateRegions = ctx.smm.lookup(a).separateRegions
         assert(separateRegions == coerce[PStream](a.pType).separateRegions)
 
-        emitStream(a, region.code).map { case stream: SStreamCode2 =>
+        EmitCode.fromI(mb)(cb => emitStream(a, region.code).toI(cb).map(cb) { case stream: SStreamCode2 =>
           val producer = stream.producer
           producer.length match {
-            case Some(len) => PCode(x.pType, len)
+            case Some(len) =>
+              producer.initialize(cb)
+              val xLen = cb.newLocal[Int]("streamlen_x", len)
+              producer.close(cb)
+              PCode(x.pType, xLen)
             case None =>
-              PCode(x.pType, EmitCodeBuilder.scopedCode[Int](mb) { cb =>
-                if (producer.separateRegions)
-                  cb.assign(producer.elementRegion, Region.stagedCreate(Region.REGULAR, region.code.getPool()))
-                else
-                  cb.assign(producer.elementRegion, region.code)
-                val count = cb.newLocal[Int]("stream_length", 0)
-                producer.consume(cb) { cb =>
-                  cb.assign(count, count + 1)
-                  if (producer.separateRegions)
-                    cb += producer.elementRegion.clearRegion()
-                }
-                if (producer.separateRegions) {
-                  cb += producer.elementRegion.freeRegion()
-                }
-                count
-              })
+              val count = cb.newLocal[Int]("stream_length", 0)
+              producer.memoryManagedConsume(region.code, cb) { cb =>
+                cb.assign(count, count + 1)
+              }
+              PCode(x.pType, count)
           }
-        }
+        })
 
       case In(i, expectedPType) =>
         // this, Code[Region], ...

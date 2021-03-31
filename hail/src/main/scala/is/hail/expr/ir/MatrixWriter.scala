@@ -238,19 +238,9 @@ case class SplitPartitionNativeWriter(
         cb.assign(ob2, spec2.buildCodeOutputBuffer(Code.checkcast[OutputStream](os2)))
         cb.assign(n, 0L)
 
-        if (stream.separateRegions)
-          cb.assign(stream.elementRegion, Region.stagedCreate(Region.REGULAR, region.getPool()))
-        else
-          cb.assign(stream.elementRegion, region)
-
-        stream.consume(cb) { cb =>
+        stream.memoryManagedConsume(region, cb) { cb =>
           writeFile(cb, stream.element)
-          if (stream.separateRegions)
-            cb += stream.elementRegion.clearRegion()
         }
-
-        if (stream.separateRegions)
-          cb += stream.elementRegion.freeRegion()
 
         cb += ob1.writeByte(0.asInstanceOf[Byte])
         cb += ob2.writeByte(0.asInstanceOf[Byte])

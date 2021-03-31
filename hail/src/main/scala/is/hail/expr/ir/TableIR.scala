@@ -489,22 +489,17 @@ case class PartitionRVDReader(rvd: RVD) extends PartitionReader {
 
       val broadcastRVD = mb.getObject[BroadcastRVD](new BroadcastRVD(ctx.backend.asSpark("RVDReader"), rvd))
 
-      cb.assign(first, true)
-
       val producer = new StreamProducer {
         override val length: Option[Code[Int]] = None
+
+        override def initialize(cb: EmitCodeBuilder): Unit = {
+          cb.assign(iterator, broadcastRVD.invoke[Int, Region, Region, Iterator[Long]](
+            "computePartition", EmitCodeBuilder.scopedCode[Int](mb)(idx.asInt.intCode(_)), region, partitionRegion))
+          cb.assign(upcastF, Code.checkcast[AsmFunction2RegionLongLong](upcastCode.invoke[AnyRef, AnyRef, AnyRef]("apply", Code.boxInt(0), partitionRegion)))
+        }
         override val elementRegion: Settable[Region] = region
         override val separateRegions: Boolean = true
         override val LproduceElement: CodeLabel = mb.defineHangingLabel { cb =>
-
-          // could lift this out into a setup method that is run after consumers assign element region
-          cb.ifx(first, {
-            cb.assign(first, false)
-            cb.assign(iterator, broadcastRVD.invoke[Int, Region, Region, Iterator[Long]](
-              "computePartition", EmitCodeBuilder.scopedCode[Int](mb)(idx.asInt.intCode(_)), region, partitionRegion))
-            cb.assign(upcastF, Code.checkcast[AsmFunction2RegionLongLong](upcastCode.invoke[AnyRef, AnyRef, AnyRef]("apply", Code.boxInt(0), partitionRegion)))
-          })
-
           cb.ifx(!iterator.invoke[Boolean]("hasNext"), cb.goto(LendOfStream))
           cb.assign(next, upcastF.invoke[Region, Long, Long]("apply", region, Code.longValue(iterator.invoke[java.lang.Long]("next"))))
           cb.goto(LproduceElementDone)
@@ -544,15 +539,15 @@ case class PartitionNativeReader(spec: AbstractTypedCodecSpec) extends AbstractN
     context.toI(cb).map(cb) { path =>
       val pathString = path.asString.loadString()
       val xRowBuf = mb.genFieldThisRef[InputBuffer]("pnr_xrowbuf")
-      val hasNext = mb.newLocal[Boolean]("pnr_hasNext")
       val next = mb.newPSettable(mb.fieldBuilder, spec.decodedPType(requestedType), "pnr_next")
-
       val region = mb.genFieldThisRef[Region]("pnr_region")
-
-      cb.assign(xRowBuf, spec.buildCodeInputBuffer(mb.open(pathString, checkCodec = true)))
 
       val producer = new StreamProducer {
         override val length: Option[Code[Int]] = None
+
+        override def initialize(cb: EmitCodeBuilder): Unit = {
+          cb.assign(xRowBuf, spec.buildCodeInputBuffer(mb.open(pathString, checkCodec = true)))
+        }
         override val elementRegion: Settable[Region] = region
         override val separateRegions: Boolean = true
         override val LproduceElement: CodeLabel = mb.defineHangingLabel { cb =>
@@ -598,69 +593,62 @@ case class PartitionNativeReaderIndexed(spec: AbstractTypedCodecSpec, indexSpec:
     val makeDecCode = mb.getObject[(InputStream => Decoder)](makeDec)
 
     context.toI(cb).map(cb) { ctxStruct =>
-      val ctxMemo = ctxStruct.asBaseStruct.memoize(cb, "pnri_ctx_struct")
 
       val getIndexReader: Code[String] => Code[IndexReader] = { (indexPath: Code[String]) =>
         Code.checkcast[IndexReader](
           makeIndexCode.invoke[AnyRef, AnyRef, AnyRef, AnyRef, AnyRef]("apply", mb.getFS, indexPath, Code.boxInt(8), mb.ecb.pool()))
       }
 
-      val hasNext = mb.newLocal[Boolean]("pnr_hasNext")
       val next = mb.newLocal[Long]("pnr_next")
       val idxr = mb.genFieldThisRef[IndexReader]("pnri_idx_reader")
       val it = mb.genFieldThisRef[IndexReadIterator]("pnri_idx_iterator")
 
       val region = mb.genFieldThisRef[Region]("pnr_region")
-      val first = mb.genFieldThisRef[Boolean]("pnr_first")
-
-      cb.assign(first, true)
 
       val producer = new StreamProducer {
         override val length: Option[Code[Int]] = None
+
+        override def initialize(cb: EmitCodeBuilder): Unit = {
+          val ctxMemo = ctxStruct.asBaseStruct.memoize(cb, "pnri_ctx_struct")
+          cb.assign(idxr, getIndexReader(ctxMemo
+            .loadField(cb, "indexPath")
+            .get(cb)
+            .asString
+            .loadString()))
+          cb.assign(it,
+            Code.newInstance7[IndexReadIterator,
+              (InputStream) => Decoder,
+              Region,
+              InputStream,
+              IndexReader,
+              String,
+              Interval,
+              InputMetrics](makeDecCode,
+              region,
+              mb.open(ctxMemo.loadField(cb, "partitionPath")
+                .get(cb)
+                .asString
+                .loadString(), true),
+              idxr,
+              Code._null[String],
+              ctxMemo.loadField(cb, "interval")
+                .consumeCode[Interval](cb,
+                  Code._fatal[Interval](""),
+                  { pc =>
+                    val pcm = pc.memoize(cb, "pnri_interval").asPValue
+                    Code.invokeScalaObject2[PType, Long, Interval](
+                      PartitionBoundOrdering.getClass,
+                      "regionValueToJavaObject",
+                      mb.getPType(pcm.pt),
+                      coerce[Long](pcm.code))
+                  }
+                ),
+              Code._null[InputMetrics]
+            ))
+        }
         override val elementRegion: Settable[Region] = region
         override val separateRegions: Boolean = true
         override val LproduceElement: CodeLabel = mb.defineHangingLabel { cb =>
-
-          // could lift this out into a setup method that is run after consumers assign element region
-          cb.ifx(first, {
-            cb.assign(first, false)
-            cb.assign(idxr, getIndexReader(ctxMemo
-              .loadField(cb, "indexPath")
-              .get(cb)
-              .asString
-              .loadString()))
-            cb.assign(it,
-              Code.newInstance7[IndexReadIterator,
-                (InputStream) => Decoder,
-                Region,
-                InputStream,
-                IndexReader,
-                String,
-                Interval,
-                InputMetrics](makeDecCode,
-                region,
-                mb.open(ctxMemo.loadField(cb, "partitionPath")
-                  .get(cb)
-                  .asString
-                  .loadString(), true),
-                idxr,
-                Code._null[String],
-                ctxMemo.loadField(cb, "interval")
-                  .consumeCode[Interval](cb,
-                    Code._fatal[Interval](""),
-                    { pc =>
-                      val pcm = pc.memoize(cb, "pnri_interval").asPValue
-                      Code.invokeScalaObject2[PType, Long, Interval](
-                        PartitionBoundOrdering.getClass,
-                        "regionValueToJavaObject",
-                        mb.getPType(pcm.pt),
-                        coerce[Long](pcm.code))
-                    }
-                  ),
-                Code._null[InputMetrics]
-              ))
-          })
-
           cb.ifx(!it.invoke[Boolean]("hasNext"), cb.goto(LendOfStream))
           cb.assign(next, it.invoke[Long]("_next"))
           cb.goto(LproduceElementDone)
@@ -795,54 +783,49 @@ case class PartitionZippedNativeReader(specLeft: AbstractTypedCodecSpec, specRig
 
       val next = mb.genFieldThisRef[Long]("pnr_next")
       val it = mb.genFieldThisRef[MaybeIndexedReadZippedIterator]("pnri_idx_iterator")
-      val first = mb.genFieldThisRef[Boolean]("pnri_first")
       val region = mb.genFieldThisRef[Region]("pnri_region")
-      val ctxMemo = ctxStruct.asBaseStruct.memoize(cb, "pnri_ctx_struct")
-
-      cb.assign(first, true)
 
       val producer = new StreamProducer {
         override val length: Option[Code[Int]] = None
+
+        override def initialize(cb: EmitCodeBuilder): Unit = {
+          val ctxMemo = ctxStruct.asBaseStruct.memoize(cb, "pnri_ctx_struct")
+          cb.assign(it,
+            Code.newInstance11[MaybeIndexedReadZippedIterator,
+              (InputStream) => Decoder,
+              (InputStream) => Decoder,
+              AsmFunction3RegionLongLongLong,
+              Region,
+              InputStream,
+              InputStream,
+              IndexReader,
+              String,
+              String,
+              Interval,
+              InputMetrics](
+              makeLeftDecCode,
+              makeRightDecCode,
+              Code.checkcast[AsmFunction3RegionLongLongLong](makeInserterCode.invoke[AnyRef, AnyRef, AnyRef]("apply", Code.boxInt(0), region)),
+              region,
+              mb.open(ctxMemo.loadField(cb, "leftPartitionPath")
+                .handle(cb, cb._fatal(""))
+                .asString
+                .loadString(), true),
+              mb.open(ctxMemo.loadField(cb, "rightPartitionPath")
+                .handle(cb, cb._fatal(""))
+                .asString
+                .loadString(), true),
+              getIndexReader(cb, ctxMemo),
+              leftOffsetField.map[Code[String]](const(_)).getOrElse(Code._null[String]),
+              rightOffsetField.map[Code[String]](const(_)).getOrElse(Code._null[String]),
+              getInterval(cb, ctxMemo),
+              Code._null[InputMetrics]
+            ))
+        }
+
         override val elementRegion: Settable[Region] = region
         override val separateRegions: Boolean = true
         override val LproduceElement: CodeLabel = mb.defineHangingLabel { cb =>
-
-          // could lift this out into a setup method that is run after consumers assign element region
-          cb.ifx(first, {
-            cb.assign(first, false)
-            cb.assign(it,
-              Code.newInstance11[MaybeIndexedReadZippedIterator,
-                (InputStream) => Decoder,
-                (InputStream) => Decoder,
-                AsmFunction3RegionLongLongLong,
-                Region,
-                InputStream,
-                InputStream,
-                IndexReader,
-                String,
-                String,
-                Interval,
-                InputMetrics](
-                makeLeftDecCode,
-                makeRightDecCode,
-                Code.checkcast[AsmFunction3RegionLongLongLong](makeInserterCode.invoke[AnyRef, AnyRef, AnyRef]("apply", Code.boxInt(0), region)),
-                region,
-                mb.open(ctxMemo.loadField(cb, "leftPartitionPath")
-                  .handle(cb, cb._fatal(""))
-                  .asString
-                  .loadString(), true),
-                mb.open(ctxMemo.loadField(cb, "rightPartitionPath")
-                  .handle(cb, cb._fatal(""))
-                  .asString
-                  .loadString(), true),
-                getIndexReader(cb, ctxMemo),
-                leftOffsetField.map[Code[String]](const(_)).getOrElse(Code._null[String]),
-                rightOffsetField.map[Code[String]](const(_)).getOrElse(Code._null[String]),
-                getInterval(cb, ctxMemo),
-                Code._null[InputMetrics]
-              ))
-          })
-
           cb.ifx(!it.invoke[Boolean]("hasNext"), cb.goto(LendOfStream))
           cb.assign(next, it.invoke[Long]("_next"))
           cb.goto(LproduceElementDone)

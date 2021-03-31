@@ -42,24 +42,20 @@ class PartitionIteratorLongReader(
     context.toI(cb).map(cb) { contextPC =>
       val ctxJavaValue = UtilFunctions.scodeToJavaValue(cb, partitionRegion, contextPC)
       val region = mb.genFieldThisRef[Region]("pilr_region")
-      val first = mb.genFieldThisRef[Boolean]("pilr_first")
       val it = mb.genFieldThisRef[Iterator[java.lang.Long]]("pilr_it")
-
       val rv = mb.genFieldThisRef[Long]("pilr_rv")
-
-      cb.assign(first, true)
 
       val producer = new StreamProducer {
         override val length: Option[Code[Int]] = None
+
+        override def initialize(cb: EmitCodeBuilder): Unit = {
+          cb.assign(it, cb.emb.getObject(body(requestedType))
+            .invoke[java.lang.Object, java.lang.Object, Iterator[java.lang.Long]]("apply", region, ctxJavaValue))
+        }
+
         override val elementRegion: Settable[Region] = region
         override val separateRegions: Boolean = true
         override val LproduceElement: CodeLabel = mb.defineHangingLabel { cb =>
-          cb.ifx(first, {
-            cb.assign(first, false)
-            cb.assign(it, cb.emb.getObject(body(requestedType))
-              .invoke[java.lang.Object, java.lang.Object, Iterator[java.lang.Long]]("apply", region, ctxJavaValue))
-          })
-
           cb.ifx(!it.get.hasNext,
             cb.goto(LendOfStream))
           cb.assign(rv, Code.longValue(it.get.next()))

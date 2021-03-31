@@ -3,6 +3,7 @@ package is.hail.expr.ir.streams
 import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.expr.ir.{EmitCodeBuilder, IEmitCode, StagedArrayBuilder}
+import is.hail.types.physical.stypes.interfaces.SIndexableCode
 import is.hail.types.physical.{PCanonicalArray, PCode, PIndexableCode, SingleCodePCode}
 import is.hail.utils._
 
@@ -28,22 +29,18 @@ object StreamUtils {
         }
 
       case Some(len) =>
-        if (stream.separateRegions)
-          cb.assign(stream.elementRegion, Region.stagedCreate(Region.REGULAR, destRegion.getPool()))
-        else
-          cb.assign(stream.elementRegion, destRegion)
 
-        cb.assign(xLen, len)
-        val (pushElem, finish) = aTyp.constructFromFunctions(cb, destRegion, xLen, deepCopy = stream.separateRegions)
+        var pushElem: (EmitCodeBuilder, IEmitCode) => Unit = null
+        var finish: (EmitCodeBuilder) => PIndexableCode = null
 
-        stream.consume(cb) { cb =>
+        stream.memoryManagedConsume(destRegion, cb, setup = { cb =>
+          cb.assign(xLen, len)
+          val (_pushElem, _finish) = aTyp.constructFromFunctions(cb, destRegion, xLen, deepCopy = stream.separateRegions)
+          pushElem = _pushElem
+          finish = _finish
+        }) { cb =>
           pushElem(cb, stream.element.toI(cb))
-          if (stream.separateRegions)
-            cb += stream.elementRegion.clearRegion()
         }
-
-        if (stream.separateRegions)
-          cb += stream.elementRegion.freeRegion()
 
         finish(cb)
     }
@@ -55,24 +52,15 @@ object StreamUtils {
     ab: StagedArrayBuilder,
     destRegion: Value[Region]
   ): Unit = {
-    if (stream.separateRegions)
-      cb.assign(stream.elementRegion, Region.stagedCreate(Region.REGULAR, destRegion.getPool()))
-    else
-      cb.assign(stream.elementRegion, destRegion)
+    stream.memoryManagedConsume(destRegion, cb, setup = { cb =>
+      cb += ab.clear
+      cb += ab.ensureCapacity(stream.length.getOrElse(const(16)))
 
-    cb += ab.clear
-    cb += ab.ensureCapacity(stream.length.getOrElse(const(16)))
-    stream.consume(cb) { cb =>
+    }) { cb =>
       stream.element.toI(cb).consume(cb,
         cb += ab.addMissing(),
         sc => cb += ab.add(SingleCodePCode.fromPCode(cb, sc, destRegion, deepCopy = stream.separateRegions).code)
       )
-
-      if (stream.separateRegions)
-        cb += stream.elementRegion.clearRegion()
     }
-
-    if (stream.separateRegions)
-      cb += stream.elementRegion.freeRegion()
   }
 }
