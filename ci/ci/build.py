@@ -6,6 +6,7 @@ from collections import defaultdict, Counter
 from shlex import quote as shq
 import yaml
 import jinja2
+from typing import Dict, List, Optional
 from hailtop.utils import RETRY_FUNCTION_SCRIPT, flatten
 from .utils import generate_token
 from .environment import (
@@ -88,10 +89,13 @@ class BuildConfigurationError(Exception):
 
 
 class BuildConfiguration:
-    def __init__(self, code, config_str, scope, requested_step_names=()):
+    def __init__(self, code, config_str, scope, *, requested_step_names=(), excluded_step_names=()):
+        if len(excluded_step_names) > 0 and scope != 'dev':
+            raise BuildConfigurationError('Excluding build steps is only permitted in a dev scope')
+
         config = yaml.safe_load(config_str)
-        name_step = {}
-        self.steps = []
+        name_step: Dict[str, Optional[Step]] = {}
+        self.steps: List[Step] = []
 
         if requested_step_names:
             log.info(f"Constructing build configuration with steps: {requested_step_names}")
@@ -109,8 +113,8 @@ class BuildConfiguration:
         if requested_step_names:
             visited = set()
 
-            def request(step):
-                if step not in visited:
+            def request(step: Step):
+                if step not in visited and step.name not in excluded_step_names:
                     visited.add(step)
                     for s2 in step.deps:
                         request(s2)

@@ -422,6 +422,7 @@ async def dev_deploy_branch(request, userdata):
     try:
         branch = FQBranch.from_short_str(params['branch'])
         steps = params['steps']
+        excluded_steps = params['excluded_steps']
     except Exception as e:
         message = f'parameters are wrong; check the branch and steps syntax.\n\n{params}'
         log.info('dev deploy failed: ' + message, exc_info=True)
@@ -443,7 +444,7 @@ async def dev_deploy_branch(request, userdata):
     batch_client = app['batch_client']
 
     try:
-        batch_id = await unwatched_branch.deploy(batch_client, steps)
+        batch_id = await unwatched_branch.deploy(batch_client, steps, excluded_steps=excluded_steps)
     except Exception as e:  # pylint: disable=broad-except
         message = traceback.format_exc()
         raise web.HTTPBadRequest(text=f'starting the deploy failed due to\n{message}') from e
