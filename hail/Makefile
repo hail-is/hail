@@ -68,7 +68,7 @@ elasticsearchJar: $(ELASTICSEARCH_JAR)
 
 $(ELASTICSEARCH_JAR):
 	@mkdir -p libs
-	gsutil cp gs://hail-common/elasticsearch-libs/elasticsearch-spark-30_2.12-8.0.0-SNAPSHOT-custom-hail-spark311.jar  libs/
+	curl https://storage.googleapis.com/hail-common/elasticsearch-libs/elasticsearch-spark-30_2.12-8.0.0-SNAPSHOT-custom-hail-spark311.jar >  libs/elasticsearch-spark-30_2.12-8.0.0-SNAPSHOT-custom-hail-spark311.jar
 
 .PHONY: shadowJar
 shadowJar: $(SHADOW_JAR)
