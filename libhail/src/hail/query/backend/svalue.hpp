@@ -22,8 +22,8 @@ public:
     FLOAT32,
     FLOAT64,
     CANONICALTUPLE,
-    STACKTUPLE
-    ARRAY
+    STACKTUPLE,
+    ARRAY,
     CANONICALARRAY
   };
   const Tag tag;
@@ -110,7 +110,7 @@ public:
 class SCanonicalArrayValue : public SArrayValue {
   public:
     SCanonicalArrayValue(const SCanonicalArray *stype, llvm::Value *length, llvm::Value *missing, llvm::Value *data);
-    SInt64Value* get_length(TypeContext *tc) const override;
+    SInt64Value* get_length(TypeContext &tc) const override;
     SValue* get_element(CompileFunction &cf, SInt64Value *idx) const override;
     ~SCanonicalArrayValue();
   private:

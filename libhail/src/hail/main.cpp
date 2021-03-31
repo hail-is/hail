@@ -61,9 +61,9 @@ main() {
     Function *f = xc.make_function(m, "main", param_types, return_type);
     auto body = f->get_body();
     body->set_child(0, body->make_tuple({
-          body->make_na(tc.tint32),
-	  body->make_literal(i)
-	}));
+      body->make_na(tc.tint32),
+	    body->make_literal(i)
+	  }));
 
     m->pretty_self(outs);
 
@@ -102,12 +102,13 @@ main() {
 
     Module *m = xc.make_module();
 
-    std::vector<const Type *> param_types;
-    const VType *return_vtype =
+    std::vector<const VType *> param_vtypes;
+    auto return_type = tc.tint64;
+    const VType *return_vtype = tc.get_vtype(return_type);
 
     JIT jit;
 
-    auto compiled = jit.compile(tc, m, param_types, ...)
+    auto compiled = jit.compile(heap, tc, m, param_vtypes, return_vtype);
   }
 
   return 0;
