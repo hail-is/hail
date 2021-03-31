@@ -164,11 +164,11 @@ class StagedBlockLinkedList(val elemType: PType, val kb: EmitClassBuilder[_]) {
 
   def push(cb: EmitCodeBuilder, region: Value[Region], elt: EmitCode): Unit = {
     val pushF = kb.genEmitMethod("blockLinkedListPush",
-      FastIndexedSeq[ParamType](typeInfo[Region], elt.pv.st.pType.asEmitParam), typeInfo[Unit])
+      FastIndexedSeq[ParamType](typeInfo[Region], elt.emitParamType), typeInfo[Unit])
     pushF.voidWithBuilder { cb =>
       pushImpl(cb,
         pushF.getCodeParam[Region](1),
-        pushF.getEmitParam(2))
+        pushF.getEmitParam(2, null)) // don't need region
     }
     cb.invokeVoid(pushF, region, elt)
   }

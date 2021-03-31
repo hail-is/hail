@@ -1,6 +1,6 @@
 package is.hail.expr.ir
 
-import is.hail.types.physical._
+import is.hail.types.physical.{Int32SingleCodeType, _}
 import is.hail.types.virtual._
 import is.hail.utils._
 import is.hail.HailContext
@@ -308,7 +308,18 @@ object InferPType {
       case Coalesce(values) =>
         val r = requiredness(node)
         getCompatiblePType(values.map(_.pType), r).setRequired(r.required)
-      case In(_, pType: PType) => pType
+      case In(_, ept) => ept match {
+        case SingleCodeEmitParamType(required, sct) => sct match {
+          case StreamSingleCodeType(sr, eltType) => PCanonicalStream(eltType, sr, required)
+          case Int32SingleCodeType => PInt32(required)
+          case Int64SingleCodeType => PInt64(required)
+          case Float32SingleCodeType => PFloat32(required)
+          case Float64SingleCodeType => PFloat64(required)
+          case BooleanSingleCodeType => PBoolean(required)
+          case PTypeReferenceSingleCodeType(pt) => pt.setRequired(required)
+        }
+        case PCodeEmitParamType(pt) => pt
+      }
       case x: CollectDistributedArray =>
         PCanonicalArray(x.decodedBodyPType, requiredness(node).required)
       case ReadPartition(context, rowType, reader) =>

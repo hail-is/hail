@@ -44,7 +44,7 @@ class Aggregators2Suite extends HailSuite {
           SerializeAggs(0, 0, spec, Array(aggSig.state)) :+
           DeserializeAggs(1, 0, spec, Array(aggSig.state))))
 
-    val (rt: PTuple, resF) = CompileWithAggregators[AsmFunction1RegionLong](ctx,
+    val (Some(PTypeReferenceSingleCodeType(rt: PTuple)), resF) = CompileWithAggregators[AsmFunction1RegionLong](ctx,
       Array.fill(nPartitions)(aggSig.state),
       FastIndexedSeq(),
       FastIndexedSeq(classInfo[Region]), LongInfo,
@@ -61,7 +61,7 @@ class Aggregators2Suite extends HailSuite {
       def withArgs(foo: IR) = {
         CompileWithAggregators[AsmFunction2RegionLongUnit](ctx,
           Array(aggSig.state),
-          FastIndexedSeq((argRef.name, argT)),
+          FastIndexedSeq((argRef.name, SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(argT)))),
           FastIndexedSeq(classInfo[Region], LongInfo), UnitInfo,
           args.map(_._1).foldLeft[IR](foo) { case (op, name) =>
             Let(name, GetField(argRef, name), op)
@@ -78,7 +78,7 @@ class Aggregators2Suite extends HailSuite {
       val initF = withArgs(initOp)
 
       expectedInit.foreach { v =>
-        val (rt: PBaseStruct, resOneF) = CompileWithAggregators[AsmFunction1RegionLong](ctx,
+        val (Some(PTypeReferenceSingleCodeType(rt: PBaseStruct)), resOneF) = CompileWithAggregators[AsmFunction1RegionLong](ctx,
           Array(aggSig.state),
           FastIndexedSeq(),
           FastIndexedSeq(classInfo[Region]), LongInfo,

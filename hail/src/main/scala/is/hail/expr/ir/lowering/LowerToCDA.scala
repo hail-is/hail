@@ -3,7 +3,7 @@ package is.hail.expr.ir.lowering
 import is.hail.annotations.{Region, SafeRow, UnsafeRow}
 import is.hail.asm4s.{AsmFunction1RegionLong, AsmFunction1RegionUnit, LongInfo, UnitInfo, classInfo}
 import is.hail.expr.ir._
-import is.hail.types.physical.{PTuple, PType}
+import is.hail.types.physical.{PTuple, PType, PTypeReferenceSingleCodeType}
 import is.hail.types.virtual.Type
 import is.hail.utils.{FastIndexedSeq, FastSeq}
 import org.apache.spark.sql.Row
@@ -38,9 +38,9 @@ object LowerToCDA {
       if (!Compilable(loweredValue))
         throw new LowererUnsupportedOperation(s"lowered to uncompilable IR: ${ Pretty(ir) }")
 
-      val (pt: PTuple, f) = ctx.timer.time("Compile") {
+      val (Some(PTypeReferenceSingleCodeType(pt: PTuple)), f) = ctx.timer.time("Compile") {
         Compile[AsmFunction1RegionLong](ctx,
-          FastIndexedSeq[(String, PType)](),
+          FastIndexedSeq(),
           FastIndexedSeq(classInfo[Region]), LongInfo,
           MakeTuple.ordered(FastSeq(loweredValue)),
           print = None)

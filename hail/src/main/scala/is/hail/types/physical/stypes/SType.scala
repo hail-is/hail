@@ -3,7 +3,7 @@ package is.hail.types.physical.stypes
 import is.hail.annotations.Region
 import is.hail.asm4s.{Code, Settable, TypeInfo, Value}
 import is.hail.expr.ir.orderings.CodeOrdering
-import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, EmitParamType, PCodeParamType, SortOrder}
+import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, EmitParamType, PCodeEmitParamType, PCodeParamType, SortOrder}
 import is.hail.types.TypeWithRequiredness
 import is.hail.types.physical.{PCode, PType}
 import is.hail.types.virtual.Type
@@ -29,7 +29,7 @@ trait SType {
 
   def asIdent: String = pType.asIdent
 
-  def asEmitParam: EmitParamType = EmitParamType(pType)
+  def asEmitParam: EmitParamType = PCodeEmitParamType(pType)
 
   def equalsExceptTopLevelRequiredness(that: SType): Boolean = pType.equalModuloRequired(that.pType)
 }

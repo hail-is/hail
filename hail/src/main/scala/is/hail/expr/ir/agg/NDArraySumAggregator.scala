@@ -2,7 +2,7 @@ package is.hail.expr.ir.agg
 
 import is.hail.annotations.Region
 import is.hail.asm4s._
-import is.hail.expr.ir.{CodeParamType, EmitCode, EmitCodeBuilder, EmitParamType}
+import is.hail.expr.ir.{CodeParamType, EmitCode, EmitCodeBuilder, EmitParamType, PCodeEmitParamType}
 import is.hail.types.VirtualTypeWithReq
 import is.hail.types.physical.stypes.SCode
 import is.hail.types.physical.stypes.interfaces.SNDArray
@@ -33,10 +33,10 @@ class NDArraySumAggregator(ndVTyp: VirtualTypeWithReq) extends StagedAggregator 
 
   override protected def _seqOp(cb: EmitCodeBuilder, state: State, seq: Array[EmitCode]): Unit = {
     val Array(nextNDCode) = seq
-    val seqOpMethod = cb.emb.genEmitMethod("ndarray_sum_aggregator_seq_op", FastIndexedSeq(EmitParamType(nextNDCode.pt)), CodeParamType(UnitInfo))
+    val seqOpMethod = cb.emb.genEmitMethod("ndarray_sum_aggregator_seq_op", FastIndexedSeq(PCodeEmitParamType(nextNDCode.pt)), CodeParamType(UnitInfo))
 
     seqOpMethod.voidWithBuilder { cb =>
-      val nextNDInput = seqOpMethod.getEmitParam(1)
+      val nextNDInput = seqOpMethod.getEmitParam(1, null) // no streams here
       nextNDInput.toI(cb).consume(cb, {}, { case nextNDArrayPCode: PNDArrayCode =>
         val nextNDPV = nextNDArrayPCode.memoize(cb, "ndarray_sum_seqop_next")
         val statePV = state.storageType.loadCheapPCode(cb, state.off).asBaseStruct.memoize(cb, "ndarray_sum_seq_op_state")

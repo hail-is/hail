@@ -1252,10 +1252,6 @@ object IRParser {
         ir_value_expr(env)(it).map { tuple =>
           GetTupleElement(tuple, idx)
         }
-      case "In" =>
-        val typ = ptype_expr(env.typEnv)(it)
-        val idx = int32_literal(it)
-        done(In(idx, typ))
       case "Die" =>
         val typ = type_expr(env.typEnv)(it)
         val errorId = int32_literal(it)

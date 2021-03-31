@@ -5,7 +5,6 @@ import argparse
 import re
 import time
 
-from hailtop import hailctl
 from hailtop import version
 
 

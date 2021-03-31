@@ -18,21 +18,6 @@ steps:
      git init
    dependsOn:
      - inline_image
- - kind: runImage
-   name: copy_files
-   image:
-     valueFrom: inline_image.image
-   script: |
-     cd /io
-     mkdir repo
-     cd repo
-     {{ code.checkout_script }}
-   timeout: 300
-   outputs:
-    - from: /io/repo
-      to: /repo
-   dependsOn:
-    - inline_image
  - kind: buildImage
    name: hail_ubuntu_image
    dockerFile: docker/hail-ubuntu/Dockerfile
@@ -45,6 +30,24 @@ steps:
    publishAs: base
    dependsOn:
     - hail_ubuntu_image
+ - kind: runImage
+   name: copy_files
+   image:
+     valueFrom: base_image.image
+   script: |
+     cd /io
+     mkdir repo
+     cd repo
+     {{ code.checkout_script }}
+     make -C hail python/hailtop/hail_version
+   timeout: 300
+   outputs:
+    - from: /io/repo
+      to: /repo
+    - from: /io/repo/hail/python/hail/hail_version
+      to: /hail_version
+   dependsOn:
+     - base_image
  - kind: buildImage
    name: service_base_image
    dockerFile: docker/Dockerfile.service-base
@@ -52,6 +55,10 @@ steps:
    publishAs: service-base
    dependsOn:
     - base_image
+    - copy_files
+   inputs:
+    - from: /hail_version
+      to: /hail_version
  - kind: buildImage
    name: create_certs_image
    dockerFile: ci/test/resources/Dockerfile.certs

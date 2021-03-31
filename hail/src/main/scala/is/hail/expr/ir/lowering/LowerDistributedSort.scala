@@ -3,7 +3,7 @@ package is.hail.expr.ir.lowering
 import is.hail.annotations.{Annotation, ExtendedOrdering, Region, SafeRow, UnsafeRow}
 import is.hail.asm4s.{AsmFunction1RegionLong, LongInfo, classInfo}
 import is.hail.expr.ir._
-import is.hail.types.physical.{PArray, PStruct, PTuple}
+import is.hail.types.physical.{PArray, PStruct, PTuple, PTypeReferenceSingleCodeType}
 import is.hail.types.virtual.{TStream, TStruct, Type}
 import is.hail.rvd.RVDPartitioner
 import is.hail.utils._
@@ -14,7 +14,7 @@ object LowerDistributedSort {
     val numPartitions = stage.partitioner.numPartitions
     val collected = stage.collectWithGlobals(relationalLetsAbove)
 
-    val (resultPType: PStruct, f) = ctx.timer.time("LowerDistributedSort.localSort.compile")(Compile[AsmFunction1RegionLong](ctx,
+    val (Some(PTypeReferenceSingleCodeType(resultPType: PStruct)), f) = ctx.timer.time("LowerDistributedSort.localSort.compile")(Compile[AsmFunction1RegionLong](ctx,
       FastIndexedSeq(),
       FastIndexedSeq(classInfo[Region]), LongInfo,
       collected,

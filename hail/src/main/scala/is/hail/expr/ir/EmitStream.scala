@@ -1440,30 +1440,14 @@ object EmitStream {
         case x@ReadPartition(context, rowType, reader) =>
           reader.emitStream(emitter.ctx.executeContext, context, rowType, emitter, cb, outerRegion, env, container)
 
-        case In(n, pt@PCanonicalStream(eltType, _, _)) =>
-          val xIter = mb.genFieldThisRef[Iterator[java.lang.Long]]("streamInIterator")
-          val hasNext = mb.genFieldThisRef[Boolean]("streamInHasNext")
-          val next = mb.genFieldThisRef[Long]("streamInNext")
-
-          // this, Region, ...
-          mb.getStreamEmitParam(cb, 2 + n).map(cb) { mkIter =>
-            val stream = unsized { eltRegion =>
-              unfold[Code[Long]](
-                (_, k) => Code(
-                  hasNext := xIter.load().hasNext,
-                  hasNext.orEmpty(next := xIter.load().next().invoke[Long]("longValue")),
-                  k(COption(!hasNext, next)))
-                ).map(
-                rv => EmitCodeBuilder.scopedEmitCode(mb)(cb => EmitCode.present(mb, eltType.loadCheapPCode(cb, (rv)))),
-                setup0 = None,
-                setup = Some(
-                  xIter := mkIter.invoke[Region, Region, Iterator[java.lang.Long]](
-                    "apply", outerRegion.code, eltRegion.code))
-                )
-            }
-
-            interfaces.SStreamCode(pt.sType, stream)
+        case In(n, _) =>
+          // this, Code[Region], ...
+          val param = mb.getEmitParam(2 + n, outerRegion.code)
+          param.st match {
+            case _: SStream =>
+            case t => throw new RuntimeException(s"parameter ${ 2 + n } is not a stream! t=$t, params=${ mb.emitParamTypes }")
           }
+          param.load.toI(cb)
 
         case StreamTake(a, num) =>
           val xN = mb.genFieldThisRef[Int]("st_n")
@@ -2252,7 +2236,8 @@ object EmitStream {
           fatal(s"not a streamable IR: ${Pretty(streamIR)}")
       }
 
-      assert(result.pt.isInstanceOf[PStream])
+      if (!result.pt.isInstanceOf[PStream])
+        throw new RuntimeException(s"expected stream, got ${ result.pt }")
       result
     }
 

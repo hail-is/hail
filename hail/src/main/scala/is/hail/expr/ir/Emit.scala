@@ -77,7 +77,7 @@ class SetupBuilder(mb: EmitMethodBuilder[_], var setup: Code[Unit]) {
 object Emit {
   type E = Env[EmitValue]
 
-  def apply[C](ctx: EmitContext, ir: IR, fb: EmitFunctionBuilder[C], aggs: Option[Array[AggStateSig]] = None) {
+  def apply[C](ctx: EmitContext, ir: IR, fb: EmitFunctionBuilder[C], rti: TypeInfo[_], aggs: Option[Array[AggStateSig]] = None): Option[SingleCodeType] = {
     TypeCheck(ir)
 
     val mb = fb.apply_method
@@ -87,19 +87,28 @@ object Emit {
     }
     val emitter = new Emit[C](ctx, fb.ecb)
     val region = StagedRegion(mb.getCodeParam[Region](1))
-    if (ir.typ == TVoid) {
-      fb.emitWithBuilder { cb =>
+    val returnTypeOption: Option[SingleCodeType] = if (ir.typ == TVoid) {
+      fb.apply_method.voidWithBuilder { cb =>
         emitter.emitVoid(cb, ir, mb, region, Env.empty, container, None)
-        Code._empty
       }
+      None
     } else {
+      var sct: SingleCodeType = null
       fb.emitWithBuilder { cb =>
-        emitter.emitI(ir, cb, region, Env.empty, container, None).handle(cb, {
+
+        val pcode = emitter.emitI(ir, cb, region, Env.empty, container, None).handle(cb, {
           cb._throw[RuntimeException](
             Code.newInstance[RuntimeException, String]("cannot return empty"))
-        }).code
+        })
+
+        val scp = SingleCodePCode.fromPCode(cb, pcode, region.code)
+        assert(scp.typ.ti == rti, s"type info mismatch: expect $rti, got ${ scp.typ.ti }")
+        sct = scp.typ
+        scp.code
       }
+      Some(sct)
     }
+    returnTypeOption
   }
 }
 
@@ -176,7 +185,7 @@ abstract class EmitValue {
 
   def load: EmitCode
 
-  def get(cb: EmitCodeBuilder): PValue
+  def get(cb: EmitCodeBuilder): PCode
 }
 
 class EmitUnrealizableValue(val pt: PType, private val ec: EmitCode) extends EmitValue {
@@ -189,7 +198,7 @@ class EmitUnrealizableValue(val pt: PType, private val ec: EmitCode) extends Emi
     ec
   }
 
-  override def get(cb: EmitCodeBuilder): PValue = throw new UnsupportedOperationException(s"Can't make PValue for unrealizable type ${pt}")
+  override def get(cb: EmitCodeBuilder): PCode = throw new UnsupportedOperationException(s"Can't make PValue for unrealizable type ${pt}")
 }
 
 /**
@@ -383,17 +392,11 @@ object EmitCode {
     val setup = cb.result()
     new EmitCode(new CodeLabel(setup.start), iec)
   }
-
-  def codeTupleTypes(pt: PType): IndexedSeq[TypeInfo[_]] = {
-    val ts = pt.codeTupleTypes()
-    if (pt.required)
-      ts
-    else
-      ts :+ BooleanInfo
-  }
 }
 
 class EmitCode(private val start: CodeLabel, private val iec: IEmitCode) {
+  def emitParamType: PCodeEmitParamType = PCodeEmitParamType(st.pType)
+
   def st: SType = iec.value.st
 
   def pv: PCode = iec.value
@@ -980,10 +983,10 @@ class Emit[C](
         val sorter = new ArraySorter(EmitRegion(mb, region.code), sortedElts)
 
         val (k1, k2) = keyValTyp match {
-          case t: PStruct => GetField(In(0, t), "key") -> GetField(In(1, t), "key")
+          case t: PStruct => GetField(In(0, PCodeEmitParamType(t)), "key") -> GetField(In(1, PCodeEmitParamType(t)), "key")
           case t: PTuple =>
             assert(t.fields(0).index == 0)
-            GetTupleElement(In(0, t), 0) -> GetTupleElement(In(1, t), 0)
+            GetTupleElement(In(0, PCodeEmitParamType(t)), 0) -> GetTupleElement(In(1, PCodeEmitParamType(t)), 0)
         }
 
         val compare = ApplyComparisonOp(Compare(keyValTyp.types(0).virtualType), k1, k2) < 0
@@ -1001,14 +1004,14 @@ class Emit[C](
 
         val (lastKey, currKey) = (keyValTyp.virtualType: @unchecked) match {
           case ts: TStruct =>
-            GetField(In(0, keyValTyp), ts.fieldNames(0)) -> GetField(In(1, keyValTyp), ts.fieldNames(0))
+            GetField(In(0, PCodeEmitParamType(keyValTyp)), ts.fieldNames(0)) -> GetField(In(1, PCodeEmitParamType(keyValTyp)), ts.fieldNames(0))
           case tt: TTuple =>
-            GetTupleElement(In(0, keyValTyp), tt.fields(0).index) -> GetTupleElement(In(1, keyValTyp), tt.fields(0).index)
+            GetTupleElement(In(0, PCodeEmitParamType(keyValTyp)), tt.fields(0).index) -> GetTupleElement(In(1, PCodeEmitParamType(keyValTyp)), tt.fields(0).index)
         }
         val compare2 = ApplyComparisonOp(EQWithNA(keyTyp.virtualType), lastKey, currKey)
         InferPType(compare2)
         val isSame = mb.genEmitMethod("isSame",
-          FastIndexedSeq(typeInfo[Region], keyValTyp.asEmitParam, keyValTyp.asEmitParam),
+          FastIndexedSeq(typeInfo[Region], PCodeEmitParamType(keyValTyp), PCodeEmitParamType(keyValTyp)),
           BooleanInfo)
         isSame.emitWithBuilder { cb =>
           emitInMethod(cb, compare2).consumeCode[Boolean](cb, true, _.asBoolean.boolCode(cb))
@@ -2181,16 +2184,16 @@ class Emit[C](
           case ArraySort(a, l, r, lessThan) => (a, lessThan, Code._empty, Array(l, r))
           case ToSet(a) =>
             val discardNext = mb.genEmitMethod("discardNext",
-              FastIndexedSeq[ParamType](typeInfo[Region], eltType.asEmitParam, eltType.asEmitParam),
+              FastIndexedSeq[ParamType](typeInfo[Region], PCodeEmitParamType(eltType), PCodeEmitParamType(eltType)),
               typeInfo[Boolean])
-            val cmp2 = ApplyComparisonOp(EQWithNA(eltVType), In(0, eltType), In(1, eltType))
+            val cmp2 = ApplyComparisonOp(EQWithNA(eltVType), In(0, PCodeEmitParamType(eltType)), In(1, PCodeEmitParamType(eltType)))
             InferPType(cmp2)
             val EmitCode(s, m, pv) = emitInMethod(cmp2, discardNext)
             discardNext.emitWithBuilder { cb =>
               cb += s
               m || pv.asBoolean.boolCode(cb)
             }
-            val lessThan = ApplyComparisonOp(Compare(eltVType), In(0, eltType), In(1, eltType)) < 0
+            val lessThan = ApplyComparisonOp(Compare(eltVType), In(0, PCodeEmitParamType(eltType)), In(1, PCodeEmitParamType(eltType))) < 0
             InferPType(lessThan)
             (a, lessThan, sorter.distinctFromSorted { (r, v1, m1, v2, m2) =>
               EmitCodeBuilder.scopedCode[Boolean](mb) { cb =>
@@ -2201,11 +2204,11 @@ class Emit[C](
             }, Array.empty[String])
           case ToDict(a) =>
             val (k0, k1, keyType) = eltType match {
-              case t: PStruct => (GetField(In(0, eltType), "key"), GetField(In(1, eltType), "key"), t.fieldType("key"))
-              case t: PTuple => (GetTupleElement(In(0, eltType), 0), GetTupleElement(In(1, eltType), 0), t.types(0))
+              case t: PStruct => (GetField(In(0, PCodeEmitParamType(eltType)), "key"), GetField(In(1, PCodeEmitParamType(eltType)), "key"), t.fieldType("key"))
+              case t: PTuple => (GetTupleElement(In(0, PCodeEmitParamType(eltType)), 0), GetTupleElement(In(1, PCodeEmitParamType(eltType)), 0), t.types(0))
             }
             val discardNext = mb.genEmitMethod("discardNext",
-              FastIndexedSeq[ParamType](typeInfo[Region], eltType.asEmitParam, eltType.asEmitParam),
+              FastIndexedSeq[ParamType](typeInfo[Region], PCodeEmitParamType(eltType), PCodeEmitParamType(eltType)),
               typeInfo[Boolean])
 
             val cmp2 = ApplyComparisonOp(EQWithNA(keyType.virtualType), k0, k1).deepCopy()
@@ -2296,8 +2299,7 @@ class Emit[C](
 
       case In(i, expectedPType) =>
         // this, Code[Region], ...
-        val ev = mb.getEmitParam(2 + i)
-        assert(ev.pt == expectedPType)
+        val ev = mb.getEmitParam(2 + i, region.code)
         ev
       case Die(m, typ, errorId) =>
         val cm = emit(m)
@@ -2442,24 +2444,24 @@ class Emit[C](
     val fregion = f.newDepField[Region](region)
     var newEnv = getEnv(env, f)
 
+    val leftEC = EmitCode(Code._empty, false, PCode(elemPType, f.getCodeParam[T](1)))
+    val rightEC = EmitCode(Code._empty, false, PCode(elemPType, f.getCodeParam[T](2)))
     val sort = f.genEmitMethod("sort",
-      FastIndexedSeq(typeInfo[Region], elemPType.asEmitParam, elemPType.asEmitParam),
+      FastIndexedSeq(typeInfo[Region], leftEC.emitParamType, rightEC.emitParamType),
       BooleanInfo)
 
     if (leftRightComparatorNames.nonEmpty) {
       assert(leftRightComparatorNames.length == 2)
       newEnv = newEnv.bindIterable(
         IndexedSeq(
-          (leftRightComparatorNames(0), sort.getEmitParam(2)),
-          (leftRightComparatorNames(1), sort.getEmitParam(3))))
+          (leftRightComparatorNames(0), sort.getEmitParam(2, fregion)),
+          (leftRightComparatorNames(1), sort.getEmitParam(3, fregion))))
     }
 
     val EmitCode(setup, m, v) = new Emit(ctx, f.ecb).emit(newIR, sort, newEnv, None)
 
     sort.emit(Code(setup, m.mux(Code._fatal[Boolean]("Result of sorting function cannot be missing."), v.code)))
-    f.apply_method.emitWithBuilder(cb => cb.invokeCode[Boolean](sort, fregion,
-      EmitCode(Code._empty, false, PCode(elemPType, f.getCodeParam[T](1))),
-      EmitCode(Code._empty, false, PCode(elemPType, f.getCodeParam[T](2)))))
+    f.apply_method.emitWithBuilder(cb => cb.invokeCode[Boolean](sort, fregion, leftEC, rightEC))
     f
   }
 
