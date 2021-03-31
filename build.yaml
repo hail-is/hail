@@ -65,13 +65,6 @@ steps:
    publishAs: base
    dependsOn:
     - hail_ubuntu_image
- - kind: buildImage
-   name: service_base_image
-   dockerFile: docker/Dockerfile.service-base
-   contextPath: .
-   publishAs: service-base
-   dependsOn:
-    - base_image
  - kind: runImage
    name: check_hail
    image:
@@ -85,21 +78,6 @@ steps:
    dependsOn:
      - base_image
  - kind: runImage
-   name: check_services
-   image:
-     valueFrom: service_base_image.image
-   script: |
-     set -ex
-     mkdir repo
-     cd repo
-     {{ code.checkout_script }}
-     {% if 'target_sha' in code %}
-     export HAIL_TARGET_SHA={{ code.target_sha }}
-     {% endif %}
-     make -k check-services
-   dependsOn:
-     - service_base_image
- - kind: runImage
    name: copy_files
    image:
      valueFrom: base_image.image
@@ -109,7 +87,7 @@ steps:
      mkdir repo
      cd repo
      {{ code.checkout_script }}
-     make -C hail python/hail/hail_version python/hail/hail_pip_version
+     make -C hail python-version-info
      git rev-parse HEAD > git_version
    outputs:
      - from: /io/repo/auth/sql
@@ -150,6 +128,32 @@ steps:
        to: /repo/ci/create_initial_account.py
    dependsOn:
      - base_image
+ - kind: buildImage
+   name: service_base_image
+   dockerFile: docker/Dockerfile.service-base
+   contextPath: .
+   publishAs: service-base
+   dependsOn:
+    - base_image
+    - copy_files
+   inputs:
+    - from: /hail_version
+      to: /hail_version
+ - kind: runImage
+   name: check_services
+   image:
+     valueFrom: service_base_image.image
+   script: |
+     set -ex
+     mkdir repo
+     cd repo
+     {{ code.checkout_script }}
+     {% if 'target_sha' in code %}
+     export HAIL_TARGET_SHA={{ code.target_sha }}
+     {% endif %}
+     make -k check-services
+   dependsOn:
+     - service_base_image
  - kind: buildImage
    name: create_certs_image
    dockerFile: tls/Dockerfile
@@ -556,8 +560,12 @@ steps:
    scopes:
     - test
     - dev
+   inputs:
+    - from: /hail_version
+      to: /hail_version
    dependsOn:
      - base_image
+     - copy_files
  - kind: buildImage
    name: test_monitoring_image
    dockerFile: monitoring/Dockerfile.test
@@ -685,8 +693,11 @@ steps:
    inputs:
      - from: /just-jar/hail.jar
        to: /batch/hail.jar
+     - from: /hail_version
+       to: /hail_version
    dependsOn:
      - build_hail_jar_only
+     - copy_files
  - kind: buildImage
    name: service_java_run_base_image
    dockerFile: docker/Dockerfile.service-java-run-base
@@ -694,6 +705,10 @@ steps:
    publishAs: service-java-run-base
    dependsOn:
      - hail_ubuntu_image
+     - copy_files
+   inputs:
+     - from: /hail_version
+       to: /hail_version
  - kind: buildImage
    name: query_image
    dockerFile: query/Dockerfile
@@ -2823,7 +2838,7 @@ steps:
      git clone https://$TOKEN@github.com/hail-ci-test/$REPO_NAME.git
      cd $REPO_NAME
 
-     mkdir -p ./ci/test ./hail/python
+     mkdir -p ./ci/test ./hail/
      cp /repo/hail/ci/test/resources/build.yaml ./
      cp -R /repo/hail/ci/test/resources ./ci/test/
      cp /repo/hail/tls/Dockerfile ./ci/test/resources/Dockerfile.certs
@@ -2832,7 +2847,9 @@ steps:
      cp /repo/hail/setup.cfg ./
      cp -R /repo/hail/docker ./
      cp -R /repo/hail/gear ./
-     cp -R /repo/hail/hail/python/hailtop ./hail/python/
+     cp -R /repo/hail/hail/python ./hail/
+     cp /repo/hail/hail/Makefile ./hail/
+     cp /repo/hail/hail/env_var.mk ./hail/
      cp -R /repo/hail/web_common ./
      cp /repo/hail/hail/python/setup-hailtop.py ./hail/python/
 
