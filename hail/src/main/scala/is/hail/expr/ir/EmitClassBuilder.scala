@@ -1060,7 +1060,7 @@ class EmitMethodBuilder[C](
     EmitCodeBuilder.scopedVoid(this) { cb =>
       cb.define(label)
       f(cb)
-      assert(!cb.isOpenEnded)
+//      assert(!cb.isOpenEnded)
     }
   }
 
@@ -1069,7 +1069,7 @@ class EmitMethodBuilder[C](
     EmitCodeBuilder.scopedVoid(this) { cb =>
       cb.define(label)
       f(cb)
-      assert(!cb.isOpenEnded)
+//      assert(!cb.isOpenEnded)
     }
     label
   }
