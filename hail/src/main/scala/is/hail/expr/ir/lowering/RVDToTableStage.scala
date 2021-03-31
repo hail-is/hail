@@ -8,7 +8,7 @@ import is.hail.expr.ir.{Compile, CompileIterator, ExecuteContext, GetField, IR, 
 import is.hail.io.{BufferSpec, TypedCodecSpec}
 import is.hail.rvd.{RVD, RVDType}
 import is.hail.sparkextras.ContextRDD
-import is.hail.types.physical.{PArray, PStruct}
+import is.hail.types.physical.{PArray, PStruct, PTypeReferenceSingleCodeType}
 import is.hail.utils.{FastIndexedSeq, FastSeq}
 
 object RVDToTableStage {
@@ -46,7 +46,7 @@ object TableStageToRVD {
       Let(name, value, acc)
     }, relationalBindings)
 
-    val (gbPType: PStruct, f) = Compile[AsmFunction1RegionLong](ctx, FastIndexedSeq(), FastIndexedSeq(classInfo[Region]), LongInfo, globalsAndBroadcastVals)
+    val (Some(PTypeReferenceSingleCodeType(gbPType: PStruct)), f) = Compile[AsmFunction1RegionLong](ctx, FastIndexedSeq(), FastIndexedSeq(classInfo[Region]), LongInfo, globalsAndBroadcastVals)
     val gbAddr = f(0, ctx.r)(ctx.r)
 
     val globPType = gbPType.fieldType("globals").asInstanceOf[PStruct]
@@ -79,8 +79,8 @@ object TableStageToRVD {
     val (newRowPType: PStruct, makeIterator) = CompileIterator.forTableStageToRVD(
       ctx,
       decodedContextPType, decodedBcValsPType,
-      LowerToCDA.substLets(ts.broadcastVals.map(_._1).foldRight[IR](ts.partition(In(0, decodedContextPType))) { case (bcVal, acc) =>
-        Let(bcVal, GetField(In(1, decodedBcValsPType), bcVal), acc)
+      LowerToCDA.substLets(ts.broadcastVals.map(_._1).foldRight[IR](ts.partition(In(0, SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(decodedContextPType))))) { case (bcVal, acc) =>
+        Let(bcVal, GetField(In(1, SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(decodedBcValsPType))), bcVal), acc)
       }, relationalBindings))
 
 

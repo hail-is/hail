@@ -3,7 +3,7 @@ package is.hail.expr.ir.agg
 import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.expr.ir.orderings.CodeOrdering
-import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitCodeBuilder, EmitParamType, EmitRegion, IEmitCode, ParamType}
+import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitCodeBuilder, EmitParamType, EmitRegion, IEmitCode, PCodeEmitParamType, ParamType}
 import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer}
 import is.hail.types.VirtualTypeWithReq
 import is.hail.types.encoded.EType
@@ -441,7 +441,7 @@ class DownsampleState(val kb: EmitClassBuilder[_], labelType: VirtualTypeWithReq
 
   def insert(cb: EmitCodeBuilder, x: EmitCode, y: EmitCode, l: EmitCode): Unit = {
     val name = "downsample_insert"
-    val mb = kb.getOrGenEmitMethod(name, (this, name), FastIndexedSeq[ParamType](x.pv.st.pType.asParam, y.pv.st.pType.asParam, EmitParamType(l.pv.st.pType)), UnitInfo) { mb =>
+    val mb = kb.getOrGenEmitMethod(name, (this, name), FastIndexedSeq[ParamType](x.pv.st.pType.asParam, y.pv.st.pType.asParam, PCodeEmitParamType(l.pv.st.pType)), UnitInfo) { mb =>
 
       val pointStaging = mb.newLocal[Long]("pointStaging")
       mb.voidWithBuilder { cb =>
@@ -449,7 +449,7 @@ class DownsampleState(val kb: EmitClassBuilder[_], labelType: VirtualTypeWithReq
           .memoize(cb, "downsample_insert_x")
         val y = mb.getPCodeParam(2)
           .memoize(cb, "downsample_insert_y")
-        val l = mb.getEmitParam(3)
+        val l = mb.getEmitParam(3, region)
 
         def xx = x.asDouble.doubleCode(cb)
 

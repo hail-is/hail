@@ -2,8 +2,8 @@ package is.hail.utils
 
 import is.hail.annotations.{Region, RegionValueBuilder}
 import is.hail.asm4s._
-import is.hail.types.physical.{PCanonicalTuple, PTuple, PType}
-import is.hail.expr.ir.{Compile, ExecuteContext, IR, IRParser, IRParserEnvironment, Interpret, Literal, MakeTuple}
+import is.hail.types.physical.{PCanonicalTuple, PTuple, PType, PTypeReferenceSingleCodeType}
+import is.hail.expr.ir.{Compile, ExecuteContext, IR, IRParser, IRParserEnvironment, Interpret, Literal, MakeTuple, SingleCodeEmitParamType}
 import is.hail.types.virtual._
 import org.apache.spark.sql.Row
 
@@ -61,8 +61,8 @@ object Graph {
       val region = ctx.r
       val tieBreakerF = tieBreaker.map { e =>
         val ir = IRParser.parse_value_ir(e, IRParserEnvironment(ctx, refMap = refMap))
-        val (t, f) = Compile[AsmFunction3RegionLongLongLong](ctx,
-          IndexedSeq(("l", wrappedNodeType), ("r", wrappedNodeType)),
+        val (Some(PTypeReferenceSingleCodeType(t)), f) = Compile[AsmFunction3RegionLongLongLong](ctx,
+          IndexedSeq(("l", SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(wrappedNodeType))), ("r", SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(wrappedNodeType)))),
           FastIndexedSeq(classInfo[Region], LongInfo, LongInfo), LongInfo,
           MakeTuple.ordered(FastSeq(ir)))
         assert(t.virtualType == TTuple(TFloat64))

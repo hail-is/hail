@@ -3,7 +3,7 @@ package is.hail.expr.ir
 import is.hail.expr.ir.functions.GetElement
 import is.hail.methods.ForceCountTable
 import is.hail.types._
-import is.hail.types.physical.{PStream, PType}
+import is.hail.types.physical.{PCanonicalStream, PStream, PType, PTypeReferenceSingleCodeType, StreamSingleCodeType}
 import is.hail.types.virtual._
 import is.hail.utils._
 import org.apache.spark.sql.catalyst.expressions.GenericRow
@@ -659,7 +659,12 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
       case ReadValue(path, spec, rt) =>
         requiredness.union(lookup(path).required)
         requiredness.fromPType(spec.encodedType.decodedPType(rt))
-      case In(_, t) => requiredness.fromPType(t)
+      case In(_, t) => t match {
+        case PCodeEmitParamType(pt) => requiredness.fromPType(pt)
+        case SingleCodeEmitParamType(required, StreamSingleCodeType(_, eltType)) => requiredness.fromPType(PCanonicalStream(eltType, separateRegions = false, required)) // fixme hacky
+        case SingleCodeEmitParamType(required, PTypeReferenceSingleCodeType(pt)) => requiredness.fromPType(pt.setRequired(required))
+        case SingleCodeEmitParamType(required, _) => requiredness.union(required)
+      }
       case LiftMeOut(f) => requiredness.unionFrom(lookup(f))
       case ResultOp(_, sigs) =>
         val r = coerce[RBaseStruct](requiredness)

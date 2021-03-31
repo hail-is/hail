@@ -300,7 +300,7 @@ class EmitClassBuilder[C](
           cb.assign(vs, value)
         })
 
-    override def get(cb: EmitCodeBuilder): PValue = {
+    override def get(cb: EmitCodeBuilder): PCode = {
       if (_pt.required) {
         vs
       } else {
@@ -323,7 +323,7 @@ class EmitClassBuilder[C](
 
     def store(cb: EmitCodeBuilder, pv: PCode): Unit = ps.store(cb, pv)
 
-    override def get(cb: EmitCodeBuilder): PValue = ps
+    override def get(cb: EmitCodeBuilder): PCode = ps
   }
 
   private[this] val typMap: mutable.Map[Type, Value[_ <: Type]] =
@@ -616,19 +616,18 @@ class EmitClassBuilder[C](
   private def getCodeArgsInfo(argsInfo: IndexedSeq[ParamType], returnInfo: ParamType): (IndexedSeq[TypeInfo[_]], TypeInfo[_]) = {
     val codeArgsInfo = argsInfo.flatMap {
       case CodeParamType(ti) => FastIndexedSeq(ti)
-      case EmitParamType(pt) => EmitCode.codeTupleTypes(pt)
+      case t: EmitParamType => t.codeTupleTypes
       case PCodeParamType(pt) => pt.codeTupleTypes()
     }
     val codeReturnInfo = returnInfo match {
       case CodeParamType(ti) => ti
       case PCodeParamType(pt) => pt.ti
-      case EmitParamType(pt) =>
-        val ts = EmitCode.codeTupleTypes(pt)
+      case t: EmitParamType =>
+        val ts = t.codeTupleTypes
         if (ts.length == 1)
           ts.head
         else {
-          val t = modb.tupleClass(ts)
-          t.cb.ti
+          throw new UnsupportedOperationException
         }
     }
 
@@ -923,8 +922,6 @@ class EmitMethodBuilder[C](
 
   // this, ...
   private val emitParamCodeIndex = emitParamTypes.scanLeft((!mb.isStatic).toInt) {
-    case (i, EmitParamType(pt)) =>
-      i + pt.nCodes + (if (pt.required) 0 else 1)
     case (i, paramType) =>
       i + paramType.nCodes
   }
@@ -953,73 +950,71 @@ class EmitMethodBuilder[C](
     }).asPCode
   }
 
-  def getEmitParam(emitIndex: Int): EmitValue = {
+  // needs region to support stream arguments
+  def getEmitParam(emitIndex: Int, r: Value[Region]): EmitValue = {
     assert(mb.isStatic || emitIndex != 0)
     val static = (!mb.isStatic).toInt
-    val _pt = emitParamTypes(emitIndex - static).asInstanceOf[EmitParamType].pt
-    assert(!_pt.isInstanceOf[PStream])
-
-    val ts = _pt.codeTupleTypes()
+    val et = emitParamTypes(emitIndex - static) match {
+      case t: EmitParamType => t
+      case _ => throw new RuntimeException(s"isStatic=${ mb.isStatic }, emitIndex=$emitIndex, params=$emitParamTypes")
+    }
     val codeIndex = emitParamCodeIndex(emitIndex - static)
 
-    new EmitValue {
-      evSelf =>
-      val pt: PType = _pt
+    et match {
+      case SingleCodeEmitParamType(required, sct) =>
 
-      def load: EmitCode = {
-        EmitCode(Code._empty,
-          if (pt.required)
-            const(false)
-          else
-            mb.getArg[Boolean](codeIndex + ts.length),
-          pt.fromCodeTuple(ts.zipWithIndex.map { case (t, i) =>
-            mb.getArg(codeIndex + i)(t).get
-          }))
-      }
-
-      override def get(cb: EmitCodeBuilder): PValue = {
-        new PValue {
-          override def pt: PType = evSelf.pt
-
-          override def get: PCode = pt.fromCodeTuple(ts.zipWithIndex.map { case (t, i) =>
-            mb.getArg(codeIndex + i)(t).get
-          })
-
-          override def st: SType = evSelf.pt.sType
+        val emitCode = EmitCode.fromI(this) { cb =>
+          if (required) {
+            IEmitCode.present(cb, sct.loadToPCode(cb, r, mb.getArg(codeIndex)(sct.ti).get))
+          } else {
+            IEmitCode(cb, mb.getArg[Boolean](codeIndex + 1).get, sct.loadToPCode(cb, null, mb.getArg(codeIndex)(sct.ti).get))
+          }
         }
-      }
+
+        new EmitValue {
+          evSelf =>
+          val pt: PType = emitCode.pt
+
+          override def load: EmitCode = emitCode
+
+          override def get(cb: EmitCodeBuilder): PCode = {
+            emitCode.get()
+          }
+        }
+
+      case PCodeEmitParamType(_pt) =>
+        val ts = _pt.codeTupleTypes()
+
+        new EmitValue {
+          evSelf =>
+          val pt: PType = _pt
+
+          def load: EmitCode = {
+            EmitCode(Code._empty,
+              if (pt.required)
+                const(false)
+              else
+                mb.getArg[Boolean](codeIndex + ts.length),
+              pt.fromCodeTuple(ts.zipWithIndex.map { case (t, i) =>
+                mb.getArg(codeIndex + i)(t).get
+              }))
+          }
+
+          override def get(cb: EmitCodeBuilder): PCode = {
+            new PValue {
+              override def pt: PType = evSelf.pt
+
+              override def get: PCode = pt.fromCodeTuple(ts.zipWithIndex.map { case (t, i) =>
+                mb.getArg(codeIndex + i)(t).get
+              })
+
+              override def st: SType = evSelf.pt.sType
+            }
+          }
+        }
     }
   }
 
-  def getStreamEmitParam(cb: EmitCodeBuilder, emitIndex: Int): IEmitCodeGen[Code[StreamArgType]] = {
-    assert(emitIndex != 0)
-
-    val pt = emitParamTypes(emitIndex - 1).asInstanceOf[EmitParamType].pt
-    val codeIndex = emitParamCodeIndex(emitIndex - 1)
-
-    val Lpresent = CodeLabel()
-    val Lmissing = CodeLabel()
-
-    if (pt.required) {
-      cb.goto(Lpresent)
-    } else {
-      cb.ifx(mb.getArg[Boolean](codeIndex + 1), {
-        cb.goto(Lmissing)
-      }, {
-        cb.goto(Lpresent)
-      })
-    }
-
-    IEmitCodeGen(Lmissing, Lpresent, mb.getArg[StreamArgType](codeIndex))
-  }
-
-  def getParamsList(): IndexedSeq[Param] = {
-    emitParamTypes.toFastIndexedSeq.zipWithIndex.map {
-      case (CodeParamType(ti), i) => CodeParam(this.getCodeParam(i + 1)(ti)): Param
-      case (PCodeParamType(pt), i) => PCodeParam(this.getPCodeParam(i + 1)): Param
-      case (EmitParamType(pt), i) => EmitParam(this.getEmitParam(i + 1)): Param
-    }
-  }
 
   def invokeCode[T](args: Param*): Code[T] = {
     assert(emitReturnType.isInstanceOf[CodeParamType])
@@ -1082,7 +1077,7 @@ trait WrappedEmitMethodBuilder[C] extends WrappedEmitClassBuilder[C] {
   // EmitMethodBuilder methods
   def getCodeParam[T: TypeInfo](emitIndex: Int): Settable[T] = emb.getCodeParam[T](emitIndex)
 
-  def getEmitParam(emitIndex: Int): EmitValue = emb.getEmitParam(emitIndex)
+  def getEmitParam(emitIndex: Int, r: Value[Region]): EmitValue = emb.getEmitParam(emitIndex, r)
 
   def newPLocal(pt: PType): PSettable = emb.newPLocal(pt)
 
@@ -1165,7 +1160,7 @@ class DependentEmitFunctionBuilder[F](
     new EmitValue {
       def pt: PType = _pt
 
-      def get(cb: EmitCodeBuilder): PValue= load.toI(cb).get(
+      def get(cb: EmitCodeBuilder): PCode = load.toI(cb).get(
         cb,
         "Can't convert missing value to PValue.").memoize(cb, "newDepEmitField_memo")
 
