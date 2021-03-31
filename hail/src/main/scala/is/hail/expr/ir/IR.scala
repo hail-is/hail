@@ -292,9 +292,6 @@ object ArrayZipBehavior extends Enumeration {
   val ExtendNA: Value = Value(3)
 }
 
-final case class StreamMerge(l: IR, r: IR, key: IndexedSeq[String]) extends IR {
-  override def typ: TStream = coerce[TStream](super.typ)
-}
 final case class StreamZip(as: IndexedSeq[IR], names: IndexedSeq[String], body: IR, behavior: ArrayZipBehavior) extends IR {
   lazy val nameIdx: Map[String, Int] = names.zipWithIndex.toMap
   override def typ: TStream = coerce[TStream](super.typ)

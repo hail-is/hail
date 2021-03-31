@@ -1666,9 +1666,9 @@ object EmitStream2 {
         reader.emitStream(emitter.ctx.executeContext, cb, ctxCode, outerRegion, rowType)
 
       case ShuffleRead(idIR, keyRangeIR) =>
-        val shuffleType = coerce[TShuffle](idIR.typ)
-        val keyType = coerce[TInterval](keyRangeIR.typ).pointType
-        val keyPType = coerce[PInterval](keyRangeIR.pType).pointType
+        val shuffleType = idIR.typ.asInstanceOf[TShuffle]
+        val keyType = keyRangeIR.typ.asInstanceOf[TInterval].pointType
+        val keyPType = keyRangeIR.pType.asInstanceOf[PInterval].pointType
         assert(keyType == shuffleType.keyType)
         assert(keyPType == shuffleType.keyDecodedPType)
 
@@ -1731,7 +1731,7 @@ object EmitStream2 {
         val shuffleLocal = mb.genFieldThisRef[ShuffleClient]("shuffle_partition_bounds_client")
         val shuffle = new ValueShuffleClient(shuffleLocal)
 
-        val shuffleType = coerce[TShuffle](idIR.typ)
+        val shuffleType = idIR.typ.asInstanceOf[TShuffle]
 
         val producer = new StreamProducer {
           override val length: Option[Code[Int]] = None
@@ -1758,9 +1758,7 @@ object EmitStream2 {
 
           override def close(cb: EmitCodeBuilder): Unit = {
             cb += shuffle.endPartitionBounds()
-            ,
             cb += shuffle.close()
-            )
           }
         }
         IEmitCode.present(cb, SStreamCode2(SStream(producer.element.st, true, producer.separateRegions), producer))

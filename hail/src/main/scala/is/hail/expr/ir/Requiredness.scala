@@ -504,13 +504,6 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
       case StreamDrop(a, n) =>
         requiredness.union(lookup(n).required)
         requiredness.unionFrom(lookup(a))
-      case StreamMerge(l, r, key) =>
-        val lType = lookupAs[RIterable](l)
-        val rType = lookupAs[RIterable](r)
-        requiredness.union(lType.required && rType.required)
-        coerce[RIterable](requiredness)
-          .elementType
-          .unionFrom(FastSeq(lType.elementType, rType.elementType))
       case StreamZip(as, names, body, behavior) =>
         requiredness.union(as.forall(lookup(_).required))
         coerce[RIterable](requiredness).elementType.unionFrom(lookup(body))

@@ -8,7 +8,6 @@ object Interpretable {
     (ir match {
       case
         _: EncodedLiteral |
-        _: StreamMerge |
         _: RunAgg |
         _: InitOp |
         _: SeqOp |

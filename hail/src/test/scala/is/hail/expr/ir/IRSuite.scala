@@ -2603,7 +2603,7 @@ class IRSuite extends HailSuite {
 
     def mergeRows(left: IndexedSeq[Integer], right: IndexedSeq[Integer], key: Int): IR = {
       val typ = TStream(TStruct("k" -> TInt32, "sign" -> TInt32, "idx" -> TInt32))
-      ToArray(StreamMerge(
+      ToArray(StreamMultiMerge(FastIndexedSeq(
         if (left == null)
           NA(typ)
         else
@@ -2621,7 +2621,7 @@ class IRSuite extends HailSuite {
               "k" -> (if (n == null) NA(TInt32) else I32(n)),
               "sign" -> I32(-1),
               "idx" -> I32(idx)))
-          }, typ),
+          }, typ)),
         FastIndexedSeq("k", "sign").take(key)))
     }
 
@@ -3100,10 +3100,6 @@ class IRSuite extends HailSuite {
       StreamTake(st, I32(10)),
       StreamDrop(st, I32(10)),
       StreamMap(st, "v", v),
-      StreamMerge(
-        StreamMap(StreamRange(0, 2, 1), "x", MakeStruct(FastSeq("x" -> Ref("x", TInt32)))),
-        StreamMap(StreamRange(0, 3, 1), "x", MakeStruct(FastSeq("x" -> Ref("x", TInt32)))),
-        FastSeq("x")),
       StreamZip(FastIndexedSeq(st, st), FastIndexedSeq("foo", "bar"), True(), ArrayZipBehavior.TakeMinLength),
       StreamFilter(st, "v", b),
       StreamFlatMap(sta, "v", ToStream(a)),

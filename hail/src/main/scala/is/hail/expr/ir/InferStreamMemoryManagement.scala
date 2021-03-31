@@ -104,10 +104,6 @@ object InferStreamMemoryManagement {
           case StreamFlatMap(s, _, body) =>
             val nested = m.lookup(body)
             StreamMemoType(m.lookup(s).separateRegions || nested.separateRegions, Some(nested))
-          case StreamMerge(l, r, _) =>
-            val ll = m.lookup(l)
-            val rr = m.lookup(r)
-            ll.nestedUnion(rr)
           case If(_, l, r) =>
             val ll = m.lookup(l)
             val rr = m.lookup(r)

@@ -1022,12 +1022,6 @@ object IRParser {
           a <- ir_value_expr(env)(it)
           num <- ir_value_expr(env)(it)
         } yield StreamDrop(a, num)
-      case "StreamMerge" =>
-        val key = identifiers(it)
-        for {
-          left <- ir_value_expr(env)(it)
-          right <- ir_value_expr(env)(it)
-        } yield StreamMerge(left, right, key)
       case "StreamZip" =>
         val behavior = identifier(it) match {
           case "AssertSameLength" => ArrayZipBehavior.AssertSameLength

@@ -975,13 +975,6 @@ object PruneDeadFields {
         val reqStructT = coerce[TStruct](coerce[TStream](coerce[TStream](requestedType).elementType).elementType)
         val origStructT = coerce[TStruct](coerce[TStream](a.typ).elementType)
         memoizeValueIR(a, TStream(unify(origStructT, reqStructT, selectKey(origStructT, key))), memo)
-      case StreamMerge(l, r, key) =>
-        val reqStructT = coerce[TStruct](coerce[TStream](requestedType).elementType)
-        val origStructT = coerce[TStruct](coerce[TStream](l.typ).elementType)
-        val childReqT = TStream(unify(origStructT, reqStructT, selectKey(origStructT, key)))
-        unifyEnvs(
-          memoizeValueIR(l, childReqT, memo),
-          memoizeValueIR(r, childReqT, memo))
       case StreamZip(as, names, body, behavior) =>
         val bodyEnv = memoizeValueIR(body,
           requestedType.asInstanceOf[TStream].elementType,
@@ -1754,16 +1747,6 @@ object PruneDeadFields {
       case StreamMap(a, name, body) =>
         val a2 = rebuildIR(a, env, memo)
         StreamMap(a2, name, rebuildIR(body, env.bindEval(name, a2.typ.asInstanceOf[TStream].elementType), memo))
-      case StreamMerge(l, r, key) =>
-        val l2 = rebuildIR(l, env, memo)
-        val r2 = rebuildIR(r, env, memo)
-        if (l2.typ == r2.typ)
-          StreamMerge(l2, r2, key)
-        else
-          StreamMerge(
-            upcast(l2, memo.requestedType.lookup(l).asInstanceOf[Type]),
-            upcast(r2, memo.requestedType.lookup(r).asInstanceOf[Type]),
-            key)
       case StreamZip(as, names, body, b) =>
         val (newAs, newNames) = as.zip(names)
           .flatMap { case (a, name) => if (memo.requestedType.contains(a)) Some((rebuildIR(a, env, memo), name)) else None }

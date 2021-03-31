@@ -269,11 +269,6 @@ object TypeCheck {
       case x@StreamMap(a, name, body) =>
         assert(a.typ.isInstanceOf[TStream])
         assert(x.elementTyp == body.typ)
-      case x@StreamMerge(l, r, key) =>
-        assert(l.typ == r.typ)
-        assert(x.typ == l.typ)
-        val structType = coerce[TStruct](coerce[TStream](l.typ).elementType)
-        assert(key.forall(structType.hasField))
       case x@StreamZip(as, names, body, _) =>
         assert(as.length == names.length)
         assert(x.typ.elementType == body.typ)

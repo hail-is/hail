@@ -1626,39 +1626,6 @@ object EmitStream {
             interfaces.SStreamCode(pc.st.asInstanceOf[SStream], unsized(newStream))
           }
 
-        case x@StreamMerge(leftIR, rightIR, key) =>
-          val lElemType = coerce[PStruct](coerce[PStream](leftIR.pType).elementType)
-          val rElemType = coerce[PStruct](coerce[PStream](rightIR.pType).elementType)
-          val outElemType = coerce[PStream](x.pType).elementType
-
-
-          def compare(lelt: EmitValue, relt: EmitValue): Code[Int] = EmitCodeBuilder.scopedCode(mb) { cb =>
-            assert(lelt.pt == lElemType)
-            assert(relt.pt == rElemType)
-            val lhs = lelt.map(_.asBaseStruct.subset(key: _*).asPCode)
-            val rhs = relt.map(_.asBaseStruct.subset(key: _*).asPCode)
-
-            StructOrdering.make(lhs.st.asInstanceOf[SBaseStruct], rhs.st.asInstanceOf[SBaseStruct],
-              cb.emb.ecb, missingFieldsEqual = false)
-              .compare(cb, lhs, rhs, missingEqual = true)
-          }
-
-          emitStream(leftIR).flatMap(cb) { leftPC =>
-            emitStream(rightIR).map(cb) { rightPC =>
-              val SizedStream(leftSetup, leftStream, leftLen) = leftPC.asStream.stream
-              val SizedStream(rightSetup, rightStream, rightLen) = rightPC.asStream.stream
-              val newStream = sized(
-                Code(leftSetup, rightSetup),
-                eltRegion => merge(mb,
-                  lElemType, leftStream,
-                  rElemType, rightStream,
-                  outElemType, eltRegion, compare),
-                for (l <- leftLen; r <- rightLen) yield l + r)
-
-              interfaces.SStreamCode(coerce[PCanonicalStream](x.pType).sType, newStream)
-            }
-          }
-
         case x@StreamZip(as, names, bodyIR, behavior) =>
           // FIXME: should make StreamZip support unrealizable element types
           val eltTypes = {

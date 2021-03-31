@@ -159,7 +159,6 @@ object Pretty {
     case StreamRange(_, _, _, separateRegions) => single(prettyBooleanLiteral(separateRegions))
     case ToStream(_, separateRegions) => single(prettyBooleanLiteral(separateRegions))
     case StreamMap(_, name, _) => single(prettyIdentifier(name))
-    case StreamMerge(_, _, key) => single(prettyIdentifiers(key))
     case StreamZip(_, names, _, behavior) => FastSeq(behavior match {
       case ArrayZipBehavior.AssertSameLength => "AssertSameLength"
       case ArrayZipBehavior.TakeMinLength => "TakeMinLength"

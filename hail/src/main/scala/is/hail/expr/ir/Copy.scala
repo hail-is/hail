@@ -162,9 +162,6 @@ object Copy {
       case StreamMap(_, name, _) =>
         assert(newChildren.length == 2)
         StreamMap(newChildren(0).asInstanceOf[IR], name, newChildren(1).asInstanceOf[IR])
-      case StreamMerge(_, _, key) =>
-        assert(newChildren.length == 2)
-        StreamMerge(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR], key)
       case StreamZip(_, names, _, behavior) =>
         assert(newChildren.length == names.length + 1)
         StreamZip(newChildren.init.asInstanceOf[IndexedSeq[IR]], names, newChildren(names.length).asInstanceOf[IR], behavior)
