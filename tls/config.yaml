@@ -43,10 +43,6 @@ principals:
     - website
     - www
   kind: json
-- name: scorecard
-  domains:
-    - scorecard
-  kind: json
 - name: blog
   domains:
     - blog

@@ -15,7 +15,6 @@ steps:
     - hail-ci-0-1-github-oauth-token
     - test-gsa-key
     - auth-oauth2-client-secret
-    - scorecard-github-access-token
     - zulip-config
     - benchmark-gsa-key
     - billing-monitor-gsa-key
@@ -471,13 +470,6 @@ steps:
    publishAs: hail-run-tests
    dependsOn:
      - hail_run_image
- - kind: buildImage
-   name: scorecard_image
-   dockerFile: scorecard/Dockerfile
-   contextPath: .
-   publishAs: scorecard
-   dependsOn:
-     - service_base_image
  - kind: buildImage
    name: benchmark_image
    dockerFile: benchmark-service/Dockerfile
@@ -1702,18 +1694,6 @@ steps:
       to: /docs.tar.gz
    dependsOn:
     - hail_run_image
- - kind: deploy
-   name: deploy_scorecard
-   namespace:
-     valueFrom: default_ns.name
-   config: scorecard/deployment.yaml
-   scopes:
-    - deploy
-    - dev
-   dependsOn:
-    - default_ns
-    - scorecard_image
-    - create_certs
  - kind: deploy
    name: deploy_grafana
    namespace:

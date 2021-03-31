@@ -104,7 +104,6 @@ Services (see below for descriptions):
 * $HAIL/internal-gateway
 * $HAIL/notebook: notebook and workshop services
 * $HAIL/query
-* $HAIL/scorecard
 * $HAIL/site
 
 Libraries for services:
@@ -197,7 +196,7 @@ templating.
 
 Some services rely on 3rd party services.  Those include:
 
-* ci and scorecard depend on GitHub
+* ci depends on GitHub
 
 * batch, ci and notebook depend on K8s
 
@@ -236,7 +235,8 @@ There is a collection of libraries to facilitate service development:
 * batch and batch-driver: the Hail Batch service
 
 * ci: We've implemented our own continuous integration and continuous
-  deployed (CI/CD) system.
+  deployed (CI/CD) system. It also hosts a developer status board
+  at https://ci.hail.is/me.
 
 * gateway: gateway is an nginx reverse proxy that terminates TLS
   connections and forwards requests to services in K8s.  It is
@@ -256,9 +256,6 @@ There is a collection of libraries to facilitate service development:
   service is not currently used.
 
 * query: The query service implements the Hail Query service.
-
-* scorecard: scorecard implements the developer status board found at
-  https://scorecard.hail.is/.
 
 * site: site implements the main Hail website https://hail.is/
   including the landing page and Hail Query and Hail Batch
