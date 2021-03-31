@@ -685,6 +685,46 @@ steps:
        to: /cluster-tests.tar.gz
    dependsOn:
     - hail_build_image
+ - kind: runImage
+   name: build_hail_spark2.4.5
+   image:
+     valueFrom: hail_build_image.image
+   resources:
+     memory: "7.5G"
+     cpu: "4"
+   script: |
+     set -ex
+     cd /
+     rm -rf repo
+     mkdir repo
+     cd repo
+     {{ code.checkout_script }}
+     cd hail
+     time retry ./gradlew --version
+     export SPARK_VERSION="2.4.5" SCALA_VERSION="2.11.12"
+     time retry make jars python-version-info wheel
+   dependsOn:
+     - hail_build_image
+ - kind: runImage
+   name: build_hail_spark3.0.1
+   image:
+     valueFrom: hail_build_image.image
+   resources:
+     memory: "7.5G"
+     cpu: "4"
+   script: |
+     set -ex
+     cd /
+     rm -rf repo
+     mkdir repo
+     cd repo
+     {{ code.checkout_script }}
+     cd hail
+     time retry ./gradlew --version
+     export SPARK_VERSION="3.0.1" SCALA_VERSION="2.12.12"
+     time retry make jars python-version-info wheel
+   dependsOn:
+     - hail_build_image
  - kind: buildImage
    name: batch_worker_image
    dockerFile: batch/Dockerfile.worker
