@@ -1750,8 +1750,8 @@ class Emit[C](
 
             if (producer.separateRegions) {
               cb.assign(xAcc, xAcc.map(pc => pc.castTo(cb, region, pc.pt, deepCopy = true)))
-              cb += producer.elementRegion.freeRegion()
-              cb += tmpRegion.freeRegion()
+              cb += producer.elementRegion.invalidate()
+              cb += tmpRegion.invalidate()
             }
             xAcc.toI(cb)
           }
@@ -1813,8 +1813,8 @@ class Emit[C](
               tmpAccVars.foreach { xAcc =>
                 cb.assign(xAcc, xAcc.map(pc => pc.castTo(cb, region, pc.pt, deepCopy = true)))
               }
-              cb += producer.elementRegion.freeRegion()
-              cb += tmpRegion.freeRegion()
+              cb += producer.elementRegion.invalidate()
+              cb += tmpRegion.invalidate()
             }
             emitI(res, env = resEnv)
           }

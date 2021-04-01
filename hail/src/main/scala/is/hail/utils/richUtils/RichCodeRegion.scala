@@ -11,10 +11,6 @@ class RichCodeRegion(val region: Code[Region]) extends AnyVal {
     region.invoke[Unit]("clear")
   }
 
-  def freeRegion(): Code[Unit] = {
-    region.invoke[Unit]("free")
-  }
-
   def addReferenceTo(other: Code[Region]): Code[Unit] =
     region.invoke[Region, Unit]("addReferenceTo", other)
 

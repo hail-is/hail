@@ -253,7 +253,7 @@ object CompileIterator {
       stepF.implementLabel(producer.LendOfStream) { cb =>
         producer.close(cb)
         if (producer.separateRegions)
-          cb += producer.elementRegion.freeRegion()
+          cb += producer.elementRegion.invalidate()
         cb.assign(eosField, true)
         cb.assign(ret, false)
         cb.goto(Lreturn)

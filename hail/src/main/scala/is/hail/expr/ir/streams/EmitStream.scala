@@ -121,7 +121,7 @@ abstract class StreamProducer {
     this.close(cb)
 
     if (separateRegions)
-      cb += elementRegion.freeRegion()
+      cb += elementRegion.invalidate()
   }
 }
 
@@ -486,7 +486,7 @@ object EmitStream {
               def close(cb: EmitCodeBuilder): Unit = {
                 childProducer.close(cb)
                 if (separateRegions)
-                  cb += childProducer.elementRegion.freeRegion()
+                  cb += childProducer.elementRegion.invalidate()
               }
             }
             mb.implementLabel(childProducer.LendOfStream) { cb =>
@@ -708,7 +708,7 @@ object EmitStream {
             override def close(cb: EmitCodeBuilder): Unit = {
               childProducer.close(cb)
               if (separateRegions)
-                cb += accRegion.freeRegion()
+                cb += accRegion.invalidate()
             }
           }
 
@@ -854,7 +854,7 @@ object EmitStream {
               outerProducer.close(cb)
 
               if (outerProducer.separateRegions)
-                cb += outerProducer.elementRegion.freeRegion()
+                cb += outerProducer.elementRegion.invalidate()
             }
           }
 
@@ -974,7 +974,7 @@ object EmitStream {
                     leftProducer.close(cb)
                     rightProducer.close(cb)
                     if (rightProducer.separateRegions)
-                      cb += rightProducer.elementRegion.freeRegion()
+                      cb += rightProducer.elementRegion.invalidate()
                   }
                 }
 
@@ -1180,7 +1180,7 @@ object EmitStream {
                     leftProducer.close(cb)
                     rightProducer.close(cb)
                     if (rightProducer.separateRegions)
-                      cb += rightProducer.elementRegion.freeRegion()
+                      cb += rightProducer.elementRegion.invalidate()
                   }
                 }
 
@@ -1348,8 +1348,8 @@ object EmitStream {
             override def close(cb: EmitCodeBuilder): Unit = {
               childProducer.close(cb)
               if (childProducer.separateRegions) {
-                cb += keyRegion.freeRegion()
-                cb += childProducer.elementRegion.freeRegion()
+                cb += keyRegion.invalidate()
+                cb += childProducer.elementRegion.invalidate()
               }
             }
           }
@@ -1461,7 +1461,7 @@ object EmitStream {
               override def close(cb: EmitCodeBuilder): Unit = {
                 childProducer.close(cb)
                 if (childProducer.separateRegions)
-                  cb += childProducer.elementRegion.freeRegion()
+                  cb += childProducer.elementRegion.invalidate()
               }
             }
 
@@ -1851,7 +1851,7 @@ object EmitStream {
             override def close(cb: EmitCodeBuilder): Unit = {
               producers.foreach { p =>
                 if (p.separateRegions)
-                  cb += p.elementRegion.freeRegion()
+                  cb += p.elementRegion.invalidate()
                 p.close(cb)
               }
               cb.assign(bracket, Code._null)
@@ -2051,7 +2051,7 @@ object EmitStream {
             override def close(cb: EmitCodeBuilder): Unit = {
               producers.foreach { p =>
                 if (p.separateRegions)
-                  cb += p.elementRegion.freeRegion()
+                  cb += p.elementRegion.invalidate()
                 p.close(cb)
               }
               cb.assign(bracket, Code._null)
