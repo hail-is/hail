@@ -2,7 +2,7 @@ package is.hail.expr.ir
 
 import is.hail.ExecStrategy.ExecStrategy
 import is.hail.TestUtils._
-import is.hail.annotations.{BroadcastRow, Region}
+import is.hail.annotations.{BroadcastRow, Region, SafeNDArray}
 import is.hail.asm4s.{Code, Value}
 import is.hail.expr.ir.ArrayZipBehavior.ArrayZipBehavior
 import is.hail.expr.ir.IRBuilder._
@@ -3529,7 +3529,7 @@ class IRSuite extends HailSuite {
       assert(IRSuite.globalCounter == expectedEvaluations)
 
       IRSuite.globalCounter = 0
-      eval(x, env, args, None)
+      eval(x, env, args, None, None, true, ctx)
       assert(IRSuite.globalCounter == expectedEvaluations)
     }
 
@@ -3778,6 +3778,36 @@ class IRSuite extends HailSuite {
           TInt32)))
 
     assertEvalsTo(triangleSum, FastIndexedSeq(5 -> TInt32), 15 + 10 + 5)
+  }
+
+  @Test def testTailLoopNDMemory(): Unit = {
+    implicit val execStrats = ExecStrategy.compileOnly
+
+    val ndType = TNDArray(TInt32, Nat(2))
+
+    val ndSum: IR = TailLoop("f",
+      FastIndexedSeq("x" -> In(0, TInt32), "accum" -> In(1, ndType)),
+      If(Ref("x", TInt32) <= I32(0),
+        Ref("accum", ndType),
+        Recur("f",
+          FastIndexedSeq(
+            Ref("x", TInt32) - I32(1),
+            NDArrayMap(Ref("accum", ndType), "ndElement", Ref("ndElement", ndType.elementType) + Ref("x", TInt32))),
+          ndType)))
+
+    val startingArg = SafeNDArray(IndexedSeq[Long](4L, 4L), (0 until 16).toFastIndexedSeq)
+
+    var memUsed = 0L
+
+    ExecuteContext.scoped() { ctx =>
+      println(eval(ndSum, Env.empty, FastIndexedSeq(2 -> TInt32, startingArg -> ndType), None, None, true, ctx))
+      memUsed = ctx.r.pool.getTotalAllocatedBytes
+    }
+
+    ExecuteContext.scoped() { ctx =>
+      println(eval(ndSum, Env.empty, FastIndexedSeq(20 -> TInt32, startingArg -> ndType), None, None, true, ctx))
+      assert(memUsed == ctx.r.pool.getTotalAllocatedBytes)
+    }
   }
 
   @Test def testHasIRSharing(): Unit = {
