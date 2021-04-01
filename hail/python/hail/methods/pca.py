@@ -318,7 +318,7 @@ def _blanczos_pca(entry_expr, k=10, compute_loadings=False, q_iterations=2, over
     def hailBlanczos(A, G, k, q):
 
         h_list = []
-        G_i = G
+        G_i = hl.nd.qr(G)[0]
 
         for j in range(0, q):
             info(f"blanczos_pca: Beginning iteration {j + 1}/{q+1}")
@@ -328,7 +328,7 @@ def _blanczos_pca(entry_expr, k=10, compute_loadings=False, q_iterations=2, over
                                               G_i=hl.agg.ndarray_sum(temp.G_i_intermediate)), _localize=False)._persist()
             localized_H_i = hl.nd.vstack(result.Hi_chunks)
             h_list.append(localized_H_i)
-            G_i = result.G_i
+            G_i = hl.nd.qr(result.G_i)[0]
 
         info(f"blanczos_pca: Beginning iteration {q+ 1}/{q+1}")
         temp = A.annotate(H_i=A.ndarray @ G_i)
