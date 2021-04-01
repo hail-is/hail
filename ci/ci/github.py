@@ -548,7 +548,7 @@ mkdir -p {shq(repo_dir)}
             )
             return True
         except (gidgethub.HTTPException, aiohttp.client_exceptions.ClientResponseError):
-            log.exception(f'merge {self.target_branch.branch.short_str()} {self.number} failed')
+            log.info(f'merge {self.target_branch.branch.short_str()} {self.number} failed', exc_info=True)
         return False
 
     def checkout_script(self):
