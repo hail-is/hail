@@ -752,11 +752,11 @@ steps:
  - kind: buildImage
    name: query_image
    dockerFile: query/Dockerfile
-   contextPath: .
+   contextPath: query/
    publishAs: query
    inputs:
      - from: /just-jar/hail.jar
-       to: /query/hail.jar
+       to: /hail.jar
    dependsOn:
      - service_java_run_base_image
      - build_hail_jar_only
