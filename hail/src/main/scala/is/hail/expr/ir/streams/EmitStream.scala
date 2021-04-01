@@ -160,7 +160,7 @@ object EmitStream {
         val producer = new StreamProducer {
           override def initialize(cb: EmitCodeBuilder): Unit = {}
 
-          override val length: Option[Code[Int]] = None
+          override val length: Option[Code[Int]] = Some(Code._fatal[Int]("tried to get NA stream length"))
           override val elementRegion: Settable[Region] = region
           override val separateRegions: Boolean = false
           override val LproduceElement: CodeLabel = mb.defineHangingLabel { cb =>
@@ -833,18 +833,17 @@ object EmitStream {
                     _ =>
                       // the inner stream/producer is bound to a variable above
                       cb.assign(innerUnclosed, true)
+                      innerProducer.initialize(cb)
                       cb.goto(LnextInner)
                   }
                 )
-              }, {
-
-                cb.define(LnextInner)
-                cb.goto(innerProducer.LproduceElement)
-                cb.define(innerProducer.LproduceElementDone)
-                cb.goto(LproduceElementDone)
               })
-            }
 
+              cb.define(LnextInner)
+              cb.goto(innerProducer.LproduceElement)
+              cb.define(innerProducer.LproduceElementDone)
+              cb.goto(LproduceElementDone)
+            }
             val element: EmitCode = innerProducer.element
 
             def close(cb: EmitCodeBuilder): Unit = {
@@ -995,10 +994,10 @@ object EmitStream {
 
                 val pulledRight = mb.genFieldThisRef[Boolean]("join_right_distinct_pulledRight")
                 val rightEOS = mb.genFieldThisRef[Boolean]("join_right_distinct_rightEOS")
-                val leftMissing = mb.genFieldThisRef[Boolean]("join_right_distinct_leftMissing")
-                val rightMissing = mb.genFieldThisRef[Boolean]("join_right_distinct_rightMissing")
+                val lOutMissing = mb.genFieldThisRef[Boolean]("join_right_distinct_leftMissing")
+                val rOutMissing = mb.genFieldThisRef[Boolean]("join_right_distinct_rightMissing")
                 val leftEOS = mb.genFieldThisRef[Boolean]("join_right_distinct_leftEOS")
-                val compResult = mb.genFieldThisRef[Int]("join_right_distinct_compResult")
+                val c = mb.genFieldThisRef[Int]("join_right_distinct_compResult")
                 val _elementRegion = mb.genFieldThisRef[Region]("join_right_distinct_element_region")
 
                 val joinResult = EmitCode.fromI(mb)(cb => emit(joinIR, cb,
@@ -1012,15 +1011,16 @@ object EmitStream {
                     cb.assign(pulledRight, false)
                     cb.assign(leftEOS, false)
                     cb.assign(rightEOS, false)
-                    cb.assign(compResult, 0) // lets us start stream with a pull from both
+                    cb.assign(c, 0) // lets us start stream with a pull from both
 
-                    if (rightProducer.separateRegions) {
-                      cb.assign(leftProducer.elementRegion, Region.stagedCreate(Region.REGULAR, outerRegion.getPool()))
+                    if (rightProducer.separateRegions)
                       cb.assign(rightProducer.elementRegion, Region.stagedCreate(Region.REGULAR, outerRegion.getPool()))
-                    } else {
-                      cb.assign(leftProducer.elementRegion, outerRegion)
+                    else
                       cb.assign(rightProducer.elementRegion, outerRegion)
-                    }
+                    if (leftProducer.separateRegions)
+                      cb.assign(leftProducer.elementRegion, Region.stagedCreate(Region.REGULAR, outerRegion.getPool()))
+                    else
+                      cb.assign(leftProducer.elementRegion, outerRegion)
 
                     leftProducer.initialize(cb)
                     rightProducer.initialize(cb)
@@ -1030,84 +1030,149 @@ object EmitStream {
                   override val separateRegions: Boolean = leftProducer.separateRegions || rightProducer.separateRegions
                   override val LproduceElement: CodeLabel = mb.defineHangingLabel { cb =>
 
-                    val Lcompare = CodeLabel()
-                    val LclearingLeftProduceElement = CodeLabel()
-                    val LclearingRightProduceElement = CodeLabel()
+                    val LpullRight = CodeLabel()
+                    val LpullLeft = CodeLabel()
+                    val Lpush = CodeLabel()
 
-                    val Lstart = CodeLabel()
-                    val Ldone = CodeLabel()
-                    cb.define(Lstart)
+                    cb.ifx(leftEOS,
+                      cb.goto(LpullRight),
+                      cb.ifx(rightEOS,
+                        cb.goto(LpullLeft),
+                        cb.ifx(c <= 0,
+                          cb.goto(LpullLeft),
+                          cb.goto(LpullRight))))
 
-                    cb.ifx(rightEOS, cb.goto(LclearingLeftProduceElement))
-                    cb.ifx(leftEOS, cb.goto(LclearingRightProduceElement))
-                    cb.ifx(compResult <= 0,
-                      cb.goto(LclearingLeftProduceElement),
-                      cb.goto(LclearingRightProduceElement))
-
-                    cb.define(rightProducer.LproduceElementDone)
-                    cb.assign(rx, rightProducer.element)
-                    cb.assign(pulledRight, true)
-                    cb.goto(Lcompare)
-
-                    cb.define(leftProducer.LproduceElementDone)
-                    cb.assign(lx, leftProducer.element)
-                    cb.ifx((compResult <= 0) && !pulledRight,
-                      cb.goto(LclearingRightProduceElement))
-                    cb.goto(Lcompare)
-
-                    cb.define(Lcompare)
-                    cb.ifx(rightEOS || leftEOS, cb.goto(Ldone))
-                    cb.assign(compResult, compare(cb, lx, rx))
-                    cb.ifx(compResult < 0, {
-                      cb.assign(leftMissing, false)
-                      cb.assign(rightMissing, true)
-                    }, {
-                      cb.ifx(compResult > 0, {
-                        cb.assign(leftMissing, true)
-                        cb.assign(rightMissing, false)
-                      }, {
-                        // compResult == 0
-                        cb.assign(leftMissing, false)
-                        cb.assign(rightMissing, false)
-                      })
-                    })
-
-                    cb.define(Ldone)
-                    cb.ifx(leftMissing,
-                      cb.assign(lxOut, EmitCode.missing(mb, lxOut.pt)),
-                      cb.assign(lxOut, lx)
-                    )
-                    cb.ifx(rightMissing,
-                      cb.assign(lxOut, EmitCode.missing(mb, lxOut.pt)),
-                      cb.assign(lxOut, lx)
-                    )
-
-                    cb.goto(LproduceElementDone)
-
-
-                    // EOS labels
-                    cb.define(rightProducer.LendOfStream)
-                    cb.ifx(leftEOS, cb.goto(LendOfStream))
-                    cb.assign(rightEOS, true)
-                    cb.assign(rightMissing, true)
-                    cb.goto(Lstart)
-
-                    cb.define(leftProducer.LendOfStream)
-                    cb.ifx(rightEOS, cb.goto(LendOfStream))
-                    cb.assign(leftEOS, true)
-                    cb.assign(leftMissing, true)
-                    cb.goto(Lstart)
-
-                    // clear regions before producing next elements
-                    cb.define(LclearingLeftProduceElement)
-                    if (leftProducer.separateRegions)
-                      cb += leftProducer.elementRegion.clearRegion()
-                    cb.goto(leftProducer.LproduceElement)
-
-                    cb.define(LclearingRightProduceElement)
+                    cb.define(LpullRight)
                     if (rightProducer.separateRegions)
                       cb += rightProducer.elementRegion.clearRegion()
                     cb.goto(rightProducer.LproduceElement)
+
+                    cb.define(LpullLeft)
+                    cb.goto(leftProducer.LproduceElement)
+
+                    val Lcompare = CodeLabel()
+                    mb.implementLabel(Lcompare) { cb =>
+                      cb.assign(c, compare(cb, lx, rx))
+                      cb.assign(lOutMissing, false)
+                      cb.assign(rOutMissing, false)
+                      cb.ifx(c > 0,
+                        {
+                          cb.ifx(pulledRight, {
+                            cb.assign(lOutMissing, true)
+                            if (rightProducer.separateRegions) {
+                              cb += rightProducer.elementRegion.addReferenceTo(elementRegion)
+                              cb += rightProducer.elementRegion.clearRegion()
+                            }
+                            cb.goto(Lpush)
+                          },
+                            {
+                              cb.assign(pulledRight, true)
+                              cb.goto(LpullRight)
+                            })
+                        },
+                        {
+                          cb.ifx(c < 0,
+                            {
+                              cb.assign(rOutMissing, true)
+                              if (leftProducer.separateRegions) {
+                                cb += leftProducer.elementRegion.addReferenceTo(elementRegion)
+                                cb += leftProducer.elementRegion.clearRegion()
+                              }
+                              cb.goto(Lpush)
+                            },
+                            {
+                              // c == 0
+                              if (leftProducer.separateRegions) {
+                                cb += leftProducer.elementRegion.addReferenceTo(elementRegion)
+                                cb += leftProducer.elementRegion.clearRegion()
+                              }
+                              if (rightProducer.separateRegions) {
+                                cb += rightProducer.elementRegion.addReferenceTo(elementRegion)
+                                cb += rightProducer.elementRegion.clearRegion()
+                              }
+                              cb.goto(Lpush)
+                            })
+                        })
+                    }
+
+                    mb.implementLabel(Lpush) { cb =>
+                      cb.ifx(lOutMissing,
+                        cb.assign(lxOut, EmitCode.missing(mb, lxOut.pt)),
+                        cb.assign(lxOut, lx)
+                      )
+                      cb.ifx(rOutMissing,
+                        cb.assign(rxOut, EmitCode.missing(mb, rxOut.pt)),
+                        cb.assign(rxOut, rx))
+                      cb.goto(LproduceElementDone)
+                    }
+
+
+                    mb.implementLabel(rightProducer.LproduceElementDone) { cb =>
+                      cb.assign(rx, rightProducer.element)
+                      cb.ifx(leftEOS, cb.goto(Lpush), cb.goto(Lcompare))
+                    }
+
+                    mb.implementLabel(leftProducer.LproduceElementDone) { cb =>
+                      cb.assign(lx, leftProducer.element)
+                      cb.ifx(pulledRight,
+                        cb.ifx(rightEOS,
+                          {
+                            if (leftProducer.separateRegions) {
+                              cb += leftProducer.elementRegion.addReferenceTo(elementRegion)
+                              cb += leftProducer.elementRegion.clearRegion()
+                            }
+                            cb.goto(Lpush)
+                          },
+                          {
+                            cb.ifx(c.ceq(0),
+                              cb.assign(pulledRight, false))
+                            cb.goto(Lcompare)
+                          }
+                        ),
+                        {
+                          cb.assign(pulledRight, true)
+                          cb.goto(LpullRight)
+                        })
+                    }
+
+                    mb.implementLabel(leftProducer.LendOfStream) { cb =>
+                      cb.ifx(rightEOS,
+                        cb.goto(LendOfStream),
+                        {
+                          cb.assign(leftEOS, true)
+                          cb.assign(lOutMissing, true)
+                          cb.assign(rOutMissing, false)
+                          cb.ifx(pulledRight && c.cne(0),
+                            {
+                              if (rightProducer.separateRegions) {
+                                cb += rightProducer.elementRegion.addReferenceTo(elementRegion)
+                                cb += rightProducer.elementRegion.clearRegion()
+                              }
+                              cb.goto(Lpush)
+                            },
+                            {
+                              cb.assign(pulledRight, true)
+
+                              if (rightProducer.separateRegions) {
+                                cb += rightProducer.elementRegion.clearRegion()
+                              }
+                              cb.goto(LpullRight)
+                            })
+                        })
+                    }
+
+                    mb.implementLabel(rightProducer.LendOfStream) { cb =>
+                      cb.ifx(leftEOS, cb.goto(LendOfStream))
+                      cb.assign(rightEOS, true)
+                      cb.assign(lOutMissing, false)
+                      cb.assign(rOutMissing, true)
+
+                      if (leftProducer.separateRegions) {
+                        cb += leftProducer.elementRegion.addReferenceTo(elementRegion)
+                        cb += leftProducer.elementRegion.clearRegion()
+                      }
+                      cb.goto(Lpush)
+                    }
                   }
                   override val element: EmitCode = joinResult
 
