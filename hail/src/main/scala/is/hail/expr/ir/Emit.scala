@@ -511,8 +511,8 @@ class Emit[C](
     def emit(ir: IR, mb: EmitMethodBuilder[C] = mb, region: StagedRegion = region, env: E = env, container: Option[AggContainer] = container, loopEnv: Option[Env[LoopRef]] = loopEnv): EmitCode =
       this.emit(ir, mb, region, env, container, loopEnv)
 
-    def emitStream(ir: IR, outerRegion: ParentStagedRegion, mb: EmitMethodBuilder[C] = mb): EmitCode =
-      EmitStream.emit(this, ir, mb, outerRegion, env, container)
+    def emitStream(ir: IR, outerRegion: Value[Region], mb: EmitMethodBuilder[C] = mb): EmitCode =
+      EmitCode.fromI(mb)(cb => EmitStream2.produce(this, ir, cb, outerRegion, env, container))
 
     def emitVoid(ir: IR, cb: EmitCodeBuilder = cb, region: StagedRegion = region, env: E = env, container: Option[AggContainer] = container, loopEnv: Option[Env[LoopRef]] = loopEnv): Unit =
       this.emitVoid(cb, ir, region, env, container, loopEnv)
@@ -543,27 +543,15 @@ class Emit[C](
 
         val separateRegions = ctx.smm.lookup(a).separateRegions
         assert(separateRegions == streamType.separateRegions)
-        val outerRegion = region.asParent(separateRegions, "StreamFor")
-        val eltRegion = outerRegion.createChildRegion(mb)
-        val streamOpt = emitStream(a, outerRegion)
-
-        def forBody(elt: EmitCode): Code[Unit] = {
-          val xElt = mb.newEmitField(valueName, eltType)
-          val bodyEnv = env.bind(valueName -> xElt)
-          EmitCodeBuilder.scopedVoid(mb) { cb =>
-            cb.assign(xElt, elt)
-            emitVoid(body, cb, env = bodyEnv)
-            cb += eltRegion.clear()
+        emitStream(a, region.code).toI(cb).consume(cb,
+        {},
+        { case stream: SStreamCode2 =>
+          val producer = stream.producer
+          producer.memoryManagedConsume(region.code, cb) { cb =>
+            val eltMemo = cb.memoize(producer.element, s"streamfor_$valueName")
+            emitVoid(body, region = StagedRegion(producer.elementRegion), env = env.bind(valueName -> eltMemo))
           }
-        }
-
-        streamOpt.toI(cb).consume(cb,
-          {},
-          { s =>
-            cb += eltRegion.allocateRegion(Region.REGULAR, cb.emb.ecb.pool())
-            cb += s.asStream.stream.getStream(eltRegion).forEach(mb, forBody)
-            cb += eltRegion.free()
-          })
+        })
 
       case x@InitOp(i, args, sig) =>
         val AggContainer(aggs, sc, _) = container.get
@@ -1751,7 +1739,7 @@ class Emit[C](
                 .map(cb)(pc => pc.castTo(cb, producer.elementRegion, x.accPType)))
             }
 
-            producer.consume2(cb) { cb =>
+            producer.unmanagedConsume(cb) { cb =>
               cb.assign(xElt, producer.element)
 
               if (producer.separateRegions) {
@@ -1807,7 +1795,7 @@ class Emit[C](
               }
             }
 
-            producer.consume2(cb) { cb =>
+            producer.unmanagedConsume(cb) { cb =>
               cb.assign(xElt, producer.element)
               if (producer.separateRegions) {
                 (tmpAccVars, seq).zipped.foreach { (accVar, ir) =>

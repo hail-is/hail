@@ -87,7 +87,7 @@ abstract class StreamProducer {
     */
   def close(cb: EmitCodeBuilder): Unit
 
-  final def consume2(cb: EmitCodeBuilder, setup: EmitCodeBuilder => Unit = _ => ())(perElement: EmitCodeBuilder => Unit): Unit = {
+  final def unmanagedConsume(cb: EmitCodeBuilder, setup: EmitCodeBuilder => Unit = _ => ())(perElement: EmitCodeBuilder => Unit): Unit = {
 
     this.initialize(cb)
     setup(cb)
