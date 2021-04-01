@@ -557,7 +557,11 @@ class JVMProcess:
         self.proc = None
         self.timing = {'running': dict()}
         self.state = 'pending'
-        self.log = ''
+        self.log = bytearray()
+
+    async def pipe_to_log(self, strm: asyncio.StreamReader):
+        while not strm.at_eof():
+            self.log.extend(await strm.readline())
 
     async def run(self, worker):
         log.info(f'running {self}')
@@ -569,18 +573,15 @@ class JVMProcess:
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
             env=self.env)
-        out, err = await self.proc.communicate()
+
+        await asyncio.gather(self.pipe_to_log(self.proc.stdout),
+                             self.pipe_to_log(self.proc.stderr))
+        await self.proc.wait()
 
         finish_time = time_msecs()
         self.timing['running']['finish_time'] = finish_time
         start_time = self.timing['running']['start_time']
         self.timing['running']['duration'] = finish_time - start_time
-
-        self.log += 'STDOUT:\n'
-        self.log += out.decode()
-        self.log += '\n\n'
-        self.log += 'STDERR:\n'
-        self.log += err.decode()
 
         log.info(f'finished {self} with return code {self.proc.returncode}')
         log.info(f'log {self}: {self.log}')
@@ -599,11 +600,12 @@ class JVMProcess:
         return {
             'name': 'main',
             'state': self.state if not state else state,
-            'timing': self.timing
+            'timing': self.timing,
+            'exit_code': self.proc.returncode
         }
 
     async def get_log(self):
-        return self.log
+        return self.log.decode()
 
     async def delete(self):
         log.info(f'deleting {self}')
