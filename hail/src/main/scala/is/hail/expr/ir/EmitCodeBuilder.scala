@@ -3,8 +3,8 @@ package is.hail.expr.ir
 import is.hail.annotations.Region
 import is.hail.asm4s.{coerce => _, _}
 import is.hail.expr.ir.functions.StringFunctions
-import is.hail.expr.ir.streams.SStreamCode2
 import is.hail.lir
+import is.hail.types.physical.stypes.interfaces.SStreamCode
 import is.hail.types.physical.{PCode, PSettable, PType, PValue}
 import is.hail.utils.FastIndexedSeq
 
@@ -106,7 +106,7 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
 
   private[this] def defineNestedUnusedLabels(x: EmitCode): Unit = {
     x.pv match {
-      case SStreamCode2(_, producer) =>
+      case SStreamCode(_, producer) =>
         // check if producer labels are defined and define them
 
         (producer.LendOfStream.isImplemented, producer.LproduceElementDone.isImplemented) match {

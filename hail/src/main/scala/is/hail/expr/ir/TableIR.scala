@@ -8,7 +8,7 @@ import is.hail.backend.spark.SparkBackend
 import is.hail.expr.ir
 import is.hail.expr.ir.functions.{BlockMatrixToTableFunction, MatrixToTableFunction, TableToTableFunction}
 import is.hail.expr.ir.lowering.{LowererUnsupportedOperation, TableStage, TableStageDependency}
-import is.hail.expr.ir.streams.{SStreamCode2, StreamProducer}
+import is.hail.expr.ir.streams.{StreamArgType, StreamProducer}
 import is.hail.io._
 import is.hail.io.fs.FS
 import is.hail.io.index.{IndexReadIterator, IndexReader, IndexReaderBuilder, MaybeIndexedReadZippedIterator}
@@ -17,7 +17,7 @@ import is.hail.rvd._
 import is.hail.sparkextras.ContextRDD
 import is.hail.types._
 import is.hail.types.physical._
-import is.hail.types.physical.stypes.interfaces.SStream
+import is.hail.types.physical.stypes.interfaces.{SStream, SStreamCode}
 import is.hail.types.virtual._
 import is.hail.utils._
 import org.apache.spark.TaskContext
@@ -509,7 +509,7 @@ case class PartitionRVDReader(rvd: RVD) extends PartitionReader {
         override def close(cb: EmitCodeBuilder): Unit = {}
       }
 
-      SStreamCode2(SStream(producer.element.st, true, true), producer)
+      SStreamCode(SStream(producer.element.st, true), producer)
     }
   }
 
@@ -560,7 +560,7 @@ case class PartitionNativeReader(spec: AbstractTypedCodecSpec) extends AbstractN
 
         override def close(cb: EmitCodeBuilder): Unit = cb += xRowBuf.close()
       }
-      SStreamCode2(SStream(producer.element.st, true, true), producer)
+      SStreamCode(SStream(producer.element.st, true), producer)
     }
   }
 
@@ -658,7 +658,7 @@ case class PartitionNativeReaderIndexed(spec: AbstractTypedCodecSpec, indexSpec:
 
         override def close(cb: EmitCodeBuilder): Unit = cb += it.invoke[Unit]("close")
       }
-      SStreamCode2(SStream(producer.element.st, true, true), producer)
+      SStreamCode(SStream(producer.element.st, true), producer)
     }
   }
 
@@ -834,7 +834,7 @@ case class PartitionZippedNativeReader(specLeft: AbstractTypedCodecSpec, specRig
 
         override def close(cb: EmitCodeBuilder): Unit = cb += it.invoke[Unit]("close")
       }
-      SStreamCode2(SStream(producer.element.st, true, true), producer)
+      SStreamCode(SStream(producer.element.st, true), producer)
     }
   }
 
@@ -1837,7 +1837,7 @@ case class TableMapPartitions(child: TableIR,
     val rowPType = tv.rvd.rowPType
     val globalPType = tv.globals.t
 
-    val partitionPType = PCanonicalStream(rowPType, separateRegions = true, required = true)
+    val partitionPType = PCanonicalStream(rowPType, required = true)
     val (newRowPType: PStruct, makeIterator) = CompileIterator.forTableMapPartitions(
       ctx,
       globalPType, partitionPType,

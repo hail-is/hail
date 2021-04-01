@@ -2,15 +2,13 @@ package is.hail.types.physical
 
 import is.hail.annotations.Region
 import is.hail.asm4s._
-import is.hail.expr.ir.EmitStream.SizedStream
-import is.hail.expr.ir.Stream.unfold
 import is.hail.expr.ir._
-import is.hail.expr.ir.streams.{SStreamCode2, StreamProducer}
+import is.hail.expr.ir.streams.{StreamArgType, StreamProducer}
 import is.hail.types.physical.stypes._
 import is.hail.types.physical.stypes.concrete._
-import is.hail.types.physical.stypes.interfaces.{PVoidCode, SStream}
+import is.hail.types.physical.stypes.interfaces.{PVoidCode, SStream, SStreamCode}
 import is.hail.types.physical.stypes.primitives._
-import is.hail.types.virtual.{TBoolean, TFloat32, TFloat64, TInt32, TInt64, TStream, TVoid, Type}
+import is.hail.types.virtual._
 import is.hail.utils._
 
 trait PValue extends SValue { pValueSelf =>
@@ -153,7 +151,7 @@ case class StreamSingleCodeType(separateRegions: Boolean, eltType: PType) extend
 
       override def close(cb: EmitCodeBuilder): Unit = {}
     }
-    SStreamCode2(SStream(eltType.sType, true, separateRegions), producer)
+    SStreamCode(SStream(eltType.sType, true), producer)
   }
 
   def coercePCode(cb: EmitCodeBuilder, pc: PCode, region: Value[Region], deepCopy: Boolean): SingleCodePCode = throw new UnsupportedOperationException

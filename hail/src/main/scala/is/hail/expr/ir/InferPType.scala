@@ -143,7 +143,7 @@ object InferPType {
       case StreamRange(start: IR, stop: IR, step: IR, separateRegions) =>
         assert(start.pType isOfType stop.pType)
         assert(start.pType isOfType step.pType)
-        PCanonicalStream(start.pType.setRequired(true), separateRegions, required = requiredness(node).required)
+        PCanonicalStream(start.pType.setRequired(true), required = requiredness(node).required)
       case Let(_, _, body) => body.pType
       case TailLoop(_, _, body) => body.pType
       case a: AbstractApplyNode[_] => a.implementation.returnPType(a.returnType, a.args.map(_.pType))
@@ -166,7 +166,7 @@ object InferPType {
         PCanonicalArray(elt, requiredness(node).required)
       case ToStream(a, separateRegions) =>
         val elt = coerce[PIterable](a.pType).elementType
-        PCanonicalStream(elt, separateRegions, required = requiredness(node).required)
+        PCanonicalStream(elt, required = requiredness(node).required)
       case GroupByKey(collection) =>
         val r = coerce[RDict](requiredness(node))
         val elt = coerce[PBaseStruct](coerce[PStream](collection.pType).elementType)
@@ -179,38 +179,34 @@ object InferPType {
         val r = coerce[RIterable](requiredness(node))
         assert(size.pType isOfType PInt32())
         val innerPType = coerce[PStream](a.pType)
-        PCanonicalStream(innerPType.setRequired(r.elementType.required), innerPType.separateRegions, r.required)
+        PCanonicalStream(innerPType.setRequired(r.elementType.required), r.required)
       case StreamGroupByKey(a, key) =>
         val r = coerce[RIterable](requiredness(node))
         val innerPType = coerce[PStream](a.pType)
-        PCanonicalStream(innerPType.setRequired(r.elementType.required), innerPType.separateRegions, r.required)
+        PCanonicalStream(innerPType.setRequired(r.elementType.required), r.required)
       case StreamMap(a, name, body) =>
-        PCanonicalStream(body.pType, coerce[PStream](a.pType).separateRegions, requiredness(node).required)
+        PCanonicalStream(body.pType, requiredness(node).required)
       case StreamZip(as, names, body, behavior) =>
         PCanonicalStream(
           body.pType,
-          as.exists(a => coerce[PStream](a.pType).separateRegions),
           requiredness(node).required)
       case StreamZipJoin(as, _, curKey, curVals, joinF) =>
         val r = requiredness(node).asInstanceOf[RIterable]
         val rEltType = joinF.pType
         PCanonicalStream(
           rEltType,
-          as.exists(a => coerce[PStream](a.pType).separateRegions),
           r.required)
       case StreamMultiMerge(as, _) =>
         val r = coerce[RIterable](requiredness(node))
         assert(r.elementType.required)
         PCanonicalStream(
           getCompatiblePType(as.map(_.pType.asInstanceOf[PStream].elementType), r.elementType),
-          as.exists(a => coerce[PStream](a.pType).separateRegions),
           r.required)
       case StreamFilter(a, name, cond) => a.pType
       case StreamFlatMap(a, name, body) =>
         val innerStreamType = coerce[PStream](body.pType)
         PCanonicalStream(
           innerStreamType.elementType,
-          innerStreamType.separateRegions || coerce[PStream](a.pType).separateRegions,
           requiredness(node).required)
       case x: StreamFold =>
         x.accPType.setRequired(requiredness(node).required)
@@ -220,12 +216,10 @@ object InferPType {
         val r = coerce[RIterable](requiredness(node))
         PCanonicalStream(
           x.accPType.setRequired(r.elementType.required),
-          coerce[PStream](a.pType).separateRegions,
           r.required)
       case StreamJoinRightDistinct(left, right, _, _, _, _, join, _) =>
         PCanonicalStream(
           join.pType,
-          coerce[PStream](left.pType).separateRegions || coerce[PStream](right.pType).separateRegions,
           requiredness(node).required)
       case NDArrayShape(nd) =>
         val r = nd.pType.asInstanceOf[PCanonicalNDArray].shapeType
@@ -300,7 +294,7 @@ object InferPType {
         getCompatiblePType(values.map(_.pType), r).setRequired(r.required)
       case In(_, ept) => ept match {
         case SingleCodeEmitParamType(required, sct) => sct match {
-          case StreamSingleCodeType(sr, eltType) => PCanonicalStream(eltType, sr, required)
+          case StreamSingleCodeType(sr, eltType) => PCanonicalStream(eltType, required)
           case Int32SingleCodeType => PInt32(required)
           case Int64SingleCodeType => PInt64(required)
           case Float32SingleCodeType => PFloat32(required)
@@ -314,7 +308,7 @@ object InferPType {
         PCanonicalArray(x.decodedBodyPType, requiredness(node).required)
       case ReadPartition(context, rowType, reader) =>
         val child = reader.rowPType(rowType)
-        PCanonicalStream(child, separateRegions = true, required = requiredness(node).required)
+        PCanonicalStream(child, required = requiredness(node).required)
       case WritePartition(value, writeCtx, writer) =>
         writer.returnPType(writeCtx.pType, coerce[PStream](value.pType))
       case ReadValue(path, spec, requestedType) =>
@@ -322,14 +316,13 @@ object InferPType {
       case MakeStream(irs, t, separateRegions) =>
         val r = coerce[RIterable](requiredness(node))
         if (irs.isEmpty) r.canonicalPType(t) else
-          PCanonicalStream(getCompatiblePType(irs.map(_.pType), r.elementType), separateRegions, r.required)
+          PCanonicalStream(getCompatiblePType(irs.map(_.pType), r.elementType), r.required)
       case x@ResultOp(resultIdx, sigs) =>
         PCanonicalTuple(true, sigs.map(_.pResultType): _*)
       case x@RunAgg(body, result, signature) => result.pType
       case x@RunAggScan(array, name, init, seq, result, signature) =>
         PCanonicalStream(
           result.pType,
-          coerce[PStream](array.pType).separateRegions,
           array.pType.required)
       case ShuffleWith(keyFields, rowType, rowEType, keyEType, name, writer, readers) =>
         val r = requiredness(node)
@@ -344,14 +337,12 @@ object InferPType {
         assert(r.required)
         PCanonicalStream(
           coerce[TShuffle](id.typ).keyDecodedPType,
-          separateRegions = false,
           required = true)
       case ShuffleRead(id, keyRange) =>
         val r = requiredness(node)
         assert(r.required)
         PCanonicalStream(
           coerce[TShuffle](id.typ).rowDecodedPType,
-          separateRegions = true,
           required = true)
     }
     if (node.pType.virtualType != node.typ)

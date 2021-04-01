@@ -4,7 +4,6 @@ import java.io.OutputStream
 import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.expr.JSONAnnotationImpex
-import is.hail.expr.ir.EmitStream.SizedStream
 import is.hail.expr.ir.lowering.{LowererUnsupportedOperation, TableStage}
 import is.hail.expr.ir.streams.StreamProducer
 import is.hail.io._

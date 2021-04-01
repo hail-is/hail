@@ -3,7 +3,6 @@ package is.hail.types.physical.stypes
 import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.expr.ir.EmitCodeBuilder
-import is.hail.expr.ir.streams.SStreamCode2
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.physical.stypes.primitives._
 import is.hail.types.physical.{PCode, PIntervalCode, PNDArrayCode, PShuffleCode, PType, PValue}
@@ -89,7 +88,6 @@ abstract class SCode {
   def asCall: SCallCode = asInstanceOf[SCallCode]
 
   def asStream: SStreamCode = asInstanceOf[SStreamCode]
-  def asStream2: SStreamCode2 = asInstanceOf[SStreamCode2]
 
   def asShuffle: PShuffleCode = asInstanceOf[PShuffleCode]
 

@@ -1,25 +1,23 @@
 package is.hail.expr.ir
 
-import is.hail.utils._
-import is.hail.annotations.{BroadcastRow, Region, UnsafeRow}
+import is.hail.annotations.{BroadcastRow, Region}
 import is.hail.asm4s.{Code, CodeLabel, Settable, Value}
 import is.hail.backend.spark.SparkBackend
-import is.hail.expr.ir.EmitStream.SizedStream
 import is.hail.expr.ir.functions.UtilFunctions
 import is.hail.expr.ir.lowering.{TableStage, TableStageDependency}
-import is.hail.expr.ir.streams.{SStreamCode2, StreamProducer}
-import is.hail.types.TableType
-import is.hail.types.physical.{PCanonicalStream, PCode, PStruct, PType}
-import is.hail.types.virtual.{TArray, TStruct, Type}
-import is.hail.rvd.{RVD, RVDCoercer, RVDContext, RVDPartitioner, RVDType}
+import is.hail.expr.ir.streams.StreamProducer
+import is.hail.rvd._
 import is.hail.sparkextras.ContextRDD
-import is.hail.types.physical.stypes.interfaces
-import is.hail.types.physical.stypes.interfaces.SStream
-import org.apache.spark.{Partition, TaskContext}
+import is.hail.types.TableType
+import is.hail.types.physical.stypes.interfaces.{SStream, SStreamCode}
+import is.hail.types.physical.{PStruct, PType}
+import is.hail.types.virtual.{TArray, TStruct, Type}
+import is.hail.utils._
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
-import org.json4s.{Extraction, JValue}
+import org.apache.spark.{Partition, TaskContext}
 import org.json4s.JsonAST.JObject
+import org.json4s.{Extraction, JValue}
 
 class PartitionIteratorLongReader(
   val fullRowType: TStruct,
@@ -67,7 +65,7 @@ class PartitionIteratorLongReader(
         override def close(cb: EmitCodeBuilder): Unit = {}
       }
 
-      SStreamCode2(SStream(producer.element.st, true, true), producer)
+      SStreamCode(SStream(producer.element.st, true), producer)
     }
   }
 
