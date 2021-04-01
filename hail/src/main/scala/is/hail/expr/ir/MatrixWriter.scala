@@ -56,9 +56,10 @@ case class MatrixNativeWriter(
   stageLocally: Boolean = false,
   codecSpecJSONStr: String = null,
   partitions: String = null,
-  partitionsTypeStr: String = null
+  partitionsTypeStr: String = null,
+  checkpointFile: String = null
 ) extends MatrixWriter {
-  def apply(ctx: ExecuteContext, mv: MatrixValue): Unit = mv.write(ctx, path, overwrite, stageLocally, codecSpecJSONStr, partitions, partitionsTypeStr)
+  def apply(ctx: ExecuteContext, mv: MatrixValue): Unit = mv.write(ctx, path, overwrite, stageLocally, codecSpecJSONStr, partitions, partitionsTypeStr, checkpointFile)
   override def lower(colsFieldName: String, entriesFieldName: String, colKey: IndexedSeq[String],
     ctx: ExecuteContext, tablestage: TableStage, t: TableIR, r: RTable, relationalLetsAbove: Map[String, IR]): IR = {
     val bufferSpec: BufferSpec = BufferSpec.parseOrDefault(codecSpecJSONStr)
@@ -73,6 +74,10 @@ case class MatrixNativeWriter(
           .asInstanceOf[IndexedSeq[Interval]]
         tablestage.repartitionNoShuffle(new RVDPartitioner(tm.rowKey.toArray, tm.rowKeyStruct, rangeBounds))
       } else tablestage
+
+    if (checkpointFile != null) {
+      warn(s"lowered execution does not support checkpoint files")
+    }
 
     val rowSpec = TypedCodecSpec(EType.fromTypeAndAnalysis(tm.rowType, rm.rowType), tm.rowType, bufferSpec)
     val entrySpec = TypedCodecSpec(EType.fromTypeAndAnalysis(tm.entriesRVType, rm.entriesRVType), tm.entriesRVType, bufferSpec)
