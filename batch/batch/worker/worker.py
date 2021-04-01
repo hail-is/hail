@@ -971,36 +971,38 @@ class DockerJob(Job):
 
                 self.state = 'error'
                 self.error = traceback.format_exc()
-            # TODO Put into function call and call from except Exception and after try/except block
-            finally:
-                self.end_time = time_msecs()
+                await self.cleanup()
+            await self.cleanup()
 
-                if not self.deleted:
-                    log.info(f'{self}: marking complete')
-                    self.task_manager.ensure_future(worker.post_job_complete(self))
+    async def cleanup(self):
+        self.end_time = time_msecs()
 
-                log.info(f'{self}: cleaning up')
-                try:
-                    if self.gcsfuse:
-                        for b in self.gcsfuse:
-                            bucket = b['bucket']
-                            mount_path = self.gcsfuse_path(bucket)
-                            await check_shell(f'fusermount -u {mount_path}')
-                            log.info(f'unmounted gcsfuse bucket {bucket} from {mount_path}')
+        if not self.deleted:
+            log.info(f'{self}: marking complete')
+            self.task_manager.ensure_future(worker.post_job_complete(self))
 
-                    await check_shell(f'xfs_quota -x -D /xfsquota/projects -P /xfsquota/projid -c "limit -p bsoft=0 bhard=0 {self.project_name}" /host')
+        log.info(f'{self}: cleaning up')
+        try:
+            if self.gcsfuse:
+                for b in self.gcsfuse:
+                    bucket = b['bucket']
+                    mount_path = self.gcsfuse_path(bucket)
+                    await check_shell(f'fusermount -u {mount_path}')
+                    log.info(f'unmounted gcsfuse bucket {bucket} from {mount_path}')
 
-                    async with Flock('/xfsquota/projid', pool=worker.pool):
-                        await check_shell(f"sed -i '/{self.project_name}:{self.project_id}/d' /xfsquota/projid")
+            await check_shell(f'xfs_quota -x -D /xfsquota/projects -P /xfsquota/projid -c "limit -p bsoft=0 bhard=0 {self.project_name}" /host')
 
-                    async with Flock('/xfsquota/projects', pool=worker.pool):
-                        await check_shell(f"sed -i '/{self.project_id}:/d' /xfsquota/projects")
+            async with Flock('/xfsquota/projid', pool=worker.pool):
+                await check_shell(f"sed -i '/{self.project_name}:{self.project_id}/d' /xfsquota/projid")
 
-                    shutil.rmtree(self.scratch, ignore_errors=True)
-                except asyncio.CancelledError:
-                    raise
-                except Exception:
-                    log.exception('while deleting volumes')
+            async with Flock('/xfsquota/projects', pool=worker.pool):
+                await check_shell(f"sed -i '/{self.project_id}:/d' /xfsquota/projects")
+
+            shutil.rmtree(self.scratch, ignore_errors=True)
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            log.exception('while deleting volumes')
 
     async def get_log(self):
         return {name: await c.get_log() for name, c in self.containers.items()}
