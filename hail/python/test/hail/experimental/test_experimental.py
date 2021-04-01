@@ -440,9 +440,10 @@ class Tests(unittest.TestCase):
                 hl.tndarray(hl.tint32, 2), hl.nd.zeros((20, 10), hl.tfloat64))
 
     def test_loop_with_struct_of_strings(self):
-        def loopFunc(recurF, my_struct):
+        def loop_func(recur_f, my_struct):
             return hl.if_else(hl.len(my_struct.s1) > hl.len(my_struct.s2),
                               my_struct,
-                              recurF(hl.struct(s1=my_struct.s1 + my_struct.s2[-1], s2=my_struct.s2[:-1])))
+                              recur_f(hl.struct(s1=my_struct.s1 + my_struct.s2[-1], s2=my_struct.s2[:-1])))
 
-        print(hl.eval(hl.experimental.loop(loopFunc, hl.tstruct(s1=hl.tstr, s2=hl.tstr))))
+        initial_struct = hl.struct(s1="a", s2="gfedcb")
+        assert hl.eval(hl.experimental.loop(loop_func, hl.tstruct(s1=hl.tstr, s2=hl.tstr), initial_struct)) == hl.Struct(s1="abcd", s2="gfe")
