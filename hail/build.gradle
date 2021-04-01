@@ -160,7 +160,9 @@ dependencies {
     unbundled 'org.apache.spark:spark-sql_' + scalaMajorVersion + ':' + sparkVersion
     unbundled 'org.apache.spark:spark-mllib_' + scalaMajorVersion + ':' + sparkVersion
 
-    bundled 'org.json4s:json4s-jackson_' + scalaMajorVersion + ':3.7.0-M5'
+    bundled('org.json4s:json4s-jackson_' + scalaMajorVersion + ':3.7.0-M5') {
+        exclude group: 'com.fasterxml.jackson.core'
+    }
 
     bundled 'org.lz4:lz4-java:1.4.0'
 
@@ -330,7 +332,6 @@ tasks.withType(ShadowJar) {
     relocate 'org.lz4', 'is.hail.relocated.org.lz4'
     relocate 'org.freemarker', 'is.hail.relocated.org.freemarker'
     relocate 'org.json4s', 'is.hail.relocated.org.json4s'
-    relocate 'com.fasterxml.jackson', 'is.hail.relocated.com.fasterxml.jackson'
     relocate 'org.elasticsearch', 'is.hail.relocated.org.elasticsearch'
 
     exclude 'META-INF/*.RSA'
