@@ -128,7 +128,10 @@ Once you have a branch that you are happy with, then you create a Pull Request
 on the GitHub UI.
 
 You’ll want to add an appropriate reviewer in the "Reviewers" box on the
-right hand side of the page.
+right hand side of the page. If you are an outside contributor and cannot
+request reviews, you can have CI automatically assign a reviewer. By writing
+`#assign services` or `#assign compiler` in the PR body, CI will randomly select
+a collaborator on the relevant team and assign them for you.
 
 You can also give the PR a set of labels. The important ones are “WIP” to make
 sure the pull request doesn’t get merged accidentally until you are ready,
