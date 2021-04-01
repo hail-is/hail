@@ -83,6 +83,7 @@ ifdef HAIL_DEBUG_MODE
 $(SHADOW_JAR): $(JAR_DEBUG_CLASSES)
 endif
 $(SHADOW_JAR): $(SCALA_BUILD_INFO) $(JAR_SOURCES) env/HAIL_DEBUG_MODE env/ELASTIC_MAJOR_VERSION
+	./gradlew dependencies
 	./gradlew shadowJar $(GRADLE_ARGS)
 ifdef HAIL_DEBUG_MODE
 	$(JAR) -uf $(SHADOW_JAR) -C $(BUILD_DEBUG_PREFIX) is/hail/annotations/Memory.class
@@ -92,6 +93,7 @@ ifdef HAIL_COMPILE_NATIVES
 $(SHADOW_TEST_JAR): native-lib-prebuilt
 endif
 $(SHADOW_TEST_JAR): $(SCALA_BUILD_INFO) $(JAR_SOURCES) $(JAR_TEST_SOURCES)
+	./gradlew dependencies
 	./gradlew shadowTestJar $(GRADLE_ARGS)
 
 jars: $(SHADOW_JAR) $(SHADOW_TEST_JAR)
