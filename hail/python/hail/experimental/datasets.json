@@ -605,6 +605,582 @@
       }
     ]
   },
+  "giant_bmi_exome_AFR": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
+    "description": "GIANT (Genetic Investigation of ANthropometric Traits): body mass index (BMI) exome array summary statistics Hail Table for African/African-American population(s).",
+    "url": "https://portals.broadinstitute.org/collaboration/giant/index.php/GIANT_consortium_data_files",
+    "versions": [
+      {
+        "reference_genome": "GRCh37",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/giant_bmi_exome_AFR_2018_GRCh37.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/giant_bmi_exome_AFR_2018_GRCh37.ht",
+            "us": "gs://hail-datasets-us/giant_bmi_exome_AFR_2018_GRCh37.ht"
+          }
+        },
+        "version": "2018"
+      }
+    ]
+  },
+  "giant_bmi_exome_ALL": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
+    "description": "GIANT (Genetic Investigation of ANthropometric Traits): body mass index (BMI) exome array summary statistics Hail Table for all population(s).",
+    "url": "https://portals.broadinstitute.org/collaboration/giant/index.php/GIANT_consortium_data_files",
+    "versions": [
+      {
+        "reference_genome": "GRCh37",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/giant_bmi_exome_ALL_2018_GRCh37.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/giant_bmi_exome_ALL_2018_GRCh37.ht",
+            "us": "gs://hail-datasets-us/giant_bmi_exome_ALL_2018_GRCh37.ht"
+          }
+        },
+        "version": "2018"
+      }
+    ]
+  },
+  "giant_bmi_exome_AMR": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
+    "description": "GIANT (Genetic Investigation of ANthropometric Traits): body mass index (BMI) exome array summary statistics Hail Table for Latino/Admixed American population(s).",
+    "url": "https://portals.broadinstitute.org/collaboration/giant/index.php/GIANT_consortium_data_files",
+    "versions": [
+      {
+        "reference_genome": "GRCh37",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/giant_bmi_exome_AMR_2018_GRCh37.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/giant_bmi_exome_AMR_2018_GRCh37.ht",
+            "us": "gs://hail-datasets-us/giant_bmi_exome_AMR_2018_GRCh37.ht"
+          }
+        },
+        "version": "2018"
+      }
+    ]
+  },
+  "giant_bmi_exome_EAS": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
+    "description": "GIANT (Genetic Investigation of ANthropometric Traits): body mass index (BMI) exome array summary statistics Hail Table for East Asian population(s).",
+    "url": "https://portals.broadinstitute.org/collaboration/giant/index.php/GIANT_consortium_data_files",
+    "versions": [
+      {
+        "reference_genome": "GRCh37",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/giant_bmi_exome_EAS_2018_GRCh37.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/giant_bmi_exome_EAS_2018_GRCh37.ht",
+            "us": "gs://hail-datasets-us/giant_bmi_exome_EAS_2018_GRCh37.ht"
+          }
+        },
+        "version": "2018"
+      }
+    ]
+  },
+  "giant_bmi_exome_EUR": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
+    "description": "GIANT (Genetic Investigation of ANthropometric Traits): body mass index (BMI) exome array summary statistics Hail Table for European population(s).",
+    "url": "https://portals.broadinstitute.org/collaboration/giant/index.php/GIANT_consortium_data_files",
+    "versions": [
+      {
+        "reference_genome": "GRCh37",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/giant_bmi_exome_EUR_2018_GRCh37.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/giant_bmi_exome_EUR_2018_GRCh37.ht",
+            "us": "gs://hail-datasets-us/giant_bmi_exome_EUR_2018_GRCh37.ht"
+          }
+        },
+        "version": "2018"
+      }
+    ]
+  },
+  "giant_bmi_exome_SAS": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
+    "description": "GIANT (Genetic Investigation of ANthropometric Traits): body mass index (BMI) exome array summary statistics Hail Table for South Asian population(s).",
+    "url": "https://portals.broadinstitute.org/collaboration/giant/index.php/GIANT_consortium_data_files",
+    "versions": [
+      {
+        "reference_genome": "GRCh37",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/giant_bmi_exome_SAS_2018_GRCh37.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/giant_bmi_exome_SAS_2018_GRCh37.ht",
+            "us": "gs://hail-datasets-us/giant_bmi_exome_SAS_2018_GRCh37.ht"
+          }
+        },
+        "version": "2018"
+      }
+    ]
+  },
+  "giant_height_exome_AFR": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
+    "description": "GIANT (Genetic Investigation of ANthropometric Traits): height exome array summary statistics for African/African-American population(s).",
+    "url": "https://portals.broadinstitute.org/collaboration/giant/index.php/GIANT_consortium_data_files",
+    "versions": [
+      {
+        "reference_genome": "GRCh37",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/giant_height_exome_AFR_2018_GRCh37.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/giant_height_exome_AFR_2018_GRCh37.ht",
+            "us": "gs://hail-datasets-us/giant_height_exome_AFR_2018_GRCh37.ht"
+          }
+        },
+        "version": "2018"
+      }
+    ]
+  },
+  "giant_height_exome_ALL": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
+    "description": "GIANT (Genetic Investigation of ANthropometric Traits): height exome array summary statistics for all population(s).",
+    "url": "https://portals.broadinstitute.org/collaboration/giant/index.php/GIANT_consortium_data_files",
+    "versions": [
+      {
+        "reference_genome": "GRCh37",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/giant_height_exome_ALL_2018_GRCh37.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/giant_height_exome_ALL_2018_GRCh37.ht",
+            "us": "gs://hail-datasets-us/giant_height_exome_ALL_2018_GRCh37.ht"
+          }
+        },
+        "version": "2018"
+      }
+    ]
+  },
+  "giant_height_exome_AMR": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
+    "description": "GIANT (Genetic Investigation of ANthropometric Traits): height exome array summary statistics for Latino/Admixed American population(s).",
+    "url": "https://portals.broadinstitute.org/collaboration/giant/index.php/GIANT_consortium_data_files",
+    "versions": [
+      {
+        "reference_genome": "GRCh37",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/giant_height_exome_AMR_2018_GRCh37.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/giant_height_exome_AMR_2018_GRCh37.ht",
+            "us": "gs://hail-datasets-us/giant_height_exome_AMR_2018_GRCh37.ht"
+          }
+        },
+        "version": "2018"
+      }
+    ]
+  },
+  "giant_height_exome_EAS": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
+    "description": "GIANT (Genetic Investigation of ANthropometric Traits): height exome array summary statistics for East Asian population(s).",
+    "url": "https://portals.broadinstitute.org/collaboration/giant/index.php/GIANT_consortium_data_files",
+    "versions": [
+      {
+        "reference_genome": "GRCh37",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/giant_height_exome_EAS_2018_GRCh37.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/giant_height_exome_EAS_2018_GRCh37.ht",
+            "us": "gs://hail-datasets-us/giant_height_exome_EAS_2018_GRCh37.ht"
+          }
+        },
+        "version": "2018"
+      }
+    ]
+  },
+  "giant_height_exome_EUR": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
+    "description": "GIANT (Genetic Investigation of ANthropometric Traits): height exome array summary statistics for European population(s).",
+    "url": "https://portals.broadinstitute.org/collaboration/giant/index.php/GIANT_consortium_data_files",
+    "versions": [
+      {
+        "reference_genome": "GRCh37",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/giant_height_exome_EUR_2018_GRCh37.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/giant_height_exome_EUR_2018_GRCh37.ht",
+            "us": "gs://hail-datasets-us/giant_height_exome_EUR_2018_GRCh37.ht"
+          }
+        },
+        "version": "2018"
+      }
+    ]
+  },
+  "giant_height_exome_SAS": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
+    "description": "GIANT (Genetic Investigation of ANthropometric Traits): height exome array summary statistics for South Asian population(s).",
+    "url": "https://portals.broadinstitute.org/collaboration/giant/index.php/GIANT_consortium_data_files",
+    "versions": [
+      {
+        "reference_genome": "GRCh37",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/giant_height_exome_SAS_2018_GRCh37.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/giant_height_exome_SAS_2018_GRCh37.ht",
+            "us": "gs://hail-datasets-us/giant_height_exome_SAS_2018_GRCh37.ht"
+          }
+        },
+        "version": "2018"
+      }
+    ]
+  },
+  "giant_whr_exome_C_ALL_Add": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
+    "description": "GIANT (Genetic Investigation of ANthropometric Traits): waist-hip ratio (WHR) adjusted for BMI exome array summary statistics Hail Table. Note the following abbreviations used in filenames: C-combined sexes, M-men, W-women, ALL-all ancestries, EUR-european descent only, Add-additive genetic model, and Rec-recessive genetic model.",
+    "url": "https://portals.broadinstitute.org/collaboration/giant/index.php/GIANT_consortium_data_files",
+    "versions": [
+      {
+        "reference_genome": "GRCh37",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/giant_whr_exome_C_ALL_Add_2018_GRCh37.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/giant_whr_exome_C_ALL_Add_2018_GRCh37.ht",
+            "us": "gs://hail-datasets-us/giant_whr_exome_C_ALL_Add_2018_GRCh37.ht"
+          }
+        },
+        "version": "2018"
+      }
+    ]
+  },
+  "giant_whr_exome_C_ALL_Rec": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
+    "description": "GIANT (Genetic Investigation of ANthropometric Traits): waist-hip ratio (WHR) adjusted for BMI exome array summary statistics Hail Table. Note the following abbreviations used in filenames: C-combined sexes, M-men, W-women, ALL-all ancestries, EUR-european descent only, Add-additive genetic model, and Rec-recessive genetic model.",
+    "url": "https://portals.broadinstitute.org/collaboration/giant/index.php/GIANT_consortium_data_files",
+    "versions": [
+      {
+        "reference_genome": "GRCh37",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/giant_whr_exome_C_ALL_Rec_2018_GRCh37.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/giant_whr_exome_C_ALL_Rec_2018_GRCh37.ht",
+            "us": "gs://hail-datasets-us/giant_whr_exome_C_ALL_Rec_2018_GRCh37.ht"
+          }
+        },
+        "version": "2018"
+      }
+    ]
+  },
+  "giant_whr_exome_C_EUR_Add": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
+    "description": "GIANT (Genetic Investigation of ANthropometric Traits): waist-hip ratio (WHR) adjusted for BMI exome array summary statistics Hail Table. Note the following abbreviations used in filenames: C-combined sexes, M-men, W-women, ALL-all ancestries, EUR-european descent only, Add-additive genetic model, and Rec-recessive genetic model.",
+    "url": "https://portals.broadinstitute.org/collaboration/giant/index.php/GIANT_consortium_data_files",
+    "versions": [
+      {
+        "reference_genome": "GRCh37",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/giant_whr_exome_C_EUR_Add_2018_GRCh37.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/giant_whr_exome_C_EUR_Add_2018_GRCh37.ht",
+            "us": "gs://hail-datasets-us/giant_whr_exome_C_EUR_Add_2018_GRCh37.ht"
+          }
+        },
+        "version": "2018"
+      }
+    ]
+  },
+  "giant_whr_exome_C_EUR_Rec": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
+    "description": "GIANT (Genetic Investigation of ANthropometric Traits): waist-hip ratio (WHR) adjusted for BMI exome array summary statistics Hail Table. Note the following abbreviations used in filenames: C-combined sexes, M-men, W-women, ALL-all ancestries, EUR-european descent only, Add-additive genetic model, and Rec-recessive genetic model.",
+    "url": "https://portals.broadinstitute.org/collaboration/giant/index.php/GIANT_consortium_data_files",
+    "versions": [
+      {
+        "reference_genome": "GRCh37",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/giant_whr_exome_C_EUR_Rec_2018_GRCh37.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/giant_whr_exome_C_EUR_Rec_2018_GRCh37.ht",
+            "us": "gs://hail-datasets-us/giant_whr_exome_C_EUR_Rec_2018_GRCh37.ht"
+          }
+        },
+        "version": "2018"
+      }
+    ]
+  },
+  "giant_whr_exome_M_ALL_Add": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
+    "description": "GIANT (Genetic Investigation of ANthropometric Traits): waist-hip ratio (WHR) adjusted for BMI exome array summary statistics Hail Table. Note the following abbreviations used in filenames: C-combined sexes, M-men, W-women, ALL-all ancestries, EUR-european descent only, Add-additive genetic model, and Rec-recessive genetic model.",
+    "url": "https://portals.broadinstitute.org/collaboration/giant/index.php/GIANT_consortium_data_files",
+    "versions": [
+      {
+        "reference_genome": "GRCh37",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/giant_whr_exome_M_ALL_Add_2018_GRCh37.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/giant_whr_exome_M_ALL_Add_2018_GRCh37.ht",
+            "us": "gs://hail-datasets-us/giant_whr_exome_M_ALL_Add_2018_GRCh37.ht"
+          }
+        },
+        "version": "2018"
+      }
+    ]
+  },
+  "giant_whr_exome_M_ALL_Rec": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
+    "description": "GIANT (Genetic Investigation of ANthropometric Traits): waist-hip ratio (WHR) adjusted for BMI exome array summary statistics Hail Table. Note the following abbreviations used in filenames: C-combined sexes, M-men, W-women, ALL-all ancestries, EUR-european descent only, Add-additive genetic model, and Rec-recessive genetic model.",
+    "url": "https://portals.broadinstitute.org/collaboration/giant/index.php/GIANT_consortium_data_files",
+    "versions": [
+      {
+        "reference_genome": "GRCh37",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/giant_whr_exome_M_ALL_Rec_2018_GRCh37.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/giant_whr_exome_M_ALL_Rec_2018_GRCh37.ht",
+            "us": "gs://hail-datasets-us/giant_whr_exome_M_ALL_Rec_2018_GRCh37.ht"
+          }
+        },
+        "version": "2018"
+      }
+    ]
+  },
+  "giant_whr_exome_M_EUR_Add": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
+    "description": "GIANT (Genetic Investigation of ANthropometric Traits): waist-hip ratio (WHR) adjusted for BMI exome array summary statistics Hail Table. Note the following abbreviations used in filenames: C-combined sexes, M-men, W-women, ALL-all ancestries, EUR-european descent only, Add-additive genetic model, and Rec-recessive genetic model.",
+    "url": "https://portals.broadinstitute.org/collaboration/giant/index.php/GIANT_consortium_data_files",
+    "versions": [
+      {
+        "reference_genome": "GRCh37",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/giant_whr_exome_M_EUR_Add_2018_GRCh37.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/giant_whr_exome_M_EUR_Add_2018_GRCh37.ht",
+            "us": "gs://hail-datasets-us/giant_whr_exome_M_EUR_Add_2018_GRCh37.ht"
+          }
+        },
+        "version": "2018"
+      }
+    ]
+  },
+  "giant_whr_exome_M_EUR_Rec": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
+    "description": "GIANT (Genetic Investigation of ANthropometric Traits): waist-hip ratio (WHR) adjusted for BMI exome array summary statistics Hail Table. Note the following abbreviations used in filenames: C-combined sexes, M-men, W-women, ALL-all ancestries, EUR-european descent only, Add-additive genetic model, and Rec-recessive genetic model.",
+    "url": "https://portals.broadinstitute.org/collaboration/giant/index.php/GIANT_consortium_data_files",
+    "versions": [
+      {
+        "reference_genome": "GRCh37",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/giant_whr_exome_M_EUR_Rec_2018_GRCh37.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/giant_whr_exome_M_EUR_Rec_2018_GRCh37.ht",
+            "us": "gs://hail-datasets-us/giant_whr_exome_M_EUR_Rec_2018_GRCh37.ht"
+          }
+        },
+        "version": "2018"
+      }
+    ]
+  },
+  "giant_whr_exome_W_ALL_Add": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
+    "description": "GIANT (Genetic Investigation of ANthropometric Traits): waist-hip ratio (WHR) adjusted for BMI exome array summary statistics Hail Table. Note the following abbreviations used in filenames: C-combined sexes, M-men, W-women, ALL-all ancestries, EUR-european descent only, Add-additive genetic model, and Rec-recessive genetic model.",
+    "url": "https://portals.broadinstitute.org/collaboration/giant/index.php/GIANT_consortium_data_files",
+    "versions": [
+      {
+        "reference_genome": "GRCh37",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/giant_whr_exome_W_ALL_Add_2018_GRCh37.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/giant_whr_exome_W_ALL_Add_2018_GRCh37.ht",
+            "us": "gs://hail-datasets-us/giant_whr_exome_W_ALL_Add_2018_GRCh37.ht"
+          }
+        },
+        "version": "2018"
+      }
+    ]
+  },
+  "giant_whr_exome_W_ALL_Rec": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
+    "description": "GIANT (Genetic Investigation of ANthropometric Traits): waist-hip ratio (WHR) adjusted for BMI exome array summary statistics Hail Table. Note the following abbreviations used in filenames: C-combined sexes, M-men, W-women, ALL-all ancestries, EUR-european descent only, Add-additive genetic model, and Rec-recessive genetic model.",
+    "url": "https://portals.broadinstitute.org/collaboration/giant/index.php/GIANT_consortium_data_files",
+    "versions": [
+      {
+        "reference_genome": "GRCh37",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/giant_whr_exome_W_ALL_Rec_2018_GRCh37.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/giant_whr_exome_W_ALL_Rec_2018_GRCh37.ht",
+            "us": "gs://hail-datasets-us/giant_whr_exome_W_ALL_Rec_2018_GRCh37.ht"
+          }
+        },
+        "version": "2018"
+      }
+    ]
+  },
+  "giant_whr_exome_W_EUR_Add": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
+    "description": "GIANT (Genetic Investigation of ANthropometric Traits): waist-hip ratio (WHR) adjusted for BMI exome array summary statistics Hail Table. Note the following abbreviations used in filenames: C-combined sexes, M-men, W-women, ALL-all ancestries, EUR-european descent only, Add-additive genetic model, and Rec-recessive genetic model.",
+    "url": "https://portals.broadinstitute.org/collaboration/giant/index.php/GIANT_consortium_data_files",
+    "versions": [
+      {
+        "reference_genome": "GRCh37",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/giant_whr_exome_W_EUR_Add_2018_GRCh37.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/giant_whr_exome_W_EUR_Add_2018_GRCh37.ht",
+            "us": "gs://hail-datasets-us/giant_whr_exome_W_EUR_Add_2018_GRCh37.ht"
+          }
+        },
+        "version": "2018"
+      }
+    ]
+  },
+  "giant_whr_exome_W_EUR_Rec": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
+    "description": "GIANT (Genetic Investigation of ANthropometric Traits): waist-hip ratio (WHR) adjusted for BMI exome array summary statistics Hail Table. Note the following abbreviations used in filenames: C-combined sexes, M-men, W-women, ALL-all ancestries, EUR-european descent only, Add-additive genetic model, and Rec-recessive genetic model.",
+    "url": "https://portals.broadinstitute.org/collaboration/giant/index.php/GIANT_consortium_data_files",
+    "versions": [
+      {
+        "reference_genome": "GRCh37",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/giant_whr_exome_W_EUR_Rec_2018_GRCh37.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/giant_whr_exome_W_EUR_Rec_2018_GRCh37.ht",
+            "us": "gs://hail-datasets-us/giant_whr_exome_W_EUR_Rec_2018_GRCh37.ht"
+          }
+        },
+        "version": "2018"
+      }
+    ]
+  },
   "gnomad_base_pext": {
     "description": "gnomAD: base-level proportion expressed across transcripts (pext) Hail Table.",
     "url": "https://gnomad.broadinstitute.org/",
