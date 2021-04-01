@@ -23,6 +23,7 @@ final class RegionPool private(strictMemoryCheck: Boolean, threadName: String, t
   private[this] var allocationEchoThreshold: Long = 256 * 1024
   private[this] var numJavaObjects: Long = 0L
   private[this] var maxNumJavaObjects: Long = 0L
+  private[this] var highestTotalUsage = 0L
 
   def addJavaObject(): Unit = {
     numJavaObjects += 1
@@ -34,11 +35,16 @@ final class RegionPool private(strictMemoryCheck: Boolean, threadName: String, t
 
   def getTotalAllocatedBytes: Long = totalAllocatedBytes
 
+  def getHighestTotalUsage: Long = highestTotalUsage
+
   private[annotations] def incrementAllocatedBytes(toAdd: Long): Unit = {
     totalAllocatedBytes += toAdd
     if (totalAllocatedBytes >= allocationEchoThreshold) {
       report("REPORT_THRESHOLD")
       allocationEchoThreshold *= 2
+    }
+    if (totalAllocatedBytes >= highestTotalUsage) {
+      highestTotalUsage = totalAllocatedBytes
     }
   }
 

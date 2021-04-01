@@ -3801,12 +3801,12 @@ class IRSuite extends HailSuite {
 
     ExecuteContext.scoped() { ctx =>
       eval(ndSum, Env.empty, FastIndexedSeq(2 -> TInt32, startingArg -> ndType), None, None, true, ctx)
-      memUsed = ctx.r.pool.getTotalAllocatedBytes
+      memUsed = ctx.r.pool.getHighestTotalUsage
     }
 
     ExecuteContext.scoped() { ctx =>
-      eval(ndSum, Env.empty, FastIndexedSeq(20 -> TInt32, startingArg -> ndType), None, None, true, ctx)
-      assert(memUsed == ctx.r.pool.getTotalAllocatedBytes)
+      eval(ndSum, Env.empty, FastIndexedSeq(100 -> TInt32, startingArg -> ndType), None, None, true, ctx)
+      assert(memUsed == ctx.r.pool.getHighestTotalUsage)
     }
   }
 
