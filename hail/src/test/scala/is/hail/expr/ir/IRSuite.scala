@@ -3800,12 +3800,12 @@ class IRSuite extends HailSuite {
     var memUsed = 0L
 
     ExecuteContext.scoped() { ctx =>
-      println(eval(ndSum, Env.empty, FastIndexedSeq(2 -> TInt32, startingArg -> ndType), None, None, true, ctx))
+      eval(ndSum, Env.empty, FastIndexedSeq(2 -> TInt32, startingArg -> ndType), None, None, true, ctx)
       memUsed = ctx.r.pool.getTotalAllocatedBytes
     }
 
     ExecuteContext.scoped() { ctx =>
-      println(eval(ndSum, Env.empty, FastIndexedSeq(20 -> TInt32, startingArg -> ndType), None, None, true, ctx))
+      eval(ndSum, Env.empty, FastIndexedSeq(20 -> TInt32, startingArg -> ndType), None, None, true, ctx)
       assert(memUsed == ctx.r.pool.getTotalAllocatedBytes)
     }
   }
