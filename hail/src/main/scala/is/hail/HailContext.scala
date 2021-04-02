@@ -93,8 +93,11 @@ object HailContext {
         if (major.toInt < 8)
           fatal(s"Hail requires Java 1.8, found $versionString")
       case javaVersion(major, minor, security) =>
-        if (major.toInt > 8)
-          fatal(s"Hail requires Java 8, found $versionString")
+        if (major.toInt > 8) {
+          if (major.toInt != 11) {
+            fatal(s"Hail requires Java 8 on Spark 2.4.x, or Java 11 on Spark 3, found $versionString")
+          }
+        }
       case _ =>
         fatal(s"Unknown JVM version string: $versionString")
     }
