@@ -100,3 +100,15 @@ data:
     root_url = %(protocol)s://%(domain)/{{ default_ns.name }}/grafana/
     serve_from_sub_path = true
 {% endif %}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: grafana
+spec:
+  ports:
+   - port: 443
+     protocol: TCP
+     targetPort: 443
+  selector:
+    app: grafana

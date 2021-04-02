@@ -38,10 +38,6 @@ principals:
     - gateway
   unmanged: True
   kind: nginx
-- name: router
-  domains:
-    - router
-  kind: nginx
 - name: website
   domains:
     - website

@@ -155,3 +155,18 @@ spec:
     matchLabels:
       app: query
 {% endif %}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: query
+  labels:
+    app: query
+spec:
+  ports:
+  - name: query
+    port: 443
+    protocol: TCP
+    targetPort: 5000
+  selector:
+    app: query

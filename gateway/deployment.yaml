@@ -86,18 +86,3 @@ spec:
   selector:
     matchLabels:
       app: gateway
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: router
-  labels:
-    app: router
-spec:
-  ports:
-  - name: https
-    port: 443
-    protocol: TCP
-    targetPort: 443
-  selector:
-    app: router
