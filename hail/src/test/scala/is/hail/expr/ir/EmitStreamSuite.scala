@@ -752,6 +752,17 @@ class EmitStreamSuite extends HailSuite {
   }
 
   @Test def testGrouped() {
+    // empty => empty
+    assertEvalsTo(
+      ToArray(
+        mapIR(
+          StreamGrouped(
+            StreamRange(0, 0, 1, false),
+            I32(5)
+          )) { inner => ToArray(inner) }
+      ),
+      IndexedSeq())
+
     // general case where stream ends in inner group
     assertEvalsTo(
       ToArray(
@@ -794,16 +805,21 @@ class EmitStreamSuite extends HailSuite {
         IndexedSeq("4", "5", "6", "7"),
         IndexedSeq("8", "9")))
 
-    // gnarly case: inner stream unused
+  }
+
+  @Test def testMakeStream() {
     assertEvalsTo(
       ToArray(
-        mapIR(
-          StreamGrouped(
-            MakeStream((0 until 10).map(x => Str(x.toString)), TStream(TString), true),
-            I32(4)
-          )) { inner => I32(1) }
+        MakeStream(IndexedSeq(I32(1), NA(TInt32), I32(2)), TStream(TInt32))
       ),
-      IndexedSeq(1, 1, 1)
+      IndexedSeq(1, null, 2)
+    )
+
+    assertEvalsTo(
+      ToArray(
+        MakeStream(IndexedSeq(Literal(TArray(TInt32), IndexedSeq(1)), NA(TArray(TInt32))), TStream(TArray(TInt32)))
+      ),
+      IndexedSeq(IndexedSeq(1), null)
     )
   }
 

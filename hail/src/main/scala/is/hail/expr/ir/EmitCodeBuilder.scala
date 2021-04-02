@@ -84,7 +84,6 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
 
   def memoize(v: EmitCode, name: String): EmitValue = {
     require(v.pt.isRealizable)
-      return new EmitUnrealizableValue(v)
     val l = emb.newEmitLocal(name, v.pt)
     assign(l, v)
     l
@@ -176,12 +175,10 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
           }
 
           val castEc = (ec.pt.required, pt.required) match {
-            case (true, false) => {
-              ec.map(pc => PCode(pc.pt.setRequired(pt.required), pc.code))
-            }
-            case (false, true) => {
+            case (true, false) =>
+              EmitCode.fromI(emb)(cb => ec.toI(cb).map(cb)(pc => PCode(pc.pt.setRequired(pt.required), pc.code)))
+            case (false, true) =>
               EmitCode.fromI(callee) { cb => IEmitCode.present(this, ec.toI(this).get(this))}
-            }
             case _ => ec
           }
 

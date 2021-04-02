@@ -274,13 +274,17 @@ object EmitStream {
             override val separateRegions: Boolean = _separateRegions
 
             override val LproduceElement: CodeLabel = mb.defineHangingLabel { cb =>
-
               val LendOfSwitch = CodeLabel()
-              cb += Code.switch(current, LendOfStream.goto,
-                emittedArgs.map(elem => EmitCodeBuilder.scopedVoid(mb) { cb =>
-                  cb.assign(eltField, elem.map(pc => pc.castTo(cb, region, unifiedType.pType, false)))
-                  cb.goto(LendOfSwitch)
-                }))
+              cb += Code.switch(current,
+                EmitCodeBuilder.scopedVoid(mb) { cb =>
+                  cb.goto(LendOfStream)
+                },
+                emittedArgs.map { elem =>
+                  EmitCodeBuilder.scopedVoid(mb) { cb =>
+                    cb.assign(eltField, elem.toI(cb).map(cb)(pc => pc.castTo(cb, region, unifiedType.pType, false)))
+                    cb.goto(LendOfSwitch)
+                  }
+                })
               cb.define(LendOfSwitch)
               cb.assign(current, current + 1)
 
@@ -335,11 +339,11 @@ object EmitStream {
               cb.ifx(xCond, cb.goto(leftProducer.LproduceElement), cb.goto(rightProducer.LproduceElement))
 
               cb.define(leftProducer.LproduceElementDone)
-              cb.assign(xElt, leftProducer.element.map(_.castTo(cb, region, xElt.pt)))
+              cb.assign(xElt, leftProducer.element.toI(cb).map(cb)(_.castTo(cb, region, xElt.pt)))
               cb.goto(LproduceElementDone)
 
               cb.define(rightProducer.LproduceElementDone)
-              cb.assign(xElt, rightProducer.element.map(_.castTo(cb, region, xElt.pt)))
+              cb.assign(xElt, rightProducer.element.toI(cb).map(cb)(_.castTo(cb, region, xElt.pt)))
               cb.goto(LproduceElementDone)
 
               cb.define(leftProducer.LendOfStream)
@@ -679,7 +683,7 @@ object EmitStream {
 
               if (separateRegions) {
                 // deep copy accumulator into element region, then clear accumulator region
-                cb.assign(accValueEltRegion, accValueAccRegion.map(_.castTo(cb, childProducer.elementRegion, x.accPType, deepCopy = true)))
+                cb.assign(accValueEltRegion, accValueAccRegion.toI(cb).map(cb)(_.castTo(cb, childProducer.elementRegion, x.accPType, deepCopy = true)))
                 cb += accRegion.clearRegion()
               }
 
@@ -697,7 +701,7 @@ object EmitStream {
               cb.define(LcopyAndReturn)
 
               if (separateRegions) {
-                cb.assign(accValueAccRegion, accValueEltRegion.map(pc => pc.castTo(cb, accRegion, x.accPType, deepCopy = true)))
+                cb.assign(accValueAccRegion, accValueEltRegion.toI(cb).map(cb)(pc => pc.castTo(cb, accRegion, x.accPType, deepCopy = true)))
               }
 
               cb.goto(LproduceElementDone)
@@ -884,13 +888,12 @@ object EmitStream {
               assert(lelt.pt == lEltType)
               assert(relt.pt == rEltType)
 
-              val lhs = lelt.map(_.asBaseStruct.subset(lKey: _*).asPCode)
-              val rhs = relt.map(_.asBaseStruct.subset(rKey: _*).asPCode)
+              val lhs = EmitCode.fromI(mb)(cb => lelt.toI(cb).map(cb)(_.asBaseStruct.subset(lKey: _*).asPCode))
+              val rhs = EmitCode.fromI(mb)(cb => relt.toI(cb).map(cb)(_.asBaseStruct.subset(rKey: _*).asPCode))
               StructOrdering.make(lhs.st.asInstanceOf[SBaseStruct], rhs.st.asInstanceOf[SBaseStruct],
                 cb.emb.ecb, missingFieldsEqual = false)
                 .compare(cb, lhs, rhs, missingEqual = false)
             }
-
 
             joinType match {
               case "left" =>

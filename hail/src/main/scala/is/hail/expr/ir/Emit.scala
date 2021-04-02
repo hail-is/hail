@@ -412,9 +412,6 @@ class EmitCode(private val start: CodeLabel, private val iec: IEmitCode) {
 
   def value[T]: Code[T] = coerce[T](v)
 
-  def map(f: PCode => PCode): EmitCode =
-    new EmitCode(start, iec.copy(value = f(iec.value)))
-
   def toI(cb: EmitCodeBuilder): IEmitCode = {
     cb.goto(start)
     iec
@@ -1750,7 +1747,7 @@ class Emit[C](
             }
 
             if (producer.separateRegions) {
-              cb.assign(xAcc, xAcc.map(pc => pc.castTo(cb, region, pc.pt, deepCopy = true)))
+              cb.assign(xAcc, xAcc.toI(cb).map(cb)(pc => pc.castTo(cb, region, pc.pt, deepCopy = true)))
               cb += producer.elementRegion.invalidate()
               cb += tmpRegion.invalidate()
             }
@@ -1812,7 +1809,7 @@ class Emit[C](
 
             if (producer.separateRegions) {
               tmpAccVars.foreach { xAcc =>
-                cb.assign(xAcc, xAcc.map(pc => pc.castTo(cb, region, pc.pt, deepCopy = true)))
+                cb.assign(xAcc, xAcc.toI(cb).map(cb)(pc => pc.castTo(cb, region, pc.pt, deepCopy = true)))
               }
               cb += producer.elementRegion.invalidate()
               cb += tmpRegion.invalidate()
@@ -2419,7 +2416,7 @@ class Emit[C](
       if (!result.pt.equalModuloRequired(pt))
         throw new RuntimeException(s"ptype mismatch:\n  emitted:  ${ result.pt }\n  inferred: ${ ir.pType }\n  ir: $ir")
       (result.pt.required, pt.required) match {
-        case (true, false) => result.map(pc => PCode(pc.pt.setRequired(pt.required), pc.code))
+        case (true, false) => EmitCode.fromI(mb)(cb => result.toI(cb).map(cb)(pc => PCode(pc.pt.setRequired(pt.required), pc.code)))
         case (false, true) => EmitCode.fromI(mb) { cb => IEmitCode.present(cb, result.toI(cb).get(cb)) }
       }
     } else result
