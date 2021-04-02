@@ -6,14 +6,18 @@ import is.hail.types.physical._
 import is.hail.types.virtual._
 import is.hail.utils._
 import is.hail.variant.Call2
-import is.hail.HailSuite
+import is.hail.{ExecStrategy, HailSuite}
 import is.hail.expr.ir.lowering.LoweringPipeline
 import is.hail.expr.ir.streams.{EmitStream, StreamArgType, StreamUtils}
 import is.hail.types.physical.stypes.interfaces.SStreamCode
 import org.apache.spark.sql.Row
+import is.hail.TestUtils._
 import org.testng.annotations.Test
 
 class EmitStreamSuite extends HailSuite {
+
+  implicit val execStrats = ExecStrategy.compileOnly
+
   private def compile1[T: TypeInfo, R: TypeInfo](f: (EmitMethodBuilder[_], Value[T]) => Code[R]): T => R = {
     val fb = EmitFunctionBuilder[T, R](ctx, "stream_test")
     val mb = fb.apply_method
@@ -724,6 +728,83 @@ class EmitStreamSuite extends HailSuite {
 
       assert(SafeRow.read(pt, f(0, r)(r, input)) == Row(null))
     }
+  }
+
+  @Test def testFold() {
+    val ints = Literal(TArray(TInt32), IndexedSeq(1, 2, 3, 4))
+    val strsLit = Literal(TArray(TString), IndexedSeq("one", "two", "three", "four"))
+    val strs = MakeStream(FastIndexedSeq(Str("one"), Str("two"), Str("three"), Str("four")), TStream(TString), true)
+
+    assertEvalsTo(
+      foldIR(ToStream(ints, separateRegions = false), I32(-1)) { (acc, elt) => acc + elt },
+      9
+    )
+
+    assertEvalsTo(
+      foldIR(ToStream(strsLit, separateRegions = false), Str("")) { (acc, elt) => invoke("concat", TString, acc, elt)},
+      "onetwothreefour"
+    )
+
+    assertEvalsTo(
+      foldIR(strs, Str("")) { (acc, elt) => invoke("concat", TString, acc, elt)},
+      "onetwothreefour"
+    )
+  }
+
+  @Test def testGrouped() {
+    // general case where stream ends in inner group
+    assertEvalsTo(
+      ToArray(
+        mapIR(
+          StreamGrouped(
+            StreamRange(0, 10, 1, false),
+            I32(3)
+          )) { inner => ToArray(inner) }
+      ),
+      IndexedSeq(
+        IndexedSeq(0, 1, 2),
+        IndexedSeq(3, 4, 5),
+        IndexedSeq(6, 7, 8),
+        IndexedSeq(9)))
+
+    // stream ends at end of inner group
+    assertEvalsTo(
+      ToArray(
+        mapIR(
+          StreamGrouped(
+            StreamRange(0, 10, 1, false),
+            I32(5)
+          )) { inner => ToArray(inner) }
+      ),
+      IndexedSeq(
+        IndexedSeq(0, 1, 2, 3, 4),
+        IndexedSeq(5, 6, 7, 8, 9)))
+
+    // separate regions
+    assertEvalsTo(
+      ToArray(
+        mapIR(
+          StreamGrouped(
+            MakeStream((0 until 10).map(x => Str(x.toString)), TStream(TString), true),
+            I32(4)
+          )) { inner => ToArray(inner) }
+      ),
+      IndexedSeq(
+        IndexedSeq("0", "1", "2", "3"),
+        IndexedSeq("4", "5", "6", "7"),
+        IndexedSeq("8", "9")))
+
+    // gnarly case: inner stream unused
+    assertEvalsTo(
+      ToArray(
+        mapIR(
+          StreamGrouped(
+            MakeStream((0 until 10).map(x => Str(x.toString)), TStream(TString), true),
+            I32(4)
+          )) { inner => I32(1) }
+      ),
+      IndexedSeq(1, 1, 1)
+    )
   }
 
   @Test def testMultiplicity() {

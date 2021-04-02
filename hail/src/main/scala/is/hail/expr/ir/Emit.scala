@@ -545,8 +545,9 @@ class Emit[C](
         { case stream: SStreamCode =>
           val producer = stream.producer
           producer.memoryManagedConsume(region, cb) { cb =>
-            val eltMemo = cb.memoize(producer.element, s"streamfor_$valueName")
+            val (fixupUnusedLabels, eltMemo) = cb.memoizeMaybeUnrealizableField(producer.element, s"streamfor_$valueName")
             emitVoid(body, region = producer.elementRegion, env = env.bind(valueName -> eltMemo))
+            fixupUnusedLabels()
           }
         })
 
@@ -2190,7 +2191,7 @@ class Emit[C](
 
       case Ref(name, _) =>
         val ev = env.lookup(name)
-        if (ev.pt != pt)
+        if (!ev.pt.equalModuloRequired(pt))
           throw new RuntimeException(s"PValue type did not match inferred ptype:\n name: $name\n  pv: ${ ev.pt }\n  ir: $pt")
         ev.load
 

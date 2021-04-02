@@ -1404,10 +1404,10 @@ object EmitStream {
               override val LproduceElement: CodeLabel = mb.defineHangingLabel { cb =>
                 cb.ifx(inOuter, {
                   cb.assign(inOuter, false)
-                  cb.ifx(xCounter.cne(0), cb._fatal(s"streamgrouped inner producer error, xCounter=", xCounter.toS))
+                  cb.ifx(xCounter.cne(1), cb._fatal(s"streamgrouped inner producer error, xCounter=", xCounter.toS))
+                  cb.goto(LproduceElementDone)
                 })
                 cb.ifx(xCounter >= n, {
-                  cb.assign(xCounter, 0)
                   cb.assign(inOuter, true)
                   cb.goto(LendOfStream)
                 })
@@ -1415,7 +1415,8 @@ object EmitStream {
                 cb.goto(childProducer.LproduceElement)
                 cb.define(LchildProduceDoneInner)
 
-                cb += childProducer.elementRegion.addReferenceTo(innerResultRegion)
+                if (childProducer.separateRegions)
+                  cb += childProducer.elementRegion.addReferenceTo(innerResultRegion)
 
                 cb.goto(LproduceElementDone)
               }
@@ -1431,9 +1432,16 @@ object EmitStream {
               override def initialize(cb: EmitCodeBuilder): Unit = {
                 cb.assign(n, groupSize.intCode(cb))
                 cb.ifx(n < 0, cb._fatal(s"stream grouped: negative size: ", n.toS))
-                cb.assign(inOuter, true)
                 cb.assign(eos, false)
-                cb.assign(xCounter, 0)
+                cb.assign(xCounter, n)
+
+                if (childProducer.separateRegions) {
+                  cb.assign(childProducer.elementRegion, Region.stagedCreate(Region.REGULAR, outerRegion.getPool()))
+                } else {
+                  cb.assign(childProducer.elementRegion, outerRegion)
+                }
+
+                childProducer.initialize(cb)
               }
 
               override val elementRegion: Settable[Region] = outerElementRegion
@@ -1443,17 +1451,17 @@ object EmitStream {
                   cb.goto(LendOfStream)
                 })
 
-                // if we didn't hit EOS from the inner stream and return to outer, iterate through remaining elements
-                cb.ifx(!inOuter, {
-                  cb.assign(inOuter, true)
-                  cb.define(LchildProduceDoneOuter)
+                cb.assign(inOuter, true)
+                cb.define(LchildProduceDoneOuter)
 
-                  if (childProducer.separateRegions)
-                    cb += childProducer.elementRegion.clearRegion()
 
-                  cb.ifx(xCounter < n, cb.goto(childProducer.LproduceElement))
-                })
-
+                cb.ifx(xCounter <= n,
+                  {
+                    if (childProducer.separateRegions)
+                      cb += childProducer.elementRegion.clearRegion()
+                    cb.goto(childProducer.LproduceElement)
+                  })
+                cb.assign(xCounter, 1)
                 cb.goto(LproduceElementDone)
               }
               override val element: EmitCode = innerStreamCode
