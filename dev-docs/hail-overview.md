@@ -125,7 +125,6 @@ Other:
 * $HAIL/datasets: ETL code for the Hail Query Datasets API
 * $HAIL/docker: base docker images used by services
 * $HAIL/hail/python/hailtop/hailctl: implementation of the hailctl command-line tool
-* $HAIL/image-fetcher: K8s daemon to pre-fetch container images
 * $HAIL/ukbb-rg: UKBB genetic correlation browser configuration, available at https://ukbb-rg.hail.is/
 
 ## Hail Query Java/Scala Code Organization

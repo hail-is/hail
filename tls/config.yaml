@@ -47,10 +47,6 @@ principals:
   domains:
     - scorecard
   kind: json
-- name: image-fetcher
-  domains:
-    - image-fetcher
-  kind: curl
 - name: blog
   domains:
     - blog
