@@ -1053,12 +1053,16 @@ def _logistic_regression_rows_nd(test, y, x, covariates, pass_through=()) -> hai
     _warn_if_no_intercept('logistic_regression_rows', covariates)
 
     x_field_name = Env.get_uid()
-    y_field = [f'__y_{i}' for i in range(len(y))]
+    y_field_names = [f'__y_{i}' for i in range(len(y))]
+    num_y_fields = len(y_field_names)
 
-    y_dict = dict(zip(y_field, y))
+    y_dict = dict(zip(y_field_names, y))
 
     cov_field_names = [f'__cov{i}' for i in range(len(covariates))]
     row_fields = _get_regression_row_fields(mt, pass_through, 'logistic_regression_rows')
+
+    # Handle filtering columns with missing values:
+    mt = mt.filter_cols(hl.array(y + covariates).all(hl.is_defined))
 
     # FIXME: selecting an existing entry field should be emitted as a SelectFields
     mt = mt._select_all(col_exprs=dict(**y_dict,
@@ -1067,7 +1071,49 @@ def _logistic_regression_rows_nd(test, y, x, covariates, pass_through=()) -> hai
                         col_key=[],
                         entry_exprs={x_field_name: x})
 
-    ht = mt._localize_entries("entries", "samples")
+    sample_field_name = "samples"
+    ht = mt._localize_entries("entries", sample_field_name)
+
+    def mean_impute(hl_array):
+        non_missing_mean = hl.mean(hl_array, filter_missing=True)
+        return hl_array.map(lambda entry: hl.if_else(hl.is_defined(entry), entry, non_missing_mean))
+
+    def sigmoid(hl_nd):
+        return 1 / (1 + hl_nd.map(lambda x: hl.exp(-x)))
+
+    # cov_nd rows are samples, columns are the different covariates
+    if covariates:
+        ht = ht.annotate_globals(cov_nd=hl.nd.array(ht[sample_field_name].map(lambda sample_struct: [sample_struct[cov_name] for cov_name in cov_field_names])))
+    else:
+        ht = ht.annotate_globals(cov_nd=hl.nd.array(ht[sample_field_name].map(lambda sample_struct: hl.empty_array(hl.tfloat64))))
+
+    # y_nd rows are samples, columns are the various dependent variables.
+    ht = ht.annotate_globals(y_nd = hl.nd.array(ht[sample_field_name].map(lambda sample_struct: [sample_struct[y_name] for y_name in y_field_names])))
+
+    def logreg_fit(X, y, maxIter=25, tol=1E-6):
+        assert(X.ndim == 2)
+        assert(y.ndim == 1)
+        # X is samples by covs.
+        # y is length num samples, for one cov.
+        n = X.shape[0]
+        m = X.shape[1]
+        b = hl.array([y.sum()[()]/n]).extend(hl.zeros(hl.int32(m - 1)).map(lambda e: hl.float64(e)))
+        mu = sigmoid(X @ b)
+        score = X.T @ (y - mu)
+        # Reshape so we do a rowwise multiply
+        fisher = X.T @ (X * (mu * (1 - mu)).reshape(-1, 1))
+
+        # Need to do looping now.
+
+        return hl.struct(converged=False, mu=mu, score=score, fisher=fisher)
+
+
+    # Fit null models, which means doing a logreg fit with just the covariates for each phenotype.
+    null_models = hl.range(num_y_fields).map(lambda idx: logreg_fit(ht.cov_nd, ht.y_nd[:, idx]))
+
+    ht = ht.annotate_globals(nulls = null_models)
+    ht = ht.transmute(x = hl.nd.array(mean_impute(ht.entries[x_field_name])))
+    return ht
 
 
 @typecheck(test=enumeration('wald', 'lrt', 'score'),
