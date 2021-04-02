@@ -547,7 +547,7 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, pass_through=())
 
 
 @typecheck(test=enumeration('wald', 'lrt', 'score', 'firth'),
-           y=oneof(expr_float64, sequenceof(expr_float64), sequenceof(sequenceof(expr_float64))),
+           y=oneof(expr_float64, sequenceof(expr_float64)),
            x=expr_float64,
            covariates=sequenceof(expr_float64),
            pass_through=sequenceof(oneof(str, Expression)))
@@ -816,7 +816,7 @@ def logistic_regression_rows(test, y, x, covariates, pass_through=()) -> hail.Ta
 
 
 @typecheck(test=enumeration('wald', 'lrt', 'score', 'firth'),
-           y=oneof(expr_float64, sequenceof(expr_float64), sequenceof(sequenceof(expr_float64))),
+           y=oneof(expr_float64, sequenceof(expr_float64)),
            x=expr_float64,
            covariates=sequenceof(expr_float64),
            pass_through=sequenceof(oneof(str, Expression)))
