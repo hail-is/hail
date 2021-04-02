@@ -180,7 +180,7 @@ certificate in or signed by a certificate in `site-outgoing.pem`, it will
 immediately halt the connection.
 
 There are two other kinds: `json` and `curl`. The former is for Hail Python
-services. The later is for the admin-pod and image-fetcher.
+services. The later is for the admin-pod.
 
 ### Batch Confused Deputy
 

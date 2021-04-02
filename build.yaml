@@ -574,11 +574,6 @@ steps:
    dependsOn:
      - service_base_image
  - kind: buildImage
-   name: image_fetcher_image
-   dockerFile: image-fetcher/Dockerfile
-   contextPath: image-fetcher
-   publishAs: image-fetcher
- - kind: buildImage
    name: ci_image
    dockerFile: ci/Dockerfile
    contextPath: .
@@ -3266,16 +3261,6 @@ steps:
     - kind: Service
       name: notebook
       for: alive
- - kind: deploy
-   name: deploy_image_fetcher
-   namespace:
-     valueFrom: default_ns.name
-   config: image-fetcher/deployment.yaml
-   dependsOn:
-    - default_ns
-    - image_fetcher_image
-    - deploy_notebook
-    - create_certs
  - kind: runImage
    name: cleanup_ci_test_repo
    image:
