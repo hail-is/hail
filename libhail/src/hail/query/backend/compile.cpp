@@ -257,7 +257,7 @@ EmitValue
 CompileFunction::emit(ArrayLen *x) {
   auto array_data_value = emit(x->get_child(0)).as_data(*this);
   auto array_svalue = cast<SArrayValue>(array_data_value.svalue);
-  return EmitValue(array_data_value.missing, array_svalue->get_length(tc));
+  return EmitValue(array_data_value.missing, array_svalue->get_length(stc));
 }
 
 EmitValue

@@ -101,17 +101,17 @@ class SArrayValue : public SValue {
 public:
   static bool is_instance_tag(Tag tag) { return tag == SValue::Tag::CANONICALARRAY; }
   const SCanonicalArray *const stype;
-  SArrayValue(const SCanonicalArray *stype): SValue(self_tag, stype), stype(stype) {}
-  virtual SValue *get_element(CompileFunction &cf, const SInt64Value *idx) const = 0;
-  virtual SInt64Value *get_length(TypeContext &tc) const = 0;
+  SArrayValue(Tag tag, const SCanonicalArray *stype);
+  virtual const SValue *get_element(CompileFunction &cf, const SInt64Value *idx) const = 0;
+  virtual SInt64Value *get_length(STypeContext &stc) const = 0;
 };
 
 class SCanonicalArrayValue : public SArrayValue {
   public:
     static bool is_instance_tag(Tag tag) { return tag == SValue::Tag::CANONICALARRAY; }
     SCanonicalArrayValue(const SCanonicalArray *stype, llvm::Value *length, llvm::Value *missing, llvm::Value *data);
-    SInt64Value* get_length(TypeContext &tc) const override;
-    SValue* get_element(CompileFunction &cf, const SInt64Value *idx) const override;
+    SInt64Value* get_length(STypeContext &stc) const override;
+    const SValue *get_element(CompileFunction &cf, const SInt64Value *idx) const override;
     ~SCanonicalArrayValue();
   private:
     llvm::Value *data;

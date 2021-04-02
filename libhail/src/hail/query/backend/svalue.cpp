@@ -104,18 +104,18 @@ SStackTupleValue::get_element(CompileFunction &cf, size_t i) const {
 }
 
 SCanonicalArrayValue::SCanonicalArrayValue(const SCanonicalArray *stype, llvm::Value *length, llvm::Value *missing, llvm::Value *data)
-  : SArrayValue(stype), length(length), missing(missing), data(data) {
+  : SArrayValue(Tag::CANONICALARRAY, stype), length(length), missing(missing), data(data) {
 }
 
 SCanonicalArrayValue::~SCanonicalArrayValue() {}
 
 SInt64Value *
-SCanonicalArrayValue::get_length(TypeContext &tc) const {
-  auto return_type = new SInt64(tc->tint32);
+SCanonicalArrayValue::get_length(STypeContext &stc) const {
+  auto return_type = stc.sint64;
   return new SInt64Value(return_type, length);
 }
 
-SValue*
+const SValue*
 SCanonicalArrayValue::get_element(CompileFunction &cf, const SInt64Value *idx) const {
   // TODO check for missing.
   auto stride_value = llvm::ConstantInt::get(llvm::Type::getInt64Ty(cf.llvm_context), static_cast<uint64_t>(stype->element_stride));
