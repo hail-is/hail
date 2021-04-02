@@ -597,12 +597,14 @@ class JVMProcess:
             self.state = 'failed'
 
     async def status(self, state=None):
-        return {
+        d = {
             'name': 'main',
             'state': self.state if not state else state,
-            'timing': self.timing,
-            'exit_code': self.proc.returncode
+            'timing': self.timing
         }
+        if self.proc is not None and self.proc.returncode is not None:
+            d['exit_code'] = self.proc.returncode
+        return d
 
     def get_log(self):
         return self.logbuffer.decode()
