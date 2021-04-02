@@ -145,7 +145,7 @@ def test_blanczos_against_hail():
     hl.import_vcf('data/1kg.vcf.bgz').write('data/1kg.mt', overwrite=True)
     dataset = hl.read_matrix_table('data/1kg.mt')
 
-    b_eigens, b_scores, b_loadings = hl._blanczos_pca(hl.int(hl.is_defined(dataset.GT)), k=k, q_iterations=3, compute_loadings=True)
+    b_eigens, b_scores, b_loadings = hl._blanczos_pca(hl.int(hl.is_defined(dataset.GT)), k=k, q_iterations=4, compute_loadings=True)
     b_scores = concatToNumpy(b_scores.scores)
     b_loadings = concatToNumpy(b_loadings.loadings)
     b_scores = np.reshape(b_scores, (len(b_scores) // k, k))
