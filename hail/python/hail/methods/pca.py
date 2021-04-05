@@ -228,8 +228,8 @@ def _krylov_factorization(A_expr, V0, p, compute_U=False):
     -------
 
     """
-    check_row_indexed('mt_to_table_of_ndarray/entry_expr', A_expr)
-    t = table_source('pca/A_expr', A_expr)
+    check_row_indexed('_krylov_factorization/A_expr', A_expr)
+    t = table_source('_krylov_factorization/A_expr', A_expr)
 
     g_list = [V0]
     G_i = V0
@@ -256,7 +256,43 @@ def _krylov_factorization(A_expr, V0, p, compute_U=False):
         return R, V
 
 
-def _spectral_moments(entry_expr, num, p=None, k=100, block_size=128):
+def _reduced_svd(A_expr, k=10, compute_U=False, iterations=2, iteration_size=None, block_size=128):
+    check_row_indexed('_reduced_svd/A_expr', A_expr)
+    t = table_source('pca/A_expr', A_expr)
+
+    # Set Parameters
+
+    q = iterations
+    if iteration_size is None:
+        L = k + 2
+    else:
+        L = iteration_size
+    assert((q+1)*L >= k)
+    n = A_expr.take(1)[0].shape[1]
+
+    # Generate random matrix G
+    G = hl.nd.zeros((n, L)).map(lambda n: hl.rand_norm(0, 1))
+    G = hl.nd.qr(G)[0]._persist()
+
+    if compute_U:
+        U0, R, V0 = _krylov_factorization(A_expr, G, q, compute_U=True)
+    else:
+        R, V0 = _krylov_factorization(A_expr, G, q, compute_U=False)
+
+    info("_reduced_svd: Computing local SVD")
+    U1, S, V1t = hl.nd.svd(R, full_matrices=False)._persist()
+
+    S = S[:k]
+    V = V0 @ V1t.T[:, :k]
+
+    if compute_U:
+        U = U0 @ U1[:, :k]
+        return S, V, U
+    else:
+        return S, V, None
+
+
+def _spectral_moments(entry_expr, num_moments, p=None, k=100, block_size=128):
     check_entry_indexed('_spectral_moments/entry_expr', entry_expr)
 
     A = mt_to_table_of_ndarray(entry_expr, block_size)
@@ -374,26 +410,7 @@ def _blanczos_pca(entry_expr, k=10, compute_loadings=False, q_iterations=2, over
     A, ht = mt_to_table_of_ndarray(entry_expr, block_size, return_checkpointed_table_also=True)
     A = A.persist()
 
-    # Set Parameters
-
-    q = q_iterations
-    L = k + oversampling_param
-    n = A.take(1)[0].ndarray.shape[1]
-
-    # Generate random matrix G
-    G = hl.nd.zeros((n, L)).map(lambda n: hl.rand_norm(0, 1))
-    G = hl.nd.qr(G)[0]._persist()
-
-    if compute_loadings:
-        U0, R, V0 = _krylov_factorization(A.ndarray, G, q, compute_U=True)
-    else:
-        R, V0 = _krylov_factorization(A.ndarray, G, q, compute_U=False)
-
-    info("blanczos_pca: QR Complete. Computing local SVD")
-    U1, S, V1t = hl.nd.svd(R, full_matrices=False)._persist()
-
-    S = S[:k]
-    V = V0 @ V1t.T[:, :k]
+    S, V, U = _reduced_svd(A.ndarray, k, compute_loadings, q_iterations, k+oversampling_param, block_size)
 
     scores = V * S
     eigens = hl.eval(S * S)
@@ -404,7 +421,6 @@ def _blanczos_pca(entry_expr, k=10, compute_loadings=False, q_iterations=2, over
     st = hl.Table.parallelize(cols_and_scores, key=list(mt.col_key))
 
     if compute_loadings:
-        U = U0 @ U1[:, :k]
         lt = ht.select()
         lt = lt.annotate_globals(U=U)
         idx_name = '_tmp_pca_loading_index'
