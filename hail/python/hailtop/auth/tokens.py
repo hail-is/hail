@@ -5,6 +5,7 @@ import sys
 import json
 import logging
 from hailtop.config import get_deploy_config
+from hailtop.utils import first_extant_file
 
 log = logging.getLogger('gear')
 
@@ -24,7 +25,10 @@ class Tokens(collections.abc.MutableMapping):
         location = deploy_config.location()
         if location == 'external':
             return os.path.expanduser('~/.hail/tokens.json')
-        return '/user-tokens/tokens.json'
+        return first_extant_file(
+            os.environ.get('HAIL_TOKENS_FILE'),
+            '/user-tokens/tokens.json'
+        )
 
     @staticmethod
     def default_tokens():
