@@ -176,7 +176,7 @@ def create_principal(principal, kind, key, cert, key_store, unmanaged):
              f'--from-file={outgoing_trust["trust"]}',
              f'--from-file={outgoing_trust["trust_store"]}',
              *[f'--from-file={c}' for c in configs],
-             '--dry-run', '-o', 'yaml'],
+             '--save-config', '--dry-run=client', '-o', 'yaml'],
             stdout=k8s_secret)
         sp.check_call(['kubectl', 'apply', '-f', k8s_secret.name])
 

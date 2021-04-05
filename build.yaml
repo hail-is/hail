@@ -293,14 +293,18 @@ steps:
      cat > deploy-config.json <<EOF
      {"location":"k8s","default_namespace":"{{ default_ns.name }}","domain":"{{ global.domain }}"}
      EOF
-     kubectl -n {{ default_ns.name }} delete --ignore-not-found secret deploy-config
-     kubectl -n {{ default_ns.name }} create secret generic deploy-config --from-file=./deploy-config.json
+     kubectl -n {{ default_ns.name }} create secret generic deploy-config \
+             --from-file=./deploy-config.json \
+             --save-config --dry-run=client -o yaml \
+         | kubectl -n {{ default_ns.name }} apply -f -
      # gce deploy config
      cat > deploy-config.json <<EOF
      {"location":"gce","default_namespace":"{{ default_ns.name }}","domain":"{{ global.domain }}"}
      EOF
-     kubectl -n {{ default_ns.name }} delete --ignore-not-found secret gce-deploy-config
-     kubectl -n {{ default_ns.name }} create secret generic gce-deploy-config --from-file=./deploy-config.json
+     kubectl -n {{ default_ns.name }} create secret generic gce-deploy-config \
+             --from-file=./deploy-config.json \
+             --save-config --dry-run=client -o yaml \
+         | kubectl -n {{ default_ns.name }} apply -f -
    serviceAccount:
      name: admin
      namespace:
