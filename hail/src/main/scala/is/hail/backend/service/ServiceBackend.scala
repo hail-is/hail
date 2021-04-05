@@ -11,7 +11,7 @@ import is.hail.backend.{Backend, BackendContext, BroadcastValue, HailTaskContext
 import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.ir.lowering.{DArrayLowering, LoweringPipeline, TableStage, TableStageDependency}
 import is.hail.expr.ir.{Compile, ExecuteContext, IR, IRParser, Literal, MakeArray, MakeTuple, ShuffleRead, ShuffleWrite, SortField, ToStream}
-import is.hail.io.fs.{FS, GoogleStorageFS, SeekableDataInputStream}
+import is.hail.io.fs.{FS, GoogleStorageFS, SeekableDataInputStream, ServiceCacheableFS}
 import is.hail.linalg.BlockMatrix
 import is.hail.rvd.RVDPartitioner
 import is.hail.services._
@@ -83,7 +83,7 @@ class ServiceBackend() extends Backend {
 
     val user = users.get(backendContext.username)
     assert(user != null, backendContext.username)
-    val fs = user.fs
+    val fs = user.fs.asCacheable(backendContext.sessionID)
 
     val n = collection.length
 
@@ -95,13 +95,13 @@ class ServiceBackend() extends Backend {
 
     log.info(s"parallelizeAndComputeWithIndex: token $token: writing f")
 
-    using(new ObjectOutputStream(fs.create(s"$root/f"))) { os =>
+    using(new ObjectOutputStream(fs.createCachedNoCompression(s"$root/f"))) { os =>
       os.writeObject(f)
     }
 
     log.info(s"parallelizeAndComputeWithIndex: token $token: writing context offsets")
 
-    using(fs.createNoCompression(s"$root/contexts")) { os =>
+    using(fs.createCachedNoCompression(s"$root/contexts")) { os =>
       var o = 12L * n
       var i = 0
       while (i < n) {
@@ -122,7 +122,6 @@ class ServiceBackend() extends Backend {
     while (i < n) {
       jobs(i) = JObject(
           "always_run" -> JBool(false),
-          "env" -> HailContext.get.flags.toJSONEnv,
           "job_id" -> JInt(i),
           "parent_ids" -> JArray(List()),
           "process" -> JObject(

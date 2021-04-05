@@ -5,6 +5,7 @@ import java.net.URI
 import java.nio.ByteBuffer
 import java.nio.file.FileSystems
 
+import org.apache.log4j.{LogManager, Logger}
 import com.google.auth.oauth2.ServiceAccountCredentials
 import com.google.cloud.{ReadChannel, WriteChannel}
 import com.google.cloud.storage.Storage.BlobListOption
@@ -15,6 +16,8 @@ import scala.collection.JavaConverters._
 import scala.collection.mutable
 
 object GoogleStorageFS {
+  val log = Logger.getLogger(getClass.getName())
+
   def containsWildcard(path: String): Boolean = {
     var i = 0
     while (i < path.length) {
@@ -98,17 +101,13 @@ class GoogleStorageFileStatus(path: String, modificationTime: java.lang.Long, si
 class GoogleStorageFS(serviceAccountKey: String) extends FS {
   import GoogleStorageFS._
 
-  @transient private lazy val storage: Storage =
+  @transient private lazy val storage: Storage = {
+    log.info("Initializing google storage client")
     StorageOptions.newBuilder()
       .setCredentials(
         ServiceAccountCredentials.fromStream(new ByteArrayInputStream(serviceAccountKey.getBytes)))
       .build()
       .getService
-
-  def getEtag(filename: String): String = {
-    val (bucket, path) = getBucketPath(filename)
-    val blob = storage.get(bucket, path)
-    if (blob != null) blob.getEtag else null
   }
 
   def asCacheable(): CacheableGoogleStorageFS = new CacheableGoogleStorageFS(serviceAccountKey, null)
@@ -370,5 +369,4 @@ class GoogleStorageFS(serviceAccountKey: String) extends FS {
 }
 
 class CacheableGoogleStorageFS(serviceAccountKey: String, @transient val sessionID: String) extends GoogleStorageFS(serviceAccountKey) with ServiceCacheableFS {
-  def getEtagOrNone(filename: String): Option[String] = Option(getEtag(filename))
 }

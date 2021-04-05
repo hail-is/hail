@@ -22,8 +22,7 @@ def _get_ssl_config() -> Dict[str, str]:
         with open(config_file, 'r') as f:
             ssl_config = json.load(f)
             for config_name, rel_path in ssl_config.items():
-                absolute_path = f'{config_dir}/{rel_path}'
-                ssl_config[config_name] = absolute_path
+                ssl_config[config_name] = f'{config_dir}/{rel_path}'
         check_ssl_config(ssl_config)
         return ssl_config
     raise NoSSLConfigFound(f'no ssl config found at {config_file}')

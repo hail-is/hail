@@ -31,7 +31,7 @@ class ClientResponseException(
 object Requester {
   lazy val log: Logger = LogManager.getLogger("Requester")
 
-  private val httpClient: CloseableHttpClient = {
+  val httpClient: CloseableHttpClient = {
     log.info("creating HttpClient")
     try {
       HttpClients.custom()
@@ -51,7 +51,6 @@ class Requester(
   def this(service: String) = this(Tokens.get, service)
 
   import Requester._
-
   def requestWithHandler[T >: Null](req: HttpUriRequest, body: HttpEntity, f: InputStream => T): T = {
     log.info(s"request ${ req.getMethod } ${ req.getURI }")
 
@@ -92,6 +91,5 @@ class Requester(
         null
       else
         JsonMethods.parse(new String(s))
-
     })
 }

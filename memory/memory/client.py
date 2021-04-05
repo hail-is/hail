@@ -1,7 +1,6 @@
 
 import aiohttp
 import concurrent
-import google.api_core.exceptions
 
 from hailtop.auth import service_auth_headers
 from hailtop.config import get_deploy_config
@@ -36,11 +35,7 @@ class MemoryClient:
             self._headers.update(service_auth_headers(self._deploy_config, 'memory'))
 
     async def _get_file_if_exists(self, filename):
-        try:
-            etag = await self._fs.get_etag(filename)
-        except google.api_core.exceptions.NotFound:
-            return None
-        params = {'q': filename, 'etag': etag}
+        params = {'q': filename}
         try:
             url = f'{self.url}/api/v1alpha/objects'
             async with await request_retry_transient_errors(self._session,

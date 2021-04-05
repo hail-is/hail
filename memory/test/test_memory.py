@@ -24,6 +24,7 @@ class BlockingMemoryClient:
     def close(self):
         return async_to_blocking(self._client.close())
 
+
 class Tests(unittest.TestCase):
     def setUp(self):
         bucket_name = get_user_config().get('batch', 'bucket')
