@@ -2029,9 +2029,9 @@ class Emit[C](
         }
 
         def addContexts(cb: EmitCodeBuilder, ctxStream: StreamProducer): Unit = {
-          cb += ctxab.invoke[Int, Unit]("ensureCapacity", ctxStream.length.getOrElse(16))
-
-          ctxStream.memoryManagedConsume(region, cb) { cb =>
+          ctxStream.memoryManagedConsume(region, cb, setup = { cb =>
+            cb += ctxab.invoke[Int, Unit]("ensureCapacity", ctxStream.length.getOrElse(16))
+          }) { cb =>
             cb += baos.invoke[Unit]("reset")
             val ctxTuple = wrapInTuple(cb, ctxStream.element)
               .memoize(cb, "cda_add_contexts_addr")
