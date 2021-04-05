@@ -39,7 +39,7 @@ def random_forest(df_x_path: str, df_y_path: str, window_name: str, cores: int =
 
 
 def as_tsv(input: Tuple[str, float, float]) -> str:
-    return '\t'.join([str(i) for i in input])
+    return '\t'.join(str(i) for i in input)
 
 
 def checkpoint_path(window):

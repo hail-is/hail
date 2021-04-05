@@ -72,11 +72,12 @@ class Batch:
         applicable for the :class:`.ServiceBackend`. If `None`, there is no
         timeout.
     default_python_image:
-        Default image to use for all Python jobs. Must have the `dill` Python
-        package installed. If None, then a Docker image will be
-        built locally with the Python packages listed by `python_requirements`
-        installed. If the :class:`.ServiceBackend` is used as the backend, then
-        locally built Docker images are pushed to `image_repository`
+        Default image to use for all Python jobs. This must be the full name of the
+        image including any repository prefix and tags if desired (default tag is `latest`).
+        The image must have the `dill` Python package installed. If None, then a
+        Docker image will be built locally with the Python packages listed by
+        `python_requirements` installed. If the :class:`.ServiceBackend` is used as
+        the backend, then locally built Docker images are pushed to `image_repository`
         with the name `batch-python` unless `python_build_image_name` is given.
     python_requirements:
         Pip packages to install for Python jobs if `default_python_image` is None.
@@ -86,7 +87,7 @@ class Batch:
         Name of image repository to push Batch-built images to. For example,
         `gcr.io/my-project`.
     docker_build_dir:
-        Local directory to use for building Docker images.
+        Local directory to use for building Docker images. Defaults to `/tmp`.
     project:
         If specified, the project to use when authenticating with Google
         Storage. Google Storage is used to transfer serialized values between
@@ -189,7 +190,7 @@ class Batch:
                      attributes: Optional[Dict[str, str]] = None,
                      shell: Optional[str] = None) -> job.BashJob:
         """
-        Initialize a new job object :class:`.BashJob` with default memory, storage,
+        Initialize a :class:`.BashJob` object with default memory, storage,
         image, and CPU settings (defined in :class:`.Batch`) upon batch creation.
 
         Examples
@@ -236,18 +237,42 @@ class Batch:
                        name: Optional[str] = None,
                        attributes: Optional[Dict[str, str]] = None) -> job.PythonJob:
         """
-        Initialize a new job object :class:`.PythonJob` with the default
+        Initialize a new :class:`.PythonJob` object with default
         Python image, memory, storage, and CPU settings (defined in :class:`.Batch`)
         upon batch creation.
 
         Examples
         --------
-        Create and execute a batch `b` with one job `j` that prints "hello world":
+        Create and execute a batch `b` with one job `j` that prints "hello alice":
 
-        >>> b = Batch()
-        >>> j = b.new_job(name='hello', attributes={'language': 'english'})
-        >>> j.command('echo "hello world"')
-        >>> b.run()
+        .. code-block:: python
+
+            b = Batch(default_python_image='gcr.io/hail-vdc/python-dill:3.7-slim')
+
+            def hello(name):
+                return f'hello {name}'
+
+            j = b.new_python_job()
+            output = j.call(hello, 'alice')
+
+            # Write out the str representation of result to a file
+
+            b.write_output(output.as_str(), 'hello.txt')
+
+            b.run()
+
+        Notes
+        -----
+
+        The image to use for Python jobs can be specified by `default_python_image`
+        when constructing a :class:`.Batch`. The image specified must have the `dill`
+        package installed. If ``default_python_image`` is not specified, then a Docker
+        image will automatically be created for you with the base image
+        `hailgenetics/python-dill:[major_version].[minor_version]-slim` and the Python
+        packages specified by ``python_requirements`` will be installed. The default name
+        of the image is `batch-python` with a random string for the tag unless ``python_build_image_name``
+        is specified. If the :class:`.ServiceBackend` is the backend, the locally built
+        image will be pushed to the repository specified by ``image_repository``.
 
         Parameters
         ----------

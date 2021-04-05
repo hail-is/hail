@@ -110,7 +110,7 @@ and returns a tab-delimited string that will be used later on when concatenating
 .. code-block:: python
 
     def as_tsv(input: Tuple[str, float, float]) -> str:
-        return '\t'.join([str(i) for i in input])
+        return '\t'.join(str(i) for i in input)
 
 ~~~~~~~~~~~~
 Control Code

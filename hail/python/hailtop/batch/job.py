@@ -378,7 +378,7 @@ class Job:
 
 class BashJob(Job):
     """
-    Object representing a single job to execute.
+    Object representing a single bash job to execute.
 
     Examples
     --------
@@ -414,7 +414,7 @@ class BashJob(Job):
 
         return self._resources[item]
 
-    def declare_resource_group(self, **mappings: Dict[str, Any]) -> 'Job':
+    def declare_resource_group(self, **mappings: Dict[str, Any]) -> 'BashJob':
         """Declare a resource group for a job.
 
         Examples
@@ -462,7 +462,7 @@ class BashJob(Job):
             _add_resource_to_set(self._valid, rg)
         return self
 
-    def image(self, image: str) -> 'Job':
+    def image(self, image: str) -> 'BashJob':
         """
         Set the job's docker image.
 
@@ -609,7 +609,7 @@ class BashJob(Job):
 
 class PythonJob(Job):
     """
-    Object representing a single job to execute.
+    Object representing a single Python job to execute.
 
     Examples
     --------
@@ -629,8 +629,8 @@ class PythonJob(Job):
             return x + y
 
         j = b.new_python_job()
-        j.call(multiply, 2, 3)
-        j.call(add, result, 5)
+        result = j.call(multiply, 2, 3)
+        result = j.call(add, result, 5)
 
         # Write out the str representation of result to a file
 
@@ -642,16 +642,6 @@ class PythonJob(Job):
     -----
     This class should never be created directly by the user. Use :meth:`.Batch.new_python_job`
     instead.
-
-    The image to use for Python jobs can be specified by `default_python_image`
-    when constructing a :class:`.Batch`. The image specified must have the `dill`
-    package installed. If ``default_python_image`` is not specified, then a Docker
-    image will automatically be created for you with the base image
-    `hailgenetics/python-dill:[major_version].[minor_version]-slim` and the Python
-    packages specified by ``python_requirements`` will be installed. The default name
-    of the image is `batch-python` with a random string for the tag unless ``python_build_image_name``
-    is specified. If the :class:`.ServiceBackend` is the backend, the locally built
-    image will be pushed to the repository specified by ``image_repository``.
     """
 
     def __init__(self,
