@@ -1737,164 +1737,6 @@ object EmitStream {
           SStreamCode(SStream(producer.element.st, childStreams.forall(_.pt.required)), producer)
         }
 
-      case x@StreamMultiMerge(as, key) =>
-        IEmitCode.multiMapEmitCodes(cb, as.map(a => EmitCode.fromI(mb)(cb => emit(a, cb)))) { children =>
-          val producers = children.map(_.asStream.producer)
-
-          val unifiedType = x.pType.elementType.asInstanceOf[PStruct] // FIXME unify
-
-          val region = mb.genFieldThisRef[Region]("smm_region")
-          val regionArray = mb.genFieldThisRef[Array[Region]]("smm_region_array")
-          val separateRegionBooleansArray = mb.genFieldThisRef[Array[Boolean]]("smm_separate_region_array")
-
-          // The algorithm maintains a tournament tree of comparisons between the
-          // current values of the k streams. The tournament tree is a complete
-          // binary tree with k leaves. The leaves of the tree are the streams,
-          // and each internal node represents the "contest" between the "winners"
-          // of the two subtrees, where the winner is the stream with the smaller
-          // current key. Each internal node stores the index of the stream which
-          // *lost* that contest.
-          // Each time we remove the overall winner, and replace that stream's
-          // leaf with its next value, we only need to rerun the contests on the
-          // path from that leaf to the root, comparing the new value with what
-          // previously lost that contest to the previous overall winner.
-          val k = producers.length
-          // The leaf nodes of the tournament tree, each of which holds a pointer
-          // to the current value of that stream.
-          val heads = mb.genFieldThisRef[Array[Long]]("merge_heads")
-          // The internal nodes of the tournament tree, laid out in breadth-first
-          // order, each of which holds the index of the stream which lost that
-          // contest.
-          val bracket = mb.genFieldThisRef[Array[Int]]("merge_bracket")
-          // When updating the tournament tree, holds the winner of the subtree
-          // containing the updated leaf. Otherwise, holds the overall winner, i.e.
-          // the current least element.
-          val winner = mb.genFieldThisRef[Int]("merge_winner")
-          val i = mb.genFieldThisRef[Int]("merge_i")
-          val challenger = mb.genFieldThisRef[Int]("merge_challenger")
-
-          val matchIdx = mb.genFieldThisRef[Int]("merge_match_idx")
-          // Compare 'winner' with value in 'matchIdx', loser goes in 'matchIdx',
-          // winner goes on to next round. A contestant '-1' beats everything
-          // (negative infinity), a contestant 'k' loses to everything
-          // (positive infinity), and values in between are indices into 'heads'.
-
-          def comp(cb: EmitCodeBuilder, li: Code[Int], lv: Code[Long], ri: Code[Int], rv: Code[Long]): Code[Boolean] = {
-            val l = unifiedType.loadCheapPCode(cb, lv).asBaseStruct.subset(key: _*)
-            val r = unifiedType.loadCheapPCode(cb, rv).asBaseStruct.subset(key: _*)
-            val ord = cb.emb.ecb.getOrdering(l.st, r.st)
-            val c = cb.newLocal("stream_merge_comp", ord.compareNonnull(cb, l, r))
-            c < 0 || (c.ceq(0) && li < ri)
-          }
-
-          val producer = new StreamProducer {
-            override val length: Option[Code[Int]] = producers.map(_.length).reduce(_.liftedZip(_).map { case (l, r) => l + r })
-
-            override def initialize(cb: EmitCodeBuilder): Unit = {
-              producers.zipWithIndex.foreach { case (p, i) =>
-                if (p.separateRegions) {
-                  cb.assign(p.elementRegion, Region.stagedCreate(Region.REGULAR, outerRegion.getPool()))
-                  cb += (regionArray(i) = p.elementRegion)
-                } else
-                  cb.assign(p.elementRegion, outerRegion)
-                p.initialize(cb)
-              }
-              cb.assign(separateRegionBooleansArray, mb.getObject[Array[Boolean]](producers.map(_.separateRegions).toArray))
-              cb.assign(bracket, Code.newArray[Int](k))
-              cb.assign(heads, Code.newArray[Long](k))
-              cb.forLoop(cb.assign(i, 0), i < k, cb.assign(i, i + 1), {
-                cb += (bracket(i) = -1)
-              })
-              cb.assign(i, 0)
-              cb.assign(winner, 0)
-            }
-
-            override val elementRegion: Settable[Region] = region
-            override val separateRegions: Boolean = producers.exists(_.separateRegions)
-            override val LproduceElement: CodeLabel = mb.defineHangingLabel { cb =>
-              val LrunMatch = CodeLabel()
-              val LpullChild = CodeLabel()
-              val LloopEnd = CodeLabel()
-
-              cb.define(LpullChild)
-              // FIXME codebuilderify switch
-              cb += Code.switch(winner,
-                LendOfStream.goto, // can only happen if k=0
-                producers.map(p => p.LproduceElement.goto))
-
-
-              cb.define(LrunMatch)
-              cb.assign(challenger, bracket(matchIdx))
-              cb.ifx(matchIdx.ceq(0) || challenger.ceq(-1), cb.goto(LloopEnd))
-
-              val LafterChallenge = CodeLabel()
-              cb.ifx(challenger.cne(k), {
-                val Lwon = CodeLabel()
-                cb.ifx(winner.ceq(k), cb.goto(Lwon))
-                cb.ifx(comp(cb, challenger, heads(challenger), winner, heads(winner)), cb.goto(Lwon), cb.goto(LafterChallenge))
-
-                cb.define(Lwon)
-                cb += (bracket(matchIdx) = winner)
-                cb.assign(winner, challenger)
-              })
-              cb.define(LafterChallenge)
-
-              cb.assign(matchIdx, matchIdx >>> 1)
-              cb.goto(LrunMatch)
-
-              cb.define(LloopEnd)
-
-              cb.ifx(matchIdx.ceq(0), {
-                // 'winner' is smallest of all k heads. If 'winner' = k, all heads
-                // must be k, and all streams are exhausted.
-                cb.ifx(winner.ceq(k),
-                  cb.goto(LendOfStream),
-                  {
-                    // we have a winner
-                    cb.ifx(separateRegionBooleansArray(winner), {
-                      val winnerRegion = cb.newLocal[Region]("smm_winner_region", regionArray(winner))
-                      cb += winnerRegion.addReferenceTo(elementRegion)
-                      cb += winnerRegion.clearRegion()
-                    })
-                    cb.goto(LproduceElementDone)
-                  })
-              }, {
-                cb += (bracket(matchIdx) = winner)
-                cb.assign(i, i + 1)
-                cb.assign(winner, i)
-                cb.goto(LpullChild)
-              })
-
-              // define producer labels
-              producers.zipWithIndex.foreach { case (p, idx) =>
-                cb.define(p.LendOfStream)
-                cb.assign(winner, k)
-                cb.assign(matchIdx, (idx + k) >>> 1)
-                cb.goto(LrunMatch)
-
-                cb.define(LproduceElementDone)
-                cb += (heads(idx) = unifiedType.store(cb, p.elementRegion, element.toI(cb).get(cb), false))
-                cb.assign(matchIdx, (idx + k) >>> 1)
-                cb.goto(LrunMatch)
-              }
-            }
-
-            override val element: EmitCode = EmitCode.fromI(mb)(cb => IEmitCode.present(cb, unifiedType.loadCheapPCode(cb, heads(winner))))
-
-            override def close(cb: EmitCodeBuilder): Unit = {
-              producers.foreach { p =>
-                if (p.separateRegions)
-                  cb += p.elementRegion.invalidate()
-                p.close(cb)
-              }
-              cb.assign(bracket, Code._null)
-              cb.assign(heads, Code._null)
-              cb.assign(separateRegionBooleansArray, Code._null)
-            }
-          }
-          SStreamCode(SStream(producer.element.st, children.forall(_.pt.required)), producer)
-        }
-
       case x@StreamZipJoin(as, key, keyRef, valsRef, joinIR) =>
         IEmitCode.multiMapEmitCodes(cb, as.map(a => EmitCode.fromI(mb)(cb => emit(a, cb)))) { children =>
           val producers = children.map(_.asStream.producer)
@@ -1905,7 +1747,22 @@ object EmitStream {
 
           val _elementRegion = mb.genFieldThisRef[Region]("szj_region")
           val regionArray = mb.genFieldThisRef[Array[Region]]("szj_region_array")
-          val separateRegionBooleansArray = mb.genFieldThisRef[Array[Boolean]]("szj_separate_region_array")
+
+          val staticSepRegionsArray = producers.map(_.separateRegions).toArray
+          val allMatch = staticSepRegionsArray.toSet.size == 1
+          val separateRegionBooleansArray = if (allMatch) null else mb.genFieldThisRef[Array[Int]]("smm_separate_region_array")
+
+          def initSeparateRegions(cb: EmitCodeBuilder): Unit = {
+            if (!allMatch)
+              cb.assign(separateRegionBooleansArray, mb.getObject[Array[Int]](producers.map(_.separateRegions.toInt).toArray))
+          }
+
+          def lookupSeparateRegions(cb: EmitCodeBuilder, idx: Code[Int]): Code[Boolean] = {
+            if (allMatch)
+              const(staticSepRegionsArray.head)
+            else
+              separateRegionBooleansArray.apply(idx).toZ
+          }
 
           // The algorithm maintains a tournament tree of comparisons between the
           // current values of the k streams. The tournament tree is a complete
@@ -1957,7 +1814,7 @@ object EmitStream {
                   cb.assign(p.elementRegion, outerRegion)
                 p.initialize(cb)
               }
-              cb.assign(separateRegionBooleansArray, mb.getObject[Array[Boolean]](producers.map(_.separateRegions).toArray))
+              initSeparateRegions(cb)
               cb.assign(bracket, Code.newArray[Int](k))
               cb.assign(heads, Code.newArray[Long](k))
               cb.forLoop(cb.assign(i, 0), i < k, cb.assign(i, i + 1), {
@@ -1976,8 +1833,16 @@ object EmitStream {
               val LloopEnd = CodeLabel()
               val LaddToResult = CodeLabel()
               val LstartNewKey = CodeLabel()
-              val Leos = CodeLabel()
               val Lpush = CodeLabel()
+
+              def inSetup: Code[Boolean] = result.isNull
+
+              cb.ifx(inSetup, {
+                cb.assign(i, 0)
+                cb.goto(LpullChild)
+              }, {
+                cb.ifx(winner.ceq(k), cb.goto(LendOfStream), cb.goto(LstartNewKey))
+              })
 
               cb.define(Lpush)
               cb.assign(xKey, curKey)
@@ -1990,21 +1855,18 @@ object EmitStream {
               cb.forLoop(cb.assign(i, 0), i < k, cb.assign(i, i + 1), {
                 cb += (result(i) = 0L)
               })
-              cb.assign(curKey, eltType.loadCheapPCode(cb, heads(winner)).subset(key: _*))
-              cb.ifx(separateRegionBooleansArray(winner),
-                cb.assign(curKey, curKey.castTo(cb, elementRegion, curKey.pt, true)))
+              cb.assign(curKey, eltType.loadCheapPCode(cb, heads(winner)).subset(key: _*)
+                .castTo(cb, elementRegion, curKey.pt, true))
               cb.goto(LaddToResult)
 
               cb.define(LaddToResult)
               cb += (result(winner) = heads(winner))
-              cb.ifx(separateRegionBooleansArray(winner), {
+              cb.ifx(lookupSeparateRegions(cb, winner), {
                 val r = cb.newLocal[Region]("tzj_winner_region", regionArray(winner))
                 cb += r.addReferenceTo(elementRegion)
                 cb += r.clearRegion()
               })
               cb.goto(LpullChild)
-
-              def inSetup: Code[Boolean] = result.isNull
 
               val matchIdx = mb.genFieldThisRef[Int]("merge_match_idx")
               val challenger = mb.genFieldThisRef[Int]("merge_challenger")
@@ -2015,7 +1877,7 @@ object EmitStream {
 
               cb.define(LrunMatch)
               cb.assign(challenger, bracket(matchIdx))
-              cb.ifx(matchIdx.ceq(0) || challenger.ceq(1), cb.goto(LloopEnd))
+              cb.ifx(matchIdx.ceq(0) || challenger.ceq(-1), cb.goto(LloopEnd))
 
               val LafterChallenge = CodeLabel()
 
@@ -2076,9 +1938,16 @@ object EmitStream {
                 cb.define(p.LproduceElementDone)
                 val storedElt = eltType.store(cb, p.elementRegion, p.element.toI(cb).get(cb), false)
                 cb += (heads(idx) = storedElt)
+                cb.assign(matchIdx, (idx + k) >>> 1)
                 cb.goto(LrunMatch)
               }
+
+              cb.define(LpullChild)
+              cb += Code.switch(winner,
+                LendOfStream.goto, // can only happen if k=0
+                producers.map(_.LproduceElement.goto))
             }
+
             override val element: EmitCode = joinResult
 
             override def close(cb: EmitCodeBuilder): Unit = {
@@ -2089,11 +1958,182 @@ object EmitStream {
               }
               cb.assign(bracket, Code._null)
               cb.assign(heads, Code._null)
-              cb.assign(separateRegionBooleansArray, Code._null)
               cb.assign(result, Code._null)
             }
           }
 
+          SStreamCode(SStream(producer.element.st, children.forall(_.pt.required)), producer)
+        }
+
+      case x@StreamMultiMerge(as, key) =>
+        IEmitCode.multiMapEmitCodes(cb, as.map(a => EmitCode.fromI(mb)(cb => emit(a, cb)))) { children =>
+          val producers = children.map(_.asStream.producer)
+
+          val unifiedType = x.pType.elementType.asInstanceOf[PStruct] // FIXME unify
+
+          val region = mb.genFieldThisRef[Region]("smm_region")
+          val regionArray = mb.genFieldThisRef[Array[Region]]("smm_region_array")
+
+          val staticSepRegionsArray = producers.map(_.separateRegions).toArray
+          val allMatch = staticSepRegionsArray.toSet.size == 1
+          val separateRegionBooleansArray = if (allMatch) null else mb.genFieldThisRef[Array[Int]]("smm_separate_region_array")
+
+          def initSeparateRegions(cb: EmitCodeBuilder): Unit = {
+            if (!allMatch)
+              cb.assign(separateRegionBooleansArray, mb.getObject[Array[Int]](producers.map(_.separateRegions.toInt).toArray))
+          }
+
+          def lookupSeparateRegions(cb: EmitCodeBuilder, idx: Code[Int]): Code[Boolean] = {
+            if (allMatch)
+              const(staticSepRegionsArray.head)
+            else
+              separateRegionBooleansArray.apply(idx).toZ
+          }
+
+          // The algorithm maintains a tournament tree of comparisons between the
+          // current values of the k streams. The tournament tree is a complete
+          // binary tree with k leaves. The leaves of the tree are the streams,
+          // and each internal node represents the "contest" between the "winners"
+          // of the two subtrees, where the winner is the stream with the smaller
+          // current key. Each internal node stores the index of the stream which
+          // *lost* that contest.
+          // Each time we remove the overall winner, and replace that stream's
+          // leaf with its next value, we only need to rerun the contests on the
+          // path from that leaf to the root, comparing the new value with what
+          // previously lost that contest to the previous overall winner.
+          val k = producers.length
+          // The leaf nodes of the tournament tree, each of which holds a pointer
+          // to the current value of that stream.
+          val heads = mb.genFieldThisRef[Array[Long]]("merge_heads")
+          // The internal nodes of the tournament tree, laid out in breadth-first
+          // order, each of which holds the index of the stream which lost that
+          // contest.
+          val bracket = mb.genFieldThisRef[Array[Int]]("merge_bracket")
+          // When updating the tournament tree, holds the winner of the subtree
+          // containing the updated leaf. Otherwise, holds the overall winner, i.e.
+          // the current least element.
+          val winner = mb.genFieldThisRef[Int]("merge_winner")
+          val i = mb.genFieldThisRef[Int]("merge_i")
+          val challenger = mb.genFieldThisRef[Int]("merge_challenger")
+
+          val matchIdx = mb.genFieldThisRef[Int]("merge_match_idx")
+          // Compare 'winner' with value in 'matchIdx', loser goes in 'matchIdx',
+          // winner goes on to next round. A contestant '-1' beats everything
+          // (negative infinity), a contestant 'k' loses to everything
+          // (positive infinity), and values in between are indices into 'heads'.
+
+          def comp(cb: EmitCodeBuilder, li: Code[Int], lv: Code[Long], ri: Code[Int], rv: Code[Long]): Code[Boolean] = {
+            val l = unifiedType.loadCheapPCode(cb, lv).asBaseStruct.subset(key: _*)
+            val r = unifiedType.loadCheapPCode(cb, rv).asBaseStruct.subset(key: _*)
+            val ord = cb.emb.ecb.getOrdering(l.st, r.st)
+            val c = cb.newLocal("stream_merge_comp", ord.compareNonnull(cb, l, r))
+            c < 0 || (c.ceq(0) && li < ri)
+          }
+
+          val producer = new StreamProducer {
+            override val length: Option[Code[Int]] = producers.map(_.length).reduce(_.liftedZip(_).map { case (l, r) => l + r })
+
+            override def initialize(cb: EmitCodeBuilder): Unit = {
+              producers.zipWithIndex.foreach { case (p, i) =>
+                if (p.separateRegions) {
+                  cb.assign(p.elementRegion, Region.stagedCreate(Region.REGULAR, outerRegion.getPool()))
+                  cb += (regionArray(i) = p.elementRegion)
+                } else
+                  cb.assign(p.elementRegion, outerRegion)
+                p.initialize(cb)
+              }
+              initSeparateRegions(cb)
+              cb.assign(bracket, Code.newArray[Int](k))
+              cb.assign(heads, Code.newArray[Long](k))
+              cb.forLoop(cb.assign(i, 0), i < k, cb.assign(i, i + 1), {
+                cb += (bracket(i) = -1)
+              })
+              cb.assign(i, 0)
+              cb.assign(winner, 0)
+            }
+
+            override val elementRegion: Settable[Region] = region
+            override val separateRegions: Boolean = producers.exists(_.separateRegions)
+            override val LproduceElement: CodeLabel = mb.defineHangingLabel { cb =>
+              val LrunMatch = CodeLabel()
+              val LpullChild = CodeLabel()
+              val LloopEnd = CodeLabel()
+
+              cb.define(LpullChild)
+              // FIXME codebuilderify switch
+              cb += Code.switch(winner,
+                LendOfStream.goto, // can only happen if k=0
+                producers.map(p => p.LproduceElement.goto))
+
+
+              cb.define(LrunMatch)
+              cb.assign(challenger, bracket(matchIdx))
+              cb.ifx(matchIdx.ceq(0) || challenger.ceq(-1), cb.goto(LloopEnd))
+
+              val LafterChallenge = CodeLabel()
+              cb.ifx(challenger.cne(k), {
+                val Lwon = CodeLabel()
+                cb.ifx(winner.ceq(k), cb.goto(Lwon))
+                cb.ifx(comp(cb, challenger, heads(challenger), winner, heads(winner)), cb.goto(Lwon), cb.goto(LafterChallenge))
+
+                cb.define(Lwon)
+                cb += (bracket(matchIdx) = winner)
+                cb.assign(winner, challenger)
+              })
+              cb.define(LafterChallenge)
+
+              cb.assign(matchIdx, matchIdx >>> 1)
+              cb.goto(LrunMatch)
+
+              cb.define(LloopEnd)
+
+              cb.ifx(matchIdx.ceq(0), {
+                // 'winner' is smallest of all k heads. If 'winner' = k, all heads
+                // must be k, and all streams are exhausted.
+                cb.ifx(winner.ceq(k),
+                  cb.goto(LendOfStream),
+                  {
+                    // we have a winner
+                    cb.ifx(lookupSeparateRegions(cb, winner), {
+                      val winnerRegion = cb.newLocal[Region]("smm_winner_region", regionArray(winner))
+                      cb += winnerRegion.addReferenceTo(elementRegion)
+                      cb += winnerRegion.clearRegion()
+                    })
+                    cb.goto(LproduceElementDone)
+                  })
+              }, {
+                cb += (bracket(matchIdx) = winner)
+                cb.assign(i, i + 1)
+                cb.assign(winner, i)
+                cb.goto(LpullChild)
+              })
+
+              // define producer labels
+              producers.zipWithIndex.foreach { case (p, idx) =>
+                cb.define(p.LendOfStream)
+                cb.assign(winner, k)
+                cb.assign(matchIdx, (idx + k) >>> 1)
+                cb.goto(LrunMatch)
+
+                cb.define(p.LproduceElementDone)
+                cb += (heads(idx) = unifiedType.store(cb, p.elementRegion, p.element.toI(cb).get(cb), false))
+                cb.assign(matchIdx, (idx + k) >>> 1)
+                cb.goto(LrunMatch)
+              }
+            }
+
+            override val element: EmitCode = EmitCode.fromI(mb)(cb => IEmitCode.present(cb, unifiedType.loadCheapPCode(cb, heads(winner))))
+
+            override def close(cb: EmitCodeBuilder): Unit = {
+              producers.foreach { p =>
+                if (p.separateRegions)
+                  cb += p.elementRegion.invalidate()
+                p.close(cb)
+              }
+              cb.assign(bracket, Code._null)
+              cb.assign(heads, Code._null)
+            }
+          }
           SStreamCode(SStream(producer.element.st, children.forall(_.pt.required)), producer)
         }
 
