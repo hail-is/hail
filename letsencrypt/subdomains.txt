@@ -1,6 +1,5 @@
 ci
 notebook
-scorecard
 www
 batch
 batch-driver

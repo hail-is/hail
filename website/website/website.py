@@ -4,7 +4,6 @@ from aiohttp import web
 import jinja2
 import logging
 import aiohttp_session
-import glob
 from prometheus_async.aio.web import server_stats  # type: ignore
 
 from hailtop.config import get_deploy_config
@@ -16,7 +15,7 @@ from web_common import (setup_aiohttp_jinja2, setup_common_static_routes, render
 
 
 MODULE_PATH = os.path.dirname(__file__)
-log = logging.getLogger('scorecard')
+log = logging.getLogger('website')
 deploy_config = get_deploy_config()
 routes = web.RouteTableDef()
 
