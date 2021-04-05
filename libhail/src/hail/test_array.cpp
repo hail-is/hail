@@ -18,20 +18,41 @@ namespace hail {
 
     TEST_CASE(test_array_compile) {
         print("Array compile testing");
-        // auto region = std::make_shared<ArenaAllocator>(heap);
-        // IRContext xc(heap);
+        auto region = std::make_shared<ArenaAllocator>(heap);
+        auto varray = cast<VArray>(tc.get_vtype(tc.tarray(tc.tfloat64)));
 
-        // Module *m = xc.make_module();
+        int array_length = 8;
+        auto my_array = Value::make_array(varray, region, array_length);
+        assert(array_length == my_array.get_size());
 
-        // std::vector<const VType *> param_vtypes;
-        // auto return_type = tc.tint64;
-        // const VType *return_vtype = tc.get_vtype(return_type);
+        for (int i = 0; i < array_length; ++i) {
+            Value element(vfloat64, 5.2 + i);
+            my_array.set_element(i, element);
+        }
+        print(my_array);
 
-        // JIT jit;
+        print("Array compile testing");
+        IRContext xc(heap);
 
-        // auto compiled = jit.compile(heap, tc, m, param_vtypes, return_vtype);
+        Module *m = xc.make_module();
 
-        //auto return_value = compiled.invoke(region, {});
-        //print("return_value: ", return_value);
+        std::vector<const Type *> param_types;
+        std::vector<const VType *> param_vtypes;
+
+        auto return_type = tc.tint64;
+        const VType *return_vtype = tc.get_vtype(return_type);
+
+        Function *length_check = xc.make_function(m, "main", param_types, return_type);
+        auto body = length_check->get_body();
+        body->set_child(0, body->make_array_len(body->make_literal(my_array)));
+
+        JIT jit;
+
+        for (auto t : param_types)
+        param_vtypes.push_back(tc.get_vtype(t));
+
+        auto compiled = jit.compile(heap, tc, m, param_vtypes, return_vtype);
+        auto length_check_return_value = compiled.invoke(region, {});
+        assert(length_check_return_value.as_int64() == array_length);
     }
 }

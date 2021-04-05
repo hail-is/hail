@@ -29,6 +29,6 @@ Tests::run_tests() {
 }
 
 int
-main_main() {
+main() {
   hail::Tests::run_tests();
 }

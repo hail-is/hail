@@ -15,7 +15,7 @@
 using namespace hail;
 
 int
-main() {
+main_main() {
   HeapAllocator heap;
   ArenaAllocator arena(heap);
   TypeContext tc(heap);
@@ -74,47 +74,6 @@ main() {
       param_vtypes.push_back(tc.get_vtype(t));
     const VType *return_vtype = tc.get_vtype(return_type);
 
-    auto compiled = jit.compile(heap, tc, m, param_vtypes, return_vtype);
-
-    auto return_value = compiled.invoke(region, {});
-    print("return_value: ", return_value);
-  }
-
-  {
-    print("Array testing:");
-    auto region = std::make_shared<ArenaAllocator>(heap);
-    auto varray = cast<VArray>(tc.get_vtype(tc.tarray(tc.tfloat64)));
-
-    int array_length = 8;
-    auto my_array = Value::make_array(varray, region, array_length);
-    print("array_length = ", my_array.get_size());
-    for (int i = 0; i < array_length; ++i) {
-      Value element(vfloat64, 5.2 + i);
-      my_array.set_element(i, element);
-    }
-    print(my_array);
-
-    print("Array compile testing");
-    IRContext xc(heap);
-
-    Module *m = xc.make_module();
-
-    std::vector<const Type *> param_types;
-    std::vector<const VType *> param_vtypes;
-
-    auto return_type = tc.tint64;
-    const VType *return_vtype = tc.get_vtype(return_type);
-
-    Function *f = xc.make_function(m, "main", param_types, return_type);
-    auto body = f->get_body();
-    body->set_child(0, body->make_array_len(body->make_literal(my_array)));
-
-    JIT jit;
-
-    for (auto t : param_types)
-      param_vtypes.push_back(tc.get_vtype(t));
-
-    print("about to compile");
     auto compiled = jit.compile(heap, tc, m, param_vtypes, return_vtype);
 
     auto return_value = compiled.invoke(region, {});
