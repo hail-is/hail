@@ -114,7 +114,7 @@ object Emit {
 
 object AggContainer {
   // FIXME remove this when EmitStream also has a codebuilder
-  def fromVars(aggs: Array[AggStateSig], mb: EmitMethodBuilder[_], region: Settable[Region], off: Settable[Long]): (AggContainer, Code[Unit], Code[Unit]) = {
+  def fromVars(aggs: Array[AggStateSig], mb: EmitMethodBuilder[_], region: Settable[Region], off: Settable[Long]): (AggContainer, EmitCodeBuilder => Unit, EmitCodeBuilder => Unit) = {
 
     val (setup, aggState) = EmitCodeBuilder.scoped(mb) { cb =>
       val states = agg.StateTuple(aggs.map(a => agg.AggStateSig.getState(a, cb.emb.ecb)))
@@ -126,16 +126,16 @@ object AggContainer {
       aggState
     }
 
-    val cleanup = EmitCodeBuilder.scopedVoid(mb) { cb =>
+    val cleanup =  { cb: EmitCodeBuilder =>
       aggState.store(cb)
       cb += region.load().invalidate()
       cb.assign(region, Code._null)
     }
 
-    (AggContainer(aggs, aggState, () => ()), setup, cleanup)
+    (AggContainer(aggs, aggState, () => ()), (cb: EmitCodeBuilder) => cb += setup, cleanup)
   }
 
-  def fromMethodBuilder[C](aggs: Array[AggStateSig], mb: EmitMethodBuilder[C], varPrefix: String): (AggContainer, Code[Unit], Code[Unit]) =
+  def fromMethodBuilder[C](aggs: Array[AggStateSig], mb: EmitMethodBuilder[C], varPrefix: String): (AggContainer, EmitCodeBuilder => Unit, EmitCodeBuilder => Unit) =
     fromVars(aggs, mb, mb.genFieldThisRef[Region](s"${varPrefix}_top_region"), mb.genFieldThisRef[Long](s"${varPrefix}_off"))
 
   def fromBuilder[C](cb: EmitCodeBuilder, aggs: Array[AggStateSig], varPrefix: String): AggContainer = {
@@ -370,7 +370,6 @@ object EmitCode {
     val mCC = Code(setup, m).toCCode
     val iec = IEmitCode(new CodeLabel(mCC.Ltrue), new CodeLabel(mCC.Lfalse), pv)
     val result = new EmitCode(new CodeLabel(mCC.entry), iec)
-    m.clear()
     result
   }
 

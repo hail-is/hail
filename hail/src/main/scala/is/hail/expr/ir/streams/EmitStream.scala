@@ -760,7 +760,7 @@ object EmitStream {
             override val length: Option[Code[Int]] = childProducer.length
 
             override def initialize(cb: EmitCodeBuilder): Unit = {
-              cb += aggSetup
+              aggSetup(cb)
               emitVoid(init, cb = cb, region = outerRegion, container = Some(newContainer))
               childProducer.initialize(cb)
             }
@@ -779,7 +779,7 @@ object EmitStream {
 
             override def close(cb: EmitCodeBuilder): Unit = {
               childProducer.close(cb)
-              cb += aggCleanup
+              aggCleanup(cb)
             }
           }
 
