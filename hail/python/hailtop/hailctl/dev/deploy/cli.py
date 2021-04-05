@@ -6,6 +6,7 @@ import sys
 from hailtop.config import get_deploy_config
 from hailtop.auth import service_auth_headers
 from hailtop.httpx import client_session
+from hailtop.utils import unpack_comma_delimited_inputs
 
 
 def init_parser(parser):
@@ -60,12 +61,8 @@ class CIClient:
 
 async def submit(args):
     deploy_config = get_deploy_config()
-    steps = [s.strip() for steps in args.steps  # let's unpack this shall we?
-             for step in steps
-             for s in step.split(',') if s.strip()]
-    excluded_steps = [s.strip() for steps in args.excluded_steps
-                      for step in steps
-                      for s in step.split(',') if s.strip()]
+    steps = unpack_comma_delimited_inputs(args.steps)
+    excluded_steps = unpack_comma_delimited_inputs(args.excluded_steps)
     async with CIClient(deploy_config) as ci_client:
         batch_id = await ci_client.dev_deploy_branch(args.branch, steps, excluded_steps)
         url = deploy_config.url('ci', f'/batches/{batch_id}')
