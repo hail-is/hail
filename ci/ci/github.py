@@ -878,7 +878,7 @@ class UnwatchedBranch(Code):
             'user': self.user,
         }
 
-    async def deploy(self, batch_client, steps):
+    async def deploy(self, batch_client, steps, excluded_steps=()):
         assert not self.deploy_batch
 
         deploy_batch = None
@@ -892,7 +892,9 @@ mkdir -p {shq(repo_dir)}
             )
             log.info(f'User {self.user} requested these steps for dev deploy: {steps}')
             with open(f'{repo_dir}/build.yaml', 'r') as f:
-                config = BuildConfiguration(self, f.read(), scope='dev', requested_step_names=steps)
+                config = BuildConfiguration(
+                    self, f.read(), scope='dev', requested_step_names=steps, excluded_step_names=excluded_steps
+                )
 
             log.info(f'creating dev deploy batch for {self.branch.short_str()} and user {self.user}')
 
