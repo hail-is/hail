@@ -2,10 +2,8 @@ package is.hail.backend.service
 
 import java.io._
 import java.net._
-import java.nio.charset.StandardCharsets
+import java.nio.charset._
 import java.util.concurrent._
-
-
 
 import is.hail.HAIL_REVISION
 import is.hail.HailContext
@@ -35,7 +33,10 @@ import org.json4s.{DefaultFormats, Formats}
 import org.newsclub.net.unix.{AFUNIXServerSocket, AFUNIXSocketAddress}
 
 import scala.annotation.switch
+import scala.collection.mutable
 import scala.reflect.ClassTag
+import java.lang.reflect.InvocationTargetException
+import is.hail.io.fs.FS
 
 class ServiceTaskContext(val partitionId: Int) extends HailTaskContext {
   override type BackendType = ServiceBackend
