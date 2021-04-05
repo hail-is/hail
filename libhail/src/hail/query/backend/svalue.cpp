@@ -103,6 +103,9 @@ SStackTupleValue::get_element(CompileFunction &cf, size_t i) const {
   return EmitValue(element_emit_values[i]);
 }
 
+SArrayValue::SArrayValue(Tag tag, const SCanonicalArray *stype)
+  : SValue(tag, stype), stype(stype) {}
+
 SCanonicalArrayValue::SCanonicalArrayValue(const SCanonicalArray *stype, llvm::Value *length, llvm::Value *missing, llvm::Value *data)
   : SArrayValue(Tag::CANONICALARRAY, stype), length(length), missing(missing), data(data) {
 }
