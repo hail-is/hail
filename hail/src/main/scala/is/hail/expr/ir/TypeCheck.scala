@@ -248,7 +248,6 @@ object TypeCheck {
         assert(td.valueType == TArray(telt.types(1)))
       case StreamLen(a) =>
         assert(a.typ.isInstanceOf[TStream])
-        assert(a.typ.asInstanceOf[TStream].elementType.isRealizable)
       case x@StreamTake(a, num) =>
         assert(a.typ.isInstanceOf[TStream])
         assert(x.typ == a.typ)

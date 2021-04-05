@@ -5,13 +5,35 @@ import is.hail.asm4s._
 import is.hail.expr.ir._
 import is.hail.expr.ir.orderings.StructOrdering
 import is.hail.services.shuffler.{CodeShuffleClient, ShuffleClient, ValueShuffleClient}
+import is.hail.types.physical.stypes.SType
 import is.hail.types.physical.stypes.concrete.{SBinaryPointer, SBinaryPointerSettable, SCanonicalShufflePointerCode, SCanonicalShufflePointerSettable}
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.physical.stypes.primitives.{SInt32, SInt32Code}
-import is.hail.types.physical.{PCanonicalStream, PCode, PInterval, PStruct}
+import is.hail.types.physical.{PCanonicalStream, PCode, PInterval, PStruct, PType}
 import is.hail.types.virtual.{TInterval, TShuffle, TStream}
 import is.hail.utils._
 
+
+object StreamProducer {
+  def markUnused(producer: StreamProducer, mb: EmitMethodBuilder[_]): Unit = {
+    (producer.LendOfStream.isImplemented, producer.LproduceElementDone.isImplemented) match {
+      case (true, true) =>
+      case (false, false) =>
+
+        EmitCodeBuilder.scopedVoid(mb) { cb =>
+          cb.define(producer.LendOfStream)
+          cb.define(producer.LproduceElementDone)
+          cb._fatal("unreachable")
+        }
+
+      case (eos, ped) => throw new RuntimeException(s"unrealizable value unused asymmetrically: eos=$eos, ped=$ped")
+    }
+    producer.element.pv match {
+      case SStreamCode(_, nested) => markUnused(nested, mb)
+      case _ =>
+    }
+  }
+}
 
 abstract class StreamProducer {
   /**
@@ -917,6 +939,8 @@ object EmitStream {
 
                     if (rightProducer.separateRegions)
                       cb.assign(rightProducer.elementRegion, Region.stagedCreate(Region.REGULAR, outerRegion.getPool()))
+                    else
+                      cb.assign(rightProducer.elementRegion, outerRegion)
 
                     leftProducer.initialize(cb)
                     rightProducer.initialize(cb)
@@ -1200,12 +1224,15 @@ object EmitStream {
           val xCurElt = mb.newPField("st_grpby_curelt", childProducer.element.pt)
 
           val keyRegion = mb.genFieldThisRef[Region]("st_groupby_key_region")
-          val subsetCode = xCurElt.asBaseStruct.subset(key: _*)
+          def subsetCode = xCurElt.asBaseStruct.subset(key: _*)
           val curKey = mb.newPField("st_grpby_curkey", subsetCode.st.pType)
-          val lastKey = mb.newPField("st_grpby_lastkey", subsetCode.st.pType)
+          // FIXME: PType.canonical is the wrong infrastructure here. This should be some
+          // notion of "cheap stype with a copy". We don't want to use a subset struct,
+          // since we don't want to deep copy the parent.
+          val lastKey = mb.newPField("st_grpby_lastkey", PType.canonical(subsetCode.st.pType))
 
           val eos = mb.genFieldThisRef[Boolean]("st_grpby_eos")
-          val nextReady = mb.genFieldThisRef[Boolean]("streamgrouped_nextready")
+          val nextGroupReady = mb.genFieldThisRef[Boolean]("streamgrouped_nextready")
           val inOuter = mb.genFieldThisRef[Boolean]("streamgrouped_inouter")
           val first = mb.genFieldThisRef[Boolean]("streamgrouped_first")
 
@@ -1216,6 +1243,9 @@ object EmitStream {
           val innerResultRegion = mb.genFieldThisRef[Region]("streamgrouped_inner_result_region")
 
           val outerElementRegion = mb.genFieldThisRef[Region]("streamgrouped_outer_elt_region")
+
+          def equiv(cb: EmitCodeBuilder, l: SBaseStructCode, r: SBaseStructCode): Code[Boolean] =
+            StructOrdering.make(l.st, r.st, cb.emb.ecb, missingFieldsEqual = false).equivNonnull(cb, l.asPCode, r.asPCode)
 
           val LchildProduceDoneInner = CodeLabel()
           val LchildProduceDoneOuter = CodeLabel()
@@ -1229,31 +1259,25 @@ object EmitStream {
             override val LproduceElement: CodeLabel = mb.defineHangingLabel { cb =>
               val LelementReady = CodeLabel()
 
-              cb.ifx(nextReady, {
-                cb.assign(nextReady, false)
+              // the first pull from the inner stream has the next record ready to go from the outer stream
+              cb.ifx(inOuter, {
+                cb.assign(inOuter, false)
                 cb.goto(LelementReady)
               })
 
+              if (childProducer.separateRegions)
+                cb += childProducer.elementRegion.clearRegion()
               cb.goto(childProducer.LproduceElement)
               // xElt and curKey are assigned before this label is jumped to
               cb.define(LchildProduceDoneInner)
 
-              // the first element of the outer stream has not yet initialized lastKey
-              cb.ifx(first, {
-                cb.assign(first, false)
-                cb.assign(lastKey, subsetCode.castTo(cb, keyRegion, lastKey.pt, deepCopy = true))
-                cb.goto(LelementReady)
-              })
-
-              val equiv = cb.emb.ecb.getOrdering(curKey.st, lastKey.st).equivNonnull(cb, curKey, lastKey)
-
               // if not equivalent, end inner stream and prepare for next outer iteration
-              cb.ifx(!equiv, {
+              cb.ifx(!equiv(cb, curKey.asBaseStruct, lastKey.asBaseStruct), {
                 if (separateRegions)
                   cb += keyRegion.clearRegion()
 
                 cb.assign(lastKey, subsetCode.castTo(cb, keyRegion, lastKey.pt, deepCopy = true))
-                cb.assign(nextReady, true)
+                cb.assign(nextGroupReady, true)
                 cb.assign(inOuter, true)
                 cb.goto(LendOfStream)
               })
@@ -1262,7 +1286,6 @@ object EmitStream {
 
               if (separateRegions) {
                 cb += childProducer.elementRegion.addReferenceTo(innerResultRegion)
-                cb += childProducer.elementRegion.clearRegion()
               }
 
               cb.goto(LproduceElementDone)
@@ -1285,7 +1308,7 @@ object EmitStream {
             override val length: Option[Code[Int]] = None
 
             override def initialize(cb: EmitCodeBuilder): Unit = {
-              cb.assign(nextReady, false)
+              cb.assign(nextGroupReady, false)
               cb.assign(eos, false)
               cb.assign(inOuter, true)
               cb.assign(first, true)
@@ -1310,39 +1333,38 @@ object EmitStream {
 
               val LinnerStreamReady = CodeLabel()
 
-              // if !nextReady, there is no key available, and it must be assigned
-              cb.ifx(inOuter, cb.goto(LinnerStreamReady))
+              cb.ifx(nextGroupReady, cb.goto(LinnerStreamReady))
 
-              // inOuter == false, so inner stream didn't reach completion and find the next key
+              cb.assign(inOuter, true)
 
+              if (childProducer.separateRegions)
+                cb += childProducer.elementRegion.clearRegion()
               cb.goto(childProducer.LproduceElement)
               // xElt and curKey are assigned before this label is jumped to
               cb.define(LchildProduceDoneOuter)
 
-              // it's possible to end up in the outer stream with first=true if the inner stream never iterates
-              // in this case, the first element (and its equal keys) should be skipped, not returned
+              val LdifferentKey = CodeLabel()
+
               cb.ifx(first, {
                 cb.assign(first, false)
-                cb.assign(lastKey, subsetCode.castTo(cb, keyRegion, lastKey.pt, deepCopy = true))
+                cb.goto(LdifferentKey)
+              })
+
+              // if equiv, go to next element. Otherwise, fall through to next group
+              cb.ifx(equiv(cb, curKey.asBaseStruct, lastKey.asBaseStruct), {
+                if (childProducer.separateRegions)
+                  cb += childProducer.elementRegion.clearRegion()
                 cb.goto(childProducer.LproduceElement)
               })
 
-              val equiv = cb.emb.ecb.getOrdering(curKey.st, lastKey.st).equivNonnull(cb, curKey, lastKey)
+              cb.define(LdifferentKey)
+              if (separateRegions)
+                cb += keyRegion.clearRegion()
 
-              // if not equivalent, end inner stream and prepare for next outer iteration
-              cb.ifx(!equiv, {
-                if (separateRegions)
-                  cb += keyRegion.clearRegion()
-
-                cb.assign(lastKey, subsetCode.castTo(cb, keyRegion, lastKey.pt, deepCopy = true))
-                cb.assign(nextReady, true)
-                cb.goto(LinnerStreamReady)
-              }, {
-                cb.goto(childProducer.LproduceElement)
-              })
+              cb.assign(lastKey, subsetCode.castTo(cb, keyRegion, lastKey.pt, deepCopy = true))
 
               cb.define(LinnerStreamReady)
-              cb.assign(inOuter, false)
+              cb.assign(nextGroupReady, false)
               cb.goto(LproduceElementDone)
             }
 
@@ -1434,7 +1456,7 @@ object EmitStream {
 
               override def initialize(cb: EmitCodeBuilder): Unit = {
                 cb.assign(n, groupSize.intCode(cb))
-                cb.ifx(n < 0, cb._fatal(s"stream grouped: negative size: ", n.toS))
+                cb.ifx(n <= 0, cb._fatal(s"stream grouped: non-positive size: ", n.toS))
                 cb.assign(eos, false)
                 cb.assign(xCounter, n)
 
@@ -1535,9 +1557,10 @@ object EmitStream {
 
                 override val LproduceElement: CodeLabel = mb.defineHangingLabel { cb =>
 
-                  producers.foreach { p =>
+                  producers.zipWithIndex.foreach { case (p, i) =>
                     cb.goto(p.LproduceElement)
                     cb.define(p.LproduceElementDone)
+                    cb.assign(vars(i), p.element)
                   }
 
                   cb.goto(LproduceElementDone)
@@ -1586,15 +1609,13 @@ object EmitStream {
 
                 override def initialize(cb: EmitCodeBuilder): Unit = {
                   cb.assign(anyEOS, false)
-                  cb.assign(allEOS, true)
 
                   producers.foreach { p =>
                     if (p.separateRegions)
                       cb.assign(p.elementRegion, eltRegion)
-                    else {
+                    else
                       cb.assign(p.elementRegion, outerRegion)
-                      p.initialize(cb)
-                    }
+                    p.initialize(cb)
                   }
                 }
 
@@ -1603,6 +1624,7 @@ object EmitStream {
                 override val separateRegions: Boolean = producers.exists(_.separateRegions)
 
                 override val LproduceElement: CodeLabel = mb.defineHangingLabel { cb =>
+                  cb.assign(allEOS, true)
 
                   producers.zipWithIndex.foreach { case (p, i) =>
 

@@ -1800,7 +1800,7 @@ class IRSuite extends HailSuite {
     assertEvalsTo(ToArray(StreamTake(a, I32(0))), FastIndexedSeq())
     assertEvalsTo(ToArray(StreamTake(a, I32(2))), FastIndexedSeq(3, null))
     assertEvalsTo(ToArray(StreamTake(a, I32(5))), FastIndexedSeq(3, null, 7))
-    assertFatal(ToArray(StreamTake(a, I32(-1))), "StreamTake: negative length")
+    assertFatal(ToArray(StreamTake(a, I32(-1))), "stream take: negative num")
     assertEvalsTo(StreamLen(StreamTake(a, 2)), 2)
   }
 
@@ -1813,7 +1813,7 @@ class IRSuite extends HailSuite {
     assertEvalsTo(ToArray(StreamDrop(a, I32(0))), FastIndexedSeq(3, null, 7))
     assertEvalsTo(ToArray(StreamDrop(a, I32(2))), FastIndexedSeq(7))
     assertEvalsTo(ToArray(StreamDrop(a, I32(5))), FastIndexedSeq())
-    assertFatal(ToArray(StreamDrop(a, I32(-1))), "StreamDrop: negative num")
+    assertFatal(ToArray(StreamDrop(a, I32(-1))), "stream drop: negative num")
 
     assertEvalsTo(StreamLen(StreamDrop(a, 1)), 2)
   }
@@ -1833,7 +1833,7 @@ class IRSuite extends HailSuite {
     assertEvalsTo(toNestedArray(StreamGrouped(a, I32(1))), FastIndexedSeq(FastIndexedSeq(3), FastIndexedSeq(null), FastIndexedSeq(7)))
     assertEvalsTo(toNestedArray(StreamGrouped(a, I32(2))), FastIndexedSeq(FastIndexedSeq(3, null), FastIndexedSeq(7)))
     assertEvalsTo(toNestedArray(StreamGrouped(a, I32(5))), FastIndexedSeq(FastIndexedSeq(3, null, 7)))
-    assertFatal(toNestedArray(StreamGrouped(a, I32(0))), "StreamGrouped: nonpositive size")
+    assertFatal(toNestedArray(StreamGrouped(a, I32(0))), "stream grouped: non-positive size")
 
     val r = rangeIR(10)
 

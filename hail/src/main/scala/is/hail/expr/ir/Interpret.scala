@@ -355,7 +355,7 @@ object Interpret {
           null
         else {
           val len = lenValue.asInstanceOf[Int]
-          if (len < 0) fatal("StreamTake: negative length")
+          if (len < 0) fatal("stream take: negative num")
           aValue.asInstanceOf[IndexedSeq[Any]].take(len)
         }
       case StreamDrop(a, num) =>
@@ -365,7 +365,7 @@ object Interpret {
           null
         else {
           val n = numValue.asInstanceOf[Int]
-          if (n < 0) fatal("StreamDrop: negative num")
+          if (n < 0) fatal("stream drop: negative num")
           aValue.asInstanceOf[IndexedSeq[Any]].drop(n)
         }
       case StreamGrouped(a, size) =>
@@ -375,7 +375,7 @@ object Interpret {
           null
         else {
           val size = sizeValue.asInstanceOf[Int]
-          if (size <= 0) fatal("StreamGrouped: nonpositive size")
+          if (size <= 0) fatal("stream grouped: non-positive size")
           aValue.asInstanceOf[IndexedSeq[Any]].grouped(size).toFastIndexedSeq
         }
       case StreamGroupByKey(a, key) =>
@@ -415,6 +415,27 @@ object Interpret {
         else {
           aValue.asInstanceOf[IndexedSeq[Any]].map { element =>
             interpret(body, env.bind(name, element), args)
+          }
+        }
+      case StreamZip(as, names, body, behavior) =>
+        val aValues = as.map(interpret(_, env, args).asInstanceOf[IndexedSeq[_]])
+        if (aValues.contains(null))
+          null
+        else {
+          val len = behavior match {
+            case ArrayZipBehavior.AssertSameLength | ArrayZipBehavior.AssumeSameLength =>
+              val lengths = aValues.map(_.length).toSet
+              if (lengths.size != 1)
+                fatal(s"zip: length mismatch: ${ lengths.mkString(", ") }")
+              lengths.head
+            case ArrayZipBehavior.TakeMinLength =>
+              aValues.map(_.length).min
+            case ArrayZipBehavior.ExtendNA =>
+              aValues.map(_.length).max
+          }
+          (0 until len).map { i =>
+            val e = env.bindIterable(names.zip(aValues.map(a => if (i >= a.length) null else a.apply(i))))
+            interpret(body, e, args)
           }
         }
       case StreamMultiMerge(as, key) =>

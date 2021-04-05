@@ -529,7 +529,8 @@ class Emit[C](
         emitI(cond).consume(cb, {}, m => cb.ifx(m.asBoolean.boolCode(cb), emitVoid(cnsq), emitVoid(altr)))
 
       case Let(name, value, body) =>
-        val (fixUnusedStreamLabels, memoValue) = cb.memoizeMaybeUnrealizableField(emit(value), s"let_$name")
+        val xVal = if (value.typ.isInstanceOf[TStream]) emitStream(value, region) else emit(value)
+        val (fixUnusedStreamLabels, memoValue) = cb.memoizeMaybeUnrealizableField(xVal, s"let_$name")
         emitVoid(body, env = env.bind(name, memoValue))
         fixUnusedStreamLabels()
 
@@ -1765,7 +1766,6 @@ class Emit[C](
             val names = acc.map(_._1)
             val accTypes = x.accPTypes
             val accVars = (names, accTypes).zipped.map(mb.newEmitField)
-            val tmpAccVars = (names, accTypes).zipped.map(mb.newEmitField)
 
             val resEnv = env.bind(names.zip(accVars): _*)
             val seqEnv = resEnv.bind(valueName, xElt)
@@ -1789,7 +1789,7 @@ class Emit[C](
             producer.unmanagedConsume(cb) { cb =>
               cb.assign(xElt, producer.element)
               if (producer.separateRegions) {
-                (tmpAccVars, seq).zipped.foreach { (accVar, ir) =>
+                (accVars, seq).zipped.foreach { (accVar, ir) =>
                   cb.assign(accVar,
                     emitI(ir, producer.elementRegion, env = seqEnv)
                       .map(cb)(pc => pc.castTo(cb, tmpRegion, accVar.pt, deepCopy = true)))
@@ -1799,7 +1799,7 @@ class Emit[C](
                 cb.assign(producer.elementRegion, tmpRegion.load())
                 cb.assign(tmpRegion, swapRegion.load())
               } else {
-                (tmpAccVars, seq).zipped.foreach { (accVar, ir) =>
+                (accVars, seq).zipped.foreach { (accVar, ir) =>
                   cb.assign(accVar,
                     emitI(ir, producer.elementRegion, env = seqEnv)
                       .map(cb)(pc => pc.castTo(cb, producer.elementRegion, accVar.pt, deepCopy = false)))
@@ -1808,7 +1808,7 @@ class Emit[C](
             }
 
             if (producer.separateRegions) {
-              tmpAccVars.foreach { xAcc =>
+              accVars.foreach { xAcc =>
                 cb.assign(xAcc, xAcc.toI(cb).map(cb)(pc => pc.castTo(cb, region, pc.pt, deepCopy = true)))
               }
               cb += producer.elementRegion.invalidate()
@@ -2037,10 +2037,9 @@ class Emit[C](
               .memoize(cb, "cda_add_contexts_addr")
             x.contextSpec.encodedType.buildEncoder(ctxTuple.st, parentCB)
               .apply(cb, ctxTuple, buf)
+            cb += buf.invoke[Unit]("flush")
+            cb += ctxab.invoke[Array[Byte], Unit]("add", baos.invoke[Array[Byte]]("toByteArray"))
           }
-
-          cb += buf.invoke[Unit]("flush")
-          cb += ctxab.invoke[Array[Byte], Unit]("add", baos.invoke[Array[Byte]]("toByteArray"))
         }
 
         def addGlobals(cb: EmitCodeBuilder): Unit = {
@@ -2179,8 +2178,8 @@ class Emit[C](
 
       case Let(name, value, body) =>
         EmitCode.fromI(mb) { cb =>
-          val valueCode = emit(value)
-          val (fixupUnusedStreamLabels, valueMemo) = cb.memoizeMaybeUnrealizableField(valueCode, s"let_$name")
+          val xVal = if (value.typ.isInstanceOf[TStream]) emitStream(value, region) else emit(value)
+          val (fixupUnusedStreamLabels, valueMemo) = cb.memoizeMaybeUnrealizableField(xVal, s"let_$name")
           val emitted = emitI(body, cb, env = env.bind(name, valueMemo))
           fixupUnusedStreamLabels()
           emitted
@@ -2301,6 +2300,10 @@ class Emit[C](
               val count = cb.newLocal[Int]("stream_length", 0)
               producer.memoryManagedConsume(region, cb) { cb =>
                 cb.assign(count, count + 1)
+              }
+              producer.element.pv match {
+                case SStreamCode(_, nested) => StreamProducer.markUnused(producer, mb)
+                case _ =>
               }
               PCode(x.pType, count)
           }

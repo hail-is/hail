@@ -3,6 +3,7 @@ package is.hail.expr.ir
 import is.hail.annotations.Region
 import is.hail.asm4s.{coerce => _, _}
 import is.hail.expr.ir.functions.StringFunctions
+import is.hail.expr.ir.streams.StreamProducer
 import is.hail.lir
 import is.hail.types.physical.stypes.interfaces.SStreamCode
 import is.hail.types.physical.{PCode, PSettable, PType, PValue}
@@ -105,22 +106,7 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
 
   private[this] def defineNestedUnusedLabels(x: EmitCode): Unit = {
     x.pv match {
-      case SStreamCode(_, producer) =>
-        // check if producer labels are defined and define them
-
-        (producer.LendOfStream.isImplemented, producer.LproduceElementDone.isImplemented) match {
-          case (true, true) =>
-          case (false, false) =>
-
-            EmitCodeBuilder.scopedVoid(emb) { cb =>
-              cb.define(producer.LendOfStream)
-              cb.define(producer.LproduceElementDone)
-              cb._fatal("unreachable")
-            }
-
-          case (eos, ped) => throw new RuntimeException(s"unrealizable value unused asymmetrically: eos=$eos, ped=$ped")
-        }
-        defineNestedUnusedLabels(producer.element)
+      case SStreamCode(_, producer) => StreamProducer.markUnused(producer, emb)
       case _ =>
     }
   }
