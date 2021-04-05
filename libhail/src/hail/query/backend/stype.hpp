@@ -140,7 +140,7 @@ public:
 
 class SCanonicalArray : public SType {
 public:
-  static const Tag self_tag = SType::Tag::CANONICALARRAY;
+  static bool is_instance_tag(Tag tag) { return tag == SType::Tag::CANONICALARRAY; }
   const SType *element_type;
   size_t elements_alignment;
   size_t element_stride;
@@ -212,6 +212,7 @@ SType::dispatch(F f) const {
   case Tag::FLOAT64: return f(cast<SFloat64>(this));
   case Tag::CANONICALTUPLE: return f(cast<SCanonicalTuple>(this));
   case Tag::STACKTUPLE: return f(cast<SStackTuple>(this));
+  case Tag::CANONICALARRAY: return f(cast<SCanonicalArray>(this));
   default:
     abort();
   }

@@ -189,9 +189,17 @@ CompileFunction::emit(Literal *x) {
     }
   case Type::Tag::FLOAT64:
     {
-  auto m = llvm::ConstantInt::get(llvm::Type::getInt8Ty(llvm_context), 0);
+      auto m = llvm::ConstantInt::get(llvm::Type::getInt8Ty(llvm_context), 0);
       auto c = llvm::ConstantFP::get(llvm_context, llvm::APFloat(x->value.as_float64()));
       return EmitValue(m, new SFloat64Value(stc.sfloat64, c));
+    }
+  case Type::Tag::ARRAY:
+    {
+      auto m = llvm::ConstantInt::get(llvm::Type::getInt8Ty(llvm_context), 0);
+      auto array_value = x->value.as_array();
+      auto len = llvm::ConstantInt::get(llvm_context, llvm::APInt(64, array_value.get_size()));
+      auto stype = const_cast <const SCanonicalArray*> (cast<SCanonicalArray>(stc.stype_from(x->value.vtype)));
+      return EmitValue(m, new SCanonicalArrayValue(stype, len, len, len));
     }
   default:
     abort();

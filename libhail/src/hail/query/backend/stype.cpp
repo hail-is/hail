@@ -234,7 +234,7 @@ SStackTuple::SStackTuple(STypeContextToken, const Type *type, std::vector<EmitTy
     element_types(std::move(element_types)) {}
 
 SCanonicalArray::SCanonicalArray(const Type *type, const SType *element_type)
-  : SType(self_tag, type), element_type(element_type) {}
+  : SType(Tag::CANONICALARRAY, type), element_type(element_type) {}
 
 void
 EmitType::get_constituent_types(std::vector<PrimitiveType> &constituent_types) const {
@@ -323,6 +323,11 @@ STypeContext::stype_from(const VType *vtype) {
       for (auto et : vt->element_vtypes)
 	element_types.push_back(emit_type_from(et));
       return canonical_stuple(vt->type, element_types, vt);
+    }
+  case VType::Tag::ARRAY:
+    {
+      const VArray *va = cast<VArray>(vtype);
+      return new SCanonicalArray(vtype->type, stype_from(va->element_vtype));
     }
   default:
     abort();

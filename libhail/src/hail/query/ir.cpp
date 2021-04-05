@@ -244,4 +244,8 @@ Block::make_get_tuple_element(IR *t, int i) {
   return xc.arena.make<GetTupleElement>(IRContextToken(), this, t, i);
 }
 
+ArrayLen *
+Block::make_array_len(IR *a) {
+  return xc.arena.make<ArrayLen>(IRContextToken(), this, a);
+}
 }

@@ -29,6 +29,7 @@ add_executable(test
   src/hail/test_value.cpp
   src/hail/vtype.cpp
   src/hail/vtype.hpp
+  src/hail/test_array.cpp
   # query
   src/hail/query/ir.cpp
   src/hail/query/ir.hpp

@@ -185,7 +185,7 @@ public:
   Mux *make_mux(IR *x, IR *true_value, IR *false_value);
   MakeArray *make_make_array(std::vector<IR *> elements);
   MakeArray *make_make_array(const Type *element_type, std::vector<IR *> children);
-  ArrayLen *make_array_len(IR *a, IR *x);
+  ArrayLen *make_array_len(IR *a);
   MakeTuple *make_tuple(std::vector<IR *> elements);
   GetTupleElement *make_get_tuple_element(IR *t, int i);
 };
