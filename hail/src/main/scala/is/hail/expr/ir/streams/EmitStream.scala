@@ -1806,12 +1806,13 @@ object EmitStream {
             override val length: Option[Code[Int]] = None
 
             override def initialize(cb: EmitCodeBuilder): Unit = {
-              producers.foreach { p =>
+              cb.assign(regionArray, Code.newArray[Region](k))
+              producers.zipWithIndex.foreach { case (p, idx) =>
                 if (p.separateRegions) {
                   cb.assign(p.elementRegion, Region.stagedCreate(Region.REGULAR, outerRegion.getPool()))
-                  cb += (regionArray(i) = p.elementRegion)
                 } else
                   cb.assign(p.elementRegion, outerRegion)
+                cb += (regionArray(idx) = p.elementRegion)
                 p.initialize(cb)
               }
               initSeparateRegions(cb)
@@ -2034,12 +2035,13 @@ object EmitStream {
             override val length: Option[Code[Int]] = producers.map(_.length).reduce(_.liftedZip(_).map { case (l, r) => l + r })
 
             override def initialize(cb: EmitCodeBuilder): Unit = {
+              cb.assign(regionArray, Code.newArray[Region](k))
               producers.zipWithIndex.foreach { case (p, i) =>
                 if (p.separateRegions) {
                   cb.assign(p.elementRegion, Region.stagedCreate(Region.REGULAR, outerRegion.getPool()))
-                  cb += (regionArray(i) = p.elementRegion)
                 } else
                   cb.assign(p.elementRegion, outerRegion)
+                cb += (regionArray(i) = p.elementRegion)
                 p.initialize(cb)
               }
               initSeparateRegions(cb)
