@@ -186,6 +186,7 @@ public:
   MakeArray *make_make_array(std::vector<IR *> elements);
   MakeArray *make_make_array(const Type *element_type, std::vector<IR *> children);
   ArrayLen *make_array_len(IR *a);
+  ArrayRef *make_array_ref(IR *a, IR *idx);
   MakeTuple *make_tuple(std::vector<IR *> elements);
   GetTupleElement *make_get_tuple_element(IR *t, int i);
 };

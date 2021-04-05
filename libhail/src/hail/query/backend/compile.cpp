@@ -199,6 +199,7 @@ CompileFunction::emit(Literal *x) {
       auto array_value = x->value.as_array();
       auto len = llvm::ConstantInt::get(llvm_context, llvm::APInt(64, array_value.get_size()));
       auto stype = const_cast <const SCanonicalArray*> (cast<SCanonicalArray>(stc.stype_from(x->value.vtype)));
+      // TODO: Obviously wrong, need missing bits and data bits.
       return EmitValue(m, new SCanonicalArrayValue(stype, len, len, len));
     }
   default:

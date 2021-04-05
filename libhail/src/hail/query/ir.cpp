@@ -248,4 +248,10 @@ ArrayLen *
 Block::make_array_len(IR *a) {
   return xc.arena.make<ArrayLen>(IRContextToken(), this, a);
 }
+
+ArrayRef *
+Block::make_array_ref(IR *a, IR *idx) {
+  return xc.arena.make<ArrayRef>(IRContextToken(), this, a, idx);
+}
+
 }

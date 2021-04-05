@@ -12,6 +12,7 @@ namespace hail {
     TypeContext tc(heap);
 
     auto vint32 = cast<VInt32>(tc.get_vtype(tc.tint32));
+    auto vint64 = cast<VInt64>(tc.get_vtype(tc.tint64));
     auto vfloat64 = cast<VFloat64>(tc.get_vtype(tc.tfloat64));
     auto vstr = cast<VStr>(tc.get_vtype(tc.tstr));
     auto vbool = cast<VBool>(tc.get_vtype(tc.tbool));
@@ -35,24 +36,46 @@ namespace hail {
         IRContext xc(heap);
 
         Module *m = xc.make_module();
-
-        std::vector<const Type *> param_types;
-        std::vector<const VType *> param_vtypes;
-
-        auto return_type = tc.tint64;
-        const VType *return_vtype = tc.get_vtype(return_type);
-
-        Function *length_check = xc.make_function(m, "main", param_types, return_type);
-        auto body = length_check->get_body();
-        body->set_child(0, body->make_array_len(body->make_literal(my_array)));
-
         JIT jit;
 
-        for (auto t : param_types)
-        param_vtypes.push_back(tc.get_vtype(t));
+        {
+            std::vector<const Type *> param_types;
+            std::vector<const VType *> param_vtypes;
 
-        auto compiled = jit.compile(heap, tc, m, param_vtypes, return_vtype);
-        auto length_check_return_value = compiled.invoke(region, {});
-        assert(length_check_return_value.as_int64() == array_length);
+            auto return_type = tc.tint64;
+            const VType *return_vtype = tc.get_vtype(return_type);
+
+            Function *length_check = xc.make_function(m, "main", param_types, return_type);
+            auto body = length_check->get_body();
+            body->set_child(0, body->make_array_len(body->make_literal(my_array)));
+
+
+            for (auto t : param_types)
+                param_vtypes.push_back(tc.get_vtype(t));
+
+            auto compiled = jit.compile(heap, tc, m, param_vtypes, return_vtype);
+            auto length_check_return_value = compiled.invoke(region, {});
+            assert(length_check_return_value.as_int64() == array_length);
+
+        }
+
+        {
+            std::vector<const Type *> param_types;
+            std::vector<const VType *> param_vtypes;
+
+            auto return_type = tc.tfloat64;
+            const VType *return_vtype = tc.get_vtype(return_type);
+
+            Function *ref_check = xc.make_function(m, "main", param_types, return_type);
+            auto body = ref_check->get_body();
+            auto idx_value = Value(vint64, 3);
+            body->set_child(0, body->make_array_ref(body->make_literal(my_array), body->make_literal(idx_value)));
+
+            for (auto t : param_types)
+                param_vtypes.push_back(tc.get_vtype(t));
+
+            auto compiled = jit.compile(heap, tc, m, param_vtypes, return_vtype);
+
+        }
     }
 }
