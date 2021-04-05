@@ -667,7 +667,7 @@ object EmitStream {
           val accValueEltRegion = mb.newEmitField(x.accPType)
 
           // accRegion is unused if separateRegions is false
-          var accRegion: Settable[Region] = null
+          val accRegion: Settable[Region] = if (childProducer.separateRegions) mb.genFieldThisRef[Region]("streamscan_acc_region") else null
           val first = mb.genFieldThisRef[Boolean]("streamscan_first")
 
           val producer = new StreamProducer {
@@ -676,7 +676,6 @@ object EmitStream {
             override def initialize(cb: EmitCodeBuilder): Unit = {
 
               if (childProducer.separateRegions) {
-                accRegion = mb.genFieldThisRef[Region]("streamscan_acc_region")
                 cb.assign(accRegion, Region.stagedCreate(Region.REGULAR, outerRegion.getPool()))
               }
               cb.assign(first, true)
