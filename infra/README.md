@@ -20,15 +20,6 @@ Instructions:
   gcloud iam service-accounts keys create $HOME/.hail/terraform_sa_key.json  --iam-account=terraform@<project-id>.iam.gserviceaccount.com
   ```
 
-  When you are finished using terraform, we recommend deleting both the service account and the key
-  file.
-
-  ```
-  rm $HOME/.hail/terraform_sa_key.json
-  gcloud iam service-accounts delete terraform@<project-id>.iam.gserviceaccount.com
-  ```
-
-
 - Enable the the GCP services needed by Hail:
 
    ```
