@@ -1874,7 +1874,7 @@ class Emit[C](
         producer.memoryManagedConsume(region, cb) { cb =>
           producer.element.toI(cb).consume(cb,
             cb._fatal(s"empty row in shuffle put"),
-            sc => shuffle.putValue(rowPType.store(cb, producer.elementRegion, sc, deepCopy = false)))
+            sc => cb += shuffle.putValue(rowPType.store(cb, producer.elementRegion, sc, deepCopy = false)))
         }
 
         cb += shuffle.putValueDone()

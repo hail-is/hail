@@ -2207,6 +2207,7 @@ object EmitStream {
         val region = mb.genFieldThisRef[Region]("shuffle_partition_bounds_region")
         val shuffleLocal = mb.genFieldThisRef[ShuffleClient]("shuffle_partition_bounds_client")
         val shuffle = new ValueShuffleClient(shuffleLocal)
+        val currentAddr = mb.genFieldThisRef[Long]("shuffle_partition_bounds_addr")
 
         val shuffleType = idIR.typ.asInstanceOf[TShuffle]
 
@@ -2229,9 +2230,11 @@ object EmitStream {
           override val separateRegions: Boolean = false
           override val LproduceElement: CodeLabel = mb.defineHangingLabel { cb =>
             cb.ifx(shuffle.partitionBoundsValueFinished(), cb.goto(LendOfStream))
+            cb.assign(currentAddr, shuffle.partitionBoundsValue(region))
             cb.goto(LproduceElementDone)
           }
-          override val element: EmitCode = EmitCode.present(mb, PCode(shuffleType.keyDecodedPType, shuffle.partitionBoundsValue(region)))
+          override val element: EmitCode = EmitCode.fromI(mb)(cb =>
+            IEmitCode.present(cb, shuffleType.keyDecodedPType.loadCheapPCode(cb, currentAddr)))
 
           override def close(cb: EmitCodeBuilder): Unit = {
             cb += shuffle.endPartitionBounds()
