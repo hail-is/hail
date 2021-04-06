@@ -1141,7 +1141,7 @@ class JVMJob(Job):
                     log.exception('while deleting volumes')
 
     async def get_log(self):
-        return {'main': await self.process.get_log()}
+        return {'main': self.process.get_log()}
 
     async def delete(self):
         log.info(f'deleting {self}')
