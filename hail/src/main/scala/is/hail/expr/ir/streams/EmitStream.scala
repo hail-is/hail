@@ -2025,7 +2025,7 @@ object EmitStream {
           def comp(cb: EmitCodeBuilder, li: Code[Int], lv: Code[Long], ri: Code[Int], rv: Code[Long]): Code[Boolean] = {
             val l = unifiedType.loadCheapPCode(cb, lv).asBaseStruct.subset(key: _*)
             val r = unifiedType.loadCheapPCode(cb, rv).asBaseStruct.subset(key: _*)
-            val ord = cb.emb.ecb.getOrdering(l.st, r.st)
+            val ord = StructOrdering.make(l.asBaseStruct.st, r.asBaseStruct.st, cb.emb.ecb, missingFieldsEqual = false)
             val c = cb.newLocal("stream_merge_comp", ord.compareNonnull(cb, l, r))
             c < 0 || (c.ceq(0) && li < ri)
           }

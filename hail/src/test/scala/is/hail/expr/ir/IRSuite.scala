@@ -2599,7 +2599,7 @@ class IRSuite extends HailSuite {
   }
 
   @Test def testStreamMerge() {
-    implicit val execStrats = ExecStrategy.javaOnly
+    implicit val execStrats = ExecStrategy.compileOnly
 
     def mergeRows(left: IndexedSeq[Integer], right: IndexedSeq[Integer], key: Int): IR = {
       val typ = TStream(TStruct("k" -> TInt32, "sign" -> TInt32, "idx" -> TInt32))
@@ -2637,9 +2637,10 @@ class IRSuite extends HailSuite {
       Row(3, -1, 4),
       Row(3, -1, 5),
       Row(null, 1, 4),
-      Row(null, 1, 5),
       Row(null, -1, 6),
-      Row(null, -1, 7)))
+      Row(null, 1, 5),
+      Row(null, -1, 7)),
+    )
 
     // right stream ends first
     assertEvalsTo(mergeRows(Array[Integer](1, 1, 2, 2), Array[Integer](0, 0, 1, 1), 1), FastIndexedSeq(
@@ -2665,8 +2666,8 @@ class IRSuite extends HailSuite {
       Row(3, -1, 4),
       Row(3, -1, 5),
       Row(null, 1, 4),
-      Row(null, 1, 5),
       Row(null, -1, 6),
+      Row(null, 1, 5),
       Row(null, -1, 7)))
 
     // right stream empty
