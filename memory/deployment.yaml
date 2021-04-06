@@ -15,6 +15,7 @@ spec:
       labels:
         app: memory
         hail.is/sha: "{{ code.sha }}"
+        grafanak8sapp: "true"
     spec:
       serviceAccountName: memory
 {% if deploy %}
@@ -111,3 +112,18 @@ spec:
          secret:
            optional: false
            secretName: ssl-config-memory
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: memory
+  labels:
+    app: memory
+spec:
+  ports:
+  - name: memory
+    port: 443
+    protocol: TCP
+    targetPort: 5000
+  selector:
+    app: memory

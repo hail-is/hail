@@ -14,7 +14,7 @@ Currently, all traffic in our cluster should be encrypted except for:
 - from the batch-driver to the batch workers
 - from the batch workers to the internal-gateway
 - to ukbb-rg
-- from the router to the notebook workers
+- from the notebook service to the notebook workers
 - to letsencrypt (oh the irony)
 
 Known issues:
@@ -180,7 +180,7 @@ certificate in or signed by a certificate in `site-outgoing.pem`, it will
 immediately halt the connection.
 
 There are two other kinds: `json` and `curl`. The former is for Hail Python
-services. The later is for the admin-pod and image-fetcher.
+services. The later is for the admin-pod.
 
 ### Batch Confused Deputy
 

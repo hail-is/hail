@@ -127,7 +127,7 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
               s"\n  got ${ pc.pt }" +
               s"\n  expected ${ pcpt.pt }")
           pc.codeTuple()
-        case (EmitParam(ec), EmitParamType(pt)) =>
+        case (EmitParam(ec), PCodeEmitParamType(pt)) =>
           if (!ec.pt.equalModuloRequired(pt)) {
             throw new RuntimeException(s"invoke ${callee.mb.methodName}: arg $i: type mismatch:" +
               s"\n  got ${ec.pt}" +
@@ -175,13 +175,6 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
       case x => throw new AssertionError(s"CodeBuilder.invokeCode expects CodeParamType return, got $x")
     }
     _invoke[T](callee, args: _*)
-  }
-
-  def invokeEmit(callee: EmitMethodBuilder[_], args: Param*): IEmitCode = {
-    val pt = callee.emitReturnType.asInstanceOf[EmitParamType].pt
-    val r = newLocal("invokeEmit_r")(pt.codeReturnType())
-    assignAny(r, _invoke(callee, args: _*))
-    IEmitCode.fromCodeTuple(this, pt, Code.loadTuple(callee.modb, EmitCode.codeTupleTypes(pt), r))
   }
 
   // FIXME: this should be invokeSCode and should allocate/destructure a tuple when more than one code is present

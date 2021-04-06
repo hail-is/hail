@@ -3,7 +3,7 @@ package is.hail.expr.ir
 import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.expr.ir.lowering.LoweringPipeline
-import is.hail.types.physical.{PTuple, PType}
+import is.hail.types.physical.{PTuple, PType, PTypeReferenceSingleCodeType, SingleCodeType}
 import is.hail.types.virtual._
 import is.hail.io.BufferSpec
 import is.hail.linalg.BlockMatrix
@@ -56,7 +56,7 @@ object Interpret {
     ir: IR,
     env: Env[Any],
     args: IndexedSeq[(Any, Type)],
-    functionMemo: Memo[(PType, AsmFunction2RegionLongLong)]): Any = {
+    functionMemo: Memo[(SingleCodeType, AsmFunction2RegionLongLong)]): Any = {
 
     def interpret(ir: IR, env: Env[Any] = env, args: IndexedSeq[(Any, Type)] = args): Any =
       run(ctx, ir, env, args, functionMemo)
@@ -778,11 +778,11 @@ object Interpret {
             val wrappedIR = Copy(ir, wrappedArgs)
 
             val (rt, makeFunction) = Compile[AsmFunction2RegionLongLong](ctx,
-              FastIndexedSeq(("in", argTuple)),
+              FastIndexedSeq(("in", SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(argTuple)))),
               FastIndexedSeq(classInfo[Region], LongInfo), LongInfo,
               MakeTuple.ordered(FastSeq(wrappedIR)),
               optimize = false)
-            (rt, makeFunction(0, region))
+            (rt.get, makeFunction(0, region))
           })
           val rvb = new RegionValueBuilder()
           rvb.set(region)
@@ -797,7 +797,7 @@ object Interpret {
 
           try {
             val resultOffset = f(region, offset)
-            SafeRow(rt.asInstanceOf[PTuple], resultOffset).get(0)
+            SafeRow(rt.asInstanceOf[PTypeReferenceSingleCodeType].pt.asInstanceOf[PTuple], resultOffset).get(0)
           } catch {
             case e: Exception =>
               fatal(s"error while calling '${ ir.implementation.name }': ${ e.getMessage }", e)
@@ -836,8 +836,8 @@ object Interpret {
         val extracted = agg.Extract(query, res, Requiredness(x, ctx))
 
         val wrapped = if (extracted.aggs.isEmpty) {
-          val (rt: PTuple, f) = Compile[AsmFunction2RegionLongLong](ctx,
-            FastIndexedSeq(("global", value.globals.t)),
+          val (Some(PTypeReferenceSingleCodeType(rt: PTuple)), f) = Compile[AsmFunction2RegionLongLong](ctx,
+            FastIndexedSeq(("global", SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(value.globals.t)))),
             FastIndexedSeq(classInfo[Region], LongInfo), LongInfo,
             MakeTuple.ordered(FastSeq(extracted.postAggIR)))
 
@@ -850,14 +850,14 @@ object Interpret {
 
           val (_, initOp) = CompileWithAggregators[AsmFunction2RegionLongUnit](ctx,
             extracted.states,
-            IndexedSeq(("global", value.globals.t)),
-            IndexedSeq(classInfo[Region], LongInfo), UnitInfo,
+            FastIndexedSeq(("global", SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(value.globals.t)))),
+            FastIndexedSeq(classInfo[Region], LongInfo), UnitInfo,
             extracted.init)
 
           val (_, partitionOpSeq) = CompileWithAggregators[AsmFunction3RegionLongLongUnit](ctx,
             extracted.states,
-            FastIndexedSeq(("global", value.globals.t),
-              ("row", value.rvd.rowPType)),
+            FastIndexedSeq(("global", SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(value.globals.t))),
+              ("row", SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(value.rvd.rowPType)))),
             FastIndexedSeq(classInfo[Region], LongInfo, LongInfo), UnitInfo,
             extracted.seqPerElt)
 
@@ -935,10 +935,10 @@ object Interpret {
           val rv = value.rvd.combine[WrappedByteArray, RegionValue](
             ctx, mkZero, itF, read, write, combOpF, isCommutative, useTreeAggregate)
 
-          val (rTyp: PTuple, f) = CompileWithAggregators[AsmFunction2RegionLongLong](
+          val (Some(PTypeReferenceSingleCodeType(rTyp: PTuple)), f) = CompileWithAggregators[AsmFunction2RegionLongLong](
             ctx,
             extracted.states,
-            FastIndexedSeq(("global", value.globals.t)),
+            FastIndexedSeq(("global", SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(value.globals.t)))),
             FastIndexedSeq(classInfo[Region], LongInfo), LongInfo,
             Let(res, extracted.results, MakeTuple.ordered(FastSeq(extracted.postAggIR))))
           assert(rTyp.types(0).virtualType == query.typ)
@@ -956,7 +956,7 @@ object Interpret {
 
         wrapped.get(0)
       case LiftMeOut(child) =>
-        val (rt, makeFunction) = Compile[AsmFunction1RegionLong](ctx,
+        val (Some(PTypeReferenceSingleCodeType(rt)), makeFunction) = Compile[AsmFunction1RegionLong](ctx,
           FastIndexedSeq(),
           FastIndexedSeq(classInfo[Region]), LongInfo,
           MakeTuple.ordered(FastSeq(child)),

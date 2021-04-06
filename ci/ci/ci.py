@@ -24,12 +24,11 @@ from gear import (
     create_database_pool,
     monitor_endpoint,
 )
-import random
 from typing import Dict, Any, Optional
 from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template, set_message
 
 from .environment import BUCKET
-from .github import Repo, FQBranch, WatchedBranch, UnwatchedBranch, MergeFailureBatch, PR
+from .github import Repo, FQBranch, WatchedBranch, UnwatchedBranch, MergeFailureBatch, PR, select_random_teammate
 from .constants import AUTHORIZED_USERS, TEAMS
 
 with open(os.environ.get('HAIL_CI_OAUTH_TOKEN', 'oauth-token/oauth-token'), 'r') as f:
@@ -260,9 +259,7 @@ async def get_user(request, userdata):
     dev_deploys = batch_client.list_batches(f'user={username} dev_deploy=1', limit=10)
     dev_deploys = sorted([b async for b in dev_deploys], key=lambda b: b.id, reverse=True)
 
-    team_random_member = {
-        team: random.choice([user for user in AUTHORIZED_USERS if team in user.teams]).gh_username for team in TEAMS
-    }
+    team_random_member = {team: select_random_teammate(team).gh_username for team in TEAMS}
 
     page_context = {
         'username': username,
@@ -422,6 +419,7 @@ async def dev_deploy_branch(request, userdata):
     try:
         branch = FQBranch.from_short_str(params['branch'])
         steps = params['steps']
+        excluded_steps = params['excluded_steps']
     except Exception as e:
         message = f'parameters are wrong; check the branch and steps syntax.\n\n{params}'
         log.info('dev deploy failed: ' + message, exc_info=True)
@@ -443,7 +441,7 @@ async def dev_deploy_branch(request, userdata):
     batch_client = app['batch_client']
 
     try:
-        batch_id = await unwatched_branch.deploy(batch_client, steps)
+        batch_id = await unwatched_branch.deploy(batch_client, steps, excluded_steps=excluded_steps)
     except Exception as e:  # pylint: disable=broad-except
         message = traceback.format_exc()
         raise web.HTTPBadRequest(text=f'starting the deploy failed due to\n{message}') from e

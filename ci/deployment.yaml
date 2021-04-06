@@ -134,3 +134,18 @@ spec:
          secret:
            optional: false
            secretName: ssl-config-ci
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ci
+  labels:
+    app: ci
+spec:
+  ports:
+    - name: https
+      port: 443
+      protocol: TCP
+      targetPort: 5000
+  selector:
+    app: ci

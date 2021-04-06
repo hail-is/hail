@@ -97,12 +97,14 @@ hailctl dev deploy -b <github_user_name>/hail:<branch_name> -s <step1>,<step2>,.
 Dev deploy creates a batch that deploys the build steps specified by the `-s` in
 your own Kubernetes namespace, MySQL database. For example, if we want to test
 whether the Batch tests still pass, we would specify -s test_batch. This will
-run all the dependent steps for testing Batch such as a working router in your
-namespace, credentials, a live Auth service, a MySQL database for Batch, and a
-live Batch deployment. Your namespace name is the same as your
-username. Submitting a dev deploy with hailctl will give you the link to a UI
+run all the dependent steps for testing Batch such as creating credentials,
+a live Auth service, a MySQL database for Batch, and a live Batch deployment.
+Your namespace name is the same as your username.
+Submitting a dev deploy with hailctl will give you the link to a UI
 where you can monitor the progress of everything deploying and get the logs for
-any steps that fail.
+any steps that fail. You can also see a recent history of your dev deploys at
+[ci.hail.is/me](ci.hail.is/me).
+
 
 If the tests fail, you can then examine the Kubernetes logs for the service
 using something like
@@ -125,8 +127,11 @@ $ mysql
 Once you have a branch that you are happy with, then you create a Pull Request
 on the GitHub UI.
 
-You’ll want to add an appropriate reviewer as an “assignee” which is on the
-right hand side of the page.
+You’ll want to add an appropriate reviewer in the "Reviewers" box on the
+right hand side of the page. If you are an outside contributor and cannot
+request reviews, you can have CI automatically assign a reviewer. By writing
+`#assign services` or `#assign compiler` in the PR body, CI will randomly select
+a collaborator on the relevant team and assign them for you.
 
 You can also give the PR a set of labels. The important ones are “WIP” to make
 sure the pull request doesn’t get merged accidentally until you are ready,
@@ -170,7 +175,7 @@ logs for your PR at [ci.hail.is](https://ci.hail.is).
 
 ## Review
 
-Once the PR has been created, it is the responsibility of the assignee(s) to
+Once the PR has been created, it is the responsibility of the reviewer(s) to
 review the PR. Our goal as a team is to give comments within 24 hours. To review
 someone else’s changes, click on “Files changed”. This will show the diff
 between the old code and the new proposed changes. You can make comments on
@@ -188,8 +193,13 @@ can “Approve” the PR.
 
 If you are the person whose code is being reviewed and your PR is in the Request
 Changes state, then you’ll need to address their comments by pushing new commit
-changes or answering questions. Once you are done, then you can dismiss their
-review towards the bottom of the Conversation page.
+changes or answering questions. Once you are done, then you can re-request a review
+in the "Reviewers" box.
+
+If your review is requested on a PR submitted by an outside contributor, you should
+"assign" yourself or the appropriate team member to the PR. The assignee is
+responsible for ensuring that the PR does not go stale and is eventually
+merged or closed.
 
 ![](dismiss_review.png)
 

@@ -1,32 +1,31 @@
 package is.hail.expr.ir
 
 import java.io.PrintWriter
-
 import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.expr.ir.Stream.Source
 import is.hail.expr.ir.agg.AggStateSig
 import is.hail.expr.ir.lowering.LoweringPipeline
 import is.hail.rvd.RVDContext
-import is.hail.types.physical.{PStream, PStruct, PType}
+import is.hail.types.physical.{PStream, PStruct, PType, PTypeReferenceSingleCodeType, SingleCodeType, StreamSingleCodeType}
 import is.hail.types.virtual.Type
 import is.hail.utils._
 
-case class CodeCacheKey(aggSigs: IndexedSeq[AggStateSig], args: Seq[(String, PType)], body: IR)
+case class CodeCacheKey(aggSigs: IndexedSeq[AggStateSig], args: Seq[(String, EmitParamType)], body: IR)
 
-case class CodeCacheValue(typ: PType, f: (Int, Region) => Any)
+case class CodeCacheValue(typ: Option[SingleCodeType], f: (Int, Region) => Any)
 
 object Compile {
   private[this] val codeCache: Cache[CodeCacheKey, CodeCacheValue] = new Cache(50)
 
   def apply[F: TypeInfo](
     ctx: ExecuteContext,
-    params: IndexedSeq[(String, PType)],
+    params: IndexedSeq[(String, EmitParamType)],
     expectedCodeParamTypes: IndexedSeq[TypeInfo[_]], expectedCodeReturnType: TypeInfo[_],
     body: IR,
     optimize: Boolean = true,
     print: Option[PrintWriter] = None
-  ): (PType, (Int, Region) => F) = {
+  ): (Option[SingleCodeType], (Int, Region) => F) = {
 
     val normalizeNames = new NormalizeNames(_.toString)
     val normalizedBody = normalizeNames(body,
@@ -51,12 +50,12 @@ object Compile {
     val smm = InferStreamMemoryManagement(ir, usesAndDefs)
     InferPType(ir, Env.empty, requiredness, usesAndDefs)
 
-    val returnType = ir.pType
+    val returnParam = CodeParamType(SingleCodeType.typeInfoFromType(ir.typ))
 
     val fb = EmitFunctionBuilder[F](ctx, "Compiled",
       CodeParamType(typeInfo[Region]) +: params.map { case (_, pt) =>
-        pt.asEmitParam
-      }, returnType.asEmitParam, Some("Emit.scala"))
+        pt
+      }, returnParam, Some("Emit.scala"))
 
     /*
     {
@@ -75,12 +74,12 @@ object Compile {
     assert(fb.mb.returnTypeInfo == expectedCodeReturnType, s"expected $expectedCodeReturnType, got ${ fb.mb.returnTypeInfo }")
 
     val emitContext = new EmitContext(ctx, requiredness, smm)
-    Emit(emitContext, ir, fb)
+    val rt = Emit(emitContext, ir, fb, expectedCodeReturnType)
 
     val f = fb.resultWithIndex(print)
-    codeCache += k -> CodeCacheValue(ir.pType, f)
+    codeCache += k -> CodeCacheValue(rt, f)
 
-    (returnType, f)
+    (rt, f)
   }
 }
 
@@ -90,11 +89,11 @@ object CompileWithAggregators {
   def apply[F: TypeInfo](
     ctx: ExecuteContext,
     aggSigs: Array[AggStateSig],
-    params: IndexedSeq[(String, PType)],
+    params: IndexedSeq[(String, EmitParamType)],
     expectedCodeParamTypes: IndexedSeq[TypeInfo[_]], expectedCodeReturnType: TypeInfo[_],
     body: IR,
     optimize: Boolean = true
-  ): (PType, (Int, Region) => (F with FunctionWithAggRegion)) = {
+  ): (Option[SingleCodeType], (Int, Region) => (F with FunctionWithAggRegion)) = {
     val normalizeNames = new NormalizeNames(_.toString)
     val normalizedBody = normalizeNames(body,
       Env(params.map { case (n, _) => n -> n }: _*))
@@ -118,11 +117,9 @@ object CompileWithAggregators {
     val smm = InferStreamMemoryManagement(ir, usesAndDefs)
     InferPType(ir, Env.empty, requiredness, usesAndDefs)
 
-    val returnType = ir.pType
     val fb = EmitFunctionBuilder[F](ctx, "CompiledWithAggs",
-      CodeParamType(typeInfo[Region]) +: params.map { case (_, pt) =>
-        pt.asEmitParam
-      }, returnType.asEmitParam, Some("Emit.scala"))
+      CodeParamType(typeInfo[Region]) +: params.map { case (_, pt) => pt},
+      SingleCodeType.typeInfoFromType(ir.typ), Some("Emit.scala"))
 
     /*
     {
@@ -138,11 +135,11 @@ object CompileWithAggregators {
      */
 
     val emitContext = new EmitContext(ctx, requiredness, smm)
-    Emit(emitContext, ir, fb, Some(aggSigs))
+    val rt = Emit(emitContext, ir, fb, expectedCodeReturnType, Some(aggSigs))
 
     val f = fb.resultWithIndex()
-    codeCache += k -> CodeCacheValue(ir.pType, f)
-    (ir.pType, f.asInstanceOf[(Int, Region) => (F with FunctionWithAggRegion)])
+    codeCache += k -> CodeCacheValue(rt, f)
+    (rt, f.asInstanceOf[(Int, Region) => (F with FunctionWithAggRegion)])
   }
 }
 
@@ -278,8 +275,8 @@ object CompileIterator {
       ctx, ir,
       Array[ParamType](
         CodeParamType(typeInfo[Object]),
-        EmitParamType(typ0),
-        EmitParamType(typ1)),
+        SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(typ0)),
+        SingleCodeEmitParamType(true, StreamSingleCodeType(typ1.separateRegions, typ1.elementType))),
       None)
     (eltPType, (idx, consumerCtx, v0, part) => {
       val stepper = makeStepper(idx, consumerCtx.partitionRegion)
@@ -303,8 +300,8 @@ object CompileIterator {
       ctx, ir,
       Array[ParamType](
         CodeParamType(typeInfo[Object]),
-        EmitParamType(ctxType),
-        EmitParamType(bcValsType)),
+        SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(ctxType)),
+        SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(bcValsType))),
       None)
     (eltPType, (idx, consumerCtx, v0, v1) => {
       val stepper = makeStepper(idx, consumerCtx.partitionRegion)

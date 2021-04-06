@@ -6,15 +6,16 @@ import concurrent
 import logging
 import uvloop
 import asyncio
-import aiohttp
 from aiohttp import web
 import kubernetes_asyncio as kube
+from prometheus_async.aio.web import server_stats  # type: ignore
 from collections import defaultdict
 from hailtop.utils import blocking_to_async, retry_transient_errors
 from hailtop.config import get_deploy_config
 from hailtop.tls import internal_server_ssl_context
 from hailtop.hail_logging import AccessLogger
-from gear import setup_aiohttp_session, rest_authenticated_users_only, rest_authenticated_developers_only
+from hailtop import version
+from gear import setup_aiohttp_session, rest_authenticated_users_only, rest_authenticated_developers_only, monitor_endpoint
 
 from .sockets import connect_to_java
 
@@ -105,13 +106,12 @@ async def handle_ws_response(request, userdata, endpoint, f):
         user_queries[body['token']] = query
 
     try:
-        receive = asyncio.ensure_future(ws.receive())  # receive automatically ping-pongs which keeps the socket alive
+        receive = asyncio.ensure_future(ws.receive_str())  # receive automatically ping-pongs which keeps the socket alive
         await asyncio.wait([receive, query], return_when=asyncio.FIRST_COMPLETED)
         if receive.done():
             # we expect no messages from the client
             response = receive.result()
-            assert response.type in (aiohttp.WSMsgType.CLOSE, aiohttp.WSMsgType.CLOSING), (
-                f'{endpoint}: Received websocket message. Expected CLOSE or CLOSING, got {response}')
+            raise AssertionError(f'{endpoint}: client broke the protocol by sending: {response}')
         if not query.done():
             return
         if query.exception() is not None:
@@ -120,7 +120,7 @@ async def handle_ws_response(request, userdata, endpoint, f):
             await ws.send_json({'status': 500, 'value': exc_str})
         else:
             await ws.send_json({'status': 200, 'value': query.result()})
-        assert await ws.receive_str() == 'bye'
+        assert (await receive) == 'bye'
         del user_queries[body['token']]
     finally:
         receive.cancel()
@@ -130,48 +130,56 @@ async def handle_ws_response(request, userdata, endpoint, f):
 
 
 @routes.get('/api/v1alpha/execute')
+@monitor_endpoint
 @rest_authenticated_users_only
 async def execute(request, userdata):
     return await handle_ws_response(request, userdata, 'execute', blocking_execute)
 
 
 @routes.get('/api/v1alpha/load_references_from_dataset')
+@monitor_endpoint
 @rest_authenticated_users_only
 async def load_references_from_dataset(request, userdata):
     return await handle_ws_response(request, userdata, 'load_references_from_dataset', blocking_load_references_from_dataset)
 
 
 @routes.get('/api/v1alpha/type/value')
+@monitor_endpoint
 @rest_authenticated_users_only
 async def value_type(request, userdata):
     return await handle_ws_response(request, userdata, 'type/value', blocking_value_type)
 
 
 @routes.get('/api/v1alpha/type/table')
+@monitor_endpoint
 @rest_authenticated_users_only
 async def table_type(request, userdata):
     return await handle_ws_response(request, userdata, 'type/table', blocking_table_type)
 
 
 @routes.get('/api/v1alpha/type/matrix')
+@monitor_endpoint
 @rest_authenticated_users_only
 async def matrix_type(request, userdata):
     return await handle_ws_response(request, userdata, 'type/matrix', blocking_matrix_type)
 
 
 @routes.get('/api/v1alpha/type/blockmatrix')
+@monitor_endpoint
 @rest_authenticated_users_only
 async def blockmatrix_type(request, userdata):
     return await handle_ws_response(request, userdata, 'type/blockmatrix', blocking_blockmatrix_type)
 
 
 @routes.get('/api/v1alpha/references/get')
+@monitor_endpoint
 @rest_authenticated_users_only
 async def get_reference(request, userdata):  # pylint: disable=unused-argument
     return await handle_ws_response(request, userdata, 'references/get', blocking_get_reference)
 
 
 @routes.get('/api/v1alpha/flags/get')
+@monitor_endpoint
 @rest_authenticated_developers_only
 async def get_flags(request, userdata):  # pylint: disable=unused-argument
     app = request.app
@@ -181,6 +189,7 @@ async def get_flags(request, userdata):  # pylint: disable=unused-argument
 
 
 @routes.get('/api/v1alpha/flags/get/{flag}')
+@monitor_endpoint
 @rest_authenticated_developers_only
 async def get_flag(request, userdata):  # pylint: disable=unused-argument
     app = request.app
@@ -191,6 +200,7 @@ async def get_flag(request, userdata):  # pylint: disable=unused-argument
 
 
 @routes.get('/api/v1alpha/flags/set/{flag}')
+@monitor_endpoint
 @rest_authenticated_developers_only
 async def set_flag(request, userdata):  # pylint: disable=unused-argument
     app = request.app
@@ -202,6 +212,11 @@ async def set_flag(request, userdata):  # pylint: disable=unused-argument
         else:
             jresp = await blocking_to_async(app['thread_pool'], java.set_flag, f, v)
     return web.json_response(jresp)
+
+
+@routes.get('/api/v1alpha/version')
+async def rest_get_version(request):  # pylint: disable=W0613
+    return web.Response(text=version())
 
 
 async def on_startup(app):
@@ -222,6 +237,15 @@ async def on_cleanup(app):
     await asyncio.gather(*(t for t in asyncio.all_tasks() if t is not asyncio.current_task()))
 
 
+async def on_shutdown(_):
+    # Filter the asyncio.current_task(), because if we await
+    # the current task we'll end up in a deadlock
+    remaining_tasks = [t for t in asyncio.all_tasks() if t is not asyncio.current_task()]
+    log.info(f"On shutdown request received, with {len(remaining_tasks)} remaining tasks")
+    await asyncio.wait(remaining_tasks)
+    log.info("All tasks on shutdown have completed")
+
+
 def run():
     app = web.Application()
 
@@ -231,6 +255,8 @@ def run():
 
     app.on_startup.append(on_startup)
     app.on_cleanup.append(on_cleanup)
+    app.on_shutdown.append(on_shutdown)
+    app.router.add_get("/metrics", server_stats)
 
     deploy_config = get_deploy_config()
     web.run_app(

@@ -11,13 +11,28 @@ class FormatStream {
 public:
   virtual ~FormatStream();
 
-  virtual void write(void *p, size_t n) = 0;
+  virtual void write(const char *p, size_t n) = 0;
   virtual void putc(int c) = 0;
   virtual void puts(const char *s) = 0;
 };
 
+class StringFormatStream : public FormatStream {
+  std::string contents;
+
+public:
+  StringFormatStream();
+  ~StringFormatStream();
+
+  void write(const char *p, size_t n) override;
+  void putc(int c) override;
+  void puts(const char *s) override;
+
+  std::string get_contents();
+};
+
 extern FormatStream &outs, &errs;
 
+extern void format1(FormatStream &s, bool v);
 extern void format1(FormatStream &s, signed char v);
 extern void format1(FormatStream &s, unsigned char v);
 extern void format1(FormatStream &s, short v);
@@ -52,6 +67,13 @@ extern void format1(FormatStream &s, Indent v);
 template<typename... Args> inline void
 format(FormatStream &s, Args &&... args) {
   (format1(s, std::forward<Args>(args)),...);
+}
+
+template<typename... Args> inline std::string
+render(Args &&... args) {
+  StringFormatStream s;
+  format(s, std::forward<Args>(args)...);
+  return std::move(s.get_contents());
 }
 
 template<typename... Args> inline void

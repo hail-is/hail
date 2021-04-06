@@ -181,11 +181,9 @@ Every developer and every pull request test job also has a namespace. Developer 
 accessible at https://internal.hail.is/DEVELOPER_USERNAME/SERVICE/ . Unlike the default namespace,
 every other namespace has exactly one database (containing all tables from each service's database).
 
-The default namespace includes three services that are hand-deployed and do not exist in other
-namespaces: gateway, internal-gateway, and router-resolver. All traffic from the Internet enters the
-cluster through the gateway which routes traffic to the appropriate namespace and service. All
-traffic from the Batch workers enters through the internal-gateway. The router-resolver assists the
-gateway in routing.
+All incoming traffic passes through either gateway or internal-gateway which route requests to
+the appropriate namespace and service. Traffic from the Internet enters the cluster through gateway,
+while traffic from Batch workers enters through internal-gateway.
 
 
 [^1]: https://www.who.int/genomics/geneticsVSgenomics/en/

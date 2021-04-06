@@ -1,0 +1,5 @@
+principals:
+- name: hello
+  domains:
+    - hello
+  kind: json

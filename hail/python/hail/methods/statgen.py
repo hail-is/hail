@@ -434,7 +434,7 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, pass_through=())
         return indices.map(lambda i: hl_array[i])
 
     def dot_rows_with_themselves(matrix):
-        return (matrix * matrix) @ hl.nd.ones(matrix.shape[1])
+        return (matrix * matrix).sum(1)
 
     def no_missing(hail_array):
         return hail_array.all(lambda element: hl.is_defined(element))
@@ -491,7 +491,7 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, pass_through=())
         def process_y_group(idx):
             X = hl.nd.array(block[entries_field_name].map(lambda row: mean_impute(select_array_indices(row, ht.kept_samples[idx])))).T
             n = ht.ns[idx]
-            sum_x = (X.T @ hl.nd.ones((n,)))
+            sum_x = X.sum(0)
             Qtx = ht.__cov_Qts[idx] @ X
             ytx = ht.__y_nds[idx].T @ X
             xyp = ytx - (ht.__Qtys[idx].T @ Qtx)
@@ -1497,6 +1497,24 @@ def split_multi(ds, keep_star=False, left_aligned=False, *, permit_shuffle=False
 
      All other fields are left unchanged.
 
+    Warning
+    -------
+    This method assumes `ds` contains one non-split variant per locus. This assumption permits the
+    most efficient implementation of this method.
+
+    If each locus in `ds` contains one multiallelic variant and one or more biallelic variants, you
+    can filter to the multiallelic variants, split those, and then combine the split variants with
+    the original biallelic variants.
+
+    For example, the following code splits a dataset `mt` which contains a mixture of split and
+    non-split variants.
+
+    >>> bi = mt.filter_rows(hl.len(mt.alleles) == 2)
+    >>> bi = bi.annotate_rows(was_split=False)
+    >>> multi = mt.filter_rows(hl.len(mt.alleles) > 2)
+    >>> split = hl.split_multi_hts(multi)
+    >>> mt = split.union_rows(bi)
+
     Example
     -------
 
@@ -1652,6 +1670,24 @@ def split_multi_hts(ds, keep_star=False, left_aligned=False, vep_root='vep', *, 
     --------
 
     >>> hl.split_multi_hts(dataset).write('output/split.mt')
+
+    Warning
+    -------
+    This method assumes `ds` contains one non-split variant per locus. This assumption permits the
+    most efficient implementation of this method.
+
+    If each locus in `ds` contains one multiallelic variant and one or more biallelic variants, you
+    can filter to the multiallelic variants, split those, and then combine the split variants with
+    the original biallelic variants.
+
+    For example, the following code splits a dataset `mt` which contains a mixture of split and
+    non-split variants.
+
+    >>> bi = mt.filter_rows(hl.len(mt.alleles) == 2)
+    >>> bi = bi.annotate_rows(was_split=False)
+    >>> multi = mt.filter_rows(hl.len(mt.alleles) > 2)
+    >>> split = hl.split_multi_hts(multi)
+    >>> mt = split.union_rows(bi)
 
     Notes
     -----

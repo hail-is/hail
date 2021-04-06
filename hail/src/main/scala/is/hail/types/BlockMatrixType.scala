@@ -7,11 +7,11 @@ import is.hail.linalg.BlockMatrix
 object BlockMatrixSparsity {
   private val builder: BoxedArrayBuilder[(Int, Int)] = new BoxedArrayBuilder[(Int, Int)]
 
-  val dense: BlockMatrixSparsity = BlockMatrixSparsity(None)
+  val dense: BlockMatrixSparsity = new BlockMatrixSparsity(None: Option[IndexedSeq[(Int, Int)]])
 
   def apply(definedBlocks: IndexedSeq[(Int, Int)]): BlockMatrixSparsity = BlockMatrixSparsity(Some(definedBlocks))
 
-  def apply(nRows: Int, nCols: Int)(exists: (Int, Int) => Boolean): BlockMatrixSparsity = {
+  def constructFromShapeAndFunction(nRows: Int, nCols: Int)(exists: (Int, Int) => Boolean): BlockMatrixSparsity = {
     var i = 0
     builder.clear()
     while (i < nRows) {
@@ -47,7 +47,7 @@ case class BlockMatrixSparsity(definedBlocks: Option[IndexedSeq[(Int, Int)]]) {
   def condense(blockOverlaps: => (Array[Array[Int]], Array[Array[Int]])): BlockMatrixSparsity = {
     definedBlocks.map { _ =>
       val (ro, co) = blockOverlaps
-      BlockMatrixSparsity(ro.length, co.length) { (i, j) =>
+      BlockMatrixSparsity.constructFromShapeAndFunction(ro.length, co.length) { (i, j) =>
         ro(i).exists(ii => co(j).exists(jj => hasBlock(ii -> jj)))
       }
     }.getOrElse(BlockMatrixSparsity.dense)

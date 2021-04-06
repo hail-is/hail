@@ -496,7 +496,6 @@ class GoogleStorageMultiPartCreate(MultiPartCreate):
                         exc_val: Optional[BaseException],
                         exc_tb: Optional[TracebackType]) -> None:
         async with OnlineBoundedGather2(self._sema) as pool:
-            cleanup_tasks = []
             try:
                 if exc_val is not None:
                     return
@@ -535,20 +534,13 @@ class GoogleStorageMultiPartCreate(MultiPartCreate):
                     await self._compose(chunk_names, dest_name)
 
                     for n in chunk_names:
-                        cleanup_tasks.append(
-                            await pool.call(self._fs._remove_doesnt_exist_ok, f'gs://{self._bucket}/{n}'))
+                        await pool.call(self._fs._remove_doesnt_exist_ok, f'gs://{self._bucket}/{n}')
 
                 await tree_compose(
                     [self._part_name(i) for i in range(self._num_parts)],
                     self._dest_name)
             finally:
                 await self._fs.rmtree(self._sema, f'gs://{self._bucket}/{self._dest_dirname}_/{self._token}')
-                # after the rmtree, all temporary files should be gone
-                # cancel any cleanup tasks that are still running
-                # exiting the pool will wait for everything to finish
-                for t in cleanup_tasks:
-                    if not t.done():
-                        t.cancel()
 
 
 class GoogleStorageAsyncFS(AsyncFS):

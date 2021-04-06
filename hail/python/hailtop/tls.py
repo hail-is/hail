@@ -15,11 +15,14 @@ class NoSSLConfigFound(Exception):
 
 
 def _get_ssl_config() -> Dict[str, str]:
-    config_file = os.environ.get('HAIL_SSL_CONFIG_FILE', '/ssl-config/ssl-config.json')
+    config_dir = os.environ.get('HAIL_SSL_CONFIG_DIR', '/ssl-config')
+    config_file = f'{config_dir}/ssl-config.json'
     if os.path.isfile(config_file):
         log.info(f'ssl config file found at {config_file}')
         with open(config_file, 'r') as f:
             ssl_config = json.load(f)
+            for config_name, rel_path in ssl_config.items():
+                ssl_config[config_name] = f'{config_dir}/{rel_path}'
         check_ssl_config(ssl_config)
         return ssl_config
     raise NoSSLConfigFound(f'no ssl config found at {config_file}')

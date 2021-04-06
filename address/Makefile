@@ -10,6 +10,7 @@ PYTHON := PYTHONPATH=$(PYTHONPATH) python3
 check:
 	$(PYTHON) -m flake8  --config ../setup.cfg address
 	$(PYTHON) -m pylint --rcfile ../pylintrc address --score=n
+	curlylint .
 
 .PHONY: build
 build:

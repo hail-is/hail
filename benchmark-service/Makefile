@@ -10,6 +10,7 @@ PYTHON := PYTHONPATH=$${PYTHONPATH:+$${PYTHONPATH}:}$(EXTRA_PYTHONPATH) python3
 check:
 	$(PYTHON) -m flake8 benchmark
 	$(PYTHON) -m pylint --rcfile ../pylintrc benchmark --score=n
+	curlylint .
 
 .PHONY: build
 build:

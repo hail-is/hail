@@ -204,8 +204,8 @@ class ShuffleSuite extends HailSuite {
                     ToStream(Ref("a", TArray(rowType)))))))))))
     ExecuteContext.scoped() { (ctx: ExecuteContext) =>
       val region = ctx.r
-      val (pairPType: PBaseStruct, f) = Compile[AsmFunction1RegionLong](ctx,
-        FastIndexedSeq[(String, PType)](),
+      val (Some(PTypeReferenceSingleCodeType(pairPType: PBaseStruct)), f) = Compile[AsmFunction1RegionLong](ctx,
+        FastIndexedSeq(),
         FastIndexedSeq[TypeInfo[_]](classInfo[Region]), LongInfo,
         x,
         optimize = true)

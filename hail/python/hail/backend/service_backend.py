@@ -88,6 +88,8 @@ class ServiceBackend(Backend):
         if bucket is None:
             bucket = get_user_config().get('batch', 'bucket', fallback=None)
         if bucket is None:
+            bucket = os.environ.get('HAIL_BUCKET')
+        if bucket is None:
             raise ValueError(
                 'the bucket parameter of ServiceBackend must be set '
                 'or run `hailctl config set batch/bucket '

@@ -9,14 +9,13 @@ from hailtop.auth import service_auth_headers
 from hailtop.httpx import client_session
 import hailtop.utils as utils
 
-pytestmark = pytest.mark.asyncio
-
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger(__name__)
 
 sha = 'd626f793ad700c45a878d192652a0378818bbd8b'
 
 
+@pytest.mark.asyncio
 async def test_update_commits():
     deploy_config = get_deploy_config()
     headers = service_auth_headers(deploy_config, 'benchmark')

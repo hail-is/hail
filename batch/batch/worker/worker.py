@@ -10,6 +10,7 @@ import traceback
 import base64
 import uuid
 import shutil
+import signal
 import aiohttp
 import aiohttp.client_exceptions
 from aiohttp import web
@@ -379,8 +380,10 @@ class Container:
 
     async def batch_worker_access_token(self):
         async with aiohttp.ClientSession(raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
-            async with session.post('http://169.254.169.254/computeMetadata/v1/instance/service-accounts/default/token',
-                                    headers={'Metadata-Flavor': 'Google'}) as resp:
+            async with await request_retry_transient_errors(
+                    session, 'POST',
+                    'http://169.254.169.254/computeMetadata/v1/instance/service-accounts/default/token',
+                    headers={'Metadata-Flavor': 'Google'}) as resp:
                 access_token = (await resp.json())['access_token']
                 return {'username': 'oauth2accesstoken', 'password': access_token}
 
@@ -459,6 +462,8 @@ class Container:
                 self.state = 'succeeded'
             else:
                 self.state = 'failed'
+        except asyncio.CancelledError:
+            raise
         except Exception as e:
             if not isinstance(e, (JobDeletedError, JobTimeoutError)):
                 log.exception(f'while running {self}')
@@ -494,6 +499,8 @@ class Container:
                 await docker_call_retry(MAX_DOCKER_OTHER_OPERATION_SECS, f'{self}')(
                     delete_container, self.container, v=True)
                 self.container = None
+            except asyncio.CancelledError:
+                raise
             except Exception:
                 log.warning('while deleting container, ignoring', exc_info=True)
 
@@ -557,7 +564,11 @@ class JVMProcess:
         self.proc = None
         self.timing = {'running': dict()}
         self.state = 'pending'
-        self.log = ''
+        self.logbuffer = bytearray()
+
+    async def pipe_to_log(self, strm: asyncio.StreamReader):
+        while not strm.at_eof():
+            self.logbuffer.extend(await strm.readline())
 
     async def run(self, worker):
         log.info(f'running {self}')
@@ -569,26 +580,23 @@ class JVMProcess:
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
             env=self.env)
-        out, err = await self.proc.communicate()
+
+        await asyncio.gather(self.pipe_to_log(self.proc.stdout),
+                             self.pipe_to_log(self.proc.stderr))
+        await self.proc.wait()
 
         finish_time = time_msecs()
         self.timing['running']['finish_time'] = finish_time
         start_time = self.timing['running']['start_time']
         self.timing['running']['duration'] = finish_time - start_time
 
-        self.log += 'STDOUT:\n'
-        self.log += out.decode()
-        self.log += '\n\n'
-        self.log += 'STDERR:\n'
-        self.log += err.decode()
-
         log.info(f'finished {self} with return code {self.proc.returncode}')
-        log.info(f'log {self}: {self.log}')
+        log.info(f'log {self}: {self.get_log()}')
 
         await worker.log_store.write_log_file(
             self.job.format_version, self.job.batch_id,
             self.job.job_id, self.job.attempt_id, 'main',
-            self.log)
+            self.get_log())
 
         if self.proc.returncode == 0:
             self.state = 'succeeded'
@@ -596,14 +604,17 @@ class JVMProcess:
             self.state = 'failed'
 
     async def status(self, state=None):
-        return {
+        d = {
             'name': 'main',
             'state': self.state if not state else state,
             'timing': self.timing
         }
+        if self.proc is not None and self.proc.returncode is not None:
+            d['exit_code'] = self.proc.returncode
+        return d
 
-    async def get_log(self):
-        return self.log
+    def get_log(self):
+        return self.logbuffer.decode()
 
     async def delete(self):
         log.info(f'deleting {self}')
@@ -645,8 +656,6 @@ async def add_gcsfuse_bucket(mount_path, bucket, key_file, read_only):
             error += 1
             if error == 5:
                 raise
-        except asyncio.CancelledError:  # pylint: disable=try-except-raise
-            raise
 
         delay = await sleep_and_backoff(delay)
 
@@ -960,39 +969,46 @@ class DockerJob(Job):
                         self.state = 'succeeded'
                 else:
                     self.state = input.state
+            except asyncio.CancelledError:
+                raise
             except Exception as e:
                 if not user_error(e):
                     log.exception(f'while running {self}')
 
                 self.state = 'error'
                 self.error = traceback.format_exc()
-            finally:
-                self.end_time = time_msecs()
+                await self.cleanup()
+            await self.cleanup()
 
-                if not self.deleted:
-                    log.info(f'{self}: marking complete')
-                    self.task_manager.ensure_future(worker.post_job_complete(self))
+    async def cleanup(self):
+        self.end_time = time_msecs()
 
-                log.info(f'{self}: cleaning up')
-                try:
-                    if self.gcsfuse:
-                        for b in self.gcsfuse:
-                            bucket = b['bucket']
-                            mount_path = self.gcsfuse_path(bucket)
-                            await check_shell(f'fusermount -u {mount_path}')
-                            log.info(f'unmounted gcsfuse bucket {bucket} from {mount_path}')
+        if not self.deleted:
+            log.info(f'{self}: marking complete')
+            self.task_manager.ensure_future(worker.post_job_complete(self))
 
-                    await check_shell(f'xfs_quota -x -D /xfsquota/projects -P /xfsquota/projid -c "limit -p bsoft=0 bhard=0 {self.project_name}" /host')
+        log.info(f'{self}: cleaning up')
+        try:
+            if self.gcsfuse:
+                for b in self.gcsfuse:
+                    bucket = b['bucket']
+                    mount_path = self.gcsfuse_path(bucket)
+                    await check_shell(f'fusermount -u {mount_path}')
+                    log.info(f'unmounted gcsfuse bucket {bucket} from {mount_path}')
 
-                    async with Flock('/xfsquota/projid', pool=worker.pool):
-                        await check_shell(f"sed -i '/{self.project_name}:{self.project_id}/d' /xfsquota/projid")
+            await check_shell(f'xfs_quota -x -D /xfsquota/projects -P /xfsquota/projid -c "limit -p bsoft=0 bhard=0 {self.project_name}" /host')
 
-                    async with Flock('/xfsquota/projects', pool=worker.pool):
-                        await check_shell(f"sed -i '/{self.project_id}:/d' /xfsquota/projects")
+            async with Flock('/xfsquota/projid', pool=worker.pool):
+                await check_shell(f"sed -i '/{self.project_name}:{self.project_id}/d' /xfsquota/projid")
 
-                    shutil.rmtree(self.scratch, ignore_errors=True)
-                except Exception:
-                    log.exception('while deleting volumes')
+            async with Flock('/xfsquota/projects', pool=worker.pool):
+                await check_shell(f"sed -i '/{self.project_id}:/d' /xfsquota/projects")
+
+            shutil.rmtree(self.scratch, ignore_errors=True)
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            log.exception('while deleting volumes')
 
     async def get_log(self):
         return {name: await c.get_log() for name, c in self.containers.items()}
@@ -1037,15 +1053,15 @@ class JVMJob(Job):
 
         for envvar in self.env:
             assert envvar['name'] not in {'HAIL_DEPLOY_CONFIG_FILE', 'HAIL_TOKENS_FILE',
-                                          'HAIL_SSL_CONFIG_FILE', 'HAIL_GSA_KEY_FILE',
+                                          'HAIL_SSL_CONFIG_DIR', 'HAIL_GSA_KEY_FILE',
                                           'HAIL_WORKER_SCRATCH_DIR'}, envvar
 
         self.env.append({'name': 'HAIL_DEPLOY_CONFIG_FILE',
                          'value': f'{self.scratch}/secrets/deploy-config/deploy-config.json'})
         self.env.append({'name': 'HAIL_TOKENS_FILE',
                          'value': f'{self.scratch}/secrets/user-tokens/tokens.json'})
-        self.env.append({'name': 'HAIL_SSL_CONFIG_FILE',
-                         'value': f'{self.scratch}/secrets/ssl-config/ssl-config.json'})
+        self.env.append({'name': 'HAIL_SSL_CONFIG_DIR',
+                         'value': f'{self.scratch}/secrets/ssl-config'})
         self.env.append({'name': 'HAIL_GSA_KEY_FILE',
                          'value': f'{self.scratch}/secrets/gsa-key/key.json'})
         self.env.append({'name': 'HAIL_WORKER_SCRATCH_DIR', 'value': self.scratch})
@@ -1095,11 +1111,14 @@ class JVMJob(Job):
                 await self.process.run(worker)
                 self.state = self.process.state
                 log.info(f'{self} main: {self.state}')
+            except asyncio.CancelledError:
+                raise
             except Exception:
                 log.exception(f'while running {self}')
 
                 self.state = 'error'
                 self.error = traceback.format_exc()
+            # TODO Put into function call and call from except Exception and after try/except block
             finally:
                 self.end_time = time_msecs()
 
@@ -1118,6 +1137,8 @@ class JVMJob(Job):
                         await check_shell(f"sed -i '/{self.project_id}:/d' /xfsquota/projects")
 
                     shutil.rmtree(self.scratch, ignore_errors=True)
+                except asyncio.CancelledError:
+                    raise
                 except Exception:
                     log.exception('while deleting volumes')
 
@@ -1173,6 +1194,8 @@ class Worker:
     async def run_job(self, job):
         try:
             await job.run(self)
+        except asyncio.CancelledError:
+            raise
         except Exception:
             log.exception(f'while running {job}, ignoring')
 
@@ -1268,62 +1291,56 @@ class Worker:
         return web.json_response(body)
 
     async def run(self):
-        app_runner = None
-        site = None
+        app = web.Application(client_max_size=HTTP_CLIENT_MAX_SIZE)
+        app.add_routes([
+            web.post('/api/v1alpha/kill', self.kill),
+            web.post('/api/v1alpha/batches/jobs/create', self.create_job),
+            web.delete('/api/v1alpha/batches/{batch_id}/jobs/{job_id}/delete', self.delete_job),
+            web.get('/api/v1alpha/batches/{batch_id}/jobs/{job_id}/log', self.get_job_log),
+            web.get('/api/v1alpha/batches/{batch_id}/jobs/{job_id}/status', self.get_job_status),
+            web.get('/healthcheck', self.healthcheck)
+        ])
         try:
-            app = web.Application(client_max_size=HTTP_CLIENT_MAX_SIZE)
-            app.add_routes([
-                web.post('/api/v1alpha/kill', self.kill),
-                web.post('/api/v1alpha/batches/jobs/create', self.create_job),
-                web.delete('/api/v1alpha/batches/{batch_id}/jobs/{job_id}/delete', self.delete_job),
-                web.get('/api/v1alpha/batches/{batch_id}/jobs/{job_id}/log', self.get_job_log),
-                web.get('/api/v1alpha/batches/{batch_id}/jobs/{job_id}/status', self.get_job_status),
-                web.get('/healthcheck', self.healthcheck)
-            ])
+            await asyncio.wait_for(self.activate(), MAX_IDLE_TIME_MSECS / 1000)
+        except asyncio.TimeoutError:
+            log.exception(f'could not activate after trying for {MAX_IDLE_TIME_MSECS} ms, exiting')
+            return
 
-            app_runner = web.AppRunner(app)
-            await app_runner.setup()
-            site = web.TCPSite(app_runner, '0.0.0.0', 5000)
-            await site.start()
+        app_runner = web.AppRunner(app)
+        await app_runner.setup()
+        site = web.TCPSite(app_runner, '0.0.0.0', 5000)
+        await site.start()
 
-            try:
-                await asyncio.wait_for(self.activate(), MAX_IDLE_TIME_MSECS / 1000)
-            except asyncio.TimeoutError:
-                log.exception(f'could not activate after trying for {MAX_IDLE_TIME_MSECS} ms, exiting')
-            else:
-                stopped = False
-                idle_duration = time_msecs() - self.last_updated
-                while self.jobs or idle_duration < MAX_IDLE_TIME_MSECS:
-                    log.info(f'n_jobs {len(self.jobs)} free_cores {self.cpu_sem.value / 1000} idle {idle_duration}')
-                    try:
-                        await asyncio.wait_for(self.stop_event.wait(), 15)
-                        stopped = True
-                        log.info('received stop event')
+        try:
+            while True:
+                try:
+                    await asyncio.wait_for(self.stop_event.wait(), 15)
+                    log.info('received stop event')
+                    break
+                except asyncio.TimeoutError:
+                    idle_duration = time_msecs() - self.last_updated
+                    if not self.jobs and idle_duration >= MAX_IDLE_TIME_MSECS:
+                        log.info(f'idle {idle_duration} ms, exiting')
                         break
-                    except asyncio.TimeoutError:
-                        idle_duration = time_msecs() - self.last_updated
-
-                if not stopped:
-                    log.info(f'idle {idle_duration} ms, exiting')
-
-                async with client_session() as session:
-                    # Don't retry.  If it doesn't go through, the driver
-                    # monitoring loops will recover.  If the driver is
-                    # gone (e.g. testing a PR), this would go into an
-                    # infinite loop and the instance won't be deleted.
-                    await session.post(
-                        deploy_config.url('batch-driver', '/api/v1alpha/instances/deactivate'),
-                        headers=self.headers)
-                log.info('deactivated')
+                    log.info(f'n_jobs {len(self.jobs)} free_cores {self.cpu_sem.value / 1000} idle {idle_duration}')
         finally:
             log.info('shutting down')
-            if site:
-                await site.stop()
-                log.info('stopped site')
+            await site.stop()
+            log.info('stopped site')
+            await app_runner.cleanup()
+            log.info('cleaned up app runner')
+            await self.deactivate()
+            log.info('deactivated')
 
-            if app_runner:
-                await app_runner.cleanup()
-                log.info('cleaned up app runner')
+    async def deactivate(self):
+        async with client_session() as session:
+            # Don't retry.  If it doesn't go through, the driver
+            # monitoring loops will recover.  If the driver is
+            # gone (e.g. testing a PR), this would go into an
+            # infinite loop and the instance won't be deleted.
+            await session.post(
+                deploy_config.url('batch-driver', '/api/v1alpha/instances/deactivate'),
+                headers=self.headers)
 
     async def kill_1(self, request):  # pylint: disable=unused-argument
         log.info('killed')
@@ -1397,6 +1414,8 @@ class Worker:
     async def post_job_complete(self, job):
         try:
             await self.post_job_complete_1(job)
+        except asyncio.CancelledError:
+            raise
         except Exception:
             log.exception(f'error while marking {job} complete', stack_info=True)
         finally:
@@ -1430,6 +1449,8 @@ class Worker:
     async def post_job_started(self, job):
         try:
             await self.post_job_started_1(job)
+        except asyncio.CancelledError:
+            raise
         except Exception:
             log.exception(f'error while posting {job} started')
 
@@ -1485,7 +1506,15 @@ async def async_main():
             await docker.close()
             log.info('docker closed')
 
+
+def dump_all_stacktraces():
+    for t in asyncio.all_tasks():
+        print(t)
+        t.print_stack()
+
+
 loop = asyncio.get_event_loop()
+loop.add_signal_handler(signal.SIGUSR1, dump_all_stacktraces)
 loop.run_until_complete(async_main())
 log.info('closing loop')
 loop.close()

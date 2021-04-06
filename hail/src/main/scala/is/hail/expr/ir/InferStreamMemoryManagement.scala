@@ -1,7 +1,7 @@
 package is.hail.expr.ir
 
-import is.hail.types.physical.PStream
-import is.hail.types.virtual.{TStream, Type}
+import is.hail.types.physical.StreamSingleCodeType
+import is.hail.types.virtual.TStream
 
 
 class StreamMemoryManagement(val m: Memo[StreamMemoType]) {
@@ -69,8 +69,8 @@ object InferStreamMemoryManagement {
               .foldLeft(StreamMemoType(false, None)) { case (smt, _) => StreamMemoType(false, Some(smt)) }
           case ReadPartition(_, _, _) =>
             StreamMemoType(true, None)
-          case In(_, s: PStream) =>
-            StreamMemoType(s.separateRegions, None)
+          case In(_, SingleCodeEmitParamType(_, StreamSingleCodeType(separateRegions, _))) =>
+            StreamMemoType(separateRegions, None)
           case MakeStream(_, _, separateRegions) =>
             StreamMemoType(separateRegions, None)
           case RunAggScan(s, _, _, _, _, _) =>

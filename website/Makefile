@@ -4,6 +4,9 @@ include ../config.mk
 
 IMAGE = gcr.io/$(PROJECT)/website:$(shell docker images -q --no-trunc website | sed -e 's,[^:]*:,,')
 
+check:
+	curlylint .
+
 docs:
 	$(MAKE) -C ../hail hail-docs-no-test batch-docs
 	tar czf docs.tar.gz -C ../hail/build/www .
@@ -27,7 +30,7 @@ push: build
 deploy: push
 	! [ -z $(NAMESPACE) ]  # call this like: make deploy NAMESPACE=default
 	$(MAKE) -C ../docker hail-ubuntu
-	python3 ../ci/jinja2_render.py '{"global": {"domain":"$(DOMAIN)"},"default_ns":{"name":"$(NAMESPACE)"},"code":{"sha":"$(shell git rev-parse --short=12 HEAD)"},"deploy":$(DEPLOY),"website_image":{"image":"$(IMAGE)"}' deployment.yaml deployment.yaml.out
+	python3 ../ci/jinja2_render.py '{"global": {"domain":"$(DOMAIN)"},"default_ns":{"name":"$(NAMESPACE)"},"code":{"sha":"$(shell git rev-parse --short=12 HEAD)"},"deploy":$(DEPLOY),"website_image":{"image":"$(IMAGE)"}}' deployment.yaml deployment.yaml.out
 	kubectl -n $(NAMESPACE) apply -f deployment.yaml.out
 
 clean:

@@ -542,11 +542,19 @@ final case class MakeTuple(fields: Seq[(Int, IR)]) extends IR
 final case class GetTupleElement(o: IR, idx: Int) extends IR
 
 object In {
-  def apply(i: Int, typ: Type): In = In(i, PType.canonical(typ))
+  def apply(i: Int, typ: Type): In = In(i, SingleCodeEmitParamType(false, typ match {
+    case TInt32 => Int32SingleCodeType
+    case TInt64 => Int64SingleCodeType
+    case TFloat32 => Float32SingleCodeType
+    case TFloat64 => Float64SingleCodeType
+    case TBoolean => BooleanSingleCodeType
+    case ts: TStream => throw new UnsupportedOperationException
+    case t => PTypeReferenceSingleCodeType(PType.canonical(t))
+  }))
 }
 
 // Function Input
-final case class In(i: Int, _typ: PType) extends IR
+final case class In(i: Int, _typ: EmitParamType) extends IR
 
 // FIXME: should be type any
 object Die {
@@ -649,9 +657,8 @@ object PartitionReader {
       classOf[PartitionNativeReaderIndexed],
       classOf[PartitionZippedNativeReader],
       classOf[AbstractTypedCodecSpec],
-      classOf[TypedCodecSpec])
-    ) + BufferSpec.shortTypeHints
-    override val typeHintFieldName = "name"
+      classOf[TypedCodecSpec]),
+      typeHintFieldName = "name") + BufferSpec.shortTypeHints
   }  +
     new TStructSerializer +
     new TypeSerializer +
@@ -664,9 +671,8 @@ object PartitionWriter {
     override val typeHints = ShortTypeHints(List(
       classOf[PartitionNativeWriter],
       classOf[AbstractTypedCodecSpec],
-      classOf[TypedCodecSpec])
+      classOf[TypedCodecSpec]), typeHintFieldName = "name"
     ) + BufferSpec.shortTypeHints
-    override val typeHintFieldName = "name"
   }  +
     new TStructSerializer +
     new TypeSerializer +
@@ -683,9 +689,9 @@ object MetadataWriter {
       classOf[RelationalWriter],
       classOf[RVDSpecMaker],
       classOf[AbstractTypedCodecSpec],
-      classOf[TypedCodecSpec])
+      classOf[TypedCodecSpec]),
+      typeHintFieldName = "name"
     ) + BufferSpec.shortTypeHints
-    override val typeHintFieldName = "name"
   }  +
     new TStructSerializer +
     new TypeSerializer +

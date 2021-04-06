@@ -15,7 +15,6 @@ steps:
     - hail-ci-0-1-github-oauth-token
     - test-gsa-key
     - auth-oauth2-client-secret
-    - scorecard-github-access-token
     - zulip-config
     - benchmark-gsa-key
     - billing-monitor-gsa-key
@@ -65,13 +64,6 @@ steps:
    publishAs: base
    dependsOn:
     - hail_ubuntu_image
- - kind: buildImage
-   name: service_base_image
-   dockerFile: docker/Dockerfile.service-base
-   contextPath: .
-   publishAs: service-base
-   dependsOn:
-    - base_image
  - kind: runImage
    name: check_hail
    image:
@@ -85,21 +77,6 @@ steps:
    dependsOn:
      - base_image
  - kind: runImage
-   name: check_services
-   image:
-     valueFrom: service_base_image.image
-   script: |
-     set -ex
-     mkdir repo
-     cd repo
-     {{ code.checkout_script }}
-     {% if 'target_sha' in code %}
-     export HAIL_TARGET_SHA={{ code.target_sha }}
-     {% endif %}
-     make -k check-services
-   dependsOn:
-     - service_base_image
- - kind: runImage
    name: copy_files
    image:
      valueFrom: base_image.image
@@ -109,7 +86,7 @@ steps:
      mkdir repo
      cd repo
      {{ code.checkout_script }}
-     make -C hail python/hail/hail_version python/hail/hail_pip_version
+     make -C hail python-version-info
      git rev-parse HEAD > git_version
    outputs:
      - from: /io/repo/auth/sql
@@ -150,6 +127,32 @@ steps:
        to: /repo/ci/create_initial_account.py
    dependsOn:
      - base_image
+ - kind: buildImage
+   name: service_base_image
+   dockerFile: docker/Dockerfile.service-base
+   contextPath: .
+   publishAs: service-base
+   dependsOn:
+    - base_image
+    - copy_files
+   inputs:
+    - from: /hail_version
+      to: /hail_version
+ - kind: runImage
+   name: check_services
+   image:
+     valueFrom: service_base_image.image
+   script: |
+     set -ex
+     mkdir repo
+     cd repo
+     {{ code.checkout_script }}
+     {% if 'target_sha' in code %}
+     export HAIL_TARGET_SHA={{ code.target_sha }}
+     {% endif %}
+     make -k check-services
+   dependsOn:
+     - service_base_image
  - kind: buildImage
    name: create_certs_image
    dockerFile: tls/Dockerfile
@@ -289,14 +292,18 @@ steps:
      cat > deploy-config.json <<EOF
      {"location":"k8s","default_namespace":"{{ default_ns.name }}","domain":"{{ global.domain }}"}
      EOF
-     kubectl -n {{ default_ns.name }} delete --ignore-not-found secret deploy-config
-     kubectl -n {{ default_ns.name }} create secret generic deploy-config --from-file=./deploy-config.json
+     kubectl -n {{ default_ns.name }} create secret generic deploy-config \
+             --from-file=./deploy-config.json \
+             --save-config --dry-run=client -o yaml \
+         | kubectl -n {{ default_ns.name }} apply -f -
      # gce deploy config
      cat > deploy-config.json <<EOF
      {"location":"gce","default_namespace":"{{ default_ns.name }}","domain":"{{ global.domain }}"}
      EOF
-     kubectl -n {{ default_ns.name }} delete --ignore-not-found secret gce-deploy-config
-     kubectl -n {{ default_ns.name }} create secret generic gce-deploy-config --from-file=./deploy-config.json
+     kubectl -n {{ default_ns.name }} create secret generic gce-deploy-config \
+             --from-file=./deploy-config.json \
+             --save-config --dry-run=client -o yaml \
+         | kubectl -n {{ default_ns.name }} apply -f -
    serviceAccount:
      name: admin
      namespace:
@@ -468,13 +475,6 @@ steps:
    dependsOn:
      - hail_run_image
  - kind: buildImage
-   name: scorecard_image
-   dockerFile: scorecard/Dockerfile
-   contextPath: .
-   publishAs: scorecard
-   dependsOn:
-     - service_base_image
- - kind: buildImage
    name: benchmark_image
    dockerFile: benchmark-service/Dockerfile
    contextPath: .
@@ -499,13 +499,6 @@ steps:
    publishAs: monitoring
    dependsOn:
      - service_base_image
- - kind: buildImage
-   name: router_image
-   dockerFile: router/Dockerfile
-   contextPath: router
-   publishAs: router
-   dependsOn:
-     - hail_ubuntu_image
  - kind: buildImage
    name: batch_image
    dockerFile: batch/Dockerfile
@@ -533,7 +526,7 @@ steps:
      python3 ../ci/jinja2_render.py '{"deploy": '${DEPLOY}', "default_ns": {"name": "{{ default_ns.name }}"}}' nginx.conf nginx.conf.out
    outputs:
      - from: /io/repo/grafana/nginx.conf.out
-       to: /nginx.conf.out
+       to: /grafana/nginx.conf.out
    dependsOn:
     - default_ns
     - service_base_image
@@ -543,7 +536,7 @@ steps:
    contextPath: grafana
    publishAs: grafana
    inputs:
-     - from: /nginx.conf.out
+     - from: /grafana/nginx.conf.out
        to: /nginx.conf.out
    dependsOn:
      - hail_ubuntu_image
@@ -556,8 +549,12 @@ steps:
    scopes:
     - test
     - dev
+   inputs:
+    - from: /hail_version
+      to: /hail_version
    dependsOn:
      - base_image
+     - copy_files
  - kind: buildImage
    name: test_monitoring_image
    dockerFile: monitoring/Dockerfile.test
@@ -572,11 +569,6 @@ steps:
    publishAs: test-benchmark
    dependsOn:
      - service_base_image
- - kind: buildImage
-   name: image_fetcher_image
-   dockerFile: image-fetcher/Dockerfile
-   contextPath: image-fetcher
-   publishAs: image-fetcher
  - kind: buildImage
    name: ci_image
    dockerFile: ci/Dockerfile
@@ -678,7 +670,27 @@ steps:
    dependsOn:
     - hail_build_image
  - kind: runImage
-   name: build_hail_spark3
+   name: build_hail_spark2.4.5
+   image:
+     valueFrom: hail_build_image.image
+   resources:
+     memory: "7.5G"
+     cpu: "4"
+   script: |
+     set -ex
+     cd /
+     rm -rf repo
+     mkdir repo
+     cd repo
+     {{ code.checkout_script }}
+     cd hail
+     time retry ./gradlew --version
+     export SPARK_VERSION="2.4.5" SCALA_VERSION="2.11.12"
+     time retry make jars python-version-info wheel
+   dependsOn:
+     - hail_build_image
+ - kind: runImage
+   name: build_hail_spark3.0.1
    image:
      valueFrom: hail_build_image.image
    resources:
@@ -705,8 +717,11 @@ steps:
    inputs:
      - from: /just-jar/hail.jar
        to: /batch/hail.jar
+     - from: /hail_version
+       to: /hail_version
    dependsOn:
      - build_hail_jar_only
+     - copy_files
  - kind: buildImage
    name: service_java_run_base_image
    dockerFile: docker/Dockerfile.service-java-run-base
@@ -714,14 +729,18 @@ steps:
    publishAs: service-java-run-base
    dependsOn:
      - hail_ubuntu_image
+     - copy_files
+   inputs:
+     - from: /hail_version
+       to: /hail_version
  - kind: buildImage
    name: query_image
    dockerFile: query/Dockerfile
-   contextPath: .
+   contextPath: query/
    publishAs: query
    inputs:
      - from: /just-jar/hail.jar
-       to: /query/hail.jar
+       to: /hail.jar
    dependsOn:
      - service_java_run_base_image
      - build_hail_jar_only
@@ -1069,6 +1088,41 @@ steps:
    publishAs: notebook
    dependsOn:
     - service_base_image
+ - kind: runImage
+   name: render_notebook_nginx_conf
+   image:
+     valueFrom: service_base_image.image
+   script: |
+     set -ex
+     cd /io
+     rm -rf repo
+     mkdir repo
+     cd repo
+     {{ code.checkout_script }}
+     cd notebook
+     {% if deploy %}
+     DEPLOY=true
+     {% else %}
+     DEPLOY=false
+     {% endif %}
+     python3 ../ci/jinja2_render.py '{"deploy": '${DEPLOY}', "default_ns": {"name": "{{ default_ns.name }}"}}' nginx.conf nginx.conf.out
+   outputs:
+     - from: /io/repo/notebook/nginx.conf.out
+       to: /notebook/nginx.conf.out
+   dependsOn:
+    - default_ns
+    - service_base_image
+ - kind: buildImage
+   name: notebook_nginx_image
+   dockerFile: notebook/Dockerfile.nginx
+   contextPath: notebook
+   publishAs: notebook_nginx
+   inputs:
+     - from: /notebook/nginx.conf.out
+       to: /nginx.conf.out
+   dependsOn:
+     - hail_ubuntu_image
+     - render_notebook_nginx_conf
  - kind: runImage
    name: check_notebook
    image:
@@ -1625,8 +1679,13 @@ steps:
      # dev deploy elides the hail-is remote, add it and retrieve the tags
      git remote add hail-is https://github.com/hail-is/hail.git
      git fetch hail-is
-     # if the tag doesn't exist, this commit is the release
-     git checkout $(cat hail/python/hail/hail_pip_version) || true
+
+     # 0.2.63 was the last old-style docs
+     if [[ "$(cat hail/python/hail/hail_pip_version)" != "0.2.63" ]]
+     then
+         # if the tag doesn't exist, this commit is the release
+         git checkout $(cat hail/python/hail/hail_pip_version) || true
+     fi
 
      PYTHONPATH=$PYTHONPATH:$(pwd)/hail/python make -C hail hail-docs-no-test batch-docs
 
@@ -1640,36 +1699,6 @@ steps:
    dependsOn:
     - hail_run_image
  - kind: deploy
-   name: deploy_router
-   namespace:
-     valueFrom: default_ns.name
-   config: router/deployment.yaml
-   wait:
-     - kind: Service
-       name: router
-       for: alive
-   link:
-    - www
-    - notebook
-    - ci
-   dependsOn:
-    - default_ns
-    - router_image
-    - create_certs
- - kind: deploy
-   name: deploy_scorecard
-   namespace:
-     valueFrom: default_ns.name
-   config: scorecard/deployment.yaml
-   scopes:
-    - deploy
-    - dev
-   dependsOn:
-    - default_ns
-    - scorecard_image
-    - deploy_router
-    - create_certs
- - kind: deploy
    name: deploy_grafana
    namespace:
      valueFrom: default_ns.name
@@ -1680,7 +1709,6 @@ steps:
    dependsOn:
     - default_ns
     - grafana_nginx_image
-    - deploy_router
     - create_certs
  - kind: runImage
    name: render_prom_nginx_conf
@@ -1702,7 +1730,7 @@ steps:
      python3 ../ci/jinja2_render.py '{"deploy": '${DEPLOY}', "default_ns": {"name": "{{ default_ns.name }}"}}' nginx.conf nginx.conf.out
    outputs:
      - from: /io/repo/prometheus/nginx.conf.out
-       to: /nginx.conf.out
+       to: /prometheus/nginx.conf.out
    dependsOn:
      - default_ns
      - service_base_image
@@ -1712,7 +1740,7 @@ steps:
    contextPath: prometheus
    publishAs: prometheus
    inputs:
-     - from: /nginx.conf.out
+     - from: /prometheus/nginx.conf.out
        to: /nginx.conf.out
    dependsOn:
      - hail_ubuntu_image
@@ -1728,7 +1756,6 @@ steps:
    dependsOn:
     - default_ns
     - prom_nginx_image
-    - deploy_router
     - create_certs
  - kind: runImage
    name: create_dummy_oauth2_client_secret
@@ -1759,7 +1786,6 @@ steps:
     - default_ns
     - create_deploy_config
     - create_session_key
-    - deploy_router
     - auth_database
     - auth_image
     - create_dummy_oauth2_client_secret
@@ -1832,7 +1858,6 @@ steps:
     - monitoring_image
     - monitoring_database
     - deploy_auth
-    - deploy_router
     - create_certs
     - create_accounts
  - kind: runImage
@@ -2139,7 +2164,6 @@ steps:
       for: alive
    dependsOn:
     - default_ns
-    - deploy_router
     - deploy_batch_sa
     - create_accounts
     - batch_image
@@ -2219,7 +2243,6 @@ steps:
    dependsOn:
     - default_ns
     - benchmark_image
-    - deploy_router
     - create_certs
     - deploy_auth
     - create_accounts
@@ -2290,7 +2313,6 @@ steps:
    dependsOn:
     - default_ns
     - deploy_address_sa
-    - deploy_router
     - address_image
     - create_certs
  - kind: deploy
@@ -2325,156 +2347,6 @@ steps:
     - memory_image
     - deploy_memory_sa
     - create_certs
- - kind: runImage
-   name: test_hail_python_service_backend_0
-   image:
-     valueFrom: hail_run_image.image
-   script: |
-     set -ex
-     cd /io
-     tar xzf test.tar.gz
-     tar xvf wheel-container.tar
-     python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
-     export PYTEST_SPLITS=3
-     export PYTEST_SPLIT_INDEX=0
-     export HAIL_TEST_RESOURCES_DIR=gs://hail-test-dmk9z/{{ upload_test_resources_to_gcs.token }}/test/resources
-     export HAIL_DOCTEST_DATA_DIR=gs://hail-test-dmk9z/{{ upload_test_resources_to_gcs.token }}/doctest/data
-     export HAIL_QUERY_BACKEND=service
-     export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
-     hailctl config set batch/billing_project test
-     hailctl config set batch/bucket hail-test-dmk9z
-     python3 -m pytest -n 8 --ignore=test/hailtop/ --log-cli-level=INFO -s -vv --instafail --durations=50 test
-   inputs:
-     - from: /wheel-container.tar
-       to: /io/wheel-container.tar
-     - from: /test.tar.gz
-       to: /io/test.tar.gz
-   secrets:
-     - name: gce-deploy-config
-       namespace:
-         valueFrom: default_ns.name
-       mountPath: /deploy-config
-     - name: test-tokens
-       namespace:
-         valueFrom: default_ns.name
-       mountPath: /user-tokens
-     - name: ssl-config-query-tests
-       namespace:
-         valueFrom: default_ns.name
-       mountPath: /ssl-config
-     - name: test-gsa-key
-       namespace:
-         valueFrom: default_ns.name
-       mountPath: /test-gsa-key
-   timeout: 3600
-   dependsOn:
-     - default_ns
-     - upload_test_resources_to_gcs
-     - deploy_query
-     - deploy_memory
-     - deploy_shuffler
-     - hail_run_image
-     - build_hail
- - kind: runImage
-   name: test_hail_python_service_backend_1
-   image:
-     valueFrom: hail_run_image.image
-   script: |
-     set -ex
-     cd /io
-     tar xzf test.tar.gz
-     tar xvf wheel-container.tar
-     python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
-     export PYTEST_SPLITS=3
-     export PYTEST_SPLIT_INDEX=1
-     export HAIL_TEST_RESOURCES_DIR=gs://hail-test-dmk9z/{{ upload_test_resources_to_gcs.token }}/test/resources
-     export HAIL_DOCTEST_DATA_DIR=gs://hail-test-dmk9z/{{ upload_test_resources_to_gcs.token }}/doctest/data
-     export HAIL_QUERY_BACKEND=service
-     export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
-     hailctl config set batch/billing_project test
-     hailctl config set batch/bucket hail-test-dmk9z
-     python3 -m pytest -n 8 --ignore=test/hailtop/ --log-cli-level=INFO -s -vv --instafail --durations=50 test
-   inputs:
-     - from: /wheel-container.tar
-       to: /io/wheel-container.tar
-     - from: /test.tar.gz
-       to: /io/test.tar.gz
-   secrets:
-     - name: gce-deploy-config
-       namespace:
-         valueFrom: default_ns.name
-       mountPath: /deploy-config
-     - name: test-tokens
-       namespace:
-         valueFrom: default_ns.name
-       mountPath: /user-tokens
-     - name: ssl-config-query-tests
-       namespace:
-         valueFrom: default_ns.name
-       mountPath: /ssl-config
-     - name: test-gsa-key
-       namespace:
-         valueFrom: default_ns.name
-       mountPath: /test-gsa-key
-   timeout: 3600
-   dependsOn:
-     - default_ns
-     - upload_test_resources_to_gcs
-     - deploy_query
-     - deploy_memory
-     - deploy_shuffler
-     - hail_run_image
-     - build_hail
- - kind: runImage
-   name: test_hail_python_service_backend_2
-   image:
-     valueFrom: hail_run_image.image
-   script: |
-     set -ex
-     cd /io
-     tar xzf test.tar.gz
-     tar xvf wheel-container.tar
-     python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
-     export PYTEST_SPLITS=3
-     export PYTEST_SPLIT_INDEX=2
-     export HAIL_TEST_RESOURCES_DIR=gs://hail-test-dmk9z/{{ upload_test_resources_to_gcs.token }}/test/resources
-     export HAIL_DOCTEST_DATA_DIR=gs://hail-test-dmk9z/{{ upload_test_resources_to_gcs.token }}/doctest/data
-     export HAIL_QUERY_BACKEND=service
-     export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
-     hailctl config set batch/billing_project test
-     hailctl config set batch/bucket hail-test-dmk9z
-     python3 -m pytest -n 8 --ignore=test/hailtop/ --log-cli-level=INFO -s -vv --instafail --durations=50 test
-   inputs:
-     - from: /wheel-container.tar
-       to: /io/wheel-container.tar
-     - from: /test.tar.gz
-       to: /io/test.tar.gz
-   secrets:
-     - name: gce-deploy-config
-       namespace:
-         valueFrom: default_ns.name
-       mountPath: /deploy-config
-     - name: test-tokens
-       namespace:
-         valueFrom: default_ns.name
-       mountPath: /user-tokens
-     - name: ssl-config-query-tests
-       namespace:
-         valueFrom: default_ns.name
-       mountPath: /ssl-config
-     - name: test-gsa-key
-       namespace:
-         valueFrom: default_ns.name
-       mountPath: /test-gsa-key
-   timeout: 3600
-   dependsOn:
-     - default_ns
-     - upload_test_resources_to_gcs
-     - deploy_query
-     - deploy_memory
-     - deploy_shuffler
-     - hail_run_image
-     - build_hail
  - kind: runImage
    name: test_lsm
    image:
@@ -2958,14 +2830,18 @@ steps:
      git clone https://$TOKEN@github.com/hail-ci-test/$REPO_NAME.git
      cd $REPO_NAME
 
-     mkdir -p ./ci/test ./hail/python
+     mkdir -p ./ci/test ./hail/
      cp /repo/hail/ci/test/resources/build.yaml ./
      cp -R /repo/hail/ci/test/resources ./ci/test/
+     cp /repo/hail/tls/Dockerfile ./ci/test/resources/Dockerfile.certs
+     cp /repo/hail/tls/create_certs.py ./ci/test/resources/
      cp /repo/hail/pylintrc ./
      cp /repo/hail/setup.cfg ./
      cp -R /repo/hail/docker ./
      cp -R /repo/hail/gear ./
-     cp -R /repo/hail/hail/python/hailtop ./hail/python/
+     cp -R /repo/hail/hail/python ./hail/
+     cp /repo/hail/hail/Makefile ./hail/
+     cp /repo/hail/hail/env_var.mk ./hail/
      cp -R /repo/hail/web_common ./
      cp /repo/hail/hail/python/setup-hailtop.py ./hail/python/
 
@@ -3371,7 +3247,7 @@ steps:
     - default_ns
     - create_session_key
     - notebook_image
-    - deploy_router
+    - notebook_nginx_image
     - deploy_auth
     - notebook_database
     - create_certs
@@ -3379,16 +3255,6 @@ steps:
     - kind: Service
       name: notebook
       for: alive
- - kind: deploy
-   name: deploy_image_fetcher
-   namespace:
-     valueFrom: default_ns.name
-   config: image-fetcher/deployment.yaml
-   dependsOn:
-    - default_ns
-    - image_fetcher_image
-    - deploy_notebook
-    - create_certs
  - kind: runImage
    name: cleanup_ci_test_repo
    image:
@@ -3421,7 +3287,7 @@ steps:
    script: |
      set -ex
      gcloud auth activate-service-account --key-file=/secrets/ci-deploy-0-1--hail-is-hail.json
-     SPARK_VERSION=2.4.5
+     SPARK_VERSION=3.1.1
      BRANCH=0.2
      SHA="{{ code.sha }}"
      GS_JAR=gs://hail-common/builds/${BRANCH}/jars/hail-${BRANCH}-${SHA}-Spark-${SPARK_VERSION}.jar
@@ -3467,7 +3333,6 @@ steps:
       resource_type: statefulset
    dependsOn:
     - default_ns
-    - deploy_router
     - blog_nginx_image
     - create_certs
  - kind: runImage
@@ -3601,7 +3466,6 @@ steps:
    dependsOn:
     - default_ns
     - website_image
-    - deploy_router
     - create_certs
  - kind: runImage
    name: test_website
@@ -3609,7 +3473,7 @@ steps:
      valueFrom: service_base_image.image
    script: |
      set -ex
-     hailctl curl {{ default_ns.name }} website / \
+     hailctl curl {{ default_ns.name }} www / \
              -vvv \
              -fsSL \
              --retry 3 \
@@ -3835,9 +3699,6 @@ steps:
     - test_hailtop_batch_2
     - test_hailtop_batch_3
     - test_hailtop_batch_4
-    - test_hail_python_service_backend_0
-    - test_hail_python_service_backend_1
-    - test_hail_python_service_backend_2
  - kind: runImage
    name: delete_atgu_tables
    image:
@@ -3904,7 +3765,6 @@ steps:
     - default_ns
     - create_certs
     - create_accounts
-    - deploy_router
     - deploy_auth
     - atgu_image
     - atgu_database

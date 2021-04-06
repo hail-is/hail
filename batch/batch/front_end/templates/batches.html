@@ -52,6 +52,8 @@
 	<thead>
 	  <tr>
 	    <th>ID</th>
+	    <th>User</th>
+	    <th>Billing Project</th>
 	    <th>Name</th>
 	    <th>Submitted</th>
 	    <th>Completed</th>
@@ -68,7 +70,11 @@
 	<tbody>
 	  {% for batch in batches %}
 	  <tr>
-	    <td class="numeric-cell"><a href="{{ base_path }}/batches/{{ batch['id'] }}">{{ batch['id'] }}</a></td>
+	    <td class="numeric-cell" onClick="document.location.href='{{ base_path }}/batches/{{ batch['id'] }}';">
+              <a href="{{ base_path }}/batches/{{ batch['id'] }}">{{ batch['id'] }}</a>
+	    </td>
+	    <td>{{ batch['user'] }}</td>
+	    <td>{{ batch['billing_project'] }}</td>
 	    <td>
 	      {% if 'attributes' in batch and 'name' in batch['attributes'] and batch['attributes']['name'] is not none %}
 	      {{ batch['attributes']['name'] }}

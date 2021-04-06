@@ -1,6 +1,7 @@
 import numpy as np
 import hail as hl
 import unittest
+import pytest
 from ..helpers import *
 from hail.utils import new_temp_file
 
@@ -430,3 +431,19 @@ class Tests(unittest.TestCase):
             'int32', 0, 0)
 
         assert_evals_to(calls_recur_from_nested_loop, 15 + 10 + 6 + 3 + 1)
+
+    def test_loop_errors(self):
+        with pytest.raises(TypeError, match="requested type ndarray<int32, 2> does not match inferred type ndarray<float64, 2>"):
+            result = hl.experimental.loop(
+                lambda f, my_nd:
+                hl.if_else(my_nd[0, 0] == 1000, my_nd, f(my_nd + 1)),
+                hl.tndarray(hl.tint32, 2), hl.nd.zeros((20, 10), hl.tfloat64))
+
+    def test_loop_with_struct_of_strings(self):
+        def loop_func(recur_f, my_struct):
+            return hl.if_else(hl.len(my_struct.s1) > hl.len(my_struct.s2),
+                              my_struct,
+                              recur_f(hl.struct(s1=my_struct.s1 + my_struct.s2[-1], s2=my_struct.s2[:-1])))
+
+        initial_struct = hl.struct(s1="a", s2="gfedcb")
+        assert hl.eval(hl.experimental.loop(loop_func, hl.tstruct(s1=hl.tstr, s2=hl.tstr), initial_struct)) == hl.Struct(s1="abcd", s2="gfe")

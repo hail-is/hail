@@ -34,6 +34,13 @@ RETRY_FUNCTION_SCRIPT = """function retry() {
 }"""
 
 
+def unpack_comma_delimited_inputs(inputs):
+    return [s.strip()
+            for steps in inputs
+            for step in steps
+            for s in step.split(',') if s.strip()]
+
+
 def flatten(xxs):
     return [x for xs in xxs for x in xs]
 

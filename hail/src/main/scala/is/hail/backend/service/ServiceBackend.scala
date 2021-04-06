@@ -10,8 +10,8 @@ import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.backend.{Backend, BackendContext, BroadcastValue, HailTaskContext}
 import is.hail.expr.JSONAnnotationImpex
-import is.hail.expr.ir.lowering.{DArrayLowering, LowerDistributedSort, LoweringPipeline, TableStage, TableStageDependency}
-import is.hail.expr.ir.{Compile, ExecuteContext, IR, IRParser, Literal, MakeArray, MakeTuple, OwningTempFileManager, ShuffleRead, ShuffleWrite, SortField, ToStream}
+import is.hail.expr.ir.lowering.{DArrayLowering, LoweringPipeline, TableStage, TableStageDependency}
+import is.hail.expr.ir.{Compile, ExecuteContext, IR, IRParser, Literal, MakeArray, MakeTuple, ShuffleRead, ShuffleWrite, SortField, ToStream}
 import is.hail.io.fs.GoogleStorageFS
 import is.hail.linalg.BlockMatrix
 import is.hail.rvd.RVDPartitioner
@@ -22,123 +22,18 @@ import is.hail.types._
 import is.hail.types.encoded._
 import is.hail.types.physical._
 import is.hail.types.virtual._
-import is.hail.utils.{log => donotuseme, _}
+import is.hail.utils._
 import is.hail.variant.ReferenceGenome
 import org.apache.commons.io.IOUtils
 import org.apache.log4j.Logger
-import org.apache.spark.sql.Row
 import org.json4s.JsonAST._
 import org.json4s.jackson.JsonMethods
 import org.json4s.{DefaultFormats, Formats}
-import org.newsclub.net.unix.{AFUNIXSocket, AFUNIXSocketAddress, AFUNIXServerSocket}
+import org.newsclub.net.unix.{AFUNIXServerSocket, AFUNIXSocketAddress}
 
-
-import scala.collection.mutable
-import scala.reflect.ClassTag
 import scala.annotation.switch
+import scala.reflect.ClassTag
 
-class ServiceTaskContext(val partitionId: Int) extends HailTaskContext {
-  override type BackendType = ServiceBackend
-
-  override def stageId(): Int = 0
-
-  override def attemptNumber(): Int = 0
-}
-
-object WorkerTimer {
-  private val log = Logger.getLogger(getClass.getName())
-}
-
-class WorkerTimer() {
-  import WorkerTimer._
-
-  var startTimes: mutable.Map[String, Long] = mutable.Map()
-  def start(label: String): Unit = {
-    startTimes.put(label, System.nanoTime())
-  }
-
-  def end(label: String): Unit = {
-    val endTime = System.nanoTime()
-    val startTime = startTimes.get(label)
-    startTime.foreach { s =>
-      val durationMS = "%.6f".format((endTime - s).toDouble / 1000000.0)
-      log.info(s"$label took $durationMS ms.")
-    }
-  }
-}
-
-object Worker {
-  private val log = Logger.getLogger(getClass.getName())
-
-  def main(args: Array[String]): Unit = {
-    if (args.length != 2) {
-      throw new IllegalArgumentException(s"expected two arguments, not: ${ args.length }")
-    }
-    val root = args(0)
-    val i = args(1).toInt
-    val timer = new WorkerTimer()
-
-    var scratchDir = System.getenv("HAIL_WORKER_SCRATCH_DIR")
-    if (scratchDir == null)
-      scratchDir = ""
-
-    log.info(s"running job $i at root $root wih scratch directory '$scratchDir'")
-
-    timer.start(s"Job $i")
-    timer.start("readInputs")
-
-    val fs = retryTransientErrors {
-      using(new FileInputStream(s"$scratchDir/gsa-key/key.json")) { is =>
-        new GoogleStorageFS(IOUtils.toString(is))
-      }
-    }
-
-    val f = retryTransientErrors {
-      using(new ObjectInputStream(fs.openNoCompression(s"$root/f"))) { is =>
-        is.readObject().asInstanceOf[(Array[Byte], HailTaskContext) => Array[Byte]]
-      }
-    }
-
-    var offset = 0L
-    var length = 0
-
-    retryTransientErrors {
-      using(fs.openNoCompression(s"$root/context.offsets")) { is =>
-        is.seek(i * 12)
-        offset = is.readLong()
-        length = is.readInt()
-      }
-    }
-
-    val context = retryTransientErrors {
-      using(fs.openNoCompression(s"$root/contexts")) { is =>
-        is.seek(offset)
-        val context = new Array[Byte](length)
-        is.readFully(context)
-        context
-      }
-    }
-    timer.end("readInputs")
-    timer.start("executeFunction")
-
-    val hailContext = HailContext(
-      ServiceBackend(), skipLoggingConfiguration = true, quiet = true)
-    val htc = new ServiceTaskContext(i)
-    HailTaskContext.setTaskContext(htc)
-    val result = f(context, htc)
-    HailTaskContext.finish()
-
-    timer.end("executeFunction")
-    timer.start("writeOutputs")
-
-    using(fs.createNoCompression(s"$root/result.$i")) { os =>
-      os.write(result)
-    }
-    timer.end("writeOutputs")
-    timer.end(s"Job $i")
-    log.info(s"finished job $i at root $root")
-  }
-}
 
 class ServiceBackendContext(
   val username: String,
@@ -336,7 +231,7 @@ class ServiceBackend() extends Backend {
       .asInstanceOf[IR]
     if (x.typ == TVoid) {
       val (_, f) = Compile[AsmFunction1RegionUnit](ctx,
-        FastIndexedSeq[(String, PType)](),
+        FastIndexedSeq(),
         FastIndexedSeq[TypeInfo[_]](classInfo[Region]), UnitInfo,
         x,
         optimize = true)
@@ -344,8 +239,8 @@ class ServiceBackend() extends Backend {
       f(0, ctx.r)(ctx.r)
       None
     } else {
-      val (pt, f) = Compile[AsmFunction1RegionLong](ctx,
-        FastIndexedSeq[(String, PType)](),
+      val (Some(PTypeReferenceSingleCodeType(pt)), f) = Compile[AsmFunction1RegionLong](ctx,
+        FastIndexedSeq(),
         FastIndexedSeq[TypeInfo[_]](classInfo[Region]), LongInfo,
         MakeTuple.ordered(FastIndexedSeq(x)),
         optimize = true)

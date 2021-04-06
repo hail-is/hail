@@ -15,7 +15,9 @@ spec:
       labels:
         app: query
         hail.is/sha: "{{ code.sha }}"
+        grafanak8sapp: "true"
     spec:
+      terminationGracePeriodSeconds: 28800  # 8 hours
       serviceAccountName: query
 {% if deploy %}
       priorityClassName: production
@@ -153,3 +155,18 @@ spec:
     matchLabels:
       app: query
 {% endif %}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: query
+  labels:
+    app: query
+spec:
+  ports:
+  - name: query
+    port: 443
+    protocol: TCP
+    targetPort: 5000
+  selector:
+    app: query

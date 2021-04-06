@@ -7,7 +7,7 @@ namespace hail {
 
 template<class T> bool
 isa(const typename T::BaseType *p) {
-  return p->tag == T::self_tag;
+  return T::is_instance_tag(p->tag);
 }
 
 template<class T> T *

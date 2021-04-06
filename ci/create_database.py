@@ -39,11 +39,10 @@ async def write_user_config(namespace: str, database_name: str, user: str, confi
     from_files = ' '.join(f'--from-file={f}' for f in files)
     await check_shell(
         f'''
-kubectl -n {shq(namespace)} delete --ignore-not-found=true secret {shq(secret_name)}
 kubectl -n {shq(namespace)} create secret generic \
         {shq(secret_name)} \
         {from_files} \
-        --dry-run=true \
+        --save-config --dry-run=client \
         -o yaml \
         | kubectl -n {shq(namespace)} apply -f -
 '''
