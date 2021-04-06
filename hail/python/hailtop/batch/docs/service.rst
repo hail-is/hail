@@ -174,6 +174,10 @@ is standard. If a job is scheduled on this machine, then the cost per core hour 
     after running for 2 minutes and then runs successfully the next time it is scheduled, the
     total cost for that job will be 7 minutes.
 
+Batch also supports private instances that are created for a single job that specify :meth:`.Job.machine_type` or set
+:meth:`.Job.preemptible` to False. A job is billed for the entire time the machine is running including the activation
+time for the instance. The costs are the same as above except the cost for the Local SSD is omitted.
+
 
 Setup
 -----

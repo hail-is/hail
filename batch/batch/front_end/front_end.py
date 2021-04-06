@@ -83,8 +83,14 @@ routes = web.RouteTableDef()
 deploy_config = get_deploy_config()
 
 BATCH_JOB_DEFAULT_CPU = os.environ.get('HAIL_BATCH_JOB_DEFAULT_CPU', '1')
+<<<<<<< HEAD
 BATCH_JOB_DEFAULT_MEMORY = os.environ.get('HAIL_BATCH_JOB_DEFAULT_MEMORY', 'standard')
 BATCH_JOB_DEFAULT_STORAGE = os.environ.get('HAIL_BATCH_JOB_DEFAULT_STORAGE', '0Gi')
+=======
+BATCH_JOB_DEFAULT_MEMORY = os.environ.get('HAIL_BATCH_JOB_DEFAULT_MEMORY', '3.75Gi')
+BATCH_JOB_POOL_DEFAULT_STORAGE = os.environ.get('HAIL_BATCH_JOB_POOL_DEFAULT_STORAGE', '0Gi')
+BATCH_JOB_PRIVATE_DEFAULT_STORAGE = os.environ.get('HAIL_BATCH_JOB_PRIVATE_DEFAULT_STORAGE', '100Gi')
+>>>>>>> [batch] Expose job private and nonpreemptible machines
 BATCH_JOB_DEFAULT_PREEMPTIBLE = True
 
 
@@ -719,7 +725,10 @@ WHERE user = %s AND id = %s AND NOT deleted;
                     req_memory_bytes = None
 
                 if 'storage' not in resources:
-                    resources['storage'] = BATCH_JOB_DEFAULT_STORAGE
+                    if machine_type is None:
+                        resources['storage'] = BATCH_JOB_POOL_DEFAULT_STORAGE
+                    else:
+                        resources['storage'] = BATCH_JOB_PRIVATE_DEFAULT_STORAGE
                 resources['req_storage'] = resources['storage']
                 del resources['storage']
                 req_storage_bytes = parse_storage_in_bytes(resources['req_storage'])
@@ -733,12 +742,9 @@ WHERE user = %s AND id = %s AND NOT deleted;
 
                 inst_coll_configs: InstanceCollectionConfigs = app['inst_coll_configs']
 
-                result, exc = inst_coll_configs.select_inst_coll(
+                result = inst_coll_configs.select_inst_coll(
                     machine_type, preemptible, worker_type, req_cores_mcpu, req_memory_bytes, req_storage_bytes
                 )
-
-                if exc:
-                    raise web.HTTPBadRequest(reason=exc.message)
 
                 if result is None:
                     raise web.HTTPBadRequest(
@@ -750,11 +756,13 @@ WHERE user = %s AND id = %s AND NOT deleted;
                         f'machine_type={machine_type}'
                     )
 
-                inst_coll_name, cores_mcpu, memory_bytes, storage_gib = result
+                inst_coll_name, cores_mcpu, memory_bytes, storage_gib, machine_type = result
                 resources['cores_mcpu'] = cores_mcpu
                 resources['memory_bytes'] = memory_bytes
                 resources['storage_gib'] = storage_gib
                 resources['preemptible'] = preemptible
+                if machine_type is not None:
+                    resources['machine_type'] = machine_type
 
                 secrets = spec.get('secrets')
                 if not secrets:

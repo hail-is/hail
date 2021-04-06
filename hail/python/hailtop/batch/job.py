@@ -272,6 +272,107 @@ class Job:
         self._cpu = str(cores)
         return self
 
+    def preemptible(self, preemptible: bool = True) -> 'Job':
+        """
+        Set whether the job is preemptible.
+
+        Notes
+        -----
+
+        Can only be used with the :class:`.backend.ServiceBackend`.
+
+        If `preemptible` is False, then a private instance will be
+        created for the job. Batch will automatically choose the
+        cheapest machine type given the CPU and memory settings.
+        See :meth:`.Job.machine_type` for more information about jobs
+        that run on a private machine.
+
+        Examples
+        --------
+
+        Set the job to be run on a preemptible machine:
+
+        >>> b = Batch()
+        >>> j = b.new_job()
+        >>> (j.preemptible()
+        ...   .command(f'echo "hello"'))
+        >>> b.run()
+
+
+        Parameters
+        ----------
+        preemptible:
+            If `True`, the job is scheduled on a preemptible machine. If
+            `False`, the job is scheduled on a private nonpreemptible machine.
+
+        Returns
+        -------
+        Same job object with preemptible set.
+        """
+
+        if not isinstance(self._batch._backend, backend.ServiceBackend):
+            raise NotImplementedError("A ServiceBackend is required to use the 'preemptible' option")
+
+        self._preemptible = preemptible
+        return self
+
+    def machine_type(self, machine_type: str) -> 'Job':
+        """
+        Set whether the job should be run on a private machine with the
+        specified machine type.
+
+        Notes
+        -----
+
+        Can only be used with the :class:`.backend.ServiceBackend`.
+
+        Currently, only the `n1` family of machine types are supported. See
+        the `GCE documentation <https://cloud.google.com/compute/docs/machine-types#n1_machine_types>`__
+        for which machine types are available.
+
+        Any previously set parameters for :meth:`.Job.cpu` or :meth:`.Job.memory` will
+        be ignored.
+
+        The default storage is `100Gi` and is a persistent SSD. Use the :meth:`.Job.storage`
+        method to set the storage to a different value.
+
+        Warning
+        -------
+
+        Jobs that set the machine type will be billed for the entire time the
+        instance is running including the activation time. This option should
+        not be used for low latency jobs.
+
+        Examples
+        --------
+
+        Set the job to be run on a private `n1-standard-1` machine:
+
+        >>> b = Batch()
+        >>> j = b.new_job()
+        >>> (j.machine_type('n1-standard-1')
+        ...   .command(f'echo "hello"'))
+        >>> b.run()
+
+
+        Parameters
+        ----------
+        machine_type:
+            A string specifying the specific GCE machine type to use.
+
+        Returns
+        -------
+        Same job object with machine_type set.
+        """
+
+        if not isinstance(self._batch._backend, backend.ServiceBackend):
+            raise NotImplementedError("A ServiceBackend is required to use the 'machine_type' option")
+
+        self._machine_type = machine_type
+        self._cpu = None
+        self._memory = None
+        return self
+
     def always_run(self, always_run: bool = True) -> 'Job':
         """
         Set the job to always run, even if dependencies fail.

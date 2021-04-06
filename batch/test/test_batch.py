@@ -773,7 +773,7 @@ def test_pool_highcpu_instance(client):
     assert 'standard' in status['status']['worker'], str(status)
 
 
-def test_job_private_instance_preemptible(client):
+def test_job_private_instance_preemptible_from_machine_type(client):
     builder = client.create_batch()
     resources = {'machine_type': 'n1-standard-1'}
     j = builder.create_job(DOCKER_ROOT_IMAGE, ['true'], resources=resources)
@@ -783,7 +783,7 @@ def test_job_private_instance_preemptible(client):
     assert 'job-private' in status['status']['worker'], str(status)
 
 
-def test_job_private_instance_nonpreemptible(client):
+def test_job_private_instance_nonpreemptible_from_machine_type(client):
     builder = client.create_batch()
     resources = {'machine_type': 'n1-standard-1', 'preemptible': False}
     j = builder.create_job(DOCKER_ROOT_IMAGE, ['true'], resources=resources)
@@ -812,3 +812,14 @@ def test_job_private_instance_cancel(client):
     b.cancel()
     status = j.wait()
     assert status['state'] == 'Cancelled', str(status)
+
+
+def test_job_private_instance_nonpreemptible_from_resources(client):
+    builder = client.create_batch()
+    resources = {'cpu': 1, 'memory': 'lowmem', 'preemptible': False}
+    j = builder.create_job(DOCKER_ROOT_IMAGE, ['true'], resources=resources)
+    builder.submit()
+    status = j.wait()
+    assert status['state'] == 'Success', str(j.log()['main'], status)
+    assert 'job-private' in status['status']['worker'], str(status)
+    assert 'n1-highcpu-2' in status['status']['resources']['machine_type'], str(status)

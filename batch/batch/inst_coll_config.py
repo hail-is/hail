@@ -11,15 +11,12 @@ from .utils import (
     adjust_cores_for_packability,
     round_storage_bytes_to_gib,
     cores_mcpu_to_memory_bytes,
+    resources_to_machine_type,
 )
 from .worker_config import WorkerConfig
 
 
 log = logging.getLogger('inst_coll_config')
-
-
-class PreemptibleNotSupportedError(Exception):
-    pass
 
 
 MACHINE_TYPE_REGEX = re.compile('(?P<machine_family>[^-]+)-(?P<machine_type>[^-]+)-(?P<cores>\\d+)')
@@ -125,7 +122,7 @@ class JobPrivateInstanceManagerConfig(InstanceCollectionConfig):
 
         memory_bytes = cores_mcpu_to_memory_bytes(cores_mcpu, machine_type_dict['machine_type'])
 
-        return (self.name, cores_mcpu, memory_bytes, storage_gib)
+        return (self.name, cores_mcpu, memory_bytes, storage_gib, machine_type)
 
 
 class InstanceCollectionConfigs:
@@ -183,7 +180,7 @@ SELECT * FROM resources;
                 )
                 if optimal_cost is None or maybe_cost < optimal_cost:
                     optimal_cost = maybe_cost
-                    optimal_result = (pool.name, maybe_cores_mcpu, maybe_memory_bytes, maybe_storage_gib)
+                    optimal_result = (pool.name, maybe_cores_mcpu, maybe_memory_bytes, maybe_storage_gib, None)
         return optimal_result
 
     def select_pool_from_worker_type(self, worker_type, cores_mcpu, memory_bytes, storage_bytes):
@@ -192,7 +189,7 @@ SELECT * FROM resources;
                 result = pool.convert_requests_to_resources(cores_mcpu, memory_bytes, storage_bytes)
                 if result:
                     actual_cores_mcpu, actual_memory_bytes, acutal_storage_gib = result
-                    return (pool.name, actual_cores_mcpu, actual_memory_bytes, acutal_storage_gib)
+                    return (pool.name, actual_cores_mcpu, actual_memory_bytes, acutal_storage_gib, None)
         return None
 
     def select_job_private(self, machine_type, storage_bytes):
@@ -201,29 +198,33 @@ SELECT * FROM resources;
     def select_inst_coll(
         self, machine_type, preemptible, worker_type, req_cores_mcpu, req_memory_bytes, req_storage_bytes
     ):
-        if worker_type is not None and machine_type is None:
-            if not preemptible:
-                return (
-                    None,
-                    PreemptibleNotSupportedError('nonpreemptible machines are not supported without a machine type'),
-                )
-            result = self.select_pool_from_worker_type(
-                worker_type=worker_type,
+        if preemptible and machine_type is None:
+            if worker_type is not None:
+                result = self.select_pool_from_worker_type(
+                    worker_type=worker_type,
+                    cores_mcpu=req_cores_mcpu,
+                    memory_bytes=req_memory_bytes,
+                    storage_bytes=req_storage_bytes)
+            else:
+                result = self.select_pool_from_cost(
+                    cores_mcpu=req_cores_mcpu,
+                    memory_bytes=req_memory_bytes,
+                    storage_bytes=req_storage_bytes)
+            return result
+
+        # Determine if we can spin up a private machine that fulfills resource requests
+        if machine_type is None:
+            machine_type = resources_to_machine_type(
                 cores_mcpu=req_cores_mcpu,
                 memory_bytes=req_memory_bytes,
-                storage_bytes=req_storage_bytes,
-            )
-        elif worker_type is None and machine_type is None:
-            if not preemptible:
-                return (
-                    None,
-                    PreemptibleNotSupportedError('nonpreemptible workers are not supported without a machine type'),
-                )
-            result = self.select_pool_from_cost(
-                cores_mcpu=req_cores_mcpu, memory_bytes=req_memory_bytes, storage_bytes=req_storage_bytes
-            )
-        else:
-            assert machine_type and machine_type in valid_machine_types
-            assert worker_type is None
-            result = self.select_job_private(machine_type=machine_type, storage_bytes=req_storage_bytes)
-        return (result, None)
+                preemptible=preemptible)
+            if machine_type is None:
+                return None
+            worker_type = None
+
+        assert machine_type and machine_type in valid_machine_types
+        assert worker_type is None
+        result = self.select_job_private(
+            machine_type=machine_type,
+            storage_bytes=req_storage_bytes)
+        return result
