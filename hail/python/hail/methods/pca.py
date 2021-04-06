@@ -207,6 +207,41 @@ def pca(entry_expr, k=10, compute_loadings=False) -> Tuple[List[float], Table, T
     return hl.eval(g.eigenvalues), scores, None if t is None else t.drop('eigenvalues', 'scores')
 
 
+class KrylovFactorization:
+    # For now, all three factors are `NDArrayExpression`s, but eventually U and/or V should be
+    # allowed to be distributed. All properties must be persisted.
+    def __init__(self, U, R, V, k):
+        self.U = U
+        self.R = R
+        self.V = V
+        self.k = k
+
+
+    def reduced_svd(self, k):
+        U1, S, V1t = hl.nd.svd(self.R, full_matrices=False)._persist()
+
+        S = S[:k]
+
+        if self.U is None:
+            U = None
+        else:
+            U = self.U @ U1[:, :k]
+
+        if self.V is None:
+            V = None
+        else:
+            V = self.V @ V1t.T[:, :k]
+
+        return U, S, V
+
+
+    def spectral_moments(self, num_moments):
+        _, S, Vt = hl.nd.svd(self.R, full_matrices=False)
+        eigval_powers = hl.nd.vstack([S.map(lambda x: x**(2*i)) for i in range(1, num_moments + 1)])
+
+        # FIXME: Here
+        return (eigval_powers @ ((Vt[:, :self.k] @ R1).map(lambda x: x**2) @ hl.nd.ones(k))) / k
+
 def _krylov_factorization(A_expr, V0, p, compute_U=False):
     r"""Computes matrices :math:`U`, :math:`R`, and :math:`V` satisfying the following properties:
     * :math:`U\in\mathbb{R}^{m\times (p+1)b` and :math:`V\in\mathbb{R}^{n\times (p+1)b` are
@@ -249,14 +284,15 @@ def _krylov_factorization(A_expr, V0, p, compute_U=False):
     if compute_U:
         AV_local = hl.nd.vstack(AV.aggregate(hl.agg.collect(AV.ndarray)), _localize=False)
         U, R = hl.nd.qr(AV_local)._persist()
-        return U, R, V
     else:
         Rs = hl.nd.vstack(AV.aggregate(hl.agg.collect(hl.nd.qr(AV.ndarray)[1])), _localize=False)
         R = hl.nd.qr(Rs)[1]._persist()
-        return R, V
+        U = None
+
+    return KrylovFactorization(U, R, V)
 
 
-def _reduced_svd(A_expr, k=10, compute_U=False, iterations=2, iteration_size=None, block_size=128):
+def _reduced_svd(A_expr, k=10, compute_U=False, iterations=2, iteration_size=None):
     check_row_indexed('_reduced_svd/A_expr', A_expr)
     t = table_source('pca/A_expr', A_expr)
 
@@ -274,22 +310,9 @@ def _reduced_svd(A_expr, k=10, compute_U=False, iterations=2, iteration_size=Non
     G = hl.nd.zeros((n, L)).map(lambda n: hl.rand_norm(0, 1))
     G = hl.nd.qr(G)[0]._persist()
 
-    if compute_U:
-        U0, R, V0 = _krylov_factorization(A_expr, G, q, compute_U=True)
-    else:
-        R, V0 = _krylov_factorization(A_expr, G, q, compute_U=False)
-
+    fact = _krylov_factorization(A_expr, G, q, compute_U)
     info("_reduced_svd: Computing local SVD")
-    U1, S, V1t = hl.nd.svd(R, full_matrices=False)._persist()
-
-    S = S[:k]
-    V = V0 @ V1t.T[:, :k]
-
-    if compute_U:
-        U = U0 @ U1[:, :k]
-        return S, V, U
-    else:
-        return S, V, None
+    return fact.reduced_svd(k)
 
 
 def _spectral_moments(entry_expr, num_moments, p=None, k=100, block_size=128):
