@@ -104,8 +104,6 @@ Services (see below for descriptions):
 * $HAIL/internal-gateway
 * $HAIL/notebook: notebook and workshop services
 * $HAIL/query
-* $HAIL/router
-* $HAIL/scorecard
 * $HAIL/site
 
 Libraries for services:
@@ -126,7 +124,6 @@ Other:
 * $HAIL/datasets: ETL code for the Hail Query Datasets API
 * $HAIL/docker: base docker images used by services
 * $HAIL/hail/python/hailtop/hailctl: implementation of the hailctl command-line tool
-* $HAIL/image-fetcher: K8s daemon to pre-fetch container images
 * $HAIL/ukbb-rg: UKBB genetic correlation browser configuration, available at https://ukbb-rg.hail.is/
 
 ## Hail Query Java/Scala Code Organization
@@ -199,7 +196,7 @@ templating.
 
 Some services rely on 3rd party services.  Those include:
 
-* ci and scorecard depend on GitHub
+* ci depends on GitHub
 
 * batch, ci and notebook depend on K8s
 
@@ -238,13 +235,14 @@ There is a collection of libraries to facilitate service development:
 * batch and batch-driver: the Hail Batch service
 
 * ci: We've implemented our own continuous integration and continuous
-  deployed (CI/CD) system.
+  deployed (CI/CD) system. It also hosts a developer status board
+  at https://ci.hail.is/me.
 
 * gateway: gateway is an nginx reverse proxy that terminates TLS
   connections and forwards requests to services in K8s.  It is
   possible to run multiple copies of the Hail services in K8s, each
   set in a separate K8s namespace.  gateway forwards requests to the
-  router service (see below) in the appropriate namespace.
+  K8s service in the appropriate namespace.
 
 * internal-gateway: batch workers run on GCE VMs, not in K8s.  The
   internal-gateway is an nginx reverse proxy that terminates
@@ -258,15 +256,6 @@ There is a collection of libraries to facilitate service development:
   service is not currently used.
 
 * query: The query service implements the Hail Query service.
-
-* router: It is possible to spin up multiple copies of the Hail
-  services inside K8s for development and testing, each set in a
-  separate K8s namespace.  Thus, requests undergo two levels of
-  indirection: gateway forwards requests to the router in the correct
-  namespace, and the router forwards requests to the correct service.
-
-* scorecard: scorecard implements the developer status board found at
-  https://scorecard.hail.is/.
 
 * site: site implements the main Hail website https://hail.is/
   including the landing page and Hail Query and Hail Batch

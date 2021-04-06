@@ -106,13 +106,13 @@ def create_trust(principal, trust_type):  # pylint: disable=unused-argument
 
 def create_json_config(incoming_trust, outgoing_trust, key, cert, key_store):
     principal_config = {
-        'outgoing_trust': f'/ssl-config/{outgoing_trust["trust"]}',
-        'outgoing_trust_store': f'/ssl-config/{outgoing_trust["trust_store"]}',
-        'incoming_trust': f'/ssl-config/{incoming_trust["trust"]}',
-        'incoming_trust_store': f'/ssl-config/{incoming_trust["trust_store"]}',
-        'key': f'/ssl-config/{key}',
-        'cert': f'/ssl-config/{cert}',
-        'key_store': f'/ssl-config/{key_store}'
+        'outgoing_trust': outgoing_trust["trust"],
+        'outgoing_trust_store': outgoing_trust["trust_store"],
+        'incoming_trust': incoming_trust["trust"],
+        'incoming_trust_store': incoming_trust["trust_store"],
+        'key': key,
+        'cert': cert,
+        'key_store': key_store
     }
     config_file = 'ssl-config.json'
     with open(config_file, 'w') as out:
@@ -176,7 +176,7 @@ def create_principal(principal, kind, key, cert, key_store, unmanaged):
              f'--from-file={outgoing_trust["trust"]}',
              f'--from-file={outgoing_trust["trust_store"]}',
              *[f'--from-file={c}' for c in configs],
-             '--dry-run', '-o', 'yaml'],
+             '--save-config', '--dry-run=client', '-o', 'yaml'],
             stdout=k8s_secret)
         sp.check_call(['kubectl', 'apply', '-f', k8s_secret.name])
 

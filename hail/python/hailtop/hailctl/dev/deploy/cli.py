@@ -6,6 +6,7 @@ import sys
 from hailtop.config import get_deploy_config
 from hailtop.auth import service_auth_headers
 from hailtop.httpx import client_session
+from hailtop.utils import unpack_comma_delimited_inputs
 
 
 def init_parser(parser):
@@ -13,6 +14,8 @@ def init_parser(parser):
                         help="Fully-qualified branch, e.g., hail-is/hail:feature.", required=True)
     parser.add_argument("--steps", "-s", nargs='+', action='append',
                         help="Comma or space-separated list of steps to run.", required=True)
+    parser.add_argument("--excluded_steps", "-e", nargs='+', action='append', default=[],
+                        help="Comma or space-separated list of steps to forcibly exclude. Use with caution!")
     parser.add_argument("--open", "-o",
                         action="store_true",
                         help="Open the deploy batch page in a web browser.")
@@ -40,10 +43,11 @@ class CIClient:
             await self._session.close()
             self._session = None
 
-    async def dev_deploy_branch(self, branch, steps):
+    async def dev_deploy_branch(self, branch, steps, excluded_steps):
         data = {
             'branch': branch,
-            'steps': steps
+            'steps': steps,
+            'excluded_steps': excluded_steps
         }
         async with self._session.post(
                 self._deploy_config.url('ci', '/api/v1alpha/dev_deploy_branch'), json=data) as resp:
@@ -57,11 +61,10 @@ class CIClient:
 
 async def submit(args):
     deploy_config = get_deploy_config()
-    steps = [s.strip() for steps in args.steps  # let's unpack this shall we?
-             for step in steps
-             for s in step.split(',') if s.strip()]
+    steps = unpack_comma_delimited_inputs(args.steps)
+    excluded_steps = unpack_comma_delimited_inputs(args.excluded_steps)
     async with CIClient(deploy_config) as ci_client:
-        batch_id = await ci_client.dev_deploy_branch(args.branch, steps)
+        batch_id = await ci_client.dev_deploy_branch(args.branch, steps, excluded_steps)
         url = deploy_config.url('ci', f'/batches/{batch_id}')
         print(f'Created deploy batch, see {url}')
         if args.open:

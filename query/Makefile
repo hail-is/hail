@@ -19,7 +19,7 @@ build:
 	cp ../hail/build/libs/hail-all-spark.jar ./hail.jar
 	-docker pull $(QUERY_LATEST)
 	python3 ../ci/jinja2_render.py '{"service_java_run_base_image":{"image":"service-java-run-base"}}' Dockerfile Dockerfile.out
-	docker build -t query -f Dockerfile.out --cache-from query,$(QUERY_LATEST),service-base ..
+	docker build -t query -f Dockerfile.out --cache-from query,$(QUERY_LATEST),service-base .
 
 .PHONY: push
 push: build

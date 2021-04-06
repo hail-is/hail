@@ -9,6 +9,7 @@ build:
 	$(MAKE) -C ../docker hail-ubuntu
 	-docker pull $(GATEWAY_LATEST)
 	python3 ../ci/jinja2_render.py '{"hail_ubuntu_image":{"image":"hail-ubuntu"}}' Dockerfile Dockerfile.out
+	python3 ../ci/jinja2_render.py '{"domain": "$(DOMAIN)","subdomains":[$(shell sed -e 's/\(.*\)/"\1"/' ../letsencrypt/subdomains.txt | paste -s -d, -)]}' gateway.nginx.conf gateway.nginx.conf.out
 	docker build -t gateway -f Dockerfile.out --cache-from gateway,$(GATEWAY_LATEST),hail-ubuntu .
 
 push: build

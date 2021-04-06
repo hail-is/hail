@@ -38,23 +38,11 @@ principals:
     - gateway
   unmanged: True
   kind: nginx
-- name: router
-  domains:
-    - router
-  kind: nginx
 - name: website
   domains:
     - website
     - www
   kind: json
-- name: scorecard
-  domains:
-    - scorecard
-  kind: json
-- name: image-fetcher
-  domains:
-    - image-fetcher
-  kind: curl
 - name: blog
   domains:
     - blog

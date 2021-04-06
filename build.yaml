@@ -13,6 +13,7 @@ steps:
     - gcr-push-service-account-key
     - test-gsa-key
     - auth-oauth2-client-secret
+    - zulip-config
     - benchmark-gsa-key
  - kind: buildImage
    name: echo_image
@@ -292,14 +293,18 @@ steps:
      cat > deploy-config.json <<EOF
      {"location":"k8s","default_namespace":"{{ default_ns.name }}","domain":"{{ global.domain }}"}
      EOF
-     kubectl -n {{ default_ns.name }} delete --ignore-not-found secret deploy-config
-     kubectl -n {{ default_ns.name }} create secret generic deploy-config --from-file=./deploy-config.json
+     kubectl -n {{ default_ns.name }} create secret generic deploy-config \
+             --from-file=./deploy-config.json \
+             --save-config --dry-run=client -o yaml \
+         | kubectl -n {{ default_ns.name }} apply -f -
      # gce deploy config
      cat > deploy-config.json <<EOF
      {"location":"gce","default_namespace":"{{ default_ns.name }}","domain":"{{ global.domain }}"}
      EOF
-     kubectl -n {{ default_ns.name }} delete --ignore-not-found secret gce-deploy-config
-     kubectl -n {{ default_ns.name }} create secret generic gce-deploy-config --from-file=./deploy-config.json
+     kubectl -n {{ default_ns.name }} create secret generic gce-deploy-config \
+             --from-file=./deploy-config.json \
+             --save-config --dry-run=client -o yaml \
+         | kubectl -n {{ default_ns.name }} apply -f -
    serviceAccount:
      name: admin
      namespace:
@@ -471,13 +476,6 @@ steps:
    dependsOn:
      - hail_run_image
  - kind: buildImage
-   name: scorecard_image
-   dockerFile: scorecard/Dockerfile
-   contextPath: .
-   publishAs: scorecard
-   dependsOn:
-     - service_base_image
- - kind: buildImage
    name: benchmark_image
    dockerFile: benchmark-service/Dockerfile
    contextPath: .
@@ -502,13 +500,6 @@ steps:
    publishAs: monitoring
    dependsOn:
      - service_base_image
- - kind: buildImage
-   name: router_image
-   dockerFile: router/Dockerfile
-   contextPath: router
-   publishAs: router
-   dependsOn:
-     - hail_ubuntu_image
  - kind: buildImage
    name: batch_image
    dockerFile: batch/Dockerfile
@@ -579,11 +570,6 @@ steps:
    publishAs: test-benchmark
    dependsOn:
      - service_base_image
- - kind: buildImage
-   name: image_fetcher_image
-   dockerFile: image-fetcher/Dockerfile
-   contextPath: image-fetcher
-   publishAs: image-fetcher
  - kind: buildImage
    name: ci_image
    dockerFile: ci/Dockerfile
@@ -751,11 +737,11 @@ steps:
  - kind: buildImage
    name: query_image
    dockerFile: query/Dockerfile
-   contextPath: .
+   contextPath: query/
    publishAs: query
    inputs:
      - from: /just-jar/hail.jar
-       to: /query/hail.jar
+       to: /hail.jar
    dependsOn:
      - service_java_run_base_image
      - build_hail_jar_only
@@ -1714,36 +1700,6 @@ steps:
    dependsOn:
     - hail_run_image
  - kind: deploy
-   name: deploy_router
-   namespace:
-     valueFrom: default_ns.name
-   config: router/deployment.yaml
-   wait:
-     - kind: Service
-       name: router
-       for: alive
-   link:
-    - www
-    - notebook
-    - ci
-   dependsOn:
-    - default_ns
-    - router_image
-    - create_certs
- - kind: deploy
-   name: deploy_scorecard
-   namespace:
-     valueFrom: default_ns.name
-   config: scorecard/deployment.yaml
-   scopes:
-    - deploy
-    - dev
-   dependsOn:
-    - default_ns
-    - scorecard_image
-    - deploy_router
-    - create_certs
- - kind: deploy
    name: deploy_grafana
    namespace:
      valueFrom: default_ns.name
@@ -1754,7 +1710,6 @@ steps:
    dependsOn:
     - default_ns
     - grafana_nginx_image
-    - deploy_router
     - create_certs
  - kind: runImage
    name: render_prom_nginx_conf
@@ -1802,7 +1757,6 @@ steps:
    dependsOn:
     - default_ns
     - prom_nginx_image
-    - deploy_router
     - create_certs
  - kind: runImage
    name: create_dummy_oauth2_client_secret
@@ -1833,7 +1787,6 @@ steps:
     - default_ns
     - create_deploy_config
     - create_session_key
-    - deploy_router
     - auth_database
     - auth_image
     - create_dummy_oauth2_client_secret
@@ -1906,7 +1859,6 @@ steps:
     - monitoring_image
     - monitoring_database
     - deploy_auth
-    - deploy_router
     - create_certs
     - create_accounts
  - kind: runImage
@@ -2213,7 +2165,6 @@ steps:
       for: alive
    dependsOn:
     - default_ns
-    - deploy_router
     - deploy_batch_sa
     - create_accounts
     - batch_image
@@ -2293,7 +2244,6 @@ steps:
    dependsOn:
     - default_ns
     - benchmark_image
-    - deploy_router
     - create_certs
     - deploy_auth
     - create_accounts
@@ -2364,7 +2314,6 @@ steps:
    dependsOn:
     - default_ns
     - deploy_address_sa
-    - deploy_router
     - address_image
     - create_certs
  - kind: deploy
@@ -3299,7 +3248,6 @@ steps:
     - create_session_key
     - notebook_image
     - notebook_nginx_image
-    - deploy_router
     - deploy_auth
     - notebook_database
     - create_certs
@@ -3307,16 +3255,6 @@ steps:
     - kind: Service
       name: notebook
       for: alive
- - kind: deploy
-   name: deploy_image_fetcher
-   namespace:
-     valueFrom: default_ns.name
-   config: image-fetcher/deployment.yaml
-   dependsOn:
-    - default_ns
-    - image_fetcher_image
-    - deploy_notebook
-    - create_certs
  - kind: runImage
    name: cleanup_ci_test_repo
    image:
@@ -3395,7 +3333,6 @@ steps:
       resource_type: statefulset
    dependsOn:
     - default_ns
-    - deploy_router
     - blog_nginx_image
     - create_certs
  - kind: runImage
@@ -3529,7 +3466,6 @@ steps:
    dependsOn:
     - default_ns
     - website_image
-    - deploy_router
     - create_certs
  - kind: runImage
    name: test_website
@@ -3829,7 +3765,6 @@ steps:
     - default_ns
     - create_certs
     - create_accounts
-    - deploy_router
     - deploy_auth
     - atgu_image
     - atgu_database

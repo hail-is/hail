@@ -2,7 +2,9 @@ from typing import Optional, List
 
 GITHUB_CLONE_URL = 'https://github.com/'
 GITHUB_STATUS_CONTEXT = 'ci-test'
-TEAMS = ['Services', 'Compiler']
+SERVICES_TEAM = 'Services'
+COMPILER_TEAM = 'Compiler'
+TEAMS = [SERVICES_TEAM, COMPILER_TEAM]
 
 
 class User:
@@ -14,20 +16,20 @@ class User:
 
 
 AUTHORIZED_USERS = [
-    User('danking', 'dking', ['Services']),
+    User('danking', 'dking', [SERVICES_TEAM]),
     User('cseed', 'cseed'),
     User('konradjk', 'konradk'),
-    User('jigold', 'jigold', ['Services']),
-    User('patrick-schultz', 'pschultz', ['Compiler']),
+    User('jigold', 'jigold', [SERVICES_TEAM]),
+    User('patrick-schultz', 'pschultz', [COMPILER_TEAM]),
     User('lfrancioli'),
-    User('tpoterba', 'tpoterba', ['Compiler']),
-    User('chrisvittal', 'cvittal', ['Compiler']),
-    User('johnc1231', 'johnc', ['Compiler']),
+    User('tpoterba', 'tpoterba', [COMPILER_TEAM]),
+    User('chrisvittal', 'cvittal', [COMPILER_TEAM]),
+    User('johnc1231', 'johnc', [COMPILER_TEAM]),
     User('nawatts'),
     User('mkveerapen'),
     User('bw2'),
     User('pwc2', 'pcumming'),
     User('lgruen'),
-    User('CDiaz96', 'carolin', ['Services']),
-    User('daniel-goldstein', 'dgoldste', ['Services']),
+    User('CDiaz96', 'carolin', [SERVICES_TEAM]),
+    User('daniel-goldstein', 'dgoldste', [SERVICES_TEAM]),
 ]

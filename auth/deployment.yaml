@@ -244,3 +244,17 @@ spec:
   selector:
     matchLabels:
       app: auth
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: auth
+  labels:
+    app: auth
+spec:
+  ports:
+   - port: 443
+     protocol: TCP
+     targetPort: 5000
+  selector:
+    app: auth

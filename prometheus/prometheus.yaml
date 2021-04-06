@@ -142,6 +142,15 @@ spec:
     spec:
       priorityClassName: infrastructure
       serviceAccountName: prometheus
+{% if deploy %}
+      nodeSelector:
+        preemptible: "false"
+{% else %}
+      nodeSelector:
+        preemptible: "true"
+{% endif %}
+      securityContext:
+        fsGroup: 65534
       containers:
        - name: prometheus
          image: prom/prometheus:v2.19.2
@@ -150,6 +159,7 @@ spec:
           - "/bin/prometheus"
           - "--config.file=/etc/prometheus/prometheus.yml"
           - "--storage.tsdb.path=/prometheus"
+          - "--storage.tsdb.retention.time=45d"
           - "--web.console.libraries=/usr/share/prometheus/console_libraries"
           - "--web.console.templates=/usr/share/prometheus/consoles"
           - "--web.enable-lifecycle"
@@ -212,4 +222,16 @@ spec:
           - ReadWriteOnce
         resources:
           requests:
-            storage: 50Gi
+            storage: 150Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: prometheus
+spec:
+  ports:
+   - port: 443
+     protocol: TCP
+     targetPort: 443
+  selector:
+    app: prometheus
