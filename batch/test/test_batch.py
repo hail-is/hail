@@ -816,10 +816,10 @@ def test_job_private_instance_cancel(client):
 
 def test_job_private_instance_nonpreemptible_from_resources(client):
     builder = client.create_batch()
-    resources = {'cpu': 1, 'memory': 'lowmem', 'preemptible': False}
+    resources = {'cpu': '1', 'memory': 'lowmem', 'preemptible': False}
     j = builder.create_job(DOCKER_ROOT_IMAGE, ['true'], resources=resources)
     builder.submit()
     status = j.wait()
     assert status['state'] == 'Success', str(j.log()['main'], status)
     assert 'job-private' in status['status']['worker'], str(status)
-    assert 'n1-highcpu-2' in status['status']['resources']['machine_type'], str(status)
+    assert 'n1-standard-1' in status['status']['resources']['machine_type'], str(status)
