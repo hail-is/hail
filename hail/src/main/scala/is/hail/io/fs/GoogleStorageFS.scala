@@ -101,7 +101,9 @@ class GoogleStorageFS(serviceAccountKey: String) extends FS {
   @transient private lazy val storage: Storage = {
     StorageOptions.newBuilder()
       .setCredentials(
-        ServiceAccountCredentials.fromStream(new ByteArrayInputStream(serviceAccountKey.getBytes)))
+        ServiceAccountCredentials.fromStream(
+          new ByteArrayInputStream(
+            serviceAccountKey.getBytes)))
       .build()
       .getService
   }
