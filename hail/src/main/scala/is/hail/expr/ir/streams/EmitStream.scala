@@ -2022,12 +2022,23 @@ object EmitStream {
           // (negative infinity), a contestant 'k' loses to everything
           // (positive infinity), and values in between are indices into 'heads'.
 
+          /**
+            * The ordering function in StreamMultiMerge should use missingFieldsEqual=false to be consistent
+            * with other nodes that deal with struct keys. When keys compare equal, the earlier index (in
+            * the list of stream children) should win. These semantics extend to missing key fields, which
+            * requires us to compile two orderings (l/r and r/l) to maintain the abilty to take from the
+            * left when key fields are missing.
+            */
           def comp(cb: EmitCodeBuilder, li: Code[Int], lv: Code[Long], ri: Code[Int], rv: Code[Long]): Code[Boolean] = {
-            val l = unifiedType.loadCheapPCode(cb, lv).asBaseStruct.subset(key: _*)
-            val r = unifiedType.loadCheapPCode(cb, rv).asBaseStruct.subset(key: _*)
-            val ord = StructOrdering.make(l.asBaseStruct.st, r.asBaseStruct.st, cb.emb.ecb, missingFieldsEqual = false)
-            val c = cb.newLocal("stream_merge_comp", ord.compareNonnull(cb, l, r))
-            c < 0 || (c.ceq(0) && li < ri)
+            val l = unifiedType.loadCheapPCode(cb, lv).asBaseStruct.subset(key: _*).memoize(cb, "stream_merge_l")
+            val r = unifiedType.loadCheapPCode(cb, rv).asBaseStruct.subset(key: _*).memoize(cb, "stream_merge_r")
+            val ord1 = StructOrdering.make(l.asBaseStruct.st, r.asBaseStruct.st, cb.emb.ecb, missingFieldsEqual = false)
+            val ord2 = StructOrdering.make(r.asBaseStruct.st, l.asBaseStruct.st, cb.emb.ecb, missingFieldsEqual = false)
+            val b = cb.newLocal[Boolean]("stream_merge_comp_result")
+            cb.ifx(li < ri,
+              cb.assign(b, ord1.compareNonnull(cb, l, r) <= 0),
+              cb.assign(b, ord2.compareNonnull(cb, r, l) > 0))
+            b
           }
 
           val producer = new StreamProducer {

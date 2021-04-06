@@ -2637,10 +2637,10 @@ class IRSuite extends HailSuite {
       Row(3, -1, 4),
       Row(3, -1, 5),
       Row(null, 1, 4),
-      Row(null, -1, 6),
       Row(null, 1, 5),
-      Row(null, -1, 7)),
-    )
+      Row(null, -1, 6),
+      Row(null, -1, 7),
+    ))
 
     // right stream ends first
     assertEvalsTo(mergeRows(Array[Integer](1, 1, 2, 2), Array[Integer](0, 0, 1, 1), 1), FastIndexedSeq(
@@ -2666,8 +2666,8 @@ class IRSuite extends HailSuite {
       Row(3, -1, 4),
       Row(3, -1, 5),
       Row(null, 1, 4),
-      Row(null, -1, 6),
       Row(null, 1, 5),
+      Row(null, -1, 6),
       Row(null, -1, 7)))
 
     // right stream empty
