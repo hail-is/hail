@@ -46,7 +46,7 @@ openssl x509 -startdate -enddate -noout -in cert.pem
 Print a complete textual representation of the certificate.
 
 ```
-openssl -text -noout -in cert.pem
+openssl x509 -text -noout -in cert.pem
 ```
 
 ## Determine the Cause of Certificate Expiration
