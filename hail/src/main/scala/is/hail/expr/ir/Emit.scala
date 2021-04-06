@@ -1912,7 +1912,7 @@ class Emit[C](
         val inits = args.zip(x.accPTypes)
 
         val stagedPool = cb.newLocal[RegionPool]("tail_loop_pool_ref")
-        cb.assign(stagedPool, region.code.getPool())
+        cb.assign(stagedPool, region.getPool())
         val loopRef = LoopRef(cb, loopStartLabel, inits.map { case ((name, _), pt) => (name, pt) }, stagedPool)
 
         val argEnv = env
@@ -1922,15 +1922,15 @@ class Emit[C](
 
         // Emit into LoopRef's current region. (region 1)
         loopRef.loopArgs.zip(inits).foreach { case (settable, ((_, x), pt)) =>
-          settable.store(cb, emitI(x, StagedRegion(loopRef.r1)).map(cb)(_.castTo(cb, loopRef.r1, pt)))
+          settable.store(cb, emitI(x, loopRef.r1).map(cb)(_.castTo(cb, loopRef.r1, pt)))
         }
 
         cb.define(loopStartLabel)
 
         emitI(body, env = argEnv, loopEnv = Some(newLoopEnv.bind(name, loopRef))).map(cb) { pc =>
-          val answerInRightRegion = pc.copyToRegion(cb, region.code)
-          cb.append(new RichCodeRegion(loopRef.r1).clear())
-          cb.append(new RichCodeRegion(loopRef.r2).clear())
+          val answerInRightRegion = pc.copyToRegion(cb, region)
+          cb.append(loopRef.r1.clearRegion())
+          cb.append(loopRef.r2.clearRegion())
           answerInRightRegion
         }
 
@@ -1939,10 +1939,10 @@ class Emit[C](
 
         // Need to emit into region 2, clear region 1, then swap them.
         (loopRef.tmpLoopArgs, loopRef.loopTypes, args).zipped.map { case (tmpLoopArg, pt, arg) =>
-          tmpLoopArg.store(cb, emitI(arg, loopEnv = None, region=StagedRegion(loopRef.r2)).map(cb)(_.castTo(cb, loopRef.r2, pt)))
+          tmpLoopArg.store(cb, emitI(arg, loopEnv = None, region = loopRef.r2).map(cb)(_.castTo(cb, loopRef.r2, pt)))
         }
 
-        cb.append(new RichCodeRegion(loopRef.r1).clear())
+        cb.append(loopRef.r1.clearRegion())
 
         // Swap
         val temp = cb.newLocal[Region]("recur_temp_swap_region")
@@ -2356,45 +2356,6 @@ class Emit[C](
         val unified = impl.unify(typeArgs, args.map(_.typ), rt)
         assert(unified)
         impl.apply(EmitRegion(mb, region), pt, typeArgs, codeArgs: _*)
-
-      case x@TailLoop(name, args, body) =>
-        val label = CodeLabel()
-        val inits = args.zip(x.accPTypes)
-        val loopRef = LoopRef(mb, label, inits.map { case ((name, _), pt) => (name, pt) })
-
-        val m = mb.genFieldThisRef[Boolean]()
-        val v = mb.newPField(x.pType)
-
-        val argEnv = env
-          .bind((args.map(_._1), loopRef.loopArgs).zipped.toArray: _*)
-
-        val newLoopEnv = loopEnv.getOrElse(Env.empty)
-        val bodyT = emit(body, env = argEnv, loopEnv = Some(newLoopEnv.bind(name, loopRef)))
-        val bodyF = EmitCodeBuilder.scopedVoid(mb) { cb =>
-          cb.append(bodyT.setup)
-          cb.assign(m, bodyT.m)
-          cb.ifx(!m, cb.assign(v, bodyT.pv))
-        }
-        val initArgs = EmitCodeBuilder.scopedVoid(mb) { cb =>
-          cb.assign(loopRef.loopArgs, inits.map { case ((_, x), pt) =>
-            emit(x).castTo(mb, region, pt)
-          })
-        }
-
-        EmitCode(Code(initArgs, label, bodyF), m, v.load())
-
-      case Recur(name, args, _) =>
-        val loopRef = loopEnv.get.lookup(name)
-
-        EmitCodeBuilder.scopedEmitCode(mb) { cb =>
-          cb.assign(loopRef.tmpLoopArgs, loopRef.loopTypes.zip(args).map { case (pt, arg) =>
-            emit(arg, loopEnv = None).castTo(mb, region, pt)
-          })
-          cb.assign(loopRef.loopArgs, loopRef.tmpLoopArgs.load())
-          cb.append(loopRef.L.goto)
-          // dead code
-          EmitCode.missing(cb.emb, pt)
-        }
 
       case x@WritePartition(stream, pctx, writer) =>
         val ctxCode = emit(pctx)
