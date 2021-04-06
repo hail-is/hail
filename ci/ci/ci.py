@@ -419,7 +419,7 @@ async def dev_deploy_branch(request, userdata):
     try:
         branch = FQBranch.from_short_str(params['branch'])
         steps = params['steps']
-        excluded_steps = params['excluded_steps']
+        excluded_steps = params.get('excluded_steps')
     except Exception as e:
         message = f'parameters are wrong; check the branch and steps syntax.\n\n{params}'
         log.info('dev deploy failed: ' + message, exc_info=True)

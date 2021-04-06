@@ -878,8 +878,11 @@ class UnwatchedBranch(Code):
             'user': self.user,
         }
 
-    async def deploy(self, batch_client, steps, excluded_steps=()):
+    async def deploy(self, batch_client, steps, excluded_steps=None):
         assert not self.deploy_batch
+
+        if excluded_steps is None:
+            excluded_steps = []
 
         deploy_batch = None
         try:
