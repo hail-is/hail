@@ -138,6 +138,7 @@ object Worker {
         val localJarFile = new File(localJarLocation)
         if (!localJarFile.exists()) {
           log.info(s"$revision not in the disk cache")
+          localJarFile.getParentFile().mkdirs()
           downloadFile(workerGCSFS, remoteJarLocation, localJarLocation)
           log.info(s"$revision added to the disk cache at $localJarLocation")
         }
