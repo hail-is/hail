@@ -440,7 +440,13 @@ div .bar {
 .textbox {
   display: none;
 }
-
+.progress_bar{
+  border:1px solid black;
+  height:100px;
+  width:140px;
+  overflow-y:hidden;
+  overflow-x:scroll;
+}
 .bar:hover {
   position: absolute;
   display: block;
