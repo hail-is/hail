@@ -20,9 +20,11 @@ RUN update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-10 10 && \
     update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-10 10
 
 # source: https://cloud.google.com/storage/docs/gsutil_install#linux
-RUN /bin/sh -c 'curl https://sdk.cloud.google.com | bash' && \
-    mv /root/google-cloud-sdk / && \
-    /google-cloud-sdk/bin/gcloud -q components install beta kubectl
+RUN curl -sSLO https://dl.google.com/dl/cloudsdk/channels/rapid/downloads/google-cloud-sdk-334.0.0-linux-x86_64.tar.gz && \
+    tar -xf google-cloud-sdk-334.0.0-linux-x86_64.tar.gz && \
+    mv ./google-cloud-sdk / && \
+    /google-cloud-sdk/bin/gcloud -q components install kubectl && \
+    gcloud version
 ENV PATH $PATH:/google-cloud-sdk/bin
 
 COPY docker/requirements.txt .
