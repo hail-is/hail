@@ -2639,7 +2639,7 @@ class IRSuite extends HailSuite {
       Row(null, 1, 4),
       Row(null, 1, 5),
       Row(null, -1, 6),
-      Row(null, -1, 7),
+      Row(null, -1, 7)
     ))
 
     // right stream ends first
