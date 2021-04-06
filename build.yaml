@@ -13,7 +13,6 @@ steps:
     - gcr-push-service-account-key
     - test-gsa-key
     - auth-oauth2-client-secret
-    - zulip-config
     - benchmark-gsa-key
  - kind: buildImage
    name: echo_image
