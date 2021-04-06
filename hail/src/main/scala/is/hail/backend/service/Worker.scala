@@ -167,7 +167,8 @@ object Worker {
       log.info(s"received job for different revision: $revision; I am $myRevision")
       val mainMethod = mainForRevision(revision, remoteJarLocation)
       timer.end("classLoading")
-      return mainMethod(args)
+      mainMethod(args)
+      return
     }
 
     if (args.length != 4) {
