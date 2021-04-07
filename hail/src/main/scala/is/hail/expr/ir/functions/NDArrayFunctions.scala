@@ -49,11 +49,11 @@ object NDArrayFunctions extends RegistryFunctions {
 
           val infoDGESVResult = cb.newLocal[Int]("dgesv_result")
           val ipiv = cb.newLocal[Long]("dgesv_ipiv")
-          cb.assign(ipiv, region.allocate(4L, n * 4L))
+          cb.assign(ipiv, Code.invokeStatic1[Memory, Long, Long]("malloc", n * 4L))
 
           val aCopy = cb.newLocal[Long]("dgesv_a_copy")
           def aNumBytes = n * n * 8L
-          cb.assign(aCopy, region.allocate(8L, aNumBytes))
+          cb.assign(aCopy, Code.invokeStatic1[Memory, Long, Long]("malloc", aNumBytes))
           val aInputFirstElement = aInput.firstDataAddress(cb)
 
           cb.append(Region.copyFrom(aInputFirstElement, aCopy, aNumBytes))
@@ -74,11 +74,8 @@ object NDArrayFunctions extends RegistryFunctions {
             n.toI
           ))
 
-          cb.println("aCopy = ", aCopy.toS)
-          cb.println("outputAddressFirstElement = ", Region.loadDouble(outputAddress).toS)
-
-          //cb.append(Code.invokeStatic1[Memory, Long, Unit]("free", ipiv.load()))
-          //cb.append(Code.invokeStatic1[Memory, Long, Unit]("free", aCopy.load()))
+          cb.append(Code.invokeStatic1[Memory, Long, Unit]("free", ipiv.load()))
+          cb.append(Code.invokeStatic1[Memory, Long, Unit]("free", aCopy.load()))
 
           outputFinisher(cb)
         }

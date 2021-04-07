@@ -683,6 +683,13 @@ def test_ndarray_diagonal():
     assert "2 dimensional" in str(exc.value)
 
 
+def test_ndarray_solve():
+    a = hl.nd.array([[1, 2], [3, 5]])
+    b = hl.nd.array([1, 2])
+
+    assert np.allclose(hl.eval(hl.nd.solve(a, b)), np.array([-1., 1.]))
+
+
 def test_ndarray_qr():
     def assert_raw_equivalence(hl_ndarray, np_ndarray):
         ndarray_h, ndarray_tau = hl.eval(hl.nd.qr(hl_ndarray, mode="raw"))

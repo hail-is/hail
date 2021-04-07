@@ -225,7 +225,9 @@ def solve(a, b):
     assert a.ndim == 2
     assert b.ndim == 1 or b.ndim == 2
 
-    if b.ndim == 1:
+    b_ndim_orig = b.ndim
+
+    if b_ndim_orig == 1:
         b = b.reshape((-1, 1))
 
     # TODO: Only do this if needed
@@ -233,7 +235,11 @@ def solve(a, b):
     b = b.map(lambda e: hl.float64(e))
 
     ir = Apply("linear_solve", hl.tndarray(hl.tfloat64, 2), a._ir, b._ir)
-    return construct_expr(ir, hl.tndarray(hl.tfloat64, 2), a._indices, a._aggregations)
+    result = construct_expr(ir, hl.tndarray(hl.tfloat64, 2), a._indices, a._aggregations)
+
+    if b_ndim_orig == 1:
+        result = result.reshape((-1))
+    return result
 
 
 @typecheck(nd=expr_ndarray(), mode=str)
