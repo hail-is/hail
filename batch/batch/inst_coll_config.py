@@ -210,7 +210,9 @@ SELECT * FROM resources;
                     cores_mcpu=req_cores_mcpu,
                     memory_bytes=req_memory_bytes,
                     storage_bytes=req_storage_bytes)
-            return result
+
+            if result is not None:
+                return result
 
         # Determine if we can spin up a private machine that fulfills resource requests
         if machine_type is None:
