@@ -246,7 +246,10 @@ class Job:
         Omitting a suffix means the value is in cpu.
 
         For the :class:`.ServiceBackend`, `cores` must be a power of
-        two between 0.25 and 16.
+        two between 0.25 and 64 in order for a job to be run on a shared
+        worker. If `cores` is equal to 32 or 64, then a private instance will
+        be created for the job with the optimal machine type based on the
+        cpu and memory requests.
 
         Examples
         --------
@@ -258,6 +261,14 @@ class Job:
         >>> (j.cpu('250m')
         ...   .command(f'echo "hello"'))
         >>> b.run()
+
+        Warning
+        -------
+
+        Jobs with `cores` equal to 32 or 64 will have a private instance created
+        specifically for that job. You will be billed for the entire time the
+        instance is running including the activation time. This option should
+        not be used for low latency jobs.
 
         Parameters
         ----------
@@ -280,12 +291,6 @@ class Job:
         -----
 
         Can only be used with the :class:`.backend.ServiceBackend`.
-
-        If `preemptible` is False, then a private instance will be
-        created for the job. Batch will automatically choose the
-        cheapest machine type given the CPU and memory settings.
-        See :meth:`.Job.machine_type` for more information about jobs
-        that run on a private machine.
 
         Examples
         --------
@@ -354,6 +359,13 @@ class Job:
         ...   .command(f'echo "hello"'))
         >>> b.run()
 
+        Warning
+        -------
+
+        If `preemptible` is `False`, we will create a private instance
+        specifically for this job. You will be billed for the entire time the
+        instance is running including the activation time. This option should
+        not be used for low latency jobs.
 
         Parameters
         ----------
@@ -441,7 +453,7 @@ class Job:
         self._timeout = timeout
         return self
 
-    def gcsfuse(self, bucket, mount_point, read_only=True):
+    def gcsfuse(self, bucket, mount_point, read_only=True) -> 'Job':
         """
         Add a bucket to mount with gcsfuse.
 

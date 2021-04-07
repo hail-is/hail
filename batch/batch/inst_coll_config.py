@@ -210,7 +210,6 @@ SELECT * FROM resources;
                     cores_mcpu=req_cores_mcpu,
                     memory_bytes=req_memory_bytes,
                     storage_bytes=req_storage_bytes)
-
             if result is not None:
                 return result
 
