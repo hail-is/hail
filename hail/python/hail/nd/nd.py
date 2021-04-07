@@ -221,6 +221,7 @@ def diagonal(nd):
     return hl.nd.array(hl.range(hl.int32(shape_min)).map(lambda i: nd[i, i]))
 
 
+@typecheck(a=expr_ndarray(), b=expr_ndarray())
 def solve(a, b):
     assert a.ndim == 2
     assert b.ndim == 1 or b.ndim == 2
@@ -230,9 +231,10 @@ def solve(a, b):
     if b_ndim_orig == 1:
         b = b.reshape((-1, 1))
 
-    # TODO: Only do this if needed
-    a = a.map(lambda e: hl.float64(e))
-    b = b.map(lambda e: hl.float64(e))
+    if a.dtype.element_type != hl.tfloat64:
+        a = a.map(lambda e: hl.float64(e))
+    if b.dtype.element_type != hl.tfloat64:
+        b = b.map(lambda e: hl.float64(e))
 
     ir = Apply("linear_solve", hl.tndarray(hl.tfloat64, 2), a._ir, b._ir)
     result = construct_expr(ir, hl.tndarray(hl.tfloat64, 2), a._indices, a._aggregations)
