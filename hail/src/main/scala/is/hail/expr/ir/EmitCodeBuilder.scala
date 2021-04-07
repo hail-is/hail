@@ -104,25 +104,18 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
     l
   }
 
-  private[this] def defineNestedUnusedLabels(x: EmitCode): Unit = {
-    x.pv match {
-      case SStreamCode(_, producer) => StreamProducer.markUnused(producer, emb)
-      case _ =>
+  def withScopedMaybeStreamValue[T](ec: EmitCode, name: String)(f: EmitValue => T): T = {
+    if (ec.pt.isRealizable) {
+      f(memoizeField(ec, name))
+    } else {
+      val ev = new EmitUnrealizableValue(ec)
+      val res = f(ev)
+      ec.pv match {
+        case SStreamCode(_, producer) => StreamProducer.defineUnusedLabels(producer, emb)
+      }
+      res
     }
   }
-
-  def memoizeMaybeUnrealizableField(ec: EmitCode, name: String): (() => Unit, EmitValue) = {
-    if (ec.pt.isRealizable)
-      return (() => (), memoizeField(ec, name))
-    (() => defineNestedUnusedLabels(ec), new EmitUnrealizableValue(ec))
-  }
-
-  def memoizeMaybeUnrealizableLocal(ec: EmitCode, name: String): (() => Unit, EmitValue) = {
-    if (ec.pt.isRealizable)
-      return (() => (), memoize(ec, name))
-    (() => defineNestedUnusedLabels(ec), new EmitUnrealizableValue(ec))
-  }
-
 
   def memoizeField(v: IEmitCode, name: String): EmitValue = {
     require(v.pt.isRealizable)

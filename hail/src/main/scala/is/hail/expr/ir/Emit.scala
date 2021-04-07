@@ -529,24 +529,23 @@ class Emit[C](
 
       case Let(name, value, body) =>
         val xVal = if (value.typ.isInstanceOf[TStream]) emitStream(value, region) else emit(value)
-        val (fixUnusedStreamLabels, memoValue) = cb.memoizeMaybeUnrealizableField(xVal, s"let_$name")
-        emitVoid(body, env = env.bind(name, memoValue))
-        fixUnusedStreamLabels()
+        cb.withScopedMaybeStreamValue(xVal, s"let_$name") { ev =>
+          emitVoid(body, env = env.bind(name, ev))
+        }
 
       case StreamFor(a, valueName, body) =>
         val streamType = coerce[PStream](a.pType)
-        val eltType = streamType.elementType
 
         emitStream(a, region).toI(cb).consume(cb,
-        {},
-        { case stream: SStreamCode =>
-          val producer = stream.producer
-          producer.memoryManagedConsume(region, cb) { cb =>
-            val (fixupUnusedLabels, eltMemo) = cb.memoizeMaybeUnrealizableField(producer.element, s"streamfor_$valueName")
-            emitVoid(body, region = producer.elementRegion, env = env.bind(valueName -> eltMemo))
-            fixupUnusedLabels()
-          }
-        })
+          {},
+          { case stream: SStreamCode =>
+            val producer = stream.producer
+            producer.memoryManagedConsume(region, cb) { cb =>
+              cb.withScopedMaybeStreamValue(producer.element, s"streamfor_$valueName") { ev =>
+                emitVoid(body, region = producer.elementRegion, env = env.bind(valueName -> ev))
+              }
+            }
+          })
 
       case x@InitOp(i, args, sig) =>
         val AggContainer(aggs, sc, _) = container.get
@@ -2178,10 +2177,9 @@ class Emit[C](
       case Let(name, value, body) =>
         EmitCode.fromI(mb) { cb =>
           val xVal = if (value.typ.isInstanceOf[TStream]) emitStream(value, region) else emit(value)
-          val (fixupUnusedStreamLabels, valueMemo) = cb.memoizeMaybeUnrealizableField(xVal, s"let_$name")
-          val emitted = emitI(body, cb, env = env.bind(name, valueMemo))
-          fixupUnusedStreamLabels()
-          emitted
+          cb.withScopedMaybeStreamValue(xVal, s"let_$name") { ev =>
+            emitI(body, cb, env = env.bind(name, ev))
+          }
         }
 
       case Ref(name, _) =>
@@ -2301,7 +2299,7 @@ class Emit[C](
                 cb.assign(count, count + 1)
               }
               producer.element.pv match {
-                case SStreamCode(_, nested) => StreamProducer.markUnused(producer, mb)
+                case SStreamCode(_, nested) => StreamProducer.defineUnusedLabels(producer, mb)
                 case _ =>
               }
               PCode(x.pType, count)

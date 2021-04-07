@@ -15,7 +15,7 @@ import is.hail.utils._
 
 
 object StreamProducer {
-  def markUnused(producer: StreamProducer, mb: EmitMethodBuilder[_]): Unit = {
+  def defineUnusedLabels(producer: StreamProducer, mb: EmitMethodBuilder[_]): Unit = {
     (producer.LendOfStream.isImplemented, producer.LproduceElementDone.isImplemented) match {
       case (true, true) =>
       case (false, false) =>
@@ -29,7 +29,7 @@ object StreamProducer {
       case (eos, ped) => throw new RuntimeException(s"unrealizable value unused asymmetrically: eos=$eos, ped=$ped")
     }
     producer.element.pv match {
-      case SStreamCode(_, nested) => markUnused(nested, mb)
+      case SStreamCode(_, nested) => defineUnusedLabels(nested, mb)
       case _ =>
     }
   }
@@ -221,11 +221,9 @@ object EmitStream {
           }
 
       case Let(name, value, body) =>
-        val (fixupUnusedStreamLabels, xValue) = cb.memoizeMaybeUnrealizableField(
-          EmitCode.fromI(mb)(cb => emit(value, cb)), s"let_$name")
-        val bodyStream = produce(body, cb, env = env.bind(name, xValue))
-        fixupUnusedStreamLabels()
-        bodyStream
+        cb.withScopedMaybeStreamValue(EmitCode.fromI(mb)(cb => emit(value, cb)), s"let_$name") { ev =>
+          produce(body, cb, env = env.bind(name, ev))
+        }
 
       case In(n, _) =>
         // this, Code[Region], ...
@@ -616,15 +614,12 @@ object EmitStream {
             val childProducer = childStream.producer
 
             val bodyResult = EmitCode.fromI(mb) { cb =>
-              val (fixUnusedStreamLabels, childProducerElement) = cb.memoizeMaybeUnrealizableField(childProducer.element, "streammap_element")
-
-              val emitted = emit(body,
-                cb = cb,
-                env = env.bind(name, childProducerElement),
-                region = childProducer.elementRegion)
-
-              fixUnusedStreamLabels()
-              emitted
+              cb.withScopedMaybeStreamValue(childProducer.element, "streammap_element") { childProducerElement =>
+                emit(body,
+                  cb = cb,
+                  env = env.bind(name, childProducerElement),
+                  region = childProducer.elementRegion)
+              }
             }
 
             val producer: StreamProducer = new StreamProducer {
@@ -708,13 +703,9 @@ object EmitStream {
                 cb += accRegion.clearRegion()
               }
 
-              val bodyCode = {
-                val (fixUnusedStreamLabels, childEltValue) = cb.memoizeMaybeUnrealizableField(childProducer.element, "scan_child_elt")
-                val bodyCode = emit(bodyIR, cb, env = env.bind((accName, accValueEltRegion), (eltName, childEltValue)), region = childProducer.elementRegion)
+              val bodyCode = cb.withScopedMaybeStreamValue(childProducer.element, "scan_child_elt") { ev =>
+                emit(bodyIR, cb, env = env.bind((accName, accValueEltRegion), (eltName, ev)), region = childProducer.elementRegion)
                   .map(cb)(pc => pc.castTo(cb, childProducer.elementRegion, x.accPType, deepCopy = false))
-
-                fixUnusedStreamLabels()
-                bodyCode
               }
 
               cb.assign(accValueEltRegion, bodyCode)
@@ -799,14 +790,12 @@ object EmitStream {
           val innerUnclosed = mb.genFieldThisRef[Boolean]("flatmap_inner_unclosed")
 
           val innerStreamEmitCode = EmitCode.fromI(mb) { cb =>
-            val (fixUnusedStreamLabels, outerProducerValue) = cb.memoizeMaybeUnrealizableField(outerProducer.element, "flatmap_outer_value")
-            val emitted = emit(body,
-              cb = cb,
-              env = env.bind(name, outerProducerValue),
-              region = outerProducer.elementRegion)
-
-            fixUnusedStreamLabels()
-            emitted
+            cb.withScopedMaybeStreamValue(outerProducer.element, "flatmap_outer_value") { outerProducerValue =>
+              emit(body,
+                cb = cb,
+                env = env.bind(name, outerProducerValue),
+                region = outerProducer.elementRegion)
+            }
           }
 
           // grabbing emitcode.pv weird pattern but should be safe
