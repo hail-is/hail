@@ -822,4 +822,4 @@ def test_job_private_instance_nonpreemptible_from_resources(client):
     status = j.wait()
     assert status['state'] == 'Success', str(j.log()['main'], status)
     assert 'job-private' in status['status']['worker'], str(status)
-    assert 'n1-standard-1' in status['status']['resources']['machine_type'], str(status)
+    assert status['spec']['resources']['machine_type'] == 'n1-standard-1', str(status)

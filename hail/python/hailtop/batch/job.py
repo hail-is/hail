@@ -292,7 +292,7 @@ class Job:
 
         Set the job to be run on a preemptible machine:
 
-        >>> b = Batch()
+        >>> b = Batch(backend=backend.ServiceBackend('test'))
         >>> j = b.new_job()
         >>> (j.preemptible()
         ...   .command(f'echo "hello"'))
@@ -348,7 +348,7 @@ class Job:
 
         Set the job to be run on a private `n1-standard-1` machine:
 
-        >>> b = Batch()
+        >>> b = Batch(backend=backend.ServiceBackend('test'))
         >>> j = b.new_job()
         >>> (j.machine_type('n1-standard-1')
         ...   .command(f'echo "hello"'))
