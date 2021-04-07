@@ -129,8 +129,10 @@ abstract class StreamProducer {
         cb += elementRegion.clearRegion()
       }
       cb += elementRegion.invalidate()
-    } else
+    } else {
+      cb.assign(elementRegion, outerRegion)
       unmanagedConsume(cb, setup)(perElement)
+    }
   }
 }
 
