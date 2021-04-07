@@ -223,6 +223,21 @@ def diagonal(nd):
 
 @typecheck(a=expr_ndarray(), b=expr_ndarray())
 def solve(a, b):
+    """Solve a linear system.
+
+    Parameters
+    ----------
+    a : :class:`.NDArrayNumericExpression`, (N, N)
+        Coefficient matrix.
+    b : :class:`.NDArrayNumericExpression`, (N,) or (N, K)
+        Dependent variables.
+
+    Returns
+    -------
+    :class:`.NDArrayNumericExpression`, (N,) or (N, K)
+        Solution to the system Ax = B. Shape is same as shape of B.
+
+    """
     assert a.ndim == 2
     assert b.ndim == 1 or b.ndim == 2
 
