@@ -111,30 +111,6 @@ nohup /bin/bash run.sh >run.log 2>&1 &
 #!/bin/bash
 set -x
 
-# set up docker networks
-docker network create public --opt com.docker.network.bridge.name=public
-docker network create private --opt com.docker.network.bridge.name=private
-docker network create batch-worker --opt com.docker.network.bridge.name=batch-worker
-
-# wait for docker to create the DOCKER-USER chain
-while ! iptables -L DOCKER-USER ; do sleep 1; done
-
-# [all docker] ban metadata server
-iptables -I DOCKER-USER           -d 169.254.169.254 -j DROP
-
-# [all docker] override: allow udp/53 (dns) to metadata server
-iptables -I DOCKER-USER           -d 169.254.169.254 -p udp -m udp --destination-port 53 -j ACCEPT
-
-# [public docker] ban inter-container communication
-iptables -I DOCKER-USER -i public -d 172.16.0.0/12   -j DROP
-
-# [public docker] ban unused ip address range
-iptables -I DOCKER-USER -i public -d 192.168.0.0/16  -j DROP
-
-# [batch worker] override: allow metadata server for batch worker
-iptables -I DOCKER-USER -i batch-worker -d 169.254.169.254 -j ACCEPT
-
-
 WORKER_DATA_DISK_NAME="{worker_data_disk_name}"
 UNRESERVED_WORKER_DATA_DISK_SIZE_GB="{unreserved_disk_storage_gb}"
 
@@ -169,6 +145,10 @@ touch /xfsquota/projid
 
 ln -s /xfsquota/projects /etc/projects
 ln -s /xfsquota/projid /etc/projid
+
+sudo mkdir -p /etc/netns
+sudo mkdir /containers
+sudo mkdir /bundles
 
 export HOME=/root
 
@@ -273,12 +253,16 @@ docker run \
 -e BATCH_WORKER_IMAGE=$BATCH_WORKER_IMAGE \
 -e UNRESERVED_WORKER_DATA_DISK_SIZE_GB=$UNRESERVED_WORKER_DATA_DISK_SIZE_GB \
 -v /var/run/docker.sock:/var/run/docker.sock \
+-v /var/run/netns:/var/run/netns:shared \
+-v /bundles:/bundles:shared \
+-v /containers:/containers:shared \
 -v /usr/bin/docker:/usr/bin/docker \
 -v /usr/sbin/xfs_quota:/usr/sbin/xfs_quota \
 -v /batch:/batch:shared \
 -v /logs:/logs \
 -v /gcsfuse:/gcsfuse:shared \
 -v /xfsquota:/xfsquota \
+-v /etc/netns:/etc/netns \
 --mount type=bind,source=/mnt/disks/$WORKER_DATA_DISK_NAME,target=/host \
 --mount type=bind,source=/dev,target=/dev,bind-propagation=rshared \
 -p 5000:5000 \
@@ -288,7 +272,7 @@ docker run \
 --privileged \
 --cap-add SYS_ADMIN \
 --security-opt apparmor:unconfined \
---network batch-worker \
+--network host \
 $BATCH_WORKER_IMAGE \
 python3 -u -m batch.worker.worker >worker.log 2>&1
 

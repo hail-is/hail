@@ -29,7 +29,7 @@ build-batch: build-prereqs
 .PHONY: build-worker
 build-worker: build-prereqs
 	-docker pull $(BATCH_WORKER_LATEST)
-	python3 ../ci/jinja2_render.py '{"global":{"docker_prefix":"$(DOCKER_PREFIX)"}}' Dockerfile.worker Dockerfile.worker.out
+	python3 ../ci/jinja2_render.py '{"hail_ubuntu_image":{"image":"hail-ubuntu"}}' Dockerfile.worker Dockerfile.worker.out
 	docker build -t batch-worker -f Dockerfile.worker.out --cache-from batch-worker,$(BATCH_WORKER_LATEST),service-base ..
 
 .PHONY: build

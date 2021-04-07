@@ -1,4 +1,4 @@
-from typing import Optional, Dict, Callable
+from typing import Optional, Dict, Callable, Any
 import os
 import json
 import sys
@@ -16,10 +16,10 @@ import aiohttp.client_exceptions
 from aiohttp import web
 import async_timeout
 import concurrent
-import aiodocker
+import aiodocker  # type: ignore
 from collections import defaultdict
-from aiodocker.exceptions import DockerError
-import google.oauth2.service_account
+from aiodocker.exceptions import DockerError  # type: ignore
+import google.oauth2.service_account  # type: ignore
 from hailtop.utils import (
     time_msecs,
     request_retry_transient_errors,
@@ -120,8 +120,11 @@ deploy_config = DeployConfig('gce', NAMESPACE, {})
 docker: Optional[aiodocker.Docker] = None
 
 port_allocator: Optional['PortAllocator'] = None
+network_allocator: Optional['NetworkAllocator'] = None
 
 worker: Optional['Worker'] = None
+
+image_configs: Dict[str, Dict[str, Any]] = {}
 
 
 class PortAllocator:
@@ -136,6 +139,78 @@ class PortAllocator:
 
     def free(self, port):
         self.ports.put_nowait(port)
+
+
+class NetworkNamespace:
+    def __init__(self, subnet_index):
+        self.network_name = uuid.uuid4().hex[:5]
+        self.host_ip = f'10.0.{subnet_index}.10'
+        self.job_ip = f'10.0.{subnet_index}.11'
+        self.port = None
+        self.host_port = None
+
+    async def init(self):
+        veth_host = self.network_name + '-host'
+        veth_job = self.network_name + '-job'
+        await check_shell(
+            f'''
+ip netns add {self.network_name} && \
+    ip link add name {veth_host} type veth peer name {veth_job} && \
+    ip link set dev {veth_host} up && \
+    ip link set {veth_job} netns {self.network_name} && \
+    ip address add {self.host_ip}/24 dev {veth_host}
+    ip -n {self.network_name} link set dev {veth_job} up && \
+    ip -n {self.network_name} link set dev lo up && \
+    ip -n {self.network_name} address add {self.job_ip}/24 dev {veth_job} && \
+    ip -n {self.network_name} route add default via {self.host_ip}'''
+        )
+
+        await check_shell(
+            f'''
+iptables -w 10 --append FORWARD --in-interface {veth_host} --jump ACCEPT && \
+    iptables -w 10 --append FORWARD --out-interface {veth_host} --jump ACCEPT && \
+    iptables -w 10 --table nat --append POSTROUTING --source {self.job_ip}/24 --jump MASQUERADE'''
+        )
+
+        # The default resolver in `/etc/resolv.conf` is a local address (127.0.0.53) which is
+        # inaccessible in other net namespaces since they have their own loop device. So we use
+        # google's public resolver.
+        os.makedirs(f'/etc/netns/{self.network_name}')
+        await check_shell(f'echo nameserver 8.8.8.8 | tee /etc/netns/{self.network_name}/resolv.conf')
+
+    async def expose_port(self, port, host_port):
+        self.port = port
+        self.host_port = host_port
+        await check_shell(
+            f'iptables --table nat --append PREROUTING \\ '
+            f'--match addrtype --dst-type LOCAL \\ '
+            f'--protocol tcp \\ '
+            f'--match tcp --dport {host_port} \\ '
+            f'--jump DNAT --to-destination {self.job_ip}:{port}'
+        )
+
+    async def cleanup(self):
+        # TODO To be tidy we should delete the IP tables rule, though I'm unsure why
+        # it would necessarily be bad to keep there
+        pass
+
+
+class NetworkAllocator:
+    def __init__(self):
+        self.netns = asyncio.Queue()
+
+    async def reserve(self, netns_pool_min_size: int = 64):
+        for subnet_index in range(10, netns_pool_min_size):
+            netns = NetworkNamespace(subnet_index)
+            await netns.init()
+            self.netns.put_nowait(netns)
+
+    async def allocate(self) -> NetworkNamespace:
+        return await self.netns.get()
+
+    async def free(self, netns: NetworkNamespace):
+        await netns.cleanup()
+        self.netns.put_nowait(netns)
 
 
 def docker_call_retry(timeout, name):
@@ -164,73 +239,6 @@ def docker_call_retry(timeout, name):
                 delay = await sleep_and_backoff(delay)
 
     return wrapper
-
-
-async def create_container(config, name):
-    delay = 0.1
-    error = 0
-
-    async def handle_error(e):
-        nonlocal error, delay
-        error += 1
-        if error < 10:
-            delay = await sleep_and_backoff(delay)
-            return
-        raise ValueError('encountered {error} failures in create_container; aborting') from e
-
-    while True:
-        try:
-            return await docker.containers.create(config, name=name)
-        except DockerError as e:
-            # 409 container with name already exists
-            if e.status == 409:
-                try:
-                    delay = await sleep_and_backoff(delay)
-                    return await docker.containers.get(name)
-                except DockerError as eget:
-                    # 404 No such container
-                    if eget.status == 404:
-                        await handle_error(eget)
-                        continue
-            # No such image: {DOCKER_PREFIX}/...
-            if e.status == 404 and 'No such image' in e.message:
-                await handle_error(e)
-                continue
-            raise
-
-
-async def start_container(container):
-    try:
-        return await container.start()
-    except DockerError as e:
-        # 304 container has already started
-        if e.status == 304:
-            return
-        if e.status == 500 and e.message == 'OCI runtime start failed: container process is already dead: unknown':
-            log.info(f'restarting container {container}')
-            return await container.restart()
-        raise
-
-
-async def stop_container(container):
-    try:
-        return await container.stop()
-    except DockerError as e:
-        # 304 container has already stopped
-        if e.status == 304:
-            return
-        raise
-
-
-async def delete_container(container, *args, **kwargs):
-    try:
-        return await container.delete(*args, **kwargs)
-    except DockerError as e:
-        # 404 container does not exist
-        # 409 removal of container is already in progress
-        if e.status in (404, 409):
-            return
-        raise
 
 
 class JobDeletedError(Exception):
@@ -293,7 +301,6 @@ class Container:
         self.spec = spec
 
         image_ref = parse_docker_image_reference(self.spec['image'])
-
         if image_ref.tag is None and image_ref.digest is None:
             log.info(f'adding latest tag to image {self.spec["image"]} for {self}')
             image_ref.tag = 'latest'
@@ -314,196 +321,64 @@ class Container:
 
         self.timeout = self.spec.get('timeout')
 
-        self.container = None
         self.state = 'pending'
-        self.short_error = None
         self.error = None
+        self.timing = {}
+        self.container_status = {}
+        self.finished_at = None
+
         self.timings = Timings(self.is_job_deleted)
-        self.container_status = None
-        self.log = None
+
+        self.logbuffer = bytearray()
         self.overlay_path = None
 
-    def container_config(self):
-        weight = worker_fraction_in_1024ths(self.spec['cpu'])
-        host_config = {'CpuShares': weight, 'Memory': self.spec['memory'], 'BlkioWeight': min(weight, 1000)}
+        self.container_name = f'batch-{self.job.batch_id}-job-{self.job.job_id}-{self.name}'
+        # TODO bundle is not the best name, since that implies the filesystem also comes with a config,
+        # which I recently relocated. rootfs is more precise
+        # Mount-friendly name for the image. Is there a better way?
+        self.bundle_name = self.image_ref_str.replace('/', '_').replace(':', '_').replace('.', '_')
+        self.bundle_path = f'/bundles/{self.bundle_name}'
+        self.container_overlay_path = f'/containers/{self.container_name}'
+        self.config_path = f'/configs/{self.container_name}'
 
-        config = {
-            "AttachStdin": False,
-            "AttachStdout": False,
-            "AttachStderr": False,
-            "Tty": False,
-            'OpenStdin': False,
-            'Cmd': self.spec['command'],
-            'Image': self.image_ref_str,
-            'Entrypoint': '',
-        }
-
-        env = self.spec.get('env', [])
-
-        if self.port is not None:
-            assert self.host_port is not None
-            config['ExposedPorts'] = {f'{self.port}/tcp': {}}
-            host_config['PortBindings'] = {f'{self.port}/tcp': [{'HostIp': '', 'HostPort': str(self.host_port)}]}
-            env = list(env)
-            env.append(f'HAIL_BATCH_WORKER_PORT={self.host_port}')
-            env.append(f'HAIL_BATCH_WORKER_IP={IP_ADDRESS}')
-
-        volume_mounts = self.spec.get('volume_mounts')
-        if volume_mounts:
-            host_config['Binds'] = volume_mounts
-
-        if env:
-            config['Env'] = env
-
-        network = self.spec.get('network')
-        if network is None:
-            network = 'public'
-        host_config['NetworkMode'] = network  # not documented, I used strace to inspect the packets
-
-        config['HostConfig'] = host_config
-
-        return config
-
-    def is_job_deleted(self) -> bool:
-        return self.job.deleted
-
-    def step(self, name: str):
-        return self.timings.step(name)
-
-    async def get_container_status(self):
-        if not self.container:
-            return None
-
-        try:
-            c = await docker_call_retry(MAX_DOCKER_OTHER_OPERATION_SECS, f'{self}')(self.container.show)
-        except DockerError as e:
-            if e.status == 404:
-                return None
-            raise
-
-        cstate = c['State']
-        status = {
-            'state': cstate['Status'],
-            'started_at': cstate['StartedAt'],
-            'finished_at': cstate['FinishedAt'],
-            'out_of_memory': cstate['OOMKilled'],
-        }
-        cerror = cstate['Error']
-        if cerror:
-            status['error'] = cerror
-        else:
-            status['exit_code'] = cstate['ExitCode']
-
-        return status
-
-    async def ensure_image_is_pulled(self, auth=None):
-        try:
-            await docker_call_retry(MAX_DOCKER_OTHER_OPERATION_SECS, f'{self}')(docker.images.get, self.image_ref_str)
-        except DockerError as e:
-            if e.status == 404:
-                await docker_call_retry(MAX_DOCKER_IMAGE_PULL_SECS, f'{self}')(
-                    docker.images.pull, self.image_ref_str, auth=auth
-                )
-
-    def current_user_access_token(self):
-        key = base64.b64decode(self.job.gsa_key['key.json']).decode()
-        return {'username': '_json_key', 'password': key}
-
-    async def batch_worker_access_token(self):
-        async with aiohttp.ClientSession(raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
-            async with await request_retry_transient_errors(
-                session,
-                'POST',
-                'http://169.254.169.254/computeMetadata/v1/instance/service-accounts/default/token',
-                headers={'Metadata-Flavor': 'Google'},
-            ) as resp:
-                access_token = (await resp.json())['access_token']
-                return {'username': 'oauth2accesstoken', 'password': access_token}
+        self.netns: Optional[NetworkNamespace] = None
+        self.proc = None
 
     async def run(self, worker):
         try:
             with self.step('pulling'):
-                is_google_image = is_google_registry_domain(self.image_ref.domain)
-                is_public_image = self.image_ref.name() in PUBLIC_IMAGES
+                # TODO Need a TTL on images
+                async with worker.bundle_locks[self.bundle_name]:
+                    if not os.path.exists(self.bundle_path):
+                        await self.pull_image()
+                        await self.extract_bundle()
 
-                try:
-                    if not is_google_image:
-                        await self.ensure_image_is_pulled()
-                    elif is_public_image:
-                        auth = await self.batch_worker_access_token()
-                        await self.ensure_image_is_pulled(auth=auth)
-                    else:
-                        # Pull to verify this user has access to this
-                        # image.
-                        # FIXME improve the performance of this with a
-                        # per-user image cache.
-                        auth = self.current_user_access_token()
-                        await docker_call_retry(MAX_DOCKER_IMAGE_PULL_SECS, f'{self}')(
-                            docker.images.pull, self.image_ref_str, auth=auth
-                        )
-                except DockerError as e:
-                    if e.status == 404 and 'pull access denied' in e.message:
-                        self.short_error = 'image cannot be pulled'
-                    raise
+            with self.step('setting up overlay'):
+                await self.setup_overlay()
 
-            if self.port is not None:
-                with self.step('allocating_port'):
+            with self.step('setting up network'):
+                self.netns = await network_allocator.allocate()
+                if self.port is not None:
                     self.host_port = await port_allocator.allocate()
+                    await self.netns.expose_port(self.port, self.host_port)
 
-            with self.step('creating'):
-                config = self.container_config()
-                log.info(f'starting {self}')
-                self.container = await docker_call_retry(MAX_DOCKER_OTHER_OPERATION_SECS, f'{self}')(
-                    create_container, config, name=f'batch-{self.job.batch_id}-job-{self.job.job_id}-{self.name}'
-                )
-
-            c = await docker_call_retry(MAX_DOCKER_OTHER_OPERATION_SECS, f'{self}')(self.container.show)
-
-            merged_overlay_path = c['GraphDriver']['Data']['MergedDir']
-            assert merged_overlay_path.endswith('/merged')
-            self.overlay_path = merged_overlay_path[:-7].replace(WORKER_DATA_DISK_MOUNT, '/host')
-            os.makedirs(f'{self.overlay_path}/', exist_ok=True)
-
-            await check_shell_output(
-                f'xfs_quota -x -c "project -s -p {self.overlay_path} {self.job.project_id}" /host/'
-            )
-
-            with self.step('starting'):
-                await docker_call_retry(MAX_DOCKER_OTHER_OPERATION_SECS, f'{self}')(start_container, self.container)
-
-            timed_out = False
             with self.step('running'):
-                try:
-                    async with async_timeout.timeout(self.timeout):
-                        await docker_call_retry(MAX_DOCKER_WAIT_SECS, f'{self}')(self.container.wait)
-                except asyncio.TimeoutError:
-                    timed_out = True
+                timed_out = await self.run_container()
 
-            self.container_status = await self.get_container_status()
+            status = await self.get_container_status()
 
             with self.step('uploading_log'):
-                await worker.log_store.write_log_file(
-                    self.job.format_version,
-                    self.job.batch_id,
-                    self.job.job_id,
-                    self.job.attempt_id,
-                    self.name,
-                    await self.get_container_log(),
-                )
+                await self.upload_log()
 
             with self.step('deleting'):
                 await self.delete_container()
 
             if timed_out:
-                self.short_error = 'timed out'
                 raise JobTimeoutError(f'timed out after {self.timeout}s')
 
-            if self.container_status['out_of_memory']:
-                self.short_error = 'out of memory'
-
-            if 'error' in self.container_status:
+            if self.error:
                 self.state = 'error'
-            elif self.container_status['exit_code'] == 0:
+            elif 'exit_code' in status and status['exit_code'] == 0:
                 self.state = 'succeeded'
             else:
                 self.state = 'failed'
@@ -518,28 +393,212 @@ class Container:
         finally:
             await self.delete_container()
 
-    async def get_container_log(self):
-        logs = await docker_call_retry(MAX_DOCKER_OTHER_OPERATION_SECS, f'{self}')(
-            self.container.log, stderr=True, stdout=True
-        )
-        self.log = "".join(logs)
-        return self.log
+    def is_job_deleted(self) -> bool:
+        return self.job.deleted
 
-    async def get_log(self):
-        if self.container:
-            return await self.get_container_log()
-        return self.log
+    def step(self, name):
+        return self.timings.step(name)
+
+    async def pull_image(self):
+        is_google_image = is_google_registry_domain(self.image_ref.domain)
+        is_public_image = self.image_ref.name() in PUBLIC_IMAGES
+
+        try:
+            if not is_google_image:
+                await self.ensure_image_is_pulled()
+            elif is_public_image:
+                auth = await self.batch_worker_access_token()
+                await self.ensure_image_is_pulled(auth=auth)
+            else:
+                # Pull to verify this user has access to this
+                # image.
+                # FIXME improve the performance of this with a
+                # per-user image cache.
+                auth = self.current_user_access_token()
+                await docker_call_retry(MAX_DOCKER_IMAGE_PULL_SECS, f'{self}')(
+                    docker.images.pull, self.image_ref_str, auth=auth
+                )
+        except DockerError as e:
+            if e.status == 404 and 'pull access denied' in e.message:
+                self.error = 'image cannot be pulled'
+            raise
+
+    async def ensure_image_is_pulled(self, auth=None):
+        try:
+            await docker_call_retry(MAX_DOCKER_OTHER_OPERATION_SECS, f'{self}')(docker.images.get, self.image_ref_str)
+        except DockerError as e:
+            if e.status == 404:
+                await docker_call_retry(MAX_DOCKER_IMAGE_PULL_SECS, f'{self}')(
+                    docker.images.pull, self.image_ref_str, auth=auth
+                )
+
+    async def batch_worker_access_token(self):
+        async with aiohttp.ClientSession(raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
+            async with await request_retry_transient_errors(
+                session,
+                'POST',
+                'http://169.254.169.254/computeMetadata/v1/instance/service-accounts/default/token',
+                headers={'Metadata-Flavor': 'Google'},
+            ) as resp:
+                access_token = (await resp.json())['access_token']
+                return {'username': 'oauth2accesstoken', 'password': access_token}
+
+    def current_user_access_token(self):
+        key = base64.b64decode(self.job.gsa_key['key.json']).decode()
+        return {'username': '_json_key', 'password': key}
+
+    async def extract_bundle(self):
+        image_config, _ = await check_shell_output(f'docker inspect {self.image_ref_str}')
+        image_configs[self.bundle_name] = json.loads(image_config)[0]
+
+        os.makedirs(self.bundle_path)
+        await check_shell(f'docker export $(docker create {self.image_ref_str}) | tar -C {self.bundle_path} -xf -')
+        log.info(f'Extracted bundle for image {self.image_ref_str}')
+
+    async def setup_overlay(self):
+        lower_dir = self.bundle_path
+        upper_dir = f'{self.container_overlay_path}/upper'
+        work_dir = f'{self.container_overlay_path}/work'
+        merged_dir = f'{self.container_overlay_path}/merged'
+        for d in (upper_dir, work_dir, merged_dir):
+            os.makedirs(d)
+        await check_shell(
+            f'mount -t overlay overlay -o lowerdir={lower_dir},upperdir={upper_dir},workdir={work_dir} {merged_dir}'
+        )
+        # TODO Add a test to verify that jobs are not writing to the rootfs
+        # self.overlay_path = merged_dir[:-7].replace(WORKER_DATA_DISK_MOUNT, '/host')
+        # os.makedirs(f'{self.overlay_path}/', exist_ok=True)
+
+        # async with Flock('/xfsquota/projects', pool=worker.pool):
+        #     with open('/xfsquota/projects', 'a') as f:
+        #         f.write(f'{self.job.project_id}:{self.overlay_path}\n')
+
+        # await check_shell_output(
+        #     f'xfs_quota -x -D /xfsquota/projects -P /xfsquota/projid -c "project -s {self.job.project_name}" /host/'
+        # )
+
+    async def run_container(self) -> bool:
+        try:
+            self.write_container_config()
+            async with async_timeout.timeout(self.timeout):
+                log.info('Creating the crun run process')
+                self.proc = await asyncio.create_subprocess_exec(
+                    'crun',
+                    'run',
+                    '--bundle',
+                    f'{self.container_overlay_path}/merged',
+                    '--config',
+                    f'{self.config_path}/config.json',
+                    self.container_name,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE,
+                )
+                await asyncio.gather(self.pipe_to_log(self.proc.stdout), self.pipe_to_log(self.proc.stderr))
+                await self.proc.wait()
+                log.info('Crun process completed')
+        except asyncio.TimeoutError:
+            return True
+        finally:
+            self.finished_at = time_msecs()
+
+        return False
+
+    def write_container_config(self):
+        os.makedirs(self.config_path)
+        with open(f'{self.config_path}/config.json', 'w+') as f:
+            f.write(json.dumps(self.container_config()))
+
+    # https://github.com/opencontainers/runtime-spec/blob/master/config.md
+    def container_config(self):
+        weight = worker_fraction_in_1024ths(self.spec['cpu'])
+        default_docker_capabilities = [
+            'CAP_CHOWN',
+            'CAP_DAC_OVERRIDE',
+            'CAP_FSETID',
+            'CAP_FOWNER',
+            'CAP_MKNOD',
+            'CAP_NET_RAW',
+            'CAP_SETGID',
+            'CAP_SETUID',
+            'CAP_SETFCAP',
+            'CAP_SETPCAP',
+            'CAP_NET_BIND_SERVICE',
+            'CAP_SYS_CHROOT',
+            'CAP_KILL',
+            'CAP_AUDIT_WRITE',
+        ]
+        return {
+            'ociVersion': '1.0.1',
+            'root': {
+                'path': '.',
+                'readonly': False,
+            },
+            'mounts': self._mounts_spec(),
+            'process': {
+                'user': {  # uid/gid *inside the container*
+                    'uid': 0,
+                    'gid': 0,
+                },
+                'args': self.spec['command'],
+                'env': self._env(),
+                'cwd': '/',
+                'capabilities': {
+                    'bounding': default_docker_capabilities,
+                    'effective': default_docker_capabilities,
+                    'inheritable': default_docker_capabilities,
+                    'permitted': default_docker_capabilities,
+                },
+            },
+            'linux': {
+                'namespaces': [
+                    {'type': 'pid'},
+                    {
+                        'type': 'network',
+                        'path': f'/var/run/netns/{self.netns.network_name}',
+                    },
+                    {'type': 'mount'},
+                    {'type': 'ipc'},
+                    {'type': 'uts'},
+                ],
+                'uidMappings': [],  # Can control host -> container uid/gid mappings here
+                'gidMappings': [],
+                'resources': {
+                    'cpu': {'shares': weight},
+                    'memory': {'memory': self.spec['memory']},
+                    # 'blockIO': {'weight': min(weight, 1000)}, TODO Got permission denied
+                },
+            },
+        }
+
+    def _mounts_spec(self):
+        return self.spec.get('volume_mounts') + [
+            {
+                'source': f'/etc/netns/{self.netns.network_name}/resolv.conf',
+                'destination': '/etc/resolv.conf',
+                'type': 'none',
+                'options': ['rbind', 'ro'],
+            }
+        ]
+
+    def _env(self):
+        assert image_configs[self.bundle_name]
+        env = image_configs[self.bundle_name]['Config']['Env'] + self.spec.get('env', [])
+        if self.port is not None:
+            assert self.host_port is not None
+            env.append(f'HAIL_BATCH_WORKER_PORT={self.host_port}')
+            env.append(f'HAIL_BATCH_WORKER_IP={IP_ADDRESS}')
+        return env
 
     async def delete_container(self):
-        if self.container:
+        if self.overlay_path:
+            path = self.overlay_path.replace('/', r'\/')
+            async with Flock('/xfsquota/projects', pool=worker.pool):
+                await check_shell(f"sed -i '/:{path}/d' /xfsquota/projects")
+
+        if self.container_is_running():
             try:
-                log.info(f'{self}: deleting container')
-                await docker_call_retry(MAX_DOCKER_OTHER_OPERATION_SECS, f'{self}')(stop_container, self.container)
-                # v=True deletes anonymous volumes created by the container
-                await docker_call_retry(MAX_DOCKER_OTHER_OPERATION_SECS, f'{self}')(
-                    delete_container, self.container, v=True
-                )
-                self.container = None
+                log.info(f'{self} container is still running, killing crun process')
+                self.proc.kill()
             except asyncio.CancelledError:
                 raise
             except Exception:
@@ -548,6 +607,12 @@ class Container:
         if self.host_port is not None:
             port_allocator.free(self.host_port)
             self.host_port = None
+
+        if self.netns:
+            await network_allocator.free(self.netns)
+            self.netns = None
+
+        # TODO Delete overlay, /container and /configs directories
 
     async def delete(self):
         log.info(f'deleting {self}')
@@ -558,12 +623,11 @@ class Container:
     #   state: str, (pending, pulling, creating, starting, running, uploading_log, deleting, suceeded, error, failed)
     #   timing: dict(str, float),
     #   error: str, (optional)
-    #   short_error: str, (optional)
-    #   container_status: { (from docker container state)
+    #   container_status: {
     #     state: str,
     #     started_at: str, (date)
     #     finished_at: str, (date)
-    #     out_of_memory: bool
+    #     out_of_memory: bool # TODO
     #     error: str, (one of error, exit_code will be present)
     #     exit_code: int
     #   }
@@ -572,16 +636,53 @@ class Container:
         if not state:
             state = self.state
         status = {'name': self.name, 'state': state, 'timing': self.timings.to_dict()}
+        status['container_status'] = await self.get_container_status()
         if self.error:
             status['error'] = self.error
-        if self.short_error:
-            status['short_error'] = self.short_error
-        if self.container_status:
-            status['container_status'] = self.container_status
-        elif self.container:
-            status['container_status'] = await self.get_container_status()
-
         return status
+
+    # TODO This status update situation still feels overcomplicated
+    async def update_container_status(self):
+        if self.container_is_running():
+            state, error = await check_shell_output(f'crun state {self.container_name}', echo=True)
+            if error:
+                self.error = error.decode()
+            else:
+                state = json.loads(state)
+                self.container_status['state'] = state['status']
+                self.container_status['started_at'] = state['created']
+        elif self.container_finished():
+            self.container_status['exit_code'] = self.proc.returncode
+            assert self.finished_at
+            self.container_status['finished_at'] = self.finished_at  # TODO Format human readable
+
+    async def get_container_status(self):
+        await self.update_container_status()
+        return self.container_status
+
+    def container_is_running(self):
+        return self.proc is not None and self.proc.returncode is None
+
+    def container_finished(self):
+        return self.proc is not None and self.proc.returncode is not None
+
+    async def upload_log(self):
+        await worker.log_store.write_log_file(
+            self.job.format_version,
+            self.job.batch_id,
+            self.job.job_id,
+            self.job.attempt_id,
+            self.name,
+            await self.get_log(),
+        )
+
+    async def get_log(self):
+        return self.logbuffer.decode()
+
+    async def pipe_to_log(self, strm: Optional[asyncio.StreamReader]):
+        if strm is not None:
+            while not strm.at_eof():
+                self.logbuffer.extend(await strm.readline())
 
     def __str__(self):
         return f'container {self.job.id}/{self.name}'
@@ -630,7 +731,7 @@ def copy_container(job, name, files, volume_mounts, cpu, memory, requester_pays_
         'image': BATCH_WORKER_IMAGE,
         'name': name,
         'command': [
-            '/usr/local/bin/python3',
+            '/usr/bin/python3',
             '-m',
             'batch.copy',
             json.dumps(requester_pays_project),
@@ -753,7 +854,12 @@ class Job:
         self.main_volume_mounts = []
         self.output_volume_mounts = []
 
-        io_volume_mount = f'{self.io_host_path()}:/io'
+        io_volume_mount = {
+            'source': self.io_host_path(),
+            'destination': '/io',
+            'type': 'none',
+            'options': ['rbind', 'rw'],
+        }
         self.input_volume_mounts.append(io_volume_mount)
         self.main_volume_mounts.append(io_volume_mount)
         self.output_volume_mounts.append(io_volume_mount)
@@ -762,7 +868,14 @@ class Job:
         self.gcsfuse = gcsfuse
         if gcsfuse:
             for b in gcsfuse:
-                self.main_volume_mounts.append(f'{self.gcsfuse_path(b["bucket"])}:{b["mount_path"]}:shared')
+                self.main_volume_mounts.append(
+                    {
+                        'source': self.gcsfuse_path(b["bucket"]),
+                        'destination': b['mount_path'],
+                        'type': 'none',
+                        'options': ['rbind', 'rw', 'shared'],
+                    }
+                )
 
         secrets = job_spec.get('secrets')
         self.secrets = secrets
@@ -852,12 +965,27 @@ class DockerJob(Job):
 
         requester_pays_project = job_spec.get('requester_pays_project')
 
+        self.timings = Timings(lambda: False)
+
+        # TODO I think this is going away anyway
         if job_spec['process'].get('mount_docker_socket'):
-            self.main_volume_mounts.append('/var/run/docker.sock:/var/run/docker.sock')
+            self.main_volume_mounts.append(
+                {
+                    'source': '/var/run/docker.sock',
+                    'destination': '/var/run/docker.sock',
+                    'type': 'none',
+                    'options': [],
+                }
+            )
 
         if self.secrets:
             for secret in self.secrets:
-                volume_mount = f'{self.secret_host_path(secret)}:{secret["mount_path"]}'
+                volume_mount = {
+                    'source': self.secret_host_path(secret),
+                    'destination': secret["mount_path"],
+                    'type': 'none',
+                    'options': ['rbind', 'ro'],
+                }
                 self.main_volume_mounts.append(volume_mount)
                 # this will be the user gsa-key
                 if secret.get('mount_in_copy', False):
@@ -913,6 +1041,9 @@ class DockerJob(Job):
 
         self.containers = containers
 
+    def step(self, name):
+        return self.timings.step(name)
+
     async def setup_io(self):
         if not worker_config.job_private:
             if worker.data_disk_space_remaining.value < self.external_storage_in_gib:
@@ -958,7 +1089,8 @@ class DockerJob(Job):
 
                 os.makedirs(f'{self.scratch}/')
 
-                await self.setup_io()
+                with self.step('setup_io'):
+                    await self.setup_io()
 
                 if not self.disk:
                     data_disk_storage_in_bytes = storage_gib_to_bytes(
@@ -967,25 +1099,28 @@ class DockerJob(Job):
                 else:
                     data_disk_storage_in_bytes = storage_gib_to_bytes(self.data_disk_storage_in_gib)
 
-                await check_shell_output(f'xfs_quota -x -c "project -s -p {self.scratch} {self.project_id}" /host/')
-                await check_shell_output(
-                    f'xfs_quota -x -c "limit -p bsoft={data_disk_storage_in_bytes} bhard={data_disk_storage_in_bytes} {self.project_id}" /host/'
-                )
+                with self.step('configuring xfsquota'):
+                    await check_shell_output(f'xfs_quota -x -c "project -s -p {self.scratch} {self.project_id}" /host/')
+                    await check_shell_output(
+                        f'xfs_quota -x -c "limit -p bsoft={data_disk_storage_in_bytes} bhard={data_disk_storage_in_bytes} {self.project_id}" /host/'
+                    )
 
-                if self.secrets:
-                    for secret in self.secrets:
-                        populate_secret_host_path(self.secret_host_path(secret), secret['data'])
+                with self.step('populating secrets'):
+                    if self.secrets:
+                        for secret in self.secrets:
+                            populate_secret_host_path(self.secret_host_path(secret), secret['data'])
 
-                if self.gcsfuse:
-                    populate_secret_host_path(self.gsa_key_file_path(), self.gsa_key)
-                    for b in self.gcsfuse:
-                        bucket = b['bucket']
-                        await add_gcsfuse_bucket(
-                            mount_path=self.gcsfuse_path(bucket),
-                            bucket=bucket,
-                            key_file=f'{self.gsa_key_file_path()}/key.json',
-                            read_only=b['read_only'],
-                        )
+                with self.step('adding gcsfuse bucket'):
+                    if self.gcsfuse:
+                        populate_secret_host_path(self.gsa_key_file_path(), self.gsa_key)
+                        for b in self.gcsfuse:
+                            bucket = b['bucket']
+                            await add_gcsfuse_bucket(
+                                mount_path=self.gcsfuse_path(bucket),
+                                bucket=bucket,
+                                key_file=f'{self.gsa_key_file_path()}/key.json',
+                                read_only=b['read_only'],
+                            )
 
                 self.state = 'running'
 
@@ -1026,16 +1161,17 @@ class DockerJob(Job):
                 self.state = 'error'
                 self.error = traceback.format_exc()
             finally:
-                if self.disk:
-                    try:
-                        await self.disk.delete()
-                        log.info(f'deleted disk {self.disk.name} for {self.id}')
-                    except Exception:
-                        log.exception(f'while detaching and deleting disk {self.disk.name} for {self.id}')
-                else:
-                    worker.data_disk_space_remaining.value += self.external_storage_in_gib
+                with self.step('post-job finally block'):
+                    if self.disk:
+                        try:
+                            await self.disk.delete()
+                            log.info(f'deleted disk {self.disk.name} for {self.id}')
+                        except Exception:
+                            log.exception(f'while detaching and deleting disk {self.disk.name} for {self.id}')
+                    else:
+                        worker.data_disk_space_remaining.value += self.external_storage_in_gib
 
-                await self.cleanup()
+                    await self.cleanup()
 
     async def cleanup(self):
         self.end_time = time_msecs()
@@ -1073,6 +1209,7 @@ class DockerJob(Job):
         status = await super().status()
         cstatuses = {name: await c.status() for name, c in self.containers.items()}
         status['container_statuses'] = cstatuses
+        status['timing'] = self.timings.to_dict()
 
         return status
 
@@ -1305,6 +1442,8 @@ class Worker:
         self.stop_event = asyncio.Event()
         self.task_manager = aiotools.BackgroundTaskManager()
         self.jar_download_locks = defaultdict(asyncio.Lock)
+
+        self.bundle_locks = defaultdict(asyncio.Lock)
 
         # filled in during activation
         self.log_store = None
@@ -1613,11 +1752,14 @@ class Worker:
 
 
 async def async_main():
-    global port_allocator, worker, docker
+    global port_allocator, network_allocator, worker, docker
 
     docker = aiodocker.Docker()
 
     port_allocator = PortAllocator()
+    network_allocator = NetworkAllocator()
+    await network_allocator.reserve()
+
     worker = Worker()
     try:
         await worker.run()
