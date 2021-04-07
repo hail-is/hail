@@ -1,9 +1,14 @@
 package is.hail.expr.ir.functions
 
+import is.hail.annotations.{Memory, Region}
+import is.hail.asm4s.{Code, Value}
 import is.hail.expr.{Nat, NatVariable}
 import is.hail.expr.ir._
+import is.hail.linalg.LAPACK
 import is.hail.types.coerce
+import is.hail.types.physical.PCanonicalNDArray
 import is.hail.types.virtual._
+import is.hail.utils._
 
 object NDArrayFunctions extends RegistryFunctions {
   override def registerAll() {
@@ -29,15 +34,51 @@ object NDArrayFunctions extends RegistryFunctions {
       }
     }
 
-    registerIEmitCode2("linear_solve", TNDArray(TFloat64, Nat(2)), TNDArray(TFloat64, Nat(2)), TNDArray(TFloat64, Nat(2)), { (t, p1, p2) => p2 }) { case (cb, r, pt, aec, bec) =>
+    registerIEmitCode2("linear_solve", TNDArray(TFloat64, Nat(2)), TNDArray(TFloat64, Nat(2)), TNDArray(TFloat64, Nat(2)), { (t, p1, p2) => p2 }) { case (cb, region, pt, aec, bec) =>
       aec.toI(cb).flatMap(cb){ apc =>
         bec.toI(cb).map(cb){ bpc =>
-          val a = apc.asNDArray.memoize(cb, "A")
-          val b = bpc.asNDArray.memoize(cb, "B")
-          val IndexedSeq(m, k) = b.shapes(cb)
+          val aInput = apc.asNDArray.memoize(cb, "A")
+          val bInput = bpc.asNDArray.memoize(cb, "B")
+          val IndexedSeq(n, nrhs) = bInput.shapes(cb)
+
+          val infoDGESVResult = cb.newLocal[Int]("dgesv_result")
+          val ipiv = cb.newLocal[Long]("dgesv_ipiv")
+          cb.assign(ipiv, region.allocate(4L, n * 4L))
+
+          val aCopy = cb.newLocal[Long]("dgesv_a_copy")
+          def aNumBytes = n * n * 8L
+          cb.assign(aCopy, region.allocate(8L, aNumBytes))
+          val aInputFirstElement = aInput.firstDataAddress(cb)
+
+          cb.append(Region.copyFrom(aInputFirstElement, aCopy, aNumBytes))
+
+          // Need:
+          // Garbage space for A's LU
+          // Good space for B's output
+          // Garbage space for IPIV
+
+          val outputPType = coerce[PCanonicalNDArray](pt)
+          val outputShape = IndexedSeq(n, nrhs)
+          val (outputAddresss, outputFinisher) = outputPType.constructDataFunction(outputShape, outputPType.makeColumnMajorStrides(outputShape, region, cb), cb, region)
+
+          Region.copyFrom(bInput.firstDataAddress(cb), outputAddresss, n * nrhs * 8L)
+
+          cb.assign(infoDGESVResult, Code.invokeScalaObject7[Int, Int, Long, Int, Long, Long, Int, Int](LAPACK.getClass, "dgesv",
+            n.toI,
+            nrhs.toI,
+            aCopy,
+            n.toI,
+            ipiv,
+            outputAddresss,
+            n.toI
+          ))
+
+          cb.append(Code.invokeStatic1[Memory, Long, Unit]("free", ipiv.load()))
+          cb.append(Code.invokeStatic1[Memory, Long, Unit]("free", aCopy.load()))
+
+          outputFinisher(cb)
         }
       }
-      ???
     }
   }
 }

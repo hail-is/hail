@@ -11,6 +11,8 @@ from hail.expr.expressions import (
 from hail.expr.expressions.typed_expressions import NDArrayNumericExpression
 from hail.ir import NDArrayQR, NDArrayInv, NDArrayConcat, NDArraySVD
 
+from python.hail.ir import Apply
+
 tsequenceof_nd = oneof(sequenceof(expr_ndarray()), expr_array(expr_ndarray()))
 shape_type = oneof(expr_int64, tupleof(expr_int64), expr_tuple())
 
@@ -219,6 +221,14 @@ def diagonal(nd):
     assert nd.ndim == 2, "diagonal requires 2 dimensional ndarray"
     shape_min = hl.min(nd.shape[0], nd.shape[1])
     return hl.nd.array(hl.range(hl.int32(shape_min)).map(lambda i: nd[i, i]))
+
+
+def solve(a, b):
+    assert a.ndim == 2
+    assert b.ndim == 1 or b.ndim == 2
+
+    ir = Apply("linear_solve", hl.tndarray(2, hl.tfloat64), a, b)
+    return construct_expr(ir, hl.tndarray(2, hl.tfloat64), a._indices, a._aggs)
 
 
 @typecheck(nd=expr_ndarray(), mode=str)
