@@ -1057,7 +1057,16 @@ class EmitMethodBuilder[C](
     EmitCodeBuilder.scopedVoid(this) { cb =>
       cb.define(label)
       f(cb)
-//      assert(!cb.isOpenEnded)
+      // assert(!cb.isOpenEnded)
+        /*
+        FIXME: The above assertion should hold, but currently does not. This is
+        likely due to client code with patterns like the following, which incorrectly
+        leaves the code builder open-ended:
+
+        cb.ifx(b,
+          cb.goto(L1),
+          cb.goto(L2))
+         */
     }
   }
 

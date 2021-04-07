@@ -63,7 +63,7 @@ abstract class StreamProducer {
   val elementRegion: Settable[Region]
 
   /**
-    * This boolean parameter indicates whether the producer's elements should be emitted into
+    * This boolean parameter indicates whether the producer's elements should be allocated in
     * separate regions (by clearing when elements leave a consumer's scope). This parameter
     * propagates bottom-up from producers like [[ReadPartition]] and [[StreamRange]], but
     * it is the responsibility of consumers to implement the right memory management semantics
@@ -217,12 +217,9 @@ object EmitStream {
       case In(n, _) =>
         // this, Code[Region], ...
         val param = mb.getEmitParam(2 + n, outerRegion)
-        param.st match {
-          case _: SStream =>
-          case t => throw new RuntimeException(s"parameter ${ 2 + n } is not a stream! t=$t, params=${ mb.emitParamTypes }")
-        }
+        if (!param.st.isInstanceOf[SStream])
+          throw new RuntimeException(s"parameter ${ 2 + n } is not a stream! t=${ param.st } }, params=${ mb.emitParamTypes }")
         param.load.toI(cb)
-
 
       case ToStream(a, _separateRegions) =>
 
