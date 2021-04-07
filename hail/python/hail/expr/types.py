@@ -572,7 +572,7 @@ class _tbool(HailType):
         pass
 
     def to_numpy(self):
-        return np.bool
+        return bool
 
 
 class tndarray(HailType):
