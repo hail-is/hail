@@ -9,9 +9,7 @@ from hail.expr.expressions import (
     expr_int32, expr_int64, expr_tuple, expr_any, expr_array, expr_ndarray,
     expr_numeric, Int64Expression, cast_expr, construct_expr)
 from hail.expr.expressions.typed_expressions import NDArrayNumericExpression
-from hail.ir import NDArrayQR, NDArrayInv, NDArrayConcat, NDArraySVD
-
-from python.hail.ir import Apply
+from hail.ir import NDArrayQR, NDArrayInv, NDArrayConcat, NDArraySVD, Apply
 
 tsequenceof_nd = oneof(sequenceof(expr_ndarray()), expr_array(expr_ndarray()))
 shape_type = oneof(expr_int64, tupleof(expr_int64), expr_tuple())
@@ -227,8 +225,15 @@ def solve(a, b):
     assert a.ndim == 2
     assert b.ndim == 1 or b.ndim == 2
 
-    ir = Apply("linear_solve", hl.tndarray(2, hl.tfloat64), a, b)
-    return construct_expr(ir, hl.tndarray(2, hl.tfloat64), a._indices, a._aggs)
+    if b.ndim == 1:
+        b = b.reshape((-1, 1))
+
+    # TODO: Only do this if needed
+    a = a.map(lambda e: hl.float64(e))
+    b = b.map(lambda e: hl.float64(e))
+
+    ir = Apply("linear_solve", hl.tndarray(hl.tfloat64, 2), a._ir, b._ir)
+    return construct_expr(ir, hl.tndarray(hl.tfloat64, 2), a._indices, a._aggregations)
 
 
 @typecheck(nd=expr_ndarray(), mode=str)

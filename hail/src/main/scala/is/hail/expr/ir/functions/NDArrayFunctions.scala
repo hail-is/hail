@@ -39,7 +39,13 @@ object NDArrayFunctions extends RegistryFunctions {
         bec.toI(cb).map(cb){ bpc =>
           val aInput = apc.asNDArray.memoize(cb, "A")
           val bInput = bpc.asNDArray.memoize(cb, "B")
+          val IndexedSeq(n0, n1) = aInput.shapes(cb)
+
+          cb.ifx(n0 cne n1, cb._fatal("hail.nd.solve: matrix a must be square."))
+
           val IndexedSeq(n, nrhs) = bInput.shapes(cb)
+
+          cb.ifx(n0 cne n, cb._fatal("hail.nd.solve: Solve dimensions incompatible"))
 
           val infoDGESVResult = cb.newLocal[Int]("dgesv_result")
           val ipiv = cb.newLocal[Long]("dgesv_ipiv")
@@ -52,16 +58,11 @@ object NDArrayFunctions extends RegistryFunctions {
 
           cb.append(Region.copyFrom(aInputFirstElement, aCopy, aNumBytes))
 
-          // Need:
-          // Garbage space for A's LU
-          // Good space for B's output
-          // Garbage space for IPIV
-
           val outputPType = coerce[PCanonicalNDArray](pt)
           val outputShape = IndexedSeq(n, nrhs)
-          val (outputAddresss, outputFinisher) = outputPType.constructDataFunction(outputShape, outputPType.makeColumnMajorStrides(outputShape, region, cb), cb, region)
+          val (outputAddress, outputFinisher) = outputPType.constructDataFunction(outputShape, outputPType.makeColumnMajorStrides(outputShape, region, cb), cb, region)
 
-          Region.copyFrom(bInput.firstDataAddress(cb), outputAddresss, n * nrhs * 8L)
+          cb.append(Region.copyFrom(bInput.firstDataAddress(cb), outputAddress, n * nrhs * 8L))
 
           cb.assign(infoDGESVResult, Code.invokeScalaObject7[Int, Int, Long, Int, Long, Long, Int, Int](LAPACK.getClass, "dgesv",
             n.toI,
@@ -69,12 +70,15 @@ object NDArrayFunctions extends RegistryFunctions {
             aCopy,
             n.toI,
             ipiv,
-            outputAddresss,
+            outputAddress,
             n.toI
           ))
 
-          cb.append(Code.invokeStatic1[Memory, Long, Unit]("free", ipiv.load()))
-          cb.append(Code.invokeStatic1[Memory, Long, Unit]("free", aCopy.load()))
+          cb.println("aCopy = ", aCopy.toS)
+          cb.println("outputAddressFirstElement = ", Region.loadDouble(outputAddress).toS)
+
+          //cb.append(Code.invokeStatic1[Memory, Long, Unit]("free", ipiv.load()))
+          //cb.append(Code.invokeStatic1[Memory, Long, Unit]("free", aCopy.load()))
 
           outputFinisher(cb)
         }
