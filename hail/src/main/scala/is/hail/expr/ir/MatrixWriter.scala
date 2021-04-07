@@ -250,7 +250,7 @@ case class SplitPartitionNativeWriter(
         cb += ob2.flush()
         cb += os1.invoke[Unit]("close")
         cb += os2.invoke[Unit]("close")
-        filenameType.storeAtAddress(cb, pResultType.fieldOffset(result, "filePath"),region, pctx, false)
+        filenameType.storeAtAddress(cb, pResultType.fieldOffset(result, "filePath"), region, pctx, false)
         cb += Region.storeLong(pResultType.fieldOffset(result, "partitionCounts"), n)
         result.get
       })
