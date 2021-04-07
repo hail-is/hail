@@ -6,5 +6,5 @@ hl.init()
 # turn it off
 hl.stop()
 
-# turn ir back on
+# turn it back on
 hl.init()
