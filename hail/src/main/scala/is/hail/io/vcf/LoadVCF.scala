@@ -960,7 +960,6 @@ final class VCFLine(val line: String, arrayElementsRequired: Boolean,
           parseAddInfoField(rvb, c.infoFieldTypes(idx))
         } catch {
           case e: VCFParseError => parseError(s"error while parsing info field '$key': ${ e.msg }")
-          case e => throw e
         }
       }
     }
