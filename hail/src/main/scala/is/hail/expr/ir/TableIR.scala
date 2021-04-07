@@ -498,7 +498,7 @@ case class PartitionRVDReader(rvd: RVD) extends PartitionReader {
           cb.assign(upcastF, Code.checkcast[AsmFunction2RegionLongLong](upcastCode.invoke[AnyRef, AnyRef, AnyRef]("apply", Code.boxInt(0), partitionRegion)))
         }
         override val elementRegion: Settable[Region] = region
-        override val separateRegions: Boolean = true
+        override val requiresMemoryManagementPerElement: Boolean = true
         override val LproduceElement: CodeLabel = mb.defineAndImplementLabel { cb =>
           cb.ifx(!iterator.invoke[Boolean]("hasNext"), cb.goto(LendOfStream))
           cb.assign(next, upcastF.invoke[Region, Long, Long]("apply", region, Code.longValue(iterator.invoke[java.lang.Long]("next"))))
@@ -549,7 +549,7 @@ case class PartitionNativeReader(spec: AbstractTypedCodecSpec) extends AbstractN
           cb.assign(xRowBuf, spec.buildCodeInputBuffer(mb.open(pathString, checkCodec = true)))
         }
         override val elementRegion: Settable[Region] = region
-        override val separateRegions: Boolean = true
+        override val requiresMemoryManagementPerElement: Boolean = true
         override val LproduceElement: CodeLabel = mb.defineAndImplementLabel { cb =>
           cb.ifx(!xRowBuf.readByte().toZ, cb.goto(LendOfStream))
           cb.assign(next, spec.encodedType.buildDecoder(requestedType, cb.emb.ecb).apply(cb, region, xRowBuf))
@@ -647,7 +647,7 @@ case class PartitionNativeReaderIndexed(spec: AbstractTypedCodecSpec, indexSpec:
             ))
         }
         override val elementRegion: Settable[Region] = region
-        override val separateRegions: Boolean = true
+        override val requiresMemoryManagementPerElement: Boolean = true
         override val LproduceElement: CodeLabel = mb.defineAndImplementLabel { cb =>
           cb.ifx(!it.invoke[Boolean]("hasNext"), cb.goto(LendOfStream))
           cb.assign(next, it.invoke[Long]("_next"))
@@ -824,7 +824,7 @@ case class PartitionZippedNativeReader(specLeft: AbstractTypedCodecSpec, specRig
         }
 
         override val elementRegion: Settable[Region] = region
-        override val separateRegions: Boolean = true
+        override val requiresMemoryManagementPerElement: Boolean = true
         override val LproduceElement: CodeLabel = mb.defineAndImplementLabel { cb =>
           cb.ifx(!it.invoke[Boolean]("hasNext"), cb.goto(LendOfStream))
           cb.assign(next, it.invoke[Long]("_next"))

@@ -37,7 +37,7 @@ object StreamUtils {
 
         stream.memoryManagedConsume(destRegion, cb, setup = { cb =>
           cb.assign(xLen, len)
-          val (_pushElem, _finish) = aTyp.constructFromFunctions(cb, destRegion, xLen, deepCopy = stream.separateRegions)
+          val (_pushElem, _finish) = aTyp.constructFromFunctions(cb, destRegion, xLen, deepCopy = stream.requiresMemoryManagementPerElement)
           pushElem = _pushElem
           finish = _finish
         }) { cb =>
@@ -61,7 +61,7 @@ object StreamUtils {
     }) { cb =>
       stream.element.toI(cb).consume(cb,
         cb += ab.addMissing(),
-        sc => cb += ab.add(SingleCodePCode.fromPCode(cb, sc, destRegion, deepCopy = stream.separateRegions).code)
+        sc => cb += ab.add(SingleCodePCode.fromPCode(cb, sc, destRegion, deepCopy = stream.requiresMemoryManagementPerElement).code)
       )
     }
   }

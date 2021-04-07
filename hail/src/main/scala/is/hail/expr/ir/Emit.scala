@@ -1715,7 +1715,7 @@ class Emit[C](
 
             var tmpRegion: Settable[Region] = null
 
-            if (producer.separateRegions) {
+            if (producer.requiresMemoryManagementPerElement) {
               cb.assign(producer.elementRegion, Region.stagedCreate(Region.REGULAR, region.getPool()))
 
               tmpRegion = mb.genFieldThisRef[Region]("streamfold_tmpregion")
@@ -1732,7 +1732,7 @@ class Emit[C](
             producer.unmanagedConsume(cb) { cb =>
               cb.assign(xElt, producer.element)
 
-              if (producer.separateRegions) {
+              if (producer.requiresMemoryManagementPerElement) {
                 cb.assign(xAcc, emitI(body, producer.elementRegion, env.bind(accumName -> xAcc, valueName -> xElt))
                   .map(cb)(pc => pc.castTo(cb, tmpRegion, x.accPType, deepCopy = true)))
                 cb += producer.elementRegion.clearRegion()
@@ -1745,7 +1745,7 @@ class Emit[C](
               }
             }
 
-            if (producer.separateRegions) {
+            if (producer.requiresMemoryManagementPerElement) {
               cb.assign(xAcc, xAcc.toI(cb).map(cb)(pc => pc.castTo(cb, region, pc.pt, deepCopy = true)))
               cb += producer.elementRegion.invalidate()
               cb += tmpRegion.invalidate()
@@ -1768,7 +1768,7 @@ class Emit[C](
             val resEnv = env.bind(names.zip(accVars): _*)
             val seqEnv = resEnv.bind(valueName, xElt)
 
-            if (producer.separateRegions) {
+            if (producer.requiresMemoryManagementPerElement) {
               cb.assign(producer.elementRegion, Region.stagedCreate(Region.REGULAR, region.getPool()))
 
               tmpRegion = mb.genFieldThisRef[Region]("streamfold_tmpregion")
@@ -1786,7 +1786,7 @@ class Emit[C](
 
             producer.unmanagedConsume(cb) { cb =>
               cb.assign(xElt, producer.element)
-              if (producer.separateRegions) {
+              if (producer.requiresMemoryManagementPerElement) {
                 (accVars, seq).zipped.foreach { (accVar, ir) =>
                   cb.assign(accVar,
                     emitI(ir, producer.elementRegion, env = seqEnv)
@@ -1805,7 +1805,7 @@ class Emit[C](
               }
             }
 
-            if (producer.separateRegions) {
+            if (producer.requiresMemoryManagementPerElement) {
               accVars.foreach { xAcc =>
                 cb.assign(xAcc, xAcc.toI(cb).map(cb)(pc => pc.castTo(cb, region, pc.pt, deepCopy = true)))
               }
