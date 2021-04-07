@@ -185,7 +185,7 @@ object EmitStream {
           override val length: Option[Code[Int]] = Some(Code._fatal[Int]("tried to get NA stream length"))
           override val elementRegion: Settable[Region] = region
           override val separateRegions: Boolean = false
-          override val LproduceElement: CodeLabel = mb.defineHangingLabel { cb =>
+          override val LproduceElement: CodeLabel = mb.defineAndImplementLabel { cb =>
             cb.goto(LendOfStream)
           }
           override val element: EmitCode = EmitCode.missing(mb, eltType)
@@ -205,7 +205,7 @@ object EmitStream {
               override val length: Option[Code[Int]] = childProducer.length
               override val elementRegion: Settable[Region] = childProducer.elementRegion
               override val separateRegions: Boolean = childProducer.separateRegions
-              override val LproduceElement: CodeLabel = mb.defineHangingLabel { cb =>
+              override val LproduceElement: CodeLabel = mb.defineAndImplementLabel { cb =>
                 cb.goto(childProducer.LproduceElement)
                 cb.define(childProducer.LproduceElementDone)
                 cb.goto(LproduceElementDone)
@@ -257,7 +257,7 @@ object EmitStream {
 
               override val separateRegions: Boolean = _separateRegions
 
-              override val LproduceElement: CodeLabel = mb.defineHangingLabel { cb =>
+              override val LproduceElement: CodeLabel = mb.defineAndImplementLabel { cb =>
                 cb.assign(idx, idx + 1)
                 cb.ifx(idx >= container.loadLength(), cb.goto(LendOfStream))
                 cb.goto(LproduceElementDone)
@@ -293,7 +293,7 @@ object EmitStream {
 
             override val separateRegions: Boolean = _separateRegions
 
-            override val LproduceElement: CodeLabel = mb.defineHangingLabel { cb =>
+            override val LproduceElement: CodeLabel = mb.defineAndImplementLabel { cb =>
               val LendOfSwitch = CodeLabel()
               cb += Code.switch(current,
                 EmitCodeBuilder.scopedVoid(mb) { cb =>
@@ -355,7 +355,7 @@ object EmitStream {
 
             override val elementRegion: Settable[Region] = region
             override val separateRegions: Boolean = leftProducer.separateRegions || rightProducer.separateRegions
-            override val LproduceElement: CodeLabel = mb.defineHangingLabel { cb =>
+            override val LproduceElement: CodeLabel = mb.defineAndImplementLabel { cb =>
               cb.ifx(xCond, cb.goto(leftProducer.LproduceElement), cb.goto(rightProducer.LproduceElement))
 
               cb.define(leftProducer.LproduceElementDone)
@@ -437,7 +437,7 @@ object EmitStream {
 
                 override val separateRegions: Boolean = _separateRegions
 
-                override val LproduceElement: CodeLabel = mb.defineHangingLabel { cb =>
+                override val LproduceElement: CodeLabel = mb.defineAndImplementLabel { cb =>
                   cb.ifx(idx >= len, cb.goto(LendOfStream))
                   cb.assign(curr, curr + step)
                   cb.assign(idx, idx + 1)
@@ -480,7 +480,7 @@ object EmitStream {
 
               override val separateRegions: Boolean = childProducer.separateRegions
 
-              override val LproduceElement: CodeLabel = mb.defineHangingLabel { cb =>
+              override val LproduceElement: CodeLabel = mb.defineAndImplementLabel { cb =>
                 val Lfiltered = CodeLabel()
                 cb.goto(childProducer.LproduceElement)
                 cb.define(childProducer.LproduceElementDone)
@@ -542,7 +542,7 @@ object EmitStream {
 
                 override val elementRegion: Settable[Region] = childProducer.elementRegion
                 override val separateRegions: Boolean = childProducer.separateRegions
-                override val LproduceElement: CodeLabel = mb.defineHangingLabel { cb =>
+                override val LproduceElement: CodeLabel = mb.defineAndImplementLabel { cb =>
                   cb.ifx(idx >= n, cb.goto(LendOfStream))
                   cb.assign(idx, idx + 1)
                   cb.goto(childProducer.LproduceElement)
@@ -583,7 +583,7 @@ object EmitStream {
 
                 override val elementRegion: Settable[Region] = childProducer.elementRegion
                 override val separateRegions: Boolean = childProducer.separateRegions
-                override val LproduceElement: CodeLabel = mb.defineHangingLabel { cb =>
+                override val LproduceElement: CodeLabel = mb.defineAndImplementLabel { cb =>
                   cb.goto(childProducer.LproduceElement)
                   cb.define(childProducer.LproduceElementDone)
                   cb.assign(idx, idx + 1)
@@ -633,7 +633,7 @@ object EmitStream {
 
               override val separateRegions: Boolean = childProducer.separateRegions
 
-              override val LproduceElement: CodeLabel = mb.defineHangingLabel { cb =>
+              override val LproduceElement: CodeLabel = mb.defineAndImplementLabel { cb =>
                 cb.goto(childProducer.LproduceElement)
                 cb.define(childProducer.LproduceElementDone)
                 cb.goto(LproduceElementDone)
@@ -681,7 +681,7 @@ object EmitStream {
 
             override val separateRegions: Boolean = childProducer.separateRegions
 
-            override val LproduceElement: CodeLabel = mb.defineHangingLabel { cb =>
+            override val LproduceElement: CodeLabel = mb.defineAndImplementLabel { cb =>
 
               val LcopyAndReturn = CodeLabel()
 
@@ -758,7 +758,7 @@ object EmitStream {
 
             override val elementRegion: Settable[Region] = childProducer.elementRegion
             override val separateRegions: Boolean = childProducer.separateRegions
-            override val LproduceElement: CodeLabel = mb.defineHangingLabel { cb =>
+            override val LproduceElement: CodeLabel = mb.defineAndImplementLabel { cb =>
               cb.goto(childProducer.LproduceElement)
               cb.define(childProducer.LproduceElementDone)
               cb.assign(childEltField, childProducer.element)
@@ -819,7 +819,7 @@ object EmitStream {
 
             override val separateRegions: Boolean = innerProducer.separateRegions || outerProducer.separateRegions
 
-            override val LproduceElement: CodeLabel = mb.defineHangingLabel { cb =>
+            override val LproduceElement: CodeLabel = mb.defineAndImplementLabel { cb =>
               val LnextOuter = CodeLabel()
               val LnextInner = CodeLabel()
               cb.ifx(first, {
@@ -936,7 +936,7 @@ object EmitStream {
 
                   override val elementRegion: Settable[Region] = leftProducer.elementRegion
                   override val separateRegions: Boolean = leftProducer.separateRegions
-                  override val LproduceElement: CodeLabel = mb.defineHangingLabel { cb =>
+                  override val LproduceElement: CodeLabel = mb.defineAndImplementLabel { cb =>
 
                     cb.goto(leftProducer.LproduceElement)
                     cb.define(leftProducer.LproduceElementDone)
@@ -1043,7 +1043,7 @@ object EmitStream {
 
                   override val elementRegion: Settable[Region] = _elementRegion
                   override val separateRegions: Boolean = leftProducer.separateRegions || rightProducer.separateRegions
-                  override val LproduceElement: CodeLabel = mb.defineHangingLabel { cb =>
+                  override val LproduceElement: CodeLabel = mb.defineAndImplementLabel { cb =>
 
                     val LpullRight = CodeLabel()
                     val LpullLeft = CodeLabel()
@@ -1244,7 +1244,7 @@ object EmitStream {
 
             override val elementRegion: Settable[Region] = innerResultRegion
             override val separateRegions: Boolean = childProducer.separateRegions
-            override val LproduceElement: CodeLabel = mb.defineHangingLabel { cb =>
+            override val LproduceElement: CodeLabel = mb.defineAndImplementLabel { cb =>
               val LelementReady = CodeLabel()
 
               // the first pull from the inner stream has the next record ready to go from the outer stream
@@ -1314,7 +1314,7 @@ object EmitStream {
 
             override val elementRegion: Settable[Region] = outerElementRegion
             override val separateRegions: Boolean = childProducer.separateRegions
-            override val LproduceElement: CodeLabel = mb.defineHangingLabel { cb =>
+            override val LproduceElement: CodeLabel = mb.defineAndImplementLabel { cb =>
               cb.ifx(eos, {
                 cb.goto(LendOfStream)
               })
@@ -1414,7 +1414,7 @@ object EmitStream {
 
               override val elementRegion: Settable[Region] = innerResultRegion
               override val separateRegions: Boolean = childProducer.separateRegions
-              override val LproduceElement: CodeLabel = mb.defineHangingLabel { cb =>
+              override val LproduceElement: CodeLabel = mb.defineAndImplementLabel { cb =>
                 cb.ifx(inOuter, {
                   cb.assign(inOuter, false)
                   cb.ifx(xCounter.cne(1), cb._fatal(s"streamgrouped inner producer error, xCounter=", xCounter.toS))
@@ -1459,7 +1459,7 @@ object EmitStream {
 
               override val elementRegion: Settable[Region] = outerElementRegion
               override val separateRegions: Boolean = childProducer.separateRegions
-              override val LproduceElement: CodeLabel = mb.defineHangingLabel { cb =>
+              override val LproduceElement: CodeLabel = mb.defineAndImplementLabel { cb =>
                 cb.ifx(eos, {
                   cb.goto(LendOfStream)
                 })
@@ -1543,7 +1543,7 @@ object EmitStream {
 
                 override val separateRegions: Boolean = producers.exists(_.separateRegions)
 
-                override val LproduceElement: CodeLabel = mb.defineHangingLabel { cb =>
+                override val LproduceElement: CodeLabel = mb.defineAndImplementLabel { cb =>
 
                   producers.zipWithIndex.foreach { case (p, i) =>
                     cb.goto(p.LproduceElement)
@@ -1611,7 +1611,7 @@ object EmitStream {
 
                 override val separateRegions: Boolean = producers.exists(_.separateRegions)
 
-                override val LproduceElement: CodeLabel = mb.defineHangingLabel { cb =>
+                override val LproduceElement: CodeLabel = mb.defineAndImplementLabel { cb =>
                   cb.assign(allEOS, true)
 
                   producers.zipWithIndex.foreach { case (p, i) =>
@@ -1681,7 +1681,7 @@ object EmitStream {
 
                 override val separateRegions: Boolean = producers.exists(_.separateRegions)
 
-                override val LproduceElement: CodeLabel = mb.defineHangingLabel { cb =>
+                override val LproduceElement: CodeLabel = mb.defineAndImplementLabel { cb =>
 
                   producers.zipWithIndex.foreach { case (p, i) =>
 
@@ -1816,7 +1816,7 @@ object EmitStream {
 
             override val elementRegion: Settable[Region] = _elementRegion
             override val separateRegions: Boolean = producers.exists(_.separateRegions)
-            override val LproduceElement: CodeLabel = mb.defineHangingLabel { cb =>
+            override val LproduceElement: CodeLabel = mb.defineAndImplementLabel { cb =>
               val LrunMatch = CodeLabel()
               val LpullChild = CodeLabel()
               val LloopEnd = CodeLabel()
@@ -2055,7 +2055,7 @@ object EmitStream {
 
             override val elementRegion: Settable[Region] = region
             override val separateRegions: Boolean = producers.exists(_.separateRegions)
-            override val LproduceElement: CodeLabel = mb.defineHangingLabel { cb =>
+            override val LproduceElement: CodeLabel = mb.defineAndImplementLabel { cb =>
               val LrunMatch = CodeLabel()
               val LpullChild = CodeLabel()
               val LloopEnd = CodeLabel()
@@ -2188,7 +2188,7 @@ object EmitStream {
 
           override val elementRegion: Settable[Region] = region
           override val separateRegions: Boolean = true
-          override val LproduceElement: CodeLabel = mb.defineHangingLabel { cb =>
+          override val LproduceElement: CodeLabel = mb.defineAndImplementLabel { cb =>
             cb.ifx(shuffle.getValueFinished(), cb.goto(LendOfStream))
             cb.goto(LproduceElementDone)
           }
@@ -2228,7 +2228,7 @@ object EmitStream {
 
           override val elementRegion: Settable[Region] = region
           override val separateRegions: Boolean = false
-          override val LproduceElement: CodeLabel = mb.defineHangingLabel { cb =>
+          override val LproduceElement: CodeLabel = mb.defineAndImplementLabel { cb =>
             cb.ifx(shuffle.partitionBoundsValueFinished(), cb.goto(LendOfStream))
             cb.assign(currentAddr, shuffle.partitionBoundsValue(region))
             cb.goto(LproduceElementDone)

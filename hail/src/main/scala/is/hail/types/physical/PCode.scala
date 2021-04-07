@@ -140,7 +140,7 @@ case class StreamSingleCodeType(separateRegions: Boolean, eltType: PType) extend
 
       override val elementRegion: Settable[Region] = eltRegion
       override val separateRegions: Boolean = self.separateRegions
-      override val LproduceElement: CodeLabel = mb.defineHangingLabel { cb =>
+      override val LproduceElement: CodeLabel = mb.defineAndImplementLabel { cb =>
         val hasNext = cb.newLocal[Boolean]("stream_in_hasnext", xIter.load().hasNext)
         cb.ifx(!hasNext, cb.goto(LendOfStream))
         cb.assign(rvAddr, xIter.load().next().invoke[Long]("longValue"))

@@ -499,7 +499,7 @@ case class PartitionRVDReader(rvd: RVD) extends PartitionReader {
         }
         override val elementRegion: Settable[Region] = region
         override val separateRegions: Boolean = true
-        override val LproduceElement: CodeLabel = mb.defineHangingLabel { cb =>
+        override val LproduceElement: CodeLabel = mb.defineAndImplementLabel { cb =>
           cb.ifx(!iterator.invoke[Boolean]("hasNext"), cb.goto(LendOfStream))
           cb.assign(next, upcastF.invoke[Region, Long, Long]("apply", region, Code.longValue(iterator.invoke[java.lang.Long]("next"))))
           cb.goto(LproduceElementDone)
@@ -550,7 +550,7 @@ case class PartitionNativeReader(spec: AbstractTypedCodecSpec) extends AbstractN
         }
         override val elementRegion: Settable[Region] = region
         override val separateRegions: Boolean = true
-        override val LproduceElement: CodeLabel = mb.defineHangingLabel { cb =>
+        override val LproduceElement: CodeLabel = mb.defineAndImplementLabel { cb =>
           cb.ifx(!xRowBuf.readByte().toZ, cb.goto(LendOfStream))
           cb.assign(next, spec.encodedType.buildDecoder(requestedType, cb.emb.ecb).apply(cb, region, xRowBuf))
           cb.goto(LproduceElementDone)
@@ -648,7 +648,7 @@ case class PartitionNativeReaderIndexed(spec: AbstractTypedCodecSpec, indexSpec:
         }
         override val elementRegion: Settable[Region] = region
         override val separateRegions: Boolean = true
-        override val LproduceElement: CodeLabel = mb.defineHangingLabel { cb =>
+        override val LproduceElement: CodeLabel = mb.defineAndImplementLabel { cb =>
           cb.ifx(!it.invoke[Boolean]("hasNext"), cb.goto(LendOfStream))
           cb.assign(next, it.invoke[Long]("_next"))
           cb.goto(LproduceElementDone)
@@ -825,7 +825,7 @@ case class PartitionZippedNativeReader(specLeft: AbstractTypedCodecSpec, specRig
 
         override val elementRegion: Settable[Region] = region
         override val separateRegions: Boolean = true
-        override val LproduceElement: CodeLabel = mb.defineHangingLabel { cb =>
+        override val LproduceElement: CodeLabel = mb.defineAndImplementLabel { cb =>
           cb.ifx(!it.invoke[Boolean]("hasNext"), cb.goto(LendOfStream))
           cb.assign(next, it.invoke[Long]("_next"))
           cb.goto(LproduceElementDone)
