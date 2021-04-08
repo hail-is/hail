@@ -24,7 +24,7 @@ object CanLowerEfficiently {
         case t: TableKeyBy =>
         case t: TableFilter =>
         case t: TableHead => fail("TableHead has no short-circuit using known partition counts")
-        case t: TableTail => fail("TableHead has no short-circuit using known partition counts")
+        case t: TableTail => fail("TableTail has no short-circuit using known partition counts")
         case t: TableJoin =>
         case t: TableIntervalJoin => fail(s"TableIntervalJoin has no lowered implementation")
         case t: TableMultiWayZipJoin =>
