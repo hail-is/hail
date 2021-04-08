@@ -96,12 +96,12 @@ class EmitStreamSuite extends HailSuite {
     }
   }
 
-  private def compileStreamWithIter(ir: IR, separateRegions: Boolean, streamType: PStream): Iterator[Any] => IndexedSeq[Any] = {
+  private def compileStreamWithIter(ir: IR, requiresMemoryManagementPerElement: Boolean, streamType: PStream): Iterator[Any] => IndexedSeq[Any] = {
     trait F {
       def apply(o: Region, a: StreamArgType): Long
     }
     compileStream[F, Iterator[Any]](ir,
-      IndexedSeq(SingleCodeEmitParamType(true, StreamSingleCodeType(separateRegions, streamType.elementType)))) { (f: F, r: Region, it: Iterator[Any]) =>
+      IndexedSeq(SingleCodeEmitParamType(true, StreamSingleCodeType(requiresMemoryManagementPerElement, streamType.elementType)))) { (f: F, r: Region, it: Iterator[Any]) =>
       val rvi = new StreamArgType {
         def apply(outerRegion: Region, eltRegion: Region): Iterator[java.lang.Long] =
           new Iterator[java.lang.Long] {
@@ -485,12 +485,12 @@ class EmitStreamSuite extends HailSuite {
     val strs = MakeStream(FastIndexedSeq(Str("one"), Str("two"), Str("three"), Str("four")), TStream(TString), true)
 
     assertEvalsTo(
-      foldIR(ToStream(ints, separateRegions = false), I32(-1)) { (acc, elt) => acc + elt },
+      foldIR(ToStream(ints, requiresMemoryManagementPerElement = false), I32(-1)) { (acc, elt) => acc + elt },
       9
     )
 
     assertEvalsTo(
-      foldIR(ToStream(strsLit, separateRegions = false), Str("")) { (acc, elt) => invoke("concat", TString, acc, elt)},
+      foldIR(ToStream(strsLit, requiresMemoryManagementPerElement = false), Str("")) { (acc, elt) => invoke("concat", TString, acc, elt)},
       "onetwothreefour"
     )
 

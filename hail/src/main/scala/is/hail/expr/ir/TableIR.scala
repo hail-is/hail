@@ -1843,7 +1843,7 @@ case class TableMapPartitions(child: TableIR,
       globalPType, partitionPType,
       Subst(body, BindingEnv(Env(
         globalName -> In(0, SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(globalPType))),
-        partitionStreamName -> In(1, SingleCodeEmitParamType(true, StreamSingleCodeType(separateRegions = true, rowPType)))))))
+        partitionStreamName -> In(1, SingleCodeEmitParamType(true, StreamSingleCodeType(requiresMemoryManagementPerElement = true, rowPType)))))))
 
     val globalsOff = tv.globals.value.offset
 

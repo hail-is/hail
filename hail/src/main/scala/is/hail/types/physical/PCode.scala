@@ -116,7 +116,7 @@ case object BooleanSingleCodeType extends SingleCodeType {
   def coercePCode(cb: EmitCodeBuilder, pc: PCode, region: Value[Region], deepCopy: Boolean): SingleCodePCode = SingleCodePCode(this, pc.asBoolean.boolCode(cb))
 }
 
-case class StreamSingleCodeType(separateRegions: Boolean, eltType: PType) extends SingleCodeType { self =>
+case class StreamSingleCodeType(requiresMemoryManagementPerElement: Boolean, eltType: PType) extends SingleCodeType { self =>
 
   def virtualType: Type = TStream(eltType.virtualType)
 
@@ -139,7 +139,7 @@ case class StreamSingleCodeType(separateRegions: Boolean, eltType: PType) extend
       }
 
       override val elementRegion: Settable[Region] = eltRegion
-      override val requiresMemoryManagementPerElement: Boolean = self.separateRegions
+      override val requiresMemoryManagementPerElement: Boolean = self.requiresMemoryManagementPerElement
       override val LproduceElement: CodeLabel = mb.defineAndImplementLabel { cb =>
         val hasNext = cb.newLocal[Boolean]("stream_in_hasnext", xIter.load().hasNext)
         cb.ifx(!hasNext, cb.goto(LendOfStream))

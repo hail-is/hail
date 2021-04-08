@@ -140,7 +140,7 @@ object InferPType {
       case MakeNDArray(data, shape, rowMajor, _) =>
         val nElem = shape.pType.asInstanceOf[PTuple].size
         PCanonicalNDArray(coerce[PArray](data.pType).elementType.setRequired(true), nElem, requiredness(node).required)
-      case StreamRange(start: IR, stop: IR, step: IR, separateRegions) =>
+      case StreamRange(start: IR, stop: IR, step: IR, requiresMemoryManagementPerElement) =>
         assert(start.pType isOfType stop.pType)
         assert(start.pType isOfType step.pType)
         PCanonicalStream(start.pType.setRequired(true), required = requiredness(node).required)
@@ -164,7 +164,7 @@ object InferPType {
       case CastToArray(a) =>
         val elt = coerce[PIterable](a.pType).elementType
         PCanonicalArray(elt, requiredness(node).required)
-      case ToStream(a, separateRegions) =>
+      case ToStream(a, requiresMemoryManagementPerElement) =>
         val elt = coerce[PIterable](a.pType).elementType
         PCanonicalStream(elt, required = requiredness(node).required)
       case GroupByKey(collection) =>
@@ -313,7 +313,7 @@ object InferPType {
         writer.returnPType(writeCtx.pType, coerce[PStream](value.pType))
       case ReadValue(path, spec, requestedType) =>
         spec.decodedPType(requestedType).setRequired(requiredness(node).required)
-      case MakeStream(irs, t, separateRegions) =>
+      case MakeStream(irs, t, requiresMemoryManagementPerElement) =>
         val r = coerce[RIterable](requiredness(node))
         if (irs.isEmpty) r.canonicalPType(t) else
           PCanonicalStream(getCompatiblePType(irs.map(_.pType), r.elementType), r.required)

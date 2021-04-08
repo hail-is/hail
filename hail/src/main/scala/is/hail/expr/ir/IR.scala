@@ -210,22 +210,22 @@ object MakeArray {
 final case class MakeArray(args: Seq[IR], _typ: TArray) extends IR
 
 object MakeStream {
-  def unify(args: Seq[IR], separateRegions: Boolean = false, requestedType: TStream = null): MakeStream = {
+  def unify(args: Seq[IR], requiresMemoryManagementPerElement: Boolean = false, requestedType: TStream = null): MakeStream = {
     assert(requestedType != null || args.nonEmpty)
 
     if (args.nonEmpty)
       if (args.forall(_.typ == args.head.typ))
-        return MakeStream(args, TStream(args.head.typ), separateRegions)
+        return MakeStream(args, TStream(args.head.typ), requiresMemoryManagementPerElement)
 
     MakeStream(args.map { arg =>
       val upcast = PruneDeadFields.upcast(arg, requestedType.elementType)
       assert(upcast.typ == requestedType.elementType)
       upcast
-    }, requestedType, separateRegions)
+    }, requestedType, requiresMemoryManagementPerElement)
   }
 }
 
-final case class MakeStream(args: Seq[IR], _typ: TStream, separateRegions: Boolean = false) extends IR
+final case class MakeStream(args: Seq[IR], _typ: TStream, requiresMemoryManagementPerElement: Boolean = false) extends IR
 
 object ArrayRef {
   def apply(a: IR, i: IR): ArrayRef = ArrayRef(a, i, Str(""))
@@ -234,7 +234,7 @@ object ArrayRef {
 final case class ArrayRef(a: IR, i: IR, msg: IR) extends IR
 final case class ArrayLen(a: IR) extends IR
 final case class ArrayZeros(length: IR) extends IR
-final case class StreamRange(start: IR, stop: IR, step: IR, separateRegions: Boolean = false) extends IR
+final case class StreamRange(start: IR, stop: IR, step: IR, requiresMemoryManagementPerElement: Boolean = false) extends IR
 
 object ArraySort {
   def apply(a: IR, ascending: IR = True(), onKey: Boolean = false): ArraySort = {
@@ -264,7 +264,7 @@ final case class ToSet(a: IR) extends IR
 final case class ToDict(a: IR) extends IR
 final case class ToArray(a: IR) extends IR
 final case class CastToArray(a: IR) extends IR
-final case class ToStream(a: IR, separateRegions: Boolean = false) extends IR
+final case class ToStream(a: IR, requiresMemoryManagementPerElement: Boolean = false) extends IR
 
 final case class LowerBoundOnOrderedCollection(orderedCollection: IR, elem: IR, onKey: Boolean) extends IR
 

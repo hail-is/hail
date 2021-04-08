@@ -221,7 +221,7 @@ object EmitStream {
           throw new RuntimeException(s"parameter ${ 2 + n } is not a stream! t=${ param.st } }, params=${ mb.emitParamTypes }")
         param.load.toI(cb)
 
-      case ToStream(a, _separateRegions) =>
+      case ToStream(a, _requiresMemoryManagementPerElement) =>
 
         emit(a, cb).map(cb) { case ind: SIndexableCode =>
           val containerField = mb.newPField(ind.pt)
@@ -241,7 +241,7 @@ object EmitStream {
 
               override val elementRegion: Settable[Region] = regionVar
 
-              override val requiresMemoryManagementPerElement: Boolean = _separateRegions
+              override val requiresMemoryManagementPerElement: Boolean = _requiresMemoryManagementPerElement
 
               override val LproduceElement: CodeLabel = mb.defineAndImplementLabel { cb =>
                 cb.assign(idx, idx + 1)
@@ -256,7 +256,7 @@ object EmitStream {
 
         }
 
-      case x@MakeStream(args, _, _separateRegions) =>
+      case x@MakeStream(args, _, _requiresMemoryManagementPerElement) =>
         val region = mb.genFieldThisRef[Region]("makestream_region")
         val emittedArgs = args.map(a => EmitCode.fromI(mb)(cb => emit(a, cb, region))).toFastIndexedSeq
 
@@ -277,7 +277,7 @@ object EmitStream {
 
             override val elementRegion: Settable[Region] = region
 
-            override val requiresMemoryManagementPerElement: Boolean = _separateRegions
+            override val requiresMemoryManagementPerElement: Boolean = _requiresMemoryManagementPerElement
 
             override val LproduceElement: CodeLabel = mb.defineAndImplementLabel { cb =>
               val LendOfSwitch = CodeLabel()
@@ -370,7 +370,7 @@ object EmitStream {
             SStreamCode(SStream(xElt.st, required = leftEC.pt.required && rightEC.pt.required), producer))
         }
 
-      case StreamRange(startIR, stopIR, stepIR, _separateRegions) =>
+      case StreamRange(startIR, stopIR, stepIR, _requiresMemoryManagementPerElement) =>
 
         emit(startIR, cb).flatMap(cb) { startc =>
           emit(stopIR, cb).flatMap(cb) { stopc =>
@@ -421,7 +421,7 @@ object EmitStream {
 
                 override val elementRegion: Settable[Region] = regionVar
 
-                override val requiresMemoryManagementPerElement: Boolean = _separateRegions
+                override val requiresMemoryManagementPerElement: Boolean = _requiresMemoryManagementPerElement
 
                 override val LproduceElement: CodeLabel = mb.defineAndImplementLabel { cb =>
                   cb.ifx(idx >= len, cb.goto(LendOfStream))
@@ -647,7 +647,7 @@ object EmitStream {
           val accValueAccRegion = mb.newEmitField(x.accPType)
           val accValueEltRegion = mb.newEmitField(x.accPType)
 
-          // accRegion is unused if separateRegions is false
+          // accRegion is unused if requiresMemoryManagementPerElement is false
           val accRegion: Settable[Region] = if (childProducer.requiresMemoryManagementPerElement) mb.genFieldThisRef[Region]("streamscan_acc_region") else null
           val first = mb.genFieldThisRef[Boolean]("streamscan_first")
 
@@ -1722,20 +1722,20 @@ object EmitStream {
           val _elementRegion = mb.genFieldThisRef[Region]("szj_region")
           val regionArray = mb.genFieldThisRef[Array[Region]]("szj_region_array")
 
-          val staticSepRegionsArray = producers.map(_.requiresMemoryManagementPerElement).toArray
-          val allMatch = staticSepRegionsArray.toSet.size == 1
-          val separateRegionBooleansArray = if (allMatch) null else mb.genFieldThisRef[Array[Int]]("smm_separate_region_array")
+          val staticMemManagementArray = producers.map(_.requiresMemoryManagementPerElement).toArray
+          val allMatch = staticMemManagementArray.toSet.size == 1
+          val memoryManagementBooleansArray = if (allMatch) null else mb.genFieldThisRef[Array[Int]]("smm_separate_region_array")
 
-          def initSeparateRegions(cb: EmitCodeBuilder): Unit = {
+          def initMemoryManagementPerElementArray(cb: EmitCodeBuilder): Unit = {
             if (!allMatch)
-              cb.assign(separateRegionBooleansArray, mb.getObject[Array[Int]](producers.map(_.requiresMemoryManagementPerElement.toInt).toArray))
+              cb.assign(memoryManagementBooleansArray, mb.getObject[Array[Int]](producers.map(_.requiresMemoryManagementPerElement.toInt).toArray))
           }
 
-          def lookupSeparateRegions(cb: EmitCodeBuilder, idx: Code[Int]): Code[Boolean] = {
+          def lookupMemoryManagementByIndex(cb: EmitCodeBuilder, idx: Code[Int]): Code[Boolean] = {
             if (allMatch)
-              const(staticSepRegionsArray.head)
+              const(staticMemManagementArray.head)
             else
-              separateRegionBooleansArray.apply(idx).toZ
+              memoryManagementBooleansArray.apply(idx).toZ
           }
 
           // The algorithm maintains a tournament tree of comparisons between the
@@ -1789,7 +1789,7 @@ object EmitStream {
                 cb += (regionArray(idx) = p.elementRegion)
                 p.initialize(cb)
               }
-              initSeparateRegions(cb)
+              initMemoryManagementPerElementArray(cb)
               cb.assign(bracket, Code.newArray[Int](k))
               cb.assign(heads, Code.newArray[Long](k))
               cb.forLoop(cb.assign(i, 0), i < k, cb.assign(i, i + 1), {
@@ -1836,7 +1836,7 @@ object EmitStream {
 
               cb.define(LaddToResult)
               cb += (result(winner) = heads(winner))
-              cb.ifx(lookupSeparateRegions(cb, winner), {
+              cb.ifx(lookupMemoryManagementByIndex(cb, winner), {
                 val r = cb.newLocal[Region]("tzj_winner_region", regionArray(winner))
                 cb += r.addReferenceTo(elementRegion)
                 cb += r.clearRegion()
@@ -1949,20 +1949,20 @@ object EmitStream {
           val region = mb.genFieldThisRef[Region]("smm_region")
           val regionArray = mb.genFieldThisRef[Array[Region]]("smm_region_array")
 
-          val staticSepRegionsArray = producers.map(_.requiresMemoryManagementPerElement).toArray
-          val allMatch = staticSepRegionsArray.toSet.size == 1
-          val separateRegionBooleansArray = if (allMatch) null else mb.genFieldThisRef[Array[Int]]("smm_separate_region_array")
+          val staticMemManagementArray = producers.map(_.requiresMemoryManagementPerElement).toArray
+          val allMatch = staticMemManagementArray.toSet.size == 1
+          val memoryManagementBooleansArray = if (allMatch) null else mb.genFieldThisRef[Array[Int]]("smm_separate_region_array")
 
-          def initSeparateRegions(cb: EmitCodeBuilder): Unit = {
+          def initMemoryManagementPerElementArray(cb: EmitCodeBuilder): Unit = {
             if (!allMatch)
-              cb.assign(separateRegionBooleansArray, mb.getObject[Array[Int]](producers.map(_.requiresMemoryManagementPerElement.toInt).toArray))
+              cb.assign(memoryManagementBooleansArray, mb.getObject[Array[Int]](producers.map(_.requiresMemoryManagementPerElement.toInt).toArray))
           }
 
-          def lookupSeparateRegions(cb: EmitCodeBuilder, idx: Code[Int]): Code[Boolean] = {
+          def lookupMemoryManagementByIndex(cb: EmitCodeBuilder, idx: Code[Int]): Code[Boolean] = {
             if (allMatch)
-              const(staticSepRegionsArray.head)
+              const(staticMemManagementArray.head)
             else
-              separateRegionBooleansArray.apply(idx).toZ
+              memoryManagementBooleansArray.apply(idx).toZ
           }
 
           // The algorithm maintains a tournament tree of comparisons between the
@@ -2029,7 +2029,7 @@ object EmitStream {
                 cb += (regionArray(i) = p.elementRegion)
                 p.initialize(cb)
               }
-              initSeparateRegions(cb)
+              initMemoryManagementPerElementArray(cb)
               cb.assign(bracket, Code.newArray[Int](k))
               cb.assign(heads, Code.newArray[Long](k))
               cb.forLoop(cb.assign(i, 0), i < k, cb.assign(i, i + 1), {
@@ -2081,7 +2081,7 @@ object EmitStream {
                   cb.goto(LendOfStream),
                   {
                     // we have a winner
-                    cb.ifx(lookupSeparateRegions(cb, winner), {
+                    cb.ifx(lookupMemoryManagementByIndex(cb, winner), {
                       val winnerRegion = cb.newLocal[Region]("smm_winner_region", regionArray(winner))
                       cb += winnerRegion.addReferenceTo(elementRegion)
                       cb += winnerRegion.clearRegion()
