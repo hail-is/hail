@@ -73,10 +73,7 @@ object Worker {
 
   private[this] val log = Logger.getLogger(getClass.getName())
   private[this] val revisions = mutable.Map[String, Array[String] => Unit]()
-  private[this] val scratchDir = {
-    val x = System.getenv("HAIL_WORKER_SCRATCH_DIR")
-    if (x == null) "" else x
-  }
+  private[this] val scratchDir = sys.env.get("HAIL_WORKER_SCRATCH_DIR").getOrElse("")
   private[this] val workerGCSFS = retryTransientErrors {
     using(new FileInputStream(s"/worker-key.json")) { is =>
       new GoogleStorageFS(IOUtils.toString(is, Charset.defaultCharset().toString()))
@@ -163,16 +160,23 @@ object Worker {
     val revision = args(0)
     val remoteJarLocation = args(1)
     if (revision != myRevision) {
-      timer.start("classLoading")
+      timer.start("JAR fetching and Worker class loading")
       log.info(s"received job for different revision: $revision; I am $myRevision")
       val mainMethod = mainForRevision(revision, remoteJarLocation)
-      timer.end("classLoading")
+      timer.end("JAR fetching and Worker class loading")
       mainMethod(args)
-      return
+    } else {
+      run(args)
     }
+    timer.end("main")
+  }
+
+  def run(args: Array[String]): Unit = {
+    val timer = new WorkerTimer()
+    timer.start("run")
 
     if (args.length != 4) {
-      throw new IllegalArgumentException(s"expected at four arguments, not: ${ args.length }")
+      throw new IllegalArgumentException(s"expected at least four arguments, not: ${ args.length }")
     }
     val root = args(2)
     val i = args(3).toInt
@@ -231,7 +235,7 @@ object Worker {
     }
     timer.end("writeOutputs")
     timer.end(s"Job $i")
-    timer.end(s"main")
+    timer.end(s"run")
     log.info(s"finished job $i at root $root")
   }
 }
