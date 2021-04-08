@@ -321,9 +321,7 @@
   },
   "GTEx_eQTL_allpairs_Adipose_Subcutaneous": {
     "annotation_db": {
-      "key_properties": [
-        "non_unique"
-      ]
+      "key_properties": []
     },
     "description": "GTEx: Adipose_Subcutaneous eQTL tissue-specific all SNP gene associations Hail Table. All variant-gene cis-eQTL associations tested in each tissue (including non-significant associations).",
     "url": "https://gtexportal.org/home/datasets",
@@ -345,9 +343,7 @@
   },
   "GTEx_eQTL_allpairs_Adipose_Visceral_Omentum": {
     "annotation_db": {
-      "key_properties": [
-        "non_unique"
-      ]
+      "key_properties": []
     },
     "description": "GTEx: Adipose_Visceral_Omentum eQTL tissue-specific all SNP gene associations Hail Table. All variant-gene cis-eQTL associations tested in each tissue (including non-significant associations).",
     "url": "https://gtexportal.org/home/datasets",
@@ -369,9 +365,7 @@
   },
   "GTEx_eQTL_allpairs_Adrenal_Gland": {
     "annotation_db": {
-      "key_properties": [
-        "non_unique"
-      ]
+      "key_properties": []
     },
     "description": "GTEx: Adrenal_Gland eQTL tissue-specific all SNP gene associations Hail Table. All variant-gene cis-eQTL associations tested in each tissue (including non-significant associations).",
     "url": "https://gtexportal.org/home/datasets",
@@ -393,9 +387,7 @@
   },
   "GTEx_eQTL_allpairs_Artery_Aorta": {
     "annotation_db": {
-      "key_properties": [
-        "non_unique"
-      ]
+      "key_properties": []
     },
     "description": "GTEx: Artery_Aorta eQTL tissue-specific all SNP gene associations Hail Table. All variant-gene cis-eQTL associations tested in each tissue (including non-significant associations).",
     "url": "https://gtexportal.org/home/datasets",
@@ -417,9 +409,7 @@
   },
   "GTEx_eQTL_allpairs_Artery_Coronary": {
     "annotation_db": {
-      "key_properties": [
-        "non_unique"
-      ]
+      "key_properties": []
     },
     "description": "GTEx: Artery_Coronary eQTL tissue-specific all SNP gene associations Hail Table. All variant-gene cis-eQTL associations tested in each tissue (including non-significant associations).",
     "url": "https://gtexportal.org/home/datasets",
@@ -441,9 +431,7 @@
   },
   "GTEx_eQTL_allpairs_Artery_Tibial": {
     "annotation_db": {
-      "key_properties": [
-        "non_unique"
-      ]
+      "key_properties": []
     },
     "description": "GTEx: Artery_Tibial eQTL tissue-specific all SNP gene associations Hail Table. All variant-gene cis-eQTL associations tested in each tissue (including non-significant associations).",
     "url": "https://gtexportal.org/home/datasets",
@@ -465,9 +453,7 @@
   },
   "GTEx_eQTL_allpairs_Brain_Amygdala": {
     "annotation_db": {
-      "key_properties": [
-        "non_unique"
-      ]
+      "key_properties": []
     },
     "description": "GTEx: Brain_Amygdala eQTL tissue-specific all SNP gene associations Hail Table. All variant-gene cis-eQTL associations tested in each tissue (including non-significant associations).",
     "url": "https://gtexportal.org/home/datasets",
@@ -489,9 +475,7 @@
   },
   "GTEx_eQTL_allpairs_Brain_Anterior_cingulate_cortex_BA24": {
     "annotation_db": {
-      "key_properties": [
-        "non_unique"
-      ]
+      "key_properties": []
     },
     "description": "GTEx: Brain_Anterior_cingulate_cortex_BA24 eQTL tissue-specific all SNP gene associations Hail Table. All variant-gene cis-eQTL associations tested in each tissue (including non-significant associations).",
     "url": "https://gtexportal.org/home/datasets",
@@ -513,9 +497,7 @@
   },
   "GTEx_eQTL_allpairs_Brain_Caudate_basal_ganglia": {
     "annotation_db": {
-      "key_properties": [
-        "non_unique"
-      ]
+      "key_properties": []
     },
     "description": "GTEx: Brain_Caudate_basal_ganglia eQTL tissue-specific all SNP gene associations Hail Table. All variant-gene cis-eQTL associations tested in each tissue (including non-significant associations).",
     "url": "https://gtexportal.org/home/datasets",
@@ -537,9 +519,7 @@
   },
   "GTEx_eQTL_allpairs_Brain_Cerebellar_Hemisphere": {
     "annotation_db": {
-      "key_properties": [
-        "non_unique"
-      ]
+      "key_properties": []
     },
     "description": "GTEx: Brain_Cerebellar_Hemisphere eQTL tissue-specific all SNP gene associations Hail Table. All variant-gene cis-eQTL associations tested in each tissue (including non-significant associations).",
     "url": "https://gtexportal.org/home/datasets",
@@ -561,9 +541,7 @@
   },
   "GTEx_eQTL_allpairs_Brain_Cerebellum": {
     "annotation_db": {
-      "key_properties": [
-        "non_unique"
-      ]
+      "key_properties": []
     },
     "description": "GTEx: Brain_Cerebellum eQTL tissue-specific all SNP gene associations Hail Table. All variant-gene cis-eQTL associations tested in each tissue (including non-significant associations).",
     "url": "https://gtexportal.org/home/datasets",
@@ -585,9 +563,7 @@
   },
   "GTEx_eQTL_allpairs_Brain_Cortex": {
     "annotation_db": {
-      "key_properties": [
-        "non_unique"
-      ]
+      "key_properties": []
     },
     "description": "GTEx: Brain_Cortex eQTL tissue-specific all SNP gene associations Hail Table. All variant-gene cis-eQTL associations tested in each tissue (including non-significant associations).",
     "url": "https://gtexportal.org/home/datasets",
@@ -609,9 +585,7 @@
   },
   "GTEx_eQTL_allpairs_Brain_Frontal_Cortex_BA9": {
     "annotation_db": {
-      "key_properties": [
-        "non_unique"
-      ]
+      "key_properties": []
     },
     "description": "GTEx: Brain_Frontal_Cortex_BA9 eQTL tissue-specific all SNP gene associations Hail Table. All variant-gene cis-eQTL associations tested in each tissue (including non-significant associations).",
     "url": "https://gtexportal.org/home/datasets",
@@ -633,9 +607,7 @@
   },
   "GTEx_eQTL_allpairs_Brain_Hippocampus": {
     "annotation_db": {
-      "key_properties": [
-        "non_unique"
-      ]
+      "key_properties": []
     },
     "description": "GTEx: Brain_Hippocampus eQTL tissue-specific all SNP gene associations Hail Table. All variant-gene cis-eQTL associations tested in each tissue (including non-significant associations).",
     "url": "https://gtexportal.org/home/datasets",
@@ -657,9 +629,7 @@
   },
   "GTEx_eQTL_allpairs_Brain_Hypothalamus": {
     "annotation_db": {
-      "key_properties": [
-        "non_unique"
-      ]
+      "key_properties": []
     },
     "description": "GTEx: Brain_Hypothalamus eQTL tissue-specific all SNP gene associations Hail Table. All variant-gene cis-eQTL associations tested in each tissue (including non-significant associations).",
     "url": "https://gtexportal.org/home/datasets",
@@ -681,9 +651,7 @@
   },
   "GTEx_eQTL_allpairs_Brain_Nucleus_accumbens_basal_ganglia": {
     "annotation_db": {
-      "key_properties": [
-        "non_unique"
-      ]
+      "key_properties": []
     },
     "description": "GTEx: Brain_Nucleus_accumbens_basal_ganglia eQTL tissue-specific all SNP gene associations Hail Table. All variant-gene cis-eQTL associations tested in each tissue (including non-significant associations).",
     "url": "https://gtexportal.org/home/datasets",
@@ -705,9 +673,7 @@
   },
   "GTEx_eQTL_allpairs_Brain_Putamen_basal_ganglia": {
     "annotation_db": {
-      "key_properties": [
-        "non_unique"
-      ]
+      "key_properties": []
     },
     "description": "GTEx: Brain_Putamen_basal_ganglia eQTL tissue-specific all SNP gene associations Hail Table. All variant-gene cis-eQTL associations tested in each tissue (including non-significant associations).",
     "url": "https://gtexportal.org/home/datasets",
@@ -729,9 +695,7 @@
   },
   "GTEx_eQTL_allpairs_Brain_Spinal_cord_cervical_c-1": {
     "annotation_db": {
-      "key_properties": [
-        "non_unique"
-      ]
+      "key_properties": []
     },
     "description": "GTEx: Brain_Spinal_cord_cervical_c-1 eQTL tissue-specific all SNP gene associations Hail Table. All variant-gene cis-eQTL associations tested in each tissue (including non-significant associations).",
     "url": "https://gtexportal.org/home/datasets",
@@ -753,9 +717,7 @@
   },
   "GTEx_eQTL_allpairs_Brain_Substantia_nigra": {
     "annotation_db": {
-      "key_properties": [
-        "non_unique"
-      ]
+      "key_properties": []
     },
     "description": "GTEx: Brain_Substantia_nigra eQTL tissue-specific all SNP gene associations Hail Table. All variant-gene cis-eQTL associations tested in each tissue (including non-significant associations).",
     "url": "https://gtexportal.org/home/datasets",
@@ -777,9 +739,7 @@
   },
   "GTEx_eQTL_allpairs_Breast_Mammary_Tissue": {
     "annotation_db": {
-      "key_properties": [
-        "non_unique"
-      ]
+      "key_properties": []
     },
     "description": "GTEx: Breast_Mammary_Tissue eQTL tissue-specific all SNP gene associations Hail Table. All variant-gene cis-eQTL associations tested in each tissue (including non-significant associations).",
     "url": "https://gtexportal.org/home/datasets",
@@ -801,9 +761,7 @@
   },
   "GTEx_eQTL_allpairs_Cells_Cultured_fibroblasts": {
     "annotation_db": {
-      "key_properties": [
-        "non_unique"
-      ]
+      "key_properties": []
     },
     "description": "GTEx: Cells_Cultured_fibroblasts eQTL tissue-specific all SNP gene associations Hail Table. All variant-gene cis-eQTL associations tested in each tissue (including non-significant associations).",
     "url": "https://gtexportal.org/home/datasets",
@@ -825,9 +783,7 @@
   },
   "GTEx_eQTL_allpairs_Cells_EBV-transformed_lymphocytes": {
     "annotation_db": {
-      "key_properties": [
-        "non_unique"
-      ]
+      "key_properties": []
     },
     "description": "GTEx: Cells_EBV-transformed_lymphocytes eQTL tissue-specific all SNP gene associations Hail Table. All variant-gene cis-eQTL associations tested in each tissue (including non-significant associations).",
     "url": "https://gtexportal.org/home/datasets",
@@ -849,9 +805,7 @@
   },
   "GTEx_eQTL_allpairs_Colon_Sigmoid": {
     "annotation_db": {
-      "key_properties": [
-        "non_unique"
-      ]
+      "key_properties": []
     },
     "description": "GTEx: Colon_Sigmoid eQTL tissue-specific all SNP gene associations Hail Table. All variant-gene cis-eQTL associations tested in each tissue (including non-significant associations).",
     "url": "https://gtexportal.org/home/datasets",
@@ -873,9 +827,7 @@
   },
   "GTEx_eQTL_allpairs_Colon_Transverse": {
     "annotation_db": {
-      "key_properties": [
-        "non_unique"
-      ]
+      "key_properties": []
     },
     "description": "GTEx: Colon_Transverse eQTL tissue-specific all SNP gene associations Hail Table. All variant-gene cis-eQTL associations tested in each tissue (including non-significant associations).",
     "url": "https://gtexportal.org/home/datasets",
@@ -897,9 +849,7 @@
   },
   "GTEx_eQTL_allpairs_Esophagus_Gastroesophageal_Junction": {
     "annotation_db": {
-      "key_properties": [
-        "non_unique"
-      ]
+      "key_properties": []
     },
     "description": "GTEx: Esophagus_Gastroesophageal_Junction eQTL tissue-specific all SNP gene associations Hail Table. All variant-gene cis-eQTL associations tested in each tissue (including non-significant associations).",
     "url": "https://gtexportal.org/home/datasets",
@@ -921,9 +871,7 @@
   },
   "GTEx_eQTL_allpairs_Esophagus_Mucosa": {
     "annotation_db": {
-      "key_properties": [
-        "non_unique"
-      ]
+      "key_properties": []
     },
     "description": "GTEx: Esophagus_Mucosa eQTL tissue-specific all SNP gene associations Hail Table. All variant-gene cis-eQTL associations tested in each tissue (including non-significant associations).",
     "url": "https://gtexportal.org/home/datasets",
@@ -945,9 +893,7 @@
   },
   "GTEx_eQTL_allpairs_Esophagus_Muscularis": {
     "annotation_db": {
-      "key_properties": [
-        "non_unique"
-      ]
+      "key_properties": []
     },
     "description": "GTEx: Esophagus_Muscularis eQTL tissue-specific all SNP gene associations Hail Table. All variant-gene cis-eQTL associations tested in each tissue (including non-significant associations).",
     "url": "https://gtexportal.org/home/datasets",
@@ -969,9 +915,7 @@
   },
   "GTEx_eQTL_allpairs_Heart_Atrial_Appendage": {
     "annotation_db": {
-      "key_properties": [
-        "non_unique"
-      ]
+      "key_properties": []
     },
     "description": "GTEx: Heart_Atrial_Appendage eQTL tissue-specific all SNP gene associations Hail Table. All variant-gene cis-eQTL associations tested in each tissue (including non-significant associations).",
     "url": "https://gtexportal.org/home/datasets",
@@ -993,9 +937,7 @@
   },
   "GTEx_eQTL_allpairs_Heart_Left_Ventricle": {
     "annotation_db": {
-      "key_properties": [
-        "non_unique"
-      ]
+      "key_properties": []
     },
     "description": "GTEx: Heart_Left_Ventricle eQTL tissue-specific all SNP gene associations Hail Table. All variant-gene cis-eQTL associations tested in each tissue (including non-significant associations).",
     "url": "https://gtexportal.org/home/datasets",
@@ -1017,9 +959,7 @@
   },
   "GTEx_eQTL_allpairs_Kidney_Cortex": {
     "annotation_db": {
-      "key_properties": [
-        "non_unique"
-      ]
+      "key_properties": []
     },
     "description": "GTEx: Kidney_Cortex eQTL tissue-specific all SNP gene associations Hail Table. All variant-gene cis-eQTL associations tested in each tissue (including non-significant associations).",
     "url": "https://gtexportal.org/home/datasets",
@@ -1041,9 +981,7 @@
   },
   "GTEx_eQTL_allpairs_Liver": {
     "annotation_db": {
-      "key_properties": [
-        "non_unique"
-      ]
+      "key_properties": []
     },
     "description": "GTEx: Liver eQTL tissue-specific all SNP gene associations Hail Table. All variant-gene cis-eQTL associations tested in each tissue (including non-significant associations).",
     "url": "https://gtexportal.org/home/datasets",
@@ -1065,9 +1003,7 @@
   },
   "GTEx_eQTL_allpairs_Lung": {
     "annotation_db": {
-      "key_properties": [
-        "non_unique"
-      ]
+      "key_properties": []
     },
     "description": "GTEx: Lung eQTL tissue-specific all SNP gene associations Hail Table. All variant-gene cis-eQTL associations tested in each tissue (including non-significant associations).",
     "url": "https://gtexportal.org/home/datasets",
@@ -1089,9 +1025,7 @@
   },
   "GTEx_eQTL_allpairs_Minor_Salivary_Gland": {
     "annotation_db": {
-      "key_properties": [
-        "non_unique"
-      ]
+      "key_properties": []
     },
     "description": "GTEx: Minor_Salivary_Gland eQTL tissue-specific all SNP gene associations Hail Table. All variant-gene cis-eQTL associations tested in each tissue (including non-significant associations).",
     "url": "https://gtexportal.org/home/datasets",
@@ -1113,9 +1047,7 @@
   },
   "GTEx_eQTL_allpairs_Muscle_Skeletal": {
     "annotation_db": {
-      "key_properties": [
-        "non_unique"
-      ]
+      "key_properties": []
     },
     "description": "GTEx: Muscle_Skeletal eQTL tissue-specific all SNP gene associations Hail Table. All variant-gene cis-eQTL associations tested in each tissue (including non-significant associations).",
     "url": "https://gtexportal.org/home/datasets",
@@ -1137,9 +1069,7 @@
   },
   "GTEx_eQTL_allpairs_Nerve_Tibial": {
     "annotation_db": {
-      "key_properties": [
-        "non_unique"
-      ]
+      "key_properties": []
     },
     "description": "GTEx: Nerve_Tibial eQTL tissue-specific all SNP gene associations Hail Table. All variant-gene cis-eQTL associations tested in each tissue (including non-significant associations).",
     "url": "https://gtexportal.org/home/datasets",
@@ -1161,9 +1091,7 @@
   },
   "GTEx_eQTL_allpairs_Ovary": {
     "annotation_db": {
-      "key_properties": [
-        "non_unique"
-      ]
+      "key_properties": []
     },
     "description": "GTEx: Ovary eQTL tissue-specific all SNP gene associations Hail Table. All variant-gene cis-eQTL associations tested in each tissue (including non-significant associations).",
     "url": "https://gtexportal.org/home/datasets",
@@ -1185,9 +1113,7 @@
   },
   "GTEx_eQTL_allpairs_Pancreas": {
     "annotation_db": {
-      "key_properties": [
-        "non_unique"
-      ]
+      "key_properties": []
     },
     "description": "GTEx: Pancreas eQTL tissue-specific all SNP gene associations Hail Table. All variant-gene cis-eQTL associations tested in each tissue (including non-significant associations).",
     "url": "https://gtexportal.org/home/datasets",
@@ -1209,9 +1135,7 @@
   },
   "GTEx_eQTL_allpairs_Pituitary": {
     "annotation_db": {
-      "key_properties": [
-        "non_unique"
-      ]
+      "key_properties": []
     },
     "description": "GTEx: Pituitary eQTL tissue-specific all SNP gene associations Hail Table. All variant-gene cis-eQTL associations tested in each tissue (including non-significant associations).",
     "url": "https://gtexportal.org/home/datasets",
@@ -1233,9 +1157,7 @@
   },
   "GTEx_eQTL_allpairs_Prostate": {
     "annotation_db": {
-      "key_properties": [
-        "non_unique"
-      ]
+      "key_properties": []
     },
     "description": "GTEx: Prostate eQTL tissue-specific all SNP gene associations Hail Table. All variant-gene cis-eQTL associations tested in each tissue (including non-significant associations).",
     "url": "https://gtexportal.org/home/datasets",
@@ -1257,9 +1179,7 @@
   },
   "GTEx_eQTL_allpairs_Skin_Not_Sun_Exposed_Suprapubic": {
     "annotation_db": {
-      "key_properties": [
-        "non_unique"
-      ]
+      "key_properties": []
     },
     "description": "GTEx: Skin_Not_Sun_Exposed_Suprapubic eQTL tissue-specific all SNP gene associations Hail Table. All variant-gene cis-eQTL associations tested in each tissue (including non-significant associations).",
     "url": "https://gtexportal.org/home/datasets",
@@ -1281,9 +1201,7 @@
   },
   "GTEx_eQTL_allpairs_Skin_Sun_Exposed_Lower_leg": {
     "annotation_db": {
-      "key_properties": [
-        "non_unique"
-      ]
+      "key_properties": []
     },
     "description": "GTEx: Skin_Sun_Exposed_Lower_leg eQTL tissue-specific all SNP gene associations Hail Table. All variant-gene cis-eQTL associations tested in each tissue (including non-significant associations).",
     "url": "https://gtexportal.org/home/datasets",
@@ -1305,9 +1223,7 @@
   },
   "GTEx_eQTL_allpairs_Small_Intestine_Terminal_Ileum": {
     "annotation_db": {
-      "key_properties": [
-        "non_unique"
-      ]
+      "key_properties": []
     },
     "description": "GTEx: Small_Intestine_Terminal_Ileum eQTL tissue-specific all SNP gene associations Hail Table. All variant-gene cis-eQTL associations tested in each tissue (including non-significant associations).",
     "url": "https://gtexportal.org/home/datasets",
@@ -1329,9 +1245,7 @@
   },
   "GTEx_eQTL_allpairs_Spleen": {
     "annotation_db": {
-      "key_properties": [
-        "non_unique"
-      ]
+      "key_properties": []
     },
     "description": "GTEx: Spleen eQTL tissue-specific all SNP gene associations Hail Table. All variant-gene cis-eQTL associations tested in each tissue (including non-significant associations).",
     "url": "https://gtexportal.org/home/datasets",
@@ -1353,9 +1267,7 @@
   },
   "GTEx_eQTL_allpairs_Stomach": {
     "annotation_db": {
-      "key_properties": [
-        "non_unique"
-      ]
+      "key_properties": []
     },
     "description": "GTEx: Stomach eQTL tissue-specific all SNP gene associations Hail Table. All variant-gene cis-eQTL associations tested in each tissue (including non-significant associations).",
     "url": "https://gtexportal.org/home/datasets",
@@ -1377,9 +1289,7 @@
   },
   "GTEx_eQTL_allpairs_Testis": {
     "annotation_db": {
-      "key_properties": [
-        "non_unique"
-      ]
+      "key_properties": []
     },
     "description": "GTEx: Testis eQTL tissue-specific all SNP gene associations Hail Table. All variant-gene cis-eQTL associations tested in each tissue (including non-significant associations).",
     "url": "https://gtexportal.org/home/datasets",
@@ -1401,9 +1311,7 @@
   },
   "GTEx_eQTL_allpairs_Thyroid": {
     "annotation_db": {
-      "key_properties": [
-        "non_unique"
-      ]
+      "key_properties": []
     },
     "description": "GTEx: Thyroid eQTL tissue-specific all SNP gene associations Hail Table. All variant-gene cis-eQTL associations tested in each tissue (including non-significant associations).",
     "url": "https://gtexportal.org/home/datasets",
@@ -1425,9 +1333,7 @@
   },
   "GTEx_eQTL_allpairs_Uterus": {
     "annotation_db": {
-      "key_properties": [
-        "non_unique"
-      ]
+      "key_properties": []
     },
     "description": "GTEx: Uterus eQTL tissue-specific all SNP gene associations Hail Table. All variant-gene cis-eQTL associations tested in each tissue (including non-significant associations).",
     "url": "https://gtexportal.org/home/datasets",
@@ -1449,9 +1355,7 @@
   },
   "GTEx_eQTL_allpairs_Vagina": {
     "annotation_db": {
-      "key_properties": [
-        "non_unique"
-      ]
+      "key_properties": []
     },
     "description": "GTEx: Vagina eQTL tissue-specific all SNP gene associations Hail Table. All variant-gene cis-eQTL associations tested in each tissue (including non-significant associations).",
     "url": "https://gtexportal.org/home/datasets",
@@ -1473,9 +1377,7 @@
   },
   "GTEx_eQTL_allpairs_Whole_Blood": {
     "annotation_db": {
-      "key_properties": [
-        "non_unique"
-      ]
+      "key_properties": []
     },
     "description": "GTEx: Whole_Blood eQTL tissue-specific all SNP gene associations Hail Table. All variant-gene cis-eQTL associations tested in each tissue (including non-significant associations).",
     "url": "https://gtexportal.org/home/datasets",
