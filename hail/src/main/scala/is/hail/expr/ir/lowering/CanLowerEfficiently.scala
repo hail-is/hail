@@ -18,7 +18,7 @@ object CanLowerEfficiently {
       ir match {
         case t: TableRead =>
         case t: TableLiteral =>
-        case t: TableRepartition => fail(s"TableIntervalJoin has no lowered implementation")
+        case t: TableRepartition => fail(s"TableRepartition has no lowered implementation")
         case t: TableParallelize =>
         case t: TableRange =>
         case t: TableKeyBy =>
