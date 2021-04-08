@@ -1,7 +1,7 @@
 package is.hail.types
 
 import is.hail.asm4s._
-import is.hail.expr.ir.StreamArgType
+import is.hail.expr.ir.streams.StreamArgType
 
 import scala.language.implicitConversions
 

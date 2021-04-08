@@ -60,18 +60,18 @@ object Copy {
       case MakeArray(args, typ) =>
         assert(args.length == newChildren.length)
         MakeArray(newChildren.map(_.asInstanceOf[IR]), typ)
-      case MakeStream(args, typ, separateRegions) =>
+      case MakeStream(args, typ, requiresMemoryManagementPerElement) =>
         assert(args.length == newChildren.length)
-        MakeStream(newChildren.map(_.asInstanceOf[IR]), typ, separateRegions)
+        MakeStream(newChildren.map(_.asInstanceOf[IR]), typ, requiresMemoryManagementPerElement)
       case ArrayRef(_, _, _) =>
         assert(newChildren.length == 3)
         ArrayRef(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR], newChildren(2).asInstanceOf[IR])
       case ArrayLen(_) =>
         assert(newChildren.length == 1)
         ArrayLen(newChildren(0).asInstanceOf[IR])
-      case StreamRange(_, _, _, separateRegions) =>
+      case StreamRange(_, _, _, requiresMemoryManagementPerElement) =>
         assert(newChildren.length == 3)
-        StreamRange(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR], newChildren(2).asInstanceOf[IR], separateRegions)
+        StreamRange(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR], newChildren(2).asInstanceOf[IR], requiresMemoryManagementPerElement)
       case ArrayZeros(_) =>
         assert(newChildren.length == 1)
         ArrayZeros(newChildren(0).asInstanceOf[IR])
@@ -136,9 +136,9 @@ object Copy {
       case CastToArray(_) =>
         assert(newChildren.length == 1)
         CastToArray(newChildren(0).asInstanceOf[IR])
-      case ToStream(_, separateRegions) =>
+      case ToStream(_, requiresMemoryManagementPerElement) =>
         assert(newChildren.length == 1)
-        ToStream(newChildren(0).asInstanceOf[IR], separateRegions)
+        ToStream(newChildren(0).asInstanceOf[IR], requiresMemoryManagementPerElement)
       case LowerBoundOnOrderedCollection(_, _, asKey) =>
         assert(newChildren.length == 2)
         LowerBoundOnOrderedCollection(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR], asKey)
@@ -162,9 +162,6 @@ object Copy {
       case StreamMap(_, name, _) =>
         assert(newChildren.length == 2)
         StreamMap(newChildren(0).asInstanceOf[IR], name, newChildren(1).asInstanceOf[IR])
-      case StreamMerge(_, _, key) =>
-        assert(newChildren.length == 2)
-        StreamMerge(newChildren(0).asInstanceOf[IR], newChildren(1).asInstanceOf[IR], key)
       case StreamZip(_, names, _, behavior) =>
         assert(newChildren.length == names.length + 1)
         StreamZip(newChildren.init.asInstanceOf[IndexedSeq[IR]], names, newChildren(names.length).asInstanceOf[IR], behavior)

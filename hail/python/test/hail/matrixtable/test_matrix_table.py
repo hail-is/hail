@@ -144,7 +144,6 @@ class Tests(unittest.TestCase):
         assert tail(30, 10) == expected(30, 10)
 
     @fails_service_backend()
-    @fails_local_backend()
     def test_tail_scan(self):
         mt = hl.utils.range_matrix_table(30, 40)
         mt = mt.annotate_rows(i = hl.scan.count())
