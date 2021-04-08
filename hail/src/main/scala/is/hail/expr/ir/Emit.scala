@@ -718,13 +718,7 @@ class Emit[C](
     def emitNDArrayColumnMajorStrides(ir: IR): IEmitCode = {
       emitI(ir).map(cb){case pNDCode: PNDArrayCode =>
         val pNDValue = pNDCode.memoize(cb, "ndarray_column_major_check")
-        val isColumnMajor = LinalgCodeUtils.checkColumnMajor(pNDValue, cb)
-        val pAnswer = cb.emb.newPField("ndarray_output_column_major", pNDValue.pt)
-        cb.ifx(isColumnMajor, {cb.assign(pAnswer, pNDValue)},
-        {
-          cb.assign(pAnswer, LinalgCodeUtils.createColumnMajorCode(pNDValue, cb, region.code))
-        })
-        pAnswer
+        LinalgCodeUtils.checkColMajorAndCopyIfNeeded(pNDValue, cb, region.code)
       }
     }
 

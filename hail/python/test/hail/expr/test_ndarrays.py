@@ -690,6 +690,7 @@ def test_ndarray_solve():
 
     assert np.allclose(hl.eval(hl.nd.solve(a, b)), np.array([-1., 1.]))
     assert np.allclose(hl.eval(hl.nd.solve(a, b2)), np.array([[-1., -16.], [1, 12]]))
+    assert np.allclose(hl.eval(hl.nd.solve(a.T, b2.T)), np.array([[19., 26.], [-6, -8]]))
 
     with pytest.raises(FatalError) as exc:
         hl.eval(hl.nd.solve(hl.nd.array([[1, 2], [1, 2]]), hl.nd.array([8, 10])))

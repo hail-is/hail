@@ -4,9 +4,10 @@ import is.hail.annotations.{Memory, Region}
 import is.hail.asm4s.{Code, Value}
 import is.hail.expr.{Nat, NatVariable}
 import is.hail.expr.ir._
-import is.hail.linalg.LAPACK
+import is.hail.linalg.{LAPACK, LinalgCodeUtils}
 import is.hail.types.coerce
 import is.hail.types.physical.PCanonicalNDArray
+import is.hail.types.physical.stypes.concrete.SNDArrayPointerSettable
 import is.hail.types.virtual._
 import is.hail.utils._
 
@@ -39,11 +40,15 @@ object NDArrayFunctions extends RegistryFunctions {
         bec.toI(cb).map(cb){ bpc =>
           val aInput = apc.asNDArray.memoize(cb, "A")
           val bInput = bpc.asNDArray.memoize(cb, "B")
-          val IndexedSeq(n0, n1) = aInput.shapes(cb)
+
+          val aColMajor = LinalgCodeUtils.checkColMajorAndCopyIfNeeded(aInput, cb, region)
+          val bColMajor = LinalgCodeUtils.checkColMajorAndCopyIfNeeded(bInput, cb, region)
+
+          val IndexedSeq(n0, n1) = aColMajor.shapes(cb)
 
           cb.ifx(n0 cne n1, cb._fatal("hail.nd.solve: matrix a must be square."))
 
-          val IndexedSeq(n, nrhs) = bInput.shapes(cb)
+          val IndexedSeq(n, nrhs) = bColMajor.shapes(cb)
 
           cb.ifx(n0 cne n, cb._fatal("hail.nd.solve: Solve dimensions incompatible"))
 
@@ -54,15 +59,15 @@ object NDArrayFunctions extends RegistryFunctions {
           val aCopy = cb.newLocal[Long]("dgesv_a_copy")
           def aNumBytes = n * n * 8L
           cb.assign(aCopy, Code.invokeStatic1[Memory, Long, Long]("malloc", aNumBytes))
-          val aInputFirstElement = aInput.firstDataAddress(cb)
+          val aColMajorFirstElement = aColMajor.firstDataAddress(cb)
 
-          cb.append(Region.copyFrom(aInputFirstElement, aCopy, aNumBytes))
+          cb.append(Region.copyFrom(aColMajorFirstElement, aCopy, aNumBytes))
 
           val outputPType = coerce[PCanonicalNDArray](pt)
           val outputShape = IndexedSeq(n, nrhs)
           val (outputAddress, outputFinisher) = outputPType.constructDataFunction(outputShape, outputPType.makeColumnMajorStrides(outputShape, region, cb), cb, region)
 
-          cb.append(Region.copyFrom(bInput.firstDataAddress(cb), outputAddress, n * nrhs * 8L))
+          cb.append(Region.copyFrom(bColMajor.firstDataAddress(cb), outputAddress, n * nrhs * 8L))
 
           cb.assign(infoDGESVResult, Code.invokeScalaObject7[Int, Int, Long, Int, Long, Long, Int, Int](LAPACK.getClass, "dgesv",
             n.toI,
