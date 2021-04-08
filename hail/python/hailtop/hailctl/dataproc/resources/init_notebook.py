@@ -175,7 +175,7 @@ if role == 'Master':
         f.write('\n'.join(opts) + '\n')
 
     print('copying spark monitor')
-    spark_monitor_gs = 'gs://hail-common/sparkmonitor-3b2bc8c22921f5c920fc7370f3a160d820db1f51/sparkmonitor-0.0.11-py3-none-any.whl'
+    spark_monitor_gs = 'gs://hail-common/sparkmonitor-3357488112c6c162c12f8386faaadcbf3789ac02/sparkmonitor-0.0.12-py3-none-any.whl'
     spark_monitor_wheel = '/home/hail/' + spark_monitor_gs.split('/')[-1]
     safe_call('gsutil', 'cp', spark_monitor_gs, spark_monitor_wheel)
     safe_call('pip', 'install', spark_monitor_wheel)
