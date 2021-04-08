@@ -955,8 +955,13 @@ final class VCFLine(val line: String, arrayElementsRequired: Boolean,
             rvb.addBoolean(true)
         } else
           rvb.addBoolean(true)
-      } else
-        parseAddInfoField(rvb, c.infoFieldTypes(idx))
+      } else {
+        try {
+          parseAddInfoField(rvb, c.infoFieldTypes(idx))
+        } catch {
+          case e: VCFParseError => parseError(s"error while parsing info field '$key': ${ e.msg }")
+        }
+      }
     }
   }
 

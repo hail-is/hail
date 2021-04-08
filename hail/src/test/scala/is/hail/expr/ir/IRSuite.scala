@@ -1800,7 +1800,7 @@ class IRSuite extends HailSuite {
     assertEvalsTo(ToArray(StreamTake(a, I32(0))), FastIndexedSeq())
     assertEvalsTo(ToArray(StreamTake(a, I32(2))), FastIndexedSeq(3, null))
     assertEvalsTo(ToArray(StreamTake(a, I32(5))), FastIndexedSeq(3, null, 7))
-    assertFatal(ToArray(StreamTake(a, I32(-1))), "StreamTake: negative length")
+    assertFatal(ToArray(StreamTake(a, I32(-1))), "stream take: negative num")
     assertEvalsTo(StreamLen(StreamTake(a, 2)), 2)
   }
 
@@ -1813,7 +1813,7 @@ class IRSuite extends HailSuite {
     assertEvalsTo(ToArray(StreamDrop(a, I32(0))), FastIndexedSeq(3, null, 7))
     assertEvalsTo(ToArray(StreamDrop(a, I32(2))), FastIndexedSeq(7))
     assertEvalsTo(ToArray(StreamDrop(a, I32(5))), FastIndexedSeq())
-    assertFatal(ToArray(StreamDrop(a, I32(-1))), "StreamDrop: negative num")
+    assertFatal(ToArray(StreamDrop(a, I32(-1))), "stream drop: negative num")
 
     assertEvalsTo(StreamLen(StreamDrop(a, 1)), 2)
   }
@@ -1833,7 +1833,7 @@ class IRSuite extends HailSuite {
     assertEvalsTo(toNestedArray(StreamGrouped(a, I32(1))), FastIndexedSeq(FastIndexedSeq(3), FastIndexedSeq(null), FastIndexedSeq(7)))
     assertEvalsTo(toNestedArray(StreamGrouped(a, I32(2))), FastIndexedSeq(FastIndexedSeq(3, null), FastIndexedSeq(7)))
     assertEvalsTo(toNestedArray(StreamGrouped(a, I32(5))), FastIndexedSeq(FastIndexedSeq(3, null, 7)))
-    assertFatal(toNestedArray(StreamGrouped(a, I32(0))), "StreamGrouped: nonpositive size")
+    assertFatal(toNestedArray(StreamGrouped(a, I32(0))), "stream grouped: non-positive size")
 
     val r = rangeIR(10)
 
@@ -2599,11 +2599,11 @@ class IRSuite extends HailSuite {
   }
 
   @Test def testStreamMerge() {
-    implicit val execStrats = ExecStrategy.javaOnly
+    implicit val execStrats = ExecStrategy.compileOnly
 
     def mergeRows(left: IndexedSeq[Integer], right: IndexedSeq[Integer], key: Int): IR = {
       val typ = TStream(TStruct("k" -> TInt32, "sign" -> TInt32, "idx" -> TInt32))
-      ToArray(StreamMerge(
+      ToArray(StreamMultiMerge(FastIndexedSeq(
         if (left == null)
           NA(typ)
         else
@@ -2621,7 +2621,7 @@ class IRSuite extends HailSuite {
               "k" -> (if (n == null) NA(TInt32) else I32(n)),
               "sign" -> I32(-1),
               "idx" -> I32(idx)))
-          }, typ),
+          }, typ)),
         FastIndexedSeq("k", "sign").take(key)))
     }
 
@@ -2639,7 +2639,8 @@ class IRSuite extends HailSuite {
       Row(null, 1, 4),
       Row(null, 1, 5),
       Row(null, -1, 6),
-      Row(null, -1, 7)))
+      Row(null, -1, 7)
+    ))
 
     // right stream ends first
     assertEvalsTo(mergeRows(Array[Integer](1, 1, 2, 2), Array[Integer](0, 0, 1, 1), 1), FastIndexedSeq(
@@ -3100,10 +3101,6 @@ class IRSuite extends HailSuite {
       StreamTake(st, I32(10)),
       StreamDrop(st, I32(10)),
       StreamMap(st, "v", v),
-      StreamMerge(
-        StreamMap(StreamRange(0, 2, 1), "x", MakeStruct(FastSeq("x" -> Ref("x", TInt32)))),
-        StreamMap(StreamRange(0, 3, 1), "x", MakeStruct(FastSeq("x" -> Ref("x", TInt32)))),
-        FastSeq("x")),
       StreamZip(FastIndexedSeq(st, st), FastIndexedSeq("foo", "bar"), True(), ArrayZipBehavior.TakeMinLength),
       StreamFilter(st, "v", b),
       StreamFlatMap(sta, "v", ToStream(a)),

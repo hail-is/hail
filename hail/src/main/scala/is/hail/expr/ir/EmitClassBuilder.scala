@@ -1,25 +1,22 @@
 package is.hail.expr.ir
 
-import java.io._
-import java.util.Base64
-
-import is.hail.{HailContext, lir}
-import is.hail.annotations.{Region, RegionPool, RegionValueBuilder, SafeRow}
+import is.hail.annotations.{Region, RegionPool, RegionValueBuilder}
 import is.hail.asm4s._
-import is.hail.asm4s.joinpoint.Ctrl
 import is.hail.backend.BackendUtils
 import is.hail.expr.ir.functions.IRRandomness
 import is.hail.expr.ir.orderings.CodeOrdering
 import is.hail.io.fs.FS
 import is.hail.io.{BufferSpec, InputBuffer, TypedCodecSpec}
 import is.hail.lir
-import is.hail.types.physical.stypes.{SCode, SType}
-import is.hail.types.physical.{PBaseStructValue, PCanonicalTuple, PCode, PSettable, PStream, PStruct, PType, PValue, typeToTypeInfo}
+import is.hail.types.physical.stypes.SType
+import is.hail.types.physical.{PCanonicalTuple, PCode, PSettable, PStream, PType, PValue, typeToTypeInfo}
 import is.hail.types.virtual.Type
 import is.hail.utils._
 import is.hail.variant.ReferenceGenome
 import org.apache.spark.TaskContext
 
+import java.io._
+import java.util.Base64
 import scala.collection.mutable
 import scala.language.existentials
 
@@ -1054,6 +1051,29 @@ class EmitMethodBuilder[C](
       val res = f(cb)
       res.code
     })
+  }
+
+  def implementLabel(label: CodeLabel)(f: EmitCodeBuilder => Unit): Unit = {
+    EmitCodeBuilder.scopedVoid(this) { cb =>
+      cb.define(label)
+      f(cb)
+      // assert(!cb.isOpenEnded)
+        /*
+        FIXME: The above assertion should hold, but currently does not. This is
+        likely due to client code with patterns like the following, which incorrectly
+        leaves the code builder open-ended:
+
+        cb.ifx(b,
+          cb.goto(L1),
+          cb.goto(L2))
+         */
+    }
+  }
+
+  def defineAndImplementLabel(f: EmitCodeBuilder => Unit): CodeLabel = {
+    val label = CodeLabel()
+    implementLabel(label)(f)
+    label
   }
 }
 
