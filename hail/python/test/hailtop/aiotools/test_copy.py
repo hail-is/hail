@@ -452,7 +452,7 @@ async def test_file_and_directory_error_with_slash(router_filesystem):
     # Test empty file that ends in a slash without directory
     await fs.create(f'{src_base}empty-only/')
 
-    with pytest.raises(FileNotFoundError):
+    with pytest.raises(FileAndDirectoryError):
         await fs.copy(sema, Transfer(f'{src_base}empty-only/', dest_base.rstrip('/'), treat_dest_as=Transfer.DEST_DIR))
 
     # Test non-empty file that ends in a slash without directory
