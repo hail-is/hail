@@ -74,6 +74,8 @@ object NDArrayFunctions extends RegistryFunctions {
             n.toI
           ))
 
+          cb.ifx(infoDGESVResult cne 0, cb._fatal(s"hl.nd.solve: Could not solve, matrix was singular. dgesv error code ", infoDGESVResult.toS))
+
           cb.append(Code.invokeStatic1[Memory, Long, Unit]("free", ipiv.load()))
           cb.append(Code.invokeStatic1[Memory, Long, Unit]("free", aCopy.load()))
 
