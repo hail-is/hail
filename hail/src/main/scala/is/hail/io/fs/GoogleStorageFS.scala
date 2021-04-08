@@ -9,6 +9,8 @@ import com.google.auth.oauth2.ServiceAccountCredentials
 import com.google.cloud.{ReadChannel, WriteChannel}
 import com.google.cloud.storage.Storage.BlobListOption
 import com.google.cloud.storage.{Blob, BlobId, BlobInfo, Storage, StorageOptions}
+import is.hail.backend.HailTaskContext
+import is.hail.backend.service.ServiceTaskContext
 
 import scala.collection.JavaConverters._
 import scala.collection.mutable
@@ -94,18 +96,29 @@ class GoogleStorageFileStatus(path: String, modificationTime: java.lang.Long, si
   def getOwner: String = null
 }
 
-class GoogleStorageFS(serviceAccountKey: String) extends FS {
-  assert(serviceAccountKey != null)
+class GoogleStorageFS(
+  @transient private[this] var serviceAccountKey: String
+) extends FS {
   import GoogleStorageFS._
 
   @transient private lazy val storage: Storage = {
-    StorageOptions.newBuilder()
-      .setCredentials(
-        ServiceAccountCredentials.fromStream(
-          new ByteArrayInputStream(
-            serviceAccountKey.getBytes)))
-      .build()
-      .getService
+    if (serviceAccountKey == null) {
+      HailTaskContext.get() match {
+        case x: ServiceTaskContext =>
+          x.gcsfs.storage
+        case _ =>
+          throw new RuntimeException(
+            s"Must provide serviceAccountKey outside Hail Service Worker")
+      }
+    } else {
+      StorageOptions.newBuilder()
+        .setCredentials(
+          ServiceAccountCredentials.fromStream(
+            new ByteArrayInputStream(
+              serviceAccountKey.getBytes)))
+        .build()
+        .getService
+    }
   }
 
   def openNoCompression(filename: String): SeekableDataInputStream = {

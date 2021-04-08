@@ -38,7 +38,10 @@ import scala.reflect.ClassTag
 import java.lang.reflect.InvocationTargetException
 import is.hail.io.fs.FS
 
-class ServiceTaskContext(val partitionId: Int) extends HailTaskContext {
+class ServiceTaskContext(
+  val partitionId: Int,
+  val gcsfs: GoogleStorageFS
+) extends HailTaskContext {
   override type BackendType = ServiceBackend
 
   override def stageId(): Int = 0
@@ -222,7 +225,7 @@ object Worker {
 
     val hailContext = HailContext(
       new WorkerBackend(), skipLoggingConfiguration = true, quiet = true)
-    val htc = new ServiceTaskContext(i)
+    val htc = new ServiceTaskContext(i, fs)
     HailTaskContext.setTaskContext(htc)
     val result = f(context, htc)
     HailTaskContext.finish()
