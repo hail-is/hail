@@ -686,8 +686,10 @@ def test_ndarray_diagonal():
 def test_ndarray_solve():
     a = hl.nd.array([[1, 2], [3, 5]])
     b = hl.nd.array([1, 2])
+    b2 = hl.nd.array([[1, 8], [2, 12]])
 
     assert np.allclose(hl.eval(hl.nd.solve(a, b)), np.array([-1., 1.]))
+    assert np.allclose(hl.eval(hl.nd.solve(a, b2)), np.array([[-1., -16.], [2, 12]]))
 
 
 def test_ndarray_qr():
