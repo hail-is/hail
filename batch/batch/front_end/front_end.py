@@ -9,6 +9,7 @@ import collections
 from functools import wraps
 import asyncio
 import aiohttp
+import signal
 from aiohttp import web
 import aiohttp_session
 import pymysql
@@ -17,7 +18,8 @@ import google.api_core.exceptions
 from prometheus_async.aio.web import server_stats  # type: ignore
 from hailtop.utils import (time_msecs, time_msecs_str, humanize_timedelta_msecs,
                            request_retry_transient_errors, run_if_changed,
-                           retry_long_running, LoggingTimer, cost_str)
+                           retry_long_running, LoggingTimer, cost_str,
+                           dump_all_stacktraces)
 from hailtop.batch_client.parse import (parse_cpu_in_mcpu, parse_memory_in_bytes,
                                         parse_storage_in_bytes)
 from hailtop.config import get_deploy_config
@@ -1946,6 +1948,8 @@ def run():
 
     app.on_startup.append(on_startup)
     app.on_cleanup.append(on_cleanup)
+
+    asyncio.get_event_loop().add_signal_handler(signal.SIGUSR1, dump_all_stacktraces)
 
     web.run_app(deploy_config.prefix_application(app,
                                                  'batch',

@@ -709,6 +709,12 @@ async def collect_agen(agen):
     return [x async for x in agen]
 
 
+def dump_all_stacktraces():
+    for t in asyncio.all_tasks():
+        print(t)
+        t.print_stack()
+
+
 async def retry_long_running(name, f, *args, **kwargs):
     delay_secs = 0.1
     while True:
