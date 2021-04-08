@@ -98,7 +98,7 @@ object EncodedLiteral {
     EncodedLiteral(codec, new WrappedByteArray(value))
   }
 
-  def hailValueToByteArray(pt: PType, addr: Long, ctx: ExecuteContext): IR = {
+  def fromPTypeAndAddress(pt: PType, addr: Long, ctx: ExecuteContext): IR = {
     val etype = EType.defaultFromPType(pt)
     val codec = TypedCodecSpec(etype, pt.virtualType, BufferSpec.defaultUncompressed)
     val bytes = codec.encode(ctx, pt, addr)

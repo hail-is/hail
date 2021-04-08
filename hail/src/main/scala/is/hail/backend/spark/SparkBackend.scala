@@ -373,7 +373,7 @@ class SparkBackend(
         val retVal = _execute(ctx, ir, true)
         val literalIR = retVal match {
           case Left(x) => throw new HailException("Can't create literal")
-          case Right((pt, addr)) => GetFieldByIdx(EncodedLiteral.hailValueToByteArray(pt, addr, ctx), 0)
+          case Right((pt, addr)) => GetFieldByIdx(EncodedLiteral.fromPTypeAndAddress(pt, addr, ctx), 0)
         }
         log.info(s"finished execution of query $queryID")
         literalIR
