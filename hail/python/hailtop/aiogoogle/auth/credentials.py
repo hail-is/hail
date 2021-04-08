@@ -27,7 +27,8 @@ class Credentials(abc.ABC):
 
     @staticmethod
     def default_credentials():
-        credentials_file = os.environ.get('GOOGLE_APPLICATION_CREDENTIALS')
+        credentials_file = None
+        # credentials_file = os.environ.get('GOOGLE_APPLICATION_CREDENTIALS')
 
         if credentials_file is None:
             application_default_credentials_file = f'{os.environ["HOME"]}/.config/gcloud/application_default_credentials.json'
@@ -37,7 +38,7 @@ class Credentials(abc.ABC):
         if credentials_file is None:
             raise ValueError('unable to locate Google Cloud credentials')
 
-        log.info(f'using credentials file {credentials_file}')
+        print(f'using credentials file {credentials_file}')
 
         return Credentials.from_file(credentials_file)
 
@@ -76,6 +77,7 @@ class ServiceAccountCredentials(Credentials):
         self.key = key
 
     async def get_access_token(self, session):
+        print('here')
         now = int(time.time())
         scope = 'openid https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/cloud-platform https://www.googleapis.com/auth/appengine.admin https://www.googleapis.com/auth/compute'
         assertion = {
