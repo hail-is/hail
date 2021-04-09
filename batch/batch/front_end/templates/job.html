@@ -61,7 +61,21 @@
 <p>No attempts</p>
 {% endif %}
 
-<h2>Step Status</h2>
+<!-- Import Plotly (does not have to be from CDN) -->
+<script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+
+<div id="plotly-timeseries"></div>
+<script>
+var graph = {{ plot_json | safe }};
+Plotly.plot('plotly-timeseries', graph, {});
+</script>
+
+
+
+
+
+
+<h2>Step Status DOG</h2>
 <section class="progress_bar">
   {% for step in step_statuses %}
     {% if step %}
