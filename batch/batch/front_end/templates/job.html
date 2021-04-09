@@ -66,7 +66,7 @@
   {% for step in step_statuses %}
     {% if step %}
       {% for name, timing in step['timing'].items() %}
-        {% if 'duration' in timing %}
+        {% if 'duration' in timing and timing['duration'] is not none %}
   <div class="main">
     <div class="bar" style="width:{{timing['duration']/100}}px">
       <div class="textbox">
