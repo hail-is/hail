@@ -468,9 +468,12 @@ object EmitStream {
 
               override val LproduceElement: CodeLabel = mb.defineAndImplementLabel { cb =>
                 val Lfiltered = CodeLabel()
+                cb.define(Lfiltered)
+                if (requiresMemoryManagementPerElement)
+                  cb += childProducer.elementRegion.clearRegion()
                 cb.goto(childProducer.LproduceElement)
-                cb.define(childProducer.LproduceElementDone)
 
+                cb.define(childProducer.LproduceElementDone)
                 cb.assign(elementField, childProducer.element)
                 // false and NA both fail the filter
                 emit(cond, cb = cb, env = env.bind(name, elementField), region = childProducer.elementRegion)
@@ -482,13 +485,7 @@ object EmitStream {
 
                 if (requiresMemoryManagementPerElement)
                   cb += childProducer.elementRegion.addReferenceTo(filterEltRegion)
-
                 cb.goto(LproduceElementDone)
-
-                cb.define(Lfiltered)
-                if (requiresMemoryManagementPerElement)
-                  cb += childProducer.elementRegion.clearRegion()
-                cb.goto(childProducer.LproduceElement)
               }
 
               val element: EmitCode = elementField
@@ -532,6 +529,7 @@ object EmitStream {
                   cb.ifx(idx >= n, cb.goto(LendOfStream))
                   cb.assign(idx, idx + 1)
                   cb.goto(childProducer.LproduceElement)
+
                   cb.define(childProducer.LproduceElementDone)
                   cb.goto(LproduceElementDone)
 
@@ -1269,15 +1267,6 @@ object EmitStream {
             override def close(cb: EmitCodeBuilder): Unit = {}
           }
 
-          val innerStreamCode = EmitCode.fromI(mb) { cb =>
-            if (childProducer.requiresMemoryManagementPerElement)
-              cb.assign(innerProducer.elementRegion, Region.stagedCreate(Region.REGULAR, outerRegion.getPool()))
-            else
-              cb.assign(innerProducer.elementRegion, outerRegion)
-
-            IEmitCode.present(cb, SStreamCode(SStream(innerProducer.element.st, true), innerProducer))
-          }
-
           val outerProducer = new StreamProducer {
             override val length: Option[Code[Int]] = None
 
@@ -1342,7 +1331,7 @@ object EmitStream {
               cb.goto(LproduceElementDone)
             }
 
-            override val element: EmitCode = innerStreamCode
+            override val element: EmitCode = EmitCode.present(mb, SStreamCode(SStream(innerProducer.element.st, true), innerProducer))
 
             override def close(cb: EmitCodeBuilder): Unit = {
               childProducer.close(cb)
