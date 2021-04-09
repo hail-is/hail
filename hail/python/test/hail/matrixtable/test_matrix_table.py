@@ -200,6 +200,10 @@ class Tests(unittest.TestCase):
         mt = mt.annotate_rows(maf_flag = hl.empty_array('bool'))
         mt.aggregate_rows(hl.agg.array_agg(lambda x: hl.agg.counter(x), mt.maf_flag))
 
+    def test_aggregate_rows_bn_counter(self):
+        r = hl.balding_nichols_model(3, 10, 10).rows()
+        r.aggregate(hl.agg.counter(r.locus.in_x_nonpar()))
+
     def test_col_agg_no_rows(self):
         mt = hl.utils.range_matrix_table(3, 3).filter_rows(False)
         mt = mt.annotate_cols(x = hl.agg.count())
