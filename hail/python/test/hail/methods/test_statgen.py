@@ -473,7 +473,6 @@ class Tests(unittest.TestCase):
     # zstat <- waldtest["x", "z value"]
     # pval <- waldtest["x", "Pr(>|z|)"]
     @fails_service_backend()
-    @fails_local_backend()
     def test_logistic_regression_wald_test(self):
         covariates = hl.import_table(resource('regressionLogistic.cov'),
                                      key='Sample',
@@ -513,7 +512,6 @@ class Tests(unittest.TestCase):
             self.assertTrue(is_constant(results[10]))
 
     @fails_service_backend()
-    @fails_local_backend()
     def test_logistic_regression_wald_test_apply_multi_pheno(self):
         covariates = hl.import_table(resource('regressionLogistic.cov'),
                                      key='Sample',
@@ -557,7 +555,6 @@ class Tests(unittest.TestCase):
             self.assertTrue(is_constant(results[10]))
 
     @fails_service_backend()
-    @fails_local_backend()
     def test_logistic_regression_wald_test_multi_pheno_bgen_dosage(self):
         covariates = hl.import_table(resource('regressionLogisticMultiPheno.cov'),
                                      key='Sample',
@@ -592,7 +589,6 @@ class Tests(unittest.TestCase):
 
 
     @fails_service_backend()
-    @fails_local_backend()
     def test_logistic_regression_wald_test_pl(self):
         covariates = hl.import_table(resource('regressionLogistic.cov'),
                                      key='Sample',
@@ -634,7 +630,6 @@ class Tests(unittest.TestCase):
             self.assertTrue(is_constant(results[10]))
 
     @fails_service_backend()
-    @fails_local_backend()
     def test_logistic_regression_wald_dosage(self):
         covariates = hl.import_table(resource('regressionLogistic.cov'),
                                      key='Sample',
