@@ -523,35 +523,38 @@ class Tests(unittest.TestCase):
                                 missing='0',
                                 types={'isCase': hl.tbool})
         mt = hl.import_vcf(resource('regressionLogistic.vcf'))
-        ht = hl.logistic_regression_rows('wald',
-                                         y=[pheno[mt.s].isCase],
-                                         x=mt.GT.n_alt_alleles(),
-                                         covariates=[1.0, covariates[mt.s].Cov1, covariates[mt.s].Cov2])
 
-        results = dict(hl.tuple([ht.locus.position, ht.row]).collect())
+        for logistic_regression_function in self.logreg_functions:
 
-        self.assertEqual(len(results[1].logistic_regression),1)
-        self.assertAlmostEqual(results[1].logistic_regression[0].beta, -0.81226793796, places=6)
-        self.assertAlmostEqual(results[1].logistic_regression[0].standard_error, 2.1085483421, places=6)
-        self.assertAlmostEqual(results[1].logistic_regression[0].z_stat, -0.3852261396, places=6)
-        self.assertAlmostEqual(results[1].logistic_regression[0].p_value, 0.7000698784, places=6)
+            ht = logistic_regression_function('wald',
+                                              y=[pheno[mt.s].isCase],
+                                              x=mt.GT.n_alt_alleles(),
+                                              covariates=[1.0, covariates[mt.s].Cov1, covariates[mt.s].Cov2])
 
-        self.assertEqual(len(results[2].logistic_regression),1)
-        self.assertAlmostEqual(results[2].logistic_regression[0].beta, -0.43659460858, places=6)
-        self.assertAlmostEqual(results[2].logistic_regression[0].standard_error, 1.0296902941, places=6)
-        self.assertAlmostEqual(results[2].logistic_regression[0].z_stat, -0.4240057531, places=6)
-        self.assertAlmostEqual(results[2].logistic_regression[0].p_value, 0.6715616176, places=6)
+            results = dict(hl.tuple([ht.locus.position, ht.row]).collect())
 
-        def is_constant(r):
-            return (not r.logistic_regression[0].fit.converged) or np.isnan(r.logistic_regression[0].p_value) or abs(r.logistic_regression[0].p_value - 1) < 1e-4
+            self.assertEqual(len(results[1].logistic_regression),1)
+            self.assertAlmostEqual(results[1].logistic_regression[0].beta, -0.81226793796, places=6)
+            self.assertAlmostEqual(results[1].logistic_regression[0].standard_error, 2.1085483421, places=6)
+            self.assertAlmostEqual(results[1].logistic_regression[0].z_stat, -0.3852261396, places=6)
+            self.assertAlmostEqual(results[1].logistic_regression[0].p_value, 0.7000698784, places=6)
 
-        self.assertEqual(len(results[3].logistic_regression),1)
-        self.assertFalse(results[3].logistic_regression[0].fit.converged)  # separable
-        self.assertTrue(is_constant(results[6]))
-        self.assertTrue(is_constant(results[7]))
-        self.assertTrue(is_constant(results[8]))
-        self.assertTrue(is_constant(results[9]))
-        self.assertTrue(is_constant(results[10]))
+            self.assertEqual(len(results[2].logistic_regression),1)
+            self.assertAlmostEqual(results[2].logistic_regression[0].beta, -0.43659460858, places=6)
+            self.assertAlmostEqual(results[2].logistic_regression[0].standard_error, 1.0296902941, places=6)
+            self.assertAlmostEqual(results[2].logistic_regression[0].z_stat, -0.4240057531, places=6)
+            self.assertAlmostEqual(results[2].logistic_regression[0].p_value, 0.6715616176, places=6)
+
+            def is_constant(r):
+                return (not r.logistic_regression[0].fit.converged) or np.isnan(r.logistic_regression[0].p_value) or abs(r.logistic_regression[0].p_value - 1) < 1e-4
+
+            self.assertEqual(len(results[3].logistic_regression),1)
+            self.assertFalse(results[3].logistic_regression[0].fit.converged)  # separable
+            self.assertTrue(is_constant(results[6]))
+            self.assertTrue(is_constant(results[7]))
+            self.assertTrue(is_constant(results[8]))
+            self.assertTrue(is_constant(results[9]))
+            self.assertTrue(is_constant(results[10]))
 
     @fails_service_backend()
     @fails_local_backend()
