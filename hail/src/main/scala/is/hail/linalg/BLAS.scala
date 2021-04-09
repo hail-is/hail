@@ -68,9 +68,22 @@ object BLAS {
 
     libraryInstance.get.dgemm(TRANSA, TRANSB, mInt, nInt, kInt, alphaDouble, A, LDAInt, B, LDBInt, betaDouble, C, LDCInt)
   }
+
+  def dgemv(TRANS: String, M: Int, N: Int, ALPHA: Double, A: Long, LDA: Int, X: Long, INCX: Int, BETA: Double, Y: Long, INCY: Int): Unit = {
+    val mInt = new IntByReference(M)
+    val nInt = new IntByReference(N)
+    val alphaDouble = new DoubleByReference(ALPHA)
+    val LDAInt = new IntByReference(LDA)
+    val betaDouble = new DoubleByReference(BETA)
+    val incxInt = new IntByReference(INCX)
+    val incyInt = new IntByReference(INCY)
+
+    libraryInstance.dgemv(TRANS, mInt, nInt, alphaDouble, A, LDAInt, X, incxInt, betaDouble, Y, incyInt)
+  }
 }
 
 trait BLASLibrary extends Library {
+  def dgemv(TRANS: String, M: IntByReference, N: IntByReference, ALPHA: DoubleByReference, A: Long, LDA: IntByReference, X: Long, INCX: IntByReference, BETA: DoubleByReference, Y: Long, INCY: IntByReference)
   def dgemm(TRANSA: String, TRANSB: String, M: IntByReference, N: IntByReference, K: IntByReference,
     ALPHA: DoubleByReference, A: Long, LDA: IntByReference, B: Long, LDB: IntByReference,
     BETA: DoubleByReference, C: Long, LDC: IntByReference)
