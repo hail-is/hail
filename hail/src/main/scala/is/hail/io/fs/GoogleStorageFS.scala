@@ -97,28 +97,18 @@ class GoogleStorageFileStatus(path: String, modificationTime: java.lang.Long, si
 }
 
 class GoogleStorageFS(
-  @transient private[this] var serviceAccountKey: String
+  private[this] val serviceAccountKey: String
 ) extends FS {
   import GoogleStorageFS._
 
   @transient private lazy val storage: Storage = {
-    if (serviceAccountKey == null) {
-      HailTaskContext.get() match {
-        case x: ServiceTaskContext =>
-          x.gcsfs.storage
-        case _ =>
-          throw new RuntimeException(
-            s"Must provide serviceAccountKey outside Hail Service Worker")
-      }
-    } else {
-      StorageOptions.newBuilder()
-        .setCredentials(
-          ServiceAccountCredentials.fromStream(
-            new ByteArrayInputStream(
-              serviceAccountKey.getBytes)))
-        .build()
-        .getService
-    }
+    StorageOptions.newBuilder()
+      .setCredentials(
+        ServiceAccountCredentials.fromStream(
+          new ByteArrayInputStream(
+            serviceAccountKey.getBytes)))
+      .build()
+      .getService
   }
 
   def openNoCompression(filename: String): SeekableDataInputStream = {
