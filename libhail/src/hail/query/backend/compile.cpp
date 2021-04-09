@@ -198,9 +198,16 @@ CompileFunction::emit(Literal *x) {
       auto m = llvm::ConstantInt::get(llvm::Type::getInt8Ty(llvm_context), 0);
       auto array_value = x->value.as_array();
       auto len = llvm::ConstantInt::get(llvm_context, llvm::APInt(64, array_value.get_size()));
+      auto missing = llvm_ir_builder.CreateIntToPtr(llvm::ConstantInt::get(llvm_context, llvm::APInt(64, (uint64_t) array_value.get_missing_bits())),
+                                                    llvm::PointerType::get(llvm::Type::getInt8Ty(llvm_context), 0));
+      auto elements = llvm::ConstantInt::get(llvm_context, llvm::APInt(64, (uint64_t) array_value.get_elements()));
+      // auto missing = llvm::Value *value_address = llvm_ir_builder.CreateGEP(array_value.get_missing_bits(),
+      //                        llvm::ConstantInt::get(llvm_context, llvm::APInt(64, 8)));
+      // auto elements = llvm::Value *value_address = llvm_ir_builder.CreateGEP(array_value.get_elements(),
+      //                        llvm::ConstantInt::get(llvm_context, llvm::APInt(64, 8)));
       auto stype = const_cast <const SCanonicalArray*> (cast<SCanonicalArray>(stc.stype_from(x->value.vtype)));
       // TODO: Obviously wrong, need missing bits and data bits.
-      return EmitValue(m, new SCanonicalArrayValue(stype, len, len, len));
+      return EmitValue(m, new SCanonicalArrayValue(stype, len, missing, len));
     }
   default:
     abort();
