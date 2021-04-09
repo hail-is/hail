@@ -909,6 +909,11 @@ def wald_test(X, y, null_fit, link):
         p_value = p[X.shape[1] - 1],
         fit = hl.struct(n_iterations=fit.num_iter, converged=fit.converged, exploded=fit.exploded))
 
+def lrt_test(X, y, null_fit, link):
+    assert (link == "logistic")
+    fit = logreg_fit(X, y, null_fit)
+
+    ...
 
 @typecheck(test=enumeration('wald', 'lrt', 'score', 'firth'),
            y=oneof(expr_float64, sequenceof(expr_float64)),
@@ -1189,20 +1194,17 @@ def _logistic_regression_rows_nd(test, y, x, covariates, pass_through=()) -> hai
         covs_and_x = hl.nd.hstack([ht.cov_nd, ht.x.reshape((-1, 1))])
         wald_structs = hl.range(num_y_fields).map(lambda idx: wald_test(covs_and_x, ht.y_nd[:, idx], ht.nulls[idx], "logistic"))
         ht = ht.annotate(logistic_regression=wald_structs)
+    elif test == "lrt":
+        covs_and_x = hl.nd.hstack([ht.cov_nd, ht.x.reshape((-1, 1))])
+
     else:
-        raise ValueError("Only support Wald so far")
+        raise ValueError("Only support wald and lrt so far")
 
     if not y_is_list:
         ht = ht.transmute(**ht.logistic_regression[0])
 
-    return ht
+    ht = ht.drop("x")
 
-
-    # Fit null models, which means doing a logreg fit with just the covariates for each phenotype.
-    null_models = hl.range(num_y_fields).map(lambda idx: logreg_fit(ht.cov_nd, ht.y_nd[:, idx]))
-
-    ht = ht.annotate_globals(nulls = null_models)
-    ht = ht.transmute(x = hl.nd.array(mean_impute(ht.entries[x_field_name])))
     return ht
 
 
