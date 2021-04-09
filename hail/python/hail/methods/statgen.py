@@ -815,6 +815,101 @@ def logistic_regression_rows(test, y, x, covariates, pass_through=()) -> hail.Ta
     return result.persist()
 
 
+# Helpers for logreg:
+def mean_impute(hl_array):
+    non_missing_mean = hl.mean(hl_array, filter_missing=True)
+    return hl_array.map(lambda entry: hl.if_else(hl.is_defined(entry), entry, non_missing_mean))
+
+def sigmoid(hl_nd):
+    return 1 / (1 + hl_nd.map(lambda x: hl.exp(-x)))
+
+def nd_max(hl_nd):
+    return hl.max(hl_nd.reshape(-1)._data_array())
+
+def logreg_fit(X, y, null_fit=None, max_iter=25, tol=1E-6):
+    assert(X.ndim == 2)
+    assert(y.ndim == 1)
+    # X is samples by covs.
+    # y is length num samples, for one cov.
+    n = X.shape[0]
+    m = X.shape[1]
+
+    if null_fit is None:
+        b = hl.nd.array(hl.array([y.sum()[()]/n]).extend(hl.zeros(hl.int32(m - 1)).map(lambda e: hl.float64(e))))
+        mu = sigmoid(X @ b)
+        score = X.T @ (y - mu)
+        # Reshape so we do a rowwise multiply
+        fisher = X.T @ (X * (mu * (1 - mu)).reshape(-1, 1))
+    else:
+        # num covs used to fit null model.
+        m0 = null_fit.b.shape[0]
+        m_diff = m - m0
+
+        X0 = X[:, 0:m0]
+        X1 = X[:, m0:]
+
+        b = hl.nd.hstack([null_fit.b, hl.nd.zeros((m_diff,))])
+        mu = sigmoid(X @ b)
+        score = hl.nd.hstack([null_fit.score, X1.T @ (y - mu)])
+
+        fisher00 = null_fit.fisher
+        fisher01 = X0.T @ (X1 * (mu * (1 - mu)).reshape(-1, 1))
+        fisher10 = fisher01.T
+        fisher11 = X1.T @ (X1 * (mu * (1 - mu)).reshape(-1, 1))
+
+        fisher = hl.nd.vstack([
+            hl.nd.hstack([fisher00, fisher01]),
+            hl.nd.hstack([fisher10, fisher11])
+        ])
+
+    # Useful type abbreviations
+    tvector64 = hl.tndarray(hl.tfloat64, 1)
+    tmatrix64 = hl.tndarray(hl.tfloat64, 2)
+    search_return_type = hl.tstruct(b=tvector64, score=tvector64, fisher=tmatrix64, num_iter=hl.tint32, converged=hl.tbool, exploded=hl.tbool)
+    def na(field_name):
+        return hl.missing(search_return_type[field_name])
+
+    # Need to do looping now.
+    def search(recur, cur_iter, b, mu, score, fisher):
+        delta_b_struct = hl.nd.solve(fisher, score, no_crash=True)
+
+        exploded = delta_b_struct.failed
+        delta_b = delta_b_struct.solution
+        max_delta_b = nd_max(delta_b.map(lambda e: hl.abs(e)))
+
+        def compute_next_iter(cur_iter, b, mu, score, fisher):
+            cur_iter = cur_iter + 1
+            b = b + delta_b
+            mu = sigmoid(X @ b)
+            score = X.T @ (y - mu)
+            fisher = X.T @ (X * (mu * (1 - mu)).reshape(-1, 1))
+            return recur(cur_iter, b, mu, score, fisher)
+
+        return (hl.case()
+                .when(exploded | hl.is_nan(delta_b[0]), hl.struct(b=na('b'), score=na('score'), fisher=na('fisher'), num_iter=cur_iter, converged=False, exploded=True))
+                .when(cur_iter > max_iter, hl.struct(b=na('b'), score=na('score'), fisher=na('fisher'), num_iter=cur_iter, converged=False, exploded=False))
+                .when(max_delta_b < tol, hl.struct(b=b, score=score, fisher=fisher, num_iter=cur_iter, converged=True, exploded=False))
+                .default(compute_next_iter(cur_iter, b, mu, score, fisher)))
+
+    res_struct = hl.experimental.loop(search, search_return_type, 1, b, mu, score, fisher)
+
+    return res_struct
+
+def wald_test(X, y, null_fit, link):
+    assert (link == "logistic")
+    fit = logreg_fit(X, y, null_fit)
+
+    se = hl.nd.diagonal(hl.nd.inv(fit.fisher)).map(lambda e: hl.sqrt(e))
+    z = fit.b / se
+    p = z.map(lambda e: 2 * hl.pnorm(-hl.abs(e)))
+    return hl.struct(
+        beta = fit.b[X.shape[1] - 1],
+        standard_error=se[X.shape[1] - 1],
+        z_stat = z[X.shape[1] - 1],
+        p_value = p[X.shape[1] - 1],
+        fit = hl.struct(n_iterations=fit.num_iter, converged=fit.converged, exploded=fit.exploded))
+
+
 @typecheck(test=enumeration('wald', 'lrt', 'score', 'firth'),
            y=oneof(expr_float64, sequenceof(expr_float64)),
            x=expr_float64,
@@ -1050,7 +1145,7 @@ def _logistic_regression_rows_nd(test, y, x, covariates, pass_through=()) -> hai
     for e in covariates:
         analyze('logistic_regression_rows/covariates', e, mt._col_indices)
 
-    _warn_if_no_intercept('logistic_regression_rows', covariates)
+    # _warn_if_no_intercept('logistic_regression_rows', covariates)
 
     x_field_name = Env.get_uid()
     y_field_names = [f'__y_{i}' for i in range(len(y))]
@@ -1074,13 +1169,6 @@ def _logistic_regression_rows_nd(test, y, x, covariates, pass_through=()) -> hai
     sample_field_name = "samples"
     ht = mt._localize_entries("entries", sample_field_name)
 
-    def mean_impute(hl_array):
-        non_missing_mean = hl.mean(hl_array, filter_missing=True)
-        return hl_array.map(lambda entry: hl.if_else(hl.is_defined(entry), entry, non_missing_mean))
-
-    def sigmoid(hl_nd):
-        return 1 / (1 + hl_nd.map(lambda x: hl.exp(-x)))
-
     # cov_nd rows are samples, columns are the different covariates
     if covariates:
         ht = ht.annotate_globals(cov_nd=hl.nd.array(ht[sample_field_name].map(lambda sample_struct: [sample_struct[cov_name] for cov_name in cov_field_names])))
@@ -1090,22 +1178,24 @@ def _logistic_regression_rows_nd(test, y, x, covariates, pass_through=()) -> hai
     # y_nd rows are samples, columns are the various dependent variables.
     ht = ht.annotate_globals(y_nd = hl.nd.array(ht[sample_field_name].map(lambda sample_struct: [sample_struct[y_name] for y_name in y_field_names])))
 
-    def logreg_fit(X, y, maxIter=25, tol=1E-6):
-        assert(X.ndim == 2)
-        assert(y.ndim == 1)
-        # X is samples by covs.
-        # y is length num samples, for one cov.
-        n = X.shape[0]
-        m = X.shape[1]
-        b = hl.array([y.sum()[()]/n]).extend(hl.zeros(hl.int32(m - 1)).map(lambda e: hl.float64(e)))
-        mu = sigmoid(X @ b)
-        score = X.T @ (y - mu)
-        # Reshape so we do a rowwise multiply
-        fisher = X.T @ (X * (mu * (1 - mu)).reshape(-1, 1))
 
-        # Need to do looping now.
+    # Fit null models, which means doing a logreg fit with just the covariates for each phenotype.
+    null_models = hl.range(num_y_fields).map(lambda idx: logreg_fit(ht.cov_nd, ht.y_nd[:, idx]))
+    ht = ht.annotate_globals(nulls = null_models)
+    ht = ht.transmute(x = hl.nd.array(mean_impute(ht.entries[x_field_name])))
 
-        return hl.struct(converged=False, mu=mu, score=score, fisher=fisher)
+    if test == "wald":
+        # For each y vector, need to do wald test.
+        covs_and_x = hl.nd.hstack([ht.cov_nd, ht.x.reshape((-1, 1))])
+        wald_structs = hl.range(num_y_fields).map(lambda idx: wald_test(covs_and_x, ht.y_nd[:, idx], ht.nulls[idx], "logistic"))
+        ht = ht.annotate(logistic_regression=wald_structs)
+    else:
+        raise ValueError("Only support Wald so far")
+
+    if not y_is_list:
+        ht = ht.transmute(**ht.logistic_regression[0])
+
+    return ht
 
 
     # Fit null models, which means doing a logreg fit with just the covariates for each phenotype.

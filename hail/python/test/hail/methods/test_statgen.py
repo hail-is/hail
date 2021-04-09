@@ -459,6 +459,8 @@ class Tests(unittest.TestCase):
                 eq(combined.p_value, combined.multi.p_value[0]) &
                 eq(combined.multi.p_value[0], combined.multi.p_value[1]))))
 
+    logreg_functions = [hl.logistic_regression_rows, hl._logistic_regression_rows_nd] if backend_name == "spark" else [hl._linear_regression_rows_nd]
+
     # comparing to R:
     # x = c(0, 1, 0, 0, 0, 1, 0, 0, 0, 0)
     # y = c(0, 0, 1, 1, 1, 1, 0, 0, 1, 1)
@@ -481,32 +483,34 @@ class Tests(unittest.TestCase):
                                 missing='0',
                                 types={'isCase': hl.tbool})
         mt = hl.import_vcf(resource('regressionLogistic.vcf'))
-        ht = hl.logistic_regression_rows('wald',
-                                         y=pheno[mt.s].isCase,
-                                         x=mt.GT.n_alt_alleles(),
-                                         covariates=[1.0, covariates[mt.s].Cov1, covariates[mt.s].Cov2])
 
-        results = dict(hl.tuple([ht.locus.position, ht.row]).collect())
+        for logistic_regression_function in self.logreg_functions:
+            ht = logistic_regression_function('wald',
+                                              y=pheno[mt.s].isCase,
+                                              x=mt.GT.n_alt_alleles(),
+                                              covariates=[1.0, covariates[mt.s].Cov1, covariates[mt.s].Cov2])
 
-        self.assertAlmostEqual(results[1].beta, -0.81226793796, places=6)
-        self.assertAlmostEqual(results[1].standard_error, 2.1085483421, places=6)
-        self.assertAlmostEqual(results[1].z_stat, -0.3852261396, places=6)
-        self.assertAlmostEqual(results[1].p_value, 0.7000698784, places=6)
+            results = dict(hl.tuple([ht.locus.position, ht.row]).collect())
 
-        self.assertAlmostEqual(results[2].beta, -0.43659460858, places=6)
-        self.assertAlmostEqual(results[2].standard_error, 1.0296902941, places=6)
-        self.assertAlmostEqual(results[2].z_stat, -0.4240057531, places=6)
-        self.assertAlmostEqual(results[2].p_value, 0.6715616176, places=6)
+            self.assertAlmostEqual(results[1].beta, -0.81226793796, places=6)
+            self.assertAlmostEqual(results[1].standard_error, 2.1085483421, places=6)
+            self.assertAlmostEqual(results[1].z_stat, -0.3852261396, places=6)
+            self.assertAlmostEqual(results[1].p_value, 0.7000698784, places=6)
 
-        def is_constant(r):
-            return (not r.fit.converged) or np.isnan(r.p_value) or abs(r.p_value - 1) < 1e-4
+            self.assertAlmostEqual(results[2].beta, -0.43659460858, places=6)
+            self.assertAlmostEqual(results[2].standard_error, 1.0296902941, places=6)
+            self.assertAlmostEqual(results[2].z_stat, -0.4240057531, places=6)
+            self.assertAlmostEqual(results[2].p_value, 0.6715616176, places=6)
 
-        self.assertFalse(results[3].fit.converged)  # separable
-        self.assertTrue(is_constant(results[6]))
-        self.assertTrue(is_constant(results[7]))
-        self.assertTrue(is_constant(results[8]))
-        self.assertTrue(is_constant(results[9]))
-        self.assertTrue(is_constant(results[10]))
+            def is_constant(r):
+                return (not r.fit.converged) or np.isnan(r.p_value) or abs(r.p_value - 1) < 1e-4
+
+            self.assertFalse(results[3].fit.converged)  # separable
+            self.assertTrue(is_constant(results[6]))
+            self.assertTrue(is_constant(results[7]))
+            self.assertTrue(is_constant(results[8]))
+            self.assertTrue(is_constant(results[9]))
+            self.assertTrue(is_constant(results[10]))
 
     @fails_service_backend()
     @fails_local_backend()
