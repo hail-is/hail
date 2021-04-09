@@ -446,16 +446,7 @@ div .bar {
   width:140px;
   overflow-y:hidden;
   overflow-x:scroll;
-}
-.bar:hover {
-  position: absolute;
-  display: block;
-  width: 20px;
-  height: 20px;
-  background-color: #fff;
-  border: 1px solid black;
-  transform: rotate(45deg);
-  top: 35px;
+  white-space: nowrap;
 }
 .bar:hover .textbox {
   display: block;
@@ -467,4 +458,7 @@ div .bar {
 }
 .main .bar {
   border-top: 20px solid blue;
+}
+.main{
+  display: inline-block;
 }
