@@ -609,7 +609,7 @@ class EmitStreamSuite extends HailSuite {
     }
   }
 
-  def assertMemoryDoesNotScaleWithStreamSize(lowSize: Int = 100, highSize: Int = 10000)(f: IR => IR): Unit = {
+  def assertMemoryDoesNotScaleWithStreamSize(lowSize: Int = 50, highSize: Int = 2500)(f: IR => IR): Unit = {
     val memUsed1 = ExecuteContext.scoped() { ctx =>
       eval(f(lowSize), Env.empty, FastIndexedSeq(), None, None, false, ctx)
       ctx.r.pool.getHighestTotalUsage
@@ -630,14 +630,16 @@ class EmitStreamSuite extends HailSuite {
 
   def sumIR(x: IR): IR = foldIR(x, 0) { case (acc, value) => acc + value }
 
+  def foldLength(x: IR): IR = sumIR(mapIR(x) { _ => I32(1) })
+
   def rangeStructs(size: IR): IR = mapIR(StreamRange(0, size, 1, true)) { i =>
-    makestruct(("idx", i), ("foo", invoke("str", TString, i)))
+    makestruct(("idx", i), ("foo", invoke("str", TString, i)), ("bigArray", ToArray(rangeIR(10000))))
   }
 
   def filteredRangeStructs(size: IR): IR = mapIR(filterIR(
     StreamRange(0, size, 1, true)
   ) { i => i < (size / 2).toI }) { i =>
-    makestruct(("idx", i), ("foo2", invoke("str", TString, i)))
+    makestruct(("idx", i), ("foo2", invoke("str", TString, i)), ("bigArray2", ToArray(rangeIR(10000))))
   }
 
   @Test def testMemoryRangeFold(): Unit = {
@@ -692,6 +694,12 @@ class EmitStreamSuite extends HailSuite {
       sumIR(flatMapIR(filteredRangeStructs(size)) { struct =>
         StreamRange(0, invoke("length", TInt32, GetField(struct, "foo2")), 1, false)
       })
+    }
+  }
+
+  @Test def testGroupedFlatMapMemManagementMismatch(): Unit = {
+    assertMemoryDoesNotScaleWithStreamSize() { size =>
+      foldLength(flatMapIR(mapIR(StreamGrouped(rangeStructs(size), 16)) { x => ToArray(x) }) { a => ToStream(a, false) })
     }
   }
 }

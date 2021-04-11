@@ -1,6 +1,6 @@
 package is.hail.expr.ir.streams
 
-import is.hail.annotations.Region
+import is.hail.annotations.{Region, RegionPool, RegionUtils}
 import is.hail.asm4s._
 import is.hail.expr.ir._
 import is.hail.expr.ir.orderings.StructOrdering
@@ -154,7 +154,7 @@ object EmitStream {
 
     def emit(ir: IR, cb: EmitCodeBuilder, region: Value[Region] = outerRegion, env: Emit.E = env, container: Option[AggContainer] = container): IEmitCode = {
       ir.typ match {
-        case _: TStream => produce(ir, cb, outerRegion, env, container)
+        case _: TStream => produce(ir, cb, region, env, container)
         case _ => emitter.emitI(ir, cb, region, env, container, None)
       }
     }
@@ -782,6 +782,7 @@ object EmitStream {
             }
           }
 
+          val resultElementRegion = mb.genFieldThisRef[Region]("flatmap_result_region")
           // grabbing emitcode.pv weird pattern but should be safe
           val SStreamCode(_, innerProducer) = innerStreamEmitCode.pv
 
@@ -790,6 +791,7 @@ object EmitStream {
 
             override def initialize(cb: EmitCodeBuilder): Unit = {
               cb.assign(first, true)
+              cb.assign(innerUnclosed, false)
 
               if (outerProducer.requiresMemoryManagementPerElement)
                 cb.assign(outerProducer.elementRegion, Region.stagedCreate(Region.REGULAR, cb.emb.ecb.pool()))
@@ -799,7 +801,7 @@ object EmitStream {
               outerProducer.initialize(cb)
             }
 
-            override val elementRegion: Settable[Region] = innerProducer.elementRegion
+            override val elementRegion: Settable[Region] = resultElementRegion
 
             override val requiresMemoryManagementPerElement: Boolean = innerProducer.requiresMemoryManagementPerElement || outerProducer.requiresMemoryManagementPerElement
 
@@ -819,6 +821,9 @@ object EmitStream {
                 cb.ifx(innerUnclosed, {
                   cb.assign(innerUnclosed, false)
                   innerProducer.close(cb)
+                  if (innerProducer.requiresMemoryManagementPerElement) {
+                    cb += innerProducer.elementRegion.invalidate()
+                  }
                 })
 
                 cb.goto(outerProducer.LproduceElement)
@@ -831,6 +836,11 @@ object EmitStream {
                     _ =>
                       // the inner stream/producer is bound to a variable above
                       cb.assign(innerUnclosed, true)
+                      if (innerProducer.requiresMemoryManagementPerElement)
+                        cb.assign(innerProducer.elementRegion, Region.stagedCreate(Region.REGULAR, outerProducer.elementRegion.getPool()))
+                      else
+                        cb.assign(innerProducer.elementRegion, outerProducer.elementRegion)
+
                       innerProducer.initialize(cb)
                       cb.goto(LnextInner)
                   }
@@ -840,6 +850,16 @@ object EmitStream {
               cb.define(LnextInner)
               cb.goto(innerProducer.LproduceElement)
               cb.define(innerProducer.LproduceElementDone)
+
+              if (requiresMemoryManagementPerElement) {
+                cb += innerProducer.elementRegion.addReferenceTo(resultElementRegion)
+
+                // if outer requires memory management and inner doesn't,
+                // then innerProducer.elementRegion is outerProducer.elementRegion
+                // and we shouldn't clear it
+                if (innerProducer.requiresMemoryManagementPerElement)
+                  cb += innerProducer.elementRegion.clearRegion()
+              }
               cb.goto(LproduceElementDone)
             }
             val element: EmitCode = innerProducer.element
@@ -847,6 +867,9 @@ object EmitStream {
             def close(cb: EmitCodeBuilder): Unit = {
               cb.ifx(innerUnclosed, {
                 cb.assign(innerUnclosed, false)
+                if (innerProducer.requiresMemoryManagementPerElement) {
+                  cb += innerProducer.elementRegion.invalidate()
+                }
                 innerProducer.close(cb)
               })
               outerProducer.close(cb)
@@ -1403,8 +1426,10 @@ object EmitStream {
                 cb.goto(childProducer.LproduceElement)
                 cb.define(LchildProduceDoneInner)
 
-                if (childProducer.requiresMemoryManagementPerElement)
+                if (childProducer.requiresMemoryManagementPerElement) {
                   cb += childProducer.elementRegion.addReferenceTo(innerResultRegion)
+                  cb += childProducer.elementRegion.clearRegion()
+                }
 
                 cb.goto(LproduceElementDone)
               }
