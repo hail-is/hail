@@ -3670,15 +3670,15 @@ class MatrixTable(ExprContainer):
 
         return MatrixTable(ir.MatrixUnionCols(self._mir, other._mir, row_join_type))
 
-    @typecheck_method(n=nullable(int), n_cols=nullable(int), n_rows=nullable(int))
-    def head(self, n: Optional[int], n_cols: Optional[int] = None, *, n_rows: Optional[int] = None) -> 'MatrixTable':
-        """Subset matrix to first `n` rows.
+    @typecheck_method(n_rows=nullable(int), n_cols=nullable(int), n=nullable(int))
+    def head(self, n_rows: Optional[int], n_cols: Optional[int] = None, *, n: Optional[int] = None) -> 'MatrixTable':
+        """Subset matrix to first `n_rows` rows and `n_cols` cols.
 
         Examples
         --------
         >>> mt_range = hl.utils.range_matrix_table(100, 100)
 
-        Passing only one argument will take the first `n` rows:
+        Passing only one argument will take the first `n_rows` rows:
 
         >>> mt_range.head(10).count()
         (10, 100)
@@ -3702,26 +3702,22 @@ class MatrixTable(ExprContainer):
 
         Notes
         -----
-        For backwards compatibility, the `n` parameter is not named `n_rows`,
-        but the parameter refers to the number of rows to keep.
-
         The number of partitions in the new matrix is equal to the number of
-        partitions containing the first `n` rows.
+        partitions containing the first `n_rows` rows.
 
         Parameters
         ----------
-        n : :obj:`int`
-            Deprecated as a named argument please use n_rows. Number of rows to include (all rows
-            included if ``None``).
-        n_cols : :obj:`int`, optional
-            Number of cols to include (all cols included if ``None``).
         n_rows : :obj:`int`
             Number of rows to include (all rows included if ``None``).
+        n_cols : :obj:`int`, optional
+            Number of cols to include (all cols included if ``None``).
+        n : :obj:`int`
+            Deprecated in favor of n_rows.
 
         Returns
         -------
         :class:`.MatrixTable`
-            Matrix including the first `n` rows and first `n_cols` cols.
+            Matrix including the first `n_rows` rows and first `n_cols` cols.
 
         """
         if n_rows is not None and n is not None:
