@@ -604,6 +604,8 @@ class SourceCopier:
                            return_exceptions: bool):
         try:
             src = self.src
+            if src.endswith('/'):
+                return
             try:
                 srcstat = await self.router_fs.statfile(src)
             except FileNotFoundError:
