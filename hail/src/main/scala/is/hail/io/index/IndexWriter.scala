@@ -257,9 +257,10 @@ object StagedIndexWriter {
 
     val makeFB = fb.resultWithIndex()
 
+    val fsBc = ctx.fsBc;
     { (path: String, pool: RegionPool) =>
       pool.scopedRegion { r =>
-        val f = makeFB(0, r)
+        val f = makeFB(fsBc.value, 0, r)
         f.init(path)
         f
       }

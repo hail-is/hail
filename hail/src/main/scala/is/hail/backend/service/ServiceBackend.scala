@@ -4,7 +4,6 @@ import java.io._
 import java.net._
 import java.nio.charset.StandardCharsets
 import java.util.concurrent._
-
 import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.asm4s._
@@ -12,7 +11,7 @@ import is.hail.backend.{Backend, BackendContext, BroadcastValue, HailTaskContext
 import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.ir.lowering.{DArrayLowering, LoweringPipeline, TableStage, TableStageDependency}
 import is.hail.expr.ir.{Compile, ExecuteContext, IR, IRParser, Literal, MakeArray, MakeTuple, ShuffleRead, ShuffleWrite, SortField, ToStream}
-import is.hail.io.fs.GoogleStorageFS
+import is.hail.io.fs.{FS, GoogleStorageFS}
 import is.hail.linalg.BlockMatrix
 import is.hail.rvd.RVDPartitioner
 import is.hail.services._
@@ -80,7 +79,7 @@ class ServiceBackend() extends Backend {
     def value: T = _value
   }
 
-  def parallelizeAndComputeWithIndex(_backendContext: BackendContext, collection: Array[Array[Byte]], dependency: Option[TableStageDependency] = None)(f: (Array[Byte], HailTaskContext) => Array[Byte]): Array[Array[Byte]] = {
+  def parallelizeAndComputeWithIndex(_backendContext: BackendContext, collection: Array[Array[Byte]], dependency: Option[TableStageDependency] = None)(f: (Array[Byte], HailTaskContext, FS) => Array[Byte]): Array[Array[Byte]] = {
     val backendContext = _backendContext.asInstanceOf[ServiceBackendContext]
 
     val user = users.get(backendContext.username)
@@ -236,7 +235,7 @@ class ServiceBackend() extends Backend {
         x,
         optimize = true)
 
-      f(0, ctx.r)(ctx.r)
+      f(ctx.fs, 0, ctx.r)(ctx.r)
       None
     } else {
       val (Some(PTypeReferenceSingleCodeType(pt)), f) = Compile[AsmFunction1RegionLong](ctx,
@@ -245,7 +244,7 @@ class ServiceBackend() extends Backend {
         MakeTuple.ordered(FastIndexedSeq(x)),
         optimize = true)
 
-      val a = f(0, ctx.r)(ctx.r)
+      val a = f(ctx.fs, 0, ctx.r)(ctx.r)
       val retPType = pt.asInstanceOf[PBaseStruct]
       Some((new UnsafeRow(retPType, ctx.r, a).get(0), retPType.types(0)))
     }

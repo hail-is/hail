@@ -27,41 +27,14 @@ class EmitModuleBuilder(val ctx: ExecuteContext, val modb: ModuleBuilder) {
   def genEmitClass[C](baseName: String, sourceFile: Option[String] = None)(implicit cti: TypeInfo[C]): EmitClassBuilder[C] =
     newEmitClass[C](genName("C", baseName), sourceFile)
 
-  private[this] var _staticFS: Settable[FS] = _
-
-  def getFS: Value[FS] = {
-    if (_staticFS == null) {
-      val fsinfo = typeInfoFromClass(ctx.fs.getClass)
-      val cls = genEmitClass[Unit]("FSContainer")
-      val baos = new ByteArrayOutputStream()
-      val oos = new ObjectOutputStream(baos)
-      oos.writeObject(ctx.fs)
-
-      val fsbytes = baos.toByteArray()
-      val fsstring = Base64.getEncoder().encodeToString(fsbytes)
-
-      val chunkSize = (1 << 16) - 1
-      val nChunks = (fsstring.length() - 1) / chunkSize + 1
-      assert(nChunks > 0)
-
-      val chunks = Array.tabulate(nChunks){ i => fsstring.slice(i * chunkSize, (i + 1) * chunkSize) }
-      val stringAssembler =
-        chunks.tail.foldLeft[Code[String]](chunks.head) { (c, s) => c.invoke[String, String]("concat", s) }
-
-      val mb = cls.newStaticEmitMethod("init_filesystem", FastIndexedSeq(), typeInfo[FS])
-      mb.emitWithBuilder { cb =>
-        val b64 = Code.invokeStatic0[Base64, Base64.Decoder]("getDecoder")
-        val ba = b64.invoke[String, Array[Byte]]("decode", stringAssembler)
-        val bais = Code.newInstance[ByteArrayInputStream, Array[Byte]](ba)
-        val ois = cb.newLocal("ois", Code.newInstance[ObjectInputStream, InputStream](bais))
-        Code.checkcast(ois.invoke[Any]("readObject"))(fsinfo)
-      }
-      val fs = cls.newStaticField[FS]("filesystem", mb.invokeCode())
-
-      _staticFS = new StaticFieldRef(fs)
-    }
-    _staticFS
+  private[this] var _staticFS: StaticField[FS] = {
+    val cls = genEmitClass[Unit]("FSContainer")
+    cls.newStaticField[FS]("filesystem", Code._null[FS])
   }
+
+  def setFS(cb: EmitCodeBuilder, fs: Code[FS]): Unit = cb += _staticFS.put(fs)
+
+  def getFS: Value[FS] = new StaticFieldRef(_staticFS)
 
   private[this] val rgMap: mutable.Map[ReferenceGenome, Value[ReferenceGenome]] =
     mutable.Map[ReferenceGenome, Value[ReferenceGenome]]()
@@ -144,7 +117,7 @@ trait WrappedEmitClassBuilder[C] extends WrappedEmitModuleBuilder {
 
   def backend(): Code[BackendUtils] = ecb.backend()
 
-  def addModule(name: String, mod: (Int, Region) => AsmFunction3[Region, Array[Byte], Array[Byte], Array[Byte]]): Unit =
+  def addModule(name: String, mod: (FS, Int, Region) => AsmFunction3[Region, Array[Byte], Array[Byte], Array[Byte]]): Unit =
     ecb.addModule(name, mod)
 
   def partitionRegion: Settable[Region] = ecb.partitionRegion
@@ -181,7 +154,7 @@ trait WrappedEmitClassBuilder[C] extends WrappedEmitModuleBuilder {
 
   def newRNG(seed: Long): Value[IRRandomness] = ecb.newRNG(seed)
 
-  def resultWithIndex(print: Option[PrintWriter] = None): (Int, Region) => C = ecb.resultWithIndex(print)
+  def resultWithIndex(print: Option[PrintWriter] = None): (FS, Int, Region) => C = ecb.resultWithIndex(print)
 
   def getOrGenEmitMethod(
     baseName: String, key: Any, argsInfo: IndexedSeq[ParamType], returnInfo: ParamType
@@ -418,7 +391,7 @@ class EmitClassBuilder[C](
   private[this] var _objectsField: Settable[Array[AnyRef]] = _
   private[this] var _objects: BoxedArrayBuilder[AnyRef] = _
 
-  private[this] var _mods: BoxedArrayBuilder[(String, (Int, Region) => AsmFunction3[Region, Array[Byte], Array[Byte], Array[Byte]])] = new BoxedArrayBuilder()
+  private[this] var _mods: BoxedArrayBuilder[(String, (FS, Int, Region) => AsmFunction3[Region, Array[Byte], Array[Byte], Array[Byte]])] = new BoxedArrayBuilder()
   private[this] var _backendField: Settable[BackendUtils] = _
 
   private[this] var _aggSigs: Array[agg.AggStateSig] = _
@@ -520,7 +493,7 @@ class EmitClassBuilder[C](
     poolField
   }
 
-  def addModule(name: String, mod: (Int, Region) => AsmFunction3[Region, Array[Byte], Array[Byte], Array[Byte]]): Unit = {
+  def addModule(name: String, mod: (FS, Int, Region) => AsmFunction3[Region, Array[Byte], Array[Byte], Array[Byte]]): Unit = {
     _mods += name -> mod
   }
 
@@ -680,6 +653,14 @@ class EmitClassBuilder[C](
     mb2.emit(poolField := mb2.getCodeParam[RegionPool](1))
   }
 
+  def makeAddFS(): Unit = {
+    cb.addInterface(typeInfo[FunctionWithFS].iname)
+    val mb = newEmitMethod("addFS", FastIndexedSeq[ParamType](typeInfo[FS]), typeInfo[Unit])
+    mb.voidWithBuilder { cb =>
+      emodb.setFS(cb, mb.getCodeParam[FS](1))
+    }
+  }
+
   def makeRNGs() {
     cb.addInterface(typeInfo[FunctionWithSeededRandomness].iname)
 
@@ -708,9 +689,10 @@ class EmitClassBuilder[C](
     rng
   }
 
-  def resultWithIndex(print: Option[PrintWriter] = None): (Int, Region) => C = {
+  def resultWithIndex(print: Option[PrintWriter] = None): (FS, Int, Region) => C = {
     makeRNGs()
     makeAddPartitionRegion()
+    makeAddFS()
 
     val hasLiterals: Boolean = literalsMap.nonEmpty || encodedLiteralsMap.nonEmpty
 
@@ -737,10 +719,10 @@ class EmitClassBuilder[C](
     val n = cb.className.replace("/", ".")
     val classesBytes = modb.classesBytes(print)
 
-    new ((Int, Region) => C) with java.io.Serializable {
+    new ((FS, Int, Region) => C) with java.io.Serializable {
       @transient @volatile private var theClass: Class[_] = null
 
-      def apply(idx: Int, region: Region): C = {
+      def apply(fs: FS, idx: Int, region: Region): C = {
         if (theClass == null) {
           this.synchronized {
             if (theClass == null) {
@@ -750,6 +732,7 @@ class EmitClassBuilder[C](
           }
         }
         val f = theClass.newInstance().asInstanceOf[C]
+        f.asInstanceOf[FunctionWithFS].addFS(fs)
         f.asInstanceOf[FunctionWithPartitionRegion].addPartitionRegion(region)
         f.asInstanceOf[FunctionWithPartitionRegion].setPool(region.pool)
         if (useBackend)
@@ -882,6 +865,10 @@ trait FunctionWithAggRegion {
   def setSerializedAgg(i: Int, b: Array[Byte]): Unit
 
   def getSerializedAgg(i: Int): Array[Byte]
+}
+
+trait FunctionWithFS {
+  def addFS(fs: FS): Unit
 }
 
 trait FunctionWithPartitionRegion {

@@ -69,7 +69,7 @@ object Worker {
 
     val f = retryTransientErrors {
       using(new ObjectInputStream(fs.openNoCompression(s"$root/f"))) { is =>
-        is.readObject().asInstanceOf[(Array[Byte], HailTaskContext) => Array[Byte]]
+        is.readObject().asInstanceOf[(Array[Byte], HailTaskContext, FS) => Array[Byte]]
       }
     }
 
@@ -98,7 +98,7 @@ object Worker {
     val hailContext = HailContext(
       ServiceBackend(), skipLoggingConfiguration = true, quiet = true)
     val htc = new ServiceTaskContext(i)
-    val result = f(context, htc)
+    val result = f(context, htc, fs)
     htc.finish()
 
     timer.end("executeFunction")
