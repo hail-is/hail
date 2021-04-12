@@ -45,8 +45,6 @@ class SparkBroadcastValue[T](bc: Broadcast[T]) extends BroadcastValue[T] with Se
 
 class SparkTaskContext(ctx: TaskContext) extends HailTaskContext {
   self=>
-
-  type BackendType = SparkBackend
   override def stageId(): Int = ctx.stageId()
   override def partitionId(): Int = ctx.partitionId()
   override def attemptNumber(): Int = ctx.attemptNumber()

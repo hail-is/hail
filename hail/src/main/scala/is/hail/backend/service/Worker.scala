@@ -14,8 +14,6 @@ import org.apache.log4j.Logger
 import scala.collection.mutable
 
 class ServiceTaskContext(val partitionId: Int) extends HailTaskContext {
-  override type BackendType = ServiceBackend
-
   override def stageId(): Int = 0
 
   override def attemptNumber(): Int = 0
