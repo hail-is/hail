@@ -24,7 +24,10 @@ object HailTaskContext {
     }
   }
 
-  def setTaskContext(tc: HailTaskContext): Unit = taskContext.set(tc)
+  def setTaskContext(tc: HailTaskContext): Unit = {
+    val stack = Thread.currentThread().getStackTrace.mkString("\n")
+    taskContext.set(tc)
+  }
 
   def finish(): Unit = {
     taskContext.get().getRegionPool().close()

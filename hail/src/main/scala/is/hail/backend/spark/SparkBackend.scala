@@ -280,6 +280,7 @@ class SparkBackend(
   }
 
   def jvmLowerAndExecute(
+    ctx: ExecuteContext,
     timer: ExecutionTimer,
     ir0: IR,
     optimize: Boolean,
@@ -287,10 +288,8 @@ class SparkBackend(
     lowerBM: Boolean,
     print: Option[PrintWriter] = None
   ): Any = {
-    withExecuteContext(timer) { ctx =>
-      val l = _jvmLowerAndExecute(ctx, ir0, optimize, lowerTable, lowerBM, print)
-      executionResultToAnnotation(ctx, l)
-    }
+    val l = _jvmLowerAndExecute(ctx, ir0, optimize, lowerTable, lowerBM, print)
+    executionResultToAnnotation(ctx, l)
   }
 
   private[this] def _jvmLowerAndExecute(
