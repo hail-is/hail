@@ -304,8 +304,8 @@ async def _get_job_log_from_record(app, batch_id, job_id, record):
                 data = await log_store.read_log_file(batch_format_version, batch_id, job_id, record['attempt_id'], task)
             except google.api_core.exceptions.NotFound:
                 id = (batch_id, job_id)
-                log.exception(f'missing log file for {id}')
-                data = None
+                log.exception(f'missing log file for {id} and task {task}')
+                data = 'ERROR: could not read log file'
             return task, data
 
         spec = json.loads(record['spec'])
@@ -1280,17 +1280,18 @@ async def ui_get_job(request, userdata, batch_id):
                      container_statuses['output']]
 
     job_specification = job['spec']
-    if 'process' in job_specification:
-        process_specification = job_specification['process']
-        process_type = process_specification['type']
-        assert process_specification['type'] in {'docker', 'jvm'}
-        job_specification['image'] = process_specification['image'] if process_type == 'docker' else '[jvm]'
-        job_specification['command'] = process_specification['command']
-    job_specification = dictfix.dictfix(job_specification,
-                                        dictfix.NoneOr({'image': str,
-                                                        'command': list,
-                                                        'resources': dict(),
-                                                        'env': list}))
+    if job_specification:
+        if 'process' in job_specification:
+            process_specification = job_specification['process']
+            process_type = process_specification['type']
+            assert process_specification['type'] in {'docker', 'jvm'}
+            job_specification['image'] = process_specification['image'] if process_type == 'docker' else '[jvm]'
+            job_specification['command'] = process_specification['command']
+        job_specification = dictfix.dictfix(job_specification,
+                                            dictfix.NoneOr({'image': str,
+                                                            'command': list,
+                                                            'resources': dict(),
+                                                            'env': list}))
 
     page_context = {
         'batch_id': batch_id,
