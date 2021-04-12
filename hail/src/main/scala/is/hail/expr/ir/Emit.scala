@@ -1439,7 +1439,39 @@ class Emit[C](
               )
 
               answerFinisher(cb)
-            } else {
+            } else if (lSType.elementType.virtualType == TFloat64 && lSType.nDims == 2 && rSType.nDims == 1) {
+              val leftDataAddress = leftPVal.firstDataAddress(cb)
+              val rightDataAddress = rightPVal.firstDataAddress(cb)
+
+              val M = lShape(lSType.nDims - 2)
+              val N = lShape(lSType.nDims - 1)
+              val alpha = 1.0
+              val beta = 0.0
+
+              val LDA = M
+
+              val (answerFirstElementAddr, answerFinisher) = outputPType.constructDataFunction(
+                IndexedSeq(N),
+                outputPType.makeColumnMajorStrides(IndexedSeq(N), region, cb),
+                cb,
+                region)
+              
+              cb.append(Code.invokeScalaObject11[String, Int, Int, Double, Long, Int, Long, Int, Double, Long, Int, Unit](BLAS.getClass, method="dgemv",
+                "N",
+                M.toI,
+                N.toI,
+                alpha,
+                leftDataAddress,
+                LDA.toI,
+                rightDataAddress,
+                1,
+                beta,
+                answerFirstElementAddr,
+                1
+              ))
+
+              answerFinisher(cb)
+            }  else {
               val numericElementType = coerce[PNumeric](lSType.elementType.canonicalPType())
               val eVti = typeToTypeInfo(numericElementType)
 
