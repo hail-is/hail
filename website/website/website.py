@@ -71,7 +71,9 @@ async def serve_docs(request, userdata):
     if tail in docs_pages:
         if tail.endswith('.html'):
             return await render_template('www', request, userdata, tail, dict())
-        return web.FileResponse(f'{DOCS_PATH}/{tail}')
+        # Chrome fails to download the tutorials.tar.gz file without the Content-Type header.
+        return web.FileResponse(f'{DOCS_PATH}/{tail}',
+                                headers={'Content-Type': 'application/octet-stream'})
     raise web.HTTPNotFound()
 
 
