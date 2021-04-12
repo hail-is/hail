@@ -94,6 +94,18 @@ object LAPACK {
     INFOref.getValue()
   }
 
+  def dgesv(N: Int, NHRS: Int, A: Long, LDA: Int, IPIV: Long, B: Long, LDB: Int): Int = {
+    val Nref= new IntByReference(N)
+    val NHRSref = new IntByReference(NHRS)
+    val LDAref = new IntByReference(LDA)
+    val LDBref = new IntByReference(LDB)
+    val INFOref = new IntByReference(1)
+
+    libraryInstance.dgesv(Nref, NHRSref, A, LDAref, IPIV, B, LDBref, INFOref)
+
+    INFOref.getValue()
+  }
+
 
   private def versionTest(libInstance: LAPACKLibrary): Try[String] = {
     val major = new IntByReference()
@@ -108,6 +120,7 @@ object LAPACK {
 }
 
 trait LAPACKLibrary extends Library {
+  def dgesv(N: IntByReference, NHRS: IntByReference, A: Long, LDA: IntByReference, IPIV: Long, B: Long, LDB: IntByReference, INFO: IntByReference)
   def dgeqrf(M: IntByReference, N: IntByReference, A: Long, LDA: IntByReference, TAU: Long, WORK: Long, LWORK: IntByReference, INFO: IntByReference)
   def dorgqr(M: IntByReference, N: IntByReference, K: IntByReference, A: Long, LDA: IntByReference, TAU: Long, WORK: Long, LWORK: IntByReference, INFO: IntByReference)
   def dgetrf(M: IntByReference, N: IntByReference, A: Long, LDA: IntByReference, IPIV: Long, INFO: IntByReference)

@@ -1031,6 +1031,8 @@ object CodeLabel {
 class CodeLabel(val L: lir.Block) extends Code[Unit] {
   private var _start: lir.Block = L
 
+  def isImplemented: Boolean = L.wellFormed
+
   def start: lir.Block = {
     check()
     _start

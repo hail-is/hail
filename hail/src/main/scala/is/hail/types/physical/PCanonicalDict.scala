@@ -40,7 +40,7 @@ final case class PCanonicalDict(keyType: PType, valueType: PType, required: Bool
   }
 
   def construct(contents: PIndexableCode): PIndexableCode = {
-    assert(contents.pt == arrayRep)
+    assert(contents.pt.equalModuloRequired(arrayRep), s"\n  contents:  ${ contents.pt }\n  arrayrep: ${ arrayRep }")
     new SIndexablePointerCode(SIndexablePointer(this), contents.tcode[Long])
   }
 }

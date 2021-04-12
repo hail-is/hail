@@ -9,6 +9,7 @@ import collections
 from functools import wraps
 import asyncio
 import aiohttp
+import signal
 from aiohttp import web
 import aiohttp_session
 import pymysql
@@ -17,7 +18,8 @@ import google.api_core.exceptions
 from prometheus_async.aio.web import server_stats  # type: ignore
 from hailtop.utils import (time_msecs, time_msecs_str, humanize_timedelta_msecs,
                            request_retry_transient_errors, run_if_changed,
-                           retry_long_running, LoggingTimer, cost_str)
+                           retry_long_running, LoggingTimer, cost_str,
+                           dump_all_stacktraces)
 from hailtop.batch_client.parse import (parse_cpu_in_mcpu, parse_memory_in_bytes,
                                         parse_storage_in_bytes)
 from hailtop.config import get_deploy_config
@@ -302,8 +304,8 @@ async def _get_job_log_from_record(app, batch_id, job_id, record):
                 data = await log_store.read_log_file(batch_format_version, batch_id, job_id, record['attempt_id'], task)
             except google.api_core.exceptions.NotFound:
                 id = (batch_id, job_id)
-                log.exception(f'missing log file for {id}')
-                data = None
+                log.exception(f'missing log file for {id} and task {task}')
+                data = 'ERROR: could not read log file'
             return task, data
 
         spec = json.loads(record['spec'])
@@ -1278,17 +1280,18 @@ async def ui_get_job(request, userdata, batch_id):
                      container_statuses['output']]
 
     job_specification = job['spec']
-    if 'process' in job_specification:
-        process_specification = job_specification['process']
-        process_type = process_specification['type']
-        assert process_specification['type'] in {'docker', 'jvm'}
-        job_specification['image'] = process_specification['image'] if process_type == 'docker' else '[jvm]'
-        job_specification['command'] = process_specification['command']
-    job_specification = dictfix.dictfix(job_specification,
-                                        dictfix.NoneOr({'image': str,
-                                                        'command': list,
-                                                        'resources': dict(),
-                                                        'env': list}))
+    if job_specification:
+        if 'process' in job_specification:
+            process_specification = job_specification['process']
+            process_type = process_specification['type']
+            assert process_specification['type'] in {'docker', 'jvm'}
+            job_specification['image'] = process_specification['image'] if process_type == 'docker' else '[jvm]'
+            job_specification['command'] = process_specification['command']
+        job_specification = dictfix.dictfix(job_specification,
+                                            dictfix.NoneOr({'image': str,
+                                                            'command': list,
+                                                            'resources': dict(),
+                                                            'env': list}))
 
     page_context = {
         'batch_id': batch_id,
@@ -1946,6 +1949,8 @@ def run():
 
     app.on_startup.append(on_startup)
     app.on_cleanup.append(on_cleanup)
+
+    asyncio.get_event_loop().add_signal_handler(signal.SIGUSR1, dump_all_stacktraces)
 
     web.run_app(deploy_config.prefix_application(app,
                                                  'batch',

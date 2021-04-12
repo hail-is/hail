@@ -20,10 +20,12 @@ RUN update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-10 10 && \
     update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-10 10
 
 # source: https://cloud.google.com/storage/docs/gsutil_install#linux
-RUN /bin/sh -c 'curl https://sdk.cloud.google.com | bash' && \
-    mv /root/google-cloud-sdk / && \
-    /google-cloud-sdk/bin/gcloud -q components install beta kubectl
+RUN curl -sSLO https://dl.google.com/dl/cloudsdk/channels/rapid/downloads/google-cloud-sdk-334.0.0-linux-x86_64.tar.gz && \
+    tar -xf google-cloud-sdk-334.0.0-linux-x86_64.tar.gz && \
+    curl -sSLO https://dl.k8s.io/release/v1.19.7/bin/linux/amd64/kubectl && \
+    install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
 ENV PATH $PATH:/google-cloud-sdk/bin
+RUN gcloud version && kubectl version --client=true
 
 COPY docker/requirements.txt .
 RUN hail-pip-install -r requirements.txt pyspark==3.1.1

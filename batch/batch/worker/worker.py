@@ -22,7 +22,7 @@ import google.oauth2.service_account
 from hailtop.utils import (time_msecs, request_retry_transient_errors,
                            sleep_and_backoff, retry_all_errors, check_shell,
                            CalledProcessError, check_shell_output, is_google_registry_image,
-                           find_spark_home)
+                           find_spark_home, dump_all_stacktraces)
 from hailtop.httpx import client_session
 from hailtop.batch_client.parse import (parse_cpu_in_mcpu, parse_image_tag,
                                         parse_memory_in_bytes, parse_storage_in_bytes)
@@ -1143,7 +1143,7 @@ class JVMJob(Job):
                     log.exception('while deleting volumes')
 
     async def get_log(self):
-        return {'main': await self.process.get_log()}
+        return {'main': self.process.get_log()}
 
     async def delete(self):
         log.info(f'deleting {self}')
@@ -1505,12 +1505,6 @@ async def async_main():
         finally:
             await docker.close()
             log.info('docker closed')
-
-
-def dump_all_stacktraces():
-    for t in asyncio.all_tasks():
-        print(t)
-        t.print_stack()
 
 
 loop = asyncio.get_event_loop()

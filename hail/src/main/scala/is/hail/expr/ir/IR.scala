@@ -3,10 +3,10 @@ package is.hail.expr.ir
 import is.hail.annotations.{Annotation, Region}
 import is.hail.asm4s.Value
 import is.hail.expr.ir.ArrayZipBehavior.ArrayZipBehavior
-import is.hail.expr.ir.EmitStream.SizedStream
 import is.hail.expr.ir.agg.{AggStateSig, PhysicalAggSig}
 import is.hail.expr.ir.functions._
 import is.hail.expr.ir.lowering.TableStageDependency
+import is.hail.expr.ir.streams.StreamProducer
 import is.hail.io.{AbstractTypedCodecSpec, BufferSpec, TypedCodecSpec}
 import is.hail.rvd.RVDSpecMaker
 import is.hail.types.encoded._
@@ -210,22 +210,22 @@ object MakeArray {
 final case class MakeArray(args: Seq[IR], _typ: TArray) extends IR
 
 object MakeStream {
-  def unify(args: Seq[IR], separateRegions: Boolean = false, requestedType: TStream = null): MakeStream = {
+  def unify(args: Seq[IR], requiresMemoryManagementPerElement: Boolean = false, requestedType: TStream = null): MakeStream = {
     assert(requestedType != null || args.nonEmpty)
 
     if (args.nonEmpty)
       if (args.forall(_.typ == args.head.typ))
-        return MakeStream(args, TStream(args.head.typ), separateRegions)
+        return MakeStream(args, TStream(args.head.typ), requiresMemoryManagementPerElement)
 
     MakeStream(args.map { arg =>
       val upcast = PruneDeadFields.upcast(arg, requestedType.elementType)
       assert(upcast.typ == requestedType.elementType)
       upcast
-    }, requestedType, separateRegions)
+    }, requestedType, requiresMemoryManagementPerElement)
   }
 }
 
-final case class MakeStream(args: Seq[IR], _typ: TStream, separateRegions: Boolean = false) extends IR
+final case class MakeStream(args: Seq[IR], _typ: TStream, requiresMemoryManagementPerElement: Boolean = false) extends IR
 
 object ArrayRef {
   def apply(a: IR, i: IR): ArrayRef = ArrayRef(a, i, Str(""))
@@ -234,7 +234,7 @@ object ArrayRef {
 final case class ArrayRef(a: IR, i: IR, msg: IR) extends IR
 final case class ArrayLen(a: IR) extends IR
 final case class ArrayZeros(length: IR) extends IR
-final case class StreamRange(start: IR, stop: IR, step: IR, separateRegions: Boolean = false) extends IR
+final case class StreamRange(start: IR, stop: IR, step: IR, requiresMemoryManagementPerElement: Boolean = false) extends IR
 
 object ArraySort {
   def apply(a: IR, ascending: IR = True(), onKey: Boolean = false): ArraySort = {
@@ -264,7 +264,7 @@ final case class ToSet(a: IR) extends IR
 final case class ToDict(a: IR) extends IR
 final case class ToArray(a: IR) extends IR
 final case class CastToArray(a: IR) extends IR
-final case class ToStream(a: IR, separateRegions: Boolean = false) extends IR
+final case class ToStream(a: IR, requiresMemoryManagementPerElement: Boolean = false) extends IR
 
 final case class LowerBoundOnOrderedCollection(orderedCollection: IR, elem: IR, onKey: Boolean) extends IR
 
@@ -291,9 +291,6 @@ object ArrayZipBehavior extends Enumeration {
   val ExtendNA: Value = Value(3)
 }
 
-final case class StreamMerge(l: IR, r: IR, key: IndexedSeq[String]) extends IR {
-  override def typ: TStream = coerce[TStream](super.typ)
-}
 final case class StreamZip(as: IndexedSeq[IR], names: IndexedSeq[String], body: IR, behavior: ArrayZipBehavior) extends IR {
   lazy val nameIdx: Map[String, Int] = names.zipWithIndex.toMap
   override def typ: TStream = coerce[TStream](super.typ)
@@ -706,14 +703,12 @@ abstract class PartitionReader {
 
   def rowPType(requestedType: Type): PType
 
-  def emitStream[C](ctx: ExecuteContext,
-    context: IR,
-    requestedType: Type,
-    emitter: Emit[C],
+  def emitStream(
+    ctx: ExecuteContext,
     cb: EmitCodeBuilder,
-    partitionRegion: StagedRegion,
-    env0: Emit.E,
-    container: Option[AggContainer]): IEmitCode
+    context: EmitCode,
+    partitionRegion: Value[Region],
+    requestedType: Type): IEmitCode
 
   def toJValue: JValue
 }
@@ -721,11 +716,10 @@ abstract class PartitionReader {
 abstract class PartitionWriter {
   def consumeStream(
     ctx: ExecuteContext,
+    cb: EmitCodeBuilder,
+    stream: StreamProducer,
     context: EmitCode,
-    eltType: PStruct,
-    mb: EmitMethodBuilder[_],
-    region: ParentStagedRegion,
-    stream: SizedStream): EmitCode
+    region: Value[Region]): IEmitCode
 
   def ctxType: Type
   def returnType: Type

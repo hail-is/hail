@@ -14,14 +14,20 @@
       {% endif %}
       {% endfor %}
     </div>
+
     {% if 'attributes' in batch %}
     <h2>Attributes</h2>
     <div class="attributes">
       {% for name, value in batch['attributes'].items() %}
+      {% if name == "pr" and wb is not none %}
+      <div>{{ name }}: <a href="{{ base_path }}/watched_branches/{{ wb }}/pr/{{ value }}">{{ value }}</a></div>
+      {% else %}
       <div>{{ name }}: {{ value }}</div>
+      {% endif %}
       {% endfor %}
     </div>
     {% endif %}
+
     <h2>Jobs</h2>
     {{ job_table(jobs, "jobs", "jobsSearchBar") }}
     <script type="text/javascript">

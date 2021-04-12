@@ -7,10 +7,12 @@ class RichCodeRegion(val region: Code[Region]) extends AnyVal {
   def allocate(alignment: Code[Long], n: Code[Long]): Code[Long] =
     region.invoke[Long, Long, Long]("allocate", alignment, n)
 
-  def clear(): Code[Unit] = { region.invoke[Unit]("clear") }
+  def clearRegion(): Code[Unit] = {
+    region.invoke[Unit]("clear")
+  }
 
-  def reference(other: Code[Region]): Code[Unit] =
-    region.invoke[Region, Unit]("reference", other)
+  def addReferenceTo(other: Code[Region]): Code[Unit] =
+    region.invoke[Region, Unit]("addReferenceTo", other)
 
   def setNumParents(n: Code[Int]): Code[Unit] =
     region.invoke[Int, Unit]("setNumParents", n)

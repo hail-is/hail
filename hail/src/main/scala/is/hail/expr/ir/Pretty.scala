@@ -154,12 +154,11 @@ object Pretty {
     case GetTupleElement(_, idx) => single(idx.toString)
     case MakeTuple(fields) => FastSeq(prettyInts(fields.map(_._1).toFastIndexedSeq, elideLiterals))
     case MakeArray(_, typ) => single(typ.parsableString())
-    case MakeStream(_, typ, separateRegions) =>
-      FastSeq(typ.parsableString(), prettyBooleanLiteral(separateRegions))
-    case StreamRange(_, _, _, separateRegions) => single(prettyBooleanLiteral(separateRegions))
-    case ToStream(_, separateRegions) => single(prettyBooleanLiteral(separateRegions))
+    case MakeStream(_, typ, requiresMemoryManagementPerElement) =>
+      FastSeq(typ.parsableString(), prettyBooleanLiteral(requiresMemoryManagementPerElement))
+    case StreamRange(_, _, _, requiresMemoryManagementPerElement) => single(prettyBooleanLiteral(requiresMemoryManagementPerElement))
+    case ToStream(_, requiresMemoryManagementPerElement) => single(prettyBooleanLiteral(requiresMemoryManagementPerElement))
     case StreamMap(_, name, _) => single(prettyIdentifier(name))
-    case StreamMerge(_, _, key) => single(prettyIdentifiers(key))
     case StreamZip(_, names, _, behavior) => FastSeq(behavior match {
       case ArrayZipBehavior.AssertSameLength => "AssertSameLength"
       case ArrayZipBehavior.TakeMinLength => "TakeMinLength"
@@ -179,6 +178,7 @@ object Pretty {
     case StreamFor(_, valueName, _) => single(prettyIdentifier(valueName))
     case StreamAgg(a, name, query) => single(prettyIdentifier(name))
     case StreamAggScan(a, name, query) => single(prettyIdentifier(name))
+    case StreamGroupByKey(a, key) => single(prettyIdentifiers(key))
     case AggExplode(_, name, _, isScan) => FastSeq(prettyIdentifier(name), prettyBooleanLiteral(isScan))
     case AggFilter(_, _, isScan) => single(prettyBooleanLiteral(isScan))
     case AggGroupBy(_, _, isScan) => single(prettyBooleanLiteral(isScan))
