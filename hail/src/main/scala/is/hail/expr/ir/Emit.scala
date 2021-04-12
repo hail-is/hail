@@ -1451,8 +1451,8 @@ class Emit[C](
               val LDA = M
 
               val (answerFirstElementAddr, answerFinisher) = outputPType.constructDataFunction(
-                IndexedSeq(N),
-                outputPType.makeColumnMajorStrides(IndexedSeq(N), region, cb),
+                IndexedSeq(M),
+                outputPType.makeColumnMajorStrides(IndexedSeq(M), region, cb),
                 cb,
                 region)
               
