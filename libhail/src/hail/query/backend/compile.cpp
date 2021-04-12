@@ -270,6 +270,24 @@ CompileFunction::emit(GetTupleElement *x) {
 }
 
 EmitValue
+CompileFunction::emit(MakeArray *x) {
+  auto array_ir_type = ir_type(x);
+  auto varray_type = cast<VArray>(tc.get_vtype(array_ir_type));
+  std::vector<EmitDataValue> element_emit_values;
+
+  for (auto c : x->get_children()) {
+    auto cv = emit(c).as_data(*this);
+    element_emit_values.push_back(cv);
+  }
+
+  // Have to come up with data, hmmmm.
+
+  return EmitValue(llvm::ConstantInt::get(llvm::Type::getInt8Ty(llvm_context), 0),
+    new SCanonicalArrayValue()
+  )
+}
+
+EmitValue
 CompileFunction::emit(ArrayLen *x) {
   auto array_data_value = emit(x->get_child(0)).as_data(*this);
   auto array_svalue = cast<SArrayValue>(array_data_value.svalue);
