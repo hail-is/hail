@@ -1,4 +1,5 @@
 #include <llvm/IR/Verifier.h>
+#include <hail/format.hpp>
 #include <llvm/Support/raw_ostream.h>
 
 #include "hail/query/backend/compile.hpp"
@@ -38,6 +39,9 @@ CompileModule::CompileModule(TypeContext &tc,
 
 llvm::Value*
 CompileModule::region_allocate(llvm::IRBuilder<> *llvm_ir_builder, llvm::Value *region, MemorySize *memory_size) {
+  print("Trying to region_allocate");
+  print(runtime_allocate_f->getFunctionType());
+
   return llvm_ir_builder->CreateCall(runtime_allocate_f,
 					       {region,
 						llvm::ConstantInt::get(llvm_context, llvm::APInt(64, memory_size->byte_size)),

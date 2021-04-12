@@ -53,6 +53,7 @@ namespace hail {
                 Value element(vfloat64, 5.2 + i);
                 array_elements.push_back(body->make_literal(element));
             }
+            print("Added elemeents to array");
 
             body->set_child(0, body->make_array_len(body->make_make_array(array_elements)));
 
