@@ -1112,11 +1112,16 @@ async def ui_batch(request, userdata, batch_id):
 @check_csrf_token
 @web_billing_project_users_only(redirect=False)
 async def ui_cancel_batch(request, userdata, batch_id):  # pylint: disable=unused-argument
+    post = await request.post()
+    q = post.get('q')
+    params = {}
+    if q is not None:
+        params['q'] = q
     session = await aiohttp_session.get_session(request)
     errored = await _handle_ui_error(session, _cancel_batch, request.app, batch_id)
     if not errored:
         set_message(session, f'Batch {batch_id} cancelled.', 'info')
-    location = request.app.router['batches'].url_for()
+    location = request.app.router['batches'].url_for().with_query(params)
     raise web.HTTPFound(location=location)
 
 
@@ -1125,10 +1130,15 @@ async def ui_cancel_batch(request, userdata, batch_id):  # pylint: disable=unuse
 @check_csrf_token
 @web_billing_project_users_only(redirect=False)
 async def ui_delete_batch(request, userdata, batch_id):  # pylint: disable=unused-argument
+    post = await request.post()
+    q = post.get('q')
+    params = {}
+    if q is not None:
+        params['q'] = q
     await _delete_batch(request.app, batch_id)
     session = await aiohttp_session.get_session(request)
     set_message(session, f'Batch {batch_id} deleted.', 'info')
-    location = request.app.router['batches'].url_for()
+    location = request.app.router['batches'].url_for().with_query(params)
     raise web.HTTPFound(location=location)
 
 
