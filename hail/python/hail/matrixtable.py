@@ -3670,8 +3670,8 @@ class MatrixTable(ExprContainer):
 
         return MatrixTable(ir.MatrixUnionCols(self._mir, other._mir, row_join_type))
 
-    @typecheck_method(n=nullable(int), n_cols=nullable(int))
-    def head(self, n: Optional[int], n_cols: Optional[int] = None) -> 'MatrixTable':
+    @typecheck_method(n=nullable(int), n_cols=nullable(int), n_rows=nullable(int))
+    def head(self, n: Optional[int], n_cols: Optional[int] = None, *, n_rows: Optional[int] = None) -> 'MatrixTable':
         """Subset matrix to first `n` rows.
 
         Examples
@@ -3711,20 +3711,33 @@ class MatrixTable(ExprContainer):
         Parameters
         ----------
         n : :obj:`int`
-            Number of rows to include (all rows included if ``None``).
+            Deprecated as a named argument please use n_rows. Number of rows to include (all rows
+            included if ``None``).
         n_cols : :obj:`int`, optional
             Number of cols to include (all cols included if ``None``).
+        n_rows : :obj:`int`
+            Number of rows to include (all rows included if ``None``).
 
         Returns
         -------
         :class:`.MatrixTable`
             Matrix including the first `n` rows and first `n_cols` cols.
+
         """
+        if n_rows is not None and n is not None:
+            raise ValueError('Both n and n_rows specified. Only one may be specified.')
+
+        if n_rows is not None:
+            n_rows_name = 'n_rows'
+        else:
+            n_rows = n
+            n_rows_name = 'n'
+
         mt = self
-        if n is not None:
-            if n < 0:
-                raise ValueError(f"MatrixTable.head: expect 'n' to be non-negative or None, found '{n}'")
-            mt = MatrixTable(ir.MatrixRowsHead(mt._mir, n))
+        if n_rows is not None:
+            if n_rows < 0:
+                raise ValueError(f"MatrixTable.head: expect '{n_rows_name}' to be non-negative or None, found '{n_rows}'")
+            mt = MatrixTable(ir.MatrixRowsHead(mt._mir, n_rows))
         if n_cols is not None:
             if n_cols < 0:
                 raise ValueError(f"MatrixTable.head: expect 'n_cols' to be non-negative or None, found '{n_cols}'")
