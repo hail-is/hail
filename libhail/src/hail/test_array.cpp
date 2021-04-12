@@ -41,13 +41,20 @@ namespace hail {
         {
             std::vector<const Type *> param_types;
             std::vector<const VType *> param_vtypes;
+            std::vector<IR *> array_elements;
 
             auto return_type = tc.tint64;
             const VType *return_vtype = tc.get_vtype(return_type);
 
             Function *length_check = xc.make_function(m, "main", param_types, return_type);
             auto body = length_check->get_body();
-            body->set_child(0, body->make_array_len(body->make_literal(my_array)));
+
+            for (int i = 0; i < array_length; ++i) {
+                Value element(vfloat64, 5.2 + i);
+                array_elements.push_back(body->make_literal(element));
+            }
+
+            body->set_child(0, body->make_array_len(body->make_make_array(array_elements)));
 
 
             for (auto t : param_types)
@@ -59,23 +66,23 @@ namespace hail {
 
         }
 
-        {
-            std::vector<const Type *> param_types;
-            std::vector<const VType *> param_vtypes;
+        // {
+        //     std::vector<const Type *> param_types;
+        //     std::vector<const VType *> param_vtypes;
 
-            auto return_type = tc.tfloat64;
-            const VType *return_vtype = tc.get_vtype(return_type);
+        //     auto return_type = tc.tfloat64;
+        //     const VType *return_vtype = tc.get_vtype(return_type);
 
-            Function *ref_check = xc.make_function(m, "main", param_types, return_type);
-            auto body = ref_check->get_body();
-            auto idx_value = Value(vint64, 3);
-            body->set_child(0, body->make_array_ref(body->make_literal(my_array), body->make_literal(idx_value)));
+        //     Function *ref_check = xc.make_function(m, "main", param_types, return_type);
+        //     auto body = ref_check->get_body();
+        //     auto idx_value = Value(vint64, 3);
+        //     body->set_child(0, body->make_array_ref(body->make_literal(my_array), body->make_literal(idx_value)));
 
-            for (auto t : param_types)
-                param_vtypes.push_back(tc.get_vtype(t));
+        //     for (auto t : param_types)
+        //         param_vtypes.push_back(tc.get_vtype(t));
 
-            auto compiled = jit.compile(heap, tc, m, param_vtypes, return_vtype);
+        //     auto compiled = jit.compile(heap, tc, m, param_vtypes, return_vtype);
 
-        }
+        // }
     }
 }

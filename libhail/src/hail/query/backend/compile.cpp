@@ -21,8 +21,28 @@ CompileModule::CompileModule(TypeContext &tc,
   // FIXME
   assert(main);
 
-  CompileFunction(tc, stc, main, param_types, return_type, llvm_context, llvm_module);
+  // Register runtime functions:
+  auto runtime_allocate_ft =
+    llvm::FunctionType::get(llvm::Type::getInt8PtrTy(llvm_context),
+			    {llvm::Type::getInt8PtrTy(llvm_context),
+			     llvm::Type::getInt64Ty(llvm_context),
+			     llvm::Type::getInt64Ty(llvm_context)},
+			    false);
+  runtime_allocate_f = llvm::Function::Create(runtime_allocate_ft,
+						   llvm::Function::ExternalLinkage,
+						   "hl_runtime_region_allocate",
+						   llvm_module);
+
+  CompileFunction(tc, stc, main, param_types, return_type, llvm_context, this);
 }
+
+llvm::Value*
+CompileModule::region_allocate(llvm::IRBuilder<> *llvm_ir_builder, llvm::Value *region, MemorySize *memory_size) {
+  return llvm_ir_builder->CreateCall(runtime_allocate_f,
+					       {region,
+						llvm::ConstantInt::get(llvm_context, llvm::APInt(64, memory_size->byte_size)),
+						llvm::ConstantInt::get(llvm_context, llvm::APInt(64, memory_size->alignment))});
+};
 
 CompileFunction::CompileFunction(TypeContext &tc,
 				 STypeContext &stc,
@@ -30,7 +50,7 @@ CompileFunction::CompileFunction(TypeContext &tc,
 				 const std::vector<EmitType> &param_types,
 				 EmitType return_type,
 				 llvm::LLVMContext &llvm_context,
-				 llvm::Module *llvm_module)
+				 CompileModule *module)
   : tc(tc),
     stc(stc),
     function(function),
@@ -38,7 +58,6 @@ CompileFunction::CompileFunction(TypeContext &tc,
     return_type(return_type),
     llvm_context(llvm_context),
     llvm_ir_builder(llvm_context),
-    llvm_module(llvm_module),
     ir_type(tc, function) {
   auto llvm_ft = llvm::FunctionType::get(llvm::Type::getVoidTy(llvm_context),
 					 {llvm::Type::getInt8PtrTy(llvm_context),
@@ -48,7 +67,7 @@ CompileFunction::CompileFunction(TypeContext &tc,
   llvm_function = llvm::Function::Create(llvm_ft,
 					 llvm::Function::ExternalLinkage,
 					 "__hail_f",
-					 llvm_module);
+					 module->llvm_module);
 
   auto entry = llvm::BasicBlock::Create(llvm_context, "entry", llvm_function);
   llvm_ir_builder.SetInsertPoint(entry);
@@ -193,22 +212,6 @@ CompileFunction::emit(Literal *x) {
       auto c = llvm::ConstantFP::get(llvm_context, llvm::APFloat(x->value.as_float64()));
       return EmitValue(m, new SFloat64Value(stc.sfloat64, c));
     }
-  case Type::Tag::ARRAY:
-    {
-      auto m = llvm::ConstantInt::get(llvm::Type::getInt8Ty(llvm_context), 0);
-      auto array_value = x->value.as_array();
-      auto len = llvm::ConstantInt::get(llvm_context, llvm::APInt(64, array_value.get_size()));
-      auto missing = llvm_ir_builder.CreateIntToPtr(llvm::ConstantInt::get(llvm_context, llvm::APInt(64, (uint64_t) array_value.get_missing_bits())),
-                                                    llvm::PointerType::get(llvm::Type::getInt8Ty(llvm_context), 0));
-      auto elements = llvm::ConstantInt::get(llvm_context, llvm::APInt(64, (uint64_t) array_value.get_elements()));
-      // auto missing = llvm::Value *value_address = llvm_ir_builder.CreateGEP(array_value.get_missing_bits(),
-      //                        llvm::ConstantInt::get(llvm_context, llvm::APInt(64, 8)));
-      // auto elements = llvm::Value *value_address = llvm_ir_builder.CreateGEP(array_value.get_elements(),
-      //                        llvm::ConstantInt::get(llvm_context, llvm::APInt(64, 8)));
-      auto stype = const_cast <const SCanonicalArray*> (cast<SCanonicalArray>(stc.stype_from(x->value.vtype)));
-      // TODO: Obviously wrong, need missing bits and data bits.
-      return EmitValue(m, new SCanonicalArrayValue(stype, len, missing, len));
-    }
   default:
     abort();
   }
@@ -280,11 +283,14 @@ CompileFunction::emit(MakeArray *x) {
     element_emit_values.push_back(cv);
   }
 
-  // Have to come up with data, hmmmm.
+  auto len = llvm::ConstantInt::get(llvm_context, llvm::APInt(64, element_emit_values.size()));
+  auto mem_size = MemorySize(varray_type->byte_size, varray_type->alignment);
+  auto missing = module->region_allocate(&llvm_ir_builder, llvm_function->getArg(0), &mem_size);
 
+  auto stype = cast<SCanonicalArray>(stc.stype_from(varray_type));
   return EmitValue(llvm::ConstantInt::get(llvm::Type::getInt8Ty(llvm_context), 0),
-    new SCanonicalArrayValue()
-  )
+    new SCanonicalArrayValue(stype, len, len, len)
+  );
 }
 
 EmitValue

@@ -266,6 +266,7 @@ IR::dispatch(F f) {
   case IR::Tag::ISNA: return f(cast<IsNA>(this));
   case IR::Tag::MAKETUPLE: return f(cast<MakeTuple>(this));
   case IR::Tag::GETTUPLEELEMENT: return f(cast<GetTupleElement>(this));
+  case IR::Tag::MAKEARRAY: return f(cast<MakeArray>(this));
   case IR::Tag::ARRAYREF: return f(cast<ArrayRef>(this));
   case IR::Tag::ARRAYLEN: return f(cast<ArrayLen>(this));
   default:

@@ -29,6 +29,8 @@ public:
   llvm::LLVMContext &llvm_context;
   llvm::Module *llvm_module;
 
+  llvm::Value* region_allocate(llvm::IRBuilder<> *llvm_ir_builder, llvm::Value *region, MemorySize *memory_size);
+
   CompileModule(TypeContext &tc,
 		STypeContext &stc,
 		Module *module,
@@ -36,6 +38,10 @@ public:
 		EmitType return_type,
 		llvm::LLVMContext &llvm_context,
 		llvm::Module *llvm_module);
+
+private:
+  llvm::Function *runtime_allocate_f;
+
 };
 
 class CompileFunction {
@@ -46,7 +52,7 @@ public:
   const std::vector<EmitType> &param_types;
   EmitType return_type;
   llvm::LLVMContext &llvm_context;
-  llvm::Module *llvm_module;
+  CompileModule *module;
 
   /* Indexed by parameter index, the entry is the index of the first
      `llvm_function` parameter. */
@@ -82,7 +88,7 @@ public:
 		  const std::vector<EmitType> &param_types,
 		  EmitType return_type,
 		  llvm::LLVMContext &llvm_context,
-		  llvm::Module *llvm_module);
+		  CompileModule *module);
 };
 
 }
