@@ -8,7 +8,7 @@ from ..utils import secret_alnum_string, sync_check_shell_output
 
 def build_python_image(fullname: str,
                        requirements: Optional[List[str]] = None,
-                       version: Optional[str] = None,
+                       python_version: Optional[str] = None,
                        _tmp_dir: str = '/tmp') -> str:
     """
     Build a new Python image with dill and the specified pip packages installed.
@@ -31,7 +31,7 @@ def build_python_image(fullname: str,
         if desired (default tag is `latest`).
     requirements:
         List of pip packages to install.
-    version:
+    python_version:
         String in the format of `major_version.minor_version` (ex: `3.7`). Defaults to
         current version of Python that is running.
     _tmp_dir:
@@ -41,12 +41,12 @@ def build_python_image(fullname: str,
     -------
     Full name where built image is located.
     """
-    if version is None:
+    if python_version is None:
         version = sys.version_info
         major_version = version.major
         minor_version = version.minor
     else:
-        version = version.split('.')
+        version = python_version.split('.')
         major_version = int(version[0])
         minor_version = int(version[1])
 
