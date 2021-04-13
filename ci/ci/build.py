@@ -654,7 +654,7 @@ kubectl -n {self.namespace_name} get -o json secret global-config \
 
             for s in self.secrets:
                 script += f'''
-kubectl -n {self.namespace_name} get -o json --export secret {s} | jq '.metadata.name = "{s}"' | kubectl -n {self._name} apply -f -
+kubectl -n {self.namespace_name} get -o json secret {s} | jq 'del(.metadata) | .metadata.name = "{s}"' | kubectl -n {self._name} apply -f -
 '''
 
         script += '''
