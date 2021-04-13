@@ -52,7 +52,7 @@ def build_python_image(fullname: str,
 
     if major_version != 3 or minor_version not in (6, 7, 8):
         raise ValueError(
-            f'Python versions other than 3.6, 3.7, or 3.8 (you are using {version}) are not supported')
+            f'Python versions other than 3.6, 3.7, or 3.8 (you are using {major_version}.{minor_version}) are not supported')
 
     base_image = f'hailgenetics/python-dill:{major_version}.{minor_version}-slim'
 
