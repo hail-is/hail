@@ -1,4 +1,5 @@
 from typing import Optional, Dict
+import sys
 import abc
 import os
 import subprocess as sp
@@ -16,6 +17,7 @@ import hailtop.batch_client.client as bc
 from hailtop.batch_client.client import BatchClient
 
 from . import resource, batch, job as _job  # pylint: disable=unused-import
+from .exceptions import BatchException
 
 
 class Backend(abc.ABC):
@@ -443,6 +445,12 @@ class ServiceBackend(Backend):
 
         for job in batch._jobs:
             if isinstance(job, _job.PythonJob):
+                if job._image is None:
+                    version = sys.version_info
+                    if version.major != 3 or version.minor not in (6, 7, 8):
+                        raise BatchException(
+                            f"You must specify 'image' for Python jobs if you are using a Python version other than 3.6, 3.7, or 3.8 (you are using {version})")
+                    job._image = f'hailgenetics/python-dill:{version.major}.{version.minor}-slim'
                 job._compile(local_tmpdir, remote_tmpdir)
 
             inputs = [x for r in job._inputs for x in copy_input(r)]

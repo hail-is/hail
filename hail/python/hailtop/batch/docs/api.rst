@@ -108,5 +108,6 @@ Utilities
     :toctree: api/utils/
     :nosignatures:
 
+    docker.build_python_image
     utils.concatenate
     utils.plink_merge

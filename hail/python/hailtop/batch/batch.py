@@ -9,7 +9,6 @@ from hailtop.utils import secret_alnum_string
 from ..google_storage import GCS
 
 from . import backend as _backend, job, resource as _resource  # pylint: disable=cyclic-import
-from .docker import build_python_image
 from .exceptions import BatchException
 
 
@@ -55,7 +54,8 @@ class Batch:
     requester_pays_project:
         The name of the Google project to be billed when accessing requester pays buckets.
     default_image:
-        Docker image to use by default if not specified by a job.
+        Default docker image to use for Bash jobs. This must be the full name of the
+        image including any repository prefix and tags if desired (default tag is `latest`).
     default_memory:
         Memory setting to use by default if not specified by a job. Only
         applicable if a docker image is specified for the :class:`.LocalBackend`
@@ -74,20 +74,10 @@ class Batch:
     default_python_image:
         Default image to use for all Python jobs. This must be the full name of the
         image including any repository prefix and tags if desired (default tag is `latest`).
-        The image must have the `dill` Python package installed. If None, then a
-        Docker image will be built locally with the Python packages listed by
-        `python_requirements` installed. If the :class:`.ServiceBackend` is used as
-        the backend, then locally built Docker images are pushed to `image_repository`
-        with the name `batch-python` unless `python_build_image_name` is given.
-    python_requirements:
-        Pip packages to install for Python jobs if `default_python_image` is None.
-    python_build_image_name:
-        Name for the image that is built by Batch.
-    image_repository:
-        Name of image repository to push Batch-built images to. For example,
-        `gcr.io/my-project`.
-    docker_build_dir:
-        Local directory to use for building Docker images. Defaults to `/tmp`.
+        The image must have the `dill` Python package installed and have the same version of
+        Python installed that is currently running. If `None`, a compatible Python image with
+        `dill` pre-installed will automatically be used if the current Python version is
+        3.6, 3.7, or 3.8.
     project:
         If specified, the project to use when authenticating with Google
         Storage. Google Storage is used to transfer serialized values between
@@ -116,17 +106,12 @@ class Batch:
                  default_timeout: Optional[Union[float, int]] = None,
                  default_shell: Optional[str] = None,
                  default_python_image: Optional[str] = None,
-                 python_requirements: Optional[List[str]] = None,
-                 python_build_image_name: Optional[str] = None,
-                 image_repository: Optional[str] = None,
-                 docker_build_dir: str = '/tmp',
                  project: Optional[str] = None):
         self._jobs: List[job.Job] = []
         self._resource_map: Dict[str, _resource.Resource] = {}
         self._allocated_files: Set[str] = set()
         self._input_resources: Set[_resource.InputResourceFile] = set()
         self._uid = Batch._get_uid()
-        self._n_python_jobs = 0
 
         self._backend = backend if backend else _backend.LocalBackend()
 
@@ -147,30 +132,7 @@ class Batch:
         self._default_timeout = default_timeout
         self._default_shell = default_shell
 
-        if default_python_image and python_requirements:
-            raise BatchException("cannot specify both 'default_python_image' and 'python_requirements'")
-        if default_python_image and python_build_image_name:
-            raise BatchException("cannot specify both 'default_python_image' and 'python_build_image_name'")
-
-        self._build_python_image = (default_python_image is None)
-        self._image_repository = image_repository
-
-        if default_python_image is None:
-            if python_build_image_name is None:
-                python_build_image_name = f'batch-python:{secret_alnum_string(8, case="lower")}'
-            if image_repository and isinstance(self._backend, _backend.ServiceBackend):
-                image_repository = image_repository.rstrip('/')
-                python_build_image_name = f'{image_repository}/{python_build_image_name}'
-        else:
-            python_build_image_name = default_python_image
-
-        self._python_image = python_build_image_name
-
-        self._python_requirements = python_requirements or []
-        if 'dill' not in self._python_requirements:
-            self._python_requirements.append('dill')
-
-        self._docker_build_dir = docker_build_dir
+        self._default_python_image = default_python_image
 
         self._gcs = GCS(blocking_pool=concurrent.futures.ThreadPoolExecutor(),
                         project=project)
@@ -287,8 +249,8 @@ class Batch:
 
         j = job.PythonJob(batch=self, name=name, attributes=attributes)
 
-        j._image = self._python_image
-
+        if self._default_python_image is not None:
+            j.image(self._default_python_image)
         if self._default_memory is not None:
             j.memory(self._default_memory)
         if self._default_cpu is not None:
@@ -298,7 +260,6 @@ class Batch:
         if self._default_timeout is not None:
             j.timeout(self._default_timeout)
 
-        self._n_python_jobs += 1
         self._jobs.append(j)
         return j
 
@@ -554,22 +515,6 @@ class Batch:
         backend_kwargs:
             See :meth:`.Backend._run` for backend-specific arguments.
         """
-
-        if self._n_python_jobs > 0 and self._build_python_image:
-            version = sys.version_info
-            if version.major != 3 or version.minor not in (6, 7, 8):
-                raise ValueError(
-                    f'You must specify a Python image if you are using a Python version other than 3.6, 3.7, or 3.8 (you are using {version})')
-            base_image = f'hailgenetics/python-dill:{version.major}.{version.minor}-slim'
-
-            if self._image_repository is None and isinstance(self._backend, _backend.ServiceBackend):
-                raise BatchException('Must define `image_repository` when using the ServiceBackend with Python jobs and building an image locally')
-
-            build_python_image(self._docker_build_dir,
-                               base_image,
-                               self._python_image,
-                               python_requirements=self._python_requirements,
-                               verbose=verbose)
 
         seen = set()
         ordered_jobs = []

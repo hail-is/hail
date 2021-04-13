@@ -661,6 +661,43 @@ class PythonJob(Job):
             self._resources_inverse[r] = item
         return cast(_resource.PythonResult, self._resources[item])
 
+    def image(self, image: str) -> 'PythonJob':
+        """
+        Set the job's docker image.
+
+        Notes
+        -----
+
+        `image` must already exist and have the same version of Python as what is
+        being used on the computer submitting the Batch. It also must have the
+        `dill` Python package installed. You can use the function :func:`.docker.build_python_image`
+        to build a new image containing `dill` and additional Python packages.
+
+        Examples
+        --------
+
+        Set the job's docker image to `gcr.io/hail-vdc/python-dill:3.7-slim`:
+
+        >>> image = hb.build_docker_image('gcr.io/hail-vdc/batch-python', requirements=['pandas'])  # doctest: +SKIP
+        >>> b = Batch()
+        >>> j = b.new_python_job()
+        >>> (j.image(image)
+        ...   .call(print, 'hello'))
+        >>> b.run()  # doctest: +SKIP
+
+        Parameters
+        ----------
+        image:
+            Docker image to use.
+
+        Returns
+        -------
+        Same job object with docker image set.
+        """
+
+        self._image = image
+        return self
+
     def call(self, unapplied: Callable, *args, **kwargs) -> '_resource.PythonResult':
         """Execute a Python function.
 
@@ -696,8 +733,7 @@ class PythonJob(Job):
 
             # Get all the multiplication and addition table results
 
-            b = Batch(name='add-mult-table',
-                      default_python_image='gcr.io/hail-vdc/python-dill:3.7-slim')
+            b = Batch(name='add-mult-table')
 
             formatted_results = []
 
@@ -747,8 +783,9 @@ class PythonJob(Job):
         -------
 
         You must have any non-builtin packages that are used by `unapplied` installed
-        in your image. If you do not supply your own image, then make sure any required
-        packages are listed in the :class:`.Batch` argument `python_requirements`.
+        in your image. You can use :func:`.docker.build_python_image` to build a
+        Python image with additional Python packages installed that is compatible
+        with Python jobs.
 
         Here are some tips to make sure your function can be used with Batch:
 
