@@ -24,7 +24,6 @@ def build_python_image(fullname: str,
 
     >>> image = build_python_image('gcr.io/hail-vdc/batch-python',
     ...                            requirements=['pandas']) # doctest: +SKIP
-    >>> b = Batch(default_python_image=image) # doctest: +SKIP
 
     Parameters
     ----------

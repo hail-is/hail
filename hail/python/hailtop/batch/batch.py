@@ -1,5 +1,4 @@
 import os
-import sys
 import re
 import concurrent
 from typing import Optional, Dict, Union, List, Any, Set

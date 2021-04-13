@@ -678,10 +678,9 @@ class PythonJob(Job):
 
         Set the job's docker image to `gcr.io/hail-vdc/python-dill:3.7-slim`:
 
-        >>> image = hb.build_docker_image('gcr.io/hail-vdc/batch-python', requirements=['pandas'])  # doctest: +SKIP
         >>> b = Batch()
         >>> j = b.new_python_job()
-        >>> (j.image(image)
+        >>> (j.image('gcr.io/hail-vdc/python-dill:3.7-slim')
         ...   .call(print, 'hello'))
         >>> b.run()  # doctest: +SKIP
 
