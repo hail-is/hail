@@ -98,9 +98,8 @@ object Worker {
     val hailContext = HailContext(
       ServiceBackend(), skipLoggingConfiguration = true, quiet = true)
     val htc = new ServiceTaskContext(i)
-    HailTaskContext.setTaskContext(htc)
     val result = f(context, htc)
-    HailTaskContext.finish()
+    htc.finish()
 
     timer.end("executeFunction")
     timer.start("writeOutputs")

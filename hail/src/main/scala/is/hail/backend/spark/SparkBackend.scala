@@ -43,6 +43,28 @@ class SparkBroadcastValue[T](bc: Broadcast[T]) extends BroadcastValue[T] with Se
   def value: T = bc.value
 }
 
+object SparkTaskContext {
+  def get(): SparkTaskContext = taskContext.get
+
+  private[this] val taskContext: ThreadLocal[SparkTaskContext] = new ThreadLocal[SparkTaskContext]() {
+    override def initialValue(): SparkTaskContext = {
+      val sparkTC = TaskContext.get()
+      assert(sparkTC != null, "Spark Task Context was null, maybe this ran on the driver?")
+      TaskContext.get().addTaskCompletionListener[Unit] { (_: TaskContext) =>
+        SparkTaskContext.finish()
+      }
+      val htc = new SparkTaskContext(sparkTC)
+      htc
+    }
+  }
+
+  def finish(): Unit = {
+    taskContext.get().getRegionPool().close()
+    taskContext.remove()
+  }
+}
+
+
 class SparkTaskContext(ctx: TaskContext) extends HailTaskContext {
   self=>
   override def stageId(): Int = ctx.stageId()
@@ -675,6 +697,6 @@ class SparkBackendComputeRDD(
 
   override def compute(partition: Partition, context: TaskContext): Iterator[Array[Byte]] = {
     val sp = partition.asInstanceOf[SparkBackendComputeRDDPartition]
-    Iterator.single(f(sp.data, HailTaskContext.get()))
+    Iterator.single(f(sp.data, SparkTaskContext.get()))
   }
 }

@@ -43,8 +43,8 @@ object ExecuteContext {
   }
 
   def scoped[T](tmpdir: String, localTmpdir: String, backend: Backend, fs: FS, timer: ExecutionTimer, tempFileManager: TempFileManager)(f: ExecuteContext => T): T = {
-    backend.withDriverContext { htc =>
-      using(new ExecuteContext(tmpdir, localTmpdir, backend, fs, Region(pool = htc.getRegionPool()), timer, tempFileManager))(f(_))
+    RegionPool.scoped { pool =>
+      using(new ExecuteContext(tmpdir, localTmpdir, backend, fs, Region(pool = pool), timer, tempFileManager))(f(_))
     }
   }
 

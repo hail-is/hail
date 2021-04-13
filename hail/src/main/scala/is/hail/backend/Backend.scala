@@ -49,14 +49,4 @@ abstract class Backend {
     relationalLetsAbove: Map[String, IR],
     rowTypeRequiredness: RStruct
   ): TableStage
-
-  final def withDriverContext[T](f: HailTaskContext => T): T = {
-    val htc = new DriverTaskContext
-    HailTaskContext.setTaskContext(htc)
-    try {
-      f(htc)
-    } finally {
-      HailTaskContext.finish()
-    }
-  }
 }

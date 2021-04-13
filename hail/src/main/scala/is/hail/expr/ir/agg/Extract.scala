@@ -2,13 +2,13 @@ package is.hail.expr.ir.agg
 
 import is.hail.annotations.{Region, RegionPool, RegionValue}
 import is.hail.asm4s._
-import is.hail.backend.HailTaskContext
+import is.hail.backend.spark.SparkTaskContext
 import is.hail.expr.ir
 import is.hail.expr.ir._
 import is.hail.io.BufferSpec
-import is.hail.types.{RField, RIterable, RPrimitive, RTuple, TypeWithRequiredness, VirtualTypeWithReq, virtual}
 import is.hail.types.physical._
 import is.hail.types.virtual._
+import is.hail.types.{TypeWithRequiredness, VirtualTypeWithReq}
 import is.hail.utils._
 import org.apache.spark.TaskContext
 
@@ -169,7 +169,7 @@ case class Aggs(postAggIR: IR, init: IR, seqPerElt: IR, aggs: Array[PhysicalAggS
 
   def combOpFSerializedWorkersOnly(ctx: ExecuteContext, spec: BufferSpec): (Array[Byte], Array[Byte]) => Array[Byte] = {
     combOpFSerializedFromRegionPool(ctx, spec)(() => {
-      val htc = HailTaskContext.get()
+      val htc = SparkTaskContext.get()
       if (htc == null) {
         throw new UnsupportedOperationException(s"Can't get htc. On worker = ${TaskContext.get != null}")
       }
