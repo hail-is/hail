@@ -260,9 +260,8 @@ class Container:
             image_ref.tag = 'latest'
 
         if image_ref.name() in HAIL_GENETICS_IMAGES:
-            repository_name_without_prefix = image_ref.name()[len(HAIL_GENETICS):]
             image_ref.domain = 'gcr.io'
-            image_ref.path = f'{PROJECT}/{repository_name_without_prefix}'
+            image_ref.path = f'{PROJECT}/{image_ref.name()}'
 
         self.image_ref = image_ref
         self.image_ref_str = str(image_ref)
