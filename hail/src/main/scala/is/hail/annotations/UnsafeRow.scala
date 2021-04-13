@@ -244,6 +244,7 @@ object SafeRow {
     a match {
       case _: UnsafeRow => false
       case _: UnsafeIndexedSeq => false
+      case _: UnsafeNDArray => false
 
       case r: Row =>
         r.toSeq.forall(isSafe)
@@ -251,6 +252,8 @@ object SafeRow {
         a.forall(isSafe)
       case i: Interval =>
         isSafe(i.start) && isSafe(i.end)
+      case nd: NDArray =>
+        isSafe(nd.getRowMajorElements().forall(isSafe))
 
       case _ => true
     }
