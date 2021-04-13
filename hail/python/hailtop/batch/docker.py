@@ -42,9 +42,9 @@ def build_python_image(fullname: str,
     Full name where built image is located.
     """
     if python_version is None:
-        version = sys.version_info
-        major_version = version.major
-        minor_version = version.minor
+        version_info = sys.version_info
+        major_version = version_info.major
+        minor_version = version_info.minor
     else:
         version = python_version.split('.')
         major_version = int(version[0])
