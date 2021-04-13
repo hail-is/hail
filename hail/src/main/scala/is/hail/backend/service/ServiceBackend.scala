@@ -155,7 +155,7 @@ class ServiceBackend() extends Backend {
 
     i = 0  // reusing
     while (i < n) {
-      r(i) = using(fs.openNoCompression(s"$root/result.$i")) { is =>
+      r(i) = using(fs.openCachedNoCompression(s"$root/result.$i")) { is =>
         IOUtils.toByteArray(is)
       }
       i += 1
