@@ -2,7 +2,6 @@ import shutil
 import sys
 import os
 from typing import Optional, List
-from collections import namedtuple
 
 from ..utils import secret_alnum_string, sync_check_shell_output
 
@@ -44,16 +43,18 @@ def build_python_image(fullname: str,
     """
     if version is None:
         version = sys.version_info
+        major_version = version.major
+        minor_version = version.minor
     else:
-        Version = namedtuple('Version', ['major', 'minor'])
         version = version.split('.')
-        version = Version(int(version[0]), int(version[1]))
+        major_version = int(version[0])
+        minor_version = int(version[1])
 
-    if version.major != 3 or version.minor not in (6, 7, 8):
+    if major_version != 3 or minor_version not in (6, 7, 8):
         raise ValueError(
             f'Python versions other than 3.6, 3.7, or 3.8 (you are using {version}) are not supported')
 
-    base_image = f'hailgenetics/python-dill:{version.major}.{version.minor}-slim'
+    base_image = f'hailgenetics/python-dill:{major_version}.{minor_version}-slim'
 
     docker_path = f'{_tmp_dir}/{secret_alnum_string(6)}/docker'
     try:
