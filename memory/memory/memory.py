@@ -22,7 +22,7 @@ from gear import setup_aiohttp_session, rest_authenticated_users_only, monitor_e
 uvloop.install()
 
 DEFAULT_NAMESPACE = os.environ['HAIL_DEFAULT_NAMESPACE']
-log = logging.getLogger('batch')
+log = logging.getLogger('memory')
 routes = web.RouteTableDef()
 
 socket = '/redis/redis.sock'

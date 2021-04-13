@@ -18,6 +18,7 @@ class MemoryClient:
             self._deploy_config = deploy_config
 
         self.url = self._deploy_config.base_url('memory')
+        self.objects_url = f'{self.url}/api/v1alpha/objects'
         self._session = session
         if fs is None:
             fs = GCS(blocking_pool=concurrent.futures.ThreadPoolExecutor(), project=gcs_project)
@@ -37,9 +38,8 @@ class MemoryClient:
     async def _get_file_if_exists(self, filename):
         params = {'q': filename}
         try:
-            url = f'{self.url}/api/v1alpha/objects'
             async with await request_retry_transient_errors(self._session,
-                                                            'get', url,
+                                                            'get', self.objects_url,
                                                             params=params,
                                                             headers=self._headers) as response:
                 return await response.read()
@@ -53,6 +53,15 @@ class MemoryClient:
         if data is not None:
             return data
         return await self._fs.read_binary_gs_file(filename)
+
+    async def write_file(self, filename, data):
+        params = {'q': filename}
+        async with await request_retry_transient_errors(self._session,
+                                                        'post', self.objects_url,
+                                                        params=params,
+                                                        headers=self._headers,
+                                                        body=data) as response:
+            assert response.status == 200
 
     async def close(self):
         await self._session.close()
