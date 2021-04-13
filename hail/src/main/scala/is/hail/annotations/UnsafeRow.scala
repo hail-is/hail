@@ -253,7 +253,7 @@ object SafeRow {
       case i: Interval =>
         isSafe(i.start) && isSafe(i.end)
       case nd: NDArray =>
-        isSafe(nd.getRowMajorElements().forall(isSafe))
+        nd.getRowMajorElements().forall(isSafe)
 
       case _ => true
     }
