@@ -805,7 +805,7 @@ case class PartitionZippedNativeReader(specLeft: AbstractTypedCodecSpec, specRig
               InputMetrics](
               makeLeftDecCode,
               makeRightDecCode,
-              Code.checkcast[AsmFunction3RegionLongLongLong](makeInserterCode.invoke[AnyRef, AnyRef, AnyRef]("apply", Code.boxInt(0), region)),
+              Code.checkcast[AsmFunction3RegionLongLongLong](makeInserterCode.invoke[AnyRef, AnyRef, AnyRef, AnyRef]("apply", cb.emb.getFS, Code.boxInt(0), region)),
               region,
               mb.open(ctxMemo.loadField(cb, "leftPartitionPath")
                 .handle(cb, cb._fatal(""))
