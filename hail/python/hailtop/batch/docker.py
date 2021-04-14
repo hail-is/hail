@@ -85,8 +85,7 @@ RUN pip install --upgrade --no-cache-dir -r requirements.txt && \
             sync_check_shell_output(f'docker tag {base_image} {fullname}')
             print(f'finished pulling image {fullname}')
 
-        image_split = fullname.rsplit('/', 1)
-        if len(image_split) == 2:
+        if '/' in fullname:
             sync_check_shell_output(f'docker push {fullname}')
             print(f'finished pushing image {fullname}')
     finally:
