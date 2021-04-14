@@ -2894,9 +2894,16 @@ object NDArrayEmitter {
       }
     }
 
+    val leftShapeString = const("(").concat(leftShape.map(_.toS).reduce((a, b) => a.concat(", ").concat(b))).concat(")")
+    val rightShapeString = const("(").concat(rightShape.map(_.toS).reduce((a, b) => a.concat(", ").concat(b))).concat(")")
+
+
     setup = Code(setup,
       (lK cne rK).orEmpty(
-        Code._fatal[Unit](const("Matrix dimensions incompatible: ").concat(lK.toS).concat(" ").concat(rK.toS))))
+        Code._fatal[Unit](const("Matrix dimensions incompatible: ")
+          .concat(leftShapeString)
+          .concat(" can't be multiplied by matrix with dimensions ")
+          .concat(rightShapeString))))
 
     cb.append(setup)
     shape
