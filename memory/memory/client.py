@@ -60,7 +60,7 @@ class MemoryClient:
                                                         'post', self.objects_url,
                                                         params=params,
                                                         headers=self._headers,
-                                                        body=data) as response:
+                                                        data=data) as response:
             assert response.status == 200
 
     async def close(self):
