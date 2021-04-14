@@ -40,7 +40,7 @@ public:
 		llvm::LLVMContext &llvm_context,
 		llvm::Module *llvm_module);
 
-// private:
+private:
   llvm::Function *runtime_allocate_f;
 
 };
