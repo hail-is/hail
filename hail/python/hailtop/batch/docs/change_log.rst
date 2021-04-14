@@ -3,6 +3,10 @@
 Change Log
 ==========
 
+**Version 0.2.65**
+
+- Added new :meth:`.Job.memory` inputs `lowmem`, `standard`, and `highmem` corresponding to ~1Gi/core, ~4Gi/core, and ~7Gi/core respectively.
+
 **Version 0.2.58**
 
 - Added concatenate and plink_merge functions that use tree aggregation when merging.
