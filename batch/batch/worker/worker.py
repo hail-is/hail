@@ -1503,6 +1503,17 @@ async def async_main():
         finally:
             await docker.close()
             log.info('docker closed')
+            asyncio.get_event_loop().set_debug(True)
+            log.debug('Tasks immediately after docker close')
+            dump_all_stacktraces()
+            await asyncio.sleep(10 * 60)
+            log.debug('Tasks 10 minutes after docker close')
+            log.debug('Killing any remaining tasks')
+            for t in asyncio.tasks():
+                if t != asyncio.current_task():
+                    log.debug('Dangling task:')
+                    t.print_stack()
+                    t.cancel()
 
 
 loop = asyncio.get_event_loop()
