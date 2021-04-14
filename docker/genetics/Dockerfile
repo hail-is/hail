@@ -7,7 +7,6 @@ RUN hail-apt-get-install \
     liblzma-dev \
     libvcflib-tools \
     libvcflib-dev \
-    pkg-config \
     zlib1g-dev
 
 RUN mkdir samtools && \

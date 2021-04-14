@@ -86,28 +86,5 @@ clean:
 
 ## Public Images ###############################################################
 
-GCR_PREFIX = gcr.io/$(PROJECT)
-HAIL_IMAGE = hailgenetics/hail
-GENETICS_IMAGE = hailgenetics/genetics
-
-.PHONY: publish-hail-public-image
-publish-hail-public-image: hail-ubuntu-stmp
-	make -C ../hail python/hail/hail_pip_version
-	cp ../hail/python/hail/hail_pip_version hail/hail_pip_version
-	-docker pull $(GCR_PREFIX)/$(HAIL_IMAGE)
-	python3 ../ci/jinja2_render.py '{"hail_ubuntu_image":{"image":"hail-ubuntu"}}' Dockerfile.base Dockerfile.base.out
-	docker build hail/ -f hail/Dockerfile.out -t $(HAIL_IMAGE):$$(cat hail/hail_pip_version) \
-     --cache-from $(GCR_PREFIX)/$(HAIL_IMAGE),$(HAIL_IMAGE)
-	docker push $(HAIL_IMAGE):$$(cat hail/hail_pip_version)
-	docker tag $(HAIL_IMAGE):$$(cat hail/hail_pip_version) $(GCR_PREFIX)/$(HAIL_IMAGE):$$(cat hail/hail_pip_version)
-	docker push $(GCR_PREFIX)/$(HAIL_IMAGE):$$(cat hail/hail_pip_version)
-
-.PHONY: publish-genetics-public-image
-publish-genetics-public-image: publish-hail-public-image
-	python3 ../ci/jinja2_render.py '{"hail_public_image":{"image":"'$(HAIL_IMAGE):$$(cat hail/hail_pip_version)'"}}' genetics/Dockerfile genetics/Dockerfile.out
-	-docker pull $(GCR_PREFIX)/$(GENETICS_IMAGE)
-	docker build genetics/ -f genetics/Dockerfile.out -t $(GENETICS_IMAGE):$$(cat hail/hail_pip_version) \
-    --cache-from $(GCR_PREFIX)/$(GENETICS_IMAGE),$(GCR_PREFIX)/$(HAIL_IMAGE),$(GENETICS_IMAGE)
-	docker push $(GENETICS_IMAGE):$$(cat hail/hail_pip_version)
-	docker tag $(GENETICS_IMAGE):$$(cat hail/hail_pip_version) $(GCR_PREFIX)/$(GENETICS_IMAGE):$$(cat hail/hail_pip_version)
-	docker push $(GCR_PREFIX)/$(GENETICS_IMAGE):$$(cat hail/hail_pip_version)
+publish-public-images:
+	bash publish-public-images.sh $(PROJECT)
