@@ -6,7 +6,6 @@ import concurrent
 import dill
 import functools
 import sys
-import time
 
 from hailtop.utils import secret_alnum_string, partition
 import hailtop.batch_client.aioclient as low_level_batch_client
