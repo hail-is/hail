@@ -95,7 +95,10 @@ class GCEEventMonitor:
         else:
             instance = self.inst_coll_manager.get_instance(name)
             if not instance:
-                log.warning(f'event for unknown instance {name}: {json.dumps(event)}')
+                record = await self.db.select_and_fetchone('SELECT name FROM instances WHERE name = %s;',
+                                                           (name,))
+                if not record:
+                    log.error(f'event for unknown instance {name}: {json.dumps(event)}')
                 return
 
             if event_subtype == 'v1.compute.instances.preempted':
