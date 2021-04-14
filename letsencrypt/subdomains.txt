@@ -1,6 +1,5 @@
 ci
 notebook
-www
 batch
 batch-driver
 benchmark
