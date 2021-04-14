@@ -4,7 +4,7 @@ import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.backend.HailTaskContext
-import is.hail.backend.spark.SparkBackend
+import is.hail.backend.spark.{SparkBackend, SparkTaskContext}
 import is.hail.expr.ir
 import is.hail.expr.ir.functions.{BlockMatrixToTableFunction, MatrixToTableFunction, TableToTableFunction}
 import is.hail.expr.ir.lowering.{LowererUnsupportedOperation, TableStage, TableStageDependency}
@@ -2101,7 +2101,7 @@ case class TableMapRows(child: TableIR, newRow: IR) extends TableIR {
       val globalRegion = ctx.partitionRegion
       val globals = if (scanSeqNeedsGlobals) globalsBc.value.readRegionValue(globalRegion) else 0
 
-      HailTaskContext.get.getRegionPool().scopedSmallRegion { aggRegion =>
+      SparkTaskContext.get().getRegionPool().scopedSmallRegion { aggRegion =>
         val seq = eltSeqF(i, globalRegion)
 
         seq.setAggState(aggRegion, read(aggRegion, initAgg))

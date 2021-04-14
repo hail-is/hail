@@ -43,10 +43,30 @@ class SparkBroadcastValue[T](bc: Broadcast[T]) extends BroadcastValue[T] with Se
   def value: T = bc.value
 }
 
+object SparkTaskContext {
+  def get(): SparkTaskContext = taskContext.get
+
+  private[this] val taskContext: ThreadLocal[SparkTaskContext] = new ThreadLocal[SparkTaskContext]() {
+    override def initialValue(): SparkTaskContext = {
+      val sparkTC = TaskContext.get()
+      assert(sparkTC != null, "Spark Task Context was null, maybe this ran on the driver?")
+      TaskContext.get().addTaskCompletionListener[Unit] { (_: TaskContext) =>
+        SparkTaskContext.finish()
+      }
+      val htc = new SparkTaskContext(sparkTC)
+      htc
+    }
+  }
+
+  def finish(): Unit = {
+    taskContext.get().getRegionPool().close()
+    taskContext.remove()
+  }
+}
+
+
 class SparkTaskContext(ctx: TaskContext) extends HailTaskContext {
   self=>
-
-  type BackendType = SparkBackend
   override def stageId(): Int = ctx.stageId()
   override def partitionId(): Int = ctx.partitionId()
   override def attemptNumber(): Int = ctx.attemptNumber()
@@ -282,6 +302,7 @@ class SparkBackend(
   }
 
   def jvmLowerAndExecute(
+    ctx: ExecuteContext,
     timer: ExecutionTimer,
     ir0: IR,
     optimize: Boolean,
@@ -289,10 +310,8 @@ class SparkBackend(
     lowerBM: Boolean,
     print: Option[PrintWriter] = None
   ): Any = {
-    withExecuteContext(timer) { ctx =>
-      val l = _jvmLowerAndExecute(ctx, ir0, optimize, lowerTable, lowerBM, print)
-      executionResultToAnnotation(ctx, l)
-    }
+    val l = _jvmLowerAndExecute(ctx, ir0, optimize, lowerTable, lowerBM, print)
+    executionResultToAnnotation(ctx, l)
   }
 
   private[this] def _jvmLowerAndExecute(
@@ -678,6 +697,6 @@ class SparkBackendComputeRDD(
 
   override def compute(partition: Partition, context: TaskContext): Iterator[Array[Byte]] = {
     val sp = partition.asInstanceOf[SparkBackendComputeRDDPartition]
-    Iterator.single(f(sp.data, HailTaskContext.get()))
+    Iterator.single(f(sp.data, SparkTaskContext.get()))
   }
 }

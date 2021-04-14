@@ -29,8 +29,6 @@ import scala.reflect.ClassTag
 class LocalBroadcastValue[T](val value: T) extends BroadcastValue[T] with Serializable
 
 class LocalTaskContext(val partitionId: Int) extends HailTaskContext {
-  override type BackendType = LocalBackend
-
   override def stageId(): Int = 0
 
   override def attemptNumber(): Int = 0
@@ -75,9 +73,9 @@ class LocalBackend(
 
   def parallelizeAndComputeWithIndex(backendContext: BackendContext, collection: Array[Array[Byte]], dependency: Option[TableStageDependency] = None)(f: (Array[Byte], HailTaskContext) => Array[Byte]): Array[Array[Byte]] = {
     collection.zipWithIndex.map { case (c, i) =>
-      HailTaskContext.setTaskContext(new LocalTaskContext(i))
-      val bytes = f(c, HailTaskContext.get())
-      HailTaskContext.finish()
+      val htc = new LocalTaskContext(i)
+      val bytes = f(c, htc)
+      htc.finish()
       bytes
     }
   }

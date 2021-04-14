@@ -1,26 +1,24 @@
 package is.hail.io.bgen
 
-import is.hail.HailContext
 import is.hail.annotations._
-import is.hail.asm4s.{AsmFunction4, AsmFunction5}
-import is.hail.backend.{BroadcastValue, HailTaskContext}
-import is.hail.backend.spark.SparkBackend
+import is.hail.asm4s.AsmFunction4
+import is.hail.backend.BroadcastValue
+import is.hail.backend.spark.{SparkBackend, SparkTaskContext}
 import is.hail.expr.ir.{ExecuteContext, PruneDeadFields}
-import is.hail.types._
-import is.hail.types.encoded.{EArray, EBaseStruct, EBinaryOptional, EBinaryRequired, EField, EInt32Optional, EInt32Required, EInt64Required}
-import is.hail.types.physical.{PArray, PCall, PCanonicalArray, PCanonicalCall, PCanonicalLocus, PCanonicalString, PCanonicalStruct, PFloat64Required, PInt32, PInt64, PLocus, PString, PStruct}
-import is.hail.types.virtual.{Field, TArray, TInt64, TLocus, TString, TStruct, Type}
 import is.hail.io.fs.FS
-import is.hail.io.{AbstractTypedCodecSpec, BlockingBufferSpec, HadoopFSDataBinaryReader, LEB128BufferSpec, LZ4HCBlockBufferSpec, StreamBlockBufferSpec, TypedCodecSpec}
 import is.hail.io.index.{IndexReader, IndexReaderBuilder, LeafChild}
+import is.hail.io._
 import is.hail.rvd._
 import is.hail.sparkextras._
+import is.hail.types._
+import is.hail.types.encoded._
+import is.hail.types.physical.{PCanonicalArray, PCanonicalCall, PCanonicalLocus, PCanonicalString, PCanonicalStruct, PFloat64Required, PInt32, PInt64, PStruct}
+import is.hail.types.virtual._
 import is.hail.utils.FastIndexedSeq
 import is.hail.variant.ReferenceGenome
-import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
-import org.apache.spark.{OneToOneDependency, Partition, SparkContext, TaskContext}
+import org.apache.spark.{OneToOneDependency, Partition, TaskContext}
 
 import scala.language.reflectiveCalls
 
@@ -166,7 +164,7 @@ private class BgenRDD(
           assert(keys == null)
           new IndexBgenRecordIterator(ctx, p, settings, f(p.partitionIndex, ctx.partitionRegion)).flatten
         case p: LoadBgenPartition =>
-          val index: IndexReader = indexBuilder(p.fsBc.value, p.indexPath, 8, HailTaskContext.get().getRegionPool())
+          val index: IndexReader = indexBuilder(p.fsBc.value, p.indexPath, 8, SparkTaskContext.get().getRegionPool())
           context.addTaskCompletionListener[Unit] { (context: TaskContext) =>
             index.close()
           }

@@ -14,8 +14,6 @@ import org.apache.log4j.Logger
 import scala.collection.mutable
 
 class ServiceTaskContext(val partitionId: Int) extends HailTaskContext {
-  override type BackendType = ServiceBackend
-
   override def stageId(): Int = 0
 
   override def attemptNumber(): Int = 0
@@ -100,9 +98,8 @@ object Worker {
     val hailContext = HailContext(
       ServiceBackend(), skipLoggingConfiguration = true, quiet = true)
     val htc = new ServiceTaskContext(i)
-    HailTaskContext.setTaskContext(htc)
     val result = f(context, htc)
-    HailTaskContext.finish()
+    htc.finish()
 
     timer.end("executeFunction")
     timer.start("writeOutputs")

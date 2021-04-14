@@ -10,6 +10,7 @@ object BackendUtils {
 }
 
 class BackendUtils(mods: Array[(String, (Int, Region) => BackendUtils.F)]) {
+
   import BackendUtils.F
 
   private[this] val loadedModules: Map[String, (Int, Region) => F] = mods.toMap
@@ -24,11 +25,11 @@ class BackendUtils(mods: Array[(String, (Int, Region) => BackendUtils.F)]) {
     val f = getModule(modID)
 
     backend.parallelizeAndComputeWithIndex(backendContext, contexts, tsd)({ (ctx, htc) =>
-          val gs = globalsBC.value
-          HailTaskContext.get.getRegionPool().scopedRegion { region =>
-            val res = f(htc.partitionId(), region)(region, ctx, gs)
-            res
-          }
-        })
+      val gs = globalsBC.value
+      htc.getRegionPool().scopedRegion { region =>
+        val res = f(htc.partitionId(), region)(region, ctx, gs)
+        res
+      }
+    })
   }
 }

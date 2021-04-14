@@ -2,7 +2,7 @@ package is.hail.expr.ir
 
 import is.hail.annotations.{Region, RegionPool, RegionValueBuilder}
 import is.hail.asm4s._
-import is.hail.backend.BackendUtils
+import is.hail.backend.{BackendUtils, HailTaskContext}
 import is.hail.expr.ir.functions.IRRandomness
 import is.hail.expr.ir.orderings.CodeOrdering
 import is.hail.io.fs.FS

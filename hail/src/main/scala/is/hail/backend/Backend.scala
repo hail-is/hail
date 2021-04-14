@@ -1,11 +1,10 @@
 package is.hail.backend
 
 import is.hail.backend.spark.SparkBackend
-import is.hail.expr.ir.{ExecuteContext, IR, SortField}
 import is.hail.expr.ir.lowering.{TableStage, TableStageDependency}
+import is.hail.expr.ir.{ExecuteContext, IR, SortField}
 import is.hail.linalg.BlockMatrix
 import is.hail.types._
-import is.hail.types.virtual.Type
 import is.hail.utils._
 
 import scala.reflect.ClassTag
