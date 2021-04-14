@@ -1,4 +1,5 @@
 # TLS Cookbook
+
 ## Create a Self-Signed x509 Certificate in PEM Format
 
 Produce an x509 certificate. The key is a 4096-bit RSA key. The cert is valid
@@ -121,6 +122,10 @@ kubectl create secret generic \
 3. Update all the service certificates:
 
 ```
+export HAIL=$HOME/hail
+
+make -C $HAIL/hail python/hailtop/hail_version
+
 PYTHONPATH=$HAIL/hail/python \
         python3 $HAIL/tls/create_certs.py \
         default \
@@ -133,8 +138,10 @@ PYTHONPATH=$HAIL/hail/python \
    not actually services, but including them in the next step is OK).
 
 ```
-SERVICES_TO_RESTART=$(python3 -c 'import yaml
-x = yaml.safe_load(open("$HAIL_HOME/tls/config.yaml"))["principals"]
+SERVICES_TO_RESTART=$(python3 -c 'import os
+import yaml
+hail_dir = os.getenv("HAIL")
+x = yaml.safe_load(open(f"{hail_dir}/tls/config.yaml"))["principals"]
 print(",".join(x["name"] for x in x))')
 ```
 
