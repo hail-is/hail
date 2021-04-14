@@ -8,17 +8,12 @@ from subprocess import check_output
 
 assert sys.version_info > (3, 0), sys.version_info
 
-if sys.version_info >= (3, 7):
-    def safe_call(*args, **kwargs):
-        sp.run(args, capture_output=True, check=True, **kwargs)
-else:
-    def safe_call(*args, **kwargs):
-        try:
-            sp.check_output(args, stderr=sp.STDOUT, **kwargs)
-        except sp.CalledProcessError as e:
-            print(e.output.decode())
-            raise e
-
+def safe_call(*args, **kwargs):
+    try:
+        sp.check_output(args, stderr=sp.STDOUT, **kwargs)
+    except sp.CalledProcessError as e:
+        print(e.output.decode())
+        raise e
 
 def get_metadata(key):
     return check_output(['/usr/share/google/get_metadata_value', 'attributes/{}'.format(key)]).decode()
