@@ -69,6 +69,9 @@ class HailSuite extends TestNGSuite {
     timer.finish()
     timer = null
     pool.close()
+
+    if (backend.sc.isStopped)
+      throw new RuntimeException(s"method stopped spark context!")
   }
 
   def withExecuteContext[T]()(f: ExecuteContext => T): T = {

@@ -109,3 +109,17 @@ spec:
         resources:
           requests:
             storage: 10Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: blog
+  labels:
+    app: blog
+spec:
+  ports:
+   - port: 443
+     protocol: TCP
+     targetPort: 443
+  selector:
+    app: blog

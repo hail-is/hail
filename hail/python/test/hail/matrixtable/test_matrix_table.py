@@ -144,7 +144,6 @@ class Tests(unittest.TestCase):
         assert tail(30, 10) == expected(30, 10)
 
     @fails_service_backend()
-    @fails_local_backend()
     def test_tail_scan(self):
         mt = hl.utils.range_matrix_table(30, 40)
         mt = mt.annotate_rows(i = hl.scan.count())
@@ -1230,6 +1229,15 @@ class Tests(unittest.TestCase):
         mt = self.get_mt()
         f = new_temp_file(extension='mt')
         mt.write(f, stage_locally=True)
+
+        mt2 = hl.read_matrix_table(f)
+        self.assertTrue(mt._same(mt2))
+
+    def test_write_checkpoint_file(self):
+        mt = self.get_mt()
+        f = new_temp_file(extension='mt')
+        cp = new_temp_file()
+        mt.write(f, _checkpoint_file=cp)
 
         mt2 = hl.read_matrix_table(f)
         self.assertTrue(mt._same(mt2))

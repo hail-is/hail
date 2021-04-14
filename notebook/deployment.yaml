@@ -169,3 +169,31 @@ spec:
   selector:
     matchLabels:
       app: notebook
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: notebook
+  labels:
+    app: notebook
+spec:
+  ports:
+  - port: 443
+    protocol: TCP
+    targetPort: 443
+  selector:
+    app: notebook
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: workshop
+  labels:
+    app: workshop
+spec:
+  ports:
+  - port: 443
+    protocol: TCP
+    targetPort: 443
+  selector:
+    app: notebook

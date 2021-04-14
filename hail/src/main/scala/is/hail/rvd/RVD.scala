@@ -806,8 +806,11 @@ class RVD(
     path: String,
     bufferSpec: BufferSpec,
     stageLocally: Boolean,
-    targetPartitioner: RVDPartitioner
+    targetPartitioner: RVDPartitioner,
+    checkpointFile: Option[MatrixWriteCheckpoint]
   ): Array[FileWriteMetadata] = {
+    assert(!(targetPartitioner != null && checkpointFile.isDefined))
+
     val localTmpdir = execCtx.localTmpdir
     val fs = execCtx.fs
     val fsBc = fs.broadcast
@@ -933,24 +936,66 @@ class RVD(
             }
           }.collect()
       } else {
-        crdd.cmapPartitionsWithIndex { (i, ctx, it) =>
-          val fs = fsBc.value
-          val partFileAndCount = RichContextRDDRegionValue.writeSplitRegion(
-            localTmpdir,
-            fs,
-            path,
-            localTyp,
-            it,
-            i,
-            ctx,
-            d,
-            stageLocally,
-            makeIndexWriter,
-            makeRowsEnc,
-            makeEntriesEnc)
 
-          Iterator.single(partFileAndCount)
-        }.collect()
+        checkpointFile match {
+          case Some(checkpoint) =>
+
+            val partitionsToCompute = sparkContext.broadcast(checkpoint.uncomputedPartitions())
+            val computedRDD = crdd.cmapPartitionsWithIndex { (i, ctx, it) =>
+              val fs = fsBc.value
+              if (partitionsToCompute.value.contains(i)) {
+                val partFileAndCount = RichContextRDDRegionValue.writeSplitRegion(
+                  localTmpdir,
+                  fs,
+                  path,
+                  localTyp,
+                  it,
+                  i,
+                  ctx,
+                  d,
+                  stageLocally,
+                  makeIndexWriter,
+                  makeRowsEnc,
+                  makeEntriesEnc)
+
+                Iterator.single((i, partFileAndCount))
+              } else Iterator.empty
+            }.run
+
+            try {
+              sparkContext.runJob[(Int, FileWriteMetadata), Array[(Int, FileWriteMetadata)]](computedRDD,
+                (_: TaskContext, it: Iterator[(Int, FileWriteMetadata)]) => it.toArray,
+                (_: Int, data: Array[(Int, FileWriteMetadata)]) => data.foreach { case (partIdx, fwm) => checkpoint.append(partIdx, fwm) })
+            } catch {
+              case e: Throwable =>
+                checkpoint.close()
+                throw e
+            }
+
+            checkpoint.result()
+
+          case None =>
+            crdd.cmapPartitionsWithIndex { (i, ctx, it) =>
+              val fs = fsBc.value
+              val partFileAndCount = RichContextRDDRegionValue.writeSplitRegion(
+                localTmpdir,
+                fs,
+                path,
+                localTyp,
+                it,
+                i,
+                ctx,
+                d,
+                stageLocally,
+                makeIndexWriter,
+                makeRowsEnc,
+                makeEntriesEnc)
+
+              Iterator.single(partFileAndCount)
+            }.collect()
+        }
+
+
       }
 
 

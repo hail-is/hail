@@ -9,7 +9,7 @@ plugins {
   id 'java'
   id 'scala'
   id 'idea'
-  id 'com.github.johnrengelman.shadow' version '5.0.0'
+  id 'com.github.johnrengelman.shadow' version '6.1.0'
   id "de.undercouch.download" version "3.2.0"
   id 'eclipse'
 }
@@ -24,6 +24,8 @@ repositories {
     jcenter()
     maven { url "https://repository.cloudera.com/artifactory/cloudera-repos/" }
     maven { url "https://repo.spring.io/plugins-release/" }
+    // Necessary for elasticsearch spark 3.0.1 snapshot.
+    maven { url "https://oss.sonatype.org/content/repositories/snapshots/"}
 }
 
 sourceSets.main.scala.srcDir "src/main/java"
@@ -158,7 +160,9 @@ dependencies {
     unbundled 'org.apache.spark:spark-sql_' + scalaMajorVersion + ':' + sparkVersion
     unbundled 'org.apache.spark:spark-mllib_' + scalaMajorVersion + ':' + sparkVersion
 
-    bundled 'org.json4s:json4s-jackson_' + scalaMajorVersion + ':3.7.0-M5'
+    bundled('org.json4s:json4s-jackson_' + scalaMajorVersion + ':3.7.0-M5') {
+        exclude group: 'com.fasterxml.jackson.core'
+    }
 
     bundled 'org.lz4:lz4-java:1.4.0'
 
@@ -179,8 +183,23 @@ dependencies {
     if (elasticMajorVersion != "7") {
         throw new UnsupportedOperationException("elasticsearch.major-version must be 7")
     }
-    // This comes from a local libs directory, see Makefile
-    bundled 'org.elasticsearch:elasticsearch-spark-30_2.12-8.0.0-SNAPSHOT-custom-hail-spark311'
+
+    if (sparkVersion.startsWith("3.1.")) {
+        // This comes from a local libs directory, see Makefile
+        assert(scalaMajorVersion == "2.12")
+        bundled 'org.elasticsearch:elasticsearch-spark-30_2.12-8.0.0-SNAPSHOT-custom-hail-spark311'
+    }
+    else if (sparkVersion.startsWith("3.0.")) {
+        assert(scalaMajorVersion == "2.12")
+        bundled 'org.elasticsearch:elasticsearch-spark-30_2.12:7.13.0-SNAPSHOT'
+    }
+    else if (sparkVersion.startsWith("2.4.")) {
+        assert(scalaMajorVersion == "2.11")
+        bundled 'org.elasticsearch:elasticsearch-spark-20_2.11:7.8.1'
+    }
+    else {
+        throw new UnsupportedOperationException("Couldn't pick a valid elasticsearch.")
+    }
 
     bundled 'com.google.cloud:google-cloud-storage:1.106.0'
 
@@ -313,7 +332,7 @@ tasks.withType(ShadowJar) {
     relocate 'org.lz4', 'is.hail.relocated.org.lz4'
     relocate 'org.freemarker', 'is.hail.relocated.org.freemarker'
     relocate 'org.json4s', 'is.hail.relocated.org.json4s'
-    relocate 'com.fasterxml.jackson', 'is.hail.relocated.com.fasterxml.jackson'
+    relocate 'org.elasticsearch', 'is.hail.relocated.org.elasticsearch'
 
     exclude 'META-INF/*.RSA'
     exclude 'META-INF/*.SF'

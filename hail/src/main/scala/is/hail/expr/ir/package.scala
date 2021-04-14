@@ -2,18 +2,15 @@ package is.hail.expr
 
 import is.hail.asm4s
 import is.hail.asm4s._
-import is.hail.annotations.RegionValue
-import is.hail.asm4s.joinpoint.Ctrl
 import is.hail.expr.ir.functions.IRFunctionRegistry
-import is.hail.types.{coerce => tycoerce, _}
 import is.hail.types.physical._
+import is.hail.types.physical.stypes.SCode
 import is.hail.types.virtual._
+import is.hail.types.{coerce => tycoerce, _}
 import is.hail.utils._
 
-import scala.language.implicitConversions
 import java.util.UUID
-
-import is.hail.types.physical.stypes.SCode
+import scala.language.implicitConversions
 
 package object ir {
   type TokenIterator = BufferedIterator[Token]

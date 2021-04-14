@@ -310,3 +310,31 @@ spec:
   selector:
     matchLabels:
       app: batch
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: batch
+  labels:
+    app: batch
+spec:
+  ports:
+  - port: 443
+    protocol: TCP
+    targetPort: 5000
+  selector:
+    app: batch
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: batch-driver
+  labels:
+    app: batch-driver
+spec:
+  ports:
+  - port: 443
+    protocol: TCP
+    targetPort: 5000
+  selector:
+    app: batch-driver

@@ -88,3 +88,17 @@ spec:
         - name: billing-monitor-gsa-key
           secret:
             secretName: billing-monitor-gsa-key
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: monitoring
+  labels:
+    app: monitoring
+spec:
+  ports:
+    - port: 443
+      protocol: TCP
+      targetPort: 5000
+  selector:
+    app: monitoring

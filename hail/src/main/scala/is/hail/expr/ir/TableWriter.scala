@@ -1,12 +1,11 @@
 package is.hail.expr.ir
 
 import java.io.OutputStream
-
 import is.hail.GenericIndexedSeqSerializer
 import is.hail.annotations.Region
 import is.hail.asm4s._
-import is.hail.expr.ir.EmitStream.SizedStream
 import is.hail.expr.ir.lowering.{LowererUnsupportedOperation, TableStage}
+import is.hail.expr.ir.streams.StreamProducer
 import is.hail.io.fs.FS
 import is.hail.io.index.StagedIndexWriter
 import is.hail.io.{AbstractTypedCodecSpec, BufferSpec, OutputBuffer, TypedCodecSpec}
@@ -164,32 +163,31 @@ case class PartitionNativeWriter(spec: AbstractTypedCodecSpec, partPrefix: Strin
 
   def consumeStream(
     ctx: ExecuteContext,
+    cb: EmitCodeBuilder,
+    stream: StreamProducer,
     context: EmitCode,
-    eltType: PStruct,
-    mb: EmitMethodBuilder[_],
-    region: ParentStagedRegion,
-    stream: SizedStream): EmitCode = {
+    region: Value[Region]): IEmitCode = {
+
+    val mb = cb.emb
 
     val keyType = ifIndexed { index.get._2 }
     val indexWriter = ifIndexed { StagedIndexWriter.withDefaults(keyType, mb.ecb) }
 
-    context.map { ctxCode: PCode =>
+    context.toI(cb).map(cb) { ctxCode: PCode =>
       val result = mb.newLocal[Long]("write_result")
 
       val filename = mb.newLocal[String]("filename")
       val os = mb.newLocal[ByteTrackingOutputStream]("write_os")
       val ob = mb.newLocal[OutputBuffer]("write_ob")
       val n = mb.newLocal[Long]("partition_count")
-      val eltRegion = region.createChildRegion(mb)
 
-      def writeFile(codeRow: EmitCode): Code[Unit] = {
-        EmitCodeBuilder.scopedVoid(mb) { cb =>
+      def writeFile(cb: EmitCodeBuilder, codeRow: EmitCode): Unit = {
           val pc = codeRow.toI(cb).get(cb, "row can't be missing").asBaseStruct
           val row = pc.memoize(cb, "row")
           if (hasIndex) {
             indexWriter.add(cb, {
               IEmitCode.present(cb, keyType.asInstanceOf[PCanonicalBaseStruct]
-                .constructFromFields(cb, eltRegion.code,
+                .constructFromFields(cb, stream.elementRegion,
                   keyType.fields.map(f => EmitCode.fromI(cb.emb)(cb => row.loadField(cb, f.name).typecast[PCode])),
                   deepCopy = false))
             },
@@ -201,9 +199,7 @@ case class PartitionNativeWriter(spec: AbstractTypedCodecSpec, partPrefix: Strin
           spec.encodedType.buildEncoder(row.st, cb.emb.ecb)
             .apply(cb, row, ob)
 
-          cb += eltRegion.clear()
           cb.assign(n, n + 1L)
-        }
       }
 
       PCode(pResultType, EmitCodeBuilder.scopedCode(mb) { cb: EmitCodeBuilder =>
@@ -218,16 +214,18 @@ case class PartitionNativeWriter(spec: AbstractTypedCodecSpec, partPrefix: Strin
         cb.assign(os, Code.newInstance[ByteTrackingOutputStream, OutputStream](mb.create(filename)))
         cb.assign(ob, spec.buildCodeOutputBuffer(Code.checkcast[OutputStream](os)))
         cb.assign(n, 0L)
-        cb += eltRegion.allocateRegion(Region.REGULAR, cb.emb.ecb.pool())
-        cb += stream.getStream(eltRegion).forEach(mb, writeFile)
-        cb += eltRegion.free()
+
+        stream.memoryManagedConsume(region, cb) { cb =>
+          writeFile(cb, stream.element)
+        }
+
         cb += ob.writeByte(0.asInstanceOf[Byte])
-        cb.assign(result, pResultType.allocate(region.code))
+        cb.assign(result, pResultType.allocate(region))
         if (hasIndex)
           indexWriter.close(cb)
         cb += ob.flush()
         cb += os.invoke[Unit]("close")
-        filenameType.storeAtAddress(cb, pResultType.fieldOffset(result, "filePath"), region.code, pctx, false)
+        filenameType.storeAtAddress(cb, pResultType.fieldOffset(result, "filePath"), region, pctx, false)
         cb += Region.storeLong(pResultType.fieldOffset(result, "partitionCounts"), n)
         result.get
       })

@@ -127,7 +127,6 @@ knodes() {
     #     ====== gke-vdc-preemptible-pool-3-770fae6d-zl4l =====
     #     NAMESPACE     NAME                                                  READY   STATUS    RESTARTS   AGE   IP             NODE                                       NOMINATED NODE   READINESS GATES
     #     default       address-6b465c7594-bk9lb                              1/1     Running   0          23m   10.32.34.39    gke-vdc-preemptible-pool-3-770fae6d-zl4l   <none>           <none>
-    #     default       scorecard-deployment-7f9c5b6569-bk2sx                 1/1     Running   6          25m   10.32.34.37    gke-vdc-preemptible-pool-3-770fae6d-zl4l   <none>           <none>
     for i in $(kubectl get nodes | awk '{print $1}')
     do
         echo "====== $i ====="
@@ -168,6 +167,6 @@ upload-secret() {
     # upload to a different namespace, ensure you've also modified secret.json.
 	  name=$(jq -r '.metadata.name' secret.json)
 	  namespace=$(jq -r '.metadata.namespace' secret.json)
-	  kubectl create secret generic $name --namespace $namespace $(for i in $(ls contents); do echo "--from-file=contents/$i" ; done) --dry-run -o yaml \
+	  kubectl create secret generic $name --namespace $namespace $(for i in $(ls contents); do echo "--from-file=contents/$i" ; done) --save-config --dry-run=client -o yaml \
 	      | kubectl apply -f -
 }

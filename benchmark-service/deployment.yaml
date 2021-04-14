@@ -108,3 +108,17 @@ spec:
         - name: benchmark-tokens
           secret:
             secretName: benchmark-tokens
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: benchmark
+  labels:
+    app: benchmark
+spec:
+  ports:
+    - port: 443
+      protocol: TCP
+      targetPort: 5000
+  selector:
+    app: benchmark

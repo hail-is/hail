@@ -315,49 +315,44 @@ def _blanczos_pca(entry_expr, k=10, compute_loadings=False, q_iterations=2, over
     # Generate random matrix G
     G = hl.nd.zeros((n, L)).map(lambda n: hl.rand_norm(0, 1))
 
-    def hailBlanczos(A, G, k, q):
+    def hailBlanczos(A, G, k, q, compute_U=False):
 
-        h_list = []
-        G_i = G
+        G_i = hl.nd.qr(G)[0]
+        g_list = [G_i]
 
         for j in range(0, q):
-            info(f"blanczos_pca: Beginning iteration {j + 1}/{q+1}")
-            temp = A.annotate(H_i=A.ndarray @ G_i)
-            temp = temp.annotate(G_i_intermediate=temp.ndarray.T @ temp.H_i)
-            result = temp.aggregate(hl.struct(Hi_chunks=hl.agg.collect(temp.H_i),
-                                              G_i=hl.agg.ndarray_sum(temp.G_i_intermediate)), _localize=False)._persist()
-            localized_H_i = hl.nd.vstack(result.Hi_chunks)
-            h_list.append(localized_H_i)
-            G_i = result.G_i
+            info(f"blanczos_pca: Beginning iteration {j+1}/{q}")
+            G_i = A.aggregate(hl.agg.ndarray_sum(A.ndarray.T @ (A.ndarray @ G_i)), _localize=False)
+            G_i = hl.nd.qr(G_i)[0]._persist()
+            g_list.append(G_i)
 
-        info(f"blanczos_pca: Beginning iteration {q+ 1}/{q+1}")
-        temp = A.annotate(H_i=A.ndarray @ G_i)
-        result = temp.aggregate(hl.agg.collect(temp.H_i), _localize=False)._persist()
         info("blanczos_pca: Iterations complete. Computing local QR")
-        localized_H_i = hl.nd.vstack(result)
-        h_list.append(localized_H_i)
-        H = hl.nd.hstack(h_list)
-        Q = hl.nd.qr(H)[0]._persist()
-        A = A.annotate(part_size=A.ndarray.shape[0])
-        A = A.annotate(rows_preceeding=hl.int32(hl.scan.sum(A.part_size)))
-        A = A.annotate_globals(Qt=Q.T)
-        T = A.annotate(ndarray=A.Qt[:, A.rows_preceeding:A.rows_preceeding + A.part_size] @ A.ndarray)
-        arr_T = T.aggregate(hl.agg.ndarray_sum(T.ndarray), _localize=False)
+        G = hl.nd.hstack(g_list)
+        V = hl.nd.qr(G)[0]._persist()
 
-        info("blanczos_pca: QR Complete. Computing local SVD")
-        U, S, W = hl.nd.svd(arr_T, full_matrices=False)._persist()
+        AV = A.select(ndarray=A.ndarray @ V)
 
-        V = Q @ U
+        if compute_U:
+            AV_local = hl.nd.vstack(AV.aggregate(hl.agg.collect(AV.ndarray), _localize=False))
+            U, R = hl.nd.qr(AV_local)._persist()
+            return U, R, V
+        else:
+            Rs = hl.nd.vstack(AV.aggregate(hl.agg.collect(hl.nd.qr(AV.ndarray)[1]), _localize=False))
+            R = hl.nd.qr(Rs)[1]._persist()
+            return R, V
 
-        truncV = V[:, :k]
-        truncS = S[:k]
-        truncW = W[:k, :]
+    if compute_loadings:
+        U0, R, V0 = hailBlanczos(A, G, k, q, compute_U=True)
+    else:
+        R, V0 = hailBlanczos(A, G, k, q, compute_U=False)
 
-        return truncV, truncS, truncW
+    info("blanczos_pca: QR Complete. Computing local SVD")
+    U1, S, V1t = hl.nd.svd(R, full_matrices=False)._persist()
 
-    U, S, V = hailBlanczos(A, G, k, q)
+    S = S[:k]
+    V = V0 @ V1t.T[:, :k]
 
-    scores = V.transpose() * S
+    scores = V * S
     eigens = hl.eval(S * S)
     info("blanczos_pca: SVD Complete. Computing conversion to PCs.")
 
@@ -365,14 +360,14 @@ def _blanczos_pca(entry_expr, k=10, compute_loadings=False, q_iterations=2, over
     cols_and_scores = hl.zip(A.index_globals().cols, hail_array_scores).map(lambda tup: tup[0].annotate(scores=tup[1]))
     st = hl.Table.parallelize(cols_and_scores, key=list(mt.col_key))
 
-    lt = ht.select()
-    lt = lt.annotate_globals(U=U)
-    idx_name = '_tmp_pca_loading_index'
-    lt = lt.add_index(idx_name)
-    lt = lt.annotate(loadings=lt.U[lt[idx_name], :]._data_array()).select_globals()
-    lt = lt.drop(lt[idx_name])
-
     if compute_loadings:
+        U = U0 @ U1[:, :k]
+        lt = ht.select()
+        lt = lt.annotate_globals(U=U)
+        idx_name = '_tmp_pca_loading_index'
+        lt = lt.add_index(idx_name)
+        lt = lt.annotate(loadings=lt.U[lt[idx_name], :]._data_array()).select_globals()
+        lt = lt.drop(lt[idx_name])
         return eigens, st, lt
     else:
         return eigens, st, None

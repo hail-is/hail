@@ -2492,9 +2492,10 @@ class MatrixTable(ExprContainer):
                       overwrite=bool,
                       stage_locally=bool,
                       _codec_spec=nullable(str),
-                      _partitions=nullable(expr_any))
+                      _partitions=nullable(expr_any),
+                      _checkpoint_file=nullable(str))
     def write(self, output: str, overwrite: bool = False, stage_locally: bool = False,
-              _codec_spec: Optional[str] = None, _partitions=None):
+              _codec_spec: Optional[str] = None, _partitions=None, _checkpoint_file=None):
         """Write to disk.
 
         Examples
@@ -2524,7 +2525,7 @@ class MatrixTable(ExprContainer):
         else:
             _partitions_type = None
 
-        writer = ir.MatrixNativeWriter(output, overwrite, stage_locally, _codec_spec, _partitions, _partitions_type)
+        writer = ir.MatrixNativeWriter(output, overwrite, stage_locally, _codec_spec, _partitions, _partitions_type, _checkpoint_file)
         Env.backend().execute(ir.MatrixWrite(self._mir, writer))
 
     class _Show:

@@ -130,3 +130,17 @@ spec:
   selector:
     matchLabels:
       app: atgu
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: atgu
+  labels:
+    app: atgu
+spec:
+  ports:
+  - port: 443
+    protocol: TCP
+    targetPort: 5000
+  selector:
+    app: atgu

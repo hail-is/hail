@@ -6,11 +6,12 @@ import concurrent
 import logging
 import uvloop
 import asyncio
+import signal
 from aiohttp import web
 import kubernetes_asyncio as kube
 from prometheus_async.aio.web import server_stats  # type: ignore
 from collections import defaultdict
-from hailtop.utils import blocking_to_async, retry_transient_errors
+from hailtop.utils import blocking_to_async, retry_transient_errors, dump_all_stacktraces
 from hailtop.config import get_deploy_config
 from hailtop.tls import internal_server_ssl_context
 from hailtop.hail_logging import AccessLogger
@@ -285,7 +286,7 @@ async def on_shutdown(_):
     # the current task we'll end up in a deadlock
     remaining_tasks = [t for t in asyncio.all_tasks() if t is not asyncio.current_task()]
     log.info(f"On shutdown request received, with {len(remaining_tasks)} remaining tasks")
-    await asyncio.wait(*remaining_tasks)
+    await asyncio.wait(remaining_tasks)
     log.info("All tasks on shutdown have completed")
 
 
@@ -300,6 +301,8 @@ def run():
     app.on_cleanup.append(on_cleanup)
     app.on_shutdown.append(on_shutdown)
     app.router.add_get("/metrics", server_stats)
+
+    asyncio.get_event_loop().add_signal_handler(signal.SIGUSR1, dump_all_stacktraces)
 
     deploy_config = get_deploy_config()
     web.run_app(

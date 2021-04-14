@@ -6,6 +6,7 @@ import json
 import logging
 import os
 import uvloop
+import signal
 from aiohttp import web
 import kubernetes_asyncio as kube
 from prometheus_async.aio.web import server_stats  # type: ignore
@@ -14,7 +15,7 @@ from hailtop.config import get_deploy_config
 from hailtop.google_storage import GCS
 from hailtop.hail_logging import AccessLogger
 from hailtop.tls import internal_server_ssl_context
-from hailtop.utils import AsyncWorkerPool, retry_transient_errors
+from hailtop.utils import AsyncWorkerPool, retry_transient_errors, dump_all_stacktraces
 from gear import setup_aiohttp_session, rest_authenticated_users_only, monitor_endpoint
 
 uvloop.install()
@@ -132,6 +133,8 @@ def run():
 
     app.on_startup.append(on_startup)
     app.on_cleanup.append(on_cleanup)
+
+    asyncio.get_event_loop().add_signal_handler(signal.SIGUSR1, dump_all_stacktraces)
 
     deploy_config = get_deploy_config()
     web.run_app(

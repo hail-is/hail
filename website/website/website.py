@@ -4,7 +4,6 @@ from aiohttp import web
 import jinja2
 import logging
 import aiohttp_session
-import glob
 from prometheus_async.aio.web import server_stats  # type: ignore
 
 from hailtop.config import get_deploy_config
@@ -16,7 +15,7 @@ from web_common import (setup_aiohttp_jinja2, setup_common_static_routes, render
 
 
 MODULE_PATH = os.path.dirname(__file__)
-log = logging.getLogger('scorecard')
+log = logging.getLogger('website')
 deploy_config = get_deploy_config()
 routes = web.RouteTableDef()
 
@@ -72,7 +71,9 @@ async def serve_docs(request, userdata):
     if tail in docs_pages:
         if tail.endswith('.html'):
             return await render_template('www', request, userdata, tail, dict())
-        return web.FileResponse(f'{DOCS_PATH}/{tail}')
+        # Chrome fails to download the tutorials.tar.gz file without the Content-Type header.
+        return web.FileResponse(f'{DOCS_PATH}/{tail}',
+                                headers={'Content-Type': 'application/octet-stream'})
     raise web.HTTPNotFound()
 
 

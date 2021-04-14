@@ -67,7 +67,6 @@ def base_context(session, userdata, service):
         'batch_base_url': deploy_config.external_url('batch', ''),
         'batch_driver_base_url': deploy_config.external_url('batch-driver', ''),
         'ci_base_url': deploy_config.external_url('ci', ''),
-        'scorecard_base_url': deploy_config.external_url('scorecard', ''),
         'grafana_base_url': deploy_config.external_url('grafana', ''),
         'monitoring_base_url': deploy_config.external_url('monitoring', ''),
         'benchmark_base_url': deploy_config.external_url('benchmark', ''),

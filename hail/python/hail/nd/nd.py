@@ -9,7 +9,7 @@ from hail.expr.expressions import (
     expr_int32, expr_int64, expr_tuple, expr_any, expr_array, expr_ndarray,
     expr_numeric, Int64Expression, cast_expr, construct_expr)
 from hail.expr.expressions.typed_expressions import NDArrayNumericExpression
-from hail.ir import NDArrayQR, NDArrayInv, NDArrayConcat, NDArraySVD
+from hail.ir import NDArrayQR, NDArrayInv, NDArrayConcat, NDArraySVD, Apply
 
 tsequenceof_nd = oneof(sequenceof(expr_ndarray()), expr_array(expr_ndarray()))
 shape_type = oneof(expr_int64, tupleof(expr_int64), expr_tuple())
@@ -219,6 +219,44 @@ def diagonal(nd):
     assert nd.ndim == 2, "diagonal requires 2 dimensional ndarray"
     shape_min = hl.min(nd.shape[0], nd.shape[1])
     return hl.nd.array(hl.range(hl.int32(shape_min)).map(lambda i: nd[i, i]))
+
+
+@typecheck(a=expr_ndarray(), b=expr_ndarray())
+def solve(a, b):
+    """Solve a linear system.
+
+    Parameters
+    ----------
+    a : :class:`.NDArrayNumericExpression`, (N, N)
+        Coefficient matrix.
+    b : :class:`.NDArrayNumericExpression`, (N,) or (N, K)
+        Dependent variables.
+
+    Returns
+    -------
+    :class:`.NDArrayNumericExpression`, (N,) or (N, K)
+        Solution to the system Ax = B. Shape is same as shape of B.
+
+    """
+    assert a.ndim == 2
+    assert b.ndim == 1 or b.ndim == 2
+
+    b_ndim_orig = b.ndim
+
+    if b_ndim_orig == 1:
+        b = b.reshape((-1, 1))
+
+    if a.dtype.element_type != hl.tfloat64:
+        a = a.map(lambda e: hl.float64(e))
+    if b.dtype.element_type != hl.tfloat64:
+        b = b.map(lambda e: hl.float64(e))
+
+    ir = Apply("linear_solve", hl.tndarray(hl.tfloat64, 2), a._ir, b._ir)
+    result = construct_expr(ir, hl.tndarray(hl.tfloat64, 2), a._indices, a._aggregations)
+
+    if b_ndim_orig == 1:
+        result = result.reshape((-1))
+    return result
 
 
 @typecheck(nd=expr_ndarray(), mode=str)

@@ -602,20 +602,20 @@ class ArrayZeros(IR):
 
 
 class StreamRange(IR):
-    @typecheck_method(start=IR, stop=IR, step=IR, separate_regions=bool)
-    def __init__(self, start, stop, step, separate_regions=False):
+    @typecheck_method(start=IR, stop=IR, step=IR, requires_memory_management_per_element=bool)
+    def __init__(self, start, stop, step, requires_memory_management_per_element=False):
         super().__init__(start, stop, step)
         self.start = start
         self.stop = stop
         self.step = step
-        self.separate_regions = separate_regions
+        self.requires_memory_management_per_element = requires_memory_management_per_element
 
     @typecheck_method(start=IR, stop=IR, step=IR)
     def copy(self, start, stop, step):
         return StreamRange(start, stop, step)
 
     def head_str(self):
-        return self.separate_regions
+        return self.requires_memory_management_per_element
 
     def _compute_type(self, env, agg_env):
         self.start._compute_type(env, agg_env)
@@ -1050,18 +1050,18 @@ class CastToArray(IR):
 
 
 class ToStream(IR):
-    @typecheck_method(a=IR, separate_regions=bool)
-    def __init__(self, a, separate_regions=False):
+    @typecheck_method(a=IR, requires_memory_management_per_element=bool)
+    def __init__(self, a, requires_memory_management_per_element=False):
         super().__init__(a)
         self.a = a
-        self.separate_regions = separate_regions
+        self.requires_memory_management_per_element = requires_memory_management_per_element
 
     @typecheck_method(a=IR)
     def copy(self, a):
         return ToStream(a)
 
     def head_str(self):
-        return self.separate_regions
+        return self.requires_memory_management_per_element
 
     def _compute_type(self, env, agg_env):
         self.a._compute_type(env, agg_env)

@@ -3,6 +3,7 @@ package is.hail.linalg
 import is.hail.annotations.Region
 import is.hail.asm4s.{Code, _}
 import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, IEmitCode}
+import is.hail.types.physical.stypes.concrete.SNDArrayPointerSettable
 import is.hail.types.physical.stypes.interfaces.SNDArray
 import is.hail.types.physical.{PCanonicalNDArray, PNDArrayCode, PNDArrayValue}
 
@@ -43,6 +44,16 @@ object LinalgCodeUtils {
       cb.assign(curAddr, curAddr + pt.elementType.byteSize)
     }
     dataFinisher(cb)
+  }
+
+  def checkColMajorAndCopyIfNeeded(aInput: PNDArrayValue, cb: EmitCodeBuilder, region: Value[Region]): PNDArrayValue = {
+    val aIsColumnMajor = LinalgCodeUtils.checkColumnMajor(aInput, cb)
+    val aColMajor = cb.emb.newPField("ndarray_output_column_major", aInput.pt).asInstanceOf[SNDArrayPointerSettable]
+    cb.ifx(aIsColumnMajor, {cb.assign(aColMajor, aInput)},
+      {
+        cb.assign(aColMajor, LinalgCodeUtils.createColumnMajorCode(aInput, cb, region))
+      })
+    aColMajor
   }
 
   def linearizeIndicesRowMajor(indices: IndexedSeq[Code[Long]], shapeArray: IndexedSeq[Value[Long]], mb: EmitMethodBuilder[_]): Code[Long] = {
