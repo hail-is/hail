@@ -95,9 +95,7 @@ class GCEEventMonitor:
         else:
             instance = self.inst_coll_manager.get_instance(name)
             if not instance:
-                record = await self.db.select_and_fetchone(f'''
-SELECT name FROM instances WHERE name = %s;
-''',
+                record = await self.db.select_and_fetchone('SELECT name FROM instances WHERE name = %s;',
                                                            (name,))
                 if not record:
                     log.error(f'event for unknown instance {name}: {json.dumps(event)}')
