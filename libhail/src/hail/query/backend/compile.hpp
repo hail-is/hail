@@ -30,6 +30,7 @@ public:
   llvm::Module *llvm_module;
 
   llvm::Value* region_allocate(llvm::IRBuilder<> *llvm_ir_builder, llvm::Value *region, MemorySize *memory_size);
+  llvm::Value* region_allocate(llvm::IRBuilder<> *llvm_ir_builder, llvm::Value *region, llvm::Value *alignment, llvm::Value *num_bytes);
 
   CompileModule(TypeContext &tc,
 		STypeContext &stc,

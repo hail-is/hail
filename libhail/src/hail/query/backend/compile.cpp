@@ -37,10 +37,14 @@ CompileModule::CompileModule(TypeContext &tc,
 
 llvm::Value*
 CompileModule::region_allocate(llvm::IRBuilder<> *llvm_ir_builder, llvm::Value *region, MemorySize *memory_size) {
-  return llvm_ir_builder->CreateCall(runtime_allocate_f,
-					       {region,
-						llvm::ConstantInt::get(llvm_context, llvm::APInt(64, memory_size->byte_size)),
-						llvm::ConstantInt::get(llvm_context, llvm::APInt(64, memory_size->alignment))});
+  return region_allocate(llvm_ir_builder, region,
+                         llvm::ConstantInt::get(llvm_context, llvm::APInt(64, memory_size->alignment)),
+                         llvm::ConstantInt::get(llvm_context, llvm::APInt(64, memory_size->byte_size)));
+};
+
+llvm::Value*
+CompileModule::region_allocate(llvm::IRBuilder<> *llvm_ir_builder, llvm::Value *region, llvm::Value *alignment, llvm::Value *num_bytes) {
+  return llvm_ir_builder->CreateCall(runtime_allocate_f, {region, alignment, num_bytes});
 };
 
 CompileFunction::CompileFunction(TypeContext &tc,
@@ -284,12 +288,19 @@ CompileFunction::emit(MakeArray *x) {
   }
 
   auto len = llvm::ConstantInt::get(llvm_context, llvm::APInt(64, element_emit_values.size()));
-  auto mem_size = MemorySize(varray_type->byte_size, varray_type->alignment);
-  auto missing = module->region_allocate(&llvm_ir_builder, llvm_function->getArg(0), &mem_size);
+  // Enough memory for one bit per boolean, so just need "len" bits.
+  // FIXME: WRONG
+  auto missing_mem_size = MemorySize(varray_type->byte_size, varray_type->alignment);
+  auto missing = module->region_allocate(&llvm_ir_builder, llvm_function->getArg(0), &missing_mem_size);
+
+  auto single_element_size_val = llvm::ConstantInt::get(llvm_context, llvm::APInt(64, varray_type->element_stride));
+  auto elements_size = llvm_ir_builder.CreateMul(len, single_element_size_val);
+  auto elements_allignment = llvm::ConstantInt::get(llvm_context, llvm::APInt(64, varray_type->elements_alignment));
+  auto elements = module->region_allocate(&llvm_ir_builder, llvm_function->getArg(0), elements_allignment, elements_size);
 
   auto stype = cast<SCanonicalArray>(stc.stype_from(varray_type));
   return EmitValue(llvm::ConstantInt::get(llvm::Type::getInt8Ty(llvm_context), 0),
-    new SCanonicalArrayValue(stype, len, len, len)
+    new SCanonicalArrayValue(stype, len, missing, elements)
   );
 }
 
