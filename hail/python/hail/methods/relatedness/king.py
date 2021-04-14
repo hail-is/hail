@@ -9,7 +9,7 @@ from hail.utils.java import Env
 
 @typecheck(call_expr=expr_call, block_size=nullable(int))
 def king(call_expr, *, block_size=None):
-    r"""Compute relatedness estimates between individuals using a KING variant.
+    r"""Compute relatedness estimates between individuals using a KNG variant.
 
     .. include:: ../_templates/req_diploid_gt.rst
 
