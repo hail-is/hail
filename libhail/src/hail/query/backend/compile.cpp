@@ -298,6 +298,14 @@ CompileFunction::emit(MakeArray *x) {
   auto elements_allignment = llvm::ConstantInt::get(llvm_context, llvm::APInt(64, varray_type->elements_alignment));
   auto elements = module->region_allocate(&llvm_ir_builder, llvm_function->getArg(0), elements_allignment, elements_size);
 
+  // TODO this should generate an LLVM for loop.
+  auto current_index = 0;
+  for (auto element: element_emit_values) {
+    auto addr = llvm_ir_builder.CreateGEP(elements, llvm::ConstantInt::get(llvm_context, llvm::APInt(64, varray_type->element_stride * current_index)));
+    element.svalue->stype->construct_at_address_from_value(*this, addr, element.svalue);
+    ++current_index;
+  }
+
   auto stype = cast<SCanonicalArray>(stc.stype_from(varray_type));
   return EmitValue(llvm::ConstantInt::get(llvm::Type::getInt8Ty(llvm_context), 0),
     new SCanonicalArrayValue(stype, len, missing, elements)
