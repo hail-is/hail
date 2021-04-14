@@ -112,6 +112,30 @@ and returns a tab-delimited string that will be used later on when concatenating
     def as_tsv(input: Tuple[str, float, float]) -> str:
         return '\t'.join(str(i) for i in input)
 
+
+~~~~~~~~~~~~~~~~~~
+Build Python Image
+~~~~~~~~~~~~~~~~~~
+
+In order to run a :class:`.PythonJob`, Batch needs an image that has the
+same version of Python as the version of Python running on your computer
+and the Python package `dill` installed. Batch will automatically
+choose a suitable image for you if your Python version is 3.6, 3.7, or 3.8.
+You can supply your own image that meets the requirements listed above to the
+method :meth:`.PythonJob.image` or as the argument `default_python_image` when
+constructing a Batch . We also provide a convenience function :func:`.docker.build_python_image`
+for building an image that has the correct version of Python and `dill` installed
+along with any desired Python packages.
+
+For running the random forest, we need both the `sklearn` and `pandas` Python
+packages installed in the image. We use :func:`.docker.build_python_image` to build
+an image and push it automatically to the location specified (ex: `gcr.io/hail-vdc/random-forest`).
+
+.. code-block:: python
+
+    image = hb.build_python_image('gcr.io/hail-vdc/random-forest',
+                              requirements=['sklearn', 'pandas'])
+
 ~~~~~~~~~~~~
 Control Code
 ~~~~~~~~~~~~
@@ -123,18 +147,15 @@ We start by defining a backend.
     backend = hb.ServiceBackend()
 
 
-Second, we create a :class:`.Batch` and specify the python requirements in order
-to run the `random_forest` function. In this case, it's `sklearn` and `pandas`
-as those modules are referenced inside the `random_forest` function. We also
-specify the `image_repository` of where we want docker images Batch automatically
-builds to be pushed to. See :class:`.Batch` and :class:`.PythonJob` for a more
-detailed discussion on Docker images.
+Second, we create a :class:`.Batch` and specify the default Python image to
+use for Python jobs with `default_python_image`. `image` is the return value
+from building the Python image above and is the full name of where the newly
+built image was pushed to.
 
 .. code-block:: python
 
     b = hb.Batch(name='rf',
-                 image_repository='gcr.io/hail-vdc',
-                 python_requirements=['sklearn', 'pandas'])
+                 default_python_image=image)
 
 
 Next, we read the `y` dataframe locally in order to get the list of windows

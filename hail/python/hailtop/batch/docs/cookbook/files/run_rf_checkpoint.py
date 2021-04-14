@@ -45,9 +45,9 @@ def checkpoint_path(window):
     return f'gs://my_bucket/checkpoints/random-forest/{window}'
 
 
-def main(df_x_path, df_y_path, output_path):
-    backend = hb.ServiceBackend(image_repository='gcr.io/hail-vdc')
-    b = hb.Batch(name='rf-loo', python_requirements=['sklearn', 'pandas'])
+def main(df_x_path, df_y_path, output_path, python_image):
+    backend = hb.ServiceBackend()
+    b = hb.Batch(name='rf-loo', default_python_image=python_image)
 
     with hl.hadoop_open(df_y_path) as f:
         local_df_y = pd.read_table(f, header=0, index_col=0)
