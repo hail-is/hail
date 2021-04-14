@@ -33,15 +33,10 @@ CompileModule::CompileModule(TypeContext &tc,
 						   llvm::Function::ExternalLinkage,
 						   "hl_runtime_region_allocate",
 						   llvm_module);
-
-  CompileFunction(tc, stc, main, param_types, return_type, llvm_context, this);
 }
 
 llvm::Value*
 CompileModule::region_allocate(llvm::IRBuilder<> *llvm_ir_builder, llvm::Value *region, MemorySize *memory_size) {
-  print("Trying to region_allocate");
-  print(runtime_allocate_f->getFunctionType());
-
   return llvm_ir_builder->CreateCall(runtime_allocate_f,
 					       {region,
 						llvm::ConstantInt::get(llvm_context, llvm::APInt(64, memory_size->byte_size)),
@@ -62,7 +57,8 @@ CompileFunction::CompileFunction(TypeContext &tc,
     return_type(return_type),
     llvm_context(llvm_context),
     llvm_ir_builder(llvm_context),
-    ir_type(tc, function) {
+    ir_type(tc, function),
+    module(module) {
   auto llvm_ft = llvm::FunctionType::get(llvm::Type::getVoidTy(llvm_context),
 					 {llvm::Type::getInt8PtrTy(llvm_context),
 					  llvm::Type::getInt8PtrTy(llvm_context),

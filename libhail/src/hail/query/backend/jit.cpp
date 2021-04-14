@@ -65,10 +65,8 @@ JITImpl::compile(HeapAllocator &heap,
     param_types.push_back(stc.emit_type_from(vt));
   auto return_type = stc.emit_type_from(return_vtype);
 
-  print("Just before compile module created");
   CompileModule mc(tc, stc, module, param_types, return_type, *llvm_context, llvm_module.get());
-  print("type: ", mc.runtime_allocate_f->getFunctionType());
-  print("Just after compile module created");
+  CompileFunction cf(tc, stc, module->get_function("main"), param_types, return_type, *llvm_context, &mc);
 
   if (auto err = llvm_jit->addIRModule(llvm::orc::ThreadSafeModule(std::move(llvm_module), std::move(llvm_context))))
     exit_on_error(std::move(err));

@@ -104,23 +104,8 @@ SType::construct_from_value(CompileFunction &cf, const SValue *from) const {
   if (from->stype == this)
     return from;
 
-  // auto runtime_allocate_ft =
-  //   llvm::FunctionType::get(llvm::Type::getInt8PtrTy(cf.llvm_context),
-	// 		    {llvm::Type::getInt8PtrTy(cf.llvm_context),
-	// 		     llvm::Type::getInt64Ty(cf.llvm_context),
-	// 		     llvm::Type::getInt64Ty(cf.llvm_context)},
-	// 		    false);
-  // auto runtime_allocate_f = llvm::Function::Create(runtime_allocate_ft,
-	// 					   llvm::Function::ExternalLinkage,
-	// 					   "hl_runtime_region_allocate",
-	// 					   cf.module->llvm_module);
-
   auto memory_size = get_memory_size();
 
-  // auto address = cf.llvm_ir_builder.CreateCall(runtime_allocate_f,
-	// 				       {cf.llvm_function->getArg(0),
-	// 					llvm::ConstantInt::get(cf.llvm_context, llvm::APInt(64, memory_size.byte_size)),
-	// 					llvm::ConstantInt::get(cf.llvm_context, llvm::APInt(64, memory_size.alignment))});
   auto address = cf.module->region_allocate(&(cf.llvm_ir_builder), cf.llvm_function->getArg(0), &memory_size);
   construct_at_address_from_value(cf, address, from);
   return load_from_address(cf, address);
