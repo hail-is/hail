@@ -157,7 +157,10 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
             case (true, false) =>
               EmitCode.fromI(emb)(cb => ec.toI(cb).map(cb)(pc => PCode(pc.pt.setRequired(pt.required), pc.code)))
             case (false, true) =>
-              EmitCode.fromI(callee) { cb => IEmitCode.present(this, ec.toI(this).get(this))}
+              EmitCode.fromI(emb) { cb =>
+                val presentPC = ec.toI(cb).get(cb)
+                IEmitCode.present(cb, PCode(presentPC.pt.setRequired(pt.required), presentPC.code))
+              }
             case _ => ec
           }
 
