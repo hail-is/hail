@@ -3183,7 +3183,7 @@ steps:
      python3 -m pytest --instafail \
        --doctest-modules \
        --doctest-glob='*.rst' \
-       --ignore=docs/cookbook/files/run_gwas.py \
+       --ignore=docs/cookbook/files/ \
        --ignore=docs/conf.py
    secrets:
     - name: gce-deploy-config
