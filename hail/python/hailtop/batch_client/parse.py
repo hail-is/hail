@@ -8,11 +8,6 @@ MEMORY_REGEX: Pattern = re.compile(MEMORY_REGEXPAT)
 CPU_REGEXPAT: str = r'[+]?((?:[0-9]*[.])?[0-9]+)([m])?'
 CPU_REGEX: Pattern = re.compile(CPU_REGEXPAT)
 
-# https://github.com/moby/moby/blob/master/image/spec/v1.md
-# https://github.com/moby/moby/blob/master/image/spec/v1.2.md
-IMAGE_REGEX: Pattern = re.compile(r"(.+/|)([^:]+)(:(.+))?")
-
-
 def parse_cpu_in_mcpu(cpu_string: str) -> Optional[int]:
     match = CPU_REGEX.fullmatch(cpu_string)
     if match:
@@ -40,13 +35,6 @@ def parse_memory_in_bytes(memory_string: str) -> Optional[int]:
         if suffix:
             return math.ceil(number * conv_factor[suffix])
         return math.ceil(number)
-    return None
-
-
-def parse_image_tag(image_string: str) -> Optional[Tuple[str, str]]:
-    match = IMAGE_REGEX.fullmatch(image_string)
-    if match:
-        return match.group(1) + match.group(2), match.group(4)
     return None
 
 

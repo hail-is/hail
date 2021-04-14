@@ -19,13 +19,12 @@ import concurrent
 import aiodocker
 from aiodocker.exceptions import DockerError
 import google.oauth2.service_account
-from hailtop.utils import (time_msecs, request_retry_transient_errors,
-                           sleep_and_backoff, retry_all_errors, check_shell,
-                           CalledProcessError, check_shell_output, is_google_registry_image,
-                           find_spark_home, dump_all_stacktraces)
+from hailtop.utils import (time_msecs, request_retry_transient_errors, sleep_and_backoff,
+                           retry_all_errors, check_shell, CalledProcessError, check_shell_output,
+                           is_google_registry_domain, find_spark_home, dump_all_stacktraces,
+                           parse_docker_image_reference)
 from hailtop.httpx import client_session
-from hailtop.batch_client.parse import (parse_cpu_in_mcpu, parse_image_tag,
-                                        parse_memory_in_bytes, parse_storage_in_bytes)
+from hailtop.batch_client.parse import (parse_cpu_in_mcpu,parse_memory_in_bytes, parse_storage_in_bytes)
 from hailtop.batch.hail_genetics_images import HAIL_GENETICS, HAIL_GENETICS_IMAGES
 from hailtop import aiotools
 # import uvloop
@@ -254,19 +253,19 @@ class Container:
         self.name = name
         self.spec = spec
 
-        repository, tag = parse_image_tag(self.spec['image'])
+        image_ref = parse_docker_image_reference(self.spec['image'])
 
-        if not tag:
+        if image_ref.tag is None:
             log.info(f'adding latest tag to image {self.spec["image"]} for {self}')
-            tag = 'latest'
+            image_ref.tag = 'latest'
 
-        if repository in HAIL_GENETICS_IMAGES:
-            repository_name_without_prefix = repository[len(HAIL_GENETICS):]
-            repository = f'gcr.io/{PROJECT}/{repository_name_without_prefix}'
+        if image_ref.name() in HAIL_GENETICS_IMAGES:
+            repository_name_without_prefix = image_ref.name()[len(HAIL_GENETICS):]
+            image_ref.domain = 'gcr.io'
+            image_ref.path = f'{PROJECT}/{repository_name_without_prefix}'
 
-        self.repository = repository
-        self.tag = tag
-        self.image = self.repository + ':' + self.tag
+        self.image_ref = image_ref
+        self.image_ref_str = str(image_ref)
 
         self.port = self.spec.get('port')
         self.host_port = None
@@ -297,7 +296,7 @@ class Container:
             "Tty": False,
             'OpenStdin': False,
             'Cmd': self.spec['command'],
-            'Image': self.image,
+            'Image': self.image_ref_str,
             'Entrypoint': ''
         }
 
@@ -367,11 +366,11 @@ class Container:
     async def ensure_image_is_pulled(self, auth=None):
         try:
             await docker_call_retry(MAX_DOCKER_OTHER_OPERATION_SECS, f'{self}')(
-                docker.images.get, self.image)
+                docker.images.get, self.image_ref_str)
         except DockerError as e:
             if e.status == 404:
                 await docker_call_retry(MAX_DOCKER_IMAGE_PULL_SECS, f'{self}')(
-                    docker.images.pull, self.image, auth=auth)
+                    docker.images.pull, self.image_ref_str, auth=auth)
 
     def current_user_access_token(self):
         key = base64.b64decode(self.job.gsa_key['key.json']).decode()
@@ -389,8 +388,8 @@ class Container:
     async def run(self, worker):
         try:
             async with self.step('pulling'):
-                is_gcr_image = is_google_registry_image(self.image)
-                is_public_gcr_image = self.repository in PUBLIC_GCR_IMAGES
+                is_gcr_image = is_google_registry_domain(self.image_ref.domain)
+                is_public_gcr_image = self.image_ref.name() in PUBLIC_GCR_IMAGES
 
                 try:
                     if not is_gcr_image:
@@ -405,7 +404,7 @@ class Container:
                         # per-user image cache.
                         auth = self.current_user_access_token()
                         await docker_call_retry(MAX_DOCKER_IMAGE_PULL_SECS, f'{self}')(
-                            docker.images.pull, self.image, auth=auth)
+                            docker.images.pull, self.image_ref_str, auth=auth)
                 except DockerError as e:
                     if e.status == 404 and 'pull access denied' in e.message:
                         self.short_error = 'image cannot be pulled'
