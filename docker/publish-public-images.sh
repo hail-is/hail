@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -ex
+
 project=$1
 
 make -C ../hail python/hail/hail_pip_version
@@ -10,7 +12,7 @@ build_and_push() {
     name=$1
     base=$2
 
-    docker=$name:$hail_pip_version
+    docker=hailgenetics/$name:$hail_pip_version
     google=gcr.io/$project/$name:$hail_pip_version
     latest=gcr.io/$project/$name:latest
 
@@ -22,10 +24,9 @@ build_and_push() {
            -t $google \
            -t $latest \
            --cache-from $latest,$base
-    docker push $docker &
-    docker push $google &
-    docker push $latest &
-    wait
+    docker push $docker
+    docker push $google
+    docker push $latest
 }
 
 python3 ../ci/jinja2_render.py '{"hail_ubuntu_image":{"image":"hail-ubuntu"}}' Dockerfile.base Dockerfile.base.out
