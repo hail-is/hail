@@ -113,3 +113,11 @@ def test_parse_docker_image_reference():
     assert x.digest is None
     assert x.name() == 'gcr.io/hail-vdc/batch-worker'
     assert str(x) == 'gcr.io/hail-vdc/batch-worker:123fds312'
+
+    x = parse_docker_image_reference('us-docker.pkg.dev/my-project/my-repo/test-image')
+    assert x.domain == 'us-docker.pkg.dev'
+    assert x.path == 'my-project/my-repo/test-image'
+    assert x.tag is None
+    assert x.digest is None
+    assert x.name() == 'us-docker.pkg.dev/my-project/my-repo/test-image'
+    assert str(x) == 'us-docker.pkg.dev/my-project/my-repo/test-image'
