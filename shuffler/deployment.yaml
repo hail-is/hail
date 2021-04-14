@@ -27,6 +27,8 @@ spec:
             - /controller.sh
 {% endif %}
             - java
+            - -XX:ErrorFile=hs_err.log
+            - '-XX:OnError=cat hs_err.log >&2'
             - -cp
             - /usr/local/lib/python3.7/dist-packages/pyspark/jars/*:/hail.jar
             - is.hail.services.shuffler.server.ShuffleServer

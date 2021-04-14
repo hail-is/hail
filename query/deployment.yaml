@@ -76,6 +76,8 @@ spec:
            - /controller.sh
 {% endif %}
            - java
+           - -XX:ErrorFile=hs_err.log
+           - '-XX:OnError=cat hs_err.log >&2'
            - -Dlog4j.configuration=file:/log4j.properties
            - -cp
            - /hail.jar:/usr/local/lib/python3.7/dist-packages/pyspark/jars/*
