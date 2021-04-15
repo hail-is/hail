@@ -1506,11 +1506,11 @@ async def async_main():
             asyncio.get_event_loop().set_debug(True)
             log.debug('Tasks immediately after docker close')
             dump_all_stacktraces()
-            await asyncio.sleep(10 * 60)
-            log.debug('Tasks 10 minutes after docker close')
-            log.debug('Killing any remaining tasks')
-            for t in asyncio.tasks():
-                if t != asyncio.current_task():
+            other_tasks = [t for t in asyncio.tasks() if t != asyncio.current_task()]
+            try:
+                _, pending = await asyncio.wait(other_tasks, timeout=10 * 60, return_when=asyncio.ALL_COMPLETED)
+            except asyncio.TimeoutError:
+                for t in pending:
                     log.debug('Dangling task:')
                     t.print_stack()
                     t.cancel()
