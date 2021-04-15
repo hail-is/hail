@@ -1073,6 +1073,7 @@ class Emit[C](
             case None =>
               val count = cb.newLocal[Int]("stream_length", 0)
               producer.memoryManagedConsume(region, cb) { cb =>
+                producer.element.toI(cb).consume(cb, {}, _ => {})
                 cb.assign(count, count + 1)
               }
               producer.element.pv match {
