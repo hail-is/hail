@@ -629,7 +629,7 @@ async def retry_transient_errors(f: Callable[..., Awaitable[T]], *args, **kwargs
             errors += 1
             if errors % 10 == 0:
                 st = ''.join(traceback.format_stack())
-                log.warning(f'encountered {errors} errors. My stack trace is {st}. Most recent error was {e}', exc_info=True)
+                log.warning(f'Encountered {errors} errors. My stack trace is {st}. Most recent error was {e}', exc_info=True)
         delay = await sleep_and_backoff(delay)
 
 
@@ -642,7 +642,8 @@ def sync_retry_transient_errors(f, *args, **kwargs):
         except Exception as e:
             errors += 1
             if errors % 10 == 0:
-                log.warning(f'encountered {errors} errors, most recent one was {e}', exc_info=True)
+                st = ''.join(traceback.format_stack())
+                log.warning(f'Encountered {errors} errors. My stack trace is {st}. Most recent error was {e}', exc_info=True)
             if is_transient_error(e):
                 pass
             else:
