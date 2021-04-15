@@ -194,8 +194,13 @@ object Simplify {
 
     case ArrayLen(MakeArray(args, _)) => I32(args.length)
 
+    case StreamLen(MakeStream(args, _, _)) => I32(args.length)
+    case StreamLen(Let(name, value, body)) => Let(name, value, StreamLen(body))
     case StreamLen(StreamMap(s, _, _)) => StreamLen(s)
     case StreamLen(StreamFlatMap(a, name, body)) => streamSumIR(StreamMap(a, name, StreamLen(body)))
+    case StreamLen(StreamRange(start, stop, step, _)) =>
+      (stop - start - 1) floorDiv (step + 1)
+    case StreamLen(StreamGrouped(a, groupSize)) => (StreamLen(a) + groupSize - 1) / groupSize
       
     case ArrayLen(ToArray(s)) if s.typ.isInstanceOf[TStream] => StreamLen(s)
     case ArrayLen(StreamFlatMap(a, _, MakeArray(args, _))) => ApplyBinaryPrimOp(Multiply(), I32(args.length), ArrayLen(a))
@@ -203,7 +208,6 @@ object Simplify {
     case ArrayLen(ArraySort(a, _, _, _)) => ArrayLen(ToArray(a))
 
     case ArrayLen(ToArray(MakeStream(args, _, _))) => I32(args.length)
-    case StreamLen(MakeStream(args, _, _)) => I32(args.length)
 
     case ArrayRef(MakeArray(args, _), I32(i), _) if i >= 0 && i < args.length => args(i)
 
