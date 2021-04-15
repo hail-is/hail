@@ -1277,7 +1277,8 @@ async def ui_get_job(request, userdata, batch_id):
         'name': str,
         'timing': {'pulling': dictfix.NoneOr({'duration': dictfix.NoneOr(Number)}),
                    'running': dictfix.NoneOr({'duration': dictfix.NoneOr(Number)})},
-        'container_status': {'out_of_memory': False},
+        'short_error': dictfix.NoneOr(str),
+        'container_status': {'out_of_memory': dictfix.NoneOr(bool)},
         'state': str})
     job_status_spec = {
         'container_statuses': {'input': container_status_spec,
@@ -1288,6 +1289,11 @@ async def ui_get_job(request, userdata, batch_id):
     step_statuses = [container_statuses['input'],
                      container_statuses['main'],
                      container_statuses['output']]
+
+    for status in step_statuses:
+        # backwards compatibility
+        if status and status['short_error'] is None and status['container_status']['out_of_memory']:
+            status['short_error'] = 'out of memory'
 
     job_specification = job['spec']
     if job_specification:

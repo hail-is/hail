@@ -275,6 +275,7 @@ class Container:
 
         self.container = None
         self.state = 'pending'
+        self.short_error = None
         self.error = None
         self.timing = {}
         self.container_status = None
@@ -391,19 +392,24 @@ class Container:
                 is_gcr_image = is_google_registry_image(self.image)
                 is_public_gcr_image = self.repository in PUBLIC_GCR_IMAGES
 
-                if not is_gcr_image:
-                    await self.ensure_image_is_pulled()
-                elif is_public_gcr_image:
-                    auth = await self.batch_worker_access_token()
-                    await self.ensure_image_is_pulled(auth=auth)
-                else:
-                    # Pull to verify this user has access to this
-                    # image.
-                    # FIXME improve the performance of this with a
-                    # per-user image cache.
-                    auth = self.current_user_access_token()
-                    await docker_call_retry(MAX_DOCKER_IMAGE_PULL_SECS, f'{self}')(
-                        docker.images.pull, self.image, auth=auth)
+                try:
+                    if not is_gcr_image:
+                        await self.ensure_image_is_pulled()
+                    elif is_public_gcr_image:
+                        auth = await self.batch_worker_access_token()
+                        await self.ensure_image_is_pulled(auth=auth)
+                    else:
+                        # Pull to verify this user has access to this
+                        # image.
+                        # FIXME improve the performance of this with a
+                        # per-user image cache.
+                        auth = self.current_user_access_token()
+                        await docker_call_retry(MAX_DOCKER_IMAGE_PULL_SECS, f'{self}')(
+                            docker.images.pull, self.image, auth=auth)
+                except DockerError as e:
+                    if e.status == 404 and 'pull access denied' in e.message:
+                        self.short_error = 'image cannot be pulled'
+                    raise
 
             if self.port is not None:
                 async with self.step('allocating_port'):
@@ -452,7 +458,11 @@ class Container:
                 await self.delete_container()
 
             if timed_out:
+                self.short_error = 'timed out'
                 raise JobTimeoutError(f'timed out after {self.timeout}s')
+
+            if self.container_status['out_of_memory']:
+                self.short_error = 'out of memory'
 
             if 'error' in self.container_status:
                 self.state = 'error'
@@ -515,11 +525,12 @@ class Container:
     #   state: str, (pending, pulling, creating, starting, running, uploading_log, deleting, suceeded, error, failed)
     #   timing: dict(str, float),
     #   error: str, (optional)
+    #   short_error: str, (optional)
     #   container_status: { (from docker container state)
     #     state: str,
     #     started_at: str, (date)
     #     finished_at: str, (date)
-    #     out_of_memory: boolean
+    #     out_of_memory: bool
     #     error: str, (one of error, exit_code will be present)
     #     exit_code: int
     #   }
@@ -534,10 +545,13 @@ class Container:
         }
         if self.error:
             status['error'] = self.error
+        if self.short_error:
+            status['short_error'] = self.short_error
         if self.container_status:
             status['container_status'] = self.container_status
         elif self.container:
             status['container_status'] = await self.get_container_status()
+
         return status
 
     def __str__(self):

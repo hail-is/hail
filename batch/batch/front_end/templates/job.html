@@ -68,7 +68,7 @@
       <th>Job Step</th>
       <th>Image Pulling Time (s)</th>
       <th>Running Time (s)</th>
-      <th>Exceeded Memory Limits?</th>
+      <th>Error Type</th>
       <th>State</th>
     </tr>
   </thead>
@@ -87,10 +87,10 @@
         {{ step['timing']['running']['duration'] / 1000.0 }}
         {% endif %}
       </td>
-      {% if step['container_status']['out_of_memory'] %}
-      <td class="data-table-bad" >Yes</td>
+      {% if step['short_error'] is not none %}
+      <td class="data-table-bad" >{{ step['short_error'] }}</td>
       {% else %}
-      <td>No</td>
+      <td></td>
       {% endif %}
       <td {% if step['state'] in ['failed', 'error'] %}class="data-table-bad"{% endif %}>
         {{ step['state'] }}
