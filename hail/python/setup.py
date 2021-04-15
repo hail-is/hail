@@ -2,7 +2,12 @@
 
 import os
 import re
-from setuptools import setup, find_packages
+import shutil
+import subprocess
+
+from distutils.sysconfig import get_config_var
+from setuptools import Extension, find_packages, setup
+from setuptools.command.build_ext import build_ext
 
 with open('hail/hail_pip_version') as f:
     hail_pip_version = f.read().strip()
@@ -25,6 +30,51 @@ with open('requirements.txt', 'r') as f:
             dependencies.append(f'pyspark=={spark_version}')
         else:
             dependencies.append(pkg)
+
+# machinery for building libhail, mostly wrapping cmake
+lib_suffix = get_config_var('EXT_SUFFIX')
+# check for ninja
+if shutil.which('ninja') is not None:
+    CMAKE_GENERATOR = 'Ninja'
+else:
+    CMAKE_GENERATOR = 'Unix Makefiles'
+
+
+class CMakeExtension(Extension):
+    def __init__(self, name, cmake_lists_dir='.', **kwargs):
+        Extension.__init__(self, name, sources=[], **kwargs)
+        self.cmake_lists_dir = os.path.abspath(cmake_lists_dir)
+
+
+class cmake_build_ext(build_ext):
+    def build_extensions(self):
+        # find cmake
+        if shutil.which('cmake') is None:
+            raise RuntimeError('Cannot find CMake')
+
+        assert all(isinstance(ext, CMakeExtension) for ext in self.extensions), \
+               'can only build cmake extensions'
+
+        out_dir = os.path.join(os.getcwd(), self.build_lib)
+        common_cmake_args = [
+            '-G', CMAKE_GENERATOR,
+            f'-DHAIL_PYTHON_MODULE_LIBDIR={out_dir}',
+            '-DCMAKE_BUILD_TYPE=RelWithDebInfo']
+        for ext in self.extensions:
+            tmp_dir = os.path.join(self.build_temp, ext.name)
+            if not os.path.exists(tmp_dir):
+                os.makedirs(tmp_dir)
+                print('creating', tmp_dir)
+            cmake_args = [f'-DHAIL_PYTHON_MODULE_NAME={ext.name + lib_suffix}']
+            subprocess.check_call(['cmake', ext.cmake_lists_dir] + common_cmake_args + cmake_args,
+                                  cwd=tmp_dir)
+            subprocess.check_call(['cmake', '--build', '.', '--verbose'],
+                                  cwd=tmp_dir)
+            subprocess.check_call(['cmake', '--install', '.'],
+                                  cwd=tmp_dir)
+
+
+extensions = []
 
 setup(
     name="hail",
@@ -51,6 +101,8 @@ setup(
         'hail.backend': ['hail-all-spark.jar'],
         'hailtop': ['hail_version', 'py.typed'],
         'hailtop.hailctl': ['hail_version', 'deploy.yaml']},
+    ext_modules=[CMakeExtension('_hail', cmake_lists_dir='_hail')],
+    cmdclass=dict(build_ext=cmake_build_ext),
     classifiers=[
         "Programming Language :: Python :: 3",
         "License :: OSI Approved :: MIT License",
