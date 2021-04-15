@@ -17,8 +17,7 @@ with open('requirements.txt', 'r') as f:
         if stripped.startswith('#') or len(stripped) == 0:
             continue
 
-        # strip trailing comments
-        pkg = re.split('\\s+#', stripped)[0]
+        pkg = stripped
 
         if pkg.startswith('pyspark') and os.path.exists('../env/SPARK_VERSION'):
             with open('../env/SPARK_VERSION', 'r') as file:
