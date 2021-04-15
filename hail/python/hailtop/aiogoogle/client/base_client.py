@@ -7,7 +7,7 @@ ClientType = TypeVar('ClientType', bound='BaseClient')
 
 
 class BaseClient:
-    _session: Optional[BaseSession]
+    _session: BaseSession
 
     def __init__(self, base_url: str, *, session: Optional[BaseSession] = None,
                  rate_limit: RateLimit = None, **kwargs):
@@ -34,9 +34,9 @@ class BaseClient:
             pass
 
     async def close(self) -> None:
-        if self._session is not None:
+        if hasattr(self, '_session'):
             await self._session.close()
-            self._session = None
+            del self._session
 
     async def __aenter__(self: ClientType) -> ClientType:
         return self
