@@ -2259,6 +2259,24 @@
       }
     ]
   },
+  "gnomad_annotation_pext": {
+    "description": "gnomAD: annotation-level proportion expressed across transcripts (pext) for all possible SNVs Hail Table.",
+    "url": "https://gnomad.broadinstitute.org/",
+    "versions": [
+      {
+        "reference_genome": "GRCh37",
+        "url": {
+          "aws": {
+            "us": "s3://gnomad-public-us-east-1/papers/2019-tx-annotation/pre_computed/all.possible.snvs.tx_annotated.021520.ht"
+          },
+          "gcp": {
+            "us": "gs://gcp-public-data--gnomad/papers/2019-tx-annotation/pre_computed/all.possible.snvs.tx_annotated.021520.ht"
+          }
+        },
+        "version": "2.1.1"
+      }
+    ]
+  },
   "gnomad_base_pext": {
     "description": "gnomAD: base-level proportion expressed across transcripts (pext) Hail Table.",
     "url": "https://gnomad.broadinstitute.org/",
