@@ -163,8 +163,7 @@ def test_no_exception_when_exiting_context():
 
 
 def test_bad_image_gives_good_error():
-    with BatchPoolExecutor(project='hail-vdc',
-                           image='hailgenetics/not-a-valid-image:123abc') as bpe:
+    with BatchPoolExecutor(project='hail-vdc', image='hailgenetics/not-a-valid-image:123abc') as bpe:
         future = bpe.submit(lambda: 3)
     try:
         future.exception()

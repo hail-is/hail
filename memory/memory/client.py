@@ -3,7 +3,7 @@ import concurrent
 
 from hailtop.auth import service_auth_headers
 from hailtop.config import get_deploy_config
-from hailtop.google_storage import GCS
+from hailtop.aiogoogle.client.storage_client import GoogleStorageAsyncFS
 from hailtop.httpx import client_session
 from hailtop.utils import request_retry_transient_errors
 
@@ -19,7 +19,7 @@ class MemoryClient:
         self.objects_url = f'{self.url}/api/v1alpha/objects'
         self._session = session
         if fs is None:
-            fs = GCS(blocking_pool=concurrent.futures.ThreadPoolExecutor(), project=gcs_project)
+            fs = GoogleStorageAsyncFS(project=gcs_project)
         self._fs = fs
         self._headers = {}
         if headers:
@@ -49,7 +49,8 @@ class MemoryClient:
         data = await self._get_file_if_exists(filename)
         if data is not None:
             return data
-        return await self._fs.read_binary_gs_file(filename)
+        async with await self._fs.open(filename) as f:
+            return f.read()
 
     async def write_file(self, filename, data):
         params = {'q': filename}

@@ -1637,10 +1637,8 @@ class Worker:
             with open('/worker-key.json', 'w') as f:
                 f.write(json.dumps(resp_json['key']))
 
-            credentials = google.oauth2.service_account.Credentials.from_service_account_file('/worker-key.json')
-            self.log_store = LogStore(
-                BATCH_LOGS_BUCKET_NAME, INSTANCE_ID, self.pool, project=PROJECT, credentials=credentials
-            )
+            credentials = aiogoogle.auth.credentials.Credentials.from_file('/worker-key.json')
+            self.log_store = LogStore(BATCH_LOGS_BUCKET_NAME, INSTANCE_ID, credentials=credentials)
 
             credentials = aiogoogle.Credentials.from_file('/worker-key.json')
             self.compute_client = aiogoogle.ComputeClient(PROJECT, credentials=credentials)

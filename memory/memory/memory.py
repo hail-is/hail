@@ -1,8 +1,6 @@
 import aioredis
 import asyncio
 import base64
-import concurrent
-import json
 import logging
 import os
 import uvloop
@@ -12,8 +10,9 @@ import kubernetes_asyncio as kube
 from prometheus_async.aio.web import server_stats  # type: ignore
 from typing import Set
 
+from hailtop.aiogoogle.client.storage_client import GoogleStorageAsyncFS
+from hailtop.aiogoogle.auth.credentials import Credentials
 from hailtop.config import get_deploy_config
-from hailtop.google_storage import GCS
 from hailtop.hail_logging import AccessLogger
 from hailtop.tls import internal_server_ssl_context
 from hailtop.utils import AsyncWorkerPool, retry_transient_errors, dump_all_stacktraces
@@ -75,7 +74,8 @@ async def get_or_add_user(app, userdata):
             k8s_client.read_namespaced_secret, userdata['gsa_key_secret_name'], DEFAULT_NAMESPACE, _request_timeout=5.0
         )
         gsa_key = base64.b64decode(gsa_key_secret.data['key.json']).decode()
-        users[username] = {'fs': GCS(blocking_pool=app['thread_pool'], key=json.loads(gsa_key))}
+        credentials = Credentials.from_credentials_data(gsa_key)
+        users[username] = {'fs': GoogleStorageAsyncFS(credentials=credentials)}
     return users[username]
 
 
@@ -129,12 +129,18 @@ async def cache_file(redis: aioredis.ConnectionsPool, files: Set[str], file_key:
     try:
         await redis.execute('HMSET', file_key, 'body', data)
         log.info(f"memory: {file_key}: stored {filepath}")
+        # async with await fs.open(filepath) as f:
+        #     data = await f.read()
+        # status = await fs.statfile(filepath)
+        # etag = await status.etag()
+        # log.info(f"memory: {file_key}: read {filepath} with etag {etag}")
+        # await redis.execute('HMSET', file_key, 'etag', etag.encode('ascii'), 'body', data)
+        # log.info(f"memory: {file_key}: stored {filepath} ('{etag}').")
     finally:
         files.remove(file_key)
 
 
 async def on_startup(app):
-    app['thread_pool'] = concurrent.futures.ThreadPoolExecutor()
     app['worker_pool'] = AsyncWorkerPool(parallelism=100, queue_size=10)
     app['files_in_progress'] = set()
     app['users'] = {}
@@ -146,16 +152,13 @@ async def on_startup(app):
 
 async def on_cleanup(app):
     try:
-        app['thread_pool'].shutdown()
+        app['worker_pool'].shutdown()
     finally:
         try:
-            app['worker_pool'].shutdown()
+            app['redis_pool'].close()
         finally:
-            try:
-                app['redis_pool'].close()
-            finally:
-                del app['k8s_client']
-                await asyncio.gather(*(t for t in asyncio.all_tasks() if t is not asyncio.current_task()))
+            del app['k8s_client']
+            await asyncio.gather(*(t for t in asyncio.all_tasks() if t is not asyncio.current_task()))
 
 
 def run():

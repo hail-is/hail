@@ -7,6 +7,7 @@ from typing import Union, Optional, Dict, List, Set, Tuple, Callable, Any, cast
 
 from . import backend, resource as _resource, batch  # pylint: disable=cyclic-import
 from .exceptions import BatchException
+from ..utils import async_to_blocking
 
 
 def _add_resource_to_set(resource_set, resource, include_rg=True):
