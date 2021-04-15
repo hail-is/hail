@@ -69,7 +69,8 @@ Function::Function(IRContextToken,
   : module(module),
     name(std::move(name)),
     parameter_types(std::move(parameter_types)),
-    return_type(return_type) {
+    return_type(return_type),
+    body(nullptr) {
   module->add_function(this);
 }
 
