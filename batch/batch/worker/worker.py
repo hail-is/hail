@@ -25,7 +25,7 @@ from hailtop.utils import (time_msecs, request_retry_transient_errors, sleep_and
                            parse_docker_image_reference)
 from hailtop.httpx import client_session
 from hailtop.batch_client.parse import (parse_cpu_in_mcpu, parse_memory_in_bytes, parse_storage_in_bytes)
-from hailtop.batch.hail_genetics_images import HAIL_GENETICS, HAIL_GENETICS_IMAGES
+from hailtop.batch.hail_genetics_images import HAIL_GENETICS_IMAGES
 from hailtop import aiotools
 # import uvloop
 
