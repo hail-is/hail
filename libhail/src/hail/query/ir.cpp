@@ -1,13 +1,13 @@
 #include <exception>
 
-#include <hail/format.hpp>
-#include <hail/query/ir.hpp>
+#include "hail/format.hpp"
+#include "hail/query/ir.hpp"
 
 namespace hail {
 
 IRContext::IRContext(HeapAllocator &heap)
   : arena(heap) {}
-    
+
 IRContext::~IRContext() {}
 
 Module *
