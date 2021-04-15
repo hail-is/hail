@@ -342,7 +342,7 @@ class Parameter(method: Method, val i: Int, ti: TypeInfo[_]) extends Local(metho
 
 class Block {
   // for debugging
-  // val stack = Thread.currentThread().getStackTrace.mkString("\n")
+  val stack = Thread.currentThread().getStackTrace.mkString("\n")
 
   var method: Method = _
 
@@ -352,19 +352,26 @@ class Block {
   val uses: mutable.Set[(ControlX, Int)] = mutable.Set[(ControlX, Int)]()
 
   def wellFormed: Boolean = {
-    if (first == null)
+    if (first == null) {
+      assert(false, s"first was null. Stack was \n${stack}")
       return false
+    }
 
     last match {
       case ctrl: ControlX =>
         var i = 0
         while (i < ctrl.targetArity()) {
-          if (ctrl.target(i) == null)
+          if (ctrl.target(i) == null) {
+            assert(false, s"ctrl.target ${i} was null")
             return false
+          }
           i += 1
         }
         true
-      case _ => false
+      case _ => {
+        assert(false, s"last was not ctrl, it was ${last}")
+        false
+      }
     }
   }
 

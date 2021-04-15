@@ -1061,6 +1061,28 @@ class Emit[C](
           dictTyp.construct(finishOuter(cb))
         }
 
+      case x@StreamLen(a) =>
+        emitStream(a, cb, region).map(cb) { case stream: SStreamCode =>
+          val producer = stream.producer
+          producer.length match {
+            case Some(len) =>
+              producer.initialize(cb)
+              val xLen = cb.newLocal[Int]("streamlen_x", len)
+              producer.close(cb)
+              PCode(x.pType, xLen)
+            case None =>
+              val count = cb.newLocal[Int]("stream_length", 0)
+              producer.memoryManagedConsume(region, cb) { cb =>
+                cb.assign(count, count + 1)
+              }
+              producer.element.pv match {
+                case SStreamCode(_, nested) => StreamProducer.defineUnusedLabels(producer, mb)
+                case _ =>
+              }
+              PCode(x.pType, count)
+          }
+        }
+
       case x@MakeNDArray(dataIR, shapeIR, rowMajorIR, errorId) =>
         val xP = coerce[PCanonicalNDArray](x.pType)
         val shapePType = coerce[PTuple](shapeIR.pType)
@@ -2277,28 +2299,6 @@ class Emit[C](
           arrayAddress
         )
         EmitCode(lengthTriplet.setup, lengthTriplet.m, PCode(pt, result))
-
-      case x@StreamLen(a) =>
-        EmitCode.fromI(mb)(cb => emitStream(a, region).toI(cb).map(cb) { case stream: SStreamCode =>
-          val producer = stream.producer
-          producer.length match {
-            case Some(len) =>
-              producer.initialize(cb)
-              val xLen = cb.newLocal[Int]("streamlen_x", len)
-              producer.close(cb)
-              PCode(x.pType, xLen)
-            case None =>
-              val count = cb.newLocal[Int]("stream_length", 0)
-              producer.memoryManagedConsume(region, cb) { cb =>
-                cb.assign(count, count + 1)
-              }
-              producer.element.pv match {
-                case SStreamCode(_, nested) => StreamProducer.defineUnusedLabels(producer, mb)
-                case _ =>
-              }
-              PCode(x.pType, count)
-          }
-        })
 
       case In(i, expectedPType) =>
         // this, Code[Region], ...
