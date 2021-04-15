@@ -1,4 +1,4 @@
-from typing import Optional, Mapping, Pattern, Tuple
+from typing import Optional, Mapping, Pattern
 import re
 import math
 
@@ -7,6 +7,7 @@ MEMORY_REGEX: Pattern = re.compile(MEMORY_REGEXPAT)
 
 CPU_REGEXPAT: str = r'[+]?((?:[0-9]*[.])?[0-9]+)([m])?'
 CPU_REGEX: Pattern = re.compile(CPU_REGEXPAT)
+
 
 def parse_cpu_in_mcpu(cpu_string: str) -> Optional[int]:
     match = CPU_REGEX.fullmatch(cpu_string)
