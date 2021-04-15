@@ -462,8 +462,8 @@ class BatchPoolFuture:
             # retrieve any exceptions raised
             self.fetch_coro.result()
             return False
-        self.fetch_coro.cancel()
         await self.batch.cancel()
+        self.fetch_coro.cancel()
         return True
 
     def cancelled(self):
