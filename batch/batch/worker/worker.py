@@ -1130,29 +1130,31 @@ class JVMJob(Job):
 
                 self.state = 'error'
                 self.error = traceback.format_exc()
-            # TODO Put into function call and call from except Exception and after try/except block
-            finally:
-                self.end_time = time_msecs()
+                self.cleanup()
+            self.cleanup()
 
-                if not self.deleted:
-                    log.info(f'{self}: marking complete')
-                    self.task_manager.ensure_future(worker.post_job_complete(self))
+    async def cleanup(self):
+        self.end_time = time_msecs()
 
-                log.info(f'{self}: cleaning up')
-                try:
-                    await check_shell(f'xfs_quota -x -D /xfsquota/projects -P /xfsquota/projid -c "limit -p bsoft=0 bhard=0 {self.project_name}" /host')
+        if not self.deleted:
+            log.info(f'{self}: marking complete')
+            self.task_manager.ensure_future(worker.post_job_complete(self))
 
-                    async with Flock('/xfsquota/projid', pool=worker.pool):
-                        await check_shell(f"sed     -i '/{self.project_name}:{self.project_id}/d' /xfsquota/projid")
+        log.info(f'{self}: cleaning up')
+        try:
+            await check_shell(f'xfs_quota -x -D /xfsquota/projects -P /xfsquota/projid -c "limit -p bsoft=0 bhard=0 {self.project_name}" /host')
 
-                    async with Flock('/xfsquota/projects', pool=worker.pool):
-                        await check_shell(f"sed -i '/{self.project_id}:/d' /xfsquota/projects")
+            async with Flock('/xfsquota/projid', pool=worker.pool):
+                await check_shell(f"sed     -i '/{self.project_name}:{self.project_id}/d' /xfsquota/projid")
 
-                    shutil.rmtree(self.scratch, ignore_errors=True)
-                except asyncio.CancelledError:
-                    raise
-                except Exception:
-                    log.exception('while deleting volumes')
+            async with Flock('/xfsquota/projects', pool=worker.pool):
+                await check_shell(f"sed -i '/{self.project_id}:/d' /xfsquota/projects")
+
+            shutil.rmtree(self.scratch, ignore_errors=True)
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            log.exception('while deleting volumes')
 
     async def get_log(self):
         return {'main': self.process.get_log()}
