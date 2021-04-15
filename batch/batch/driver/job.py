@@ -15,7 +15,7 @@ from ..globals import complete_states, tasks, STATUS_FORMAT_VERSION
 from ..batch_configuration import KUBERNETES_TIMEOUT_IN_SECONDS, KUBERNETES_SERVER_URL
 from ..batch_format_version import BatchFormatVersion
 from ..spec_writer import SpecWriter
-from ..log_store import LogStore
+from ..file_store import FileStore
 
 from .k8s_cache import K8sCache
 
@@ -379,7 +379,7 @@ users:
 async def schedule_job(app, record, instance):
     assert instance.state == 'active'
 
-    log_store: LogStore = app['log_store']
+    file_store: FileStore = app['file_store']
     db: Database = app['db']
 
     batch_id = record['batch_id']
@@ -407,7 +407,7 @@ async def schedule_job(app, record, instance):
             }
 
             if format_version.has_full_status_in_gcs():
-                await log_store.write_status_file(batch_id, job_id, attempt_id, json.dumps(status))
+                await file_store.write_status_file(batch_id, job_id, attempt_id, json.dumps(status))
 
             db_status = format_version.db_status(status)
             resources = []

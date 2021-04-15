@@ -10,7 +10,7 @@ from hailtop import aiogoogle
 from ..batch_configuration import PROJECT, DOCKER_ROOT_IMAGE, DOCKER_PREFIX, DEFAULT_NAMESPACE
 from ..inst_coll_config import machine_type_to_dict
 from ..worker_config import WorkerConfig
-from ..log_store import LogStore
+from ..file_store import FileStore
 from ..utils import unreserved_worker_data_disk_size_gib
 
 log = logging.getLogger('create_instance')
@@ -33,7 +33,8 @@ def create_instance_config(
     preemptible,
     job_private,
 ) -> Tuple[Dict[str, Any], WorkerConfig]:
-    log_store: LogStore = app['log_store']
+    file_store: FileStore = app['file_store']
+
     cores = int(machine_type_to_dict(machine_type)['cores'])
 
     if worker_local_ssd_data_disk:
@@ -310,8 +311,8 @@ journalctl -u docker.service > dockerd.log
                 {'key': 'docker_root_image', 'value': DOCKER_ROOT_IMAGE},
                 {'key': 'docker_prefix', 'value': DOCKER_PREFIX},
                 {'key': 'namespace', 'value': DEFAULT_NAMESPACE},
-                {'key': 'batch_logs_bucket_name', 'value': log_store.batch_logs_bucket_name},
-                {'key': 'instance_id', 'value': log_store.instance_id},
+                {'key': 'batch_logs_bucket_name', 'value': file_store.batch_logs_bucket_name},
+                {'key': 'instance_id', 'value': file_store.instance_id},
                 {'key': 'max_idle_time_msecs', 'value': max_idle_time_msecs},
             ]
         },
