@@ -122,8 +122,6 @@ kubectl create secret generic \
 3. Update all the service certificates:
 
 ```
-export HAIL=$HOME/hail
-
 make -C $HAIL/hail python/hailtop/hail_version
 
 PYTHONPATH=$HAIL/hail/python \
