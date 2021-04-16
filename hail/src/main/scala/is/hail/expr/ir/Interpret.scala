@@ -889,7 +889,7 @@ object Interpret {
           // the caller
           val mkZero = (pool: RegionPool) => {
             val region = Region(Region.SMALL, pool)
-            val initF = initOp(ctx.fs, 0, region)
+            val initF = initOp(fsBc.value, 0, region)
             initF.newAggState(region)
             initF(region, globalsBc.value.readRegionValue(region))
             RegionValue(region, initF.getAggOffset())
