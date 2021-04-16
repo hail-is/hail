@@ -8,12 +8,14 @@ from subprocess import check_output
 
 assert sys.version_info > (3, 0), sys.version_info
 
+
 def safe_call(*args, **kwargs):
     try:
         sp.check_output(args, stderr=sp.STDOUT, **kwargs)
     except sp.CalledProcessError as e:
         print(e.output.decode())
         raise e
+
 
 def get_metadata(key):
     return check_output(['/usr/share/google/get_metadata_value', 'attributes/{}'.format(key)]).decode()
@@ -94,7 +96,8 @@ if role == 'Master':
 
     for e, value in env_to_set.items():
         safe_call('/bin/sh', '-c',
-                  'set -ex; echo "export {}={}" | tee -a /etc/environment /usr/lib/spark/conf/spark-env.sh'.format(e, value))
+                  'set -ex; echo "export {}={}" | tee -a /etc/environment /usr/lib/spark/conf/spark-env.sh'.format(e,
+                                                                                                                   value))
 
     hail_jar = sp.check_output([
         '/bin/sh', '-c',
@@ -180,7 +183,9 @@ if role == 'Master':
     safe_call('/opt/conda/default/bin/jupyter', 'nbextension', 'install', '--user', '--py', 'sparkmonitor')
     safe_call('/opt/conda/default/bin/jupyter', 'nbextension', 'enable', '--user', '--py', 'sparkmonitor')
     safe_call('/opt/conda/default/bin/jupyter', 'nbextension', 'enable', '--user', '--py', 'widgetsnbextension')
-    safe_call("""ipython profile create && echo "c.InteractiveShellApp.extensions.append('sparkmonitor.kernelextension')" >> $(ipython profile locate default)/ipython_kernel_config.py""", shell=True)
+    safe_call(
+        """ipython profile create && echo "c.InteractiveShellApp.extensions.append('sparkmonitor.kernelextension')" >> $(ipython profile locate default)/ipython_kernel_config.py""",
+        shell=True)
 
     # create systemd service file for Jupyter notebook server process
     with open('/lib/systemd/system/jupyter.service', 'w') as f:
