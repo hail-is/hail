@@ -397,7 +397,6 @@ class Tests(unittest.TestCase):
         table = hl.utils.range_table(10).annotate(foo=hl.missing(tint))
         table.aggregate(hl.agg.approx_quantiles(table.foo, qs=[0.5]))
 
-    @fails_service_backend()
     def test_approx_cdf_col_aggregate(self):
         mt = hl.utils.range_matrix_table(10, 10)
         mt = mt.annotate_entries(foo=mt.row_idx + mt.col_idx)

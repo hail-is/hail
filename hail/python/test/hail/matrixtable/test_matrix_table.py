@@ -73,7 +73,6 @@ class Tests(unittest.TestCase):
             self.assertTrue(f(hl.eval(mt.annotate_globals(foo=hl.literal(x, t)).foo), x), f"{x}, {t}")
             self.assertTrue(f(hl.eval(ht.annotate_globals(foo=hl.literal(x, t)).foo), x), f"{x}, {t}")
 
-    @fails_service_backend()
     def test_head(self):
         # no empty partitions
         mt1 = hl.utils.range_matrix_table(10, 10)
@@ -100,7 +99,6 @@ class Tests(unittest.TestCase):
         assert mt1.head(1, None).count() == (1, 10)
         assert mt1.head(None, 1).count() == (10, 1)
 
-    @fails_service_backend()
     def test_tail(self):
         # no empty partitions
         mt1 = hl.utils.range_matrix_table(10, 10)
@@ -528,7 +526,6 @@ class Tests(unittest.TestCase):
          .aggregate(bar=hl.agg.collect(mt.globals == lit))
          ._force_count_rows())
 
-    @fails_service_backend()
     def test_unions(self):
         dataset = hl.import_vcf(resource('sample2.vcf'))
 
@@ -550,7 +547,6 @@ class Tests(unittest.TestCase):
         for s, count in ds.aggregate_cols(agg.counter(ds.s)).items():
             self.assertEqual(count, 3)
 
-    @fails_service_backend()
     def test_union_cols_example(self):
         joined = hl.import_vcf(resource('joined.vcf'))
 
@@ -800,7 +796,6 @@ class Tests(unittest.TestCase):
         self.assertEqual(
             ds.filter_rows(ds.alleles.length() == 2).count_rows(), 0)
 
-    @fails_service_backend()
     def test_field_groups(self):
         ds = self.get_mt()
 
@@ -852,7 +847,6 @@ class Tests(unittest.TestCase):
         t = hl.read_table(f + '/cols')
         self.assertTrue(ds.cols()._same(t))
 
-    @fails_service_backend()
     def test_read_stored_rows(self):
         ds = self.get_mt()
         ds = ds.annotate_globals(x='foo')
@@ -1222,7 +1216,6 @@ class Tests(unittest.TestCase):
         mt2 = hl.read_matrix_table(f)
         self.assertTrue(mt._same(mt2))
 
-    @fails_service_backend()
     def test_write_checkpoint_file(self):
         mt = self.get_mt()
         f = new_temp_file(extension='mt')
@@ -1537,7 +1530,6 @@ class Tests(unittest.TestCase):
         mt.show(handler=assert_res)
 
 
-    @fails_service_backend()
     def test_partitioned_write(self):
         mt = hl.utils.range_matrix_table(40, 3, 5)
 
@@ -1656,7 +1648,6 @@ class Tests(unittest.TestCase):
             mt.annotate_entries(x = mt2.af)
 
 
-@fails_service_backend()
 def test_read_write_all_types():
     mt = create_all_values_matrix_table()
     tmp_file = new_temp_file()

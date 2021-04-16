@@ -141,7 +141,6 @@ class VCFTests(unittest.TestCase):
         entries = entries.select('GT', 'GTA', 'GTZ')
         self.assertTrue(entries._same(expected))
 
-    @fails_service_backend()
     def test_import_vcf(self):
         vcf = hl.split_multi_hts(
             hl.import_vcf(resource('sample2.vcf'),
@@ -187,7 +186,6 @@ class VCFTests(unittest.TestCase):
                                              hl.agg.all(mt.negative_int_array == [-1, -2]) &
                                              hl.agg.all(mt.negative_float_array == [-0.5, -1.5])))
 
-    @fails_service_backend()
     def test_import_vcf_missing_info_field_elements(self):
         mt = hl.import_vcf(resource('missingInfoArray.vcf'), reference_genome='GRCh37', array_elements_required=False)
         mt = mt.select_rows(FOO=mt.info.FOO, BAR=mt.info.BAR)
@@ -232,7 +230,6 @@ class VCFTests(unittest.TestCase):
         mt = hl.import_vcf(resource('test_set_field_missing.vcf'))
         mt.aggregate_entries(hl.agg.sum(mt.DP))
 
-    @fails_service_backend()
     def test_import_vcf_dosages_as_doubles_or_floats(self):
         mt = hl.import_vcf(resource('small-ds.vcf'))
         self.assertEqual(hl.expr.expressions.typed_expressions.Float64Expression, type(mt.entry.DS))
@@ -1984,7 +1981,6 @@ class ImportTableTests(unittest.TestCase):
                        ht.source.endswith('variantAnnotations.split.2.tsv'))))
 
 
-    @fails_service_backend()
     def test_read_write_identity(self):
         ht = self.small_dataset_1()
         f = new_temp_file(extension='ht')

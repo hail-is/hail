@@ -531,7 +531,6 @@ class Tests(unittest.TestCase):
         joined = hl.Table.multi_way_zip_join([t1, t2, t3], '__data', '__globals')
         self.assertEqual(hl.eval(joined.globals), hl.eval(expected))
 
-    @fails_service_backend()
     def test_multi_way_zip_join_key_downcast(self):
         mt = hl.import_vcf(resource('sample.vcf.bgz'))
         mt = mt.key_rows_by('locus')
@@ -539,7 +538,6 @@ class Tests(unittest.TestCase):
         j = hl.Table.multi_way_zip_join([ht, ht], 'd', 'g')
         j._force_count()
 
-    @fails_service_backend()
     def test_multi_way_zip_join_key_downcast2(self):
         vcf2 = hl.import_vcf(resource('gvcfs/HG00268.g.vcf.gz'), force_bgz=True, reference_genome='GRCh38')
         vcf1 = hl.import_vcf(resource('gvcfs/HG00096.g.vcf.gz'), force_bgz=True, reference_genome='GRCh38')
@@ -803,7 +801,6 @@ class Tests(unittest.TestCase):
         t_read_back = hl.import_table(tmp_file, types=dict(t.row.dtype)).key_by('idx')
         self.assertTrue(t.select_globals()._same(t_read_back, tolerance=1e-4, absolute=True))
 
-    @fails_service_backend()
     def test_indexed_read(self):
         t = hl.utils.range_table(2000, 10)
         f = new_temp_file(extension='ht')
@@ -1097,7 +1094,6 @@ class Tests(unittest.TestCase):
         t2 = t2.annotate(**{'x.a': t2.idx, 'x.b': 0})
         self.assertTrue(t1._same(t2))
 
-    @fails_service_backend()
     def test_expand_types(self):
         t1 = hl.utils.range_table(10)
         t1 = t1.key_by(x = hl.locus('1', t1.idx+1)).expand_types()
@@ -1249,7 +1245,6 @@ class Tests(unittest.TestCase):
         t3 = t1.filter(t1.idx == 0)
         self.assertFalse(t1._same(t3))
 
-    @fails_service_backend()
     def test_rvd_key_write(self):
         with hl.TemporaryDirectory(suffix='.ht', ensure_exists=False) as tempfile:
             ht1 = hl.utils.range_table(1).key_by(foo='a', bar='b')
@@ -1301,7 +1296,6 @@ class Tests(unittest.TestCase):
         ht = ht.annotate(fd=hl.sorted(a))
         assert ht.fd.collect()[0] == ["e", "é"]
 
-    @fails_service_backend()
     def test_physical_key_truncation(self):
         path = new_temp_file(extension='ht')
         hl.import_vcf(resource('sample.vcf')).rows().key_by('locus').write(path)
@@ -1434,7 +1428,6 @@ def test_maybe_flexindex_table_by_expr_prefix_interval_match():
 widths = [256, 512, 1024, 2048, 4096]
 
 
-@fails_service_backend()
 def test_can_process_wide_tables():
     for w in widths:
         print(f'working on width {w}')
@@ -1494,7 +1487,6 @@ def test_join_distinct_preserves_count():
     assert n_defined_2 == 0
     assert keys_2 == left_pos
 
-@fails_service_backend()
 def test_write_table_containing_ndarray():
     t = hl.utils.range_table(5)
     t = t.annotate(n = hl.nd.arange(t.idx))
@@ -1553,7 +1545,6 @@ def test_range_annotate_range():
     ht2 = hl.utils.range_table(5).annotate(x = 1)
     ht1.annotate(x = ht2[ht1.idx].x)._force_count()
 
-@fails_service_backend()
 def test_read_write_all_types():
     ht = create_all_values_table()
     tmp_file = new_temp_file()
@@ -1574,7 +1565,6 @@ def test_map_partitions_errors():
     with pytest.raises(ValueError, match='must preserve key fields'):
         ht._map_partitions(lambda rows: rows.map(lambda r: r.drop('idx')))
 
-@fails_service_backend()
 def test_map_partitions_indexed():
     tmp_file = new_temp_file()
     hl.utils.range_table(100, 8).write(tmp_file)
