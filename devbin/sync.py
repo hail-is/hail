@@ -64,7 +64,8 @@ class Sync:
                 k8s.list_namespaced_pod,
                 namespace,
                 label_selector=f'app in ({",".join(apps)})')
-            updated_pods = {(pod.metadata.name, namespace) for pod in updated_pods.items}
+            updated_pods = [x for x in updated_pods.items if x.status.phase == 'Running']
+            updated_pods = {(pod.metadata.name, namespace) for pod in updated_pods}
             fresh_pods = updated_pods - self.pods
             dead_pods = self.pods - updated_pods
             log.info(f'monitor_pods: fresh_pods: {fresh_pods}')
