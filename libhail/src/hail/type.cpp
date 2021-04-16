@@ -41,6 +41,9 @@ format1(FormatStream &s, const Type *v) {
   case Type::Tag::ARRAY:
     format(s, "array<", cast<TArray>(v)->element_type, ">");
     break;
+  case Type::Tag::STREAM:
+    format(s, "stream<", cast<TStream>(v)->element_type, ">");
+    break;
   case Type::Tag::TUPLE:
     {
       format(s, "(");
