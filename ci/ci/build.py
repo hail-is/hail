@@ -12,6 +12,8 @@ from .utils import generate_token
 from .environment import (
     GCP_PROJECT,
     GCP_ZONE,
+    DOCKER_PREFIX,
+    DOCKER_ROOT_IMAGE,
     DOMAIN,
     IP,
     CI_UTILS_IMAGE,
@@ -171,6 +173,8 @@ class Step(abc.ABC):
         config['global'] = {
             'project': GCP_PROJECT,
             'zone': GCP_ZONE,
+            'docker_prefix': DOCKER_PREFIX,
+            'docker_root_image': DOCKER_ROOT_IMAGE,
             'domain': DOMAIN,
             'ip': IP,
             'k8s_server_url': KUBERNETES_SERVER_URL,
