@@ -712,7 +712,7 @@ async def collect_agen(agen):
 
 def dump_all_stacktraces():
     for t in asyncio.all_tasks():
-        print(t)
+        log.debug(t)
         t.print_stack()
 
 
