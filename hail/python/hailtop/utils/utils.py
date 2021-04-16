@@ -325,7 +325,32 @@ class Subsemaphore:
         self.release()
 
 
+class PoolShutdownError(Exception):
+    pass
+
+
 class OnlineBoundedGather2:
+    '''`OnlineBoundedGather2` provides the capability to run background
+    tasks with bounded parallelism.  It is a context manager, and
+    waits for all background tasks to complete on exit.
+
+    `OnlineBoundedGather2` supports cancellation of background tasks.
+    When a background tasks raises `asyncio.CancelledError`, the task
+    is considered complete and the pool and other background tasks
+    continue runnning.
+
+    If a background task fails (raises an exception besides
+    `asyncio.CancelledError`), all running background tasks are
+    cancelled and the the pool is shut down.  Subsequent calls to
+    `OnlineBoundedGather2.call()` raise `PoolShutdownError`.
+
+    Because the pool runs tasks in the background, multiple exceptions
+    can occur simultaneously.  The first exception raised, whether by
+    a background task or into the context manager exit, is raised by
+    the context manager exit, and any further exceptions are logged
+    and otherwise discarded.
+    '''
+
     def __init__(self, sema: asyncio.Semaphore):
         self._counter = 0
         self._subsema = Subsemaphore(sema)
@@ -334,6 +359,12 @@ class OnlineBoundedGather2:
         self._exception: Optional[BaseException] = None
 
     async def _shutdown(self) -> None:
+        '''Shut down the pool.
+
+        Cancel all pending tasks and wait for them to complete.
+        Subsequent calls to call will raise `PoolShutdownError`.
+        '''
+
         if self._pending is None:
             return
 
@@ -345,15 +376,23 @@ class OnlineBoundedGather2:
             tasks.append(t)
         self._pending = None
 
-        # wake up if waiting
-        self._done_event.set()
-
         if tasks:
             await asyncio.wait(tasks)
 
+        # wake up if waiting
+        self._done_event.set()
+
     async def call(self, f, *args, **kwargs) -> asyncio.Task:
-        if self._exception:
-            raise self._exception
+        '''Invoke a function as a background task.
+
+        Return the task, which can be used to wait on (using
+        `OnlineBoundedGather2.wait()`) or cancel the task (using
+        `asyncio.Task.cancel()`).  Note, waiting on a task using
+        `asyncio.wait()` directly can lead to deadlock.
+        '''
+
+        if self._pending is None:
+            raise PoolShutdownException
 
         id = self._counter
         self._counter += 1
@@ -362,11 +401,15 @@ class OnlineBoundedGather2:
             try:
                 async with self._subsema:
                     await f(*args, **kwargs)
+            except asyncio.CancelledError:
+                pass
             except:
-                if not self._exception:
+                if self._exception is None:
                     _, exc, _ = sys.exc_info()
                     self._exception = exc
                     await self._shutdown()
+                else:
+                    log.info('discarding exception', exc_info=True)
 
             if self._pending is None:
                 return
@@ -374,28 +417,25 @@ class OnlineBoundedGather2:
             if not self._pending:
                 self._done_event.set()
 
-        assert self._pending is not None
         t = asyncio.create_task(run_and_cleanup())
         self._pending[id] = t
         return t
 
     async def wait(self, tasks: List[asyncio.Task]) -> None:
+        '''Wait for a list of tasks returned to complete.
+
+        The tasks should be tasks returned from
+        `OnlineBoundedGather2.call()`.  They can be a subset of the
+        running tasks, `OnlineBoundedGather2.wait()` can be called
+        multiple times, and additional tasks can be submitted to the
+        pool after waiting.
+        '''
+
         self._subsema.release()
         try:
             await asyncio.wait(tasks)
         finally:
             await self._subsema.acquire()
-
-    async def wait_done(self) -> None:
-        while self._pending:
-            if self._exception:
-                raise self._exception
-
-            self._done_event.clear()
-            await self._done_event.wait()
-
-        if self._exception:
-            raise self._exception
 
     async def __aenter__(self) -> 'OnlineBoundedGather2':
         await self._subsema.acquire()
@@ -407,11 +447,19 @@ class OnlineBoundedGather2:
                         exc_tb: Optional[TracebackType]) -> None:
         self._subsema.release()
 
-        _, exc, _ = sys.exc_info()
-        if exc:
-            await self._shutdown()
-        else:
-            await self.wait_done()
+        if exc_val:
+            if self._exception is None:
+                self._exception = exc_val
+                await self._shutdown()
+            else:
+                log.info('discarding exception', exc_info=exc_val)
+
+        while self._pending:
+            self._done_event.clear()
+            await self._done_event.wait()
+
+        if self._exception:
+            raise self._exception
 
 
 async def bounded_gather2_return_exceptions(sema: asyncio.Semaphore, *aws):
