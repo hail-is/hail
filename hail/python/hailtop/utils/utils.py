@@ -392,7 +392,7 @@ class OnlineBoundedGather2:
         '''
 
         if self._pending is None:
-            raise PoolShutdownException
+            raise PoolShutdownError
 
         id = self._counter
         self._counter += 1
@@ -419,6 +419,7 @@ class OnlineBoundedGather2:
 
         t = asyncio.create_task(run_and_cleanup())
         self._pending[id] = t
+        self._done_event.clear()
         return t
 
     async def wait(self, tasks: List[asyncio.Task]) -> None:
@@ -454,6 +455,7 @@ class OnlineBoundedGather2:
             else:
                 log.info('discarding exception', exc_info=exc_val)
 
+        await self._done_event.wait()
         while self._pending:
             self._done_event.clear()
             await self._done_event.wait()
