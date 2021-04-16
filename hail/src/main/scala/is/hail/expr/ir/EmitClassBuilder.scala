@@ -271,19 +271,7 @@ class EmitClassBuilder[C](
       vs.get)
 
     def store(cb: EmitCodeBuilder, ec: EmitCode): Unit = {
-      cb.append(ec.setup)
-
-      if (_pt.required) {
-        cb.ifx(ec.m, cb._fatal(s"Required EmitSettable cannot be missing ${ _pt }"))
-        cb.assign(vs, ec.pv)
-      } else {
-        cb.ifx(ec.m,
-          cb.assign(ms, true),
-          {
-            cb.assign(ms, false)
-            cb.assign(vs, ec.pv)
-          })
-      }
+      store(cb, ec.toI(cb))
     }
 
     def store(cb: EmitCodeBuilder, iec: IEmitCode): Unit =
