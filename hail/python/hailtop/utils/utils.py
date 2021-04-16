@@ -335,7 +335,7 @@ class OnlineBoundedGather2:
     waits for all background tasks to complete on exit.
 
     `OnlineBoundedGather2` supports cancellation of background tasks.
-    When a background tasks raises `asyncio.CancelledError`, the task
+    When a background task raises `asyncio.CancelledError`, the task
     is considered complete and the pool and other background tasks
     continue runnning.
 
