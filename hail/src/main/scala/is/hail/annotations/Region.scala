@@ -379,6 +379,8 @@ final class Region protected[annotations](var blockSize: Region.Size, var pool: 
     memory.setReferenceAtIndex(child.memory, idx)
   }
 
+  def getReferenceCount(): Long = memory.getReferenceCount
+
   def getParentReference(idx: Int, blockSize: Region.Size): Region = {
     new Region(blockSize, pool, memory.getReferenceAtIndex(idx, blockSize))
   }

@@ -1,7 +1,6 @@
 package is.hail.annotations
 
-import is.hail.asm4s.Code
-import is.hail.expr.ir.{EmitCodeBuilder, LongArrayBuilder}
+import is.hail.expr.ir.LongArrayBuilder
 import is.hail.utils._
 
 object RegionPool {
@@ -12,8 +11,6 @@ object RegionPool {
   }
 
   def scoped[T](f: RegionPool => T): T = using(RegionPool(false))(f)
-
-  def logStats(cb: EmitCodeBuilder, rp: Code[RegionPool], context: Code[String]): Unit = cb += rp.invoke[String, Unit]("logStats", context)
 }
 
 final class RegionPool private(strictMemoryCheck: Boolean, threadName: String, threadID: Long) extends AutoCloseable {
