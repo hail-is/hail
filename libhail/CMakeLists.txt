@@ -17,7 +17,7 @@ find_package(Python COMPONENTS Interpreter Development)
 message(STATUS "Found LLVM ${LLVM_PACKAGE_VERSION}")
 message(STATUS "Using LLVMConfig.cmake in: ${LLVM_DIR}")
 
-include_directories(${LLVM_INCLUDE_DIRS})
+include_directories(${LLVM_INCLUDE_DIRS} "src")
 add_definitions(${LLVM_DEFINITIONS})
 
 set(lib_sources
@@ -47,10 +47,6 @@ add_executable(test $<TARGET_OBJECTS:hail_objlib> ${test_sources})
 Python_add_library(_hail MODULE WITH_SOABI
   $<TARGET_OBJECTS:hail_objlib>
   ${python_module_sources})
-
-target_include_directories(hail_objlib PRIVATE "src")
-target_include_directories(_hail PRIVATE ${Python_INCLUDE_DIRS} PRIVATE "src")
-target_include_directories(test PRIVATE "src")
 
 llvm_config(test x86asmparser x86codegen orcjit)
 llvm_config(_hail x86asmparser x86codegen orcjit)
