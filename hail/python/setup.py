@@ -5,9 +5,10 @@ import re
 import shutil
 import subprocess
 
-from distutils.sysconfig import get_config_var
 from setuptools import Extension, find_packages, setup
 from setuptools.command.build_ext import build_ext
+# setuptools must be imported before distutils
+from distutils.sysconfig import get_config_var
 
 with open('hail/hail_pip_version') as f:
     hail_pip_version = f.read().strip()
@@ -55,7 +56,7 @@ class cmake_build_ext(build_ext):
         assert all(isinstance(ext, CMakeExtension) for ext in self.extensions), \
                'can only build cmake extensions'
 
-        out_dir = os.path.join(os.getcwd(), self.build_lib)
+        out_dir = os.path.abspath(self.build_lib)
         common_cmake_args = [
             '-G', CMAKE_GENERATOR,
             f'-DHAIL_PYTHON_MODULE_LIBDIR={out_dir}',
@@ -73,8 +74,6 @@ class cmake_build_ext(build_ext):
             subprocess.check_call(['cmake', '--install', '.'],
                                   cwd=tmp_dir)
 
-
-extensions = []
 
 setup(
     name="hail",

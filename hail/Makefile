@@ -202,7 +202,18 @@ copy-py-files: $(PYTHON_VERSION_INFO) $(SHADOW_JAR) $(INIT_SCRIPTS) $(PY_FILES) 
 	    --exclude 'dist/' \
 	    --exclude 'test/' \
 	    --exclude '*.log' \
+	    --exclude 'build/' \
+	    --exclude '*.so' \
 	    python/ build/deploy/
+	# copy the c++ source files as well, these are beyond a symlink so we
+	# need another command
+	rsync -rv \
+	    --exclude 'docs/' \
+	    --exclude '*.o' \
+	    --exclude '*.so' \
+	    --exclude 'CMakeCache.txt' \
+	    --exclude 'build/' \
+	    python/_hail/. build/deploy/_hail
 
 .PHONY: wheel
 wheel: $(WHEEL)
