@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, Dict
 import os
 import aiohttp
 import json
@@ -96,10 +96,11 @@ class ServiceBackend(Backend):
                 'MY_BUCKET`')
         self._bucket = bucket
 
-        self._fs = None
+        self._fs: Optional[GoogleCloudStorageFS] = None
         self._logger = PythonOnlyLogger(skip_logging_configuration)
 
         self.socket = ServiceSocket(deploy_config=deploy_config)
+        self.batch_attributes: Dict[str, str] = dict()
 
     @property
     def logger(self):
@@ -124,7 +125,8 @@ class ServiceBackend(Backend):
         resp = self.socket.request('execute',
                                    code=self._render(ir),
                                    billing_project=self._billing_project,
-                                   bucket=self._bucket)
+                                   bucket=self._bucket,
+                                   batch_attributes=self.batch_attributes)
         typ = dtype(resp['type'])
         if typ == tvoid:
             value = None

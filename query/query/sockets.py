@@ -1,3 +1,4 @@
+from typing import Dict
 import json
 import socket
 import struct
@@ -185,7 +186,7 @@ class ServiceBackendSocketConnection:
         jstacktrace = self.read_str()
         raise ValueError(jstacktrace)
 
-    def execute(self, username: str, session_id: str, billing_project: str, bucket: str, code: str, token: str):
+    def execute(self, username: str, session_id: str, billing_project: str, bucket: str, code: str, token: str, batch_attributes: Dict[str, str]):
         self.write_int(ServiceBackendSocketConnection.EXECUTE)
         self.write_str(username)
         self.write_str(session_id)
@@ -193,6 +194,10 @@ class ServiceBackendSocketConnection:
         self.write_str(bucket)
         self.write_str(code)
         self.write_str(token)
+        self.write_int(len(batch_attributes))
+        for k, v in batch_attributes.items():
+            self.write_str(k)
+            self.write_str(v)
         success = self.read_bool()
         if success:
             s = self.read_str()

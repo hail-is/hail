@@ -57,7 +57,7 @@ def blocking_execute(userdata, body):
     with connect_to_java() as java:
         log.info(f'executing {body["token"]}')
         return java.execute(
-            userdata['username'], userdata['session_id'], body['billing_project'], body['bucket'], body['code'], body['token'])
+            userdata['username'], userdata['session_id'], body['billing_project'], body['bucket'], body['code'], body['token'], body['batch_attributes'])
 
 
 def blocking_load_references_from_dataset(userdata, body):
