@@ -9,8 +9,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED True)
 # -fPIC for everything
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
-set(HAIL_PYTHON_MODULE_NAME "_hail.so" CACHE STRING "full name (including .so) of the hail python module library, useful for python packaging")
-set(HAIL_PYTHON_MODULE_LIBDIR "" CACHE STRING "directory to put the python module library into on install, useful for python packaging")
+set(HAIL_PYTHON_MODULE_LIBDIR "." CACHE STRING "directory to put the python module library into on install, useful for python packaging")
 
 find_package(LLVM REQUIRED CONFIG)
 find_package(Python COMPONENTS Interpreter Development)
@@ -45,22 +44,15 @@ set(test_sources
 
 add_library(hail_objlib OBJECT ${lib_sources})
 add_executable(test $<TARGET_OBJECTS:hail_objlib> ${test_sources})
-add_library(hail_python SHARED
+Python_add_library(_hail MODULE WITH_SOABI
   $<TARGET_OBJECTS:hail_objlib>
   ${python_module_sources})
 
-set_target_properties(hail_python
-  PROPERTIES
-    PREFIX ""
-    SUFFIX ""
-    OUTPUT_NAME ${HAIL_PYTHON_MODULE_NAME})
-
 target_include_directories(hail_objlib PRIVATE "src")
-target_include_directories(hail_python PRIVATE ${Python_INCLUDE_DIRS} PRIVATE "src")
+target_include_directories(_hail PRIVATE ${Python_INCLUDE_DIRS} PRIVATE "src")
 target_include_directories(test PRIVATE "src")
 
 llvm_config(test x86asmparser x86codegen orcjit)
-llvm_config(hail_python x86asmparser x86codegen orcjit)
+llvm_config(_hail x86asmparser x86codegen orcjit)
 
-target_link_libraries(hail_python PUBLIC ${Python_LIBRARIES})
-install(TARGETS hail_python LIBRARY DESTINATION ${HAIL_PYTHON_MODULE_LIBDIR})
+install(TARGETS _hail LIBRARY DESTINATION ${HAIL_PYTHON_MODULE_LIBDIR})

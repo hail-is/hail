@@ -56,18 +56,16 @@ class cmake_build_ext(build_ext):
         assert all(isinstance(ext, CMakeExtension) for ext in self.extensions), \
                'can only build cmake extensions'
 
-        out_dir = os.path.abspath(self.build_lib)
-        common_cmake_args = [
+        cmake_args = [
             '-G', CMAKE_GENERATOR,
-            f'-DHAIL_PYTHON_MODULE_LIBDIR={out_dir}',
+            f'-DHAIL_PYTHON_MODULE_LIBDIR={os.path.abspath(self.build_lib)}',
             '-DCMAKE_BUILD_TYPE=RelWithDebInfo']
         for ext in self.extensions:
             tmp_dir = os.path.join(self.build_temp, ext.name)
             if not os.path.exists(tmp_dir):
                 os.makedirs(tmp_dir)
                 print('creating', tmp_dir)
-            cmake_args = [f'-DHAIL_PYTHON_MODULE_NAME={ext.name + lib_suffix}']
-            subprocess.check_call(['cmake', ext.cmake_lists_dir] + common_cmake_args + cmake_args,
+            subprocess.check_call(['cmake', ext.cmake_lists_dir] + cmake_args,
                                   cwd=tmp_dir)
             subprocess.check_call(['cmake', '--build', '.', '--verbose'],
                                   cwd=tmp_dir)
