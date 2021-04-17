@@ -38,6 +38,9 @@ format1(FormatStream &s, const Type *v) {
   case Type::Tag::STR:
     format(s, "str");
     break;
+  case Type::Tag::CALL:
+    format(s, "call");
+    break;
   case Type::Tag::ARRAY:
     format(s, "array<", cast<TArray>(v)->element_type, ">");
     break;
@@ -71,7 +74,8 @@ TypeContext::TypeContext(HeapAllocator &heap)
     tint64(arena.make<TInt64>(TypeContextToken())),
     tfloat32(arena.make<TFloat32>(TypeContextToken())),
     tfloat64(arena.make<TFloat64>(TypeContextToken())),
-    tstr(arena.make<TStr>(TypeContextToken())) {}
+    tstr(arena.make<TStr>(TypeContextToken())),
+    tcall(arena.make<TCall>(TypeContextToken())) {}
 
 const TBlock *
 TypeContext::tblock(const std::vector<const Type *> &input_types, const std::vector<const Type *> &output_types) {

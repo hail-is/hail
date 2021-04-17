@@ -28,6 +28,7 @@ public:
     FLOAT32,
     FLOAT64,
     STR,
+    CALL,
     ARRAY,
     STREAM,
     TUPLE
@@ -95,6 +96,12 @@ public:
   TStr(TypeContextToken) : Type(Type::Tag::STR) {}
 };
 
+class TCall : public Type {
+public:
+  static bool is_instance_tag(Tag tag) { return tag == Type::Tag::CALL; }
+  TCall(TypeContextToken) : Type(Type::Tag::CALL) {}
+};
+
 class TArray : public Type {
 public:
   static bool is_instance_tag(Tag tag) { return tag == Type::Tag::ARRAY; }
@@ -134,6 +141,7 @@ public:
   const TFloat32 *const tfloat32;
   const TFloat64 *const tfloat64;
   const TStr *const tstr;
+  const TCall *const tcall;
 
   TypeContext(HeapAllocator &heap);
 
