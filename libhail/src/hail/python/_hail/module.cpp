@@ -112,6 +112,16 @@ static PyTypeObject TStr = {
   .tp_new = TStr_new,
 };
 
+static PyObject *TCall_new(PyTypeObject *subtype, PyObject *args, PyObject *kwds);
+static PyTypeObject TCall = {
+  .ob_base = PyVarObject_HEAD_INIT(NULL, 0)
+  .tp_name = "_hail._tcall",
+  .tp_flags = Py_TPFLAGS_DEFAULT,
+  .tp_doc = "Hail type for genotypes",
+  .tp_base = &HailType,
+  .tp_new = TCall_new,
+};
+
 static int TArray_init(HailTypeObject *self, PyObject *args, PyObject *kwds);
 static PyObject *TArray_get_element_type(HailTypeObject *self, void *closure);
 static PyGetSetDef TArray_getset[] = {
@@ -177,7 +187,7 @@ static struct PyModuleDef hail_types_module = {
 };
 
 // public object singletons
-static PyObject *tvoid, *tbool, *tint32, *tint64, *tfloat32, *tfloat64, *tstr;
+static PyObject *tvoid, *tbool, *tint32, *tint64, *tfloat32, *tfloat64, *tstr, *tcall;
 
 PyMODINIT_FUNC
 PyInit__hail(void)
@@ -195,6 +205,7 @@ PyInit__hail(void)
       || PyType_Ready(&TFloat32) < 0
       || PyType_Ready(&TFloat64) < 0
       || PyType_Ready(&TStr) < 0
+      || PyType_Ready(&TCall) < 0
       || PyType_Ready(&TArray) < 0
       || PyType_Ready(&TStream) < 0
       || PyType_Ready(&TTuple) < 0)
@@ -209,7 +220,8 @@ PyInit__hail(void)
   tfloat32 = TFloat32.tp_new(&TFloat32, NULL, NULL);
   tfloat64 = TFloat64.tp_new(&TFloat64, NULL, NULL);
   tstr = TStr.tp_new(&TStr, NULL, NULL);
-  if (!tvoid || !tbool || !tint32 || !tint64 || !tfloat32 || !tfloat64 || !tstr) {
+  tcall = TCall.tp_new(&TCall, NULL, NULL);
+  if (!tvoid || !tbool || !tint32 || !tint64 || !tfloat32 || !tfloat64 || !tstr || !tcall) {
     goto error;
   }
 
@@ -255,6 +267,12 @@ PyInit__hail(void)
     goto error;
   }
 
+  Py_INCREF(tcall);
+  if (PyModule_AddObject(mod, "tcall", tcall) < 0) {
+    Py_DECREF(tcall);
+    goto error;
+  }
+
   Py_INCREF(&TArray);
   if (PyModule_AddObject(mod, "tarray", (PyObject *)&TArray) < 0) {
     Py_DECREF(&TArray);
@@ -283,6 +301,7 @@ error:
   Py_XDECREF(tfloat32);
   Py_XDECREF(tfloat64);
   Py_XDECREF(tstr);
+  Py_XDECREF(tcall);
   Py_XDECREF(mod);
   return nullptr;
 }
@@ -356,10 +375,10 @@ HailType_richcmp(HailTypeObject *self, PyObject *other, int op)
 static PyObject *
 HailType_New(PyTypeObject *type, const hail::Type * hail_type)
 {
-  HailTypeObject *self = (HailTypeObject *)type->tp_alloc(type, 0);
+  HailTypeObject *self = reinterpret_cast<HailTypeObject *>(type->tp_alloc(type, 0));
   if (self == nullptr) return nullptr;
   self->type = hail_type;
-  return (PyObject *)self;
+  return reinterpret_cast<PyObject *>(self);
 }
 
 #define RETURN_TVOID do { Py_INCREF(tvoid); return tvoid; } while (0)
@@ -449,6 +468,12 @@ static PyObject *
 TStr_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
 {
   return HailType_New(type, pytcx.tstr);
+}
+
+static PyObject *
+TCall_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
+{
+  return HailType_New(type, pytcx.tcall);
 }
 
 static int
