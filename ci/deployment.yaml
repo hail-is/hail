@@ -53,12 +53,12 @@ spec:
 {% endif %}
            - name: HAIL_GCP_PROJECT
              value: "{{ global.project }}"
-           - name: DOCKER_PREFIX
+           - name: HAIL_DOCKER_PREFIX
              valueFrom:
                secretKeyRef:
                  name: global-config
                  key: docker_prefix
-           - name: DOCKER_ROOT_IMAGE
+           - name: HAIL_DOCKER_ROOT_IMAGE
              valueFrom:
                secretKeyRef:
                  name: global-config
