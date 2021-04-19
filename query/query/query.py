@@ -243,6 +243,7 @@ async def on_shutdown(_):
     # the current task we'll end up in a deadlock
     remaining_tasks = [t for t in asyncio.all_tasks() if t is not asyncio.current_task()]
     log.info(f"On shutdown request received, with {len(remaining_tasks)} remaining tasks")
+    dump_all_stacktraces()
     await asyncio.wait(remaining_tasks)
     log.info("All tasks on shutdown have completed")
 
