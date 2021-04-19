@@ -17,7 +17,8 @@ spec:
         hail.is/sha: "{{ code.sha }}"
         grafanak8sapp: "true"
     spec:
-      terminationGracePeriodSeconds: 28800  # 8 hours
+      # this is fucked, java dies immediately and python gets stuck waiting for java to come back
+      # terminationGracePeriodSeconds: 28800  # 8 hours
       serviceAccountName: query
 {% if deploy %}
       priorityClassName: production
@@ -138,35 +139,6 @@ spec:
          secret:
            optional: false
            secretName: ssl-config-query
-{% if not deploy %}
----
-apiVersion: autoscaling/v2beta1
-kind: HorizontalPodAutoscaler
-metadata:
-  name: query
-spec:
-  scaleTargetRef:
-    apiVersion: apps/v1
-    kind: Deployment
-    name: query
-  minReplicas: 3
-  maxReplicas: 32
-  metrics:
-   - type: Resource
-     resource:
-       name: cpu
-       targetAverageUtilization: 80
----
-apiVersion: policy/v1beta1
-kind: PodDisruptionBudget
-metadata:
-  name: query
-spec:
-  minAvailable: 2
-  selector:
-    matchLabels:
-      app: query
-{% endif %}
 ---
 apiVersion: v1
 kind: Service
