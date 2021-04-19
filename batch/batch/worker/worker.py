@@ -1126,8 +1126,8 @@ class JVMJob(Job):
 
                 self.state = 'error'
                 self.error = traceback.format_exc()
-                self.cleanup()
-            self.cleanup()
+                await self.cleanup()
+            await self.cleanup()
 
     async def cleanup(self):
         self.end_time = time_msecs()
