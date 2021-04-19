@@ -5,7 +5,7 @@ import java.nio.charset._
 
 import is.hail.{HAIL_REVISION, HailContext}
 import is.hail.backend.HailTaskContext
-import is.hail.io.fs.GoogleStorageFS
+import is.hail.io.fs._
 import is.hail.services._
 import is.hail.utils._
 import org.apache.commons.io.IOUtils
