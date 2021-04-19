@@ -360,10 +360,6 @@ BEGIN
 
   SET msec_mcpu_diff = msec_diff * job_cores_mcpu;
 
-  UPDATE batches
-  SET msec_mcpu = batches.msec_mcpu + msec_mcpu_diff
-  WHERE id = NEW.batch_id;
-
   UPDATE jobs
   SET msec_mcpu = jobs.msec_mcpu + msec_mcpu_diff
   WHERE batch_id = NEW.batch_id AND job_id = NEW.job_id;
