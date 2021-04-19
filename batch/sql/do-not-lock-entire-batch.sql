@@ -29,7 +29,7 @@ BEGIN
   FROM jobs
   INNER JOIN batches ON batches.id = jobs.batch_id
   WHERE batch_id = in_batch_id AND job_id = in_job_id
-  LOCK IN SHARE MODE
+  LOCK IN SHARE MODE;
 
   SELECT is_pool
   INTO cur_instance_is_pool
@@ -94,7 +94,7 @@ BEGIN
   FROM jobs
   INNER JOIN batches ON batches.id = jobs.batch_id
   WHERE batch_id = in_batch_id AND job_id = in_job_id
-  LOCK IN SHARE MODE
+  LOCK IN SHARE MODE;
 
   CALL add_attempt(in_batch_id, in_job_id, in_attempt_id, in_instance_name, cur_cores_mcpu, delta_cores_mcpu);
 
@@ -139,7 +139,7 @@ BEGIN
   FROM jobs
   INNER JOIN batches ON batches.id = jobs.batch_id
   WHERE batch_id = in_batch_id AND job_id = in_job_id
-  LOCK IN SHARE MODE
+  LOCK IN SHARE MODE;
 
   CALL add_attempt(in_batch_id, in_job_id, in_attempt_id, in_instance_name, cur_cores_mcpu, delta_cores_mcpu);
 
