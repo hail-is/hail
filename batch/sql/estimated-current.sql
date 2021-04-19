@@ -926,13 +926,18 @@ BEGIN
 
   START TRANSACTION;
 
-  SELECT jobs.state, cores_mcpu, attempt_id,
-    (jobs.cancelled OR batches.cancelled) AND NOT always_run
-  INTO cur_job_state, cur_cores_mcpu, cur_attempt_id, cur_job_cancel
+  SELECT state, cores_mcpu, attempt_id
+  INTO cur_job_state, cur_cores_mcpu, cur_attempt_id
+  FROM jobs
+  WHERE batch_id = in_batch_id AND job_id = in_job_id
+  FOR UPDATE;
+
+  SELECT (jobs.cancelled OR batches.cancelled) AND NOT jobs.always_run
+  INTO cur_job_cancel
   FROM jobs
   INNER JOIN batches ON batches.id = jobs.batch_id
   WHERE batch_id = in_batch_id AND job_id = in_job_id
-  FOR UPDATE;
+  LOCK IN SHARE MODE
 
   SELECT is_pool
   INTO cur_instance_is_pool
@@ -990,10 +995,12 @@ BEGIN
 
   SELECT state, cores_mcpu, attempt_id
   INTO cur_job_state, cur_cores_mcpu, cur_attempt_id
-  FROM jobs WHERE batch_id = in_batch_id AND job_id = in_job_id
+  FROM jobs
+  WHERE batch_id = in_batch_id AND job_id = in_job_id
   FOR UPDATE;
 
-  SELECT end_time INTO cur_end_time FROM attempts
+  SELECT end_time INTO cur_end_time
+  FROM attempts
   WHERE batch_id = in_batch_id AND job_id = in_job_id AND attempt_id = in_attempt_id
   FOR UPDATE;
 
@@ -1039,13 +1046,18 @@ BEGIN
 
   START TRANSACTION;
 
-  SELECT jobs.state, cores_mcpu,
-    (jobs.cancelled OR batches.cancelled) AND NOT always_run
-  INTO cur_job_state, cur_cores_mcpu, cur_job_cancel
+  SELECT state, cores_mcpu
+  INTO cur_job_state, cur_cores_mcpu
+  FROM jobs
+  WHERE batch_id = in_batch_id AND job_id = in_job_id
+  FOR UPDATE;
+
+  SELECT (jobs.cancelled OR batches.cancelled) AND NOT jobs.always_run
+  INTO cur_job_cancel
   FROM jobs
   INNER JOIN batches ON batches.id = jobs.batch_id
   WHERE batch_id = in_batch_id AND job_id = in_job_id
-  FOR UPDATE;
+  LOCK IN SHARE MODE
 
   CALL add_attempt(in_batch_id, in_job_id, in_attempt_id, in_instance_name, cur_cores_mcpu, delta_cores_mcpu);
 
@@ -1078,13 +1090,18 @@ BEGIN
 
   START TRANSACTION;
 
-  SELECT jobs.state, cores_mcpu,
-    (jobs.cancelled OR batches.cancelled) AND NOT always_run
-  INTO cur_job_state, cur_cores_mcpu, cur_job_cancel
+  SELECT state, cores_mcpu
+  INTO cur_job_state, cur_cores_mcpu
+  FROM jobs
+  WHERE batch_id = in_batch_id AND job_id = in_job_id
+  FOR UPDATE;
+
+  SELECT (jobs.cancelled OR batches.cancelled) AND NOT jobs.always_run
+  INTO cur_job_cancel
   FROM jobs
   INNER JOIN batches ON batches.id = jobs.batch_id
   WHERE batch_id = in_batch_id AND job_id = in_job_id
-  FOR UPDATE;
+  LOCK IN SHARE MODE
 
   CALL add_attempt(in_batch_id, in_job_id, in_attempt_id, in_instance_name, cur_cores_mcpu, delta_cores_mcpu);
 
