@@ -895,7 +895,7 @@ BEGIN
 
   IF NOT attempt_exists AND in_attempt_id IS NOT NULL THEN
     INSERT INTO attempts (batch_id, job_id, attempt_id, instance_name) VALUES (in_batch_id, in_job_id, in_attempt_id, in_instance_name);
-    SELECT state INTO cur_instance_state FROM instances WHERE name = in_instance_name FOR UPDATE;
+    SELECT state INTO cur_instance_state FROM instances WHERE name = in_instance_name LOCK IN SHARE MODE;
     # instance pending when attempt is from a job private instance
     IF cur_instance_state = 'pending' OR cur_instance_state = 'active' THEN
       UPDATE instances SET free_cores_mcpu = free_cores_mcpu - in_cores_mcpu WHERE name = in_instance_name;
@@ -1004,7 +1004,7 @@ BEGIN
   SET end_time = new_end_time, reason = new_reason
   WHERE batch_id = in_batch_id AND job_id = in_job_id AND attempt_id = in_attempt_id;
 
-  SELECT state INTO cur_instance_state FROM instances WHERE name = in_instance_name FOR UPDATE;
+  SELECT state INTO cur_instance_state FROM instances WHERE name = in_instance_name LOCK IN SHARE MODE;
 
   IF cur_instance_state = 'active' AND cur_end_time IS NULL THEN
     UPDATE instances
@@ -1153,7 +1153,7 @@ BEGIN
   SET start_time = new_start_time, end_time = new_end_time, reason = new_reason
   WHERE batch_id = in_batch_id AND job_id = in_job_id AND attempt_id = in_attempt_id;
 
-  SELECT state INTO cur_instance_state FROM instances WHERE name = in_instance_name FOR UPDATE;
+  SELECT state INTO cur_instance_state FROM instances WHERE name = in_instance_name LOCK IN SHARE MODE;
   IF cur_instance_state = 'active' AND cur_end_time IS NULL THEN
     UPDATE instances
     SET free_cores_mcpu = free_cores_mcpu + cur_cores_mcpu
