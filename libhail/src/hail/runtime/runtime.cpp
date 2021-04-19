@@ -1,5 +1,5 @@
-#include <hail/allocators.hpp>
-#include <hail/runtime/runtime.hpp>
+#include "hail/allocators.hpp"
+#include "hail/runtime/runtime.hpp"
 
 using namespace hail;
 
