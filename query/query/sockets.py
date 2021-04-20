@@ -98,10 +98,9 @@ class ServiceBackendSocketConnection:
         b = self.read_bytes()
         return b.decode('utf-8')
 
-    def load_references_from_dataset(self, username: str, session_id: str, billing_project: str, bucket: str, path: str):
+    def load_references_from_dataset(self, username: str, billing_project: str, bucket: str, path: str):
         self.write_int(ServiceBackendSocketConnection.LOAD_REFERENCES_FROM_DATASET)
         self.write_str(username)
-        self.write_str(session_id)
         self.write_str(billing_project)
         self.write_str(bucket)
         self.write_str(path)
@@ -115,10 +114,9 @@ class ServiceBackendSocketConnection:
         jstacktrace = self.read_str()
         raise ValueError(jstacktrace)
 
-    def value_type(self, username: str, session_id: str, s: str):
+    def value_type(self, username: str, s: str):
         self.write_int(ServiceBackendSocketConnection.VALUE_TYPE)
         self.write_str(username)
-        self.write_str(session_id)
         self.write_str(s)
         success = self.read_bool()
         if success:
@@ -130,10 +128,9 @@ class ServiceBackendSocketConnection:
         jstacktrace = self.read_str()
         raise ValueError(jstacktrace)
 
-    def table_type(self, username: str, session_id: str, s: str):
+    def table_type(self, username: str, s: str):
         self.write_int(ServiceBackendSocketConnection.TABLE_TYPE)
         self.write_str(username)
-        self.write_str(session_id)
         self.write_str(s)
         success = self.read_bool()
         if success:
@@ -145,10 +142,9 @@ class ServiceBackendSocketConnection:
         jstacktrace = self.read_str()
         raise ValueError(jstacktrace)
 
-    def matrix_table_type(self, username: str, session_id: str, s: str):
+    def matrix_table_type(self, username: str, s: str):
         self.write_int(ServiceBackendSocketConnection.MATRIX_TABLE_TYPE)
         self.write_str(username)
-        self.write_str(session_id)
         self.write_str(s)
         success = self.read_bool()
         if success:
@@ -160,10 +156,9 @@ class ServiceBackendSocketConnection:
         jstacktrace = self.read_str()
         raise ValueError(jstacktrace)
 
-    def block_matrix_type(self, username: str, session_id: str, s: str):
+    def block_matrix_type(self, username: str, s: str):
         self.write_int(ServiceBackendSocketConnection.BLOCK_MATRIX_TYPE)
         self.write_str(username)
-        self.write_str(session_id)
         self.write_str(s)
         success = self.read_bool()
         if success:
@@ -175,10 +170,9 @@ class ServiceBackendSocketConnection:
         jstacktrace = self.read_str()
         raise ValueError(jstacktrace)
 
-    def reference_genome(self, username: str, session_id: str, name: str):
+    def reference_genome(self, username: str, name: str):
         self.write_int(ServiceBackendSocketConnection.REFERENCE_GENOME)
         self.write_str(username)
-        self.write_str(session_id)
         self.write_str(name)
         success = self.read_bool()
         if success:

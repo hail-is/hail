@@ -63,32 +63,32 @@ def blocking_execute(userdata, body):
 def blocking_load_references_from_dataset(userdata, body):
     with connect_to_java() as java:
         return java.load_references_from_dataset(
-            userdata['username'], userdata['session_id'], body['billing_project'], body['bucket'], body['path'])
+            userdata['username'], body['billing_project'], body['bucket'], body['path'])
 
 
 def blocking_value_type(userdata, body):
     with connect_to_java() as java:
-        return java.value_type(userdata['username'], userdata['session_id'], body['code'])
+        return java.value_type(userdata['username'], body['code'])
 
 
 def blocking_table_type(userdata, body):
     with connect_to_java() as java:
-        return java.table_type(userdata['username'], userdata['session_id'], body['code'])
+        return java.table_type(userdata['username'], body['code'])
 
 
 def blocking_matrix_type(userdata, body):
     with connect_to_java() as java:
-        return java.matrix_table_type(userdata['username'], userdata['session_id'], body['code'])
+        return java.matrix_table_type(userdata['username'], body['code'])
 
 
 def blocking_blockmatrix_type(userdata, body):
     with connect_to_java() as java:
-        return java.block_matrix_type(userdata['username'], userdata['session_id'], body['code'])
+        return java.block_matrix_type(userdata['username'], body['code'])
 
 
 def blocking_get_reference(userdata, body):   # pylint: disable=unused-argument
     with connect_to_java() as java:
-        return java.reference_genome(userdata['username'], userdata['session_id'], body['name'])
+        return java.reference_genome(userdata['username'], body['name'])
 
 
 async def handle_ws_response(request, userdata, endpoint, f):
