@@ -66,8 +66,7 @@ class ServiceBackend() extends Backend {
     assert(previous == null)
   }
 
-  // TODO Do we need the sessionID to be serialized at all?
-  def userContext[T](username: String, sessionID: String, timer: ExecutionTimer)(f: (ExecuteContext) => T): T = {
+  def userContext[T](username: String, timer: ExecutionTimer)(f: (ExecuteContext) => T): T = {
     val user = users.get(username)
     assert(user != null, username)
     ExecuteContext.scoped(user.tmpdir, "file:///tmp", this, user.fs, timer, null)(f)
@@ -166,18 +165,18 @@ class ServiceBackend() extends Backend {
 
   def stop(): Unit = ()
 
-  def valueType(username: String, sessionID: String, s: String): String = {
+  def valueType(username: String, s: String): String = {
     ExecutionTimer.logTime("ServiceBackend.valueType") { timer =>
-      userContext(username, sessionID, timer) { ctx =>
+      userContext(username, timer) { ctx =>
         val x = IRParser.parse_value_ir(ctx, s)
         x.typ.toString
       }
     }
   }
 
-  def tableType(username: String, sessionID: String, s: String): String = {
+  def tableType(username: String, s: String): String = {
     ExecutionTimer.logTime("ServiceBackend.tableType") { timer =>
-      userContext(username, sessionID, timer) { ctx =>
+      userContext(username, timer) { ctx =>
         val x = IRParser.parse_table_ir(ctx, s)
         val t = x.typ
         val jv = JObject("global" -> JString(t.globalType.toString),
@@ -188,9 +187,9 @@ class ServiceBackend() extends Backend {
     }
   }
 
-  def matrixTableType(username: String, sessionID: String, s: String): String = {
+  def matrixTableType(username: String, s: String): String = {
     ExecutionTimer.logTime("ServiceBackend.matrixTableType") { timer =>
-      userContext(username, sessionID, timer) { ctx =>
+      userContext(username, timer) { ctx =>
         val x = IRParser.parse_matrix_ir(ctx, s)
         val t = x.typ
         val jv = JObject("global" -> JString(t.globalType.toString),
@@ -204,9 +203,9 @@ class ServiceBackend() extends Backend {
     }
   }
 
-  def blockMatrixType(username: String, sessionID: String, s: String): String = {
+  def blockMatrixType(username: String, s: String): String = {
     ExecutionTimer.logTime("ServiceBackend.blockMatrixType") { timer =>
-      userContext(username, sessionID, timer) { ctx =>
+      userContext(username, timer) { ctx =>
         val x = IRParser.parse_blockmatrix_ir(ctx, s)
         val t = x.typ
         val jv = JObject("element_type" -> JString(t.elementType.toString),
@@ -218,7 +217,7 @@ class ServiceBackend() extends Backend {
     }
   }
 
-  def referenceGenome(username: String, sessionID: String, name: String): String = {
+  def referenceGenome(username: String, name: String): String = {
     ReferenceGenome.getReference(name).toJSONString
   }
 
@@ -249,7 +248,7 @@ class ServiceBackend() extends Backend {
 
   def execute(username: String, sessionID: String, billingProject: String, bucket: String, code: String, token: String): String = {
     ExecutionTimer.logTime("ServiceBackend.execute") { timer =>
-      userContext(username, sessionID, timer) { ctx =>
+      userContext(username, timer) { ctx =>
         log.info(s"executing: ${token}")
         ctx.backendContext = new ServiceBackendContext(username, sessionID, billingProject, bucket)
 
@@ -358,13 +357,12 @@ class ServiceBackend() extends Backend {
 
   def loadReferencesFromDataset(
     username: String,
-    sessionID: String,
     billingProject: String,
     bucket: String,
     path: String
   ): String = {
     ExecutionTimer.logTime("ServiceBackend.loadReferencesFromDataset") { timer =>
-      userContext(username, sessionID, timer) { ctx =>
+      userContext(username, timer) { ctx =>
         ReferenceGenome.fromHailDataset(ctx.fs, path)
       }
     }
@@ -460,12 +458,11 @@ class ServiceBackendSocketAPI(backend: ServiceBackend, socket: Socket) extends T
       (cmd: @switch) match {
         case LOAD_REFERENCES_FROM_DATASET =>
           val username = readString()
-          val sessionId = readString()
           val billingProject = readString()
           val bucket = readString()
           val path = readString()
           try {
-            val result = backend.loadReferencesFromDataset(username, sessionId, billingProject, bucket, path)
+            val result = backend.loadReferencesFromDataset(username, billingProject, bucket, path)
             writeBool(true)
             writeString(result)
           } catch {
@@ -476,10 +473,9 @@ class ServiceBackendSocketAPI(backend: ServiceBackend, socket: Socket) extends T
 
         case VALUE_TYPE =>
           val username = readString()
-          val sessionId = readString()
           val s = readString()
           try {
-            val result = backend.valueType(username, sessionId, s)
+            val result = backend.valueType(username, s)
             writeBool(true)
             writeString(result)
           } catch {
@@ -490,10 +486,9 @@ class ServiceBackendSocketAPI(backend: ServiceBackend, socket: Socket) extends T
 
         case TABLE_TYPE =>
           val username = readString()
-          val sessionId = readString()
           val s = readString()
           try {
-            val result = backend.tableType(username, sessionId, s)
+            val result = backend.tableType(username, s)
             writeBool(true)
             writeString(result)
           } catch {
@@ -504,10 +499,9 @@ class ServiceBackendSocketAPI(backend: ServiceBackend, socket: Socket) extends T
 
         case MATRIX_TABLE_TYPE =>
           val username = readString()
-          val sessionId = readString()
           val s = readString()
           try {
-            val result = backend.matrixTableType(username, sessionId, s)
+            val result = backend.matrixTableType(username, s)
             writeBool(true)
             writeString(result)
           } catch {
@@ -518,10 +512,9 @@ class ServiceBackendSocketAPI(backend: ServiceBackend, socket: Socket) extends T
 
         case BLOCK_MATRIX_TYPE =>
           val username = readString()
-          val sessionId = readString()
           val s = readString()
           try {
-            val result = backend.blockMatrixType(username, sessionId, s)
+            val result = backend.blockMatrixType(username, s)
             writeBool(true)
             writeString(result)
           } catch {
@@ -532,10 +525,9 @@ class ServiceBackendSocketAPI(backend: ServiceBackend, socket: Socket) extends T
 
         case REFERENCE_GENOME =>
           val username = readString()
-          val sessionId = readString()
           val name = readString()
           try {
-            val result = backend.referenceGenome(username, sessionId, name)
+            val result = backend.referenceGenome(username, name)
             writeBool(true)
             writeString(result)
           } catch {
