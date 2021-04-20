@@ -4136,7 +4136,6 @@ class NDArrayNumericExpression(NDArrayExpression):
             return result
 
 
-
 scalars = {tbool: BooleanExpression,
            tint32: Int32Expression,
            tint64: Int64Expression,
