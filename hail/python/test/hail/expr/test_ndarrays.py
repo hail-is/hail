@@ -486,10 +486,10 @@ def test_ndarray_sum():
     assert_ndarrays_eq(
         (m.sum(axis=0), np_m.sum(axis=0)),
         (m.sum(axis=1), np_m.sum(axis=1)),
-        (m.sum(), np_m.sum()),
-        (m.sum(tuple([])), np_m.sum(tuple([]))),
-        (m.sum((0, 1)), np_m.sum((0, 1)))
-    )
+        (m.sum(tuple([])), np_m.sum(tuple([]))))
+
+    assert hl.eval(m.sum()) == 10
+    assert hl.eval(m.sum((0, 1))) == 10
 
     with pytest.raises(ValueError) as exc:
         m.sum(3)
