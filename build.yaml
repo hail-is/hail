@@ -68,38 +68,26 @@ steps:
     name: check_hail
     image:
       valueFrom: base_image.image
-    script: 'set -ex
-
+    script:
+      set -ex
       mkdir repo
-
       cd repo
-
       {{ code.checkout_script }}
-
       make check-hail
-
-      '
     dependsOn:
       - base_image
   - kind: runImage
     name: copy_files
     image:
       valueFrom: base_image.image
-    script: 'set -ex
-
+    script:
+      set -ex
       cd /io
-
       mkdir repo
-
       cd repo
-
       {{ code.checkout_script }}
-
       make -C hail python-version-info
-
       git rev-parse HEAD > git_version
-
-      '
     outputs:
       - from: /io/repo/auth/sql
         to: /repo/auth/sql
@@ -154,23 +142,15 @@ steps:
     name: check_services
     image:
       valueFrom: service_base_image.image
-    script: 'set -ex
-
+    script: |
+      set -ex
       mkdir repo
-
       cd repo
-
       {{ code.checkout_script }}
-
-      {% if ''target_sha'' in code %}
-
+      {% if 'target_sha' in code %}
       export HAIL_TARGET_SHA={{ code.target_sha }}
-
       {% endif %}
-
       make -k check-services
-
-      '
     dependsOn:
       - service_base_image
   - kind: buildImage
@@ -184,11 +164,14 @@ steps:
     name: create_ssl_config_hail_root
     image:
       valueFrom: create_certs_image.image
-    script: "openssl req -new -x509 -subj /CN=hail-root -nodes -newkey rsa:4096 -keyout\
-      \ hail-root-key.pem -out hail-root-cert.pem\nuntil kubectl get secret -n {{\
-      \ default_ns.name }} ssl-config-hail-root\ndo\n    kubectl create secret generic\
-      \ -n {{ default_ns.name }} ssl-config-hail-root \\\n            --from-file=hail-root-key.pem\
-      \ \\\n            --from-file=hail-root-cert.pem\ndone\n"
+    script: |
+      openssl req -new -x509 -subj /CN=hail-root -nodes -newkey rsa:4096 -keyout hail-root-key.pem -out hail-root-cert.pem
+      until kubectl get secret -n {{ default_ns.name }} ssl-config-hail-root
+      do
+          kubectl create secret generic -n {{ default_ns.name }} ssl-config-hail-root \
+                  --from-file=hail-root-key.pem \
+                  --from-file=hail-root-cert.pem
+      done
     serviceAccount:
       name: admin
       namespace:
@@ -203,9 +186,13 @@ steps:
     name: create_certs
     image:
       valueFrom: create_certs_image.image
-    script: "set -ex\npython3 create_certs.py \\\n        {{ default_ns.name }} \\\
-      \n        config.yaml \\\n        /ssl-config-hail-root/hail-root-key.pem \\\
-      \n        /ssl-config-hail-root/hail-root-cert.pem\n"
+    script: |
+      set -ex
+      python3 create_certs.py \
+              {{ default_ns.name }} \
+              config.yaml \
+              /ssl-config-hail-root/hail-root-key.pem \
+              /ssl-config-hail-root/hail-root-cert.pem
     serviceAccount:
       name: admin
       namespace:
@@ -233,11 +220,8 @@ steps:
     name: create_database_server_config
     image:
       valueFrom: base_image.image
-    script: 'kubectl -n {{ default_ns.name }} get -o json secret {{ test_database_instance.admin_secret_name
-      }} | jq ''{apiVersion, kind, type, data, metadata: {name: "database-server-config"}}''
-      | kubectl -n {{ default_ns.name }} apply -f -
-
-      '
+    script: |
+     kubectl -n {{ default_ns.name }} get -o json secret {{ test_database_instance.admin_secret_name }} | jq '{apiVersion, kind, type, data, metadata: {name: "database-server-config"}}' | kubectl -n {{ default_ns.name }} apply -f -
     serviceAccount:
       name: admin
       namespace:
@@ -252,11 +236,10 @@ steps:
     name: delete_auth_tables
     image:
       valueFrom: service_base_image.image
-    script: 'set -ex
+    script: |
+      set -ex
 
       mysql --defaults-extra-file=/sql-config/sql-config.cnf < /io/sql/delete-auth-tables.sql
-
-      '
     inputs:
       - from: /repo/auth/sql
         to: /io/sql
@@ -304,16 +287,24 @@ steps:
     name: create_deploy_config
     image:
       valueFrom: base_image.image
-    script: "set -ex\n# k8s deploy config\ncat > deploy-config.json <<EOF\n{\"location\"\
-      :\"k8s\",\"default_namespace\":\"{{ default_ns.name }}\",\"domain\":\"{{ global.domain\
-      \ }}\"}\nEOF\nkubectl -n {{ default_ns.name }} create secret generic deploy-config\
-      \ \\\n        --from-file=./deploy-config.json \\\n        --save-config --dry-run=client\
-      \ -o yaml \\\n    | kubectl -n {{ default_ns.name }} apply -f -\n# gce deploy\
-      \ config\ncat > deploy-config.json <<EOF\n{\"location\":\"gce\",\"default_namespace\"\
-      :\"{{ default_ns.name }}\",\"domain\":\"{{ global.domain }}\"}\nEOF\nkubectl\
-      \ -n {{ default_ns.name }} create secret generic gce-deploy-config \\\n    \
-      \    --from-file=./deploy-config.json \\\n        --save-config --dry-run=client\
-      \ -o yaml \\\n    | kubectl -n {{ default_ns.name }} apply -f -\n"
+    script: |
+      set -ex
+      # k8s deploy config
+      cat > deploy-config.json <<EOF
+      {"location":"k8s","default_namespace":"{{ default_ns.name }}","domain":"{{ global.domain }}"}
+      EOF
+      kubectl -n {{ default_ns.name }} create secret generic deploy-config \
+              --from-file=./deploy-config.json \
+              --save-config --dry-run=client -o yaml \
+          | kubectl -n {{ default_ns.name }} apply -f -
+      # gce deploy config
+      cat > deploy-config.json <<EOF
+      {"location":"gce","default_namespace":"{{ default_ns.name }}","domain":"{{ global.domain }}"}
+      EOF
+      kubectl -n {{ default_ns.name }} create secret generic gce-deploy-config \
+              --from-file=./deploy-config.json \
+              --save-config --dry-run=client -o yaml \
+          | kubectl -n {{ default_ns.name }} apply -f -
     serviceAccount:
       name: admin
       namespace:
@@ -338,14 +329,22 @@ steps:
     name: create_session_key
     image:
       valueFrom: base_image.image
-    script: "set -ex\n# create session keys\nN=$(kubectl -n {{ default_ns.name }}\
-      \ get secret --ignore-not-found=true --no-headers session-secret-key | wc -l\
-      \ | tr -d '[:space:]')\nif [[ $N != 0 ]]; then\n  exit\nfi\nmkdir /session-secret-key\n\
-      cat > generate-session-key.py <<EOF\nimport base64\nfrom cryptography import\
-      \ fernet\nwith open('/session-secret-key/session-secret-key', 'wb') as f:\n\
-      \    f.write(base64.urlsafe_b64decode(fernet.Fernet.generate_key()))\nEOF\n\
-      python3 generate-session-key.py\nkubectl -n {{ default_ns.name }} create secret\
-      \ generic session-secret-key --from-file=/session-secret-key/session-secret-key\n"
+    script: |
+      set -ex
+      # create session keys
+      N=$(kubectl -n {{ default_ns.name }} get secret --ignore-not-found=true --no-headers session-secret-key | wc -l | tr -d '[:space:]')
+      if [[ $N != 0 ]]; then
+        exit
+      fi
+      mkdir /session-secret-key
+      cat > generate-session-key.py <<EOF
+      import base64
+      from cryptography import fernet
+      with open('/session-secret-key/session-secret-key', 'wb') as f:
+          f.write(base64.urlsafe_b64decode(fernet.Fernet.generate_key()))
+      EOF
+      python3 generate-session-key.py
+      kubectl -n {{ default_ns.name }} create secret generic session-secret-key --from-file=/session-secret-key/session-secret-key
     serviceAccount:
       name: admin
       namespace:
@@ -357,31 +356,13 @@ steps:
     name: create_test_gsa_keys
     image:
       valueFrom: service_base_image.image
-    script: 'kubectl -n {{ default_ns.name }} get -o json secret test-gsa-key | jq
-      ''{apiVersion, kind, type, data, metadata: {name: "atgu-gsa-key"}}'' | kubectl
-      -n {{ default_ns.name }} apply -f -
-
-      kubectl -n {{ default_ns.name }} get -o json secret test-gsa-key | jq ''{apiVersion,
-      kind, type, data, metadata: {name: "auth-gsa-key"}}'' | kubectl -n {{ default_ns.name
-      }} apply -f -
-
-      kubectl -n {{ default_ns.name }} get -o json secret test-gsa-key | jq ''{apiVersion,
-      kind, type, data, metadata: {name: "batch-gsa-key"}}'' | kubectl -n {{ default_ns.name
-      }} apply -f -
-
-      kubectl -n {{ default_ns.name }} get -o json secret test-gsa-key | jq ''{apiVersion,
-      kind, type, data, metadata: {name: "benchmark-gsa-key"}}'' | kubectl -n {{ default_ns.name
-      }} apply -f -
-
-      kubectl -n {{ default_ns.name }} get -o json secret test-gsa-key | jq ''{apiVersion,
-      kind, type, data, metadata: {name: "ci-gsa-key"}}'' | kubectl -n {{ default_ns.name
-      }} apply -f -
-
-      kubectl -n {{ default_ns.name }} get -o json secret test-gsa-key | jq ''{apiVersion,
-      kind, type, data, metadata: {name: "test-dev-gsa-key"}}'' | kubectl -n {{ default_ns.name
-      }} apply -f -
-
-      '
+   script: |
+      kubectl -n {{ default_ns.name }} get -o json secret test-gsa-key | jq '{apiVersion, kind, type, data, metadata: {name: "atgu-gsa-key"}}' | kubectl -n {{ default_ns.name }} apply -f -
+      kubectl -n {{ default_ns.name }} get -o json secret test-gsa-key | jq '{apiVersion, kind, type, data, metadata: {name: "auth-gsa-key"}}' | kubectl -n {{ default_ns.name }} apply -f -
+      kubectl -n {{ default_ns.name }} get -o json secret test-gsa-key | jq '{apiVersion, kind, type, data, metadata: {name: "batch-gsa-key"}}' | kubectl -n {{ default_ns.name }} apply -f -
+      kubectl -n {{ default_ns.name }} get -o json secret test-gsa-key | jq '{apiVersion, kind, type, data, metadata: {name: "benchmark-gsa-key"}}' | kubectl -n {{ default_ns.name }} apply -f -
+      kubectl -n {{ default_ns.name }} get -o json secret test-gsa-key | jq '{apiVersion, kind, type, data, metadata: {name: "ci-gsa-key"}}' | kubectl -n {{ default_ns.name }} apply -f -
+      kubectl -n {{ default_ns.name }} get -o json secret test-gsa-key | jq '{apiVersion, kind, type, data, metadata: {name: "test-dev-gsa-key"}}' | kubectl -n {{ default_ns.name }} apply -f -
     scopes:
       - test
       - dev
@@ -410,21 +391,14 @@ steps:
     name: create_accounts
     image:
       valueFrom: auth_image.image
-    script: 'set -ex
-
+    script: |
+      set -ex
       export PROJECT={{ global.project }}
-
       export ZONE={{ global.zone }}
-
       export HAIL_PROJECT={{ global.project }}
-
       export HAIL_DEFAULT_NAMESPACE={{ default_ns.name }}
-
       export HAIL_SCOPE={{ scope }}
-
       python3 /io/bootstrap_create_accounts.py
-
-      '
     serviceAccount:
       name: admin
       namespace:
@@ -463,11 +437,9 @@ steps:
     runIfRequested: true
     image:
       valueFrom: service_base_image.image
-    script: 'set -ex
-
+    script: |
+      set -ex
       python3 /io/create_initial_account.py {{ code.username }} {{ code.email }}
-
-      '
     secrets:
       - name:
           valueFrom: auth_database.user_secret_name
@@ -514,15 +486,11 @@ steps:
     name: check_benchmark_service
     image:
       valueFrom: benchmark_image.image
-    script: 'set -ex
-
-      SITE_PACKAGES=$(pip3 show benchmark | grep Location | sed ''s/Location: //'')
-
+    script: |
+      set -ex
+      SITE_PACKAGES=$(pip3 show benchmark | grep Location | sed 's/Location: //')
       python3 -m flake8 $SITE_PACKAGES/benchmark
-
       python3 -m pylint --rcfile pylintrc benchmark --score=n
-
-      '
     dependsOn:
       - benchmark_image
   - kind: buildImage
@@ -543,34 +511,22 @@ steps:
     name: render_grafana_nginx_conf
     image:
       valueFrom: service_base_image.image
-    script: 'set -ex
-
+    script: |
+      set -ex
       cd /io
-
       rm -rf repo
-
       mkdir repo
-
       cd repo
-
       {{ code.checkout_script }}
-
       cd grafana
 
       {% if deploy %}
-
       DEPLOY=true
-
       {% else %}
-
       DEPLOY=false
-
       {% endif %}
 
-      python3 ../ci/jinja2_render.py ''{"deploy": ''${DEPLOY}'', "default_ns": {"name":
-      "{{ default_ns.name }}"}}'' nginx.conf nginx.conf.out
-
-      '
+      python3 ../ci/jinja2_render.py '{"deploy": '${DEPLOY}', "default_ns": {"name": "{{ default_ns.name }}"}}' nginx.conf nginx.conf.out
     outputs:
       - from: /io/repo/grafana/nginx.conf.out
         to: /grafana/nginx.conf.out
@@ -637,25 +593,16 @@ steps:
     resources:
       memory: 7.5G
       cpu: '4'
-    script: 'set -ex
-
+    script: |
+      set -ex
       cd /io
-
       rm -rf repo
-
       mkdir repo
-
       cd repo
-
       {{ code.checkout_script }}
-
       cd hail
-
       time retry ./gradlew --version
-
       time retry make shadowJar
-
-      '
     outputs:
       - from: /io/repo/hail/build/libs/hail-all-spark.jar
         to: /just-jar/hail.jar
@@ -668,57 +615,32 @@ steps:
     resources:
       memory: 7.5G
       cpu: '4'
-    script: 'set -ex
-
+    script: |
+      set -ex
       cd /io
-
       rm -rf repo
-
       mkdir repo
-
       cd repo
-
       {{ code.checkout_script }}
-
       cd hail
-
       time retry ./gradlew --version
-
       time retry make jars wheel HAIL_DEBUG_MODE=1
-
       (cd build/deploy/dist/ && tar -cvf debug-wheel-container.tar hail-*-py3-none-any.whl)
-
       cd /io/repo/hail
-
       mkdir build/debug_libs
-
       mv build/libs/hail-all-spark.jar build/debug_libs/
-
       mv build/libs/hail-all-spark-test.jar build/debug_libs/
-
       mv build/deploy/dist/debug-wheel-container.tar build/debug_libs
-
       time retry make jars python-version-info wheel
-
       time (cd python && zip -r hail.zip hail hailtop)
-
       time tar czf test.tar.gz -C python test
-
       time tar czf resources.tar.gz -C src/test resources
-
       time tar czf data.tar.gz -C python/hail/docs data
-
       (cd .. && time tar czf hail/website-src.tar.gz website)
-
       time tar czf cluster-tests.tar.gz python/cluster-tests
-
       (cd build/deploy/dist/ && tar -cvf wheel-container.tar hail-*-py3-none-any.whl)
-
       time TESTNG_SPLITS=5 python3 generate_splits.py
-
       time tar czf splits.tar.gz testng-splits-*.xml
-
-      '
     outputs:
       - from: /io/repo/hail/build/libs/hail-all-spark.jar
         to: /hail.jar
@@ -757,27 +679,17 @@ steps:
     resources:
       memory: 7.5G
       cpu: '4'
-    script: 'set -ex
-
+    script: |
+      set -ex
       cd /
-
       rm -rf repo
-
       mkdir repo
-
       cd repo
-
       {{ code.checkout_script }}
-
       cd hail
-
       time retry ./gradlew --version
-
       export SPARK_VERSION="2.4.5" SCALA_VERSION="2.11.12"
-
       time retry make jars python-version-info wheel
-
-      '
     dependsOn:
       - hail_build_image
   - kind: runImage
@@ -787,27 +699,17 @@ steps:
     resources:
       memory: 7.5G
       cpu: '4'
-    script: 'set -ex
-
+    script: |
+      set -ex
       cd /
-
       rm -rf repo
-
       mkdir repo
-
       cd repo
-
       {{ code.checkout_script }}
-
       cd hail
-
       time retry ./gradlew --version
-
       export SPARK_VERSION="3.0.1" SCALA_VERSION="2.12.12"
-
       time retry make jars python-version-info wheel
-
-      '
     dependsOn:
       - hail_build_image
   - kind: buildImage
@@ -916,23 +818,15 @@ steps:
     name: upload_test_resources_to_gcs
     image:
       valueFrom: base_image.image
-    script: 'set -ex
-
+    script: |
+      set -ex
       rm -rf repo
-
       mkdir repo
-
       cd repo
-
       {{ code.checkout_script }}
-
       gcloud -q auth activate-service-account --key-file=/test-gsa-key/key.json
-
       gsutil -m cp -r hail/src/test/resources/* gs://hail-test-dmk9z/{{ token }}/test/resources/
-
       gsutil -m cp -r hail/python/hail/docs/data/* gs://hail-test-dmk9z/{{ token }}/doctest/data/
-
-      '
     secrets:
       - name: test-gsa-key
         namespace:
@@ -948,25 +842,15 @@ steps:
     resources:
       memory: 7.5G
       cpu: '2'
-    script: 'set -ex
-
+    script: |
+      set -ex
       cd /io
-
       mkdir -p src/test
-
       tar xzf resources.tar.gz -C src/test
-
       tar xzf splits.tar.gz
-
       export HAIL_TEST_SKIP_R=1
-
-      export HAIL_GS_FS_TEST_RESOURCES=gs://hail-test-dmk9z/{{ upload_test_resources_to_gcs.token
-      }}/test/resources/fs
-
-      java -cp hail-test.jar:$SPARK_HOME/jars/* org.testng.TestNG -listener is.hail.LogTestListener
-      testng-splits-0.xml
-
-      '
+      export HAIL_GS_FS_TEST_RESOURCES=gs://hail-test-dmk9z/{{ upload_test_resources_to_gcs.token }}/test/resources/fs
+      java -cp hail-test.jar:$SPARK_HOME/jars/* org.testng.TestNG -listener is.hail.LogTestListener testng-splits-0.xml
     inputs:
       - from: /resources.tar.gz
         to: /io/resources.tar.gz
@@ -994,25 +878,15 @@ steps:
     resources:
       memory: 7.5G
       cpu: '2'
-    script: 'set -ex
-
+    script: |
+      set -ex
       cd /io
-
       mkdir -p src/test
-
       tar xzf resources.tar.gz -C src/test
-
       tar xzf splits.tar.gz
-
       export HAIL_TEST_SKIP_R=1
-
-      export HAIL_GS_FS_TEST_RESOURCES=gs://hail-test-dmk9z/{{ upload_test_resources_to_gcs.token
-      }}/test/resources/fs
-
-      java -cp hail-test.jar:$SPARK_HOME/jars/* org.testng.TestNG -listener is.hail.LogTestListener
-      testng-splits-1.xml
-
-      '
+      export HAIL_GS_FS_TEST_RESOURCES=gs://hail-test-dmk9z/{{ upload_test_resources_to_gcs.token }}/test/resources/fs
+      java -cp hail-test.jar:$SPARK_HOME/jars/* org.testng.TestNG -listener is.hail.LogTestListener testng-splits-1.xml
     inputs:
       - from: /resources.tar.gz
         to: /io/resources.tar.gz
@@ -1040,25 +914,15 @@ steps:
     resources:
       memory: 7.5G
       cpu: '2'
-    script: 'set -ex
-
+    script: |
+      set -ex
       cd /io
-
       mkdir -p src/test
-
       tar xzf resources.tar.gz -C src/test
-
       tar xzf splits.tar.gz
-
       export HAIL_TEST_SKIP_R=1
-
-      export HAIL_GS_FS_TEST_RESOURCES=gs://hail-test-dmk9z/{{ upload_test_resources_to_gcs.token
-      }}/test/resources/fs
-
-      java -cp hail-test.jar:$SPARK_HOME/jars/* org.testng.TestNG -listener is.hail.LogTestListener
-      testng-splits-2.xml
-
-      '
+      export HAIL_GS_FS_TEST_RESOURCES=gs://hail-test-dmk9z/{{ upload_test_resources_to_gcs.token }}/test/resources/fs
+      java -cp hail-test.jar:$SPARK_HOME/jars/* org.testng.TestNG -listener is.hail.LogTestListener testng-splits-2.xml
     inputs:
       - from: /resources.tar.gz
         to: /io/resources.tar.gz
@@ -1086,25 +950,15 @@ steps:
     resources:
       memory: 7.5G
       cpu: '2'
-    script: 'set -ex
-
+    script: |
+      set -ex
       cd /io
-
       mkdir -p src/test
-
       tar xzf resources.tar.gz -C src/test
-
       tar xzf splits.tar.gz
-
       export HAIL_TEST_SKIP_R=1
-
-      export HAIL_GS_FS_TEST_RESOURCES=gs://hail-test-dmk9z/{{ upload_test_resources_to_gcs.token
-      }}/test/resources/fs
-
-      java -cp hail-test.jar:$SPARK_HOME/jars/* org.testng.TestNG -listener is.hail.LogTestListener
-      testng-splits-3.xml
-
-      '
+      export HAIL_GS_FS_TEST_RESOURCES=gs://hail-test-dmk9z/{{ upload_test_resources_to_gcs.token }}/test/resources/fs
+      java -cp hail-test.jar:$SPARK_HOME/jars/* org.testng.TestNG -listener is.hail.LogTestListener testng-splits-3.xml
     inputs:
       - from: /resources.tar.gz
         to: /io/resources.tar.gz
@@ -1132,25 +986,15 @@ steps:
     resources:
       memory: 7.5G
       cpu: '2'
-    script: 'set -ex
-
+    script: |
+      set -ex
       cd /io
-
       mkdir -p src/test
-
       tar xzf resources.tar.gz -C src/test
-
       tar xzf splits.tar.gz
-
       export HAIL_TEST_SKIP_R=1
-
-      export HAIL_GS_FS_TEST_RESOURCES=gs://hail-test-dmk9z/{{ upload_test_resources_to_gcs.token
-      }}/test/resources/fs
-
-      java -cp hail-test.jar:$SPARK_HOME/jars/* org.testng.TestNG -listener is.hail.LogTestListener
-      testng-splits-4.xml
-
-      '
+      export HAIL_GS_FS_TEST_RESOURCES=gs://hail-test-dmk9z/{{ upload_test_resources_to_gcs.token }}/test/resources/fs
+      java -cp hail-test.jar:$SPARK_HOME/jars/* org.testng.TestNG -listener is.hail.LogTestListener testng-splits-4.xml
     inputs:
       - from: /resources.tar.gz
         to: /io/resources.tar.gz
@@ -1210,52 +1054,34 @@ steps:
     name: check_hail_python37
     image:
       valueFrom: hail_pip_installed_python37_image.image
-    script: 'set -x
-
-      SITE_PACKAGES=$(pip3 show hail | grep Location | sed ''s/Location: //'')
-
+    script:
+      set -x
+      SITE_PACKAGES=$(pip3 show hail | grep Location | sed 's/Location: //')
 
       exit_status=0
 
-
-      python3 -m flake8 --config setup.cfg $SITE_PACKAGES/hail $SITE_PACKAGES/hailtop
-      || exit_status=$?
-
+      python3 -m flake8 --config setup.cfg $SITE_PACKAGES/hail $SITE_PACKAGES/hailtop || exit_status=$?
       python3 -m pylint --rcfile pylintrc hailtop || exit_status=$?
-
-      (cd $SITE_PACKAGES/hailtop/ && mypy --config-file /setup.cfg utils batch google_storage.py)
-      || exit_status=$?
-
+      (cd $SITE_PACKAGES/hailtop/ && mypy --config-file /setup.cfg utils batch google_storage.py) || exit_status=$?
 
       exit $exit_status
-
-      '
     dependsOn:
       - hail_pip_installed_python37_image
   - kind: runImage
     name: check_hail_python36
     image:
       valueFrom: hail_pip_installed_python36_image.image
-    script: 'set -x
-
-      SITE_PACKAGES=$(pip3 show hail | grep Location | sed ''s/Location: //'')
-
+    script: |
+      set -x
+      SITE_PACKAGES=$(pip3 show hail | grep Location | sed 's/Location: //')
 
       exit_status=0
 
-
-      python3 -m flake8 --config setup.cfg $SITE_PACKAGES/hail $SITE_PACKAGES/hailtop
-      || exit_status=$?
-
+      python3 -m flake8 --config setup.cfg $SITE_PACKAGES/hail $SITE_PACKAGES/hailtop || exit_status=$?
       python3 -m pylint --rcfile pylintrc hailtop || exit_status=$?
-
-      (cd $SITE_PACKAGES/hailtop/ && mypy --config-file /setup.cfg utils batch google_storage.py)
-      || exit_status=$?
-
+      (cd $SITE_PACKAGES/hailtop/ && mypy --config-file /setup.cfg utils batch google_storage.py) || exit_status=$?
 
       exit $exit_status
-
-      '
     dependsOn:
       - hail_pip_installed_python36_image
   - kind: buildImage
@@ -1269,34 +1095,20 @@ steps:
     name: render_notebook_nginx_conf
     image:
       valueFrom: service_base_image.image
-    script: 'set -ex
-
+    script: |
+      set -ex
       cd /io
-
       rm -rf repo
-
       mkdir repo
-
       cd repo
-
       {{ code.checkout_script }}
-
       cd notebook
-
       {% if deploy %}
-
       DEPLOY=true
-
       {% else %}
-
       DEPLOY=false
-
       {% endif %}
-
-      python3 ../ci/jinja2_render.py ''{"deploy": ''${DEPLOY}'', "default_ns": {"name":
-      "{{ default_ns.name }}"}}'' nginx.conf nginx.conf.out
-
-      '
+      python3 ../ci/jinja2_render.py '{"deploy": '${DEPLOY}', "default_ns": {"name": "{{ default_ns.name }}"}}' nginx.conf nginx.conf.out
     outputs:
       - from: /io/repo/notebook/nginx.conf.out
         to: /notebook/nginx.conf.out
@@ -1318,15 +1130,11 @@ steps:
     name: check_notebook
     image:
       valueFrom: notebook_image.image
-    script: 'set -ex
-
-      SITE_PACKAGES=$(pip3 show notebook | grep Location | sed ''s/Location: //'')
-
+    script: |
+      set -ex
+      SITE_PACKAGES=$(pip3 show notebook | grep Location | sed 's/Location: //')
       python3 -m flake8 $SITE_PACKAGES/notebook
-
       python3 -m pylint --rcfile pylintrc notebook
-
-      '
     dependsOn:
       - notebook_image
   - kind: runImage
@@ -1336,38 +1144,22 @@ steps:
     resources:
       memory: 7.5G
       cpu: '2'
-    script: 'set -ex
-
+    script: |
+      set -ex
       cd /io
-
       tar xzf test.tar.gz
-
       tar xzf resources.tar.gz
-
       tar xzf data.tar.gz
-
       tar xvf debug-wheel-container.tar
-
       python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
-
       export HAIL_TEST_RESOURCES_DIR=./resources
-
       export HAIL_DOCTEST_DATA_DIR=./data
-
       export HAIL_TEST_BUCKET=hail-test-dmk9z
-
       export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
-
       export PYSPARK_SUBMIT_ARGS="--driver-memory 6g pyspark-shell"
-
       export PYTEST_SPLITS=5
-
       export PYTEST_SPLIT_INDEX=0
-
-      python3 -m pytest --ignore=test/hailtop/batch/ --ignore=test/hailtop/aiotools/test_copy.py
-      --log-cli-level=INFO -s -vv --instafail --durations=50 test
-
-      '
+      python3 -m pytest --ignore=test/hailtop/batch/ --ignore=test/hailtop/aiotools/test_copy.py --log-cli-level=INFO -s -vv --instafail --durations=50 test
     inputs:
       - from: /debug-wheel-container.tar
         to: /io/debug-wheel-container.tar
@@ -1393,38 +1185,22 @@ steps:
     resources:
       memory: 7.5G
       cpu: '2'
-    script: 'set -ex
-
+    script: |
+      set -ex
       cd /io
-
       tar xzf test.tar.gz
-
       tar xzf resources.tar.gz
-
       tar xzf data.tar.gz
-
       tar xvf debug-wheel-container.tar
-
       python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
-
       export HAIL_TEST_RESOURCES_DIR=./resources
-
       export HAIL_DOCTEST_DATA_DIR=./data
-
       export HAIL_TEST_BUCKET=hail-test-dmk9z
-
       export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
-
       export PYSPARK_SUBMIT_ARGS="--driver-memory 6g pyspark-shell"
-
       export PYTEST_SPLITS=5
-
       export PYTEST_SPLIT_INDEX=1
-
-      python3 -m pytest --ignore=test/hailtop/batch/ --ignore=test/hailtop/aiotools/test_copy.py
-      --log-cli-level=INFO -s -vv --instafail --durations=50 test
-
-      '
+      python3 -m pytest --ignore=test/hailtop/batch/ --ignore=test/hailtop/aiotools/test_copy.py --log-cli-level=INFO -s -vv --instafail --durations=50 test
     inputs:
       - from: /debug-wheel-container.tar
         to: /io/debug-wheel-container.tar
@@ -1450,38 +1226,22 @@ steps:
     resources:
       memory: 7.5G
       cpu: '2'
-    script: 'set -ex
-
+    script: |
+      set -ex
       cd /io
-
       tar xzf test.tar.gz
-
       tar xzf resources.tar.gz
-
       tar xzf data.tar.gz
-
       tar xvf debug-wheel-container.tar
-
       python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
-
       export HAIL_TEST_RESOURCES_DIR=./resources
-
       export HAIL_DOCTEST_DATA_DIR=./data
-
       export HAIL_TEST_BUCKET=hail-test-dmk9z
-
       export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
-
       export PYSPARK_SUBMIT_ARGS="--driver-memory 6g pyspark-shell"
-
       export PYTEST_SPLITS=5
-
       export PYTEST_SPLIT_INDEX=2
-
-      python3 -m pytest --ignore=test/hailtop/batch/ --ignore=test/hailtop/aiotools/test_copy.py
-      --log-cli-level=INFO -s -vv --instafail --durations=50 test
-
-      '
+      python3 -m pytest --ignore=test/hailtop/batch/ --ignore=test/hailtop/aiotools/test_copy.py --log-cli-level=INFO -s -vv --instafail --durations=50 test
     inputs:
       - from: /debug-wheel-container.tar
         to: /io/debug-wheel-container.tar
@@ -1507,38 +1267,22 @@ steps:
     resources:
       memory: 7.5G
       cpu: '2'
-    script: 'set -ex
-
+    script: |
+      set -ex
       cd /io
-
       tar xzf test.tar.gz
-
       tar xzf resources.tar.gz
-
       tar xzf data.tar.gz
-
       tar xvf debug-wheel-container.tar
-
       python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
-
       export HAIL_TEST_RESOURCES_DIR=./resources
-
       export HAIL_DOCTEST_DATA_DIR=./data
-
       export HAIL_TEST_BUCKET=hail-test-dmk9z
-
       export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
-
       export PYSPARK_SUBMIT_ARGS="--driver-memory 6g pyspark-shell"
-
       export PYTEST_SPLITS=5
-
       export PYTEST_SPLIT_INDEX=3
-
-      python3 -m pytest --ignore=test/hailtop/batch/ --ignore=test/hailtop/aiotools/test_copy.py
-      --log-cli-level=INFO -s -vv --instafail --durations=50 test
-
-      '
+      python3 -m pytest --ignore=test/hailtop/batch/ --ignore=test/hailtop/aiotools/test_copy.py --log-cli-level=INFO -s -vv --instafail --durations=50 test
     inputs:
       - from: /debug-wheel-container.tar
         to: /io/debug-wheel-container.tar
@@ -1564,38 +1308,22 @@ steps:
     resources:
       memory: 7.5G
       cpu: '2'
-    script: 'set -ex
-
+    script: |
+      set -ex
       cd /io
-
       tar xzf test.tar.gz
-
       tar xzf resources.tar.gz
-
       tar xzf data.tar.gz
-
       tar xvf debug-wheel-container.tar
-
       python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
-
       export HAIL_TEST_RESOURCES_DIR=./resources
-
       export HAIL_DOCTEST_DATA_DIR=./data
-
       export HAIL_TEST_BUCKET=hail-test-dmk9z
-
       export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
-
       export PYSPARK_SUBMIT_ARGS="--driver-memory 6g pyspark-shell"
-
       export PYTEST_SPLITS=5
-
       export PYTEST_SPLIT_INDEX=4
-
-      python3 -m pytest --ignore=test/hailtop/batch/ --ignore=test/hailtop/aiotools/test_copy.py
-      --log-cli-level=INFO -s -vv --instafail --durations=50 test
-
-      '
+      python3 -m pytest --ignore=test/hailtop/batch/ --ignore=test/hailtop/aiotools/test_copy.py --log-cli-level=INFO -s -vv --instafail --durations=50 test
     inputs:
       - from: /debug-wheel-container.tar
         to: /io/debug-wheel-container.tar
@@ -1621,24 +1349,15 @@ steps:
     resources:
       memory: 7.5G
       cpu: '2'
-    script: 'set -ex
-
+    script: |
+      set -ex
       cd /io
-
       tar xzf test.tar.gz
-
       tar xvf debug-wheel-container.tar
-
       python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
-
       export HAIL_TEST_BUCKET=hail-test-dmk9z
-
       export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
-
-      python3 -m pytest --log-cli-level=INFO -s -vv --instafail --durations=50 -n
-      10 test/hailtop/aiotools/test_copy.py
-
-      '
+      python3 -m pytest --log-cli-level=INFO -s -vv --instafail --durations=50 -n 10 test/hailtop/aiotools/test_copy.py
     inputs:
       - from: /debug-wheel-container.tar
         to: /io/debug-wheel-container.tar
@@ -1660,34 +1379,20 @@ steps:
     resources:
       memory: 7.5G
       cpu: '2'
-    script: 'set -ex
-
+    script: |
+      set -ex
       cd /io
-
       tar xzf test.tar.gz
-
       tar xzf resources.tar.gz
-
       tar xzf data.tar.gz
-
       tar xvf wheel-container.tar
-
       python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
-
       export HAIL_TEST_RESOURCES_DIR=./resources
-
       export HAIL_DOCTEST_DATA_DIR=./data
-
       export HAIL_TEST_BUCKET=hail-test-dmk9z
-
       export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
-
       export PYSPARK_SUBMIT_ARGS="--driver-memory 6g pyspark-shell"
-
-      python3 -m pytest -m unchecked_allocator --ignore=test/hailtop/batch/ --log-cli-level=INFO
-      -s -vv --instafail --durations=50 test
-
-      '
+      python3 -m pytest -m unchecked_allocator --ignore=test/hailtop/batch/ --log-cli-level=INFO -s -vv --instafail --durations=50 test
     inputs:
       - from: /wheel-container.tar
         to: /io/wheel-container.tar
@@ -1713,34 +1418,20 @@ steps:
     resources:
       memory: 7.5G
       cpu: '2'
-    script: 'set -ex
-
+    script: |
+      set -ex
       cd /io
-
       tar xzf test.tar.gz
-
       tar xzf resources.tar.gz
-
       tar xzf data.tar.gz
-
       tar xvf wheel-container.tar
-
       python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
-
       export HAIL_TEST_RESOURCES_DIR=./resources
-
       export HAIL_DOCTEST_DATA_DIR=./data
-
       export PYTEST_SPLITS=5
-
       export PYTEST_SPLIT_INDEX=0
-
       export HAIL_QUERY_BACKEND=local
-
-      python3 -m pytest --ignore=test/hailtop/ --log-cli-level=INFO -s -vv --instafail
-      --durations=50 test
-
-      '
+      python3 -m pytest --ignore=test/hailtop/ --log-cli-level=INFO -s -vv --instafail --durations=50 test
     inputs:
       - from: /wheel-container.tar
         to: /io/wheel-container.tar
@@ -1766,34 +1457,20 @@ steps:
     resources:
       memory: 7.5G
       cpu: '2'
-    script: 'set -ex
-
+    script: |
+      set -ex
       cd /io
-
       tar xzf test.tar.gz
-
       tar xzf resources.tar.gz
-
       tar xzf data.tar.gz
-
       tar xvf wheel-container.tar
-
       python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
-
       export HAIL_TEST_RESOURCES_DIR=./resources
-
       export HAIL_DOCTEST_DATA_DIR=./data
-
       export PYTEST_SPLITS=5
-
       export PYTEST_SPLIT_INDEX=1
-
       export HAIL_QUERY_BACKEND=local
-
-      python3 -m pytest --ignore=test/hailtop/ --log-cli-level=INFO -s -vv --instafail
-      --durations=50 test
-
-      '
+      python3 -m pytest --ignore=test/hailtop/ --log-cli-level=INFO -s -vv --instafail --durations=50 test
     inputs:
       - from: /wheel-container.tar
         to: /io/wheel-container.tar
@@ -1819,36 +1496,21 @@ steps:
     resources:
       memory: 7.5G
       cpu: '2'
-    script: 'set -ex
-
+    script: |
+      set -ex
       cd /io
-
       tar xzf test.tar.gz
-
       tar xzf resources.tar.gz
-
       tar xzf data.tar.gz
-
       tar xvf wheel-container.tar
-
       python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
-
       export HAIL_TEST_RESOURCES_DIR=./resources
-
       export HAIL_DOCTEST_DATA_DIR=./data
-
       export HAIL_TEST_BUCKET=hail-test-dmk9z
-
       export PYTEST_SPLITS=5
-
       export PYTEST_SPLIT_INDEX=2
-
       export HAIL_QUERY_BACKEND=local
-
-      python3 -m pytest --ignore=test/hailtop/ --log-cli-level=INFO -s -vv --instafail
-      --durations=50 test
-
-      '
+      python3 -m pytest --ignore=test/hailtop/ --log-cli-level=INFO -s -vv --instafail --durations=50 test
     inputs:
       - from: /wheel-container.tar
         to: /io/wheel-container.tar
@@ -1874,34 +1536,20 @@ steps:
     resources:
       memory: 7.5G
       cpu: '2'
-    script: 'set -ex
-
+    script: |
+      set -ex
       cd /io
-
       tar xzf test.tar.gz
-
       tar xzf resources.tar.gz
-
       tar xzf data.tar.gz
-
       tar xvf wheel-container.tar
-
       python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
-
       export HAIL_TEST_RESOURCES_DIR=./resources
-
       export HAIL_DOCTEST_DATA_DIR=./data
-
       export PYTEST_SPLITS=5
-
       export PYTEST_SPLIT_INDEX=3
-
       export HAIL_QUERY_BACKEND=local
-
-      python3 -m pytest --ignore=test/hailtop/ --log-cli-level=INFO -s -vv --instafail
-      --durations=50 test
-
-      '
+      python3 -m pytest --ignore=test/hailtop/ --log-cli-level=INFO -s -vv --instafail --durations=50 test
     inputs:
       - from: /wheel-container.tar
         to: /io/wheel-container.tar
@@ -1927,34 +1575,20 @@ steps:
     resources:
       memory: 7.5G
       cpu: '2'
-    script: 'set -ex
-
+    script: |
+      set -ex
       cd /io
-
       tar xzf test.tar.gz
-
       tar xzf resources.tar.gz
-
       tar xzf data.tar.gz
-
       tar xvf wheel-container.tar
-
       python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
-
       export HAIL_TEST_RESOURCES_DIR=./resources
-
       export HAIL_DOCTEST_DATA_DIR=./data
-
       export PYTEST_SPLITS=5
-
       export PYTEST_SPLIT_INDEX=4
-
       export HAIL_QUERY_BACKEND=local
-
-      python3 -m pytest --ignore=test/hailtop/ --log-cli-level=INFO -s -vv --instafail
-      --durations=50 test
-
-      '
+      python3 -m pytest --ignore=test/hailtop/ --log-cli-level=INFO -s -vv --instafail --durations=50 test
     inputs:
       - from: /wheel-container.tar
         to: /io/wheel-container.tar
@@ -1977,25 +1611,47 @@ steps:
     name: test_python_docs
     image:
       valueFrom: hail_base_image.image
-    script: "set -ex\ncd /hail/python/hail\npython3 -m pytest --instafail \\\n  --doctest-modules\
-      \ \\\n  --doctest-glob='*.rst' \\\n  --ignore=docs/conf.py \\\n  --ignore=docs/doctest_write_data.py\n"
+    script: |
+      set -ex
+      cd /hail/python/hail
+      python3 -m pytest --instafail \
+        --doctest-modules \
+        --doctest-glob='*.rst' \
+        --ignore=docs/conf.py \
+        --ignore=docs/doctest_write_data.py
     dependsOn:
       - hail_base_image
   - kind: runImage
     name: make_docs
     image:
       valueFrom: hail_base_image.image
-    script: "set -ex\nexport HAIL_SHORT_VERSION='0.2'\nexport SPHINXOPTS='-tchecktutorial'\n\
-      \nmkdir -p {{ token }}/python\ncd {{ token }}\nunzip -q -d python /io/hail.zip\n\
-      \ntar xzf /io/website-src.tar.gz\nexport HAIL_WEBSITE_DIR=$(pwd)/website/website/\n\
-      \nsed -E \"s/\\(hail\\#([0-9]+)\\)/(\\[#\\1](https:\\/\\/github.com\\/hail-is\\\
-      /hail\\/pull\\/\\1))/g\" \\\n  < python/hail/docs/change_log.md \\\n  | pandoc\
-      \ -o python/hail/docs/change_log.rst\n\nmake -C python/hail/docs BUILDDIR=_build\
-      \ clean html\nmake -C python/hailtop/batch/docs BUILDDIR=_build clean html\n\
-      \nmkdir -p www/docs\nmv python/hail/docs/_build/html www/docs/0.2\nmv python/hailtop/batch/docs/_build/html\
-      \ www/docs/batch\n\nHAIL_CACHE_VERSION=$(cat python/hail/hail_version)\nfind\
-      \ www -iname *.html -type f -exec sed -i -e \"s/\\.css/\\.css\\?v\\=$HAIL_CACHE_VERSION/\"\
-      \ {} +;\n\ntar czf /io/www.tar.gz www\n"
+    script: |
+      set -ex
+      export HAIL_SHORT_VERSION='0.2'
+      export SPHINXOPTS='-tchecktutorial'
+
+      mkdir -p {{ token }}/python
+      cd {{ token }}
+      unzip -q -d python /io/hail.zip
+
+      tar xzf /io/website-src.tar.gz
+      export HAIL_WEBSITE_DIR=$(pwd)/website/website/
+
+      sed -E "s/\(hail\#([0-9]+)\)/(\[#\1](https:\/\/github.com\/hail-is\/hail\/pull\/\1))/g" \
+        < python/hail/docs/change_log.md \
+        | pandoc -o python/hail/docs/change_log.rst
+
+      make -C python/hail/docs BUILDDIR=_build clean html
+      make -C python/hailtop/batch/docs BUILDDIR=_build clean html
+
+      mkdir -p www/docs
+      mv python/hail/docs/_build/html www/docs/0.2
+      mv python/hailtop/batch/docs/_build/html www/docs/batch
+
+      HAIL_CACHE_VERSION=$(cat python/hail/hail_version)
+      find www -iname *.html -type f -exec sed -i -e "s/\.css/\.css\?v\=$HAIL_CACHE_VERSION/" {} +;
+
+      tar czf /io/www.tar.gz www
     resources:
       memory: 7.5G
       cpu: '2'
@@ -2014,14 +1670,29 @@ steps:
     name: make_pip_versioned_docs
     image:
       valueFrom: hail_run_image.image
-    script: "set -ex\n\nmkdir repo\ncd repo\n{{ code.checkout_script }}\n\nmake -C\
-      \ hail python/hail/hail_pip_version\n\n# dev deploy elides the hail-is remote,\
-      \ add it and retrieve the tags\ngit remote add hail-is https://github.com/hail-is/hail.git\n\
-      git fetch hail-is\n\n# 0.2.63 was the last old-style docs\nif [[ \"$(cat hail/python/hail/hail_pip_version)\"\
-      \ != \"0.2.63\" ]]\nthen\n    # if the tag doesn't exist, this commit is the\
-      \ release\n    git checkout $(cat hail/python/hail/hail_pip_version) || true\n\
-      fi\n\nPYTHONPATH=$PYTHONPATH:$(pwd)/hail/python make -C hail hail-docs-no-test\
-      \ batch-docs\n\ntar czf /io/docs.tar.gz -C hail/build/www .\n"
+    script: |
+      set -ex
+
+      mkdir repo
+      cd repo
+      {{ code.checkout_script }}
+
+      make -C hail python/hail/hail_pip_version
+
+      # dev deploy elides the hail-is remote, add it and retrieve the tags
+      git remote add hail-is https://github.com/hail-is/hail.git
+      git fetch hail-is
+
+      # 0.2.63 was the last old-style docs
+      if [[ "$(cat hail/python/hail/hail_pip_version)" != "0.2.63" ]]
+      then
+          # if the tag doesn't exist, this commit is the release
+          git checkout $(cat hail/python/hail/hail_pip_version) || true
+      fi
+
+      PYTHONPATH=$PYTHONPATH:$(pwd)/hail/python make -C hail hail-docs-no-test batch-docs
+
+      tar czf /io/docs.tar.gz -C hail/build/www .
     resources:
       memory: 7.5G
       cpu: '2'
@@ -2046,34 +1717,20 @@ steps:
     name: render_prom_nginx_conf
     image:
       valueFrom: service_base_image.image
-    script: 'set -ex
-
+    script: |
+      set -ex
       cd /io
-
       rm -rf repo
-
       mkdir repo
-
       cd repo
-
       {{ code.checkout_script }}
-
       cd prometheus
-
       {% if deploy %}
-
       DEPLOY=true
-
       {% else %}
-
       DEPLOY=false
-
       {% endif %}
-
-      python3 ../ci/jinja2_render.py ''{"deploy": ''${DEPLOY}'', "default_ns": {"name":
-      "{{ default_ns.name }}"}}'' nginx.conf nginx.conf.out
-
-      '
+      python3 ../ci/jinja2_render.py '{"deploy": '${DEPLOY}', "default_ns": {"name": "{{ default_ns.name }}"}}' nginx.conf nginx.conf.out
     outputs:
       - from: /io/repo/prometheus/nginx.conf.out
         to: /prometheus/nginx.conf.out
@@ -2107,12 +1764,9 @@ steps:
     name: create_dummy_oauth2_client_secret
     image:
       valueFrom: base_image.image
-    script: 'set -ex
-
-      kubectl -n {{ default_ns.name }} create secret generic auth-oauth2-client-secret
-      || true
-
-      '
+    script: |
+      set -ex
+      kubectl -n {{ default_ns.name }} create secret generic auth-oauth2-client-secret || true
     scopes:
       - test
       - dev
@@ -2144,26 +1798,20 @@ steps:
     name: check_monitoring
     image:
       valueFrom: monitoring_image.image
-    script: 'set -ex
-
-      SITE_PACKAGES=$(pip3 show monitoring | grep Location | sed ''s/Location: //'')
-
+    script: |
+      set -ex
+      SITE_PACKAGES=$(pip3 show monitoring | grep Location | sed 's/Location: //')
       python3 -m flake8 $SITE_PACKAGES/monitoring
-
       python3 -m pylint --rcfile pylintrc monitoring
-
-      '
     dependsOn:
       - monitoring_image
   - kind: runImage
     name: delete_monitoring_tables
     image:
       valueFrom: service_base_image.image
-    script: 'set -ex
-
+    script: |
+      set -ex
       mysql --defaults-extra-file=/sql-config/sql-config.cnf < /io/sql/delete-monitoring-tables.sql
-
-      '
     inputs:
       - from: /repo/monitoring/sql
         to: /io/sql
@@ -2219,11 +1867,9 @@ steps:
     name: test_monitoring
     image:
       valueFrom: test_monitoring_image.image
-    script: 'set -ex
-
+    script: |
+      set -ex
       python3 -m pytest --log-cli-level=INFO -s -vv --instafail --durations=50 /test/
-
-      '
     secrets:
       - name: gce-deploy-config
         namespace:
@@ -2249,23 +1895,46 @@ steps:
     name: test_auth_copy_paste_login
     image:
       valueFrom: service_base_image.image
-    script: "set -ex\n\nexport HAIL_DEPLOY_CONFIG_FILE=/deploy-config/deploy-config.json\n\
-      \nCOPY_PASTE_TOKEN=$(hailctl curl {{ default_ns.name }} \\\n               \
-      \    auth /api/v1alpha/copy-paste-token \\\n                   -fsSL \\\n  \
-      \                 --retry 3 \\\n                   --retry-delay 5 \\\n    \
-      \               -XPOST)\nhailctl auth copy-paste-login \"$COPY_PASTE_TOKEN\"\
-      \ --namespace {{ default_ns.name }}\n\nif hailctl auth copy-paste-login \"$COPY_PASTE_TOKEN\"\
-      \ --namespace {{ default_ns.name }}\nthen\n    echo \"reusing a token should\
-      \ not work, but did\"\n    exit 1\nfi\n\nCOPY_PASTE_TOKEN=$(hailctl curl {{\
-      \ default_ns.name }} \\\n                   auth /api/v1alpha/copy-paste-token\
-      \ \\\n                   -fsSL \\\n                   --retry 3 \\\n       \
-      \            --retry-delay 5 \\\n                   -XPOST)\npython3 -c '\n\
-      from hailtop.auth import copy_paste_login;\ncopy_paste_login(\"'$COPY_PASTE_TOKEN'\"\
-      , \"{{ default_ns.name }}\")\n'\n\npython3 -c '\nfrom hailtop.auth import copy_paste_login;\n\
-      import aiohttp\ntry:\n    copy_paste_login(\"'$COPY_PASTE_TOKEN'\", \"{{ default_ns.name\
-      \ }}\")\n    print(\"reusing a token should not work, but did\")\n    sys.exit(1)\n\
-      except aiohttp.client_exceptions.ClientResponseError as exc:\n    assert(exc.status\
-      \ == 401)\n'\n"
+    script: |
+      set -ex
+
+      export HAIL_DEPLOY_CONFIG_FILE=/deploy-config/deploy-config.json
+
+      COPY_PASTE_TOKEN=$(hailctl curl {{ default_ns.name }} \
+                         auth /api/v1alpha/copy-paste-token \
+                         -fsSL \
+                         --retry 3 \
+                         --retry-delay 5 \
+                         -XPOST)
+      hailctl auth copy-paste-login "$COPY_PASTE_TOKEN" --namespace {{ default_ns.name }}
+
+      if hailctl auth copy-paste-login "$COPY_PASTE_TOKEN" --namespace {{ default_ns.name }}
+      then
+          echo "reusing a token should not work, but did"
+          exit 1
+      fi
+
+      COPY_PASTE_TOKEN=$(hailctl curl {{ default_ns.name }} \
+                         auth /api/v1alpha/copy-paste-token \
+                         -fsSL \
+                         --retry 3 \
+                         --retry-delay 5 \
+                         -XPOST)
+      python3 -c '
+      from hailtop.auth import copy_paste_login;
+      copy_paste_login("'$COPY_PASTE_TOKEN'", "{{ default_ns.name }}")
+      '
+
+      python3 -c '
+      from hailtop.auth import copy_paste_login;
+      import aiohttp
+      try:
+          copy_paste_login("'$COPY_PASTE_TOKEN'", "{{ default_ns.name }}")
+          print("reusing a token should not work, but did")
+          sys.exit(1)
+      except aiohttp.client_exceptions.ClientResponseError as exc:
+          assert(exc.status == 401)
+      '
     secrets:
       - name: test-tokens
         namespace:
@@ -2285,18 +1954,34 @@ steps:
     name: test_auth_copy_paste_login_timeout
     image:
       valueFrom: service_base_image.image
-    script: "set -ex\n\nexport HAIL_DEPLOY_CONFIG_FILE=/deploy-config/deploy-config.json\n\
-      \nCOPY_PASTE_TOKEN=$(hailctl curl {{ default_ns.name }} \\\n               \
-      \    auth /api/v1alpha/copy-paste-token \\\n                   -fsSL \\\n  \
-      \                 --retry 3 \\\n                   --retry-delay 5 \\\n    \
-      \               -XPOST)\nsleep $(( 5 * 60 + 1))\nif hailctl auth copy-paste-login\
-      \ \"$COPY_PASTE_TOKEN\" --namespace {{ default_ns.name }}\nthen\n    echo \"\
-      using an expired token should not work, but did\"\n    exit 1\nfi\n\npython3\
-      \ -c '\nimport aiohttp\nfrom hailtop.auth import copy_paste_login;\ntry:\n \
-      \   copy_paste_login(\"'$COPY_PASTE_TOKEN'\", \"{{ default_ns.name }}\")\n \
-      \   print(\"using an expired token should not work, but did\")\n    sys.exit(1)\n\
-      except aiohttp.client_exceptions.ClientResponseError as exc:\n    assert(exc.status\
-      \ == 401)\n'\n"
+    script: |
+      set -ex
+
+      export HAIL_DEPLOY_CONFIG_FILE=/deploy-config/deploy-config.json
+
+      COPY_PASTE_TOKEN=$(hailctl curl {{ default_ns.name }} \
+                         auth /api/v1alpha/copy-paste-token \
+                         -fsSL \
+                         --retry 3 \
+                         --retry-delay 5 \
+                         -XPOST)
+      sleep $(( 5 * 60 + 1))
+      if hailctl auth copy-paste-login "$COPY_PASTE_TOKEN" --namespace {{ default_ns.name }}
+      then
+          echo "using an expired token should not work, but did"
+          exit 1
+      fi
+
+      python3 -c '
+      import aiohttp
+      from hailtop.auth import copy_paste_login;
+      try:
+          copy_paste_login("'$COPY_PASTE_TOKEN'", "{{ default_ns.name }}")
+          print("using an expired token should not work, but did")
+          sys.exit(1)
+      except aiohttp.client_exceptions.ClientResponseError as exc:
+          assert(exc.status == 401)
+      '
     secrets:
       - name: test-tokens
         namespace:
@@ -2316,11 +2001,9 @@ steps:
     name: delete_batch_tables
     image:
       valueFrom: service_base_image.image
-    script: 'set -ex
-
+    script: |
+      set -ex
       mysql --defaults-extra-file=/sql-config/sql-config.cnf < /io/sql/delete-batch-tables.sql
-
-      '
     inputs:
       - from: /repo/batch/sql
         to: /io/sql
@@ -2340,11 +2023,9 @@ steps:
     name: delete_ci_tables
     image:
       valueFrom: service_base_image.image
-    script: 'set -ex
-
+    script: |
+      set -ex
       mysql --defaults-extra-file=/sql-config/sql-config.cnf < /io/sql/delete-ci-tables.sql
-
-      '
     inputs:
       - from: /repo/ci/sql
         to: /io/sql
@@ -2497,21 +2178,47 @@ steps:
     name: create_billing_projects
     image:
       valueFrom: service_base_image.image
-    script: "set -ex\n# create billing projects and add users to them\ncat > create-billing-projects.py\
-      \ <<EOF\nimport sys\nimport json\nimport asyncio\nimport aiohttp\nfrom hailtop.utils\
-      \ import async_to_blocking\nfrom hailtop.batch_client.aioclient import BatchClient\n\
-      async def create(billing_project, user, limit=None):\n    bc = BatchClient(None)\n\
-      \    try:\n        try:\n            await bc.create_billing_project(billing_project)\n\
-      \        except aiohttp.ClientResponseError as e:\n            if e.status !=\
-      \ 403 or 'already exists' not in e.message:\n                 raise\n\n    \
-      \    try:\n            await bc.add_user(user, billing_project)\n        except\
-      \ aiohttp.ClientResponseError as e:\n            if e.status != 403 or 'already\
-      \ member of billing project' not in e.message:\n                 raise\n\n \
-      \       await bc.edit_billing_limit(billing_project, limit)\n    finally:\n\
-      \        await bc.close()\nasync def main():\n    {% if deploy %}\n    benchmark_limit\
-      \ = 25\n    {% else %}\n    benchmark_limit = 5\n    {% endif %}\n\n    await\
-      \ asyncio.gather(*[\n        create(billing_project=\"benchmark\", user=\"benchmark\"\
-      , limit=benchmark_limit)\n    ])\nasync_to_blocking(main())\nEOF\npython3 create-billing-projects.py\n"
+    script: |
+      set -ex
+      # create billing projects and add users to them
+      cat > create-billing-projects.py <<EOF
+      import sys
+      import json
+      import asyncio
+      import aiohttp
+      from hailtop.utils import async_to_blocking
+      from hailtop.batch_client.aioclient import BatchClient
+      async def create(billing_project, user, limit=None):
+          bc = BatchClient(None)
+          try:
+              try:
+                  await bc.create_billing_project(billing_project)
+              except aiohttp.ClientResponseError as e:
+                  if e.status != 403 or 'already exists' not in e.message:
+                       raise
+
+              try:
+                  await bc.add_user(user, billing_project)
+              except aiohttp.ClientResponseError as e:
+                  if e.status != 403 or 'already member of billing project' not in e.message:
+                       raise
+
+              await bc.edit_billing_limit(billing_project, limit)
+          finally:
+              await bc.close()
+      async def main():
+          {% if deploy %}
+          benchmark_limit = 25
+          {% else %}
+          benchmark_limit = 5
+          {% endif %}
+
+          await asyncio.gather(*[
+              create(billing_project="benchmark", user="benchmark", limit=benchmark_limit)
+          ])
+      async_to_blocking(main())
+      EOF
+      python3 create-billing-projects.py
     secrets:
       - name: test-dev-tokens
         namespace:
@@ -2548,11 +2255,9 @@ steps:
     name: test_benchmark
     image:
       valueFrom: test_benchmark_image.image
-    script: 'set -ex
-
+    script: |
+      set -ex
       python3 -m pytest --log-cli-level=INFO -s -vv --instafail --durations=50 /test/
-
-      '
     secrets:
       - name: gce-deploy-config
         namespace:
@@ -2585,15 +2290,11 @@ steps:
     name: check_address
     image:
       valueFrom: address_image.image
-    script: 'set -ex
-
-      SITE_PACKAGES=$(pip3 show address | grep Location | sed ''s/Location: //'')
-
+    script: |
+      set -ex
+      SITE_PACKAGES=$(pip3 show address | grep Location | sed 's/Location: //')
       python3 -m flake8 $SITE_PACKAGES/address
-
       python3 -m pylint --rcfile pylintrc address
-
-      '
     dependsOn:
       - address_image
   - kind: deploy
@@ -2653,13 +2354,10 @@ steps:
     name: test_lsm
     image:
       valueFrom: base_image.image
-    script: 'cd /io/lsm
-
+    script: |
+      cd /io/lsm
       make
-
       make test
-
-      '
     inputs:
       - from: /repo/lsm
         to: /io/lsm
@@ -2693,15 +2391,11 @@ steps:
     resources:
       memory: 3.75G
       cpu: '1'
-    script: 'export HAIL_GSA_KEY_FILE=/test-gsa-key/key.json
-
+    script: |
+      export HAIL_GSA_KEY_FILE=/test-gsa-key/key.json
       export PROJECT={{ global.project }}
-
       hailctl config set batch/bucket hail-test-dmk9z
-
       python3 -m pytest --log-cli-level=INFO -s -vv --instafail --durations=50 /io/test/
-
-      '
     timeout: 600
     secrets:
       - name: gce-deploy-config
@@ -2734,20 +2428,32 @@ steps:
     name: test_batch_0
     image:
       valueFrom: batch_image.image
-    script: "set -ex\nexport PYTEST_SPLITS=5\nexport PYTEST_SPLIT_INDEX=0\nexport\
-      \ HAIL_GSA_KEY_FILE=/test-gsa-key/key.json\nexport HAIL_BASE_IMAGE={{ base_image.image\
-      \ }}\nexport CI_UTILS_IMAGE={{ ci_utils_image.image }}\nexport HAIL_CURL_IMAGE={{\
-      \ curl_image.image }}\nexport HAIL_DEFAULT_NAMESPACE={{ default_ns.name }}\n\
-      export HAIL_NETCAT_UBUNTU_IMAGE={{ netcat_ubuntu_image.image }}\nexport HAIL_HAIL_BASE_IMAGE={{\
-      \ hail_base_image.image }}\nexport DOCKER_ROOT_IMAGE=\"gcr.io/{{ global.project\
-      \ }}/ubuntu:18.04\"\nexport HAIL_TEST_TOKEN_FILE=/user-tokens/tokens.json\n\
-      export HAIL_TEST_DEV_TOKEN_FILE=/dev-tokens/tokens.json\nexport HAIL_TOKEN=\"\
-      {{ token }}\"\nhailctl config set batch/bucket hail-test-dmk9z\npython3 -m pytest\
-      \ \\\n        --log-date-format=\"%Y-%m-%dT%H:%M:%S\" \\\n        --log-format=\"\
-      %(asctime)s %(levelname)s %(name)s %(filename)s:%(lineno)d:%(funcName)s %(message)s\"\
-      \ \\\n        --log-cli-level=INFO \\\n        -s \\\n        -vv \\\n     \
-      \   --instafail \\\n        -k \"not test_scale and not test_invariants\" \\\
-      \n        --durations=0 \\\n        /io/test/\n"
+    script: |
+      set -ex
+      export PYTEST_SPLITS=5
+      export PYTEST_SPLIT_INDEX=0
+      export HAIL_GSA_KEY_FILE=/test-gsa-key/key.json
+      export HAIL_BASE_IMAGE={{ base_image.image }}
+      export CI_UTILS_IMAGE={{ ci_utils_image.image }}
+      export HAIL_CURL_IMAGE={{ curl_image.image }}
+      export HAIL_DEFAULT_NAMESPACE={{ default_ns.name }}
+      export HAIL_NETCAT_UBUNTU_IMAGE={{ netcat_ubuntu_image.image }}
+      export HAIL_HAIL_BASE_IMAGE={{ hail_base_image.image }}
+      export DOCKER_ROOT_IMAGE="gcr.io/{{ global.project }}/ubuntu:18.04"
+      export HAIL_TEST_TOKEN_FILE=/user-tokens/tokens.json
+      export HAIL_TEST_DEV_TOKEN_FILE=/dev-tokens/tokens.json
+      export HAIL_TOKEN="{{ token }}"
+      hailctl config set batch/bucket hail-test-dmk9z
+      python3 -m pytest \
+              --log-date-format="%Y-%m-%dT%H:%M:%S" \
+              --log-format="%(asctime)s %(levelname)s %(name)s %(filename)s:%(lineno)d:%(funcName)s %(message)s" \
+              --log-cli-level=INFO \
+              -s \
+              -vv \
+              --instafail \
+              -k "not test_scale and not test_invariants" \
+              --durations=0 \
+              /io/test/
     inputs:
       - from: /repo/batch/test
         to: /io/test
@@ -2790,20 +2496,32 @@ steps:
     name: test_batch_1
     image:
       valueFrom: batch_image.image
-    script: "set -ex\nexport PYTEST_SPLITS=5\nexport PYTEST_SPLIT_INDEX=1\nexport\
-      \ HAIL_GSA_KEY_FILE=/test-gsa-key/key.json\nexport HAIL_BASE_IMAGE={{ base_image.image\
-      \ }}\nexport CI_UTILS_IMAGE={{ ci_utils_image.image }}\nexport HAIL_CURL_IMAGE={{\
-      \ curl_image.image }}\nexport HAIL_DEFAULT_NAMESPACE={{ default_ns.name }}\n\
-      export HAIL_NETCAT_UBUNTU_IMAGE={{ netcat_ubuntu_image.image }}\nexport HAIL_HAIL_BASE_IMAGE={{\
-      \ hail_base_image.image }}\nexport DOCKER_ROOT_IMAGE=\"gcr.io/{{ global.project\
-      \ }}/ubuntu:18.04\"\nexport HAIL_TEST_TOKEN_FILE=/user-tokens/tokens.json\n\
-      export HAIL_TEST_DEV_TOKEN_FILE=/dev-tokens/tokens.json\nexport HAIL_TOKEN=\"\
-      {{ token }}\"\nhailctl config set batch/bucket hail-test-dmk9z\npython3 -m pytest\
-      \ \\\n        --log-date-format=\"%Y-%m-%dT%H:%M:%S\" \\\n        --log-format=\"\
-      %(asctime)s %(levelname)s %(name)s %(filename)s:%(lineno)d:%(funcName)s %(message)s\"\
-      \ \\\n        --log-cli-level=INFO \\\n        -s \\\n        -vv \\\n     \
-      \   --instafail \\\n        -k \"not test_scale and not test_invariants\" \\\
-      \n        --durations=0 \\\n        /io/test/\n"
+    script: |
+      set -ex
+      export PYTEST_SPLITS=5
+      export PYTEST_SPLIT_INDEX=1
+      export HAIL_GSA_KEY_FILE=/test-gsa-key/key.json
+      export HAIL_BASE_IMAGE={{ base_image.image }}
+      export CI_UTILS_IMAGE={{ ci_utils_image.image }}
+      export HAIL_CURL_IMAGE={{ curl_image.image }}
+      export HAIL_DEFAULT_NAMESPACE={{ default_ns.name }}
+      export HAIL_NETCAT_UBUNTU_IMAGE={{ netcat_ubuntu_image.image }}
+      export HAIL_HAIL_BASE_IMAGE={{ hail_base_image.image }}
+      export DOCKER_ROOT_IMAGE="gcr.io/{{ global.project }}/ubuntu:18.04"
+      export HAIL_TEST_TOKEN_FILE=/user-tokens/tokens.json
+      export HAIL_TEST_DEV_TOKEN_FILE=/dev-tokens/tokens.json
+      export HAIL_TOKEN="{{ token }}"
+      hailctl config set batch/bucket hail-test-dmk9z
+      python3 -m pytest \
+              --log-date-format="%Y-%m-%dT%H:%M:%S" \
+              --log-format="%(asctime)s %(levelname)s %(name)s %(filename)s:%(lineno)d:%(funcName)s %(message)s" \
+              --log-cli-level=INFO \
+              -s \
+              -vv \
+              --instafail \
+              -k "not test_scale and not test_invariants" \
+              --durations=0 \
+              /io/test/
     inputs:
       - from: /repo/batch/test
         to: /io/test
@@ -2846,20 +2564,32 @@ steps:
     name: test_batch_2
     image:
       valueFrom: batch_image.image
-    script: "set -ex\nexport PYTEST_SPLITS=5\nexport PYTEST_SPLIT_INDEX=2\nexport\
-      \ HAIL_GSA_KEY_FILE=/test-gsa-key/key.json\nexport HAIL_BASE_IMAGE={{ base_image.image\
-      \ }}\nexport CI_UTILS_IMAGE={{ ci_utils_image.image }}\nexport HAIL_CURL_IMAGE={{\
-      \ curl_image.image }}\nexport HAIL_DEFAULT_NAMESPACE={{ default_ns.name }}\n\
-      export HAIL_NETCAT_UBUNTU_IMAGE={{ netcat_ubuntu_image.image }}\nexport HAIL_HAIL_BASE_IMAGE={{\
-      \ hail_base_image.image }}\nexport DOCKER_ROOT_IMAGE=\"gcr.io/{{ global.project\
-      \ }}/ubuntu:18.04\"\nexport HAIL_TEST_TOKEN_FILE=/user-tokens/tokens.json\n\
-      export HAIL_TEST_DEV_TOKEN_FILE=/dev-tokens/tokens.json\nexport HAIL_TOKEN=\"\
-      {{ token }}\"\nhailctl config set batch/bucket hail-test-dmk9z\npython3 -m pytest\
-      \ \\\n        --log-date-format=\"%Y-%m-%dT%H:%M:%S\" \\\n        --log-format=\"\
-      %(asctime)s %(levelname)s %(name)s %(filename)s:%(lineno)d:%(funcName)s %(message)s\"\
-      \ \\\n        --log-cli-level=INFO \\\n        -s \\\n        -vv \\\n     \
-      \   --instafail \\\n        -k \"not test_scale and not test_invariants\" \\\
-      \n        --durations=0 \\\n        /io/test/\n"
+    script: |
+      set -ex
+      export PYTEST_SPLITS=5
+      export PYTEST_SPLIT_INDEX=2
+      export HAIL_GSA_KEY_FILE=/test-gsa-key/key.json
+      export HAIL_BASE_IMAGE={{ base_image.image }}
+      export CI_UTILS_IMAGE={{ ci_utils_image.image }}
+      export HAIL_CURL_IMAGE={{ curl_image.image }}
+      export HAIL_DEFAULT_NAMESPACE={{ default_ns.name }}
+      export HAIL_NETCAT_UBUNTU_IMAGE={{ netcat_ubuntu_image.image }}
+      export HAIL_HAIL_BASE_IMAGE={{ hail_base_image.image }}
+      export DOCKER_ROOT_IMAGE="gcr.io/{{ global.project }}/ubuntu:18.04"
+      export HAIL_TEST_TOKEN_FILE=/user-tokens/tokens.json
+      export HAIL_TEST_DEV_TOKEN_FILE=/dev-tokens/tokens.json
+      export HAIL_TOKEN="{{ token }}"
+      hailctl config set batch/bucket hail-test-dmk9z
+      python3 -m pytest \
+              --log-date-format="%Y-%m-%dT%H:%M:%S" \
+              --log-format="%(asctime)s %(levelname)s %(name)s %(filename)s:%(lineno)d:%(funcName)s %(message)s" \
+              --log-cli-level=INFO \
+              -s \
+              -vv \
+              --instafail \
+              -k "not test_scale and not test_invariants" \
+              --durations=0 \
+              /io/test/
     inputs:
       - from: /repo/batch/test
         to: /io/test
@@ -2902,20 +2632,32 @@ steps:
     name: test_batch_3
     image:
       valueFrom: batch_image.image
-    script: "set -ex\nexport PYTEST_SPLITS=5\nexport PYTEST_SPLIT_INDEX=3\nexport\
-      \ HAIL_GSA_KEY_FILE=/test-gsa-key/key.json\nexport HAIL_BASE_IMAGE={{ base_image.image\
-      \ }}\nexport CI_UTILS_IMAGE={{ ci_utils_image.image }}\nexport HAIL_CURL_IMAGE={{\
-      \ curl_image.image }}\nexport HAIL_DEFAULT_NAMESPACE={{ default_ns.name }}\n\
-      export HAIL_NETCAT_UBUNTU_IMAGE={{ netcat_ubuntu_image.image }}\nexport HAIL_HAIL_BASE_IMAGE={{\
-      \ hail_base_image.image }}\nexport DOCKER_ROOT_IMAGE=\"gcr.io/{{ global.project\
-      \ }}/ubuntu:18.04\"\nexport HAIL_TEST_TOKEN_FILE=/user-tokens/tokens.json\n\
-      export HAIL_TEST_DEV_TOKEN_FILE=/dev-tokens/tokens.json\nexport HAIL_TOKEN=\"\
-      {{ token }}\"\nhailctl config set batch/bucket hail-test-dmk9z\npython3 -m pytest\
-      \ \\\n        --log-date-format=\"%Y-%m-%dT%H:%M:%S\" \\\n        --log-format=\"\
-      %(asctime)s %(levelname)s %(name)s %(filename)s:%(lineno)d:%(funcName)s %(message)s\"\
-      \ \\\n        --log-cli-level=INFO \\\n        -s \\\n        -vv \\\n     \
-      \   --instafail \\\n        -k \"not test_scale and not test_invariants\" \\\
-      \n        --durations=0 \\\n        /io/test/\n"
+    script: |
+      set -ex
+      export PYTEST_SPLITS=5
+      export PYTEST_SPLIT_INDEX=3
+      export HAIL_GSA_KEY_FILE=/test-gsa-key/key.json
+      export HAIL_BASE_IMAGE={{ base_image.image }}
+      export CI_UTILS_IMAGE={{ ci_utils_image.image }}
+      export HAIL_CURL_IMAGE={{ curl_image.image }}
+      export HAIL_DEFAULT_NAMESPACE={{ default_ns.name }}
+      export HAIL_NETCAT_UBUNTU_IMAGE={{ netcat_ubuntu_image.image }}
+      export HAIL_HAIL_BASE_IMAGE={{ hail_base_image.image }}
+      export DOCKER_ROOT_IMAGE="gcr.io/{{ global.project }}/ubuntu:18.04"
+      export HAIL_TEST_TOKEN_FILE=/user-tokens/tokens.json
+      export HAIL_TEST_DEV_TOKEN_FILE=/dev-tokens/tokens.json
+      export HAIL_TOKEN="{{ token }}"
+      hailctl config set batch/bucket hail-test-dmk9z
+      python3 -m pytest \
+              --log-date-format="%Y-%m-%dT%H:%M:%S" \
+              --log-format="%(asctime)s %(levelname)s %(name)s %(filename)s:%(lineno)d:%(funcName)s %(message)s" \
+              --log-cli-level=INFO \
+              -s \
+              -vv \
+              --instafail \
+              -k "not test_scale and not test_invariants" \
+              --durations=0 \
+              /io/test/
     inputs:
       - from: /repo/batch/test
         to: /io/test
@@ -2958,20 +2700,32 @@ steps:
     name: test_batch_4
     image:
       valueFrom: batch_image.image
-    script: "set -ex\nexport PYTEST_SPLITS=5\nexport PYTEST_SPLIT_INDEX=4\nexport\
-      \ HAIL_GSA_KEY_FILE=/test-gsa-key/key.json\nexport HAIL_BASE_IMAGE={{ base_image.image\
-      \ }}\nexport CI_UTILS_IMAGE={{ ci_utils_image.image }}\nexport HAIL_CURL_IMAGE={{\
-      \ curl_image.image }}\nexport HAIL_DEFAULT_NAMESPACE={{ default_ns.name }}\n\
-      export HAIL_NETCAT_UBUNTU_IMAGE={{ netcat_ubuntu_image.image }}\nexport HAIL_HAIL_BASE_IMAGE={{\
-      \ hail_base_image.image }}\nexport DOCKER_ROOT_IMAGE=\"gcr.io/{{ global.project\
-      \ }}/ubuntu:18.04\"\nexport HAIL_TEST_TOKEN_FILE=/user-tokens/tokens.json\n\
-      export HAIL_TEST_DEV_TOKEN_FILE=/dev-tokens/tokens.json\nexport HAIL_TOKEN=\"\
-      {{ token }}\"\nhailctl config set batch/bucket hail-test-dmk9z\npython3 -m pytest\
-      \ \\\n        --log-date-format=\"%Y-%m-%dT%H:%M:%S\" \\\n        --log-format=\"\
-      %(asctime)s %(levelname)s %(name)s %(filename)s:%(lineno)d:%(funcName)s %(message)s\"\
-      \ \\\n        --log-cli-level=INFO \\\n        -s \\\n        -vv \\\n     \
-      \   --instafail \\\n        -k \"not test_scale and not test_invariants\" \\\
-      \n        --durations=0 \\\n        /io/test/\n"
+    script: |
+      set -ex
+      export PYTEST_SPLITS=5
+      export PYTEST_SPLIT_INDEX=4
+      export HAIL_GSA_KEY_FILE=/test-gsa-key/key.json
+      export HAIL_BASE_IMAGE={{ base_image.image }}
+      export CI_UTILS_IMAGE={{ ci_utils_image.image }}
+      export HAIL_CURL_IMAGE={{ curl_image.image }}
+      export HAIL_DEFAULT_NAMESPACE={{ default_ns.name }}
+      export HAIL_NETCAT_UBUNTU_IMAGE={{ netcat_ubuntu_image.image }}
+      export HAIL_HAIL_BASE_IMAGE={{ hail_base_image.image }}
+      export DOCKER_ROOT_IMAGE="gcr.io/{{ global.project }}/ubuntu:18.04"
+      export HAIL_TEST_TOKEN_FILE=/user-tokens/tokens.json
+      export HAIL_TEST_DEV_TOKEN_FILE=/dev-tokens/tokens.json
+      export HAIL_TOKEN="{{ token }}"
+      hailctl config set batch/bucket hail-test-dmk9z
+      python3 -m pytest \
+              --log-date-format="%Y-%m-%dT%H:%M:%S" \
+              --log-format="%(asctime)s %(levelname)s %(name)s %(filename)s:%(lineno)d:%(funcName)s %(message)s" \
+              --log-cli-level=INFO \
+              -s \
+              -vv \
+              --instafail \
+              -k "not test_scale and not test_invariants" \
+              --durations=0 \
+              /io/test/
     inputs:
       - from: /repo/batch/test
         to: /io/test
@@ -3014,21 +2768,14 @@ steps:
     name: delete_test_billing_projects
     image:
       valueFrom: batch_image.image
-    script: 'export HAIL_TEST_DEV_TOKEN_FILE=/dev-tokens/tokens.json
-
+    script: |
+      export HAIL_TEST_DEV_TOKEN_FILE=/dev-tokens/tokens.json
       export HAIL_TOKEN="{{ token }}"
-
       cd /io/test
-
-      python3 -c ''
-
+      python3 -c '
       import test_accounts
-
       import asyncio
-
-      asyncio.get_event_loop().run_until_complete(test_accounts.delete_all_test_billing_projects())''
-
-      '
+      asyncio.get_event_loop().run_until_complete(test_accounts.delete_all_test_billing_projects())'
     inputs:
       - from: /repo/batch/test
         to: /io/test
@@ -3062,20 +2809,48 @@ steps:
     name: create_ci_test_repo
     image:
       valueFrom: base_image.image
-    script: "set -e\nTOKEN=$(cat /secret/ci-secrets/user1)\nREPO_NAME=\"ci-test-{{token}}\"\
-      \n\necho creating $REPO_NAME...\ncurl -XPOST \\\n  -i \\\n  -sSL \\\n  https://api.github.com/orgs/hail-ci-test/repos\
-      \ \\\n  -H \"Authorization: token ${TOKEN}\" \\\n  -d \"{ \\\"name\\\" : \\\"\
-      $REPO_NAME\\\" }\"\n\n# checkout hail code\nmkdir -p /repo/hail\ncd /repo/hail\n\
-      {{ code.checkout_script }}\n\n# checkout new ci repo\ncd /repo/\ngit clone https://$TOKEN@github.com/hail-ci-test/$REPO_NAME.git\n\
-      cd $REPO_NAME\n\nmkdir -p ./ci/test ./hail/\ncp /repo/hail/ci/test/resources/build.yaml\
-      \ ./\ncp -R /repo/hail/ci/test/resources ./ci/test/\ncp /repo/hail/tls/Dockerfile\
-      \ ./ci/test/resources/Dockerfile.certs\ncp /repo/hail/tls/create_certs.py ./ci/test/resources/\n\
-      cp /repo/hail/pylintrc ./\ncp /repo/hail/setup.cfg ./\ncp -R /repo/hail/docker\
-      \ ./\ncp -R /repo/hail/gear ./\ncp -R /repo/hail/hail/python ./hail/\ncp /repo/hail/hail/Makefile\
-      \ ./hail/\ncp /repo/hail/hail/env_var.mk ./hail/\ncp -R /repo/hail/web_common\
-      \ ./\ncp /repo/hail/hail/python/setup-hailtop.py ./hail/python/\n\ngit config\
-      \ user.name ci\ngit config user.email ci@hail.is\ngit add * && git commit -m\
-      \ \"setup repo\"\ngit push\n"
+    script: |
+      set -e
+      TOKEN=$(cat /secret/ci-secrets/user1)
+      REPO_NAME="ci-test-{{token}}"
+
+      echo creating $REPO_NAME...
+      curl -XPOST \
+        -i \
+        -sSL \
+        https://api.github.com/orgs/hail-ci-test/repos \
+        -H "Authorization: token ${TOKEN}" \
+        -d "{ \"name\" : \"$REPO_NAME\" }"
+
+      # checkout hail code
+      mkdir -p /repo/hail
+      cd /repo/hail
+      {{ code.checkout_script }}
+
+      # checkout new ci repo
+      cd /repo/
+      git clone https://$TOKEN@github.com/hail-ci-test/$REPO_NAME.git
+      cd $REPO_NAME
+
+      mkdir -p ./ci/test ./hail/
+      cp /repo/hail/ci/test/resources/build.yaml ./
+      cp -R /repo/hail/ci/test/resources ./ci/test/
+      cp /repo/hail/tls/Dockerfile ./ci/test/resources/Dockerfile.certs
+      cp /repo/hail/tls/create_certs.py ./ci/test/resources/
+      cp /repo/hail/pylintrc ./
+      cp /repo/hail/setup.cfg ./
+      cp -R /repo/hail/docker ./
+      cp -R /repo/hail/gear ./
+      cp -R /repo/hail/hail/python ./hail/
+      cp /repo/hail/hail/Makefile ./hail/
+      cp /repo/hail/hail/env_var.mk ./hail/
+      cp -R /repo/hail/web_common ./
+      cp /repo/hail/hail/python/setup-hailtop.py ./hail/python/
+
+      git config user.name ci
+      git config user.email ci@hail.is
+      git add * && git commit -m "setup repo"
+      git push
     secrets:
       - name: hail-ci-0-1-service-account-key
         namespace:
@@ -3112,17 +2887,12 @@ steps:
     name: test_ci
     image:
       valueFrom: test_ci_image.image
-    script: 'set -ex
-
+    script: |
+      set -ex
       export ORGANIZATION=hail-ci-test
-
       export REPO_NAME=ci-test-"{{ create_ci_test_repo.token }}"
-
       export NAMESPACE="{{ default_ns.name }}"
-
       python3 -m pytest --log-cli-level=INFO -s -vv --instafail --durations=50 /test/
-
-      '
     secrets:
       - name: gce-deploy-config
         namespace:
@@ -3156,13 +2926,23 @@ steps:
     name: test_hailtop_batch_0
     image:
       valueFrom: service_base_image.image
-    script: "cd /io/hailtop\nset -ex\nexport HAIL_GSA_KEY_FILE=/test-gsa-key/key.json\n\
-      export PYTEST_SPLITS=5\nexport PYTEST_SPLIT_INDEX=0\nexport DOCKER_ROOT_IMAGE=\"\
-      gcr.io/{{ global.project }}/ubuntu:18.04\"\nexport PYTHON_DILL_IMAGE=\"gcr.io/{{\
-      \ global.project }}/python-dill:3.7-slim\"\nhailctl config set batch/billing_project\
-      \ test\nhailctl config set batch/bucket hail-test-dmk9z\npython3 -m pytest \\\
-      \n        --durations=0 \\\n        --log-cli-level=INFO \\\n        -s \\\n\
-      \        -vv \\\n        --instafail \\\n        /io/test/hailtop/batch/\n"
+    script: |
+      cd /io/hailtop
+      set -ex
+      export HAIL_GSA_KEY_FILE=/test-gsa-key/key.json
+      export PYTEST_SPLITS=5
+      export PYTEST_SPLIT_INDEX=0
+      export DOCKER_ROOT_IMAGE="gcr.io/{{ global.project }}/ubuntu:18.04"
+      export PYTHON_DILL_IMAGE="gcr.io/{{ global.project }}/python-dill:3.7-slim"
+      hailctl config set batch/billing_project test
+      hailctl config set batch/bucket hail-test-dmk9z
+      python3 -m pytest \
+              --durations=0 \
+              --log-cli-level=INFO \
+              -s \
+              -vv \
+              --instafail \
+              /io/test/hailtop/batch/
     inputs:
       - from: /repo/test
         to: /io/test
@@ -3197,13 +2977,23 @@ steps:
     name: test_hailtop_batch_1
     image:
       valueFrom: service_base_image.image
-    script: "cd /io/hailtop\nset -ex\nexport HAIL_GSA_KEY_FILE=/test-gsa-key/key.json\n\
-      export PYTEST_SPLITS=5\nexport PYTEST_SPLIT_INDEX=1\nexport DOCKER_ROOT_IMAGE=\"\
-      gcr.io/{{ global.project }}/ubuntu:18.04\"\nexport PYTHON_DILL_IMAGE=\"gcr.io/{{\
-      \ global.project }}/python-dill:3.7-slim\"\nhailctl config set batch/billing_project\
-      \ test\nhailctl config set batch/bucket hail-test-dmk9z\npython3 -m pytest \\\
-      \n        --durations=0 \\\n        --log-cli-level=INFO \\\n        -s \\\n\
-      \        -vv \\\n        --instafail \\\n        /io/test/hailtop/batch/\n"
+    script: |
+      cd /io/hailtop
+      set -ex
+      export HAIL_GSA_KEY_FILE=/test-gsa-key/key.json
+      export PYTEST_SPLITS=5
+      export PYTEST_SPLIT_INDEX=1
+      export DOCKER_ROOT_IMAGE="gcr.io/{{ global.project }}/ubuntu:18.04"
+      export PYTHON_DILL_IMAGE="gcr.io/{{ global.project }}/python-dill:3.7-slim"
+      hailctl config set batch/billing_project test
+      hailctl config set batch/bucket hail-test-dmk9z
+      python3 -m pytest \
+              --durations=0 \
+              --log-cli-level=INFO \
+              -s \
+              -vv \
+              --instafail \
+              /io/test/hailtop/batch/
     inputs:
       - from: /repo/test
         to: /io/test
@@ -3238,13 +3028,23 @@ steps:
     name: test_hailtop_batch_2
     image:
       valueFrom: service_base_image.image
-    script: "cd /io/hailtop\nset -ex\nexport HAIL_GSA_KEY_FILE=/test-gsa-key/key.json\n\
-      export PYTEST_SPLITS=5\nexport PYTEST_SPLIT_INDEX=2\nexport DOCKER_ROOT_IMAGE=\"\
-      gcr.io/{{ global.project }}/ubuntu:18.04\"\nexport PYTHON_DILL_IMAGE=\"gcr.io/{{\
-      \ global.project }}/python-dill:3.7-slim\"\nhailctl config set batch/billing_project\
-      \ test\nhailctl config set batch/bucket hail-test-dmk9z\npython3 -m pytest \\\
-      \n        --durations=0 \\\n        --log-cli-level=INFO \\\n        -s \\\n\
-      \        -vv \\\n        --instafail \\\n        /io/test/hailtop/batch/\n"
+    script: |
+      cd /io/hailtop
+      set -ex
+      export HAIL_GSA_KEY_FILE=/test-gsa-key/key.json
+      export PYTEST_SPLITS=5
+      export PYTEST_SPLIT_INDEX=2
+      export DOCKER_ROOT_IMAGE="gcr.io/{{ global.project }}/ubuntu:18.04"
+      export PYTHON_DILL_IMAGE="gcr.io/{{ global.project }}/python-dill:3.7-slim"
+      hailctl config set batch/billing_project test
+      hailctl config set batch/bucket hail-test-dmk9z
+      python3 -m pytest \
+              --durations=0 \
+              --log-cli-level=INFO \
+              -s \
+              -vv \
+              --instafail \
+              /io/test/hailtop/batch/
     inputs:
       - from: /repo/test
         to: /io/test
@@ -3279,13 +3079,23 @@ steps:
     name: test_hailtop_batch_3
     image:
       valueFrom: service_base_image.image
-    script: "cd /io/hailtop\nset -ex\nexport HAIL_GSA_KEY_FILE=/test-gsa-key/key.json\n\
-      export PYTEST_SPLITS=5\nexport PYTEST_SPLIT_INDEX=3\nexport DOCKER_ROOT_IMAGE=\"\
-      gcr.io/{{ global.project }}/ubuntu:18.04\"\nexport PYTHON_DILL_IMAGE=\"gcr.io/{{\
-      \ global.project }}/python-dill:3.7-slim\"\nhailctl config set batch/billing_project\
-      \ test\nhailctl config set batch/bucket hail-test-dmk9z\npython3 -m pytest \\\
-      \n        --durations=0 \\\n        --log-cli-level=INFO \\\n        -s \\\n\
-      \        -vv \\\n        --instafail \\\n        /io/test/hailtop/batch/\n"
+    script: |
+      cd /io/hailtop
+      set -ex
+      export HAIL_GSA_KEY_FILE=/test-gsa-key/key.json
+      export PYTEST_SPLITS=5
+      export PYTEST_SPLIT_INDEX=3
+      export DOCKER_ROOT_IMAGE="gcr.io/{{ global.project }}/ubuntu:18.04"
+      export PYTHON_DILL_IMAGE="gcr.io/{{ global.project }}/python-dill:3.7-slim"
+      hailctl config set batch/billing_project test
+      hailctl config set batch/bucket hail-test-dmk9z
+      python3 -m pytest \
+              --durations=0 \
+              --log-cli-level=INFO \
+              -s \
+              -vv \
+              --instafail \
+              /io/test/hailtop/batch/
     inputs:
       - from: /repo/test
         to: /io/test
@@ -3320,13 +3130,23 @@ steps:
     name: test_hailtop_batch_4
     image:
       valueFrom: service_base_image.image
-    script: "cd /io/hailtop\nset -ex\nexport HAIL_GSA_KEY_FILE=/test-gsa-key/key.json\n\
-      export PYTEST_SPLITS=5\nexport PYTEST_SPLIT_INDEX=4\nexport DOCKER_ROOT_IMAGE=\"\
-      gcr.io/{{ global.project }}/ubuntu:18.04\"\nexport PYTHON_DILL_IMAGE=\"gcr.io/{{\
-      \ global.project }}/python-dill:3.7-slim\"\nhailctl config set batch/billing_project\
-      \ test\nhailctl config set batch/bucket hail-test-dmk9z\npython3 -m pytest \\\
-      \n        --durations=0 \\\n        --log-cli-level=INFO \\\n        -s \\\n\
-      \        -vv \\\n        --instafail \\\n        /io/test/hailtop/batch/\n"
+    script: |
+      cd /io/hailtop
+      set -ex
+      export HAIL_GSA_KEY_FILE=/test-gsa-key/key.json
+      export PYTEST_SPLITS=5
+      export PYTEST_SPLIT_INDEX=4
+      export DOCKER_ROOT_IMAGE="gcr.io/{{ global.project }}/ubuntu:18.04"
+      export PYTHON_DILL_IMAGE="gcr.io/{{ global.project }}/python-dill:3.7-slim"
+      hailctl config set batch/billing_project test
+      hailctl config set batch/bucket hail-test-dmk9z
+      python3 -m pytest \
+              --durations=0 \
+              --log-cli-level=INFO \
+              -s \
+              -vv \
+              --instafail \
+              /io/test/hailtop/batch/
     inputs:
       - from: /repo/test
         to: /io/test
@@ -3361,10 +3181,17 @@ steps:
     name: test_batch_docs
     image:
       valueFrom: service_base_image.image
-    script: "set -ex\nexport HAIL_GSA_KEY_FILE=/test-gsa-key/key.json\ncd /io/hailtop/batch\n\
-      hailctl config set batch/billing_project test\nhailctl config set batch/bucket\
-      \ hail-test-dmk9z\npython3 -m pytest --instafail \\\n  --doctest-modules \\\n\
-      \  --doctest-glob='*.rst' \\\n  --ignore=docs/cookbook/files/ \\\n  --ignore=docs/conf.py\n"
+    script: |
+      set -ex
+      export HAIL_GSA_KEY_FILE=/test-gsa-key/key.json
+      cd /io/hailtop/batch
+      hailctl config set batch/billing_project test
+      hailctl config set batch/bucket hail-test-dmk9z
+      python3 -m pytest --instafail \
+        --doctest-modules \
+        --doctest-glob='*.rst' \
+        --ignore=docs/cookbook/files/ \
+        --ignore=docs/conf.py
     secrets:
       - name: gce-deploy-config
         namespace:
@@ -3429,9 +3256,14 @@ steps:
     name: cleanup_ci_test_repo
     image:
       valueFrom: base_image.image
-    script: "set -e\nTOKEN=$(cat /secret/ci-secrets/user1)\necho deleting ci-test-{{\
-      \ create_ci_test_repo.token }}...\ncurl -XDELETE \\\n  -i \\\n  https://api.github.com/repos/hail-ci-test/ci-test-{{\
-      \ create_ci_test_repo.token }} \\\n  -H \"Authorization: token ${TOKEN}\"\n"
+   script: |
+      set -e
+      TOKEN=$(cat /secret/ci-secrets/user1)
+      echo deleting ci-test-{{ create_ci_test_repo.token }}...
+      curl -XDELETE \
+        -i \
+        https://api.github.com/repos/hail-ci-test/ci-test-{{ create_ci_test_repo.token }} \
+        -H "Authorization: token ${TOKEN}"
     secrets:
       - name: hail-ci-0-1-service-account-key
         namespace:
@@ -3449,29 +3281,18 @@ steps:
       - test_ci
   - kind: runImage
     name: deploy_hail
-    script: 'set -ex
-
+    script: |
+      set -ex
       gcloud auth activate-service-account --key-file=/secrets/ci-deploy-0-1--hail-is-hail.json
-
       SPARK_VERSION=3.1.1
-
       BRANCH=0.2
-
       SHA="{{ code.sha }}"
-
       GS_JAR=gs://hail-common/builds/${BRANCH}/jars/hail-${BRANCH}-${SHA}-Spark-${SPARK_VERSION}.jar
-
       gsutil cp /io/hail.jar ${GS_JAR}
-
       gsutil acl set public-read ${GS_JAR}
-
       GS_HAIL_ZIP=gs://hail-common/builds/${BRANCH}/python/hail-${BRANCH}-${SHA}.zip
-
       gsutil cp /io/hail.zip ${GS_HAIL_ZIP}
-
       gsutil acl set public-read ${GS_HAIL_ZIP}
-
-      '
     image:
       valueFrom: base_image.image
     secrets:
@@ -3515,12 +3336,29 @@ steps:
     name: test_dataproc
     image:
       valueFrom: ci_utils_image.image
-    script: "set -ex\n\ncd /io\n\ngcloud auth activate-service-account --key-file=/test-dataproc-service-account-key/test-dataproc-service-account-key.json\n\
-      gcloud config set project hail-vdc\ngcloud config set dataproc/region us-central1\n\
-      \nmkdir -p repo\ncd repo\n\n{{ code.checkout_script }}\n\nif git ls-remote --exit-code\
-      \ --tags origin $(cat /io/hail_pip_version)\nthen\n    echo \"tag $HAIL_PIP_VERSION\
-      \ already exists\"\n    exit 0\nfi\n\ncd hail\ntime retry ./gradlew --version\n\
-      make test-dataproc DEV_CLARIFIER=ci_test_dataproc/\n"
+    script: |
+      set -ex
+
+      cd /io
+
+      gcloud auth activate-service-account --key-file=/test-dataproc-service-account-key/test-dataproc-service-account-key.json
+      gcloud config set project hail-vdc
+      gcloud config set dataproc/region us-central1
+
+      mkdir -p repo
+      cd repo
+
+      {{ code.checkout_script }}
+
+      if git ls-remote --exit-code --tags origin $(cat /io/hail_pip_version)
+      then
+          echo "tag $HAIL_PIP_VERSION already exists"
+          exit 0
+      fi
+
+      cd hail
+      time retry ./gradlew --version
+      make test-dataproc DEV_CLARIFIER=ci_test_dataproc/
     dependsOn:
       - ci_utils_image
       - copy_files
@@ -3540,19 +3378,39 @@ steps:
     name: deploy
     image:
       valueFrom: ci_utils_image.image
-    script: "set -ex\ncd /io\n\ngcloud auth activate-service-account --key-file=/ci-deploy-0-1--hail-is-hail/ci-deploy-0-1--hail-is-hail.json\n\
-      cp /pypi-credentials/pypirc $HOME/.pypirc\nprintf 'Authorization: token ' >\
-      \ github-oauth\ncat /hail-ci-0-1-github-oauth-token/oauth-token >>github-oauth\n\
-      printf '#!/bin/bash\\necho ' > git-askpass\ncat /hail-ci-0-1-github-oauth-token/oauth-token\
-      \ >>git-askpass\nchmod 755 git-askpass\nexport GIT_ASKPASS=/io/git-askpass\n\
-      \nmkdir repo\ncd repo\n{{ code.checkout_script }}\ncd hail\n\nif git ls-remote\
-      \ --exit-code --tags origin $(cat /io/hail_pip_version)\nthen\n    echo \"tag\
-      \ $HAIL_PIP_VERSION already exists\"\n    exit 0\nfi\n\ntime retry ./gradlew\
-      \ --version\nmake wheel upload-artifacts DEPLOY_REMOTE=origin\n\nbash scripts/deploy.sh\
-      \ $(cat /io/hail_pip_version) \\\n                       $(cat /io/hail_version)\
-      \ \\\n                       $(cat /io/git_version) \\\n                   \
-      \    origin \\\n                       /io/repo/hail/build/deploy/dist/hail-*-py3-none-any.whl\
-      \ \\\n                       /io/github-oauth\n"
+    script: |
+      set -ex
+      cd /io
+
+      gcloud auth activate-service-account --key-file=/ci-deploy-0-1--hail-is-hail/ci-deploy-0-1--hail-is-hail.json
+      cp /pypi-credentials/pypirc $HOME/.pypirc
+      printf 'Authorization: token ' > github-oauth
+      cat /hail-ci-0-1-github-oauth-token/oauth-token >>github-oauth
+      printf '#!/bin/bash\necho ' > git-askpass
+      cat /hail-ci-0-1-github-oauth-token/oauth-token >>git-askpass
+      chmod 755 git-askpass
+      export GIT_ASKPASS=/io/git-askpass
+
+      mkdir repo
+      cd repo
+      {{ code.checkout_script }}
+      cd hail
+
+      if git ls-remote --exit-code --tags origin $(cat /io/hail_pip_version)
+      then
+          echo "tag $HAIL_PIP_VERSION already exists"
+          exit 0
+      fi
+
+      time retry ./gradlew --version
+      make wheel upload-artifacts DEPLOY_REMOTE=origin
+
+      bash scripts/deploy.sh $(cat /io/hail_pip_version) \
+                             $(cat /io/hail_version) \
+                             $(cat /io/git_version) \
+                             origin \
+                             /io/repo/hail/build/deploy/dist/hail-*-py3-none-any.whl \
+                             /io/github-oauth
     inputs:
       - from: /hail_version
         to: /io/hail_version
@@ -3610,8 +3468,13 @@ steps:
     name: test_website
     image:
       valueFrom: service_base_image.image
-    script: "set -ex\nhailctl curl {{ default_ns.name }} www / \\\n        -vvv \\\
-      \n        -fsSL \\\n        --retry 3 \\\n        --retry-delay 5\n"
+    script: |
+      set -ex
+      hailctl curl {{ default_ns.name }} www / \
+              -vvv \
+              -fsSL \
+              --retry 3 \
+              --retry-delay 5
     secrets:
       - name: test-tokens
         namespace:
@@ -3643,16 +3506,10 @@ steps:
     name: test_hail_public_image
     image:
       valueFrom: hail_public_image.image
-    script: 'set -ex
-
-      python3 -c ''import hail as hl; hl.balding_nichols_model(3, 100, 100)._force_count_rows()''
-
-      python3 -c ''import numpy; import pandas; import sklearn; import matplotlib;
-      import scipy''
-
-      gsutil --version
-
-      '
+    script: |
+      set -ex
+      python3 -c 'import hail as hl; hl.balding_nichols_model(3, 100, 100)._force_count_rows()'
+      python3 -c 'import numpy; import pandas; import sklearn; import matplotlib; import scipy'
     dependsOn:
       - hail_public_image
     scopes:
@@ -3670,15 +3527,11 @@ steps:
     name: test_genetics_public_image
     image:
       valueFrom: genetics_public_image.image
-    script: 'set -ex
-
+    script: |
+      set -ex
       samtools --version
-
       plink --version
-
       plink2 --version
-
-      '
     dependsOn:
       - genetics_public_image
     scopes:
@@ -3687,11 +3540,8 @@ steps:
     name: test_address
     image:
       valueFrom: service_base_image.image
-    script: 'python3 -m pytest --log-date-format="%Y-%m-%dT%H:%M:%S" --log-format="%(asctime)s
-      %(levelname)s %(name)s %(filename)s:%(lineno)d:%(funcName)s %(message)s" --log-cli-level=INFO
-      -s -vv --instafail /io/test/
-
-      '
+    script: |
+      python3 -m pytest --log-date-format="%Y-%m-%dT%H:%M:%S" --log-format="%(asctime)s %(levelname)s %(name)s %(filename)s:%(lineno)d:%(funcName)s %(message)s" --log-cli-level=INFO -s -vv --instafail /io/test/
     inputs:
       - from: /repo/address/test
         to: /io/test
@@ -3725,10 +3575,16 @@ steps:
     resources:
       memory: 7.5G
       cpu: '2'
-    script: "set -ex\ncd /io\nmkdir -p src/test\ntar xzf resources.tar.gz -C src/test\n\
-      java -Xms7500M -Xmx7500M \\\n     -cp hail-test.jar:$SPARK_HOME/jars/* \\\n\
-      \     org.testng.TestNG \\\n     -listener is.hail.LogTestListener \\\n    \
-      \ testng-services.xml\n"
+    script: |
+      set -ex
+      cd /io
+      mkdir -p src/test
+      tar xzf resources.tar.gz -C src/test
+      java -Xms7500M -Xmx7500M \
+           -cp hail-test.jar:$SPARK_HOME/jars/* \
+           org.testng.TestNG \
+           -listener is.hail.LogTestListener \
+           testng-services.xml
     inputs:
       - from: /resources.tar.gz
         to: /io/resources.tar.gz
@@ -3762,11 +3618,8 @@ steps:
     name: test_batch_invariants
     image:
       valueFrom: batch_image.image
-    script: 'python3 -m pytest --log-date-format="%Y-%m-%dT%H:%M:%S" --log-format="%(asctime)s
-      %(levelname)s %(name)s %(filename)s:%(lineno)d:%(funcName)s %(message)s" --log-cli-level=INFO
-      -s -vv --instafail -k "test_invariants" /io/test/
-
-      '
+    script: |
+      python3 -m pytest --log-date-format="%Y-%m-%dT%H:%M:%S" --log-format="%(asctime)s %(levelname)s %(name)s %(filename)s:%(lineno)d:%(funcName)s %(message)s" --log-cli-level=INFO -s -vv --instafail -k "test_invariants" /io/test/
     inputs:
       - from: /repo/batch/test
         to: /io/test
@@ -3810,12 +3663,15 @@ steps:
     image:
       valueFrom: base_image.image
     alwaysRun: true
-    script: "set -ex\ngcloud -q auth activate-service-account --key-file=/test-gsa-key/key.json\n\
-      set +e\ngcloud -q compute instances list \\\n    --filter 'tags.items=batch2-agent\
-      \ AND labels.namespace={{ default_ns.name }}' \\\n    --format=\"table[no-heading](zone.basename(),\
-      \ name)\" \\\n    --project {{ global.project }} \\\n  | xargs -n2 -r sh -c\
-      \ 'gcloud -q compute instances delete --zone \"$1\" --project {{ global.project\
-      \ }} \"$2\" || true' argv0\n"
+    script: |
+      set -ex
+      gcloud -q auth activate-service-account --key-file=/test-gsa-key/key.json
+      set +e
+      gcloud -q compute instances list \
+          --filter 'tags.items=batch2-agent AND labels.namespace={{ default_ns.name }}' \
+          --format="table[no-heading](zone.basename(), name)" \
+          --project {{ global.project }} \
+        | xargs -n2 -r sh -c 'gcloud -q compute instances delete --zone "$1" --project {{ global.project }} "$2" || true' argv0
     secrets:
       - name: test-gsa-key
         namespace:
@@ -3843,11 +3699,9 @@ steps:
     name: delete_atgu_tables
     image:
       valueFrom: service_base_image.image
-    script: 'set -ex
-
+    script: |
+      set -ex
       mysql --defaults-extra-file=/sql-config/sql-config.cnf < /io/sql/delete-atgu-tables.sql
-
-      '
     inputs:
       - from: /repo/atgu/sql
         to: /io/sql
