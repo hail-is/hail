@@ -68,7 +68,7 @@ steps:
     name: check_hail
     image:
       valueFrom: base_image.image
-    script:
+    script: |
       set -ex
       mkdir repo
       cd repo
@@ -80,7 +80,7 @@ steps:
     name: copy_files
     image:
       valueFrom: base_image.image
-    script:
+    script: |
       set -ex
       cd /io
       mkdir repo
@@ -1054,7 +1054,7 @@ steps:
     name: check_hail_python37
     image:
       valueFrom: hail_pip_installed_python37_image.image
-    script:
+    script: |
       set -x
       SITE_PACKAGES=$(pip3 show hail | grep Location | sed 's/Location: //')
 
