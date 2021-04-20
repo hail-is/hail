@@ -3503,6 +3503,7 @@ steps:
       set -ex
       python3 -c 'import hail as hl; hl.balding_nichols_model(3, 100, 100)._force_count_rows()'
       python3 -c 'import numpy; import pandas; import sklearn; import matplotlib; import scipy'
+      gsutil --version
     dependsOn:
       - hail_public_image
     scopes:
