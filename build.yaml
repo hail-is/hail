@@ -238,7 +238,6 @@ steps:
       valueFrom: service_base_image.image
     script: |
       set -ex
-
       mysql --defaults-extra-file=/sql-config/sql-config.cnf < /io/sql/delete-auth-tables.sql
     inputs:
       - from: /repo/auth/sql
@@ -519,13 +518,11 @@ steps:
       cd repo
       {{ code.checkout_script }}
       cd grafana
-
       {% if deploy %}
       DEPLOY=true
       {% else %}
       DEPLOY=false
       {% endif %}
-
       python3 ../ci/jinja2_render.py '{"deploy": '${DEPLOY}', "default_ns": {"name": "{{ default_ns.name }}"}}' nginx.conf nginx.conf.out
     outputs:
       - from: /io/repo/grafana/nginx.conf.out
@@ -2367,21 +2364,17 @@ steps:
   - kind: buildImage
     name: netcat_ubuntu_image
     dockerFile:
-      inline: 'FROM {{ hail_ubuntu_image.image }}
-
+      inline: |
+        FROM {{ hail_ubuntu_image.image }}
         RUN hail-apt-get-install netcat
-
-        '
     dependsOn:
       - hail_ubuntu_image
   - kind: buildImage
     name: curl_image
     dockerFile:
-      inline: 'FROM {{ hail_ubuntu_image.image }}
-
+      inline: |
+        FROM {{ hail_ubuntu_image.image }}
         RUN hail-apt-get-install curl
-
-        '
     dependsOn:
       - hail_ubuntu_image
   - kind: runImage
