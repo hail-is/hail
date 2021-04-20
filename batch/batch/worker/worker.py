@@ -168,7 +168,7 @@ async def create_container(config, name):
                     if eget.status == 404:
                         await handle_error(eget)
                         continue
-            # No such image: gcr.io/...
+            # No such image: {DOCKER_PREFIX}/...
             if e.status == 404 and 'No such image' in e.message:
                 await handle_error(e)
                 continue

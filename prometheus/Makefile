@@ -2,8 +2,8 @@ include ../config.mk
 
 .PHONY: build push deploy
 
-PROM_NGINX_LATEST = gcr.io/$(PROJECT)/prom_nginx:latest
-PROM_NGINX_IMAGE = gcr.io/$(PROJECT)/prom_nginx:$(shell docker images -q --no-trunc prom_nginx | sed -e 's,[^:]*:,,')
+PROM_NGINX_LATEST = $(DOCKER_PREFIX)/prom_nginx:latest
+PROM_NGINX_IMAGE = $(DOCKER_PREFIX)/prom_nginx:$(shell docker images -q --no-trunc prom_nginx | sed -e 's,[^:]*:,,')
 
 build:
 	$(MAKE) -C ../docker hail-ubuntu
