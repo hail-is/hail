@@ -185,6 +185,7 @@ def init_parser(parser):
     parser.add_argument('--bucket', type=str,
                         help='The Google Cloud Storage bucket to use for cluster staging (just the bucket name, no gs:// prefix).')
     parser.add_argument('--network', type=str, help='the network for all nodes in this cluster')
+    parser.add_argument('--service-account', type=str, help='The Google Service Account to use for cluster creation (default to the Compute Engine service account).')
     parser.add_argument('--master-tags', type=str, help='comma-separated list of instance tags to apply to the mastern node')
 
     parser.add_argument('--wheel', help='Non-default Hail installation. Warning: experimental.')
@@ -357,6 +358,8 @@ def main(args, pass_through_args):
         cmd.append('--max-age={}'.format(args.max_age))
     if args.expiration_time:
         cmd.append('--expiration_time={}'.format(args.expiration_time))
+    if args.service_account:
+        cmd.append('--service-account={}'.format(args.service_account))
 
     cmd.extend(pass_through_args)
 
