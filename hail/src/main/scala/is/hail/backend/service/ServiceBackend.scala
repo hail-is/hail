@@ -66,10 +66,11 @@ class ServiceBackend() extends Backend {
     assert(previous == null)
   }
 
+  // TODO Do we need the sessionID to be serialized at all?
   def userContext[T](username: String, sessionID: String, timer: ExecutionTimer)(f: (ExecuteContext) => T): T = {
     val user = users.get(username)
     assert(user != null, username)
-    ExecuteContext.scoped(user.tmpdir, "file:///tmp", this, user.fs.asCacheable(sessionID), timer, null)(f)
+    ExecuteContext.scoped(user.tmpdir, "file:///tmp", this, user.fs, timer, null)(f)
   }
 
   def defaultParallelism: Int = 10

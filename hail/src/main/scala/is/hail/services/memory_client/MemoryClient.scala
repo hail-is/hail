@@ -59,7 +59,7 @@ class MemorySeekableInputStream(requester: Requester, objectEndpoint: String, fi
   override def read(): Int = {
     if (_pos >= _len) -1 else {
       _pos += 1
-      _bytes(_pos.toInt - 1)
+      _bytes(_pos - 1).toInt & 0xff
     }
   }
 

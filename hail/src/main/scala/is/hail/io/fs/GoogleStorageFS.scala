@@ -16,7 +16,7 @@ import scala.collection.JavaConverters._
 import scala.collection.mutable
 
 object GoogleStorageFS {
-  val log = Logger.getLogger(getClass.getName())
+  private val log = Logger.getLogger(getClass.getName())
 
   def containsWildcard(path: String): Boolean = {
     var i = 0
