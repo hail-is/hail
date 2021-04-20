@@ -355,7 +355,7 @@ steps:
     name: create_test_gsa_keys
     image:
       valueFrom: service_base_image.image
-   script: |
+    script: |
       kubectl -n {{ default_ns.name }} get -o json secret test-gsa-key | jq '{apiVersion, kind, type, data, metadata: {name: "atgu-gsa-key"}}' | kubectl -n {{ default_ns.name }} apply -f -
       kubectl -n {{ default_ns.name }} get -o json secret test-gsa-key | jq '{apiVersion, kind, type, data, metadata: {name: "auth-gsa-key"}}' | kubectl -n {{ default_ns.name }} apply -f -
       kubectl -n {{ default_ns.name }} get -o json secret test-gsa-key | jq '{apiVersion, kind, type, data, metadata: {name: "batch-gsa-key"}}' | kubectl -n {{ default_ns.name }} apply -f -
@@ -3249,7 +3249,7 @@ steps:
     name: cleanup_ci_test_repo
     image:
       valueFrom: base_image.image
-   script: |
+    script: |
       set -e
       TOKEN=$(cat /secret/ci-secrets/user1)
       echo deleting ci-test-{{ create_ci_test_repo.token }}...
