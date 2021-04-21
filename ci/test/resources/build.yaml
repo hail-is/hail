@@ -70,13 +70,13 @@ steps:
       valueFrom: base_image.image
     script: |
       set -ex
-      [[ "$(cat /first/a)" == "first" ]]
-      [[ "$(cat /second/a)" == "second" ]]
-    outputs:
+      [[ "$(cat /io/first/a)" == "first" ]]
+      [[ "$(cat /io/second/a)" == "second" ]]
+    inputs:
       - from: /first/a
-        to: /first/a
+        to: /io/first/a
       - from: /second/a
-        to: /second/a
+        to: /io/second/a
     dependsOn:
       - base_image
       - test_clashing_basenames_setup
