@@ -15,12 +15,6 @@ SERVICE_BASE_IMAGE = gcr.io/$(PROJECT)/service-base:$(shell docker images -q --n
 SERVICE_JAVA_RUN_BASE_LATEST = gcr.io/$(PROJECT)/service-java-run-base:latest
 SERVICE_JAVA_RUN_BASE_IMAGE = gcr.io/$(PROJECT)/service-java-run-base:$(shell docker images -q --no-trunc service-java-run-base:latest | sed -e 's,[^:]*:,,')
 
-HAIL_PUBLIC_LATEST = gcr.io/$(PROJECT)/hail-public:latest
-HAIL_PUBLIC_IMAGE = gcr.io/$(PROJECT)/hail-public:$(shell docker images -q --no-trunc hail-public:latest | sed -e 's,[^:]*:,,')
-
-GENETICS_PUBLIC_LATEST = gcr.io/$(PROJECT)/genetics-public:latest
-GENETICS_PUBLIC_IMAGE = gcr.io/$(PROJECT)/genetics-public:$(shell docker images -q --no-trunc genetics-public:latest | sed -e 's,[^:]*:,,')
-
 .PHONY: hail-ubuntu
 hail-ubuntu: hail-ubuntu-stmp
 
@@ -64,25 +58,6 @@ service-java-run-base: hail-ubuntu-stmp
 	[ "$(shell bash stat-permissions.sh Dockerfile.service-java-run-base.out)" = "644" ]
 	docker build -t service-java-run-base -f Dockerfile.service-java-run-base.out --cache-from service-java-run-base,$(SERVICE_JAVA_RUN_BASE_LATEST),base,hail-ubuntu ..
 
-.PHONY: hail-public-image
-hail-public-image:
-	$(MAKE) -C ../hail wheel
-	cp ../hail/build/deploy/dist/hail-*-py3-none-any.whl hail/
-	cd hail && tar -cvf wheel-container.tar hail-*-py3-none-any.whl
-	-docker pull $(HAIL_PUBLIC_LATEST)
-	python3 ../ci/jinja2_render.py '{"hail_ubuntu_image":{"image":"hail-ubuntu"}}' Dockerfile.base Dockerfile.base.out
-	docker build hail -f hail/Dockerfile.out -t hail-public \
-     --cache-from hail-public,$(HAIL_PUBLIC_LATEST)hail-ubuntu \
-     hail
-
-.PHONY: genetics-public-image
-genetics-public-image: hail-public-image
-	python3 ../ci/jinja2_render.py '{"hail_public_image":{"image":"hail-public-image"}}' genetics/Dockerfile genetics/Dockerfile.out
-	-docker pull $(GENETICS_PUBLIC_LATEST)
-	docker build genetics -f genetics/Dockerfile.out -t genetics-public \
-    --cache-from genetics-public,$(GENETICS_PUBLIC_LATEST),hail-public,$(HAIL_PUBLIC_LATEST) \
-    genetics
-
 .PHONY: push
 push: build
 	docker tag hail-ubuntu $(HAIL_UBUNTU_LATEST)
@@ -108,3 +83,8 @@ deploy: push
 .PHONY: clean
 clean:
 	rm -f base-stmp hail-ubuntu-stmp
+
+## Public Images ###############################################################
+
+publish-public-images:
+	bash publish-public-images.sh $(PROJECT)

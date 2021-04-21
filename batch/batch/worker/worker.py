@@ -25,7 +25,7 @@ from hailtop.utils import (time_msecs, request_retry_transient_errors, sleep_and
                            parse_docker_image_reference)
 from hailtop.httpx import client_session
 from hailtop.batch_client.parse import (parse_cpu_in_mcpu, parse_memory_in_bytes, parse_storage_in_bytes)
-from hailtop.batch.hail_genetics_images import HAIL_GENETICS, HAIL_GENETICS_IMAGES
+from hailtop.batch.hail_genetics_images import HAIL_GENETICS_IMAGES
 from hailtop import aiotools
 # import uvloop
 
@@ -260,9 +260,8 @@ class Container:
             image_ref.tag = 'latest'
 
         if image_ref.name() in HAIL_GENETICS_IMAGES:
-            repository_name_without_prefix = image_ref.name()[len(HAIL_GENETICS):]
             image_ref.domain = 'gcr.io'
-            image_ref.path = f'{PROJECT}/{repository_name_without_prefix}'
+            image_ref.path = f'{PROJECT}/{image_ref.name()}'
 
         self.image_ref = image_ref
         self.image_ref_str = str(image_ref)
