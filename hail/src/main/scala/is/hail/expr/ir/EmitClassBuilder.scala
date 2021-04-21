@@ -752,7 +752,7 @@ class EmitClassBuilder[C](
     val literalsBc = if (hasLiterals)
       ctx.backend.broadcast(encodeLiterals())
     else
-      // if there are no literals, there might not be a HailContext
+    // if there are no literals, there might not be a HailContext
       null
 
     val references: Array[ReferenceGenome] = if (hasReferences)
@@ -867,7 +867,7 @@ object EmitFunctionBuilder {
   )(implicit fti: TypeInfo[F]): EmitFunctionBuilder[F] = {
     val modb = new EmitModuleBuilder(ctx, new ModuleBuilder())
     val cb = modb.genEmitClass[F](baseName)
-        val apply = cb.newEmitMethod("apply", argInfo, returnInfo)
+    val apply = cb.newEmitMethod("apply", argInfo, returnInfo)
     new EmitFunctionBuilder(apply)
   }
 
@@ -1100,15 +1100,15 @@ class EmitMethodBuilder[C](
       cb.define(label)
       f(cb)
       // assert(!cb.isOpenEnded)
-        /*
-        FIXME: The above assertion should hold, but currently does not. This is
-        likely due to client code with patterns like the following, which incorrectly
-        leaves the code builder open-ended:
+      /*
+      FIXME: The above assertion should hold, but currently does not. This is
+      likely due to client code with patterns like the following, which incorrectly
+      leaves the code builder open-ended:
 
-        cb.ifx(b,
-          cb.goto(L1),
-          cb.goto(L2))
-         */
+      cb.ifx(b,
+        cb.goto(L1),
+        cb.goto(L2))
+       */
     }
   }
 

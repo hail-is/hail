@@ -359,6 +359,9 @@ class BatchClient:
     def supported_regions(self):
         return async_to_blocking(self._async_client.supported_regions())
 
+    def cloud(self):
+        return async_to_blocking(self._async_client.cloud())
+
     def close(self):
         async_to_blocking(self._async_client.close())
 

@@ -1,0 +1,56 @@
+FROM {{ hail_ubuntu_image.image }}
+
+ENV VEP_VERSION 95
+ENV DEBIAN_FRONTEND noninteractive
+ENV TZ Etc/UTC
+ENV VEP_DIR /vep
+
+RUN apt-get update && apt-get -y install \
+    build-essential \
+    cpanminus \
+    curl \
+    git \
+    libbz2-dev \
+    liblzma-dev \
+    libmysqlclient-dev \
+    libncurses5-dev \
+    libncursesw5-dev \
+    libpng-dev \
+    libsqlite3-dev \
+    libssl-dev \
+    locales \
+    mysql-client \
+    openssl \
+    perl \
+    perl-base \
+    sqlite3 \
+    tabix \
+    unzip \
+    vim \
+    wget
+
+RUN cpanm DBI \
+    DBD::mysql \
+    DBD::SQLite \
+    Archive::Zip \
+    PerlIO::gzip \
+    Set::IntervalTree \
+    JSON || { for i in /root/.cpanm/work/*/build.log; do echo $i; cat $i; done }
+
+RUN mkdir $VEP_DIR
+WORKDIR $VEP_DIR
+
+RUN git clone -b release/95.1 https://github.com/Ensembl/ensembl-vep.git && \
+    cd ensembl-vep && \
+    perl INSTALL.pl -a a --NO_UPDATE && \
+    echo "#!/bin/bash" > /vep/vep && \
+    echo "export PERL5LIB=\$PERL5LIB:${VEP_DIR}/loftee" >> /vep/vep && \
+    echo "exec perl ${VEP_DIR}/ensembl-vep/vep \"\$@\"" >> /vep/vep && \
+    chmod +x /vep /vep/vep && \
+    git clone -b v1.0.2 https://github.com/konradjk/loftee.git && \
+    git clone https://github.com/Ensembl/VEP_plugins.git Plugins/ && \
+    mv loftee/* Plugins/
+
+ENV PERL5LIB "${PERL5LIB}:${VEP_DIR}/Plugins/loftee"
+
+COPY vep.py run_vep_grch38.py /hail-vep/

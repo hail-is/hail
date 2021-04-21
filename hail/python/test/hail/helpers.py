@@ -7,17 +7,27 @@ from decorator import decorator
 from hail.utils.java import Env, choose_backend
 import hail as hl
 
+_initialized = False
+
+GCS_REQUESTER_PAYS_PROJECT = os.environ.get('GCS_REQUESTER_PAYS_PROJECT')
+
 
 def startTestHailContext():
-    backend_name = choose_backend()
-    if backend_name == 'spark':
-        hl.init(master='local[2]', min_block_size=0, quiet=True, global_seed=0)
-    else:
-        hl.init(global_seed=0)
+    global _initialized
+    if not _initialized:
+        backend_name = choose_backend()
+        if backend_name == 'spark':
+            hl.init(master='local[2]', min_block_size=0, quiet=True, global_seed=0)
+        elif backend_name == 'batch':
+            hl.init(gcs_requester_pays_configuration=GCS_REQUESTER_PAYS_PROJECT, global_seed=0)
+        else:
+            hl.init(global_seed=0)
+        _initialized = True
 
 
 def stopTestHailContext():
     hl.stop()
+
 
 _test_dir = os.environ.get('HAIL_TEST_RESOURCES_DIR',
                            os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(hl.__file__))),

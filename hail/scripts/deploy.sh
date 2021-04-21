@@ -8,7 +8,7 @@ retry() {
         (sleep 5 && "$@");
 }
 
-[[ $# -eq 10 ]] || (echo "./deploy.sh HAIL_PIP_VERSION HAIL_VERSION GIT_VERSION REMOTE WHEEL GITHUB_OAUTH_HEADER_FILE HAIL_GENETICS_HAIL_IMAGE HAIL_GENETICS_HAILTOP_IMAGE WHEEL_FOR_AZURE WEBSITE_TAR" ; exit 1)
+[[ $# -eq 12 ]] || (echo "./deploy.sh HAIL_PIP_VERSION HAIL_VERSION GIT_VERSION REMOTE WHEEL GITHUB_OAUTH_HEADER_FILE HAIL_GENETICS_HAIL_IMAGE HAIL_GENETICS_HAILTOP_IMAGE QOB_VEP_GRCH37_IMAGE QOB_VEP_GRCH38_IMAGE WHEEL_FOR_AZURE WEBSITE_TAR" ; exit 1)
 
 HAIL_PIP_VERSION=$1
 HAIL_VERSION=$2
@@ -18,11 +18,15 @@ WHEEL=$5
 GITHUB_OAUTH_HEADER_FILE=$6
 HAIL_GENETICS_HAIL_IMAGE=$7
 HAIL_GENETICS_HAILTOP_IMAGE=$8
-WHEEL_FOR_AZURE=$9
-WEBSITE_TAR=${10}
+QOB_VEP_GRCH37_IMAGE=$9
+QOB_VEP_GRCH38_IMAGE=$10
+WHEEL_FOR_AZURE=$11
+WEBSITE_TAR=${12}
 
 retry skopeo inspect $HAIL_GENETICS_HAIL_IMAGE || (echo "could not pull $HAIL_GENETICS_HAIL_IMAGE" ; exit 1)
 retry skopeo inspect $HAIL_GENETICS_HAILTOP_IMAGE || (echo "could not pull $HAIL_GENETICS_HAILTOP_IMAGE" ; exit 1)
+retry skopeo inspect $QOB_VEP_GRCH37_IMAGE || (echo "could not pull $QOB_VEP_GRCH37_IMAGE" ; exit 1)
+retry skopeo inspect $QOB_VEP_GRCH38_IMAGE || (echo "could not pull $QOB_VEP_GRCH38_IMAGE" ; exit 1)
 
 if git ls-remote --exit-code --tags $REMOTE $HAIL_PIP_VERSION
 then
@@ -75,6 +79,10 @@ retry skopeo copy $HAIL_GENETICS_HAIL_IMAGE docker://docker.io/hailgenetics/hail
 retry skopeo copy $HAIL_GENETICS_HAIL_IMAGE docker://us-docker.pkg.dev/hail-vdc/hail/hailgenetics/hail:$HAIL_PIP_VERSION
 retry skopeo copy $HAIL_GENETICS_HAILTOP_IMAGE docker://docker.io/hailgenetics/hailtop:$HAIL_PIP_VERSION
 retry skopeo copy $HAIL_GENETICS_HAILTOP_IMAGE docker://us-docker.pkg.dev/hail-vdc/hail/hailgenetics/hailtop:$HAIL_PIP_VERSION
+retry skopeo copy $QOB_VEP_GRCH37_IMAGE docker://docker.io/hailgenetics/vep-85-grch37:$HAIL_PIP_VERSION
+retry skopeo copy $QOB_VEP_GRCH37_IMAGE docker://us-docker.pkg.dev/hail-vdc/hail/hailgenetics/vep-85-grch37:$HAIL_PIP_VERSION
+retry skopeo copy $QOB_VEP_GRCH38_IMAGE docker://docker.io/hailgenetics/vep-95-grch38:$HAIL_PIP_VERSION
+retry skopeo copy $QOB_VEP_GRCH38_IMAGE docker://us-docker.pkg.dev/hail-vdc/hail/hailgenetics/vep-95-grch38:$HAIL_PIP_VERSION
 
 # deploy to PyPI
 twine upload $WHEEL
