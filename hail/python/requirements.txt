@@ -13,6 +13,7 @@ gcsfs==0.8.0
 fsspec==0.9.0
 humanize==1.0.0
 hurry.filesize==0.9
+janus>=0.6,<0.7
 nest_asyncio
 numpy<2
 pandas>=1.1.0,<1.1.5
