@@ -14,6 +14,12 @@ Instructions:
   service account name `terraform`.  Create a JSON service account key
   and place it in `$HOME/.hail/terraform_sa_key.json`.
 
+  ```
+  gcloud iam service-accounts create terraform --display-name="Terraform Account"
+  gcloud projects add-iam-policy-binding hail-vdc --member='serviceAccount:terraform@<project-id>.iam.gserviceaccount.com' --role='roles/owner'
+  gcloud iam service-accounts keys create $HOME/.hail/terraform_sa_key.json  --iam-account=terraform@<project-id>.iam.gserviceaccount.com
+  ```
+
 - Enable the the GCP services needed by Hail:
 
    ```
@@ -46,11 +52,6 @@ Instructions:
    batch_gcp_regions = "<batch-gcp-regions>"
 
    gcp_project = "<gcp-project-id>"
-
-   # gcp_location is the bucket location that spans the regions you're
-   # going to schedule across in Batch.  If you are running on one
-   # region, it can just be that region.
-   gcp_location = "<gcp-location>"
 
    # This is the bucket location that spans the regions you're going to
    # schedule across in Batch.  If you are running on one region, it can
