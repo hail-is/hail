@@ -88,7 +88,7 @@ steps:
       - from: /repo/docker/hail-ubuntu
         to: /inputs/docker/hail-ubuntu
     dependsOn:
-      - code
+      - copy_files
   - kind: buildImage
     name: service_base_image
     dockerFile: docker/Dockerfile.service-base
