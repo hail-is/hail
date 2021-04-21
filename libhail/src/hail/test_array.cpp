@@ -67,6 +67,11 @@ TypeContext tc(heap);
 
         std::vector<const Type *> param_types;
         std::vector<const VType *> param_vtypes;
+
+        param_types.push_back(tc.tint64);
+        for (auto t : param_types)
+            param_vtypes.push_back(tc.get_vtype(t));
+
         std::vector<IR *> array_elements;
         auto region = std::make_shared<ArenaAllocator>(heap);
 
@@ -81,14 +86,11 @@ TypeContext tc(heap);
             array_elements.push_back(body->make_literal(element));
         }
 
-        auto idx_value = Value(vint64, 1);
+        auto idx_value = Value(vint64, 0);
         body->set_child(0, body->make_array_ref(body->make_make_array(array_elements), body->make_literal(idx_value)));
 
-        for (auto t : param_types)
-            param_vtypes.push_back(tc.get_vtype(t));
-
         auto compiled = jit.compile(heap, tc, m, param_vtypes, return_vtype);
-        auto ans = compiled.invoke(region, {});
-        assert(ans.as_float64() == 6.2);
+        auto ans = compiled.invoke(region, {idx_value});
+        assert(ans.as_float64() == 5.2);
     }
 }

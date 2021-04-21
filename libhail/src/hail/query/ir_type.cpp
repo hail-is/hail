@@ -23,8 +23,9 @@ IRType::infer(Block *x) {
 
 const Type *
 IRType::infer(Input *x) {
-  return cast<TBlock>(infer(x->get_parent()))
-    ->input_types[x->index];
+  auto parent_input_types = cast<TBlock>(infer(x->get_parent()))->input_types;
+  assert(x->index < parent_input_types.size());
+  return parent_input_types[x->index];
 }
 
 const Type *
