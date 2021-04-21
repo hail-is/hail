@@ -336,9 +336,9 @@ date
 rm -rf repo
 mkdir repo
 (cd repo; {code.checkout_script()})
-{render_dockerfile}
 {init_context}
 {copy_inputs}
+{render_dockerfile}
 
 FROM_IMAGE=$(awk '$1 == "FROM" {{ print $2; exit }}' {shq(rendered_dockerfile)})
 
