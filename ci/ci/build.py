@@ -323,7 +323,7 @@ time retry docker push {self.base_image}:latest
                     copy_inputs
                     + f'''
 mkdir -p {shq(os.path.dirname(f'{context}{i["to"]}'))}
-cp {shq(f'/io/{i["to"]}')} {shq(f'{context}{i["to"]}')}
+mv {shq(f'/io/{i["to"]}')} {shq(f'{context}{i["to"]}')}
 '''
                 )
 
