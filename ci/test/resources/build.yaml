@@ -53,7 +53,9 @@ steps:
     image:
       valueFrom: base_image.image
     script: |
+      mkdir -p /io/first
       echo "first" > /io/first/a
+      mkdir -p /io/second
       echo "second" > /io/second/a
     outputs:
       - from: /io/first
