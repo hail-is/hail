@@ -188,31 +188,31 @@ CompileFunction::emit(Literal *x) {
   switch (ir_type(x)->tag) {
   case Type::Tag::BOOL:
     {
-      auto m = llvm::ConstantInt::get(llvm::Type::getInt8Ty(llvm_context), 0);
+      auto m = llvm::ConstantInt::get(llvm::Type::getInt1Ty(llvm_context), 0);
       auto c = llvm::ConstantInt::get(llvm_context, llvm::APInt(1, x->value.as_bool()));
       return EmitValue(m, new SBoolValue(stc.sbool, c));
     }
   case Type::Tag::INT32:
     {
-      auto m = llvm::ConstantInt::get(llvm::Type::getInt8Ty(llvm_context), 0);
+      auto m = llvm::ConstantInt::get(llvm::Type::getInt1Ty(llvm_context), 0);
       auto c = llvm::ConstantInt::get(llvm_context, llvm::APInt(32, x->value.as_int32()));
       return EmitValue(m, new SInt32Value(stc.sint32, c));
     }
   case Type::Tag::INT64:
     {
-      auto m = llvm::ConstantInt::get(llvm::Type::getInt8Ty(llvm_context), 0);
+      auto m = llvm::ConstantInt::get(llvm::Type::getInt1Ty(llvm_context), 0);
       auto c = llvm::ConstantInt::get(llvm_context, llvm::APInt(64, x->value.as_int64()));
       return EmitValue(m, new SInt64Value(stc.sint64, c));
     }
   case Type::Tag::FLOAT32:
     {
-      auto m = llvm::ConstantInt::get(llvm::Type::getInt8Ty(llvm_context), 0);
+      auto m = llvm::ConstantInt::get(llvm::Type::getInt1Ty(llvm_context), 0);
       auto c = llvm::ConstantFP::get(llvm_context, llvm::APFloat(x->value.as_float32()));
       return EmitValue(m, new SFloat32Value(stc.sfloat32, c));
     }
   case Type::Tag::FLOAT64:
     {
-      auto m = llvm::ConstantInt::get(llvm::Type::getInt8Ty(llvm_context), 0);
+      auto m = llvm::ConstantInt::get(llvm::Type::getInt1Ty(llvm_context), 0);
       auto c = llvm::ConstantFP::get(llvm_context, llvm::APFloat(x->value.as_float64()));
       return EmitValue(m, new SFloat64Value(stc.sfloat64, c));
     }
@@ -289,9 +289,9 @@ CompileFunction::emit(MakeArray *x) {
 
   auto len = llvm::ConstantInt::get(llvm_context, llvm::APInt(64, element_emit_values.size()));
   // Enough memory for one bit per boolean, so just need "len" bits.
-  // FIXME: WRONG
-  auto missing_mem_size = MemorySize(varray_type->byte_size, varray_type->alignment);
-  auto missing = module->region_allocate(&llvm_ir_builder, llvm_function->getArg(0), &missing_mem_size);
+  auto missing_allignment = llvm::ConstantInt::get(llvm_context, llvm::APInt(64, 8));
+  auto missing_bytes = llvm_ir_builder.CreateAdd(llvm_ir_builder.CreateUDiv(len, missing_allignment), llvm::ConstantInt::get(llvm_context, llvm::APInt(64, 1)));
+  auto missing = module->region_allocate(&llvm_ir_builder, llvm_function->getArg(0), missing_allignment, missing_bytes);
 
   auto single_element_size_val = llvm::ConstantInt::get(llvm_context, llvm::APInt(64, varray_type->element_stride));
   auto elements_size = llvm_ir_builder.CreateMul(len, single_element_size_val);
@@ -300,9 +300,30 @@ CompileFunction::emit(MakeArray *x) {
 
   // TODO this should generate an LLVM for loop.
   auto current_index = 0;
+  auto array_index = llvm_ir_builder.CreateAlloca(llvm::Type::getInt64Ty(llvm_context));
+
   for (auto element: element_emit_values) {
+    auto missing_label = llvm::BasicBlock::Create(llvm_context, "make_array_element_missing", llvm_function);
+    auto present_label = llvm::BasicBlock::Create(llvm_context, "make_array_element_present", llvm_function);
+    auto next_element_label = llvm::BasicBlock::Create(llvm_context, "make_array_element_next", llvm_function);
+
+    llvm_ir_builder.CreateCondBr(element.missing, missing_label, present_label);
+    auto currentInsertPoint = llvm_ir_builder.saveIP();
+
+    llvm_ir_builder.SetInsertPoint(present_label);
     auto addr = llvm_ir_builder.CreateGEP(elements, llvm::ConstantInt::get(llvm_context, llvm::APInt(64, varray_type->element_stride * current_index)));
     element.svalue->stype->construct_at_address_from_value(*this, addr, element.svalue);
+    llvm_ir_builder.CreateBr(next_element_label);
+
+    llvm_ir_builder.SetInsertPoint(missing_label);
+    auto missing_addr = llvm_ir_builder.CreateBitCast(llvm_ir_builder.CreateGEP(elements, llvm::ConstantInt::get(llvm_context, llvm::APInt(64, current_index))),
+                                                      llvm::PointerType::get(llvm::Type::getInt1Ty(llvm_context), 0));
+    llvm_ir_builder.CreateStore(llvm::ConstantInt::get(llvm::Type::getInt1Ty(llvm_context), llvm::APInt(1, 1)), missing_addr);
+    llvm_ir_builder.CreateBr(next_element_label);
+
+
+    llvm_ir_builder.SetInsertPoint(next_element_label);
+
     ++current_index;
   }
 
@@ -328,7 +349,7 @@ CompileFunction::emit(ArrayRef *x) {
   auto idx_svalue = cast<SInt64Value>(array_idx.svalue);
 
   auto element_looked_up = array_svalue->get_element(*this, idx_svalue);
-  return EmitValue(array_data_value.missing, element_looked_up);
+  return element_looked_up;
 }
 
 EmitValue

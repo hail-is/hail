@@ -118,12 +118,22 @@ SCanonicalArrayValue::get_length(STypeContext &stc) const {
   return new SInt64Value(return_type, length);
 }
 
-const SValue*
+EmitValue
 SCanonicalArrayValue::get_element(CompileFunction &cf, const SInt64Value *idx) const {
-  // TODO check for missing.
+  auto present_bb = llvm::BasicBlock::Create(cf.llvm_context, "gettarrayelement_present", cf.llvm_function);
+  auto missing_bb = llvm::BasicBlock::Create(cf.llvm_context, "getarrayelement_missing", cf.llvm_function);
+
+  llvm::Value *missing_address =
+    cf.llvm_ir_builder.CreateBitCast(cf.llvm_ir_builder.CreateGEP(missing, idx->value), llvm::PointerType::get(llvm::Type::getInt1Ty(cf.llvm_context), 0));
+  llvm::Value *b = cf.llvm_ir_builder.CreateLoad(llvm::Type::getInt1Ty(cf.llvm_context), missing_address);
+  cf.llvm_ir_builder.CreateCondBr(b, present_bb, present_bb);
+
+  cf.llvm_ir_builder.SetInsertPoint(present_bb);
+
   auto stride_value = llvm::ConstantInt::get(llvm::Type::getInt64Ty(cf.llvm_context), static_cast<uint64_t>(stype->element_stride));
   auto element_addr = cf.llvm_ir_builder.CreateGEP(this->data, cf.llvm_ir_builder.CreateMul(idx->value, stride_value));
-  return stype->element_type->load_from_address(cf, element_addr);
+  auto sv = stype->element_type->load_from_address(cf, element_addr);
+  return EmitValue(missing_bb, sv);
 }
 
 void
