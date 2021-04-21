@@ -3,7 +3,6 @@
 HAIL_DIR := $(shell dirname $(realpath $(firstword $(MAKEFILE_LIST))))
 
 include env_var.mk
-# include ../config.mk
 
 .DEFAULT_GOAL := shadowJar
 MAKEFLAGS += --no-builtin-rules
@@ -395,11 +394,3 @@ update-hail-repl: NAMESPACE ?= default
 update-hail-repl: wheel
 	kubectl -n $(NAMESPACE) cp $(WHEEL) $$(kubectl get pods -n $(NAMESPACE) -l app=hail-repl | tail -n +2 | awk '{print $$1}'):.
 	kubectl -n $(NAMESPACE) exec -it $$(kubectl get pods -n $(NAMESPACE) -l app=hail-repl | tail -n +2 | awk '{print $$1}') -- pip3 install -U hail-$(HAIL_PIP_VERSION)-py3-none-any.whl
-
-# .PHONY: configure-gcloud
-# configure-gcloud:
-# 	gcloud config set project $(PROJECT)
-# 	gcloud container clusters get-credentials vdc --zone=$(ZONE)
-# 	DOCKER_PREFIX=$(DOCKER_PREFIX)
-# 	DOCKER_REGISTRY=${DOCKER_PREFIX%%/*}
-# 	gcloud auth -q configure-docker $DOCKER_REGISTRY
