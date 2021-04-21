@@ -676,6 +676,8 @@ async def add_gcsfuse_bucket(mount_path, bucket, key_file, read_only):
     --file-mode 770 \
     --dir-mode 770 \
     --implicit-dirs \
+    --uid=1001 \
+    --gid=1001 \
     --key-file {key_file} \
     {bucket} {mount_path}
 ''')

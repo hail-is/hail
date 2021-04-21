@@ -288,3 +288,32 @@ class Tests(unittest.TestCase):
         assert r['n_variants'] == 346
         assert r['r_ti_tv'] == 2.5
         assert r['allele_counts'] == {2: 346}
+
+    @skip_unless_service_backend()
+    def test_vep_grch37(self):
+        def get_test_variant_ann(mt):
+            mt_locus = mt.filter((mt.locus == hl.locus('1', 55518321)) &
+                                 (mt.alleles == ['A', 'C']))
+            return mt_locus
+
+        mt = hl.import_vcf(resource('vep_test_variant_grch37.vcf'))
+        mt_ann = hl.vep(mt, csq=False, tolerate_parse_error=False)
+        mt_locus = get_test_variant_ann(mt_ann)
+        # assert mt_locus.vep.
+        # assert mt_locus.globals
+
+        mt_ann = hl.vep(mt, csq=False, tolerate_parse_error=True)
+        mt_locus = get_test_variant_ann(mt_ann)
+        mt_locus._force_count()
+
+        mt_ann = hl.vep(mt, csq=True)
+        mt_locus = get_test_variant_ann(mt_ann)
+        # assert mt_locus.vep
+        # assert mt_locus.globals
+
+    @skip_unless_service_backend()
+    def test_vep_grch38(self):
+        mt = hl.import_vcf(resource('vep_test_variant_grch38.vcf'))
+        mt_ann = hl.vep(mt, csq=False, tolerate_parse_error=False)
+        mt_locus = mt.filter((mt.locus == hl.locus('chr1', 55040024, 'GRCh38')) &
+                             (mt.alleles == ['AC', 'A']))

@@ -214,6 +214,26 @@ def hadoop_ls(path: str) -> List[Dict]:
     return Env.fs().ls(path)
 
 
+def hadoop_rmtree(path: str):
+    """Recursively removes files in `path`.
+
+    Parameters
+    ----------
+    path : :class:`str`
+    """
+    return Env.fs().rmtree(path)
+
+
+def hadoop_remove(path: str):
+    """Removes file at `path`.
+
+    Parameters
+    ----------
+    path : :class:`str`
+    """
+    return Env.fs().remove(path)
+
+
 def copy_log(path: str) -> None:
     """Attempt to copy the session log to a hadoop-API-compatible location.
 

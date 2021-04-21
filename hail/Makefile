@@ -258,7 +258,7 @@ install-editable: python/README.md $(PYTHON_JAR)
 .PHONY: install
 install: $(WHEEL)
 	-$(PIP) uninstall -y hail
-	$(PIP) install $(WHEEL)
+	$(PIP) install $(WHEEL) --user
 
 .PHONY: install-on-cluster
 install-on-cluster: $(WHEEL)

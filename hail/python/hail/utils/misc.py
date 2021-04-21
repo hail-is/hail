@@ -608,6 +608,21 @@ def _dumps_partitions(partitions, row_key_type):
     return s, partitions.dtype
 
 
+def java_typ_to_dtyp(typ):
+    return hl.dtype(typ
+                    .replace('String', 'str')
+                    .replace('Array', 'array')
+                    .replace('Set', 'set')
+                    .replace('Tuple', 'tuple')
+                    .replace('Struct', 'struct')
+                    .replace('[', '<')
+                    .replace(']', '>')
+                    .replace('Int32', 'int32')
+                    .replace('Int64', 'int64')
+                    .replace('Float64', 'float64')
+                    .replace('Float32','float32'))
+
+
 def default_handler():
     try:
         from IPython.display import display

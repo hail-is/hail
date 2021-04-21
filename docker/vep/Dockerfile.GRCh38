@@ -1,0 +1,42 @@
+FROM konradjk/vep95_loftee:0.2
+
+ENV VEP_VERSION 95
+ENV VEP_DIR /vep_bin
+
+WORKDIR /
+USER root
+
+RUN echo "APT::Acquire::Retries \"5\";" > /etc/apt/apt.conf.d/80-retries && \
+    mkdir -p /usr/share/keyrings/ && \
+    apt-get update -y && \
+    apt-get install -y curl gnupg software-properties-common && \
+    add-apt-repository ppa:deadsnakes/ppa && \
+    apt-get update -y && \
+    apt-get install -y python3.7 python3-pip && \
+    update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.7 1
+
+# tried running VEP as the vep user to ensure the environment was the same as dataproc
+RUN echo "#! /bin/bash" > /vep
+RUN echo "set -ex" >> /vep
+RUN echo "COMMAND=(echo \"\$@\")" >> /vep
+RUN echo "echo \$COMMAND" >> /vep
+RUN echo "su - vep -c \"/opt/vep/src/ensembl-vep/vep \${COMMAND[*]}\"" >> /vep
+RUN chmod +x /vep
+
+#RUN mv /opt/vep $VEP_DIR
+
+# tried running VEP as the root user
+#RUN echo "#!/bin/bash" > /vep
+#RUN echo "export HOME=$VEP_DIR" >> /vep
+#RUN echo "export PERL5LIB=$VEP_DIR/src/bioperl-live:$VEP_DIR/src/Bio-HTS:\$PERL5LIB" >> /vep
+#RUN echo "perl $VEP_DIR/src/ensembl-vep/vep \"\$@\"" >> /vep
+#RUN chmod +x /vep
+
+COPY vep/hail-vep/ /hail-vep/
+ENV PYTHONPATH "${PYTHONPATH}:/hail-vep/"
+
+WORKDIR /opt/vep/
+
+# ENV HOME "/opt/vep/"
+
+# USER vep
