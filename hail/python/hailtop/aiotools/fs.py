@@ -1,4 +1,4 @@
-from typing import TypeVar, Any, Optional, List, Type, BinaryIO, cast, Set, AsyncIterator, Union, Dict
+from typing import Any, Optional, List, Type, BinaryIO, cast, Set, AsyncIterator, Union, Dict
 from types import TracebackType
 import abc
 import os
@@ -14,8 +14,6 @@ from hailtop.utils import (
     retry_transient_errors, blocking_to_async, url_basename, url_join, bounded_gather2,
     time_msecs, humanize_timedelta_msecs)
 from .stream import ReadableStream, WritableStream, blocking_readable_stream_to_async, blocking_writable_stream_to_async
-
-AsyncFSType = TypeVar('AsyncFSType', bound='AsyncFS')
 
 
 class FileStatus(abc.ABC):
@@ -142,7 +140,7 @@ class AsyncFS(abc.ABC):
     async def close(self) -> None:
         pass
 
-    async def __aenter__(self) -> AsyncFSType:
+    async def __aenter__(self) -> 'AsyncFS':
         return self
 
     async def __aexit__(self,
@@ -199,7 +197,7 @@ class LocalFileListEntry(FileListEntry):
 
 
 class LocalMultiPartCreate(MultiPartCreate):
-    def __init__(self, fs: AsyncFS, path: str, num_parts: int):
+    def __init__(self, fs: 'LocalAsyncFS', path: str, num_parts: int):
         self._fs = fs
         self._path = path
         self._num_parts = num_parts
@@ -386,6 +384,8 @@ class SourceReport:
 
 
 class TransferReport:
+    _source_report: Union[SourceReport, List[SourceReport]]
+
     def __init__(self, transfer: Transfer):
         self._transfer = transfer
         if isinstance(transfer.src, str):
@@ -405,7 +405,7 @@ class CopyReport:
         self._end_time = None
         self._duration = None
         if isinstance(transfer, Transfer):
-            self._transfer_report = TransferReport(transfer)
+            self._transfer_report: Union[TransferReport, List[TransferReport]] = TransferReport(transfer)
         else:
             self._transfer_report = [TransferReport(t) for t in transfer]
         self._exception: Optional[Exception] = None
@@ -471,8 +471,8 @@ class SourceCopier:
         self.treat_dest_as = treat_dest_as
         self.dest_type_task = dest_type_task
 
-        self.src_is_file = None
-        self.src_is_dir = None
+        self.src_is_file: Optional[bool] = None
+        self.src_is_dir: Optional[bool] = None
 
         self.pending = 2
         self.barrier = asyncio.Event()
@@ -726,21 +726,24 @@ class Copier:
     async def _copy_one_transfer(self, sema: asyncio.Semaphore, transfer_report: TransferReport, transfer: Transfer, return_exceptions: bool):
         try:
             if transfer.treat_dest_as == Transfer.INFER_DEST:
-                dest_type_task = asyncio.create_task(self._dest_type(transfer))
+                dest_type_task: Optional[asyncio.Task] = asyncio.create_task(self._dest_type(transfer))
             else:
                 dest_type_task = None
 
             try:
                 src = transfer.src
+                src_report = transfer_report._source_report
                 if isinstance(src, str):
-                    await self.copy_source(sema, transfer, transfer_report._source_report, src, dest_type_task, return_exceptions)
+                    assert isinstance(src_report, SourceReport)
+                    await self.copy_source(sema, transfer, src_report, src, dest_type_task, return_exceptions)
                 else:
+                    assert isinstance(src_report, list)
                     if transfer.treat_dest_as == Transfer.DEST_IS_TARGET:
                         raise NotADirectoryError(transfer.dest)
 
                     await bounded_gather2(sema, *[
                         self.copy_source(sema, transfer, r, s, dest_type_task, return_exceptions)
-                        for r, s in zip(transfer_report._source_report, src)
+                        for r, s in zip(src_report, src)
                     ], cancel_on_error=True)
 
                 # raise potential exception
@@ -756,14 +759,17 @@ class Copier:
                 raise e
 
     async def copy(self, sema: asyncio.Semaphore, copy_report: CopyReport, transfer: Union[Transfer, List[Transfer]], return_exceptions: bool):
+        transfer_report = copy_report._transfer_report
         try:
             if isinstance(transfer, Transfer):
-                await self._copy_one_transfer(sema, copy_report._transfer_report, transfer, return_exceptions)
+                assert isinstance(transfer_report, TransferReport)
+                await self._copy_one_transfer(sema, transfer_report, transfer, return_exceptions)
                 return
 
+            assert isinstance(transfer_report, list)
             await bounded_gather2(sema, *[
                 self._copy_one_transfer(sema, r, t, return_exceptions)
-                for r, t in zip(copy_report._transfer_report, transfer)
+                for r, t in zip(transfer_report, transfer)
             ], return_exceptions=return_exceptions, cancel_on_error=True)
         except Exception as e:
             if return_exceptions:

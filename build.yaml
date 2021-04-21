@@ -1059,7 +1059,9 @@ steps:
 
       python3 -m flake8 --config setup.cfg $SITE_PACKAGES/hail $SITE_PACKAGES/hailtop || exit_status=$?
       python3 -m pylint --rcfile pylintrc hailtop || exit_status=$?
-      (cd $SITE_PACKAGES/hailtop/ && mypy --config-file /setup.cfg utils batch google_storage.py) || exit_status=$?
+      # working around this: https://github.com/python/mypy/issues/7087
+      ln -s $SITE_PACKAGES/hailtop hailtop
+      mypy --config-file /setup.cfg -p hailtop || exit_status=$?
 
       exit $exit_status
     dependsOn:
@@ -1076,7 +1078,9 @@ steps:
 
       python3 -m flake8 --config setup.cfg $SITE_PACKAGES/hail $SITE_PACKAGES/hailtop || exit_status=$?
       python3 -m pylint --rcfile pylintrc hailtop || exit_status=$?
-      (cd $SITE_PACKAGES/hailtop/ && mypy --config-file /setup.cfg utils batch google_storage.py) || exit_status=$?
+      # working around this: https://github.com/python/mypy/issues/7087
+      ln -s $SITE_PACKAGES/hailtop hailtop
+      mypy --config-file /setup.cfg -p hailtop || exit_status=$?
 
       exit $exit_status
     dependsOn:
