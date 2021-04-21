@@ -269,7 +269,7 @@ class BuildImageStep(Step):
             input_files = []
             for i in self.inputs:
                 input_files.append(
-                    (f'gs://{BUCKET}/build/{batch.attributes["token"]}{i["from"]}', f'/io/{os.path.basename(i["to"])}')
+                    (f'gs://{BUCKET}/build/{batch.attributes["token"]}{i["from"]}', f'/io/{i["to"]}')
                 )
         else:
             input_files = None
@@ -325,7 +325,7 @@ time retry docker push {self.base_image}:latest
                     copy_inputs
                     + f'''
 mkdir -p {shq(os.path.dirname(f'{context}{i["to"]}'))}
-cp {shq(f'/io/{os.path.basename(i["to"])}')} {shq(f'{context}{i["to"]}')}
+cp {shq(f'/io/{i["to"]}')} {shq(f'{context}{i["to"]}')}
 '''
                 )
 

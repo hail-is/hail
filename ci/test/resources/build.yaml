@@ -48,6 +48,36 @@ steps:
         to: /hail_version
     dependsOn:
       - base_image
+  - kind: runImage
+    name: test_clashing_basenames_setup
+    image:
+      valueFrom: base_image.image
+    script: |
+      echo "first" > /io/first/a
+      echo "second" > /io/second/a
+    outputs:
+      - from: /io/first
+        to: /first
+      - from: /io/second
+        to: /second
+    dependsOn:
+      - base_image
+  - kind: runImage
+    name: test_clashing_basenames
+    image:
+      valueFrom: base_image.image
+    script: |
+      set -ex
+      [[ "$(cat /first/a)" == "first" ]]
+      [[ "$(cat /second/a)" == "second" ]]
+    outputs:
+      - from: /first/a
+        to: /first/a
+      - from: /second/a
+        to: /second/a
+    dependsOn:
+      - base_image
+      - test_clashing_basenames_setup
   - kind: buildImage
     name: service_base_image
     dockerFile: docker/Dockerfile.service-base
