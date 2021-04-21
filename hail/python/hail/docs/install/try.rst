@@ -26,7 +26,7 @@ populations.
                                   n_variants=100)
     mt.show()
 
-The last line, ``mt.show()``, displays the dataset in a tabublar form.
+The last line, ``mt.show()``, displays the dataset in a tabular form.
 
 .. code-block:: sh
 
