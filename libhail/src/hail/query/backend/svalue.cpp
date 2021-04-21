@@ -126,7 +126,7 @@ SCanonicalArrayValue::get_element(CompileFunction &cf, const SInt64Value *idx) c
   llvm::Value *missing_address =
     cf.llvm_ir_builder.CreateBitCast(cf.llvm_ir_builder.CreateGEP(missing, idx->value), llvm::PointerType::get(llvm::Type::getInt1Ty(cf.llvm_context), 0));
   llvm::Value *b = cf.llvm_ir_builder.CreateLoad(llvm::Type::getInt1Ty(cf.llvm_context), missing_address);
-  cf.llvm_ir_builder.CreateCondBr(b, present_bb, present_bb);
+  cf.llvm_ir_builder.CreateCondBr(b, missing_bb, present_bb);
 
   cf.llvm_ir_builder.SetInsertPoint(present_bb);
 

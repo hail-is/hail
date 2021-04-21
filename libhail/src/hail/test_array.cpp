@@ -8,10 +8,12 @@
 
 namespace hail {
 
+HeapAllocator heap;
+ArenaAllocator arena(heap);
+TypeContext tc(heap);
+
     TEST_CASE(test_array_length) {
-        HeapAllocator heap;
-        ArenaAllocator arena(heap);
-        TypeContext tc(heap);
+
         auto region = std::make_shared<ArenaAllocator>(heap);
         auto varray = cast<VArray>(tc.get_vtype(tc.tarray(tc.tfloat64)));
         auto vfloat64 = cast<VFloat64>(tc.get_vtype(tc.tfloat64));
@@ -56,9 +58,6 @@ namespace hail {
     }
 
     TEST_CASE(test_array_ref) {
-        HeapAllocator heap;
-        ArenaAllocator arena(heap);
-        TypeContext tc(heap);
         IRContext xc(heap);
         Module *m = xc.make_module();
         JIT jit;

@@ -307,17 +307,18 @@ CompileFunction::emit(MakeArray *x) {
     auto present_label = llvm::BasicBlock::Create(llvm_context, "make_array_element_present", llvm_function);
     auto next_element_label = llvm::BasicBlock::Create(llvm_context, "make_array_element_next", llvm_function);
 
+    auto missing_addr = llvm_ir_builder.CreateBitCast(llvm_ir_builder.CreateGEP(elements, llvm::ConstantInt::get(llvm_context, llvm::APInt(64, current_index))),
+                                                      llvm::PointerType::get(llvm::Type::getInt1Ty(llvm_context), 0));
+
     llvm_ir_builder.CreateCondBr(element.missing, missing_label, present_label);
-    auto currentInsertPoint = llvm_ir_builder.saveIP();
 
     llvm_ir_builder.SetInsertPoint(present_label);
     auto addr = llvm_ir_builder.CreateGEP(elements, llvm::ConstantInt::get(llvm_context, llvm::APInt(64, varray_type->element_stride * current_index)));
     element.svalue->stype->construct_at_address_from_value(*this, addr, element.svalue);
+    llvm_ir_builder.CreateStore(llvm::ConstantInt::get(llvm::Type::getInt1Ty(llvm_context), llvm::APInt(1, 0)), missing_addr);
     llvm_ir_builder.CreateBr(next_element_label);
 
     llvm_ir_builder.SetInsertPoint(missing_label);
-    auto missing_addr = llvm_ir_builder.CreateBitCast(llvm_ir_builder.CreateGEP(elements, llvm::ConstantInt::get(llvm_context, llvm::APInt(64, current_index))),
-                                                      llvm::PointerType::get(llvm::Type::getInt1Ty(llvm_context), 0));
     llvm_ir_builder.CreateStore(llvm::ConstantInt::get(llvm::Type::getInt1Ty(llvm_context), llvm::APInt(1, 1)), missing_addr);
     llvm_ir_builder.CreateBr(next_element_label);
 
