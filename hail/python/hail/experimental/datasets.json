@@ -3338,6 +3338,11 @@
     ]
   },
   "gnomad_annotation_pext": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
     "description": "gnomAD: annotation-level proportion expressed across transcripts (pext) for all possible SNVs Hail Table.",
     "url": "https://gnomad.broadinstitute.org/",
     "versions": [
@@ -3356,6 +3361,9 @@
     ]
   },
   "gnomad_base_pext": {
+    "annotation_db": {
+      "key_properties": []
+    },
     "description": "gnomAD: base-level proportion expressed across transcripts (pext) Hail Table.",
     "url": "https://gnomad.broadinstitute.org/",
     "versions": [
@@ -3374,6 +3382,11 @@
     ]
   },
   "gnomad_chrM_coverage": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
     "description": "gnomAD: mitochondrial DNA (mtDNA) coverage Hail Table.",
     "url": "https://gnomad.broadinstitute.org/blog/2020-11-gnomad-v3-1-mitochondrial-dna-variants/",
     "versions": [
@@ -3415,6 +3428,11 @@
     ]
   },
   "gnomad_exome_coverage": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
     "description": "gnomAD: exome coverage Hail Table.",
     "url": "https://gnomad.broadinstitute.org/",
     "versions": [
@@ -3468,6 +3486,11 @@
     ]
   },
   "gnomad_genome_coverage": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
     "description": "gnomAD: genome coverage Hail Table.",
     "url": "https://gnomad.broadinstitute.org/",
     "versions": [
@@ -3725,6 +3748,11 @@
     ]
   },
   "gnomad_ld_scores_afr": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
     "description": "gnomAD: linkage disequilibrium (LD) scores Hail Table for African/African-American population.",
     "url": "https://gnomad.broadinstitute.org/",
     "versions": [
@@ -3743,6 +3771,11 @@
     ]
   },
   "gnomad_ld_scores_amr": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
     "description": "gnomAD: linkage disequilibrium (LD) scores Hail Table for Latino/Admixed American population.",
     "url": "https://gnomad.broadinstitute.org/",
     "versions": [
@@ -3761,6 +3794,11 @@
     ]
   },
   "gnomad_ld_scores_asj": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
     "description": "gnomAD: linkage disequilibrium (LD) scores Hail Table for Ashkenazi Jewish population.",
     "url": "https://gnomad.broadinstitute.org/",
     "versions": [
@@ -3779,6 +3817,11 @@
     ]
   },
   "gnomad_ld_scores_eas": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
     "description": "gnomAD: linkage disequilibrium (LD) scores Hail Table for East Asian population.",
     "url": "https://gnomad.broadinstitute.org/",
     "versions": [
@@ -3797,6 +3840,11 @@
     ]
   },
   "gnomad_ld_scores_est": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
     "description": "gnomAD: linkage disequilibrium (LD) scores Hail Table for Estonian population.",
     "url": "https://gnomad.broadinstitute.org/",
     "versions": [
@@ -3815,6 +3863,11 @@
     ]
   },
   "gnomad_ld_scores_fin": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
     "description": "gnomAD: linkage disequilibrium (LD) scores Hail Table for European (Finnish) population.",
     "url": "https://gnomad.broadinstitute.org/",
     "versions": [
@@ -3833,6 +3886,11 @@
     ]
   },
   "gnomad_ld_scores_nfe": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
     "description": "gnomAD: linkage disequilibrium (LD) scores Hail Table for European (non-Finnish) population.",
     "url": "https://gnomad.broadinstitute.org/",
     "versions": [
@@ -3851,6 +3909,11 @@
     ]
   },
   "gnomad_ld_scores_nwe": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
     "description": "gnomAD: linkage disequilibrium (LD) scores Hail Table for North-western European population.",
     "url": "https://gnomad.broadinstitute.org/",
     "versions": [
@@ -3869,6 +3932,11 @@
     ]
   },
   "gnomad_ld_scores_seu": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
     "description": "gnomAD: linkage disequilibrium (LD) scores Hail Table for Southern European population.",
     "url": "https://gnomad.broadinstitute.org/",
     "versions": [
@@ -3887,6 +3955,11 @@
     ]
   },
   "gnomad_ld_variant_indices_afr": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
     "description": "gnomAD: variant indices Hail Table for African/African-American population.",
     "url": "https://gnomad.broadinstitute.org/",
     "versions": [
@@ -3905,6 +3978,11 @@
     ]
   },
   "gnomad_ld_variant_indices_amr": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
     "description": "gnomAD: variant indices Hail Table for Latino/Admixed American population.",
     "url": "https://gnomad.broadinstitute.org/",
     "versions": [
@@ -3923,6 +4001,11 @@
     ]
   },
   "gnomad_ld_variant_indices_asj": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
     "description": "gnomAD: variant indices Hail Table for Ashkenazi Jewish population.",
     "url": "https://gnomad.broadinstitute.org/",
     "versions": [
@@ -3941,6 +4024,11 @@
     ]
   },
   "gnomad_ld_variant_indices_eas": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
     "description": "gnomAD: variant indices Hail Table for East Asian population.",
     "url": "https://gnomad.broadinstitute.org/",
     "versions": [
@@ -3959,6 +4047,11 @@
     ]
   },
   "gnomad_ld_variant_indices_est": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
     "description": "gnomAD: variant indices Hail Table for Estonian population.",
     "url": "https://gnomad.broadinstitute.org/",
     "versions": [
@@ -3977,6 +4070,11 @@
     ]
   },
   "gnomad_ld_variant_indices_fin": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
     "description": "gnomAD: variant indices Hail Table for European (Finnish) population.",
     "url": "https://gnomad.broadinstitute.org/",
     "versions": [
@@ -3995,6 +4093,11 @@
     ]
   },
   "gnomad_ld_variant_indices_nfe": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
     "description": "gnomAD: variant indices Hail Table for European (non-Finnish) population.",
     "url": "https://gnomad.broadinstitute.org/",
     "versions": [
@@ -4013,6 +4116,11 @@
     ]
   },
   "gnomad_ld_variant_indices_nwe": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
     "description": "gnomAD: variant indices Hail Table for North-western European population.",
     "url": "https://gnomad.broadinstitute.org/",
     "versions": [
@@ -4031,6 +4139,11 @@
     ]
   },
   "gnomad_ld_variant_indices_seu": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
     "description": "gnomAD: variant indices Hail Table for Southern European population.",
     "url": "https://gnomad.broadinstitute.org/",
     "versions": [
@@ -4049,6 +4162,11 @@
     ]
   },
   "gnomad_mnv_genome_d01": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
     "description": "gnomAD: genome wide multi-nucleotide variants (MNVs) Hail Table, for distance between two SNVs of 1.",
     "url": "https://gnomad.broadinstitute.org/",
     "versions": [
@@ -4067,6 +4185,11 @@
     ]
   },
   "gnomad_mnv_genome_d02": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
     "description": "gnomAD: genome wide multi-nucleotide variants (MNVs) Hail Table, for distance between two SNVs of 2.",
     "url": "https://gnomad.broadinstitute.org/",
     "versions": [
@@ -4085,6 +4208,11 @@
     ]
   },
   "gnomad_mnv_genome_d03": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
     "description": "gnomAD: genome wide multi-nucleotide variants (MNVs) Hail Table, for distance between two SNVs of 3.",
     "url": "https://gnomad.broadinstitute.org/",
     "versions": [
@@ -4103,6 +4231,11 @@
     ]
   },
   "gnomad_mnv_genome_d04": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
     "description": "gnomAD: genome wide multi-nucleotide variants (MNVs) Hail Table, for distance between two SNVs of 4.",
     "url": "https://gnomad.broadinstitute.org/",
     "versions": [
@@ -4121,6 +4254,11 @@
     ]
   },
   "gnomad_mnv_genome_d05": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
     "description": "gnomAD: genome wide multi-nucleotide variants (MNVs) Hail Table, for distance between two SNVs of 5.",
     "url": "https://gnomad.broadinstitute.org/",
     "versions": [
@@ -4139,6 +4277,11 @@
     ]
   },
   "gnomad_mnv_genome_d06": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
     "description": "gnomAD: genome wide multi-nucleotide variants (MNVs) Hail Table, for distance between two SNVs of 6.",
     "url": "https://gnomad.broadinstitute.org/",
     "versions": [
@@ -4157,6 +4300,11 @@
     ]
   },
   "gnomad_mnv_genome_d07": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
     "description": "gnomAD: genome wide multi-nucleotide variants (MNVs) Hail Table, for distance between two SNVs of 7.",
     "url": "https://gnomad.broadinstitute.org/",
     "versions": [
@@ -4175,6 +4323,11 @@
     ]
   },
   "gnomad_mnv_genome_d08": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
     "description": "gnomAD: genome wide multi-nucleotide variants (MNVs) Hail Table, for distance between two SNVs of 8.",
     "url": "https://gnomad.broadinstitute.org/",
     "versions": [
@@ -4193,6 +4346,11 @@
     ]
   },
   "gnomad_mnv_genome_d09": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
     "description": "gnomAD: genome wide multi-nucleotide variants (MNVs) Hail Table, for distance between two SNVs of 9.",
     "url": "https://gnomad.broadinstitute.org/",
     "versions": [
@@ -4211,6 +4369,11 @@
     ]
   },
   "gnomad_mnv_genome_d10": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
     "description": "gnomAD: genome wide multi-nucleotide variants (MNVs) Hail Table, for distance between two SNVs of 10.",
     "url": "https://gnomad.broadinstitute.org/",
     "versions": [
@@ -4253,6 +4416,11 @@
     ]
   },
   "gnomad_plof_metrics_transcript": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
     "description": "gnomAD: pLoF metrics by transcript Hail Table.",
     "url": "https://gnomad.broadinstitute.org/",
     "versions": [
@@ -4423,6 +4591,11 @@
     ]
   },
   "panukb_ld_scores_AFR": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
     "description": "Pan-UKB: linkage disequilibrium (LD) scores Hail Table for African ancestry population.",
     "url": "https://pan.ukbb.broadinstitute.org/docs/technical-overview",
     "versions": [
@@ -4438,6 +4611,11 @@
     ]
   },
   "panukb_ld_scores_AMR": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
     "description": "Pan-UKB: linkage disequilibrium (LD) scores Hail Table for Admixed American ancestry population.",
     "url": "https://pan.ukbb.broadinstitute.org/docs/technical-overview",
     "versions": [
@@ -4453,6 +4631,11 @@
     ]
   },
   "panukb_ld_scores_CSA": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
     "description": "Pan-UKB: linkage disequilibrium (LD) scores Hail Table for Central/South Asian ancestry population.",
     "url": "https://pan.ukbb.broadinstitute.org/docs/technical-overview",
     "versions": [
@@ -4468,6 +4651,11 @@
     ]
   },
   "panukb_ld_scores_EAS": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
     "description": "Pan-UKB: linkage disequilibrium (LD) scores Hail Table for East Asian ancestry population.",
     "url": "https://pan.ukbb.broadinstitute.org/docs/technical-overview",
     "versions": [
@@ -4483,6 +4671,11 @@
     ]
   },
   "panukb_ld_scores_EUR": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
     "description": "Pan-UKB: linkage disequilibrium (LD) scores Hail Table for European ancestry population.",
     "url": "https://pan.ukbb.broadinstitute.org/docs/technical-overview",
     "versions": [
@@ -4498,6 +4691,11 @@
     ]
   },
   "panukb_ld_scores_MID": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
     "description": "Pan-UKB: linkage disequilibrium (LD) scores Hail Table for Middle Eastern ancestry population.",
     "url": "https://pan.ukbb.broadinstitute.org/docs/technical-overview",
     "versions": [
@@ -4513,6 +4711,11 @@
     ]
   },
   "panukb_ld_variant_indices_AFR": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
     "description": "Pan-UKB: variant indices Hail Table for African ancestry population.",
     "url": "https://pan.ukbb.broadinstitute.org/docs/technical-overview",
     "versions": [
@@ -4528,6 +4731,11 @@
     ]
   },
   "panukb_ld_variant_indices_AMR": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
     "description": "Pan-UKB: variant indices Hail Table for Admixed American ancestry population.",
     "url": "https://pan.ukbb.broadinstitute.org/docs/technical-overview",
     "versions": [
@@ -4543,6 +4751,11 @@
     ]
   },
   "panukb_ld_variant_indices_CSA": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
     "description": "Pan-UKB: variant indices Hail Table for Central/South Asian ancestry population.",
     "url": "https://pan.ukbb.broadinstitute.org/docs/technical-overview",
     "versions": [
@@ -4558,6 +4771,11 @@
     ]
   },
   "panukb_ld_variant_indices_EAS": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
     "description": "Pan-UKB: variant indices Hail Table for East Asian ancestry population.",
     "url": "https://pan.ukbb.broadinstitute.org/docs/technical-overview",
     "versions": [
@@ -4573,6 +4791,11 @@
     ]
   },
   "panukb_ld_variant_indices_EUR": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
     "description": "Pan-UKB: variant indices Hail Table for European ancestry population.",
     "url": "https://pan.ukbb.broadinstitute.org/docs/technical-overview",
     "versions": [
@@ -4588,6 +4811,11 @@
     ]
   },
   "panukb_ld_variant_indices_MID": {
+    "annotation_db": {
+      "key_properties": [
+        "unique"
+      ]
+    },
     "description": "Pan-UKB: variant indices Hail Table for Middle Eastern ancestry population.",
     "url": "https://pan.ukbb.broadinstitute.org/docs/technical-overview",
     "versions": [
