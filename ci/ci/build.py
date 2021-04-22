@@ -451,7 +451,7 @@ class BuildImage2Step(Step):
         if self.inputs:
             input_files = []
             for i in self.inputs:
-                input_files.append((f'gs://{BUCKET}/build/{batch.attributes["token"]}{i["from"]}', f'/{i["to"]}'))
+                input_files.append((f'gs://{BUCKET}/build/{batch.attributes["token"]}{i["from"]}', i["to"]))
         else:
             input_files = None
 
