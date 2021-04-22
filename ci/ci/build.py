@@ -210,6 +210,8 @@ class Step(abc.ABC):
         kind = params.json['kind']
         if kind == 'buildImage':
             return BuildImageStep.from_json(params)
+        if kind == 'buildImage2':
+            return BuildImage2Step.from_json(params)
         if kind == 'runImage':
             return RunImageStep.from_json(params)
         if kind == 'createNamespace':
@@ -339,6 +341,169 @@ mkdir repo
 {render_dockerfile}
 {init_context}
 {copy_inputs}
+
+FROM_IMAGE=$(awk '$1 == "FROM" {{ print $2; exit }}' {shq(rendered_dockerfile)})
+
+time gcloud -q auth activate-service-account \
+  --key-file=/secrets/gcr-push-service-account-key/gcr-push-service-account-key.json
+time gcloud -q auth configure-docker
+
+time retry docker pull $FROM_IMAGE
+{pull_published_latest}
+CPU_PERIOD=100000
+CPU_QUOTA=$(( $(grep -c ^processor /proc/cpuinfo) * $(cat /sys/fs/cgroup/cpu/cpu.shares) * $CPU_PERIOD / 1024 ))
+MEMORY=$(cat /sys/fs/cgroup/memory/memory.limit_in_bytes)
+time docker build --memory="$MEMORY" --cpu-period="$CPU_PERIOD" --cpu-quota="$CPU_QUOTA" -t {shq(self.image)} \
+  -f {rendered_dockerfile} \
+  --cache-from $FROM_IMAGE {cache_from_published_latest} \
+  {context}
+{push_image}
+
+date
+'''
+
+        log.info(f'step {self.name}, script:\n{script}')
+
+        self.job = batch.create_job(
+            CI_UTILS_IMAGE,
+            command=['bash', '-c', script],
+            mount_docker_socket=True,
+            secrets=[
+                {
+                    'namespace': DEFAULT_NAMESPACE,
+                    'name': 'gcr-push-service-account-key',
+                    'mount_path': '/secrets/gcr-push-service-account-key',
+                }
+            ],
+            attributes={'name': self.name},
+            input_files=input_files,
+            parents=self.deps_parents(),
+        )
+
+    def cleanup(self, batch, scope, parents):
+        if scope == 'deploy' and self.publish_as and not is_test_deployment:
+            return
+
+        script = f'''
+set -x
+date
+
+gcloud -q auth activate-service-account \
+  --key-file=/secrets/gcr-push-service-account-key/gcr-push-service-account-key.json
+
+until gcloud -q container images untag {shq(self.image)} || ! gcloud -q container images describe {shq(self.image)}
+do
+    echo 'failed, will sleep 2 and retry'
+    sleep 2
+done
+
+date
+true
+'''
+
+        self.job = batch.create_job(
+            CI_UTILS_IMAGE,
+            command=['bash', '-c', script],
+            attributes={'name': f'cleanup_{self.name}'},
+            secrets=[
+                {
+                    'namespace': DEFAULT_NAMESPACE,
+                    'name': 'gcr-push-service-account-key',
+                    'mount_path': '/secrets/gcr-push-service-account-key',
+                }
+            ],
+            parents=parents,
+            always_run=True,
+            network='private',
+        )
+
+
+
+
+class BuildImage2Step(Step):
+    def __init__(self, params, dockerfile, context_path, publish_as, inputs):  # pylint: disable=unused-argument
+        super().__init__(params)
+        self.dockerfile = dockerfile
+        self.context_path = context_path
+        self.publish_as = publish_as
+        self.inputs = inputs
+        if params.scope == 'deploy' and publish_as and not is_test_deployment:
+            self.base_image = f'gcr.io/{GCP_PROJECT}/{self.publish_as}'
+        else:
+            self.base_image = f'gcr.io/{GCP_PROJECT}/ci-intermediate'
+        self.image = f'{self.base_image}:{self.token}'
+        self.job = None
+
+    def wrapped_job(self):
+        if self.job:
+            return [self.job]
+        return []
+
+    @staticmethod
+    def from_json(params):
+        json = params.json
+        return BuildImageStep(
+            params, json['dockerFile'], json.get('contextPath'), json.get('publishAs'), json.get('inputs')
+        )
+
+    def config(self, scope):  # pylint: disable=unused-argument
+        return {'token': self.token, 'image': self.image}
+
+    def build(self, batch, code, scope):
+        if self.inputs:
+            input_files = []
+            for i in self.inputs:
+                input_files.append((f'gs://{BUCKET}/build/{batch.attributes["token"]}{i["from"]}', f'/io/{i["to"]}'))
+        else:
+            input_files = None
+
+        config = self.input_config(code, scope)
+
+        context = self.context_path
+        if not context:
+            context = '/io'
+
+        rendered_dockerfile = '/Dockerfile'
+        if isinstance(self.dockerfile, dict):
+            assert ['inline'] == list(self.dockerfile.keys())
+            render_dockerfile = f'echo {shq(self.dockerfile["inline"])} > /Dockerfile.{self.token};\n'
+            unrendered_dockerfile = f'/Dockerfile.{self.token}'
+        else:
+            assert isinstance(self.dockerfile, str)
+            render_dockerfile = ''
+            unrendered_dockerfile = f'{self.dockerfile}'
+        render_dockerfile += (
+            f'time python3 jinja2_render.py {shq(json.dumps(config))} '
+            f'{shq(unrendered_dockerfile)} {shq(rendered_dockerfile)}'
+        )
+
+        if self.publish_as:
+            published_latest = shq(f'gcr.io/{GCP_PROJECT}/{self.publish_as}:latest')
+            pull_published_latest = f'time retry docker pull {shq(published_latest)} || true'
+            cache_from_published_latest = f'--cache-from {shq(published_latest)}'
+        else:
+            pull_published_latest = ''
+            cache_from_published_latest = ''
+
+        push_image = f'''
+time retry docker push {self.image}
+'''
+        if scope == 'deploy' and self.publish_as and not is_test_deployment:
+            push_image = (
+                f'''
+docker tag {shq(self.image)} {self.base_image}:latest
+time retry docker push {self.base_image}:latest
+'''
+                + push_image
+            )
+
+        script = f'''
+set -ex
+date
+
+{ RETRY_FUNCTION_SCRIPT }
+
+{render_dockerfile}
 
 FROM_IMAGE=$(awk '$1 == "FROM" {{ print $2; exit }}' {shq(rendered_dockerfile)})
 
