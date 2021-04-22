@@ -3839,14 +3839,14 @@ steps:
       - default_ns
       - service_base_image
       - code
-  - kind: buildImage
+  - kind: buildImage2
     name: atgu_image
-    dockerFile: repo/atgu/Dockerfile
-    contextPath: repo
+    dockerFile: /io/repo/atgu/Dockerfile
+    contextPath: /io/repo
     publishAs: atgu
     inputs:
       - from: /repo
-        to: /repo
+        to: /io/repo
     dependsOn:
       - service_base_image
       - code
