@@ -83,10 +83,20 @@ steps:
   - kind: buildImage
     name: docker_file_in_inputs_test_image
     dockerFile: hail-ubuntu/Dockerfile
-    contextPath: .
+    contextPath: hail-ubuntu
     inputs:
-      - from: /repo/docker/hail-ubuntu
-        to: /hail-ubuntu
+      - from: /repo/docker/hail-ubuntu/Dockerfile
+        to: /Dockerfile
+      - from: /repo/docker/hail-ubuntu/controller.sh
+        to: /controller.sh
+      - from: /repo/docker/hail-ubuntu/hail-apt-get-install
+        to: /hail-apt-get-install
+      - from: /repo/docker/hail-ubuntu/hail-pip-install
+        to: /hail-pip-install
+      - from: /repo/docker/hail-ubuntu/pip.conf
+        to: /pip.conf
+      - from: /repo/docker/hail-ubuntu/retry
+        to: /retry
     dependsOn:
       - copy_files
   - kind: buildImage
