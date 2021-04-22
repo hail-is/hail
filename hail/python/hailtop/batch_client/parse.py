@@ -42,17 +42,6 @@ def parse_memory_in_bytes(memory_string: str) -> Optional[int]:
     return None
 
 
-<<<<<<< HEAD
-def parse_storage_in_bytes(storage_string):
-    return parse_memory_in_bytes(storage_string)
-=======
-def parse_image_tag(image_string: str) -> Optional[Tuple[str, str]]:
-    match = IMAGE_REGEX.fullmatch(image_string)
-    if match:
-        return match.group(1) + match.group(2), match.group(4)
-    return None
-
-
 def parse_storage_in_bytes(storage_string: str) -> Optional[int]:
     match = STORAGE_REGEX.fullmatch(storage_string)
     if match:
@@ -62,4 +51,3 @@ def parse_storage_in_bytes(storage_string: str) -> Optional[int]:
             return math.ceil(number * conv_factor[suffix])
         return math.ceil(number)
     return None
->>>>>>> [batch] Flexible storage configuration

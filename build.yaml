@@ -3402,7 +3402,6 @@ steps:
       time retry ./gradlew --version
       make wheel upload-artifacts DEPLOY_REMOTE=origin
 
-<<<<<<< HEAD
       bash scripts/deploy.sh $(cat /io/hail_pip_version) \
                              $(cat /io/hail_version) \
                              $(cat /io/git_version) \
