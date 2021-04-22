@@ -1,11 +1,11 @@
 import uuid
-from typing import Mapping, Any, Optional
+from typing import Mapping, Any, Optional, MutableMapping
 
 from .base_client import BaseClient
 from hailtop.utils import sleep_and_backoff
 
 
-async def request_with_wait_for_done(request_f, path, params: Mapping[str, Any] = None, **kwargs):
+async def request_with_wait_for_done(request_f, path, params: MutableMapping[str, Any] = None, **kwargs):
     assert 'params' not in kwargs
 
     if params is None:
