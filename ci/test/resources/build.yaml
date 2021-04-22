@@ -9,7 +9,6 @@ steps:
       inline: |
         FROM gcr.io/{{ global.project }}/ubuntu:18.04
         RUN apt-get update && apt-get install -y git
-    contextPath: .
   - kind: runImage
     name: run_inline_image
     image:
