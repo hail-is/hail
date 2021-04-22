@@ -44,6 +44,12 @@ JITImpl::JITImpl()
   auto sym = llvm::orc::absoluteSymbols({
 					 {mangle("hl_runtime_region_allocate"),
 					  llvm::JITEvaluatedSymbol(llvm::pointerToJITTargetAddress(&hl_runtime_region_allocate),
+								   llvm::JITSymbolFlags::Exported)},
+           {mangle("hl_runtime_print_float64"),
+            llvm::JITEvaluatedSymbol(llvm::pointerToJITTargetAddress(&hl_runtime_print_float64),
+								   llvm::JITSymbolFlags::Exported)},
+           {mangle("hl_runtime_print_bool"),
+            llvm::JITEvaluatedSymbol(llvm::pointerToJITTargetAddress(&hl_runtime_print_bool),
 								   llvm::JITSymbolFlags::Exported)}
     });
   if (auto err = jit_dylib.define(sym))

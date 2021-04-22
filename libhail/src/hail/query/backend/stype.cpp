@@ -238,7 +238,7 @@ EmitType::from_llvm_values(const std::vector<llvm::Value *> &llvm_values, size_t
 
 EmitValue
 EmitType::make_na(CompileFunction &cf) const {
-  auto m = llvm::ConstantInt::get(llvm::Type::getInt8Ty(cf.llvm_context), 1);
+  auto m = llvm::ConstantInt::get(llvm::Type::getInt1Ty(cf.llvm_context), 1);
 
   std::vector<llvm::Value *> llvm_values;
   std::vector<PrimitiveType> constituent_types;

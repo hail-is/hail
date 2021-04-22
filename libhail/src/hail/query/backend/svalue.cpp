@@ -126,6 +126,7 @@ SCanonicalArrayValue::get_element(CompileFunction &cf, const SInt64Value *idx) c
   llvm::Value *missing_address =
     cf.llvm_ir_builder.CreateBitCast(cf.llvm_ir_builder.CreateGEP(missing, idx->value), llvm::PointerType::get(llvm::Type::getInt1Ty(cf.llvm_context), 0));
   llvm::Value *b = cf.llvm_ir_builder.CreateLoad(llvm::Type::getInt1Ty(cf.llvm_context), missing_address);
+  cf.module->print_bool(&cf.llvm_ir_builder, b);
   cf.llvm_ir_builder.CreateCondBr(b, missing_bb, present_bb);
 
   cf.llvm_ir_builder.SetInsertPoint(present_bb);
@@ -133,6 +134,7 @@ SCanonicalArrayValue::get_element(CompileFunction &cf, const SInt64Value *idx) c
   auto stride_value = llvm::ConstantInt::get(llvm::Type::getInt64Ty(cf.llvm_context), static_cast<uint64_t>(stype->element_stride));
   auto element_addr = cf.llvm_ir_builder.CreateGEP(this->data, cf.llvm_ir_builder.CreateMul(idx->value, stride_value));
   auto sv = stype->element_type->load_from_address(cf, element_addr);
+  cf.module->print_float64(&cf.llvm_ir_builder, cast<SFloat64Value>(sv)->value);
   return EmitValue(missing_bb, sv);
 }
 

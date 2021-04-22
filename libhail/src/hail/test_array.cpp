@@ -6,6 +6,8 @@
 #include <hail/query/ir.hpp>
 #include <hail/query/backend/jit.hpp>
 
+#include <cmath>
+
 namespace hail {
 
 HeapAllocator heap;
@@ -85,12 +87,18 @@ TypeContext tc(heap);
             Value element(vfloat64, 5.2 + i);
             array_elements.push_back(body->make_literal(element));
         }
+        array_elements.push_back(body->make_na(tc.tfloat64));
 
-        auto idx_value = Value(vint64, 0);
-        body->set_child(0, body->make_array_ref(body->make_make_array(array_elements), body->make_literal(idx_value)));
+        body->set_child(0, body->make_array_ref(body->make_make_array(array_elements), body->make_input(0)));
 
         auto compiled = jit.compile(heap, tc, m, param_vtypes, return_vtype);
-        auto ans = compiled.invoke(region, {idx_value});
-        assert(ans.as_float64() == 5.2);
+
+        auto value_idx_0 = compiled.invoke(region, {Value(vint64, 0)});
+        auto value_idx_3 = compiled.invoke(region, {Value(vint64, 3)});
+        auto value_idx_5 = compiled.invoke(region, {Value(vint64, 5)});
+
+        assert(std::abs(5.2 - value_idx_0.as_float64()) < .001);
+        assert(std::abs(8.2 - value_idx_3.as_float64()) < .001);
+        assert(value_idx_5.get_missing());
     }
 }

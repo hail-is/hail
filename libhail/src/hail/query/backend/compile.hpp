@@ -31,6 +31,8 @@ public:
 
   llvm::Value* region_allocate(llvm::IRBuilder<> *llvm_ir_builder, llvm::Value *region, MemorySize *memory_size);
   llvm::Value* region_allocate(llvm::IRBuilder<> *llvm_ir_builder, llvm::Value *region, llvm::Value *alignment, llvm::Value *num_bytes);
+  void print_float64(llvm::IRBuilder<> *llvm_ir_builder, llvm::Value *double_to_print);
+  void print_bool(llvm::IRBuilder<> *llvm_ir_builder, llvm::Value *bool_to_print);
 
   CompileModule(TypeContext &tc,
 		STypeContext &stc,
@@ -42,7 +44,8 @@ public:
 
 private:
   llvm::Function *runtime_allocate_f;
-
+  llvm::Function *runtime_print_float64_f;
+  llvm::Function *runtime_print_bool_f;
 };
 
 class CompileFunction {
