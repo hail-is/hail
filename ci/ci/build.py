@@ -418,8 +418,6 @@ true
         )
 
 
-
-
 class BuildImage2Step(Step):
     def __init__(self, params, dockerfile, context_path, publish_as, inputs):  # pylint: disable=unused-argument
         super().__init__(params)
