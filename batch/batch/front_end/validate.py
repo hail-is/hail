@@ -1,5 +1,6 @@
 from hailtop.batch_client.parse import (MEMORY_REGEX, MEMORY_REGEXPAT,
-                                        CPU_REGEX, CPU_REGEXPAT)
+                                        CPU_REGEX, CPU_REGEXPAT,
+                                        STORAGE_REGEX, STORAGE_REGEXPAT)
 
 from hailtop.utils.validate import bool_type, dictof, keyed, listof, int_type, nullable, \
     numeric, oneof, regex, required, str_type, switch, ValidationError
@@ -59,7 +60,7 @@ job_validator = keyed({
     'resources': keyed({
         'memory': regex(MEMORY_REGEXPAT, MEMORY_REGEX),
         'cpu': regex(CPU_REGEXPAT, CPU_REGEX),
-        'storage': regex(MEMORY_REGEXPAT, MEMORY_REGEX),
+        'storage': regex(STORAGE_REGEXPAT, STORAGE_REGEX),
         'worker_type': oneof('standard', 'highcpu', 'highmem'),
         'machine_type': oneof(*valid_machine_types),
         'preemptible': bool_type

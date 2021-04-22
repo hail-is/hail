@@ -1,5 +1,26 @@
-from typing import Mapping, Any, Optional
+import uuid
+from typing import Mapping, Any, Optional, MutableMapping
+
 from .base_client import BaseClient
+from hailtop.utils import sleep_and_backoff
+
+
+async def request_with_wait_for_done(request_f, path, params: MutableMapping[str, Any] = None, **kwargs):
+    assert 'params' not in kwargs
+
+    if params is None:
+        params = {}
+
+    request_uuid = str(uuid.uuid4())
+    if 'requestId' not in params:
+        params['requestId'] = request_uuid
+
+    delay = 0.2
+    while True:
+        resp = await request_f(path, params=params, **kwargs)
+        if resp['status'] == 'DONE':
+            return resp
+        delay = await sleep_and_backoff(delay)
 
 
 class PagedIterator:
@@ -47,6 +68,19 @@ class ComputeClient(BaseClient):
     # https://cloud.google.com/compute/docs/reference/rest/v1/instances/insert
     # https://cloud.google.com/compute/docs/reference/rest/v1/instances/get
     # https://cloud.google.com/compute/docs/reference/rest/v1/instances/delete
+    # https://cloud.google.com/compute/docs/reference/rest/v1/disks
 
     async def list(self, path: str, *, params: Mapping[str, Any] = None, **kwargs) -> PagedIterator:
         return PagedIterator(self, path, params, kwargs)
+
+    async def create_disk(self, path: str, *, params: MutableMapping[str, Any] = None, **kwargs):
+        return await request_with_wait_for_done(self.post, path, params, **kwargs)
+
+    async def attach_disk(self, path: str, *, params: MutableMapping[str, Any] = None, **kwargs):
+        return await request_with_wait_for_done(self.post, path, params, **kwargs)
+
+    async def detach_disk(self, path: str, *, params: MutableMapping[str, Any] = None, **kwargs):
+        return await request_with_wait_for_done(self.post, path, params, **kwargs)
+
+    async def delete_disk(self, path: str, *, params: MutableMapping[str, Any] = None, **kwargs):
+        return await request_with_wait_for_done(self.delete, path, params, **kwargs)

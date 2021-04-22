@@ -418,7 +418,7 @@ class ServiceTests(unittest.TestCase):
         b = self.batch()
         input = b.read_input_group(foo=f'{self.gcs_input_dir}/hello.txt')
         j = b.new_job()
-        j.storage('0.25Gi')
+        j.storage('10Gi')
         j.command(f'cat {input.foo}')
         j.command(f'cat {input}.foo')
         res = b.run()
@@ -586,18 +586,18 @@ class ServiceTests(unittest.TestCase):
 
         setup_jobs = []
         for i in range(10):
-            j = b.new_job(f'setup_{i}').cpu(0.1)
+            j = b.new_job(f'setup_{i}').cpu(0.25)
             j.command(f'echo "foo" > {j.ofile}')
             setup_jobs.append(j)
 
         jobs = []
         for i in range(500):
-            j = b.new_job(f'create_file_{i}').cpu(0.1)
+            j = b.new_job(f'create_file_{i}').cpu(0.25)
             j.command(f'echo {setup_jobs[i % len(setup_jobs)].ofile} > {j.ofile}')
             j.command(f'echo "bar" >> {j.ofile}')
             jobs.append(j)
 
-        combine = b.new_job(f'combine_output').cpu(0.1)
+        combine = b.new_job(f'combine_output').cpu(0.25)
         for tasks in grouped(arg_max(), jobs):
             combine.command(f'cat {" ".join(shq(j.ofile) for j in jobs)} >> {combine.ofile}')
         b.write_output(combine.ofile, f'{self.gcs_output_dir}/pipeline_benchmark_test.txt')

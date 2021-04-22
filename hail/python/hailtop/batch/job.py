@@ -155,7 +155,7 @@ class Job:
 
         >>> b = Batch()
         >>> j = b.new_job()
-        >>> (j.storage('1Gi')
+        >>> (j.storage('10Gi')
         ...   .command(f'echo "hello"'))
         >>> b.run()
 
@@ -166,6 +166,18 @@ class Job:
         where valid optional suffixes are *K*, *Ki*, *M*, *Mi*,
         *G*, *Gi*, *T*, *Ti*, *P*, and *Pi*. Omitting a suffix means
         the value is in bytes.
+
+        For the :class:`.ServiceBackend`, jobs requesting one or more cores receive
+        5 GiB of storage for the root file system `/`. Jobs requesting a fraction of a core
+        receive the same fraction of 5 GiB of storage. If you need additional storage, you
+        can explicitly request more storage using this method and the extra storage space
+        will be mounted at `/io`. Batch automatically writes all :class:`.ResourceFile` to
+        `/io`.
+
+        The default storage size is 0 Gi. The minimum storage size is 0 Gi and the
+        maximum storage size is 64 Ti. If storage is set to a value between 0 Gi
+        and 10 Gi, the storage request is rounded up to 10 Gi. All values are
+        rounded up to the nearest Gi.
 
         Parameters
         ----------
@@ -226,6 +238,9 @@ class Job:
         The string expression must be of the form {number}{suffix}
         where the optional suffix is *m* representing millicpu.
         Omitting a suffix means the value is in cpu.
+
+        For the :class:`.ServiceBackend`, `cores` must be a power of
+        two between 0.25 and 16.
 
         Examples
         --------

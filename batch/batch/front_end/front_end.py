@@ -18,10 +18,8 @@ import google.api_core.exceptions
 from prometheus_async.aio.web import server_stats  # type: ignore
 from hailtop.utils import (time_msecs, time_msecs_str, humanize_timedelta_msecs,
                            request_retry_transient_errors, run_if_changed,
-                           retry_long_running, LoggingTimer, cost_str,
-                           dump_all_stacktraces)
-from hailtop.batch_client.parse import (parse_cpu_in_mcpu, parse_memory_in_bytes,
-                                        parse_storage_in_bytes)
+                           retry_long_running, LoggingTimer, cost_str, dump_all_stacktraces)
+from hailtop.batch_client.parse import (parse_cpu_in_mcpu, parse_memory_in_bytes, parse_storage_in_bytes)
 from hailtop.config import get_deploy_config
 from hailtop.tls import internal_server_ssl_context
 from hailtop.httpx import client_session
@@ -38,7 +36,7 @@ from web_common import (setup_aiohttp_jinja2, setup_common_static_routes,
 
 # import uvloop
 
-from ..utils import cost_from_msec_mcpu, coalesce, query_billing_projects
+from ..utils import (coalesce, query_billing_projects, is_valid_cores_mcpu, cost_from_msec_mcpu)
 from ..batch import batch_record_to_dict, job_record_to_dict, cancel_batch_in_db
 from ..exceptions import (BatchUserError, NonExistentBillingProjectError,
                           ClosedBillingProjectError, InvalidBillingLimitError,
@@ -63,7 +61,7 @@ deploy_config = get_deploy_config()
 
 BATCH_JOB_DEFAULT_CPU = os.environ.get('HAIL_BATCH_JOB_DEFAULT_CPU', '1')
 BATCH_JOB_DEFAULT_MEMORY = os.environ.get('HAIL_BATCH_JOB_DEFAULT_MEMORY', '3.75Gi')
-BATCH_JOB_DEFAULT_STORAGE = os.environ.get('HAIL_BATCH_JOB_DEFAULT_STORAGE', '10Gi')
+BATCH_JOB_DEFAULT_STORAGE = os.environ.get('HAIL_BATCH_JOB_DEFAULT_STORAGE', '0Gi')
 BATCH_JOB_DEFAULT_WORKER_TYPE = os.environ.get('HAIL_BATCH_JOB_DEFAULT_WORKER_TYPE', 'standard')
 BATCH_JOB_DEFAULT_PREEMPTIBLE = True
 
@@ -663,25 +661,13 @@ WHERE user = %s AND id = %s AND NOT deleted;
                     resources = {}
                     spec['resources'] = resources
 
-                if 'cpu' not in resources:
-                    resources['cpu'] = BATCH_JOB_DEFAULT_CPU
-                if 'memory' not in resources:
-                    resources['memory'] = BATCH_JOB_DEFAULT_MEMORY
-                if 'storage' not in resources:
-                    resources['storage'] = BATCH_JOB_DEFAULT_STORAGE
-
-                req_cores_mcpu = parse_cpu_in_mcpu(resources['cpu'])
-                req_memory_bytes = parse_memory_in_bytes(resources['memory'])
-                req_storage_bytes = parse_storage_in_bytes(resources['storage'])
-
-                if req_cores_mcpu == 0:
-                    raise web.HTTPBadRequest(
-                        reason=f'bad resource request for job {id}: '
-                        f'cpu cannot be 0')
-
                 worker_type = resources.get('worker_type')
                 machine_type = resources.get('machine_type')
                 preemptible = resources.get('preemptible')
+
+                if machine_type and ('cpu' in resources or 'memory' in resources):
+                    raise web.HTTPBadRequest(
+                        reason='cannot specify cpu and memory with machine_type')
 
                 if worker_type and machine_type:
                     raise web.HTTPBadRequest(
@@ -690,6 +676,38 @@ WHERE user = %s AND id = %s AND NOT deleted;
                 if not machine_type and not worker_type:
                     worker_type = BATCH_JOB_DEFAULT_WORKER_TYPE
                     resources['worker_type'] = worker_type
+
+                if not machine_type:
+                    if 'cpu' not in resources:
+                        resources['cpu'] = BATCH_JOB_DEFAULT_CPU
+                    resources['req_cpu'] = resources['cpu']
+                    del resources['cpu']
+                    req_cores_mcpu = parse_cpu_in_mcpu(resources['req_cpu'])
+
+                    if not is_valid_cores_mcpu(req_cores_mcpu):
+                        raise web.HTTPBadRequest(
+                            reason=f'bad resource request for job {id}: '
+                            f'cpu must be a power of two with a min of 0.25; '
+                            f'found {resources["req_cpu"]}.')
+
+                    if 'memory' not in resources:
+                        resources['memory'] = BATCH_JOB_DEFAULT_MEMORY
+                    resources['req_memory'] = resources['memory']
+                    del resources['memory']
+                    req_memory_bytes = parse_memory_in_bytes(resources['req_memory'])
+
+                if 'storage' not in resources:
+                    resources['storage'] = BATCH_JOB_DEFAULT_STORAGE
+                resources['req_storage'] = resources['storage']
+                del resources['storage']
+                req_storage_bytes = parse_storage_in_bytes(resources['req_storage'])
+
+                if req_storage_bytes is None:
+                    raise web.HTTPBadRequest(
+                        reason=f'bad resource request for job {id}: '
+                        f'storage must be convertable to bytes; '
+                        f'found {resources["req_storage"]}'
+                    )
 
                 inst_coll_configs: InstanceCollectionConfigs = app['inst_coll_configs']
 
@@ -707,7 +725,10 @@ WHERE user = %s AND id = %s AND NOT deleted;
                         memory_bytes=req_memory_bytes,
                         storage_bytes=req_storage_bytes)
                     if result:
-                        inst_coll_name, cores_mcpu = result
+                        inst_coll_name, cores_mcpu, memory_bytes, storage_gib = result
+                        resources['cores_mcpu'] = cores_mcpu
+                        resources['memory_bytes'] = memory_bytes
+                        resources['storage_gib'] = storage_gib
                 else:
                     assert machine_type and machine_type in valid_machine_types
 
@@ -718,13 +739,15 @@ WHERE user = %s AND id = %s AND NOT deleted;
                         machine_type=machine_type,
                         storage_bytes=req_storage_bytes)
                     if result:
-                        inst_coll_name, cores_mcpu, storage_gib = result
+                        inst_coll_name, cores_mcpu, memory_bytes, storage_gib = result
+                        resources['cores_mcpu'] = cores_mcpu
+                        resources['memory_bytes'] = memory_bytes
                         resources['storage_gib'] = storage_gib
 
                 if inst_coll_name is None:
                     raise web.HTTPBadRequest(
                         reason=f'resource requests for job {id} are unsatisfiable: '
-                        f'requested: cpu={resources["cpu"]}, memory={resources["memory"]}, storage={resources["storage"]}')
+                        f'requested: cpu={resources["req_cpu"]}, memory={resources["req_memory"]}, storage={resources["req_storage"]}')
 
                 secrets = spec.get('secrets')
                 if not secrets:

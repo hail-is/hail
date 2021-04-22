@@ -66,9 +66,9 @@ def test_exit_code_duration(client):
 def test_msec_mcpu(client):
     builder = client.create_batch()
     resources = {
-        'cpu': '100m',
+        'cpu': '250m',
         'memory': '375M',
-        'storage': '1Gi'
+        'storage': '0Gi'
     }
     # two jobs so the batch msec_mcpu computation is non-trivial
     builder.create_job(DOCKER_ROOT_IMAGE, ['echo', 'foo'], resources=resources)
@@ -138,13 +138,19 @@ def test_invalid_resource_requests(client):
     builder = client.create_batch()
     resources = {'cpu': '0', 'memory': '1Gi', 'storage': '1Gi'}
     builder.create_job(DOCKER_ROOT_IMAGE, ['true'], resources=resources)
-    with pytest.raises(aiohttp.client.ClientResponseError, match='bad resource request.*cpu cannot be 0'):
+    with pytest.raises(aiohttp.client.ClientResponseError, match='bad resource request for job.*cpu must be a power of two with a min of 0.25; found.*'):
+        builder.submit()
+
+    builder = client.create_batch()
+    resources = {'cpu': '0.1', 'memory': '1Gi', 'storage': '1Gi'}
+    builder.create_job(DOCKER_ROOT_IMAGE, ['true'], resources=resources)
+    with pytest.raises(aiohttp.client.ClientResponseError, match='bad resource request for job.*cpu must be a power of two with a min of 0.25; found.*'):
         builder.submit()
 
 
 def test_out_of_memory(client):
     builder = client.create_batch()
-    resources = {'cpu': '0.1', 'memory': '10M', 'storage': '1Gi'}
+    resources = {'cpu': '0.25', 'memory': '10M', 'storage': '10Gi'}
     j = builder.create_job('python:3.6-slim-stretch',
                            ['python', '-c', 'x = "a" * 1000**3'],
                            resources=resources)
@@ -155,14 +161,36 @@ def test_out_of_memory(client):
 
 def test_out_of_storage(client):
     builder = client.create_batch()
-    resources = {'cpu': '0.1', 'memory': '10M', 'storage': '5Gi'}
+    resources = {'cpu': '0.25', 'memory': '10M', 'storage': '5Gi'}
     j = builder.create_job(DOCKER_ROOT_IMAGE,
                            ['/bin/sh', '-c', 'fallocate -l 100GiB /foo'],
                            resources=resources)
     builder.submit()
     status = j.wait()
-    assert status['state'] == 'Failed', status
+    assert status['state'] == 'Failed', str(status)
     assert "fallocate failed: No space left on device" in j.log()['main']
+
+
+def test_nonzero_storage(client):
+    builder = client.create_batch()
+    resources = {'cpu': '0.25', 'memory': '10M', 'storage': '20Gi'}
+    j = builder.create_job('ubuntu:18.04',
+                           ['/bin/sh', '-c', 'true'],
+                           resources=resources)
+    builder.submit()
+    status = j.wait()
+    assert status['state'] == 'Success', str(status)
+
+
+def test_attached_disk(client):
+    builder = client.create_batch()
+    resources = {'cpu': '0.25', 'memory': '10M', 'storage': '400Gi'}
+    j = builder.create_job('ubuntu:18.04',
+                           ['/bin/sh', '-c', 'df -h; fallocate -l 390GiB /io/foo'],
+                           resources=resources)
+    builder.submit()
+    status = j.wait()
+    assert status['state'] == 'Success', str((status, j.log()))
 
 
 def test_unsubmitted_state(client):
@@ -602,11 +630,12 @@ def test_verify_no_access_to_metadata_server(client):
 
 def test_can_use_google_credentials(client):
     token = os.environ["HAIL_TOKEN"]
-    attempt_token = secrets.token_urlsafe(5)
     bucket_name = get_user_config().get('batch', 'bucket')
     builder = client.create_batch()
     script = f'''import hail as hl
-location = "gs://{ bucket_name }/{ token }/{ attempt_token }/test_can_use_hailctl_auth.t"
+import secrets
+attempt_token = secrets.token_urlsafe(5)
+location = f"gs://{ bucket_name }/{ token }/{{ attempt_token }}/test_can_use_hailctl_auth.t"
 hl.utils.range_table(10).write(location)
 hl.read_table(location).show()
 '''
