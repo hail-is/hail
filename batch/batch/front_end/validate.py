@@ -2,10 +2,10 @@ from hailtop.batch_client.parse import (MEMORY_REGEX, MEMORY_REGEXPAT,
                                         CPU_REGEX, CPU_REGEXPAT,
                                         STORAGE_REGEX, STORAGE_REGEXPAT)
 
-from hailtop.utils.validate import bool_type, dictof, keyed, listof, int_type, nullable, \
+from hailtop.utils.validate import anyof, bool_type, dictof, keyed, listof, int_type, nullable, \
     numeric, oneof, regex, required, str_type, switch, ValidationError
 
-from ..globals import valid_machine_types
+from ..globals import valid_machine_types, memory_to_worker_type
 
 k8s_str = regex(r'[a-z0-9](?:[-a-z0-9]*[a-z0-9])?(?:\.[a-z0-9](?:[-a-z0-9]*[a-z0-9])?)*', maxlen=253)
 
@@ -58,10 +58,10 @@ job_validator = keyed({
     }),
     'requester_pays_project': str_type,
     'resources': keyed({
-        'memory': regex(MEMORY_REGEXPAT, MEMORY_REGEX),
+        'memory': anyof(regex(MEMORY_REGEXPAT, MEMORY_REGEX),
+                        oneof(*memory_to_worker_type.keys())),
         'cpu': regex(CPU_REGEXPAT, CPU_REGEX),
         'storage': regex(STORAGE_REGEXPAT, STORAGE_REGEX),
-        'worker_type': oneof('standard', 'highcpu', 'highmem'),
         'machine_type': oneof(*valid_machine_types),
         'preemptible': bool_type
     }),

@@ -1,11 +1,40 @@
 import logging
 import math
 import json
+import secrets
+from aiohttp import web
+from functools import wraps
 from collections import deque
+
+from gear import maybe_parse_bearer_header
 
 from .globals import RESERVED_STORAGE_GB_PER_CORE
 
 log = logging.getLogger('utils')
+
+
+def authorization_token(request):
+    auth_header = request.headers.get('Authorization')
+    if not auth_header:
+        return None
+    session_id = maybe_parse_bearer_header(auth_header)
+    if not session_id:
+        return None
+    return session_id
+
+
+def batch_only(fun):
+    @wraps(fun)
+    async def wrapped(request):
+        token = authorization_token(request)
+        if not token:
+            raise web.HTTPUnauthorized()
+
+        if not secrets.compare_digest(token, request.app['internal_token']):
+            raise web.HTTPUnauthorized()
+
+        return await fun(request)
+    return wrapped
 
 
 def round_up_division(numerator, denominator):

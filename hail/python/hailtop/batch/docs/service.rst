@@ -154,9 +154,10 @@ is standard. If a job is scheduled on this machine, then the cost per core hour 
 
 .. note::
 
-    The amount of CPU reserved for a job can be rounded up if the equivalent memory requires a larger fraction of
-    the worker. Currently, each 1 core requested gets 3.75 Gi of memory for standard worker types. Therefore, if
-    a user requests 1 CPU and 7 Gi of memory, the user will get 2 cores for their job and will be billed for 2 cores.
+    If the memory is specified as either 'lowmem', 'standard', or 'highmem', then the corresponding worker types
+    used are 'highcpu', 'standard', and 'highmem'. Otherwise, we will choose the cheapest worker type for you based
+    on the cpu and memory requests. In this case, it is possible a cheaper configuration will round up the cpu requested
+    to the next power of two in order to obtain more memory on a cheaper worker type.
 
 .. note::
 

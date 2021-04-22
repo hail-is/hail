@@ -2386,7 +2386,7 @@ steps:
     image:
       valueFrom: memory_image.image
     resources:
-      memory: 3.75G
+      memory: 3.75Gi
       cpu: '1'
     script: |
       export HAIL_GSA_KEY_FILE=/test-gsa-key/key.json
@@ -2440,6 +2440,7 @@ steps:
       export HAIL_TEST_TOKEN_FILE=/user-tokens/tokens.json
       export HAIL_TEST_DEV_TOKEN_FILE=/dev-tokens/tokens.json
       export HAIL_TOKEN="{{ token }}"
+      export HAIL_SCOPE="{{ scope }}"
       hailctl config set batch/bucket hail-test-dmk9z
       python3 -m pytest \
               --log-date-format="%Y-%m-%dT%H:%M:%S" \
@@ -2508,6 +2509,7 @@ steps:
       export HAIL_TEST_TOKEN_FILE=/user-tokens/tokens.json
       export HAIL_TEST_DEV_TOKEN_FILE=/dev-tokens/tokens.json
       export HAIL_TOKEN="{{ token }}"
+      export HAIL_SCOPE="{{ scope }}"
       hailctl config set batch/bucket hail-test-dmk9z
       python3 -m pytest \
               --log-date-format="%Y-%m-%dT%H:%M:%S" \
@@ -2576,6 +2578,7 @@ steps:
       export HAIL_TEST_TOKEN_FILE=/user-tokens/tokens.json
       export HAIL_TEST_DEV_TOKEN_FILE=/dev-tokens/tokens.json
       export HAIL_TOKEN="{{ token }}"
+      export HAIL_SCOPE="{{ scope }}"
       hailctl config set batch/bucket hail-test-dmk9z
       python3 -m pytest \
               --log-date-format="%Y-%m-%dT%H:%M:%S" \
@@ -2644,6 +2647,7 @@ steps:
       export HAIL_TEST_TOKEN_FILE=/user-tokens/tokens.json
       export HAIL_TEST_DEV_TOKEN_FILE=/dev-tokens/tokens.json
       export HAIL_TOKEN="{{ token }}"
+      export HAIL_SCOPE="{{ scope }}"
       hailctl config set batch/bucket hail-test-dmk9z
       python3 -m pytest \
               --log-date-format="%Y-%m-%dT%H:%M:%S" \
@@ -2712,6 +2716,7 @@ steps:
       export HAIL_TEST_TOKEN_FILE=/user-tokens/tokens.json
       export HAIL_TEST_DEV_TOKEN_FILE=/dev-tokens/tokens.json
       export HAIL_TOKEN="{{ token }}"
+      export HAIL_SCOPE="{{ scope }}"
       hailctl config set batch/bucket hail-test-dmk9z
       python3 -m pytest \
               --log-date-format="%Y-%m-%dT%H:%M:%S" \
