@@ -83,7 +83,7 @@ steps:
   - kind: buildImage
     name: docker_file_in_inputs_test_image
     dockerFile: inputs/docker/hail-ubuntu/Dockerfile
-    contextPath: inputs/docker/hail-ubuntu
+    contextPath: .
     inputs:
       - from: /repo/docker/hail-ubuntu
         to: /inputs/docker/hail-ubuntu
