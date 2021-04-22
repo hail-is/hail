@@ -440,7 +440,7 @@ class BuildImage2Step(Step):
     @staticmethod
     def from_json(params):
         json = params.json
-        return BuildImageStep(
+        return BuildImage2Step(
             params, json['dockerFile'], json.get('contextPath'), json.get('publishAs'), json.get('inputs')
         )
 
