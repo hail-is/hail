@@ -264,7 +264,7 @@ class Container:
         if image_ref.name() in HAIL_GENETICS_IMAGES:
             image_ref.domain = DOCKER_PREFIX.split('/')[0]
             image_ref.path = '/'.join(DOCKER_PREFIX.split('/')[1:] + [image_ref.path])
-                     
+
         self.image_ref = image_ref
         self.image_ref_str = str(image_ref)
 
