@@ -73,14 +73,14 @@ class ComputeClient(BaseClient):
     async def list(self, path: str, *, params: Mapping[str, Any] = None, **kwargs) -> PagedIterator:
         return PagedIterator(self, path, params, kwargs)
 
-    async def create_disk(self, path: str, *, params: Mapping[str, Any] = None, **kwargs):
+    async def create_disk(self, path: str, *, params: MutableMapping[str, Any] = None, **kwargs):
         return await request_with_wait_for_done(self.post, path, params, **kwargs)
 
-    async def attach_disk(self, path: str, *, params: Mapping[str, Any] = None, **kwargs):
+    async def attach_disk(self, path: str, *, params: MutableMapping[str, Any] = None, **kwargs):
         return await request_with_wait_for_done(self.post, path, params, **kwargs)
 
-    async def detach_disk(self, path: str, *, params: Mapping[str, Any] = None, **kwargs):
+    async def detach_disk(self, path: str, *, params: MutableMapping[str, Any] = None, **kwargs):
         return await request_with_wait_for_done(self.post, path, params, **kwargs)
 
-    async def delete_disk(self, path: str, *, params: Mapping[str, Any] = None, **kwargs):
+    async def delete_disk(self, path: str, *, params: MutableMapping[str, Any] = None, **kwargs):
         return await request_with_wait_for_done(self.delete, path, params, **kwargs)
