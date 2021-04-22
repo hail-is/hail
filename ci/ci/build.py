@@ -277,9 +277,11 @@ class BuildImageStep(Step):
         config = self.input_config(code, scope)
 
         if self.context_path:
-            context = f'/io/{self.context_path}'
+            context = f'repo/{self.context_path}'
+            init_context = ''
         else:
-            context = '/io'
+            context = 'context'
+            init_context = 'mkdir context'
 
         rendered_dockerfile = 'Dockerfile'
         if isinstance(self.dockerfile, dict):
@@ -289,7 +291,7 @@ class BuildImageStep(Step):
         else:
             assert isinstance(self.dockerfile, str)
             render_dockerfile = ''
-            unrendered_dockerfile = f'/io/{self.dockerfile}'
+            unrendered_dockerfile = f'repo/{self.dockerfile}'
         render_dockerfile += (
             f'time python3 jinja2_render.py {shq(json.dumps(config))} '
             f'{shq(unrendered_dockerfile)} {shq(rendered_dockerfile)}'
@@ -334,9 +336,12 @@ date
 
 { RETRY_FUNCTION_SCRIPT }
 
-cd /
-
+rm -rf repo
+mkdir repo
+(cd repo; {code.checkout_script()})
 {render_dockerfile}
+{init_context}
+{copy_inputs}
 
 FROM_IMAGE=$(awk '$1 == "FROM" {{ print $2; exit }}' {shq(rendered_dockerfile)})
 
