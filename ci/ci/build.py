@@ -499,6 +499,8 @@ time retry docker push {self.base_image}:latest
 set -ex
 date
 
+cd /
+
 { RETRY_FUNCTION_SCRIPT }
 
 {render_dockerfile}
@@ -514,6 +516,7 @@ time retry docker pull $FROM_IMAGE
 CPU_PERIOD=100000
 CPU_QUOTA=$(( $(grep -c ^processor /proc/cpuinfo) * $(cat /sys/fs/cgroup/cpu/cpu.shares) * $CPU_PERIOD / 1024 ))
 MEMORY=$(cat /sys/fs/cgroup/memory/memory.limit_in_bytes)
+pwd
 time docker build --memory="$MEMORY" --cpu-period="$CPU_PERIOD" --cpu-quota="$CPU_QUOTA" -t {shq(self.image)} \
   -f {rendered_dockerfile} \
   --cache-from $FROM_IMAGE {cache_from_published_latest} \
