@@ -2819,7 +2819,7 @@ steps:
       echo creating $REPO_NAME...
       curl -XPOST \
         -i \
-        -sSL \
+        -fsSL \
         https://api.github.com/orgs/hail-ci-test/repos \
         -H "Authorization: token ${TOKEN}" \
         -d "{ \"name\" : \"$REPO_NAME\" }"
@@ -3263,7 +3263,7 @@ steps:
       TOKEN=$(cat /secret/ci-secrets/user1)
       echo deleting ci-test-{{ create_ci_test_repo.token }}...
       curl -XDELETE \
-        -i \
+        -ifsSL \
         https://api.github.com/repos/hail-ci-test/ci-test-{{ create_ci_test_repo.token }} \
         -H "Authorization: token ${TOKEN}"
     secrets:
