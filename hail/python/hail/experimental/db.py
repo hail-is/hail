@@ -34,7 +34,7 @@ class DatasetVersion:
     """
 
     @staticmethod
-    def from_json(doc: dict, cloud: str) -> 'DatasetVersion':
+    def from_json(doc: dict, cloud: str) -> Optional['DatasetVersion']:
         """Create :class:`.DatasetVersion` object from dictionary.
 
         Parameters
@@ -48,15 +48,17 @@ class DatasetVersion:
 
         Returns
         -------
-        :class:`.DatasetVersion`
+        :class:`.DatasetVersion` if available on cloud platform, else ``None``.
         """
         assert 'url' in doc, doc
         assert 'version' in doc, doc
         assert 'reference_genome' in doc, doc
-        assert cloud in doc['url'], doc['url']
-        return DatasetVersion(doc['url'][cloud],
-                              doc['version'],
-                              doc['reference_genome'])
+        if cloud in doc['url']:
+            return DatasetVersion(doc['url'][cloud],
+                                  doc['version'],
+                                  doc['reference_genome'])
+        else:
+            return None
 
     @staticmethod
     def get_region(name: str,
@@ -209,7 +211,8 @@ class Dataset:
         assert 'versions' in doc, doc
         key_properties = set(x for x in doc['annotation_db']['key_properties']
                              if x is not None)
-        versions = [DatasetVersion.from_json(x, cloud) for x in doc['versions']]
+        versions = [DatasetVersion.from_json(x, cloud) for x in doc['versions']
+                    if DatasetVersion.from_json(x, cloud) is not None]
         versions_in_region = DatasetVersion.get_region(name, versions, region)
         if versions_in_region:
             return Dataset(name,
