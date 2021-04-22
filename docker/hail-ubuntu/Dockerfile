@@ -6,7 +6,11 @@ COPY hail-apt-get-install /bin/hail-apt-get-install
 COPY pip.conf /root/.config/pip/pip.conf
 COPY hail-pip-install /bin/hail-pip-install
 COPY controller.sh /
-RUN echo "APT::Acquire::Retries \"5\";" > /etc/apt/apt.conf.d/80-retries && \
+RUN chmod 755 retry && \
+    chmod 755 hail-apt-get-install && \
+    chmod 755 hail-pip-install && \
+    chmod 755 controller.sh && \
+    echo "APT::Acquire::Retries \"5\";" > /etc/apt/apt.conf.d/80-retries && \
     mkdir -p /usr/share/keyrings/ && \
     hail-apt-get-install curl gpg && \
     curl -fSL 'https://keyserver.ubuntu.com/pks/lookup?search=0xF23C5A6CF475977595C89F51BA6932366A755776&hash=on&exact=on&options=mr&op=get' \
