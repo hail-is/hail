@@ -323,7 +323,7 @@ time retry docker push {self.base_image}:latest
                     copy_inputs
                     + f'''
 mkdir -p {shq(os.path.dirname(f'{context}{i["to"]}'))}
-mv {shq(f'/io/{i["to"]}')} {shq(f'{context}{i["to"]}')}
+cp {shq(f'/io/{i["to"]}')} {shq(f'{context}{i["to"]}')}
 '''
                 )
 
@@ -336,9 +336,9 @@ date
 rm -rf repo
 mkdir repo
 (cd repo; {code.checkout_script()})
+{render_dockerfile}
 {init_context}
 {copy_inputs}
-{render_dockerfile}
 
 FROM_IMAGE=$(awk '$1 == "FROM" {{ print $2; exit }}' {shq(rendered_dockerfile)})
 
