@@ -1,5 +1,6 @@
 package is.hail.expr.ir
 
+import is.hail.expr.ir.streams.StreamUtils
 import is.hail.types.physical.PStream
 import is.hail.types.virtual._
 import is.hail.utils._
@@ -268,11 +269,6 @@ object TypeCheck {
       case x@StreamMap(a, name, body) =>
         assert(a.typ.isInstanceOf[TStream])
         assert(x.elementTyp == body.typ)
-      case x@StreamMerge(l, r, key) =>
-        assert(l.typ == r.typ)
-        assert(x.typ == l.typ)
-        val structType = coerce[TStruct](coerce[TStream](l.typ).elementType)
-        assert(key.forall(structType.hasField))
       case x@StreamZip(as, names, body, _) =>
         assert(as.length == names.length)
         assert(x.typ.elementType == body.typ)
@@ -471,7 +467,7 @@ object TypeCheck {
         val newFieldSet = newRow.typ.asInstanceOf[TStruct].fieldNames.toSet
         assert(child.typ.key.forall(newFieldSet.contains))
       case TableMapPartitions(child, globalName, partitionStreamName, body) =>
-        assert(EmitStream.isIterationLinear(body, partitionStreamName), "must iterate over the partition exactly once")
+        assert(StreamUtils.isIterationLinear(body, partitionStreamName), "must iterate over the partition exactly once")
         val newRowType = body.typ.asInstanceOf[TStream].elementType.asInstanceOf[TStruct]
         child.typ.key.foreach { k => if (!newRowType.hasField(k)) throw new RuntimeException(s"prev key: ${child.typ.key}, new row: ${newRowType}")}
 

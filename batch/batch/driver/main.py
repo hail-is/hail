@@ -5,6 +5,7 @@ from functools import wraps
 import concurrent
 import copy
 import asyncio
+import signal
 import dictdiffer
 from aiohttp import web
 import aiohttp_session
@@ -18,7 +19,7 @@ from gear import (Database, setup_aiohttp_session,
 from hailtop.hail_logging import AccessLogger
 from hailtop.config import get_deploy_config
 from hailtop.utils import (time_msecs, RateLimit, serialization,
-                           Notice, periodically_call, AsyncWorkerPool)
+                           Notice, periodically_call, AsyncWorkerPool, dump_all_stacktraces)
 from hailtop.tls import internal_server_ssl_context
 from hailtop import aiogoogle, aiotools
 from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template, \
@@ -992,6 +993,8 @@ def run():
 
     app.on_startup.append(on_startup)
     app.on_cleanup.append(on_cleanup)
+
+    asyncio.get_event_loop().add_signal_handler(signal.SIGUSR1, dump_all_stacktraces)
 
     web.run_app(deploy_config.prefix_application(app,
                                                  'batch-driver',

@@ -37,7 +37,8 @@ object Annotation {
 
       case t: TNDArray =>
         val nd = a.asInstanceOf[NDArray]
-        new SafeNDArray(nd.shape, nd.getRowMajorElements())
+        val rme = nd.getRowMajorElements()
+        SafeNDArray(nd.shape, Array.tabulate(rme.length)(i => Annotation.copy(t.elementType, rme(i))).toFastIndexedSeq)
 
       case TInt32 | TInt64 | TFloat32 | TFloat64 | TBoolean | TString | TCall | _: TLocus | TBinary => a
     }

@@ -19,14 +19,13 @@ import concurrent
 import aiodocker
 from aiodocker.exceptions import DockerError
 import google.oauth2.service_account
-from hailtop.utils import (time_msecs, request_retry_transient_errors,
-                           sleep_and_backoff, retry_all_errors, check_shell,
-                           CalledProcessError, check_shell_output, is_google_registry_image,
-                           find_spark_home)
+from hailtop.utils import (time_msecs, request_retry_transient_errors, sleep_and_backoff,
+                           retry_all_errors, check_shell, CalledProcessError, check_shell_output,
+                           is_google_registry_domain, find_spark_home, dump_all_stacktraces,
+                           parse_docker_image_reference)
 from hailtop.httpx import client_session
-from hailtop.batch_client.parse import (parse_cpu_in_mcpu, parse_image_tag,
-                                        parse_memory_in_bytes, parse_storage_in_bytes)
-from hailtop.batch.hail_genetics_images import HAIL_GENETICS, HAIL_GENETICS_IMAGES
+from hailtop.batch_client.parse import (parse_cpu_in_mcpu, parse_memory_in_bytes, parse_storage_in_bytes)
+from hailtop.batch.hail_genetics_images import HAIL_GENETICS_IMAGES
 from hailtop import aiotools
 # import uvloop
 
@@ -256,19 +255,18 @@ class Container:
         self.name = name
         self.spec = spec
 
-        repository, tag = parse_image_tag(self.spec['image'])
+        image_ref = parse_docker_image_reference(self.spec['image'])
 
-        if not tag:
+        if image_ref.tag is None:
             log.info(f'adding latest tag to image {self.spec["image"]} for {self}')
-            tag = 'latest'
+            image_ref.tag = 'latest'
 
-        if repository in HAIL_GENETICS_IMAGES:
-            repository_name_without_prefix = repository[len(HAIL_GENETICS):]
-            repository = f'{DOCKER_PREFIX}/{repository_name_without_prefix}'
-
-        self.repository = repository
-        self.tag = tag
-        self.image = self.repository + ':' + self.tag
+        if image_ref.name() in HAIL_GENETICS_IMAGES:
+            image_ref.domain = DOCKER_PREFIX.split('/')[0]
+            image_ref.path = '/'.join(DOCKER_PREFIX.split('/')[1:] + [image_ref.path])
+                     
+        self.image_ref = image_ref
+        self.image_ref_str = str(image_ref)
 
         self.port = self.spec.get('port')
         self.host_port = None
@@ -277,6 +275,7 @@ class Container:
 
         self.container = None
         self.state = 'pending'
+        self.short_error = None
         self.error = None
         self.timing = {}
         self.container_status = None
@@ -298,7 +297,7 @@ class Container:
             "Tty": False,
             'OpenStdin': False,
             'Cmd': self.spec['command'],
-            'Image': self.image,
+            'Image': self.image_ref_str,
             'Entrypoint': ''
         }
 
@@ -368,11 +367,11 @@ class Container:
     async def ensure_image_is_pulled(self, auth=None):
         try:
             await docker_call_retry(MAX_DOCKER_OTHER_OPERATION_SECS, f'{self}')(
-                docker.images.get, self.image)
+                docker.images.get, self.image_ref_str)
         except DockerError as e:
             if e.status == 404:
                 await docker_call_retry(MAX_DOCKER_IMAGE_PULL_SECS, f'{self}')(
-                    docker.images.pull, self.image, auth=auth)
+                    docker.images.pull, self.image_ref_str, auth=auth)
 
     def current_user_access_token(self):
         key = base64.b64decode(self.job.gsa_key['key.json']).decode()
@@ -390,22 +389,27 @@ class Container:
     async def run(self, worker):
         try:
             async with self.step('pulling'):
-                is_gcr_image = is_google_registry_image(self.image)
-                is_public_gcr_image = self.repository in PUBLIC_GCR_IMAGES
+                is_gcr_image = is_google_registry_domain(self.image_ref.domain)
+                is_public_gcr_image = self.image_ref.name() in PUBLIC_GCR_IMAGES
 
-                if not is_gcr_image:
-                    await self.ensure_image_is_pulled()
-                elif is_public_gcr_image:
-                    auth = await self.batch_worker_access_token()
-                    await self.ensure_image_is_pulled(auth=auth)
-                else:
-                    # Pull to verify this user has access to this
-                    # image.
-                    # FIXME improve the performance of this with a
-                    # per-user image cache.
-                    auth = self.current_user_access_token()
-                    await docker_call_retry(MAX_DOCKER_IMAGE_PULL_SECS, f'{self}')(
-                        docker.images.pull, self.image, auth=auth)
+                try:
+                    if not is_gcr_image:
+                        await self.ensure_image_is_pulled()
+                    elif is_public_gcr_image:
+                        auth = await self.batch_worker_access_token()
+                        await self.ensure_image_is_pulled(auth=auth)
+                    else:
+                        # Pull to verify this user has access to this
+                        # image.
+                        # FIXME improve the performance of this with a
+                        # per-user image cache.
+                        auth = self.current_user_access_token()
+                        await docker_call_retry(MAX_DOCKER_IMAGE_PULL_SECS, f'{self}')(
+                            docker.images.pull, self.image_ref_str, auth=auth)
+                except DockerError as e:
+                    if e.status == 404 and 'pull access denied' in e.message:
+                        self.short_error = 'image cannot be pulled'
+                    raise
 
             if self.port is not None:
                 async with self.step('allocating_port'):
@@ -454,7 +458,11 @@ class Container:
                 await self.delete_container()
 
             if timed_out:
+                self.short_error = 'timed out'
                 raise JobTimeoutError(f'timed out after {self.timeout}s')
+
+            if self.container_status['out_of_memory']:
+                self.short_error = 'out of memory'
 
             if 'error' in self.container_status:
                 self.state = 'error'
@@ -517,11 +525,12 @@ class Container:
     #   state: str, (pending, pulling, creating, starting, running, uploading_log, deleting, suceeded, error, failed)
     #   timing: dict(str, float),
     #   error: str, (optional)
+    #   short_error: str, (optional)
     #   container_status: { (from docker container state)
     #     state: str,
     #     started_at: str, (date)
     #     finished_at: str, (date)
-    #     out_of_memory: boolean
+    #     out_of_memory: bool
     #     error: str, (one of error, exit_code will be present)
     #     exit_code: int
     #   }
@@ -536,10 +545,13 @@ class Container:
         }
         if self.error:
             status['error'] = self.error
+        if self.short_error:
+            status['short_error'] = self.short_error
         if self.container_status:
             status['container_status'] = self.container_status
         elif self.container:
             status['container_status'] = await self.get_container_status()
+
         return status
 
     def __str__(self):
@@ -1118,32 +1130,34 @@ class JVMJob(Job):
 
                 self.state = 'error'
                 self.error = traceback.format_exc()
-            # TODO Put into function call and call from except Exception and after try/except block
-            finally:
-                self.end_time = time_msecs()
+                await self.cleanup()
+            await self.cleanup()
 
-                if not self.deleted:
-                    log.info(f'{self}: marking complete')
-                    self.task_manager.ensure_future(worker.post_job_complete(self))
+    async def cleanup(self):
+        self.end_time = time_msecs()
 
-                log.info(f'{self}: cleaning up')
-                try:
-                    await check_shell(f'xfs_quota -x -D /xfsquota/projects -P /xfsquota/projid -c "limit -p bsoft=0 bhard=0 {self.project_name}" /host')
+        if not self.deleted:
+            log.info(f'{self}: marking complete')
+            self.task_manager.ensure_future(worker.post_job_complete(self))
 
-                    async with Flock('/xfsquota/projid', pool=worker.pool):
-                        await check_shell(f"sed     -i '/{self.project_name}:{self.project_id}/d' /xfsquota/projid")
+        log.info(f'{self}: cleaning up')
+        try:
+            await check_shell(f'xfs_quota -x -D /xfsquota/projects -P /xfsquota/projid -c "limit -p bsoft=0 bhard=0 {self.project_name}" /host')
 
-                    async with Flock('/xfsquota/projects', pool=worker.pool):
-                        await check_shell(f"sed -i '/{self.project_id}:/d' /xfsquota/projects")
+            async with Flock('/xfsquota/projid', pool=worker.pool):
+                await check_shell(f"sed     -i '/{self.project_name}:{self.project_id}/d' /xfsquota/projid")
 
-                    shutil.rmtree(self.scratch, ignore_errors=True)
-                except asyncio.CancelledError:
-                    raise
-                except Exception:
-                    log.exception('while deleting volumes')
+            async with Flock('/xfsquota/projects', pool=worker.pool):
+                await check_shell(f"sed -i '/{self.project_id}:/d' /xfsquota/projects")
+
+            shutil.rmtree(self.scratch, ignore_errors=True)
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            log.exception('while deleting volumes')
 
     async def get_log(self):
-        return {'main': await self.process.get_log()}
+        return {'main': self.process.get_log()}
 
     async def delete(self):
         log.info(f'deleting {self}')
@@ -1505,12 +1519,16 @@ async def async_main():
         finally:
             await docker.close()
             log.info('docker closed')
-
-
-def dump_all_stacktraces():
-    for t in asyncio.all_tasks():
-        print(t)
-        t.print_stack()
+            asyncio.get_event_loop().set_debug(True)
+            log.debug('Tasks immediately after docker close')
+            dump_all_stacktraces()
+            other_tasks = [t for t in asyncio.tasks() if t != asyncio.current_task()]
+            if other_tasks:
+                _, pending = await asyncio.wait(other_tasks, timeout=10 * 60, return_when=asyncio.ALL_COMPLETED)
+                for t in pending:
+                    log.debug('Dangling task:')
+                    t.print_stack()
+                    t.cancel()
 
 
 loop = asyncio.get_event_loop()

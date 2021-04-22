@@ -148,7 +148,7 @@ object TestUtils {
       None
   }
 
-  def loweredExecute(x: IR, env: Env[(Any, Type)],
+  def loweredExecute(ctx: ExecuteContext, x: IR, env: Env[(Any, Type)],
     args: IndexedSeq[(Any, Type)],
     agg: Option[(IndexedSeq[Row], TStruct)],
     bytecodePrinter: Option[PrintWriter] = None
@@ -158,7 +158,7 @@ object TestUtils {
 
     ExecutionTimer.logTime("TestUtils.loweredExecute") { timer =>
       HailContext.sparkBackend("TestUtils.loweredExecute")
-        .jvmLowerAndExecute(timer, x, optimize = false, lowerTable = true, lowerBM = true, print = bytecodePrinter)
+        .jvmLowerAndExecute(ctx, timer, x, optimize = false, lowerTable = true, lowerBM = true, print = bytecodePrinter)
     }
   }
 
@@ -248,7 +248,7 @@ object TestUtils {
             rvb.endArray()
             val aggOff = rvb.end()
 
-            val resultOff = f(0, region)(region, argsOff, aggOff)
+            val resultOff = f(ctx.fs, 0, region)(region, argsOff, aggOff)
             SafeRow(resultType2.asInstanceOf[PBaseStruct], resultOff).get(0)
           }
 
@@ -273,7 +273,7 @@ object TestUtils {
             rvb.endTuple()
             val argsOff = rvb.end()
 
-            val resultOff = f(0, region)(region, argsOff)
+            val resultOff = f(ctx.fs, 0, region)(region, argsOff)
             SafeRow(resultType2.asInstanceOf[PBaseStruct], resultOff).get(0)
           }
       }
@@ -375,7 +375,7 @@ object TestUtils {
                   },
                 optimize = false, ctx)
             case ExecStrategy.LoweredJVMCompile =>
-              loweredExecute(x, env, args, agg)
+              loweredExecute(ctx, x, env, args, agg)
           }
           if (t != TVoid) {
             assert(t.typeCheck(res), s"\n  t=$t\n  result=$res\n  strategy=$strat")

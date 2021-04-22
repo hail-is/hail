@@ -218,7 +218,7 @@ def test_ndarray_eval():
     assert "inner dimensions do not match" in str(exc.value)
 
     with pytest.raises(HailUserError) as exc:
-        hl.eval(hl.nd.array([1, hl.null(hl.tint32), 3]))
+        hl.eval(hl.nd.array([1, hl.missing(hl.tint32), 3]))
 
 
 def test_ndarray_shape():
@@ -486,10 +486,10 @@ def test_ndarray_sum():
     assert_ndarrays_eq(
         (m.sum(axis=0), np_m.sum(axis=0)),
         (m.sum(axis=1), np_m.sum(axis=1)),
-        (m.sum(), np_m.sum()),
-        (m.sum(tuple([])), np_m.sum(tuple([]))),
-        (m.sum((0, 1)), np_m.sum((0, 1)))
-    )
+        (m.sum(tuple([])), np_m.sum(tuple([]))))
+
+    assert hl.eval(m.sum()) == 10
+    assert hl.eval(m.sum((0, 1))) == 10
 
     with pytest.raises(ValueError) as exc:
         m.sum(3)
@@ -616,7 +616,7 @@ def test_ndarray_matmul():
 
     with pytest.raises(FatalError) as exc:
         hl.eval(r @ r)
-    assert "Matrix dimensions incompatible: 3 2" in str(exc.value)
+    assert "Matrix dimensions incompatible: (2, 3) can't be multiplied by matrix with dimensions (2, 3)" in str(exc.value)
 
     with pytest.raises(FatalError) as exc:
         hl.eval(hl.nd.array([1, 2]) @ hl.nd.array([1, 2, 3]))
@@ -681,6 +681,20 @@ def test_ndarray_diagonal():
     with pytest.raises(AssertionError) as exc:
         hl.nd.diagonal(hl.nd.array([1, 2]))
     assert "2 dimensional" in str(exc.value)
+
+
+def test_ndarray_solve():
+    a = hl.nd.array([[1, 2], [3, 5]])
+    b = hl.nd.array([1, 2])
+    b2 = hl.nd.array([[1, 8], [2, 12]])
+
+    assert np.allclose(hl.eval(hl.nd.solve(a, b)), np.array([-1., 1.]))
+    assert np.allclose(hl.eval(hl.nd.solve(a, b2)), np.array([[-1., -16.], [1, 12]]))
+    assert np.allclose(hl.eval(hl.nd.solve(a.T, b2.T)), np.array([[19., 26.], [-6, -8]]))
+
+    with pytest.raises(FatalError) as exc:
+        hl.eval(hl.nd.solve(hl.nd.array([[1, 2], [1, 2]]), hl.nd.array([8, 10])))
+    assert "singular" in str(exc)
 
 
 def test_ndarray_qr():

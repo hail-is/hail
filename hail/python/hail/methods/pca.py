@@ -333,11 +333,11 @@ def _blanczos_pca(entry_expr, k=10, compute_loadings=False, q_iterations=2, over
         AV = A.select(ndarray=A.ndarray @ V)
 
         if compute_U:
-            AV_local = hl.nd.vstack(AV.aggregate(hl.agg.collect(AV.ndarray)))
+            AV_local = hl.nd.vstack(AV.aggregate(hl.agg.collect(AV.ndarray), _localize=False))
             U, R = hl.nd.qr(AV_local)._persist()
             return U, R, V
         else:
-            Rs = hl.nd.vstack(AV.aggregate(hl.agg.collect(hl.nd.qr(AV.ndarray)[1])))
+            Rs = hl.nd.vstack(AV.aggregate(hl.agg.collect(hl.nd.qr(AV.ndarray)[1]), _localize=False))
             R = hl.nd.qr(Rs)[1]._persist()
             return R, V
 

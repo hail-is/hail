@@ -2,10 +2,10 @@ package is.hail.types.physical
 
 import is.hail.annotations.{Region, _}
 import is.hail.asm4s.{Code, _}
-import is.hail.expr.ir.{EmitCode, EmitCodeBuilder, EmitMethodBuilder, EmitValue, ExecuteContext, IEmitCode, IEmitSCode, ParentStagedRegion, Stream}
+import is.hail.expr.ir.{EmitCode, EmitCodeBuilder, EmitMethodBuilder, IEmitCode, IEmitSCode}
 import is.hail.types.physical.stypes.SCode
 import is.hail.types.physical.stypes.concrete.{SIndexablePointer, SIndexablePointerCode, SIndexablePointerSettable}
-import is.hail.types.physical.stypes.interfaces.{SContainer, SIndexableValue, SStreamCode}
+import is.hail.types.physical.stypes.interfaces.{SContainer, SIndexableValue}
 import is.hail.types.virtual.{TArray, Type}
 import is.hail.utils._
 
@@ -523,34 +523,6 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
       new SIndexablePointerCode(SIndexablePointer(this), addr)
     }
     (push, finish)
-  }
-
-  def constructFromStream(
-    cb: EmitCodeBuilder,
-    elts: Stream[EmitCode],
-    region: Value[Region],
-    length: Value[Int],
-    deepCopy: Boolean
-  ): SIndexablePointerCode = {
-    val addr = cb.newLocal[Long]("pcarray_construct1_addr", allocate(region, length))
-    cb += stagedInitialize(addr, length, setMissing = false)
-    val i = cb.newLocal[Int]("pcarray_construct1_i", 0)
-
-    val firstElementAddr = firstElementOffset(addr, length)
-
-    elts.forEachI(cb, { et =>
-      et.toI(cb).consume(cb,
-        cb += setElementMissing(addr, i),
-        { sc =>
-          elementType.storeAtAddress(cb, elementOffsetFromFirst(firstElementAddr, i), region, sc, deepCopy = deepCopy)
-        })
-
-      cb.assign(i, i + 1)
-    })
-
-    cb.ifx(length.cne(i), cb._fatal("PCanonicalArray.constructFromStream: wrong stream length: expected ", length.toS, ", found ", i.toS))
-
-    new SIndexablePointerCode(SIndexablePointer(this), addr)
   }
 
   def loadFromNested(addr: Code[Long]): Code[Long] = Region.loadAddress(addr)

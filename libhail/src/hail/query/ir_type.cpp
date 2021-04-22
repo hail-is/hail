@@ -1,6 +1,6 @@
-#include <hail/tunion.hpp>
-#include <hail/query/ir.hpp>
-#include <hail/query/ir_type.hpp>
+#include "hail/tunion.hpp"
+#include "hail/query/ir.hpp"
+#include "hail/query/ir_type.hpp"
 
 namespace hail {
 
@@ -61,7 +61,7 @@ IRType::infer(IR *x) {
   auto p = ir_type.insert({x, nullptr});
   if (!p.second)
     return p.first->second;
-  
+
   const Type *t = x->dispatch([this](auto x) {
 				return infer(x);
 			      });

@@ -3,7 +3,9 @@ package is.hail.expr.ir
 import is.hail.annotations.Region
 import is.hail.asm4s.{coerce => _, _}
 import is.hail.expr.ir.functions.StringFunctions
+import is.hail.expr.ir.streams.StreamProducer
 import is.hail.lir
+import is.hail.types.physical.stypes.interfaces.SStreamCode
 import is.hail.types.physical.{PCode, PSettable, PType, PValue}
 import is.hail.utils.FastIndexedSeq
 
@@ -82,24 +84,41 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
   }
 
   def memoize(v: EmitCode, name: String): EmitValue = {
+    require(v.pt.isRealizable)
     val l = emb.newEmitLocal(name, v.pt)
     assign(l, v)
     l
   }
 
   def memoize(v: IEmitCode, name: String): EmitValue = {
+    require(v.pt.isRealizable)
     val l = emb.newEmitLocal(name, v.pt)
     assign(l, v)
     l
   }
 
   def memoizeField[T](ec: EmitCode, name: String): EmitValue = {
+    require(ec.pt.isRealizable)
     val l = emb.newEmitField(name, ec.pt)
     l.store(this, ec)
     l
   }
 
+  def withScopedMaybeStreamValue[T](ec: EmitCode, name: String)(f: EmitValue => T): T = {
+    if (ec.pt.isRealizable) {
+      f(memoizeField(ec, name))
+    } else {
+      val ev = new EmitUnrealizableValue(ec)
+      val res = f(ev)
+      ec.pv match {
+        case SStreamCode(_, producer) => StreamProducer.defineUnusedLabels(producer, emb)
+      }
+      res
+    }
+  }
+
   def memoizeField(v: IEmitCode, name: String): EmitValue = {
+    require(v.pt.isRealizable)
     val l = emb.newEmitField(name, v.pt)
     assign(l, v)
     l
@@ -135,12 +154,13 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
           }
 
           val castEc = (ec.pt.required, pt.required) match {
-            case (true, false) => {
-              ec.map(pc => PCode(pc.pt.setRequired(pt.required), pc.code))
-            }
-            case (false, true) => {
-              EmitCode.fromI(callee) { cb => IEmitCode.present(this, ec.toI(this).get(this))}
-            }
+            case (true, false) =>
+              EmitCode.fromI(emb)(cb => ec.toI(cb).map(cb)(pc => PCode(pc.pt.setRequired(pt.required), pc.code)))
+            case (false, true) =>
+              EmitCode.fromI(emb) { cb =>
+                val presentPC = ec.toI(cb).get(cb)
+                IEmitCode.present(cb, PCode(presentPC.pt.setRequired(pt.required), presentPC.code))
+              }
             case _ => ec
           }
 
@@ -189,11 +209,11 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
   }
 
   // for debugging
-  def strValue(r: Value[Region], t: PType, code: Code[_]): Code[String] = {
-    StringFunctions.boxArg(EmitRegion(emb, r), t)(code).invoke[String]("toString")
+  def strValue(t: PType, code: Code[_]): Code[String] = {
+    StringFunctions.boxArg(EmitRegion(emb, emb.partitionRegion), t)(code).invoke[String]("toString")
   }
 
-  def strValue(r: Value[Region], x: PCode): Code[String] = strValue(r, x.pt, x.code)
+  def strValue(x: PCode): Code[String] = strValue(x.pt, x.code)
 
   // for debugging
   def println(cString: Code[String]*) = this += Code._printlns(cString:_*)

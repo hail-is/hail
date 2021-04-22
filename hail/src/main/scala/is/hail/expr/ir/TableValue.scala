@@ -2,15 +2,18 @@ package is.hail.expr.ir
 
 import is.hail.HailContext
 import is.hail.annotations._
+import is.hail.backend.BroadcastValue
 import is.hail.expr.TableAnnotationImpex
+import is.hail.io.fs.FS
 import is.hail.types.physical.{PArray, PCanonicalArray, PCanonicalStruct, PStruct}
 import is.hail.types.virtual.{Field, TArray, TStruct}
 import is.hail.types.{MatrixType, TableType}
 import is.hail.io.{BufferSpec, TypedCodecSpec, exportTypes}
-import is.hail.rvd.{AbstractRVDSpec, RVD, RVDType, RVDContext}
+import is.hail.rvd.{AbstractRVDSpec, RVD, RVDContext, RVDType}
 import is.hail.sparkextras.ContextRDD
 import is.hail.utils._
 import is.hail.variant.ReferenceGenome
+import org.apache.spark.broadcast.Broadcast
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.{DataFrame, Row}
@@ -56,17 +59,17 @@ case class TableValue(ctx: ExecuteContext, typ: TableType, globals: BroadcastRow
   def persist(ctx: ExecuteContext, level: StorageLevel) =
     TableValue(ctx, typ, globals, rvd.persist(ctx, level))
 
-  def filterWithPartitionOp[P](partitionOp: (Int, Region) => P)(pred: (P, RVDContext, Long, Long) => Boolean): TableValue = {
+  def filterWithPartitionOp[P](fs: BroadcastValue[FS], partitionOp: (FS, Int, Region) => P)(pred: (P, RVDContext, Long, Long) => Boolean): TableValue = {
     val localGlobals = globals.broadcast
     copy(rvd = rvd.filterWithContext[(P, Long)](
       { (partitionIdx, ctx) =>
         val globalRegion = ctx.partitionRegion
-        (partitionOp(partitionIdx, globalRegion), localGlobals.value.readRegionValue(globalRegion))
+        (partitionOp(fs.value, partitionIdx, globalRegion), localGlobals.value.readRegionValue(globalRegion))
       }, { case ((p, glob), ctx, ptr) => pred(p, ctx, ptr, glob) }))
   }
 
-  def filter(p: (RVDContext, Long, Long) => Boolean): TableValue = {
-    filterWithPartitionOp((_, _) => ())((_, ctx, ptr, glob) => p(ctx, ptr, glob))
+  def filter(fs: BroadcastValue[FS], p: (RVDContext, Long, Long) => Boolean): TableValue = {
+    filterWithPartitionOp(fs, (_, _, _) => ())((_, ctx, ptr, glob) => p(ctx, ptr, glob))
   }
 
   def export(ctx: ExecuteContext, path: String, typesFile: String = null, header: Boolean = true, exportType: String = ExportType.CONCATENATED, delimiter: String = "\t") {

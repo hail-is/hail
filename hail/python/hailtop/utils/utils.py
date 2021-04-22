@@ -4,6 +4,7 @@ import subprocess
 import traceback
 import sys
 import os
+import re
 import errno
 import random
 import logging
@@ -578,6 +579,8 @@ def is_transient_error(e):
         return is_transient_error(e.__cause__)
     if isinstance(e, google.api_core.exceptions.GatewayTimeout):
         return True
+    if isinstance(e, google.api_core.exceptions.ServiceUnavailable):
+        return True
     if isinstance(e, TransientError):
         return True
     return False
@@ -629,7 +632,7 @@ async def retry_transient_errors(f: Callable[..., Awaitable[T]], *args, **kwargs
             errors += 1
             if errors % 10 == 0:
                 st = ''.join(traceback.format_stack())
-                log.warning(f'encountered {errors} errors. My stack trace is {st}. Most recent error was {e}', exc_info=True)
+                log.warning(f'Encountered {errors} errors. My stack trace is {st}. Most recent error was {e}', exc_info=True)
         delay = await sleep_and_backoff(delay)
 
 
@@ -642,7 +645,8 @@ def sync_retry_transient_errors(f, *args, **kwargs):
         except Exception as e:
             errors += 1
             if errors % 10 == 0:
-                log.warning(f'encountered {errors} errors, most recent one was {e}', exc_info=True)
+                st = ''.join(traceback.format_stack())
+                log.warning(f'Encountered {errors} errors. My stack trace is {st}. Most recent error was {e}', exc_info=True)
             if is_transient_error(e):
                 pass
             else:
@@ -707,6 +711,12 @@ class TimeoutHTTPAdapter(HTTPAdapter):
 
 async def collect_agen(agen):
     return [x async for x in agen]
+
+
+def dump_all_stacktraces():
+    for t in asyncio.all_tasks():
+        log.debug(t)
+        t.print_stack()
 
 
 async def retry_long_running(name, f, *args, **kwargs):
@@ -807,11 +817,47 @@ def url_scheme(url: str) -> str:
     return parsed.scheme
 
 
-def is_google_registry_image(path: str) -> bool:
+class ParsedDockerImageReference:
+    def __init__(self, domain: str, path: str, tag: str, digest: str):
+        self.domain = domain
+        self.path = path
+        self.tag = tag
+        self.digest = digest
+
+    def name(self):
+        if self.domain:
+            return self.domain + '/' + self.path
+        return self.path
+
+    def __str__(self):
+        s = self.name()
+        if self.tag is not None:
+            s += ':'
+            s += self.tag
+        if self.digest is not None:
+            s += '@'
+            s += self.digest
+        return s
+
+
+# https://github.com/distribution/distribution/blob/v2.7.1/reference/reference.go
+DOCKER_IMAGE_REFERENCE_REGEX = re.compile(r"(?:([^/]+)/)?([^:@]+)(?::([^@]+))?(?:@(.+))?")
+
+
+def parse_docker_image_reference(reference_string: str) -> ParsedDockerImageReference:
+    match = DOCKER_IMAGE_REFERENCE_REGEX.fullmatch(reference_string)
+    if match is None:
+        raise ValueError(f'could not parse {reference_string!r} as a docker image reference')
+    domain, path, tag, digest = (match.group(i + 1) for i in range(4))
+    return ParsedDockerImageReference(domain, path, tag, digest)
+
+
+def is_google_registry_domain(domain: Optional[str]) -> bool:
     """Returns true if the given Docker image path points to either the Google
     Container Registry or the Artifact Registry."""
-    host = path.partition('/')[0]
-    return host == 'gcr.io' or host.endswith('docker.pkg.dev')
+    if domain is None:
+        return False
+    return domain == 'gcr.io' or domain.endswith('docker.pkg.dev')
 
 
 class Notice:

@@ -1,11 +1,11 @@
 package is.hail.backend
 
 import is.hail.backend.spark.SparkBackend
-import is.hail.expr.ir.{ExecuteContext, IR, SortField}
 import is.hail.expr.ir.lowering.{TableStage, TableStageDependency}
+import is.hail.expr.ir.{ExecuteContext, IR, SortField}
+import is.hail.io.fs.FS
 import is.hail.linalg.BlockMatrix
 import is.hail.types._
-import is.hail.types.virtual.Type
 import is.hail.utils._
 
 import scala.reflect.ClassTag
@@ -36,7 +36,7 @@ abstract class Backend {
 
   def getPersistedBlockMatrixType(backendContext: BackendContext, id: String): BlockMatrixType
 
-  def parallelizeAndComputeWithIndex(backendContext: BackendContext, collection: Array[Array[Byte]], dependency: Option[TableStageDependency] = None)(f: (Array[Byte], HailTaskContext) => Array[Byte]): Array[Array[Byte]]
+  def parallelizeAndComputeWithIndex(backendContext: BackendContext, collection: Array[Array[Byte]], dependency: Option[TableStageDependency] = None)(f: (Array[Byte], HailTaskContext, FS) => Array[Byte]): Array[Array[Byte]]
 
   def stop(): Unit
 

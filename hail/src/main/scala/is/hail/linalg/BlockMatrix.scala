@@ -2005,7 +2005,6 @@ class WriteBlocksRDD(
   }
 
   def compute(split: Partition, context: TaskContext): Iterator[(Int, String)] = {
-    HailTaskContext.setTaskContext(new SparkTaskContext(context))
     val blockRow = split.index
     val nRowsInBlock = gp.blockRowNRows(blockRow)
     val ctx = TaskContext.get
@@ -2042,7 +2041,7 @@ class WriteBlocksRDD(
     val writeBlocksPart = split.asInstanceOf[WriteBlocksRDDPartition]
     val start = writeBlocksPart.start
     writeBlocksPart.range.zip(writeBlocksPart.parentPartitions).foreach { case (pi, pPart) =>
-      using(RVDContext.default(HailTaskContext.get().getRegionPool())) { ctx =>
+      using(RVDContext.default(SparkTaskContext.get().getRegionPool())) { ctx =>
         val it = crdd.iterator(pPart, context, ctx)
 
         if (pi == start) {

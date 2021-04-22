@@ -625,8 +625,8 @@ class PruneSuite extends HailSuite {
   @Test def testStreamMergeMemo() {
     val st2 = st.deepCopy()
     checkMemo(
-      StreamMerge(
-        st, st2,
+      StreamMultiMerge(
+        IndexedSeq(st, st2),
         FastSeq("a")),
       TStream(justB), Array(TStream(aAndB), TStream(aAndB)))
   }
@@ -1219,7 +1219,7 @@ class PruneSuite extends HailSuite {
 
   @Test def testStreamMergeRebuild() {
     checkRebuild(
-      StreamMerge(MakeStream(Seq(NA(ts)), TStream(ts)), MakeStream(Seq(NA(ts)), TStream(ts)), FastIndexedSeq("a")),
+      StreamMultiMerge(IndexedSeq(MakeStream(Seq(NA(ts)), TStream(ts)), MakeStream(Seq(NA(ts)), TStream(ts))), FastIndexedSeq("a")),
       TStream(subsetTS("b")),
       (_: BaseIR, r: BaseIR) => r.typ == TStream(subsetTS("a", "b")))
   }

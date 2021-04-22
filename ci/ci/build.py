@@ -268,9 +268,7 @@ class BuildImageStep(Step):
         if self.inputs:
             input_files = []
             for i in self.inputs:
-                input_files.append(
-                    (f'gs://{BUCKET}/build/{batch.attributes["token"]}{i["from"]}', f'/io/{os.path.basename(i["to"])}')
-                )
+                input_files.append((f'gs://{BUCKET}/build/{batch.attributes["token"]}{i["from"]}', f'/io/{i["to"]}'))
         else:
             input_files = None
 
@@ -325,7 +323,7 @@ time retry docker push {self.base_image}:latest
                     copy_inputs
                     + f'''
 mkdir -p {shq(os.path.dirname(f'{context}{i["to"]}'))}
-cp {shq(f'/io/{os.path.basename(i["to"])}')} {shq(f'{context}{i["to"]}')}
+cp {shq(f'/io/{i["to"]}')} {shq(f'{context}{i["to"]}')}
 '''
                 )
 
@@ -659,7 +657,7 @@ kubectl -n {self.namespace_name} get -o json secret global-config \
 
             for s in self.secrets:
                 script += f'''
-kubectl -n {self.namespace_name} get -o json --export secret {s} | jq '.metadata.name = "{s}"' | kubectl -n {self._name} apply -f -
+kubectl -n {self.namespace_name} get -o json secret {s} | jq 'del(.metadata) | .metadata.name = "{s}"' | kubectl -n {self._name} apply -f -
 '''
 
         script += '''

@@ -105,9 +105,10 @@ class HadoopFS(val conf: SerializableHadoopConfiguration) extends FS {
     if (statuses == null) {
       throw new FileNotFoundException(filename)
     } else {
-      statuses.map(_.getPath)
+      statuses.par.map(_.getPath)
         .flatMap(fs.listStatus(_))
         .map(new HadoopFileStatus(_))
+        .toArray
     }
   }
 

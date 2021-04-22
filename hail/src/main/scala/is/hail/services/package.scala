@@ -1,7 +1,7 @@
 package is.hail
 
 import javax.net.ssl.SSLException
-import java.net.SocketException
+import java.net._
 import java.io.EOFException
 import is.hail.utils._
 
@@ -11,6 +11,7 @@ import org.apache.log4j.{LogManager, Logger}
 
 import scala.util.Random
 import java.io._
+import com.google.cloud.storage.StorageException
 
 package object services {
   lazy val log: Logger = LogManager.getLogger("is.hail.services")
@@ -37,13 +38,15 @@ package object services {
         RETRYABLE_HTTP_STATUS_CODES.contains(e.status)
       case e: HttpHostConnectException =>
         true
+      case e: NoRouteToHostException =>
+        true
       case e: SocketException =>
         e.getMessage != null && (
           e.getMessage.contains("Connection reset") || e.getMessage.contains("Broken pipe"))
       case e: EOFException =>
         e.getMessage != null && (
           e.getMessage.contains("SSL peer shut down incorrectly"))
-      case e: SSLException =>
+      case e @ (_: SSLException | _: StorageException) =>
         val cause = e.getCause
         cause != null && isTransientError(cause)
       case _ =>

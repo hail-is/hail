@@ -224,8 +224,8 @@ object Simplify {
 
     case StreamFilter(ArraySort(a, left, right, lessThan), name, cond) => ArraySort(StreamFilter(a, name, cond), left, right, lessThan)
 
-    case StreamFilter(ToStream(ArraySort(a, left, right, lessThan), separateRegions), name, cond) =>
-      ToStream(ArraySort(StreamFilter(a, name, cond), left, right, lessThan), separateRegions)
+    case StreamFilter(ToStream(ArraySort(a, left, right, lessThan), requiresMemoryManagementPerElement), name, cond) =>
+      ToStream(ArraySort(StreamFilter(a, name, cond), left, right, lessThan), requiresMemoryManagementPerElement)
 
     case CastToArray(x) if x.typ.isInstanceOf[TArray] => x
     case ToArray(ToStream(a, _)) if a.typ.isInstanceOf[TArray] => a

@@ -355,7 +355,7 @@ object Interpret {
           null
         else {
           val len = lenValue.asInstanceOf[Int]
-          if (len < 0) fatal("StreamTake: negative length")
+          if (len < 0) fatal("stream take: negative num")
           aValue.asInstanceOf[IndexedSeq[Any]].take(len)
         }
       case StreamDrop(a, num) =>
@@ -365,7 +365,7 @@ object Interpret {
           null
         else {
           val n = numValue.asInstanceOf[Int]
-          if (n < 0) fatal("StreamDrop: negative num")
+          if (n < 0) fatal("stream drop: negative num")
           aValue.asInstanceOf[IndexedSeq[Any]].drop(n)
         }
       case StreamGrouped(a, size) =>
@@ -375,7 +375,7 @@ object Interpret {
           null
         else {
           val size = sizeValue.asInstanceOf[Int]
-          if (size <= 0) fatal("StreamGrouped: nonpositive size")
+          if (size <= 0) fatal("stream grouped: non-positive size")
           aValue.asInstanceOf[IndexedSeq[Any]].grouped(size).toFastIndexedSeq
         }
       case StreamGroupByKey(a, key) =>
@@ -416,44 +416,6 @@ object Interpret {
           aValue.asInstanceOf[IndexedSeq[Any]].map { element =>
             interpret(body, env.bind(name, element), args)
           }
-        }
-      case StreamMerge(left, right, key) =>
-        val lValue = interpret(left, env, args).asInstanceOf[IndexedSeq[Any]]
-        val rValue = interpret(right, env, args).asInstanceOf[IndexedSeq[Any]]
-
-        if (lValue == null || rValue == null)
-          null
-        else {
-          val (keyTyp, getKey) = coerce[TStruct](coerce[TStream](left.typ).elementType).select(key)
-          val keyOrd = TBaseStruct.getJoinOrdering(keyTyp.types)
-
-          def compF(lelt: Any, relt: Any): Int =
-            keyOrd.compare(getKey(lelt.asInstanceOf[Row]), getKey(relt.asInstanceOf[Row]))
-
-          val builder = scala.collection.mutable.ArrayBuilder.make[Any]
-          var i = 0
-          var j = 0
-          while (i < lValue.length && j < rValue.length) {
-            val lelt = lValue(i)
-            val relt = rValue(j)
-            val c = compF(lelt, relt)
-            if (c <= 0) {
-              builder += lelt
-              i += 1
-            } else {
-              builder += relt
-              j += 1
-            }
-          }
-          while (i < lValue.length) {
-            builder += lValue(i)
-            i += 1
-          }
-          while (j < rValue.length) {
-            builder += rValue(j)
-            j += 1
-          }
-          builder.result().toFastIndexedSeq
         }
       case StreamZip(as, names, body, behavior) =>
         val aValues = as.map(interpret(_, env, args).asInstanceOf[IndexedSeq[_]])
@@ -782,7 +744,7 @@ object Interpret {
               FastIndexedSeq(classInfo[Region], LongInfo), LongInfo,
               MakeTuple.ordered(FastSeq(wrappedIR)),
               optimize = false)
-            (rt.get, makeFunction(0, region))
+            (rt.get, makeFunction(ctx.fs, 0, region))
           })
           val rvb = new RegionValueBuilder()
           rvb.set(region)
@@ -827,6 +789,7 @@ object Interpret {
         function.execute(ctx, child.execute(ctx))
       case x@TableAggregate(child, query) =>
         val value = child.execute(ctx)
+        val fsBc = ctx.fsBc
 
         val globalsBc = value.globals.broadcast
         val globalsOffset = value.globals.value.offset
@@ -843,7 +806,7 @@ object Interpret {
 
           // TODO Is this right? where does wrapped run?
           ctx.r.pool.scopedRegion { region =>
-            SafeRow(rt, f(0, region)(region, globalsOffset))
+            SafeRow(rt, f(ctx.fs, 0, region)(region, globalsOffset))
           }
         } else {
           val spec = BufferSpec.defaultUncompressed
@@ -907,8 +870,8 @@ object Interpret {
           def itF(i: Int, ctx: RVDContext, it: Iterator[Long]): RegionValue = {
             val partRegion = ctx.partitionRegion
             val globalsOffset = globalsBc.value.readRegionValue(partRegion)
-            val init = initOp(i, partRegion)
-            val seqOps = partitionOpSeq(i, partRegion)
+            val init = initOp(fsBc.value, i, partRegion)
+            val seqOps = partitionOpSeq(fsBc.value, i, partRegion)
             val aggRegion = ctx.freshRegion(Region.SMALL)
 
             init.newAggState(aggRegion)
@@ -926,7 +889,7 @@ object Interpret {
           // the caller
           val mkZero = (pool: RegionPool) => {
             val region = Region(Region.SMALL, pool)
-            val initF = initOp(0, region)
+            val initF = initOp(fsBc.value, 0, region)
             initF.newAggState(region)
             initF(region, globalsBc.value.readRegionValue(region))
             RegionValue(region, initF.getAggOffset())
@@ -944,7 +907,7 @@ object Interpret {
           assert(rTyp.types(0).virtualType == query.typ)
 
           ctx.r.pool.scopedRegion { r =>
-            val resF = f(0, r)
+            val resF = f(fsBc.value, 0, r)
             resF.setAggState(rv.region, rv.offset)
             val resAddr = resF(r, globalsOffset)
             val res = SafeRow(rTyp, resAddr)
@@ -962,7 +925,7 @@ object Interpret {
           MakeTuple.ordered(FastSeq(child)),
           optimize = false)
         ctx.r.pool.scopedRegion { r =>
-          SafeRow.read(rt, makeFunction(0, r)(r)).asInstanceOf[Row](0)
+          SafeRow.read(rt, makeFunction(ctx.fs, 0, r)(r)).asInstanceOf[Row](0)
         }
       case UUID4(_) =>
          uuid4()

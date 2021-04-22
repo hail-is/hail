@@ -97,7 +97,7 @@ class AppendOnlyBTree(kb: EmitClassBuilder[_], val key: BTreeKey, region: Value[
 
   private def insert(cb: EmitCodeBuilder, nodec: Code[Long], insertIdxc: Code[Int], kc: EmitCode, childC: Code[Long]): Code[Long] = {
     val kt = key.compType.sType
-    val castKCode = kc.map(k => kt.coerceOrCopy(cb, region, k, false).asPCode)
+    val castKCode = EmitCode.fromI(cb.emb)(cb => kc.toI(cb).map(cb)(k => kt.coerceOrCopy(cb, region, k, false).asPCode))
     val insertAt = kb.getOrGenEmitMethod("btree_insert", (this, "insert", kt),
       FastIndexedSeq[ParamType](typeInfo[Long], typeInfo[Int], castKCode.emitParamType, typeInfo[Long]), typeInfo[Long]) { insertAt =>
       val node: Value[Long] = insertAt.getCodeParam[Long](1)

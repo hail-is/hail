@@ -11,7 +11,7 @@ import uvloop  # type: ignore
 from prometheus_async.aio.web import server_stats  # type: ignore
 from gidgethub import aiohttp as gh_aiohttp, routing as gh_routing, sansio as gh_sansio
 from hailtop.utils import collect_agen, humanize_timedelta_msecs
-from hailtop.batch_client.aioclient import BatchClient
+from hailtop.batch_client.aioclient import BatchClient, Batch
 from hailtop.config import get_deploy_config
 from hailtop.tls import internal_server_ssl_context
 from hailtop.hail_logging import AccessLogger
@@ -24,7 +24,7 @@ from gear import (
     create_database_pool,
     monitor_endpoint,
 )
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template, set_message
 
 from .environment import BUCKET
@@ -40,7 +40,7 @@ uvloop.install()
 
 deploy_config = get_deploy_config()
 
-watched_branches = [
+watched_branches: List[WatchedBranch] = [
     WatchedBranch(index, FQBranch.from_short_str(bss), deployable)
     for (index, [bss, deployable]) in enumerate(json.loads(os.environ.get('HAIL_WATCHED_BRANCHES', '[]')))
 ]
@@ -135,7 +135,8 @@ async def get_pr(request, userdata):  # pylint: disable=unused-argument
             )
 
     batch_client = request.app['batch_client']
-    batches = batch_client.list_batches(f'test=1 ' f'pr={pr.number} ' f'user:ci')
+    target_branch = wb.branch.short_str()
+    batches = batch_client.list_batches(f'test=1 ' f'pr={pr.number} ' f'target_branch={target_branch} ' f'user:ci')
     batches = sorted([b async for b in batches], key=lambda b: b.id, reverse=True)
     page_context['history'] = [await b.last_known_status() for b in batches]
 
@@ -195,8 +196,22 @@ async def get_batch(request, userdata):
     jobs = await collect_agen(b.jobs())
     for j in jobs:
         j['duration'] = humanize_timedelta_msecs(j['duration'])
-    page_context = {'batch': status, 'jobs': jobs}
+    wb = get_maybe_wb_for_batch(b)
+    page_context = {'batch': status, 'jobs': jobs, 'wb': wb}
     return await render_template('ci', request, userdata, 'batch.html', page_context)
+
+
+def get_maybe_wb_for_batch(b: Batch):
+    if 'target_branch' in b.attributes and 'pr' in b.attributes:
+        branch = b.attributes['target_branch']
+        wbs = [wb for wb in watched_branches if wb.branch.short_str() == branch]
+        if len(wbs) == 0:
+            pr = b.attributes['pr']
+            log.exception(f"Attempted to load PR {pr} for unwatched branch {branch}")
+        else:
+            assert len(wbs) == 1
+            return wbs[0].index
+    return None
 
 
 @routes.get('/batches/{batch_id}/jobs/{job_id}')
