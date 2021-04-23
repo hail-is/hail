@@ -35,16 +35,6 @@ CompileModule::CompileModule(TypeContext &tc,
 						   "hl_runtime_region_allocate",
 						   llvm_module);
 
-  auto runtime_print_float64_ft =
-    llvm::FunctionType::get(llvm::Type::getVoidTy(llvm_context),
-          {llvm::Type::getDoubleTy(llvm_context)}, false);
-  runtime_print_float64_f = llvm::Function::Create(runtime_print_float64_ft, llvm::Function::ExternalLinkage, "hl_runtime_print_float64", llvm_module);
-
-  auto runtime_print_bool_ft =
-    llvm::FunctionType::get(llvm::Type::getVoidTy(llvm_context),
-          {llvm::Type::getInt1Ty(llvm_context)}, false);
-  runtime_print_bool_f = llvm::Function::Create(runtime_print_bool_ft, llvm::Function::ExternalLinkage, "hl_runtime_print_bool", llvm_module);
-
   auto runtime_printf_ft =
     llvm::FunctionType::get(llvm::Type::getInt32Ty(llvm_context), {llvm::Type::getInt8PtrTy(llvm_context)}, true);
   runtime_printf = llvm::Function::Create(
@@ -64,16 +54,6 @@ CompileModule::region_allocate(llvm::IRBuilder<> *llvm_ir_builder, llvm::Value *
 llvm::Value*
 CompileModule::region_allocate(llvm::IRBuilder<> *llvm_ir_builder, llvm::Value *region, llvm::Value *alignment, llvm::Value *num_bytes) {
   return llvm_ir_builder->CreateCall(runtime_allocate_f, {region, alignment, num_bytes});
-};
-
-void
-CompileModule::print_float64(llvm::IRBuilder<> *llvm_ir_builder, llvm::Value *double_to_print) {
-  llvm_ir_builder->CreateCall(runtime_print_float64_f, {double_to_print});
-};
-
-void
-CompileModule::print_bool(llvm::IRBuilder<> *llvm_ir_builder, llvm::Value *bool_to_print) {
-  llvm_ir_builder->CreateCall(runtime_print_bool_f, {bool_to_print});
 };
 
 void
@@ -325,7 +305,6 @@ CompileFunction::emit(MakeArray *x) {
   }
 
   auto len = llvm::ConstantInt::get(llvm_context, llvm::APInt(64, element_emit_values.size()));
-  module->printf(&llvm_ir_builder, "fooBar %d\n", {len});
 
   // Enough memory for one bit per boolean, so just need "len" bits.
   auto missing_allignment = llvm::ConstantInt::get(llvm_context, llvm::APInt(64, 8));
@@ -352,10 +331,8 @@ CompileFunction::emit(MakeArray *x) {
 
     llvm_ir_builder.SetInsertPoint(present_label);
     auto addr = llvm_ir_builder.CreateGEP(elements, llvm::ConstantInt::get(llvm_context, llvm::APInt(64, varray_type->element_stride * current_index)));
-    module->printf(&llvm_ir_builder, "Storing present value %f at %llu\n", {cast<SFloat64Value>(element.svalue)->value, addr});
     element.svalue->stype->construct_at_address_from_value(*this, addr, element.svalue);
     llvm_ir_builder.CreateStore(llvm::ConstantInt::get(llvm::Type::getInt1Ty(llvm_context), llvm::APInt(1, 0)), missing_addr);
-    module->printf(&llvm_ir_builder, "Wrting not missing to %llu\n", {missing_addr});
     llvm_ir_builder.CreateBr(next_element_label);
 
     llvm_ir_builder.SetInsertPoint(missing_label);

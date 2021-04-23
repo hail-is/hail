@@ -45,9 +45,6 @@ public:
 
 private:
   llvm::Function *runtime_allocate_f;
-  llvm::Function *runtime_print_float64_f;
-  llvm::Function *runtime_print_bool_f;
-  llvm::Function *runtime_print_string_f;
   llvm::Function *runtime_printf;
 };
 

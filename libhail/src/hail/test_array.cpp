@@ -6,8 +6,6 @@
 #include <hail/query/ir.hpp>
 #include <hail/query/backend/jit.hpp>
 
-#include <cmath>
-
 namespace hail {
 
 HeapAllocator heap;
@@ -97,8 +95,8 @@ TypeContext tc(heap);
         auto value_idx_3 = compiled.invoke(region, {Value(vint64, 3)});
         auto value_idx_5 = compiled.invoke(region, {Value(vint64, 5)});
 
-        assert(std::abs(5.2 - value_idx_0.as_float64()) < .001);
-        assert(std::abs(8.2 - value_idx_3.as_float64()) < .001);
+        assert(value_idx_0.as_float64() == 5.2);
+        assert(value_idx_3.as_float64() == 8.2);
         assert(value_idx_5.get_missing());
     }
 }
