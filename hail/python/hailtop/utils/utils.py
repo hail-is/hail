@@ -355,7 +355,12 @@ class OnlineBoundedGather2:
         self._counter = 0
         self._subsema = Subsemaphore(sema)
         self._pending: Optional[Dict[int, asyncio.Task]] = {}
+        # done if there are no pending tasks (the tasks are all
+        # complete), or if we've shutdown and the cancelled tasks are
+        # complete
         self._done_event = asyncio.Event()
+        # not pending tasks, so done
+        self._done_event.set()
         self._exception: Optional[BaseException] = None
 
     async def _shutdown(self) -> None:
@@ -379,7 +384,6 @@ class OnlineBoundedGather2:
         if tasks:
             await asyncio.wait(tasks)
 
-        # wake up if waiting
         self._done_event.set()
 
     async def call(self, f, *args, **kwargs) -> asyncio.Task:
@@ -455,9 +459,12 @@ class OnlineBoundedGather2:
             else:
                 log.info('discarding exception', exc_info=exc_val)
 
+        # wait for done and not pending _done_event.wait can return
+        # when when there are pending jobs if the last job completed
+        # (setting _done_event) and then more tasks were submitted
         await self._done_event.wait()
         while self._pending:
-            self._done_event.clear()
+            assert not self._done_event.is_set()
             await self._done_event.wait()
 
         if self._exception:
