@@ -616,7 +616,7 @@ def test_ndarray_matmul():
 
     with pytest.raises(FatalError) as exc:
         hl.eval(r @ r)
-    assert "Matrix dimensions incompatible: (2, 3) can't be multiplied by matrix with dimensions (2, 3)" in str(exc.value)
+    assert "Matrix dimensions incompatible: (2, 3) can't be multiplied by matrix with dimensions (2, 3)" in str(exc.value), str(exc.value)
 
     with pytest.raises(FatalError) as exc:
         hl.eval(hl.nd.array([1, 2]) @ hl.nd.array([1, 2, 3]))
@@ -694,7 +694,7 @@ def test_ndarray_solve():
 
     with pytest.raises(FatalError) as exc:
         hl.eval(hl.nd.solve(hl.nd.array([[1, 2], [1, 2]]), hl.nd.array([8, 10])))
-    assert "singular" in str(exc)
+    assert "singular" in str(exc.value), str(exc.value)
 
 
 def test_ndarray_qr():
