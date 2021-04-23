@@ -33,7 +33,7 @@ public:
   llvm::Value* region_allocate(llvm::IRBuilder<> *llvm_ir_builder, llvm::Value *region, llvm::Value *alignment, llvm::Value *num_bytes);
   void print_float64(llvm::IRBuilder<> *llvm_ir_builder, llvm::Value *double_to_print);
   void print_bool(llvm::IRBuilder<> *llvm_ir_builder, llvm::Value *bool_to_print);
-  void print_string(llvm::IRBuilder<> *llvm_ir_builder, llvm::Value *str_to_print);
+  void printf(llvm::IRBuilder<> *llvm_ir_builder, const char* string, std::vector<llvm::Value *> args);
 
   CompileModule(TypeContext &tc,
 		STypeContext &stc,
@@ -48,6 +48,7 @@ private:
   llvm::Function *runtime_print_float64_f;
   llvm::Function *runtime_print_bool_f;
   llvm::Function *runtime_print_string_f;
+  llvm::Function *runtime_printf;
 };
 
 class CompileFunction {

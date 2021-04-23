@@ -1,3 +1,4 @@
+#include <string.h>
 #include <llvm/IR/Verifier.h>
 #include <hail/format.hpp>
 #include <llvm/Support/raw_ostream.h>
@@ -44,10 +45,13 @@ CompileModule::CompileModule(TypeContext &tc,
           {llvm::Type::getInt1Ty(llvm_context)}, false);
   runtime_print_bool_f = llvm::Function::Create(runtime_print_bool_ft, llvm::Function::ExternalLinkage, "hl_runtime_print_bool", llvm_module);
 
-  auto runtime_print_string_ft =
-    llvm::FunctionType::get(llvm::Type::getVoidTy(llvm_context),
-          {llvm::Type::getInt8PtrTy(llvm_context)}, false);
-  runtime_print_string_f = llvm::Function::Create(runtime_print_string_ft, llvm::Function::ExternalLinkage, "hl_runtime_print_string", llvm_module);
+  auto runtime_printf_ft =
+    llvm::FunctionType::get(llvm::Type::getInt32Ty(llvm_context), {llvm::Type::getInt8PtrTy(llvm_context)}, true);
+  runtime_printf = llvm::Function::Create(
+    runtime_printf_ft,
+    llvm::Function::ExternalLinkage,
+    "printf",
+    llvm_module);
 }
 
 llvm::Value*
@@ -73,8 +77,10 @@ CompileModule::print_bool(llvm::IRBuilder<> *llvm_ir_builder, llvm::Value *bool_
 };
 
 void
-CompileModule::print_string(llvm::IRBuilder<> *llvm_ir_builder, llvm::Value *str_to_print) {
-  llvm_ir_builder->CreateCall(runtime_print_string_f, {str_to_print});
+CompileModule::printf(llvm::IRBuilder<> *llvm_ir_builder, const char *str_to_print, std::vector<llvm::Value *> args) {
+  auto str_pointer = llvm_ir_builder->CreateGlobalStringPtr(str_to_print);
+  args.insert(args.begin(), str_pointer);
+  llvm_ir_builder->CreateCall(runtime_printf, args);
 };
 
 
@@ -318,14 +324,9 @@ CompileFunction::emit(MakeArray *x) {
     element_emit_values.push_back(cv);
   }
 
-  auto alloca_string = llvm_ir_builder.CreateAlloca(llvm::ArrayType::get(llvm::Type::getInt8Ty(llvm_context), 4));
-  auto cda_string = llvm::ConstantDataArray::getString(llvm_context, llvm::StringRef("foo"));
-  llvm_ir_builder.CreateStore(cda_string, alloca_string);
-  module->print_string(&llvm_ir_builder,
-    llvm_ir_builder.CreateBitCast(alloca_string, llvm::Type::getInt8PtrTy(llvm_context)));
-  module->print_float64(&llvm_ir_builder, llvm::ConstantFP::get(llvm_context, llvm::APFloat(1.0)));
-
   auto len = llvm::ConstantInt::get(llvm_context, llvm::APInt(64, element_emit_values.size()));
+  module->printf(&llvm_ir_builder, "fooBar %d\n", {len});
+
   // Enough memory for one bit per boolean, so just need "len" bits.
   auto missing_allignment = llvm::ConstantInt::get(llvm_context, llvm::APInt(64, 8));
   auto missing_bytes = llvm_ir_builder.CreateAdd(llvm_ir_builder.CreateUDiv(len, missing_allignment), llvm::ConstantInt::get(llvm_context, llvm::APInt(64, 1)));
