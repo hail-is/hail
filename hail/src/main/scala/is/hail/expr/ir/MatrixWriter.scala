@@ -4,6 +4,7 @@ import java.io.OutputStream
 import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.expr.JSONAnnotationImpex
+import is.hail.expr.ir.functions.MatrixWriteBlockMatrix
 import is.hail.expr.ir.lowering.{LowererUnsupportedOperation, TableStage}
 import is.hail.expr.ir.streams.StreamProducer
 import is.hail.io._
@@ -27,7 +28,8 @@ object MatrixWriter {
   implicit val formats: Formats = new DefaultFormats() {
     override val typeHints = ShortTypeHints(
       List(classOf[MatrixNativeWriter], classOf[MatrixVCFWriter], classOf[MatrixGENWriter],
-        classOf[MatrixBGENWriter], classOf[MatrixPLINKWriter], classOf[WrappedMatrixWriter]), typeHintFieldName = "name")
+        classOf[MatrixBGENWriter], classOf[MatrixPLINKWriter], classOf[WrappedMatrixWriter],
+        classOf[MatrixBlockMatrixWriter]), typeHintFieldName = "name")
   }
 }
 
@@ -345,7 +347,7 @@ case class MatrixBlockMatrixWriter(
   entryField: String,
   blockSize: Int
 ) extends MatrixWriter {
-  def apply(ctx: ExecuteContext, mv: MatrixValue): Unit = MatrixWriteBlockMatrix.
+  def apply(ctx: ExecuteContext, mv: MatrixValue): Unit = MatrixWriteBlockMatrix(ctx, mv, entryField, path, overwrite, blockSize)
 }
 
 object MatrixNativeMultiWriter {
