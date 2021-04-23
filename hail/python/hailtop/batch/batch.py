@@ -1,11 +1,8 @@
 import os
 import re
-import concurrent
 from typing import Optional, Dict, Union, List, Any, Set
 
 from hailtop.utils import secret_alnum_string
-
-from ..google_storage import GCS
 
 from . import backend as _backend, job, resource as _resource  # pylint: disable=cyclic-import
 from .exceptions import BatchException
@@ -130,11 +127,10 @@ class Batch:
         self._default_storage = default_storage
         self._default_timeout = default_timeout
         self._default_shell = default_shell
-
         self._default_python_image = default_python_image
 
-        self._gcs = GCS(blocking_pool=concurrent.futures.ThreadPoolExecutor(),
-                        project=project)
+        self._project = project
+        self._gcs = None
 
     def new_job(self,
                 name: Optional[str] = None,

@@ -1,5 +1,6 @@
 import re
 import dill
+import concurrent
 import os
 import functools
 from io import BytesIO
@@ -7,6 +8,8 @@ from typing import Union, Optional, Dict, List, Set, Tuple, Callable, Any, cast
 
 from . import backend, resource as _resource, batch  # pylint: disable=cyclic-import
 from .exceptions import BatchException
+
+from ..google_storage import GCS
 
 
 def _add_resource_to_set(resource_set, resource, include_rg=True):
@@ -908,6 +911,10 @@ class PythonJob(Job):
 
             job_path = os.path.dirname(result._get_path(remote_tmpdir))
             code_path = f'{job_path}/code{i}.p'
+
+            if self._batch._gcs is None:
+                self._batch._gcs = GCS(blocking_pool=concurrent.futures.ThreadPoolExecutor(),
+                                       project=self._batch._project)
 
             self._batch._gcs._write_gs_file_from_file_like_object(code_path, pipe)
 
