@@ -343,7 +343,6 @@ BEGIN
   DECLARE job_cores_mcpu INT;
   DECLARE cur_billing_project VARCHAR(100);
   DECLARE msec_diff BIGINT;
-  DECLARE msec_mcpu_diff BIGINT;
   DECLARE cur_n_tokens INT;
   DECLARE rand_token INT;
 
@@ -357,12 +356,6 @@ BEGIN
 
   SET msec_diff = (GREATEST(COALESCE(NEW.end_time - NEW.start_time, 0), 0) -
                    GREATEST(COALESCE(OLD.end_time - OLD.start_time, 0), 0));
-
-  SET msec_mcpu_diff = msec_diff * job_cores_mcpu;
-
-  UPDATE jobs
-  SET msec_mcpu = jobs.msec_mcpu + msec_mcpu_diff
-  WHERE batch_id = NEW.batch_id AND job_id = NEW.job_id;
 
   INSERT INTO aggregated_billing_project_resources (billing_project, resource, token, `usage`)
   SELECT billing_project, resource, rand_token, msec_diff * quantity
