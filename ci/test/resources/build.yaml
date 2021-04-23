@@ -3,13 +3,12 @@ steps:
     name: default_ns
     namespaceName: default
     public: true
-  - kind: buildImage
+  - kind: buildImage2
     name: inline_image
     dockerFile:
       inline: |
         FROM gcr.io/{{ global.project }}/ubuntu:18.04
         RUN apt-get update && apt-get install -y git
-    contextPath: .
   - kind: runImage
     name: run_inline_image
     image:
@@ -80,6 +79,15 @@ steps:
     dependsOn:
       - base_image
       - test_clashing_basenames_setup
+  - kind: buildImage2
+    name: docker_file_in_inputs_test_image
+    dockerFile: /io/hail-ubuntu/Dockerfile
+    contextPath: /io/hail-ubuntu
+    inputs:
+      - from: /repo/docker/hail-ubuntu
+        to: /io/hail-ubuntu
+    dependsOn:
+      - copy_files
   - kind: buildImage
     name: service_base_image
     dockerFile: docker/Dockerfile.service-base
