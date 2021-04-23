@@ -19,6 +19,7 @@ RUN hail-pip-install \
       numpy \
       pandas \
       scikit-learn \
+      dill \
       scipy \
     && rm -rf hail-*-py3-none-any.whl
 RUN export SPARK_HOME=$(find_spark_home.py) && \
