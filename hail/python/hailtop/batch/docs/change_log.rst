@@ -3,6 +3,10 @@
 Change Log
 ==========
 
+**Version 0.2.66**
+
+- Removed the need for the ``project`` argument in ``Batch()`` unless you are creating a PythonJob
+
 **Version 0.2.65**
 
 - Added ``PythonJob``
