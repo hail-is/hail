@@ -3163,6 +3163,7 @@ class IRSuite extends HailSuite {
       MatrixWrite(vcf, MatrixVCFWriter("/path/to/sample.vcf")),
       MatrixWrite(vcf, MatrixPLINKWriter("/path/to/base")),
       MatrixWrite(bgen, MatrixGENWriter("/path/to/base")),
+      MatrixWrite(mt, MatrixBlockMatrixWriter("path/to/data/bm", true, "a", 4096)),
       MatrixMultiWrite(Array(mt, mt), MatrixNativeMultiWriter("/path/to/prefix")),
       TableMultiWrite(Array(table, table), WrappedMatrixNativeMultiWriter(MatrixNativeMultiWriter("/path/to/prefix"), FastIndexedSeq("foo"))),
       MatrixAggregate(mt, MakeStruct(Seq("foo" -> count))),
@@ -3681,7 +3682,6 @@ class IRSuite extends HailSuite {
     Array(NPartitionsTable()),
     Array(NPartitionsMatrixTable()),
     Array(WrappedMatrixToValueFunction(NPartitionsMatrixTable(), "foo", "bar", FastIndexedSeq("a", "c"))),
-    Array(MatrixWriteBlockMatrix("a", false, "b", 1)),
     Array(MatrixExportEntriesByCol(1, "asd", false, true, false)),
     Array(GetElement(FastSeq(1, 2)))
   )
