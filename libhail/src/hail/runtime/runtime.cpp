@@ -18,3 +18,7 @@ void
 hl_runtime_print_bool(bool b) {
   printf("%d\n", b);
 }
+
+void hl_runtime_print_string(char* format) {
+  printf("%s\n", format);
+}

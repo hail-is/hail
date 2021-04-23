@@ -50,6 +50,9 @@ JITImpl::JITImpl()
 								   llvm::JITSymbolFlags::Exported)},
            {mangle("hl_runtime_print_bool"),
             llvm::JITEvaluatedSymbol(llvm::pointerToJITTargetAddress(&hl_runtime_print_bool),
+								   llvm::JITSymbolFlags::Exported)},
+           {mangle("hl_runtime_print_string"),
+            llvm::JITEvaluatedSymbol(llvm::pointerToJITTargetAddress(&hl_runtime_print_string),
 								   llvm::JITSymbolFlags::Exported)}
     });
   if (auto err = jit_dylib.define(sym))
