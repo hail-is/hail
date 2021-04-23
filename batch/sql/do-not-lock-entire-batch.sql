@@ -288,6 +288,7 @@ BEGIN
   COMMIT;
   SELECT 0 as rc, delta_cores_mcpu;
 END $$
+
 DROP PROCEDURE IF EXISTS mark_job_complete $$
 CREATE PROCEDURE mark_job_complete(
   IN in_batch_id BIGINT,

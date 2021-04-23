@@ -1,4 +1,6 @@
 import random
+import time
+import humanize
 import pytest
 from hailtop.batch_client.client import BatchClient
 
@@ -14,15 +16,24 @@ def client():
 
 
 def test_scale(client):
-    n_jobs = 10
-    batch = client.create_batch()
-    for idx in range(n_jobs):
-        sleep_time = random.uniform(0, 30)
-        batch.create_job('alpine:3.8', command=['sleep', str(round(sleep_time))])
+    now = time.time()
+    n_batches = 100
+    batches = []
+    for _ in range(n_batches):
+        n_jobs = 100
+        batch = client.create_batch()
+        for idx in range(n_jobs):
+            sleep_time = random.uniform(0, 30)
+            batch.create_job('alpine:3.8', command=['sleep', str(round(sleep_time))])
 
-    batch = batch.submit()
-    batch.wait()
-    status = legacy_batch_status(batch)
+        batches.append(batch.submit())
 
-    assert batch_status_job_counter(status, 'Success') == n_jobs, status
-    assert all([j['exit_code'] == 0 for j in status['jobs']])
+    for batch in batches:
+        status = batch.wait()
+        jobs = batch.jobs()
+
+        successful_jobs = [j for j in jobs if j['state'] == 'Success']
+        assert len(successful_jobs) == len(jobs), str(jobs) + '\n\n' + str(status)
+        assert all([j['exit_code'] == 0 for j in jobs])
+    duration = time.time() - now
+    print('duration: {humanize.time(duration)} ({duration}s)')
