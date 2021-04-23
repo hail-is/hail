@@ -12,6 +12,8 @@ import org.apache.commons.io.IOUtils
 import org.apache.log4j.Logger
 
 import scala.collection.mutable
+import scala.concurrent.duration.{Duration, MILLISECONDS}
+import scala.concurrent.{Future, Await}
 
 class ServiceTaskContext(val partitionId: Int) extends HailTaskContext {
   override def stageId(): Int = 0
@@ -59,39 +61,41 @@ object Worker {
     log.info(s"running job $i at root $root wih scratch directory '$scratchDir'")
 
     timer.start(s"Job $i")
-    timer.start("readInputs")
 
+    timer.start("readInputs")
     val fs = retryTransientErrors {
       using(new FileInputStream(s"$scratchDir/gsa-key/key.json")) { is =>
-        new GoogleStorageFS(IOUtils.toString(is, Charset.defaultCharset().toString()))
+        new GoogleStorageFS(IOUtils.toString(is, Charset.defaultCharset().toString())).asCacheable()
       }
     }
 
-    val f = retryTransientErrors {
-      using(new ObjectInputStream(fs.openNoCompression(s"$root/f"))) { is =>
-        is.readObject().asInstanceOf[(Array[Byte], HailTaskContext, FS) => Array[Byte]]
+    val fileRetrievalExecutionContext = scala.concurrent.ExecutionContext.global
+    val fFuture = Future {
+      retryTransientErrors {
+        using(new ObjectInputStream(fs.openCachedNoCompression(s"$root/f"))) { is =>
+          is.readObject().asInstanceOf[(Array[Byte], HailTaskContext, FS) => Array[Byte]]
+        }
       }
-    }
+    }(fileRetrievalExecutionContext)
 
-    var offset = 0L
-    var length = 0
-
-    retryTransientErrors {
-      using(fs.openNoCompression(s"$root/context.offsets")) { is =>
-        is.seek(i * 12)
-        offset = is.readLong()
-        length = is.readInt()
+    val contextFuture = Future {
+      retryTransientErrors {
+        using(fs.openCachedNoCompression(s"$root/contexts")) { is =>
+          is.seek(i * 12)
+          val offset = is.readLong()
+          val length = is.readInt()
+          is.seek(offset)
+          val context = new Array[Byte](length)
+          is.readFully(context)
+          context
+        }
       }
-    }
+    }(fileRetrievalExecutionContext)
 
-    val context = retryTransientErrors {
-      using(fs.openNoCompression(s"$root/contexts")) { is =>
-        is.seek(offset)
-        val context = new Array[Byte](length)
-        is.readFully(context)
-        context
-      }
-    }
+    // retryTransientErrors handles timeout and exception throwing logic
+    val f = Await.result(fFuture, Duration.Inf)
+    val context = Await.result(contextFuture, Duration.Inf)
+
     timer.end("readInputs")
     timer.start("executeFunction")
 
@@ -104,7 +108,7 @@ object Worker {
     timer.end("executeFunction")
     timer.start("writeOutputs")
 
-    using(fs.createNoCompression(s"$root/result.$i")) { os =>
+    using(fs.createCachedNoCompression(s"$root/result.$i")) { os =>
       os.write(result)
     }
     timer.end("writeOutputs")

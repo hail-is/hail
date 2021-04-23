@@ -1101,7 +1101,7 @@ class DockerJob(Job):
 
     async def delete(self):
         await super().delete()
-        for _, c in self.containers.items():
+        for c in self.containers.values():
             await c.delete()
 
     async def status(self):
