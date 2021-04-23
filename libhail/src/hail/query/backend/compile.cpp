@@ -360,7 +360,6 @@ CompileFunction::emit(ArrayLen *x) {
 
 EmitValue
 CompileFunction::emit(ArrayRef *x) {
-  // TODO: Handle misssingness
   auto array_data_value = emit(x->get_child(0)).as_data(*this);
   auto array_idx = emit(x->get_child(1)).as_data(*this);
   auto array_svalue = cast<SArrayValue>(array_data_value.svalue);
