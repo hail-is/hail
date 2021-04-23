@@ -17,7 +17,6 @@ RUN hail-pip-install \
       ipython \
       matplotlib \
       numpy \
-      pandas \
       scikit-learn \
       dill \
       scipy \
