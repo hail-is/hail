@@ -339,6 +339,15 @@ case class MatrixPLINKWriter(
   def apply(ctx: ExecuteContext, mv: MatrixValue): Unit = ExportPlink(ctx, mv, path)
 }
 
+case class MatrixBlockMatrixWriter(
+  path: String,
+  overwrite: Boolean,
+  entryField: String,
+  blockSize: Int
+) extends MatrixWriter {
+  def apply(ctx: ExecuteContext, mv: MatrixValue): Unit = MatrixWriteBlockMatrix.
+}
+
 object MatrixNativeMultiWriter {
   implicit val formats: Formats = new DefaultFormats() {
     override val typeHints = ShortTypeHints(List(classOf[MatrixNativeMultiWriter]), typeHintFieldName = "name")
