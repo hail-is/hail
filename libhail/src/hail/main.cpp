@@ -15,7 +15,7 @@
 using namespace hail;
 
 int
-main_main() {
+main() {
   HeapAllocator heap;
   ArenaAllocator arena(heap);
   TypeContext tc(heap);
