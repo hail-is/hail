@@ -15,7 +15,8 @@ TypeContext tc(heap);
     TEST_CASE(test_array_length) {
 
         auto region = std::make_shared<ArenaAllocator>(heap);
-        auto varray = cast<VArray>(tc.get_vtype(tc.tarray(tc.tfloat64)));
+        auto tarray = tc.tarray(tc.tfloat64);
+        auto varray = cast<VArray>(tc.get_vtype(tarray));
         auto vfloat64 = cast<VFloat64>(tc.get_vtype(tc.tfloat64));
 
         int array_length = 8;
@@ -55,6 +56,11 @@ TypeContext tc(heap);
         auto compiled = jit.compile(heap, tc, m, param_vtypes, return_vtype);
         auto length_check_return_value = compiled.invoke(region, {});
         assert(length_check_return_value.as_int64() == array_length);
+
+        body->set_child(0, body->make_array_len(body->make_na(tarray)));
+        auto compiled2 = jit.compile(heap, tc, m, param_vtypes, return_vtype);
+        auto length_check_return_value2 = compiled.invoke(region, {});
+        assert(length_check_return_value2.as_int64() == array_length);
     }
 
     TEST_CASE(test_array_ref) {

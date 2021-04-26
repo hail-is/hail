@@ -190,6 +190,12 @@ CompileFunction::get_default_stype(const Type *t) {
     return stc.sfloat32;
   case Type::Tag::FLOAT64:
     return stc.sfloat64;
+  case Type::Tag::ARRAY: {
+    auto tarray = cast<TArray>(t);
+    auto varray = cast<VArray>(tc.get_vtype(tarray));
+    auto s_element = get_default_stype(tarray->element_type);
+    return stc.canonical_sarray(tarray, s_element, varray->elements_alignment, varray->element_stride);
+  }
   default:
     abort();
   }
@@ -353,9 +359,11 @@ CompileFunction::emit(MakeArray *x) {
 
 EmitValue
 CompileFunction::emit(ArrayLen *x) {
-  auto array_data_value = emit(x->get_child(0)).as_data(*this);
-  auto array_svalue = cast<SArrayValue>(array_data_value.svalue);
-  return EmitValue(array_data_value.missing, array_svalue->get_length(stc));
+  auto array_ctrl = emit(x->get_child(0)).as_control(*this);
+
+  // auto array_data_value = emit(x->get_child(0)).as_data(*this);
+  // auto array_svalue = cast<SArrayValue>(array_data_value.svalue);
+  // return EmitValue(array_data_value.missing, array_svalue->get_length(stc));
 }
 
 EmitValue

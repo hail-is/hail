@@ -29,6 +29,11 @@ SType::get_constituent_types(std::vector<PrimitiveType> &constituent_types) cons
   case SType::Tag::CANONICALTUPLE:
     constituent_types.push_back(PrimitiveType::POINTER);
     break;
+  case SType::Tag::CANONICALARRAY:
+    constituent_types.push_back(PrimitiveType::INT64);
+    constituent_types.push_back(PrimitiveType::POINTER);
+    constituent_types.push_back(PrimitiveType::POINTER);
+    break;
   default:
     abort();
   }
@@ -49,6 +54,8 @@ SType::from_llvm_values(const std::vector<llvm::Value *> &llvm_values, size_t i)
     return new SFloat64Value(this, llvm_values[i]);
   case SType::Tag::CANONICALTUPLE:
     return new SCanonicalTupleValue(this, llvm_values[i]);
+  case SType::Tag::CANONICALARRAY:
+    return new SCanonicalArrayValue(cast<SCanonicalArray>(this), llvm_values[i], llvm_values[i+1], llvm_values[i+2]);
   default:
     abort();
   }
@@ -220,7 +227,7 @@ SStackTuple::SStackTuple(STypeContextToken, const Type *type, std::vector<EmitTy
   : SType(Tag::STACKTUPLE, type),
     element_types(std::move(element_types)) {}
 
-SCanonicalArray::SCanonicalArray(const Type *type, const SType *element_type, size_t elements_alignment, size_t element_stride)
+SCanonicalArray::SCanonicalArray(STypeContextToken, const Type *type, const SType *element_type, size_t elements_alignment, size_t element_stride)
   : SType(Tag::CANONICALARRAY, type), element_type(element_type), elements_alignment(elements_alignment), element_stride(element_stride) {}
 
 void
@@ -285,6 +292,13 @@ STypeContext::stack_stuple(const Type *type, const std::vector<EmitType> &elemen
   return t;
 }
 
+const SCanonicalArray *
+STypeContext::canonical_sarray(const Type *type, const SType *element_type, size_t alignment, size_t stride) {
+  const SCanonicalArray *t = arena.make<SCanonicalArray>(STypeContextToken(), type, element_type, alignment, stride);
+  return t;
+}
+
+
 EmitType
 STypeContext::emit_type_from(const VType *vtype) {
   return EmitType(stype_from(vtype));
@@ -314,7 +328,7 @@ STypeContext::stype_from(const VType *vtype) {
   case VType::Tag::ARRAY:
     {
       const VArray *va = cast<VArray>(vtype);
-      return new SCanonicalArray(vtype->type, stype_from(va->element_vtype), va->elements_alignment, va->element_stride);
+      return canonical_sarray(vtype->type, stype_from(va->element_vtype), va->elements_alignment, va->element_stride);
     }
   default:
     abort();

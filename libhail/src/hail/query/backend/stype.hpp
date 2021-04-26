@@ -144,7 +144,7 @@ public:
   const SType *element_type;
   size_t elements_alignment;
   size_t element_stride;
-  SCanonicalArray(const Type *type, const SType *element_type, size_t elements_alignment, size_t element_stride);
+  SCanonicalArray(STypeContextToken, const Type *type, const SType *element_type, size_t elements_alignment, size_t element_stride);
 };
 
 class EmitType {
@@ -196,6 +196,7 @@ public:
 
   const SCanonicalTuple *canonical_stuple(const Type *type, const std::vector<EmitType> &element_types, const VTuple *vtuple);
   const SStackTuple *stack_stuple(const Type *type, const std::vector<EmitType> &element_types);
+  const SCanonicalArray *canonical_sarray(const Type *type, const SType *element_type, size_t alignment, size_t stride);
 
   EmitType emit_type_from(const VType *vtype);
 
