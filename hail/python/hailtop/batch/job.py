@@ -909,7 +909,13 @@ class PythonJob(Job):
             job_path = os.path.dirname(result._get_path(remote_tmpdir))
             code_path = f'{job_path}/code{i}.p'
 
-            self._batch._gcs._write_gs_file_from_file_like_object(code_path, pipe)
+            if isinstance(self._batch._backend, backend.LocalBackend):
+                os.makedirs(os.path.dirname(code_path), exist_ok=True)
+                with open(code_path, 'wb') as f:
+                    f.write(pipe.getvalue())
+            else:
+                assert isinstance(self._batch._backend, backend.ServiceBackend)
+                self._batch._gcs._write_gs_file_from_file_like_object(code_path, pipe)
 
             code = self._batch.read_input(code_path)
             self._add_inputs(code)

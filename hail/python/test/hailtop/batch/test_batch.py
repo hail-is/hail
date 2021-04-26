@@ -353,6 +353,40 @@ class LocalTests(unittest.TestCase):
         assert len(b._jobs) == 10 + (5 + 3 + 2 + 1)
         b.run()
 
+    def test_python_job(self):
+        with tempfile.NamedTemporaryFile('w') as output_file:
+            b = self.batch()
+            head = b.new_job()
+            head.command(f'echo "5" > {head.r5}')
+            head.command(f'echo "3" > {head.r3}')
+
+            def read(path):
+                with open(path, 'r') as f:
+                    i = f.read()
+                return int(i)
+
+            def multiply(x, y):
+                return x * y
+
+            def reformat(x, y):
+                return {'x': x, 'y': y}
+
+            middle = b.new_python_job()
+            r3 = middle.call(read, head.r3)
+            r5 = middle.call(read, head.r5)
+            r_mult = middle.call(multiply, r3, r5)
+
+            middle2 = b.new_python_job()
+            r_mult = middle2.call(multiply, r_mult, 2)
+            r_dict = middle2.call(reformat, r3, r5)
+
+            tail = b.new_job()
+            tail.command(f'cat {r3.as_str()} {r5.as_repr()} {r_mult.as_str()} {r_dict.as_json()} > {tail.ofile}')
+
+            b.write_output(tail.ofile, output_file.name)
+            res = b.run()
+            assert self.read(output_file.name) == '3\n5\n30\n{\"x\": 3, \"y\": 5}'
+
     def test_backend_context_manager(self):
         with LocalBackend() as backend:
             b = Batch(backend=backend)
