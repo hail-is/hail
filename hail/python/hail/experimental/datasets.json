@@ -4469,7 +4469,7 @@
       {
         "reference_genome": "GRCh37",
         "url": {
-          "us": {
+          "aws": {
             "us": "s3://hail-datasets-us-east-1/LDSC_baselineLD_v2.2_ld_scores.GRCh37.mt"
           },
           "gcp": {
