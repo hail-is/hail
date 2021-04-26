@@ -2,7 +2,7 @@ include ../config.mk
 
 .PHONY: deployment.yaml build push deploy clean test render render-hail-too watch watch-hail-too
 
-IMAGE = gcr.io/$(PROJECT)/site:$(shell docker images -q --no-trunc site | sed -e 's,[^:]*:,,')
+IMAGE = $(DOCKER_PREFIX)/site:$(shell docker images -q --no-trunc site | sed -e 's,[^:]*:,,')
 RENDER_COMMAND := PYTHONPATH=$$PYTHONPATH:../web_common:../gear python3 render.py
 
 render:

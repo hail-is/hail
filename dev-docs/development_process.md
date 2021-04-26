@@ -67,8 +67,9 @@ Install and configure tools necessary for working on the Hail Services:
 gcloud auth login
 gcloud config set project hail-vdc
 gcloud container clusters get-credentials vdc --zone=us-central1-a
-gcloud auth configure-docker
+gcloud auth -q configure-docker gcr.io
 ```
+
 5. Add these lines to `~/.zshrc` or `~/.bashrc` to configure your shell and environment for Hail:
 ```
 # BuildKit, a fast docker backend

@@ -68,6 +68,7 @@ INSTANCE_ID = os.environ['INSTANCE_ID']
 PROJECT = os.environ['PROJECT']
 ZONE = os.environ['ZONE'].rsplit('/', 1)[1]
 PUBLIC_GCR_IMAGES = public_gcr_images(PROJECT)
+DOCKER_PREFIX = os.environ['DOCKER_PREFIX']
 WORKER_CONFIG = json.loads(base64.b64decode(os.environ['WORKER_CONFIG']).decode())
 MAX_IDLE_TIME_MSECS = int(os.environ['MAX_IDLE_TIME_MSECS'])
 WORKER_DATA_DISK_MOUNT = os.environ['WORKER_DATA_DISK_MOUNT']
@@ -84,6 +85,7 @@ log.info(f'BATCH_LOGS_BUCKET_NAME {BATCH_LOGS_BUCKET_NAME}')
 log.info(f'INSTANCE_ID {INSTANCE_ID}')
 log.info(f'PROJECT {PROJECT}')
 log.info(f'ZONE {ZONE}')
+log.info(f'DOCKER_PREFIX {DOCKER_PREFIX}')
 log.info(f'WORKER_CONFIG {WORKER_CONFIG}')
 log.info(f'MAX_IDLE_TIME_MSECS {MAX_IDLE_TIME_MSECS}')
 log.info(f'WORKER_DATA_DISK_MOUNT {WORKER_DATA_DISK_MOUNT}')
@@ -166,7 +168,7 @@ async def create_container(config, name):
                     if eget.status == 404:
                         await handle_error(eget)
                         continue
-            # No such image: gcr.io/...
+            # No such image: {DOCKER_PREFIX}/...
             if e.status == 404 and 'No such image' in e.message:
                 await handle_error(e)
                 continue
@@ -270,7 +272,7 @@ class Container:
             image_ref.tag = 'latest'
 
         if image_ref.name() in HAIL_GENETICS_IMAGES:
-            image_ref.domain = 'gcr.io'
+            image_ref.domain = DOCKER_PREFIX.split('/', maxsplit=1)[0]
             image_ref.path = f'{PROJECT}/{image_ref.name()}'
 
         self.image_ref = image_ref

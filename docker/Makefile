@@ -3,25 +3,31 @@ include ../config.mk
 .PHONY: build
 build: base-stmp service-base hail-ubuntu
 
-HAIL_UBUNTU_LATEST = gcr.io/$(PROJECT)/hail-ubuntu:latest
-HAIL_UBUNTU_IMAGE = gcr.io/$(PROJECT)/hail-ubuntu:$(shell docker images -q --no-trunc hail-ubuntu:latest | sed -e 's,[^:]*:,,')
+HAIL_UBUNTU_LATEST = $(DOCKER_PREFIX)/hail-ubuntu:latest
+HAIL_UBUNTU_IMAGE = $(DOCKER_PREFIX)/hail-ubuntu:$(shell docker images -q --no-trunc hail-ubuntu:latest | sed -e 's,[^:]*:,,')
 
-BASE_LATEST = gcr.io/$(PROJECT)/base:latest
-BASE_IMAGE = gcr.io/$(PROJECT)/base:$(shell docker images -q --no-trunc base:latest | sed -e 's,[^:]*:,,')
+BASE_LATEST = $(DOCKER_PREFIX)/base:latest
+BASE_IMAGE = $(DOCKER_PREFIX)/base:$(shell docker images -q --no-trunc base:latest | sed -e 's,[^:]*:,,')
 
-SERVICE_BASE_LATEST = gcr.io/$(PROJECT)/service-base:latest
-SERVICE_BASE_IMAGE = gcr.io/$(PROJECT)/service-base:$(shell docker images -q --no-trunc service-base:latest | sed -e 's,[^:]*:,,')
+SERVICE_BASE_LATEST = $(DOCKER_PREFIX)/service-base:latest
+SERVICE_BASE_IMAGE = $(DOCKER_PREFIX)/service-base:$(shell docker images -q --no-trunc service-base:latest | sed -e 's,[^:]*:,,')
 
-SERVICE_JAVA_RUN_BASE_LATEST = gcr.io/$(PROJECT)/service-java-run-base:latest
-SERVICE_JAVA_RUN_BASE_IMAGE = gcr.io/$(PROJECT)/service-java-run-base:$(shell docker images -q --no-trunc service-java-run-base:latest | sed -e 's,[^:]*:,,')
+SERVICE_JAVA_RUN_BASE_LATEST = $(DOCKER_PREFIX)/service-java-run-base:latest
+SERVICE_JAVA_RUN_BASE_IMAGE = $(DOCKER_PREFIX)/service-java-run-base:$(shell docker images -q --no-trunc service-java-run-base:latest | sed -e 's,[^:]*:,,')
+
+HAIL_PUBLIC_LATEST = $(DOCKER_PREFIX)/hail-public:latest
+HAIL_PUBLIC_IMAGE = $(DOCKER_PREFIX)/hail-public:$(shell docker images -q --no-trunc hail-public:latest | sed -e 's,[^:]*:,,')
+
+GENETICS_PUBLIC_LATEST = $(DOCKER_PREFIX)/genetics-public:latest
+GENETICS_PUBLIC_IMAGE = $(DOCKER_PREFIX)/genetics-public:$(shell docker images -q --no-trunc genetics-public:latest | sed -e 's,[^:]*:,,')
 
 .PHONY: hail-ubuntu
 hail-ubuntu: hail-ubuntu-stmp
 
 hail-ubuntu-stmp: hail-ubuntu/Dockerfile hail-ubuntu/hail-pip-install hail-ubuntu/pip.conf hail-ubuntu/hail-apt-get-install
-	-docker pull gcr.io/$(PROJECT)/ubuntu:bionic-20200921
+	-docker pull $(DOCKER_PREFIX)/ubuntu:bionic-20200921
 	-docker pull $(HAIL_UBUNTU_LATEST)
-	python3 ../ci/jinja2_render.py '{"global":{"project":"$(PROJECT)"}}' hail-ubuntu/Dockerfile hail-ubuntu/Dockerfile.out
+	python3 ../ci/jinja2_render.py '{"global":{"docker_prefix":"$(DOCKER_PREFIX)"}}' hail-ubuntu/Dockerfile hail-ubuntu/Dockerfile.out
 	docker build -t hail-ubuntu -f hail-ubuntu/Dockerfile.out --cache-from hail-ubuntu,$(HAIL_UBUNTU_LATEST),ubuntu:bionic-20200921 hail-ubuntu
 	touch hail-ubuntu-stmp
 

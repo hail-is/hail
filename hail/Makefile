@@ -3,6 +3,7 @@
 HAIL_DIR := $(shell dirname $(realpath $(firstword $(MAKEFILE_LIST))))
 
 include env_var.mk
+
 .DEFAULT_GOAL := shadowJar
 MAKEFLAGS += --no-builtin-rules
 .SUFFIXES:
