@@ -4451,11 +4451,11 @@
         "reference_genome": "GRCh37",
         "url": {
           "aws": {
-            "us": "s3://hail-datasets-us-east-1/annotations/LDSC_baselineLD_v2.2_ld_scores.GRCh37.ht"
+            "us": "s3://hail-datasets-us-east-1/LDSC_baselineLD_v2.2_ld_scores.GRCh37.ht"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/annotations/LDSC_baselineLD_v2.2_ld_scores.GRCh37.ht",
-            "us": "gs://hail-datasets-us/annotations/LDSC_baselineLD_v2.2_ld_scores.GRCh37.ht"
+            "eu": "gs://hail-datasets-eu/LDSC_baselineLD_v2.2_ld_scores.GRCh37.ht",
+            "us": "gs://hail-datasets-us/LDSC_baselineLD_v2.2_ld_scores.GRCh37.ht"
           }
         },
         "version": "2.2"
@@ -4463,37 +4463,31 @@
     ]
   },
   "ldsc_baselineLD_ldscores": {
-    "description": "LDSC Baseline-LD Model: contains 75 annotations (additional annotations included in later versions) including functional regions, histone marks, GERP scores, LD-related annotations of population genetics forces, MAF bins, and more.",
+    "description": "LDSC Baseline-LD Model: contains 75 annotations (additional annotations included in later versions) including functional regions, histone marks, GERP scores, LD-related annotations of population genetics forces, MAF bins, and more. Represented as a matrix table whose columns are annotations and entries are the ld scores. For a table representation, see ldsc_baselineLD_annotations.",
     "url": "https://www.ncbi.nlm.nih.gov/pmc/articles/PMC6133304/",
     "versions": [
       {
         "reference_genome": "GRCh37",
         "url": {
-          "aws": {
-            "us": "gs://hail-datasets-eu/LDSC_baselineLD_v2.2_ld_scores.GRCh37.mt"
+          "us": {
+            "us": "s3://hail-datasets-us-east-1/LDSC_baselineLD_v2.2_ld_scores.GRCh37.mt"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-us/LDSC_baselineLD_v2.2_ld_scores.GRCh37.mt",
-            "us": "gs://hail-datasets-eu/LDSC_baselineLD_v2.2_ld_scores.GRCh37.mt"
+            "eu": "gs://hail-datasets-eu/LDSC_baselineLD_v2.2_ld_scores.GRCh37.mt",
+            "us": "gs://hail-datasets-us/LDSC_baselineLD_v2.2_ld_scores.GRCh37.mt"
           }
         },
         "version": "2.2"
-      }
-    ]
-  },
-  "ldsc_baseline_ldscores": {
-    "description": "LDSC Baseline Model: contains 53 annotations including functional regions, histone marks, GERP scores, LD-related annotations of population genetics forces, and MAF bins.",
-    "url": "https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4626285/",
-    "versions": [
+      },
       {
         "reference_genome": "GRCh37",
         "url": {
           "aws": {
-            "us": "gs://hail-datasets-eu/LDSC_baseline_v1.1_ld_scores.GRCh37.mt"
+            "us": "s3://hail-datasets-us-east-1/LDSC_baseline_v1.1_ld_scores.GRCh37.mt"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-us/LDSC_baseline_v1.1_ld_scores.GRCh37.mt",
-            "us": "gs://hail-datasets-eu/LDSC_baseline_v1.1_ld_scores.GRCh37.mt"
+            "eu": "gs://hail-datasets-eu/LDSC_baseline_v1.1_ld_scores.GRCh37.mt",
+            "us": "gs://hail-datasets-us/LDSC_baseline_v1.1_ld_scores.GRCh37.mt"
           }
         },
         "version": "1.1"
