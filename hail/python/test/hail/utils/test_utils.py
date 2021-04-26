@@ -46,12 +46,12 @@ class Tests(unittest.TestCase):
 
         self.assertEqual(data, data4)
 
-        with hadoop_open(resource('randomBytes'), buffer_size=100) as f:
-            with hadoop_open('/tmp/randomBytesOut', 'w', buffer_size=150) as out:
+        with hadoop_open(resource('randomBytes'), mode='rb', buffer_size=100) as f:
+            with hadoop_open('/tmp/randomBytesOut', mode='wb', buffer_size=150) as out:
                 b = f.read()
                 out.write(b)
 
-        with hadoop_open('/tmp/randomBytesOut', buffer_size=199) as f:
+        with hadoop_open('/tmp/randomBytesOut', mode='rb', buffer_size=199) as f:
             b2 = f.read()
 
         self.assertEqual(b, b2)
