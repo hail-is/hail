@@ -83,7 +83,7 @@ class Tests(unittest.TestCase):
 
         self.assertFalse(hl.hadoop_exists(resource('./some2')))
 
-    @skip_when_service_backend
+    @skip_when_service_backend('service backend logs are not sent to a user-visible file')
     @fails_local_backend()
     def test_hadoop_copy_log(self):
         with with_local_temp_file('log') as r:
