@@ -6,7 +6,7 @@ steps:
         FROM {{ global.docker_root_image }}
         RUN apt-get update && apt-get install -y git make bash
   - kind: runImage
-    name: code
+    name: merge_code
     image:
       valueFrom: git_make_bash_image.image
     script: |
@@ -37,7 +37,7 @@ steps:
       - from: /repo/docker/hail-ubuntu
         to: /io/hail-ubuntu
     dependsOn:
-      - code
+      - merge_code
   - kind: createNamespace
     name: default_ns
     namespaceName: default
@@ -65,7 +65,7 @@ steps:
         to: /io/echo
     dependsOn:
       - hail_ubuntu_image
-      - code
+      - merge_code
   - kind: deploy
     name: deploy_echo
     namespace:
@@ -105,7 +105,7 @@ steps:
         to: /io/repo
     dependsOn:
       - hail_ubuntu_image
-      - code
+      - merge_code
   - kind: runImage
     name: check_hail
     image:
@@ -119,7 +119,7 @@ steps:
         to: /io/repo
     dependsOn:
       - base_image
-      - code
+      - merge_code
   - kind: buildImage2
     name: service_base_image
     dockerFile: /io/repo/docker/Dockerfile.service-base
@@ -127,7 +127,7 @@ steps:
     publishAs: service-base
     dependsOn:
       - base_image
-      - code
+      - merge_code
     inputs:
       - from: /hail_version
         to: /io/repo/hail_version
@@ -140,7 +140,6 @@ steps:
     script: |
       set -ex
       cd /io/repo
-      {{ code.checkout_script }}
       {% if 'target_sha' in code %}
       export HAIL_TARGET_SHA={{ code.target_sha }}
       {% endif %}
@@ -150,7 +149,7 @@ steps:
         to: /io/repo
     dependsOn:
       - service_base_image
-      - code
+      - merge_code
   - kind: buildImage2
     name: create_certs_image
     dockerFile: /io/tls/Dockerfile
@@ -161,7 +160,7 @@ steps:
         to: /io/tls
     dependsOn:
       - service_base_image
-      - code
+      - merge_code
   - kind: runImage
     name: create_ssl_config_hail_root
     image:
@@ -255,7 +254,7 @@ steps:
     dependsOn:
       - default_ns
       - service_base_image
-      - code
+      - merge_code
   - kind: createDatabase
     name: auth_database
     databaseName: auth
@@ -282,7 +281,7 @@ steps:
         name: auth
     dependsOn:
       - default_ns
-      - code
+      - merge_code
       - delete_auth_tables
   - kind: runImage
     name: create_deploy_config
@@ -384,7 +383,7 @@ steps:
         to: /io/repo
     dependsOn:
       - service_base_image
-      - code
+      - merge_code
   - kind: deploy
     name: deploy_auth_driver_service_account
     namespace:
@@ -457,7 +456,7 @@ steps:
     dependsOn:
       - default_ns
       - service_base_image
-      - code
+      - merge_code
       - auth_database
   - kind: buildImage2
     name: hail_build_image
@@ -469,7 +468,7 @@ steps:
         to: /hail
     dependsOn:
       - base_image
-      - code
+      - merge_code
   - kind: buildImage2
     name: hail_run_image
     dockerFile: /io/hail/Dockerfile.hail-run
@@ -480,7 +479,7 @@ steps:
         to: /io/hail
     dependsOn:
       - service_base_image
-      - code
+      - merge_code
   - kind: buildImage2
     name: hail_run_tests_image
     dockerFile: /io/hail/Dockerfile.hail-run-tests
@@ -491,7 +490,7 @@ steps:
         to: /io/hail
     dependsOn:
       - hail_run_image
-      - code
+      - merge_code
   - kind: buildImage2
     name: benchmark_image
     dockerFile: /io/repo/benchmark-service/Dockerfile
@@ -502,7 +501,7 @@ steps:
         to: /io/repo
     dependsOn:
       - service_base_image
-      - code
+      - merge_code
   - kind: runImage
     name: check_benchmark_service
     image:
@@ -524,7 +523,7 @@ steps:
         to: /io/repo
     dependsOn:
       - service_base_image
-      - code
+      - merge_code
   - kind: buildImage2
     name: batch_image
     dockerFile: /io/batch/Dockerfile
@@ -535,31 +534,30 @@ steps:
         to: /io/batch
     dependsOn:
       - service_base_image
-      - code
+      - merge_code
   - kind: runImage
     name: render_grafana_nginx_conf
     image:
       valueFrom: service_base_image.image
     script: |
       set -ex
-      cd /io
-      rm -rf repo
-      mkdir repo
-      cd repo
-      {{ code.checkout_script }}
-      cd grafana
+      cd /io/repo/grafana
       {% if deploy %}
       DEPLOY=true
       {% else %}
       DEPLOY=false
       {% endif %}
       python3 ../ci/jinja2_render.py '{"deploy": '${DEPLOY}', "default_ns": {"name": "{{ default_ns.name }}"}}' nginx.conf nginx.conf.out
+    inputs:
+      - from: /repo
+        to: /io/repo
     outputs:
       - from: /io/repo/grafana/nginx.conf.out
         to: /grafana/nginx.conf.out
     dependsOn:
       - default_ns
       - service_base_image
+      - merge_code
   - kind: buildImage2
     name: grafana_nginx_image
     dockerFile: /io/grafana/Dockerfile.nginx
@@ -573,7 +571,7 @@ steps:
     dependsOn:
       - hail_ubuntu_image
       - render_grafana_nginx_conf
-      - code
+      - merge_code
   - kind: buildImage2
     name: test_ci_image
     dockerFile: /io/repo/ci/Dockerfile.test
@@ -589,7 +587,7 @@ steps:
         to: /io/repo/hail_version
     dependsOn:
       - base_image
-      - code
+      - merge_code
   - kind: buildImage2
     name: test_monitoring_image
     dockerFile: /io/repo/monitoring/Dockerfile.test
@@ -600,7 +598,7 @@ steps:
         to: /io/repo
     dependsOn:
       - service_base_image
-      - code
+      - merge_code
   - kind: buildImage2
     name: test_benchmark_image
     dockerFile: /io/repo/benchmark-service/Dockerfile.test
@@ -611,7 +609,7 @@ steps:
         to: /io/repo
     dependsOn:
       - service_base_image
-      - code
+      - merge_code
   - kind: buildImage2
     name: ci_image
     dockerFile: /io/repo/ci/Dockerfile
@@ -622,7 +620,7 @@ steps:
         to: /io/repo
     dependsOn:
       - service_base_image
-      - code
+      - merge_code
   - kind: buildImage2
     name: ci_utils_image
     dockerFile: /io/ci/Dockerfile.ci-utils
@@ -633,7 +631,7 @@ steps:
         to: /io/ci
     dependsOn:
       - service_base_image
-      - code
+      - merge_code
   - kind: runImage
     name: build_hail_jar_only
     image:
@@ -643,19 +641,18 @@ steps:
       cpu: '4'
     script: |
       set -ex
-      cd /io
-      rm -rf repo
-      mkdir repo
-      cd repo
-      {{ code.checkout_script }}
-      cd hail
+      cd /io/repo/hail
       time retry ./gradlew --version
       time retry make shadowJar
+    inputs:
+      - from: /repo/hail
+        to: /io/repo/hail
     outputs:
       - from: /io/repo/hail/build/libs/hail-all-spark.jar
         to: /just-jar/hail.jar
     dependsOn:
       - hail_build_image
+      - merge_code
   - kind: runImage
     name: build_hail
     image:
@@ -665,12 +662,7 @@ steps:
       cpu: '4'
     script: |
       set -ex
-      cd /io
-      rm -rf repo
-      mkdir repo
-      cd repo
-      {{ code.checkout_script }}
-      cd hail
+      cd /io/repo/hail
       time retry ./gradlew --version
       time retry make jars wheel HAIL_DEBUG_MODE=1
       (cd build/deploy/dist/ && tar -cvf debug-wheel-container.tar hail-*-py3-none-any.whl)
@@ -689,6 +681,9 @@ steps:
       (cd build/deploy/dist/ && tar -cvf wheel-container.tar hail-*-py3-none-any.whl)
       time TESTNG_SPLITS=5 python3 generate_splits.py
       time tar czf splits.tar.gz testng-splits-*.xml
+    inputs:
+      - from: /repo/hail
+        to: /io/repo/hail
     outputs:
       - from: /io/repo/hail/build/libs/hail-all-spark.jar
         to: /hail.jar
@@ -720,6 +715,7 @@ steps:
         to: /cluster-tests.tar.gz
     dependsOn:
       - hail_build_image
+      - merge_code
   - kind: runImage
     name: build_hail_spark2.4.5
     image:
@@ -729,17 +725,16 @@ steps:
       cpu: '4'
     script: |
       set -ex
-      cd /
-      rm -rf repo
-      mkdir repo
-      cd repo
-      {{ code.checkout_script }}
-      cd hail
+      cd /io/repo/hail
       time retry ./gradlew --version
       export SPARK_VERSION="2.4.5" SCALA_VERSION="2.11.12"
       time retry make jars python-version-info wheel
+    inputs:
+      - from: /repo/hail
+        to: /io/repo/hail
     dependsOn:
       - hail_build_image
+      - merge_code
   - kind: runImage
     name: build_hail_spark3.0.1
     image:
@@ -749,17 +744,16 @@ steps:
       cpu: '4'
     script: |
       set -ex
-      cd /
-      rm -rf repo
-      mkdir repo
-      cd repo
-      {{ code.checkout_script }}
-      cd hail
+      cd /io/repo/hail
       time retry ./gradlew --version
       export SPARK_VERSION="3.0.1" SCALA_VERSION="2.12.12"
       time retry make jars python-version-info wheel
+    inputs:
+      - from: /repo/hail
+        to: /io/repo/hail
     dependsOn:
       - hail_build_image
+      - merge_code
   - kind: buildImage2
     name: batch_worker_image
     dockerFile: /io/repo/batch/Dockerfile.worker
@@ -774,7 +768,7 @@ steps:
         to: /io/repo/hail_version
     dependsOn:
       - build_hail_jar_only
-      - code
+      - merge_code
   - kind: buildImage2
     name: service_java_run_base_image
     dockerFile: /io/repo/docker/Dockerfile.service-java-run-base
@@ -787,7 +781,7 @@ steps:
         to: /io/repo/hail_version
     dependsOn:
       - hail_ubuntu_image
-      - code
+      - merge_code
   - kind: buildImage2
     name: query_image
     dockerFile: /io/query/Dockerfile
@@ -801,7 +795,7 @@ steps:
     dependsOn:
       - service_java_run_base_image
       - build_hail_jar_only
-      - code
+      - merge_code
   - kind: deploy
     name: deploy_query_sa
     namespace:
@@ -819,7 +813,7 @@ steps:
         to: /io/repo
     dependsOn:
       - service_base_image
-      - code
+      - merge_code
   - kind: deploy
     name: deploy_memory_sa
     namespace:
@@ -840,7 +834,7 @@ steps:
     dependsOn:
       - service_base_image
       - build_hail_jar_only
-      - code
+      - merge_code
   - kind: deploy
     name: deploy_shuffler
     namespace:
@@ -867,7 +861,7 @@ steps:
     dependsOn:
       - base_image
       - build_hail
-      - code
+      - merge_code
   - kind: deploy
     name: deploy_hail_repl
     runIfRequested: true
@@ -885,21 +879,24 @@ steps:
       valueFrom: base_image.image
     script: |
       set -ex
-      rm -rf repo
-      mkdir repo
-      cd repo
-      {{ code.checkout_script }}
+      cd /io/repo/hail/
       gcloud -q auth activate-service-account --key-file=/test-gsa-key/key.json
-      gsutil -m cp -r hail/src/test/resources/* gs://hail-test-dmk9z/{{ token }}/test/resources/
-      gsutil -m cp -r hail/python/hail/docs/data/* gs://hail-test-dmk9z/{{ token }}/doctest/data/
+      gsutil -m cp -r src/test/resources/* gs://hail-test-dmk9z/{{ token }}/test/resources/
+      gsutil -m cp -r python/hail/docs/data/* gs://hail-test-dmk9z/{{ token }}/doctest/data/
     secrets:
       - name: test-gsa-key
         namespace:
           valueFrom: default_ns.name
         mountPath: /test-gsa-key
+    inputs:
+      - from: /repo/hail/src/test/resources
+        to: /io/repo/hail/src/test/resources
+      - from: /repo/hail/python/hail/docs/data
+        to: /io/repo/hail/python/hail/docs/data
     dependsOn:
       - default_ns
       - base_image
+      - merge_code
   - kind: runImage
     name: test_hail_java_0
     image:
@@ -1095,7 +1092,7 @@ steps:
     dependsOn:
       - hail_run_image
       - build_hail
-      - code
+      - merge_code
   - kind: buildImage2
     name: hail_pip_installed_python37_image
     dockerFile: /io/repo/hail/Dockerfile.hail-pip-installed-python37
@@ -1109,7 +1106,7 @@ steps:
     dependsOn:
       - build_hail
       - hail_ubuntu_image
-      - code
+      - merge_code
   - kind: buildImage2
     name: hail_pip_installed_python36_image
     dockerFile: /io/repo/hail/Dockerfile.hail-pip-installed-python36
@@ -1123,7 +1120,7 @@ steps:
     dependsOn:
       - build_hail
       - hail_ubuntu_image
-      - code
+      - merge_code
   - kind: runImage
     name: check_hail_python37
     image:
@@ -1172,31 +1169,30 @@ steps:
         to: /io/repo
     dependsOn:
       - service_base_image
-      - code
+      - merge_code
   - kind: runImage
     name: render_notebook_nginx_conf
     image:
       valueFrom: service_base_image.image
     script: |
       set -ex
-      cd /io
-      rm -rf repo
-      mkdir repo
-      cd repo
-      {{ code.checkout_script }}
-      cd notebook
+      cd /io/repo/notebook
       {% if deploy %}
       DEPLOY=true
       {% else %}
       DEPLOY=false
       {% endif %}
       python3 ../ci/jinja2_render.py '{"deploy": '${DEPLOY}', "default_ns": {"name": "{{ default_ns.name }}"}}' nginx.conf nginx.conf.out
+    inputs:
+      - from: /repo
+        to: /io/repo
     outputs:
       - from: /io/repo/notebook/nginx.conf.out
         to: /notebook/nginx.conf.out
     dependsOn:
       - default_ns
       - service_base_image
+      - merge_code
   - kind: buildImage2
     name: notebook_nginx_image
     dockerFile: /io/notebook/Dockerfile.nginx
@@ -1210,7 +1206,7 @@ steps:
     dependsOn:
       - hail_ubuntu_image
       - render_notebook_nginx_conf
-      - code
+      - merge_code
   - kind: runImage
     name: check_notebook
     image:
@@ -1758,9 +1754,7 @@ steps:
     script: |
       set -ex
 
-      mkdir repo
-      cd repo
-      {{ code.checkout_script }}
+      cd /io/repo
 
       make -C hail python/hail/hail_pip_version
 
@@ -1781,11 +1775,15 @@ steps:
     resources:
       memory: 7.5G
       cpu: '2'
+    inputs:
+      - from: /repo
+        to: /io/repo
     outputs:
       - from: /io/docs.tar.gz
         to: /docs.tar.gz
     dependsOn:
       - hail_run_image
+      - merge_code
   - kind: deploy
     name: deploy_grafana
     namespace:
@@ -1804,24 +1802,23 @@ steps:
       valueFrom: service_base_image.image
     script: |
       set -ex
-      cd /io
-      rm -rf repo
-      mkdir repo
-      cd repo
-      {{ code.checkout_script }}
-      cd prometheus
+      cd /io/repo/prometheus
       {% if deploy %}
       DEPLOY=true
       {% else %}
       DEPLOY=false
       {% endif %}
       python3 ../ci/jinja2_render.py '{"deploy": '${DEPLOY}', "default_ns": {"name": "{{ default_ns.name }}"}}' nginx.conf nginx.conf.out
+    inputs:
+      - from: /repo
+        to: /io/repo
     outputs:
       - from: /io/repo/prometheus/nginx.conf.out
         to: /prometheus/nginx.conf.out
     dependsOn:
       - default_ns
       - service_base_image
+      - merge_code
   - kind: buildImage2
     name: prom_nginx_image
     dockerFile: /io/prometheus/Dockerfile.nginx
@@ -1835,7 +1832,7 @@ steps:
     dependsOn:
       - hail_ubuntu_image
       - render_prom_nginx_conf
-      - code
+      - merge_code
   - kind: deploy
     name: deploy_prometheus
     namespace:
@@ -1914,7 +1911,7 @@ steps:
     dependsOn:
       - default_ns
       - service_base_image
-      - code
+      - merge_code
   - kind: createDatabase
     name: monitoring_database
     databaseName: monitoring
@@ -1933,7 +1930,7 @@ steps:
         name: monitoring
     dependsOn:
       - default_ns
-      - code
+      - merge_code
       - delete_monitoring_tables
   - kind: deploy
     name: deploy_monitoring
@@ -2106,7 +2103,7 @@ steps:
     dependsOn:
       - default_ns
       - service_base_image
-      - code
+      - merge_code
   - kind: runImage
     name: delete_ci_tables
     image:
@@ -2128,7 +2125,7 @@ steps:
     dependsOn:
       - default_ns
       - service_base_image
-      - code
+      - merge_code
   - kind: createDatabase
     name: ci_database
     databaseName: ci
@@ -2149,7 +2146,7 @@ steps:
         name: ci
     dependsOn:
       - default_ns
-      - code
+      - merge_code
       - delete_ci_tables
   - kind: createDatabase
     name: batch_database
@@ -2241,7 +2238,7 @@ steps:
         name: batch-driver
     dependsOn:
       - default_ns
-      - code
+      - merge_code
       - delete_batch_tables
   - kind: deploy
     name: deploy_batch
@@ -2379,7 +2376,7 @@ steps:
         to: /io/repo
     dependsOn:
       - service_base_image
-      - code
+      - merge_code
   - kind: runImage
     name: check_address
     image:
@@ -2456,7 +2453,7 @@ steps:
         to: /io/lsm
     dependsOn:
       - base_image
-      - code
+      - merge_code
   - kind: buildImage2
     name: netcat_ubuntu_image
     dockerFile:
@@ -2510,7 +2507,7 @@ steps:
       - create_deploy_config
       - create_accounts
       - default_ns
-      - code
+      - merge_code
       - memory_image
       - deploy_memory
   - kind: runImage
@@ -2575,7 +2572,7 @@ steps:
       - create_deploy_config
       - create_accounts
       - default_ns
-      - code
+      - merge_code
       - base_image
       - hail_base_image
       - batch_image
@@ -2645,7 +2642,7 @@ steps:
       - default_ns
       - create_deploy_config
       - create_accounts
-      - code
+      - merge_code
       - base_image
       - hail_base_image
       - batch_image
@@ -2715,7 +2712,7 @@ steps:
       - create_deploy_config
       - create_accounts
       - default_ns
-      - code
+      - merge_code
       - base_image
       - hail_base_image
       - batch_image
@@ -2785,7 +2782,7 @@ steps:
       - create_deploy_config
       - create_accounts
       - default_ns
-      - code
+      - merge_code
       - base_image
       - hail_base_image
       - batch_image
@@ -2855,7 +2852,7 @@ steps:
       - create_deploy_config
       - create_accounts
       - default_ns
-      - code
+      - merge_code
       - base_image
       - hail_base_image
       - batch_image
@@ -2896,7 +2893,7 @@ steps:
       - create_deploy_config
       - create_accounts
       - default_ns
-      - code
+      - merge_code
       - batch_image
       - deploy_batch
       - test_batch_0
@@ -2921,30 +2918,25 @@ steps:
         -H "Authorization: token ${TOKEN}" \
         -d "{ \"name\" : \"$REPO_NAME\" }"
 
-      # checkout hail code
-      mkdir -p /repo/hail
-      cd /repo/hail
-      {{ code.checkout_script }}
-
       # checkout new ci repo
-      cd /repo/
+      cd /io
       git clone https://$TOKEN@github.com/hail-ci-test/$REPO_NAME.git
       cd $REPO_NAME
 
       mkdir -p ./ci/test ./hail/
-      cp /repo/hail/ci/test/resources/build.yaml ./
-      cp -R /repo/hail/ci/test/resources ./ci/test/
-      cp /repo/hail/tls/Dockerfile ./ci/test/resources/Dockerfile.certs
-      cp /repo/hail/tls/create_certs.py ./ci/test/resources/
-      cp /repo/hail/pylintrc ./
-      cp /repo/hail/setup.cfg ./
-      cp -R /repo/hail/docker ./
-      cp -R /repo/hail/gear ./
-      cp -R /repo/hail/hail/python ./hail/
-      cp /repo/hail/hail/Makefile ./hail/
-      cp /repo/hail/hail/env_var.mk ./hail/
-      cp -R /repo/hail/web_common ./
-      cp /repo/hail/hail/python/setup-hailtop.py ./hail/python/
+      cp /io/repo/hail/ci/test/resources/build.yaml ./
+      cp -R /io/repo/hail/ci/test/resources ./ci/test/
+      cp /io/repo/hail/tls/Dockerfile ./ci/test/resources/Dockerfile.certs
+      cp /io/repo/hail/tls/create_certs.py ./ci/test/resources/
+      cp /io/repo/hail/pylintrc ./
+      cp /io/repo/hail/setup.cfg ./
+      cp -R /io/repo/hail/docker ./
+      cp -R /io/repo/hail/gear ./
+      cp -R /io/repo/hail/hail/python ./hail/
+      cp /io/repo/hail/hail/Makefile ./hail/
+      cp /io/repo/hail/hail/env_var.mk ./hail/
+      cp -R /io/repo/hail/web_common ./
+      cp /io/repo/hail/hail/python/setup-hailtop.py ./hail/python/
 
       git config user.name ci
       git config user.email ci@hail.is
@@ -2958,9 +2950,13 @@ steps:
     scopes:
       - test
       - dev
+    inputs:
+      - from: /repo
+        to: /io/repo
     dependsOn:
       - default_ns
       - base_image
+      - merge_code
   - kind: deploy
     name: deploy_ci
     namespace:
@@ -3070,7 +3066,7 @@ steps:
       - create_deploy_config
       - create_accounts
       - default_ns
-      - code
+      - merge_code
       - service_base_image
       - deploy_batch
   - kind: runImage
@@ -3122,7 +3118,7 @@ steps:
       - create_deploy_config
       - create_accounts
       - default_ns
-      - code
+      - merge_code
       - service_base_image
       - deploy_batch
   - kind: runImage
@@ -3174,7 +3170,7 @@ steps:
       - create_deploy_config
       - create_accounts
       - default_ns
-      - code
+      - merge_code
       - service_base_image
       - deploy_batch
   - kind: runImage
@@ -3226,7 +3222,7 @@ steps:
       - create_deploy_config
       - create_accounts
       - default_ns
-      - code
+      - merge_code
       - service_base_image
       - deploy_batch
   - kind: runImage
@@ -3278,7 +3274,7 @@ steps:
       - create_deploy_config
       - create_accounts
       - default_ns
-      - code
+      - merge_code
       - service_base_image
       - deploy_batch
   - kind: runImage
@@ -3314,7 +3310,7 @@ steps:
       - create_accounts
       - default_ns
       - service_base_image
-      - code
+      - merge_code
       - deploy_batch
     timeout: 1200
     inputs:
@@ -3338,7 +3334,7 @@ steps:
         name: notebook
     dependsOn:
       - default_ns
-      - code
+      - merge_code
   - kind: deploy
     name: deploy_notebook
     namespace:
@@ -3425,7 +3421,7 @@ steps:
         to: /io/blog
     dependsOn:
       - hail_ubuntu_image
-      - code
+      - merge_code
   - kind: deploy
     name: deploy_blog
     namespace:
@@ -3447,16 +3443,11 @@ steps:
     script: |
       set -ex
 
-      cd /io
+      cd /io/repo
 
       gcloud auth activate-service-account --key-file=/test-dataproc-service-account-key/test-dataproc-service-account-key.json
       gcloud config set project hail-vdc
       gcloud config set dataproc/region us-central1
-
-      mkdir -p repo
-      cd repo
-
-      {{ code.checkout_script }}
 
       if git ls-remote --exit-code --tags origin $(cat /io/hail_pip_version)
       then
@@ -3471,9 +3462,12 @@ steps:
       - ci_utils_image
       - code
       - default_ns
+      - merge_code
     inputs:
       - from: /hail_pip_version
         to: /io/hail_pip_version
+      - from: /repo
+        to: /io/repo
     secrets:
       - name: test-dataproc-service-account-key
         namespace:
@@ -3499,10 +3493,7 @@ steps:
       chmod 755 git-askpass
       export GIT_ASKPASS=/io/git-askpass
 
-      mkdir repo
-      cd repo
-      {{ code.checkout_script }}
-      cd hail
+      cd /io/repo/hail
 
       if git ls-remote --exit-code --tags origin $(cat /io/hail_pip_version)
       then
@@ -3526,6 +3517,8 @@ steps:
         to: /io/hail_pip_version
       - from: /git_version
         to: /io/git_version
+      - from: /repo
+        to: /io/repo
     secrets:
       - name: pypi-credentials
         namespace:
@@ -3545,9 +3538,9 @@ steps:
     dependsOn:
       - test_dataproc
       - default_ns
-      - code
       - ci_utils_image
       - build_hail
+      - merge_code
   - kind: buildImage2
     name: website_image
     dockerFile: /io/website/Dockerfile
@@ -3610,7 +3603,7 @@ steps:
       - from: /hail/hail_pip_version
         to: /io/hail/hail_pip_version
     dependsOn:
-      - code
+      - merge_code
       - hail_ubuntu_image
     scopes:
       - dev
@@ -3637,7 +3630,7 @@ steps:
         to: /io/genetics
     dependsOn:
       - hail_public_image
-      - code
+      - merge_code
     scopes:
       - dev
   - kind: runImage
@@ -3681,7 +3674,7 @@ steps:
       - create_accounts
       - default_ns
       - create_deploy_config
-      - code
+      - merge_code
       - service_base_image
       - create_certs
       - deploy_address
@@ -3761,7 +3754,7 @@ steps:
       - create_deploy_config
       - create_accounts
       - default_ns
-      - code
+      - merge_code
       - batch_image
       - deploy_batch
       - test_batch_0
@@ -3838,7 +3831,7 @@ steps:
     dependsOn:
       - default_ns
       - service_base_image
-      - code
+      - merge_code
   - kind: buildImage2
     name: atgu_image
     dockerFile: /io/repo/atgu/Dockerfile
@@ -3849,7 +3842,7 @@ steps:
         to: /io/repo
     dependsOn:
       - service_base_image
-      - code
+      - merge_code
   - kind: createDatabase
     name: atgu_database
     databaseName: atgu
@@ -3872,7 +3865,7 @@ steps:
         name: atgu-driver
     dependsOn:
       - default_ns
-      - code
+      - merge_code
       - delete_atgu_tables
   - kind: deploy
     name: deploy_atgu
