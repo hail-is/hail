@@ -225,12 +225,15 @@ class LocalBackend(Backend):
                 memory = job._memory
                 if memory is not None:
                     memory_ratios = {'lowmem': 1024**3, 'standard': 4 * 1024**3, 'highmem': 7 * 1024**3}
-                    if memory in memory_ratios and job._cpu is not None:
-                        mcpu = parse_cpu_in_mcpu(job._cpu)
-                        if mcpu is not None:
-                            memory = str(int(memory_ratios[memory] * (mcpu / 1000)))
+                    if memory in memory_ratios:
+                        if job._cpu is not None:
+                            mcpu = parse_cpu_in_mcpu(job._cpu)
+                            if mcpu is not None:
+                                memory = str(int(memory_ratios[memory] * (mcpu / 1000)))
+                            else:
+                                raise BatchException(f'invalid value for cpu: {job._cpu}')
                         else:
-                            raise BatchException(f'invalid value for cpu: {job._cpu}')
+                            raise BatchException(f'must specify cpu when using {memory} to specify the memory')
                     memory = f'-m {memory}' if memory else ''
 
                 lines.append(f"docker run "
