@@ -140,7 +140,7 @@ class Batch:
         if self.__gcs is None:
             self.__gcs = GCS(blocking_pool=concurrent.futures.ThreadPoolExecutor(),
                              project=self._project)
-        return self._gcs
+        return self.__gcs
 
     def new_job(self,
                 name: Optional[str] = None,
