@@ -225,7 +225,7 @@ case class SplitPartitionNativeWriter(
 
       PCode(pResultType, EmitCodeBuilder.scopedCode(mb) { cb: EmitCodeBuilder =>
         val pctx = ctxCode.memoize(cb, "context")
-        cb.assign(filename1, pContextType.loadString(pctx.tcode[Long]))
+        cb.assign(filename1, pctx.asString.loadString())
         if (hasIndex) {
           val indexFile = cb.newLocal[String]("indexFile")
           cb.assign(indexFile, const(index.get._1).concat(filename1))
@@ -301,7 +301,7 @@ case class MatrixSpecWriter(path: String, typ: MatrixType, rowRelPath: String, g
     cb.assign(partCounts, Code.newArray[Long](n))
     cb.whileLoop(i < n, {
       val count = a.loadElement(cb, i).get(cb, "part count can't be missing!").asPCode
-      cb += partCounts.update(i, count.tcode[Long])
+      cb += partCounts.update(i, count.asInt64.longCode(cb))
       cb.assign(i, i + 1)
     })
     cb += cb.emb.getObject(new MatrixSpecHelper(path, rowRelPath, globalRelPath, colRelPath, entryRelPath, refRelPath, typ, log))
