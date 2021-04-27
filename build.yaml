@@ -460,12 +460,12 @@ steps:
       - auth_database
   - kind: buildImage2
     name: hail_build_image
-    dockerFile: hail/Dockerfile.hail-build
-    contextPath: hail
+    dockerFile: /io/hail/Dockerfile.hail-build
+    contextPath: /io/hail
     publishAs: hail-build
     inputs:
       - from: /repo/hail
-        to: /hail
+        to: /io/hail
     dependsOn:
       - base_image
       - merge_code
@@ -583,7 +583,7 @@ steps:
     inputs:
       - from: /repo
         to: /io/repo
-      - from: /repo/hail_version
+      - from: /hail_version
         to: /io/repo/hail_version
     dependsOn:
       - base_image
@@ -777,7 +777,7 @@ steps:
     inputs:
       - from: /repo
         to: /io/repo
-      - from: /repo/hail_version
+      - from: /hail_version
         to: /io/repo/hail_version
     dependsOn:
       - hail_ubuntu_image
@@ -1828,7 +1828,7 @@ steps:
       - from: /repo/prometheus
         to: /io/prometheus
       - from: /prometheus/nginx.conf.out
-        to: /io/nginx.conf.out
+        to: /io/prometheus/nginx.conf.out
     dependsOn:
       - hail_ubuntu_image
       - render_prom_nginx_conf
@@ -2924,19 +2924,19 @@ steps:
       cd $REPO_NAME
 
       mkdir -p ./ci/test ./hail/
-      cp /io/repo/hail/ci/test/resources/build.yaml ./
-      cp -R /io/repo/hail/ci/test/resources ./ci/test/
-      cp /io/repo/hail/tls/Dockerfile ./ci/test/resources/Dockerfile.certs
-      cp /io/repo/hail/tls/create_certs.py ./ci/test/resources/
-      cp /io/repo/hail/pylintrc ./
-      cp /io/repo/hail/setup.cfg ./
-      cp -R /io/repo/hail/docker ./
-      cp -R /io/repo/hail/gear ./
-      cp -R /io/repo/hail/hail/python ./hail/
-      cp /io/repo/hail/hail/Makefile ./hail/
-      cp /io/repo/hail/hail/env_var.mk ./hail/
-      cp -R /io/repo/hail/web_common ./
-      cp /io/repo/hail/hail/python/setup-hailtop.py ./hail/python/
+      cp /io/repo/ci/test/resources/build.yaml ./
+      cp -R /io/repo/ci/test/resources ./ci/test/
+      cp /io/repo/tls/Dockerfile ./ci/test/resources/Dockerfile.certs
+      cp /io/repo/tls/create_certs.py ./ci/test/resources/
+      cp /io/repo/pylintrc ./
+      cp /io/repo/setup.cfg ./
+      cp -R /io/repo/docker ./
+      cp -R /io/repo/gear ./
+      cp -R /io/repo/hail/python ./hail/
+      cp /io/repo/hail/Makefile ./hail/
+      cp /io/repo/hail/env_var.mk ./hail/
+      cp -R /io/repo/web_common ./
+      cp /io/repo/hail/python/setup-hailtop.py ./hail/python/
 
       git config user.name ci
       git config user.email ci@hail.is
