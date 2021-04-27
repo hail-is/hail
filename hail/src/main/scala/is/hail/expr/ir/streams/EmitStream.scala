@@ -926,6 +926,7 @@ object EmitStream {
 
                 val rightEOS = mb.genFieldThisRef[Boolean]("left_join_right_distinct_rightEOS")
                 val pulledRight = mb.genFieldThisRef[Boolean]("left_join_right_distinct_pulledRight]")
+                val _elementRegion = mb.genFieldThisRef[Region]("join_right_distinct_element_region")
 
                 val producer = new StreamProducer {
                   override val length: Option[Code[Int]] = leftProducer.length
@@ -938,13 +939,17 @@ object EmitStream {
                       cb.assign(rightProducer.elementRegion, Region.stagedCreate(Region.REGULAR, outerRegion.getPool()))
                     else
                       cb.assign(rightProducer.elementRegion, outerRegion)
+                    if (leftProducer.requiresMemoryManagementPerElement)
+                      cb.assign(leftProducer.elementRegion, Region.stagedCreate(Region.REGULAR, outerRegion.getPool()))
+                    else
+                      cb.assign(leftProducer.elementRegion, outerRegion)
 
                     leftProducer.initialize(cb)
                     rightProducer.initialize(cb)
                   }
 
-                  override val elementRegion: Settable[Region] = leftProducer.elementRegion
-                  override val requiresMemoryManagementPerElement: Boolean = leftProducer.requiresMemoryManagementPerElement
+                  override val elementRegion: Settable[Region] = _elementRegion
+                  override val requiresMemoryManagementPerElement: Boolean = leftProducer.requiresMemoryManagementPerElement || rightProducer.requiresMemoryManagementPerElement
                   override val LproduceElement: CodeLabel = mb.defineAndImplementLabel { cb =>
 
                     cb.goto(leftProducer.LproduceElement)
@@ -969,8 +974,10 @@ object EmitStream {
                       cb.assign(rxOut, EmitCode.missing(mb, rxOut.pt))
                     }, {
                       // c == 0
-                      if (rightProducer.requiresMemoryManagementPerElement)
+                      if (requiresMemoryManagementPerElement) {
                         cb += elementRegion.trackAndIncrementReferenceCountOf(rightProducer.elementRegion)
+                        cb += elementRegion.trackAndIncrementReferenceCountOf(leftProducer.elementRegion)
+                      }
                       cb.assign(rxOut, rx)
                     })
 
