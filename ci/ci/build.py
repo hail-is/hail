@@ -464,7 +464,7 @@ class BuildImage2Step(Step):
         context = self.context_path
         if not context:
             context = '/io'
-        context = 'dir://' + context
+        context = context
 
         if isinstance(self.dockerfile, dict):
             assert ['inline'] == list(self.dockerfile.keys())
@@ -482,9 +482,11 @@ class BuildImage2Step(Step):
                 '/busybox/sh',
                 '-c',
                 f'''
+set -ex
+
 {create_inline_dockerfile_if_present}
 
-cp ${unrendered_dockerfile} /python3.7-slim-stretch/Dockerfile.in
+cp {unrendered_dockerfile} /python3.7-slim-stretch/Dockerfile.in
 
 time chroot /python3.7-slim-stretch /usr/local/bin/python3 \
      jinja2_render.py \
@@ -499,7 +501,7 @@ set +e
 set -e
 
 /kaniko/executor --dockerfile={shq(dockerfile_in_context)}
-                 --context={shq(context)}
+                 --context=dir://{shq(context)}
                  --destination={shq(self.image)}
                  --cache=true
                  --snapshotMode=redo
