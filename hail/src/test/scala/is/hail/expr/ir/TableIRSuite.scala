@@ -430,15 +430,34 @@ class TableIRSuite extends HailSuite {
   )
 
   @DataProvider(name = "join")
-  def joinData(): Array[Array[Any]] =
+  def joinData(): Array[Array[Any]] = {
+    val defaultLParts = 2
+    val defaultRParts = 2
+    val (defaultJ, defaultP) = joinTypes(0)
+    val defaultLeftProject = Set(1, 2)
+    val defaultRightProject = Set(1, 2)
+
+    val ab = new BoxedArrayBuilder[Array[Any]]()
     for {
-      lParts <- Array[Integer](1, 2, 3)
-      rParts <- Array[Integer](1, 2, 3)
-      (j, p) <- joinTypes
+      lParts <- Array[Integer](1, 2, 3); rParts <- Array[Integer](1, 2, 3)
+    } {
+
+      ab += Array[Any](lParts, rParts, defaultJ, defaultP, defaultLeftProject, defaultRightProject)
+    }
+
+    for ((j, p) <- joinTypes) {
+      ab += Array[Any](defaultLParts, defaultRParts, j, p, defaultLeftProject, defaultRightProject)
+    }
+
+    for {
       leftProject <- Seq[Set[Int]](Set(), Set(1), Set(2), Set(1, 2))
-      rightProject <- Seq[Set[Int]](Set(), Set(1), Set(2), Set(1, 2))
-      if !leftProject.contains(1) || rightProject.contains(1)
-    } yield Array[Any](lParts, rParts, j, p, leftProject, rightProject)
+        rightProject <- Seq[Set[Int]](Set(), Set(1), Set(2), Set(1, 2))
+        if !leftProject.contains(1) || rightProject.contains(1)
+    } {
+      ab += Array[Any](defaultLParts, defaultRParts, defaultJ, defaultP, leftProject, rightProject)
+    }
+    ab.result()
+  }
 
   @Test(dataProvider = "join")
   def testTableJoin(
