@@ -952,6 +952,8 @@ object EmitStream {
                   override val requiresMemoryManagementPerElement: Boolean = leftProducer.requiresMemoryManagementPerElement || rightProducer.requiresMemoryManagementPerElement
                   override val LproduceElement: CodeLabel = mb.defineAndImplementLabel { cb =>
 
+                    if (leftProducer.requiresMemoryManagementPerElement)
+                      cb += leftProducer.elementRegion.clearRegion()
                     cb.goto(leftProducer.LproduceElement)
                     cb.define(leftProducer.LproduceElementDone)
                     cb.assign(lx, leftProducer.element)
@@ -974,11 +976,8 @@ object EmitStream {
                       cb.assign(rxOut, EmitCode.missing(mb, rxOut.pt))
                     }, {
                       // c == 0
-                      if (requiresMemoryManagementPerElement) {
+                      if (rightProducer.requiresMemoryManagementPerElement) {
                         cb += elementRegion.trackAndIncrementReferenceCountOf(rightProducer.elementRegion)
-                        cb += elementRegion.trackAndIncrementReferenceCountOf(leftProducer.elementRegion)
-                        if (leftProducer.requiresMemoryManagementPerElement)
-                          cb += leftProducer.elementRegion.clearRegion()
                       }
                       cb.assign(rxOut, rx)
                     })
@@ -999,6 +998,9 @@ object EmitStream {
                     cb.define(rightProducer.LendOfStream)
                     cb.assign(rxOut, EmitCode.missing(mb, rxOut.pt))
                     cb.assign(rightEOS, true)
+
+                    if (leftProducer.requiresMemoryManagementPerElement)
+                      cb += elementRegion.trackAndIncrementReferenceCountOf(leftProducer.elementRegion)
                     cb.goto(LproduceElementDone)
                   }
                   override val element: EmitCode = joinResult
