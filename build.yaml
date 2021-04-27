@@ -642,7 +642,8 @@ steps:
     script: |
       set -ex
       cd /io/repo/hail
-      time retry bash ./gradlew --version
+      chmod 755 ./gradlew
+      time retry ./gradlew --version
       time retry make shadowJar
     inputs:
       - from: /repo/hail
@@ -663,7 +664,8 @@ steps:
     script: |
       set -ex
       cd /io/repo/hail
-      time retry bash ./gradlew --version
+      chmod 755 ./gradlew
+      time retry ./gradlew --version
       time retry make jars wheel HAIL_DEBUG_MODE=1
       (cd build/deploy/dist/ && tar -cvf debug-wheel-container.tar hail-*-py3-none-any.whl)
       cd /io/repo/hail
@@ -726,7 +728,8 @@ steps:
     script: |
       set -ex
       cd /io/repo/hail
-      time retry bash ./gradlew --version
+      chmod 755 ./gradlew
+      time retry ./gradlew --version
       export SPARK_VERSION="2.4.5" SCALA_VERSION="2.11.12"
       time retry make jars python-version-info wheel
     inputs:
@@ -745,7 +748,8 @@ steps:
     script: |
       set -ex
       cd /io/repo/hail
-      time retry bash ./gradlew --version
+      chmod 755 ./gradlew
+      time retry ./gradlew --version
       export SPARK_VERSION="3.0.1" SCALA_VERSION="2.12.12"
       time retry make jars python-version-info wheel
     inputs:
@@ -3456,7 +3460,8 @@ steps:
       fi
 
       cd hail
-      time retry bash ./gradlew --version
+      chmod 755 ./gradlew
+      time retry ./gradlew --version
       make test-dataproc DEV_CLARIFIER=ci_test_dataproc/
     dependsOn:
       - ci_utils_image
@@ -3500,7 +3505,8 @@ steps:
           exit 0
       fi
 
-      time retry bash ./gradlew --version
+      chmod 755 ./gradlew
+      time retry ./gradlew --version
       make wheel upload-artifacts DEPLOY_REMOTE=origin
 
       bash scripts/deploy.sh $(cat /io/hail_pip_version) \
