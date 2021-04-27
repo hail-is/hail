@@ -69,7 +69,6 @@ def test_pca_against_numpy():
     np.testing.assert_allclose(hail_loadings, np_loadings, rtol=1e-5)
 
 @fails_service_backend()
-@fails_local_backend()
 def test_blanczos_against_numpy():
 
     def concatToNumpy(field, horizontal=True):
