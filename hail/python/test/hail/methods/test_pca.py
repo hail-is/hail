@@ -68,7 +68,7 @@ def test_pca_against_numpy():
     np.testing.assert_allclose(hail_scores, np_scores, rtol=1e-5)
     np.testing.assert_allclose(hail_loadings, np_loadings, rtol=1e-5)
 
-@fails_service_backend()
+
 def test_blanczos_against_numpy():
 
     def concatToNumpy(field, horizontal=True):
@@ -128,44 +128,6 @@ def test_blanczos_against_numpy():
     assert bound(np_loadings, loadings) > 0.9
 
 
-@fails_service_backend()
-@fails_local_backend()
-def test_blanczos_against_hail():
-    k = 10
-
-    def concatToNumpy(field, horizontal=True):
-        blocks = field.collect()
-        if horizontal:
-            return np.concatenate(blocks, axis=0)
-        else:
-            return np.concatenate(blocks, axis=1)
-
-    hl.utils.get_1kg('data/')
-    hl.import_vcf('data/1kg.vcf.bgz').write('data/1kg.mt', overwrite=True)
-    dataset = hl.read_matrix_table('data/1kg.mt')
-
-    b_eigens, b_scores, b_loadings = hl._blanczos_pca(hl.int(hl.is_defined(dataset.GT)), k=k, q_iterations=4, compute_loadings=True)
-    b_scores = concatToNumpy(b_scores.scores)
-    b_loadings = concatToNumpy(b_loadings.loadings)
-    b_scores = np.reshape(b_scores, (len(b_scores) // k, k))
-    b_loadings = np.reshape(b_loadings, (len(b_loadings) // k, k))
-
-    h_eigens, h_scores, h_loadings = hl.pca(hl.int(hl.is_defined(dataset.GT)), k=k, compute_loadings=True)
-    h_scores = np.reshape(concatToNumpy(h_scores.scores), b_scores.shape)
-    h_loadings = np.reshape(concatToNumpy(h_loadings.loadings), b_loadings.shape)
-
-    # equation 12 from https://www.ncbi.nlm.nih.gov/pmc/articles/PMC4827102/pdf/main.pdf
-    def bound(vs, us):
-        return 1/k * sum([np.linalg.norm(us.T @ vs[:,i]) for i in range(k)])
-
-    MEV = bound(h_loadings, b_loadings)
-
-    np.testing.assert_allclose(b_eigens, h_eigens, rtol=0.05)
-    assert MEV > 0.9
-
-
-@fails_service_backend()
-@fails_local_backend()
 def test_spectra():
     def make_spectral_matrix(index_func, k, m, n):
         sigma_dim = min(m, n)
