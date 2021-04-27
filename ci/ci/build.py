@@ -474,14 +474,7 @@ class BuildImage2Step(Step):
             create_inline_dockerfile_if_present = ''
         dockerfile_in_context = os.path.join(context, 'Dockerfile.' + self.token)
 
-        log.info(f'step {self.name}, script:\n{script}')
-
-        self.job = batch.create_job(
-            image=KANIKO_IMAGE,
-            command=[
-                '/busybox/sh',
-                '-c',
-                f'''
+        script = f'''
 set -ex
 
 {create_inline_dockerfile_if_present}
@@ -501,6 +494,15 @@ set +e
 set -e
 
 /kaniko/executor --dockerfile={shq(dockerfile_in_context)} --context=dir://{shq(context)} --destination={shq(self.image)} --cache=true --snapshotMode=redo --use-new-run'''
+
+        log.info(f'step {self.name}, script:\n{script}')
+
+        self.job = batch.create_job(
+            image=KANIKO_IMAGE,
+            command=[
+                '/busybox/sh',
+                '-c',
+                script
             ],
             secrets=[{
                 'namespace': DEFAULT_NAMESPACE,
