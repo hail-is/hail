@@ -511,7 +511,7 @@ class BuildImage2Step(Step):
             env={'GOOGLE_APPLICATION_CREDENTIALS': '/secrets/gcr-push-service-account-key/gcr-push-service-account-key.json'},
             attributes={'name': self.name + '_kaniko'},
             input_files=input_files,
-            parents=self.render_dockerfile_job,
+            parents=[self.render_dockerfile_job],
         )
 
     def cleanup(self, batch, scope, parents):
