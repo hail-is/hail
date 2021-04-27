@@ -305,9 +305,7 @@ case class MatrixSpecWriter(path: String, typ: MatrixType, rowRelPath: String, g
       cb.assign(i, i + 1)
     })
     cb += cb.emb.getObject(new MatrixSpecHelper(path, rowRelPath, globalRelPath, colRelPath, entryRelPath, refRelPath, typ, log))
-      .invoke[FS, Long, Array[Long], Unit]("write", cb.emb.getFS, c.loadField(cb, "cols").get(cb)
-        .asPCode
-        .tcode[Long], partCounts)
+      .invoke[FS, Long, Array[Long], Unit]("write", cb.emb.getFS, c.loadField(cb, "cols").get(cb).asInt64.longCode(cb), partCounts)
   }
 }
 
