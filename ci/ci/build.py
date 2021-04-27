@@ -464,45 +464,47 @@ class BuildImage2Step(Step):
         context = self.context_path
         if not context:
             context = '/io'
+        context = 'dir://' + context
 
-        rendered_dockerfile = f'/io/Dockerfile.out.{self.token}'
         if isinstance(self.dockerfile, dict):
             assert ['inline'] == list(self.dockerfile.keys())
             unrendered_dockerfile = f'/io/Dockerfile.in.{self.token}'
-            render_dockerfile = f'echo {shq(self.dockerfile["inline"])} > {unrendered_dockerfile};\n'
+            create_inline_dockerfile_if_present = f'echo {shq(self.dockerfile["inline"])} > {unrendered_dockerfile};\n'
         else:
             assert isinstance(self.dockerfile, str)
             unrendered_dockerfile = self.dockerfile
-            render_dockerfile = ''
-        render_dockerfile += (
-            f'time python3 jinja2_render.py {shq(json.dumps(config))} '
-            f'{shq(unrendered_dockerfile)} {shq(rendered_dockerfile)}'
-        )
-        remote_dockerfile = f'gs://{BUCKET}/build/{batch.attributes["token"]}/Dockerfile.out.{self.token}'
+            create_inline_dockerfile_if_present = ''
+        dockerfile_in_context = os.path.join(context, 'Dockerfile.' + self.token)
 
-        self.render_dockerfile_job = batch.create_job(
-            CI_UTILS_IMAGE,
-            command=['bash', '-c', render_dockerfile],
-            attributes={'name': self.name + '_render_dockerfile'},
-            input_files=input_files,
-            output_files=[(rendered_dockerfile, remote_dockerfile)],
-            parents=self.deps_parents(),
-         )
+        self.job = batch.create_job(
+            image=KANIKO_IMAGE,
+            command=[
+                '/busybox/sh',
+                '-c',
+                f'''
+{create_inline_dockerfile_if_present}
 
-        context = 'dir://' + context
-        kaniko_input_files = [(remote_dockerfile, rendered_dockerfile)]
-        if input_files:
-            kaniko_input_files.extend(input_files)
-        self.kaniko_job = batch.create_job(
-            KANIKO_IMAGE,
-            command=['/busybox/sh',
-                     '/command',
-                     '--dockerfile=' + rendered_dockerfile,
-                     '--context=' + context,
-                     '--destination=' + self.image,
-                     '--cache=true',
-                     '--snapshotMode=redo',
-                     '--use-new-run'],
+cp ${unrendered_dockerfile} /python3.7-slim-stretch/Dockerfile.in
+
+time chroot /python3.7-slim-stretch /usr/local/bin/python3 \
+     jinja2_render.py \
+     {shq(json.dumps(config))} \
+     /Dockerfile.in \
+     /Dockerfile.out
+
+mv /python3.7-slim-stretch/Dockerfile.out {shq(dockerfile_in_context)}
+
+set +e
+/busybox/sh /render_key
+set -e
+
+/kaniko/executor --dockerfile={shq(dockerfile_in_context)}
+                 --context={shq(context)}
+                 --destination={shq(self.image)}
+                 --cache=true
+                 --snapshotMode=redo
+                 --use-new-run'''
+            ],
             secrets=[{
                 'namespace': DEFAULT_NAMESPACE,
                 'name': 'gcr-push-service-account-key',
@@ -511,7 +513,7 @@ class BuildImage2Step(Step):
             env={'GOOGLE_APPLICATION_CREDENTIALS': '/secrets/gcr-push-service-account-key/gcr-push-service-account-key.json'},
             attributes={'name': self.name + '_kaniko'},
             input_files=input_files,
-            parents=[self.render_dockerfile_job],
+            parents=self.deps_parents(),
         )
 
     def cleanup(self, batch, scope, parents):
