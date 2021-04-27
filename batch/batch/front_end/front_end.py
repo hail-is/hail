@@ -1308,6 +1308,23 @@ async def ui_get_job(request, userdata, batch_id):
                                                             'command': list,
                                                             'resources': dict(),
                                                             'env': list}))
+import plotly
+import plotly.express as px
+import pandas as pd
+
+# df = pd.DataFrame([
+#     dict(Substep="Job A", Start='2009-01-01', Finish='2009-02-28', Step="Main"),
+#     dict(Substep="Job B", Start='2009-03-05', Finish='2009-04-15', Step="Main")
+# ])
+log.info(json.dumps(step_statuses))
+df = pd.Dataframe([
+
+
+])
+
+fig = px.timeline(df, x_start="Start", x_end="Finish", y="Step", color="Step")
+plot_json = json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
+
 
 
     import plotly.express as px
