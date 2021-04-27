@@ -6,7 +6,6 @@ import concurrent
 import dill
 import functools
 import sys
-import time
 
 from hailtop.utils import secret_alnum_string, partition
 import hailtop.batch_client.aioclient as low_level_batch_client
@@ -244,17 +243,15 @@ class BatchPoolExecutor:
             iterables = iterables_chunks
         submissions = [self.async_submit(fn, *arguments)
                        for arguments in zip(*iterables)]
-        futures = await asyncio.gather(*submissions)
-        fetching_tasks = [create_task(future._async_fetch_result())
-                          for future in futures]
+        futures: List[BatchPoolFuture] = await asyncio.gather(*submissions)
 
         async def async_result_or_cancel_all(future):
             try:
                 return await future.async_result(timeout=timeout)
-            except Exception as exc:
-                for task in fetching_tasks:
-                    task.cancel()
-                raise exc
+            except Exception as err:
+                for fut in futures:
+                    fut.cancel()
+                raise err
         if chunksize > 1:
             return (val
                     for future in futures
@@ -413,8 +410,13 @@ with open(\\"{j.ofile}\\", \\"wb\\") as out:
             method.
         """
         if wait:
+            async def ignore_exceptions(f):
+                try:
+                    await f.async_result()
+                except Exception:
+                    pass
             async_to_blocking(
-                asyncio.gather(*[f._async_fetch_result() for f in self.futures]))
+                asyncio.gather(*[ignore_exceptions(f) for f in self.futures]))
         if self.finished_future_count == len(self.futures):
             self._cleanup(False)
         self._shutdown = True
@@ -424,18 +426,7 @@ with open(\\"{j.ofile}\\", \\"wb\\") as out:
             async_to_blocking(
                 self.gcs.delete_gs_files(self.directory))
         self.gcs.shutdown(wait)
-
-
-class NoValue:
-    pass
-
-
-class Cancelled:
-    pass
-
-
-NO_VALUE = NoValue()
-CANCELLED = Cancelled()
+        self.backend.close()
 
 
 class BatchPoolFuture:
@@ -448,9 +439,7 @@ class BatchPoolFuture:
         self.batch = batch
         self.job = job
         self.output_gcs = output_gcs
-        self.value: Any = NO_VALUE
-        self._exception: Optional[BaseException] = None
-        self.fetch_lock = asyncio.Lock()
+        self.fetch_coro = asyncio.ensure_future(self._async_fetch_result())
         executor._add_future(self)
 
     def cancel(self):
@@ -467,17 +456,20 @@ class BatchPoolFuture:
         ``True`` is returned if the job is cancelled. ``False`` is returned if
         the job has already completed.
         """
-        if self.value == NO_VALUE:
-            await self.batch.cancel()
-            self.value = CANCELLED
-            self.executor._finish_future()
-            return True
-        return False
+        if self.fetch_coro.cancelled():
+            return False
+        if self.fetch_coro.done():
+            # retrieve any exceptions raised
+            self.fetch_coro.result()
+            return False
+        await self.batch.cancel()
+        self.fetch_coro.cancel()
+        return True
 
     def cancelled(self):
         """Returns ``True`` if :meth:`.cancel` was called before a value was produced.
         """
-        return self.value == CANCELLED
+        return self.fetch_coro.cancelled()
 
     def running(self):  # pylint: disable=no-self-use
         """Always returns False.
@@ -489,7 +481,7 @@ class BatchPoolFuture:
     def done(self):
         """Returns `True` if the function is complete and not cancelled.
         """
-        return self.value != NO_VALUE
+        return self.fetch_coro.done()
 
     def result(self, timeout: Optional[Union[float, int]] = None):
         """Blocks until the job is complete.
@@ -502,7 +494,10 @@ class BatchPoolFuture:
         timeout:
             Wait this long before raising a timeout error.
         """
-        return async_to_blocking(self.async_result(timeout))
+        try:
+            return async_to_blocking(self.async_result(timeout))
+        except asyncio.TimeoutError as e:
+            raise concurrent.futures.TimeoutError() from e
 
     async def async_result(self, timeout: Optional[Union[float, int]] = None):
         """Asynchronously wait until the job is complete.
@@ -517,53 +512,25 @@ class BatchPoolFuture:
         """
         if self.cancelled():
             raise concurrent.futures.CancelledError()
-        await self._async_fetch_result(timeout)
-        if self._exception:
-            raise self._exception
-        return self.value
+        return await asyncio.wait_for(self.fetch_coro, timeout=timeout)
 
-    def _fetch_result(self, timeout: Optional[Union[float, int]] = None):
-        async_to_blocking(self._async_fetch_result(timeout))
-
-    async def _async_fetch_result(self, timeout: Optional[Union[float, int]] = None):
+    async def _async_fetch_result(self):
         try:
-            before = time.time()
-            await asyncio.wait_for(self.fetch_lock.acquire(), timeout=timeout)
-            if timeout:
-                timeout -= time.time() - before
-        except asyncio.TimeoutError as e:
-            raise concurrent.futures.TimeoutError() from e
-        try:
-            if self.value != NO_VALUE:
-                return
-            try:
-                await asyncio.wait_for(self.job.wait(), timeout=timeout)
-            except asyncio.TimeoutError as e:
-                raise concurrent.futures.TimeoutError() from e
+            await self.job.wait()
             main_container_status = self.job._status['status']['container_statuses']['main']
             if main_container_status['state'] == 'error':
-                self.value = None
-                self._exception = ValueError(
+                raise ValueError(
                     f"submitted job failed:\n{main_container_status['error']}")
-                return
-            try:
-                value, traceback = dill.loads(
-                    await self.executor.gcs.read_binary_gs_file(self.output_gcs))
-                if traceback is not None:
-                    assert isinstance(value, BaseException)
-                    self.value = None
-                    traceback = ''.join(traceback)
-                    self._exception = ValueError(
-                        f'submitted job failed:\n{traceback}')
-                else:
-                    self.value = value
-            except Exception as exc:
-                self.value = None
-                self._exception = exc
-            finally:
-                self.executor._finish_future()
+            value, traceback = dill.loads(
+                await self.executor.gcs.read_binary_gs_file(self.output_gcs))
+            if traceback is None:
+                return value
+            assert isinstance(value, BaseException)
+            self.value = None
+            traceback = ''.join(traceback)
+            raise ValueError(f'submitted job failed:\n{traceback}')
         finally:
-            self.fetch_lock.release()
+            self.executor._finish_future()
 
     def exception(self, timeout: Optional[Union[float, int]] = None):
         """Block until the job is complete and raise any exceptions.

@@ -2,8 +2,8 @@ package is.hail
 
 import is.hail.annotations._
 import is.hail.asm4s._
-import is.hail.backend.Backend
 import is.hail.backend.spark.{SparkBackend, SparkTaskContext}
+import is.hail.backend.{Backend, BroadcastValue}
 import is.hail.expr.ir.functions.IRFunctionRegistry
 import is.hail.expr.ir.{BaseIR, ExecuteContext}
 import is.hail.io.fs.FS
@@ -232,10 +232,10 @@ object HailContext {
         HailContext.readRowsPartition(makeDec)(ctx.r, in, metrics)
     }
 
-  def readSplitRowsPartition(
+  def readSplitRowsPartition(fs: BroadcastValue[FS],
     mkRowsDec: (InputStream) => Decoder,
     mkEntriesDec: (InputStream) => Decoder,
-    mkInserter: (Int, Region) => AsmFunction3RegionLongLongLong
+    mkInserter: (FS, Int, Region) => AsmFunction3RegionLongLongLong
   )(ctx: RVDContext,
     isRows: InputStream,
     isEntries: InputStream,
@@ -245,7 +245,7 @@ object HailContext {
     bounds: Option[Interval],
     partIdx: Int,
     metrics: InputMetrics = null
-  ): Iterator[Long] = new MaybeIndexedReadZippedIterator(mkRowsDec, mkEntriesDec, mkInserter(partIdx, ctx.partitionRegion),
+  ): Iterator[Long] = new MaybeIndexedReadZippedIterator(mkRowsDec, mkEntriesDec, mkInserter(fs.value, partIdx, ctx.partitionRegion),
     ctx.r,
     isRows, isEntries,
     idxr.orNull, rowsOffsetField.orNull, entriesOffsetField.orNull, bounds.orNull, metrics)
@@ -355,10 +355,10 @@ object HailContext {
     bounds: Array[Interval],
     makeRowsDec: InputStream => Decoder,
     makeEntriesDec: InputStream => Decoder,
-    makeInserter: (Int, Region) => AsmFunction3RegionLongLongLong
+    makeInserter: (FS, Int, Region) => AsmFunction3RegionLongLongLong
   ): ContextRDD[Long] = {
     require(!(indexSpecRows.isEmpty ^ indexSpecEntries.isEmpty))
-    val fsBc = ctx.fs.broadcast
+    val fsBc = ctx.fsBc
 
     val mkIndexReader = indexSpecRows.map { indexSpec =>
       val (keyType, annotationType) = indexSpec.types
@@ -390,7 +390,7 @@ object HailContext {
       assert(it.hasNext)
       val (isRows, isEntries, idxr, bounds, m) = it.next
       assert(!it.hasNext)
-      HailContext.readSplitRowsPartition(makeRowsDec, makeEntriesDec, makeInserter)(
+      HailContext.readSplitRowsPartition(fsBc, makeRowsDec, makeEntriesDec, makeInserter)(
         ctx, isRows, isEntries, idxr, rowsOffsetField, entriesOffsetField, bounds, i, m)
     }
 

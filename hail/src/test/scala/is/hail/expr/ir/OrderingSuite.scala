@@ -43,7 +43,7 @@ class OrderingSuite extends HailSuite {
       fb.ecb.getOrderingFunction(cv1.st, cv2.st, op)
           .apply(cb, EmitCode.present(cb.emb, cv1), EmitCode.present(cb.emb, cv2))
     }
-    fb.resultWithIndex()(0, r)
+    fb.resultWithIndex()(ctx.fs, 0, r)
   }
 
   @Test def testMissingNonequalComparisons() {
@@ -65,7 +65,7 @@ class OrderingSuite extends HailSuite {
         fb.ecb.getOrderingFunction(ev1.st, ev2.st, op)
           .apply(cb, ev1, ev2)
       }
-      fb.resultWithIndex()(0, r)
+      fb.resultWithIndex()(ctx.fs, 0, r)
     }
 
     val compareGen = for {
@@ -462,7 +462,7 @@ class OrderingSuite extends HailSuite {
 
         val asArray = SafeIndexedSeq(pArray, soff)
 
-        val f = fb.resultWithIndex()(0, region)
+        val f = fb.resultWithIndex()(ctx.fs, 0, region)
         val closestI = f(region, soff, eoff)
         val maybeEqual = asArray(closestI)
 
@@ -499,7 +499,7 @@ class OrderingSuite extends HailSuite {
 
         val asArray = SafeIndexedSeq(PCanonicalArray(pDict.elementType), soff)
 
-        val f = fb.resultWithIndex()(0, region)
+        val f = fb.resultWithIndex()(ctx.fs, 0, region)
         val closestI = f(region, soff, eoff)
 
         if (closestI == asArray.length) {

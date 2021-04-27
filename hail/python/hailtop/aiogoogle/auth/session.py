@@ -43,7 +43,7 @@ class BaseSession(abc.ABC):
 
 
 class RateLimitedSession(BaseSession):
-    _session: Optional[BaseSession]
+    _session: BaseSession
 
     def __init__(self, *, session: BaseSession, rate_limit: RateLimit):
         self._session = session
@@ -54,14 +54,14 @@ class RateLimitedSession(BaseSession):
             return await self._session.request(method, url, **kwargs)
 
     async def close(self) -> None:
-        if self._session is not None:
+        if hasattr(self._session, '_session'):
             await self._session.close()
-            self._session = None
+            del self._session
 
 
 class Session(BaseSession):
-    _session: Optional[aiohttp.ClientSession]
-    _access_token: Optional[AccessToken]
+    _session: aiohttp.ClientSession
+    _access_token: AccessToken
 
     def __init__(self, *, credentials: Credentials = None, params: Optional[Mapping[str, str]] = None, **kwargs):
         if credentials is None:
@@ -97,7 +97,7 @@ class Session(BaseSession):
         return await self._session.request(method, url, **kwargs)
 
     async def close(self) -> None:
-        if self._session is not None:
+        if hasattr(self._session, '_session'):
             await self._session.close()
-            self._session = None
-        self._access_token = None
+            del self._session
+        del self._access_token

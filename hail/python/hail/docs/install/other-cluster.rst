@@ -86,5 +86,5 @@ Slightly more configuration is necessary to ``spark-submit`` a Hail script:
 Next Steps
 """"""""""
 
-- Get the `Hail cheatsheets <cheatsheets.rst>`__
-- Follow the Hail `GWAS Tutorial <tutorials/01-genome-wide-association-study.rst>`__
+- Get the `Hail cheatsheets <../cheatsheets.rst>`__
+- Follow the Hail `GWAS Tutorial <../tutorials/01-genome-wide-association-study.rst>`__

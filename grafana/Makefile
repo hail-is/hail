@@ -2,8 +2,8 @@ include ../config.mk
 
 .PHONY: build push deploy
 
-GRAFANA_NGINX_LATEST = gcr.io/$(PROJECT)/grafana_nginx:latest
-GRAFANA_NGINX_IMAGE = gcr.io/$(PROJECT)/grafana_nginx:$(shell docker images -q --no-trunc grafana_nginx | sed -e 's,[^:]*:,,')
+GRAFANA_NGINX_LATEST = $(DOCKER_PREFIX)/grafana_nginx:latest
+GRAFANA_NGINX_IMAGE = $(DOCKER_PREFIX)/grafana_nginx:$(shell docker images -q --no-trunc grafana_nginx | sed -e 's,[^:]*:,,')
 
 build:
 	$(MAKE) -C ../docker hail-ubuntu

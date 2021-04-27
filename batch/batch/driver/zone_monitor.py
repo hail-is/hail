@@ -55,6 +55,7 @@ class ZoneMonitor:
         self.zone_success_rate = ZoneSuccessRate()
 
         self.region_info = None
+        self.zones = []
 
         self.task_manager = aiotools.BackgroundTaskManager()
 
@@ -116,6 +117,10 @@ class ZoneMonitor:
             name: await self.compute_client.get(f'/regions/{name}')
             for name in BATCH_GCP_REGIONS
         }
+
+        self.zones = [url_basename(z)
+                      for r in self.region_info.values()
+                      for z in r['zones']]
 
         log.info('updated region quotas')
 

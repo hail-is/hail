@@ -46,7 +46,7 @@ object LowerToCDA {
           print = None)
       }
 
-      val addr = ctx.timer.time("Run")(f(0, ctx.r).apply(ctx.r))
+      val addr = ctx.timer.time("Run")(f(ctx.fs, 0, ctx.r).apply(ctx.r))
       val litValue = ctx.timer.time("SafeRow.convert")(SafeRow.read(pt, addr).asInstanceOf[Row].get(0))
       val lit = Literal.coerce(value.typ, litValue)
       lower(body, typesToLower, ctx, r, relationalLetsAbove + ((name, lit)))

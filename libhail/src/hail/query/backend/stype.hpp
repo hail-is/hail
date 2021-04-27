@@ -1,11 +1,12 @@
 #ifndef HAIL_QUERY_BACKEND_STYPE_HPP_INCLUDED
 #define HAIL_QUERY_BACKEND_STYPE_HPP_INCLUDED 1
 
-#include <llvm/IR/Value.h>
-#include <hail/hash.hpp>
-#include <hail/tunion.hpp>
-#include <hail/type.hpp>
 #include <vector>
+#include <llvm/IR/Value.h>
+
+#include "hail/hash.hpp"
+#include "hail/tunion.hpp"
+#include "hail/type.hpp"
 
 namespace hail {
 

@@ -4,7 +4,7 @@ set -e
 
 uname=$(uname -s)
 
-if [ $uname = "Linux" ]
+if [ $uname = "Linux" ] || $(stat --help | grep -q GNU)
 then
      stat -c "%a" $1
 elif [ $uname = "Darwin" ]

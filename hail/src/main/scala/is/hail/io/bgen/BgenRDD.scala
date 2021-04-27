@@ -138,7 +138,7 @@ object BgenRDD {
       IndexReaderBuilder.withDecoders(leafDec, intDec, BgenSettings.indexKeyType(settings.rg), BgenSettings.indexAnnotationType, leafPType, intPType)
     }
 
-    ContextRDD(new BgenRDD(f, indexBuilder, partitions, settings, keys))
+    ContextRDD(new BgenRDD(ctx.fsBc, f, indexBuilder, partitions, settings, keys))
   }
 
   private[bgen] def decompress(
@@ -148,7 +148,8 @@ object BgenRDD {
 }
 
 private class BgenRDD(
-  f: (Int, Region) => AsmFunction4[Region, BgenPartition, HadoopFSDataBinaryReader, BgenSettings, Long],
+  fsBc: BroadcastValue[FS],
+  f: (FS, Int, Region) => AsmFunction4[Region, BgenPartition, HadoopFSDataBinaryReader, BgenSettings, Long],
   indexBuilder: (FS, String, Int, RegionPool) => IndexReader,
   parts: Array[Partition],
   settings: BgenSettings,
@@ -162,17 +163,17 @@ private class BgenRDD(
       split match {
         case p: IndexBgenPartition =>
           assert(keys == null)
-          new IndexBgenRecordIterator(ctx, p, settings, f(p.partitionIndex, ctx.partitionRegion)).flatten
+          new IndexBgenRecordIterator(ctx, p, settings, f(fsBc.value, p.partitionIndex, ctx.partitionRegion)).flatten
         case p: LoadBgenPartition =>
           val index: IndexReader = indexBuilder(p.fsBc.value, p.indexPath, 8, SparkTaskContext.get().getRegionPool())
           context.addTaskCompletionListener[Unit] { (context: TaskContext) =>
             index.close()
           }
           if (keys == null)
-            new BgenRecordIteratorWithoutFilter(ctx, p, settings, f(p.partitionIndex, ctx.partitionRegion), index).flatten
+            new BgenRecordIteratorWithoutFilter(ctx, p, settings, f(fsBc.value, p.partitionIndex, ctx.partitionRegion), index).flatten
           else {
             val keyIterator = keys.iterator(p.filterPartition, context)
-            new BgenRecordIteratorWithFilter(ctx, p, settings, f(p.partitionIndex, ctx.partitionRegion), index, keyIterator).flatten
+            new BgenRecordIteratorWithFilter(ctx, p, settings, f(fsBc.value, p.partitionIndex, ctx.partitionRegion), index, keyIterator).flatten
           }
       }
     }

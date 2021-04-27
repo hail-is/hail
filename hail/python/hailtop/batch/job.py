@@ -55,13 +55,13 @@ class Job:
         self._shell = shell
         self.name = name
         self.attributes = attributes
-        self._cpu: Optional[Union[float, int, str]] = None
-        self._memory: Optional[Union[int, str]] = None
-        self._storage: Optional[Union[int, str]] = None
+        self._cpu: Optional[str] = None
+        self._memory: Optional[str] = None
+        self._storage: Optional[str] = None
         self._image: Optional[str] = None
         self._always_run: bool = False
         self._preemptible: Optional[bool] = None
-        self._machine_type: Optional[bool] = None
+        self._machine_type: Optional[str] = None
         self._timeout: Optional[Union[int, float]] = None
         self._gcsfuse: List[Tuple[str, str, bool]] = []
         self._env: Dict[str, str] = dict()
@@ -155,7 +155,7 @@ class Job:
 
         >>> b = Batch()
         >>> j = b.new_job()
-        >>> (j.storage('1Gi')
+        >>> (j.storage('10Gi')
         ...   .command(f'echo "hello"'))
         >>> b.run()
 
@@ -166,6 +166,18 @@ class Job:
         where valid optional suffixes are *K*, *Ki*, *M*, *Mi*,
         *G*, *Gi*, *T*, *Ti*, *P*, and *Pi*. Omitting a suffix means
         the value is in bytes.
+
+        For the :class:`.ServiceBackend`, jobs requesting one or more cores receive
+        5 GiB of storage for the root file system `/`. Jobs requesting a fraction of a core
+        receive the same fraction of 5 GiB of storage. If you need additional storage, you
+        can explicitly request more storage using this method and the extra storage space
+        will be mounted at `/io`. Batch automatically writes all :class:`.ResourceFile` to
+        `/io`.
+
+        The default storage size is 0 Gi. The minimum storage size is 0 Gi and the
+        maximum storage size is 64 Ti. If storage is set to a value between 0 Gi
+        and 10 Gi, the storage request is rounded up to 10 Gi. All values are
+        rounded up to the nearest Gi.
 
         Parameters
         ----------
@@ -203,6 +215,11 @@ class Job:
         *G*, *Gi*, *T*, *Ti*, *P*, and *Pi*. Omitting a suffix means
         the value is in bytes.
 
+        For the :class:`.ServiceBackend`, the values 'lowmem', 'standard',
+        and 'highmem' are also valid arguments. 'lowmem' corresponds to
+        approximately 1 Gi/core, 'standard' corresponds to approximately
+        4 Gi/core, and 'highmem' corresponds to approximately 7 Gi/core.
+
         Parameters
         ----------
         memory:
@@ -226,6 +243,9 @@ class Job:
         The string expression must be of the form {number}{suffix}
         where the optional suffix is *m* representing millicpu.
         Omitting a suffix means the value is in cpu.
+
+        For the :class:`.ServiceBackend`, `cores` must be a power of
+        two between 0.25 and 16.
 
         Examples
         --------
@@ -889,7 +909,13 @@ class PythonJob(Job):
             job_path = os.path.dirname(result._get_path(remote_tmpdir))
             code_path = f'{job_path}/code{i}.p'
 
-            self._batch._gcs._write_gs_file_from_file_like_object(code_path, pipe)
+            if isinstance(self._batch._backend, backend.LocalBackend):
+                os.makedirs(os.path.dirname(code_path), exist_ok=True)
+                with open(code_path, 'wb') as f:
+                    f.write(pipe.getvalue())
+            else:
+                assert isinstance(self._batch._backend, backend.ServiceBackend)
+                self._batch._gcs._write_gs_file_from_file_like_object(code_path, pipe)
 
             code = self._batch.read_input(code_path)
             self._add_inputs(code)

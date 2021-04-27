@@ -19,15 +19,16 @@ import concurrent
 import aiodocker
 from aiodocker.exceptions import DockerError
 import google.oauth2.service_account
-from hailtop.utils import (time_msecs, request_retry_transient_errors,
-                           sleep_and_backoff, retry_all_errors, check_shell,
-                           CalledProcessError, check_shell_output, is_google_registry_image,
-                           find_spark_home, dump_all_stacktraces)
+from hailtop.utils import (time_msecs, request_retry_transient_errors, sleep_and_backoff,
+                           retry_all_errors, check_shell, CalledProcessError, check_shell_output,
+                           is_google_registry_domain, find_spark_home, dump_all_stacktraces,
+                           parse_docker_image_reference)
 from hailtop.httpx import client_session
-from hailtop.batch_client.parse import (parse_cpu_in_mcpu, parse_image_tag,
-                                        parse_memory_in_bytes, parse_storage_in_bytes)
-from hailtop.batch.hail_genetics_images import HAIL_GENETICS, HAIL_GENETICS_IMAGES
+from hailtop.batch_client.parse import (parse_cpu_in_mcpu, parse_memory_in_bytes, parse_storage_in_bytes)
+from hailtop.batch.hail_genetics_images import HAIL_GENETICS_IMAGES
 from hailtop import aiotools
+import hailtop.aiogoogle as aiogoogle
+
 # import uvloop
 
 from hailtop.config import DeployConfig
@@ -35,14 +36,17 @@ from hailtop.hail_logging import configure_logging
 
 from ..utils import (adjust_cores_for_memory_request, cores_mcpu_to_memory_bytes,
                      adjust_cores_for_packability, adjust_cores_for_storage_request,
-                     cores_mcpu_to_storage_bytes, storage_gib_to_bytes)
+                     round_storage_bytes_to_gib, cores_mcpu_to_storage_bytes)
 from ..semaphore import FIFOWeightedSemaphore
 from ..log_store import LogStore
-from ..globals import HTTP_CLIENT_MAX_SIZE, STATUS_FORMAT_VERSION
+from ..globals import (HTTP_CLIENT_MAX_SIZE, STATUS_FORMAT_VERSION, RESERVED_STORAGE_GB_PER_CORE,
+                       MAX_PERSISTENT_SSD_SIZE_GIB)
 from ..batch_format_version import BatchFormatVersion
 from ..worker_config import WorkerConfig
 from ..public_gcr_images import public_gcr_images
+from ..utils import storage_gib_to_bytes, Box
 
+from .disk import Disk
 from .flock import Flock
 
 # uvloop.install()
@@ -62,11 +66,15 @@ IP_ADDRESS = os.environ['IP_ADDRESS']
 BATCH_LOGS_BUCKET_NAME = os.environ['BATCH_LOGS_BUCKET_NAME']
 INSTANCE_ID = os.environ['INSTANCE_ID']
 PROJECT = os.environ['PROJECT']
+ZONE = os.environ['ZONE'].rsplit('/', 1)[1]
 PUBLIC_GCR_IMAGES = public_gcr_images(PROJECT)
+DOCKER_PREFIX = os.environ['DOCKER_PREFIX']
 WORKER_CONFIG = json.loads(base64.b64decode(os.environ['WORKER_CONFIG']).decode())
 MAX_IDLE_TIME_MSECS = int(os.environ['MAX_IDLE_TIME_MSECS'])
 WORKER_DATA_DISK_MOUNT = os.environ['WORKER_DATA_DISK_MOUNT']
 BATCH_WORKER_IMAGE = os.environ['BATCH_WORKER_IMAGE']
+UNRESERVED_WORKER_DATA_DISK_SIZE_GB = int(os.environ['UNRESERVED_WORKER_DATA_DISK_SIZE_GB'])
+assert UNRESERVED_WORKER_DATA_DISK_SIZE_GB >= 0
 
 log.info(f'CORES {CORES}')
 log.info(f'NAME {NAME}')
@@ -76,9 +84,12 @@ log.info(f'IP_ADDRESS {IP_ADDRESS}')
 log.info(f'BATCH_LOGS_BUCKET_NAME {BATCH_LOGS_BUCKET_NAME}')
 log.info(f'INSTANCE_ID {INSTANCE_ID}')
 log.info(f'PROJECT {PROJECT}')
+log.info(f'ZONE {ZONE}')
+log.info(f'DOCKER_PREFIX {DOCKER_PREFIX}')
 log.info(f'WORKER_CONFIG {WORKER_CONFIG}')
 log.info(f'MAX_IDLE_TIME_MSECS {MAX_IDLE_TIME_MSECS}')
 log.info(f'WORKER_DATA_DISK_MOUNT {WORKER_DATA_DISK_MOUNT}')
+log.info(f'UNRESERVED_WORKER_DATA_DISK_SIZE_GB {UNRESERVED_WORKER_DATA_DISK_SIZE_GB}')
 
 worker_config = WorkerConfig(WORKER_CONFIG)
 assert worker_config.cores == CORES
@@ -157,7 +168,7 @@ async def create_container(config, name):
                     if eget.status == 404:
                         await handle_error(eget)
                         continue
-            # No such image: gcr.io/...
+            # No such image: {DOCKER_PREFIX}/...
             if e.status == 404 and 'No such image' in e.message:
                 await handle_error(e)
                 continue
@@ -254,19 +265,18 @@ class Container:
         self.name = name
         self.spec = spec
 
-        repository, tag = parse_image_tag(self.spec['image'])
+        image_ref = parse_docker_image_reference(self.spec['image'])
 
-        if not tag:
+        if image_ref.tag is None:
             log.info(f'adding latest tag to image {self.spec["image"]} for {self}')
-            tag = 'latest'
+            image_ref.tag = 'latest'
 
-        if repository in HAIL_GENETICS_IMAGES:
-            repository_name_without_prefix = repository[len(HAIL_GENETICS):]
-            repository = f'gcr.io/{PROJECT}/{repository_name_without_prefix}'
+        if image_ref.name() in HAIL_GENETICS_IMAGES:
+            image_ref.domain = DOCKER_PREFIX.split('/', maxsplit=1)[0]
+            image_ref.path = f'{PROJECT}/{image_ref.name()}'
 
-        self.repository = repository
-        self.tag = tag
-        self.image = self.repository + ':' + self.tag
+        self.image_ref = image_ref
+        self.image_ref_str = str(image_ref)
 
         self.port = self.spec.get('port')
         self.host_port = None
@@ -297,7 +307,7 @@ class Container:
             "Tty": False,
             'OpenStdin': False,
             'Cmd': self.spec['command'],
-            'Image': self.image,
+            'Image': self.image_ref_str,
             'Entrypoint': ''
         }
 
@@ -367,11 +377,11 @@ class Container:
     async def ensure_image_is_pulled(self, auth=None):
         try:
             await docker_call_retry(MAX_DOCKER_OTHER_OPERATION_SECS, f'{self}')(
-                docker.images.get, self.image)
+                docker.images.get, self.image_ref_str)
         except DockerError as e:
             if e.status == 404:
                 await docker_call_retry(MAX_DOCKER_IMAGE_PULL_SECS, f'{self}')(
-                    docker.images.pull, self.image, auth=auth)
+                    docker.images.pull, self.image_ref_str, auth=auth)
 
     def current_user_access_token(self):
         key = base64.b64decode(self.job.gsa_key['key.json']).decode()
@@ -389,8 +399,8 @@ class Container:
     async def run(self, worker):
         try:
             async with self.step('pulling'):
-                is_gcr_image = is_google_registry_image(self.image)
-                is_public_gcr_image = self.repository in PUBLIC_GCR_IMAGES
+                is_gcr_image = is_google_registry_domain(self.image_ref.domain)
+                is_public_gcr_image = self.image_ref.name() in PUBLIC_GCR_IMAGES
 
                 try:
                     if not is_gcr_image:
@@ -405,7 +415,7 @@ class Container:
                         # per-user image cache.
                         auth = self.current_user_access_token()
                         await docker_call_retry(MAX_DOCKER_IMAGE_PULL_SECS, f'{self}')(
-                            docker.images.pull, self.image, auth=auth)
+                            docker.images.pull, self.image_ref_str, auth=auth)
                 except DockerError as e:
                     if e.status == 404 and 'pull access denied' in e.message:
                         self.short_error = 'image cannot be pulled'
@@ -495,6 +505,7 @@ class Container:
     async def delete_container(self):
         if self.overlay_path:
             path = self.overlay_path.replace('/', r'\/')
+
             async with Flock('/xfsquota/projects', pool=worker.pool):
                 await check_shell(f"sed -i '/:{path}/d' /xfsquota/projects")
 
@@ -727,7 +738,7 @@ class Job:
                  user: str,
                  gsa_key,
                  job_spec,
-                 format_version,
+                 format_version: BatchFormatVersion,
                  task_manager: aiotools.BackgroundTaskManager):
         self.batch_id = batch_id
         self.user = user
@@ -740,11 +751,50 @@ class Job:
         self.token = uuid.uuid4().hex
         self.scratch = f'/batch/{self.token}'
 
+        self.disk = None
         self.state = 'pending'
         self.error = None
 
         self.start_time = None
         self.end_time = None
+
+        if self.format_version.format_version < 6:
+            req_cpu_in_mcpu = parse_cpu_in_mcpu(job_spec['resources']['cpu'])
+            req_memory_in_bytes = parse_memory_in_bytes(job_spec['resources']['memory'])
+            req_storage_in_bytes = parse_storage_in_bytes(job_spec['resources']['storage'])
+
+            cpu_in_mcpu = adjust_cores_for_memory_request(req_cpu_in_mcpu, req_memory_in_bytes, worker_config.instance_type)
+            # still need to adjust cpu for storage request as that is how it was computed in the front_end
+            cpu_in_mcpu = adjust_cores_for_storage_request(cpu_in_mcpu, req_storage_in_bytes, CORES, worker_config.local_ssd_data_disk, worker_config.data_disk_size_gb)
+            cpu_in_mcpu = adjust_cores_for_packability(cpu_in_mcpu)
+
+            self.cpu_in_mcpu = cpu_in_mcpu
+            self.memory_in_bytes = cores_mcpu_to_memory_bytes(cpu_in_mcpu, worker_config.instance_type)
+
+            self.external_storage_in_gib = 0
+            data_disk_storage_in_bytes = cores_mcpu_to_storage_bytes(cpu_in_mcpu,
+                                                                     CORES,
+                                                                     worker_config.local_ssd_data_disk,
+                                                                     worker_config.data_disk_size_gb)
+            self.data_disk_storage_in_gib = round_storage_bytes_to_gib(data_disk_storage_in_bytes)
+        else:
+            self.cpu_in_mcpu = job_spec['resources']['cores_mcpu']
+            self.memory_in_bytes = job_spec['resources']['memory_bytes']
+            storage_in_gib = job_spec['resources']['storage_gib']
+            assert storage_in_gib == 0 or 10 <= storage_in_gib <= MAX_PERSISTENT_SSD_SIZE_GIB
+
+            if worker_config.job_private:
+                self.external_storage_in_gib = 0
+                self.data_disk_storage_in_gib = storage_in_gib
+            else:
+                self.external_storage_in_gib = storage_in_gib
+                # The reason for not giving each job 5 Gi (for example) is the
+                # maximum number of simultaneous jobs on a worker is 64 which
+                # basically fills the disk not allowing for caches etc. Most jobs
+                # would need an external disk in that case.
+                self.data_disk_storage_in_gib = min(RESERVED_STORAGE_GB_PER_CORE, self.cpu_in_mcpu / 1000 * RESERVED_STORAGE_GB_PER_CORE)
+
+        self.resources = worker_config.resources(self.cpu_in_mcpu, self.memory_in_bytes, self.external_storage_in_gib)
 
         self.input_volume_mounts = []
         self.main_volume_mounts = []
@@ -764,25 +814,6 @@ class Job:
         secrets = job_spec.get('secrets')
         self.secrets = secrets
         self.env = job_spec.get('env', [])
-
-        req_cpu_in_mcpu = parse_cpu_in_mcpu(job_spec['resources']['cpu'])
-        req_memory_in_bytes = parse_memory_in_bytes(job_spec['resources']['memory'])
-        req_storage_in_bytes = parse_storage_in_bytes(job_spec['resources']['storage'])
-
-        if worker_config.job_private:
-            cpu_in_mcpu = CORES * 1000
-            storage_in_bytes = storage_gib_to_bytes(worker_config.data_disk_size_gb)
-        else:
-            cpu_in_mcpu = adjust_cores_for_memory_request(req_cpu_in_mcpu, req_memory_in_bytes, worker_config.instance_type)
-            cpu_in_mcpu = adjust_cores_for_storage_request(cpu_in_mcpu, req_storage_in_bytes, CORES, worker_config.local_ssd_data_disk, worker_config.data_disk_size_gb)
-            cpu_in_mcpu = adjust_cores_for_packability(cpu_in_mcpu)
-            storage_in_bytes = cores_mcpu_to_storage_bytes(cpu_in_mcpu, CORES, worker_config.local_ssd_data_disk, worker_config.data_disk_size_gb)
-
-        self.cpu_in_mcpu = cpu_in_mcpu
-        self.memory_in_bytes = cores_mcpu_to_memory_bytes(self.cpu_in_mcpu, worker_config.instance_type)
-        self.storage_in_bytes = storage_in_bytes
-
-        self.resources = worker_config.resources(self.cpu_in_mcpu, self.memory_in_bytes)
 
         self.project_name = f'batch-{self.batch_id}-job-{self.job_id}'
         self.project_id = Job.get_next_xfsquota_project_id()
@@ -913,6 +944,38 @@ class DockerJob(Job):
 
         self.containers = containers
 
+    async def setup_io(self):
+        if not worker_config.job_private:
+            if worker.data_disk_space_remaining.value < self.external_storage_in_gib:
+                log.info(f'worker data disk storage is full: {self.external_storage_in_gib}Gi requested and {worker.data_disk_space_remaining}Gi remaining')
+
+                # disk name must be 63 characters or less
+                # https://cloud.google.com/compute/docs/reference/rest/v1/disks#resource:-disk
+                # under the information for the name field
+                uid = self.token[:20]
+                self.disk = Disk(zone=ZONE,
+                                 project=PROJECT,
+                                 instance_name=NAME,
+                                 name=f'batch-disk-{uid}',
+                                 compute_client=worker.compute_client,
+                                 size_in_gb=self.external_storage_in_gib,
+                                 mount_path=self.io_host_path())
+                labels = {
+                    'namespace': NAMESPACE,
+                    'batch': '1',
+                    'instance-name': NAME,
+                    'uid': uid
+                }
+                await self.disk.create(labels=labels)
+                log.info(f'created disk {self.disk.name} for job {self.id}')
+                return
+
+            worker.data_disk_space_remaining.value -= self.external_storage_in_gib
+            log.info(f'acquired {self.external_storage_in_gib}Gi from worker data disk storage with {worker.data_disk_space_remaining}Gi remaining')
+
+        assert self.disk is None, self.disk
+        os.makedirs(self.io_host_path())
+
     async def run(self, worker):
         async with worker.cpu_sem(self.cpu_in_mcpu):
             self.start_time = time_msecs()
@@ -925,18 +988,22 @@ class DockerJob(Job):
 
                 os.makedirs(f'{self.scratch}/')
 
+                await self.setup_io()
+
                 async with Flock('/xfsquota/projid', pool=worker.pool):
                     with open('/xfsquota/projid', 'a') as f:
                         f.write(f'{self.project_name}:{self.project_id}\n')
 
-                async with Flock('/xfsquota/projects', pool=worker.pool):
-                    with open('/xfsquota/projects', 'a') as f:
-                        f.write(f'{self.project_id}:{self.scratch}\n')
+                if not self.disk:
+                    async with Flock('/xfsquota/projects', pool=worker.pool):
+                        with open('/xfsquota/projects', 'a') as f:
+                            f.write(f'{self.project_id}:{self.scratch}\n')
+                    data_disk_storage_in_bytes = storage_gib_to_bytes(self.external_storage_in_gib + self.data_disk_storage_in_gib)
+                else:
+                    data_disk_storage_in_bytes = storage_gib_to_bytes(self.data_disk_storage_in_gib)
 
                 await check_shell_output(f'xfs_quota -x -D /xfsquota/projects -P /xfsquota/projid -c "project -s {self.project_name}" /host/')
-                await check_shell(f'xfs_quota -x -D /xfsquota/projects -P /xfsquota/projid -c "limit -p bsoft={self.storage_in_bytes} bhard={self.storage_in_bytes} {self.project_name}" /host/')
-
-                os.makedirs(self.io_host_path())
+                await check_shell_output(f'xfs_quota -x -D /xfsquota/projects -P /xfsquota/projid -c "limit -p bsoft={data_disk_storage_in_bytes} bhard={data_disk_storage_in_bytes} {self.project_name}" /host/')
 
                 if self.secrets:
                     for secret in self.secrets:
@@ -989,8 +1056,17 @@ class DockerJob(Job):
 
                 self.state = 'error'
                 self.error = traceback.format_exc()
+            finally:
+                if self.disk:
+                    try:
+                        await self.disk.delete()
+                        log.info(f'deleted disk {self.disk.name} for {self.id}')
+                    except Exception:
+                        log.exception(f'while detaching and deleting disk {self.disk.name} for {self.id}')
+                else:
+                    worker.data_disk_space_remaining.value += self.external_storage_in_gib
+
                 await self.cleanup()
-            await self.cleanup()
 
     async def cleanup(self):
         self.end_time = time_msecs()
@@ -1027,7 +1103,7 @@ class DockerJob(Job):
 
     async def delete(self):
         await super().delete()
-        for _, c in self.containers.items():
+        for c in self.containers.values():
             await c.delete()
 
     async def status(self):
@@ -1044,7 +1120,6 @@ class DockerJob(Job):
 
 
 class JVMJob(Job):
-
     def secret_host_path(self, secret):
         return f'{self.scratch}/secrets{secret["mount_path"]}'
 
@@ -1109,7 +1184,7 @@ class JVMJob(Job):
                         f.write(f'{self.project_id}:{self.scratch}\n')
 
                 await check_shell_output(f'xfs_quota -x -D /xfsquota/projects -P /xfsquota/projid -c "project -s {self.project_name}" /host/')
-                await check_shell(f'xfs_quota -x -D /xfsquota/projects -P /xfsquota/projid -c "limit -p bsoft={self.storage_in_bytes} bhard={self.storage_in_bytes} {self.project_name}" /host/')
+                await check_shell_output(f'xfs_quota -x -D /xfsquota/projects -P /xfsquota/projid -c "limit -p bsoft={self.data_disk_storage_in_gib} bhard={self.data_disk_storage_in_gib} {self.project_name}" /host/')
 
                 if self.secrets:
                     for secret in self.secrets:
@@ -1130,8 +1205,8 @@ class JVMJob(Job):
 
                 self.state = 'error'
                 self.error = traceback.format_exc()
-                self.cleanup()
-            self.cleanup()
+                await self.cleanup()
+            await self.cleanup()
 
     async def cleanup(self):
         self.end_time = time_msecs()
@@ -1145,7 +1220,7 @@ class JVMJob(Job):
             await check_shell(f'xfs_quota -x -D /xfsquota/projects -P /xfsquota/projid -c "limit -p bsoft=0 bhard=0 {self.project_name}" /host')
 
             async with Flock('/xfsquota/projid', pool=worker.pool):
-                await check_shell(f"sed     -i '/{self.project_name}:{self.project_id}/d' /xfsquota/projid")
+                await check_shell(f"sed -i '/{self.project_name}:{self.project_id}/d' /xfsquota/projid")
 
             async with Flock('/xfsquota/projects', pool=worker.pool):
                 await check_shell(f"sed -i '/{self.project_id}:/d' /xfsquota/projects")
@@ -1193,14 +1268,16 @@ class Worker:
         self.cores_mcpu = CORES * 1000
         self.last_updated = time_msecs()
         self.cpu_sem = FIFOWeightedSemaphore(self.cores_mcpu)
+        self.data_disk_space_remaining = Box(UNRESERVED_WORKER_DATA_DISK_SIZE_GB)
         self.pool = concurrent.futures.ThreadPoolExecutor()
         self.jobs = {}
         self.stop_event = asyncio.Event()
+        self.task_manager = aiotools.BackgroundTaskManager()
 
         # filled in during activation
         self.log_store = None
         self.headers = None
-        self.task_manager = aiotools.BackgroundTaskManager()
+        self.compute_client = None
 
     def shutdown(self):
         self.task_manager.shutdown()
@@ -1336,7 +1413,8 @@ class Worker:
                     if not self.jobs and idle_duration >= MAX_IDLE_TIME_MSECS:
                         log.info(f'idle {idle_duration} ms, exiting')
                         break
-                    log.info(f'n_jobs {len(self.jobs)} free_cores {self.cpu_sem.value / 1000} idle {idle_duration}')
+                    log.info(f'n_jobs {len(self.jobs)} free_cores {self.cpu_sem.value / 1000} idle {idle_duration} '
+                             f'free worker data disk storage {self.data_disk_space_remaining.value}Gi')
         finally:
             log.info('shutting down')
             await site.stop()
@@ -1487,6 +1565,9 @@ class Worker:
             self.log_store = LogStore(BATCH_LOGS_BUCKET_NAME, INSTANCE_ID, self.pool,
                                       project=PROJECT, credentials=credentials)
 
+            credentials = aiogoogle.Credentials.from_file('key.json')
+            self.compute_client = aiogoogle.ComputeClient(PROJECT, credentials=credentials)
+
             resp = await request_retry_transient_errors(
                 session, 'POST',
                 deploy_config.url('batch-driver', '/api/v1alpha/instances/activate'),
@@ -1519,6 +1600,16 @@ async def async_main():
         finally:
             await docker.close()
             log.info('docker closed')
+            asyncio.get_event_loop().set_debug(True)
+            log.debug('Tasks immediately after docker close')
+            dump_all_stacktraces()
+            other_tasks = [t for t in asyncio.tasks() if t != asyncio.current_task()]
+            if other_tasks:
+                _, pending = await asyncio.wait(other_tasks, timeout=10 * 60, return_when=asyncio.ALL_COMPLETED)
+                for t in pending:
+                    log.debug('Dangling task:')
+                    t.print_stack()
+                    t.cancel()
 
 
 loop = asyncio.get_event_loop()

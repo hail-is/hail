@@ -1,4 +1,4 @@
 include ../../config.mk
 
 push:
-	PROJECT=$(PROJECT) bash push.sh
+	DOCKER_PREFIX=$(DOCKER_PREFIX) bash push.sh

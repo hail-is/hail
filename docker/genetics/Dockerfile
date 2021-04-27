@@ -5,6 +5,8 @@ RUN hail-apt-get-install \
     libbz2-dev \
     libcurl4-openssl-dev \
     liblzma-dev \
+    libvcflib-tools \
+    libvcflib-dev \
     zlib1g-dev
 
 RUN mkdir samtools && \
@@ -16,8 +18,6 @@ RUN mkdir samtools && \
      ./configure --without-curses && \
      make && \
      make install)
-RUN git clone --recursive https://github.com/vcflib/vcflib.git && \
-    (cd vcflib && make)
 RUN curl -LO http://s3.amazonaws.com/plink2-assets/plink2_linux_avx2_latest.zip && \
     unzip plink2_linux_avx2_latest.zip && \
     mv plink2 /bin/ && \
@@ -45,6 +45,7 @@ RUN mkdir eigenstrat && \
     (cd eigenstrat && \
      git clone https://github.com/DReichLab/EIG.git && \
      cd EIG && \
+     git checkout v7.2.1 && \
      cd src && \
      LDLIBS="-llapacke" make && \
      make install)

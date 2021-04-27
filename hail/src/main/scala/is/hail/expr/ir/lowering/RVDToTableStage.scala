@@ -47,7 +47,7 @@ object TableStageToRVD {
     }, relationalBindings)
 
     val (Some(PTypeReferenceSingleCodeType(gbPType: PStruct)), f) = Compile[AsmFunction1RegionLong](ctx, FastIndexedSeq(), FastIndexedSeq(classInfo[Region]), LongInfo, globalsAndBroadcastVals)
-    val gbAddr = f(0, ctx.r)(ctx.r)
+    val gbAddr = f(ctx.fs, 0, ctx.r)(ctx.r)
 
     val globPType = gbPType.fieldType("globals").asInstanceOf[PStruct]
     val globRow = BroadcastRow(ctx, RegionValue(ctx.r, gbPType.loadField(gbAddr, 0)), globPType)
@@ -84,6 +84,7 @@ object TableStageToRVD {
       }, relationalBindings))
 
 
+    val fsBc = ctx.fsBc
     val crdd = ContextRDD.weaken(sparkContext
       .parallelize(encodedContexts.zipWithIndex, numSlices = nContexts))
       .cflatMap { case (rvdContext, (encodedContext, idx)) =>
@@ -91,7 +92,7 @@ object TableStageToRVD {
           .readRegionValue(rvdContext.partitionRegion)
         val decodedBroadcastVals = makeBcDec(new ByteArrayInputStream(encodedBcVals.value))
           .readRegionValue(rvdContext.partitionRegion)
-        makeIterator(idx, rvdContext, decodedContext, decodedBroadcastVals)
+        makeIterator(fsBc.value, idx, rvdContext, decodedContext, decodedBroadcastVals)
           .map(_.longValue())
       }
 

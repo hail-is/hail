@@ -219,6 +219,17 @@ class SimplifySuite extends HailSuite {
     }
   }
 
+  @Test def testStreamLenSimplifications(): Unit = {
+    val rangeIR = StreamRange(I32(0), I32(10), I32(1))
+    val mapOfRange = mapIR(rangeIR)(range_element => range_element + 5)
+    val mapBlockedByLet = bindIR(I32(5))(ref => mapIR(rangeIR)(range_element => range_element + ref))
+
+    assert(Simplify(StreamLen(rangeIR)) == Simplify(StreamLen(mapOfRange)))
+    assert(Simplify(StreamLen(mapBlockedByLet)) match {
+      case Let(name, value, body) => body == Simplify(StreamLen(mapOfRange))
+    })
+  }
+
   @Test def testNestedFilterIntervals() {
     var tir: TableIR = TableRange(10, 5)
     def r = Ref("row", tir.typ.rowType)

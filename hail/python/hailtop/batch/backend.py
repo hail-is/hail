@@ -1,4 +1,4 @@
-from typing import Optional, Dict
+from typing import Optional, Dict, Any
 import sys
 import abc
 import os
@@ -11,8 +11,9 @@ import webbrowser
 import warnings
 
 from hailtop.config import get_deploy_config, get_user_config
-from hailtop.utils import is_google_registry_image
+from hailtop.utils import is_google_registry_domain, parse_docker_image_reference
 from hailtop.batch.hail_genetics_images import HAIL_GENETICS_IMAGES
+from hailtop.batch_client.parse import parse_cpu_in_mcpu
 import hailtop.batch_client.client as bc
 from hailtop.batch_client.client import BatchClient
 
@@ -219,9 +220,21 @@ class LocalBackend(Backend):
             quoted_job_script = shq(joined_env + defs + cmd)
 
             if job._image:
-
-                memory = f'-m {job._memory}' if job._memory else ''
                 cpu = f'--cpus={job._cpu}' if job._cpu else ''
+
+                memory = job._memory
+                if memory is not None:
+                    memory_ratios = {'lowmem': 1024**3, 'standard': 4 * 1024**3, 'highmem': 7 * 1024**3}
+                    if memory in memory_ratios:
+                        if job._cpu is not None:
+                            mcpu = parse_cpu_in_mcpu(job._cpu)
+                            if mcpu is not None:
+                                memory = str(int(memory_ratios[memory] * (mcpu / 1000)))
+                            else:
+                                raise BatchException(f'invalid value for cpu: {job._cpu}')
+                        else:
+                            raise BatchException(f'must specify cpu when using {memory} to specify the memory')
+                    memory = f'-m {memory}' if memory else ''
 
                 lines.append(f"docker run "
                              "--entrypoint=''"
@@ -492,7 +505,7 @@ class ServiceBackend(Backend):
             if job.name:
                 attributes['name'] = job.name
 
-            resources = {}
+            resources: Dict[str, Any] = {}
             if job._cpu:
                 resources['cpu'] = job._cpu
             if job._memory:
@@ -505,7 +518,8 @@ class ServiceBackend(Backend):
                 resources['preemptible'] = job._preemptible
 
             image = job._image if job._image else default_image
-            if not is_google_registry_image(image) and image not in HAIL_GENETICS_IMAGES:
+            image_ref = parse_docker_image_reference(image)
+            if not is_google_registry_domain(image_ref.domain) and image_ref.name() not in HAIL_GENETICS_IMAGES:
                 warnings.warn(f'Using an image {image} not in GCR. '
                               f'Jobs may fail due to Docker Hub rate limits.')
 

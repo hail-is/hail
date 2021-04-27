@@ -4122,13 +4122,9 @@ class MatrixTable(ExprContainer):
     def _write_block_matrix(self, path, overwrite, entry_field, block_size):
         mt = self
         mt = mt._select_all(entry_exprs={entry_field: mt[entry_field]})
-        Env.backend().execute(ir.MatrixToValueApply(
-            mt._mir,
-            {'name': 'MatrixWriteBlockMatrix',
-             'path': path,
-             'overwrite': overwrite,
-             'entryField': entry_field,
-             'blockSize': block_size}))
+
+        writer = ir.MatrixBlockMatrixWriter(path, overwrite, entry_field, block_size)
+        Env.backend().execute(ir.MatrixWrite(self._mir, writer))
 
     def _calculate_new_partitions(self, n_partitions):
         """returns a set of range bounds that can be passed to write"""

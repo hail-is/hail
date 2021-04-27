@@ -586,11 +586,15 @@ def _get_flags(*flags):
 
 
 def debug_info():
+    from hail.backend.spark_backend import SparkBackend
     hail_jar_path = None
     if pkg_resources.resource_exists(__name__, "hail-all-spark.jar"):
         hail_jar_path = pkg_resources.resource_filename(__name__, "hail-all-spark.jar")
+    spark_conf = None
+    if isinstance(Env.backend(), SparkBackend):
+        spark_conf = spark_context()._conf.getAll()
     return {
-        'spark_conf': spark_context()._conf.getAll(),
+        'spark_conf': spark_conf,
         'hail_jar_path': hail_jar_path,
         'version': version()
     }

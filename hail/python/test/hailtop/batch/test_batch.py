@@ -353,6 +353,40 @@ class LocalTests(unittest.TestCase):
         assert len(b._jobs) == 10 + (5 + 3 + 2 + 1)
         b.run()
 
+    def test_python_job(self):
+        with tempfile.NamedTemporaryFile('w') as output_file:
+            b = self.batch()
+            head = b.new_job()
+            head.command(f'echo "5" > {head.r5}')
+            head.command(f'echo "3" > {head.r3}')
+
+            def read(path):
+                with open(path, 'r') as f:
+                    i = f.read()
+                return int(i)
+
+            def multiply(x, y):
+                return x * y
+
+            def reformat(x, y):
+                return {'x': x, 'y': y}
+
+            middle = b.new_python_job()
+            r3 = middle.call(read, head.r3)
+            r5 = middle.call(read, head.r5)
+            r_mult = middle.call(multiply, r3, r5)
+
+            middle2 = b.new_python_job()
+            r_mult = middle2.call(multiply, r_mult, 2)
+            r_dict = middle2.call(reformat, r3, r5)
+
+            tail = b.new_job()
+            tail.command(f'cat {r3.as_str()} {r5.as_repr()} {r_mult.as_str()} {r_dict.as_json()} > {tail.ofile}')
+
+            b.write_output(tail.ofile, output_file.name)
+            res = b.run()
+            assert self.read(output_file.name) == '3\n5\n30\n{\"x\": 3, \"y\": 5}'
+
     def test_backend_context_manager(self):
         with LocalBackend() as backend:
             b = Batch(backend=backend)
@@ -418,7 +452,7 @@ class ServiceTests(unittest.TestCase):
         b = self.batch()
         input = b.read_input_group(foo=f'{self.gcs_input_dir}/hello.txt')
         j = b.new_job()
-        j.storage('0.25Gi')
+        j.storage('10Gi')
         j.command(f'cat {input.foo}')
         j.command(f'cat {input}.foo')
         res = b.run()
@@ -586,18 +620,18 @@ class ServiceTests(unittest.TestCase):
 
         setup_jobs = []
         for i in range(10):
-            j = b.new_job(f'setup_{i}').cpu(0.1)
+            j = b.new_job(f'setup_{i}').cpu(0.25)
             j.command(f'echo "foo" > {j.ofile}')
             setup_jobs.append(j)
 
         jobs = []
         for i in range(500):
-            j = b.new_job(f'create_file_{i}').cpu(0.1)
+            j = b.new_job(f'create_file_{i}').cpu(0.25)
             j.command(f'echo {setup_jobs[i % len(setup_jobs)].ofile} > {j.ofile}')
             j.command(f'echo "bar" >> {j.ofile}')
             jobs.append(j)
 
-        combine = b.new_job(f'combine_output').cpu(0.1)
+        combine = b.new_job(f'combine_output').cpu(0.25)
         for tasks in grouped(arg_max(), jobs):
             combine.command(f'cat {" ".join(shq(j.ofile) for j in jobs)} >> {combine.ofile}')
         b.write_output(combine.ofile, f'{self.gcs_output_dir}/pipeline_benchmark_test.txt')

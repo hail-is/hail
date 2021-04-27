@@ -4110,7 +4110,7 @@ class NDArrayNumericExpression(NDArrayExpression):
 
         Returns
         -------
-        :class:`.NDArrayNumericExpression`
+        :class:`.NDArrayNumericExpression` or :class:`.NumericExpression`
         """
         if axis is None:
             axis = tuple(range(self.ndim))
@@ -4127,7 +4127,13 @@ class NDArrayNumericExpression(NDArrayExpression):
 
         num_axes_deleted = len(axes_set)
 
-        return construct_expr(res_ir, tndarray(self._type.element_type, self.ndim - num_axes_deleted), self._indices, self._aggregations)
+        result_ndim = self.ndim - num_axes_deleted
+        result = construct_expr(res_ir, tndarray(self._type.element_type, result_ndim), self._indices, self._aggregations)
+
+        if result_ndim == 0:
+            return result[()]
+        else:
+            return result
 
 
 scalars = {tbool: BooleanExpression,

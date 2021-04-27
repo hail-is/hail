@@ -2,8 +2,9 @@
 #define HAIL_QUERY_BACKEND_COMPILE_HPP_INCLUDED 1
 
 #include <llvm/IR/IRBuilder.h>
-#include <hail/query/backend/stype.hpp>
-#include <hail/query/ir_type.hpp>
+
+#include "hail/query/backend/stype.hpp"
+#include "hail/query/ir_type.hpp"
 
 namespace llvm {
 

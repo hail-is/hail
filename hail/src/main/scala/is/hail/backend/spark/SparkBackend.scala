@@ -12,7 +12,7 @@ import is.hail.expr.ir._
 import is.hail.types.physical.{PStruct, PTuple, PType, PTypeReferenceSingleCodeType}
 import is.hail.types.virtual.{TStruct, TVoid, Type}
 import is.hail.backend.{Backend, BackendContext, BroadcastValue, HailTaskContext}
-import is.hail.io.fs.HadoopFS
+import is.hail.io.fs.{FS, HadoopFS}
 import is.hail.utils._
 import is.hail.io.bgen.IndexBgen
 import org.json4s.DefaultFormats
@@ -25,7 +25,6 @@ import scala.collection.mutable
 import scala.reflect.ClassTag
 import scala.collection.JavaConverters._
 import java.io.{Closeable, PrintWriter}
-
 import is.hail.io.plink.LoadPlink
 import is.hail.io.vcf.VCFsReader
 import is.hail.linalg.{BlockMatrix, RowMatrix}
@@ -278,12 +277,13 @@ class SparkBackend(
 
   def broadcast[T : ClassTag](value: T): BroadcastValue[T] = new SparkBroadcastValue[T](sc.broadcast(value))
 
-  def parallelizeAndComputeWithIndex(backendContext: BackendContext, collection: Array[Array[Byte]], dependency: Option[TableStageDependency] = None)(f: (Array[Byte], HailTaskContext) => Array[Byte]): Array[Array[Byte]] = {
+  def parallelizeAndComputeWithIndex(backendContext: BackendContext, collection: Array[Array[Byte]], dependency: Option[TableStageDependency] = None)(f: (Array[Byte], HailTaskContext, FS) => Array[Byte]): Array[Array[Byte]] = {
+    val fsBc = fs.broadcast
 
     val sparkDeps = dependency.toIndexedSeq
       .flatMap(dep => dep.deps.map(rvdDep => new AnonymousDependency(rvdDep.asInstanceOf[RVDDependency].rvd.crdd.rdd)))
 
-    new SparkBackendComputeRDD(sc, collection, f, sparkDeps).collect()
+    new SparkBackendComputeRDD(fsBc, sc, collection, f, sparkDeps).collect()
   }
 
   def defaultParallelism: Int = sc.defaultParallelism
@@ -342,7 +342,7 @@ class SparkBackend(
             ir,
             print = print)
         }
-        ctx.timer.time("Run")(Left(f(0, ctx.r)(ctx.r)))
+        ctx.timer.time("Run")(Left(f(ctx.fs, 0, ctx.r)(ctx.r)))
 
       case _ =>
         val (Some(PTypeReferenceSingleCodeType(pt: PTuple)), f) = ctx.timer.time("Compile") {
@@ -352,7 +352,7 @@ class SparkBackend(
             MakeTuple.ordered(FastSeq(ir)),
             print = print)
         }
-        ctx.timer.time("Run")(Right((pt, f(0, ctx.r).apply(ctx.r))))
+        ctx.timer.time("Run")(Right((pt, f(ctx.fs, 0, ctx.r).apply(ctx.r))))
     }
 
     res
@@ -685,9 +685,10 @@ class SparkBackend(
 case class SparkBackendComputeRDDPartition(data: Array[Byte], index: Int) extends Partition
 
 class SparkBackendComputeRDD(
+  fsBc: BroadcastValue[FS],
   sc: SparkContext,
   @transient private val collection: Array[Array[Byte]],
-  f: (Array[Byte], HailTaskContext) => Array[Byte],
+  f: (Array[Byte], HailTaskContext, FS) => Array[Byte],
   deps: Seq[Dependency[_]])
   extends RDD[Array[Byte]](sc, deps) {
 
@@ -697,6 +698,6 @@ class SparkBackendComputeRDD(
 
   override def compute(partition: Partition, context: TaskContext): Iterator[Array[Byte]] = {
     val sp = partition.asInstanceOf[SparkBackendComputeRDDPartition]
-    Iterator.single(f(sp.data, SparkTaskContext.get()))
+    Iterator.single(f(sp.data, SparkTaskContext.get(), fsBc.value))
   }
 }

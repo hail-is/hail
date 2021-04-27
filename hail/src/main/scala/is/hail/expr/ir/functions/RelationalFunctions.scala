@@ -117,7 +117,6 @@ object RelationalFunctions {
     classOf[NPartitionsTable],
     classOf[NPartitionsMatrixTable],
     classOf[LogisticRegression],
-    classOf[MatrixWriteBlockMatrix],
     classOf[PoissonRegression],
     classOf[Skat],
     classOf[LocalLDPrune],

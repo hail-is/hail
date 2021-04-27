@@ -86,7 +86,7 @@ object Graph {
           rvb.endTuple()
           val rOffset = rvb.end()
 
-          val resultOffset = f(0, region)(region, lOffset, rOffset)
+          val resultOffset = f(ctx.fs, 0, region)(region, lOffset, rOffset)
           if (resultType.isFieldMissing(resultOffset, 0)) {
             throw new RuntimeException(
               s"a comparison returned a missing value when " +

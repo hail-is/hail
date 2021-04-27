@@ -139,6 +139,28 @@ class MatrixPLINKWriter(MatrixWriter):
             other.path == self.path
 
 
+class MatrixBlockMatrixWriter(MatrixWriter):
+    @typecheck_method(path=str, overwrite=bool, entry_field=str, block_size=int)
+    def __init__(self, path, overwrite, entry_field, block_size):
+        self.path = path
+        self.overwrite = overwrite
+        self.entry_field = entry_field
+        self.block_size = block_size
+
+    def render(self):
+        writer = {'name': 'MatrixBlockMatrixWriter',
+                  'path': self.path,
+                  'overwrite': self.overwrite,
+                  'entryField': self.entry_field,
+                  'blockSize': self.block_size}
+        return escape_str(json.dumps(writer))
+
+    def __eq__(self, other):
+        return isinstance(other, MatrixBlockMatrixWriter) and \
+            other.path == self.path and other.overwrite == self.overwrite and \
+            other.entry_field == self.entry_field and other.block_size == self.block_size
+
+
 class MatrixNativeMultiWriter(object):
     @typecheck_method(prefix=str,
                       overwrite=bool,

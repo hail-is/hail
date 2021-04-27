@@ -29,7 +29,6 @@ gsutil -u $PROJECT cp gs://hail-us-vep/vep85-loftee-gcloud.json /vep_data/vep85-
 ln -s /vep_data/vep85-gcloud.json $VEP_CONFIG_PATH
 
 gsutil -u $PROJECT cat gs://${VEP_BUCKET}/loftee-beta/${ASSEMBLY}.tar | tar -xf - -C /vep_data
-gsutil -u $PROJECT cat gs://${VEP_BUCKET}/Plugins.tar /vep_data/Plugins.tar | tar -xf - -C /vep_data
 gsutil -u $PROJECT cat gs://${VEP_BUCKET}/homo-sapiens/85_${ASSEMBLY}.tar | tar -xf - -C /vep_data/homo_sapiens
 docker pull ${VEP_DOCKER_IMAGE} &
 wait
@@ -62,9 +61,7 @@ EOF
 chmod +x /vep.sh
 
 # Run VEP on the 1-variant VCF to create fasta.index file -- caution do not make fasta.index file writeable afterwards!
-gsutil cp gs://hail-common/vep/vep/loftee-beta/GRCh37/1var.vcf file:///1var.vcf
-
-cat /1var.vcf | docker run -i -v /vep_data:/root/.vep \
+cat /vep_data/loftee_data/1var.vcf | docker run -i -v /vep_data:/root/.vep \
     ${VEP_DOCKER_IMAGE} \
     perl /vep/ensembl-tools-release-85/scripts/variant_effect_predictor/variant_effect_predictor.pl \
     --format vcf \

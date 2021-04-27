@@ -1,7 +1,9 @@
 package is.hail.services
 
+import java.io.InputStream
 import java.nio.charset.StandardCharsets
 
+import is.hail.HailContext
 import is.hail.utils._
 import is.hail.services._
 import org.apache.commons.io.IOUtils
@@ -29,11 +31,16 @@ class ClientResponseException(
 object Requester {
   lazy val log: Logger = LogManager.getLogger("Requester")
 
-  private val httpClient: CloseableHttpClient = {
+  val httpClient: CloseableHttpClient = {
     log.info("creating HttpClient")
-    HttpClients.custom()
-      .setSSLContext(tls.getSSLContext)
-      .build()
+    try {
+      HttpClients.custom()
+        .setSSLContext(tls.getSSLContext)
+        .build()
+    } catch { case _: NoSSLConfigFound =>
+      log.info("creating HttpClient with no SSL Context")
+      HttpClients.custom().build()
+    }
   }
 }
 
@@ -44,8 +51,7 @@ class Requester(
   def this(service: String) = this(Tokens.get, service)
 
   import Requester._
-
-  def request(req: HttpUriRequest, body: HttpEntity = null): JValue = {
+  def requestWithHandler[T >: Null](req: HttpUriRequest, body: HttpEntity, f: InputStream => T): T = {
     log.info(s"request ${ req.getMethod } ${ req.getURI }")
 
     if (body != null)
@@ -68,17 +74,22 @@ class Requester(
         }
         val entity: HttpEntity = resp.getEntity
         if (entity != null) {
-          using(entity.getContent) { content =>
-            val s = IOUtils.toByteArray(content)
-            if (s.isEmpty)
-              null
-            else
-              JsonMethods.parse(new String(s))
-
-          }
+          using(entity.getContent)(f)
         } else
           null
       }
     }
   }
+
+  def requestAsByteStream(req: HttpUriRequest, body: HttpEntity = null): Array[Byte] =
+    requestWithHandler(req, body, IOUtils.toByteArray)
+
+  def request(req: HttpUriRequest, body: HttpEntity = null): JValue =
+    requestWithHandler(req, body, { content =>
+      val s = IOUtils.toByteArray(content)
+      if (s.isEmpty)
+        null
+      else
+        JsonMethods.parse(new String(s))
+    })
 }

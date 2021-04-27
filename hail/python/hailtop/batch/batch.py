@@ -5,10 +5,10 @@ from typing import Optional, Dict, Union, List, Any, Set
 
 from hailtop.utils import secret_alnum_string
 
-from ..google_storage import GCS
-
 from . import backend as _backend, job, resource as _resource  # pylint: disable=cyclic-import
 from .exceptions import BatchException
+
+from ..google_storage import GCS
 
 
 class Batch:
@@ -58,14 +58,14 @@ class Batch:
     default_memory:
         Memory setting to use by default if not specified by a job. Only
         applicable if a docker image is specified for the :class:`.LocalBackend`
-        or the :class:`.ServiceBackend`. Value is in GB.
+        or the :class:`.ServiceBackend`. See :meth:`.Job.memory`.
     default_cpu:
         CPU setting to use by default if not specified by a job. Only
         applicable if a docker image is specified for the :class:`.LocalBackend`
-        or the :class:`.ServiceBackend`.
+        or the :class:`.ServiceBackend`. See :meth:`.Job.cpu`.
     default_storage:
         Storage setting to use by default if not specified by a job. Only
-        applicable for the :class:`.ServiceBackend`.
+        applicable for the :class:`.ServiceBackend`. See :meth:`.Job.storage`.
     default_timeout:
         Maximum time in seconds for a job to run before being killed. Only
         applicable for the :class:`.ServiceBackend`. If `None`, there is no
@@ -99,9 +99,9 @@ class Batch:
                  attributes: Optional[Dict[str, str]] = None,
                  requester_pays_project: Optional[str] = None,
                  default_image: Optional[str] = None,
-                 default_memory: Optional[str] = None,
-                 default_cpu: Optional[str] = None,
-                 default_storage: Optional[str] = None,
+                 default_memory: Optional[Union[int, str]] = None,
+                 default_cpu: Optional[Union[float, int, str]] = None,
+                 default_storage: Optional[Union[int, str]] = None,
                  default_timeout: Optional[Union[float, int]] = None,
                  default_shell: Optional[str] = None,
                  default_python_image: Optional[str] = None,
@@ -130,11 +130,17 @@ class Batch:
         self._default_storage = default_storage
         self._default_timeout = default_timeout
         self._default_shell = default_shell
-
         self._default_python_image = default_python_image
 
-        self._gcs = GCS(blocking_pool=concurrent.futures.ThreadPoolExecutor(),
-                        project=project)
+        self._project = project
+        self.__gcs: Optional[GCS] = None
+
+    @property
+    def _gcs(self):
+        if self.__gcs is None:
+            self.__gcs = GCS(blocking_pool=concurrent.futures.ThreadPoolExecutor(),
+                             project=self._project)
+        return self.__gcs
 
     def new_job(self,
                 name: Optional[str] = None,

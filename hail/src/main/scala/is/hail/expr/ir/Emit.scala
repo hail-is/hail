@@ -887,36 +887,46 @@ class Emit[C](
         presentPC(finish(cb))
 
       case x@ArrayRef(a, i, s) =>
-        val errorTransformer: Code[String] => Code[String] = s match {
-          case Str("") =>
-            val prettied = Pretty.short(x)
-            (c: Code[String]) =>
-              c.concat("\n----------\nIR:\n").concat(prettied)
-          case Str(s) => (c: Code[String]) => c.concat("\n----------\nPython traceback:\n").concat(s)
-          case s =>
-            (_c: Code[String]) => {
-              val c = cb.newLocal("array_ref_c", _c)
-              val ies = emitI(s)
-              ies.consume(cb, {}, { pc =>
-                cb.assign(c, c.concat("\n----------\nPython traceback:\n")
-                        .concat(pc.asString.loadString()))
+        def boundsCheck(cb: EmitCodeBuilder, index: Value[Int], len: Value[Int]): Unit = {
+          s match {
+            case Str(constant) =>
+              val baseMsg = constant match {
+                case "" => s"\n----------\nIR:\n${ Pretty.short(x) }"
+                case c => s"\n----------\nPython traceback:\n$c"
+              }
+              val bcMb = mb.getOrGenEmitMethod("arrayref_bounds_check", ("arrayref_bounds_check", baseMsg),
+                IndexedSeq[ParamType](IntInfo, IntInfo), UnitInfo)({ mb =>
+                mb.voidWithBuilder { cb =>
+                  val index = mb.getCodeParam[Int](1)
+                  val len = mb.getCodeParam[Int](2)
+                  cb.ifx(index < 0 || index >= len, {
+                    cb._fatal(const("array index out of bounds: index=")
+                      .concat(index.toS)
+                      .concat(", length=")
+                      .concat(len.toS)
+                      .concat(baseMsg))
+                  })
+
+                }
               })
-              c.load()
-            }
+              cb.invokeVoid(bcMb, index, len)
+            case s =>
+              cb.ifx(index < 0 || index >= len, {
+                val msg = cb.newLocal[String]("arrayref_msg", const("array index out of bounds: index=")
+                  .concat(index.toS)
+                  .concat(", length=")
+                  .concat(len.toS))
+                emitI(s).consume(cb, (), sc => cb.assign(msg, msg.concat(sc.asString.loadString())))
+                cb._fatal(msg)
+              })
+          }
         }
 
         emitI(a).flatMap(cb) { (ac) =>
           emitI(i).flatMap(cb) { (ic) =>
             val av = ac.asIndexable.memoize(cb, "aref_a")
             val iv = cb.newLocal("i", ic.asInt.intCode(cb))
-
-            cb.ifx(iv < 0 || iv >= av.loadLength(), {
-              cb._fatal(errorTransformer(
-                const("array index out of bounds: index=")
-                  .concat(iv.toS)
-                  .concat(", length=")
-                  .concat(av.loadLength().toS)))
-            })
+            boundsCheck(cb, iv, av.loadLength())
             av.loadElement(cb, iv).typecast[PCode]
           }
         }
@@ -1059,6 +1069,29 @@ class Emit[C](
           })
 
           dictTyp.construct(finishOuter(cb))
+        }
+
+      case x@StreamLen(a) =>
+        emitStream(a, cb, region).map(cb) { case stream: SStreamCode =>
+          val producer = stream.producer
+          producer.length match {
+            case Some(len) =>
+              producer.initialize(cb)
+              val xLen = cb.newLocal[Int]("streamlen_x", len)
+              producer.close(cb)
+              PCode(x.pType, xLen)
+            case None =>
+              val count = cb.newLocal[Int]("stream_length", 0)
+              producer.memoryManagedConsume(region, cb) { cb =>
+                producer.element.toI(cb).consume(cb, {}, _ => {})
+                cb.assign(count, count + 1)
+              }
+              producer.element.pv match {
+                case SStreamCode(_, nested) => StreamProducer.defineUnusedLabels(nested, mb)
+                case _ =>
+              }
+              PCode(x.pType, count)
+          }
         }
 
       case x@MakeNDArray(dataIR, shapeIR, rowMajorIR, errorId) =>
@@ -2277,28 +2310,6 @@ class Emit[C](
           arrayAddress
         )
         EmitCode(lengthTriplet.setup, lengthTriplet.m, PCode(pt, result))
-
-      case x@StreamLen(a) =>
-        EmitCode.fromI(mb)(cb => emitStream(a, region).toI(cb).map(cb) { case stream: SStreamCode =>
-          val producer = stream.producer
-          producer.length match {
-            case Some(len) =>
-              producer.initialize(cb)
-              val xLen = cb.newLocal[Int]("streamlen_x", len)
-              producer.close(cb)
-              PCode(x.pType, xLen)
-            case None =>
-              val count = cb.newLocal[Int]("stream_length", 0)
-              producer.memoryManagedConsume(region, cb) { cb =>
-                cb.assign(count, count + 1)
-              }
-              producer.element.pv match {
-                case SStreamCode(_, nested) => StreamProducer.defineUnusedLabels(producer, mb)
-                case _ =>
-              }
-              PCode(x.pType, count)
-          }
-        })
 
       case In(i, expectedPType) =>
         // this, Code[Region], ...

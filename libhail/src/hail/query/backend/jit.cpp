@@ -1,20 +1,21 @@
-#include <hail/format.hpp>
-#include <hail/query/backend/compile.hpp>
-#include <hail/query/backend/jit.hpp>
-#include <hail/query/backend/stype.hpp>
-#include <hail/query/backend/svalue.hpp>
-#include <hail/query/ir.hpp>
-#include <hail/query/ir_type.hpp>
-#include <hail/runtime/runtime.hpp>
-#include <hail/type.hpp>
-#include <hail/tunion.hpp>
-#include <hail/vtype.hpp>
-#include <hail/value.hpp>
 #include <llvm/IR/Type.h>
 #include <llvm/IR/LLVMContext.h>
 #include <llvm/IR/IRBuilder.h>
 #include <llvm/Support/TargetSelect.h>
 #include <llvm/ExecutionEngine/Orc/LLJIT.h>
+
+#include "hail/format.hpp"
+#include "hail/query/backend/compile.hpp"
+#include "hail/query/backend/jit.hpp"
+#include "hail/query/backend/stype.hpp"
+#include "hail/query/backend/svalue.hpp"
+#include "hail/query/ir.hpp"
+#include "hail/query/ir_type.hpp"
+#include "hail/runtime/runtime.hpp"
+#include "hail/type.hpp"
+#include "hail/tunion.hpp"
+#include "hail/vtype.hpp"
+#include "hail/value.hpp"
 
 namespace hail {
 

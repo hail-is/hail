@@ -126,6 +126,8 @@ def transform_gvcf(mt, info_to_keep=[]) -> Table:
             n_no_nonref = n_alleles - hl.int(has_non_ref)
             triangle_without_nonref = hl.triangle(n_no_nonref)
             return (hl.case()
+                    .when(e.GT.is_haploid(),
+                          hl.or_missing(e.GT[0] < n_no_nonref, e.GT))
                     .when(index < triangle_without_nonref, e.GT)
                     .when(index < hl.triangle(n_alleles), hl.missing('call'))
                     .or_error('invalid GT ' + hl.str(e.GT) + ' at site ' + hl.str(row.locus)))
@@ -160,7 +162,9 @@ def transform_gvcf(mt, info_to_keep=[]) -> Table:
                                                               hl.missing(e.PL.dtype)))
                 handled_fields['RGQ'] = hl.if_else(
                     has_non_ref,
-                    e.PL[hl.call(0, alleles_len - 1).unphased_diploid_gt_index()],
+                    hl.if_else(e.GT.is_haploid(),
+                               e.PL[alleles_len - 1],
+                               e.PL[hl.call(0, alleles_len - 1).unphased_diploid_gt_index()]),
                     hl.missing(e.PL.dtype.element_type))
 
             handled_fields['END'] = row.info.END

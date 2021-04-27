@@ -1,8 +1,9 @@
-#include <hail/format.hpp>
-#include <hail/tunion.hpp>
-#include <hail/type.hpp>
-#include <hail/vtype.hpp>
 #include <tuple>
+
+#include "hail/format.hpp"
+#include "hail/tunion.hpp"
+#include "hail/type.hpp"
+#include "hail/vtype.hpp"
 
 namespace hail {
 

@@ -1,7 +1,7 @@
 #ifndef HAIL_VTYPE_HPP_INCLUDED
 #define HAIL_VTYPE_HPP_INCLUDED 1
 
-#include <hail/type.hpp>
+#include "hail/type.hpp"
 
 namespace hail {
 

@@ -1,7 +1,7 @@
 #include <cstring>
 
-#include <hail/format.hpp>
-#include <hail/value.hpp>
+#include "hail/format.hpp"
+#include "hail/value.hpp"
 
 namespace hail {
 
@@ -156,7 +156,7 @@ format1(FormatStream &s, const Value &value) {
     break;
   default:
     abort();
-    
+
   }
 }
 

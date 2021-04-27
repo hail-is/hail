@@ -21,12 +21,30 @@ $.ajax({
       }).reduce(function(i, j) {
         return i + "<br>" + j;
       });
+      let cloud_region_string = dataset.versions.map(function(i) {
+        let clouds = Object.keys(i["url"])
+        let cloud_region = {}
+        let output = []
+        if (clouds.includes("gcp")) {
+          cloud_region["gcp"] = Object.keys(i["url"]["gcp"])
+        }
+        if (clouds.includes("aws")) {
+          cloud_region["aws"] = Object.keys(i["url"]["aws"])
+        }
+        for (let [key, value] of Object.entries(cloud_region)) {
+          output = output.concat([`${key}:&nbsp[${value}]`])
+        }
+        return output.join(",&nbsp");
+      }).reduce(function(i, j) {
+        return i + "<br>" + j;
+      });
       let tr = $("<tr/>");
       tr.append("<td>" + name + "</td>");
       tr.append("<td>" + dataset.description + "\n<a href='" + dataset.url +
           "'>link</a></td>");
       tr.append("<td>" + versions_string + "</td>");
       tr.append("<td>" + ref_genome_string + "</td>");
+      tr.append("<td>" + cloud_region_string + "</td>");
       $(".table1").append(tr);
     }
   },

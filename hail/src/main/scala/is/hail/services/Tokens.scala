@@ -16,7 +16,9 @@ object Tokens {
     if (new File(file).isFile) {
       using(new FileInputStream(file)) { is =>
         implicit val formats: Formats = DefaultFormats
-        new Tokens(JsonMethods.parse(is).extract[Map[String, String]])
+        val tokens = JsonMethods.parse(is).extract[Map[String, String]]
+        log.info(s"tokens found for namespaces {${ tokens.keys.mkString(", ") }}")
+        new Tokens(tokens)
       }
     } else {
       log.info(s"tokens file not found: $file")

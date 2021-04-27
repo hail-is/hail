@@ -1,12 +1,22 @@
+import pkg_resources
+import sys
+import asyncio
 import nest_asyncio
-nest_asyncio.apply()
-
-import pkg_resources  # noqa: E402
-import sys  # noqa: E402
 
 if sys.version_info < (3, 6):
     raise EnvironmentError('Hail requires Python 3.6 or later, found {}.{}'.format(
         sys.version_info.major, sys.version_info.minor))
+
+if sys.version_info[:2] == (3, 6):
+    if asyncio._get_running_loop() is not None:
+        nest_asyncio.apply()
+else:
+    try:
+        asyncio.get_running_loop()
+        nest_asyncio.apply()
+    except RuntimeError as err:
+        assert 'no running event loop' in err.args[0]
+
 
 __pip_version__ = pkg_resources.resource_string(__name__, 'hail_pip_version').decode().strip()
 del pkg_resources

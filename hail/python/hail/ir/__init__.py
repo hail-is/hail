@@ -54,7 +54,7 @@ from .table_reader import TableReader, TableNativeReader, TextTableReader, \
 from .blockmatrix_reader import BlockMatrixReader, BlockMatrixNativeReader, \
     BlockMatrixBinaryReader, BlockMatrixPersistReader
 from .matrix_writer import MatrixWriter, MatrixNativeWriter, MatrixVCFWriter, \
-    MatrixGENWriter, MatrixBGENWriter, MatrixPLINKWriter, MatrixNativeMultiWriter
+    MatrixGENWriter, MatrixBGENWriter, MatrixPLINKWriter, MatrixNativeMultiWriter, MatrixBlockMatrixWriter
 from .table_writer import TableWriter, TableNativeWriter, TableTextWriter
 from .blockmatrix_writer import BlockMatrixWriter, BlockMatrixNativeWriter, \
     BlockMatrixBinaryWriter, BlockMatrixRectanglesWriter, \
@@ -260,6 +260,7 @@ __all__ = [
     'MatrixBGENWriter',
     'MatrixPLINKWriter',
     'MatrixNativeMultiWriter',
+    'MatrixBlockMatrixWriter',
     'MatrixRowsTable',
     'TableJoin',
     'TableLeftJoinRightDistinct',
