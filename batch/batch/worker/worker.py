@@ -69,6 +69,7 @@ PROJECT = os.environ['PROJECT']
 ZONE = os.environ['ZONE'].rsplit('/', 1)[1]
 PUBLIC_GCR_IMAGES = public_gcr_images(PROJECT)
 DOCKER_PREFIX = os.environ['DOCKER_PREFIX']
+PUBLIC_GCR_IMAGES = public_gcr_images(DOCKER_PREFIX)
 WORKER_CONFIG = json.loads(base64.b64decode(os.environ['WORKER_CONFIG']).decode())
 MAX_IDLE_TIME_MSECS = int(os.environ['MAX_IDLE_TIME_MSECS'])
 WORKER_DATA_DISK_MOUNT = os.environ['WORKER_DATA_DISK_MOUNT']
@@ -273,7 +274,7 @@ class Container:
 
         if image_ref.name() in HAIL_GENETICS_IMAGES:
             image_ref.domain = DOCKER_PREFIX.split('/', maxsplit=1)[0]
-            image_ref.path = f'{PROJECT}/{image_ref.name()}'
+            image_ref.path = '/'.join(DOCKER_PREFIX.split('/')[1:] + [image_ref.path])
 
         self.image_ref = image_ref
         self.image_ref_str = str(image_ref)
