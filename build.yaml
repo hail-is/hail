@@ -3460,7 +3460,6 @@ steps:
       make test-dataproc DEV_CLARIFIER=ci_test_dataproc/
     dependsOn:
       - ci_utils_image
-      - code
       - default_ns
       - merge_code
     inputs:
