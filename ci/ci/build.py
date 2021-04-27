@@ -498,12 +498,7 @@ set +e
 /busybox/sh /render_key
 set -e
 
-/kaniko/executor --dockerfile={shq(dockerfile_in_context)} \
-                 --context=dir://{shq(context)} \
-                 --destination={shq(self.image)} \
-                 --cache=true \
-                 --snapshotMode=redo \
-                 --use-new-run'''
+/kaniko/executor --dockerfile={shq(dockerfile_in_context)} --context=dir://{shq(context)} --destination={shq(self.image)} --cache=true --snapshotMode=redo --use-new-run'''
             ],
             secrets=[{
                 'namespace': DEFAULT_NAMESPACE,
