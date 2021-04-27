@@ -432,13 +432,11 @@ class BuildImage2Step(Step):
         else:
             self.base_image = f'gcr.io/{GCP_PROJECT}/ci-intermediate'
         self.image = f'{self.base_image}:{self.token}'
-        self.render_dockerfile_job = None
-        self.kaniko_job = None
+        self.job = None
 
     def wrapped_job(self):
-        if self.render_dockerfile_job is not None:
-            assert self.kaniko_job is not None
-            return [self.render_dockerfile_job, self.kaniko_job]
+        if self.job is not None:
+            return [self.job]
         return []
 
     @staticmethod
@@ -500,11 +498,11 @@ set +e
 /busybox/sh /render_key
 set -e
 
-/kaniko/executor --dockerfile={shq(dockerfile_in_context)}
-                 --context=dir://{shq(context)}
-                 --destination={shq(self.image)}
-                 --cache=true
-                 --snapshotMode=redo
+/kaniko/executor --dockerfile={shq(dockerfile_in_context)} \
+                 --context=dir://{shq(context)} \
+                 --destination={shq(self.image)} \
+                 --cache=true \
+                 --snapshotMode=redo \
                  --use-new-run'''
             ],
             secrets=[{
@@ -513,7 +511,7 @@ set -e
                 'mount_path': '/secrets/gcr-push-service-account-key',
             }],
             env={'GOOGLE_APPLICATION_CREDENTIALS': '/secrets/gcr-push-service-account-key/gcr-push-service-account-key.json'},
-            attributes={'name': self.name + '_kaniko'},
+            attributes={'name': self.name},
             input_files=input_files,
             parents=self.deps_parents(),
         )
