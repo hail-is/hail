@@ -1099,7 +1099,7 @@ steps:
     contextPath: /io/repo
     publishAs: hail-pip-installed-python37
     inputs:
-      - form: /repo
+      - from: /repo
         to: /io/repo
       - from: /repo/wheel-container.tar
         to: /io/repo/wheel-container.tar
@@ -1113,7 +1113,7 @@ steps:
     contextPath: /io/repo
     publishAs: hail-pip-installed-python36
     inputs:
-      - form: /repo
+      - from: /repo
         to: /io/repo
       - from: /repo/wheel-container.tar
         to: /io/repo/wheel-container.tar
