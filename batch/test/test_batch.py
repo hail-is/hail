@@ -64,40 +64,6 @@ def test_exit_code_duration(client):
     assert j._get_exit_code(status, 'main') == 7, status
 
 
-def test_msec_mcpu(client):
-    builder = client.create_batch()
-    resources = {
-        'cpu': '250m',
-        'memory': '375M',
-        'storage': '0Gi'
-    }
-    # two jobs so the batch msec_mcpu computation is non-trivial
-    builder.create_job(DOCKER_ROOT_IMAGE, ['echo', 'foo'], resources=resources)
-    builder.create_job(DOCKER_ROOT_IMAGE, ['echo', 'bar'], resources=resources)
-    b = builder.submit()
-
-    batch = b.wait()
-    assert batch['state'] == 'success', str(batch)
-
-    job_status_logs = []
-    batch_msec_mcpu2 = 0
-    for job in b.jobs():
-        # I'm dying
-        job = client.get_job(job['batch_id'], job['job_id'])
-        job_status = job.status()
-        log = job.log()
-        job_status_logs.append((job_status, log))
-
-        # runs at 250mcpu
-        job_msec_mcpu2 = 250 * max(job_status['status']['end_time'] - job_status['status']['start_time'], 0)
-        # greater than in case there are multiple attempts
-        assert job_status['msec_mcpu'] >= job_msec_mcpu2, str(job_status)
-
-        batch_msec_mcpu2 += job_msec_mcpu2
-
-    assert batch['msec_mcpu'] == batch_msec_mcpu2, str((batch, job_status_logs))
-
-
 def test_attributes(client):
     a = {
         'name': 'test_attributes',

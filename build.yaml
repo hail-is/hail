@@ -2136,6 +2136,8 @@ steps:
         script: /io/sql/increase-test-and-dev-pool-sizes.py
       - name: fix-provisioning-bug
         script: /io/sql/fix-provisioning-bug.sql
+      - name: do-not-lock-entire-batch
+        script: /io/sql/do-not-lock-entire-batch.sql
     inputs:
       - from: /repo/batch/sql
         to: /io/sql
