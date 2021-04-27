@@ -1504,7 +1504,7 @@ class Table(ExprContainer):
         del n_rows
         if handler is None:
             handler = hl.utils.default_handler()
-        handler(self._show(n, width, truncate, types))
+        return handler(self._show(n, width, truncate, types))
 
     def index(self, *exprs, all_matches=False) -> 'Expression':
         """Expose the row values as if looked up in a dictionary, indexing

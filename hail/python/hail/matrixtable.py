@@ -2626,7 +2626,7 @@ class MatrixTable(ExprContainer):
             **entries)
         if handler is None:
             handler = default_handler()
-        handler(MatrixTable._Show(t, n_rows, actual_n_cols, displayed_n_cols, width, truncate, types))
+        return handler(MatrixTable._Show(t, n_rows, actual_n_cols, displayed_n_cols, width, truncate, types))
 
     def globals_table(self) -> Table:
         """Returns a table with a single row with the globals of the matrix table.

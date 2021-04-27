@@ -2642,6 +2642,20 @@ class Tests(unittest.TestCase):
         ds = hl.utils.range_matrix_table(3, 3)
         ds.col_idx.show(3)
 
+    def test_show_expression(self):
+        ds = hl.utils.range_matrix_table(3, 3)
+        result = ds.col_idx.show(handler=str)
+        assert result == '''+---------+
+| col_idx |
++---------+
+|   int32 |
++---------+
+|       0 |
+|       1 |
+|       2 |
++---------+
+'''
+
     @fails_service_backend()
     @fails_local_backend()
     def test_export(self):
