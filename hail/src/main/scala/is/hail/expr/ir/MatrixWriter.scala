@@ -13,6 +13,7 @@ import is.hail.io.gen.{ExportBGEN, ExportGen}
 import is.hail.io.index.StagedIndexWriter
 import is.hail.io.plink.ExportPlink
 import is.hail.io.vcf.ExportVCF
+import is.hail.linalg.GridPartitioner
 import is.hail.rvd.{RVDPartitioner, RVDSpecMaker}
 import is.hail.types.encoded.{EBaseStruct, EType}
 import is.hail.types.physical.stypes.interfaces._
@@ -346,6 +347,16 @@ case class MatrixBlockMatrixWriter(
   blockSize: Int
 ) extends MatrixWriter {
   def apply(ctx: ExecuteContext, mv: MatrixValue): Unit = MatrixWriteBlockMatrix(ctx, mv, entryField, path, overwrite, blockSize)
+
+  override def lower(colsFieldName: String, entriesFieldName: String, colKey: IndexedSeq[String],
+    ctx: ExecuteContext, ts: TableStage, t: TableIR, r: RTable, relationalLetsAbove: Map[String, IR]): IR = {
+
+    val tm = MatrixType.fromTableType(t.typ, colsFieldName, entriesFieldName, colKey)
+    val rm = r.asMatrixType(colsFieldName, entriesFieldName)
+
+    val gp = GridPartitioner.apply(blockSize, ???, ???, ???)
+    ???
+  }
 }
 
 object MatrixNativeMultiWriter {
