@@ -474,6 +474,8 @@ class BuildImage2Step(Step):
             create_inline_dockerfile_if_present = ''
         dockerfile_in_context = os.path.join(context, 'Dockerfile.' + self.token)
 
+        log.info(f'step {self.name}, script:\n{script}')
+
         self.job = batch.create_job(
             image=KANIKO_IMAGE,
             command=[
