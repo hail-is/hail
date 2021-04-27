@@ -648,6 +648,8 @@ steps:
     inputs:
       - from: /repo/hail
         to: /io/repo/hail
+      - from: /repo/.git
+        to: /io/repo/.git
     outputs:
       - from: /io/repo/hail/build/libs/hail-all-spark.jar
         to: /just-jar/hail.jar
@@ -686,6 +688,8 @@ steps:
     inputs:
       - from: /repo/hail
         to: /io/repo/hail
+      - from: /repo/.git
+        to: /io/repo/.git
     outputs:
       - from: /io/repo/hail/build/libs/hail-all-spark.jar
         to: /hail.jar
@@ -735,6 +739,8 @@ steps:
     inputs:
       - from: /repo/hail
         to: /io/repo/hail
+      - from: /repo/.git
+        to: /io/repo/.git
     dependsOn:
       - hail_build_image
       - merge_code
@@ -755,6 +761,8 @@ steps:
     inputs:
       - from: /repo/hail
         to: /io/repo/hail
+      - from: /repo/.git
+        to: /io/repo/.git
     dependsOn:
       - hail_build_image
       - merge_code
