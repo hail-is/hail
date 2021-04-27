@@ -112,7 +112,7 @@ steps:
       valueFrom: base_image.image
     script: |
       set -ex
-      cd repo
+      cd /io/repo
       make check-hail
     inputs:
       - from: /repo
