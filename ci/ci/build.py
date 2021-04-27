@@ -17,6 +17,7 @@ from .environment import (
     DOMAIN,
     IP,
     CI_UTILS_IMAGE,
+    KANIKO_IMAGE,
     DEFAULT_NAMESPACE,
     KUBERNETES_SERVER_URL,
     BUCKET,
@@ -431,11 +432,13 @@ class BuildImage2Step(Step):
         else:
             self.base_image = f'gcr.io/{GCP_PROJECT}/ci-intermediate'
         self.image = f'{self.base_image}:{self.token}'
-        self.job = None
+        self.render_dockerfile_job = None
+        self.kaniko_job = None
 
     def wrapped_job(self):
-        if self.job:
-            return [self.job]
+        if self.render_dockerfile_job is not None:
+            assert self.kaniko_job is not None
+            return [self.render_dockerfile_job, self.kaniko_job]
         return []
 
     @staticmethod
@@ -462,87 +465,53 @@ class BuildImage2Step(Step):
         if not context:
             context = '/io'
 
-        rendered_dockerfile = '/Dockerfile'
+        rendered_dockerfile = f'/io/Dockerfile.out.{self.token}'
         if isinstance(self.dockerfile, dict):
             assert ['inline'] == list(self.dockerfile.keys())
-            render_dockerfile = f'echo {shq(self.dockerfile["inline"])} > /Dockerfile.{self.token};\n'
-            unrendered_dockerfile = f'/Dockerfile.{self.token}'
+            unrendered_dockerfile = f'/io/Dockerfile.in.{self.token}'
+            render_dockerfile = f'echo {shq(self.dockerfile["inline"])} > {unrendered_dockerfile};\n'
         else:
             assert isinstance(self.dockerfile, str)
+            unrendered_dockerfile = self.dockerfile
             render_dockerfile = ''
-            unrendered_dockerfile = f'{self.dockerfile}'
         render_dockerfile += (
             f'time python3 jinja2_render.py {shq(json.dumps(config))} '
             f'{shq(unrendered_dockerfile)} {shq(rendered_dockerfile)}'
         )
+        remote_dockerfile = f'gs://{BUCKET}/build/{batch.attributes["token"]}/Dockerfile.out.{self.token}'
 
-        if self.publish_as:
-            published_latest = shq(f'gcr.io/{GCP_PROJECT}/{self.publish_as}:latest')
-            pull_published_latest = f'time retry docker pull {shq(published_latest)} || true'
-            cache_from_published_latest = f'--cache-from {shq(published_latest)}'
-        else:
-            pull_published_latest = ''
-            cache_from_published_latest = ''
-
-        push_image = f'''
-time retry docker push {self.image}
-'''
-        if scope == 'deploy' and self.publish_as and not is_test_deployment:
-            push_image = (
-                f'''
-docker tag {shq(self.image)} {self.base_image}:latest
-time retry docker push {self.base_image}:latest
-'''
-                + push_image
-            )
-
-        script = f'''
-set -ex
-date
-
-cd /
-
-{ RETRY_FUNCTION_SCRIPT }
-
-{render_dockerfile}
-
-FROM_IMAGE=$(awk '$1 == "FROM" {{ print $2; exit }}' {shq(rendered_dockerfile)})
-
-time gcloud -q auth activate-service-account \
-  --key-file=/secrets/gcr-push-service-account-key/gcr-push-service-account-key.json
-time gcloud -q auth configure-docker
-
-time retry docker pull $FROM_IMAGE
-{pull_published_latest}
-CPU_PERIOD=100000
-CPU_QUOTA=$(( $(grep -c ^processor /proc/cpuinfo) * $(cat /sys/fs/cgroup/cpu/cpu.shares) * $CPU_PERIOD / 1024 ))
-MEMORY=$(cat /sys/fs/cgroup/memory/memory.limit_in_bytes)
-pwd
-time docker build --memory="$MEMORY" --cpu-period="$CPU_PERIOD" --cpu-quota="$CPU_QUOTA" -t {shq(self.image)} \
-  -f {rendered_dockerfile} \
-  --cache-from $FROM_IMAGE {cache_from_published_latest} \
-  {context}
-{push_image}
-
-date
-'''
-
-        log.info(f'step {self.name}, script:\n{script}')
-
-        self.job = batch.create_job(
+        self.render_dockerfile_job = batch.create_job(
             CI_UTILS_IMAGE,
-            command=['bash', '-c', script],
-            mount_docker_socket=True,
-            secrets=[
-                {
-                    'namespace': DEFAULT_NAMESPACE,
-                    'name': 'gcr-push-service-account-key',
-                    'mount_path': '/secrets/gcr-push-service-account-key',
-                }
-            ],
-            attributes={'name': self.name},
+            command=['bash', '-c', render_dockerfile],
+            attributes={'name': self.name + '_render_dockerfile'},
             input_files=input_files,
-            parents=self.deps_parents(),
+            output_files=[(rendered_dockerfile, remote_dockerfile)],
+             parents=self.deps_parents(),
+         )
+
+        context = 'dir://' + context
+        kaniko_input_files = [(remote_dockerfile, rendered_dockerfile)]
+        if input_files:
+            kaniko_input_files.extend(input_files)
+        self.kaniko_job = batch.create_job(
+            KANIKO_IMAGE,
+            command=['/busybox/sh',
+                     '/command',
+                     '--dockerfile=' + rendered_dockerfile,
+                     '--context=' + context,
+                     '--destination=' + self.image,
+                     '--cache=true',
+                     '--snapshotMode=redo',
+                     '--use-new-run'],
+            secrets=[{
+                'namespace': DEFAULT_NAMESPACE,
+                'name': 'gcr-push-service-account-key',
+                'mount_path': '/secrets/gcr-push-service-account-key',
+            }],
+            env={'GOOGLE_APPLICATION_CREDENTIALS': '/secrets/gcr-push-service-account-key/gcr-push-service-account-key.json'},
+            attributes={'name': self.name + '_kaniko'},
+            input_files=input_files,
+            parents=self.render_dockerfile_job,
         )
 
     def cleanup(self, batch, scope, parents):

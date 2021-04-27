@@ -1,0 +1,2 @@
+echo '{"auths": {  "https://gcr.io": { "auth": "'$(echo -n "_json_key:$(cat $GOOGLE_APPLICATION_CREDENTIALS)" | base64 | tr -d \\n )'"}}}' > config.json
+/kaniko/executor "$@"
