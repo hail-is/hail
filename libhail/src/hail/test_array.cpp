@@ -57,10 +57,10 @@ TypeContext tc(heap);
         auto length_check_return_value = compiled.invoke(region, {});
         assert(length_check_return_value.as_int64() == array_length);
 
-        body->set_child(0, body->make_array_len(body->make_na(tarray)));
-        auto compiled2 = jit.compile(heap, tc, m, param_vtypes, return_vtype);
-        auto length_check_return_value2 = compiled.invoke(region, {});
-        assert(length_check_return_value2.as_int64() == array_length);
+        // body->set_child(0, body->make_array_len(body->make_na(tarray)));
+        // auto compiled2 = jit.compile(heap, tc, m, param_vtypes, return_vtype);
+        // auto length_check_return_value2 = compiled.invoke(region, {});
+        // assert(length_check_return_value2.as_int64() == array_length);
     }
 
     TEST_CASE(test_array_ref) {
