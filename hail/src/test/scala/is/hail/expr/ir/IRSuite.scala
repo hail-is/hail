@@ -5,7 +5,7 @@ import is.hail.TestUtils._
 import is.hail.annotations.{BroadcastRow, Region, SafeNDArray}
 import is.hail.asm4s.{Code, Value}
 import is.hail.expr.ir.ArrayZipBehavior.ArrayZipBehavior
-import is.hail.expr.ir.IRBuilder.{irToProxy, _}
+import is.hail.expr.ir.IRBuilder._
 import is.hail.expr.ir.IRSuite.TestFunctions
 import is.hail.expr.ir.functions._
 import is.hail.types.{BlockMatrixType, TableType, VirtualTypeWithReq}
