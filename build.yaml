@@ -2993,6 +2993,7 @@ steps:
       - create_ci_test_repo
       - deploy_ci_agent
       - create_certs
+      - hail_kaniko_image
   - kind: runImage
     name: test_ci
     image:
