@@ -860,7 +860,7 @@ steps:
     inputs:
       - from: /repo/hail
         to: /io/hail
-      - from: /hail/wheel-container.tar
+      - from: /wheel-container.tar
         to: /io/hail/wheel-container.tar
     dependsOn:
       - base_image
@@ -1105,7 +1105,7 @@ steps:
     inputs:
       - from: /repo
         to: /io/repo
-      - from: /repo/wheel-container.tar
+      - from: /wheel-container.tar
         to: /io/repo/wheel-container.tar
     dependsOn:
       - build_hail
@@ -1119,7 +1119,7 @@ steps:
     inputs:
       - from: /repo
         to: /io/repo
-      - from: /repo/wheel-container.tar
+      - from: /wheel-container.tar
         to: /io/repo/wheel-container.tar
     dependsOn:
       - build_hail
