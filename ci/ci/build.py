@@ -486,7 +486,7 @@ class BuildImage2Step(Step):
             attributes={'name': self.name + '_render_dockerfile'},
             input_files=input_files,
             output_files=[(rendered_dockerfile, remote_dockerfile)],
-             parents=self.deps_parents(),
+            parents=self.deps_parents(),
          )
 
         context = 'dir://' + context
