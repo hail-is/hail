@@ -1789,6 +1789,17 @@ class IRSuite extends HailSuite {
 
     val filteredRange = StreamLen(StreamFilter(rangeIR(12), "x", irToPrimitiveIR(Ref("x", TInt32)) < 5))
     assertEvalsTo(filteredRange, 5)
+
+    val lenOfLet = StreamLen(bindIR(I32(5))(ref =>
+      StreamGrouped(mapIR(rangeIR(20))(range_element =>
+        InsertFields(MakeStruct(IndexedSeq(("num",  range_element + ref))), IndexedSeq(("y", 12)))), 3)))
+    assertEvalsTo(lenOfLet, 7)
+  }
+
+  @Test def testStreamLenUnconsumedInnerStream(): Unit = {
+    assertEvalsTo(StreamLen(
+      mapIR(StreamGrouped(filterIR(rangeIR(10))(x => x.cne(I32(0))), 3))( group => ToArray(group))
+    ), 3)
   }
 
   @Test def testStreamTake() {
