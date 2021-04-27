@@ -684,10 +684,8 @@ steps:
       time TESTNG_SPLITS=5 python3 generate_splits.py
       time tar czf splits.tar.gz testng-splits-*.xml
     inputs:
-      - from: /repo/hail
-        to: /io/repo/hail
-      - from: /repo/.git
-        to: /io/repo/.git
+      - from: /repo
+        to: /io/repo
     outputs:
       - from: /io/repo/hail/build/libs/hail-all-spark.jar
         to: /hail.jar
@@ -735,10 +733,8 @@ steps:
       export SPARK_VERSION="2.4.5" SCALA_VERSION="2.11.12"
       time retry make jars python-version-info wheel
     inputs:
-      - from: /repo/hail
-        to: /io/repo/hail
-      - from: /repo/.git
-        to: /io/repo/.git
+      - from: /repo
+        to: /io/repo
     dependsOn:
       - hail_build_image
       - merge_code
@@ -757,10 +753,8 @@ steps:
       export SPARK_VERSION="3.0.1" SCALA_VERSION="2.12.12"
       time retry make jars python-version-info wheel
     inputs:
-      - from: /repo/hail
-        to: /io/repo/hail
-      - from: /repo/.git
-        to: /io/repo/.git
+      - from: /repo
+        to: /io/repo
     dependsOn:
       - hail_build_image
       - merge_code
