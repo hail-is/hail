@@ -1077,7 +1077,7 @@ class Emit[C](
                 cb.assign(count, count + 1)
               }
               producer.element.pv match {
-                case SStreamCode(_, nested) => StreamProducer.defineUnusedLabels(producer, mb)
+                case SStreamCode(_, nested) => StreamProducer.defineUnusedLabels(nested, mb)
                 case _ =>
               }
               PCode(x.pType, count)

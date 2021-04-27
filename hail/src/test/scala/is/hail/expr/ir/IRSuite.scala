@@ -5,7 +5,7 @@ import is.hail.TestUtils._
 import is.hail.annotations.{BroadcastRow, Region, SafeNDArray}
 import is.hail.asm4s.{Code, Value}
 import is.hail.expr.ir.ArrayZipBehavior.ArrayZipBehavior
-import is.hail.expr.ir.IRBuilder._
+import is.hail.expr.ir.IRBuilder.{irToProxy, _}
 import is.hail.expr.ir.IRSuite.TestFunctions
 import is.hail.expr.ir.functions._
 import is.hail.types.{BlockMatrixType, TableType, VirtualTypeWithReq}
@@ -1794,6 +1794,12 @@ class IRSuite extends HailSuite {
       StreamGrouped(mapIR(rangeIR(20))(range_element =>
         InsertFields(MakeStruct(IndexedSeq(("num",  range_element + ref))), IndexedSeq(("y", 12)))), 3)))
     assertEvalsTo(lenOfLet, 7)
+  }
+
+  @Test def testStreamLenUnconsumedInnerStream(): Unit = {
+    assertEvalsTo(StreamLen(
+      mapIR(StreamGrouped(filterIR(rangeIR(10))(x => x.cne(I32(0))), 3))( group => ToArray(group))
+    ), 3)
   }
 
   @Test def testStreamTake() {
