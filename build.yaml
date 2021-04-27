@@ -648,8 +648,6 @@ steps:
     inputs:
       - from: /repo/hail
         to: /io/repo/hail
-      - from: /repo/.git
-        to: /io/repo/.git
     outputs:
       - from: /io/repo/hail/build/libs/hail-all-spark.jar
         to: /just-jar/hail.jar

@@ -2,7 +2,9 @@ FROM {{ global.docker_prefix }}/python:3.7-slim-stretch
 
 COPY docker/hail-ubuntu/retry /bin/retry
 COPY docker/hail-ubuntu/hail-apt-get-install /bin/hail-apt-get-install
-RUN mkdir -p /usr/share/man/man1 /usr/share/man/man2
+RUN chmod 755 /bin/retry && \
+    chmod 755 /bin/hail-apt-get-install && \
+    mkdir -p /usr/share/man/man1 /usr/share/man/man2
 RUN hail-apt-get-install \
     openjdk-8-jre-headless \
     liblapack3
