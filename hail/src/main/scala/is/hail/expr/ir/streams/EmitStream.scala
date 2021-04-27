@@ -977,6 +977,8 @@ object EmitStream {
                       if (requiresMemoryManagementPerElement) {
                         cb += elementRegion.trackAndIncrementReferenceCountOf(rightProducer.elementRegion)
                         cb += elementRegion.trackAndIncrementReferenceCountOf(leftProducer.elementRegion)
+                        if (leftProducer.requiresMemoryManagementPerElement)
+                          cb += leftProducer.elementRegion.clearRegion()
                       }
                       cb.assign(rxOut, rx)
                     })
