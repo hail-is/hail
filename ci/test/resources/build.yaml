@@ -10,7 +10,7 @@ steps:
         FROM {{ global.docker_root_image }}
         RUN apt-get update && apt-get install -y git make bash
   - kind: runImage
-    name: code
+    name: merge_code
     image:
       valueFrom: git_make_bash_image.image
     script: |
@@ -41,7 +41,7 @@ steps:
       - from: /repo/docker/hail-ubuntu
         to: /io/hail-ubuntu
     dependsOn:
-      - copy_files
+      - merge_code
   - kind: buildImage2
     name: base_image
     dockerFile: /io/repo/docker/Dockerfile.base
@@ -52,7 +52,7 @@ steps:
         to: /io/repo
     dependsOn:
       - hail_ubuntu_image
-      - code
+      - merge_code
   - kind: runImage
     name: test_clashing_basenames_setup
     image:
@@ -92,7 +92,7 @@ steps:
     publishAs: service-base
     dependsOn:
       - base_image
-      - code
+      - merge_code
     inputs:
       - from: /hail_version
         to: /io/repo/hail_version
@@ -108,7 +108,7 @@ steps:
         to: /io/ci/test/resources
     dependsOn:
       - service_base_image
-      - code
+      - merge_code
   - kind: runImage
     name: create_certs
     image:
@@ -142,7 +142,7 @@ steps:
         to: /io/repo
     dependsOn:
       - service_base_image
-      - code
+      - merge_code
   - kind: runImage
     name: check_hello
     image:
@@ -172,7 +172,7 @@ steps:
         name: hello
     dependsOn:
       - default_ns
-      - code
+      - merge_code
   - kind: runImage
     name: test_hello_database
     image:
