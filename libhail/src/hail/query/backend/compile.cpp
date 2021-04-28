@@ -100,6 +100,7 @@ CompileFunction::CompileFunction(TypeContext &tc,
   assert(result_llvm_values.size() == 2);
 
   auto return_address = llvm_function->getArg(1);
+  // Missing Byte and then the value.
   llvm_ir_builder.CreateStore(result_llvm_values[0], return_address);
 
   llvm::Value *value_address = llvm_ir_builder.CreateGEP(return_address,
@@ -359,12 +360,10 @@ CompileFunction::emit(MakeArray *x) {
 
 EmitValue
 CompileFunction::emit(ArrayLen *x) {
-  // auto array_ctrl = emit(x->get_child(0)).as_control(*this);
+  auto array_ctrl = emit(x->get_child(0)).as_control(*this);
 
-
-  auto array_data_value = emit(x->get_child(0)).as_data(*this);
-  auto array_svalue = cast<SArrayValue>(array_data_value.svalue);
-  return EmitValue(array_data_value.missing, array_svalue->get_length(stc));
+  auto array_svalue = cast<SArrayValue>(array_ctrl.svalue);
+  return EmitValue(array_ctrl.missing_block, array_svalue->get_length(stc));
 }
 
 EmitValue
