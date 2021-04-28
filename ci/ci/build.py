@@ -499,12 +499,16 @@ set -e
         self.job = batch.create_job(
             KANIKO_IMAGE,
             command=['/busybox/sh', '-c', script],
-            secrets=[{
-                'namespace': DEFAULT_NAMESPACE,
-                'name': 'gcr-push-service-account-key',
-                'mount_path': '/secrets/gcr-push-service-account-key',
-            }],
-            env={'GOOGLE_APPLICATION_CREDENTIALS': '/secrets/gcr-push-service-account-key/gcr-push-service-account-key.json'},
+            secrets=[
+                {
+                    'namespace': DEFAULT_NAMESPACE,
+                    'name': 'gcr-push-service-account-key',
+                    'mount_path': '/secrets/gcr-push-service-account-key',
+                }
+            ],
+            env={
+                'GOOGLE_APPLICATION_CREDENTIALS': '/secrets/gcr-push-service-account-key/gcr-push-service-account-key.json'
+            },
             attributes={'name': self.name},
             input_files=input_files,
             parents=self.deps_parents(),
