@@ -6,7 +6,7 @@ from shlex import quote as shq
 import yaml
 import jinja2
 from typing import Dict, List, Optional
-from hailtop.utils import RETRY_FUNCTION_SCRIPT, flatten
+from hailtop.utils import flatten
 from .utils import generate_token
 from .environment import (
     GCP_PROJECT,
