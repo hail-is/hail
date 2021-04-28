@@ -953,7 +953,8 @@ class Emit[C](
           val typ: PContainer = coerce[PIterable](a.pt).asPContainer
           val e = EmitCode.fromI(cb.emb)(cb => this.emitI(elem, cb, region, env, container, loopEnv))
           val bs = new BinarySearch[C](mb, typ, e.pt, keyOnly = onKey)
-          PCode(pt, bs.getClosestIndex(a.tcode[Long], e.m, e.v))
+          val arr = SingleCodePCode.fromPCode(cb, a, region)
+          PCode(pt, bs.getClosestIndex(arr.code.asInstanceOf[Code[Long]], e.m, e.v))
         }
 
       case GroupByKey(collection) =>
@@ -1148,7 +1149,8 @@ class Emit[C](
           val childShape = pndVal.shapes(cb)
           val childStrides = pndVal.strides(cb)
 
-          val dataArray = childPType.dataType.loadCheapPCode(cb, childPType.dataPArrayPointer(pndVal.tcode[Long]))
+          val pndAddr = SingleCodePCode.fromPCode(cb, pndVal, region)
+          val dataArray = childPType.dataType.loadCheapPCode(cb, childPType.dataPArrayPointer(pndAddr.code.asInstanceOf[Code[Long]]))
 
           val newShape = indexMap.map { childIndex =>
             if (childIndex < childPType.nDims) childShape(childIndex) else const(1L)
@@ -1203,8 +1205,10 @@ class Emit[C](
             val outputPType = PCanonicalNDArray(lPType.elementType, TNDArray.matMulNDims(lPType.nDims, rPType.nDims), pt.required)
 
             if ((lPType.elementType.isInstanceOf[PFloat64] || lPType.elementType.isInstanceOf[PFloat32]) && lPType.nDims == 2 && rPType.nDims == 2) {
-              val leftDataAddress = lPType.dataFirstElementPointer(leftPVal.tcode[Long])
-              val rightDataAddress = rPType.dataFirstElementPointer(rightPVal.tcode[Long])
+              val leftPValAddr = SingleCodePCode.fromPCode(cb, leftPVal, region)
+              val rightPValAddr = SingleCodePCode.fromPCode(cb, rightPVal, region)
+              val leftDataAddress = lPType.dataFirstElementPointer(leftPValAddr.code.asInstanceOf[Code[Long]])
+              val rightDataAddress = rPType.dataFirstElementPointer(rightPValAddr.code.asInstanceOf[Code[Long]])
 
               val M = lShape(lPType.nDims - 2)
               val N = rShape(rPType.nDims - 1)
@@ -1910,7 +1914,8 @@ class Emit[C](
         val resPType = pt.asInstanceOf[PCanonicalBinary]
         // FIXME: server needs to send uuid for the successful partition
         val boff = cb.memoize(resPType.loadCheapPCode(cb, resPType.allocate(region, 0)), "shuffleWriteBOff")
-        cb += resPType.storeLength(boff.tcode[Long], 0)
+        val baddr = SingleCodePCode.fromPCode(cb, boff, region)
+        cb += resPType.storeLength(baddr.code.asInstanceOf[Code[Long]], 0)
         presentPC(boff)
 
       case x@ReadValue(path, spec, requestedType) =>
