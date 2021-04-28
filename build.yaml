@@ -3046,7 +3046,7 @@ steps:
     inputs:
       - from: /repo/test
         to: /io/test
-      - from: /repo/hailtop
+      - from: /repo/hail/python/hailtop
         to: /io/hailtop
     timeout: 1200
     secrets:
@@ -3098,7 +3098,7 @@ steps:
     inputs:
       - from: /repo/test
         to: /io/test
-      - from: /repo/hailtop
+      - from: /repo/hail/python/hailtop
         to: /io/hailtop
     timeout: 1200
     secrets:
@@ -3150,7 +3150,7 @@ steps:
     inputs:
       - from: /repo/test
         to: /io/test
-      - from: /repo/hailtop
+      - from: /repo/hail/python/hailtop
         to: /io/hailtop
     timeout: 1200
     secrets:
@@ -3202,7 +3202,7 @@ steps:
     inputs:
       - from: /repo/test
         to: /io/test
-      - from: /repo/hailtop
+      - from: /repo/hail/python/hailtop
         to: /io/hailtop
     timeout: 1200
     secrets:
@@ -3254,7 +3254,7 @@ steps:
     inputs:
       - from: /repo/test
         to: /io/test
-      - from: /repo/hailtop
+      - from: /repo/hail/python/hailtop
         to: /io/hailtop
     timeout: 1200
     secrets:
@@ -3318,7 +3318,7 @@ steps:
       - deploy_batch
     timeout: 1200
     inputs:
-      - from: /repo/hailtop
+      - from: /repo/hail/python/hailtop
         to: /io/hailtop
   - kind: createDatabase
     name: notebook_database
