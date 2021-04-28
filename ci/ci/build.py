@@ -497,7 +497,7 @@ set -e
         log.info(f'step {self.name}, script:\n{script}')
 
         self.job = batch.create_job(
-            image=KANIKO_IMAGE,
+            KANIKO_IMAGE,
             command=['/busybox/sh', '-c', script],
             secrets=[{
                 'namespace': DEFAULT_NAMESPACE,
