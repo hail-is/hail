@@ -435,7 +435,7 @@ class BuildImage2Step(Step):
         self.job = None
 
     def wrapped_job(self):
-        if self.job is not None:
+        if self.job:
             return [self.job]
         return []
 
@@ -489,7 +489,7 @@ time chroot /python3.7-slim-stretch /usr/local/bin/python3 \
 mv /python3.7-slim-stretch/Dockerfile.out {shq(dockerfile_in_context)}
 
 set +e
-/busybox/sh /render_key
+/busybox/sh /convert-google-application-credentials-to-kaniko-auth-config
 set -e
 
 /kaniko/executor --dockerfile={shq(dockerfile_in_context)} --context=dir://{shq(context)} --destination={shq(self.image)} --cache=true --snapshotMode=redo --use-new-run'''
