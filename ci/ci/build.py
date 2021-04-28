@@ -1,5 +1,4 @@
 import abc
-import os.path
 import json
 import logging
 from collections import defaultdict, Counter
