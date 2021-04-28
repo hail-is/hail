@@ -1205,7 +1205,14 @@ class BlockMatrix(object):
             self.tofile(uri)
             return np.fromfile(path).reshape((self.n_rows, self.n_cols))
 
-    def _to_ndarray(self):
+    def to_ndarray(self):
+        """Collects a BlockMatrix into a local hail ndarray expression on driver. This should not
+        be done for large matrices.
+
+        Returns
+        -------
+        :class:`.NDArrayExpression`
+        """
         ir = BlockMatrixCollect(self._bmir)
         return construct_expr(ir, hl.tndarray(hl.tfloat64, 2))
 
