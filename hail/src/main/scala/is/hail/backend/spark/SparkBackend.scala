@@ -49,30 +49,27 @@ object SparkTaskContext {
     override def initialValue(): SparkTaskContext = {
       val sparkTC = TaskContext.get()
       assert(sparkTC != null, "Spark Task Context was null, maybe this ran on the driver?")
-      TaskContext.get().addTaskCompletionListener[Unit] { (_: TaskContext) =>
+      sparkTC.addTaskCompletionListener[Unit] { (_: TaskContext) =>
         SparkTaskContext.finish()
       }
-      val htc = new SparkTaskContext(sparkTC)
-      htc
+
+      // this must be the only place where SparkTaskContext classes are created
+      new SparkTaskContext(sparkTC)
     }
   }
 
   def finish(): Unit = {
-    taskContext.get().getRegionPool().close()
+    taskContext.get().finish()
     taskContext.remove()
   }
 }
 
 
-class SparkTaskContext(ctx: TaskContext) extends HailTaskContext {
+class SparkTaskContext private[spark](ctx: TaskContext) extends HailTaskContext {
   self=>
   override def stageId(): Int = ctx.stageId()
   override def partitionId(): Int = ctx.partitionId()
   override def attemptNumber(): Int = ctx.attemptNumber()
-
-  ctx.addTaskCompletionListener(new TaskCompletionListener {
-    override def onTaskCompletion(context: TaskContext): Unit = self.getRegionPool().close()
-  })
 }
 
 object SparkBackend {

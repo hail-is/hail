@@ -1,6 +1,7 @@
 package is.hail.backend
 
 import is.hail.annotations.RegionPool
+import is.hail.utils._
 
 abstract class HailTaskContext {
   def stageId(): Int
@@ -19,5 +20,9 @@ abstract class HailTaskContext {
     s"${ stageId() }-${ partitionId() }-${ attemptNumber() }-$fileUUID"
   }
 
-  def finish(): Unit = thePool.close()
+  def finish(): Unit = {
+    log.info(s"TaskReport: stage=${ stageId() }, partition=${ partitionId() }, attempt=${ attemptNumber() }, " +
+      s"peakBytes=${ thePool.getHighestTotalUsage }, peakBytesReadable=${ formatSpace(thePool.getHighestTotalUsage) }")
+    thePool.close()
+  }
 }
