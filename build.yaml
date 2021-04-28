@@ -3044,7 +3044,7 @@ steps:
               --instafail \
               /io/test/hailtop/batch/
     inputs:
-      - from: /repo/test
+      - from: /repo/hail/python/test
         to: /io/test
       - from: /repo/hail/python/hailtop
         to: /io/hailtop
@@ -3096,7 +3096,7 @@ steps:
               --instafail \
               /io/test/hailtop/batch/
     inputs:
-      - from: /repo/test
+      - from: /repo/hail/python/test
         to: /io/test
       - from: /repo/hail/python/hailtop
         to: /io/hailtop
@@ -3148,7 +3148,7 @@ steps:
               --instafail \
               /io/test/hailtop/batch/
     inputs:
-      - from: /repo/test
+      - from: /repo/hail/python/test
         to: /io/test
       - from: /repo/hail/python/hailtop
         to: /io/hailtop
@@ -3200,7 +3200,7 @@ steps:
               --instafail \
               /io/test/hailtop/batch/
     inputs:
-      - from: /repo/test
+      - from: /repo/hail/python/test
         to: /io/test
       - from: /repo/hail/python/hailtop
         to: /io/hailtop
@@ -3252,7 +3252,7 @@ steps:
               --instafail \
               /io/test/hailtop/batch/
     inputs:
-      - from: /repo/test
+      - from: /repo/hail/python/test
         to: /io/test
       - from: /repo/hail/python/hailtop
         to: /io/hailtop
