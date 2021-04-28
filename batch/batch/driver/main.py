@@ -836,6 +836,18 @@ WHERE billing_project = %s AND state = 'running';
                 await _cancel_batch(app, batch['id'])
 
 
+async def cancel_fast_failing_batches(app):
+    db: Database = app['db']
+
+    records = db.select_and_fetchall('''
+SELECT id
+FROM batches
+WHERE state = 'running' AND cancel_after_n_failures IS NOT NULL AND n_failed >= cancel_after_n_failures
+''')
+    async for batch in records:
+        await _cancel_batch(app, batch['id'])
+
+
 async def scheduling_cancelling_bump(app):
     log.info('scheduling cancelling bump loop')
     app['scheduler_state_changed'].notify()
@@ -944,6 +956,9 @@ SELECT instance_id, internal_token FROM globals;
 
     app['task_manager'].ensure_future(periodically_call(
         10, monitor_billing_limits, app))
+
+    app['task_manager'].ensure_future(periodically_call(
+        10, cancel_fast_failing_batches, app))
 
     app['task_manager'].ensure_future(periodically_call(
         60, scheduling_cancelling_bump, app))

@@ -81,6 +81,10 @@ class Batch:
         If specified, the project to use when authenticating with Google
         Storage. Google Storage is used to transfer serialized values between
         this computer and the cloud machines that execute Python jobs.
+    cancel_after_n_failures:
+        Automatically cancel the batch after N failures have occurred. The default
+        behavior is there is no limit on the number of failures. Only
+        applicable for the :class:`.ServiceBackend`. Must be greater than 0.
     """
 
     _counter = 0
@@ -105,7 +109,8 @@ class Batch:
                  default_timeout: Optional[Union[float, int]] = None,
                  default_shell: Optional[str] = None,
                  default_python_image: Optional[str] = None,
-                 project: Optional[str] = None):
+                 project: Optional[str] = None,
+                 cancel_after_n_failures: Optional[int] = None):
         self._jobs: List[job.Job] = []
         self._resource_map: Dict[str, _resource.Resource] = {}
         self._allocated_files: Set[str] = set()
@@ -134,6 +139,8 @@ class Batch:
 
         self._project = project
         self.__gcs: Optional[GCS] = None
+
+        self._cancel_after_n_failures = cancel_after_n_failures
 
     @property
     def _gcs(self):

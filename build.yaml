@@ -2240,6 +2240,8 @@ steps:
         script: /io/sql/fix-provisioning-bug.sql
       - name: do-not-lock-entire-batch
         script: /io/sql/do-not-lock-entire-batch.sql
+      - name: add-fail-fast
+        script: /io/sql/add-fail-fast.sql
     inputs:
       - from: /repo/batch/sql
         to: /io/sql

@@ -426,12 +426,14 @@ class ServiceTests(unittest.TestCase):
     def tearDown(self):
         self.backend.close()
 
-    def batch(self, requester_pays_project=None, default_python_image=None):
+    def batch(self, requester_pays_project=None, default_python_image=None,
+              cancel_after_n_failures=None):
         return Batch(backend=self.backend,
                      default_image=DOCKER_ROOT_IMAGE,
                      attributes={'foo': 'a', 'bar': 'b'},
                      requester_pays_project=requester_pays_project,
-                     default_python_image=default_python_image)
+                     default_python_image=default_python_image,
+                     cancel_after_n_failures=cancel_after_n_failures)
 
     def test_single_task_no_io(self):
         b = self.batch()
@@ -780,3 +782,15 @@ class ServiceTests(unittest.TestCase):
         res = b.run()
         assert res.status()['state'] == 'success', debug_info(res)
         assert res.get_job_log(3)['main'] == "15\n", debug_info(res)
+
+    def test_fail_fast(self):
+        b = self.batch(cancel_after_n_failures=1)
+
+        j1 = b.new_job()
+        j1.command(f'false')
+
+        j2 = b.new_job()
+        j2.command('sleep 300')
+
+        res = b.run()
+        assert res.status()['state'] == 'cancelled', debug_info(res)

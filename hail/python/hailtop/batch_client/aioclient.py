@@ -402,7 +402,7 @@ class Batch:
 
 
 class BatchBuilder:
-    def __init__(self, client, attributes, callback, token=None):
+    def __init__(self, client, attributes, callback, token=None, cancel_after_n_failures=None):
         self._client = client
         self._job_idx = 0
         self._job_specs = []
@@ -414,6 +414,8 @@ class BatchBuilder:
         if token is None:
             token = secrets.token_urlsafe(32)
         self.token = token
+
+        self._cancel_after_n_failures = cancel_after_n_failures
 
     def create_job(self, image, command, env=None, mount_docker_socket=False,
                    port=None, resources=None, secrets=None,
@@ -532,6 +534,8 @@ class BatchBuilder:
             batch_spec['attributes'] = self.attributes
         if self.callback:
             batch_spec['callback'] = self.callback
+        if self._cancel_after_n_failures is not None:
+            batch_spec['cancel_after_n_failures'] = self._cancel_after_n_failures
         batch_json = await (await self._client._post('/api/v1alpha/batches/create',
                                                      json=batch_spec)).json()
         return Batch(self._client, batch_json['id'], self.attributes, n_jobs, self.token)
@@ -697,8 +701,8 @@ class BatchClient:
                      token=b['token'],
                      last_known_status=b)
 
-    def create_batch(self, attributes=None, callback=None, token=None):
-        return BatchBuilder(self, attributes, callback, token)
+    def create_batch(self, attributes=None, callback=None, token=None, cancel_after_n_failures=None):
+        return BatchBuilder(self, attributes, callback, token, cancel_after_n_failures)
 
     async def get_billing_project(self, billing_project):
         bp_resp = await self._get(f'/api/v1alpha/billing_projects/{billing_project}')

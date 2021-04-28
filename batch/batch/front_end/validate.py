@@ -82,7 +82,8 @@ batch_validator = keyed({
     required('billing_project'): str_type,
     'callback': nullable(str_type),
     required('n_jobs'): int_type,
-    required('token'): str_type
+    required('token'): str_type,
+    'cancel_after_n_failures': nullable(numeric(**{"x > 0": lambda x: isinstance(x, int) and x > 0}))
 })
 
 
