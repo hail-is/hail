@@ -462,7 +462,6 @@ class BuildImage2Step(Step):
         context = self.context_path
         if not context:
             context = '/io'
-        context = context
 
         if isinstance(self.dockerfile, dict):
             assert ['inline'] == list(self.dockerfile.keys())
