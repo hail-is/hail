@@ -870,6 +870,11 @@ class Tests(unittest.TestCase):
         mat = BlockMatrix.from_numpy(np_mat).to_ndarray()
         self.assertTrue(np.array_equal(np_mat, hl.eval(mat)))
 
+        blocks_to_sparsify = [1, 4, 7, 12, 20, 42, 48]
+        sparsed_numpy = sparsify_numpy(np.arange(25*25).reshape((25, 25)), 4,  blocks_to_sparsify)
+        sparsed = BlockMatrix.from_numpy(sparsed_numpy, block_size=4)._sparsify_blocks(blocks_to_sparsify).to_ndarray()
+        self.assertTrue(np.array_equal(sparsed_numpy, hl.eval(sparsed)))
+
     @fails_service_backend()
     @fails_local_backend()
     def test_block_matrix_entries(self):
