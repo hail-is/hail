@@ -93,4 +93,4 @@ clean:
 ## Public Images ###############################################################
 
 publish-public-images:
-	bash publish-public-images.sh $(PROJECT)
+	bash publish-public-images.sh $(DOCKER_PREFIX)
