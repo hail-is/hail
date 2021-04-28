@@ -17,6 +17,7 @@ from .environment import (
     DOMAIN,
     IP,
     CI_UTILS_IMAGE,
+    KANIKO_IMAGE,
     DEFAULT_NAMESPACE,
     KUBERNETES_SERVER_URL,
     BUCKET,
@@ -462,77 +463,42 @@ class BuildImage2Step(Step):
         if not context:
             context = '/io'
 
-        rendered_dockerfile = '/Dockerfile'
         if isinstance(self.dockerfile, dict):
             assert ['inline'] == list(self.dockerfile.keys())
-            render_dockerfile = f'echo {shq(self.dockerfile["inline"])} > /Dockerfile.{self.token};\n'
-            unrendered_dockerfile = f'/Dockerfile.{self.token}'
+            unrendered_dockerfile = f'/io/Dockerfile.in.{self.token}'
+            create_inline_dockerfile_if_present = f'echo {shq(self.dockerfile["inline"])} > {unrendered_dockerfile};\n'
         else:
             assert isinstance(self.dockerfile, str)
-            render_dockerfile = ''
-            unrendered_dockerfile = f'{self.dockerfile}'
-        render_dockerfile += (
-            f'time python3 jinja2_render.py {shq(json.dumps(config))} '
-            f'{shq(unrendered_dockerfile)} {shq(rendered_dockerfile)}'
-        )
-
-        if self.publish_as:
-            published_latest = shq(f'gcr.io/{GCP_PROJECT}/{self.publish_as}:latest')
-            pull_published_latest = f'time retry docker pull {shq(published_latest)} || true'
-            cache_from_published_latest = f'--cache-from {shq(published_latest)}'
-        else:
-            pull_published_latest = ''
-            cache_from_published_latest = ''
-
-        push_image = f'''
-time retry docker push {self.image}
-'''
-        if scope == 'deploy' and self.publish_as and not is_test_deployment:
-            push_image = (
-                f'''
-docker tag {shq(self.image)} {self.base_image}:latest
-time retry docker push {self.base_image}:latest
-'''
-                + push_image
-            )
+            unrendered_dockerfile = self.dockerfile
+            create_inline_dockerfile_if_present = ''
+        dockerfile_in_context = os.path.join(context, 'Dockerfile.' + self.token)
 
         script = f'''
 set -ex
-date
 
-cd /
+{create_inline_dockerfile_if_present}
 
-{ RETRY_FUNCTION_SCRIPT }
+cp {unrendered_dockerfile} /python3.7-slim-stretch/Dockerfile.in
 
-{render_dockerfile}
+time chroot /python3.7-slim-stretch /usr/local/bin/python3 \
+     jinja2_render.py \
+     {shq(json.dumps(config))} \
+     /Dockerfile.in \
+     /Dockerfile.out
 
-FROM_IMAGE=$(awk '$1 == "FROM" {{ print $2; exit }}' {shq(rendered_dockerfile)})
+mv /python3.7-slim-stretch/Dockerfile.out {shq(dockerfile_in_context)}
 
-time gcloud -q auth activate-service-account \
-  --key-file=/secrets/gcr-push-service-account-key/gcr-push-service-account-key.json
-time gcloud -q auth configure-docker
+set +e
+/busybox/sh /convert-google-application-credentials-to-kaniko-auth-config
+set -e
 
-time retry docker pull $FROM_IMAGE
-{pull_published_latest}
-CPU_PERIOD=100000
-CPU_QUOTA=$(( $(grep -c ^processor /proc/cpuinfo) * $(cat /sys/fs/cgroup/cpu/cpu.shares) * $CPU_PERIOD / 1024 ))
-MEMORY=$(cat /sys/fs/cgroup/memory/memory.limit_in_bytes)
-pwd
-time docker build --memory="$MEMORY" --cpu-period="$CPU_PERIOD" --cpu-quota="$CPU_QUOTA" -t {shq(self.image)} \
-  -f {rendered_dockerfile} \
-  --cache-from $FROM_IMAGE {cache_from_published_latest} \
-  {context}
-{push_image}
-
-date
-'''
+/kaniko/executor --dockerfile={shq(dockerfile_in_context)} --context=dir://{shq(context)} --destination={shq(self.image)} --cache=true --snapshotMode=redo --use-new-run'''
 
         log.info(f'step {self.name}, script:\n{script}')
 
         self.job = batch.create_job(
-            CI_UTILS_IMAGE,
-            command=['bash', '-c', script],
-            mount_docker_socket=True,
+            KANIKO_IMAGE,
+            command=['/busybox/sh', '-c', script],
             secrets=[
                 {
                     'namespace': DEFAULT_NAMESPACE,
@@ -540,6 +506,9 @@ date
                     'mount_path': '/secrets/gcr-push-service-account-key',
                 }
             ],
+            env={
+                'GOOGLE_APPLICATION_CREDENTIALS': '/secrets/gcr-push-service-account-key/gcr-push-service-account-key.json'
+            },
             attributes={'name': self.name},
             input_files=input_files,
             parents=self.deps_parents(),
