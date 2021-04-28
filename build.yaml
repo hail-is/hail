@@ -628,6 +628,7 @@ steps:
     publishAs: hail-kaniko
     resources:
       memory: highmem
+      storage: 10GiB
     inputs:
       - from: /repo/ci
         to: /io/repo/ci

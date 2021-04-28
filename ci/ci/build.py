@@ -421,7 +421,9 @@ true
 
 
 class BuildImage2Step(Step):
-    def __init__(self, params, dockerfile, context_path, publish_as, inputs, resources):  # pylint: disable=unused-argument
+    def __init__(
+        self, params, dockerfile, context_path, publish_as, inputs, resources
+    ):  # pylint: disable=unused-argument
         super().__init__(params)
         self.dockerfile = dockerfile
         self.context_path = context_path
@@ -444,7 +446,12 @@ class BuildImage2Step(Step):
     def from_json(params):
         json = params.json
         return BuildImage2Step(
-            params, json['dockerFile'], json.get('contextPath'), json.get('publishAs'), json.get('inputs'), json.get('resources')
+            params,
+            json['dockerFile'],
+            json.get('contextPath'),
+            json.get('publishAs'),
+            json.get('inputs'),
+            json.get('resources'),
         )
 
     def config(self, scope):  # pylint: disable=unused-argument
