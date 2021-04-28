@@ -626,6 +626,9 @@ steps:
     dockerFile: /io/repo/ci/kaniko/Dockerfile
     contextPath: /io/repo/ci
     publishAs: hail-kaniko
+    resources:
+      memory: highmem
+      storage: 10GiB
     inputs:
       - from: /repo/ci
         to: /io/repo/ci
@@ -2940,7 +2943,7 @@ steps:
 
       mkdir -p ./ci/test ./hail/
       cp /io/repo/ci/test/resources/build.yaml ./
-      cp -R /io/repo/ci/test/resources ./ci/test/
+      cp -R /io/repo/ci/* ./ci/
       cp /io/repo/tls/Dockerfile ./ci/test/resources/Dockerfile.certs
       cp /io/repo/tls/create_certs.py ./ci/test/resources/
       cp /io/repo/pylintrc ./

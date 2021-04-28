@@ -421,12 +421,15 @@ true
 
 
 class BuildImage2Step(Step):
-    def __init__(self, params, dockerfile, context_path, publish_as, inputs):  # pylint: disable=unused-argument
+    def __init__(
+        self, params, dockerfile, context_path, publish_as, inputs, resources
+    ):  # pylint: disable=unused-argument
         super().__init__(params)
         self.dockerfile = dockerfile
         self.context_path = context_path
         self.publish_as = publish_as
         self.inputs = inputs
+        self.resources = resources
         if params.scope == 'deploy' and publish_as and not is_test_deployment:
             self.base_image = f'gcr.io/{GCP_PROJECT}/{self.publish_as}'
         else:
@@ -443,7 +446,12 @@ class BuildImage2Step(Step):
     def from_json(params):
         json = params.json
         return BuildImage2Step(
-            params, json['dockerFile'], json.get('contextPath'), json.get('publishAs'), json.get('inputs')
+            params,
+            json['dockerFile'],
+            json.get('contextPath'),
+            json.get('publishAs'),
+            json.get('inputs'),
+            json.get('resources'),
         )
 
     def config(self, scope):  # pylint: disable=unused-argument
@@ -510,6 +518,7 @@ set -e
                 'GOOGLE_APPLICATION_CREDENTIALS': '/secrets/gcr-push-service-account-key/gcr-push-service-account-key.json'
             },
             attributes={'name': self.name},
+            resources=self.resources,
             input_files=input_files,
             parents=self.deps_parents(),
         )
