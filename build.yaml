@@ -623,12 +623,12 @@ steps:
       - merge_code
   - kind: buildImage2
     name: hail_kaniko_image
-    dockerFile: /io/repo/kaniko/Dockerfile
-    contextPath: /io/repo/kaniko
+    dockerFile: /io/repo/ci/kaniko/Dockerfile
+    contextPath: /io/repo/ci
     publishAs: hail-kaniko
     inputs:
-      - from: /repo/kaniko
-        to: /io/repo/kaniko
+      - from: /repo/ci
+        to: /io/repo/ci
     dependsOn:
       - service_base_image
       - merge_code
