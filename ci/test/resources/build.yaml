@@ -4,49 +4,55 @@ steps:
     namespaceName: default
     public: true
   - kind: buildImage2
-    name: inline_image
+    name: git_make_bash_image
     dockerFile:
       inline: |
         FROM {{ global.docker_root_image }}
-        RUN apt-get update && apt-get install -y git
+        RUN apt-get update && apt-get install -y git make bash
   - kind: runImage
-    name: run_inline_image
+    name: merge_code
     image:
-      valueFrom: inline_image.image
+      valueFrom: git_make_bash_image.image
     script: |
-      git init
-    dependsOn:
-      - inline_image
-  - kind: buildImage
-    name: hail_ubuntu_image
-    dockerFile: docker/hail-ubuntu/Dockerfile
-    contextPath: docker/hail-ubuntu
-    publishAs: hail-ubuntu
-  - kind: buildImage
-    name: base_image
-    dockerFile: docker/Dockerfile.base
-    contextPath: .
-    publishAs: base
-    dependsOn:
-      - hail_ubuntu_image
-  - kind: runImage
-    name: copy_files
-    image:
-      valueFrom: base_image.image
-    script: |
+      set -ex
       cd /io
       mkdir repo
       cd repo
       {{ code.checkout_script }}
-      make -C hail python/hailtop/hail_version
-    timeout: 300
+      make -C hail python-version-info
+      git rev-parse HEAD > git_version
     outputs:
-      - from: /io/repo
+      - from: /io/repo/
         to: /repo
       - from: /io/repo/hail/python/hail/hail_version
         to: /hail_version
+      - from: /io/repo/hail/python/hail/hail_pip_version
+        to: /hail_pip_version
+      - from: /io/repo/git_version
+        to: /git_version
     dependsOn:
-      - base_image
+      - git_make_bash_image
+  - kind: buildImage2
+    name: hail_ubuntu_image
+    dockerFile: /io/hail-ubuntu/Dockerfile
+    contextPath: /io/hail-ubuntu
+    publishAs: hail-ubuntu
+    inputs:
+      - from: /repo/docker/hail-ubuntu
+        to: /io/hail-ubuntu
+    dependsOn:
+      - merge_code
+  - kind: buildImage2
+    name: base_image
+    dockerFile: /io/repo/docker/Dockerfile.base
+    contextPath: /io/repo
+    publishAs: base
+    inputs:
+      - from: /repo
+        to: /io/repo
+    dependsOn:
+      - hail_ubuntu_image
+      - merge_code
   - kind: runImage
     name: test_clashing_basenames_setup
     image:
@@ -80,32 +86,29 @@ steps:
       - base_image
       - test_clashing_basenames_setup
   - kind: buildImage2
-    name: docker_file_in_inputs_test_image
-    dockerFile: /io/hail-ubuntu/Dockerfile
-    contextPath: /io/hail-ubuntu
-    inputs:
-      - from: /repo/docker/hail-ubuntu
-        to: /io/hail-ubuntu
-    dependsOn:
-      - copy_files
-  - kind: buildImage
     name: service_base_image
-    dockerFile: docker/Dockerfile.service-base
-    contextPath: .
+    dockerFile: /io/repo/docker/Dockerfile.service-base
+    contextPath: /io/repo/
     publishAs: service-base
     dependsOn:
       - base_image
-      - copy_files
+      - merge_code
     inputs:
       - from: /hail_version
-        to: /hail_version
-  - kind: buildImage
+        to: /io/repo/hail_version
+      - from: /repo
+        to: /io/repo
+  - kind: buildImage2
     name: create_certs_image
-    dockerFile: ci/test/resources/Dockerfile.certs
-    contextPath: ci/test/resources
+    dockerFile: /io/ci/test/resources/Dockerfile.certs
+    contextPath: /io/ci/test/resources
     publishAs: test_hello_create_certs_image
+    inputs:
+      - from: /repo/ci/test/resources
+        to: /io/ci/test/resources
     dependsOn:
       - service_base_image
+      - merge_code
   - kind: runImage
     name: create_certs
     image:
@@ -129,13 +132,17 @@ steps:
     dependsOn:
       - default_ns
       - create_certs_image
-  - kind: buildImage
+  - kind: buildImage2
     name: hello_image
-    dockerFile: ci/test/resources/Dockerfile
-    contextPath: .
+    dockerFile: /io/repo/ci/test/resources/Dockerfile
+    contextPath: /io/repo
     publishAs: ci-hello
+    inputs:
+      - from: /repo
+        to: /io/repo
     dependsOn:
       - service_base_image
+      - merge_code
   - kind: runImage
     name: check_hello
     image:
@@ -165,7 +172,7 @@ steps:
         name: hello
     dependsOn:
       - default_ns
-      - copy_files
+      - merge_code
   - kind: runImage
     name: test_hello_database
     image:

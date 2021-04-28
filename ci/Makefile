@@ -17,7 +17,7 @@ check:
 	$(PYTHON) -m pylint --rcfile ../pylintrc ci --score=n
 	$(BLACK) --check --diff
 	curlylint .
-	../check-sql.sh
+	bash ../check-sql.sh
 
 .PHONY: blacken
 blacken:

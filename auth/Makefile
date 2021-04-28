@@ -11,7 +11,7 @@ check:
 	$(PYTHON) -m flake8 auth
 	$(PYTHON) -m pylint --rcfile ../pylintrc auth --score=n
 	curlylint .
-	../check-sql.sh
+	bash ../check-sql.sh
 
 .PHONY: build
 build:

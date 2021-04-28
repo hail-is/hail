@@ -13,7 +13,7 @@ check:
 	$(PYTHON) -m flake8 notebook
 	$(PYTHON) -m pylint --rcfile ../pylintrc notebook --score=n
 	curlylint .
-	../check-sql.sh
+	bash ../check-sql.sh
 
 .PHONY: build-notebook
 build-notebook:
