@@ -3,7 +3,7 @@ from .base_ir import BaseIR, IR, TableIR, MatrixIR, BlockMatrixIR, \
     JIRVectorReference
 from .ir import MatrixWrite, MatrixMultiWrite, BlockMatrixWrite, \
     BlockMatrixMultiWrite, TableToValueApply, \
-    MatrixToValueApply, BlockMatrixToValueApply, \
+    MatrixToValueApply, BlockMatrixToValueApply, BlockMatrixCollect, \
     Literal, LiftMeOut, Join, JavaIR, I32, I64, F32, F64, Str, FalseIR, TrueIR, \
     Void, Cast, NA, IsNA, If, Coalesce, Let, AggLet, Ref, TopLevelReference, \
     TailLoop, Recur, ApplyBinaryPrimOp, ApplyUnaryPrimOp, ApplyComparisonOp, \
