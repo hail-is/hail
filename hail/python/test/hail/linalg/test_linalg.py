@@ -863,6 +863,13 @@ class Tests(unittest.TestCase):
             self._assert_eq(expected, BlockMatrix.rectangles_to_numpy(rect_uri))
             self._assert_eq(expected, BlockMatrix.rectangles_to_numpy(rect_bytes_uri, binary=True))
 
+    @fails_service_backend
+    @fails_local_backend
+    def test_to_ndarray(self):
+        np_mat = np.arange(12).reshape((4, 3))
+        mat = BlockMatrix.from_numpy(np_mat).to_ndarray()
+        self.assertTrue(np.array_equal(np_mat, hl.eval(mat)))
+
     @fails_service_backend()
     @fails_local_backend()
     def test_block_matrix_entries(self):
