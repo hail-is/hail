@@ -498,11 +498,7 @@ set -e
 
         self.job = batch.create_job(
             image=KANIKO_IMAGE,
-            command=[
-                '/busybox/sh',
-                '-c',
-                script
-            ],
+            command=['/busybox/sh', '-c', script],
             secrets=[{
                 'namespace': DEFAULT_NAMESPACE,
                 'name': 'gcr-push-service-account-key',
