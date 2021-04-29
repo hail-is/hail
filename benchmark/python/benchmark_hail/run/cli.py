@@ -6,7 +6,8 @@ import sys
 
 import hail as hl
 
-from .utils import run_all, run_pattern, run_list, RunConfig, init_logging
+from .utils import run_all, run_pattern, run_list, RunConfig
+from .. import init_logging
 
 
 def main(args_):
