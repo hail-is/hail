@@ -379,7 +379,8 @@ async def deploy_status(request, userdata):  # pylint: disable=unused-argument
 
     async def get_failure_information(batch):
         if isinstance(batch, MergeFailureBatch):
-            return batch.exception
+            exc = batch.exception
+            return traceback.format_exception(etype=type(exc), value=exc, tb=exc.__traceback__)
         jobs = await collect_agen(batch.jobs())
 
         async def fetch_job_and_log(j):
