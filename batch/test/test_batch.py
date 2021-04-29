@@ -1,4 +1,5 @@
 import random
+import datetime
 import math
 import collections
 import os
@@ -801,12 +802,12 @@ def test_job_private_instance_cancel(client):
     start = time.time()
     while True:
         status = j.status()
-        if time.time() - start > 60:
-            assert False, f'timed out waiting for creating state: {status}'
         if status['state'] == 'Creating':
             break
+        now = time.time()
+        if now + delay > 60:
+            assert False, f'timed out waiting for creating state: {status} {datetime.datetime.fromtimestamp(now)}'
         delay = sync_sleep_and_backoff(delay)
-
     b.cancel()
     status = j.wait()
     assert status['state'] == 'Cancelled', str(status)

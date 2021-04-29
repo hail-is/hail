@@ -588,16 +588,16 @@ def is_transient_error(e):
 
 async def sleep_and_backoff(delay):
     # exponentially back off, up to (expected) max of 30s
-    t = delay * random.random()
+    t = delay * random.uniform(0.9, 1.1)
     await asyncio.sleep(t)
-    return min(delay * 2, 60.0)
+    return min(delay * 2, 30.0)
 
 
 def sync_sleep_and_backoff(delay):
     # exponentially back off, up to (expected) max of 30s
-    t = delay * random.random()
+    t = delay * random.uniform(0.9, 1.1)
     time.sleep(t)
-    return min(delay * 2, 60.0)
+    return min(delay * 2, 30.0)
 
 
 def retry_all_errors(msg=None, error_logging_interval=10):
