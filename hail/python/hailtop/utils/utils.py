@@ -841,7 +841,7 @@ class ParsedDockerImageReference:
 
 
 # https://github.com/distribution/distribution/blob/v2.7.1/reference/reference.go
-DOCKER_IMAGE_REFERENCE_REGEX = re.compile(r"(?:([^/]+)/)?([^:@]+)(?::([^@]+))?(?:@(.+))?")
+DOCKER_IMAGE_REFERENCE_REGEX = re.compile(r"(?:([^/]+\.[^/]+)/)?([^:@]+)(?::([^@]+))?(?:@(.+))?")
 
 
 def parse_docker_image_reference(reference_string: str) -> ParsedDockerImageReference:
