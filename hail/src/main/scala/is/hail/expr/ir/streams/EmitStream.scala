@@ -468,9 +468,7 @@ object EmitStream {
 
               override val LproduceElement: CodeLabel = mb.defineAndImplementLabel { cb =>
                 val Lfiltered = CodeLabel()
-                cb.define(Lfiltered)
-                if (requiresMemoryManagementPerElement)
-                  cb += childProducer.elementRegion.clearRegion()
+
                 cb.goto(childProducer.LproduceElement)
 
                 cb.define(childProducer.LproduceElementDone)
@@ -484,8 +482,13 @@ object EmitStream {
                     })
 
                 if (requiresMemoryManagementPerElement)
-                  cb += filterEltRegion.trackAndIncrementReferenceCountOf(childProducer.elementRegion)
+                  cb += filterEltRegion.takeOwnershipOfAndClear(childProducer.elementRegion)
                 cb.goto(LproduceElementDone)
+
+                cb.define(Lfiltered)
+                if (requiresMemoryManagementPerElement)
+                  cb += childProducer.elementRegion.clearRegion()
+                cb.goto(childProducer.LproduceElement)
               }
 
               val element: EmitCode = elementField
