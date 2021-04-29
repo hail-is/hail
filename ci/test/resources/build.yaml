@@ -47,6 +47,10 @@ steps:
     dockerFile: /io/repo/docker/Dockerfile.base
     contextPath: /io/repo
     publishAs: base
+    resources:
+      storage: 10Gi
+      cpu: "2"
+      memory: 7.5Gi
     inputs:
       - from: /repo
         to: /io/repo
