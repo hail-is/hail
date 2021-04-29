@@ -95,6 +95,7 @@ __all__ = [
     'BlockMatrixFilter',
     'BlockMatrixDensify',
     'BlockMatrixSparsifier',
+    'BlockMatrixCollect',
     'BandSparsifier',
     'RowIntervalSparsifier',
     'RectangleSparsifier',
