@@ -102,7 +102,7 @@ steps:
     publishAs: base
     resources:
       storage: 10Gi
-      cpu: 2
+      cpu: "2"
       memory: 7.5Gi
     inputs:
       - from: /repo
