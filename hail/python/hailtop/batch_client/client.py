@@ -159,8 +159,9 @@ class Batch:
     def jobs(self, q=None):
         return agen_to_blocking(self._async_batch.jobs(q=q))
 
-    def get_job(self, job_id: int) -> aioclient.Job:
-        return async_to_blocking(self._async_batch.get_job(job_id))
+    def get_job(self, job_id: int) -> Job:
+        j = async_to_blocking(self._async_batch.get_job(job_id))
+        return Job.from_async_job(j)
 
     def get_job_log(self, job_id: int) -> Optional[Dict[str, Any]]:
         return async_to_blocking(self._async_batch.get_job_log(job_id))
