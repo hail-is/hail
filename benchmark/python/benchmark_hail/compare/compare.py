@@ -1,6 +1,7 @@
 import json
 import os
 import sys
+import math
 
 from scipy.stats.mstats import gmean, hmean
 import numpy as np
@@ -19,12 +20,24 @@ def load_file(path):
     return {x['name']: x for x in js_data['benchmarks']}
 
 
+def fmt_mem_ratio(m1, m2):
+    if m1 is None or m2 is None or m1 == 0 or m2 == 0:
+        return 'NA'
+    return fmt_diff(m1 / m2)
+
+
 def fmt_diff(ratio):
     return f'{ratio * 100:.1f}%'
 
 
 def fmt_time(x, size):
     return f'{x:.3f}'.rjust(size)
+
+
+def fmt_mem(b):
+    if b is None:
+        return 'NA'
+    return f'{int(math.ceil(b / (1024 * 1024)))}'
 
 
 def compare(args):
@@ -50,8 +63,13 @@ def compare(args):
     elif args.metric == 'median':
         metric_f = np.median
 
-    def get_metric(data):
+    def get_time_metric(data):
         return metric_f(data['times'])
+
+    def get_memory_metric(data):
+        if 'peak_task_memory' in data:
+            return max(data['peak_task_memory'])
+        return None
 
     failed_1 = []
     failed_2 = []
@@ -68,14 +86,16 @@ def compare(args):
         if d1_failed or d2_failed:
             continue
         try:
-            run1_metric = get_metric(d1)
-            run2_metric = get_metric(d2)
+            run1_time_metric = get_time_metric(d1)
+            run2_time_metric = get_time_metric(d2)
+            run1_memory_metric = get_memory_metric(d1)
+            run2_memory_metric = get_memory_metric(d2)
         except Exception as e:
             raise ValueError(f"error while computing metric for {name}:\n  d1={d1}\n  d2={d2}") from e
-        if run1_metric < min_time_for_inclusion and run2_metric < min_time_for_inclusion:
+        if run1_time_metric < min_time_for_inclusion and run2_time_metric < min_time_for_inclusion:
             continue
 
-        comparison.append((name, run1_metric, run2_metric))
+        comparison.append((name, run1_time_metric, run2_time_metric, run1_memory_metric, run2_memory_metric))
 
     if failed_1:
         sys.stderr.write(f"Failed benchmarks in run 1:" + ''.join(f'\n    {t}' for t in failed_1) + '\n')
@@ -83,18 +103,20 @@ def compare(args):
         sys.stderr.write(f"Failed benchmarks in run 2:" + ''.join(f'\n    {t}' for t in failed_2) + '\n')
     comparison = sorted(comparison, key=lambda x: x[2] / x[1], reverse=True)
 
-    longest_name = max(max(len(name) for name, _, _ in comparison), len('Benchmark Name'))
+    longest_name = max(max(len(t[0]) for t in comparison), len('Benchmark Name'))
 
     comps = []
 
-    def format(name, ratio, t1, t2):
-        return f'{name:>{longest_name}}   {ratio:>8}   {t1:>8}   {t2:>8}'
+    def format(name, ratio, t1, t2, memory_ratio, mem1, mem2):
+        return f'{name:>{longest_name}}   {ratio:>8}   {t1:>8}   {t2:>8}   {memory_ratio:>9}   {mem1:>10}   {mem2:>10}'
 
-    print(format('Benchmark Name', 'Ratio', 'Time 1', 'Time 2'))
-    print(format('--------------', '-----', '------', '------'))
-    for name, r1, r2 in comparison:
+    print(format('Benchmark Name', 'Ratio', 'Time 1', 'Time 2', 'Mem Ratio', 'Mem 1 (MB)', 'Mem 2 (MB)'))
+    print(format('--------------', '-----', '------', '------', '---------', '----------', '----------'))
+    for name, r1, r2, m1, m2 in comparison:
         comps.append(r2 / r1)
-        print(format(name, fmt_diff(r2 / r1), fmt_time(r1, 8), fmt_time(r2, 8)))
+        print(format(name,
+                     fmt_diff(r2 / r1), fmt_time(r1, 8), fmt_time(r2, 8),
+                     fmt_mem_ratio(m2, m1), fmt_mem(m1), fmt_mem(m2)))
 
     print('----------------------')
     print(f'Harmonic mean: {fmt_diff(hmean(comps))}')

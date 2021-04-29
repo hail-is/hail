@@ -32,7 +32,7 @@ def combine(output, files):
     logging.info(f'{len(files)} files to merge')
 
     config = None
-    benchmark_data = collections.defaultdict(lambda: {'failed': False, 'trials': []})
+    benchmark_data = collections.defaultdict(lambda: {'failed': False, 'trials': [], 'peak_task_memory': []})
 
     for file in files:
         with open(file, 'r') as f:
@@ -44,6 +44,8 @@ def combine(output, files):
                 bm_data['failed'] = True
             else:
                 bm_data['trials'].append(bm['times'])
+                if 'peak_task_memory' in bm:
+                    bm_data['peak_task_memory'].append(bm['peak_task_memory'])
 
     import numpy as np
     import scipy.stats as stats
@@ -57,6 +59,10 @@ def combine(output, files):
             data['median'] = np.median(flat_times)
             data['mean'] = np.mean(flat_times)
             data['stdev'] = np.std(flat_times)
+            flat_peak_memory = [m for memory_list in data['peak_task_memory'] for m in memory_list]
+            data['peak_task_memory'] = flat_peak_memory
+            if len(flat_peak_memory) > 0:
+                data['max_memory'] = max(flat_peak_memory)
             if len(data['trials']) > 1:
                 f_stat, p_value = stats.f_oneway(*data['trials'])
                 data['f-stat'] = f_stat
