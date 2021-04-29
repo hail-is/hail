@@ -1286,9 +1286,34 @@ class Tests(unittest.TestCase):
             x7 = hl.tuple(('3',)),
             x8 = hl.tuple(('3', 3)),
             x9 = 4.2,
-            x10 = hl.dict({'hello': 3, 'bar': 5})
+            x10 = hl.dict({'hello': 3, 'bar': 5}),
+            x11 = (True, False)
         )
-        ht.show()
+        result = ht.show(handler=str)
+        assert result == '''+-------+--------------+--------------------------------+------------+
+|   idx | x1           | x2                             | x3         |
++-------+--------------+--------------------------------+------------+
+| int32 | array<int32> | array<struct{y: array<int32>}> | set<int32> |
++-------+--------------+--------------------------------+------------+
+|     0 | [1]          | [([1])]                        | {1}        |
++-------+--------------+--------------------------------+------------+
+
++------------------+-------------------------------+---------+------------+
+| x4               | x5                            | x6      | x7         |
++------------------+-------------------------------+---------+------------+
+| dict<int32, str> | dict<struct{foo: int32}, str> | tuple() | tuple(str) |
++------------------+-------------------------------+---------+------------+
+| {1:"foo"}        | {(5):"bar"}                   | ()      | ("3")      |
++------------------+-------------------------------+---------+------------+
+
++-------------------+----------+---------------------+-------------------+
+| x8                |       x9 | x10                 | x11               |
++-------------------+----------+---------------------+-------------------+
+| tuple(str, int32) |  float64 | dict<str, int32>    | tuple(bool, bool) |
++-------------------+----------+---------------------+-------------------+
+| ("3",3)           | 4.20e+00 | {"bar":5,"hello":3} | (True,False)      |
++-------------------+----------+---------------------+-------------------+
+'''
 
     def test_import_filter_replace(self):
         def assert_filter_equals(filter, find_replace, to):
@@ -1623,3 +1648,12 @@ def test_read_partitions():
     path = new_temp_file()
     ht.write(path)
     assert hl.read_table(path, _n_partitions=10).n_partitions() == 10
+
+
+def test_grouped_flatmap_streams():
+    ht = hl.import_vcf(resource('sample.vcf')).rows()
+    ht = ht.annotate(x=hl.str(ht.locus))  # add a map node
+    ht = ht._map_partitions(lambda part: hl.flatmap(
+        lambda group: hl.range(hl.len(group)).map(lambda i: group[i].annotate(z=group[0])),
+        part.grouped(8)))
+    ht._force_count()

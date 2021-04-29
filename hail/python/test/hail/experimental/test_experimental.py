@@ -94,8 +94,6 @@ class Tests(unittest.TestCase):
         _, aucs = hl.experimental.plot_roc_curve(ht, ['score1', 'score2', 'score3'])
 
     @pytest.mark.unchecked_allocator
-    @fails_service_backend()
-    @fails_local_backend()
     def test_ld_score_regression(self):
 
         ht_scores = hl.import_table(

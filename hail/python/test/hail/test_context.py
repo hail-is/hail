@@ -12,6 +12,12 @@ class Tests(unittest.TestCase):
     def test_init_hail_context_twice(self):
         hl.init(idempotent=True)  # Should be no error
         hl.stop()
+
+        hl.init(idempotent=True)
+        hl.experimental.define_function(lambda x: x + 2, hl.tint32)
+        # ensure functions are cleaned up without error
+        hl.stop()
+
         hl.init(idempotent=True)  # Should be no error
         hl.init(hl.spark_context(), idempotent=True)  # Should be no error
 

@@ -13,7 +13,7 @@ from hail.expr.expressions import (expr_float64, matrix_table_source,
                                    check_entry_indexed, expr_tuple, expr_array, expr_int32, expr_int64)
 from hail.ir import (BlockMatrixWrite, BlockMatrixMap2, ApplyBinaryPrimOp, F64,
                      BlockMatrixBroadcast, ValueToBlockMatrix, BlockMatrixRead, JavaBlockMatrix,
-                     BlockMatrixMap, ApplyUnaryPrimOp, BlockMatrixDot,
+                     BlockMatrixMap, ApplyUnaryPrimOp, BlockMatrixDot, BlockMatrixCollect,
                      tensor_shape_to_matrix_shape, BlockMatrixAgg, BlockMatrixRandom,
                      BlockMatrixToValueApply, BlockMatrixToTable, BlockMatrixFilter,
                      TableFromBlockMatrixNativeReader, TableRead, BlockMatrixSlice,
@@ -1204,6 +1204,17 @@ class BlockMatrix(object):
             uri = local_path_uri(path)
             self.tofile(uri)
             return np.fromfile(path).reshape((self.n_rows, self.n_cols))
+
+    def to_ndarray(self):
+        """Collects a BlockMatrix into a local hail ndarray expression on driver. This should not
+        be done for large matrices.
+
+        Returns
+        -------
+        :class:`.NDArrayExpression`
+        """
+        ir = BlockMatrixCollect(self._bmir)
+        return construct_expr(ir, hl.tndarray(hl.tfloat64, 2))
 
     @property
     def is_sparse(self):

@@ -787,6 +787,12 @@ object Interpret {
         function.execute(ctx, child.execute(ctx))
       case BlockMatrixToValueApply(child, function) =>
         function.execute(ctx, child.execute(ctx))
+      case BlockMatrixCollect(child) =>
+        val bm = child.execute(ctx)
+        // transpose because breeze toArray is column major
+        val breezeMat = bm.transpose().toBreezeMatrix()
+        val shape = IndexedSeq(bm.nRows, bm.nCols)
+        SafeNDArray(shape, breezeMat.toArray)
       case x@TableAggregate(child, query) =>
         val value = child.execute(ctx)
         val fsBc = ctx.fsBc

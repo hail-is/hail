@@ -56,14 +56,15 @@ class Tests(unittest.TestCase):
         all_values_table, all_values_matrix_table = create_all_values_datasets()
 
         resource_dir = resource('backward_compatability')
-        versions = os.listdir(resource_dir)
+        fs = hl.current_backend().fs
+        versions = [os.path.basename(x['path']) for x in fs.ls(resource_dir)]
 
         n = 0
         for v in versions:
             table_dir = os.path.join(resource_dir, v, 'table')
             i = 0
             f = os.path.join(table_dir, '{}.ht'.format(i))
-            while os.path.exists(f):
+            while fs.exists(f):
                 ds = hl.read_table(f)
                 assert backward_compatible_same(all_values_table, ds)
                 i += 1
@@ -73,7 +74,7 @@ class Tests(unittest.TestCase):
             matrix_table_dir = os.path.join(resource_dir, v, 'matrix_table')
             i = 0
             f = os.path.join(matrix_table_dir, '{}.hmt'.format(i))
-            while os.path.exists(f):
+            while fs.exists(f):
                 ds = hl.read_matrix_table(f)
                 assert backward_compatible_same(all_values_matrix_table, ds)
                 i += 1

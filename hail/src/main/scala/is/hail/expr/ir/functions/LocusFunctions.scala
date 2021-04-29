@@ -422,8 +422,7 @@ object LocusFunctions extends RegistryFunctions {
             val srcRG = iT.pointType.asInstanceOf[PLocus].rg
             val destRG = rt.types(0).asInstanceOf[PInterval].pointType.asInstanceOf[PLocus].rg
             val er = EmitRegion(cb.emb, r)
-            val intervalObj = Code.checkcast[Interval](asm4s.coerce[AnyRef](wrapArg(er, iT)(interval.tcode[Long])))
-
+            val intervalObj = Code.checkcast[Interval](scodeToJavaValue(cb, r, interval))
             val lifted = cb.newLocal[(Interval, Boolean)]("liftover_locus_interval_lifted",
               rgCode(cb.emb, srcRG).invoke[String, Interval, Double, (Interval, Boolean)]("liftoverLocusInterval",
                 destRG.name, intervalObj, minMatch.asDouble.doubleCode(cb)))

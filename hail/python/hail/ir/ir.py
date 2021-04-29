@@ -2285,6 +2285,23 @@ class MatrixMultiWrite(IR):
         return True
 
 
+class BlockMatrixCollect(IR):
+    @typecheck_method(child=BlockMatrixIR)
+    def __init__(self, child):
+        super().__init__(child)
+        self.child = child
+
+    def copy(self, child):
+        return BlockMatrixCollect(self.child)
+
+    def _eq(self, other):
+        return isinstance(other, BlockMatrixCollect) and self.child == other.child
+
+    def _compute_type(self, env, agg_env):
+        self.child._compute_type()
+        self._type = tndarray(tfloat64, 2)
+
+
 class BlockMatrixWrite(IR):
     @typecheck_method(child=BlockMatrixIR, writer=BlockMatrixWriter)
     def __init__(self, child, writer):

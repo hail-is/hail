@@ -834,7 +834,7 @@ class Expression(object):
             kwargs['n_rows'] = kwargs['n']
         del kwargs['n']
         _, ds = self._to_relational_preserving_rows_and_cols('<expr>')
-        ds.show(**{k: v for k, v in kwargs.items() if v is not None})
+        return ds.show(**{k: v for k, v in kwargs.items() if v is not None})
 
     def _to_relational_preserving_rows_and_cols(self, fallback_name):
         source = self._indices.source
