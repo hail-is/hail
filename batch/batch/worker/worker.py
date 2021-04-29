@@ -272,8 +272,12 @@ class Container:
             image_ref.tag = 'latest'
 
         if image_ref.name() in HAIL_GENETICS_IMAGES:
+            # We want the "hailgenetics/python-dill" translate to
+            # gcr.io/hail-vdc/hailgenetics/python-dill (
+            # or us-central1-docker.pkg.dev/hail-vdc/hailgenetics/python-dill)
+            image_ref.path = '/'.join(DOCKER_PREFIX.split('/')[1:] + [
+                image_ref.domain, image_ref.path])
             image_ref.domain = DOCKER_PREFIX.split('/', maxsplit=1)[0]
-            image_ref.path = '/'.join(DOCKER_PREFIX.split('/')[1:] + [image_ref.path])
 
         self.image_ref = image_ref
         self.image_ref_str = str(image_ref)
