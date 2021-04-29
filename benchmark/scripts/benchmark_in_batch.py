@@ -27,6 +27,7 @@ if __name__ == '__main__':
                  backend=hb.ServiceBackend(billing_project='hail'),
                  default_image=BENCHMARK_IMAGE,
                  default_cpu='2',
+                 default_storage='30G',
                  attributes={'output_file': output_file,
                              'n_replicates': str(N_REPLICATES),
                              'n_iters': str(N_ITERS),
