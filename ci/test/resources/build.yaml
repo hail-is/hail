@@ -137,9 +137,6 @@ steps:
     dockerFile: /io/repo/ci/kaniko/Dockerfile
     contextPath: /io/repo/ci
     publishAs: hail-kaniko
-    resources:
-      memory: highmem
-      storage: 10Gi
     inputs:
       - from: /repo/ci
         to: /io/repo/ci
