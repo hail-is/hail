@@ -914,7 +914,14 @@ def lrt_test(X, y, null_fit, link):
     assert (link == "logistic")
     fit = logreg_fit(X, y, null_fit)
 
-    ...
+    chi_sq = 2 * (fit.log_lkhd - null_fit.log_lkhd)
+    p = hl.pchisqtail(chi_sq, X.shape[1] - null_fit.b.shape[0])
+
+    return hl.struct(
+        beta=fit.b[X.shape[1] - 1],
+        chi_sq_stat = chi_sq,
+        p_value=p,
+        fit = hl.struct(n_iterations=fit.num_iter, converged=fit.converged, exploded=fit.exploded))
 
 @typecheck(test=enumeration('wald', 'lrt', 'score', 'firth'),
            y=oneof(expr_float64, sequenceof(expr_float64)),
@@ -1197,6 +1204,8 @@ def _logistic_regression_rows_nd(test, y, x, covariates, pass_through=()) -> hai
         ht = ht.annotate(logistic_regression=wald_structs)
     elif test == "lrt":
         covs_and_x = hl.nd.hstack([ht.cov_nd, ht.x.reshape((-1, 1))])
+        lrt_structs = hl.range(num_y_fields).map(lambda idx: lrt_test(covs_and_x, ht.y_nd[:, idx], ht.nulls[idx], "logistic"))
+        ht = ht.annotate(logistic_regression=lrt_structs)
 
     else:
         raise ValueError("Only support wald and lrt so far")
