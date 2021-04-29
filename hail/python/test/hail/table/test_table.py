@@ -1648,3 +1648,12 @@ def test_read_partitions():
     path = new_temp_file()
     ht.write(path)
     assert hl.read_table(path, _n_partitions=10).n_partitions() == 10
+
+
+def test_grouped_flatmap_streams():
+    ht = hl.import_vcf(resource('sample.vcf')).rows()
+    ht = ht.annotate(x=hl.str(ht.locus))  # add a map node
+    ht = ht._map_partitions(lambda part: hl.flatmap(
+        lambda group: hl.range(hl.len(group)).map(lambda i: group[i].annotate(z=group[0])),
+        part.grouped(8)))
+    ht._force_count()
