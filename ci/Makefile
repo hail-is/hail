@@ -43,7 +43,7 @@ push-ci-utils: build-ci-utils
 .PHONY: hail-kaniko-build
 hail-kaniko-build:
 	-docker	pull $(HAIL_KANIKO_LATEST)
-	docker build -t hail_kaniko -f ../kaniko/Dockerfile --cache-from hail_kaniko,$(HAIL_KANIKO_LATEST),service-base ../kaniko
+	docker build -t hail_kaniko -f kaniko/Dockerfile --cache-from hail_kaniko,$(HAIL_KANIKO_LATEST),service-base .
 
 .PHONY: push
 hail-kaniko-push: hail-kaniko-build
