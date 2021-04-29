@@ -793,4 +793,5 @@ class ServiceTests(unittest.TestCase):
         j2.command('sleep 300')
 
         res = b.run()
-        assert res.status()['state'] == 'cancelled', debug_info(res)
+        job_status = res.get_job(2).status()
+        assert job_status['state'] == 'Cancelled', str(job_status)

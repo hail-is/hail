@@ -347,6 +347,9 @@ class Batch:
             if last_job_id is None:
                 break
 
+    async def get_job(self, job_id: int) -> Job:
+        return await self._client.get_job(self.id, job_id)
+
     async def get_job_log(self, job_id: int) -> Optional[Dict[str, Any]]:
         return await self._client.get_job_log(self.id, job_id)
 
