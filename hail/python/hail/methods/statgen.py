@@ -865,7 +865,7 @@ def logreg_fit(X, y, null_fit=None, max_iter=25, tol=1E-6):
     # Useful type abbreviations
     tvector64 = hl.tndarray(hl.tfloat64, 1)
     tmatrix64 = hl.tndarray(hl.tfloat64, 2)
-    search_return_type = hl.tstruct(b=tvector64, score=tvector64, fisher=tmatrix64, num_iter=hl.tint32, converged=hl.tbool, exploded=hl.tbool)
+    search_return_type = hl.tstruct(b=tvector64, score=tvector64, fisher=tmatrix64, num_iter=hl.tint32, log_lkhd=hl.tfloat64, converged=hl.tbool, exploded=hl.tbool)
     def na(field_name):
         return hl.missing(search_return_type[field_name])
 
@@ -876,6 +876,7 @@ def logreg_fit(X, y, null_fit=None, max_iter=25, tol=1E-6):
         exploded = delta_b_struct.failed
         delta_b = delta_b_struct.solution
         max_delta_b = nd_max(delta_b.map(lambda e: hl.abs(e)))
+        log_lkhd = ((y * mu) + (1 - y) * (1 - mu)).map(lambda e: hl.log(e)).sum()
 
         def compute_next_iter(cur_iter, b, mu, score, fisher):
             cur_iter = cur_iter + 1
@@ -886,9 +887,9 @@ def logreg_fit(X, y, null_fit=None, max_iter=25, tol=1E-6):
             return recur(cur_iter, b, mu, score, fisher)
 
         return (hl.case()
-                .when(exploded | hl.is_nan(delta_b[0]), hl.struct(b=na('b'), score=na('score'), fisher=na('fisher'), num_iter=cur_iter, converged=False, exploded=True))
-                .when(cur_iter > max_iter, hl.struct(b=na('b'), score=na('score'), fisher=na('fisher'), num_iter=cur_iter, converged=False, exploded=False))
-                .when(max_delta_b < tol, hl.struct(b=b, score=score, fisher=fisher, num_iter=cur_iter, converged=True, exploded=False))
+                .when(exploded | hl.is_nan(delta_b[0]), hl.struct(b=na('b'), score=na('score'), fisher=na('fisher'), num_iter=cur_iter, log_lkhd=log_lkhd, converged=False, exploded=True))
+                .when(cur_iter > max_iter, hl.struct(b=na('b'), score=na('score'), fisher=na('fisher'), num_iter=cur_iter, log_lkhd=log_lkhd, converged=False, exploded=False))
+                .when(max_delta_b < tol, hl.struct(b=b, score=score, fisher=fisher, num_iter=cur_iter, log_lkhd=log_lkhd, converged=True, exploded=False))
                 .default(compute_next_iter(cur_iter, b, mu, score, fisher)))
 
     res_struct = hl.experimental.loop(search, search_return_type, 1, b, mu, score, fisher)
