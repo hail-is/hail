@@ -805,7 +805,7 @@ def test_job_private_instance_cancel(client):
         if status['state'] == 'Creating':
             break
         now = time.time()
-        if now + delay > 60:
+        if now + delay - start > 60:
             assert False, f'timed out waiting for creating state: {status} {datetime.datetime.fromtimestamp(now)}'
         delay = sync_sleep_and_backoff(delay)
     b.cancel()
