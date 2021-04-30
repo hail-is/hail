@@ -235,7 +235,7 @@ class Timings:
 
 class ContainerStepManager:
     def __init__(self, timing: Dict[str, float], is_deleted: Callable[[], bool]):
-        self.timing: Dict[str, float] = dict()
+        self.timing: Dict[str, float] = timing
         self.is_deleted = is_deleted
 
     def __enter__(self):
