@@ -57,6 +57,7 @@ class Tests(unittest.TestCase):
     backend_name = os.environ.get('HAIL_QUERY_BACKEND', 'spark')
     linreg_functions = [hl.linear_regression_rows, hl._linear_regression_rows_nd] if backend_name == "spark" else [hl._linear_regression_rows_nd]
 
+    @skip_when_service_backend('Shuffler is encoding/decoding is broken.')
     def test_linreg_basic(self):
         phenos = hl.import_table(resource('regressionLinear.pheno'),
                                  types={'Pheno': hl.tfloat64},
@@ -1149,6 +1150,7 @@ class Tests(unittest.TestCase):
             hl.ld_matrix(mt.GT.n_alt_alleles(), mt.locus, radius=1.0, coord_expr=mt.cm).to_numpy(),
             [[1., -0.85280287, 0.], [-0.85280287, 1., 0.], [0., 0., 1.]]))
 
+    @skip_when_service_backend('Shuffler is encoding/decoding is broken.')
     def test_split_multi_hts(self):
         ds1 = hl.import_vcf(resource('split_test.vcf'))
         ds1 = hl.split_multi_hts(ds1)
@@ -1313,6 +1315,7 @@ class Tests(unittest.TestCase):
         self.assertEqual(hl.eval(glob.bn.pop_dist), [1, 2])
         self.assertEqual(hl.eval(glob.bn.fst), [.02, .06])
 
+    @skip_when_service_backend('Shuffler is encoding/decoding is broken.')
     def test_balding_nichols_model_same_results(self):
         for mixture in [True, False]:
             hl.set_global_seed(1)
