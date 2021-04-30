@@ -143,7 +143,7 @@ def matrix_table_from_numpy(np_mat):
     return mt
 
 # k, m, n
-dim_triplets = [(10, 1000, 1000), (20, 1000, 1000), (10, 100, 200)]
+dim_triplets = [(20, 1000, 1000), (10, 100, 200)]
 
 def spectra_helper(spec_func):
 
