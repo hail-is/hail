@@ -219,6 +219,7 @@ class Job:
         and 'highmem' are also valid arguments. 'lowmem' corresponds to
         approximately 1 Gi/core, 'standard' corresponds to approximately
         4 Gi/core, and 'highmem' corresponds to approximately 7 Gi/core.
+        The default value is 'standard'.
 
         Parameters
         ----------
