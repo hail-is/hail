@@ -2439,7 +2439,7 @@ steps:
       gcloud -q auth activate-service-account --key-file=/query-gsa-key/key.json
 
       {% if deploy %}
-      destination=gs://$(cat /global-config/hail_query_bucket)/jars/
+      destination=$(cat /global-config/hail_query_gcs_path)/jars/
       {% else %}
       destination=gs://hail-test-dmk9z/{{ token }}/jars/
       {% endif %}

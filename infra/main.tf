@@ -21,7 +21,7 @@ variable "hail_query_bucket_storage_class" {}
 variable "gcp_region" {}
 variable "gcp_zone" {}
 variable "domain" {}
-variable "use_artifact_registry" { 
+variable "use_artifact_registry" {
   type = bool
   description = "pull the ubuntu image from Artifact Registry. Otherwise, GCR"
 }
@@ -29,7 +29,7 @@ variable "use_artifact_registry" {
 locals {
   docker_prefix = (
     var.use_artifact_registry ?
-    "${var.gcp_region}-docker.pkg.dev/${var.gcp_project}/hail" : 
+    "${var.gcp_region}-docker.pkg.dev/${var.gcp_project}/hail" :
     "gcr.io/${var.gcp_project}"
   )
   docker_root_image = "${local.docker_prefix}/ubuntu:18.04"
@@ -161,9 +161,9 @@ resource "random_id" "db_name_suffix" {
 }
 
 # Without this, I get:
-# Error: Error, failed to create instance because the network doesn't have at least 
-# 1 private services connection. Please see 
-# https://cloud.google.com/sql/docs/mysql/private-ip#network_requirements 
+# Error: Error, failed to create instance because the network doesn't have at least
+# 1 private services connection. Please see
+# https://cloud.google.com/sql/docs/mysql/private-ip#network_requirements
 # for how to create this connection.
 resource "google_compute_global_address" "google_managed_services_default" {
   name = "google-managed-services-default"
@@ -229,7 +229,7 @@ resource "kubernetes_secret" "global_config" {
   data = {
     batch_gcp_regions = var.batch_gcp_regions
     batch_logs_bucket = google_storage_bucket.batch_logs.name
-    hail_query_bucket = google_storage_bucket.hail_query.name
+    hail_query_gcs_path = "gs://${google_storage_bucket.hail_query.name}"
     default_namespace = "default"
     docker_root_image = local.docker_root_image
     domain = var.domain

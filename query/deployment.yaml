@@ -96,14 +96,14 @@ spec:
            - name: HAIL_QUERY_WORKER_IMAGE
              value: {{ query_image.image }}
 {% if deploy %}
-           - name: HAIL_QUERY_GCS_BUCKET
+           - name: HAIL_QUERY_GCS_PATH
              valueFrom:
              secretKeyRef:
                name: global-config
-               key: hail_query_bucket
+               key: hail_query_gcs_path
 {% else %}
            - name: HAIL_QUERY_GCS_PATH
-             value: gs://hail-test-dmk9z/{{ upload_query_jar.token }}/jars/
+             value: gs://hail-test-dmk9z/{{ upload_query_jar.token }}
 {% endif %}
           ports:
            - containerPort: 5000
