@@ -1524,7 +1524,7 @@ steps:
       tar xzf test.tar.gz
       tar xzf resources.tar.gz
       tar xzf data.tar.gz
-      tar xvf wheel-container.tar
+      tar xvf debug-wheel-container.tar
       python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
       export HAIL_TEST_RESOURCES_DIR=./resources
       export HAIL_DOCTEST_DATA_DIR=./data
@@ -1533,8 +1533,8 @@ steps:
       export HAIL_QUERY_BACKEND=local
       python3 -m pytest --ignore=test/hailtop/ --log-cli-level=INFO -s -vv --instafail --durations=50 test
     inputs:
-      - from: /wheel-container.tar
-        to: /io/wheel-container.tar
+      - from: /debug-wheel-container.tar
+        to: /io/debug-wheel-container.tar
       - from: /test.tar.gz
         to: /io/test.tar.gz
       - from: /resources.tar.gz
@@ -1563,7 +1563,7 @@ steps:
       tar xzf test.tar.gz
       tar xzf resources.tar.gz
       tar xzf data.tar.gz
-      tar xvf wheel-container.tar
+      tar xvf debug-wheel-container.tar
       python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
       export HAIL_TEST_RESOURCES_DIR=./resources
       export HAIL_DOCTEST_DATA_DIR=./data
@@ -1572,8 +1572,8 @@ steps:
       export HAIL_QUERY_BACKEND=local
       python3 -m pytest --ignore=test/hailtop/ --log-cli-level=INFO -s -vv --instafail --durations=50 test
     inputs:
-      - from: /wheel-container.tar
-        to: /io/wheel-container.tar
+      - from: /debug-wheel-container.tar
+        to: /io/debug-wheel-container.tar
       - from: /test.tar.gz
         to: /io/test.tar.gz
       - from: /resources.tar.gz
@@ -1602,7 +1602,7 @@ steps:
       tar xzf test.tar.gz
       tar xzf resources.tar.gz
       tar xzf data.tar.gz
-      tar xvf wheel-container.tar
+      tar xvf debug-wheel-container.tar
       python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
       export HAIL_TEST_RESOURCES_DIR=./resources
       export HAIL_DOCTEST_DATA_DIR=./data
@@ -1612,8 +1612,8 @@ steps:
       export HAIL_QUERY_BACKEND=local
       python3 -m pytest --ignore=test/hailtop/ --log-cli-level=INFO -s -vv --instafail --durations=50 test
     inputs:
-      - from: /wheel-container.tar
-        to: /io/wheel-container.tar
+      - from: /debug-wheel-container.tar
+        to: /io/debug-wheel-container.tar
       - from: /test.tar.gz
         to: /io/test.tar.gz
       - from: /resources.tar.gz
@@ -1642,7 +1642,7 @@ steps:
       tar xzf test.tar.gz
       tar xzf resources.tar.gz
       tar xzf data.tar.gz
-      tar xvf wheel-container.tar
+      tar xvf debug-wheel-container.tar
       python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
       export HAIL_TEST_RESOURCES_DIR=./resources
       export HAIL_DOCTEST_DATA_DIR=./data
@@ -1651,8 +1651,8 @@ steps:
       export HAIL_QUERY_BACKEND=local
       python3 -m pytest --ignore=test/hailtop/ --log-cli-level=INFO -s -vv --instafail --durations=50 test
     inputs:
-      - from: /wheel-container.tar
-        to: /io/wheel-container.tar
+      - from: /debug-wheel-container.tar
+        to: /io/debug-wheel-container.tar
       - from: /test.tar.gz
         to: /io/test.tar.gz
       - from: /resources.tar.gz
@@ -1681,7 +1681,7 @@ steps:
       tar xzf test.tar.gz
       tar xzf resources.tar.gz
       tar xzf data.tar.gz
-      tar xvf wheel-container.tar
+      tar xvf debug-wheel-container.tar
       python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
       export HAIL_TEST_RESOURCES_DIR=./resources
       export HAIL_DOCTEST_DATA_DIR=./data
@@ -1690,8 +1690,8 @@ steps:
       export HAIL_QUERY_BACKEND=local
       python3 -m pytest --ignore=test/hailtop/ --log-cli-level=INFO -s -vv --instafail --durations=50 test
     inputs:
-      - from: /wheel-container.tar
-        to: /io/wheel-container.tar
+      - from: /debug-wheel-container.tar
+        to: /io/debug-wheel-container.tar
       - from: /test.tar.gz
         to: /io/test.tar.gz
       - from: /resources.tar.gz
