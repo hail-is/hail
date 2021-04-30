@@ -144,6 +144,7 @@ CREATE TABLE IF NOT EXISTS `batches` (
   `msec_mcpu` BIGINT NOT NULL DEFAULT 0,
   `token` VARCHAR(100) DEFAULT NULL,
   `format_version` INT NOT NULL,
+  `cancel_after_n_failures` INT DEFAULT NULL,
   PRIMARY KEY (`id`),
   FOREIGN KEY (`billing_project`) REFERENCES billing_projects(name)
 ) ENGINE = InnoDB;
