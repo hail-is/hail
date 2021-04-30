@@ -22,6 +22,15 @@ Please note that **forward compatibility should not be expected, especially
 relating to file formats**: this means that it may not be possible to use
 an earlier version of Hail to read files written in a later version.
 
+## Version 0.2.66
+
+### New features
+
+- (hail#10398) Added new method `BlockMatrix.to_ndarray`.
+- (hail#10251) Added suport for haploid GT calls to VCF combiner.
+
+---
+
 ## Version 0.2.65
 
 Released 2021-04-14
