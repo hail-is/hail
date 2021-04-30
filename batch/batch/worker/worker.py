@@ -1,4 +1,4 @@
-from typing import Optional, Dict
+from typing import Optional, Dict, Callable
 import os
 import json
 import sys
@@ -219,33 +219,36 @@ class JobTimeoutError(Exception):
     pass
 
 
+class Timings:
+    def __init__(self, is_deleted: Callable[[], bool]):
+        self.timings: Dict[str, Dict[str, float]] = dict()
+        self.is_deleted = is_deleted
+
+    def step(self, name: str):
+        assert name not in self.timings
+        self.timings[name] = dict()
+        return ContainerStepManager(self.timings[name], self.is_deleted)
+
+    def to_dict(self):
+        return self.timings
+
+
 class ContainerStepManager:
-    def __init__(self, container, name, state):
-        self.container = container
-        self.state = state
-        self.name = name
-        self.timing = None
-        self._deleted = False
+    def __init__(self, timing: Dict[str, float], is_deleted: Callable[[], bool]):
+        self.timing: Dict[str, float] = dict()
+        self.is_deleted = is_deleted
 
-    async def __aenter__(self):
-        if self.container.job.deleted:
-            self._deleted = True
+    def __enter__(self):
+        if self.is_deleted():
             raise JobDeletedError()
-        if self.state:
-            log.info(f'{self.container} state changed: {self.container.state} => {self.state}')
-            self.container.state = self.state
-        self.timing = {}
         self.timing['start_time'] = time_msecs()
-        self.container.timing[self.name] = self.timing
 
-    async def __aexit__(self, exc_type, exc, tb):
-        if self._deleted:
+    def __exit__(self, exc_type, exc, tb):
+        if self.is_deleted():
             return
-
         finish_time = time_msecs()
         self.timing['finish_time'] = finish_time
-        start_time = self.timing['start_time']
-        self.timing['duration'] = finish_time - start_time
+        self.timing['duration'] = finish_time - self.timing['start_time']
 
 
 def worker_fraction_in_1024ths(cpu_in_mcpu):
@@ -293,7 +296,7 @@ class Container:
         self.state = 'pending'
         self.short_error = None
         self.error = None
-        self.timing = {}
+        self.timings = Timings(self.is_job_deleted)
         self.container_status = None
         self.log = None
         self.overlay_path = None
@@ -350,9 +353,11 @@ class Container:
 
         return config
 
-    def step(self, name, **kwargs):
-        state = kwargs.get('state', name)
-        return ContainerStepManager(self, name, state)
+    def is_job_deleted(self) -> bool:
+        return self.job.deleted
+
+    def step(self, name: str):
+        return self.timings.step(name)
 
     async def get_container_status(self):
         if not self.container:
@@ -404,7 +409,7 @@ class Container:
 
     async def run(self, worker):
         try:
-            async with self.step('pulling'):
+            with self.step('pulling'):
                 is_google_image = is_google_registry_domain(self.image_ref.domain)
                 is_public_image = self.image_ref.name() in PUBLIC_IMAGES
 
@@ -428,10 +433,10 @@ class Container:
                     raise
 
             if self.port is not None:
-                async with self.step('allocating_port'):
+                with self.step('allocating_port'):
                     self.host_port = await port_allocator.allocate()
 
-            async with self.step('creating'):
+            with self.step('creating'):
                 config = self.container_config()
                 log.info(f'starting {self}')
                 self.container = await docker_call_retry(MAX_DOCKER_OTHER_OPERATION_SECS, f'{self}')(
@@ -450,12 +455,12 @@ class Container:
 
             await check_shell_output(f'xfs_quota -x -D /xfsquota/projects -P /xfsquota/projid -c "project -s {self.job.project_name}" /host/')
 
-            async with self.step('starting'):
+            with self.step('starting'):
                 await docker_call_retry(MAX_DOCKER_OTHER_OPERATION_SECS, f'{self}')(
                     start_container, self.container)
 
             timed_out = False
-            async with self.step('running'):
+            with self.step('running'):
                 try:
                     async with async_timeout.timeout(self.timeout):
                         await docker_call_retry(MAX_DOCKER_WAIT_SECS, f'{self}')(self.container.wait)
@@ -464,13 +469,13 @@ class Container:
 
             self.container_status = await self.get_container_status()
 
-            async with self.step('uploading_log'):
+            with self.step('uploading_log'):
                 await worker.log_store.write_log_file(
                     self.job.format_version, self.job.batch_id,
                     self.job.job_id, self.job.attempt_id, self.name,
                     await self.get_container_log())
 
-            async with self.step('deleting'):
+            with self.step('deleting'):
                 await self.delete_container()
 
             if timed_out:
@@ -558,7 +563,7 @@ class Container:
         status = {
             'name': self.name,
             'state': state,
-            'timing': self.timing
+            'timing': self.timings.to_dict()
         }
         if self.error:
             status['error'] = self.error
@@ -1107,9 +1112,13 @@ class JVMJob(Job):
             *user_command_string]
 
         self.process = None
-        self.timing: Dict[str, dict] = {'downloading_jar': dict(), 'running': dict()}
+        self.deleted = False
+        self.timings = Timings(lambda: self.deleted)
         self.state = 'pending'
         self.logbuffer = bytearray()
+
+    def step(self, name):
+        return self.timings.step(name)
 
     async def pipe_to_log(self, strm: asyncio.StreamReader):
         while not strm.at_eof():
@@ -1146,45 +1155,36 @@ class JVMJob(Job):
                 self.state = 'running'
 
                 log.info(f'{self}: downloading JAR')
-                self.timing['downloading_jar']['start_time'] = time_msecs()
-
-                async with worker.jar_download_locks[self.revision]:
-                    local_jar_location = f'/hail-jars/{self.revision}.jar'
-                    if not os.path.isfile(local_jar_location):
-                        user_fs = RouterAsyncFS(
-                            'file',
-                            [LocalAsyncFS(worker.pool),
-                             aiogoogle.GoogleStorageAsyncFS(credentials=aiogoogle.Credentials.from_file(
-                                 f'{self.scratch}/secrets/gsa-key/key.json'))])
-                        async with await user_fs.open(self.jar_url) as jar_data:
-                            await user_fs.makedirs('/hail-jars/', exist_ok=True)
-                            async with await user_fs.create(local_jar_location) as local_file:
-                                while True:
-                                    b = await jar_data.read(256 * 1024)
-                                    if not b:
-                                        break
-                                    written = await local_file.write(b)
-                                    assert written == len(b)
-
-                self.timing['downloading_jar']['finish_time'] = time_msecs()
-                self.timing['downloading_jar']['duration'] = (
-                    self.timing['downloading_jar']['finish_time'] - self.timing['downloading_jar']['start_time'])
+                with self.step('downloading_jar'):
+                    async with worker.jar_download_locks[self.revision]:
+                        local_jar_location = f'/hail-jars/{self.revision}.jar'
+                        if not os.path.isfile(local_jar_location):
+                            user_fs = RouterAsyncFS(
+                                'file',
+                                [LocalAsyncFS(worker.pool),
+                                 aiogoogle.GoogleStorageAsyncFS(credentials=aiogoogle.Credentials.from_file(
+                                     f'{self.scratch}/secrets/gsa-key/key.json'))])
+                            async with await user_fs.open(self.jar_url) as jar_data:
+                                await user_fs.makedirs('/hail-jars/', exist_ok=True)
+                                async with await user_fs.create(local_jar_location) as local_file:
+                                    while True:
+                                        b = await jar_data.read(256 * 1024)
+                                        if not b:
+                                            break
+                                        written = await local_file.write(b)
+                                        assert written == len(b)
 
                 log.info(f'{self}: running jvm process')
-                self.timing['running']['start_time'] = time_msecs()
-                self.process = await asyncio.create_subprocess_exec(
-                    *self.command_string,
-                    stdout=asyncio.subprocess.PIPE,
-                    stderr=asyncio.subprocess.PIPE,
-                    env={envvar['name']: envvar['value'] for envvar in self.env})
+                with self.step('running'):
+                    self.process = await asyncio.create_subprocess_exec(
+                        *self.command_string,
+                        stdout=asyncio.subprocess.PIPE,
+                        stderr=asyncio.subprocess.PIPE,
+                        env={envvar['name']: envvar['value'] for envvar in self.env})
 
-                await asyncio.gather(self.pipe_to_log(self.process.stdout),
-                                     self.pipe_to_log(self.process.stderr))
-                await self.process.wait()
-
-                self.timing['running']['finish_time'] = time_msecs()
-                self.timing['running']['duration'] = (
-                    self.timing['running']['finish_time'] - self.timing['running']['start_time'])
+                    await asyncio.gather(self.pipe_to_log(self.process.stdout),
+                                         self.pipe_to_log(self.process.stderr))
+                    await self.process.wait()
 
                 log.info(f'finished {self} with return code {self.process.returncode}')
 
@@ -1261,7 +1261,7 @@ class JVMJob(Job):
         status['container_statuses']['main'] = {
             'name': 'main',
             'state': self.state,
-            'timing': self.timing
+            'timing': self.timings.to_dict()
         }
         if self.process is not None and self.process.returncode is not None:
             status['container_statuses']['main']['exit_code'] = self.process.returncode
