@@ -98,7 +98,7 @@ class GoogleStorageFileStatus(path: String, modificationTime: java.lang.Long, si
   def getOwner: String = null
 }
 
-class GoogleStorageFS(var serviceAccountKey: String) extends FS {
+class GoogleStorageFS(val serviceAccountKey: String) extends FS {
   import GoogleStorageFS._
 
   @transient private lazy val storage: Storage = {
