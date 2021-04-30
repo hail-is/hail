@@ -1784,6 +1784,8 @@ steps:
       # 0.2.63 was the last old-style docs
       if [[ "$(cat hail/python/hail/hail_pip_version)" != "0.2.63" ]]
       then
+          # downloading files from GCS changes permissions, so we reset all of that first
+          git reset --hard HEAD
           # if the tag doesn't exist, this commit is the release
           git checkout $(cat hail/python/hail/hail_pip_version) || true
       fi
