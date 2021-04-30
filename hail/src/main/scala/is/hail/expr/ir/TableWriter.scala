@@ -12,6 +12,7 @@ import is.hail.io.{AbstractTypedCodecSpec, BufferSpec, OutputBuffer, TypedCodecS
 import is.hail.rvd.{AbstractRVDSpec, IndexSpec, RVDPartitioner, RVDSpecMaker}
 import is.hail.types.encoded.EType
 import is.hail.types.physical.{PCanonicalBaseStruct, PCanonicalString, PCanonicalStruct, PCode, PIndexableCode, PInt64, PStream, PStringCode, PStruct, PType}
+import is.hail.types.physical.stypes.interfaces.PVoidCode
 import is.hail.types.virtual._
 import is.hail.types.{RTable, TableType}
 import is.hail.utils._
@@ -327,7 +328,7 @@ case class RelationalWriter(path: String, overwrite: Boolean, maybeRefs: Option[
       }
     }
 
-    writeAnnotations.consume(cb, {}, { pc => cb += pc.tcode[Unit] })
+    writeAnnotations.consume(cb, {}, { pc => assert(pc == PVoidCode) }) // PVoidCode.code is Code._empty
 
     cb += Code.invokeScalaObject2[FS, String, Unit](Class.forName("is.hail.utils.package$"), "writeNativeFileReadMe", cb.emb.getFS, path)
     cb += cb.emb.create(s"$path/_SUCCESS").invoke[Unit]("close")
