@@ -527,6 +527,7 @@ https://hail.zulipchat.com/#narrow/stream/123011-Hail-Dev/topic/test_drop/near/2
          .aggregate(bar=hl.agg.collect(mt.globals == lit))
          ._force_count_rows())
 
+    @skip_when_service_backend('ShuffleRead non-deterministically causes segfaults')
     def test_unions(self):
         dataset = hl.import_vcf(resource('sample2.vcf'))
 
@@ -1222,6 +1223,7 @@ https://hail.zulipchat.com/#narrow/stream/123011-Hail-Dev/topic/test_drop/near/2
         mt2 = hl.read_matrix_table(f)
         self.assertTrue(mt._same(mt2))
 
+    @skip_when_service_backend('ShuffleRead non-deterministically causes segfaults')
     def test_write_checkpoint_file(self):
         mt = self.get_mt()
         f = new_temp_file(extension='mt')
