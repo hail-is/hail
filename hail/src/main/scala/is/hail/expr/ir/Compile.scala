@@ -234,11 +234,7 @@ object CompileIterator {
       cb.ifx(!didSetup, {
         optStream.toI(cb).get(cb) // handle missing, but bound stream producer above
 
-        if (producer.requiresMemoryManagementPerElement)
-          cb.assign(producer.elementRegion, Region.stagedCreate(Region.REGULAR, outerRegion.getPool()))
-        else
-          cb.assign(producer.elementRegion, outerRegion)
-
+        cb.assign(producer.elementRegion, eltRegionField)
         producer.initialize(cb)
         cb.assign(didSetup, true)
         cb.assign(eosField, false)
@@ -253,8 +249,6 @@ object CompileIterator {
 
       stepF.implementLabel(producer.LendOfStream) { cb =>
         producer.close(cb)
-        if (producer.requiresMemoryManagementPerElement)
-          cb += producer.elementRegion.invalidate()
         cb.assign(eosField, true)
         cb.assign(ret, false)
         cb.goto(Lreturn)
