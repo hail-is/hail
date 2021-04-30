@@ -6,7 +6,7 @@ import is.hail.types.physical._
 import is.hail.annotations.Region
 import org.apache.log4j.Logger
 
-class ShuffleCodecSpec(
+protected[shuffler] class ShuffleCodecSpec(
   ctx: ExecuteContext,
   shuffleType: TShuffle,
   _rowEncodingPType: Option[PType] = None,

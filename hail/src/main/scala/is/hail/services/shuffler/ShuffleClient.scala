@@ -1,20 +1,20 @@
 package is.hail.services.shuffler
 
-import java.net.Socket
-
-import is.hail._
 import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.backend.service.ServiceBackendContext
 import is.hail.expr.ir._
-import is.hail.types.virtual._
-import is.hail.types.physical._
-import is.hail.services._
-import is.hail.services.tls._
 import is.hail.io._
+import is.hail.services._
+import is.hail.types.physical._
+import is.hail.types.physical.stypes.SCode
+import is.hail.types.physical.stypes.concrete.SCanonicalShufflePointerSettable
+import is.hail.types.virtual._
 import is.hail.utils._
-import javax.net.ssl._
 import org.apache.log4j.Logger
+
+import java.io.{InputStream, OutputStream}
+import java.net.Socket
 
 object ShuffleClient {
   private[this] val log = Logger.getLogger(getClass.getName())
@@ -32,99 +32,125 @@ object ShuffleClient {
     Code.invokeScalaObject0[Socket](ShuffleClient.getClass, "socket")
 }
 
-object CodeShuffleClient {
-  def createValue(cb: CodeBuilderLike, shuffleType: Code[TShuffle]): ValueShuffleClient =
-    new ValueShuffleClient(
-      cb.newField[ShuffleClient]("shuffleClient", create(shuffleType)))
+object CompileTimeShuffleClient {
+  def getSocketOnWorker(): Socket = DeployConfig.get.socket("shuffler")
 
-  def createValue(cb: CodeBuilderLike, shuffleType: Code[TShuffle], uuid: Code[Array[Byte]]): ValueShuffleClient =
-    new ValueShuffleClient(
-      cb.newField[ShuffleClient]("shuffleClient", create(shuffleType, uuid)))
+  def create(cb: EmitCodeBuilder, shuffle: SCanonicalShufflePointerSettable): CompileTimeShuffleClient = {
+    val ts = shuffle.st.virtualType
 
-  def createValue(
-    cb: CodeBuilderLike,
-    shuffleType: Code[TShuffle],
-    uuid: Code[Array[Byte]],
-    rowEncodingPType: Code[PType],
-    keyEncodingPType: Code[PType]
-  ): ValueShuffleClient =
-    new ValueShuffleClient(
-      cb.newField[ShuffleClient](
-        "shuffleClient",
-        create(shuffleType, uuid, rowEncodingPType, keyEncodingPType)))
+    val socket: Value[Socket] = cb.newField[Socket]("socket",
+      Code.invokeScalaObject0[Socket](CompileTimeShuffleClient.getClass, "getSocketOnWorker"))
 
-  def create(shuffleType: Code[TShuffle]): Code[ShuffleClient] =
-    Code.newInstance[ShuffleClient, TShuffle](shuffleType)
+    val in: Value[InputBuffer] = cb.newField[InputBuffer]("ib", shuffleBufferSpec.buildCodeInputBuffer(socket.invoke[InputStream]("getInputStream")))
+    val out: Value[OutputBuffer] = cb.newField[OutputBuffer]("ib", shuffleBufferSpec.buildCodeOutputBuffer(socket.invoke[OutputStream]("getOuputStream")))
 
-  def create(shuffleType: Code[TShuffle], uuid: Code[Array[Byte]]): Code[ShuffleClient] =
-    Code.newInstance[ShuffleClient, TShuffle, Array[Byte]](shuffleType, uuid)
-
-  def create(
-    shuffleType: Code[TShuffle],
-    uuid: Code[Array[Byte]],
-    rowEncodingPType: Code[PType],
-    keyEncodingPType: Code[PType]
-  ): Code[ShuffleClient] =
-    Code.newInstance[ShuffleClient, TShuffle, Array[Byte], PType, PType](
-      shuffleType, uuid, rowEncodingPType, keyEncodingPType)
+    new CompileTimeShuffleClient(shuffle, socket, in, out)
+  }
 }
 
-class ValueShuffleClient(
-  val code: Value[ShuffleClient]
-) extends AnyVal {
-  def start(): Code[Unit] =
-    code.invoke[Unit]("start")
+class CompileTimeShuffleClient(
+  shuffle: SCanonicalShufflePointerSettable,
+  socket: Value[Socket],
+  in: Value[InputBuffer],
+  out: Value[OutputBuffer]) {
 
-  def startPut(): Code[Unit] =
-    code.invoke[Unit]("startPut")
+  private[this] val ts = shuffle.st.virtualType.asInstanceOf[TShuffle]
 
-  def putValue(value: Code[Long]): Code[Unit] =
-    code.invoke[Long, Unit]("putValue", value)
+  private def startOperation(cb: EmitCodeBuilder, op: Byte): Unit = {
+    assert(op != Wire.EOS)
+    assert(op != Wire.START)
+    cb += out.writeByte(op)
+    val uuidBytes = cb.newLocal[Array[Byte]]("shuffle_uuid", shuffle.loadBytes())
+    // fixme log
+    cb.println(s"operation $op uuid ", uuidToString(uuidBytes))
+    cb += Wire.writeByteArray(out, uuidBytes)
+  }
 
-  def putValueDone(): Code[Unit] =
-    code.invoke[Unit]("putValueDone")
+  def startPut(cb: EmitCodeBuilder):Unit = {
+    // will define later
+    cb.logInfo(s"put")
+    startOperation(cb, Wire.PUT)
+    out.flush()
+  }
 
-  def endPut(): Code[Unit] =
-    code.invoke[Unit]("endPut")
+  def putValue(cb: EmitCodeBuilder, value: SCode): Unit = {
+    cb += out.writeByte(1.toByte)
+    ts.rowEType.buildEncoder(value.st, cb.emb.ecb)
+      .apply(cb, value, out)
+  }
 
-  def uuid(): Code[Array[Byte]] =
-    code.invoke[Array[Byte]]("uuid")
+  def finishPut(cb: EmitCodeBuilder): Unit = {
+    cb += out.writeByte(0.toByte)
 
-  def startGet(
-    start: Code[Long],
-    startInclusive: Code[Boolean],
-    end: Code[Long],
-    endInclusive: Code[Boolean]
-  ): Code[Unit] =
-    code.invoke[Long, Boolean, Long, Boolean, Unit](
-      "startGet", start, startInclusive, end, endInclusive)
+    // fixme: server needs to send uuid for the successful partition
+    cb += out.flush()
+    val b = cb.newLocal[Byte]("finishPut_b", in.readByte())
+    cb.ifx(b.get.toI.cne(const(0)), cb._fatal(s"bad shuffle put"))
+    cb.logInfo(s"put done")
+  }
 
-  def getValue(region: Code[Region]): Code[Long] =
-    code.invoke[Region, Long]("getValue", region)
+  def startGet(cb: EmitCodeBuilder,
+    _start: SCode,
+    _startInclusive: Code[Boolean],
+    _end: SCode,
+    _endInclusive: Code[Boolean]
+  ): Unit = {
+    // will define later
 
-  def getValueFinished(): Code[Boolean] =
-    code.invoke[Boolean]("getValueFinished")
+    val start = _start.memoize(cb, "shuffle_start")
+    val end = _end.memoize(cb, "shuffle_end")
+    val startIncl = cb.newLocal[Boolean]("startIncl", _startInclusive)
+    val endIncl = cb.newLocal[Boolean]("endIncl", _endInclusive)
 
-  def getDone(): Code[Unit] =
-    code.invoke[Unit]("getDone")
+    // fixme log
+    cb.println("shuffle get: start=", cb.strValue(start.get), ", startInclusive=", startIncl.toS, ", end=", cb.strValue(end.get), ", endInclusive=", endIncl.toS)
 
-  def startPartitionBounds(nPartitions: Code[Int]): Code[Unit] =
-    code.invoke[Int, Unit]("startPartitionBounds", nPartitions)
+    startOperation(cb, Wire.GET)
 
-  def partitionBoundsValue(region: Code[Region]): Code[Long] =
-    code.invoke[Region, Long]("partitionBoundsValue", region)
+    ts.keyEType.buildEncoder(start.st, cb.emb.ecb)
+      .apply(cb, start.get, out)
+    cb.ifx(startIncl, cb += out.writeByte(1.toByte), cb += out.writeByte(0.toByte))
+    ts.keyEType.buildEncoder(end.st, cb.emb.ecb)
+      .apply(cb, end.get, out)
+    cb.ifx(endIncl, cb += out.writeByte(1.toByte), cb += out.writeByte(0.toByte))
 
-  def partitionBoundsValueFinished(): Code[Boolean] =
-    code.invoke[Boolean]("partitionBoundsValueFinished")
+    cb += out.flush()
+    cb.logInfo(s"get receiving values")
+  }
 
-  def endPartitionBounds(): Code[Unit] =
-    code.invoke[Unit]("endPartitionBounds")
+  def getValueFinished(cb: EmitCodeBuilder): Code[Boolean] = in.readByte() ceq 0.toByte
 
-  def stop(): Code[Unit] =
-    code.invoke[Unit]("stop")
+  def readValue(cb: EmitCodeBuilder, region: Value[Region]): SCode = {
+    ts.rowEType.buildDecoder(ts.rowType, cb.emb.ecb)
+      .apply(cb, region, in)
+  }
 
-  def close(): Code[Unit] =
-    code.invoke[Unit]("close")
+  def finishGet(cb: EmitCodeBuilder): Unit = {
+    cb.logInfo(s"get done")
+  }
+
+  def startPartitionBounds(cb: EmitCodeBuilder, nPartitions: Code[Int]): Unit = {
+      cb.logInfo(s"partitionBounds")
+      startOperation(cb, Wire.PARTITION_BOUNDS)
+      cb += out.writeInt(nPartitions)
+      cb += out.flush()
+      cb.logInfo(s"partitionBounds receiving values")
+  }
+
+  def readPartitionBound(cb: EmitCodeBuilder, region: Value[Region]): SCode = {
+    ts.keyEType.buildDecoder(ts.keyType, cb.emb.ecb)
+      .apply(cb, region, in)
+  }
+
+  def partitionBoundsFinished(cb: EmitCodeBuilder): Code[Boolean] = in.readByte() ceq 0.toByte
+
+  def close(cb: EmitCodeBuilder): Unit = {
+    cb += out.writeByte(Wire.EOS)
+    cb += out.flush()
+    val byte = in.readByte()
+    cb.ifx(byte.toI.cne(Wire.EOS.toInt), cb._fatal("bad shuffle close"))
+    cb += socket.invoke[Unit]("close")
+  }
 }
 
 class ShuffleClient (

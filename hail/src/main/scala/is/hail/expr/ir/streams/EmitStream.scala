@@ -4,8 +4,8 @@ import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.expr.ir._
 import is.hail.expr.ir.orderings.StructOrdering
-import is.hail.services.shuffler.{CodeShuffleClient, ShuffleClient, ValueShuffleClient}
-import is.hail.types.physical.stypes.concrete.{SBinaryPointer, SBinaryPointerSettable, SCanonicalShufflePointerCode, SCanonicalShufflePointerSettable}
+import is.hail.services.shuffler.CompileTimeShuffleClient
+import is.hail.types.physical.stypes.concrete.SCanonicalShufflePointerSettable
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.physical.stypes.primitives.{SInt32, SInt32Code}
 import is.hail.types.physical.{PCanonicalStream, PCode, PInterval, PStruct, PType}
@@ -2167,52 +2167,40 @@ object EmitStream {
 
 
         val region = mb.genFieldThisRef[Region]("shuffleread_region")
-        val clientVar = mb.genFieldThisRef[ShuffleClient]("shuffleClient")
-        val shuffle = new ValueShuffleClient(clientVar)
+
+        val emitID = EmitCode.fromI(mb)(cb => emit(idIR, cb))
+        val shuffleField = cb.emb.newPField(emitID.pt).asInstanceOf[SCanonicalShufflePointerSettable]
+
+        val shuffle = CompileTimeShuffleClient.create(cb, shuffleField)
 
         val producer = new StreamProducer {
           override val length: Option[Code[Int]] = None
 
           override def initialize(cb: EmitCodeBuilder): Unit = {
-            val idt = emit(idIR, cb).get(cb, "ShuffleRead cannot have null ID").asShuffle
+            cb.assign(shuffleField, emitID.toI(cb).get(cb, "shuffle read cannot have null id"))
             val keyRangeCode =
               emit(keyRangeIR, cb).get(cb, "ShuffleRead cannot have null key range").asInterval
-
-            val uuid = idt.memoize(cb, "shuffleUUID")
             val keyRange = keyRangeCode.memoizeField(cb, "shuffleClientKeyRange")
 
-            cb.ifx(!keyRange.startDefined(cb) || !keyRange.endDefined(cb), {
-              Code._fatal[Unit]("ShuffleRead cannot have null start or end points of key range")
-            })
-
-            val keyPType = keyRange.st.pointType.canonicalPType()
-            cb.assign(clientVar, CodeShuffleClient.create(
-              mb.ecb.getType(shuffleType),
-              uuid.loadBytes(),
-              Code._null,
-              mb.ecb.getPType(keyPType)))
-
-            val startt = keyPType.store(cb, outerRegion, keyRange.loadStart(cb)
-              .get(cb, "shuffle expects defined endpoints")
-              .asPCode, false)
-            val endt = keyPType.store(cb, outerRegion, keyRange.loadEnd(cb)
-              .get(cb, "shuffle expects defined endpoints")
-              .asPCode, false)
-
-            cb.append(shuffle.startGet(startt, keyRange.includesStart(), endt, keyRange.includesEnd()))
+            shuffle.startGet(cb,
+              keyRange.loadStart(cb).get(cb, "ShuffleRead cannot have null starts for key range"),
+              keyRange.includesStart(),
+              keyRange.loadEnd(cb).get(cb, "ShuffleRead cannot have null end points for key range"),
+              keyRange.includesEnd())
           }
 
           override val elementRegion: Settable[Region] = region
           override val requiresMemoryManagementPerElement: Boolean = true
           override val LproduceElement: CodeLabel = mb.defineAndImplementLabel { cb =>
-            cb.ifx(shuffle.getValueFinished(), cb.goto(LendOfStream))
+            cb.ifx(shuffle.getValueFinished(cb), cb.goto(LendOfStream))
             cb.goto(LproduceElementDone)
           }
-          override val element: EmitCode = EmitCode.present(mb, PCode(shuffleType.rowDecodedPType, shuffle.getValue(region)))
+
+          override val element: EmitCode = EmitCode.fromI(mb)(cb => IEmitCode.present(cb, shuffle.readValue(cb, region).asPCode))
 
           override def close(cb: EmitCodeBuilder): Unit = {
-            cb += shuffle.getDone()
-            cb += shuffle.close()
+            shuffle.finishGet(cb)
+            shuffle.close(cb)
           }
         }
 
@@ -2221,40 +2209,34 @@ object EmitStream {
       case ShufflePartitionBounds(idIR, nPartitionsIR) =>
 
         val region = mb.genFieldThisRef[Region]("shuffle_partition_bounds_region")
-        val shuffleLocal = mb.genFieldThisRef[ShuffleClient]("shuffle_partition_bounds_client")
-        val shuffle = new ValueShuffleClient(shuffleLocal)
-        val currentAddr = mb.genFieldThisRef[Long]("shuffle_partition_bounds_addr")
+        val emitID = EmitCode.fromI(mb)(cb => emit(idIR, cb))
+        val shuffleField = cb.emb.newPField(emitID.pt).asInstanceOf[SCanonicalShufflePointerSettable]
 
-        val shuffleType = idIR.typ.asInstanceOf[TShuffle]
+        val shuffle = CompileTimeShuffleClient.create(cb, shuffleField)
+        val currentAddr = mb.genFieldThisRef[Long]("shuffle_partition_bounds_addr")
 
         val producer = new StreamProducer {
           override val length: Option[Code[Int]] = None
 
           override def initialize(cb: EmitCodeBuilder): Unit = {
-
-            val idt = emit(idIR, cb).get(cb, "ShufflePartitionBounds cannot have null ID").asInstanceOf[SCanonicalShufflePointerCode]
+            cb.assign(shuffleField, emitID.toI(cb).get(cb, "shuffle partition bounds cannot have null id"))
             val nPartitionst = emit(nPartitionsIR, cb).get(cb, "ShufflePartitionBounds cannot have null number of partitions").asInt
 
-            val uuidLocal = mb.newLocal[Long]("shuffleUUID")
-            val uuid = new SCanonicalShufflePointerSettable(idt.st, new SBinaryPointerSettable(SBinaryPointer(idt.st.pType.representation), uuidLocal))
-            uuid.store(cb, idt)
-            cb.assign(shuffleLocal, CodeShuffleClient.create(mb.ecb.getType(shuffleType), uuid.loadBytes()))
-            cb += shuffle.startPartitionBounds(nPartitionst.intCode(cb))
+            shuffle.startPartitionBounds(cb, nPartitionst.intCode(cb))
           }
 
           override val elementRegion: Settable[Region] = region
           override val requiresMemoryManagementPerElement: Boolean = false
           override val LproduceElement: CodeLabel = mb.defineAndImplementLabel { cb =>
-            cb.ifx(shuffle.partitionBoundsValueFinished(), cb.goto(LendOfStream))
-            cb.assign(currentAddr, shuffle.partitionBoundsValue(region))
+            cb.ifx(shuffle.partitionBoundsFinished(cb), cb.goto(LendOfStream))
             cb.goto(LproduceElementDone)
           }
           override val element: EmitCode = EmitCode.fromI(mb)(cb =>
-            IEmitCode.present(cb, shuffleType.keyDecodedPType.loadCheapPCode(cb, currentAddr)))
+            IEmitCode.present(cb, shuffle.readPartitionBound(cb, elementRegion).asPCode))
 
           override def close(cb: EmitCodeBuilder): Unit = {
-            cb += shuffle.endPartitionBounds()
-            cb += shuffle.close()
+            shuffle.partitionBoundsFinished(cb)
+            shuffle.close(cb)
           }
         }
         IEmitCode.present(cb, SStreamCode(SStream(producer.element.st, true), producer))

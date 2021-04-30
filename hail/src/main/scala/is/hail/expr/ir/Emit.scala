@@ -1851,61 +1851,30 @@ class Emit[C](
         writerIR,
         readersIR
       ) =>
-        val shuffleType = x.shuffleType
-        val shufflePType = x.shufflePType
-
-        val shuffle = CodeShuffleClient.createValue(cb, mb.ecb.getType(shuffleType))
-
-        cb.append(shuffle.start())
-
-        val uuid = SCanonicalShufflePointerSettable.fromArrayBytes(
-          cb, region, shufflePType, shuffle.uuid())
-
-        val shuffleEnv = env.bind(name -> mb.newPresentEmitSettable(uuid.pt, uuid))
-
-        val successfulShuffleIds: PValue = emitI(writerIR, env = shuffleEnv)
-          .get(cb, "shuffle ID must be non-missing")
-          // just store it so the writer gets run
-          .memoize(cb, "shuffleSuccessfulShuffleIds")
-
-        val shuffleReaders =
-          emitI(readersIR, env = shuffleEnv).memoize(cb, "shuffleReaders")
-
-        cb.append(shuffle.stop())
-        cb.append(shuffle.close())
-
-        shuffleReaders.toI(cb)
+        throw new UnsupportedOperationException("ShuffleWith")
 
       case ShuffleWrite(idIR, rowsIR) =>
         val rows = emitStream(rowsIR, cb, region)
           .get(cb, "rows stream was missing in shuffle write")
           .asStream
-        val producer = rows.producer
 
-        val rowPType = producer.element.st.canonicalPType()
-
-        val shuffleType = coerce[TShuffle](idIR.typ)
         val uuid = emitI(idIR)
           .get(cb, "shuffle ID must be non-missing")
           .asInstanceOf[SCanonicalShufflePointerCode]
           .memoize(cb, "shuffleClientUUID")
-        val shuffle = CodeShuffleClient.createValue(
-          cb,
-          mb.ecb.getType(shuffleType),
-          uuid.loadBytes(),
-          mb.ecb.getPType(rowPType),
-          Code._null)
-        cb += shuffle.startPut()
 
+        val shuffle = CompileTimeShuffleClient.create(cb, uuid)
+        shuffle.startPut(cb)
+
+        val producer = rows.producer
         producer.memoryManagedConsume(region, cb) { cb =>
           producer.element.toI(cb).consume(cb,
             cb._fatal(s"empty row in shuffle put"),
-            sc => cb += shuffle.putValue(rowPType.store(cb, producer.elementRegion, sc, deepCopy = false)))
+            { sc => shuffle.putValue(cb, sc) })
         }
 
-        cb += shuffle.putValueDone()
-        cb += shuffle.endPut()
-        cb += shuffle.close()
+        shuffle.finishPut(cb)
+        shuffle.close(cb)
 
         val resPType = pt.asInstanceOf[PCanonicalBinary]
         // FIXME: server needs to send uuid for the successful partition
