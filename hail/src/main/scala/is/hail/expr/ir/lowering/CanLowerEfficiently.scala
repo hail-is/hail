@@ -58,7 +58,9 @@ object CanLowerEfficiently {
 
         case x: IR =>
           // nodes with relational children should be enumerated above explicitly
-          assert(x.children.forall(_.isInstanceOf[IR]))
+          if (!x.children.forall(_.isInstanceOf[IR])) {
+            throw new RuntimeException(s"IR must be enumerated explicitly: ${ x.getClass.getName }")
+          }
       }
 
       if (prohibitiveReason.isEmpty)
