@@ -6,7 +6,7 @@ curl --silent --show-error --remote-name --fail https://dl.google.com/cloudagent
 bash add-logging-agent-repo.sh
 
 
-# Get the lates GPG key as it might not always be up to date
+# Get the latest GPG key as it might not always be up to date
 # https://cloud.google.com/compute/docs/troubleshooting/known-issues#keyexpired
 curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | sudo apt-key add -
 apt-get update
