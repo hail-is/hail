@@ -271,7 +271,7 @@ class TableStage(
           GetField(ctxRef, "partitionBound"),
           StreamFilter(
             StreamFlatMap(
-              ToStream(GetField(ctxRef, "oldContexts")),
+              ToStream(GetField(ctxRef, "oldContexts"), true),
               prevContextUIDPartition,
               body
             ),
@@ -440,7 +440,7 @@ object LowerTableIR {
             RVDPartitioner.unkeyed(nPartitionsAdj),
             TableStageDependency.none,
             context,
-            ctxRef => ToStream(ctxRef))
+            ctxRef => ToStream(ctxRef, true))
 
         case TableRange(n, nPartitions) =>
           val nPartitionsAdj = math.max(math.min(n, nPartitions), 1)
@@ -465,7 +465,7 @@ object LowerTableIR {
                 MakeStruct(FastIndexedSeq("start" -> start, "end" -> end))
               },
               TStream(contextType)),
-            (ctxRef: Ref) => mapIR(rangeIR(GetField(ctxRef, "start"), GetField(ctxRef, "end"))) { i =>
+            (ctxRef: Ref) => mapIR(StreamRange(GetField(ctxRef, "start"), GetField(ctxRef, "end"), I32(1), true)) { i =>
               MakeStruct(FastSeq("idx" -> i))
             })
 
