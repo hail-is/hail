@@ -198,7 +198,7 @@ https://hail.zulipchat.com/#narrow/stream/123011-Hail-Dev/topic/test_drop/near/2
         r = kt.aggregate(agg.filter(kt.idx % 2 != 0, agg.sum(kt.idx + 2)) + kt.g1)
         self.assertEqual(r, 40)
 
-    @skip_when_service_backend('Shuffler is encoding/decoding is broken.')
+    @skip_when_service_backend('Shuffler encoding/decoding is broken.')
     def test_to_matrix_table(self):
         N, M = 50, 50
         mt = hl.utils.range_matrix_table(N, M)
@@ -1012,7 +1012,7 @@ https://hail.zulipchat.com/#narrow/stream/123011-Hail-Dev/topic/test_drop/near/2
         self.assertEqual(inner_join.collect(), inner_join_expected)
         self.assertEqual(outer_join.collect(), outer_join_expected)
 
-    @skip_when_service_backend('Shuffler is encoding/decoding is broken.')
+    @skip_when_service_backend('Shuffler encoding/decoding is broken.')
     def test_null_joins_2(self):
         tr = hl.utils.range_table(7, 1)
         table1 = tr.key_by(new_key=hl.if_else((tr.idx == 3) | (tr.idx == 5),

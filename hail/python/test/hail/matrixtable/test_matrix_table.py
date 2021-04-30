@@ -549,7 +549,7 @@ https://hail.zulipchat.com/#narrow/stream/123011-Hail-Dev/topic/test_drop/near/2
         for s, count in ds.aggregate_cols(agg.counter(ds.s)).items():
             self.assertEqual(count, 3)
 
-    @skip_when_service_backend('Shuffler is encoding/decoding is broken.')
+    @skip_when_service_backend('Shuffler encoding/decoding is broken.')
     def test_union_cols_example(self):
         joined = hl.import_vcf(resource('joined.vcf'))
 
@@ -610,7 +610,7 @@ https://hail.zulipchat.com/#narrow/stream/123011-Hail-Dev/topic/test_drop/near/2
         self.assertEqual(ds.choose_cols(list(range(10))).s.collect(),
                          old_order[:10])
 
-    @skip_when_service_backend('Shuffler is encoding/decoding is broken.')
+    @skip_when_service_backend('Shuffler encoding/decoding is broken.')
     def test_choose_cols_vs_explode(self):
         ds = self.get_mt()
 
@@ -830,7 +830,7 @@ https://hail.zulipchat.com/#narrow/stream/123011-Hail-Dev/topic/test_drop/near/2
                 ds._filter_partitions([0, 3, 7]),
                 ds._filter_partitions([0, 3, 7], keep=False))))
 
-    @skip_when_service_backend('Shuffler is encoding/decoding is broken.')
+    @skip_when_service_backend('Shuffler encoding/decoding is broken.')
     def test_from_rows_table(self):
         mt = hl.import_vcf(resource('sample.vcf'))
         mt = mt.annotate_globals(foo='bar')
@@ -853,7 +853,7 @@ https://hail.zulipchat.com/#narrow/stream/123011-Hail-Dev/topic/test_drop/near/2
         t = hl.read_table(f + '/cols')
         self.assertTrue(ds.cols()._same(t))
 
-    @skip_when_service_backend('Shuffler is encoding/decoding is broken.')
+    @skip_when_service_backend('Shuffler encoding/decoding is broken.')
     def test_read_stored_rows(self):
         ds = self.get_mt()
         ds = ds.annotate_globals(x='foo')
@@ -1573,7 +1573,7 @@ https://hail.zulipchat.com/#narrow/stream/123011-Hail-Dev/topic/test_drop/near/2
         ],
                    mt.filter_rows((mt.row_idx >= 5) & (mt.row_idx < 35)))
 
-    @skip_when_service_backend('Shuffler is encoding/decoding is broken.')
+    @skip_when_service_backend('Shuffler encoding/decoding is broken.')
     def test_partitioned_write_coerce(self):
         mt = hl.import_vcf(resource('sample.vcf'))
         parts = [
