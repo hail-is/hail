@@ -4,7 +4,7 @@ import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.expr.ir._
 import is.hail.types.coerce
-import is.hail.types.physical.{PArray, PCode, PFloat64, PType}
+import is.hail.types.physical.{PArray, PCode, PFloat64, PIndexableCode, PType}
 import is.hail.types.virtual._
 import is.hail.utils._
 
@@ -304,72 +304,52 @@ object ArrayFunctions extends RegistryFunctions {
       ToArray(StreamFlatMap(ToStream(a), elt.name, ToStream(elt)))
     }
 
-    registerEmitCode2("corr", TArray(TFloat64), TArray(TFloat64), TFloat64, {
+    registerIEmitCode2("corr", TArray(TFloat64), TArray(TFloat64), TFloat64, {
       (_: Type, _: PType, _: PType) => PFloat64()
-    }) { case (r, rt, EmitCode(setup1, m1, v1), EmitCode(setup2, m2, v2)) =>
-        val t1 = v1.pt.asInstanceOf[PArray]
-        val t2 = v2.pt.asInstanceOf[PArray]
-        val a1 = r.mb.newLocal[Long]()
-        val a2 = r.mb.newLocal[Long]()
-        val xSum = r.mb.newLocal[Double]()
-        val ySum = r.mb.newLocal[Double]()
-        val xSqSum = r.mb.newLocal[Double]()
-        val ySqSum = r.mb.newLocal[Double]()
-        val xySum = r.mb.newLocal[Double]()
-        val n = r.mb.newLocal[Int]()
-        val i = r.mb.newLocal[Int]()
-        val l1 = r.mb.newLocal[Int]()
-        val l2 = r.mb.newLocal[Int]()
-        val x = r.mb.newLocal[Double]()
-        val y = r.mb.newLocal[Double]()
-
-        EmitCode(
-          Code(
-            setup1,
-            setup2),
-          m1 || m2 || Code(
-            a1 := v1.tcode[Long],
-            a2 := v2.tcode[Long],
-            l1 := t1.loadLength(a1),
-            l2 := t2.loadLength(a2),
-            l1.cne(l2).mux(
-              Code._fatal[Boolean](new CodeString("'corr': cannot compute correlation between arrays of different lengths: ")
-                .concat(l1.toS)
-                .concat(", ")
-                .concat(l2.toS)),
-              l1.ceq(0))),
-          PCode(rt, Code(
-            i := 0,
-            n := 0,
-            xSum := 0d,
-            ySum := 0d,
-            xSqSum := 0d,
-            ySqSum := 0d,
-            xySum := 0d,
-            Code.whileLoop(i < l1,
-              Code(
-                (t1.isElementDefined(a1, i) && t2.isElementDefined(a2, i)).mux(
-                  Code(
-                    x := Region.loadDouble(t1.loadElement(a1, i)),
-                    xSum := xSum + x,
-                    xSqSum := xSqSum + x * x,
-                    y := Region.loadDouble(t2.loadElement(a2, i)),
-                    ySum := ySum + y,
-                    ySqSum := ySqSum + y * y,
-                    xySum := xySum + x * y,
-                    n := n + 1
-                  ),
-                  Code._empty
-                ),
-                i := i + 1
-              )
-            ),
-            (n.toD * xySum - xSum * ySum) / Code.invokeScalaObject1[Double, Double](
+    }) { case (cb, r, rt, ec1, ec2) =>
+      ec1.toI(cb).flatMap(cb) { case pc1: PIndexableCode =>
+        ec2.toI(cb).flatMap(cb) { case pc2: PIndexableCode =>
+          val pv1 = pc1.memoize(cb, "corr_a1")
+          val pv2 = pc2.memoize(cb, "corr_a2")
+          val l1 = cb.newLocal("len1", pv1.loadLength())
+          val l2 = cb.newLocal("len2", pv2.loadLength())
+          cb.ifx(l1.cne(l2), {
+            cb._fatal(
+              "'corr': cannot compute correlation between arrays of different lengths: ",
+                l1.toS,
+                ", ",
+                l2.toS)
+          })
+          IEmitCode(cb, l1.ceq(0), {
+            val xSum = cb.newLocal[Double]("xSum", 0d)
+            val ySum = cb.newLocal[Double]("ySum", 0d)
+            val xSqSum = cb.newLocal[Double]("xSqSum", 0d)
+            val ySqSum = cb.newLocal[Double]("ySqSum", 0d)
+            val xySum = cb.newLocal[Double]("xySum", 0d)
+            val i = cb.newLocal[Int]("i")
+            val n = cb.newLocal[Int]("n", 0)
+            cb.forLoop(cb.assign(i, 0), i < l1, cb.assign(i, i + 1), {
+              pv1.loadElement(cb, i).consume(cb, {}, { xc =>
+                pv2.loadElement(cb, i).consume(cb, {}, { yc =>
+                  val x = cb.newLocal[Double]("x", xc.asDouble.doubleCode(cb))
+                  val y = cb.newLocal[Double]("y", yc.asDouble.doubleCode(cb))
+                  cb.assign(xSum, xSum + x)
+                  cb.assign(xSqSum, xSqSum + x * x)
+                  cb.assign(ySum, ySum + y)
+                  cb.assign(ySqSum, ySqSum + y * y)
+                  cb.assign(xySum, xySum + x * y)
+                  cb.assign(n, n + 1)
+                })
+              })
+            })
+            val res = (n.toD * xySum - xSum * ySum) / Code.invokeScalaObject1[Double, Double](
               MathFunctions.mathPackageClass,
               "sqrt",
               (n.toD * xSqSum - xSum * xSum) * (n.toD * ySqSum - ySum * ySum))
-          )
-        ))
+            PCode(rt, res)
+          })
+        }
+      }
     }
   }
 }
