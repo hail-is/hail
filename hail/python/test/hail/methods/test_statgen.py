@@ -9,7 +9,8 @@ import hail.utils as utils
 from hail.linalg import BlockMatrix
 from hail.utils import FatalError
 from ..helpers import (startTestHailContext, stopTestHailContext, resource,
-                       skip_unless_spark_backend, fails_local_backend, fails_service_backend)
+                       skip_unless_spark_backend, fails_local_backend, fails_service_backend,
+                       skip_when_service_backend)
 
 setUpModule = startTestHailContext
 tearDownModule = stopTestHailContext
