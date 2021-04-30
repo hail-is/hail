@@ -70,8 +70,8 @@
 	<tbody>
 	  {% for batch in batches %}
 	  <tr>
-	    <td class="numeric-cell" onClick="document.location.href='{{ base_path }}/batches/{{ batch['id'] }}';">
-              <a href="{{ base_path }}/batches/{{ batch['id'] }}">{{ batch['id'] }}</a>
+	    <td class="numeric-cell">
+        <a class="fill-td" href="{{ base_path }}/batches/{{ batch['id'] }}">{{ batch['id'] }}</a>
 	    </td>
 	    <td>{{ batch['user'] }}</td>
 	    <td>{{ batch['billing_project'] }}</td>
