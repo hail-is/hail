@@ -4276,7 +4276,7 @@ def empty_array(t: Union[HailType, builtins.str]) -> ArrayExpression:
     return construct_expr(a, array_t)
 
 
-def _ndarray(collection, row_major=None, dtype=None):
+def _ndarray(collection, known_shape=None, row_major=None, dtype=None):
     """Construct a Hail ndarray from either a flat Hail array, a `NumPy` ndarray or python value/nested lists.
 
     Parameters
@@ -4325,6 +4325,8 @@ def _ndarray(collection, row_major=None, dtype=None):
     if isinstance(collection, Expression):
         if isinstance(collection, ArrayNumericExpression):
             data_expr = collection
+            if known_shape is not None:
+                shape_expr = known_shape
             shape_expr = to_expr(tuple([hl.int64(hl.len(collection))]), ttuple(tint64))
             ndim = 1
         elif isinstance(collection, NumericExpression):

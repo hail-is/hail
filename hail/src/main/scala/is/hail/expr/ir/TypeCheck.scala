@@ -150,7 +150,7 @@ object TypeCheck {
       case x@ArrayZeros(length) =>
         assert(length.typ == TInt32)
       case x@MakeNDArray(data, shape, rowMajor, _) =>
-        assert(data.typ.isInstanceOf[TArray])
+        assert(data.typ.isInstanceOf[TArray] || data.typ.isInstanceOf[TStream])
         assert(shape.typ.asInstanceOf[TTuple].types.forall(t => t == TInt64))
         assert(rowMajor.typ == TBoolean)
       case x@NDArrayShape(nd) =>

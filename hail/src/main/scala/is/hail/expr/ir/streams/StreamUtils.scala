@@ -4,12 +4,43 @@ import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.expr.ir.{EmitCodeBuilder, IEmitCode, IR, NDArrayMap, NDArrayMap2, Ref, RunAggScan, StagedArrayBuilder, StreamFilter, StreamFlatMap, StreamFold, StreamFold2, StreamFor, StreamJoinRightDistinct, StreamMap, StreamScan, StreamZip, StreamZipJoin}
 import is.hail.types.physical.{PCanonicalArray, PCode, PIndexableCode, SingleCodePCode}
+import is.hail.utils.HailException
 
 trait StreamArgType {
   def apply(outerRegion: Region, eltRegion: Region): Iterator[java.lang.Long]
 }
 
 object StreamUtils {
+
+  def storeNDArrayElementsAtAddress(
+    cb: EmitCodeBuilder,
+    stream: StreamProducer,
+    destRegion: Value[Region],
+    addr: Value[Long],
+    errorId: Int
+  ): Unit = {
+    val currentElementIndex = cb.newLocal[Long]("store_ndarray_elements_stream_current_index", 0)
+    val currentElementAddress = cb.newLocal[Long]("store_ndarray_elements_stream_current_addr", addr)
+    val elementType = stream.element.st.canonicalPType()
+    val elementByteSize = elementType.byteSize
+
+    var push: (EmitCodeBuilder, IEmitCode) => Unit = null
+    stream.memoryManagedConsume(destRegion, cb, setup = { cb =>
+      push = { case (cb, iec) =>
+        iec.consume(cb,
+          cb._throw(Code.newInstance[HailException, String, Int](
+            "Cannot construct an ndarray with missing values.", errorId
+          )),
+          { sc =>
+            elementType.storeAtAddress(cb, currentElementAddress, destRegion, sc, deepCopy = true)
+          })
+        cb.assign(currentElementIndex, currentElementIndex + 1)
+        cb.assign(currentElementAddress, currentElementAddress + elementByteSize)
+      }
+    }) { cb =>
+      push(cb, stream.element.toI(cb))
+    }
+  }
 
   def toArray(
     cb: EmitCodeBuilder,

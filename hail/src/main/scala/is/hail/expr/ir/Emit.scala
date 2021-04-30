@@ -1123,40 +1123,79 @@ class Emit[C](
 
         emitI(rowMajorIR).flatMap(cb) { isRowMajorCode =>
           emitI(shapeIR).flatMap(cb) { case shapeTupleCode: PBaseStructCode =>
-            emitI(dataIR).map(cb) { case dataCode: PIndexableCode =>
-              val shapeTupleValue = shapeTupleCode.memoize(cb, "make_ndarray_shape")
-              val memoData = dataCode.memoize(cb, "make_nd_array_memoized_data")
+            dataIR.typ match {
+              case _: TArray =>
+                emitI(dataIR).map(cb) { case dataCode: PIndexableCode =>
+                  val shapeTupleValue = shapeTupleCode.memoize(cb, "make_ndarray_shape")
+                  val memoData = dataCode.memoize(cb, "make_nd_array_memoized_data")
 
-              cb.ifx(memoData.hasMissingValues(cb), {
-                cb._throw(Code.newInstance[HailException, String, Int](
-                    "Cannot construct an ndarray with missing values.", errorId
-              ))})
+                  cb.ifx(memoData.hasMissingValues(cb), {
+                    cb._throw(Code.newInstance[HailException, String, Int](
+                      "Cannot construct an ndarray with missing values.", errorId
+                    ))
+                  })
 
-              (0 until nDims).foreach { index =>
-                cb.ifx(shapeTupleValue.isFieldMissing(index),
-                  cb.append(Code._fatal[Unit](s"shape missing at index $index")))
-              }
+                  (0 until nDims).foreach { index =>
+                    cb.ifx(shapeTupleValue.isFieldMissing(index),
+                      cb.append(Code._fatal[Unit](s"shape missing at index $index")))
+                  }
 
-              val stridesSettables = (0 until nDims).map(i => cb.newLocal[Long](s"make_ndarray_stride_$i"))
+                  val stridesSettables = (0 until nDims).map(i => cb.newLocal[Long](s"make_ndarray_stride_$i"))
 
-              val shapeValues = (0 until nDims).map { i =>
-                shapeTupleValue.loadField(cb, i).get(cb).memoize(cb, s"make_ndarray_shape_${i}").asPValue.value.asInstanceOf[Value[Long]]
-              }
+                  val shapeValues = (0 until nDims).map { i =>
+                    shapeTupleValue.loadField(cb, i).get(cb).memoize(cb, s"make_ndarray_shape_${i}").asPValue.value.asInstanceOf[Value[Long]]
+                  }
 
-              cb.ifx(isRowMajorCode.asBoolean.boolCode(cb), {
-                val strides = xP.makeRowMajorStrides(shapeValues, region, cb)
+                  cb.ifx(isRowMajorCode.asBoolean.boolCode(cb), {
+                    val strides = xP.makeRowMajorStrides(shapeValues, region, cb)
 
-                stridesSettables.zip(strides).foreach { case (settable, stride) =>
-                  cb.assign(settable, stride)
+                    stridesSettables.zip(strides).foreach { case (settable, stride) =>
+                      cb.assign(settable, stride)
+                    }
+                  }, {
+                    val strides = xP.makeColumnMajorStrides(shapeValues, region, cb)
+                    stridesSettables.zip(strides).foreach { case (settable, stride) =>
+                      cb.assign(settable, stride)
+                    }
+                  })
+
+                  xP.constructByCopyingArray(shapeValues, stridesSettables, memoData.pc.asIndexable, cb, region)
                 }
-              }, {
-                val strides = xP.makeColumnMajorStrides(shapeValues, region, cb)
-                stridesSettables.zip(strides).foreach { case (settable, stride) =>
-                  cb.assign(settable, stride)
-                }
-              })
+              case _: TStream =>
+                cb.println("STREAM PATH")
+                EmitStream.produce(this, dataIR, cb, region, env, container)
+                  .map(cb) {
+                    case stream: SStreamCode => {
+                      val shapeTupleValue = shapeTupleCode.memoize(cb, "make_ndarray_shape")
+                      (0 until nDims).foreach { index =>
+                        cb.ifx(shapeTupleValue.isFieldMissing(index),
+                          cb.append(Code._fatal[Unit](s"shape missing at index $index")))
+                      }
 
-              xP.constructByCopyingArray(shapeValues, stridesSettables, memoData.pc.asIndexable, cb, region)
+                      val stridesSettables = (0 until nDims).map(i => cb.newLocal[Long](s"make_ndarray_stride_$i"))
+
+                      val shapeValues = (0 until nDims).map { i =>
+                        shapeTupleValue.loadField(cb, i).get(cb).memoize(cb, s"make_ndarray_shape_${i}").asPValue.value.asInstanceOf[Value[Long]]
+                      }
+
+                      cb.ifx(isRowMajorCode.asBoolean.boolCode(cb), {
+                        val strides = xP.makeRowMajorStrides(shapeValues, region, cb)
+
+                        stridesSettables.zip(strides).foreach { case (settable, stride) =>
+                          cb.assign(settable, stride)
+                        }
+                      }, {
+                        val strides = xP.makeColumnMajorStrides(shapeValues, region, cb)
+                        stridesSettables.zip(strides).foreach { case (settable, stride) =>
+                          cb.assign(settable, stride)
+                        }
+                      })
+
+                      val (firstElementAddress, finisher) = xP.constructDataFunction(shapeValues, stridesSettables, cb, region)
+                      StreamUtils.storeNDArrayElementsAtAddress(cb, stream.producer, region, firstElementAddress, errorId)
+                      finisher(cb)
+                    }
+                  }
             }
           }
         }
