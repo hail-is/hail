@@ -3,6 +3,10 @@ buildscript {
         mavenCentral()
         jcenter()
     }
+
+    dependencies {
+        classpath 'ch.epfl.scala:gradle-bloop_2.12:1.4.8'
+    }
 }
 
 plugins {
@@ -349,4 +353,8 @@ task shadowTestJar(type: ShadowJar) {
     classifier = 'spark-test'
     from project.sourceSets.main.output, project.sourceSets.test.output
     configurations = [project.configurations.hailTestJar]
+}
+
+allprojects {
+    apply plugin: 'bloop'
 }
