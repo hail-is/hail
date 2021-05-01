@@ -223,10 +223,6 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
   def println(cString: Code[String]*) = this += Code._printlns(cString: _*)
 
   def logInfo(cs: Code[String]*): Unit = {
-    this += Code.invokeScalaObject1[String, Unit](ExposedUtils.getClass, "logInfo", cs.reduce[Code[String]] { case (l, r) => (l.concat(r)) })
+    this += Code.invokeScalaObject1[String, Unit](LogHelper.getClass, "logInfo", cs.reduce[Code[String]] { case (l, r) => (l.concat(r)) })
   }
-}
-
-object ExposedUtils {
-  def logInfo(s: String): Unit = log.info(s)
 }

@@ -42,7 +42,7 @@ object CompileTimeShuffleClient {
       Code.invokeScalaObject0[Socket](CompileTimeShuffleClient.getClass, "getSocketOnWorker"))
 
     val in: Value[InputBuffer] = cb.newField[InputBuffer]("ib", shuffleBufferSpec.buildCodeInputBuffer(socket.invoke[InputStream]("getInputStream")))
-    val out: Value[OutputBuffer] = cb.newField[OutputBuffer]("ib", shuffleBufferSpec.buildCodeOutputBuffer(socket.invoke[OutputStream]("getOuputStream")))
+    val out: Value[OutputBuffer] = cb.newField[OutputBuffer]("ob", shuffleBufferSpec.buildCodeOutputBuffer(socket.invoke[OutputStream]("getOutputStream")))
 
     new CompileTimeShuffleClient(shuffle, socket, in, out)
   }
@@ -61,8 +61,7 @@ class CompileTimeShuffleClient(
     assert(op != Wire.START)
     cb += out.writeByte(op)
     val uuidBytes = cb.newLocal[Array[Byte]]("shuffle_uuid", shuffle.loadBytes())
-    // fixme log
-    cb.println(s"operation $op uuid ", uuidToString(uuidBytes))
+    cb.logInfo(s"operation $op uuid ", uuidToString(uuidBytes))
     cb += Wire.writeByteArray(out, uuidBytes)
   }
 
@@ -102,8 +101,7 @@ class CompileTimeShuffleClient(
     val startIncl = cb.newLocal[Boolean]("startIncl", _startInclusive)
     val endIncl = cb.newLocal[Boolean]("endIncl", _endInclusive)
 
-    // fixme log
-    cb.println("shuffle get: start=", cb.strValue(start.get), ", startInclusive=", startIncl.toS, ", end=", cb.strValue(end.get), ", endInclusive=", endIncl.toS)
+    cb.logInfo("shuffle get: start=", cb.strValue(start.get), ", startInclusive=", startIncl.toS, ", end=", cb.strValue(end.get), ", endInclusive=", endIncl.toS)
 
     startOperation(cb, Wire.GET)
 
