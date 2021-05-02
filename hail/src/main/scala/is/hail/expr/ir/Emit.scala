@@ -12,7 +12,7 @@ import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer}
 import is.hail.linalg.{BLAS, LAPACK, LinalgCodeUtils}
 import is.hail.services.shuffler._
 import is.hail.types.physical._
-import is.hail.types.physical.stypes.concrete.{SBaseStructPointerCode, SCanonicalShufflePointerCode, SCanonicalShufflePointerSettable}
+import is.hail.types.physical.stypes.concrete.{SBaseStructPointerCode, SCanonicalShufflePointer, SCanonicalShufflePointerCode, SCanonicalShufflePointerSettable}
 import is.hail.types.physical.stypes.interfaces.{SBaseStructCode, SNDArray, SNDArrayCode, SStreamCode}
 import is.hail.types.physical.stypes.primitives.{SFloat32, SFloat64, SInt32, SInt32Code, SInt64}
 import is.hail.types.physical.stypes.{SCode, SType}
@@ -1851,8 +1851,28 @@ class Emit[C](
         writerIR,
         readersIR
       ) =>
-        throw new UnsupportedOperationException("ShuffleWith")
+        val shuffleType = x.shuffleType
 
+        val shuffleST = SCanonicalShufflePointer(PCanonicalShuffle(shuffleType, true))
+        val settable = mb.newPField(shuffleST.pType).asInstanceOf[SCanonicalShufflePointerSettable]
+        val shuffle = CompileTimeShuffleClient.create(cb, settable)
+
+        shuffle.start(cb, region)
+
+        val shuffleEnv = env.bind(name -> mb.newPresentEmitSettable(settable))
+
+        val successfulShuffleIds: PValue = emitI(writerIR, env = shuffleEnv)
+          .get(cb, "shuffle ID must be non-missing")
+          // just store it so the writer gets run
+          .memoize(cb, "shuffleSuccessfulShuffleIds")
+
+        val shuffleReaders =
+          emitI(readersIR, env = shuffleEnv).memoize(cb, "shuffleReaders")
+
+        shuffle.stop(cb)
+        shuffle.close(cb)
+
+        shuffleReaders.toI(cb)
       case ShuffleWrite(idIR, rowsIR) =>
         val rows = emitStream(rowsIR, cb, region)
           .get(cb, "rows stream was missing in shuffle write")

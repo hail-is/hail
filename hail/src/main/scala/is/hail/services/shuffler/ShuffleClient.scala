@@ -49,20 +49,40 @@ object CompileTimeShuffleClient {
 }
 
 class CompileTimeShuffleClient(
-  shuffle: SCanonicalShufflePointerSettable,
+  val uuid: SCanonicalShufflePointerSettable,
   socket: Value[Socket],
   in: Value[InputBuffer],
   out: Value[OutputBuffer]) {
 
-  private[this] val ts = shuffle.st.virtualType.asInstanceOf[TShuffle]
+  private[this] val ts = uuid.st.virtualType.asInstanceOf[TShuffle]
+
+  def start(cb: EmitCodeBuilder, region: Value[Region]): Unit = {
+    startOperation(cb, Wire.START)
+    cb.logInfo(s"start")
+    cb += Wire.writeTStruct(out, ts.rowType)
+    cb += Wire.writeEBaseStruct(out, ts.rowEType)
+    cb += Wire.writeSortFieldArray(out, ts.keyFields)
+    cb.logInfo(s"using ${ts.keyEType}")
+    cb += Wire.writeEBaseStruct(out, ts.keyEType)
+    cb += out.flush()
+
+    val bytes = cb.newLocal[Array[Byte]]("shuff_start_bytes", Wire.readByteArray(in))
+    cb.ifx(bytes.length().cne(Wire.ID_SIZE),
+      cb._fatal(s"shuffle error: uuid length mismatch: expect ${Wire.ID_SIZE}, got ", bytes.length().toS))
+    uuid.storeFromBytes(cb, region, bytes)
+    cb.logInfo(s"start done")
+  }
+
 
   private def startOperation(cb: EmitCodeBuilder, op: Byte): Unit = {
     assert(op != Wire.EOS)
     assert(op != Wire.START)
     cb += out.writeByte(op)
-    val uuidBytes = cb.newLocal[Array[Byte]]("shuffle_uuid", shuffle.loadBytes())
-    cb.logInfo(s"operation $op uuid ", uuidToString(uuidBytes))
-    cb += Wire.writeByteArray(out, uuidBytes)
+    if (op != Wire.START) {
+      val uuidBytes = cb.newLocal[Array[Byte]]("shuffle_uuid", uuid.loadBytes())
+      cb.logInfo(s"operation $op uuid ", uuidToString(uuidBytes))
+      cb += Wire.writeByteArray(out, uuidBytes)
+    }
   }
 
   def startPut(cb: EmitCodeBuilder):Unit = {
@@ -141,6 +161,15 @@ class CompileTimeShuffleClient(
   }
 
   def partitionBoundsFinished(cb: EmitCodeBuilder): Code[Boolean] = in.readByte() ceq 0.toByte
+
+  def stop(cb: EmitCodeBuilder): Unit = {
+    startOperation(cb, Wire.STOP)
+    cb += out.flush()
+    cb.logInfo(s"stop")
+    val byte = cb.newLocal[Int]("shuffle_stop_byte", in.readByte().toI)
+    cb.ifx(byte.cne(0), cb._fatal(s"bad byte in stop: ", byte.toS))
+    cb.logInfo(s"stop done")
+  }
 
   def close(cb: EmitCodeBuilder): Unit = {
     cb += out.writeByte(Wire.EOS)
