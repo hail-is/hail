@@ -76,7 +76,6 @@ class CompileTimeShuffleClient(
 
   private def startOperation(cb: EmitCodeBuilder, op: Byte): Unit = {
     assert(op != Wire.EOS)
-    assert(op != Wire.START)
     cb += out.writeByte(op)
     if (op != Wire.START) {
       val uuidBytes = cb.newLocal[Array[Byte]]("shuffle_uuid", uuid.loadBytes())
