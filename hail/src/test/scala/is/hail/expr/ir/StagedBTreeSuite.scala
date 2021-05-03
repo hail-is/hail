@@ -131,7 +131,7 @@ class BTreeBackedSet(ctx: ExecuteContext, region: Region, n: Int) {
     val key = new TestBTreeKey(fb.apply_method)
     val btree = new AppendOnlyBTree(cb, key, r, root, maxElements = n)
 
-    val sab = new StagedArrayBuilder(PInt64(), fb.apply_method, 16)
+    val sab = new StagedArrayBuilder(Int64SingleCodeType, fb.apply_method, 16)
     val idx = fb.newLocal[Int]()
     val returnArray = fb.newLocal[Array[java.lang.Long]]()
 

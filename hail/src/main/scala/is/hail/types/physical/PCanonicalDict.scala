@@ -5,6 +5,16 @@ import is.hail.types.virtual.{TDict, Type}
 import is.hail.types.physical.stypes.concrete.{SIndexablePointer, SIndexablePointerCode}
 import org.apache.spark.sql.Row
 
+object PCanonicalDict {
+  def coerceArrayCode(contents: PIndexableCode): PIndexableCode = {
+    contents.pt match {
+      case PCanonicalArray(ps: PCanonicalStruct, r) =>
+        PCanonicalDict(ps.fieldType("key"), ps.fieldType("value"), r)
+          .construct(contents)
+    }
+  }
+}
+
 final case class PCanonicalDict(keyType: PType, valueType: PType, required: Boolean = false) extends PDict with PArrayBackedContainer {
   val elementType = PCanonicalStruct(required = true, "key" -> keyType, "value" -> valueType)
 

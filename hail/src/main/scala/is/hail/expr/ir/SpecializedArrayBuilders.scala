@@ -1,15 +1,16 @@
 package is.hail.expr.ir
 
+import is.hail.annotations.Region
 import is.hail.asm4s._
-import is.hail.types.physical.{PCode, PType, PValue, typeToTypeInfo}
+import is.hail.types.physical.{PCode, PType, PValue, SingleCodeType, typeToTypeInfo}
 import is.hail.types.virtual.Type
 import is.hail.utils.BoxedArrayBuilder
 
 import scala.reflect.ClassTag
 
-class StagedArrayBuilder(val elt: PType, mb: EmitMethodBuilder[_], len: Code[Int]) {
+class StagedArrayBuilder(val elt: SingleCodeType, mb: EmitMethodBuilder[_], len: Code[Int]) {
 
-  val ti: TypeInfo[_] = typeToTypeInfo(elt)
+  val ti: TypeInfo[_] = elt.ti
 
   val ref: Value[Any] = coerce[Any](ti match {
     case BooleanInfo => mb.genLazyFieldThisRef[BooleanMissingArrayBuilder](Code.newInstance[BooleanMissingArrayBuilder, Int](len), "zab")
@@ -81,19 +82,10 @@ class StagedArrayBuilder(val elt: PType, mb: EmitMethodBuilder[_], len: Code[Int
 
   def clear: Code[Unit] = coerce[MissingArrayBuilder](ref).invoke[Unit]("clear")
 
-  def applyEV(mb: EmitMethodBuilder[_], i: Code[Int]): EmitValue =
-    new EmitValue {
-      def pt: PType = elt
-
-      def get(cb: EmitCodeBuilder): PCode = load.toI(cb).get(
-        cb,
-        s"Can't convert missing EmitValue of type ${pt} to PValue.")
-
-      def load: EmitCode = {
-        val t = mb.newLocal[Int]("sab_applyEV_load_i")
-        EmitCode(t := i, isMissing(t), PCode(elt, apply(t)))
-      }
-    }
+  def loadFromIndex(cb: EmitCodeBuilder, r: Value[Region], i: Code[Int]): IEmitCode = {
+    val idx = cb.newLocal[Int]("loadFromIndex_idx", i)
+    IEmitCode(cb, isMissing(idx), elt.loadToPCode(cb, r, apply(idx)))
+  }
 }
 
 sealed abstract class MissingArrayBuilder(initialCapacity: Int) {

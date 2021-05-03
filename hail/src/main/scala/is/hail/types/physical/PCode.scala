@@ -58,10 +58,14 @@ sealed trait SingleCodeType {
   def virtualType: Type
 
   def coercePCode(cb: EmitCodeBuilder, pc: PCode, region: Value[Region], deepCopy: Boolean): SingleCodePCode
+
+  def loadedSType: SType
 }
 
 case object Int32SingleCodeType extends SingleCodeType {
   def ti: TypeInfo[_] = IntInfo
+
+  override def loadedSType: SType = SInt32(false)
 
   def loadToPCode(cb: EmitCodeBuilder, r: Value[Region], c: Code[_]): PCode = new SInt32Code(true, coerce[Int](c))
 
@@ -73,6 +77,8 @@ case object Int32SingleCodeType extends SingleCodeType {
 case object Int64SingleCodeType extends SingleCodeType {
   def ti: TypeInfo[_] = LongInfo
 
+  override def loadedSType: SType = SInt64(false)
+
   def loadToPCode(cb: EmitCodeBuilder, r: Value[Region], c: Code[_]): PCode = new SInt64Code(true, coerce[Long](c))
 
   def virtualType: Type = TInt64
@@ -82,6 +88,8 @@ case object Int64SingleCodeType extends SingleCodeType {
 
 case object Float32SingleCodeType extends SingleCodeType {
   def ti: TypeInfo[_] = FloatInfo
+
+  override def loadedSType: SType = SFloat32(false)
 
   def loadToPCode(cb: EmitCodeBuilder, r: Value[Region], c: Code[_]): PCode = new SFloat32Code(true, coerce[Float](c))
 
@@ -93,6 +101,8 @@ case object Float32SingleCodeType extends SingleCodeType {
 case object Float64SingleCodeType extends SingleCodeType {
   def ti: TypeInfo[_] = DoubleInfo
 
+  override def loadedSType: SType = SFloat64(false)
+
   def loadToPCode(cb: EmitCodeBuilder, r: Value[Region], c: Code[_]): PCode = new SFloat64Code(true, coerce[Double](c))
 
   def virtualType: Type = TFloat64
@@ -103,6 +113,8 @@ case object Float64SingleCodeType extends SingleCodeType {
 case object BooleanSingleCodeType extends SingleCodeType {
   def ti: TypeInfo[_] = BooleanInfo
 
+  override def loadedSType: SType = SBoolean(false)
+
   def loadToPCode(cb: EmitCodeBuilder, r: Value[Region], c: Code[_]): PCode = new SBooleanCode(true, coerce[Boolean](c))
 
   def virtualType: Type = TBoolean
@@ -111,6 +123,8 @@ case object BooleanSingleCodeType extends SingleCodeType {
 }
 
 case class StreamSingleCodeType(requiresMemoryManagementPerElement: Boolean, eltType: PType) extends SingleCodeType { self =>
+
+  override def loadedSType: SType = SStream(eltType.sType, false)
 
   def virtualType: Type = TStream(eltType.virtualType)
 
@@ -153,6 +167,8 @@ case class StreamSingleCodeType(requiresMemoryManagementPerElement: Boolean, elt
 
 case class PTypeReferenceSingleCodeType(pt: PType) extends SingleCodeType {
   def ti: TypeInfo[_] = LongInfo
+
+  override def loadedSType: SType = pt.sType
 
   def loadToPCode(cb: EmitCodeBuilder, r: Value[Region], c: Code[_]): PCode = pt.loadCheapPCode(cb, coerce[Long](c))
 
