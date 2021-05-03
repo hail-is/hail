@@ -267,7 +267,7 @@ class Container:
 
         image_ref = parse_docker_image_reference(self.spec['image'])
 
-        if image_ref.tag is None:
+        if image_ref.tag is None and image_ref.digest is None:
             log.info(f'adding latest tag to image {self.spec["image"]} for {self}')
             image_ref.tag = 'latest'
 
