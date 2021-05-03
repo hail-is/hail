@@ -22,7 +22,7 @@ import google.oauth2.service_account
 from hailtop.utils import (time_msecs, request_retry_transient_errors, sleep_and_backoff,
                            retry_all_errors, check_shell, CalledProcessError, check_shell_output,
                            is_google_registry_domain, find_spark_home, dump_all_stacktraces,
-                           parse_docker_image_reference)
+                           parse_docker_image_reference, blocking_to_async)
 from hailtop.httpx import client_session
 from hailtop.batch_client.parse import (parse_cpu_in_mcpu, parse_memory_in_bytes, parse_storage_in_bytes)
 from hailtop.batch.hail_genetics_images import HAIL_GENETICS_IMAGES
@@ -730,12 +730,12 @@ class Job:
         return f'{self.scratch}/gsa-key'
 
     @classmethod
-    def create(cls, batch_id, user, gsa_key, job_spec, format_version, task_manager):
+    def create(cls, batch_id, user, gsa_key, job_spec, format_version, task_manager, pool):
         type = job_spec['process']['type']
         if type == 'docker':
-            return DockerJob(batch_id, user, gsa_key, job_spec, format_version, task_manager)
+            return DockerJob(batch_id, user, gsa_key, job_spec, format_version, task_manager, pool)
         assert type == 'jvm'
-        return JVMJob(batch_id, user, gsa_key, job_spec, format_version, task_manager)
+        return JVMJob(batch_id, user, gsa_key, job_spec, format_version, task_manager, pool)
 
     def __init__(self,
                  batch_id: int,
@@ -743,7 +743,8 @@ class Job:
                  gsa_key,
                  job_spec,
                  format_version: BatchFormatVersion,
-                 task_manager: aiotools.BackgroundTaskManager):
+                 task_manager: aiotools.BackgroundTaskManager,
+                 pool: concurrent.futures.ThreadPoolExecutor):
         self.batch_id = batch_id
         self.user = user
         self.gsa_key = gsa_key
@@ -823,6 +824,7 @@ class Job:
         self.project_id = Job.get_next_xfsquota_project_id()
 
         self.task_manager = task_manager
+        self.pool = pool
 
     @property
     def job_id(self):
@@ -892,8 +894,9 @@ class DockerJob(Job):
                  gsa_key,
                  job_spec,
                  format_version,
-                 task_manager: aiotools.BackgroundTaskManager):
-        super().__init__(batch_id, user, gsa_key, job_spec, format_version, task_manager)
+                 task_manager: aiotools.BackgroundTaskManager,
+                 pool: concurrent.futures.ThreadPoolExecutor):
+        super().__init__(batch_id, user, gsa_key, job_spec, format_version, task_manager, pool)
         input_files = job_spec.get('input_files')
         output_files = job_spec.get('output_files')
 
@@ -1096,7 +1099,7 @@ class DockerJob(Job):
             async with Flock('/xfsquota/projects', pool=worker.pool):
                 await check_shell(f"sed -i '/{self.project_id}:/d' /xfsquota/projects")
 
-            shutil.rmtree(self.scratch, ignore_errors=True)
+            await blocking_to_async(self.pool, shutil.rmtree, self.scratch, ignore_errors=True)
         except asyncio.CancelledError:
             raise
         except Exception:
@@ -1133,8 +1136,9 @@ class JVMJob(Job):
                  gsa_key,
                  job_spec,
                  format_version,
-                 task_manager: aiotools.BackgroundTaskManager):
-        super().__init__(batch_id, user, gsa_key, job_spec, format_version, task_manager)
+                 task_manager: aiotools.BackgroundTaskManager,
+                 pool: concurrent.futures.ThreadPoolExecutor):
+        super().__init__(batch_id, user, gsa_key, job_spec, format_version, task_manager, pool)
         assert job_spec['process']['type'] == 'jvm'
 
         input_files = job_spec.get('input_files')
@@ -1229,7 +1233,7 @@ class JVMJob(Job):
             async with Flock('/xfsquota/projects', pool=worker.pool):
                 await check_shell(f"sed -i '/{self.project_id}:/d' /xfsquota/projects")
 
-            shutil.rmtree(self.scratch, ignore_errors=True)
+            blo shutil.rmtree(self.scratch, ignore_errors=True)
         except asyncio.CancelledError:
             raise
         except Exception:
@@ -1330,7 +1334,7 @@ class Worker:
         if id in self.jobs:
             return web.HTTPForbidden()
 
-        job = Job.create(batch_id, body['user'], body['gsa_key'], job_spec, format_version, self.task_manager)
+        job = Job.create(batch_id, body['user'], body['gsa_key'], job_spec, format_version, self.task_manager, self.pool)
 
         log.info(f'created {job}, adding to jobs')
 
