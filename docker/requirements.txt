@@ -42,6 +42,7 @@ libsass==0.19.2
 mypy==0.780
 nest_asyncio==1.5.1
 parsimonious==0.8.1
+plotly==4.14.3
 prometheus_async==19.2.0
 prometheus_client==0.11.0
 psutil==5.8.0
