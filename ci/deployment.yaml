@@ -58,10 +58,6 @@ spec:
                  key: docker_root_image
            - name: HAIL_GCP_ZONE
              value: "{{ global.zone }}"
-           - name: HAIL_DOCKER_PREFIX
-             value: "{{ global.docker_prefix }}"
-           - name: HAIL_DOCKER_ROOT_IMAGE
-             value: "{{ global.docker_root_image }}"
            - name: HAIL_CI_UTILS_IMAGE
              value: "{{ ci_utils_image.image }}"
            - name: HAIL_KANIKO_IMAGE
