@@ -5,7 +5,7 @@ phased_url_root = "ftp://ftp.1000genomes.ebi.ac.uk/vol1/ftp/data_collections/" \
 gt_url_root = "ftp://ftp.1000genomes.ebi.ac.uk/vol1/ftp/data_collections/" \
               "1000G_2504_high_coverage/working/20201028_3202_raw_GT_with_annot"
 
-backend = hb.ServiceBackend()
+backend = hb.ServiceBackend(billing_project="hail-datasets-api")
 batch = hb.Batch(backend=backend, name="1kg-highcov")
 for i in [str(x) for x in range(1,23)]:
     j = batch.new_job(name=i)
