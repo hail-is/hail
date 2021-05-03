@@ -78,7 +78,7 @@ class EmitStreamSuite extends HailSuite {
     val f = fb.resultWithIndex()
     (arg: T) =>
       pool.scopedRegion { r =>
-        val off = call(f(0, r), r, arg)
+        val off = call(f(ctx.fs, 0, r), r, arg)
         if (off == 0L)
           null
         else
@@ -106,6 +106,7 @@ class EmitStreamSuite extends HailSuite {
         def apply(outerRegion: Region, eltRegion: Region): Iterator[java.lang.Long] =
           new Iterator[java.lang.Long] {
             def hasNext: Boolean = it.hasNext
+
             def next(): java.lang.Long = {
               ScalaToRegionValue(eltRegion, streamType.elementType, it.next())
             }
@@ -139,11 +140,11 @@ class EmitStreamSuite extends HailSuite {
       EmitStream.produce(new Emit(emitContext, fb.ecb), ir, cb, region, Env.empty, None)
         .consume(cb,
           {},
-        { case stream: SStreamCode =>
-          stream.producer.memoryManagedConsume(region, cb, { cb => stream.producer.length.foreach(c => cb.assign(len2, c))}) { cb =>
-            cb.assign(len, len + 1)
-          }
-        })
+          { case stream: SStreamCode =>
+            stream.producer.memoryManagedConsume(region, cb, { cb => stream.producer.length.foreach(c => cb.assign(len2, c)) }) { cb =>
+              cb.assign(len, len + 1)
+            }
+          })
       cb.ifx(len2.cne(-1) && (len2.cne(len)),
         cb._fatal(s"length mismatch between computed and iteration length: computed=", len2.toS, ", iter=", len.toS))
 
@@ -151,7 +152,7 @@ class EmitStreamSuite extends HailSuite {
     }
     val f = fb.resultWithIndex()
     pool.scopedRegion { r =>
-      val len = f(0, r)(r)
+      val len = f(ctx.fs, 0, r)(r)
       if (len < 0) None else Some(len)
     }
   }
@@ -186,8 +187,8 @@ class EmitStreamSuite extends HailSuite {
       tripleType)
     for {
       start <- -2 to 2
-      stop <- -2 to 8
-      step <- 1 to 3
+        stop <- -2 to 8
+        step <- 1 to 3
     } {
       assert(range(Row(start, stop, step)) == Array.range(start, stop, step).toFastIndexedSeq,
         s"($start, $stop, $step)")
@@ -226,8 +227,11 @@ class EmitStreamSuite extends HailSuite {
 
   @Test def testEmitMap() {
     def ten = StreamRange(I32(0), I32(10), I32(1))
+
     def x = Ref("x", TInt32)
+
     def y = Ref("y", TInt32)
+
     val tests: Array[(IR, IndexedSeq[Any])] = Array(
       StreamMap(ten, "x", x * 2) -> (0 until 10).map(_ * 2),
       StreamMap(ten, "x", x.toL) -> (0 until 10).map(_.toLong),
@@ -242,8 +246,11 @@ class EmitStreamSuite extends HailSuite {
 
   @Test def testEmitFilter() {
     def ten = StreamRange(I32(0), I32(10), I32(1))
+
     def x = Ref("x", TInt32)
+
     def y = Ref("y", TInt64)
+
     val tests: Array[(IR, IndexedSeq[Any])] = Array(
       StreamFilter(ten, "x", x cne 5) -> (0 until 10).filter(_ != 5),
       StreamFilter(StreamMap(ten, "x", (x * 2).toL), "y", y > 5L) -> (3 until 10).map(x => (x * 2).toLong),
@@ -258,7 +265,9 @@ class EmitStreamSuite extends HailSuite {
 
   @Test def testEmitFlatMap() {
     def x = Ref("x", TInt32)
+
     def y = Ref("y", TInt32)
+
     val tests: Array[(IR, IndexedSeq[Any])] = Array(
       StreamFlatMap(StreamRange(0, 6, 1), "x", StreamRange(0, x, 1)) ->
         (0 until 6).flatMap(0 until _),
@@ -294,7 +303,9 @@ class EmitStreamSuite extends HailSuite {
           GetField(Ref("l", eltType), "v"),
           GetField(Ref("r", eltType), "v"))),
         joinType)
+
     def leftjoin(lstream: IR, rstream: IR): IR = join(lstream, rstream, "left")
+
     def outerjoin(lstream: IR, rstream: IR): IR = join(lstream, rstream, "outer")
 
     def pairs(xs: Seq[(Int, String)]): IR =
@@ -305,23 +316,23 @@ class EmitStreamSuite extends HailSuite {
       (pairs(Seq(3 -> "A")),
         pairs(Seq()),
         IndexedSeq(Row("A", null)),
-        IndexedSeq(Row("A", null)))
-//      (pairs(Seq()),
-//        pairs(Seq(3 -> "B")),
-//        IndexedSeq(),
-//        IndexedSeq(Row(null, "B"))),
-//      (pairs(Seq(0 -> "A")),
-//        pairs(Seq(0 -> "B")),
-//        IndexedSeq(Row("A", "B")),
-//        IndexedSeq(Row("A", "B"))),
-//      (pairs(Seq(0 -> "A", 2 -> "B", 3 -> "C")),
-//        pairs(Seq(0 -> "a", 1 -> ".", 2 -> "b", 4 -> "..")),
-//        IndexedSeq(Row("A", "a"), Row("B", "b"), Row("C", null)),
-//        IndexedSeq(Row("A", "a"), Row(null, "."), Row("B", "b"), Row("C", null), Row(null, ".."))),
-//      (pairs(Seq(0 -> "A", 1 -> "B1", 1 -> "B2")),
-//        pairs(Seq(0 -> "a", 1 -> "b", 2 -> "c")),
-//        IndexedSeq(Row("A", "a"), Row("B1", "b"), Row("B2", "b")),
-//        IndexedSeq(Row("A", "a"), Row("B1", "b"), Row("B2", "b"), Row(null, "c")))
+        IndexedSeq(Row("A", null))),
+      (pairs(Seq()),
+        pairs(Seq(3 -> "B")),
+        IndexedSeq(),
+        IndexedSeq(Row(null, "B"))),
+      (pairs(Seq(0 -> "A")),
+        pairs(Seq(0 -> "B")),
+        IndexedSeq(Row("A", "B")),
+        IndexedSeq(Row("A", "B"))),
+      (pairs(Seq(0 -> "A", 2 -> "B", 3 -> "C")),
+        pairs(Seq(0 -> "a", 1 -> ".", 2 -> "b", 4 -> "..")),
+        IndexedSeq(Row("A", "a"), Row("B", "b"), Row("C", null)),
+        IndexedSeq(Row("A", "a"), Row(null, "."), Row("B", "b"), Row("C", null), Row(null, ".."))),
+      (pairs(Seq(0 -> "A", 1 -> "B1", 1 -> "B2")),
+        pairs(Seq(0 -> "a", 1 -> "b", 2 -> "c")),
+        IndexedSeq(Row("A", "a"), Row("B1", "b"), Row("B2", "b")),
+        IndexedSeq(Row("A", "a"), Row("B1", "b"), Row("B2", "b"), Row(null, "c")))
     )
     for ((lstream, rstream, expectedLeft, expectedOuter) <- tests) {
       val l = leftjoin(lstream, rstream)
@@ -335,13 +346,16 @@ class EmitStreamSuite extends HailSuite {
 
   @Test def testEmitScan() {
     def a = Ref("a", TInt32)
+
     def v = Ref("v", TInt32)
+
     def x = Ref("x", TInt32)
+
     val tests: Array[(IR, IndexedSeq[Any])] = Array(
       StreamScan(MakeStream(Seq(), TStream(TInt32)),
         9, "a", "v", a + v) -> IndexedSeq(9),
       StreamScan(StreamMap(StreamRange(0, 4, 1), "x", x * x),
-        1, "a", "v", a + v) -> IndexedSeq(1, 1/*1+0*0*/, 2/*1+1*1*/, 6/*2+2*2*/, 15/*6+3*3*/)
+        1, "a", "v", a + v) -> IndexedSeq(1, 1 /*1+0*0*/ , 2 /*1+1*1*/ , 6 /*2+2*2*/ , 15 /*6+3*3*/)
     )
     for ((ir, v) <- tests) {
       assert(evalStream(ir) == v, Pretty(ir))
@@ -407,7 +421,7 @@ class EmitStreamSuite extends HailSuite {
         zero = 0,
         "a", "x", Ref("a", TInt32) + Ref("x", TInt32) * Ref("x", TInt32)
       ), false, intsPType)
-    assert(f1((1 to 4).iterator) == IndexedSeq(0, 1, 1+4, 1+4+9, 1+4+9+16))
+    assert(f1((1 to 4).iterator) == IndexedSeq(0, 1, 1 + 4, 1 + 4 + 9, 1 + 4 + 9 + 16))
     assert(f1(Iterator.empty) == IndexedSeq(0))
 
     val f2 = compileStreamWithIter(
@@ -425,8 +439,11 @@ class EmitStreamSuite extends HailSuite {
 
   @Test def testEmitIf() {
     def xs = MakeStream(Seq[IR](5, 3, 6), TStream(TInt32))
+
     def ys = StreamRange(0, 4, 1)
+
     def na = NA(TStream(TInt32))
+
     val tests: Array[(IR, IndexedSeq[Any])] = Array(
       If(True(), xs, ys) -> IndexedSeq(5, 3, 6),
       If(False(), xs, ys) -> IndexedSeq(0, 1, 2, 3),
@@ -475,7 +492,7 @@ class EmitStreamSuite extends HailSuite {
     pool.scopedSmallRegion { r =>
       val input = t.unstagedStoreJavaObject(Row(null, IndexedSeq(1d, 2d), IndexedSeq(3d, 4d)), r)
 
-      assert(SafeRow.read(pt, f(0, r)(r, input)) == Row(null))
+      assert(SafeRow.read(pt, f(ctx.fs, 0, r)(r, input)) == Row(null))
     }
   }
 
@@ -490,12 +507,12 @@ class EmitStreamSuite extends HailSuite {
     )
 
     assertEvalsTo(
-      foldIR(ToStream(strsLit, requiresMemoryManagementPerElement = false), Str("")) { (acc, elt) => invoke("concat", TString, acc, elt)},
+      foldIR(ToStream(strsLit, requiresMemoryManagementPerElement = false), Str("")) { (acc, elt) => invoke("concat", TString, acc, elt) },
       "onetwothreefour"
     )
 
     assertEvalsTo(
-      foldIR(strs, Str("")) { (acc, elt) => invoke("concat", TString, acc, elt)},
+      foldIR(strs, Str("")) { (acc, elt) => invoke("concat", TString, acc, elt) },
       "onetwothreefour"
     )
   }
@@ -589,6 +606,100 @@ class EmitStreamSuite extends HailSuite {
       StreamScan(StreamScan(target, 0, "a", "i", i), 0, "a", "i", i) -> 1
     )) {
       assert(StreamUtils.multiplicity(ir, "target") == v, Pretty(ir))
+    }
+  }
+
+  def assertMemoryDoesNotScaleWithStreamSize(lowSize: Int = 50, highSize: Int = 2500)(f: IR => IR): Unit = {
+    val memUsed1 = ExecuteContext.scoped() { ctx =>
+      eval(f(lowSize), Env.empty, FastIndexedSeq(), None, None, false, ctx)
+      ctx.r.pool.getHighestTotalUsage
+    }
+
+    val memUsed2 = ExecuteContext.scoped() { ctx =>
+      eval(f(highSize), Env.empty, FastIndexedSeq(), None, None, false, ctx)
+      ctx.r.pool.getHighestTotalUsage
+    }
+
+    if (memUsed1 != memUsed2)
+      throw new RuntimeException(s"memory usage scales with stream size!" +
+        s"\n  at size=$lowSize, memory=$memUsed1" +
+        s"\n  at size=$highSize, memory=$memUsed2" +
+        s"\n  IR: ${ Pretty(f(lowSize)) }")
+
+  }
+
+  def sumIR(x: IR): IR = foldIR(x, 0) { case (acc, value) => acc + value }
+
+  def foldLength(x: IR): IR = sumIR(mapIR(x) { _ => I32(1) })
+
+  def rangeStructs(size: IR): IR = mapIR(StreamRange(0, size, 1, true)) { i =>
+    makestruct(("idx", i), ("foo", invoke("str", TString, i)), ("bigArray", ToArray(rangeIR(10000))))
+  }
+
+  def filteredRangeStructs(size: IR): IR = mapIR(filterIR(
+    StreamRange(0, size, 1, true)
+  ) { i => i < (size / 2).toI }) { i =>
+    makestruct(("idx", i), ("foo2", invoke("str", TString, i)), ("bigArray2", ToArray(rangeIR(10000))))
+  }
+
+  @Test def testMemoryRangeFold(): Unit = {
+
+    assertMemoryDoesNotScaleWithStreamSize() { size =>
+      foldIR(mapIR(flatMapIR(StreamRange(0, size, 1, true)) { x => StreamRange(0, x, 1, true) }) { i =>
+        invoke("str", TString, i)
+      }, I32(0)) { case (acc, value) => maxIR(acc, invoke("length", TInt32, value)) }
+    }
+  }
+
+  @Test def testStreamJoinMemory(): Unit = {
+
+    assertMemoryDoesNotScaleWithStreamSize() { size =>
+      sumIR(joinIR(rangeStructs(size), filteredRangeStructs(size), IndexedSeq("idx"), IndexedSeq("idx"), "inner") { case (l, r) => I32(1) })
+    }
+    assertMemoryDoesNotScaleWithStreamSize() { size =>
+      sumIR(joinIR(rangeStructs(size), filteredRangeStructs(size), IndexedSeq("idx"), IndexedSeq("idx"), "left") { case (l, r) => I32(1) })
+    }
+    assertMemoryDoesNotScaleWithStreamSize() { size =>
+      sumIR(joinIR(rangeStructs(size), filteredRangeStructs(size), IndexedSeq("idx"), IndexedSeq("idx"), "right") { case (l, r) => I32(1) })
+    }
+    assertMemoryDoesNotScaleWithStreamSize() { size =>
+      sumIR(joinIR(rangeStructs(size), filteredRangeStructs(size), IndexedSeq("idx"), IndexedSeq("idx"), "outer") { case (l, r) => I32(1) })
+    }
+  }
+
+  @Test def testStreamGroupedMemory(): Unit = {
+    assertMemoryDoesNotScaleWithStreamSize() { size =>
+      sumIR(mapIR(StreamGrouped(rangeIR(size), 100)) { stream => I32(1) })
+    }
+
+    assertMemoryDoesNotScaleWithStreamSize() { size =>
+      sumIR(mapIR(StreamGrouped(rangeIR(size), 100)) { stream => sumIR(stream) })
+    }
+  }
+
+  @Test def testStreamFilterMemory(): Unit = {
+    assertMemoryDoesNotScaleWithStreamSize(highSize = 100000) { size =>
+      StreamLen(filterIR(mapIR(StreamRange(0, size, 1, true)) { i => invoke("str", TString, i) }) { str => invoke("length", TInt32, str) > (size * 9 / 10).toString.size })
+    }
+  }
+
+  @Test def testStreamFlatMapMemory(): Unit = {
+    assertMemoryDoesNotScaleWithStreamSize() { size =>
+      sumIR(flatMapIR(filteredRangeStructs(size)) { struct =>
+        StreamRange(0, invoke("length", TInt32, GetField(struct, "foo2")), 1, true)
+      })
+    }
+
+    assertMemoryDoesNotScaleWithStreamSize() { size =>
+      sumIR(flatMapIR(filteredRangeStructs(size)) { struct =>
+        StreamRange(0, invoke("length", TInt32, GetField(struct, "foo2")), 1, false)
+      })
+    }
+  }
+
+  @Test def testGroupedFlatMapMemManagementMismatch(): Unit = {
+    assertMemoryDoesNotScaleWithStreamSize() { size =>
+      foldLength(flatMapIR(mapIR(StreamGrouped(rangeStructs(size), 16)) { x => ToArray(x) }) { a => ToStream(a, false) })
     }
   }
 }

@@ -18,11 +18,11 @@ variable "gsuite_organization" {}
 variable "batch_gcp_regions" {}
 variable "gcp_project" {}
 variable "gcp_location" {}
+variable "batch_logs_bucket_location" {}
+variable "batch_logs_bucket_storage_class" {}
 variable "gcp_region" {}
 variable "gcp_zone" {}
 variable "domain" {}
-variable "batch_logs_bucket_location" {}
-variable "batch_logs_bucket_storage_class" {}
 variable "use_artifact_registry" {
   type = bool
   description = "pull the ubuntu image from Artifact Registry. Otherwise, GCR"
@@ -167,7 +167,10 @@ resource "random_id" "db_name_suffix" {
 }
 
 # Without this, I get:
-# Error: Error, failed to create instance because the network doesn't have at least 1 private services connection. Please see https://cloud.google.com/sql/docs/mysql/private-ip#network_requirements for how to create this connection.
+# Error: Error, failed to create instance because the network doesn't have at least
+# 1 private services connection. Please see
+# https://cloud.google.com/sql/docs/mysql/private-ip#network_requirements
+# for how to create this connection.
 resource "google_compute_global_address" "google_managed_services_default" {
   name = "google-managed-services-default"
   purpose = "VPC_PEERING"

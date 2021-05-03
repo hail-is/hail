@@ -200,6 +200,10 @@ class Tests(unittest.TestCase):
         mt = mt.annotate_rows(maf_flag = hl.empty_array('bool'))
         mt.aggregate_rows(hl.agg.array_agg(lambda x: hl.agg.counter(x), mt.maf_flag))
 
+    def test_aggregate_rows_bn_counter(self):
+        r = hl.balding_nichols_model(3, 10, 10).rows()
+        r.aggregate(hl.agg.counter(r.locus.in_x_nonpar()))
+
     def test_col_agg_no_rows(self):
         mt = hl.utils.range_matrix_table(3, 3).filter_rows(False)
         mt = mt.annotate_cols(x = hl.agg.count())
@@ -1535,19 +1539,15 @@ class Tests(unittest.TestCase):
         mt = mt.annotate_entries(x=1)
         mt = mt.key_cols_by(col_idx=mt.col_idx + 10)
 
-        def assert_res(x):
-            expect = ('+---------+-------+\n'
-                      '| row_idx |  10.x |\n'
-                      '+---------+-------+\n'
-                      '|   int32 | int32 |\n'
-                      '+---------+-------+\n'
-                      '|       0 |     1 |\n'
-                      '+---------+-------+\n')
-            s = str(x)
-            assert s == expect
-
-        mt.show(handler=assert_res)
-
+        expected = ('+---------+-------+\n'
+                    '| row_idx |  10.x |\n'
+                    '+---------+-------+\n'
+                    '|   int32 | int32 |\n'
+                    '+---------+-------+\n'
+                    '|       0 |     1 |\n'
+                    '+---------+-------+\n')
+        actual = mt.show(handler=str)
+        assert actual == expected
 
     @fails_service_backend()
     def test_partitioned_write(self):

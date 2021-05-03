@@ -12,13 +12,14 @@ import argparse
 import asyncio
 import kubernetes_asyncio as kube
 import logging
+import re
 import sys
 import signal
 
 
 configure_logging()
 log = logging.getLogger('sync.py')
-RSYNC_ARGS = "-av --progress --stats --exclude='*.log' --exclude='.mypy_cache' --exclude='__pycache__' --exclude='*~'"
+RSYNC_ARGS = "-av --progress --stats --exclude='*.log' --exclude='.mypy_cache' --exclude='__pycache__' --exclude='*~' --exclude='flycheck_*' --exclude='.#*'"
 
 
 DEVBIN = os.path.abspath(os.path.dirname(__file__))
@@ -28,6 +29,11 @@ class Sync:
     def __init__(self, paths: List[Tuple[str, str]]):
         self.pods: Set[Tuple[str, str]] = set()
         self.paths = paths
+        self.should_sync_event = asyncio.Event()
+        self.update_loop_coro = asyncio.ensure_future(self.update_loop())
+
+    def close(self):
+        self.update_loop_coro.cancel()
 
     async def sync_and_restart_pod(self, pod, namespace):
         log.info(f'reloading {pod}@{namespace}')
@@ -64,7 +70,10 @@ class Sync:
                 k8s.list_namespaced_pod,
                 namespace,
                 label_selector=f'app in ({",".join(apps)})')
-            updated_pods = {(pod.metadata.name, namespace) for pod in updated_pods.items}
+            updated_pods = [x for x in updated_pods.items
+                            if x.status.phase == 'Running'
+                            if all(s.ready for s in x.status.container_statuses)]
+            updated_pods = {(pod.metadata.name, namespace) for pod in updated_pods}
             fresh_pods = updated_pods - self.pods
             dead_pods = self.pods - updated_pods
             log.info(f'monitor_pods: fresh_pods: {fresh_pods}')
@@ -75,10 +84,16 @@ class Sync:
                 for name, namespace in fresh_pods])
             await asyncio.sleep(5)
 
+    async def update_loop(self):
+        while True:
+            await self.should_sync_event.wait()
+            self.should_sync_event.clear()
+            await asyncio.gather(*[
+                self.sync_and_restart_pod(pod, namespace)
+                for pod, namespace in self.pods])
+
     async def should_sync(self):
-        await asyncio.gather(*[
-            self.sync_and_restart_pod(pod, namespace)
-            for pod, namespace in self.pods])
+        self.should_sync_event.set()
 
 
 if __name__ == '__main__':
@@ -102,6 +117,12 @@ if __name__ == '__main__':
         nargs='+',
         metavar=('local', 'remote'),
         help='The local path will be kept in sync with the remote path.')
+    parser.add_argument(
+        '--ignore',
+        required=False,
+        type=str,
+        default='flycheck_.*|.*~|\.#.*',
+        help='A regular expression indicating in which files to ignore changes.')
 
     args = parser.parse_args(sys.argv[1:])
 
@@ -114,8 +135,11 @@ if __name__ == '__main__':
             for local, _ in args.path:
                 monitor.add_path(local)
 
-            def callback(path, evt_time, flags, flags_num, event_num):
-                task_manager.ensure_future_threadsafe(sync.should_sync())
+            ignore_re = re.compile(args.ignore)
+
+            def callback(path: bytes, evt_time, flags, flags_num, event_num):
+                if not ignore_re.fullmatch(os.path.basename(path.decode())):
+                    task_manager.ensure_future_threadsafe(sync.should_sync())
 
             monitor.set_callback(callback)
 
@@ -127,6 +151,9 @@ if __name__ == '__main__':
             loop.run_until_complete(sync.monitor_pods(args.app, args.namespace))
         finally:
             try:
-                task_manager.shutdown()
+                sync.close()
             finally:
-                thread.join()
+                try:
+                    task_manager.shutdown()
+                finally:
+                    thread.join()

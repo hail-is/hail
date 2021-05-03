@@ -353,6 +353,40 @@ class LocalTests(unittest.TestCase):
         assert len(b._jobs) == 10 + (5 + 3 + 2 + 1)
         b.run()
 
+    def test_python_job(self):
+        with tempfile.NamedTemporaryFile('w') as output_file:
+            b = self.batch()
+            head = b.new_job()
+            head.command(f'echo "5" > {head.r5}')
+            head.command(f'echo "3" > {head.r3}')
+
+            def read(path):
+                with open(path, 'r') as f:
+                    i = f.read()
+                return int(i)
+
+            def multiply(x, y):
+                return x * y
+
+            def reformat(x, y):
+                return {'x': x, 'y': y}
+
+            middle = b.new_python_job()
+            r3 = middle.call(read, head.r3)
+            r5 = middle.call(read, head.r5)
+            r_mult = middle.call(multiply, r3, r5)
+
+            middle2 = b.new_python_job()
+            r_mult = middle2.call(multiply, r_mult, 2)
+            r_dict = middle2.call(reformat, r3, r5)
+
+            tail = b.new_job()
+            tail.command(f'cat {r3.as_str()} {r5.as_repr()} {r_mult.as_str()} {r_dict.as_json()} > {tail.ofile}')
+
+            b.write_output(tail.ofile, output_file.name)
+            res = b.run()
+            assert self.read(output_file.name) == '3\n5\n30\n{\"x\": 3, \"y\": 5}'
+
     def test_backend_context_manager(self):
         with LocalBackend() as backend:
             b = Batch(backend=backend)
@@ -392,11 +426,14 @@ class ServiceTests(unittest.TestCase):
     def tearDown(self):
         self.backend.close()
 
-    def batch(self, requester_pays_project=None):
+    def batch(self, requester_pays_project=None, default_python_image=None,
+              cancel_after_n_failures=None):
         return Batch(backend=self.backend,
                      default_image=DOCKER_ROOT_IMAGE,
                      attributes={'foo': 'a', 'bar': 'b'},
-                     requester_pays_project=requester_pays_project)
+                     requester_pays_project=requester_pays_project,
+                     default_python_image=default_python_image,
+                     cancel_after_n_failures=cancel_after_n_failures)
 
     def test_single_task_no_io(self):
         b = self.batch()
@@ -417,7 +454,7 @@ class ServiceTests(unittest.TestCase):
         b = self.batch()
         input = b.read_input_group(foo=f'{self.gcs_input_dir}/hello.txt')
         j = b.new_job()
-        j.storage('0.25Gi')
+        j.storage('10Gi')
         j.command(f'cat {input.foo}')
         j.command(f'cat {input}.foo')
         res = b.run()
@@ -585,18 +622,18 @@ class ServiceTests(unittest.TestCase):
 
         setup_jobs = []
         for i in range(10):
-            j = b.new_job(f'setup_{i}').cpu(0.1)
+            j = b.new_job(f'setup_{i}').cpu(0.25)
             j.command(f'echo "foo" > {j.ofile}')
             setup_jobs.append(j)
 
         jobs = []
         for i in range(500):
-            j = b.new_job(f'create_file_{i}').cpu(0.1)
+            j = b.new_job(f'create_file_{i}').cpu(0.25)
             j.command(f'echo {setup_jobs[i % len(setup_jobs)].ofile} > {j.ofile}')
             j.command(f'echo "bar" >> {j.ofile}')
             jobs.append(j)
 
-        combine = b.new_job(f'combine_output').cpu(0.1)
+        combine = b.new_job(f'combine_output').cpu(0.25)
         for tasks in grouped(arg_max(), jobs):
             combine.command(f'cat {" ".join(shq(j.ofile) for j in jobs)} >> {combine.ofile}')
         b.write_output(combine.ofile, f'{self.gcs_output_dir}/pipeline_benchmark_test.txt')
@@ -645,3 +682,116 @@ class ServiceTests(unittest.TestCase):
         j.command(f'ls {input2}/hello.txt')
         res = b.run()
         assert res.status()['state'] == 'success', debug_info(res)
+
+    def test_python_job(self):
+        b = self.batch(default_python_image='gcr.io/hail-vdc/python-dill:3.7-slim')
+        head = b.new_job()
+        head.command(f'echo "5" > {head.r5}')
+        head.command(f'echo "3" > {head.r3}')
+
+        def read(path):
+            with open(path, 'r') as f:
+                i = f.read()
+            return int(i)
+
+        def multiply(x, y):
+            return x * y
+
+        def reformat(x, y):
+            return {'x': x, 'y': y}
+
+        middle = b.new_python_job()
+        r3 = middle.call(read, head.r3)
+        r5 = middle.call(read, head.r5)
+        r_mult = middle.call(multiply, r3, r5)
+
+        middle2 = b.new_python_job()
+        r_mult = middle2.call(multiply, r_mult, 2)
+        r_dict = middle2.call(reformat, r3, r5)
+
+        tail = b.new_job()
+        tail.command(f'cat {r3.as_str()} {r5.as_repr()} {r_mult.as_str()} {r_dict.as_json()}')
+
+        res = b.run()
+        assert res.status()['state'] == 'success', debug_info(res)
+        assert res.get_job_log(4)['main'] == "3\n5\n30\n{\"x\": 3, \"y\": 5}\n", debug_info(res)
+
+    def test_python_job_w_resource_group_unpack_individually(self):
+        b = self.batch(default_python_image='gcr.io/hail-vdc/python-dill:3.7-slim')
+        head = b.new_job()
+        head.declare_resource_group(count={'r5': '{root}.r5',
+                                           'r3': '{root}.r3'})
+
+        head.command(f'echo "5" > {head.count.r5}')
+        head.command(f'echo "3" > {head.count.r3}')
+
+        def read(path):
+            with open(path, 'r') as f:
+                r = int(f.read())
+            return r
+
+        def multiply(x, y):
+            return x * y
+
+        def reformat(x, y):
+            return {'x': x, 'y': y}
+
+        middle = b.new_python_job()
+        r3 = middle.call(read, head.count.r3)
+        r5 = middle.call(read, head.count.r5)
+        r_mult = middle.call(multiply, r3, r5)
+
+        middle2 = b.new_python_job()
+        r_mult = middle2.call(multiply, r_mult, 2)
+        r_dict = middle2.call(reformat, r3, r5)
+
+        tail = b.new_job()
+        tail.command(f'cat {r3.as_str()} {r5.as_repr()} {r_mult.as_str()} {r_dict.as_json()}')
+
+        res = b.run()
+        assert res.status()['state'] == 'success', debug_info(res)
+        assert res.get_job_log(4)['main'] == "3\n5\n30\n{\"x\": 3, \"y\": 5}\n", debug_info(res)
+
+    def test_python_job_w_resource_group_unpack_jointly(self):
+        b = self.batch(default_python_image='gcr.io/hail-vdc/python-dill:3.7-slim')
+        head = b.new_job()
+        head.declare_resource_group(count={'r5': '{root}.r5',
+                                           'r3': '{root}.r3'})
+
+        head.command(f'echo "5" > {head.count.r5}')
+        head.command(f'echo "3" > {head.count.r3}')
+
+        def read_rg(root):
+            with open(root['r3'], 'r') as f:
+                r3 = int(f.read())
+            with open(root['r5'], 'r') as f:
+                r5 = int(f.read())
+            return (r3, r5)
+
+        def multiply(r):
+            x, y = r
+            return x * y
+
+        middle = b.new_python_job()
+        r = middle.call(read_rg, head.count)
+        r_mult = middle.call(multiply, r)
+
+        tail = b.new_job()
+        tail.command(f'cat {r_mult.as_str()}')
+
+        res = b.run()
+        assert res.status()['state'] == 'success', debug_info(res)
+        assert res.get_job_log(3)['main'] == "15\n", debug_info(res)
+
+    def test_fail_fast(self):
+        b = self.batch(cancel_after_n_failures=1)
+
+        j1 = b.new_job()
+        j1.command(f'false')
+
+        j2 = b.new_job()
+        j2.command('sleep 300')
+
+        res = b.run()
+        job_status = res.get_job(2).status()
+        assert job_status['state'] == 'Cancelled', str(job_status)

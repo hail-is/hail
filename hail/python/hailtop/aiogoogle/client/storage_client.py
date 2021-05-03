@@ -1,5 +1,5 @@
 import os
-from typing import Tuple, Any, Set, Optional, Mapping, Dict, AsyncIterator, cast, Type, Iterator, List
+from typing import Tuple, Any, Set, Optional, MutableMapping, Dict, AsyncIterator, cast, Type, Iterator, List
 from types import TracebackType
 import collections
 from multidict import CIMultiDictProxy  # pylint: disable=unused-import
@@ -15,14 +15,14 @@ from hailtop.aiotools import (
     FileStatus, FileListEntry, ReadableStream, WritableStream, AsyncFS,
     FeedableAsyncIterable, FileAndDirectoryError, MultiPartCreate)
 
-from hailtop.aiogoogle.auth import Session
+from hailtop.aiogoogle.auth import BaseSession
 from .base_client import BaseClient
 
 log = logging.getLogger(__name__)
 
 
 class PageIterator:
-    def __init__(self, client: 'BaseClient', path: str, request_kwargs: Mapping[str, Any]):
+    def __init__(self, client: 'BaseClient', path: str, request_kwargs: MutableMapping[str, Any]):
         if 'params' in request_kwargs:
             request_params = request_kwargs['params']
             del request_kwargs['params']
@@ -142,7 +142,7 @@ class _TaskManager:
         self._coro = coro
         self._task = None
 
-    async def __aenter__(self) -> '_TaskManager':
+    async def __aenter__(self) -> asyncio.Task:
         self._task = asyncio.create_task(self._coro)
         return self._task
 
@@ -164,7 +164,7 @@ class _TaskManager:
 
 
 class ResumableInsertObjectStream(WritableStream):
-    def __init__(self, session: Session, session_url: str, chunk_size: int):
+    def __init__(self, session: BaseSession, session_url: str, chunk_size: int):
         super().__init__()
         self._session = session
         self._session_url = session_url
@@ -328,7 +328,7 @@ class StorageClient(BaseClient):
     # docs:
     # https://cloud.google.com/storage/docs/json_api/v1
 
-    async def insert_object(self, bucket: str, name: str, **kwargs) -> InsertObjectStream:
+    async def insert_object(self, bucket: str, name: str, **kwargs) -> WritableStream:
         assert name
         # Insert an object.  See:
         # https://cloud.google.com/storage/docs/json_api/v1/objects/insert
@@ -427,7 +427,7 @@ class GoogleStorageFileListEntry(FileListEntry):
         assert url.endswith('/') == (items is None), f'{url} {items}'
         self._url = url
         self._items = items
-        self._status = None
+        self._status: Optional[GetObjectFileStatus] = None
 
     def name(self) -> str:
         parsed = urllib.parse.urlparse(self._url)
@@ -746,4 +746,4 @@ class GoogleStorageAsyncFS(AsyncFS):
 
     async def close(self) -> None:
         await self._storage_client.close()
-        self._storage_client = None
+        del self._storage_client

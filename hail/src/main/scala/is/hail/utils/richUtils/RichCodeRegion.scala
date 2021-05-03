@@ -11,8 +11,10 @@ class RichCodeRegion(val region: Code[Region]) extends AnyVal {
     region.invoke[Unit]("clear")
   }
 
-  def addReferenceTo(other: Code[Region]): Code[Unit] =
+  def trackAndIncrementReferenceCountOf(other: Code[Region]): Code[Unit] =
     region.invoke[Region, Unit]("addReferenceTo", other)
+
+  def takeOwnershipOfAndClear(other: Code[Region]): Code[Unit] = other.invoke[Region, Unit]("move", region)
 
   def setNumParents(n: Code[Int]): Code[Unit] =
     region.invoke[Int, Unit]("setNumParents", n)

@@ -3,14 +3,14 @@
 
 #include <memory>
 
-#include <hail/allocators.hpp>
-#include <hail/format.hpp>
-#include <hail/query/backend/jit.hpp>
-#include <hail/query/ir.hpp>
-#include <hail/tunion.hpp>
-#include <hail/test.hpp>
-#include <hail/type.hpp>
-#include <hail/value.hpp>
+#include "hail/allocators.hpp"
+#include "hail/format.hpp"
+#include "hail/query/backend/jit.hpp"
+#include "hail/query/ir.hpp"
+#include "hail/tunion.hpp"
+#include "hail/test.hpp"
+#include "hail/type.hpp"
+#include "hail/value.hpp"
 
 using namespace hail;
 

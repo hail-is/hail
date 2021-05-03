@@ -887,36 +887,46 @@ class Emit[C](
         presentPC(finish(cb))
 
       case x@ArrayRef(a, i, s) =>
-        val errorTransformer: Code[String] => Code[String] = s match {
-          case Str("") =>
-            val prettied = Pretty.short(x)
-            (c: Code[String]) =>
-              c.concat("\n----------\nIR:\n").concat(prettied)
-          case Str(s) => (c: Code[String]) => c.concat("\n----------\nPython traceback:\n").concat(s)
-          case s =>
-            (_c: Code[String]) => {
-              val c = cb.newLocal("array_ref_c", _c)
-              val ies = emitI(s)
-              ies.consume(cb, {}, { pc =>
-                cb.assign(c, c.concat("\n----------\nPython traceback:\n")
-                        .concat(pc.asString.loadString()))
+        def boundsCheck(cb: EmitCodeBuilder, index: Value[Int], len: Value[Int]): Unit = {
+          s match {
+            case Str(constant) =>
+              val baseMsg = constant match {
+                case "" => s"\n----------\nIR:\n${ Pretty.short(x) }"
+                case c => s"\n----------\nPython traceback:\n$c"
+              }
+              val bcMb = mb.getOrGenEmitMethod("arrayref_bounds_check", ("arrayref_bounds_check", baseMsg),
+                IndexedSeq[ParamType](IntInfo, IntInfo), UnitInfo)({ mb =>
+                mb.voidWithBuilder { cb =>
+                  val index = mb.getCodeParam[Int](1)
+                  val len = mb.getCodeParam[Int](2)
+                  cb.ifx(index < 0 || index >= len, {
+                    cb._fatal(const("array index out of bounds: index=")
+                      .concat(index.toS)
+                      .concat(", length=")
+                      .concat(len.toS)
+                      .concat(baseMsg))
+                  })
+
+                }
               })
-              c.load()
-            }
+              cb.invokeVoid(bcMb, index, len)
+            case s =>
+              cb.ifx(index < 0 || index >= len, {
+                val msg = cb.newLocal[String]("arrayref_msg", const("array index out of bounds: index=")
+                  .concat(index.toS)
+                  .concat(", length=")
+                  .concat(len.toS))
+                emitI(s).consume(cb, (), sc => cb.assign(msg, msg.concat(sc.asString.loadString())))
+                cb._fatal(msg)
+              })
+          }
         }
 
         emitI(a).flatMap(cb) { (ac) =>
           emitI(i).flatMap(cb) { (ic) =>
             val av = ac.asIndexable.memoize(cb, "aref_a")
             val iv = cb.newLocal("i", ic.asInt.intCode(cb))
-
-            cb.ifx(iv < 0 || iv >= av.loadLength(), {
-              cb._fatal(errorTransformer(
-                const("array index out of bounds: index=")
-                  .concat(iv.toS)
-                  .concat(", length=")
-                  .concat(av.loadLength().toS)))
-            })
+            boundsCheck(cb, iv, av.loadLength())
             av.loadElement(cb, iv).typecast[PCode]
           }
         }
@@ -943,7 +953,8 @@ class Emit[C](
           val typ: PContainer = coerce[PIterable](a.pt).asPContainer
           val e = EmitCode.fromI(cb.emb)(cb => this.emitI(elem, cb, region, env, container, loopEnv))
           val bs = new BinarySearch[C](mb, typ, e.pt, keyOnly = onKey)
-          PCode(pt, bs.getClosestIndex(a.tcode[Long], e.m, e.v))
+          val arr = SingleCodePCode.fromPCode(cb, a, region)
+          PCode(pt, bs.getClosestIndex(arr.code.asInstanceOf[Code[Long]], e.m, e.v))
         }
 
       case GroupByKey(collection) =>
@@ -1061,6 +1072,29 @@ class Emit[C](
           dictTyp.construct(finishOuter(cb))
         }
 
+      case x@StreamLen(a) =>
+        emitStream(a, cb, region).map(cb) { case stream: SStreamCode =>
+          val producer = stream.producer
+          producer.length match {
+            case Some(len) =>
+              producer.initialize(cb)
+              val xLen = cb.newLocal[Int]("streamlen_x", len)
+              producer.close(cb)
+              PCode(x.pType, xLen)
+            case None =>
+              val count = cb.newLocal[Int]("stream_length", 0)
+              producer.memoryManagedConsume(region, cb) { cb =>
+                producer.element.toI(cb).consume(cb, {}, _ => {})
+                cb.assign(count, count + 1)
+              }
+              producer.element.pv match {
+                case SStreamCode(_, nested) => StreamProducer.defineUnusedLabels(nested, mb)
+                case _ =>
+              }
+              PCode(x.pType, count)
+          }
+        }
+
       case x@MakeNDArray(dataIR, shapeIR, rowMajorIR, errorId) =>
         val xP = coerce[PCanonicalNDArray](x.pType)
         val shapePType = coerce[PTuple](shapeIR.pType)
@@ -1115,7 +1149,8 @@ class Emit[C](
           val childShape = pndVal.shapes(cb)
           val childStrides = pndVal.strides(cb)
 
-          val dataArray = childPType.dataType.loadCheapPCode(cb, childPType.dataPArrayPointer(pndVal.tcode[Long]))
+          val pndAddr = SingleCodePCode.fromPCode(cb, pndVal, region)
+          val dataArray = childPType.dataType.loadCheapPCode(cb, childPType.dataPArrayPointer(pndAddr.code.asInstanceOf[Code[Long]]))
 
           val newShape = indexMap.map { childIndex =>
             if (childIndex < childPType.nDims) childShape(childIndex) else const(1L)
@@ -1170,8 +1205,10 @@ class Emit[C](
             val outputPType = PCanonicalNDArray(lPType.elementType, TNDArray.matMulNDims(lPType.nDims, rPType.nDims), pt.required)
 
             if ((lPType.elementType.isInstanceOf[PFloat64] || lPType.elementType.isInstanceOf[PFloat32]) && lPType.nDims == 2 && rPType.nDims == 2) {
-              val leftDataAddress = lPType.dataFirstElementPointer(leftPVal.tcode[Long])
-              val rightDataAddress = rPType.dataFirstElementPointer(rightPVal.tcode[Long])
+              val leftPValAddr = SingleCodePCode.fromPCode(cb, leftPVal, region)
+              val rightPValAddr = SingleCodePCode.fromPCode(cb, rightPVal, region)
+              val leftDataAddress = lPType.dataFirstElementPointer(leftPValAddr.code.asInstanceOf[Code[Long]])
+              val rightDataAddress = rPType.dataFirstElementPointer(rightPValAddr.code.asInstanceOf[Code[Long]])
 
               val M = lShape(lPType.nDims - 2)
               val N = rShape(rPType.nDims - 1)
@@ -1877,7 +1914,8 @@ class Emit[C](
         val resPType = pt.asInstanceOf[PCanonicalBinary]
         // FIXME: server needs to send uuid for the successful partition
         val boff = cb.memoize(resPType.loadCheapPCode(cb, resPType.allocate(region, 0)), "shuffleWriteBOff")
-        cb += resPType.storeLength(boff.tcode[Long], 0)
+        val baddr = SingleCodePCode.fromPCode(cb, boff, region)
+        cb += resPType.storeLength(baddr.code.asInstanceOf[Code[Long]], 0)
         presentPC(boff)
 
       case x@ReadValue(path, spec, requestedType) =>
@@ -2277,28 +2315,6 @@ class Emit[C](
           arrayAddress
         )
         EmitCode(lengthTriplet.setup, lengthTriplet.m, PCode(pt, result))
-
-      case x@StreamLen(a) =>
-        EmitCode.fromI(mb)(cb => emitStream(a, region).toI(cb).map(cb) { case stream: SStreamCode =>
-          val producer = stream.producer
-          producer.length match {
-            case Some(len) =>
-              producer.initialize(cb)
-              val xLen = cb.newLocal[Int]("streamlen_x", len)
-              producer.close(cb)
-              PCode(x.pType, xLen)
-            case None =>
-              val count = cb.newLocal[Int]("stream_length", 0)
-              producer.memoryManagedConsume(region, cb) { cb =>
-                cb.assign(count, count + 1)
-              }
-              producer.element.pv match {
-                case SStreamCode(_, nested) => StreamProducer.defineUnusedLabels(producer, mb)
-                case _ =>
-              }
-              PCode(x.pType, count)
-          }
-        })
 
       case In(i, expectedPType) =>
         // this, Code[Region], ...
@@ -2894,9 +2910,16 @@ object NDArrayEmitter {
       }
     }
 
+    val leftShapeString = const("(").concat(leftShape.map(_.toS).reduce((a, b) => a.concat(", ").concat(b))).concat(")")
+    val rightShapeString = const("(").concat(rightShape.map(_.toS).reduce((a, b) => a.concat(", ").concat(b))).concat(")")
+
+
     setup = Code(setup,
       (lK cne rK).orEmpty(
-        Code._fatal[Unit](const("Matrix dimensions incompatible: ").concat(lK.toS).concat(" ").concat(rK.toS))))
+        Code._fatal[Unit](const("Matrix dimensions incompatible: ")
+          .concat(leftShapeString)
+          .concat(" can't be multiplied by matrix with dimensions ")
+          .concat(rightShapeString))))
 
     cb.append(setup)
     shape

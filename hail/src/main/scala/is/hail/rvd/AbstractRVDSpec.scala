@@ -182,7 +182,7 @@ object AbstractRVDSpec {
     requestedType: Type,
     leftRType: TStruct, rightRType: TStruct,
     requestedKey: IndexedSeq[String],
-    fieldInserter: (ExecuteContext, PStruct, PStruct) => (PStruct, (Int, Region) => AsmFunction3RegionLongLongLong)
+    fieldInserter: (ExecuteContext, PStruct, PStruct) => (PStruct, (FS, Int, Region) => AsmFunction3RegionLongLongLong)
   ): RVD = {
     require(specRight.key.isEmpty)
     val partitioner = specLeft.partitioner

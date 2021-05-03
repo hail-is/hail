@@ -2626,7 +2626,7 @@ class MatrixTable(ExprContainer):
             **entries)
         if handler is None:
             handler = default_handler()
-        handler(MatrixTable._Show(t, n_rows, actual_n_cols, displayed_n_cols, width, truncate, types))
+        return handler(MatrixTable._Show(t, n_rows, actual_n_cols, displayed_n_cols, width, truncate, types))
 
     def globals_table(self) -> Table:
         """Returns a table with a single row with the globals of the matrix table.
@@ -3670,15 +3670,15 @@ class MatrixTable(ExprContainer):
 
         return MatrixTable(ir.MatrixUnionCols(self._mir, other._mir, row_join_type))
 
-    @typecheck_method(n=nullable(int), n_cols=nullable(int))
-    def head(self, n: Optional[int], n_cols: Optional[int] = None) -> 'MatrixTable':
-        """Subset matrix to first `n` rows.
+    @typecheck_method(n_rows=nullable(int), n_cols=nullable(int), n=nullable(int))
+    def head(self, n_rows: Optional[int], n_cols: Optional[int] = None, *, n: Optional[int] = None) -> 'MatrixTable':
+        """Subset matrix to first `n_rows` rows and `n_cols` cols.
 
         Examples
         --------
         >>> mt_range = hl.utils.range_matrix_table(100, 100)
 
-        Passing only one argument will take the first `n` rows:
+        Passing only one argument will take the first `n_rows` rows:
 
         >>> mt_range.head(10).count()
         (10, 100)
@@ -3702,29 +3702,38 @@ class MatrixTable(ExprContainer):
 
         Notes
         -----
-        For backwards compatibility, the `n` parameter is not named `n_rows`,
-        but the parameter refers to the number of rows to keep.
-
         The number of partitions in the new matrix is equal to the number of
-        partitions containing the first `n` rows.
+        partitions containing the first `n_rows` rows.
 
         Parameters
         ----------
-        n : :obj:`int`
+        n_rows : :obj:`int`
             Number of rows to include (all rows included if ``None``).
         n_cols : :obj:`int`, optional
             Number of cols to include (all cols included if ``None``).
+        n : :obj:`int`
+            Deprecated in favor of n_rows.
 
         Returns
         -------
         :class:`.MatrixTable`
-            Matrix including the first `n` rows and first `n_cols` cols.
+            Matrix including the first `n_rows` rows and first `n_cols` cols.
+
         """
+        if n_rows is not None and n is not None:
+            raise ValueError('Both n and n_rows specified. Only one may be specified.')
+
+        if n_rows is not None:
+            n_rows_name = 'n_rows'
+        else:
+            n_rows = n
+            n_rows_name = 'n'
+
         mt = self
-        if n is not None:
-            if n < 0:
-                raise ValueError(f"MatrixTable.head: expect 'n' to be non-negative or None, found '{n}'")
-            mt = MatrixTable(ir.MatrixRowsHead(mt._mir, n))
+        if n_rows is not None:
+            if n_rows < 0:
+                raise ValueError(f"MatrixTable.head: expect '{n_rows_name}' to be non-negative or None, found '{n_rows}'")
+            mt = MatrixTable(ir.MatrixRowsHead(mt._mir, n_rows))
         if n_cols is not None:
             if n_cols < 0:
                 raise ValueError(f"MatrixTable.head: expect 'n_cols' to be non-negative or None, found '{n_cols}'")
@@ -4113,13 +4122,9 @@ class MatrixTable(ExprContainer):
     def _write_block_matrix(self, path, overwrite, entry_field, block_size):
         mt = self
         mt = mt._select_all(entry_exprs={entry_field: mt[entry_field]})
-        Env.backend().execute(ir.MatrixToValueApply(
-            mt._mir,
-            {'name': 'MatrixWriteBlockMatrix',
-             'path': path,
-             'overwrite': overwrite,
-             'entryField': entry_field,
-             'blockSize': block_size}))
+
+        writer = ir.MatrixBlockMatrixWriter(path, overwrite, entry_field, block_size)
+        Env.backend().execute(ir.MatrixWrite(self._mir, writer))
 
     def _calculate_new_partitions(self, n_partitions):
         """returns a set of range bounds that can be passed to write"""

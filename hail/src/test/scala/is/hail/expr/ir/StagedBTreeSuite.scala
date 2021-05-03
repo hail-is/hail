@@ -71,7 +71,7 @@ object BTreeBackedSet {
 
     val inputBuffer = new StreamBufferSpec().buildInputBuffer(new ByteArrayInputStream(serialized))
     val set = new BTreeBackedSet(ctx, region, n)
-    set.root = fb.resultWithIndex()(0, region)(region, inputBuffer)
+    set.root = fb.resultWithIndex()(ctx.fs, 0, region)(region, inputBuffer)
     set
   }
 }
@@ -94,7 +94,7 @@ class BTreeBackedSet(ctx: ExecuteContext, region: Region, n: Int) {
       root
     }
 
-    fb.resultWithIndex()(0, region)
+    fb.resultWithIndex()(ctx.fs, 0, region)
   }
 
   private val getF = {
@@ -119,7 +119,7 @@ class BTreeBackedSet(ctx: ExecuteContext, region: Region, n: Int) {
       })
       root
     }
-    fb.resultWithIndex()(0, region)
+    fb.resultWithIndex()(ctx.fs, 0, region)
   }
 
   private val getResultsF = {
@@ -156,7 +156,7 @@ class BTreeBackedSet(ctx: ExecuteContext, region: Region, n: Int) {
       )
       returnArray
     }
-    fb.resultWithIndex()(0, region)
+    fb.resultWithIndex()(ctx.fs, 0, region)
   }
 
   private val bulkStoreF = {
@@ -185,7 +185,7 @@ class BTreeBackedSet(ctx: ExecuteContext, region: Region, n: Int) {
       ob2.flush()
     }
 
-    fb.resultWithIndex()(0, region)
+    fb.resultWithIndex()(ctx.fs, 0, region)
   }
 
   def clear(): Unit = {

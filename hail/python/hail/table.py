@@ -697,7 +697,7 @@ class Table(ExprContainer):
         +-------+------+---------+-------+-------+-------+-------+-------+
         | int32 | bool | str     | bool  | int32 | int32 | int32 | int32 |
         +-------+------+---------+-------+-------+-------+-------+-------+
-        |    32 | true | "hello" | false |     5 |     7 |     5 |     7 |
+        |    32 | True | "hello" | False |     5 |     7 |     5 |     7 |
         +-------+------+---------+-------+-------+-------+-------+-------+
 
         >>> table_result = table4.transmute(F=table4.A + 2 * table4.E.B)
@@ -707,7 +707,7 @@ class Table(ExprContainer):
         +------+---------+-------+-------+-------+-------+
         | bool | str     | bool  | int32 | int32 | int32 |
         +------+---------+-------+-------+-------+-------+
-        | true | "hello" | false |     5 |     7 |    46 |
+        | True | "hello" | False |     5 |     7 |    46 |
         +------+---------+-------+-------+-------+-------+
 
         Notes
@@ -1504,7 +1504,7 @@ class Table(ExprContainer):
         del n_rows
         if handler is None:
             handler = hl.utils.default_handler()
-        handler(self._show(n, width, truncate, types))
+        return handler(self._show(n, width, truncate, types))
 
     def index(self, *exprs, all_matches=False) -> 'Expression':
         """Expose the row values as if looked up in a dictionary, indexing

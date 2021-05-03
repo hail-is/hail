@@ -15,12 +15,12 @@ def load_dataset(name: str,
 
     Example
     -------
-    >>> # Load the 1000_Genomes_autosomes MatrixTable with GRCh38 coordinates.
-    >>> mt_1kg = hl.experimental.load_dataset(name='1000_Genomes_autosomes',   # doctest: +SKIP
-    ...                                       version='phase_3',
-    ...                                       reference_genome='GRCh38',
-    ...                                       region='us',
-    ...                                       cloud='gcp')
+    >>> # Load the gnomAD "HGDP + 1000 Genomes" MatrixTable with GRCh38 coordinates.
+    >>> mt = hl.experimental.load_dataset(name='gnomad_hgdp_1kg_callset',
+    ...                                   version='3.1',
+    ...                                   reference_genome='GRCh38',
+    ...                                   region='us',
+    ...                                   cloud='gcp')
 
     Parameters
     ----------

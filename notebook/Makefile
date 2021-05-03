@@ -1,9 +1,9 @@
 include ../config.mk
 
-NOTEBOOK_LATEST = gcr.io/$(PROJECT)/notebook:latest
-NOTEBOOK_IMAGE = gcr.io/$(PROJECT)/notebook:$(shell docker images -q --no-trunc notebook | sed -e 's,[^:]*:,,')
-NOTEBOOK_NGINX_LATEST = gcr.io/$(PROJECT)/notebook:latest
-NOTEBOOK_NGINX_IMAGE = gcr.io/$(PROJECT)/notebook:$(shell docker images -q --no-trunc notebook_nginx | sed -e 's,[^:]*:,,')
+NOTEBOOK_LATEST = $(DOCKER_PREFIX)/notebook:latest
+NOTEBOOK_IMAGE = $(DOCKER_PREFIX)/notebook:$(shell docker images -q --no-trunc notebook | sed -e 's,[^:]*:,,')
+NOTEBOOK_NGINX_LATEST = $(DOCKER_PREFIX)/notebook_nginx:latest
+NOTEBOOK_NGINX_IMAGE = $(DOCKER_PREFIX)/notebook_nginx:$(shell docker images -q --no-trunc notebook_nginx | sed -e 's,[^:]*:,,')
 
 EXTRA_PYTHONPATH := ../hail/python:../gear:../web_common
 PYTHON := PYTHONPATH=$${PYTHONPATH:+$${PYTHONPATH}:}$(EXTRA_PYTHONPATH) python3
@@ -13,7 +13,7 @@ check:
 	$(PYTHON) -m flake8 notebook
 	$(PYTHON) -m pylint --rcfile ../pylintrc notebook --score=n
 	curlylint .
-	../check-sql.sh
+	bash ../check-sql.sh
 
 .PHONY: build-notebook
 build-notebook:

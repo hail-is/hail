@@ -29,6 +29,10 @@ GTAGS
 infra/.terraform.lock.hcl
 hail/python/hail/docs/experimental/hail.experimental.DB.rst
 hail/python/hailtop/batch/docs/api/
+**/hail_version
 web_common/web_common/static/css/
 website/docs.tar.gz
 website/website/static/css/
+*.dylib  # macOS dynamic libraries
+*/hail.jar
+infra/.terraform.lock.hcl

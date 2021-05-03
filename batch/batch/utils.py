@@ -1,9 +1,40 @@
 import logging
 import math
 import json
+import secrets
+from aiohttp import web
+from functools import wraps
 from collections import deque
 
+from gear import maybe_parse_bearer_header
+
+from .globals import RESERVED_STORAGE_GB_PER_CORE
+
 log = logging.getLogger('utils')
+
+
+def authorization_token(request):
+    auth_header = request.headers.get('Authorization')
+    if not auth_header:
+        return None
+    session_id = maybe_parse_bearer_header(auth_header)
+    if not session_id:
+        return None
+    return session_id
+
+
+def batch_only(fun):
+    @wraps(fun)
+    async def wrapped(request):
+        token = authorization_token(request)
+        if not token:
+            raise web.HTTPUnauthorized()
+
+        if not secrets.compare_digest(token, request.app['internal_token']):
+            raise web.HTTPUnauthorized()
+
+        return await fun(request)
+    return wrapped
 
 
 def round_up_division(numerator, denominator):
@@ -114,6 +145,16 @@ def adjust_cores_for_storage_request(cores_in_mcpu, storage_in_bytes, worker_cor
     return max(cores_in_mcpu, min_cores_mcpu)
 
 
+def unreserved_worker_data_disk_size_gib(worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gib, worker_cores):
+    reserved_image_size = 20
+    reserved_container_size = RESERVED_STORAGE_GB_PER_CORE * worker_cores
+    if worker_local_ssd_data_disk:
+        # local ssd is 375Gi
+        # reserve 20Gi for images
+        return 375 - reserved_image_size - reserved_container_size
+    return worker_pd_ssd_data_disk_size_gib - reserved_image_size - reserved_container_size
+
+
 def adjust_cores_for_packability(cores_in_mcpu):
     cores_in_mcpu = max(1, cores_in_mcpu)
     power = max(-2, math.ceil(math.log2(cores_in_mcpu / 1000)))
@@ -130,9 +171,22 @@ def storage_gib_to_bytes(storage_gib):
     return math.ceil(storage_gib * 1024**3)
 
 
+def is_valid_cores_mcpu(cores_mcpu: int):
+    if cores_mcpu <= 0:
+        return False
+    quarter_core_mcpu = cores_mcpu * 4
+    if quarter_core_mcpu % 1000 != 0:
+        return False
+    quarter_cores = quarter_core_mcpu // 1000
+    return quarter_cores & (quarter_cores - 1) == 0
+
+
 class Box:
     def __init__(self, value):
         self.value = value
+
+    def __str__(self):
+        return f'{self.value}'
 
 
 class WindowFractionCounter:

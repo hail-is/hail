@@ -1,209 +1,271 @@
 steps:
- - kind: createNamespace
-   name: default_ns
-   namespaceName: default
-   public: true
- - kind: buildImage
-   name: inline_image
-   dockerFile:
-     inline: |
-       FROM {{ global.docker_root_image }}
-       RUN apt-get update && apt-get install -y git
-   contextPath: .
- - kind: runImage
-   name: run_inline_image
-   image:
-     valueFrom: inline_image.image
-   script: |
-     git init
-   dependsOn:
-     - inline_image
- - kind: buildImage
-   name: hail_ubuntu_image
-   dockerFile: docker/hail-ubuntu/Dockerfile
-   contextPath: docker/hail-ubuntu
-   publishAs: hail-ubuntu
- - kind: buildImage
-   name: base_image
-   dockerFile: docker/Dockerfile.base
-   contextPath: .
-   publishAs: base
-   dependsOn:
-    - hail_ubuntu_image
- - kind: runImage
-   name: copy_files
-   image:
-     valueFrom: base_image.image
-   script: |
-     cd /io
-     mkdir repo
-     cd repo
-     {{ code.checkout_script }}
-     make -C hail python/hailtop/hail_version
-   timeout: 300
-   outputs:
-    - from: /io/repo
-      to: /repo
-    - from: /io/repo/hail/python/hail/hail_version
-      to: /hail_version
-   dependsOn:
-     - base_image
- - kind: buildImage
-   name: service_base_image
-   dockerFile: docker/Dockerfile.service-base
-   contextPath: .
-   publishAs: service-base
-   dependsOn:
-    - base_image
-    - copy_files
-   inputs:
-    - from: /hail_version
-      to: /hail_version
- - kind: buildImage
-   name: create_certs_image
-   dockerFile: ci/test/resources/Dockerfile.certs
-   contextPath: ci/test/resources
-   publishAs: test_hello_create_certs_image
-   dependsOn:
-     - service_base_image
- - kind: runImage
-   name: create_certs
-   image:
-     valueFrom: create_certs_image.image
-   script: |
-     set -ex
-     python3 create_certs.py \
-             {{ default_ns.name }} \
-             config.yaml \
-             /ssl-config-hail-root/hail-root-key.pem \
-             /ssl-config-hail-root/hail-root-cert.pem
-   serviceAccount:
-     name: admin
-     namespace:
-       valueFrom: default_ns.name
-   secrets:
-     - name: ssl-config-hail-root
-       namespace:
-         valueFrom: default_ns.name
-       mountPath: /ssl-config-hail-root
-   dependsOn:
-     - default_ns
-     - create_certs_image
- - kind: buildImage
-   name: hello_image
-   dockerFile: ci/test/resources/Dockerfile
-   contextPath: .
-   publishAs: ci-hello
-   dependsOn:
-    - service_base_image
- - kind: runImage
-   name: check_hello
-   image:
-     valueFrom: hello_image.image
-   script: |
-     set -ex
-     python3 -m flake8 /hello/hello.py
-   dependsOn:
-     - hello_image
- - kind: createDatabase
-   name: hello_database
-   databaseName: hello
-   migrations:
-    - name: create-tables
-      script: /io/sql/create-hello-tables.sql
-    - name: insert
-      script: /io/sql/insert.py
-   inputs:
-    - from: /repo/ci/test/resources/sql
-      to: /io/sql
-   namespace:
-     valueFrom: default_ns.name
-   shutdowns:
-    - kind: Deployment
+  - kind: createNamespace
+    name: default_ns
+    namespaceName: default
+    public: true
+  - kind: buildImage2
+    name: git_make_bash_image
+    dockerFile:
+      inline: |
+        FROM {{ global.docker_root_image }}
+        RUN apt-get update && apt-get install -y git make bash
+  - kind: runImage
+    name: merge_code
+    image:
+      valueFrom: git_make_bash_image.image
+    script: |
+      set -ex
+      cd /io
+      mkdir repo
+      cd repo
+      {{ code.checkout_script }}
+      make -C hail python-version-info
+      git rev-parse HEAD > git_version
+    outputs:
+      - from: /io/repo/
+        to: /repo
+      - from: /io/repo/hail/python/hail/hail_version
+        to: /hail_version
+      - from: /io/repo/hail/python/hail/hail_pip_version
+        to: /hail_pip_version
+      - from: /io/repo/git_version
+        to: /git_version
+    dependsOn:
+      - git_make_bash_image
+  - kind: buildImage2
+    name: hail_ubuntu_image
+    dockerFile: /io/hail-ubuntu/Dockerfile
+    contextPath: /io/hail-ubuntu
+    publishAs: hail-ubuntu
+    inputs:
+      - from: /repo/docker/hail-ubuntu
+        to: /io/hail-ubuntu
+    dependsOn:
+      - merge_code
+  - kind: buildImage2
+    name: base_image
+    dockerFile: /io/repo/docker/Dockerfile.base
+    contextPath: /io/repo
+    publishAs: base
+    resources:
+      storage: 10Gi
+      cpu: "2"
+      memory: 7.5Gi
+    inputs:
+      - from: /repo
+        to: /io/repo
+    dependsOn:
+      - hail_ubuntu_image
+      - merge_code
+  - kind: runImage
+    name: test_clashing_basenames_setup
+    image:
+      valueFrom: base_image.image
+    script: |
+      mkdir -p /io/first
+      echo "first" > /io/first/a
+      mkdir -p /io/second
+      echo "second" > /io/second/a
+    outputs:
+      - from: /io/first
+        to: /first
+      - from: /io/second
+        to: /second
+    dependsOn:
+      - base_image
+  - kind: runImage
+    name: test_clashing_basenames
+    image:
+      valueFrom: base_image.image
+    script: |
+      set -ex
+      [[ "$(cat /io/first/a)" == "first" ]]
+      [[ "$(cat /io/second/a)" == "second" ]]
+    inputs:
+      - from: /first/a
+        to: /io/first/a
+      - from: /second/a
+        to: /io/second/a
+    dependsOn:
+      - base_image
+      - test_clashing_basenames_setup
+  - kind: buildImage2
+    name: service_base_image
+    dockerFile: /io/repo/docker/Dockerfile.service-base
+    contextPath: /io/repo/
+    publishAs: service-base
+    dependsOn:
+      - base_image
+      - merge_code
+    inputs:
+      - from: /hail_version
+        to: /io/repo/hail_version
+      - from: /repo
+        to: /io/repo
+  - kind: buildImage2
+    name: create_certs_image
+    dockerFile: /io/ci/test/resources/Dockerfile.certs
+    contextPath: /io/ci/test/resources
+    publishAs: test_hello_create_certs_image
+    inputs:
+      - from: /repo/ci/test/resources
+        to: /io/ci/test/resources
+    dependsOn:
+      - service_base_image
+      - merge_code
+  - kind: runImage
+    name: create_certs
+    image:
+      valueFrom: create_certs_image.image
+    script: |
+      set -ex
+      python3 create_certs.py \
+              {{ default_ns.name }} \
+              config.yaml \
+              /ssl-config-hail-root/hail-root-key.pem \
+              /ssl-config-hail-root/hail-root-cert.pem
+    serviceAccount:
+      name: admin
       namespace:
         valueFrom: default_ns.name
-      name: hello
-   dependsOn:
-    - default_ns
-    - copy_files
- - kind: runImage
-   name: test_hello_database
-   image:
-     valueFrom: service_base_image.image
-   script: |
-     cat > test.py <<EOF
-     import asyncio
-     from gear import Database
-     async def async_main():
-       db = Database()
-       await db.async_init()
-       row = await db.execute_and_fetchone('SELECT version FROM hello_migration_version;')
-       assert row['version'] == 3
-     asyncio.get_event_loop().run_until_complete(async_main())
-     EOF
-     python3 test.py
-   secrets:
-    - name:
-        valueFrom: hello_database.user_secret_name
-      namespace:
-        valueFrom: default_ns.name
-      mountPath: /sql-config
-   dependsOn:
-    - default_ns
-    - hello_database
-    - service_base_image
- - kind: deploy
-   name: deploy_hello
-   namespace:
-     valueFrom: default_ns.name
-   config: ci/test/resources/deployment.yaml
-   wait:
-    - kind: Service
-      name: hello
-      for: alive
-   dependsOn:
-    - default_ns
-    - hello_image
-    - check_hello
-    - hello_database
- - kind: deploy
-   name: deploy_hello_stateful_set
-   namespace:
-     valueFrom: default_ns.name
-   config: ci/test/resources/statefulset.yaml
-   wait:
-    - kind: Service
-      name: hello-stateful-set
-      resource_type: statefulset
-      for: alive
-   dependsOn:
-    - default_ns
-    - hello_image
-    - check_hello
-    - hello_database
- - kind: runImage
-   name: test_connect_to_hello
-   image:
-     valueFrom: service_base_image.image
-   script: |
-     set -ex
-     export HAIL_DEPLOY_CONFIG_FILE=/deploy-config/deploy-config.json
-     hailctl curl {{ default_ns.name }} \
-         hello /healthcheck \
-         -fsSL \
-         --retry 3 \
-         --retry-delay 5 \
-         -XGET
-   secrets:
-    - name: test-tokens
-      namespace:
-        valueFrom: default_ns.name
-      mountPath: /user-tokens
-    - name: gce-deploy-config
-      namespace:
-        valueFrom: default_ns.name
-      mountPath: /deploy-config
-   dependsOn:
-    - service_base_image
-    - default_ns
-    - deploy_hello
+    secrets:
+      - name: ssl-config-hail-root
+        namespace:
+          valueFrom: default_ns.name
+        mountPath: /ssl-config-hail-root
+    dependsOn:
+      - default_ns
+      - create_certs_image
+  - kind: buildImage2
+    name: hail_kaniko_image
+    dockerFile: /io/repo/ci/kaniko/Dockerfile
+    contextPath: /io/repo/ci
+    publishAs: hail-kaniko
+    inputs:
+      - from: /repo/ci
+        to: /io/repo/ci
+    dependsOn:
+      - service_base_image
+      - merge_code
+  - kind: buildImage2
+    name: hello_image
+    dockerFile: /io/repo/ci/test/resources/Dockerfile
+    contextPath: /io/repo
+    publishAs: ci-hello
+    inputs:
+      - from: /repo
+        to: /io/repo
+    dependsOn:
+      - service_base_image
+      - merge_code
+  - kind: runImage
+    name: check_hello
+    image:
+      valueFrom: hello_image.image
+    script: |
+      set -ex
+      python3 -m flake8 /hello/hello.py
+    dependsOn:
+      - hello_image
+  - kind: createDatabase
+    name: hello_database
+    databaseName: hello
+    migrations:
+      - name: create-tables
+        script: /io/sql/create-hello-tables.sql
+      - name: insert
+        script: /io/sql/insert.py
+    inputs:
+      - from: /repo/ci/test/resources/sql
+        to: /io/sql
+    namespace:
+      valueFrom: default_ns.name
+    shutdowns:
+      - kind: Deployment
+        namespace:
+          valueFrom: default_ns.name
+        name: hello
+    dependsOn:
+      - default_ns
+      - merge_code
+  - kind: runImage
+    name: test_hello_database
+    image:
+      valueFrom: service_base_image.image
+    script: |
+      cat > test.py <<EOF
+      import asyncio
+      from gear import Database
+      async def async_main():
+        db = Database()
+        await db.async_init()
+        row = await db.execute_and_fetchone('SELECT version FROM hello_migration_version;')
+        assert row['version'] == 3
+      asyncio.get_event_loop().run_until_complete(async_main())
+      EOF
+      python3 test.py
+    secrets:
+      - name:
+          valueFrom: hello_database.user_secret_name
+        namespace:
+          valueFrom: default_ns.name
+        mountPath: /sql-config
+    dependsOn:
+      - default_ns
+      - hello_database
+      - service_base_image
+  - kind: deploy
+    name: deploy_hello
+    namespace:
+      valueFrom: default_ns.name
+    config: ci/test/resources/deployment.yaml
+    wait:
+      - kind: Service
+        name: hello
+        for: alive
+    dependsOn:
+      - default_ns
+      - hello_image
+      - check_hello
+      - hello_database
+  - kind: deploy
+    name: deploy_hello_stateful_set
+    namespace:
+      valueFrom: default_ns.name
+    config: ci/test/resources/statefulset.yaml
+    wait:
+      - kind: Service
+        name: hello-stateful-set
+        resource_type: statefulset
+        for: alive
+    dependsOn:
+      - default_ns
+      - hello_image
+      - check_hello
+      - hello_database
+  - kind: runImage
+    name: test_connect_to_hello
+    image:
+      valueFrom: service_base_image.image
+    script: |
+      set -ex
+      export HAIL_DEPLOY_CONFIG_FILE=/deploy-config/deploy-config.json
+      hailctl curl {{ default_ns.name }} \
+          hello /healthcheck \
+          -fsSL \
+          --retry 3 \
+          --retry-delay 5 \
+          -XGET
+    secrets:
+      - name: test-tokens
+        namespace:
+          valueFrom: default_ns.name
+        mountPath: /user-tokens
+      - name: gce-deploy-config
+        namespace:
+          valueFrom: default_ns.name
+        mountPath: /deploy-config
+    dependsOn:
+      - service_base_image
+      - default_ns
+      - deploy_hello

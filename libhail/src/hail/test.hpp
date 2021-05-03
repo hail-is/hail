@@ -1,9 +1,10 @@
 #ifndef HAIL_TEST_HPP_INCLUDED
 #define HAIL_TEST_HPP_INCLUDED 1
 
-#include <hail/format.hpp>
 #include <string>
 #include <vector>
+
+#include "hail/format.hpp"
 
 namespace hail {
 
@@ -11,7 +12,7 @@ using TestFunction = void();
 
 class Test {
   friend class Tests;
-  
+
   const std::string name;
   TestFunction *const function;
   Test *next;
@@ -24,7 +25,7 @@ public:
 
 class Tests {
   friend class Test;
-  
+
   static Test *head;
 
 public:

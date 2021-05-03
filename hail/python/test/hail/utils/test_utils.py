@@ -13,8 +13,6 @@ tearDownModule = stopTestHailContext
 
 class Tests(unittest.TestCase):
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_hadoop_methods(self):
         data = ['foo', 'bar', 'baz']
         data.extend(map(str, range(100)))
@@ -46,12 +44,12 @@ class Tests(unittest.TestCase):
 
         self.assertEqual(data, data4)
 
-        with hadoop_open(resource('randomBytes'), buffer_size=100) as f:
-            with hadoop_open('/tmp/randomBytesOut', 'w', buffer_size=150) as out:
+        with hadoop_open(resource('randomBytes'), mode='rb', buffer_size=100) as f:
+            with hadoop_open('/tmp/randomBytesOut', mode='wb', buffer_size=150) as out:
                 b = f.read()
                 out.write(b)
 
-        with hadoop_open('/tmp/randomBytesOut', buffer_size=199) as f:
+        with hadoop_open('/tmp/randomBytesOut', mode='rb', buffer_size=199) as f:
             b2 = f.read()
 
         self.assertEqual(b, b2)
@@ -83,7 +81,7 @@ class Tests(unittest.TestCase):
 
         self.assertFalse(hl.hadoop_exists(resource('./some2')))
 
-    @fails_service_backend()
+    @skip_when_service_backend('service backend logs are not sent to a user-visible file')
     @fails_local_backend()
     def test_hadoop_copy_log(self):
         with with_local_temp_file('log') as r:

@@ -84,7 +84,7 @@ class WritableStream(abc.ABC):
 
 class _ReadableStreamFromBlocking(ReadableStream):
     _thread_pool: ThreadPoolExecutor
-    _f: Optional[BinaryIO]
+    _f: BinaryIO
 
     def __init__(self, thread_pool: ThreadPoolExecutor, f: BinaryIO):
         super().__init__()
@@ -96,12 +96,12 @@ class _ReadableStreamFromBlocking(ReadableStream):
 
     async def _wait_closed(self) -> None:
         await blocking_to_async(self._thread_pool, self._f.close)
-        self._f = None
+        del self._f
 
 
 class _WritableStreamFromBlocking(WritableStream):
     _thread_pool: ThreadPoolExecutor
-    _f: Optional[BinaryIO]
+    _f: BinaryIO
 
     def __init__(self, thread_pool: ThreadPoolExecutor, f: BinaryIO):
         super().__init__()
@@ -116,7 +116,7 @@ class _WritableStreamFromBlocking(WritableStream):
 
     async def _wait_closed(self) -> None:
         await blocking_to_async(self._thread_pool, self._f.close)
-        self._f = None
+        del self._f
 
 
 def blocking_readable_stream_to_async(thread_pool: ThreadPoolExecutor, f: BinaryIO) -> _ReadableStreamFromBlocking:

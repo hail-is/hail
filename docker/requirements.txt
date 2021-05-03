@@ -17,7 +17,10 @@ flake8==3.8.3
 Flask-Cors==3.0.8
 Flask-Sockets==0.2.1
 Flask==1.0.3
-gcsfs==0.7.2
+# https://github.com/dask/gcsfs/issues/372
+gcsfs==0.8.0
+# https://github.com/dask/gcsfs/issues/372
+fsspec==0.9.0
 gidgethub==4.1.0
 google-api-python-client==1.7.10
 google-cloud-logging==1.12.1

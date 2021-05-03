@@ -1,4 +1,4 @@
-from typing import TypeVar, Any, Optional, List, Type, BinaryIO, cast, Set, AsyncIterator, Union, Dict
+from typing import Any, Optional, List, Type, BinaryIO, cast, Set, AsyncIterator, Union, Dict
 from types import TracebackType
 import abc
 import os
@@ -14,8 +14,6 @@ from hailtop.utils import (
     retry_transient_errors, blocking_to_async, url_basename, url_join, bounded_gather2,
     time_msecs, humanize_timedelta_msecs)
 from .stream import ReadableStream, WritableStream, blocking_readable_stream_to_async, blocking_writable_stream_to_async
-
-AsyncFSType = TypeVar('AsyncFSType', bound='AsyncFS')
 
 
 class FileStatus(abc.ABC):
@@ -142,7 +140,7 @@ class AsyncFS(abc.ABC):
     async def close(self) -> None:
         pass
 
-    async def __aenter__(self) -> AsyncFSType:
+    async def __aenter__(self) -> 'AsyncFS':
         return self
 
     async def __aexit__(self,
@@ -199,7 +197,7 @@ class LocalFileListEntry(FileListEntry):
 
 
 class LocalMultiPartCreate(MultiPartCreate):
-    def __init__(self, fs: AsyncFS, path: str, num_parts: int):
+    def __init__(self, fs: 'LocalAsyncFS', path: str, num_parts: int):
         self._fs = fs
         self._path = path
         self._num_parts = num_parts
@@ -237,7 +235,15 @@ class LocalAsyncFS(AsyncFS):
     def _get_path(url):
         parsed = urllib.parse.urlparse(url)
         if parsed.scheme and parsed.scheme != 'file':
-            raise ValueError(f"invalid scheme, expected file: {parsed.scheme}")
+            raise ValueError(f"invalid file URL: {url}, invalid scheme: expected file, got {parsed.scheme}")
+        if parsed.netloc and parsed.netloc != 'localhost':
+            raise ValueError(f"invalid file URL: {url}, invalid netloc: expected localhost or empty, got {parsed.netloc}")
+        if parsed.params:
+            raise ValueError(f"invalid file URL: params not allowed: {url}")
+        if parsed.query:
+            raise ValueError(f"invalid file URL: query not allowed: {url}")
+        if parsed.fragment:
+            raise ValueError(f"invalid file URL: fragment not allowed: {url}")
         return parsed.path
 
     async def open(self, url: str) -> ReadableStream:
@@ -386,6 +392,8 @@ class SourceReport:
 
 
 class TransferReport:
+    _source_report: Union[SourceReport, List[SourceReport]]
+
     def __init__(self, transfer: Transfer):
         self._transfer = transfer
         if isinstance(transfer.src, str):
@@ -405,7 +413,7 @@ class CopyReport:
         self._end_time = None
         self._duration = None
         if isinstance(transfer, Transfer):
-            self._transfer_report = TransferReport(transfer)
+            self._transfer_report: Union[TransferReport, List[TransferReport]] = TransferReport(transfer)
         else:
             self._transfer_report = [TransferReport(t) for t in transfer]
         self._exception: Optional[Exception] = None
@@ -471,8 +479,8 @@ class SourceCopier:
         self.treat_dest_as = treat_dest_as
         self.dest_type_task = dest_type_task
 
-        self.src_is_file = None
-        self.src_is_dir = None
+        self.src_is_file: Optional[bool] = None
+        self.src_is_dir: Optional[bool] = None
 
         self.pending = 2
         self.barrier = asyncio.Event()
@@ -481,10 +489,6 @@ class SourceCopier:
         self.pending -= 1
         if self.pending == 0:
             self.barrier.set()
-
-    async def release_barrier_and_wait(self):
-        await self.release_barrier()
-        await self.barrier.wait()
 
     async def _copy_file(self, srcfile: str, destfile: str) -> None:
         assert not destfile.endswith('/')
@@ -597,20 +601,20 @@ class SourceCopier:
                            sema: asyncio.Semaphore,  # pylint: disable=unused-argument
                            source_report: SourceReport,
                            return_exceptions: bool):
-        src = self.src
-        if src.endswith('/'):
-            await self.release_barrier()
-            return
-
         try:
-            srcstat = await self.router_fs.statfile(src)
-        except FileNotFoundError:
-            self.src_is_file = False
+            src = self.src
+            if src.endswith('/'):
+                return
+            try:
+                srcstat = await self.router_fs.statfile(src)
+            except FileNotFoundError:
+                self.src_is_file = False
+                return
+            self.src_is_file = True
+        finally:
             await self.release_barrier()
-            return
 
-        self.src_is_file = True
-        await self.release_barrier_and_wait()
+        await self.barrier.wait()
 
         if self.src_is_dir:
             raise FileAndDirectoryError(self.src)
@@ -624,19 +628,20 @@ class SourceCopier:
         await self._copy_file_multi_part(sema, source_report, src, srcstat, full_dest, return_exceptions)
 
     async def copy_as_dir(self, sema: asyncio.Semaphore, source_report: SourceReport, return_exceptions: bool):
-        src = self.src
-        if not src.endswith('/'):
-            src = src + '/'
-
         try:
-            srcentries = await self.router_fs.listfiles(src, recursive=True)
-        except (NotADirectoryError, FileNotFoundError):
-            self.src_is_dir = False
+            src = self.src
+            if not src.endswith('/'):
+                src = src + '/'
+            try:
+                srcentries = await self.router_fs.listfiles(src, recursive=True)
+            except (NotADirectoryError, FileNotFoundError):
+                self.src_is_dir = False
+                return
+            self.src_is_dir = True
+        finally:
             await self.release_barrier()
-            return
 
-        self.src_is_dir = True
-        await self.release_barrier_and_wait()
+        await self.barrier.wait()
 
         if self.src_is_file:
             raise FileAndDirectoryError(self.src)
@@ -673,14 +678,16 @@ class SourceCopier:
                 return_exceptions=True)
 
             assert self.pending == 0
-            assert (self.src_is_file is None) == self.src.endswith('/')
-            assert self.src_is_dir is not None
 
-            if (self.src_is_file is False or self.src.endswith('/')) and not self.src_is_dir:
-                raise FileNotFoundError(self.src)
             for result in results:
                 if isinstance(result, Exception):
                     raise result
+
+            assert (self.src_is_file is None) == self.src.endswith('/')
+            assert self.src_is_dir is not None
+            if (self.src_is_file is False or self.src.endswith('/')) and not self.src_is_dir:
+                raise FileNotFoundError(self.src)
+
         except Exception as e:
             if return_exceptions:
                 source_report.set_exception(e)
@@ -727,21 +734,24 @@ class Copier:
     async def _copy_one_transfer(self, sema: asyncio.Semaphore, transfer_report: TransferReport, transfer: Transfer, return_exceptions: bool):
         try:
             if transfer.treat_dest_as == Transfer.INFER_DEST:
-                dest_type_task = asyncio.create_task(self._dest_type(transfer))
+                dest_type_task: Optional[asyncio.Task] = asyncio.create_task(self._dest_type(transfer))
             else:
                 dest_type_task = None
 
             try:
                 src = transfer.src
+                src_report = transfer_report._source_report
                 if isinstance(src, str):
-                    await self.copy_source(sema, transfer, transfer_report._source_report, src, dest_type_task, return_exceptions)
+                    assert isinstance(src_report, SourceReport)
+                    await self.copy_source(sema, transfer, src_report, src, dest_type_task, return_exceptions)
                 else:
+                    assert isinstance(src_report, list)
                     if transfer.treat_dest_as == Transfer.DEST_IS_TARGET:
                         raise NotADirectoryError(transfer.dest)
 
                     await bounded_gather2(sema, *[
                         self.copy_source(sema, transfer, r, s, dest_type_task, return_exceptions)
-                        for r, s in zip(transfer_report._source_report, src)
+                        for r, s in zip(src_report, src)
                     ], cancel_on_error=True)
 
                 # raise potential exception
@@ -757,14 +767,17 @@ class Copier:
                 raise e
 
     async def copy(self, sema: asyncio.Semaphore, copy_report: CopyReport, transfer: Union[Transfer, List[Transfer]], return_exceptions: bool):
+        transfer_report = copy_report._transfer_report
         try:
             if isinstance(transfer, Transfer):
-                await self._copy_one_transfer(sema, copy_report._transfer_report, transfer, return_exceptions)
+                assert isinstance(transfer_report, TransferReport)
+                await self._copy_one_transfer(sema, transfer_report, transfer, return_exceptions)
                 return
 
+            assert isinstance(transfer_report, list)
             await bounded_gather2(sema, *[
                 self._copy_one_transfer(sema, r, t, return_exceptions)
-                for r, t in zip(copy_report._transfer_report, transfer)
+                for r, t in zip(transfer_report, transfer)
             ], return_exceptions=return_exceptions, cancel_on_error=True)
         except Exception as e:
             if return_exceptions:

@@ -459,6 +459,25 @@ class VCFTests(unittest.TestCase):
         self.assertEqual(len(parts), comb.n_partitions())
         comb._force_count_rows()
 
+    def test_haploid_combiner_ok(self):
+        from hail.experimental.vcf_combiner.vcf_combiner import transform_gvcf
+        # make a combiner table
+        mt = hl.utils.range_matrix_table(2, 1)
+        mt = mt.annotate_cols(s='S01')
+        mt = mt.key_cols_by('s')
+        mt = mt.select_cols()
+        mt = mt.annotate_rows(locus=hl.locus(contig='chrX', pos=mt.row_idx + 100, reference_genome='GRCh38'))
+        mt = mt.key_rows_by('locus')
+        mt = mt.annotate_rows(alleles=['A', '<NON_REF>'])
+        mt = mt.annotate_entries(GT=hl.if_else((mt.row_idx % 2) == 0, hl.call(0), hl.call(0, 0)))
+        mt = mt.annotate_entries(DP=31)
+        mt = mt.annotate_entries(GQ=30)
+        mt = mt.annotate_entries(PL=hl.if_else((mt.row_idx % 2) == 0, [0, 20], [0, 20, 400]))
+        mt = mt.annotate_rows(info=hl.struct(END=mt.locus.position))
+        mt = mt.annotate_rows(rsid=hl.missing(hl.tstr))
+        mt = mt.drop('row_idx')
+        transform_gvcf(mt)._force_count()
+
     def test_combiner_parse_as_annotations(self):
         from hail.experimental.vcf_combiner.vcf_combiner import parse_as_fields
         infos = hl.array([

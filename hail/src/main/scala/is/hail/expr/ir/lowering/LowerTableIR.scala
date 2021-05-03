@@ -884,18 +884,20 @@ object LowerTableIR {
                 ),
                 partition = { (partitionRef: Ref) =>
                   bindIRs(GetField(partitionRef, "oldContext"), GetField(partitionRef, "scanState")) { case Seq(oldContext, scanState) =>
-                    RunAggScan(
-                      lc.partition(oldContext),
-                      "row",
-                      Begin(aggs.aggs.zipWithIndex.map { case (agg, i) =>
-                        InitFromSerializedValue(i, GetTupleElement(scanState, i), agg.state)
-                      }),
-                      aggs.seqPerElt,
-                      Let(
-                        resultUID,
-                        ResultOp(0, aggs.aggs),
-                        aggs.postAggIR),
-                      aggs.states
+                    Let("global", lc.globals,
+                      RunAggScan(
+                        lc.partition(oldContext),
+                        "row",
+                        Begin(aggs.aggs.zipWithIndex.map { case (agg, i) =>
+                          InitFromSerializedValue(i, GetTupleElement(scanState, i), agg.state)
+                        }),
+                        aggs.seqPerElt,
+                        Let(
+                          resultUID,
+                          ResultOp(0, aggs.aggs),
+                          aggs.postAggIR),
+                        aggs.states
+                      )
                     )
                   }
                 }

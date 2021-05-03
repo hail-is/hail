@@ -17,7 +17,7 @@ from ci.utils import generate_token
 from batch.driver.k8s_cache import K8sCache
 
 KUBERNETES_SERVER_URL = os.environ['KUBERNETES_SERVER_URL']
-DOCKER_PREFIX = os.environ['DOCKER_PREFIX']
+DOCKER_PREFIX = os.environ['HAIL_DOCKER_PREFIX']
 DOCKER_ROOT_IMAGE = f'{DOCKER_PREFIX}/ubuntu:18.04'
 
 
@@ -115,9 +115,7 @@ class LocalBatchBuilder:
                 for p in j._parents:
                     assert p._succeeded is not None
                     if not p._succeeded:
-                        print(
-                            f'{j._index}: {job_name}: SKIPPED: parent {p._index} failed'
-                        )
+                        print(f'{j._index}: {job_name}: SKIPPED: parent {p._index} failed')
                         j._succeeded = False
 
             if j._succeeded is False:
@@ -152,9 +150,7 @@ class LocalBatchBuilder:
                     copy_script,
                 )
 
-                print(
-                    f'{j._index}: {job_name}/input: {input_cid} {"OK" if input_ok else "FAILED"}'
-                )
+                print(f'{j._index}: {job_name}/input: {input_cid} {"OK" if input_ok else "FAILED"}')
             else:
                 input_ok = True
 
@@ -183,9 +179,7 @@ class LocalBatchBuilder:
 
                     token_secret_name = sa.secrets[0].name
 
-                    secret = await k8s_cache.read_secret(
-                        token_secret_name, namespace, 5
-                    )
+                    secret = await k8s_cache.read_secret(token_secret_name, namespace, 5)
 
                     token = base64.b64decode(secret.data['token']).decode()
                     cert = secret.data['ca.crt']
@@ -225,29 +219,18 @@ users:
                 secrets = j._secrets
                 if secrets:
                     k8s_secrets = await asyncio.gather(
-                        *[
-                            k8s_cache.read_secret(
-                                secret['name'], secret['namespace'], 5
-                            )
-                            for secret in secrets
-                        ]
+                        *[k8s_cache.read_secret(secret['name'], secret['namespace'], 5) for secret in secrets]
                     )
 
                     for secret, k8s_secret in zip(secrets, k8s_secrets):
-                        secret_host_path = (
-                            f'{job_root}/secrets/{k8s_secret.metadata.name}'
-                        )
+                        secret_host_path = f'{job_root}/secrets/{k8s_secret.metadata.name}'
 
                         populate_secret_host_path(secret_host_path, k8s_secret.data)
 
-                        mount_options.extend(
-                            ['-v', f'{secret_host_path}:{secret["mount_path"]}']
-                        )
+                        mount_options.extend(['-v', f'{secret_host_path}:{secret["mount_path"]}'])
 
                 if j._mount_docker_socket:
-                    mount_options.extend(
-                        ['-v', '/var/run/docker.sock:/var/run/docker.sock']
-                    )
+                    mount_options.extend(['-v', '/var/run/docker.sock:/var/run/docker.sock'])
 
                 main_cid, main_ok = await docker_run(
                     'docker',
@@ -258,9 +241,7 @@ users:
                     j._image,
                     *j._command,
                 )
-                print(
-                    f'{j._index}: {job_name}/main: {main_cid} {"OK" if main_ok else "FAILED"}'
-                )
+                print(f'{j._index}: {job_name}/main: {main_cid} {"OK" if main_ok else "FAILED"}')
             else:
                 main_ok = False
                 print(f'{j._index}: {job_name}/main: SKIPPED: input failed')
@@ -289,9 +270,7 @@ users:
                         '-c',
                         copy_script,
                     )
-                    print(
-                        f'{j._index}: {job_name}/output: {output_cid} {"OK" if output_ok else "FAILED"}'
-                    )
+                    print(f'{j._index}: {job_name}/output: {output_cid} {"OK" if output_ok else "FAILED"}')
                 else:
                     output_ok = False
                     print(f'{j._index}: {job_name}/output: SKIPPED: main failed')
@@ -302,9 +281,7 @@ users:
 
 
 class Branch(Code):
-    def __init__(
-        self, owner: str, repo: str, branch: str, sha: str, extra_config: Dict[str, str]
-    ):
+    def __init__(self, owner: str, repo: str, branch: str, sha: str, extra_config: Dict[str, str]):
         self._owner = owner
         self._repo = repo
         self._branch = branch
@@ -339,9 +316,7 @@ git checkout {shq(self._sha)}
 async def main():
     await kube.config.load_kube_config()
 
-    parser = argparse.ArgumentParser(
-        description='Bootstrap a Hail as a service installation.'
-    )
+    parser = argparse.ArgumentParser(description='Bootstrap a Hail as a service installation.')
 
     parser.add_argument(
         '--extra-code-config',
@@ -353,9 +328,7 @@ async def main():
         'branch',
         help='Github branch to run.  It should be the same branch bootstrap.py is being run from.',
     )
-    parser.add_argument(
-        'sha', help='SHA of the git commit to run.  It should match the branch.'
-    )
+    parser.add_argument('sha', help='SHA of the git commit to run.  It should match the branch.')
     parser.add_argument('steps', help='The requested steps to execute.')
 
     args = parser.parse_args()

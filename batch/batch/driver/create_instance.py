@@ -6,8 +6,10 @@ import json
 from hailtop import aiogoogle
 
 from ..batch_configuration import PROJECT, DOCKER_ROOT_IMAGE, DOCKER_PREFIX, DEFAULT_NAMESPACE
+from ..inst_coll_config import machine_type_to_dict
 from ..worker_config import WorkerConfig
 from ..log_store import LogStore
+from ..utils import unreserved_worker_data_disk_size_gib
 
 log = logging.getLogger('create_instance')
 
@@ -22,6 +24,8 @@ async def create_instance(app, zone, machine_name, machine_type, activation_toke
                           preemptible, job_private):
     log_store: LogStore = app['log_store']
     compute_client: aiogoogle.ComputeClient = app['compute_client']
+
+    cores = int(machine_type_to_dict(machine_type)['cores'])
 
     if worker_local_ssd_data_disk:
         worker_data_disk = {
@@ -41,6 +45,14 @@ async def create_instance(app, zone, machine_name, machine_type, activation_toke
             }
         }
         worker_data_disk_name = 'sdb'
+
+    if job_private:
+        unreserved_disk_storage_gb = worker_pd_ssd_data_disk_size_gb
+    else:
+        unreserved_disk_storage_gb = unreserved_worker_data_disk_size_gib(worker_local_ssd_data_disk,
+                                                                          worker_pd_ssd_data_disk_size_gb,
+                                                                          cores)
+    assert unreserved_disk_storage_gb >= 0
 
     config = {
         'name': machine_name,
@@ -124,8 +136,9 @@ iptables -I DOCKER-USER -i batch-worker -d 169.254.169.254 -j ACCEPT
 
 
 WORKER_DATA_DISK_NAME="{worker_data_disk_name}"
+UNRESERVED_WORKER_DATA_DISK_SIZE_GB="{unreserved_disk_storage_gb}"
 
-# format local SSD
+# format worker data disk
 sudo mkfs.xfs -m reflink=1 -n ftype=1 /dev/$WORKER_DATA_DISK_NAME
 sudo mkdir -p /mnt/disks/$WORKER_DATA_DISK_NAME
 sudo mount -o prjquota /dev/$WORKER_DATA_DISK_NAME /mnt/disks/$WORKER_DATA_DISK_NAME
@@ -251,23 +264,28 @@ docker run \
 -e BATCH_LOGS_BUCKET_NAME=$BATCH_LOGS_BUCKET_NAME \
 -e INSTANCE_ID=$INSTANCE_ID \
 -e PROJECT=$PROJECT \
+-e ZONE=$ZONE \
 -e DOCKER_ROOT_IMAGE=$DOCKER_ROOT_IMAGE \
 -e DOCKER_PREFIX=$DOCKER_PREFIX \
 -e WORKER_CONFIG=$WORKER_CONFIG \
 -e MAX_IDLE_TIME_MSECS=$MAX_IDLE_TIME_MSECS \
 -e WORKER_DATA_DISK_MOUNT=/mnt/disks/$WORKER_DATA_DISK_NAME \
 -e BATCH_WORKER_IMAGE=$BATCH_WORKER_IMAGE \
+-e UNRESERVED_WORKER_DATA_DISK_SIZE_GB=$UNRESERVED_WORKER_DATA_DISK_SIZE_GB \
 -v /var/run/docker.sock:/var/run/docker.sock \
 -v /usr/bin/docker:/usr/bin/docker \
 -v /usr/sbin/xfs_quota:/usr/sbin/xfs_quota \
--v /batch:/batch \
+-v /batch:/batch:shared \
 -v /logs:/logs \
 -v /gcsfuse:/gcsfuse:shared \
 -v /xfsquota:/xfsquota \
 --mount type=bind,source=/mnt/disks/$WORKER_DATA_DISK_NAME,target=/host \
+--mount type=bind,source=/dev,target=/dev,bind-propagation=rshared \
 -p 5000:5000 \
 --device /dev/fuse \
 --device $XFS_DEVICE \
+--device /dev \
+--privileged \
 --cap-add SYS_ADMIN \
 --security-opt apparmor:unconfined \
 --network batch-worker \

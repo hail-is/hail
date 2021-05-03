@@ -1,7 +1,7 @@
 package is.hail.services
 
 import java.io.{File, FileInputStream}
-import java.net.{Socket, ConnectException}
+import java.net._
 
 import is.hail.utils._
 import is.hail.services.tls._
@@ -131,20 +131,9 @@ class DeployConfig(
           s"Cannot open a socket from an external client to a service.")
     }
     log.info(s"attempting to connect ${service} at ${host}:${port}")
-    var s: Socket = null
-    var attempts = 0
-    while (s == null) {
-      try {
-        s = getSSLContext.getSocketFactory().createSocket(host, port)
-      } catch {
-        case e: ConnectException =>
-          if (attempts % 10 == 0) {
-            log.warn(s"retrying socket connect to ${host}:${port} after receiving ${e}")
-          }
-          attempts += 1
-      }
+    val s = retryTransientErrors {
+      getSSLContext.getSocketFactory().createSocket(host, port)
     }
-    assert(s != null)
     log.info(s"connected to ${service} at ${host}:${port}")
     s
   }

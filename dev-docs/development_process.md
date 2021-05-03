@@ -47,6 +47,14 @@ changed files every commit. For example, services code uses the
 [Black python formatter](https://black.readthedocs.io/en/stable/)
 to enforce PEP8 compliance.
 
+Sometimes large formatting or refactoring commits can muddle the git history
+for a file. If your change is one of these, follow up by adding the commit SHA to
+`.git-blame-ignore-revs`. To configure `git blame` to ignore these commits, run
+
+```
+git config blame.ignoreRevsFile $HAIL/.git-blame-ignore-revs
+```
+
 #### Services
 
 Install and configure tools necessary for working on the Hail Services:
@@ -59,10 +67,12 @@ Install and configure tools necessary for working on the Hail Services:
 gcloud auth login
 gcloud config set project hail-vdc
 gcloud container clusters get-credentials vdc --zone=us-central1-a
+gcloud auth -q configure-docker gcr.io
 gcloud auth configure-docker
 # If you are using the Artifact Registry:
 # gcloud auth configure-docker $REGION-docker.pkg.dev
 ```
+
 5. Add these lines to `~/.zshrc` or `~/.bashrc` to configure your shell and environment for Hail:
 ```
 # BuildKit, a fast docker backend

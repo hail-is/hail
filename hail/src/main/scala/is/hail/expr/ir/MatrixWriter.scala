@@ -4,6 +4,7 @@ import java.io.OutputStream
 import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.expr.JSONAnnotationImpex
+import is.hail.expr.ir.functions.MatrixWriteBlockMatrix
 import is.hail.expr.ir.lowering.{LowererUnsupportedOperation, TableStage}
 import is.hail.expr.ir.streams.StreamProducer
 import is.hail.io._
@@ -27,7 +28,8 @@ object MatrixWriter {
   implicit val formats: Formats = new DefaultFormats() {
     override val typeHints = ShortTypeHints(
       List(classOf[MatrixNativeWriter], classOf[MatrixVCFWriter], classOf[MatrixGENWriter],
-        classOf[MatrixBGENWriter], classOf[MatrixPLINKWriter], classOf[WrappedMatrixWriter]), typeHintFieldName = "name")
+        classOf[MatrixBGENWriter], classOf[MatrixPLINKWriter], classOf[WrappedMatrixWriter],
+        classOf[MatrixBlockMatrixWriter]), typeHintFieldName = "name")
   }
 }
 
@@ -223,7 +225,7 @@ case class SplitPartitionNativeWriter(
 
       PCode(pResultType, EmitCodeBuilder.scopedCode(mb) { cb: EmitCodeBuilder =>
         val pctx = ctxCode.memoize(cb, "context")
-        cb.assign(filename1, pContextType.loadString(pctx.tcode[Long]))
+        cb.assign(filename1, pctx.asString.loadString())
         if (hasIndex) {
           val indexFile = cb.newLocal[String]("indexFile")
           cb.assign(indexFile, const(index.get._1).concat(filename1))
@@ -299,13 +301,11 @@ case class MatrixSpecWriter(path: String, typ: MatrixType, rowRelPath: String, g
     cb.assign(partCounts, Code.newArray[Long](n))
     cb.whileLoop(i < n, {
       val count = a.loadElement(cb, i).get(cb, "part count can't be missing!").asPCode
-      cb += partCounts.update(i, count.tcode[Long])
+      cb += partCounts.update(i, count.asInt64.longCode(cb))
       cb.assign(i, i + 1)
     })
     cb += cb.emb.getObject(new MatrixSpecHelper(path, rowRelPath, globalRelPath, colRelPath, entryRelPath, refRelPath, typ, log))
-      .invoke[FS, Long, Array[Long], Unit]("write", cb.emb.getFS, c.loadField(cb, "cols").get(cb)
-        .asPCode
-        .tcode[Long], partCounts)
+      .invoke[FS, Long, Array[Long], Unit]("write", cb.emb.getFS, c.loadField(cb, "cols").get(cb).asInt64.longCode(cb), partCounts)
   }
 }
 
@@ -337,6 +337,15 @@ case class MatrixPLINKWriter(
   path: String
 ) extends MatrixWriter {
   def apply(ctx: ExecuteContext, mv: MatrixValue): Unit = ExportPlink(ctx, mv, path)
+}
+
+case class MatrixBlockMatrixWriter(
+  path: String,
+  overwrite: Boolean,
+  entryField: String,
+  blockSize: Int
+) extends MatrixWriter {
+  def apply(ctx: ExecuteContext, mv: MatrixValue): Unit = MatrixWriteBlockMatrix(ctx, mv, entryField, path, overwrite, blockSize)
 }
 
 object MatrixNativeMultiWriter {
