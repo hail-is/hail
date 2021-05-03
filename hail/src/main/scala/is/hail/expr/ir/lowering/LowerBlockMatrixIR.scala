@@ -226,7 +226,7 @@ object LowerBlockMatrixIR {
             MakeTuple.ordered(FastSeq(I64(i.toInt), I64(j.toInt)))
           }
           def blockBody(ctxRef: Ref): IR =
-            MakeNDArray(ToArray(mapIR(rangeIR( invoke("toInt32", TInt32, GetTupleElement(ctxRef, 0) * GetTupleElement(ctxRef, 1))) )(_ => elt)),
+            MakeNDArray(ToArray(mapIR(rangeIR(Cast(GetTupleElement(ctxRef, 0) * GetTupleElement(ctxRef, 1), TInt32)))(_ => elt)),
               ctxRef, True(), ErrorIDs.NO_ERROR)
         }
       case x@BlockMatrixBroadcast(child, IndexedSeq(axis), _, _) =>
