@@ -830,7 +830,6 @@ https://hail.zulipchat.com/#narrow/stream/123011-Hail-Dev/topic/test_drop/near/2
         self.assertEqual(t2.n_partitions(), 3)
         self.assertTrue(t.filter((t.idx >= 150) & (t.idx < 500))._same(t2))
 
-    @fails_service_backend()
     def test_order_by_parsing(self):
         hl.utils.range_table(1).annotate(**{'a b c' : 5}).order_by('a b c')._force_count()
 
