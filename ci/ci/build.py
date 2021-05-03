@@ -249,9 +249,9 @@ class BuildImage2Step(Step):
         self.inputs = inputs
         self.resources = resources
         if params.scope == 'deploy' and publish_as and not is_test_deployment:
-            self.base_image = f'gcr.io/{GCP_PROJECT}/{self.publish_as}'
+            self.base_image = f'{DOCKER_PREFIX}/{self.publish_as}'
         else:
-            self.base_image = f'gcr.io/{GCP_PROJECT}/ci-intermediate'
+            self.base_image = f'{DOCKER_PREFIX}/ci-intermediate'
         self.image = f'{self.base_image}:{self.token}'
         self.job = None
 
