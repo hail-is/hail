@@ -124,7 +124,7 @@ object LocusFunctions extends RegistryFunctions {
         val variantTuple = Code.invokeScalaObject2[Locus, IndexedSeq[String], (Locus, IndexedSeq[String])](
           VariantMethods.getClass, "minRep",
           locus.getLocusObj(cb),
-          Code.checkcast[IndexedSeq[String]](wrapArg(r, alleles.pt)(alleles.code).asInstanceOf[Code[AnyRef]]))
+          Code.checkcast[IndexedSeq[String]](scodeToJavaValue(cb, r.region, alleles)))
 
         emitVariant(cb, r.region, variantTuple, rt)
     }
