@@ -508,6 +508,12 @@ class BlockMatrix(object):
 
         return BlockMatrix(ValueToBlockMatrix(hl.literal(data)._ir, [n_rows, n_cols], block_size))
 
+    @classmethod
+    def from_ndarray(cls, ndarray_expression, block_size=4096):
+        """Create a BlockMatrix from an ndarray"""
+        shape = hl.eval(ndarray_expression.shape)
+        return BlockMatrix(ValueToBlockMatrix(ndarray_expression._ir, shape, block_size))
+
     @staticmethod
     def default_block_size():
         """Default block side length."""

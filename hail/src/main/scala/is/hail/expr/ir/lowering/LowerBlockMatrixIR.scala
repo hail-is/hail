@@ -316,7 +316,8 @@ object LowerBlockMatrixIR {
       case BlockMatrixSparsify(child, sparsifier) => lower(child)
 
       case RelationalLetBlockMatrix(name, value, body) => unimplemented(bmir)
-      case ValueToBlockMatrix(child, shape, blockSize) if !child.typ.isInstanceOf[TArray] => {
+
+      case ValueToBlockMatrix(child, shape, blockSize) if !child.typ.isInstanceOf[TArray] && !child.typ.isInstanceOf[TNDArray] => {
         val element = lowerIR(child)
         new BlockMatrixStage(Array(), TStruct()) {
           override def blockContext(idx: (Int, Int)): IR = MakeStruct(Seq())
@@ -324,8 +325,11 @@ object LowerBlockMatrixIR {
           override def blockBody(ctxRef: Ref): IR = MakeNDArray(MakeArray(element), MakeTuple(Seq((0, I64(1)), (1, I64(1)))), False(), ErrorIDs.NO_ERROR)
         }
       }
-      case x@ValueToBlockMatrix(child, _, blockSize) => // row major or scalar
-        val nd = MakeNDArray(child, MakeTuple.ordered(FastSeq(I64(x.typ.nRows), I64(x.typ.nCols))), True(), ErrorIDs.NO_ERROR)
+      case x@ValueToBlockMatrix(child, _, blockSize) =>
+        val nd = child.typ match {
+          case _: TArray => MakeNDArray(child, MakeTuple.ordered(FastSeq(I64(x.typ.nRows), I64(x.typ.nCols))), True(), ErrorIDs.NO_ERROR)
+          case _: TNDArray => child
+        }
         val v = Ref(genUID(), nd.typ)
         new BlockMatrixStage(
           Array(v.name -> nd),
