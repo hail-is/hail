@@ -6,6 +6,11 @@ Change Log
 **Version 0.2.66**
 
 - Removed the need for the ``project`` argument in ``Batch()`` unless you are creating a PythonJob
+- Set the default for ``Job.memory`` to be 'standard'
+- Added the `cancel_after_n_failures` option to ``Batch()``
+- Fixed executing a job with ``Job.memory`` set to 'lowmem', 'standard', and 'highmem' when using the
+  ``LocalBackend``
+- Fixed executing a ``PythonJob`` when using the ``LocalBackend``
 
 **Version 0.2.65**
 
