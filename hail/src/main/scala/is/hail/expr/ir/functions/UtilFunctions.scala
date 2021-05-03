@@ -227,7 +227,7 @@ object UtilFunctions extends RegistryFunctions {
             })
         cb.goto(Ldefined)
 
-        IEmitCode(Lmissing, Ldefined, PCode(rt, value.load()))
+        IEmitCode(Lmissing, Ldefined, PCode(rt, value.load()), v1.required || v2.required)
       }
 
       registerIEmitCode2(ignoreMissingName, TInt32, TInt32, TInt32, (_: Type, t1: PType, t2: PType) => PInt32(t1.required && t2.required)) {

@@ -292,7 +292,7 @@ object LocusFunctions extends RegistryFunctions {
 
           val intervalCode = emitLocusInterval(cb, r, interval, rt)
           cb.goto(Ldefined)
-          IEmitCode(Lmissing, Ldefined, intervalCode)
+          IEmitCode(Lmissing, Ldefined, intervalCode, false)
         }
       }
     }
@@ -338,7 +338,7 @@ object LocusFunctions extends RegistryFunctions {
 
                     val intervalCode = emitLocusInterval(cb, r, interval, rt)
                     cb.goto(Ldefined)
-                    IEmitCode(Lmissing, Ldefined, intervalCode)
+                    IEmitCode(Lmissing, Ldefined, intervalCode, false)
                   }
                 }
               }
@@ -399,7 +399,7 @@ object LocusFunctions extends RegistryFunctions {
             val structCode = rt.constructFromFields(cb, r, FastIndexedSeq(locusCode, negativeStrandCode), deepCopy = false)
 
             cb.goto(Ldefined)
-            IEmitCode(Lmissing, Ldefined, structCode)
+            IEmitCode(Lmissing, Ldefined, structCode, false)
           }
         }
     }
@@ -441,7 +441,7 @@ object LocusFunctions extends RegistryFunctions {
 
 
             cb.goto(Ldefined)
-            IEmitCode(Lmissing, Ldefined, structCode)
+            IEmitCode(Lmissing, Ldefined, structCode, false)
           }
         }
     }
