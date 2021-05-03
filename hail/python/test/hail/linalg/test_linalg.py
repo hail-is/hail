@@ -41,7 +41,7 @@ class Tests(unittest.TestCase):
     @staticmethod
     def _np_matrix(a):
         if isinstance(a, BlockMatrix):
-            return np.array(a.to_numpy())
+            return hl.eval(a.to_ndarray())
         else:
             return np.array(a)
 
@@ -530,8 +530,6 @@ class Tests(unittest.TestCase):
                 self._assert_eq(bm_fifty_by_sixty.tree_matmul(bm_sixty_by_twenty_five, splits=split_size), fifty_by_sixty @ sixty_by_twenty_five)
 
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_fill(self):
         nd = np.ones((3, 5))
         bm = BlockMatrix.fill(3, 5, 1.0)
