@@ -367,7 +367,8 @@ object EmitStream {
           }
 
           IEmitCode(Lmissing, Lpresent,
-            SStreamCode(SStream(xElt.st, required = leftEC.pt.required && rightEC.pt.required), producer))
+            SStreamCode(SStream(xElt.st, required = leftEC.pt.required && rightEC.pt.required), producer),
+            leftEC.required && rightEC.required)
         }
 
       case StreamRange(startIR, stopIR, stepIR, _requiresMemoryManagementPerElement) =>

@@ -15,7 +15,7 @@ import is.hail.types.physical._
 import is.hail.types.physical.stypes.concrete.{SBaseStructPointerCode, SCanonicalShufflePointerCode, SCanonicalShufflePointerSettable}
 import is.hail.types.physical.stypes.interfaces.{SBaseStructCode, SNDArray, SNDArrayCode, SStreamCode}
 import is.hail.types.physical.stypes.primitives.{SFloat32, SFloat64, SInt32, SInt32Code, SInt64}
-import is.hail.types.physical.stypes.{SCode, SType}
+import is.hail.types.physical.stypes.{EmitType, SCode, SType}
 import is.hail.types.virtual._
 import is.hail.utils._
 import is.hail.utils.richUtils.RichCodeRegion
@@ -217,23 +217,23 @@ object IEmitCode {
     cb.ifx(m, { cb.goto(Lmissing) })
     val res: A = value
     cb.goto(Lpresent)
-    IEmitCodeGen(Lmissing, Lpresent, res)
+    IEmitCodeGen(Lmissing, Lpresent, res, false)
   }
 
-  def apply[A](Lmissing: CodeLabel, Lpresent: CodeLabel, value: A): IEmitCodeGen[A] =
-    IEmitCodeGen(Lmissing, Lpresent, value)
+  def apply[A](Lmissing: CodeLabel, Lpresent: CodeLabel, value: A, required: Boolean): IEmitCodeGen[A] =
+    IEmitCodeGen(Lmissing, Lpresent, value, false)
 
   def present[A](cb: EmitCodeBuilder, value: => A): IEmitCodeGen[A] = {
     val Lpresent = CodeLabel()
     val res: A = value
     cb.goto(Lpresent)
-    IEmitCodeGen(CodeLabel(), Lpresent, res)
+    IEmitCodeGen(CodeLabel(), Lpresent, res, true)
   }
 
   def missing[A](cb: EmitCodeBuilder, defaultValue: A): IEmitCodeGen[A] = {
     val Lmissing = CodeLabel()
     cb.goto(Lmissing)
-    IEmitCodeGen(Lmissing, CodeLabel(), defaultValue)
+    IEmitCodeGen(Lmissing, CodeLabel(), defaultValue, false)
   }
 
   def multiMapEmitCodes(cb: EmitCodeBuilder, seq: IndexedSeq[EmitCode])(f: IndexedSeq[PCode] => PCode): IEmitCode = {
@@ -252,15 +252,18 @@ object IEmitCode {
     val pc = f(pcs)
     cb.goto(Lpresent)
 
-    IEmitCodeGen(Lmissing, Lpresent, pc)
+    IEmitCodeGen(Lmissing, Lpresent, pc, seq.forall(_.required))
   }
 
   def multiFlatMap[A, B, C](seq: IndexedSeq[A], toIec: A => IEmitCodeGen[B], cb: EmitCodeBuilder)
                            (f: IndexedSeq[B] => IEmitCodeGen[C]): IEmitCodeGen[C] = {
     val Lmissing = CodeLabel()
 
+    var required: Boolean = true
     val pcs = seq.map { elem =>
       val iec = toIec(elem)
+      required = required && iec.required
+
 
       cb.define(iec.Lmissing)
       cb.goto(Lmissing)
@@ -269,17 +272,11 @@ object IEmitCode {
       iec.value
     }
     val iec = f(pcs)
+    required = required && iec.required
     cb.define(iec.Lmissing)
     cb.goto(Lmissing)
 
-    IEmitCodeGen(Lmissing, iec.Lpresent, iec.value)
-  }
-
-  def fromCodeTuple(cb: EmitCodeBuilder, pt: PType, ct: IndexedSeq[Code[_]]): IEmitCode = {
-    if (pt.required)
-      IEmitCode.present(cb, pt.fromCodeTuple(ct))
-    else
-      IEmitCode(cb, coerce[Boolean](ct.last), pt.fromCodeTuple(ct.init))
+    IEmitCodeGen(Lmissing, iec.Lpresent, iec.value, required)
   }
 }
 
@@ -293,17 +290,24 @@ object IEmitCodeGen {
   }
 }
 
-case class IEmitCodeGen[+A](Lmissing: CodeLabel, Lpresent: CodeLabel, value: A) {
+case class IEmitCodeGen[+A](Lmissing: CodeLabel, Lpresent: CodeLabel, value: A, val required: Boolean) {
+
+  lazy val emitType: EmitType = {
+    value match {
+      case pc: PCode => EmitType(pc.st, required)
+      case _ => throw new UnsupportedOperationException(s"emitType on $value")
+    }
+  }
 
   // This method is a very temporary patch until we can properly separate SCode and PCode
-  def typecast[T]: IEmitCodeGen[T] = IEmitCodeGen(Lmissing, Lpresent, value.asInstanceOf[T])
+  def typecast[T]: IEmitCodeGen[T] = IEmitCodeGen(Lmissing, Lpresent, value.asInstanceOf[T], required)
 
   def map[B](cb: EmitCodeBuilder)(f: (A) => B): IEmitCodeGen[B] = {
     val Lpresent2 = CodeLabel()
     cb.define(Lpresent)
     val value2 = f(value)
     cb.goto(Lpresent2)
-    IEmitCodeGen(Lmissing, Lpresent2, value2)
+    IEmitCodeGen(Lmissing, Lpresent2, value2, required)
   }
 
   def mapMissing(cb: EmitCodeBuilder)(ifMissing: => Unit): IEmitCodeGen[A] = {
@@ -311,7 +315,7 @@ case class IEmitCodeGen[+A](Lmissing: CodeLabel, Lpresent: CodeLabel, value: A) 
     cb.define(Lmissing)
     ifMissing
     cb.goto(Lmissing2)
-    IEmitCodeGen(Lmissing2, Lpresent, value)
+    IEmitCodeGen(Lmissing2, Lpresent, value, required)
   }
 
   def flatMap[B](cb: EmitCodeBuilder)(f: (A) => IEmitCodeGen[B]): IEmitCodeGen[B] = {
@@ -319,7 +323,7 @@ case class IEmitCodeGen[+A](Lmissing: CodeLabel, Lpresent: CodeLabel, value: A) 
     val ec2 = f(value)
     cb.define(ec2.Lmissing)
     cb.goto(Lmissing)
-    IEmitCodeGen(Lmissing, ec2.Lpresent, ec2.value)
+    IEmitCodeGen(Lmissing, ec2.Lpresent, ec2.value, required && ec2.required)
   }
 
   def handle(cb: EmitCodeBuilder, ifMissing: => Unit): A = {
@@ -368,7 +372,7 @@ case class IEmitCodeGen[+A](Lmissing: CodeLabel, Lpresent: CodeLabel, value: A) 
 object EmitCode {
   def apply(setup: Code[Unit], m: Code[Boolean], pv: PCode): EmitCode = {
     val mCC = Code(setup, m).toCCode
-    val iec = IEmitCode(new CodeLabel(mCC.Ltrue), new CodeLabel(mCC.Lfalse), pv)
+    val iec = IEmitCode(new CodeLabel(mCC.Ltrue), new CodeLabel(mCC.Lfalse), pv, false)
     val result = new EmitCode(new CodeLabel(mCC.entry), iec)
     result
   }
@@ -395,6 +399,11 @@ object EmitCode {
 }
 
 class EmitCode(private val start: CodeLabel, private val iec: IEmitCode) {
+
+  def required: Boolean = iec.required
+
+  lazy val emitType: EmitType = iec.emitType
+
   def emitParamType: PCodeEmitParamType = PCodeEmitParamType(st.pType)
 
   def st: SType = iec.value.st
@@ -699,7 +708,7 @@ class Emit[C](
 
     if (pt == PVoid) {
       emitVoid(ir)
-      return IEmitCode(CodeLabel(), CodeLabel(), PCode._empty)
+      return IEmitCode(CodeLabel(), CodeLabel(), PCode._empty, required = true)
     }
 
     def presentPC(pc: PCode): IEmitCode = IEmitCode.present(cb, pc)
@@ -767,7 +776,7 @@ class Emit[C](
 
         cb.goto(Lmissing)
 
-        IEmitCode(Lmissing, Ldefined, coalescedValue.load())
+        IEmitCode(Lmissing, Ldefined, coalescedValue.load(), emittedValues.forall(_.required))
 
       case If(cond, cnsq, altr) =>
         assert(cnsq.typ == altr.typ)
@@ -797,7 +806,7 @@ class Emit[C](
           })
           cb.goto(Ldefined)
 
-          IEmitCode(Lmissing, Ldefined, out.load())
+          IEmitCode(Lmissing, Ldefined, out.load(), codeCnsq.required && codeAltr.required)
         }
 
       case x@MakeStruct(fields) =>
