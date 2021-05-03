@@ -1862,10 +1862,10 @@ SELECT name, `status`, batches.id as batch_id
 FROM billing_projects
 LEFT JOIN batches
 ON billing_projects.name = batches.billing_project
+AND billing_projects.`status` != 'deleted'
+AND batches.time_completed IS NULL
+AND NOT batches.deleted
 WHERE name = %s
-  AND billing_projects.`status` != 'deleted'
-  AND batches.time_completed IS NULL
-  AND NOT batches.deleted
 LIMIT 1
 FOR UPDATE;
     ''',
