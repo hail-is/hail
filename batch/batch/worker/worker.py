@@ -1233,7 +1233,7 @@ class JVMJob(Job):
             async with Flock('/xfsquota/projects', pool=worker.pool):
                 await check_shell(f"sed -i '/{self.project_id}:/d' /xfsquota/projects")
 
-            blo shutil.rmtree(self.scratch, ignore_errors=True)
+            await blocking_to_async(self.pool, shutil.rmtree, self.scratch, ignore_errors=True)
         except asyncio.CancelledError:
             raise
         except Exception:
