@@ -1293,7 +1293,6 @@ class Emit[C](
                   xP.constructByCopyingArray(shapeValues, stridesSettables, memoData.asIndexable, cb, region)
                 }
               case _: TStream =>
-                cb.println("STREAM PATH")
                 EmitStream.produce(this, dataIR, cb, region, env, container)
                   .map(cb) {
                     case stream: SStreamCode => {
