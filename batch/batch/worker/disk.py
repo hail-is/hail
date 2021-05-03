@@ -36,14 +36,20 @@ class Disk:
         await self._format()
 
     async def delete(self):
-        await self._detach()
-        await self._delete()
+        try:
+            await self._detach()
+        finally:
+            await self._delete()
 
     async def _format(self):
-        await check_shell_output(f'mkfs.ext4 -m 0 -E lazy_itable_init=0,lazy_journal_init=0,discard {self.disk_path}')
-        await check_shell_output(f'mkdir -p {self.mount_path}')
-        await check_shell_output(f'mount -o discard,defaults {self.disk_path} {self.mount_path}')
-        await check_shell_output(f'chmod a+w {self.mount_path}')
+        try:
+            await check_shell_output(f'mkfs.ext4 -m 0 -E lazy_itable_init=0,lazy_journal_init=0,discard {self.disk_path}')
+            await check_shell_output(f'mkdir -p {self.mount_path}')
+            await check_shell_output(f'mount -o discard,defaults {self.disk_path} {self.mount_path}')
+            await check_shell_output(f'chmod a+w {self.mount_path}')
+        except Exception as e:
+            log.error(f'error while formatting disk {self}: {e}')
+            raise
 
     async def _create(self, labels=None):
         async with LoggingTimer(f'creating disk {self.name}'):
@@ -57,28 +63,42 @@ class Disk:
                 'labels': labels
             }
 
-            await self.compute_client.create_disk(f'/zones/{self.zone}/disks',
-                                                  json=config)
+            try:
+                await self.compute_client.create_disk(f'/zones/{self.zone}/disks',
+                                                      json=config)
+            except Exception as e:
+                log.error(f'error while creating disk {self}: {e}')
+                raise e
 
     async def _attach(self):
-        async with LoggingTimer(f'attaching disk {self.name} to {self.instance_name}'):
+        async with LoggingTimer(f'attaching disk {self} to {self.instance_name}'):
             config = {
                 'source': f'/compute/v1/projects/{self.project}/zones/{self.zone}/disks/{self.name}',
                 'autoDelete': True,
                 'deviceName': self.name
             }
 
-            await self.compute_client.attach_disk(f'/zones/{self.zone}/instances/{self.instance_name}/attachDisk',
-                                                  json=config)
+            try:
+                await self.compute_client.attach_disk(f'/zones/{self.zone}/instances/{self.instance_name}/attachDisk',
+                                                      json=config)
+            except Exception as e:
+                log.error(f'error while attaching disk {self}: {e}')
+                raise
 
     async def _detach(self):
         async with LoggingTimer(f'detaching disk {self.name} from {self.instance_name}'):
-            await self.compute_client.detach_disk(f'/zones/{self.zone}/instances/{self.instance_name}/detachDisk',
-                                                  params={'deviceName': self.name})
+            try:
+                await self.compute_client.detach_disk(f'/zones/{self.zone}/instances/{self.instance_name}/detachDisk',
+                                                      params={'deviceName': self.name})
+            except Exception as e:
+                log.error(f'error while detaching disk {self}: {e}')
 
     async def _delete(self):
         async with LoggingTimer(f'deleting disk {self.name}'):
-            await self.compute_client.delete_disk(f'/zones/{self.zone}/disks/{self.name}')
+            try:
+                await self.compute_client.delete_disk(f'/zones/{self.zone}/disks/{self.name}')
+            except Exception as e:
+                log.error(f'error while deleting disk {self}: {e}')
 
     def __str__(self):
         return self.name
