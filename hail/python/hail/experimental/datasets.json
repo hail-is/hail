@@ -56,7 +56,7 @@
       }
     ]
   },
-  "1000_Genomes_Retracted": {
+  "1000_Genomes_Retracted_autosomes": {
     "description": "1000 Genomes Project: These datasets have been retracted due to a number of known issues on GRCh38, see link for more details.",
     "url": "http://ftp.1000genomes.ebi.ac.uk/vol1/ftp/release/20130502/supporting/GRCh38_positions/README_GRCh38_liftover_20170504.txt",
     "versions": [
@@ -71,8 +71,14 @@
             "us": "gs://hail-datasets-us/1000_Genomes_autosomes.phase_3.GRCh38.mt"
           }
         },
-        "version": "phase_3_autosomes"
-      },
+        "version": "phase_3"
+      }
+    ]
+  },
+  "1000_Genomes_Retracted_chrX": {
+    "description": "1000 Genomes Project: These datasets have been retracted due to a number of known issues on GRCh38, see link for more details.",
+    "url": "http://ftp.1000genomes.ebi.ac.uk/vol1/ftp/release/20130502/supporting/GRCh38_positions/README_GRCh38_liftover_20170504.txt",
+    "versions": [
       {
         "reference_genome": "GRCh38",
         "url": {
@@ -84,8 +90,14 @@
             "us": "gs://hail-datasets-us/1000_Genomes_chrX.phase_3.GRCh38.mt"
           }
         },
-        "version": "phase_3_chrX"
-      },
+        "version": "phase_3"
+      }
+    ]
+  },
+  "1000_Genomes_Retracted_chrY": {
+    "description": "1000 Genomes Project: These datasets have been retracted due to a number of known issues on GRCh38, see link for more details.",
+    "url": "http://ftp.1000genomes.ebi.ac.uk/vol1/ftp/release/20130502/supporting/GRCh38_positions/README_GRCh38_liftover_20170504.txt",
+    "versions": [
       {
         "reference_genome": "GRCh38",
         "url": {
@@ -97,12 +109,12 @@
             "us": "gs://hail-datasets-us/1000_Genomes_chrY.phase_3.GRCh38.mt"
           }
         },
-        "version": "phase_3_chrY"
+        "version": "phase_3"
       }
     ]
   },
   "1000_Genomes_autosomes": {
-    "description": "1000 Genomes Project: The GRCh38 phase_3 version has been retracted, but is still available (see phase_3_autosomes version of the 1000_Genomes_Retracted dataset). For GRCh38, the NYGC 30x coverage autosomes phased dataset is available as 1000_Genomes_HighCov_autosomes.",
+    "description": "1000 Genomes Project: The GRCh38 phase_3 version has been retracted, but is still available (see the 1000_Genomes_Retracted_autosomes dataset). For GRCh38, the NYGC 30x coverage autosomes phased dataset is available as 1000_Genomes_HighCov_autosomes.",
     "url": "https://www.internationalgenome.org/home",
     "versions": [
       {
@@ -140,7 +152,7 @@
     ]
   },
   "1000_Genomes_chrX": {
-    "description": "1000 Genomes Project: The GRCh38 phase_3 version has been retracted, but is still available (see phase_3_chrX version of the 1000_Genomes_Retracted dataset). For GRCh38, the NYGC 30x coverage chrX phased dataset is available as 1000_Genomes_HighCov_chrX.",
+    "description": "1000 Genomes Project: The GRCh38 phase_3 version has been retracted, but is still available (see the 1000_Genomes_Retracted_chrX dataset). For GRCh38, the NYGC 30x coverage chrX phased dataset is available as 1000_Genomes_HighCov_chrX.",
     "url": "https://www.internationalgenome.org/home",
     "versions": [
       {
@@ -159,7 +171,7 @@
     ]
   },
   "1000_Genomes_chrY": {
-    "description": "1000 Genomes Project: The GRCh38 phase_3 version has been retracted, but is still available (see phase_3_chrY version of the 1000_Genomes_Retracted dataset). For GRCh38, the NYGC 30x coverage chrY dataset is available as 1000_Genomes_HighCov_chrY.",
+    "description": "1000 Genomes Project: The GRCh38 phase_3 version has been retracted, but is still available (see the 1000_Genomes_Retracted_chrY dataset). For GRCh38, the NYGC 30x coverage chrY dataset is available as 1000_Genomes_HighCov_chrY.",
     "url": "https://www.internationalgenome.org/home",
     "versions": [
       {
