@@ -1,3 +1,4 @@
+from typing import AsyncGenerator, Any, Callable
 import aiohttp
 import os
 import pytest
@@ -12,10 +13,10 @@ DOCKER_ROOT_IMAGE = os.environ.get('DOCKER_ROOT_IMAGE', 'gcr.io/hail-vdc/ubuntu:
 
 
 @pytest.fixture
-async def make_client():
+async def make_client() -> AsyncGenerator[Callable[[str], BatchClient], Any]:
     _bcs = []
 
-    async def factory(project=None):
+    async def factory(project):
         bc = BatchClient(project, token_file=os.environ['HAIL_TEST_TOKEN_FILE'])
         _bcs.append(bc)
         return bc
@@ -26,8 +27,9 @@ async def make_client():
 
 
 @pytest.fixture
-async def dev_client():
-    bc = BatchClient(None, token_file=os.environ['HAIL_TEST_DEV_TOKEN_FILE'])
+async def dev_client() -> AsyncGenerator[BatchClient, Any]:
+    bc = BatchClient('billing-project-not-needed-but-required-by-BatchClient',
+                     token_file=os.environ['HAIL_TEST_DEV_TOKEN_FILE'])
     yield bc
     await bc.close()
 
@@ -96,7 +98,7 @@ async def test_bad_token():
 
 
 async def test_get_billing_project(make_client):
-    c = await make_client()
+    c = await make_client('billing-project-not-needed-but-required-by-BatchClient')
     r = await c.get_billing_project('test')
     assert r['billing_project'] == 'test', r
     assert set(r['users']) == {'test', 'test-dev'}, r
@@ -104,7 +106,7 @@ async def test_get_billing_project(make_client):
 
 
 async def test_list_billing_projects(make_client):
-    c = await make_client()
+    c = await make_client('billing-project-not-needed-but-required-by-BatchClient')
     r = await c.list_billing_projects()
     test_bps = [p for p in r if p['billing_project'] == 'test']
     assert len(test_bps) == 1, r
@@ -116,7 +118,7 @@ async def test_list_billing_projects(make_client):
 
 async def test_unauthorized_billing_project_modification(make_client, new_billing_project):
     project = new_billing_project
-    client = await make_client()
+    client = await make_client('billing-project-not-needed-but-required-by-BatchClient')
     try:
         await client.create_billing_project(project)
     except aiohttp.ClientResponseError as e:
@@ -593,3 +595,16 @@ async def test_batch_cannot_be_accessed_by_users_outside_the_billing_project(
 
     finally:
         await b.delete()
+
+
+async def test_deleted_open_batches_do_not_prevent_billing_project_closure(
+        dev_client: BatchClient,
+        make_client: Callable[[str], BatchClient]
+):
+    try:
+        project = await dev_client.create_billing_project(get_billing_project_name())
+        client = make_client(project)
+        open_batch = await client.create_batch()._create()
+        await open_batch.delete()
+    finally:
+        await dev_client.close_billing_project(project)
