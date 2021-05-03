@@ -4327,7 +4327,8 @@ def _ndarray(collection, known_shape=None, row_major=None, dtype=None):
             data_expr = collection
             if known_shape is not None:
                 shape_expr = known_shape
-            shape_expr = to_expr(tuple([hl.int64(hl.len(collection))]), ttuple(tint64))
+            else:
+                shape_expr = to_expr(tuple([hl.int64(hl.len(collection))]), ttuple(tint64))
             ndim = 1
         elif isinstance(collection, NumericExpression):
             data_expr = array([collection])

@@ -93,7 +93,11 @@ def arange(start, stop=None, step=1) -> NDArrayNumericExpression:
     :class:`.NDArrayNumericExpression`
         A 1-dimensional ndarray from `start` to `stop` by `step`.
     """
-    return _ndarray(hl.range(start, stop, step), known_shape=hl.tuple(stop-start))
+    # if stop is not None:
+    #     return _ndarray(hl.range(start, stop, step), known_shape=hl.tuple(hl.int64(stop-start)))
+    # else:
+    #     return _ndarray(hl.range(start, stop, step), known_shape=hl.tuple([hl.int64(start)]))
+    return _ndarray(hl.range(start, stop, step)
 
 
 @typecheck(shape=shape_type, value=expr_any, dtype=nullable(HailType))
