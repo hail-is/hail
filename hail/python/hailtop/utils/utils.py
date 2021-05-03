@@ -683,7 +683,7 @@ def retry_all_errors(msg=None, error_logging_interval=10):
 T = TypeVar('T')  # pylint: disable=invalid-name
 
 
-async def retry_transient_errors(f: Callable[..., Awaitable[T]], *args, **kwargs) -> T:
+async def retry_transient_errors_n_times(max_errors: Optional[int], f: Callable[..., Awaitable[T]], *args, **kwargs) -> T:
     delay = 0.1
     errors = 0
     while True:
@@ -696,7 +696,13 @@ async def retry_transient_errors(f: Callable[..., Awaitable[T]], *args, **kwargs
             if errors % 10 == 0:
                 st = ''.join(traceback.format_stack())
                 log.warning(f'Encountered {errors} errors. My stack trace is {st}. Most recent error was {e}', exc_info=True)
+            if max_errors is not None and errors == max_errors:
+                raise
         delay = await sleep_and_backoff(delay)
+
+
+async def retry_transient_errors(f: Callable[..., Awaitable[T]], *args, **kwargs) -> T:
+    await retry_transient_errors_n_times(None, f, *args, **kwargs)
 
 
 def sync_retry_transient_errors(f, *args, **kwargs):

@@ -156,12 +156,15 @@ async def _handle_ui_error(session, f, *args, **kwargs):
         await f(*args, **kwargs)
     except KeyError as e:
         set_message(session, str(e), 'error')
+        log.info(f'ui error: KeyError {e}')
         return True
     except BatchOperationAlreadyCompletedError as e:
         set_message(session, e.message, e.ui_error_type)
+        log.info(f'ui error: BatchOperationAlreadyCompletedError {e.message}')
         return True
     except BatchUserError as e:
         set_message(session, e.message, e.ui_error_type)
+        log.info(f'ui error: BatchUserError {e.message}')
         return True
     else:
         return False
