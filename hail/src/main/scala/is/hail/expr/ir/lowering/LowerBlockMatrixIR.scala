@@ -223,11 +223,10 @@ object LowerBlockMatrixIR {
         new BlockMatrixStage(Array(elt.name -> eltValue), TTuple(TInt64, TInt64)) {
           def blockContext(idx: (Int, Int)): IR = {
             val (i, j) = x.typ.blockShape(idx._1, idx._2)
-            // Block size in block matrix type is an int, so it's safe to cast.
-            MakeTuple.ordered(FastSeq(I32(i.toInt), I32(j.toInt)))
+            MakeTuple.ordered(FastSeq(I64(i.toInt), I64(j.toInt)))
           }
           def blockBody(ctxRef: Ref): IR =
-            MakeNDArray(ToArray(mapIR(rangeIR(GetTupleElement(ctxRef, 0) * GetTupleElement(ctxRef, 1)))(_ => elt)),
+            MakeNDArray(ToArray(mapIR(rangeIR( invoke("toInt32", TInt32, GetTupleElement(ctxRef, 0) * GetTupleElement(ctxRef, 1))) )(_ => elt)),
               ctxRef, True(), ErrorIDs.NO_ERROR)
         }
       case x@BlockMatrixBroadcast(child, IndexedSeq(axis), _, _) =>
