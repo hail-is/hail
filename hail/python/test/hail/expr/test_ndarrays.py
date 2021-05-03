@@ -328,7 +328,7 @@ def test_ndarray_reshape():
 def test_ndarray_map():
     a = hl.nd.array([[2, 3, 4], [5, 6, 7]])
     b = hl.map(lambda x: -x, a)
-    b2 = b.map(lambda x: x*x)
+    b2 = b.map(lambda x: x * x)
     c = hl.map(lambda x: True, a)
 
     assert_ndarrays_eq(
