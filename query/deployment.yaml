@@ -98,9 +98,9 @@ spec:
 {% if deploy %}
            - name: HAIL_QUERY_GCS_PATH
              valueFrom:
-             secretKeyRef:
-               name: global-config
-               key: hail_query_gcs_path
+               secretKeyRef:
+                 name: global-config
+                 key: hail_query_gcs_path
 {% else %}
            - name: HAIL_QUERY_GCS_PATH
              value: gs://hail-test-dmk9z/{{ upload_query_jar.token }}
