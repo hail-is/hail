@@ -891,7 +891,15 @@ SELECT instance_id, internal_token FROM globals;
 
     aiogoogle_credentials = aiogoogle.Credentials.from_file('/gsa-key/key.json')
     compute_client = aiogoogle.ComputeClient(
-        PROJECT, credentials=aiogoogle_credentials)
+        PROJECT,
+        credentials=aiogoogle_credentials,
+        # https://cloud.google.com/compute/docs/api-rate-limits
+        # The operations of most concern are: createDisk, attachDisk, detachDisk,
+        # and deleteDisk which I believe these all qualify as simple "Queries" which
+        # have a project-wide limit of 20 requests per second. We keep 18 requests per
+        # second uses 90% of our quota. The remaining two operations per second enable
+        # developers fleixiblity to create disks and instances for debugging purposes.
+        rate_limit=RateLimit(18, 100))
     app['compute_client'] = compute_client
 
     logging_client = aiogoogle.LoggingClient(
