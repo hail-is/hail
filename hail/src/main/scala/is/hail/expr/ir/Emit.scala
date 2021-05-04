@@ -416,7 +416,7 @@ class EmitCode(private val start: CodeLabel, private val iec: IEmitCode) {
 
   def setup: Code[Unit] = Code._empty
 
-  val m: Code[Boolean] = if (iec.required) const(false) else new CCode(start.L, iec.Lmissing.L, iec.Lpresent.L)
+  val m: Code[Boolean] = new CCode(start.L, iec.Lmissing.L, iec.Lpresent.L)
 
   def pt: PType = pv.pt
 
