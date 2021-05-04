@@ -212,12 +212,16 @@ class EmitUnrealizableValue(private val ec: EmitCode) extends EmitValue {
  */
 object IEmitCode {
   def apply[A](cb: EmitCodeBuilder, m: Code[Boolean], value: => A): IEmitCodeGen[A] = {
-    val Lmissing = CodeLabel()
-    val Lpresent = CodeLabel()
-    cb.ifx(m, { cb.goto(Lmissing) })
-    val res: A = value
-    cb.goto(Lpresent)
-    IEmitCodeGen(Lmissing, Lpresent, res, false)
+    Code.constBoolValue(m) match {
+      case Some(false) => present(cb, value)
+      case _ =>
+        val Lmissing = CodeLabel()
+        val Lpresent = CodeLabel()
+        cb.ifx(m, cb.goto(Lmissing))
+        val res: A = value
+        cb.goto(Lpresent)
+        IEmitCodeGen(Lmissing, Lpresent, res, false)
+    }
   }
 
   def apply[A](Lmissing: CodeLabel, Lpresent: CodeLabel, value: A, required: Boolean): IEmitCodeGen[A] =

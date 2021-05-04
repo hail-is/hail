@@ -2,8 +2,8 @@ package is.hail.asm4s
 
 import java.io.PrintStream
 import java.lang.reflect
-
 import is.hail.lir
+import is.hail.lir.{LdcX, ValueX}
 import is.hail.utils._
 import org.objectweb.asm.Opcodes._
 import org.objectweb.asm.Type
@@ -428,6 +428,12 @@ object Code {
     f.put(null, rhs)
   }
 
+  def constBoolValue(c: Code[Boolean]): Option[Boolean] =
+    c match {
+      case const: ConstCodeBoolean => Some(const.b)
+      case _ => None
+    }
+
   def currentTimeMillis(): Code[Long] = Code.invokeStatic0[java.lang.System, Long]("currentTimeMillis")
 
   def memoize[T, U](c: Code[T], name: String)(f: (Value[T]) => Code[U])(implicit tti: TypeInfo[T]): Code[U] = {
@@ -678,6 +684,27 @@ class CCode(
   }
 }
 
+class ConstCodeBoolean(val b: Boolean) extends Code[Boolean] {
+
+  private[this] lazy val ldc = new lir.LdcX(if (b) 1 else 0, BooleanInfo, 0)
+  private[this] lazy val vc = {
+    val L = new lir.Block()
+    new VCode(L, L, ldc)
+  }
+
+  def toCCode: CCode = vc.toCCode
+
+  def start: lir.Block = vc.start
+
+  def end: lir.Block = vc.end
+
+  def v: lir.ValueX = vc.v
+
+  def check(): Unit = vc.check()
+
+  def clear(): Unit = vc.clear()
+}
+
 class CodeBoolean(val lhs: Code[Boolean]) extends AnyVal {
   def toCCode: CCode = lhs match {
     case x: CCode =>
@@ -701,7 +728,10 @@ class CodeBoolean(val lhs: Code[Boolean]) extends AnyVal {
       newC
   }
 
-  def unary_!(): Code[Boolean] = !lhs.toCCode
+  def unary_!(): Code[Boolean] = lhs match {
+    case const: ConstCodeBoolean => new ConstCodeBoolean(!const.b)
+    case _ => !lhs.toCCode
+  }
 
   def muxAny(cthen: Code[_], celse: Code[_]): Code[_] = {
     mux[Any](coerce[Any](cthen), coerce[Any](celse))
