@@ -106,7 +106,7 @@ abstract class CodeOrdering {
 
     val cacheKey = ("ordering", reversed, type1, type2, context, missingEqual)
     val mb = cb.emb.ecb.getOrGenEmitMethod(s"ord_$context", cacheKey,
-      FastIndexedSeq(arg1.st.asEmitParam, arg2.st.asEmitParam), ti) { mb =>
+      FastIndexedSeq(arg1.emitParamType, arg2.emitParamType), ti) { mb =>
 
       mb.emitWithBuilder[T] { cb =>
         val arg1 = mb.getEmitParam(1, null) // can't contain streams

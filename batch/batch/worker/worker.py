@@ -43,7 +43,7 @@ from ..globals import (HTTP_CLIENT_MAX_SIZE, STATUS_FORMAT_VERSION, RESERVED_STO
                        MAX_PERSISTENT_SSD_SIZE_GIB)
 from ..batch_format_version import BatchFormatVersion
 from ..worker_config import WorkerConfig
-from ..public_gcr_images import public_gcr_images
+from ..publicly_available_images import publicly_available_images
 from ..utils import storage_gib_to_bytes, Box
 
 from .disk import Disk
@@ -68,7 +68,7 @@ INSTANCE_ID = os.environ['INSTANCE_ID']
 PROJECT = os.environ['PROJECT']
 ZONE = os.environ['ZONE'].rsplit('/', 1)[1]
 DOCKER_PREFIX = os.environ['DOCKER_PREFIX']
-PUBLIC_GCR_IMAGES = public_gcr_images(DOCKER_PREFIX)
+PUBLIC_IMAGES = publicly_available_images(DOCKER_PREFIX)
 WORKER_CONFIG = json.loads(base64.b64decode(os.environ['WORKER_CONFIG']).decode())
 MAX_IDLE_TIME_MSECS = int(os.environ['MAX_IDLE_TIME_MSECS'])
 WORKER_DATA_DISK_MOUNT = os.environ['WORKER_DATA_DISK_MOUNT']
@@ -267,7 +267,7 @@ class Container:
 
         image_ref = parse_docker_image_reference(self.spec['image'])
 
-        if image_ref.tag is None:
+        if image_ref.tag is None and image_ref.digest is None:
             log.info(f'adding latest tag to image {self.spec["image"]} for {self}')
             image_ref.tag = 'latest'
 
@@ -403,13 +403,13 @@ class Container:
     async def run(self, worker):
         try:
             async with self.step('pulling'):
-                is_gcr_image = is_google_registry_domain(self.image_ref.domain)
-                is_public_gcr_image = self.image_ref.name() in PUBLIC_GCR_IMAGES
+                is_google_image = is_google_registry_domain(self.image_ref.domain)
+                is_public_image = self.image_ref.name() in PUBLIC_IMAGES
 
                 try:
-                    if not is_gcr_image:
+                    if not is_google_image:
                         await self.ensure_image_is_pulled()
-                    elif is_public_gcr_image:
+                    elif is_public_image:
                         auth = await self.batch_worker_access_token()
                         await self.ensure_image_is_pulled(auth=auth)
                     else:

@@ -223,10 +223,10 @@ object LowerBlockMatrixIR {
         new BlockMatrixStage(Array(elt.name -> eltValue), TTuple(TInt64, TInt64)) {
           def blockContext(idx: (Int, Int)): IR = {
             val (i, j) = x.typ.blockShape(idx._1, idx._2)
-            MakeTuple.ordered(FastSeq(I64(i), I64(j)))
+            MakeTuple.ordered(FastSeq(I64(i.toInt), I64(j.toInt)))
           }
           def blockBody(ctxRef: Ref): IR =
-            MakeNDArray(ToArray(mapIR(rangeIR(GetTupleElement(ctxRef, 0) * GetTupleElement(ctxRef, 1)))(_ => elt)),
+            MakeNDArray(ToArray(mapIR(rangeIR(Cast(GetTupleElement(ctxRef, 0) * GetTupleElement(ctxRef, 1), TInt32)))(_ => elt)),
               ctxRef, True(), ErrorIDs.NO_ERROR)
         }
       case x@BlockMatrixBroadcast(child, IndexedSeq(axis), _, _) =>
@@ -316,8 +316,14 @@ object LowerBlockMatrixIR {
       case BlockMatrixSparsify(child, sparsifier) => lower(child)
 
       case RelationalLetBlockMatrix(name, value, body) => unimplemented(bmir)
-      case ValueToBlockMatrix(child, shape, blockSize) if !child.typ.isInstanceOf[TArray] =>
-        throw new LowererUnsupportedOperation("use explicit broadcast for scalars!")
+      case ValueToBlockMatrix(child, shape, blockSize) if !child.typ.isInstanceOf[TArray] => {
+        val element = lowerIR(child)
+        new BlockMatrixStage(Array(), TStruct()) {
+          override def blockContext(idx: (Int, Int)): IR = MakeStruct(Seq())
+
+          override def blockBody(ctxRef: Ref): IR = MakeNDArray(MakeArray(element), MakeTuple(Seq((0, I64(1)), (1, I64(1)))), False(), ErrorIDs.NO_ERROR)
+        }
+      }
       case x@ValueToBlockMatrix(child, _, blockSize) => // row major or scalar
         val nd = MakeNDArray(child, MakeTuple.ordered(FastSeq(I64(x.typ.nRows), I64(x.typ.nCols))), True(), ErrorIDs.NO_ERROR)
         val v = Ref(genUID(), nd.typ)

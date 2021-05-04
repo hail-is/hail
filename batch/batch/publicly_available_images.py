@@ -1,7 +1,7 @@
 from typing import List
 
 
-def public_gcr_images(docker_prefix: str) -> List[str]:
+def publicly_available_images(docker_prefix: str) -> List[str]:
     # the worker cannot import batch_configuration because it does not have all the environment
     # variables
     return [

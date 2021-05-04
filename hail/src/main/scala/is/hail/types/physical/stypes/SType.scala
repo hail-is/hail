@@ -36,7 +36,10 @@ trait SType {
 
   def asIdent: String = pType.asIdent
 
-  def asEmitParam: EmitParamType = PCodeEmitParamType(pType)
-
   def equalsExceptTopLevelRequiredness(that: SType): Boolean = pType.equalModuloRequired(that.pType)
+}
+
+case class EmitType(st: SType, required: Boolean) {
+  def virtualType: Type = st.virtualType
+  def paramType: EmitParamType = PCodeEmitParamType(st.pType.setRequired(required))
 }

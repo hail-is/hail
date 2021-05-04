@@ -430,3 +430,9 @@ pre {
   word-wrap: normal;
   white-space: pre;
 }
+
+td a.fill-td {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
