@@ -2,8 +2,8 @@ package is.hail.asm4s
 
 import java.io.PrintStream
 import java.lang.reflect
-
 import is.hail.lir
+import is.hail.lir.LdcX
 import is.hail.utils._
 import org.objectweb.asm.Opcodes._
 import org.objectweb.asm.Type
@@ -428,6 +428,20 @@ object Code {
     f.put(null, rhs)
   }
 
+  def constBoolValue(c: Code[Boolean]): Option[Boolean] = {
+    c.v match {
+      case x: LdcX =>
+        if (c.start.first == null && c.start.last == null && c.end.first == null && c.end.last == null)
+          Some(x.a match {
+            case 1 => true
+            case 0 => false
+          })
+        else None
+      case _ => None
+    }
+  }
+
+
   def currentTimeMillis(): Code[Long] = Code.invokeStatic0[java.lang.System, Long]("currentTimeMillis")
 
   def memoize[T, U](c: Code[T], name: String)(f: (Value[T]) => Code[U])(implicit tti: TypeInfo[T]): Code[U] = {
@@ -701,7 +715,12 @@ class CodeBoolean(val lhs: Code[Boolean]) extends AnyVal {
       newC
   }
 
-  def unary_!(): Code[Boolean] = !lhs.toCCode
+  def unary_!(): Code[Boolean] = {
+    Code.constBoolValue(lhs) match {
+      case Some(b) => const(!b)
+      case None => !lhs.toCCode
+    }
+  }
 
   def muxAny(cthen: Code[_], celse: Code[_]): Code[_] = {
     mux[Any](coerce[Any](cthen), coerce[Any](celse))
