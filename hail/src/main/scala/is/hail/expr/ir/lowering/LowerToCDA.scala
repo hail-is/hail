@@ -11,6 +11,7 @@ import org.apache.spark.sql.Row
 object LowerToCDA {
 
   def apply(ir: IR, typesToLower: DArrayLowering.Type, ctx: ExecuteContext): IR = {
+    TypeCheck(ir)
     val r = Requiredness(ir, ctx)
 
     lower(ir, typesToLower, ctx, r, Map())

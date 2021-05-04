@@ -327,8 +327,8 @@ object LowerBlockMatrixIR {
       }
       case x@ValueToBlockMatrix(child, _, blockSize) =>
         val nd = child.typ match {
-          case _: TArray => MakeNDArray(child, MakeTuple.ordered(FastSeq(I64(x.typ.nRows), I64(x.typ.nCols))), True(), ErrorIDs.NO_ERROR)
-          case _: TNDArray => child
+          case _: TArray => MakeNDArray(lowerIR(child), MakeTuple.ordered(FastSeq(I64(x.typ.nRows), I64(x.typ.nCols))), True(), ErrorIDs.NO_ERROR)
+          case _: TNDArray => lowerIR(child)
         }
         val v = Ref(genUID(), nd.typ)
         new BlockMatrixStage(

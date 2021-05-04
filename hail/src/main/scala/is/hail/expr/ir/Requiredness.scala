@@ -42,8 +42,9 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
   def lookup(node: IR): TypeWithRequiredness = coerce[TypeWithRequiredness](cache(node))
   def lookupAs[T <: TypeWithRequiredness](node: IR): T = coerce[T](cache(node))
   def lookup(node: TableIR): RTable = coerce[RTable](cache(node))
+  def lookup(node: BlockMatrixIR): RBlockMatrix = coerce[RBlockMatrix](cache(node))
 
-  def supportedType(node: BaseIR): Boolean = node.isInstanceOf[TableIR] || node.isInstanceOf[IR]
+  def supportedType(node: BaseIR): Boolean = node.isInstanceOf[TableIR] || node.isInstanceOf[IR] || node.isInstanceOf[BlockMatrixIR]
 
   private def initializeState(node: BaseIR): Unit = if (!cache.contains(node)) {
     assert(supportedType(node))
@@ -60,7 +61,6 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
       case _ =>
     }
     node.children.foreach {
-      case c: BlockMatrixIR => //ignore block matrices
       case c: MatrixIR => fatal("Requiredness analysis only works on lowered MatrixTables. ")
       case c if supportedType(node) =>
         initializeState(c)
@@ -265,8 +265,9 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
   def analyze(node: BaseIR): Boolean = node match {
     case x: IR => analyzeIR(x)
     case x: TableIR => analyzeTable(x)
+    case x: BlockMatrixIR => analyzeBlockMatrix(x)
     case _ =>
-      fatal("MatrixTable and BlockMatrix must be lowered first.")
+      fatal("MatrixTable must be lowered first.")
   }
 
   def analyzeTable(node: TableIR): Boolean = {
@@ -692,6 +693,12 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
       case ShuffleRead(id, keyRange) =>
         coerce[RIterable](requiredness).elementType.fromPType(coerce[TShuffle](id.typ).rowDecodedPType)
     }
+    requiredness.probeChangedAndReset()
+  }
+
+  def analyzeBlockMatrix(node: BlockMatrixIR): Boolean = {
+    val requiredness = lookup(node)
+    // What do I do here? BlockMatrix is always required.
     requiredness.probeChangedAndReset()
   }
 }
