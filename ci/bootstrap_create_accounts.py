@@ -54,7 +54,8 @@ async def main():
         ('benchmark', None, 0, 1),
         ('ci', None, 0, 1),
         ('test', None, 0, 0),
-        ('test-dev', None, 1, 0)
+        ('test-dev', None, 1, 0),
+        ('query', None, 0, 1),
     ]
 
     app = {}

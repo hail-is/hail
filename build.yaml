@@ -366,6 +366,7 @@ steps:
       kubectl -n {{ default_ns.name }} get -o json secret test-gsa-key | jq '{apiVersion, kind, type, data, metadata: {name: "batch-gsa-key"}}' | kubectl -n {{ default_ns.name }} apply -f -
       kubectl -n {{ default_ns.name }} get -o json secret test-gsa-key | jq '{apiVersion, kind, type, data, metadata: {name: "benchmark-gsa-key"}}' | kubectl -n {{ default_ns.name }} apply -f -
       kubectl -n {{ default_ns.name }} get -o json secret test-gsa-key | jq '{apiVersion, kind, type, data, metadata: {name: "ci-gsa-key"}}' | kubectl -n {{ default_ns.name }} apply -f -
+      kubectl -n {{ default_ns.name }} get -o json secret test-gsa-key | jq '{apiVersion, kind, type, data, metadata: {name: "query-gsa-key"}}' | kubectl -n {{ default_ns.name }} apply -f -
       kubectl -n {{ default_ns.name }} get -o json secret test-gsa-key | jq '{apiVersion, kind, type, data, metadata: {name: "test-dev-gsa-key"}}' | kubectl -n {{ default_ns.name }} apply -f -
     scopes:
       - test
@@ -781,12 +782,9 @@ steps:
     inputs:
       - from: /repo
         to: /io/repo
-      - from: /just-jar/hail.jar
-        to: /io/repo/batch/hail.jar
       - from: /hail_version
         to: /io/repo/hail_version
     dependsOn:
-      - build_hail_jar_only
       - merge_code
   - kind: buildImage2
     name: service_java_run_base_image
@@ -2432,6 +2430,40 @@ steps:
       - deploy_address_sa
       - address_image
       - create_certs
+  - kind: runImage
+    name: upload_query_jar
+    image:
+      valueFrom: base_image.image
+    script: |
+      set -ex
+      gcloud -q auth activate-service-account --key-file=/query-gsa-key/key.json
+
+      {% if deploy %}
+      destination=$(cat /global-config/hail_query_gcs_path)/jars/
+      {% else %}
+      destination=gs://hail-test-dmk9z/{{ token }}/jars/
+      {% endif %}
+
+      gsutil -m cp /io/hail.jar ${destination}$(cat /io/git_version).jar
+    secrets:
+      - name: query-gsa-key
+        namespace:
+          valueFrom: default_ns.name
+        mountPath: /query-gsa-key
+      - name: global-config
+        namespace:
+          valueFrom: default_ns.name
+        mountPath: /global-config
+    inputs:
+      - from: /just-jar/hail.jar
+        to: /io/hail.jar
+      - from: /git_version
+        to: /io/git_version
+    dependsOn:
+      - default_ns
+      - base_image
+      - build_hail_jar_only
+      - merge_code
   - kind: deploy
     name: deploy_query
     namespace:
@@ -2447,6 +2479,7 @@ steps:
       - deploy_shuffler
       - query_image
       - deploy_query_sa
+      - upload_query_jar
       - deploy_address
       - create_certs
   - kind: deploy
@@ -2463,6 +2496,156 @@ steps:
       - memory_image
       - deploy_memory_sa
       - create_certs
+  - kind: runImage
+    name: test_hail_python_service_backend_0
+    image:
+      valueFrom: hail_run_image.image
+    script: |
+      set -ex
+      cd /io
+      tar xzf test.tar.gz
+      tar xvf wheel-container.tar
+      python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
+      export PYTEST_SPLITS=3
+      export PYTEST_SPLIT_INDEX=0
+      export HAIL_TEST_RESOURCES_DIR=gs://hail-test-dmk9z/{{ upload_test_resources_to_gcs.token }}/test/resources
+      export HAIL_DOCTEST_DATA_DIR=gs://hail-test-dmk9z/{{ upload_test_resources_to_gcs.token }}/doctest/data
+      export HAIL_QUERY_BACKEND=service
+      export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
+      hailctl config set batch/billing_project test
+      hailctl config set batch/bucket hail-test-dmk9z
+      python3 -m pytest -n 8 --ignore=test/hailtop/ --log-cli-level=INFO -s -vv --instafail --durations=50 test
+    inputs:
+      - from: /wheel-container.tar
+        to: /io/wheel-container.tar
+      - from: /test.tar.gz
+        to: /io/test.tar.gz
+    secrets:
+      - name: gce-deploy-config
+        namespace:
+          valueFrom: default_ns.name
+        mountPath: /deploy-config
+      - name: test-tokens
+        namespace:
+          valueFrom: default_ns.name
+        mountPath: /user-tokens
+      - name: ssl-config-query-tests
+        namespace:
+          valueFrom: default_ns.name
+        mountPath: /ssl-config
+      - name: test-gsa-key
+        namespace:
+          valueFrom: default_ns.name
+        mountPath: /test-gsa-key
+    timeout: 3600
+    dependsOn:
+      - default_ns
+      - upload_test_resources_to_gcs
+      - deploy_query
+      - deploy_memory
+      - deploy_shuffler
+      - hail_run_image
+      - build_hail
+  - kind: runImage
+    name: test_hail_python_service_backend_1
+    image:
+      valueFrom: hail_run_image.image
+    script: |
+      set -ex
+      cd /io
+      tar xzf test.tar.gz
+      tar xvf wheel-container.tar
+      python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
+      export PYTEST_SPLITS=3
+      export PYTEST_SPLIT_INDEX=1
+      export HAIL_TEST_RESOURCES_DIR=gs://hail-test-dmk9z/{{ upload_test_resources_to_gcs.token }}/test/resources
+      export HAIL_DOCTEST_DATA_DIR=gs://hail-test-dmk9z/{{ upload_test_resources_to_gcs.token }}/doctest/data
+      export HAIL_QUERY_BACKEND=service
+      export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
+      hailctl config set batch/billing_project test
+      hailctl config set batch/bucket hail-test-dmk9z
+      python3 -m pytest -n 8 --ignore=test/hailtop/ --log-cli-level=INFO -s -vv --instafail --durations=50 test
+    inputs:
+      - from: /wheel-container.tar
+        to: /io/wheel-container.tar
+      - from: /test.tar.gz
+        to: /io/test.tar.gz
+    secrets:
+      - name: gce-deploy-config
+        namespace:
+          valueFrom: default_ns.name
+        mountPath: /deploy-config
+      - name: test-tokens
+        namespace:
+          valueFrom: default_ns.name
+        mountPath: /user-tokens
+      - name: ssl-config-query-tests
+        namespace:
+          valueFrom: default_ns.name
+        mountPath: /ssl-config
+      - name: test-gsa-key
+        namespace:
+          valueFrom: default_ns.name
+        mountPath: /test-gsa-key
+    timeout: 3600
+    dependsOn:
+      - default_ns
+      - upload_test_resources_to_gcs
+      - deploy_query
+      - deploy_memory
+      - deploy_shuffler
+      - hail_run_image
+      - build_hail
+  - kind: runImage
+    name: test_hail_python_service_backend_2
+    image:
+      valueFrom: hail_run_image.image
+    script: |
+      set -ex
+      cd /io
+      tar xzf test.tar.gz
+      tar xvf wheel-container.tar
+      python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
+      export PYTEST_SPLITS=3
+      export PYTEST_SPLIT_INDEX=2
+      export HAIL_TEST_RESOURCES_DIR=gs://hail-test-dmk9z/{{ upload_test_resources_to_gcs.token }}/test/resources
+      export HAIL_DOCTEST_DATA_DIR=gs://hail-test-dmk9z/{{ upload_test_resources_to_gcs.token }}/doctest/data
+      export HAIL_QUERY_BACKEND=service
+      export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
+      hailctl config set batch/billing_project test
+      hailctl config set batch/bucket hail-test-dmk9z
+      python3 -m pytest -n 8 --ignore=test/hailtop/ --log-cli-level=INFO -s -vv --instafail --durations=50 test
+    inputs:
+      - from: /wheel-container.tar
+        to: /io/wheel-container.tar
+      - from: /test.tar.gz
+        to: /io/test.tar.gz
+    secrets:
+      - name: gce-deploy-config
+        namespace:
+          valueFrom: default_ns.name
+        mountPath: /deploy-config
+      - name: test-tokens
+        namespace:
+          valueFrom: default_ns.name
+        mountPath: /user-tokens
+      - name: ssl-config-query-tests
+        namespace:
+          valueFrom: default_ns.name
+        mountPath: /ssl-config
+      - name: test-gsa-key
+        namespace:
+          valueFrom: default_ns.name
+        mountPath: /test-gsa-key
+    timeout: 3600
+    dependsOn:
+      - default_ns
+      - upload_test_resources_to_gcs
+      - deploy_query
+      - deploy_memory
+      - deploy_shuffler
+      - hail_run_image
+      - build_hail
   - kind: runImage
     name: test_lsm
     image:
@@ -3793,6 +3976,9 @@ steps:
       - test_hailtop_batch_2
       - test_hailtop_batch_3
       - test_hailtop_batch_4
+      - test_hail_python_service_backend_0
+      - test_hail_python_service_backend_1
+      - test_hail_python_service_backend_2
   - kind: runImage
     name: delete_batch_instances
     image:
@@ -3835,6 +4021,9 @@ steps:
       - test_hailtop_batch_2
       - test_hailtop_batch_3
       - test_hailtop_batch_4
+      - test_hail_python_service_backend_0
+      - test_hail_python_service_backend_1
+      - test_hail_python_service_backend_2
   - kind: runImage
     name: delete_atgu_tables
     image:

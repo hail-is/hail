@@ -58,7 +58,7 @@ class VCFTests(unittest.TestCase):
         for f in _FLOAT_ARRAY_INFO_FIELDS:
             self.assertEqual(mt['info'][f].dtype, hl.tarray(hl.tfloat64))
 
-    @fails_service_backend()
+    @skip_when_service_backend('Shuffler encoding/decoding is broken.')
     def test_glob(self):
         full = hl.import_vcf(resource('sample.vcf'))
         parts = hl.import_vcf(resource('samplepart*.vcf'))
@@ -142,7 +142,6 @@ class VCFTests(unittest.TestCase):
         entries = entries.select('GT', 'GTA', 'GTZ')
         self.assertTrue(entries._same(expected))
 
-    @fails_service_backend()
     def test_import_vcf(self):
         vcf = hl.split_multi_hts(
             hl.import_vcf(resource('sample2.vcf'),
@@ -188,7 +187,6 @@ class VCFTests(unittest.TestCase):
                                              hl.agg.all(mt.negative_int_array == [-1, -2]) &
                                              hl.agg.all(mt.negative_float_array == [-0.5, -1.5])))
 
-    @fails_service_backend()
     def test_import_vcf_missing_info_field_elements(self):
         mt = hl.import_vcf(resource('missingInfoArray.vcf'), reference_genome='GRCh37', array_elements_required=False)
         mt = mt.select_rows(FOO=mt.info.FOO, BAR=mt.info.BAR)
@@ -233,7 +231,6 @@ class VCFTests(unittest.TestCase):
         mt = hl.import_vcf(resource('test_set_field_missing.vcf'))
         mt.aggregate_entries(hl.agg.sum(mt.DP))
 
-    @fails_service_backend()
     def test_import_vcf_dosages_as_doubles_or_floats(self):
         mt = hl.import_vcf(resource('small-ds.vcf'))
         self.assertEqual(hl.expr.expressions.typed_expressions.Float64Expression, type(mt.entry.DS))
@@ -459,6 +456,7 @@ class VCFTests(unittest.TestCase):
         self.assertEqual(len(parts), comb.n_partitions())
         comb._force_count_rows()
 
+    @fails_service_backend(reason='register_ir_function')
     def test_haploid_combiner_ok(self):
         from hail.experimental.vcf_combiner.vcf_combiner import transform_gvcf
         # make a combiner table
@@ -2004,7 +2002,6 @@ class ImportTableTests(unittest.TestCase):
                        ht.source.endswith('variantAnnotations.split.2.tsv'))))
 
 
-    @fails_service_backend()
     def test_read_write_identity(self):
         ht = self.small_dataset_1()
         f = new_temp_file(extension='ht')
@@ -2018,7 +2015,6 @@ class ImportTableTests(unittest.TestCase):
         ht.write(f)
         assert ht._same(hl.read_table(f))
 
-    @fails_service_backend()
     def test_import_same(self):
         ht = hl.import_table(resource('sampleAnnotations.tsv'))
         ht2 = hl.import_table(resource('sampleAnnotations.tsv'))

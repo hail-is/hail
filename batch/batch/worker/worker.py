@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, Dict, Callable
 import os
 import json
 import sys
@@ -17,6 +17,7 @@ from aiohttp import web
 import async_timeout
 import concurrent
 import aiodocker
+from collections import defaultdict
 from aiodocker.exceptions import DockerError
 import google.oauth2.service_account
 from hailtop.utils import (time_msecs, request_retry_transient_errors, sleep_and_backoff,
@@ -27,6 +28,7 @@ from hailtop.httpx import client_session
 from hailtop.batch_client.parse import (parse_cpu_in_mcpu, parse_memory_in_bytes, parse_storage_in_bytes)
 from hailtop.batch.hail_genetics_images import HAIL_GENETICS_IMAGES
 from hailtop import aiotools
+from hailtop.aiotools.fs import RouterAsyncFS, LocalAsyncFS
 import hailtop.aiogoogle as aiogoogle
 
 # import uvloop
@@ -217,33 +219,36 @@ class JobTimeoutError(Exception):
     pass
 
 
+class Timings:
+    def __init__(self, is_deleted: Callable[[], bool]):
+        self.timings: Dict[str, Dict[str, float]] = dict()
+        self.is_deleted = is_deleted
+
+    def step(self, name: str):
+        assert name not in self.timings
+        self.timings[name] = dict()
+        return ContainerStepManager(self.timings[name], self.is_deleted)
+
+    def to_dict(self):
+        return self.timings
+
+
 class ContainerStepManager:
-    def __init__(self, container, name, state):
-        self.container = container
-        self.state = state
-        self.name = name
-        self.timing = None
-        self._deleted = False
+    def __init__(self, timing: Dict[str, float], is_deleted: Callable[[], bool]):
+        self.timing: Dict[str, float] = timing
+        self.is_deleted = is_deleted
 
-    async def __aenter__(self):
-        if self.container.job.deleted:
-            self._deleted = True
+    def __enter__(self):
+        if self.is_deleted():
             raise JobDeletedError()
-        if self.state:
-            log.info(f'{self.container} state changed: {self.container.state} => {self.state}')
-            self.container.state = self.state
-        self.timing = {}
         self.timing['start_time'] = time_msecs()
-        self.container.timing[self.name] = self.timing
 
-    async def __aexit__(self, exc_type, exc, tb):
-        if self._deleted:
+    def __exit__(self, exc_type, exc, tb):
+        if self.is_deleted():
             return
-
         finish_time = time_msecs()
         self.timing['finish_time'] = finish_time
-        start_time = self.timing['start_time']
-        self.timing['duration'] = finish_time - start_time
+        self.timing['duration'] = finish_time - self.timing['start_time']
 
 
 def worker_fraction_in_1024ths(cpu_in_mcpu):
@@ -291,7 +296,7 @@ class Container:
         self.state = 'pending'
         self.short_error = None
         self.error = None
-        self.timing = {}
+        self.timings = Timings(self.is_job_deleted)
         self.container_status = None
         self.log = None
         self.overlay_path = None
@@ -348,9 +353,11 @@ class Container:
 
         return config
 
-    def step(self, name, **kwargs):
-        state = kwargs.get('state', name)
-        return ContainerStepManager(self, name, state)
+    def is_job_deleted(self) -> bool:
+        return self.job.deleted
+
+    def step(self, name: str):
+        return self.timings.step(name)
 
     async def get_container_status(self):
         if not self.container:
@@ -402,7 +409,7 @@ class Container:
 
     async def run(self, worker):
         try:
-            async with self.step('pulling'):
+            with self.step('pulling'):
                 is_google_image = is_google_registry_domain(self.image_ref.domain)
                 is_public_image = self.image_ref.name() in PUBLIC_IMAGES
 
@@ -426,10 +433,10 @@ class Container:
                     raise
 
             if self.port is not None:
-                async with self.step('allocating_port'):
+                with self.step('allocating_port'):
                     self.host_port = await port_allocator.allocate()
 
-            async with self.step('creating'):
+            with self.step('creating'):
                 config = self.container_config()
                 log.info(f'starting {self}')
                 self.container = await docker_call_retry(MAX_DOCKER_OTHER_OPERATION_SECS, f'{self}')(
@@ -448,12 +455,12 @@ class Container:
 
             await check_shell_output(f'xfs_quota -x -D /xfsquota/projects -P /xfsquota/projid -c "project -s {self.job.project_name}" /host/')
 
-            async with self.step('starting'):
+            with self.step('starting'):
                 await docker_call_retry(MAX_DOCKER_OTHER_OPERATION_SECS, f'{self}')(
                     start_container, self.container)
 
             timed_out = False
-            async with self.step('running'):
+            with self.step('running'):
                 try:
                     async with async_timeout.timeout(self.timeout):
                         await docker_call_retry(MAX_DOCKER_WAIT_SECS, f'{self}')(self.container.wait)
@@ -462,13 +469,13 @@ class Container:
 
             self.container_status = await self.get_container_status()
 
-            async with self.step('uploading_log'):
+            with self.step('uploading_log'):
                 await worker.log_store.write_log_file(
                     self.job.format_version, self.job.batch_id,
                     self.job.job_id, self.job.attempt_id, self.name,
                     await self.get_container_log())
 
-            async with self.step('deleting'):
+            with self.step('deleting'):
                 await self.delete_container()
 
             if timed_out:
@@ -556,7 +563,7 @@ class Container:
         status = {
             'name': self.name,
             'state': state,
-            'timing': self.timing
+            'timing': self.timings.to_dict()
         }
         if self.error:
             status['error'] = self.error
@@ -571,85 +578,6 @@ class Container:
 
     def __str__(self):
         return f'container {self.job.id}/{self.name}'
-
-
-class JVMProcess:
-    classpath = f'{find_spark_home()}/jars/*:/hail.jar:/log4j.properties'
-    stack_size = 512 * 1024
-    thread_pool = None
-
-    def __init__(self, job, main_spec):
-        self.job = job
-        self.heap_size = main_spec['memory'] - self.stack_size
-        self.env = {}
-        for var in main_spec.get('env', []):
-            self.env[var['name']] = var['value']
-
-        self.flags = ['-classpath', self.classpath, f'-Xmx{self.heap_size}', f'-Xss{self.stack_size}']
-        self.java_args = main_spec['command']
-
-        self.proc = None
-        self.timing = {'running': dict()}
-        self.state = 'pending'
-        self.logbuffer = bytearray()
-
-    async def pipe_to_log(self, strm: asyncio.StreamReader):
-        while not strm.at_eof():
-            self.logbuffer.extend(await strm.readline())
-
-    async def run(self, worker):
-        log.info(f'running {self}')
-        self.timing['running']['start_time'] = time_msecs()
-        self.proc = await asyncio.create_subprocess_exec(
-            'java',
-            *self.flags,
-            *self.java_args,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-            env=self.env)
-
-        await asyncio.gather(self.pipe_to_log(self.proc.stdout),
-                             self.pipe_to_log(self.proc.stderr))
-        await self.proc.wait()
-
-        finish_time = time_msecs()
-        self.timing['running']['finish_time'] = finish_time
-        start_time = self.timing['running']['start_time']
-        self.timing['running']['duration'] = finish_time - start_time
-
-        log.info(f'finished {self} with return code {self.proc.returncode}')
-        log.info(f'log {self}: {self.get_log()}')
-
-        await worker.log_store.write_log_file(
-            self.job.format_version, self.job.batch_id,
-            self.job.job_id, self.job.attempt_id, 'main',
-            self.get_log())
-
-        if self.proc.returncode == 0:
-            self.state = 'succeeded'
-        else:
-            self.state = 'failed'
-
-    async def status(self, state=None):
-        d = {
-            'name': 'main',
-            'state': self.state if not state else state,
-            'timing': self.timing
-        }
-        if self.proc is not None and self.proc.returncode is not None:
-            d['exit_code'] = self.proc.returncode
-        return d
-
-    def get_log(self):
-        return self.logbuffer.decode()
-
-    async def delete(self):
-        log.info(f'deleting {self}')
-        if self.proc is not None and self.proc.returncode is None:
-            self.proc.kill()
-
-    def __str__(self):
-        return f'process {self.job.id}/main'
 
 
 def populate_secret_host_path(host_path, secret_data):
@@ -1127,6 +1055,8 @@ class DockerJob(Job):
 
 
 class JVMJob(Job):
+    stack_size = 512 * 1024
+
     def secret_host_path(self, secret):
         return f'{self.scratch}/secrets{secret["mount_path"]}'
 
@@ -1169,7 +1099,34 @@ class JVMJob(Job):
             'cpu': self.cpu_in_mcpu,
             'memory': self.memory_in_bytes,
         }
-        self.process = JVMProcess(self, self.main_spec)
+
+        self.heap_size = self.memory_in_bytes - self.stack_size
+
+        user_command_string = job_spec['process']['command']
+        assert len(user_command_string) >= 3, user_command_string
+        self.revision = user_command_string[1]
+        self.jar_url = user_command_string[2]
+        classpath = f'{find_spark_home()}/jars/*:/hail-jars/{self.revision}.jar:/log4j.properties'
+
+        self.command_string = [
+            'java',
+            '-classpath', classpath,
+            f'-Xmx{self.heap_size}',
+            f'-Xss{self.stack_size}',
+            *user_command_string]
+
+        self.process = None
+        self.deleted = False
+        self.timings = Timings(lambda: self.deleted)
+        self.state = 'pending'
+        self.logbuffer = bytearray()
+
+    def step(self, name):
+        return self.timings.step(name)
+
+    async def pipe_to_log(self, strm: asyncio.StreamReader):
+        while not strm.at_eof():
+            self.logbuffer.extend(await strm.readline())
 
     async def run(self, worker):
         async with worker.cpu_sem(self.cpu_in_mcpu):
@@ -1201,10 +1158,49 @@ class JVMJob(Job):
                 populate_secret_host_path(self.gsa_key_file_path(), self.gsa_key)
                 self.state = 'running'
 
-                log.info(f'{self}: running jvm process')
+                log.info(f'{self}: downloading JAR')
+                with self.step('downloading_jar'):
+                    async with worker.jar_download_locks[self.revision]:
+                        local_jar_location = f'/hail-jars/{self.revision}.jar'
+                        if not os.path.isfile(local_jar_location):
+                            user_fs = RouterAsyncFS(
+                                'file',
+                                [LocalAsyncFS(worker.pool),
+                                 aiogoogle.GoogleStorageAsyncFS(credentials=aiogoogle.Credentials.from_file(
+                                     f'{self.scratch}/secrets/gsa-key/key.json'))])
+                            async with await user_fs.open(self.jar_url) as jar_data:
+                                await user_fs.makedirs('/hail-jars/', exist_ok=True)
+                                async with await user_fs.create(local_jar_location) as local_file:
+                                    while True:
+                                        b = await jar_data.read(256 * 1024)
+                                        if not b:
+                                            break
+                                        written = await local_file.write(b)
+                                        assert written == len(b)
 
-                await self.process.run(worker)
-                self.state = self.process.state
+                log.info(f'{self}: running jvm process')
+                with self.step('running'):
+                    self.process = await asyncio.create_subprocess_exec(
+                        *self.command_string,
+                        stdout=asyncio.subprocess.PIPE,
+                        stderr=asyncio.subprocess.PIPE,
+                        env={envvar['name']: envvar['value'] for envvar in self.env})
+
+                    await asyncio.gather(self.pipe_to_log(self.process.stdout),
+                                         self.pipe_to_log(self.process.stderr))
+                    await self.process.wait()
+
+                log.info(f'finished {self} with return code {self.process.returncode}')
+
+                await worker.log_store.write_log_file(
+                    self.format_version, self.batch_id,
+                    self.job_id, self.attempt_id, 'main',
+                    self.logbuffer.decode())
+
+                if self.process.returncode == 0:
+                    self.state = 'succeeded'
+                else:
+                    self.state = 'failed'
                 log.info(f'{self} main: {self.state}')
             except asyncio.CancelledError:
                 raise
@@ -1240,12 +1236,13 @@ class JVMJob(Job):
             log.exception('while deleting volumes')
 
     async def get_log(self):
-        return {'main': self.process.get_log()}
+        return {'main': self.logbuffer.decode()}
 
     async def delete(self):
         log.info(f'deleting {self}')
         self.deleted = True
-        await self.process.delete()
+        if self.process is not None and self.process.returncode is None:
+            self.process.kill()
 
     # {
     #   version: int,
@@ -1264,7 +1261,14 @@ class JVMJob(Job):
     # }
     async def status(self):
         status = await super().status()
-        status['container_statuses'] = {'main': await self.process.status()}
+        status['container_statuses'] = dict()
+        status['container_statuses']['main'] = {
+            'name': 'main',
+            'state': self.state,
+            'timing': self.timings.to_dict()
+        }
+        if self.process is not None and self.process.returncode is not None:
+            status['container_statuses']['main']['exit_code'] = self.process.returncode
         return status
 
     def __str__(self):
@@ -1281,6 +1285,7 @@ class Worker:
         self.jobs = {}
         self.stop_event = asyncio.Event()
         self.task_manager = aiotools.BackgroundTaskManager()
+        self.jar_download_locks = defaultdict(asyncio.Lock)
 
         # filled in during activation
         self.log_store = None
@@ -1565,15 +1570,15 @@ class Worker:
                 })
             resp_json = await resp.json()
 
-            with open('key.json', 'w') as f:
+            with open('/worker-key.json', 'w') as f:
                 f.write(json.dumps(resp_json['key']))
 
             credentials = google.oauth2.service_account.Credentials.from_service_account_file(
-                'key.json')
+                '/worker-key.json')
             self.log_store = LogStore(BATCH_LOGS_BUCKET_NAME, INSTANCE_ID, self.pool,
                                       project=PROJECT, credentials=credentials)
 
-            credentials = aiogoogle.Credentials.from_file('key.json')
+            credentials = aiogoogle.Credentials.from_file('/worker-key.json')
             self.compute_client = aiogoogle.ComputeClient(PROJECT, credentials=credentials)
 
             resp = await request_retry_transient_errors(

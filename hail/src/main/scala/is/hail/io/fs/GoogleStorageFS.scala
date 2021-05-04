@@ -41,7 +41,7 @@ object GoogleStorageFS {
     val uri = new URI(filename).normalize()
 
     val scheme = uri.getScheme
-    assert(scheme != null && scheme == "gs", uri.getScheme)
+    assert(scheme != null && scheme == "gs", (uri.getScheme, filename))
 
     val bucket = uri.getHost
     assert(bucket != null)
@@ -98,7 +98,7 @@ class GoogleStorageFileStatus(path: String, modificationTime: java.lang.Long, si
   def getOwner: String = null
 }
 
-class GoogleStorageFS(serviceAccountKey: String) extends FS {
+class GoogleStorageFS(val serviceAccountKey: String) extends FS {
   import GoogleStorageFS._
 
   @transient private lazy val storage: Storage = {
@@ -161,7 +161,7 @@ class GoogleStorageFS(serviceAccountKey: String) extends FS {
         }
 
         pos += 1
-        bb.get()
+        bb.get().toInt & 0xff
       }
 
       override def read(bytes: Array[Byte], off: Int, len: Int): Int = {
