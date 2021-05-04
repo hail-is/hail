@@ -575,7 +575,7 @@ def is_transient_error(e):
         return True
     if isinstance(e, socket.gaierror):
         # socket.EAI_AGAIN: [Errno -3] Temporary failure in name resolution
-        return e.args[0] == socket.EAI_AGAIN
+        return e.errno == socket.EAI_AGAIN
     if isinstance(e, ConnectionResetError):
         return True
     if isinstance(e, google.auth.exceptions.TransportError):
