@@ -1,4 +1,4 @@
-from typing import AsyncGenerator, Any, Callable
+from typing import AsyncGenerator, Any, Callable, Awaitable, List
 import aiohttp
 import os
 import pytest
@@ -13,7 +13,7 @@ DOCKER_ROOT_IMAGE = os.environ.get('DOCKER_ROOT_IMAGE', 'gcr.io/hail-vdc/ubuntu:
 
 
 @pytest.fixture
-async def make_client() -> AsyncGenerator[Callable[[str], BatchClient], Any]:
+async def make_client() -> AsyncGenerator[Callable[[str], Awaitable[BatchClient]], Any]:
     _bcs = []
 
     async def factory(project):
@@ -56,7 +56,7 @@ async def delete_all_test_billing_projects():
 def get_billing_project_name() -> Callable[[], str]:
     billing_project_prefix = get_billing_project_prefix()
     attempt_prefix = f'{billing_project_prefix}_{secret_alnum_string(5)}'
-    projects = []
+    projects: List[str] = []
 
     def get_name():
         name = f'{attempt_prefix}_{len(projects)}'
@@ -421,7 +421,7 @@ async def test_billing_limit_tiny(make_client, dev_client, new_billing_project):
     j7 = batch.create_job(DOCKER_ROOT_IMAGE, command=['sleep', '5'], parents=[j6])
     j8 = batch.create_job(DOCKER_ROOT_IMAGE, command=['sleep', '5'], parents=[j7])
     j9 = batch.create_job(DOCKER_ROOT_IMAGE, command=['sleep', '5'], parents=[j8])
-    j10 = batch.create_job(DOCKER_ROOT_IMAGE, command=['sleep', '5'], parents=[j9])
+    batch.create_job(DOCKER_ROOT_IMAGE, command=['sleep', '5'], parents=[j9])
     batch = await batch.submit()
     batch = await batch.wait()
     assert batch['state'] == 'cancelled', batch
@@ -470,16 +470,16 @@ async def test_user_can_access_batch_made_by_other_user_in_shared_billing_projec
     found, batches = await search_batches(user1_client, b.id, q=f'billing_project:{project}')
     assert found, str((b.id, batches))
 
-    found, batches = await search_batches(user1_client, b.id, q=f'user:test')
+    found, batches = await search_batches(user1_client, b.id, q='user:test')
     assert found, str((b.id, batches))
 
-    found, batches = await search_batches(user1_client, b.id, q=f'billing_project:foo')
+    found, batches = await search_batches(user1_client, b.id, q='billing_project:foo')
     assert not found, str((b.id, batches))
 
     found, batches = await search_batches(user1_client, b.id, q=None)
     assert found, str((b.id, batches))
 
-    found, batches = await search_batches(user1_client, b.id, q=f'user:test-dev')
+    found, batches = await search_batches(user1_client, b.id, q='user:test-dev')
     assert not found, str((b.id, batches))
 
     # list batches results for user2
@@ -489,16 +489,16 @@ async def test_user_can_access_batch_made_by_other_user_in_shared_billing_projec
     found, batches = await search_batches(user2_client, b.id, q=f'billing_project:{project}')
     assert found, str((b.id, batches))
 
-    found, batches = await search_batches(user2_client, b.id, q=f'user:test')
+    found, batches = await search_batches(user2_client, b.id, q='user:test')
     assert found, str((b.id, batches))
 
-    found, batches = await search_batches(user2_client, b.id, q=f'billing_project:foo')
+    found, batches = await search_batches(user2_client, b.id, q='billing_project:foo')
     assert not found, str((b.id, batches))
 
     found, batches = await search_batches(user2_client, b.id, q=None)
     assert not found, str((b.id, batches))
 
-    found, batches = await search_batches(user2_client, b.id, q=f'user:test-dev')
+    found, batches = await search_batches(user2_client, b.id, q='user:test-dev')
     assert not found, str((b.id, batches))
 
     await user2_batch.status()
@@ -584,13 +584,13 @@ async def test_batch_cannot_be_accessed_by_users_outside_the_billing_project(
         found, batches = await search_batches(user2_client, b.id, q=f'billing_project:{project}')
         assert not found, str((b.id, batches))
 
-        found, batches = await search_batches(user2_client, b.id, q=f'user:test')
+        found, batches = await search_batches(user2_client, b.id, q='user:test')
         assert not found, str((b.id, batches))
 
         found, batches = await search_batches(user2_client, b.id, q=None)
         assert not found, str((b.id, batches))
 
-        found, batches = await search_batches(user2_client, b.id, q=f'user:test-dev')
+        found, batches = await search_batches(user2_client, b.id, q='user:test-dev')
         assert not found, str((b.id, batches))
 
     finally:
@@ -599,12 +599,12 @@ async def test_batch_cannot_be_accessed_by_users_outside_the_billing_project(
 
 async def test_deleted_open_batches_do_not_prevent_billing_project_closure(
         dev_client: BatchClient,
-        make_client: Callable[[str], BatchClient],
+        make_client: Callable[[str], Awaitable[BatchClient]],
         get_billing_project_name: Callable[[], str]
 ):
     try:
         project = await dev_client.create_billing_project(get_billing_project_name())
-        client = make_client(project)
+        client = await make_client(project)
         open_batch = await client.create_batch()._create()
         await open_batch.delete()
     finally:
