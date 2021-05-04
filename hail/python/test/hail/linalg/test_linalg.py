@@ -445,11 +445,9 @@ class Tests(unittest.TestCase):
         self._assert_close(m / nr, m / r)
         self._assert_close(m / nm, m / m)
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_special_elementwise_ops(self):
         nm = np.array([[1.0, 2.0, 3.0, 3.14], [4.0, 5.0, 6.0, 12.12]])
-        m = BlockMatrix.from_numpy(nm)
+        m = BlockMatrix.from_ndarray(hl.nd.array(nm))
 
         self._assert_close(m ** 3, nm ** 3)
         self._assert_close(m.sqrt(), np.sqrt(nm))

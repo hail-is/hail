@@ -235,6 +235,7 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
       case CollectDistributedArray(ctxs, globs, c, g, body, _) =>
         addElementBinding(c, ctxs)
         addBinding(g, globs)
+      case BlockMatrixMap(child, eltName, f, _) => addBinding(eltName, f)
       case TableAggregate(c, q) =>
         addTableBinding(c)
       case TableFilter(child, pred) =>
@@ -698,7 +699,8 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
 
   def analyzeBlockMatrix(node: BlockMatrixIR): Boolean = {
     val requiredness = lookup(node)
-    // What do I do here? BlockMatrix is always required.
+    // BlockMatrix is always required, so I don't change anything.
+
     requiredness.probeChangedAndReset()
   }
 }
