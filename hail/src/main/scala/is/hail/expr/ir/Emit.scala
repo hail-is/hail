@@ -418,8 +418,6 @@ class EmitCode(private val start: CodeLabel, private val iec: IEmitCode) {
 
   def v: Code[_] = pv.code
 
-  def value[T]: Code[T] = coerce[T](v)
-
   def toI(cb: EmitCodeBuilder): IEmitCode = {
     cb.goto(start)
     iec
