@@ -860,16 +860,16 @@ class Tests(unittest.TestCase):
             self._assert_eq(expected, BlockMatrix.rectangles_to_numpy(rect_uri))
             self._assert_eq(expected, BlockMatrix.rectangles_to_numpy(rect_bytes_uri, binary=True))
 
-    @fails_service_backend
-    @fails_local_backend
+    @fails_service_backend()
+    @fails_local_backend()
     def test_to_ndarray(self):
-        np_mat = np.arange(12).reshape((4, 3))
-        mat = BlockMatrix.from_numpy(np_mat).to_ndarray()
+        np_mat = np.arange(12).reshape((4, 3)).astype(np.float64)
+        mat = BlockMatrix.from_ndarray(hl.nd.array(np_mat)).to_ndarray()
         self.assertTrue(np.array_equal(np_mat, hl.eval(mat)))
 
         blocks_to_sparsify = [1, 4, 7, 12, 20, 42, 48]
         sparsed_numpy = sparsify_numpy(np.arange(25*25).reshape((25, 25)), 4,  blocks_to_sparsify)
-        sparsed = BlockMatrix.from_numpy(sparsed_numpy, block_size=4)._sparsify_blocks(blocks_to_sparsify).to_ndarray()
+        sparsed = BlockMatrix.from_ndarray(hl.nd.array(sparsed_numpy), block_size=4)._sparsify_blocks(blocks_to_sparsify).to_ndarray()
         self.assertTrue(np.array_equal(sparsed_numpy, hl.eval(sparsed)))
 
     @fails_service_backend()

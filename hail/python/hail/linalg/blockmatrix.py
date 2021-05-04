@@ -9,7 +9,7 @@ import scipy.linalg as spla
 import hail as hl
 import hail.expr.aggregators as agg
 from hail.expr import construct_expr, construct_variable
-from hail.expr.expressions import (expr_float64, matrix_table_source,
+from hail.expr.expressions import (expr_float64, matrix_table_source, expr_ndarray,
                                    check_entry_indexed, expr_tuple, expr_array, expr_int32, expr_int64)
 from hail.ir import (BlockMatrixWrite, BlockMatrixMap2, ApplyBinaryPrimOp, F64,
                      BlockMatrixBroadcast, ValueToBlockMatrix, BlockMatrixRead, JavaBlockMatrix,
@@ -509,9 +509,14 @@ class BlockMatrix(object):
         return BlockMatrix(ValueToBlockMatrix(hl.literal(data)._ir, [n_rows, n_cols], block_size))
 
     @classmethod
+    @typecheck_method(ndarray_expression=expr_ndarray(), block_size=int)
     def from_ndarray(cls, ndarray_expression, block_size=4096):
         """Create a BlockMatrix from an ndarray"""
+        if ndarray_expression.dtype.element_type != hl.tfloat64:
+            raise ValueError("BlockMatrix.from_ndarray expects an ndarray of type float64")
+
         shape = hl.eval(ndarray_expression.shape)
+
         if shape is None:
             raise ValueError("Cannot make a BlockMatrix from a missing NDArray")
         return BlockMatrix(ValueToBlockMatrix(ndarray_expression._ir, shape, block_size))
