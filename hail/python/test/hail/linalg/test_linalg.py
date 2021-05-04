@@ -46,6 +46,9 @@ class Tests(unittest.TestCase):
             return np.array(a)
 
     def _assert_eq(self, a, b):
+        test_val = np.array_equal(self._np_matrix(a), self._np_matrix(b))
+        if test_val is False:
+            import pdb; pdb.set_trace()
         self.assertTrue(np.array_equal(self._np_matrix(a), self._np_matrix(b)))
 
     def _assert_close(self, a, b):
@@ -145,12 +148,10 @@ class Tests(unittest.TestCase):
             BlockMatrix.write_from_entry_expr(mt.x + 2, path, overwrite=True)
             self._assert_eq(BlockMatrix.read(path), bm + 2)
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_random_uniform(self):
         uniform = BlockMatrix.random(10, 10, gaussian=False)
 
-        nuniform = uniform.to_numpy()
+        nuniform = hl.eval(uniform.to_ndarray())
         for row in nuniform:
             for entry in row:
                 assert entry > 0
@@ -461,12 +462,12 @@ class Tests(unittest.TestCase):
     @fails_local_backend()
     def test_matrix_ops(self):
         nm = np.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]])
-        m = BlockMatrix.from_numpy(nm, block_size=2)
+        m = BlockMatrix.from_ndarray(hl.nd.array(nm), block_size=2)
         nsquare = np.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0], [7.0, 8.0, 9.0]])
-        square = BlockMatrix.from_numpy(nsquare, block_size=2)
+        square = BlockMatrix.from_ndarray(hl.nd.array(nsquare), block_size=2)
 
         nrow = np.array([[7.0, 8.0, 9.0]])
-        row = BlockMatrix.from_numpy(nrow, block_size=2)
+        row = BlockMatrix.from_ndarray(hl.nd.array(nrow), block_size=2)
 
         self._assert_eq(m.T, nm.T)
         self._assert_eq(m.T, nm.T)
