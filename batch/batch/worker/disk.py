@@ -36,8 +36,10 @@ class Disk:
         await self._format()
 
     async def delete(self):
-        await self._detach()
-        await self._delete()
+        try:
+            await self._detach()
+        finally:
+            await self._delete()
 
     async def _format(self):
         await check_shell_output(f'mkfs.ext4 -m 0 -E lazy_itable_init=0,lazy_journal_init=0,discard {self.disk_path}')
