@@ -53,7 +53,5 @@ trait PUnrealizableCode extends PCode {
 
   override def typeInfo: TypeInfo[_] = unsupported
 
-  override def tcode[T](implicit ti: TypeInfo[T]): Code[T] = unsupported
-
   def memoizeField(cb: EmitCodeBuilder, name: String): PValue = unsupported
 }
