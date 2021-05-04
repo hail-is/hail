@@ -321,7 +321,9 @@ package object asm4s {
 
   implicit def const(s: String): Value[String] = _const(s, classInfo[String])
 
-  implicit def const(b: Boolean): Value[Boolean] = _const(if (b) 1 else 0, BooleanInfo)
+  implicit def const(b: Boolean): Value[Boolean] = new Value[Boolean] {
+    def get: Code[Boolean] = new ConstCodeBoolean(b)
+  }
 
   implicit def const(i: Int): Value[Int] = _const(i, IntInfo)
 
