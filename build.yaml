@@ -48,7 +48,6 @@ steps:
       - test-gsa-key
       - auth-oauth2-client-secret
       - benchmark-gsa-key
-      - test-dataproc-service-account-key
   - kind: buildImage2
     name: echo_image
     dockerFile: /io/echo/Dockerfile
