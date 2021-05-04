@@ -512,6 +512,8 @@ class BlockMatrix(object):
     def from_ndarray(cls, ndarray_expression, block_size=4096):
         """Create a BlockMatrix from an ndarray"""
         shape = hl.eval(ndarray_expression.shape)
+        if shape is None:
+            raise ValueError("Cannot make a BlockMatrix from a missing NDArray")
         return BlockMatrix(ValueToBlockMatrix(ndarray_expression._ir, shape, block_size))
 
     @staticmethod
