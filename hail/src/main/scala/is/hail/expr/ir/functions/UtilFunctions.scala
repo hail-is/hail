@@ -293,9 +293,6 @@ object UtilFunctions extends RegistryFunctions {
 
     registerIEmitCode2("lor", TBoolean, TBoolean, TBoolean, (_: Type, tl: PType, tr: PType) => PBoolean(tl.required && tr.required)) {
       case (cb, _, rt, l, r) =>
-        val lv = l.value[Boolean]
-        val rv = r.value[Boolean]
-
         // 00 ... 00 rv rm lv lm
         val w = cb.newLocal[Int]("lor_w")
 
