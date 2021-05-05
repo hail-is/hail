@@ -24,11 +24,7 @@ for typ in ('highcpu', 'standard', 'highmem'):
     for cores in possible_cores:
         valid_machine_types.append(f'n1-{typ}-{cores}')
 
-memory_to_worker_type = {
-    'lowmem': 'highcpu',
-    'standard': 'standard',
-    'highmem': 'highmem'
-}
+memory_to_worker_type = {'lowmem': 'highcpu', 'standard': 'standard', 'highmem': 'highmem'}
 
 HTTP_CLIENT_MAX_SIZE = 8 * 1024 * 1024
 

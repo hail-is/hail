@@ -72,10 +72,8 @@ async def get_or_add_user(app, userdata):
     if username not in users:
         k8s_client = app['k8s_client']
         gsa_key_secret = await retry_transient_errors(
-            k8s_client.read_namespaced_secret,
-            userdata['gsa_key_secret_name'],
-            DEFAULT_NAMESPACE,
-            _request_timeout=5.0)
+            k8s_client.read_namespaced_secret, userdata['gsa_key_secret_name'], DEFAULT_NAMESPACE, _request_timeout=5.0
+        )
         gsa_key = base64.b64decode(gsa_key_secret.data['key.json']).decode()
         users[username] = {'fs': GCS(blocking_pool=app['thread_pool'], key=json.loads(gsa_key))}
     return users[username]
@@ -89,7 +87,7 @@ async def get_file_or_none(app, username, fs, filepath):
     file_key = make_redis_key(username, filepath)
     redis_pool: aioredis.ConnectionsPool = app['redis_pool']
 
-    body, = await redis_pool.execute('HMGET', file_key, 'body')
+    (body,) = await redis_pool.execute('HMGET', file_key, 'body')
     if body is not None:
         log.info(f"memory: Retrieved file {filepath} for user {username}")
         return body
@@ -178,4 +176,5 @@ def run():
         host='0.0.0.0',
         port=5000,
         access_log_class=AccessLogger,
-        ssl_context=internal_server_ssl_context())
+        ssl_context=internal_server_ssl_context(),
+    )

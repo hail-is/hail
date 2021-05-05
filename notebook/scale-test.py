@@ -28,45 +28,33 @@ async def run(args, i):
 
     async with client_session() as session:
         # make sure notebook is up
-        async with session.get(
-                deploy_config.url('workshop', ''),
-                headers=headers) as resp:
+        async with session.get(deploy_config.url('workshop', ''), headers=headers) as resp:
             await resp.text()
 
         log.info(f'{i} loaded notebook home page')
 
         # log in as workshop guest
         # get csrf token
-        async with session.get(
-                deploy_config.url('workshop', '/login'),
-                headers=headers) as resp:
+        async with session.get(deploy_config.url('workshop', '/login'), headers=headers) as resp:
             pass
 
         data = aiohttp.FormData()
         data.add_field(name='name', value=args.workshop)
         data.add_field(name='password', value=args.password)
         data.add_field(name='_csrf', value=get_cookie(session, '_csrf'))
-        async with session.post(
-                deploy_config.url('workshop', '/login'),
-                data=data,
-                headers=headers) as resp:
+        async with session.post(deploy_config.url('workshop', '/login'), data=data, headers=headers) as resp:
             pass
 
         log.info(f'{i} logged in')
 
         # create notebook
         # get csrf token
-        async with session.get(
-                deploy_config.url('workshop', '/notebook'),
-                headers=headers) as resp:
+        async with session.get(deploy_config.url('workshop', '/notebook'), headers=headers) as resp:
             pass
 
         data = aiohttp.FormData()
         data.add_field(name='_csrf', value=get_cookie(session, '_csrf'))
-        async with session.post(
-                deploy_config.url('workshop', '/notebook'),
-                data=data,
-                headers=headers) as resp:
+        async with session.post(deploy_config.url('workshop', '/notebook'), data=data, headers=headers) as resp:
             pass
 
         log.info(f'{i} created notebook')
@@ -79,8 +67,8 @@ async def run(args, i):
         # 5 attempts overkill, should only take 2: Scheduling => Running => Ready
         while not ready and attempt < 5:
             async with session.ws_connect(
-                    deploy_config.url('workshop', '/notebook/wait', base_scheme='ws'),
-                    headers=headers) as ws:
+                deploy_config.url('workshop', '/notebook/wait', base_scheme='ws'), headers=headers
+            ) as ws:
                 async for msg in ws:
                     if msg.data == '1':
                         ready = True
@@ -93,17 +81,12 @@ async def run(args, i):
 
         # delete notebook
         # get csrf token
-        async with session.get(
-                deploy_config.url('workshop', '/notebook'),
-                headers=headers) as resp:
+        async with session.get(deploy_config.url('workshop', '/notebook'), headers=headers) as resp:
             pass
 
         data = aiohttp.FormData()
         data.add_field(name='_csrf', value=get_cookie(session, '_csrf'))
-        async with session.post(
-                deploy_config.url('workshop', '/notebook/delete'),
-                data=data,
-                headers=headers) as resp:
+        async with session.post(deploy_config.url('workshop', '/notebook/delete'), data=data, headers=headers) as resp:
             pass
 
         log.info(f'{i} notebook delete, done.')
@@ -112,8 +95,7 @@ async def run(args, i):
 
 
 async def main():
-    parser = argparse.ArgumentParser(
-        description='Notebook scale test.')
+    parser = argparse.ArgumentParser(description='Notebook scale test.')
     parser.add_argument('n', type=int, help='number of notebooks to start')
     parser.add_argument('workshop', type=str, help='workshop name')
     parser.add_argument('password', type=str, help='workshop password')
@@ -121,8 +103,7 @@ async def main():
 
     n = args.n
     d = int(math.log10(n)) + 1
-    outcomes = await asyncio.gather(
-        *[run(args, str(i).zfill(d)) for i in range(n)])
+    outcomes = await asyncio.gather(*[run(args, str(i).zfill(d)) for i in range(n)])
 
     times = []
     for duration, ready in outcomes:

@@ -12,11 +12,14 @@ from hailtop.config import get_deploy_config
 from hailtop.hail_logging import AccessLogger
 from hailtop.tls import internal_server_ssl_context
 from hailtop.utils import run_if_changed_idempotent, retry_long_running, time_msecs, cost_str
-from gear import (Database, setup_aiohttp_session,
-                  web_authenticated_developers_only, rest_authenticated_developers_only,
-                  transaction)
-from web_common import (setup_aiohttp_jinja2, setup_common_static_routes,
-                        render_template, set_message)
+from gear import (
+    Database,
+    setup_aiohttp_session,
+    web_authenticated_developers_only,
+    rest_authenticated_developers_only,
+    transaction,
+)
+from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template, set_message
 
 from .configuration import HAIL_USE_FULL_QUERY
 
@@ -55,16 +58,17 @@ def format_data(records):
         else:
             assert record['source'] is None
 
-    cost_by_service = sorted([{'service': k, 'cost': cost_str(v)} for k, v in cost_by_service.items()],
-                             key=lambda x: x['cost'],
-                             reverse=True)
+    cost_by_service = sorted(
+        [{'service': k, 'cost': cost_str(v)} for k, v in cost_by_service.items()], key=lambda x: x['cost'], reverse=True
+    )
 
-    compute_cost_breakdown = sorted([{'source': k, 'cost': cost_str(v)} for k, v in compute_cost_breakdown.items()],
-                                    key=lambda x: x['cost'],
-                                    reverse=True)
+    compute_cost_breakdown = sorted(
+        [{'source': k, 'cost': cost_str(v)} for k, v in compute_cost_breakdown.items()],
+        key=lambda x: x['cost'],
+        reverse=True,
+    )
 
-    cost_by_sku_source.sort(key=lambda x: x['cost'],
-                            reverse=True)
+    cost_by_sku_source.sort(key=lambda x: x['cost'], reverse=True)
     for record in cost_by_sku_source:
         record['cost'] = cost_str(record['cost'])
 
@@ -89,8 +93,9 @@ async def _billing(request):
         return ([], [], [], time_period_query)
 
     db = app['db']
-    records = db.execute_and_fetchall('SELECT * FROM monitoring_billing_data WHERE year = %s AND month = %s;',
-                                      (time_period.year, time_period.month))
+    records = db.execute_and_fetchall(
+        'SELECT * FROM monitoring_billing_data WHERE year = %s AND month = %s;', (time_period.year, time_period.month)
+    )
     records = [record async for record in records]
 
     cost_by_service, compute_cost_breakdown, cost_by_sku_source = format_data(records)
@@ -106,7 +111,7 @@ async def get_billing(request: web.Request, userdata) -> web.Response:  # pylint
         'cost_by_service': cost_by_service,
         'compute_cost_breakdown': compute_cost_breakdown,
         'cost_by_sku_label': cost_by_sku_label,
-        'time_period_query': time_period_query
+        'time_period_query': time_period_query,
     }
     return web.json_response(resp)
 
@@ -119,7 +124,7 @@ async def billing(request: web.Request, userdata) -> web.Response:  # pylint: di
         'cost_by_service': cost_by_service,
         'compute_cost_breakdown': compute_cost_breakdown,
         'cost_by_sku_label': cost_by_sku_label,
-        'time_period': time_period_query
+        'time_period': time_period_query,
     }
     return await render_template('monitoring', request, userdata, 'billing.html', context)
 
@@ -164,21 +169,36 @@ GROUP BY service_id, service_description, sku_id, sku_description, source;
 
         log.info(f'querying BigQuery with command: {cmd}')
 
-        records = [(year, month, record['service_id'], record['service_description'], record['sku_id'], record['sku_description'], record['source'], record['cost'])
-                   async for record in await bigquery_client.query(cmd)]
+        records = [
+            (
+                year,
+                month,
+                record['service_id'],
+                record['service_description'],
+                record['sku_id'],
+                record['sku_description'],
+                record['source'],
+                record['cost'],
+            )
+            async for record in await bigquery_client.query(cmd)
+        ]
 
         @transaction(db)
         async def insert(tx):
-            await tx.just_execute('''
+            await tx.just_execute(
+                '''
 DELETE FROM monitoring_billing_data WHERE year = %s AND month = %s;
 ''',
-                                  (year, month))
+                (year, month),
+            )
 
-            await tx.execute_many('''
+            await tx.execute_many(
+                '''
 INSERT INTO monitoring_billing_data (year, month, service_id, service_description, sku_id, sku_description, source, cost)
 VALUES (%s, %s, %s, %s, %s, %s, %s, %s);
 ''',
-                                  records)
+                records,
+            )
 
         await insert()  # pylint: disable=no-value-for-parameter
 
@@ -221,13 +241,13 @@ async def on_startup(app):
 
     app['task_manager'] = aiotools.BackgroundTaskManager()
 
-    app['task_manager'].ensure_future(retry_long_running(
-        'polling_loop',
-        polling_loop, app))
+    app['task_manager'].ensure_future(retry_long_running('polling_loop', polling_loop, app))
 
-    app['task_manager'].ensure_future(retry_long_running(
-        'query_billing_loop',
-        run_if_changed_idempotent, query_billing_event, query_billing_body, app))
+    app['task_manager'].ensure_future(
+        retry_long_running(
+            'query_billing_loop', run_if_changed_idempotent, query_billing_event, query_billing_body, app
+        )
+    )
 
 
 async def on_cleanup(app):
@@ -248,8 +268,10 @@ def run():
     app.on_startup.append(on_startup)
     app.on_cleanup.append(on_cleanup)
 
-    web.run_app(deploy_config.prefix_application(app, 'monitoring'),
-                host='0.0.0.0',
-                port=5000,
-                access_log_class=AccessLogger,
-                ssl_context=internal_server_ssl_context())
+    web.run_app(
+        deploy_config.prefix_application(app, 'monitoring'),
+        host='0.0.0.0',
+        port=5000,
+        access_log_class=AccessLogger,
+        ssl_context=internal_server_ssl_context(),
+    )

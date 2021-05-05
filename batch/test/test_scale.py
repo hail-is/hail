@@ -2,8 +2,7 @@ import random
 import pytest
 from hailtop.batch_client.client import BatchClient
 
-from .utils import batch_status_job_counter, \
-    legacy_batch_status
+from .utils import batch_status_job_counter, legacy_batch_status
 
 
 @pytest.fixture

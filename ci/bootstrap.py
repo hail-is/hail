@@ -30,20 +30,22 @@ def populate_secret_host_path(host_path: str, secret_data: Union[str, bytes]):
 
 
 class LocalJob:
-    def __init__(self,
-                 index: int,
-                 image: str,
-                 command: List[str],
-                 *,
-                 env: Optional[Dict[str, str]] = None,
-                 mount_docker_socket: bool = False,
-                 secrets: Optional[List[Dict[str, str]]] = None,
-                 service_account: Optional[str] = None,
-                 attributes: Optional[Dict[str, str]] = None,
-                 parents: Optional[List[LocalJob]] = None,
-                 input_files: Optional[List[Tuple[str, str]]] = None,
-                 output_files: Optional[List[Tuple[str, str]]] = None,
-                 **kwargs):
+    def __init__(
+        self,
+        index: int,
+        image: str,
+        command: List[str],
+        *,
+        env: Optional[Dict[str, str]] = None,
+        mount_docker_socket: bool = False,
+        secrets: Optional[List[Dict[str, str]]] = None,
+        service_account: Optional[str] = None,
+        attributes: Optional[Dict[str, str]] = None,
+        parents: Optional[List[LocalJob]] = None,
+        input_files: Optional[List[Tuple[str, str]]] = None,
+        output_files: Optional[List[Tuple[str, str]]] = None,
+        **kwargs,
+    ):
         self._index = index
         self._image = image
         self._command = command
@@ -135,22 +137,30 @@ class LocalBatchBuilder:
                         copy_script += f'mkdir -p {os.path.dirname(dest)}\n'
                     copy_script += f'cp -a {src} {dest}\n'
                 input_cid, input_ok = await docker_run(
-                    'docker', 'run', '-d', '-v', f'{root}/shared:/shared', '-v', f'{job_root}/io:/io', DOCKER_ROOT_IMAGE, '/bin/bash', '-c', copy_script)
+                    'docker',
+                    'run',
+                    '-d',
+                    '-v',
+                    f'{root}/shared:/shared',
+                    '-v',
+                    f'{job_root}/io:/io',
+                    DOCKER_ROOT_IMAGE,
+                    '/bin/bash',
+                    '-c',
+                    copy_script,
+                )
 
                 print(f'{j._index}: {job_name}/input: {input_cid} {"OK" if input_ok else "FAILED"}')
             else:
                 input_ok = True
 
             if input_ok:
-                mount_options = [
-                    '-v', f'{job_root}/io:/io'
-                ]
+                mount_options = ['-v', f'{job_root}/io:/io']
 
                 env_options = []
                 if j._env:
                     for key, value in j._env:
-                        env_options.extend([
-                            '-e', f'{key}={value}'])
+                        env_options.extend(['-e', f'{key}={value}'])
 
                 # Reboot the cache on each use.  The kube client isn't
                 # refreshing tokens correctly.
@@ -203,36 +213,28 @@ users:
                         f.write(kube_config)
                     with open(f'{dot_kube_dir}/ca.crt', 'w') as f:
                         f.write(base64.b64decode(cert).decode())
-                    mount_options.extend([
-                        '-v', f'{dot_kube_dir}:/.kube'
-                    ])
-                    env_options.extend([
-                        '-e', 'KUBECONFIG=/.kube/config'])
+                    mount_options.extend(['-v', f'{dot_kube_dir}:/.kube'])
+                    env_options.extend(['-e', 'KUBECONFIG=/.kube/config'])
 
                 secrets = j._secrets
                 if secrets:
-                    k8s_secrets = await asyncio.gather(*[
-                        k8s_cache.read_secret(
-                            secret['name'], secret['namespace'],
-                            5)
-                        for secret in secrets
-                    ])
+                    k8s_secrets = await asyncio.gather(
+                        *[k8s_cache.read_secret(secret['name'], secret['namespace'], 5) for secret in secrets]
+                    )
 
                     for secret, k8s_secret in zip(secrets, k8s_secrets):
                         secret_host_path = f'{job_root}/secrets/{k8s_secret.metadata.name}'
 
                         populate_secret_host_path(secret_host_path, k8s_secret.data)
 
-                        mount_options.extend([
-                            '-v', f'{secret_host_path}:{secret["mount_path"]}'
-                        ])
+                        mount_options.extend(['-v', f'{secret_host_path}:{secret["mount_path"]}'])
 
                 if j._mount_docker_socket:
                     mount_options.extend(['-v', '/var/run/docker.sock:/var/run/docker.sock'])
 
                 main_cid, main_ok = await docker_run(
-                    'docker', 'run', '-d',
-                    *env_options, *mount_options, j._image, *j._command)
+                    'docker', 'run', '-d', *env_options, *mount_options, j._image, *j._command
+                )
                 print(f'{j._index}: {job_name}/main: {main_cid} {"OK" if main_ok else "FAILED"}')
             else:
                 main_ok = False
@@ -250,7 +252,18 @@ users:
                             copy_script += f'mkdir -p {os.path.dirname(dest)}\n'
                         copy_script += f'cp -a {src} {dest}\n'
                     output_cid, output_ok = await docker_run(
-                        'docker', 'run', '-d', '-v', f'{root}/shared:/shared', '-v', f'{job_root}/io:/io', DOCKER_ROOT_IMAGE, '/bin/bash', '-c', copy_script)
+                        'docker',
+                        'run',
+                        '-d',
+                        '-v',
+                        f'{root}/shared:/shared',
+                        '-v',
+                        f'{job_root}/io:/io',
+                        DOCKER_ROOT_IMAGE,
+                        '/bin/bash',
+                        '-c',
+                        copy_script,
+                    )
                     print(f'{j._index}: {job_name}/output: {output_cid} {"OK" if output_ok else "FAILED"}')
                 else:
                     output_ok = False
@@ -258,7 +271,7 @@ users:
             else:
                 output_ok = True
 
-            j._succeeded = (input_ok and main_ok and output_ok)
+            j._succeeded = input_ok and main_ok and output_ok
 
 
 class Branch(Code):
@@ -281,7 +294,7 @@ class Branch(Code):
             'branch': self._branch,
             'repo': f'{self._owner}/{self._repo}',
             'repo_url': self.repo_url(),
-            'sha': self._sha
+            'sha': self._sha,
         }
         config.update(self._extra_config)
         return config
@@ -299,15 +312,14 @@ async def main():
 
     parser = argparse.ArgumentParser(description='Bootstrap a Hail as a service installation.')
 
-    parser.add_argument('--extra-code-config', dest='extra_code_config',
-                        default='{}',
-                        help='Extra code config in JSON format.')
-    parser.add_argument('branch',
-                        help='Github branch to run.  It should be the same branch bootstrap.py is being run from.')
-    parser.add_argument('sha',
-                        help='SHA of the git commit to run.  It should match the branch.')
-    parser.add_argument('steps',
-                        help='The requested steps to execute.')
+    parser.add_argument(
+        '--extra-code-config', dest='extra_code_config', default='{}', help='Extra code config in JSON format.'
+    )
+    parser.add_argument(
+        'branch', help='Github branch to run.  It should be the same branch bootstrap.py is being run from.'
+    )
+    parser.add_argument('sha', help='SHA of the git commit to run.  It should match the branch.')
+    parser.add_argument('steps', help='The requested steps to execute.')
 
     args = parser.parse_args()
 
@@ -332,10 +344,7 @@ async def main():
         config = BuildConfiguration(code, f.read(), scope, requested_step_names=steps)
 
     token = generate_token()
-    batch = LocalBatchBuilder(
-        attributes={
-            'token': token
-        }, callback=None)
+    batch = LocalBatchBuilder(attributes={'token': token}, callback=None)
     config.build(batch, code, scope)
 
     await batch.run()

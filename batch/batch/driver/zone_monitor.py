@@ -69,8 +69,7 @@ class ZoneMonitor:
         if self.app['inst_coll_manager'].global_live_total_cores_mcpu // 1000 < 1_000:
             zone = GCP_ZONE
         else:
-            zone_weights = self.zone_weights(worker_cores, worker_local_ssd_data_disk,
-                                             worker_pd_ssd_data_disk_size_gb)
+            zone_weights = self.zone_weights(worker_cores, worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gb)
 
             if not zone_weights:
                 return None
@@ -78,8 +77,8 @@ class ZoneMonitor:
             zones = [zw.zone for zw in zone_weights]
 
             zone_prob_weights = [
-                min(zw.weight, 10) * self.zone_success_rate.zone_success_rate(zw.zone)
-                for zw in zone_weights]
+                min(zw.weight, 10) * self.zone_success_rate.zone_success_rate(zw.zone) for zw in zone_weights
+            ]
 
             log.info(f'zone_success_rate {self.zone_success_rate}')
             log.info(f'zone_prob_weights {zone_prob_weights}')
@@ -93,10 +92,7 @@ class ZoneMonitor:
 
         _zone_weights = []
         for r in self.region_info.values():
-            quota_remaining = {
-                q['metric']: q['limit'] - q['usage']
-                for q in r['quotas']
-            }
+            quota_remaining = {q['metric']: q['limit'] - q['usage'] for q in r['quotas']}
 
             remaining = quota_remaining['PREEMPTIBLE_CPUS'] / worker_cores
             if worker_local_ssd_data_disk:
@@ -113,14 +109,9 @@ class ZoneMonitor:
         return _zone_weights
 
     async def update_region_quotas(self):
-        self.region_info = {
-            name: await self.compute_client.get(f'/regions/{name}')
-            for name in BATCH_GCP_REGIONS
-        }
+        self.region_info = {name: await self.compute_client.get(f'/regions/{name}') for name in BATCH_GCP_REGIONS}
 
-        self.zones = [url_basename(z)
-                      for r in self.region_info.values()
-                      for z in r['zones']]
+        self.zones = [url_basename(z) for r in self.region_info.values() for z in r['zones']]
 
         log.info('updated region quotas')
 

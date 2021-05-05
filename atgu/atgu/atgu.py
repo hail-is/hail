@@ -13,10 +13,14 @@ from hailtop.hail_logging import AccessLogger
 from hailtop.tls import internal_server_ssl_context
 from hailtop.config import get_deploy_config
 from hailtop import aiogoogle
-from gear import (Database, setup_aiohttp_session,
-                  web_authenticated_developers_only,
-                  check_csrf_token, new_csrf_token,
-                  monitor_endpoint)
+from gear import (
+    Database,
+    setup_aiohttp_session,
+    web_authenticated_developers_only,
+    check_csrf_token,
+    new_csrf_token,
+    monitor_endpoint,
+)
 
 
 # styling of embedded editor
@@ -45,7 +49,9 @@ def render_template(file):
             response = aiohttp_jinja2.render_template(file, request, context)
             response.set_cookie('_csrf', csrf_token, domain=os.environ['HAIL_DOMAIN'], secure=True, httponly=True)
             return response
+
         return wrapped
+
     return wrap
 
 
@@ -58,7 +64,7 @@ def resource_record_to_dict(record):
         'contents': json.loads(record['contents']),
         'tags': record['tags'],
         'attachments': json.loads(record['attachments']),
-        'time_updated': record['time_updated']
+        'time_updated': record['time_updated'],
     }
 
 
@@ -70,12 +76,15 @@ def resource_record_to_dict(record):
 @render_template('resources.html')
 async def get_resources(request, userdata):  # pylint: disable=unused-argument
     db = request.app['db']
-    resources = [resource_record_to_dict(record)
-                 async for record
-                 in db.select_and_fetchall('''
+    resources = [
+        resource_record_to_dict(record)
+        async for record in db.select_and_fetchall(
+            '''
 SELECT * FROM atgu_resources
 ORDER BY time_created DESC;
-''')]
+'''
+        )
+    ]
     return {'resources': resources}
 
 
@@ -139,7 +148,9 @@ async def post_create_resource(request, userdata):  # pylint: disable=unused-arg
         '''
 INSERT INTO `atgu_resources` (`time_created`, `title`, `description`, `contents`, `tags`, `attachments`, `time_updated`)
 VALUES (%s, %s, %s, %s, %s, %s, %s);
-''', (now, post['title'], post['description'], post['contents'], post['tags'], json.dumps(attachments), now))
+''',
+        (now, post['title'], post['description'], post['contents'], post['tags'], json.dumps(attachments), now),
+    )
 
     return web.HTTPFound(deploy_config.external_url('atgu', f'/resources/{id}'))
 
@@ -155,7 +166,9 @@ async def get_resource(request, userdata):  # pylint: disable=unused-argument
         '''
 SELECT * FROM atgu_resources
 WHERE id = %s;
-''', (id))
+''',
+        (id),
+    )
     if not record:
         raise web.HTTPNotFound()
     return {'resource': resource_record_to_dict(record)}
@@ -172,7 +185,9 @@ async def get_edit_resource(request, userdata):  # pylint: disable=unused-argume
         '''
 SELECT * FROM atgu_resources
 WHERE id = %s;
-''', (id))
+''',
+        (id),
+    )
     if not record:
         raise web.HTTPNotFound()
     return {'resource': resource_record_to_dict(record)}
@@ -191,7 +206,9 @@ async def post_edit_resource(request, userdata):  # pylint: disable=unused-argum
         '''
 SELECT attachments FROM atgu_resources
 WHERE id = %s;
-''', (id))
+''',
+        (id),
+    )
     if not old_record:
         raise web.HTTPNotFound()
 
@@ -248,7 +265,9 @@ tags = %s,
 attachments = %s,
 time_updated = %s
 WHERE id = %s
-''', (post['title'], post['description'], post['contents'], post['tags'], json.dumps(attachments), now, id))
+''',
+        (post['title'], post['description'], post['contents'], post['tags'], json.dumps(attachments), now, id),
+    )
 
     return web.HTTPFound(deploy_config.external_url('atgu', f'/resources/{id}'))
 
@@ -266,15 +285,20 @@ async def post_delete_resource(request, userdata):  # pylint: disable=unused-arg
         '''
 SELECT * FROM atgu_resources
 WHERE id = %s;
-''', (id))
+''',
+        (id),
+    )
     if not record:
         raise web.HTTPNotFound()
     resource = resource_record_to_dict(record)
 
-    await db.just_execute('''
+    await db.just_execute(
+        '''
 DELETE FROM `atgu_resources`
 WHERE id = %s;
-''', (id,))
+''',
+        (id,),
+    )
 
     for attachment_id in resource['attachments']:
         try:
@@ -298,7 +322,9 @@ async def get_attachment(request, userdata):  # pylint: disable=unused-argument
         '''
 SELECT attachments FROM atgu_resources
 WHERE id = %s;
-''', (resource_id))
+''',
+        (resource_id),
+    )
     if not record:
         raise web.HTTPNotFound()
 
@@ -313,10 +339,7 @@ WHERE id = %s;
     if not ct:
         ct = 'application/octet-stream'
 
-    headers = {
-        'Content-Disposition': f'attachment; filename="{filename}"',
-        'Content-Type': ct
-    }
+    headers = {'Content-Disposition': f'attachment; filename="{filename}"', 'Content-Type': ct}
     if encoding:
         headers['Content-Encoding'] = encoding
 
@@ -351,10 +374,7 @@ def run():
 
     setup_aiohttp_session(app)
 
-    aiohttp_jinja2.setup(
-        app, loader=jinja2.ChoiceLoader([
-            jinja2.PackageLoader('atgu')
-        ]))
+    aiohttp_jinja2.setup(app, loader=jinja2.ChoiceLoader([jinja2.PackageLoader('atgu')]))
 
     app.add_routes(routes)
     app.router.add_get("/metrics", server_stats)
@@ -367,4 +387,5 @@ def run():
         host='0.0.0.0',
         port=5000,
         access_log_class=AccessLogger,
-        ssl_context=internal_server_ssl_context())
+        ssl_context=internal_server_ssl_context(),
+    )
