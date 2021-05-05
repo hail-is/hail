@@ -30,6 +30,24 @@ object LinalgCodeUtils {
     answer
   }
 
+  def checkRowMajor(pndv: PNDArrayValue, cb: EmitCodeBuilder): Value[Boolean] = {
+    val answer = cb.newField[Boolean]("checkColumnMajorResult")
+    val shapes = pndv.shapes(cb)
+    val strides = pndv.strides(cb)
+    val runningProduct = cb.newLocal[Long]("check_column_major_running_product")
+
+    val elementType = pndv.pt.elementType
+    val nDims = pndv.pt.nDims
+
+    cb.assign(answer, true)
+    cb.assign(runningProduct, elementType.byteSize)
+    ((nDims - 1) to 0 by -1).foreach { index =>
+      cb.assign(answer, answer & (strides(index) ceq runningProduct))
+      cb.assign(runningProduct, runningProduct * (shapes(index) > 0L).mux(shapes(index), 1L))
+    }
+    answer
+  }
+
   def createColumnMajorCode(pndv: PNDArrayValue, cb: EmitCodeBuilder, region: Value[Region]): PNDArrayCode = {
     val shape = pndv.shapes(cb)
     val pt = pndv.pt.asInstanceOf[PCanonicalNDArray]
@@ -54,6 +72,19 @@ object LinalgCodeUtils {
         cb.assign(aColMajor, LinalgCodeUtils.createColumnMajorCode(aInput, cb, region))
       })
     aColMajor
+  }
+
+  def checkStandardStriding(aInput: PNDArrayValue, cb: EmitCodeBuilder, region: Value[Region]): (PNDArrayValue, Value[Boolean]) = {
+    val aIsColumnMajor = LinalgCodeUtils.checkColumnMajor(aInput, cb)
+    val a = cb.emb.newPField("ndarray_output_standardized", aInput.pt).asInstanceOf[SNDArrayPointerSettable]
+    cb.ifx(aIsColumnMajor, {cb.assign(a, aInput)}, {
+      val isRowMajor = LinalgCodeUtils.checkRowMajor(aInput, cb)
+      cb.ifx(isRowMajor, {cb.assign(a, aInput)}, {
+        cb.assign(a, LinalgCodeUtils.createColumnMajorCode(aInput, cb, region))
+      })
+    })
+
+    (a, aIsColumnMajor)
   }
 
   def linearizeIndicesRowMajor(indices: IndexedSeq[Code[Long]], shapeArray: IndexedSeq[Value[Long]], mb: EmitMethodBuilder[_]): Code[Long] = {
