@@ -462,7 +462,7 @@ https://hail.zulipchat.com/#narrow/stream/123011-Hail-Dev/topic/test_drop/near/2
         ht1 = ht.annotate(foo=5)
         self.assertTrue(ht.all(ht1[ht.key].foo == 5))
 
-    @fails_service_backend()
+    @skip_when_service_backend('shuffler does not guarantee order of rows')
     def test_product_join(self):
         left = hl.utils.range_table(5)
         right = hl.utils.range_table(5)
