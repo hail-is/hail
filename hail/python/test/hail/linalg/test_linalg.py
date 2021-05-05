@@ -486,8 +486,8 @@ class Tests(unittest.TestCase):
         self._assert_eq((m @ m.T).diagonal(), np.array([[14.0, 77.0]]))
 
 
-    @fails_service_backend
-    @fails_local_backend
+    @fails_service_backend()
+    @fails_local_backend()
     def test_matrix_sums(self):
         self._assert_eq(m.sum(axis=0).T, np.array([[5.0], [7.0], [9.0]]))
         self._assert_eq(m.sum(axis=1).T, np.array([[6.0, 15.0]]))
