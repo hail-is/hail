@@ -604,6 +604,7 @@ async def test_deleted_open_batches_do_not_prevent_billing_project_closure(
 ):
     try:
         project = await dev_client.create_billing_project(get_billing_project_name())
+        await dev_client.add_user('test', project)
         client = await make_client(project)
         open_batch = await client.create_batch()._create()
         await open_batch.delete()
