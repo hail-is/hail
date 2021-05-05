@@ -550,6 +550,9 @@ def is_transient_error(e):
         return True
     if isinstance(e, aiohttp.client_exceptions.ClientConnectorError):
         return hasattr(e, 'os_error') and is_transient_error(e.os_error)
+    if isinstance(e, aiohttp.ClientOSError):
+        # aiohttp/client_reqrep.py wraps all OSError instances with a ClientOSError
+        return is_transient_error(e.__cause__)
     # appears to happen when the connection is lost prematurely, see:
     # https://github.com/aio-libs/aiohttp/issues/4581
     # https://github.com/aio-libs/aiohttp/blob/v3.7.4/aiohttp/client_proto.py#L85
