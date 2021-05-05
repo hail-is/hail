@@ -489,6 +489,14 @@ class Tests(unittest.TestCase):
     @fails_service_backend()
     @fails_local_backend()
     def test_matrix_sums(self):
+        nm = np.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]])
+        m = BlockMatrix.from_ndarray(hl.nd.array(nm), block_size=2)
+        nsquare = np.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0], [7.0, 8.0, 9.0]])
+        square = BlockMatrix.from_ndarray(hl.nd.array(nsquare), block_size=2)
+
+        nrow = np.array([[7.0, 8.0, 9.0]])
+        row = BlockMatrix.from_ndarray(hl.nd.array(nrow), block_size=2)
+
         self._assert_eq(m.sum(axis=0).T, np.array([[5.0], [7.0], [9.0]]))
         self._assert_eq(m.sum(axis=1).T, np.array([[6.0, 15.0]]))
         self._assert_eq(m.sum(axis=0).T + row, np.array([[12.0, 13.0, 14.0],
