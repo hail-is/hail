@@ -12,7 +12,7 @@ import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer}
 import is.hail.linalg.{BLAS, LAPACK, LinalgCodeUtils}
 import is.hail.services.shuffler._
 import is.hail.types.physical._
-import is.hail.types.physical.stypes.concrete.{SBaseStructPointerCode, SCanonicalShufflePointerCode, SCanonicalShufflePointerSettable}
+import is.hail.types.physical.stypes.concrete.{SBaseStructPointerCode, SCanonicalShufflePointer, SCanonicalShufflePointerCode, SCanonicalShufflePointerSettable}
 import is.hail.types.physical.stypes.interfaces.{SBaseStructCode, SNDArray, SNDArrayCode, SStreamCode}
 import is.hail.types.physical.stypes.primitives.{SFloat32, SFloat64, SInt32, SInt32Code, SInt64}
 import is.hail.types.physical.stypes.{EmitType, SCode, SType}
@@ -1880,16 +1880,14 @@ class Emit[C](
         readersIR
       ) =>
         val shuffleType = x.shuffleType
-        val shufflePType = x.shufflePType
 
-        val shuffle = CodeShuffleClient.createValue(cb, mb.ecb.getType(shuffleType))
+        val shuffleST = SCanonicalShufflePointer(PCanonicalShuffle(shuffleType, true))
+        val settable = mb.newPField(shuffleST.pType).asInstanceOf[SCanonicalShufflePointerSettable]
+        val shuffle = CompileTimeShuffleClient.create(cb, settable)
 
-        cb.append(shuffle.start())
+        shuffle.start(cb, region)
 
-        val uuid = SCanonicalShufflePointerSettable.fromArrayBytes(
-          cb, region, shufflePType, shuffle.uuid())
-
-        val shuffleEnv = env.bind(name -> mb.newPresentEmitSettable(uuid.pt, uuid))
+        val shuffleEnv = env.bind(name -> mb.newPresentEmitSettable(settable))
 
         val successfulShuffleIds: PValue = emitI(writerIR, env = shuffleEnv)
           .get(cb, "shuffle ID must be non-missing")
@@ -1899,41 +1897,32 @@ class Emit[C](
         val shuffleReaders =
           emitI(readersIR, env = shuffleEnv).memoize(cb, "shuffleReaders")
 
-        cb.append(shuffle.stop())
-        cb.append(shuffle.close())
+        shuffle.stop(cb)
+        shuffle.close(cb)
 
         shuffleReaders.toI(cb)
-
       case ShuffleWrite(idIR, rowsIR) =>
         val rows = emitStream(rowsIR, cb, region)
           .get(cb, "rows stream was missing in shuffle write")
           .asStream
-        val producer = rows.producer
 
-        val rowPType = producer.element.st.canonicalPType()
-
-        val shuffleType = coerce[TShuffle](idIR.typ)
         val uuid = emitI(idIR)
           .get(cb, "shuffle ID must be non-missing")
           .asInstanceOf[SCanonicalShufflePointerCode]
           .memoize(cb, "shuffleClientUUID")
-        val shuffle = CodeShuffleClient.createValue(
-          cb,
-          mb.ecb.getType(shuffleType),
-          uuid.loadBytes(),
-          mb.ecb.getPType(rowPType),
-          Code._null)
-        cb += shuffle.startPut()
 
+        val shuffle = CompileTimeShuffleClient.create(cb, uuid)
+        shuffle.startPut(cb)
+
+        val producer = rows.producer
         producer.memoryManagedConsume(region, cb) { cb =>
           producer.element.toI(cb).consume(cb,
             cb._fatal(s"empty row in shuffle put"),
-            sc => cb += shuffle.putValue(rowPType.store(cb, producer.elementRegion, sc, deepCopy = false)))
+            { sc => shuffle.putValue(cb, sc) })
         }
 
-        cb += shuffle.putValueDone()
-        cb += shuffle.endPut()
-        cb += shuffle.close()
+        shuffle.finishPut(cb)
+        shuffle.close(cb)
 
         val resPType = pt.asInstanceOf[PCanonicalBinary]
         // FIXME: server needs to send uuid for the successful partition

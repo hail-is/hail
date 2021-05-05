@@ -99,7 +99,7 @@ trait WrappedEmitClassBuilder[C] extends WrappedEmitModuleBuilder {
 
   def newPresentEmitField(name: String, pt: PType): PresentEmitSettable = ecb.newPresentEmitField(name, pt)
 
-  def newPresentEmitSettable(pt: PType, ps: PSettable): PresentEmitSettable = ecb.newPresentEmitSettable(pt, ps)
+  def newPresentEmitSettable(ps: PSettable): PresentEmitSettable = ecb.newPresentEmitSettable(ps)
 
   def fieldBuilder: SettableBuilder = cb.fieldBuilder
 
@@ -269,13 +269,13 @@ class EmitClassBuilder[C](
   }
 
   def newPresentEmitField(pt: PType): PresentEmitSettable =
-    newPresentEmitSettable(pt, newPField(pt))
+    newPresentEmitSettable(newPField(pt))
 
   def newPresentEmitField(name: String, pt: PType): PresentEmitSettable =
-    newPresentEmitSettable(pt, newPField(name, pt))
+    newPresentEmitSettable(newPField(name, pt))
 
-  def newPresentEmitSettable(_pt: PType, ps: PSettable): PresentEmitSettable = new PresentEmitSettable {
-    def pt: PType = _pt
+  def newPresentEmitSettable(ps: PSettable): PresentEmitSettable = new PresentEmitSettable {
+    def pt: PType = ps.pt
 
     def load: EmitCode = EmitCode(Code._empty, const(false), ps.load())
 
@@ -1011,10 +1011,10 @@ class EmitMethodBuilder[C](
     newEmitSettable(pt, if (pt.required) null else newLocal[Boolean](name + "_missing"), newPLocal(name, pt))
 
   def newPresentEmitLocal(pt: PType): PresentEmitSettable =
-    newPresentEmitSettable(pt, newPLocal(pt))
+    newPresentEmitSettable(newPLocal(pt))
 
   def newPresentEmitLocal(name: String, pt: PType): PresentEmitSettable =
-    newPresentEmitSettable(pt, newPLocal(name, pt))
+    newPresentEmitSettable(newPLocal(name, pt))
 
   def emitWithBuilder[T](f: (EmitCodeBuilder) => Code[T]): Unit = emit(EmitCodeBuilder.scopedCode[T](this)(f))
 

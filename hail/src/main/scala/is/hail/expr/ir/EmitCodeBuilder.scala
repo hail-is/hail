@@ -5,9 +5,10 @@ import is.hail.asm4s.{coerce => _, _}
 import is.hail.expr.ir.functions.StringFunctions
 import is.hail.expr.ir.streams.StreamProducer
 import is.hail.lir
+import is.hail.types.physical.stypes.SCode
 import is.hail.types.physical.stypes.interfaces.SStreamCode
 import is.hail.types.physical.{PCode, PSettable, PType, PValue}
-import is.hail.utils.FastIndexedSeq
+import is.hail.utils._
 
 object EmitCodeBuilder {
   def apply(mb: EmitMethodBuilder[_]): EmitCodeBuilder = new EmitCodeBuilder(mb, Code._empty)
@@ -213,8 +214,15 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
     StringFunctions.boxArg(EmitRegion(emb, emb.partitionRegion), t)(code).invoke[String]("toString")
   }
 
-  def strValue(x: PCode): Code[String] = strValue(x.pt, x.code)
+  def strValue(sc: SCode): Code[String] = {
+    val x = sc.asPCode
+    strValue(x.pt, x.code)
+  }
 
   // for debugging
-  def println(cString: Code[String]*) = this += Code._printlns(cString:_*)
+  def println(cString: Code[String]*) = this += Code._printlns(cString: _*)
+
+  def logInfo(cs: Code[String]*): Unit = {
+    this += Code.invokeScalaObject1[String, Unit](LogHelper.getClass, "logInfo", cs.reduce[Code[String]] { case (l, r) => (l.concat(r)) })
+  }
 }

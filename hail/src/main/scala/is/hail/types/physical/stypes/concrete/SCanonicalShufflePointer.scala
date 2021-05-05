@@ -53,7 +53,7 @@ object SCanonicalShufflePointerSettable {
 }
 
 class SCanonicalShufflePointerSettable(val st: SCanonicalShufflePointer, val shuffle: SBinaryPointerSettable) extends PShuffleValue with PSettable {
-  val pt: PShuffle = st.pType
+  val pt: PCanonicalShuffle = st.pType
 
   def get: PShuffleCode = new SCanonicalShufflePointerCode(st, shuffle.get)
 
@@ -64,6 +64,12 @@ class SCanonicalShufflePointerSettable(val st: SCanonicalShufflePointer, val shu
   def loadBytes(): Code[Array[Byte]] = shuffle.loadBytes()
 
   def store(cb: EmitCodeBuilder, pc: PCode): Unit = shuffle.store(cb, pc.asInstanceOf[SCanonicalShufflePointerCode].shuffle)
+
+  def storeFromBytes(cb: EmitCodeBuilder, region: Value[Region], bytes: Value[Array[Byte]]): Unit = {
+    val addr = cb.newLocal[Long]("bytesAddr", st.pType.representation.allocate(region, bytes.length()))
+    cb += st.pType.representation.store(addr, bytes)
+    shuffle.store(cb, st.pType.representation.loadCheapPCode(cb, addr))
+  }
 }
 
 class SCanonicalShufflePointerCode(val st: SCanonicalShufflePointer, val shuffle: SBinaryPointerCode) extends PShuffleCode {
