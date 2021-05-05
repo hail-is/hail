@@ -1471,16 +1471,19 @@ class Tests(unittest.TestCase):
 
         for x in ('nan', 'Nan', 'naN', 'NaN'):
             for f in (hl.float, hl.float32, hl.float64, hl.parse_float32, hl.parse_float64):
-                self.assertTrue(hl.eval(hl.is_nan(f(x))))
-                self.assertTrue(hl.eval(hl.is_nan(f('+' + x))))
-                self.assertTrue(hl.eval(hl.is_nan(f('-' + x))))
-
+                assert_all_eval_to(
+                    (hl.is_nan(f(x)), True),
+                    (hl.is_nan(f('+' + x)), True),
+                    (hl.is_nan(f('-' + x)), True)
+                )
         for x in ('inf', 'Inf', 'iNf', 'InF', 'infinity', 'InfiNitY', 'INFINITY'):
             for f in (hl.float, hl.float32, hl.float64, hl.parse_float32, hl.parse_float64):
-                self.assertTrue(hl.eval(hl.is_infinite(f(x))))
-                self.assertTrue(hl.eval(hl.is_infinite(f('+' + x))))
-                self.assertTrue(hl.eval(hl.is_infinite(f('-' + x))))
-                self.assertTrue(hl.eval(f('-' + x) < 0.0))
+                assert_all_eval_to(
+                    (hl.is_infinite(f(x)), True),
+                    (hl.is_infinite(f('+' + x)), True),
+                    (hl.is_infinite(f('-' + x)), True),
+                    (f('-' + x) < 0.0, True)
+                )
 
         for x in ('0', '1', '-5', '12382421'):
             assert_all_eval_to(*[(f(hl.literal(x)), int(x)) for f in (hl.int32, hl.int64, hl.parse_int32, hl.parse_int64)])
