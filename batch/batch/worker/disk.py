@@ -5,19 +5,6 @@ from hailtop.utils import check_shell_output, LoggingTimer, sleep_and_backoff
 log = logging.getLogger('disk')
 
 
-def retry_n_times(n: int, f, *args, **kwargs):
-    delay = 5
-    i = 0
-    while i < n:
-        try:
-            return await f(*args, **kwargs)
-        except Exception as e:
-            log.exception('error while completing disk operation')
-            if i == n:
-                raise e
-            delay = await sleep_and_backoff(delay)
-
-
 class Disk:
     def __init__(self, compute_client, name, zone, project, instance_name, size_in_gb, mount_path):
         assert size_in_gb >= 10
@@ -44,8 +31,8 @@ class Disk:
         await self.delete()
 
     async def create(self, labels=None):
-        await retry_n_times(10, self._create, labels)
-        await retry_n_times(10, self._attach)
+        await self._create(labels)
+        await self._attach()
         await self._format()
 
     async def delete(self):
