@@ -1231,7 +1231,7 @@ class JVMJob(Job):
                                 [
                                     LocalAsyncFS(worker.pool),
                                     aiogoogle.GoogleStorageAsyncFS(
-                                        credentials=aiogoogle.Credentials.from_file(f'/worker-key.json')
+                                        credentials=aiogoogle.Credentials.from_file('/worker-key.json')
                                     ),
                                 ],
                             )
