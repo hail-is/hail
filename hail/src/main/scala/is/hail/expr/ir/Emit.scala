@@ -645,11 +645,11 @@ class Emit[C](
         val v = emitI(value)
         v.consume(cb,
           cb._fatal("cannot combOp a missing value"),
-          { serializedValue =>
+          { case serializedValue: PBinaryCode =>
             cb.assign(aggStateOffset, region.allocate(tempState.storageType.alignment, tempState.storageType.byteSize))
             tempState.createState(cb)
             tempState.newState(cb)
-            tempState.deserializeFromBytes(cb, serializedValue.pt.asInstanceOf[PBinary], serializedValue.code.asInstanceOf[Code[Long]])
+            tempState.deserializeFromBytes(cb, serializedValue)
             rvAgg.combOp(cb, sc.states(i), tempState)
           }
         )
@@ -661,10 +661,10 @@ class Emit[C](
         val v = emitI(value)
         v.consume(cb,
           cb._fatal("cannot initialize aggs from a missing value"),
-          { serializedValue =>
+          { case serializedValue: PBinaryCode =>
             sc.states(i).createState(cb)
             sc.newState(cb, i)
-            sc.states(i).deserializeFromBytes(cb, serializedValue.pt.asInstanceOf[PBinary], serializedValue.code.asInstanceOf[Code[Long]])
+            sc.states(i).deserializeFromBytes(cb, serializedValue)
           }
         )
     }
