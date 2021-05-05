@@ -563,6 +563,12 @@ resource "google_storage_bucket_iam_member" "query_hail_query_bucket_storage_adm
   member = "serviceAccount:${google_service_account.query.email}"
 }
 
+resource "google_storage_bucket_iam_member" "batch_hail_query_bucket_storage_viewer" {
+  bucket = google_storage_bucket.hail_query.name
+  role = "roles/storage.objectViewer"
+  member = "serviceAccount:${google_service_account.batch.email}"
+}
+
 resource "google_service_account" "benchmark" {
   account_id = "benchmark"
 }
