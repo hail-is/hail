@@ -112,6 +112,20 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
       }
     }
 
+    def addBlockMatrixElementBinding(name: String, d: BlockMatrixIR, makeOptional: Boolean = false): Unit = {
+      if (refMap.contains(name)) {
+        val uses = refMap(name)
+        val eltReq = coerce[RBlockMatrix](lookup(d)).elementType
+        val req = if (makeOptional) {
+          val optional = eltReq.copy(eltReq.children)
+          optional.union(false)
+          optional
+        } else eltReq
+        uses.foreach { u => defs.bind(u, Array(req)) }
+        dependents.getOrElseUpdate(d, mutable.Set[RefEquality[BaseIR]]()) ++= uses
+      }
+    }
+
     def addBindings(name: String, ds: Array[IR]): Unit = {
       if (refMap.contains(name)) {
         val uses = refMap(name)
@@ -235,7 +249,11 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
       case CollectDistributedArray(ctxs, globs, c, g, body, _) =>
         addElementBinding(c, ctxs)
         addBinding(g, globs)
-      case BlockMatrixMap(child, eltName, f, _) => addBinding(eltName, f)
+      case BlockMatrixMap(child, eltName, f, _) => addBlockMatrixElementBinding(eltName, child)
+      case BlockMatrixMap2(leftChild, rightChild, leftName, rightName, _, _) => {
+        addBlockMatrixElementBinding(leftName, leftChild)
+        addBlockMatrixElementBinding(rightName, rightChild)
+      }
       case TableAggregate(c, q) =>
         addTableBinding(c)
       case TableFilter(child, pred) =>
