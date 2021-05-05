@@ -11,6 +11,9 @@ class Backend(abc.ABC):
     def execute(self, ir, timed=False):
         pass
 
+    def execute_many(self, *irs, timed=False):
+        return [self.execute(ir, timed=timed) for ir in irs]
+
     @abc.abstractmethod
     def value_type(self, ir):
         pass
@@ -42,6 +45,9 @@ class Backend(abc.ABC):
     @abc.abstractmethod
     def get_reference(self, name):
         pass
+
+    def get_references(self, names):
+        return (self.get_reference(name) for name in names)
 
     @abc.abstractmethod
     def add_sequence(self, name, fasta_file, index_file):

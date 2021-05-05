@@ -6,7 +6,7 @@ from .types import dtype, HailType, hail_type, is_container, is_compound, \
 from .table_type import ttable
 from .matrix_type import tmatrix
 from .blockmatrix_type import tblockmatrix
-from .expressions import analyze, eval, eval_typed, eval_timed, \
+from .expressions import analyze, eval, eval_typed, _eval_many, eval_timed, \
     extract_refs_by_indices, get_refs, matrix_table_source, table_source, \
     check_entry_indexed, check_row_indexed, \
     Indices, Aggregation, apply_expr, construct_expr, construct_variable, \
@@ -85,6 +85,7 @@ __all__ = ['HailType',
            'eval',
            'eval_typed',
            'eval_timed',
+           '_eval_many',
            'extract_refs_by_indices',
            'get_refs',
            'matrix_table_source',

@@ -22,6 +22,7 @@ import is.hail.utils._
 import java.io._
 import scala.collection.mutable
 import scala.language.{existentials, postfixOps}
+import is.hail.io.fs.FS
 
 // class for holding all information computed ahead-of-time that we need in the emitter
 object EmitContext {
@@ -2433,9 +2434,10 @@ class Emit[C](
           addContexts(cb, ctxStream.producer)
           cb += baos.invoke[Unit]("reset")
           addGlobals(cb)
-          cb.assign(encRes, spark.invoke[BackendContext, String, Array[Array[Byte]], Array[Byte], Option[TableStageDependency], Array[Array[Byte]]](
+          cb.assign(encRes, spark.invoke[BackendContext, FS, String, Array[Array[Byte]], Array[Byte], Option[TableStageDependency], Array[Array[Byte]]](
             "collectDArray",
             mb.getObject(ctx.executeContext.backendContext),
+            mb.getFS,
             functionID,
             ctxab.invoke[Array[Array[Byte]]]("result"),
             baos.invoke[Array[Byte]]("toByteArray"),

@@ -32,11 +32,13 @@ DROP TABLE IF EXISTS `batch_bunches`;
 DROP TABLE IF EXISTS `ready_cores`;  # deprecated
 DROP TABLE IF EXISTS `gevents_mark`;
 DROP TABLE IF EXISTS `jobs`;
+DROP TABLE IF EXISTS `batches_cancelled`;
 DROP TABLE IF EXISTS `batches_staging`;  # deprecated
 DROP TABLE IF EXISTS `batches_inst_coll_staging`;
 DROP TABLE IF EXISTS `batches`;
 DROP TABLE IF EXISTS `user_resources`;  # deprecated
 DROP TABLE IF EXISTS `user_inst_coll_resources`;
+DROP TABLE IF EXISTS `instances_free_cores_mcpu`;
 DROP TABLE IF EXISTS `instances`;
 DROP TABLE IF EXISTS `billing_project_users`;
 DROP TABLE IF EXISTS `billing_projects`;

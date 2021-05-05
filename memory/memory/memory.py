@@ -11,13 +11,14 @@ from aiohttp import web
 import kubernetes_asyncio as kube
 from prometheus_async.aio.web import server_stats  # type: ignore
 from typing import Set
+from collections import defaultdict
 
 from hailtop.config import get_deploy_config
 from hailtop.google_storage import GCS
 from hailtop.hail_logging import AccessLogger
 from hailtop.tls import internal_server_ssl_context
 from hailtop.utils import AsyncWorkerPool, retry_transient_errors, dump_all_stacktraces
-from gear import setup_aiohttp_session, rest_authenticated_users_only, monitor_endpoints_middleware
+from hailtop.httpx import client_session as http_client_session
 
 uvloop.install()
 
@@ -37,9 +38,10 @@ async def healthcheck(request):  # pylint: disable=unused-argument
 @rest_authenticated_users_only
 async def get_object(request, userdata):
     filepath = request.query.get('q')
-    userinfo = await get_or_add_user(request.app, userdata)
     username = userdata['username']
-    log.info(f'memory: request for object {filepath} from user {username}')
+    log.info(f'memory: get_object: 1: {filepath} from user {username}')
+    userinfo = await get_or_add_user(request.app, userdata)
+    log.info(f'memory: get_object: 2: {filepath} from user {username}')
     maybe_file = await get_file_or_none(request.app, username, userinfo['fs'], filepath)
     if maybe_file is None:
         raise web.HTTPNotFound()
@@ -66,14 +68,18 @@ async def write_object(request, userdata):
 
 async def get_or_add_user(app, userdata):
     users = app['users']
+    userlocks = app['userlocks']
     username = userdata['username']
     if username not in users:
-        k8s_client = app['k8s_client']
-        gsa_key_secret = await retry_transient_errors(
-            k8s_client.read_namespaced_secret, userdata['gsa_key_secret_name'], DEFAULT_NAMESPACE, _request_timeout=5.0
-        )
-        gsa_key = base64.b64decode(gsa_key_secret.data['key.json']).decode()
-        users[username] = {'fs': GCS(blocking_pool=app['thread_pool'], key=json.loads(gsa_key))}
+        async with userlocks[user]:
+            if username not in users:
+                log.info(f'get_or_add_user: cache miss: {username}')
+                k8s_client = app['k8s_client']
+                gsa_key_secret = await retry_transient_errors(
+                    k8s_client.read_namespaced_secret, userdata['gsa_key_secret_name'], DEFAULT_NAMESPACE, _request_timeout=5.0
+                )
+                gsa_key = base64.b64decode(gsa_key_secret.data['key.json']).decode()
+                users[username] = {'fs': GCS(blocking_pool=app['thread_pool'], key=json.loads(gsa_key))}
     return users[username]
 
 
@@ -136,10 +142,12 @@ async def on_startup(app):
     app['worker_pool'] = AsyncWorkerPool(parallelism=100, queue_size=10)
     app['files_in_progress'] = set()
     app['users'] = {}
+    app['userlocks'] = defaultdict(asyncio.Lock)
     kube.config.load_incluster_config()
     k8s_client = kube.client.CoreV1Api()
     app['k8s_client'] = k8s_client
     app['redis_pool']: aioredis.ConnectionsPool = await aioredis.create_pool(socket)
+    app['client_session'] = http_client_session()
 
 
 async def on_cleanup(app):
@@ -152,8 +160,11 @@ async def on_cleanup(app):
             try:
                 app['redis_pool'].close()
             finally:
-                del app['k8s_client']
-                await asyncio.gather(*(t for t in asyncio.all_tasks() if t is not asyncio.current_task()))
+                try:
+                    del app['k8s_client']
+                finally:
+                    app['client_session'].close()
+                    await asyncio.gather(*(t for t in asyncio.all_tasks() if t is not asyncio.current_task()))
 
 
 def run():

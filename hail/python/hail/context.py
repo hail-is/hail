@@ -70,10 +70,12 @@ class HailContext(object):
 
         Env._hc = self
 
-        ReferenceGenome._from_config(self._backend.get_reference('GRCh37'), True)
-        ReferenceGenome._from_config(self._backend.get_reference('GRCh38'), True)
-        ReferenceGenome._from_config(self._backend.get_reference('GRCm38'), True)
-        ReferenceGenome._from_config(self._backend.get_reference('CanFam3'), True)
+        grch37, grch38, grcm38, canfam3 = self._backend.get_references(('GRCh37', 'GRCh38', 'GRCm38', 'CanFam3'))
+
+        ReferenceGenome._from_config(grch37, True)
+        ReferenceGenome._from_config(grch38, True)
+        ReferenceGenome._from_config(grcm38, True)
+        ReferenceGenome._from_config(canfam3, True)
 
         if default_reference in ReferenceGenome._references:
             self._default_ref = ReferenceGenome._references[default_reference]
@@ -269,7 +271,8 @@ def init(sc=None, app_name='Hail', master=None, local='local[*]',
     local_tmpdir=nullable(str),
     default_reference=enumeration('GRCh37', 'GRCh38', 'GRCm38', 'CanFam3'),
     global_seed=nullable(int),
-    skip_logging_configuration=bool)
+    skip_logging_configuration=bool,
+    disable_progress_bar=bool)
 def init_service(
         billing_project: str = None,
         bucket: str = None,
@@ -280,13 +283,18 @@ def init_service(
         local_tmpdir=None,
         default_reference='GRCh37',
         global_seed=6348563392232659379,
-        skip_logging_configuration=False):
+        skip_logging_configuration=False,
+        *,
+        disable_progress_bar=True):
     from hail.backend.service_backend import ServiceBackend
-    backend = ServiceBackend(billing_project, bucket, skip_logging_configuration=skip_logging_configuration)
+    backend = ServiceBackend(billing_project,
+                             bucket,
+                             skip_logging_configuration=skip_logging_configuration,
+                             disable_progress_bar=disable_progress_bar)
 
     log = _get_log(log)
     if tmpdir is None:
-        tmpdir = 'gs://' + backend._bucket + '/tmp/hail/' + secret_alnum_string()
+        tmpdir = 'gs://' + backend.bucket + '/tmp/hail/' + secret_alnum_string()
     assert tmpdir.startswith('gs://')
     local_tmpdir = _get_local_tmpdir(local_tmpdir)
 

@@ -1,4 +1,4 @@
-from typing import Optional, Dict, Callable, Tuple, Awaitable, Any
+from typing import Optional, Dict, Callable, Tuple, Awaitable, Any, List, Iterator
 import os
 import json
 import sys
@@ -14,10 +14,12 @@ import signal
 import aiohttp
 import aiohttp.client_exceptions
 from aiohttp import web
+import struct
 import async_timeout
 import concurrent
 import aiodocker  # type: ignore
 import aiorwlock
+from contextlib import ExitStack, contextmanager
 from collections import defaultdict
 import psutil
 from aiodocker.exceptions import DockerError  # type: ignore
@@ -27,6 +29,7 @@ from hailtop.utils import (
     time_msecs_str,
     request_retry_transient_errors,
     sleep_and_backoff,
+    TransientError,
     retry_all_errors,
     check_shell,
     CalledProcessError,
@@ -333,8 +336,8 @@ class Timings:
 
 
 class ContainerStepManager:
-    def __init__(self, timing: Dict[str, float], is_deleted: Callable[[], bool]):
-        self.timing: Dict[str, float] = timing
+    def __init__(self, timing: Dict[str, int], is_deleted: Callable[[], bool]):
+        self.timing: Dict[str, int] = timing
         self.is_deleted = is_deleted
 
     def __enter__(self):
@@ -552,15 +555,14 @@ class Container:
                 )
 
     async def batch_worker_access_token(self):
-        async with aiohttp.ClientSession(raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
-            async with await request_retry_transient_errors(
-                session,
-                'POST',
-                'http://169.254.169.254/computeMetadata/v1/instance/service-accounts/default/token',
-                headers={'Metadata-Flavor': 'Google'},
-            ) as resp:
-                access_token = (await resp.json())['access_token']
-                return {'username': 'oauth2accesstoken', 'password': access_token}
+        async with await request_retry_transient_errors(
+            worker.client_session,
+            'POST',
+            'http://169.254.169.254/computeMetadata/v1/instance/service-accounts/default/token',
+            headers={'Metadata-Flavor': 'Google'},
+        ) as resp:
+            access_token = (await resp.json())['access_token']
+            return {'username': 'oauth2accesstoken', 'password': access_token}
 
     def current_user_access_token(self):
         key = base64.b64decode(self.job.gsa_key['key.json']).decode()
@@ -870,7 +872,7 @@ class Container:
 
     # {
     #   name: str,
-    #   state: str, (pending, pulling, creating, starting, running, uploading_log, deleting, suceeded, error, failed)
+    #   state: str, (pending, pulling, creating, starting, running, uploading_log, deleting, succeeded, error, failed)
     #   timing: dict(str, float),
     #   error: str, (optional)
     #   short_error: str, (optional)
@@ -942,7 +944,7 @@ class Container:
 
 
 def populate_secret_host_path(host_path, secret_data):
-    os.makedirs(host_path)
+    os.makedirs(host_path, exist_ok=True)
     if secret_data is not None:
         for filename, data in secret_data.items():
             with open(f'{host_path}/{filename}', 'wb') as f:
@@ -1471,11 +1473,6 @@ class DockerJob(Job):
 
 
 class JVMJob(Job):
-    stack_size = 512 * 1024
-
-    def secret_host_path(self, secret):
-        return f'{self.scratch}/secrets{secret["mount_path"]}'
-
     def __init__(
         self,
         batch_id: int,
@@ -1488,69 +1485,33 @@ class JVMJob(Job):
     ):
         super().__init__(batch_id, user, gsa_key, job_spec, format_version, task_manager, pool)
         assert job_spec['process']['type'] == 'jvm'
+        assert worker is not None
+
+        self.jvm = worker.jvms.pop()
+        self.scratch = self.jvm.root_dir
 
         input_files = job_spec.get('input_files')
         output_files = job_spec.get('output_files')
         if input_files or output_files:
             raise Exception("i/o not supported")
 
-        for envvar in self.env:
-            assert envvar['name'] not in {
-                'HAIL_DEPLOY_CONFIG_FILE',
-                'HAIL_TOKENS_FILE',
-                'HAIL_SSL_CONFIG_DIR',
-                'HAIL_GSA_KEY_FILE',
-                'HAIL_WORKER_SCRATCH_DIR',
-            }, envvar
+        assert self.env == [{'name': 'GOOGLE_APPLICATION_CREDENTIALS', 'value': '/gsa-key/key.json'}], str(self.env)
 
-        self.env.append(
-            {'name': 'HAIL_DEPLOY_CONFIG_FILE', 'value': f'{self.scratch}/secrets/deploy-config/deploy-config.json'}
-        )
-        self.env.append({'name': 'HAIL_TOKENS_FILE', 'value': f'{self.scratch}/secrets/user-tokens/tokens.json'})
-        self.env.append({'name': 'HAIL_SSL_CONFIG_DIR', 'value': f'{self.scratch}/secrets/ssl-config'})
-        self.env.append({'name': 'HAIL_GSA_KEY_FILE', 'value': f'{self.scratch}/secrets/gsa-key/key.json'})
-        self.env.append({'name': 'HAIL_WORKER_SCRATCH_DIR', 'value': self.scratch})
+        self.user_command_string = job_spec['process']['command']
+        assert len(self.user_command_string) >= 3, self.user_command_string
+        self.revision = self.user_command_string[1]
+        self.jar_url = self.user_command_string[2]
 
-        # main container
-        self.main_spec = {
-            'command': job_spec['process']['command'],  # ['is.hail.backend.service.Worker', $root, $i]
-            'name': 'main',
-            'env': self.env,
-            'cpu': self.cpu_in_mcpu,
-            'memory': self.memory_in_bytes,
-        }
-
-        self.heap_size = self.memory_in_bytes - self.stack_size
-
-        user_command_string = job_spec['process']['command']
-        assert len(user_command_string) >= 3, user_command_string
-        self.revision = user_command_string[1]
-        self.jar_url = user_command_string[2]
-        classpath = f'{find_spark_home()}/jars/*:/hail-jars/{self.revision}.jar:/log4j.properties'
-
-        self.command_string = [
-            'java',
-            '-classpath',
-            classpath,
-            f'-Xmx{self.heap_size}',
-            f'-Xss{self.stack_size}',
-            *user_command_string,
-        ]
-
-        self.process = None
         self.deleted = False
         self.timings = Timings(lambda: self.deleted)
         self.state = 'pending'
-        self.logbuffer = bytearray()
+        self.log: Optional[str] = None
 
     def step(self, name):
         return self.timings.step(name)
 
-    async def pipe_to_log(self, strm: asyncio.StreamReader):
-        while not strm.at_eof():
-            self.logbuffer.extend(await strm.readline())
-
     async def run(self, worker):
+        assert self.jvm is not None
         async with worker.cpu_sem(self.cpu_in_mcpu):
             self.start_time = time_msecs()
 
@@ -1569,9 +1530,9 @@ class JVMJob(Job):
 
                 if self.secrets:
                     for secret in self.secrets:
-                        populate_secret_host_path(self.secret_host_path(secret), secret['data'])
+                        populate_secret_host_path(self.scratch + '/' + secret["mount_path"][1:],
+                                                  secret['data'])
 
-                populate_secret_host_path(self.gsa_key_file_path(), self.gsa_key)
                 self.state = 'running'
 
                 log.info(f'{self}: downloading JAR')
@@ -1589,7 +1550,6 @@ class JVMJob(Job):
                                 ],
                             )
                             async with await user_fs.open(self.jar_url) as jar_data:
-                                await user_fs.makedirs('/hail-jars/', exist_ok=True)
                                 async with await user_fs.create(local_jar_location) as local_file:
                                     while True:
                                         b = await jar_data.read(256 * 1024)
@@ -1600,26 +1560,10 @@ class JVMJob(Job):
 
                 log.info(f'{self}: running jvm process')
                 with self.step('running'):
-                    self.process = await asyncio.create_subprocess_exec(
-                        *self.command_string,
-                        stdout=asyncio.subprocess.PIPE,
-                        stderr=asyncio.subprocess.PIPE,
-                        env={envvar['name']: envvar['value'] for envvar in self.env},
-                    )
-
-                    await asyncio.gather(self.pipe_to_log(self.process.stdout), self.pipe_to_log(self.process.stderr))
-                    await self.process.wait()
-
-                log.info(f'finished {self} with return code {self.process.returncode}')
-
-                await worker.log_store.write_log_file(
-                    self.format_version, self.batch_id, self.job_id, self.attempt_id, 'main', self.logbuffer.decode()
-                )
-
-                if self.process.returncode == 0:
-                    self.state = 'succeeded'
-                else:
-                    self.state = 'failed'
+                    await self.jvm.execute(f'{local_jar_location}',
+                                           self.user_command_string[0],
+                                           self.user_command_string[1:])
+                self.state = 'succeeded'
                 log.info(f'{self} main: {self.state}')
             except asyncio.CancelledError:
                 raise
@@ -1632,6 +1576,18 @@ class JVMJob(Job):
             await self.cleanup()
 
     async def cleanup(self):
+        if self.jvm is not None:
+            with self.step('retrieve_output'):
+                self.log = self.jvm.retrieve_and_clear_output()
+                worker.jvms.append(self.jvm)
+                self.jvm = None
+
+        if self.log is not None:
+            with self.step('uploading_log'):
+                await worker.log_store.write_log_file(
+                    self.format_version, self.batch_id, self.job_id, self.attempt_id, 'main', self.log
+                )
+
         self.end_time = time_msecs()
 
         if not self.deleted:
@@ -1641,21 +1597,23 @@ class JVMJob(Job):
         log.info(f'{self}: cleaning up')
         try:
             await check_shell(f'xfs_quota -x -c "limit -p bsoft=0 bhard=0 {self.project_id}" /host')
-
-            await blocking_to_async(self.pool, shutil.rmtree, self.scratch, ignore_errors=True)
         except asyncio.CancelledError:
             raise
         except Exception:
             log.exception('while deleting volumes')
 
     async def get_log(self):
-        return {'main': self.logbuffer.decode()}
+        if self.log is not None:
+            return {'main': self.log}
+        return {'main': self.jvm.output()}
 
     async def delete(self):
         log.info(f'deleting {self}')
         self.deleted = True
-        if self.process is not None and self.process.returncode is None:
-            self.process.kill()
+        log.info(f'{self.jvm}')
+        if self.jvm is not None:
+            log.info('interrupting')
+            self.jvm.interrupt()
 
     # {
     #   version: int,
@@ -1676,8 +1634,6 @@ class JVMJob(Job):
         status = await super().status()
         status['container_statuses'] = dict()
         status['container_statuses']['main'] = {'name': 'main', 'state': self.state, 'timing': self.timings.to_dict()}
-        if self.process is not None and self.process.returncode is not None:
-            status['container_statuses']['main']['exit_code'] = self.process.returncode
         return status
 
     def __str__(self):
@@ -1711,6 +1667,256 @@ class ImageData:
             f')'
         )
 
+def write_int(writer: asyncio.StreamWriter, v: int):
+    writer.write(struct.pack('>i', v))
+
+
+def write_long(writer: asyncio.StreamWriter, v: int):
+    writer.write(struct.pack('>q', v))
+
+
+def write_bytes(writer: asyncio.StreamWriter, b: bytes):
+    n = len(b)
+    write_int(writer, n)
+    writer.write(b)
+
+def write_str(writer: asyncio.StreamWriter, s: str):
+    write_bytes(writer, s.encode('utf-8'))
+
+
+class EndOfStream(TransientError):
+    pass
+
+
+async def read(reader: asyncio.StreamReader, n: int) -> bytes:
+    b = bytearray()
+    left = n
+    while left > 0:
+        t = await reader.read(left)
+        if not t:
+            log.warning(f'unexpected EOS, Java violated protocol ({b})')
+            raise EndOfStream()
+        left -= len(t)
+        b.extend(t)
+    return b
+
+
+async def read_byte(reader: asyncio.StreamReader) -> int:
+    b = await read(reader, 1)
+    return b[0]
+
+
+async def read_bool(reader: asyncio.StreamReader) -> bool:
+    return await read_byte(reader) != 0
+
+
+async def read_int(reader: asyncio.StreamReader) -> int:
+    b = await read(reader, 4)
+    return struct.unpack('>i', b)[0]
+
+
+async def read_long(reader: asyncio.StreamReader) -> int:
+    b = await read(reader, 8)
+    return struct.unpack('>q', b)[0]
+
+
+async def read_bytes(reader: asyncio.StreamReader) -> bytes:
+    n = await read_int(reader)
+    return await read(reader, n)
+
+
+async def read_str(reader: asyncio.StreamReader) -> str:
+    b = await read_bytes(reader)
+    return b.decode('utf-8')
+
+
+@contextmanager
+def scoped_ensure_future(coro_or_future, *, loop=None) -> Iterator[asyncio.Future]:
+    fut = asyncio.ensure_future(coro_or_future, loop=loop)
+    try:
+        yield fut
+    finally:
+        fut.cancel()
+
+
+class BufferedOutputProcess:
+    @classmethod
+    async def create(cls, *args, **kwargs):
+        assert 'stdout' not in kwargs
+        assert 'stderr' not in kwargs
+
+        process: asyncio.subprocess.Process = await asyncio.create_subprocess_exec(
+            *args,
+            **kwargs,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE
+        )
+        stop_event = asyncio.Event()
+        return cls(process, stop_event)
+
+    def __init__(self,
+                 process: asyncio.subprocess.Process,
+                 stop_event: asyncio.Event):
+        self.process = process
+        self.stop_event = stop_event
+        self.buf = bytearray()
+        assert process.stdout is not None
+        self.stdout_pump = asyncio.ensure_future(self.pump_to_buffer(process.stdout))
+        assert process.stderr is not None
+        self.stderr_pump = asyncio.ensure_future(self.pump_to_buffer(process.stderr))
+
+    async def pump_to_buffer(self, strm: asyncio.StreamReader):
+        with scoped_ensure_future(self.stop_event.wait()) as stop_fut:
+            while not strm.at_eof() and not self.stop_event.is_set():
+                with scoped_ensure_future(strm.readline()) as read_fut:
+                    await asyncio.wait([read_fut, stop_fut], return_when=asyncio.FIRST_COMPLETED)
+                    if read_fut.done():
+                        result = read_fut.result()
+                        self.buf.extend(result)
+
+
+    def output(self) -> str:
+        return self.buf.decode()
+
+    def retrieve_and_clear_output(self) -> str:
+        buf = self.buf.decode()
+        self.buf = bytearray()
+        return buf
+
+    def kill(self):
+        return self.process.kill()
+
+    @property
+    def returncode(self) -> Optional[int]:
+        return self.process.returncode
+
+    def close(self):
+        self.kill()
+        self.stdout_pump.cancel()
+        self.stderrr_pump.cancel()
+
+
+class JVM:
+    SPARK_HOME = find_spark_home()
+
+    @classmethod
+    async def create_process(cls, socket_file: str) -> BufferedOutputProcess:
+        return await BufferedOutputProcess.create(
+            'java',
+            '-Xmx10g',  # FIXME: reduce this somehow
+            '-cp',
+            f'/jvm-entryway:/jvm-entryway/junixsocket-selftest-2.3.3-jar-with-dependencies.jar:{JVM.SPARK_HOME}/jars/*',
+            'is.hail.JVMEntryway',
+            socket_file)
+
+    @classmethod
+    async def create(cls, index: int):
+        assert worker is not None
+
+        token = uuid.uuid4().hex
+        socket_file = '/socket-' + token
+        root_dir = '/root-' + token
+        output_file = root_dir + '/output'
+        should_interrupt = asyncio.Event()
+        await blocking_to_async(worker.pool, os.mkdir, root_dir)
+        process = await cls.create_process(socket_file)
+        return cls(index, socket_file, root_dir, output_file, should_interrupt, process)
+
+    def __init__(self,
+                 index: int,
+                 socket_file: str,
+                 root_dir: str,
+                 output_file: str,
+                 should_interrupt: asyncio.Event,
+                 process: BufferedOutputProcess):
+        self.index = index
+        self.socket_file = socket_file
+        self.root_dir = root_dir
+        self.output_File = output_file
+        self.should_interrupt = should_interrupt
+        self.process = process
+
+    def __str__(self):
+        return f'JVM-{self.index}'
+
+    def __repr__(self):
+        return f'JVM-{self.index}'
+
+    def interrupt(self):
+        self.should_interrupt.set()
+
+    def kill(self):
+        if self.process is not None:
+            self.process.kill()
+
+    def output(self) -> str:
+        return self.process.output()
+
+    def retrieve_and_clear_output(self) -> str:
+        return self.process.retrieve_and_clear_output()
+
+    async def execute(self, classpath: str, mainclass: str, command_string: List[str]):
+        assert worker is not None
+
+        log.info(f'{self}: execute')
+        if self.process.returncode is not None:
+            log.warning('{self}: unexpected exit between jobs', extra=dict(output=self.process.output()))
+            os.remove(self.socket_file)
+            self.process = await self.create_process(self.socket_file)
+
+        interim_output = self.process.retrieve_and_clear_output()
+        if len(interim_output) > 0:
+            log.warning(f'{self}: unexpected output between jobs: {interim_output}')
+
+        with ExitStack() as stack:
+            reader: asyncio.StreamReader
+            writer: asyncio.StreamWriter
+            while True:
+                try:
+                    reader, writer = await asyncio.open_unix_connection(self.socket_file)
+                    break
+                except FileNotFoundError:
+                    await asyncio.sleep(0.25)
+                    pass
+            stack.callback(writer.close)
+            log.info(f'{self}: connection acquired')
+
+            command_string = [
+                classpath,
+                mainclass,
+                self.root_dir,
+                *command_string]
+
+            write_int(writer, len(command_string))
+            for arg in command_string:
+                assert isinstance(arg, str)
+                write_str(writer, arg)
+            await writer.drain()
+
+            wait_for_process = asyncio.ensure_future(read_bool(reader))
+            stack.callback(wait_for_process.cancel)
+            wait_for_interrupt = asyncio.ensure_future(self.should_interrupt.wait())
+            stack.callback(wait_for_interrupt.cancel)
+
+            await asyncio.wait([wait_for_process, wait_for_interrupt], return_when=asyncio.FIRST_COMPLETED)
+
+            for entry in os.listdir(self.root_dir):
+                if entry not in ('hail-jars', 'jvm-entryway', 'spark'):
+                    await blocking_to_async(worker.pool, shutil.rmtree, self.root_dir + '/' + entry)
+
+            if wait_for_interrupt.done():
+                write_int(writer, 0)
+                await writer.drain()
+                assert read_int(reader) == 0
+                return
+
+            assert wait_for_process.done()
+            is_success = wait_for_process.result()
+            if not is_success:
+                exception = await read_str(reader)
+                raise ValueError(exception)
+            return
+
 
 class Worker:
     def __init__(self):
@@ -1723,7 +1929,9 @@ class Worker:
         self.jobs: Dict[Tuple[int, int], Job] = {}
         self.stop_event = asyncio.Event()
         self.task_manager = aiotools.BackgroundTaskManager()
+        os.mkdir('/hail-jars/')
         self.jar_download_locks = defaultdict(asyncio.Lock)
+        self.client_session = client_session()
 
         self.image_data: Dict[str, ImageData] = defaultdict(ImageData)
         self.image_data[BATCH_WORKER_IMAGE_ID] += 1
@@ -1856,8 +2064,12 @@ class Worker:
                 web.get('/healthcheck', self.healthcheck),
             ]
         )
+
         try:
-            await asyncio.wait_for(self.activate(), MAX_IDLE_TIME_MSECS / 1000)
+            _, jvms = await asyncio.gather(
+                asyncio.wait_for(self.activate(), MAX_IDLE_TIME_MSECS / 1000),
+                asyncio.gather(*[JVM.create(i) for i in range(CORES)]))
+            self.jvms = jvms
         except asyncio.TimeoutError:
             log.exception(f'could not activate after trying for {MAX_IDLE_TIME_MSECS} ms, exiting')
             return
@@ -1894,14 +2106,13 @@ class Worker:
             log.info('deactivated')
 
     async def deactivate(self):
-        async with client_session() as session:
-            # Don't retry.  If it doesn't go through, the driver
-            # monitoring loops will recover.  If the driver is
-            # gone (e.g. testing a PR), this would go into an
-            # infinite loop and the instance won't be deleted.
-            await session.post(
-                deploy_config.url('batch-driver', '/api/v1alpha/instances/deactivate'), headers=self.headers
-            )
+        # Don't retry.  If it doesn't go through, the driver
+        # monitoring loops will recover.  If the driver is
+        # gone (e.g. testing a PR), this would go into an
+        # infinite loop and the instance won't be deleted.
+        await self.client_session.post(
+            deploy_config.url('batch-driver', '/api/v1alpha/instances/deactivate'), headers=self.headers
+        )
 
     async def kill_1(self, request):  # pylint: disable=unused-argument
         log.info('killed')
@@ -1940,13 +2151,12 @@ class Worker:
         delay_secs = 0.1
         while True:
             try:
-                async with client_session() as session:
-                    await session.post(
-                        deploy_config.url('batch-driver', '/api/v1alpha/instances/job_complete'),
-                        json=body,
-                        headers=self.headers,
-                    )
-                    return
+                await self.client_session.post(
+                    deploy_config.url('batch-driver', '/api/v1alpha/instances/job_complete'),
+                    json=body,
+                    headers=self.headers,
+                )
+                return
             except asyncio.CancelledError:  # pylint: disable=try-except-raise
                 raise
             except Exception as e:
@@ -1993,14 +2203,13 @@ class Worker:
 
         body = {'status': status}
 
-        async with client_session() as session:
-            await request_retry_transient_errors(
-                session,
-                'POST',
-                deploy_config.url('batch-driver', '/api/v1alpha/instances/job_started'),
-                json=body,
-                headers=self.headers,
-            )
+        await request_retry_transient_errors(
+            self.client_session,
+            'POST',
+            deploy_config.url('batch-driver', '/api/v1alpha/instances/job_started'),
+            json=body,
+            headers=self.headers,
+        )
 
     async def post_job_started(self, job):
         try:
@@ -2011,37 +2220,36 @@ class Worker:
             log.exception(f'error while posting {job} started')
 
     async def activate(self):
-        async with client_session() as session:
-            resp = await request_retry_transient_errors(
-                session,
-                'GET',
-                deploy_config.url('batch-driver', '/api/v1alpha/instances/gsa_key'),
-                headers={'X-Hail-Instance-Name': NAME, 'Authorization': f'Bearer {os.environ["ACTIVATION_TOKEN"]}'},
-            )
-            resp_json = await resp.json()
+        resp = await request_retry_transient_errors(
+            self.client_session,
+            'GET',
+            deploy_config.url('batch-driver', '/api/v1alpha/instances/gsa_key'),
+            headers={'X-Hail-Instance-Name': NAME, 'Authorization': f'Bearer {os.environ["ACTIVATION_TOKEN"]}'},
+        )
+        resp_json = await resp.json()
 
-            with open('/worker-key.json', 'w') as f:
-                f.write(json.dumps(resp_json['key']))
+        with open('/worker-key.json', 'w') as f:
+            f.write(json.dumps(resp_json['key']))
 
-            credentials = google.oauth2.service_account.Credentials.from_service_account_file('/worker-key.json')
-            self.log_store = LogStore(
-                BATCH_LOGS_BUCKET_NAME, INSTANCE_ID, self.pool, project=PROJECT, credentials=credentials
-            )
+        credentials = google.oauth2.service_account.Credentials.from_service_account_file('/worker-key.json')
+        self.log_store = LogStore(
+            BATCH_LOGS_BUCKET_NAME, INSTANCE_ID, self.pool, project=PROJECT, credentials=credentials
+        )
 
-            credentials = aiogoogle.Credentials.from_file('/worker-key.json')
-            self.compute_client = aiogoogle.ComputeClient(PROJECT, credentials=credentials)
+        credentials = aiogoogle.Credentials.from_file('/worker-key.json')
+        self.compute_client = aiogoogle.ComputeClient(PROJECT, credentials=credentials)
 
-            resp = await request_retry_transient_errors(
-                session,
-                'POST',
-                deploy_config.url('batch-driver', '/api/v1alpha/instances/activate'),
-                json={'ip_address': os.environ['IP_ADDRESS']},
-                headers={'X-Hail-Instance-Name': NAME, 'Authorization': f'Bearer {os.environ["ACTIVATION_TOKEN"]}'},
-            )
-            resp_json = await resp.json()
+        resp = await request_retry_transient_errors(
+            self.client_session,
+            'POST',
+            deploy_config.url('batch-driver', '/api/v1alpha/instances/activate'),
+            json={'ip_address': os.environ['IP_ADDRESS']},
+            headers={'X-Hail-Instance-Name': NAME, 'Authorization': f'Bearer {os.environ["ACTIVATION_TOKEN"]}'},
+        )
+        resp_json = await resp.json()
 
-            self.headers = {'X-Hail-Instance-Name': NAME, 'Authorization': f'Bearer {resp_json["token"]}'}
-            self.active = True
+        self.headers = {'X-Hail-Instance-Name': NAME, 'Authorization': f'Bearer {resp_json["token"]}'}
+        self.active = True
 
     async def cleanup_old_images(self):
         try:

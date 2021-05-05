@@ -12,6 +12,7 @@ import org.apache.log4j.{LogManager, Logger}
 import scala.util.Random
 import java.io._
 import com.google.cloud.storage.StorageException
+import com.google.api.client.googleapis.json.GoogleJsonResponseException
 
 package object services {
   lazy val log: Logger = LogManager.getLogger("is.hail.services")
@@ -30,12 +31,14 @@ package object services {
     math.min(delay * 2, 60.0)
   }
 
-  def isTransientError(e: Throwable): Boolean = {
+  def isTransientError(e: Throwable, transient404: Boolean = false): Boolean = {
     e match {
       case e: NoHttpResponseException =>
         true
       case e: ClientResponseException =>
-        RETRYABLE_HTTP_STATUS_CODES.contains(e.status)
+        RETRYABLE_HTTP_STATUS_CODES.contains(e.status) || (transient404 && e.status == 404)
+      case e: GoogleJsonResponseException =>
+        RETRYABLE_HTTP_STATUS_CODES.contains(e.getStatusCode()) ||  (transient404 && e.getStatusCode() == 404)
       case e: HttpHostConnectException =>
         true
       case e: NoRouteToHostException =>
@@ -56,7 +59,7 @@ package object services {
     }
   }
 
-  def retryTransientErrors[T](f: => T): T = {
+  def retryTransientErrors[T](f: => T, retry404: Boolean = false): T = {
     var delay = 0.1
     var errors = 0
     while (true) {
@@ -64,7 +67,7 @@ package object services {
         return f
       } catch {
         case e: Exception =>
-          if (!isTransientError(e))
+          if (!isTransientError(e, retry404))
             throw e
           errors += 1
           if (errors % 10 == 0)

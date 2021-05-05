@@ -61,7 +61,13 @@ class Pool(InstanceCollection):
         await super().async_init()
 
         async for record in self.db.select_and_fetchall(
-            'SELECT * FROM instances WHERE removed = 0 AND inst_coll = %s;', (self.name,)
+                '''
+SELECT instances.*, instances_free_cores_mcpu.free_cores_mcpu
+FROM instances
+INNER JOIN instances_free_cores_mcpu
+ON instances.name = instances_free_cores_mcpu.name
+WHERE removed = 0 AND inst_coll = %s;
+''', (self.name,)
         ):
             instance = Instance.from_record(self.app, self, record)
             self.add_instance(instance)
@@ -419,8 +425,10 @@ HAVING n_ready_jobs + n_running_jobs > 0;
         async def user_runnable_jobs(user, remaining):
             async for batch in self.db.select_and_fetchall(
                 '''
-SELECT id, cancelled, userdata, user, format_version
+SELECT batches.id,  batches_cancelled.id IS NOT NULL as cancelled, userdata, user, format_version
 FROM batches
+LEFT JOIN batches_cancelled
+       ON batches.id = batches_cancelled.id
 WHERE user = %s AND `state` = 'running';
 ''',
                 (user,),

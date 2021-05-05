@@ -90,8 +90,10 @@ HAVING n_cancelled_ready_jobs > 0;
         async def user_cancelled_ready_jobs(user, remaining):
             async for batch in self.db.select_and_fetchall(
                 '''
-SELECT id, cancelled
+SELECT batches.id, batches_cancelled.id IS NOT NULL as cancelled
 FROM batches
+LEFT JOIN batches_cancelled
+       ON batches.id = batches_cancelled.id
 WHERE user = %s AND `state` = 'running';
 ''',
                 (user,),
@@ -181,9 +183,11 @@ HAVING n_cancelled_creating_jobs > 0;
         async def user_cancelled_creating_jobs(user, remaining):
             async for batch in self.db.select_and_fetchall(
                 '''
-SELECT id
+SELECT batches.id
 FROM batches
-WHERE user = %s AND `state` = 'running' AND cancelled = 1;
+INNER JOIN batches_cancelled
+        ON batches.id = batches_cancelled.id
+WHERE user = %s AND `state` = 'running';
 ''',
                 (user,),
                 timer_description=f'in cancel_cancelled_creating_jobs: get {user} cancelled batches',
@@ -280,9 +284,11 @@ HAVING n_cancelled_running_jobs > 0;
         async def user_cancelled_running_jobs(user, remaining):
             async for batch in self.db.select_and_fetchall(
                 '''
-SELECT id
+SELECT batches.id
 FROM batches
-WHERE user = %s AND `state` = 'running' AND cancelled = 1;
+INNER JOIN batches_cancelled
+        ON batches.id = batches_cancelled.id
+WHERE user = %s AND `state` = 'running';
 ''',
                 (user,),
                 timer_description=f'in cancel_cancelled_running_jobs: get {user} cancelled batches',

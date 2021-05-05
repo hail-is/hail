@@ -15,19 +15,6 @@ class CalledProcessError(Exception):
                 f' Output:\n{self.outerr}')
 
 
-async def check_shell_output(script, echo=False):
-    if echo:
-        print(script)
-    proc = await asyncio.create_subprocess_exec(
-        '/bin/bash', '-c', script,
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE)
-    outerr = await proc.communicate()
-    if proc.returncode != 0:
-        raise CalledProcessError(script, proc.returncode, outerr)
-    return outerr
-
-
 async def check_exec_output(command, *args, echo=False):
     if echo:
         print([command, *args])
@@ -40,6 +27,12 @@ async def check_exec_output(command, *args, echo=False):
         script = ' '.join([command, *args])
         raise CalledProcessError(script, proc.returncode, outerr)
     return outerr
+
+
+async def check_shell_output(script, echo=False):
+    if echo:
+        print(script)
+    return await check_exec_output('/bin/bash', '-c', script, echo=echo)
 
 
 async def check_shell(script, echo=False):
