@@ -1100,9 +1100,9 @@ class Emit[C](
         emitStream(a, cb, region).map(cb) { case stream: SStreamCode =>
           val producer = stream.producer
           producer.length match {
-            case Some(len) =>
+            case Some(compLen) =>
               producer.initialize(cb)
-              val xLen = cb.newLocal[Int]("streamlen_x", len)
+              val xLen = cb.newLocal[Int]("streamlen_x", compLen(cb))
               producer.close(cb)
               PCode(x.pType, xLen)
             case None =>
@@ -2073,7 +2073,7 @@ class Emit[C](
 
         def addContexts(cb: EmitCodeBuilder, ctxStream: StreamProducer): Unit = {
           ctxStream.memoryManagedConsume(region, cb, setup = { cb =>
-            cb += ctxab.invoke[Int, Unit]("ensureCapacity", ctxStream.length.getOrElse(16))
+            cb += ctxab.invoke[Int, Unit]("ensureCapacity", ctxStream.length.map(_.apply(cb)).getOrElse(16))
           }) { cb =>
             cb += baos.invoke[Unit]("reset")
             val ctxTuple = wrapInTuple(cb, ctxStream.element)
