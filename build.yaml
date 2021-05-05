@@ -2441,7 +2441,7 @@ steps:
       {% if deploy %}
       destination=$(cat /global-config/hail_query_gcs_path)/jars/
       {% else %}
-      destination=gs://hail-test-dmk9z/{{ token }}/jars/
+      destination=gs://cpg-hail-test/{{ token }}/jars/
       {% endif %}
 
       gsutil -m cp /io/hail.jar ${destination}$(cat /io/git_version).jar
@@ -2508,8 +2508,8 @@ steps:
       python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
       export PYTEST_SPLITS=3
       export PYTEST_SPLIT_INDEX=0
-      export HAIL_TEST_RESOURCES_DIR=gs://hail-test-dmk9z/{{ upload_test_resources_to_gcs.token }}/test/resources
-      export HAIL_DOCTEST_DATA_DIR=gs://hail-test-dmk9z/{{ upload_test_resources_to_gcs.token }}/doctest/data
+      export HAIL_TEST_RESOURCES_DIR=gs://cpg-hail-test/{{ upload_test_resources_to_gcs.token }}/test/resources
+      export HAIL_DOCTEST_DATA_DIR=gs://cpg-hail-test/{{ upload_test_resources_to_gcs.token }}/doctest/data
       export HAIL_QUERY_BACKEND=service
       export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
       hailctl config set batch/billing_project test
@@ -2558,8 +2558,8 @@ steps:
       python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
       export PYTEST_SPLITS=3
       export PYTEST_SPLIT_INDEX=1
-      export HAIL_TEST_RESOURCES_DIR=gs://hail-test-dmk9z/{{ upload_test_resources_to_gcs.token }}/test/resources
-      export HAIL_DOCTEST_DATA_DIR=gs://hail-test-dmk9z/{{ upload_test_resources_to_gcs.token }}/doctest/data
+      export HAIL_TEST_RESOURCES_DIR=gs://cpg-hail-test/{{ upload_test_resources_to_gcs.token }}/test/resources
+      export HAIL_DOCTEST_DATA_DIR=gs://cpg-hail-test/{{ upload_test_resources_to_gcs.token }}/doctest/data
       export HAIL_QUERY_BACKEND=service
       export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
       hailctl config set batch/billing_project test
@@ -2608,8 +2608,8 @@ steps:
       python3 -m pip install --no-dependencies hail-*-py3-none-any.whl
       export PYTEST_SPLITS=3
       export PYTEST_SPLIT_INDEX=2
-      export HAIL_TEST_RESOURCES_DIR=gs://hail-test-dmk9z/{{ upload_test_resources_to_gcs.token }}/test/resources
-      export HAIL_DOCTEST_DATA_DIR=gs://hail-test-dmk9z/{{ upload_test_resources_to_gcs.token }}/doctest/data
+      export HAIL_TEST_RESOURCES_DIR=gs://cpg-hail-test/{{ upload_test_resources_to_gcs.token }}/test/resources
+      export HAIL_DOCTEST_DATA_DIR=gs://cpg-hail-test/{{ upload_test_resources_to_gcs.token }}/doctest/data
       export HAIL_QUERY_BACKEND=service
       export GOOGLE_APPLICATION_CREDENTIALS=/test-gsa-key/key.json
       hailctl config set batch/billing_project test
