@@ -25,9 +25,10 @@ class BatchFormatVersion:
 
         secrets = spec.get('secrets')
         if secrets:
-            secrets = [[secret['namespace'], secret['name'],
-                        secret['mount_path'], int(secret.get('mount_in_copy', False))]
-                       for secret in secrets]
+            secrets = [
+                [secret['namespace'], secret['name'], secret['mount_path'], int(secret.get('mount_in_copy', False))]
+                for secret in secrets
+            ]
 
         service_account = spec.get('service_account')
         if service_account:
@@ -46,7 +47,7 @@ class BatchFormatVersion:
                 secrets,
                 service_account,
                 int(len(spec.get('input_files', [])) > 0),
-                int(len(spec.get('output_files', [])) > 0)
+                int(len(spec.get('output_files', [])) > 0),
             ]
 
         return [
@@ -54,7 +55,7 @@ class BatchFormatVersion:
             service_account,
             int(len(spec.get('input_files', [])) > 0),
             int(len(spec.get('output_files', [])) > 0),
-            machine_spec
+            machine_spec,
         ]
 
     def get_spec_secrets(self, spec):
@@ -62,10 +63,10 @@ class BatchFormatVersion:
             return spec.get('secrets')
         secrets = spec[0]
         if secrets:
-            return [{'namespace': secret[0],
-                     'name': secret[1],
-                     'mount_path': secret[2],
-                     'mount_in_copy': bool(secret[3])} for secret in secrets]
+            return [
+                {'namespace': secret[0], 'name': secret[1], 'mount_path': secret[2], 'mount_in_copy': bool(secret[3])}
+                for secret in secrets
+            ]
         return None
 
     def get_spec_service_account(self, spec):
@@ -73,8 +74,7 @@ class BatchFormatVersion:
             return spec.get('service_account')
         service_account = spec[1]
         if service_account:
-            return {'namespace': service_account[0],
-                    'name': service_account[1]}
+            return {'namespace': service_account[0], 'name': service_account[1]}
         return None
 
     def get_spec_has_input_files(self, spec):
@@ -92,9 +92,11 @@ class BatchFormatVersion:
             return None
         machine_type_spec = spec[4]
         if machine_type_spec:
-            return {'machine_type': machine_type_spec[0],
-                    'preemptible': bool(machine_type_spec[1]),
-                    'storage_gib': machine_type_spec[2]}
+            return {
+                'machine_type': machine_type_spec[0],
+                'preemptible': bool(machine_type_spec[1]),
+                'storage_gib': machine_type_spec[2],
+            }
         return None
 
     def db_status(self, status):

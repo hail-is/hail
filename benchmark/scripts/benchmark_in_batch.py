@@ -23,15 +23,19 @@ if __name__ == '__main__':
     output_file = os.path.join(BUCKET_BASE, f'{labeled_sha}.json')
     permissions_test_file = os.path.join(BUCKET_BASE, f'permissions-test')
 
-    b = hb.Batch(name=f'benchmark-{labeled_sha}',
-                 backend=hb.ServiceBackend(billing_project='hail'),
-                 default_image=BENCHMARK_IMAGE,
-                 default_cpu='2',
-                 default_storage='30G',
-                 attributes={'output_file': output_file,
-                             'n_replicates': str(N_REPLICATES),
-                             'n_iters': str(N_ITERS),
-                             'image': str(BENCHMARK_IMAGE)})
+    b = hb.Batch(
+        name=f'benchmark-{labeled_sha}',
+        backend=hb.ServiceBackend(billing_project='hail'),
+        default_image=BENCHMARK_IMAGE,
+        default_cpu='2',
+        default_storage='30G',
+        attributes={
+            'output_file': output_file,
+            'n_replicates': str(N_REPLICATES),
+            'n_iters': str(N_ITERS),
+            'image': str(BENCHMARK_IMAGE),
+        },
+    )
 
     test_permissions = b.new_job(f'test permissions')
     test_permissions.command(f'echo hello world > {test_permissions.permissions_test_file}')
@@ -52,7 +56,6 @@ if __name__ == '__main__':
 
     all_output = []
 
-
     task_filter_regex_include = os.environ.get('BENCHMARK_REGEX_INCLUDE')
     task_filter_regex_exclude = os.environ.get('BENCHMARK_REGEX_EXCLUDE')
 
@@ -66,7 +69,6 @@ if __name__ == '__main__':
     else:
         exclude = lambda t: False
 
-
     n_passed_filter = 0
     task_fs = []
     for benchmark in all_benchmarks:
@@ -76,7 +78,9 @@ if __name__ == '__main__':
                 for replicate in range(N_REPLICATES):
                     task_fs.append((benchmark.name, replicate, benchmark.groups))
 
-    print(f'generating {n_passed_filter} * {N_REPLICATES} = {n_passed_filter * N_REPLICATES} individual benchmark tasks')
+    print(
+        f'generating {n_passed_filter} * {N_REPLICATES} = {n_passed_filter * N_REPLICATES} individual benchmark tasks'
+    )
 
     random.shuffle(task_fs)
 
@@ -93,13 +97,15 @@ if __name__ == '__main__':
             resource_task = resource_tasks[resource_group]
             j.command(f'mv {resource_task.ofile} benchmark-resources/{resource_group.name()}.tar')
             j.command(f'time tar -xf benchmark-resources/{resource_group.name()}.tar')
-        j.command(f'MKL_NUM_THREADS=1'
-                  f'OPENBLAS_NUM_THREADS=1'
-                  f'OMP_NUM_THREADS=1'
-                  f'VECLIB_MAXIMUM_THREADS=1'
-                  f'{benchmark_lower_env_var}'
-                  f'PYSPARK_SUBMIT_ARGS="--driver-memory 6G pyspark-shell" '
-                  f'hail-bench run -o {j.ofile} -n {N_ITERS} --data-dir benchmark-resources -t {name}')
+        j.command(
+            f'MKL_NUM_THREADS=1'
+            f'OPENBLAS_NUM_THREADS=1'
+            f'OMP_NUM_THREADS=1'
+            f'VECLIB_MAXIMUM_THREADS=1'
+            f'{benchmark_lower_env_var}'
+            f'PYSPARK_SUBMIT_ARGS="--driver-memory 6G pyspark-shell" '
+            f'hail-bench run -o {j.ofile} -n {N_ITERS} --data-dir benchmark-resources -t {name}'
+        )
         all_output.append(j.ofile)
 
     combine_branch_factor = int(os.environ.get('BENCHMARK_BRANCH_FACTOR', 32))
@@ -113,7 +119,8 @@ if __name__ == '__main__':
         while i < len(all_output):
             combine = b.new_job(f'combine_output_phase{phase_i}_job{job_i}')
             combine.command(
-                f'hail-bench combine -o {combine.ofile} ' + ' '.join(all_output[i:i + combine_branch_factor]))
+                f'hail-bench combine -o {combine.ofile} ' + ' '.join(all_output[i : i + combine_branch_factor])
+            )
             new_output.append(combine.ofile)
             i += combine_branch_factor
             job_i += 1

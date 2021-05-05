@@ -8,5 +8,5 @@ setup(
     author_email='hail@broadinstitute.org',
     description='Convert names to IP addresses',
     packages=find_packages(),
-    include_package_data=True
+    include_package_data=True,
 )

@@ -20,7 +20,5 @@ setup(
     install_requires=[
         'hail>=0.2',
     ],
-    entry_points={
-        'console_scripts': ['hail-bench = benchmark_hail.__main__:main']
-    },
+    entry_points={'console_scripts': ['hail-bench = benchmark_hail.__main__:main']},
 )

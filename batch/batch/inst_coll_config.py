@@ -6,8 +6,12 @@ from typing import Dict, Optional, Any
 from gear import Database
 
 from .globals import MAX_PERSISTENT_SSD_SIZE_GIB, valid_machine_types
-from .utils import (adjust_cores_for_memory_request, adjust_cores_for_packability,
-                    round_storage_bytes_to_gib, cores_mcpu_to_memory_bytes)
+from .utils import (
+    adjust_cores_for_memory_request,
+    adjust_cores_for_packability,
+    round_storage_bytes_to_gib,
+    cores_mcpu_to_memory_bytes,
+)
 from .worker_config import WorkerConfig
 
 
@@ -27,7 +31,7 @@ def machine_type_to_dict(machine_type: str) -> Optional[Dict[str, Any]]:
 
 
 def requested_storage_bytes_to_actual_storage_gib(storage_bytes):
-    if storage_bytes > MAX_PERSISTENT_SSD_SIZE_GIB * 1024**3:
+    if storage_bytes > MAX_PERSISTENT_SSD_SIZE_GIB * 1024 ** 3:
         return None
     if storage_bytes == 0:
         return storage_bytes
@@ -41,20 +45,32 @@ class InstanceCollectionConfig:
 class PoolConfig(InstanceCollectionConfig):
     @staticmethod
     def from_record(record):
-        return PoolConfig(name=record['name'],
-                          worker_type=record['worker_type'],
-                          worker_cores=record['worker_cores'],
-                          worker_local_ssd_data_disk=record['worker_local_ssd_data_disk'],
-                          worker_pd_ssd_data_disk_size_gb=record['worker_pd_ssd_data_disk_size_gb'],
-                          enable_standing_worker=record['enable_standing_worker'],
-                          standing_worker_cores=record['standing_worker_cores'],
-                          boot_disk_size_gb=record['boot_disk_size_gb'],
-                          max_instances=record['max_instances'],
-                          max_live_instances=record['max_live_instances'])
+        return PoolConfig(
+            name=record['name'],
+            worker_type=record['worker_type'],
+            worker_cores=record['worker_cores'],
+            worker_local_ssd_data_disk=record['worker_local_ssd_data_disk'],
+            worker_pd_ssd_data_disk_size_gb=record['worker_pd_ssd_data_disk_size_gb'],
+            enable_standing_worker=record['enable_standing_worker'],
+            standing_worker_cores=record['standing_worker_cores'],
+            boot_disk_size_gb=record['boot_disk_size_gb'],
+            max_instances=record['max_instances'],
+            max_live_instances=record['max_live_instances'],
+        )
 
-    def __init__(self, name, worker_type, worker_cores, worker_local_ssd_data_disk,
-                 worker_pd_ssd_data_disk_size_gb, enable_standing_worker, standing_worker_cores,
-                 boot_disk_size_gb, max_instances, max_live_instances):
+    def __init__(
+        self,
+        name,
+        worker_type,
+        worker_cores,
+        worker_local_ssd_data_disk,
+        worker_pd_ssd_data_disk_size_gb,
+        enable_standing_worker,
+        standing_worker_cores,
+        boot_disk_size_gb,
+        max_instances,
+        max_live_instances,
+    ):
         self.name = name
         self.worker_type = worker_type
         self.worker_cores = worker_cores
@@ -82,18 +98,16 @@ class PoolConfig(InstanceCollectionConfig):
         return None
 
     def cost_per_hour(self, resource_rates, cores_mcpu, memory_bytes, storage_gib):
-        cost_per_hour = self.worker_config.cost_per_hour(resource_rates,
-                                                         cores_mcpu,
-                                                         memory_bytes,
-                                                         storage_gib)
+        cost_per_hour = self.worker_config.cost_per_hour(resource_rates, cores_mcpu, memory_bytes, storage_gib)
         return cost_per_hour
 
 
 class JobPrivateInstanceManagerConfig(InstanceCollectionConfig):
     @staticmethod
     def from_record(record):
-        return JobPrivateInstanceManagerConfig(record['name'], record['boot_disk_size_gb'],
-                                               record['max_instances'], record['max_live_instances'])
+        return JobPrivateInstanceManagerConfig(
+            record['name'], record['boot_disk_size_gb'], record['max_instances'], record['max_live_instances']
+        )
 
     def __init__(self, name, boot_disk_size_gb, max_instances, max_live_instances):
         self.name = name
@@ -128,11 +142,13 @@ class InstanceCollectionConfigs:
 
     async def refresh(self):
         log.info('loading inst coll configs and resource rates from db')
-        records = self.db.execute_and_fetchall('''
+        records = self.db.execute_and_fetchall(
+            '''
 SELECT inst_colls.*, pools.*
 FROM inst_colls
 LEFT JOIN pools ON inst_colls.name = pools.name;
-''')
+'''
+        )
         async for record in records:
             is_pool = bool(record['is_pool'])
             if is_pool:
@@ -146,9 +162,11 @@ LEFT JOIN pools ON inst_colls.name = pools.name;
 
         assert self.jpim_config is not None
 
-        records = self.db.execute_and_fetchall('''
+        records = self.db.execute_and_fetchall(
+            '''
 SELECT * FROM resources;
-''')
+'''
+        )
         self.resource_rates = {record['resource']: record['rate'] async for record in records}
 
     def select_pool_from_cost(self, cores_mcpu, memory_bytes, storage_bytes):
@@ -160,10 +178,9 @@ SELECT * FROM resources;
             result = pool.convert_requests_to_resources(cores_mcpu, memory_bytes, storage_bytes)
             if result:
                 maybe_cores_mcpu, maybe_memory_bytes, maybe_storage_gib = result
-                maybe_cost = pool.cost_per_hour(self.resource_rates,
-                                                maybe_cores_mcpu,
-                                                maybe_memory_bytes,
-                                                maybe_storage_gib)
+                maybe_cost = pool.cost_per_hour(
+                    self.resource_rates, maybe_cores_mcpu, maybe_memory_bytes, maybe_storage_gib
+                )
                 if optimal_cost is None or maybe_cost < optimal_cost:
                     optimal_cost = maybe_cost
                     optimal_result = (pool.name, maybe_cores_mcpu, maybe_memory_bytes, maybe_storage_gib)
@@ -181,27 +198,32 @@ SELECT * FROM resources;
     def select_job_private(self, machine_type, storage_bytes):
         return self.jpim_config.convert_requests_to_resources(machine_type, storage_bytes)
 
-    def select_inst_coll(self, machine_type, preemptible, worker_type, req_cores_mcpu,
-                         req_memory_bytes, req_storage_bytes):
+    def select_inst_coll(
+        self, machine_type, preemptible, worker_type, req_cores_mcpu, req_memory_bytes, req_storage_bytes
+    ):
         if worker_type is not None and machine_type is None:
             if not preemptible:
-                return (None, PreemptibleNotSupportedError('nonpreemptible machines are not supported without a machine type'))
+                return (
+                    None,
+                    PreemptibleNotSupportedError('nonpreemptible machines are not supported without a machine type'),
+                )
             result = self.select_pool_from_worker_type(
                 worker_type=worker_type,
                 cores_mcpu=req_cores_mcpu,
                 memory_bytes=req_memory_bytes,
-                storage_bytes=req_storage_bytes)
+                storage_bytes=req_storage_bytes,
+            )
         elif worker_type is None and machine_type is None:
             if not preemptible:
-                return (None, PreemptibleNotSupportedError('nonpreemptible workers are not supported without a machine type'))
+                return (
+                    None,
+                    PreemptibleNotSupportedError('nonpreemptible workers are not supported without a machine type'),
+                )
             result = self.select_pool_from_cost(
-                cores_mcpu=req_cores_mcpu,
-                memory_bytes=req_memory_bytes,
-                storage_bytes=req_storage_bytes)
+                cores_mcpu=req_cores_mcpu, memory_bytes=req_memory_bytes, storage_bytes=req_storage_bytes
+            )
         else:
             assert machine_type and machine_type in valid_machine_types
             assert worker_type is None
-            result = self.select_job_private(
-                machine_type=machine_type,
-                storage_bytes=req_storage_bytes)
+            result = self.select_job_private(machine_type=machine_type, storage_bytes=req_storage_bytes)
         return (result, None)

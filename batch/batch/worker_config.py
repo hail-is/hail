@@ -4,10 +4,13 @@ from collections import defaultdict
 from .globals import WORKER_CONFIG_VERSION
 
 from typing import TYPE_CHECKING
+
 if TYPE_CHECKING:
     from .inst_coll_config import PoolConfig  # pylint: disable=cyclic-import
 
-MACHINE_TYPE_REGEX = re.compile('projects/(?P<project>[^/]+)/zones/(?P<zone>[^/]+)/machineTypes/(?P<machine_family>[^-]+)-(?P<machine_type>[^-]+)-(?P<cores>\\d+)')
+MACHINE_TYPE_REGEX = re.compile(
+    'projects/(?P<project>[^/]+)/zones/(?P<zone>[^/]+)/machineTypes/(?P<machine_family>[^-]+)-(?P<machine_type>[^-]+)-(?P<cores>\\d+)'
+)
 DISK_TYPE_REGEX = re.compile('(projects/(?P<project>[^/]+)/)?zones/(?P<zone>[^/]+)/diskTypes/(?P<disk_type>.+)')
 
 
@@ -61,14 +64,16 @@ class WorkerConfig:
             else:
                 disk_size = int(params['diskSizeGb'])
 
-            disks.append({
-                'boot': disk_config.get('boot', False),
-                'project': disk_info.get('project'),
-                'zone': disk_info['zone'],
-                'type': disk_type,
-                'size': disk_size,
-                'image': params.get('sourceImage', None)
-            })
+            disks.append(
+                {
+                    'boot': disk_config.get('boot', False),
+                    'project': disk_info.get('project'),
+                    'zone': disk_info['zone'],
+                    'type': disk_type,
+                    'size': disk_size,
+                    'image': params.get('sourceImage', None),
+                }
+            )
 
         config = {
             'version': WORKER_CONFIG_VERSION,
@@ -78,24 +83,26 @@ class WorkerConfig:
                 'family': instance_info['machine_family'],
                 'type': instance_info['machine_type'],
                 'cores': int(instance_info['cores']),
-                'preemptible': preemptible
+                'preemptible': preemptible,
             },
             'disks': disks,
-            'job-private': job_private
+            'job-private': job_private,
         }
 
         return WorkerConfig(config)
 
     @staticmethod
     def from_pool_config(pool_config: 'PoolConfig'):
-        disks = [{
-            'boot': True,
-            'project': None,
-            'zone': None,
-            'type': 'pd-ssd',
-            'size': pool_config.boot_disk_size_gb,
-            'image': None
-        }]
+        disks = [
+            {
+                'boot': True,
+                'project': None,
+                'zone': None,
+                'type': 'pd-ssd',
+                'size': pool_config.boot_disk_size_gb,
+                'image': None,
+            }
+        ]
 
         if pool_config.worker_local_ssd_data_disk:
             typ = 'local-ssd'
@@ -104,14 +111,7 @@ class WorkerConfig:
             typ = 'pd-ssd'
             size = pool_config.worker_pd_ssd_data_disk_size_gb
 
-        disks.append({
-            'boot': False,
-            'project': None,
-            'zone': None,
-            'type': typ,
-            'size': size,
-            'image': None
-        })
+        disks.append({'boot': False, 'project': None, 'zone': None, 'type': typ, 'size': size, 'image': None})
 
         config = {
             'version': WORKER_CONFIG_VERSION,
@@ -121,10 +121,10 @@ class WorkerConfig:
                 'family': 'n1',  # FIXME: need to figure out how to handle variable family types
                 'type': pool_config.worker_type,
                 'cores': pool_config.worker_cores,
-                'preemptible': True
+                'preemptible': True,
             },
             'disks': disks,
-            'job-private': False
+            'job-private': False,
         }
 
         return WorkerConfig(config)
@@ -152,7 +152,7 @@ class WorkerConfig:
         data_disk = self.disks[1]
         assert not data_disk['boot']
 
-        self.local_ssd_data_disk = (data_disk['type'] == 'local-ssd')
+        self.local_ssd_data_disk = data_disk['type'] == 'local-ssd'
         self.data_disk_size_gb = data_disk['size']
 
         self.job_private = self.config['job-private']
@@ -173,15 +173,14 @@ class WorkerConfig:
         preemptible = 'preemptible' if self.preemptible else 'nonpreemptible'
         worker_fraction_in_1024ths = 1024 * cpu_in_mcpu // (self.cores * 1000)
 
-        resources.append({'name': f'compute/{self.instance_family}-{preemptible}/1',
-                          'quantity': cpu_in_mcpu})
+        resources.append({'name': f'compute/{self.instance_family}-{preemptible}/1', 'quantity': cpu_in_mcpu})
 
-        resources.append({'name': f'memory/{self.instance_family}-{preemptible}/1',
-                          'quantity': memory_in_bytes // 1024 // 1024})
+        resources.append(
+            {'name': f'memory/{self.instance_family}-{preemptible}/1', 'quantity': memory_in_bytes // 1024 // 1024}
+        )
 
         # storage is in units of MiB
-        resources.append({'name': 'disk/pd-ssd/1',
-                          'quantity': storage_in_gib * 1024})
+        resources.append({'name': 'disk/pd-ssd/1', 'quantity': storage_in_gib * 1024})
 
         quantities = defaultdict(lambda: 0)
         for disk in self.disks:
@@ -191,15 +190,12 @@ class WorkerConfig:
             quantities[name] += disk_size_in_mib
 
         for name, quantity in quantities.items():
-            resources.append({'name': name,
-                              'quantity': quantity})
+            resources.append({'name': name, 'quantity': quantity})
 
-        resources.append({'name': 'service-fee/1',
-                          'quantity': cpu_in_mcpu})
+        resources.append({'name': 'service-fee/1', 'quantity': cpu_in_mcpu})
 
         if is_power_two(self.cores) and self.cores <= 256:
-            resources.append({'name': 'ip-fee/1024/1',
-                              'quantity': worker_fraction_in_1024ths})
+            resources.append({'name': 'ip-fee/1024/1', 'quantity': worker_fraction_in_1024ths})
         else:
             raise NotImplementedError(self.cores)
 

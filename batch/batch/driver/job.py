@@ -6,14 +6,13 @@ import base64
 import traceback
 
 from hailtop.aiotools import BackgroundTaskManager
-from hailtop.utils import (time_msecs, Notice, retry_transient_errors)
+from hailtop.utils import time_msecs, Notice, retry_transient_errors
 from hailtop.httpx import client_session
 from gear import Database
 
 from ..batch import batch_record_to_dict
 from ..globals import complete_states, tasks, STATUS_FORMAT_VERSION
-from ..batch_configuration import KUBERNETES_TIMEOUT_IN_SECONDS, \
-    KUBERNETES_SERVER_URL
+from ..batch_configuration import KUBERNETES_TIMEOUT_IN_SECONDS, KUBERNETES_SERVER_URL
 from ..batch_format_version import BatchFormatVersion
 from ..spec_writer import SpecWriter
 from ..log_store import LogStore
@@ -21,6 +20,7 @@ from ..log_store import LogStore
 from .k8s_cache import K8sCache
 
 from typing import TYPE_CHECKING
+
 if TYPE_CHECKING:
     from .instance_collection_manager import InstanceCollectionManager  # pylint: disable=cyclic-import
 
@@ -40,7 +40,8 @@ WHERE id = %s AND NOT deleted AND callback IS NOT NULL AND
    batches.`state` = 'complete'
 GROUP BY batches.id;
 ''',
-        (batch_id,))
+        (batch_id,),
+    )
 
     if not record:
         return
@@ -50,11 +51,9 @@ GROUP BY batches.id;
 
     if record['user'] == 'ci':
         # only jobs from CI may use batch's TLS identity
-        http_client_session = client_session(
-            timeout=aiohttp.ClientTimeout(total=5))
+        http_client_session = client_session(timeout=aiohttp.ClientTimeout(total=5))
     else:
-        http_client_session = aiohttp.ClientSession(
-            raise_for_status=True, timeout=aiohttp.ClientTimeout(total=5))
+        http_client_session = aiohttp.ClientSession(raise_for_status=True, timeout=aiohttp.ClientTimeout(total=5))
     try:
         async with http_client_session as session:
             await session.post(callback, json=batch_record_to_dict(record))
@@ -66,22 +65,26 @@ GROUP BY batches.id;
 async def add_attempt_resources(db, batch_id, job_id, attempt_id, resources):
     if attempt_id:
         try:
-            resource_args = [(batch_id, job_id, attempt_id, resource['name'], resource['quantity'])
-                             for resource in resources]
+            resource_args = [
+                (batch_id, job_id, attempt_id, resource['name'], resource['quantity']) for resource in resources
+            ]
 
-            await db.execute_many('''
+            await db.execute_many(
+                '''
 INSERT INTO `attempt_resources` (batch_id, job_id, attempt_id, resource, quantity)
 VALUES (%s, %s, %s, %s, %s)
 ON DUPLICATE KEY UPDATE quantity = quantity;
 ''',
-                                  resource_args)
+                resource_args,
+            )
         except Exception:
             log.exception(f'error while inserting resources for job {id}, attempt {attempt_id}')
             raise
 
 
-async def mark_job_complete(app, batch_id, job_id, attempt_id, instance_name, new_state,
-                            status, start_time, end_time, reason, resources):
+async def mark_job_complete(
+    app, batch_id, job_id, attempt_id, instance_name, new_state, status, start_time, end_time, reason, resources
+):
     scheduler_state_changed: Notice = app['scheduler_state_changed']
     cancel_ready_state_changed: asyncio.Event = app['cancel_ready_state_changed']
     db: Database = app['db']
@@ -97,9 +100,19 @@ async def mark_job_complete(app, batch_id, job_id, attempt_id, instance_name, ne
     try:
         rv = await db.execute_and_fetchone(
             'CALL mark_job_complete(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s);',
-            (batch_id, job_id, attempt_id, instance_name, new_state,
-             json.dumps(status) if status is not None else None,
-             start_time, end_time, reason, now))
+            (
+                batch_id,
+                job_id,
+                attempt_id,
+                instance_name,
+                new_state,
+                json.dumps(status) if status is not None else None,
+                start_time,
+                end_time,
+                reason,
+                now,
+            ),
+        )
     except Exception:
         log.exception(f'error while marking job {id} complete on instance {instance_name}')
         raise
@@ -150,7 +163,8 @@ async def mark_job_started(app, batch_id, job_id, attempt_id, instance, start_ti
             '''
 CALL mark_job_started(%s, %s, %s, %s, %s);
 ''',
-            (batch_id, job_id, attempt_id, instance.name, start_time))
+            (batch_id, job_id, attempt_id, instance.name, start_time),
+        )
     except Exception:
         log.info(f'error while marking job {id} started on {instance}')
         raise
@@ -173,7 +187,8 @@ async def mark_job_creating(app, batch_id, job_id, attempt_id, instance, start_t
             '''
 CALL mark_job_creating(%s, %s, %s, %s, %s);
 ''',
-            (batch_id, job_id, attempt_id, instance.name, start_time))
+            (batch_id, job_id, attempt_id, instance.name, start_time),
+        )
     except Exception:
         log.info(f'error while marking job {id} creating on {instance}')
         raise
@@ -206,7 +221,8 @@ async def unschedule_job(app, record):
     try:
         rv = await db.execute_and_fetchone(
             'CALL unschedule_job(%s, %s, %s, %s, %s, %s);',
-            (batch_id, job_id, attempt_id, instance_name, end_time, 'cancelled'))
+            (batch_id, job_id, attempt_id, instance_name, end_time, 'cancelled'),
+        )
     except Exception:
         log.exception(f'error while unscheduling job {id} on instance {instance_name}')
         raise
@@ -226,15 +242,13 @@ async def unschedule_job(app, record):
         scheduler_state_changed.notify()
         log.info(f'unschedule job {id}, attempt {attempt_id}: updated {instance} free cores')
 
-    url = (f'http://{instance.ip_address}:5000'
-           f'/api/v1alpha/batches/{batch_id}/jobs/{job_id}/delete')
+    url = f'http://{instance.ip_address}:5000' f'/api/v1alpha/batches/{batch_id}/jobs/{job_id}/delete'
 
     async def make_request():
         if instance.state in ('inactive', 'deleted'):
             return
         try:
-            async with aiohttp.ClientSession(
-                    raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
+            async with aiohttp.ClientSession(raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
                 await session.delete(url)
                 await instance.mark_healthy()
         except aiohttp.ClientResponseError as err:
@@ -265,7 +279,7 @@ async def job_config(app, record, attempt_id):
     if format_version.has_full_spec_in_gcs():
         job_spec = {
             'secrets': format_version.get_spec_secrets(db_spec),
-            'service_account': format_version.get_spec_service_account(db_spec)
+            'service_account': format_version.get_spec_service_account(db_spec),
         }
     else:
         job_spec = db_spec
@@ -275,12 +289,12 @@ async def job_config(app, record, attempt_id):
     userdata = json.loads(record['userdata'])
 
     secrets = job_spec.get('secrets', [])
-    k8s_secrets = await asyncio.gather(*[
-        k8s_cache.read_secret(
-            secret['name'], secret['namespace'],
-            KUBERNETES_TIMEOUT_IN_SECONDS)
-        for secret in secrets
-    ])
+    k8s_secrets = await asyncio.gather(
+        *[
+            k8s_cache.read_secret(secret['name'], secret['namespace'], KUBERNETES_TIMEOUT_IN_SECONDS)
+            for secret in secrets
+        ]
+    )
 
     gsa_key = None
     for secret, k8s_secret in zip(secrets, k8s_secrets):
@@ -295,14 +309,12 @@ async def job_config(app, record, attempt_id):
         namespace = service_account['namespace']
         name = service_account['name']
 
-        sa = await k8s_cache.read_service_account(
-            name, namespace, KUBERNETES_TIMEOUT_IN_SECONDS)
+        sa = await k8s_cache.read_service_account(name, namespace, KUBERNETES_TIMEOUT_IN_SECONDS)
         assert len(sa.secrets) == 1
 
         token_secret_name = sa.secrets[0].name
 
-        secret = await k8s_cache.read_secret(
-            token_secret_name, namespace, KUBERNETES_TIMEOUT_IN_SECONDS)
+        secret = await k8s_cache.read_secret(token_secret_name, namespace, KUBERNETES_TIMEOUT_IN_SECONDS)
 
         token = base64.b64decode(secret.data['token']).decode()
         cert = secret.data['ca.crt']
@@ -329,19 +341,19 @@ users:
     token: {token}
 '''
 
-        job_spec['secrets'].append({
-            'name': 'kube-config',
-            'mount_path': '/.kube',
-            'data': {'config': base64.b64encode(kube_config.encode()).decode(),
-                     'ca.crt': cert}
-        })
+        job_spec['secrets'].append(
+            {
+                'name': 'kube-config',
+                'mount_path': '/.kube',
+                'data': {'config': base64.b64encode(kube_config.encode()).decode(), 'ca.crt': cert},
+            }
+        )
 
         env = job_spec.get('env')
         if not env:
             env = []
             job_spec['env'] = env
-        env.append({'name': 'KUBECONFIG',
-                    'value': '/.kube/config'})
+        env.append({'name': 'KUBECONFIG', 'value': '/.kube/config'})
 
     if format_version.has_full_spec_in_gcs():
         token, start_job_id = await SpecWriter.get_token_start_id(db, batch_id, job_id)
@@ -357,7 +369,7 @@ users:
         'start_job_id': start_job_id,
         'user': record['user'],
         'gsa_key': gsa_key,
-        'job_spec': job_spec
+        'job_spec': job_spec,
     }
 
 
@@ -388,7 +400,7 @@ async def schedule_job(app, record, instance):
                 'user': record['user'],
                 'state': 'error',
                 'error': traceback.format_exc(),
-                'container_statuses': {k: None for k in tasks}
+                'container_statuses': {k: None for k in tasks},
             }
 
             if format_version.has_full_status_in_gcs():
@@ -397,17 +409,16 @@ async def schedule_job(app, record, instance):
             db_status = format_version.db_status(status)
             resources = []
 
-            await mark_job_complete(app, batch_id, job_id, attempt_id, instance.name,
-                                    'Error', db_status, None, None, 'error', resources)
+            await mark_job_complete(
+                app, batch_id, job_id, attempt_id, instance.name, 'Error', db_status, None, None, 'error', resources
+            )
             raise
 
         log.info(f'schedule job {id} on {instance}: made job config')
 
         try:
-            async with aiohttp.ClientSession(
-                    raise_for_status=True, timeout=aiohttp.ClientTimeout(total=2)) as session:
-                url = (f'http://{instance.ip_address}:5000'
-                       f'/api/v1alpha/batches/jobs/create')
+            async with aiohttp.ClientSession(raise_for_status=True, timeout=aiohttp.ClientTimeout(total=2)) as session:
+                url = f'http://{instance.ip_address}:5000' f'/api/v1alpha/batches/jobs/create'
                 await session.post(url, json=body)
                 await instance.mark_healthy()
         except aiohttp.ClientResponseError as e:
@@ -425,7 +436,8 @@ async def schedule_job(app, record, instance):
             '''
 CALL schedule_job(%s, %s, %s, %s);
 ''',
-            (batch_id, job_id, attempt_id, instance.name))
+            (batch_id, job_id, attempt_id, instance.name),
+        )
     except Exception:
         log.exception(f'error while scheduling job {id} on {instance}')
         if instance.state == 'active':

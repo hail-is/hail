@@ -20,4 +20,5 @@ def check_csrf_token(fun):
             return await fun(request, *args, **kwargs)
         log.info('request made with invalid csrf tokens')
         raise web.HTTPUnauthorized()
+
     return wrapped

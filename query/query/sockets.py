@@ -38,9 +38,7 @@ class ServiceBackendSocketConnection:
 
     def __enter__(self) -> 'ServiceBackendSocketConnection':
         self._conn = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)  # pylint: disable=attribute-defined-outside-init
-        sync_retry_transient_errors(
-            self._conn.connect,
-            ServiceBackendSocketConnection.FNAME)
+        sync_retry_transient_errors(self._conn.connect, ServiceBackendSocketConnection.FNAME)
         return self
 
     def __exit__(self, type, value, traceback):

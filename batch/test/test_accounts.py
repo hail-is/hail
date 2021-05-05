@@ -14,6 +14,7 @@ DOCKER_ROOT_IMAGE = os.environ.get('DOCKER_ROOT_IMAGE', 'gcr.io/hail-vdc/ubuntu:
 @pytest.fixture
 async def make_client():
     _bcs = []
+
     async def factory(project=None):
         bc = BatchClient(project, token_file=os.environ['HAIL_TEST_TOKEN_FILE'])
         _bcs.append(bc)
@@ -54,10 +55,12 @@ def get_billing_project_name():
     billing_project_prefix = get_billing_project_prefix()
     attempt_prefix = f'{billing_project_prefix}_{secret_alnum_string(5)}'
     projects = []
+
     def get_name():
         name = f'{attempt_prefix}_{len(projects)}'
         projects.append(name)
         return name
+
     return get_name
 
 
@@ -172,7 +175,9 @@ async def test_close_reopen_billing_project(dev_client, new_billing_project):
     # test idempotent
     await dev_client.reopen_billing_project(project)
     r = await dev_client.list_billing_projects()
-    assert [bp['billing_project'] for bp in r if bp['billing_project'] == project and bp['status'] == 'open'] == [project], r
+    assert [bp['billing_project'] for bp in r if bp['billing_project'] == project and bp['status'] == 'open'] == [
+        project
+    ], r
 
 
 async def test_close_billing_project_with_open_batch_errors(dev_client, make_client, new_billing_project):
@@ -430,7 +435,9 @@ async def search_batches(client, expected_batch_id, q):
     return found, [b.id for b in batches]
 
 
-async def test_user_can_access_batch_made_by_other_user_in_shared_billing_project(make_client, dev_client, new_billing_project):
+async def test_user_can_access_batch_made_by_other_user_in_shared_billing_project(
+    make_client, dev_client, new_billing_project
+):
     project = new_billing_project
 
     r = await dev_client.add_user("test", project)
@@ -501,7 +508,9 @@ async def test_user_can_access_batch_made_by_other_user_in_shared_billing_projec
     assert not found, str((b.id, batches))
 
 
-async def test_batch_cannot_be_accessed_by_users_outside_the_billing_project(make_client, dev_client, new_billing_project):
+async def test_batch_cannot_be_accessed_by_users_outside_the_billing_project(
+    make_client, dev_client, new_billing_project
+):
     project = new_billing_project
 
     r = await dev_client.add_user("test", project)

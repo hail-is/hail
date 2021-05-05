@@ -42,7 +42,17 @@ async def insert_user_if_not_exists(app, username, email, is_developer, is_servi
     INSERT INTO users (state, username, email, is_developer, is_service_account, gsa_email, gsa_key_secret_name, namespace_name)
     VALUES (%s, %s, %s, %s, %s, %s, %s, %s);
     ''',
-            ('creating', username, email, is_developer, is_service_account, gsa_email, gsa_key_secret_name, namespace_name))
+            (
+                'creating',
+                username,
+                email,
+                is_developer,
+                is_service_account,
+                gsa_email,
+                gsa_key_secret_name,
+                namespace_name,
+            ),
+        )
 
     return await insert()
 
@@ -74,7 +84,8 @@ async def main():
     app['k8s_client'] = k8s_client
 
     app['iam_client'] = aiogoogle.IAmClient(
-        PROJECT, credentials=aiogoogle.Credentials.from_file('/auth-gsa-key/key.json'))
+        PROJECT, credentials=aiogoogle.Credentials.from_file('/auth-gsa-key/key.json')
+    )
 
     for username, email, is_developer, is_service_account in users:
         user_id = await insert_user_if_not_exists(app, username, email, is_developer, is_service_account)
