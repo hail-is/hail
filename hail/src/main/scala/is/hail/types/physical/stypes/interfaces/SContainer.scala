@@ -42,5 +42,7 @@ trait SIndexableCode extends SCode {
   def memoize(cb: EmitCodeBuilder, name: String): SIndexableValue
 
   def memoizeField(cb: EmitCodeBuilder, name: String): SIndexableValue
+
+  def castToArray(cb: EmitCodeBuilder): SIndexableCode
 }
 
