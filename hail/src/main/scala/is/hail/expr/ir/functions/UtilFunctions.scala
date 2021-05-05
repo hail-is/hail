@@ -230,27 +230,27 @@ object UtilFunctions extends RegistryFunctions {
         IEmitCode(Lmissing, Ldefined, PCode(rt, value.load()), v1.required || v2.required)
       }
 
-      registerIEmitCode2(ignoreMissingName, TInt32, TInt32, TInt32, (_: Type, t1: PType, t2: PType) => PInt32(t1.required && t2.required)) {
+      registerIEmitCode2(ignoreMissingName, TInt32, TInt32, TInt32, (_: Type, t1: PType, t2: PType) => PInt32(t1.required || t2.required)) {
         case (cb, r, rt, v1, v2) => ignoreMissingTriplet[Int](cb, rt, v1, v2, name, Code.invokeStatic2[Math, Int, Int, Int](name, _, _))
       }
 
-      registerIEmitCode2(ignoreMissingName, TInt64, TInt64, TInt64, (_: Type, t1: PType, t2: PType) => PInt64(t1.required && t2.required)) {
+      registerIEmitCode2(ignoreMissingName, TInt64, TInt64, TInt64, (_: Type, t1: PType, t2: PType) => PInt64(t1.required || t2.required)) {
         case (cb, r, rt, v1, v2) => ignoreMissingTriplet[Long](cb, rt, v1, v2, name, Code.invokeStatic2[Math, Long, Long, Long](name, _, _))
       }
 
-      registerIEmitCode2(ignoreMissingName, TFloat32, TFloat32, TFloat32, (_: Type, t1: PType, t2: PType) => PFloat32(t1.required && t2.required)) {
+      registerIEmitCode2(ignoreMissingName, TFloat32, TFloat32, TFloat32, (_: Type, t1: PType, t2: PType) => PFloat32(t1.required || t2.required)) {
         case (cb, r, rt, v1, v2) => ignoreMissingTriplet[Float](cb, rt, v1, v2, name, Code.invokeStatic2[Math, Float, Float, Float](name, _, _))
       }
 
-      registerIEmitCode2(ignoreMissingName, TFloat64, TFloat64, TFloat64, (_: Type, t1: PType, t2: PType) => PFloat64(t1.required && t2.required)) {
+      registerIEmitCode2(ignoreMissingName, TFloat64, TFloat64, TFloat64, (_: Type, t1: PType, t2: PType) => PFloat64(t1.required || t2.required)) {
         case (cb, r, rt, v1, v2) => ignoreMissingTriplet[Double](cb, rt, v1, v2, name, Code.invokeStatic2[Math, Double, Double, Double](name, _, _))
       }
 
-      registerIEmitCode2(ignoreBothName, TFloat32, TFloat32, TFloat32, (_: Type, t1: PType, t2: PType) => PFloat32(t1.required && t2.required)) {
+      registerIEmitCode2(ignoreBothName, TFloat32, TFloat32, TFloat32, (_: Type, t1: PType, t2: PType) => PFloat32(t1.required || t2.required)) {
         case (cb, r, rt, v1, v2) => ignoreMissingTriplet[Float](cb, rt, v1, v2, ignoreNanName, Code.invokeScalaObject2[Float, Float, Float](thisClass, ignoreNanName, _, _))
       }
 
-      registerIEmitCode2(ignoreBothName, TFloat64, TFloat64, TFloat64, (_: Type, t1: PType, t2: PType) => PFloat64(t1.required && t2.required)) {
+      registerIEmitCode2(ignoreBothName, TFloat64, TFloat64, TFloat64, (_: Type, t1: PType, t2: PType) => PFloat64(t1.required || t2.required)) {
         case (cb, r, rt, v1, v2) => ignoreMissingTriplet[Double](cb, rt, v1, v2, ignoreNanName, Code.invokeScalaObject2[Double, Double, Double](thisClass, ignoreNanName, _, _))
       }
     }
