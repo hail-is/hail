@@ -455,9 +455,9 @@ case class RMatrix(rowType: RStruct, entryType: RStruct, colType: RStruct, globa
 }
 
 case class RBlockMatrix(val elementType: TypeWithRequiredness) extends BaseTypeWithRequiredness {
-  override def children: Seq[BaseTypeWithRequiredness] = Seq()
+  override def children: Seq[BaseTypeWithRequiredness] = Seq(elementType)
 
-  override def copy(newChildren: Seq[BaseTypeWithRequiredness]): BaseTypeWithRequiredness = RBlockMatrix(elementType)
+  override def copy(newChildren: Seq[BaseTypeWithRequiredness]): BaseTypeWithRequiredness = RBlockMatrix(newChildren(0).asInstanceOf[TypeWithRequiredness])
 
   override def toString: String = s"RBlockMatrix(${elementType})"
 }
