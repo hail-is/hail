@@ -1466,11 +1466,8 @@ class Tests(unittest.TestCase):
         self.assertFalse(hl.eval(s_whitespace.endswith('a')))
 
     def test_str_parsing(self):
-        for x in ('true', 'True', 'TRUE'):
-            self.assertTrue(hl.eval(hl.bool(x)))
-
-        for x in ('false', 'False', 'FALSE'):
-            self.assertFalse(hl.eval(hl.bool(x)))
+        assert_all_eval_to(*[(hl.bool(x), True) for x in ('true', 'True', 'TRUE')])
+        assert_all_eval_to(*[(hl.bool(x), False) for x in ('false', 'False', 'FALSE')])
 
         for x in ('nan', 'Nan', 'naN', 'NaN'):
             for f in (hl.float, hl.float32, hl.float64, hl.parse_float32, hl.parse_float64):
@@ -1486,20 +1483,15 @@ class Tests(unittest.TestCase):
                 self.assertTrue(hl.eval(f('-' + x) < 0.0))
 
         for x in ('0', '1', '-5', '12382421'):
-            for f in (hl.int32, hl.int64, hl.parse_int32, hl.parse_int64):
-                self.assertEqual(hl.eval(f(hl.literal(x))), int(x))
-            for f in (hl.float32, hl.float64, hl.parse_float32, hl.parse_float64):
-                self.assertEqual(hl.eval(f(hl.literal(x))), float(x))
+            assert_all_eval_to(*[(f(hl.literal(x)), int(x)) for f in (hl.int32, hl.int64, hl.parse_int32, hl.parse_int64)])
+            assert_all_eval_to(*[(f(hl.literal(x)), float(x)) for f in (hl.float32, hl.float64, hl.parse_float32, hl.parse_float64)])
 
         for x in ('-1.5', '0.0', '2.5'):
-            for f in (hl.float32, hl.float64, hl.parse_float32, hl.parse_float64):
-                self.assertEqual(hl.eval(f(hl.literal(x))), float(x))
-            for f in (hl.parse_int32, hl.parse_int64):
-                self.assertEqual(hl.eval(f(hl.literal(x))), None)
+            assert_all_eval_to(*[(f(hl.literal(x)), float(x)) for f in (hl.float32, hl.float64, hl.parse_float32, hl.parse_float64)])
+            assert_all_eval_to(*[(f(hl.literal(x)), None) for f in (hl.parse_int32, hl.parse_int64)])
 
         for x in ('abc', '1abc', ''):
-            for f in (hl.parse_float32, hl.parse_float64, hl.parse_int32, hl.parse_int64):
-                self.assertEqual(hl.eval(f(hl.literal(x))), None)
+            assert_all_eval_to(*[(f(hl.literal(x)), None) for f in (hl.parse_float32, hl.parse_float64, hl.parse_int32, hl.parse_int64)])
 
     def test_str_missingness(self):
         self.assertEqual(hl.eval(hl.str(1)), '1')
