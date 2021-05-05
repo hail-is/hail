@@ -453,9 +453,6 @@ class EmitCode(private val start: CodeLabel, private val iec: IEmitCode) {
       eci
     }
 
-  def get(): PCode =
-    PCode(pv.pt, Code(setup, m.orEmpty(Code._fatal[Unit]("expected non-missing")), pv.code))
-
   def asVoid(): Code[Unit] = {
     require(pv.pt == PVoid)
     Code(setup, Code.toUnit(m))

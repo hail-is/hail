@@ -949,9 +949,7 @@ class EmitMethodBuilder[C](
 
           override def load: EmitCode = emitCode
 
-          override def get(cb: EmitCodeBuilder): PCode = {
-            emitCode.get()
-          }
+          override def get(cb: EmitCodeBuilder): PCode = emitCode.toI(cb).get(cb)
         }
 
       case PCodeEmitParamType(_pt) =>
