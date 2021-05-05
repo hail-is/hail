@@ -288,7 +288,10 @@ object UtilFunctions extends RegistryFunctions {
             )
           })
 
-        IEmitCode(cb, ((M >> w) & 1).cne(0), PCode(rt, w.ceq(10)))
+        val Lpresent = CodeLabel()
+        val Lmissing = CodeLabel()
+        cb.ifx(((M >> w) & 1).cne(0), cb.goto(Lmissing), cb.goto(Lpresent))
+        IEmitCode(Lmissing, Lpresent, PCode(rt, w.ceq(10)), l.required && r.required)
     }
 
     registerIEmitCode2("lor", TBoolean, TBoolean, TBoolean, (_: Type, tl: PType, tr: PType) => PBoolean(tl.required && tr.required)) {
@@ -315,7 +318,10 @@ object UtilFunctions extends RegistryFunctions {
             )
           })
 
-        IEmitCode(cb, ((M >> w) & 1).cne(0), PCode(rt, w.cne(0)))
+        val Lpresent = CodeLabel()
+        val Lmissing = CodeLabel()
+        cb.ifx(((M >> w) & 1).cne(0), cb.goto(Lmissing), cb.goto(Lpresent))
+        IEmitCode(Lmissing, Lpresent, PCode(rt, w.cne(0)), l.required && r.required)
     }
   }
 }

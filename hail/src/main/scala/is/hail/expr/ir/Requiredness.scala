@@ -24,6 +24,7 @@ object Requiredness {
 
 case class RequirednessAnalysis(r: Memo[BaseTypeWithRequiredness], states: Memo[IndexedSeq[TypeWithRequiredness]]) {
   def lookup(node: BaseIR): BaseTypeWithRequiredness = r.lookup(node)
+  def lookupOpt(node: BaseIR): Option[BaseTypeWithRequiredness] = r.get(node)
   def apply(node: IR): TypeWithRequiredness = coerce[TypeWithRequiredness](lookup(node))
   def getState(node: IR): IndexedSeq[TypeWithRequiredness] = states(node)
 }
@@ -600,7 +601,7 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
         requiredness.union(lookup(r).required)
       case NDArrayQR(_, mode) => requiredness.fromPType(NDArrayQR.pTypes(mode))
       case NDArraySVD(_, _, computeUV) => requiredness.fromPType(NDArraySVD.pTypes(computeUV))
-      case NDArrayInv(_) => requiredness.fromPType(NDArrayInv.pType)
+      case NDArrayInv(child) => requiredness.unionFrom(lookup(child))
       case MakeStruct(fields) =>
         fields.foreach { case (n, f) =>
           coerce[RStruct](requiredness).field(n).unionFrom(lookup(f))

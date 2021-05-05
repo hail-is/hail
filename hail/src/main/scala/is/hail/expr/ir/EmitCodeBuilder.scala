@@ -86,21 +86,21 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
 
   def memoize(v: EmitCode, name: String): EmitValue = {
     require(v.pt.isRealizable)
-    val l = emb.newEmitLocal(name, v.pt)
+    val l = emb.newEmitLocal(name, v.emitType)
     assign(l, v)
     l
   }
 
   def memoize(v: IEmitCode, name: String): EmitValue = {
     require(v.pt.isRealizable)
-    val l = emb.newEmitLocal(name, v.pt)
+    val l = emb.newEmitLocal(name, v.emitType)
     assign(l, v)
     l
   }
 
   def memoizeField[T](ec: EmitCode, name: String): EmitValue = {
     require(ec.pt.isRealizable)
-    val l = emb.newEmitField(name, ec.pt)
+    val l = emb.newEmitField(name, ec.emitType)
     l.store(this, ec)
     l
   }
@@ -120,7 +120,7 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
 
   def memoizeField(v: IEmitCode, name: String): EmitValue = {
     require(v.pt.isRealizable)
-    val l = emb.newEmitField(name, v.pt)
+    val l = emb.newEmitField(name, v.emitType)
     assign(l, v)
     l
   }

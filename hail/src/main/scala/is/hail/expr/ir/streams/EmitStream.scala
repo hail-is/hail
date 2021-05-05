@@ -5,6 +5,7 @@ import is.hail.asm4s._
 import is.hail.expr.ir._
 import is.hail.expr.ir.orderings.StructOrdering
 import is.hail.services.shuffler.CompileTimeShuffleClient
+import is.hail.types.physical.stypes.EmitType
 import is.hail.types.physical.stypes.concrete.SCanonicalShufflePointerSettable
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.physical.stypes.primitives.{SInt32, SInt32Code}
@@ -176,7 +177,7 @@ object EmitStream {
           override val LproduceElement: CodeLabel = mb.defineAndImplementLabel { cb =>
             cb.goto(LendOfStream)
           }
-          override val element: EmitCode = EmitCode.missing(mb, eltType)
+          override val element: EmitCode = EmitCode.present(mb, eltType.defaultValue(mb))
 
           override def close(cb: EmitCodeBuilder): Unit = {}
         }
@@ -261,7 +262,7 @@ object EmitStream {
         val emittedArgs = args.map(a => EmitCode.fromI(mb)(cb => emit(a, cb, region))).toFastIndexedSeq
 
         val unifiedType = x.pType.asInstanceOf[PCanonicalStream].elementType.sType // FIXME
-        val eltField = mb.newEmitField("makestream_elt", unifiedType.pType)
+        val eltField = mb.newEmitField("makestream_elt", EmitType(unifiedType, emittedArgs.forall(_.required)))
 
         val staticLen = args.size
         val current = mb.genFieldThisRef[Int]("makestream_current")
@@ -316,7 +317,7 @@ object EmitStream {
           val leftProducer = leftEC.pv.asStream.producer
           val rightProducer = rightEC.pv.asStream.producer
 
-          val xElt = mb.newEmitField(x.pType.asInstanceOf[PCanonicalStream].elementType) // FIXME unify here
+          val xElt = mb.newEmitField(x.pType.asInstanceOf[PCanonicalStream].elementType, leftEC.required && rightEC.required) // FIXME unify here
 
           val region = mb.genFieldThisRef[Region]("streamif_region")
           cb.ifx(xCond,
@@ -454,7 +455,7 @@ object EmitStream {
 
             val filterEltRegion = mb.genFieldThisRef[Region]("streamfilter_filter_region")
 
-            val elementField = cb.emb.newEmitField("streamfilter_cond", childStream.st.elementType.pType)
+            val elementField = cb.emb.newEmitField("streamfilter_cond", childProducer.element.emitType)
 
             val producer = new StreamProducer {
               override val length: Option[EmitCodeBuilder => Code[Int]] = None
@@ -653,8 +654,9 @@ object EmitStream {
         produce(childIR, cb).map(cb) { case (childStream: SStreamCode) =>
           val childProducer = childStream.producer
 
-          val accValueAccRegion = mb.newEmitField(x.accPType)
-          val accValueEltRegion = mb.newEmitField(x.accPType)
+          val accEmitType = EmitType(x.accPType.sType, x.accPType.required)
+          val accValueAccRegion = mb.newEmitField(accEmitType)
+          val accValueEltRegion = mb.newEmitField(accEmitType)
 
           // accRegion is unused if requiresMemoryManagementPerElement is false
           val accRegion: Settable[Region] = if (childProducer.requiresMemoryManagementPerElement) mb.genFieldThisRef[Region]("streamscan_acc_region") else null
@@ -737,11 +739,11 @@ object EmitStream {
         produce(child, cb).map(cb) { case (childStream: SStreamCode) =>
           val childProducer = childStream.producer
 
-          val childEltField = mb.newEmitField("runaggscan_child_elt", childProducer.element.pt)
+          val childEltField = mb.newEmitField("runaggscan_child_elt", childProducer.element.emitType)
           val bodyEnv = env.bind(name -> childEltField)
           val bodyResult = EmitCode.fromI(mb)(cb => emit(result, cb = cb, region = childProducer.elementRegion,
             env = bodyEnv, container = Some(newContainer)))
-          val bodyResultField = mb.newEmitField("runaggscan_result_elt", bodyResult.pt)
+          val bodyResultField = mb.newEmitField("runaggscan_result_elt", bodyResult.emitType)
 
           val producer = new StreamProducer {
             override val length: Option[EmitCodeBuilder => Code[Int]] = childProducer.length
@@ -910,14 +912,14 @@ object EmitStream {
             val leftProducer = leftStream.producer
             val rightProducer = rightStream.producer
 
-            val lEltType = leftProducer.element.pt
-            val rEltType = rightProducer.element.pt
+            val lEltType = leftProducer.element.emitType
+            val rEltType = rightProducer.element.emitType
 
             // these variables are used as inputs to the joinF
 
             def compare(cb: EmitCodeBuilder, lelt: EmitValue, relt: EmitValue): Code[Int] = {
-              assert(lelt.pt == lEltType)
-              assert(relt.pt == rEltType)
+              assert(lelt.emitType == lEltType)
+              assert(relt.emitType == rEltType)
 
               val lhs = EmitCode.fromI(mb)(cb => lelt.toI(cb).map(cb)(_.asBaseStruct.subset(lKey: _*).asPCode))
               val rhs = EmitCode.fromI(mb)(cb => relt.toI(cb).map(cb)(_.asBaseStruct.subset(rKey: _*).asPCode))
@@ -930,7 +932,7 @@ object EmitStream {
               case "left" =>
                 val lx = mb.newEmitField(lEltType) // last value received from left
                 val rx = mb.newEmitField(rEltType) // last value received from right
-                val rxOut = mb.newEmitField(rEltType.setRequired(false)) // right value in joinF (may be missing while rx is not)
+                val rxOut = mb.newEmitField(rEltType.copy(required = false)) // right value in joinF (may be missing while rx is not)
 
                 val joinResult = EmitCode.fromI(mb)(cb => emit(joinIR, cb,
                   region = leftProducer.elementRegion,
@@ -1036,8 +1038,8 @@ object EmitStream {
 
                 val lx = mb.newEmitField(lEltType) // last value received from left
                 val rx = mb.newEmitField(rEltType) // last value received from right
-                val lxOut = mb.newEmitField(lEltType.setRequired(false)) // left value in joinF (may be missing while lx is not)
-                val rxOut = mb.newEmitField(rEltType.setRequired(false)) // right value in joinF (may be missing while rx is not)
+                val lxOut = mb.newEmitField(lEltType.copy(required = false)) // left value in joinF (may be missing while lx is not)
+                val rxOut = mb.newEmitField(rEltType.copy(required = false)) // right value in joinF (may be missing while rx is not)
 
                 val pulledRight = mb.genFieldThisRef[Boolean]("join_right_distinct_pulledRight")
                 val rightEOS = mb.genFieldThisRef[Boolean]("join_right_distinct_rightEOS")
@@ -1538,7 +1540,7 @@ object EmitStream {
 
           val producer: StreamProducer = behavior match {
             case behavior@(ArrayZipBehavior.TakeMinLength | ArrayZipBehavior.AssumeSameLength) =>
-              val vars = names.zip(producers).map { case (name, p) => mb.newEmitField(name, p.element.pt) }
+              val vars = names.zip(producers).map { case (name, p) => mb.newEmitField(name, p.element.emitType) }
 
               val eltRegion = mb.genFieldThisRef[Region]("streamzip_eltregion")
               val bodyCode = EmitCode.fromI(mb)(cb => emit(body, cb, region = eltRegion, env = env.bind(names.zip(vars): _*)))
@@ -1598,7 +1600,7 @@ object EmitStream {
 
             case ArrayZipBehavior.AssertSameLength =>
 
-              val vars = names.zip(producers).map { case (name, p) => mb.newEmitField(name, p.element.pt.setRequired(false)) }
+              val vars = names.zip(producers).map { case (name, p) => mb.newEmitField(name, p.element.emitType) }
 
               val eltRegion = mb.genFieldThisRef[Region]("streamzip_eltregion")
               val bodyCode = EmitCode.fromI(mb)(cb => emit(body, cb, region = eltRegion, env = env.bind(names.zip(vars): _*)))
@@ -1677,7 +1679,7 @@ object EmitStream {
 
 
             case ArrayZipBehavior.ExtendNA =>
-              val vars = names.zip(producers).map { case (name, p) => mb.newEmitField(name, p.element.pt.setRequired(false)) }
+              val vars = names.zip(producers).map { case (name, p) => mb.newEmitField(name, p.element.emitType.copy(required = false)) }
 
               val eltRegion = mb.genFieldThisRef[Region]("streamzip_eltregion")
               val bodyCode = EmitCode.fromI(mb)(cb => emit(body, cb, region = eltRegion, env = env.bind(names.zip(vars): _*)))
