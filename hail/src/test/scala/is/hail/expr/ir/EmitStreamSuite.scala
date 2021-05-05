@@ -141,7 +141,7 @@ class EmitStreamSuite extends HailSuite {
         .consume(cb,
           {},
           { case stream: SStreamCode =>
-            stream.producer.memoryManagedConsume(region, cb, { cb => stream.producer.length.foreach(c => cb.assign(len2, c)) }) { cb =>
+            stream.producer.memoryManagedConsume(region, cb, { cb => stream.producer.length.foreach(computeLen => cb.assign(len2, computeLen(cb))) }) { cb =>
               cb.assign(len, len + 1)
             }
           })

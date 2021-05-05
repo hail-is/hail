@@ -490,7 +490,7 @@ case class PartitionRVDReader(rvd: RVD) extends PartitionReader {
       val broadcastRVD = mb.getObject[BroadcastRVD](new BroadcastRVD(ctx.backend.asSpark("RVDReader"), rvd))
 
       val producer = new StreamProducer {
-        override val length: Option[Code[Int]] = None
+        override val length: Option[EmitCodeBuilder => Code[Int]] = None
 
         override def initialize(cb: EmitCodeBuilder): Unit = {
           cb.assign(iterator, broadcastRVD.invoke[Int, Region, Region, Iterator[Long]](
@@ -543,7 +543,7 @@ case class PartitionNativeReader(spec: AbstractTypedCodecSpec) extends AbstractN
       val region = mb.genFieldThisRef[Region]("pnr_region")
 
       val producer = new StreamProducer {
-        override val length: Option[Code[Int]] = None
+        override val length: Option[EmitCodeBuilder => Code[Int]] = None
 
         override def initialize(cb: EmitCodeBuilder): Unit = {
           cb.assign(xRowBuf, spec.buildCodeInputBuffer(mb.open(pathString, checkCodec = true)))
@@ -606,7 +606,7 @@ case class PartitionNativeReaderIndexed(spec: AbstractTypedCodecSpec, indexSpec:
       val region = mb.genFieldThisRef[Region]("pnr_region")
 
       val producer = new StreamProducer {
-        override val length: Option[Code[Int]] = None
+        override val length: Option[EmitCodeBuilder => Code[Int]] = None
 
         override def initialize(cb: EmitCodeBuilder): Unit = {
           val ctxMemo = ctxStruct.asBaseStruct.memoize(cb, "pnri_ctx_struct")
@@ -786,7 +786,7 @@ case class PartitionZippedNativeReader(specLeft: AbstractTypedCodecSpec, specRig
       val region = mb.genFieldThisRef[Region]("pnri_region")
 
       val producer = new StreamProducer {
-        override val length: Option[Code[Int]] = None
+        override val length: Option[EmitCodeBuilder => Code[Int]] = None
 
         override def initialize(cb: EmitCodeBuilder): Unit = {
           val ctxMemo = ctxStruct.asBaseStruct.memoize(cb, "pnri_ctx_struct")

@@ -132,7 +132,7 @@ case class StreamSingleCodeType(requiresMemoryManagementPerElement: Boolean, elt
     val rvAddr = mb.genFieldThisRef[Long]("stream_input_addr")
 
     val producer = new StreamProducer {
-      override val length: Option[Code[Int]] = None
+      override val length: Option[EmitCodeBuilder => Code[Int]] = None
 
       override def initialize(cb: EmitCodeBuilder): Unit = {
         cb.assign(xIter, mkIter.invoke[Region, Region, Iterator[java.lang.Long]]("apply", r, eltRegion))
