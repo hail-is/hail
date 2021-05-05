@@ -36,7 +36,8 @@ object GenotypeFunctions extends RegistryFunctions {
       PCode(rt, code)
     }
 
-    registerIEmitCode1("dosage", TArray(tv("N", "float64")), TFloat64,  (_: Type, _: PType) => PFloat64()
+    registerIEmitCode1("dosage", TArray(tv("N", "float64")), TFloat64,
+      (_: Type, arrayType: PType) => PFloat64(arrayType.required && arrayType.asInstanceOf[PArray].elementType.required)
     ) { case (cb, r, rt, gp) =>
       gp.toI(cb).flatMap(cb) { case (gpc: PIndexableCode) =>
         val gpv = gpc.memoize(cb, "dosage_gp")
