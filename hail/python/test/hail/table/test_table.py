@@ -1071,16 +1071,17 @@ Exception in thread "main" java.lang.RuntimeException: invalid sort order: b
 
         inner_join_expected = [row(0, 0, 0, 0), row(1, 1, 1, 1), row(2, 2, 2, 2)]
 
-        outer_join_expected = [row(0, 0, 0, 0), row(1, 1, 1, 1), row(2, 2, 2, 2),
-                               row(3, 3, None, 3), row(4, 4, 4, None),
-                               row(5, 5, None, 5), row(6, 6, 6, None),
-                               row(None, 3, 3, None), row(None, 4, None, 4),
-                               row(None, 5, 5, None), row(None, 6, None, 6)]
+        def check_outer(actual):
+            assert actual[:7] == [row(0, 0, 0, 0), row(1, 1, 1, 1), row(2, 2, 2, 2),
+                                  row(3, 3, None, 3), row(4, 4, 4, None),
+                                  row(5, 5, None, 5), row(6, 6, 6, None)]
+            assert set(actual[7:]) == {row(None, 3, 3, None), row(None, 4, None, 4),
+                                       row(None, 5, 5, None), row(None, 6, None, 6)}
 
         self.assertEqual(left_join.collect(), left_join_expected)
         self.assertEqual(right_join.collect(), right_join_expected)
         self.assertEqual(inner_join.collect(), inner_join_expected)
-        self.assertEqual(outer_join.collect(), outer_join_expected)
+        check_outer(outer_join.collect())
 
     def test_joins_one_null(self):
         tr = hl.utils.range_table(7, 1)
