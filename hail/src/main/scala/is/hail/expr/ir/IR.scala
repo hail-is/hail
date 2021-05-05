@@ -433,7 +433,7 @@ object NDArrayQR {
       case "r" => PCanonicalNDArray(PFloat64Required, 2, req)
       case "raw" => PCanonicalTuple(req, PCanonicalNDArray(PFloat64Required, 2, true), PCanonicalNDArray(PFloat64Required, 1, true))
       case "reduced" => PCanonicalTuple(req, PCanonicalNDArray(PFloat64Required, 2, true), PCanonicalNDArray(PFloat64Required, 2, true))
-      case "complete" => PCanonicalTuple(req, PCanonicalNDArray(PFloat64Required, 2, true), PCanonicalNDArray(PFloat64Required, 2, true)))
+      case "complete" => PCanonicalTuple(req, PCanonicalNDArray(PFloat64Required, 2, true), PCanonicalNDArray(PFloat64Required, 2, true))
     }
   }
 }
