@@ -133,8 +133,8 @@ object AbstractRVDSpec {
 
     val reader = PartitionZippedNativeReader(specLeft.typedCodecSpec, specRight.typedCodecSpec, indexSpecLeft, indexSpecRight, requestedKey)
 
-    val absPathLeft = uriPath(pathLeft)
-    val absPathRight = uriPath(pathRight)
+    val absPathLeft = removeFileProtocol(pathLeft)
+    val absPathRight = removeFileProtocol(pathRight)
     val partsAndIntervals: IndexedSeq[(String, Interval)] = if (specLeft.key.isEmpty) {
       specLeft.partFiles.map { p => (p, null) }
     } else {
@@ -501,7 +501,7 @@ case class IndexedRVDSpec2(_key: IndexedSeq[String],
       val rSpec = typedCodecSpec
       val reader = ir.PartitionNativeReaderIndexed(rSpec, indexSpec, partitioner.kType.fieldNames)
 
-      val absPath = uriPath(path)
+      val absPath = removeFileProtocol(path)
       val partPaths = tmpPartitioner.rangeBounds.map { b => partFiles(partitioner.lowerBoundInterval(b)) }
 
 

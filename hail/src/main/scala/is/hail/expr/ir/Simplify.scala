@@ -239,7 +239,14 @@ object Simplify {
     case ToStream(Let(name, value, ToArray(x)), _) if x.typ.isInstanceOf[TStream] =>
       Let(name, value, x)
 
+    case NDArrayShape(MakeNDArray(data, shape, _, _)) => {
+      If(IsNA(data), NA(shape.typ), shape)
+    }
     case NDArrayShape(NDArrayMap(nd, _, _)) => NDArrayShape(nd)
+
+    case NDArrayMap(NDArrayMap(child, innerName, innerBody), outerName, outerBody) => {
+      NDArrayMap(child, innerName, Let(outerName, innerBody, outerBody))
+    }
 
     case GetField(MakeStruct(fields), name) =>
       val (_, x) = fields.find { case (n, _) => n == name }.get

@@ -212,12 +212,16 @@ class EmitUnrealizableValue(private val ec: EmitCode) extends EmitValue {
  */
 object IEmitCode {
   def apply[A](cb: EmitCodeBuilder, m: Code[Boolean], value: => A): IEmitCodeGen[A] = {
-    val Lmissing = CodeLabel()
-    val Lpresent = CodeLabel()
-    cb.ifx(m, { cb.goto(Lmissing) })
-    val res: A = value
-    cb.goto(Lpresent)
-    IEmitCodeGen(Lmissing, Lpresent, res, false)
+    Code.constBoolValue(m) match {
+      case Some(false) => present(cb, value)
+      case _ =>
+        val Lmissing = CodeLabel()
+        val Lpresent = CodeLabel()
+        cb.ifx(m, cb.goto(Lmissing))
+        val res: A = value
+        cb.goto(Lpresent)
+        IEmitCodeGen(Lmissing, Lpresent, res, false)
+    }
   }
 
   def apply[A](Lmissing: CodeLabel, Lpresent: CodeLabel, value: A, required: Boolean): IEmitCodeGen[A] =
@@ -894,6 +898,17 @@ class Emit[C](
           pushElement(cb, v)
         }
         presentPC(finish(cb))
+
+      case ArrayZeros(length) =>
+        emitI(length).map(cb) { case n: SInt32Code =>
+          val outputPType = coerce[PArray](ir.pType)
+          val elementSize = outputPType.elementByteSize
+          val numElements = cb.newLocal[Int]("n_elements", n.intCode(cb))
+          val arrayAddress = cb.newLocal[Long]("array_addr", outputPType.allocate(region, numElements))
+          cb += outputPType.stagedInitialize(arrayAddress, numElements)
+          cb += Region.setMemory(outputPType.firstElementOffset(arrayAddress), numElements.toL * elementSize, 0.toByte)
+          PCode(pt, arrayAddress)
+        }
 
       case x@ArrayRef(a, i, s) =>
         def boundsCheck(cb: EmitCodeBuilder, index: Value[Int], len: Value[Int]): Unit = {
@@ -2309,21 +2324,6 @@ class Emit[C](
       case CastToArray(a) =>
         val et = emit(a)
         EmitCode(et.setup, et.m, PCode(pt, et.v))
-
-      case ArrayZeros(length) =>
-        val lengthTriplet = emit(length)
-        val outputPType = coerce[PArray](ir.pType)
-        val elementSize = outputPType.elementByteSize
-        val numElements = mb.genFieldThisRef[Int]()
-        val arrayAddress = mb.genFieldThisRef[Long]()
-        val result = Code(
-          numElements := lengthTriplet.value[Int],
-          arrayAddress := outputPType.allocate(region, numElements),
-          outputPType.stagedInitialize(arrayAddress, numElements),
-          Region.setMemory(outputPType.firstElementOffset(arrayAddress), numElements.toL * elementSize, 0.toByte),
-          arrayAddress
-        )
-        EmitCode(lengthTriplet.setup, lengthTriplet.m, PCode(pt, result))
 
       case In(i, expectedPType) =>
         // this, Code[Region], ...

@@ -95,7 +95,6 @@ class Tests(unittest.TestCase):
         tt = hl.trio_matrix(mt, ped, complete_trios=True)
         self.assertEqual(tt.count_cols(), 0)
 
-    @fails_service_backend()
     def test_trio_matrix_incomplete_trios(self):
         ped = hl.Pedigree.read(resource('triomatrix.fam'))
         mt = hl.import_vcf(resource('triomatrix.vcf'))
