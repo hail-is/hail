@@ -1046,13 +1046,11 @@ def test_hstack():
 
 def test_eye():
     for i in range(13):
-        for y in range(13):
-            assert(np.array_equal(hl.eval(hl.nd.eye(i, y)), np.eye(i, y)))
+        assert_ndarrays_eq(*[(hl.nd.eye(i, y), np.eye(i, y)) for y in range(13)])
 
 
 def test_identity():
-    for i in range(13):
-        assert(np.array_equal(hl.eval(hl.nd.identity(i)), np.identity(i)))
+    assert_ndarrays_eq(*[(hl.nd.identity(i), np.identity(i)) for i in range(13)])
 
 
 def test_agg_ndarray_sum():
