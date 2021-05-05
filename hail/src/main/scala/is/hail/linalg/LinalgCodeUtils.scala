@@ -18,15 +18,11 @@ object LinalgCodeUtils {
     val nDims = pndv.pt.nDims
 
     cb.assign(answer, true)
-    cb.append(Code(
-      runningProduct := elementType.byteSize,
-      Code.foreach(0 until nDims){ index =>
-        Code(
-          answer := answer & (strides(index) ceq runningProduct),
-          runningProduct := runningProduct * (shapes(index) > 0L).mux(shapes(index), 1L)
-        )
-      }
-    ))
+    cb.assign(runningProduct, elementType.byteSize)
+    (0 until nDims).foreach{ index =>
+      cb.assign(answer, answer & (strides(index) ceq runningProduct))
+      cb.assign(runningProduct, runningProduct * (shapes(index) > 0L).mux(shapes(index), 1L))
+    }
     answer
   }
 

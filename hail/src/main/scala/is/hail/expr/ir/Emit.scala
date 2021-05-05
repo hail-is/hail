@@ -1244,7 +1244,7 @@ class Emit[C](
               val N = rShape(rPType.nDims - 1)
               val K = lShape(lPType.nDims - 1)
 
-              def LDA = leftIsColumnMajor.mux(M, K)
+              val LDA = leftIsColumnMajor.mux(M, K)
               val LDB = rightIsColumnMajor.mux(K, N)
               val LDC = M
 
