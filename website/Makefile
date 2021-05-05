@@ -2,7 +2,7 @@ include ../config.mk
 
 .PHONY: docs build run run-docker push deploy clean
 
-IMAGE = gcr.io/$(PROJECT)/website:$(shell docker images -q --no-trunc website | sed -e 's,[^:]*:,,')
+IMAGE = $(DOCKER_PREFIX)/website:$(shell docker images -q --no-trunc website | sed -e 's,[^:]*:,,')
 
 check:
 	curlylint .

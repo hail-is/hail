@@ -35,11 +35,6 @@ case object PVoidCode extends PCode with PUnrealizableCode {
 
   override def code: Code[_] = Code._empty
 
-  override def tcode[T](implicit ti: TypeInfo[T]): Code[T] = {
-    assert(ti == typeInfo)
-    code.asInstanceOf[Code[T]]
-  }
-
   def memoize(cb: EmitCodeBuilder, name: String): PValue = new PValue {
     val pt: PType = PVoid
     val st: SType = SVoid

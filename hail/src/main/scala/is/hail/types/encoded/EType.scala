@@ -264,6 +264,7 @@ object EType {
     case TFloat64 => EFloat64(r.required)
     case TBoolean => EBoolean(r.required)
     case TBinary => EBinary(r.required)
+    case _: TShuffle => EShuffle(r.required)
     case TString => EBinary(r.required)
     case TLocus(_) =>
       EBaseStruct(Array(

@@ -1,18 +1,16 @@
 package is.hail.stats
 
 import breeze.linalg.{DenseMatrix => BDM, DenseVector => BDV}
-import is.hail.HailContext
 import is.hail.annotations.{BroadcastRow, Region, RegionValue, RegionValueBuilder}
-import is.hail.backend.HailTaskContext
+import is.hail.backend.spark.SparkTaskContext
 import is.hail.expr.ir.{ExecuteContext, TableIR, TableLiteral, TableValue}
-import is.hail.types.TableType
-import is.hail.types.physical.{PCanonicalStruct, PFloat64, PInt64, PStruct}
-import is.hail.types.virtual.{TFloat64, TInt64, TStruct}
 import is.hail.linalg.RowMatrix
-import is.hail.rvd.{RVD, RVDContext, RVDType}
+import is.hail.rvd.{RVD, RVDType}
 import is.hail.sparkextras.ContextRDD
+import is.hail.types.TableType
+import is.hail.types.physical.{PCanonicalStruct, PFloat64, PInt64}
+import is.hail.types.virtual.TStruct
 import is.hail.utils._
-import org.apache.spark.sql.Row
 import org.apache.spark.storage.StorageLevel
 
 case class LMMData(gamma: Double, residualSq: Double, py: BDV[Double], px: BDM[Double], d: BDV[Double],
@@ -71,7 +69,7 @@ class LinearMixedModel(lmmData: LMMData) {
       val r0 = 0 to 0
       val r1 = 1 until f
 
-      val region = Region(pool = HailTaskContext.get().getRegionPool())
+      val region = Region(pool = SparkTaskContext.get().getRegionPool())
       val rv = RegionValue(region)
       val rvb = new RegionValueBuilder(region)
 
@@ -138,8 +136,8 @@ class LinearMixedModel(lmmData: LMMData) {
       val dof = n - f
       val r0 = 0 to 0
       val r1 = 1 until f
-      
-      val region = Region(pool=HailTaskContext.get().getRegionPool())
+
+      val region = Region(pool = SparkTaskContext.get().getRegionPool())
       val rv = RegionValue(region)
       val rvb = new RegionValueBuilder(region)
 

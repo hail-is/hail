@@ -35,7 +35,7 @@ case class GridPartitioner(blockSize: Int, nRows: Long, nCols: Long, partitionIn
   if (!partitionIndexToBlockIndex.forall(bis => bis.isEmpty ||
     (bis.isIncreasing && bis.head >= 0 && bis.last < maxNBlocks &&
       bis.length < maxNBlocks))) // a block-sparse matrix cannot have all blocks present
-    throw new IllegalArgumentException(s"requirement failed: Sparse blocks sequence was ${partitionIndexToBlockIndex.toIndexedSeq}")
+    throw new IllegalArgumentException(s"requirement failed: Sparse blocks sequence was ${partitionIndexToBlockIndex.toIndexedSeq}, max was ${maxNBlocks}")
 
   val blockToPartitionMap = partitionIndexToBlockIndex.map(_.zipWithIndex.toMap.withDefaultValue(-1))
 

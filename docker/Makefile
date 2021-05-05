@@ -64,25 +64,6 @@ service-java-run-base: hail-ubuntu-stmp
 	[ "$(shell bash stat-permissions.sh Dockerfile.service-java-run-base.out)" = "644" ]
 	docker build -t service-java-run-base -f Dockerfile.service-java-run-base.out --cache-from service-java-run-base,$(SERVICE_JAVA_RUN_BASE_LATEST),base,hail-ubuntu ..
 
-.PHONY: hail-public-image
-hail-public-image:
-	$(MAKE) -C ../hail wheel
-	cp ../hail/build/deploy/dist/hail-*-py3-none-any.whl hail/
-	cd hail && tar -cvf wheel-container.tar hail-*-py3-none-any.whl
-	-docker pull $(HAIL_PUBLIC_LATEST)
-	python3 ../ci/jinja2_render.py '{"hail_ubuntu_image":{"image":"hail-ubuntu"}}' Dockerfile.base Dockerfile.base.out
-	docker build hail -f hail/Dockerfile.out -t hail-public \
-     --cache-from hail-public,$(HAIL_PUBLIC_LATEST)hail-ubuntu \
-     hail
-
-.PHONY: genetics-public-image
-genetics-public-image: hail-public-image
-	python3 ../ci/jinja2_render.py '{"hail_public_image":{"image":"hail-public-image"}}' genetics/Dockerfile genetics/Dockerfile.out
-	-docker pull $(GENETICS_PUBLIC_LATEST)
-	docker build genetics -f genetics/Dockerfile.out -t genetics-public \
-    --cache-from genetics-public,$(GENETICS_PUBLIC_LATEST),hail-public,$(HAIL_PUBLIC_LATEST) \
-    genetics
-
 .PHONY: push
 push: build
 	docker tag hail-ubuntu $(HAIL_UBUNTU_LATEST)
@@ -107,4 +88,9 @@ deploy: push
 
 .PHONY: clean
 clean:
-	rm -f base-stmp
+	rm -f base-stmp hail-ubuntu-stmp
+
+## Public Images ###############################################################
+
+publish-public-images:
+	bash publish-public-images.sh $(DOCKER_PREFIX)

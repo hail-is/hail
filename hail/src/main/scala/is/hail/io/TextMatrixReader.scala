@@ -500,7 +500,7 @@ class CompiledLineParser(
     val Ldefined = CodeLabel()
     cb.goto(Ldefined)
 
-    IEmitCode(Lmissing, Ldefined, pc)
+    IEmitCode(Lmissing, Ldefined, pc, false)
   }
 
   private[this] def skipOptionalValue(cb: EmitCodeBuilder, skip: EmitCodeBuilder => Unit): Unit = {

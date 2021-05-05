@@ -71,7 +71,6 @@ def blocking_load_references_from_dataset(userdata, body):
     with connect_to_java() as java:
         return java.load_references_from_dataset(
             userdata['username'],
-            userdata['session_id'],
             body['billing_project'],
             body['bucket'],
             body['path'],

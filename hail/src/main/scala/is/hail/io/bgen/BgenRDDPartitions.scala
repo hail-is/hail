@@ -178,7 +178,7 @@ object CompileDecoder {
   def apply(
     ctx: ExecuteContext,
     settings: BgenSettings
-  ): (Int, Region) => AsmFunction4[Region, BgenPartition, HadoopFSDataBinaryReader, BgenSettings, Long] = {
+  ): (FS, Int, Region) => AsmFunction4[Region, BgenPartition, HadoopFSDataBinaryReader, BgenSettings, Long] = {
     val fb = EmitFunctionBuilder[Region, BgenPartition, HadoopFSDataBinaryReader, BgenSettings, Long](ctx, "bgen_rdd_decoder")
     val mb = fb.apply_method
     val rowType = settings.rowPType
@@ -388,7 +388,7 @@ object CompileDecoder {
                             cb.goto(Lpresent)
                           })))
 
-                    IEmitCode(Lmissing, Lpresent, new SCanonicalCallCode(false, value))
+                    IEmitCode(Lmissing, Lpresent, new SCanonicalCallCode(false, value), false)
                   }
 
                 if (includeGP)
@@ -520,7 +520,7 @@ object CompileDecoder {
             val d1 = data(dataOffset + 1) & 0xff
             val pc = entryType.loadCheapPCode(cb, memoTyp.loadElement(memoizedEntryData, settings.nSamples, (d0 << 8) | d1))
             cb.goto(Lpresent)
-            val iec = IEmitCode(Lmissing, Lpresent, pc)
+            val iec = IEmitCode(Lmissing, Lpresent, pc, false)
             pushElement(cb, iec)
 
             cb.assign(i, i + 1)

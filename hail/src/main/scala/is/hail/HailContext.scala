@@ -1,34 +1,31 @@
 package is.hail
 
-import java.io.InputStream
-import java.util.Properties
-
 import is.hail.annotations._
 import is.hail.asm4s._
-import is.hail.backend.{Backend, HailTaskContext}
-import is.hail.backend.spark.SparkBackend
-import is.hail.expr.ir
+import is.hail.backend.spark.{SparkBackend, SparkTaskContext}
+import is.hail.backend.{Backend, BroadcastValue}
 import is.hail.expr.ir.functions.IRFunctionRegistry
 import is.hail.expr.ir.{BaseIR, ExecuteContext}
-import is.hail.types.physical.PStruct
-import is.hail.types.virtual._
 import is.hail.io.fs.FS
 import is.hail.io.index._
 import is.hail.io.vcf._
 import is.hail.io.{AbstractTypedCodecSpec, Decoder}
 import is.hail.rvd.{AbstractIndexSpec, RVDContext}
 import is.hail.sparkextras.{ContextRDD, IndexReadRDD}
+import is.hail.types.physical.PStruct
+import is.hail.types.virtual._
 import is.hail.utils._
 import is.hail.variant.ReferenceGenome
 import org.apache.log4j.{ConsoleAppender, LogManager, PatternLayout, PropertyConfigurator}
 import org.apache.spark._
 import org.apache.spark.executor.InputMetrics
 import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.Row
 import org.json4s.Extraction
-import org.json4s.JsonAST.{JArray, JDouble, JLong, JNull, JObject, JString}
+import org.json4s.JsonAST.{JArray, JObject, JString}
 import org.json4s.jackson.JsonMethods
 
+import java.io.InputStream
+import java.util.Properties
 import scala.collection.mutable
 import scala.reflect.ClassTag
 
@@ -235,10 +232,10 @@ object HailContext {
         HailContext.readRowsPartition(makeDec)(ctx.r, in, metrics)
     }
 
-  def readSplitRowsPartition(
+  def readSplitRowsPartition(fs: BroadcastValue[FS],
     mkRowsDec: (InputStream) => Decoder,
     mkEntriesDec: (InputStream) => Decoder,
-    mkInserter: (Int, Region) => AsmFunction3RegionLongLongLong
+    mkInserter: (FS, Int, Region) => AsmFunction3RegionLongLongLong
   )(ctx: RVDContext,
     isRows: InputStream,
     isEntries: InputStream,
@@ -248,7 +245,7 @@ object HailContext {
     bounds: Option[Interval],
     partIdx: Int,
     metrics: InputMetrics = null
-  ): Iterator[Long] = new MaybeIndexedReadZippedIterator(mkRowsDec, mkEntriesDec, mkInserter(partIdx, ctx.partitionRegion),
+  ): Iterator[Long] = new MaybeIndexedReadZippedIterator(mkRowsDec, mkEntriesDec, mkInserter(fs.value, partIdx, ctx.partitionRegion),
     ctx.r,
     isRows, isEntries,
     idxr.orNull, rowsOffsetField.orNull, entriesOffsetField.orNull, bounds.orNull, metrics)
@@ -341,7 +338,7 @@ object HailContext {
       val fs = fsBc.value
       val idxname = s"$path/$idxPath/${ p.file }.idx"
       val filename = s"$path/parts/${ p.file }"
-      val idxr = mkIndexReader(fs, idxname, 8, HailTaskContext.get().getRegionPool()) // default cache capacity
+      val idxr = mkIndexReader(fs, idxname, 8, SparkTaskContext.get().getRegionPool()) // default cache capacity
       val in = fs.open(filename)
       (in, idxr, p.bounds, context.taskMetrics().inputMetrics)
     })
@@ -358,10 +355,10 @@ object HailContext {
     bounds: Array[Interval],
     makeRowsDec: InputStream => Decoder,
     makeEntriesDec: InputStream => Decoder,
-    makeInserter: (Int, Region) => AsmFunction3RegionLongLongLong
+    makeInserter: (FS, Int, Region) => AsmFunction3RegionLongLongLong
   ): ContextRDD[Long] = {
     require(!(indexSpecRows.isEmpty ^ indexSpecEntries.isEmpty))
-    val fsBc = ctx.fs.broadcast
+    val fsBc = ctx.fsBc
 
     val mkIndexReader = indexSpecRows.map { indexSpec =>
       val (keyType, annotationType) = indexSpec.types
@@ -380,7 +377,7 @@ object HailContext {
       val fs = fsBc.value
       val idxr = mkIndexReader.map { mk =>
         val idxname = s"$pathRows/${ indexSpecRows.get.relPath }/${ p.file }.idx"
-        mk(fs, idxname, 8, HailTaskContext.get().getRegionPool()) // default cache capacity
+        mk(fs, idxname, 8, SparkTaskContext.get().getRegionPool()) // default cache capacity
       }
       val inRows = fs.open(s"$pathRows/parts/${ p.file }")
       val inEntries = fs.open(s"$pathEntries/parts/${ p.file }")
@@ -393,7 +390,7 @@ object HailContext {
       assert(it.hasNext)
       val (isRows, isEntries, idxr, bounds, m) = it.next
       assert(!it.hasNext)
-      HailContext.readSplitRowsPartition(makeRowsDec, makeEntriesDec, makeInserter)(
+      HailContext.readSplitRowsPartition(fsBc, makeRowsDec, makeEntriesDec, makeInserter)(
         ctx, isRows, isEntries, idxr, rowsOffsetField, entriesOffsetField, bounds, i, m)
     }
 

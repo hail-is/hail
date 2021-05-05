@@ -9,7 +9,8 @@ import hail.utils as utils
 from hail.linalg import BlockMatrix
 from hail.utils import FatalError
 from ..helpers import (startTestHailContext, stopTestHailContext, resource,
-                       skip_unless_spark_backend, fails_local_backend, fails_service_backend)
+                       skip_unless_spark_backend, fails_local_backend, fails_service_backend,
+                       skip_when_service_backend)
 
 setUpModule = startTestHailContext
 tearDownModule = stopTestHailContext
@@ -57,7 +58,7 @@ class Tests(unittest.TestCase):
     backend_name = os.environ.get('HAIL_QUERY_BACKEND', 'spark')
     linreg_functions = [hl.linear_regression_rows, hl._linear_regression_rows_nd] if backend_name == "spark" else [hl._linear_regression_rows_nd]
 
-    @fails_service_backend()
+    @skip_when_service_backend('Shuffler encoding/decoding is broken.')
     def test_linreg_basic(self):
         phenos = hl.import_table(resource('regressionLinear.pheno'),
                                  types={'Pheno': hl.tfloat64},
@@ -93,7 +94,6 @@ class Tests(unittest.TestCase):
             self.assertTrue(t1._same(t4a))
             self.assertTrue(t1._same(t4b))
 
-    @fails_service_backend()
     def test_linreg_pass_through(self):
         phenos = hl.import_table(resource('regressionLinear.pheno'),
                                  types={'Pheno': hl.tfloat64},
@@ -137,7 +137,7 @@ class Tests(unittest.TestCase):
                 linreg_function([[phenos[mt.s].Pheno]], mt.GT.n_alt_alleles(), [1.0],
                                 pass_through=[mt.filters.length()])
 
-    @fails_service_backend()
+    @skip_when_service_backend('ShuffleRead non-deterministically causes segfaults')
     def test_linreg_chained(self):
         phenos = hl.import_table(resource('regressionLinear.pheno'),
                                  types={'Pheno': hl.tfloat64},
@@ -352,7 +352,6 @@ class Tests(unittest.TestCase):
             self.assertAlmostEqual(results[3].p_value, 0.2533675, places=6)
             self.assertTrue(np.isnan(results[6].standard_error))
 
-    @fails_service_backend()
     def test_linear_regression_equivalence_between_ds_and_gt(self):
         """Test that linear regressions on data converted from dosage to genotype returns the same results"""
         ds_mt = hl.import_vcf(resource('small-ds.vcf'))
@@ -433,7 +432,6 @@ class Tests(unittest.TestCase):
             self.assertTrue(np.isnan(results[9].standard_error))
             self.assertTrue(np.isnan(results[10].standard_error))
 
-    @fails_service_backend()
     def test_linear_regression_multi_pheno_same(self):
         covariates = hl.import_table(resource('regressionLinear.cov'),
                                      key='Sample',
@@ -1154,7 +1152,7 @@ class Tests(unittest.TestCase):
             hl.ld_matrix(mt.GT.n_alt_alleles(), mt.locus, radius=1.0, coord_expr=mt.cm).to_numpy(),
             [[1., -0.85280287, 0.], [-0.85280287, 1., 0.], [0., 0., 1.]]))
 
-    @fails_service_backend()
+    @skip_when_service_backend('Shuffler encoding/decoding is broken.')
     def test_split_multi_hts(self):
         ds1 = hl.import_vcf(resource('split_test.vcf'))
         ds1 = hl.split_multi_hts(ds1)
@@ -1319,7 +1317,7 @@ class Tests(unittest.TestCase):
         self.assertEqual(hl.eval(glob.bn.pop_dist), [1, 2])
         self.assertEqual(hl.eval(glob.bn.fst), [.02, .06])
 
-    @fails_service_backend()
+    @skip_when_service_backend('Shuffler encoding/decoding is broken.')
     def test_balding_nichols_model_same_results(self):
         for mixture in [True, False]:
             hl.set_global_seed(1)

@@ -3,7 +3,7 @@ from .base_ir import BaseIR, IR, TableIR, MatrixIR, BlockMatrixIR, \
     JIRVectorReference
 from .ir import MatrixWrite, MatrixMultiWrite, BlockMatrixWrite, \
     BlockMatrixMultiWrite, TableToValueApply, \
-    MatrixToValueApply, BlockMatrixToValueApply, \
+    MatrixToValueApply, BlockMatrixToValueApply, BlockMatrixCollect, \
     Literal, LiftMeOut, Join, JavaIR, I32, I64, F32, F64, Str, FalseIR, TrueIR, \
     Void, Cast, NA, IsNA, If, Coalesce, Let, AggLet, Ref, TopLevelReference, \
     TailLoop, Recur, ApplyBinaryPrimOp, ApplyUnaryPrimOp, ApplyComparisonOp, \
@@ -54,7 +54,7 @@ from .table_reader import TableReader, TableNativeReader, TextTableReader, \
 from .blockmatrix_reader import BlockMatrixReader, BlockMatrixNativeReader, \
     BlockMatrixBinaryReader, BlockMatrixPersistReader
 from .matrix_writer import MatrixWriter, MatrixNativeWriter, MatrixVCFWriter, \
-    MatrixGENWriter, MatrixBGENWriter, MatrixPLINKWriter, MatrixNativeMultiWriter
+    MatrixGENWriter, MatrixBGENWriter, MatrixPLINKWriter, MatrixNativeMultiWriter, MatrixBlockMatrixWriter
 from .table_writer import TableWriter, TableNativeWriter, TableTextWriter
 from .blockmatrix_writer import BlockMatrixWriter, BlockMatrixNativeWriter, \
     BlockMatrixBinaryWriter, BlockMatrixRectanglesWriter, \
@@ -95,6 +95,7 @@ __all__ = [
     'BlockMatrixFilter',
     'BlockMatrixDensify',
     'BlockMatrixSparsifier',
+    'BlockMatrixCollect',
     'BandSparsifier',
     'RowIntervalSparsifier',
     'RectangleSparsifier',
@@ -260,6 +261,7 @@ __all__ = [
     'MatrixBGENWriter',
     'MatrixPLINKWriter',
     'MatrixNativeMultiWriter',
+    'MatrixBlockMatrixWriter',
     'MatrixRowsTable',
     'TableJoin',
     'TableLeftJoinRightDistinct',

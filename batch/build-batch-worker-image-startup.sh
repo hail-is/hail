@@ -5,6 +5,10 @@ set -ex
 curl --silent --show-error --remote-name --fail https://dl.google.com/cloudagents/add-logging-agent-repo.sh
 bash add-logging-agent-repo.sh
 
+
+# Get the latest GPG key as it might not always be up to date
+# https://cloud.google.com/compute/docs/troubleshooting/known-issues#keyexpired
+curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | sudo apt-key add -
 apt-get update
 
 apt-get install -y \
@@ -42,7 +46,6 @@ export HOME=/root
 
 docker-credential-gcr configure-docker --include-artifact-registry
 docker pull {{ global.docker_root_image }}
-docker pull gcr.io/google.com/cloudsdktool/cloud-sdk:310.0.0-alpine
 
 # add docker daemon debug logging
 jq '.debug = true' /etc/docker/daemon.json > daemon.json.tmp

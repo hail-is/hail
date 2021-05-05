@@ -25,7 +25,7 @@ object IRFunctionRegistry {
 
   def clearUserFunctions() {
     userAddedFunctions.foreach { case (name, (rt, typeParameters, valueParameterTypes)) =>
-      removeJVMFunction(name, rt, typeParameters, valueParameterTypes) }
+      removeIRFunction(name, rt, typeParameters, valueParameterTypes) }
     userAddedFunctions.clear()
   }
 
@@ -82,16 +82,14 @@ object IRFunctionRegistry {
       })
   }
 
-  def removeJVMFunction(
+  def removeIRFunction(
     name: String,
     returnType: Type,
     typeParameters: Seq[Type],
     valueParameterTypes: Seq[Type]
   ): Unit = {
-    val functions = jvmRegistry(name)
-    val toRemove = functions.filter(_.unify(typeParameters, valueParameterTypes, returnType)).toArray
-    assert(toRemove.length == 1)
-    jvmRegistry.removeBinding(name, toRemove.head)
+    val m = irRegistry(name)
+    m.remove((typeParameters, valueParameterTypes, returnType, false))
   }
 
   def lookupFunction(

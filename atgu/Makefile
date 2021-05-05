@@ -6,4 +6,4 @@ check:
 	$(PYTHON) -m flake8  --config ../setup.cfg atgu
 	$(PYTHON) -m pylint --rcfile ../pylintrc atgu --score=n
 	curlylint .
-	../check-sql.sh
+	bash ../check-sql.sh

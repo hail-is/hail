@@ -64,7 +64,7 @@ class Tests(unittest.TestCase):
                 else:
                     self.assertNotEqual(ts[i], ts2[j])
 
-    @fails_service_backend()
+    @skip_unless_spark_backend()
     def test_type_jvm_roundtrip(self):
         ts = self.types_to_test()
         for t in ts:

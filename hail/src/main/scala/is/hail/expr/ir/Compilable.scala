@@ -17,6 +17,7 @@ object InterpretableButNotCompilable {
     case _: TableToValueApply => true
     case _: MatrixToValueApply => true
     case _: BlockMatrixToValueApply => true
+    case _: BlockMatrixCollect => true
     case _: BlockMatrixToTableApply => true
     case _ => false
   }

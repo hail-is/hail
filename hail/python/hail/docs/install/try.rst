@@ -26,7 +26,7 @@ populations.
                                   n_variants=100)
     mt.show()
 
-The last line, ``mt.show()``, displays the dataset in a tabublar form.
+The last line, ``mt.show()``, displays the dataset in a tabular form.
 
 .. code-block:: sh
 
@@ -54,6 +54,6 @@ The last line, ``mt.show()``, displays the dataset in a tabublar form.
 Next Steps
 """"""""""
 
-- Get the `Hail cheatsheets <cheatsheets.rst>`__
-- Follow the Hail `GWAS Tutorial <tutorials/01-genome-wide-association-study.rst>`__
-- Learn how to use `Hail on Google Cloud <cloud/google_cloud.rst>`__
+- Get the `Hail cheatsheets <../cheatsheets.rst>`__
+- Follow the Hail `GWAS Tutorial <../tutorials/01-genome-wide-association-study.rst>`__
+- Learn how to use `Hail on Google Cloud <../cloud/google_cloud.rst>`__

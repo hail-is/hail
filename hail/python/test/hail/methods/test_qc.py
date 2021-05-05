@@ -51,7 +51,6 @@ class Tests(unittest.TestCase):
         self.assertAlmostEqual(r[0].sqc.r_het_hom_var, 0.3333333333)
         self.assertAlmostEqual(r[0].sqc.r_insertion_deletion, None)
 
-    @fails_service_backend()
     def test_variant_qc(self):
         data = [
             {'v': '1:1:A:T', 's': '1', 'GT': hl.Call([0, 0]), 'GQ': 10, 'DP': 0},

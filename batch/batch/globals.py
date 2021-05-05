@@ -33,11 +33,18 @@ for typ in ('highcpu', 'standard', 'highmem'):
     for cores in possible_cores:
         valid_machine_types.append(f'n1-{typ}-{cores}')
 
+memory_to_worker_type = {
+    'lowmem': 'highcpu',
+    'standard': 'standard',
+    'highmem': 'highmem'
+}
+
 HTTP_CLIENT_MAX_SIZE = 8 * 1024 * 1024
 
-BATCH_FORMAT_VERSION = 5
-STATUS_FORMAT_VERSION = 3
-INSTANCE_VERSION = 17
+BATCH_FORMAT_VERSION = 6
+STATUS_FORMAT_VERSION = 5
+INSTANCE_VERSION = 18
 WORKER_CONFIG_VERSION = 3
 
-MAX_PERSISTENT_SSD_SIZE_BYTES = 65536 * (1024 ** 3)
+MAX_PERSISTENT_SSD_SIZE_GIB = 64 * 1024
+RESERVED_STORAGE_GB_PER_CORE = 5

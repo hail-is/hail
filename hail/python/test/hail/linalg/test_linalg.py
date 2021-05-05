@@ -41,7 +41,7 @@ class Tests(unittest.TestCase):
     @staticmethod
     def _np_matrix(a):
         if isinstance(a, BlockMatrix):
-            return np.array(a.to_numpy())
+            return hl.eval(a.to_ndarray())
         else:
             return np.array(a)
 
@@ -530,8 +530,6 @@ class Tests(unittest.TestCase):
                 self._assert_eq(bm_fifty_by_sixty.tree_matmul(bm_sixty_by_twenty_five, splits=split_size), fifty_by_sixty @ sixty_by_twenty_five)
 
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_fill(self):
         nd = np.ones((3, 5))
         bm = BlockMatrix.fill(3, 5, 1.0)
@@ -862,6 +860,18 @@ class Tests(unittest.TestCase):
                                  [7.0, 0.0]])
             self._assert_eq(expected, BlockMatrix.rectangles_to_numpy(rect_uri))
             self._assert_eq(expected, BlockMatrix.rectangles_to_numpy(rect_bytes_uri, binary=True))
+
+    @fails_service_backend
+    @fails_local_backend
+    def test_to_ndarray(self):
+        np_mat = np.arange(12).reshape((4, 3))
+        mat = BlockMatrix.from_numpy(np_mat).to_ndarray()
+        self.assertTrue(np.array_equal(np_mat, hl.eval(mat)))
+
+        blocks_to_sparsify = [1, 4, 7, 12, 20, 42, 48]
+        sparsed_numpy = sparsify_numpy(np.arange(25*25).reshape((25, 25)), 4,  blocks_to_sparsify)
+        sparsed = BlockMatrix.from_numpy(sparsed_numpy, block_size=4)._sparsify_blocks(blocks_to_sparsify).to_ndarray()
+        self.assertTrue(np.array_equal(sparsed_numpy, hl.eval(sparsed)))
 
     @fails_service_backend()
     @fails_local_backend()

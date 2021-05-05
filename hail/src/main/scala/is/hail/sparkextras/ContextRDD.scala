@@ -157,7 +157,7 @@ class ContextRDD[T: ClassTag](
   type ElementType = ContextRDD.ElementType[T]
 
   private[this] def sparkManagedContext[U](func: RVDContext => U): U = {
-    val c = RVDContext.default(HailTaskContext.get().getRegionPool())
+    val c = RVDContext.default(SparkTaskContext.get().getRegionPool())
     TaskContext.get().addTaskCompletionListener[Unit] { (_: TaskContext) =>
       c.close()
     }
@@ -238,7 +238,7 @@ class ContextRDD[T: ClassTag](
     sparkContext.runJob(
       rdd,
       { (taskContext, it: Iterator[RVDContext => Iterator[T]]) =>
-        val c = RVDContext.default(HailTaskContext.get().getRegionPool())
+        val c = RVDContext.default(SparkTaskContext.get().getRegionPool())
         val ans = f(taskContext.partitionId(), c, it.flatMap(_(c)))
         ans
       })

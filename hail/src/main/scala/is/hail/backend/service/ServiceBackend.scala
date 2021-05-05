@@ -5,6 +5,7 @@ import java.net._
 import java.nio.charset.StandardCharsets
 import java.util.concurrent._
 
+import is.hail.HAIL_REVISION
 import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.asm4s._
@@ -12,7 +13,7 @@ import is.hail.backend.{Backend, BackendContext, BroadcastValue, HailTaskContext
 import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.ir.lowering.{DArrayLowering, LoweringPipeline, TableStage, TableStageDependency}
 import is.hail.expr.ir.{Compile, ExecuteContext, IR, IRParser, Literal, MakeArray, MakeTuple, ShuffleRead, ShuffleWrite, SortField, ToStream}
-import is.hail.io.fs.GoogleStorageFS
+import is.hail.io.fs.{FS, GoogleStorageFS, SeekableDataInputStream, ServiceCacheableFS}
 import is.hail.linalg.BlockMatrix
 import is.hail.rvd.RVDPartitioner
 import is.hail.services._
@@ -34,7 +35,6 @@ import org.newsclub.net.unix.{AFUNIXServerSocket, AFUNIXSocketAddress}
 import scala.annotation.switch
 import scala.reflect.ClassTag
 
-
 class ServiceBackendContext(
   val username: String,
   @transient val sessionID: String,
@@ -47,10 +47,6 @@ class ServiceBackendContext(
 
 object ServiceBackend {
   private val log = Logger.getLogger(getClass.getName())
-
-  def apply(): ServiceBackend = {
-    new ServiceBackend()
-  }
 }
 
 class User(
@@ -58,7 +54,9 @@ class User(
   val tmpdir: String,
   val fs: GoogleStorageFS)
 
-class ServiceBackend() extends Backend {
+class ServiceBackend(
+  private[this] val queryGCSJarPath: String
+) extends Backend {
   import ServiceBackend.log
 
   private[this] val users = new ConcurrentHashMap[String, User]()
@@ -80,12 +78,12 @@ class ServiceBackend() extends Backend {
     def value: T = _value
   }
 
-  def parallelizeAndComputeWithIndex(_backendContext: BackendContext, collection: Array[Array[Byte]], dependency: Option[TableStageDependency] = None)(f: (Array[Byte], HailTaskContext) => Array[Byte]): Array[Array[Byte]] = {
+  def parallelizeAndComputeWithIndex(_backendContext: BackendContext, collection: Array[Array[Byte]], dependency: Option[TableStageDependency] = None)(f: (Array[Byte], HailTaskContext, FS) => Array[Byte]): Array[Array[Byte]] = {
     val backendContext = _backendContext.asInstanceOf[ServiceBackendContext]
 
     val user = users.get(backendContext.username)
     assert(user != null, backendContext.username)
-    val fs = user.fs
+    val fs = user.fs.asCacheable(backendContext.sessionID)
 
     val n = collection.length
 
@@ -97,14 +95,14 @@ class ServiceBackend() extends Backend {
 
     log.info(s"parallelizeAndComputeWithIndex: token $token: writing f")
 
-    using(new ObjectOutputStream(fs.create(s"$root/f"))) { os =>
+    using(new ObjectOutputStream(fs.createCachedNoCompression(s"$root/f"))) { os =>
       os.writeObject(f)
     }
 
     log.info(s"parallelizeAndComputeWithIndex: token $token: writing context offsets")
 
-    using(fs.createNoCompression(s"$root/context.offsets")) { os =>
-      var o = 0L
+    using(fs.createCachedNoCompression(s"$root/contexts")) { os =>
+      var o = 12L * n
       var i = 0
       while (i < n) {
         val len = collection(i).length
@@ -113,11 +111,7 @@ class ServiceBackend() extends Backend {
         i += 1
         o += len
       }
-    }
-
-    log.info(s"parallelizeAndComputeWithIndex: token $token: writing contexts")
-
-    using(fs.createNoCompression(s"$root/contexts")) { os =>
+      log.info(s"parallelizeAndComputeWithIndex: token $token: writing contexts")
       collection.foreach { context =>
         os.write(context)
       }
@@ -133,6 +127,8 @@ class ServiceBackend() extends Backend {
           "process" -> JObject(
             "command" -> JArray(List(
               JString("is.hail.backend.service.Worker"),
+              JString(HAIL_REVISION),
+              JString(queryGCSJarPath + HAIL_REVISION + ".jar"),
               JString(root),
               JString(s"$i"))),
             "type" -> JString("jvm")),
@@ -158,9 +154,10 @@ class ServiceBackend() extends Backend {
     log.info(s"parallelizeAndComputeWithIndex: token $token: reading results")
 
     val r = new Array[Array[Byte]](n)
+
     i = 0  // reusing
     while (i < n) {
-      r(i) = using(fs.openNoCompression(s"$root/result.$i")) { is =>
+      r(i) = using(fs.openCachedNoCompression(s"$root/result.$i")) { is =>
         IOUtils.toByteArray(is)
       }
       i += 1
@@ -236,7 +233,7 @@ class ServiceBackend() extends Backend {
         x,
         optimize = true)
 
-      f(0, ctx.r)(ctx.r)
+      f(ctx.fs, 0, ctx.r)(ctx.r)
       None
     } else {
       val (Some(PTypeReferenceSingleCodeType(pt)), f) = Compile[AsmFunction1RegionLong](ctx,
@@ -245,7 +242,7 @@ class ServiceBackend() extends Backend {
         MakeTuple.ordered(FastIndexedSeq(x)),
         optimize = true)
 
-      val a = f(0, ctx.r)(ctx.r)
+      val a = f(ctx.fs, 0, ctx.r)(ctx.r)
       val retPType = pt.asInstanceOf[PBaseStruct]
       Some((new UnsafeRow(retPType, ctx.r, a).get(0), retPType.types(0)))
     }
@@ -327,7 +324,10 @@ class ServiceBackend() extends Backend {
           (relationalLetsAbove)
           { partition => ShuffleWrite(Literal(shuffleType, uuid), partition) }
           { (rows, globals) => MakeTuple.ordered(Seq(rows, globals)) })
-      val globals = successfulPartitionIdsAndGlobals.asInstanceOf[UnsafeRow].get(1)
+      val globals = SafeRow(
+        successfulPartitionIdsAndGlobals.asInstanceOf[UnsafeRow].t,
+        successfulPartitionIdsAndGlobals.asInstanceOf[UnsafeRow].offset
+      ).get(1)
 
       val partitionBoundsPointers = shuffleClient.partitionBounds(region, stage.numPartitions)
       val partitionIntervals = partitionBoundsPointers.zip(partitionBoundsPointers.drop(1)).map { case (l, r) =>
@@ -362,7 +362,6 @@ class ServiceBackend() extends Backend {
 
   def loadReferencesFromDataset(
     username: String,
-    sessionID: String,
     billingProject: String,
     bucket: String,
     path: String
@@ -464,12 +463,11 @@ class ServiceBackendSocketAPI(backend: ServiceBackend, socket: Socket) extends T
       (cmd: @switch) match {
         case LOAD_REFERENCES_FROM_DATASET =>
           val username = readString()
-          val sessionId = readString()
           val billingProject = readString()
           val bucket = readString()
           val path = readString()
           try {
-            val result = backend.loadReferencesFromDataset(username, sessionId, billingProject, bucket, path)
+            val result = backend.loadReferencesFromDataset(username, billingProject, bucket, path)
             writeBool(true)
             writeString(result)
           } catch {
@@ -645,8 +643,11 @@ object ServiceBackendMain {
   def main(argv: Array[String]): Unit = {
     assert(argv.length == 1, argv.toFastIndexedSeq)
     val udsAddress = argv(0)
+    val queryGCSPathEnvVar = System.getenv("HAIL_QUERY_GCS_PATH")
+    assert(queryGCSPathEnvVar != null)
+    val queryGCSJarPath = queryGCSPathEnvVar + "/jars/"
     val executor = Executors.newCachedThreadPool()
-    val backend = new ServiceBackend()
+    val backend = new ServiceBackend(queryGCSJarPath)
     HailContext(backend, "hail.log", false, false, 50, skipLoggingConfiguration = true, 3)
 
     val ss = AFUNIXServerSocket.newInstance()

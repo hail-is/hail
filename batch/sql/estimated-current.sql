@@ -144,6 +144,7 @@ CREATE TABLE IF NOT EXISTS `batches` (
   `msec_mcpu` BIGINT NOT NULL DEFAULT 0,
   `token` VARCHAR(100) DEFAULT NULL,
   `format_version` INT NOT NULL,
+  `cancel_after_n_failures` INT DEFAULT NULL,
   PRIMARY KEY (`id`),
   FOREIGN KEY (`billing_project`) REFERENCES billing_projects(name)
 ) ENGINE = InnoDB;
@@ -343,7 +344,6 @@ BEGIN
   DECLARE job_cores_mcpu INT;
   DECLARE cur_billing_project VARCHAR(100);
   DECLARE msec_diff BIGINT;
-  DECLARE msec_mcpu_diff BIGINT;
   DECLARE cur_n_tokens INT;
   DECLARE rand_token INT;
 
@@ -357,16 +357,6 @@ BEGIN
 
   SET msec_diff = (GREATEST(COALESCE(NEW.end_time - NEW.start_time, 0), 0) -
                    GREATEST(COALESCE(OLD.end_time - OLD.start_time, 0), 0));
-
-  SET msec_mcpu_diff = msec_diff * job_cores_mcpu;
-
-  UPDATE batches
-  SET msec_mcpu = batches.msec_mcpu + msec_mcpu_diff
-  WHERE id = NEW.batch_id;
-
-  UPDATE jobs
-  SET msec_mcpu = jobs.msec_mcpu + msec_mcpu_diff
-  WHERE batch_id = NEW.batch_id AND job_id = NEW.job_id;
 
   INSERT INTO aggregated_billing_project_resources (billing_project, resource, token, `usage`)
   SELECT billing_project, resource, rand_token, msec_diff * quantity
@@ -899,7 +889,7 @@ BEGIN
 
   IF NOT attempt_exists AND in_attempt_id IS NOT NULL THEN
     INSERT INTO attempts (batch_id, job_id, attempt_id, instance_name) VALUES (in_batch_id, in_job_id, in_attempt_id, in_instance_name);
-    SELECT state INTO cur_instance_state FROM instances WHERE name = in_instance_name FOR UPDATE;
+    SELECT state INTO cur_instance_state FROM instances WHERE name = in_instance_name LOCK IN SHARE MODE;
     # instance pending when attempt is from a job private instance
     IF cur_instance_state = 'pending' OR cur_instance_state = 'active' THEN
       UPDATE instances SET free_cores_mcpu = free_cores_mcpu - in_cores_mcpu WHERE name = in_instance_name;
@@ -926,13 +916,18 @@ BEGIN
 
   START TRANSACTION;
 
-  SELECT jobs.state, cores_mcpu, attempt_id,
-    (jobs.cancelled OR batches.cancelled) AND NOT always_run
-  INTO cur_job_state, cur_cores_mcpu, cur_attempt_id, cur_job_cancel
+  SELECT state, cores_mcpu, attempt_id
+  INTO cur_job_state, cur_cores_mcpu, cur_attempt_id
+  FROM jobs
+  WHERE batch_id = in_batch_id AND job_id = in_job_id
+  FOR UPDATE;
+
+  SELECT (jobs.cancelled OR batches.cancelled) AND NOT jobs.always_run
+  INTO cur_job_cancel
   FROM jobs
   INNER JOIN batches ON batches.id = jobs.batch_id
   WHERE batch_id = in_batch_id AND job_id = in_job_id
-  FOR UPDATE;
+  LOCK IN SHARE MODE;
 
   SELECT is_pool
   INTO cur_instance_is_pool
@@ -990,10 +985,12 @@ BEGIN
 
   SELECT state, cores_mcpu, attempt_id
   INTO cur_job_state, cur_cores_mcpu, cur_attempt_id
-  FROM jobs WHERE batch_id = in_batch_id AND job_id = in_job_id
+  FROM jobs
+  WHERE batch_id = in_batch_id AND job_id = in_job_id
   FOR UPDATE;
 
-  SELECT end_time INTO cur_end_time FROM attempts
+  SELECT end_time INTO cur_end_time
+  FROM attempts
   WHERE batch_id = in_batch_id AND job_id = in_job_id AND attempt_id = in_attempt_id
   FOR UPDATE;
 
@@ -1001,7 +998,7 @@ BEGIN
   SET end_time = new_end_time, reason = new_reason
   WHERE batch_id = in_batch_id AND job_id = in_job_id AND attempt_id = in_attempt_id;
 
-  SELECT state INTO cur_instance_state FROM instances WHERE name = in_instance_name FOR UPDATE;
+  SELECT state INTO cur_instance_state FROM instances WHERE name = in_instance_name LOCK IN SHARE MODE;
 
   IF cur_instance_state = 'active' AND cur_end_time IS NULL THEN
     UPDATE instances
@@ -1039,13 +1036,18 @@ BEGIN
 
   START TRANSACTION;
 
-  SELECT jobs.state, cores_mcpu,
-    (jobs.cancelled OR batches.cancelled) AND NOT always_run
-  INTO cur_job_state, cur_cores_mcpu, cur_job_cancel
+  SELECT state, cores_mcpu
+  INTO cur_job_state, cur_cores_mcpu
+  FROM jobs
+  WHERE batch_id = in_batch_id AND job_id = in_job_id
+  FOR UPDATE;
+
+  SELECT (jobs.cancelled OR batches.cancelled) AND NOT jobs.always_run
+  INTO cur_job_cancel
   FROM jobs
   INNER JOIN batches ON batches.id = jobs.batch_id
   WHERE batch_id = in_batch_id AND job_id = in_job_id
-  FOR UPDATE;
+  LOCK IN SHARE MODE;
 
   CALL add_attempt(in_batch_id, in_job_id, in_attempt_id, in_instance_name, cur_cores_mcpu, delta_cores_mcpu);
 
@@ -1062,6 +1064,7 @@ BEGIN
   SELECT 0 as rc, delta_cores_mcpu;
 END $$
 
+DROP PROCEDURE IF EXISTS mark_job_started $$
 CREATE PROCEDURE mark_job_started(
   IN in_batch_id BIGINT,
   IN in_job_id INT,
@@ -1078,13 +1081,18 @@ BEGIN
 
   START TRANSACTION;
 
-  SELECT jobs.state, cores_mcpu,
-    (jobs.cancelled OR batches.cancelled) AND NOT always_run
-  INTO cur_job_state, cur_cores_mcpu, cur_job_cancel
+  SELECT state, cores_mcpu
+  INTO cur_job_state, cur_cores_mcpu
+  FROM jobs
+  WHERE batch_id = in_batch_id AND job_id = in_job_id
+  FOR UPDATE;
+
+  SELECT (jobs.cancelled OR batches.cancelled) AND NOT jobs.always_run
+  INTO cur_job_cancel
   FROM jobs
   INNER JOIN batches ON batches.id = jobs.batch_id
   WHERE batch_id = in_batch_id AND job_id = in_job_id
-  FOR UPDATE;
+  LOCK IN SHARE MODE;
 
   CALL add_attempt(in_batch_id, in_job_id, in_attempt_id, in_instance_name, cur_cores_mcpu, delta_cores_mcpu);
 
@@ -1140,7 +1148,7 @@ BEGIN
   SET start_time = new_start_time, end_time = new_end_time, reason = new_reason
   WHERE batch_id = in_batch_id AND job_id = in_job_id AND attempt_id = in_attempt_id;
 
-  SELECT state INTO cur_instance_state FROM instances WHERE name = in_instance_name FOR UPDATE;
+  SELECT state INTO cur_instance_state FROM instances WHERE name = in_instance_name LOCK IN SHARE MODE;
   IF cur_instance_state = 'active' AND cur_end_time IS NULL THEN
     UPDATE instances
     SET free_cores_mcpu = free_cores_mcpu + cur_cores_mcpu

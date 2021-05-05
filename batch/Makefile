@@ -14,7 +14,7 @@ check:
 	$(PYTHON) -m flake8  --config ../setup.cfg batch
 	$(PYTHON) -m pylint --rcfile ../pylintrc batch --score=n
 	curlylint .
-	../check-sql.sh
+	bash ../check-sql.sh
 
 .PHONY: build-prereqs
 build-prereqs:
@@ -28,9 +28,6 @@ build-batch: build-prereqs
 
 .PHONY: build-worker
 build-worker: build-prereqs
-	$(MAKE) -C ../hail shadowJar
-# janky
-	cp ../hail/build/libs/hail-all-spark.jar ./hail.jar
 	-docker pull $(BATCH_WORKER_LATEST)
 	python3 ../ci/jinja2_render.py '{"global":{"docker_prefix":"$(DOCKER_PREFIX)"}}' Dockerfile.worker Dockerfile.worker.out
 	docker build -t batch-worker -f Dockerfile.worker.out --cache-from batch-worker,$(BATCH_WORKER_LATEST),service-base ..

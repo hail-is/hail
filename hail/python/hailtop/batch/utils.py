@@ -3,8 +3,8 @@ import math
 from typing import List
 
 from ..utils.utils import grouped, digits_needed
-from .exceptions import BatchException
 from .batch import Batch
+from .exceptions import BatchException
 from .resource import ResourceGroup, ResourceFile
 
 

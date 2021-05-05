@@ -744,7 +744,7 @@ object Interpret {
               FastIndexedSeq(classInfo[Region], LongInfo), LongInfo,
               MakeTuple.ordered(FastSeq(wrappedIR)),
               optimize = false)
-            (rt.get, makeFunction(0, region))
+            (rt.get, makeFunction(ctx.fs, 0, region))
           })
           val rvb = new RegionValueBuilder()
           rvb.set(region)
@@ -787,8 +787,15 @@ object Interpret {
         function.execute(ctx, child.execute(ctx))
       case BlockMatrixToValueApply(child, function) =>
         function.execute(ctx, child.execute(ctx))
+      case BlockMatrixCollect(child) =>
+        val bm = child.execute(ctx)
+        // transpose because breeze toArray is column major
+        val breezeMat = bm.transpose().toBreezeMatrix()
+        val shape = IndexedSeq(bm.nRows, bm.nCols)
+        SafeNDArray(shape, breezeMat.toArray)
       case x@TableAggregate(child, query) =>
         val value = child.execute(ctx)
+        val fsBc = ctx.fsBc
 
         val globalsBc = value.globals.broadcast
         val globalsOffset = value.globals.value.offset
@@ -805,7 +812,7 @@ object Interpret {
 
           // TODO Is this right? where does wrapped run?
           ctx.r.pool.scopedRegion { region =>
-            SafeRow(rt, f(0, region)(region, globalsOffset))
+            SafeRow(rt, f(ctx.fs, 0, region)(region, globalsOffset))
           }
         } else {
           val spec = BufferSpec.defaultUncompressed
@@ -869,8 +876,8 @@ object Interpret {
           def itF(i: Int, ctx: RVDContext, it: Iterator[Long]): RegionValue = {
             val partRegion = ctx.partitionRegion
             val globalsOffset = globalsBc.value.readRegionValue(partRegion)
-            val init = initOp(i, partRegion)
-            val seqOps = partitionOpSeq(i, partRegion)
+            val init = initOp(fsBc.value, i, partRegion)
+            val seqOps = partitionOpSeq(fsBc.value, i, partRegion)
             val aggRegion = ctx.freshRegion(Region.SMALL)
 
             init.newAggState(aggRegion)
@@ -888,7 +895,7 @@ object Interpret {
           // the caller
           val mkZero = (pool: RegionPool) => {
             val region = Region(Region.SMALL, pool)
-            val initF = initOp(0, region)
+            val initF = initOp(fsBc.value, 0, region)
             initF.newAggState(region)
             initF(region, globalsBc.value.readRegionValue(region))
             RegionValue(region, initF.getAggOffset())
@@ -906,7 +913,7 @@ object Interpret {
           assert(rTyp.types(0).virtualType == query.typ)
 
           ctx.r.pool.scopedRegion { r =>
-            val resF = f(0, r)
+            val resF = f(fsBc.value, 0, r)
             resF.setAggState(rv.region, rv.offset)
             val resAddr = resF(r, globalsOffset)
             val res = SafeRow(rTyp, resAddr)
@@ -924,7 +931,7 @@ object Interpret {
           MakeTuple.ordered(FastSeq(child)),
           optimize = false)
         ctx.r.pool.scopedRegion { r =>
-          SafeRow.read(rt, makeFunction(0, r)(r)).asInstanceOf[Row](0)
+          SafeRow.read(rt, makeFunction(ctx.fs, 0, r)(r)).asInstanceOf[Row](0)
         }
       case UUID4(_) =>
          uuid4()

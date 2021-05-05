@@ -4,3 +4,4 @@ include hail/experimental/datasets.json
 include hail/backend/hail-all-spark.jar
 include hailtop/hail_version
 include hailtop/hailctl/deploy.yaml
+include hailtop/py.typed

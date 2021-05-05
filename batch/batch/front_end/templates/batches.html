@@ -70,8 +70,8 @@
 	<tbody>
 	  {% for batch in batches %}
 	  <tr>
-	    <td class="numeric-cell" onClick="document.location.href='{{ base_path }}/batches/{{ batch['id'] }}';">
-              <a href="{{ base_path }}/batches/{{ batch['id'] }}">{{ batch['id'] }}</a>
+	    <td class="numeric-cell">
+        <a class="fill-td" href="{{ base_path }}/batches/{{ batch['id'] }}">{{ batch['id'] }}</a>
 	    </td>
 	    <td>{{ batch['user'] }}</td>
 	    <td>{{ batch['billing_project'] }}</td>
@@ -107,19 +107,25 @@
 	      {% endif %}
 	    </td>
 	    {% if not batch['complete'] and batch['state'] != 'Cancelled' %}
-	      <td>
-		<form action="{{ base_path }}/batches/{{ batch['id'] }}/cancel" method="post">
-		  <input type="hidden" name="_csrf" value="{{ csrf_token }}"/>
-		  <button>Cancel</button>
-		</form>
-	      </td>
+	    <td>
+	      <form action="{{ base_path }}/batches/{{ batch['id'] }}/cancel" method="post">
+		<input type="hidden" name="_csrf" value="{{ csrf_token }}"/>
+		{% if q is not none %}
+		<input type="hidden" name="q" value="{{ q }}"/>
+		{% endif %}
+		<button>Cancel</button>
+	      </form>
+	    </td>
 	    {% endif %}
-            <td>
-              <form action="{{ base_path }}/batches/{{ batch['id'] }}/delete" method="post">
-                <input type="hidden" name="_csrf" value="{{ csrf_token }}"/>
-                  <button>Delete</button>
-              </form>
-            </td>
+	    <td>
+	      <form action="{{ base_path }}/batches/{{ batch['id'] }}/delete" method="post">
+		<input type="hidden" name="_csrf" value="{{ csrf_token }}"/>
+		{% if q is not none %}
+		<input type="hidden" name="q" value="{{ q }}"/>
+		{% endif %}
+		<button>Delete</button>
+	      </form>
+	    </td>
 	  </tr>
 	  {% endfor %}
 	</tbody>
@@ -128,9 +134,9 @@
       {% if last_batch_id is not none %}
       <form method="GET" action="{{ base_path }}/batches">
 	{% if q is not none %}
-	  <input type="hidden" name="q" value="{{ q }}" />
+	  <input type="hidden" name="q" value="{{ q }}"/>
 	{% endif %}
-	<input type="hidden" name="last_batch_id" value="{{ last_batch_id }}" />
+	<input type="hidden" name="last_batch_id" value="{{ last_batch_id }}"/>
 	<button>
 	  Next page
 	</button>

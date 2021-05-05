@@ -7,7 +7,7 @@ from shlex import quote as shq
 import yaml
 import jinja2
 from typing import Dict, List, Optional
-from hailtop.utils import RETRY_FUNCTION_SCRIPT, flatten
+from hailtop.utils import flatten
 from .utils import generate_token
 from .environment import (
     GCP_PROJECT,
@@ -17,6 +17,7 @@ from .environment import (
     DOMAIN,
     IP,
     CI_UTILS_IMAGE,
+    KANIKO_IMAGE,
     DEFAULT_NAMESPACE,
     KUBERNETES_SERVER_URL,
     BUCKET,
@@ -209,7 +210,9 @@ class Step(abc.ABC):
     def from_json(params):
         kind = params.json['kind']
         if kind == 'buildImage':
-            return BuildImageStep.from_json(params)
+            return BuildImage2Step.from_json(params)
+        if kind == 'buildImage2':
+            return BuildImage2Step.from_json(params)
         if kind == 'runImage':
             return RunImageStep.from_json(params)
         if kind == 'createNamespace':
@@ -235,13 +238,16 @@ class Step(abc.ABC):
         pass
 
 
-class BuildImageStep(Step):
-    def __init__(self, params, dockerfile, context_path, publish_as, inputs):  # pylint: disable=unused-argument
+class BuildImage2Step(Step):
+    def __init__(
+        self, params, dockerfile, context_path, publish_as, inputs, resources
+    ):  # pylint: disable=unused-argument
         super().__init__(params)
         self.dockerfile = dockerfile
         self.context_path = context_path
         self.publish_as = publish_as
         self.inputs = inputs
+        self.resources = resources
         if params.scope == 'deploy' and publish_as and not is_test_deployment:
             self.base_image = f'{DOCKER_PREFIX}/{self.publish_as}'
         else:
@@ -257,8 +263,13 @@ class BuildImageStep(Step):
     @staticmethod
     def from_json(params):
         json = params.json
-        return BuildImageStep(
-            params, json['dockerFile'], json.get('contextPath'), json.get('publishAs'), json.get('inputs')
+        return BuildImage2Step(
+            params,
+            json['dockerFile'],
+            json.get('contextPath'),
+            json.get('publishAs'),
+            json.get('inputs'),
+            json.get('resources'),
         )
 
     def config(self, scope):  # pylint: disable=unused-argument
@@ -268,107 +279,56 @@ class BuildImageStep(Step):
         if self.inputs:
             input_files = []
             for i in self.inputs:
-                input_files.append(
-                    (f'gs://{BUCKET}/build/{batch.attributes["token"]}{i["from"]}', f'/io/{os.path.basename(i["to"])}')
-                )
+                input_files.append((f'gs://{BUCKET}/build/{batch.attributes["token"]}{i["from"]}', i["to"]))
         else:
             input_files = None
 
         config = self.input_config(code, scope)
 
-        if self.context_path:
-            context = f'repo/{self.context_path}'
-            init_context = ''
-        else:
-            context = 'context'
-            init_context = 'mkdir context'
+        context = self.context_path
+        if not context:
+            context = '/io'
 
-        rendered_dockerfile = 'Dockerfile'
         if isinstance(self.dockerfile, dict):
             assert ['inline'] == list(self.dockerfile.keys())
-            render_dockerfile = f'echo {shq(self.dockerfile["inline"])} > Dockerfile.{self.token};\n'
-            unrendered_dockerfile = f'Dockerfile.{self.token}'
+            unrendered_dockerfile = f'/io/Dockerfile.in.{self.token}'
+            create_inline_dockerfile_if_present = f'echo {shq(self.dockerfile["inline"])} > {unrendered_dockerfile};\n'
         else:
             assert isinstance(self.dockerfile, str)
-            render_dockerfile = ''
-            unrendered_dockerfile = f'repo/{self.dockerfile}'
-        render_dockerfile += (
-            f'time python3 jinja2_render.py {shq(json.dumps(config))} '
-            f'{shq(unrendered_dockerfile)} {shq(rendered_dockerfile)}'
-        )
+            unrendered_dockerfile = self.dockerfile
+            create_inline_dockerfile_if_present = ''
+        dockerfile_in_context = os.path.join(context, 'Dockerfile.' + self.token)
 
-        if self.publish_as:
-            published_latest = shq(f'{DOCKER_PREFIX}/{self.publish_as}:latest')
-            pull_published_latest = f'time retry docker pull {shq(published_latest)} || true'
-            cache_from_published_latest = f'--cache-from {shq(published_latest)}'
-        else:
-            pull_published_latest = ''
-            cache_from_published_latest = ''
-
-        push_image = f'''
-time retry docker push {self.image}
-'''
-        if scope == 'deploy' and self.publish_as and not is_test_deployment:
-            push_image = (
-                f'''
-docker tag {shq(self.image)} {self.base_image}:latest
-time retry docker push {self.base_image}:latest
-'''
-                + push_image
-            )
-
-        copy_inputs = ''
-        if self.inputs:
-            for i in self.inputs:
-                # to is relative to docker context
-                copy_inputs = (
-                    copy_inputs
-                    + f'''
-mkdir -p {shq(os.path.dirname(f'{context}{i["to"]}'))}
-cp {shq(f'/io/{os.path.basename(i["to"])}')} {shq(f'{context}{i["to"]}')}
-'''
-                )
-
-        docker_registry = DOCKER_PREFIX.split('/')[0]
+        cache_repo = DOCKER_PREFIX + '/cache'
         script = f'''
 set -ex
-date
 
-{ RETRY_FUNCTION_SCRIPT }
+{create_inline_dockerfile_if_present}
 
-rm -rf repo
-mkdir repo
-(cd repo; {code.checkout_script()})
-{render_dockerfile}
-{init_context}
-{copy_inputs}
+cp {unrendered_dockerfile} /python3.7-slim-stretch/Dockerfile.in
 
-FROM_IMAGE=$(awk '$1 == "FROM" {{ print $2; exit }}' {shq(rendered_dockerfile)})
+time chroot /python3.7-slim-stretch /usr/local/bin/python3 \
+     jinja2_render.py \
+     {shq(json.dumps(config))} \
+     /Dockerfile.in \
+     /Dockerfile.out
 
-time gcloud -q auth activate-service-account \
-  --key-file=/secrets/gcr-push-service-account-key/gcr-push-service-account-key.json
-time gcloud -q auth configure-docker {docker_registry}
+mv /python3.7-slim-stretch/Dockerfile.out {shq(dockerfile_in_context)}
 
-time retry docker pull $FROM_IMAGE
-{pull_published_latest}
-CPU_PERIOD=100000
-CPU_QUOTA=$(( $(grep -c ^processor /proc/cpuinfo) * $(cat /sys/fs/cgroup/cpu/cpu.shares) * $CPU_PERIOD / 1024 ))
-MEMORY=$(cat /sys/fs/cgroup/memory/memory.limit_in_bytes)
-time docker build --memory="$MEMORY" --cpu-period="$CPU_PERIOD" --cpu-quota="$CPU_QUOTA" -t {shq(self.image)} \
-  -f {rendered_dockerfile} \
-  --cache-from $FROM_IMAGE {cache_from_published_latest} \
-  {context}
-{push_image}
+set +e
+/busybox/sh /convert-google-application-credentials-to-kaniko-auth-config
+set -e
 
-date
-'''
+exec /kaniko/executor --dockerfile={shq(dockerfile_in_context)} --context=dir://{shq(context)} --destination={shq(self.image)} --cache=true --cache-repo={shq(cache_repo)} --snapshotMode=redo --use-new-run'''
 
         log.info(f'step {self.name}, script:\n{script}')
 
+        docker_registry = DOCKER_PREFIX.split('/')[0]
+        # docker_registry = 'https://gcr.io'
+
         self.job = batch.create_job(
-            CI_UTILS_IMAGE,
-            command=['bash', '-c', script],
-            mount_docker_socket=True,
+            KANIKO_IMAGE,
+            command=['/busybox/sh', '-c', script],
             secrets=[
                 {
                     'namespace': DEFAULT_NAMESPACE,
@@ -376,7 +336,12 @@ date
                     'mount_path': '/secrets/gcr-push-service-account-key',
                 }
             ],
+            env={
+                'GOOGLE_APPLICATION_CREDENTIALS': '/secrets/gcr-push-service-account-key/gcr-push-service-account-key.json',
+                'REGISTRY': docker_registry,
+            },
             attributes={'name': self.name},
+            resources=self.resources,
             input_files=input_files,
             parents=self.deps_parents(),
         )
@@ -659,7 +624,7 @@ kubectl -n {self.namespace_name} get -o json secret global-config \
 
             for s in self.secrets:
                 script += f'''
-kubectl -n {self.namespace_name} get -o json --export secret {s} | jq '.metadata.name = "{s}"' | kubectl -n {self._name} apply -f -
+kubectl -n {self.namespace_name} get -o json secret {s} | jq 'del(.metadata) | .metadata.name = "{s}"' | kubectl -n {self._name} apply -f -
 '''
 
         script += '''

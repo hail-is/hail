@@ -44,7 +44,7 @@ object SingleCodeType {
     case TVoid => UnitInfo
     case _ => LongInfo // all others passed as ptype references
   }
-  
+
   def fromSType(t: SType): SingleCodeType = t.virtualType match {
     case TInt32 => Int32SingleCodeType
     case TInt64 => Int64SingleCodeType
@@ -62,7 +62,7 @@ sealed trait SingleCodeType {
   def loadToPCode(cb: EmitCodeBuilder, r: Value[Region], c: Code[_]): PCode
 
   def virtualType: Type
-  
+
   def coercePCode(cb: EmitCodeBuilder, pc: PCode, region: Value[Region], deepCopy: Boolean): SingleCodePCode
 }
 
@@ -188,11 +188,6 @@ abstract class PCode extends SCode { self =>
   def codeTuple(): IndexedSeq[Code[_]]
 
   def typeInfo: TypeInfo[_] = typeToTypeInfo(pt)
-
-  def tcode[T](implicit ti: TypeInfo[T]): Code[T] = {
-    assert(ti == typeInfo)
-    code.asInstanceOf[Code[T]]
-  }
 
   override def asBoolean: SBooleanCode = asInstanceOf[SBooleanCode]
   override def asInt: SInt32Code = asInstanceOf[SInt32Code]

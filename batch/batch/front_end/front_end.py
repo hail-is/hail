@@ -15,13 +15,12 @@ import aiohttp_session
 import pymysql
 import google.oauth2.service_account
 import google.api_core.exceptions
+import humanize
 from prometheus_async.aio.web import server_stats  # type: ignore
 from hailtop.utils import (time_msecs, time_msecs_str, humanize_timedelta_msecs,
                            request_retry_transient_errors, run_if_changed,
-                           retry_long_running, LoggingTimer, cost_str,
-                           dump_all_stacktraces)
-from hailtop.batch_client.parse import (parse_cpu_in_mcpu, parse_memory_in_bytes,
-                                        parse_storage_in_bytes)
+                           retry_long_running, LoggingTimer, cost_str, dump_all_stacktraces)
+from hailtop.batch_client.parse import (parse_cpu_in_mcpu, parse_memory_in_bytes, parse_storage_in_bytes)
 from hailtop.config import get_deploy_config
 from hailtop.tls import internal_server_ssl_context
 from hailtop.httpx import client_session
@@ -38,7 +37,8 @@ from web_common import (setup_aiohttp_jinja2, setup_common_static_routes,
 
 # import uvloop
 
-from ..utils import cost_from_msec_mcpu, coalesce, query_billing_projects
+from ..utils import (coalesce, query_billing_projects, is_valid_cores_mcpu, cost_from_msec_mcpu,
+                     cores_mcpu_to_memory_bytes, batch_only)
 from ..batch import batch_record_to_dict, job_record_to_dict, cancel_batch_in_db
 from ..exceptions import (BatchUserError, NonExistentBillingProjectError,
                           ClosedBillingProjectError, InvalidBillingLimitError,
@@ -47,7 +47,7 @@ from ..inst_coll_config import InstanceCollectionConfigs
 from ..log_store import LogStore
 from ..database import CallError, check_call_procedure
 from ..batch_configuration import (BATCH_BUCKET_NAME, DEFAULT_NAMESPACE)
-from ..globals import HTTP_CLIENT_MAX_SIZE, BATCH_FORMAT_VERSION, valid_machine_types
+from ..globals import (HTTP_CLIENT_MAX_SIZE, BATCH_FORMAT_VERSION, memory_to_worker_type)
 from ..spec_writer import SpecWriter
 from ..batch_format_version import BatchFormatVersion
 
@@ -62,9 +62,8 @@ routes = web.RouteTableDef()
 deploy_config = get_deploy_config()
 
 BATCH_JOB_DEFAULT_CPU = os.environ.get('HAIL_BATCH_JOB_DEFAULT_CPU', '1')
-BATCH_JOB_DEFAULT_MEMORY = os.environ.get('HAIL_BATCH_JOB_DEFAULT_MEMORY', '3.75Gi')
-BATCH_JOB_DEFAULT_STORAGE = os.environ.get('HAIL_BATCH_JOB_DEFAULT_STORAGE', '10Gi')
-BATCH_JOB_DEFAULT_WORKER_TYPE = os.environ.get('HAIL_BATCH_JOB_DEFAULT_WORKER_TYPE', 'standard')
+BATCH_JOB_DEFAULT_MEMORY = os.environ.get('HAIL_BATCH_JOB_DEFAULT_MEMORY', 'standard')
+BATCH_JOB_DEFAULT_STORAGE = os.environ.get('HAIL_BATCH_JOB_DEFAULT_STORAGE', '0Gi')
 BATCH_JOB_DEFAULT_PREEMPTIBLE = True
 
 
@@ -663,68 +662,77 @@ WHERE user = %s AND id = %s AND NOT deleted;
                     resources = {}
                     spec['resources'] = resources
 
-                if 'cpu' not in resources:
-                    resources['cpu'] = BATCH_JOB_DEFAULT_CPU
-                if 'memory' not in resources:
-                    resources['memory'] = BATCH_JOB_DEFAULT_MEMORY
+                worker_type = None
+                machine_type = resources.get('machine_type')
+                preemptible = resources.get('preemptible', BATCH_JOB_DEFAULT_PREEMPTIBLE)
+
+                if machine_type and ('cpu' in resources or 'memory' in resources):
+                    raise web.HTTPBadRequest(
+                        reason='cannot specify cpu and memory with machine_type')
+
+                if machine_type is None:
+                    if 'cpu' not in resources:
+                        resources['cpu'] = BATCH_JOB_DEFAULT_CPU
+                    resources['req_cpu'] = resources['cpu']
+                    del resources['cpu']
+                    req_cores_mcpu = parse_cpu_in_mcpu(resources['req_cpu'])
+
+                    if not is_valid_cores_mcpu(req_cores_mcpu):
+                        raise web.HTTPBadRequest(
+                            reason=f'bad resource request for job {id}: '
+                            f'cpu must be a power of two with a min of 0.25; '
+                            f'found {resources["req_cpu"]}.')
+
+                    if 'memory' not in resources:
+                        resources['memory'] = BATCH_JOB_DEFAULT_MEMORY
+                    resources['req_memory'] = resources['memory']
+                    del resources['memory']
+                    req_memory = resources['req_memory']
+                    if req_memory in memory_to_worker_type:
+                        worker_type = memory_to_worker_type[req_memory]
+                        req_memory_bytes = cores_mcpu_to_memory_bytes(req_cores_mcpu, worker_type)
+                    else:
+                        req_memory_bytes = parse_memory_in_bytes(req_memory)
+                else:
+                    req_cores_mcpu = None
+                    req_memory_bytes = None
+
                 if 'storage' not in resources:
                     resources['storage'] = BATCH_JOB_DEFAULT_STORAGE
+                resources['req_storage'] = resources['storage']
+                del resources['storage']
+                req_storage_bytes = parse_storage_in_bytes(resources['req_storage'])
 
-                req_cores_mcpu = parse_cpu_in_mcpu(resources['cpu'])
-                req_memory_bytes = parse_memory_in_bytes(resources['memory'])
-                req_storage_bytes = parse_storage_in_bytes(resources['storage'])
-
-                if req_cores_mcpu == 0:
+                if req_storage_bytes is None:
                     raise web.HTTPBadRequest(
                         reason=f'bad resource request for job {id}: '
-                        f'cpu cannot be 0')
-
-                worker_type = resources.get('worker_type')
-                machine_type = resources.get('machine_type')
-                preemptible = resources.get('preemptible')
-
-                if worker_type and machine_type:
-                    raise web.HTTPBadRequest(
-                        reason='cannot specify both worker_type and machine_type')
-
-                if not machine_type and not worker_type:
-                    worker_type = BATCH_JOB_DEFAULT_WORKER_TYPE
-                    resources['worker_type'] = worker_type
+                        f'storage must be convertable to bytes; '
+                        f'found {resources["req_storage"]}'
+                    )
 
                 inst_coll_configs: InstanceCollectionConfigs = app['inst_coll_configs']
 
-                inst_coll_name = None
-                cores_mcpu = None
+                result, exc = inst_coll_configs.select_inst_coll(machine_type, preemptible,
+                                                                 worker_type, req_cores_mcpu,
+                                                                 req_memory_bytes, req_storage_bytes)
 
-                if worker_type:
-                    if preemptible is not None:
-                        raise web.HTTPBadRequest(
-                            reason='cannot have preemptible specified with a worker_type')
+                if exc:
+                    raise web.HTTPBadRequest(reason=exc.message)
 
-                    result = inst_coll_configs.select_pool(
-                        worker_type=worker_type,
-                        cores_mcpu=req_cores_mcpu,
-                        memory_bytes=req_memory_bytes,
-                        storage_bytes=req_storage_bytes)
-                    if result:
-                        inst_coll_name, cores_mcpu = result
-                else:
-                    assert machine_type and machine_type in valid_machine_types
-
-                    if 'preemptible' not in resources:
-                        resources['preemptible'] = BATCH_JOB_DEFAULT_PREEMPTIBLE
-
-                    result = inst_coll_configs.select_job_private(
-                        machine_type=machine_type,
-                        storage_bytes=req_storage_bytes)
-                    if result:
-                        inst_coll_name, cores_mcpu, storage_gib = result
-                        resources['storage_gib'] = storage_gib
-
-                if inst_coll_name is None:
+                if result is None:
                     raise web.HTTPBadRequest(
                         reason=f'resource requests for job {id} are unsatisfiable: '
-                        f'requested: cpu={resources["cpu"]}, memory={resources["memory"]}, storage={resources["storage"]}')
+                        f'cpu={resources["req_cpu"]}, '
+                        f'memory={resources["req_memory"]}, '
+                        f'storage={resources["req_storage"]}, '
+                        f'preemptible={preemptible}, '
+                        f'machine_type={machine_type}')
+
+                inst_coll_name, cores_mcpu, memory_bytes, storage_gib = result
+                resources['cores_mcpu'] = cores_mcpu
+                resources['memory_bytes'] = memory_bytes
+                resources['storage_gib'] = storage_gib
+                resources['preemptible'] = preemptible
 
                 secrets = spec.get('secrets')
                 if not secrets:
@@ -956,12 +964,12 @@ WHERE token = %s AND user = %s FOR UPDATE;
         now = time_msecs()
         id = await tx.execute_insertone(
             '''
-INSERT INTO batches (userdata, user, billing_project, attributes, callback, n_jobs, time_created, token, state, format_version)
-VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
+INSERT INTO batches (userdata, user, billing_project, attributes, callback, n_jobs, time_created, token, state, format_version, cancel_after_n_failures)
+VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
 ''',
             (json.dumps(userdata), user, billing_project, json.dumps(attributes),
              batch_spec.get('callback'), batch_spec['n_jobs'],
-             now, token, 'open', BATCH_FORMAT_VERSION))
+             now, token, 'open', BATCH_FORMAT_VERSION, batch_spec.get('cancel_after_n_failures')))
 
         if attributes:
             await tx.execute_many(
@@ -1071,7 +1079,7 @@ WHERE user = %s AND id = %s AND NOT deleted;
         await request_retry_transient_errors(
             session, 'PATCH',
             deploy_config.url('batch-driver', f'/api/v1alpha/batches/{user}/{batch_id}/close'),
-            headers=app['driver_headers'])
+            headers=app['batch_headers'])
 
     return web.Response()
 
@@ -1112,11 +1120,16 @@ async def ui_batch(request, userdata, batch_id):
 @check_csrf_token
 @web_billing_project_users_only(redirect=False)
 async def ui_cancel_batch(request, userdata, batch_id):  # pylint: disable=unused-argument
+    post = await request.post()
+    q = post.get('q')
+    params = {}
+    if q is not None:
+        params['q'] = q
     session = await aiohttp_session.get_session(request)
     errored = await _handle_ui_error(session, _cancel_batch, request.app, batch_id)
     if not errored:
         set_message(session, f'Batch {batch_id} cancelled.', 'info')
-    location = request.app.router['batches'].url_for()
+    location = request.app.router['batches'].url_for().with_query(params)
     raise web.HTTPFound(location=location)
 
 
@@ -1125,10 +1138,15 @@ async def ui_cancel_batch(request, userdata, batch_id):  # pylint: disable=unuse
 @check_csrf_token
 @web_billing_project_users_only(redirect=False)
 async def ui_delete_batch(request, userdata, batch_id):  # pylint: disable=unused-argument
+    post = await request.post()
+    q = post.get('q')
+    params = {}
+    if q is not None:
+        params['q'] = q
     await _delete_batch(request.app, batch_id)
     session = await aiohttp_session.get_session(request)
     set_message(session, f'Batch {batch_id} deleted.', 'info')
-    location = request.app.router['batches'].url_for()
+    location = request.app.router['batches'].url_for().with_query(params)
     raise web.HTTPFound(location=location)
 
 
@@ -1267,7 +1285,8 @@ async def ui_get_job(request, userdata, batch_id):
         'name': str,
         'timing': {'pulling': dictfix.NoneOr({'duration': dictfix.NoneOr(Number)}),
                    'running': dictfix.NoneOr({'duration': dictfix.NoneOr(Number)})},
-        'container_status': {'out_of_memory': False},
+        'short_error': dictfix.NoneOr(str),
+        'container_status': {'out_of_memory': dictfix.NoneOr(bool)},
         'state': str})
     job_status_spec = {
         'container_statuses': {'input': container_status_spec,
@@ -1278,6 +1297,11 @@ async def ui_get_job(request, userdata, batch_id):
     step_statuses = [container_statuses['input'],
                      container_statuses['main'],
                      container_statuses['output']]
+
+    for status in step_statuses:
+        # backwards compatibility
+        if status and status['short_error'] is None and status['container_status']['out_of_memory']:
+            status['short_error'] = 'out of memory'
 
     job_specification = job['spec']
     if job_specification:
@@ -1292,6 +1316,17 @@ async def ui_get_job(request, userdata, batch_id):
                                                             'command': list,
                                                             'resources': dict(),
                                                             'env': list}))
+
+    resources = job_specification['resources']
+    if 'memory_bytes' in resources:
+        resources['actual_memory'] = humanize.naturalsize(resources['memory_bytes'], binary=True)
+        del resources['memory_bytes']
+    if 'storage_gib' in resources:
+        resources['actual_storage'] = humanize.naturalsize(resources['storage_gib'] * 1024**3, binary=True)
+        del resources['storage_gib']
+    if 'cores_mcpu' in resources:
+        resources['actual_cpu'] = resources['cores_mcpu'] / 1000
+        del resources['cores_mcpu']
 
     page_context = {
         'batch_id': batch_id,
@@ -1854,6 +1889,14 @@ async def api_delete_billing_projects(request, userdata):  # pylint: disable=unu
     return web.json_response(billing_project)
 
 
+@routes.patch('/api/v1alpha/inst_colls/refresh')
+@batch_only
+async def refresh_inst_colls(request):
+    inst_coll_configs: InstanceCollectionConfigs = request.app['inst_coll_configs']
+    await inst_coll_configs.refresh()
+    return web.Response()
+
+
 @routes.get('')
 @routes.get('/')
 @web_authenticated_users_only()
@@ -1867,7 +1910,7 @@ async def cancel_batch_loop_body(app):
         await request_retry_transient_errors(
             session, 'POST',
             deploy_config.url('batch-driver', '/api/v1alpha/batches/cancel'),
-            headers=app['driver_headers'])
+            headers=app['batch_headers'])
 
     should_wait = True
     return should_wait
@@ -1878,7 +1921,7 @@ async def delete_batch_loop_body(app):
         await request_retry_transient_errors(
             session, 'POST',
             deploy_config.url('batch-driver', '/api/v1alpha/batches/delete'),
-            headers=app['driver_headers'])
+            headers=app['batch_headers'])
 
     should_wait = True
     return should_wait
@@ -1904,7 +1947,9 @@ SELECT instance_id, internal_token, n_tokens FROM globals;
     log.info(f'instance_id {instance_id}')
     app['instance_id'] = instance_id
 
-    app['driver_headers'] = {
+    app['internal_token'] = row['internal_token']
+
+    app['batch_headers'] = {
         'Authorization': f'Bearer {row["internal_token"]}'
     }
 

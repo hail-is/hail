@@ -108,7 +108,7 @@ class FunctionSuite extends HailSuite {
     fb.emit(Code(i := 0, mb1.invokeCode(), mb2.invokeCode(), i))
     pool.scopedRegion { r =>
 
-      assert(fb.resultWithIndex().apply(0, r)() == 2)
+      assert(fb.resultWithIndex().apply(ctx.fs, 0, r)() == 2)
     }
   }
 }

@@ -22,6 +22,38 @@ Please note that **forward compatibility should not be expected, especially
 relating to file formats**: this means that it may not be possible to use
 an earlier version of Hail to read files written in a later version.
 
+## Version 0.2.66
+
+### New features
+
+- (hail#10398) Added new method `BlockMatrix.to_ndarray`.
+- (hail#10251) Added suport for haploid GT calls to VCF combiner.
+
+---
+
+## Version 0.2.65
+
+Released 2021-04-14
+
+### Default Spark Version Change
+
+- Starting from version 0.2.65, Hail uses Spark 3.1.1 by default. This will also allow the use of all python versions >= 3.6. By building hail from source, it is still possible to use older versions of Spark.
+
+### New features
+
+- (hail#10290) Added `hl.nd.solve`.
+- (hail#10187) Added `NDArrayNumericExpression.sum`.
+
+### Performance improvements
+
+- (hail#10233) Loops created with `hl.experimental.loop` will now clean up unneeded memory between iterations.
+
+### Bug fixes
+
+- (hail#10227) `hl.nd.qr` now supports ndarrays that have 0 rows or columns.
+
+---
+
 ## Version 0.2.64
 
 Released 2021-03-11
