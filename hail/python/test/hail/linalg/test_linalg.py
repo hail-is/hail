@@ -46,10 +46,9 @@ class Tests(unittest.TestCase):
             return np.array(a)
 
     def _assert_eq(self, a, b):
-        test_val = np.array_equal(self._np_matrix(a), self._np_matrix(b))
-        if test_val is False:
-            import pdb; pdb.set_trace()
-        self.assertTrue(np.array_equal(self._np_matrix(a), self._np_matrix(b)))
+        anp = self._np_matrix(a)
+        bnp = self._np_matrix(b)
+        np.testing.assert_equal(anp, bnp)
 
     def _assert_close(self, a, b):
         self.assertTrue(np.allclose(self._np_matrix(a), self._np_matrix(b)))
@@ -456,8 +455,6 @@ class Tests(unittest.TestCase):
         self._assert_close(m.log(), np.log(nm))
         self._assert_close((m - 4).abs(), np.abs(nm - 4))
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_matrix_ops(self):
         nm = np.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]])
         m = BlockMatrix.from_ndarray(hl.nd.array(nm), block_size=2)
@@ -488,6 +485,10 @@ class Tests(unittest.TestCase):
         self._assert_eq(m.T.diagonal(), np.array([[1.0, 5.0]]))
         self._assert_eq((m @ m.T).diagonal(), np.array([[14.0, 77.0]]))
 
+
+    @fails_service_backend
+    @fails_local_backend
+    def test_matrix_sums(self):
         self._assert_eq(m.sum(axis=0).T, np.array([[5.0], [7.0], [9.0]]))
         self._assert_eq(m.sum(axis=1).T, np.array([[6.0, 15.0]]))
         self._assert_eq(m.sum(axis=0).T + row, np.array([[12.0, 13.0, 14.0],
