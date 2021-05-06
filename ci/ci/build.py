@@ -323,6 +323,8 @@ exec /kaniko/executor --dockerfile={shq(dockerfile_in_context)} --context=dir://
 
         log.info(f'step {self.name}, script:\n{script}')
 
+        docker_registry = DOCKER_PREFIX.split('/')[0]
+
         self.job = batch.create_job(
             KANIKO_IMAGE,
             command=['/busybox/sh', '-c', script],
@@ -334,7 +336,8 @@ exec /kaniko/executor --dockerfile={shq(dockerfile_in_context)} --context=dir://
                 }
             ],
             env={
-                'GOOGLE_APPLICATION_CREDENTIALS': '/secrets/gcr-push-service-account-key/gcr-push-service-account-key.json'
+                'GOOGLE_APPLICATION_CREDENTIALS': '/secrets/gcr-push-service-account-key/gcr-push-service-account-key.json',
+                'REGISTRY': docker_registry,
             },
             attributes={'name': self.name},
             resources=self.resources,
