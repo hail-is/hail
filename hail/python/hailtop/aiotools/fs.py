@@ -535,7 +535,6 @@ class SourceCopier:
             srcstat: FileStatus,
             destfile: str,
             return_exceptions: bool):
-        # print(f'srcstat={srcstat} srcfile={srcfile} destfile={destfile}')
         size = await srcstat.size()
         if size <= self.PART_SIZE:
             await retry_transient_errors(self._copy_file, srcfile, destfile)

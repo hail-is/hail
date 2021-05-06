@@ -419,44 +419,86 @@ async def test_copy_src_parts(copy_test_context):
     await expect_file(fs, f'{dest_base}subdir/file2', 'src/a/subdir/file2')
 
 
+async def write_file(fs, url, data):
+    async with await fs.create(url) as f:
+        await f.write(data)
+
+
 @pytest.mark.asyncio
-async def test_file_and_directory_error_with_slash(router_filesystem):
+async def test_file_and_directory_error_with_slash_empty_file(router_filesystem):
+    sema, fs, bases = router_filesystem
+
+    src_base = await fresh_dir(fs, bases, 'gs')
+
+    await write_file(fs, f'{src_base}empty/', '')
+    await write_file(fs, f'{src_base}empty/foo', b'foo')
+
+    await fs.listfiles(f'{src_base}')
+    await fs.listfiles(f'{src_base}', recursive=True)
+
+    for transfer_type in (Transfer.DEST_IS_TARGET, Transfer.DEST_DIR, Transfer.INFER_DEST):
+        dest_base = await fresh_dir(fs, bases, 'gs')
+
+        await fs.copy(sema, Transfer(f'{src_base}empty/', dest_base.rstrip('/'), treat_dest_as=transfer_type))
+
+        await fs.listfiles(f'{dest_base}')
+
+        if transfer_type == Transfer.DEST_DIR:
+            exp_dest = f'{dest_base}empty/foo'
+            await expect_file(fs, exp_dest, 'foo')
+            assert not await fs.isfile(f'{dest_base}empty/')
+            assert await fs.isdir(f'{dest_base}empty/')
+        else:
+            exp_dest = f'{dest_base}foo'
+            await expect_file(fs, exp_dest, 'foo')
+
+
+@pytest.mark.asyncio
+async def test_file_and_directory_error_with_slash_non_empty_file(router_filesystem):
     sema, fs, bases = router_filesystem
 
     src_base = await fresh_dir(fs, bases, 'gs')
     dest_base = await fresh_dir(fs, bases, 'gs')
 
-    async def write_file(fs, url, data):
-        async with await fs.create(url) as f:
-            await f.write(data)
-
-    # Test empty file ending in slash and directory
-    await fs.create(f'{src_base}empty/')
-    await write_file(fs, f'{src_base}empty/', '')
-    await write_file(fs, f'{src_base}empty/foo', b'foo')
-
-    await fs.copy(sema, Transfer(f'{src_base}empty/', dest_base.rstrip('/')))
-    await expect_file(fs, f'{dest_base}foo', 'foo')
-    assert not await fs.isfile(f'{dest_base}empty/')
-
-    # Test non-empty file ending in slash and directory
     await write_file(fs, f'{src_base}not-empty/', b'not-empty')
     await write_file(fs, f'{src_base}not-empty/bar', b'bar')
 
-    await fs.copy(sema, Transfer(f'{src_base}not-empty/bar', dest_base.rstrip('/'), treat_dest_as=Transfer.DEST_DIR))
-    await expect_file(fs, f'{dest_base}bar', 'bar')
+    with pytest.raises(FileAndDirectoryError):
+        await fs.listfiles(f'{src_base}')
 
     with pytest.raises(FileAndDirectoryError):
-        await fs.copy(sema, Transfer(f'{src_base}not-empty/', dest_base.rstrip('/'), treat_dest_as=Transfer.DEST_DIR))
+        await fs.listfiles(f'{src_base}', recursive=True)
 
-    # Test empty file that ends in a slash without directory
+    await fs.copy(sema, Transfer(f'{src_base}not-empty/bar', dest_base.rstrip('/')))
+    await expect_file(fs, dest_base.rstrip('/'), 'bar')
+
+    with pytest.raises(FileAndDirectoryError):
+        await fs.copy(sema, Transfer(f'{src_base}not-empty/', dest_base.rstrip('/')))
+
+
+@pytest.mark.asyncio
+async def test_file_and_directory_error_with_slash_empty_file_only(router_filesystem):
+    sema, fs, bases = router_filesystem
+
+    src_base = await fresh_dir(fs, bases, 'gs')
+    dest_base = await fresh_dir(fs, bases, 'gs')
+
     await fs.create(f'{src_base}empty-only/')
 
-    with pytest.raises(FileAndDirectoryError):
-        await fs.copy(sema, Transfer(f'{src_base}empty-only/', dest_base.rstrip('/'), treat_dest_as=Transfer.DEST_DIR))
+    for transfer_type in (Transfer.DEST_IS_TARGET, Transfer.DEST_DIR, Transfer.INFER_DEST):
+        with pytest.raises(FileNotFoundError):
+            await fs.copy(sema, Transfer(f'{src_base}empty-only/', dest_base.rstrip('/'), treat_dest_as=transfer_type))
 
-    # Test non-empty file that ends in a slash without directory
+
+@pytest.mark.asyncio
+async def test_file_and_directory_error_with_slash_non_empty_file_only(router_filesystem):
+    sema, fs, bases = router_filesystem
+
+    src_base = await fresh_dir(fs, bases, 'gs')
+    dest_base = await fresh_dir(fs, bases, 'gs')
+
     await write_file(fs, f'{src_base}not-empty-file-w-slash/', b'not-empty')
 
-    with pytest.raises(FileAndDirectoryError):
-        await fs.copy(sema, Transfer(f'{src_base}not-empty-file-w-slash/', dest_base.rstrip('/'), treat_dest_as=Transfer.DEST_DIR))
+    for transfer_type in (Transfer.DEST_IS_TARGET, Transfer.DEST_DIR, Transfer.INFER_DEST):
+        with pytest.raises(FileAndDirectoryError):
+            await fs.copy(sema, Transfer(f'{src_base}not-empty-file-w-slash/', dest_base.rstrip('/'), treat_dest_as=transfer_type))

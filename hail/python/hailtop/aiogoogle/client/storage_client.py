@@ -425,7 +425,7 @@ class GetObjectFileStatus(FileStatus):
 
 class GoogleStorageFileListEntry(FileListEntry):
     def __init__(self, url: str, items: Optional[Dict[str, Any]], status=None):
-        # assert url.endswith('/') == (items is None), f'{url} {items}'
+        assert url.endswith('/') == (items is None), f'{url} {items}'
         self._url = url
         self._items = items
         self._status: Optional[GetObjectFileStatus] = status
@@ -646,15 +646,12 @@ class GoogleStorageAsyncFS(AsyncFS):
             if items is not None:
                 for item in page['items']:
                     url = f'gs://{bucket}/{item["name"]}'
-                    print(f'url={url}')
                     status = None
                     if not force_all and url.endswith('/') and item is not None:
                         status = GetObjectFileStatus(item)
                         size = await status.size()
                         if size != 0:
-                            print(f'non-empty {url} with size {size}')
                             raise FileAndDirectoryError(url)
-                        print(f'skipping {url} with size {size}')
                         continue
                     yield GoogleStorageFileListEntry(url, item, status)
 
@@ -671,6 +668,10 @@ class GoogleStorageAsyncFS(AsyncFS):
                 for prefix in prefixes:
                     assert prefix.endswith('/')
                     url = f'gs://{bucket}/{prefix}'
+                    if not force_all and await self.isfile(url):
+                        stat = await self.statfile(url)
+                        if await stat.size() != 0:
+                            raise FileAndDirectoryError(url)
                     yield GoogleStorageFileListEntry(url, None)
 
             items = page.get('items')
@@ -682,9 +683,7 @@ class GoogleStorageAsyncFS(AsyncFS):
                         status = GetObjectFileStatus(item)
                         size = await status.size()
                         if size != 0:
-                            print(f'non-empty {url} with size {size}')
                             raise FileAndDirectoryError(url)
-                        print(f'skipping {url} with size {size}')
                         continue
                     yield GoogleStorageFileListEntry(url, item, status)
 
@@ -730,7 +729,7 @@ class GoogleStorageAsyncFS(AsyncFS):
 
     async def isdir(self, url: str) -> bool:
         bucket, name = self._get_bucket_name(url)
-        assert not name or name.endswith('/')
+        assert not name or name.endswith('/'), name
         params = {
             'prefix': name,
             'delimiter': '/',
