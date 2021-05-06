@@ -13,7 +13,7 @@ import is.hail.io.gen.{ExportBGEN, ExportGen}
 import is.hail.io.index.StagedIndexWriter
 import is.hail.io.plink.ExportPlink
 import is.hail.io.vcf.ExportVCF
-import is.hail.linalg.GridPartitioner
+import is.hail.linalg.{BlockMatrixMetadata, GridPartitioner}
 import is.hail.rvd.{RVDPartitioner, RVDSpecMaker}
 import is.hail.types.encoded.{EBaseStruct, EType}
 import is.hail.types.physical.stypes.interfaces._
@@ -364,11 +364,41 @@ case class MatrixBlockMatrixWriter(
     val rowCountIR = ts.mapCollect(relationalLetsAbove)(paritionIR => StreamLen(paritionIR))
     println(rowCountIR.typ)
     val rowCountPerPartition: IndexedSeq[Int] = CompileAndEvaluate(ctx, rowCountIR).asInstanceOf[IndexedSeq[Int]]
-    val partStarts = rowCountPerPartition.scanLeft(0L)(_ + _)
-    val numRows = partStarts.last
+    val partStartsPlusLast = rowCountPerPartition.scanLeft(0L)(_ + _)
+    val numRows = partStartsPlusLast.last
+    val partStarts = partStartsPlusLast.dropRight(1)
+    val partStops = partStartsPlusLast.tail
 
 
     val gp = GridPartitioner.apply(blockSize, numRows, numCols)
+
+    // Remaining Steps:
+    // - Create a new TableStage where each partition has the appropriate range of rows.
+    //    - Label rows with indices
+    //    - Key by indices.
+    // - From there, Flatmap like operation to turn each partition into many partitions by diving along columns.
+    // - Figure out how to write them all out.
+
+    // Zip contexts with partition starts and ends
+    val zippedWithStarts = ts.mapContexts{oldContextsStream => zipIR(IndexedSeq(oldContextsStream, Literal(TArray(TInt64), partStarts), Literal(TArray(TInt64), partStops)), ArrayZipBehavior.AssertSameLength){ case IndexedSeq(oldCtx, partStart, partStop) =>
+      MakeStruct(Seq[(String, IR)]("mwOld" -> oldCtx, "mwStartIdx" -> partStart, "mwStopIdx" -> partStop))
+    }}(newCtx => GetField(newCtx, "mwOld"))
+
+    // Now label each row with its idx.
+    val idxId = genUID()
+    val partsZippedWithIdx = zippedWithStarts.mapPartitionWithContext { (part, ctx) =>
+      zip2(part, rangeIR(GetField(ctx, "mwStartIdx"), GetField(ctx, "mwStopIdx")), ArrayZipBehavior.AssertSameLength) { (partRow, idx) =>
+        insertIR(partRow, (idxId, idx))
+      }
+    }
+
+    // Now create a partitioner for these indices.
+    val rowIntervals = partStarts.zip(partStops).map{ case (intervalStart, intervalStop) -> Interval(intervalStart, intervalEnd, includesStart=true, includesEnd=false)}
+    RVDPartitioner.generate(TStruct((idxId, TInt64)), rowIntervals)
+
+    val partFiles = ???
+
+    BlockMatrixMetadata(blockSize, numRows, numCols, gp.partitionIndexToBlockIndex, partFiles)
     ???
   }
 }
