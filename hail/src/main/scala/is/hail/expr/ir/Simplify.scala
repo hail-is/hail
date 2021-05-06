@@ -465,7 +465,8 @@ object Simplify {
       }
 
     case TableCollect(TableParallelize(x, _)) => x
-    case x@TableCollect(TableOrderBy(child, sortFields)) if sortFields.forall(_.sortOrder == Ascending) =>
+    case x@TableCollect(TableOrderBy(child, sortFields)) if sortFields.forall(_.sortOrder == Ascending)
+      && !child.typ.key.startsWith(sortFields.map(_.field)) =>
       val uid = genUID()
       val uid2 = genUID()
       val left = genUID()
