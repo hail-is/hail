@@ -331,7 +331,7 @@ set +e
 /busybox/sh /convert-google-application-credentials-to-kaniko-auth-config
 set -e
 
-exec /kaniko/executor --dockerfile={shq(dockerfile_in_context)} --context=dir://{shq(context)} --destination={shq(self.image)} --cache=true --cache-repo={shq(cache_repo)} --snapshotMode=redo --use-new-run --digestfile=/io/digestfile'''
+exec /kaniko/executor --dockerfile={shq(dockerfile_in_context)} --context=dir://{shq(context)} --destination={shq(self.image)} --cache=true --cache-repo={shq(cache_repo)} --snapshotMode=redo --use-new-run --image-name-with-digest-file=/io/digestfile'''
 
         log.info(f'step {self.name}, script:\n{script}')
 
