@@ -428,20 +428,23 @@ final case class NDArrayWrite(nd: IR, path: IR) extends IR
 final case class NDArrayMatMul(l: IR, r: IR) extends NDArrayIR
 
 object NDArrayQR {
-  val pTypes: Map[String, PType] = Map(
-    "r" -> PCanonicalNDArray(PFloat64Required, 2),
-    "raw" -> PCanonicalTuple(false, PCanonicalNDArray(PFloat64Required, 2), PCanonicalNDArray(PFloat64Required, 1)),
-    "reduced" -> PCanonicalTuple(false, PCanonicalNDArray(PFloat64Required, 2), PCanonicalNDArray(PFloat64Required, 2)),
-    "complete" -> PCanonicalTuple(false, PCanonicalNDArray(PFloat64Required, 2), PCanonicalNDArray(PFloat64Required, 2)))
+  def pType(mode: String, req: Boolean): PType = {
+    mode match {
+      case "r" => PCanonicalNDArray(PFloat64Required, 2, req)
+      case "raw" => PCanonicalTuple(req, PCanonicalNDArray(PFloat64Required, 2, true), PCanonicalNDArray(PFloat64Required, 1, true))
+      case "reduced" => PCanonicalTuple(req, PCanonicalNDArray(PFloat64Required, 2, true), PCanonicalNDArray(PFloat64Required, 2, true))
+      case "complete" => PCanonicalTuple(req, PCanonicalNDArray(PFloat64Required, 2, true), PCanonicalNDArray(PFloat64Required, 2, true))
+    }
+  }
 }
 
 object NDArraySVD {
-  def pTypes(computeUV: Boolean): PType = {
+  def pTypes(computeUV: Boolean, req: Boolean): PType = {
     if (computeUV) {
-      PCanonicalTuple(false, PCanonicalNDArray(PFloat64Required, 2), PCanonicalNDArray(PFloat64Required, 1), PCanonicalNDArray(PFloat64Required, 2))
+      PCanonicalTuple(req, PCanonicalNDArray(PFloat64Required, 2, true), PCanonicalNDArray(PFloat64Required, 1, true), PCanonicalNDArray(PFloat64Required, 2, true))
     }
     else {
-      PCanonicalNDArray(PFloat64Required, 1)
+      PCanonicalNDArray(PFloat64Required, 1, req)
     }
   }
 }

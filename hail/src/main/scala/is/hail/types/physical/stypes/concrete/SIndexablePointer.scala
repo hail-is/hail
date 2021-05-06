@@ -4,13 +4,15 @@ import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.expr.ir.{EmitCodeBuilder, IEmitCode}
 import is.hail.types.physical.stypes.interfaces.SContainer
-import is.hail.types.physical.stypes.{SCode, SType}
+import is.hail.types.physical.stypes.{EmitType, SCode, SType}
 import is.hail.types.physical.{PArray, PCanonicalArray, PCanonicalDict, PCanonicalSet, PCode, PContainer, PIndexableCode, PIndexableValue, PSettable, PType}
 import is.hail.utils.FastIndexedSeq
 
 
 case class SIndexablePointer(pType: PContainer) extends SContainer {
   override def elementType: SType = pType.elementType.sType
+
+  def elementEmitType: EmitType = EmitType(elementType, pType.elementType.required)
 
   def coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = {
     new SIndexablePointerCode(this, pType.store(cb, region, value, deepCopy))

@@ -165,12 +165,12 @@ abstract class AbstractTypedRegionBackedAggState(val ptype: PType) extends Regio
 }
 
 class PrimitiveRVAState(val vtypes: Array[VirtualTypeWithReq], val kb: EmitClassBuilder[_]) extends AggregatorState {
-  private[this] val ptypes = vtypes.map(_.canonicalPType)
-  assert(ptypes.forall(_.isPrimitive))
+  private[this] val emitTypes = vtypes.map(_.canonicalEmitType)
+  assert(emitTypes.forall(_.st.pType.isPrimitive))
 
-  val nFields: Int = ptypes.length
-  val fields: Array[EmitSettable] = Array.tabulate(nFields) { i => kb.newEmitField(s"primitiveRVA_${ i }_v", ptypes(i)) }
-  val storageType = PCanonicalTuple(true, ptypes: _*)
+  val nFields: Int = emitTypes.length
+  val fields: Array[EmitSettable] = Array.tabulate(nFields) { i => kb.newEmitField(s"primitiveRVA_${ i }_v", emitTypes(i)) }
+  val storageType = PCanonicalTuple(true, emitTypes.map(_.canonicalPType): _*)
   val sStorageType = SBaseStructPointer(storageType)
 
   def foreachField(f: (Int, EmitSettable) => Unit): Unit = {
