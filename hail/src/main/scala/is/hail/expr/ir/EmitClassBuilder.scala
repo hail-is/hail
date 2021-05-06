@@ -1153,12 +1153,9 @@ class DependentEmitFunctionBuilder[F](
     val m = genFieldThisRef[Boolean]()
     val v = genFieldThisRef()(ti)
     dep_apply_method.setFields += { (obj: lir.ValueX) =>
-      val setup = ec.setup
-      setup.end.append(lir.goto(ec.m.start))
       ec.m.end.append(lir.putField(className, m.name, typeInfo[Boolean], obj, ec.m.v))
       ec.m.end.append(lir.putField(className, v.name, ti, obj, ec.v.v))
-      val newC = new VCode(setup.start, ec.m.end, null)
-      setup.clear()
+      val newC = new VCode(ec.m.start, ec.m.end, null)
       ec.m.clear()
       ec.v.clear()
       newC

@@ -179,8 +179,6 @@ abstract class CodeOrdering {
   def _equivNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Boolean]
 
   def _compare(cb: EmitCodeBuilder, x: EmitCode, y: EmitCode, missingEqual: Boolean = true): Code[Int] = {
-    cb += x.setup
-    cb += y.setup
     val xm = cb.newLocal("cord_compare_xm", x.m)
     val ym = cb.newLocal("cord_compare_ym", y.m)
     val cmp = cb.newLocal[Int]("cmp")
@@ -192,8 +190,6 @@ abstract class CodeOrdering {
 
   def _lt(cb: EmitCodeBuilder, x: EmitCode, y: EmitCode, missingEqual: Boolean): Code[Boolean] = {
     val ret = cb.newLocal[Boolean]("lt")
-    cb += x.setup
-    cb += y.setup
     if (missingEqual) {
       cb.ifx(x.m,
         cb.assign(ret, false),
@@ -212,8 +208,6 @@ abstract class CodeOrdering {
 
   def _lteq(cb: EmitCodeBuilder, x: EmitCode, y: EmitCode, missingEqual: Boolean): Code[Boolean] = {
     val ret = cb.newLocal[Boolean]("lteq")
-    cb += x.setup
-    cb += y.setup
     cb.ifx(y.m,
       cb.assign(ret, true),
       cb.ifx(x.m,
@@ -224,8 +218,6 @@ abstract class CodeOrdering {
 
   def _gt(cb: EmitCodeBuilder, x: EmitCode, y: EmitCode, missingEqual: Boolean): Code[Boolean] = {
     val ret = cb.newLocal[Boolean]("gt")
-    cb += x.setup
-    cb += y.setup
     cb.ifx(y.m,
       cb.assign(ret, false),
       cb.ifx(x.m,
@@ -236,8 +228,6 @@ abstract class CodeOrdering {
 
   def _gteq(cb: EmitCodeBuilder, x: EmitCode, y: EmitCode, missingEqual: Boolean): Code[Boolean] = {
     val ret = cb.newLocal[Boolean]("gteq")
-    cb += x.setup
-    cb += y.setup
     if (missingEqual) {
       cb.ifx(x.m,
         cb.assign(ret, true),
@@ -256,8 +246,6 @@ abstract class CodeOrdering {
 
   def _equiv(cb: EmitCodeBuilder, x: EmitCode, y: EmitCode, missingEqual: Boolean): Code[Boolean] = {
     val ret = cb.newLocal[Boolean]("eq")
-    cb += x.setup
-    cb += y.setup
     if (missingEqual) {
       val xm = cb.newLocal("cord_equiv_xm", x.m)
       val ym = cb.newLocal("cord_equiv_ym", y.m)

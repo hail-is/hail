@@ -166,7 +166,6 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
           }
 
           if (castEc.pt.required) {
-            append(castEc.setup)
             append(Code.toUnit(castEc.m))
             castEc.codeTuple()
           } else {
