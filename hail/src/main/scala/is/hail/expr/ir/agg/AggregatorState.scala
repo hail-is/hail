@@ -34,10 +34,9 @@ trait AggregatorState {
 
   def deserialize(codec: BufferSpec): (EmitCodeBuilder, Value[InputBuffer]) => Unit
 
-  def deserializeFromBytes(cb: EmitCodeBuilder, t: PBinary, address: Code[Long]): Unit = {
+  def deserializeFromBytes(cb: EmitCodeBuilder, bytes: PBinaryCode): Unit = {
     val lazyBuffer = kb.getOrDefineLazyField[MemoryBufferWrapper](Code.newInstance[MemoryBufferWrapper](), (this, "bufferWrapper"))
-    val addr = cb.newField[Long]("addr", address)
-    cb += lazyBuffer.invoke[Long, Int, Unit]("clearAndSetFrom", t.bytesAddress(addr), t.loadLength(addr))
+    cb += lazyBuffer.invoke[Array[Byte], Unit]("set", bytes.loadBytes())
     val ib = cb.newLocal("aggstate_deser_from_bytes_ib", lazyBuffer.invoke[InputBuffer]("buffer"))
     deserialize(BufferSpec.defaultUncompressed)(cb, ib)
   }
