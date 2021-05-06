@@ -13,14 +13,14 @@ def jinja2_render(config, input, output, file_overrides):
 
 
 def file_override(config, file_overrides):
-    assert set(config).issuperset(set(file_overrides))
+    assert set(config).issuperset(set(file_overrides)), f'{set(config)} {set(file_overrides)}'
     for k, v in file_overrides.items():
         if isinstance(v, dict):
-            assert isinstance(config[k], dict), k
+            assert isinstance(config[k], dict), f'{k} {config}'
             file_override(config[k], v)
         else:
-            assert isinstance(v, str)
-            assert isinstance(config[k], str)
+            assert isinstance(v, str), f'{k} {v}'
+            assert isinstance(config[k], str), f'{k} {config}'
             config[k] = open(v).read()
 
 
