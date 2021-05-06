@@ -354,7 +354,21 @@ case class MatrixBlockMatrixWriter(
     val tm = MatrixType.fromTableType(t.typ, colsFieldName, entriesFieldName, colKey)
     val rm = r.asMatrixType(colsFieldName, entriesFieldName)
 
-    val gp = GridPartitioner.apply(blockSize, ???, ???, ???)
+    // Step one: Make IR to count columns, execute it.
+    println(ts.getGlobals().typ)
+    val countColumnsIR = ArrayLen(GetField(ts.getGlobals(), colsFieldName))
+    val numCols: Int = CompileAndEvaluate(ctx, countColumnsIR, true).asInstanceOf[Int]
+    println(s"There were ${numCols} columns")
+
+    // Step 2: Find out how many rows per partition.
+    val rowCountIR = ts.mapCollect(relationalLetsAbove)(paritionIR => StreamLen(paritionIR))
+    println(rowCountIR.typ)
+    val rowCountPerPartition: IndexedSeq[Int] = CompileAndEvaluate(ctx, rowCountIR).asInstanceOf[IndexedSeq[Int]]
+    val partStarts = rowCountPerPartition.scanLeft(0L)(_ + _)
+    val numRows = partStarts.last
+
+
+    val gp = GridPartitioner.apply(blockSize, numRows, numCols)
     ???
   }
 }
