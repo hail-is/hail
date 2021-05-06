@@ -38,7 +38,7 @@ class Credentials(abc.ABC):
             raise ValueError('unable to locate Google Cloud credentials')
 
         log.info(f'using credentials file {credentials_file}')
-        
+
         return Credentials.from_file(credentials_file)
 
     async def get_access_token(self, session):
