@@ -253,6 +253,7 @@ class BuildImage2Step(Step):
         else:
             self.base_image = f'{DOCKER_PREFIX}/ci-intermediate'
         self.image = f'{self.base_image}:{self.token}'
+        self.digest_remote_location: Optional[str] = None
         self.job = None
 
     def wrapped_job(self):
@@ -276,12 +277,22 @@ class BuildImage2Step(Step):
         return {'token': self.token, 'image': self.image}
 
     def build(self, batch, code, scope):
+        self.digest_remote_location = f'gs://{BUCKET}/build/{batch.attributes["token"]}-image-digests/{self.name}'
+
+        input_files = []
+        file_overrides: Dict[str, Dict[str, str]] = defaultdict(dict)
+        if self.deps:
+            for d in self.deps:
+                if isinstance(d, BuildImage2Step):
+                    assert d.digest_remote_location is not None
+
+                    digest_local_location = '/io/' + d.name
+                    file_overrides[d.name]['image'] = digest_local_location
+                    input_files.append(d.digest_remote_location, digest_local_location)
+
         if self.inputs:
-            input_files = []
             for i in self.inputs:
                 input_files.append((f'gs://{BUCKET}/build/{batch.attributes["token"]}{i["from"]}', i["to"]))
-        else:
-            input_files = None
 
         config = self.input_config(code, scope)
 
@@ -311,7 +322,8 @@ time chroot /python3.7-slim-stretch /usr/local/bin/python3 \
      jinja2_render.py \
      {shq(json.dumps(config))} \
      /Dockerfile.in \
-     /Dockerfile.out
+     /Dockerfile.out \
+     {shq(json.dumps(file_overrides))}
 
 mv /python3.7-slim-stretch/Dockerfile.out {shq(dockerfile_in_context)}
 
@@ -319,7 +331,7 @@ set +e
 /busybox/sh /convert-google-application-credentials-to-kaniko-auth-config
 set -e
 
-exec /kaniko/executor --dockerfile={shq(dockerfile_in_context)} --context=dir://{shq(context)} --destination={shq(self.image)} --cache=true --cache-repo={shq(cache_repo)} --snapshotMode=redo --use-new-run'''
+exec /kaniko/executor --dockerfile={shq(dockerfile_in_context)} --context=dir://{shq(context)} --destination={shq(self.image)} --cache=true --cache-repo={shq(cache_repo)} --snapshotMode=redo --use-new-run --digestfile=/io/digestfile'''
 
         log.info(f'step {self.name}, script:\n{script}')
 
@@ -339,6 +351,7 @@ exec /kaniko/executor --dockerfile={shq(dockerfile_in_context)} --context=dir://
             attributes={'name': self.name},
             resources=self.resources,
             input_files=input_files,
+            output_files=[('/io/digestfile', self.digest_remote_location)],
             parents=self.deps_parents(),
         )
 
