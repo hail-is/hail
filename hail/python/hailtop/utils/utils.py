@@ -565,7 +565,8 @@ def is_transient_error(e):
                             errno.EHOSTUNREACH,
                             errno.ECONNRESET,
                             errno.ENETUNREACH,
-                            errno.EPIPE
+                            errno.EPIPE,
+                            errno.ENOTRECOVERABLE
                             )):
         return True
     if isinstance(e, urllib3.exceptions.ReadTimeoutError):
