@@ -281,6 +281,7 @@ class BuildImage2Step(Step):
 
         input_files = []
         file_overrides: Dict[str, Dict[str, str]] = defaultdict(dict)
+        move_file_overrides_into_chroot = ''
         if self.deps:
             for d in self.deps:
                 if isinstance(d, BuildImage2Step):
@@ -289,6 +290,7 @@ class BuildImage2Step(Step):
                     digest_local_location = '/io/' + d.name
                     file_overrides[d.name]['image'] = digest_local_location
                     input_files.append((d.digest_remote_location, digest_local_location))
+                    move_file_overrides_into_chroot += f'\nmv {digest_local_location} /python3.7-slim-stretch/{digest_local_location}'
 
         if self.inputs:
             for i in self.inputs:
@@ -317,6 +319,8 @@ set -ex
 {create_inline_dockerfile_if_present}
 
 cp {unrendered_dockerfile} /python3.7-slim-stretch/Dockerfile.in
+
+{ move_file_overrides_into_chroot }
 
 time chroot /python3.7-slim-stretch /usr/local/bin/python3 \
      jinja2_render.py \
