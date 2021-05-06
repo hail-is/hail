@@ -32,7 +32,7 @@ def usage():
 def main():
     if len(sys.argv) not in (4, 5):
         usage()
-    jinja2_render(json.loads(sys.argv[1]), sys.argv[2], sys.argv[3], sys.argv[4] if len(sys.argv) == 5 else dict())
+    jinja2_render(json.loads(sys.argv[1]), sys.argv[2], sys.argv[3], json.loads(sys.argv[4]) if len(sys.argv) == 5 else dict())
 
 
 if __name__ == "__main__":
