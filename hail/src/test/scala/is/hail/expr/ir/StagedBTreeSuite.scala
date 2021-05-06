@@ -179,7 +179,7 @@ class BTreeBackedSet(ctx: ExecuteContext, region: Region, n: Int) {
         val ev = cb.memoize(key.loadCompKey(cb, off), "ev")
         cb += ob.writeBoolean(ev.m)
         cb.ifx(!ev.m, {
-          cb += ob.writeLong(ev.value[Long])
+          cb += ob.writeLong(ev.pv.asInt64.longCode(cb))
         })
       }
       ob2.flush()

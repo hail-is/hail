@@ -346,9 +346,6 @@ class DownsampleState(val kb: EmitClassBuilder[_], labelType: VirtualTypeWithReq
     val name = "downsample_dump_buffer"
     val mb = kb.getOrGenEmitMethod(name, (this, name), FastIndexedSeq[ParamType](), UnitInfo) { mb =>
       val i = mb.newLocal[Int]("i")
-      val point = mb.newLocal[Long]("elt")
-      val x = mb.newLocal[Double]("x")
-      val y = mb.newLocal[Double]("y")
       mb.voidWithBuilder { cb =>
         cb.ifx(buffer.size.ceq(0), cb += Code._return[Unit](Code._empty))
         cb.assign(left, min(left, bufferLeft))
@@ -364,10 +361,15 @@ class DownsampleState(val kb: EmitClassBuilder[_], labelType: VirtualTypeWithReq
         cb.assign(i, 0)
         cb.whileLoop(i < buffer.size,
           {
-            cb.assign(point, buffer.loadElement(cb, i).value)
-            cb.assign(x, Region.loadDouble(pointType.loadField(point, "x")))
-            cb.assign(y, Region.loadDouble(pointType.loadField(point, "y")))
-            insertIntoTree(cb, xBinCoordinate(x), yBinCoordinate(y), point, deepCopy = true)
+            buffer.loadElement(cb, i).toI(cb).consume(cb, {}, { elt =>
+              val point = elt.asBaseStruct.memoize(cb , "elt")
+              val xc = point.loadField(cb, "x").get(cb).asFloat64.doubleCode(cb)
+              val yc = point.loadField(cb, "y").get(cb).asFloat64.doubleCode(cb)
+              val x = cb.newLocal[Double]("x", xc)
+              val y = cb.newLocal[Double]("y", yc)
+              val pointc = SingleCodePCode.fromPCode(cb, point, region).code.asInstanceOf[Code[Long]]
+              insertIntoTree(cb, xBinCoordinate(x), yBinCoordinate(y), pointc, deepCopy = true)
+            })
             cb.assign(i, i + 1)
           })
         buffer.initialize(cb)
@@ -512,7 +514,8 @@ class DownsampleState(val kb: EmitClassBuilder[_], labelType: VirtualTypeWithReq
     mb.emitWithBuilder { cb =>
       cb.assign(i, 0)
       cb.whileLoop(i < other.buffer.size, {
-        deepCopyAndInsertPoint(cb, other.buffer.loadElement(cb, i).value)
+        val point = SingleCodePCode.fromPCode(cb, other.buffer.loadElement(cb, i).pv, region)
+        deepCopyAndInsertPoint(cb, point.code.asInstanceOf[Code[Long]])
         cb.assign(i, i + 1)
       })
       other.tree.foreach(cb) { (cb, value) =>
