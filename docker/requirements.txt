@@ -14,7 +14,7 @@ decorator==4.4.0
 dictdiffer==0.8.1
 dill>=0.3.1.1,<0.4
 flake8==3.8.3
-Flask-Cors==3.0.8
+Flask-Cors==3.0.9
 Flask-Sockets==0.2.1
 Flask==1.0.3
 # https://github.com/dask/gcsfs/issues/372
