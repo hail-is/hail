@@ -22,7 +22,21 @@ Please note that **forward compatibility should not be expected, especially
 relating to file formats**: this means that it may not be possible to use
 an earlier version of Hail to read files written in a later version.
 
+---
+
+## Version 0.2.67
+
+### Critical performance fix
+
+Released 2021-05-06
+
+- (hail#10451) Fixed a memory leak / performance bug triggered by `hl.literal(...).contains(...)
+
+---
+
 ## Version 0.2.66
+
+Released 2021-05-03
 
 ### New features
 
