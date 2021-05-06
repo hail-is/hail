@@ -3826,9 +3826,6 @@ steps:
       - test_hailtop_batch_2
       - test_hailtop_batch_3
       - test_hailtop_batch_4
-      - test_hail_python_service_backend_0
-      - test_hail_python_service_backend_1
-      - test_hail_python_service_backend_2
   - kind: runImage
     name: delete_batch_instances
     image:
@@ -3871,9 +3868,6 @@ steps:
       - test_hailtop_batch_2
       - test_hailtop_batch_3
       - test_hailtop_batch_4
-      - test_hail_python_service_backend_0
-      - test_hail_python_service_backend_1
-      - test_hail_python_service_backend_2
   - kind: runImage
     name: delete_atgu_tables
     image:
