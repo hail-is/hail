@@ -388,8 +388,8 @@ object EmitCode {
     }
   }
 
-  def unapply(ec: EmitCode): Option[(Code[Unit], Code[Boolean], PCode)] =
-    Some((ec.setup, ec.m, ec.pv))
+  def unapply(ec: EmitCode): Option[(Code[Boolean], PCode)] =
+    Some((ec.m, ec.pv))
 
   def apply(setup: Code[Unit], ec: EmitCode): EmitCode = {
     val Lstart = CodeLabel()
@@ -420,8 +420,6 @@ class EmitCode(private val start: CodeLabel, private val iec: IEmitCode) {
   def st: SType = iec.value.st
 
   def pv: PCode = iec.value
-
-  def setup: Code[Unit] = Code._empty
 
   val m: Code[Boolean] = new CCode(start.L, iec.Lmissing.L, iec.Lpresent.L)
 
@@ -460,7 +458,7 @@ class EmitCode(private val start: CodeLabel, private val iec: IEmitCode) {
 
   def asVoid(): Code[Unit] = {
     require(pv.pt == PVoid)
-    Code(setup, Code.toUnit(m))
+    Code.toUnit(m)
   }
 }
 
@@ -957,6 +955,9 @@ class Emit[C](
             av.loadElement(cb, iv).typecast[PCode]
           }
         }
+
+      case CastToArray(a) =>
+        emitI(a).map(cb)(pc => pt.fromCodeTuple(pc.codeTuple()))
 
       case ArrayLen(a) =>
         emitI(a).map(cb) { (ac) =>
@@ -2282,9 +2283,8 @@ class Emit[C](
               typeInfo[Boolean])
             val cmp2 = ApplyComparisonOp(EQWithNA(eltVType), In(0, PCodeEmitParamType(eltType)), In(1, PCodeEmitParamType(eltType)))
             InferPType(cmp2)
-            val EmitCode(s, m, pv) = emitInMethod(cmp2, discardNext)
+            val EmitCode(m, pv) = emitInMethod(cmp2, discardNext)
             discardNext.emitWithBuilder { cb =>
-              cb += s
               m || pv.asBoolean.boolCode(cb)
             }
             val lessThan = ApplyComparisonOp(Compare(eltVType), In(0, PCodeEmitParamType(eltType)), In(1, PCodeEmitParamType(eltType))) < 0
@@ -2307,9 +2307,8 @@ class Emit[C](
 
             val cmp2 = ApplyComparisonOp(EQWithNA(keyType.virtualType), k0, k1).deepCopy()
             InferPType(cmp2)
-            val EmitCode(s, m, pv) = emitInMethod(cmp2, discardNext)
+            val EmitCode(m, pv) = emitInMethod(cmp2, discardNext)
             discardNext.emitWithBuilder { cb =>
-              cb += s
               m || pv.asBoolean.boolCode(cb)
             }
             val lessThan = (ApplyComparisonOp(Compare(keyType.virtualType), k0, k1) < 0).deepCopy()
@@ -2459,9 +2458,9 @@ class Emit[C](
           (leftRightComparatorNames(1), sort.getEmitParam(3, fregion))))
     }
 
-    val EmitCode(setup, m, v) = new Emit(ctx, f.ecb).emit(newIR, sort, newEnv, None)
+    val EmitCode(m, v) = new Emit(ctx, f.ecb).emit(newIR, sort, newEnv, None)
 
-    sort.emit(Code(setup, m.mux(Code._fatal[Boolean]("Result of sorting function cannot be missing."), v.code)))
+    sort.emit(m.mux(Code._fatal[Boolean]("Result of sorting function cannot be missing."), v.code))
     f.apply_method.emitWithBuilder(cb => cb.invokeCode[Boolean](sort, fregion, leftEC, rightEC))
     f
   }
