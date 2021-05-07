@@ -129,8 +129,6 @@ class SNDArrayPointerSettable(
 class SNDArrayPointerCode(val st: SNDArrayPointer, val a: Code[Long]) extends PNDArrayCode {
   val pt: PCanonicalNDArray = st.pType
 
-  override def code: Code[_] = a
-
   override def codeTuple(): IndexedSeq[Code[_]] = FastIndexedSeq(a)
 
   def memoize(cb: EmitCodeBuilder, name: String, sb: SettableBuilder): PNDArrayValue = {

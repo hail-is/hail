@@ -269,7 +269,7 @@ abstract class RegistryFunctions {
       case SFloat32 => Code.boxFloat(sc.asFloat32.floatCode(cb))
       case SFloat64 => Code.boxDouble(sc.asFloat64.doubleCode(cb))
       case SBoolean => Code.boxBoolean(sc.asBoolean.boolCode(cb))
-      case _: SCall => Code.boxInt(coerce[Int](sc.asPCode.code))
+      case _: SCall => Code.boxInt(sc.asCall.loadCanonicalRepresentation(cb))
       case _: SString => sc.asString.loadString()
       case _: SLocus => sc.asLocus.getLocusObj(cb)
       case t =>

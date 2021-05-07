@@ -143,7 +143,7 @@ class BTreeBackedSet(ctx: ExecuteContext, region: Region, n: Int) {
         cb += Code.memoize(koff, "koff") { koff =>
           val ec = key.loadCompKey(cb, koff)
           ec.m.mux(sab.addMissing(),
-            sab.add(ec.v))
+            sab.add(ec.pv.asInt64.longCode(cb)))
         }
       }
       cb += (returnArray := Code.newArray[java.lang.Long](sab.size))

@@ -82,9 +82,6 @@ class SSubsetStructSettable(val st: SSubsetStruct, prev: PStructSettable) extend
 }
 
 class SSubsetStructCode(val st: SSubsetStruct, val prev: PBaseStructCode) extends PBaseStructCode {
-
-  def code: Code[_] = prev.code
-
   def codeTuple(): IndexedSeq[Code[_]] = prev.codeTuple()
 
   def memoize(cb: EmitCodeBuilder, name: String): PBaseStructValue = {
