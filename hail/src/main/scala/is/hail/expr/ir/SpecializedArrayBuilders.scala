@@ -8,7 +8,7 @@ import is.hail.utils.BoxedArrayBuilder
 
 import scala.reflect.ClassTag
 
-class StagedArrayBuilder(val elt: SingleCodeType, mb: EmitMethodBuilder[_], len: Code[Int]) {
+class StagedArrayBuilder(val elt: SingleCodeType, val eltRequired: Boolean, mb: EmitMethodBuilder[_], len: Code[Int]) {
 
   val ti: TypeInfo[_] = elt.ti
 
@@ -43,26 +43,6 @@ class StagedArrayBuilder(val elt: SingleCodeType, mb: EmitMethodBuilder[_], len:
     case LongInfo => coerce[LongMissingArrayBuilder](ref).invoke[Int, Long, Unit]("update", i, coerce[Long](x))
     case FloatInfo => coerce[FloatMissingArrayBuilder](ref).invoke[Int, Float, Unit]("update", i, coerce[Float](x))
     case DoubleInfo => coerce[DoubleMissingArrayBuilder](ref).invoke[Int, Double, Unit]("update", i, coerce[Double](x))
-  }
-
-  def sort(compare: Code[AsmFunction2[_, _, _]]): Code[Unit] = {
-    ti match {
-      case BooleanInfo =>
-        type F = AsmFunction2[Boolean, Boolean, Boolean]
-        coerce[BooleanMissingArrayBuilder](ref).invoke[F, Unit]("sort", coerce[F](compare))
-      case IntInfo =>
-        type F = AsmFunction2[Int, Int, Boolean]
-        coerce[IntMissingArrayBuilder](ref).invoke[F, Unit]("sort", coerce[F](compare))
-      case LongInfo =>
-        type F = AsmFunction2[Long, Long, Boolean]
-        coerce[LongMissingArrayBuilder](ref).invoke[F, Unit]("sort", coerce[F](compare))
-      case FloatInfo =>
-        type F = AsmFunction2[Float, Float, Boolean]
-        coerce[FloatMissingArrayBuilder](ref).invoke[F, Unit]("sort", coerce[F](compare))
-      case DoubleInfo =>
-        type F = AsmFunction2[Double, Double, Boolean]
-        coerce[DoubleMissingArrayBuilder](ref).invoke[F, Unit]("sort", coerce[F](compare))
-    }
   }
 
   def addMissing(): Code[Unit] =

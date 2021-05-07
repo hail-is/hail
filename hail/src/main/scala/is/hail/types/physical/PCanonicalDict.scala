@@ -8,8 +8,8 @@ import org.apache.spark.sql.Row
 object PCanonicalDict {
   def coerceArrayCode(contents: PIndexableCode): PIndexableCode = {
     contents.pt match {
-      case PCanonicalArray(ps: PCanonicalStruct, r) =>
-        PCanonicalDict(ps.fieldType("key"), ps.fieldType("value"), r)
+      case PCanonicalArray(ps: PBaseStruct, r) =>
+        PCanonicalDict(ps.types(0), ps.types(1), r)
           .construct(contents)
     }
   }
@@ -50,7 +50,11 @@ final case class PCanonicalDict(keyType: PType, valueType: PType, required: Bool
   }
 
   def construct(contents: PIndexableCode): PIndexableCode = {
-    assert(contents.pt.equalModuloRequired(arrayRep), s"\n  contents:  ${ contents.pt }\n  arrayrep: ${ arrayRep }")
+    contents.pt match {
+      case PCanonicalArray(pbs: PCanonicalBaseStruct, _)
+        if pbs.types.size == 2 && pbs.types(0) == keyType && pbs.types(1) == valueType =>
+      case t => throw new RuntimeException(s"PCDict.construct: contents=${t}, arrayrep=${arrayRep}")
+    }
     new SIndexablePointerCode(SIndexablePointer(this), contents.asInstanceOf[SIndexablePointerCode].a)
   }
 }

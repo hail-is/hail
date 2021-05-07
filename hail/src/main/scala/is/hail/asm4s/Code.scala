@@ -1051,6 +1051,25 @@ class CodeArray[T](val lhs: Code[Array[T]])(implicit tti: TypeInfo[T]) {
     Code(lhs, lir.insn1(ARRAYLENGTH))
 }
 
+class UntypedCodeArray(val lhs: Code[_], tti: TypeInfo[_]) {
+  def apply(i: Code[Int]): Code[_] =
+    Code(lhs, i, lir.insn2(tti.aloadOp))
+
+  def update(i: Code[Int], x: Code[_]): Code[Unit] = {
+    lhs.start.append(lir.goto(i.end))
+    i.start.append(lir.goto(x.start))
+    x.end.append(lir.stmtOp(tti.astoreOp, lhs.v, i.v, x.v))
+    val newC = new VCode(lhs.start, x.end, null)
+    lhs.clear()
+    i.clear()
+    x.clear()
+    newC
+  }
+
+  def length(): Code[Int] =
+    Code(lhs, lir.insn1(ARRAYLENGTH))
+}
+
 object CodeLabel {
   def apply(): CodeLabel = {
     val L = new lir.Block()

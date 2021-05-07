@@ -14,7 +14,7 @@ import is.hail.services.shuffler._
 import is.hail.types.TypeWithRequiredness
 import is.hail.types.physical._
 import is.hail.types.physical.stypes.concrete.{SBaseStructPointerCode, SCanonicalShufflePointer, SCanonicalShufflePointerCode, SCanonicalShufflePointerSettable}
-import is.hail.types.physical.stypes.interfaces.{SBaseStructCode, SNDArray, SNDArrayCode, SStreamCode}
+import is.hail.types.physical.stypes.interfaces.{SBaseStruct, SBaseStructCode, SNDArray, SNDArrayCode, SStreamCode}
 import is.hail.types.physical.stypes.primitives.{SFloat32, SFloat64, SInt32, SInt32Code, SInt64}
 import is.hail.types.physical.stypes.{EmitType, SCode, SType}
 import is.hail.types.virtual._
@@ -415,7 +415,7 @@ class EmitCode(private val start: CodeLabel, private val iec: IEmitCode) {
 
   lazy val emitType: EmitType = iec.emitType
 
-  def emitParamType: PCodeEmitParamType = PCodeEmitParamType(st.pType)
+  def emitParamType: PCodeEmitParamType = emitType.paramType
 
   def st: SType = iec.value.st
 
@@ -1000,7 +1000,7 @@ class Emit[C](
 
           val sct = SingleCodeType.fromSType(producer.element.st)
 
-          val vab = new StagedArrayBuilder(sct, mb, 0)
+          val vab = new StagedArrayBuilder(sct, producer.element.required, mb, 0)
           StreamUtils.writeToArrayBuilder(cb, stream.producer, vab, region)
           val sorter = new ArraySorter(EmitRegion(mb, region), vab)
           sorter.sort(cb, region, makeDependentSortingFunction(cb, sct, lessThan, env, Array(left, right)))
@@ -1013,7 +1013,7 @@ class Emit[C](
 
           val sct = SingleCodeType.fromSType(producer.element.st)
 
-          val vab = new StagedArrayBuilder(sct, mb, 0)
+          val vab = new StagedArrayBuilder(sct, producer.element.required, mb, 0)
           StreamUtils.writeToArrayBuilder(cb, stream.producer, vab, region)
           val sorter = new ArraySorter(EmitRegion(mb, region), vab)
 
@@ -1024,8 +1024,8 @@ class Emit[C](
           sorter.sort(cb, region, lessThan)
 
           def skipNext(cb: EmitCodeBuilder, region: Value[Region], l: EmitCode, r: EmitCode): Code[Boolean] = {
-            cb.emb.ecb.getOrdering(l.st, r.st)
-              .equiv(cb, l, r, missingEqual = true)
+            cb.newLocal[Boolean]("asdb", cb.emb.ecb.getOrdering(l.st, r.st)
+              .equiv(cb, l, r, missingEqual = true))
           }
           sorter.distinctFromSorted(cb, region, skipNext)
           sorter.toRegion(cb, x.typ)
@@ -1037,19 +1037,19 @@ class Emit[C](
 
           val sct = SingleCodeType.fromSType(producer.element.st)
 
-          val vab = new StagedArrayBuilder(sct, mb, 0)
+          val vab = new StagedArrayBuilder(sct, producer.element.required, mb, 0)
           StreamUtils.writeToArrayBuilder(cb, stream.producer, vab, region)
           val sorter = new ArraySorter(EmitRegion(mb, region), vab)
 
           def lessThan(cb: EmitCodeBuilder, region: Value[Region], l: Code[_], r: Code[_]): Code[Boolean] = {
             val lk = EmitCode.fromI(cb.emb)(cb => sct.loadToPCode(cb, region, l)
               .asBaseStruct.memoize(cb, "lt_l")
-              .loadField(cb, "key")
+              .loadField(cb, 0)
               .typecast[PCode])
 
             val rk = EmitCode.fromI(cb.emb)(cb => sct.loadToPCode(cb, region, r)
               .asBaseStruct.memoize(cb, "lt_r")
-              .loadField(cb, "key")
+              .loadField(cb, 0)
               .typecast[PCode])
 
             cb.emb.ecb.getOrdering(lk.st, rk.st)
@@ -1057,13 +1057,14 @@ class Emit[C](
           }
 
           sorter.sort(cb, region, lessThan)
+          sorter.pruneMissing(cb)
 
           def skipNext(cb: EmitCodeBuilder, region: Value[Region], l: EmitCode, r: EmitCode): Code[Boolean] = {
 
             val lk = EmitCode.fromI(cb.emb) { cb =>
               l.toI(cb).flatMap(cb) { x =>
                 x.asBaseStruct.memoize(cb, "lt_l")
-                  .loadField(cb, "key")
+                  .loadField(cb, 0)
                   .typecast[PCode]
               }
             }
@@ -1071,7 +1072,7 @@ class Emit[C](
             val rk = EmitCode.fromI(cb.emb) { cb =>
               r.toI(cb).flatMap(cb) { x =>
                 x.asBaseStruct.memoize(cb, "lt_r")
-                  .loadField(cb, "key")
+                  .loadField(cb, 0)
                   .typecast[PCode]
               }
             }
@@ -1088,7 +1089,7 @@ class Emit[C](
         emitStream(collection, cb, region).map(cb) { case stream: SStreamCode =>
 
           val sct = SingleCodeType.fromSType(stream.producer.element.st)
-          val sortedElts = new StagedArrayBuilder(sct, mb, 16)
+          val sortedElts = new StagedArrayBuilder(sct, stream.producer.element.required, mb, 16)
           StreamUtils.writeToArrayBuilder(cb, stream.producer, sortedElts, region)
           val sorter = new ArraySorter(EmitRegion(mb, region), sortedElts)
 
@@ -1110,7 +1111,7 @@ class Emit[C](
           sorter.sort(cb, region, lt)
           sorter.pruneMissing(cb)
 
-          val groupSizes = new StagedArrayBuilder(Int32SingleCodeType, mb, 0)
+          val groupSizes = new StagedArrayBuilder(Int32SingleCodeType, true, mb, 0)
 
           val eltIdx = mb.newLocal[Int]("groupByKey_eltIdx")
           val grpIdx = mb.newLocal[Int]("groupByKey_grpIdx")
@@ -1167,12 +1168,12 @@ class Emit[C](
           })
 
           cb.assign(outerSize, groupSizes.size)
-          val innerType = PCanonicalArray(sct.loadedSType.canonicalPType(), true)
-          val arrayTyp = PCanonicalArray(innerType, false)
-          val kt = sct.loadedSType.canonicalPType().asInstanceOf[PStruct].types(0)
+          val loadedElementType = sct.loadedSType.asInstanceOf[SBaseStruct]
+          val innerType = PCanonicalArray(loadedElementType.fieldTypes(1).canonicalPType(), true)
+          val kt = loadedElementType.fieldTypes(0).canonicalPType()
           val groupType = PCanonicalStruct(true, ("key", kt), ("value", innerType))
           val dictType = PCanonicalDict(kt, innerType, false)
-          val (addGroup, finishOuter) = arrayTyp.constructFromFunctions(cb, region, outerSize, deepCopy = false)
+          val (addGroup, finishOuter) = dictType.arrayRep.constructFromFunctions(cb, region, outerSize, deepCopy = false)
 
           cb.assign(eltIdx, 0)
           cb.assign(grpIdx, 0)
@@ -2467,7 +2468,7 @@ class Emit[C](
     val fb = cb.emb.ecb
     var newEnv = capturedReferences(ir, cb, env)
 
-    val sort = fb.genEmitMethod("sort",
+    val sort = fb.genEmitMethod("dependent_sorting_func",
       FastIndexedSeq(typeInfo[Region], CodeParamType(elemSCT.ti), CodeParamType(elemSCT.ti)),
       BooleanInfo)
 

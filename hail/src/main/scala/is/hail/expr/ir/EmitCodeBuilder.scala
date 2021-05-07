@@ -139,10 +139,11 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
           if (c.ti != cpt.ti)
             throw new RuntimeException(s"invoke ${ callee.mb.methodName }: arg $i: type mismatch:" +
               s"\n  got ${ c.ti }" +
-              s"\n  expected ${ cpt.ti }")
+              s"\n  expected ${ cpt.ti }" +
+              s"\n  all param types: ${expectedArgs}-")
           FastIndexedSeq(c)
         case (PCodeParam(pc), pcpt: PCodeParamType) =>
-          if (pc.pt != pcpt.pt)
+          if (!pc.pt.equalModuloRequired(pcpt.pt))
             throw new RuntimeException(s"invoke ${ callee.mb.methodName }: arg $i: type mismatch:" +
               s"\n  got ${ pc.pt }" +
               s"\n  expected ${ pcpt.pt }")
@@ -216,6 +217,12 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
   def strValue(sc: SCode): Code[String] = {
     val x = sc.asPCode
     strValue(x.pt, x.code)
+  }
+
+  def strValue(ec: EmitCode): Code[String] = {
+    val s = newLocal[String]("s")
+    ec.toI(this).consume(this, assign(s, "NA"), sc => assign(s, strValue(sc)))
+    s
   }
 
   // for debugging

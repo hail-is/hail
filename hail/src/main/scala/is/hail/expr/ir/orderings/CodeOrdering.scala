@@ -104,7 +104,7 @@ abstract class CodeOrdering {
     if (!arg2.st.equalsExceptTopLevelRequiredness(type2))
       throw new RuntimeException(s"CodeOrdering: $context: type mismatch (right)\n  generated: $type2\n  argument:  ${ arg2.st }")
 
-    val cacheKey = ("ordering", reversed, type1, type2, context, missingEqual)
+    val cacheKey = ("ordering", reversed, arg1.emitType, arg2.emitType, context, missingEqual)
     val mb = cb.emb.ecb.getOrGenEmitMethod(s"ord_$context", cacheKey,
       FastIndexedSeq(arg1.emitParamType, arg2.emitParamType), ti) { mb =>
 

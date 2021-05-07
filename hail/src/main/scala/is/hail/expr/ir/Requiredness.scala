@@ -99,7 +99,8 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
   def addBindingRelations(node: BaseIR): Unit = {
     val refMap: Map[String, IndexedSeq[RefEquality[BaseRef]]] =
       usesAndDefs.uses(node).toFastIndexedSeq.groupBy(_.t.name)
-    def addElementBinding(name: String, d: IR, makeOptional: Boolean = false): Unit = {
+    def addElementBinding(name: String, d: IR, makeOptional: Boolean = false, makeRequired: Boolean = false): Unit = {
+      assert(!(makeOptional && makeRequired))
       if (refMap.contains(name)) {
         val uses = refMap(name)
         val eltReq = coerce[RIterable](lookup(d)).elementType
@@ -107,6 +108,10 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
           val optional = eltReq.copy(eltReq.children)
           optional.union(false)
           optional
+        } else if (makeRequired) {
+          val req = eltReq.copy(eltReq.children)
+          req.union(true)
+          req
         } else eltReq
         uses.foreach { u => defs.bind(u, Array(req)) }
         dependents.getOrElseUpdate(d, mutable.Set[RefEquality[BaseIR]]()) ++= uses
@@ -169,8 +174,8 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
       case x@ApplyIR(_, _, args) =>
         x.refIdx.foreach { case (n, i) => addBinding(n, args(i)) }
       case ArraySort(a, l, r, c) =>
-        addElementBinding(l, a)
-        addElementBinding(r, a)
+        addElementBinding(l, a, makeRequired = true)
+        addElementBinding(r, a, makeRequired = true)
       case StreamMap(a, name, body) =>
         addElementBinding(name, a)
       case x@StreamZip(as, names, body, behavior) =>

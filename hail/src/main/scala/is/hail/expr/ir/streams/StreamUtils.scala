@@ -22,7 +22,7 @@ object StreamUtils {
     val aTyp = PCanonicalArray(stream.element.st.canonicalPType(), true)
     stream.length match {
       case None =>
-        val vab = new StagedArrayBuilder(SingleCodeType.fromSType(stream.element.st), mb, 0)
+        val vab = new StagedArrayBuilder(SingleCodeType.fromSType(stream.element.st), stream.element.required, mb, 0)
         writeToArrayBuilder(cb, stream, vab, destRegion)
         cb.assign(xLen, vab.size)
 
