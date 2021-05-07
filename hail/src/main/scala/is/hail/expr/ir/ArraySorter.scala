@@ -6,6 +6,8 @@ import is.hail.types.physical.{PCanonicalArray, PCanonicalDict, PCanonicalSet, P
 import is.hail.types.virtual.{TArray, TDict, TSet, Type}
 import is.hail.utils.FastIndexedSeq
 
+import scala.language.existentials
+
 class ArraySorter(r: EmitRegion, array: StagedArrayBuilder) {
   val ti: TypeInfo[_] = array.elt.ti
   val mb: EmitMethodBuilder[_] = r.mb
