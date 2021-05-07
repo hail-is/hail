@@ -68,7 +68,6 @@ from ..publicly_available_images import publicly_available_images
 from ..utils import storage_gib_to_bytes, Box
 
 from .disk import Disk
-from .flock import Flock
 
 # uvloop.install()
 
