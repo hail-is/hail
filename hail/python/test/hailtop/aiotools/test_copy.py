@@ -514,4 +514,4 @@ async def test_local_empty_directory(router_filesystem):
     for transfer_type in (Transfer.DEST_IS_TARGET, Transfer.DEST_DIR, Transfer.INFER_DEST):
         dest_base = await fresh_dir(fs, bases, 'file')
         await fs.copy(sema, Transfer(f'{src_base}empty-dir/', dest_base.rstrip('/'), treat_dest_as=transfer_type))
-        await fs.isdir(f'{src_base}empty-dir/')
+        await fs.isdir(f'{dest_base}empty-dir/')
