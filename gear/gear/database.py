@@ -30,11 +30,15 @@ def retry_transient_mysql_errors(f):
                 return await f(*args, **kwargs)
             except pymysql.err.OperationalError as e:
                 if e.args[0] in retry_codes:
-                    log.warning(f'encountered pymysql error, retrying {e}', exc_info=True,
-                                extra={'full_stacktrace' : '\n'.join(traceback.format_stack())})
+                    log.warning(
+                        f'encountered pymysql error, retrying {e}',
+                        exc_info=True,
+                        extra={'full_stacktrace': '\n'.join(traceback.format_stack())},
+                    )
                 else:
                     raise
             delay = await sleep_and_backoff(delay)
+
     return wrapper
 
 
@@ -45,7 +49,9 @@ def transaction(db, **transaction_kwargs):
         async def wrapper(*args, **kwargs):
             async with db.start(**transaction_kwargs) as tx:
                 return await fun(tx, *args, **kwargs)
+
         return wrapper
+
     return transformer
 
 
@@ -59,8 +65,7 @@ async def aexit(acontext_manager, exc_type=None, exc_val=None, exc_tb=None):
 
 def get_sql_config(maybe_config_file: Optional[str] = None) -> SQLConfig:
     if maybe_config_file is None:
-        config_file = os.environ.get('HAIL_DATABASE_CONFIG_FILE',
-                                     '/sql-config/sql-config.json')
+        config_file = os.environ.get('HAIL_DATABASE_CONFIG_FILE', '/sql-config/sql-config.json')
     else:
         config_file = maybe_config_file
     with open(config_file, 'r') as f:
@@ -78,11 +83,8 @@ def get_database_ssl_context(sql_config: Optional[SQLConfig] = None) -> ssl.SSLC
     if database_ssl_context is None:
         if sql_config is None:
             sql_config = get_sql_config()
-        database_ssl_context = ssl.create_default_context(
-            cafile=sql_config.ssl_ca)
-        database_ssl_context.load_cert_chain(sql_config.ssl_cert,
-                                             keyfile=sql_config.ssl_key,
-                                             password=None)
+        database_ssl_context = ssl.create_default_context(cafile=sql_config.ssl_ca)
+        database_ssl_context.load_cert_chain(sql_config.ssl_cert, keyfile=sql_config.ssl_key, password=None)
         database_ssl_context.verify_mode = ssl.CERT_REQUIRED
         database_ssl_context.check_hostname = False
     return database_ssl_context
@@ -96,9 +98,16 @@ async def create_database_pool(config_file: str = None, autocommit: bool = True,
     return await aiomysql.create_pool(
         maxsize=maxsize,
         # connection args
-        host=sql_config.host, user=sql_config.user, password=sql_config.password,
-        db=sql_config.db, port=sql_config.port, charset='utf8',
-        ssl=ssl_context, cursorclass=aiomysql.cursors.DictCursor, autocommit=autocommit)
+        host=sql_config.host,
+        user=sql_config.user,
+        password=sql_config.password,
+        db=sql_config.db,
+        port=sql_config.port,
+        charset='utf8',
+        ssl=ssl_context,
+        cursorclass=aiomysql.cursors.DictCursor,
+        autocommit=autocommit,
+    )
 
 
 class TransactionAsyncContextManager:

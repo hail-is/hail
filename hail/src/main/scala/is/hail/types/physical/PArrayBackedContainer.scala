@@ -146,10 +146,10 @@ trait PArrayBackedContainer extends PContainer {
 
   def loadCheapPCode(cb: EmitCodeBuilder, addr: Code[Long]): PCode = new SIndexablePointerCode(SIndexablePointer(this), addr)
 
-  def store(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): Code[Long] = arrayRep.store(cb, region, value, deepCopy)
+  def store(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): Code[Long] = arrayRep.store(cb, region, value.asIndexable.castToArray(cb), deepCopy)
 
   def storeAtAddress(cb: EmitCodeBuilder, addr: Code[Long], region: Value[Region], value: SCode, deepCopy: Boolean): Unit =
-    arrayRep.storeAtAddress(cb, addr, region, value, deepCopy)
+    arrayRep.storeAtAddress(cb, addr, region, value.asIndexable.castToArray(cb), deepCopy)
 
   def loadFromNested(addr: Code[Long]): Code[Long] = arrayRep.loadFromNested(addr)
 

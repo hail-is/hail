@@ -2,7 +2,7 @@ package is.hail.types
 
 import is.hail.annotations.{Annotation, NDArray}
 import is.hail.types.physical._
-import is.hail.types.physical.stypes.SType
+import is.hail.types.physical.stypes.{EmitType, SType}
 import is.hail.types.virtual._
 import is.hail.utils.{FastSeq, Interval}
 import org.apache.spark.sql.Row
@@ -14,6 +14,7 @@ object BaseTypeWithRequiredness {
       t.rowType.fields.map(f => f.name -> TypeWithRequiredness(f.typ)),
       t.globalType.fields.map(f => f.name -> TypeWithRequiredness(f.typ)),
       t.key)
+    case t: BlockMatrixType => RBlockMatrix(TypeWithRequiredness(t.elementType))
   }
 
   def check(r: BaseTypeWithRequiredness, typ: BaseType): Unit = {
@@ -154,6 +155,10 @@ object VirtualTypeWithReq {
 
 case class VirtualTypeWithReq(t: Type, r: TypeWithRequiredness) {
   lazy val canonicalPType: PType = r.canonicalPType(t)
+  lazy val canonicalEmitType: EmitType = {
+    val pt = r.canonicalPType(t)
+    EmitType(pt.sType, pt.required)
+  }
 
   def setRequired(newReq: Boolean): VirtualTypeWithReq = {
     val newR = r.copy(r.children).asInstanceOf[TypeWithRequiredness]
@@ -186,6 +191,10 @@ sealed abstract class TypeWithRequiredness extends BaseTypeWithRequiredness {
     _unionPType(pType)
   }
   def canonicalPType(t: Type): PType
+  def canonicalEmitType(t: Type): EmitType = {
+    val pt = canonicalPType(t)
+    EmitType(pt.sType, pt.required)
+  }
   def matchesPType(pt: PType): Boolean = pt.required == required && _matchesPType(pt)
   def _toString: String
   override def toString: String = if (required) "+" + _toString else _toString
@@ -451,4 +460,12 @@ case class RTable(rowFields: Seq[(String, TypeWithRequiredness)], globalFields: 
 
 case class RMatrix(rowType: RStruct, entryType: RStruct, colType: RStruct, globalType: RStruct) {
   val entriesRVType: RStruct = RStruct(Seq(MatrixType.entriesIdentifier -> RIterable(entryType)))
+}
+
+case class RBlockMatrix(val elementType: TypeWithRequiredness) extends BaseTypeWithRequiredness {
+  override def children: Seq[BaseTypeWithRequiredness] = Seq(elementType)
+
+  override def copy(newChildren: Seq[BaseTypeWithRequiredness]): BaseTypeWithRequiredness = RBlockMatrix(newChildren(0).asInstanceOf[TypeWithRequiredness])
+
+  override def toString: String = s"RBlockMatrix(${elementType})"
 }

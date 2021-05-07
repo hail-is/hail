@@ -326,15 +326,51 @@ class Subsemaphore:
         self.release()
 
 
+class PoolShutdownError(Exception):
+    pass
+
+
 class OnlineBoundedGather2:
+    '''`OnlineBoundedGather2` provides the capability to run background
+    tasks with bounded parallelism.  It is a context manager, and
+    waits for all background tasks to complete on exit.
+
+    `OnlineBoundedGather2` supports cancellation of background tasks.
+    When a background task raises `asyncio.CancelledError`, the task
+    is considered complete and the pool and other background tasks
+    continue runnning.
+
+    If a background task fails (raises an exception besides
+    `asyncio.CancelledError`), all running background tasks are
+    cancelled and the the pool is shut down.  Subsequent calls to
+    `OnlineBoundedGather2.call()` raise `PoolShutdownError`.
+
+    Because the pool runs tasks in the background, multiple exceptions
+    can occur simultaneously.  The first exception raised, whether by
+    a background task or into the context manager exit, is raised by
+    the context manager exit, and any further exceptions are logged
+    and otherwise discarded.
+    '''
+
     def __init__(self, sema: asyncio.Semaphore):
         self._counter = 0
         self._subsema = Subsemaphore(sema)
         self._pending: Optional[Dict[int, asyncio.Task]] = {}
+        # done if there are no pending tasks (the tasks are all
+        # complete), or if we've shutdown and the cancelled tasks are
+        # complete
         self._done_event = asyncio.Event()
+        # not pending tasks, so done
+        self._done_event.set()
         self._exception: Optional[BaseException] = None
 
     async def _shutdown(self) -> None:
+        '''Shut down the pool.
+
+        Cancel all pending tasks and wait for them to complete.
+        Subsequent calls to call will raise `PoolShutdownError`.
+        '''
+
         if self._pending is None:
             return
 
@@ -346,15 +382,22 @@ class OnlineBoundedGather2:
             tasks.append(t)
         self._pending = None
 
-        # wake up if waiting
-        self._done_event.set()
-
         if tasks:
             await asyncio.wait(tasks)
 
+        self._done_event.set()
+
     async def call(self, f, *args, **kwargs) -> asyncio.Task:
-        if self._exception:
-            raise self._exception
+        '''Invoke a function as a background task.
+
+        Return the task, which can be used to wait on (using
+        `OnlineBoundedGather2.wait()`) or cancel the task (using
+        `asyncio.Task.cancel()`).  Note, waiting on a task using
+        `asyncio.wait()` directly can lead to deadlock.
+        '''
+
+        if self._pending is None:
+            raise PoolShutdownError
 
         id = self._counter
         self._counter += 1
@@ -363,11 +406,15 @@ class OnlineBoundedGather2:
             try:
                 async with self._subsema:
                     await f(*args, **kwargs)
+            except asyncio.CancelledError:
+                pass
             except:
-                if not self._exception:
+                if self._exception is None:
                     _, exc, _ = sys.exc_info()
                     self._exception = exc
                     await self._shutdown()
+                else:
+                    log.info('discarding exception', exc_info=True)
 
             if self._pending is None:
                 return
@@ -375,28 +422,26 @@ class OnlineBoundedGather2:
             if not self._pending:
                 self._done_event.set()
 
-        assert self._pending is not None
         t = asyncio.create_task(run_and_cleanup())
         self._pending[id] = t
+        self._done_event.clear()
         return t
 
     async def wait(self, tasks: List[asyncio.Task]) -> None:
+        '''Wait for a list of tasks returned to complete.
+
+        The tasks should be tasks returned from
+        `OnlineBoundedGather2.call()`.  They can be a subset of the
+        running tasks, `OnlineBoundedGather2.wait()` can be called
+        multiple times, and additional tasks can be submitted to the
+        pool after waiting.
+        '''
+
         self._subsema.release()
         try:
             await asyncio.wait(tasks)
         finally:
             await self._subsema.acquire()
-
-    async def wait_done(self) -> None:
-        while self._pending:
-            if self._exception:
-                raise self._exception
-
-            self._done_event.clear()
-            await self._done_event.wait()
-
-        if self._exception:
-            raise self._exception
 
     async def __aenter__(self) -> 'OnlineBoundedGather2':
         await self._subsema.acquire()
@@ -408,11 +453,23 @@ class OnlineBoundedGather2:
                         exc_tb: Optional[TracebackType]) -> None:
         self._subsema.release()
 
-        _, exc, _ = sys.exc_info()
-        if exc:
-            await self._shutdown()
-        else:
-            await self.wait_done()
+        if exc_val:
+            if self._exception is None:
+                self._exception = exc_val
+                await self._shutdown()
+            else:
+                log.info('discarding exception', exc_info=exc_val)
+
+        # wait for done and not pending _done_event.wait can return
+        # when when there are pending jobs if the last job completed
+        # (setting _done_event) and then more tasks were submitted
+        await self._done_event.wait()
+        while self._pending:
+            assert not self._done_event.is_set()
+            await self._done_event.wait()
+
+        if self._exception:
+            raise self._exception
 
 
 async def bounded_gather2_return_exceptions(sema: asyncio.Semaphore, *aws):
@@ -550,6 +607,9 @@ def is_transient_error(e):
         return True
     if isinstance(e, aiohttp.client_exceptions.ClientConnectorError):
         return hasattr(e, 'os_error') and is_transient_error(e.os_error)
+    if isinstance(e, aiohttp.ClientOSError):
+        # aiohttp/client_reqrep.py wraps all OSError instances with a ClientOSError
+        return is_transient_error(e.__cause__)
     # appears to happen when the connection is lost prematurely, see:
     # https://github.com/aio-libs/aiohttp/issues/4581
     # https://github.com/aio-libs/aiohttp/blob/v3.7.4/aiohttp/client_proto.py#L85

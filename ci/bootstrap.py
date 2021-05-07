@@ -233,13 +233,7 @@ users:
                     mount_options.extend(['-v', '/var/run/docker.sock:/var/run/docker.sock'])
 
                 main_cid, main_ok = await docker_run(
-                    'docker',
-                    'run',
-                    '-d',
-                    *env_options,
-                    *mount_options,
-                    j._image,
-                    *j._command,
+                    'docker', 'run', '-d', *env_options, *mount_options, j._image, *j._command
                 )
                 print(f'{j._index}: {job_name}/main: {main_cid} {"OK" if main_ok else "FAILED"}')
             else:
@@ -319,14 +313,10 @@ async def main():
     parser = argparse.ArgumentParser(description='Bootstrap a Hail as a service installation.')
 
     parser.add_argument(
-        '--extra-code-config',
-        dest='extra_code_config',
-        default='{}',
-        help='Extra code config in JSON format.',
+        '--extra-code-config', dest='extra_code_config', default='{}', help='Extra code config in JSON format.'
     )
     parser.add_argument(
-        'branch',
-        help='Github branch to run.  It should be the same branch bootstrap.py is being run from.',
+        'branch', help='Github branch to run.  It should be the same branch bootstrap.py is being run from.'
     )
     parser.add_argument('sha', help='SHA of the git commit to run.  It should match the branch.')
     parser.add_argument('steps', help='The requested steps to execute.')

@@ -70,12 +70,12 @@ object IRSuite {
       }
 
     def registerAll() {
-      registerSeededWithMissingness("incr_s", TBoolean, TBoolean, null) { case (cb, mb, rt,  _, l) =>
+      registerSeededWithMissingness("incr_s", TBoolean, TBoolean, { (ret: Type, pt: PType) => pt }) { case (cb, mb, rt, _, l) =>
         cb += Code.invokeScalaObject0[Unit](outer.getClass, "incr")
         l.toI(cb)
       }
 
-      registerSeededWithMissingness("incr_v", TBoolean, TBoolean, null) { case (cb, mb, rt, _, l) =>
+      registerSeededWithMissingness("incr_v", TBoolean, TBoolean, { (ret: Type, pt: PType) => pt }) { case (cb, mb, rt, _, l) =>
         l.toI(cb).map(cb) { pc =>
           cb += Code.invokeScalaObject0[Unit](outer.getClass, "incr")
           pc

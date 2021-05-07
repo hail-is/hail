@@ -141,7 +141,7 @@ class EmitStreamSuite extends HailSuite {
         .consume(cb,
           {},
           { case stream: SStreamCode =>
-            stream.producer.memoryManagedConsume(region, cb, { cb => stream.producer.length.foreach(c => cb.assign(len2, c)) }) { cb =>
+            stream.producer.memoryManagedConsume(region, cb, { cb => stream.producer.length.foreach(computeLen => cb.assign(len2, computeLen(cb))) }) { cb =>
               cb.assign(len, len + 1)
             }
           })
@@ -414,10 +414,10 @@ class EmitStreamSuite extends HailSuite {
   }
 
   @Test def testEmitFromIterator() {
-    val intsPType = PCanonicalStream(PInt32())
+    val intsPType = PCanonicalStream(PInt32(true))
 
     val f1 = compileStreamWithIter(
-      StreamScan(In(0, SingleCodeEmitParamType(true, StreamSingleCodeType(false, PInt32()))),
+      StreamScan(In(0, SingleCodeEmitParamType(true, StreamSingleCodeType(true, PInt32(true)))),
         zero = 0,
         "a", "x", Ref("a", TInt32) + Ref("x", TInt32) * Ref("x", TInt32)
       ), false, intsPType)
@@ -426,13 +426,13 @@ class EmitStreamSuite extends HailSuite {
 
     val f2 = compileStreamWithIter(
       StreamFlatMap(
-        In(0, SingleCodeEmitParamType(true, StreamSingleCodeType(false, PInt32()))),
+        In(0, SingleCodeEmitParamType(true, StreamSingleCodeType(false, PInt32(true)))),
         "n", StreamRange(0, Ref("n", TInt32), 1)
       ), false, intsPType)
     assert(f2(Seq(1, 5, 2, 9).iterator) == IndexedSeq(1, 5, 2, 9).flatMap(0 until _))
 
     val f3 = compileStreamWithIter(
-      StreamRange(0, StreamLen(In(0, SingleCodeEmitParamType(true, StreamSingleCodeType(false, PInt32())))), 1), false, intsPType)
+      StreamRange(0, StreamLen(In(0, SingleCodeEmitParamType(true, StreamSingleCodeType(false, PInt32(true))))), 1), false, intsPType)
     assert(f3(Seq(1, 5, 2, 9).iterator) == IndexedSeq(0, 1, 2, 3))
     assert(f3(Seq().iterator) == IndexedSeq())
   }

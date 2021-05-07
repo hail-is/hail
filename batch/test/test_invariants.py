@@ -20,8 +20,7 @@ async def test_invariants():
     headers = service_auth_headers(deploy_config, 'batch-driver')
     async with client_session() as session:
 
-        resp = await utils.request_retry_transient_errors(
-            session, 'GET', url, headers=headers)
+        resp = await utils.request_retry_transient_errors(session, 'GET', url, headers=headers)
         data = await resp.json()
 
         assert data['check_incremental_error'] is None, data

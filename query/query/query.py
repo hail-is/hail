@@ -16,7 +16,12 @@ from hailtop.config import get_deploy_config
 from hailtop.tls import internal_server_ssl_context
 from hailtop.hail_logging import AccessLogger
 from hailtop import version
-from gear import setup_aiohttp_session, rest_authenticated_users_only, rest_authenticated_developers_only, monitor_endpoint
+from gear import (
+    setup_aiohttp_session,
+    rest_authenticated_users_only,
+    rest_authenticated_developers_only,
+    monitor_endpoint,
+)
 
 from .sockets import connect_to_java
 
@@ -35,10 +40,7 @@ async def add_user(app, userdata):
 
     k8s_client = app['k8s_client']
     gsa_key_secret = await retry_transient_errors(
-        k8s_client.read_namespaced_secret,
-        userdata['gsa_key_secret_name'],
-        DEFAULT_NAMESPACE,
-        _request_timeout=5.0,
+        k8s_client.read_namespaced_secret, userdata['gsa_key_secret_name'], DEFAULT_NAMESPACE, _request_timeout=5.0
     )
 
     if username in users:
@@ -70,10 +72,7 @@ def blocking_execute(userdata, body):
 def blocking_load_references_from_dataset(userdata, body):
     with connect_to_java() as java:
         return java.load_references_from_dataset(
-            userdata['username'],
-            body['billing_project'],
-            body['bucket'],
-            body['path'],
+            userdata['username'], body['billing_project'], body['bucket'], body['path']
         )
 
 
@@ -115,15 +114,13 @@ async def handle_ws_response(request, userdata, endpoint, f):
     query = user_queries.get(body['token'])
     if query is None:
         await add_user(app, userdata)
-        query = asyncio.ensure_future(
-            retry_transient_errors(
-                blocking_to_async, app['thread_pool'], f, userdata, body
-            )
-        )
+        query = asyncio.ensure_future(retry_transient_errors(blocking_to_async, app['thread_pool'], f, userdata, body))
         user_queries[body['token']] = query
 
     try:
-        receive = asyncio.ensure_future(ws.receive_str())  # receive automatically ping-pongs which keeps the socket alive
+        receive = asyncio.ensure_future(
+            ws.receive_str()
+        )  # receive automatically ping-pongs which keeps the socket alive
         await asyncio.wait([receive, query], return_when=asyncio.FIRST_COMPLETED)
         if receive.done():
             # we expect no messages from the client
@@ -158,10 +155,7 @@ async def execute(request, userdata):
 @rest_authenticated_users_only
 async def load_references_from_dataset(request, userdata):
     return await handle_ws_response(
-        request,
-        userdata,
-        'load_references_from_dataset',
-        blocking_load_references_from_dataset,
+        request, userdata, 'load_references_from_dataset', blocking_load_references_from_dataset
     )
 
 

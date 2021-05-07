@@ -10,8 +10,7 @@ import pytest
 
 from hailtop.config import get_deploy_config, get_user_config
 from hailtop.auth import service_auth_headers
-from hailtop.utils import (retry_response_returning_functions,
-                           external_requests_client_session, sync_sleep_and_backoff)
+from hailtop.utils import retry_response_returning_functions, external_requests_client_session, sync_sleep_and_backoff
 from hailtop.batch_client.client import BatchClient
 
 from .utils import legacy_batch_status
@@ -66,14 +65,11 @@ def test_exit_code_duration(client):
 
 
 def test_attributes(client):
-    a = {
-        'name': 'test_attributes',
-        'foo': 'bar'
-    }
+    a = {'name': 'test_attributes', 'foo': 'bar'}
     builder = client.create_batch()
     j = builder.create_job(DOCKER_ROOT_IMAGE, ['true'], attributes=a)
     builder.submit()
-    assert(j.attributes() == a)
+    assert j.attributes() == a
 
 
 def test_garbage_image(client):
@@ -106,28 +102,35 @@ def test_invalid_resource_requests(client):
     builder = client.create_batch()
     resources = {'cpu': '0', 'memory': '1Gi', 'storage': '1Gi'}
     builder.create_job(DOCKER_ROOT_IMAGE, ['true'], resources=resources)
-    with pytest.raises(aiohttp.client.ClientResponseError, match='bad resource request for job.*cpu must be a power of two with a min of 0.25; found.*'):
+    with pytest.raises(
+        aiohttp.client.ClientResponseError,
+        match='bad resource request for job.*cpu must be a power of two with a min of 0.25; found.*',
+    ):
         builder.submit()
 
     builder = client.create_batch()
     resources = {'cpu': '0.1', 'memory': '1Gi', 'storage': '1Gi'}
     builder.create_job(DOCKER_ROOT_IMAGE, ['true'], resources=resources)
-    with pytest.raises(aiohttp.client.ClientResponseError, match='bad resource request for job.*cpu must be a power of two with a min of 0.25; found.*'):
+    with pytest.raises(
+        aiohttp.client.ClientResponseError,
+        match='bad resource request for job.*cpu must be a power of two with a min of 0.25; found.*',
+    ):
         builder.submit()
 
     builder = client.create_batch()
     resources = {'cpu': '0.1', 'memory': 'foo', 'storage': '1Gi'}
     builder.create_job(DOCKER_ROOT_IMAGE, ['true'], resources=resources)
-    with pytest.raises(aiohttp.client.ClientResponseError, match=".*.resources.memory must match regex:.*.resources.memory must be one of:.*"):
+    with pytest.raises(
+        aiohttp.client.ClientResponseError,
+        match=".*.resources.memory must match regex:.*.resources.memory must be one of:.*",
+    ):
         builder.submit()
 
 
 def test_out_of_memory(client):
     builder = client.create_batch()
     resources = {'cpu': '0.25', 'memory': '10M', 'storage': '10Gi'}
-    j = builder.create_job('python:3.6-slim-stretch',
-                           ['python', '-c', 'x = "a" * 1000**3'],
-                           resources=resources)
+    j = builder.create_job('python:3.6-slim-stretch', ['python', '-c', 'x = "a" * 1000**3'], resources=resources)
     builder.submit()
     status = j.wait()
     assert j._get_out_of_memory(status, 'main'), str(status)
@@ -136,9 +139,7 @@ def test_out_of_memory(client):
 def test_out_of_storage(client):
     builder = client.create_batch()
     resources = {'cpu': '0.25', 'memory': '10M', 'storage': '5Gi'}
-    j = builder.create_job(DOCKER_ROOT_IMAGE,
-                           ['/bin/sh', '-c', 'fallocate -l 100GiB /foo'],
-                           resources=resources)
+    j = builder.create_job(DOCKER_ROOT_IMAGE, ['/bin/sh', '-c', 'fallocate -l 100GiB /foo'], resources=resources)
     builder.submit()
     status = j.wait()
     assert status['state'] == 'Failed', str(status)
@@ -148,9 +149,7 @@ def test_out_of_storage(client):
 def test_nonzero_storage(client):
     builder = client.create_batch()
     resources = {'cpu': '0.25', 'memory': '10M', 'storage': '20Gi'}
-    j = builder.create_job('ubuntu:18.04',
-                           ['/bin/sh', '-c', 'true'],
-                           resources=resources)
+    j = builder.create_job('ubuntu:18.04', ['/bin/sh', '-c', 'true'], resources=resources)
     builder.submit()
     status = j.wait()
     assert status['state'] == 'Success', str(status)
@@ -159,9 +158,7 @@ def test_nonzero_storage(client):
 def test_attached_disk(client):
     builder = client.create_batch()
     resources = {'cpu': '0.25', 'memory': '10M', 'storage': '400Gi'}
-    j = builder.create_job('ubuntu:18.04',
-                           ['/bin/sh', '-c', 'df -h; fallocate -l 390GiB /io/foo'],
-                           resources=resources)
+    j = builder.create_job('ubuntu:18.04', ['/bin/sh', '-c', 'df -h; fallocate -l 390GiB /io/foo'], resources=resources)
     builder.submit()
     status = j.wait()
     assert status['state'] == 'Success', str((status, j.log()))
@@ -456,11 +453,11 @@ def test_authorized_users_only():
         (session.get, '/batches', 302),
         (session.get, '/batches/0', 302),
         (session.post, '/batches/0/cancel', 401),
-        (session.get, '/batches/0/jobs/0', 302)]
+        (session.get, '/batches/0/jobs/0', 302),
+    ]
     for method, url, expected in endpoints:
         full_url = deploy_config.url('batch', url)
-        r = retry_response_returning_functions(
-            method, full_url, allow_redirects=False)
+        r = retry_response_returning_functions(method, full_url, allow_redirects=False)
         assert r.status_code == expected, (full_url, r, expected)
 
 
@@ -477,10 +474,8 @@ def test_service_account(client):
     j = b.create_job(
         os.environ['CI_UTILS_IMAGE'],
         ['/bin/sh', '-c', 'kubectl version'],
-        service_account={
-            'namespace': os.environ['HAIL_DEFAULT_NAMESPACE'],
-            'name': 'test-batch-sa'
-        })
+        service_account={'namespace': os.environ['HAIL_DEFAULT_NAMESPACE'], 'name': 'test-batch-sa'},
+    )
     b.submit()
     status = j.wait()
     assert j._get_exit_code(status, 'main') == 0, str(status)
@@ -488,10 +483,18 @@ def test_service_account(client):
 
 def test_port(client):
     builder = client.create_batch()
-    j = builder.create_job(DOCKER_ROOT_IMAGE, ['bash', '-c', '''
+    j = builder.create_job(
+        DOCKER_ROOT_IMAGE,
+        [
+            'bash',
+            '-c',
+            '''
 echo $HAIL_BATCH_WORKER_PORT
 echo $HAIL_BATCH_WORKER_IP
-'''], port=5000)
+''',
+        ],
+        port=5000,
+    )
     b = builder.submit()
     batch = b.wait()
     assert batch['state'] == 'success', str(batch)
@@ -511,8 +514,7 @@ def test_timeout(client):
 def test_client_max_size(client):
     builder = client.create_batch()
     for i in range(4):
-        builder.create_job(DOCKER_ROOT_IMAGE,
-                           ['echo', 'a' * (900 * 1024)])
+        builder.create_job(DOCKER_ROOT_IMAGE, ['echo', 'a' * (900 * 1024)])
     builder.submit()
 
 
@@ -571,12 +573,7 @@ def test_batch_create_validation():
     headers = service_auth_headers(deploy_config, 'batch')
     session = external_requests_client_session()
     for config in bad_configs:
-        r = retry_response_returning_functions(
-            session.post,
-            url,
-            json=config,
-            allow_redirects=True,
-            headers=headers)
+        r = retry_response_returning_functions(session.post, url, json=config, allow_redirects=True, headers=headers)
         assert r.status_code == 400, (config, r)
 
 
@@ -594,8 +591,9 @@ def test_duplicate_parents(client):
 
 def test_verify_no_access_to_metadata_server(client):
     builder = client.create_batch()
-    j = builder.create_job(os.environ['HAIL_CURL_IMAGE'],
-                           ['curl', '-fsSL', 'metadata.google.internal', '--max-time', '10'])
+    j = builder.create_job(
+        os.environ['HAIL_CURL_IMAGE'], ['curl', '-fsSL', 'metadata.google.internal', '--max-time', '10']
+    )
     builder.submit()
     status = j.wait()
     assert status['state'] == 'Failed', str(status)
@@ -613,8 +611,9 @@ location = f"gs://{ bucket_name }/{ token }/{{ attempt_token }}/test_can_use_hai
 hl.utils.range_table(10).write(location)
 hl.read_table(location).show()
 '''
-    j = builder.create_job(os.environ['HAIL_HAIL_BASE_IMAGE'],
-                           ['/bin/bash', '-c', f'python3 -c >out 2>err \'{script}\'; cat out err'])
+    j = builder.create_job(
+        os.environ['HAIL_HAIL_BASE_IMAGE'], ['/bin/bash', '-c', f'python3 -c >out 2>err \'{script}\'; cat out err']
+    )
     builder.submit()
     status = j.wait()
     assert status['state'] == 'Success', f'{j.log(), status}'
@@ -651,8 +650,7 @@ def test_user_authentication_within_job(client):
 
 def test_verify_access_to_public_internet(client):
     builder = client.create_batch()
-    j = builder.create_job(os.environ['HAIL_CURL_IMAGE'],
-                           ['curl', '-fsSL', 'example.com'])
+    j = builder.create_job(os.environ['HAIL_CURL_IMAGE'], ['curl', '-fsSL', 'example.com'])
     builder.submit()
     status = j.wait()
     assert status['state'] == 'Success', status
@@ -665,9 +663,10 @@ set -e
 nc -l -p 5000 &
 sleep 5
 echo "hello" | nc -q 1 localhost 5000
-'''.lstrip('\n')
-    j = builder.create_job(os.environ['HAIL_NETCAT_UBUNTU_IMAGE'],
-                           command=['/bin/bash', '-c', script])
+'''.lstrip(
+        '\n'
+    )
+    j = builder.create_job(os.environ['HAIL_NETCAT_UBUNTU_IMAGE'], command=['/bin/bash', '-c', script])
     builder.submit()
     status = j.wait()
     assert status['state'] == 'Success', str(j.log()['main'], status)
@@ -681,9 +680,10 @@ set -e
 nc -l -p 5000 &
 sleep 5
 echo "hello" | nc -q 1 127.0.0.1 5000
-'''.lstrip('\n')
-    j = builder.create_job(os.environ['HAIL_NETCAT_UBUNTU_IMAGE'],
-                           command=['/bin/bash', '-c', script])
+'''.lstrip(
+        '\n'
+    )
+    j = builder.create_job(os.environ['HAIL_NETCAT_UBUNTU_IMAGE'], command=['/bin/bash', '-c', script])
     builder.submit()
     status = j.wait()
     assert status['state'] == 'Success', str(j.log()['main'], status)
@@ -697,9 +697,10 @@ set -e
 nc -l -p 5000 &
 sleep 5
 echo "hello" | nc -q 1 $(hostname -i) 5000
-'''.lstrip('\n')
-    j = builder.create_job(os.environ['HAIL_NETCAT_UBUNTU_IMAGE'],
-                           command=['/bin/sh', '-c', script])
+'''.lstrip(
+        '\n'
+    )
+    j = builder.create_job(os.environ['HAIL_NETCAT_UBUNTU_IMAGE'], command=['/bin/sh', '-c', script])
     builder.submit()
     status = j.wait()
     assert status['state'] == 'Success', str(j.log()['main'], status)
@@ -708,9 +709,9 @@ echo "hello" | nc -q 1 $(hostname -i) 5000
 
 def test_verify_private_network_is_restricted(client):
     builder = client.create_batch()
-    builder.create_job(os.environ['HAIL_CURL_IMAGE'],
-                       command=['curl', 'internal.hail', '--connect-timeout', '60'],
-                       network='private')
+    builder.create_job(
+        os.environ['HAIL_CURL_IMAGE'], command=['curl', 'internal.hail', '--connect-timeout', '60'], network='private'
+    )
     try:
         builder.submit()
     except aiohttp.ClientResponseError as err:

@@ -7,8 +7,7 @@ import tempfile
 
 from hailtop.utils import sync_check_shell
 
-parser = argparse.ArgumentParser(prog='create_certs.py',
-                                 description='create hail certs')
+parser = argparse.ArgumentParser(prog='create_certs.py', description='create hail certs')
 parser.add_argument('namespace', type=str, help='kubernetes namespace')
 parser.add_argument('config_file', type=str, help='YAML format config file')
 parser.add_argument('root_key_file', type=str, help='the root key file')
@@ -36,22 +35,14 @@ def create_key_and_cert(p):
     csr_file = f'{name}-csr.csr'
     cert_file = f'{name}-cert.pem'
     key_store_file = f'{name}-key-store.p12'
-    names = [domain_name
-             for domain in domains
-             for domain_name in [domain, f'{domain}.{namespace}', f'{domain}.{namespace}.svc.cluster.local']]
+    names = [
+        domain_name
+        for domain in domains
+        for domain_name in [domain, f'{domain}.{namespace}', f'{domain}.{namespace}.svc.cluster.local']
+    ]
 
-    echo_check_call([
-        'openssl', 'genrsa',
-        '-out', key_file,
-        '4096'
-    ])
-    echo_check_call([
-        'openssl', 'req',
-        '-new',
-        '-subj', f'/CN={names[0]}',
-        '-key', key_file,
-        '-out', csr_file
-    ])
+    echo_check_call(['openssl', 'genrsa', '-out', key_file, '4096'])
+    echo_check_call(['openssl', 'req', '-new', '-subj', f'/CN={names[0]}', '-key', key_file, '-out', csr_file])
     extfile = tempfile.NamedTemporaryFile(mode='w', delete=False)
     # this whole extfile nonsense is because OpenSSL has known, unfixed bugs
     # in the x509 command. These really ought to be in the CSR.
@@ -60,28 +51,44 @@ def create_key_and_cert(p):
     extfile.write(f'subjectAltName = {",".join("DNS:" + n for n in names)}\n')
     extfile.close()
     echo_check_call(['cat', extfile.name])
-    echo_check_call([
-        'openssl', 'x509',
-        '-req',
-        '-in', csr_file,
-        '-CA', root_cert_file,
-        '-CAkey', root_key_file,
-        '-extfile', extfile.name,
-        '-CAcreateserial',
-        '-out', cert_file,
-        '-days', '365',
-        '-sha256'
-    ])
-    echo_check_call([
-        'openssl',
-        'pkcs12',
-        '-export',
-        '-inkey', key_file,
-        '-in', cert_file,
-        '-name', f'{name}-key-store',
-        '-out', key_store_file,
-        '-passout', 'pass:dummypw'
-    ])
+    echo_check_call(
+        [
+            'openssl',
+            'x509',
+            '-req',
+            '-in',
+            csr_file,
+            '-CA',
+            root_cert_file,
+            '-CAkey',
+            root_key_file,
+            '-extfile',
+            extfile.name,
+            '-CAcreateserial',
+            '-out',
+            cert_file,
+            '-days',
+            '365',
+            '-sha256',
+        ]
+    )
+    echo_check_call(
+        [
+            'openssl',
+            'pkcs12',
+            '-export',
+            '-inkey',
+            key_file,
+            '-in',
+            cert_file,
+            '-name',
+            f'{name}-key-store',
+            '-out',
+            key_store_file,
+            '-passout',
+            'pass:dummypw',
+        ]
+    )
     return {'key': key_file, 'cert': cert_file, 'key_store': key_store_file}
 
 
@@ -92,15 +99,21 @@ def create_trust(principal, trust_type):  # pylint: disable=unused-argument
         # FIXME: mTLS, only trust certain principals
         with open(root_cert_file, 'r') as root_cert:
             shutil.copyfileobj(root_cert, out)
-    echo_check_call([
-        'keytool',
-        '-noprompt',
-        '-import',
-        '-alias', f'{trust_type}-cert',
-        '-file', trust_file,
-        '-keystore', trust_store_file,
-        '-storepass', 'dummypw'
-    ])
+    echo_check_call(
+        [
+            'keytool',
+            '-noprompt',
+            '-import',
+            '-alias',
+            f'{trust_type}-cert',
+            '-file',
+            trust_file,
+            '-keystore',
+            trust_store_file,
+            '-storepass',
+            'dummypw',
+        ]
+    )
     return {'trust': trust_file, 'trust_store': trust_store_file}
 
 
@@ -112,7 +125,7 @@ def create_json_config(incoming_trust, outgoing_trust, key, cert, key_store):
         'incoming_trust_store': incoming_trust["trust_store"],
         'key': key,
         'cert': cert,
-        'key_store': key_store
+        'key_store': key_store,
     }
     config_file = 'ssl-config.json'
     with open(config_file, 'w') as out:
@@ -166,32 +179,33 @@ def create_principal(principal, kind, key, cert, key_store, unmanaged):
     configs = create_config(incoming_trust, outgoing_trust, key, cert, key_store, kind)
     with tempfile.NamedTemporaryFile() as k8s_secret:
         sp.check_call(
-            ['kubectl', 'create', 'secret', 'generic', f'ssl-config-{principal}',
-             f'--namespace={namespace}',
-             f'--from-file={key}',
-             f'--from-file={cert}',
-             f'--from-file={key_store}',
-             f'--from-file={incoming_trust["trust"]}',
-             f'--from-file={incoming_trust["trust_store"]}',
-             f'--from-file={outgoing_trust["trust"]}',
-             f'--from-file={outgoing_trust["trust_store"]}',
-             *[f'--from-file={c}' for c in configs],
-             '--save-config', '--dry-run=client', '-o', 'yaml'],
-            stdout=k8s_secret)
+            [
+                'kubectl',
+                'create',
+                'secret',
+                'generic',
+                f'ssl-config-{principal}',
+                f'--namespace={namespace}',
+                f'--from-file={key}',
+                f'--from-file={cert}',
+                f'--from-file={key_store}',
+                f'--from-file={incoming_trust["trust"]}',
+                f'--from-file={incoming_trust["trust_store"]}',
+                f'--from-file={outgoing_trust["trust"]}',
+                f'--from-file={outgoing_trust["trust_store"]}',
+                *[f'--from-file={c}' for c in configs],
+                '--save-config',
+                '--dry-run=client',
+                '-o',
+                'yaml',
+            ],
+            stdout=k8s_secret,
+        )
         sp.check_call(['kubectl', 'apply', '-f', k8s_secret.name])
 
 
 assert 'principals' in arg_config, arg_config
 
-principal_by_name = {
-    p['name']: {**p,
-                **create_key_and_cert(p)}
-    for p in arg_config['principals']
-}
+principal_by_name = {p['name']: {**p, **create_key_and_cert(p)} for p in arg_config['principals']}
 for name, p in principal_by_name.items():
-    create_principal(name,
-                     p['kind'],
-                     p['key'],
-                     p['cert'],
-                     p['key_store'],
-                     p.get('unmanaged', False))
+    create_principal(name, p['kind'], p['key'], p['cert'], p['key_store'], p.get('unmanaged', False))

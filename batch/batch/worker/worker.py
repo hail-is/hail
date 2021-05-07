@@ -20,12 +20,22 @@ import aiodocker
 from collections import defaultdict
 from aiodocker.exceptions import DockerError
 import google.oauth2.service_account
-from hailtop.utils import (time_msecs, request_retry_transient_errors, sleep_and_backoff,
-                           retry_all_errors, check_shell, CalledProcessError, check_shell_output,
-                           is_google_registry_domain, find_spark_home, dump_all_stacktraces,
-                           parse_docker_image_reference, blocking_to_async)
+from hailtop.utils import (
+    time_msecs,
+    request_retry_transient_errors,
+    sleep_and_backoff,
+    retry_all_errors,
+    check_shell,
+    CalledProcessError,
+    check_shell_output,
+    is_google_registry_domain,
+    find_spark_home,
+    dump_all_stacktraces,
+    parse_docker_image_reference,
+    blocking_to_async,
+)
 from hailtop.httpx import client_session
-from hailtop.batch_client.parse import (parse_cpu_in_mcpu, parse_memory_in_bytes, parse_storage_in_bytes)
+from hailtop.batch_client.parse import parse_cpu_in_mcpu, parse_memory_in_bytes, parse_storage_in_bytes
 from hailtop.batch.hail_genetics_images import HAIL_GENETICS_IMAGES
 from hailtop import aiotools
 from hailtop.aiotools.fs import RouterAsyncFS, LocalAsyncFS
@@ -36,13 +46,22 @@ import hailtop.aiogoogle as aiogoogle
 from hailtop.config import DeployConfig
 from hailtop.hail_logging import configure_logging
 
-from ..utils import (adjust_cores_for_memory_request, cores_mcpu_to_memory_bytes,
-                     adjust_cores_for_packability, adjust_cores_for_storage_request,
-                     round_storage_bytes_to_gib, cores_mcpu_to_storage_bytes)
+from ..utils import (
+    adjust_cores_for_memory_request,
+    cores_mcpu_to_memory_bytes,
+    adjust_cores_for_packability,
+    adjust_cores_for_storage_request,
+    round_storage_bytes_to_gib,
+    cores_mcpu_to_storage_bytes,
+)
 from ..semaphore import FIFOWeightedSemaphore
 from ..log_store import LogStore
-from ..globals import (HTTP_CLIENT_MAX_SIZE, STATUS_FORMAT_VERSION, RESERVED_STORAGE_GB_PER_CORE,
-                       MAX_PERSISTENT_SSD_SIZE_GIB)
+from ..globals import (
+    HTTP_CLIENT_MAX_SIZE,
+    STATUS_FORMAT_VERSION,
+    RESERVED_STORAGE_GB_PER_CORE,
+    MAX_PERSISTENT_SSD_SIZE_GIB,
+)
 from ..batch_format_version import BatchFormatVersion
 from ..worker_config import WorkerConfig
 from ..publicly_available_images import publicly_available_images
@@ -132,15 +151,18 @@ def docker_call_retry(timeout, name):
                 # DockerError(500, 'Get https://registry-1.docker.io/v2/: net/http: request canceled while waiting for connection (Client.Timeout exceeded while awaiting headers)
                 # DockerError(500, 'error creating overlay mount to /var/lib/docker/overlay2/545a1337742e0292d9ed197b06fe900146c85ab06e468843cd0461c3f34df50d/merged: device or resource busy'
                 # DockerError(500, 'Get https://gcr.io/v2/: dial tcp: lookup gcr.io: Temporary failure in name resolution')
-                elif e.status == 500 and ("request canceled while waiting for connection" in e.message
-                                          or re.match("error creating overlay mount.*device or resource busy", e.message)
-                                          or "Temporary failure in name resolution" in e.message):
+                elif e.status == 500 and (
+                    "request canceled while waiting for connection" in e.message
+                    or re.match("error creating overlay mount.*device or resource busy", e.message)
+                    or "Temporary failure in name resolution" in e.message
+                ):
                     log.warning(f'in docker call to {f.__name__} for {name}, retrying', stack_info=True, exc_info=True)
                 else:
                     raise
             except (aiohttp.client_exceptions.ServerDisconnectedError, asyncio.TimeoutError):
                 log.warning(f'in docker call to {f.__name__} for {name}, retrying', stack_info=True, exc_info=True)
                 delay = await sleep_and_backoff(delay)
+
     return wrapper
 
 
@@ -303,11 +325,7 @@ class Container:
 
     def container_config(self):
         weight = worker_fraction_in_1024ths(self.spec['cpu'])
-        host_config = {
-            'CpuShares': weight,
-            'Memory': self.spec['memory'],
-            'BlkioWeight': min(weight, 1000)
-        }
+        host_config = {'CpuShares': weight, 'Memory': self.spec['memory'], 'BlkioWeight': min(weight, 1000)}
 
         config = {
             "AttachStdin": False,
@@ -317,22 +335,15 @@ class Container:
             'OpenStdin': False,
             'Cmd': self.spec['command'],
             'Image': self.image_ref_str,
-            'Entrypoint': ''
+            'Entrypoint': '',
         }
 
         env = self.spec.get('env', [])
 
         if self.port is not None:
             assert self.host_port is not None
-            config['ExposedPorts'] = {
-                f'{self.port}/tcp': {}
-            }
-            host_config['PortBindings'] = {
-                f'{self.port}/tcp': [{
-                    'HostIp': '',
-                    'HostPort': str(self.host_port)
-                }]
-            }
+            config['ExposedPorts'] = {f'{self.port}/tcp': {}}
+            host_config['PortBindings'] = {f'{self.port}/tcp': [{'HostIp': '', 'HostPort': str(self.host_port)}]}
             env = list(env)
             env.append(f'HAIL_BATCH_WORKER_PORT={self.host_port}')
             env.append(f'HAIL_BATCH_WORKER_IP={IP_ADDRESS}')
@@ -375,7 +386,7 @@ class Container:
             'state': cstate['Status'],
             'started_at': cstate['StartedAt'],
             'finished_at': cstate['FinishedAt'],
-            'out_of_memory': cstate['OOMKilled']
+            'out_of_memory': cstate['OOMKilled'],
         }
         cerror = cstate['Error']
         if cerror:
@@ -387,12 +398,12 @@ class Container:
 
     async def ensure_image_is_pulled(self, auth=None):
         try:
-            await docker_call_retry(MAX_DOCKER_OTHER_OPERATION_SECS, f'{self}')(
-                docker.images.get, self.image_ref_str)
+            await docker_call_retry(MAX_DOCKER_OTHER_OPERATION_SECS, f'{self}')(docker.images.get, self.image_ref_str)
         except DockerError as e:
             if e.status == 404:
                 await docker_call_retry(MAX_DOCKER_IMAGE_PULL_SECS, f'{self}')(
-                    docker.images.pull, self.image_ref_str, auth=auth)
+                    docker.images.pull, self.image_ref_str, auth=auth
+                )
 
     def current_user_access_token(self):
         key = base64.b64decode(self.job.gsa_key['key.json']).decode()
@@ -401,9 +412,11 @@ class Container:
     async def batch_worker_access_token(self):
         async with aiohttp.ClientSession(raise_for_status=True, timeout=aiohttp.ClientTimeout(total=60)) as session:
             async with await request_retry_transient_errors(
-                    session, 'POST',
-                    'http://169.254.169.254/computeMetadata/v1/instance/service-accounts/default/token',
-                    headers={'Metadata-Flavor': 'Google'}) as resp:
+                session,
+                'POST',
+                'http://169.254.169.254/computeMetadata/v1/instance/service-accounts/default/token',
+                headers={'Metadata-Flavor': 'Google'},
+            ) as resp:
                 access_token = (await resp.json())['access_token']
                 return {'username': 'oauth2accesstoken', 'password': access_token}
 
@@ -426,7 +439,8 @@ class Container:
                         # per-user image cache.
                         auth = self.current_user_access_token()
                         await docker_call_retry(MAX_DOCKER_IMAGE_PULL_SECS, f'{self}')(
-                            docker.images.pull, self.image_ref_str, auth=auth)
+                            docker.images.pull, self.image_ref_str, auth=auth
+                        )
                 except DockerError as e:
                     if e.status == 404 and 'pull access denied' in e.message:
                         self.short_error = 'image cannot be pulled'
@@ -440,7 +454,8 @@ class Container:
                 config = self.container_config()
                 log.info(f'starting {self}')
                 self.container = await docker_call_retry(MAX_DOCKER_OTHER_OPERATION_SECS, f'{self}')(
-                    create_container, config, name=f'batch-{self.job.batch_id}-job-{self.job.job_id}-{self.name}')
+                    create_container, config, name=f'batch-{self.job.batch_id}-job-{self.job.job_id}-{self.name}'
+                )
 
             c = await docker_call_retry(MAX_DOCKER_OTHER_OPERATION_SECS, f'{self}')(self.container.show)
 
@@ -453,11 +468,12 @@ class Container:
                 with open('/xfsquota/projects', 'a') as f:
                     f.write(f'{self.job.project_id}:{self.overlay_path}\n')
 
-            await check_shell_output(f'xfs_quota -x -D /xfsquota/projects -P /xfsquota/projid -c "project -s {self.job.project_name}" /host/')
+            await check_shell_output(
+                f'xfs_quota -x -D /xfsquota/projects -P /xfsquota/projid -c "project -s {self.job.project_name}" /host/'
+            )
 
             with self.step('starting'):
-                await docker_call_retry(MAX_DOCKER_OTHER_OPERATION_SECS, f'{self}')(
-                    start_container, self.container)
+                await docker_call_retry(MAX_DOCKER_OTHER_OPERATION_SECS, f'{self}')(start_container, self.container)
 
             timed_out = False
             with self.step('running'):
@@ -471,9 +487,13 @@ class Container:
 
             with self.step('uploading_log'):
                 await worker.log_store.write_log_file(
-                    self.job.format_version, self.job.batch_id,
-                    self.job.job_id, self.job.attempt_id, self.name,
-                    await self.get_container_log())
+                    self.job.format_version,
+                    self.job.batch_id,
+                    self.job.job_id,
+                    self.job.attempt_id,
+                    self.name,
+                    await self.get_container_log(),
+                )
 
             with self.step('deleting'):
                 await self.delete_container()
@@ -504,7 +524,8 @@ class Container:
 
     async def get_container_log(self):
         logs = await docker_call_retry(MAX_DOCKER_OTHER_OPERATION_SECS, f'{self}')(
-            self.container.log, stderr=True, stdout=True)
+            self.container.log, stderr=True, stdout=True
+        )
         self.log = "".join(logs)
         return self.log
 
@@ -523,11 +544,11 @@ class Container:
         if self.container:
             try:
                 log.info(f'{self}: deleting container')
-                await docker_call_retry(MAX_DOCKER_OTHER_OPERATION_SECS, f'{self}')(
-                    stop_container, self.container)
+                await docker_call_retry(MAX_DOCKER_OTHER_OPERATION_SECS, f'{self}')(stop_container, self.container)
                 # v=True deletes anonymous volumes created by the container
                 await docker_call_retry(MAX_DOCKER_OTHER_OPERATION_SECS, f'{self}')(
-                    delete_container, self.container, v=True)
+                    delete_container, self.container, v=True
+                )
                 self.container = None
             except asyncio.CancelledError:
                 raise
@@ -560,11 +581,7 @@ class Container:
     async def status(self, state=None):
         if not state:
             state = self.state
-        status = {
-            'name': self.name,
-            'state': state,
-            'timing': self.timings.to_dict()
-        }
+        status = {'name': self.name, 'state': state, 'timing': self.timings.to_dict()}
         if self.error:
             status['error'] = self.error
         if self.short_error:
@@ -598,7 +615,8 @@ async def add_gcsfuse_bucket(mount_path, bucket, key_file, read_only):
     error = 0
     while True:
         try:
-            return await check_shell(f'''
+            return await check_shell(
+                f'''
 /usr/bin/gcsfuse \
     -o {",".join(options)} \
     --file-mode 770 \
@@ -606,7 +624,8 @@ async def add_gcsfuse_bucket(mount_path, bucket, key_file, read_only):
     --implicit-dirs \
     --key-file {key_file} \
     {bucket} {mount_path}
-''')
+'''
+            )
         except CalledProcessError:
             error += 1
             if error == 5:
@@ -625,12 +644,12 @@ def copy_container(job, name, files, volume_mounts, cpu, memory, requester_pays_
             '-m',
             'batch.copy',
             json.dumps(requester_pays_project),
-            json.dumps(files)
+            json.dumps(files),
         ],
         'env': ['GOOGLE_APPLICATION_CREDENTIALS=/gsa-key/key.json'],
         'cpu': cpu,
         'memory': memory,
-        'volume_mounts': volume_mounts
+        'volume_mounts': volume_mounts,
     }
     return Container(job, name, copy_spec)
 
@@ -665,14 +684,16 @@ class Job:
         assert type == 'jvm'
         return JVMJob(batch_id, user, gsa_key, job_spec, format_version, task_manager, pool)
 
-    def __init__(self,
-                 batch_id: int,
-                 user: str,
-                 gsa_key,
-                 job_spec,
-                 format_version: BatchFormatVersion,
-                 task_manager: aiotools.BackgroundTaskManager,
-                 pool: concurrent.futures.ThreadPoolExecutor):
+    def __init__(
+        self,
+        batch_id: int,
+        user: str,
+        gsa_key,
+        job_spec,
+        format_version: BatchFormatVersion,
+        task_manager: aiotools.BackgroundTaskManager,
+        pool: concurrent.futures.ThreadPoolExecutor,
+    ):
         self.batch_id = batch_id
         self.user = user
         self.gsa_key = gsa_key
@@ -696,19 +717,26 @@ class Job:
             req_memory_in_bytes = parse_memory_in_bytes(job_spec['resources']['memory'])
             req_storage_in_bytes = parse_storage_in_bytes(job_spec['resources']['storage'])
 
-            cpu_in_mcpu = adjust_cores_for_memory_request(req_cpu_in_mcpu, req_memory_in_bytes, worker_config.instance_type)
+            cpu_in_mcpu = adjust_cores_for_memory_request(
+                req_cpu_in_mcpu, req_memory_in_bytes, worker_config.instance_type
+            )
             # still need to adjust cpu for storage request as that is how it was computed in the front_end
-            cpu_in_mcpu = adjust_cores_for_storage_request(cpu_in_mcpu, req_storage_in_bytes, CORES, worker_config.local_ssd_data_disk, worker_config.data_disk_size_gb)
+            cpu_in_mcpu = adjust_cores_for_storage_request(
+                cpu_in_mcpu,
+                req_storage_in_bytes,
+                CORES,
+                worker_config.local_ssd_data_disk,
+                worker_config.data_disk_size_gb,
+            )
             cpu_in_mcpu = adjust_cores_for_packability(cpu_in_mcpu)
 
             self.cpu_in_mcpu = cpu_in_mcpu
             self.memory_in_bytes = cores_mcpu_to_memory_bytes(cpu_in_mcpu, worker_config.instance_type)
 
             self.external_storage_in_gib = 0
-            data_disk_storage_in_bytes = cores_mcpu_to_storage_bytes(cpu_in_mcpu,
-                                                                     CORES,
-                                                                     worker_config.local_ssd_data_disk,
-                                                                     worker_config.data_disk_size_gb)
+            data_disk_storage_in_bytes = cores_mcpu_to_storage_bytes(
+                cpu_in_mcpu, CORES, worker_config.local_ssd_data_disk, worker_config.data_disk_size_gb
+            )
             self.data_disk_storage_in_gib = round_storage_bytes_to_gib(data_disk_storage_in_bytes)
         else:
             self.cpu_in_mcpu = job_spec['resources']['cores_mcpu']
@@ -725,7 +753,9 @@ class Job:
                 # maximum number of simultaneous jobs on a worker is 64 which
                 # basically fills the disk not allowing for caches etc. Most jobs
                 # would need an external disk in that case.
-                self.data_disk_storage_in_gib = min(RESERVED_STORAGE_GB_PER_CORE, self.cpu_in_mcpu / 1000 * RESERVED_STORAGE_GB_PER_CORE)
+                self.data_disk_storage_in_gib = min(
+                    RESERVED_STORAGE_GB_PER_CORE, self.cpu_in_mcpu / 1000 * RESERVED_STORAGE_GB_PER_CORE
+                )
 
         self.resources = worker_config.resources(self.cpu_in_mcpu, self.memory_in_bytes, self.external_storage_in_gib)
 
@@ -801,7 +831,7 @@ class Job:
             'user': self.user,
             'state': self.state,
             'format_version': self.format_version.format_version,
-            'resources': self.resources
+            'resources': self.resources,
         }
         if self.error:
             status['error'] = self.error
@@ -816,14 +846,16 @@ class Job:
 
 
 class DockerJob(Job):
-    def __init__(self,
-                 batch_id: int,
-                 user: str,
-                 gsa_key,
-                 job_spec,
-                 format_version,
-                 task_manager: aiotools.BackgroundTaskManager,
-                 pool: concurrent.futures.ThreadPoolExecutor):
+    def __init__(
+        self,
+        batch_id: int,
+        user: str,
+        gsa_key,
+        job_spec,
+        format_version,
+        task_manager: aiotools.BackgroundTaskManager,
+        pool: concurrent.futures.ThreadPoolExecutor,
+    ):
         super().__init__(batch_id, user, gsa_key, job_spec, format_version, task_manager, pool)
         input_files = job_spec.get('input_files')
         output_files = job_spec.get('output_files')
@@ -847,8 +879,14 @@ class DockerJob(Job):
 
         if input_files:
             containers['input'] = copy_container(
-                self, 'input', input_files, self.input_volume_mounts,
-                self.cpu_in_mcpu, self.memory_in_bytes, requester_pays_project)
+                self,
+                'input',
+                input_files,
+                self.input_volume_mounts,
+                self.cpu_in_mcpu,
+                self.memory_in_bytes,
+                requester_pays_project,
+            )
 
         # main container
         main_spec = {
@@ -858,7 +896,7 @@ class DockerJob(Job):
             'env': [f'{var["name"]}={var["value"]}' for var in self.env],
             'cpu': self.cpu_in_mcpu,
             'memory': self.memory_in_bytes,
-            'volume_mounts': self.main_volume_mounts
+            'volume_mounts': self.main_volume_mounts,
         }
         port = job_spec.get('port')
         if port:
@@ -874,39 +912,46 @@ class DockerJob(Job):
 
         if output_files:
             containers['output'] = copy_container(
-                self, 'output', output_files, self.output_volume_mounts,
-                self.cpu_in_mcpu, self.memory_in_bytes, requester_pays_project)
+                self,
+                'output',
+                output_files,
+                self.output_volume_mounts,
+                self.cpu_in_mcpu,
+                self.memory_in_bytes,
+                requester_pays_project,
+            )
 
         self.containers = containers
 
     async def setup_io(self):
         if not worker_config.job_private:
             if worker.data_disk_space_remaining.value < self.external_storage_in_gib:
-                log.info(f'worker data disk storage is full: {self.external_storage_in_gib}Gi requested and {worker.data_disk_space_remaining}Gi remaining')
+                log.info(
+                    f'worker data disk storage is full: {self.external_storage_in_gib}Gi requested and {worker.data_disk_space_remaining}Gi remaining'
+                )
 
                 # disk name must be 63 characters or less
                 # https://cloud.google.com/compute/docs/reference/rest/v1/disks#resource:-disk
                 # under the information for the name field
                 uid = self.token[:20]
-                self.disk = Disk(zone=ZONE,
-                                 project=PROJECT,
-                                 instance_name=NAME,
-                                 name=f'batch-disk-{uid}',
-                                 compute_client=worker.compute_client,
-                                 size_in_gb=self.external_storage_in_gib,
-                                 mount_path=self.io_host_path())
-                labels = {
-                    'namespace': NAMESPACE,
-                    'batch': '1',
-                    'instance-name': NAME,
-                    'uid': uid
-                }
+                self.disk = Disk(
+                    zone=ZONE,
+                    project=PROJECT,
+                    instance_name=NAME,
+                    name=f'batch-disk-{uid}',
+                    compute_client=worker.compute_client,
+                    size_in_gb=self.external_storage_in_gib,
+                    mount_path=self.io_host_path(),
+                )
+                labels = {'namespace': NAMESPACE, 'batch': '1', 'instance-name': NAME, 'uid': uid}
                 await self.disk.create(labels=labels)
                 log.info(f'created disk {self.disk.name} for job {self.id}')
                 return
 
             worker.data_disk_space_remaining.value -= self.external_storage_in_gib
-            log.info(f'acquired {self.external_storage_in_gib}Gi from worker data disk storage with {worker.data_disk_space_remaining}Gi remaining')
+            log.info(
+                f'acquired {self.external_storage_in_gib}Gi from worker data disk storage with {worker.data_disk_space_remaining}Gi remaining'
+            )
 
         assert self.disk is None, self.disk
         os.makedirs(self.io_host_path())
@@ -933,12 +978,18 @@ class DockerJob(Job):
                     async with Flock('/xfsquota/projects', pool=worker.pool):
                         with open('/xfsquota/projects', 'a') as f:
                             f.write(f'{self.project_id}:{self.scratch}\n')
-                    data_disk_storage_in_bytes = storage_gib_to_bytes(self.external_storage_in_gib + self.data_disk_storage_in_gib)
+                    data_disk_storage_in_bytes = storage_gib_to_bytes(
+                        self.external_storage_in_gib + self.data_disk_storage_in_gib
+                    )
                 else:
                     data_disk_storage_in_bytes = storage_gib_to_bytes(self.data_disk_storage_in_gib)
 
-                await check_shell_output(f'xfs_quota -x -D /xfsquota/projects -P /xfsquota/projid -c "project -s {self.project_name}" /host/')
-                await check_shell_output(f'xfs_quota -x -D /xfsquota/projects -P /xfsquota/projid -c "limit -p bsoft={data_disk_storage_in_bytes} bhard={data_disk_storage_in_bytes} {self.project_name}" /host/')
+                await check_shell_output(
+                    f'xfs_quota -x -D /xfsquota/projects -P /xfsquota/projid -c "project -s {self.project_name}" /host/'
+                )
+                await check_shell_output(
+                    f'xfs_quota -x -D /xfsquota/projects -P /xfsquota/projid -c "limit -p bsoft={data_disk_storage_in_bytes} bhard={data_disk_storage_in_bytes} {self.project_name}" /host/'
+                )
 
                 if self.secrets:
                     for secret in self.secrets:
@@ -948,10 +999,12 @@ class DockerJob(Job):
                     populate_secret_host_path(self.gsa_key_file_path(), self.gsa_key)
                     for b in self.gcsfuse:
                         bucket = b['bucket']
-                        await add_gcsfuse_bucket(mount_path=self.gcsfuse_path(bucket),
-                                                 bucket=bucket,
-                                                 key_file=f'{self.gsa_key_file_path()}/key.json',
-                                                 read_only=b['read_only'])
+                        await add_gcsfuse_bucket(
+                            mount_path=self.gcsfuse_path(bucket),
+                            bucket=bucket,
+                            key_file=f'{self.gsa_key_file_path()}/key.json',
+                            read_only=b['read_only'],
+                        )
 
                 self.state = 'running'
 
@@ -1019,7 +1072,9 @@ class DockerJob(Job):
                     await check_shell(f'fusermount -u {mount_path}')
                     log.info(f'unmounted gcsfuse bucket {bucket} from {mount_path}')
 
-            await check_shell(f'xfs_quota -x -D /xfsquota/projects -P /xfsquota/projid -c "limit -p bsoft=0 bhard=0 {self.project_name}" /host')
+            await check_shell(
+                f'xfs_quota -x -D /xfsquota/projects -P /xfsquota/projid -c "limit -p bsoft=0 bhard=0 {self.project_name}" /host'
+            )
 
             async with Flock('/xfsquota/projid', pool=worker.pool):
                 await check_shell(f"sed -i '/{self.project_name}:{self.project_id}/d' /xfsquota/projid")
@@ -1043,9 +1098,7 @@ class DockerJob(Job):
 
     async def status(self):
         status = await super().status()
-        cstatuses = {
-            name: await c.status() for name, c in self.containers.items()
-        }
+        cstatuses = {name: await c.status() for name, c in self.containers.items()}
         status['container_statuses'] = cstatuses
 
         return status
@@ -1060,14 +1113,16 @@ class JVMJob(Job):
     def secret_host_path(self, secret):
         return f'{self.scratch}/secrets{secret["mount_path"]}'
 
-    def __init__(self,
-                 batch_id: int,
-                 user: str,
-                 gsa_key,
-                 job_spec,
-                 format_version,
-                 task_manager: aiotools.BackgroundTaskManager,
-                 pool: concurrent.futures.ThreadPoolExecutor):
+    def __init__(
+        self,
+        batch_id: int,
+        user: str,
+        gsa_key,
+        job_spec,
+        format_version,
+        task_manager: aiotools.BackgroundTaskManager,
+        pool: concurrent.futures.ThreadPoolExecutor,
+    ):
         super().__init__(batch_id, user, gsa_key, job_spec, format_version, task_manager, pool)
         assert job_spec['process']['type'] == 'jvm'
 
@@ -1077,18 +1132,20 @@ class JVMJob(Job):
             raise Exception("i/o not supported")
 
         for envvar in self.env:
-            assert envvar['name'] not in {'HAIL_DEPLOY_CONFIG_FILE', 'HAIL_TOKENS_FILE',
-                                          'HAIL_SSL_CONFIG_DIR', 'HAIL_GSA_KEY_FILE',
-                                          'HAIL_WORKER_SCRATCH_DIR'}, envvar
+            assert envvar['name'] not in {
+                'HAIL_DEPLOY_CONFIG_FILE',
+                'HAIL_TOKENS_FILE',
+                'HAIL_SSL_CONFIG_DIR',
+                'HAIL_GSA_KEY_FILE',
+                'HAIL_WORKER_SCRATCH_DIR',
+            }, envvar
 
-        self.env.append({'name': 'HAIL_DEPLOY_CONFIG_FILE',
-                         'value': f'{self.scratch}/secrets/deploy-config/deploy-config.json'})
-        self.env.append({'name': 'HAIL_TOKENS_FILE',
-                         'value': f'{self.scratch}/secrets/user-tokens/tokens.json'})
-        self.env.append({'name': 'HAIL_SSL_CONFIG_DIR',
-                         'value': f'{self.scratch}/secrets/ssl-config'})
-        self.env.append({'name': 'HAIL_GSA_KEY_FILE',
-                         'value': f'{self.scratch}/secrets/gsa-key/key.json'})
+        self.env.append(
+            {'name': 'HAIL_DEPLOY_CONFIG_FILE', 'value': f'{self.scratch}/secrets/deploy-config/deploy-config.json'}
+        )
+        self.env.append({'name': 'HAIL_TOKENS_FILE', 'value': f'{self.scratch}/secrets/user-tokens/tokens.json'})
+        self.env.append({'name': 'HAIL_SSL_CONFIG_DIR', 'value': f'{self.scratch}/secrets/ssl-config'})
+        self.env.append({'name': 'HAIL_GSA_KEY_FILE', 'value': f'{self.scratch}/secrets/gsa-key/key.json'})
         self.env.append({'name': 'HAIL_WORKER_SCRATCH_DIR', 'value': self.scratch})
 
         # main container
@@ -1110,10 +1167,12 @@ class JVMJob(Job):
 
         self.command_string = [
             'java',
-            '-classpath', classpath,
+            '-classpath',
+            classpath,
             f'-Xmx{self.heap_size}',
             f'-Xss{self.stack_size}',
-            *user_command_string]
+            *user_command_string,
+        ]
 
         self.process = None
         self.deleted = False
@@ -1148,8 +1207,12 @@ class JVMJob(Job):
                     with open('/xfsquota/projects', 'a') as f:
                         f.write(f'{self.project_id}:{self.scratch}\n')
 
-                await check_shell_output(f'xfs_quota -x -D /xfsquota/projects -P /xfsquota/projid -c "project -s {self.project_name}" /host/')
-                await check_shell_output(f'xfs_quota -x -D /xfsquota/projects -P /xfsquota/projid -c "limit -p bsoft={self.data_disk_storage_in_gib} bhard={self.data_disk_storage_in_gib} {self.project_name}" /host/')
+                await check_shell_output(
+                    f'xfs_quota -x -D /xfsquota/projects -P /xfsquota/projid -c "project -s {self.project_name}" /host/'
+                )
+                await check_shell_output(
+                    f'xfs_quota -x -D /xfsquota/projects -P /xfsquota/projid -c "limit -p bsoft={self.data_disk_storage_in_gib} bhard={self.data_disk_storage_in_gib} {self.project_name}" /host/'
+                )
 
                 if self.secrets:
                     for secret in self.secrets:
@@ -1165,9 +1228,13 @@ class JVMJob(Job):
                         if not os.path.isfile(local_jar_location):
                             user_fs = RouterAsyncFS(
                                 'file',
-                                [LocalAsyncFS(worker.pool),
-                                 aiogoogle.GoogleStorageAsyncFS(credentials=aiogoogle.Credentials.from_file(
-                                     f'{self.scratch}/secrets/gsa-key/key.json'))])
+                                [
+                                    LocalAsyncFS(worker.pool),
+                                    aiogoogle.GoogleStorageAsyncFS(
+                                        credentials=aiogoogle.Credentials.from_file('/worker-key.json')
+                                    ),
+                                ],
+                            )
                             async with await user_fs.open(self.jar_url) as jar_data:
                                 await user_fs.makedirs('/hail-jars/', exist_ok=True)
                                 async with await user_fs.create(local_jar_location) as local_file:
@@ -1184,18 +1251,17 @@ class JVMJob(Job):
                         *self.command_string,
                         stdout=asyncio.subprocess.PIPE,
                         stderr=asyncio.subprocess.PIPE,
-                        env={envvar['name']: envvar['value'] for envvar in self.env})
+                        env={envvar['name']: envvar['value'] for envvar in self.env},
+                    )
 
-                    await asyncio.gather(self.pipe_to_log(self.process.stdout),
-                                         self.pipe_to_log(self.process.stderr))
+                    await asyncio.gather(self.pipe_to_log(self.process.stdout), self.pipe_to_log(self.process.stderr))
                     await self.process.wait()
 
                 log.info(f'finished {self} with return code {self.process.returncode}')
 
                 await worker.log_store.write_log_file(
-                    self.format_version, self.batch_id,
-                    self.job_id, self.attempt_id, 'main',
-                    self.logbuffer.decode())
+                    self.format_version, self.batch_id, self.job_id, self.attempt_id, 'main', self.logbuffer.decode()
+                )
 
                 if self.process.returncode == 0:
                     self.state = 'succeeded'
@@ -1221,7 +1287,9 @@ class JVMJob(Job):
 
         log.info(f'{self}: cleaning up')
         try:
-            await check_shell(f'xfs_quota -x -D /xfsquota/projects -P /xfsquota/projid -c "limit -p bsoft=0 bhard=0 {self.project_name}" /host')
+            await check_shell(
+                f'xfs_quota -x -D /xfsquota/projects -P /xfsquota/projid -c "limit -p bsoft=0 bhard=0 {self.project_name}" /host'
+            )
 
             async with Flock('/xfsquota/projid', pool=worker.pool):
                 await check_shell(f"sed -i '/{self.project_name}:{self.project_id}/d' /xfsquota/projid")
@@ -1262,11 +1330,7 @@ class JVMJob(Job):
     async def status(self):
         status = await super().status()
         status['container_statuses'] = dict()
-        status['container_statuses']['main'] = {
-            'name': 'main',
-            'state': self.state,
-            'timing': self.timings.to_dict()
-        }
+        status['container_statuses']['main'] = {'name': 'main', 'state': self.state, 'timing': self.timings.to_dict()}
         if self.process is not None and self.process.returncode is not None:
             status['container_statuses']['main']['exit_code'] = self.process.returncode
         return status
@@ -1339,7 +1403,9 @@ class Worker:
         if id in self.jobs:
             return web.HTTPForbidden()
 
-        job = Job.create(batch_id, body['user'], body['gsa_key'], job_spec, format_version, self.task_manager, self.pool)
+        job = Job.create(
+            batch_id, body['user'], body['gsa_key'], job_spec, format_version, self.task_manager, self.pool
+        )
 
         log.info(f'created {job}, adding to jobs')
 
@@ -1396,14 +1462,16 @@ class Worker:
 
     async def run(self):
         app = web.Application(client_max_size=HTTP_CLIENT_MAX_SIZE)
-        app.add_routes([
-            web.post('/api/v1alpha/kill', self.kill),
-            web.post('/api/v1alpha/batches/jobs/create', self.create_job),
-            web.delete('/api/v1alpha/batches/{batch_id}/jobs/{job_id}/delete', self.delete_job),
-            web.get('/api/v1alpha/batches/{batch_id}/jobs/{job_id}/log', self.get_job_log),
-            web.get('/api/v1alpha/batches/{batch_id}/jobs/{job_id}/status', self.get_job_status),
-            web.get('/healthcheck', self.healthcheck)
-        ])
+        app.add_routes(
+            [
+                web.post('/api/v1alpha/kill', self.kill),
+                web.post('/api/v1alpha/batches/jobs/create', self.create_job),
+                web.delete('/api/v1alpha/batches/{batch_id}/jobs/{job_id}/delete', self.delete_job),
+                web.get('/api/v1alpha/batches/{batch_id}/jobs/{job_id}/log', self.get_job_log),
+                web.get('/api/v1alpha/batches/{batch_id}/jobs/{job_id}/status', self.get_job_status),
+                web.get('/healthcheck', self.healthcheck),
+            ]
+        )
         try:
             await asyncio.wait_for(self.activate(), MAX_IDLE_TIME_MSECS / 1000)
         except asyncio.TimeoutError:
@@ -1426,8 +1494,10 @@ class Worker:
                     if not self.jobs and idle_duration >= MAX_IDLE_TIME_MSECS:
                         log.info(f'idle {idle_duration} ms, exiting')
                         break
-                    log.info(f'n_jobs {len(self.jobs)} free_cores {self.cpu_sem.value / 1000} idle {idle_duration} '
-                             f'free worker data disk storage {self.data_disk_space_remaining.value}Gi')
+                    log.info(
+                        f'n_jobs {len(self.jobs)} free_cores {self.cpu_sem.value / 1000} idle {idle_duration} '
+                        f'free worker data disk storage {self.data_disk_space_remaining.value}Gi'
+                    )
         finally:
             log.info('shutting down')
             await site.stop()
@@ -1444,8 +1514,8 @@ class Worker:
             # gone (e.g. testing a PR), this would go into an
             # infinite loop and the instance won't be deleted.
             await session.post(
-                deploy_config.url('batch-driver', '/api/v1alpha/instances/deactivate'),
-                headers=self.headers)
+                deploy_config.url('batch-driver', '/api/v1alpha/instances/deactivate'), headers=self.headers
+            )
 
     async def kill_1(self, request):  # pylint: disable=unused-argument
         log.info('killed')
@@ -1461,11 +1531,8 @@ class Worker:
 
         if job.format_version.has_full_status_in_gcs():
             await retry_all_errors(f'error while writing status file to gcs for {job}')(
-                self.log_store.write_status_file,
-                job.batch_id,
-                job.job_id,
-                job.attempt_id,
-                json.dumps(full_status))
+                self.log_store.write_status_file, job.batch_id, job.job_id, job.attempt_id, json.dumps(full_status)
+            )
 
         db_status = job.format_version.db_status(full_status)
 
@@ -1478,12 +1545,10 @@ class Worker:
             'start_time': full_status['start_time'],
             'end_time': full_status['end_time'],
             'resources': full_status['resources'],
-            'status': db_status
+            'status': db_status,
         }
 
-        body = {
-            'status': status
-        }
+        body = {'status': status}
 
         start_time = time_msecs()
         delay_secs = 0.1
@@ -1492,27 +1557,26 @@ class Worker:
                 async with client_session() as session:
                     await session.post(
                         deploy_config.url('batch-driver', '/api/v1alpha/instances/job_complete'),
-                        json=body, headers=self.headers)
+                        json=body,
+                        headers=self.headers,
+                    )
                     return
             except asyncio.CancelledError:  # pylint: disable=try-except-raise
                 raise
             except Exception as e:
-                if isinstance(e, aiohttp.ClientResponseError) and e.status == 404:   # pylint: disable=no-member
+                if isinstance(e, aiohttp.ClientResponseError) and e.status == 404:  # pylint: disable=no-member
                     raise
                 log.warning(f'failed to mark {job} complete, retrying', exc_info=True)
 
             # unlist job after 3m or half the run duration
             now = time_msecs()
             elapsed = now - start_time
-            if (job.id in self.jobs
-                    and elapsed > 180 * 1000
-                    and elapsed > run_duration / 2):
+            if job.id in self.jobs and elapsed > 180 * 1000 and elapsed > run_duration / 2:
                 log.info(f'too much time elapsed marking {job} complete, removing from jobs, will keep retrying')
                 del self.jobs[job.id]
                 self.last_updated = time_msecs()
 
-            await asyncio.sleep(
-                delay_secs * random.uniform(0.7, 1.3))
+            await asyncio.sleep(delay_secs * random.uniform(0.7, 1.3))
             # exponentially back off, up to (expected) max of 2m
             delay_secs = min(delay_secs * 2, 2 * 60.0)
 
@@ -1538,18 +1602,19 @@ class Worker:
             'job_id': full_status['job_id'],
             'attempt_id': full_status['attempt_id'],
             'start_time': full_status['start_time'],
-            'resources': full_status['resources']
+            'resources': full_status['resources'],
         }
 
-        body = {
-            'status': status
-        }
+        body = {'status': status}
 
         async with client_session() as session:
             await request_retry_transient_errors(
-                session, 'POST',
+                session,
+                'POST',
                 deploy_config.url('batch-driver', '/api/v1alpha/instances/job_started'),
-                json=body, headers=self.headers)
+                json=body,
+                headers=self.headers,
+            )
 
     async def post_job_started(self, job):
         try:
@@ -1562,39 +1627,34 @@ class Worker:
     async def activate(self):
         async with client_session() as session:
             resp = await request_retry_transient_errors(
-                session, 'GET',
+                session,
+                'GET',
                 deploy_config.url('batch-driver', '/api/v1alpha/instances/gsa_key'),
-                headers={
-                    'X-Hail-Instance-Name': NAME,
-                    'Authorization': f'Bearer {os.environ["ACTIVATION_TOKEN"]}'
-                })
+                headers={'X-Hail-Instance-Name': NAME, 'Authorization': f'Bearer {os.environ["ACTIVATION_TOKEN"]}'},
+            )
             resp_json = await resp.json()
 
             with open('/worker-key.json', 'w') as f:
                 f.write(json.dumps(resp_json['key']))
 
-            credentials = google.oauth2.service_account.Credentials.from_service_account_file(
-                '/worker-key.json')
-            self.log_store = LogStore(BATCH_LOGS_BUCKET_NAME, INSTANCE_ID, self.pool,
-                                      project=PROJECT, credentials=credentials)
+            credentials = google.oauth2.service_account.Credentials.from_service_account_file('/worker-key.json')
+            self.log_store = LogStore(
+                BATCH_LOGS_BUCKET_NAME, INSTANCE_ID, self.pool, project=PROJECT, credentials=credentials
+            )
 
             credentials = aiogoogle.Credentials.from_file('/worker-key.json')
             self.compute_client = aiogoogle.ComputeClient(PROJECT, credentials=credentials)
 
             resp = await request_retry_transient_errors(
-                session, 'POST',
+                session,
+                'POST',
                 deploy_config.url('batch-driver', '/api/v1alpha/instances/activate'),
                 json={'ip_address': os.environ['IP_ADDRESS']},
-                headers={
-                    'X-Hail-Instance-Name': NAME,
-                    'Authorization': f'Bearer {os.environ["ACTIVATION_TOKEN"]}'
-                })
+                headers={'X-Hail-Instance-Name': NAME, 'Authorization': f'Bearer {os.environ["ACTIVATION_TOKEN"]}'},
+            )
             resp_json = await resp.json()
 
-            self.headers = {
-                'X-Hail-Instance-Name': NAME,
-                'Authorization': f'Bearer {resp_json["token"]}'
-            }
+            self.headers = {'X-Hail-Instance-Name': NAME, 'Authorization': f'Bearer {resp_json["token"]}'}
 
 
 async def async_main():

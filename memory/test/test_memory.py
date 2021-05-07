@@ -10,8 +10,7 @@ from hailtop.utils import async_to_blocking
 
 
 class BlockingMemoryClient:
-    def __init__(self, gcs_project=None, fs=None, deploy_config=None, session=None,
-                 headers=None, _token=None):
+    def __init__(self, gcs_project=None, fs=None, deploy_config=None, session=None, headers=None, _token=None):
         self._client = MemoryClient(gcs_project, fs, deploy_config, session, headers, _token)
         async_to_blocking(self._client.async_init())
 

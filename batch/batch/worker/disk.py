@@ -56,27 +56,28 @@ class Disk:
                 'name': self.name,
                 'sizeGb': f'{self.size_in_gb}',
                 'type': f'zones/{self.zone}/diskTypes/pd-ssd',
-                'labels': labels
+                'labels': labels,
             }
 
-            await self.compute_client.create_disk(f'/zones/{self.zone}/disks',
-                                                  json=config)
+            await self.compute_client.create_disk(f'/zones/{self.zone}/disks', json=config)
 
     async def _attach(self):
         async with LoggingTimer(f'attaching disk {self.name} to {self.instance_name}'):
             config = {
                 'source': f'/compute/v1/projects/{self.project}/zones/{self.zone}/disks/{self.name}',
                 'autoDelete': True,
-                'deviceName': self.name
+                'deviceName': self.name,
             }
 
-            await self.compute_client.attach_disk(f'/zones/{self.zone}/instances/{self.instance_name}/attachDisk',
-                                                  json=config)
+            await self.compute_client.attach_disk(
+                f'/zones/{self.zone}/instances/{self.instance_name}/attachDisk', json=config
+            )
 
     async def _detach(self):
         async with LoggingTimer(f'detaching disk {self.name} from {self.instance_name}'):
-            await self.compute_client.detach_disk(f'/zones/{self.zone}/instances/{self.instance_name}/detachDisk',
-                                                  params={'deviceName': self.name})
+            await self.compute_client.detach_disk(
+                f'/zones/{self.zone}/instances/{self.instance_name}/detachDisk', params={'deviceName': self.name}
+            )
 
     async def _delete(self):
         async with LoggingTimer(f'deleting disk {self.name}'):

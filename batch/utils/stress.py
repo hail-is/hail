@@ -10,14 +10,10 @@ def flip(p):
 
 
 def stress():
-    b = hb.Batch(
-        name='stress',
-        backend=hb.ServiceBackend(billing_project='hail'),
-        default_image=DOCKER_ROOT_IMAGE)
+    b = hb.Batch(name='stress', backend=hb.ServiceBackend(billing_project='hail'), default_image=DOCKER_ROOT_IMAGE)
 
     for i in range(100):
-        j = (b
-             .new_job(name=f'parent_{i}'))
+        j = b.new_job(name=f'parent_{i}')
         d = random.choice(range(4))
         if flip(0.2):
             j.command(f'sleep {d}; exit 1')
@@ -26,9 +22,7 @@ def stress():
 
         for k in range(10):
             d = random.choice(range(4))
-            c = (b
-                 .new_job(name=f'child_{i}_{k}')
-                 .command(f'sleep {d}; echo child {i} {k}'))
+            c = b.new_job(name=f'child_{i}_{k}').command(f'sleep {d}; echo child {i} {k}')
             c.depends_on(j)
             if flip(0.1):
                 c._always_run = True
