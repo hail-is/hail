@@ -288,10 +288,13 @@ class BuildImage2Step(Step):
                     assert d.digest_remote_location is not None
 
                     digest_local_location = '/io/' + d.name
+                    digest_local_chroot_location = '/python3.7-slim-stretch' + digest_local_location
                     file_overrides[d.name]['image'] = digest_local_location
                     input_files.append((d.digest_remote_location, digest_local_location))
                     move_file_overrides_into_chroot += (
-                        f'\nmv {digest_local_location} /python3.7-slim-stretch/{digest_local_location}'
+                        f'''
+mkdir -p $(dirname {digest_local_chroot_location})
+mv {digest_local_location} {digest_local_chroot_location}'''
                     )
 
         if self.inputs:
