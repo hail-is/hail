@@ -767,7 +767,6 @@ class Job:
         self.secrets = secrets
         self.env = job_spec.get('env', [])
 
-        self.project_name = f'batch-{self.batch_id}-job-{self.job_id}'
         self.project_id = Job.get_next_xfsquota_project_id()
 
         self.task_manager = task_manager
