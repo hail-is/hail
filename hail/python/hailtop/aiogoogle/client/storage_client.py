@@ -418,9 +418,6 @@ class GetObjectFileStatus(FileStatus):
     async def size(self) -> int:
         return int(self._items['size'])
 
-    async def etag(self) -> str:
-        return self._items['etag']
-
     async def __getitem__(self, key: str) -> str:
         return self._items[key]
 

@@ -146,17 +146,21 @@ async def on_startup(app):
 
 
 async def on_cleanup(app):
-    for user, items in app['users'].items():
-        await items['fs'].close()
-
     try:
         app['worker_pool'].shutdown()
     finally:
         try:
             app['redis_pool'].close()
         finally:
-            del app['k8s_client']
-            await asyncio.gather(*(t for t in asyncio.all_tasks() if t is not asyncio.current_task()))
+            try:
+                del app['k8s_client']
+                await asyncio.gather(*(t for t in asyncio.all_tasks() if t is not asyncio.current_task()))
+            finally:
+                for user, items in app['users'].items():
+                    try:
+                        await items['fs'].close()
+                    except:
+                        pass
 
 
 def run():

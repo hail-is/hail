@@ -1499,6 +1499,7 @@ class Worker:
                     )
         finally:
             log.info('shutting down')
+            await self.log_store.close()
             await site.stop()
             log.info('stopped site')
             await app_runner.cleanup()
