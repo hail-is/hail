@@ -146,7 +146,7 @@ class LocalBackend(Backend):
                     copied_input_resource_files.add(r)
 
                     if r._input_path.startswith('gs://'):
-                        return [f'gsutil {requester_pays_project} cp {shq(r._input_path)} {shq(r._get_path(tmpdir))}']
+                        return [f'gsutil {requester_pays_project} cp -r {shq(r._input_path)} {shq(r._get_path(tmpdir))}']
 
                     absolute_input_path = os.path.realpath(r._input_path)
 
@@ -171,7 +171,7 @@ class LocalBackend(Backend):
                     directory = os.path.dirname(dest)
                     os.makedirs(directory, exist_ok=True)
                     return 'cp'
-                return f'gsutil {requester_pays_project} cp'
+                return f'gsutil {requester_pays_project} cp -r'
 
             if isinstance(r, resource.InputResourceFile):
                 return [f'{_cp(dest)} {shq(r._input_path)} {shq(dest)}'

@@ -3,6 +3,9 @@
 Change Log
 ==========
 
+**Version 0.2.68**
+- Fixed copying a directory from GCS when using the ``LocalBackend``
+
 **Version 0.2.66**
 
 - Removed the need for the ``project`` argument in ``Batch()`` unless you are creating a PythonJob
