@@ -2,13 +2,16 @@ package is.hail.types.physical.stypes.interfaces
 
 import is.hail.asm4s._
 import is.hail.expr.ir.{EmitCodeBuilder, IEmitSCode}
-import is.hail.types.physical.stypes.{SCode, SType, SValue}
+import is.hail.types.physical.stypes.{EmitType, SCode, SType, SValue}
 
 trait SContainer extends SType {
   def elementType: SType
+  def elementEmitType: EmitType
 }
 
 trait SIndexableValue extends SValue {
+  def st: SContainer
+
   def loadLength(): Value[Int]
 
   def isElementMissing(i: Code[Int]): Code[Boolean]
@@ -42,5 +45,7 @@ trait SIndexableCode extends SCode {
   def memoize(cb: EmitCodeBuilder, name: String): SIndexableValue
 
   def memoizeField(cb: EmitCodeBuilder, name: String): SIndexableValue
+
+  def castToArray(cb: EmitCodeBuilder): SIndexableCode
 }
 

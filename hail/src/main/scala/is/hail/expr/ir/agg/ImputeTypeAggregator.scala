@@ -51,7 +51,7 @@ object ImputeTypeState {
 }
 
 class ImputeTypeState(kb: EmitClassBuilder[_]) extends PrimitiveRVAState(Array(VirtualTypeWithReq(TInt32,RPrimitive()).setRequired(true)), kb) {
-  private def repr: Code[Int] = _repr.value[Int]
+  private def repr: Code[Int] = _repr.pv.asInt32.intCode(null) // hack, emitcodebuilder unused in this function
   private val _repr = fields(0)
 
   def getAnyNonMissing: Code[Boolean] = (repr & 1).cne(0)
@@ -90,7 +90,7 @@ class ImputeTypeState(kb: EmitClassBuilder[_]) extends PrimitiveRVAState(Array(V
   def seqOp(cb: EmitCodeBuilder, ec: EmitCode): Unit = {
     ec.toI(cb)
       .consume(cb,
-        cb.assign(_repr, EmitCode.present(cb.emb, PCode(_repr.pt, _repr.value[Int] & (~(1 << 1))))),
+        cb.assign(_repr, EmitCode.present(cb.emb, PCode(_repr.pt, repr & (~(1 << 1))))),
         { case (pc: PStringCode) =>
           val s = cb.newLocal[String]("impute_type_agg_seq_str")
           cb.assign(s, pc.loadString())

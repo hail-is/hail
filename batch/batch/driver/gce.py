@@ -91,13 +91,12 @@ class GCEEventMonitor:
             if event_type == 'COMPLETED':
                 severity = event['severity']
                 operation_id = event['operation']['id']
-                success = (severity != 'ERROR')
+                success = severity != 'ERROR'
                 self.zone_monitor.zone_success_rate.push(resource['labels']['zone'], operation_id, success)
         else:
             instance = self.inst_coll_manager.get_instance(name)
             if not instance:
-                record = await self.db.select_and_fetchone('SELECT name FROM instances WHERE name = %s;',
-                                                           (name,))
+                record = await self.db.select_and_fetchone('SELECT name FROM instances WHERE name = %s;', (name,))
                 if not record:
                     log.error(f'event for unknown instance {name}: {json.dumps(event)}')
                 return
@@ -118,9 +117,7 @@ class GCEEventMonitor:
         mark = row['mark']
         if mark is None:
             mark = datetime.datetime.utcnow().isoformat() + 'Z'
-            await self.db.execute_update(
-                'UPDATE `gevents_mark` SET mark = %s;',
-                (mark,))
+            await self.db.execute_update('UPDATE `gevents_mark` SET mark = %s;', (mark,))
 
         filter = f'''
 logName="projects/{PROJECT}/logs/cloudaudit.googleapis.com%2Factivity" AND
@@ -132,20 +129,19 @@ timestamp >= "{mark}"
         log.info(f'querying logging client with mark {mark}')
         mark = None
         async for event in await self.logging_client.list_entries(
-                body={
-                    'resourceNames': [f'projects/{PROJECT}'],
-                    'orderBy': 'timestamp asc',
-                    'pageSize': 100,
-                    'filter': filter
-                }):
+            body={
+                'resourceNames': [f'projects/{PROJECT}'],
+                'orderBy': 'timestamp asc',
+                'pageSize': 100,
+                'filter': filter,
+            }
+        ):
             # take the last, largest timestamp
             mark = event['timestamp']
             await self.handle_event(event)
 
         if mark is not None:
-            await self.db.execute_update(
-                'UPDATE `gevents_mark` SET mark = %s;',
-                (mark,))
+            await self.db.execute_update('UPDATE `gevents_mark` SET mark = %s;', (mark,))
 
     async def event_loop(self):
         await periodically_call(15, self.handle_events)
@@ -153,9 +149,7 @@ timestamp >= "{mark}"
     async def delete_orphaned_disks(self):
         log.info('deleting orphaned disks')
 
-        params = {
-            'filter': f'(labels.namespace = {DEFAULT_NAMESPACE})'
-        }
+        params = {'filter': f'(labels.namespace = {DEFAULT_NAMESPACE})'}
 
         for zone in self.zone_monitor.zones:
             async for disk in await self.compute_client.list(f'/zones/{zone}/disks', params=params):

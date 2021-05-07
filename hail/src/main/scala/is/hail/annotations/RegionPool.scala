@@ -22,7 +22,6 @@ final class RegionPool private(strictMemoryCheck: Boolean, threadName: String, t
   private[this] var totalAllocatedBytes: Long = 0L
   private[this] var allocationEchoThreshold: Long = 256 * 1024
   private[this] var numJavaObjects: Long = 0L
-  private[this] var maxNumJavaObjects: Long = 0L
   private[this] var highestTotalUsage = 0L
 
   def addJavaObject(): Unit = {
@@ -129,7 +128,7 @@ final class RegionPool private(strictMemoryCheck: Boolean, threadName: String, t
 
     log.info(s"RegionPool: $context: ${readableBytes(totalAllocatedBytes)} allocated (${readableBytes(inBlocks)} blocks / " +
       s"${readableBytes(totalAllocatedBytes - inBlocks)} chunks), regions.size = ${regions.size}, " +
-      s"$numJavaObjects current java objects, $maxNumJavaObjects max java objects, thread $threadID: $threadName")
+      s"$numJavaObjects current java objects, thread $threadID: $threadName")
 //    log.info("-----------STACK_TRACES---------")
 //    val stacks: String = regions.result().toIndexedSeq.flatMap(r => r.stackTrace.map((r.getTotalChunkMemory(), _))).foldLeft("")((a: String, b) => a + "\n" + b.toString())
 //    log.info(stacks)

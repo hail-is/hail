@@ -6,8 +6,7 @@ import concurrent
 import asyncio
 from aiohttp import web
 import kubernetes_asyncio as kube
-from gear import (setup_aiohttp_session, web_authenticated_developers_only,
-                  rest_authenticated_users_only)
+from gear import setup_aiohttp_session, web_authenticated_developers_only, rest_authenticated_users_only
 from hailtop.config import get_deploy_config
 from hailtop.tls import internal_server_ssl_context
 from hailtop.hail_logging import AccessLogger
@@ -41,14 +40,17 @@ async def get_index(request, userdata):  # pylint: disable=unused-argument
     cache = request.app['cache']
     keys = sorted(list(cache.keys))
     page_context = {
-        'attributes': [
-            ['VALID_DURATION_IN_SECONDS', VALID_DURATION_IN_SECONDS]],
-        'rows': [{'name': k,
-                  'addresses': ", ".join([x.ip for x in cache.entries[k].value]),
-                  'ports': ", ".join([x.port for x in cache.entries[k].value]),
-                  'lifetime': time.time() - cache.entries[k].expire_time,
-                  'lock': k in cache.locks}
-                 for k in keys]
+        'attributes': [['VALID_DURATION_IN_SECONDS', VALID_DURATION_IN_SECONDS]],
+        'rows': [
+            {
+                'name': k,
+                'addresses': ", ".join([x.ip for x in cache.entries[k].value]),
+                'ports': ", ".join([x.port for x in cache.entries[k].value]),
+                'lifetime': time.time() - cache.entries[k].expire_time,
+                'lock': k in cache.locks,
+            }
+            for k in keys
+        ],
     }
     return await render_template('address', request, userdata, 'index.html', page_context)
 
@@ -82,12 +84,11 @@ class AddressAndPort(NamedTuple):
         return {'address': self.address, 'port': self.port}
 
 
-class Cache():
+class Cache:
     def __init__(self, k8s_client: kube.client.CoreV1Api):
         self.entries: Dict[str, CacheEntry[List[AddressAndPort]]] = dict()
         self.locks: DefaultDict[str, asyncio.Lock] = defaultdict(asyncio.Lock)
-        self.keys = sortedcontainers.SortedSet(
-            key=lambda key: self.entries[key].expire_time)
+        self.keys = sortedcontainers.SortedSet(key=lambda key: self.entries[key].expire_time)
         self.k8s_client: kube.client.CoreV1Api = k8s_client
         self.task_manager = aiotools.BackgroundTaskManager()
 
@@ -110,10 +111,12 @@ class Cache():
 
             self.task_manager.ensure_future(self.maybe_remove_one_old_entry())
             k8s_endpoints = await self.k8s_client.read_namespaced_endpoints(key, NAMESPACE)
-            endpoints = [AddressAndPort(ip.ip, port.port)
-                         for endpoint in k8s_endpoints.subsets
-                         for port in endpoint.ports
-                         for ip in endpoint.addresses]
+            endpoints = [
+                AddressAndPort(ip.ip, port.port)
+                for endpoint in k8s_endpoints.subsets
+                for port in endpoint.ports
+                for ip in endpoint.addresses
+            ]
             self.entries[key] = CacheEntry(endpoints)
             self.keys.add(key)
             log.info(f'fetched new value for {key}: {endpoints}')
@@ -159,8 +162,10 @@ def run():
     app.on_startup.append(on_startup)
     app.on_cleanup.append(on_cleanup)
 
-    web.run_app(deploy_config.prefix_application(app, 'address'),
-                host='0.0.0.0',
-                port=5000,
-                access_log_class=AccessLogger,
-                ssl_context=internal_server_ssl_context())
+    web.run_app(
+        deploy_config.prefix_application(app, 'address'),
+        host='0.0.0.0',
+        port=5000,
+        access_log_class=AccessLogger,
+        ssl_context=internal_server_ssl_context(),
+    )

@@ -1,4 +1,3 @@
-
 import aiohttp
 import concurrent
 
@@ -10,8 +9,7 @@ from hailtop.utils import request_retry_transient_errors
 
 
 class MemoryClient:
-    def __init__(self, gcs_project=None, fs=None, deploy_config=None, session=None,
-                 headers=None, _token=None):
+    def __init__(self, gcs_project=None, fs=None, deploy_config=None, session=None, headers=None, _token=None):
         if not deploy_config:
             self._deploy_config = get_deploy_config()
         else:
@@ -38,10 +36,9 @@ class MemoryClient:
     async def _get_file_if_exists(self, filename):
         params = {'q': filename}
         try:
-            async with await request_retry_transient_errors(self._session,
-                                                            'get', self.objects_url,
-                                                            params=params,
-                                                            headers=self._headers) as response:
+            async with await request_retry_transient_errors(
+                self._session, 'get', self.objects_url, params=params, headers=self._headers
+            ) as response:
                 return await response.read()
         except aiohttp.ClientResponseError as e:
             if e.status == 404:
@@ -56,11 +53,9 @@ class MemoryClient:
 
     async def write_file(self, filename, data):
         params = {'q': filename}
-        async with await request_retry_transient_errors(self._session,
-                                                        'post', self.objects_url,
-                                                        params=params,
-                                                        headers=self._headers,
-                                                        data=data) as response:
+        async with await request_retry_transient_errors(
+            self._session, 'post', self.objects_url, params=params, headers=self._headers, data=data
+        ) as response:
             assert response.status == 200
 
     async def close(self):

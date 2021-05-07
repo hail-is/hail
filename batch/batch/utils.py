@@ -34,6 +34,7 @@ def batch_only(fun):
             raise web.HTTPUnauthorized()
 
         return await fun(request)
+
     return wrapped
 
 
@@ -80,9 +81,8 @@ def cost_from_msec_mcpu(msec_mcpu):
     service_cost_per_core_hour = 0.01
 
     total_cost_per_core_hour = (
-        cpu_cost_per_core_hour
-        + instance_cost_per_instance_hour / worker_cores
-        + service_cost_per_core_hour)
+        cpu_cost_per_core_hour + instance_cost_per_instance_hour / worker_cores + service_cost_per_core_hour
+    )
 
     return (msec_mcpu * 0.001 * 0.001) * (total_cost_per_core_hour / 3600)
 
@@ -100,7 +100,7 @@ def worker_memory_per_core_mib(worker_type):
 
 def worker_memory_per_core_bytes(worker_type):
     m = worker_memory_per_core_mib(worker_type)
-    return int(m * 1024**2)
+    return int(m * 1024 ** 2)
 
 
 def memory_bytes_to_cores_mcpu(memory_in_bytes, worker_type):
@@ -126,22 +126,35 @@ def total_worker_storage_gib(worker_local_ssd_data_disk, worker_pd_ssd_data_disk
 
 
 def worker_storage_per_core_bytes(worker_cores, worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gib):
-    return (total_worker_storage_gib(worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gib) * 1024**3) // worker_cores
+    return (
+        total_worker_storage_gib(worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gib) * 1024 ** 3
+    ) // worker_cores
 
 
-def storage_bytes_to_cores_mcpu(storage_in_bytes, worker_cores, worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gib):
-    return round_up_division(storage_in_bytes * 1000,
-                             worker_storage_per_core_bytes(worker_cores,
-                                                           worker_local_ssd_data_disk,
-                                                           worker_pd_ssd_data_disk_size_gib))
+def storage_bytes_to_cores_mcpu(
+    storage_in_bytes, worker_cores, worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gib
+):
+    return round_up_division(
+        storage_in_bytes * 1000,
+        worker_storage_per_core_bytes(worker_cores, worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gib),
+    )
 
 
-def cores_mcpu_to_storage_bytes(cores_in_mcpu, worker_cores, worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gib):
-    return (cores_in_mcpu * worker_storage_per_core_bytes(worker_cores, worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gib)) // 1000
+def cores_mcpu_to_storage_bytes(
+    cores_in_mcpu, worker_cores, worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gib
+):
+    return (
+        cores_in_mcpu
+        * worker_storage_per_core_bytes(worker_cores, worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gib)
+    ) // 1000
 
 
-def adjust_cores_for_storage_request(cores_in_mcpu, storage_in_bytes, worker_cores, worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gib):
-    min_cores_mcpu = storage_bytes_to_cores_mcpu(storage_in_bytes, worker_cores, worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gib)
+def adjust_cores_for_storage_request(
+    cores_in_mcpu, storage_in_bytes, worker_cores, worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gib
+):
+    min_cores_mcpu = storage_bytes_to_cores_mcpu(
+        storage_in_bytes, worker_cores, worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gib
+    )
     return max(cores_in_mcpu, min_cores_mcpu)
 
 
@@ -158,7 +171,7 @@ def unreserved_worker_data_disk_size_gib(worker_local_ssd_data_disk, worker_pd_s
 def adjust_cores_for_packability(cores_in_mcpu):
     cores_in_mcpu = max(1, cores_in_mcpu)
     power = max(-2, math.ceil(math.log2(cores_in_mcpu / 1000)))
-    return int(2**power * 1000)
+    return int(2 ** power * 1000)
 
 
 def round_storage_bytes_to_gib(storage_bytes):
@@ -168,7 +181,7 @@ def round_storage_bytes_to_gib(storage_bytes):
 
 
 def storage_gib_to_bytes(storage_gib):
-    return math.ceil(storage_gib * 1024**3)
+    return math.ceil(storage_gib * 1024 ** 3)
 
 
 def is_valid_cores_mcpu(cores_mcpu: int):
@@ -296,8 +309,6 @@ LOCK IN SHARE MODE;
             record['users'] = json.loads(record['users'])
         return record
 
-    billing_projects = [record_to_dict(record)
-                        async for record
-                        in db.execute_and_fetchall(sql, tuple(args))]
+    billing_projects = [record_to_dict(record) async for record in db.execute_and_fetchall(sql, tuple(args))]
 
     return billing_projects

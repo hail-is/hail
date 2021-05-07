@@ -5,9 +5,16 @@ import asyncio
 import secrets
 import sortedcontainers
 
-from hailtop.utils import (Notice, run_if_changed,
-                           WaitableSharedPool, time_msecs, retry_long_running,
-                           secret_alnum_string, AsyncWorkerPool, periodically_call)
+from hailtop.utils import (
+    Notice,
+    run_if_changed,
+    WaitableSharedPool,
+    time_msecs,
+    retry_long_running,
+    secret_alnum_string,
+    AsyncWorkerPool,
+    periodically_call,
+)
 
 from ..batch_format_version import BatchFormatVersion
 from ..batch_configuration import WORKER_MAX_IDLE_TIME_MSECS
@@ -42,18 +49,25 @@ class JobPrivateInstanceManager(InstanceCollection):
         await super().async_init()
 
         async for record in self.db.select_and_fetchall(
-                'SELECT * FROM instances WHERE removed = 0 AND inst_coll = %s;',
-                (self.name,)):
+            'SELECT * FROM instances WHERE removed = 0 AND inst_coll = %s;', (self.name,)
+        ):
             instance = Instance.from_record(self.app, self, record)
             self.add_instance(instance)
 
-        self.task_manager.ensure_future(retry_long_running(
-            'create_instances_loop',
-            run_if_changed, self.create_instances_state_changed, self.create_instances_loop_body))
+        self.task_manager.ensure_future(
+            retry_long_running(
+                'create_instances_loop',
+                run_if_changed,
+                self.create_instances_state_changed,
+                self.create_instances_loop_body,
+            )
+        )
 
-        self.task_manager.ensure_future(retry_long_running(
-            'schedule_jobs_loop',
-            run_if_changed, self.scheduler_state_changed, self.schedule_jobs_loop_body))
+        self.task_manager.ensure_future(
+            retry_long_running(
+                'schedule_jobs_loop', run_if_changed, self.scheduler_state_changed, self.schedule_jobs_loop_body
+            )
+        )
 
         self.task_manager.ensure_future(periodically_call(15, self.bump_scheduler))
 
@@ -62,18 +76,18 @@ class JobPrivateInstanceManager(InstanceCollection):
             'name': self.name,
             'worker_disk_size_gb': self.boot_disk_size_gb,
             'max_instances': self.max_instances,
-            'max_live_instances': self.max_live_instances
+            'max_live_instances': self.max_live_instances,
         }
 
-    async def configure(
-            self, boot_disk_size_gb, max_instances, max_live_instances):
+    async def configure(self, boot_disk_size_gb, max_instances, max_live_instances):
         await self.db.just_execute(
             '''
 UPDATE inst_colls
 SET boot_disk_size_gb = %s, max_instances = %s, max_live_instances = %s
 WHERE name = %s;
 ''',
-            (boot_disk_size_gb, max_instances, max_live_instances, self.name))
+            (boot_disk_size_gb, max_instances, max_live_instances, self.name),
+        )
 
         self.boot_disk_size_gb = boot_disk_size_gb
         self.max_instances = max_instances
@@ -91,7 +105,7 @@ WHERE name = %s;
         n_scheduled = 0
 
         async for record in self.db.select_and_fetchall(
-                '''
+            '''
 SELECT jobs.*, batches.format_version, batches.userdata, batches.user, attempts.instance_name
 FROM batches
 INNER JOIN jobs ON batches.id = jobs.batch_id
@@ -105,8 +119,9 @@ WHERE batches.state = 'running'
 ORDER BY instances.time_activated ASC
 LIMIT 300;
 ''',
-                (self.name,),
-                timer_description=f'in schedule_jobs for {self}: get ready jobs with active instances'):
+            (self.name,),
+            timer_description=f'in schedule_jobs for {self}: get ready jobs with active instances',
+        ):
             batch_id = record['batch_id']
             job_id = record['job_id']
             instance_name = record['instance_name']
@@ -123,8 +138,7 @@ LIMIT 300;
                 except Exception:
                     log.info(f'scheduling job {id} on {instance} for {self}', exc_info=True)
 
-            await waitable_pool.call(
-                schedule_with_error_handling, self.app, record, id, instance)
+            await waitable_pool.call(schedule_with_error_handling, self.app, record, id, instance)
 
         await waitable_pool.wait()
 
@@ -135,10 +149,12 @@ LIMIT 300;
     def max_instances_to_create(self):
         n_live_instances = self.n_instances_by_state['pending'] + self.n_instances_by_state['active']
 
-        return min(self.max_live_instances - n_live_instances,
-                   self.max_instances - self.n_instances,
-                   # 20 queries/s; our GCE long-run quota
-                   300)
+        return min(
+            self.max_live_instances - n_live_instances,
+            self.max_instances - self.n_instances,
+            # 20 queries/s; our GCE long-run quota
+            300,
+        )
 
     async def compute_fair_share(self):
         n_jobs_to_allocate = self.max_instances_to_create()
@@ -147,10 +163,8 @@ LIMIT 300;
         user_total_jobs = {}
         result = {}
 
-        pending_users_by_live_jobs = sortedcontainers.SortedSet(
-            key=lambda user: user_live_jobs[user])
-        allocating_users_by_total_jobs = sortedcontainers.SortedSet(
-            key=lambda user: user_total_jobs[user])
+        pending_users_by_live_jobs = sortedcontainers.SortedSet(key=lambda user: user_live_jobs[user])
+        allocating_users_by_total_jobs = sortedcontainers.SortedSet(key=lambda user: user_total_jobs[user])
 
         records = self.db.execute_and_fetchall(
             '''
@@ -164,7 +178,8 @@ GROUP BY user
 HAVING n_ready_jobs + n_creating_jobs + n_running_jobs > 0;
 ''',
             (self.name,),
-            timer_description=f'in compute_fair_share for {self}: aggregate user_inst_coll_resources')
+            timer_description=f'in compute_fair_share for {self}: aggregate user_inst_coll_resources',
+        )
 
         async for record in records:
             user = record['user']
@@ -234,27 +249,30 @@ HAVING n_ready_jobs + n_creating_jobs + n_running_jobs > 0;
             return
 
         activation_token = secrets.token_urlsafe(32)
-        instance = await Instance.create(self.app, self, machine_name, activation_token, cores_mcpu,
-                                         zone, machine_type, preemptible)
+        instance = await Instance.create(
+            self.app, self, machine_name, activation_token, cores_mcpu, zone, machine_type, preemptible
+        )
         self.add_instance(instance)
         log.info(f'created {instance} for {(batch_id, job_id)}')
 
-        worker_config = await create_instance(app=self.app,
-                                              zone=zone,
-                                              machine_name=machine_name,
-                                              machine_type=machine_type,
-                                              activation_token=activation_token,
-                                              max_idle_time_msecs=WORKER_MAX_IDLE_TIME_MSECS,
-                                              worker_local_ssd_data_disk=False,
-                                              worker_pd_ssd_data_disk_size_gb=storage_gb,
-                                              boot_disk_size_gb=self.boot_disk_size_gb,
-                                              preemptible=preemptible,
-                                              job_private=True)
+        worker_config = await create_instance(
+            app=self.app,
+            zone=zone,
+            machine_name=machine_name,
+            machine_type=machine_type,
+            activation_token=activation_token,
+            max_idle_time_msecs=WORKER_MAX_IDLE_TIME_MSECS,
+            worker_local_ssd_data_disk=False,
+            worker_pd_ssd_data_disk_size_gb=storage_gb,
+            boot_disk_size_gb=self.boot_disk_size_gb,
+            preemptible=preemptible,
+            job_private=True,
+        )
 
         memory_in_bytes = worker_memory_per_core_bytes(worker_type)
-        resources = worker_config.resources(cpu_in_mcpu=cores_mcpu,
-                                            memory_in_bytes=memory_in_bytes,
-                                            storage_in_gib=0)  # this is 0 because there's no addtl disk beyond data disk
+        resources = worker_config.resources(
+            cpu_in_mcpu=cores_mcpu, memory_in_bytes=memory_in_bytes, storage_in_gib=0
+        )  # this is 0 because there's no addtl disk beyond data disk
 
         return (instance, resources)
 
@@ -265,8 +283,7 @@ HAVING n_ready_jobs + n_creating_jobs + n_running_jobs > 0;
 
         user_resources = await self.compute_fair_share()
 
-        total = sum(resources['n_allocated_jobs']
-                    for resources in user_resources.values())
+        total = sum(resources['n_allocated_jobs'] for resources in user_resources.values())
         if not total:
             log.info(f'create_instances {self}: no allocated jobs')
             should_wait = True
@@ -278,15 +295,16 @@ HAVING n_ready_jobs + n_creating_jobs + n_running_jobs > 0;
 
         async def user_runnable_jobs(user, remaining):
             async for batch in self.db.select_and_fetchall(
-                    '''
+                '''
 SELECT id, cancelled, userdata, user, format_version
 FROM batches
 WHERE user = %s AND `state` = 'running';
 ''',
-                    (user,),
-                    timer_description=f'in create_instances {self}: get {user} running batches'):
+                (user,),
+                timer_description=f'in create_instances {self}: get {user} running batches',
+            ):
                 async for record in self.db.select_and_fetchall(
-                        '''
+                    '''
 SELECT jobs.job_id, jobs.spec, jobs.cores_mcpu, COALESCE(SUM(instances.state IS NOT NULL AND
   (instances.state = 'pending' OR instances.state = 'active')), 0) as live_attempts
 FROM jobs FORCE INDEX(jobs_batch_id_state_always_run_inst_coll_cancelled)
@@ -297,8 +315,9 @@ GROUP BY jobs.job_id, jobs.spec, jobs.cores_mcpu
 HAVING live_attempts = 0
 LIMIT %s;
 ''',
-                        (batch['id'], self.name, remaining.value),
-                        timer_description=f'in create_instances {self}: get {user} batch {batch["id"]} runnable jobs (1)'):
+                    (batch['id'], self.name, remaining.value),
+                    timer_description=f'in create_instances {self}: get {user} batch {batch["id"]} runnable jobs (1)',
+                ):
                     record['batch_id'] = batch['id']
                     record['userdata'] = batch['userdata']
                     record['user'] = batch['user']
@@ -306,7 +325,7 @@ LIMIT %s;
                     yield record
                 if not batch['cancelled']:
                     async for record in self.db.select_and_fetchall(
-                            '''
+                        '''
 SELECT jobs.job_id, jobs.spec, jobs.cores_mcpu, COALESCE(SUM(instances.state IS NOT NULL AND
   (instances.state = 'pending' OR instances.state = 'active')), 0) as live_attempts
 FROM jobs FORCE INDEX(jobs_batch_id_state_always_run_cancelled)
@@ -317,8 +336,9 @@ GROUP BY jobs.job_id, jobs.spec, jobs.cores_mcpu
 HAVING live_attempts = 0
 LIMIT %s;
 ''',
-                            (batch['id'], self.name, remaining.value),
-                            timer_description=f'in create_instances {self}: get {user} batch {batch["id"]} runnable jobs (2)'):
+                        (batch['id'], self.name, remaining.value),
+                        timer_description=f'in create_instances {self}: get {user} batch {batch["id"]} runnable jobs (2)',
+                    ):
                         record['batch_id'] = batch['id']
                         record['userdata'] = batch['userdata']
                         record['user'] = batch['user']
@@ -366,12 +386,13 @@ LIMIT %s;
                         spec = json.loads(record['spec'])
                         machine_spec = batch_format_version.get_spec_machine_spec(spec)
                         instance, resources = await self.create_instance(batch_id, job_id, machine_spec)
-                        await mark_job_creating(self.app, batch_id, job_id, attempt_id, instance, time_msecs(), resources)
+                        await mark_job_creating(
+                            self.app, batch_id, job_id, attempt_id, instance, time_msecs(), resources
+                        )
                     except Exception:
                         log.info(f'creating job private instance for job {id}', exc_info=True)
 
-                await waitable_pool.call(
-                    create_instance_with_error_handling, batch_id, job_id, attempt_id, record, id)
+                await waitable_pool.call(create_instance_with_error_handling, batch_id, job_id, attempt_id, record, id)
 
                 remaining.value -= 1
                 if remaining.value <= 0:

@@ -17,37 +17,58 @@ import google.oauth2.service_account
 import google.api_core.exceptions
 import humanize
 from prometheus_async.aio.web import server_stats  # type: ignore
-from hailtop.utils import (time_msecs, time_msecs_str, humanize_timedelta_msecs,
-                           request_retry_transient_errors, run_if_changed,
-                           retry_long_running, LoggingTimer, cost_str, dump_all_stacktraces)
-from hailtop.batch_client.parse import (parse_cpu_in_mcpu, parse_memory_in_bytes, parse_storage_in_bytes)
+from hailtop.utils import (
+    time_msecs,
+    time_msecs_str,
+    humanize_timedelta_msecs,
+    request_retry_transient_errors,
+    run_if_changed,
+    retry_long_running,
+    LoggingTimer,
+    cost_str,
+    dump_all_stacktraces,
+)
+from hailtop.batch_client.parse import parse_cpu_in_mcpu, parse_memory_in_bytes, parse_storage_in_bytes
 from hailtop.config import get_deploy_config
 from hailtop.tls import internal_server_ssl_context
 from hailtop.httpx import client_session
 from hailtop.hail_logging import AccessLogger
 from hailtop import aiotools, dictfix
-from gear import (Database, setup_aiohttp_session,
-                  rest_authenticated_users_only,
-                  web_authenticated_users_only,
-                  web_authenticated_developers_only,
-                  check_csrf_token, transaction,
-                  monitor_endpoint)
-from web_common import (setup_aiohttp_jinja2, setup_common_static_routes,
-                        render_template, set_message)
+from gear import (
+    Database,
+    setup_aiohttp_session,
+    rest_authenticated_users_only,
+    web_authenticated_users_only,
+    web_authenticated_developers_only,
+    check_csrf_token,
+    transaction,
+    monitor_endpoint,
+)
+from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template, set_message
 
 # import uvloop
 
-from ..utils import (coalesce, query_billing_projects, is_valid_cores_mcpu, cost_from_msec_mcpu,
-                     cores_mcpu_to_memory_bytes, batch_only)
+from ..utils import (
+    coalesce,
+    query_billing_projects,
+    is_valid_cores_mcpu,
+    cost_from_msec_mcpu,
+    cores_mcpu_to_memory_bytes,
+    batch_only,
+)
 from ..batch import batch_record_to_dict, job_record_to_dict, cancel_batch_in_db
-from ..exceptions import (BatchUserError, NonExistentBillingProjectError,
-                          ClosedBillingProjectError, InvalidBillingLimitError,
-                          BatchOperationAlreadyCompletedError)
+from ..exceptions import (
+    BatchUserError,
+    NonExistentBillingProjectError,
+    ClosedBillingProjectError,
+    InvalidBillingLimitError,
+    BatchOperationAlreadyCompletedError,
+)
 from ..inst_coll_config import InstanceCollectionConfigs
 from ..log_store import LogStore
 from ..database import CallError, check_call_procedure
-from ..batch_configuration import (BATCH_BUCKET_NAME, DEFAULT_NAMESPACE)
-from ..globals import (HTTP_CLIENT_MAX_SIZE, BATCH_FORMAT_VERSION, memory_to_worker_type)
+from ..batch_configuration import BATCH_BUCKET_NAME, DEFAULT_NAMESPACE
+from ..globals import HTTP_CLIENT_MAX_SIZE, BATCH_FORMAT_VERSION, memory_to_worker_type
 from ..spec_writer import SpecWriter
 from ..batch_format_version import BatchFormatVersion
 
@@ -74,6 +95,7 @@ def rest_authenticated_developers_or_auth_only(fun):
         if userdata['is_developer'] == 1 or userdata['username'] == 'auth':
             return await fun(request, userdata, *args, **kwargs)
         raise web.HTTPUnauthorized()
+
     return wrapped
 
 
@@ -85,7 +107,8 @@ FROM batches
 LEFT JOIN billing_project_users ON batches.billing_project = billing_project_users.billing_project
 WHERE id = %s AND billing_project_users.`user` = %s;
 ''',
-        (batch_id, user))
+        (batch_id, user),
+    )
 
     return record is not None
 
@@ -101,6 +124,7 @@ def rest_billing_project_users_only(fun):
         if not permitted_user:
             raise web.HTTPNotFound()
         return await fun(request, userdata, batch_id, *args, **kwargs)
+
     return wrapped
 
 
@@ -116,7 +140,9 @@ def web_billing_project_users_only(redirect=True):
             if not permitted_user:
                 raise web.HTTPNotFound()
             return await fun(request, userdata, batch_id, *args, **kwargs)
+
         return wrapped
+
     return wrap
 
 
@@ -163,15 +189,13 @@ async def _query_batch_jobs(request, batch_id):
         'failed': ['Failed'],
         'bad': ['Error', 'Failed'],
         'success': ['Success'],
-        'done': ['Cancelled', 'Error', 'Failed', 'Success']
+        'done': ['Cancelled', 'Error', 'Failed', 'Success'],
     }
 
     db = request.app['db']
 
     # batch has already been validated
-    where_conditions = [
-        '(jobs.batch_id = %s)'
-    ]
+    where_conditions = ['(jobs.batch_id = %s)']
     where_args = [batch_id]
 
     last_job_id = request.query.get('last_job_id')
@@ -207,8 +231,7 @@ async def _query_batch_jobs(request, batch_id):
             args = [k]
         elif t in state_query_values:
             values = state_query_values[t]
-            condition = ' OR '.join([
-                '(jobs.state = %s)' for v in values])
+            condition = ' OR '.join(['(jobs.state = %s)' for v in values])
             condition = f'({condition})'
             args = values
         else:
@@ -243,9 +266,7 @@ LIMIT 50;
 '''
     sql_args = where_args
 
-    jobs = [job_record_to_dict(record, record['name'])
-            async for record
-            in db.select_and_fetchall(sql, sql_args)]
+    jobs = [job_record_to_dict(record, record['name']) async for record in db.select_and_fetchall(sql, sql_args)]
 
     if len(jobs) == 50:
         last_job_id = jobs[-1]['job_id']
@@ -264,14 +285,14 @@ async def get_jobs(request, userdata, batch_id):  # pylint: disable=unused-argum
         '''
 SELECT * FROM batches
 WHERE id = %s AND NOT deleted;
-''', (batch_id,))
+''',
+        (batch_id,),
+    )
     if not record:
         raise web.HTTPNotFound()
 
     jobs, last_job_id = await _query_batch_jobs(request, batch_id)
-    resp = {
-        'jobs': jobs
-    }
+    resp = {'jobs': jobs}
     if last_job_id is not None:
         resp['last_job_id'] = last_job_id
     return web.json_response(resp)
@@ -281,12 +302,9 @@ async def _get_job_log_from_record(app, batch_id, job_id, record):
     state = record['state']
     ip_address = record['ip_address']
     if state == 'Running':
-        async with aiohttp.ClientSession(
-                raise_for_status=True,
-                timeout=aiohttp.ClientTimeout(total=5)) as session:
+        async with aiohttp.ClientSession(raise_for_status=True, timeout=aiohttp.ClientTimeout(total=5)) as session:
             try:
-                url = (f'http://{ip_address}:5000'
-                       f'/api/v1alpha/batches/{batch_id}/jobs/{job_id}/log')
+                url = f'http://{ip_address}:5000' f'/api/v1alpha/batches/{batch_id}/jobs/{job_id}/log'
                 resp = await request_retry_transient_errors(session, 'GET', url)
                 return await resp.json()
             except aiohttp.ClientResponseError as e:
@@ -328,7 +346,8 @@ async def _get_job_log_from_record(app, batch_id, job_id, record):
 async def _get_job_log(app, batch_id, job_id):
     db: Database = app['db']
 
-    record = await db.select_and_fetchone('''
+    record = await db.select_and_fetchone(
+        '''
 SELECT jobs.state, jobs.spec, ip_address, format_version, jobs.attempt_id
 FROM jobs
 INNER JOIN batches
@@ -339,7 +358,8 @@ LEFT JOIN instances
   ON attempts.instance_name = instances.name
 WHERE jobs.batch_id = %s AND NOT deleted AND jobs.job_id = %s;
 ''',
-                                          (batch_id, job_id))
+        (batch_id, job_id),
+    )
     if not record:
         raise web.HTTPNotFound()
     return await _get_job_log_from_record(app, batch_id, job_id, record)
@@ -356,12 +376,14 @@ async def _get_attributes(app, record):
         spec = json.loads(record['spec'])
         return spec.get('attributes')
 
-    records = db.select_and_fetchall('''
+    records = db.select_and_fetchall(
+        '''
 SELECT `key`, `value`
 FROM job_attributes
 WHERE batch_id = %s AND job_id = %s;
 ''',
-                                     (batch_id, job_id))
+        (batch_id, job_id),
+    )
     return {record['key']: record['value'] async for record in records}
 
 
@@ -415,12 +437,9 @@ async def _get_full_job_status(app, record):
     assert record['status'] is None
 
     ip_address = record['ip_address']
-    async with aiohttp.ClientSession(
-            raise_for_status=True,
-            timeout=aiohttp.ClientTimeout(total=5)) as session:
+    async with aiohttp.ClientSession(raise_for_status=True, timeout=aiohttp.ClientTimeout(total=5)) as session:
         try:
-            url = (f'http://{ip_address}:5000'
-                   f'/api/v1alpha/batches/{batch_id}/jobs/{job_id}/status')
+            url = f'http://{ip_address}:5000' f'/api/v1alpha/batches/{batch_id}/jobs/{job_id}/status'
             resp = await request_retry_transient_errors(session, 'GET', url)
             return await resp.json()
         except aiohttp.ClientResponseError as e:
@@ -441,7 +460,10 @@ async def get_job_log(request, userdata, batch_id):  # pylint: disable=unused-ar
 async def _query_batches(request, user, q):
     db = request.app['db']
 
-    where_conditions = ['EXISTS (SELECT * FROM billing_project_users WHERE billing_project_users.`user` = %s AND billing_project_users.billing_project = batches.billing_project)', 'NOT deleted']
+    where_conditions = [
+        'EXISTS (SELECT * FROM billing_project_users WHERE billing_project_users.`user` = %s AND billing_project_users.billing_project = batches.billing_project)',
+        'NOT deleted',
+    ]
     where_args = [user]
 
     last_batch_id = request.query.get('last_batch_id')
@@ -533,9 +555,7 @@ LIMIT 51;
 '''
     sql_args = where_args
 
-    batches = [batch_record_to_dict(batch)
-               async for batch
-               in db.select_and_fetchall(sql, sql_args)]
+    batches = [batch_record_to_dict(batch) async for batch in db.select_and_fetchall(sql, sql_args)]
 
     if len(batches) == 51:
         batches.pop()
@@ -553,9 +573,7 @@ async def get_batches(request, userdata):  # pylint: disable=unused-argument
     user = userdata['username']
     q = request.query.get('q', f'user:{user}')
     batches, last_batch_id = await _query_batches(request, user, q)
-    body = {
-        'batches': batches
-    }
+    body = {'batches': batches}
     if last_batch_id is not None:
         body['last_batch_id'] = last_batch_id
     return web.json_response(body)
@@ -565,9 +583,8 @@ def check_service_account_permissions(user, sa):
     if sa is None:
         return
     if user == 'ci':
-        if sa['name'] in ('ci-agent', 'admin'):
-            if DEFAULT_NAMESPACE == 'default' or sa['namespace'] == DEFAULT_NAMESPACE:  # pylint: disable=consider-using-in
-                return
+        if sa['name'] in ('ci-agent', 'admin') and DEFAULT_NAMESPACE in ('default', sa['namespace']):
+            return
     elif user == 'test':
         if sa['namespace'] == DEFAULT_NAMESPACE and sa['name'] == 'test-batch-sa':
             return
@@ -591,7 +608,7 @@ async def create_jobs(request, userdata):
     userdata = {
         'username': user,
         'gsa_key_secret_name': userdata['gsa_key_secret_name'],
-        'tokens_secret_name': userdata['tokens_secret_name']
+        'tokens_secret_name': userdata['tokens_secret_name'],
     }
 
     async with LoggingTimer(f'batch {batch_id} create jobs') as timer:
@@ -601,7 +618,8 @@ async def create_jobs(request, userdata):
 SELECT `state`, format_version FROM batches
 WHERE user = %s AND id = %s AND NOT deleted;
 ''',
-                (user, batch_id))
+                (user, batch_id),
+            )
 
         if not record:
             raise web.HTTPNotFound()
@@ -625,13 +643,15 @@ WHERE user = %s AND id = %s AND NOT deleted;
             job_parents_args = []
             job_attributes_args = []
 
-            inst_coll_resources = collections.defaultdict(lambda: {
-                'n_jobs': 0,
-                'n_ready_jobs': 0,
-                'ready_cores_mcpu': 0,
-                'n_ready_cancellable_jobs': 0,
-                'ready_cancellable_cores_mcpu': 0
-            })
+            inst_coll_resources = collections.defaultdict(
+                lambda: {
+                    'n_jobs': 0,
+                    'n_ready_jobs': 0,
+                    'ready_cores_mcpu': 0,
+                    'n_ready_cancellable_jobs': 0,
+                    'ready_cancellable_cores_mcpu': 0,
+                }
+            )
 
             prev_job_idx = None
             start_job_id = None
@@ -654,7 +674,8 @@ WHERE user = %s AND id = %s AND NOT deleted;
                 if batch_format_version.has_full_spec_in_gcs() and prev_job_idx:
                     if job_id != prev_job_idx + 1:
                         raise web.HTTPBadRequest(
-                            reason=f'noncontiguous job ids found in the spec: {prev_job_idx} -> {job_id}')
+                            reason=f'noncontiguous job ids found in the spec: {prev_job_idx} -> {job_id}'
+                        )
                 prev_job_idx = job_id
 
                 resources = spec.get('resources')
@@ -667,8 +688,7 @@ WHERE user = %s AND id = %s AND NOT deleted;
                 preemptible = resources.get('preemptible', BATCH_JOB_DEFAULT_PREEMPTIBLE)
 
                 if machine_type and ('cpu' in resources or 'memory' in resources):
-                    raise web.HTTPBadRequest(
-                        reason='cannot specify cpu and memory with machine_type')
+                    raise web.HTTPBadRequest(reason='cannot specify cpu and memory with machine_type')
 
                 if machine_type is None:
                     if 'cpu' not in resources:
@@ -681,7 +701,8 @@ WHERE user = %s AND id = %s AND NOT deleted;
                         raise web.HTTPBadRequest(
                             reason=f'bad resource request for job {id}: '
                             f'cpu must be a power of two with a min of 0.25; '
-                            f'found {resources["req_cpu"]}.')
+                            f'found {resources["req_cpu"]}.'
+                        )
 
                     if 'memory' not in resources:
                         resources['memory'] = BATCH_JOB_DEFAULT_MEMORY
@@ -712,9 +733,9 @@ WHERE user = %s AND id = %s AND NOT deleted;
 
                 inst_coll_configs: InstanceCollectionConfigs = app['inst_coll_configs']
 
-                result, exc = inst_coll_configs.select_inst_coll(machine_type, preemptible,
-                                                                 worker_type, req_cores_mcpu,
-                                                                 req_memory_bytes, req_storage_bytes)
+                result, exc = inst_coll_configs.select_inst_coll(
+                    machine_type, preemptible, worker_type, req_cores_mcpu, req_memory_bytes, req_storage_bytes
+                )
 
                 if exc:
                     raise web.HTTPBadRequest(reason=exc.message)
@@ -726,7 +747,8 @@ WHERE user = %s AND id = %s AND NOT deleted;
                         f'memory={resources["req_memory"]}, '
                         f'storage={resources["req_storage"]}, '
                         f'preemptible={preemptible}, '
-                        f'machine_type={machine_type}')
+                        f'machine_type={machine_type}'
+                    )
 
                 inst_coll_name, cores_mcpu, memory_bytes, storage_gib = result
                 resources['cores_mcpu'] = cores_mcpu
@@ -747,12 +769,14 @@ WHERE user = %s AND id = %s AND NOT deleted;
                         raise web.HTTPBadRequest(reason=f'unauthorized secret {(secret["namespace"], secret["name"])}')
 
                 spec['secrets'] = secrets
-                secrets.append({
-                    'namespace': DEFAULT_NAMESPACE,
-                    'name': userdata['gsa_key_secret_name'],
-                    'mount_path': '/gsa-key',
-                    'mount_in_copy': True
-                })
+                secrets.append(
+                    {
+                        'namespace': DEFAULT_NAMESPACE,
+                        'name': userdata['gsa_key_secret_name'],
+                        'mount_path': '/gsa-key',
+                        'mount_in_copy': True,
+                    }
+                )
 
                 env = spec.get('env')
                 if not env:
@@ -761,28 +785,33 @@ WHERE user = %s AND id = %s AND NOT deleted;
                 assert isinstance(spec['env'], list)
 
                 if all(envvar['name'] != 'GOOGLE_APPLICATION_CREDENTIALS' for envvar in spec['env']):
-                    spec['env'].append(
-                        {'name': 'GOOGLE_APPLICATION_CREDENTIALS', 'value': '/gsa-key/key.json'})
+                    spec['env'].append({'name': 'GOOGLE_APPLICATION_CREDENTIALS', 'value': '/gsa-key/key.json'})
 
                 if spec.get('mount_tokens', False):
-                    secrets.append({
-                        'namespace': DEFAULT_NAMESPACE,
-                        'name': userdata['tokens_secret_name'],
-                        'mount_path': '/user-tokens',
-                        'mount_in_copy': False
-                    })
-                    secrets.append({
-                        'namespace': DEFAULT_NAMESPACE,
-                        'name': 'gce-deploy-config',
-                        'mount_path': '/deploy-config',
-                        'mount_in_copy': False
-                    })
-                    secrets.append({
-                        'namespace': DEFAULT_NAMESPACE,
-                        'name': 'ssl-config-batch-user-code',
-                        'mount_path': '/ssl-config',
-                        'mount_in_copy': False
-                    })
+                    secrets.append(
+                        {
+                            'namespace': DEFAULT_NAMESPACE,
+                            'name': userdata['tokens_secret_name'],
+                            'mount_path': '/user-tokens',
+                            'mount_in_copy': False,
+                        }
+                    )
+                    secrets.append(
+                        {
+                            'namespace': DEFAULT_NAMESPACE,
+                            'name': 'gce-deploy-config',
+                            'mount_path': '/deploy-config',
+                            'mount_in_copy': False,
+                        }
+                    )
+                    secrets.append(
+                        {
+                            'namespace': DEFAULT_NAMESPACE,
+                            'name': 'ssl-config-batch-user-code',
+                            'mount_path': '/ssl-config',
+                            'mount_in_copy': False,
+                        }
+                    )
 
                 sa = spec.get('service_account')
                 check_service_account_permissions(user, sa)
@@ -807,17 +836,24 @@ WHERE user = %s AND id = %s AND NOT deleted;
                 db_spec = batch_format_version.db_spec(spec)
 
                 jobs_args.append(
-                    (batch_id, job_id, state, json.dumps(db_spec),
-                     always_run, cores_mcpu, len(parent_ids), inst_coll_name))
+                    (
+                        batch_id,
+                        job_id,
+                        state,
+                        json.dumps(db_spec),
+                        always_run,
+                        cores_mcpu,
+                        len(parent_ids),
+                        inst_coll_name,
+                    )
+                )
 
                 for parent_id in parent_ids:
-                    job_parents_args.append(
-                        (batch_id, job_id, parent_id))
+                    job_parents_args.append((batch_id, job_id, parent_id))
 
                 if attributes:
                     for k, v in attributes.items():
-                        job_attributes_args.append(
-                            (batch_id, job_id, k, v))
+                        job_attributes_args.append((batch_id, job_id, k, v))
 
         if batch_format_version.has_full_spec_in_gcs():
             async with timer.step('write spec to gcs'):
@@ -826,14 +862,17 @@ WHERE user = %s AND id = %s AND NOT deleted;
         rand_token = random.randint(0, app['n_tokens'] - 1)
 
         async with timer.step('insert jobs'):
+
             @transaction(db)
             async def insert(tx):
                 try:
-                    await tx.execute_many('''
+                    await tx.execute_many(
+                        '''
 INSERT INTO jobs (batch_id, job_id, state, spec, always_run, cores_mcpu, n_pending_parents, inst_coll)
 VALUES (%s, %s, %s, %s, %s, %s, %s, %s);
 ''',
-                                          jobs_args)
+                        jobs_args,
+                    )
                 except pymysql.err.IntegrityError as err:
                     # 1062 ER_DUP_ENTRY https://dev.mysql.com/doc/refman/5.7/en/server-error-reference.html#error_er_dup_entry
                     if err.args[0] == 1062:
@@ -841,22 +880,25 @@ VALUES (%s, %s, %s, %s, %s, %s, %s, %s);
                         return
                     raise
                 try:
-                    await tx.execute_many('''
+                    await tx.execute_many(
+                        '''
 INSERT INTO `job_parents` (batch_id, job_id, parent_id)
 VALUES (%s, %s, %s);
 ''',
-                                          job_parents_args)
+                        job_parents_args,
+                    )
                 except pymysql.err.IntegrityError as err:
                     # 1062 ER_DUP_ENTRY https://dev.mysql.com/doc/refman/5.7/en/server-error-reference.html#error_er_dup_entry
                     if err.args[0] == 1062:
-                        raise web.HTTPBadRequest(
-                            text=f'bunch contains job with duplicated parents ({err})')
+                        raise web.HTTPBadRequest(text=f'bunch contains job with duplicated parents ({err})')
                     raise
-                await tx.execute_many('''
+                await tx.execute_many(
+                    '''
 INSERT INTO `job_attributes` (batch_id, job_id, `key`, `value`)
 VALUES (%s, %s, %s, %s);
 ''',
-                                      job_attributes_args)
+                    job_attributes_args,
+                )
 
                 for inst_coll, resources in inst_coll_resources.items():
                     n_jobs = resources['n_jobs']
@@ -865,7 +907,8 @@ VALUES (%s, %s, %s, %s);
                     n_ready_cancellable_jobs = resources['n_ready_cancellable_jobs']
                     ready_cancellable_cores_mcpu = resources['ready_cancellable_cores_mcpu']
 
-                    await tx.execute_update('''
+                    await tx.execute_update(
+                        '''
 INSERT INTO batches_inst_coll_staging (batch_id, inst_coll, token, n_jobs, n_ready_jobs, ready_cores_mcpu)
 VALUES (%s, %s, %s, %s, %s, %s)
 ON DUPLICATE KEY UPDATE
@@ -873,35 +916,56 @@ ON DUPLICATE KEY UPDATE
   n_ready_jobs = n_ready_jobs + %s,
   ready_cores_mcpu = ready_cores_mcpu + %s;
 ''',
-                                            (batch_id, inst_coll, rand_token,
-                                             n_jobs, n_ready_jobs, ready_cores_mcpu,
-                                             n_jobs, n_ready_jobs, ready_cores_mcpu))
-                    await tx.execute_update('''
+                        (
+                            batch_id,
+                            inst_coll,
+                            rand_token,
+                            n_jobs,
+                            n_ready_jobs,
+                            ready_cores_mcpu,
+                            n_jobs,
+                            n_ready_jobs,
+                            ready_cores_mcpu,
+                        ),
+                    )
+                    await tx.execute_update(
+                        '''
 INSERT INTO batch_inst_coll_cancellable_resources (batch_id, inst_coll, token, n_ready_cancellable_jobs, ready_cancellable_cores_mcpu)
 VALUES (%s, %s, %s, %s, %s)
 ON DUPLICATE KEY UPDATE
   n_ready_cancellable_jobs = n_ready_cancellable_jobs + %s,
   ready_cancellable_cores_mcpu = ready_cancellable_cores_mcpu + %s;
 ''',
-                                            (batch_id, inst_coll, rand_token,
-                                             n_ready_cancellable_jobs, ready_cancellable_cores_mcpu,
-                                             n_ready_cancellable_jobs, ready_cancellable_cores_mcpu))
+                        (
+                            batch_id,
+                            inst_coll,
+                            rand_token,
+                            n_ready_cancellable_jobs,
+                            ready_cancellable_cores_mcpu,
+                            n_ready_cancellable_jobs,
+                            ready_cancellable_cores_mcpu,
+                        ),
+                    )
 
                 if batch_format_version.has_full_spec_in_gcs():
-                    await tx.execute_update('''
+                    await tx.execute_update(
+                        '''
 INSERT INTO batch_bunches (batch_id, token, start_job_id)
 VALUES (%s, %s, %s);
 ''',
-                                            (batch_id, spec_writer.token, start_job_id))
+                        (batch_id, spec_writer.token, start_job_id),
+                    )
 
             try:
                 await insert()  # pylint: disable=no-value-for-parameter
             except aiohttp.web.HTTPException:
                 raise
             except Exception as err:
-                raise ValueError(f'encountered exception while inserting a bunch'
-                                 f'jobs_args={json.dumps(jobs_args)}'
-                                 f'job_parents_args={json.dumps(job_parents_args)}') from err
+                raise ValueError(
+                    f'encountered exception while inserting a bunch'
+                    f'jobs_args={json.dumps(jobs_args)}'
+                    f'job_parents_args={json.dumps(job_parents_args)}'
+                ) from err
     return web.Response()
 
 
@@ -926,7 +990,7 @@ async def create_batch(request, userdata):
     userdata = {
         'username': user,
         'gsa_key_secret_name': userdata['gsa_key_secret_name'],
-        'tokens_secret_name': userdata['tokens_secret_name']
+        'tokens_secret_name': userdata['tokens_secret_name'],
     }
 
     billing_project = batch_spec['billing_project']
@@ -949,14 +1013,17 @@ async def create_batch(request, userdata):
         limit = bp['limit']
         accrued_cost = bp['accrued_cost']
         if limit is not None and accrued_cost >= limit:
-            raise web.HTTPForbidden(reason=f'billing project {billing_project} has exceeded the budget; accrued={cost_str(accrued_cost)} limit={cost_str(limit)}')
+            raise web.HTTPForbidden(
+                reason=f'billing project {billing_project} has exceeded the budget; accrued={cost_str(accrued_cost)} limit={cost_str(limit)}'
+            )
 
         maybe_batch = await tx.execute_and_fetchone(
             '''
 SELECT * FROM batches
 WHERE token = %s AND user = %s FOR UPDATE;
 ''',
-            (token, user))
+            (token, user),
+        )
 
         if maybe_batch is not None:
             return maybe_batch['id']
@@ -967,9 +1034,20 @@ WHERE token = %s AND user = %s FOR UPDATE;
 INSERT INTO batches (userdata, user, billing_project, attributes, callback, n_jobs, time_created, token, state, format_version, cancel_after_n_failures)
 VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
 ''',
-            (json.dumps(userdata), user, billing_project, json.dumps(attributes),
-             batch_spec.get('callback'), batch_spec['n_jobs'],
-             now, token, 'open', BATCH_FORMAT_VERSION, batch_spec.get('cancel_after_n_failures')))
+            (
+                json.dumps(userdata),
+                user,
+                billing_project,
+                json.dumps(attributes),
+                batch_spec.get('callback'),
+                batch_spec['n_jobs'],
+                now,
+                token,
+                'open',
+                BATCH_FORMAT_VERSION,
+                batch_spec.get('cancel_after_n_failures'),
+            ),
+        )
 
         if attributes:
             await tx.execute_many(
@@ -977,8 +1055,10 @@ VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
 INSERT INTO `batch_attributes` (batch_id, `key`, `value`)
 VALUES (%s, %s, %s)
 ''',
-                [(id, k, v) for k, v in attributes.items()])
+                [(id, k, v) for k, v in attributes.items()],
+            )
         return id
+
     id = await insert()  # pylint: disable=no-value-for-parameter
     return web.json_response({'id': id})
 
@@ -986,7 +1066,8 @@ VALUES (%s, %s, %s)
 async def _get_batch(app, batch_id):
     db: Database = app['db']
 
-    record = await db.select_and_fetchone('''
+    record = await db.select_and_fetchone(
+        '''
 SELECT batches.*, SUM(`usage` * rate) AS cost FROM batches
 LEFT JOIN aggregated_batch_resources
        ON batches.id = aggregated_batch_resources.batch_id
@@ -994,7 +1075,9 @@ LEFT JOIN resources
        ON aggregated_batch_resources.resource = resources.resource
 WHERE id = %s AND NOT deleted
 GROUP BY batches.id;
-''', (batch_id))
+''',
+        (batch_id),
+    )
     if not record:
         raise web.HTTPNotFound()
 
@@ -1015,14 +1098,13 @@ async def _delete_batch(app, batch_id):
 SELECT `state` FROM batches
 WHERE id = %s AND NOT deleted;
 ''',
-        (batch_id,))
+        (batch_id,),
+    )
     if not record:
         raise web.HTTPNotFound()
 
-    await db.just_execute(
-        'CALL cancel_batch(%s);', (batch_id,))
-    await db.execute_update(
-        'UPDATE batches SET deleted = 1 WHERE id = %s;', (batch_id,))
+    await db.just_execute('CALL cancel_batch(%s);', (batch_id,))
+    await db.execute_update('UPDATE batches SET deleted = 1 WHERE id = %s;', (batch_id,))
 
     if record['state'] == 'running':
         app['delete_batch_state_changed'].set()
@@ -1058,28 +1140,29 @@ async def close_batch(request, userdata):
 SELECT 1 FROM batches
 WHERE user = %s AND id = %s AND NOT deleted;
 ''',
-        (user, batch_id))
+        (user, batch_id),
+    )
     if not record:
         raise web.HTTPNotFound()
 
     try:
         now = time_msecs()
-        await check_call_procedure(
-            db, 'CALL close_batch(%s, %s);', (batch_id, now))
+        await check_call_procedure(db, 'CALL close_batch(%s, %s);', (batch_id, now))
     except CallError as e:
         # 2: wrong number of jobs
         if e.rv['rc'] == 2:
             expected_n_jobs = e.rv['expected_n_jobs']
             actual_n_jobs = e.rv['actual_n_jobs']
-            raise web.HTTPBadRequest(
-                reason=f'wrong number of jobs: expected {expected_n_jobs}, actual {actual_n_jobs}')
+            raise web.HTTPBadRequest(reason=f'wrong number of jobs: expected {expected_n_jobs}, actual {actual_n_jobs}')
         raise
 
     async with client_session() as session:
         await request_retry_transient_errors(
-            session, 'PATCH',
+            session,
+            'PATCH',
             deploy_config.url('batch-driver', f'/api/v1alpha/batches/{user}/{batch_id}/close'),
-            headers=app['batch_headers'])
+            headers=app['batch_headers'],
+        )
 
     return web.Response()
 
@@ -1107,11 +1190,7 @@ async def ui_batch(request, userdata, batch_id):
 
     batch['cost'] = cost_str(batch['cost'])
 
-    page_context = {
-        'batch': batch,
-        'q': request.query.get('q'),
-        'last_job_id': last_job_id
-    }
+    page_context = {'batch': batch, 'q': request.query.get('q'), 'last_job_id': last_job_id}
     return await render_template('batch', request, userdata, 'batch.html', page_context)
 
 
@@ -1159,18 +1238,15 @@ async def ui_batches(request, userdata):
     batches, last_batch_id = await _query_batches(request, user, q)
     for batch in batches:
         batch['cost'] = cost_str(batch['cost'])
-    page_context = {
-        'batches': batches,
-        'q': q,
-        'last_batch_id': last_batch_id
-    }
+    page_context = {'batches': batches, 'q': q, 'last_batch_id': last_batch_id}
     return await render_template('batch', request, userdata, 'batches.html', page_context)
 
 
 async def _get_job(app, batch_id, job_id):
     db: Database = app['db']
 
-    record = await db.select_and_fetchone('''
+    record = await db.select_and_fetchone(
+        '''
 SELECT jobs.*, user, billing_project, ip_address, format_version, SUM(`usage` * rate) AS cost
 FROM jobs
 INNER JOIN batches
@@ -1187,14 +1263,13 @@ LEFT JOIN resources
 WHERE jobs.batch_id = %s AND NOT deleted AND jobs.job_id = %s
 GROUP BY jobs.batch_id, jobs.job_id;
 ''',
-                                          (batch_id, job_id))
+        (batch_id, job_id),
+    )
     if not record:
         raise web.HTTPNotFound()
 
     full_status, full_spec, attributes = await asyncio.gather(
-        _get_full_job_status(app, record),
-        _get_full_job_spec(app, record),
-        _get_attributes(app, record)
+        _get_full_job_status(app, record), _get_full_job_spec(app, record), _get_attributes(app, record)
     )
 
     job = job_record_to_dict(record, attributes.get('name'))
@@ -1208,14 +1283,16 @@ GROUP BY jobs.batch_id, jobs.job_id;
 async def _get_attempts(app, batch_id, job_id):
     db: Database = app['db']
 
-    attempts = db.select_and_fetchall('''
+    attempts = db.select_and_fetchall(
+        '''
 SELECT attempts.*
 FROM jobs
 INNER JOIN batches ON jobs.batch_id = batches.id
 LEFT JOIN attempts ON jobs.batch_id = attempts.batch_id and jobs.job_id = attempts.job_id
 WHERE jobs.batch_id = %s AND NOT deleted AND jobs.job_id = %s;
 ''',
-                                      (batch_id, job_id))
+        (batch_id, job_id),
+    )
 
     attempts = [attempt async for attempt in attempts]
     if len(attempts) == 0:
@@ -1273,30 +1350,36 @@ async def ui_get_job(request, userdata, batch_id):
     app = request.app
     job_id = int(request.match_info['job_id'])
 
-    job, attempts, job_log = await asyncio.gather(_get_job(app, batch_id, job_id),
-                                                  _get_attempts(app, batch_id, job_id),
-                                                  _get_job_log(app, batch_id, job_id))
+    job, attempts, job_log = await asyncio.gather(
+        _get_job(app, batch_id, job_id), _get_attempts(app, batch_id, job_id), _get_job_log(app, batch_id, job_id)
+    )
 
     job['duration'] = humanize_timedelta_msecs(job['duration'])
     job['cost'] = cost_str(job['cost'])
 
     job_status = job['status']
-    container_status_spec = dictfix.NoneOr({
-        'name': str,
-        'timing': {'pulling': dictfix.NoneOr({'duration': dictfix.NoneOr(Number)}),
-                   'running': dictfix.NoneOr({'duration': dictfix.NoneOr(Number)})},
-        'short_error': dictfix.NoneOr(str),
-        'container_status': {'out_of_memory': dictfix.NoneOr(bool)},
-        'state': str})
+    container_status_spec = dictfix.NoneOr(
+        {
+            'name': str,
+            'timing': {
+                'pulling': dictfix.NoneOr({'duration': dictfix.NoneOr(Number)}),
+                'running': dictfix.NoneOr({'duration': dictfix.NoneOr(Number)}),
+            },
+            'short_error': dictfix.NoneOr(str),
+            'container_status': {'out_of_memory': dictfix.NoneOr(bool)},
+            'state': str,
+        }
+    )
     job_status_spec = {
-        'container_statuses': {'input': container_status_spec,
-                               'main': container_status_spec,
-                               'output': container_status_spec}}
+        'container_statuses': {
+            'input': container_status_spec,
+            'main': container_status_spec,
+            'output': container_status_spec,
+        }
+    }
     job_status = dictfix.dictfix(job_status, job_status_spec)
     container_statuses = job_status['container_statuses']
-    step_statuses = [container_statuses['input'],
-                     container_statuses['main'],
-                     container_statuses['output']]
+    step_statuses = [container_statuses['input'], container_statuses['main'], container_statuses['output']]
 
     for status in step_statuses:
         # backwards compatibility
@@ -1311,18 +1394,16 @@ async def ui_get_job(request, userdata, batch_id):
             assert process_specification['type'] in {'docker', 'jvm'}
             job_specification['image'] = process_specification['image'] if process_type == 'docker' else '[jvm]'
             job_specification['command'] = process_specification['command']
-        job_specification = dictfix.dictfix(job_specification,
-                                            dictfix.NoneOr({'image': str,
-                                                            'command': list,
-                                                            'resources': dict(),
-                                                            'env': list}))
+        job_specification = dictfix.dictfix(
+            job_specification, dictfix.NoneOr({'image': str, 'command': list, 'resources': dict(), 'env': list})
+        )
 
     resources = job_specification['resources']
     if 'memory_bytes' in resources:
         resources['actual_memory'] = humanize.naturalsize(resources['memory_bytes'], binary=True)
         del resources['memory_bytes']
     if 'storage_gib' in resources:
-        resources['actual_storage'] = humanize.naturalsize(resources['storage_gib'] * 1024**3, binary=True)
+        resources['actual_storage'] = humanize.naturalsize(resources['storage_gib'] * 1024 ** 3, binary=True)
         del resources['storage_gib']
     if 'cores_mcpu' in resources:
         resources['actual_cpu'] = resources['cores_mcpu'] / 1000
@@ -1336,7 +1417,7 @@ async def ui_get_job(request, userdata, batch_id):
         'attempts': attempts,
         'step_statuses': step_statuses,
         'job_specification': job_specification,
-        'job_status_str': json.dumps(job, indent=2)
+        'job_status_str': json.dumps(job, indent=2),
     }
     return await render_template('batch', request, userdata, 'job.html', page_context)
 
@@ -1355,10 +1436,7 @@ async def ui_get_billing_limits(request, userdata):
 
     billing_projects = await query_billing_projects(db, user=user)
 
-    page_context = {
-        'billing_projects': billing_projects,
-        'is_developer': userdata['is_developer']
-    }
+    page_context = {'billing_projects': billing_projects, 'is_developer': userdata['is_developer']}
     return await render_template('batch', request, userdata, 'billing_limits.html', page_context)
 
 
@@ -1387,7 +1465,8 @@ FROM billing_projects
 WHERE billing_projects.name = %s AND billing_projects.`status` != 'deleted'
 FOR UPDATE;
         ''',
-            (billing_project,))
+            (billing_project,),
+        )
         if row is None:
             raise NonExistentBillingProjectError(billing_project)
 
@@ -1398,7 +1477,9 @@ FOR UPDATE;
             '''
 UPDATE billing_projects SET `limit` = %s WHERE name = %s;
 ''',
-            (limit, billing_project))
+            (limit, billing_project),
+        )
+
     await insert()  # pylint: disable=no-value-for-parameter
 
 
@@ -1491,9 +1572,7 @@ GROUP BY billing_project, `user`;
         del record['msec_mcpu']
         return record
 
-    billing = [billing_record_to_dict(record)
-               async for record
-               in db.select_and_fetchall(sql, sql_args)]
+    billing = [billing_record_to_dict(record) async for record in db.select_and_fetchall(sql, sql_args)]
 
     return (billing, start_query, end_query)
 
@@ -1513,20 +1592,19 @@ async def ui_get_billing(request, userdata):
         billing_by_user[user] = billing_by_user.get(user, 0) + cost
         billing_by_project[billing_project] = billing_by_project.get(billing_project, 0) + cost
 
-    billing_by_project = [{'billing_project': billing_project,
-                           'cost': cost_str(cost)}
-                          for billing_project, cost in billing_by_project.items()]
+    billing_by_project = [
+        {'billing_project': billing_project, 'cost': cost_str(cost)}
+        for billing_project, cost in billing_by_project.items()
+    ]
     billing_by_project.sort(key=lambda record: record['billing_project'])
 
-    billing_by_user = [{'user': user,
-                        'cost': cost_str(cost)}
-                       for user, cost in billing_by_user.items()]
+    billing_by_user = [{'user': user, 'cost': cost_str(cost)} for user, cost in billing_by_user.items()]
     billing_by_user.sort(key=lambda record: record['user'])
 
-    billing_by_project_user = [{'billing_project': record['billing_project'],
-                                'user': record['user'],
-                                'cost': cost_str(record['cost'])}
-                               for record in billing]
+    billing_by_project_user = [
+        {'billing_project': record['billing_project'], 'user': record['user'], 'cost': cost_str(record['cost'])}
+        for record in billing
+    ]
     billing_by_project_user.sort(key=lambda record: (record['billing_project'], record['user']))
 
     page_context = {
@@ -1534,7 +1612,7 @@ async def ui_get_billing(request, userdata):
         'billing_by_user': billing_by_user,
         'billing_by_project_user': billing_by_project_user,
         'start': start,
-        'end': end
+        'end': end,
     }
     return await render_template('batch', request, userdata, 'billing.html', page_context)
 
@@ -1547,7 +1625,7 @@ async def ui_get_billing_projects(request, userdata):
     billing_projects = await query_billing_projects(db)
     page_context = {
         'billing_projects': [{**p, 'size': len(p['users'])} for p in billing_projects if p['status'] == 'open'],
-        'closed_projects': [p for p in billing_projects if p['status'] == 'closed']
+        'closed_projects': [p for p in billing_projects if p['status'] == 'closed'],
     }
     return await render_template('batch', request, userdata, 'billing_projects.html', page_context)
 
@@ -1602,23 +1680,30 @@ LEFT JOIN (SELECT * FROM billing_project_users
   ON billing_projects.name = t.billing_project
 WHERE billing_projects.name = %s;
 ''',
-            (billing_project, user, billing_project))
+            (billing_project, user, billing_project),
+        )
         if not row:
             raise NonExistentBillingProjectError(billing_project)
         assert row['billing_project'] == billing_project
 
         if row['status'] in {'closed', 'deleted'}:
-            raise BatchUserError(f'Billing project {billing_project} has been closed or deleted and cannot be modified.', 'error')
+            raise BatchUserError(
+                f'Billing project {billing_project} has been closed or deleted and cannot be modified.', 'error'
+            )
 
         if row['user'] is None:
-            raise BatchOperationAlreadyCompletedError(f'User {user} is not in billing project {billing_project}.', 'info')
+            raise BatchOperationAlreadyCompletedError(
+                f'User {user} is not in billing project {billing_project}.', 'info'
+            )
 
         await tx.just_execute(
             '''
 DELETE FROM billing_project_users
 WHERE billing_project = %s AND user = %s;
 ''',
-            (billing_project, user))
+            (billing_project, user),
+        )
+
     await delete()  # pylint: disable=no-value-for-parameter
 
 
@@ -1663,7 +1748,8 @@ WHERE billing_project = %s AND user = %s FOR UPDATE) AS t
 ON billing_projects.name = t.billing_project
 WHERE billing_projects.name = %s AND billing_projects.`status` != 'deleted' LOCK IN SHARE MODE;
         ''',
-            (billing_project, user, billing_project))
+            (billing_project, user, billing_project),
+        )
         if row is None:
             raise NonExistentBillingProjectError(billing_project)
 
@@ -1671,13 +1757,17 @@ WHERE billing_projects.name = %s AND billing_projects.`status` != 'deleted' LOCK
             raise ClosedBillingProjectError(billing_project)
 
         if row['user'] is not None:
-            raise BatchOperationAlreadyCompletedError(f'User {user} is already member of billing project {billing_project}.', 'info')
+            raise BatchOperationAlreadyCompletedError(
+                f'User {user} is already member of billing project {billing_project}.', 'info'
+            )
         await tx.execute_insertone(
             '''
 INSERT INTO billing_project_users(billing_project, user)
 VALUES (%s, %s);
         ''',
-            (billing_project, user))
+            (billing_project, user),
+        )
+
     await insert()  # pylint: disable=no-value-for-parameter
 
 
@@ -1720,7 +1810,8 @@ SELECT `status` FROM billing_projects
 WHERE name = %s
 FOR UPDATE;
 ''',
-            (billing_project))
+            (billing_project),
+        )
         if row is not None:
             raise BatchOperationAlreadyCompletedError(f'Billing project {billing_project} already exists.', 'info')
 
@@ -1729,7 +1820,9 @@ FOR UPDATE;
 INSERT INTO billing_projects(name)
 VALUES (%s);
 ''',
-            (billing_project,))
+            (billing_project,),
+        )
+
     await insert()  # pylint: disable=no-value-for-parameter
 
 
@@ -1769,21 +1862,27 @@ SELECT name, `status`, batches.id as batch_id
 FROM billing_projects
 LEFT JOIN batches
 ON billing_projects.name = batches.billing_project
-AND billing_projects.`status` != 'deleted' AND batches.time_completed IS NULL
-WHERE name = %s LIMIT 1 FOR UPDATE;
+AND billing_projects.`status` != 'deleted'
+AND batches.time_completed IS NULL
+AND NOT batches.deleted
+WHERE name = %s
+LIMIT 1
+FOR UPDATE;
     ''',
-            (billing_project,))
+            (billing_project,),
+        )
         if not row:
             raise NonExistentBillingProjectError(billing_project)
         assert row['name'] == billing_project
         if row['status'] == 'closed':
-            raise BatchOperationAlreadyCompletedError(f'Billing project {billing_project} is already closed or deleted.', 'info')
+            raise BatchOperationAlreadyCompletedError(
+                f'Billing project {billing_project} is already closed or deleted.', 'info'
+            )
         if row['batch_id'] is not None:
             raise BatchUserError(f'Billing project {billing_project} has open or running batches.', 'error')
 
-        await tx.execute_update(
-            "UPDATE billing_projects SET `status` = 'closed' WHERE name = %s;",
-            (billing_project, ))
+        await tx.execute_update("UPDATE billing_projects SET `status` = 'closed' WHERE name = %s;", (billing_project,))
+
     await close_project()  # pylint: disable=no-value-for-parameter
 
 
@@ -1817,8 +1916,8 @@ async def _reopen_billing_project(db, billing_project):
     @transaction(db)
     async def open_project(tx):
         row = await tx.execute_and_fetchone(
-            "SELECT name, `status` FROM billing_projects WHERE name = %s FOR UPDATE;",
-            (billing_project,))
+            "SELECT name, `status` FROM billing_projects WHERE name = %s FOR UPDATE;", (billing_project,)
+        )
         if not row:
             raise NonExistentBillingProjectError(billing_project)
         assert row['name'] == billing_project
@@ -1827,9 +1926,8 @@ async def _reopen_billing_project(db, billing_project):
         if row['status'] == 'open':
             raise BatchOperationAlreadyCompletedError(f'Billing project {billing_project} is already open.', 'info')
 
-        await tx.execute_update(
-            "UPDATE billing_projects SET `status` = 'open' WHERE name = %s;",
-            (billing_project, ))
+        await tx.execute_update("UPDATE billing_projects SET `status` = 'open' WHERE name = %s;", (billing_project,))
+
     await open_project()  # pylint: disable=no-value-for-parameter
 
 
@@ -1862,8 +1960,8 @@ async def _delete_billing_project(db, billing_project):
     @transaction(db)
     async def delete_project(tx):
         row = await tx.execute_and_fetchone(
-            'SELECT name, `status` FROM billing_projects WHERE name = %s FOR UPDATE;',
-            (billing_project,))
+            'SELECT name, `status` FROM billing_projects WHERE name = %s FOR UPDATE;', (billing_project,)
+        )
         if not row:
             raise NonExistentBillingProjectError(billing_project)
         assert row['name'] == billing_project
@@ -1872,9 +1970,8 @@ async def _delete_billing_project(db, billing_project):
         if row['status'] == 'open':
             raise BatchUserError(f'Billing project {billing_project} is open and cannot be deleted.', 'error')
 
-        await tx.execute_update(
-            "UPDATE billing_projects SET `status` = 'deleted' WHERE name = %s;",
-            (billing_project, ))
+        await tx.execute_update("UPDATE billing_projects SET `status` = 'deleted' WHERE name = %s;", (billing_project,))
+
     await delete_project()  # pylint: disable=no-value-for-parameter
 
 
@@ -1908,9 +2005,11 @@ async def index(request, userdata):  # pylint: disable=unused-argument
 async def cancel_batch_loop_body(app):
     async with client_session() as session:
         await request_retry_transient_errors(
-            session, 'POST',
+            session,
+            'POST',
             deploy_config.url('batch-driver', '/api/v1alpha/batches/cancel'),
-            headers=app['batch_headers'])
+            headers=app['batch_headers'],
+        )
 
     should_wait = True
     return should_wait
@@ -1919,9 +2018,11 @@ async def cancel_batch_loop_body(app):
 async def delete_batch_loop_body(app):
     async with client_session() as session:
         await request_retry_transient_errors(
-            session, 'POST',
+            session,
+            'POST',
             deploy_config.url('batch-driver', '/api/v1alpha/batches/delete'),
-            headers=app['batch_headers'])
+            headers=app['batch_headers'],
+        )
 
     should_wait = True
     return should_wait
@@ -1939,7 +2040,8 @@ async def on_startup(app):
     row = await db.select_and_fetchone(
         '''
 SELECT instance_id, internal_token, n_tokens FROM globals;
-''')
+'''
+    )
 
     app['n_tokens'] = row['n_tokens']
 
@@ -1949,12 +2051,9 @@ SELECT instance_id, internal_token, n_tokens FROM globals;
 
     app['internal_token'] = row['internal_token']
 
-    app['batch_headers'] = {
-        'Authorization': f'Bearer {row["internal_token"]}'
-    }
+    app['batch_headers'] = {'Authorization': f'Bearer {row["internal_token"]}'}
 
-    credentials = google.oauth2.service_account.Credentials.from_service_account_file(
-        '/gsa-key/key.json')
+    credentials = google.oauth2.service_account.Credentials.from_service_account_file('/gsa-key/key.json')
     app['log_store'] = LogStore(BATCH_BUCKET_NAME, instance_id, pool, credentials=credentials)
 
     inst_coll_configs = InstanceCollectionConfigs(app)
@@ -1964,16 +2063,16 @@ SELECT instance_id, internal_token, n_tokens FROM globals;
     cancel_batch_state_changed = asyncio.Event()
     app['cancel_batch_state_changed'] = cancel_batch_state_changed
 
-    app['task_manager'].ensure_future(retry_long_running(
-        'cancel_batch_loop',
-        run_if_changed, cancel_batch_state_changed, cancel_batch_loop_body, app))
+    app['task_manager'].ensure_future(
+        retry_long_running('cancel_batch_loop', run_if_changed, cancel_batch_state_changed, cancel_batch_loop_body, app)
+    )
 
     delete_batch_state_changed = asyncio.Event()
     app['delete_batch_state_changed'] = delete_batch_state_changed
 
-    app['task_manager'].ensure_future(retry_long_running(
-        'delete_batch_loop',
-        run_if_changed, delete_batch_state_changed, delete_batch_loop_body, app))
+    app['task_manager'].ensure_future(
+        retry_long_running('delete_batch_loop', run_if_changed, delete_batch_state_changed, delete_batch_loop_body, app)
+    )
 
 
 async def on_cleanup(app):
@@ -1997,10 +2096,10 @@ def run():
 
     asyncio.get_event_loop().add_signal_handler(signal.SIGUSR1, dump_all_stacktraces)
 
-    web.run_app(deploy_config.prefix_application(app,
-                                                 'batch',
-                                                 client_max_size=HTTP_CLIENT_MAX_SIZE),
-                host='0.0.0.0',
-                port=5000,
-                access_log_class=AccessLogger,
-                ssl_context=internal_server_ssl_context())
+    web.run_app(
+        deploy_config.prefix_application(app, 'batch', client_max_size=HTTP_CLIENT_MAX_SIZE),
+        host='0.0.0.0',
+        port=5000,
+        access_log_class=AccessLogger,
+        ssl_context=internal_server_ssl_context(),
+    )

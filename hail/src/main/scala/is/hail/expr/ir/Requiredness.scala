@@ -24,6 +24,7 @@ object Requiredness {
 
 case class RequirednessAnalysis(r: Memo[BaseTypeWithRequiredness], states: Memo[IndexedSeq[TypeWithRequiredness]]) {
   def lookup(node: BaseIR): BaseTypeWithRequiredness = r.lookup(node)
+  def lookupOpt(node: BaseIR): Option[BaseTypeWithRequiredness] = r.get(node)
   def apply(node: IR): TypeWithRequiredness = coerce[TypeWithRequiredness](lookup(node))
   def getState(node: IR): IndexedSeq[TypeWithRequiredness] = states(node)
 }
@@ -42,8 +43,9 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
   def lookup(node: IR): TypeWithRequiredness = coerce[TypeWithRequiredness](cache(node))
   def lookupAs[T <: TypeWithRequiredness](node: IR): T = coerce[T](cache(node))
   def lookup(node: TableIR): RTable = coerce[RTable](cache(node))
+  def lookup(node: BlockMatrixIR): RBlockMatrix = coerce[RBlockMatrix](cache(node))
 
-  def supportedType(node: BaseIR): Boolean = node.isInstanceOf[TableIR] || node.isInstanceOf[IR]
+  def supportedType(node: BaseIR): Boolean = node.isInstanceOf[TableIR] || node.isInstanceOf[IR] || node.isInstanceOf[BlockMatrixIR]
 
   private def initializeState(node: BaseIR): Unit = if (!cache.contains(node)) {
     assert(supportedType(node))
@@ -60,7 +62,6 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
       case _ =>
     }
     node.children.foreach {
-      case c: BlockMatrixIR => //ignore block matrices
       case c: MatrixIR => fatal("Requiredness analysis only works on lowered MatrixTables. ")
       case c if supportedType(node) =>
         initializeState(c)
@@ -102,6 +103,20 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
       if (refMap.contains(name)) {
         val uses = refMap(name)
         val eltReq = coerce[RIterable](lookup(d)).elementType
+        val req = if (makeOptional) {
+          val optional = eltReq.copy(eltReq.children)
+          optional.union(false)
+          optional
+        } else eltReq
+        uses.foreach { u => defs.bind(u, Array(req)) }
+        dependents.getOrElseUpdate(d, mutable.Set[RefEquality[BaseIR]]()) ++= uses
+      }
+    }
+
+    def addBlockMatrixElementBinding(name: String, d: BlockMatrixIR, makeOptional: Boolean = false): Unit = {
+      if (refMap.contains(name)) {
+        val uses = refMap(name)
+        val eltReq = coerce[RBlockMatrix](lookup(d)).elementType
         val req = if (makeOptional) {
           val optional = eltReq.copy(eltReq.children)
           optional.union(false)
@@ -235,6 +250,11 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
       case CollectDistributedArray(ctxs, globs, c, g, body, _) =>
         addElementBinding(c, ctxs)
         addBinding(g, globs)
+      case BlockMatrixMap(child, eltName, f, _) => addBlockMatrixElementBinding(eltName, child)
+      case BlockMatrixMap2(leftChild, rightChild, leftName, rightName, _, _) => {
+        addBlockMatrixElementBinding(leftName, leftChild)
+        addBlockMatrixElementBinding(rightName, rightChild)
+      }
       case TableAggregate(c, q) =>
         addTableBinding(c)
       case TableFilter(child, pred) =>
@@ -265,8 +285,9 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
   def analyze(node: BaseIR): Boolean = node match {
     case x: IR => analyzeIR(x)
     case x: TableIR => analyzeTable(x)
+    case x: BlockMatrixIR => analyzeBlockMatrix(x)
     case _ =>
-      fatal("MatrixTable and BlockMatrix must be lowered first.")
+      fatal("MatrixTable must be lowered first.")
   }
 
   def analyzeTable(node: TableIR): Boolean = {
@@ -598,9 +619,9 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
       case NDArrayMatMul(l, r) =>
         requiredness.unionFrom(lookup(l))
         requiredness.union(lookup(r).required)
-      case NDArrayQR(_, mode) => requiredness.fromPType(NDArrayQR.pTypes(mode))
-      case NDArraySVD(_, _, computeUV) => requiredness.fromPType(NDArraySVD.pTypes(computeUV))
-      case NDArrayInv(_) => requiredness.fromPType(NDArrayInv.pType)
+      case NDArrayQR(child, mode) => requiredness.fromPType(NDArrayQR.pType(mode, lookup(child).required))
+      case NDArraySVD(child, _, computeUV) => requiredness.fromPType(NDArraySVD.pTypes(computeUV, lookup(child).required))
+      case NDArrayInv(child) => requiredness.unionFrom(lookup(child))
       case MakeStruct(fields) =>
         fields.foreach { case (n, f) =>
           coerce[RStruct](requiredness).field(n).unionFrom(lookup(f))
@@ -692,6 +713,13 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
       case ShuffleRead(id, keyRange) =>
         coerce[RIterable](requiredness).elementType.fromPType(coerce[TShuffle](id.typ).rowDecodedPType)
     }
+    requiredness.probeChangedAndReset()
+  }
+
+  def analyzeBlockMatrix(node: BlockMatrixIR): Boolean = {
+    val requiredness = lookup(node)
+    // BlockMatrix is always required, so I don't change anything.
+
     requiredness.probeChangedAndReset()
   }
 }

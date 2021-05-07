@@ -324,7 +324,6 @@ exec /kaniko/executor --dockerfile={shq(dockerfile_in_context)} --context=dir://
         log.info(f'step {self.name}, script:\n{script}')
 
         docker_registry = DOCKER_PREFIX.split('/')[0]
-        # docker_registry = 'https://gcr.io'
 
         self.job = batch.create_job(
             KANIKO_IMAGE,

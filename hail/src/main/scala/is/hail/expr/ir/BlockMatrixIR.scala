@@ -8,7 +8,7 @@ import is.hail.utils._
 import breeze.linalg
 import breeze.linalg.DenseMatrix
 import breeze.numerics
-import is.hail.annotations.Region
+import is.hail.annotations.{NDArray, Region}
 import is.hail.backend.BackendContext
 import is.hail.backend.spark.SparkBackend
 import is.hail.expr.Nat
@@ -912,6 +912,7 @@ case class ValueToBlockMatrix(
 
   private def elementType(childType: Type): Type = {
     childType match {
+      case ndarray: TNDArray => ndarray.elementType
       case array: TArray => array.elementType
       case _ => childType
     }
@@ -927,12 +928,14 @@ case class ValueToBlockMatrix(
   override protected[ir] def execute(ctx: ExecuteContext): BlockMatrix = {
     val IndexedSeq(nRows, nCols) = shape
     BlockMatrixIR.checkFitsIntoArray(nRows, nCols)
-    Interpret[Any](ctx, child) match {
+    CompileAndEvaluate[Any](ctx, child, true) match {
       case scalar: Double =>
         assert(nRows == 1 && nCols == 1)
         BlockMatrix.fill(nRows, nCols, scalar, blockSize)
       case data: IndexedSeq[_] =>
         BlockMatrixIR.toBlockMatrix(nRows.toInt, nCols.toInt, data.asInstanceOf[IndexedSeq[Double]].toArray, blockSize)
+      case ndData: NDArray =>
+        BlockMatrixIR.toBlockMatrix(nRows.toInt, nCols.toInt, ndData.getRowMajorElements().asInstanceOf[IndexedSeq[Double]].toArray, blockSize)
     }
   }
 }

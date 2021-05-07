@@ -46,7 +46,9 @@ class Tests(unittest.TestCase):
             return np.array(a)
 
     def _assert_eq(self, a, b):
-        self.assertTrue(np.array_equal(self._np_matrix(a), self._np_matrix(b)))
+        anp = self._np_matrix(a)
+        bnp = self._np_matrix(b)
+        np.testing.assert_equal(anp, bnp)
 
     def _assert_close(self, a, b):
         self.assertTrue(np.allclose(self._np_matrix(a), self._np_matrix(b)))
@@ -145,12 +147,10 @@ class Tests(unittest.TestCase):
             BlockMatrix.write_from_entry_expr(mt.x + 2, path, overwrite=True)
             self._assert_eq(BlockMatrix.read(path), bm + 2)
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_random_uniform(self):
         uniform = BlockMatrix.random(10, 10, gaussian=False)
 
-        nuniform = uniform.to_numpy()
+        nuniform = hl.eval(uniform.to_ndarray())
         for row in nuniform:
             for entry in row:
                 assert entry > 0
@@ -444,11 +444,9 @@ class Tests(unittest.TestCase):
         self._assert_close(m / nr, m / r)
         self._assert_close(m / nm, m / m)
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_special_elementwise_ops(self):
         nm = np.array([[1.0, 2.0, 3.0, 3.14], [4.0, 5.0, 6.0, 12.12]])
-        m = BlockMatrix.from_numpy(nm)
+        m = BlockMatrix.from_ndarray(hl.nd.array(nm))
 
         self._assert_close(m ** 3, nm ** 3)
         self._assert_close(m.sqrt(), np.sqrt(nm))
@@ -457,16 +455,14 @@ class Tests(unittest.TestCase):
         self._assert_close(m.log(), np.log(nm))
         self._assert_close((m - 4).abs(), np.abs(nm - 4))
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_matrix_ops(self):
         nm = np.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]])
-        m = BlockMatrix.from_numpy(nm, block_size=2)
+        m = BlockMatrix.from_ndarray(hl.nd.array(nm), block_size=2)
         nsquare = np.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0], [7.0, 8.0, 9.0]])
-        square = BlockMatrix.from_numpy(nsquare, block_size=2)
+        square = BlockMatrix.from_ndarray(hl.nd.array(nsquare), block_size=2)
 
         nrow = np.array([[7.0, 8.0, 9.0]])
-        row = BlockMatrix.from_numpy(nrow, block_size=2)
+        row = BlockMatrix.from_ndarray(hl.nd.array(nrow), block_size=2)
 
         self._assert_eq(m.T, nm.T)
         self._assert_eq(m.T, nm.T)
@@ -488,6 +484,18 @@ class Tests(unittest.TestCase):
         self._assert_eq(m.diagonal(), np.array([[1.0, 5.0]]))
         self._assert_eq(m.T.diagonal(), np.array([[1.0, 5.0]]))
         self._assert_eq((m @ m.T).diagonal(), np.array([[14.0, 77.0]]))
+
+
+    @fails_service_backend()
+    @fails_local_backend()
+    def test_matrix_sums(self):
+        nm = np.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]])
+        m = BlockMatrix.from_ndarray(hl.nd.array(nm), block_size=2)
+        nsquare = np.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0], [7.0, 8.0, 9.0]])
+        square = BlockMatrix.from_ndarray(hl.nd.array(nsquare), block_size=2)
+
+        nrow = np.array([[7.0, 8.0, 9.0]])
+        row = BlockMatrix.from_ndarray(hl.nd.array(nrow), block_size=2)
 
         self._assert_eq(m.sum(axis=0).T, np.array([[5.0], [7.0], [9.0]]))
         self._assert_eq(m.sum(axis=1).T, np.array([[6.0, 15.0]]))
@@ -861,16 +869,16 @@ class Tests(unittest.TestCase):
             self._assert_eq(expected, BlockMatrix.rectangles_to_numpy(rect_uri))
             self._assert_eq(expected, BlockMatrix.rectangles_to_numpy(rect_bytes_uri, binary=True))
 
-    @fails_service_backend
-    @fails_local_backend
+    @fails_service_backend()
+    @fails_local_backend()
     def test_to_ndarray(self):
-        np_mat = np.arange(12).reshape((4, 3))
-        mat = BlockMatrix.from_numpy(np_mat).to_ndarray()
+        np_mat = np.arange(12).reshape((4, 3)).astype(np.float64)
+        mat = BlockMatrix.from_ndarray(hl.nd.array(np_mat)).to_ndarray()
         self.assertTrue(np.array_equal(np_mat, hl.eval(mat)))
 
         blocks_to_sparsify = [1, 4, 7, 12, 20, 42, 48]
         sparsed_numpy = sparsify_numpy(np.arange(25*25).reshape((25, 25)), 4,  blocks_to_sparsify)
-        sparsed = BlockMatrix.from_numpy(sparsed_numpy, block_size=4)._sparsify_blocks(blocks_to_sparsify).to_ndarray()
+        sparsed = BlockMatrix.from_ndarray(hl.nd.array(sparsed_numpy), block_size=4)._sparsify_blocks(blocks_to_sparsify).to_ndarray()
         self.assertTrue(np.array_equal(sparsed_numpy, hl.eval(sparsed)))
 
     @fails_service_backend()

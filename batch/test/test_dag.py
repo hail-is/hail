@@ -8,8 +8,7 @@ from hailtop.config import get_user_config
 from hailtop.batch_client.client import BatchClient, Job
 import hailtop.batch_client.aioclient as aioclient
 
-from .utils import batch_status_job_counter, \
-    legacy_batch_status
+from .utils import batch_status_job_counter, legacy_batch_status
 from .serverthread import ServerThread
 
 DOCKER_ROOT_IMAGE = os.environ.get('DOCKER_ROOT_IMAGE', 'gcr.io/hail-vdc/ubuntu:18.04')
@@ -74,9 +73,8 @@ def test_cancel_tail(client):
     left = batch.create_job(DOCKER_ROOT_IMAGE, command=['echo', 'left'], parents=[head])
     right = batch.create_job(DOCKER_ROOT_IMAGE, command=['echo', 'right'], parents=[head])
     tail = batch.create_job(
-        DOCKER_ROOT_IMAGE,
-        command=['/bin/sh', '-c', 'while true; do sleep 86000; done'],
-        parents=[left, right])
+        DOCKER_ROOT_IMAGE, command=['/bin/sh', '-c', 'while true; do sleep 86000; done'], parents=[left, right]
+    )
     batch = batch.submit()
     left.wait()
     right.wait()
@@ -95,9 +93,8 @@ def test_cancel_left_after_tail(client):
     batch = client.create_batch()
     head = batch.create_job(DOCKER_ROOT_IMAGE, command=['echo', 'head'])
     left = batch.create_job(
-        DOCKER_ROOT_IMAGE,
-        command=['/bin/sh', '-c', 'while true; do sleep 86000; done'],
-        parents=[head])
+        DOCKER_ROOT_IMAGE, command=['/bin/sh', '-c', 'while true; do sleep 86000; done'], parents=[head]
+    )
     right = batch.create_job(DOCKER_ROOT_IMAGE, command=['echo', 'right'], parents=[head])
     tail = batch.create_job(DOCKER_ROOT_IMAGE, command=['echo', 'tail'], parents=[left, right])
     batch = batch.submit()
@@ -117,6 +114,7 @@ def test_cancel_left_after_tail(client):
 
 def test_callback(client):
     from flask import Flask, request
+
     app = Flask('test-client')
     callback_body = []
 
@@ -130,10 +128,7 @@ def test_callback(client):
         server = ServerThread(app)
         server.start()
         token = secrets.token_urlsafe(32)
-        b = client.create_batch(
-            callback=server.url_for('/test'),
-            attributes={'foo': 'bar'},
-            token=token)
+        b = client.create_batch(callback=server.url_for('/test'), attributes={'foo': 'bar'}, token=token)
         head = b.create_job('alpine:3.8', command=['echo', 'head'])
         tail = b.create_job('alpine:3.8', command=['echo', 'tail'], parents=[head])
         b = b.submit()
@@ -141,7 +136,7 @@ def test_callback(client):
 
         i = 0
         while not callback_body:
-            time.sleep(0.100 * (3/2) ** i)
+            time.sleep(0.100 * (3 / 2) ** i)
             i += 1
             if i > 14:
                 break
@@ -154,7 +149,7 @@ def test_callback(client):
         callback_body.pop('time_closed')
         callback_body.pop('time_completed')
         callback_body.pop('duration')
-        assert (callback_body == {
+        assert callback_body == {
             'id': b.id,
             'user': 'test',
             'billing_project': 'test',
@@ -167,8 +162,8 @@ def test_callback(client):
             'n_succeeded': 2,
             'n_failed': 0,
             'n_cancelled': 0,
-            'attributes': {'foo': 'bar'}
-        }), callback_body
+            'attributes': {'foo': 'bar'},
+        }, callback_body
     finally:
         if server:
             server.shutdown()
@@ -190,15 +185,17 @@ def test_no_parents_allowed_in_other_batches(client):
 def test_input_dependency(client):
     bucket_name = get_user_config().get('batch', 'bucket')
     batch = client.create_batch()
-    head = batch.create_job(DOCKER_ROOT_IMAGE,
-                            command=['/bin/sh', '-c', 'echo head1 > /io/data1; echo head2 > /io/data2'],
-                            output_files=[('/io/data1', f'gs://{bucket_name}/data1'),
-                                          ('/io/data2', f'gs://{bucket_name}/data2')])
-    tail = batch.create_job(DOCKER_ROOT_IMAGE,
-                            command=['/bin/sh', '-c', 'cat /io/data1; cat /io/data2'],
-                            input_files=[(f'gs://{bucket_name}/data1', '/io/data1'),
-                                         (f'gs://{bucket_name}/data2', '/io/data2')],
-                            parents=[head])
+    head = batch.create_job(
+        DOCKER_ROOT_IMAGE,
+        command=['/bin/sh', '-c', 'echo head1 > /io/data1; echo head2 > /io/data2'],
+        output_files=[('/io/data1', f'gs://{bucket_name}/data1'), ('/io/data2', f'gs://{bucket_name}/data2')],
+    )
+    tail = batch.create_job(
+        DOCKER_ROOT_IMAGE,
+        command=['/bin/sh', '-c', 'cat /io/data1; cat /io/data2'],
+        input_files=[(f'gs://{bucket_name}/data1', '/io/data1'), (f'gs://{bucket_name}/data2', '/io/data2')],
+        parents=[head],
+    )
     batch.submit()
     tail.wait()
     assert head._get_exit_code(head.status(), 'main') == 0, str(head._status)
@@ -208,15 +205,17 @@ def test_input_dependency(client):
 def test_input_dependency_wildcard(client):
     bucket_name = get_user_config().get('batch', 'bucket')
     batch = client.create_batch()
-    head = batch.create_job(DOCKER_ROOT_IMAGE,
-                            command=['/bin/sh', '-c', 'echo head1 > /io/data1 ; echo head2 > /io/data2'],
-                            output_files=[('/io/data1', f'gs://{bucket_name}/data1'),
-                                          ('/io/data2', f'gs://{bucket_name}/data2')])
-    tail = batch.create_job(DOCKER_ROOT_IMAGE,
-                            command=['/bin/sh', '-c', 'cat /io/data1 ; cat /io/data2'],
-                            input_files=[(f'gs://{bucket_name}/data1', '/io/data1'),
-                                         (f'gs://{bucket_name}/data2', '/io/data2')],
-                            parents=[head])
+    head = batch.create_job(
+        DOCKER_ROOT_IMAGE,
+        command=['/bin/sh', '-c', 'echo head1 > /io/data1 ; echo head2 > /io/data2'],
+        output_files=[('/io/data1', f'gs://{bucket_name}/data1'), ('/io/data2', f'gs://{bucket_name}/data2')],
+    )
+    tail = batch.create_job(
+        DOCKER_ROOT_IMAGE,
+        command=['/bin/sh', '-c', 'cat /io/data1 ; cat /io/data2'],
+        input_files=[(f'gs://{bucket_name}/data1', '/io/data1'), (f'gs://{bucket_name}/data2', '/io/data2')],
+        parents=[head],
+    )
     batch.submit()
     tail.wait()
     assert head._get_exit_code(head.status(), 'input') != 0, str(head._status, head.log())
@@ -226,13 +225,17 @@ def test_input_dependency_wildcard(client):
 def test_input_dependency_directory(client):
     bucket_name = get_user_config().get('batch', 'bucket')
     batch = client.create_batch()
-    head = batch.create_job(DOCKER_ROOT_IMAGE,
-                            command=['/bin/sh', '-c', 'mkdir -p /io/test/; echo head1 > /io/test/data1 ; echo head2 > /io/test/data2'],
-                            output_files=[('/io/test', f'gs://{bucket_name}/test')])
-    tail = batch.create_job(DOCKER_ROOT_IMAGE,
-                            command=['/bin/sh', '-c', 'cat /io/test/data1; cat /io/test/data2'],
-                            input_files=[(f'gs://{bucket_name}/test', '/io/test')],
-                            parents=[head])
+    head = batch.create_job(
+        DOCKER_ROOT_IMAGE,
+        command=['/bin/sh', '-c', 'mkdir -p /io/test/; echo head1 > /io/test/data1 ; echo head2 > /io/test/data2'],
+        output_files=[('/io/test', f'gs://{bucket_name}/test')],
+    )
+    tail = batch.create_job(
+        DOCKER_ROOT_IMAGE,
+        command=['/bin/sh', '-c', 'cat /io/test/data1; cat /io/test/data2'],
+        input_files=[(f'gs://{bucket_name}/test', '/io/test')],
+        parents=[head],
+    )
     batch.submit()
     tail.wait()
     assert head._get_exit_code(head.status(), 'main') == 0, str(head._status, head.log())
@@ -243,14 +246,10 @@ def test_always_run_cancel(client):
     batch = client.create_batch()
     head = batch.create_job(DOCKER_ROOT_IMAGE, command=['echo', 'head'])
     left = batch.create_job(
-        DOCKER_ROOT_IMAGE,
-        command=['/bin/sh', '-c', 'while true; do sleep 86000; done'],
-        parents=[head])
+        DOCKER_ROOT_IMAGE, command=['/bin/sh', '-c', 'while true; do sleep 86000; done'], parents=[head]
+    )
     right = batch.create_job(DOCKER_ROOT_IMAGE, command=['echo', 'right'], parents=[head])
-    tail = batch.create_job(DOCKER_ROOT_IMAGE,
-                            command=['echo', 'tail'],
-                            parents=[left, right],
-                            always_run=True)
+    tail = batch.create_job(DOCKER_ROOT_IMAGE, command=['echo', 'tail'], parents=[left, right], always_run=True)
     batch = batch.submit()
     right.wait()
     batch.cancel()
@@ -268,10 +267,7 @@ def test_always_run_cancel(client):
 def test_always_run_error(client):
     batch = client.create_batch()
     head = batch.create_job(DOCKER_ROOT_IMAGE, command=['/bin/sh', '-c', 'exit 1'])
-    tail = batch.create_job(DOCKER_ROOT_IMAGE,
-                            command=['echo', 'tail'],
-                            parents=[head],
-                            always_run=True)
+    tail = batch.create_job(DOCKER_ROOT_IMAGE, command=['echo', 'tail'], parents=[head], always_run=True)
     batch = batch.submit()
     batch.wait()
     status = legacy_batch_status(batch)

@@ -249,8 +249,8 @@ object InferPType {
         val lTyp = coerce[PNDArray](l.pType)
         val rTyp = coerce[PNDArray](r.pType)
         PCanonicalNDArray(lTyp.elementType, TNDArray.matMulNDims(lTyp.nDims, rTyp.nDims), requiredness(node).required)
-      case NDArrayQR(_, mode) => NDArrayQR.pTypes(mode)
-      case NDArraySVD(_, _, computeUV) => NDArraySVD.pTypes(computeUV)
+      case NDArrayQR(child, mode) => NDArrayQR.pType(mode, child.pType.required)
+      case NDArraySVD(child, _, computeUV) => NDArraySVD.pTypes(computeUV, child.pType.required)
       case NDArrayInv(_) => NDArrayInv.pType
       case MakeStruct(fields) =>
         PCanonicalStruct(requiredness(node).required,

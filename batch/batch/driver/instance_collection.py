@@ -27,15 +27,9 @@ class InstanceCollection:
 
         self.name_instance: Dict[str, Instance] = {}
 
-        self.instances_by_last_updated = sortedcontainers.SortedSet(
-            key=lambda instance: instance.last_updated)
+        self.instances_by_last_updated = sortedcontainers.SortedSet(key=lambda instance: instance.last_updated)
 
-        self.n_instances_by_state = {
-            'pending': 0,
-            'active': 0,
-            'inactive': 0,
-            'deleted': 0
-        }
+        self.n_instances_by_state = {'pending': 0, 'active': 0, 'inactive': 0, 'deleted': 0}
 
         # pending and active
         self.live_free_cores_mcpu = 0
@@ -80,8 +74,7 @@ class InstanceCollection:
     async def remove_instance(self, instance, reason, timestamp=None):
         await instance.deactivate(reason, timestamp)
 
-        await self.db.just_execute(
-            'UPDATE instances SET removed = 1 WHERE name = %s;', (instance.name,))
+        await self.db.just_execute('UPDATE instances SET removed = 1 WHERE name = %s;', (instance.name,))
 
         self.adjust_for_remove_instance(instance)
         del self.name_instance[instance.name]
@@ -109,8 +102,7 @@ class InstanceCollection:
             await instance.deactivate(reason, timestamp)
 
         try:
-            await self.compute_client.delete(
-                f'/zones/{instance.zone}/instances/{instance.name}')
+            await self.compute_client.delete(f'/zones/{instance.zone}/instances/{instance.name}')
         except aiohttp.ClientResponseError as e:
             if e.status == 404:
                 log.info(f'{instance} already delete done')
@@ -124,8 +116,7 @@ class InstanceCollection:
             return
 
         try:
-            spec = await self.compute_client.get(
-                f'/zones/{instance.zone}/instances/{instance.name}')
+            spec = await self.compute_client.get(f'/zones/{instance.zone}/instances/{instance.name}')
         except aiohttp.ClientResponseError as e:
             if e.status == 404:
                 await self.remove_instance(instance, 'does_not_exist')
@@ -137,9 +128,11 @@ class InstanceCollection:
 
         log.info(f'{instance} gce_state {gce_state}')
 
-        if (gce_state == 'PROVISIONING'
-                and instance.state == 'pending'
-                and time_msecs() - instance.time_created > 5 * 60 * 1000):
+        if (
+            gce_state == 'PROVISIONING'
+            and instance.state == 'pending'
+            and time_msecs() - instance.time_created > 5 * 60 * 1000
+        ):
             log.exception(f'{instance} did not provision within 5m after creation, deleting')
             await self.call_delete_instance(instance, 'activation_timeout')
 
@@ -152,8 +145,7 @@ class InstanceCollection:
             assert last_start_timestamp is not None, f'lastStartTimestamp does not exist {spec}'
             last_start_time_msecs = dateutil.parser.isoparse(last_start_timestamp).timestamp() * 1000
 
-            if (instance.state == 'pending'
-                    and time_msecs() - last_start_time_msecs > 5 * 60 * 1000):
+            if instance.state == 'pending' and time_msecs() - last_start_time_msecs > 5 * 60 * 1000:
                 log.exception(f'{instance} did not activate within 5m after starting, deleting')
                 await self.call_delete_instance(instance, 'activation_timeout')
 

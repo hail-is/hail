@@ -30,13 +30,13 @@ object StreamUtils {
           IEmitCode(cb, vab.isMissing(i), PCode(aTyp.elementType, vab(i)))
         }
 
-      case Some(len) =>
+      case Some(computeLen) =>
 
         var pushElem: (EmitCodeBuilder, IEmitCode) => Unit = null
         var finish: (EmitCodeBuilder) => PIndexableCode = null
 
         stream.memoryManagedConsume(destRegion, cb, setup = { cb =>
-          cb.assign(xLen, len)
+          cb.assign(xLen, computeLen(cb))
           val (_pushElem, _finish) = aTyp.constructFromFunctions(cb, destRegion, xLen, deepCopy = stream.requiresMemoryManagementPerElement)
           pushElem = _pushElem
           finish = _finish
@@ -56,7 +56,11 @@ object StreamUtils {
   ): Unit = {
     stream.memoryManagedConsume(destRegion, cb, setup = { cb =>
       cb += ab.clear
-      cb += ab.ensureCapacity(stream.length.getOrElse(const(16)))
+      stream.length match {
+        case Some(computeLen) => cb += ab.ensureCapacity(computeLen(cb))
+        case None => cb += ab.ensureCapacity(16)
+      }
+
 
     }) { cb =>
       stream.element.toI(cb).consume(cb,

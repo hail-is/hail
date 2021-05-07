@@ -2,16 +2,17 @@ package is.hail.types.physical.stypes.concrete
 
 import is.hail.annotations.Region
 import is.hail.asm4s._
-import is.hail.expr.ir.orderings.CodeOrdering
-import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, IEmitCode, SortOrder}
-import is.hail.types.physical.stypes.{SCode, SType}
+import is.hail.expr.ir.{EmitCodeBuilder, IEmitCode}
 import is.hail.types.physical.stypes.interfaces.SContainer
-import is.hail.types.physical.{PCanonicalArray, PCode, PContainer, PIndexableCode, PIndexableValue, PSettable, PType}
+import is.hail.types.physical.stypes.{EmitType, SCode, SType}
+import is.hail.types.physical.{PArray, PCanonicalArray, PCanonicalDict, PCanonicalSet, PCode, PContainer, PIndexableCode, PIndexableValue, PSettable, PType}
 import is.hail.utils.FastIndexedSeq
 
 
 case class SIndexablePointer(pType: PContainer) extends SContainer {
   override def elementType: SType = pType.elementType.sType
+
+  def elementEmitType: EmitType = EmitType(elementType, pType.elementType.required)
 
   def coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = {
     new SIndexablePointerCode(this, pType.store(cb, region, value, deepCopy))
@@ -62,6 +63,14 @@ class SIndexablePointerCode(val st: SIndexablePointer, val a: Code[Long]) extend
   def memoize(cb: EmitCodeBuilder, name: String): PIndexableValue = memoize(cb, name, cb.localBuilder)
 
   def memoizeField(cb: EmitCodeBuilder, name: String): PIndexableValue = memoize(cb, name, cb.fieldBuilder)
+
+  def castToArray(cb: EmitCodeBuilder): PIndexableCode = {
+    pt match {
+      case t: PArray => this
+      case t: PCanonicalDict => new SIndexablePointerCode(SIndexablePointer(t.arrayRep), a)
+      case t: PCanonicalSet => new SIndexablePointerCode(SIndexablePointer(t.arrayRep), a)
+    }
+  }
 }
 
 object SIndexablePointerSettable {
