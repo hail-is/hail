@@ -425,7 +425,6 @@ class GetObjectFileStatus(FileStatus):
 
 class GoogleStorageFileListEntry(FileListEntry):
     def __init__(self, url: str, items: Optional[Dict[str, Any]], status=None):
-        assert url.endswith('/') == (items is None), f'{url} {items}'
         self._url = url
         self._items = items
         self._status: Optional[GetObjectFileStatus] = status
