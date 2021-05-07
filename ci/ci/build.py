@@ -291,11 +291,9 @@ class BuildImage2Step(Step):
                     digest_local_chroot_location = '/python3.7-slim-stretch' + digest_local_location
                     file_overrides[d.name]['image'] = digest_local_location
                     input_files.append((d.digest_remote_location, digest_local_location))
-                    move_file_overrides_into_chroot += (
-                        f'''
+                    move_file_overrides_into_chroot += f'''
 mkdir -p $(dirname {digest_local_chroot_location})
 mv {digest_local_location} {digest_local_chroot_location}'''
-                    )
 
         if self.inputs:
             for i in self.inputs:
