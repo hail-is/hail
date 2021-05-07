@@ -150,6 +150,11 @@ sudo mkdir -p /etc/netns
 sudo mkdir /containers
 sudo mkdir /bundles
 
+# The default resolver in `/etc/resolv.conf` is a local address (127.0.0.53) which is
+# inaccessible in other net namespaces since they have their own loop device. So we use
+# google's public resolver.
+echo nameserver 8.8.8.8 | tee /container_resolv.conf
+
 export HOME=/root
 
 CORES=$(nproc)
@@ -256,6 +261,7 @@ docker run \
 -v /var/run/netns:/var/run/netns:shared \
 -v /bundles:/bundles:shared \
 -v /containers:/containers:shared \
+-v /container_resolv.conf:/container_resolv.conf \
 -v /usr/bin/docker:/usr/bin/docker \
 -v /usr/sbin/xfs_quota:/usr/sbin/xfs_quota \
 -v /batch:/batch:shared \

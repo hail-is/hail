@@ -172,12 +172,6 @@ iptables -w 10 --append FORWARD --out-interface {veth_host} --jump ACCEPT && \
 iptables -w 10 --table nat --append POSTROUTING --source {self.job_ip}/24 --jump MASQUERADE'''
         )
 
-        # The default resolver in `/etc/resolv.conf` is a local address (127.0.0.53) which is
-        # inaccessible in other net namespaces since they have their own loop device. So we use
-        # google's public resolver.
-        os.makedirs(f'/etc/netns/{self.network_name}')
-        await check_shell(f'echo nameserver 8.8.8.8 | tee /etc/netns/{self.network_name}/resolv.conf')
-
     async def expose_port(self, port, host_port):
         self.port = port
         self.host_port = host_port
@@ -466,7 +460,7 @@ class Container:
             f'mount -t overlay overlay -o lowerdir={lower_dir},upperdir={upper_dir},workdir={work_dir} {merged_dir}'
         )
         # TODO Add a test to verify that jobs are not writing to the rootfs
-        await check_shell_output(f'xfs_quota -x -c "project -s -p {merged_dir} {self.job.project_id}" /host/')
+        await check_shell_output(f'xfs_quota -x -c "project -s -p {merged_dir} {self.job.project_id}" /containers/')
 
     async def run_container(self) -> bool:
         try:
@@ -564,7 +558,7 @@ class Container:
     def _mounts_spec(self):
         return self.spec.get('volume_mounts') + [
             {
-                'source': f'/etc/netns/{self.netns.network_name}/resolv.conf',
+                'source': f'/container_resolv.conf',
                 'destination': '/etc/resolv.conf',
                 'type': 'none',
                 'options': ['rbind', 'ro'],
