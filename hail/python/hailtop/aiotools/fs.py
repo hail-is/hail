@@ -634,7 +634,12 @@ class SourceCopier:
                 src = src + '/'
             try:
                 srcentries = await self.router_fs.listfiles(src, recursive=True)
-            except (NotADirectoryError, FileNotFoundError):
+            except (NotADirectoryError, FileNotFoundError) as e:
+                if isinstance(e, FileNotFoundError):
+                    if await self.router_fs.isdir(src):
+                        await self.router_fs.mkdir(src)
+                        self.src_is_dir = True
+                        return
                 self.src_is_dir = False
                 return
             self.src_is_dir = True

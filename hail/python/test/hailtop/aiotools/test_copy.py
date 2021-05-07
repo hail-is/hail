@@ -481,13 +481,12 @@ async def test_file_and_directory_error_with_slash_empty_file_only(router_filesy
     sema, fs, bases = router_filesystem
 
     src_base = await fresh_dir(fs, bases, 'gs')
-    dest_base = await fresh_dir(fs, bases, 'gs')
 
-    await fs.create(f'{src_base}empty-only/')
+    await write_file(fs, f'{src_base}empty-only/', '')
 
     for transfer_type in (Transfer.DEST_IS_TARGET, Transfer.DEST_DIR, Transfer.INFER_DEST):
-        with pytest.raises(FileNotFoundError):
-            await fs.copy(sema, Transfer(f'{src_base}empty-only/', dest_base.rstrip('/'), treat_dest_as=transfer_type))
+        dest_base = await fresh_dir(fs, bases, 'gs')
+        await fs.copy(sema, Transfer(f'{src_base}empty-only/', dest_base.rstrip('/'), treat_dest_as=transfer_type))
 
 
 @pytest.mark.asyncio
@@ -502,3 +501,17 @@ async def test_file_and_directory_error_with_slash_non_empty_file_only(router_fi
     for transfer_type in (Transfer.DEST_IS_TARGET, Transfer.DEST_DIR, Transfer.INFER_DEST):
         with pytest.raises(FileAndDirectoryError):
             await fs.copy(sema, Transfer(f'{src_base}not-empty-file-w-slash/', dest_base.rstrip('/'), treat_dest_as=transfer_type))
+
+
+@pytest.mark.asyncio
+async def test_local_empty_directory(router_filesystem):
+    sema, fs, bases = router_filesystem
+
+    src_base = await fresh_dir(fs, bases, 'file')
+
+    await fs.mkdir(f'{src_base}/empty-dir/')
+
+    for transfer_type in (Transfer.DEST_IS_TARGET, Transfer.DEST_DIR, Transfer.INFER_DEST):
+        dest_base = await fresh_dir(fs, bases, 'file')
+        await fs.copy(sema, Transfer(f'{src_base}empty-dir/', dest_base.rstrip('/'), treat_dest_as=transfer_type))
+        await fs.isdir(f'{src_base}empty-dir/')
