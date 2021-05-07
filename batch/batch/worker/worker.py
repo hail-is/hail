@@ -155,21 +155,21 @@ class NetworkNamespace:
         await check_shell(
             f'''
 ip netns add {self.network_name} && \
-    ip link add name {veth_host} type veth peer name {veth_job} && \
-    ip link set dev {veth_host} up && \
-    ip link set {veth_job} netns {self.network_name} && \
-    ip address add {self.host_ip}/24 dev {veth_host}
-    ip -n {self.network_name} link set dev {veth_job} up && \
-    ip -n {self.network_name} link set dev lo up && \
-    ip -n {self.network_name} address add {self.job_ip}/24 dev {veth_job} && \
-    ip -n {self.network_name} route add default via {self.host_ip}'''
+ip link add name {veth_host} type veth peer name {veth_job} && \
+ip link set dev {veth_host} up && \
+ip link set {veth_job} netns {self.network_name} && \
+ip address add {self.host_ip}/24 dev {veth_host}
+ip -n {self.network_name} link set dev {veth_job} up && \
+ip -n {self.network_name} link set dev lo up && \
+ip -n {self.network_name} address add {self.job_ip}/24 dev {veth_job} && \
+ip -n {self.network_name} route add default via {self.host_ip}'''
         )
 
         await check_shell(
             f'''
 iptables -w 10 --append FORWARD --in-interface {veth_host} --jump ACCEPT && \
-    iptables -w 10 --append FORWARD --out-interface {veth_host} --jump ACCEPT && \
-    iptables -w 10 --table nat --append POSTROUTING --source {self.job_ip}/24 --jump MASQUERADE'''
+iptables -w 10 --append FORWARD --out-interface {veth_host} --jump ACCEPT && \
+iptables -w 10 --table nat --append POSTROUTING --source {self.job_ip}/24 --jump MASQUERADE'''
         )
 
         # The default resolver in `/etc/resolv.conf` is a local address (127.0.0.53) which is
@@ -200,8 +200,8 @@ class NetworkAllocator:
         self.netns = asyncio.Queue()
 
     async def reserve(self, netns_pool_min_size: int = 64):
-        for subnet_index in range(10, netns_pool_min_size):
-            netns = NetworkNamespace(subnet_index)
+        for subnet_index in range(netns_pool_min_size):
+            netns = NetworkNamespace(subnet_index + 10)
             await netns.init()
             self.netns.put_nowait(netns)
 
@@ -466,16 +466,7 @@ class Container:
             f'mount -t overlay overlay -o lowerdir={lower_dir},upperdir={upper_dir},workdir={work_dir} {merged_dir}'
         )
         # TODO Add a test to verify that jobs are not writing to the rootfs
-        # self.overlay_path = merged_dir[:-7].replace(WORKER_DATA_DISK_MOUNT, '/host')
-        # os.makedirs(f'{self.overlay_path}/', exist_ok=True)
-
-        # async with Flock('/xfsquota/projects', pool=worker.pool):
-        #     with open('/xfsquota/projects', 'a') as f:
-        #         f.write(f'{self.job.project_id}:{self.overlay_path}\n')
-
-        # await check_shell_output(
-        #     f'xfs_quota -x -D /xfsquota/projects -P /xfsquota/projid -c "project -s {self.job.project_name}" /host/'
-        # )
+        await check_shell_output(f'xfs_quota -x -c "project -s -p {merged_dir} {self.job.project_id}" /host/')
 
     async def run_container(self) -> bool:
         try:
