@@ -969,7 +969,7 @@ class DockerJob(Job):
 
                 await check_shell_output(f'xfs_quota -x -c "project -s -p {self.scratch} {self.project_id}" /host/')
                 await check_shell_output(
-                    f'xfs_quota -x-c "limit -p bsoft={data_disk_storage_in_bytes} bhard={data_disk_storage_in_bytes} {self.project_id}" /host/'
+                    f'xfs_quota -x -c "limit -p bsoft={data_disk_storage_in_bytes} bhard={data_disk_storage_in_bytes} {self.project_id}" /host/'
                 )
 
                 if self.secrets:
