@@ -1,15 +1,16 @@
 package is.hail.expr.ir
 
+import is.hail.annotations.Region
 import is.hail.asm4s._
-import is.hail.types.physical.{PCode, PType, PValue, typeToTypeInfo}
+import is.hail.types.physical.{PCode, PType, PValue, SingleCodeType, typeToTypeInfo}
 import is.hail.types.virtual.Type
 import is.hail.utils.BoxedArrayBuilder
 
 import scala.reflect.ClassTag
 
-class StagedArrayBuilder(val elt: PType, mb: EmitMethodBuilder[_], len: Code[Int]) {
+class StagedArrayBuilder(val elt: SingleCodeType, val eltRequired: Boolean, mb: EmitMethodBuilder[_], len: Code[Int]) {
 
-  val ti: TypeInfo[_] = typeToTypeInfo(elt)
+  val ti: TypeInfo[_] = elt.ti
 
   val ref: Value[Any] = coerce[Any](ti match {
     case BooleanInfo => mb.genLazyFieldThisRef[BooleanMissingArrayBuilder](Code.newInstance[BooleanMissingArrayBuilder, Int](len), "zab")
@@ -44,26 +45,6 @@ class StagedArrayBuilder(val elt: PType, mb: EmitMethodBuilder[_], len: Code[Int
     case DoubleInfo => coerce[DoubleMissingArrayBuilder](ref).invoke[Int, Double, Unit]("update", i, coerce[Double](x))
   }
 
-  def sort(compare: Code[AsmFunction2[_, _, _]]): Code[Unit] = {
-    ti match {
-      case BooleanInfo =>
-        type F = AsmFunction2[Boolean, Boolean, Boolean]
-        coerce[BooleanMissingArrayBuilder](ref).invoke[F, Unit]("sort", coerce[F](compare))
-      case IntInfo =>
-        type F = AsmFunction2[Int, Int, Boolean]
-        coerce[IntMissingArrayBuilder](ref).invoke[F, Unit]("sort", coerce[F](compare))
-      case LongInfo =>
-        type F = AsmFunction2[Long, Long, Boolean]
-        coerce[LongMissingArrayBuilder](ref).invoke[F, Unit]("sort", coerce[F](compare))
-      case FloatInfo =>
-        type F = AsmFunction2[Float, Float, Boolean]
-        coerce[FloatMissingArrayBuilder](ref).invoke[F, Unit]("sort", coerce[F](compare))
-      case DoubleInfo =>
-        type F = AsmFunction2[Double, Double, Boolean]
-        coerce[DoubleMissingArrayBuilder](ref).invoke[F, Unit]("sort", coerce[F](compare))
-    }
-  }
-
   def addMissing(): Code[Unit] =
     coerce[MissingArrayBuilder](ref).invoke[Unit]("addMissing")
 
@@ -81,19 +62,10 @@ class StagedArrayBuilder(val elt: PType, mb: EmitMethodBuilder[_], len: Code[Int
 
   def clear: Code[Unit] = coerce[MissingArrayBuilder](ref).invoke[Unit]("clear")
 
-  def applyEV(mb: EmitMethodBuilder[_], i: Code[Int]): EmitValue =
-    new EmitValue {
-      def pt: PType = elt
-
-      def get(cb: EmitCodeBuilder): PCode = load.toI(cb).get(
-        cb,
-        s"Can't convert missing EmitValue of type ${pt} to PValue.")
-
-      def load: EmitCode = {
-        val t = mb.newLocal[Int]("sab_applyEV_load_i")
-        EmitCode(t := i, isMissing(t), PCode(elt, apply(t)))
-      }
-    }
+  def loadFromIndex(cb: EmitCodeBuilder, r: Value[Region], i: Code[Int]): IEmitCode = {
+    val idx = cb.newLocal[Int]("loadFromIndex_idx", i)
+    IEmitCode(cb, isMissing(idx), elt.loadToPCode(cb, r, apply(idx)))
+  }
 }
 
 sealed abstract class MissingArrayBuilder(initialCapacity: Int) {

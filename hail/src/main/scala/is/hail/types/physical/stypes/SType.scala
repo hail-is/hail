@@ -41,6 +41,8 @@ trait SType {
 
 case class EmitType(st: SType, required: Boolean) {
   def virtualType: Type = st.virtualType
-  def paramType: EmitParamType = PCodeEmitParamType(st.pType.setRequired(required))
+
+  def paramType: PCodeEmitParamType = PCodeEmitParamType(st.pType.setRequired(required))
+
   def canonicalPType: PType = st.canonicalPType().setRequired(required)
 }

@@ -5,6 +5,15 @@ import is.hail.types.physical.stypes.concrete.{SIndexablePointer, SIndexablePoin
 import is.hail.types.virtual.{TSet, Type}
 import is.hail.utils._
 
+object PCanonicalSet {
+  def coerceArrayCode(contents: PIndexableCode): PIndexableCode = {
+    contents.pt match {
+      case PCanonicalArray(elt, r) =>
+        PCanonicalSet(elt, r).construct(contents)
+    }
+  }
+}
+
 final case class PCanonicalSet(elementType: PType,  required: Boolean = false) extends PSet with PArrayBackedContainer {
   val arrayRep = PCanonicalArray(elementType, required)
 
