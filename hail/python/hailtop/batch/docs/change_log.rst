@@ -3,7 +3,7 @@
 Change Log
 ==========
 
-**Version 0.2.67**
+**Version 0.2.68**
 - Fixed copying a directory from GCS when using the ``LocalBackend``
 
 **Version 0.2.66**
