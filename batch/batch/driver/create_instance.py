@@ -150,6 +150,9 @@ sudo mkdir -p /etc/netns
 sudo mkdir /containers
 sudo mkdir /bundles
 
+# Rewrite traffic coming from containers to masquerade as the host
+iptables -w 10 --table nat --append POSTROUTING --source 10.0.0.0/16 --jump MASQUERADE
+
 # The default resolver in `/etc/resolv.conf` is a local address (127.0.0.53) which is
 # inaccessible in other net namespaces since they have their own loop device. So we use
 # google's public resolver.

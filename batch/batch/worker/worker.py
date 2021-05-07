@@ -68,7 +68,6 @@ from ..publicly_available_images import publicly_available_images
 from ..utils import storage_gib_to_bytes, Box
 
 from .disk import Disk
-from .flock import Flock
 
 # uvloop.install()
 
@@ -168,10 +167,11 @@ ip -n {self.network_name} route add default via {self.host_ip}'''
         await check_shell(
             f'''
 iptables -w 10 --append FORWARD --in-interface {veth_host} --jump ACCEPT && \
-iptables -w 10 --append FORWARD --out-interface {veth_host} --jump ACCEPT && \
-iptables -w 10 --table nat --append POSTROUTING --source {self.job_ip}/24 --jump MASQUERADE'''
+iptables -w 10 --append FORWARD --out-interface {veth_host} --jump ACCEPT'''
         )
 
+    # Appending to PREROUTING means this is only exposed to external traffic.
+    # To expose for locally created packets, we would append instead to the OUTPUT chain.
     async def expose_port(self, port, host_port):
         self.port = port
         self.host_port = host_port
@@ -179,14 +179,21 @@ iptables -w 10 --table nat --append POSTROUTING --source {self.job_ip}/24 --jump
             f'iptables --table nat --append PREROUTING \\ '
             f'--match addrtype --dst-type LOCAL \\ '
             f'--protocol tcp \\ '
-            f'--match tcp --dport {host_port} \\ '
-            f'--jump DNAT --to-destination {self.job_ip}:{port}'
+            f'--match tcp --dport {self.host_port} \\ '
+            f'--jump DNAT --to-destination {self.job_ip}:{self.port}'
         )
 
+    # TODO Test this?
     async def cleanup(self):
-        # TODO To be tidy we should delete the IP tables rule, though I'm unsure why
-        # it would necessarily be bad to keep there
-        pass
+        if self.host_port:
+            assert self.port
+            await check_shell(
+                f'iptables --table nat --delete PREROUTING \\ '
+                f'--match addrtype --dst-type LOCAL \\ '
+                f'--protocol tcp \\ '
+                f'--match tcp --dport {self.host_port} \\ '
+                f'--jump DNAT --to-destination {self.job_ip}:{self.port}'
+            )
 
 
 class NetworkAllocator:
@@ -202,7 +209,10 @@ class NetworkAllocator:
     async def allocate(self) -> NetworkNamespace:
         return await self.netns.get()
 
-    async def free(self, netns: NetworkNamespace):
+    def free(self, netns: NetworkNamespace):
+        asyncio.ensure_future(self._free(netns))
+
+    async def _free(self, netns: NetworkNamespace):
         await netns.cleanup()
         self.netns.put_nowait(netns)
 
@@ -488,8 +498,8 @@ class Container:
                 await asyncio.gather(self.pipe_to_log(self.proc.stdout), self.pipe_to_log(self.proc.stderr))
                 await self.proc.wait()
                 log.info('Crun process completed')
-                if self.proc.returncode != 0:
-                    raise Exception('failed')
+                # if self.proc.returncode != 0:
+                #     raise Exception('failed')
         except asyncio.TimeoutError:
             return True
         finally:
@@ -599,7 +609,7 @@ class Container:
             self.host_port = None
 
         if self.netns:
-            await network_allocator.free(self.netns)
+            network_allocator.free(self.netns)
             self.netns = None
 
         # TODO Delete overlay, /container and /configs directories
@@ -650,7 +660,7 @@ class Container:
         else:
             status['state'] = 'finished'
 
-        if self.proc.returncode:
+        if self.proc.returncode is not None:
             if self.proc.returncode != 0:
                 status['error'] = 'TODO'
             status['exit_code'] = self.proc.returncode
