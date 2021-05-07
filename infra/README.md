@@ -215,6 +215,7 @@ FIXME this is broken, missing services:
   export HAIL_DOMAIN=<domain>
   export HAIL_GCP_ZONE=<gcp-zone>
   export HAIL_GCP_PROJECT=<gcp-project>
+  export BATCH_WORKER_IMAGE=$HAIL_DOCKER_PREFIX/batch-worker:latest
   export PYTHONPATH=$HOME/hail/ci:$HOME/hail/batch:$HOME/hail/hail/python
 
   python3 ci/bootstrap.py hail-is/hail:main $(git rev-parse HEAD) test_batch_0
