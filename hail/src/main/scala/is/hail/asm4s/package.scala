@@ -105,8 +105,8 @@ package object asm4s {
     val desc = "Z"
     val loadOp = ILOAD
     val storeOp = ISTORE
-    val aloadOp = IALOAD
-    val astoreOp = IASTORE
+    val aloadOp = BALOAD
+    val astoreOp = BASTORE
     val returnOp = IRETURN
     val newarrayOp = NEWARRAY
 
