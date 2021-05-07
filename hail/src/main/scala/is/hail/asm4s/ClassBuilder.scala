@@ -291,13 +291,6 @@ class ClassBuilder[C](
     mb
   }
 
-  def genDependentFunction[A1 : TypeInfo, R : TypeInfo](baseName: String): DependentFunctionBuilder[AsmFunction1[A1, R]] = {
-    val depCB = modb.genClass[AsmFunction1[A1, R]](baseName)
-    val apply = depCB.newMethod("apply", Array(GenericTypeInfo[A1]), GenericTypeInfo[R])
-    val dep_apply_method = new DependentMethodBuilder(apply)
-    new DependentFunctionBuilder[AsmFunction1[A1, R]](dep_apply_method)
-  }
-
   def newField[T: TypeInfo](name: String): Field[T] = new Field[T](this, name)
 
   def newStaticField[T: TypeInfo](name: String): StaticField[T] = new StaticField[T](this, name)
@@ -548,58 +541,6 @@ class MethodBuilder[C](
       new VCode(start, end, value)
     }
   }
-}
-
-class DependentMethodBuilder[C](val mb: MethodBuilder[C]) extends WrappedMethodBuilder[C] {
-  var setFields: mutable.ArrayBuffer[(lir.ValueX) => Code[Unit]] = new mutable.ArrayBuffer()
-
-  def newDepField[T : TypeInfo](value: Code[T]): Value[T] = {
-    val cfr = genFieldThisRef[T]()
-    setFields += { (obj: lir.ValueX) =>
-      value.end.append(lir.putField(cb.className, cfr.name, typeInfo[T], obj, value.v))
-      val newC = new VCode(value.start, value.end, null)
-      value.clear()
-      newC
-    }
-    cfr
-  }
-
-  def newDepFieldAny[T: TypeInfo](value: Code[_]): Value[T] =
-    newDepField(value.asInstanceOf[Code[T]])
-
-  def newInstance(mb: MethodBuilder[_]): Code[C] = {
-    val L = new lir.Block()
-
-    val obj = new lir.Local(null, "new_dep_fun", cb.ti)
-    L.append(lir.store(obj, lir.newInstance(cb.ti, cb.lInit, FastIndexedSeq.empty[lir.ValueX])))
-
-    var end = L
-    setFields.foreach { f =>
-      val c = f(lir.load(obj))
-      end.append(lir.goto(c.start))
-      end = c.end
-    }
-    new VCode(L, end, lir.load(obj))
-  }
-
-  override def result(pw: Option[PrintWriter]): () => C =
-    throw new UnsupportedOperationException("cannot call result() on a dependent function")
-}
-
-trait WrappedDependentMethodBuilder[C] extends WrappedMethodBuilder[C] {
-  def dmb: DependentMethodBuilder[C]
-
-  def mb: MethodBuilder[C] = dmb.mb
-
-  def newDepField[T : TypeInfo](value: Code[T]): Value[T] = dmb.newDepField(value)
-
-  def newDepFieldAny[T: TypeInfo](value: Code[_]): Value[T] = dmb.newDepFieldAny[T](value)
-
-  def newInstance(mb: MethodBuilder[_]): Code[C] = dmb.newInstance(mb)
-}
-
-class DependentFunctionBuilder[F](apply_method: DependentMethodBuilder[F]) extends WrappedDependentMethodBuilder[F] {
-  def dmb: DependentMethodBuilder[F] = apply_method
 }
 
 class FunctionBuilder[F](
