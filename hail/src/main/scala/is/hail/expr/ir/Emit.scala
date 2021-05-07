@@ -709,6 +709,15 @@ class Emit[C](
       }
     }
 
+    // Returns an IEmitCode along with a Boolean that is true if the returned value is column major. If false it's row
+    // major instead.
+    def emitNDArrayStandardStriding(ir: IR): IEmitCodeGen[(PNDArrayValue, Value[Boolean])] = {
+      emitI(ir).map(cb){case pNDCode: PNDArrayCode =>
+        val pNDValue = pNDCode.memoize(cb, "ndarray_standard_striding_check")
+        LinalgCodeUtils.checkStandardStriding(pNDValue, cb, region)
+      }
+    }
+
     val pt = ir.pType
 
     if (pt == PVoid) {
@@ -1214,13 +1223,10 @@ class Emit[C](
         }
 
       case NDArrayMatMul(lChild, rChild) =>
-        emitNDArrayColumnMajorStrides(lChild).flatMap(cb) { case leftPCode: PNDArrayCode =>
-          emitNDArrayColumnMajorStrides(rChild).map(cb) { case rightPCode: PNDArrayCode =>
-            val lPType = leftPCode.pt
-            val rPType = rightPCode.pt
-
-            val leftPVal = leftPCode.memoize(cb, "left_ndarray_matmul")
-            val rightPVal = rightPCode.memoize(cb, "right_ndarray_matmul")
+        emitNDArrayStandardStriding(lChild).flatMap(cb) { case (leftPVal: PNDArrayValue, leftIsColumnMajor: Value[Boolean]) =>
+          emitNDArrayStandardStriding(rChild).map(cb) { case (rightPVal: PNDArrayValue, rightIsColumnMajor: Value[Boolean]) =>
+            val lPType = leftPVal.pt
+            val rPType = rightPVal.pt
 
             val lShape = leftPVal.shapes(cb)
             val rShape = rightPVal.shapes(cb)
@@ -1242,9 +1248,12 @@ class Emit[C](
               val N = rShape(rPType.nDims - 1)
               val K = lShape(lPType.nDims - 1)
 
-              val LDA = M
-              val LDB = K
+              val LDA = leftIsColumnMajor.mux(M, K)
+              val LDB = rightIsColumnMajor.mux(K, N)
               val LDC = M
+
+              val TRANSA: Code[String] = leftIsColumnMajor.mux("N", "T")
+              val TRANSB: Code[String] = rightIsColumnMajor.mux("N", "T")
 
               val (answerFirstElementAddr, answerFinisher) = outputPType.constructDataFunction(
                 IndexedSeq(M, N),
@@ -1256,8 +1265,8 @@ class Emit[C](
                 cb.append(lPType.elementType match {
                   case PFloat32(_) =>
                     Code.invokeScalaObject13[String, String, Int, Int, Int, Float, Long, Int, Long, Int, Float, Long, Int, Unit](BLAS.getClass, method = "sgemm",
-                      "N",
-                      "N",
+                      TRANSA,
+                      TRANSB,
                       M.toI,
                       N.toI,
                       K.toI,
@@ -1272,8 +1281,8 @@ class Emit[C](
                     )
                   case PFloat64(_) =>
                     Code.invokeScalaObject13[String, String, Int, Int, Int, Double, Long, Int, Long, Int, Double, Long, Int, Unit](BLAS.getClass, method = "dgemm",
-                      "N",
-                      "N",
+                      TRANSA,
+                      TRANSB,
                       M.toI,
                       N.toI,
                       K.toI,
