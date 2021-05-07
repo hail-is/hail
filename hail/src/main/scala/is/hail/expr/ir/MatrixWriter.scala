@@ -359,6 +359,8 @@ case class MatrixBlockMatrixWriter(
     println(ts.getGlobals().typ)
     val countColumnsIR = ArrayLen(GetField(ts.getGlobals(), colsFieldName))
     val numCols: Int = CompileAndEvaluate(ctx, countColumnsIR, true).asInstanceOf[Int]
+    val numBlockCols: Int = (numCols - 1) / blockSize + 1
+    val lastBlockNumCols = numCols % blockSize
     println(s"There were ${numCols} columns")
 
     // Step 2: Find out how many rows per partition.
@@ -408,7 +410,27 @@ case class MatrixBlockMatrixWriter(
 
     val rowsInBlockSizeGroups = partsZippedWithIdx.repartitionNoShuffle(newPartitioner)
 
+    // Next level of the plan. Flatmap contexts to create more, we need one per block. Context needs to contain the start and stop columns.
+    // Takes in a stream of per table partition contexts.
+    def createBlockMakingContexts(tablePartsStreamIR: IR): IR = {
+      flatMapIR(tablePartsStreamIR) { tableSinglePartCtx =>
+        mapIR(rangeIR(I32(numBlockCols))){ blockColIdx =>
+          MakeStruct(Seq("oldTableCtx" -> tableSinglePartCtx, "blockStart" -> (blockColIdx * I32(blockSize)),
+          "blockSize" -> If(blockColIdx ceq I32(numBlockCols - 1), I32(lastBlockNumCols), I32(blockSize))))
+        }
+      }
+    }
 
+    def sliceArrayIR(arrayIR: IR, startIR: IR, stopIR: IR): IR = {
+      ApplyIR("slice", Seq[Type](), Seq[IR](arrayIR, startIR, stopIR))
+    }
+
+    val ctxsForMakingBlocksTs = rowsInBlockSizeGroups.mapContexts(createBlockMakingContexts)(ir => GetField(ir, "oldTableCtx"))
+    val blockedTs = ctxsForMakingBlocksTs.mapPartitionWithContext{ (partIr, ctxRef) =>
+      bindIR(GetField(ctxRef, "blockStart")){ blockStartRef =>
+        flatMapIR(partIr)(singleRow => sliceArrayIR(singleRow, blockStartRef, blockStartRef + GetField(ctxRef, "blockSize")))
+      }
+    }
 
     val compiled: Any = CompileAndEvaluate(ctx, rowsInBlockSizeGroups.collectWithGlobals(relationalLetsAbove), true)
 
