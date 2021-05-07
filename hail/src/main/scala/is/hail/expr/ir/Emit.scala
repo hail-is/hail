@@ -1156,7 +1156,8 @@ class Emit[C](
               val stridesSettables = (0 until nDims).map(i => cb.newLocal[Long](s"make_ndarray_stride_$i"))
 
               val shapeValues = (0 until nDims).map { i =>
-                shapeTupleValue.loadField(cb, i).get(cb).memoize(cb, s"make_ndarray_shape_${i}").asPValue.value.asInstanceOf[Value[Long]]
+                val shape = SingleCodePCode.fromPCode(cb, shapeTupleValue.loadField(cb, i).get(cb).asPCode, region)
+                cb.newLocalAny[Long](s"make_ndarray_shape_${i}", shape.code)
               }
 
               cb.ifx(isRowMajorCode.asBoolean.boolCode(cb), {
@@ -1210,12 +1211,11 @@ class Emit[C](
         ndt.flatMap(cb) { case ndCode: PNDArrayCode =>
           val indexEmitCodes = idxs.map(idx => EmitCode.fromI(cb.emb)(emitInNewBuilder(_, idx)))
           IEmitCode.multiMapEmitCodes(cb, indexEmitCodes) { idxPCodes: IndexedSeq[PCode] =>
-            val memoizedIndices = idxPCodes.zipWithIndex.map { case (pc, idx) =>
-              pc.memoize(cb,s"ref_idx_$idx")
+            val idxValues = idxPCodes.zipWithIndex.map { case (pc, idx) =>
+              cb.newLocal(s"ref_idx_$idx", pc.asInt64.longCode(cb))
             }
 
             val ndValue = ndCode.memoize(cb, "reffed_ndarray")
-            val idxValues = memoizedIndices.map(_.value.asInstanceOf[Value[Long]])
             cb.append(ndValue.assertInBounds(idxValues, cb, errorId))
 
             ndValue.loadElement(idxValues, cb).asPCode
@@ -2687,7 +2687,7 @@ class Emit[C](
               }
 
               IEmitCode.multiFlatMap[Int, SCode, NDArrayEmitter](indexingIndices, indexingIndex => slicesValue.loadField(cb, indexingIndex), cb) { indexingSCodes =>
-                val indexingValues = indexingSCodes.map(sCode => sCode.memoize(cb, "ndarray_slice_indexer"))
+                val indexingValues = indexingSCodes.map(sCode => cb.newLocal("ndarray_slice_indexer", sCode.asInt64.longCode(cb)))
                 val slicingValueTriples = new BoxedArrayBuilder[(Value[Long], Value[Long], Value[Long])]()
                 val outputShape = {
                   IEmitCode.multiFlatMap[Int, SCode, IndexedSeq[Value[Long]]](slicingIndices,
@@ -2735,16 +2735,13 @@ class Emit[C](
                       val indexingIterator = indexingValues.toIterator
                       val slicingIterator = slicingValueTriples.result().toIterator
 
-                      val newIdxVars = slicesValue.pt.types.map { fieldType => fieldType match {
-                        case indexer: PInt64 => {
-                          indexingIterator.next().asPValue.value.asInstanceOf[Value[Long]]
-                        }
-                        case slicer: PBaseStruct => {
+                      val newIdxVars = slicesValue.pt.types.map {
+                        case indexer: PInt64 =>
+                          indexingIterator.next()
+                        case slicer: PBaseStruct =>
                           val (start, stop, step) = slicingIterator.next()
-
-                          cb.memoize(PCode.apply(PInt64Required, start + oldIdxVarsIterator.next() * step), "ndarray_slice_adjusted_lookup").value.asInstanceOf[Value[Long]]
-                        }
-                      }}
+                          cb.newLocal[Long]("ndarray_slice_adjusted_lookup", start + oldIdxVarsIterator.next() * step)
+                      }
 
                       childEmitter.outputElement(cb, newIdxVars)
                     }
@@ -2785,7 +2782,7 @@ class Emit[C](
                 cb.assign(localDim, ndShape(dimIdx))
                 cb.forLoop(cb.assign(loopIdx, 1), loopIdx < arrLength, cb.assign(loopIdx, loopIdx + 1), {
                   val shapeOfNDAtIdx = ndsArrayPValue.loadElement(cb, loopIdx).map(cb) { sCode => sCode.asNDArray }.get(cb).shape(cb).memoize(cb, "ndarray_concat_input_shape")
-                  val dimLength = shapeOfNDAtIdx.loadField(cb, dimIdx).get(cb).toPCode(cb, region).memoize(cb, "dimLength").value.asInstanceOf[Value[Long]]
+                  val dimLength = cb.newLocal[Long]("dimLength", shapeOfNDAtIdx.loadField(cb, dimIdx).get(cb).asInt64.longCode(cb))
 
                   if (dimIdx == axis) {
                     cb.assign(localDim, localDim + dimLength)

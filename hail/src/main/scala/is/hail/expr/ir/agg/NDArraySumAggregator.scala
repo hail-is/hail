@@ -5,6 +5,7 @@ import is.hail.asm4s._
 import is.hail.expr.ir.{CodeParamType, EmitCode, EmitCodeBuilder, EmitParamType, PCodeEmitParamType}
 import is.hail.types.VirtualTypeWithReq
 import is.hail.types.physical.stypes.SCode
+import is.hail.types.physical.stypes.concrete.SNDArrayPointerSettable
 import is.hail.types.physical.stypes.interfaces.SNDArray
 import is.hail.types.physical.{PCanonicalNDArray, PNDArrayCode, PNDArrayValue, PType}
 import is.hail.types.virtual.Type
@@ -87,7 +88,8 @@ class NDArraySumAggregator(ndVTyp: VirtualTypeWithReq) extends StagedAggregator 
 
     SNDArray.forEachIndex(cb, leftNdValue.shapes(cb), "ndarray_sum_addvalues") { case (cb, indices) =>
       val newElement = SCode.add(cb, leftNdValue.loadElement(indices, cb), rightNdValue.loadElement(indices, cb), true)
-      ndTyp.setElement(cb, region, indices, leftNdValue.value.asInstanceOf[Value[Long]], newElement, deepCopy = true)
+      val leftAddr = leftNdValue.asInstanceOf[SNDArrayPointerSettable].a
+      ndTyp.setElement(cb, region, indices, leftAddr, newElement, deepCopy = true)
     }
   }
 
