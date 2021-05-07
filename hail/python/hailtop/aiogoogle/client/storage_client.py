@@ -552,7 +552,7 @@ class GoogleStorageAsyncFS(AsyncFS):
                  project: Optional[str] = None,
                  **kwargs):
         if not storage_client:
-            if project:
+            if project is not None:
                 if 'params' not in kwargs:
                     kwargs['params'] = {}
                 kwargs['params']['userProject'] = project

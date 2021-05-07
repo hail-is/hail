@@ -19,7 +19,6 @@ import concurrent
 import aiodocker
 from collections import defaultdict
 from aiodocker.exceptions import DockerError
-import google.oauth2.service_account
 from hailtop.utils import (
     time_msecs,
     request_retry_transient_errors,

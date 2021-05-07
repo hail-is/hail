@@ -53,7 +53,7 @@ async def write_object(request, userdata):
     filepath = request.query.get('q')
     userinfo = await get_or_add_user(request.app, userdata)
     username = userdata['username']
-    data = await request.read()
+    data = bytes(await request.read())
     log.info(f'memory: post for object {filepath} from user {username}')
 
     file_key = make_redis_key(username, filepath)
@@ -103,10 +103,11 @@ async def get_file_or_none(app, username, fs, filepath):
     return None
 
 
-async def load_file(redis, files, file_key, fs, filepath):
+async def load_file(redis, files, file_key, fs: GoogleStorageAsyncFS, filepath):
     try:
         log.info(f"memory: {file_key}: reading.")
-        data = await fs.read_binary_gs_file(filepath)
+        async with await fs.open(filepath) as f:
+            data = await f.read()
         log.info(f"memory: {file_key}: read {filepath}")
     except Exception as e:
         files.remove(file_key)
@@ -115,27 +116,21 @@ async def load_file(redis, files, file_key, fs, filepath):
     await cache_file(redis, files, file_key, filepath, data)
 
 
-async def persist_in_gcs(fs: GCS, files: Set[str], file_key: str, filepath: str, data: str):
+async def persist_in_gcs(fs: GoogleStorageAsyncFS, files: Set[str], file_key: str, filepath: str, data: bytes):
     try:
         log.info(f"memory: {file_key}: persisting.")
-        await fs.write_gs_file_from_string(filepath, data)
+        async with await fs.create(filepath) as f:
+            await f.write(data)
         log.info(f"memory: {file_key}: persisted {filepath}")
     except Exception as e:
         files.remove(file_key)
         raise e
 
 
-async def cache_file(redis: aioredis.ConnectionsPool, files: Set[str], file_key: str, filepath: str, data: str):
+async def cache_file(redis: aioredis.ConnectionsPool, files: Set[str], file_key: str, filepath: str, data: bytes):
     try:
         await redis.execute('HMSET', file_key, 'body', data)
         log.info(f"memory: {file_key}: stored {filepath}")
-        # async with await fs.open(filepath) as f:
-        #     data = await f.read()
-        # status = await fs.statfile(filepath)
-        # etag = await status.etag()
-        # log.info(f"memory: {file_key}: read {filepath} with etag {etag}")
-        # await redis.execute('HMSET', file_key, 'etag', etag.encode('ascii'), 'body', data)
-        # log.info(f"memory: {file_key}: stored {filepath} ('{etag}').")
     finally:
         files.remove(file_key)
 
@@ -151,6 +146,9 @@ async def on_startup(app):
 
 
 async def on_cleanup(app):
+    for user, items in app['users'].items():
+        await items['fs'].close()
+
     try:
         app['worker_pool'].shutdown()
     finally:
