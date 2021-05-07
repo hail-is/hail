@@ -914,7 +914,7 @@ def lrt_test(X, y, null_fit, link):
     assert (link == "logistic")
     fit = logreg_fit(X, y, null_fit)
 
-    chi_sq = 2 * (fit.log_lkhd - null_fit.log_lkhd)
+    chi_sq = hl.if_else(~fit.converged, hl.missing(hl.tfloat64), 2 * (fit.log_lkhd - null_fit.log_lkhd))
     p = hl.pchisqtail(chi_sq, X.shape[1] - null_fit.b.shape[0])
 
     return hl.struct(
