@@ -22,6 +22,7 @@ import is.hail.types.virtual._
 import is.hail.types.{MatrixType, RTable, TableType}
 import is.hail.utils._
 import is.hail.utils.richUtils.ByteTrackingOutputStream
+import org.apache.spark.sql.Row
 import org.json4s.jackson.JsonMethods
 import org.json4s.{DefaultFormats, Formats, ShortTypeHints}
 
@@ -380,8 +381,8 @@ case class MatrixBlockMatrixWriter(
     // - Figure out how to write them all out.
 
     // Zip contexts with partition starts and ends
-    val zippedWithStarts = ts.mapContexts{oldContextsStream => zipIR(IndexedSeq(oldContextsStream, Literal(TArray(TInt64), partStarts), Literal(TArray(TInt64), partStops)), ArrayZipBehavior.AssertSameLength){ case IndexedSeq(oldCtx, partStart, partStop) =>
-      MakeStruct(Seq[(String, IR)]("mwOld" -> oldCtx, "mwStartIdx" -> partStart, "mwStopIdx" -> partStop))
+    val zippedWithStarts = ts.mapContexts{oldContextsStream => zipIR(IndexedSeq(oldContextsStream, ToStream(Literal(TArray(TInt64), partStarts)), ToStream(Literal(TArray(TInt64), partStops))), ArrayZipBehavior.AssertSameLength){ case IndexedSeq(oldCtx, partStart, partStop) =>
+      MakeStruct(Seq[(String, IR)]("mwOld" -> oldCtx, "mwStartIdx" -> Cast(partStart, TInt32), "mwStopIdx" -> Cast(partStop, TInt32)))
     }}(newCtx => GetField(newCtx, "mwOld"))
 
     // Now label each row with its idx.
@@ -392,9 +393,27 @@ case class MatrixBlockMatrixWriter(
       }
     }
 
+
+    // FIXME: Don't want to do a full sort here, I want something like rekeyNoShuffle
+    val rekeyedByIdx = ctx.backend.lowerDistributedSort(
+      ctx, partsZippedWithIdx, IndexedSeq(SortField(idxId, Ascending)), relationalLetsAbove, rm.rowType
+    )
+
+
+    val compiledEarly: Any = CompileAndEvaluate(ctx, rekeyedByIdx.collectWithGlobals(relationalLetsAbove), true)
+
     // Now create a partitioner for these indices.
-    val rowIntervals = partStarts.zip(partStops).map{ case (intervalStart, intervalStop) -> Interval(intervalStart, intervalEnd, includesStart=true, includesEnd=false)}
-    RVDPartitioner.generate(TStruct((idxId, TInt64)), rowIntervals)
+    val rowIntervals = partStarts.zip(partStops).map{ case (intervalStart, intervalEnd) => Interval(Row(intervalStart.toInt), Row(intervalEnd.toInt), true, false)}
+    val newPartitioner = RVDPartitioner.generate(TStruct((idxId, TInt32)), rowIntervals)
+
+    val rowsInBlockSizeGroups = partsZippedWithIdx.repartitionNoShuffle(newPartitioner)
+
+
+
+    val compiled: Any = CompileAndEvaluate(ctx, rowsInBlockSizeGroups.collectWithGlobals(relationalLetsAbove), true)
+
+
+    println(compiled)
 
     val partFiles = ???
 
