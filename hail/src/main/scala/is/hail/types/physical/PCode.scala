@@ -15,12 +15,6 @@ trait PValue extends SValue { pValueSelf =>
   def pt: PType
 
   def get: PCode
-
-  def value: Value[_] = {
-    new Value[Any] {
-      override def get: Code[Any] = pValueSelf.get.code
-    }
-  }
 }
 
 trait PSettable extends PValue with SSettable {
