@@ -101,9 +101,6 @@ spec:
            - mountPath: /user-tokens
              name: ci-tokens
              readOnly: true
-           - mountPath: /zulip-config
-             name: zulip-config
-             readOnly: true
            - name: ssl-config-ci
              mountPath: /ssl-config
              readOnly: true
@@ -135,9 +132,6 @@ spec:
        - name: ci-tokens
          secret:
            secretName: ci-tokens
-       - name: zulip-config
-         secret:
-           secretName: zulip-config
        - name: ssl-config-ci
          secret:
            optional: false

@@ -20,6 +20,7 @@ variable "hail_query_bucket_location" {}
 variable "hail_query_bucket_storage_class" {}
 variable "gcp_region" {}
 variable "gcp_zone" {}
+variable "gcp_location" {}
 variable "domain" {}
 variable "use_artifact_registry" {
   type = bool
@@ -36,7 +37,7 @@ locals {
 }
 
 provider "google" {
-  credentials = file("~/.hail/terraform_sa_key.json")
+  credentials = file("terraform_sa_key.json")
 
   project = var.gcp_project
   region = var.gcp_region
@@ -44,7 +45,7 @@ provider "google" {
 }
 
 provider "google-beta" {
-  credentials = file("~/.hail/terraform_sa_key.json")
+  credentials = file("terraform_sa_key.json")
 
   project = var.gcp_project
   region = var.gcp_region

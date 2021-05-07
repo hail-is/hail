@@ -1,3 +1,9 @@
+
+gcp-project-id = ukbb-exome-pharma
+gcp-zone = us-central1-a
+
+---
+
 This is a work in progress to use Terraform to manage our cloud
 infrastructure.
 
@@ -13,6 +19,12 @@ Instructions:
 - Create a service account for Terraform with Owner role.  We use
   service account name `terraform`.  Create a JSON service account key
   and place it in `$HOME/.hail/terraform_sa_key.json`.
+
+FIXME this command wouldn't work for me:
+
+gcloud projects add-iam-policy-binding hail-vdc --member='serviceAccount:terraform@<project-id>.iam.gserviceaccount.com' --role='roles/owner'
+
+and I had to add owner in the console.
 
   ```
   gcloud iam service-accounts create terraform --display-name="Terraform Account"
@@ -34,7 +46,8 @@ Instructions:
        logging.googleapis.com \
        cloudprofiler.googleapis.com \
        monitoring.googleapis.com \
-       iam.googleapis.com
+       iam.googleapis.com \
+       artifactregistry.googleapis.com
    ```
 
 - Delete the default network if it exists.  Enabling the networking
@@ -134,7 +147,7 @@ You can now install Hail:
 - In `$HAIL/docker/third-party` run:
 
   ```
-  PROJECT=<gcp-project-id> ./copy_images.sh
+  DOCKER_PREFIX=gcr.io/<gcp-project> PROJECT=<gcp-project-id> ./copy_images.sh
   ```
 
   This copies some base images from Dockerhub (which now has rate
@@ -151,6 +164,7 @@ You can now install Hail:
 
 - Create Let's Encrypt certs. Run `make run` in $HAIL/letsencrypt.
 
+FIXME this is broken, missing services:
 - Deploy the gateway.  Run `make deploy` in $HAIL/gateway.
 
 - Deploy the internal-gateway.  Run `make deploy` in $HAIL/internal-gateway.
@@ -169,6 +183,8 @@ You can now install Hail:
   ```
   kubectl -n default create secret generic auth-oauth2-client-secret --from-file=./client_secret.json
   ```
+
+---stopped here, need to wait for DNS to propagate
 
 - Create the batch worker image.  In `$HAIL/batch`, run:
 
@@ -190,6 +206,8 @@ You can now install Hail:
   ```
   cd $HAIL
   export HAIL_DOCKER_PREFIX=gcr.io/<gcp-project>
+  export HAIL_DOCKER_ROOT_IMAGE=$HAIL_DOCKER_PREFIX/ubuntu:18.04
+  export HAIL_KANIKO_IMAGE=$HAIL_DOCKER_PREFIX/hail_kaniko:latest
   export HAIL_CI_UTILS_IMAGE=$HAIL_DOCKER_PREFIX/ci-utils:latest
   export HAIL_CI_BUCKET_NAME=dummy
   export KUBERNETES_SERVER_URL='<k8s-server-url>'
