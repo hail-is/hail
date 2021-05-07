@@ -317,8 +317,9 @@ class Container:
 
         self.state = 'pending'
         self.error = None
-        self.timing = {}
-        self.container_status = {}
+        self.short_error = None
+        self.container_status = None
+        self.started_at = None
         self.finished_at = None
 
         self.timings = Timings(self.is_job_deleted)
@@ -359,7 +360,7 @@ class Container:
             with self.step('running'):
                 timed_out = await self.run_container()
 
-            status = await self.get_container_status()
+            self.container_status = await self.get_container_status()
 
             with self.step('uploading_log'):
                 await self.upload_log()
@@ -368,11 +369,16 @@ class Container:
                 await self.delete_container()
 
             if timed_out:
+                self.short_error = 'timed out'
                 raise JobTimeoutError(f'timed out after {self.timeout}s')
 
-            if self.error:
+            # TODO Checkout OOM once I have that
+            # if self.container_status['out_of_memory']:
+            #     self.short_error = 'out of memory'
+
+            if 'error' in self.container_status:
                 self.state = 'error'
-            elif 'exit_code' in status and status['exit_code'] == 0:
+            elif self.container_status['exit_code'] == 0:
                 self.state = 'succeeded'
             else:
                 self.state = 'failed'
@@ -459,10 +465,11 @@ class Container:
         await check_shell(
             f'mount -t overlay overlay -o lowerdir={lower_dir},upperdir={upper_dir},workdir={work_dir} {merged_dir}'
         )
-        # TODO Add a test to verify that jobs are not writing to the rootfs
+        # TODO Add a test to verify that jobs are not writing to the rootfs?
         await check_shell_output(f'xfs_quota -x -c "project -s -p {merged_dir} {self.job.project_id}" /containers/')
 
     async def run_container(self) -> bool:
+        self.started_at = time_msecs()
         try:
             self.write_container_config()
             async with async_timeout.timeout(self.timeout):
@@ -481,6 +488,8 @@ class Container:
                 await asyncio.gather(self.pipe_to_log(self.proc.stdout), self.pipe_to_log(self.proc.stderr))
                 await self.proc.wait()
                 log.info('Crun process completed')
+                if self.proc.returncode != 0:
+                    raise Exception('failed')
         except asyncio.TimeoutError:
             return True
         finally:
@@ -558,7 +567,7 @@ class Container:
     def _mounts_spec(self):
         return self.spec.get('volume_mounts') + [
             {
-                'source': f'/container_resolv.conf',
+                'source': '/container_resolv.conf',
                 'destination': '/etc/resolv.conf',
                 'type': 'none',
                 'options': ['rbind', 'ro'],
@@ -575,11 +584,6 @@ class Container:
         return env
 
     async def delete_container(self):
-        if self.overlay_path:
-            path = self.overlay_path.replace('/', r'\/')
-            async with Flock('/xfsquota/projects', pool=worker.pool):
-                await check_shell(f"sed -i '/:{path}/d' /xfsquota/projects")
-
         if self.container_is_running():
             try:
                 log.info(f'{self} container is still running, killing crun process')
@@ -588,6 +592,7 @@ class Container:
                 raise
             except Exception:
                 log.warning('while deleting container, ignoring', exc_info=True)
+        self.proc = None
 
         if self.host_port is not None:
             port_allocator.free(self.host_port)
@@ -624,26 +629,33 @@ class Container:
         status['container_status'] = await self.get_container_status()
         if self.error:
             status['error'] = self.error
+        if self.short_error:
+            status['short_error'] = self.short_error
+        if self.container_status:
+            status['container_status'] = self.container_status
+        elif self.container_is_running():
+            status['container_status'] = await self.get_container_status()
         return status
 
-    # TODO This status update situation still feels overcomplicated
-    async def update_container_status(self):
-        if self.container_is_running():
-            state, error = await check_shell_output(f'crun state {self.container_name}', echo=True)
-            if error:
-                self.error = error.decode()
-            else:
-                state = json.loads(state)
-                self.container_status['state'] = state['status']
-                self.container_status['started_at'] = state['created']
-        elif self.container_finished():
-            self.container_status['exit_code'] = self.proc.returncode
-            assert self.finished_at
-            self.container_status['finished_at'] = self.finished_at  # TODO Format human readable
-
     async def get_container_status(self):
-        await self.update_container_status()
-        return self.container_status
+        if not self.proc:
+            return None
+
+        status = {
+            'started_at': self.started_at,
+            'finished_at': self.finished_at,
+        }
+        if self.container_is_running():
+            status['state'] = 'running'
+        else:
+            status['state'] = 'finished'
+
+        if self.proc.returncode:
+            if self.proc.returncode != 0:
+                status['error'] = 'TODO'
+            status['exit_code'] = self.proc.returncode
+
+        return status
 
     def container_is_running(self):
         return self.proc is not None and self.proc.returncode is None
