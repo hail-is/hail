@@ -69,7 +69,8 @@ Function::Function(IRContextToken,
   : module(module),
     name(std::move(name)),
     parameter_types(std::move(parameter_types)),
-    return_type(return_type) {
+    return_type(return_type),
+    body(nullptr) {
   module->add_function(this);
 }
 
@@ -242,6 +243,21 @@ Block::make_tuple(std::vector<IR *> elements) {
 GetTupleElement *
 Block::make_get_tuple_element(IR *t, int i) {
   return xc.arena.make<GetTupleElement>(IRContextToken(), this, t, i);
+}
+
+MakeArray *
+Block::make_make_array(std::vector<IR *> elements) {
+  return xc.arena.make<MakeArray>(IRContextToken(), this, elements);
+}
+
+ArrayLen *
+Block::make_array_len(IR *a) {
+  return xc.arena.make<ArrayLen>(IRContextToken(), this, a);
+}
+
+ArrayRef *
+Block::make_array_ref(IR *a, IR *idx) {
+  return xc.arena.make<ArrayRef>(IRContextToken(), this, a, idx);
 }
 
 }

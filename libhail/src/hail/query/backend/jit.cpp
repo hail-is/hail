@@ -44,6 +44,9 @@ JITImpl::JITImpl()
   auto sym = llvm::orc::absoluteSymbols({
 					 {mangle("hl_runtime_region_allocate"),
 					  llvm::JITEvaluatedSymbol(llvm::pointerToJITTargetAddress(&hl_runtime_region_allocate),
+								   llvm::JITSymbolFlags::Exported)},
+           {mangle("printf"),
+            llvm::JITEvaluatedSymbol(llvm::pointerToJITTargetAddress(&printf),
 								   llvm::JITSymbolFlags::Exported)}
     });
   if (auto err = jit_dylib.define(sym))
@@ -66,6 +69,7 @@ JITImpl::compile(HeapAllocator &heap,
   auto return_type = stc.emit_type_from(return_vtype);
 
   CompileModule mc(tc, stc, module, param_types, return_type, *llvm_context, llvm_module.get());
+  CompileFunction cf(tc, stc, module->get_function("main"), param_types, return_type, *llvm_context, &mc);
 
   if (auto err = llvm_jit->addIRModule(llvm::orc::ThreadSafeModule(std::move(llvm_module), std::move(llvm_context))))
     exit_on_error(std::move(err));

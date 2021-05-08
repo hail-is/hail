@@ -1,5 +1,6 @@
 #include <llvm/IR/BasicBlock.h>
 #include <llvm/IR/IRBuilder.h>
+#include <stdint.h>
 
 #include "hail/query/backend/compile.hpp"
 #include "hail/query/backend/svalue.hpp"
@@ -100,6 +101,40 @@ SStackTupleValue::SStackTupleValue(const SType *stype, std::vector<EmitDataValue
 EmitValue
 SStackTupleValue::get_element(CompileFunction &cf, size_t i) const {
   return EmitValue(element_emit_values[i]);
+}
+
+SArrayValue::SArrayValue(Tag tag, const SCanonicalArray *stype)
+  : SValue(tag, stype), stype(stype) {}
+
+SCanonicalArrayValue::SCanonicalArrayValue(const SCanonicalArray *stype, llvm::Value *length, llvm::Value *missing, llvm::Value *data)
+  : SArrayValue(Tag::CANONICALARRAY, stype), length(length), missing(missing), data(data) {
+}
+
+SCanonicalArrayValue::~SCanonicalArrayValue() {}
+
+SInt64Value *
+SCanonicalArrayValue::get_length(STypeContext &stc) const {
+  auto return_type = stc.sint64;
+  return new SInt64Value(return_type, length);
+}
+
+EmitValue
+SCanonicalArrayValue::get_element(CompileFunction &cf, const SInt64Value *idx) const {
+  auto present_bb = llvm::BasicBlock::Create(cf.llvm_context, "gettarrayelement_present", cf.llvm_function);
+  auto missing_bb = llvm::BasicBlock::Create(cf.llvm_context, "getarrayelement_missing", cf.llvm_function);
+
+  llvm::Value *missing_address =
+    cf.llvm_ir_builder.CreateBitCast(cf.llvm_ir_builder.CreateGEP(missing, idx->value), llvm::PointerType::get(llvm::Type::getInt1Ty(cf.llvm_context), 0));
+  llvm::Value *b = cf.llvm_ir_builder.CreateLoad(llvm::Type::getInt1Ty(cf.llvm_context), missing_address);
+  cf.llvm_ir_builder.CreateCondBr(b, missing_bb, present_bb);
+
+  cf.llvm_ir_builder.SetInsertPoint(present_bb);
+
+  auto stride_value = llvm::ConstantInt::get(llvm::Type::getInt64Ty(cf.llvm_context), static_cast<uint64_t>(stype->element_stride));
+  auto element_addr = cf.llvm_ir_builder.CreateGEP(this->data, cf.llvm_ir_builder.CreateMul(idx->value, stride_value));
+  auto sv = stype->element_type->load_from_address(cf, element_addr);
+  cf.module->printf(&cf.llvm_ir_builder, "element %d was present, value is %f, at address %llu\n", {idx->value, cast<SFloat64Value>(sv)->value, element_addr});
+  return EmitValue(missing_bb, sv);
 }
 
 void

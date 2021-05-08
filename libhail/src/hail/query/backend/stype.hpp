@@ -2,6 +2,7 @@
 #define HAIL_QUERY_BACKEND_STYPE_HPP_INCLUDED 1
 
 #include <vector>
+#include <unordered_map>
 #include <llvm/IR/Value.h>
 
 #include "hail/hash.hpp"
@@ -42,7 +43,11 @@ public:
     FLOAT32,
     FLOAT64,
     CANONICALTUPLE,
-    STACKTUPLE
+    STACKTUPLE,
+    STR,
+    CANONICALARRAY,
+    STREAM,
+    TUPLE
   };
   const Tag tag;
   const Type *const type;
@@ -133,6 +138,15 @@ public:
   SStackTuple(STypeContextToken, const Type *type, std::vector<EmitType> element_types);
 };
 
+class SCanonicalArray : public SType {
+public:
+  static bool is_instance_tag(Tag tag) { return tag == SType::Tag::CANONICALARRAY; }
+  const SType *element_type;
+  size_t elements_alignment;
+  size_t element_stride;
+  SCanonicalArray(STypeContextToken, const Type *type, const SType *element_type, size_t elements_alignment, size_t element_stride);
+};
+
 class EmitType {
 public:
   const SType *const stype;
@@ -182,6 +196,7 @@ public:
 
   const SCanonicalTuple *canonical_stuple(const Type *type, const std::vector<EmitType> &element_types, const VTuple *vtuple);
   const SStackTuple *stack_stuple(const Type *type, const std::vector<EmitType> &element_types);
+  const SCanonicalArray *canonical_sarray(const Type *type, const SType *element_type, size_t alignment, size_t stride);
 
   EmitType emit_type_from(const VType *vtype);
 
@@ -198,6 +213,7 @@ SType::dispatch(F f) const {
   case Tag::FLOAT64: return f(cast<SFloat64>(this));
   case Tag::CANONICALTUPLE: return f(cast<SCanonicalTuple>(this));
   case Tag::STACKTUPLE: return f(cast<SStackTuple>(this));
+  case Tag::CANONICALARRAY: return f(cast<SCanonicalArray>(this));
   default:
     abort();
   }

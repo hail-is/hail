@@ -15,7 +15,7 @@
 using namespace hail;
 
 int
-main() {
+old_main() {
   HeapAllocator heap;
   ArenaAllocator arena(heap);
   TypeContext tc(heap);
@@ -61,9 +61,9 @@ main() {
     Function *f = xc.make_function(m, "main", param_types, return_type);
     auto body = f->get_body();
     body->set_child(0, body->make_tuple({
-          body->make_na(tc.tint32),
-	  body->make_literal(i)
-	}));
+      body->make_na(tc.tint32),
+	    body->make_literal(i)
+	  }));
 
     m->pretty_self(outs);
 
@@ -78,21 +78,6 @@ main() {
 
     auto return_value = compiled.invoke(region, {});
     print("return_value: ", return_value);
-  }
-
-  {
-    print("Array testing:");
-    auto region = std::make_shared<ArenaAllocator>(heap);
-    auto varray = cast<VArray>(tc.get_vtype(tc.tarray(tc.tfloat64)));
-
-    int array_length = 8;
-    auto my_array = Value::make_array(varray, region, array_length);
-    print("array_length = ", my_array.get_size());
-    for (int i = 0; i < array_length; ++i) {
-      Value element(vfloat64, 5.2 + i);
-      my_array.set_element(i, element);
-    }
-    print(my_array);
   }
 
   return 0;

@@ -23,8 +23,9 @@ IRType::infer(Block *x) {
 
 const Type *
 IRType::infer(Input *x) {
-  return cast<TBlock>(infer(x->get_parent()))
-    ->input_types[x->index];
+  auto parent_input_types = cast<TBlock>(infer(x->get_parent()))->input_types;
+  assert(x->index < parent_input_types.size());
+  return parent_input_types[x->index];
 }
 
 const Type *
@@ -54,6 +55,29 @@ IRType::infer(MakeTuple *x) {
 const Type *
 IRType::infer(GetTupleElement *x) {
   return cast<TTuple>(infer(x->get_child(0)))->element_types[x->index];
+}
+
+const Type *
+IRType::infer(MakeArray *x) {
+  auto children = x->get_children();
+  assert(children.size() > 0);
+  auto element_type = infer(children[0]);
+  for (auto c : children)
+    assert(infer(c) == element_type);
+  return tc.tarray(element_type);
+}
+
+const Type *
+IRType::infer(ArrayLen *x) {
+  infer(x->get_child(0));
+  return tc.tint64;
+}
+
+const Type *
+IRType::infer(ArrayRef *x) {
+  auto child_type = infer(x->get_child(0));
+  auto index_type = infer(x->get_child(1));
+  return cast<TArray>(child_type)->element_type;
 }
 
 const Type *

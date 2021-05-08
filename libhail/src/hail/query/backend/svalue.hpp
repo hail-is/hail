@@ -22,7 +22,8 @@ public:
     FLOAT32,
     FLOAT64,
     CANONICALTUPLE,
-    STACKTUPLE
+    STACKTUPLE,
+    CANONICALARRAY
   };
   const Tag tag;
   const SType *const stype;
@@ -94,6 +95,28 @@ public:
   std::vector<EmitDataValue> element_emit_values;
   SStackTupleValue(const SType *stype, std::vector<EmitDataValue> element_emit_values);
   EmitValue get_element(CompileFunction &cf, size_t i) const;
+};
+
+class SArrayValue : public SValue {
+public:
+  static bool is_instance_tag(Tag tag) { return tag == SValue::Tag::CANONICALARRAY; }
+  const SCanonicalArray *const stype;
+  SArrayValue(Tag tag, const SCanonicalArray *stype);
+  virtual EmitValue get_element(CompileFunction &cf, const SInt64Value *idx) const = 0;
+  virtual SInt64Value *get_length(STypeContext &stc) const = 0;
+};
+
+class SCanonicalArrayValue : public SArrayValue {
+  public:
+    static bool is_instance_tag(Tag tag) { return tag == SValue::Tag::CANONICALARRAY; }
+    SCanonicalArrayValue(const SCanonicalArray *stype, llvm::Value *length, llvm::Value *missing, llvm::Value *data);
+    SInt64Value* get_length(STypeContext &stc) const override;
+    EmitValue get_element(CompileFunction &cf, const SInt64Value *idx) const override;
+    ~SCanonicalArrayValue();
+  private:
+    llvm::Value *data;
+    llvm::Value *length;
+    llvm::Value *missing;
 };
 
 class EmitControlValue {

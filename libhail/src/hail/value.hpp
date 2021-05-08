@@ -78,6 +78,8 @@ public:
       elements(p->elements) {}
 
   size_t get_size() const { return size; }
+  char * get_missing_bits() const { return missing_bits; }
+  char * get_elements() const { return elements; }
   bool get_element_missing(size_t i) const {
     return get_bit(missing_bits, i);
   }
