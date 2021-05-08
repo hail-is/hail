@@ -416,6 +416,8 @@ class TailLoop(IR):
         return {n for n, _ in self.params} | {self.name} | super().bound_variables
 
     def _compute_type(self, env, agg_env):
+        for _, b in self.params:
+            b._compute_type(env, agg_env)
         self.body._compute_type(_env_bind(env, self.bindings(len(self.params))), agg_env)
         self._type = self.body.typ
 
