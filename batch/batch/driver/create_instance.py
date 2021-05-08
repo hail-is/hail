@@ -161,15 +161,6 @@ sudo ln -s /mnt/disks/$WORKER_DATA_DISK_NAME/logs /logs
 sudo mkdir -p /mnt/disks/$WORKER_DATA_DISK_NAME/gcsfuse/
 sudo ln -s /mnt/disks/$WORKER_DATA_DISK_NAME/gcsfuse /gcsfuse
 
-sudo mkdir -p /mnt/disks/$WORKER_DATA_DISK_NAME/xfsquota/
-sudo ln -s /mnt/disks/$WORKER_DATA_DISK_NAME/xfsquota /xfsquota
-
-touch /xfsquota/projects
-touch /xfsquota/projid
-
-ln -s /xfsquota/projects /etc/projects
-ln -s /xfsquota/projid /etc/projid
-
 export HOME=/root
 
 CORES=$(nproc)
@@ -278,7 +269,6 @@ docker run \
 -v /batch:/batch:shared \
 -v /logs:/logs \
 -v /gcsfuse:/gcsfuse:shared \
--v /xfsquota:/xfsquota \
 --mount type=bind,source=/mnt/disks/$WORKER_DATA_DISK_NAME,target=/host \
 --mount type=bind,source=/dev,target=/dev,bind-propagation=rshared \
 -p 5000:5000 \

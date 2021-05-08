@@ -68,7 +68,6 @@ from ..publicly_available_images import publicly_available_images
 from ..utils import storage_gib_to_bytes, Box
 
 from .disk import Disk
-from .flock import Flock
 
 # uvloop.install()
 
@@ -464,12 +463,8 @@ class Container:
             self.overlay_path = merged_overlay_path[:-7].replace(WORKER_DATA_DISK_MOUNT, '/host')
             os.makedirs(f'{self.overlay_path}/', exist_ok=True)
 
-            async with Flock('/xfsquota/projects', pool=worker.pool):
-                with open('/xfsquota/projects', 'a') as f:
-                    f.write(f'{self.job.project_id}:{self.overlay_path}\n')
-
             await check_shell_output(
-                f'xfs_quota -x -D /xfsquota/projects -P /xfsquota/projid -c "project -s {self.job.project_name}" /host/'
+                f'xfs_quota -x -c "project -s -p {self.overlay_path} {self.job.project_id}" /host/'
             )
 
             with self.step('starting'):
@@ -535,12 +530,6 @@ class Container:
         return self.log
 
     async def delete_container(self):
-        if self.overlay_path:
-            path = self.overlay_path.replace('/', r'\/')
-
-            async with Flock('/xfsquota/projects', pool=worker.pool):
-                await check_shell(f"sed -i '/:{path}/d' /xfsquota/projects")
-
         if self.container:
             try:
                 log.info(f'{self}: deleting container')
@@ -778,7 +767,6 @@ class Job:
         self.secrets = secrets
         self.env = job_spec.get('env', [])
 
-        self.project_name = f'batch-{self.batch_id}-job-{self.job_id}'
         self.project_id = Job.get_next_xfsquota_project_id()
 
         self.task_manager = task_manager
@@ -970,25 +958,16 @@ class DockerJob(Job):
 
                 await self.setup_io()
 
-                async with Flock('/xfsquota/projid', pool=worker.pool):
-                    with open('/xfsquota/projid', 'a') as f:
-                        f.write(f'{self.project_name}:{self.project_id}\n')
-
                 if not self.disk:
-                    async with Flock('/xfsquota/projects', pool=worker.pool):
-                        with open('/xfsquota/projects', 'a') as f:
-                            f.write(f'{self.project_id}:{self.scratch}\n')
                     data_disk_storage_in_bytes = storage_gib_to_bytes(
                         self.external_storage_in_gib + self.data_disk_storage_in_gib
                     )
                 else:
                     data_disk_storage_in_bytes = storage_gib_to_bytes(self.data_disk_storage_in_gib)
 
+                await check_shell_output(f'xfs_quota -x -c "project -s -p {self.scratch} {self.project_id}" /host/')
                 await check_shell_output(
-                    f'xfs_quota -x -D /xfsquota/projects -P /xfsquota/projid -c "project -s {self.project_name}" /host/'
-                )
-                await check_shell_output(
-                    f'xfs_quota -x -D /xfsquota/projects -P /xfsquota/projid -c "limit -p bsoft={data_disk_storage_in_bytes} bhard={data_disk_storage_in_bytes} {self.project_name}" /host/'
+                    f'xfs_quota -x -c "limit -p bsoft={data_disk_storage_in_bytes} bhard={data_disk_storage_in_bytes} {self.project_id}" /host/'
                 )
 
                 if self.secrets:
@@ -1072,15 +1051,7 @@ class DockerJob(Job):
                     await check_shell(f'fusermount -u {mount_path}')
                     log.info(f'unmounted gcsfuse bucket {bucket} from {mount_path}')
 
-            await check_shell(
-                f'xfs_quota -x -D /xfsquota/projects -P /xfsquota/projid -c "limit -p bsoft=0 bhard=0 {self.project_name}" /host'
-            )
-
-            async with Flock('/xfsquota/projid', pool=worker.pool):
-                await check_shell(f"sed -i '/{self.project_name}:{self.project_id}/d' /xfsquota/projid")
-
-            async with Flock('/xfsquota/projects', pool=worker.pool):
-                await check_shell(f"sed -i '/{self.project_id}:/d' /xfsquota/projects")
+            await check_shell(f'xfs_quota -x -c "limit -p bsoft=0 bhard=0 {self.project_id}" /host')
 
             await blocking_to_async(self.pool, shutil.rmtree, self.scratch, ignore_errors=True)
         except asyncio.CancelledError:
@@ -1199,19 +1170,9 @@ class JVMJob(Job):
 
                 os.makedirs(f'{self.scratch}/')
 
-                async with Flock('/xfsquota/projid', pool=worker.pool):
-                    with open('/xfsquota/projid', 'a') as f:
-                        f.write(f'{self.project_name}:{self.project_id}\n')
-
-                async with Flock('/xfsquota/projects', pool=worker.pool):
-                    with open('/xfsquota/projects', 'a') as f:
-                        f.write(f'{self.project_id}:{self.scratch}\n')
-
+                await check_shell_output(f'xfs_quota -x -c "project -s -p {self.scratch} {self.project_id}" /host/')
                 await check_shell_output(
-                    f'xfs_quota -x -D /xfsquota/projects -P /xfsquota/projid -c "project -s {self.project_name}" /host/'
-                )
-                await check_shell_output(
-                    f'xfs_quota -x -D /xfsquota/projects -P /xfsquota/projid -c "limit -p bsoft={self.data_disk_storage_in_gib} bhard={self.data_disk_storage_in_gib} {self.project_name}" /host/'
+                    f'xfs_quota -x -c "limit -p bsoft={self.data_disk_storage_in_gib} bhard={self.data_disk_storage_in_gib} {self.project_id}" /host/'
                 )
 
                 if self.secrets:
@@ -1287,15 +1248,7 @@ class JVMJob(Job):
 
         log.info(f'{self}: cleaning up')
         try:
-            await check_shell(
-                f'xfs_quota -x -D /xfsquota/projects -P /xfsquota/projid -c "limit -p bsoft=0 bhard=0 {self.project_name}" /host'
-            )
-
-            async with Flock('/xfsquota/projid', pool=worker.pool):
-                await check_shell(f"sed -i '/{self.project_name}:{self.project_id}/d' /xfsquota/projid")
-
-            async with Flock('/xfsquota/projects', pool=worker.pool):
-                await check_shell(f"sed -i '/{self.project_id}:/d' /xfsquota/projects")
+            await check_shell(f'xfs_quota -x -c "limit -p bsoft=0 bhard=0 {self.project_id}" /host')
 
             await blocking_to_async(self.pool, shutil.rmtree, self.scratch, ignore_errors=True)
         except asyncio.CancelledError:
