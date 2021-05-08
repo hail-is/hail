@@ -786,6 +786,7 @@ steps:
         to: /io/repo/hail_version
     dependsOn:
       - merge_code
+      - hail_ubuntu_image
   - kind: buildImage2
     name: service_java_run_base_image
     dockerFile: /io/repo/docker/Dockerfile.service-java-run-base
