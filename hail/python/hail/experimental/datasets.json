@@ -1,21 +1,65 @@
 {
-  "1000_Genomes_autosomes": {
-    "description": "1000 Genomes Project: the largest public catalogue of human variation and genotype data.",
-    "url": "https://www.internationalgenome.org/home",
+  "1000_Genomes_HighCov_autosomes": {
+    "description": "1000 Genomes Project: The New York Genome Center (NYGC), funded by NHGRI, has sequenced 3202 samples from the 1000 Genomes Project sample collection to 30x coverage. Initially, the 2504 unrelated samples from the phase three panel from the 1000 Genomes Project were sequenced. Thereafter, an additional 698 samples, related to samples in the 2504 panel, were also sequenced. This dataset contains phased calls.",
+    "url": "https://www.internationalgenome.org/data-portal/data-collection/30x-grch38",
     "versions": [
       {
-        "reference_genome": "GRCh37",
+        "reference_genome": "GRCh38",
         "url": {
           "aws": {
-            "us": "s3://hail-datasets-us-east-1/1000_Genomes_autosomes.phase_3.GRCh37.mt"
+            "us": "s3://hail-datasets-us-east-1/1000_Genomes_autosomes_NYGC_30x_HighCov_GRCh38.mt"
           },
           "gcp": {
-            "eu": "gs://hail-datasets-eu/1000_Genomes_autosomes.phase_3.GRCh37.mt",
-            "us": "gs://hail-datasets-us/1000_Genomes_autosomes.phase_3.GRCh37.mt"
+            "eu": "gs://hail-datasets-eu/1000_Genomes_autosomes_NYGC_30x_HighCov_GRCh38.mt",
+            "us": "gs://hail-datasets-us/1000_Genomes_autosomes_NYGC_30x_HighCov_GRCh38.mt"
           }
         },
-        "version": "phase_3"
-      },
+        "version": "NYGC_30x"
+      }
+    ]
+  },
+  "1000_Genomes_HighCov_chrX": {
+    "description": "1000 Genomes Project: The New York Genome Center (NYGC), funded by NHGRI, has sequenced 3202 samples from the 1000 Genomes Project sample collection to 30x coverage. Initially, the 2504 unrelated samples from the phase three panel from the 1000 Genomes Project were sequenced. Thereafter, an additional 698 samples, related to samples in the 2504 panel, were also sequenced. This dataset contains phased calls.",
+    "url": "https://www.internationalgenome.org/data-portal/data-collection/30x-grch38",
+    "versions": [
+      {
+        "reference_genome": "GRCh38",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/1000_Genomes_chrX_NYGC_30x_HighCov_GRCh38.mt"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/1000_Genomes_chrX_NYGC_30x_HighCov_GRCh38.mt",
+            "us": "gs://hail-datasets-us/1000_Genomes_chrX_NYGC_30x_HighCov_GRCh38.mt"
+          }
+        },
+        "version": "NYGC_30x"
+      }
+    ]
+  },
+  "1000_Genomes_HighCov_chrY": {
+    "description": "1000 Genomes Project: The New York Genome Center (NYGC), funded by NHGRI, has sequenced 3202 samples from the 1000 Genomes Project sample collection to 30x coverage. Initially, the 2504 unrelated samples from the phase three panel from the 1000 Genomes Project were sequenced. Thereafter, an additional 698 samples, related to samples in the 2504 panel, were also sequenced.",
+    "url": "https://www.internationalgenome.org/data-portal/data-collection/30x-grch38",
+    "versions": [
+      {
+        "reference_genome": "GRCh38",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/1000_Genomes_chrY_NYGC_30x_HighCov_GRCh38.mt"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/1000_Genomes_chrY_NYGC_30x_HighCov_GRCh38.mt",
+            "us": "gs://hail-datasets-us/1000_Genomes_chrY_NYGC_30x_HighCov_GRCh38.mt"
+          }
+        },
+        "version": "NYGC_30x"
+      }
+    ]
+  },
+  "1000_Genomes_Retracted_autosomes": {
+    "description": "1000 Genomes Project: These datasets have been retracted due to a number of known issues on GRCh38, see link for more details.",
+    "url": "http://ftp.1000genomes.ebi.ac.uk/vol1/ftp/release/20130502/supporting/GRCh38_positions/README_GRCh38_liftover_20170504.txt",
+    "versions": [
       {
         "reference_genome": "GRCh38",
         "url": {
@@ -31,8 +75,65 @@
       }
     ]
   },
+  "1000_Genomes_Retracted_chrX": {
+    "description": "1000 Genomes Project: These datasets have been retracted due to a number of known issues on GRCh38, see link for more details.",
+    "url": "http://ftp.1000genomes.ebi.ac.uk/vol1/ftp/release/20130502/supporting/GRCh38_positions/README_GRCh38_liftover_20170504.txt",
+    "versions": [
+      {
+        "reference_genome": "GRCh38",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/1000_Genomes_chrX.phase_3.GRCh38.mt"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/1000_Genomes_chrX.phase_3.GRCh38.mt",
+            "us": "gs://hail-datasets-us/1000_Genomes_chrX.phase_3.GRCh38.mt"
+          }
+        },
+        "version": "phase_3"
+      }
+    ]
+  },
+  "1000_Genomes_Retracted_chrY": {
+    "description": "1000 Genomes Project: These datasets have been retracted due to a number of known issues on GRCh38, see link for more details.",
+    "url": "http://ftp.1000genomes.ebi.ac.uk/vol1/ftp/release/20130502/supporting/GRCh38_positions/README_GRCh38_liftover_20170504.txt",
+    "versions": [
+      {
+        "reference_genome": "GRCh38",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/1000_Genomes_chrY.phase_3.GRCh38.mt"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/1000_Genomes_chrY.phase_3.GRCh38.mt",
+            "us": "gs://hail-datasets-us/1000_Genomes_chrY.phase_3.GRCh38.mt"
+          }
+        },
+        "version": "phase_3"
+      }
+    ]
+  },
+  "1000_Genomes_autosomes": {
+    "description": "1000 Genomes Project: The GRCh38 phase_3 version has been retracted, but is still available (see the 1000_Genomes_Retracted_autosomes dataset). For GRCh38, the NYGC 30x coverage autosomes phased dataset is available as 1000_Genomes_HighCov_autosomes.",
+    "url": "https://www.internationalgenome.org/home",
+    "versions": [
+      {
+        "reference_genome": "GRCh37",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/1000_Genomes_autosomes.phase_3.GRCh37.mt"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/1000_Genomes_autosomes.phase_3.GRCh37.mt",
+            "us": "gs://hail-datasets-us/1000_Genomes_autosomes.phase_3.GRCh37.mt"
+          }
+        },
+        "version": "phase_3"
+      }
+    ]
+  },
   "1000_Genomes_chrMT": {
-    "description": "1000 Genomes Project: the largest public catalogue of human variation and genotype data.",
+    "description": "1000 Genomes Project: Mitochondrial chromosome variants.",
     "url": "https://www.internationalgenome.org/home",
     "versions": [
       {
@@ -51,7 +152,7 @@
     ]
   },
   "1000_Genomes_chrX": {
-    "description": "1000 Genomes Project: the largest public catalogue of human variation and genotype data.",
+    "description": "1000 Genomes Project: The GRCh38 phase_3 version has been retracted, but is still available (see the 1000_Genomes_Retracted_chrX dataset). For GRCh38, the NYGC 30x coverage chrX phased dataset is available as 1000_Genomes_HighCov_chrX.",
     "url": "https://www.internationalgenome.org/home",
     "versions": [
       {
@@ -66,24 +167,11 @@
           }
         },
         "version": "phase_3"
-      },
-      {
-        "reference_genome": "GRCh38",
-        "url": {
-          "aws": {
-            "us": "s3://hail-datasets-us-east-1/1000_Genomes_chrX.phase_3.GRCh38.mt"
-          },
-          "gcp": {
-            "eu": "gs://hail-datasets-eu/1000_Genomes_chrX.phase_3.GRCh38.mt",
-            "us": "gs://hail-datasets-us/1000_Genomes_chrX.phase_3.GRCh38.mt"
-          }
-        },
-        "version": "phase_3"
       }
     ]
   },
   "1000_Genomes_chrY": {
-    "description": "1000 Genomes Project: the largest public catalogue of human variation and genotype data.",
+    "description": "1000 Genomes Project: The GRCh38 phase_3 version has been retracted, but is still available (see the 1000_Genomes_Retracted_chrY dataset). For GRCh38, the NYGC 30x coverage chrY dataset is available as 1000_Genomes_HighCov_chrY.",
     "url": "https://www.internationalgenome.org/home",
     "versions": [
       {
@@ -95,19 +183,6 @@
           "gcp": {
             "eu": "gs://hail-datasets-eu/1000_Genomes_chrY.phase_3.GRCh37.mt",
             "us": "gs://hail-datasets-us/1000_Genomes_chrY.phase_3.GRCh37.mt"
-          }
-        },
-        "version": "phase_3"
-      },
-      {
-        "reference_genome": "GRCh38",
-        "url": {
-          "aws": {
-            "us": "s3://hail-datasets-us-east-1/1000_Genomes_chrY.phase_3.GRCh38.mt"
-          },
-          "gcp": {
-            "eu": "gs://hail-datasets-eu/1000_Genomes_chrY.phase_3.GRCh38.mt",
-            "us": "gs://hail-datasets-us/1000_Genomes_chrY.phase_3.GRCh38.mt"
           }
         },
         "version": "phase_3"
