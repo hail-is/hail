@@ -246,7 +246,10 @@ class Job:
         Omitting a suffix means the value is in cpu.
 
         For the :class:`.ServiceBackend`, `cores` must be a power of
-        two between 0.25 and 16.
+        two between 0.25 and 64 in order for a job to be run on a shared
+        worker. If `cores` is equal to 32 or 64, then a private instance will
+        be created for the job with the optimal machine type based on the
+        cpu and memory requests.
 
         Examples
         --------
@@ -259,6 +262,14 @@ class Job:
         ...   .command(f'echo "hello"'))
         >>> b.run()
 
+        Warning
+        -------
+
+        Jobs with `cores` equal to 32 or 64 will have a private instance created
+        specifically for that job. You will be billed for the entire time the
+        instance is running including the activation time. This option should
+        not be used for low latency jobs.
+
         Parameters
         ----------
         cores:
@@ -270,6 +281,108 @@ class Job:
         """
 
         self._cpu = str(cores)
+        return self
+
+    def preemptible(self, preemptible: bool = True) -> 'Job':
+        """
+        Set whether the job is preemptible.
+
+        Notes
+        -----
+
+        Can only be used with the :class:`.backend.ServiceBackend`.
+
+        Examples
+        --------
+
+        Set the job to be run on a preemptible machine:
+
+        >>> b = Batch(backend=backend.ServiceBackend('test'))
+        >>> j = b.new_job()
+        >>> (j.preemptible()
+        ...   .command(f'echo "hello"'))
+        >>> b.run()
+
+
+        Parameters
+        ----------
+        preemptible:
+            If `True`, the job is scheduled on a preemptible machine. If
+            `False`, the job is scheduled on a private nonpreemptible machine.
+
+        Returns
+        -------
+        Same job object with preemptible set.
+        """
+
+        if not isinstance(self._batch._backend, backend.ServiceBackend):
+            raise NotImplementedError("A ServiceBackend is required to use the 'preemptible' option")
+
+        self._preemptible = preemptible
+        return self
+
+    def machine_type(self, machine_type: str) -> 'Job':
+        """
+        Set whether the job should be run on a private machine with the
+        specified machine type.
+
+        Notes
+        -----
+
+        Can only be used with the :class:`.backend.ServiceBackend`.
+
+        Currently, only the `n1` family of machine types are supported. See
+        the `GCE documentation <https://cloud.google.com/compute/docs/machine-types#n1_machine_types>`__
+        for which machine types are available.
+
+        Any previously set parameters for :meth:`.Job.cpu` or :meth:`.Job.memory` will
+        be ignored.
+
+        The default storage is `100Gi` and is a persistent SSD. Use the :meth:`.Job.storage`
+        method to set the storage to a different value.
+
+        Warning
+        -------
+
+        Jobs that set the machine type will be billed for the entire time the
+        instance is running including the activation time. This option should
+        not be used for low latency jobs.
+
+        Examples
+        --------
+
+        Set the job to be run on a private `n1-standard-1` machine:
+
+        >>> b = Batch(backend=backend.ServiceBackend('test'))
+        >>> j = b.new_job()
+        >>> (j.machine_type('n1-standard-1')
+        ...   .command(f'echo "hello"'))
+        >>> b.run()
+
+        Warning
+        -------
+
+        If `preemptible` is `False`, we will create a private instance
+        specifically for this job. You will be billed for the entire time the
+        instance is running including the activation time. This option should
+        not be used for low latency jobs.
+
+        Parameters
+        ----------
+        machine_type:
+            A string specifying the specific GCE machine type to use.
+
+        Returns
+        -------
+        Same job object with machine_type set.
+        """
+
+        if not isinstance(self._batch._backend, backend.ServiceBackend):
+            raise NotImplementedError("A ServiceBackend is required to use the 'machine_type' option")
+
+        self._machine_type = machine_type
+        self._cpu = None
+        self._memory = None
         return self
 
     def always_run(self, always_run: bool = True) -> 'Job':
@@ -340,7 +453,7 @@ class Job:
         self._timeout = timeout
         return self
 
-    def gcsfuse(self, bucket, mount_point, read_only=True):
+    def gcsfuse(self, bucket, mount_point, read_only=True) -> 'Job':
         """
         Add a bucket to mount with gcsfuse.
 

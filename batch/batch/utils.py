@@ -5,6 +5,7 @@ import secrets
 from aiohttp import web
 from functools import wraps
 from collections import deque
+import sortedcontainers
 
 from gear import maybe_parse_bearer_header
 
@@ -70,13 +71,7 @@ def cost_from_msec_mcpu(msec_mcpu):
     instance_cost_per_instance_hour = disk_cost_per_instance_hour + ip_cost_per_instance_hour
 
     # per core costs
-    if worker_type == 'standard':
-        cpu_cost_per_core_hour = 0.01
-    elif worker_type == 'highcpu':
-        cpu_cost_per_core_hour = 0.0075
-    else:
-        assert worker_type == 'highmem'
-        cpu_cost_per_core_hour = 0.0125
+    cpu_cost_per_core_hour = worker_memory_cpu_cost_per_core_hour(worker_type, preemptible=True)
 
     service_cost_per_core_hour = 0.01
 
@@ -85,6 +80,26 @@ def cost_from_msec_mcpu(msec_mcpu):
     )
 
     return (msec_mcpu * 0.001 * 0.001) * (total_cost_per_core_hour / 3600)
+
+
+def worker_memory_cpu_cost_per_core_hour(worker_type, preemptible):
+    if preemptible:
+        if worker_type == 'standard':
+            cost_per_core_hour = 0.01
+        elif worker_type == 'highcpu':
+            cost_per_core_hour = 0.0075
+        else:
+            assert worker_type == 'highmem'
+            cost_per_core_hour = 0.0125
+    else:
+        if worker_type == 'standard':
+            cost_per_core_hour = 0.04749975
+        elif worker_type == 'highcpu':
+            cost_per_core_hour = 0.0354243
+        else:
+            assert worker_type == 'highmem'
+            cost_per_core_hour = 0.0591515
+    return cost_per_core_hour
 
 
 def worker_memory_per_core_mib(worker_type):
@@ -192,6 +207,36 @@ def is_valid_cores_mcpu(cores_mcpu: int):
         return False
     quarter_cores = quarter_core_mcpu // 1000
     return quarter_cores & (quarter_cores - 1) == 0
+
+
+def resources_to_machine_type(cores_mcpu, memory_bytes, preemptible):
+    worker_family = 'n1'
+
+    optimal_machine_type = None
+    minimum_cost = None
+
+    for typ in ('highcpu', 'standard', 'highmem'):
+        rate = worker_memory_cpu_cost_per_core_hour(typ, preemptible)
+
+        if typ == 'standard':
+            possible_cores = sortedcontainers.SortedSet([1, 2, 4, 8, 16, 32, 64, 96])
+        else:
+            possible_cores = sortedcontainers.SortedSet([2, 4, 8, 16, 32, 64, 96])
+
+        adj_cores_mcpu = adjust_cores_for_memory_request(cores_mcpu, memory_bytes, typ)
+        adj_cores_mcpu = adjust_cores_for_packability(adj_cores_mcpu)
+
+        idx = possible_cores.bisect_left(adj_cores_mcpu / 1000)
+        if idx == len(possible_cores):
+            continue
+        min_cores = possible_cores[idx]
+
+        maybe_cost = rate * min_cores
+        if minimum_cost is None or maybe_cost < minimum_cost:
+            minimum_cost = maybe_cost
+            optimal_machine_type = f'{worker_family}-{typ}-{min_cores}'
+
+    return optimal_machine_type
 
 
 class Box:
