@@ -1,4 +1,5 @@
-from typing import Union, List, Optional
+from typing import Union, List, Optional, Type
+from types import TracebackType
 import sys
 import json
 import asyncio
@@ -12,15 +13,31 @@ from hailtop.aiogoogle import GoogleStorageAsyncFS
 # and no Google credentials are available in the copy steps.
 class GoogleAsyncFSIfNecessary:
     def __init__(self, requester_pays_project: Optional[str], transfer: Union[Transfer, List[Transfer]]):
-        self.requester_pays_project
+        self.requester_pays_project = requester_pays_project
         self.transfer = transfer
         self.gs = None
 
+    def _requires_gs(self):
+        transfers = self.transfer
+        if isinstance(transfers, Transfer):
+            transfers = [transfers]
+        for transfer in transfers:
+            if transfer.dest.startswith('gs://'):
+                return True
+            srcs = transfer.src
+            if isinstance(srcs, str):
+                srcs = [srcs]
+            for src in srcs:
+                if src.startswith('gs://'):
+                    return True
+
+        return False
+
     async def __aenter__(self) -> Optional[GoogleStorageAsyncFS]:
-        if not any(transfer.src.startswith('gs://') or
-                   transfer.dest.startswith('gs://')):
+        if not self._requires_gs():
             return None
 
+        requester_pays_project = self.requester_pays_project
         if requester_pays_project:
             params = {'userProject': requester_pays_project}
         else:
@@ -34,7 +51,7 @@ class GoogleAsyncFSIfNecessary:
                         exc_val: Optional[BaseException],
                         exc_tb: Optional[TracebackType]) -> None:
         if self.gs:
-            gs.close()
+            self.gs.close()
 
 
 async def copy(requester_pays_project: Optional[str], transfer: Union[Transfer, List[Transfer]]) -> None:

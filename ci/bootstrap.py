@@ -1,4 +1,4 @@
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Union
 import os
 import json
 from shlex import quote as shq
@@ -19,7 +19,8 @@ from batch.driver.k8s_cache import K8sCache
 KUBERNETES_SERVER_URL = os.environ['KUBERNETES_SERVER_URL']
 DOCKER_PREFIX = os.environ['HAIL_DOCKER_PREFIX']
 DOCKER_ROOT_IMAGE = f'{DOCKER_PREFIX}/ubuntu:18.04'
-
+BATCH_WORKER_IMAGE = os.environ['BATCH_WORKER_IMAGE']
+ 
 
 def populate_secret_host_path(host_path: str, secret_data: Union[str, bytes]):
     os.makedirs(host_path)
@@ -41,7 +42,7 @@ class LocalJob:
         secrets: Optional[List[Dict[str, str]]] = None,
         service_account: Optional[str] = None,
         attributes: Optional[Dict[str, str]] = None,
-        parents: Optional[List[LocalJob]] = None,
+        parents: Optional[List['LocalJob']] = None,
         input_files: Optional[List[Tuple[str, str]]] = None,
         output_files: Optional[List[Tuple[str, str]]] = None,
         **kwargs,
@@ -127,15 +128,14 @@ class LocalBatchBuilder:
             os.makedirs(f'{job_root}/secrets')
 
             if j._input_files:
-                copy_script = 'set -ex\n'
+                files = []
                 for src, dest in j._input_files:
                     assert src.startswith(prefix), (prefix, src)
                     src = f'/shared{src[len(prefix):]}'
-                    if dest.endswith('/'):
-                        copy_script += f'mkdir -p {dest}\n'
-                    else:
-                        copy_script += f'mkdir -p {os.path.dirname(dest)}\n'
-                    copy_script += f'cp -a {src} {dest}\n'
+                    files.append({
+                        'from': src,
+                        'to': dest
+                    })
                 input_cid, input_ok = await docker_run(
                     'docker',
                     'run',
@@ -144,10 +144,13 @@ class LocalBatchBuilder:
                     f'{root}/shared:/shared',
                     '-v',
                     f'{job_root}/io:/io',
-                    DOCKER_ROOT_IMAGE,
-                    '/bin/bash',
-                    '-c',
-                    copy_script,
+                    '--entrypoint',
+                    '/usr/local/bin/python3',
+                    BATCH_WORKER_IMAGE,
+                    '-m',
+                    'batch.copy',
+                    json.dumps(None),
+                    json.dumps(files)
                 )
 
                 print(f'{j._index}: {job_name}/input: {input_cid} {"OK" if input_ok else "FAILED"}')
@@ -159,7 +162,7 @@ class LocalBatchBuilder:
 
                 env_options = []
                 if j._env:
-                    for key, value in j._env:
+                    for key, value in j._env.items():
                         env_options.extend(['-e', f'{key}={value}'])
 
                 # Reboot the cache on each use.  The kube client isn't
@@ -233,7 +236,8 @@ users:
                     mount_options.extend(['-v', '/var/run/docker.sock:/var/run/docker.sock'])
 
                 main_cid, main_ok = await docker_run(
-                    'docker', 'run', '-d', *env_options, *mount_options, j._image, *j._command
+                    'docker', 'run', '-d', *env_options, *mount_options,
+                    '--entrypoint', j._command[0], j._image, *j._command[1:]
                 )
                 print(f'{j._index}: {job_name}/main: {main_cid} {"OK" if main_ok else "FAILED"}')
             else:
@@ -242,15 +246,14 @@ users:
 
             if j._output_files:
                 if main_ok:
-                    copy_script = 'set -ex\n'
+                    files = []
                     for src, dest in j._output_files:
                         assert dest.startswith(prefix), (prefix, dest)
                         dest = f'/shared{dest[len(prefix):]}'
-                        if dest.endswith('/'):
-                            copy_script += f'mkdir -p {dest}\n'
-                        else:
-                            copy_script += f'mkdir -p {os.path.dirname(dest)}\n'
-                        copy_script += f'cp -a {src} {dest}\n'
+                        files.append({
+                            'from': src,
+                            'to': dest
+                        })
                     output_cid, output_ok = await docker_run(
                         'docker',
                         'run',
@@ -259,10 +262,13 @@ users:
                         f'{root}/shared:/shared',
                         '-v',
                         f'{job_root}/io:/io',
-                        DOCKER_ROOT_IMAGE,
-                        '/bin/bash',
-                        '-c',
-                        copy_script,
+                        '--entrypoint',
+                        '/usr/local/bin/python3',
+                        BATCH_WORKER_IMAGE,
+                        '-m',
+                        'batch.copy',
+                        json.dumps(None),
+                        json.dumps(files)
                     )
                     print(f'{j._index}: {job_name}/output: {output_cid} {"OK" if output_ok else "FAILED"}')
                 else:
@@ -305,6 +311,9 @@ class Branch(Code):
 
 git checkout {shq(self._sha)}
 '''
+
+    def repo_dir(self):
+        return '.'
 
 
 async def main():
