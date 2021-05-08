@@ -546,8 +546,13 @@ class GoogleStorageMultiPartCreate(MultiPartCreate):
 class GoogleStorageAsyncFS(AsyncFS):
     def __init__(self, *,
                  storage_client: Optional[StorageClient] = None,
+                 project: Optional[str] = None,
                  **kwargs):
         if not storage_client:
+            if project is not None:
+                if 'params' not in kwargs:
+                    kwargs['params'] = {}
+                kwargs['params']['userProject'] = project
             storage_client = StorageClient(**kwargs)
         self._storage_client = storage_client
 
@@ -571,10 +576,14 @@ class GoogleStorageAsyncFS(AsyncFS):
         bucket, name = self._get_bucket_name(url)
         return await self._storage_client.get_object(bucket, name)
 
-    async def open_from(self, url: str, start: int) -> ReadableStream:
+    async def open_from(self, url: str, start: int, end: int = None) -> ReadableStream:
         bucket, name = self._get_bucket_name(url)
+        if end is not None:
+            range = f'bytes={start}-{end}'
+        else:
+            range = f'bytes={start}-'
         return await self._storage_client.get_object(
-            bucket, name, headers={'Range': f'bytes={start}-'})
+            bucket, name, headers={'Range': range})
 
     async def create(self, url: str, retry_writes: bool = True) -> WritableStream:
         bucket, name = self._get_bucket_name(url)

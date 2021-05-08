@@ -1,6 +1,5 @@
 from numbers import Number
 import os
-import concurrent
 import logging
 import json
 import random
@@ -29,6 +28,7 @@ from hailtop.utils import (
     dump_all_stacktraces,
 )
 from hailtop.batch_client.parse import parse_cpu_in_mcpu, parse_memory_in_bytes, parse_storage_in_bytes
+import hailtop.aiogoogle as aiogoogle
 from hailtop.config import get_deploy_config
 from hailtop.tls import internal_server_ssl_context
 from hailtop.httpx import client_session
@@ -2030,8 +2030,6 @@ async def delete_batch_loop_body(app):
 
 async def on_startup(app):
     app['task_manager'] = aiotools.BackgroundTaskManager()
-    pool = concurrent.futures.ThreadPoolExecutor()
-    app['blocking_pool'] = pool
 
     db = Database()
     await db.async_init()
@@ -2053,8 +2051,8 @@ SELECT instance_id, internal_token, n_tokens FROM globals;
 
     app['batch_headers'] = {'Authorization': f'Bearer {row["internal_token"]}'}
 
-    credentials = google.oauth2.service_account.Credentials.from_service_account_file('/gsa-key/key.json')
-    app['log_store'] = LogStore(BATCH_BUCKET_NAME, instance_id, pool, credentials=credentials)
+    credentials = aiogoogle.auth.credentials.Credentials.from_file('/gsa-key/key.json')
+    app['log_store'] = LogStore(BATCH_BUCKET_NAME, instance_id, credentials=credentials)
 
     inst_coll_configs = InstanceCollectionConfigs(app)
     app['inst_coll_configs'] = inst_coll_configs
@@ -2077,9 +2075,9 @@ SELECT instance_id, internal_token, n_tokens FROM globals;
 
 async def on_cleanup(app):
     try:
-        app['blocking_pool'].shutdown()
-    finally:
         app['task_manager'].shutdown()
+    finally:
+        await app['log_store'].close()
 
 
 def run():

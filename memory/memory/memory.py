@@ -1,8 +1,6 @@
 import aioredis
 import asyncio
 import base64
-import concurrent
-import json
 import logging
 import os
 import uvloop
@@ -12,8 +10,9 @@ import kubernetes_asyncio as kube
 from prometheus_async.aio.web import server_stats  # type: ignore
 from typing import Set
 
+from hailtop.aiogoogle.client.storage_client import GoogleStorageAsyncFS
+from hailtop.aiogoogle.auth.credentials import Credentials
 from hailtop.config import get_deploy_config
-from hailtop.google_storage import GCS
 from hailtop.hail_logging import AccessLogger
 from hailtop.tls import internal_server_ssl_context
 from hailtop.utils import AsyncWorkerPool, retry_transient_errors, dump_all_stacktraces
@@ -54,7 +53,7 @@ async def write_object(request, userdata):
     filepath = request.query.get('q')
     userinfo = await get_or_add_user(request.app, userdata)
     username = userdata['username']
-    data = await request.read()
+    data = bytes(await request.read())
     log.info(f'memory: post for object {filepath} from user {username}')
 
     file_key = make_redis_key(username, filepath)
@@ -75,7 +74,8 @@ async def get_or_add_user(app, userdata):
             k8s_client.read_namespaced_secret, userdata['gsa_key_secret_name'], DEFAULT_NAMESPACE, _request_timeout=5.0
         )
         gsa_key = base64.b64decode(gsa_key_secret.data['key.json']).decode()
-        users[username] = {'fs': GCS(blocking_pool=app['thread_pool'], key=json.loads(gsa_key))}
+        credentials = Credentials.from_credentials_data(gsa_key)
+        users[username] = {'fs': GoogleStorageAsyncFS(credentials=credentials)}
     return users[username]
 
 
@@ -103,10 +103,11 @@ async def get_file_or_none(app, username, fs, filepath):
     return None
 
 
-async def load_file(redis, files, file_key, fs, filepath):
+async def load_file(redis, files, file_key, fs: GoogleStorageAsyncFS, filepath):
     try:
         log.info(f"memory: {file_key}: reading.")
-        data = await fs.read_binary_gs_file(filepath)
+        async with await fs.open(filepath) as f:
+            data = await f.read()
         log.info(f"memory: {file_key}: read {filepath}")
     except Exception as e:
         files.remove(file_key)
@@ -115,17 +116,18 @@ async def load_file(redis, files, file_key, fs, filepath):
     await cache_file(redis, files, file_key, filepath, data)
 
 
-async def persist_in_gcs(fs: GCS, files: Set[str], file_key: str, filepath: str, data: str):
+async def persist_in_gcs(fs: GoogleStorageAsyncFS, files: Set[str], file_key: str, filepath: str, data: bytes):
     try:
         log.info(f"memory: {file_key}: persisting.")
-        await fs.write_gs_file_from_string(filepath, data)
+        async with await fs.create(filepath) as f:
+            await f.write(data)
         log.info(f"memory: {file_key}: persisted {filepath}")
     except Exception as e:
         files.remove(file_key)
         raise e
 
 
-async def cache_file(redis: aioredis.ConnectionsPool, files: Set[str], file_key: str, filepath: str, data: str):
+async def cache_file(redis: aioredis.ConnectionsPool, files: Set[str], file_key: str, filepath: str, data: bytes):
     try:
         await redis.execute('HMSET', file_key, 'body', data)
         log.info(f"memory: {file_key}: stored {filepath}")
@@ -134,7 +136,6 @@ async def cache_file(redis: aioredis.ConnectionsPool, files: Set[str], file_key:
 
 
 async def on_startup(app):
-    app['thread_pool'] = concurrent.futures.ThreadPoolExecutor()
     app['worker_pool'] = AsyncWorkerPool(parallelism=100, queue_size=10)
     app['files_in_progress'] = set()
     app['users'] = {}
@@ -146,16 +147,20 @@ async def on_startup(app):
 
 async def on_cleanup(app):
     try:
-        app['thread_pool'].shutdown()
+        app['worker_pool'].shutdown()
     finally:
         try:
-            app['worker_pool'].shutdown()
+            app['redis_pool'].close()
         finally:
             try:
-                app['redis_pool'].close()
-            finally:
                 del app['k8s_client']
                 await asyncio.gather(*(t for t in asyncio.all_tasks() if t is not asyncio.current_task()))
+            finally:
+                for user, items in app['users'].items():
+                    try:
+                        await items['fs'].close()
+                    except:
+                        pass
 
 
 def run():

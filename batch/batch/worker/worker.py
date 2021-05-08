@@ -19,7 +19,6 @@ import concurrent
 import aiodocker
 from collections import defaultdict
 from aiodocker.exceptions import DockerError
-import google.oauth2.service_account
 from hailtop.utils import (
     time_msecs,
     request_retry_transient_errors,
@@ -1500,6 +1499,7 @@ class Worker:
                     )
         finally:
             log.info('shutting down')
+            await self.log_store.close()
             await site.stop()
             log.info('stopped site')
             await app_runner.cleanup()
@@ -1637,10 +1637,8 @@ class Worker:
             with open('/worker-key.json', 'w') as f:
                 f.write(json.dumps(resp_json['key']))
 
-            credentials = google.oauth2.service_account.Credentials.from_service_account_file('/worker-key.json')
-            self.log_store = LogStore(
-                BATCH_LOGS_BUCKET_NAME, INSTANCE_ID, self.pool, project=PROJECT, credentials=credentials
-            )
+            credentials = aiogoogle.auth.credentials.Credentials.from_file('/worker-key.json')
+            self.log_store = LogStore(BATCH_LOGS_BUCKET_NAME, INSTANCE_ID, credentials=credentials)
 
             credentials = aiogoogle.Credentials.from_file('/worker-key.json')
             self.compute_client = aiogoogle.ComputeClient(PROJECT, credentials=credentials)
