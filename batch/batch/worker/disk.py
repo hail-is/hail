@@ -1,6 +1,6 @@
 import logging
 
-from hailtop.utils import check_shell_output, LoggingTimer
+from hailtop.utils import check_shell_output, LoggingTimer, sleep_and_backoff
 
 log = logging.getLogger('disk')
 
