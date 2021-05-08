@@ -51,7 +51,7 @@ class GoogleAsyncFSIfNecessary:
                         exc_val: Optional[BaseException],
                         exc_tb: Optional[TracebackType]) -> None:
         if self.gs:
-            self.gs.close()
+            await self.gs.close()
 
 
 async def copy(requester_pays_project: Optional[str], transfer: Union[Transfer, List[Transfer]]) -> None:

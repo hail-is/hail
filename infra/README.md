@@ -221,6 +221,8 @@ FIXME this is broken, missing services:
   python3 ci/bootstrap.py hail-is/hail:main $(git rev-parse HEAD) test_batch_0
   ```
 
+FIXME test needs storage-object-viewer on the container bucket
+
 - Create the initial (developer) user. Make sure to use the same environment
   variables as in the block above.
 

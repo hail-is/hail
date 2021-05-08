@@ -745,5 +745,6 @@ class GoogleStorageAsyncFS(AsyncFS):
                 await pool.call(self._remove_doesnt_exist_ok, await entry.url())
 
     async def close(self) -> None:
-        await self._storage_client.close()
-        del self._storage_client
+        if hasattr(self, '_storage_client'):
+            await self._storage_client.close()
+            del self._storage_client
