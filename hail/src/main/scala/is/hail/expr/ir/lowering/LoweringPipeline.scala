@@ -36,7 +36,8 @@ object LoweringPipeline {
     OptimizePass("relationalLowerer, initial IR"),
     LowerMatrixToTablePass,
     OptimizePass("relationalLowerer, after LowerMatrixToTable"),
-    InterpretNonCompilablePass,
+    LiftRelationalValuesToRelationalLets,
+    LowerOrInterpretNonCompilablePass,
     OptimizePass("relationalLowerer, after InterpretNonCompilable"))
   private val _relationalLowererNoOpt = _relationalLowerer.noOptimization()
 
