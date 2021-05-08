@@ -38,6 +38,7 @@ setup(
     project_urls={
         'Documentation': 'https://hail.is/docs/0.2/',
         'Repository': 'https://github.com/hail-is/hail',
+        'Change Log': 'https://hail.is/docs/0.2/change_log.html',
     },
     packages=find_packages('.'),
     package_dir={
