@@ -395,14 +395,10 @@ case class MatrixBlockMatrixWriter(
       }
     }
 
-
-    // FIXME: Don't want to do a full sort here, I want something like rekeyNoShuffle
-    val rekeyedByIdx = ctx.backend.lowerDistributedSort(
-      ctx, partsZippedWithIdx, IndexedSeq(SortField(idxId, Ascending)), relationalLetsAbove, rm.rowType
-    )
-
-
-    val compiledEarly: Any = CompileAndEvaluate(ctx, rekeyedByIdx.collectWithGlobals(relationalLetsAbove), true)
+//    // FIXME: Don't want to do a full sort here, I want something like rekeyNoShuffle
+//    val rekeyedByIdx = ctx.backend.lowerDistributedSort(
+//      ctx, partsZippedWithIdx, IndexedSeq(SortField(idxId, Ascending)), relationalLetsAbove, rm.rowType
+//    )
 
     // Now create a partitioner for these indices.
     val rowIntervals = partStarts.zip(partStops).map{ case (intervalStart, intervalEnd) => Interval(Row(intervalStart.toInt), Row(intervalEnd.toInt), true, false)}
@@ -412,11 +408,14 @@ case class MatrixBlockMatrixWriter(
 
     // Next level of the plan. Flatmap contexts to create more, we need one per block. Context needs to contain the start and stop columns.
     // Takes in a stream of per table partition contexts.
+    // TODO: Ok, we need the coords of the block too.
     def createBlockMakingContexts(tablePartsStreamIR: IR): IR = {
       flatMapIR(tablePartsStreamIR) { tableSinglePartCtx =>
         mapIR(rangeIR(I32(numBlockCols))){ blockColIdx =>
           MakeStruct(Seq("oldTableCtx" -> tableSinglePartCtx, "blockStart" -> (blockColIdx * I32(blockSize)),
-          "blockSize" -> If(blockColIdx ceq I32(numBlockCols - 1), I32(lastBlockNumCols), I32(blockSize))))
+            "blockSize" -> If(blockColIdx ceq I32(numBlockCols - 1), I32(lastBlockNumCols), I32(blockSize)),
+            "blockColIdx" -> blockColIdx,
+            "blockRowIdx" -> ApplyBinaryPrimOp(RoundToNegInfDivide(), GetField(ArrayRef(GetField(tableSinglePartCtx, "oldContexts"), I32(0)), "mwStartIdx"), I32(blockSize))))
         }
       }
     }
@@ -455,9 +454,14 @@ case class MatrixBlockMatrixWriter(
     val compiled: Any = CompileAndEvaluate(ctx, blockedTs.collectWithGlobals(relationalLetsAbove), true)
     println(compiled)
 
-    val partFiles = ???
+    val foo = blockedTs.mapContexts { oldCtx =>
+      val d = digitsNeeded(blockedTs.numPartitions)
+      val partFiles = Array.tabulate(blockedTs.numPartitions)(i => Str(s"${ partFile(d, i) }-"))
+      ???
+    } (newContext => GetField(newContext, "oldContext"))
 
-    BlockMatrixMetadata(blockSize, numRows, numCols, gp.partitionIndexToBlockIndex, partFiles)
+
+    // BlockMatrixMetadata(blockSize, numRows, numCols, gp.partitionIndexToBlockIndex, partFiles)
     ???
   }
 }
