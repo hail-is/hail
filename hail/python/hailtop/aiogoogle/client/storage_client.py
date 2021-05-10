@@ -704,8 +704,9 @@ class GoogleStorageAsyncFS(AsyncFS):
                         size = await status.size()
                         if size != 0:
                             raise FileAndDirectoryError(url)
-                        continue
-                    yield GoogleStorageFileListEntry(url, item, status)
+                        yield GoogleStorageFileListEntry(url, None)
+                    else:
+                        yield GoogleStorageFileListEntry(url, item, status)
 
     async def listfiles(self, url: str, recursive: bool = False) -> AsyncIterator[FileListEntry]:
         bucket, name = self._get_bucket_name(url)
@@ -724,12 +725,12 @@ class GoogleStorageAsyncFS(AsyncFS):
             raise FileNotFoundError(url)  # pylint: disable=raise-missing-from
 
         async def cons(first_entry, it):
-            if first_entry.is_file():
+            if await first_entry.is_file():
                 yield first_entry
             try:
                 while True:
                     next_entry = await it.__anext__()
-                    if next_entry.is_file():
+                    if await next_entry.is_file():
                         yield next_entry
             except StopAsyncIteration:
                 pass
