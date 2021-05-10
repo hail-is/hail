@@ -820,11 +820,14 @@ def mean_impute(hl_array):
     non_missing_mean = hl.mean(hl_array, filter_missing=True)
     return hl_array.map(lambda entry: hl.if_else(hl.is_defined(entry), entry, non_missing_mean))
 
+
 def sigmoid(hl_nd):
     return 1 / (1 + hl_nd.map(lambda x: hl.exp(-x)))
 
+
 def nd_max(hl_nd):
     return hl.max(hl_nd.reshape(-1)._data_array())
+
 
 def logreg_fit(X, y, null_fit=None, max_iter=25, tol=1E-6):
     assert(X.ndim == 2)
@@ -866,6 +869,7 @@ def logreg_fit(X, y, null_fit=None, max_iter=25, tol=1E-6):
     tvector64 = hl.tndarray(hl.tfloat64, 1)
     tmatrix64 = hl.tndarray(hl.tfloat64, 2)
     search_return_type = hl.tstruct(b=tvector64, score=tvector64, fisher=tmatrix64, num_iter=hl.tint32, log_lkhd=hl.tfloat64, converged=hl.tbool, exploded=hl.tbool)
+
     def na(field_name):
         return hl.missing(search_return_type[field_name])
 
@@ -896,6 +900,7 @@ def logreg_fit(X, y, null_fit=None, max_iter=25, tol=1E-6):
 
     return res_struct
 
+
 def wald_test(X, y, null_fit, link):
     assert (link == "logistic")
     fit = logreg_fit(X, y, null_fit)
@@ -904,11 +909,12 @@ def wald_test(X, y, null_fit, link):
     z = fit.b / se
     p = z.map(lambda e: 2 * hl.pnorm(-hl.abs(e)))
     return hl.struct(
-        beta = fit.b[X.shape[1] - 1],
+        beta=fit.b[X.shape[1] - 1],
         standard_error=se[X.shape[1] - 1],
-        z_stat = z[X.shape[1] - 1],
-        p_value = p[X.shape[1] - 1],
+        z_stat=z[X.shape[1] - 1],
+        p_value=p[X.shape[1] - 1],
         fit = hl.struct(n_iterations=fit.num_iter, converged=fit.converged, exploded=fit.exploded))
+
 
 def lrt_test(X, y, null_fit, link):
     assert (link == "logistic")
@@ -919,9 +925,10 @@ def lrt_test(X, y, null_fit, link):
 
     return hl.struct(
         beta=fit.b[X.shape[1] - 1],
-        chi_sq_stat = chi_sq,
+        chi_sq_stat=chi_sq,
         p_value=p,
         fit = hl.struct(n_iterations=fit.num_iter, converged=fit.converged, exploded=fit.exploded))
+
 
 @typecheck(test=enumeration('wald', 'lrt', 'score', 'firth'),
            y=oneof(expr_float64, sequenceof(expr_float64)),
@@ -1189,13 +1196,12 @@ def _logistic_regression_rows_nd(test, y, x, covariates, pass_through=()) -> hai
         ht = ht.annotate_globals(cov_nd=hl.nd.array(ht[sample_field_name].map(lambda sample_struct: hl.empty_array(hl.tfloat64))))
 
     # y_nd rows are samples, columns are the various dependent variables.
-    ht = ht.annotate_globals(y_nd = hl.nd.array(ht[sample_field_name].map(lambda sample_struct: [sample_struct[y_name] for y_name in y_field_names])))
-
+    ht = ht.annotate_globals(y_nd=hl.nd.array(ht[sample_field_name].map(lambda sample_struct: [sample_struct[y_name] for y_name in y_field_names])))
 
     # Fit null models, which means doing a logreg fit with just the covariates for each phenotype.
     null_models = hl.range(num_y_fields).map(lambda idx: logreg_fit(ht.cov_nd, ht.y_nd[:, idx]))
-    ht = ht.annotate_globals(nulls = null_models)
-    ht = ht.transmute(x = hl.nd.array(mean_impute(ht.entries[x_field_name])))
+    ht = ht.annotate_globals(nulls=null_models)
+    ht = ht.transmute(x=hl.nd.array(mean_impute(ht.entries[x_field_name])))
 
     if test == "wald":
         # For each y vector, need to do wald test.
