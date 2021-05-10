@@ -633,17 +633,11 @@ class SourceCopier:
             if not src.endswith('/'):
                 src = src + '/'
 
-            srcentries = None
-
             try:
                 srcentries = await self.router_fs.listfiles(src, recursive=True)
-            except (NotADirectoryError, FileNotFoundError) as e:
-                if isinstance(e, FileNotFoundError):
-                    if await self.router_fs.isdir(src):
-                        self.src_is_dir = True
-                if not self.src_is_dir:
-                    self.src_is_dir = False
-                    return
+            except (NotADirectoryError, FileNotFoundError):
+                self.src_is_dir = False
+                return
             self.src_is_dir = True
         finally:
             await self.release_barrier()
@@ -672,12 +666,9 @@ class SourceCopier:
 
             await self._copy_file_multi_part(sema, source_report, srcfile, await srcentry.status(), url_join(full_dest, relsrcfile), return_exceptions)
 
-        if srcentries is None:
-            await self.router_fs.mkdir(full_dest)
-        else:
-            await bounded_gather2(sema, *[
-                copy_source(srcentry)
-                async for srcentry in srcentries], cancel_on_error=True)
+        await bounded_gather2(sema, *[
+            copy_source(srcentry)
+            async for srcentry in srcentries], cancel_on_error=True)
 
     async def copy(self, sema: asyncio.Semaphore, source_report: SourceReport, return_exceptions: bool):
         try:
