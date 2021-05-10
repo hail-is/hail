@@ -1097,6 +1097,8 @@ object EmitStream {
                     cb.goto(rightProducer.LproduceElement)
 
                     cb.define(LpullLeft)
+                    if (leftProducer.requiresMemoryManagementPerElement)
+                      cb += leftProducer.elementRegion.clearRegion()
                     cb.goto(leftProducer.LproduceElement)
 
                     val Lcompare = CodeLabel()
@@ -1110,7 +1112,6 @@ object EmitStream {
                             cb.assign(lOutMissing, true)
                             if (rightProducer.requiresMemoryManagementPerElement) {
                               cb += elementRegion.trackAndIncrementReferenceCountOf(rightProducer.elementRegion)
-                              cb += rightProducer.elementRegion.clearRegion()
                             }
                             cb.goto(Lpush)
                           },
@@ -1125,7 +1126,6 @@ object EmitStream {
                               cb.assign(rOutMissing, true)
                               if (leftProducer.requiresMemoryManagementPerElement) {
                                 cb += elementRegion.trackAndIncrementReferenceCountOf(leftProducer.elementRegion)
-                                cb += leftProducer.elementRegion.clearRegion()
                               }
                               cb.goto(Lpush)
                             },
@@ -1133,11 +1133,9 @@ object EmitStream {
                               // c == 0
                               if (leftProducer.requiresMemoryManagementPerElement) {
                                 cb += elementRegion.trackAndIncrementReferenceCountOf(leftProducer.elementRegion)
-                                cb += leftProducer.elementRegion.clearRegion()
                               }
                               if (rightProducer.requiresMemoryManagementPerElement) {
                                 cb += elementRegion.trackAndIncrementReferenceCountOf(rightProducer.elementRegion)
-                                cb += rightProducer.elementRegion.clearRegion()
                               }
                               cb.goto(Lpush)
                             })
@@ -1168,7 +1166,6 @@ object EmitStream {
                           {
                             if (leftProducer.requiresMemoryManagementPerElement) {
                               cb += elementRegion.trackAndIncrementReferenceCountOf(leftProducer.elementRegion)
-                              cb += leftProducer.elementRegion.clearRegion()
                             }
                             cb.goto(Lpush)
                           },
@@ -1195,7 +1192,6 @@ object EmitStream {
                             {
                               if (rightProducer.requiresMemoryManagementPerElement) {
                                 cb += elementRegion.trackAndIncrementReferenceCountOf(rightProducer.elementRegion)
-                                cb += rightProducer.elementRegion.clearRegion()
                               }
                               cb.goto(Lpush)
                             },
