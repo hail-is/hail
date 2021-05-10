@@ -563,6 +563,7 @@ https://hail.zulipchat.com/#narrow/stream/123011-Hail-Dev/topic/test_drop/near/2
         mt = mt.key_rows_by(x = mt.row_idx // 2)
         assert mt.union_cols(mt).count_rows() == 5
 
+    @skip_when_service_backend('flaky https://hail.zulipchat.com/#narrow/stream/127527-team/topic/CI.20Deploy.20Failure/near/237593731')
     def test_union_cols_outer(self):
         r, c = 10, 10
         mt = hl.utils.range_matrix_table(2*r, c)
