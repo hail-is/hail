@@ -429,12 +429,15 @@ case class MatrixBlockMatrixWriter(
       bindIR(GetField(ctxRef, "blockStart")){ blockStartRef =>
         val numColsOfBlock = GetField(ctxRef, "blockSize")
         // Just need to make sure the key is still in the resulting stream.
-        val arrayOfSlicesAndIndices = ToArray(mapIR(partIr)(singleRow =>
+        val arrayOfSlicesAndIndices = ToArray(mapIR(partIr) { singleRow =>
+          val mappedSlice = ToArray(mapIR(ToStream(sliceArrayIR(GetField(singleRow, entriesFieldName), blockStartRef, blockStartRef + numColsOfBlock)))(entriesStructRef =>
+            GetField(entriesStructRef, entryField)
+          ))
           MakeStruct(Seq(
             (idxId, GetField(singleRow, idxId)),
-            ("rowOfData", sliceArrayIR(GetField(singleRow, entriesFieldName), blockStartRef, blockStartRef + numColsOfBlock))
+            ("rowOfData", mappedSlice)
           ))
-        ))
+        })
         // Let bind my new array, grab the index from the first entry, make an ndarray with a flatmap.
         bindIR(arrayOfSlicesAndIndices){ arrayOfSlicesAndIndicesRef =>
           val idxOfResult = GetField(ArrayRef(arrayOfSlicesAndIndicesRef, I32(0)), idxId)
@@ -456,7 +459,6 @@ case class MatrixBlockMatrixWriter(
 
     val foo = blockedTs.mapContexts { oldCtx =>
       val d = digitsNeeded(blockedTs.numPartitions)
-      val partFiles = Array.tabulate(blockedTs.numPartitions)(i => Str(s"${ partFile(d, i) }-"))
       ???
     } (newContext => GetField(newContext, "oldContext"))
 
