@@ -28,7 +28,6 @@ class Credentials(abc.ABC):
     @staticmethod
     def default_credentials():
         credentials_file = os.environ.get('GOOGLE_APPLICATION_CREDENTIALS')
-        credentials_file = None
 
         if credentials_file is None:
             application_default_credentials_file = f'{os.environ["HOME"]}/.config/gcloud/application_default_credentials.json'
