@@ -175,6 +175,7 @@ package object ir {
   }
 
   def makestruct(fields: (String, IR)*): MakeStruct = MakeStruct(fields)
+  def maketuple(fields: IR*): MakeTuple = MakeTuple(fields.zipWithIndex.map{ case (field, idx) => (idx, field)})
 
   implicit def toRichIndexedSeqEmitSettable(s: IndexedSeq[EmitSettable]): RichIndexedSeqEmitSettable = new RichIndexedSeqEmitSettable(s)
 

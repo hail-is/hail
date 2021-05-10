@@ -422,19 +422,37 @@ case class MatrixBlockMatrixWriter(
     }
 
     def sliceArrayIR(arrayIR: IR, startIR: IR, stopIR: IR): IR = {
-      ApplyIR("slice", Seq[Type](), Seq[IR](arrayIR, startIR, stopIR))
+      invoke("slice", arrayIR.typ, arrayIR, startIR, stopIR)
     }
 
     val ctxsForMakingBlocksTs = rowsInBlockSizeGroups.mapContexts(createBlockMakingContexts)(ir => GetField(ir, "oldTableCtx"))
     val blockedTs = ctxsForMakingBlocksTs.mapPartitionWithContext{ (partIr, ctxRef) =>
       bindIR(GetField(ctxRef, "blockStart")){ blockStartRef =>
-        flatMapIR(partIr)(singleRow => sliceArrayIR(singleRow, blockStartRef, blockStartRef + GetField(ctxRef, "blockSize")))
+        val numColsOfBlock = GetField(ctxRef, "blockSize")
+        // Just need to make sure the key is still in the resulting stream.
+        val arrayOfSlicesAndIndices = ToArray(mapIR(partIr)(singleRow =>
+          MakeStruct(Seq(
+            (idxId, GetField(singleRow, idxId)),
+            ("rowOfData", sliceArrayIR(GetField(singleRow, entriesFieldName), blockStartRef, blockStartRef + numColsOfBlock))
+          ))
+        ))
+        // Let bind my new array, grab the index from the first entry, make an ndarray with a flatmap.
+        bindIR(arrayOfSlicesAndIndices){ arrayOfSlicesAndIndicesRef =>
+          val idxOfResult = GetField(ArrayRef(arrayOfSlicesAndIndicesRef, I32(0)), idxId)
+          val ndarrayData = ToArray(flatMapIR(ToStream(arrayOfSlicesAndIndicesRef)){idxAndSlice =>
+            ToStream(GetField(idxAndSlice, "rowOfData"))
+          })
+          val numRowsOfBlock = ArrayLen(arrayOfSlicesAndIndicesRef)
+          val shape = maketuple(Cast(numRowsOfBlock, TInt64), Cast(numColsOfBlock, TInt64))
+          val ndarray = MakeNDArray(ndarrayData, shape, True(), ErrorIDs.NO_ERROR)
+          MakeStream(Seq(MakeStruct(Seq((idxId, idxOfResult), ("ndBlock", ndarray)))), TStream(TStruct((idxId, TInt32), ("ndBlock", ndarray.typ))))
+        }
       }
     }
 
-    val compiled: Any = CompileAndEvaluate(ctx, rowsInBlockSizeGroups.collectWithGlobals(relationalLetsAbove), true)
+    println(blockedTs.collectWithGlobals(relationalLetsAbove).typ)
 
-
+    val compiled: Any = CompileAndEvaluate(ctx, blockedTs.collectWithGlobals(relationalLetsAbove), true)
     println(compiled)
 
     val partFiles = ???
