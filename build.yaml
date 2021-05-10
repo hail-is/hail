@@ -2464,6 +2464,7 @@ steps:
       - base_image
       - build_hail_jar_only
       - merge_code
+      - create_test_gsa_keys
   - kind: deploy
     name: deploy_query
     namespace:
