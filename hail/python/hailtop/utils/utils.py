@@ -683,13 +683,16 @@ def retry_all_errors(msg=None, error_logging_interval=10):
 T = TypeVar('T')  # pylint: disable=invalid-name
 
 
-async def retry_transient_errors_n_times(max_errors: Optional[int], f: Callable[..., Awaitable[T]], *args, **kwargs) -> T:
+async def _retry_transient_errors(max_errors: Optional[int], excl: Optional[Callable[[Exception], bool]],
+                                  f: Callable[..., Awaitable[T]], *args, **kwargs) -> T:
     delay = 0.1
     errors = 0
     while True:
         try:
             return await f(*args, **kwargs)
         except Exception as e:
+            if excl is not None and excl(e):
+                raise
             if not is_transient_error(e):
                 raise
             errors += 1
@@ -702,7 +705,16 @@ async def retry_transient_errors_n_times(max_errors: Optional[int], f: Callable[
 
 
 async def retry_transient_errors(f: Callable[..., Awaitable[T]], *args, **kwargs) -> T:
-    await retry_transient_errors_n_times(None, f, *args, **kwargs)
+    await _retry_transient_errors(None, None, f, *args, **kwargs)
+
+
+async def retry_transient_errors_with_exclusions(excl: Callable[[Exception], bool],
+                                                 f: Callable[..., Awaitable[T]],  *args, **kwargs) -> T:
+    await _retry_transient_errors(None, excl, f, *args, **kwargs)
+
+
+async def retry_transient_errors_n_times(max_errors: int, f: Callable[..., Awaitable[T]],  *args, **kwargs) -> T:
+    await _retry_transient_errors(max_errors, None, f, *args, **kwargs)
 
 
 def sync_retry_transient_errors(f, *args, **kwargs):

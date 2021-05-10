@@ -10,7 +10,8 @@ from .utils import (
     flatten, partition, cost_str, external_requests_client_session, url_basename,
     url_join, is_google_registry_domain, parse_docker_image_reference,
     url_scheme, Notice, periodically_call, dump_all_stacktraces, find_spark_home, TransientError,
-    bounded_gather2, OnlineBoundedGather2, unpack_comma_delimited_inputs, retry_transient_errors_n_times)
+    bounded_gather2, OnlineBoundedGather2, unpack_comma_delimited_inputs, retry_transient_errors_n_times,
+    retry_transient_errors_with_exclusions)
 from .process import (
     CalledProcessError, check_shell, check_shell_output, sync_check_shell,
     sync_check_shell_output)
@@ -44,6 +45,7 @@ __all__ = [
     'retry_all_errors',
     'retry_transient_errors',
     'retry_transient_errors_n_times',
+    'retry_transient_errors_with_exclusions',
     'retry_long_running',
     'run_if_changed',
     'run_if_changed_idempotent',

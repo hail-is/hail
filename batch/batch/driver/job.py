@@ -6,7 +6,7 @@ import base64
 import traceback
 
 from hailtop.aiotools import BackgroundTaskManager
-from hailtop.utils import time_msecs, Notice, retry_transient_errors, retry_transient_errors_n_times
+from hailtop.utils import time_msecs, Notice, retry_transient_errors_with_exclusions
 from hailtop.httpx import client_session
 from gear import Database
 
@@ -258,7 +258,10 @@ async def unschedule_job(app, record):
             await instance.incr_failed_request_count()
             raise
 
-    await retry_transient_errors_n_times(5, make_request)
+    def excl(e: Exception):
+        return isinstance(e, asyncio.TimeoutError)
+
+    await retry_transient_errors_with_exclusions(excl, make_request)
 
     if not instance.inst_coll.is_pool:
         await instance.kill()
