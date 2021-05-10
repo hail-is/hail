@@ -72,7 +72,6 @@ class Tests(unittest.TestCase):
         self._assert_close(bm.sum(axis=1), np.sum(nd, axis=1, keepdims=True))
 
     @fails_service_backend()
-    @fails_local_backend()
     def test_from_entry_expr(self):
         mt = get_dataset()
         mt = mt.annotate_entries(x=hl.or_else(mt.GT.n_alt_alleles(), 0)).cache()

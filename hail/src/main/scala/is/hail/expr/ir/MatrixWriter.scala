@@ -396,6 +396,10 @@ case class MatrixBlockMatrixWriter(
 
     val rowsInBlockSizeGroups = partsZippedWithIdx.repartitionNoShuffle(blocksOfRowsPartitioner)
 
+//    val rowsInBlockSizeGroups = ctx.backend.lowerDistributedSort(
+//      ctx, partsZippedWithIdx, IndexedSeq(SortField(perRowIdxId, Ascending)), relationalLetsAbove, rm.rowType
+//    )
+
     // Next level of the plan. Flatmap contexts to create more, we need one per block. Context needs to contain the start and stop columns.
     // Takes in a stream of per table partition contexts.
     def createBlockMakingContexts(tablePartsStreamIR: IR): IR = {
