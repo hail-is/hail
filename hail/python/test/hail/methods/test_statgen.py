@@ -459,7 +459,7 @@ class Tests(unittest.TestCase):
                 eq(combined.p_value, combined.multi.p_value[0]) &
                 eq(combined.multi.p_value[0], combined.multi.p_value[1]))))
 
-    logreg_functions = [hl.logistic_regression_rows, hl._logistic_regression_rows_nd] if backend_name == "spark" else [hl._linear_regression_rows_nd]
+    logreg_functions = [hl.logistic_regression_rows, hl._logistic_regression_rows_nd] if backend_name == "spark" else [hl._logistic_regression_rows_nd]
 
     # comparing to R:
     # x = c(0, 1, 0, 0, 0, 1, 0, 0, 0, 0)
