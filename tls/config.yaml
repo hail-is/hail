@@ -124,3 +124,7 @@ principals:
   domains:
     - prometheus
   kind: nginx
+- name: influxdb
+  domains:
+    - influxdb
+  kind: nginx

@@ -32,6 +32,7 @@ humanize==1.0.0
 hurry.filesize==0.9
 # importlib-metadata<4: in dev-requirements, jupyter depends on (an unpinned) ipykernel which needs importlib-metadata<4
 importlib-metadata<4
+influxdb_client==1.18.0
 janus==0.6.1
 Jinja2==2.11.3
 # keyrings.alt>3.1: https://bugs.launchpad.net/usd-importer/+bug/1794041/comments/6

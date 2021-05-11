@@ -1,0 +1,82 @@
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: influxdb
+  labels:
+    app: influxdb
+spec:
+  selector:
+    matchLabels:
+      app: influxdb
+  serviceName: influxdb
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: influxdb
+    spec:
+      volumes:
+        - name: ssl-config-influxdb
+          secret:
+            optional: false
+            secretName: ssl-config-influxdb
+      containers:
+        - name: influxdb
+          image: influxdb:2.0.4
+          ports:
+            - containerPort: 8086
+              name: influxdb
+          volumeMounts:
+            - mountPath: /var/lib/influxdb2
+              name: data
+        - name: nginx
+          image: {{ influxdb_nginx_image.image }}
+          resources:
+            requests:
+              cpu: "20m"
+              memory: "20M"
+            limits:
+              cpu: "1"
+              memory: "1G"
+          ports:
+           - containerPort: 443
+          volumeMounts:
+           - name: ssl-config-influxdb
+             mountPath: /ssl-config
+             readOnly: true
+          readinessProbe:
+            tcpSocket:
+              port: 443
+            initialDelaySeconds: 5
+            periodSeconds: 5
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: 10G
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: influxdb-config
+data:
+  influxdb.conf: |
+    bind-address: 127.0.0.1:8086
+---
+apiVersion: v1
+kind: Service
+metadata:
+    name: influxdb
+spec:
+    ports:
+      - name: influxdb
+        port: 443
+        targetPort: 443
+    selector:
+        app: influxdb
+    type: ClusterIP

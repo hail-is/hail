@@ -1,1 +1,2 @@
 google-cloud-profiler==1.0.9
+influxdb-client==1.18.0
