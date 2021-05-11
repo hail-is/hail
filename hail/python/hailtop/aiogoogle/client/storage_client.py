@@ -424,10 +424,10 @@ class GetObjectFileStatus(FileStatus):
 
 
 class GoogleStorageFileListEntry(FileListEntry):
-    def __init__(self, url: str, items: Optional[Dict[str, Any]], status: Optional[GetObjectFileStatus] = None):
+    def __init__(self, url: str, items: Optional[Dict[str, Any]]):
         self._url = url
         self._items = items
-        self._status = status
+        self._status: Optional[GetObjectFileStatus] = None
 
     def name(self) -> str:
         parsed = urllib.parse.urlparse(self._url)
@@ -632,23 +632,6 @@ class GoogleStorageAsyncFS(AsyncFS):
                 raise FileNotFoundError(url) from e
             raise
 
-    async def _listfiles_all(self, url: str) -> AsyncIterator[FileListEntry]:
-        bucket, name = self._get_bucket_name(url)
-        if name and not name.endswith('/'):
-            name = f'{name}/'
-        params = {
-            'prefix': name
-        }
-        async for page in await self._storage_client.list_objects(bucket, params=params):
-            prefixes = page.get('prefixes')
-            assert not prefixes
-
-            items = page.get('items')
-            if items is not None:
-                for item in page['items']:
-                    url = f'gs://{bucket}/{item["name"]}'
-                    yield GoogleStorageFileListEntry(url, item)
-
     async def _listfiles_recursive(self, bucket: str, name: str) -> AsyncIterator[FileListEntry]:
         assert not name or name.endswith('/')
         params = {
@@ -661,16 +644,7 @@ class GoogleStorageAsyncFS(AsyncFS):
             items = page.get('items')
             if items is not None:
                 for item in page['items']:
-                    url = f'gs://{bucket}/{item["name"]}'
-                    status = None
-                    if url.endswith('/'):
-                        status = GetObjectFileStatus(item)
-                        size = await status.size()
-                        if size != 0:
-                            raise FileAndDirectoryError(url)
-                        yield GoogleStorageFileListEntry(url, None)
-                    else:
-                        yield GoogleStorageFileListEntry(url, item, status)
+                    yield GoogleStorageFileListEntry(f'gs://{bucket}/{item["name"]}', item)
 
     async def _listfiles_flat(self, bucket: str, name: str) -> AsyncIterator[FileListEntry]:
         assert not name or name.endswith('/')
@@ -684,29 +658,12 @@ class GoogleStorageAsyncFS(AsyncFS):
             if prefixes:
                 for prefix in prefixes:
                     assert prefix.endswith('/')
-                    url = f'gs://{bucket}/{prefix}'
-                    try:
-                        stat = await self.statfile(url)
-                    except FileNotFoundError:
-                        pass
-                    else:
-                        if await stat.size() != 0:
-                            raise FileAndDirectoryError(url)
-                    yield GoogleStorageFileListEntry(url, None)
+                    yield GoogleStorageFileListEntry(f'gs://{bucket}/{prefix}', None)
 
             items = page.get('items')
             if items:
                 for item in page['items']:
-                    url = f'gs://{bucket}/{item["name"]}'
-                    status = None
-                    if url.endswith('/'):
-                        status = GetObjectFileStatus(item)
-                        size = await status.size()
-                        if size != 0:
-                            raise FileAndDirectoryError(url)
-                        yield GoogleStorageFileListEntry(url, None)
-                    else:
-                        yield GoogleStorageFileListEntry(url, item, status)
+                    yield GoogleStorageFileListEntry(f'gs://{bucket}/{item["name"]}', item)
 
     async def listfiles(self, url: str, recursive: bool = False) -> AsyncIterator[FileListEntry]:
         bucket, name = self._get_bucket_name(url)
@@ -724,13 +681,22 @@ class GoogleStorageAsyncFS(AsyncFS):
         except StopAsyncIteration:
             raise FileNotFoundError(url)  # pylint: disable=raise-missing-from
 
+        async def is_file(entry):
+            url = await entry.url()
+            if url.endswith('/'):
+                stat = await entry.status()
+                if await stat.size() != 0:
+                    raise FileAndDirectoryError(url)
+                return False
+            return True
+
         async def cons(first_entry, it):
-            if await first_entry.is_file():
+            if await is_file(first_entry):
                 yield first_entry
             try:
                 while True:
                     next_entry = await it.__anext__()
-                    if await next_entry.is_file():
+                    if await is_file(next_entry):
                         yield next_entry
             except StopAsyncIteration:
                 pass
@@ -782,7 +748,10 @@ class GoogleStorageAsyncFS(AsyncFS):
 
     async def rmtree(self, sema: asyncio.Semaphore, url: str) -> None:
         async with OnlineBoundedGather2(sema) as pool:
-            it = self._listfiles_all(url)
+            bucket, name = self._get_bucket_name(url)
+            if name and not name.endswith('/'):
+                name = f'{name}/'
+            it = self._listfiles_recursive(bucket, name)
             async for entry in it:
                 await pool.call(self._remove_doesnt_exist_ok, await entry.url())
 
