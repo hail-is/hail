@@ -371,13 +371,6 @@ case class MatrixBlockMatrixWriter(
     val numRows = inputPartStartsPlusLast.last
     val numBlockRows: Int = (numRows.toInt - 1) / blockSize + 1
 
-    // Remaining Steps:
-    // - Create a new TableStage where each partition has the appropriate range of rows.
-    //    - Label rows with indices
-    //    - Key by indices.
-    // - From there, Flatmap like operation to turn each partition into many partitions by diving along columns.
-    // - Figure out how to write them all out.
-
     // Zip contexts with partition starts and ends
     val zippedWithStarts = ts.mapContexts{oldContextsStream => zipIR(IndexedSeq(oldContextsStream, ToStream(Literal(TArray(TInt64), inputPartStarts)), ToStream(Literal(TArray(TInt64), inputPartStops))), ArrayZipBehavior.AssertSameLength){ case IndexedSeq(oldCtx, partStart, partStop) =>
       MakeStruct(Seq[(String, IR)]("mwOld" -> oldCtx, "mwStartIdx" -> Cast(partStart, TInt32), "mwStopIdx" -> Cast(partStop, TInt32)))
@@ -400,8 +393,7 @@ case class MatrixBlockMatrixWriter(
     // Two steps, make a partitioner that works currently based on row_idx splits, then resplit accordingly.
     val keyedByRowIdx = partsZippedWithIdx.changePartitionerNoRepartition(rowIdxPartitioner)
 
-    // Now create a partitioner that makes appropriately sized block
-
+    // Now create a partitioner that makes appropriately sized blocks
     val desiredRowStarts = (0 until numBlockRows).map(_ * blockSize)
     val desiredRowStops = desiredRowStarts.drop(1) :+ numRows.toInt
     val desiredRowIntervals = desiredRowStarts.zip(desiredRowStops).map{
@@ -464,7 +456,7 @@ case class MatrixBlockMatrixWriter(
     val etype = EBlockMatrixNDArray(EType.fromTypeAndAnalysis(elementType, rm.entryType.field(entryField)), encodeRowMajor = true, required = true)
     val spec = TypedCodecSpec(etype, TNDArray(tm.entryType.fieldType(entryField), Nat(2)), BlockMatrix.bufferSpec)
 
-    val paths = colMajorOrderedBlocks.mapCollectWithGlobals(relationalLetsAbove) { partition =>
+    val paths = colMajorOrderedBlocks.mapCollect(relationalLetsAbove) { partition =>
       val mappedPartition = ToArray(mapIR(partition) { singleNDArrayTuple =>
         val blockPath =
           Str(s"$path/parts/part-") +
@@ -473,10 +465,6 @@ case class MatrixBlockMatrixWriter(
         WriteValue(GetField(singleNDArrayTuple, "ndBlock"), blockPath, spec)
       })
       mappedPartition
-    } { (fileNames, globals) =>
-      bindIR(fileNames) { fileNamesRef =>
-        fileNamesRef
-      }
     }
     val flatPaths = ToArray(flatMapIR(ToStream(paths))(ToStream(_)))
     val bmt = BlockMatrixType(elementType, IndexedSeq(numRows, numCols), numRows==1, blockSize, BlockMatrixSparsity.dense)
