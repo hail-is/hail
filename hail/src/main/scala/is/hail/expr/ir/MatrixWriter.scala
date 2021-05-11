@@ -406,14 +406,14 @@ case class MatrixBlockMatrixWriter(
     // Next level of the plan. Flatmap contexts to create more, we need one per block. Context needs to contain the start and stop columns.
     // Takes in a stream of per table partition contexts.
     def createBlockMakingContexts(tablePartsStreamIR: IR): IR = {
-      flatMapIR(tablePartsStreamIR) { tableSinglePartCtx =>
+      flatten(zip2(tablePartsStreamIR, rangeIR(numBlockRows), ArrayZipBehavior.AssertSameLength) { case (tableSinglePartCtx, blockColIdx)  =>
         mapIR(rangeIR(I32(numBlockCols))){ blockColIdx =>
           MakeStruct(Seq("oldTableCtx" -> tableSinglePartCtx, "blockStart" -> (blockColIdx * I32(blockSize)),
             "blockSize" -> If(blockColIdx ceq I32(numBlockCols - 1), I32(lastBlockNumCols), I32(blockSize)),
             "blockColIdx" -> blockColIdx,
-            "blockRowIdx" -> ApplyBinaryPrimOp(RoundToNegInfDivide(), GetField(ArrayRef(GetField(tableSinglePartCtx, "oldContexts"), I32(0)), "mwStartIdx"), I32(blockSize))))
+            "blockRowIdx" -> blockColIdx))
         }
-      }
+      })
     }
 
     val tableOfNDArrays = rowsInBlockSizeGroups.mapContexts(createBlockMakingContexts)(ir => GetField(ir, "oldTableCtx")).mapPartitionWithContext{ (partIr, ctxRef) =>
@@ -446,25 +446,22 @@ case class MatrixBlockMatrixWriter(
       }
     }
 
-
     val colMajorOrderedBlocks = ctx.backend.lowerDistributedSort(
-          ctx, tableOfNDArrays, IndexedSeq(SortField("blockRowIdx", Ascending), SortField("blockColIdx", Ascending)), relationalLetsAbove, rm.rowType
+          ctx, tableOfNDArrays, IndexedSeq(SortField("blockColIdx", Ascending),  SortField("blockRowIdx", Ascending)), relationalLetsAbove, rm.rowType
     )
-
 
     val elementType = tm.entryType.fieldType(entryField)
     val etype = EBlockMatrixNDArray(EType.fromTypeAndAnalysis(elementType, rm.entryType.field(entryField)), encodeRowMajor = true, required = true)
     val spec = TypedCodecSpec(etype, TNDArray(tm.entryType.fieldType(entryField), Nat(2)), BlockMatrix.bufferSpec)
 
     val paths = colMajorOrderedBlocks.mapCollect(relationalLetsAbove) { partition =>
-      val mappedPartition = ToArray(mapIR(partition) { singleNDArrayTuple =>
+     ToArray(mapIR(partition) { singleNDArrayTuple =>
         val blockPath =
           Str(s"$path/parts/part-") +
             invoke("str", TString, GetField(singleNDArrayTuple, "blockRowIdx") + (GetField(singleNDArrayTuple, "blockColIdx") * numBlockRows)) +
             Str("-") + UUID4()
         WriteValue(GetField(singleNDArrayTuple, "ndBlock"), blockPath, spec)
       })
-      mappedPartition
     }
     val flatPaths = ToArray(flatMapIR(ToStream(paths))(ToStream(_)))
     val bmt = BlockMatrixType(elementType, IndexedSeq(numRows, numCols), numRows==1, blockSize, BlockMatrixSparsity.dense)
