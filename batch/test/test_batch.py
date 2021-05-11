@@ -75,9 +75,7 @@ def test_bad_command(client):
     j = builder.create_job(DOCKER_ROOT_IMAGE, ['sleep 5'])
     builder.submit()
     status = j.wait()
-    assert j._get_exit_codes(status) == {'main': None}, status
-    assert j._get_error(status, 'main') is not None
-    assert status['state'] == 'Error', str(status)
+    assert status['state'] == 'Failed', str(status)
 
 
 def test_invalid_resource_requests(client):
@@ -608,7 +606,7 @@ def test_verify_no_access_to_metadata_server(client):
     builder.submit()
     status = j.wait()
     assert status['state'] == 'Failed', str(status)
-    assert "Connection timed out" in j.log()['main'], str(j.log()['main'], status)
+    assert "Could not resolve host" in j.log()['main'], (str(j.log()['main']), status)
 
 
 def test_can_use_google_credentials(client):

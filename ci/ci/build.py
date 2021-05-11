@@ -354,6 +354,7 @@ cat /home/user/trace
             resources=self.resources,
             input_files=input_files,
             parents=self.deps_parents(),
+            network='private',
             unconfined=True,
         )
 

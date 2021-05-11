@@ -130,6 +130,10 @@ steps:
     dockerFile: /io/repo/docker/Dockerfile.service-base
     contextPath: /io/repo
     publishAs: service-base
+    resources:
+      storage: 10Gi
+      cpu: "2"
+      memory: 7.5Gi
     dependsOn:
       - base_image
       - merge_code
@@ -787,6 +791,7 @@ steps:
         to: /io/repo/hail_version
     dependsOn:
       - merge_code
+      - hail_ubuntu_image
   - kind: buildImage2
     name: service_java_run_base_image
     dockerFile: /io/repo/docker/Dockerfile.service-java-run-base
