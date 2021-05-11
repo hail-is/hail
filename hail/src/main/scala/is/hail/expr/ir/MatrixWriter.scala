@@ -411,10 +411,6 @@ case class MatrixBlockMatrixWriter(
     val blockSizeGroupsPartitioner = RVDPartitioner.generate(TStruct((perRowIdxId, TInt32)), desiredRowIntervals)
     val rowsInBlockSizeGroups: TableStage = keyedByRowIdx.repartitionNoShuffle(blockSizeGroupsPartitioner)
 
-
-    println(s"Context type of rowsInBlockSizeGroups is ${rowsInBlockSizeGroups.ctxType}")
-    println(s"${desiredRowIntervals}")
-
     // Next level of the plan. Flatmap contexts to create more, we need one per block. Context needs to contain the start and stop columns.
     // Takes in a stream of per table partition contexts.
     def createBlockMakingContexts(tablePartsStreamIR: IR): IR = {
@@ -463,23 +459,18 @@ case class MatrixBlockMatrixWriter(
           ctx, tableOfNDArrays, IndexedSeq(SortField("blockRowIdx", Ascending), SortField("blockColIdx", Ascending)), relationalLetsAbove, rm.rowType
     )
 
-    val aboutToWrite = colMajorOrderedBlocks.mapContexts { oldCtxStream =>
-      mapIR(oldCtxStream) { oldCtxElementRef =>
-        val blockPath =
-          Str(s"$path/parts/part-") +
-          invoke("str", TString, GetField(ArrayRef(oldCtxElementRef, I32(0)), "blockRowIdx") + (GetField(ArrayRef(oldCtxElementRef, I32(0)), "blockColIdx") * numBlockRows)) +
-            Str("-") + UUID4()
-        MakeStruct(Seq("blockPath" -> blockPath, "oldContext" -> oldCtxElementRef))
-      }
-    } (newContext => GetField(newContext, "oldContext"))
 
     val elementType = tm.entryType.fieldType(entryField)
     val etype = EBlockMatrixNDArray(EType.fromTypeAndAnalysis(elementType, rm.entryType.field(entryField)), encodeRowMajor = true, required = true)
     val spec = TypedCodecSpec(etype, TNDArray(tm.entryType.fieldType(entryField), Nat(2)), BlockMatrix.bufferSpec)
 
-    val paths = aboutToWrite.mapCollectWithContextsAndGlobals(relationalLetsAbove) { (partition, ctxRef) =>
+    val paths = colMajorOrderedBlocks.mapCollectWithGlobals(relationalLetsAbove) { partition =>
       val mappedPartition = ToArray(mapIR(partition) { singleNDArrayTuple =>
-        WriteValue(GetField(singleNDArrayTuple, "ndBlock"), GetField(ctxRef, "blockPath"), spec)
+        val blockPath =
+          Str(s"$path/parts/part-") +
+            invoke("str", TString, GetField(singleNDArrayTuple, "blockRowIdx") + (GetField(singleNDArrayTuple, "blockColIdx") * numBlockRows)) +
+            Str("-") + UUID4()
+        WriteValue(GetField(singleNDArrayTuple, "ndBlock"), blockPath, spec)
       })
       mappedPartition
     } { (fileNames, globals) =>

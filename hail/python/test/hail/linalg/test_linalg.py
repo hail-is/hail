@@ -72,13 +72,13 @@ class Tests(unittest.TestCase):
         self._assert_close(bm.sum(axis=1), np.sum(nd, axis=1, keepdims=True))
 
     @fails_service_backend()
-    def test_from_entry_expr(self):
+    def test_from_entry_expr_simple(self):
         mt = get_dataset()
         mt = mt.annotate_entries(x=hl.or_else(mt.GT.n_alt_alleles(), 0)).cache()
 
         a1 = hl.eval(BlockMatrix.from_entry_expr(hl.or_else(mt.GT.n_alt_alleles(), 0), block_size=32).to_ndarray())
         a2 = hl.eval(BlockMatrix.from_entry_expr(mt.x, block_size=32).to_ndarray())
-        a3 = hl.eval(BlockMatrix.from_entry_expr(hl.float64(mt.x), block_size=32).to_ndarrayl())
+        a3 = hl.eval(BlockMatrix.from_entry_expr(hl.float64(mt.x), block_size=32).to_ndarray())
 
         self._assert_eq(a1, a2)
         self._assert_eq(a1, a3)

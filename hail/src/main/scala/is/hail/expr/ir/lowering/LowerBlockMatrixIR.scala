@@ -69,7 +69,7 @@ abstract class BlockMatrixStage(val globalVals: Array[(String, IR)], val ctxType
     LowerToCDA.substLets(globalVals.foldRight[IR](collect) { case ((f, v), accum) => Let(f, v, accum) }, relationalBindings)
   }
 
-  def collectLocal(relationalBindings: Map[String, IR], typ: BlockMatrixType): IR = {
+  def collectLocal(relationalBindings: Map[String, IR], typ: BlockMatrixType, ctx: ExecuteContext): IR = {
     val blocksRowMajor = Array.range(0, typ.nRowBlocks).flatMap { i =>
       Array.tabulate(typ.nColBlocks)(j => i -> j).filter(typ.hasBlock)
     }
@@ -89,11 +89,19 @@ abstract class BlockMatrixStage(val globalVals: Array[(String, IR)], val ctxType
         }, coerce[TArray](cda.typ)), 1)
       }, coerce[TArray](cda.typ))
     } else {
-      val i = Ref(genUID(), TInt32)
-      val j = Ref(genUID(), TInt32)
-      val cols = ToArray(StreamMap(StreamRange(0, typ.nColBlocks, 1), j.name, ArrayRef(blockResults, i * typ.nColBlocks + j)))
-      ToArray(StreamMap(StreamRange(0, typ.nRowBlocks, 1), i.name, NDArrayConcat(cols, 1)))
+      ToArray(mapIR(rangeIR(I32(typ.nRowBlocks))){ rowIdxRef =>
+        val blocksInOneRow = ToArray(mapIR(rangeIR(I32(typ.nColBlocks))) { colIdxRef =>
+          ArrayRef(blockResults, rowIdxRef * typ.nColBlocks + colIdxRef)
+        })
+        NDArrayConcat(blocksInOneRow, 1)
+      })
     }
+//    val cdaOnly: Any = CompileAndEvaluate(ctx, ToArray(mapIR(ToStream(cda))(singleND => NDArrayShape(singleND))))
+//    println(s"CDA Shapes = ${cdaOnly}")
+//    val arrayOfBlockedRowShapeIRs = ToArray(mapIR(ToStream(rows))(singleND => NDArrayShape(singleND)))
+//    println("About to learn about shapes")
+//    val compiledShapes: Any = CompileAndEvaluate(ctx, Let(blockResults.name, cda, arrayOfBlockedRowShapeIRs))
+//    println(s"Shape of ndarrays is ${compiledShapes}")
     Let(blockResults.name, cda, NDArrayConcat(rows, 0))
   }
 
@@ -296,7 +304,7 @@ object LowerBlockMatrixIR {
         }
       case x@BlockMatrixBroadcast(child, IndexedSeq(axis), _, _) =>
         val len = child.typ.shape.max
-        val vector = NDArrayReshape(lower(child).collectLocal(relationalLetsAbove, child.typ), MakeTuple.ordered(FastSeq(I64(len))))
+        val vector = NDArrayReshape(lower(child).collectLocal(relationalLetsAbove, child.typ, ctx), MakeTuple.ordered(FastSeq(I64(len))))
         BlockMatrixStage.broadcastVector(vector, x.typ, asRowVector = axis == 1)
 
       case x@BlockMatrixBroadcast(child, IndexedSeq(axis, axis2), _, _) if (axis == axis2) => // diagonal as row/col vector
