@@ -440,7 +440,7 @@ mkdir -p {shq(repo_dir)}
                 callback=CALLBACK_URL,
             )
             config.build(batch, self, scope='test')
-            batch = await batch.submit()
+            await batch.submit()
             self.batch = batch
         except concurrent.futures.CancelledError:
             raise
@@ -830,7 +830,7 @@ mkdir -p {shq(repo_dir)}
                 callback=CALLBACK_URL,
             )
             config.build(deploy_batch, self, scope='deploy')
-            deploy_batch = await deploy_batch.submit()
+            await deploy_batch.submit()
             self.deploy_batch = deploy_batch
         except concurrent.futures.CancelledError:
             raise
@@ -908,7 +908,7 @@ mkdir -p {shq(repo_dir)}
                 }
             )
             config.build(deploy_batch, self, scope='dev')
-            deploy_batch = await deploy_batch.submit()
+            await deploy_batch.submit()
             self.deploy_batch = deploy_batch
             return deploy_batch.id
         finally:

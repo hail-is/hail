@@ -30,9 +30,9 @@ def client():
 
 
 def test_job(client):
-    builder = client.create_batch()
-    j = builder.create_job(DOCKER_ROOT_IMAGE, ['echo', 'test'])
-    b = builder.submit()
+    b = client.create_batch()
+    j = b.create_job(DOCKER_ROOT_IMAGE, ['echo', 'test'])
+    b.submit()
     status = j.wait()
     assert 'attributes' not in status, (status, j.log())
     assert status['state'] == 'Success', (status, j.log())
@@ -42,9 +42,9 @@ def test_job(client):
 
 
 def test_exit_code_duration(client):
-    builder = client.create_batch()
-    j = builder.create_job(DOCKER_ROOT_IMAGE, ['bash', '-c', 'exit 7'])
-    b = builder.submit()
+    b = client.create_batch()
+    j = b.create_job(DOCKER_ROOT_IMAGE, ['bash', '-c', 'exit 7'])
+    b.submit()
     status = j.wait()
     assert status['exit_code'] == 7, status
     assert isinstance(status['duration'], int)
@@ -53,16 +53,16 @@ def test_exit_code_duration(client):
 
 def test_attributes(client):
     a = {'name': 'test_attributes', 'foo': 'bar'}
-    builder = client.create_batch()
-    j = builder.create_job(DOCKER_ROOT_IMAGE, ['true'], attributes=a)
-    builder.submit()
+    b = client.create_batch()
+    j = b.create_job(DOCKER_ROOT_IMAGE, ['true'], attributes=a)
+    b.submit()
     assert j.attributes() == a
 
 
 def test_garbage_image(client):
-    builder = client.create_batch()
-    j = builder.create_job('dsafaaadsf', ['echo', 'test'])
-    builder.submit()
+    b = client.create_batch()
+    j = b.create_job('dsafaaadsf', ['echo', 'test'])
+    b.submit()
     status = j.wait()
     assert j._get_exit_codes(status) == {'main': None}, status
     assert j._get_error(status, 'main') is not None
@@ -70,9 +70,9 @@ def test_garbage_image(client):
 
 
 def test_bad_command(client):
-    builder = client.create_batch()
-    j = builder.create_job(DOCKER_ROOT_IMAGE, ['sleep 5'])
-    builder.submit()
+    b = client.create_batch()
+    j = b.create_job(DOCKER_ROOT_IMAGE, ['sleep 5'])
+    b.submit()
     status = j.wait()
     assert j._get_exit_codes(status) == {'main': None}, status
     assert j._get_error(status, 'main') is not None
@@ -80,80 +80,80 @@ def test_bad_command(client):
 
 
 def test_invalid_resource_requests(client):
-    builder = client.create_batch()
+    b = client.create_batch()
     resources = {'cpu': '1', 'memory': '250Gi', 'storage': '1Gi'}
-    builder.create_job(DOCKER_ROOT_IMAGE, ['true'], resources=resources)
+    b.create_job(DOCKER_ROOT_IMAGE, ['true'], resources=resources)
     with pytest.raises(aiohttp.client.ClientResponseError, match='resource requests.*unsatisfiable'):
-        builder.submit()
+        b.submit()
 
-    builder = client.create_batch()
+    b = client.create_batch()
     resources = {'cpu': '0', 'memory': '1Gi', 'storage': '1Gi'}
-    builder.create_job(DOCKER_ROOT_IMAGE, ['true'], resources=resources)
+    b.create_job(DOCKER_ROOT_IMAGE, ['true'], resources=resources)
     with pytest.raises(
         aiohttp.client.ClientResponseError,
         match='bad resource request for job.*cpu must be a power of two with a min of 0.25; found.*',
     ):
-        builder.submit()
+        b.submit()
 
-    builder = client.create_batch()
+    b = client.create_batch()
     resources = {'cpu': '0.1', 'memory': '1Gi', 'storage': '1Gi'}
-    builder.create_job(DOCKER_ROOT_IMAGE, ['true'], resources=resources)
+    b.create_job(DOCKER_ROOT_IMAGE, ['true'], resources=resources)
     with pytest.raises(
         aiohttp.client.ClientResponseError,
         match='bad resource request for job.*cpu must be a power of two with a min of 0.25; found.*',
     ):
-        builder.submit()
+        b.submit()
 
-    builder = client.create_batch()
+    b = client.create_batch()
     resources = {'cpu': '0.1', 'memory': 'foo', 'storage': '1Gi'}
-    builder.create_job(DOCKER_ROOT_IMAGE, ['true'], resources=resources)
+    b.create_job(DOCKER_ROOT_IMAGE, ['true'], resources=resources)
     with pytest.raises(
         aiohttp.client.ClientResponseError,
         match=".*.resources.memory must match regex:.*.resources.memory must be one of:.*",
     ):
-        builder.submit()
+        b.submit()
 
 
 def test_out_of_memory(client):
-    builder = client.create_batch()
+    b = client.create_batch()
     resources = {'cpu': '0.25', 'memory': '10M', 'storage': '10Gi'}
-    j = builder.create_job('python:3.6-slim-stretch', ['python', '-c', 'x = "a" * 1000**3'], resources=resources)
-    builder.submit()
+    j = b.create_job('python:3.6-slim-stretch', ['python', '-c', 'x = "a" * 1000**3'], resources=resources)
+    b.submit()
     status = j.wait()
     assert j._get_out_of_memory(status, 'main'), str(status)
 
 
 def test_out_of_storage(client):
-    builder = client.create_batch()
+    b = client.create_batch()
     resources = {'cpu': '0.25', 'memory': '10M', 'storage': '5Gi'}
-    j = builder.create_job(DOCKER_ROOT_IMAGE, ['/bin/sh', '-c', 'fallocate -l 100GiB /foo'], resources=resources)
-    builder.submit()
+    j = b.create_job(DOCKER_ROOT_IMAGE, ['/bin/sh', '-c', 'fallocate -l 100GiB /foo'], resources=resources)
+    b.submit()
     status = j.wait()
     assert status['state'] == 'Failed', str(status)
     assert "fallocate failed: No space left on device" in j.log()['main']
 
 
 def test_nonzero_storage(client):
-    builder = client.create_batch()
+    b = client.create_batch()
     resources = {'cpu': '0.25', 'memory': '10M', 'storage': '20Gi'}
-    j = builder.create_job('ubuntu:18.04', ['/bin/sh', '-c', 'true'], resources=resources)
-    builder.submit()
+    j = b.create_job('ubuntu:18.04', ['/bin/sh', '-c', 'true'], resources=resources)
+    b.submit()
     status = j.wait()
     assert status['state'] == 'Success', str(status)
 
 
 def test_attached_disk(client):
-    builder = client.create_batch()
+    b = client.create_batch()
     resources = {'cpu': '0.25', 'memory': '10M', 'storage': '400Gi'}
-    j = builder.create_job('ubuntu:18.04', ['/bin/sh', '-c', 'df -h; fallocate -l 390GiB /io/foo'], resources=resources)
-    builder.submit()
+    j = b.create_job('ubuntu:18.04', ['/bin/sh', '-c', 'df -h; fallocate -l 390GiB /io/foo'], resources=resources)
+    b.submit()
     status = j.wait()
     assert status['state'] == 'Success', str((status, j.log()))
 
 
 def test_unsubmitted_state(client):
-    builder = client.create_batch()
-    j = builder.create_job(DOCKER_ROOT_IMAGE, ['echo', 'test'])
+    b = client.create_batch()
+    j = b.create_job(DOCKER_ROOT_IMAGE, ['echo', 'test'])
 
     with pytest.raises(ValueError):
         j.batch_id
@@ -168,20 +168,20 @@ def test_unsubmitted_state(client):
     with pytest.raises(ValueError):
         j.wait()
 
-    builder.submit()
+    b.submit()
     with pytest.raises(ValueError):
-        builder.create_job(DOCKER_ROOT_IMAGE, ['echo', 'test'])
+        b.create_job(DOCKER_ROOT_IMAGE, ['echo', 'test'])
 
 
 def test_list_batches(client):
     tag = secrets.token_urlsafe(64)
     b1 = client.create_batch(attributes={'tag': tag, 'name': 'b1'})
     b1.create_job(DOCKER_ROOT_IMAGE, ['sleep', '3600'])
-    b1 = b1.submit()
+    b1.submit()
 
     b2 = client.create_batch(attributes={'tag': tag, 'name': 'b2'})
     b2.create_job(DOCKER_ROOT_IMAGE, ['echo', 'test'])
-    b2 = b2.submit()
+    b2.submit()
 
     def assert_batch_ids(expected, q=None):
         # list_batches returns all batches for all prev run tests so we set a limit
@@ -220,7 +220,7 @@ def test_list_jobs(client):
     j_error = b.create_job(DOCKER_ROOT_IMAGE, ['sleep 5'], attributes={'tag': 'bar'})
     j_running = b.create_job(DOCKER_ROOT_IMAGE, ['sleep', '1800'], attributes={'tag': 'foo'})
 
-    b = b.submit()
+    b.submit()
     j_success.wait()
     j_failure.wait()
     j_error.wait()
@@ -243,7 +243,7 @@ def test_include_jobs(client):
     b1 = client.create_batch()
     for i in range(2):
         b1.create_job(DOCKER_ROOT_IMAGE, ['true'])
-    b1 = b1.submit()
+    b1.submit()
     s = b1.status()
     assert 'jobs' not in s
 
@@ -259,7 +259,7 @@ def test_fail(client):
 def test_running_job_log_and_status(client):
     b = client.create_batch()
     j = b.create_job(DOCKER_ROOT_IMAGE, ['sleep', '300'])
-    b = b.submit()
+    b.submit()
 
     while True:
         if j.status()['state'] == 'Running' or j.is_complete():
@@ -273,7 +273,7 @@ def test_running_job_log_and_status(client):
 def test_deleted_job_log(client):
     b = client.create_batch()
     j = b.create_job(DOCKER_ROOT_IMAGE, ['echo', 'test'])
-    b = b.submit()
+    b.submit()
     j.wait()
     b.delete()
 
@@ -289,7 +289,7 @@ def test_deleted_job_log(client):
 def test_delete_batch(client):
     b = client.create_batch()
     j = b.create_job(DOCKER_ROOT_IMAGE, ['sleep', '30'])
-    b = b.submit()
+    b.submit()
     b.delete()
 
     # verify doesn't exist
@@ -305,7 +305,7 @@ def test_delete_batch(client):
 def test_cancel_batch(client):
     b = client.create_batch()
     j = b.create_job(DOCKER_ROOT_IMAGE, ['sleep', '30'])
-    b = b.submit()
+    b.submit()
 
     status = j.status()
     assert status['state'] in ('Ready', 'Running'), str(status)
@@ -351,7 +351,7 @@ def test_batch(client):
     j1 = b.create_job(DOCKER_ROOT_IMAGE, ['false'])
     j2 = b.create_job(DOCKER_ROOT_IMAGE, ['sleep', '1'])
     j3 = b.create_job(DOCKER_ROOT_IMAGE, ['sleep', '30'])
-    b = b.submit()
+    b.submit()
 
     j1.wait()
     j2.wait()
@@ -436,6 +436,7 @@ def test_authorized_users_only():
         (session.get, '/api/v1alpha/batches/0', 401),
         (session.delete, '/api/v1alpha/batches/0', 401),
         (session.patch, '/api/v1alpha/batches/0/close', 401),
+        (session.patch, '/api/v1alpha/batches/0/commit', 401),
         # redirect to auth/login
         (session.get, '/batches', 302),
         (session.get, '/batches/0', 302),
@@ -449,9 +450,9 @@ def test_authorized_users_only():
 
 
 def test_gcr_image(client):
-    builder = client.create_batch()
-    j = builder.create_job(os.environ['HAIL_CURL_IMAGE'], ['echo', 'test'])
-    builder.submit()
+    b = client.create_batch()
+    j = b.create_job(os.environ['HAIL_CURL_IMAGE'], ['echo', 'test'])
+    b.submit()
     status = j.wait()
     assert status['state'] == 'Success', str(status, j.log())
 
@@ -469,8 +470,8 @@ def test_service_account(client):
 
 
 def test_port(client):
-    builder = client.create_batch()
-    j = builder.create_job(
+    b = client.create_batch()
+    j = b.create_job(
         DOCKER_ROOT_IMAGE,
         [
             'bash',
@@ -482,15 +483,15 @@ echo $HAIL_BATCH_WORKER_IP
         ],
         port=5000,
     )
-    b = builder.submit()
+    b.submit()
     batch = b.wait()
     assert batch['state'] == 'success', str(batch)
 
 
 def test_timeout(client):
-    builder = client.create_batch()
-    j = builder.create_job(DOCKER_ROOT_IMAGE, ['sleep', '30'], timeout=5)
-    b = builder.submit()
+    b = client.create_batch()
+    j = b.create_job(DOCKER_ROOT_IMAGE, ['sleep', '30'], timeout=5)
+    b.submit()
     status = j.wait()
     assert status['state'] == 'Error', (status, j.log())
     error_msg = j._get_error(status, 'main')
@@ -499,10 +500,10 @@ def test_timeout(client):
 
 
 def test_client_max_size(client):
-    builder = client.create_batch()
+    b = client.create_batch()
     for i in range(4):
-        builder.create_job(DOCKER_ROOT_IMAGE, ['echo', 'a' * (900 * 1024)])
-    builder.submit()
+        b.create_job(DOCKER_ROOT_IMAGE, ['echo', 'a' * (900 * 1024)])
+    b.submit()
 
 
 def test_restartable_insert(client):
@@ -517,12 +518,12 @@ def test_restartable_insert(client):
 
     with FailureInjectingClientSession(every_third_time) as session:
         client = BatchClient('test', session=session)
-        builder = client.create_batch()
+        b = client.create_batch()
 
         for _ in range(9):
-            builder.create_job(DOCKER_ROOT_IMAGE, ['echo', 'a'])
+            b.create_job(DOCKER_ROOT_IMAGE, ['echo', 'a'])
 
-        b = builder.submit(max_bunch_size=1)
+        b.submit(max_bunch_size=1)
         b = client.get_batch(b.id)  # get a batch untainted by the FailureInjectingClientSession
         batch = b.wait()
         assert batch['state'] == 'success', str(batch)
@@ -531,10 +532,8 @@ def test_restartable_insert(client):
 
 def test_create_idempotence(client):
     token = secrets.token_urlsafe(32)
-    builder1 = client.create_batch(token=token)
-    builder2 = client.create_batch(token=token)
-    b1 = builder1._create()
-    b2 = builder2._create()
+    b1 = client.create_batch(token=token)
+    b2 = client.create_batch(token=token)
     assert b1.id == b2.id
 
 
@@ -565,23 +564,23 @@ def test_batch_create_validation():
 
 
 def test_duplicate_parents(client):
-    batch = client.create_batch()
-    head = batch.create_job(DOCKER_ROOT_IMAGE, command=['echo', 'head'])
-    batch.create_job(DOCKER_ROOT_IMAGE, command=['echo', 'tail'], parents=[head, head])
+    b = client.create_batch()
+    head = b.create_job(DOCKER_ROOT_IMAGE, command=['echo', 'head'])
+    b.create_job(DOCKER_ROOT_IMAGE, command=['echo', 'tail'], parents=[head, head])
     try:
-        batch = batch.submit()
+        b.submit()
     except aiohttp.ClientResponseError as e:
         assert e.status == 400
     else:
-        assert False, f'should receive a 400 Bad Request {batch.id}'
+        assert False, f'should receive a 400 Bad Request {b.id}'
 
 
 def test_verify_no_access_to_metadata_server(client):
-    builder = client.create_batch()
-    j = builder.create_job(
+    b = client.create_batch()
+    j = b.create_job(
         os.environ['HAIL_CURL_IMAGE'], ['curl', '-fsSL', 'metadata.google.internal', '--max-time', '10']
     )
-    builder.submit()
+    b.submit()
     status = j.wait()
     assert status['state'] == 'Failed', str(status)
     assert "Connection timed out" in j.log()['main'], str(j.log()['main'], status)
@@ -590,7 +589,7 @@ def test_verify_no_access_to_metadata_server(client):
 def test_can_use_google_credentials(client):
     token = os.environ["HAIL_TOKEN"]
     bucket_name = get_user_config().get('batch', 'bucket')
-    builder = client.create_batch()
+    b = client.create_batch()
     script = f'''import hail as hl
 import secrets
 attempt_token = secrets.token_urlsafe(5)
@@ -598,10 +597,10 @@ location = f"gs://{ bucket_name }/{ token }/{{ attempt_token }}/test_can_use_hai
 hl.utils.range_table(10).write(location)
 hl.read_table(location).show()
 '''
-    j = builder.create_job(
+    j = b.create_job(
         os.environ['HAIL_HAIL_BASE_IMAGE'], ['/bin/bash', '-c', f'python3 -c >out 2>err \'{script}\'; cat out err']
     )
-    builder.submit()
+    b.submit()
     status = j.wait()
     assert status['state'] == 'Success', f'{j.log(), status}'
     expected_log = '''+-------+
@@ -626,25 +625,25 @@ hl.read_table(location).show()
 
 
 def test_user_authentication_within_job(client):
-    batch = client.create_batch()
+    b = client.create_batch()
     cmd = ['bash', '-c', 'hailctl auth user']
-    no_token = batch.create_job(os.environ['CI_UTILS_IMAGE'], cmd, mount_tokens=False)
-    batch.submit()
+    no_token = b.create_job(os.environ['CI_UTILS_IMAGE'], cmd, mount_tokens=False)
+    b.submit()
 
     no_token_status = no_token.wait()
     assert no_token_status['state'] == 'Failed', f'{(no_token.log(), no_token_status)}'
 
 
 def test_verify_access_to_public_internet(client):
-    builder = client.create_batch()
-    j = builder.create_job(os.environ['HAIL_CURL_IMAGE'], ['curl', '-fsSL', 'example.com'])
-    builder.submit()
+    b = client.create_batch()
+    j = b.create_job(os.environ['HAIL_CURL_IMAGE'], ['curl', '-fsSL', 'example.com'])
+    b.submit()
     status = j.wait()
     assert status['state'] == 'Success', status
 
 
 def test_verify_can_tcp_to_localhost(client):
-    builder = client.create_batch()
+    b = client.create_batch()
     script = '''
 set -e
 nc -l -p 5000 &
@@ -653,15 +652,15 @@ echo "hello" | nc -q 1 localhost 5000
 '''.lstrip(
         '\n'
     )
-    j = builder.create_job(os.environ['HAIL_NETCAT_UBUNTU_IMAGE'], command=['/bin/bash', '-c', script])
-    builder.submit()
+    j = b.create_job(os.environ['HAIL_NETCAT_UBUNTU_IMAGE'], command=['/bin/bash', '-c', script])
+    b.submit()
     status = j.wait()
     assert status['state'] == 'Success', str(j.log()['main'], status)
     assert 'hello\n' == j.log()['main']
 
 
 def test_verify_can_tcp_to_127_0_0_1(client):
-    builder = client.create_batch()
+    b = client.create_batch()
     script = '''
 set -e
 nc -l -p 5000 &
@@ -670,15 +669,15 @@ echo "hello" | nc -q 1 127.0.0.1 5000
 '''.lstrip(
         '\n'
     )
-    j = builder.create_job(os.environ['HAIL_NETCAT_UBUNTU_IMAGE'], command=['/bin/bash', '-c', script])
-    builder.submit()
+    j = b.create_job(os.environ['HAIL_NETCAT_UBUNTU_IMAGE'], command=['/bin/bash', '-c', script])
+    b.submit()
     status = j.wait()
     assert status['state'] == 'Success', str(j.log()['main'], status)
     assert 'hello\n' == j.log()['main']
 
 
 def test_verify_can_tcp_to_self_ip(client):
-    builder = client.create_batch()
+    b = client.create_batch()
     script = '''
 set -e
 nc -l -p 5000 &
@@ -687,20 +686,20 @@ echo "hello" | nc -q 1 $(hostname -i) 5000
 '''.lstrip(
         '\n'
     )
-    j = builder.create_job(os.environ['HAIL_NETCAT_UBUNTU_IMAGE'], command=['/bin/sh', '-c', script])
-    builder.submit()
+    j = b.create_job(os.environ['HAIL_NETCAT_UBUNTU_IMAGE'], command=['/bin/sh', '-c', script])
+    b.submit()
     status = j.wait()
     assert status['state'] == 'Success', str(j.log()['main'], status)
     assert 'hello\n' == j.log()['main'], str(j.log())
 
 
 def test_verify_private_network_is_restricted(client):
-    builder = client.create_batch()
-    builder.create_job(
+    b = client.create_batch()
+    b.create_job(
         os.environ['HAIL_CURL_IMAGE'], command=['curl', 'internal.hail', '--connect-timeout', '60'], network='private'
     )
     try:
-        builder.submit()
+        b.submit()
     except aiohttp.ClientResponseError as err:
         assert err.status == 400
         assert 'unauthorized network private' in err.message
@@ -709,82 +708,82 @@ def test_verify_private_network_is_restricted(client):
 
 
 def test_pool_highmem_instance(client):
-    builder = client.create_batch()
+    b = client.create_batch()
     resources = {'cpu': '0.25', 'memory': 'highmem'}
-    j = builder.create_job(DOCKER_ROOT_IMAGE, ['true'], resources=resources)
-    builder.submit()
+    j = b.create_job(DOCKER_ROOT_IMAGE, ['true'], resources=resources)
+    b.submit()
     status = j.wait()
     assert status['state'] == 'Success', str(j.log()['main'], status)
     assert 'highmem' in status['status']['worker'], str(status)
 
-    builder = client.create_batch()
+    b = client.create_batch()
     resources = {'cpu': '1', 'memory': '5Gi'}
-    j = builder.create_job(DOCKER_ROOT_IMAGE, ['true'], resources=resources)
-    builder.submit()
+    j = b.create_job(DOCKER_ROOT_IMAGE, ['true'], resources=resources)
+    b.submit()
     status = j.wait()
     assert status['state'] == 'Success', str(j.log()['main'], status)
     assert 'highmem' in status['status']['worker'], str(status)
 
-    builder = client.create_batch()
+    b = client.create_batch()
     resources = {'cpu': '0.25', 'memory': '500Mi'}
-    j = builder.create_job(DOCKER_ROOT_IMAGE, ['true'], resources=resources)
-    builder.submit()
+    j = b.create_job(DOCKER_ROOT_IMAGE, ['true'], resources=resources)
+    b.submit()
     status = j.wait()
     assert status['state'] == 'Success', str(j.log()['main'], status)
     assert 'standard' in status['status']['worker'], str(status)
 
 
 def test_pool_highcpu_instance(client):
-    builder = client.create_batch()
+    b = client.create_batch()
     resources = {'cpu': '0.25', 'memory': 'lowmem'}
-    j = builder.create_job(DOCKER_ROOT_IMAGE, ['true'], resources=resources)
-    builder.submit()
+    j = b.create_job(DOCKER_ROOT_IMAGE, ['true'], resources=resources)
+    b.submit()
     status = j.wait()
     assert status['state'] == 'Success', str(j.log()['main'], status)
     assert 'highcpu' in status['status']['worker'], str(status)
 
-    builder = client.create_batch()
+    b = client.create_batch()
     resources = {'cpu': '0.25', 'memory': '50Mi'}
-    j = builder.create_job(DOCKER_ROOT_IMAGE, ['true'], resources=resources)
-    builder.submit()
+    j = b.create_job(DOCKER_ROOT_IMAGE, ['true'], resources=resources)
+    b.submit()
     status = j.wait()
     assert status['state'] == 'Success', str(j.log()['main'], status)
     assert 'highcpu' in status['status']['worker'], str(status)
 
-    builder = client.create_batch()
+    b = client.create_batch()
     resources = {'cpu': '0.5', 'memory': '1Gi'}
-    j = builder.create_job(DOCKER_ROOT_IMAGE, ['true'], resources=resources)
-    builder.submit()
+    j = b.create_job(DOCKER_ROOT_IMAGE, ['true'], resources=resources)
+    b.submit()
     status = j.wait()
     assert status['state'] == 'Success', str(j.log()['main'], status)
     assert 'standard' in status['status']['worker'], str(status)
 
 
 def test_job_private_instance_preemptible(client):
-    builder = client.create_batch()
+    b = client.create_batch()
     resources = {'machine_type': 'n1-standard-1'}
-    j = builder.create_job(DOCKER_ROOT_IMAGE, ['true'], resources=resources)
-    builder.submit()
+    j = b.create_job(DOCKER_ROOT_IMAGE, ['true'], resources=resources)
+    b.submit()
     status = j.wait()
     assert status['state'] == 'Success', str(j.log()['main'], status)
     assert 'job-private' in status['status']['worker'], str(status)
 
 
 def test_job_private_instance_nonpreemptible(client):
-    builder = client.create_batch()
+    b = client.create_batch()
     resources = {'machine_type': 'n1-standard-1', 'preemptible': False}
-    j = builder.create_job(DOCKER_ROOT_IMAGE, ['true'], resources=resources)
-    builder.submit()
+    j = b.create_job(DOCKER_ROOT_IMAGE, ['true'], resources=resources)
+    b.submit()
     status = j.wait()
     assert status['state'] == 'Success', str(j.log()['main'], status)
     assert 'job-private' in status['status']['worker'], str(status)
 
 
 def test_job_private_instance_cancel(client):
-    builder = client.create_batch()
+    b = client.create_batch()
     resources = {'machine_type': 'n1-standard-1'}
-    j = builder.create_job(DOCKER_ROOT_IMAGE, ['true'], resources=resources)
-    b = builder.submit()
+    j = b.create_job(DOCKER_ROOT_IMAGE, ['true'], resources=resources)
+    b.submit()
 
     delay = 0.1
     start = time.time()
@@ -799,3 +798,74 @@ def test_job_private_instance_cancel(client):
     b.cancel()
     status = j.wait()
     assert status['state'] == 'Cancelled', str(status)
+
+
+def test_open_batch(client):
+    b = client.create_batch()
+    j1 = b.create_job(DOCKER_ROOT_IMAGE, ['true'])
+    b.commit()
+    j2 = b.create_job(DOCKER_ROOT_IMAGE, ['true'])
+    b.close()
+
+    status = j1.wait()
+    assert status['state'] == 'Success', str(j1.log()['main'], status)
+
+    status = j2.wait()
+    assert status['state'] == 'Success', str(j2.log()['main'], status)
+
+
+def test_closed_batch(client):
+    b = client.create_batch()
+    j1 = b.create_job(DOCKER_ROOT_IMAGE, ['true'])
+    b.close()
+    b_stat = b.status()
+    assert b_stat['closed'], str(b_stat)
+
+    status = j1.wait()
+    assert status['state'] == 'Success', str(j1.log()['main'], status)
+
+    with pytest.raises(
+            ValueError,
+            match="cannot create a job in an already closed batch",
+    ):
+        b.create_job(DOCKER_ROOT_IMAGE, ['true'])
+
+    _b = client.get_batch(b.id)
+
+    with pytest.raises(
+        ValueError,
+        match="cannot create a job in an already closed batch"
+    ):
+        _b.create_job(DOCKER_ROOT_IMAGE, ['true'])
+
+    with pytest.raises(
+        ValueError,
+        match="cannot commit an already closed batch"
+    ):
+        _b.commit()
+
+
+def test_auto_closed_batch(client):
+    b = client.create_batch(max_idle_time=0)
+    b.create_job(DOCKER_ROOT_IMAGE, ['sleep 300'], resources = {'cpu': '0.25'})
+    b.commit()
+
+    delay = 0.1
+    start = time.time()
+    while True:
+        status = b.status()
+        if status['closed']:
+            break
+        now = time.time()
+        if now + delay - start > 100:
+            assert False, f'timed out waiting for close to occur: {status} {datetime.datetime.fromtimestamp(now)}'
+        delay = sync_sleep_and_backoff(delay)
+
+    b.create_job(DOCKER_ROOT_IMAGE, ['true'])
+    with pytest.raises(
+            aiohttp.client.ClientResponseError,
+            match='batch.*is not open'
+    ):
+        b.commit()
+
+    b.cancel()

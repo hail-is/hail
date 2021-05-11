@@ -86,6 +86,7 @@ BATCH_JOB_DEFAULT_CPU = os.environ.get('HAIL_BATCH_JOB_DEFAULT_CPU', '1')
 BATCH_JOB_DEFAULT_MEMORY = os.environ.get('HAIL_BATCH_JOB_DEFAULT_MEMORY', 'standard')
 BATCH_JOB_DEFAULT_STORAGE = os.environ.get('HAIL_BATCH_JOB_DEFAULT_STORAGE', '0Gi')
 BATCH_JOB_DEFAULT_PREEMPTIBLE = True
+BATCH_DEFAULT_MAX_IDLE_TIME_SECS = 24 * 60 * 60  # 24 hours
 
 
 def rest_authenticated_developers_or_auth_only(fun):
@@ -615,7 +616,7 @@ async def create_jobs(request, userdata):
         async with timer.step('fetch batch'):
             record = await db.select_and_fetchone(
                 '''
-SELECT `state`, format_version FROM batches
+SELECT `closed`, format_version FROM batches
 WHERE user = %s AND id = %s AND NOT deleted;
 ''',
                 (user, batch_id),
@@ -623,7 +624,7 @@ WHERE user = %s AND id = %s AND NOT deleted;
 
         if not record:
             raise web.HTTPNotFound()
-        if record['state'] != 'open':
+        if record['closed']:
             raise web.HTTPBadRequest(reason=f'batch {batch_id} is not open')
         batch_format_version = BatchFormatVersion(record['format_version'])
 
@@ -1028,11 +1029,17 @@ WHERE token = %s AND user = %s FOR UPDATE;
         if maybe_batch is not None:
             return maybe_batch['id']
 
+        max_idle_time = batch_spec.get('max_idle_time', BATCH_DEFAULT_MAX_IDLE_TIME_SECS)
+        if max_idle_time > 48 * 60 * 60:  # max 48 hours
+            raise web.HTTPForbidden(
+                reason=f'max_idle_time cannot be greater than 48 hours; found {max_idle_time}s'
+            )
+
         now = time_msecs()
         id = await tx.execute_insertone(
             '''
-INSERT INTO batches (userdata, user, billing_project, attributes, callback, n_jobs, time_created, token, state, format_version, cancel_after_n_failures)
-VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
+INSERT INTO batches (userdata, user, billing_project, attributes, callback, time_created, time_last_updated, token, state, format_version, cancel_after_n_failures, max_idle_time)
+VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
 ''',
             (
                 json.dumps(userdata),
@@ -1040,12 +1047,13 @@ VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
                 billing_project,
                 json.dumps(attributes),
                 batch_spec.get('callback'),
-                batch_spec['n_jobs'],
+                now,
                 now,
                 token,
-                'open',
+                'created',
                 BATCH_FORMAT_VERSION,
                 batch_spec.get('cancel_after_n_failures'),
+                max_idle_time
             ),
         )
 
@@ -1103,7 +1111,10 @@ WHERE id = %s AND NOT deleted;
     if not record:
         raise web.HTTPNotFound()
 
-    await db.just_execute('CALL cancel_batch(%s);', (batch_id,))
+    now = time_msecs()
+
+    await db.just_execute('CALL cancel_batch(%s, %s);', (batch_id, now))
+
     await db.execute_update('UPDATE batches SET deleted = 1 WHERE id = %s;', (batch_id,))
 
     if record['state'] == 'running':
@@ -1125,10 +1136,29 @@ async def cancel_batch(request, userdata, batch_id):  # pylint: disable=unused-a
     return web.Response()
 
 
-@routes.patch('/api/v1alpha/batches/{batch_id}/close')
+async def _commit_jobs(app, db, batch_id, user, now=None):
+    try:
+        if now is None:
+            now = time_msecs()
+        await check_call_procedure(db, 'CALL commit_staged_jobs(%s, %s);', (batch_id, now))
+    except CallError as e:
+        if e.rv['rc'] == 1:
+            raise web.HTTPBadRequest(reason=f'batch {batch_id} has already been closed')
+        raise
+
+    async with client_session() as session:
+        await request_retry_transient_errors(
+            session,
+            'PATCH',
+            deploy_config.url('batch-driver', f'/api/v1alpha/batches/{user}/{batch_id}/commit'),
+            headers=app['batch_headers'],
+        )
+
+
+@routes.patch('/api/v1alpha/batches/{batch_id}/commit')
 @monitor_endpoint
 @rest_authenticated_users_only
-async def close_batch(request, userdata):
+async def commit_staged_jobs(request, userdata):
     batch_id = int(request.match_info['batch_id'])
     user = userdata['username']
 
@@ -1145,25 +1175,48 @@ WHERE user = %s AND id = %s AND NOT deleted;
     if not record:
         raise web.HTTPNotFound()
 
-    try:
-        now = time_msecs()
-        await check_call_procedure(db, 'CALL close_batch(%s, %s);', (batch_id, now))
-    except CallError as e:
-        # 2: wrong number of jobs
-        if e.rv['rc'] == 2:
-            expected_n_jobs = e.rv['expected_n_jobs']
-            actual_n_jobs = e.rv['actual_n_jobs']
-            raise web.HTTPBadRequest(reason=f'wrong number of jobs: expected {expected_n_jobs}, actual {actual_n_jobs}')
-        raise
+    await _commit_jobs(app, db, batch_id, user)
 
-    async with client_session() as session:
-        await request_retry_transient_errors(
-            session,
-            'PATCH',
-            deploy_config.url('batch-driver', f'/api/v1alpha/batches/{user}/{batch_id}/close'),
-            headers=app['batch_headers'],
-        )
+    return web.Response()
 
+
+async def _close_batch(app, batch_id, user):
+    db: Database = app['db']
+
+    record = await db.select_and_fetchone(
+        '''
+SELECT 1 FROM batches
+WHERE user = %s AND id = %s AND NOT deleted;
+''',
+        (user, batch_id),
+    )
+    if not record:
+        raise web.HTTPNotFound()
+
+    now = time_msecs()
+
+    @transaction(db)
+    async def close(tx):
+        await _commit_jobs(app, tx, batch_id, user, now)
+
+        await tx.execute_update(
+            '''
+UPDATE batches SET closed = 1, time_closed = %s, state = IF(n_jobs != 0, state, %s),
+  time_completed = IF(n_completed != n_jobs, NULL, %s)
+WHERE id = %s;
+''',
+            (now, 'complete', now, batch_id))
+
+    await close()  # pylint: disable=no-value-for-parameter
+
+
+@routes.patch('/api/v1alpha/batches/{batch_id}/close')
+@monitor_endpoint
+@rest_authenticated_users_only
+async def close_batch(request, userdata):
+    batch_id = int(request.match_info['batch_id'])
+    user = userdata['username']
+    await _close_batch(request.app, batch_id, user)
     return web.Response()
 
 
@@ -1192,6 +1245,24 @@ async def ui_batch(request, userdata, batch_id):
 
     page_context = {'batch': batch, 'q': request.query.get('q'), 'last_job_id': last_job_id}
     return await render_template('batch', request, userdata, 'batch.html', page_context)
+
+
+@routes.post('/batches/{batch_id}/close')
+@monitor_endpoint
+@check_csrf_token
+@web_billing_project_users_only(redirect=False)
+async def ui_close_batch(request, userdata, batch_id):  # pylint: disable=unused-argument
+    post = await request.post()
+    q = post.get('q')
+    params = {}
+    if q is not None:
+        params['q'] = q
+    session = await aiohttp_session.get_session(request)
+    errored = await _handle_ui_error(session, _close_batch, request.app, batch_id, userdata['username'])
+    if not errored:
+        set_message(session, f'Batch {batch_id} closed.', 'info')
+    location = request.app.router['batches'].url_for().with_query(params)
+    raise web.HTTPFound(location=location)
 
 
 @routes.post('/batches/{batch_id}/cancel')

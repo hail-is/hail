@@ -28,7 +28,7 @@ memory_to_worker_type = {'lowmem': 'highcpu', 'standard': 'standard', 'highmem':
 
 HTTP_CLIENT_MAX_SIZE = 8 * 1024 * 1024
 
-BATCH_FORMAT_VERSION = 6
+BATCH_FORMAT_VERSION = 7
 STATUS_FORMAT_VERSION = 5
 INSTANCE_VERSION = 18
 WORKER_CONFIG_VERSION = 3

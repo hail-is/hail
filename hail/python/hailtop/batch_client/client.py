@@ -111,8 +111,9 @@ class Batch:
         b._async_batch = batch
         return b
 
-    def __init__(self, client, id, attributes, n_jobs, token):
-        self._async_batch: aioclient.Batch = aioclient.Batch(client, id, attributes, n_jobs, token)
+    def __init__(self, client, id, attributes, token, n_jobs, closed, last_known_status=None):
+        self._async_batch: aioclient.Batch = aioclient.Batch(client, id, attributes, token,
+                                                             n_jobs, closed, last_known_status)
 
     @property
     def id(self) -> int:
@@ -172,31 +173,6 @@ class Batch:
     def delete(self):
         async_to_blocking(self._async_batch.delete())
 
-
-class BatchBuilder:
-    @classmethod
-    def from_async_builder(cls, builder: aioclient.BatchBuilder) -> 'BatchBuilder':
-        b = object.__new__(cls)
-        b._async_builder = builder
-        return b
-
-    def __init__(self, client, attributes, callback, token: Optional[str] = None,
-                 cancel_after_n_failures: Optional[int] = None):
-        self._async_builder: aioclient.BatchBuilder = aioclient.BatchBuilder(client, attributes, callback, token,
-                                                                             cancel_after_n_failures)
-
-    @property
-    def attributes(self):
-        return self._async_builder.attributes
-
-    @property
-    def callback(self):
-        return self._async_builder.callback
-
-    @property
-    def token(self):
-        return self._async_builder.token
-
     def create_job(self, image, command, env=None, mount_docker_socket=False,
                    port=None, resources=None, secrets=None,
                    service_account=None, attributes=None, parents=None,
@@ -206,7 +182,7 @@ class BatchBuilder:
         if parents:
             parents = [parent._async_job for parent in parents]
 
-        async_job = self._async_builder.create_job(
+        async_job = self._async_batch.create_job(
             image, command, env=env, mount_docker_socket=mount_docker_socket,
             port=port, resources=resources, secrets=secrets,
             service_account=service_account,
@@ -218,13 +194,14 @@ class BatchBuilder:
 
         return Job.from_async_job(async_job)
 
-    def _create(self):
-        async_batch = async_to_blocking(self._async_builder._create())
-        return Batch.from_async_batch(async_batch)
+    def commit(self, *args, **kwargs) -> 'Batch':
+        return async_to_blocking(self._async_batch.commit(*args, **kwargs))
 
-    def submit(self, *args, **kwargs) -> Batch:
-        async_batch = async_to_blocking(self._async_builder.submit(*args, **kwargs))
-        return Batch.from_async_batch(async_batch)
+    def submit(self, *args, **kwargs) -> 'Batch':
+        return async_to_blocking(self._async_batch.submit(*args, **kwargs))
+
+    def close(self, *args, **kwargs) -> 'Batch':
+        return async_to_blocking(self._async_batch.close(*args, **kwargs))
 
 
 class BatchClient:
@@ -261,10 +238,13 @@ class BatchClient:
         b = async_to_blocking(self._async_client.get_batch(id))
         return Batch.from_async_batch(b)
 
-    def create_batch(self, attributes=None, callback=None, token=None, cancel_after_n_failures=None):
-        builder = self._async_client.create_batch(attributes=attributes, callback=callback, token=token,
-                                                  cancel_after_n_failures=cancel_after_n_failures)
-        return BatchBuilder.from_async_builder(builder)
+    def create_batch(self, attributes=None, callback=None, token=None, cancel_after_n_failures=None, max_idle_time=None):
+        async_batch = async_to_blocking(self._async_client.create_batch(attributes=attributes,
+                                                                        callback=callback,
+                                                                        token=token,
+                                                                        cancel_after_n_failures=cancel_after_n_failures,
+                                                                        max_idle_time=max_idle_time))
+        return Batch.from_async_batch(async_batch)
 
     def get_billing_project(self, billing_project):
         return async_to_blocking(self._async_client.get_billing_project(billing_project))

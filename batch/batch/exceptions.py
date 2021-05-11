@@ -37,11 +37,6 @@ class NonExistentBatchError(BatchUserError):
         super().__init__(f'Batch {batch_id} does not exist.', 'error')
 
 
-class OpenBatchError(BatchUserError):
-    def __init__(self, batch_id):
-        super().__init__(f'Batch {batch_id} is open.', 'error')
-
-
 class BatchOperationAlreadyCompletedError(Exception):
     def __init__(self, message, severity):
         super().__init__(message)

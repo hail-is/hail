@@ -171,10 +171,10 @@ async def get_check_invariants(request, userdata):  # pylint: disable=unused-arg
     return web.json_response(data=data)
 
 
-@routes.patch('/api/v1alpha/batches/{user}/{batch_id}/close')
+@routes.patch('/api/v1alpha/batches/{user}/{batch_id}/commit')
 @monitor_endpoint
 @batch_only
-async def close_batch(request):
+async def commit_jobs(request):
     db = request.app['db']
 
     user = request.match_info['user']
@@ -893,6 +893,21 @@ WHERE state = 'running' AND cancel_after_n_failures IS NOT NULL AND n_failed >= 
         await _cancel_batch(app, batch['id'])
 
 
+async def close_idle_open_batches(app):
+    db: Database = app['db']
+
+    now = time_msecs()
+
+    await db.execute_update(
+        '''
+UPDATE batches
+SET closed = 1, time_closed = %s, state = IF(n_jobs != 0, state, %s),
+  time_completed = IF(time_completed IS NULL, %s, time_completed)
+WHERE NOT closed AND state != %s AND format_version >= 7 AND max_idle_time IS NOT NULL AND time_last_updated + (max_idle_time * 1000) < %s;
+''',
+        (now, 'complete', now, 'running', now))
+
+
 async def scheduling_cancelling_bump(app):
     log.info('scheduling cancelling bump loop')
     app['scheduler_state_changed'].notify()
@@ -1000,6 +1015,8 @@ SELECT instance_id, internal_token FROM globals;
     app['task_manager'].ensure_future(periodically_call(10, cancel_fast_failing_batches, app))
 
     app['task_manager'].ensure_future(periodically_call(60, scheduling_cancelling_bump, app))
+
+    app['task_manager'].ensure_future(periodically_call(60, close_idle_open_batches, app))
 
 
 async def on_cleanup(app):

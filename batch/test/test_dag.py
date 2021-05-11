@@ -22,23 +22,23 @@ def client():
 
 
 def test_simple(client):
-    batch = client.create_batch()
-    head = batch.create_job(DOCKER_ROOT_IMAGE, command=['echo', 'head'])
-    tail = batch.create_job(DOCKER_ROOT_IMAGE, command=['echo', 'tail'], parents=[head])
-    batch = batch.submit()
-    batch.wait()
-    status = legacy_batch_status(batch)
+    b = client.create_batch()
+    head = b.create_job(DOCKER_ROOT_IMAGE, command=['echo', 'head'])
+    tail = b.create_job(DOCKER_ROOT_IMAGE, command=['echo', 'tail'], parents=[head])
+    b.submit()
+    b.wait()
+    status = legacy_batch_status(b)
     assert batch_status_job_counter(status, 'Success') == 2, str(status)
     assert all([j['exit_code'] == 0 for j in status['jobs']])
 
 
 def test_missing_parent_is_400(client):
     try:
-        batch = client.create_batch()
-        fake_job = aioclient.Job.unsubmitted_job(batch._async_builder, 10000)
+        b = client.create_batch()
+        fake_job = aioclient.Job.unsubmitted_job(b._async_batch, 10000)
         fake_job = Job.from_async_job(fake_job)
-        batch.create_job(DOCKER_ROOT_IMAGE, command=['echo', 'head'], parents=[fake_job])
-        batch.submit()
+        b.create_job(DOCKER_ROOT_IMAGE, command=['echo', 'head'], parents=[fake_job])
+        b.submit()
     except ValueError as err:
         assert re.search('parents with invalid job ids', str(err))
         return
@@ -46,14 +46,14 @@ def test_missing_parent_is_400(client):
 
 
 def test_dag(client):
-    batch = client.create_batch()
-    head = batch.create_job(DOCKER_ROOT_IMAGE, command=['echo', 'head'])
-    left = batch.create_job(DOCKER_ROOT_IMAGE, command=['echo', 'left'], parents=[head])
-    right = batch.create_job(DOCKER_ROOT_IMAGE, command=['echo', 'right'], parents=[head])
-    tail = batch.create_job(DOCKER_ROOT_IMAGE, command=['echo', 'tail'], parents=[left, right])
-    batch = batch.submit()
-    batch.wait()
-    status = legacy_batch_status(batch)
+    b = client.create_batch()
+    head = b.create_job(DOCKER_ROOT_IMAGE, command=['echo', 'head'])
+    left = b.create_job(DOCKER_ROOT_IMAGE, command=['echo', 'left'], parents=[head])
+    right = b.create_job(DOCKER_ROOT_IMAGE, command=['echo', 'right'], parents=[head])
+    tail = b.create_job(DOCKER_ROOT_IMAGE, command=['echo', 'tail'], parents=[left, right])
+    b.submit()
+    b.wait()
+    status = legacy_batch_status(b)
 
     node_status_logs = []
     for node in [head, left, right, tail]:
@@ -68,19 +68,19 @@ def test_dag(client):
 
 
 def test_cancel_tail(client):
-    batch = client.create_batch()
-    head = batch.create_job(DOCKER_ROOT_IMAGE, command=['echo', 'head'])
-    left = batch.create_job(DOCKER_ROOT_IMAGE, command=['echo', 'left'], parents=[head])
-    right = batch.create_job(DOCKER_ROOT_IMAGE, command=['echo', 'right'], parents=[head])
-    tail = batch.create_job(
+    b = client.create_batch()
+    head = b.create_job(DOCKER_ROOT_IMAGE, command=['echo', 'head'])
+    left = b.create_job(DOCKER_ROOT_IMAGE, command=['echo', 'left'], parents=[head])
+    right = b.create_job(DOCKER_ROOT_IMAGE, command=['echo', 'right'], parents=[head])
+    tail = b.create_job(
         DOCKER_ROOT_IMAGE, command=['/bin/sh', '-c', 'while true; do sleep 86000; done'], parents=[left, right]
     )
-    batch = batch.submit()
+    b.submit()
     left.wait()
     right.wait()
-    batch.cancel()
-    batch.wait()
-    status = legacy_batch_status(batch)
+    b.cancel()
+    b.wait()
+    status = legacy_batch_status(b)
     assert batch_status_job_counter(status, 'Success') == 3, str(status)
     for node in [head, left, right]:
         status = node.status()
@@ -90,19 +90,19 @@ def test_cancel_tail(client):
 
 
 def test_cancel_left_after_tail(client):
-    batch = client.create_batch()
-    head = batch.create_job(DOCKER_ROOT_IMAGE, command=['echo', 'head'])
-    left = batch.create_job(
+    b = client.create_batch()
+    head = b.create_job(DOCKER_ROOT_IMAGE, command=['echo', 'head'])
+    left = b.create_job(
         DOCKER_ROOT_IMAGE, command=['/bin/sh', '-c', 'while true; do sleep 86000; done'], parents=[head]
     )
-    right = batch.create_job(DOCKER_ROOT_IMAGE, command=['echo', 'right'], parents=[head])
-    tail = batch.create_job(DOCKER_ROOT_IMAGE, command=['echo', 'tail'], parents=[left, right])
-    batch = batch.submit()
+    right = b.create_job(DOCKER_ROOT_IMAGE, command=['echo', 'right'], parents=[head])
+    tail = b.create_job(DOCKER_ROOT_IMAGE, command=['echo', 'tail'], parents=[left, right])
+    b = b.submit()
     head.wait()
     right.wait()
-    batch.cancel()
-    batch.wait()
-    status = legacy_batch_status(batch)
+    b.cancel()
+    b.wait()
+    status = legacy_batch_status(b)
     assert batch_status_job_counter(status, 'Success') == 2, str(status)
     for node in [head, right]:
         status = node.status()
@@ -131,7 +131,7 @@ def test_callback(client):
         b = client.create_batch(callback=server.url_for('/test'), attributes={'foo': 'bar'}, token=token)
         head = b.create_job('alpine:3.8', command=['echo', 'head'])
         tail = b.create_job('alpine:3.8', command=['echo', 'tail'], parents=[head])
-        b = b.submit()
+        b.submit()
         b.wait()
 
         i = 0
@@ -184,19 +184,19 @@ def test_no_parents_allowed_in_other_batches(client):
 
 def test_input_dependency(client):
     bucket_name = get_user_config().get('batch', 'bucket')
-    batch = client.create_batch()
-    head = batch.create_job(
+    b = client.create_batch()
+    head = b.create_job(
         DOCKER_ROOT_IMAGE,
         command=['/bin/sh', '-c', 'echo head1 > /io/data1; echo head2 > /io/data2'],
         output_files=[('/io/data1', f'gs://{bucket_name}/data1'), ('/io/data2', f'gs://{bucket_name}/data2')],
     )
-    tail = batch.create_job(
+    tail = b.create_job(
         DOCKER_ROOT_IMAGE,
         command=['/bin/sh', '-c', 'cat /io/data1; cat /io/data2'],
         input_files=[(f'gs://{bucket_name}/data1', '/io/data1'), (f'gs://{bucket_name}/data2', '/io/data2')],
         parents=[head],
     )
-    batch.submit()
+    b.submit()
     tail.wait()
     assert head._get_exit_code(head.status(), 'main') == 0, str(head._status)
     assert tail.log()['main'] == 'head1\nhead2\n', str(tail.log(), tail.status())
@@ -204,19 +204,19 @@ def test_input_dependency(client):
 
 def test_input_dependency_wildcard(client):
     bucket_name = get_user_config().get('batch', 'bucket')
-    batch = client.create_batch()
-    head = batch.create_job(
+    b = client.create_batch()
+    head = b.create_job(
         DOCKER_ROOT_IMAGE,
         command=['/bin/sh', '-c', 'echo head1 > /io/data1 ; echo head2 > /io/data2'],
         output_files=[('/io/data1', f'gs://{bucket_name}/data1'), ('/io/data2', f'gs://{bucket_name}/data2')],
     )
-    tail = batch.create_job(
+    tail = b.create_job(
         DOCKER_ROOT_IMAGE,
         command=['/bin/sh', '-c', 'cat /io/data1 ; cat /io/data2'],
         input_files=[(f'gs://{bucket_name}/data1', '/io/data1'), (f'gs://{bucket_name}/data2', '/io/data2')],
         parents=[head],
     )
-    batch.submit()
+    b.submit()
     tail.wait()
     assert head._get_exit_code(head.status(), 'input') != 0, str(head._status, head.log())
     assert tail.log()['main'] == 'head1\nhead2\n', str(tail.status(), tail.log())
@@ -224,37 +224,37 @@ def test_input_dependency_wildcard(client):
 
 def test_input_dependency_directory(client):
     bucket_name = get_user_config().get('batch', 'bucket')
-    batch = client.create_batch()
-    head = batch.create_job(
+    b = client.create_batch()
+    head = b.create_job(
         DOCKER_ROOT_IMAGE,
         command=['/bin/sh', '-c', 'mkdir -p /io/test/; echo head1 > /io/test/data1 ; echo head2 > /io/test/data2'],
         output_files=[('/io/test', f'gs://{bucket_name}/test')],
     )
-    tail = batch.create_job(
+    tail = b.create_job(
         DOCKER_ROOT_IMAGE,
         command=['/bin/sh', '-c', 'cat /io/test/data1; cat /io/test/data2'],
         input_files=[(f'gs://{bucket_name}/test', '/io/test')],
         parents=[head],
     )
-    batch.submit()
+    b.submit()
     tail.wait()
     assert head._get_exit_code(head.status(), 'main') == 0, str(head._status, head.log())
     assert tail.log()['main'] == 'head1\nhead2\n', str(tail.status(), tail.log())
 
 
 def test_always_run_cancel(client):
-    batch = client.create_batch()
-    head = batch.create_job(DOCKER_ROOT_IMAGE, command=['echo', 'head'])
-    left = batch.create_job(
+    b = client.create_batch()
+    head = b.create_job(DOCKER_ROOT_IMAGE, command=['echo', 'head'])
+    left = b.create_job(
         DOCKER_ROOT_IMAGE, command=['/bin/sh', '-c', 'while true; do sleep 86000; done'], parents=[head]
     )
-    right = batch.create_job(DOCKER_ROOT_IMAGE, command=['echo', 'right'], parents=[head])
-    tail = batch.create_job(DOCKER_ROOT_IMAGE, command=['echo', 'tail'], parents=[left, right], always_run=True)
-    batch = batch.submit()
+    right = b.create_job(DOCKER_ROOT_IMAGE, command=['echo', 'right'], parents=[head])
+    tail = b.create_job(DOCKER_ROOT_IMAGE, command=['echo', 'tail'], parents=[left, right], always_run=True)
+    b = b.submit()
     right.wait()
-    batch.cancel()
-    batch.wait()
-    status = legacy_batch_status(batch)
+    b.cancel()
+    b.wait()
+    status = legacy_batch_status(b)
     assert batch_status_job_counter(status, 'Success') == 3, str(status)
     assert batch_status_job_counter(status, 'Cancelled') == 1, str(status)
 
@@ -265,12 +265,12 @@ def test_always_run_cancel(client):
 
 
 def test_always_run_error(client):
-    batch = client.create_batch()
-    head = batch.create_job(DOCKER_ROOT_IMAGE, command=['/bin/sh', '-c', 'exit 1'])
-    tail = batch.create_job(DOCKER_ROOT_IMAGE, command=['echo', 'tail'], parents=[head], always_run=True)
-    batch = batch.submit()
-    batch.wait()
-    status = legacy_batch_status(batch)
+    b = client.create_batch()
+    head = b.create_job(DOCKER_ROOT_IMAGE, command=['/bin/sh', '-c', 'exit 1'])
+    tail = b.create_job(DOCKER_ROOT_IMAGE, command=['echo', 'tail'], parents=[head], always_run=True)
+    b = b.submit()
+    b.wait()
+    status = legacy_batch_status(b)
     assert batch_status_job_counter(status, 'Failed') == 1
     assert batch_status_job_counter(status, 'Success') == 1
 

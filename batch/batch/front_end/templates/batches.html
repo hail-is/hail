@@ -55,7 +55,7 @@
 	    <th>User</th>
 	    <th>Billing Project</th>
 	    <th>Name</th>
-	    <th>Submitted</th>
+	    <th>Created</th>
 	    <th>Completed</th>
 	    <th>State</th>
 	    <th>Jobs</th>
@@ -81,8 +81,8 @@
 	      {% endif %}
 	    </td>
 	    <td>
-	      {% if 'time_closed' in batch and batch['time_closed'] is not none %}
-	      {{ batch['time_closed'] }}
+	      {% if 'time_created' in batch and batch['time_created'] is not none %}
+	      {{ batch['time_created'] }}
 	      {% endif %}
 	    </td>
 	    <td>
@@ -106,7 +106,18 @@
 	      {{ batch['cost'] }}
 	      {% endif %}
 	    </td>
-	    {% if not batch['complete'] and batch['state'] != 'Cancelled' %}
+	    {% if not batch['closed'] %}
+	    <td>
+	      <form action="{{ base_path }}/batches/{{ batch['id'] }}/close" method="post">
+		<input type="hidden" name="_csrf" value="{{ csrf_token }}"/>
+		{% if q is not none %}
+		<input type="hidden" name="q" value="{{ q }}"/>
+		{% endif %}
+		<button>Close</button>
+	      </form>
+	    </td>
+	    {% endif %}
+	    {% if not batch['cancelled'] and batch['time_completed'] is none %}
 	    <td>
 	      <form action="{{ base_path }}/batches/{{ batch['id'] }}/cancel" method="post">
 		<input type="hidden" name="_csrf" value="{{ csrf_token }}"/>

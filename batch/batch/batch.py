@@ -1,11 +1,11 @@
 import json
 import logging
 
-from hailtop.utils import time_msecs_str, humanize_timedelta_msecs
+from hailtop.utils import time_msecs_str, humanize_timedelta_msecs, time_msecs
 from gear import transaction
 
 from .batch_format_version import BatchFormatVersion
-from .exceptions import NonExistentBatchError, OpenBatchError
+from .exceptions import NonExistentBatchError
 
 log = logging.getLogger('batch')
 
@@ -13,15 +13,19 @@ log = logging.getLogger('batch')
 def batch_record_to_dict(record):
     format_version = BatchFormatVersion(record['format_version'])
 
-    if record['state'] == 'open':
+    if record['state'] == 'open':  # backwards compatibility
         state = 'open'
+    elif record['cancelled']:
+        state = 'cancelled'
     elif record['n_failed'] > 0:
         state = 'failure'
-    elif record['cancelled'] or record['n_cancelled'] > 0:
+    elif record['n_cancelled'] > 0:
         state = 'cancelled'
     elif record['state'] == 'complete':
         assert record['n_succeeded'] == record['n_jobs']
         state = 'success'
+    elif record['state'] == 'created':
+        state = 'created'
     else:
         state = 'running'
 
@@ -34,8 +38,15 @@ def batch_record_to_dict(record):
     time_closed = _time_msecs_str(record['time_closed'])
     time_completed = _time_msecs_str(record['time_completed'])
 
-    if record['time_closed'] and record['time_completed']:
-        duration = humanize_timedelta_msecs(record['time_completed'] - record['time_closed'])
+    if format_version.format_version < 7:
+        closed = record['state'] != 'open'
+        start_time = record['time_closed']
+    else:
+        closed = bool(record['closed'])
+        start_time = record['time_created']
+
+    if start_time and record['time_completed']:
+        duration = humanize_timedelta_msecs(record['time_completed'] - start_time)
     else:
         duration = None
 
@@ -46,7 +57,7 @@ def batch_record_to_dict(record):
         'token': record['token'],
         'state': state,
         'complete': record['state'] == 'complete',
-        'closed': record['state'] != 'open',
+        'closed': closed,
         'n_jobs': record['n_jobs'],
         'n_completed': record['n_completed'],
         'n_succeeded': record['n_succeeded'],
@@ -55,7 +66,7 @@ def batch_record_to_dict(record):
         'time_created': time_created,
         'time_closed': time_closed,
         'time_completed': time_completed,
-        'duration': duration,
+        'duration': duration
     }
 
     attributes = json.loads(record['attributes'])
@@ -64,6 +75,9 @@ def batch_record_to_dict(record):
 
     msec_mcpu = record['msec_mcpu']
     d['msec_mcpu'] = msec_mcpu
+
+    if closed and record['cost'] is None:
+        record['cost'] = 0
 
     cost = format_version.cost(record['msec_mcpu'], record['cost'])
     d['cost'] = cost
@@ -116,9 +130,8 @@ FOR UPDATE;
         if not record:
             raise NonExistentBatchError(batch_id)
 
-        if record['state'] == 'open':
-            raise OpenBatchError(batch_id)
+        now = time_msecs()
 
-        await tx.just_execute('CALL cancel_batch(%s);', (batch_id,))
+        await tx.just_execute('CALL cancel_batch(%s, %s);', (batch_id, now))
 
     await cancel()  # pylint: disable=no-value-for-parameter
