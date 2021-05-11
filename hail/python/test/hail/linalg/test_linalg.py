@@ -71,7 +71,6 @@ class Tests(unittest.TestCase):
         self._assert_close(bm.sum(axis=0), np.sum(nd, axis=0, keepdims=True))
         self._assert_close(bm.sum(axis=1), np.sum(nd, axis=1, keepdims=True))
 
-    @fails_service_backend()
     def test_from_entry_expr_simple(self):
         mt = get_dataset()
         mt = mt.annotate_entries(x=hl.or_else(mt.GT.n_alt_alleles(), 0)).cache()
@@ -124,8 +123,6 @@ class Tests(unittest.TestCase):
         with self.assertRaises(Exception):
             BlockMatrix.from_entry_expr(mt.x)
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_write_from_entry_expr_overwrite(self):
         mt = hl.balding_nichols_model(1, 1, 1)
         mt = mt.select_entries(x=mt.GT.n_alt_alleles())
