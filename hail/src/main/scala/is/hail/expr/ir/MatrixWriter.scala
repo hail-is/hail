@@ -363,12 +363,13 @@ case class MatrixBlockMatrixWriter(
 
     // Step 2: Find out how many rows per partition.
     val rowCountIR = ts.mapCollect(relationalLetsAbove)(paritionIR => StreamLen(paritionIR))
-    val rowCountPerPartition: IndexedSeq[Int] = CompileAndEvaluate(ctx, rowCountIR).asInstanceOf[IndexedSeq[Int]]
-    val partStartsPlusLast = rowCountPerPartition.scanLeft(0L)(_ + _)
-    val numRows = partStartsPlusLast.last
+    val inputRowCountPerPartition: IndexedSeq[Int] = CompileAndEvaluate(ctx, rowCountIR).asInstanceOf[IndexedSeq[Int]]
+    val inputPartStartsPlusLast = inputRowCountPerPartition.scanLeft(0L)(_ + _)
+    val inputPartStarts = inputPartStartsPlusLast.dropRight(1)
+    val inputPartStops = inputPartStartsPlusLast.tail
+
+    val numRows = inputPartStartsPlusLast.last
     val numBlockRows: Int = (numRows.toInt - 1) / blockSize + 1
-    val partStarts = partStartsPlusLast.dropRight(1)
-    val partStops = partStartsPlusLast.tail
 
     // Remaining Steps:
     // - Create a new TableStage where each partition has the appropriate range of rows.
@@ -378,7 +379,7 @@ case class MatrixBlockMatrixWriter(
     // - Figure out how to write them all out.
 
     // Zip contexts with partition starts and ends
-    val zippedWithStarts = ts.mapContexts{oldContextsStream => zipIR(IndexedSeq(oldContextsStream, ToStream(Literal(TArray(TInt64), partStarts)), ToStream(Literal(TArray(TInt64), partStops))), ArrayZipBehavior.AssertSameLength){ case IndexedSeq(oldCtx, partStart, partStop) =>
+    val zippedWithStarts = ts.mapContexts{oldContextsStream => zipIR(IndexedSeq(oldContextsStream, ToStream(Literal(TArray(TInt64), inputPartStarts)), ToStream(Literal(TArray(TInt64), inputPartStops))), ArrayZipBehavior.AssertSameLength){ case IndexedSeq(oldCtx, partStart, partStop) =>
       MakeStruct(Seq[(String, IR)]("mwOld" -> oldCtx, "mwStartIdx" -> Cast(partStart, TInt32), "mwStopIdx" -> Cast(partStop, TInt32)))
     }}(newCtx => GetField(newCtx, "mwOld"))
 
@@ -391,14 +392,28 @@ case class MatrixBlockMatrixWriter(
     }
 
     // Now create a partitioner for these indices.
-    val rowIntervals = partStarts.zip(partStops).map{ case (intervalStart, intervalEnd) => Interval(Row(intervalStart.toInt), Row(intervalEnd.toInt), true, false)}
-    val blocksOfRowsPartitioner = RVDPartitioner.generate(TStruct((perRowIdxId, TInt32)), rowIntervals)
+    val inputRowIntervals = inputPartStarts.zip(inputPartStops).map{ case (intervalStart, intervalEnd) =>
+      Interval(Row(intervalStart.toInt), Row(intervalEnd.toInt), true, false)
+    }
+    val rowIdxPartitioner = RVDPartitioner.generate(TStruct((perRowIdxId, TInt32)), inputRowIntervals)
 
-    val rowsInBlockSizeGroups = partsZippedWithIdx.repartitionNoShuffle(blocksOfRowsPartitioner)
+    // Two steps, make a partitioner that works currently based on row_idx splits, then resplit accordingly.
+    val keyedByRowIdx = partsZippedWithIdx.changePartitionerNoRepartition(rowIdxPartitioner)
 
-//    val rowsInBlockSizeGroups = ctx.backend.lowerDistributedSort(
-//      ctx, partsZippedWithIdx, IndexedSeq(SortField(perRowIdxId, Ascending)), relationalLetsAbove, rm.rowType
-//    )
+    // Now create a partitioner that makes appropriately sized block
+
+    val desiredRowStarts = (0 until numBlockRows).map(_ * blockSize)
+    val desiredRowStops = desiredRowStarts.drop(1) :+ numRows.toInt
+    val desiredRowIntervals = desiredRowStarts.zip(desiredRowStops).map{
+      case (intervalStart, intervalEnd) =>  Interval(Row(intervalStart), Row(intervalEnd), true, false)
+    }
+
+    val blockSizeGroupsPartitioner = RVDPartitioner.generate(TStruct((perRowIdxId, TInt32)), desiredRowIntervals)
+    val rowsInBlockSizeGroups: TableStage = keyedByRowIdx.repartitionNoShuffle(blockSizeGroupsPartitioner)
+
+
+    println(s"Context type of rowsInBlockSizeGroups is ${rowsInBlockSizeGroups.ctxType}")
+    println(s"${desiredRowIntervals}")
 
     // Next level of the plan. Flatmap contexts to create more, we need one per block. Context needs to contain the start and stop columns.
     // Takes in a stream of per table partition contexts.

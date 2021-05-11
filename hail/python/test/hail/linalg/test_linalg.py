@@ -76,16 +76,16 @@ class Tests(unittest.TestCase):
         mt = get_dataset()
         mt = mt.annotate_entries(x=hl.or_else(mt.GT.n_alt_alleles(), 0)).cache()
 
-        a1 = BlockMatrix.from_entry_expr(hl.or_else(mt.GT.n_alt_alleles(), 0), block_size=32).to_numpy()
-        a2 = BlockMatrix.from_entry_expr(mt.x, block_size=32).to_numpy()
-        a3 = BlockMatrix.from_entry_expr(hl.float64(mt.x), block_size=32).to_numpy()
+        a1 = hl.eval(BlockMatrix.from_entry_expr(hl.or_else(mt.GT.n_alt_alleles(), 0), block_size=32).to_ndarray())
+        a2 = hl.eval(BlockMatrix.from_entry_expr(mt.x, block_size=32).to_ndarray())
+        a3 = hl.eval(BlockMatrix.from_entry_expr(hl.float64(mt.x), block_size=32).to_ndarrayl())
 
         self._assert_eq(a1, a2)
         self._assert_eq(a1, a3)
 
         with hl.TemporaryDirectory(ensure_exists=False) as path:
             BlockMatrix.write_from_entry_expr(mt.x, path, block_size=32)
-            a4 = BlockMatrix.read(path).to_numpy()
+            a4 = hl.eval(BlockMatrix.read(path).to_ndarray())
             self._assert_eq(a1, a4)
 
     @fails_service_backend()
