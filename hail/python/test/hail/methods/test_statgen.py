@@ -552,6 +552,8 @@ class Tests(unittest.TestCase):
             self.assertTrue(is_constant(results[9]))
             self.assertTrue(is_constant(results[10]))
 
+    @fails_service_backend()
+    @fails_local_backend()
     def test_logistic_regression_wald_test_multi_pheno_bgen_dosage(self):
         covariates = hl.import_table(resource('regressionLogisticMultiPheno.cov'),
                                      key='Sample',
@@ -625,6 +627,8 @@ class Tests(unittest.TestCase):
             self.assertTrue(is_constant(results[9]))
             self.assertTrue(is_constant(results[10]))
 
+    @fails_service_backend()
+    @fails_local_backend()
     def test_logistic_regression_wald_dosage(self):
         covariates = hl.import_table(resource('regressionLogistic.cov'),
                                      key='Sample',
