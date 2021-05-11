@@ -838,7 +838,7 @@ def logreg_fit(X, y, null_fit=None, max_iter=25, tol=1E-6):
     m = X.shape[1]
 
     if null_fit is None:
-        b = hl.nd.array(hl.array([y.sum() / n]).extend(hl.zeros(hl.int32(m - 1)).map(lambda e: hl.float64(e))))
+        b = hl.nd.hstack([hl.nd.array([hl.log(y.sum() / n)]),  hl.nd.zeros((hl.int32(m - 1)))])
         mu = sigmoid(X @ b)
         score = X.T @ (y - mu)
         # Reshape so we do a rowwise multiply
