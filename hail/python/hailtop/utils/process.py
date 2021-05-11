@@ -28,6 +28,20 @@ async def check_shell_output(script, echo=False):
     return outerr
 
 
+async def check_exec_output(command, *args, echo=False):
+    if echo:
+        print([command, *args])
+    proc = await asyncio.create_subprocess_exec(
+        command, *args,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE)
+    outerr = await proc.communicate()
+    if proc.returncode != 0:
+        script = ' '.join([command, *args])
+        raise CalledProcessError(script, proc.returncode, outerr)
+    return outerr
+
+
 async def check_shell(script, echo=False):
     # discard output
     await check_shell_output(script, echo)
