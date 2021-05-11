@@ -1100,6 +1100,10 @@ object LowerTableIR {
         case TableLiteral(typ, rvd, enc, encodedGlobals) =>
           RVDToTableStage(rvd, EncodedLiteral(enc, encodedGlobals))
 
+        case BlockMatrixToTable(bmir) =>
+          val bmStage = LowerBlockMatrixIR.lower(bmir, typesToLower, ctx, ???, relationalLetsAbove)
+          ???
+
         case node =>
           throw new LowererUnsupportedOperation(s"undefined: \n${ Pretty(node) }")
       }

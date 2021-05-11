@@ -165,27 +165,28 @@ abstract class BlockMatrixStage(val globalVals: Array[(String, IR)], val ctxType
 }
 
 object LowerBlockMatrixIR {
-  def apply(node: IR, typesToLower: DArrayLowering.Type, ctx: ExecuteContext, r: RequirednessAnalysis, relationalLetsAbove: Map[String, IR]): IR = {
+  private def unimplemented[T](node: BaseIR): T =
+    throw new LowererUnsupportedOperation(s"unimplemented: \n${ Pretty(node) }")
 
-    def unimplemented[T](node: BaseIR): T =
-      throw new LowererUnsupportedOperation(s"unimplemented: \n${ Pretty(node) }")
+  def lower(bmir: BlockMatrixIR, typesToLower: DArrayLowering.Type, ctx: ExecuteContext, r: RequirednessAnalysis, relationalLetsAbove: Map[String, IR]): BlockMatrixStage = {
+    if (!DArrayLowering.lowerBM(typesToLower))
+      throw new LowererUnsupportedOperation("found BlockMatrixIR in lowering; lowering only TableIRs.")
+    bmir.children.foreach {
+      case c: BlockMatrixIR if c.typ.blockSize != bmir.typ.blockSize =>
+        throw new LowererUnsupportedOperation(s"Can't lower node with mismatched block sizes: ${ bmir.typ.blockSize } vs child ${ c.typ.blockSize }\n\n ${ Pretty(bmir) }")
+      case _ =>
+    }
+    if (bmir.typ.nDefinedBlocks == 0)
+      BlockMatrixStage.empty(bmir.typ.elementType)
+    else lowerNonEmpty(bmir, typesToLower, ctx, r, relationalLetsAbove)
+  }
+
+  def lowerNonEmpty(bmir: BlockMatrixIR, typesToLower: DArrayLowering.Type, ctx: ExecuteContext, r: RequirednessAnalysis, relationalLetsAbove: Map[String, IR]): BlockMatrixStage = {
+    def lower(ir: BlockMatrixIR) = LowerBlockMatrixIR.lower(ir, typesToLower, ctx, r, relationalLetsAbove)
 
     def lowerIR(node: IR): IR = LowerToCDA.lower(node, typesToLower, ctx, r, relationalLetsAbove: Map[String, IR])
 
-    def lower(bmir: BlockMatrixIR): BlockMatrixStage = {
-      if (!DArrayLowering.lowerBM(typesToLower))
-        throw new LowererUnsupportedOperation("found BlockMatrixIR in lowering; lowering only TableIRs.")
-      bmir.children.foreach {
-        case c: BlockMatrixIR if c.typ.blockSize != bmir.typ.blockSize =>
-          throw new LowererUnsupportedOperation(s"Can't lower node with mismatched block sizes: ${ bmir.typ.blockSize } vs child ${ c.typ.blockSize }\n\n ${ Pretty(bmir) }")
-        case _ =>
-      }
-      if (bmir.typ.nDefinedBlocks == 0)
-        BlockMatrixStage.empty(bmir.typ.elementType)
-      else lowerNonEmpty(bmir)
-    }
-
-    def lowerNonEmpty(bmir: BlockMatrixIR): BlockMatrixStage = bmir match {
+    bmir match {
       case BlockMatrixRead(reader) => reader.lower(ctx)
       case x@BlockMatrixRandom(seed, gaussian, shape, blockSize) =>
         val generator = invokeSeeded(if (gaussian) "rand_norm" else "rand_unif", seed, TFloat64, F64(0.0), F64(1.0))
@@ -378,6 +379,11 @@ object LowerBlockMatrixIR {
           }
         }
     }
+  }
+
+  def apply(node: IR, typesToLower: DArrayLowering.Type, ctx: ExecuteContext, r: RequirednessAnalysis, relationalLetsAbove: Map[String, IR]): IR = {
+
+    def lower(bmir: BlockMatrixIR) = LowerBlockMatrixIR.lower(bmir, typesToLower, ctx, r, relationalLetsAbove)
 
     node match {
       case BlockMatrixCollect(child) =>
