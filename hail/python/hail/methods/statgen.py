@@ -838,7 +838,7 @@ def logreg_fit(X, y, null_fit=None, max_iter=25, tol=1E-6):
     m = X.shape[1]
 
     if null_fit is None:
-        b = hl.nd.array(hl.array([y.sum()/n]).extend(hl.zeros(hl.int32(m - 1)).map(lambda e: hl.float64(e))))
+        b = hl.nd.array(hl.array([y.sum() / n]).extend(hl.zeros(hl.int32(m - 1)).map(lambda e: hl.float64(e))))
         mu = sigmoid(X @ b)
         score = X.T @ (y - mu)
         # Reshape so we do a rowwise multiply
@@ -913,7 +913,7 @@ def wald_test(X, y, null_fit, link):
         standard_error=se[X.shape[1] - 1],
         z_stat=z[X.shape[1] - 1],
         p_value=p[X.shape[1] - 1],
-        fit = hl.struct(n_iterations=fit.num_iter, converged=fit.converged, exploded=fit.exploded))
+        fit=hl.struct(n_iterations=fit.num_iter, converged=fit.converged, exploded=fit.exploded))
 
 
 def lrt_test(X, y, null_fit, link):
@@ -927,7 +927,7 @@ def lrt_test(X, y, null_fit, link):
         beta=fit.b[X.shape[1] - 1],
         chi_sq_stat=chi_sq,
         p_value=p,
-        fit = hl.struct(n_iterations=fit.num_iter, converged=fit.converged, exploded=fit.exploded))
+        fit=hl.struct(n_iterations=fit.num_iter, converged=fit.converged, exploded=fit.exploded))
 
 
 @typecheck(test=enumeration('wald', 'lrt', 'score', 'firth'),

@@ -253,7 +253,7 @@ def solve(a, b, no_crash=False):
 
     if no_crash:
         name = "linear_solve_no_crash"
-        return_type = hl.tstruct(solution = hl.tndarray(hl.tfloat64, 2), failed = hl.tbool)
+        return_type = hl.tstruct(solution=hl.tndarray(hl.tfloat64, 2), failed=hl.tbool)
     else:
         name = "linear_solve"
         return_type = hl.tndarray(hl.tfloat64, 2)
@@ -263,7 +263,7 @@ def solve(a, b, no_crash=False):
 
     if b_ndim_orig == 1:
         if no_crash:
-            result = hl.struct(solution = result.solution.reshape((-1)), failed = result.failed)
+            result = hl.struct(solution=result.solution.reshape((-1)), failed=result.failed)
         else:
             result = result.reshape((-1))
     return result
