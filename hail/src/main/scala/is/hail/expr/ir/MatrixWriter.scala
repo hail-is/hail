@@ -441,24 +441,23 @@ case class MatrixBlockMatrixWriter(
       }
     }
 
-    val colMajorOrderedBlocks = ctx.backend.lowerDistributedSort(
-          ctx, tableOfNDArrays, IndexedSeq(SortField("blockColIdx", Ascending),  SortField("blockRowIdx", Ascending)), relationalLetsAbove, rm.rowType
-    )
-
     val elementType = tm.entryType.fieldType(entryField)
     val etype = EBlockMatrixNDArray(EType.fromTypeAndAnalysis(elementType, rm.entryType.field(entryField)), encodeRowMajor = true, required = true)
     val spec = TypedCodecSpec(etype, TNDArray(tm.entryType.fieldType(entryField), Nat(2)), BlockMatrix.bufferSpec)
 
-    val paths = colMajorOrderedBlocks.mapCollect(relationalLetsAbove) { partition =>
+    val pathsWithColMajorIndices = tableOfNDArrays.mapCollect(relationalLetsAbove) { partition =>
      ToArray(mapIR(partition) { singleNDArrayTuple =>
-        val blockPath =
-          Str(s"$path/parts/part-") +
-            invoke("str", TString, GetField(singleNDArrayTuple, "blockRowIdx") + (GetField(singleNDArrayTuple, "blockColIdx") * numBlockRows)) +
-            Str("-") + UUID4()
-        WriteValue(GetField(singleNDArrayTuple, "ndBlock"), blockPath, spec)
+       bindIR(GetField(singleNDArrayTuple, "blockRowIdx") + (GetField(singleNDArrayTuple, "blockColIdx") * numBlockRows)) { colMajorIndex =>
+         val blockPath =
+           Str(s"$path/parts/part-") +
+             invoke("str", TString, colMajorIndex) + Str("-") + UUID4()
+         maketuple(colMajorIndex, WriteValue(GetField(singleNDArrayTuple, "ndBlock"), blockPath, spec))
+       }
       })
     }
-    val flatPaths = ToArray(flatMapIR(ToStream(paths))(ToStream(_)))
+    val flatPathsAndIndices = flatMapIR(ToStream(pathsWithColMajorIndices))(ToStream(_))
+    val sortedColMajorPairs = sortIR(flatPathsAndIndices){case (l, r) => ApplyComparisonOp(LT(TInt32), GetTupleElement(l, 0), GetTupleElement(r, 0))}
+    val flatPaths = ToArray(mapIR(ToStream(sortedColMajorPairs))(GetTupleElement(_, 1)))
     val bmt = BlockMatrixType(elementType, IndexedSeq(numRows, numCols), numRows==1, blockSize, BlockMatrixSparsity.dense)
     RelationalWriter.scoped(path, overwrite, None)(WriteMetadata(flatPaths, BlockMatrixNativeMetadataWriter(path, false, bmt)))
   }
