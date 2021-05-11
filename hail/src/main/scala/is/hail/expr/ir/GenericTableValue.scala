@@ -16,7 +16,7 @@ import is.hail.utils._
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
 import org.apache.spark.{Partition, TaskContext}
-import org.json4s.JsonAST.JObject
+import org.json4s.JsonAST.{JObject, JString}
 import org.json4s.{Extraction, JValue}
 
 class PartitionIteratorLongReader(
@@ -71,6 +71,7 @@ class PartitionIteratorLongReader(
 
   def toJValue: JValue = {
     JObject(
+      "category" -> JString("PartitionIteratorLongReader"),
       "fullRowType" -> Extraction.decompose(fullRowType)(PartitionReader.formats),
       "contextType" -> Extraction.decompose(contextType)(PartitionReader.formats))
   }
