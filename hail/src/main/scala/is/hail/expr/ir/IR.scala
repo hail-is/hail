@@ -262,9 +262,7 @@ object ArraySort {
 final case class ArraySort(a: IR, left: String, right: String, lessThan: IR) extends IR
 final case class ToSet(a: IR) extends IR
 final case class ToDict(a: IR) extends IR
-final case class ToArray(a: IR) extends IR {
-  val st = Thread.currentThread().getStackTrace.mkString("\n")
-}
+final case class ToArray(a: IR) extends IR
 final case class CastToArray(a: IR) extends IR
 final case class ToStream(a: IR, requiresMemoryManagementPerElement: Boolean = false) extends IR
 

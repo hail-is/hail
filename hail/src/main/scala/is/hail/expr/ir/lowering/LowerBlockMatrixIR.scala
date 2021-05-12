@@ -35,39 +35,6 @@ object BlockMatrixStage {
       }
     }
   }
-
-  def blockMatrixStageToEntriesTableStage(bms: BlockMatrixStage, typ: BlockMatrixType): TableStage = {
-    val bmsWithCtx = bms.addContext(TTuple(TInt32, TInt32)){ case (i, j) => MakeTuple(Seq(0 -> i, 1 -> j))}
-    val blocksRowMajor = Array.range(0, typ.nRowBlocks).flatMap { i =>
-      Array.tabulate(typ.nColBlocks)(j => i -> j).filter(typ.hasBlock)
-    }
-    val emptyGlobals = MakeStruct(Seq())
-    val globalsId = genUID()
-    val letBindings = bmsWithCtx.globalVals :+ globalsId -> emptyGlobals
-    val contextsIR = MakeStream(blocksRowMajor.map{ case (i, j) =>  bmsWithCtx.blockContext((i, j)) }, TStream(bmsWithCtx.ctxType))
-
-    val ctxRef = Ref(genUID(), bmsWithCtx.ctxType)
-    val body = bmsWithCtx.blockBody(ctxRef)
-    val bodyFreeVars = FreeVariables(body, supportsAgg = false, supportsScan = false)
-    val bcFields = bmsWithCtx.globalVals.filter { case (f, _) => bodyFreeVars.eval.lookupOption(f).isDefined } :+ globalsId -> Ref(globalsId, emptyGlobals.typ)
-
-    // Straightforward to convert a BMStage to a TableStage. Then once it's a table stage we just have to map over it and tear
-    // up the BMs into their entries.
-
-    // Details:
-    // Need to map the contexts to be (i, j) pairs.
-    // Need to then make the Table partition be (i, j, block) by wrapping the `bms.blockBody` call in a MakeStruct
-    // Then, once its a table, I can flatmap partitions to make entries.
-
-    def tsPartitionFunction(ctxRef: Ref): IR = {
-      val s = MakeStruct(Seq("blockRow" -> GetTupleElement(GetField(ctxRef, "new"), 0), "blockCol" -> GetTupleElement(GetField(ctxRef, "new"), 1), "block" -> bmsWithCtx.blockBody(ctxRef)))
-      MakeStream(Seq(
-        s
-      ), TStream(s.typ))
-    }
-    val ts = TableStage(letBindings, bcFields, Ref(globalsId, emptyGlobals.typ), RVDPartitioner.unkeyed(blocksRowMajor.size), TableStageDependency.none, contextsIR, tsPartitionFunction)
-    ts
-  }
 }
 
 case class EmptyBlockMatrixStage(eltType: Type) extends BlockMatrixStage(Array(), TInt32) {
@@ -199,6 +166,69 @@ abstract class BlockMatrixStage(val globalVals: Array[(String, IR)], val ctxType
 }
 
 object LowerBlockMatrixIR {
+  def apply(node: IR, typesToLower: DArrayLowering.Type, ctx: ExecuteContext, r: RequirednessAnalysis, relationalLetsAbove: Map[String, IR]): IR = {
+
+    def lower(bmir: BlockMatrixIR) = LowerBlockMatrixIR.lower(bmir, typesToLower, ctx, r, relationalLetsAbove)
+
+    node match {
+      case BlockMatrixCollect(child) =>
+        lower(child).collectLocal(relationalLetsAbove, child.typ)
+      case BlockMatrixToValueApply(child, GetElement(IndexedSeq(i, j))) =>
+        val rowBlock = child.typ.getBlockIdx(i)
+        val colBlock = child.typ.getBlockIdx(j)
+
+        val iInBlock = i - rowBlock * child.typ.blockSize
+        val jInBlock = j - colBlock * child.typ.blockSize
+
+        val lowered = lower(child)
+
+        val elt = bindIR(lowered.blockContext(rowBlock -> colBlock)) { ctx =>
+          NDArrayRef(lowered.blockBody(ctx), FastIndexedSeq(I64(iInBlock), I64(jInBlock)), -1)
+        }
+
+        lowered.globalVals.foldRight[IR](elt) { case ((f, v), accum) => Let(f, v, accum) }
+      case BlockMatrixWrite(child, writer) =>
+        writer.lower(ctx, lower(child), child, relationalLetsAbove, TypeWithRequiredness(child.typ.elementType)) //FIXME: BlockMatrixIR is currently ignored in Requiredness inference since all eltTypes are +TFloat64
+      case BlockMatrixMultiWrite(blockMatrices, writer) => unimplemented(node)
+      case node if node.children.exists(_.isInstanceOf[BlockMatrixIR]) =>
+        throw new LowererUnsupportedOperation(s"IR nodes with BlockMatrixIR children need explicit rules: \n${ Pretty(node) }")
+
+      case node =>
+        throw new LowererUnsupportedOperation(s"Value IRs with no BlockMatrixIR children must be lowered through LowerIR: \n${ Pretty(node) }")
+    }
+  }
+
+  // This lowers a BlockMatrixIR to an unkeyed TableStage with rows of (blockRow, blockCol, block)
+  def lowerToTableStage(
+    bmir: BlockMatrixIR, typesToLower: DArrayLowering.Type, ctx: ExecuteContext,
+    r: RequirednessAnalysis, relationalLetsAbove: Map[String, IR]
+  ): TableStage = {
+    val bms = lower(bmir, typesToLower, ctx, r, relationalLetsAbove)
+    val typ = bmir.typ
+    val bmsWithCtx = bms.addContext(TTuple(TInt32, TInt32)){ case (i, j) => MakeTuple(Seq(0 -> i, 1 -> j))}
+    val blocksRowMajor = Array.range(0, typ.nRowBlocks).flatMap { i =>
+      Array.tabulate(typ.nColBlocks)(j => i -> j).filter(typ.hasBlock)
+    }
+    val emptyGlobals = MakeStruct(Seq())
+    val globalsId = genUID()
+    val letBindings = bmsWithCtx.globalVals :+ globalsId -> emptyGlobals
+    val contextsIR = MakeStream(blocksRowMajor.map{ case (i, j) =>  bmsWithCtx.blockContext((i, j)) }, TStream(bmsWithCtx.ctxType))
+
+    val ctxRef = Ref(genUID(), bmsWithCtx.ctxType)
+    val body = bmsWithCtx.blockBody(ctxRef)
+    val bodyFreeVars = FreeVariables(body, supportsAgg = false, supportsScan = false)
+    val bcFields = bmsWithCtx.globalVals.filter { case (f, _) => bodyFreeVars.eval.lookupOption(f).isDefined } :+ globalsId -> Ref(globalsId, emptyGlobals.typ)
+
+    def tsPartitionFunction(ctxRef: Ref): IR = {
+      val s = MakeStruct(Seq("blockRow" -> GetTupleElement(GetField(ctxRef, "new"), 0), "blockCol" -> GetTupleElement(GetField(ctxRef, "new"), 1), "block" -> bmsWithCtx.blockBody(ctxRef)))
+      MakeStream(Seq(
+        s
+      ), TStream(s.typ))
+    }
+    val ts = TableStage(letBindings, bcFields, Ref(globalsId, emptyGlobals.typ), RVDPartitioner.unkeyed(blocksRowMajor.size), TableStageDependency.none, contextsIR, tsPartitionFunction)
+    ts
+  }
+
   private def unimplemented[T](node: BaseIR): T =
     throw new LowererUnsupportedOperation(s"unimplemented: \n${ Pretty(node) }")
 
@@ -412,38 +442,6 @@ object LowerBlockMatrixIR {
             }
           }
         }
-    }
-  }
-
-  def apply(node: IR, typesToLower: DArrayLowering.Type, ctx: ExecuteContext, r: RequirednessAnalysis, relationalLetsAbove: Map[String, IR]): IR = {
-
-    def lower(bmir: BlockMatrixIR) = LowerBlockMatrixIR.lower(bmir, typesToLower, ctx, r, relationalLetsAbove)
-
-    node match {
-      case BlockMatrixCollect(child) =>
-        lower(child).collectLocal(relationalLetsAbove, child.typ)
-      case BlockMatrixToValueApply(child, GetElement(IndexedSeq(i, j))) =>
-        val rowBlock = child.typ.getBlockIdx(i)
-        val colBlock = child.typ.getBlockIdx(j)
-
-        val iInBlock = i - rowBlock * child.typ.blockSize
-        val jInBlock = j - colBlock * child.typ.blockSize
-
-        val lowered = lower(child)
-
-        val elt = bindIR(lowered.blockContext(rowBlock -> colBlock)) { ctx =>
-          NDArrayRef(lowered.blockBody(ctx), FastIndexedSeq(I64(iInBlock), I64(jInBlock)), -1)
-        }
-
-        lowered.globalVals.foldRight[IR](elt) { case ((f, v), accum) => Let(f, v, accum) }
-      case BlockMatrixWrite(child, writer) =>
-        writer.lower(ctx, lower(child), child, relationalLetsAbove, TypeWithRequiredness(child.typ.elementType)) //FIXME: BlockMatrixIR is currently ignored in Requiredness inference since all eltTypes are +TFloat64
-      case BlockMatrixMultiWrite(blockMatrices, writer) => unimplemented(node)
-      case node if node.children.exists(_.isInstanceOf[BlockMatrixIR]) =>
-        throw new LowererUnsupportedOperation(s"IR nodes with BlockMatrixIR children need explicit rules: \n${ Pretty(node) }")
-
-      case node =>
-        throw new LowererUnsupportedOperation(s"Value IRs with no BlockMatrixIR children must be lowered through LowerIR: \n${ Pretty(node) }")
     }
   }
 }
