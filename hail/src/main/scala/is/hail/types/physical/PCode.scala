@@ -238,46 +238,6 @@ abstract class PCode extends SCode {
 }
 
 object PCode {
-//  def apply(pt: PType, code: Code[_]): PCode = pt.setRequired(false) match {
-//    case pt: PCanonicalArray =>
-//      new SIndexablePointerCode(SIndexablePointer(pt), coerce[Long](code))
-//    case pt: PCanonicalSet =>
-//      new SIndexablePointerCode(SIndexablePointer(pt), coerce[Long](code))
-//    case pt: PCanonicalDict =>
-//      new SIndexablePointerCode(SIndexablePointer(pt), coerce[Long](code))
-//    case pt: PCanonicalBaseStruct =>
-//      new SBaseStructPointerCode(SBaseStructPointer(pt), coerce[Long](code))
-//    case pt: PCanonicalBinary =>
-//      new SBinaryPointerCode(SBinaryPointer(pt), coerce[Long](code))
-//    case pt: PCanonicalShuffle =>
-//      new SCanonicalShufflePointerCode(SCanonicalShufflePointer(pt),
-//        new SBinaryPointerCode(SBinaryPointer(pt.representation), coerce[Long](code)))
-//    case pt: PCanonicalString =>
-//      new SStringPointerCode(SStringPointer(pt), coerce[Long](code))
-//    case pt: PCanonicalInterval =>
-//      new SIntervalPointerCode(SIntervalPointer(pt), coerce[Long](code))
-//    case pt: PCanonicalLocus =>
-//      new SCanonicalLocusPointerCode(SCanonicalLocusPointer(pt), coerce[Long](code))
-//    case pt: PCanonicalCall =>
-//      new SCanonicalCallCode(coerce[Int](code))
-//    case pt: PCanonicalNDArray =>
-//      new SNDArrayPointerCode(SNDArrayPointer(pt), coerce[Long](code))
-//    case pt: PCanonicalStream =>
-//      throw new UnsupportedOperationException(s"Can't PCode.apply unrealizable PType: $pt")
-//    case PVoid =>
-//      throw new UnsupportedOperationException(s"Can't PCode.apply unrealizable PType: $pt")
-//    case PBoolean(r) =>
-//      new SBooleanCode(coerce[Boolean](code))
-//    case PInt32(r) =>
-//      new SInt32Code(coerce[Int](code))
-//    case PInt64(r) =>
-//      new SInt64Code(coerce[Long](code))
-//    case PFloat32(r) =>
-//      new SFloat32Code(coerce[Float](code))
-//    case PFloat64(r) =>
-//      new SFloat64Code(coerce[Double](code))
-//  }
-
   def _empty: PCode = PVoidCode
 }
 
