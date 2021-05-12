@@ -85,8 +85,6 @@ class TableStage(
 
   assert(key.forall(f => rowType.hasField(f)))
   assert(kType.fields.forall(f => rowType.field(f.name).typ == f.typ))
-  println(broadcastVals)
-  println(globals)
   assert(broadcastVals.exists { case (name, value) => name == globals.name && value == globals})
 
   def copy(
@@ -1102,12 +1100,29 @@ object LowerTableIR {
         case TableLiteral(typ, rvd, enc, encodedGlobals) =>
           RVDToTableStage(rvd, EncodedLiteral(enc, encodedGlobals))
 
-        case BlockMatrixToTable(bmir) =>
+        case bmtt@BlockMatrixToTable(bmir) =>
           val bmStage = LowerBlockMatrixIR.lower(bmir, typesToLower, ctx, r, relationalLetsAbove)
           val ts = BlockMatrixStage.blockMatrixStageToEntriesTableStage(bmStage, bmir.typ)
-          val compiledTemp = CompileAndEvaluate[Any](ctx, ts.collectWithGlobals(relationalLetsAbove))
-          println(compiledTemp)
-          ???
+          // I now have an unkeyed table of (blockRow, blockCol, block).
+          val entriesUnkeyed = ts.mapPartitionWithContext { (partition, ctxRef) =>
+            flatMapIR(partition)(singleRowRef =>
+              bindIR(GetField(singleRowRef, "block")) { singleNDRef =>
+                bindIR(NDArrayShape(singleNDRef)) { shapeTupleRef =>
+                  flatMapIR(rangeIR(Cast(GetTupleElement(shapeTupleRef, 0), TInt32))) { withinNDRowIdx =>
+                    mapIR(rangeIR(Cast(GetTupleElement(shapeTupleRef, 1), TInt32))) { withinNDColIdx =>
+                      val entry = NDArrayRef(singleNDRef, IndexedSeq(Cast(withinNDRowIdx, TInt64), Cast(withinNDColIdx, TInt64)), ErrorIDs.NO_ERROR)
+                      val blockStartRow = GetField(singleRowRef, "blockRow") * bmir.typ.blockSize
+                      val blockStartCol = GetField(singleRowRef, "blockCol") * bmir.typ.blockSize
+                      makestruct("i" -> Cast(withinNDRowIdx + blockStartRow, TInt64), "j" -> Cast(withinNDColIdx + blockStartCol, TInt64), "entry" -> entry)
+                    }
+                  }
+                }
+              }
+            )
+          }
+
+          val rowR = r.lookup(bmtt).asInstanceOf[RTable].rowType
+          ctx.backend.lowerDistributedSort(ctx, entriesUnkeyed, IndexedSeq(SortField("i", Ascending), SortField("j", Ascending)), relationalLetsAbove, rowR)
 
         case node =>
           throw new LowererUnsupportedOperation(s"undefined: \n${ Pretty(node) }")
