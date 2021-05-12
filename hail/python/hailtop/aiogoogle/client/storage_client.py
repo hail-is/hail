@@ -681,26 +681,22 @@ class GoogleStorageAsyncFS(AsyncFS):
         except StopAsyncIteration:
             raise FileNotFoundError(url)  # pylint: disable=raise-missing-from
 
-        async def is_file(entry):
-            if await entry.is_dir():
-                return False
-
+        async def should_yield(entry):
             url = await entry.url()
-            if url.endswith('/'):
+            if url.endswith('/') and await entry.is_file():
                 stat = await entry.status()
                 if await stat.size() != 0:
                     raise FileAndDirectoryError(url)
                 return False
-
             return True
 
         async def cons(first_entry, it):
-            if await is_file(first_entry):
+            if await should_yield(first_entry):
                 yield first_entry
             try:
                 while True:
                     next_entry = await it.__anext__()
-                    if await is_file(next_entry):
+                    if await should_yield(next_entry):
                         yield next_entry
             except StopAsyncIteration:
                 pass
