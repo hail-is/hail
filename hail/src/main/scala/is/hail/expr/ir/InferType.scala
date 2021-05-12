@@ -90,7 +90,8 @@ object InferType {
       case ToDict(a) =>
         val elt = coerce[TBaseStruct](coerce[TStream](a.typ).elementType)
         TDict(elt.types(0), elt.types(1))
-      case ToArray(a) =>
+      case ta@ToArray(a) =>
+        assert(a.typ.isInstanceOf[TStream], s"Expected TStream, ${a.typ}. ToArray made at \n ${ta.st}")
         val elt = coerce[TStream](a.typ).elementType
         TArray(elt)
       case CastToArray(a) =>
@@ -223,6 +224,7 @@ object InferType {
       case MakeTuple(values) =>
         TTuple(values.map { case (i, value) => TupleField(i, value.typ) }.toFastIndexedSeq)
       case GetTupleElement(o, idx) =>
+        assert(o.typ.isInstanceOf[TTuple], s"${o.typ}")
         val t = coerce[TTuple](o.typ)
         val fd = t.fields(t.fieldIndex(idx)).typ
         fd

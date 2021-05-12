@@ -3,6 +3,7 @@ package is.hail.expr.ir.lowering
 import is.hail.expr.Nat
 import is.hail.expr.ir._
 import is.hail.expr.ir.functions.GetElement
+import is.hail.rvd.RVDPartitioner
 import is.hail.types.{BlockMatrixSparsity, BlockMatrixType, TypeWithRequiredness}
 import is.hail.types.virtual._
 import is.hail.utils._
@@ -33,6 +34,39 @@ object BlockMatrixStage {
         }
       }
     }
+  }
+
+  def blockMatrixStageToEntriesTableStage(bms: BlockMatrixStage, typ: BlockMatrixType): TableStage = {
+    val bmsWithCtx = bms.addContext(TTuple(TInt32, TInt32)){ case (i, j) => MakeTuple(Seq(0 -> i, 1 -> j))}
+    val blocksRowMajor = Array.range(0, typ.nRowBlocks).flatMap { i =>
+      Array.tabulate(typ.nColBlocks)(j => i -> j).filter(typ.hasBlock)
+    }
+    val emptyGlobals = MakeStruct(Seq())
+    val globalsId = genUID()
+    val letBindings = bmsWithCtx.globalVals :+ globalsId -> emptyGlobals
+    val contextsIR = MakeStream(blocksRowMajor.map{ case (i, j) =>  bmsWithCtx.blockContext((i, j)) }, TStream(bmsWithCtx.ctxType))
+
+    val ctxRef = Ref(genUID(), bmsWithCtx.ctxType)
+    val body = bmsWithCtx.blockBody(ctxRef)
+    val bodyFreeVars = FreeVariables(body, supportsAgg = false, supportsScan = false)
+    val bcFields = bmsWithCtx.globalVals.filter { case (f, _) => bodyFreeVars.eval.lookupOption(f).isDefined } :+ globalsId -> Ref(globalsId, emptyGlobals.typ)
+
+    // Straightforward to convert a BMStage to a TableStage. Then once it's a table stage we just have to map over it and tear
+    // up the BMs into their entries.
+
+    // Details:
+    // Need to map the contexts to be (i, j) pairs.
+    // Need to then make the Table partition be (i, j, block) by wrapping the `bms.blockBody` call in a MakeStruct
+    // Then, once its a table, I can flatmap partitions to make entries.
+
+    def tsPartitionFunction(ctxRef: Ref): IR = {
+      val s = MakeStruct(Seq("blockRow" -> GetTupleElement(GetField(ctxRef, "new"), 0), "blockCol" -> GetTupleElement(GetField(ctxRef, "new"), 1), "block" -> bmsWithCtx.blockBody(ctxRef)))
+      MakeStream(Seq(
+        s
+      ), TStream(s.typ))
+    }
+    val ts = TableStage(letBindings, bcFields, Ref(globalsId, emptyGlobals.typ), RVDPartitioner.unkeyed(blocksRowMajor.size), TableStageDependency.none, contextsIR, tsPartitionFunction)
+    ts
   }
 }
 

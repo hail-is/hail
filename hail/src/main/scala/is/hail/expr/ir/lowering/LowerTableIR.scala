@@ -85,6 +85,8 @@ class TableStage(
 
   assert(key.forall(f => rowType.hasField(f)))
   assert(kType.fields.forall(f => rowType.field(f.name).typ == f.typ))
+  println(broadcastVals)
+  println(globals)
   assert(broadcastVals.exists { case (name, value) => name == globals.name && value == globals})
 
   def copy(
@@ -1101,7 +1103,10 @@ object LowerTableIR {
           RVDToTableStage(rvd, EncodedLiteral(enc, encodedGlobals))
 
         case BlockMatrixToTable(bmir) =>
-          val bmStage = LowerBlockMatrixIR.lower(bmir, typesToLower, ctx, ???, relationalLetsAbove)
+          val bmStage = LowerBlockMatrixIR.lower(bmir, typesToLower, ctx, r, relationalLetsAbove)
+          val ts = BlockMatrixStage.blockMatrixStageToEntriesTableStage(bmStage, bmir.typ)
+          val compiledTemp = CompileAndEvaluate[Any](ctx, ts.collectWithGlobals(relationalLetsAbove))
+          println(compiledTemp)
           ???
 
         case node =>
