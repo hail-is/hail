@@ -191,7 +191,7 @@ class LocalFileListEntry(FileListEntry):
     async def status(self) -> LocalStatFileStatus:
         if self._status is None:
             if await self.is_dir():
-                raise ValueError("directory has no file status")
+                raise IsADirectoryError()
             self._status = LocalStatFileStatus(await blocking_to_async(self._thread_pool, self._entry.stat))
         return self._status
 
