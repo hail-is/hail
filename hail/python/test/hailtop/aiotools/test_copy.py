@@ -424,6 +424,10 @@ async def write_file(fs, url, data):
         await f.write(data)
 
 
+async def collect_files(it):
+    return [await x.url() async for x in it]
+
+
 @pytest.mark.asyncio
 async def test_file_and_directory_error_with_slash_empty_file(router_filesystem):
     sema, fs, bases = router_filesystem
@@ -433,10 +437,10 @@ async def test_file_and_directory_error_with_slash_empty_file(router_filesystem)
     await write_file(fs, f'{src_base}empty/', '')
     await write_file(fs, f'{src_base}empty/foo', b'foo')
 
-    await fs.listfiles(f'{src_base}')
-    await fs.listfiles(f'{src_base}', recursive=True)
-    await fs.listfiles(f'{src_base}empty/')
-    await fs.listfiles(f'{src_base}empty/', recursive=True)
+    await collect_files(await fs.listfiles(f'{src_base}'))
+    await collect_files(await fs.listfiles(f'{src_base}', recursive=True))
+    await collect_files(await fs.listfiles(f'{src_base}empty/'))
+    await collect_files(await fs.listfiles(f'{src_base}empty/', recursive=True))
 
     for transfer_type in (Transfer.DEST_IS_TARGET, Transfer.DEST_DIR, Transfer.INFER_DEST):
         dest_base = await fresh_dir(fs, bases, 'gs')
@@ -447,16 +451,16 @@ async def test_file_and_directory_error_with_slash_empty_file(router_filesystem)
 
         await fs.copy(sema, Transfer(f'{src_base}empty/', dest_base.rstrip('/'), treat_dest_as=transfer_type))
 
-        await fs.listfiles(f'{dest_base}')
-        await fs.listfiles(f'{dest_base}', recursive=True)
+        await collect_files(await fs.listfiles(f'{dest_base}'))
+        await collect_files(await fs.listfiles(f'{dest_base}', recursive=True))
 
         if transfer_type == Transfer.DEST_DIR:
             exp_dest = f'{dest_base}empty/foo'
             await expect_file(fs, exp_dest, 'foo')
             assert not await fs.isfile(f'{dest_base}empty/')
             assert await fs.isdir(f'{dest_base}empty/')
-            await fs.listfiles(f'{dest_base}empty/')
-            await fs.listfiles(f'{dest_base}empty/', recursive=True)
+            await collect_files(await fs.listfiles(f'{dest_base}empty/'))
+            await collect_files(await fs.listfiles(f'{dest_base}empty/', recursive=True))
         else:
             exp_dest = f'{dest_base}foo'
             await expect_file(fs, exp_dest, 'foo')
@@ -467,31 +471,43 @@ async def test_file_and_directory_error_with_slash_non_empty_file(router_filesys
     sema, fs, bases = router_filesystem
 
     src_base = await fresh_dir(fs, bases, 'gs')
-    dest_base = await fresh_dir(fs, bases, 'gs')
 
     await write_file(fs, f'{src_base}not-empty/', b'not-empty')
     await write_file(fs, f'{src_base}not-empty/bar', b'bar')
 
     with pytest.raises(FileAndDirectoryError):
-        await fs.listfiles(f'{src_base}')
+        await collect_files(await fs.listfiles(f'{src_base}'))
 
     with pytest.raises(FileAndDirectoryError):
-        await fs.listfiles(f'{src_base}', recursive=True)
+        await collect_files(await fs.listfiles(f'{src_base}', recursive=True))
 
     with pytest.raises(FileAndDirectoryError):
-        await fs.listfiles(f'{src_base}not-empty/')
+        await collect_files(await fs.listfiles(f'{src_base}not-empty/'))
 
     with pytest.raises(FileAndDirectoryError):
-        await fs.listfiles(f'{src_base}not-empty/', recursive=True)
+        await collect_files(await fs.listfiles(f'{src_base}not-empty/', recursive=True))
 
-    await fs.copy(sema, Transfer(f'{src_base}not-empty/bar', dest_base.rstrip('/')))
-    await expect_file(fs, dest_base.rstrip('/'), 'bar')
+    for transfer_type in (Transfer.DEST_IS_TARGET, Transfer.DEST_DIR, Transfer.INFER_DEST):
+        dest_base = await fresh_dir(fs, bases, 'gs')
 
-    with pytest.raises(FileAndDirectoryError):
-        await fs.copy(sema, Transfer(f'{src_base}not-empty/', dest_base.rstrip('/')))
+        await fs.copy(sema, Transfer(f'{src_base}not-empty/bar', dest_base.rstrip('/'), treat_dest_as=transfer_type))
+        if transfer_type == Transfer.DEST_DIR:
+            exp_dest = f'{dest_base}bar'
+            await expect_file(fs, exp_dest, 'bar')
+            assert not await fs.isfile(f'{dest_base}not-empty/')
+            assert not await fs.isdir(f'{dest_base}not-empty/')
+            x = await collect_files(await fs.listfiles(f'{dest_base}'))
+            assert x == [f'{dest_base}bar'], x
+        else:
+            await expect_file(fs, dest_base.rstrip('/'), 'bar')
 
-    with pytest.raises(FileAndDirectoryError):
-        await fs.copy(sema, Transfer(f'{src_base}', dest_base.rstrip('/')))
+        with pytest.raises(FileAndDirectoryError):
+            dest_base = await fresh_dir(fs, bases, 'gs')
+            await fs.copy(sema, Transfer(f'{src_base}not-empty/', dest_base.rstrip('/'), treat_dest_as=transfer_type))
+
+        with pytest.raises(FileAndDirectoryError):
+            dest_base = await fresh_dir(fs, bases, 'gs')
+            await fs.copy(sema, Transfer(f'{src_base}', dest_base.rstrip('/'), treat_dest_as=transfer_type))
 
 
 @pytest.mark.asyncio
@@ -502,10 +518,10 @@ async def test_file_and_directory_error_with_slash_empty_file_only(router_filesy
 
     await write_file(fs, f'{src_base}empty-only/', '')
 
-    await fs.listfiles(f'{src_base}')
-    await fs.listfiles(f'{src_base}', recursive=True)
-    await fs.listfiles(f'{src_base}empty-only/')
-    await fs.listfiles(f'{src_base}empty-only/', recursive=True)
+    await collect_files(await fs.listfiles(f'{src_base}'))
+    await collect_files(await fs.listfiles(f'{src_base}', recursive=True))
+    await collect_files(await fs.listfiles(f'{src_base}empty-only/'))
+    await collect_files(await fs.listfiles(f'{src_base}empty-only/', recursive=True))
 
     for transfer_type in (Transfer.DEST_IS_TARGET, Transfer.DEST_DIR, Transfer.INFER_DEST):
         dest_base = await fresh_dir(fs, bases, 'gs')
@@ -513,10 +529,10 @@ async def test_file_and_directory_error_with_slash_empty_file_only(router_filesy
 
         # We ignore empty directories when copying
         with pytest.raises(FileNotFoundError):
-            await fs.listfiles(f'{dest_base}empty-only/')
+            await collect_files(await fs.listfiles(f'{dest_base}empty-only/'))
 
         with pytest.raises(FileNotFoundError):
-            await fs.listfiles(f'{dest_base}empty-only/', recursive=True)
+            await collect_files(await fs.listfiles(f'{dest_base}empty-only/', recursive=True))
 
         dest_base = await fresh_dir(fs, bases, 'gs')
         await fs.copy(sema, Transfer(f'{src_base}', dest_base.rstrip('/'), treat_dest_as=transfer_type))
@@ -527,25 +543,26 @@ async def test_file_and_directory_error_with_slash_non_empty_file_only(router_fi
     sema, fs, bases = router_filesystem
 
     src_base = await fresh_dir(fs, bases, 'gs')
-    dest_base = await fresh_dir(fs, bases, 'gs')
 
     await write_file(fs, f'{src_base}not-empty-file-w-slash/', b'not-empty')
 
     with pytest.raises(FileAndDirectoryError):
-        await fs.listfiles(f'{src_base}')
+        await collect_files(await fs.listfiles(f'{src_base}'))
 
     with pytest.raises(FileAndDirectoryError):
-        await fs.listfiles(f'{src_base}', recursive=True)
+        await collect_files(await fs.listfiles(f'{src_base}', recursive=True))
 
     with pytest.raises(FileAndDirectoryError):
-        await fs.listfiles(f'{src_base}not-empty-file-w-slash/')
+        await collect_files(await fs.listfiles(f'{src_base}not-empty-file-w-slash/'))
 
     with pytest.raises(FileAndDirectoryError):
-        await fs.listfiles(f'{src_base}not-empty-file-w-slash/', recursive=True)
+        await collect_files(await fs.listfiles(f'{src_base}not-empty-file-w-slash/', recursive=True))
 
     for transfer_type in (Transfer.DEST_IS_TARGET, Transfer.DEST_DIR, Transfer.INFER_DEST):
         with pytest.raises(FileAndDirectoryError):
+            dest_base = await fresh_dir(fs, bases, 'gs')
             await fs.copy(sema, Transfer(f'{src_base}not-empty-file-w-slash/', dest_base.rstrip('/'), treat_dest_as=transfer_type))
 
         with pytest.raises(FileAndDirectoryError):
+            dest_base = await fresh_dir(fs, bases, 'gs')
             await fs.copy(sema, Transfer(f'{src_base}', dest_base.rstrip('/'), treat_dest_as=transfer_type))

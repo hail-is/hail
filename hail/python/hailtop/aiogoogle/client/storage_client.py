@@ -448,7 +448,7 @@ class GoogleStorageFileListEntry(FileListEntry):
     async def status(self) -> FileStatus:
         if self._status is None:
             if self._items is None:
-                raise ValueError("directory has no file status")
+                raise IsADirectoryError(self._url)
             self._status = GetObjectFileStatus(self._items)
         return self._status
 
@@ -682,12 +682,16 @@ class GoogleStorageAsyncFS(AsyncFS):
             raise FileNotFoundError(url)  # pylint: disable=raise-missing-from
 
         async def is_file(entry):
+            if await entry.is_dir():
+                return False
+
             url = await entry.url()
             if url.endswith('/'):
                 stat = await entry.status()
                 if await stat.size() != 0:
                     raise FileAndDirectoryError(url)
                 return False
+
             return True
 
         async def cons(first_entry, it):
