@@ -425,7 +425,7 @@ abstract class RegistryFunctions {
     registerPCode(name, valueParameterTypes, returnType, calculateReturnType) { case (r, cb, _, rt, args) =>
       val cts = valueParameterTypes.map(PrimitiveTypeToIRIntermediateClassTag(_).runtimeClass)
       rt.fromCodes(FastIndexedSeq(
-        Code.invokeScalaObject(cls, method, cts, args.map { a => scodeToJavaValue(cb, r.region, a) })(PrimitiveTypeToIRIntermediateClassTag(returnType))
+        Code.invokeScalaObject(cls, method, cts, args.map { a => SType.extractPrimCode(cb, a) })(PrimitiveTypeToIRIntermediateClassTag(returnType))
       )).asPCode
     }
   }

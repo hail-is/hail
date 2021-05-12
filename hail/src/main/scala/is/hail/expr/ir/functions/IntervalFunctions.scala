@@ -17,7 +17,7 @@ object IntervalFunctions extends RegistryFunctions {
     registerIEmitCode4("Interval", tv("T"), tv("T"), TBoolean, TBoolean, TInterval(tv("T")),
       { case (_: Type, startpt, endpt, includesStartET, includesEndET) =>
         EmitType(PCanonicalInterval(
-          InferPType.getCompatiblePType(Seq(includesStartET.canonicalPType, includesEndET.canonicalPType)),
+          InferPType.getCompatiblePType(Seq(startpt.canonicalPType, endpt.canonicalPType)),
           required = includesStartET.required && includesEndET.required
         ).sType, includesStartET.required && includesEndET.required)
       }) {
@@ -66,7 +66,7 @@ object IntervalFunctions extends RegistryFunctions {
     }
 
     registerIEmitCode2("contains", TInterval(tv("T")), tv("T"), TBoolean, {
-      case(_: Type, intervalT: EmitType, _: SType) => EmitType(SBoolean, intervalT.required)
+      case(_: Type, intervalT: EmitType, _: EmitType) => EmitType(SBoolean, intervalT.required)
     }) {
       case (cb, r, rt, int, point) =>
         int.toI(cb).map(cb) { case (intc: PIntervalCode) =>
