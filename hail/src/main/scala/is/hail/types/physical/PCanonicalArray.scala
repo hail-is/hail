@@ -377,9 +377,9 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
     }
   }
 
-  def sType: SContainer = SIndexablePointer(this)
+  def sType: SIndexablePointer = SIndexablePointer(setRequired(false).asInstanceOf[PCanonicalArray])
 
-  def loadCheapPCode(cb: EmitCodeBuilder, addr: Code[Long]): SIndexablePointerCode = new SIndexablePointerCode(SIndexablePointer(this), addr)
+  def loadCheapPCode(cb: EmitCodeBuilder, addr: Code[Long]): SIndexablePointerCode = new SIndexablePointerCode(sType, addr)
 
   def storeContentsAtAddress(cb: EmitCodeBuilder, addr: Value[Long], region: Value[Region], indexable: SIndexableValue, deepCopy: Boolean): Unit = {
     val length = indexable.loadLength()
@@ -387,7 +387,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
       case SIndexablePointer(PCanonicalArray(otherElementType, _)) if otherElementType == elementType =>
           cb += Region.copyFrom(indexable.asInstanceOf[SIndexablePointerSettable].a, addr, contentsByteSize(length))
           deepPointerCopy(cb, region, addr, length)
-      case SIndexablePointer(PCanonicalArray(otherElementType, _)) if otherElementType.equalModuloRequired(elementType) =>
+      case SIndexablePointer(otherType@PCanonicalArray(otherElementType, _)) if otherElementType.equalModuloRequired(elementType) =>
         // other is optional, constructing required
         if (elementType.required) {
           cb.ifx(indexable.hasMissingValues(cb),
@@ -395,7 +395,6 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
         }
         cb += stagedInitialize(addr, indexable.loadLength(), setMissing = false)
 
-        val otherType = indexable.st.pType.asInstanceOf[PCanonicalArray]
         cb += Region.copyFrom(otherType.firstElementOffset(indexable.asInstanceOf[SIndexablePointerSettable].a), this.firstElementOffset(addr), length.toL * otherType.elementByteSize)
         if (deepCopy)
           deepPointerCopy(cb, region, addr, length)
@@ -465,7 +464,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
       cb.assign(i, i + 1)
     })
 
-    new SIndexablePointerCode(SIndexablePointer(this), addr)
+    new SIndexablePointerCode(sType, addr)
   }
 
   // unsafe StagedArrayBuilder-like interface that gives caller control over adding elements and finishing
@@ -494,7 +493,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
     def finish(cb: EmitCodeBuilder): SIndexablePointerCode = {
       cb.ifx((currentIndex + 1).cne(length), cb._fatal("PCanonicalArray.constructFromNextAddress nextAddress was called the wrong number of times: len=",
         length.toS, ", calls=", (currentIndex + 1).toS))
-      new SIndexablePointerCode(SIndexablePointer(this), addr)
+      new SIndexablePointerCode(sType, addr)
     }
     (nextAddr, setMissing, finish)
   }
@@ -520,7 +519,7 @@ final case class PCanonicalArray(elementType: PType, required: Boolean = false) 
     val finish: EmitCodeBuilder => SIndexablePointerCode = { (cb: EmitCodeBuilder) =>
       cb.ifx(currentElementIndex.cne(length), cb._fatal("PCanonicalArray.constructFromFunctions push was called the wrong number of times: len=",
         length.toS, ", calls=", currentElementIndex.toS))
-      new SIndexablePointerCode(SIndexablePointer(this), addr)
+      new SIndexablePointerCode(sType, addr)
     }
     (push, finish)
   }

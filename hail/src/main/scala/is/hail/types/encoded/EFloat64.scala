@@ -20,12 +20,12 @@ class EFloat64(override val required: Boolean) extends EType {
   }
 
   override def _buildDecoder(cb: EmitCodeBuilder, t: Type, region: Value[Region], in: Value[InputBuffer]): PCode = {
-    new SFloat64Code(required, in.readDouble())
+    new SFloat64Code(in.readDouble())
   }
 
   def _buildSkip(cb: EmitCodeBuilder, r: Value[Region], in: Value[InputBuffer]): Unit = cb += in.skipDouble()
 
-  def _decodedSType(requestedType: Type): SType = SFloat64(required)
+  def _decodedSType(requestedType: Type): SType = SFloat64
 
   def _asIdent = "float64"
 

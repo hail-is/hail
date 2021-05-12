@@ -50,7 +50,6 @@ object Compile {
 
     val usesAndDefs = ComputeUsesAndDefs(ir, errorIfFreeVariables = false)
     val requiredness = Requiredness.apply(ir, usesAndDefs, null, Env.empty) // Value IR inference doesn't need context
-    InferPType(ir, Env.empty, requiredness, usesAndDefs)
 
     val returnParam = CodeParamType(SingleCodeType.typeInfoFromType(ir.typ))
 
@@ -116,7 +115,6 @@ object CompileWithAggregators {
 
     val usesAndDefs = ComputeUsesAndDefs(ir, errorIfFreeVariables = false)
     val requiredness = Requiredness.apply(ir, usesAndDefs, null, Env.empty) // Value IR inference doesn't need context
-    InferPType(ir, Env.empty, requiredness, usesAndDefs)
 
     val fb = EmitFunctionBuilder[F](ctx, "CompiledWithAggs",
       CodeParamType(typeInfo[Region]) +: params.map { case (_, pt) => pt },
@@ -208,14 +206,12 @@ object CompileIterator {
 
     val usesAndDefs = ComputeUsesAndDefs(ir, errorIfFreeVariables = false)
     val requiredness = Requiredness.apply(ir, usesAndDefs, null, Env.empty) // Value IR inference doesn't need context
-    InferPType(ir, Env.empty, requiredness, usesAndDefs)
 
     val emitContext = new EmitContext(ctx, requiredness)
     val emitter = new Emit(emitContext, stepFECB)
 
-    val returnType = ir.pType.asInstanceOf[PStream].elementType.asInstanceOf[PStruct].setRequired(true)
-
     val optStream = EmitCode.fromI(stepF)(cb => EmitStream.produce(emitter, ir, cb, outerRegion, Env.empty, None))
+    val returnType = optStream.st.asInstanceOf[SStream].elementEmitType.canonicalPType.setRequired(true)
     val returnPType = optStream.st.asInstanceOf[SStream].elementType.canonicalPType()
 
     val elementAddress = stepF.genFieldThisRef[Long]("elementAddr")

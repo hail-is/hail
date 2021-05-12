@@ -38,7 +38,7 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
 
 
   def loadShapes(cb: EmitCodeBuilder, addr: Value[Long], settables: IndexedSeq[Settable[Long]]): Unit = {
-    assert(settables.length == nDims)
+    assert(settables.length == nDims, s"got ${ settables.length } settables, expect ${ nDims } dims")
     val shapeTuple = shapeType.loadCheapPCode(cb, representation.loadField(addr, "shape"))
       .memoize(cb, "pcndarray_shapetuple")
     (0 until nDims).foreach { dimIdx =>
@@ -123,7 +123,7 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
   }
 
   private def getElementAddress(cb: EmitCodeBuilder, indices: IndexedSeq[Value[Long]], nd: Value[Long]): Value[Long] = {
-    val ndarrayValue = PCode(this, nd).asNDArray.memoize(cb, "getElementAddressNDValue")
+    val ndarrayValue = loadCheapPCode(cb, nd).asNDArray.memoize(cb, "getElementAddressNDValue")
     val stridesTuple = ndarrayValue.strides(cb)
 
     val dataStore = cb.newLocal[Long]("nd_get_element_address_data_store",
@@ -180,6 +180,8 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
     cb: EmitCodeBuilder,
     region: Value[Region]
   ): PNDArrayCode = {
+    assert(shape.length == nDims, s"nDims = ${ nDims }, nShapeElts=${ shape.length }")
+    assert(strides.length == nDims, s"nDims = ${ nDims }, nShapeElts=${ strides.length }")
 
     val cacheKey = ("constructByCopyingArray", this, dataCode.st)
     val mb = cb.emb.ecb.getOrGenEmitMethod("pcndarray_construct_by_copying_array", cacheKey,
@@ -208,7 +210,7 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
         cb.append(Region.storeLong(this.representation.fieldOffset(ndAddr, "data"), newDataPointer))
         dataType.storeContentsAtAddress(cb, newDataPointer, region, dataValue, true)
 
-        new SNDArrayPointerCode(SNDArrayPointer(this), ndAddr)
+        new SNDArrayPointerCode(sType, ndAddr)
       }
     }
 
@@ -241,7 +243,7 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
 
     cb.append(dataType.stagedInitialize(newDataPointer, this.numElements(shape).toI))
 
-    (newFirstElementDataPointer, (cb: EmitCodeBuilder) => new SNDArrayPointerCode(SNDArrayPointer(this), ndAddr))
+    (newFirstElementDataPointer, (cb: EmitCodeBuilder) => new SNDArrayPointerCode(sType, ndAddr))
   }
 
   def unstagedConstructDataFunction(
@@ -344,7 +346,7 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
     Region.storeAddress(addr, copyFromAddress(region, srcND, srcAddress, deepCopy))
   }
 
-  def sType: SNDArrayPointer = SNDArrayPointer(this)
+  def sType: SNDArrayPointer = SNDArrayPointer(setRequired(false).asInstanceOf[PCanonicalNDArray])
 
   def loadCheapPCode(cb: EmitCodeBuilder, addr: Code[Long]): PCode = new SNDArrayPointerCode(sType, addr)
 

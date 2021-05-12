@@ -6,10 +6,17 @@ import is.hail.expr.ir.{EmitCodeBuilder, IEmitCode}
 import is.hail.types.physical.stypes.interfaces.SContainer
 import is.hail.types.physical.stypes.{EmitType, SCode, SType}
 import is.hail.types.physical.{PArray, PCanonicalArray, PCanonicalDict, PCanonicalSet, PCode, PContainer, PIndexableCode, PIndexableValue, PSettable, PType}
+import is.hail.types.virtual.Type
 import is.hail.utils.FastIndexedSeq
 
 
 case class SIndexablePointer(pType: PContainer) extends SContainer {
+  require(!pType.required)
+
+  lazy val virtualType: Type = pType.virtualType
+
+  override def castRename(t: Type): SType = SIndexablePointer(pType.deepRename(t).asInstanceOf[PContainer])
+
   override def elementType: SType = pType.elementType.sType
 
   def elementEmitType: EmitType = EmitType(elementType, pType.elementType.required)
@@ -19,6 +26,8 @@ case class SIndexablePointer(pType: PContainer) extends SContainer {
   }
 
   def codeTupleTypes(): IndexedSeq[TypeInfo[_]] = FastIndexedSeq(LongInfo)
+
+  override def settableTupleTypes(): IndexedSeq[TypeInfo[_]] = FastIndexedSeq(LongInfo, IntInfo, LongInfo)
 
   def loadFrom(cb: EmitCodeBuilder, region: Value[Region], pt: PType, addr: Code[Long]): SCode = {
     if (pt == this.pType)

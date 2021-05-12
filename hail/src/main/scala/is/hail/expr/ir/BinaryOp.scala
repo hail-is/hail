@@ -2,6 +2,9 @@ package is.hail.expr.ir
 
 import is.hail.asm4s._
 import is.hail.types._
+import is.hail.types.physical.PCode
+import is.hail.types.physical.stypes.SType
+import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.virtual._
 import is.hail.utils._
 
@@ -32,7 +35,15 @@ object BinaryOp {
   private def incompatible[T](lt: Type, rt: Type, op: BinaryOp): T =
     throw new RuntimeException(s"Cannot apply $op to $lt and $rt")
 
-  def emit(op: BinaryOp, lt: Type, rt: Type, l: Code[_], r: Code[_]): Code[_] =
+  def emit(cb: EmitCodeBuilder, op: BinaryOp, l: PCode, r: PCode): PCode = {
+    val lt = l.st.virtualType
+    val rt = r.st.virtualType
+
+    val retCode = emit(op, lt, rt, SType.extractPrimCode(cb, l), SType.extractPrimCode(cb, r))
+    primitive(getReturnType(op, lt, rt), retCode)
+  }
+
+  private[this] def emit(op: BinaryOp, lt: Type, rt: Type, l: Code[_], r: Code[_]): Code[_] =
     (lt, rt) match {
       case (TInt32, TInt32) =>
         val ll = coerce[Int](l)

@@ -4,11 +4,12 @@ import is.hail.annotations.Region
 import is.hail.asm4s.{Code, Settable, TypeInfo, Value}
 import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.expr.ir.streams.StreamProducer
-import is.hail.types.physical.stypes.{SCode, SSettable, SType}
+import is.hail.types.physical.stypes.{EmitType, SCode, SSettable, SType}
 import is.hail.types.physical.{PCanonicalStream, PCode, PStream, PStreamCode, PType, PValue}
+import is.hail.types.virtual.{TStream, Type}
 
-case class SStream(elementType: SType, required: Boolean) extends SType {
-  def pType: PStream = PCanonicalStream(elementType.pType, required)
+case class SStream(elementEmitType: EmitType) extends SType {
+  def elementType: SType = elementEmitType.st
 
   def coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = {
     if (deepCopy) throw new UnsupportedOperationException
@@ -25,15 +26,20 @@ case class SStream(elementType: SType, required: Boolean) extends SType {
 
   def fromSettables(settables: IndexedSeq[Settable[_]]): SSettable = throw new UnsupportedOperationException
 
-  def canonicalPType(): PType = pType
+  def canonicalPType(): PType = PCanonicalStream(elementEmitType.canonicalPType)
+
+  override def virtualType: Type = TStream(elementType.virtualType)
+
+  override def castRename(t: Type): SType = ???
+}
+
+object SStreamCode{
+  def apply(producer: StreamProducer): SStreamCode = SStreamCode(SStream(producer.element.emitType), producer)
 }
 
 final case class SStreamCode(st: SStream, producer: StreamProducer) extends PStreamCode {
   self =>
-  override def pt: PStream = st.pType
-
   def memoize(cb: EmitCodeBuilder, name: String): PValue = new PValue {
-    def pt: PStream = PCanonicalStream(st.pType)
 
     override def st: SType = self.st
 

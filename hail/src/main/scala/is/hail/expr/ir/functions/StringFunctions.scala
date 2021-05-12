@@ -3,13 +3,15 @@ package is.hail.expr.ir.functions
 import java.time.temporal.ChronoField
 import java.time.{Instant, ZoneId}
 import java.util.Locale
-
 import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.ir._
 import is.hail.types.physical._
-import is.hail.types.physical.stypes.concrete.SStringPointer
+import is.hail.types.physical.stypes._
+import is.hail.types.physical.stypes.concrete.{SIndexablePointer, SStringPointer}
+import is.hail.types.physical.stypes.interfaces._
+import is.hail.types.physical.stypes.primitives.{SBoolean, SInt32, SInt64}
 import is.hail.types.virtual._
 import is.hail.utils._
 import org.apache.spark.sql.Row
@@ -98,18 +100,17 @@ object StringFunctions extends RegistryFunctions {
   def registerAll(): Unit = {
     val thisClass = getClass
 
-    registerPCode1("length", TString, TInt32, (_: Type, _: PType) => PInt32()) { case (r: EmitRegion, cb, rt, s: PStringCode) =>
-      PCode(rt, s.loadString().invoke[Int]("length"))
+    registerPCode1("length", TString, TInt32, (_: Type, _: SType) => SInt32) { case (r: EmitRegion, cb, _, s: PStringCode) =>
+      primitive(s.loadString().invoke[Int]("length"))
     }
 
     registerPCode3("substring", TString, TInt32, TInt32, TString, {
-      (_: Type, _: PType, _: PType, _: PType) => PCanonicalString()
+      (_: Type, _: SType, _: SType, _: SType) => SStringPointer(PCanonicalString())
     }) {
-      case (r: EmitRegion, cb, rt: PString, s, start, end) =>
+      case (r: EmitRegion, cb, st: SString, s, start, end) =>
 
         val str = s.asString.loadString().invoke[Int, Int, String]("substring", start.asInt.intCode(cb), end.asInt.intCode(cb))
-        val st = SStringPointer(rt)
-        st.constructFromString(cb, r.region, str)
+        st.constructFromString(cb, r.region, str).asPCode
     }
 
     registerIR3("slice", TString, TInt32, TInt32, TString) { (_, str, start, end) =>
@@ -140,107 +141,103 @@ object StringFunctions extends RegistryFunctions {
     registerIR2("sliceRight", TString, TInt32, TString) { (_, s, start) => invoke("slice", TString, s, start, invoke("length", TInt32, s)) }
     registerIR2("sliceLeft", TString, TInt32, TString) { (_, s, end) => invoke("slice", TString, s, I32(0), end) }
 
-    registerPCode1("str", tv("T"), TString, (_: Type, _: PType) => PCanonicalString()) { case (r, cb, rt: PString, a) =>
+    registerPCode1("str", tv("T"), TString, (_: Type, _: SType) => SStringPointer(PCanonicalString())) { case (r, cb, st: SString, a) =>
       val annotation = scodeToJavaValue(cb, r.region, a)
-      val str = cb.emb.getType(a.pt.virtualType).invoke[Any, String]("str", annotation)
-      val st = SStringPointer(rt)
-      st.constructFromString(cb, r.region, str)
+      val str = cb.emb.getType(a.st.virtualType).invoke[Any, String]("str", annotation)
+      st.constructFromString(cb, r.region, str).asPCode
     }
 
     registerIEmitCode1("showStr", tv("T"), TString, {
-      (_: Type, _: PType) => PCanonicalString(true)
-    }) { case (cb, r, rt: PCanonicalString, a) =>
-      val jObj = cb.newLocal("showstr_java_obj")(boxedTypeInfo(a.pt.virtualType))
+      (_: Type, _: EmitType) => EmitType(SStringPointer(PCanonicalString()), true)
+    }) { case (cb, r, st: SString, a) =>
+      val jObj = cb.newLocal("showstr_java_obj")(boxedTypeInfo(a.st.virtualType))
       a.toI(cb).consume(cb,
-        cb.assignAny(jObj, Code._null(boxedTypeInfo(a.pt.virtualType))),
+        cb.assignAny(jObj, Code._null(boxedTypeInfo(a.st.virtualType))),
         sc => cb.assignAny(jObj, scodeToJavaValue(cb, r, sc)))
 
-      val str = cb.emb.getType(a.pt.virtualType).invoke[Any, String]("showStr", jObj)
-      val st = SStringPointer(rt)
+      val str = cb.emb.getType(a.st.virtualType).invoke[Any, String]("showStr", jObj)
 
-      IEmitCode.present(cb, st.constructFromString(cb, r, str))
+      IEmitCode.present(cb, st.constructFromString(cb, r, str).asPCode)
     }
 
     registerIEmitCode2("showStr", tv("T"), TInt32, TString, {
-      (_: Type, _: PType, truncType: PType) => PCanonicalString(truncType.required)
-    }) { case (cb, r, rt: PCanonicalString, a, trunc) =>
-      val jObj = cb.newLocal("showstr_java_obj")(boxedTypeInfo(a.pt.virtualType))
+      (_: Type, _: EmitType, truncType: EmitType) => EmitType(SStringPointer(PCanonicalString()), truncType.required)
+    }) { case (cb, r, st: SString, a, trunc) =>
+      val jObj = cb.newLocal("showstr_java_obj")(boxedTypeInfo(a.st.virtualType))
       trunc.toI(cb).map(cb) { trunc =>
 
         a.toI(cb).consume(cb,
-          cb.assignAny(jObj, Code._null(boxedTypeInfo(a.pt.virtualType))),
+          cb.assignAny(jObj, Code._null(boxedTypeInfo(a.st.virtualType))),
           sc => cb.assignAny(jObj, scodeToJavaValue(cb, r, sc)))
 
-        val str = cb.emb.getType(a.pt.virtualType).invoke[Any, Int, String]("showStr", jObj, trunc.asInt.intCode(cb))
-        val st = SStringPointer(rt)
-
-        st.constructFromString(cb, r, str)
+        val str = cb.emb.getType(a.st.virtualType).invoke[Any, Int, String]("showStr", jObj, trunc.asInt.intCode(cb))
+        st.constructFromString(cb, r, str).asPCode
       }
     }
 
-    registerIEmitCode1("json", tv("T"), TString, (_: Type, _: PType) => PCanonicalString(true)) { case (cb, r, rt: PString, a) =>
-      val ti = boxedTypeInfo(a.pt.sType.virtualType)
-      val inputJavaValue = cb.newLocal("json_func_input_jv")(ti)
-      a.toI(cb).consume(cb,
-        cb.assignAny(inputJavaValue, Code._null(ti)),
-        { sc =>
-          val jv = scodeToJavaValue(cb, r, sc)
-          cb.assignAny(inputJavaValue, jv)
-        })
-      val json = cb.emb.getType(a.pt.sType.virtualType).invoke[Any, JValue]("toJSON", inputJavaValue)
-      val str = Code.invokeScalaObject1[JValue, String](JsonMethods.getClass, "compact", json)
-      val st = SStringPointer(rt)
-      IEmitCode.present(cb, st.constructFromString(cb, r, str))
+    registerIEmitCode1("json", tv("T"), TString, (_: Type, _: EmitType) => EmitType(SStringPointer(PCanonicalString()), true)) {
+      case (cb, r, st: SString, a) =>
+        val ti = boxedTypeInfo(a.st.virtualType)
+        val inputJavaValue = cb.newLocal("json_func_input_jv")(ti)
+        a.toI(cb).consume(cb,
+          cb.assignAny(inputJavaValue, Code._null(ti)),
+          { sc =>
+            val jv = scodeToJavaValue(cb, r, sc)
+            cb.assignAny(inputJavaValue, jv)
+          })
+        val json = cb.emb.getType(a.st.virtualType).invoke[Any, JValue]("toJSON", inputJavaValue)
+        val str = Code.invokeScalaObject1[JValue, String](JsonMethods.getClass, "compact", json)
+        IEmitCode.present(cb, st.constructFromString(cb, r, str).asPCode)
     }
 
-    registerWrappedScalaFunction1("reverse", TString, TString, (_: Type, _: PType) => PCanonicalString())(thisClass, "reverse")
-    registerWrappedScalaFunction1("upper", TString, TString, (_: Type, _: PType) => PCanonicalString())(thisClass, "upper")
-    registerWrappedScalaFunction1("lower", TString, TString, (_: Type, _: PType) => PCanonicalString())(thisClass, "lower")
-    registerWrappedScalaFunction1("strip", TString, TString, (_: Type, _: PType) => PCanonicalString())(thisClass, "strip")
+    registerWrappedScalaFunction1("reverse", TString, TString, (_: Type, _: SType) => SStringPointer(PCanonicalString()))(thisClass, "reverse")
+    registerWrappedScalaFunction1("upper", TString, TString, (_: Type, _: SType) => SStringPointer(PCanonicalString()))(thisClass, "upper")
+    registerWrappedScalaFunction1("lower", TString, TString, (_: Type, _: SType) => SStringPointer(PCanonicalString()))(thisClass, "lower")
+    registerWrappedScalaFunction1("strip", TString, TString, (_: Type, _: SType) => SStringPointer(PCanonicalString()))(thisClass, "strip")
     registerWrappedScalaFunction2("contains", TString, TString, TBoolean, {
-      case (_: Type, _: PType, _: PType) => PBoolean()
+      case (_: Type, _: SType, _: SType) => SBoolean
     })(thisClass, "contains")
     registerWrappedScalaFunction2("translate", TString, TDict(TString, TString), TString, {
-      case (_: Type, _: PType, _: PType) => PCanonicalString()
+      case (_: Type, _: SType, _: SType) => SStringPointer(PCanonicalString())
     })(thisClass, "translate")
     registerWrappedScalaFunction2("startswith", TString, TString, TBoolean, {
-      case (_: Type, _: PType, _: PType) => PBoolean()
+      case (_: Type, _: SType, _: SType) => SBoolean
     })(thisClass, "startswith")
     registerWrappedScalaFunction2("endswith", TString, TString, TBoolean, {
-      case (_: Type, _: PType, _: PType) => PBoolean()
+      case (_: Type, _: SType, _: SType) => SBoolean
     })(thisClass, "endswith")
     registerWrappedScalaFunction2("regexMatch", TString, TString, TBoolean, {
-      case (_: Type, _: PType, _: PType) => PBoolean()
+      case (_: Type, _: SType, _: SType) => SBoolean
     })(thisClass, "regexMatch")
     registerWrappedScalaFunction2("concat", TString, TString, TString, {
-      case (_: Type, _: PType, _: PType) => PCanonicalString()
+      case (_: Type, _: SType, _: SType) => SStringPointer(PCanonicalString())
     })(thisClass, "concat")
 
     registerWrappedScalaFunction2("split", TString, TString, TArray(TString), {
-      case (_: Type, _: PType, _: PType) =>
-        PCanonicalArray(PCanonicalString(true))
+      case (_: Type, _: SType, _: SType) =>
+        PCanonicalArray(PCanonicalString(true)).sType
     })(thisClass, "split")
 
     registerWrappedScalaFunction3("split", TString, TString, TInt32, TArray(TString), {
-      case (_: Type, _: PType, _: PType, _: PType) =>
-        PCanonicalArray(PCanonicalString(true))
+      case (_: Type, _: SType, _: SType, _: SType) =>
+        PCanonicalArray(PCanonicalString(true)).sType
     })(thisClass, "splitLimited")
 
     registerWrappedScalaFunction3("replace", TString, TString, TString, TString, {
-      case (_: Type, _: PType, _: PType, _: PType) => PCanonicalString()
+      case (_: Type, _: SType, _: SType, _: SType) => SStringPointer(PCanonicalString())
     })(thisClass, "replace")
 
     registerWrappedScalaFunction2("mkString", TSet(TString), TString, TString, {
-      case (_: Type, _: PType, _: PType) => PCanonicalString()
+      case (_: Type, _: SType, _: SType) => SStringPointer(PCanonicalString())
     })(thisClass, "setMkString")
 
     registerWrappedScalaFunction2("mkString", TArray(TString), TString, TString, {
-      case (_: Type, _: PType, _: PType) => PCanonicalString()
+      case (_: Type, _: SType, _: SType) => SStringPointer(PCanonicalString())
     })(thisClass, "arrayMkString")
 
     registerIEmitCode2("firstMatchIn", TString, TString, TArray(TString), {
-      case (_: Type, _: PType, _: PType) => PCanonicalArray(PCanonicalString(true))
-    }) { case (cb: EmitCodeBuilder, region: Value[Region], rt: PCanonicalArray,
+      case (_: Type, _: EmitType, _: EmitType) => EmitType(PCanonicalArray(PCanonicalString(true)).sType, false)
+    }) { case (cb: EmitCodeBuilder, region: Value[Region], SIndexablePointer(rt: PCanonicalArray),
     s: EmitCode, r: EmitCode) =>
       s.toI(cb).flatMap(cb) { case sc: PStringCode =>
         r.toI(cb).flatMap(cb) { case rc: PStringCode =>
@@ -261,7 +258,7 @@ object StringFunctions extends RegistryFunctions {
     }
 
     registerEmitCode2("hamming", TString, TString, TInt32, {
-      case (_: Type, _: PType, _: PType) => PInt32()
+      case (_: Type, _: EmitType, _: EmitType) => EmitType(SInt32, false)
     }) { case (r: EmitRegion, rt, e1: EmitCode, e2: EmitCode) =>
       EmitCode.fromI(r.mb) { cb =>
         e1.toI(cb).flatMap(cb) { case (sc1: PStringCode) =>
@@ -280,23 +277,23 @@ object StringFunctions extends RegistryFunctions {
                   cb.assign(n, n + 1))
                 cb.assign(i, i + 1)
               })
-              PCode(rt, n)
+              primitive(n)
             })
           }
         }
       }
     }
 
-    registerWrappedScalaFunction1("escapeString", TString, TString, (_: Type, _: PType) => PCanonicalString())(thisClass, "escapeString")
+    registerWrappedScalaFunction1("escapeString", TString, TString, (_: Type, _: SType) => SStringPointer(PCanonicalString()))(thisClass, "escapeString")
     registerWrappedScalaFunction3("strftime", TString, TInt64, TString, TString, {
-      case (_: Type, _: PType, _: PType, _: PType) => PCanonicalString()
+      case (_: Type, _: SType, _: SType, _: SType) => SStringPointer(PCanonicalString())
     })(thisClass, "strftime")
     registerWrappedScalaFunction3("strptime", TString, TString, TString, TInt64, {
-      case (_: Type, _: PType, _: PType, _: PType) => PInt64()
+      case (_: Type, _: SType, _: SType, _: SType) => SInt64
     })(thisClass, "strptime")
 
     registerPCode("parse_json", Array(TString), TTuple(tv("T")),
-      (rType: Type, _: Seq[PType]) => PType.canonical(rType, true), typeParameters = Array(tv("T"))
+      (rType: Type, _: Seq[SType]) => SType.canonical(rType), typeParameters = Array(tv("T"))
     ) { case (er, cb, _, resultType, Array(s: PStringCode)) =>
 
       val warnCtx = cb.emb.genFieldThisRef[mutable.HashSet[String]]("parse_json_context")

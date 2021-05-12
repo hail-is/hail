@@ -3,7 +3,7 @@ package is.hail.linalg
 import is.hail.annotations.Region
 import is.hail.asm4s.{Code, _}
 import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, IEmitCode}
-import is.hail.types.physical.stypes.concrete.SNDArrayPointerSettable
+import is.hail.types.physical.stypes.concrete.{SNDArrayPointer, SNDArrayPointerSettable}
 import is.hail.types.physical.stypes.interfaces.SNDArray
 import is.hail.types.physical.{PCanonicalNDArray, PNDArrayCode, PNDArrayValue}
 
@@ -14,8 +14,9 @@ object LinalgCodeUtils {
     val strides = pndv.strides(cb)
     val runningProduct = cb.newLocal[Long]("check_column_major_running_product")
 
-    val elementType = pndv.pt.elementType
-    val nDims = pndv.pt.nDims
+    val pt = pndv.st.asInstanceOf[SNDArrayPointer].pType
+    val elementType = pt.elementType
+    val nDims = pndv.st.nDims
 
     cb.assign(answer, true)
     cb.assign(runningProduct, elementType.byteSize)
@@ -32,8 +33,9 @@ object LinalgCodeUtils {
     val strides = pndv.strides(cb)
     val runningProduct = cb.newLocal[Long]("check_column_major_running_product")
 
-    val elementType = pndv.pt.elementType
-    val nDims = pndv.pt.nDims
+    val pt = pndv.st.asInstanceOf[SNDArrayPointer].pType
+    val elementType = pt.elementType
+    val nDims = pt.nDims
 
     cb.assign(answer, true)
     cb.assign(runningProduct, elementType.byteSize)
@@ -46,10 +48,10 @@ object LinalgCodeUtils {
 
   def createColumnMajorCode(pndv: PNDArrayValue, cb: EmitCodeBuilder, region: Value[Region]): PNDArrayCode = {
     val shape = pndv.shapes(cb)
-    val pt = pndv.pt.asInstanceOf[PCanonicalNDArray]
+    val pt = pndv.st.asInstanceOf[SNDArrayPointer].pType
     val strides = pt.makeColumnMajorStrides(shape, region, cb)
 
-    val (dataFirstElementAddress, dataFinisher) = pndv.pt.constructDataFunction(shape, strides, cb, region)
+    val (dataFirstElementAddress, dataFinisher) = pt.constructDataFunction(shape, strides, cb, region)
 
     val curAddr = cb.newLocal[Long]("create_column_major_cur_addr", dataFirstElementAddress)
 
@@ -62,7 +64,7 @@ object LinalgCodeUtils {
 
   def checkColMajorAndCopyIfNeeded(aInput: PNDArrayValue, cb: EmitCodeBuilder, region: Value[Region]): PNDArrayValue = {
     val aIsColumnMajor = LinalgCodeUtils.checkColumnMajor(aInput, cb)
-    val aColMajor = cb.emb.newPField("ndarray_output_column_major", aInput.pt).asInstanceOf[SNDArrayPointerSettable]
+    val aColMajor = cb.emb.newPField("ndarray_output_column_major", aInput.st).asInstanceOf[SNDArrayPointerSettable]
     cb.ifx(aIsColumnMajor, {cb.assign(aColMajor, aInput)},
       {
         cb.assign(aColMajor, LinalgCodeUtils.createColumnMajorCode(aInput, cb, region))
@@ -72,7 +74,7 @@ object LinalgCodeUtils {
 
   def checkStandardStriding(aInput: PNDArrayValue, cb: EmitCodeBuilder, region: Value[Region]): (PNDArrayValue, Value[Boolean]) = {
     val aIsColumnMajor = LinalgCodeUtils.checkColumnMajor(aInput, cb)
-    val a = cb.emb.newPField("ndarray_output_standardized", aInput.pt).asInstanceOf[SNDArrayPointerSettable]
+    val a = cb.emb.newPField("ndarray_output_standardized", aInput.st).asInstanceOf[SNDArrayPointerSettable]
     cb.ifx(aIsColumnMajor, {cb.assign(a, aInput)}, {
       val isRowMajor = LinalgCodeUtils.checkRowMajor(aInput, cb)
       cb.ifx(isRowMajor, {cb.assign(a, aInput)}, {

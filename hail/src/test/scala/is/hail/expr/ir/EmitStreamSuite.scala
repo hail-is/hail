@@ -54,7 +54,6 @@ class EmitStreamSuite extends HailSuite {
     val ir = streamIR.deepCopy()
     val usesAndDefs = ComputeUsesAndDefs(ir, errorIfFreeVariables = false)
     val requiredness = Requiredness.apply(ir, usesAndDefs, null, Env.empty) // Value IR inference doesn't need context
-    InferPType(ir, Env.empty, requiredness, usesAndDefs)
 
     val emitContext = new EmitContext(ctx, requiredness)
 
@@ -128,7 +127,6 @@ class EmitStreamSuite extends HailSuite {
     val ir = streamIR.deepCopy()
     val usesAndDefs = ComputeUsesAndDefs(ir, errorIfFreeVariables = false)
     val requiredness = Requiredness.apply(ir, usesAndDefs, null, Env.empty) // Value IR inference doesn't need context
-    InferPType(ir, Env.empty, requiredness, usesAndDefs)
 
     val emitContext = new EmitContext(ctx, requiredness)
 

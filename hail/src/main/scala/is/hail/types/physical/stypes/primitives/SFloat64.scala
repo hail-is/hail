@@ -6,20 +6,19 @@ import is.hail.expr.ir.orderings.CodeOrdering
 import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, SortOrder}
 import is.hail.types.physical.stypes.{SCode, SType}
 import is.hail.types.physical.{PCode, PFloat64, PSettable, PType, PValue}
+import is.hail.types.virtual.{TFloat64, Type}
 import is.hail.utils.FastIndexedSeq
 
-case class SFloat64(required: Boolean) extends SPrimitive {
+case object SFloat64 extends SPrimitive {
   def ti: TypeInfo[_] = DoubleInfo
 
-  override def pType: PFloat64  = PFloat64(required)
+  lazy val virtualType: Type = TFloat64
+
+  override def castRename(t: Type): SType = this
 
   def coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = {
     value.st match {
-      case SFloat64(r) =>
-        if (r == required)
-          value
-        else
-          new SFloat64Code(required, value.asInstanceOf[SFloat64Code].code)
+      case SFloat64 => value
     }
   }
 
@@ -28,23 +27,23 @@ case class SFloat64(required: Boolean) extends SPrimitive {
   def loadFrom(cb: EmitCodeBuilder, region: Value[Region], pt: PType, addr: Code[Long]): SCode = {
     pt match {
       case _: PFloat64 =>
-        new SFloat64Code(required, Region.loadDouble(addr))
+        new SFloat64Code(Region.loadDouble(addr))
     }
   }
 
   def fromSettables(settables: IndexedSeq[Settable[_]]): SFloat64Settable = {
     val IndexedSeq(x: Settable[Double@unchecked]) = settables
     assert(x.ti == DoubleInfo)
-    new SFloat64Settable(required, x)
+    new SFloat64Settable(x)
   }
 
   def fromCodes(codes: IndexedSeq[Code[_]]): SFloat64Code = {
     val IndexedSeq(x: Code[Double@unchecked]) = codes
     assert(x.ti == DoubleInfo)
-    new SFloat64Code(required, x)
+    new SFloat64Code(x)
   }
 
-  def canonicalPType(): PType = pType
+  def canonicalPType(): PType = PFloat64()
 }
 
 trait PFloat64Value extends PValue {
@@ -53,20 +52,18 @@ trait PFloat64Value extends PValue {
 }
 
 object SFloat64Code {
-  def apply(code: Code[Double], required: Boolean = true): SFloat64Code = new SFloat64Code(required, code)
+  def apply(code: Code[Double]): SFloat64Code = new SFloat64Code(code)
 }
 
-class SFloat64Code(required: Boolean, val code: Code[Double]) extends PCode with SPrimitiveCode {
+class SFloat64Code(val code: Code[Double]) extends PCode with SPrimitiveCode {
   override def _primitiveCode: Code[_] = code
 
-  val pt: PFloat64 = PFloat64(required)
-
-  def st: SFloat64 = SFloat64(required)
+  def st: SFloat64.type = SFloat64
 
   def codeTuple(): IndexedSeq[Code[_]] = FastIndexedSeq(code)
 
   private[this] def memoizeWithBuilder(cb: EmitCodeBuilder, name: String, sb: SettableBuilder): PFloat64Value = {
-    val s = new SFloat64Settable(required, sb.newSettable[Double]("sint64_memoize"))
+    val s = new SFloat64Settable(sb.newSettable[Double]("sint64_memoize"))
     s.store(cb, this)
     s
   }
@@ -79,21 +76,21 @@ class SFloat64Code(required: Boolean, val code: Code[Double]) extends PCode with
 }
 
 object SFloat64Settable {
-  def apply(sb: SettableBuilder, name: String, required: Boolean): SFloat64Settable = {
-    new SFloat64Settable(required, sb.newSettable[Double](name))
+  def apply(sb: SettableBuilder, name: String): SFloat64Settable = {
+    new SFloat64Settable(sb.newSettable[Double](name))
   }
 }
 
-class SFloat64Settable(required: Boolean, x: Settable[Double]) extends PFloat64Value with PSettable {
-  val pt: PFloat64 = PFloat64(required)
+class SFloat64Settable(x: Settable[Double]) extends PFloat64Value with PSettable {
+  val pt: PFloat64 = PFloat64(false)
 
-  def st: SFloat64 = SFloat64(required)
+  def st: SFloat64.type = SFloat64
 
   def store(cb: EmitCodeBuilder, v: PCode): Unit = cb.assign(x, v.asDouble.doubleCode(cb))
 
   def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(x)
 
-  def get: PCode = new SFloat64Code(required, x)
+  def get: PCode = new SFloat64Code(x)
 
   def doubleCode(cb: EmitCodeBuilder): Code[Double] = x
 }

@@ -6,6 +6,7 @@ import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitCodeBuilder, IEmitCode}
 import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer, TypedCodecSpec}
 import is.hail.types.physical._
 import is.hail.types.virtual.{TCall, TInt32, Type}
+import is.hail.types.physical.stypes.interfaces._
 import is.hail.utils._
 
 import scala.language.existentials
@@ -188,7 +189,7 @@ class CallStatsAggregator extends StagedAggregator {
     val ac = acType.constructFromElements(cb, region, state.nAlleles, deepCopy = true) { (cb, i) =>
       val acAtIndex = cb.newLocal[Int]("callstats_result_acAtIndex", state.alleleCountAtIndex(i, state.nAlleles))
       cb.assign(alleleNumber, alleleNumber + acAtIndex)
-      IEmitCode.present(cb, PCode(acType.elementType, acAtIndex))
+      IEmitCode.present(cb, primitive(acAtIndex))
     }
 
     acType.storeAtAddress(cb, rt.fieldOffset(addr, "AC"), region, ac, deepCopy = false)
@@ -199,20 +200,20 @@ class CallStatsAggregator extends StagedAggregator {
         val afType = resultType.fieldType("AF").asInstanceOf[PCanonicalArray]
         val af = afType.constructFromElements(cb, region, state.nAlleles, deepCopy = true) { (cb, i) =>
           val acAtIndex = cb.newLocal[Int]("callstats_result_acAtIndex", state.alleleCountAtIndex(i, state.nAlleles))
-          IEmitCode.present(cb, PCode(afType.elementType, acAtIndex.toD / alleleNumber.toD))
+          IEmitCode.present(cb, primitive(acAtIndex.toD / alleleNumber.toD))
         }
         afType.storeAtAddress(cb, rt.fieldOffset(addr, "AF"), region, af, deepCopy = false)
       })
 
     val anType = resultType.fieldType("AN")
-    val an = PCode(anType, alleleNumber)
+    val an = primitive(alleleNumber)
     anType.storeAtAddress(cb, rt.fieldOffset(addr, "AN"), region, an, deepCopy = false)
 
 
     val homCountType = resultType.fieldType("homozygote_count").asInstanceOf[PCanonicalArray]
     val homCount = homCountType.constructFromElements(cb, region, state.nAlleles, deepCopy = true) { (cb, i) =>
       val homCountAtIndex = cb.newLocal[Int]("callstats_result_homCountAtIndex", state.homCountAtIndex(i, state.nAlleles))
-      IEmitCode.present(cb, PCode(PInt32Required, homCountAtIndex))
+      IEmitCode.present(cb, primitive(homCountAtIndex))
     }
 
     homCountType.storeAtAddress(cb, rt.fieldOffset(addr, "homozygote_count"), region, homCount, deepCopy = false)

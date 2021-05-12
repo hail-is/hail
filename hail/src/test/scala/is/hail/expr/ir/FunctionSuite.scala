@@ -7,6 +7,7 @@ import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.expr.ir.functions.{IRFunctionRegistry, RegistryFunctions}
 import is.hail.types.virtual._
+import is.hail.types.physical.stypes.interfaces._
 import is.hail.utils.{FastIndexedSeq, FastSeq}
 import is.hail.variant.Call2
 import org.testng.annotations.Test
@@ -31,10 +32,10 @@ object TestRegisterFunctions extends RegistryFunctions {
     registerJavaStaticFunction("compare", Array(TInt32, TInt32), TInt32, null)(classOf[java.lang.Integer], "compare")
     registerScalaFunction("foobar1", Array(), TInt32, null)(ScalaTestObject.getClass, "testFunction")
     registerScalaFunction("foobar2", Array(), TInt32, null)(ScalaTestCompanion.getClass, "testFunction")
-    registerCode2[Int, Int]("testCodeUnification", tnum("x"), tv("x", "int32"), tv("x"), null) {
-      case (_, rt, (aT, a: Code[Int]), (bT, b: Code[Int])) => a + b
+    registerPCode2("testCodeUnification", tnum("x"), tv("x", "int32"), tv("x"), null) {
+      case (_, cb, rt, a, b) => primitive(a.asInt.intCode(cb) + b.asInt.intCode(cb))
     }
-    registerCode1("testCodeUnification2", tv("x"), tv("x"), null) { case (_, rt, (aT, a: Code[Long])) => a }
+    registerPCode1("testCodeUnification2", tv("x"), tv("x"), null) { case (_, cb, rt, a) => a }
   }
 }
 

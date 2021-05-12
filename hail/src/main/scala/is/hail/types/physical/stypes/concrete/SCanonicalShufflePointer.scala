@@ -8,9 +8,15 @@ import is.hail.services.shuffler.Wire
 import is.hail.types.physical.stypes.interfaces.SShuffle
 import is.hail.types.physical.stypes.{SCode, SType}
 import is.hail.types.physical.{PCanonicalShuffle, PCode, PSettable, PShuffle, PShuffleCode, PShuffleValue, PType}
+import is.hail.types.virtual.Type
 import is.hail.utils.FastIndexedSeq
 
 case class SCanonicalShufflePointer(pType: PCanonicalShuffle) extends SShuffle {
+  require(!pType.required)
+
+  lazy val virtualType: Type = pType.virtualType
+
+  override def castRename(t: Type): SType = this
 
   lazy val binarySType = SBinaryPointer(pType.representation)
 

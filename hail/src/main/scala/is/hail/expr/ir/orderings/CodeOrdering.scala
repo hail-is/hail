@@ -51,11 +51,11 @@ object CodeOrdering {
     }
 
     t1.virtualType match {
-      case TInt32 => Int32Ordering.make(t1.asInstanceOf[SInt32], t2.asInstanceOf[SInt32], ecb)
-      case TInt64 => Int64Ordering.make(t1.asInstanceOf[SInt64], t2.asInstanceOf[SInt64], ecb)
-      case TFloat32 => Float32Ordering.make(t1.asInstanceOf[SFloat32], t2.asInstanceOf[SFloat32], ecb)
-      case TFloat64 => Float64Ordering.make(t1.asInstanceOf[SFloat64], t2.asInstanceOf[SFloat64], ecb)
-      case TBoolean => BooleanOrdering.make(t1.asInstanceOf[SBoolean], t2.asInstanceOf[SBoolean], ecb)
+      case TInt32 => Int32Ordering.make(t1.asInstanceOf[SInt32.type], t2.asInstanceOf[SInt32.type], ecb)
+      case TInt64 => Int64Ordering.make(t1.asInstanceOf[SInt64.type], t2.asInstanceOf[SInt64.type], ecb)
+      case TFloat32 => Float32Ordering.make(t1.asInstanceOf[SFloat32.type], t2.asInstanceOf[SFloat32.type], ecb)
+      case TFloat64 => Float64Ordering.make(t1.asInstanceOf[SFloat64.type], t2.asInstanceOf[SFloat64.type], ecb)
+      case TBoolean => BooleanOrdering.make(t1.asInstanceOf[SBoolean.type], t2.asInstanceOf[SBoolean.type], ecb)
       case TCall => CallOrdering.make(t1.asInstanceOf[SCall], t2.asInstanceOf[SCall], ecb)
       case TString => StringOrdering.make(t1.asInstanceOf[SString], t2.asInstanceOf[SString], ecb)
       case TBinary => BinaryOrdering.make(t1.asInstanceOf[SBinary], t2.asInstanceOf[SBinary], ecb)
@@ -79,9 +79,9 @@ abstract class CodeOrdering {
 
   final def checkedPCode[T](cb: EmitCodeBuilder, arg1: PCode, arg2: PCode, context: String,
     f: (EmitCodeBuilder, PCode, PCode) => Code[T])(implicit ti: TypeInfo[T]): Code[T] = {
-    if (!arg1.st.equalsExceptTopLevelRequiredness(type1))
+    if (arg1.st != type1)
       throw new RuntimeException(s"CodeOrdering: $context: type mismatch (left)\n  generated: $type1\n  argument:  ${ arg1.st }")
-    if (!arg2.st.equalsExceptTopLevelRequiredness(type2))
+    if (arg2.st != type2)
       throw new RuntimeException(s"CodeOrdering: $context: type mismatch (right)\n  generated: $type2\n  argument:  ${ arg2.st }")
 
     val cacheKey = ("ordering", reversed, type1, type2, context)
@@ -99,9 +99,9 @@ abstract class CodeOrdering {
 
   final def checkedEmitCode[T](cb: EmitCodeBuilder, arg1: EmitCode, arg2: EmitCode, missingEqual: Boolean, context: String,
     f: (EmitCodeBuilder, EmitCode, EmitCode, Boolean) => Code[T])(implicit ti: TypeInfo[T]): Code[T] = {
-    if (!arg1.st.equalsExceptTopLevelRequiredness(type1))
+    if (arg1.st != type1)
       throw new RuntimeException(s"CodeOrdering: $context: type mismatch (left)\n  generated: $type1\n  argument:  ${ arg1.st }")
-    if (!arg2.st.equalsExceptTopLevelRequiredness(type2))
+    if (arg2.st != type2)
       throw new RuntimeException(s"CodeOrdering: $context: type mismatch (right)\n  generated: $type2\n  argument:  ${ arg2.st }")
 
     val cacheKey = ("ordering", reversed, arg1.emitType, arg2.emitType, context, missingEqual)

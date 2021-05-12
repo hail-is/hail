@@ -362,7 +362,7 @@ class StagedConstructorSuite extends HailSuite {
     fb.emitWithBuilder { cb =>
       val region = fb.emb.getCodeParam[Region](1)
       rt.constructFromElements(cb, region, const(2), deepCopy = false) { (cb, idx) =>
-        IEmitCode(cb, idx > 0, new SInt32Code(false, fb.getCodeParam[Int](2)))
+        IEmitCode(cb, idx > 0, new SInt32Code(fb.getCodeParam[Int](2)))
       }.a
     }
 

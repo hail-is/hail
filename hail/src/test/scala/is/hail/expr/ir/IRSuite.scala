@@ -19,6 +19,7 @@ import is.hail.io.{BufferSpec, TypedCodecSpec}
 import is.hail.linalg.BlockMatrix
 import is.hail.methods._
 import is.hail.rvd.{RVD, RVDPartitioner, RVDSpecMaker}
+import is.hail.types.physical.stypes.{EmitType, SType}
 import is.hail.utils.{FastIndexedSeq, _}
 import is.hail.variant.{Call2, Locus}
 import is.hail.{ExecStrategy, HailContext, HailSuite, utils}
@@ -42,40 +43,40 @@ object IRSuite {
       name: String,
       valueParameterTypes: Array[Type],
       returnType: Type,
-      calculateReturnType: (Type, Seq[PType]) => PType
+      calculateReturnType: (Type, Seq[EmitType]) => EmitType
     )(
-      impl: (EmitCodeBuilder, Value[Region], PType, Long, Array[EmitCode]) => IEmitCode
+      impl: (EmitCodeBuilder, Value[Region], SType, Long, Array[EmitCode]) => IEmitCode
     ) {
       IRFunctionRegistry.addJVMFunction(
         new SeededMissingnessAwareJVMFunction(name, valueParameterTypes, returnType, calculateReturnType) {
           val isDeterministic: Boolean = false
-          def applySeededI(seed: Long, cb: EmitCodeBuilder, r: Value[Region], returnPType: PType, args: (PType, EmitCode)*): IEmitCode = {
-            assert(unify(FastSeq(), args.map(_._1.virtualType), returnPType.virtualType))
-            impl(cb, r, returnPType, seed, args.map(a => a._2).toArray)
+          def applySeededI(seed: Long, cb: EmitCodeBuilder, r: Value[Region], returnPType: SType, args: EmitCode*): IEmitCode = {
+            assert(unify(FastSeq(), args.map(_.st.virtualType), returnPType.virtualType))
+            impl(cb, r, returnPType, seed, args.toArray)
           }
         }
       )
     }
 
-    def registerSeededWithMissingness(
+    def registerSeededWithMissingness1(
       name: String,
       valueParameterType: Type,
       returnType: Type,
-      calculateReturnType: (Type, PType) => PType
+      calculateReturnType: (Type, EmitType) => EmitType
     )(
-      impl: (EmitCodeBuilder, Value[Region], PType, Long, EmitCode) => IEmitCode
+      impl: (EmitCodeBuilder, Value[Region], SType, Long, EmitCode) => IEmitCode
     ): Unit =
       registerSeededWithMissingness(name, Array(valueParameterType), returnType, unwrappedApply(calculateReturnType)) {
         case (cb, r, rt, seed, Array(a1)) => impl(cb, r, rt, seed, a1)
       }
 
     def registerAll() {
-      registerSeededWithMissingness("incr_s", TBoolean, TBoolean, { (ret: Type, pt: PType) => pt }) { case (cb, mb, rt, _, l) =>
+      registerSeededWithMissingness1("incr_s", TBoolean, TBoolean, { (ret: Type, pt: EmitType) => pt }) { case (cb, r, _, _, l) =>
         cb += Code.invokeScalaObject0[Unit](outer.getClass, "incr")
         l.toI(cb)
       }
 
-      registerSeededWithMissingness("incr_v", TBoolean, TBoolean, { (ret: Type, pt: PType) => pt }) { case (cb, mb, rt, _, l) =>
+      registerSeededWithMissingness1("incr_v", TBoolean, TBoolean, { (ret: Type, pt: EmitType) => pt }) { case (cb, _, _, _, l) =>
         l.toI(cb).map(cb) { pc =>
           cb += Code.invokeScalaObject0[Unit](outer.getClass, "incr")
           pc
@@ -88,11 +89,6 @@ object IRSuite {
 
 class IRSuite extends HailSuite {
   implicit val execStrats = ExecStrategy.nonLowering
-
-  def assertPType(node: IR, expected: PType) {
-    InferPType(node)
-    assert(node.pType == expected)
-  }
 
   @Test def testI32() {
     assertEvalsTo(I32(5), 5)
@@ -122,17 +118,6 @@ class IRSuite extends HailSuite {
   @Test def testFalse() {
     assertEvalsTo(False(), false)
   }
-
-  @Test def testScalarInferPType() {
-    assertPType(I32(5), PInt32(true))
-    assertPType(I64(5), PInt64(true))
-    assertPType(F32(3.1415f), PFloat32(true))
-    assertPType(F64(3.1415926589793238462643383), PFloat64(true))
-    assertPType(Str("HELLO WORLD"), PCanonicalString(true))
-    assertPType(True(), PBoolean(true))
-    assertPType(False(), PBoolean(true))
-  }
-
   // FIXME Void() doesn't work because we can't handle a void type in a tuple
 
   @Test def testCast() {
@@ -158,31 +143,6 @@ class IRSuite extends HailSuite {
       (Cast(F64(3.14), TFloat64), 3.14))
   }
 
-  @Test def testCastInferPType() {
-    assertPType(Cast(I32(5), TInt32), PInt32(true))
-    assertPType(Cast(I32(5), TInt64), PInt64(true))
-    assertPType(Cast(I32(5), TFloat32), PFloat32(true))
-    assertPType(Cast(I32(5), TFloat64), PFloat64(true))
-
-    assertPType(Cast(I64(5), TInt32), PInt32(true))
-    assertPType(Cast(I64(0xf29fb5c9af12107dL), TInt32), PInt32(true)) // truncate
-    assertPType(Cast(I64(5), TInt64), PInt64(true))
-    assertPType(Cast(I64(5), TFloat32), PFloat32(true))
-    assertPType(Cast(I64(5), TFloat64), PFloat64(true))
-
-    assertPType(Cast(F32(3.14f), TInt32), PInt32(true))
-    assertPType(Cast(F32(3.99f), TInt32), PInt32(true)) // truncate
-    assertPType(Cast(F32(3.14f), TInt64), PInt64(true))
-    assertPType(Cast(F32(3.14f), TFloat32), PFloat32(true))
-    assertPType(Cast(F32(3.14f), TFloat64), PFloat64(true))
-
-    assertPType(Cast(F64(3.14), TInt32), PInt32(true))
-    assertPType(Cast(F64(3.99), TInt32), PInt32(true)) // truncate
-    assertPType(Cast(F64(3.14), TInt64), PInt64(true))
-    assertPType(Cast(F64(3.14), TFloat32), PFloat32(true))
-    assertPType(Cast(F64(3.14), TFloat64), PFloat64(true))
-  }
-
   @Test def testCastRename() {
     assertEvalsTo(CastRename(MakeStruct(FastSeq(("x", I32(1)))), TStruct("foo" -> TInt32)), Row(1))
     assertEvalsTo(CastRename(MakeArray(FastSeq(MakeStruct(FastSeq(("x", I32(1))))),
@@ -190,62 +150,8 @@ class IRSuite extends HailSuite {
       FastIndexedSeq(Row(1)))
   }
 
-  @Test def testCastRenameIR() {
-    var expectedPType: PType = PCanonicalStruct(true, "foo" -> PInt32(true))
-    var childPType: PType = PCanonicalStruct(true, "x" -> PInt32(true))
-    var targetType: Type = TStruct("foo" -> TInt32)
-    assertPType(CastRename(In(0, SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(childPType))), targetType), expectedPType)
-
-    expectedPType = PCanonicalArray(PCanonicalStruct(true, "foo" -> PInt64(true)))
-    childPType = PCanonicalArray(PCanonicalStruct(true, "c" -> PInt64(true)))
-    targetType = TArray(TStruct("foo" -> TInt64))
-    assertPType(CastRename(In(0, SingleCodeEmitParamType(false, PTypeReferenceSingleCodeType(childPType))), targetType), expectedPType)
-
-    expectedPType = PCanonicalArray(PCanonicalStruct("foo" -> PCanonicalString(true)))
-    childPType = PCanonicalArray(PCanonicalStruct("q" -> PCanonicalString(true)))
-    targetType = TArray(TStruct("foo" -> TString))
-    assertPType(CastRename(In(0, SingleCodeEmitParamType(false, PTypeReferenceSingleCodeType(childPType))), targetType), expectedPType)
-
-    expectedPType = PCanonicalArray(PCanonicalStruct(true, "foo" -> PCanonicalStruct("baz" -> PBoolean(true))))
-    childPType = PCanonicalArray(PCanonicalStruct(true, "b" -> PCanonicalStruct("a" -> PBoolean(true))))
-    targetType = TArray(TStruct("foo" -> TStruct("baz" -> TBoolean)))
-    assertPType(CastRename(In(0, SingleCodeEmitParamType(false, PTypeReferenceSingleCodeType(childPType))), targetType), expectedPType)
-
-    expectedPType = PCanonicalArray(PCanonicalStruct("foo" -> PCanonicalArray(PFloat64(true), true), "bar" -> PCanonicalBinary()))
-    childPType = PCanonicalArray(PCanonicalStruct("x" -> PCanonicalArray(PFloat64(true), true), "y" -> PCanonicalBinary()))
-    targetType = TArray(TStruct("foo" -> TArray(TFloat64), "bar" -> TBinary))
-    assertPType(CastRename(In(0, SingleCodeEmitParamType(false, PTypeReferenceSingleCodeType(childPType))), targetType), expectedPType)
-
-    expectedPType = PCanonicalTuple(true, PCanonicalStruct(true, "foo" -> PCanonicalInterval(PFloat32())), PCanonicalStruct(false, "bar" -> PFloat64(true)))
-    childPType = PCanonicalTuple(true, PCanonicalStruct(true, "v" -> PCanonicalInterval(PFloat32())), PCanonicalStruct(false, "q" -> PFloat64(true)))
-    targetType = TTuple(TStruct("foo" -> TInterval(TFloat32)), TStruct("bar" -> TFloat64))
-    assertPType(CastRename(In(0, SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(childPType))), targetType), expectedPType)
-
-    expectedPType = PCanonicalDict(PCanonicalString(), PCanonicalTuple(false,
-      PCanonicalStruct("foo" -> PCanonicalStruct("bar" -> PCanonicalNDArray(PInt32(true), 3, true))),
-      PCanonicalStruct(false, "bar" -> PCanonicalBinary(true))))
-    childPType = PCanonicalDict(PCanonicalString(), PCanonicalTuple(false,
-      PCanonicalStruct("xxxxxx" -> PCanonicalStruct("qqq" -> PCanonicalNDArray(PInt32(true), 3, true))),
-      PCanonicalStruct(false, "ddd" -> PCanonicalBinary(true))))
-    targetType = TDict(TString, TTuple(TStruct("foo" -> TStruct("bar" -> TNDArray(TInt32, Nat(3)))),
-      TStruct("bar" -> TBinary)))
-    assertPType(CastRename(In(0, SingleCodeEmitParamType(false, PTypeReferenceSingleCodeType(childPType))), targetType), expectedPType)
-
-    expectedPType = PCanonicalStream(PCanonicalStruct("foo2a" -> PCanonicalArray(PFloat64(true), true), "bar2a" -> PCanonicalBinary()))
-    childPType = PCanonicalStream(PCanonicalStruct("q" -> PCanonicalArray(PFloat64(true), true), "yxxx" -> PCanonicalBinary()))
-    targetType = TStream(TStruct("foo2a" -> TArray(TFloat64), "bar2a" -> TBinary))
-    assertPType(CastRename(In(0, SingleCodeEmitParamType(false, PTypeReferenceSingleCodeType(childPType))), targetType), expectedPType)
-  }
-
   @Test def testNA() {
     assertEvalsTo(NA(TInt32), null)
-  }
-
-  @Test def testNAIsNAInferPType() {
-    assertPType(NA(TInt32), PInt32(false))
-
-    assertPType(IsNA(NA(TInt32)), PBoolean(true))
-    assertPType(IsNA(I32(5)), PBoolean(true))
   }
 
   @Test def testCoalesce() {
@@ -264,22 +170,6 @@ class IRSuite extends HailSuite {
     val value = FastIndexedSeq(1, 2, 3, 4)
 
     assertEvalsTo(Coalesce(FastSeq(t1, t2)), FastIndexedSeq((value, TArray(TInt32))), value)
-  }
-
-  @Test def testCoalesceInferPType() {
-    assertPType(Coalesce(FastSeq(In(0, SingleCodeEmitParamType(false, PTypeReferenceSingleCodeType(PCanonicalArray(PCanonicalArray(PInt32()))))),
-      In(0, SingleCodeEmitParamType(false, PTypeReferenceSingleCodeType(PCanonicalArray(PCanonicalArray(PInt32(true)))))))), PCanonicalArray(PCanonicalArray(PInt32())))
-    assertPType(Coalesce(FastSeq(In(0, SingleCodeEmitParamType(false, PTypeReferenceSingleCodeType(PCanonicalArray(PCanonicalArray(PInt32()))))),
-      In(0, SingleCodeEmitParamType(false, PTypeReferenceSingleCodeType(PCanonicalArray(PCanonicalArray(PInt32(true), true))))))), PCanonicalArray(PCanonicalArray(PInt32())))
-    assertPType(Coalesce(FastSeq(In(0, SingleCodeEmitParamType(false, PTypeReferenceSingleCodeType(PCanonicalArray(PCanonicalArray(PInt32()))))),
-      In(0, SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(PCanonicalArray(PCanonicalArray(PInt32(true), true), true)))))), PCanonicalArray(PCanonicalArray(PInt32()), true))
-    assertPType(Coalesce(FastSeq(In(0, SingleCodeEmitParamType(false, PTypeReferenceSingleCodeType(PCanonicalArray(PCanonicalArray(PInt32()))))),
-      In(0, SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(PCanonicalArray(PCanonicalArray(PInt32(true), true), true)))))), PCanonicalArray(PCanonicalArray(PInt32()), true))
-    assertPType(Coalesce(FastSeq(
-      In(0, SingleCodeEmitParamType(false, PTypeReferenceSingleCodeType(PCanonicalArray(PCanonicalArray(PInt32()))))),
-      In(0, SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(PCanonicalArray(PCanonicalArray(PInt32(), true))))),
-      In(0, SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(PCanonicalArray(PCanonicalArray(PInt32(true)), true))))
-    )), PCanonicalArray(PCanonicalArray(PInt32()), true))
   }
 
   val i32na = NA(TInt32)
@@ -316,84 +206,6 @@ class IRSuite extends HailSuite {
       (ApplyUnaryPrimOp(BitNot(), I64(-0xdeadbeef12345678L)), ~(-0xdeadbeef12345678L)),
       (ApplyUnaryPrimOp(BitNot(), i64na), null)
     )
-  }
-
-  @Test def testApplyUnaryPrimOpInferPType() {
-    val i32na = NA(TInt32)
-    def i64na = NA(TInt64)
-    def f32na = NA(TFloat32)
-    def f64na = NA(TFloat64)
-    def bna = NA(TBoolean)
-
-    var node = ApplyUnaryPrimOp(Negate(), I32(5))
-    assertPType(node, PInt32(true))
-    node = ApplyUnaryPrimOp(Negate(), i32na)
-    assertPType(node, PInt32(false))
-
-    // should not be able to infer physical type twice on one IR (i32na)
-    node = ApplyUnaryPrimOp(Negate(), i32na)
-    intercept[RuntimeException](InferPType(node))
-
-    node = ApplyUnaryPrimOp(Negate(), I64(5))
-    assertPType(node, PInt64(true))
-
-    node = ApplyUnaryPrimOp(Negate(), i64na)
-    assertPType(node, PInt64(false))
-
-    node = ApplyUnaryPrimOp(Negate(), F32(5))
-    assertPType(node, PFloat32(true))
-
-    node = ApplyUnaryPrimOp(Negate(), f32na)
-    assertPType(node, PFloat32(false))
-
-    node = ApplyUnaryPrimOp(Negate(), F64(5))
-    assertPType(node, PFloat64(true))
-
-    node = ApplyUnaryPrimOp(Negate(), f64na)
-    assertPType(node, PFloat64(false))
-
-    node = ApplyUnaryPrimOp(Bang(), False())
-    assertPType(node, PBoolean(true))
-
-    node = ApplyUnaryPrimOp(Bang(), True())
-    assertPType(node, PBoolean(true))
-
-    node = ApplyUnaryPrimOp(Bang(), bna)
-    assertPType(node, PBoolean(false))
-
-    node = ApplyUnaryPrimOp(BitNot(), I32(0xdeadbeef))
-    assertPType(node, PInt32(true))
-
-    node = ApplyUnaryPrimOp(BitNot(), I64(0xdeadbeef12345678L))
-    assertPType(node, PInt64(true))
-
-    node = ApplyUnaryPrimOp(BitNot(), I64(-0xdeadbeef12345678L))
-    assertPType(node, PInt64(true))
-
-    node = ApplyUnaryPrimOp(BitNot(), i64na)
-    assertPType(node, PInt64(false))
-  }
-
-  @Test def testComplexInferPType() {
-    // InferPType expects array->stream lowered ir
-    val ir = ToArray(StreamMap(
-      Let(
-        "q",
-        I32(2),
-        StreamMap(
-          Let(
-            "v",
-            Ref("q", TInt32) + I32(3),
-            StreamRange(0, Ref("v", TInt32), 1)
-          ),
-          "x",
-          Ref("x", TInt32) + Ref("q", TInt32)
-        )
-      ),
-      "y",
-      Ref("y", TInt32) + I32(3)))
-
-    assertPType(ir, PCanonicalArray(PInt32(true), true))
   }
 
   @Test def testApplyBinaryPrimOpAdd() {
@@ -791,30 +603,6 @@ class IRSuite extends HailSuite {
     assertEvalsTo(If(True(), NA(TInt32), I32(7)), null)
   }
 
-  @Test def testIfInferPType() {
-    assertPType(If(True(), In(0, SingleCodeEmitParamType(true, Int32SingleCodeType)), In(1, SingleCodeEmitParamType(true, Int32SingleCodeType))), PInt32(true))
-    assertPType(If(True(), In(0, SingleCodeEmitParamType(false, Int32SingleCodeType)), In(1, SingleCodeEmitParamType(true, Int32SingleCodeType))), PInt32(false))
-    assertPType(If(NA(TBoolean), In(0, SingleCodeEmitParamType(true, Int32SingleCodeType)), In(1, SingleCodeEmitParamType(true, Int32SingleCodeType))), PInt32(false))
-
-    var cnsqBranch = In(0, SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(PCanonicalArray(PCanonicalArray(PInt32(true), true), true))))
-    var altrBranch = In(1, SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(PCanonicalArray(PCanonicalArray(PInt32(true), true), true))))
-
-    var ir = If(True(), cnsqBranch, altrBranch)
-    assertPType(ir, PCanonicalArray(PCanonicalArray(PInt32(true), true), true))
-
-    cnsqBranch = In(0, SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(PCanonicalArray(PCanonicalArray(PInt32(true), true), true))))
-    altrBranch = In(1, SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(PCanonicalArray(PCanonicalArray(PInt32(false), true), true))))
-
-    ir = If(True(), cnsqBranch, altrBranch)
-    assertPType(ir, PCanonicalArray(PCanonicalArray(PInt32(false), true), true))
-
-    cnsqBranch = In(0, SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(PCanonicalArray(PCanonicalArray(PInt32(true), false), true))))
-    altrBranch = In(1, SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(PCanonicalArray(PCanonicalArray(PInt32(false), true), true))))
-
-    ir = If(True(), cnsqBranch, altrBranch)
-    assertPType(ir, PCanonicalArray(PCanonicalArray(PInt32(false), false), true))
-  }
-
   @Test def testLet() {
     assertEvalsTo(Let("v", I32(5), Ref("v", TInt32)), 5)
     assertEvalsTo(Let("v", NA(TInt32), Ref("v", TInt32)), null)
@@ -844,43 +632,6 @@ class IRSuite extends HailSuite {
   @Test def testMakeArray() {
     assertEvalsTo(MakeArray(FastSeq(I32(5), NA(TInt32), I32(-3)), TArray(TInt32)), FastIndexedSeq(5, null, -3))
     assertEvalsTo(MakeArray(FastSeq(), TArray(TInt32)), FastIndexedSeq())
-  }
-
-  @Test def testMakeArrayInferPTypeFromNestedRef() {
-    var ir = MakeArray(FastSeq(), TArray(TInt32))
-    assertPType(ir, PCanonicalArray(PInt32(true), true))
-
-    val eltType = TStruct("a" -> TArray(TArray(TInt32)), "b" -> TInt32, "c" -> TDict(TInt32, TString))
-
-    val pTypes = Array[PType](
-      PCanonicalStruct(true,
-        "a" -> PCanonicalArray(PCanonicalArray(PInt32(false), true), false),
-        "b" -> PInt32(true),
-        "c" -> PCanonicalDict(PInt32(false), PCanonicalString(false), false)),
-      PCanonicalStruct(true,
-        "a" -> PCanonicalArray(PCanonicalArray(PInt32(true), true), true),
-        "b" -> PInt32(true),
-        "c" -> PCanonicalDict(PInt32(true), PCanonicalString(true), true)))
-
-    val unified = PCanonicalStruct(true,
-      "a" -> PCanonicalArray(PCanonicalArray(PInt32(false), true), false),
-      "b" -> PInt32(true),
-      "c" -> PCanonicalDict(PInt32(false), PCanonicalString(false), false))
-
-    assertPType(MakeArray(Array(In(0, SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(pTypes(0))))), TArray(eltType)), PCanonicalArray(pTypes(0), true))
-    assertPType(MakeArray(Array(In(0, SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(pTypes(0)))), In(1, SingleCodeEmitParamType(true, PTypeReferenceSingleCodeType(pTypes(1))))), TArray(eltType)), PCanonicalArray(pTypes(0), true))
-  }
-
-  @Test def testMakeArrayInferPType() {
-    var ir = MakeArray(FastSeq(I32(5), NA(TInt32), I32(-3)), TArray(TInt32))
-
-    assertPType(ir, PCanonicalArray(PInt32(false), true))
-
-    ir = MakeArray(FastSeq(I32(5), I32(1), I32(-3)), TArray(TInt32))
-
-    assertPType(ir, PCanonicalArray(PInt32(true), true))
-
-    ir = MakeArray(FastSeq(I32(5), I32(1), I32(-3)), TArray(TInt32))
   }
 
   @Test def testGetNestedElementPTypesI32() {
@@ -1453,45 +1204,11 @@ class IRSuite extends HailSuite {
     assert(res == PCanonicalInterval(PCanonicalInterval(PInt32(false), false), true))
   }
 
-  @Test def testToDictInferPtype() {
-    val allRequired = ToDict(MakeStream(FastIndexedSeq(
-      MakeTuple.ordered(FastIndexedSeq(I32(5), Str("a"))),
-      MakeTuple.ordered(FastIndexedSeq(I32(10), Str("b")))
-    ), TStream(TTuple(TInt32, TString))))
-
-    assertPType(allRequired, PCanonicalDict(PInt32(true), PCanonicalString(true), true))
-
-    var notAllRequired = ToDict(MakeStream(FastIndexedSeq(
-      MakeTuple.ordered(FastIndexedSeq(NA(TInt32), Str("a"))),
-      MakeTuple.ordered(FastIndexedSeq(I32(10), Str("b")))
-    ), TStream(TTuple(TInt32, TString))))
-
-    assertPType(notAllRequired, PCanonicalDict(PInt32(false), PCanonicalString(true), true))
-
-    notAllRequired = ToDict(MakeStream(FastIndexedSeq(
-      MakeTuple.ordered(FastIndexedSeq(NA(TInt32), Str("a"))),
-      MakeTuple.ordered(FastIndexedSeq(I32(10), NA(TString))
-    )), TStream(TTuple(TInt32, TString))))
-
-    assertPType(notAllRequired, PCanonicalDict(PInt32(false), PCanonicalString(false), true))
-  }
-
   @Test def testMakeStruct() {
     assertEvalsTo(MakeStruct(FastSeq()), Row())
     assertEvalsTo(MakeStruct(FastSeq("a" -> NA(TInt32), "b" -> 4, "c" -> 0.5)), Row(null, 4, 0.5))
     //making sure wide structs get emitted without failure
     assertEvalsTo(GetField(MakeStruct((0 until 20000).map(i => s"foo$i" -> I32(1))), "foo1"), 1)
-  }
-
-  @Test def testMakeStructInferPType() {
-    var ir = MakeStruct(FastSeq())
-    assertPType(ir, PCanonicalStruct(true))
-
-    ir = MakeStruct(FastSeq("a" -> NA(TInt32), "b" -> 4, "c" -> 0.5))
-    assertPType(ir, PCanonicalStruct(true, "a" -> PInt32(false), "b" -> PInt32(true), "c" -> PFloat64(true)))
-
-    val ir2 = GetField(MakeStruct((0 until 20000).map(i => s"foo$i" -> I32(1))), "foo1")
-    assertPType(ir2, PInt32(true))
   }
 
   @Test def testMakeArrayWithDifferentRequiredness(): Unit = {
@@ -2701,11 +2418,6 @@ class IRSuite extends HailSuite {
   @Test def testDie() {
     assertFatal(Die("mumblefoo", TFloat64), "mble")
     assertFatal(Die(NA(TString), TFloat64, -1), "message missing")
-  }
-
-  @Test def testDieInferPType() {
-    assertPType(Die("mumblefoo", TFloat64), PFloat64(true))
-    assertPType(Die("mumblefoo", TArray(TFloat64)), PCanonicalArray(PFloat64(true), true))
   }
 
   @Test def testStreamRange() {

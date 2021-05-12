@@ -3,6 +3,7 @@ package is.hail.expr.ir
 import is.hail.expr.ir.functions.GetElement
 import is.hail.methods.ForceCountTable
 import is.hail.types._
+import is.hail.types.physical.stypes.EmitType
 import is.hail.types.physical.{PCanonicalStream, PStream, PType, PTypeReferenceSingleCodeType, StreamSingleCodeType}
 import is.hail.types.virtual._
 import is.hail.utils._
@@ -24,6 +25,7 @@ object Requiredness {
 
 case class RequirednessAnalysis(r: Memo[BaseTypeWithRequiredness], states: Memo[IndexedSeq[TypeWithRequiredness]]) {
   def lookup(node: BaseIR): BaseTypeWithRequiredness = r.lookup(node)
+  def lookupState(node: BaseIR): IndexedSeq[BaseTypeWithRequiredness] = states.lookup(node)
   def lookupOpt(node: BaseIR): Option[BaseTypeWithRequiredness] = r.get(node)
   def apply(node: IR): TypeWithRequiredness = coerce[TypeWithRequiredness](lookup(node))
   def getState(node: IR): IndexedSeq[TypeWithRequiredness] = states(node)
@@ -663,8 +665,11 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
         requiredness.unionFrom(oldReq.field(idx))
       case x: ApplyIR => requiredness.unionFrom(lookup(x.body))
       case x: AbstractApplyNode[_] => //FIXME: round-tripping via PTypes.
-        val argP = x.args.map(a => lookup(a).canonicalPType(a.typ))
-        requiredness.fromPType(x.implementation.returnPType(x.returnType, argP))
+        val argP = x.args.map { a =>
+          val pt = lookup(a).canonicalPType(a.typ)
+          EmitType(pt.sType, pt.required)
+        }
+        requiredness.fromPType(x.implementation.computeReturnEmitType(x.returnType, argP).canonicalPType)
       case CollectDistributedArray(ctxs, globs, _, _, body, _) =>
         requiredness.union(lookup(ctxs).required)
         coerce[RIterable](requiredness).elementType.unionFrom(lookup(body))
@@ -679,7 +684,7 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
         requiredness.union(lookup(path).required)
         requiredness.fromPType(spec.encodedType.decodedPType(rt))
       case In(_, t) => t match {
-        case PCodeEmitParamType(pt) => requiredness.fromPType(pt)
+        case PCodeEmitParamType(et) => requiredness.fromPType(et.canonicalPType)
         case SingleCodeEmitParamType(required, StreamSingleCodeType(_, eltType)) => requiredness.fromPType(PCanonicalStream(eltType, required)) // fixme hacky
         case SingleCodeEmitParamType(required, PTypeReferenceSingleCodeType(pt)) => requiredness.fromPType(pt.setRequired(required))
         case SingleCodeEmitParamType(required, _) => requiredness.union(required)

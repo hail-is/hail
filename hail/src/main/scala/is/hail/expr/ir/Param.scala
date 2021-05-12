@@ -1,6 +1,7 @@
 package is.hail.expr.ir
 
 import is.hail.asm4s.{BooleanInfo, Code, TypeInfo, classInfo}
+import is.hail.types.physical.stypes.{EmitType, SType}
 import is.hail.types.physical.{PCode, PType, SingleCodePCode, SingleCodeType}
 import is.hail.types.virtual.Type
 import is.hail.utils.FastIndexedSeq
@@ -17,10 +18,10 @@ case class CodeParamType(ti: TypeInfo[_]) extends ParamType {
   override def toString: String = s"CodeParam($ti)"
 }
 
-case class PCodeParamType(pt: PType) extends ParamType {
-  def nCodes: Int = pt.nCodes
+case class PCodeParamType(st: SType) extends ParamType {
+  def nCodes: Int = st.nCodes
 
-  override def toString: String = s"PCodeParam($pt, $nCodes)"
+  override def toString: String = s"PCodeParam($st, $nCodes)"
 }
 
 trait EmitParamType extends ParamType {
@@ -49,14 +50,12 @@ case class SingleCodeEmitParamType(required: Boolean, sct: SingleCodeType) exten
   override def toString: String = s"SingleCodeEmitParamType($required, $sct)"
 }
 
-case class PCodeEmitParamType(pt: PType) extends EmitParamType {
-  def required: Boolean = pt.required
+case class PCodeEmitParamType(et: EmitType) extends EmitParamType {
+  def required: Boolean = et.required
 
-  def virtualType: Type = pt.virtualType
+  def virtualType: Type = et.st.virtualType
 
-  def definedTupleTypes(): IndexedSeq[TypeInfo[_]] = pt.codeTupleTypes()
-
-  override def toString: String = s"PTypeEmitParamType($pt, $nCodes)"
+  def definedTupleTypes(): IndexedSeq[TypeInfo[_]] = et.st.codeTupleTypes()
 }
 
 sealed trait Param

@@ -6,19 +6,28 @@ import is.hail.expr.ir.orderings.CodeOrdering
 import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, SortOrder}
 import is.hail.types.physical.stypes.interfaces.{SNDArray, SNDArrayValue}
 import is.hail.types.physical.stypes.{SCode, SType}
-import is.hail.types.physical.{PBaseStructCode, PCanonicalNDArray, PCode, PNDArray, PNDArrayCode, PNDArrayValue, PSettable, PType, PValue}
+import is.hail.types.physical.{PBaseStructCode, PCanonicalNDArray, PCode, PContainer, PNDArray, PNDArrayCode, PNDArrayValue, PSettable, PType, PValue}
+import is.hail.types.virtual.Type
 import is.hail.utils.FastIndexedSeq
 
 case class SNDArrayPointer(pType: PCanonicalNDArray) extends SNDArray {
+  require(!pType.required)
+
   def nDims: Int = pType.nDims
 
   override def elementType: SType = pType.elementType.sType
+
+  lazy val virtualType: Type = pType.virtualType
+
+  override def castRename(t: Type): SType = SNDArrayPointer(pType.deepRename(t))
 
   def coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = {
     new SNDArrayPointerCode(this, pType.store(cb, region, value, deepCopy))
   }
 
   def codeTupleTypes(): IndexedSeq[TypeInfo[_]] = FastIndexedSeq(LongInfo)
+
+  override def settableTupleTypes(): IndexedSeq[TypeInfo[_]] = Array.fill(2 + nDims * 2)(LongInfo)
 
   def loadFrom(cb: EmitCodeBuilder, region: Value[Region], pt: PType, addr: Code[Long]): SCode = {
     if (pt == this.pType)

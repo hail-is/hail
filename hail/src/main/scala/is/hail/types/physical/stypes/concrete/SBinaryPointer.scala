@@ -7,10 +7,14 @@ import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, SortOrder}
 import is.hail.types.physical.stypes.interfaces.SBinary
 import is.hail.types.physical.stypes.{SCode, SType}
 import is.hail.types.physical.{PBinary, PBinaryCode, PBinaryValue, PCode, PSettable, PType}
+import is.hail.types.virtual.Type
 import is.hail.utils._
 
 
 case class SBinaryPointer(pType: PBinary) extends SBinary {
+  require(!pType.required)
+
+  lazy val virtualType: Type = pType.virtualType
   def coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = {
     new SBinaryPointerCode(this, pType.store(cb, region, value, deepCopy))
   }
@@ -37,6 +41,8 @@ case class SBinaryPointer(pType: PBinary) extends SBinary {
   }
 
   def canonicalPType(): PType = pType
+
+  override def castRename(t: Type): SType = this
 }
 
 object SBinaryPointerSettable {
@@ -45,7 +51,7 @@ object SBinaryPointerSettable {
 }
 
 class SBinaryPointerSettable(val st: SBinaryPointer, val a: Settable[Long]) extends PBinaryValue with PSettable {
-  val pt: PBinary = st.pType
+  private val pt: PBinary = st.pType
 
   override def bytesAddress(): Code[Long] = st.pType.bytesAddress(a)
 
@@ -63,7 +69,7 @@ class SBinaryPointerSettable(val st: SBinaryPointer, val a: Settable[Long]) exte
 }
 
 class SBinaryPointerCode(val st: SBinaryPointer, val a: Code[Long]) extends PBinaryCode {
-  val pt: PBinary = st.pType
+  private val pt: PBinary = st.pType
 
   def code: Code[_] = a
 

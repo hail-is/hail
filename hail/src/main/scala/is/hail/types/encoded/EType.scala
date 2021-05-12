@@ -162,7 +162,7 @@ abstract class EType extends BaseType with Serializable with Requiredness {
   }
 
   final def decodedPType(requestedType: Type): PType = {
-    decodedSType(requestedType).canonicalPType()
+    decodedSType(requestedType).canonicalPType().setRequired(required)
   }
 
   def _decodedSType(requestedType: Type): SType

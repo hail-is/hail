@@ -388,7 +388,7 @@ object CompileDecoder {
                             cb.goto(Lpresent)
                           })))
 
-                    IEmitCode(Lmissing, Lpresent, new SCanonicalCallCode(false, value), false)
+                    IEmitCode(Lmissing, Lpresent, new SCanonicalCallCode(value), false)
                   }
 
                 if (includeGP)

@@ -4,14 +4,16 @@ import is.hail.annotations.Region
 import is.hail.asm4s.{coerce => _, _}
 import is.hail.types.{coerce => _, _}
 import is.hail.expr.ir._
-import is.hail.types.physical.stypes.SCode
+import is.hail.types.physical.stypes.{EmitType, SCode, SType}
+import is.hail.types.physical.stypes.primitives.{SFloat64, SInt32}
+import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.physical.{PArray, PCode, PFloat64, PIndexableCode, PInt32, PType}
 import is.hail.types.virtual.{TArray, TFloat64, TInt32, Type}
 
 object GenotypeFunctions extends RegistryFunctions {
 
   def registerAll() {
-    registerPCode1("gqFromPL", TArray(tv("N", "int32")), TInt32, (_: Type, _: PType) => PInt32())
+    registerPCode1("gqFromPL", TArray(tv("N", "int32")), TInt32, (_: Type, _: SType) => SInt32)
     { case (r, cb, rt, _pl: PIndexableCode) =>
       val code = EmitCodeBuilder.scopedCode(r.mb) { cb =>
         val pl = _pl.memoize(cb, "plv")
@@ -33,11 +35,11 @@ object GenotypeFunctions extends RegistryFunctions {
         })
         m2 - m
       }
-      PCode(rt, code)
+      primitive(code)
     }
 
     registerIEmitCode1("dosage", TArray(tv("N", "float64")), TFloat64,
-      (_: Type, arrayType: PType) => PFloat64(arrayType.required && arrayType.asInstanceOf[PArray].elementType.required)
+      (_: Type, arrayType: EmitType) => EmitType(SFloat64, arrayType.required && arrayType.st.asInstanceOf[SContainer].elementEmitType.required)
     ) { case (cb, r, rt, gp) =>
       gp.toI(cb).flatMap(cb) { case (gpc: PIndexableCode) =>
         val gpv = gpc.memoize(cb, "dosage_gp")
@@ -47,7 +49,7 @@ object GenotypeFunctions extends RegistryFunctions {
 
         gpv.loadElement(cb, 1).flatMap(cb) { (_1: SCode) =>
           gpv.loadElement(cb, 2).map(cb) { (_2: SCode) =>
-            PCode(rt, _1.asDouble.doubleCode(cb) + _2.asDouble.doubleCode(cb) * 2.0)
+            primitive(_1.asDouble.doubleCode(cb) + _2.asDouble.doubleCode(cb) * 2.0)
           }
         }
       }

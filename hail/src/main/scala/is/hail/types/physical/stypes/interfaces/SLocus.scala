@@ -7,6 +7,7 @@ import is.hail.variant.{Locus, ReferenceGenome}
 
 trait SLocus extends SType {
   def rg: ReferenceGenome
+  def contigType: SString
 }
 
 trait SLocusValue extends SValue {
@@ -19,6 +20,8 @@ trait SLocusValue extends SValue {
 }
 
 trait SLocusCode extends SCode {
+  def st: SLocus
+
   def contig(cb: EmitCodeBuilder): SStringCode
 
   def position(cb: EmitCodeBuilder): Code[Int]

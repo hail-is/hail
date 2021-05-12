@@ -7,10 +7,17 @@ import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, SortOrder}
 import is.hail.types.physical.stypes.interfaces.{SString, SStringCode}
 import is.hail.types.physical.stypes.{SCode, SType}
 import is.hail.types.physical.{PBinaryCode, PCanonicalString, PCode, PSettable, PString, PStringCode, PStringValue, PType, PValue}
+import is.hail.types.virtual.Type
 import is.hail.utils.FastIndexedSeq
 
 
 case class SStringPointer(pType: PString) extends SString {
+  require(!pType.required)
+
+  lazy val virtualType: Type = pType.virtualType
+
+  override def castRename(t: Type): SType = this
+
   def coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = {
     new SStringPointerCode(this, pType.store(cb, region, value, deepCopy))
   }

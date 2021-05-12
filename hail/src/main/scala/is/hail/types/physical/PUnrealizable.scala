@@ -45,13 +45,11 @@ trait PUnrealizable extends PType {
 
 trait PUnrealizableCode extends PCode {
   private def unsupported: Nothing =
-    throw new UnsupportedOperationException(s"$pt is not realizable")
+    throw new UnsupportedOperationException(s"$this is not realizable")
 
   def code: Code[_] = unsupported
 
   def codeTuple(): IndexedSeq[Code[_]] = unsupported
-
-  override def typeInfo: TypeInfo[_] = unsupported
 
   def memoizeField(cb: EmitCodeBuilder, name: String): PValue = unsupported
 }

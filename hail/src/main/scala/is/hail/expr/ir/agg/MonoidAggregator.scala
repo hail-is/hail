@@ -4,6 +4,7 @@ import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.expr.ir.functions.UtilFunctions
 import is.hail.expr.ir.{coerce => _, _}
+import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.physical.{PCode, PType, typeToTypeInfo}
 import is.hail.types.virtual._
 
@@ -31,12 +32,12 @@ class MonoidAggregator(monoid: StagedMonoidSpec) extends StagedAggregator {
     assert(init.length == 0)
     val stateRequired = state.vtypes.head.r.required
     val ev = state.fields(0)
-    if (!ev.pt.required) {
+    if (!ev.required) {
         assert(!stateRequired, s"monoid=$monoid, stateRequired=$stateRequired")
-        cb.assign(ev, EmitCode.missing(cb.emb, ev.pt))
+        cb.assign(ev, EmitCode.missing(cb.emb, ev.st))
     } else {
         assert(stateRequired, s"monoid=$monoid, stateRequired=$stateRequired")
-        cb.assign(ev, EmitCode.present(cb.emb, PCode(ev.pt, monoid.neutral.get)))
+        cb.assign(ev, EmitCode.present(cb.emb, primitive(ev.st.virtualType, monoid.neutral.get)))
     }
   }
 
@@ -67,7 +68,7 @@ class MonoidAggregator(monoid: StagedMonoidSpec) extends StagedAggregator {
     cb.ifx(ev1.m,
       cb.ifx(!ev2.m, cb.assign(ev1, ev2)),
       cb.ifx(!ev2.m,
-        cb.assign(ev1, EmitCode.present(cb.emb, PCode(ev1.pt, monoid(ev1.v, ev2.v))))))
+        cb.assign(ev1, EmitCode.present(cb.emb, primitive(ev1.st.virtualType, monoid(ev1.v, ev2.v))))))
   }
 }
 

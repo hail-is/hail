@@ -102,7 +102,7 @@ class IndexWriterArrayBuilder(name: String, maxSize: Int, sb: SettableBuilder, r
   private val aoff = sb.newSettable[Long](s"${name}_aoff")
   private val len = sb.newSettable[Int](s"${name}_len")
 
-  val eltType: PCanonicalStruct = types.coerce[PCanonicalStruct](arrayType.elementType)
+  val eltType: PCanonicalStruct = types.coerce[PCanonicalStruct](arrayType.elementType.setRequired((false)))
   private val elt = new SBaseStructPointerSettable(SBaseStructPointer(eltType), sb.newSettable[Long](s"${name}_elt_off"))
 
   def length: Code[Int] = len
@@ -135,10 +135,8 @@ class IndexWriterArrayBuilder(name: String, maxSize: Int, sb: SettableBuilder, r
     loadChild(cb, len)
     cb.assign(len, len + 1)
   }
-  def loadChild(cb: EmitCodeBuilder, idx: Code[Int]): Unit = elt.store(cb, PCode(eltType, arrayType.elementOffset(aoff, idx)))
+  def loadChild(cb: EmitCodeBuilder, idx: Code[Int]): Unit = elt.store(cb, eltType.loadCheapPCode(cb, arrayType.loadElement(aoff, idx)))
   def getLoadedChild: PBaseStructValue = elt
-
-  def getChild(idx: Value[Int]): PCode = PCode(eltType, arrayType.elementOffset(aoff, idx))
 }
 
 class StagedIndexWriterUtils(ib: Settable[IndexWriterUtils]) {
@@ -245,9 +243,9 @@ object StagedIndexWriter {
       .voidWithBuilder(cb => siw.init(cb, cb.emb.getCodeParam[String](1)))
     fb.emb.voidWithBuilder { cb =>
       siw.add(cb,
-        IEmitCode(cb, false, PCode(keyType, fb.getCodeParam[Long](1))),
+        IEmitCode(cb, false, keyType.loadCheapPCode(cb, fb.getCodeParam[Long](1))),
         fb.getCodeParam[Long](2),
-        IEmitCode(cb, false, PCode(annotationType, fb.getCodeParam[Long](3))))
+        IEmitCode(cb, false, annotationType.loadCheapPCode(cb, fb.getCodeParam[Long](3))))
     }
     cb.newEmitMethod("close", FastIndexedSeq[ParamType](), typeInfo[Unit])
       .voidWithBuilder(siw.close)

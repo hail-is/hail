@@ -56,7 +56,7 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
   }
 
   def assign(s: PSettable, v: PCode): Unit = {
-    assert(s.pt.equalModuloRequired(v.pt), s"type mismatch!\n  settable=${s.pt}\n     passed=${v.pt}")
+    assert(s.st == v.st, s"type mismatch!\n  settable=${s.st}\n     passed=${v.st}")
     s.store(this, v)
   }
 
@@ -79,34 +79,34 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
   def memoize(pc: PCode, name: String): PValue = pc.memoize(this, name)
 
   def memoizeField(pc: PCode, name: String): PValue = {
-    val f = emb.newPField(name, pc.pt)
+    val f = emb.newPField(name, pc.st)
     assign(f, pc)
     f
   }
 
   def memoize(v: EmitCode, name: String): EmitValue = {
-    require(v.pt.isRealizable)
+    require(v.st.isRealizable)
     val l = emb.newEmitLocal(name, v.emitType)
     assign(l, v)
     l
   }
 
   def memoize(v: IEmitCode, name: String): EmitValue = {
-    require(v.pt.isRealizable)
+    require(v.st.isRealizable)
     val l = emb.newEmitLocal(name, v.emitType)
     assign(l, v)
     l
   }
 
   def memoizeField[T](ec: EmitCode, name: String): EmitValue = {
-    require(ec.pt.isRealizable)
+    require(ec.st.isRealizable)
     val l = emb.newEmitField(name, ec.emitType)
     l.store(this, ec)
     l
   }
 
   def withScopedMaybeStreamValue[T](ec: EmitCode, name: String)(f: EmitValue => T): T = {
-    if (ec.pt.isRealizable) {
+    if (ec.st.isRealizable) {
       f(memoizeField(ec, name))
     } else {
       val ev = new EmitUnrealizableValue(ec)
@@ -119,7 +119,7 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
   }
 
   def memoizeField(v: IEmitCode, name: String): EmitValue = {
-    require(v.pt.isRealizable)
+    require(v.st.isRealizable)
     val l = emb.newEmitField(name, v.emitType)
     assign(l, v)
     l
@@ -143,30 +143,26 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
               s"\n  all param types: ${expectedArgs}-")
           FastIndexedSeq(c)
         case (PCodeParam(pc), pcpt: PCodeParamType) =>
-          if (!pc.pt.equalModuloRequired(pcpt.pt))
+          if (pc.st != pcpt.st)
             throw new RuntimeException(s"invoke ${ callee.mb.methodName }: arg $i: type mismatch:" +
-              s"\n  got ${ pc.pt }" +
-              s"\n  expected ${ pcpt.pt }")
+              s"\n  got ${ pc.st }" +
+              s"\n  expected ${ pcpt.st }")
           pc.codeTuple()
-        case (EmitParam(ec), PCodeEmitParamType(pt)) =>
-          if (!ec.pt.equalModuloRequired(pt)) {
+        case (EmitParam(ec), PCodeEmitParamType(et)) =>
+          if (!ec.emitType.equalModuloRequired(et)) {
             throw new RuntimeException(s"invoke ${callee.mb.methodName}: arg $i: type mismatch:" +
-              s"\n  got ${ec.pt}" +
-              s"\n  expected ${pt}")
+              s"\n  got ${ec.st}" +
+              s"\n  expected ${et.st}")
           }
 
-          val castEc = (ec.pt.required, pt.required) match {
-            case (true, false) =>
-              EmitCode.fromI(emb)(cb => ec.toI(cb).map(cb)(pc => PCode(pc.pt.setRequired(pt.required), pc.code)))
+          val castEc = (ec.required, et.required) match {
+            case (true, false) => ec.setOptional
             case (false, true) =>
-              EmitCode.fromI(emb) { cb =>
-                val presentPC = ec.toI(cb).get(cb)
-                IEmitCode.present(cb, PCode(presentPC.pt.setRequired(pt.required), presentPC.code))
-              }
+              EmitCode.fromI(emb) { cb => IEmitCode.present(cb, ec.toI(cb).get(cb)) }
             case _ => ec
           }
 
-          if (castEc.pt.required) {
+          if (castEc.required) {
             append(Code.toUnit(castEc.m))
             castEc.codeTuple()
           } else {
@@ -200,23 +196,14 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
 
   // FIXME: this should be invokeSCode and should allocate/destructure a tuple when more than one code is present
   def invokePCode(callee: EmitMethodBuilder[_], args: Param*): PCode = {
-    val pt = callee.emitReturnType.asInstanceOf[PCodeParamType].pt
-    PCode(pt, _invoke(callee, args: _*))
+    val st = callee.emitReturnType.asInstanceOf[PCodeParamType].st
+    assert(st.nCodes == 1, st)
+    st.fromCodes(FastIndexedSeq(_invoke(callee, args: _*))).asInstanceOf[PCode]
   }
 
   // for debugging
-  def printRegionValue(value: Code[_], typ: PType, region: Value[Region]): Unit = {
-    append(Code._println(StringFunctions.boxArg(EmitRegion(emb, region), typ)(value)))
-  }
-
-  // for debugging
-  def strValue(t: PType, code: Code[_]): Code[String] = {
-    StringFunctions.boxArg(EmitRegion(emb, emb.partitionRegion), t)(code).invoke[String]("toString")
-  }
-
   def strValue(sc: SCode): Code[String] = {
-    val x = sc.asPCode
-    strValue(x.pt, x.code)
+    StringFunctions.scodeToJavaValue(this, emb.partitionRegion, sc).invoke[String]("toString")
   }
 
   def strValue(ec: EmitCode): Code[String] = {

@@ -51,8 +51,8 @@ class EBinary(override val required: Boolean) extends EType {
   }
 
   def _decodedSType(requestedType: Type): SType = requestedType match {
-    case TBinary => SBinaryPointer(PCanonicalBinary(required))
-    case TString => SStringPointer(PCanonicalString(required))
+    case TBinary => SBinaryPointer(PCanonicalBinary(false))
+    case TString => SStringPointer(PCanonicalString(false))
   }
 
   def _asIdent = "binary"

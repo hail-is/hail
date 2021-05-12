@@ -4,6 +4,10 @@ import is.hail.asm4s.{Code, _}
 import is.hail.expr.ir._
 import is.hail.expr.ir.orderings.CodeOrdering
 import is.hail.types.physical._
+import is.hail.types.physical.stypes.{EmitType, SType}
+import is.hail.types.physical.stypes.concrete.SIntervalPointer
+import is.hail.types.physical.stypes.interfaces._
+import is.hail.types.physical.stypes.primitives.SBoolean
 import is.hail.types.virtual._
 
 object IntervalFunctions extends RegistryFunctions {
@@ -11,18 +15,18 @@ object IntervalFunctions extends RegistryFunctions {
   def registerAll(): Unit = {
 
     registerIEmitCode4("Interval", tv("T"), tv("T"), TBoolean, TBoolean, TInterval(tv("T")),
-      { case (_: Type, startpt, endpt, includesStartPT, includesEndPT) =>
-        PCanonicalInterval(
-          InferPType.getCompatiblePType(Seq(startpt, endpt)),
-          required = includesStartPT.required && includesEndPT.required
-        )
+      { case (_: Type, startpt, endpt, includesStartET, includesEndET) =>
+        EmitType(PCanonicalInterval(
+          InferPType.getCompatiblePType(Seq(includesStartET.canonicalPType, includesEndET.canonicalPType)),
+          required = includesStartET.required && includesEndET.required
+        ).sType, includesStartET.required && includesEndET.required)
       }) {
-      case (cb, r, rt: PCanonicalInterval, start, end, includesStart, includesEnd) =>
+      case (cb, r, SIntervalPointer(pt: PCanonicalInterval), start, end, includesStart, includesEnd) =>
 
         includesStart.toI(cb).flatMap(cb) { includesStart =>
           includesEnd.toI(cb).map(cb) { includesEnd =>
 
-            rt.constructFromCodes(cb, r,
+            pt.constructFromCodes(cb, r,
               start,
               end,
               EmitCode.present(cb.emb, includesStart),
@@ -32,7 +36,7 @@ object IntervalFunctions extends RegistryFunctions {
     }
 
     registerIEmitCode1("start", TInterval(tv("T")), tv("T"),
-      (_: Type, x: PType) => x.asInstanceOf[PInterval].pointType.orMissing(x.required)) {
+      (_: Type, x: EmitType) => EmitType(x.st.asInstanceOf[SInterval].pointType, x.required && x.st.asInstanceOf[SInterval].pointEmitType.required)) {
       case (cb, r, rt, interval) =>
         interval.toI(cb).flatMap(cb) { case pi: PIntervalCode =>
           val pv = pi.memoize(cb, "interval")
@@ -41,7 +45,7 @@ object IntervalFunctions extends RegistryFunctions {
     }
 
     registerIEmitCode1("end", TInterval(tv("T")), tv("T"),
-      (_: Type, x: PType) => x.asInstanceOf[PInterval].pointType.orMissing(x.required)) {
+      (_: Type, x: EmitType) => EmitType(x.st.asInstanceOf[SInterval].pointType, x.required && x.st.asInstanceOf[SInterval].pointEmitType.required)) {
       case (cb, r, rt, interval) =>
         interval.toI(cb).flatMap(cb) { case pi: PIntervalCode =>
           val pv = pi.memoize(cb, "interval")
@@ -49,20 +53,20 @@ object IntervalFunctions extends RegistryFunctions {
         }
     }
 
-    registerPCode1("includesStart", TInterval(tv("T")), TBoolean, (_: Type, x: PType) =>
-      PBoolean(x.required)
+    registerPCode1("includesStart", TInterval(tv("T")), TBoolean, (_: Type, x: SType) =>
+      SBoolean
     ) {
-      case (r, cb, rt, interval: PIntervalCode) => PCode(rt, interval.includesStart())
+      case (r, cb, rt, interval: PIntervalCode) => primitive(interval.includesStart())
     }
 
-    registerPCode1("includesEnd", TInterval(tv("T")), TBoolean, (_: Type, x: PType) =>
-      PBoolean(x.required)
+    registerPCode1("includesEnd", TInterval(tv("T")), TBoolean, (_: Type, x: SType) =>
+      SBoolean
     ) {
-      case (r, cb, rt, interval: PIntervalCode) => PCode(rt, interval.includesEnd())
+      case (r, cb, rt, interval: PIntervalCode) => primitive(interval.includesEnd())
     }
 
     registerIEmitCode2("contains", TInterval(tv("T")), tv("T"), TBoolean, {
-      case(_: Type, intervalT: PInterval, _: PType) => PBoolean(intervalT.required)
+      case(_: Type, intervalT: EmitType, _: SType) => EmitType(SBoolean, intervalT.required)
     }) {
       case (cb, r, rt, int, point) =>
         int.toI(cb).map(cb) { case (intc: PIntervalCode) =>
@@ -79,20 +83,20 @@ object IntervalFunctions extends RegistryFunctions {
             cb.assign(contains, cmp < 0 || (cmp.ceq(0) && interval.includesEnd()))
           })
 
-          PCode(rt, contains)
+          primitive(contains)
         }
     }
 
-    registerPCode1("isEmpty", TInterval(tv("T")), TBoolean, (_: Type, pt: PType) => PBoolean(pt.required)) {
+    registerPCode1("isEmpty", TInterval(tv("T")), TBoolean, (_: Type, pt: SType) => SBoolean) {
       case (r, cb, rt, interval: PIntervalCode) =>
         val empty = EmitCodeBuilder.scopedCode(r.mb) { cb =>
           val intv = interval.memoize(cb, "interval")
           intv.isEmpty(cb)
         }
-        PCode(rt, empty)
+        primitive(empty)
     }
 
-    registerPCode2("overlaps", TInterval(tv("T")), TInterval(tv("T")), TBoolean, (_: Type, i1t: PType, i2t: PType) => PBoolean(i1t.required && i2t.required)) {
+    registerPCode2("overlaps", TInterval(tv("T")), TInterval(tv("T")), TBoolean, (_: Type, i1t: SType, i2t: SType) => SBoolean) {
       case (r, cb, rt, int1: PIntervalCode, int2: PIntervalCode) =>
         val overlap = EmitCodeBuilder.scopedCode(r.mb) { cb =>
           val interval1 = int1.memoize(cb, "interval1")
@@ -117,7 +121,7 @@ object IntervalFunctions extends RegistryFunctions {
             isBelowOnNonempty(cb, interval1, interval2) ||
             isAboveOnNonempty(cb, interval1, interval2))
         }
-        PCode(rt, overlap)
+        primitive(overlap)
     }
 
     registerIR2("sortedNonOverlappingIntervalsContain",

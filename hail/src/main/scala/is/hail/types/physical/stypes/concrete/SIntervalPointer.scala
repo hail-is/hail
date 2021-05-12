@@ -5,17 +5,26 @@ import is.hail.asm4s.{BooleanInfo, Code, IntInfo, LongInfo, Settable, SettableBu
 import is.hail.expr.ir.orderings.CodeOrdering
 import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, IEmitCode, SortOrder}
 import is.hail.types.physical.stypes.interfaces.SInterval
-import is.hail.types.physical.stypes.{SCode, SType}
+import is.hail.types.physical.stypes.{EmitType, SCode, SType}
 import is.hail.types.physical.{PCanonicalInterval, PCode, PInterval, PIntervalCode, PIntervalValue, PSettable, PType}
+import is.hail.types.virtual.Type
 import is.hail.utils.FastIndexedSeq
 
 
 case class SIntervalPointer(pType: PInterval) extends SInterval {
+  require(!pType.required)
+
   def coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = {
     new SIntervalPointerCode(this, pType.store(cb, region, value, deepCopy))
   }
 
-  def codeTupleTypes(): IndexedSeq[TypeInfo[_]] = FastIndexedSeq(LongInfo, IntInfo, IntInfo)
+  override def castRename(t: Type): SType = SIntervalPointer(pType.deepRename(t).asInstanceOf[PInterval])
+
+  lazy val virtualType: Type = pType.virtualType
+
+  def codeTupleTypes(): IndexedSeq[TypeInfo[_]] = FastIndexedSeq(LongInfo)
+
+  override def settableTupleTypes(): IndexedSeq[TypeInfo[_]] = FastIndexedSeq(LongInfo, BooleanInfo, BooleanInfo)
 
   def loadFrom(cb: EmitCodeBuilder, region: Value[Region], pt: PType, addr: Code[Long]): SCode = {
     pt match {
@@ -41,6 +50,7 @@ case class SIntervalPointer(pType: PInterval) extends SInterval {
   }
 
   override def pointType: SType = pType.pointType.sType
+  override def pointEmitType: EmitType = EmitType(pType.pointType.sType, pType.pointType.required)
 
   def canonicalPType(): PType = pType
 }
