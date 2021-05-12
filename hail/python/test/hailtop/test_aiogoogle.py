@@ -297,7 +297,7 @@ async def test_listfiles(filesystem):
     # test FileListEntry.status raises on directory
     async for entry in await fs.listfiles(f'{base}foo/', recursive=False):
         if await entry.is_dir():
-            with pytest.raises(ValueError):
+            with pytest.raises(IsADirectoryError):
                 await entry.status()
         else:
             stat = await entry.status()
