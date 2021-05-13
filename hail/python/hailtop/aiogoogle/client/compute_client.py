@@ -23,13 +23,14 @@ async def request_with_wait_for_done(request_f, path, params: MutableMapping[str
     while True:
         try:
             resp = await request_f(path, params=params, **kwargs)
-            if resp['status'] == 'DONE':
-                return resp
         except aiohttp.ClientResponseError as e:
             if e.status == 403:
                 log.info(f'Exceeded quota with request {path} and params {params}. Trying again in {delay}s')
             else:
                 raise e
+        else:
+            if resp['status'] == 'DONE':
+                return resp
         delay = await sleep_and_backoff(delay)
 
 
