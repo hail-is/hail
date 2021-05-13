@@ -123,6 +123,11 @@ class InstanceCollection:
                 return
             raise
 
+        if instance.failed_request_count > 10 and time_msecs() - instance.last_updated > 5 * 60 * 1000:
+            log.exception(f'removing {instance} with {instance.failed_request_count} failed request counts after more than 5 minutes')
+            await self.remove_instance(instance, 'not_responding')
+            return
+
         # PROVISIONING, STAGING, RUNNING, STOPPING, TERMINATED
         gce_state = spec['status']
 
