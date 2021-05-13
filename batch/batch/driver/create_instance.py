@@ -197,7 +197,7 @@ tag syslog
 </source>
 EOF
 
-sudo tee /etc/google-fluentd/config.d/worker-log.conf <<EOF {{
+sudo tee /etc/google-fluentd/config.d/worker-log.conf <<EOF
 <source>
 @type tail
 format json
