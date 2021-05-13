@@ -2678,6 +2678,76 @@
       }
     ]
   },
+  "dbSNP": {
+    "annotation_db": {
+      "key_properties": []
+    },
+    "description": "dbSNP: Reference SNP (rs or RefSNP) Hail Table. The database includes both common and rare single-base nucleotide variation (SNV), short (=< 50bp) deletion/insertion polymorphisms, and other classes of small genetic variations.",
+    "url": "https://www.ncbi.nlm.nih.gov/snp/docs/RefSNP_about/",
+    "versions": [
+      {
+        "reference_genome": "GRCh37",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/dbSNP_154_GRCh37.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/dbSNP_154_GRCh37.ht",
+            "us": "gs://hail-datasets-us/dbSNP_154_GRCh37.ht"
+          }
+        },
+        "version": "154"
+      },
+      {
+        "reference_genome": "GRCh38",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/dbSNP_154_GRCh38.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/dbSNP_154_GRCh38.ht",
+            "us": "gs://hail-datasets-us/dbSNP_154_GRCh38.ht"
+          }
+        },
+        "version": "154"
+      }
+    ]
+  },
+  "dbSNP_rsid": {
+    "annotation_db": {
+      "key_properties": []
+    },
+    "description": "dbSNP: This Hail Table contains a mapping from locus/allele pairs to Reference SNP IDs (rsID). For the full dataset, see dbSNP.",
+    "url": "https://www.ncbi.nlm.nih.gov/snp/docs/RefSNP_about/",
+    "versions": [
+      {
+        "reference_genome": "GRCh37",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/dbSNP_rsid_154_GRCh37.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/dbSNP_rsid_154_GRCh37.ht",
+            "us": "gs://hail-datasets-us/dbSNP_rsid_154_GRCh37.ht"
+          }
+        },
+        "version": "154"
+      },
+      {
+        "reference_genome": "GRCh38",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/dbSNP_rsid_154_GRCh38.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/dbSNP_rsid_154_GRCh38.ht",
+            "us": "gs://hail-datasets-us/dbSNP_rsid_154_GRCh38.ht"
+          }
+        },
+        "version": "154"
+      }
+    ]
+  },
   "gencode": {
     "annotation_db": {
       "key_properties": []
