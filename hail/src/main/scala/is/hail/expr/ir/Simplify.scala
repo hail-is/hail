@@ -565,9 +565,11 @@ object Simplify {
       canBeLifted(query)
     } => query
 
-    case BlockMatrixToValueApply(ValueToBlockMatrix(child, IndexedSeq(nrows, ncols), _), functions.GetElement(Seq(i, j))) =>
-      if (child.typ.isInstanceOf[TArray]) ArrayRef(child, I32((i * ncols + j).toInt)) else child
-
+    case BlockMatrixToValueApply(ValueToBlockMatrix(child, IndexedSeq(nrows, ncols), _), functions.GetElement(Seq(i, j))) => child.typ match {
+      case TArray(_) => ArrayRef(child, I32((i * ncols + j).toInt))
+      case TNDArray(_, _) => NDArrayRef(child, IndexedSeq(i, j), ErrorIDs.NO_ERROR)
+      case TFloat64 => child
+    }
     case LiftMeOut(child) if IsConstant(child) => child
   }
 
