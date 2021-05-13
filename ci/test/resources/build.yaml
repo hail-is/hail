@@ -94,19 +94,27 @@ steps:
     dockerFile: /io/repo/docker/Dockerfile.service-base
     contextPath: /io/repo/
     publishAs: service-base
-    dependsOn:
-      - base_image
-      - merge_code
+    resources:
+      storage: 10Gi
+      cpu: "2"
+      memory: 7.5Gi
     inputs:
       - from: /hail_version
         to: /io/repo/hail_version
       - from: /repo
         to: /io/repo
+    dependsOn:
+      - base_image
+      - merge_code
   - kind: buildImage2
     name: create_certs_image
     dockerFile: /io/ci/test/resources/Dockerfile.certs
     contextPath: /io/ci/test/resources
     publishAs: test_hello_create_certs_image
+    resources:
+      storage: 10Gi
+      cpu: "2"
+      memory: 7.5Gi
     inputs:
       - from: /repo/ci/test/resources
         to: /io/ci/test/resources
@@ -141,6 +149,10 @@ steps:
     dockerFile: /io/repo/ci/kaniko/Dockerfile
     contextPath: /io/repo/ci
     publishAs: hail-kaniko
+    resources:
+      storage: 10Gi
+      cpu: "2"
+      memory: 7.5Gi
     inputs:
       - from: /repo/ci
         to: /io/repo/ci
@@ -152,6 +164,10 @@ steps:
     dockerFile: /io/repo/ci/test/resources/Dockerfile
     contextPath: /io/repo
     publishAs: ci-hello
+    resources:
+      storage: 10Gi
+      cpu: "2"
+      memory: 7.5Gi
     inputs:
       - from: /repo
         to: /io/repo

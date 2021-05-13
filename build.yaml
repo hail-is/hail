@@ -60,6 +60,10 @@ steps:
     dockerFile: /io/echo/Dockerfile
     contextPath: /io/echo
     publishAs: echo
+    resources:
+      storage: 10Gi
+      cpu: "2"
+      memory: 7.5Gi
     inputs:
       - from: /repo/echo
         to: /io/echo
@@ -129,14 +133,18 @@ steps:
     dockerFile: /io/repo/docker/Dockerfile.service-base
     contextPath: /io/repo
     publishAs: service-base
-    dependsOn:
-      - base_image
-      - merge_code
+    resources:
+      storage: 10Gi
+      cpu: "2"
+      memory: 7.5Gi
     inputs:
       - from: /hail_version
         to: /io/repo/hail_version
       - from: /repo
         to: /io/repo
+    dependsOn:
+      - base_image
+      - merge_code
   - kind: runImage
     name: check_services
     image:
@@ -159,6 +167,10 @@ steps:
     dockerFile: /io/tls/Dockerfile
     contextPath: /io/tls
     publishAs: create_certs_image
+    resources:
+      storage: 10Gi
+      cpu: "2"
+      memory: 7.5Gi
     inputs:
       - from: /repo/tls
         to: /io/tls
@@ -383,6 +395,10 @@ steps:
     dockerFile: /io/repo/auth/Dockerfile
     contextPath: /io/repo
     publishAs: auth
+    resources:
+      storage: 10Gi
+      cpu: "2"
+      memory: 7.5Gi
     inputs:
       - from: /repo
         to: /io/repo
@@ -468,6 +484,10 @@ steps:
     dockerFile: /io/hail/Dockerfile.hail-build
     contextPath: /io/hail
     publishAs: hail-build
+    resources:
+      storage: 10Gi
+      cpu: "2"
+      memory: 7.5Gi
     inputs:
       - from: /repo/hail
         to: /io/hail
@@ -479,6 +499,10 @@ steps:
     dockerFile: /io/hail/Dockerfile.hail-run
     contextPath: /io/hail
     publishAs: hail-run
+    resources:
+      storage: 10Gi
+      cpu: "2"
+      memory: 7.5Gi
     inputs:
       - from: /repo/hail
         to: /io/hail
@@ -490,6 +514,10 @@ steps:
     dockerFile: /io/hail/Dockerfile.hail-run-tests
     contextPath: /io/hail
     publishAs: hail-run-tests
+    resources:
+      storage: 10Gi
+      cpu: "2"
+      memory: 7.5Gi
     inputs:
       - from: /repo/hail
         to: /io/hail
@@ -501,6 +529,10 @@ steps:
     dockerFile: /io/repo/benchmark-service/Dockerfile
     contextPath: /io/repo
     publishAs: benchmark
+    resources:
+      storage: 10Gi
+      cpu: "2"
+      memory: 7.5Gi
     inputs:
       - from: /repo
         to: /io/repo
@@ -523,6 +555,10 @@ steps:
     dockerFile: /io/repo/monitoring/Dockerfile
     contextPath: /io/repo
     publishAs: monitoring
+    resources:
+      storage: 10Gi
+      cpu: "2"
+      memory: 7.5Gi
     inputs:
       - from: /repo
         to: /io/repo
@@ -534,6 +570,10 @@ steps:
     dockerFile: /io/batch/Dockerfile
     contextPath: /io/batch/
     publishAs: batch
+    resources:
+      storage: 10Gi
+      cpu: "2"
+      memory: 7.5Gi
     inputs:
       - from: /repo/batch
         to: /io/batch
@@ -568,6 +608,10 @@ steps:
     dockerFile: /io/grafana/Dockerfile.nginx
     contextPath: /io/grafana
     publishAs: grafana
+    resources:
+      storage: 10Gi
+      cpu: "2"
+      memory: 7.5Gi
     inputs:
       - from: /repo/grafana
         to: /io/grafana
@@ -582,6 +626,10 @@ steps:
     dockerFile: /io/repo/ci/Dockerfile.test
     contextPath: /io/repo
     publishAs: test-ci
+    resources:
+      storage: 10Gi
+      cpu: "2"
+      memory: 7.5Gi
     scopes:
       - test
       - dev
@@ -598,6 +646,10 @@ steps:
     dockerFile: /io/repo/monitoring/Dockerfile.test
     contextPath: /io/repo
     publishAs: test-monitoring
+    resources:
+      storage: 10Gi
+      cpu: "2"
+      memory: 7.5Gi
     inputs:
       - from: /repo
         to: /io/repo
@@ -609,6 +661,10 @@ steps:
     dockerFile: /io/repo/benchmark-service/Dockerfile.test
     contextPath: /io/repo
     publishAs: test-benchmark
+    resources:
+      storage: 10Gi
+      cpu: "2"
+      memory: 7.5Gi
     inputs:
       - from: /repo
         to: /io/repo
@@ -620,6 +676,10 @@ steps:
     dockerFile: /io/repo/ci/Dockerfile
     contextPath: /io/repo
     publishAs: ci
+    resources:
+      storage: 10Gi
+      cpu: "2"
+      memory: 7.5Gi
     inputs:
       - from: /repo
         to: /io/repo
@@ -631,6 +691,10 @@ steps:
     dockerFile: /io/repo/ci/kaniko/Dockerfile
     contextPath: /io/repo/ci
     publishAs: hail-kaniko
+    resources:
+      storage: 10Gi
+      cpu: "2"
+      memory: 7.5Gi
     inputs:
       - from: /repo/ci
         to: /io/repo/ci
@@ -642,6 +706,10 @@ steps:
     dockerFile: /io/ci/Dockerfile.ci-utils
     contextPath: /io/ci
     publishAs: ci-utils
+    resources:
+      storage: 10Gi
+      cpu: "2"
+      memory: 7.5Gi
     inputs:
       - from: /repo/ci
         to: /io/ci
@@ -779,6 +847,10 @@ steps:
     dockerFile: /io/repo/batch/Dockerfile.worker
     contextPath: /io/repo
     publishAs: batch-worker
+    resources:
+      storage: 10Gi
+      cpu: "2"
+      memory: 7.5Gi
     inputs:
       - from: /repo
         to: /io/repo
@@ -791,6 +863,10 @@ steps:
     dockerFile: /io/repo/docker/Dockerfile.service-java-run-base
     contextPath: /io/repo
     publishAs: service-java-run-base
+    resources:
+      storage: 10Gi
+      cpu: "2"
+      memory: 7.5Gi
     inputs:
       - from: /repo
         to: /io/repo
@@ -804,6 +880,10 @@ steps:
     dockerFile: /io/query/Dockerfile
     contextPath: /io/query/
     publishAs: query
+    resources:
+      storage: 10Gi
+      cpu: "2"
+      memory: 7.5Gi
     inputs:
       - from: /repo/query
         to: /io/query
@@ -825,6 +905,10 @@ steps:
     dockerFile: /io/repo/memory/Dockerfile
     contextPath: /io/repo
     publishAs: memory
+    resources:
+      storage: 10Gi
+      cpu: "2"
+      memory: 7.5Gi
     inputs:
       - from: /repo
         to: /io/repo
@@ -843,6 +927,10 @@ steps:
     dockerFile: /io/shuffler/Dockerfile
     contextPath: /io/shuffler
     publishAs: shuffler
+    resources:
+      storage: 10Gi
+      cpu: "2"
+      memory: 7.5Gi
     inputs:
       - from: /repo/shuffler
         to: /io/shuffler
@@ -870,6 +958,10 @@ steps:
     dockerFile: /io/hail/Dockerfile.hail-repl
     contextPath: /io/hail
     publishAs: hail-run
+    resources:
+      storage: 10Gi
+      cpu: "2"
+      memory: 7.5Gi
     inputs:
       - from: /repo/hail
         to: /io/hail
@@ -1099,6 +1191,10 @@ steps:
     dockerFile: /io/repo/hail/Dockerfile.hail-base
     contextPath: /io/repo
     publishAs: hail-base
+    resources:
+      storage: 10Gi
+      cpu: "2"
+      memory: 7.5Gi
     inputs:
       - from: /repo
         to: /io/repo
@@ -1115,6 +1211,10 @@ steps:
     dockerFile: /io/repo/hail/Dockerfile.hail-pip-installed-python37
     contextPath: /io/repo
     publishAs: hail-pip-installed-python37
+    resources:
+      storage: 10Gi
+      cpu: "2"
+      memory: 7.5Gi
     inputs:
       - from: /repo
         to: /io/repo
@@ -1129,6 +1229,10 @@ steps:
     dockerFile: /io/repo/hail/Dockerfile.hail-pip-installed-python36
     contextPath: /io/repo
     publishAs: hail-pip-installed-python36
+    resources:
+      storage: 10Gi
+      cpu: "2"
+      memory: 7.5Gi
     inputs:
       - from: /repo
         to: /io/repo
@@ -1181,6 +1285,10 @@ steps:
     dockerFile: /io/repo/notebook/Dockerfile
     contextPath: /io/repo/
     publishAs: notebook
+    resources:
+      storage: 10Gi
+      cpu: "2"
+      memory: 7.5Gi
     inputs:
       - from: /repo
         to: /io/repo
@@ -1215,6 +1323,10 @@ steps:
     dockerFile: /io/notebook/Dockerfile.nginx
     contextPath: /io/notebook
     publishAs: notebook_nginx
+    resources:
+      storage: 10Gi
+      cpu: "2"
+      memory: 7.5Gi
     inputs:
       - from: /repo/notebook
         to: /io/notebook
@@ -1843,6 +1955,10 @@ steps:
     dockerFile: /io/prometheus/Dockerfile.nginx
     contextPath: /io/prometheus
     publishAs: prometheus
+    resources:
+      storage: 10Gi
+      cpu: "2"
+      memory: 7.5Gi
     inputs:
       - from: /repo/prometheus
         to: /io/prometheus
@@ -2392,6 +2508,10 @@ steps:
     dockerFile: /io/repo/address/Dockerfile
     contextPath: /io/repo
     publishAs: address
+    resources:
+      storage: 10Gi
+      cpu: "2"
+      memory: 7.5Gi
     inputs:
       - from: /repo
         to: /io/repo
@@ -3623,6 +3743,10 @@ steps:
     dockerFile: /io/blog/Dockerfile.nginx
     contextPath: /io/blog
     publishAs: blog_nginx
+    resources:
+      storage: 10Gi
+      cpu: "2"
+      memory: 7.5Gi
     inputs:
       - from: /repo/blog
         to: /io/blog
@@ -3754,6 +3878,10 @@ steps:
     dockerFile: /io/website/Dockerfile
     contextPath: /io/website
     publishAs: website
+    resources:
+      storage: 10Gi
+      cpu: "2"
+      memory: 7.5Gi
     inputs:
       - from: /repo/website
         to: /io/website
@@ -3805,6 +3933,10 @@ steps:
     dockerFile: /io/hail/Dockerfile
     contextPath: /io/hail/
     publishAs: hail-public
+    resources:
+      storage: 10Gi
+      cpu: "2"
+      memory: 7.5Gi
     inputs:
       - from: /docker/hail
         to: /io/hail
@@ -3833,6 +3965,10 @@ steps:
     dockerFile: /io/genetics/Dockerfile
     contextPath: /io/genetics/
     publishAs: genetics-public
+    resources:
+      storage: 10Gi
+      cpu: "2"
+      memory: 7.5Gi
     inputs:
       - from: /repo/genetics
         to: /io/genetics
@@ -4051,6 +4187,10 @@ steps:
     dockerFile: /io/repo/atgu/Dockerfile
     contextPath: /io/repo
     publishAs: atgu
+    resources:
+      storage: 10Gi
+      cpu: "2"
+      memory: 7.5Gi
     inputs:
       - from: /repo
         to: /io/repo
