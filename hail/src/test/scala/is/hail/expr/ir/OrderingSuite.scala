@@ -496,7 +496,7 @@ class OrderingSuite extends HailSuite {
         val cdict = fb.getCodeParam[Long](2)
         val cktuple = fb.getCodeParam[Long](3)
 
-        val bs = new BinarySearch(fb.apply_method, pDict.sType, EmitType(pDict.keyType.sType, false), keyOnly = false)
+        val bs = new BinarySearch(fb.apply_method, pDict.sType, EmitType(pDict.keyType.sType, false), keyOnly = true)
 
         val m = ptuple.isFieldMissing(cktuple, 0)
         fb.emitWithBuilder(cb =>

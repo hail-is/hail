@@ -1183,8 +1183,8 @@ class Emit[C](
 
           cb.assign(outerSize, groupSizes.size)
           val loadedElementType = sct.loadedSType.asInstanceOf[SBaseStruct]
-          val innerType = PCanonicalArray(loadedElementType.fieldTypes(1).canonicalPType(), true)
-          val kt = loadedElementType.fieldTypes(0).canonicalPType()
+          val innerType = PCanonicalArray(loadedElementType.fieldEmitTypes(1).canonicalPType, true)
+          val kt = loadedElementType.fieldEmitTypes(0).canonicalPType
           val groupType = PCanonicalStruct(true, ("key", kt), ("value", innerType))
           val dictType = PCanonicalDict(kt, innerType, false)
           val (addGroup, finishOuter) = dictType.arrayRep.constructFromFunctions(cb, region, outerSize, deepCopy = false)
@@ -1554,8 +1554,10 @@ class Emit[C](
 
           cb.assign(LWORKAddress, Code.invokeStatic1[Memory, Long, Long]("malloc", 8L))
 
+          val retPTypeUncast = NDArraySVD.pTypes(computeUV, false)
+
           val (jobz, sPType, uData, uFinisher, vtData, vtFinisher) = if (computeUV) {
-            val outputPType = NDArraySVD.pTypes(true, false).asInstanceOf[PTuple]
+            val outputPType = retPTypeUncast.asInstanceOf[PTuple]
             val uPType = outputPType.fields(0).typ.asInstanceOf[PCanonicalNDArray]
             val sPType = outputPType.fields(1).typ.asInstanceOf[PCanonicalNDArray]
             val vtPType = outputPType.fields(2).typ.asInstanceOf[PCanonicalNDArray]
@@ -1568,7 +1570,7 @@ class Emit[C](
             (if (full_matrices) "A" else "S", sPType, uData, uFinisher, vtData, vtFinisher)
           }
           else {
-            val outputPType = NDArraySVD.pTypes(true, false).asInstanceOf[PCanonicalNDArray]
+            val outputPType = retPTypeUncast.asInstanceOf[PCanonicalNDArray]
 
             def noOp(cb: EmitCodeBuilder): SNDArrayCode = {
               throw new IllegalStateException("Can't happen")
@@ -1654,7 +1656,7 @@ class Emit[C](
           val pndValue = pndCode.memoize(cb, "ndarray_qr_nd")
           // This does a lot of byte level copying currently, so only trust
           // the PCanonicalNDArray representation.
-          val pType = pndValue.asInstanceOf[SNDArrayPointer].pType
+          val pType = pndValue.st.asInstanceOf[SNDArrayPointer].pType
 
           val shapeArray = pndValue.shapes(cb)
 
@@ -1671,7 +1673,7 @@ class Emit[C](
 
           def LWORK = (Region.loadDouble(LWORKAddress).toI > 0).mux(Region.loadDouble(LWORKAddress).toI, 1)
 
-          val ndPT = pType.asInstanceOf[PCanonicalNDArray]
+          val ndPT = pType
           val dataFirstElementAddress = pndValue.firstDataAddress(cb)
 
           val hPType = ndPT
@@ -2040,7 +2042,7 @@ class Emit[C](
       ) =>
         val shuffleType = x.shuffleType
 
-        val shuffleST = SCanonicalShufflePointer(PCanonicalShuffle(shuffleType, true))
+        val shuffleST = SCanonicalShufflePointer(PCanonicalShuffle(shuffleType, false))
         val settable = mb.newPField(shuffleST).asInstanceOf[SCanonicalShufflePointerSettable]
         val shuffle = CompileTimeShuffleClient.create(cb, settable)
 

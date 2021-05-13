@@ -121,6 +121,6 @@ final case class PCanonicalInterval(pointType: PType, override val required: Boo
   def constructFromCodes(cb: EmitCodeBuilder, region: Value[Region],
     start: EmitCode, end: EmitCode, includesStart: EmitCode, includesEnd: EmitCode): SIntervalPointerCode = {
     val sc = representation.constructFromFields(cb, region, FastIndexedSeq(start, end, includesStart, includesEnd), deepCopy = false)
-    new SIntervalPointerCode(SIntervalPointer(this), sc.a)
+    new SIntervalPointerCode(sType, sc.a)
   }
 }
