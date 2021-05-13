@@ -145,10 +145,10 @@ object UtilFunctions extends RegistryFunctions {
       (n * (n + 1)) / 2
     }
 
-    registerCode1("toInt32", TBoolean, TInt32, (_: Type, _: SType) => SInt32) { case (cb, _, rt, x) => x.asBoolean.boolCode(cb).toI }
-    registerCode1("toInt64", TBoolean, TInt64, (_: Type, _: SType) => SInt64) { case (cb, _, rt, x) => x.asBoolean.boolCode(cb).toI.toL }
-    registerCode1("toFloat32", TBoolean, TFloat32, (_: Type, _: SType) => SFloat32) { case (cb, _, rt, x) => x.asBoolean.boolCode(cb).toI.toF }
-    registerCode1("toFloat64", TBoolean, TFloat64, (_: Type, _: SType) => SFloat64) { case (cb, _, rt, x) => x.asBoolean.boolCode(cb).toI.toD }
+    registerPCode1("toInt32", TBoolean, TInt32, (_: Type, _: SType) => SInt32) { case (_, cb, _, x) => primitive(x.asBoolean.boolCode(cb).toI) }
+    registerPCode1("toInt64", TBoolean, TInt64, (_: Type, _: SType) => SInt64) { case (_, cb, _, x) => primitive(x.asBoolean.boolCode(cb).toI.toL) }
+    registerPCode1("toFloat32", TBoolean, TFloat32, (_: Type, _: SType) => SFloat32) { case (_, cb, _, x) => primitive(x.asBoolean.boolCode(cb).toI.toF) }
+    registerPCode1("toFloat64", TBoolean, TFloat64, (_: Type, _: SType) => SFloat64) { case (_, cb, _, x) => primitive(x.asBoolean.boolCode(cb).toI.toD) }
 
     for ((name, t, rpt, ct) <- Seq[(String, Type, SType, ClassTag[_])](
       ("Boolean", TBoolean, SBoolean, implicitly[ClassTag[Boolean]]),

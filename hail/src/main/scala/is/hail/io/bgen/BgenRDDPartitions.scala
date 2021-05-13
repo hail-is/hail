@@ -310,9 +310,9 @@ object CompileDecoder {
       }
 
       if (settings.hasField("rsid"))
-        structFieldCodes += EmitCode.present(cb.emb, SStringPointer(PCanonicalString(true)).constructFromString(cb, region, rsid))
+        structFieldCodes += EmitCode.present(cb.emb, SStringPointer(PCanonicalString(false)).constructFromString(cb, region, rsid))
       if (settings.hasField("varid"))
-        structFieldCodes += EmitCode.present(cb.emb, SStringPointer(PCanonicalString(true)).constructFromString(cb, region, varid))
+        structFieldCodes += EmitCode.present(cb.emb, SStringPointer(PCanonicalString(false)).constructFromString(cb, region, varid))
       if (settings.hasField("offset"))
         structFieldCodes += EmitCode.present(cb.emb, primitive(offset))
       if (settings.hasField("file_idx"))

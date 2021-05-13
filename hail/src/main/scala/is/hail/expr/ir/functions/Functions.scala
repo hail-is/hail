@@ -321,7 +321,7 @@ abstract class RegistryFunctions {
       val arr = cb.newLocal[IndexedSeq[String]]("unrwrap_return_array_str_arr", coerce[IndexedSeq[String]](value))
       val len = cb.newLocal[Int]("unwrap_return_array_str_len", arr.invoke[Int]("length"))
       pca.constructFromElements(cb, r, len, deepCopy = false) { (cb, idx) =>
-        val st = SStringPointer(pca.elementType.asInstanceOf[PCanonicalString])
+        val st = SStringPointer(pca.elementType.setRequired(false).asInstanceOf[PCanonicalString])
         val elt = cb.newLocal[String]("unwrap_return_array_str_elt",
           Code.checkcast[String](arr.invoke[Int, java.lang.Object]("apply", idx)))
         IEmitCode(cb, elt.isNull, st.constructFromString(cb, r, elt))

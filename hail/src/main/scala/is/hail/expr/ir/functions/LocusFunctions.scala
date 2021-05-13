@@ -40,7 +40,7 @@ object LocusFunctions extends RegistryFunctions {
       val pAlleles = rt.types(1).asInstanceOf[PCanonicalArray]
       val all = cb.newLocal[IndexedSeq[String]]("locus_alleles_parsed_alleles", variant.invoke[IndexedSeq[String]]("_2"))
       val len = cb.newLocal[Int]("locus_alleles_n_alleles", all.invoke[Int]("length"))
-      val ps = pAlleles.elementType.asInstanceOf[PCanonicalString]
+      val ps = pAlleles.elementType.setRequired(false).asInstanceOf[PCanonicalString]
       val ss = SStringPointer(ps)
       val (push, finish) = pAlleles.constructFromFunctions(cb, r, len, deepCopy = false)
       val i = cb.newLocal[Int]("locus_alleles_i", 0)
