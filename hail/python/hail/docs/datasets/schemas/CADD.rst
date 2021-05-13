@@ -3,7 +3,7 @@
 CADD
 ====
 
-*  **Versions:** 1.4
+*  **Versions:** 1.4, 1.6
 *  **Reference genome builds:** GRCh37, GRCh38
 *  **Type:** :class:`hail.Table`
 
@@ -30,4 +30,3 @@ Schema (1.4, GRCh37)
     ----------------------------------------
     Key: ['locus', 'alleles']
     ----------------------------------------
-

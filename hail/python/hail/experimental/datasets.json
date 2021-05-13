@@ -148,6 +148,32 @@
           }
         },
         "version": "1.4"
+      },
+      {
+        "reference_genome": "GRCh37",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/CADD_v1.6_GRCh37.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/CADD_v1.6_GRCh37.ht",
+            "us": "gs://hail-datasets-us/CADD_v1.6_GRCh37.ht"
+          }
+        },
+        "version": "1.6"
+      },
+      {
+        "reference_genome": "GRCh38",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/CADD_v1.6_GRCh38.ht"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/CADD_v1.6_GRCh38.ht",
+            "us": "gs://hail-datasets-us/CADD_v1.6_GRCh38.ht"
+          }
+        },
+        "version": "1.6"
       }
     ]
   },
