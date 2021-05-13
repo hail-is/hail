@@ -469,7 +469,7 @@ abstract class RegistryFunctions {
   def registerJavaStaticFunction(name: String, valueParameterTypes: Array[Type], returnType: Type, pt: (Type, Seq[SType]) => SType)(cls: Class[_], method: String) {
     registerCode(name, valueParameterTypes, returnType, pt) { case (r, cb, rt, _, args) =>
       val cts = valueParameterTypes.map(PrimitiveTypeToIRIntermediateClassTag(_).runtimeClass)
-      Code.invokeStatic(cls, method, cts, args.map(a => scodeToJavaValue(cb, r.region, a)))(PrimitiveTypeToIRIntermediateClassTag(returnType))
+      Code.invokeStatic(cls, method, cts, args.map(a => SType.extractPrimCode(cb, a)))(PrimitiveTypeToIRIntermediateClassTag(returnType))
     }
   }
 
