@@ -3,6 +3,7 @@ package is.hail.expr.ir.lowering
 import is.hail.expr.Nat
 import is.hail.expr.ir._
 import is.hail.expr.ir.functions.GetElement
+import is.hail.rvd.RVDPartitioner
 import is.hail.types.{BlockMatrixSparsity, BlockMatrixType, TypeWithRequiredness}
 import is.hail.types.virtual._
 import is.hail.utils._
@@ -167,25 +168,89 @@ abstract class BlockMatrixStage(val globalVals: Array[(String, IR)], val ctxType
 object LowerBlockMatrixIR {
   def apply(node: IR, typesToLower: DArrayLowering.Type, ctx: ExecuteContext, r: RequirednessAnalysis, relationalLetsAbove: Map[String, IR]): IR = {
 
-    def unimplemented[T](node: BaseIR): T =
-      throw new LowererUnsupportedOperation(s"unimplemented: \n${ Pretty(node) }")
+    def lower(bmir: BlockMatrixIR) = LowerBlockMatrixIR.lower(bmir, typesToLower, ctx, r, relationalLetsAbove)
+
+    node match {
+      case BlockMatrixCollect(child) =>
+        lower(child).collectLocal(relationalLetsAbove, child.typ)
+      case BlockMatrixToValueApply(child, GetElement(IndexedSeq(i, j))) =>
+        val rowBlock = child.typ.getBlockIdx(i)
+        val colBlock = child.typ.getBlockIdx(j)
+
+        val iInBlock = i - rowBlock * child.typ.blockSize
+        val jInBlock = j - colBlock * child.typ.blockSize
+
+        val lowered = lower(child)
+
+        val elt = bindIR(lowered.blockContext(rowBlock -> colBlock)) { ctx =>
+          NDArrayRef(lowered.blockBody(ctx), FastIndexedSeq(I64(iInBlock), I64(jInBlock)), -1)
+        }
+
+        lowered.globalVals.foldRight[IR](elt) { case ((f, v), accum) => Let(f, v, accum) }
+      case BlockMatrixWrite(child, writer) =>
+        writer.lower(ctx, lower(child), child, relationalLetsAbove, TypeWithRequiredness(child.typ.elementType)) //FIXME: BlockMatrixIR is currently ignored in Requiredness inference since all eltTypes are +TFloat64
+      case BlockMatrixMultiWrite(blockMatrices, writer) => unimplemented(node)
+      case node if node.children.exists(_.isInstanceOf[BlockMatrixIR]) =>
+        throw new LowererUnsupportedOperation(s"IR nodes with BlockMatrixIR children need explicit rules: \n${ Pretty(node) }")
+
+      case node =>
+        throw new LowererUnsupportedOperation(s"Value IRs with no BlockMatrixIR children must be lowered through LowerIR: \n${ Pretty(node) }")
+    }
+  }
+
+  // This lowers a BlockMatrixIR to an unkeyed TableStage with rows of (blockRow, blockCol, block)
+  def lowerToTableStage(
+    bmir: BlockMatrixIR, typesToLower: DArrayLowering.Type, ctx: ExecuteContext,
+    r: RequirednessAnalysis, relationalLetsAbove: Map[String, IR]
+  ): TableStage = {
+    val bms = lower(bmir, typesToLower, ctx, r, relationalLetsAbove)
+    val typ = bmir.typ
+    val bmsWithCtx = bms.addContext(TTuple(TInt32, TInt32)){ case (i, j) => MakeTuple(Seq(0 -> i, 1 -> j))}
+    val blocksRowMajor = Array.range(0, typ.nRowBlocks).flatMap { i =>
+      Array.tabulate(typ.nColBlocks)(j => i -> j).filter(typ.hasBlock)
+    }
+    val emptyGlobals = MakeStruct(Seq())
+    val globalsId = genUID()
+    val letBindings = bmsWithCtx.globalVals :+ globalsId -> emptyGlobals
+    val contextsIR = MakeStream(blocksRowMajor.map{ case (i, j) =>  bmsWithCtx.blockContext((i, j)) }, TStream(bmsWithCtx.ctxType))
+
+    val ctxRef = Ref(genUID(), bmsWithCtx.ctxType)
+    val body = bmsWithCtx.blockBody(ctxRef)
+    val bodyFreeVars = FreeVariables(body, supportsAgg = false, supportsScan = false)
+    val bcFields = bmsWithCtx.globalVals.filter { case (f, _) => bodyFreeVars.eval.lookupOption(f).isDefined } :+ globalsId -> Ref(globalsId, emptyGlobals.typ)
+
+    def tsPartitionFunction(ctxRef: Ref): IR = {
+      val s = MakeStruct(Seq("blockRow" -> GetTupleElement(GetField(ctxRef, "new"), 0), "blockCol" -> GetTupleElement(GetField(ctxRef, "new"), 1), "block" -> bmsWithCtx.blockBody(ctxRef)))
+      MakeStream(Seq(
+        s
+      ), TStream(s.typ))
+    }
+    val ts = TableStage(letBindings, bcFields, Ref(globalsId, emptyGlobals.typ), RVDPartitioner.unkeyed(blocksRowMajor.size), TableStageDependency.none, contextsIR, tsPartitionFunction)
+    ts
+  }
+
+  private def unimplemented[T](node: BaseIR): T =
+    throw new LowererUnsupportedOperation(s"unimplemented: \n${ Pretty(node) }")
+
+  def lower(bmir: BlockMatrixIR, typesToLower: DArrayLowering.Type, ctx: ExecuteContext, r: RequirednessAnalysis, relationalLetsAbove: Map[String, IR]): BlockMatrixStage = {
+    if (!DArrayLowering.lowerBM(typesToLower))
+      throw new LowererUnsupportedOperation("found BlockMatrixIR in lowering; lowering only TableIRs.")
+    bmir.children.foreach {
+      case c: BlockMatrixIR if c.typ.blockSize != bmir.typ.blockSize =>
+        throw new LowererUnsupportedOperation(s"Can't lower node with mismatched block sizes: ${ bmir.typ.blockSize } vs child ${ c.typ.blockSize }\n\n ${ Pretty(bmir) }")
+      case _ =>
+    }
+    if (bmir.typ.nDefinedBlocks == 0)
+      BlockMatrixStage.empty(bmir.typ.elementType)
+    else lowerNonEmpty(bmir, typesToLower, ctx, r, relationalLetsAbove)
+  }
+
+  def lowerNonEmpty(bmir: BlockMatrixIR, typesToLower: DArrayLowering.Type, ctx: ExecuteContext, r: RequirednessAnalysis, relationalLetsAbove: Map[String, IR]): BlockMatrixStage = {
+    def lower(ir: BlockMatrixIR) = LowerBlockMatrixIR.lower(ir, typesToLower, ctx, r, relationalLetsAbove)
 
     def lowerIR(node: IR): IR = LowerToCDA.lower(node, typesToLower, ctx, r, relationalLetsAbove: Map[String, IR])
 
-    def lower(bmir: BlockMatrixIR): BlockMatrixStage = {
-      if (!DArrayLowering.lowerBM(typesToLower))
-        throw new LowererUnsupportedOperation("found BlockMatrixIR in lowering; lowering only TableIRs.")
-      bmir.children.foreach {
-        case c: BlockMatrixIR if c.typ.blockSize != bmir.typ.blockSize =>
-          throw new LowererUnsupportedOperation(s"Can't lower node with mismatched block sizes: ${ bmir.typ.blockSize } vs child ${ c.typ.blockSize }\n\n ${ Pretty(bmir) }")
-        case _ =>
-      }
-      if (bmir.typ.nDefinedBlocks == 0)
-        BlockMatrixStage.empty(bmir.typ.elementType)
-      else lowerNonEmpty(bmir)
-    }
-
-    def lowerNonEmpty(bmir: BlockMatrixIR): BlockMatrixStage = bmir match {
+    bmir match {
       case BlockMatrixRead(reader) => reader.lower(ctx)
       case x@BlockMatrixRandom(seed, gaussian, shape, blockSize) =>
         val generator = invokeSeeded(if (gaussian) "rand_norm" else "rand_unif", seed, TFloat64, F64(0.0), F64(1.0))
@@ -377,33 +442,6 @@ object LowerBlockMatrixIR {
             }
           }
         }
-    }
-
-    node match {
-      case BlockMatrixCollect(child) =>
-        lower(child).collectLocal(relationalLetsAbove, child.typ)
-      case BlockMatrixToValueApply(child, GetElement(IndexedSeq(i, j))) =>
-        val rowBlock = child.typ.getBlockIdx(i)
-        val colBlock = child.typ.getBlockIdx(j)
-
-        val iInBlock = i - rowBlock * child.typ.blockSize
-        val jInBlock = j - colBlock * child.typ.blockSize
-
-        val lowered = lower(child)
-
-        val elt = bindIR(lowered.blockContext(rowBlock -> colBlock)) { ctx =>
-          NDArrayRef(lowered.blockBody(ctx), FastIndexedSeq(I64(iInBlock), I64(jInBlock)), -1)
-        }
-
-        lowered.globalVals.foldRight[IR](elt) { case ((f, v), accum) => Let(f, v, accum) }
-      case BlockMatrixWrite(child, writer) =>
-        writer.lower(ctx, lower(child), child, relationalLetsAbove, TypeWithRequiredness(child.typ.elementType)) //FIXME: BlockMatrixIR is currently ignored in Requiredness inference since all eltTypes are +TFloat64
-      case BlockMatrixMultiWrite(blockMatrices, writer) => unimplemented(node)
-      case node if node.children.exists(_.isInstanceOf[BlockMatrixIR]) =>
-        throw new LowererUnsupportedOperation(s"IR nodes with BlockMatrixIR children need explicit rules: \n${ Pretty(node) }")
-
-      case node =>
-        throw new LowererUnsupportedOperation(s"Value IRs with no BlockMatrixIR children must be lowered through LowerIR: \n${ Pretty(node) }")
     }
   }
 }

@@ -881,8 +881,6 @@ class Tests(unittest.TestCase):
         sparsed = BlockMatrix.from_ndarray(hl.nd.array(sparsed_numpy), block_size=4)._sparsify_blocks(blocks_to_sparsify).to_ndarray()
         self.assertTrue(np.array_equal(sparsed_numpy, hl.eval(sparsed)))
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_block_matrix_entries(self):
         n_rows, n_cols = 5, 3
         rows = [{'i': i, 'j': j, 'entry': float(i + j)} for i in range(n_rows) for j in range(n_cols)]
@@ -894,7 +892,7 @@ class Tests(unittest.TestCase):
         ndarray = np.reshape(list(map(lambda row: row['entry'], rows)), (n_rows, n_cols))
 
         for block_size in [1, 2, 1024]:
-            block_matrix = BlockMatrix.from_numpy(ndarray, block_size)
+            block_matrix = BlockMatrix.from_ndarray(hl.literal(ndarray), block_size)
             entries_table = block_matrix.entries()
             self.assertEqual(entries_table.count(), n_cols * n_rows)
             self.assertEqual(len(entries_table.row), 3)

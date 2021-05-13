@@ -90,7 +90,7 @@ object InferType {
       case ToDict(a) =>
         val elt = coerce[TBaseStruct](coerce[TStream](a.typ).elementType)
         TDict(elt.types(0), elt.types(1))
-      case ToArray(a) =>
+      case ta@ToArray(a) =>
         val elt = coerce[TStream](a.typ).elementType
         TArray(elt)
       case CastToArray(a) =>
