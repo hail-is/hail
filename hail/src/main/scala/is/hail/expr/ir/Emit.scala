@@ -2321,15 +2321,6 @@ class Emit[C](
       throw new RuntimeException(s"type mismatch:\n  EC=${ result.st.virtualType }\n  IR=${ ir.typ }\n  node: ${ Pretty(ir).take(50) }")
 
     result
-    //
-    //    if (result.pt != pt) {
-    //      if (!result.pt.equalModuloRequired(pt))
-    //        throw new RuntimeException(s"ptype mismatch:\n  emitted:  ${ result.pt }\n  inferred: ${ ir.pType }\n  ir: $ir")
-    //      (result.pt.required, pt.required) match {
-    //        case (true, false) => result.map(cb)(pc => PCode(pc.pt.setRequired(pt.required), pc.code))
-    //        case (false, true) => IEmitCode.present(cb, result.get(cb))
-    //      }
-    //    } else result
   }
 
   /**
@@ -2497,15 +2488,6 @@ class Emit[C](
     if (result.st.virtualType != ir.typ)
       throw new RuntimeException(s"type mismatch: EC=${ result.st.virtualType } / IR=${ ir.typ }\n")
     result
-
-    //    if (result.pt != pt) {
-    //      if (!result.pt.equalModuloRequired(pt))
-    //        throw new RuntimeException(s"ptype mismatch:\n  emitted:  ${ result.pt }\n  inferred: ${ ir.pType }\n  ir: $ir")
-    //      (result.pt.required, pt.required) match {
-    //        case (true, false) => EmitCode.fromI(mb)(cb => result.toI(cb).map(cb)(pc => PCode(pc.pt.setRequired(pt.required), pc.code)))
-    //        case (false, true) => EmitCode.fromI(mb) { cb => IEmitCode.present(cb, result.toI(cb).get(cb)) }
-    //      }
-    //    } else result
   }
 
   private def capturedReferences(ir: IR, cb: EmitCodeBuilder, env: Emit.E): Emit.E = {
