@@ -307,7 +307,7 @@ abstract class RegistryFunctions {
       }
     case TArray(TFloat64) =>
       val ast = st.asInstanceOf[SIndexablePointer]
-      val pca = ast.asInstanceOf[PCanonicalArray]
+      val pca = ast.pType.asInstanceOf[PCanonicalArray]
       val arr = cb.newLocal[IndexedSeq[Double]]("unrwrap_return_array_float64_arr", coerce[IndexedSeq[Double]](value))
       val len = cb.newLocal[Int]("unwrap_return_array_float64_len", arr.invoke[Int]("length"))
       pca.constructFromElements(cb, r, len, deepCopy = false) { (cb, idx) =>
@@ -317,7 +317,7 @@ abstract class RegistryFunctions {
       }
     case TArray(TString) =>
       val ast = st.asInstanceOf[SIndexablePointer]
-      val pca = ast.asInstanceOf[PCanonicalArray]
+      val pca = ast.pType.asInstanceOf[PCanonicalArray]
       val arr = cb.newLocal[IndexedSeq[String]]("unrwrap_return_array_str_arr", coerce[IndexedSeq[String]](value))
       val len = cb.newLocal[Int]("unwrap_return_array_str_len", arr.invoke[Int]("length"))
       pca.constructFromElements(cb, r, len, deepCopy = false) { (cb, idx) =>

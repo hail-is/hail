@@ -247,7 +247,7 @@ object StringFunctions extends RegistryFunctions {
           IEmitCode(cb, out.isNull, {
             val len = cb.newLocal[Int]("len", out.invoke[Int]("size"))
             val eltType = rt.elementType.asInstanceOf[PCanonicalString]
-            val sstring = SStringPointer(eltType)
+            val sstring = SStringPointer(eltType.setRequired(false))
             rt.constructFromElements(cb, region, len, deepCopy = false) { (cb, idx) =>
               val elt = cb.newLocal[String]("first_match_elt", out.invoke[Int, String]("apply", idx))
               IEmitCode(cb, elt.isNull, sstring.constructFromString(cb, region, elt))

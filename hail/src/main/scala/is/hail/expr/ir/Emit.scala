@@ -2562,7 +2562,7 @@ class Emit[C](
       val xType = coerce[TNDArray](x.typ)
       val outputNDims = xType.nDims
 
-      x match {
+      val r = x match {
         case NDArrayMap(child, elemName, body) =>
           deforest(child).map(cb) { childEmitter =>
             val elemRef = cb.emb.newPresentEmitField("ndarray_map_element_name", childEmitter.elementType)
@@ -2931,6 +2931,11 @@ class Emit[C](
             }
           }
       }
+
+      val deforestedEltType = r.value.elementType.virtualType
+      if (deforestedEltType != xType.elementType)
+        throw new RuntimeException(s"invalid NDArray deforest rule: deforested element type is ${ deforestedEltType }, expect ${ xType.elementType }")
+      r
     }
 
     deforest(x0).map(cb)(emitter => emitter.emit(cb, PCanonicalNDArray(emitter.elementType.canonicalPType().setRequired(true), emitter.nDims), region))
