@@ -15,9 +15,12 @@ object CallFunctions extends RegistryFunctions {
   def registerAll() {
     registerWrappedScalaFunction1("Call", TString, TCall, (rt: Type, st: SType) => SCanonicalCall)(Call.getClass, "parse")
 
+    registerPCode1("callFromRepr", TInt32, TCall, (rt: Type, _: SType) => SCanonicalCall) {
+      case (er, cb, rt, repr) => SCanonicalCall.constructFromIntRepr(repr.asInt.intCode(cb))
+    }
+
     registerPCode1("Call", TBoolean, TCall, (rt: Type, _: SType) => SCanonicalCall) {
       case (er, cb, rt, phased) =>
-        
         SCanonicalCall.constructFromIntRepr(Code.invokeScalaObject[Int](
           Call0.getClass, "apply", Array(classTag[Boolean].runtimeClass), Array(phased.asBoolean.boolCode(cb))))
     }
@@ -76,7 +79,7 @@ object CallFunctions extends RegistryFunctions {
     registerPCode2("index", TCall, TInt32, TInt32, (rt: Type, _: SType, _: SType) => SInt32) {
       case (er, cb, rt, call, idx) =>
         primitive(Code.invokeScalaObject[Int](
-          Call.getClass, "alleleByIndex", Array(classTag[Int].runtimeClass), Array(call.asCall.loadCanonicalRepresentation(cb), idx.asInt.intCode(cb))))
+          Call.getClass, "alleleByIndex", Array(classTag[Int].runtimeClass, classTag[Int].runtimeClass), Array(call.asCall.loadCanonicalRepresentation(cb), idx.asInt.intCode(cb))))
     }
 
     registerPCode2("downcode", TCall, TInt32, TCall, (rt: Type, _: SType, _: SType) => SCanonicalCall) {

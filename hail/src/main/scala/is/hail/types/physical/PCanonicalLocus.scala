@@ -133,6 +133,6 @@ final case class PCanonicalLocus(rgBc: BroadcastRG, required: Boolean = false) e
     val contigType = representation.fieldType("contig").asInstanceOf[PCanonicalString]
     val contigCode = contigType.sType.constructFromString(cb, r, contig)
     val repr = representation.constructFromFields(cb, r, FastIndexedSeq(EmitCode.present(cb.emb, contigCode), EmitCode.present(cb.emb, primitive(pos))), deepCopy = false)
-    new SCanonicalLocusPointerCode(SCanonicalLocusPointer(this), repr.a)
+    new SCanonicalLocusPointerCode(SCanonicalLocusPointer(setRequired(false).asInstanceOf[PCanonicalLocus]), repr.a)
   }
 }
