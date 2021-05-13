@@ -446,13 +446,20 @@ abstract class RegistryFunctions {
       case TArray(TString) => classTag[IndexedSeq[String]]
       case TSet(TString) => classTag[Set[String]]
       case TDict(TString, TString) => classTag[Map[String, String]]
+      case TCall => classTag[Int]
       case t => PrimitiveTypeToIRIntermediateClassTag(t)
+    }
+
+    def wrap(cb: EmitCodeBuilder, r: Value[Region], code: PCode): Code[_] = code.st match {
+      case t if t.isPrimitive => SType.extractPrimCode(cb, code)
+      case call: SCall => code.asCall.loadCanonicalRepresentation(cb)
+      case _ => scodeToJavaValue(cb, r, code)
     }
 
     registerPCode(name, valueParameterTypes, returnType, calculateReturnType) { case (r, cb, _, rt, args) =>
       val cts = valueParameterTypes.map(ct(_).runtimeClass)
       unwrapReturn(cb, r.region, rt,
-        Code.invokeScalaObject(cls, method, cts, args.map { a => scodeToJavaValue(cb, r.region, a) })(ct(returnType)))
+        Code.invokeScalaObject(cls, method, cts, args.map { a => wrap(cb, r.region, a) })(ct(returnType)))
     }
   }
 

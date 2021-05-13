@@ -82,16 +82,11 @@ object CallFunctions extends RegistryFunctions {
           Call.getClass, "alleleByIndex", Array(classTag[Int].runtimeClass, classTag[Int].runtimeClass), Array(call.asCall.loadCanonicalRepresentation(cb), idx.asInt.intCode(cb))))
     }
 
-    registerPCode2("downcode", TCall, TInt32, TCall, (rt: Type, _: SType, _: SType) => SCanonicalCall) {
-      case (er, cb, rt, call, downcodedAllele) =>
-        SCanonicalCall.constructFromIntRepr(Code.invokeScalaObject[Int](
-          Call.getClass, "downcode", Array(classTag[Int].runtimeClass), Array(call.asCall.loadCanonicalRepresentation(cb), downcodedAllele.asInt.intCode(cb))))
-    }
 
     registerPCode2("downcode", TCall, TInt32, TCall, (rt: Type, _: SType, _: SType) => SCanonicalCall) {
       case (er, cb, rt, call, downcodedAllele) =>
         SCanonicalCall.constructFromIntRepr(Code.invokeScalaObject[Int](
-          Call.getClass, "downcode", Array(classTag[Int].runtimeClass), Array(call.asCall.loadCanonicalRepresentation(cb), downcodedAllele.asInt.intCode(cb))))
+          Call.getClass, "downcode", Array(classTag[Int].runtimeClass, classTag[Int].runtimeClass), Array(call.asCall.loadCanonicalRepresentation(cb), downcodedAllele.asInt.intCode(cb))))
     }
 
     registerWrappedScalaFunction2("oneHotAlleles", TCall, TInt32, TArray(TInt32), {
