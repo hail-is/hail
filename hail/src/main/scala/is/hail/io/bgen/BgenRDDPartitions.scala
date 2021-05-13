@@ -279,7 +279,7 @@ object CompileDecoder {
             t.constructFromPositionAndString(cb, region, contigRecoded, position)
           case t: PCanonicalStruct =>
             val strT = t.field("contig").typ.asInstanceOf[PCanonicalString]
-            val contigPC = SStringPointer(strT).constructFromString(cb, region, contigRecoded)
+            val contigPC = strT.sType.constructFromString(cb, region, contigRecoded)
             t.constructFromFields(cb, region,
               FastIndexedSeq(EmitCode.present(cb.emb, contigPC), EmitCode.present(cb.emb, primitive(position))),
               deepCopy = false)

@@ -31,9 +31,9 @@ object ReferenceGenomeFunctions extends RegistryFunctions {
       Array(LocusFunctions.tlocus("R")),
       TString, TInt32, TInt32, TInt32, TString,
       (_: Type, _: SType, _: SType, _: SType, _: SType) => SStringPointer(PCanonicalString())) {
-      case (r, cb, Seq(typeParam: TLocus), rt: PString, contig, pos, before, after) =>
+      case (r, cb, Seq(typeParam: TLocus), st, contig, pos, before, after) =>
         val scontig = contig.asString.loadString()
-        unwrapReturn(cb, r.region, rt,
+        unwrapReturn(cb, r.region, st,
           rgCode(cb.emb, typeParam.rg).invoke[String, Int, Int, Int, String]("getSequence",
             scontig,
             pos.asInt.intCode(cb),
