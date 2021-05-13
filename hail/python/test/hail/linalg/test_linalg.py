@@ -573,10 +573,9 @@ class Tests(unittest.TestCase):
         self.assert_sums_agree(bm4, nd4)
 
     @fails_service_backend()
-    @fails_local_backend()
     def test_slicing(self):
         nd = np.array(np.arange(0, 80, dtype=float)).reshape(8, 10)
-        bm = BlockMatrix.from_numpy(nd, block_size=3)
+        bm = BlockMatrix.from_ndarray(hl.literal(nd), block_size=3)
 
         for indices in [(0, 0), (5, 7), (-3, 9), (-8, -10)]:
             self._assert_eq(bm[indices], nd[indices])

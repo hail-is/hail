@@ -293,6 +293,8 @@ object Pretty {
       single(prettyStringLiteral(Serialization.write(function)(RelationalFunctions.formats)))
     case MatrixToValueApply(_, function) =>
       single(prettyStringLiteral(Serialization.write(function)(RelationalFunctions.formats)))
+    case BlockMatrixToValueApply(_, function) =>
+      single(prettyStringLiteral(Serialization.write(function)(RelationalFunctions.formats)))
     case BlockMatrixToTableApply(_, _, function) =>
       single(prettyStringLiteral(Serialization.write(function)(RelationalFunctions.formats)))
     case TableRename(_, rowMap, globalMap) =>
