@@ -87,8 +87,6 @@ class Tests(unittest.TestCase):
             a4 = hl.eval(BlockMatrix.read(path).to_ndarray())
             self._assert_eq(a1, a4)
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_from_entry_expr_options(self):
         def build_mt(a):
             data = [{'v': 0, 's': 0, 'x': a[0]},
@@ -100,10 +98,10 @@ class Tests(unittest.TestCase):
             return mt.choose_cols([ids.index(0), ids.index(1), ids.index(2)])
 
         def check(expr, mean_impute, center, normalize, expected):
-            actual = np.squeeze(BlockMatrix.from_entry_expr(expr,
+            actual = np.squeeze(hl.eval(BlockMatrix.from_entry_expr(expr,
                                                             mean_impute=mean_impute,
                                                             center=center,
-                                                            normalize=normalize).to_numpy())
+                                                            normalize=normalize).to_ndarray()))
             assert np.allclose(actual, expected)
 
         a = np.array([0.0, 1.0, 2.0])
