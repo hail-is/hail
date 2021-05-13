@@ -2180,7 +2180,7 @@ class Emit[C](
         val parentCB = mb.ecb
         emitStream(contexts, cb, region).map(cb) { case ctxStream: SStreamCode =>
 
-          def wrapInTuple(cb: EmitCodeBuilder, et: EmitCode): SBaseStructPointerCode = {
+          def wrapInTuple(cb: EmitCodeBuilder, region: Value[Region], et: EmitCode): SBaseStructPointerCode = {
             PCanonicalTuple(true, et.emitType.canonicalPType).constructFromFields(cb, region, FastIndexedSeq(et), deepCopy = false)
           }
 
@@ -2199,13 +2199,14 @@ class Emit[C](
 
           var bodySpec: TypedCodecSpec = null
           bodyFB.emitWithBuilder { cb =>
+            val region = bodyFB.getCodeParam[Region](1)
             val ctxIB = cb.newLocal[InputBuffer]("cda_ctx_ib", contextSpec.buildCodeInputBuffer(
               Code.newInstance[ByteArrayInputStream, Array[Byte]](bodyFB.getCodeParam[Array[Byte]](2))))
             val gIB = cb.newLocal[InputBuffer]("cda_g_ib", globalSpec.buildCodeInputBuffer(
               Code.newInstance[ByteArrayInputStream, Array[Byte]](bodyFB.getCodeParam[Array[Byte]](3))))
 
             val decodedContext = contextSpec.encodedType.buildDecoder(contextSpec.encodedVirtualType, bodyFB.ecb)
-              .apply(cb, bodyFB.getCodeParam[Region](1), ctxIB)
+              .apply(cb, region, ctxIB)
               .asBaseStruct
               .memoize(cb, "decoded_context_tuple")
               .loadField(cb, 0)
@@ -2213,7 +2214,7 @@ class Emit[C](
               .memoize(cb, "decoded_context")
 
             val decodedGlobal = globalSpec.encodedType.buildDecoder(globalSpec.encodedVirtualType, bodyFB.ecb)
-              .apply(cb, bodyFB.getCodeParam[Region](1), gIB)
+              .apply(cb, region, gIB)
               .asBaseStruct
               .memoize(cb, "decoded_global_tuple")
               .loadField(cb, 0)
@@ -2225,6 +2226,7 @@ class Emit[C](
               (gname, decodedGlobal))
 
             val bodyResult = wrapInTuple(cb,
+              region,
               EmitCode.fromI(cb.emb)(cb => new Emit(ctx, bodyFB.ecb).emitI(body, cb, env, None)))
 
             bodySpec = TypedCodecSpec(bodyResult.st.canonicalPType().setRequired(true), bufferSpec)
@@ -2255,7 +2257,7 @@ class Emit[C](
               cb += ctxab.invoke[Int, Unit]("ensureCapacity", ctxStream.length.map(_.apply(cb)).getOrElse(16))
             }) { cb =>
               cb += baos.invoke[Unit]("reset")
-              val ctxTuple = wrapInTuple(cb, ctxStream.element)
+              val ctxTuple = wrapInTuple(cb, region, ctxStream.element)
                 .memoize(cb, "cda_add_contexts_addr")
               contextSpec.encodedType.buildEncoder(ctxTuple.st, parentCB)
                 .apply(cb, ctxTuple, buf)
@@ -2265,7 +2267,7 @@ class Emit[C](
           }
 
           def addGlobals(cb: EmitCodeBuilder): Unit = {
-            val wrapped = wrapInTuple(cb, emitGlobals)
+            val wrapped = wrapInTuple(cb, region, emitGlobals)
             globalSpec.encodedType.buildEncoder(wrapped.st, parentCB)
               .apply(cb, wrapped, buf)
             cb += buf.invoke[Unit]("flush")
