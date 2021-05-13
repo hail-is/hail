@@ -63,7 +63,7 @@ case class ENDArrayColumnMajor(elementType: EType, nDims: Int, required: Boolean
   def _decodedSType(requestedType: Type): SType = {
     val requestedTNDArray = requestedType.asInstanceOf[TNDArray]
     val elementPType = elementType.decodedPType(requestedTNDArray.elementType)
-    SNDArrayPointer(PCanonicalNDArray(elementPType, requestedTNDArray.nDims, required))
+    SNDArrayPointer(PCanonicalNDArray(elementPType, requestedTNDArray.nDims, false))
   }
 
   override def setRequired(required: Boolean): EType = ENDArrayColumnMajor(elementType, nDims, required)
