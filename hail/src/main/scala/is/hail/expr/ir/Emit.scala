@@ -1348,7 +1348,7 @@ class Emit[C](
             val leftBroadcastMask = if (lPType.nDims > 2) NDArrayEmitter.broadcastMask(lShape) else IndexedSeq[Value[Long]]()
             val rightBroadcastMask = if (rPType.nDims > 2) NDArrayEmitter.broadcastMask(rShape) else IndexedSeq[Value[Long]]()
 
-            val outputPType = PCanonicalNDArray(PFloat64Required, TNDArray.matMulNDims(lPType.nDims, rPType.nDims))
+            val outputPType = PCanonicalNDArray(lPType.elementType, TNDArray.matMulNDims(lPType.nDims, rPType.nDims))
 
             if ((lPType.elementType.isInstanceOf[PFloat64] || lPType.elementType.isInstanceOf[PFloat32]) && lPType.nDims == 2 && rPType.nDims == 2) {
               val leftPValAddr = SingleCodePCode.fromPCode(cb, leftPVal, region)

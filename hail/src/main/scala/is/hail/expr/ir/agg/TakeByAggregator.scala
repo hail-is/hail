@@ -382,8 +382,8 @@ class TakeByRVAS(val valueVType: VirtualTypeWithReq, val keyVType: VirtualTypeWi
 
   // for tests
   def seqOp(cb: EmitCodeBuilder, vm: Code[Boolean], v: Code[_], km: Code[Boolean], k: Code[_]): Unit = {
-    val vec = EmitCode(Code._empty, vm, primitive( valueType.virtualType, v))
-    val kec = EmitCode(Code._empty, km, primitive( keyType.virtualType, k))
+    val vec = EmitCode(Code._empty, vm, if (valueType.isPrimitive) primitive(valueType.virtualType, v) else valueType.loadCheapPCode(cb, coerce[Long](v)))
+    val kec = EmitCode(Code._empty, km, if (keyType.isPrimitive) primitive(keyType.virtualType, k) else keyType.loadCheapPCode(cb, coerce[Long](k)))
     seqOp(cb, vec, kec)
   }
 

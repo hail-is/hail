@@ -719,9 +719,9 @@ class Requiredness(val usesAndDefs: UsesAndDefs, ctx: ExecuteContext) {
         requiredness.unionFrom(lookup(readers))
       case ShuffleWrite(id, rows) => // required
       case ShufflePartitionBounds(id, nPartitions) =>
-        coerce[RIterable](requiredness).elementType.fromPType(coerce[TShuffle](id.typ).keyDecodedPType)
+        coerce[RIterable](requiredness).elementType.fromPType(coerce[TShuffle](id.typ).keyDecodedPType.setRequired(true))
       case ShuffleRead(id, keyRange) =>
-        coerce[RIterable](requiredness).elementType.fromPType(coerce[TShuffle](id.typ).rowDecodedPType)
+        coerce[RIterable](requiredness).elementType.fromPType(coerce[TShuffle](id.typ).rowDecodedPType.setRequired(true))
     }
     requiredness.probeChangedAndReset()
   }
