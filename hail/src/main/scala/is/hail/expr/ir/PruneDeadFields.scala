@@ -1373,6 +1373,20 @@ object PruneDeadFields {
         )
         memoizeMatrixIR(child, dep, memo)
         BindingEnv.empty
+      case TailLoop(name, params, body) =>
+        val bodyEnv = memoizeValueIR(body, body.typ, memo)
+        val paramTypes = params.map{ case (paramName, paramIR) =>
+          bodyEnv.eval.lookupOption(paramName) match {
+            case Some(ab) => unifySeq(paramIR.typ, ab.result())
+            case None => minimal(paramIR.typ)
+          }
+        }
+        unifyEnvsSeq(
+          IndexedSeq(bodyEnv.deleteEval(params.map(_._1))) ++
+          params.zip(paramTypes).map{ case ((paramName, paramIR), paramType) =>
+            memoizeValueIR(paramIR, paramType, memo)
+          }
+        )
       case CollectDistributedArray(contexts, globals, cname, gname, body, tsd) =>
         val rArray = requestedType.asInstanceOf[TArray]
         val bodyEnv = memoizeValueIR(body, rArray.elementType, memo)

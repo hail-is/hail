@@ -459,6 +459,8 @@ class Tests(unittest.TestCase):
                 eq(combined.p_value, combined.multi.p_value[0]) &
                 eq(combined.multi.p_value[0], combined.multi.p_value[1]))))
 
+    logreg_functions = [hl.logistic_regression_rows, hl._logistic_regression_rows_nd] if backend_name == "spark" else [hl._logistic_regression_rows_nd]
+
     # comparing to R:
     # x = c(0, 1, 0, 0, 0, 1, 0, 0, 0, 0)
     # y = c(0, 0, 1, 1, 1, 1, 0, 0, 1, 1)
@@ -470,8 +472,6 @@ class Tests(unittest.TestCase):
     # se <- waldtest["x", "Std. Error"]
     # zstat <- waldtest["x", "z value"]
     # pval <- waldtest["x", "Pr(>|z|)"]
-    @fails_service_backend()
-    @fails_local_backend()
     def test_logistic_regression_wald_test(self):
         covariates = hl.import_table(resource('regressionLogistic.cov'),
                                      key='Sample',
@@ -481,35 +481,35 @@ class Tests(unittest.TestCase):
                                 missing='0',
                                 types={'isCase': hl.tbool})
         mt = hl.import_vcf(resource('regressionLogistic.vcf'))
-        ht = hl.logistic_regression_rows('wald',
-                                         y=pheno[mt.s].isCase,
-                                         x=mt.GT.n_alt_alleles(),
-                                         covariates=[1.0, covariates[mt.s].Cov1, covariates[mt.s].Cov2])
 
-        results = dict(hl.tuple([ht.locus.position, ht.row]).collect())
+        for logistic_regression_function in self.logreg_functions:
+            ht = logistic_regression_function('wald',
+                                              y=pheno[mt.s].isCase,
+                                              x=mt.GT.n_alt_alleles(),
+                                              covariates=[1.0, covariates[mt.s].Cov1, covariates[mt.s].Cov2])
 
-        self.assertAlmostEqual(results[1].beta, -0.81226793796, places=6)
-        self.assertAlmostEqual(results[1].standard_error, 2.1085483421, places=6)
-        self.assertAlmostEqual(results[1].z_stat, -0.3852261396, places=6)
-        self.assertAlmostEqual(results[1].p_value, 0.7000698784, places=6)
+            results = dict(hl.tuple([ht.locus.position, ht.row]).collect())
 
-        self.assertAlmostEqual(results[2].beta, -0.43659460858, places=6)
-        self.assertAlmostEqual(results[2].standard_error, 1.0296902941, places=6)
-        self.assertAlmostEqual(results[2].z_stat, -0.4240057531, places=6)
-        self.assertAlmostEqual(results[2].p_value, 0.6715616176, places=6)
+            self.assertAlmostEqual(results[1].beta, -0.81226793796, places=6)
+            self.assertAlmostEqual(results[1].standard_error, 2.1085483421, places=6)
+            self.assertAlmostEqual(results[1].z_stat, -0.3852261396, places=6)
+            self.assertAlmostEqual(results[1].p_value, 0.7000698784, places=6)
 
-        def is_constant(r):
-            return (not r.fit.converged) or np.isnan(r.p_value) or abs(r.p_value - 1) < 1e-4
+            self.assertAlmostEqual(results[2].beta, -0.43659460858, places=6)
+            self.assertAlmostEqual(results[2].standard_error, 1.0296902941, places=6)
+            self.assertAlmostEqual(results[2].z_stat, -0.4240057531, places=6)
+            self.assertAlmostEqual(results[2].p_value, 0.6715616176, places=6)
 
-        self.assertFalse(results[3].fit.converged)  # separable
-        self.assertTrue(is_constant(results[6]))
-        self.assertTrue(is_constant(results[7]))
-        self.assertTrue(is_constant(results[8]))
-        self.assertTrue(is_constant(results[9]))
-        self.assertTrue(is_constant(results[10]))
+            def is_constant(r):
+                return (not r.fit.converged) or np.isnan(r.p_value) or abs(r.p_value - 1) < 1e-4
 
-    @fails_service_backend()
-    @fails_local_backend()
+            self.assertFalse(results[3].fit.converged)  # separable
+            self.assertTrue(is_constant(results[6]))
+            self.assertTrue(is_constant(results[7]))
+            self.assertTrue(is_constant(results[8]))
+            self.assertTrue(is_constant(results[9]))
+            self.assertTrue(is_constant(results[10]))
+
     def test_logistic_regression_wald_test_apply_multi_pheno(self):
         covariates = hl.import_table(resource('regressionLogistic.cov'),
                                      key='Sample',
@@ -519,35 +519,38 @@ class Tests(unittest.TestCase):
                                 missing='0',
                                 types={'isCase': hl.tbool})
         mt = hl.import_vcf(resource('regressionLogistic.vcf'))
-        ht = hl.logistic_regression_rows('wald',
-                                         y=[pheno[mt.s].isCase],
-                                         x=mt.GT.n_alt_alleles(),
-                                         covariates=[1.0, covariates[mt.s].Cov1, covariates[mt.s].Cov2])
 
-        results = dict(hl.tuple([ht.locus.position, ht.row]).collect())
+        for logistic_regression_function in self.logreg_functions:
 
-        self.assertEqual(len(results[1].logistic_regression),1)
-        self.assertAlmostEqual(results[1].logistic_regression[0].beta, -0.81226793796, places=6)
-        self.assertAlmostEqual(results[1].logistic_regression[0].standard_error, 2.1085483421, places=6)
-        self.assertAlmostEqual(results[1].logistic_regression[0].z_stat, -0.3852261396, places=6)
-        self.assertAlmostEqual(results[1].logistic_regression[0].p_value, 0.7000698784, places=6)
+            ht = logistic_regression_function('wald',
+                                              y=[pheno[mt.s].isCase],
+                                              x=mt.GT.n_alt_alleles(),
+                                              covariates=[1.0, covariates[mt.s].Cov1, covariates[mt.s].Cov2])
 
-        self.assertEqual(len(results[2].logistic_regression),1)
-        self.assertAlmostEqual(results[2].logistic_regression[0].beta, -0.43659460858, places=6)
-        self.assertAlmostEqual(results[2].logistic_regression[0].standard_error, 1.0296902941, places=6)
-        self.assertAlmostEqual(results[2].logistic_regression[0].z_stat, -0.4240057531, places=6)
-        self.assertAlmostEqual(results[2].logistic_regression[0].p_value, 0.6715616176, places=6)
+            results = dict(hl.tuple([ht.locus.position, ht.row]).collect())
 
-        def is_constant(r):
-            return (not r.logistic_regression[0].fit.converged) or np.isnan(r.logistic_regression[0].p_value) or abs(r.logistic_regression[0].p_value - 1) < 1e-4
+            self.assertEqual(len(results[1].logistic_regression),1)
+            self.assertAlmostEqual(results[1].logistic_regression[0].beta, -0.81226793796, places=6)
+            self.assertAlmostEqual(results[1].logistic_regression[0].standard_error, 2.1085483421, places=6)
+            self.assertAlmostEqual(results[1].logistic_regression[0].z_stat, -0.3852261396, places=6)
+            self.assertAlmostEqual(results[1].logistic_regression[0].p_value, 0.7000698784, places=6)
 
-        self.assertEqual(len(results[3].logistic_regression),1)
-        self.assertFalse(results[3].logistic_regression[0].fit.converged)  # separable
-        self.assertTrue(is_constant(results[6]))
-        self.assertTrue(is_constant(results[7]))
-        self.assertTrue(is_constant(results[8]))
-        self.assertTrue(is_constant(results[9]))
-        self.assertTrue(is_constant(results[10]))
+            self.assertEqual(len(results[2].logistic_regression),1)
+            self.assertAlmostEqual(results[2].logistic_regression[0].beta, -0.43659460858, places=6)
+            self.assertAlmostEqual(results[2].logistic_regression[0].standard_error, 1.0296902941, places=6)
+            self.assertAlmostEqual(results[2].logistic_regression[0].z_stat, -0.4240057531, places=6)
+            self.assertAlmostEqual(results[2].logistic_regression[0].p_value, 0.6715616176, places=6)
+
+            def is_constant(r):
+                return (not r.logistic_regression[0].fit.converged) or np.isnan(r.logistic_regression[0].p_value) or abs(r.logistic_regression[0].p_value - 1) < 1e-4
+
+            self.assertEqual(len(results[3].logistic_regression),1)
+            self.assertFalse(results[3].logistic_regression[0].fit.converged)  # separable
+            self.assertTrue(is_constant(results[6]))
+            self.assertTrue(is_constant(results[7]))
+            self.assertTrue(is_constant(results[8]))
+            self.assertTrue(is_constant(results[9]))
+            self.assertTrue(is_constant(results[10]))
 
     @fails_service_backend()
     @fails_local_backend()
@@ -562,28 +565,28 @@ class Tests(unittest.TestCase):
         mt = hl.import_bgen(resource('example.8bits.bgen'),
                                            entry_fields=['dosage']).cache()
 
-        ht_single_pheno = hl.logistic_regression_rows('wald',
-                                      y=pheno[mt.s].Pheno1,
-                                      x=mt.dosage,
-                                      covariates=[1.0, covariates[mt.s].Cov1, covariates[mt.s].Cov2])
+        for logistic_regression_function in self.logreg_functions:
 
-        ht_multi_pheno = hl.logistic_regression_rows('wald',
-                                         y=[pheno[mt.s].Pheno1, pheno[mt.s].Pheno2],
-                                         x=mt.dosage,
-                                         covariates=[1.0, covariates[mt.s].Cov1, covariates[mt.s].Cov2])
+            ht_single_pheno = logistic_regression_function('wald',
+                                          y=pheno[mt.s].Pheno1,
+                                          x=mt.dosage,
+                                          covariates=[1.0, covariates[mt.s].Cov1, covariates[mt.s].Cov2])
 
-        single_results = dict(hl.tuple([ht_single_pheno.locus.position, ht_single_pheno.row]).collect())
-        multi_results = dict(hl.tuple([ht_multi_pheno.locus.position, ht_multi_pheno.row]).collect())
-        self.assertEqual(len(multi_results[1001].logistic_regression),2)
-        self.assertAlmostEqual(multi_results[1001].logistic_regression[0].beta, single_results[1001].beta, places=6)
-        self.assertAlmostEqual(multi_results[1001].logistic_regression[0].standard_error,single_results[1001].standard_error, places=6)
-        self.assertAlmostEqual(multi_results[1001].logistic_regression[0].z_stat, single_results[1001].z_stat, places=6)
-        self.assertAlmostEqual(multi_results[1001].logistic_regression[0].p_value,single_results[1001].p_value, places=6)
-        #TODO test handling of missingness
+            ht_multi_pheno = logistic_regression_function('wald',
+                                             y=[pheno[mt.s].Pheno1, pheno[mt.s].Pheno2],
+                                             x=mt.dosage,
+                                             covariates=[1.0, covariates[mt.s].Cov1, covariates[mt.s].Cov2])
+
+            single_results = dict(hl.tuple([ht_single_pheno.locus.position, ht_single_pheno.row]).collect())
+            multi_results = dict(hl.tuple([ht_multi_pheno.locus.position, ht_multi_pheno.row]).collect())
+            self.assertEqual(len(multi_results[1001].logistic_regression),2)
+            self.assertAlmostEqual(multi_results[1001].logistic_regression[0].beta, single_results[1001].beta, places=6)
+            self.assertAlmostEqual(multi_results[1001].logistic_regression[0].standard_error,single_results[1001].standard_error, places=6)
+            self.assertAlmostEqual(multi_results[1001].logistic_regression[0].z_stat, single_results[1001].z_stat, places=6)
+            self.assertAlmostEqual(multi_results[1001].logistic_regression[0].p_value,single_results[1001].p_value, places=6)
+            #TODO test handling of missingness
 
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_logistic_regression_wald_test_pl(self):
         covariates = hl.import_table(resource('regressionLogistic.cov'),
                                      key='Sample',
@@ -593,33 +596,36 @@ class Tests(unittest.TestCase):
                                 missing='0',
                                 types={'isCase': hl.tbool})
         mt = hl.import_vcf(resource('regressionLogistic.vcf'))
-        ht = hl.logistic_regression_rows(
-            test='wald',
-            y=pheno[mt.s].isCase,
-            x=hl.pl_dosage(mt.PL),
-            covariates=[1.0, covariates[mt.s].Cov1, covariates[mt.s].Cov2])
 
-        results = dict(hl.tuple([ht.locus.position, ht.row]).collect())
+        for logistic_regression_function in self.logreg_functions:
 
-        self.assertAlmostEqual(results[1].beta, -0.8286774, places=6)
-        self.assertAlmostEqual(results[1].standard_error, 2.151145, places=6)
-        self.assertAlmostEqual(results[1].z_stat, -0.3852261, places=6)
-        self.assertAlmostEqual(results[1].p_value, 0.7000699, places=6)
+            ht = logistic_regression_function(
+                test='wald',
+                y=pheno[mt.s].isCase,
+                x=hl.pl_dosage(mt.PL),
+                covariates=[1.0, covariates[mt.s].Cov1, covariates[mt.s].Cov2])
 
-        self.assertAlmostEqual(results[2].beta, -0.4431764, places=6)
-        self.assertAlmostEqual(results[2].standard_error, 1.045213, places=6)
-        self.assertAlmostEqual(results[2].z_stat, -0.4240058, places=6)
-        self.assertAlmostEqual(results[2].p_value, 0.6715616, places=6)
+            results = dict(hl.tuple([ht.locus.position, ht.row]).collect())
 
-        def is_constant(r):
-            return (not r.fit.converged) or np.isnan(r.p_value) or abs(r.p_value - 1) < 1e-4
+            self.assertAlmostEqual(results[1].beta, -0.8286774, places=6)
+            self.assertAlmostEqual(results[1].standard_error, 2.151145, places=6)
+            self.assertAlmostEqual(results[1].z_stat, -0.3852261, places=6)
+            self.assertAlmostEqual(results[1].p_value, 0.7000699, places=6)
 
-        self.assertFalse(results[3].fit.converged)  # separable
-        self.assertTrue(is_constant(results[6]))
-        self.assertTrue(is_constant(results[7]))
-        self.assertTrue(is_constant(results[8]))
-        self.assertTrue(is_constant(results[9]))
-        self.assertTrue(is_constant(results[10]))
+            self.assertAlmostEqual(results[2].beta, -0.4431764, places=6)
+            self.assertAlmostEqual(results[2].standard_error, 1.045213, places=6)
+            self.assertAlmostEqual(results[2].z_stat, -0.4240058, places=6)
+            self.assertAlmostEqual(results[2].p_value, 0.6715616, places=6)
+
+            def is_constant(r):
+                return (not r.fit.converged) or np.isnan(r.p_value) or abs(r.p_value - 1) < 1e-4
+
+            self.assertFalse(results[3].fit.converged)  # separable
+            self.assertTrue(is_constant(results[6]))
+            self.assertTrue(is_constant(results[7]))
+            self.assertTrue(is_constant(results[8]))
+            self.assertTrue(is_constant(results[9]))
+            self.assertTrue(is_constant(results[10]))
 
     @fails_service_backend()
     @fails_local_backend()
@@ -633,33 +639,36 @@ class Tests(unittest.TestCase):
                                 types={'isCase': hl.tbool})
         mt = hl.import_gen(resource('regressionLogistic.gen'),
                            sample_file=resource('regressionLogistic.sample'))
-        ht = hl.logistic_regression_rows(
-            test='wald',
-            y=pheno[mt.s].isCase,
-            x=hl.gp_dosage(mt.GP),
-            covariates=[1.0, covariates[mt.s].Cov1, covariates[mt.s].Cov2])
 
-        results = dict(hl.tuple([ht.locus.position, ht.row]).collect())
+        for logistic_regression_function in self.logreg_functions:
 
-        self.assertAlmostEqual(results[1].beta, -0.8286774, places=4)
-        self.assertAlmostEqual(results[1].standard_error, 2.151145, places=4)
-        self.assertAlmostEqual(results[1].z_stat, -0.3852261, places=4)
-        self.assertAlmostEqual(results[1].p_value, 0.7000699, places=4)
+            ht = logistic_regression_function(
+                test='wald',
+                y=pheno[mt.s].isCase,
+                x=hl.gp_dosage(mt.GP),
+                covariates=[1.0, covariates[mt.s].Cov1, covariates[mt.s].Cov2])
 
-        self.assertAlmostEqual(results[2].beta, -0.4431764, places=4)
-        self.assertAlmostEqual(results[2].standard_error, 1.045213, places=4)
-        self.assertAlmostEqual(results[2].z_stat, -0.4240058, places=4)
-        self.assertAlmostEqual(results[2].p_value, 0.6715616, places=4)
+            results = dict(hl.tuple([ht.locus.position, ht.row]).collect())
 
-        def is_constant(r):
-            return (not r.fit.converged) or np.isnan(r.p_value) or abs(r.p_value - 1) < 1e-4
+            self.assertAlmostEqual(results[1].beta, -0.8286774, places=4)
+            self.assertAlmostEqual(results[1].standard_error, 2.151145, places=4)
+            self.assertAlmostEqual(results[1].z_stat, -0.3852261, places=4)
+            self.assertAlmostEqual(results[1].p_value, 0.7000699, places=4)
 
-        self.assertFalse(results[3].fit.converged)  # separable
-        self.assertTrue(is_constant(results[6]))
-        self.assertTrue(is_constant(results[7]))
-        self.assertTrue(is_constant(results[8]))
-        self.assertTrue(is_constant(results[9]))
-        self.assertTrue(is_constant(results[10]))
+            self.assertAlmostEqual(results[2].beta, -0.4431764, places=4)
+            self.assertAlmostEqual(results[2].standard_error, 1.045213, places=4)
+            self.assertAlmostEqual(results[2].z_stat, -0.4240058, places=4)
+            self.assertAlmostEqual(results[2].p_value, 0.6715616, places=4)
+
+            def is_constant(r):
+                return (not r.fit.converged) or np.isnan(r.p_value) or abs(r.p_value - 1) < 1e-4
+
+            self.assertFalse(results[3].fit.converged)  # separable
+            self.assertTrue(is_constant(results[6]))
+            self.assertTrue(is_constant(results[7]))
+            self.assertTrue(is_constant(results[8]))
+            self.assertTrue(is_constant(results[9]))
+            self.assertTrue(is_constant(results[10]))
 
     # comparing to output of R code:
     # x = c(0, 1, 0, 0, 0, 1, 0, 0, 0, 0)
@@ -672,8 +681,6 @@ class Tests(unittest.TestCase):
     # lrtest <- anova(logfitnull, logfit, test="LRT")
     # chi2 <- lrtest[["Deviance"]][2]
     # pval <- lrtest[["Pr(>Chi)"]][2]
-    @fails_service_backend()
-    @fails_local_backend()
     def test_logistic_regression_lrt(self):
         covariates = hl.import_table(resource('regressionLogistic.cov'),
                                      key='Sample',
@@ -683,31 +690,33 @@ class Tests(unittest.TestCase):
                                 missing='0',
                                 types={'isCase': hl.tbool})
         mt = hl.import_vcf(resource('regressionLogistic.vcf'))
-        ht = hl.logistic_regression_rows(
-            test='lrt',
-            y=pheno[mt.s].isCase,
-            x=mt.GT.n_alt_alleles(),
-            covariates=[1.0, covariates[mt.s].Cov1, covariates[mt.s].Cov2])
 
-        results = dict(hl.tuple([ht.locus.position, ht.row]).collect())
+        for logistic_regression_function in self.logreg_functions:
+            ht = logistic_regression_function(
+                test='lrt',
+                y=pheno[mt.s].isCase,
+                x=mt.GT.n_alt_alleles(),
+                covariates=[1.0, covariates[mt.s].Cov1, covariates[mt.s].Cov2])
 
-        self.assertAlmostEqual(results[1].beta, -0.81226793796, places=6)
-        self.assertAlmostEqual(results[1].chi_sq_stat, 0.1503349167, places=6)
-        self.assertAlmostEqual(results[1].p_value, 0.6982155052, places=6)
+            results = dict(hl.tuple([ht.locus.position, ht.row]).collect())
 
-        self.assertAlmostEqual(results[2].beta, -0.43659460858, places=6)
-        self.assertAlmostEqual(results[2].chi_sq_stat, 0.1813968574, places=6)
-        self.assertAlmostEqual(results[2].p_value, 0.6701755415, places=6)
+            self.assertAlmostEqual(results[1].beta, -0.81226793796, places=6)
+            self.assertAlmostEqual(results[1].chi_sq_stat, 0.1503349167, places=6)
+            self.assertAlmostEqual(results[1].p_value, 0.6982155052, places=6)
 
-        def is_constant(r):
-            return (not r.fit.converged) or np.isnan(r.p_value) or abs(r.p_value - 1) < 1e-4
+            self.assertAlmostEqual(results[2].beta, -0.43659460858, places=6)
+            self.assertAlmostEqual(results[2].chi_sq_stat, 0.1813968574, places=6)
+            self.assertAlmostEqual(results[2].p_value, 0.6701755415, places=6)
 
-        self.assertFalse(results[3].fit.converged)  # separable
-        self.assertTrue(is_constant(results[6]))
-        self.assertTrue(is_constant(results[7]))
-        self.assertTrue(is_constant(results[8]))
-        self.assertTrue(is_constant(results[9]))
-        self.assertTrue(is_constant(results[10]))
+            def is_constant(r):
+                return (not r.fit.converged) or np.isnan(r.p_value) or abs(r.p_value - 1) < 1e-4
+
+            self.assertFalse(results[3].fit.converged)  # separable
+            self.assertTrue(is_constant(results[6]))
+            self.assertTrue(is_constant(results[7]))
+            self.assertTrue(is_constant(results[8]))
+            self.assertTrue(is_constant(results[9]))
+            self.assertTrue(is_constant(results[10]))
 
     # comparing to output of R code:
     # x = c(0, 1, 0, 0, 0, 1, 0, 0, 0, 0)
