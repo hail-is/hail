@@ -73,6 +73,11 @@ object Interpret {
       case True() => true
       case False() => false
       case Literal(_, value) => value
+      case x@EncodedLiteral(codec, value) =>
+        ctx.r.getPool().scopedRegion { r =>
+          val (pt, addr) = codec.decode(ctx, x.typ, value.ba, ctx.r)
+          SafeRow.read(pt, addr)
+        }
       case Void() => ()
       case Cast(v, t) =>
         val vValue = interpret(v, env, args)
