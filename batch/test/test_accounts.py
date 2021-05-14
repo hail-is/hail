@@ -87,7 +87,7 @@ async def test_bad_token():
     token = session_id_encode_to_str(secrets.token_bytes(32))
     bc = BatchClient('test', _token=token)
     try:
-        b = bc.create_batch()
+        b = await bc.create_batch()
         j = b.create_job(DOCKER_ROOT_IMAGE, ['false'])
         await b.submit()
         assert False, j
@@ -186,7 +186,7 @@ async def test_close_billing_project_with_open_batch_errors(dev_client, make_cli
     project = new_billing_project
     await dev_client.add_user("test", project)
     client = await make_client(project)
-    b = await client.create_batch()._create()
+    b = await client.create_batch()
 
     try:
         await dev_client.close_billing_project(project)
@@ -347,12 +347,12 @@ async def test_billing_project_accrued_costs(make_client, dev_client, new_billin
     def approx_equal(x, y, tolerance=1e-10):
         return abs(x - y) <= tolerance
 
-    b1 = client.create_batch()
+    b1 = await client.create_batch()
     j1_1 = b1.create_job(DOCKER_ROOT_IMAGE, command=['echo', 'head'])
     j1_2 = b1.create_job(DOCKER_ROOT_IMAGE, command=['echo', 'head'])
     b1 = await b1.submit()
 
-    b2 = client.create_batch()
+    b2 = await client.create_batch()
     j2_1 = b2.create_job(DOCKER_ROOT_IMAGE, command=['echo', 'head'])
     j2_2 = b2.create_job(DOCKER_ROOT_IMAGE, command=['echo', 'head'])
     b2 = await b2.submit()
@@ -388,7 +388,7 @@ async def test_billing_limit_zero(make_client, dev_client, new_billing_project):
     client = await make_client(project)
 
     try:
-        batch = client.create_batch()
+        batch = await client.create_batch()
         batch = await batch.submit()
     except aiohttp.ClientResponseError as e:
         assert e.status == 403 and 'has exceeded the budget' in e.message
@@ -411,7 +411,7 @@ async def test_billing_limit_tiny(make_client, dev_client, new_billing_project):
 
     client = await make_client(project)
 
-    batch = client.create_batch()
+    batch = await client.create_batch()
     j1 = batch.create_job(DOCKER_ROOT_IMAGE, command=['sleep', '5'])
     j2 = batch.create_job(DOCKER_ROOT_IMAGE, command=['sleep', '5'], parents=[j1])
     j3 = batch.create_job(DOCKER_ROOT_IMAGE, command=['sleep', '5'], parents=[j2])
@@ -451,7 +451,7 @@ async def test_user_can_access_batch_made_by_other_user_in_shared_billing_projec
     assert r['billing_project'] == project
 
     user1_client = await make_client(project)
-    b = user1_client.create_batch()
+    b = await user1_client.create_batch()
     j = b.create_job(DOCKER_ROOT_IMAGE, command=['sleep', '30'])
     b = await b.submit()
 
@@ -520,7 +520,7 @@ async def test_batch_cannot_be_accessed_by_users_outside_the_billing_project(
     assert r['billing_project'] == project
 
     user1_client = await make_client(project)
-    b = user1_client.create_batch()
+    b = await user1_client.create_batch()
     j = b.create_job(DOCKER_ROOT_IMAGE, command=['sleep', '30'])
     b = await b.submit()
 
@@ -606,7 +606,7 @@ async def test_deleted_open_batches_do_not_prevent_billing_project_closure(
         project = await dev_client.create_billing_project(get_billing_project_name())
         await dev_client.add_user('test', project)
         client = await make_client(project)
-        open_batch = await client.create_batch()._create()
+        open_batch = await client.create_batch()
         await open_batch.delete()
     finally:
         await dev_client.close_billing_project(project)
