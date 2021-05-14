@@ -192,8 +192,6 @@ abstract class PCode extends SCode {
 
   def st: SType
 
-  def code: Code[_]
-
   def codeTuple(): IndexedSeq[Code[_]]
 
   override def asBoolean: SBooleanCode = asInstanceOf[SBooleanCode]

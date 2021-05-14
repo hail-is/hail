@@ -992,7 +992,8 @@ class EmitMethodBuilder[C](
     // FIXME: this should optionally construct a tuple to support multiple-code SCodes
     emit(EmitCodeBuilder.scopedCode(this) { cb =>
       val res = f(cb)
-      res.code
+      require(res.st.nCodes == 1)
+      res.codeTuple().head
     })
   }
 

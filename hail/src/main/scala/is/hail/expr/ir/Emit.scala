@@ -430,8 +430,6 @@ class EmitCode(private val start: CodeLabel, private val iec: IEmitCode) {
 
   val m: Code[Boolean] = new CCode(start.L, iec.Lmissing.L, iec.Lpresent.L)
 
-  def v: Code[_] = pv.code
-
   def toI(cb: EmitCodeBuilder): IEmitCode = {
     cb.goto(start)
     iec
