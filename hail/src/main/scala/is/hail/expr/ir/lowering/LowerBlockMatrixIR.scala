@@ -364,7 +364,7 @@ object LowerBlockMatrixIR {
         val rowDependents = x.rowBlockDependents
         val colDependents = x.colBlockDependents
 
-        val condensed = lower(child).condenseBlocks(child.typ, rowDependents, colDependents)
+        lower(child).condenseBlocks(child.typ, rowDependents, colDependents)
           .addContext(TTuple(TTuple(TInt64, TInt64, TInt64), TTuple(TInt64, TInt64, TInt64))) { idx =>
             val (i, j) = idx
 
@@ -374,6 +374,8 @@ object LowerBlockMatrixIR {
             val blockAlignedRowEndIdx = math.min(child.typ.nRows, (rowDependents(i).last + 1L) * x.typ.blockSize * rStep)
             val blockAlignedColEndIdx = math.min(child.typ.nCols, (colDependents(j).last + 1L) * x.typ.blockSize * cStep)
 
+            // condenseBlocks can give the same data to multiple partitions. Need to make sure we don't use data
+            // that's already included in an earlier block.
             val rStartPlusSeenAlready = rStart + i * x.typ.blockSize * rStep
             val cStartPlusSeenAlready = cStart + j * x.typ.blockSize * cStep
 
@@ -391,23 +393,7 @@ object LowerBlockMatrixIR {
               colTrueEnd,
               cStep))
             MakeTuple.ordered(FastSeq(rows, cols))
-          }
-
-        val blocksRowMajor = Array.range(0, x.typ.nRowBlocks).flatMap { i =>
-          Array.tabulate(x.typ.nColBlocks)(j => i -> j).filter(x.typ.hasBlock)
-        }
-
-        val cshapes = CompileAndEvaluate[Any](ctx, ToArray(mapIR(ToStream(condensed.collectBlocks(relationalLetsAbove)((_, b) => b, blocksRowMajor)))(ndRef => NDArrayShape(ndRef))))
-        println(cshapes)
-
-        // The slices are what mess everything up, need to debug the context generating the bounds.
-        val tmp = condensed.mapBody { (ctx, body) => NDArraySlice(body, GetField(ctx, "new")) }
-
-        println(s"Final answer has ${blocksRowMajor.size} blocks")
-        val shapes = CompileAndEvaluate[Any](ctx, ToArray(mapIR(ToStream(tmp.collectBlocks(relationalLetsAbove)((_, b) => b, blocksRowMajor)))(ndRef => NDArrayShape(ndRef))))
-        println(shapes)
-
-        tmp
+          }.mapBody { (ctx, body) => NDArraySlice(body, GetField(ctx, "new")) }
 
       // Both densify and sparsify change the sparsity pattern tracked on the BlockMatrixType.
       case BlockMatrixDensify(child) => lower(child)
