@@ -1245,7 +1245,6 @@ class Emit[C](
           emitI(shapeIR).flatMap(cb) { case shapeTupleCode: PBaseStructCode =>
             emitI(dataIR).map(cb) { case dataCode: PIndexableCode =>
 
-
               val shapeSType = shapeTupleCode.st
               val nDims = shapeSType.size
               val xP = PCanonicalNDArray(dataCode.st.elementType.canonicalPType().setRequired(true), nDims)
