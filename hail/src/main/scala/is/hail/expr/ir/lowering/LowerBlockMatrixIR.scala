@@ -364,7 +364,11 @@ object LowerBlockMatrixIR {
         val rowDependents = x.rowBlockDependents
         val colDependents = x.colBlockDependents
 
-        lower(child).condenseBlocks(child.typ, rowDependents, colDependents)
+        println(s"Trying to lower ${x}")
+        println(s"rowDependents = ${rowDependents.map(_.toIndexedSeq).toIndexedSeq}")
+        println(s"colDependents = ${colDependents.map(_.toIndexedSeq).toIndexedSeq}")
+
+        val condensed = lower(child).condenseBlocks(child.typ, rowDependents, colDependents)
           .addContext(TTuple(TTuple(TInt64, TInt64, TInt64), TTuple(TInt64, TInt64, TInt64))) { idx =>
             val i = idx._1
             val j = idx._2
@@ -372,7 +376,7 @@ object LowerBlockMatrixIR {
             val colStartIdx = colDependents(j).head.toLong * x.typ.blockSize
 
             val rowEndIdx = java.lang.Math.min(child.typ.nRows, (rowDependents(i).last + 1L) * x.typ.blockSize)
-            val colEndIdx = java.lang.Math.min(child.typ.nCols, (colDependents(i).last + 1L) * x.typ.blockSize)
+            val colEndIdx = java.lang.Math.min(child.typ.nCols, (colDependents(j).last + 1L) * x.typ.blockSize)
             val rows = MakeTuple.ordered(FastSeq[IR](
               if (rStart >= rowStartIdx) rStart - rowStartIdx else (rowStartIdx - rStart) % rStep,
               java.lang.Math.min(rEnd, rowEndIdx) - rowStartIdx,
@@ -381,8 +385,26 @@ object LowerBlockMatrixIR {
               if (cStart >= colStartIdx) cStart - colStartIdx else (colStartIdx - cStart) % cStep,
               java.lang.Math.min(cEnd, colEndIdx) - colStartIdx,
               cStep))
+            //println(s"${idx} colStartIdx = ${colStartIdx}, colEndIdx = ${colEndIdx}, cStart = ${cStart}, cEnd = ${cEnd}")
+            //println(s"${idx} maps to slices of ${FastSeq(rows, cols)}")
             MakeTuple.ordered(FastSeq(rows, cols))
-          }.mapBody { (ctx, body) => NDArraySlice(body, GetField(ctx, "new")) }
+          }
+
+        val blocksRowMajor = Array.range(0, x.typ.nRowBlocks).flatMap { i =>
+          Array.tabulate(x.typ.nColBlocks)(j => i -> j).filter(x.typ.hasBlock)
+        }
+
+        val cshapes = CompileAndEvaluate[Any](ctx, ToArray(mapIR(ToStream(condensed.collectBlocks(relationalLetsAbove)((_, b) => b, blocksRowMajor)))(ndRef => NDArrayShape(ndRef))))
+        println(cshapes)
+
+        // The slices are what mess everything up, need to debug the context generating the bounds.
+        val tmp = condensed.mapBody { (ctx, body) => NDArraySlice(body, GetField(ctx, "new")) }
+
+        println(s"Final answer has ${blocksRowMajor.size} blocks")
+        val shapes = CompileAndEvaluate[Any](ctx, ToArray(mapIR(ToStream(tmp.collectBlocks(relationalLetsAbove)((_, b) => b, blocksRowMajor)))(ndRef => NDArrayShape(ndRef))))
+        println(shapes)
+
+        tmp
 
       // Both densify and sparsify change the sparsity pattern tracked on the BlockMatrixType.
       case BlockMatrixDensify(child) => lower(child)
