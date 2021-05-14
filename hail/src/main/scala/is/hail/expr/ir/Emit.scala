@@ -856,17 +856,7 @@ class Emit[C](
 
       case x@SelectFields(oldStruct, fields) =>
         emitI(oldStruct)
-          .map(cb) { case sc: SBaseStructCode =>
-            val sv = sc.memoize(cb, "select_fields_scode")
-            // FIXME: just subset sc, but may not work right now
-            val newPT = sv.get.asBaseStruct.subset(fields: _*).st.canonicalPType().asInstanceOf[PCanonicalBaseStruct]
-            newPT.asInstanceOf[PCanonicalBaseStruct].constructFromFields(cb,
-              region,
-              fields.map { field =>
-                EmitCode.fromI(cb.emb)(cb => sv.loadField(cb, field).typecast[PCode])
-              }.toFastIndexedSeq,
-              deepCopy = false)
-          }
+          .map(cb) { case sc: SBaseStructCode => sc.subset(fields: _*) }
 
       case x@InsertFields(old, fields, fieldOrder) =>
         if (fields.isEmpty)
