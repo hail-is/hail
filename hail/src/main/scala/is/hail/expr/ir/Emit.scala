@@ -475,7 +475,7 @@ class EmitSettable(
 
   lazy val required: Boolean = missing.isEmpty
 
-  lazy val emitType: EmitType = EmitType(st, required)
+  lazy val emitType: EmitType = EmitType(vs.st, required)
 
   def settableTuple(): IndexedSeq[Settable[_]] = {
     missing match {
