@@ -2,9 +2,8 @@ package is.hail.types.physical.stypes.interfaces
 
 import is.hail.asm4s.Code
 import is.hail.expr.ir.{EmitCodeBuilder, IEmitCode}
-import is.hail.types.physical.PBaseStruct
 import is.hail.types.physical.stypes.concrete.{SSubsetStruct, SSubsetStructCode}
-import is.hail.types.physical.stypes.{EmitType, SCode, SSettable, SType, SValue}
+import is.hail.types.physical.stypes._
 import is.hail.types.virtual.TBaseStruct
 
 trait SBaseStruct extends SType {
@@ -41,7 +40,7 @@ trait SBaseStructCode extends SCode { self =>
 
   def memoizeField(cb: EmitCodeBuilder, name: String): SBaseStructValue
 
-  def subset(fieldNames: String*): SSubsetStructCode = {
+  def subset(fieldNames: String*): SBaseStructCode = {
     val st = SSubsetStruct(self.st, fieldNames.toIndexedSeq)
     new SSubsetStructCode(st, self)
   }

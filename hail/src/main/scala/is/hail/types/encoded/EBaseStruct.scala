@@ -79,7 +79,7 @@ final case class EBaseStruct(fields: IndexedSeq[EField], override val required: 
         new SBaseStructPointerSettable(
           SBaseStructPointer(t.representation),
           v.asInstanceOf[SCanonicalLocusPointerSettable].a)
-      case SBaseStructPointer(t) => v.asInstanceOf[SBaseStructValue]
+      case _ => v.asInstanceOf[SBaseStructValue]
     }
     // write missing bytes
     structValue.st match {

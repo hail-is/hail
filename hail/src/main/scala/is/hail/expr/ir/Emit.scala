@@ -13,7 +13,7 @@ import is.hail.linalg.{BLAS, LAPACK, LinalgCodeUtils}
 import is.hail.services.shuffler._
 import is.hail.types.{TypeWithRequiredness, VirtualTypeWithReq}
 import is.hail.types.physical._
-import is.hail.types.physical.stypes.concrete.{SBaseStructPointerCode, SCanonicalShufflePointer, SCanonicalShufflePointerCode, SCanonicalShufflePointerSettable, SNDArrayPointer, SNDArrayPointerCode}
+import is.hail.types.physical.stypes.concrete.{SBaseStructPointerCode, SCanonicalShufflePointer, SCanonicalShufflePointerCode, SCanonicalShufflePointerSettable, SNDArrayPointer, SNDArrayPointerCode, SStackStruct}
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.physical.stypes.primitives.{SFloat32, SFloat64, SInt32, SInt32Code, SInt64}
 import is.hail.types.physical.stypes.{EmitType, Int32SingleCodeType, SCode, SSettable, SType, SValue, SingleCodeSCode, SingleCodeType}
@@ -872,16 +872,11 @@ class Emit[C](
         }
 
       case x@MakeStruct(fields) =>
-        val emitted = fields.map { case (name, x) =>
-          EmitCode.fromI(cb.emb)(cb => emitInNewBuilder(cb, x))
-        }.toFastIndexedSeq
-
-        val pt = PCanonicalStruct(fields.zip(emitted).map { case ((name, _), ec) => (name, ec.emitType.canonicalPType) }: _*)
-        val scode = pt.constructFromFields(cb,
-          region,
-          emitted,
-          deepCopy = false)
-        presentPC(scode)
+        presentPC(SStackStruct.constructFromArgs(
+          fields.map { case (name, x) =>
+            (name, EmitCode.fromI(cb.emb)(cb => emitInNewBuilder(cb, x)))
+          }: _*
+        ))
 
       case x@MakeTuple(fields) =>
         val emitted = fields.map { case (idx, x) =>
