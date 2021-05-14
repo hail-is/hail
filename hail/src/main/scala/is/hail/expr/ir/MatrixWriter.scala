@@ -3,7 +3,7 @@ package is.hail.expr.ir
 import java.io.OutputStream
 import is.hail.annotations.Region
 import is.hail.asm4s._
-import is.hail.expr.JSONAnnotationImpex
+import is.hail.expr.{JSONAnnotationImpex, Nat}
 import is.hail.expr.ir.functions.MatrixWriteBlockMatrix
 import is.hail.expr.ir.lowering.{LowererUnsupportedOperation, TableStage}
 import is.hail.expr.ir.streams.StreamProducer
@@ -13,14 +13,16 @@ import is.hail.io.gen.{ExportBGEN, ExportGen}
 import is.hail.io.index.StagedIndexWriter
 import is.hail.io.plink.ExportPlink
 import is.hail.io.vcf.ExportVCF
+import is.hail.linalg.{BlockMatrix, BlockMatrixMetadata, GridPartitioner}
 import is.hail.rvd.{RVDPartitioner, RVDSpecMaker}
-import is.hail.types.encoded.{EBaseStruct, EType}
+import is.hail.types.encoded.{EBaseStruct, EBlockMatrixNDArray, EType}
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.physical.{PBaseStructCode, PCanonicalBaseStruct, PCanonicalString, PCanonicalStruct, PCode, PIndexableValue, PInt64, PInt64Required, PStream, PStruct, PType}
 import is.hail.types.virtual._
-import is.hail.types.{MatrixType, RTable, TableType}
+import is.hail.types.{BlockMatrixSparsity, BlockMatrixType, MatrixType, RTable, TableType}
 import is.hail.utils._
 import is.hail.utils.richUtils.ByteTrackingOutputStream
+import org.apache.spark.sql.Row
 import org.json4s.jackson.JsonMethods
 import org.json4s.{DefaultFormats, Formats, ShortTypeHints}
 
@@ -346,6 +348,119 @@ case class MatrixBlockMatrixWriter(
   blockSize: Int
 ) extends MatrixWriter {
   def apply(ctx: ExecuteContext, mv: MatrixValue): Unit = MatrixWriteBlockMatrix(ctx, mv, entryField, path, overwrite, blockSize)
+
+  override def lower(colsFieldName: String, entriesFieldName: String, colKey: IndexedSeq[String],
+    ctx: ExecuteContext, ts: TableStage, t: TableIR, r: RTable, relationalLetsAbove: Map[String, IR]): IR = {
+
+    val tm = MatrixType.fromTableType(t.typ, colsFieldName, entriesFieldName, colKey)
+    val rm = r.asMatrixType(colsFieldName, entriesFieldName)
+
+    val countColumnsIR = ArrayLen(GetField(ts.getGlobals(), colsFieldName))
+    val numCols: Int = CompileAndEvaluate(ctx, countColumnsIR, true).asInstanceOf[Int]
+    val numBlockCols: Int = (numCols - 1) / blockSize + 1
+    val lastBlockNumCols = numCols % blockSize
+
+    val rowCountIR = ts.mapCollect(relationalLetsAbove)(paritionIR => StreamLen(paritionIR))
+    val inputRowCountPerPartition: IndexedSeq[Int] = CompileAndEvaluate(ctx, rowCountIR).asInstanceOf[IndexedSeq[Int]]
+    val inputPartStartsPlusLast = inputRowCountPerPartition.scanLeft(0L)(_ + _)
+    val inputPartStarts = inputPartStartsPlusLast.dropRight(1)
+    val inputPartStops = inputPartStartsPlusLast.tail
+
+    val numRows = inputPartStartsPlusLast.last
+    val numBlockRows: Int = (numRows.toInt - 1) / blockSize + 1
+
+    // Zip contexts with partition starts and ends
+    val zippedWithStarts = ts.mapContexts{oldContextsStream => zipIR(IndexedSeq(oldContextsStream, ToStream(Literal(TArray(TInt64), inputPartStarts)), ToStream(Literal(TArray(TInt64), inputPartStops))), ArrayZipBehavior.AssertSameLength){ case IndexedSeq(oldCtx, partStart, partStop) =>
+      MakeStruct(Seq[(String, IR)]("mwOld" -> oldCtx, "mwStartIdx" -> Cast(partStart, TInt32), "mwStopIdx" -> Cast(partStop, TInt32)))
+    }}(newCtx => GetField(newCtx, "mwOld"))
+
+    // Now label each row with its idx.
+    val perRowIdxId = genUID()
+    val partsZippedWithIdx = zippedWithStarts.mapPartitionWithContext { (part, ctx) =>
+      zip2(part, rangeIR(GetField(ctx, "mwStartIdx"), GetField(ctx, "mwStopIdx")), ArrayZipBehavior.AssertSameLength) { (partRow, idx) =>
+        insertIR(partRow, (perRowIdxId, idx))
+      }
+    }
+
+    // Two steps, make a partitioner that works currently based on row_idx splits, then resplit accordingly.
+    val inputRowIntervals = inputPartStarts.zip(inputPartStops).map{ case (intervalStart, intervalEnd) =>
+      Interval(Row(intervalStart.toInt), Row(intervalEnd.toInt), true, false)
+    }
+    val rowIdxPartitioner = RVDPartitioner.generate(TStruct((perRowIdxId, TInt32)), inputRowIntervals)
+
+    val keyedByRowIdx = partsZippedWithIdx.changePartitionerNoRepartition(rowIdxPartitioner)
+
+    // Now create a partitioner that makes appropriately sized blocks
+    val desiredRowStarts = (0 until numBlockRows).map(_ * blockSize)
+    val desiredRowStops = desiredRowStarts.drop(1) :+ numRows.toInt
+    val desiredRowIntervals = desiredRowStarts.zip(desiredRowStops).map{
+      case (intervalStart, intervalEnd) =>  Interval(Row(intervalStart), Row(intervalEnd), true, false)
+    }
+
+    val blockSizeGroupsPartitioner = RVDPartitioner.generate(TStruct((perRowIdxId, TInt32)), desiredRowIntervals)
+    val rowsInBlockSizeGroups: TableStage = keyedByRowIdx.repartitionNoShuffle(blockSizeGroupsPartitioner)
+
+    def createBlockMakingContexts(tablePartsStreamIR: IR): IR = {
+      flatten(zip2(tablePartsStreamIR, rangeIR(numBlockRows), ArrayZipBehavior.AssertSameLength) { case (tableSinglePartCtx, blockColIdx)  =>
+        mapIR(rangeIR(I32(numBlockCols))){ blockColIdx =>
+          MakeStruct(Seq("oldTableCtx" -> tableSinglePartCtx, "blockStart" -> (blockColIdx * I32(blockSize)),
+            "blockSize" -> If(blockColIdx ceq I32(numBlockCols - 1), I32(lastBlockNumCols), I32(blockSize)),
+            "blockColIdx" -> blockColIdx,
+            "blockRowIdx" -> blockColIdx))
+        }
+      })
+    }
+
+    val tableOfNDArrays = rowsInBlockSizeGroups.mapContexts(createBlockMakingContexts)(ir => GetField(ir, "oldTableCtx")).mapPartitionWithContext{ (partIr, ctxRef) =>
+      bindIR(GetField(ctxRef, "blockStart")){ blockStartRef =>
+        val numColsOfBlock = GetField(ctxRef, "blockSize")
+        val arrayOfSlicesAndIndices = ToArray(mapIR(partIr) { singleRow =>
+          val mappedSlice = ToArray(mapIR(ToStream(sliceArrayIR(GetField(singleRow, entriesFieldName), blockStartRef, blockStartRef + numColsOfBlock)))(entriesStructRef =>
+            GetField(entriesStructRef, entryField)
+          ))
+          MakeStruct(Seq(
+            perRowIdxId -> GetField(singleRow, perRowIdxId),
+            "rowOfData" -> mappedSlice
+          ))
+        })
+        bindIR(arrayOfSlicesAndIndices){ arrayOfSlicesAndIndicesRef =>
+          val idxOfResult = GetField(ArrayRef(arrayOfSlicesAndIndicesRef, I32(0)), perRowIdxId)
+          val ndarrayData = ToArray(flatMapIR(ToStream(arrayOfSlicesAndIndicesRef)){idxAndSlice =>
+            ToStream(GetField(idxAndSlice, "rowOfData"))
+          })
+          val numRowsOfBlock = ArrayLen(arrayOfSlicesAndIndicesRef)
+          val shape = maketuple(Cast(numRowsOfBlock, TInt64), Cast(numColsOfBlock, TInt64))
+          val ndarray = MakeNDArray(ndarrayData, shape, True(), ErrorIDs.NO_ERROR)
+          MakeStream(Seq(MakeStruct(Seq(
+            perRowIdxId -> idxOfResult,
+            "blockRowIdx" -> GetField(ctxRef, "blockRowIdx"),
+            "blockColIdx" -> GetField(ctxRef, "blockColIdx"),
+            "ndBlock" -> ndarray))),
+            TStream(TStruct(perRowIdxId -> TInt32, "blockRowIdx" -> TInt32, "blockColIdx" -> TInt32, "ndBlock" -> ndarray.typ)))
+        }
+      }
+    }
+
+    val elementType = tm.entryType.fieldType(entryField)
+    val etype = EBlockMatrixNDArray(EType.fromTypeAndAnalysis(elementType, rm.entryType.field(entryField)), encodeRowMajor = true, required = true)
+    val spec = TypedCodecSpec(etype, TNDArray(tm.entryType.fieldType(entryField), Nat(2)), BlockMatrix.bufferSpec)
+
+    val pathsWithColMajorIndices = tableOfNDArrays.mapCollect(relationalLetsAbove) { partition =>
+     ToArray(mapIR(partition) { singleNDArrayTuple =>
+       bindIR(GetField(singleNDArrayTuple, "blockRowIdx") + (GetField(singleNDArrayTuple, "blockColIdx") * numBlockRows)) { colMajorIndex =>
+         val blockPath =
+           Str(s"$path/parts/part-") +
+             invoke("str", TString, colMajorIndex) + Str("-") + UUID4()
+         maketuple(colMajorIndex, WriteValue(GetField(singleNDArrayTuple, "ndBlock"), blockPath, spec))
+       }
+      })
+    }
+    val flatPathsAndIndices = flatMapIR(ToStream(pathsWithColMajorIndices))(ToStream(_))
+    val sortedColMajorPairs = sortIR(flatPathsAndIndices){case (l, r) => ApplyComparisonOp(LT(TInt32), GetTupleElement(l, 0), GetTupleElement(r, 0))}
+    val flatPaths = ToArray(mapIR(ToStream(sortedColMajorPairs))(GetTupleElement(_, 1)))
+    val bmt = BlockMatrixType(elementType, IndexedSeq(numRows, numCols), numRows==1, blockSize, BlockMatrixSparsity.dense)
+    RelationalWriter.scoped(path, overwrite, None)(WriteMetadata(flatPaths, BlockMatrixNativeMetadataWriter(path, false, bmt)))
+  }
 }
 
 object MatrixNativeMultiWriter {

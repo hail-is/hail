@@ -143,6 +143,10 @@ package object ir {
     ArraySort(stream, l.name, r.name, f(l, r))
   }
 
+  def sliceArrayIR(arrayIR: IR, startIR: IR, stopIR: IR): IR = {
+    invoke("slice", arrayIR.typ, arrayIR, startIR, stopIR)
+  }
+
   def joinIR(left: IR, right: IR, lkey: IndexedSeq[String], rkey: IndexedSeq[String], joinType: String)(f: (Ref, Ref) => IR): IR = {
     val lRef = Ref(genUID(), left.typ.asInstanceOf[TStream].elementType)
     val rRef = Ref(genUID(), right.typ.asInstanceOf[TStream].elementType)
@@ -175,6 +179,7 @@ package object ir {
   }
 
   def makestruct(fields: (String, IR)*): MakeStruct = MakeStruct(fields)
+  def maketuple(fields: IR*): MakeTuple = MakeTuple(fields.zipWithIndex.map{ case (field, idx) => (idx, field)})
 
   implicit def toRichIndexedSeqEmitSettable(s: IndexedSeq[EmitSettable]): RichIndexedSeqEmitSettable = new RichIndexedSeqEmitSettable(s)
 

@@ -71,26 +71,22 @@ class Tests(unittest.TestCase):
         self._assert_close(bm.sum(axis=0), np.sum(nd, axis=0, keepdims=True))
         self._assert_close(bm.sum(axis=1), np.sum(nd, axis=1, keepdims=True))
 
-    @fails_service_backend()
-    @fails_local_backend()
-    def test_from_entry_expr(self):
+    def test_from_entry_expr_simple(self):
         mt = get_dataset()
         mt = mt.annotate_entries(x=hl.or_else(mt.GT.n_alt_alleles(), 0)).cache()
 
-        a1 = BlockMatrix.from_entry_expr(hl.or_else(mt.GT.n_alt_alleles(), 0), block_size=32).to_numpy()
-        a2 = BlockMatrix.from_entry_expr(mt.x, block_size=32).to_numpy()
-        a3 = BlockMatrix.from_entry_expr(hl.float64(mt.x), block_size=32).to_numpy()
+        a1 = hl.eval(BlockMatrix.from_entry_expr(hl.or_else(mt.GT.n_alt_alleles(), 0), block_size=32).to_ndarray())
+        a2 = hl.eval(BlockMatrix.from_entry_expr(mt.x, block_size=32).to_ndarray())
+        a3 = hl.eval(BlockMatrix.from_entry_expr(hl.float64(mt.x), block_size=32).to_ndarray())
 
         self._assert_eq(a1, a2)
         self._assert_eq(a1, a3)
 
         with hl.TemporaryDirectory(ensure_exists=False) as path:
             BlockMatrix.write_from_entry_expr(mt.x, path, block_size=32)
-            a4 = BlockMatrix.read(path).to_numpy()
+            a4 = hl.eval(BlockMatrix.read(path).to_ndarray())
             self._assert_eq(a1, a4)
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_from_entry_expr_options(self):
         def build_mt(a):
             data = [{'v': 0, 's': 0, 'x': a[0]},
@@ -102,10 +98,10 @@ class Tests(unittest.TestCase):
             return mt.choose_cols([ids.index(0), ids.index(1), ids.index(2)])
 
         def check(expr, mean_impute, center, normalize, expected):
-            actual = np.squeeze(BlockMatrix.from_entry_expr(expr,
+            actual = np.squeeze(hl.eval(BlockMatrix.from_entry_expr(expr,
                                                             mean_impute=mean_impute,
                                                             center=center,
-                                                            normalize=normalize).to_numpy())
+                                                            normalize=normalize).to_ndarray()))
             assert np.allclose(actual, expected)
 
         a = np.array([0.0, 1.0, 2.0])
@@ -125,8 +121,6 @@ class Tests(unittest.TestCase):
         with self.assertRaises(Exception):
             BlockMatrix.from_entry_expr(mt.x)
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_write_from_entry_expr_overwrite(self):
         mt = hl.balding_nichols_model(1, 1, 1)
         mt = mt.select_entries(x=mt.GT.n_alt_alleles())
@@ -898,8 +892,6 @@ class Tests(unittest.TestCase):
             self.assertEqual(len(entries_table.row), 3)
             self.assertTrue(table._same(entries_table))
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_from_entry_expr_filtered(self):
         mt = hl.utils.range_matrix_table(1, 1).filter_entries(False)
         bm = hl.linalg.BlockMatrix.from_entry_expr(mt.row_idx + mt.col_idx, mean_impute=True) # should run without error

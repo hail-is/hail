@@ -89,11 +89,14 @@ abstract class BlockMatrixStage(val globalVals: Array[(String, IR)], val ctxType
         }, coerce[TArray](cda.typ)), 1)
       }, coerce[TArray](cda.typ))
     } else {
-      val i = Ref(genUID(), TInt32)
-      val j = Ref(genUID(), TInt32)
-      val cols = ToArray(StreamMap(StreamRange(0, typ.nColBlocks, 1), j.name, ArrayRef(blockResults, i * typ.nColBlocks + j)))
-      ToArray(StreamMap(StreamRange(0, typ.nRowBlocks, 1), i.name, NDArrayConcat(cols, 1)))
+      ToArray(mapIR(rangeIR(I32(typ.nRowBlocks))){ rowIdxRef =>
+        val blocksInOneRow = ToArray(mapIR(rangeIR(I32(typ.nColBlocks))) { colIdxRef =>
+          ArrayRef(blockResults, rowIdxRef * typ.nColBlocks + colIdxRef)
+        })
+        NDArrayConcat(blocksInOneRow, 1)
+      })
     }
+
     Let(blockResults.name, cda, NDArrayConcat(rows, 0))
   }
 
