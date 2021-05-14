@@ -705,16 +705,16 @@ async def _retry_transient_errors(max_errors: Optional[int], excl: Optional[Call
 
 
 async def retry_transient_errors(f: Callable[..., Awaitable[T]], *args, **kwargs) -> T:
-    await _retry_transient_errors(None, None, f, *args, **kwargs)
+    return await _retry_transient_errors(None, None, f, *args, **kwargs)
 
 
 async def retry_transient_errors_with_exclusions(excl: Callable[[Exception], bool],
                                                  f: Callable[..., Awaitable[T]], *args, **kwargs) -> T:
-    await _retry_transient_errors(None, excl, f, *args, **kwargs)
+    return await _retry_transient_errors(None, excl, f, *args, **kwargs)
 
 
 async def retry_transient_errors_n_times(max_errors: int, f: Callable[..., Awaitable[T]], *args, **kwargs) -> T:
-    await _retry_transient_errors(max_errors, None, f, *args, **kwargs)
+    return await _retry_transient_errors(max_errors, None, f, *args, **kwargs)
 
 
 def sync_retry_transient_errors(f, *args, **kwargs):
