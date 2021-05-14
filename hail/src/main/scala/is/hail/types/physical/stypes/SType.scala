@@ -1,13 +1,12 @@
 package is.hail.types.physical.stypes
 
 import is.hail.annotations.Region
-import is.hail.asm4s.{Code, Settable, TypeInfo, Value}
-import is.hail.expr.ir.orderings.CodeOrdering
-import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, EmitParamType, PCodeEmitParamType, PCodeParamType, SortOrder}
-import is.hail.types.{TypeWithRequiredness, VirtualTypeWithReq}
+import is.hail.asm4s._
+import is.hail.expr.ir.{EmitCode, EmitCodeBuilder, EmitSettable, PCodeEmitParamType, PCodeParamType}
+import is.hail.types.VirtualTypeWithReq
+import is.hail.types.physical.PType
 import is.hail.types.physical.stypes.interfaces.SStream
 import is.hail.types.physical.stypes.primitives._
-import is.hail.types.physical.PType
 import is.hail.types.virtual._
 
 
@@ -79,4 +78,27 @@ case class EmitType(st: SType, required: Boolean) {
   def canonicalPType: PType = st.canonicalPType().setRequired(required)
 
   def equalModuloRequired(that: EmitType): Boolean = st == that.st
+
+  lazy val codeTupleTypes: IndexedSeq[TypeInfo[_]] = {
+    val tc = st.codeTupleTypes()
+    if (required)
+      tc
+    else
+      tc :+ BooleanInfo
+  }
+
+  def fromCodes(codes: IndexedSeq[Code[_]]): EmitCode = {
+    val scode = st.fromCodes(codes.take(st.nCodes))
+    val m: Code[Boolean] = if (required) const(false) else coerce[Boolean](codes.last)
+    val ec = EmitCode(Code._empty, m, scode)
+    assert(ec.required == required)
+    ec
+  }
+
+  def fromSettables(settables: IndexedSeq[Settable[_]]): EmitSettable = new EmitSettable(
+    if (required) None else Some(coerce[Boolean](settables.last)),
+    st.fromSettables(settables.take(st.nCodes))
+  )
+
+  def nCodes: Int = codeTupleTypes.length
 }

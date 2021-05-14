@@ -17,8 +17,8 @@ case class SSubsetStruct(parent: SBaseStruct, fieldNames: IndexedSeq[String]) ex
   val newToOldFieldMapping: Map[Int, Int] = _fieldIdx
     .map { case (f, i) => (i, parent.virtualType.asInstanceOf[TStruct].fieldIdx(f)) }
 
-  val fieldTypes: Array[SType] = Array.tabulate(size)(i => parent.fieldTypes(newToOldFieldMapping(i)))
-  val fieldEmitTypes: Array[EmitType] = Array.tabulate(size)(i => parent.fieldEmitTypes(newToOldFieldMapping(i)))
+  val fieldTypes: IndexedSeq[SType] = Array.tabulate(size)(i => parent.fieldTypes(newToOldFieldMapping(i)))
+  val fieldEmitTypes: IndexedSeq[EmitType] = Array.tabulate(size)(i => parent.fieldEmitTypes(newToOldFieldMapping(i)))
 
   lazy val virtualType: TStruct = {
     val vparent = parent.virtualType.asInstanceOf[TStruct]

@@ -48,8 +48,8 @@ case class SBaseStructPointer(pType: PBaseStruct) extends SBaseStruct {
 
   def canonicalPType(): PType = pType
 
-  override val fieldTypes: Array[SType] = pType.types.map(_.sType)
-  override val fieldEmitTypes: Array[EmitType] = pType.types.map(t => EmitType(t.sType, t.required))
+  override val fieldTypes: IndexedSeq[SType] = pType.types.map(_.sType)
+  override val fieldEmitTypes: IndexedSeq[EmitType] = pType.types.map(t => EmitType(t.sType, t.required))
 }
 
 

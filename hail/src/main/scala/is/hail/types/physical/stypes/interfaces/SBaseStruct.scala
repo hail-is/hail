@@ -14,8 +14,8 @@ trait SBaseStruct extends SType {
 
   def size: Int
 
-  val fieldTypes: Array[SType]
-  val fieldEmitTypes: Array[EmitType]
+  val fieldTypes: IndexedSeq[SType]
+  val fieldEmitTypes: IndexedSeq[EmitType]
 
   def fieldIdx(fieldName: String): Int
 }
