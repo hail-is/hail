@@ -882,7 +882,7 @@ class EmitMethodBuilder[C](
     assert(mb.isStatic || emitIndex != 0)
     val static = (!mb.isStatic).toInt
     val _st = emitParamTypes(emitIndex - static).asInstanceOf[PCodeParamType].st
-    assert(!_st.isRealizable)
+    assert(_st.isRealizable)
 
     val ts = _st.codeTupleTypes()
     val codeIndex = emitParamCodeIndex(emitIndex - static)
