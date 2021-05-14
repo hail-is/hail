@@ -28,11 +28,19 @@ case class SSubsetStruct(parent: SBaseStruct, fieldNames: IndexedSeq[String]) ex
   override def fieldIdx(fieldName: String): Int = _fieldIdx(fieldName)
 
   override def castRename(t: Type): SType = {
-    val ts = t.asInstanceOf[TStruct]
-    val newNames = ts.fieldNames
+    val renamedVType = t.asInstanceOf[TStruct]
+    val newNames = renamedVType.fieldNames
+    val subsetPrevVirtualType = virtualType
     val vparent = parent.virtualType.asInstanceOf[TStruct]
-    val newParent = vparent.rename(fieldNames.zip(newNames).toMap)
-    SSubsetStruct(parent.castRename(newParent).asInstanceOf[SBaseStruct], newNames)
+    val newParent = TStruct(vparent.fieldNames.map(f => subsetPrevVirtualType.fieldIdx.get(f) match {
+      case Some(idxInSelectedFields) =>
+        val renamed = renamedVType.fields(idxInSelectedFields)
+        (renamed.name, renamed.typ)
+      case None => (f, vparent.fieldType(f))
+    }): _*)
+    val newType = SSubsetStruct(parent.castRename(newParent).asInstanceOf[SBaseStruct], newNames)
+    assert(newType.virtualType == t)
+    newType
   }
 
   def coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = {
