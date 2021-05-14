@@ -17,12 +17,12 @@ final case class EArray(val elementType: EType, override val required: Boolean =
     val elementPType = elementType.decodedPType(requestedType.asInstanceOf[TContainer].elementType)
     requestedType match {
       case _: TSet =>
-        SIndexablePointer(PCanonicalSet(elementPType, required))
+        SIndexablePointer(PCanonicalSet(elementPType, false))
       case _: TArray =>
-        SIndexablePointer(PCanonicalArray(elementPType, required))
+        SIndexablePointer(PCanonicalArray(elementPType, false))
       case _: TDict =>
         val et = elementPType.asInstanceOf[PStruct]
-        SIndexablePointer(PCanonicalDict(et.fieldType("key"), et.fieldType("value"), required))
+        SIndexablePointer(PCanonicalDict(et.fieldType("key"), et.fieldType("value"), false))
     }
   }
 

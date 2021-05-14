@@ -346,7 +346,6 @@ object TestUtils {
         }
 
       filteredExecStrats.foreach { strat =>
-        InferPType.clearPTypes(x)
         try {
           val res = strat match {
             case ExecStrategy.Interpret =>

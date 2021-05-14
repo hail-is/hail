@@ -67,12 +67,8 @@ abstract class PNDArray extends PType {
   ): (Value[Long], EmitCodeBuilder =>  SNDArrayPointerCode)
 }
 
-abstract class PNDArrayValue extends PValue with SNDArrayValue {
-  def pt: PNDArray
-}
+abstract class PNDArrayValue extends PValue with SNDArrayValue
 
 abstract class PNDArrayCode extends PCode with SNDArrayCode {
-  def pt: PNDArray
-
   def memoize(cb: EmitCodeBuilder, name: String): PNDArrayValue
 }

@@ -154,9 +154,9 @@ abstract class PCanonicalBaseStruct(val types: Array[PType]) extends PBaseStruct
     }
   }
 
-  def sType: SBaseStruct = SBaseStructPointer(this)
+  def sType: SBaseStructPointer = SBaseStructPointer(setRequired(false).asInstanceOf[PCanonicalBaseStruct])
 
-  def loadCheapPCode(cb: EmitCodeBuilder, addr: Code[Long]): SBaseStructPointerCode = new SBaseStructPointerCode(SBaseStructPointer(this), addr)
+  def loadCheapPCode(cb: EmitCodeBuilder, addr: Code[Long]): SBaseStructPointerCode = new SBaseStructPointerCode(sType, addr)
 
   def store(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): Code[Long] = {
     value.st match {
@@ -225,7 +225,7 @@ abstract class PCanonicalBaseStruct(val types: Array[PType]) extends PBaseStruct
         )
     }
 
-    new SBaseStructPointerCode(SBaseStructPointer(this), addr)
+    new SBaseStructPointerCode(sType, addr)
   }
 
   override def unstagedStoreJavaObject(annotation: Annotation, region: Region): Long = {

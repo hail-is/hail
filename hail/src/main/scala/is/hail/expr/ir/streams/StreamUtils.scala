@@ -19,7 +19,7 @@ object StreamUtils {
     val mb = cb.emb
 
     val xLen = mb.newLocal[Int]("sta_len")
-    val aTyp = PCanonicalArray(stream.element.st.canonicalPType(), true)
+    val aTyp = PCanonicalArray(stream.element.emitType.canonicalPType, true)
     stream.length match {
       case None =>
         val vab = new StagedArrayBuilder(SingleCodeType.fromSType(stream.element.st), stream.element.required, mb, 0)
@@ -27,7 +27,7 @@ object StreamUtils {
         cb.assign(xLen, vab.size)
 
         aTyp.constructFromElements(cb, destRegion, xLen, deepCopy = false) { (cb, i) =>
-          IEmitCode(cb, vab.isMissing(i), PCode(aTyp.elementType, vab(i)))
+          vab.loadFromIndex(cb, destRegion, i)
         }
 
       case Some(computeLen) =>

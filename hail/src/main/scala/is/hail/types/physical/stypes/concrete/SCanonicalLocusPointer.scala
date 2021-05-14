@@ -4,14 +4,23 @@ import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.expr.ir.orderings.CodeOrdering
 import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, SortOrder}
-import is.hail.types.physical.stypes.interfaces.SLocus
+import is.hail.types.physical.stypes.interfaces.{SLocus, SString}
 import is.hail.types.physical.stypes.{SCode, SType}
 import is.hail.types.physical.{PCanonicalLocus, PCode, PLocusCode, PLocusValue, PSettable, PStringCode, PType}
+import is.hail.types.virtual.Type
 import is.hail.utils.FastIndexedSeq
 import is.hail.variant.{Locus, ReferenceGenome}
 
 
 case class SCanonicalLocusPointer(pType: PCanonicalLocus) extends SLocus {
+  require(!pType.required)
+
+  override def contigType: SString = pType.contigType.sType
+
+  lazy val virtualType: Type = pType.virtualType
+
+  override def castRename(t: Type): SType = this
+
   override def rg: ReferenceGenome = pType.rg
 
   def coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = {
@@ -19,6 +28,8 @@ case class SCanonicalLocusPointer(pType: PCanonicalLocus) extends SLocus {
   }
 
   def codeTupleTypes(): IndexedSeq[TypeInfo[_]] = FastIndexedSeq(LongInfo)
+
+  override def settableTupleTypes(): IndexedSeq[TypeInfo[_]] = FastIndexedSeq(LongInfo, LongInfo, IntInfo)
 
   def loadFrom(cb: EmitCodeBuilder, region: Value[Region], pt: PType, addr: Code[Long]): SCode = {
     pt match {

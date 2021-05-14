@@ -573,13 +573,13 @@ class CompiledLineParser(
   private[this] def parseValueOfType(cb: EmitCodeBuilder, t: PType): IEmitCode = {
     def parseDefinedValue(cb: EmitCodeBuilder): PCode = t match {
       case t: PInt32 =>
-        PCode(t, cb.invokeCode[Int](parseIntMb, region))
+        primitive(cb.invokeCode[Int](parseIntMb, region))
       case t: PInt64 =>
-        PCode(t, cb.invokeCode[Long](parseLongMb, region))
+        primitive(cb.invokeCode[Long](parseLongMb, region))
       case t: PFloat32 =>
-        PCode(t, Code.invokeStatic1[java.lang.Float, String, Float]("parseFloat", cb.invokeCode(parseStringMb, region)))
+        primitive(Code.invokeStatic1[java.lang.Float, String, Float]("parseFloat", cb.invokeCode(parseStringMb, region)))
       case t: PFloat64 =>
-        PCode(t, Code.invokeStatic1[java.lang.Double, String, Double]("parseDouble", cb.invokeCode(parseStringMb, region)))
+        primitive(Code.invokeStatic1[java.lang.Double, String, Double]("parseDouble", cb.invokeCode(parseStringMb, region)))
       case t: PString =>
         val st = SStringPointer(t)
         st.constructFromString(cb, region, cb.invokeCode[String](parseStringMb, region))

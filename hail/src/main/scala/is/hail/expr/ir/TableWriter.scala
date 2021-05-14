@@ -193,49 +193,48 @@ case class PartitionNativeWriter(spec: AbstractTypedCodecSpec, partPrefix: Strin
                   deepCopy = false))
             },
               ob.invoke[Long]("indexOffset"),
-              IEmitCode.present(cb, PCode(+PCanonicalStruct(), 0L)))
+              IEmitCode.present(cb, PCanonicalStruct().loadCheapPCode(cb, 0L)))
           }
-          cb += ob.writeByte(1.asInstanceOf[Byte])
+        cb += ob.writeByte(1.asInstanceOf[Byte])
 
-          spec.encodedType.buildEncoder(row.st, cb.emb.ecb)
-            .apply(cb, row, ob)
+        spec.encodedType.buildEncoder(row.st, cb.emb.ecb)
+          .apply(cb, row, ob)
 
-          cb.assign(n, n + 1L)
+        cb.assign(n, n + 1L)
       }
 
-      PCode(pResultType, EmitCodeBuilder.scopedCode(mb) { cb: EmitCodeBuilder =>
-        val pctx = ctxCode.memoize(cb, "context")
-        cb.assign(filename, pctx.asString.loadString())
-        if (hasIndex) {
-          val indexFile = cb.newLocal[String]("indexFile")
-          cb.assign(indexFile, const(index.get._1).concat(filename).concat(".idx"))
-          indexWriter.init(cb, indexFile)
-        }
-        cb.assign(filename, const(partPrefix).concat(filename))
-        cb.assign(os, Code.newInstance[ByteTrackingOutputStream, OutputStream](mb.create(filename)))
-        cb.assign(ob, spec.buildCodeOutputBuffer(Code.checkcast[OutputStream](os)))
-        cb.assign(n, 0L)
+      val pctx = ctxCode.memoize(cb, "context")
+      cb.assign(filename, pctx.asString.loadString())
+      if (hasIndex) {
+        val indexFile = cb.newLocal[String]("indexFile")
+        cb.assign(indexFile, const(index.get._1).concat(filename).concat(".idx"))
+        indexWriter.init(cb, indexFile)
+      }
+      cb.assign(filename, const(partPrefix).concat(filename))
+      cb.assign(os, Code.newInstance[ByteTrackingOutputStream, OutputStream](mb.create(filename)))
+      cb.assign(ob, spec.buildCodeOutputBuffer(Code.checkcast[OutputStream](os)))
+      cb.assign(n, 0L)
 
-        stream.memoryManagedConsume(region, cb) { cb =>
-          writeFile(cb, stream.element)
-        }
+      stream.memoryManagedConsume(region, cb) { cb =>
+        writeFile(cb, stream.element)
+      }
 
-        cb += ob.writeByte(0.asInstanceOf[Byte])
-        cb.assign(result, pResultType.allocate(region))
-        if (hasIndex)
-          indexWriter.close(cb)
-        cb += ob.flush()
-        cb += os.invoke[Unit]("close")
-        filenameType.storeAtAddress(cb, pResultType.fieldOffset(result, "filePath"), region, pctx, false)
-        cb += Region.storeLong(pResultType.fieldOffset(result, "partitionCounts"), n)
-        result.get
-      })
+      cb += ob.writeByte(0.asInstanceOf[Byte])
+      cb.assign(result, pResultType.allocate(region))
+      if (hasIndex)
+        indexWriter.close(cb)
+      cb += ob.flush()
+      cb += os.invoke[Unit]("close")
+      filenameType.storeAtAddress(cb, pResultType.fieldOffset(result, "filePath"), region, pctx, false)
+      cb += Region.storeLong(pResultType.fieldOffset(result, "partitionCounts"), n)
+      pResultType.loadCheapPCode(cb, result.get)
     }
   }
 }
 
 case class RVDSpecWriter(path: String, spec: RVDSpecMaker) extends MetadataWriter {
   def annotationType: Type = TArray(TString)
+
   def writeMetadata(
     writeAnnotations: => IEmitCode,
     cb: EmitCodeBuilder,

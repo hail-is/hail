@@ -81,8 +81,6 @@ abstract class PBinaryValue extends PValue with SBinaryValue {
 }
 
 abstract class PBinaryCode extends PCode with SBinaryCode {
-  def pt: PBinary
-
   def loadLength(): Code[Int]
 
   def loadBytes(): Code[Array[Byte]]

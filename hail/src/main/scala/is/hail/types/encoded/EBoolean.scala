@@ -20,12 +20,12 @@ class EBoolean(override val required: Boolean) extends EType {
   }
 
   override def _buildDecoder(cb: EmitCodeBuilder, t: Type, region: Value[Region], in: Value[InputBuffer]): PCode = {
-    new SBooleanCode(required, in.readBoolean())
+    new SBooleanCode(in.readBoolean())
   }
 
   def _buildSkip(cb: EmitCodeBuilder, r: Value[Region], in: Value[InputBuffer]): Unit = cb += in.skipBoolean()
 
-  def _decodedSType(requestedType: Type): SType = SBoolean(required)
+  def _decodedSType(requestedType: Type): SType = SBoolean
 
   def _asIdent = "bool"
 

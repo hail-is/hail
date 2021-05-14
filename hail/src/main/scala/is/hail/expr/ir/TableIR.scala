@@ -483,7 +483,6 @@ case class PartitionRVDReader(rvd: RVD) extends PartitionReader {
       val iterator = mb.genFieldThisRef[Iterator[Long]]("rvdreader_iterator")
       val next = mb.genFieldThisRef[Long]("rvdreader_next")
 
-      val first = mb.genFieldThisRef[Boolean]("rvdreader_first")
       val region = mb.genFieldThisRef[Region]("rvdreader_region")
       val upcastF = mb.genFieldThisRef[AsmFunction2RegionLongLong]("rvdreader_upcast")
 
@@ -509,7 +508,7 @@ case class PartitionRVDReader(rvd: RVD) extends PartitionReader {
         override def close(cb: EmitCodeBuilder): Unit = {}
       }
 
-      SStreamCode(SStream(producer.element.st, true), producer)
+      SStreamCode(producer)
     }
   }
 
@@ -539,7 +538,7 @@ case class PartitionNativeReader(spec: AbstractTypedCodecSpec) extends AbstractN
     context.toI(cb).map(cb) { path =>
       val pathString = path.asString.loadString()
       val xRowBuf = mb.genFieldThisRef[InputBuffer]("pnr_xrowbuf")
-      val next = mb.newPSettable(mb.fieldBuilder, spec.decodedPType(requestedType), "pnr_next")
+      val next = mb.newPSettable(mb.fieldBuilder, spec.encodedType.decodedSType(requestedType), "pnr_next")
       val region = mb.genFieldThisRef[Region]("pnr_region")
 
       val producer = new StreamProducer {
@@ -560,7 +559,7 @@ case class PartitionNativeReader(spec: AbstractTypedCodecSpec) extends AbstractN
 
         override def close(cb: EmitCodeBuilder): Unit = cb += xRowBuf.close()
       }
-      SStreamCode(SStream(producer.element.st, true), producer)
+      SStreamCode(producer)
     }
   }
 
@@ -636,11 +635,12 @@ case class PartitionNativeReaderIndexed(spec: AbstractTypedCodecSpec, indexSpec:
                   Code._fatal[Interval](""),
                   { pc =>
                     val pcm = pc.memoize(cb, "pnri_interval").asPValue
+                    val pt = pcm.st.canonicalPType()
                     Code.invokeScalaObject2[PType, Long, Interval](
                       PartitionBoundOrdering.getClass,
                       "regionValueToJavaObject",
-                      mb.getPType(pcm.pt),
-                      coerce[Long](pcm.code))
+                      mb.getPType(pt),
+                      pt.store(cb, region, pcm, false))
                   }
                 ),
               Code._null[InputMetrics]
@@ -658,7 +658,7 @@ case class PartitionNativeReaderIndexed(spec: AbstractTypedCodecSpec, indexSpec:
 
         override def close(cb: EmitCodeBuilder): Unit = cb += it.invoke[Unit]("close")
       }
-      SStreamCode(SStream(producer.element.st, true), producer)
+      SStreamCode(producer)
     }
   }
 
@@ -762,7 +762,7 @@ case class PartitionZippedNativeReader(specLeft: AbstractTypedCodecSpec, specRig
         }
       }
 
-      def getInterval(cb: EmitCodeBuilder, ctxMemo: PBaseStructValue): Code[Interval] = {
+      def getInterval(cb: EmitCodeBuilder, region: Value[Region], ctxMemo: PBaseStructValue): Code[Interval] = {
         makeIndexCode match {
           case Some(_) =>
             ctxMemo.loadField(cb, "interval")
@@ -770,11 +770,12 @@ case class PartitionZippedNativeReader(specLeft: AbstractTypedCodecSpec, specRig
                 Code._fatal[Interval](""),
                 { pc =>
                   val pcm = pc.memoize(cb, "pnri_interval").asPValue
+                  val pt = pcm.st.canonicalPType()
                   Code.invokeScalaObject2[PType, Long, Interval](
                     PartitionBoundOrdering.getClass,
                     "regionValueToJavaObject",
-                    mb.getPType(pcm.pt),
-                    coerce[Long](pcm.code))
+                    mb.getPType(pt),
+                    pt.store(cb, region, pcm, false))
                 }
               )
           case None => Code._null[Interval]
@@ -818,7 +819,7 @@ case class PartitionZippedNativeReader(specLeft: AbstractTypedCodecSpec, specRig
               getIndexReader(cb, ctxMemo),
               leftOffsetField.map[Code[String]](const(_)).getOrElse(Code._null[String]),
               rightOffsetField.map[Code[String]](const(_)).getOrElse(Code._null[String]),
-              getInterval(cb, ctxMemo),
+              getInterval(cb, region, ctxMemo),
               Code._null[InputMetrics]
             ))
         }
@@ -834,7 +835,7 @@ case class PartitionZippedNativeReader(specLeft: AbstractTypedCodecSpec, specRig
 
         override def close(cb: EmitCodeBuilder): Unit = cb += it.invoke[Unit]("close")
       }
-      SStreamCode(SStream(producer.element.st, true), producer)
+      SStreamCode(producer)
     }
   }
 

@@ -2,8 +2,10 @@ package is.hail.utils.richUtils
 
 import is.hail.annotations.Region
 import is.hail.asm4s._
+import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.types.physical._
 import is.hail.io.OutputBuffer
+import is.hail.types.virtual._
 
 class RichCodeOutputBuffer(
   val ob: Value[OutputBuffer]
@@ -56,11 +58,11 @@ class RichCodeOutputBuffer(
   def writeUTF(s: Code[String]): Code[Unit] =
     ob.invoke[String, Unit]("writeUTF", s)
 
-  def writePrimitive(typ: PType): Code[_] => Code[Unit] = typ match {
-    case _: PBoolean => v => writeBoolean(coerce[Boolean](v))
-    case _: PInt32 => v => writeInt(coerce[Int](v))
-    case _: PInt64 => v => writeLong(coerce[Long](v))
-    case _: PFloat32 => v => writeFloat(coerce[Float](v))
-    case _: PFloat64 => v => writeDouble(coerce[Double](v))
+  def writePrimitive(cb: EmitCodeBuilder, pc: PCode): Unit = pc.st.virtualType match {
+    case TBoolean => cb += writeBoolean(pc.asBoolean.boolCode(cb))
+    case TInt32 => cb += writeInt(pc.asInt.intCode(cb))
+    case TInt64 => cb += writeLong(pc.asLong.longCode(cb))
+    case TFloat32 => cb += writeFloat(pc.asFloat.floatCode(cb))
+    case TFloat64 => cb += writeDouble(pc.asDouble.doubleCode(cb))
   }
 }

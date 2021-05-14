@@ -279,7 +279,7 @@ object CompileDecoder {
             t.constructFromPositionAndString(cb, region, contigRecoded, position)
           case t: PCanonicalStruct =>
             val strT = t.field("contig").typ.asInstanceOf[PCanonicalString]
-            val contigPC = SStringPointer(strT).constructFromString(cb, region, contigRecoded)
+            val contigPC = strT.sType.constructFromString(cb, region, contigRecoded)
             t.constructFromFields(cb, region,
               FastIndexedSeq(EmitCode.present(cb.emb, contigPC), EmitCode.present(cb.emb, primitive(position))),
               deepCopy = false)
@@ -310,9 +310,9 @@ object CompileDecoder {
       }
 
       if (settings.hasField("rsid"))
-        structFieldCodes += EmitCode.present(cb.emb, SStringPointer(PCanonicalString(true)).constructFromString(cb, region, rsid))
+        structFieldCodes += EmitCode.present(cb.emb, SStringPointer(PCanonicalString(false)).constructFromString(cb, region, rsid))
       if (settings.hasField("varid"))
-        structFieldCodes += EmitCode.present(cb.emb, SStringPointer(PCanonicalString(true)).constructFromString(cb, region, varid))
+        structFieldCodes += EmitCode.present(cb.emb, SStringPointer(PCanonicalString(false)).constructFromString(cb, region, varid))
       if (settings.hasField("offset"))
         structFieldCodes += EmitCode.present(cb.emb, primitive(offset))
       if (settings.hasField("file_idx"))
@@ -388,7 +388,7 @@ object CompileDecoder {
                             cb.goto(Lpresent)
                           })))
 
-                    IEmitCode(Lmissing, Lpresent, new SCanonicalCallCode(false, value), false)
+                    IEmitCode(Lmissing, Lpresent, new SCanonicalCallCode(value), false)
                   }
 
                 if (includeGP)

@@ -39,12 +39,12 @@ class PFloat64(override val required: Boolean) extends PNumeric with PPrimitive 
     coerce[PFloat64](coerce[Double](a) * coerce[Double](b))
   }
 
-  override def sType: SType = SFloat64(required)
+  override def sType: SType = SFloat64
 
   def storePrimitiveAtAddress(cb: EmitCodeBuilder, addr: Code[Long], value: SCode): Unit =
     cb.append(Region.storeDouble(addr, value.asDouble.doubleCode(cb)))
 
-  override def loadCheapPCode(cb: EmitCodeBuilder, addr: Code[Long]): PCode = new SFloat64Code(required, Region.loadDouble(addr))
+  override def loadCheapPCode(cb: EmitCodeBuilder, addr: Code[Long]): PCode = new SFloat64Code(Region.loadDouble(addr))
 
   override def unstagedStoreJavaObjectAtAddress(addr: Long, annotation: Annotation, region: Region): Unit = {
     Region.storeDouble(addr, annotation.asInstanceOf[Double])

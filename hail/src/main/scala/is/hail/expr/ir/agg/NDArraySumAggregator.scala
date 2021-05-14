@@ -34,7 +34,7 @@ class NDArraySumAggregator(ndVTyp: VirtualTypeWithReq) extends StagedAggregator 
 
   override protected def _seqOp(cb: EmitCodeBuilder, state: State, seq: Array[EmitCode]): Unit = {
     val Array(nextNDCode) = seq
-    val seqOpMethod = cb.emb.genEmitMethod("ndarray_sum_aggregator_seq_op", FastIndexedSeq(PCodeEmitParamType(nextNDCode.pt)), CodeParamType(UnitInfo))
+    val seqOpMethod = cb.emb.genEmitMethod("ndarray_sum_aggregator_seq_op", FastIndexedSeq(nextNDCode.emitParamType), CodeParamType(UnitInfo))
 
     seqOpMethod.voidWithBuilder { cb =>
       val nextNDInput = seqOpMethod.getEmitParam(1, null) // no streams here

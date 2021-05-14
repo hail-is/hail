@@ -104,7 +104,7 @@ class TakeByAggregatorSuite extends HailSuite {
           cb.whileLoop(i < n, {
             cb += (random := rng.invoke[Double, Double, Double]("runif", -10000d, 10000d).toI)
             tba.seqOp(cb, false, random, false, random)
-            ab.append(cb, new SInt32Code(true, random))
+            ab.append(cb, new SInt32Code(random))
             cb += (i := i + 1)
           })
           cb += ab.size.cne(n).orEmpty(Code._fatal[Unit]("bad size!"))

@@ -17,7 +17,7 @@ final case class EBlockMatrixNDArray(elementType: EType, encodeRowMajor: Boolean
 
   def _decodedSType(requestedType: Type): SType = {
     val elementPType = elementType.decodedPType(requestedType.asInstanceOf[TNDArray].elementType)
-    SNDArrayPointer(PCanonicalNDArray(elementPType, 2, required))
+    SNDArrayPointer(PCanonicalNDArray(elementPType, 2, false))
   }
 
   override def _buildEncoder(cb: EmitCodeBuilder, v: PValue, out: Value[OutputBuffer]): Unit = {

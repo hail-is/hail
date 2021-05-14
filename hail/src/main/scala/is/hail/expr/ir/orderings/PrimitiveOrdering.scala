@@ -6,11 +6,11 @@ import is.hail.types.physical.PCode
 import is.hail.types.physical.stypes.primitives._
 
 object Int32Ordering {
-  def make(t1: SInt32, t2: SInt32, ecb: EmitClassBuilder[_]): CodeOrdering = {
+  def make(t1: SInt32.type, t2: SInt32.type, ecb: EmitClassBuilder[_]): CodeOrdering = {
     new CodeOrdering {
 
-      val type1: SInt32 = t1
-      val type2: SInt32 = t2
+      val type1: SInt32.type = t1
+      val type2: SInt32.type = t2
 
       def _compareNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Int] =
         Code.invokeStatic2[java.lang.Integer, Int, Int, Int]("compare", x.asInt.intCode(cb), y.asInt.intCode(cb))
@@ -30,11 +30,11 @@ object Int32Ordering {
 
 
 object Int64Ordering {
-  def make(t1: SInt64, t2: SInt64, ecb: EmitClassBuilder[_]): CodeOrdering = {
+  def make(t1: SInt64.type, t2: SInt64.type, ecb: EmitClassBuilder[_]): CodeOrdering = {
     new CodeOrdering {
 
-      val type1: SInt64 = t1
-      val type2: SInt64 = t2
+      val type1: SInt64.type = t1
+      val type2: SInt64.type = t2
 
       def _compareNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Int] =
         Code.invokeStatic2[java.lang.Long, Long, Long, Int]("compare", x.asLong.longCode(cb), y.asLong.longCode(cb))
@@ -53,11 +53,11 @@ object Int64Ordering {
 }
 
 object Float32Ordering {
-  def make(t1: SFloat32, t2: SFloat32, ecb: EmitClassBuilder[_]): CodeOrdering = {
+  def make(t1: SFloat32.type, t2: SFloat32.type, ecb: EmitClassBuilder[_]): CodeOrdering = {
     new CodeOrdering {
 
-      val type1: SFloat32 = t1
-      val type2: SFloat32 = t2
+      val type1: SFloat32.type = t1
+      val type2: SFloat32.type = t2
 
       def _compareNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Int] =
         Code.invokeStatic2[java.lang.Float, Float, Float, Int]("compare", x.asFloat.floatCode(cb), y.asFloat.floatCode(cb))
@@ -76,11 +76,11 @@ object Float32Ordering {
 }
 
 object Float64Ordering {
-  def make(t1: SFloat64, t2: SFloat64, ecb: EmitClassBuilder[_]): CodeOrdering = {
+  def make(t1: SFloat64.type, t2: SFloat64.type, ecb: EmitClassBuilder[_]): CodeOrdering = {
     new CodeOrdering {
 
-      val type1: SFloat64 = t1
-      val type2: SFloat64 = t2
+      val type1: SFloat64.type = t1
+      val type2: SFloat64.type = t2
 
       def _compareNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Int] =
         Code.invokeStatic2[java.lang.Double, Double, Double, Int]("compare", x.asDouble.doubleCode(cb), y.asDouble.doubleCode(cb))
@@ -99,11 +99,11 @@ object Float64Ordering {
 }
 
 object BooleanOrdering {
-  def make(t1: SBoolean, t2: SBoolean, ecb: EmitClassBuilder[_]): CodeOrdering = {
+  def make(t1: SBoolean.type, t2: SBoolean.type, ecb: EmitClassBuilder[_]): CodeOrdering = {
 
     new CodeOrderingCompareConsistentWithOthers {
-      val type1: SBoolean = t1
-      val type2: SBoolean = t2
+      val type1: SBoolean.type = t1
+      val type2: SBoolean.type = t2
 
       def _compareNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Int] =
         Code.invokeStatic2[java.lang.Boolean, Boolean, Boolean, Int]("compare", x.asBoolean.boolCode(cb), y.asBoolean.boolCode(cb))

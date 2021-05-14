@@ -6,6 +6,8 @@ import is.hail.io.InputBuffer
 import is.hail.utils._
 import is.hail.asm4s._
 import is.hail.types.physical._
+import is.hail.types.physical.stypes.interfaces._
+import is.hail.types.virtual._
 
 class RichCodeInputBuffer(
   val ib: Value[InputBuffer]
@@ -87,11 +89,11 @@ class RichCodeInputBuffer(
       ib.invoke[Region, Long, Int, Unit]("readBytes", toRegion, toOff, n)
   }
 
-  def readPrimitive(typ: PType): Code[_] = typ match {
-    case _: PBoolean => readBoolean()
-    case _: PInt32 => readInt()
-    case _: PInt64 => readLong()
-    case _: PFloat32 => readFloat()
-    case _: PFloat64 => readDouble()
+  def readPrimitive(t: Type): PCode = t match {
+    case TBoolean => primitive(readBoolean())
+    case TInt32 => primitive(readInt())
+    case TInt64 => primitive(readLong())
+    case TFloat32 => primitive(readFloat())
+    case TFloat64 => primitive(readDouble())
   }
 }

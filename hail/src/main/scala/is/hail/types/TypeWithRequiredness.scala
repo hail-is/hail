@@ -151,6 +151,15 @@ object VirtualTypeWithReq {
     assert(!twr.required)
     VirtualTypeWithReq(t, twr)
   }
+
+  def union(vs: Seq[VirtualTypeWithReq]): VirtualTypeWithReq = {
+    val t = vs.head.t
+    assert(vs.tail.forall(_.t == t))
+
+    val tr = TypeWithRequiredness(t)
+    tr.unionFrom(vs.map(_.r))
+    VirtualTypeWithReq(t, tr)
+  }
 }
 
 case class VirtualTypeWithReq(t: Type, r: TypeWithRequiredness) {

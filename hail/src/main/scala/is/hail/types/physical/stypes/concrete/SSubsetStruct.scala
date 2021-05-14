@@ -4,23 +4,36 @@ import is.hail.annotations.Region
 import is.hail.asm4s.{Code, LongInfo, Settable, TypeInfo, Value}
 import is.hail.expr.ir.orderings.CodeOrdering
 import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, IEmitCode, IEmitSCode, SortOrder}
-import is.hail.types.physical.stypes.{SCode, SType}
+import is.hail.types.physical.stypes.{EmitType, SCode, SType}
 import is.hail.types.physical.stypes.interfaces.{SBaseStruct, SStructSettable}
-import is.hail.types.physical.{PBaseStruct, PBaseStructCode, PBaseStructValue, PCode, PStruct, PStructSettable, PSubsetStruct, PType}
-import is.hail.types.virtual.TStruct
+import is.hail.types.physical.{PBaseStruct, PBaseStructCode, PBaseStructValue, PCanonicalStruct, PCode, PStruct, PStructSettable, PSubsetStruct, PType}
+import is.hail.types.virtual.{TStruct, Type}
 
 case class SSubsetStruct(parent: SBaseStruct, fieldNames: IndexedSeq[String]) extends SBaseStruct {
 
   val size: Int = fieldNames.size
 
-  val fieldIdx: Map[String, Int] = fieldNames.zipWithIndex.toMap
-  val newToOldFieldMapping: Map[Int, Int] = fieldIdx
-    .map { case (f, i) => (i, parent.pType.virtualType.asInstanceOf[TStruct].fieldIdx(f)) }
+  val _fieldIdx: Map[String, Int] = fieldNames.zipWithIndex.toMap
+  val newToOldFieldMapping: Map[Int, Int] = _fieldIdx
+    .map { case (f, i) => (i, parent.virtualType.asInstanceOf[TStruct].fieldIdx(f)) }
 
   val fieldTypes: Array[SType] = Array.tabulate(size)(i => parent.fieldTypes(newToOldFieldMapping(i)))
+  val fieldEmitTypes: Array[EmitType] = Array.tabulate(size)(i => parent.fieldEmitTypes(newToOldFieldMapping(i)))
 
-  val pType: PSubsetStruct = PSubsetStruct(parent.pType.asInstanceOf[PStruct], fieldNames.toArray
-  )
+  lazy val virtualType: TStruct = {
+    val vparent = parent.virtualType.asInstanceOf[TStruct]
+    TStruct(fieldNames.map(f => (f, vparent.field(f).typ)): _*)
+  }
+
+  override def fieldIdx(fieldName: String): Int = _fieldIdx(fieldName)
+
+  override def castRename(t: Type): SType = {
+    val ts = t.asInstanceOf[TStruct]
+    val newNames = ts.fieldNames
+    val vparent = parent.virtualType.asInstanceOf[TStruct]
+    val newParent = vparent.rename(fieldNames.zip(newNames).toMap)
+    SSubsetStruct(parent.castRename(newParent).asInstanceOf[SBaseStruct], newNames)
+  }
 
   def coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = {
     if (deepCopy)
@@ -45,13 +58,15 @@ case class SSubsetStruct(parent: SBaseStruct, fieldNames: IndexedSeq[String]) ex
     new SSubsetStructCode(this, parent.fromCodes(codes).asInstanceOf[PBaseStructCode])
   }
 
-  def canonicalPType(): PType = pType
+  def canonicalPType(): PType = {
+    PCanonicalStruct(fieldNames.zipWithIndex.map { case (f, i) =>
+      (f, parent.fieldEmitTypes(newToOldFieldMapping(i)).canonicalPType)
+    }: _*)
+  }
 }
 
 // FIXME: prev should be SStructSettable, not PStructSettable
 class SSubsetStructSettable(val st: SSubsetStruct, prev: PStructSettable) extends PStructSettable {
-  def pt: PBaseStruct = st.pType.asInstanceOf[PBaseStruct]
-
   def get: SSubsetStructCode = new SSubsetStructCode(st, prev.load().asBaseStruct)
 
   def settableTuple(): IndexedSeq[Settable[_]] = prev.settableTuple()
@@ -67,8 +82,6 @@ class SSubsetStructSettable(val st: SSubsetStruct, prev: PStructSettable) extend
 }
 
 class SSubsetStructCode(val st: SSubsetStruct, val prev: PBaseStructCode) extends PBaseStructCode {
-
-  val pt: PBaseStruct = st.pType
 
   def code: Code[_] = prev.code
 

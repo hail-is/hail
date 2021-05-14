@@ -1,7 +1,6 @@
 package is.hail.expr.ir
 
 import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
-
 import is.hail.HailSuite
 import is.hail.annotations.Region
 import is.hail.asm4s._
@@ -10,13 +9,14 @@ import is.hail.expr.ir.agg._
 import is.hail.expr.ir.orderings.CodeOrdering
 import is.hail.types.physical._
 import is.hail.io.{InputBuffer, OutputBuffer, StreamBufferSpec}
+import is.hail.types.physical.stypes.interfaces.primitive
 import is.hail.types.physical.stypes.primitives.SInt64
 import is.hail.utils._
 import org.testng.annotations.Test
 
 import scala.collection.mutable
 class TestBTreeKey(mb: EmitMethodBuilder[_]) extends BTreeKey {
-  private val comp = mb.ecb.getOrderingFunction(SInt64(false), SInt64(false), CodeOrdering.Compare())
+  private val comp = mb.ecb.getOrderingFunction(SInt64, SInt64, CodeOrdering.Compare())
   def storageType: PTuple = PCanonicalTuple(required = true, PInt64(), PCanonicalTuple(false))
   def compType: PType = PInt64()
   def isEmpty(cb: EmitCodeBuilder, off: Code[Long]): Code[Boolean] =
@@ -41,7 +41,7 @@ class TestBTreeKey(mb: EmitMethodBuilder[_]) extends BTreeKey {
   def compKeys(cb: EmitCodeBuilder, k1: EmitCode, k2: EmitCode): Code[Int] = comp(cb, k1, k2)
 
   def loadCompKey(cb: EmitCodeBuilder, off: Value[Long]): EmitCode =
-    EmitCode(Code._empty, storageType.isFieldMissing(off, 0), PCode(compType, Region.loadLong(storageType.fieldOffset(off, 0))))
+    EmitCode(Code._empty, storageType.isFieldMissing(off, 0), primitive(Region.loadLong(storageType.fieldOffset(off, 0))))
 }
 
 object BTreeBackedSet {
@@ -110,7 +110,7 @@ class BTreeBackedSet(ctx: ExecuteContext, region: Region, n: Int) {
     val btree = new AppendOnlyBTree(cb, key, r, root, maxElements = n)
 
     fb.emitWithBuilder { cb =>
-      val ec = EmitCode(Code._empty, m, PCode(PInt64Optional, v))
+      val ec = EmitCode(Code._empty, m, primitive(v))
       cb.assign(r, fb.getCodeParam[Region](1))
       cb.assign(root, fb.getCodeParam[Long](2))
       cb.assign(elt, btree.getOrElseInitialize(cb, ec))

@@ -6,10 +6,13 @@ import is.hail.expr.ir.orderings.CodeOrdering
 import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, SortOrder}
 import is.hail.types.physical.stypes.{SCode, SSettable, SType}
 import is.hail.types.physical.{PCode, PType, PUnrealizableCode, PValue, PVoid}
+import is.hail.types.virtual.{TVoid, Type}
 
 case object SVoid extends SType {
 
-  def pType: PType = PVoid
+  override def virtualType: Type = TVoid
+
+  override def castRename(t: Type): SType = this
 
   def coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = value
 
@@ -21,17 +24,13 @@ case object SVoid extends SType {
 
   def fromSettables(settables: IndexedSeq[Settable[_]]): SSettable = throw new UnsupportedOperationException
 
-  def canonicalPType(): PType = pType
+  def canonicalPType(): PType = throw new UnsupportedOperationException
 }
 
 case object PVoidCode extends PCode with PUnrealizableCode {
   self =>
 
-  override def pt: PType = PVoid
-
   override def st: SType = SVoid
-
-  override def typeInfo: TypeInfo[_] = UnitInfo
 
   override def code: Code[_] = Code._empty
 

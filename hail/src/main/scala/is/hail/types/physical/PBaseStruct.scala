@@ -180,13 +180,9 @@ abstract class PBaseStruct extends PType {
   }
 }
 
-abstract class PBaseStructValue extends PValue with SBaseStructValue {
-  def pt: PBaseStruct
-}
+abstract class PBaseStructValue extends PValue with SBaseStructValue
 
 abstract class PBaseStructCode extends PCode with SBaseStructCode {
-  def pt: PBaseStruct
-
   def memoize(cb: EmitCodeBuilder, name: String): PBaseStructValue
 
   def memoizeField(cb: EmitCodeBuilder, name: String): PBaseStructValue

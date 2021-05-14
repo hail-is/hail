@@ -53,21 +53,21 @@ final case class EBaseStruct(fields: IndexedSeq[EField], override val required: 
     case t: TInterval =>
       val structPType = decodedPType(t.structRepresentation).asInstanceOf[PStruct]
       val pointType = structPType.field("start").typ
-      SIntervalPointer(PCanonicalInterval(pointType, required))
+      SIntervalPointer(PCanonicalInterval(pointType, false))
     case t: TLocus =>
-      SCanonicalLocusPointer(PCanonicalLocus(t.rg, required))
+      SCanonicalLocusPointer(PCanonicalLocus(t.rg, false))
     case t: TStruct =>
       val pFields = t.fields.map { case Field(name, typ, idx) =>
         val pt = fieldType(name).decodedPType(typ)
         PField(name, pt, idx)
       }
-      SBaseStructPointer(PCanonicalStruct(pFields, required))
+      SBaseStructPointer(PCanonicalStruct(pFields, false))
     case t: TTuple =>
       val pFields = t.fields.map { case Field(name, typ, idx) =>
         val pt = fieldType(name).decodedPType(typ)
         PTupleField(t._types(idx).index, pt)
       }
-      SBaseStructPointer(PCanonicalTuple(pFields, required))
+      SBaseStructPointer(PCanonicalTuple(pFields, false))
   }
 
   override def _buildEncoder(cb: EmitCodeBuilder, v: PValue, out: Value[OutputBuffer]): Unit = {
@@ -81,18 +81,16 @@ final case class EBaseStruct(fields: IndexedSeq[EField], override val required: 
           v.asInstanceOf[SCanonicalLocusPointerSettable].a)
       case SBaseStructPointer(t) => v.asInstanceOf[SBaseStructValue]
     }
-    val ft = structValue.pt
-
     // write missing bytes
     structValue.st match {
       case SBaseStructPointer(st) if st.size == size && st.fieldRequired.sameElements(fields.map(_.typ.required)) =>
-        val missingBytes = UnsafeUtils.packBitsToBytes(ft.nMissing)
+        val missingBytes = UnsafeUtils.packBitsToBytes(st.nMissing)
 
         val addr = structValue.asInstanceOf[SBaseStructPointerSettable].a
         if (nMissingBytes > 1)
           cb += out.writeBytes(addr, missingBytes - 1)
         if (nMissingBytes > 0)
-          cb += out.writeByte((Region.loadByte(addr + (missingBytes.toLong - 1)).toI & const(EType.lowBitMask(ft.nMissing & 0x7))).toB)
+          cb += out.writeByte((Region.loadByte(addr + (missingBytes.toLong - 1)).toI & const(EType.lowBitMask(st.nMissing & 0x7))).toB)
 
       case _ =>
         var j = 0

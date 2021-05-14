@@ -38,12 +38,12 @@ class PFloat32(override val required: Boolean) extends PNumeric with PPrimitive 
     coerce[PFloat32](coerce[Float](a) * coerce[Float](b))
   }
 
-  override def sType: SType = SFloat32(required)
+  override def sType: SType = SFloat32
 
   def storePrimitiveAtAddress(cb: EmitCodeBuilder, addr: Code[Long], value: SCode): Unit =
     cb.append(Region.storeFloat(addr, value.asFloat.floatCode(cb)))
 
-  override def loadCheapPCode(cb: EmitCodeBuilder, addr: Code[Long]): PCode = new SFloat32Code(required, Region.loadFloat(addr))
+  override def loadCheapPCode(cb: EmitCodeBuilder, addr: Code[Long]): PCode = new SFloat32Code(Region.loadFloat(addr))
 
   override def unstagedStoreJavaObjectAtAddress(addr: Long, annotation: Annotation, region: Region): Unit = {
     Region.storeFloat(addr, annotation.asInstanceOf[Float])

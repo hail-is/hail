@@ -3,6 +3,9 @@ package is.hail.expr.ir
 import is.hail.asm4s._
 import is.hail.expr._
 import is.hail.types._
+import is.hail.types.physical.PCode
+import is.hail.types.physical.stypes.SType
+import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.virtual._
 import is.hail.utils._
 
@@ -23,7 +26,12 @@ object UnaryOp {
   private def incompatible[T](t: Type, op: UnaryOp): T =
     throw new RuntimeException(s"Cannot apply $op to values of type $t")
 
-  def emit(op: UnaryOp, t: Type, x: Code[_]): Code[_] = t match {
+  def emit(cb: EmitCodeBuilder, op: UnaryOp, x: PCode): PCode = {
+
+    primitive(getReturnType(op, x.st.virtualType), emit(op, x.st.virtualType, SType.extractPrimCode(cb, x)))
+  }
+
+  private def emit(op: UnaryOp, t: Type, x: Code[_]): Code[_] = t match {
     case TBoolean =>
       val xx = coerce[Boolean](x)
       op match {

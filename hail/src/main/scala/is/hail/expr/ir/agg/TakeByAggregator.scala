@@ -8,7 +8,7 @@ import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer}
 import is.hail.types.VirtualTypeWithReq
 import is.hail.types.physical._
 import is.hail.types.physical.stypes.concrete.{SBaseStructPointerCode, SIndexablePointerCode}
-import is.hail.types.physical.stypes.interfaces.SBaseStruct
+import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.virtual.{TInt32, Type}
 import is.hail.utils._
 
@@ -382,8 +382,8 @@ class TakeByRVAS(val valueVType: VirtualTypeWithReq, val keyVType: VirtualTypeWi
 
   // for tests
   def seqOp(cb: EmitCodeBuilder, vm: Code[Boolean], v: Code[_], km: Code[Boolean], k: Code[_]): Unit = {
-    val vec = EmitCode(Code._empty, vm, PCode(valueType, v))
-    val kec = EmitCode(Code._empty, km, PCode(keyType, k))
+    val vec = EmitCode(Code._empty, vm, if (valueType.isPrimitive) primitive(valueType.virtualType, v) else valueType.loadCheapPCode(cb, coerce[Long](v)))
+    val kec = EmitCode(Code._empty, km, if (keyType.isPrimitive) primitive(keyType.virtualType, k) else keyType.loadCheapPCode(cb, coerce[Long](k)))
     seqOp(cb, vec, kec)
   }
 

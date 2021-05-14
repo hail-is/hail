@@ -5,6 +5,10 @@ import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.types.physical.stypes.{SCode, SType, SValue}
 
 object SNDArray {
+  def numElements(shape: IndexedSeq[Value[Long]]): Code[Long] = {
+    shape.foldLeft(1L: Code[Long])(_ * _)
+  }
+
   // Column major order
   def forEachIndex(cb: EmitCodeBuilder, shape: IndexedSeq[Value[Long]], context: String)
     (f: (EmitCodeBuilder, IndexedSeq[Value[Long]]) => Unit): Unit = {

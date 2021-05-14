@@ -4,6 +4,7 @@ import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitCodeBuilder}
 import is.hail.types.physical._
+import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.virtual.{TInt32, TString, Type}
 import is.hail.types.{RPrimitive, VirtualTypeWithReq}
 import is.hail.utils._
@@ -80,7 +81,7 @@ class ImputeTypeState(kb: EmitClassBuilder[_]) extends PrimitiveRVAState(Array(V
       | (supportsI32.toI << 3)
       | (supportsI64.toI << 4)
       | (supportsF64.toI << 5))
-    cb.assign(_repr, EmitCode.present(cb.emb, PCode(_repr.pt, value)))
+    cb.assign(_repr, EmitCode.present(cb.emb, primitive(value)))
   }
 
   def initialize(cb: EmitCodeBuilder): Unit = {
@@ -90,7 +91,7 @@ class ImputeTypeState(kb: EmitClassBuilder[_]) extends PrimitiveRVAState(Array(V
   def seqOp(cb: EmitCodeBuilder, ec: EmitCode): Unit = {
     ec.toI(cb)
       .consume(cb,
-        cb.assign(_repr, EmitCode.present(cb.emb, PCode(_repr.pt, repr & (~(1 << 1))))),
+        cb.assign(_repr, EmitCode.present(cb.emb, primitive(repr & (~(1 << 1))))),
         { case (pc: PStringCode) =>
           val s = cb.newLocal[String]("impute_type_agg_seq_str")
           cb.assign(s, pc.loadString())
@@ -150,7 +151,7 @@ class ImputeTypeAggregator() extends StagedAggregator {
     Array(state.getAnyNonMissing, state.getAllDefined, state.getSupportsBool,
       state.getSupportsI32, state.getSupportsI64, state.getSupportsF64)
       .zipWithIndex.foreach { case (b, idx) =>
-      rt.types(idx).storeAtAddress(cb, rt.fieldOffset(addr, idx), region, PCode(PBooleanRequired, b), deepCopy = true)
+      rt.types(idx).storeAtAddress(cb, rt.fieldOffset(addr, idx), region, primitive(b), deepCopy = true)
     }
   }
 }

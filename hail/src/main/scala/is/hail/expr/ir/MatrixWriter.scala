@@ -225,39 +225,37 @@ case class SplitPartitionNativeWriter(
         cb.assign(n, n + 1L)
       }
 
-      PCode(pResultType, EmitCodeBuilder.scopedCode(mb) { cb: EmitCodeBuilder =>
-        val pctx = ctxCode.memoize(cb, "context")
-        cb.assign(filename1, pctx.asString.loadString())
-        if (hasIndex) {
-          val indexFile = cb.newLocal[String]("indexFile")
-          cb.assign(indexFile, const(index.get._1).concat(filename1))
-          indexWriter.init(cb, indexFile)
-        }
-        cb.assign(filename2, const(partPrefix2).concat(filename1))
-        cb.assign(filename1, const(partPrefix1).concat(filename1))
-        cb.assign(os1, Code.newInstance[ByteTrackingOutputStream, OutputStream](mb.create(filename1)))
-        cb.assign(os2, Code.newInstance[ByteTrackingOutputStream, OutputStream](mb.create(filename2)))
-        cb.assign(ob1, spec1.buildCodeOutputBuffer(Code.checkcast[OutputStream](os1)))
-        cb.assign(ob2, spec2.buildCodeOutputBuffer(Code.checkcast[OutputStream](os2)))
-        cb.assign(n, 0L)
+      val pctx = ctxCode.memoize(cb, "context")
+      cb.assign(filename1, pctx.asString.loadString())
+      if (hasIndex) {
+        val indexFile = cb.newLocal[String]("indexFile")
+        cb.assign(indexFile, const(index.get._1).concat(filename1))
+        indexWriter.init(cb, indexFile)
+      }
+      cb.assign(filename2, const(partPrefix2).concat(filename1))
+      cb.assign(filename1, const(partPrefix1).concat(filename1))
+      cb.assign(os1, Code.newInstance[ByteTrackingOutputStream, OutputStream](mb.create(filename1)))
+      cb.assign(os2, Code.newInstance[ByteTrackingOutputStream, OutputStream](mb.create(filename2)))
+      cb.assign(ob1, spec1.buildCodeOutputBuffer(Code.checkcast[OutputStream](os1)))
+      cb.assign(ob2, spec2.buildCodeOutputBuffer(Code.checkcast[OutputStream](os2)))
+      cb.assign(n, 0L)
 
-        stream.memoryManagedConsume(region, cb) { cb =>
-          writeFile(cb, stream.element)
-        }
+      stream.memoryManagedConsume(region, cb) { cb =>
+        writeFile(cb, stream.element)
+      }
 
-        cb += ob1.writeByte(0.asInstanceOf[Byte])
-        cb += ob2.writeByte(0.asInstanceOf[Byte])
-        cb.assign(result, pResultType.allocate(region))
-        if (hasIndex)
-          indexWriter.close(cb)
-        cb += ob1.flush()
-        cb += ob2.flush()
-        cb += os1.invoke[Unit]("close")
-        cb += os2.invoke[Unit]("close")
-        filenameType.storeAtAddress(cb, pResultType.fieldOffset(result, "filePath"), region, pctx, false)
-        cb += Region.storeLong(pResultType.fieldOffset(result, "partitionCounts"), n)
-        result.get
-      })
+      cb += ob1.writeByte(0.asInstanceOf[Byte])
+      cb += ob2.writeByte(0.asInstanceOf[Byte])
+      cb.assign(result, pResultType.allocate(region))
+      if (hasIndex)
+        indexWriter.close(cb)
+      cb += ob1.flush()
+      cb += ob2.flush()
+      cb += os1.invoke[Unit]("close")
+      cb += os2.invoke[Unit]("close")
+      filenameType.storeAtAddress(cb, pResultType.fieldOffset(result, "filePath"), region, pctx, false)
+      cb += Region.storeLong(pResultType.fieldOffset(result, "partitionCounts"), n)
+      pResultType.loadCheapPCode(cb, result.get)
     }
   }
 }

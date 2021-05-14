@@ -445,21 +445,6 @@ abstract class PType extends Serializable with Requiredness {
 
   def deepRename(t: Type): PType = this
 
-  def defaultValue(mb: EmitMethodBuilder[_]): PCode = PCode(this, is.hail.types.physical.defaultValue(this))
-
-  def ti: TypeInfo[_] = typeToTypeInfo(this)
-
-  def codeTupleTypes(): IndexedSeq[TypeInfo[_]] = FastIndexedSeq(ti)
-
-  def asParam: PCodeParamType = PCodeParamType(this)
-
-  def nCodes: Int = 1
-
-  def fromCodeTuple(ct: IndexedSeq[Code[_]]): PCode = {
-    assert(ct.length == 1)
-    PCode(this, ct(0))
-  }
-
   // called to load a region value's start address from a nested representation.
   // Usually a no-op, but may need to dereference a pointer.
   def loadFromNested(addr: Code[Long]): Code[Long]

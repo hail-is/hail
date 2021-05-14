@@ -7,6 +7,7 @@ import is.hail.io.OutputBuffer
 import is.hail.types.encoded.EType
 import is.hail.types.physical._
 import is.hail.types.physical.stypes.concrete.{SBaseStructPointer, SBaseStructPointerSettable}
+import is.hail.types.physical.stypes.interfaces.primitive
 import is.hail.types.virtual.{TStruct, Type}
 import is.hail.utils._
 
@@ -48,14 +49,14 @@ class StagedLeafNodeBuilder(maxSize: Int, keyType: PType, annotationType: PType,
   def reset(cb: EmitCodeBuilder, firstIdx: Code[Long]): Unit = {
     cb += region.invoke[Unit]("clear")
     node.store(cb, pType.loadCheapPCode(cb, pType.allocate(region)))
-    idxType.storePrimitiveAtAddress(cb, pType.fieldOffset(node.a, "first_idx"), PCode(idxType, firstIdx))
+    idxType.storePrimitiveAtAddress(cb, pType.fieldOffset(node.a, "first_idx"), primitive(firstIdx))
     ab.create(cb, pType.fieldOffset(node.a, "keys"))
   }
 
   def create(cb: EmitCodeBuilder, firstIdx: Code[Long]): Unit = {
     cb.assign(region, Region.stagedCreate(Region.REGULAR, cb.emb.ecb.pool()))
     node.store(cb, pType.loadCheapPCode(cb, pType.allocate(region)))
-    idxType.storePrimitiveAtAddress(cb, pType.fieldOffset(node.a, "first_idx"), PCode(idxType, firstIdx))
+    idxType.storePrimitiveAtAddress(cb, pType.fieldOffset(node.a, "first_idx"), primitive(firstIdx))
     ab.create(cb, pType.fieldOffset(node.a, "keys"))
   }
 
@@ -70,7 +71,7 @@ class StagedLeafNodeBuilder(maxSize: Int, keyType: PType, annotationType: PType,
   def add(cb: EmitCodeBuilder, key: => IEmitCode, offset: Code[Long], annotation: => IEmitCode): Unit = {
     ab.addChild(cb)
     ab.setField(cb, "key", key)
-    ab.setFieldValue(cb, "offset", PCode(PInt64(), offset))
+    ab.setFieldValue(cb, "offset", primitive(offset))
     ab.setField(cb, "annotation", annotation)
   }
 

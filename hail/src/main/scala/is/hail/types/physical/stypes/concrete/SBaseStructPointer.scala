@@ -5,13 +5,21 @@ import is.hail.asm4s._
 import is.hail.expr.ir.orderings.CodeOrdering
 import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, IEmitCode, SortOrder}
 import is.hail.types.physical.stypes.interfaces.{SBaseStruct, SStructSettable}
-import is.hail.types.physical.stypes.{SCode, SSettable, SType}
+import is.hail.types.physical.stypes.{EmitType, SCode, SSettable, SType}
 import is.hail.types.physical.{PBaseStruct, PBaseStructCode, PBaseStructValue, PCode, PStructSettable, PType}
+import is.hail.types.virtual.{TBaseStruct, Type}
 import is.hail.utils.FastIndexedSeq
 
 
 case class SBaseStructPointer(pType: PBaseStruct) extends SBaseStruct {
+  require(!pType.required)
   def size: Int = pType.size
+
+  lazy val virtualType: TBaseStruct = pType.virtualType.asInstanceOf[TBaseStruct]
+
+  override def castRename(t: Type): SType = SBaseStructPointer(pType.deepRename(t).asInstanceOf[PBaseStruct])
+
+  override def fieldIdx(fieldName: String): Int = pType.fieldIdx(fieldName)
 
   def coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = {
     new SBaseStructPointerCode(this, pType.store(cb, region, value, deepCopy))
@@ -41,6 +49,7 @@ case class SBaseStructPointer(pType: PBaseStruct) extends SBaseStruct {
   def canonicalPType(): PType = pType
 
   override val fieldTypes: Array[SType] = pType.types.map(_.sType)
+  override val fieldEmitTypes: Array[EmitType] = pType.types.map(t => EmitType(t.sType, t.required))
 }
 
 

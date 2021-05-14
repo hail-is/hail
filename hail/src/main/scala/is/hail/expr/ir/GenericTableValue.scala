@@ -65,7 +65,7 @@ class PartitionIteratorLongReader(
         override def close(cb: EmitCodeBuilder): Unit = {}
       }
 
-      SStreamCode(SStream(producer.element.st, true), producer)
+      SStreamCode(SStream(producer.element.emitType), producer)
     }
   }
 

@@ -315,6 +315,7 @@ object Code {
     invokeStatic[S](tct.runtimeClass, method, Array[Class[_]](a1ct.runtimeClass, a2ct.runtimeClass, a3ct.runtimeClass, a4ct.runtimeClass, a5ct.runtimeClass), Array[Code[_]](a1, a2, a3, a4, a5))(sct)
 
   def _null[T >: Null](implicit tti: TypeInfo[T]): Code[T] = Code(lir.insn0(ACONST_NULL, tti))
+  def _uncheckednull(tti: TypeInfo[_]): Code[_] = Code(lir.insn0(ACONST_NULL, tti))
 
   def _empty: Code[Unit] = Code[Unit](null: lir.ValueX)
 

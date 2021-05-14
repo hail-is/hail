@@ -20,12 +20,12 @@ class EInt64(override val required: Boolean) extends EType {
   }
 
   override def _buildDecoder(cb: EmitCodeBuilder, t: Type, region: Value[Region], in: Value[InputBuffer]): PCode = {
-    new SInt64Code(required, in.readLong())
+    new SInt64Code(in.readLong())
   }
 
   def _buildSkip(cb: EmitCodeBuilder, r: Value[Region], in: Value[InputBuffer]): Unit = cb += in.skipLong()
 
-  def _decodedSType(requestedType: Type): SType = SInt64(required)
+  def _decodedSType(requestedType: Type): SType = SInt64
 
   def _asIdent = "int64"
 

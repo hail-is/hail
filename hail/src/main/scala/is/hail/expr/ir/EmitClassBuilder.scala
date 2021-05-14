@@ -2,22 +2,21 @@ package is.hail.expr.ir
 
 import is.hail.annotations.{Region, RegionPool, RegionValueBuilder}
 import is.hail.asm4s._
-import is.hail.backend.{BackendUtils, HailTaskContext}
+import is.hail.backend.BackendUtils
 import is.hail.expr.ir.functions.IRRandomness
 import is.hail.expr.ir.orderings.CodeOrdering
 import is.hail.io.fs.FS
 import is.hail.io.{BufferSpec, InputBuffer, TypedCodecSpec}
-import is.hail.lir
+import is.hail.types.VirtualTypeWithReq
+import is.hail.types.physical.stypes.interfaces.SStream
 import is.hail.types.physical.stypes.{EmitType, SType}
-import is.hail.types.physical.stypes.interfaces.PVoidCode.pt
-import is.hail.types.physical.{PCanonicalTuple, PCode, PSettable, PStream, PType, PValue, typeToTypeInfo}
+import is.hail.types.physical.{PCanonicalTuple, PCode, PSettable, PType, PValue}
 import is.hail.types.virtual.Type
 import is.hail.utils._
 import is.hail.variant.ReferenceGenome
 import org.apache.spark.TaskContext
 
 import java.io._
-import java.util.Base64
 import scala.collection.mutable
 import scala.language.existentials
 
@@ -84,25 +83,25 @@ trait WrappedEmitClassBuilder[C] extends WrappedEmitModuleBuilder {
 
   def getOrDefineLazyField[T: TypeInfo](setup: Code[T], id: Any): Value[T] = ecb.getOrDefineLazyField(setup, id)
 
-  def newPSettable(sb: SettableBuilder, pt: PType, name: String = null): PSettable = ecb.newPSettable(sb, pt, name)
+  def newPSettable(sb: SettableBuilder, pt: SType, name: String = null): PSettable = ecb.newPSettable(sb, pt, name)
 
-  def newPField(pt: PType): PSettable = ecb.newPField(pt)
+  def newPField(pt: SType): PSettable = ecb.newPField(pt)
 
-  def newPField(name: String, pt: PType): PSettable = ecb.newPField(name, pt)
+  def newPField(name: String, pt: SType): PSettable = ecb.newPField(name, pt)
 
-  def newEmitField(et: EmitType): EmitSettable = ecb.newEmitField(et.st.pType, et.required)
+  def newEmitField(et: EmitType): EmitSettable = ecb.newEmitField(et.st, et.required)
 
-  def newEmitField(pt: PType, required: Boolean): EmitSettable = ecb.newEmitField(pt, required)
+  def newEmitField(pt: SType, required: Boolean): EmitSettable = ecb.newEmitField(pt, required)
 
-  def newEmitField(name: String, et: EmitType): EmitSettable = ecb.newEmitField(name, et.st.pType, et.required)
+  def newEmitField(name: String, et: EmitType): EmitSettable = ecb.newEmitField(name, et.st, et.required)
 
-  def newEmitField(name: String, pt: PType, required: Boolean): EmitSettable = ecb.newEmitField(name, pt, required)
+  def newEmitField(name: String, pt: SType, required: Boolean): EmitSettable = ecb.newEmitField(name, pt, required)
 
-  def newEmitSettable(pt: PType, ms: Settable[Boolean], vs: PSettable, required: Boolean): EmitSettable = ecb.newEmitSettable(pt, ms, vs, required)
+  def newEmitSettable(pt: SType, ms: Settable[Boolean], vs: PSettable, required: Boolean): EmitSettable = ecb.newEmitSettable(ms, vs, required)
 
-  def newPresentEmitField(pt: PType): PresentEmitSettable = ecb.newPresentEmitField(pt)
+  def newPresentEmitField(pt: SType): PresentEmitSettable = ecb.newPresentEmitField(pt)
 
-  def newPresentEmitField(name: String, pt: PType): PresentEmitSettable = ecb.newPresentEmitField(name, pt)
+  def newPresentEmitField(name: String, pt: SType): PresentEmitSettable = ecb.newPresentEmitField(name, pt)
 
   def newPresentEmitSettable(ps: PSettable): PresentEmitSettable = ecb.newPresentEmitSettable(ps)
 
@@ -127,7 +126,7 @@ trait WrappedEmitClassBuilder[C] extends WrappedEmitModuleBuilder {
 
   def partitionRegion: Settable[Region] = ecb.partitionRegion
 
-  def addLiteral(v: Any, t: PType): PValue = ecb.addLiteral(v, t)
+  def addLiteral(v: Any, t: VirtualTypeWithReq): PValue = ecb.addLiteral(v, t)
 
   def addEncodedLiteral(encodedLiteral: EncodedLiteral) = ecb.addEncodedLiteral(encodedLiteral)
 
@@ -212,26 +211,22 @@ class EmitClassBuilder[C](
 
   // EmitClassBuilder methods
 
-  def newPSettable(sb: SettableBuilder, pt: PType, name: String = null): PSettable = PSettable(sb, pt, name)
+  def newPSettable(sb: SettableBuilder, st: SType, name: String = null): PSettable = PSettable(sb, st, name)
 
-  def newPField(pt: PType): PSettable = newPSettable(fieldBuilder, pt)
+  def newPField(st: SType): PSettable = newPSettable(fieldBuilder, st)
 
-  def newPField(name: String, pt: PType): PSettable = newPSettable(fieldBuilder, pt, name)
+  def newPField(name: String, st: SType): PSettable = newPSettable(fieldBuilder, st, name)
 
-  def newEmitField(pt: PType, required: Boolean): EmitSettable =
-    newEmitSettable(pt, genFieldThisRef[Boolean](), newPField(pt), required)
+  def newEmitField(st: SType, required: Boolean): EmitSettable =
+    newEmitSettable(genFieldThisRef[Boolean](), newPField(st), required)
 
-  def newEmitField(name: String, emitType: EmitType): EmitSettable = newEmitField(name, emitType.st.pType, emitType.required)
+  def newEmitField(name: String, emitType: EmitType): EmitSettable = newEmitField(name, emitType.st, emitType.required)
 
-  def newEmitField(name: String, pt: PType, required: Boolean): EmitSettable =
-    newEmitSettable(pt, genFieldThisRef[Boolean](name + "_missing"), newPField(name, pt), required)
+  def newEmitField(name: String, pt: SType, required: Boolean): EmitSettable =
+    newEmitSettable(genFieldThisRef[Boolean](name + "_missing"), newPField(name, pt), required)
 
-  def newEmitSettable(_pt: PType, ms: Settable[Boolean], vs: PSettable, required: Boolean): EmitSettable = new EmitSettable {
-    if (!_pt.isRealizable) {
-      throw new UnsupportedOperationException(s"newEmitSettable can only be called on realizable PTypes. Called on ${_pt}")
-    }
-
-    def pt: PType = _pt
+  def newEmitSettable(ms: Settable[Boolean], vs: PSettable, required: Boolean): EmitSettable = new EmitSettable {
+    def st: SType = vs.st
 
     def load: EmitCode = {
       val ec = EmitCode(Code._empty,
@@ -247,7 +242,7 @@ class EmitClassBuilder[C](
 
     def store(cb: EmitCodeBuilder, iec: IEmitCode): Unit =
       if (required)
-        cb.assign(vs, iec.get(cb, s"Required EmitSettable cannot be missing ${ _pt }"))
+        cb.assign(vs, iec.get(cb, s"Required EmitSettable cannot be missing ${ st }"))
       else
         iec.consume(cb, {
           cb.assign(ms, true)
@@ -260,20 +255,20 @@ class EmitClassBuilder[C](
       if (required) {
         vs
       } else {
-        cb.ifx(ms, cb._fatal(s"Can't convert missing ${_pt} to PValue"))
+        cb.ifx(ms, cb._fatal(s"Can't convert missing ${st} to PValue"))
         vs
       }
     }
   }
 
-  def newPresentEmitField(pt: PType): PresentEmitSettable =
-    newPresentEmitSettable(newPField(pt))
+  def newPresentEmitField(st: SType): PresentEmitSettable =
+    newPresentEmitSettable(newPField(st))
 
-  def newPresentEmitField(name: String, pt: PType): PresentEmitSettable =
-    newPresentEmitSettable(newPField(name, pt))
+  def newPresentEmitField(name: String, st: SType): PresentEmitSettable =
+    newPresentEmitSettable(newPField(name, st))
 
   def newPresentEmitSettable(ps: PSettable): PresentEmitSettable = new PresentEmitSettable {
-    def pt: PType = ps.pt
+    def st: SType = ps.st
 
     def load: EmitCode = EmitCode(Code._empty, const(false), ps.load())
 
@@ -300,8 +295,8 @@ class EmitClassBuilder[C](
     rgExists.mux(Code._empty, addRG)
   }
 
-  private[this] val literalsMap: mutable.Map[(PType, Any), PSettable] =
-    mutable.Map[(PType, Any), PSettable]()
+  private[this] val literalsMap: mutable.Map[(VirtualTypeWithReq, Any), PSettable] =
+    mutable.Map[(VirtualTypeWithReq, Any), PSettable]()
   private[this] val encodedLiteralsMap: mutable.Map[EncodedLiteral, PSettable] =
     mutable.Map[EncodedLiteral, PSettable]()
   private[this] lazy val encLitField: Settable[Array[Byte]] = genFieldThisRef[Array[Byte]]("encodedLiterals")
@@ -309,20 +304,19 @@ class EmitClassBuilder[C](
   lazy val partitionRegion: Settable[Region] = genFieldThisRef[Region]("partitionRegion")
   private[this] lazy val poolField: Settable[RegionPool] = genFieldThisRef[RegionPool]()
 
-  def addLiteral(v: Any, t: PType): PValue = {
+  def addLiteral(v: Any, t: VirtualTypeWithReq): PValue = {
     assert(v != null)
-    assert(t.isCanonical)
-    literalsMap.getOrElseUpdate(t -> v, PSettable(fieldBuilder, t, "literal"))
+
+    literalsMap.getOrElseUpdate(t -> v, PSettable(fieldBuilder, t.canonicalEmitType.st, "literal"))
   }
 
   def addEncodedLiteral(encodedLiteral: EncodedLiteral): PValue = {
-    assert(encodedLiteral._pType.isCanonical)
-    encodedLiteralsMap.getOrElseUpdate(encodedLiteral, PSettable(fieldBuilder, encodedLiteral._pType, "encodedLiteral"))
+    encodedLiteralsMap.getOrElseUpdate(encodedLiteral, PSettable(fieldBuilder, encodedLiteral.codec.encodedType.decodedSType(encodedLiteral.typ), "encodedLiteral"))
   }
 
   private[this] def encodeLiterals(): Array[Array[Byte]] = {
     val literals = literalsMap.toArray
-    val litType = PCanonicalTuple(true, literals.map(_._1._1): _*)
+    val litType = PCanonicalTuple(true, literals.map(_._1._1.canonicalPType.setRequired(true)): _*)
     val spec = TypedCodecSpec(litType, BufferSpec.defaultUncompressed)
 
     cb.addInterface(typeInfo[FunctionWithLiterals].iname)
@@ -365,7 +359,7 @@ class EmitClassBuilder[C](
       val rvb = new RegionValueBuilder(region)
       rvb.start(litType)
       rvb.startTuple()
-      literals.foreach { case ((typ, a), _) => rvb.addAnnotation(typ.virtualType, a) }
+      literals.foreach { case ((typ, a), _) => rvb.addAnnotation(typ.t, a) }
       rvb.endTuple()
       enc.writeRegionValue(rvb.end())
     }
@@ -577,7 +571,7 @@ class EmitClassBuilder[C](
     }
     val codeReturnInfo = returnInfo match {
       case CodeParamType(ti) => ti
-      case PCodeParamType(pt) => pt.ti
+      case PCodeParamType(pt) if pt.nCodes == 1 => pt.codeTupleTypes().head
       case t: EmitParamType =>
         val ts = t.codeTupleTypes
         if (ts.length == 1)
@@ -887,13 +881,13 @@ class EmitMethodBuilder[C](
   def getPCodeParam(emitIndex: Int): PCode = {
     assert(mb.isStatic || emitIndex != 0)
     val static = (!mb.isStatic).toInt
-    val _pt = emitParamTypes(emitIndex - static).asInstanceOf[PCodeParamType].pt
-    assert(!_pt.isInstanceOf[PStream])
+    val _st = emitParamTypes(emitIndex - static).asInstanceOf[PCodeParamType].st
+    assert(_st.isRealizable)
 
-    val ts = _pt.codeTupleTypes()
+    val ts = _st.codeTupleTypes()
     val codeIndex = emitParamCodeIndex(emitIndex - static)
 
-    _pt.sType.fromCodes(ts.zipWithIndex.map { case (t, i) =>
+    _st.fromCodes(ts.zipWithIndex.map { case (t, i) =>
       mb.getArg(codeIndex + i)(t).load()
     }).asPCode
   }
@@ -921,40 +915,38 @@ class EmitMethodBuilder[C](
 
         new EmitValue {
           evSelf =>
-          val pt: PType = emitCode.pt
+          val st: SType = emitCode.st
 
           override def load: EmitCode = emitCode
 
           override def get(cb: EmitCodeBuilder): PCode = emitCode.toI(cb).get(cb)
         }
 
-      case PCodeEmitParamType(_pt) =>
-        val ts = _pt.codeTupleTypes()
+      case PCodeEmitParamType(et) =>
+        val ts = et.st.codeTupleTypes()
 
         new EmitValue {
           evSelf =>
-          val pt: PType = _pt
+          val st: SType = et.st
 
           def load: EmitCode = {
             EmitCode(Code._empty,
-              if (pt.required)
+              if (et.required)
                 const(false)
               else
                 mb.getArg[Boolean](codeIndex + ts.length),
-              pt.fromCodeTuple(ts.zipWithIndex.map { case (t, i) =>
+              st.fromCodes(ts.zipWithIndex.map { case (t, i) =>
                 mb.getArg(codeIndex + i)(t).get
-              }))
+              }).asPCode)
           }
 
           override def get(cb: EmitCodeBuilder): PCode = {
             new PValue {
-              override def pt: PType = evSelf.pt
-
-              override def get: PCode = pt.fromCodeTuple(ts.zipWithIndex.map { case (t, i) =>
+              override def get: PCode = st.fromCodes(ts.zipWithIndex.map { case (t, i) =>
                 mb.getArg(codeIndex + i)(t).get
-              })
+              }).asPCode
 
-              override def st: SType = evSelf.pt.sType
+              override def st: SType = evSelf.st
             }
           }
         }
@@ -974,23 +966,23 @@ class EmitMethodBuilder[C](
       case EmitParam(ec) => fatal("EmitParam passed to invokeCode")
     }: _*)
   }
-  def newPLocal(pt: PType): PSettable = newPSettable(localBuilder, pt)
+  def newPLocal(st: SType): PSettable = newPSettable(localBuilder, st)
 
-  def newPLocal(name: String, pt: PType): PSettable = newPSettable(localBuilder, pt, name)
+  def newPLocal(name: String, st: SType): PSettable = newPSettable(localBuilder, st, name)
 
-  def newEmitLocal(emitType: EmitType): EmitSettable = newEmitLocal(emitType.st.pType, emitType.required)
-  def newEmitLocal(pt: PType, required: Boolean): EmitSettable =
-    newEmitSettable(pt, if (required) null else newLocal[Boolean](), newPLocal(pt), required)
+  def newEmitLocal(emitType: EmitType): EmitSettable = newEmitLocal(emitType.st, emitType.required)
+  def newEmitLocal(st: SType, required: Boolean): EmitSettable =
+    newEmitSettable(st, if (required) null else newLocal[Boolean](), newPLocal(st), required)
 
-  def newEmitLocal(name: String, emitType: EmitType): EmitSettable = newEmitLocal(name, emitType.st.pType, emitType.required)
-  def newEmitLocal(name: String, pt: PType, required: Boolean): EmitSettable =
-    newEmitSettable(pt, if (required) null else newLocal[Boolean](name + "_missing"), newPLocal(name, pt), required)
+  def newEmitLocal(name: String, emitType: EmitType): EmitSettable = newEmitLocal(name, emitType.st, emitType.required)
+  def newEmitLocal(name: String, st: SType, required: Boolean): EmitSettable =
+    newEmitSettable(st, if (required) null else newLocal[Boolean](name + "_missing"), newPLocal(name, st), required)
 
-  def newPresentEmitLocal(pt: PType): PresentEmitSettable =
-    newPresentEmitSettable(newPLocal(pt))
+  def newPresentEmitLocal(st: SType): PresentEmitSettable =
+    newPresentEmitSettable(newPLocal(st))
 
-  def newPresentEmitLocal(name: String, pt: PType): PresentEmitSettable =
-    newPresentEmitSettable(newPLocal(name, pt))
+  def newPresentEmitLocal(name: String, st: SType): PresentEmitSettable =
+    newPresentEmitSettable(newPLocal(name, st))
 
   def emitWithBuilder[T](f: (EmitCodeBuilder) => Code[T]): Unit = emit(EmitCodeBuilder.scopedCode[T](this)(f))
 
@@ -1050,15 +1042,15 @@ trait WrappedEmitMethodBuilder[C] extends WrappedEmitClassBuilder[C] {
 
   def getEmitParam(emitIndex: Int, r: Value[Region]): EmitValue = emb.getEmitParam(emitIndex, r)
 
-  def newPLocal(pt: PType): PSettable = emb.newPLocal(pt)
+  def newPLocal(st: SType): PSettable = emb.newPLocal(st)
 
-  def newPLocal(name: String, pt: PType): PSettable = emb.newPLocal(name, pt)
+  def newPLocal(name: String, st: SType): PSettable = emb.newPLocal(name, st)
 
-  def newEmitLocal(pt: PType, required: Boolean): EmitSettable = emb.newEmitLocal(pt, required)
+  def newEmitLocal(st: SType, required: Boolean): EmitSettable = emb.newEmitLocal(st, required)
 
-  def newEmitLocal(name: String, pt: PType, required: Boolean): EmitSettable = emb.newEmitLocal(name, pt, required)
+  def newEmitLocal(name: String, pt: SType, required: Boolean): EmitSettable = emb.newEmitLocal(name, pt, required)
 
-  def newPresentEmitLocal(pt: PType): PresentEmitSettable = emb.newPresentEmitLocal(pt)
+  def newPresentEmitLocal(pt: SType): PresentEmitSettable = emb.newPresentEmitLocal(pt)
 }
 
 class EmitFunctionBuilder[F](val apply_method: EmitMethodBuilder[F]) extends WrappedEmitMethodBuilder[F] {

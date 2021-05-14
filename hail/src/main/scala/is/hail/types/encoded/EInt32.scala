@@ -19,8 +19,8 @@ case object EInt32Required extends EInt32(true)
 class EInt32(override val required: Boolean) extends EType {
   override def _buildEncoder(cb: EmitCodeBuilder, v: PValue, out: Value[OutputBuffer]): Unit = {
     val x = v.st match {
-      case t: SCanonicalCall => v.asInstanceOf[SCallValue].canonicalCall(cb)
-      case t: SInt32 => v.asInt32.intCode(cb)
+      case SCanonicalCall => v.asInstanceOf[SCallValue].canonicalCall(cb)
+      case SInt32 => v.asInt32.intCode(cb)
     }
     cb += out.writeInt(x)
   }
@@ -28,8 +28,8 @@ class EInt32(override val required: Boolean) extends EType {
   override def _buildDecoder(cb: EmitCodeBuilder, t: Type, region: Value[Region], in: Value[InputBuffer]): PCode = {
     val x = in.readInt()
     t match {
-      case TCall => new SCanonicalCallCode(required, x)
-      case TInt32 => new SInt32Code(required, x)
+      case TCall => new SCanonicalCallCode(x)
+      case TInt32 => new SInt32Code(x)
     }
   }
 
@@ -44,8 +44,8 @@ class EInt32(override val required: Boolean) extends EType {
 
 
   def _decodedSType(requestedType: Type): SType = requestedType match {
-    case TCall => SCanonicalCall(required)
-    case _ => SInt32(required)
+    case TCall => SCanonicalCall
+    case _ => SInt32
   }
 
   def _asIdent = "int32"

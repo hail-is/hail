@@ -30,8 +30,6 @@ abstract class PLocus extends PType {
 abstract class PLocusValue extends PValue with SLocusValue
 
 abstract class PLocusCode extends PCode with SLocusCode {
-  def pt: PLocus
-
   def memoize(cb: EmitCodeBuilder, name: String): PLocusValue
 
   def memoizeField(cb: EmitCodeBuilder, name: String): PLocusValue

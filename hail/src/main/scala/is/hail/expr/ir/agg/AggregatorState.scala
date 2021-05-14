@@ -41,7 +41,7 @@ trait AggregatorState {
     deserialize(BufferSpec.defaultUncompressed)(cb, ib)
   }
 
-  def serializeToRegion(cb: EmitCodeBuilder, t: PBinary, r: Code[Region]): Code[Long] = {
+  def serializeToRegion(cb: EmitCodeBuilder, t: PBinary, r: Code[Region]): PCode = {
     val lazyBuffer = kb.getOrDefineLazyField[MemoryWriterWrapper](Code.newInstance[MemoryWriterWrapper](), (this, "writerWrapper"))
     val addr = kb.genFieldThisRef[Long]("addr")
     cb += lazyBuffer.invoke[Unit]("clear")
@@ -51,7 +51,7 @@ trait AggregatorState {
     cb += t.storeLength(addr, lazyBuffer.invoke[Int]("length"))
     cb += lazyBuffer.invoke[Long, Unit]("copyToAddress", t.bytesAddress(addr))
 
-    addr
+    t.loadCheapPCode(cb, addr)
   }
 }
 
@@ -166,12 +166,12 @@ abstract class AbstractTypedRegionBackedAggState(val ptype: PType) extends Regio
 
 class PrimitiveRVAState(val vtypes: Array[VirtualTypeWithReq], val kb: EmitClassBuilder[_]) extends AggregatorState {
   private[this] val emitTypes = vtypes.map(_.canonicalEmitType)
-  assert(emitTypes.forall(_.st.pType.isPrimitive))
+  assert(emitTypes.forall(_.st.isPrimitive))
 
   val nFields: Int = emitTypes.length
   val fields: Array[EmitSettable] = Array.tabulate(nFields) { i => kb.newEmitField(s"primitiveRVA_${ i }_v", emitTypes(i)) }
   val storageType = PCanonicalTuple(true, emitTypes.map(_.canonicalPType): _*)
-  val sStorageType = SBaseStructPointer(storageType)
+  val sStorageType = storageType.sType
 
   def foreachField(f: (Int, EmitSettable) => Unit): Unit = {
     (0 until nFields).foreach { i =>
@@ -204,11 +204,15 @@ class PrimitiveRVAState(val vtypes: Array[VirtualTypeWithReq], val kb: EmitClass
   def serialize(codec: BufferSpec): (EmitCodeBuilder, Value[OutputBuffer]) => Unit = {
     (cb, ob: Value[OutputBuffer]) =>
       foreachField { case (_, es) =>
-        if (es.pt.required) {
-          cb += ob.writePrimitive(es.pt)(es.v)
+        if (es.emitType.required) {
+          ob.writePrimitive(cb, es.get(cb))
         } else {
-          cb += ob.writeBoolean(es.m)
-          cb.ifx(!es.m, cb += ob.writePrimitive(es.pt)(es.v))
+          es.toI(cb).consume(cb,
+            cb += ob.writeBoolean(true),
+            { sc =>
+              cb += ob.writeBoolean(false)
+              ob.writePrimitive(cb, sc)
+            })
         }
       }
   }
@@ -216,12 +220,12 @@ class PrimitiveRVAState(val vtypes: Array[VirtualTypeWithReq], val kb: EmitClass
   def deserialize(codec: BufferSpec): (EmitCodeBuilder, Value[InputBuffer]) => Unit = {
     (cb, ib: Value[InputBuffer]) =>
       foreachField { case (_, es) =>
-        if (es.pt.required) {
-          cb.assign(es, EmitCode.present(cb.emb, PCode(es.pt, ib.readPrimitive(es.pt))))
+        if (es.emitType.required) {
+          cb.assign(es, EmitCode.present(cb.emb, ib.readPrimitive(es.st.virtualType)))
         } else {
           cb.ifx(ib.readBoolean(),
-            cb.assign(es, EmitCode.missing(cb.emb, es.pt)),
-            cb.assign(es, EmitCode.present(cb.emb, PCode(es.pt, ib.readPrimitive(es.pt)))))
+            cb.assign(es, EmitCode.missing(cb.emb, es.st)),
+            cb.assign(es, EmitCode.present(cb.emb, ib.readPrimitive(es.st.virtualType))))
         }
       }
   }
