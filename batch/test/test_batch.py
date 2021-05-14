@@ -802,6 +802,10 @@ def test_job_private_instance_cancel(client):
 
 def test_open_batch(client):
     b = client.create_batch()
+
+    status = b.status()
+    assert status['state'] == 'created', status
+
     j1 = b.create_job(DOCKER_ROOT_IMAGE, ['true'])
     b.commit()
     j2 = b.create_job(DOCKER_ROOT_IMAGE, ['true'])
