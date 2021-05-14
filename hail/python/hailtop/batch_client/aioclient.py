@@ -347,13 +347,12 @@ class Batch:
         self._client = client
         self.id = id
         self.attributes = attributes
-        self.n_jobs = n_jobs
-
         self.token = token
-        self._last_known_status = last_known_status
+        self._n_jobs = n_jobs
         self._closed = closed
+        self._last_known_status = last_known_status
 
-        self._job_idx = self.n_jobs
+        self._job_idx = n_jobs
         self._job_specs = []
         self._jobs = []
 
@@ -442,6 +441,7 @@ class Batch:
             raise ValueError("cannot create a job in an already closed batch")
 
         self._job_idx += 1
+        self._n_jobs += 1
 
         if parents is None:
             parents = []

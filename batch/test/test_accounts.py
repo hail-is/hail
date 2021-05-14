@@ -522,7 +522,7 @@ async def test_batch_cannot_be_accessed_by_users_outside_the_billing_project(
     user1_client = await make_client(project)
     b = await user1_client.create_batch()
     j = b.create_job(DOCKER_ROOT_IMAGE, command=['sleep', '30'])
-    b = await b.submit()
+    await b.submit()
 
     user2_client = dev_client
     user2_batch = Batch(user2_client, b.id, b.attributes, b.token, b._n_jobs, b._closed)

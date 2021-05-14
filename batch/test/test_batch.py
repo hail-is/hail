@@ -540,7 +540,6 @@ def test_batch_create_validation():
         # billing project None/missing
         {'billing_project': None, 'n_jobs': 5, 'token': 'baz'},
         {'n_jobs': 5, 'token': 'baz'},
-        {'billing_project': 'foo', 'token': 'baz'},
         # n_jobs wrong type
         {'billing_project': 'foo', 'n_jobs': '5', 'token': 'baz'},
         # token None/missing
