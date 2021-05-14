@@ -156,10 +156,6 @@ def test_unsubmitted_state(client):
     j = b.create_job(DOCKER_ROOT_IMAGE, ['echo', 'test'])
 
     with pytest.raises(ValueError):
-        j.batch_id
-    with pytest.raises(ValueError):
-        j.id
-    with pytest.raises(ValueError):
         j.status()
     with pytest.raises(ValueError):
         j.is_complete()
@@ -373,7 +369,7 @@ def test_batch(client):
 def test_batch_status(client):
     b1 = client.create_batch()
     b1.create_job(DOCKER_ROOT_IMAGE, ['true'])
-    b1 = b1.submit()
+    b1.submit()
     b1.wait()
     b1s = b1.status()
     assert b1s['complete'] and b1s['state'] == 'success', str(b1s)
@@ -381,21 +377,21 @@ def test_batch_status(client):
     b2 = client.create_batch()
     b2.create_job(DOCKER_ROOT_IMAGE, ['false'])
     b2.create_job(DOCKER_ROOT_IMAGE, ['true'])
-    b2 = b2.submit()
+    b2.submit()
     b2.wait()
     b2s = b2.status()
     assert b2s['complete'] and b2s['state'] == 'failure', str(b2s)
 
     b3 = client.create_batch()
     b3.create_job(DOCKER_ROOT_IMAGE, ['sleep', '30'])
-    b3 = b3.submit()
+    b3.submit()
     b3s = b3.status()
     assert not b3s['complete'] and b3s['state'] == 'running', str(b3s)
     b3.cancel()
 
     b4 = client.create_batch()
     b4.create_job(DOCKER_ROOT_IMAGE, ['sleep', '30'])
-    b4 = b4.submit()
+    b4.submit()
     b4.cancel()
     b4.wait()
     b4s = b4.status()
@@ -544,8 +540,6 @@ def test_batch_create_validation():
         # billing project None/missing
         {'billing_project': None, 'n_jobs': 5, 'token': 'baz'},
         {'n_jobs': 5, 'token': 'baz'},
-        # n_jobs None/missing
-        {'billing_project': 'foo', 'n_jobs': None, 'token': 'baz'},
         {'billing_project': 'foo', 'token': 'baz'},
         # n_jobs wrong type
         {'billing_project': 'foo', 'n_jobs': '5', 'token': 'baz'},

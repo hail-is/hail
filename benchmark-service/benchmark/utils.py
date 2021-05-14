@@ -48,7 +48,7 @@ def list_benchmark_files(read_gs):
 
 
 async def submit_test_batch(batch_client, sha):
-    batch = batch_client.create_batch(attributes={'sha': sha})
+    batch = await batch_client.create_batch(attributes={'sha': sha})
     known_file_path = 'gs://hail-benchmarks-2/tpoterba/0.2.21-f6f337d1e9bb.json'
     dest_file_path = f'{BENCHMARK_RESULTS_PATH}/0-{sha}.json'
     job = batch.create_job(

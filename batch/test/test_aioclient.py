@@ -15,7 +15,7 @@ async def client():
 
 
 async def test_job(client):
-    b = client.create_batch()
+    b = await client.create_batch()
     j = b.create_job(DOCKER_ROOT_IMAGE, ['echo', 'test'])
     await b.submit()
     status = await j.wait()

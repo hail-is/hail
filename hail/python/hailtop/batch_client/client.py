@@ -195,13 +195,19 @@ class Batch:
         return Job.from_async_job(async_job)
 
     def commit(self, *args, **kwargs) -> 'Batch':
-        return async_to_blocking(self._async_batch.commit(*args, **kwargs))
+        return Batch.from_async_batch(
+            async_to_blocking(self._async_batch.commit(*args, **kwargs))
+        )
 
     def submit(self, *args, **kwargs) -> 'Batch':
-        return async_to_blocking(self._async_batch.submit(*args, **kwargs))
+        return Batch.from_async_batch(
+            async_to_blocking(self._async_batch.submit(*args, **kwargs))
+        )
 
     def close(self, *args, **kwargs) -> 'Batch':
-        return async_to_blocking(self._async_batch.close(*args, **kwargs))
+        return Batch.from_async_batch(
+            async_to_blocking(self._async_batch.close(*args, **kwargs))
+        )
 
 
 class BatchClient:
