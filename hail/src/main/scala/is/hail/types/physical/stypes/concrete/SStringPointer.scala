@@ -24,13 +24,6 @@ case class SStringPointer(pType: PString) extends SString {
 
   def codeTupleTypes(): IndexedSeq[TypeInfo[_]] = FastIndexedSeq(LongInfo)
 
-  def loadFrom(cb: EmitCodeBuilder, region: Value[Region], pt: PType, addr: Code[Long]): SCode = {
-    pt match {
-      case _: PCanonicalString =>
-        new SStringPointerCode(this, addr)
-    }
-  }
-
   def fromSettables(settables: IndexedSeq[Settable[_]]): SStringPointerSettable = {
     val IndexedSeq(a: Settable[Long@unchecked]) = settables
     assert(a.ti == LongInfo)

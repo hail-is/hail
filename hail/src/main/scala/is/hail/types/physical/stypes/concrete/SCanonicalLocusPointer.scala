@@ -31,13 +31,6 @@ case class SCanonicalLocusPointer(pType: PCanonicalLocus) extends SLocus {
 
   override def settableTupleTypes(): IndexedSeq[TypeInfo[_]] = FastIndexedSeq(LongInfo, LongInfo, IntInfo)
 
-  def loadFrom(cb: EmitCodeBuilder, region: Value[Region], pt: PType, addr: Code[Long]): SCode = {
-    pt match {
-      case PCanonicalLocus(_, _) =>
-        new SCanonicalLocusPointerCode(this, addr)
-    }
-  }
-
   def fromSettables(settables: IndexedSeq[Settable[_]]): SCanonicalLocusPointerSettable = {
     val IndexedSeq(a: Settable[Long@unchecked], contig: Settable[Long@unchecked], position: Settable[Int@unchecked]) = settables
     assert(a.ti == LongInfo)

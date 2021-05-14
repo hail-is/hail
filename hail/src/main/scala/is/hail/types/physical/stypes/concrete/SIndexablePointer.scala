@@ -29,13 +29,6 @@ case class SIndexablePointer(pType: PContainer) extends SContainer {
 
   override def settableTupleTypes(): IndexedSeq[TypeInfo[_]] = FastIndexedSeq(LongInfo, IntInfo, LongInfo)
 
-  def loadFrom(cb: EmitCodeBuilder, region: Value[Region], pt: PType, addr: Code[Long]): SCode = {
-    if (pt == this.pType)
-      new SIndexablePointerCode(this, addr)
-    else
-      coerceOrCopy(cb, region, pt.loadCheapPCode(cb, addr), deepCopy = false)
-  }
-
   def fromSettables(settables: IndexedSeq[Settable[_]]): SIndexablePointerSettable = {
     val IndexedSeq(a: Settable[Long@unchecked], length: Settable[Int@unchecked], elementsAddress: Settable[Long@unchecked]) = settables
     assert(a.ti == LongInfo)
