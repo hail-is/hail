@@ -250,19 +250,20 @@ class Tests(unittest.TestCase):
         mt_round_trip = BlockMatrix.from_entry_expr(mt.element).to_matrix_table_row_major()
         assert mt._same(mt_round_trip)
 
-    @fails_service_backend()
-    @fails_local_backend()
-    def test_elementwise_ops(self):
+    def test_paired_elementwise_ops(self):
         nx = np.array([[2.0]])
         nc = np.array([[1.0], [2.0]])
         nr = np.array([[1.0, 2.0, 3.0]])
         nm = np.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]])
 
         e = 2.0
-        x = BlockMatrix.from_numpy(nx, block_size=8)
-        c = BlockMatrix.from_numpy(nc, block_size=8)
-        r = BlockMatrix.from_numpy(nr, block_size=8)
-        m = BlockMatrix.from_numpy(nm, block_size=8)
+        # BlockMatrixMap requires very simple IRs on the SparkBackend. If I use
+        # `from_ndarray` here, it generates an `NDArrayRef` expression that it can't handle.
+        # Will be fixed by improving FoldConstants handling of ndarrays or fully lowering BlockMatrix.
+        x = BlockMatrix._create(1, 1, [2.0], block_size=8)
+        c = BlockMatrix.from_ndarray(hl.literal(nc), block_size=8)
+        r = BlockMatrix.from_ndarray(hl.literal(nr), block_size=8)
+        m = BlockMatrix.from_ndarray(hl.literal(nm), block_size=8)
 
         self.assertRaises(TypeError,
                           lambda: x + np.array(['one'], dtype=str))

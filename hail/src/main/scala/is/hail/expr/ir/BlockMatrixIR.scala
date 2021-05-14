@@ -421,6 +421,11 @@ case class BlockMatrixMap2(left: BlockMatrixIR, right: BlockMatrixIR, leftName: 
       case ValueToBlockMatrix(child, _, _) =>
         Interpret[Any](ctx, child) match {
           case vector: IndexedSeq[_] => vector.asInstanceOf[IndexedSeq[Double]].toArray
+          case vector: NDArray => {
+            val IndexedSeq(numRows, numCols) = vector.shape
+            assert(numRows == 1L || numCols == 1L)
+            vector.getRowMajorElements().asInstanceOf[IndexedSeq[Double]].toArray
+          }
         }
       case _ => ir.execute(ctx).toBreezeMatrix().data
     }
