@@ -2,8 +2,8 @@ package is.hail.expr.ir.orderings
 
 import is.hail.asm4s.{Code, CodeLabel}
 import is.hail.expr.ir.{Ascending, EmitClassBuilder, EmitCode, EmitCodeBuilder, SortOrder}
-import is.hail.types.physical.stypes.interfaces.SBaseStruct
-import is.hail.types.physical.{PBaseStructValue, PCode}
+import is.hail.types.physical.stypes.SCode
+import is.hail.types.physical.stypes.interfaces.{SBaseStruct, SBaseStructValue}
 
 object StructOrdering {
   def make(
@@ -19,7 +19,7 @@ object StructOrdering {
 
     require(sortOrders == null || sortOrders.size == t1.size)
 
-    def setup(cb: EmitCodeBuilder, lhs: PCode, rhs: PCode): (PBaseStructValue, PBaseStructValue) = {
+    def setup(cb: EmitCodeBuilder, lhs: SCode, rhs: SCode): (SBaseStructValue, SBaseStructValue) = {
       lhs.asBaseStruct.memoize(cb, "structord_lhs") -> rhs.asBaseStruct.memoize(cb, "structord_rhs")
     }
 
@@ -28,7 +28,7 @@ object StructOrdering {
         if (sortOrders == null) Ascending else sortOrders(i),
         op)
 
-    override def _compareNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Int] = {
+    override def _compareNonnull(cb: EmitCodeBuilder, x: SCode, y: SCode): Code[Int] = {
       val (lhs, rhs) = setup(cb, x, y)
       val Lout = CodeLabel()
       val cmp = cb.newLocal("cmp", 0)
@@ -47,7 +47,7 @@ object StructOrdering {
       cmp
     }
 
-    override def _ltNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Boolean] = {
+    override def _ltNonnull(cb: EmitCodeBuilder, x: SCode, y: SCode): Code[Boolean] = {
       val (lhs, rhs) = setup(cb, x, y)
       val Lout = CodeLabel()
       val lt = cb.newLocal("lt", true)
@@ -70,7 +70,7 @@ object StructOrdering {
       lt
     }
 
-    override def _lteqNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Boolean] = {
+    override def _lteqNonnull(cb: EmitCodeBuilder, x: SCode, y: SCode): Code[Boolean] = {
       val (lhs, rhs) = setup(cb, x, y)
       val Lout = CodeLabel()
       val lteq = cb.newLocal("lteq", true)
@@ -93,7 +93,7 @@ object StructOrdering {
       lteq
     }
 
-    override def _gtNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Boolean] = {
+    override def _gtNonnull(cb: EmitCodeBuilder, x: SCode, y: SCode): Code[Boolean] = {
       val (lhs, rhs) = setup(cb, x, y)
       val Lout = CodeLabel()
       val gt = cb.newLocal("gt", false)
@@ -116,7 +116,7 @@ object StructOrdering {
       gt
     }
 
-    override def _gteqNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Boolean] = {
+    override def _gteqNonnull(cb: EmitCodeBuilder, x: SCode, y: SCode): Code[Boolean] = {
       val (lhs, rhs) = setup(cb, x, y)
       val Lout = CodeLabel()
       val gteq = cb.newLocal("gteq", true)
@@ -139,7 +139,7 @@ object StructOrdering {
       gteq
     }
 
-    override def _equivNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Boolean] = {
+    override def _equivNonnull(cb: EmitCodeBuilder, x: SCode, y: SCode): Code[Boolean] = {
       val (lhs, rhs) = setup(cb, x, y)
       val Lout = CodeLabel()
       val eq = cb.newLocal("cmp", true)

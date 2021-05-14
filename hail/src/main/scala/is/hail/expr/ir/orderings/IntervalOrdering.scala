@@ -2,8 +2,9 @@ package is.hail.expr.ir.orderings
 
 import is.hail.asm4s.{Code, CodeLabel}
 import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitCodeBuilder}
+import is.hail.types.physical.stypes.SCode
 import is.hail.types.physical.stypes.interfaces.SInterval
-import is.hail.types.physical.{PCode, PIntervalCode, PIntervalValue}
+import is.hail.types.physical.{PIntervalCode, PIntervalValue}
 
 object IntervalOrdering {
 
@@ -12,12 +13,12 @@ object IntervalOrdering {
     val type1: SInterval = t1
     val type2: SInterval = t2
 
-    private val setup: (EmitCodeBuilder, PCode, PCode) => (PIntervalValue, PIntervalValue) = {
+    private val setup: (EmitCodeBuilder, SCode, SCode) => (PIntervalValue, PIntervalValue) = {
       case (cb, lhs: PIntervalCode, rhs: PIntervalCode) =>
         lhs.memoize(cb, "intervalord_lhs") -> rhs.memoize(cb, "intervalord_rhs")
     }
 
-    override def _compareNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Int] = {
+    override def _compareNonnull(cb: EmitCodeBuilder, x: SCode, y: SCode): Code[Int] = {
       val pointCompare = ecb.getOrderingFunction(t1.pointType, t2.pointType, CodeOrdering.Compare())
       val cmp = cb.newLocal[Int]("intervalord_cmp", 0)
 
@@ -43,7 +44,7 @@ object IntervalOrdering {
       cmp
     }
 
-    override def _equivNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Boolean] = {
+    override def _equivNonnull(cb: EmitCodeBuilder, x: SCode, y: SCode): Code[Boolean] = {
       val pointEq = ecb.getOrderingFunction(t1.pointType, t2.pointType, CodeOrdering.Equiv())
 
       val Lout = CodeLabel()
@@ -72,7 +73,7 @@ object IntervalOrdering {
       ret
     }
 
-    override def _ltNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Boolean] = {
+    override def _ltNonnull(cb: EmitCodeBuilder, x: SCode, y: SCode): Code[Boolean] = {
       val pointLt = ecb.getOrderingFunction(t1.pointType, t2.pointType, CodeOrdering.Lt())
       val pointEq = ecb.getOrderingFunction(t1.pointType, t2.pointType, CodeOrdering.Equiv())
 
@@ -102,7 +103,7 @@ object IntervalOrdering {
       ret
     }
 
-    override def _lteqNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Boolean] = {
+    override def _lteqNonnull(cb: EmitCodeBuilder, x: SCode, y: SCode): Code[Boolean] = {
       val pointLtEq = ecb.getOrderingFunction(t1.pointType, t2.pointType, CodeOrdering.Lteq())
       val pointEq = ecb.getOrderingFunction(t1.pointType, t2.pointType, CodeOrdering.Equiv())
 
@@ -131,7 +132,7 @@ object IntervalOrdering {
       ret
     }
 
-    override def _gtNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Boolean] = {
+    override def _gtNonnull(cb: EmitCodeBuilder, x: SCode, y: SCode): Code[Boolean] = {
       val pointGt = ecb.getOrderingFunction(t1.pointType, t2.pointType, CodeOrdering.Gt())
       val pointEq = ecb.getOrderingFunction(t1.pointType, t2.pointType, CodeOrdering.Equiv())
 
@@ -161,7 +162,7 @@ object IntervalOrdering {
       ret
     }
 
-    override def _gteqNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Boolean] = {
+    override def _gteqNonnull(cb: EmitCodeBuilder, x: SCode, y: SCode): Code[Boolean] = {
       val pointGtEq = ecb.getOrderingFunction(t1.pointType, t2.pointType, CodeOrdering.Gteq())
       val pointEq = ecb.getOrderingFunction(t1.pointType, t2.pointType, CodeOrdering.Equiv())
 

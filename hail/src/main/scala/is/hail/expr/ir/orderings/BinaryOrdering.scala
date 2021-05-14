@@ -2,7 +2,7 @@ package is.hail.expr.ir.orderings
 
 import is.hail.asm4s._
 import is.hail.expr.ir.{EmitClassBuilder, EmitCodeBuilder}
-import is.hail.types.physical.PCode
+import is.hail.types.physical.stypes.SCode
 import is.hail.types.physical.stypes.interfaces.{SBinary, SBinaryValue}
 
 object BinaryOrdering {
@@ -13,7 +13,7 @@ object BinaryOrdering {
       val type1: SBinary = t1
       val type2: SBinary = t2
 
-      def _compareNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Int] = {
+      def _compareNonnull(cb: EmitCodeBuilder, x: SCode, y: SCode): Code[Int] = {
         val xv: SBinaryValue = x.asBinary.memoize(cb, "xv")
         val yv: SBinaryValue = y.asBinary.memoize(cb, "yv")
         val xlen = cb.newLocal[Int]("xlen", xv.loadLength())

@@ -2,8 +2,8 @@ package is.hail.expr.ir.orderings
 
 import is.hail.asm4s._
 import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitCodeBuilder}
-import is.hail.types.physical.stypes.interfaces.SContainer
-import is.hail.types.physical.{PCode, PIndexableValue}
+import is.hail.types.physical.stypes.SCode
+import is.hail.types.physical.stypes.interfaces.{SIndexableValue, SContainer}
 
 object IterableOrdering {
 
@@ -12,13 +12,13 @@ object IterableOrdering {
     val type1: SContainer = t1
     val type2: SContainer = t2
 
-    private[this] def setup(cb: EmitCodeBuilder, lhs: PCode, rhs: PCode): (PIndexableValue, PIndexableValue) = {
+    private[this] def setup(cb: EmitCodeBuilder, lhs: SCode, rhs: SCode): (SIndexableValue, SIndexableValue) = {
       val lhsv = lhs.asIndexable.memoize(cb, "container_ord_lhs")
       val rhsv = rhs.asIndexable.memoize(cb, "container_ord_rhs")
       lhsv -> rhsv
     }
 
-    private[this] def loop(cb: EmitCodeBuilder, lhs: PIndexableValue, rhs: PIndexableValue)(
+    private[this] def loop(cb: EmitCodeBuilder, lhs: SIndexableValue, rhs: SIndexableValue)(
       f: (EmitCode, EmitCode) => Unit
     ): Unit = {
       val i = cb.newLocal[Int]("i")
@@ -30,7 +30,7 @@ object IterableOrdering {
       })
     }
 
-    override def _compareNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Int] = {
+    override def _compareNonnull(cb: EmitCodeBuilder, x: SCode, y: SCode): Code[Int] = {
       val elemCmp = ecb.getOrderingFunction(t1.elementType, t2.elementType, CodeOrdering.Compare())
 
       val Lout = CodeLabel()
@@ -50,7 +50,7 @@ object IterableOrdering {
       cmp
     }
 
-    override def _ltNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Boolean] = {
+    override def _ltNonnull(cb: EmitCodeBuilder, x: SCode, y: SCode): Code[Boolean] = {
       val elemLt = ecb.getOrderingFunction(t1.elementType, t2.elementType, CodeOrdering.Lt())
       val elemEq = ecb.getOrderingFunction(t1.elementType, t2.elementType, CodeOrdering.Equiv())
 
@@ -78,7 +78,7 @@ object IterableOrdering {
       ret
     }
 
-    override def _lteqNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Boolean] = {
+    override def _lteqNonnull(cb: EmitCodeBuilder, x: SCode, y: SCode): Code[Boolean] = {
       val elemLtEq = ecb.getOrderingFunction(t1.elementType, t2.elementType, CodeOrdering.Lteq())
       val elemEq = ecb.getOrderingFunction(t1.elementType, t2.elementType, CodeOrdering.Equiv())
 
@@ -106,7 +106,7 @@ object IterableOrdering {
       ret
     }
 
-    override def _gtNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Boolean] = {
+    override def _gtNonnull(cb: EmitCodeBuilder, x: SCode, y: SCode): Code[Boolean] = {
       val elemGt = ecb.getOrderingFunction(t1.elementType, t2.elementType, CodeOrdering.Gt())
       val elemEq = ecb.getOrderingFunction(t1.elementType, t2.elementType, CodeOrdering.Equiv())
 
@@ -134,7 +134,7 @@ object IterableOrdering {
       ret
     }
 
-    override def _gteqNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Boolean] = {
+    override def _gteqNonnull(cb: EmitCodeBuilder, x: SCode, y: SCode): Code[Boolean] = {
       val elemGtEq = ecb.getOrderingFunction(t1.elementType, t2.elementType, CodeOrdering.Gteq())
       val elemEq = ecb.getOrderingFunction(t1.elementType, t2.elementType, CodeOrdering.Equiv())
 
@@ -162,7 +162,7 @@ object IterableOrdering {
       ret
     }
 
-    override def _equivNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Boolean] = {
+    override def _equivNonnull(cb: EmitCodeBuilder, x: SCode, y: SCode): Code[Boolean] = {
       val elemEq = ecb.getOrderingFunction(t1.elementType, t2.elementType, CodeOrdering.Equiv())
       val ret = cb.newLocal[Boolean]("iterable_eq", true)
       val Lout = CodeLabel()

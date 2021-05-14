@@ -4,7 +4,7 @@ import is.hail.asm4s
 import is.hail.asm4s._
 import is.hail.expr.ir.functions.IRFunctionRegistry
 import is.hail.types.physical._
-import is.hail.types.physical.stypes.SCode
+import is.hail.types.physical.stypes.{SCode, SValue}
 import is.hail.types.virtual._
 import is.hail.types.{coerce => tycoerce, _}
 import is.hail.utils._
@@ -191,9 +191,9 @@ package object ir {
 
   implicit def valueToCodeParam(v: Value[_]): CodeParam = CodeParam(v)
 
-  implicit def toPCodeParam(pc: PCode): PCodeParam = PCodeParam(pc)
+  implicit def toPCodeParam(pc: SCode): PCodeParam = PCodeParam(pc)
 
-  implicit def pValueToPCodeParam(pv: PValue): PCodeParam = PCodeParam(pv)
+  implicit def pValueToPCodeParam(pv: SValue): PCodeParam = PCodeParam(pv.get)
 
   implicit def toEmitParam(ec: EmitCode): EmitParam = EmitParam(ec)
 
