@@ -87,7 +87,7 @@ object NDArrayFunctions extends RegistryFunctions {
     }
 
     registerIEmitCode2("linear_solve_no_crash", TNDArray(TFloat64, Nat(2)), TNDArray(TFloat64, Nat(2)), TStruct(("solution", TNDArray(TFloat64, Nat(2))), ("failed", TBoolean)),
-      { (t, p1, p2) => EmitType(PCanonicalStruct(false, ("solution", PCanonicalNDArray(PFloat64Required, 2, true)), ("failed", PBooleanRequired)).sType, false) }) {
+      { (t, p1, p2) => EmitType(PCanonicalStruct(false, ("solution", PCanonicalNDArray(PFloat64Required, 2, false)), ("failed", PBooleanRequired)).sType, false) }) {
       case (cb, region, SBaseStructPointer(outputStructType: PCanonicalStruct), aec, bec) =>
         aec.toI(cb).flatMap(cb) { apc =>
           bec.toI(cb).map(cb) { bpc =>
@@ -99,16 +99,12 @@ object NDArrayFunctions extends RegistryFunctions {
         }
     }
 
-    registerIEmitCode2("linear_solve", TNDArray(TFloat64, Nat(2)), TNDArray(TFloat64, Nat(2)), TNDArray(TFloat64, Nat(2)),
-      { (t, p1, p2) => EmitType(PCanonicalNDArray(PFloat64Required, 2, true).sType, false) }) {
-      case (cb, region, SNDArrayPointer(pt), aec, bec) =>
-        aec.toI(cb).flatMap(cb) { apc =>
-          bec.toI(cb).map(cb) { bpc =>
-            val (resPCode, info) = linear_solve(apc.asNDArray, bpc.asNDArray, pt, cb, region)
-            cb.ifx(info cne 0, cb._fatal(s"hl.nd.solve: Could not solve, matrix was singular. dgesv error code ", info.toS))
-            resPCode
-          }
-        }
+    registerPCode2("linear_solve", TNDArray(TFloat64, Nat(2)), TNDArray(TFloat64, Nat(2)), TNDArray(TFloat64, Nat(2)),
+      { (t, p1, p2) => PCanonicalNDArray(PFloat64Required, 2, true).sType }) {
+      case (er, cb, SNDArrayPointer(pt), apc, bpc) =>
+        val (resPCode, info) = linear_solve(apc.asNDArray, bpc.asNDArray, pt, cb, er.region)
+        cb.ifx(info cne 0, cb._fatal(s"hl.nd.solve: Could not solve, matrix was singular. dgesv error code ", info.toS))
+        resPCode
     }
   }
 }
