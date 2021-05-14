@@ -19,14 +19,7 @@ import org.json4s.{DefaultFormats, Extraction, Formats, JValue, ShortTypeHints}
 import scala.language.existentials
 
 sealed trait IR extends BaseIR {
-//  protected[ir] var _pType: PType = null
   private var _typ: Type = null
-
-//  def pType = {
-//    assert(_pType != null)
-//
-//    _pType
-//  }
 
   def typ: Type = {
     if (_typ == null)

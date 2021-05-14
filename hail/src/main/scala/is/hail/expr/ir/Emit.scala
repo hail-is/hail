@@ -2032,13 +2032,13 @@ class Emit[C](
         emitI(a).map(cb) { ind => ind.asIndexable.castToArray(cb) }.typecast[PCode]
 
       case x@ShuffleWith(
-      keyFields,
-      rowType,
-      rowEType,
-      keyEType,
-      name,
-      writerIR,
-      readersIR
+        keyFields,
+        rowType,
+        rowEType,
+        keyEType,
+        name,
+        writerIR,
+        readersIR
       ) =>
         val shuffleType = x.shuffleType
 
@@ -2357,7 +2357,7 @@ class Emit[C](
     * argument {@code In(0)} whose type must be of type
     * {@code tAggIn.elementType}.  {@code tAggIn.symTab} is not used by Emit.
     *
-    * */
+    **/
   private[ir] def emit(ir: IR, mb: EmitMethodBuilder[C], env: E, container: Option[AggContainer]): EmitCode = {
     val region = mb.getCodeParam[Region](1)
     emit(ir, mb, region, env, container, None)
@@ -2394,8 +2394,6 @@ class Emit[C](
     def emitStream(ir: IR, outerRegion: Value[Region]): EmitCode =
       EmitCode.fromI(mb)(cb => EmitStream.produce(this, ir, cb, outerRegion, env, container))
 
-    //    val pt = ir.pType
-
     // ideally, emit would not be called with void values, but initOp args can be void
     // working towards removing this
     if (ir.typ == TVoid)
@@ -2414,12 +2412,11 @@ class Emit[C](
           }
         }
 
-      case Ref(name, _) =>
+      case Ref(name, t) =>
         val ev = env.lookup(name)
-        //        if (ev.st != pt.sType)
-        //          throw new RuntimeException(s"PValue type did not match inferred ptype:\n name: $name\n  pv: ${ ev.st }\n  ir: ${pt.st}")
+        if (ev.st.virtualType != t)
+          throw new RuntimeException(s"emit value type did not match specified type:\n name: $name\n  ev: ${ ev.st.virtualType }\n  ir: ${ ir.typ }")
         ev.load
-
 
       case In(i, expectedPType) =>
         // this, Code[Region], ...
