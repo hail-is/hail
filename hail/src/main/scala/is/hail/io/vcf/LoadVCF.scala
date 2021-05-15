@@ -1208,7 +1208,11 @@ object LoadVCF {
       (line.getCount == 1 ||
         (isFlag && line.getCount == 0)))
       ((id, baseType), (id, attrs), isFlag)
-    else if (baseType.isInstanceOf[PCall])
+    else if (isFlag) {
+      warn(s"invalid VCF header: at INFO field '$id' of type 'Flag', expected 'Number=0', got 'Number=${headerNumberToString(line)}''" +
+        s"\n  Interpreting as 'Number=0' regardless.")
+      ((id, baseType), (id, attrs), isFlag)
+    } else if (baseType.isInstanceOf[PCall])
       fatal("fields in 'call_fields' must have 'Number' equal to 1.")
     else
       ((id, PCanonicalArray(baseType.setRequired(arrayElementsRequired))), (id, attrs), isFlag)
