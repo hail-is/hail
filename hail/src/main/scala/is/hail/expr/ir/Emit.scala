@@ -441,11 +441,10 @@ class EmitCode(private val start: CodeLabel, private val iec: IEmitCode) {
 
   def makeCodeTuple(cb: EmitCodeBuilder): IndexedSeq[Code[_]] = {
     if (required) {
-      cb += Code.toUnit(m)
-      pv.makeCodeTuple(cb)
+      toI(cb).get(cb).makeCodeTuple(cb)
     } else {
       val es = cb.emb.newEmitLocal("ec_makecodetuple", emitType)
-      cb.assign(es, this)
+      cb.assign(es, toI(cb))
       es.settableTuple().map(_.load())
     }
   }
