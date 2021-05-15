@@ -51,7 +51,7 @@ class SFloat32Code(val code: Code[Float]) extends SCode with SPrimitiveCode {
 
   def st: SFloat32.type = SFloat32
 
-  def codeTuple(): IndexedSeq[Code[_]] = FastIndexedSeq(code)
+  def makeCodeTuple(cb: EmitCodeBuilder): IndexedSeq[Code[_]] = FastIndexedSeq(code)
 
   private[this] def memoizeWithBuilder(cb: EmitCodeBuilder, name: String, sb: SettableBuilder): SFloat32Value = {
     val s = new SFloat32Settable(sb.newSettable[Float]("sint64_memoize"))

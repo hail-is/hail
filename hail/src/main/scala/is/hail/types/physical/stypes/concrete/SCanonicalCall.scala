@@ -101,7 +101,7 @@ class SCanonicalCallCode(val call: Code[Int]) extends SCallCode {
 
   def code: Code[_] = call
 
-  def codeTuple(): IndexedSeq[Code[_]] = FastIndexedSeq(call)
+  def makeCodeTuple(cb: EmitCodeBuilder): IndexedSeq[Code[_]] = FastIndexedSeq(call)
 
   def ploidy(): Code[Int] = (call >>> 1) & 0x3
 

@@ -116,7 +116,7 @@ class SStackStructCode(val st: SStackStruct, val codes: IndexedSeq[EmitCode]) ex
 
   def code: Code[_] = throw new UnsupportedOperationException
 
-  override def codeTuple(): IndexedSeq[Code[_]] = codes.flatMap(_.codeTuple())
+  override def makeCodeTuple(cb: EmitCodeBuilder): IndexedSeq[Code[_]] = codes.flatMap(_.makeCodeTuple(cb))
 
   override def memoize(cb: EmitCodeBuilder, name: String): SStackStructSettable = {
     new SStackStructSettable(st, codes.indices.map { i =>

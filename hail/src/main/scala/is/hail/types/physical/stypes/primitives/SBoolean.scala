@@ -45,7 +45,7 @@ class SBooleanCode(val code: Code[Boolean]) extends SCode with SPrimitiveCode {
 
   def st: SBoolean.type = SBoolean
 
-  def codeTuple(): IndexedSeq[Code[_]] = FastIndexedSeq(code)
+  def makeCodeTuple(cb: EmitCodeBuilder): IndexedSeq[Code[_]] = FastIndexedSeq(code)
 
   private[this] def memoizeWithBuilder(cb: EmitCodeBuilder, name: String, sb: SettableBuilder): SBooleanSettable = {
     val s = new SBooleanSettable(sb.newSettable[Boolean]("sboolean_memoize"))

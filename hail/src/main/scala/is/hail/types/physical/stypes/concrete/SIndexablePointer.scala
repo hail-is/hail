@@ -52,7 +52,7 @@ class SIndexablePointerCode(val st: SIndexablePointer, val a: Code[Long]) extend
 
   def code: Code[_] = a
 
-  def codeTuple(): IndexedSeq[Code[_]] = FastIndexedSeq(a)
+  def makeCodeTuple(cb: EmitCodeBuilder): IndexedSeq[Code[_]] = FastIndexedSeq(a)
 
   def loadLength(): Code[Int] = pt.loadLength(a)
 

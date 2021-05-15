@@ -49,7 +49,7 @@ class SStringPointerCode(val st: SStringPointer, val a: Code[Long]) extends SStr
 
   def code: Code[_] = a
 
-  def codeTuple(): IndexedSeq[Code[_]] = FastIndexedSeq(a)
+  def makeCodeTuple(cb: EmitCodeBuilder): IndexedSeq[Code[_]] = FastIndexedSeq(a)
 
   def loadLength(): Code[Int] = pt.loadLength(a)
 

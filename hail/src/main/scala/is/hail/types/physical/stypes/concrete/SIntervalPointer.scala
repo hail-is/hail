@@ -110,7 +110,7 @@ class SIntervalPointerCode(val st: SIntervalPointer, val a: Code[Long]) extends 
 
   def code: Code[_] = a
 
-  def codeTuple(): IndexedSeq[Code[_]] = FastIndexedSeq(a)
+  def makeCodeTuple(cb: EmitCodeBuilder): IndexedSeq[Code[_]] = FastIndexedSeq(a)
 
   def includesStart(): Code[Boolean] = pt.includesStart(a)
 

@@ -47,7 +47,7 @@ class SInt64Code(val code: Code[Long]) extends SCode with SPrimitiveCode {
 
   def st: SInt64.type = SInt64
 
-  def codeTuple(): IndexedSeq[Code[_]] = FastIndexedSeq(code)
+  def makeCodeTuple(cb: EmitCodeBuilder): IndexedSeq[Code[_]] = FastIndexedSeq(code)
 
   private[this] def memoizeWithBuilder(cb: EmitCodeBuilder, name: String, sb: SettableBuilder): SInt64Value = {
     val s = new SInt64Settable(sb.newSettable[Long]("sint64_memoize"))

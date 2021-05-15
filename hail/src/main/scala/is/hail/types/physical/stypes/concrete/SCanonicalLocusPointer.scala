@@ -88,7 +88,7 @@ class SCanonicalLocusPointerCode(val st: SCanonicalLocusPointer, val a: Code[Lon
 
   def code: Code[_] = a
 
-  def codeTuple(): IndexedSeq[Code[_]] = FastIndexedSeq(a)
+  def makeCodeTuple(cb: EmitCodeBuilder): IndexedSeq[Code[_]] = FastIndexedSeq(a)
 
   def contig(cb: EmitCodeBuilder): SStringCode = pt.contigType.loadCheapPCode(cb, pt.contigAddr(a)).asString
 

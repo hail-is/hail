@@ -439,12 +439,15 @@ class EmitCode(private val start: CodeLabel, private val iec: IEmitCode) {
     EmitCode.fromI(mb)(cb => toI(cb).map(cb)(_.castTo(cb, region, destType)))
   }
 
-  def codeTuple(): IndexedSeq[Code[_]] = {
-    val tc = pv.codeTuple()
-    if (required)
-      tc
-    else
-      tc :+ m
+  def makeCodeTuple(cb: EmitCodeBuilder): IndexedSeq[Code[_]] = {
+    if (required) {
+      cb += Code.toUnit(m)
+      pv.makeCodeTuple(cb)
+    } else {
+      val es = cb.emb.newEmitLocal("ec_makecodetuple", emitType)
+      cb.assign(es, this)
+      es.settableTuple().map(_.load())
+    }
   }
 
   def missingIf(mb: EmitMethodBuilder[_], cond: Code[Boolean]): EmitCode =
@@ -809,7 +812,7 @@ class Emit[C](
         iec.map(cb)(pc => cast(cb, pc))
       case CastRename(v, _typ) =>
         emitI(v)
-          .map(cb)(pc => pc.st.castRename(_typ).fromCodes(pc.codeTuple()))
+          .map(cb)(pc => pc.st.castRename(_typ).fromCodes(pc.makeCodeTuple(cb)))
       case NA(typ) =>
         IEmitCode(cb, const(true), typeWithReq.canonicalEmitType.st.defaultValue)
       case IsNA(v) =>

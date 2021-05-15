@@ -142,7 +142,7 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
             throw new RuntimeException(s"invoke ${ callee.mb.methodName }: arg $i: type mismatch:" +
               s"\n  got ${ pc.st }" +
               s"\n  expected ${ pcpt.st }")
-          pc.codeTuple()
+          pc.makeCodeTuple(this)
         case (EmitParam(ec), PCodeEmitParamType(et)) =>
           if (!ec.emitType.equalModuloRequired(et)) {
             throw new RuntimeException(s"invoke ${callee.mb.methodName}: arg $i: type mismatch:" +
@@ -156,15 +156,7 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
               EmitCode.fromI(emb) { cb => IEmitCode.present(cb, ec.toI(cb).get(cb)) }
             case _ => ec
           }
-
-          if (castEc.required) {
-            append(Code.toUnit(castEc.m))
-            castEc.codeTuple()
-          } else {
-            val ev = memoize(castEc, "cb_invoke_setup_params")
-            ev.codeTuple()
-          }
-
+          castEc.makeCodeTuple(this)
         case (arg, expected) =>
           throw new RuntimeException(s"invoke ${ callee.mb.methodName }: arg $i: type mismatch:" +
             s"\n  got ${ arg }" +
