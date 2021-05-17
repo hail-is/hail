@@ -213,3 +213,36 @@ def linear_regression_rows_nd(mt_path):
                                        x=mt.x,
                                        covariates=[mt[key] for key in cov_dict.keys()])
     res._force_count()
+
+@benchmark(args=random_doubles.handle('mt'))
+def logistic_regression_rows_wald(mt_path):
+    mt = hl.read_matrix_table(mt_path)
+    mt = mt.head(2000)
+    num_phenos = 5
+    num_covs = 2
+    pheno_dict = {f"pheno_{i}": hl.rand_bool(.5, seed=i) for i in range(num_phenos)}
+    cov_dict = {f"cov_{i}": hl.rand_unif(0, 1, seed=i) for i in range(num_covs)}
+    mt = mt.annotate_cols(**pheno_dict)
+    mt = mt.annotate_cols(**cov_dict)
+    res = hl.logistic_regression_rows(test='wald',
+                                      y=[mt[key] for key in pheno_dict.keys()],
+                                      x=mt.x,
+                                      covariates=[mt[key] for key in cov_dict.keys()])
+    res.write("/Users/johnc/Code/hail/hail/log_reg_bench_out")
+    res._force_count()
+
+@benchmark(args=random_doubles.handle('mt'))
+def logistic_regression_rows_wald_nd(mt_path):
+    mt = hl.read_matrix_table(mt_path)
+    mt = mt.head(2000)
+    num_phenos = 5
+    num_covs = 2
+    pheno_dict = {f"pheno_{i}": hl.rand_bool(.5, seed=i) for i in range(num_phenos)}
+    cov_dict = {f"cov_{i}": hl.rand_unif(0, 1, seed=i) for i in range(num_covs)}
+    mt = mt.annotate_cols(**pheno_dict)
+    mt = mt.annotate_cols(**cov_dict)
+    res = hl._logistic_regression_rows_nd(test='wald',
+                                          y=[mt[key] for key in pheno_dict.keys()],
+                                          x=mt.x,
+                                          covariates=[mt[key] for key in cov_dict.keys()])
+    res._force_count()
