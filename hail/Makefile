@@ -192,7 +192,7 @@ copy-py-files: $(PYTHON_VERSION_INFO) $(SHADOW_JAR) $(INIT_SCRIPTS) $(PY_FILES) 
 	mkdir -p build/deploy
 	mkdir -p build/deploy/src
 	cp ../README.md build/deploy/
-	rsync -rv \
+	rsync -r \
 	    --exclude '.eggs/' \
 	    --exclude '.pytest_cache/' \
 	    --exclude '__pycache__/' \
