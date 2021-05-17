@@ -78,7 +78,7 @@ object BLAS {
     val incxInt = new IntByReference(INCX)
     val incyInt = new IntByReference(INCY)
 
-    libraryInstance.dgemv(TRANS, mInt, nInt, alphaDouble, A, LDAInt, X, incxInt, betaDouble, Y, incyInt)
+    libraryInstance.get.dgemv(TRANS, mInt, nInt, alphaDouble, A, LDAInt, X, incxInt, betaDouble, Y, incyInt)
   }
 }
 
