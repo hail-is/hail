@@ -1449,6 +1449,7 @@ class Emit[C](
               val beta = 0.0
 
               val LDA = M
+              val TRANS: Code[String] = leftIsColumnMajor.mux("N", "T")
 
               val (answerFirstElementAddr, answerFinisher) = outputPType.constructDataFunction(
                 IndexedSeq(M),
@@ -1457,7 +1458,7 @@ class Emit[C](
                 region)
               
               cb.append(Code.invokeScalaObject11[String, Int, Int, Double, Long, Int, Long, Int, Double, Long, Int, Unit](BLAS.getClass, method="dgemv",
-                "N",
+                TRANS,
                 M.toI,
                 N.toI,
                 alpha,

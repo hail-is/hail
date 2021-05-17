@@ -731,7 +731,6 @@ class Tests(unittest.TestCase):
             self.assertAlmostEqual(multi_results[1001].logistic_regression[0].p_value,single_results[1001].p_value, places=6)
             #TODO test handling of missingness
 
-
     def test_logistic_regression_wald_test_pl(self):
         covariates = hl.import_table(resource('regressionLogistic.cov'),
                                      key='Sample',
