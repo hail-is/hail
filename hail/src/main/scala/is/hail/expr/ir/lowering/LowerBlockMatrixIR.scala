@@ -339,7 +339,44 @@ object LowerBlockMatrixIR {
       case BlockMatrixBroadcast(child, IndexedSeq(0, 1), _, _) =>
         lower(child)
 
-      case BlockMatrixAgg(child, outIndexExpr) => unimplemented(bmir)
+      case a@BlockMatrixAgg(child, outIndexExpr) =>
+        val loweredChild = lower(child)
+        val summedChild = loweredChild.mapBody { (ctx, body) =>
+          NDArrayAgg(body, outIndexExpr)
+        }
+        // Now, make decision based on outIndexExpr
+        outIndexExpr match {
+          case IndexedSeq()  =>
+            val res = NDArrayAgg(summedChild.collectLocal(relationalLetsAbove, a.typ), IndexedSeq[Int]())
+            new BlockMatrixStage(summedChild.globalVals, TStruct.empty) {
+              override def blockContext(idx: (Int, Int)): IR = makestruct()
+              override def blockBody(ctxRef: Ref): IR = res
+            }
+          case IndexedSeq(1) => {
+            new BlockMatrixStage(loweredChild.globalVals, TArray(loweredChild.ctxType)) {
+              // Idea. Make an array of all child contexts in the row as the context.
+              // Then use each one to look up child.
+              override def blockContext(idx: (Int, Int)): IR = {
+                val (row, col) = idx
+                assert(col == 0)
+                MakeArray(
+                  (0 until child.typ.nColBlocks).map(childCol => summedChild.blockContext((row, childCol))),
+                  TArray(loweredChild.ctxType)
+                )
+              }
+              override def blockBody(ctxRef: Ref): IR = {
+                // Now I know that each context is a stream of contexts for the child.
+                val summedChildBlocks = mapIR(ToStream(ctxRef))(singleChildCtx => {
+                  bindIR(NDArrayAgg(loweredChild.blockBody(singleChildCtx), outIndexExpr))(aggedND => NDArrayReshape(aggedND, MakeTuple(Seq((0, GetTupleElement(NDArrayShape(aggedND), 0)), (1, I64(1))))))
+                })
+                val aggVar = genUID()
+                StreamAgg(summedChildBlocks, aggVar, ApplyAggOp(NDArraySum())(Ref(aggVar, summedChildBlocks.typ.asInstanceOf[TStream].elementType)))
+              }
+            }
+          }//childBm.rowSum()
+          case IndexedSeq(0) => unimplemented(a)//childBm.colSum()
+        }
+
       case x@BlockMatrixFilter(child, keep) =>
         val rowDependents = x.rowBlockDependents
         val colDependents = x.colBlockDependents
