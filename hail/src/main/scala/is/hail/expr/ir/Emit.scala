@@ -880,7 +880,7 @@ class Emit[C](
         }
 
       case x@MakeStruct(fields) =>
-        presentPC(SStackStruct.constructFromArgs(
+        presentPC(SStackStruct.constructFromArgs(cb, region,
           fields.map { case (name, x) =>
             (name, EmitCode.fromI(cb.emb)(cb => emitInNewBuilder(cb, x)))
           }: _*

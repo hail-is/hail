@@ -9,10 +9,17 @@ import is.hail.types.physical.{PCanonicalStruct, PType}
 import is.hail.types.virtual.{TStruct, Type}
 
 object SStackStruct {
-  def constructFromArgs(args: (String, EmitCode)*): SStackStructCode = {
+  val MAX_FIELDS_FOR_CONSTRUCT: Int = 64
+
+  def constructFromArgs(cb: EmitCodeBuilder, region: Value[Region], args: (String, EmitCode)*): PBaseStructCode = {
     val as = args.toArray
-    val st = SStackStruct(as.map(_._1), as.map(_._2.emitType))
-    new SStackStructCode(st, as.map(_._2))
+    if (as.length > MAX_FIELDS_FOR_CONSTRUCT) {
+      PCanonicalStruct(as.map { case (name, a) => (name, a.emitType.canonicalPType) }: _*)
+        .constructFromFields(cb, region, as.map(_._2), false)
+    } else {
+      val st = SStackStruct(as.map(_._1), as.map(_._2.emitType))
+      new SStackStructCode(st, as.map(_._2))
+    }
   }
 }
 
