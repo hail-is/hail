@@ -76,6 +76,10 @@ class VCFTests(unittest.TestCase):
         self.assertFalse('undeclaredFlag' in info_type)
 
     @fails_service_backend()
+    def test_can_import_bad_number_flag(self):
+        hl.import_vcf(resource('bad_flag_number.vcf')).rows()._force_count()
+
+    @fails_service_backend()
     def test_malformed(self):
         with self.assertRaisesRegex(FatalError, "invalid character"):
             mt = hl.import_vcf(resource('malformed.vcf'))
