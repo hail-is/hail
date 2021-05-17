@@ -209,6 +209,9 @@ class WindowFractionCounter:
         self._n_true = 0
         self._seen = set()
 
+    def is_full(self):
+        return len(self._seen) >= self._window_size
+
     def clear(self):
         self._q.clear()
         self._n_true = 0

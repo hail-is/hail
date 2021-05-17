@@ -26,6 +26,7 @@ from ..utils import (
     adjust_cores_for_memory_request,
     adjust_cores_for_packability,
     adjust_cores_for_storage_request,
+    WindowFractionCounter,
 )
 from .create_instance import create_instance
 from .instance import Instance
@@ -33,6 +34,33 @@ from .instance_collection import InstanceCollection
 from .job import schedule_job
 
 log = logging.getLogger('pool')
+
+
+def instance_compaction_priority(instance):
+    age_mins = (time_msecs() - instance.time_created) / 1000 / 60
+
+    if instance.state == 'pending':
+        age_bin = 0
+        sort_key1 = 0
+        sort_key2 = 0
+    elif age_mins <= 10:
+        age_bin = 1
+        sort_key1 = -instance.free_cores_mcpu
+        sort_key2 = instance.time_created
+    elif age_mins >= 6 * 60:
+        age_bin = 2
+        sort_key1 = -instance.time_created
+        sort_key2 = -instance.free_cores_mcpu
+    elif 4 * 60 <= age_mins < 6 * 60:
+        age_bin = 3
+        sort_key1 = -instance.free_cores_mcpu
+        sort_key2 = -instance.time_created
+    else:
+        age_bin = 4
+        sort_key1 = -instance.free_cores_mcpu
+        sort_key2 = -instance.time_created
+
+    return (age_bin, sort_key1, sort_key2)
 
 
 class Pool(InstanceCollection):
@@ -44,6 +72,8 @@ class Pool(InstanceCollection):
         self.scheduler = PoolScheduler(self.app, self)
 
         self.healthy_instances_by_free_cores = sortedcontainers.SortedSet(key=lambda instance: instance.free_cores_mcpu)
+        self.healthy_instances_by_compaction_priority = sortedcontainers.SortedSet(key=instance_compaction_priority)
+        self.pool_fully_utilized_counter = WindowFractionCounter(5)
 
         self.worker_type = config.worker_type
         self.worker_cores = config.worker_cores
@@ -67,6 +97,7 @@ class Pool(InstanceCollection):
             self.add_instance(instance)
 
         self.task_manager.ensure_future(self.control_loop())
+        self.task_manager.ensure_future(self.compaction_loop())
 
         await self.scheduler.async_init()
 
@@ -159,11 +190,15 @@ WHERE name = %s;
         super().adjust_for_remove_instance(instance)
         if instance in self.healthy_instances_by_free_cores:
             self.healthy_instances_by_free_cores.remove(instance)
+        if instance in self.healthy_instances_by_compaction_priority:
+            self.healthy_instances_by_compaction_priority.remove(instance)
 
     def adjust_for_add_instance(self, instance):
         super().adjust_for_add_instance(instance)
         if instance.state == 'active' and instance.failed_request_count <= 1:
             self.healthy_instances_by_free_cores.add(instance)
+        if instance.state in ('pending', 'active'):
+            self.healthy_instances_by_compaction_priority.add(instance)
 
     async def create_instance(self, cores=None, max_idle_time_msecs=None):
         if cores is None:
@@ -259,6 +294,55 @@ LOCK IN SHARE MODE;
 
     async def control_loop(self):
         await periodically_call(15, self.create_instances)
+
+    async def compact_instances(self):
+        async def kill(instance):
+            if instance.state == 'pending':
+                await self.call_delete_instance(instance, 'pruned')
+                return
+
+            assert instance.state == 'active'
+            await instance.kill()
+
+        ready_cores = await self.db.select_and_fetchone(
+            '''
+SELECT CAST(COALESCE(SUM(ready_cores_mcpu), 0) AS SIGNED) AS ready_cores_mcpu
+FROM user_inst_coll_resources
+WHERE inst_coll = %s
+LOCK IN SHARE MODE;
+''',
+            (self.name,),
+        )
+
+        ready_cores_mcpu = ready_cores['ready_cores_mcpu']
+
+        n_live_instances = self.n_instances_by_state['pending'] + self.n_instances_by_state['active']
+
+        utilized_cores_mcpu = self.live_total_cores_mcpu - self.live_free_cores_mcpu
+
+        if self.live_total_cores_mcpu == 0:
+            self.pool_fully_utilized_counter.push(time_msecs(), True)
+            return
+
+        efficiency = utilized_cores_mcpu / self.live_total_cores_mcpu
+        self.pool_fully_utilized_counter.push(time_msecs(), efficiency >= 0.95)
+
+        if self.pool_fully_utilized_counter.is_full() and self.pool_fully_utilized_counter.fraction() < 0.5:
+            max_instances_needed = max(int(self.enable_standing_worker),
+                                       (ready_cores_mcpu + utilized_cores_mcpu + (self.worker_cores * 1000) - 1) // (self.worker_cores * 1000))
+
+            if n_live_instances > max_instances_needed:
+                n_kill = n_live_instances - max_instances_needed
+                instances_to_prune = self.healthy_instances_by_compaction_priority[:n_kill]
+
+                prune_state_counts = collections.Counter([instance.state for instance in instances_to_prune])
+
+                log.info(f'pruning {len(instances_to_prune)} instances; max_instances_needed={max_instances_needed} n_live_instances={n_live_instances} instance_states={prune_state_counts}')
+
+                await asyncio.gather(*[kill(instance) for instance in instances_to_prune])
+
+    async def compaction_loop(self):
+        await periodically_call(30, self.compact_instances)
 
     def __str__(self):
         return f'pool {self.name}'
