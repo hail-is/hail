@@ -440,13 +440,17 @@ class EmitCode(private val start: CodeLabel, private val iec: IEmitCode) {
   }
 
   def makeCodeTuple(cb: EmitCodeBuilder): IndexedSeq[Code[_]] = {
-    if (required) {
+    val ct = if (required) {
       toI(cb).get(cb).makeCodeTuple(cb)
     } else {
       val es = cb.emb.newEmitLocal("ec_makecodetuple", emitType)
       cb.assign(es, toI(cb))
-      es.settableTuple().map(_.load())
+      es.pv.makeCodeTuple(cb) :+ es.m
     }
+
+    assert(ct.zip(emitParamType.codeTupleTypes).forall { case (p, pt) => p.ti == pt.ti},
+      s"ctt mismatch: $emitType\n  param: ${ct.map(_.ti)}\n  types: ${emitParamType.codeTupleTypes}")
+    ct
   }
 
   def missingIf(mb: EmitMethodBuilder[_], cond: Code[Boolean]): EmitCode =
@@ -485,6 +489,8 @@ class EmitSettable(
       case None => vs.settableTuple()
     }
   }
+
+  def m: Code[Boolean] = missing.map(_.load()).getOrElse(const(false))
 
   def load: EmitCode = {
     val ec = EmitCode(Code._empty,
