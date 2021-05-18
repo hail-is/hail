@@ -915,30 +915,13 @@ class Emit[C](
         emitI(oldStruct)
           .map(cb) { case sc: SBaseStructCode => sc.subset(fields: _*) }
 
-      case x@InsertFields(old, fields, fieldOrder) =>
+      case x@InsertFields(old, fields, _) =>
         if (fields.isEmpty)
           emitI(old)
         else {
-          val codeOld = emitI(old)
-          val updateMap = Map(fields: _*)
-
-          codeOld.map(cb) { oldPC =>
-            val oldPV = oldPC.asBaseStruct.memoize(cb, "insert_fields_old")
-
-            val itemsEC = x.typ.fields.map { f =>
-              updateMap.get(f.name) match {
-                case Some(vir) =>
-                  EmitCode.fromI(mb)(emitInNewBuilder(_, vir))
-                case None =>
-                  EmitCode.fromI(mb)(oldPV.loadField(_, f.name))
-              }
-            }
-
-            val pt = PCanonicalStruct(x.typ.fieldNames.zip(itemsEC).map { case (name, ec) => (name, ec.emitType.canonicalPType) }: _*)
-
-            pt.asInstanceOf[PCanonicalBaseStruct]
-              .constructFromFields(cb, region, itemsEC, deepCopy = false)
-
+          emitI(old).map(cb) { old =>
+            old.asBaseStruct.baseInsert(cb, region, x.typ,
+              fields.map { case (name, x) => (name, EmitCode.fromI(cb.emb)(cb => emitInNewBuilder(cb, x))) }: _*)
           }
         }
 

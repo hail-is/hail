@@ -1,10 +1,13 @@
 package is.hail.types.physical.stypes.interfaces
 
-import is.hail.asm4s.Code
-import is.hail.expr.ir.{EmitCodeBuilder, IEmitCode}
-import is.hail.types.physical.stypes.concrete.{SSubsetStruct, SSubsetStructCode}
+import is.hail.annotations.Region
+import is.hail.asm4s.{Code, Value}
+import is.hail.expr.ir.{EmitCode, EmitCodeBuilder, IEmitCode}
+import is.hail.types.physical.{PCanonicalBaseStruct, PCanonicalStruct}
 import is.hail.types.physical.stypes._
-import is.hail.types.virtual.TBaseStruct
+import is.hail.types.physical.stypes.concrete.{SInsertFieldsStruct, SInsertFieldsStructCode, SSubsetStruct, SSubsetStructCode}
+import is.hail.types.virtual.{TBaseStruct, TStruct}
+import is.hail.utils._
 
 trait SBaseStruct extends SType {
   def virtualType: TBaseStruct
@@ -33,7 +36,8 @@ trait SBaseStructValue extends SValue {
   def loadField(cb: EmitCodeBuilder, fieldName: String): IEmitCode = loadField(cb, st.fieldIdx(fieldName))
 }
 
-trait SBaseStructCode extends SCode { self =>
+trait SBaseStructCode extends SCode {
+  self =>
   def st: SBaseStruct
 
   def memoize(cb: EmitCodeBuilder, name: String): SBaseStructValue
@@ -50,5 +54,26 @@ trait SBaseStructCode extends SCode { self =>
   def subset(fieldNames: String*): SBaseStructCode = {
     val st = SSubsetStruct(self.st, fieldNames.toIndexedSeq)
     new SSubsetStructCode(st, self)
+  }
+
+  def insert(newType: TStruct, fields: (String, EmitCode)*): SBaseStructCode = {
+    new SInsertFieldsStructCode(
+      SInsertFieldsStruct(newType, st, fields.map { case (name, ec) => (name, ec.emitType) }.toFastIndexedSeq),
+      this,
+      fields.map(_._2).toFastIndexedSeq
+    )
+  }
+
+  final def baseInsert(cb: EmitCodeBuilder, region: Value[Region], newType: TStruct, fields: (String, EmitCode)*): SBaseStructCode = {
+    if (newType.size < 64 || fields.length < 16)
+      return insert(newType, fields: _*)
+
+    val newFieldMap = fields.toMap
+    val oldPV = memoize(cb, "insert_fields_old")
+    val allFields = newType.fieldNames.map { f =>
+      (f, newFieldMap.getOrElse(f, EmitCode.fromI(cb.emb)(cb => oldPV.loadField(cb, f)))) }
+
+    val pcs = PCanonicalStruct(allFields.map { case (f, ec) => (f, ec.emitType.canonicalPType) }: _*)
+    pcs.constructFromFields(cb, region, allFields.map(_._2), false)
   }
 }
