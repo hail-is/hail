@@ -9,6 +9,8 @@ async-timeout==3.0.1
 asyncinit==0.2.4
 Authlib==0.11
 black==20.8b1
+boto3==1.17.54
+botocore==1.20.54
 curlylint==0.12.0
 decorator==4.4.0
 dictdiffer==0.8.1
@@ -27,6 +29,7 @@ google-cloud-logging==1.12.1
 google-cloud-storage==1.25.0
 humanize==1.0.0
 hurry.filesize==0.9
+janus==0.6.1
 Jinja2==2.11.3
 # keyrings.alt>3.1: https://bugs.launchpad.net/usd-importer/+bug/1794041/comments/6
 keyrings.alt>=3.1
@@ -48,13 +51,13 @@ pytest-instafail==0.4.2
 pytest-xdist==2.2.1
 python-dateutil==2.8.1
 python-json-logger==0.1.11
-requests==2.22.0
+requests==2.25.1
 setuptools>=38.6.0
 sortedcontainers==2.1.0
 tabulate==0.8.3
 tqdm==4.42.1
 twine>=1.11.0
-urllib3==1.24.3
+urllib3==1.26.4
 uvloop==0.14.0
 Werkzeug==0.15.4
 wheel>=0.31.0
