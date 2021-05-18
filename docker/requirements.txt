@@ -51,7 +51,7 @@ pytest-instafail==0.4.2
 pytest-xdist==2.2.1
 python-dateutil==2.8.1
 python-json-logger==0.1.11
-requests==2.22.0
+requests==2.25.1
 setuptools>=38.6.0
 sortedcontainers==2.1.0
 tabulate==0.8.3
