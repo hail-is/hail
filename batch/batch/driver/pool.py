@@ -36,31 +36,14 @@ from .job import schedule_job
 log = logging.getLogger('pool')
 
 
-def instance_compaction_priority(instance):
-    age_mins = (time_msecs() - instance.time_created) / 1000 / 60
-
+def instance_compaction_priority(instance: Instance):
     if instance.state == 'pending':
-        age_bin = 0
-        sort_key1 = 0
-        sort_key2 = 0
-    elif age_mins <= 10:
-        age_bin = 1
-        sort_key1 = -instance.free_cores_mcpu
-        sort_key2 = instance.time_created
-    elif age_mins >= 6 * 60:
-        age_bin = 2
-        sort_key1 = -instance.time_created
-        sort_key2 = -instance.free_cores_mcpu
-    elif 4 * 60 <= age_mins < 6 * 60:
-        age_bin = 3
-        sort_key1 = -instance.free_cores_mcpu
-        sort_key2 = -instance.time_created
+        state_bin = 0
     else:
-        age_bin = 4
-        sort_key1 = -instance.free_cores_mcpu
-        sort_key2 = -instance.time_created
+        assert instance.state == 'active', (instance.name, instance.state)
+        state_bin = 1
 
-    return (age_bin, sort_key1, sort_key2)
+    return (state_bin, -instance.time_created, -instance.free_cores_mcpu)
 
 
 class Pool(InstanceCollection):
@@ -340,6 +323,9 @@ LOCK IN SHARE MODE;
                 log.info(f'pruning {len(instances_to_prune)} instances; max_instances_needed={max_instances_needed} n_live_instances={n_live_instances} instance_states={prune_state_counts}')
 
                 await asyncio.gather(*[kill(instance) for instance in instances_to_prune])
+
+
+            self.pool_fully_utilized_counter.clear()
 
     async def compaction_loop(self):
         await periodically_call(30, self.compact_instances)
