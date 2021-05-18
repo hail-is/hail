@@ -840,8 +840,8 @@ class RouterAsyncFS(AsyncFS):
         return fs
 
     async def read(self, url: str) -> bytes:
-        with self.open(url) as f:
-            return await f.read()
+        fs = self._get_fs(url)
+        return await fs.read(url)
 
     async def read_from(self, url: str, start: int) -> bytes:
         fs = self._get_fs(url)

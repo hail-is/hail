@@ -540,7 +540,7 @@ class GoogleStorageMultiPartCreate(MultiPartCreate):
                     [self._part_name(i) for i in range(self._num_parts)],
                     self._dest_name)
             finally:
-                await self._fs.rmtree(self._sema, f'gs://{self._bucket}/{self._dest_dirname}_/{self._token}')
+                await self._fs.rmtree(f'gs://{self._bucket}/{self._dest_dirname}_/{self._token}', self._sema)
 
 
 class GoogleStorageAsyncFS(AsyncFS):
