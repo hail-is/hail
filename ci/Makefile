@@ -4,7 +4,7 @@ TOKEN = $(shell cat /dev/urandom | LC_ALL=C tr -dc 'a-z0-9' | head -c 12)
 
 CI_UTILS_IMAGE := $(DOCKER_PREFIX)/ci-utils:$(TOKEN)
 CI_IMAGE := $(DOCKER_PREFIX)/ci:$(TOKEN)
-HAIL_BUILDKIT_IMAGE := $(DOCKER_PREFIX)/hail_buildkit:$(TOKEN)
+HAIL_BUILDKIT_IMAGE := $(DOCKER_PREFIX)/hail-buildkit:$(TOKEN)
 
 EXTRA_PYTHONPATH := ../batch:../hail/python:../gear:../web_common
 PYTHON := PYTHONPATH=$${PYTHONPATH:+$${PYTHONPATH}:}$(EXTRA_PYTHONPATH) python3

@@ -500,7 +500,8 @@ class BatchBuilder:
             job_spec['mount_tokens'] = mount_tokens
         if network:
             job_spec['network'] = network
-        job_spec['unconfined'] = unconfined
+        if unconfined:
+            job_spec['unconfined'] = unconfined
 
         self._job_specs.append(job_spec)
 

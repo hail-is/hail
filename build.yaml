@@ -627,10 +627,10 @@ steps:
       - service_base_image
       - merge_code
   - kind: buildImage2
-    name: hail_kaniko_image
-    dockerFile: /io/repo/ci/kaniko/Dockerfile
+    name: hail_buildkit_image
+    dockerFile: /io/repo/ci/buildkit/Dockerfile
     contextPath: /io/repo/ci
-    publishAs: hail-kaniko
+    publishAs: hail-buildkit
     inputs:
       - from: /repo/ci
         to: /io/repo/ci
@@ -3035,7 +3035,7 @@ steps:
       - create_ci_test_repo
       - deploy_ci_agent
       - create_certs
-      - hail_kaniko_image
+      - hail_buildkit_image
   - kind: runImage
     name: test_ci
     image:

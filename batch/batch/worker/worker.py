@@ -900,6 +900,9 @@ class DockerJob(Job):
         if network:
             assert network in ('public', 'private')
             main_spec['network'] = network
+        unconfined = job_spec.get('unconfined')
+        if unconfined:
+            main_spec['unconfined'] = unconfined
         containers['main'] = Container(self, 'main', main_spec)
 
         if output_files:

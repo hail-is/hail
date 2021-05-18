@@ -17,7 +17,7 @@ from .environment import (
     DOMAIN,
     IP,
     CI_UTILS_IMAGE,
-    KANIKO_IMAGE,
+    BUILDKIT_IMAGE,
     DEFAULT_NAMESPACE,
     KUBERNETES_SERVER_URL,
     BUCKET,
@@ -248,6 +248,9 @@ class BuildImage2Step(Step):
         self.publish_as = publish_as
         self.inputs = inputs
         self.resources = resources
+        self.extra_cache_repository = None
+        if publish_as:
+            self.extra_cache_repository = f'{DOCKER_PREFIX}/{self.publish_as}'
         if params.scope == 'deploy' and publish_as and not is_test_deployment:
             self.base_image = f'{DOCKER_PREFIX}/{self.publish_as}'
         else:
@@ -295,28 +298,23 @@ class BuildImage2Step(Step):
 
         if isinstance(self.dockerfile, dict):
             assert ['inline'] == list(self.dockerfile.keys())
-            unrendered_dockerfile = f'/io/Dockerfile.in.{self.token}'
+            unrendered_dockerfile = f'/home/user/Dockerfile.in.{self.token}'
             create_inline_dockerfile_if_present = f'echo {shq(self.dockerfile["inline"])} > {unrendered_dockerfile};\n'
         else:
             assert isinstance(self.dockerfile, str)
             unrendered_dockerfile = self.dockerfile
             create_inline_dockerfile_if_present = ''
-        dockerfile_in_context = os.path.join(context, 'Dockerfile.' + self.token)
 
         script = f'''
 set -ex
 
 {create_inline_dockerfile_if_present}
 
-cp {unrendered_dockerfile} /python3.7-slim-stretch/Dockerfile.in
-
-time chroot /python3.7-slim-stretch /usr/local/bin/python3 \
-     jinja2_render.py \
+time python3 \
+     ~/jinja2_render.py \
      {shq(json.dumps(config))} \
-     /Dockerfile.in \
-     /Dockerfile.out
-
-mv /python3.7-slim-stretch/Dockerfile.out {shq(dockerfile_in_context)}
+     {unrendered_dockerfile} \
+     /home/user/Dockerfile
 
 set +x
 /bin/sh /home/user/convert-google-application-credentials-to-docker-auth-config
@@ -339,8 +337,8 @@ cat /home/user/trace
 
         docker_registry = DOCKER_PREFIX.split('/')[0]
         self.job = batch.create_job(
-            KANIKO_IMAGE,
-            command=['/busybox/sh', '-c', script],
+            BUILDKIT_IMAGE,
+            command=['/bin/sh', '-c', script],
             secrets=[
                 {
                     'namespace': DEFAULT_NAMESPACE,
@@ -356,6 +354,7 @@ cat /home/user/trace
             resources=self.resources,
             input_files=input_files,
             parents=self.deps_parents(),
+            unconfined=True
         )
 
     def cleanup(self, batch, scope, parents):
