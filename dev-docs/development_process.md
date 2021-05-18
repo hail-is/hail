@@ -114,7 +114,7 @@ Your namespace name is the same as your username.
 Submitting a dev deploy with hailctl will give you the link to a UI
 where you can monitor the progress of everything deploying and get the logs for
 any steps that fail. You can also see a recent history of your dev deploys at
-[ci.hail.is/me](ci.hail.is/me).
+[ci.hail.is/me](https://ci.hail.is/me).
 
 
 If the tests fail, you can then examine the Kubernetes logs for the service
@@ -156,9 +156,9 @@ PRs will not have any labels.
 
 For the PR title, start the title with the name of the service(s) the changes
 impact. For example, if it’s a Benchmark change, then you’d write
-[benchmark]. If it’s a Hail Query change, then it would be [query]. We also want
+`[benchmark]`. If it’s a Hail Query change, then it would be `[query]`. We also want
 the title to be descriptive enough to know what the change is without being too
-verbose. An example is “[batch] Added read_only option for gcsfuse”.
+verbose. An example is “`[batch]` Added read_only option for gcsfuse”.
 
 For the PR commit message, we want the message to be descriptive of the complete
 set of changes that occurred, especially if it’s a complicated set of
