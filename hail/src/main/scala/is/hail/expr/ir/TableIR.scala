@@ -16,7 +16,8 @@ import is.hail.linalg.{BlockMatrix, BlockMatrixMetadata, BlockMatrixReadRowBlock
 import is.hail.rvd._
 import is.hail.sparkextras.ContextRDD
 import is.hail.types._
-import is.hail.types.physical._
+import is.hail.types.physical.{stypes, _}
+import is.hail.types.physical.stypes.{BooleanSingleCodeType, Int32SingleCodeType, PTypeReferenceSingleCodeType, StreamSingleCodeType}
 import is.hail.types.physical.stypes.interfaces.{SBaseStructValue, SStream, SStreamCode}
 import is.hail.types.virtual._
 import is.hail.utils._

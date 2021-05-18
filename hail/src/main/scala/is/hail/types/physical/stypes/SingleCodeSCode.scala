@@ -1,10 +1,10 @@
-package is.hail.types.physical
+package is.hail.types.physical.stypes
 
 import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.expr.ir._
 import is.hail.expr.ir.streams.{StreamArgType, StreamProducer}
-import is.hail.types.physical.stypes._
+import is.hail.types.physical.PType
 import is.hail.types.physical.stypes.interfaces.{SStream, SStreamCode}
 import is.hail.types.physical.stypes.primitives._
 import is.hail.types.virtual._
@@ -39,7 +39,7 @@ sealed trait SingleCodeType {
 
   def virtualType: Type
 
-  def coercePCode(cb: EmitCodeBuilder, pc: SCode, region: Value[Region], deepCopy: Boolean): SingleCodePCode
+  def coerceSCode(cb: EmitCodeBuilder, pc: SCode, region: Value[Region], deepCopy: Boolean): SingleCodeSCode
 
   def loadedSType: SType
 }
@@ -53,7 +53,7 @@ case object Int32SingleCodeType extends SingleCodeType {
 
   def virtualType: Type = TInt32
 
-  def coercePCode(cb: EmitCodeBuilder, pc: SCode, region: Value[Region], deepCopy: Boolean): SingleCodePCode = SingleCodePCode(this, pc.asInt.intCode(cb))
+  def coerceSCode(cb: EmitCodeBuilder, pc: SCode, region: Value[Region], deepCopy: Boolean): SingleCodeSCode = SingleCodeSCode(this, pc.asInt.intCode(cb))
 }
 
 case object Int64SingleCodeType extends SingleCodeType {
@@ -65,7 +65,7 @@ case object Int64SingleCodeType extends SingleCodeType {
 
   def virtualType: Type = TInt64
 
-  def coercePCode(cb: EmitCodeBuilder, pc: SCode, region: Value[Region], deepCopy: Boolean): SingleCodePCode = SingleCodePCode(this, pc.asLong.longCode(cb))
+  def coerceSCode(cb: EmitCodeBuilder, pc: SCode, region: Value[Region], deepCopy: Boolean): SingleCodeSCode = SingleCodeSCode(this, pc.asLong.longCode(cb))
 }
 
 case object Float32SingleCodeType extends SingleCodeType {
@@ -77,7 +77,7 @@ case object Float32SingleCodeType extends SingleCodeType {
 
   def virtualType: Type = TFloat32
 
-  def coercePCode(cb: EmitCodeBuilder, pc: SCode, region: Value[Region], deepCopy: Boolean): SingleCodePCode = SingleCodePCode(this, pc.asFloat.floatCode(cb))
+  def coerceSCode(cb: EmitCodeBuilder, pc: SCode, region: Value[Region], deepCopy: Boolean): SingleCodeSCode = SingleCodeSCode(this, pc.asFloat.floatCode(cb))
 }
 
 case object Float64SingleCodeType extends SingleCodeType {
@@ -89,7 +89,7 @@ case object Float64SingleCodeType extends SingleCodeType {
 
   def virtualType: Type = TFloat64
 
-  def coercePCode(cb: EmitCodeBuilder, pc: SCode, region: Value[Region], deepCopy: Boolean): SingleCodePCode = SingleCodePCode(this, pc.asDouble.doubleCode(cb))
+  def coerceSCode(cb: EmitCodeBuilder, pc: SCode, region: Value[Region], deepCopy: Boolean): SingleCodeSCode = SingleCodeSCode(this, pc.asDouble.doubleCode(cb))
 }
 
 case object BooleanSingleCodeType extends SingleCodeType {
@@ -101,7 +101,7 @@ case object BooleanSingleCodeType extends SingleCodeType {
 
   def virtualType: Type = TBoolean
 
-  def coercePCode(cb: EmitCodeBuilder, pc: SCode, region: Value[Region], deepCopy: Boolean): SingleCodePCode = SingleCodePCode(this, pc.asBoolean.boolCode(cb))
+  def coerceSCode(cb: EmitCodeBuilder, pc: SCode, region: Value[Region], deepCopy: Boolean): SingleCodeSCode = SingleCodeSCode(this, pc.asBoolean.boolCode(cb))
 }
 
 case class StreamSingleCodeType(requiresMemoryManagementPerElement: Boolean, eltType: PType) extends SingleCodeType {
@@ -145,7 +145,7 @@ case class StreamSingleCodeType(requiresMemoryManagementPerElement: Boolean, elt
     SStreamCode(SStream(EmitType(eltType.sType, true)), producer)
   }
 
-  def coercePCode(cb: EmitCodeBuilder, pc: SCode, region: Value[Region], deepCopy: Boolean): SingleCodePCode = throw new UnsupportedOperationException
+  def coerceSCode(cb: EmitCodeBuilder, pc: SCode, region: Value[Region], deepCopy: Boolean): SingleCodeSCode = throw new UnsupportedOperationException
 }
 
 case class PTypeReferenceSingleCodeType(pt: PType) extends SingleCodeType {
@@ -157,15 +157,15 @@ case class PTypeReferenceSingleCodeType(pt: PType) extends SingleCodeType {
 
   def virtualType: Type = pt.virtualType
 
-  def coercePCode(cb: EmitCodeBuilder, pc: SCode, region: Value[Region], deepCopy: Boolean): SingleCodePCode = {
-    SingleCodePCode(this, pt.store(cb, region, pc, deepCopy = deepCopy))
+  def coerceSCode(cb: EmitCodeBuilder, pc: SCode, region: Value[Region], deepCopy: Boolean): SingleCodeSCode = {
+    SingleCodeSCode(this, pt.store(cb, region, pc, deepCopy = deepCopy))
   }
 }
 
-object SingleCodePCode {
-  def fromPCode(cb: EmitCodeBuilder, pc: SCode, region: Value[Region], deepCopy: Boolean = false): SingleCodePCode = {
-    SingleCodeType.fromSType(pc.st).coercePCode(cb, pc, region, deepCopy)
+object SingleCodeSCode {
+  def fromSCode(cb: EmitCodeBuilder, pc: SCode, region: Value[Region], deepCopy: Boolean = false): SingleCodeSCode = {
+    SingleCodeType.fromSType(pc.st).coerceSCode(cb, pc, region, deepCopy)
   }
 }
 
-case class SingleCodePCode(typ: SingleCodeType, code: Code[_])
+case class SingleCodeSCode(typ: SingleCodeType, code: Code[_])

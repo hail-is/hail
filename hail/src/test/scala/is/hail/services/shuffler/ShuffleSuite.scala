@@ -14,6 +14,7 @@ import is.hail.services.shuffler.ShufflerTestUtils._
 import is.hail.io._
 import is.hail.utils._
 import is.hail._
+import is.hail.types.physical.stypes.PTypeReferenceSingleCodeType
 import org.scalatest.testng.TestNGSuite
 import org.testng.annotations.Test
 

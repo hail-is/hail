@@ -15,7 +15,8 @@ import is.hail.io.{BufferSpec, TypedCodecSpec}
 import is.hail.linalg.BlockMatrix
 import is.hail.types._
 import is.hail.types.encoded.EType
-import is.hail.types.physical.{PTuple, PType, PTypeReferenceSingleCodeType, PVoid, SingleCodeType}
+import is.hail.types.physical.stypes.{PTypeReferenceSingleCodeType, SingleCodeType}
+import is.hail.types.physical.{PTuple, PType, PVoid}
 import is.hail.types.virtual.TVoid
 import is.hail.utils._
 import is.hail.variant.ReferenceGenome

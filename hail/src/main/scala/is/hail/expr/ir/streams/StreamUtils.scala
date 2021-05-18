@@ -4,7 +4,8 @@ import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.expr.ir.{EmitCodeBuilder, IEmitCode, IR, NDArrayMap, NDArrayMap2, Ref, RunAggScan, StagedArrayBuilder, StreamFilter, StreamFlatMap, StreamFold, StreamFold2, StreamFor, StreamJoinRightDistinct, StreamMap, StreamScan, StreamZip, StreamZipJoin}
 import is.hail.types.physical.stypes.interfaces.SIndexableCode
-import is.hail.types.physical.{PCanonicalArray, SingleCodePCode, SingleCodeType}
+import is.hail.types.physical.PCanonicalArray
+import is.hail.types.physical.stypes.SingleCodeType
 
 trait StreamArgType {
   def apply(outerRegion: Region, eltRegion: Region): Iterator[java.lang.Long]
@@ -66,7 +67,7 @@ object StreamUtils {
     }) { cb =>
       stream.element.toI(cb).consume(cb,
         cb += ab.addMissing(),
-        sc => cb += ab.add(ab.elt.coercePCode(cb, sc, destRegion, deepCopy = stream.requiresMemoryManagementPerElement).code)
+        sc => cb += ab.add(ab.elt.coerceSCode(cb, sc, destRegion, deepCopy = stream.requiresMemoryManagementPerElement).code)
       )
     }
   }

@@ -16,7 +16,7 @@ import is.hail.types.physical._
 import is.hail.types.physical.stypes.concrete.{SBaseStructPointerCode, SCanonicalShufflePointer, SCanonicalShufflePointerCode, SCanonicalShufflePointerSettable, SNDArrayPointer, SNDArrayPointerCode}
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.physical.stypes.primitives.{SFloat32, SFloat64, SInt32, SInt32Code, SInt64}
-import is.hail.types.physical.stypes.{EmitType, SCode, SType, SValue}
+import is.hail.types.physical.stypes.{EmitType, Int32SingleCodeType, SCode, SType, SValue, SingleCodeSCode, SingleCodeType}
 import is.hail.types.virtual._
 import is.hail.utils._
 import is.hail.utils.richUtils.RichCodeRegion
@@ -102,7 +102,7 @@ object Emit {
             Code.newInstance[RuntimeException, String]("cannot return empty"))
         })
 
-        val scp = SingleCodePCode.fromPCode(cb, SCode, region)
+        val scp = SingleCodeSCode.fromSCode(cb, SCode, region)
         assert(scp.typ.ti == rti, s"type info mismatch: expect $rti, got ${ scp.typ.ti }")
         sct = scp.typ
         scp.code
@@ -1241,7 +1241,7 @@ class Emit[C](
               val stridesSettables = (0 until nDims).map(i => cb.newLocal[Long](s"make_ndarray_stride_$i"))
 
               val shapeValues = (0 until nDims).map { i =>
-                val shape = SingleCodePCode.fromPCode(cb, shapeTupleValue.loadField(cb, i).get(cb), region)
+                val shape = SingleCodeSCode.fromSCode(cb, shapeTupleValue.loadField(cb, i).get(cb), region)
                 cb.newLocalAny[Long](s"make_ndarray_shape_${ i }", shape.code)
               }
 
@@ -1272,7 +1272,7 @@ class Emit[C](
           val childShape = pndVal.shapes(cb)
           val childStrides = pndVal.strides(cb)
 
-          val pndAddr = SingleCodePCode.fromPCode(cb, pndVal, region)
+          val pndAddr = SingleCodeSCode.fromSCode(cb, pndVal, region)
           val dataArray = childPType.dataType.loadCheapPCode(cb, childPType.dataPArrayPointer(pndAddr.code.asInstanceOf[Code[Long]]))
 
           val newShape = indexMap.map { childIndex =>
@@ -1325,8 +1325,8 @@ class Emit[C](
             val outputPType = PCanonicalNDArray(lPType.elementType, TNDArray.matMulNDims(lPType.nDims, rPType.nDims))
 
             if ((lPType.elementType.isInstanceOf[PFloat64] || lPType.elementType.isInstanceOf[PFloat32]) && lPType.nDims == 2 && rPType.nDims == 2) {
-              val leftPValAddr = SingleCodePCode.fromPCode(cb, leftPVal, region)
-              val rightPValAddr = SingleCodePCode.fromPCode(cb, rightPVal, region)
+              val leftPValAddr = SingleCodeSCode.fromSCode(cb, leftPVal, region)
+              val rightPValAddr = SingleCodeSCode.fromSCode(cb, rightPVal, region)
               val leftDataAddress = lPType.dataFirstElementPointer(leftPValAddr.code.asInstanceOf[Code[Long]])
               val rightDataAddress = rPType.dataFirstElementPointer(rightPValAddr.code.asInstanceOf[Code[Long]])
 
@@ -2062,7 +2062,7 @@ class Emit[C](
         val resPType = PCanonicalBinary()
         // FIXME: server needs to send uuid for the successful partition
         val boff = cb.memoize(resPType.loadCheapPCode(cb, resPType.allocate(region, 0)), "shuffleWriteBOff")
-        val baddr = SingleCodePCode.fromPCode(cb, boff, region)
+        val baddr = SingleCodeSCode.fromSCode(cb, boff, region)
         cb += resPType.storeLength(baddr.code.asInstanceOf[Code[Long]], 0)
         presentPC(boff)
 

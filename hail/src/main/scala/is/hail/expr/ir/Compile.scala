@@ -7,8 +7,9 @@ import is.hail.expr.ir.lowering.LoweringPipeline
 import is.hail.expr.ir.streams.{EmitStream, StreamArgType}
 import is.hail.io.fs.FS
 import is.hail.rvd.RVDContext
+import is.hail.types.physical.stypes.{PTypeReferenceSingleCodeType, SingleCodeType, StreamSingleCodeType}
 import is.hail.types.physical.stypes.interfaces.SStream
-import is.hail.types.physical.{PStream, PStruct, PType, PTypeReferenceSingleCodeType, SingleCodeType, StreamSingleCodeType}
+import is.hail.types.physical.{PStream, PStruct, PType}
 import is.hail.types.virtual.Type
 import is.hail.utils._
 

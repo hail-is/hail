@@ -2,7 +2,7 @@ package is.hail.expr.ir
 
 import is.hail.annotations.{Region, RegionValue, RegionValueBuilder, SafeRow, ScalaToRegionValue}
 import is.hail.asm4s._
-import is.hail.types.physical._
+import is.hail.types.physical.{stypes, _}
 import is.hail.types.virtual._
 import is.hail.utils._
 import is.hail.variant.Call2
@@ -12,6 +12,7 @@ import is.hail.expr.ir.streams.{EmitStream, StreamArgType, StreamUtils}
 import is.hail.types.physical.stypes.interfaces.SStreamCode
 import org.apache.spark.sql.Row
 import is.hail.TestUtils._
+import is.hail.types.physical.stypes.{PTypeReferenceSingleCodeType, SingleCodeSCode, StreamSingleCodeType}
 import org.testng.annotations.Test
 
 class EmitStreamSuite extends HailSuite {
@@ -68,7 +69,7 @@ class EmitStreamSuite extends HailSuite {
       EmitStream.produce(new Emit(emitContext, fb.ecb), s, cb, region, Env.empty, None)
         .consumeCode[Long](cb, 0L, { s =>
           val arr = StreamUtils.toArray(cb, s.asStream.producer, region)
-          val scp = SingleCodePCode.fromPCode(cb, arr, region, false)
+          val scp = SingleCodeSCode.fromSCode(cb, arr, region, false)
           arrayType = scp.typ.asInstanceOf[PTypeReferenceSingleCodeType].pt
 
           coerce[Long](scp.code)

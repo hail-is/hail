@@ -1,8 +1,7 @@
 package is.hail.expr.ir
 
 import is.hail.asm4s.{BooleanInfo, Code, TypeInfo, classInfo}
-import is.hail.types.physical.stypes.{EmitType, SCode, SType}
-import is.hail.types.physical.SingleCodeType
+import is.hail.types.physical.stypes.{EmitType, SCode, SType, SingleCodeType}
 import is.hail.types.virtual.Type
 import is.hail.utils.FastIndexedSeq
 
