@@ -253,6 +253,10 @@ class BuildImage2Step(Step):
         else:
             self.base_image = f'{DOCKER_PREFIX}/ci-intermediate'
         self.image = f'{self.base_image}:{self.token}'
+        if publish_as:
+            self.cache_repository = f'{DOCKER_PREFIX}/{self.publish_as}:cache'
+        else:
+            self.cache_repository = f'{DOCKER_PREFIX}/ci-intermediate:cache'
         self.job = None
 
     def wrapped_job(self):
@@ -299,7 +303,6 @@ class BuildImage2Step(Step):
             create_inline_dockerfile_if_present = ''
         dockerfile_in_context = os.path.join(context, 'Dockerfile.' + self.token)
 
-        cache_repo = DOCKER_PREFIX + '/cache'
         script = f'''
 set -ex
 
@@ -319,7 +322,17 @@ set +e
 /busybox/sh /convert-google-application-credentials-to-kaniko-auth-config
 set -e
 
-exec /kaniko/executor --dockerfile={shq(dockerfile_in_context)} --context=dir://{shq(context)} --destination={shq(self.image)} --cache=true --cache-repo={shq(cache_repo)} --snapshotMode=redo --use-new-run'''
+export BUILDKITD_FLAGS=--oci-worker-no-process-sandbox
+exec buildctl-daemonless.sh \
+     build \
+     --frontend dockerfile.v0 \
+     --local context={shq(context)} \
+     --local dockerfile=/home/user \
+     --output type=image,name={shq(self.image)},push=true \
+     --output type=image,name={shq(self.cache_repository)},push=true \
+     --export-cache type=inline \
+     --import-cache type=registry,ref={shq(self.cache_repository)}
+'''
 
         log.info(f'step {self.name}, script:\n{script}')
 

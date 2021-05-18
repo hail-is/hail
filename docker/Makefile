@@ -1,94 +1,55 @@
 include ../config.mk
 
 .PHONY: build
-build: base-stmp service-base hail-ubuntu
+build: base service-base service-java-run-base hail-ubuntu
 
-HAIL_UBUNTU_LATEST = $(DOCKER_PREFIX)/hail-ubuntu:latest
-HAIL_UBUNTU_IMAGE = $(DOCKER_PREFIX)/hail-ubuntu:$(shell docker images -q --no-trunc hail-ubuntu:latest | sed -e 's,[^:]*:,,')
+TOKEN = $(shell cat /dev/urandom | LC_ALL=C tr -dc 'a-z0-9' | head -c 12)
 
-BASE_LATEST = $(DOCKER_PREFIX)/base:latest
-BASE_IMAGE = $(DOCKER_PREFIX)/base:$(shell docker images -q --no-trunc base:latest | sed -e 's,[^:]*:,,')
+HAIL_UBUNTU_IMAGE := $(DOCKER_PREFIX)/hail-ubuntu:$(TOKEN)
+BASE_IMAGE := $(DOCKER_PREFIX)/base:$(TOKEN)
+SERVICE_BASE_IMAGE := $(DOCKER_PREFIX)/service-base:$(TOKEN)
+SERVICE_JAVA_RUN_BASE_IMAGE := $(DOCKER_PREFIX)/service-java-run-base:$(TOKEN)
+HAIL_PUBLIC_IMAGE := $(DOCKER_PREFIX)/hail-public:$(TOKEN)
+GENETICS_PUBLIC_IMAGE := $(DOCKER_PREFIX)/genetics-public:$(TOKEN)
 
-SERVICE_BASE_LATEST = $(DOCKER_PREFIX)/service-base:latest
-SERVICE_BASE_IMAGE = $(DOCKER_PREFIX)/service-base:$(shell docker images -q --no-trunc service-base:latest | sed -e 's,[^:]*:,,')
-
-SERVICE_JAVA_RUN_BASE_LATEST = $(DOCKER_PREFIX)/service-java-run-base:latest
-SERVICE_JAVA_RUN_BASE_IMAGE = $(DOCKER_PREFIX)/service-java-run-base:$(shell docker images -q --no-trunc service-java-run-base:latest | sed -e 's,[^:]*:,,')
-
-HAIL_PUBLIC_LATEST = $(DOCKER_PREFIX)/hail-public:latest
-HAIL_PUBLIC_IMAGE = $(DOCKER_PREFIX)/hail-public:$(shell docker images -q --no-trunc hail-public:latest | sed -e 's,[^:]*:,,')
-
-GENETICS_PUBLIC_LATEST = $(DOCKER_PREFIX)/genetics-public:latest
-GENETICS_PUBLIC_IMAGE = $(DOCKER_PREFIX)/genetics-public:$(shell docker images -q --no-trunc genetics-public:latest | sed -e 's,[^:]*:,,')
-
-.PHONY: hail-ubuntu
 hail-ubuntu: hail-ubuntu-stmp
-
 hail-ubuntu-stmp: hail-ubuntu/Dockerfile hail-ubuntu/hail-pip-install hail-ubuntu/pip.conf hail-ubuntu/hail-apt-get-install
-	-docker pull $(DOCKER_PREFIX)/ubuntu:bionic-20200921
-	-docker pull $(HAIL_UBUNTU_LATEST)
-	python3 ../ci/jinja2_render.py '{"global":{"docker_prefix":"$(DOCKER_PREFIX)"}}' hail-ubuntu/Dockerfile hail-ubuntu/Dockerfile.out
-	docker build -t hail-ubuntu -f hail-ubuntu/Dockerfile.out --cache-from hail-ubuntu,$(HAIL_UBUNTU_LATEST),ubuntu:bionic-20200921 hail-ubuntu
-	touch hail-ubuntu-stmp
+	mkdir -p hail-ubuntu/Dockerfile.out
+	python3 ../ci/jinja2_render.py '{"global":{"docker_prefix":"$(DOCKER_PREFIX)"}}' hail-ubuntu/Dockerfile hail-ubuntu/Dockerfile.out/Dockerfile
+	../docker-build.sh hail-ubuntu Dockerfile.out $(HAIL_UBUNTU_IMAGE)
+	echo $(HAIL_UBUNTU_IMAGE) > hail-ubuntu-stmp
 
-.PHONY: base
-base: base-stmp
+base: hail-ubuntu-stmp Dockerfile.base core-site.xml requirements.txt ../pylintrc ../setup.cfg
+	mkdir -p Dockerfile.base.out
+	python3 ../ci/jinja2_render.py '{"hail_ubuntu_image":{"image":"'$$(cat hail-ubuntu-stmp)'"}}' Dockerfile.base Dockerfile.base.out/Dockerfile
+	../docker-build.sh .. docker/Dockerfile.base.out $(BASE_IMAGE)
+	echo $(BASE_IMAGE) > base
 
-base-stmp: hail-ubuntu-stmp Dockerfile.base core-site.xml requirements.txt ../pylintrc ../setup.cfg
-	-docker pull $(BASE_LATEST)
-	python3 ../ci/jinja2_render.py '{"hail_ubuntu_image":{"image":"hail-ubuntu"}}' Dockerfile.base Dockerfile.base.out
-	[ "$(shell bash stat-permissions.sh Dockerfile.base)" = "644" ]
-	[ "$(shell bash stat-permissions.sh core-site.xml)" = "644" ]
-	[ "$(shell bash stat-permissions.sh requirements.txt)" = "644" ]
-	[ "$(shell bash stat-permissions.sh ../pylintrc)" = "644" ]
-	[ "$(shell bash stat-permissions.sh ../setup.cfg)" = "644" ]
-	docker build -t base -f Dockerfile.base.out --cache-from base,$(BASE_LATEST),hail-ubuntu ..
-	touch base-stmp
+.PHONY: hail_version
+hail_version:
+	$(MAKE) -C ../hail python/hailtop/hail_version
+	cp ../hail/python/hailtop/hail_version ../hail_version
 
 .PHONY: service-base
-service-base: base-stmp
-	-docker pull $(SERVICE_BASE_LATEST)
-	$(MAKE) -C ../hail python/hailtop/hail_version
-	cp ../hail/python/hailtop/hail_version ../hail_version
-	python3 ../ci/jinja2_render.py '{"base_image":{"image":"base"}}' Dockerfile.service-base Dockerfile.service-base.out
-	[ "$(shell bash stat-permissions.sh Dockerfile.service-base.out)" = "644" ]
-	[ "$(shell bash stat-permissions.sh service-base-requirements.txt)" = "644" ]
-	docker build -t service-base -f Dockerfile.service-base.out --cache-from service-base,$(SERVICE_BASE_LATEST),base,hail-ubuntu ..
+service-base: base hail_version
+	mkdir -p Dockerfile.service-base.out
+	python3 ../ci/jinja2_render.py '{"base_image":{"image":"'$$(cat base)'"}}' Dockerfile.service-base Dockerfile.service-base.out/Dockerfile
+	../docker-build.sh .. docker/Dockerfile.service-base.out $(SERVICE_BASE_IMAGE)
+	echo $(SERVICE_BASE_IMAGE) > service-base
 
 .PHONY: service-java-run-base
-service-java-run-base: hail-ubuntu-stmp
-	-docker pull $(SERVICE_JAVA_RUN_BASE_LATEST)
-	$(MAKE) -C ../hail python/hailtop/hail_version
-	cp ../hail/python/hailtop/hail_version ../hail_version
-	python3 ../ci/jinja2_render.py '{"hail_ubuntu_image":{"image":"hail-ubuntu"}}' Dockerfile.service-java-run-base Dockerfile.service-java-run-base.out
-	[ "$(shell bash stat-permissions.sh Dockerfile.service-java-run-base.out)" = "644" ]
-	docker build -t service-java-run-base -f Dockerfile.service-java-run-base.out --cache-from service-java-run-base,$(SERVICE_JAVA_RUN_BASE_LATEST),base,hail-ubuntu ..
-
-.PHONY: push
-push: build
-	docker tag hail-ubuntu $(HAIL_UBUNTU_LATEST)
-	docker push $(HAIL_UBUNTU_LATEST)
-	docker tag hail-ubuntu $(HAIL_UBUNTU_IMAGE)
-	docker push $(HAIL_UBUNTU_IMAGE)
-	docker tag base $(BASE_LATEST)
-	docker push $(BASE_LATEST)
-	docker tag base $(BASE_IMAGE)
-	docker push $(BASE_IMAGE)
-	docker tag service-base $(SERVICE_BASE_LATEST)
-	docker push $(SERVICE_BASE_LATEST)
-	docker tag service-base $(SERVICE_BASE_IMAGE)
-	docker push $(SERVICE_BASE_IMAGE)
-	docker tag service-java-run-base $(SERVICE_JAVA_RUN_BASE_LATEST)
-	docker push $(SERVICE_JAVA_RUN_BASE_LATEST)
-	docker tag service-java-run-base $(SERVICE_JAVA_RUN_BASE_IMAGE)
-	docker push $(SERVICE_JAVA_RUN_BASE_IMAGE)
+service-java-run-base: hail-ubuntu-stmp hail_version
+	mkdir -p Dockerfile.service-java-run-base.out
+	python3 ../ci/jinja2_render.py '{"hail_ubuntu_image":{"image":"'$$(cat hail-ubuntu-stmp)'"}}' Dockerfile.service-java-run-base Dockerfile.service-java-run-base.out/Dockerfile
+	../docker-build.sh .. docker/Dockerfile.service-java-run-base.out $(SERVICE_JAVA_RUN_BASE_IMAGE)
+	echo $(SERVICE_JAVA_RUN_BASE_IMAGE) > service-java-run-base
 
 .PHONY: deploy
-deploy: push
+deploy: build
 
 .PHONY: clean
 clean:
-	rm -f base-stmp hail-ubuntu-stmp
+	rm -f base hail-ubuntu-stmp base service-base service-java-run-base
 
 ## Public Images ###############################################################
 

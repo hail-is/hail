@@ -359,6 +359,10 @@ class Container:
             network = 'public'
         host_config['NetworkMode'] = network  # not documented, I used strace to inspect the packets
 
+        unconfined = self.spec.get('unconfined')
+        if unconfined:
+            host_config['SecurityOpt'] = ["seccomp:unconfined","apparmor:unconfined"]
+
         config['HostConfig'] = host_config
 
         return config
