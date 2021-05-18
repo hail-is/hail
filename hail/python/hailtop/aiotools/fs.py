@@ -138,21 +138,21 @@ class AsyncFS(abc.ABC):
             pass
 
     async def read(self, url: str) -> bytes:
-        async with self.open(url) as f:
+        async with await self.open(url) as f:
             return await f.read()
 
     async def read_from(self, url: str, start: int) -> bytes:
-        async with self.open_from(url, start) as f:
+        async with await self.open_from(url, start) as f:
             return await f.read()
 
     async def read_range(self, url: str, start: int, end: int) -> bytes:
         n = (end - start) + 1
-        async with self.open_from(url, start) as f:
-            return await f.read(url, n)
+        async with await self.open_from(url, start) as f:
+            return await f.read(n)
 
     async def write(self, url: str, data: bytes, *, retry_writes: bool = True) -> None:
-        with self.create(url, retry_writes=retry_writes) as f:
-            return await f.write(data)
+        async with await self.create(url, retry_writes=retry_writes) as f:
+            await f.write(data)
 
     async def close(self) -> None:
         pass
