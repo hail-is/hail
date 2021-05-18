@@ -115,13 +115,13 @@ async def test_read_range(filesystem):
 
     await fs.write(file, b'abcde')
 
-    r = await fs.read_from(file, 2, 2)
+    r = await fs.read_range(file, 2, 2)
     assert r == b'c'
 
-    r = await fs.read_from(file, 2, 4)
+    r = await fs.read_range(file, 2, 4)
     assert r == b'cde'
 
-    r = await fs.read_from(file, 2, 10)
+    r = await fs.read_range(file, 2, 10)
     assert r == b'cde'
 
 
@@ -352,7 +352,8 @@ async def test_multi_part_create(filesystem, permutation):
     path = f'{base}a'
     async with await fs.multi_part_create(sema, path, len(part_data)) as c:
         async def create_part(i):
-            await fs.write(c.create_part(i, part_start[i]), part_data[i])
+            async with await c.create_part(i, part_start[i]) as f:
+                await f.write(part_data[i])
 
         if permutation:
             # do it in a fixed order
@@ -385,7 +386,8 @@ async def test_multi_part_create_many(filesystem):
         path = f'{base}a'
         async with await fs.multi_part_create(sema, path, len(part_data)) as c:
             async def create_part(i):
-                await fs.write(c.create_part(i, part_start[i]), part_data[i])
+                async with await c.create_part(i, part_start[i]) as f:
+                    await f.write(part_data[i])
 
             # do in parallel
             await bounded_gather2(sema, *[
