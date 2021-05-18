@@ -42,18 +42,18 @@ case class SInsertFieldsStruct(virtualType: TStruct, parent: SBaseStruct, newFie
 
   override def fromCodes(codes: IndexedSeq[Code[_]]): SInsertFieldsStructCode = {
     assert(codes.map(_.ti) == codeTupleTypes)
-    new SInsertFieldsStructCode(this, parent.fromCodes(codes.take(parent.nSettables)).asInstanceOf[SBaseStructCode], fieldEmitTypes.indices.map { i =>
-      val et = fieldEmitTypes(i)
-      val start = newFieldCodeStarts(i + parent.nCodes)
-      et.fromCodes(codes.slice(start, start + et.nSettables))
+    new SInsertFieldsStructCode(this, parent.fromCodes(codes.take(parent.nCodes)).asInstanceOf[SBaseStructCode], newFields.indices.map { i =>
+      val et = newFields(i)._2
+      val start = newFieldCodeStarts(i) + parent.nCodes
+      et.fromCodes(codes.slice(start, start + et.nCodes))
     })
   }
 
   override def fromSettables(settables: IndexedSeq[Settable[_]]): SInsertFieldsStructSettable = {
     assert(settables.map(_.ti) == settableTupleTypes)
-    new SInsertFieldsStructSettable(this, parent.fromSettables(settables.take(parent.nSettables)).asInstanceOf[SStructSettable], fieldEmitTypes.indices.map { i =>
-      val et = fieldEmitTypes(i)
-      val start = newFieldSettableStarts(i + parent.nSettables)
+    new SInsertFieldsStructSettable(this, parent.fromSettables(settables.take(parent.nSettables)).asInstanceOf[SStructSettable], newFields.indices.map { i =>
+      val et = newFields(i)._2
+      val start = newFieldSettableStarts(i) + parent.nSettables
       et.fromSettables(settables.slice(start, start + et.nSettables))
     })
   }
