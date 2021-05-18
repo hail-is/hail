@@ -3063,7 +3063,7 @@ steps:
         namespace:
           valueFrom: default_ns.name
         mountPath: /ssl-config
-    timeout: 5400
+    timeout: 1200
     scopes:
       - test
       - dev

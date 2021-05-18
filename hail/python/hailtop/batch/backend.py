@@ -548,7 +548,7 @@ class ServiceBackend(Backend):
 
         if delete_scratch_on_exit and used_remote_tmpdir:
             parents = list(jobs_to_command.keys())
-            rm_cmd = f'gsutil -m rm -r {remote_tmpdir}'
+            rm_cmd = f'gsutil -m rm -rf {remote_tmpdir}'
             cmd = f'''
 {bash_flags}
 {activate_service_account}

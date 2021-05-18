@@ -269,7 +269,9 @@ LOCK IN SHARE MODE;
         await periodically_call(15, self.create_instances)
 
     async def compact_instances(self):
-        async def kill(instance):
+        async def prune(instance):
+            log.info(f'pruning {instance} with state {instance.state}')
+
             if instance.state == 'pending':
                 await self.call_delete_instance(instance, 'pruned')
                 return
@@ -300,6 +302,15 @@ LOCK IN SHARE MODE;
         efficiency = utilized_cores_mcpu / self.live_total_cores_mcpu
         self.pool_fully_utilized_counter.push(time_msecs(), efficiency >= 0.95)
 
+        log.info(f'compact loop: ',
+                 f'n_live_instances={n_live_instances} '
+                 f'ready_cores_mcpu={ready_cores_mcpu} '
+                 f'live_total_cores_mcpu={self.live_total_cores_mcpu} '
+                 f'free_cores_mcpu={self.live_free_cores_mcpu} '
+                 f'utilized_cores_mcpu={utilized_cores_mcpu} '
+                 f'efficiency={efficiency} '
+                 f'fraction={self.pool_fully_utilized_counter.fraction()}')
+
         if self.pool_fully_utilized_counter.is_full() and self.pool_fully_utilized_counter.fraction() < 0.5:
             max_instances_needed = max(int(self.enable_standing_worker),
                                        (ready_cores_mcpu + utilized_cores_mcpu + (self.worker_cores * 1000) - 1) // (self.worker_cores * 1000))
@@ -310,9 +321,18 @@ LOCK IN SHARE MODE;
 
                 prune_state_counts = collections.Counter([instance.state for instance in instances_to_prune])
 
-                log.info(f'pruning {len(instances_to_prune)} instances; max_instances_needed={max_instances_needed} n_live_instances={n_live_instances} instance_states={prune_state_counts}')
+                log.info(f'pruning {len(instances_to_prune)} instances; '
+                         f'max_instances_needed={max_instances_needed} '
+                         f'n_live_instances={n_live_instances} '
+                         f'instance_states={prune_state_counts} '
+                         f'ready_cores_mcpu={ready_cores_mcpu} '
+                         f'live_total_cores_mcpu={self.live_total_cores_mcpu} '
+                         f'free_cores_mcpu={self.live_free_cores_mcpu} '
+                         f'utilized_cores_mcpu={utilized_cores_mcpu} '
+                         f'efficiency={efficiency} '
+                         f'fraction={self.pool_fully_utilized_counter.fraction()}')
 
-                await asyncio.gather(*[kill(instance) for instance in instances_to_prune])
+                await asyncio.gather(*[prune(instance) for instance in instances_to_prune])
 
             self.pool_fully_utilized_counter.clear()
 
