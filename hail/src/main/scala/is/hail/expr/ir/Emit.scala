@@ -6,6 +6,7 @@ import is.hail.backend.BackendContext
 import is.hail.expr.ir.agg.{AggStateSig, ArrayAggStateSig, GroupedStateSig}
 import is.hail.expr.ir.analyses.{ComputeMethodSplits, ControlFlowPreventsSplit, ParentPointers}
 import is.hail.expr.ir.lowering.TableStageDependency
+import is.hail.expr.ir.ndarrays.EmitNDArray
 import is.hail.expr.ir.streams.{EmitStream, StreamProducer, StreamUtils}
 import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer, TypedCodecSpec}
 import is.hail.linalg.{BLAS, LAPACK, LinalgCodeUtils}
@@ -776,6 +777,8 @@ class Emit[C](
 
     def emitDeforestedNDArrayI(ir: IR): IEmitCode =
       deforestNDArrayI(ir, cb, region, env)
+
+    def newEmitDeforstedNDArrayI(ir: IR): IEmitCode = EmitNDArray(this, ir, cb, region, env, container)
 
     def emitNDArrayColumnMajorStrides(ir: IR): IEmitCode = {
       emitI(ir).map(cb) { case pNDCode: SNDArrayCode =>
@@ -1874,7 +1877,7 @@ class Emit[C](
           }
           result
         }
-      case x: NDArrayMap => emitDeforestedNDArrayI(x)
+      case x: NDArrayMap => newEmitDeforstedNDArrayI(x)
       case x: NDArrayMap2 => emitDeforestedNDArrayI(x)
       case x: NDArrayReshape => emitDeforestedNDArrayI(x)
       case x: NDArrayConcat => emitDeforestedNDArrayI(x)
