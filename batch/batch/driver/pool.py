@@ -36,16 +36,6 @@ from .job import schedule_job
 log = logging.getLogger('pool')
 
 
-def instance_compaction_priority(instance: Instance):
-    if instance.state == 'pending':
-        state_bin = 0
-    else:
-        assert instance.state == 'active', (instance.name, instance.state)
-        state_bin = 1
-
-    return (state_bin, -instance.time_created, -instance.free_cores_mcpu)
-
-
 class Pool(InstanceCollection):
     def __init__(self, app, machine_name_prefix: str, config: PoolConfig):
         super().__init__(app, config.name, machine_name_prefix, is_pool=True)
@@ -55,7 +45,7 @@ class Pool(InstanceCollection):
         self.scheduler = PoolScheduler(self.app, self)
 
         self.healthy_instances_by_free_cores = sortedcontainers.SortedSet(key=lambda instance: instance.free_cores_mcpu)
-        self.healthy_instances_by_compaction_priority = sortedcontainers.SortedSet(key=instance_compaction_priority)
+        self.healthy_instances_by_compaction_priority = sortedcontainers.SortedSet(key=lambda instance: -instance.time_created)
         self.pool_fully_utilized_counter = WindowFractionCounter(5)
 
         self.worker_type = config.worker_type
@@ -323,7 +313,6 @@ LOCK IN SHARE MODE;
                 log.info(f'pruning {len(instances_to_prune)} instances; max_instances_needed={max_instances_needed} n_live_instances={n_live_instances} instance_states={prune_state_counts}')
 
                 await asyncio.gather(*[kill(instance) for instance in instances_to_prune])
-
 
             self.pool_fully_utilized_counter.clear()
 
