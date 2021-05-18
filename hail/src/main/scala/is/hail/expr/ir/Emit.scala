@@ -1445,6 +1445,8 @@ class Emit[C](
 
               val M = lShape(lSType.nDims - 2)
               val N = lShape(lSType.nDims - 1)
+              val outputSize = cb.newLocal[Long]("output_size", M)
+
               val alpha = 1.0
               val beta = 0.0
 
@@ -1452,8 +1454,8 @@ class Emit[C](
               val TRANS: Code[String] = leftIsColumnMajor.mux("N", "T")
 
               val (answerFirstElementAddr, answerFinisher) = outputPType.constructDataFunction(
-                IndexedSeq(M),
-                outputPType.makeColumnMajorStrides(IndexedSeq(M), region, cb),
+                IndexedSeq(outputSize),
+                outputPType.makeColumnMajorStrides(IndexedSeq(outputSize), region, cb),
                 cb,
                 region)
               
@@ -1471,7 +1473,14 @@ class Emit[C](
                 1
               ))
 
-              answerFinisher(cb)
+
+              val res = answerFinisher(cb).memoize(cb, "foo")
+              cb.println(const("M = ").concat(M.toS))
+              cb.println(const("N = ").concat(N.toS))
+              cb.println(const("left: ") concat cb.strValue(leftPVal))
+              cb.println(const("right: ") concat cb.strValue(rightPVal))
+              cb.println(const("ans: ") concat cb.strValue(res))
+              res
             }  else {
               val numericElementType = coerce[PNumeric](lSType.elementType.canonicalPType())
               val eVti = typeToTypeInfo(numericElementType)
