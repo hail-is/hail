@@ -27,8 +27,8 @@ case class SInsertFieldsStruct(virtualType: TStruct, parent: SBaseStruct, newFie
     case None => parent.fieldEmitTypes(parent.fieldIdx(f))
   })
 
-  private lazy val newFieldCodeStarts = fieldEmitTypes.map(_.nCodes).scanLeft(0)(_ + _).init
-  private lazy val newFieldSettableStarts = fieldEmitTypes.map(_.nSettables).scanLeft(0)(_ + _).init
+  private lazy val newFieldCodeStarts = newFields.map(_._2.nCodes).scanLeft(0)(_ + _).init
+  private lazy val newFieldSettableStarts = newFields.map(_._2.nSettables).scanLeft(0)(_ + _).init
 
   override lazy val fieldTypes: IndexedSeq[SType] = fieldEmitTypes.map(_.st)
 
