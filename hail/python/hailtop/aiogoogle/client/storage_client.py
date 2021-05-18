@@ -735,7 +735,7 @@ class GoogleStorageAsyncFS(AsyncFS):
             if e.status != 404:
                 raise
 
-    async def rmtree(self, sema: asyncio.Semaphore, url: str) -> None:
+    async def _rmtree(self, url: str, sema: asyncio.Semaphore) -> None:
         async with OnlineBoundedGather2(sema) as pool:
             try:
                 it = await self.listfiles(url, recursive=True)
@@ -743,6 +743,14 @@ class GoogleStorageAsyncFS(AsyncFS):
                 return
             async for entry in it:
                 await pool.call(self._remove_doesnt_exist_ok, await entry.url())
+
+    async def rmtree(self, url: str, sema: Optional[asyncio.Semaphore] = None) -> None:
+        if sema is None:
+            sema = asyncio.Semaphore(50)
+            async with sema:
+                return await self._rmtree(url, sema)
+
+        return await self._rmtree(url, sema)
 
     async def close(self) -> None:
         await self._storage_client.close()

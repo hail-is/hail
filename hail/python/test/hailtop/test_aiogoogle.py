@@ -35,7 +35,7 @@ async def filesystem(request):
             sema = asyncio.Semaphore(50)
             async with sema:
                 yield (sema, fs, base)
-                await fs.rmtree(sema, base)
+                await fs.rmtree(base, sema)
             assert not await fs.isdir(base)
 
 
@@ -50,7 +50,7 @@ async def local_filesystem(request):
             sema = asyncio.Semaphore(50)
             async with sema:
                 yield (sema, fs, base)
-                await fs.rmtree(sema, base)
+                await fs.rmtree(base, sema)
             assert not await fs.isdir(base)
 
 
@@ -94,6 +94,35 @@ async def test_open_from(filesystem):
     async with await fs.open_from(file, 2) as f:
         r = await f.read()
         assert r == b'cde'
+
+
+@pytest.mark.asyncio
+async def test_read_from(filesystem):
+    sema, fs, base = filesystem
+
+    file = f'{base}foo'
+
+    await fs.write(file, b'abcde')
+    r = await fs.read_from(file, 2)
+    assert r == b'cde'
+
+
+@pytest.mark.asyncio
+async def test_read_range(filesystem):
+    sema, fs, base = filesystem
+
+    file = f'{base}foo'
+
+    await fs.write(file, b'abcde')
+
+    r = await fs.read_from(file, 2, 2)
+    assert r == b'c'
+
+    r = await fs.read_from(file, 2, 4)
+    assert r == b'cde'
+
+    r = await fs.read_from(file, 2, 10)
+    assert r == b'cde'
 
 
 @pytest.mark.asyncio
@@ -175,7 +204,7 @@ async def test_rmtree(filesystem):
 
     assert await fs.isdir(dir)
 
-    await fs.rmtree(sema, dir)
+    await fs.rmtree(dir, sema)
 
     assert not await fs.isdir(dir)
 
@@ -255,9 +284,7 @@ async def test_statfile(filesystem):
 
     n = 37
     file = f'{base}bar'
-    async with await fs.create(file) as f:
-        await f.write(secrets.token_bytes(n))
-
+    await fs.write(file, secrets.token_bytes(n))
     status = await fs.statfile(file)
     assert await status.size() == n
 
@@ -325,8 +352,7 @@ async def test_multi_part_create(filesystem, permutation):
     path = f'{base}a'
     async with await fs.multi_part_create(sema, path, len(part_data)) as c:
         async def create_part(i):
-            async with await c.create_part(i, part_start[i]) as f:
-                await f.write(part_data[i])
+            await fs.write(c.create_part(i, part_start[i]), part_data[i])
 
         if permutation:
             # do it in a fixed order
@@ -338,8 +364,7 @@ async def test_multi_part_create(filesystem, permutation):
                 create_part(i) for i in range(len(part_data))])
 
     expected = b''.join(part_data)
-    async with await fs.open(path) as f:
-        actual = await f.read()
+    actual = await fs.read(path)
     assert expected == actual
 
 
@@ -360,16 +385,14 @@ async def test_multi_part_create_many(filesystem):
         path = f'{base}a'
         async with await fs.multi_part_create(sema, path, len(part_data)) as c:
             async def create_part(i):
-                async with await c.create_part(i, part_start[i]) as f:
-                    await f.write(part_data[i])
+                await fs.write(c.create_part(i, part_start[i]), part_data[i])
 
             # do in parallel
             await bounded_gather2(sema, *[
                 create_part(i) for i in range(len(part_data))])
 
         expected = b''.join(part_data)
-        async with await fs.open(path) as f:
-            actual = await f.read()
+        actual = await fs.read(path)
         assert expected == actual
     except (concurrent.futures._base.CancelledError, asyncio.CancelledError) as err:
         raise AssertionError('uncaught cancelled error') from err
