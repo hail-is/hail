@@ -6,7 +6,7 @@ import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.io.{InputBuffer, OutputBuffer}
 import is.hail.types.BaseStruct
 import is.hail.types.physical._
-import is.hail.types.physical.stypes.SType
+import is.hail.types.physical.stypes.{SCode, SType, SValue}
 import is.hail.types.physical.stypes.concrete._
 import is.hail.types.physical.stypes.interfaces.SBaseStructValue
 import is.hail.types.virtual._
@@ -70,7 +70,7 @@ final case class EBaseStruct(fields: IndexedSeq[EField], override val required: 
       SBaseStructPointer(PCanonicalTuple(pFields, false))
   }
 
-  override def _buildEncoder(cb: EmitCodeBuilder, v: PValue, out: Value[OutputBuffer]): Unit = {
+  override def _buildEncoder(cb: EmitCodeBuilder, v: SValue, out: Value[OutputBuffer]): Unit = {
     val structValue = v.st match {
       case SIntervalPointer(t: PCanonicalInterval) => new SBaseStructPointerSettable(
         SBaseStructPointer(t.representation),
@@ -121,15 +121,14 @@ final case class EBaseStruct(fields: IndexedSeq[EField], override val required: 
           if (ef.typ.required)
             cb._fatal(s"required field ${ ef.name } saw missing value in encode")
         },
-        { _pc =>
-          val pc = _pc.asPCode
+        { pc =>
           ef.typ.buildEncoder(pc.st, cb.emb.ecb)
             .apply(cb, pc, out)
         })
     }
   }
 
-  override def _buildDecoder(cb: EmitCodeBuilder, t: Type, region: Value[Region], in: Value[InputBuffer]): PCode = {
+  override def _buildDecoder(cb: EmitCodeBuilder, t: Type, region: Value[Region], in: Value[InputBuffer]): SCode = {
     val pt = decodedPType(t)
     val addr = cb.newLocal[Long]("base_struct_dec_addr", region.allocate(pt.alignment, pt.byteSize))
     _buildInplaceDecoder(cb, pt, region, addr, in)

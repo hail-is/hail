@@ -4,8 +4,8 @@ import is.hail.annotations.Region
 import is.hail.asm4s.{Code, Settable, TypeInfo, UnitInfo, Value}
 import is.hail.expr.ir.orderings.CodeOrdering
 import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, SortOrder}
-import is.hail.types.physical.stypes.{SCode, SSettable, SType}
-import is.hail.types.physical.{PCode, PType, PUnrealizableCode, PValue, PVoid}
+import is.hail.types.physical.stypes.{SCode, SSettable, SType, SUnrealizableCode, SValue}
+import is.hail.types.physical.{PType, PVoid}
 import is.hail.types.virtual.{TVoid, Type}
 
 case object SVoid extends SType {
@@ -27,17 +27,17 @@ case object SVoid extends SType {
   def canonicalPType(): PType = throw new UnsupportedOperationException
 }
 
-case object PVoidCode extends PCode with PUnrealizableCode {
+case object SVoidCode extends SCode with SUnrealizableCode {
   self =>
 
   override def st: SType = SVoid
 
   override def code: Code[_] = Code._empty
 
-  def memoize(cb: EmitCodeBuilder, name: String): PValue = new PValue {
+  def memoize(cb: EmitCodeBuilder, name: String): SValue = new SValue {
     val pt: PType = PVoid
     val st: SType = SVoid
 
-    def get: PCode = self
+    def get: SCode = self
   }
 }

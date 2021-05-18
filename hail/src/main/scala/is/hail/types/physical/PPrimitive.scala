@@ -9,7 +9,7 @@ import is.hail.utils._
 trait PPrimitive extends PType {
   def byteSize: Long
 
-  def _construct(mb: EmitMethodBuilder[_], region: Value[Region], pc: PCode): PCode = pc
+  def _construct(mb: EmitMethodBuilder[_], region: Value[Region], pc: SCode): SCode = pc
 
   override def containsPointers: Boolean = false
 

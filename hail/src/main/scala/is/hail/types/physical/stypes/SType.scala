@@ -7,7 +7,7 @@ import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, EmitParamType, PCode
 import is.hail.types.{TypeWithRequiredness, VirtualTypeWithReq}
 import is.hail.types.physical.stypes.interfaces.SStream
 import is.hail.types.physical.stypes.primitives._
-import is.hail.types.physical.{PCode, PType}
+import is.hail.types.physical.PType
 import is.hail.types.virtual._
 
 
@@ -23,7 +23,7 @@ object SType {
     PType.canonical(virt).sType
   }
 
-  def extractPrimCode(cb: EmitCodeBuilder, x: PCode): Code[_] = x.st.virtualType match {
+  def extractPrimCode(cb: EmitCodeBuilder, x: SCode): Code[_] = x.st.virtualType match {
       case TInt32 => x.asInt.intCode(cb)
       case TInt64 => x.asLong.longCode(cb)
       case TFloat32 => x.asFloat.floatCode(cb)

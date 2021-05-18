@@ -179,7 +179,7 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
     dataCode: SIndexableCode,
     cb: EmitCodeBuilder,
     region: Value[Region]
-  ): PNDArrayCode = {
+  ): SNDArrayCode = {
     assert(shape.length == nDims, s"nDims = ${ nDims }, nShapeElts=${ shape.length }")
     assert(strides.length == nDims, s"nDims = ${ nDims }, nShapeElts=${ strides.length }")
 
@@ -214,7 +214,7 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
       }
     }
 
-    cb.invokePCode(mb, FastIndexedSeq[Param](region, PCodeParam(dataCode.asPCode)) ++ (shape.map(CodeParam(_)) ++ strides.map(CodeParam(_))): _*)
+    cb.invokePCode(mb, FastIndexedSeq[Param](region, PCodeParam(dataCode)) ++ (shape.map(CodeParam(_)) ++ strides.map(CodeParam(_))): _*)
       .asNDArray
   }
 
@@ -348,7 +348,7 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
 
   def sType: SNDArrayPointer = SNDArrayPointer(setRequired(false).asInstanceOf[PCanonicalNDArray])
 
-  def loadCheapPCode(cb: EmitCodeBuilder, addr: Code[Long]): PCode = new SNDArrayPointerCode(sType, addr)
+  def loadCheapPCode(cb: EmitCodeBuilder, addr: Code[Long]): SCode = new SNDArrayPointerCode(sType, addr)
 
   def store(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): Code[Long] = {
     value.st match {

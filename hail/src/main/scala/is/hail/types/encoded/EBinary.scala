@@ -7,7 +7,7 @@ import is.hail.types.BaseType
 import is.hail.types.physical._
 import is.hail.types.virtual._
 import is.hail.io.{InputBuffer, OutputBuffer}
-import is.hail.types.physical.stypes.SType
+import is.hail.types.physical.stypes.{SCode, SType, SValue}
 import is.hail.types.physical.stypes.concrete.{SBinaryPointer, SBinaryPointerCode, SBinaryPointerSettable, SStringPointer, SStringPointerCode, SStringPointerSettable}
 import is.hail.types.physical.stypes.interfaces.SBinaryValue
 import is.hail.utils._
@@ -17,7 +17,7 @@ case object EBinaryRequired extends EBinary(true)
 
 class EBinary(override val required: Boolean) extends EType {
 
-  override def _buildEncoder(cb: EmitCodeBuilder, v: PValue, out: Value[OutputBuffer]): Unit = {
+  override def _buildEncoder(cb: EmitCodeBuilder, v: SValue, out: Value[OutputBuffer]): Unit = {
     val bin = v.st match {
       case SBinaryPointer(t) => v.asInstanceOf[SBinaryValue]
       case SStringPointer(t) => new SBinaryPointerSettable(SBinaryPointer(t.binaryRepresentation), v.asInstanceOf[SStringPointerSettable].a)
@@ -28,7 +28,7 @@ class EBinary(override val required: Boolean) extends EType {
     cb += out.writeBytes(bin.bytesAddress(), len)
   }
 
-  override def _buildDecoder(cb: EmitCodeBuilder, t: Type, region: Value[Region], in: Value[InputBuffer]): PCode = {
+  override def _buildDecoder(cb: EmitCodeBuilder, t: Type, region: Value[Region], in: Value[InputBuffer]): SCode = {
     val t1 = decodedSType(t)
     val pt = t1 match {
       case SStringPointer(t) => t.binaryRepresentation

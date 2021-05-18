@@ -2,7 +2,7 @@ package is.hail.expr.ir
 
 import is.hail.annotations.Region
 import is.hail.asm4s._
-import is.hail.types.physical.{PCode, PType, PValue, SingleCodeType, typeToTypeInfo}
+import is.hail.types.physical.{PType, SingleCodeType, typeToTypeInfo}
 import is.hail.types.virtual.Type
 import is.hail.utils.BoxedArrayBuilder
 

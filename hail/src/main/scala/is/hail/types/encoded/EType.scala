@@ -1,7 +1,6 @@
 package is.hail.types.encoded
 import java.util
 import java.util.Map.Entry
-
 import is.hail.HailContext
 import is.hail.annotations.Region
 import is.hail.asm4s.{coerce => _, _}
@@ -9,7 +8,7 @@ import is.hail.expr.ir.{EmitClassBuilder, EmitCodeBuilder, EmitFunctionBuilder, 
 import is.hail.io._
 import is.hail.types._
 import is.hail.types.physical._
-import is.hail.types.physical.stypes.{SCode, SType}
+import is.hail.types.physical.stypes.{SCode, SType, SValue}
 import is.hail.types.virtual._
 import is.hail.utils._
 import org.json4s.CustomSerializer
@@ -25,7 +24,7 @@ class ETypeSerializer extends CustomSerializer[EType](format => ( {
 
 abstract class EType extends BaseType with Serializable with Requiredness {
   type StagedEncoder = (EmitCodeBuilder, SCode, Code[OutputBuffer]) => Unit
-  type StagedDecoder = (EmitCodeBuilder, Code[Region], Code[InputBuffer]) => PCode
+  type StagedDecoder = (EmitCodeBuilder, Code[Region], Code[InputBuffer]) => SCode
   type StagedInplaceDecoder = (EmitCodeBuilder, Code[Region], Code[Long], Code[InputBuffer]) => Unit
 
   final def buildEncoder(ctx: ExecuteContext, t: PType): (OutputBuffer) => Encoder = {
@@ -45,7 +44,7 @@ abstract class EType extends BaseType with Serializable with Requiredness {
 
   final def buildEncoder(st: SType, kb: EmitClassBuilder[_]): StagedEncoder = {
     val mb = buildEncoderMethod(st, kb);
-    { (cb: EmitCodeBuilder, sc: SCode, ob: Code[OutputBuffer]) => cb.invokeVoid(mb, sc.asPCode, ob) }
+    { (cb: EmitCodeBuilder, sc: SCode, ob: Code[OutputBuffer]) => cb.invokeVoid(mb, sc, ob) }
   }
 
   final def buildEncoderMethod(st: SType, kb: EmitClassBuilder[_]): EmitMethodBuilder[_] = {
@@ -123,9 +122,9 @@ abstract class EType extends BaseType with Serializable with Requiredness {
     }).invokeCode(_, _)
   }
 
-  def _buildEncoder(cb: EmitCodeBuilder, v: PValue, out: Value[OutputBuffer]): Unit
+  def _buildEncoder(cb: EmitCodeBuilder, v: SValue, out: Value[OutputBuffer]): Unit
 
-  def _buildDecoder(cb: EmitCodeBuilder, t: Type, region: Value[Region], in: Value[InputBuffer]): PCode
+  def _buildDecoder(cb: EmitCodeBuilder, t: Type, region: Value[Region], in: Value[InputBuffer]): SCode
 
   def _buildInplaceDecoder(
     cb: EmitCodeBuilder,

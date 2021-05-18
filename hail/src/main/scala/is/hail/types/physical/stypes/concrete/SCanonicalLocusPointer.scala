@@ -4,9 +4,9 @@ import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.expr.ir.orderings.CodeOrdering
 import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, SortOrder}
-import is.hail.types.physical.stypes.interfaces.{SLocus, SString}
-import is.hail.types.physical.stypes.{SCode, SType}
-import is.hail.types.physical.{PCanonicalLocus, PCode, PLocusCode, PLocusValue, PSettable, PStringCode, PType}
+import is.hail.types.physical.stypes.interfaces.{SLocus, SLocusCode, SLocusValue, SString, SStringCode}
+import is.hail.types.physical.stypes.{SCode, SSettable, SType}
+import is.hail.types.physical.{PCanonicalLocus, PType}
 import is.hail.types.virtual.Type
 import is.hail.utils.FastIndexedSeq
 import is.hail.variant.{Locus, ReferenceGenome}
@@ -70,34 +70,34 @@ class SCanonicalLocusPointerSettable(
   val a: Settable[Long],
   _contig: Settable[Long],
   val _position: Settable[Int]
-) extends PLocusValue with PSettable {
+) extends SLocusValue with SSettable {
   val pt: PCanonicalLocus = st.pType
 
   def get = new SCanonicalLocusPointerCode(st, a)
 
   def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(a, _contig, _position)
 
-  def store(cb: EmitCodeBuilder, pc: PCode): Unit = {
+  def store(cb: EmitCodeBuilder, pc: SCode): Unit = {
     cb.assign(a, pc.asInstanceOf[SCanonicalLocusPointerCode].a)
     cb.assign(_contig, pt.contigAddr(a))
     cb.assign(_position, pt.position(a))
   }
 
-  def contig(cb: EmitCodeBuilder): PStringCode = {
+  def contig(cb: EmitCodeBuilder): SStringCode = {
     pt.contigType.loadCheapPCode(cb, _contig).asString
   }
 
   def position(cb: EmitCodeBuilder): Code[Int] = _position
 }
 
-class SCanonicalLocusPointerCode(val st: SCanonicalLocusPointer, val a: Code[Long]) extends PLocusCode {
+class SCanonicalLocusPointerCode(val st: SCanonicalLocusPointer, val a: Code[Long]) extends SLocusCode {
   val pt: PCanonicalLocus = st.pType
 
   def code: Code[_] = a
 
   def codeTuple(): IndexedSeq[Code[_]] = FastIndexedSeq(a)
 
-  def contig(cb: EmitCodeBuilder): PStringCode = pt.contigType.loadCheapPCode(cb, pt.contigAddr(a)).asString
+  def contig(cb: EmitCodeBuilder): SStringCode = pt.contigType.loadCheapPCode(cb, pt.contigAddr(a)).asString
 
   def position(cb: EmitCodeBuilder): Code[Int] = pt.position(a)
 

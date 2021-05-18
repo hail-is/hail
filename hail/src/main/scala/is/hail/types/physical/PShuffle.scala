@@ -27,17 +27,3 @@ abstract class PShuffle extends PType {
 
   def allocate(region: Code[Region], length: Code[Int]): Code[Long]
 }
-
-abstract class PShuffleValue extends PValue with SShuffleValue {
-  def loadLength(): Code[Int]
-
-  def loadBytes(): Code[Array[Byte]]
-}
-
-abstract class PShuffleCode extends PCode with SShuffleCode {
-  def pt: PShuffle
-
-  def memoize(cb: EmitCodeBuilder, name: String): PShuffleValue
-
-  def memoizeField(cb: EmitCodeBuilder, name: String): PShuffleValue
-}

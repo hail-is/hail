@@ -60,7 +60,7 @@ class PCanonicalString(val required: Boolean) extends PString {
 
   def sType: SStringPointer = SStringPointer(setRequired(false).asInstanceOf[PCanonicalString])
 
-  def loadCheapPCode(cb: EmitCodeBuilder, addr: Code[Long]): PCode = new SStringPointerCode(sType, addr)
+  def loadCheapPCode(cb: EmitCodeBuilder, addr: Code[Long]): SCode = new SStringPointerCode(sType, addr)
 
   def store(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): Code[Long] = {
     value.st match {

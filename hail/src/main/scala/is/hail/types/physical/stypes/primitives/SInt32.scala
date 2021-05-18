@@ -4,8 +4,8 @@ import is.hail.annotations.Region
 import is.hail.asm4s.{Code, IntInfo, Settable, SettableBuilder, TypeInfo, Value}
 import is.hail.expr.ir.orderings.CodeOrdering
 import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, SortOrder}
-import is.hail.types.physical.stypes.{SCode, SType}
-import is.hail.types.physical.{PCode, PInt32, PSettable, PType, PValue}
+import is.hail.types.physical.stypes.{SCode, SSettable, SType, SValue}
+import is.hail.types.physical.{PInt32, PType}
 import is.hail.types.virtual.{TInt32, Type}
 import is.hail.utils.FastIndexedSeq
 
@@ -46,26 +46,26 @@ case object SInt32 extends SPrimitive {
   def canonicalPType(): PType = PInt32()
 }
 
-trait PInt32Value extends PValue {
+trait SInt32Value extends SValue {
   def intCode(cb: EmitCodeBuilder): Code[Int]
 }
 
-class SInt32Code(val code: Code[Int]) extends PCode with SPrimitiveCode {
+class SInt32Code(val code: Code[Int]) extends SCode with SPrimitiveCode {
   override def _primitiveCode: Code[_] = code
 
   def st: SInt32.type = SInt32
 
   def codeTuple(): IndexedSeq[Code[_]] = FastIndexedSeq(code)
 
-  private[this] def memoizeWithBuilder(cb: EmitCodeBuilder, name: String, sb: SettableBuilder): PInt32Value = {
+  private[this] def memoizeWithBuilder(cb: EmitCodeBuilder, name: String, sb: SettableBuilder): SInt32Value = {
     val s = new SInt32Settable(sb.newSettable[Int]("sInt32_memoize"))
     s.store(cb, this)
     s
   }
 
-  def memoize(cb: EmitCodeBuilder, name: String): PInt32Value = memoizeWithBuilder(cb, name, cb.localBuilder)
+  def memoize(cb: EmitCodeBuilder, name: String): SInt32Value = memoizeWithBuilder(cb, name, cb.localBuilder)
 
-  def memoizeField(cb: EmitCodeBuilder, name: String): PInt32Value = memoizeWithBuilder(cb, name, cb.fieldBuilder)
+  def memoizeField(cb: EmitCodeBuilder, name: String): SInt32Value = memoizeWithBuilder(cb, name, cb.fieldBuilder)
 
   def intCode(cb: EmitCodeBuilder): Code[Int] = code
 }
@@ -76,16 +76,16 @@ object SInt32Settable {
   }
 }
 
-class SInt32Settable(x: Settable[Int]) extends PInt32Value with PSettable {
+class SInt32Settable(x: Settable[Int]) extends SInt32Value with SSettable {
   val pt: PInt32 = PInt32(false)
 
   def st: SInt32.type = SInt32
 
-  def store(cb: EmitCodeBuilder, v: PCode): Unit = cb.assign(x, v.asInt.intCode(cb))
+  def store(cb: EmitCodeBuilder, v: SCode): Unit = cb.assign(x, v.asInt.intCode(cb))
 
   def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(x)
 
-  def get: PCode = new SInt32Code(x)
+  def get: SCode = new SInt32Code(x)
 
   def intCode(cb: EmitCodeBuilder): Code[Int] = x
 }

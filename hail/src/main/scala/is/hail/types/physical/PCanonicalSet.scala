@@ -2,14 +2,15 @@ package is.hail.types.physical
 
 import is.hail.annotations.{Annotation, Region}
 import is.hail.types.physical.stypes.concrete.{SIndexablePointer, SIndexablePointerCode}
+import is.hail.types.physical.stypes.interfaces.SIndexableCode
 import is.hail.types.virtual.{TSet, Type}
 import is.hail.utils._
 
 object PCanonicalSet {
-  def coerceArrayCode(contents: PIndexableCode): PIndexableCode = {
-    contents.pt match {
-      case PCanonicalArray(elt, r) =>
-        PCanonicalSet(elt, r).construct(contents)
+  def coerceArrayCode(contents: SIndexableCode): SIndexableCode = {
+    contents.st match {
+      case SIndexablePointer(elt) =>
+        PCanonicalSet(elt).construct(contents)
     }
   }
 }
@@ -39,7 +40,8 @@ final case class PCanonicalSet(elementType: PType,  required: Boolean = false) e
     arrayRep.unstagedStoreJavaObject(s, region)
   }
 
-  def construct(contents: PIndexableCode): PIndexableCode = {
+  def construct(_contents: SIndexableCode): SIndexableCode = {
+    val contents = _contents.asInstanceOf[SIndexablePointerCode]
     assert(contents.pt.equalModuloRequired(arrayRep), s"\n  contents:  ${ contents.pt }\n  arrayrep: ${ arrayRep }")
     new SIndexablePointerCode(SIndexablePointer(this), contents.asInstanceOf[SIndexablePointerCode].a)
   }

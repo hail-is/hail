@@ -2,10 +2,9 @@ package is.hail.types.physical.stypes.primitives
 
 import is.hail.annotations.Region
 import is.hail.asm4s.{BooleanInfo, Code, Settable, SettableBuilder, TypeInfo, Value}
-import is.hail.expr.ir.orderings.CodeOrdering
 import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, SortOrder}
-import is.hail.types.physical.stypes.{SCode, SType}
-import is.hail.types.physical.{PBoolean, PCode, PSettable, PType, PValue}
+import is.hail.types.physical.stypes.{SCode, SSettable, SType, SValue}
+import is.hail.types.physical.{PBoolean, PType}
 import is.hail.types.virtual.{TBoolean, Type}
 import is.hail.utils.FastIndexedSeq
 
@@ -48,7 +47,7 @@ case object SBoolean extends SPrimitive {
   def canonicalPType(): PType = PBoolean()
 }
 
-class SBooleanCode(val code: Code[Boolean]) extends PCode with SPrimitiveCode {
+class SBooleanCode(val code: Code[Boolean]) extends SCode with SPrimitiveCode {
   override def _primitiveCode: Code[_] = code
 
   def st: SBoolean.type = SBoolean
@@ -74,16 +73,16 @@ object SBooleanSettable {
   }
 }
 
-class SBooleanSettable(x: Settable[Boolean]) extends PValue with PSettable {
+class SBooleanSettable(x: Settable[Boolean]) extends SValue with SSettable {
   val pt: PBoolean = PBoolean()
 
   def st: SBoolean.type = SBoolean
 
-  def store(cb: EmitCodeBuilder, v: PCode): Unit = cb.assign(x, v.asBoolean.boolCode(cb))
+  def store(cb: EmitCodeBuilder, v: SCode): Unit = cb.assign(x, v.asBoolean.boolCode(cb))
 
   def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(x)
 
-  def get: PCode = new SBooleanCode(x)
+  def get: SCode = new SBooleanCode(x)
 
   def boolCode(cb: EmitCodeBuilder): Code[Boolean] = x
 }

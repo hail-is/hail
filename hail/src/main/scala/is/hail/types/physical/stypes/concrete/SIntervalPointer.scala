@@ -4,9 +4,9 @@ import is.hail.annotations.Region
 import is.hail.asm4s.{BooleanInfo, Code, IntInfo, LongInfo, Settable, SettableBuilder, TypeInfo, Value}
 import is.hail.expr.ir.orderings.CodeOrdering
 import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, IEmitCode, SortOrder}
-import is.hail.types.physical.stypes.interfaces.SInterval
-import is.hail.types.physical.stypes.{EmitType, SCode, SType}
-import is.hail.types.physical.{PCanonicalInterval, PCode, PInterval, PIntervalCode, PIntervalValue, PSettable, PType}
+import is.hail.types.physical.stypes.interfaces.{SInterval, SIntervalCode, SIntervalValue}
+import is.hail.types.physical.stypes.{EmitType, SCode, SSettable, SType}
+import is.hail.types.physical.{PCanonicalInterval, PInterval, PType}
 import is.hail.types.virtual.Type
 import is.hail.utils.FastIndexedSeq
 
@@ -70,8 +70,8 @@ class SIntervalPointerSettable(
   val a: Settable[Long],
   val includesStart: Settable[Boolean],
   val includesEnd: Settable[Boolean]
-) extends PIntervalValue with PSettable {
-  def get: PIntervalCode = new SIntervalPointerCode(st, a)
+) extends SIntervalValue with SSettable {
+  def get: SIntervalCode = new SIntervalPointerCode(st, a)
 
   val pt: PInterval = st.pType
 
@@ -91,7 +91,7 @@ class SIntervalPointerSettable(
 
   def endDefined(cb: EmitCodeBuilder): Code[Boolean] = pt.endDefined(a)
 
-  def store(cb: EmitCodeBuilder, pc: PCode): Unit = {
+  def store(cb: EmitCodeBuilder, pc: SCode): Unit = {
     cb.assign(a, pc.asInstanceOf[SIntervalPointerCode].a)
     cb.assign(includesStart, pt.includesStart(a.load()))
     cb.assign(includesEnd, pt.includesEnd(a.load()))
@@ -114,8 +114,8 @@ class SIntervalPointerSettable(
 
 }
 
-class SIntervalPointerCode(val st: SIntervalPointer, val a: Code[Long]) extends PIntervalCode {
-  override def pt: PInterval = st.pType
+class SIntervalPointerCode(val st: SIntervalPointer, val a: Code[Long]) extends SIntervalCode {
+  val pt = st.pType
 
   def code: Code[_] = a
 
@@ -125,13 +125,13 @@ class SIntervalPointerCode(val st: SIntervalPointer, val a: Code[Long]) extends 
 
   def includesEnd(): Code[Boolean] = pt.includesEnd(a)
 
-  def memoize(cb: EmitCodeBuilder, name: String, sb: SettableBuilder): PIntervalValue = {
+  def memoize(cb: EmitCodeBuilder, name: String, sb: SettableBuilder): SIntervalValue = {
     val s = SIntervalPointerSettable(sb, st, name)
     cb.assign(s, this)
     s
   }
 
-  def memoize(cb: EmitCodeBuilder, name: String): PIntervalValue = memoize(cb, name, cb.localBuilder)
+  def memoize(cb: EmitCodeBuilder, name: String): SIntervalValue = memoize(cb, name, cb.localBuilder)
 
-  def memoizeField(cb: EmitCodeBuilder, name: String): PIntervalValue = memoize(cb, name, cb.fieldBuilder)
+  def memoizeField(cb: EmitCodeBuilder, name: String): SIntervalValue = memoize(cb, name, cb.fieldBuilder)
 }

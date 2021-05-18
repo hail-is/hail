@@ -6,8 +6,9 @@ import is.hail.expr.ir.{EmitCodeBuilder, IEmitCode}
 import is.hail.io.OutputBuffer
 import is.hail.types.encoded.EType
 import is.hail.types.physical._
+import is.hail.types.physical.stypes.SCode
 import is.hail.types.physical.stypes.concrete.{SBaseStructPointer, SBaseStructPointerSettable}
-import is.hail.types.physical.stypes.interfaces.primitive
+import is.hail.types.physical.stypes.interfaces.{SBaseStructValue, primitive}
 import is.hail.types.virtual.{TStruct, Type}
 import is.hail.utils._
 
@@ -66,7 +67,7 @@ class StagedLeafNodeBuilder(maxSize: Int, keyType: PType, annotationType: PType,
     enc(cb, node, ob)
   }
 
-  def nodeAddress: PBaseStructValue = node
+  def nodeAddress: SBaseStructValue = node
 
   def add(cb: EmitCodeBuilder, key: => IEmitCode, offset: Code[Long], annotation: => IEmitCode): Unit = {
     ab.addChild(cb)
@@ -76,6 +77,6 @@ class StagedLeafNodeBuilder(maxSize: Int, keyType: PType, annotationType: PType,
   }
 
   def loadChild(cb: EmitCodeBuilder, idx: Code[Int]): Unit = ab.loadChild(cb, idx)
-  def getLoadedChild: PBaseStructValue = ab.getLoadedChild
-  def firstIdx(cb: EmitCodeBuilder): PCode = idxType.loadCheapPCode(cb, pType.fieldOffset(node.a, "first_idx"))
+  def getLoadedChild: SBaseStructValue = ab.getLoadedChild
+  def firstIdx(cb: EmitCodeBuilder): SCode = idxType.loadCheapPCode(cb, pType.fieldOffset(node.a, "first_idx"))
 }

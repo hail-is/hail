@@ -17,7 +17,7 @@ import is.hail.rvd._
 import is.hail.sparkextras.ContextRDD
 import is.hail.types._
 import is.hail.types.physical._
-import is.hail.types.physical.stypes.interfaces.{SStream, SStreamCode}
+import is.hail.types.physical.stypes.interfaces.{SBaseStructValue, SStream, SStreamCode}
 import is.hail.types.virtual._
 import is.hail.utils._
 import org.apache.spark.TaskContext
@@ -634,7 +634,7 @@ case class PartitionNativeReaderIndexed(spec: AbstractTypedCodecSpec, indexSpec:
                 .consumeCode[Interval](cb,
                   Code._fatal[Interval](""),
                   { pc =>
-                    val pcm = pc.memoize(cb, "pnri_interval").asPValue
+                    val pcm = pc.memoize(cb, "pnri_interval")
                     val pt = pcm.st.canonicalPType()
                     Code.invokeScalaObject2[PType, Long, Interval](
                       PartitionBoundOrdering.getClass,
@@ -747,7 +747,7 @@ case class PartitionZippedNativeReader(specLeft: AbstractTypedCodecSpec, specRig
 
     context.toI(cb).map(cb) { ctxStruct =>
 
-      def getIndexReader(cb: EmitCodeBuilder, ctxMemo: PBaseStructValue): Code[IndexReader] = {
+      def getIndexReader(cb: EmitCodeBuilder, ctxMemo: SBaseStructValue): Code[IndexReader] = {
         makeIndexCode match {
           case Some(makeIndex) =>
             val indexPath = ctxMemo
@@ -762,14 +762,14 @@ case class PartitionZippedNativeReader(specLeft: AbstractTypedCodecSpec, specRig
         }
       }
 
-      def getInterval(cb: EmitCodeBuilder, region: Value[Region], ctxMemo: PBaseStructValue): Code[Interval] = {
+      def getInterval(cb: EmitCodeBuilder, region: Value[Region], ctxMemo: SBaseStructValue): Code[Interval] = {
         makeIndexCode match {
           case Some(_) =>
             ctxMemo.loadField(cb, "interval")
               .consumeCode[Interval](cb,
                 Code._fatal[Interval](""),
                 { pc =>
-                  val pcm = pc.memoize(cb, "pnri_interval").asPValue
+                  val pcm = pc.memoize(cb, "pnri_interval")
                   val pt = pcm.st.canonicalPType()
                   Code.invokeScalaObject2[PType, Long, Interval](
                     PartitionBoundOrdering.getClass,

@@ -8,6 +8,7 @@ import is.hail.io._
 import is.hail.types.VirtualTypeWithReq
 import is.hail.types.encoded.EType
 import is.hail.types.physical._
+import is.hail.types.physical.stypes.SCode
 import is.hail.types.virtual.{TVoid, Type}
 import is.hail.utils._
 
@@ -41,7 +42,7 @@ class GroupedBTreeKey(kt: PType, kb: EmitClassBuilder[_], region: Value[Region],
   def isKeyMissing(off: Code[Long]): Code[Boolean] =
     storageType.isFieldMissing(off, 0)
 
-  def loadKey(cb: EmitCodeBuilder, off: Code[Long]): PCode = {
+  def loadKey(cb: EmitCodeBuilder, off: Code[Long]): SCode = {
     kt.loadCheapPCode(cb, storageType.loadField(off, 0))
   }
 

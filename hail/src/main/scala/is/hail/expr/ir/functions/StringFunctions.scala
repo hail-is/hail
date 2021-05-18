@@ -100,7 +100,7 @@ object StringFunctions extends RegistryFunctions {
   def registerAll(): Unit = {
     val thisClass = getClass
 
-    registerPCode1("length", TString, TInt32, (_: Type, _: SType) => SInt32) { case (r: EmitRegion, cb, _, s: PStringCode) =>
+    registerPCode1("length", TString, TInt32, (_: Type, _: SType) => SInt32) { case (r: EmitRegion, cb, _, s: SStringCode) =>
       primitive(s.loadString().invoke[Int]("length"))
     }
 
@@ -110,7 +110,7 @@ object StringFunctions extends RegistryFunctions {
       case (r: EmitRegion, cb, st: SString, s, start, end) =>
 
         val str = s.asString.loadString().invoke[Int, Int, String]("substring", start.asInt.intCode(cb), end.asInt.intCode(cb))
-        st.constructFromString(cb, r.region, str).asPCode
+        st.constructFromString(cb, r.region, str)
     }
 
     registerIR3("slice", TString, TInt32, TInt32, TString) { (_, str, start, end) =>
@@ -144,7 +144,7 @@ object StringFunctions extends RegistryFunctions {
     registerPCode1("str", tv("T"), TString, (_: Type, _: SType) => SStringPointer(PCanonicalString())) { case (r, cb, st: SString, a) =>
       val annotation = scodeToJavaValue(cb, r.region, a)
       val str = cb.emb.getType(a.st.virtualType).invoke[Any, String]("str", annotation)
-      st.constructFromString(cb, r.region, str).asPCode
+      st.constructFromString(cb, r.region, str)
     }
 
     registerIEmitCode1("showStr", tv("T"), TString, {
@@ -157,7 +157,7 @@ object StringFunctions extends RegistryFunctions {
 
       val str = cb.emb.getType(a.st.virtualType).invoke[Any, String]("showStr", jObj)
 
-      IEmitCode.present(cb, st.constructFromString(cb, r, str).asPCode)
+      IEmitCode.present(cb, st.constructFromString(cb, r, str))
     }
 
     registerIEmitCode2("showStr", tv("T"), TInt32, TString, {
@@ -171,7 +171,7 @@ object StringFunctions extends RegistryFunctions {
           sc => cb.assignAny(jObj, scodeToJavaValue(cb, r, sc)))
 
         val str = cb.emb.getType(a.st.virtualType).invoke[Any, Int, String]("showStr", jObj, trunc.asInt.intCode(cb))
-        st.constructFromString(cb, r, str).asPCode
+        st.constructFromString(cb, r, str)
       }
     }
 
@@ -187,7 +187,7 @@ object StringFunctions extends RegistryFunctions {
           })
         val json = cb.emb.getType(a.st.virtualType).invoke[Any, JValue]("toJSON", inputJavaValue)
         val str = Code.invokeScalaObject1[JValue, String](JsonMethods.getClass, "compact", json)
-        IEmitCode.present(cb, st.constructFromString(cb, r, str).asPCode)
+        IEmitCode.present(cb, st.constructFromString(cb, r, str))
     }
 
     registerWrappedScalaFunction1("reverse", TString, TString, (_: Type, _: SType) => SStringPointer(PCanonicalString()))(thisClass, "reverse")
@@ -239,8 +239,8 @@ object StringFunctions extends RegistryFunctions {
       case (_: Type, _: EmitType, _: EmitType) => EmitType(PCanonicalArray(PCanonicalString(true)).sType, false)
     }) { case (cb: EmitCodeBuilder, region: Value[Region], SIndexablePointer(rt: PCanonicalArray),
     s: EmitCode, r: EmitCode) =>
-      s.toI(cb).flatMap(cb) { case sc: PStringCode =>
-        r.toI(cb).flatMap(cb) { case rc: PStringCode =>
+      s.toI(cb).flatMap(cb) { case sc: SStringCode =>
+        r.toI(cb).flatMap(cb) { case rc: SStringCode =>
           val out = cb.newLocal[IndexedSeq[String]]("out",
             Code.invokeScalaObject2[String, String, IndexedSeq[String]](
               thisClass, "firstMatchIn", sc.loadString(), rc.loadString()))
@@ -261,8 +261,8 @@ object StringFunctions extends RegistryFunctions {
       case (_: Type, _: EmitType, _: EmitType) => EmitType(SInt32, false)
     }) { case (r: EmitRegion, rt, e1: EmitCode, e2: EmitCode) =>
       EmitCode.fromI(r.mb) { cb =>
-        e1.toI(cb).flatMap(cb) { case (sc1: PStringCode) =>
-          e2.toI(cb).flatMap(cb) { case (sc2: PStringCode) =>
+        e1.toI(cb).flatMap(cb) { case (sc1: SStringCode) =>
+          e2.toI(cb).flatMap(cb) { case (sc2: SStringCode) =>
             val n = cb.newLocal("hamming_n", 0)
             val i = cb.newLocal("hamming_i", 0)
 
@@ -294,7 +294,7 @@ object StringFunctions extends RegistryFunctions {
 
     registerPCode("parse_json", Array(TString), TTuple(tv("T")),
       (rType: Type, _: Seq[SType]) => SType.canonical(rType), typeParameters = Array(tv("T"))
-    ) { case (er, cb, _, resultType, Array(s: PStringCode)) =>
+    ) { case (er, cb, _, resultType, Array(s: SStringCode)) =>
 
       val warnCtx = cb.emb.genFieldThisRef[mutable.HashSet[String]]("parse_json_context")
       cb.ifx(warnCtx.load().isNull, cb.assign(warnCtx, Code.newInstance[mutable.HashSet[String]]()))

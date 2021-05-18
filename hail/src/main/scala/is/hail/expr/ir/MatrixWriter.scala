@@ -16,8 +16,9 @@ import is.hail.io.vcf.ExportVCF
 import is.hail.linalg.{BlockMatrix, BlockMatrixMetadata, GridPartitioner}
 import is.hail.rvd.{RVDPartitioner, RVDSpecMaker}
 import is.hail.types.encoded.{EBaseStruct, EBlockMatrixNDArray, EType}
+import is.hail.types.physical.stypes.SCode
 import is.hail.types.physical.stypes.interfaces._
-import is.hail.types.physical.{PBaseStructCode, PCanonicalBaseStruct, PCanonicalString, PCanonicalStruct, PCode, PIndexableValue, PInt64, PInt64Required, PStream, PStruct, PType}
+import is.hail.types.physical.{PCanonicalBaseStruct, PCanonicalString, PCanonicalStruct, PInt64, PInt64Required, PStream, PStruct, PType}
 import is.hail.types.virtual._
 import is.hail.types.{BlockMatrixSparsity, BlockMatrixType, MatrixType, RTable, TableType}
 import is.hail.utils._
@@ -186,7 +187,7 @@ case class SplitPartitionNativeWriter(
     val indexWriter = ifIndexed { StagedIndexWriter.withDefaults(keyType, mb.ecb, annotationType = iAnnotationType) }
 
 
-    context.toI(cb).map(cb) { ctxCode: PCode =>
+    context.toI(cb).map(cb) { ctxCode: SCode =>
       val result = mb.newLocal[Long]("write_result")
       val filename1 = mb.newLocal[String]("filename1")
       val os1 = mb.newLocal[ByteTrackingOutputStream]("write_os1")
@@ -204,7 +205,7 @@ case class SplitPartitionNativeWriter(
           indexWriter.add(cb, {
             IEmitCode.present(cb, keyType.asInstanceOf[PCanonicalBaseStruct]
               .constructFromFields(cb, stream.elementRegion,
-                keyType.fields.map(f => EmitCode.fromI(cb.emb)(cb => row.loadField(cb, f.name).typecast[PCode])),
+                keyType.fields.map(f => EmitCode.fromI(cb.emb)(cb => row.loadField(cb, f.name))),
                 deepCopy = false))
           }, ob1.invoke[Long]("indexOffset"), {
             IEmitCode.present(cb,
@@ -291,16 +292,16 @@ case class MatrixSpecWriter(path: String, typ: MatrixType, rowRelPath: String, g
     cb: EmitCodeBuilder,
     region: Value[Region]): Unit = {
     cb += cb.emb.getFS.invoke[String, Unit]("mkDir", path)
-    val pc = writeAnnotations.get(cb, "write annotations can't be missing!").asInstanceOf[PBaseStructCode]
+    val pc = writeAnnotations.get(cb, "write annotations can't be missing!").asBaseStruct
     val partCounts = cb.newLocal[Array[Long]]("partCounts")
     val c = pc.memoize(cb, "matrixPartCounts")
-    val a = c.loadField(cb, "rows").get(cb).memoize(cb, "rowCounts").asInstanceOf[PIndexableValue]
+    val a = c.loadField(cb, "rows").get(cb).asIndexable.memoize(cb, "rowCounts")
 
     val n = cb.newLocal[Int]("n", a.loadLength())
     val i = cb.newLocal[Int]("i", 0)
     cb.assign(partCounts, Code.newArray[Long](n))
     cb.whileLoop(i < n, {
-      val count = a.loadElement(cb, i).get(cb, "part count can't be missing!").asPCode
+      val count = a.loadElement(cb, i).get(cb, "part count can't be missing!")
       cb += partCounts.update(i, count.asInt64.longCode(cb))
       cb.assign(i, i + 1)
     })

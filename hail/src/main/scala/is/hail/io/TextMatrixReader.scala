@@ -8,6 +8,7 @@ import is.hail.io.fs.FS
 import is.hail.rvd.RVDPartitioner
 import is.hail.types._
 import is.hail.types.physical._
+import is.hail.types.physical.stypes.SCode
 import is.hail.types.physical.stypes.concrete.{SIndexablePointerCode, SStringPointer}
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.virtual._
@@ -480,7 +481,7 @@ class CompiledLineParser(
 
   private[this] def parseOptionalValue(
     cb: EmitCodeBuilder,
-    parse: EmitCodeBuilder => PCode
+    parse: EmitCodeBuilder => SCode
   ): IEmitCode = {
     assert(missingValue.size > 0)
     val end = cb.newLocal[Int]("parse_optional_value_end", pos + missingValue.size)
@@ -571,7 +572,7 @@ class CompiledLineParser(
   }
 
   private[this] def parseValueOfType(cb: EmitCodeBuilder, t: PType): IEmitCode = {
-    def parseDefinedValue(cb: EmitCodeBuilder): PCode = t match {
+    def parseDefinedValue(cb: EmitCodeBuilder): SCode = t match {
       case t: PInt32 =>
         primitive(cb.invokeCode[Int](parseIntMb, region))
       case t: PInt64 =>

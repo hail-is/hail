@@ -5,7 +5,6 @@ import is.hail.asm4s._
 import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.physical.stypes.primitives._
-import is.hail.types.physical.{PCode, PIntervalCode, PNDArrayCode, PShuffleCode, PType, PValue}
 
 object SCode {
   def add(cb: EmitCodeBuilder, left: SCode, right: SCode, required: Boolean): SCode = {
@@ -43,6 +42,8 @@ object SCode {
       case (SFloat64, SFloat64) => new SFloat64Code(left.asDouble.doubleCode(cb) / right.asDouble.doubleCode(cb))
     }
   }
+
+  def _empty: SCode = SVoidCode
 }
 
 abstract class SCode {
@@ -79,9 +80,9 @@ abstract class SCode {
 
   def asString: SStringCode = asInstanceOf[SStringCode]
 
-  def asInterval: PIntervalCode = asInstanceOf[PIntervalCode]
+  def asInterval: SIntervalCode = asInstanceOf[SIntervalCode]
 
-  def asNDArray: PNDArrayCode = asInstanceOf[PNDArrayCode]
+  def asNDArray: SNDArrayCode = asInstanceOf[SNDArrayCode]
 
   def asLocus: SLocusCode = asInstanceOf[SLocusCode]
 
@@ -89,7 +90,7 @@ abstract class SCode {
 
   def asStream: SStreamCode = asInstanceOf[SStreamCode]
 
-  def asShuffle: PShuffleCode = asInstanceOf[PShuffleCode]
+  def asShuffle: SShuffleCode = asInstanceOf[SShuffleCode]
 
   def castTo(cb: EmitCodeBuilder, region: Value[Region], destType: SType): SCode =
     castTo(cb, region, destType, false)
@@ -103,19 +104,12 @@ abstract class SCode {
   def memoize(cb: EmitCodeBuilder, name: String): SValue
 
   def memoizeField(cb: EmitCodeBuilder, name: String): SValue
-
-  def toPCode(cb: EmitCodeBuilder, region: Value[Region]): PCode
-
-  // This method is a very temporary patch. Clients should use `toPCode`.
-  def asPCode: PCode = asInstanceOf[PCode]
 }
 
 trait SValue {
   def st: SType
 
   def get: SCode
-
-  def asPValue: PValue = asInstanceOf[PValue]
 }
 
 
@@ -125,4 +119,23 @@ trait SSettable extends SValue {
   def settableTuple(): IndexedSeq[Settable[_]]
 
   def load(): SCode = get
+}
+
+object SSettable {
+  def apply(sb: SettableBuilder, st: SType, name: String): SSettable = {
+    st.fromSettables(st.settableTupleTypes().zipWithIndex.map { case (ti, i) =>
+      sb.newSettable(s"${ name }_${ st.getClass.getSimpleName }_$i")(ti)
+    })
+  }
+}
+
+trait SUnrealizableCode extends SCode {
+  private def unsupported: Nothing =
+    throw new UnsupportedOperationException(s"$this is not realizable")
+
+  def code: Code[_] = unsupported
+
+  def codeTuple(): IndexedSeq[Code[_]] = unsupported
+
+  def memoizeField(cb: EmitCodeBuilder, name: String): SValue = unsupported
 }

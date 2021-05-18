@@ -5,9 +5,8 @@ import is.hail.asm4s.{coerce => _, _}
 import is.hail.expr.ir.functions.StringFunctions
 import is.hail.expr.ir.streams.StreamProducer
 import is.hail.lir
-import is.hail.types.physical.stypes.SCode
+import is.hail.types.physical.stypes.{SCode, SSettable, SValue}
 import is.hail.types.physical.stypes.interfaces.SStreamCode
-import is.hail.types.physical.{PCode, PSettable, PType, PValue}
 import is.hail.utils._
 
 object EmitCodeBuilder {
@@ -55,7 +54,7 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
     tmp
   }
 
-  def assign(s: PSettable, v: PCode): Unit = {
+  def assign(s: SSettable, v: SCode): Unit = {
     assert(s.st == v.st, s"type mismatch!\n  settable=${s.st}\n     passed=${v.st}")
     s.store(this, v)
   }
@@ -72,13 +71,13 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
     (is, ix).zipped.foreach { case (s, c) => s.store(this, c) }
   }
 
-  def assign(s: PresentEmitSettable, v: PCode): Unit = {
+  def assign(s: PresentEmitSettable, v: SCode): Unit = {
     s.store(this, v)
   }
 
-  def memoize(pc: PCode, name: String): PValue = pc.memoize(this, name)
+  def memoize(pc: SCode, name: String): SValue = pc.memoize(this, name)
 
-  def memoizeField(pc: PCode, name: String): PValue = {
+  def memoizeField(pc: SCode, name: String): SValue = {
     val f = emb.newPField(name, pc.st)
     assign(f, pc)
     f
@@ -195,10 +194,10 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
   }
 
   // FIXME: this should be invokeSCode and should allocate/destructure a tuple when more than one code is present
-  def invokePCode(callee: EmitMethodBuilder[_], args: Param*): PCode = {
+  def invokePCode(callee: EmitMethodBuilder[_], args: Param*): SCode = {
     val st = callee.emitReturnType.asInstanceOf[PCodeParamType].st
     assert(st.nCodes == 1, st)
-    st.fromCodes(FastIndexedSeq(_invoke(callee, args: _*))).asInstanceOf[PCode]
+    st.fromCodes(FastIndexedSeq(_invoke(callee, args: _*))).asInstanceOf[SCode]
   }
 
   // for debugging

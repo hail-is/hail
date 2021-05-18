@@ -8,6 +8,7 @@ import is.hail.io._
 import is.hail.types.VirtualTypeWithReq
 import is.hail.types.encoded.EType
 import is.hail.types.physical._
+import is.hail.types.physical.stypes.SCode
 import is.hail.types.virtual.Type
 import is.hail.utils._
 
@@ -17,7 +18,7 @@ class TypedKey(typ: PType, kb: EmitClassBuilder[_], region: Value[Region]) exten
 
   def isKeyMissing(src: Code[Long]): Code[Boolean] = storageType.isFieldMissing(src, 0)
 
-  def loadKey(cb: EmitCodeBuilder, src: Code[Long]): PCode = {
+  def loadKey(cb: EmitCodeBuilder, src: Code[Long]): SCode = {
     typ.loadCheapPCode(cb, storageType.loadField(src, 0))
   }
 

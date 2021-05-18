@@ -4,16 +4,16 @@ import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.io.{InputBuffer, OutputBuffer}
-import is.hail.types.physical.stypes.SType
+import is.hail.types.physical.stypes.{SCode, SType, SValue}
 import is.hail.types.physical.stypes.concrete.SNDArrayPointer
 import is.hail.types.physical.stypes.interfaces.{SNDArray, SNDArrayValue}
-import is.hail.types.physical.{PCanonicalNDArray, PCode, PValue}
+import is.hail.types.physical.PCanonicalNDArray
 import is.hail.types.virtual.{TNDArray, Type}
 import is.hail.utils._
 
 case class ENDArrayColumnMajor(elementType: EType, nDims: Int, required: Boolean = false) extends EContainer {
 
-  override def _buildEncoder(cb: EmitCodeBuilder, v: PValue, out: Value[OutputBuffer]): Unit = {
+  override def _buildEncoder(cb: EmitCodeBuilder, v: SValue, out: Value[OutputBuffer]): Unit = {
     val ndarray = v.asInstanceOf[SNDArrayValue]
 
     val shapes = ndarray.shapes(cb)
@@ -26,7 +26,7 @@ case class ENDArrayColumnMajor(elementType: EType, nDims: Int, required: Boolean
     }
   }
 
-  override def _buildDecoder(cb: EmitCodeBuilder, t: Type, region: Value[Region], in: Value[InputBuffer]): PCode = {
+  override def _buildDecoder(cb: EmitCodeBuilder, t: Type, region: Value[Region], in: Value[InputBuffer]): SCode = {
     val st = decodedSType(t).asInstanceOf[SNDArrayPointer]
     val pnd = st.pType
     val readElemF = elementType.buildInplaceDecoder(pnd.elementType, cb.emb.ecb)

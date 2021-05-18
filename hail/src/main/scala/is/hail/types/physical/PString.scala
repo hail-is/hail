@@ -26,15 +26,3 @@ abstract class PString extends PType {
 
   def allocateAndStoreString(mb: EmitMethodBuilder[_], region: Value[Region], str: Code[String]): Code[Long]
 }
-
-abstract class PStringCode extends PCode with SStringCode {
-  def pt: PString
-
-  def asBytes(): PBinaryCode
-}
-
-abstract class PStringValue extends PValue with SStringValue {
-  def pt: PString
-
-  def get: PStringCode
-}

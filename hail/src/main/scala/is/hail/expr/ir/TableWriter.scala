@@ -11,8 +11,9 @@ import is.hail.io.index.StagedIndexWriter
 import is.hail.io.{AbstractTypedCodecSpec, BufferSpec, OutputBuffer, TypedCodecSpec}
 import is.hail.rvd.{AbstractRVDSpec, IndexSpec, RVDPartitioner, RVDSpecMaker}
 import is.hail.types.encoded.EType
-import is.hail.types.physical.{PCanonicalBaseStruct, PCanonicalString, PCanonicalStruct, PCode, PIndexableCode, PInt64, PStream, PStringCode, PStruct, PType}
-import is.hail.types.physical.stypes.interfaces.PVoidCode
+import is.hail.types.physical.stypes.SCode
+import is.hail.types.physical.stypes.interfaces.SVoidCode
+import is.hail.types.physical.{PCanonicalBaseStruct, PCanonicalString, PCanonicalStruct, PInt64, PStream, PStruct, PType}
 import is.hail.types.virtual._
 import is.hail.types.{RTable, TableType}
 import is.hail.utils._
@@ -174,7 +175,7 @@ case class PartitionNativeWriter(spec: AbstractTypedCodecSpec, partPrefix: Strin
     val keyType = ifIndexed { index.get._2 }
     val indexWriter = ifIndexed { StagedIndexWriter.withDefaults(keyType, mb.ecb) }
 
-    context.toI(cb).map(cb) { ctxCode: PCode =>
+    context.toI(cb).map(cb) { ctxCode: SCode =>
       val result = mb.newLocal[Long]("write_result")
 
       val filename = mb.newLocal[String]("filename")
@@ -189,7 +190,7 @@ case class PartitionNativeWriter(spec: AbstractTypedCodecSpec, partPrefix: Strin
             indexWriter.add(cb, {
               IEmitCode.present(cb, keyType.asInstanceOf[PCanonicalBaseStruct]
                 .constructFromFields(cb, stream.elementRegion,
-                  keyType.fields.map(f => EmitCode.fromI(cb.emb)(cb => row.loadField(cb, f.name).typecast[PCode])),
+                  keyType.fields.map(f => EmitCode.fromI(cb.emb)(cb => row.loadField(cb, f.name))),
                   deepCopy = false))
             },
               ob.invoke[Long]("indexOffset"),
@@ -240,14 +241,14 @@ case class RVDSpecWriter(path: String, spec: RVDSpecMaker) extends MetadataWrite
     cb: EmitCodeBuilder,
     region: Value[Region]): Unit = {
     cb += cb.emb.getFS.invoke[String, Unit]("mkDir", path)
-    val pc = writeAnnotations.get(cb, "write annotations can't be missing!").asInstanceOf[PIndexableCode]
+    val pc = writeAnnotations.get(cb, "write annotations can't be missing!").asIndexable
     val a = pc.memoize(cb, "filePaths")
     val partFiles = cb.newLocal[Array[String]]("partFiles")
     val n = cb.newLocal[Int]("n", a.loadLength())
     val i = cb.newLocal[Int]("i", 0)
     cb.assign(partFiles, Code.newArray[String](n))
     cb.whileLoop(i < n, {
-      val s = a.loadElement(cb, i).get(cb, "file name can't be missing!").asInstanceOf[PStringCode]
+      val s = a.loadElement(cb, i).get(cb, "file name can't be missing!").asString
       cb += partFiles.update(i, s.loadString())
       cb.assign(i, i + 1)
     })
@@ -285,7 +286,7 @@ case class TableSpecWriter(path: String, typ: TableType, rowRelPath: String, glo
     cb: EmitCodeBuilder,
     region: Value[Region]): Unit = {
     cb += cb.emb.getFS.invoke[String, Unit]("mkDir", path)
-    val pc = writeAnnotations.get(cb, "write annotations can't be missing!").asInstanceOf[PIndexableCode]
+    val pc = writeAnnotations.get(cb, "write annotations can't be missing!").asIndexable
     val partCounts = cb.newLocal[Array[Long]]("partCounts")
     val a = pc.memoize(cb, "writePartCounts")
 
@@ -327,7 +328,7 @@ case class RelationalWriter(path: String, overwrite: Boolean, maybeRefs: Option[
       }
     }
 
-    writeAnnotations.consume(cb, {}, { pc => assert(pc == PVoidCode) }) // PVoidCode.code is Code._empty
+    writeAnnotations.consume(cb, {}, { pc => assert(pc == SVoidCode) }) // PVoidCode.code is Code._empty
 
     cb += Code.invokeScalaObject2[FS, String, Unit](Class.forName("is.hail.utils.package$"), "writeNativeFileReadMe", cb.emb.getFS, path)
     cb += cb.emb.create(s"$path/_SUCCESS").invoke[Unit]("close")

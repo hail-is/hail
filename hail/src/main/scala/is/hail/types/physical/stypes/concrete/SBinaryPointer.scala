@@ -4,9 +4,9 @@ import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.expr.ir.orderings.CodeOrdering
 import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, SortOrder}
-import is.hail.types.physical.stypes.interfaces.SBinary
-import is.hail.types.physical.stypes.{SCode, SType}
-import is.hail.types.physical.{PBinary, PBinaryCode, PBinaryValue, PCode, PSettable, PType}
+import is.hail.types.physical.stypes.interfaces.{SBinary, SBinaryCode, SBinaryValue}
+import is.hail.types.physical.stypes.{SCode, SSettable, SType}
+import is.hail.types.physical.{PBinary, PType}
 import is.hail.types.virtual.Type
 import is.hail.utils._
 
@@ -50,7 +50,7 @@ object SBinaryPointerSettable {
     new SBinaryPointerSettable(st, sb.newSettable[Long](name))
 }
 
-class SBinaryPointerSettable(val st: SBinaryPointer, val a: Settable[Long]) extends PBinaryValue with PSettable {
+class SBinaryPointerSettable(val st: SBinaryPointer, val a: Settable[Long]) extends SBinaryValue with SSettable {
   private val pt: PBinary = st.pType
 
   override def bytesAddress(): Code[Long] = st.pType.bytesAddress(a)
@@ -65,10 +65,10 @@ class SBinaryPointerSettable(val st: SBinaryPointer, val a: Settable[Long]) exte
 
   def loadByte(i: Code[Int]): Code[Byte] = Region.loadByte(pt.bytesAddress(a) + i.toL)
 
-  def store(cb: EmitCodeBuilder, pc: PCode): Unit = cb.assign(a, pc.asInstanceOf[SBinaryPointerCode].a)
+  def store(cb: EmitCodeBuilder, pc: SCode): Unit = cb.assign(a, pc.asInstanceOf[SBinaryPointerCode].a)
 }
 
-class SBinaryPointerCode(val st: SBinaryPointer, val a: Code[Long]) extends PBinaryCode {
+class SBinaryPointerCode(val st: SBinaryPointer, val a: Code[Long]) extends SBinaryCode {
   private val pt: PBinary = st.pType
 
   def code: Code[_] = a
