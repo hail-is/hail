@@ -153,9 +153,12 @@ fails_service_backend = pytest.mark.xfail(
     reason="doesn't yet work on service backend",
     strict=True)
 
+def check_spark():
+    from hail.backend.spark_backend import SparkBackend
+    return isinstance(hl.utils.java.Env.backend(), SparkBackend)
 
 fails_spark_backend = pytest.mark.xfail(
-    os.environ.get('HAIL_QUERY_BACKEND') == 'spark',
+    check_spark(),
     reason="doesn't yet work on spark backend",
     strict=True)
 
