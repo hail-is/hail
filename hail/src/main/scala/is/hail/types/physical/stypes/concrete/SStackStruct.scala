@@ -52,7 +52,7 @@ case class SStackStruct(fieldNames: IndexedSeq[String], fieldEmitTypes: IndexedS
   }
 
   override def fromSettables(settables: IndexedSeq[Settable[_]]): SStackStructSettable = {
-    assert(settables.length == fieldEmitTypes.map(_.nSettables).sum, s"mismatch: ${settables.length} settables, expect ${fieldEmitTypes.map(_.nSettables).sum}\n  ${settables.map(_.ti).mkString(",")}\n  ${fieldEmitTypes.map(_.settableTupleTypes).mkString(" | ")}")
+    assert(settables.length == fieldEmitTypes.map(_.nSettables).sum, s"mismatch: ${ settables.length } settables, expect ${ fieldEmitTypes.map(_.nSettables).sum }\n  ${ settables.map(_.ti).mkString(",") }\n  ${ fieldEmitTypes.map(_.settableTupleTypes).mkString(" | ") }")
     new SStackStructSettable(this, fieldEmitTypes.indices.map { i =>
       val et = fieldEmitTypes(i)
       val start = settableStarts(i)
@@ -141,6 +141,10 @@ class SStackStructCode(val st: SStackStruct, val codes: IndexedSeq[EmitCode]) ex
       es.store(cb, code)
       es
     })
+  }
+
+  override def loadSingleField(cb: EmitCodeBuilder, fieldIdx: Int): IEmitCode = {
+    codes(fieldIdx).toI(cb)
   }
 
   override def subset(fieldNames: String*): SStackStructCode = {

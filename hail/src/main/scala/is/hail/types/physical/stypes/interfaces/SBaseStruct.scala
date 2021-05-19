@@ -40,6 +40,13 @@ trait SBaseStructCode extends SCode { self =>
 
   def memoizeField(cb: EmitCodeBuilder, name: String): SBaseStructValue
 
+  final def loadSingleField(cb: EmitCodeBuilder, fieldName: String): IEmitCode = loadSingleField(cb, st.fieldIdx(fieldName))
+
+  def loadSingleField(cb: EmitCodeBuilder, fieldIdx: Int): IEmitCode = {
+    memoize(cb, "structcode_loadsinglefield")
+      .loadField(cb, fieldIdx)
+  }
+
   def subset(fieldNames: String*): SBaseStructCode = {
     val st = SSubsetStruct(self.st, fieldNames.toIndexedSeq)
     new SSubsetStructCode(st, self)
