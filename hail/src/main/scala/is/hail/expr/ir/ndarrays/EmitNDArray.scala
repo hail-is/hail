@@ -187,8 +187,8 @@ object EmitNDArray {
 
               override def loadElementAtCurrentAddr(cb: EmitCodeBuilder): SCode = {
                 val offset = counters.foldLeft[Code[Long]](const(0L)){ (a, b) => a + b}
-                cb.println("Counter values")
-                cb.println(counters.map(_.toS.concat(" ")):_*)
+//                cb.println("Counter values")
+//                cb.println(counters.map(_.toS.concat(" ")):_*)
                 // TODO: Safe to canonicalPType here?
                 elementType.loadFrom(cb, region, ndPv.st.elementType.canonicalPType(), ndPv.firstDataAddress(cb) + offset)
               }
@@ -288,9 +288,9 @@ abstract class NDArrayProducer {
     //   cb.println(const("shape =  ").concat(shape.map(_.toS.concat(" ")).reduce(_.concat(_))))
     initAll(cb)
     def body(): Unit = {
-      cb.println(currentWriteAddr.toS)
+      //cb.println(currentWriteAddr.toS)
       targetType.elementType.storeAtAddress(cb, currentWriteAddr, region, loadElementAtCurrentAddr(cb), true)
-      cb.println("Stored successfully")
+      //cb.println("Stored successfully")
       cb.assign(currentWriteAddr, currentWriteAddr + targetType.elementType.byteSize)
     }
 
