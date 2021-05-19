@@ -1025,9 +1025,9 @@ class Emit[C](
           oc.asBaseStruct.loadSingleField(cb, name)
         }
 
-      case x@GetTupleElement(o, i) =>
+      case GetTupleElement(o, i) =>
         emitI(o).flatMap(cb) { oc =>
-          oc.asBaseStruct.loadSingleField(cb, x.typ.asInstanceOf[TTuple].fieldIndex(i))
+          oc.asBaseStruct.loadSingleField(cb, o.typ.asInstanceOf[TTuple].fieldIndex(i))
         }
 
       case x@LowerBoundOnOrderedCollection(orderedCollection, elem, onKey) =>
