@@ -42,7 +42,7 @@ object EmitNDArray {
               override val stepAxis: IndexedSeq[(EmitCodeBuilder, Value[Long]) => Unit] = childProducer.stepAxis
 
               override def loadElementAtCurrentAddr(cb: EmitCodeBuilder): SCode = {
-                cb.assign(elemRef, childProducer.loadElementAtCurrentAddr(cb).toPCode(cb, region))
+                cb.assign(elemRef, childProducer.loadElementAtCurrentAddr(cb))
                 bodyEC.toI(cb).get(cb, "NDArray map body cannot be missing")
               }
             }
@@ -87,8 +87,8 @@ object EmitNDArray {
                 }}
 
                 override def loadElementAtCurrentAddr(cb: EmitCodeBuilder): SCode = {
-                  cb.assign(lElemRef, leftBroadcasted.loadElementAtCurrentAddr(cb).toPCode(cb, region))
-                  cb.assign(rElemRef, rightBroadcasted.loadElementAtCurrentAddr(cb).toPCode(cb, region))
+                  cb.assign(lElemRef, leftBroadcasted.loadElementAtCurrentAddr(cb))
+                  cb.assign(rElemRef, rightBroadcasted.loadElementAtCurrentAddr(cb))
 
                   bodyEC.toI(cb).get(cb, "NDArrayMap2 body cannot be missing")
                 }
@@ -198,7 +198,7 @@ object EmitNDArray {
       }
     }
 
-    deforest(ndIR).map(cb)(ndap => ndap.toSCode(cb, PCanonicalNDArray(ndap.elementType.canonicalPType().setRequired(true), ndap.nDims), region).toPCode(cb, region))
+    deforest(ndIR).map(cb)(ndap => ndap.toSCode(cb, PCanonicalNDArray(ndap.elementType.canonicalPType().setRequired(true), ndap.nDims), region))
   }
 
   def createBroadcastMask(cb: EmitCodeBuilder, shape: IndexedSeq[Value[Long]]): IndexedSeq[Value[Long]] = {
