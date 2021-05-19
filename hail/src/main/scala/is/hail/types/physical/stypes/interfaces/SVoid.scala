@@ -18,8 +18,6 @@ case object SVoid extends SType {
 
   def codeTupleTypes(): IndexedSeq[TypeInfo[_]] = IndexedSeq()
 
-  def loadFrom(cb: EmitCodeBuilder, region: Value[Region], pt: PType, addr: Code[Long]): SCode = throw new UnsupportedOperationException
-
   def fromCodes(codes: IndexedSeq[Code[_]]): SCode = throw new UnsupportedOperationException
 
   def fromSettables(settables: IndexedSeq[Settable[_]]): SSettable = throw new UnsupportedOperationException

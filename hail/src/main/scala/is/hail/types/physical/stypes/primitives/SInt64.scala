@@ -23,13 +23,6 @@ case object SInt64 extends SPrimitive {
 
   def codeTupleTypes(): IndexedSeq[TypeInfo[_]] = FastIndexedSeq(LongInfo)
 
-  def loadFrom(cb: EmitCodeBuilder, region: Value[Region], pt: PType, addr: Code[Long]): SCode = {
-    pt match {
-      case _: PInt64 =>
-        new SInt64Code(Region.loadLong(addr))
-    }
-  }
-
   def fromSettables(settables: IndexedSeq[Settable[_]]): SInt64Settable = {
     val IndexedSeq(x: Settable[Long@unchecked]) = settables
     assert(x.ti == LongInfo)

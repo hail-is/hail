@@ -24,13 +24,6 @@ case object SFloat32 extends SPrimitive {
 
   def codeTupleTypes(): IndexedSeq[TypeInfo[_]] = FastIndexedSeq(FloatInfo)
 
-  def loadFrom(cb: EmitCodeBuilder, region: Value[Region], pt: PType, addr: Code[Long]): SCode = {
-    pt match {
-      case _: PFloat32 =>
-        new SFloat32Code(Region.loadFloat(addr))
-    }
-  }
-
   def fromSettables(settables: IndexedSeq[Settable[_]]): SFloat32Settable = {
     val IndexedSeq(x: Settable[Float@unchecked]) = settables
     assert(x.ti == FloatInfo)

@@ -36,8 +36,6 @@ object SType {
 trait SType {
   def virtualType: Type
 
-  def loadFrom(cb: EmitCodeBuilder, region: Value[Region], pt: PType, addr: Code[Long]): SCode
-
   def coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode
 
   def codeTupleTypes(): IndexedSeq[TypeInfo[_]]

@@ -54,10 +54,6 @@ case class SSubsetStruct(parent: SBaseStruct, fieldNames: IndexedSeq[String]) ex
 
   def codeTupleTypes(): IndexedSeq[TypeInfo[_]] = parent.codeTupleTypes()
 
-  def loadFrom(cb: EmitCodeBuilder, region: Value[Region], pt: PType, addr: Code[Long]): SCode = {
-    throw new UnsupportedOperationException
-  }
-
   def fromSettables(settables: IndexedSeq[Settable[_]]): SSubsetStructSettable = {
     new SSubsetStructSettable(this, parent.fromSettables(settables).asInstanceOf[SStructSettable])
   }

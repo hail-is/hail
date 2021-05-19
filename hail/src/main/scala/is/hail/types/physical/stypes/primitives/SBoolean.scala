@@ -25,13 +25,6 @@ case object SBoolean extends SPrimitive {
 
   def codeTupleTypes(): IndexedSeq[TypeInfo[_]] = FastIndexedSeq(BooleanInfo)
 
-  def loadFrom(cb: EmitCodeBuilder, region: Value[Region], pt: PType, addr: Code[Long]): SCode = {
-    pt match {
-      case PBoolean(_) =>
-        new SBooleanCode(Region.loadBoolean(addr))
-    }
-  }
-
   def fromSettables(settables: IndexedSeq[Settable[_]]): SBooleanSettable = {
     val IndexedSeq(x: Settable[Boolean@unchecked]) = settables
     assert(x.ti == BooleanInfo)

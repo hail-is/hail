@@ -29,13 +29,6 @@ case class SNDArrayPointer(pType: PCanonicalNDArray) extends SNDArray {
 
   override def settableTupleTypes(): IndexedSeq[TypeInfo[_]] = Array.fill(2 + nDims * 2)(LongInfo)
 
-  def loadFrom(cb: EmitCodeBuilder, region: Value[Region], pt: PType, addr: Code[Long]): SCode = {
-    if (pt == this.pType)
-      new SNDArrayPointerCode(this, addr)
-    else
-      coerceOrCopy(cb, region, pt.loadCheapPCode(cb, addr), deepCopy = false)
-  }
-
   def fromSettables(settables: IndexedSeq[Settable[_]]): SNDArrayPointerSettable = {
     val a = settables(0).asInstanceOf[Settable[Long@unchecked]]
     val shape = settables.slice(1, 1 + pType.nDims).asInstanceOf[IndexedSeq[Settable[Long@unchecked]]]

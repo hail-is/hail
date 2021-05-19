@@ -26,14 +26,6 @@ case class SCanonicalShufflePointer(pType: PCanonicalShuffle) extends SShuffle {
 
   def codeTupleTypes(): IndexedSeq[TypeInfo[_]] = FastIndexedSeq(LongInfo)
 
-  def loadFrom(cb: EmitCodeBuilder, region: Value[Region], pt: PType, addr: Code[Long]): SCode = {
-    pt match {
-      case t: PCanonicalShuffle =>
-        assert(t.equalModuloRequired(this.pType))
-        new SCanonicalShufflePointerCode(this, t.loadBinary(cb, addr))
-    }
-  }
-
   def fromSettables(settables: IndexedSeq[Settable[_]]): SCanonicalShufflePointerSettable = {
     new SCanonicalShufflePointerSettable(this, binarySType.fromSettables(settables))
   }
@@ -54,7 +46,7 @@ object SCanonicalShufflePointerSettable {
       "PCanonicalShuffleSettableOff",
       pt.representation.allocate(region, Wire.ID_SIZE))
     cb.append(pt.representation.store(off, bytes))
-    SCanonicalShufflePointer(pt).loadFrom(cb, region, pt, off).memoize(cb, "scanonicalshuffle_fromarraybytes").asInstanceOf[SCanonicalShufflePointerSettable]
+    pt.loadCheapPCode(cb, off).memoize(cb, "scanonicalshuffle_fromarraybytes").asInstanceOf[SCanonicalShufflePointerSettable]
   }
 }
 

@@ -27,13 +27,6 @@ case class SBaseStructPointer(pType: PBaseStruct) extends SBaseStruct {
 
   def codeTupleTypes(): IndexedSeq[TypeInfo[_]] = FastIndexedSeq(LongInfo)
 
-  def loadFrom(cb: EmitCodeBuilder, region: Value[Region], pt: PType, addr: Code[Long]): SCode = {
-    if (pt == this.pType)
-      new SBaseStructPointerCode(this, addr)
-    else
-      coerceOrCopy(cb, region, pt.loadCheapPCode(cb, addr), deepCopy = false)
-  }
-
   def fromSettables(settables: IndexedSeq[Settable[_]]): SBaseStructPointerSettable = {
     val IndexedSeq(a: Settable[Long@unchecked]) = settables
     assert(a.ti == LongInfo)

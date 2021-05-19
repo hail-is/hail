@@ -26,15 +26,6 @@ case class SIntervalPointer(pType: PInterval) extends SInterval {
 
   override def settableTupleTypes(): IndexedSeq[TypeInfo[_]] = FastIndexedSeq(LongInfo, BooleanInfo, BooleanInfo)
 
-  def loadFrom(cb: EmitCodeBuilder, region: Value[Region], pt: PType, addr: Code[Long]): SCode = {
-    pt match {
-      case t: PCanonicalInterval if t.equalModuloRequired(this.pType) =>
-        new SIntervalPointerCode(this, addr)
-      case _ =>
-        new SIntervalPointerCode(this, pType.store(cb, region, pt.loadCheapPCode(cb, addr), false))
-    }
-  }
-
   def fromSettables(settables: IndexedSeq[Settable[_]]): SIntervalPointerSettable = {
     val IndexedSeq(a: Settable[Long@unchecked], includesStart: Settable[Boolean@unchecked], includesEnd: Settable[Boolean@unchecked]) = settables
     assert(a.ti == LongInfo)

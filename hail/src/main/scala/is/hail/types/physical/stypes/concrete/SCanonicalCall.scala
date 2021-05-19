@@ -25,13 +25,6 @@ case object SCanonicalCall extends SCall {
 
   def codeTupleTypes(): IndexedSeq[TypeInfo[_]] = FastIndexedSeq(IntInfo)
 
-  def loadFrom(cb: EmitCodeBuilder, region: Value[Region], pt: PType, addr: Code[Long]): SCode = {
-    pt match {
-      case PCanonicalCall(_) =>
-        new SCanonicalCallCode(Region.loadInt(addr))
-    }
-  }
-
   def fromSettables(settables: IndexedSeq[Settable[_]]): SCanonicalCallSettable = {
     val IndexedSeq(call: Settable[Int@unchecked]) = settables
     assert(call.ti == IntInfo)
