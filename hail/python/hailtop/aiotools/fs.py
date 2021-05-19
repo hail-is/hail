@@ -86,7 +86,7 @@ class AsyncFS(abc.ABC):
         pass
 
     @abc.abstractmethod
-    async def create(self, url: str, retry_writes: bool = True) -> WritableStream:
+    async def create(self, url: str, *, retry_writes: bool = True) -> WritableStream:
         pass
 
     @abc.abstractmethod
@@ -130,7 +130,7 @@ class AsyncFS(abc.ABC):
         pass
 
     @abc.abstractmethod
-    async def rmtree(self, url: str, sema: Optional[asyncio.Semaphore] = None) -> None:
+    async def rmtree(self, sema: Optional[asyncio.Semaphore], url: str) -> None:
         pass
 
     async def touch(self, url: str) -> None:
@@ -150,8 +150,8 @@ class AsyncFS(abc.ABC):
         async with await self.open_from(url, start) as f:
             return await f.read(n)
 
-    async def write(self, url: str, data: bytes, *, retry_writes: bool = True) -> None:
-        async with await self.create(url, retry_writes=retry_writes) as f:
+    async def write(self, url: str, data: bytes) -> None:
+        async with await self.create(url, retry_writes=False) as f:
             await f.write(data)
 
     async def close(self) -> None:
@@ -272,7 +272,7 @@ class LocalAsyncFS(AsyncFS):
         f.seek(start, io.SEEK_SET)
         return blocking_readable_stream_to_async(self._thread_pool, cast(BinaryIO, f))
 
-    async def create(self, url: str, retry_writes: bool = True) -> WritableStream:  # pylint: disable=unused-argument
+    async def create(self, url: str, *, retry_writes: bool = True) -> WritableStream:  # pylint: disable=unused-argument
         f = await blocking_to_async(self._thread_pool, open, self._get_path(url), 'wb')
         return blocking_writable_stream_to_async(self._thread_pool, cast(BinaryIO, f))
 
@@ -355,7 +355,7 @@ class LocalAsyncFS(AsyncFS):
         path = self._get_path(url)
         return await blocking_to_async(self._thread_pool, os.remove, path)
 
-    async def rmtree(self, url: str, sema: Optional[asyncio.Semaphore] = None) -> None:
+    async def rmtree(self, sema: Optional[asyncio.Semaphore], url: str) -> None:
         path = self._get_path(url)
         await blocking_to_async(self._thread_pool, shutil.rmtree, path)
 
@@ -903,13 +903,13 @@ class RouterAsyncFS(AsyncFS):
         fs = self._get_fs(url)
         return await fs.remove(url)
 
-    async def rmtree(self, url: str, sema: Optional[asyncio.Semaphore] = None) -> None:
+    async def rmtree(self, sema: Optional[asyncio.Semaphore], url: str) -> None:
         fs = self._get_fs(url)
-        return await fs.rmtree(url, sema)
+        return await fs.rmtree(sema, url)
 
-    async def write(self, url: str, data: bytes, *, retry_writes=True) -> None:
+    async def write(self, url: str, data: bytes) -> None:
         fs = self._get_fs(url)
-        return await fs.write(url, data, retry_writes=retry_writes)
+        return await fs.write(url, data)
 
     async def close(self) -> None:
         for fs in self._filesystems:

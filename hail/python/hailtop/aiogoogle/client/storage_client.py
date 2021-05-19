@@ -540,7 +540,7 @@ class GoogleStorageMultiPartCreate(MultiPartCreate):
                     [self._part_name(i) for i in range(self._num_parts)],
                     self._dest_name)
             finally:
-                await self._fs.rmtree(f'gs://{self._bucket}/{self._dest_dirname}_/{self._token}', self._sema)
+                await self._fs.rmtree(self._sema, f'gs://{self._bucket}/{self._dest_dirname}_/{self._token}')
 
 
 class GoogleStorageAsyncFS(AsyncFS):
@@ -576,7 +576,7 @@ class GoogleStorageAsyncFS(AsyncFS):
         return await self._storage_client.get_object(
             bucket, name, headers={'Range': f'bytes={start}-'})
 
-    async def create(self, url: str, retry_writes: bool = True) -> WritableStream:
+    async def create(self, url: str, *, retry_writes: bool = True) -> WritableStream:
         bucket, name = self._get_bucket_name(url)
         params = {
             'uploadType': 'resumable' if retry_writes else 'media'
@@ -735,7 +735,7 @@ class GoogleStorageAsyncFS(AsyncFS):
             if e.status != 404:
                 raise
 
-    async def _rmtree(self, url: str, sema: asyncio.Semaphore) -> None:
+    async def _rmtree(self, sema: asyncio.Semaphore, url: str) -> None:
         async with OnlineBoundedGather2(sema) as pool:
             try:
                 it = await self.listfiles(url, recursive=True)
@@ -744,13 +744,13 @@ class GoogleStorageAsyncFS(AsyncFS):
             async for entry in it:
                 await pool.call(self._remove_doesnt_exist_ok, await entry.url())
 
-    async def rmtree(self, url: str, sema: Optional[asyncio.Semaphore] = None) -> None:
+    async def rmtree(self, sema: Optional[asyncio.Semaphore], url: str) -> None:
         if sema is None:
             sema = asyncio.Semaphore(50)
             async with sema:
-                return await self._rmtree(url, sema)
+                return await self._rmtree(sema, url)
 
-        return await self._rmtree(url, sema)
+        return await self._rmtree(sema, url)
 
     async def close(self) -> None:
         await self._storage_client.close()
