@@ -323,7 +323,7 @@ set +x
 set -x
 
 export BUILDKITD_FLAGS=--oci-worker-no-process-sandbox
-exec buildctl-daemonless.sh \
+buildctl-daemonless.sh \
      build \
      --frontend dockerfile.v0 \
      --local context={shq(context)} \
