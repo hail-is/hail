@@ -1816,8 +1816,8 @@ object EmitStream {
 
           val curKey = mb.newPField("st_grpby_curkey", keyType.sType)
 
-          val xKey = mb.newPresentEmitField("zipjoin_key", keyType.sType)
-          val xElts = mb.newPresentEmitField("zipjoin_elts", curValsType.sType)
+          val xKey = mb.newEmitField("zipjoin_key", keyType.sType, required = true)
+          val xElts = mb.newEmitField("zipjoin_elts", curValsType.sType, required = true)
 
           val joinResult: EmitCode = EmitCode.fromI(mb) { cb =>
             val newEnv = env.bind((keyRef -> xKey), (valsRef -> xElts))
@@ -1868,10 +1868,10 @@ object EmitStream {
               })
 
               cb.define(Lpush)
-              cb.assign(xKey, curKey)
-              cb.assign(xElts, curValsType.constructFromElements(cb, elementRegion, k, false) { (cb, i) =>
+              cb.assign(xKey, EmitCode.present(cb.emb, curKey))
+              cb.assign(xElts, EmitCode.present(cb.emb, curValsType.constructFromElements(cb, elementRegion, k, false) { (cb, i) =>
                 IEmitCode(cb, result(i).ceq(0L), eltType.loadCheapPCode(cb, result(i)))
-              })
+              }))
               cb.goto(LproduceElementDone)
 
               cb.define(LstartNewKey)

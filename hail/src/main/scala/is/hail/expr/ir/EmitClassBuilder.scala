@@ -97,14 +97,6 @@ trait WrappedEmitClassBuilder[C] extends WrappedEmitModuleBuilder {
 
   def newEmitField(name: String, pt: SType, required: Boolean): EmitSettable = ecb.newEmitField(name, pt, required)
 
-  def newEmitSettable(pt: SType, ms: Settable[Boolean], vs: SSettable, required: Boolean): EmitSettable = ecb.newEmitSettable(ms, vs, required)
-
-  def newPresentEmitField(pt: SType): PresentEmitSettable = ecb.newPresentEmitField(pt)
-
-  def newPresentEmitField(name: String, pt: SType): PresentEmitSettable = ecb.newPresentEmitField(name, pt)
-
-  def newPresentEmitSettable(ps: SSettable): PresentEmitSettable = ecb.newPresentEmitSettable(ps)
-
   def fieldBuilder: SettableBuilder = cb.fieldBuilder
 
   def result(print: Option[PrintWriter] = None): () => C = cb.result(print)
@@ -218,64 +210,12 @@ class EmitClassBuilder[C](
   def newPField(name: String, st: SType): SSettable = newPSettable(fieldBuilder, st, name)
 
   def newEmitField(st: SType, required: Boolean): EmitSettable =
-    newEmitSettable(genFieldThisRef[Boolean](), newPField(st), required)
+    new EmitSettable(if (required) None else Some(genFieldThisRef[Boolean]("emitfield_missing")), newPField(st))
 
   def newEmitField(name: String, emitType: EmitType): EmitSettable = newEmitField(name, emitType.st, emitType.required)
 
-  def newEmitField(name: String, pt: SType, required: Boolean): EmitSettable =
-    newEmitSettable(genFieldThisRef[Boolean](name + "_missing"), newPField(name, pt), required)
-
-  def newEmitSettable(ms: Settable[Boolean], vs: SSettable, required: Boolean): EmitSettable = new EmitSettable {
-    def st: SType = vs.st
-
-    def load: EmitCode = {
-      val ec = EmitCode(Code._empty,
-        if (required) const(false) else ms.get,
-        vs.get)
-      assert(ec.required == required)
-      ec
-    }
-
-    def store(cb: EmitCodeBuilder, ec: EmitCode): Unit = {
-      store(cb, ec.toI(cb))
-    }
-
-    def store(cb: EmitCodeBuilder, iec: IEmitCode): Unit =
-      if (required)
-        cb.assign(vs, iec.get(cb, s"Required EmitSettable cannot be missing ${ st }"))
-      else
-        iec.consume(cb, {
-          cb.assign(ms, true)
-        }, { value =>
-          cb.assign(ms, false)
-          cb.assign(vs, value)
-        })
-
-    override def get(cb: EmitCodeBuilder): SCode = {
-      if (required) {
-        vs
-      } else {
-        cb.ifx(ms, cb._fatal(s"Can't convert missing ${st} to PValue"))
-        vs
-      }
-    }
-  }
-
-  def newPresentEmitField(st: SType): PresentEmitSettable =
-    newPresentEmitSettable(newPField(st))
-
-  def newPresentEmitField(name: String, st: SType): PresentEmitSettable =
-    newPresentEmitSettable(newPField(name, st))
-
-  def newPresentEmitSettable(ps: SSettable): PresentEmitSettable = new PresentEmitSettable {
-    def st: SType = ps.st
-
-    def load: EmitCode = EmitCode(Code._empty, const(false), ps.load())
-
-    def store(cb: EmitCodeBuilder, pv: SCode): Unit = ps.store(cb, pv)
-
-    override def get(cb: EmitCodeBuilder): SCode = ps
-  }
+  def newEmitField(name: String, st: SType, required: Boolean): EmitSettable =
+    new EmitSettable(if (required) None else Some(genFieldThisRef[Boolean](name + "_missing")), newPField(name, st))
 
   private[this] val typMap: mutable.Map[Type, Value[_ <: Type]] =
     mutable.Map()
@@ -915,7 +855,8 @@ class EmitMethodBuilder[C](
 
         new EmitValue {
           evSelf =>
-          val st: SType = emitCode.st
+
+          override def emitType: EmitType = emitCode.emitType
 
           override def load: EmitCode = emitCode
 
@@ -927,7 +868,7 @@ class EmitMethodBuilder[C](
 
         new EmitValue {
           evSelf =>
-          val st: SType = et.st
+          val emitType: EmitType = et
 
           def load: EmitCode = {
             EmitCode(Code._empty,
@@ -972,17 +913,11 @@ class EmitMethodBuilder[C](
 
   def newEmitLocal(emitType: EmitType): EmitSettable = newEmitLocal(emitType.st, emitType.required)
   def newEmitLocal(st: SType, required: Boolean): EmitSettable =
-    newEmitSettable(st, if (required) null else newLocal[Boolean](), newPLocal(st), required)
+    new EmitSettable(if (required) None else Some(newLocal[Boolean]("anon_emitlocal_m")), newPLocal("anon_emitlocal_v", st))
 
   def newEmitLocal(name: String, emitType: EmitType): EmitSettable = newEmitLocal(name, emitType.st, emitType.required)
   def newEmitLocal(name: String, st: SType, required: Boolean): EmitSettable =
-    newEmitSettable(st, if (required) null else newLocal[Boolean](name + "_missing"), newPLocal(name, st), required)
-
-  def newPresentEmitLocal(st: SType): PresentEmitSettable =
-    newPresentEmitSettable(newPLocal(st))
-
-  def newPresentEmitLocal(name: String, st: SType): PresentEmitSettable =
-    newPresentEmitSettable(newPLocal(name, st))
+    new EmitSettable(if (required) None else Some(newLocal[Boolean](name + "_missing")), newPLocal(name, st))
 
   def emitWithBuilder[T](f: (EmitCodeBuilder) => Code[T]): Unit = emit(EmitCodeBuilder.scopedCode[T](this)(f))
 
@@ -1050,8 +985,6 @@ trait WrappedEmitMethodBuilder[C] extends WrappedEmitClassBuilder[C] {
   def newEmitLocal(st: SType, required: Boolean): EmitSettable = emb.newEmitLocal(st, required)
 
   def newEmitLocal(name: String, pt: SType, required: Boolean): EmitSettable = emb.newEmitLocal(name, pt, required)
-
-  def newPresentEmitLocal(pt: SType): PresentEmitSettable = emb.newPresentEmitLocal(pt)
 }
 
 class EmitFunctionBuilder[F](val apply_method: EmitMethodBuilder[F]) extends WrappedEmitMethodBuilder[F] {

@@ -71,10 +71,6 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
     (is, ix).zipped.foreach { case (s, c) => s.store(this, c) }
   }
 
-  def assign(s: PresentEmitSettable, v: SCode): Unit = {
-    s.store(this, v)
-  }
-
   def memoize(pc: SCode, name: String): SValue = pc.memoize(this, name)
 
   def memoizeField(pc: SCode, name: String): SValue = {

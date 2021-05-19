@@ -16,7 +16,7 @@ import is.hail.types.physical._
 import is.hail.types.physical.stypes.concrete.{SBaseStructPointerCode, SCanonicalShufflePointer, SCanonicalShufflePointerCode, SCanonicalShufflePointerSettable, SNDArrayPointer, SNDArrayPointerCode}
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.physical.stypes.primitives.{SFloat32, SFloat64, SInt32, SInt32Code, SInt64}
-import is.hail.types.physical.stypes.{EmitType, Int32SingleCodeType, SCode, SType, SValue, SingleCodeSCode, SingleCodeType}
+import is.hail.types.physical.stypes.{EmitType, Int32SingleCodeType, SCode, SSettable, SType, SValue, SingleCodeSCode, SingleCodeType}
 import is.hail.types.virtual._
 import is.hail.utils._
 import is.hail.utils.richUtils.RichCodeRegion
@@ -182,7 +182,9 @@ case class EmitRegion(mb: EmitMethodBuilder[_], region: Value[Region]) {
 }
 
 abstract class EmitValue {
-  def st: SType
+  def emitType: EmitType
+
+  def st: SType = emitType.st
 
   def load: EmitCode
 
@@ -190,7 +192,8 @@ abstract class EmitValue {
 }
 
 class EmitUnrealizableValue(private val ec: EmitCode) extends EmitValue {
-  val st: SType = ec.st
+  val emitType: EmitType = ec.emitType
+
   assert(st.isInstanceOf[SStream])
   private[this] var used: Boolean = false
 
@@ -462,14 +465,56 @@ class EmitCode(private val start: CodeLabel, private val iec: IEmitCode) {
   }
 }
 
-abstract class EmitSettable extends EmitValue {
-  def store(cb: EmitCodeBuilder, ec: EmitCode): Unit
-
-  def store(cb: EmitCodeBuilder, iec: IEmitCode): Unit
+object EmitSettable {
+  def present(vs: SSettable): EmitSettable = new EmitSettable(None, vs)
 }
 
-abstract class PresentEmitSettable extends EmitValue {
-  def store(cb: EmitCodeBuilder, pc: SCode): Unit
+class EmitSettable(
+  missing: Option[Settable[Boolean]], // required if None
+  vs: SSettable) extends EmitValue {
+
+  lazy val required: Boolean = missing.isEmpty
+
+  lazy val emitType: EmitType = EmitType(vs.st, required)
+
+  def settableTuple(): IndexedSeq[Settable[_]] = {
+    missing match {
+      case Some(m) => vs.settableTuple() :+ m
+      case None => vs.settableTuple()
+    }
+  }
+
+  def load: EmitCode = {
+    val ec = EmitCode(Code._empty,
+      if (required) const(false) else missing.get.load(),
+      vs.get)
+    assert(ec.required == required)
+    ec
+  }
+
+  def store(cb: EmitCodeBuilder, ec: EmitCode): Unit = {
+    store(cb, ec.toI(cb))
+  }
+
+  def store(cb: EmitCodeBuilder, iec: IEmitCode): Unit =
+    if (required)
+      cb.assign(vs, iec.get(cb, s"Required EmitSettable cannot be missing ${ st }"))
+    else
+      iec.consume(cb, {
+        cb.assign(missing.get, true)
+      }, { value =>
+        cb.assign(missing.get, false)
+        cb.assign(vs, value)
+      })
+
+  override def get(cb: EmitCodeBuilder): SCode = {
+    if (required) {
+      vs
+    } else {
+      cb.ifx(missing.get, cb._fatal(s"Can't convert missing ${ st } to PValue"))
+      vs
+    }
+  }
 }
 
 class RichIndexedSeqEmitSettable(is: IndexedSeq[EmitSettable]) {
@@ -2022,7 +2067,7 @@ class Emit[C](
 
         shuffle.start(cb, region)
 
-        val shuffleEnv = env.bind(name -> mb.newPresentEmitSettable(settable))
+        val shuffleEnv = env.bind(name -> EmitSettable.present(settable))
 
         val successfulShuffleIds: SValue = emitI(writerIR, env = shuffleEnv)
           .get(cb, "shuffle ID must be non-missing")
@@ -2520,13 +2565,13 @@ class Emit[C](
       val r = x match {
         case NDArrayMap(child, elemName, body) =>
           deforest(child).map(cb) { childEmitter =>
-            val elemRef = cb.emb.newPresentEmitField("ndarray_map_element_name", childEmitter.elementType)
+            val elemRef = cb.emb.newEmitField("ndarray_map_element_name", childEmitter.elementType, required = true)
             val bodyEnv = env.bind(elemName, elemRef)
             val bodyEC = dEmit(body, bodyEnv)
 
             new NDArrayEmitter(childEmitter.outputShape, bodyEC.st) {
               override def outputElement(cb: EmitCodeBuilder, idxVars: IndexedSeq[Value[Long]]): SCode = {
-                cb.assign(elemRef, childEmitter.outputElement(cb, idxVars))
+                cb.assign(elemRef, EmitCode.present(cb.emb, childEmitter.outputElement(cb, idxVars)))
                 bodyEC.toI(cb).get(cb, "NDArray map body cannot be missing")
               }
             }
@@ -2539,8 +2584,8 @@ class Emit[C](
 
               val (newSetupShape, shapeArray) = NDArrayEmitter.unifyShapes2(cb.emb, leftShapeValues, rightShapeValues)
 
-              val lElemRef = cb.emb.newPresentEmitField(lName, leftChildEmitter.elementType)
-              val rElemRef = cb.emb.newPresentEmitField(rName, rightChildEmitter.elementType)
+              val lElemRef = cb.emb.newEmitField(lName, leftChildEmitter.elementType, required = true)
+              val rElemRef = cb.emb.newEmitField(rName, rightChildEmitter.elementType, required = true)
               val bodyEnv = env.bind(lName, lElemRef)
                 .bind(rName, rElemRef)
               val bodyEC = dEmit(body, bodyEnv)
@@ -2552,8 +2597,8 @@ class Emit[C](
                   val lIdxVars2 = NDArrayEmitter.zeroBroadcastedDims2(cb.emb, idxVars, nDims, leftShapeValues)
                   val rIdxVars2 = NDArrayEmitter.zeroBroadcastedDims2(cb.emb, idxVars, nDims, rightShapeValues)
 
-                  cb.assign(lElemRef, leftChildEmitter.outputElement(cb, lIdxVars2))
-                  cb.assign(rElemRef, rightChildEmitter.outputElement(cb, rIdxVars2))
+                  cb.assign(lElemRef, EmitCode.present(cb.emb, leftChildEmitter.outputElement(cb, lIdxVars2)))
+                  cb.assign(rElemRef, EmitCode.present(cb.emb, rightChildEmitter.outputElement(cb, rIdxVars2)))
 
                   bodyEC.toI(cb).get(cb, "NDArrayMap2 body cannot be missing")
                 }
