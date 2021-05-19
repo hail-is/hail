@@ -64,11 +64,11 @@ object EmitNDArray {
                 .bind(rName, rElemRef)
               val bodyEC = EmitCode.fromI(cb.emb)(cb => emitI(body, cb, env = bodyEnv))
 
-              val leftBroadcasted = broadcast(cb, leftProducer)
-              val rightBroadcasted = broadcast(cb, rightProducer)
+              val leftBroadcasted = broadcast(cb, leftProducer, "left")
+              val rightBroadcasted = broadcast(cb, rightProducer, "right")
 
               new NDArrayProducer {
-                override def elementType: SType = leftProducer.elementType
+                override def elementType: SType = bodyEC.st
 
                 override val shape: IndexedSeq[Value[Long]] = shapeArray
                 override val initAll: EmitCodeBuilder => Unit = {
@@ -87,7 +87,9 @@ object EmitNDArray {
                 }}
 
                 override def loadElementAtCurrentAddr(cb: EmitCodeBuilder): SCode = {
+                  //cb.println("Load left element")
                   cb.assign(lElemRef, leftBroadcasted.loadElementAtCurrentAddr(cb))
+                  //cb.println("Load right element")
                   cb.assign(rElemRef, rightBroadcasted.loadElementAtCurrentAddr(cb))
 
                   bodyEC.toI(cb).get(cb, "NDArrayMap2 body cannot be missing")
@@ -180,17 +182,20 @@ object EmitNDArray {
               override val stepAxis: IndexedSeq[(EmitCodeBuilder, Value[Long]) => Unit] = {
                 shape.indices.map{ i =>
                   (cb: EmitCodeBuilder, step: Value[Long]) => {
-                    cb.assign(counters(i), counters(i) + strides(i))
+                    cb.assign(counters(i), counters(i) + step * strides(i))
                   }
                 }
               }
 
               override def loadElementAtCurrentAddr(cb: EmitCodeBuilder): SCode = {
                 val offset = counters.foldLeft[Code[Long]](const(0L)){ (a, b) => a + b}
-//                cb.println("Counter values")
-//                cb.println(counters.map(_.toS.concat(" ")):_*)
+                //cb.println("Fall through Counter values")
+                //cb.println(counters.map(_.toS.concat(" ")):_*)
                 // TODO: Safe to canonicalPType here?
-                elementType.loadFrom(cb, region, ndPv.st.elementType.canonicalPType(), ndPv.firstDataAddress(cb) + offset)
+                val loaded = elementType.loadFrom(cb, region, ndPv.st.elementType.canonicalPType(), ndPv.firstDataAddress(cb) + offset)
+                val memoLoaded = loaded.memoize(cb, "temp_memo")
+                //cb.println("Looked up ", cb.strValue(memoLoaded))
+                memoLoaded.get
               }
             }
           }
@@ -202,16 +207,19 @@ object EmitNDArray {
   }
 
   def createBroadcastMask(cb: EmitCodeBuilder, shape: IndexedSeq[Value[Long]]): IndexedSeq[Value[Long]] = {
+    val ffff = 0xFFFFFFFFFFFFFFFFL
     shape.indices.map { idx =>
-      cb.newLocal[Long](s"ndarray_producer_broadcast_mask_${idx}", (shape(idx) ceq 1L).mux(0L, Long.MaxValue))
+      cb.newLocal[Long](s"ndarray_producer_broadcast_mask_${idx}", (shape(idx) ceq 1L).mux(0L, ffff))
     }
   }
 
-  def broadcast(cb: EmitCodeBuilder, prod: NDArrayProducer): NDArrayProducer = {
+  def broadcast(cb: EmitCodeBuilder, prod: NDArrayProducer,ctx: String): NDArrayProducer = {
     val broadcastMask = createBroadcastMask(cb, prod.shape)
+    //cb.println("Broadcast mask: ", broadcastMask.map(_.toS.concat(" ")).reduce(_ concat _))
     val newSteps = prod.stepAxis.indices.map { idx =>
       (cb: EmitCodeBuilder, step: Value[Long]) => {
         val maskedStep = cb.newLocal[Long]("ndarray_producer_masked_step", step & broadcastMask(idx))
+        //cb.println(s"${ctx}: Stepping ", maskedStep.toS, " units on index ", idx.toString)
         prod.stepAxis(idx)(cb, maskedStep)
       }
     }

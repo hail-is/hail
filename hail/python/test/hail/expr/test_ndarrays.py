@@ -469,7 +469,8 @@ def test_ndarray_map2():
         (ncube1 // ny, cube1 // y),
         (ny // ncube1, y // cube1),
         (ncube1 // nrow_vec, cube1 // row_vec),
-        (nrow_vec // ncube1, row_vec // cube1))
+        (nrow_vec // ncube1, row_vec // cube1)
+    )
 
     # Division
     assert_ndarrays_almost_eq(
