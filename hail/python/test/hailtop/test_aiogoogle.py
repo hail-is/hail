@@ -97,6 +97,35 @@ async def test_open_from(filesystem):
 
 
 @pytest.mark.asyncio
+async def test_read_from(filesystem):
+    sema, fs, base = filesystem
+
+    file = f'{base}foo'
+
+    await fs.write(file, b'abcde')
+    r = await fs.read_from(file, 2)
+    assert r == b'cde'
+
+
+@pytest.mark.asyncio
+async def test_read_range(filesystem):
+    sema, fs, base = filesystem
+
+    file = f'{base}foo'
+
+    await fs.write(file, b'abcde')
+
+    r = await fs.read_range(file, 2, 2)
+    assert r == b'c'
+
+    r = await fs.read_range(file, 2, 4)
+    assert r == b'cde'
+
+    r = await fs.read_range(file, 2, 10)
+    assert r == b'cde'
+
+
+@pytest.mark.asyncio
 async def test_isfile(filesystem):
     sema, fs, base = filesystem
 
@@ -255,9 +284,7 @@ async def test_statfile(filesystem):
 
     n = 37
     file = f'{base}bar'
-    async with await fs.create(file) as f:
-        await f.write(secrets.token_bytes(n))
-
+    await fs.write(file, secrets.token_bytes(n))
     status = await fs.statfile(file)
     assert await status.size() == n
 
@@ -338,8 +365,7 @@ async def test_multi_part_create(filesystem, permutation):
                 create_part(i) for i in range(len(part_data))])
 
     expected = b''.join(part_data)
-    async with await fs.open(path) as f:
-        actual = await f.read()
+    actual = await fs.read(path)
     assert expected == actual
 
 
@@ -368,8 +394,7 @@ async def test_multi_part_create_many(filesystem):
                 create_part(i) for i in range(len(part_data))])
 
         expected = b''.join(part_data)
-        async with await fs.open(path) as f:
-            actual = await f.read()
+        actual = await fs.read(path)
         assert expected == actual
     except (concurrent.futures._base.CancelledError, asyncio.CancelledError) as err:
         raise AssertionError('uncaught cancelled error') from err

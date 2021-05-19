@@ -576,7 +576,7 @@ class GoogleStorageAsyncFS(AsyncFS):
         return await self._storage_client.get_object(
             bucket, name, headers={'Range': f'bytes={start}-'})
 
-    async def create(self, url: str, retry_writes: bool = True) -> WritableStream:
+    async def create(self, url: str, *, retry_writes: bool = True) -> WritableStream:
         bucket, name = self._get_bucket_name(url)
         params = {
             'uploadType': 'resumable' if retry_writes else 'media'
@@ -746,7 +746,7 @@ class GoogleStorageAsyncFS(AsyncFS):
             if e.status != 404:
                 raise
 
-    async def rmtree(self, sema: asyncio.Semaphore, url: str) -> None:
+    async def _rmtree(self, sema: asyncio.Semaphore, url: str) -> None:
         async with OnlineBoundedGather2(sema) as pool:
             bucket, name = self._get_bucket_name(url)
             if name and not name.endswith('/'):
@@ -754,6 +754,14 @@ class GoogleStorageAsyncFS(AsyncFS):
             it = self._listfiles_recursive(bucket, name)
             async for entry in it:
                 await pool.call(self._remove_doesnt_exist_ok, await entry.url())
+
+    async def rmtree(self, sema: Optional[asyncio.Semaphore], url: str) -> None:
+        if sema is None:
+            sema = asyncio.Semaphore(50)
+            async with sema:
+                return await self._rmtree(sema, url)
+
+        return await self._rmtree(sema, url)
 
     async def close(self) -> None:
         await self._storage_client.close()
