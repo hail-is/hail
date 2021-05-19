@@ -154,6 +154,63 @@ steps:
     dependsOn:
       - service_base_image
       - merge_code
+  - kind: buildImage2
+    name: create_certs_image
+    dockerFile: /io/tls/Dockerfile
+    contextPath: /io/tls
+    publishAs: create_certs_image
+    inputs:
+      - from: /repo/tls
+        to: /io/tls
+    dependsOn:
+      - hail_ubuntu_image
+      - merge_code
+  - kind: runImage
+    name: create_ssl_config_hail_root
+    image:
+      valueFrom: create_certs_image.image
+    script: |
+      openssl req -new -x509 -subj /CN=hail-root -nodes -newkey rsa:4096 -keyout hail-root-key.pem -out hail-root-cert.pem
+      until kubectl get secret -n {{ default_ns.name }} ssl-config-hail-root
+      do
+          kubectl create secret generic -n {{ default_ns.name }} ssl-config-hail-root \
+                  --from-file=hail-root-key.pem \
+                  --from-file=hail-root-cert.pem
+      done
+    serviceAccount:
+      name: admin
+      namespace:
+        valueFrom: default_ns.name
+    scopes:
+      - test
+      - dev
+    dependsOn:
+      - default_ns
+      - create_certs_image
+  - kind: runImage
+    name: create_certs
+    image:
+      valueFrom: create_certs_image.image
+    script: |
+      set -ex
+      python3 create_certs.py \
+              {{ default_ns.name }} \
+              config.yaml \
+              /ssl-config-hail-root/hail-root-key.pem \
+              /ssl-config-hail-root/hail-root-cert.pem
+    serviceAccount:
+      name: admin
+      namespace:
+        valueFrom: default_ns.name
+    secrets:
+      - name: ssl-config-hail-root
+        namespace:
+          valueFrom: default_ns.name
+        mountPath: /ssl-config-hail-root
+    dependsOn:
+      - default_ns
+      - create_certs_image
+      - create_ssl_config_hail_root
   - kind: createDatabase
     name: test_database_instance
     databaseName: test-instance
@@ -259,6 +316,19 @@ steps:
     dependsOn:
       - default_ns
       - base_image
+  - kind: deploy
+    name: deploy_admin_pod
+    namespace:
+      valueFrom: default_ns.name
+    config: admin-pod/admin-pod.yaml
+    scopes:
+      - deploy
+      - dev
+    dependsOn:
+      - default_ns
+      - service_base_image
+      - create_deploy_config
+      - create_certs
   - kind: runImage
     name: create_session_key
     image:
@@ -578,76 +648,6 @@ steps:
     dependsOn:
       - service_base_image
       - merge_code
-  - kind: buildImage2
-    name: create_certs_image
-    dockerFile: /io/tls/Dockerfile
-    contextPath: /io/tls
-    publishAs: create_certs_image
-    inputs:
-      - from: /repo/tls
-        to: /io/tls
-    dependsOn:
-      - ci_utils_image
-      - merge_code
-  - kind: runImage
-    name: create_ssl_config_hail_root
-    image:
-      valueFrom: create_certs_image.image
-    script: |
-      openssl req -new -x509 -subj /CN=hail-root -nodes -newkey rsa:4096 -keyout hail-root-key.pem -out hail-root-cert.pem
-      until kubectl get secret -n {{ default_ns.name }} ssl-config-hail-root
-      do
-          kubectl create secret generic -n {{ default_ns.name }} ssl-config-hail-root \
-                  --from-file=hail-root-key.pem \
-                  --from-file=hail-root-cert.pem
-      done
-    serviceAccount:
-      name: admin
-      namespace:
-        valueFrom: default_ns.name
-    scopes:
-      - test
-      - dev
-    dependsOn:
-      - default_ns
-      - create_certs_image
-  - kind: runImage
-    name: create_certs
-    image:
-      valueFrom: create_certs_image.image
-    script: |
-      set -ex
-      python3 create_certs.py \
-              {{ default_ns.name }} \
-              config.yaml \
-              /ssl-config-hail-root/hail-root-key.pem \
-              /ssl-config-hail-root/hail-root-cert.pem
-    serviceAccount:
-      name: admin
-      namespace:
-        valueFrom: default_ns.name
-    secrets:
-      - name: ssl-config-hail-root
-        namespace:
-          valueFrom: default_ns.name
-        mountPath: /ssl-config-hail-root
-    dependsOn:
-      - default_ns
-      - create_certs_image
-      - create_ssl_config_hail_root
-  - kind: deploy
-    name: deploy_admin_pod
-    namespace:
-      valueFrom: default_ns.name
-    config: admin-pod/admin-pod.yaml
-    scopes:
-      - deploy
-      - dev
-    dependsOn:
-      - default_ns
-      - service_base_image
-      - create_deploy_config
-      - create_certs
   - kind: runImage
     name: build_hail_jar_only
     image:
