@@ -332,7 +332,7 @@ buildctl-daemonless.sh \
      --export-cache type=inline \
      --import-cache type=registry,ref={shq(self.cache_repository)} \
      --trace=/home/user/trace
-cat /tmp/trace
+cat /home/user/trace
 '''
 
         log.info(f'step {self.name}, script:\n{script}')

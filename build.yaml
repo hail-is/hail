@@ -163,7 +163,7 @@ steps:
       - from: /repo/tls
         to: /io/tls
     dependsOn:
-      - service_base_image
+      - ci_utils_image
       - merge_code
   - kind: runImage
     name: create_ssl_config_hail_root
