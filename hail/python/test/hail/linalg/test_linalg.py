@@ -1194,7 +1194,7 @@ class Tests(unittest.TestCase):
         assert f.to_numpy().shape == (10, 1)
 
 
-    @skip_when_spark_backend()
+    @fails_spark_backend()
     def test_map(self):
         np_mat = np.arange(20, dtype=np.float64).reshape((4, 5))
         bm = BlockMatrix.from_ndarray(hl.nd.array(np_mat))
