@@ -29,18 +29,16 @@ service-base:
 
 .PHONY: build-ci-utils
 build-ci-utils: service-base
-	rm -rf Dockerfile.ci-utils.out && mkdir -p Dockerfile.ci-utils.out
-	python3 jinja2_render.py '{"service_base_image":{"image":"'$$(cat ../docker/service-base)'"}}' Dockerfile.ci-utils Dockerfile.ci-utils.out/Dockerfile
+	python3 jinja2_render.py '{"service_base_image":{"image":"'$$(cat ../docker/service-base)'"}}' Dockerfile.ci-utils Dockerfile.ci-utils.out
 	../docker-build.sh . Dockerfile.ci-utils.out $(CI_UTILS_IMAGE)
 
 .PHONY: build-hail-buildkit
 build-hail-buildkit:
-	../docker-build.sh . buildkit $(HAIL_BUILDKIT_IMAGE)
+	../docker-build.sh . buildkit/Dockerfile $(HAIL_BUILDKIT_IMAGE)
 
 .PHONY: build
 build: service-base
-	rm -rf Dockerfile.out && mkdir -p Dockerfile.out
-	python3 jinja2_render.py '{"service_base_image":{"image":"'$$(cat ../docker/service-base)'"}}' Dockerfile Dockerfile.out/Dockerfile
+	python3 jinja2_render.py '{"service_base_image":{"image":"'$$(cat ../docker/service-base)'"}}' Dockerfile Dockerfile.out
 	../docker-build.sh .. ci/Dockerfile.out $(CI_IMAGE)
 
 .PHONY: deploy

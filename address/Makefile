@@ -1,7 +1,8 @@
 include ../config.mk
 
-ADDRESS_LATEST = $(DOCKER_PREFIX)/address:latest
-ADDRESS_IMAGE = $(DOCKER_PREFIX)/address:$(shell docker images -q --no-trunc address | sed -e 's,[^:]*:,,')
+TOKEN = $(shell cat /dev/urandom | LC_ALL=C tr -dc 'a-z0-9' | head -c 12)
+
+ADDRESS_IMAGE := $(DOCKER_PREFIX)/address:$(TOKEN)
 
 PYTHONPATH := $${PYTHONPATH:+$${PYTHONPATH}:}../hail/python:../gear:../web_common
 PYTHON := PYTHONPATH=$(PYTHONPATH) python3
@@ -14,20 +15,12 @@ check:
 
 .PHONY: build
 build:
-	$(MAKE) -C ../docker build
-	-docker pull $(ADDRESS_LATEST)
-	python3 ../ci/jinja2_render.py '{"service_base_image":{"image":"service-base"}}' Dockerfile Dockerfile.out
-	docker build -t address -f Dockerfile.out --cache-from address,$(ADDRESS_LATEST),service-base ..
-
-.PHONY: push
-push: build
-	docker tag address $(ADDRESS_LATEST)
-	docker push $(ADDRESS_LATEST)
-	docker tag address $(ADDRESS_IMAGE)
-	docker push $(ADDRESS_IMAGE)
+	$(MAKE) -C ../docker service-base
+	python3 ../ci/jinja2_render.py '{"service_base_image":{"image":"'$$(cat ../docker/service-base)'"}}' Dockerfile Dockerfile.out
+	../docker-build.sh .. address/Dockerfile.out $(ADDRESS_IMAGE)
 
 .PHONY: deploy
-deploy: push
+deploy: build
 	! [ -z $(NAMESPACE) ]  # call this like: make deploy NAMESPACE=default
 	python3 ../ci/jinja2_render.py '{"code":{"sha":"$(shell git rev-parse --short=12 HEAD)"},"deploy":$(DEPLOY),"address_image":{"image":"$(ADDRESS_IMAGE)"},"default_ns":{"name":"$(NAMESPACE)"},"global":{"project":"$(PROJECT)","domain":"$(DOMAIN)"}}' deployment.yaml deployment.yaml.out
 	kubectl -n $(NAMESPACE) apply -f service-account.yaml

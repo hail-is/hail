@@ -1,8 +1,10 @@
 include ../config.mk
 
-.PHONY: docs build run run-docker push deploy clean
+.PHONY: docs build run run-docker deploy clean
 
-IMAGE = $(DOCKER_PREFIX)/website:$(shell docker images -q --no-trunc website | sed -e 's,[^:]*:,,')
+TOKEN := $(shell cat /dev/urandom | LC_ALL=C tr -dc 'a-z0-9' | head -c 12)
+
+IMAGE = $(DOCKER_PREFIX)/website:$(TOKEN)
 
 check:
 	curlylint .
@@ -13,8 +15,8 @@ docs:
 
 build: docs
 	$(MAKE) -C ../docker service-base
-	python3 ../ci/jinja2_render.py '{"service_base_image": {"image":"service-base"}}' Dockerfile Dockerfile.out
-	docker build -f Dockerfile.out -t website .
+	python3 ../ci/jinja2_render.py '{"service_base_image": {"image":"'$$(cat ../docker/service-base)'"}}' Dockerfile Dockerfile.out
+	../docker-build.sh . Dockerfile.out $(IMAGE)
 
 run: docs
 	cd website && tar -xvzf ../docs.tar.gz
@@ -23,11 +25,7 @@ run: docs
 run-docker: build
 	docker run -e HAIL_DOMAIN=localhost:5000 -p 5000:5000 website python3 -m website local
 
-push: build
-	docker tag website $(IMAGE)
-	docker push $(IMAGE)
-
-deploy: push
+deploy: build
 	! [ -z $(NAMESPACE) ]  # call this like: make deploy NAMESPACE=default
 	$(MAKE) -C ../docker hail-ubuntu
 	python3 ../ci/jinja2_render.py '{"global": {"domain":"$(DOMAIN)"},"default_ns":{"name":"$(NAMESPACE)"},"code":{"sha":"$(shell git rev-parse --short=12 HEAD)"},"deploy":$(DEPLOY),"website_image":{"image":"$(IMAGE)"}}' deployment.yaml deployment.yaml.out

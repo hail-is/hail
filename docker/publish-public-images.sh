@@ -10,27 +10,27 @@ hail_pip_version=$(cat hail/hail_pip_version)
 
 build_and_push() {
     name=$1
-    base=$2
 
     versioned_short=hailgenetics/$name:$hail_pip_version
     versioned_full=$docker_prefix/$versioned_short
-    latest_full=$docker_prefix/hailgenetics/$name:latest
+    cache=$docker_prefix/hailgenetics/$name:cache
 
-    docker pull $latest || true
-    docker build \
-           $name/ \
-           -f $name/Dockerfile.out \
-           -t $versioned_short \
-           -t $versioned_full \
-           -t $latest_full \
-           --cache-from $latest_full,$base
-    docker push $versioned_short
-    docker push $versioned_full
-    docker push $latest_full
+    DOCKER_BUILDKIT=1 docker build \
+        --file $name/Dockerfile.out \
+        --cache-from ${cache} \
+        --build-arg BUILDKIT_INLINE_CACHE=1 \
+        --tag $versioned_short \
+        --tag $versioned_full \
+        --tag $cache \
+        ${name}
+
+    time DOCKER_BUILDKIT=1 docker push ${versioned_short}
+    time DOCKER_BUILDKIT=1 docker push ${versioned_full}
+    time DOCKER_BUILDKIT=1 docker push ${cache}
 }
 
-python3 ../ci/jinja2_render.py '{"hail_ubuntu_image":{"image":"hail-ubuntu"}}' hail/Dockerfile hail/Dockerfile.out
-build_and_push hail hail-ubuntu
+python3 ../ci/jinja2_render.py '{"hail_ubuntu_image":{"image":"gcr.io/hail-vdc/hail-ubuntu"}}' hail/Dockerfile hail/Dockerfile.out
+build_and_push hail
 
 python3 ../ci/jinja2_render.py '{"hail_public_image":{"image":"'hailgenetics/hail:$hail_pip_version'"}}' genetics/Dockerfile genetics/Dockerfile.out
-build_and_push genetics hailgenetics/hail:${hail_pip_version}
+build_and_push genetics
