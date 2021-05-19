@@ -11,7 +11,7 @@ import is.hail.types.virtual.{TStruct, Type}
 object SStackStruct {
   val MAX_FIELDS_FOR_CONSTRUCT: Int = 64
 
-  def constructFromArgs(cb: EmitCodeBuilder, region: Value[Region], args: (String, EmitCode)*): PBaseStructCode = {
+  def constructFromArgs(cb: EmitCodeBuilder, region: Value[Region], args: (String, EmitCode)*): SBaseStructCode = {
     val as = args.toArray
     if (as.length > MAX_FIELDS_FOR_CONSTRUCT) {
       PCanonicalStruct(as.map { case (name, a) => (name, a.emitType.canonicalPType) }: _*)
