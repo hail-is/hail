@@ -778,7 +778,7 @@ class Emit[C](
     def emitDeforestedNDArrayI(ir: IR): IEmitCode =
       deforestNDArrayI(ir, cb, region, env)
 
-    def newEmitDeforstedNDArrayI(ir: IR): IEmitCode = EmitNDArray(this, ir, cb, region, env, container)
+    def newEmitDeforestedNDArrayI(ir: IR): IEmitCode = EmitNDArray(this, ir, cb, region, env, container)
 
     def emitNDArrayColumnMajorStrides(ir: IR): IEmitCode = {
       emitI(ir).map(cb) { case pNDCode: SNDArrayCode =>
@@ -1877,8 +1877,8 @@ class Emit[C](
           }
           result
         }
-      case x: NDArrayMap => newEmitDeforstedNDArrayI(x)
-      case x: NDArrayMap2 => emitDeforestedNDArrayI(x)
+      case x: NDArrayMap => newEmitDeforestedNDArrayI(x)
+      case x: NDArrayMap2 => newEmitDeforestedNDArrayI(x)
       case x: NDArrayReshape => emitDeforestedNDArrayI(x)
       case x: NDArrayConcat => emitDeforestedNDArrayI(x)
       case x: NDArraySlice => emitDeforestedNDArrayI(x)

@@ -55,12 +55,17 @@ object EmitNDArray {
               val rightShapeValues = rightProducer.shape
 
               val (newSetupShape, shapeArray) = NDArrayEmitter.unifyShapes2(cb.emb, leftShapeValues, rightShapeValues)
+              cb.append(newSetupShape)
+
 
               val lElemRef = cb.emb.newPresentEmitField(lName, leftProducer.elementType)
               val rElemRef = cb.emb.newPresentEmitField(rName, rightProducer.elementType)
               val bodyEnv = env.bind(lName, lElemRef)
                 .bind(rName, rElemRef)
               val bodyEC = EmitCode.fromI(cb.emb)(cb => emitI(body, cb, env = bodyEnv))
+
+              val leftBroadcasted = broadcast(leftProducer)
+              val rightBroadcasted = broadcast(rightProducer)
 
               new NDArrayProducer {
                 override def elementType: SType = leftProducer.elementType
@@ -70,7 +75,6 @@ object EmitNDArray {
                   cb => {
                     leftProducer.initAll(cb)
                     rightProducer.initAll(cb)
-                    cb.append(newSetupShape)
                   }
                 }
                 override val initAxis: IndexedSeq[EmitCodeBuilder => Unit] = shape.indices.map { idx =>  { cb: EmitCodeBuilder  =>
@@ -78,7 +82,6 @@ object EmitNDArray {
                   rightProducer.initAxis(idx)(cb)
                 }}
                 override val stepAxis: IndexedSeq[(EmitCodeBuilder, Value[Long]) => Unit] = shape.indices.map { idx => { (cb: EmitCodeBuilder, axis: Value[Long]) =>
-                  // FIXME: Add rules for broadcasting so you don't step out of bounds
                   leftProducer.stepAxis(idx)(cb, axis)
                   rightProducer.stepAxis(idx)(cb, axis)
                 }}
@@ -170,6 +173,8 @@ object EmitNDArray {
 
               override def loadElementAtCurrentAddr(cb: EmitCodeBuilder): SCode = {
                 val offset = counters.foldLeft[Code[Long]](const(0L)){ (a, b) => a + b}
+                cb.println("Counter values")
+                cb.println(counters.map(_.toS.concat(" ")):_*)
                 // TODO: Safe to canonicalPType here?
                 elementType.loadFrom(cb, region, ndPv.st.elementType.canonicalPType(), ndPv.firstDataAddress(cb) + offset)
               }
@@ -181,9 +186,21 @@ object EmitNDArray {
 
     deforest(ndIR).map(cb)(ndap => ndap.toSCode(cb, PCanonicalNDArray(ndap.elementType.canonicalPType().setRequired(true), ndap.nDims), region).toPCode(cb, region))
   }
+
+  def broadcast(prod: NDArrayProducer): NDArrayProducer = {
+    val newSteps = prod.stepAxis.indices.map { idx =>
+      (cb: EmitCodeBuilder, step: Value[Long]) => {
+        cb.ifx(prod.shape(idx) cne const(1L), {
+          prod.stepAxis(idx)
+        })
+      }
+    }
+    prod.copy(astepAxis = newSteps)
+  }
 }
 
 abstract class NDArrayProducer {
+  outer =>
 
   def elementType: SType
   val shape: IndexedSeq[Value[Long]]
@@ -193,6 +210,25 @@ abstract class NDArrayProducer {
   val initAxis: IndexedSeq[(EmitCodeBuilder) => Unit]
   val stepAxis: IndexedSeq[(EmitCodeBuilder, Value[Long]) => Unit]
   def loadElementAtCurrentAddr(cb: EmitCodeBuilder): SCode
+
+  def copy(
+    aElementType: SType = elementType,
+    aShape: IndexedSeq[Value[Long]] = shape,
+    ainitAll: EmitCodeBuilder => Unit = initAll,
+    ainitAxis: IndexedSeq[(EmitCodeBuilder) => Unit] = initAxis,
+    astepAxis: IndexedSeq[(EmitCodeBuilder, Value[Long]) => Unit] = stepAxis
+  ): NDArrayProducer = {
+    new NDArrayProducer() {
+      override def elementType: SType = aElementType
+
+      override val shape: IndexedSeq[Value[Long]] = aShape
+      override val initAll: EmitCodeBuilder => Unit = ainitAll
+      override val initAxis: IndexedSeq[EmitCodeBuilder => Unit] = ainitAxis
+      override val stepAxis: IndexedSeq[(EmitCodeBuilder, Value[Long]) => Unit] = astepAxis
+
+      override def loadElementAtCurrentAddr(cb: EmitCodeBuilder): SCode = outer.loadElementAtCurrentAddr(cb)
+    }
+  }
 
   def toSCode(cb: EmitCodeBuilder, targetType: PCanonicalNDArray, region: Value[Region]): SNDArrayCode =  {
     val (firstElementAddress, finish) = targetType.constructDataFunction(
@@ -228,9 +264,13 @@ abstract class NDArrayProducer {
 
     val currentWriteAddr = cb.newLocal[Long]("ndarray_producer_to_scode_cur_write_addr")
     cb.assign(currentWriteAddr, firstElementAddress)
+    cb.println(const("firstElementAddr = ").concat(firstElementAddress.toS))
+    cb.println(const("shape =  ").concat(shape.map(_.toS.concat(" ")).reduce(_.concat(_))))
     initAll(cb)
     def body(): Unit = {
+      cb.println(currentWriteAddr.toS)
       targetType.elementType.storeAtAddress(cb, currentWriteAddr, region, loadElementAtCurrentAddr(cb), true)
+      cb.println("Stored successfully")
       cb.assign(currentWriteAddr, currentWriteAddr + targetType.elementType.byteSize)
     }
 
