@@ -9,8 +9,8 @@ import is.hail.utils._
 object PCanonicalSet {
   def coerceArrayCode(contents: SIndexableCode): SIndexableCode = {
     contents.st match {
-      case SIndexablePointer(elt) =>
-        PCanonicalSet(elt).construct(contents)
+      case SIndexablePointer(PCanonicalArray(elt, r)) =>
+        PCanonicalSet(elt, r).construct(contents)
     }
   }
 }
