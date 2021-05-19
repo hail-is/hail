@@ -318,9 +318,9 @@ time chroot /python3.7-slim-stretch /usr/local/bin/python3 \
 
 mv /python3.7-slim-stretch/Dockerfile.out {shq(dockerfile_in_context)}
 
-set +e
-/busybox/sh /convert-google-application-credentials-to-kaniko-auth-config
-set -e
+set +x
+/bin/sh /home/user/convert-google-application-credentials-to-docker-auth-config
+set -x
 
 export BUILDKITD_FLAGS=--oci-worker-no-process-sandbox
 exec buildctl-daemonless.sh \
@@ -328,16 +328,16 @@ exec buildctl-daemonless.sh \
      --frontend dockerfile.v0 \
      --local context={shq(context)} \
      --local dockerfile=/home/user \
-     --output type=image,name={shq(self.image)},push=true \
-     --output type=image,name={shq(self.cache_repository)},push=true \
+     --output 'type=image,"name={shq(self.image)},{shq(self.cache_repository)}",push=true' \
      --export-cache type=inline \
-     --import-cache type=registry,ref={shq(self.cache_repository)}
+     --import-cache type=registry,ref={shq(self.cache_repository)} \
+     --trace=/home/user/trace
+cat /tmp/trace
 '''
 
         log.info(f'step {self.name}, script:\n{script}')
 
         docker_registry = DOCKER_PREFIX.split('/')[0]
-
         self.job = batch.create_job(
             KANIKO_IMAGE,
             command=['/busybox/sh', '-c', script],
