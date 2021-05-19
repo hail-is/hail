@@ -103,6 +103,17 @@ steps:
       - from: /repo
         to: /io/repo
   - kind: buildImage2
+    name: ci_utils_image
+    dockerFile: /io/ci/Dockerfile.ci-utils
+    contextPath: /io/ci
+    publishAs: ci-utils
+    inputs:
+      - from: /repo/ci
+        to: /io/ci
+    dependsOn:
+      - service_base_image
+      - merge_code
+  - kind: buildImage2
     name: create_certs_image
     dockerFile: /io/ci/test/resources/Dockerfile.certs
     contextPath: /io/ci/test/resources
