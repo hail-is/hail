@@ -3,7 +3,8 @@ package is.hail.expr.ir
 import is.hail.annotations.{Region, SafeRow}
 import is.hail.asm4s._
 import is.hail.expr.ir.lowering.LoweringPipeline
-import is.hail.types.physical.{PBaseStruct, PTuple, PTypeReferenceSingleCodeType, SingleCodeType}
+import is.hail.types.physical.stypes.PTypeReferenceSingleCodeType
+import is.hail.types.physical.{PBaseStruct, PTuple}
 import is.hail.types.virtual.TVoid
 import is.hail.utils.{FastIndexedSeq, FastSeq}
 

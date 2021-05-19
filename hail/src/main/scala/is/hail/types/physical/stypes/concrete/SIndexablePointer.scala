@@ -3,9 +3,9 @@ package is.hail.types.physical.stypes.concrete
 import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.expr.ir.{EmitCodeBuilder, IEmitCode}
-import is.hail.types.physical.stypes.interfaces.SContainer
-import is.hail.types.physical.stypes.{EmitType, SCode, SType}
-import is.hail.types.physical.{PArray, PCanonicalArray, PCanonicalDict, PCanonicalSet, PCode, PContainer, PIndexableCode, PIndexableValue, PSettable, PType}
+import is.hail.types.physical.stypes.interfaces.{SContainer, SIndexableCode, SIndexableValue}
+import is.hail.types.physical.stypes.{EmitType, SCode, SSettable, SType}
+import is.hail.types.physical.{PArray, PCanonicalArray, PCanonicalDict, PCanonicalSet, PContainer, PType}
 import is.hail.types.virtual.Type
 import is.hail.utils.FastIndexedSeq
 
@@ -54,7 +54,7 @@ case class SIndexablePointer(pType: PContainer) extends SContainer {
 }
 
 
-class SIndexablePointerCode(val st: SIndexablePointer, val a: Code[Long]) extends PIndexableCode {
+class SIndexablePointerCode(val st: SIndexablePointer, val a: Code[Long]) extends SIndexableCode {
   val pt: PContainer = st.pType
 
   def code: Code[_] = a
@@ -63,17 +63,17 @@ class SIndexablePointerCode(val st: SIndexablePointer, val a: Code[Long]) extend
 
   def loadLength(): Code[Int] = pt.loadLength(a)
 
-  def memoize(cb: EmitCodeBuilder, name: String, sb: SettableBuilder): PIndexableValue = {
+  def memoize(cb: EmitCodeBuilder, name: String, sb: SettableBuilder): SIndexableValue = {
     val s = SIndexablePointerSettable(sb, st, name)
     cb.assign(s, this)
     s
   }
 
-  def memoize(cb: EmitCodeBuilder, name: String): PIndexableValue = memoize(cb, name, cb.localBuilder)
+  def memoize(cb: EmitCodeBuilder, name: String): SIndexableValue = memoize(cb, name, cb.localBuilder)
 
-  def memoizeField(cb: EmitCodeBuilder, name: String): PIndexableValue = memoize(cb, name, cb.fieldBuilder)
+  def memoizeField(cb: EmitCodeBuilder, name: String): SIndexableValue = memoize(cb, name, cb.fieldBuilder)
 
-  def castToArray(cb: EmitCodeBuilder): PIndexableCode = {
+  def castToArray(cb: EmitCodeBuilder): SIndexableCode = {
     pt match {
       case t: PArray => this
       case t: PCanonicalDict => new SIndexablePointerCode(SIndexablePointer(t.arrayRep), a)
@@ -96,10 +96,10 @@ class SIndexablePointerSettable(
   val a: Settable[Long],
   val length: Settable[Int],
   val elementsAddress: Settable[Long]
-) extends PIndexableValue with PSettable {
+) extends SIndexableValue with SSettable {
   val pt: PContainer = st.pType
 
-  def get: PIndexableCode = new SIndexablePointerCode(st, a)
+  def get: SIndexableCode = new SIndexablePointerCode(st, a)
 
   def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(a, length, elementsAddress)
 
@@ -114,7 +114,7 @@ class SIndexablePointerSettable(
 
   def isElementMissing(i: Code[Int]): Code[Boolean] = pt.isElementMissing(a, i)
 
-  def store(cb: EmitCodeBuilder, pc: PCode): Unit = {
+  def store(cb: EmitCodeBuilder, pc: SCode): Unit = {
     cb.assign(a, pc.asInstanceOf[SIndexablePointerCode].a)
     cb.assign(length, pt.loadLength(a))
     cb.assign(elementsAddress, pt.firstElementOffset(a, length))

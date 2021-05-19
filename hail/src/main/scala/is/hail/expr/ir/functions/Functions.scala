@@ -283,7 +283,7 @@ abstract class RegistryFunctions {
     }
   }
 
-  def unwrapReturn(cb: EmitCodeBuilder, r: Value[Region], st: SType, value: Code[_]): PCode = st.virtualType match {
+  def unwrapReturn(cb: EmitCodeBuilder, r: Value[Region], st: SType, value: Code[_]): SCode = st.virtualType match {
     case TBoolean => primitive(coerce[Boolean](value))
     case TInt32 => primitive(coerce[Int](value))
     case TInt64 => primitive(coerce[Long](value))
@@ -341,11 +341,11 @@ abstract class RegistryFunctions {
     calculateReturnType: (Type, Seq[SType]) => SType,
     typeParameters: Array[Type] = Array.empty
   )(
-    impl: (EmitRegion, EmitCodeBuilder, Seq[Type], SType, Array[PCode]) => PCode
+    impl: (EmitRegion, EmitCodeBuilder, Seq[Type], SType, Array[SCode]) => SCode
   ) {
     IRFunctionRegistry.addJVMFunction(
       new UnseededMissingnessObliviousJVMFunction(name, typeParameters, valueParameterTypes, returnType, calculateReturnType) {
-        override def apply(r: EmitRegion, cb: EmitCodeBuilder, returnSType: SType, typeParameters: Seq[Type], args: PCode*): PCode =
+        override def apply(r: EmitRegion, cb: EmitCodeBuilder, returnSType: SType, typeParameters: Seq[Type], args: SCode*): SCode =
           impl(r, cb, typeParameters, returnSType, args.toArray)
       })
   }
@@ -357,13 +357,13 @@ abstract class RegistryFunctions {
     calculateReturnType: (Type, Seq[SType]) => SType,
     typeParameters: Array[Type] = Array.empty
   )(
-    impl: (EmitRegion, EmitCodeBuilder, SType, Array[Type], Array[PCode]) => Code[_]
+    impl: (EmitRegion, EmitCodeBuilder, SType, Array[Type], Array[SCode]) => Code[_]
   ) {
     IRFunctionRegistry.addJVMFunction(
       new UnseededMissingnessObliviousJVMFunction(name, typeParameters, valueParameterTypes, returnType, calculateReturnType) {
-        override def apply(r: EmitRegion, cb: EmitCodeBuilder, returnSType: SType, typeParameters: Seq[Type], args: PCode*): PCode = {
+        override def apply(r: EmitRegion, cb: EmitCodeBuilder, returnSType: SType, typeParameters: Seq[Type], args: SCode*): SCode = {
           assert(unify(typeParameters, args.map(_.st.virtualType), returnSType.virtualType))
-          returnSType.fromCodes(FastIndexedSeq(impl(r, cb, returnSType, typeParameters.toArray, args.toArray))).asPCode
+          returnSType.fromCodes(FastIndexedSeq(impl(r, cb, returnSType, typeParameters.toArray, args.toArray)))
         }
       })
   }
@@ -426,7 +426,7 @@ abstract class RegistryFunctions {
       val cts = valueParameterTypes.map(PrimitiveTypeToIRIntermediateClassTag(_).runtimeClass)
       rt.fromCodes(FastIndexedSeq(
         Code.invokeScalaObject(cls, method, cts, args.map { a => SType.extractPrimCode(cb, a) })(PrimitiveTypeToIRIntermediateClassTag(returnType))
-      )).asPCode
+      ))
     }
   }
 
@@ -450,7 +450,7 @@ abstract class RegistryFunctions {
       case t => PrimitiveTypeToIRIntermediateClassTag(t)
     }
 
-    def wrap(cb: EmitCodeBuilder, r: Value[Region], code: PCode): Code[_] = code.st match {
+    def wrap(cb: EmitCodeBuilder, r: Value[Region], code: SCode): Code[_] = code.st match {
       case t if t.isPrimitive => SType.extractPrimCode(cb, code)
       case call: SCall => code.asCall.loadCanonicalRepresentation(cb)
       case _ => scodeToJavaValue(cb, r, code)
@@ -483,61 +483,61 @@ abstract class RegistryFunctions {
   def registerIR(name: String, valueParameterTypes: Array[Type], returnType: Type, inline: Boolean = false, typeParameters: Array[Type] = Array.empty)(f: (Seq[Type], Seq[IR]) => IR): Unit =
     IRFunctionRegistry.addIR(name, typeParameters, valueParameterTypes, returnType, inline, f)
 
-  def registerPCode1(name: String, mt1: Type, rt: Type, pt: (Type, SType) => SType)(impl: (EmitRegion, EmitCodeBuilder, SType, PCode) => PCode): Unit =
+  def registerPCode1(name: String, mt1: Type, rt: Type, pt: (Type, SType) => SType)(impl: (EmitRegion, EmitCodeBuilder, SType, SCode) => SCode): Unit =
     registerPCode(name, Array(mt1), rt, unwrappedApply(pt)) {
       case (r, cb, _, rt, Array(a1)) => impl(r, cb, rt, a1)
     }
 
-  def registerPCode1t(name: String, typeParams: Array[Type], mt1: Type, rt: Type, pt: (Type, SType) => SType)(impl: (EmitRegion, EmitCodeBuilder, Seq[Type], SType, PCode) => PCode): Unit =
+  def registerPCode1t(name: String, typeParams: Array[Type], mt1: Type, rt: Type, pt: (Type, SType) => SType)(impl: (EmitRegion, EmitCodeBuilder, Seq[Type], SType, SCode) => SCode): Unit =
     registerPCode(name, Array(mt1), rt, unwrappedApply(pt), typeParameters = typeParams) {
       case (r, cb, typeParams, rt, Array(a1)) => impl(r, cb, typeParams, rt, a1)
     }
 
   def registerPCode2(name: String, mt1: Type, mt2: Type, rt: Type, pt: (Type, SType, SType) => SType)
-    (impl: (EmitRegion, EmitCodeBuilder, SType, PCode, PCode) => PCode): Unit =
+    (impl: (EmitRegion, EmitCodeBuilder, SType, SCode, SCode) => SCode): Unit =
     registerPCode(name, Array(mt1, mt2), rt, unwrappedApply(pt)) {
       case (r, cb, _, rt, Array(a1, a2)) => impl(r, cb, rt, a1, a2)
     }
 
   def registerPCode2t(name: String, typeParams: Array[Type], mt1: Type, mt2: Type, rt: Type, pt: (Type, SType, SType) => SType)
-    (impl: (EmitRegion, EmitCodeBuilder, Seq[Type], SType, PCode, PCode) => PCode): Unit =
+    (impl: (EmitRegion, EmitCodeBuilder, Seq[Type], SType, SCode, SCode) => SCode): Unit =
     registerPCode(name, Array(mt1, mt2), rt, unwrappedApply(pt), typeParameters = typeParams) {
       case (r, cb, typeParams, rt, Array(a1, a2)) => impl(r, cb, typeParams, rt, a1, a2)
     }
 
   def registerPCode3(name: String, mt1: Type, mt2: Type, mt3: Type, rt: Type, pt: (Type, SType, SType, SType) => SType)
-    (impl: (EmitRegion, EmitCodeBuilder, SType, PCode, PCode, PCode) => PCode): Unit =
+    (impl: (EmitRegion, EmitCodeBuilder, SType, SCode, SCode, SCode) => SCode): Unit =
     registerPCode(name, Array(mt1, mt2, mt3), rt, unwrappedApply(pt)) {
       case (r, cb, _, rt, Array(a1, a2, a3)) => impl(r, cb, rt, a1, a2, a3)
     }
 
   def registerPCode4(name: String, mt1: Type, mt2: Type, mt3: Type, mt4: Type, rt: Type, pt: (Type, SType, SType, SType, SType) => SType)
-    (impl: (EmitRegion, EmitCodeBuilder, SType, PCode, PCode, PCode, PCode) => PCode): Unit =
+    (impl: (EmitRegion, EmitCodeBuilder, SType, SCode, SCode, SCode, SCode) => SCode): Unit =
     registerPCode(name, Array(mt1, mt2, mt3, mt4), rt, unwrappedApply(pt)) {
       case (r, cb, _, rt, Array(a1, a2, a3, a4)) => impl(r, cb, rt, a1, a2, a3, a4)
     }
 
   def registerPCode4t(name: String, typeParams: Array[Type], mt1: Type, mt2: Type, mt3: Type, mt4: Type, rt: Type,
     pt: (Type, SType, SType, SType, SType) => SType)
-    (impl: (EmitRegion, EmitCodeBuilder, Seq[Type], SType, PCode, PCode, PCode, PCode) => PCode): Unit =
+    (impl: (EmitRegion, EmitCodeBuilder, Seq[Type], SType, SCode, SCode, SCode, SCode) => SCode): Unit =
     registerPCode(name, Array(mt1, mt2, mt3, mt4), rt, unwrappedApply(pt), typeParams) {
       case (r, cb, typeParams, rt, Array(a1, a2, a3, a4)) => impl(r, cb, typeParams, rt, a1, a2, a3, a4)
     }
 
 
   def registerPCode5(name: String, mt1: Type, mt2: Type, mt3: Type, mt4: Type, mt5: Type, rt: Type, pt: (Type, SType, SType, SType, SType, SType) => SType)
-    (impl: (EmitRegion, EmitCodeBuilder, SType, PCode, PCode, PCode, PCode, PCode) => PCode): Unit =
+    (impl: (EmitRegion, EmitCodeBuilder, SType, SCode, SCode, SCode, SCode, SCode) => SCode): Unit =
     registerPCode(name, Array(mt1, mt2, mt3, mt4, mt5), rt, unwrappedApply(pt)) {
       case (r, cb, _, rt, Array(a1, a2, a3, a4, a5)) => impl(r, cb, rt, a1, a2, a3, a4, a5)
     }
 
-  def registerCode1(name: String, mt1: Type, rt: Type, pt: (Type, SType) => SType)(impl: (EmitCodeBuilder, EmitRegion, SType, PCode) => Code[_]): Unit =
+  def registerCode1(name: String, mt1: Type, rt: Type, pt: (Type, SType) => SType)(impl: (EmitCodeBuilder, EmitRegion, SType, SCode) => Code[_]): Unit =
     registerCode(name, Array(mt1), rt, unwrappedApply(pt)) {
       case (r, cb, rt, _, Array(a1)) => impl(cb, r, rt, a1)
     }
 
   def registerCode2(name: String, mt1: Type, mt2: Type, rt: Type, pt: (Type, SType, SType) => SType)
-    (impl: (EmitCodeBuilder, EmitRegion, SType, PCode, PCode) => Code[_]): Unit =
+    (impl: (EmitCodeBuilder, EmitRegion, SType, SCode, SCode) => Code[_]): Unit =
     registerCode(name, Array(mt1, mt2), rt, unwrappedApply(pt)) {
       case (r, cb, rt, _, Array(a1, a2)) => impl(cb, r, rt, a1, a2)
     }
@@ -601,7 +601,7 @@ abstract class RegistryFunctions {
 
         def applySeededI(seed: Long, cb: EmitCodeBuilder, r: Value[Region], rpt: SType, args: EmitCode*): IEmitCode = {
           IEmitCode.multiMapEmitCodes(cb, args.toFastIndexedSeq) {
-            argPCs => applySeeded(cb, seed, r, rpt, argPCs: _*).asPCode
+            argPCs => applySeeded(cb, seed, r, rpt, argPCs: _*)
           }
         }
 
@@ -678,7 +678,7 @@ abstract class UnseededMissingnessObliviousJVMFunction (
   def computeStrictReturnEmitType(returnType: Type, valueParameterTypes: Seq[SType]): SType =
     MissingnessObliviousJVMFunction.returnSType(missingnessObliviousComputeReturnType)(returnType, valueParameterTypes)
 
-  def apply(r: EmitRegion, cb: EmitCodeBuilder, returnSType: SType, typeParameters: Seq[Type], args: PCode*): PCode
+  def apply(r: EmitRegion, cb: EmitCodeBuilder, returnSType: SType, typeParameters: Seq[Type], args: SCode*): SCode
 
   def apply(r: EmitRegion, returnType: SType, typeParameters: Seq[Type], args: EmitCode*): EmitCode = {
     EmitCode.fromI(r.mb)(cb => IEmitCode.multiMapEmitCodes(cb, args.toFastIndexedSeq) { args =>

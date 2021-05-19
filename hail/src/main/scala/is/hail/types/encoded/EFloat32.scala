@@ -5,7 +5,7 @@ import is.hail.asm4s._
 import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.io.{InputBuffer, OutputBuffer}
 import is.hail.types.physical._
-import is.hail.types.physical.stypes.SType
+import is.hail.types.physical.stypes.{SCode, SType, SValue}
 import is.hail.types.physical.stypes.primitives.{SFloat32, SFloat32Code}
 import is.hail.types.virtual._
 import is.hail.utils._
@@ -15,11 +15,11 @@ case object EFloat32Optional extends EFloat32(false)
 case object EFloat32Required extends EFloat32(true)
 
 class EFloat32(override val required: Boolean) extends EType {
-  override def _buildEncoder(cb: EmitCodeBuilder, v: PValue, out: Value[OutputBuffer]): Unit = {
+  override def _buildEncoder(cb: EmitCodeBuilder, v: SValue, out: Value[OutputBuffer]): Unit = {
     cb += out.writeFloat(v.asFloat.floatCode(cb))
   }
 
-  override def _buildDecoder(cb: EmitCodeBuilder, t: Type, region: Value[Region], in: Value[InputBuffer]): PCode = {
+  override def _buildDecoder(cb: EmitCodeBuilder, t: Type, region: Value[Region], in: Value[InputBuffer]): SCode = {
     new SFloat32Code(in.readFloat())
   }
 

@@ -1,7 +1,7 @@
 package is.hail.types.physical.stypes.interfaces
 
 import is.hail.asm4s._
-import is.hail.expr.ir.{EmitCodeBuilder, IEmitSCode}
+import is.hail.expr.ir.{EmitCodeBuilder, IEmitCode}
 import is.hail.types.physical.stypes.{EmitType, SCode, SType, SValue}
 
 trait SContainer extends SType {
@@ -18,7 +18,7 @@ trait SIndexableValue extends SValue {
 
   def isElementDefined(i: Code[Int]): Code[Boolean] = !isElementMissing(i)
 
-  def loadElement(cb: EmitCodeBuilder, i: Code[Int]): IEmitSCode
+  def loadElement(cb: EmitCodeBuilder, i: Code[Int]): IEmitCode
 
   def hasMissingValues(cb: EmitCodeBuilder): Code[Boolean]
 

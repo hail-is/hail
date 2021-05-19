@@ -5,8 +5,9 @@ import is.hail.asm4s._
 import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.io.{InputBuffer, OutputBuffer}
 import is.hail.types.physical._
-import is.hail.types.physical.stypes.SType
+import is.hail.types.physical.stypes.{SCode, SType, SValue}
 import is.hail.types.physical.stypes.concrete.SNDArrayPointer
+import is.hail.types.physical.stypes.interfaces.SNDArrayValue
 import is.hail.types.virtual._
 import is.hail.utils._
 
@@ -20,8 +21,8 @@ final case class EBlockMatrixNDArray(elementType: EType, encodeRowMajor: Boolean
     SNDArrayPointer(PCanonicalNDArray(elementPType, 2, false))
   }
 
-  override def _buildEncoder(cb: EmitCodeBuilder, v: PValue, out: Value[OutputBuffer]): Unit = {
-    val ndarray = v.asInstanceOf[PNDArrayValue]
+  override def _buildEncoder(cb: EmitCodeBuilder, v: SValue, out: Value[OutputBuffer]): Unit = {
+    val ndarray = v.asInstanceOf[SNDArrayValue]
     val shapes = ndarray.shapes(cb)
     val r = cb.newLocal[Long]("r", shapes(0))
     val c = cb.newLocal[Long]("c", shapes(1))
@@ -35,19 +36,19 @@ final case class EBlockMatrixNDArray(elementType: EType, encodeRowMajor: Boolean
     if (encodeRowMajor) {
       cb.forLoop(cb.assign(i, 0L), i < r, cb.assign(i, i + 1L), {
         cb.forLoop(cb.assign(j, 0L), j < c, cb.assign(j, j + 1L), {
-          writeElemF(cb, ndarray.loadElement(FastIndexedSeq(i, j), cb).asPCode, out)
+          writeElemF(cb, ndarray.loadElement(FastIndexedSeq(i, j), cb), out)
         })
       })
     } else {
       cb.forLoop(cb.assign(j, 0L), j < c, cb.assign(j, j + 1L), {
         cb.forLoop(cb.assign(i, 0L), i < r, cb.assign(i, i + 1L), {
-          writeElemF(cb, ndarray.loadElement(FastIndexedSeq(i, j), cb).asPCode, out)
+          writeElemF(cb, ndarray.loadElement(FastIndexedSeq(i, j), cb), out)
         })
       })
     }
   }
 
-  override def _buildDecoder(cb: EmitCodeBuilder, t: Type, region: Value[Region], in: Value[InputBuffer]): PCode = {
+  override def _buildDecoder(cb: EmitCodeBuilder, t: Type, region: Value[Region], in: Value[InputBuffer]): SCode = {
     val st = decodedSType(t).asInstanceOf[SNDArrayPointer]
     val pt = st.pType
     val readElemF = elementType.buildInplaceDecoder(pt.elementType, cb.emb.ecb)

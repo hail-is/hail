@@ -5,7 +5,7 @@ import is.hail.asm4s._
 import is.hail.expr.ir.functions.UtilFunctions
 import is.hail.expr.ir.{coerce => _, _}
 import is.hail.types.physical.stypes.interfaces._
-import is.hail.types.physical.{PCode, PType, typeToTypeInfo}
+import is.hail.types.physical.{PType, typeToTypeInfo}
 import is.hail.types.virtual._
 
 import scala.language.existentials

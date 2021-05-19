@@ -1,7 +1,6 @@
 package is.hail.io.index
 
 import java.io.OutputStream
-
 import is.hail.annotations.{Annotation, Region, RegionPool, RegionValueBuilder}
 import is.hail.asm4s._
 import is.hail.expr.ir.{CodeParam, EmitClassBuilder, EmitCodeBuilder, EmitFunctionBuilder, EmitMethodBuilder, ExecuteContext, IEmitCode, ParamType}
@@ -9,8 +8,10 @@ import is.hail.io._
 import is.hail.io.fs.FS
 import is.hail.rvd.AbstractRVDSpec
 import is.hail.types
+import is.hail.types.physical.stypes.SCode
 import is.hail.types.physical.stypes.concrete.{SBaseStructPointer, SBaseStructPointerSettable}
-import is.hail.types.physical.{PBaseStructValue, PCanonicalArray, PCanonicalStruct, PCode, PType}
+import is.hail.types.physical.stypes.interfaces.SBaseStructValue
+import is.hail.types.physical.{PCanonicalArray, PCanonicalStruct, PType}
 import is.hail.types.virtual.Type
 import is.hail.utils._
 import is.hail.utils.richUtils.ByteTrackingOutputStream
@@ -121,7 +122,7 @@ class IndexWriterArrayBuilder(name: String, maxSize: Int, sb: SettableBuilder, r
 
   def storeLength(cb: EmitCodeBuilder): Unit = cb += arrayType.storeLength(aoff, length)
 
-  def setFieldValue(cb: EmitCodeBuilder, name: String, field: PCode): Unit = {
+  def setFieldValue(cb: EmitCodeBuilder, name: String, field: SCode): Unit = {
     cb += eltType.setFieldPresent(elt.a, name)
     eltType.fieldType(name).storeAtAddress(cb, eltType.fieldOffset(elt.a, name), region, field, deepCopy = true)
   }
@@ -136,7 +137,7 @@ class IndexWriterArrayBuilder(name: String, maxSize: Int, sb: SettableBuilder, r
     cb.assign(len, len + 1)
   }
   def loadChild(cb: EmitCodeBuilder, idx: Code[Int]): Unit = elt.store(cb, eltType.loadCheapPCode(cb, arrayType.loadElement(aoff, idx)))
-  def getLoadedChild: PBaseStructValue = elt
+  def getLoadedChild: SBaseStructValue = elt
 }
 
 class StagedIndexWriterUtils(ib: Settable[IndexWriterUtils]) {

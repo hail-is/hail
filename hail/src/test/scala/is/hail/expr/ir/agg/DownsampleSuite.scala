@@ -6,7 +6,7 @@ import is.hail.asm4s._
 import is.hail.expr.ir.{EmitCode, EmitFunctionBuilder}
 import is.hail.types.VirtualTypeWithReq
 import is.hail.types.physical.stypes.primitives.{SFloat64Code, SInt32Code}
-import is.hail.types.physical.{PCanonicalArray, PCanonicalString, PCode}
+import is.hail.types.physical.{PCanonicalArray, PCanonicalString}
 import is.hail.utils.FastIndexedSeq
 import org.testng.annotations.Test
 

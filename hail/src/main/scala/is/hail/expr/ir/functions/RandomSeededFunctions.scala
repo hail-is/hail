@@ -6,7 +6,7 @@ import is.hail.types.physical.stypes._
 import is.hail.types.physical.stypes.concrete.SIndexablePointer
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.physical.stypes.primitives._
-import is.hail.types.physical.{PBoolean, PCanonicalArray, PCode, PFloat64, PInt32, PType}
+import is.hail.types.physical.{PBoolean, PCanonicalArray, PFloat64, PInt32, PType}
 import is.hail.types.virtual._
 import net.sourceforge.jdistlib.rng.MersenneTwister
 import net.sourceforge.jdistlib.{Beta, Gamma, Poisson}

@@ -140,7 +140,7 @@ class CallStatsAggregator extends StagedAggregator {
 
     call.toI(cb).consume(cb, {
       /* do nothing if missing */
-    }, { case callc: PCallCode =>
+    }, { case callc: SCallCode =>
       val call = callc.memoize(cb, "callstats_seqop_callv")
       val hom = cb.newLocal[Boolean]("hom", true)
       val lastAllele = cb.newLocal[Int]("lastAllele", -1)

@@ -8,6 +8,7 @@ import is.hail.types.VirtualTypeWithReq
 import is.hail.types.physical._
 import is.hail.types.physical.stypes.SCode
 import is.hail.types.physical.stypes.concrete.{SBaseStructPointer, SBaseStructPointerCode}
+import is.hail.types.physical.stypes.interfaces.SBinaryCode
 import is.hail.utils._
 
 trait AggregatorState {
@@ -34,14 +35,14 @@ trait AggregatorState {
 
   def deserialize(codec: BufferSpec): (EmitCodeBuilder, Value[InputBuffer]) => Unit
 
-  def deserializeFromBytes(cb: EmitCodeBuilder, bytes: PBinaryCode): Unit = {
+  def deserializeFromBytes(cb: EmitCodeBuilder, bytes: SBinaryCode): Unit = {
     val lazyBuffer = kb.getOrDefineLazyField[MemoryBufferWrapper](Code.newInstance[MemoryBufferWrapper](), (this, "bufferWrapper"))
     cb += lazyBuffer.invoke[Array[Byte], Unit]("set", bytes.loadBytes())
     val ib = cb.newLocal("aggstate_deser_from_bytes_ib", lazyBuffer.invoke[InputBuffer]("buffer"))
     deserialize(BufferSpec.defaultUncompressed)(cb, ib)
   }
 
-  def serializeToRegion(cb: EmitCodeBuilder, t: PBinary, r: Code[Region]): PCode = {
+  def serializeToRegion(cb: EmitCodeBuilder, t: PBinary, r: Code[Region]): SCode = {
     val lazyBuffer = kb.getOrDefineLazyField[MemoryWriterWrapper](Code.newInstance[MemoryWriterWrapper](), (this, "writerWrapper"))
     val addr = kb.genFieldThisRef[Long]("addr")
     cb += lazyBuffer.invoke[Unit]("clear")
@@ -186,7 +187,7 @@ class PrimitiveRVAState(val vtypes: Array[VirtualTypeWithReq], val kb: EmitClass
   private[this] def loadVarsFromRegion(cb: EmitCodeBuilder, srcc: Code[Long]): Unit = {
     val pv = new SBaseStructPointerCode(sStorageType, srcc).memoize(cb, "prim_rvastate_load_vars")
     foreachField { (i, es) =>
-      cb.assign(es, pv.loadField(cb, i).map(cb)(_.asPCode))
+      cb.assign(es, pv.loadField(cb, i))
     }
   }
 

@@ -9,6 +9,7 @@ import is.hail.expr.ir.agg._
 import is.hail.expr.ir.orderings.CodeOrdering
 import is.hail.types.physical._
 import is.hail.io.{InputBuffer, OutputBuffer, StreamBufferSpec}
+import is.hail.types.physical.stypes.Int64SingleCodeType
 import is.hail.types.physical.stypes.interfaces.primitive
 import is.hail.types.physical.stypes.primitives.SInt64
 import is.hail.utils._

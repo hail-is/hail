@@ -2,7 +2,8 @@ package is.hail.expr.ir
 
 import is.hail.annotations.Region
 import is.hail.asm4s._
-import is.hail.types.physical.{PCanonicalArray, PCanonicalDict, PCanonicalSet, PIndexableCode}
+import is.hail.types.physical.stypes.interfaces.SIndexableCode
+import is.hail.types.physical.{PCanonicalArray, PCanonicalDict, PCanonicalSet}
 import is.hail.types.virtual.{TArray, TDict, TSet, Type}
 import is.hail.utils.FastIndexedSeq
 
@@ -134,7 +135,7 @@ class ArraySorter(r: EmitRegion, array: StagedArrayBuilder) {
 
   }
 
-  def toRegion(cb: EmitCodeBuilder, t: Type): PIndexableCode = {
+  def toRegion(cb: EmitCodeBuilder, t: Type): SIndexableCode = {
     t match {
       case pca: TArray =>
         val len = cb.newLocal[Int]("arraysorter_to_region_len", array.size)

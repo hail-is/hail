@@ -2,8 +2,8 @@ package is.hail.expr.ir.orderings
 
 import is.hail.asm4s.{Code, CodeLabel}
 import is.hail.expr.ir.{EmitClassBuilder, EmitCode, EmitCodeBuilder}
-import is.hail.types.physical.stypes.interfaces.SInterval
-import is.hail.types.physical.{PCode, PIntervalCode, PIntervalValue}
+import is.hail.types.physical.stypes.SCode
+import is.hail.types.physical.stypes.interfaces.{SInterval, SIntervalCode, SIntervalValue}
 
 object IntervalOrdering {
 
@@ -12,25 +12,25 @@ object IntervalOrdering {
     val type1: SInterval = t1
     val type2: SInterval = t2
 
-    private val setup: (EmitCodeBuilder, PCode, PCode) => (PIntervalValue, PIntervalValue) = {
-      case (cb, lhs: PIntervalCode, rhs: PIntervalCode) =>
+    private val setup: (EmitCodeBuilder, SCode, SCode) => (SIntervalValue, SIntervalValue) = {
+      case (cb, lhs: SIntervalCode, rhs: SIntervalCode) =>
         lhs.memoize(cb, "intervalord_lhs") -> rhs.memoize(cb, "intervalord_rhs")
     }
 
-    override def _compareNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Int] = {
+    override def _compareNonnull(cb: EmitCodeBuilder, x: SCode, y: SCode): Code[Int] = {
       val pointCompare = ecb.getOrderingFunction(t1.pointType, t2.pointType, CodeOrdering.Compare())
       val cmp = cb.newLocal[Int]("intervalord_cmp", 0)
 
       val (lhs, rhs) = setup(cb, x, y)
-      val lstart = EmitCode.fromI(cb.emb)(lhs.loadStart(_).typecast)
-      val rstart = EmitCode.fromI(cb.emb)(rhs.loadStart(_).typecast)
+      val lstart = EmitCode.fromI(cb.emb)(lhs.loadStart(_))
+      val rstart = EmitCode.fromI(cb.emb)(rhs.loadStart(_))
       cb.assign(cmp, pointCompare(cb, lstart, rstart))
       cb.ifx(cmp.ceq(0), {
         cb.ifx(lhs.includesStart().cne(rhs.includesStart()), {
           cb.assign(cmp, lhs.includesStart().mux(-1, 1))
         }, {
-          val lend = EmitCode.fromI(cb.emb)(lhs.loadEnd(_).typecast)
-          val rend = EmitCode.fromI(cb.emb)(rhs.loadEnd(_).typecast)
+          val lend = EmitCode.fromI(cb.emb)(lhs.loadEnd(_))
+          val rend = EmitCode.fromI(cb.emb)(rhs.loadEnd(_))
           cb.assign(cmp, pointCompare(cb, lend, rend))
           cb.ifx(cmp.ceq(0), {
             cb.ifx(lhs.includesEnd().cne(rhs.includesEnd()), {
@@ -43,7 +43,7 @@ object IntervalOrdering {
       cmp
     }
 
-    override def _equivNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Boolean] = {
+    override def _equivNonnull(cb: EmitCodeBuilder, x: SCode, y: SCode): Code[Boolean] = {
       val pointEq = ecb.getOrderingFunction(t1.pointType, t2.pointType, CodeOrdering.Equiv())
 
       val Lout = CodeLabel()
@@ -60,19 +60,19 @@ object IntervalOrdering {
         exitWith(false)
       })
 
-      val lstart = EmitCode.fromI(cb.emb)(lhs.loadStart(_).typecast)
-      val rstart = EmitCode.fromI(cb.emb)(rhs.loadStart(_).typecast)
+      val lstart = EmitCode.fromI(cb.emb)(lhs.loadStart(_))
+      val rstart = EmitCode.fromI(cb.emb)(rhs.loadStart(_))
       cb.ifx(!pointEq(cb, lstart, rstart), exitWith(false))
 
-      val lend = EmitCode.fromI(cb.emb)(lhs.loadEnd(_).typecast)
-      val rend = EmitCode.fromI(cb.emb)(rhs.loadEnd(_).typecast)
+      val lend = EmitCode.fromI(cb.emb)(lhs.loadEnd(_))
+      val rend = EmitCode.fromI(cb.emb)(rhs.loadEnd(_))
       cb.ifx(!pointEq(cb, lend, rend), exitWith(false))
 
       cb.define(Lout)
       ret
     }
 
-    override def _ltNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Boolean] = {
+    override def _ltNonnull(cb: EmitCodeBuilder, x: SCode, y: SCode): Code[Boolean] = {
       val pointLt = ecb.getOrderingFunction(t1.pointType, t2.pointType, CodeOrdering.Lt())
       val pointEq = ecb.getOrderingFunction(t1.pointType, t2.pointType, CodeOrdering.Equiv())
 
@@ -84,16 +84,16 @@ object IntervalOrdering {
       }
 
       val (lhs, rhs) = setup(cb, x, y)
-      val lstart = cb.memoize(EmitCode.fromI(cb.emb)(lhs.loadStart(_).typecast), "linterval_start")
-      val rstart = cb.memoize(EmitCode.fromI(cb.emb)(rhs.loadStart(_).typecast), "rinterval_start")
+      val lstart = cb.memoize(EmitCode.fromI(cb.emb)(lhs.loadStart(_)), "linterval_start")
+      val rstart = cb.memoize(EmitCode.fromI(cb.emb)(rhs.loadStart(_)), "rinterval_start")
 
       cb.ifx(pointLt(cb, lstart, rstart), exitWith(true))
       cb.ifx(!pointEq(cb, lstart, rstart), exitWith(false))
       cb.ifx(lhs.includesStart() && !rhs.includesStart(), exitWith(true))
       cb.ifx(lhs.includesStart().cne(rhs.includesStart()), exitWith(false))
 
-      val lend = cb.memoize(EmitCode.fromI(cb.emb)(lhs.loadEnd(_).typecast), "linterval_end")
-      val rend = cb.memoize(EmitCode.fromI(cb.emb)(rhs.loadEnd(_).typecast), "rinterval_end")
+      val lend = cb.memoize(EmitCode.fromI(cb.emb)(lhs.loadEnd(_)), "linterval_end")
+      val rend = cb.memoize(EmitCode.fromI(cb.emb)(rhs.loadEnd(_)), "rinterval_end")
 
       cb.ifx(pointLt(cb, lend, rend), exitWith(true))
       cb.assign(ret, pointEq(cb, lend, rend) && !lhs.includesEnd() && rhs.includesEnd())
@@ -102,7 +102,7 @@ object IntervalOrdering {
       ret
     }
 
-    override def _lteqNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Boolean] = {
+    override def _lteqNonnull(cb: EmitCodeBuilder, x: SCode, y: SCode): Code[Boolean] = {
       val pointLtEq = ecb.getOrderingFunction(t1.pointType, t2.pointType, CodeOrdering.Lteq())
       val pointEq = ecb.getOrderingFunction(t1.pointType, t2.pointType, CodeOrdering.Equiv())
 
@@ -114,16 +114,16 @@ object IntervalOrdering {
       }
 
       val (lhs, rhs) = setup(cb, x, y)
-      val lstart = cb.memoize(EmitCode.fromI(cb.emb)(lhs.loadStart(_).typecast), "linterval_start")
-      val rstart = cb.memoize(EmitCode.fromI(cb.emb)(rhs.loadStart(_).typecast), "rinterval_start")
+      val lstart = cb.memoize(EmitCode.fromI(cb.emb)(lhs.loadStart(_)), "linterval_start")
+      val rstart = cb.memoize(EmitCode.fromI(cb.emb)(rhs.loadStart(_)), "rinterval_start")
 
       cb.ifx(!pointLtEq(cb, lstart, rstart), exitWith(false))
       cb.ifx(!pointEq(cb, lstart, rstart), exitWith(true))
       cb.ifx(lhs.includesStart() && !rhs.includesStart(), exitWith(true))
       cb.ifx(lhs.includesStart().cne(rhs.includesStart()), exitWith(false))
 
-      val lend = cb.memoize(EmitCode.fromI(cb.emb)(lhs.loadEnd(_).typecast), "linterval_end")
-      val rend = cb.memoize(EmitCode.fromI(cb.emb)(rhs.loadEnd(_).typecast), "rinterval_end")
+      val lend = cb.memoize(EmitCode.fromI(cb.emb)(lhs.loadEnd(_)), "linterval_end")
+      val rend = cb.memoize(EmitCode.fromI(cb.emb)(rhs.loadEnd(_)), "rinterval_end")
       cb.ifx(!pointLtEq(cb, lend, rend), exitWith(false))
       cb.assign(ret, !pointEq(cb, lend, rend) || !lhs.includesEnd() || rhs.includesEnd())
 
@@ -131,7 +131,7 @@ object IntervalOrdering {
       ret
     }
 
-    override def _gtNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Boolean] = {
+    override def _gtNonnull(cb: EmitCodeBuilder, x: SCode, y: SCode): Code[Boolean] = {
       val pointGt = ecb.getOrderingFunction(t1.pointType, t2.pointType, CodeOrdering.Gt())
       val pointEq = ecb.getOrderingFunction(t1.pointType, t2.pointType, CodeOrdering.Equiv())
 
@@ -143,16 +143,16 @@ object IntervalOrdering {
       }
 
       val (lhs, rhs) = setup(cb, x, y)
-      val lstart = cb.memoize(EmitCode.fromI(cb.emb)(lhs.loadStart(_).typecast), "linterval_start")
-      val rstart = cb.memoize(EmitCode.fromI(cb.emb)(rhs.loadStart(_).typecast), "rinterval_start")
+      val lstart = cb.memoize(EmitCode.fromI(cb.emb)(lhs.loadStart(_)), "linterval_start")
+      val rstart = cb.memoize(EmitCode.fromI(cb.emb)(rhs.loadStart(_)), "rinterval_start")
 
       cb.ifx(pointGt(cb, lstart, rstart), exitWith(true))
       cb.ifx(!pointEq(cb, lstart, rstart), exitWith(false))
       cb.ifx(!lhs.includesStart() && rhs.includesStart(), exitWith(true))
       cb.ifx(lhs.includesStart().cne(rhs.includesStart()), exitWith(false))
 
-      val lend = cb.memoize(EmitCode.fromI(cb.emb)(lhs.loadEnd(_).typecast), "linterval_end")
-      val rend = cb.memoize(EmitCode.fromI(cb.emb)(rhs.loadEnd(_).typecast), "rinterval_end")
+      val lend = cb.memoize(EmitCode.fromI(cb.emb)(lhs.loadEnd(_)), "linterval_end")
+      val rend = cb.memoize(EmitCode.fromI(cb.emb)(rhs.loadEnd(_)), "rinterval_end")
 
       cb.ifx(pointGt(cb, lend, rend), exitWith(true))
       cb.assign(ret, pointEq(cb, lend, rend) && lhs.includesEnd() && !rhs.includesEnd())
@@ -161,7 +161,7 @@ object IntervalOrdering {
       ret
     }
 
-    override def _gteqNonnull(cb: EmitCodeBuilder, x: PCode, y: PCode): Code[Boolean] = {
+    override def _gteqNonnull(cb: EmitCodeBuilder, x: SCode, y: SCode): Code[Boolean] = {
       val pointGtEq = ecb.getOrderingFunction(t1.pointType, t2.pointType, CodeOrdering.Gteq())
       val pointEq = ecb.getOrderingFunction(t1.pointType, t2.pointType, CodeOrdering.Equiv())
 
@@ -173,16 +173,16 @@ object IntervalOrdering {
       }
 
       val (lhs, rhs) = setup(cb, x, y)
-      val lstart = cb.memoize(EmitCode.fromI(cb.emb)(lhs.loadStart(_).typecast), "linterval_start")
-      val rstart = cb.memoize(EmitCode.fromI(cb.emb)(rhs.loadStart(_).typecast), "rinterval_start")
+      val lstart = cb.memoize(EmitCode.fromI(cb.emb)(lhs.loadStart(_)), "linterval_start")
+      val rstart = cb.memoize(EmitCode.fromI(cb.emb)(rhs.loadStart(_)), "rinterval_start")
 
       cb.ifx(!pointGtEq(cb, lstart, rstart), exitWith(false))
       cb.ifx(!pointEq(cb, lstart, rstart), exitWith(true))
       cb.ifx(!lhs.includesStart() && rhs.includesStart(), exitWith(true))
       cb.ifx(lhs.includesStart().cne(rhs.includesStart()), exitWith(false))
 
-      val lend = cb.memoize(EmitCode.fromI(cb.emb)(lhs.loadEnd(_).typecast), "linterval_end")
-      val rend = cb.memoize(EmitCode.fromI(cb.emb)(rhs.loadEnd(_).typecast), "rinterval_end")
+      val lend = cb.memoize(EmitCode.fromI(cb.emb)(lhs.loadEnd(_)), "linterval_end")
+      val rend = cb.memoize(EmitCode.fromI(cb.emb)(rhs.loadEnd(_)), "rinterval_end")
       cb.ifx(!pointGtEq(cb, lend, rend), exitWith(false))
       cb.assign(ret, !pointEq(cb, lend, rend) || lhs.includesEnd() || !rhs.includesEnd())
 

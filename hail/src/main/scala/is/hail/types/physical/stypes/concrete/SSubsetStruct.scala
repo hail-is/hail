@@ -3,10 +3,10 @@ package is.hail.types.physical.stypes.concrete
 import is.hail.annotations.Region
 import is.hail.asm4s.{Code, LongInfo, Settable, TypeInfo, Value}
 import is.hail.expr.ir.orderings.CodeOrdering
-import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, IEmitCode, IEmitSCode, SortOrder}
+import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, IEmitCode, SortOrder}
 import is.hail.types.physical.stypes.{EmitType, SCode, SType}
-import is.hail.types.physical.stypes.interfaces.{SBaseStruct, SStructSettable}
-import is.hail.types.physical.{PBaseStruct, PBaseStructCode, PBaseStructValue, PCanonicalStruct, PCode, PStruct, PStructSettable, PSubsetStruct, PType}
+import is.hail.types.physical.stypes.interfaces.{SBaseStruct, SBaseStructCode, SBaseStructValue, SStructSettable}
+import is.hail.types.physical.{PCanonicalStruct, PType}
 import is.hail.types.virtual.{TStruct, Type}
 
 case class SSubsetStruct(parent: SBaseStruct, fieldNames: IndexedSeq[String]) extends SBaseStruct {
@@ -59,11 +59,11 @@ case class SSubsetStruct(parent: SBaseStruct, fieldNames: IndexedSeq[String]) ex
   }
 
   def fromSettables(settables: IndexedSeq[Settable[_]]): SSubsetStructSettable = {
-    new SSubsetStructSettable(this, parent.fromSettables(settables).asInstanceOf[PStructSettable])
+    new SSubsetStructSettable(this, parent.fromSettables(settables).asInstanceOf[SStructSettable])
   }
 
   def fromCodes(codes: IndexedSeq[Code[_]]): SSubsetStructCode = {
-    new SSubsetStructCode(this, parent.fromCodes(codes).asInstanceOf[PBaseStructCode])
+    new SSubsetStructCode(this, parent.fromCodes(codes))
   }
 
   def canonicalPType(): PType = {
@@ -73,30 +73,29 @@ case class SSubsetStruct(parent: SBaseStruct, fieldNames: IndexedSeq[String]) ex
   }
 }
 
-// FIXME: prev should be SStructSettable, not PStructSettable
-class SSubsetStructSettable(val st: SSubsetStruct, prev: PStructSettable) extends PStructSettable {
+class SSubsetStructSettable(val st: SSubsetStruct, prev: SStructSettable) extends SStructSettable {
   def get: SSubsetStructCode = new SSubsetStructCode(st, prev.load().asBaseStruct)
 
   def settableTuple(): IndexedSeq[Settable[_]] = prev.settableTuple()
 
-  def loadField(cb: EmitCodeBuilder, fieldIdx: Int): IEmitSCode = {
+  def loadField(cb: EmitCodeBuilder, fieldIdx: Int): IEmitCode = {
     prev.loadField(cb, st.newToOldFieldMapping(fieldIdx))
   }
 
   def isFieldMissing(fieldIdx: Int): Code[Boolean] =
     prev.isFieldMissing(st.newToOldFieldMapping(fieldIdx))
 
-  def store(cb: EmitCodeBuilder, pv: PCode): Unit = prev.store(cb, pv.asInstanceOf[SSubsetStructCode].prev)
+  def store(cb: EmitCodeBuilder, pv: SCode): Unit = prev.store(cb, pv.asInstanceOf[SSubsetStructCode].prev)
 }
 
-class SSubsetStructCode(val st: SSubsetStruct, val prev: PBaseStructCode) extends PBaseStructCode {
+class SSubsetStructCode(val st: SSubsetStruct, val prev: SBaseStructCode) extends SBaseStructCode {
   def codeTuple(): IndexedSeq[Code[_]] = prev.codeTuple()
 
-  def memoize(cb: EmitCodeBuilder, name: String): PBaseStructValue = {
-    new SSubsetStructSettable(st, prev.memoize(cb, name).asInstanceOf[PStructSettable])
+  def memoize(cb: EmitCodeBuilder, name: String): SBaseStructValue = {
+    new SSubsetStructSettable(st, prev.memoize(cb, name).asInstanceOf[SStructSettable])
   }
 
-  def memoizeField(cb: EmitCodeBuilder, name: String): PBaseStructValue = {
-    new SSubsetStructSettable(st, prev.memoizeField(cb, name).asInstanceOf[PStructSettable])
+  def memoizeField(cb: EmitCodeBuilder, name: String): SBaseStructValue = {
+    new SSubsetStructSettable(st, prev.memoizeField(cb, name).asInstanceOf[SStructSettable])
   }
 }

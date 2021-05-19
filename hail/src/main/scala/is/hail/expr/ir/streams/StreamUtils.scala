@@ -3,7 +3,9 @@ package is.hail.expr.ir.streams
 import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.expr.ir.{EmitCodeBuilder, IEmitCode, IR, NDArrayMap, NDArrayMap2, Ref, RunAggScan, StagedArrayBuilder, StreamFilter, StreamFlatMap, StreamFold, StreamFold2, StreamFor, StreamJoinRightDistinct, StreamMap, StreamScan, StreamZip, StreamZipJoin}
-import is.hail.types.physical.{PCanonicalArray, PCode, PIndexableCode, SingleCodePCode, SingleCodeType}
+import is.hail.types.physical.stypes.interfaces.SIndexableCode
+import is.hail.types.physical.PCanonicalArray
+import is.hail.types.physical.stypes.SingleCodeType
 
 trait StreamArgType {
   def apply(outerRegion: Region, eltRegion: Region): Iterator[java.lang.Long]
@@ -15,7 +17,7 @@ object StreamUtils {
     cb: EmitCodeBuilder,
     stream: StreamProducer,
     destRegion: Value[Region]
-  ): PIndexableCode = {
+  ): SIndexableCode = {
     val mb = cb.emb
 
     val xLen = mb.newLocal[Int]("sta_len")
@@ -33,7 +35,7 @@ object StreamUtils {
       case Some(computeLen) =>
 
         var pushElem: (EmitCodeBuilder, IEmitCode) => Unit = null
-        var finish: (EmitCodeBuilder) => PIndexableCode = null
+        var finish: (EmitCodeBuilder) => SIndexableCode = null
 
         stream.memoryManagedConsume(destRegion, cb, setup = { cb =>
           cb.assign(xLen, computeLen(cb))
@@ -65,7 +67,7 @@ object StreamUtils {
     }) { cb =>
       stream.element.toI(cb).consume(cb,
         cb += ab.addMissing(),
-        sc => cb += ab.add(ab.elt.coercePCode(cb, sc, destRegion, deepCopy = stream.requiresMemoryManagementPerElement).code)
+        sc => cb += ab.add(ab.elt.coerceSCode(cb, sc, destRegion, deepCopy = stream.requiresMemoryManagementPerElement).code)
       )
     }
   }

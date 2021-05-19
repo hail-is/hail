@@ -9,7 +9,7 @@ import is.hail.types.coerce
 import is.hail.types.physical.stypes.EmitType
 import is.hail.types.physical.stypes.concrete.{SBaseStructPointer, SNDArrayPointer}
 import is.hail.types.physical.stypes.interfaces._
-import is.hail.types.physical.{PBooleanRequired, PCanonicalNDArray, PCanonicalStruct, PFloat64Required, PNDArrayCode, PType}
+import is.hail.types.physical.{PBooleanRequired, PCanonicalNDArray, PCanonicalStruct, PFloat64Required, PType}
 import is.hail.types.virtual._
 
 object NDArrayFunctions extends RegistryFunctions {
@@ -36,7 +36,7 @@ object NDArrayFunctions extends RegistryFunctions {
       }
     }
 
-    def linear_solve(a: PNDArrayCode, b: PNDArrayCode, outputPt: PType, cb: EmitCodeBuilder, region: Value[Region]): (PNDArrayCode, Value[Int]) = {
+    def linear_solve(a: SNDArrayCode, b: SNDArrayCode, outputPt: PType, cb: EmitCodeBuilder, region: Value[Region]): (SNDArrayCode, Value[Int]) = {
       val aInput = a.asNDArray.memoize(cb, "A")
       val bInput = b.asNDArray.memoize(cb, "B")
 

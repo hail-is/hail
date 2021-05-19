@@ -4,12 +4,11 @@ import is.hail.TestUtils._
 import is.hail.expr.ir.TestUtils._
 import is.hail.asm4s.Code
 import is.hail.expr.ir.functions.{IRRandomness, RegistryFunctions}
-import is.hail.types.physical.{PCode, PInt32, PInt64}
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.physical.stypes.primitives.{SInt32, SInt64}
 import is.hail.types.virtual.{TArray, TFloat64, TInt32, TInt64, TStream}
 import is.hail.utils._
-import is.hail.{ExecStrategy, HailContext, HailSuite}
+import is.hail.{ExecStrategy, HailSuite}
 import org.apache.spark.sql.Row
 import org.testng.annotations.{BeforeClass, Test}
 

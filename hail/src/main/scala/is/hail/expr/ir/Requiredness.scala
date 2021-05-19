@@ -3,8 +3,8 @@ package is.hail.expr.ir
 import is.hail.expr.ir.functions.GetElement
 import is.hail.methods.ForceCountTable
 import is.hail.types._
-import is.hail.types.physical.stypes.EmitType
-import is.hail.types.physical.{PCanonicalStream, PStream, PType, PTypeReferenceSingleCodeType, StreamSingleCodeType}
+import is.hail.types.physical.stypes.{EmitType, PTypeReferenceSingleCodeType, StreamSingleCodeType}
+import is.hail.types.physical.{PCanonicalStream, PStream, PType}
 import is.hail.types.virtual._
 import is.hail.utils._
 import org.apache.spark.sql.catalyst.expressions.GenericRow

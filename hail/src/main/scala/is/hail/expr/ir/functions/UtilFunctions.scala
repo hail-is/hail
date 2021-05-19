@@ -10,7 +10,6 @@ import is.hail.types.physical.stypes.concrete.SStringPointer
 import is.hail.utils._
 import is.hail.types.virtual._
 import is.hail.types.physical.stypes.interfaces._
-import is.hail.types.physical.stypes.primitives.SPrimitive
 import org.apache.spark.sql.Row
 
 import scala.reflect.ClassTag
@@ -159,13 +158,13 @@ object UtilFunctions extends RegistryFunctions {
     )) {
       val ctString: ClassTag[String] = implicitly[ClassTag[String]]
       registerPCode1(s"to$name", TString, t, (_: Type, _: SType) => rpt) {
-        case (r, cb, rt, x: PStringCode) =>
+        case (r, cb, rt, x: SStringCode) =>
           val s = x.loadString()
           primitive(rt.virtualType, Code.invokeScalaObject1(thisClass, s"parse$name", s)(ctString, ct))
       }
       registerIEmitCode1(s"to${name}OrMissing", TString, t, (_: Type, xPT: EmitType) => EmitType(rpt, xPT.required)) {
         case (cb, r, rt, x) =>
-          x.toI(cb).flatMap(cb) { case (sc: PStringCode) =>
+          x.toI(cb).flatMap(cb) { case (sc: SStringCode) =>
             val sv = cb.newLocal[String]("s", sc.loadString())
             IEmitCode(cb,
               !Code.invokeScalaObject1[String, Boolean](thisClass, s"isValid$name", sv),

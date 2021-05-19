@@ -7,14 +7,13 @@ import is.hail.expr.ir._
 import is.hail.types.physical.stypes.{EmitType, SCode, SType}
 import is.hail.types.physical.stypes.primitives.{SFloat64, SInt32}
 import is.hail.types.physical.stypes.interfaces._
-import is.hail.types.physical.{PArray, PCode, PFloat64, PIndexableCode, PInt32, PType}
 import is.hail.types.virtual.{TArray, TFloat64, TInt32, Type}
 
 object GenotypeFunctions extends RegistryFunctions {
 
   def registerAll() {
     registerPCode1("gqFromPL", TArray(tv("N", "int32")), TInt32, (_: Type, _: SType) => SInt32)
-    { case (r, cb, rt, _pl: PIndexableCode) =>
+    { case (r, cb, rt, _pl: SIndexableCode) =>
       val code = EmitCodeBuilder.scopedCode(r.mb) { cb =>
         val pl = _pl.memoize(cb, "plv")
         val m = cb.newLocal[Int]("m", 99)
@@ -41,7 +40,7 @@ object GenotypeFunctions extends RegistryFunctions {
     registerIEmitCode1("dosage", TArray(tv("N", "float64")), TFloat64,
       (_: Type, arrayType: EmitType) => EmitType(SFloat64, arrayType.required && arrayType.st.asInstanceOf[SContainer].elementEmitType.required)
     ) { case (cb, r, rt, gp) =>
-      gp.toI(cb).flatMap(cb) { case (gpc: PIndexableCode) =>
+      gp.toI(cb).flatMap(cb) { case (gpc: SIndexableCode) =>
         val gpv = gpc.memoize(cb, "dosage_gp")
 
         cb.ifx(gpv.loadLength().cne(3),

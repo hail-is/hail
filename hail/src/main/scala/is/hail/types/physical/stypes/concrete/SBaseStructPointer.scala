@@ -4,9 +4,9 @@ import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.expr.ir.orderings.CodeOrdering
 import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, IEmitCode, SortOrder}
-import is.hail.types.physical.stypes.interfaces.{SBaseStruct, SStructSettable}
+import is.hail.types.physical.stypes.interfaces.{SBaseStruct, SBaseStructCode, SBaseStructValue, SStructSettable}
 import is.hail.types.physical.stypes.{EmitType, SCode, SSettable, SType}
-import is.hail.types.physical.{PBaseStruct, PBaseStructCode, PBaseStructValue, PCode, PStructSettable, PType}
+import is.hail.types.physical.{PBaseStruct, PType}
 import is.hail.types.virtual.{TBaseStruct, Type}
 import is.hail.utils.FastIndexedSeq
 
@@ -62,10 +62,10 @@ object SBaseStructPointerSettable {
 class SBaseStructPointerSettable(
   val st: SBaseStructPointer,
   val a: Settable[Long]
-) extends PStructSettable {
+) extends SStructSettable {
   val pt: PBaseStruct = st.pType
 
-  def get: PBaseStructCode = new SBaseStructPointerCode(st, a)
+  def get: SBaseStructCode = new SBaseStructPointerCode(st, a)
 
   def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(a)
 
@@ -75,7 +75,7 @@ class SBaseStructPointerSettable(
       pt.fields(fieldIdx).typ.loadCheapPCode(cb, pt.loadField(a, fieldIdx)))
   }
 
-  def store(cb: EmitCodeBuilder, pv: PCode): Unit = {
+  def store(cb: EmitCodeBuilder, pv: SCode): Unit = {
     cb.assign(a, pv.asInstanceOf[SBaseStructPointerCode].a)
   }
 
@@ -84,20 +84,20 @@ class SBaseStructPointerSettable(
   }
 }
 
-class SBaseStructPointerCode(val st: SBaseStructPointer, val a: Code[Long]) extends PBaseStructCode {
+class SBaseStructPointerCode(val st: SBaseStructPointer, val a: Code[Long]) extends SBaseStructCode {
   val pt: PBaseStruct = st.pType
 
   def code: Code[_] = a
 
   def codeTuple(): IndexedSeq[Code[_]] = FastIndexedSeq(a)
 
-  def memoize(cb: EmitCodeBuilder, name: String, sb: SettableBuilder): PBaseStructValue = {
+  def memoize(cb: EmitCodeBuilder, name: String, sb: SettableBuilder): SBaseStructValue = {
     val s = SBaseStructPointerSettable(sb, st, name)
     cb.assign(s, this)
     s
   }
 
-  def memoize(cb: EmitCodeBuilder, name: String): PBaseStructValue = memoize(cb, name, cb.localBuilder)
+  def memoize(cb: EmitCodeBuilder, name: String): SBaseStructValue = memoize(cb, name, cb.localBuilder)
 
-  def memoizeField(cb: EmitCodeBuilder, name: String): PBaseStructValue = memoize(cb, name, cb.fieldBuilder)
+  def memoizeField(cb: EmitCodeBuilder, name: String): SBaseStructValue = memoize(cb, name, cb.fieldBuilder)
 }

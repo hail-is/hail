@@ -40,7 +40,7 @@ final case class PCanonicalCall(required: Boolean = false) extends PCall {
 
   def sType: SCall = SCanonicalCall
 
-  def loadCheapPCode(cb: EmitCodeBuilder, addr: Code[Long]): PCode = new SCanonicalCallCode(Region.loadInt(addr))
+  def loadCheapPCode(cb: EmitCodeBuilder, addr: Code[Long]): SCode = new SCanonicalCallCode(Region.loadInt(addr))
 
   def store(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): Code[Long] = {
     value.st match {

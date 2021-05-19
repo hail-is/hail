@@ -57,7 +57,7 @@ abstract class PNDArray extends PType {
     data: SIndexableCode,
     cb: EmitCodeBuilder,
     region: Value[Region]
-  ): PNDArrayCode
+  ): SNDArrayCode
 
   def constructDataFunction(
     shape: IndexedSeq[Value[Long]],
@@ -65,10 +65,4 @@ abstract class PNDArray extends PType {
     cb: EmitCodeBuilder,
     region: Value[Region]
   ): (Value[Long], EmitCodeBuilder =>  SNDArrayPointerCode)
-}
-
-abstract class PNDArrayValue extends PValue with SNDArrayValue
-
-abstract class PNDArrayCode extends PCode with SNDArrayCode {
-  def memoize(cb: EmitCodeBuilder, name: String): PNDArrayValue
 }

@@ -1,7 +1,7 @@
 package is.hail.types.physical.stypes.interfaces
 
 import is.hail.asm4s.Code
-import is.hail.expr.ir.{EmitCodeBuilder, IEmitSCode}
+import is.hail.expr.ir.{EmitCodeBuilder, IEmitCode}
 import is.hail.types.physical.PBaseStruct
 import is.hail.types.physical.stypes.concrete.{SSubsetStruct, SSubsetStructCode}
 import is.hail.types.physical.stypes.{EmitType, SCode, SSettable, SType, SValue}
@@ -29,9 +29,9 @@ trait SBaseStructValue extends SValue {
 
   def isFieldMissing(fieldName: String): Code[Boolean] = isFieldMissing(st.fieldIdx(fieldName))
 
-  def loadField(cb: EmitCodeBuilder, fieldIdx: Int): IEmitSCode
+  def loadField(cb: EmitCodeBuilder, fieldIdx: Int): IEmitCode
 
-  def loadField(cb: EmitCodeBuilder, fieldName: String): IEmitSCode = loadField(cb, st.fieldIdx(fieldName))
+  def loadField(cb: EmitCodeBuilder, fieldName: String): IEmitCode = loadField(cb, st.fieldIdx(fieldName))
 }
 
 trait SBaseStructCode extends SCode { self =>
@@ -43,6 +43,6 @@ trait SBaseStructCode extends SCode { self =>
 
   def subset(fieldNames: String*): SSubsetStructCode = {
     val st = SSubsetStruct(self.st, fieldNames.toIndexedSeq)
-    new SSubsetStructCode(st, self.asPCode.asBaseStruct) // FIXME, should be sufficient to just use self here
+    new SSubsetStructCode(st, self)
   }
 }

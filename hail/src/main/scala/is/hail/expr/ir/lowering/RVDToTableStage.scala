@@ -1,14 +1,14 @@
 package is.hail.expr.ir.lowering
 
 import java.io.{ByteArrayInputStream, ByteArrayOutputStream}
-
 import is.hail.annotations.{BroadcastRow, Region, RegionValue}
 import is.hail.asm4s._
 import is.hail.expr.ir.{Compile, CompileIterator, ExecuteContext, GetField, IR, In, Let, MakeStruct, PartitionRVDReader, ReadPartition, StreamRange, ToArray, _}
 import is.hail.io.{BufferSpec, TypedCodecSpec}
 import is.hail.rvd.{RVD, RVDType}
 import is.hail.sparkextras.ContextRDD
-import is.hail.types.physical.{PArray, PStruct, PTypeReferenceSingleCodeType}
+import is.hail.types.physical.stypes.PTypeReferenceSingleCodeType
+import is.hail.types.physical.{PArray, PStruct, stypes}
 import is.hail.utils.{FastIndexedSeq, FastSeq}
 
 object RVDToTableStage {

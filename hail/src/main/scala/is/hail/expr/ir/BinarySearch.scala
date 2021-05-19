@@ -4,7 +4,7 @@ import is.hail.asm4s._
 import is.hail.expr.ir.orderings.CodeOrdering
 import is.hail.types.physical._
 import is.hail.types.physical.stypes._
-import is.hail.types.physical.stypes.interfaces.{SBaseStruct, SContainer, SInterval}
+import is.hail.types.physical.stypes.interfaces.{SBaseStruct, SBaseStructCode, SContainer, SInterval, SIntervalCode}
 import is.hail.utils.FastIndexedSeq
 
 import scala.language.existentials
@@ -28,11 +28,11 @@ class BinarySearch[C](mb: EmitMethodBuilder[C], containerType: SContainer, eltTy
         val ec2 = EmitCode.fromI(cb.emb) { cb =>
           val iec = _ec2.toI(cb)
           iec.flatMap(cb) {
-            case v2: PBaseStructCode =>
+            case v2: SBaseStructCode =>
               v2.memoize(cb, "bs_comp_v2").loadField(cb, 0)
-            case v2: PIntervalCode =>
+            case v2: SIntervalCode =>
               v2.memoize(cb, "bs_comp_v2").loadStart(cb)
-          }.map(cb)(_.asPCode)
+          }
         }
         findMB.ecb.getOrderingFunction(eltType.st, kt.st, CodeOrdering.Compare())(cb, ec1, ec2)
     }
@@ -41,11 +41,11 @@ class BinarySearch[C](mb: EmitMethodBuilder[C], containerType: SContainer, eltTy
         val ec2 = EmitCode.fromI(cb.emb) { cb =>
           val iec = _ec2.toI(cb)
           iec.flatMap(cb) {
-            case v2: PBaseStructCode =>
+            case v2: SBaseStructCode =>
               v2.memoize(cb, "bs_eq_v2").loadField(cb, 0)
-            case v2: PIntervalCode =>
+            case v2: SIntervalCode =>
               v2.memoize(cb, "bs_comp_v2").loadStart(cb)
-          }.map(cb)(_.asPCode)
+          }
         }
       findMB.ecb.getOrderingFunction(eltType.st, kt.st, CodeOrdering.Equiv())(cb, ec1, ec2)
     }
@@ -67,7 +67,7 @@ class BinarySearch[C](mb: EmitMethodBuilder[C], containerType: SContainer, eltTy
 
     cb.whileLoop(low < high, {
       val i = cb.newLocal("findelt_i", (low + high) / 2)
-      cb.ifx(compare(cb, elt, EmitCode.fromI(findElt)(cb => indexable.loadElement(cb, i).typecast[PCode])) <= 0,
+      cb.ifx(compare(cb, elt, EmitCode.fromI(findElt)(cb => indexable.loadElement(cb, i))) <= 0,
         cb.assign(high, i),
         cb.assign(low, i + 1)
       )
@@ -76,7 +76,7 @@ class BinarySearch[C](mb: EmitMethodBuilder[C], containerType: SContainer, eltTy
   }
 
   // check missingness of v before calling
-  def getClosestIndex(cb: EmitCodeBuilder, array: PCode, v: EmitCode): Code[Int] = {
+  def getClosestIndex(cb: EmitCodeBuilder, array: SCode, v: EmitCode): Code[Int] = {
     cb.invokeCode[Int](findElt, array, v)
   }
 }

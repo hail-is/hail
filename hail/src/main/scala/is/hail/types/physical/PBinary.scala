@@ -71,21 +71,3 @@ abstract class PBinary extends PType {
 
   def store(addr: Code[Long], bytes: Code[Array[Byte]]): Code[Unit]
 }
-
-abstract class PBinaryValue extends PValue with SBinaryValue {
-  def loadLength(): Code[Int]
-
-  def loadBytes(): Code[Array[Byte]]
-
-  def loadByte(i: Code[Int]): Code[Byte]
-}
-
-abstract class PBinaryCode extends PCode with SBinaryCode {
-  def loadLength(): Code[Int]
-
-  def loadBytes(): Code[Array[Byte]]
-
-  def memoize(cb: EmitCodeBuilder, name: String): PBinaryValue
-
-  def memoizeField(cb: EmitCodeBuilder, name: String): PBinaryValue
-}
