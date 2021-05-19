@@ -1022,14 +1022,12 @@ class Emit[C](
 
       case GetField(o, name) =>
         emitI(o).flatMap(cb) { oc =>
-          val ov = oc.asBaseStruct.memoize(cb, "get_tup_elem_o")
-          ov.loadField(cb, name)
+          oc.asBaseStruct.loadSingleField(cb, name)
         }
 
-      case GetTupleElement(o, i) =>
+      case x@GetTupleElement(o, i) =>
         emitI(o).flatMap(cb) { oc =>
-          val ov = oc.asBaseStruct.memoize(cb, "get_tup_elem_o")
-          ov.loadField(cb, oc.st.virtualType.asInstanceOf[TTuple].fieldIndex(i))
+          oc.asBaseStruct.loadSingleField(cb, x.asInstanceOf[TTuple].fieldIndex(i))
         }
 
       case x@LowerBoundOnOrderedCollection(orderedCollection, elem, onKey) =>
