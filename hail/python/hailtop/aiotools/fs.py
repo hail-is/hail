@@ -839,18 +839,6 @@ class RouterAsyncFS(AsyncFS):
 
         return fs
 
-    async def read(self, url: str) -> bytes:
-        fs = self._get_fs(url)
-        return await fs.read(url)
-
-    async def read_from(self, url: str, start: int) -> bytes:
-        fs = self._get_fs(url)
-        return await fs.read_from(url, start)
-
-    async def read_range(self, url: str, start: int, end: int) -> bytes:
-        fs = self._get_fs(url)
-        return await fs.read_range(url, start, end)
-
     async def open(self, url: str) -> ReadableStream:
         fs = self._get_fs(url)
         return await fs.open(url)
@@ -906,10 +894,6 @@ class RouterAsyncFS(AsyncFS):
     async def rmtree(self, sema: Optional[asyncio.Semaphore], url: str) -> None:
         fs = self._get_fs(url)
         return await fs.rmtree(sema, url)
-
-    async def write(self, url: str, data: bytes) -> None:
-        fs = self._get_fs(url)
-        return await fs.write(url, data)
 
     async def close(self) -> None:
         for fs in self._filesystems:
