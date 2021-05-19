@@ -151,8 +151,10 @@ class AsyncFS(abc.ABC):
             return await f.read(n)
 
     async def write(self, url: str, data: bytes) -> None:
-        async with await self.create(url, retry_writes=False) as f:
-            await f.write(data)
+        async def _write() -> None:
+            async with await self.create(url, retry_writes=False) as f:
+                await f.write(data)
+        await retry_transient_errors(_write)
 
     async def close(self) -> None:
         pass
