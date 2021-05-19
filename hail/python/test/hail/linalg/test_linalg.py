@@ -1192,3 +1192,17 @@ class Tests(unittest.TestCase):
         # Summing horizontally along a column vector to make sure nothing changes
         f = col.sum(axis=1)
         assert f.to_numpy().shape == (10, 1)
+
+
+    @skip_when_spark_backend()
+    def test_map(self):
+        np_mat = np.arange(20, dtype=np.float64).reshape((4, 5))
+        bm = BlockMatrix.from_ndarray(hl.nd.array(np_mat))
+        bm_mapped_arith = bm._map_dense(lambda x: (x * x) + 5)
+        self._assert_eq(bm_mapped_arith, np_mat * np_mat + 5)
+
+        bm_mapped_if = bm._map_dense(lambda x: hl.if_else(x >= 1, x, -8.0))
+        np_if = np_mat.copy()
+        np_if[0, 0] = -8.0
+        self._assert_eq(bm_mapped_if, np_if)
+

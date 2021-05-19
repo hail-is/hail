@@ -243,8 +243,6 @@ class BlockMatrixLiteral(value: BlockMatrix) extends BlockMatrixIR {
 }
 
 case class BlockMatrixMap(child: BlockMatrixIR, eltName: String, f: IR, needsDense: Boolean) extends BlockMatrixIR {
-  assert(f.isInstanceOf[ApplyUnaryPrimOp] || f.isInstanceOf[Apply] || f.isInstanceOf[ApplyBinaryPrimOp])
-
   override lazy val typ: BlockMatrixType = child.typ
   assert(!needsDense || !typ.isSparse)
 
@@ -268,6 +266,7 @@ case class BlockMatrixMap(child: BlockMatrixIR, eltName: String, f: IR, needsDen
     f(_, scalar)
 
   override protected[ir] def execute(ctx: ExecuteContext): BlockMatrix = {
+    assert(f.isInstanceOf[ApplyUnaryPrimOp] || f.isInstanceOf[Apply] || f.isInstanceOf[ApplyBinaryPrimOp])
     val prev = child.execute(ctx)
 
     val functionArgs = f match {
@@ -359,7 +358,6 @@ case object NeedsDense extends SparsityStrategy {
 }
 
 case class BlockMatrixMap2(left: BlockMatrixIR, right: BlockMatrixIR, leftName: String, rightName: String, f: IR, sparsityStrategy: SparsityStrategy) extends BlockMatrixIR {
-  assert(f.isInstanceOf[ApplyBinaryPrimOp] || f.isInstanceOf[Apply])
   assert(
     left.typ.nRows == right.typ.nRows &&
     left.typ.nCols == right.typ.nCols &&
@@ -382,6 +380,8 @@ case class BlockMatrixMap2(left: BlockMatrixIR, right: BlockMatrixIR, leftName: 
   }
 
   override protected[ir] def execute(ctx: ExecuteContext): BlockMatrix = {
+    assert(f.isInstanceOf[ApplyBinaryPrimOp] || f.isInstanceOf[Apply])
+
     left match {
       case BlockMatrixBroadcast(vectorIR: BlockMatrixIR, IndexedSeq(x), _, _) =>
         val vector = coerceToVector(ctx , vectorIR)
