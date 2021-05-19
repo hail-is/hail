@@ -64,8 +64,8 @@ object EmitNDArray {
                 .bind(rName, rElemRef)
               val bodyEC = EmitCode.fromI(cb.emb)(cb => emitI(body, cb, env = bodyEnv))
 
-              val leftBroadcasted = broadcast(leftProducer)
-              val rightBroadcasted = broadcast(rightProducer)
+              val leftBroadcasted = broadcast(cb, leftProducer)
+              val rightBroadcasted = broadcast(cb, rightProducer)
 
               new NDArrayProducer {
                 override def elementType: SType = leftProducer.elementType
@@ -73,22 +73,22 @@ object EmitNDArray {
                 override val shape: IndexedSeq[Value[Long]] = shapeArray
                 override val initAll: EmitCodeBuilder => Unit = {
                   cb => {
-                    leftProducer.initAll(cb)
-                    rightProducer.initAll(cb)
+                    leftBroadcasted.initAll(cb)
+                    rightBroadcasted.initAll(cb)
                   }
                 }
                 override val initAxis: IndexedSeq[EmitCodeBuilder => Unit] = shape.indices.map { idx =>  { cb: EmitCodeBuilder  =>
-                  leftProducer.initAxis(idx)(cb)
-                  rightProducer.initAxis(idx)(cb)
+                  leftBroadcasted.initAxis(idx)(cb)
+                  rightBroadcasted.initAxis(idx)(cb)
                 }}
                 override val stepAxis: IndexedSeq[(EmitCodeBuilder, Value[Long]) => Unit] = shape.indices.map { idx => { (cb: EmitCodeBuilder, axis: Value[Long]) =>
-                  leftProducer.stepAxis(idx)(cb, axis)
-                  rightProducer.stepAxis(idx)(cb, axis)
+                  leftBroadcasted.stepAxis(idx)(cb, axis)
+                  rightBroadcasted.stepAxis(idx)(cb, axis)
                 }}
 
                 override def loadElementAtCurrentAddr(cb: EmitCodeBuilder): SCode = {
-                  cb.assign(lElemRef, leftProducer.loadElementAtCurrentAddr(cb).toPCode(cb, region))
-                  cb.assign(rElemRef, rightProducer.loadElementAtCurrentAddr(cb).toPCode(cb, region))
+                  cb.assign(lElemRef, leftBroadcasted.loadElementAtCurrentAddr(cb).toPCode(cb, region))
+                  cb.assign(rElemRef, rightBroadcasted.loadElementAtCurrentAddr(cb).toPCode(cb, region))
 
                   bodyEC.toI(cb).get(cb, "NDArrayMap2 body cannot be missing")
                 }
@@ -109,8 +109,22 @@ object EmitNDArray {
                   const(1L)
               }
               override val initAll: EmitCodeBuilder => Unit = childProducer.initAll
-              override val initAxis: IndexedSeq[EmitCodeBuilder => Unit] = indexExpr.map(childProducer.initAxis.apply)
-              override val stepAxis: IndexedSeq[(EmitCodeBuilder, Value[Long]) => Unit] = indexExpr.map(childProducer.stepAxis.apply)
+              override val initAxis: IndexedSeq[EmitCodeBuilder => Unit] = {
+                indexExpr.map { childIndex =>
+                  (cb: EmitCodeBuilder) =>
+                    if (childIndex < childProducer.nDims) {
+                      childProducer.initAxis(childIndex)(cb)
+                    }
+                }
+              }
+              override val stepAxis: IndexedSeq[(EmitCodeBuilder, Value[Long]) => Unit] = {
+                indexExpr.map { childIndex =>
+                  (cb: EmitCodeBuilder, step: Value[Long]) =>
+                    if (childIndex < childProducer.nDims) {
+                      childProducer.stepAxis(childIndex)(cb, step)
+                    }
+                }
+              }
 
               override def loadElementAtCurrentAddr(cb: EmitCodeBuilder): SCode = childProducer.loadElementAtCurrentAddr(cb)
             }
@@ -187,12 +201,18 @@ object EmitNDArray {
     deforest(ndIR).map(cb)(ndap => ndap.toSCode(cb, PCanonicalNDArray(ndap.elementType.canonicalPType().setRequired(true), ndap.nDims), region).toPCode(cb, region))
   }
 
-  def broadcast(prod: NDArrayProducer): NDArrayProducer = {
+  def createBroadcastMask(cb: EmitCodeBuilder, shape: IndexedSeq[Value[Long]]): IndexedSeq[Value[Long]] = {
+    shape.indices.map { idx =>
+      cb.newLocal[Long](s"ndarray_producer_broadcast_mask_${idx}", (shape(idx) ceq 1L).mux(0L, Long.MaxValue))
+    }
+  }
+
+  def broadcast(cb: EmitCodeBuilder, prod: NDArrayProducer): NDArrayProducer = {
+    val broadcastMask = createBroadcastMask(cb, prod.shape)
     val newSteps = prod.stepAxis.indices.map { idx =>
       (cb: EmitCodeBuilder, step: Value[Long]) => {
-        cb.ifx(prod.shape(idx) cne const(1L), {
-          prod.stepAxis(idx)
-        })
+        val maskedStep = cb.newLocal[Long]("ndarray_producer_masked_step", step & broadcastMask(idx))
+        prod.stepAxis(idx)(cb, maskedStep)
       }
     }
     prod.copy(astepAxis = newSteps)
