@@ -284,8 +284,8 @@ abstract class NDArrayProducer {
 
     val currentWriteAddr = cb.newLocal[Long]("ndarray_producer_to_scode_cur_write_addr")
     cb.assign(currentWriteAddr, firstElementAddress)
-    cb.println(const("firstElementAddr = ").concat(firstElementAddress.toS))
-    cb.println(const("shape =  ").concat(shape.map(_.toS.concat(" ")).reduce(_.concat(_))))
+    //   cb.println(const("firstElementAddr = ").concat(firstElementAddress.toS))
+    //   cb.println(const("shape =  ").concat(shape.map(_.toS.concat(" ")).reduce(_.concat(_))))
     initAll(cb)
     def body(): Unit = {
       cb.println(currentWriteAddr.toS)
