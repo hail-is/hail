@@ -880,22 +880,18 @@ class Emit[C](
         }
 
       case x@MakeStruct(fields) =>
-        presentPC(SStackStruct.constructFromArgs(cb, region,
-          fields.map { case (name, x) =>
-            (name, EmitCode.fromI(cb.emb)(cb => emitInNewBuilder(cb, x)))
+        presentPC(SStackStruct.constructFromArgs(cb, region, x.typ.asInstanceOf[TBaseStruct],
+          fields.map { case (_, x) =>
+            EmitCode.fromI(cb.emb)(cb => emitInNewBuilder(cb, x))
           }: _*
         ))
 
       case x@MakeTuple(fields) =>
-        val emitted = fields.map { case (idx, x) =>
-          EmitCode.fromI(cb.emb)(cb => emitInNewBuilder(cb, x))
-        }.toFastIndexedSeq
-        val pt = PCanonicalTuple(fields.zip(emitted).map { case ((idx, _), ec) => PTupleField(idx, ec.emitType.canonicalPType) }.toArray)
-        val scode = pt.constructFromFields(cb,
-          region,
-          emitted,
-          deepCopy = false)
-        presentPC(scode)
+        presentPC(SStackStruct.constructFromArgs(cb, region, x.typ.asInstanceOf[TBaseStruct],
+          fields.map { case (_, x) =>
+            EmitCode.fromI(cb.emb)(cb => emitInNewBuilder(cb, x))
+          }: _*
+        ))
 
       case x@SelectFields(oldStruct, fields) =>
         emitI(oldStruct)

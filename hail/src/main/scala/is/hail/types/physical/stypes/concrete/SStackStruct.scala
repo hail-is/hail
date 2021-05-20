@@ -5,39 +5,47 @@ import is.hail.asm4s.{Code, Settable, TypeInfo, Value}
 import is.hail.expr.ir.{EmitCode, EmitCodeBuilder, EmitSettable, IEmitCode}
 import is.hail.types.physical.stypes.interfaces.{SBaseStruct, SBaseStructCode, SStructSettable}
 import is.hail.types.physical.stypes.{EmitType, SCode, SType}
-import is.hail.types.physical.{PCanonicalStruct, PType}
-import is.hail.types.virtual.{TStruct, Type}
+import is.hail.types.physical.{PCanonicalBaseStruct, PCanonicalStruct, PCanonicalTuple, PTupleField, PType}
+import is.hail.types.virtual.{TBaseStruct, TStruct, TTuple, Type}
 
 object SStackStruct {
   val MAX_FIELDS_FOR_CONSTRUCT: Int = 64
 
-  def constructFromArgs(cb: EmitCodeBuilder, region: Value[Region], args: (String, EmitCode)*): SBaseStructCode = {
+  def constructFromArgs(cb: EmitCodeBuilder, region: Value[Region], t: TBaseStruct, args: EmitCode*): SBaseStructCode = {
     val as = args.toArray
+    assert(t.size == args.size)
     if (as.length > MAX_FIELDS_FOR_CONSTRUCT) {
-      PCanonicalStruct(as.map { case (name, a) => (name, a.emitType.canonicalPType) }: _*)
-        .constructFromFields(cb, region, as.map(_._2), false)
+      val structType: PCanonicalBaseStruct = t match {
+        case ts: TStruct =>
+          PCanonicalStruct(false, ts.fieldNames.zip(as.map(_.emitType)).map { case (f, et) => (f, et.canonicalPType) }: _*)
+        case tt: TTuple =>
+          PCanonicalTuple(tt._types.zip(as.map(_.emitType)).map { case (tf, et) => PTupleField(tf.index, et.canonicalPType) }, false)
+      }
+      structType.constructFromFields(cb, region, as, false)
     } else {
-      val st = SStackStruct(as.map(_._1), as.map(_._2.emitType))
-      new SStackStructCode(st, as.map(_._2))
+      val st = SStackStruct(t, as.map(_.emitType))
+      new SStackStructCode(st, as)
     }
   }
 }
 
-case class SStackStruct(fieldNames: IndexedSeq[String], fieldEmitTypes: IndexedSeq[EmitType]) extends SBaseStruct {
-  override def size: Int = fieldNames.size
+case class SStackStruct(virtualType: TBaseStruct, fieldEmitTypes: IndexedSeq[EmitType]) extends SBaseStruct {
+  override def size: Int = virtualType.size
 
   private lazy val codeStarts = fieldEmitTypes.map(_.nCodes).scanLeft(0)(_ + _).init
   private lazy val settableStarts = fieldEmitTypes.map(_.nSettables).scanLeft(0)(_ + _).init
 
   override lazy val fieldTypes: IndexedSeq[SType] = fieldEmitTypes.map(_.st)
 
-  private lazy val _fieldIdx: Map[String, Int] = fieldNames.zipWithIndex.toMap
+  def fieldIdx(fieldName: String): Int = virtualType.asInstanceOf[TStruct].fieldIdx(fieldName)
 
-  override def fieldIdx(fieldName: String): Int = _fieldIdx(fieldName)
+  override def canonicalPType(): PType = virtualType match {
+    case ts: TStruct =>
+      PCanonicalStruct(false, ts.fieldNames.zip(fieldEmitTypes).map { case (f, et) => (f, et.canonicalPType) }: _*)
+    case tt: TTuple =>
+      PCanonicalTuple(tt._types.zip(fieldEmitTypes).map { case (tf, et) => PTupleField(tf.index, et.canonicalPType) }, false)
 
-  lazy val virtualType: TStruct = TStruct(fieldNames.zip(fieldEmitTypes).map { case (f, et) => (f, et.st.virtualType) }: _*)
-
-  override def canonicalPType(): PType = PCanonicalStruct(false, fieldNames.zip(fieldEmitTypes).map { case (f, et) => (f, et.canonicalPType) }: _*)
+  }
 
   lazy val codeTupleTypes: IndexedSeq[TypeInfo[_]] = fieldEmitTypes.flatMap(_.codeTupleTypes)
 
@@ -78,7 +86,7 @@ case class SStackStruct(fieldNames: IndexedSeq[String], fieldEmitTypes: IndexedS
           })
       case _ =>
         val sv = value.asBaseStruct.memoize(cb, "stackstruct_coerce_value")
-        new SStackStructCode(this, Array.tabulate[EmitCode](fieldNames.length) { i =>
+        new SStackStructCode(this, Array.tabulate[EmitCode](size) { i =>
           EmitCode.fromI(cb.emb) { cb =>
             val newType = fieldEmitTypes(i)
             val iec = sv.loadField(cb, i).map(cb) { field => newType.st.coerceOrCopy(cb, region, field, deepCopy) }
@@ -93,9 +101,9 @@ case class SStackStruct(fieldNames: IndexedSeq[String], fieldEmitTypes: IndexedS
   }
 
   override def castRename(t: Type): SType = {
-    val ts = t.asInstanceOf[TStruct]
+    val ts = t.asInstanceOf[TBaseStruct]
     SStackStruct(
-      ts.fieldNames,
+      ts,
       ts.types.zip(fieldEmitTypes).map { case (v, e) => e.copy(st = e.st.castRename(v)) }
     )
   }
@@ -149,6 +157,8 @@ class SStackStructCode(val st: SStackStruct, val codes: IndexedSeq[EmitCode]) ex
 
   override def subset(fieldNames: String*): SStackStructCode = {
     val newToOld = fieldNames.map(st.fieldIdx).toArray
-    new SStackStructCode(SStackStruct(newToOld.map(st.fieldNames), newToOld.map(st.fieldEmitTypes)), newToOld.map(codes))
+    val oldVType = st.virtualType.asInstanceOf[TStruct]
+    val newVirtualType = TStruct(newToOld.map(i => (oldVType.fieldNames(i), oldVType.types(i))): _*)
+    new SStackStructCode(SStackStruct(newVirtualType, newToOld.map(st.fieldEmitTypes)), newToOld.map(codes))
   }
 }
