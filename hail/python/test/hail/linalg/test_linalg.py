@@ -572,11 +572,9 @@ class Tests(unittest.TestCase):
         self.assert_sums_agree(bm3, nd)
         self.assert_sums_agree(bm4, nd4)
 
-    @fails_service_backend()
-    @fails_local_backend()
     def test_slicing(self):
         nd = np.array(np.arange(0, 80, dtype=float)).reshape(8, 10)
-        bm = BlockMatrix.from_numpy(nd, block_size=3)
+        bm = BlockMatrix.from_ndarray(hl.literal(nd), block_size=3)
 
         for indices in [(0, 0), (5, 7), (-3, 9), (-8, -10)]:
             self._assert_eq(bm[indices], nd[indices])
@@ -597,14 +595,16 @@ class Tests(unittest.TestCase):
             self._assert_eq(bm[indices] - bm, nd[indices] - nd)
             self._assert_eq(bm - bm[indices], nd - nd[indices])
 
-        for indices in [(slice(0, 8), slice(0, 10)),
-                        (slice(0, 8, 2), slice(0, 10, 2)),
-                        (slice(2, 4), slice(5, 7)),
-                        (slice(-8, -1), slice(-10, -1)),
-                        (slice(-8, -1, 2), slice(-10, -1, 2)),
-                        (slice(None, 4, 1), slice(None, 4, 1)),
-                        (slice(4, None), slice(4, None)),
-                        (slice(None, None), slice(None, None))]:
+        for indices in [
+            (slice(0, 8), slice(0, 10)),
+            (slice(0, 8, 2), slice(0, 10, 2)),
+            (slice(2, 4), slice(5, 7)),
+            (slice(-8, -1), slice(-10, -1)),
+            (slice(-8, -1, 2), slice(-10, -1, 2)),
+            (slice(None, 4, 1), slice(None, 4, 1)),
+            (slice(4, None), slice(4, None)),
+            (slice(None, None), slice(None, None))
+        ]:
             self._assert_eq(bm[indices], nd[indices])
             self._assert_eq(bm[indices][:, :2], nd[indices][:, :2])
             self._assert_eq(bm[indices][:2, :], nd[indices][:2, :])

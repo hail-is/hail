@@ -943,12 +943,12 @@ object Simplify {
     case BlockMatrixSlice(BlockMatrixMap2(l, r, ln, rn, f, sparsityStrategy), slices) =>
       BlockMatrixMap2(BlockMatrixSlice(l, slices), BlockMatrixSlice(r, slices), ln, rn, f, sparsityStrategy)
     case BlockMatrixMap2(BlockMatrixBroadcast(scalarBM, IndexedSeq(), _, _), right, leftName, rightName, f, sparsityStrategy) =>
-      val getElement = BlockMatrixToValueApply(scalarBM, functions.GetElement(Seq(0, 0)))
+      val getElement = BlockMatrixToValueApply(scalarBM, functions.GetElement(IndexedSeq(0, 0)))
       val needsDense = sparsityStrategy == NeedsDense || sparsityStrategy.exists(leftBlock = true, rightBlock = false)
       val maybeDense = if (needsDense) BlockMatrixDensify(right) else right
       BlockMatrixMap(maybeDense, rightName, Subst(f, BindingEnv.eval(leftName -> getElement)), needsDense)
     case BlockMatrixMap2(left, BlockMatrixBroadcast(scalarBM, IndexedSeq(), _, _), leftName, rightName, f, sparsityStrategy) =>
-      val getElement = BlockMatrixToValueApply(scalarBM, functions.GetElement(Seq(0, 0)))
+      val getElement = BlockMatrixToValueApply(scalarBM, functions.GetElement(IndexedSeq(0, 0)))
       val needsDense = sparsityStrategy == NeedsDense || sparsityStrategy.exists(leftBlock = false, rightBlock = true)
       val maybeDense = if (needsDense) BlockMatrixDensify(left) else left
       BlockMatrixMap(maybeDense, leftName, Subst(f, BindingEnv.eval(rightName -> getElement)), needsDense)

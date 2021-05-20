@@ -2853,7 +2853,7 @@ class Emit[C](
                   }
                   else {
                     cb.ifx(dimLength.cne(localDim),
-                      cb._fatal(const(s"NDArrayConcat: mismatched dimensions of input NDArrays along axis ").concat(loopIdx.toS).concat(": expected ")
+                      cb._fatal(const(s"NDArrayConcat: mismatched dimensions of input NDArrays along axis ").concat(axis.toString).concat(": expected ")
                         .concat(localDim.toS).concat(", got ")
                         .concat(dimLength.toS))
                     )

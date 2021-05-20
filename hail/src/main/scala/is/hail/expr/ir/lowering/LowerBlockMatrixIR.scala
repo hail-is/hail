@@ -366,20 +366,31 @@ object LowerBlockMatrixIR {
 
         lower(child).condenseBlocks(child.typ, rowDependents, colDependents)
           .addContext(TTuple(TTuple(TInt64, TInt64, TInt64), TTuple(TInt64, TInt64, TInt64))) { idx =>
-            val i = idx._1
-            val j = idx._2
-            val rowStartIdx = rowDependents(i).head.toLong * x.typ.blockSize
-            val colStartIdx = colDependents(j).head.toLong * x.typ.blockSize
+            val (i, j) = idx
 
-            val rowEndIdx = java.lang.Math.min(child.typ.nRows, (rowDependents(i).last + 1L) * x.typ.blockSize)
-            val colEndIdx = java.lang.Math.min(child.typ.nCols, (colDependents(i).last + 1L) * x.typ.blockSize)
+            // Aligned with the edges of blocks in child BM.
+            val blockAlignedRowStartIdx = rowDependents(i).head.toLong * x.typ.blockSize
+            val blockAlignedColStartIdx = colDependents(j).head.toLong * x.typ.blockSize
+            val blockAlignedRowEndIdx = math.min(child.typ.nRows, (rowDependents(i).last + 1L) * x.typ.blockSize * rStep)
+            val blockAlignedColEndIdx = math.min(child.typ.nCols, (colDependents(j).last + 1L) * x.typ.blockSize * cStep)
+
+            // condenseBlocks can give the same data to multiple partitions. Need to make sure we don't use data
+            // that's already included in an earlier block.
+            val rStartPlusSeenAlready = rStart + i * x.typ.blockSize * rStep
+            val cStartPlusSeenAlready = cStart + j * x.typ.blockSize * cStep
+
+            val rowTrueStart = rStartPlusSeenAlready - blockAlignedRowStartIdx
+            val rowTrueEnd = math.min(math.min(rEnd, blockAlignedRowEndIdx) - blockAlignedRowStartIdx, rowTrueStart + x.typ.blockSize * rStep)
             val rows = MakeTuple.ordered(FastSeq[IR](
-              if (rStart >= rowStartIdx) rStart - rowStartIdx else (rowStartIdx - rStart) % rStep,
-              java.lang.Math.min(rEnd, rowEndIdx) - rowStartIdx,
+              rowTrueStart,
+              rowTrueEnd,
               rStep))
+
+            val colTrueStart = cStartPlusSeenAlready - blockAlignedColStartIdx
+            val colTrueEnd = math.min(java.lang.Math.min(cEnd, blockAlignedColEndIdx) - blockAlignedColStartIdx, colTrueStart + x.typ.blockSize * cStep)
             val cols = MakeTuple.ordered(FastSeq[IR](
-              if (cStart >= colStartIdx) cStart - colStartIdx else (colStartIdx - cStart) % cStep,
-              java.lang.Math.min(cEnd, colEndIdx) - colStartIdx,
+              colTrueStart,
+              colTrueEnd,
               cStep))
             MakeTuple.ordered(FastSeq(rows, cols))
           }.mapBody { (ctx, body) => NDArraySlice(body, GetField(ctx, "new")) }
