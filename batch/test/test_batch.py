@@ -18,6 +18,7 @@ from .failure_injecting_client_session import FailureInjectingClientSession
 
 deploy_config = get_deploy_config()
 
+DOCKER_PREFIX = os.environ.get('DOCKER_PREFIX')
 DOCKER_ROOT_IMAGE = os.environ.get('DOCKER_ROOT_IMAGE', 'gcr.io/hail-vdc/ubuntu:18.04')
 SCOPE = os.environ.get('HAIL_SCOPE', 'test')
 
@@ -254,6 +255,15 @@ def test_fail(client):
     b.submit()
     status = j.wait()
     assert j._get_exit_code(status, 'main') == 1, str(status)
+
+
+def test_unknown_image(client):
+    b = client.create_batch()
+    j = b.create_job(f'{DOCKER_PREFIX}/does-not-exist', ['echo', 'test'])
+    b.submit()
+    status = j.wait()
+    assert j._get_exit_code(status, 'main') is None
+    assert status['short_error'] == 'image not found'
 
 
 def test_running_job_log_and_status(client):
