@@ -12,7 +12,10 @@ import aiohttp
 import signal
 from aiohttp import web
 import aiohttp_session
+import pandas as pd
 import pymysql
+import plotly.express as px
+import plotly
 import google.oauth2.service_account
 import google.api_core.exceptions
 import humanize
@@ -1435,13 +1438,41 @@ async def ui_get_job(request, userdata, batch_id):
     if 'cores_mcpu' in resources:
         resources['actual_cpu'] = resources['cores_mcpu'] / 1000
         del resources['cores_mcpu']
+    
+    output= []
+    for x in ['input', 'main', 'output']:
+        if type (step_statuses[x]) == dict and  step_statuses[x].get('timing') != None:
+            # print (step_statuses5[x]['timing'])
+            for y in step_statuses[x]['timing'].items():
+                output.append(y)
+                y[1]['step_name']= x
 
-    import plotly.express as px
-    df = px.data.gapminder()
-    fig = px.line(df, x="year", y="lifeExp", color="continent", line_group="country", hover_name="country",
-        line_shape="spline", render_mode="svg")
+    data = []
+    for key, value in output:
+       
+        if value.get('finish_time')!= None and value.get('start_time') != None:
+            plotdict= dict(Stable= "job_1", Name= value['step_name'], Start= datetime.datetime.fromtimestamp(value['start_time']/1000),
+            Finish= datetime.datetime.fromtimestamp(value['finish_time']/1000),
+            Resource= key)
+
+            data.append(plotdict)
+    
+        else:
+            # either value.get finish time is none or value.get start time is none 
+            # pass
+            assert value.get('start_time')!= None
+            # value.get finish time is None 
+            plotdict=  dict(Stable= "job_1", Name= value['step_name'], Start= datetime.datetime.fromtimestamp(value['start_time']/1000),
+            Finish= datetime.datetime.now(),Resource= key)
+
+            data.append(plotdict)
+
+    
+    df = pd.DataFrame(data)
+
+    fig = px.timeline(df, x_start="Start", x_end="Finish", y="Stable", color="Resource", hover_data=['Name'])
+
     plot_json = json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
-
     page_context = {
         'batch_id': batch_id,
         'job_id': job_id,
