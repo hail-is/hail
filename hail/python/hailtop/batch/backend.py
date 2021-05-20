@@ -126,11 +126,24 @@ class LocalBackend(Backend):
 
         tmpdir = self._get_scratch_dir()
 
-        lines = ['set -e' + ('x' if verbose else ''),
-                 '\n',
-                 '# change cd to tmp directory',
-                 f"cd {tmpdir}",
-                 '\n']
+        def new_code_block():
+            return ['set -e' + ('x' if verbose else ''),
+                    '\n',
+                    '# change cd to tmp directory',
+                    f"cd {tmpdir}",
+                    '\n']
+
+        def run_code(code):
+            code = '\n'.join(code)
+            if dry_run:
+                print(code)
+            else:
+                try:
+                    sp.check_call(code, shell=True)
+                except sp.CalledProcessError as e:
+                    print(e)
+                    print(e.output)
+                    raise
 
         copied_input_resource_files = set()
         os.makedirs(tmpdir + '/inputs/', exist_ok=True)
@@ -190,81 +203,76 @@ class LocalBackend(Backend):
                     symlinks.append(f'ln -sf {shq(src)} {shq(dest)}')
             return symlinks
 
-        write_inputs = [x for r in batch._input_resources for x in copy_external_output(r)]
-        if write_inputs:
-            lines += ["# Write input resources to output destinations"]
-            lines += write_inputs
-            lines += ['\n']
+        try:
+            write_inputs = [x for r in batch._input_resources for x in copy_external_output(r)]
+            if write_inputs:
+                code = new_code_block()
+                code += ["# Write input resources to output destinations"]
+                code += write_inputs
+                code += ['\n']
+                run_code(code)
 
-        for job in batch._jobs:
-            if isinstance(job, _job.PythonJob):
-                job._compile(tmpdir, tmpdir)
+            for job in batch._jobs:
+                if isinstance(job, _job.PythonJob):
+                    job._compile(tmpdir, tmpdir)
 
-            os.makedirs(f'{tmpdir}/{job._job_id}/', exist_ok=True)
+                os.makedirs(f'{tmpdir}/{job._job_id}/', exist_ok=True)
 
-            lines.append(f"# {job._job_id}: {job.name if job.name else ''}")
+                code = new_code_block()
 
-            lines += [x for r in job._inputs for x in copy_input(job, r)]
-            lines += [x for r in job._mentioned for x in symlink_input_resource_group(r)]
+                code.append(f"# {job._job_id}: {job.name if job.name else ''}")
 
-            resource_defs = [r._declare(tmpdir) for r in job._mentioned]
-            env = [f'export {k}={v}' for k, v in job._env.items()]
+                code += [x for r in job._inputs for x in copy_input(job, r)]
+                code += [x for r in job._mentioned for x in symlink_input_resource_group(r)]
 
-            job_shell = job._shell if job._shell else self._DEFAULT_SHELL
+                resource_defs = [r._declare(tmpdir) for r in job._mentioned]
+                env = [f'export {k}={v}' for k, v in job._env.items()]
 
-            defs = '; '.join(resource_defs) + '; ' if resource_defs else ''
-            joined_env = '; '.join(env) + '; ' if env else ''
+                job_shell = job._shell if job._shell else self._DEFAULT_SHELL
 
-            cmd = " && ".join(f'{{\n{x}\n}}' for x in job._command)
+                defs = '; '.join(resource_defs) + '; ' if resource_defs else ''
+                joined_env = '; '.join(env) + '; ' if env else ''
 
-            quoted_job_script = shq(joined_env + defs + cmd)
+                cmd = " && ".join(f'{{\n{x}\n}}' for x in job._command)
 
-            if job._image:
-                cpu = f'--cpus={job._cpu}' if job._cpu else ''
+                quoted_job_script = shq(joined_env + defs + cmd)
 
-                memory = job._memory
-                if memory is not None:
-                    memory_ratios = {'lowmem': 1024**3, 'standard': 4 * 1024**3, 'highmem': 7 * 1024**3}
-                    if memory in memory_ratios:
-                        if job._cpu is not None:
-                            mcpu = parse_cpu_in_mcpu(job._cpu)
-                            if mcpu is not None:
-                                memory = str(int(memory_ratios[memory] * (mcpu / 1000)))
+                if job._image:
+                    cpu = f'--cpus={job._cpu}' if job._cpu else ''
+
+                    memory = job._memory
+                    if memory is not None:
+                        memory_ratios = {'lowmem': 1024**3, 'standard': 4 * 1024**3, 'highmem': 7 * 1024**3}
+                        if memory in memory_ratios:
+                            if job._cpu is not None:
+                                mcpu = parse_cpu_in_mcpu(job._cpu)
+                                if mcpu is not None:
+                                    memory = str(int(memory_ratios[memory] * (mcpu / 1000)))
+                                else:
+                                    raise BatchException(f'invalid value for cpu: {job._cpu}')
                             else:
-                                raise BatchException(f'invalid value for cpu: {job._cpu}')
-                        else:
-                            raise BatchException(f'must specify cpu when using {memory} to specify the memory')
-                    memory = f'-m {memory}' if memory else ''
+                                raise BatchException(f'must specify cpu when using {memory} to specify the memory')
+                        memory = f'-m {memory}' if memory else ''
 
-                lines.append(f"docker run "
-                             "--entrypoint=''"
-                             f"{self._extra_docker_run_flags} "
-                             f"-v {tmpdir}:{tmpdir} "
-                             f"-w {tmpdir} "
-                             f"{memory} "
-                             f"{cpu} "
-                             f"{job._image} "
-                             f"{job_shell} -c {quoted_job_script}")
-            else:
-                lines.append(f"{job_shell} -c {quoted_job_script}")
+                    code.append(f"docker run "
+                                "--entrypoint=''"
+                                f"{self._extra_docker_run_flags} "
+                                f"-v {tmpdir}:{tmpdir} "
+                                f"-w {tmpdir} "
+                                f"{memory} "
+                                f"{cpu} "
+                                f"{job._image} "
+                                f"{job_shell} -c {quoted_job_script}")
+                else:
+                    code.append(f"{job_shell} -c {quoted_job_script}")
 
-            lines += [x for r in job._external_outputs for x in copy_external_output(r)]
-            lines += ['\n']
+                code += [x for r in job._external_outputs for x in copy_external_output(r)]
+                code += ['\n']
 
-        script = "\n".join(lines)
-
-        if dry_run:
-            print(lines)
-        else:
-            try:
-                sp.check_call(script, shell=True)
-            except sp.CalledProcessError as e:
-                print(e)
-                print(e.output)
-                raise
-            finally:
-                if delete_scratch_on_exit:
-                    sp.run(f'rm -rf {tmpdir}', shell=True, check=False)
+                run_code(code)
+        finally:
+            if delete_scratch_on_exit:
+                sp.run(f'rm -rf {tmpdir}', shell=True, check=False)
 
         print('Batch completed successfully!')
 
