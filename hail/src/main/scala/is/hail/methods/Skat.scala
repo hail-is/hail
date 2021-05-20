@@ -11,7 +11,7 @@ import org.apache.spark.sql.Row
 import com.sun.jna.Native
 import com.sun.jna.ptr.IntByReference
 import is.hail.HailContext
-import is.hail.expr.ir.{ExecuteContext, MatrixValue, TableValue}
+import is.hail.expr.ir.{ExecuteContext, IntArrayBuilder, MatrixValue, TableValue}
 import is.hail.expr.ir.functions.MatrixToTableFunction
 import is.hail.types.virtual.{TFloat64, TInt32, TStruct, Type}
 import is.hail.rvd.RVDType
@@ -356,7 +356,7 @@ case class Skat(
         val key = Annotation.copy(keyType.virtualType, UnsafeRow.read(keyType, ctx.r, fullRowType.loadField(ptr, keyIndex)))
         val data = new Array[Double](n)
 
-        RegressionUtils.setMeanImputedDoubles(data, 0, completeColIdxBc.value, new BoxedArrayBuilder[Int](),
+        RegressionUtils.setMeanImputedDoubles(data, 0, completeColIdxBc.value, new IntArrayBuilder(),
           ptr, fullRowType, entryArrayType, entryType, entryArrayIdx, fieldIdx)
         Some(key -> (BDV(data) -> weight))
       } else None

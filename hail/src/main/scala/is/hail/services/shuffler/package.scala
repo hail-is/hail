@@ -4,14 +4,15 @@ import java.io._
 import java.net.Socket
 import java.security.KeyStore
 import java.util.Base64
-
 import is.hail.annotations._
 import is.hail.asm4s._
+import is.hail.expr.ir.LongArrayBuilder
 import is.hail.types.physical._
 import is.hail.io._
 import is.hail.utils._
 import org.apache.log4j.Logger
-import javax.net.ssl._;
+
+import javax.net.ssl._
 import scala.language.implicitConversions
 
 package object shuffler {
@@ -38,7 +39,7 @@ package object shuffler {
     decoder: Decoder,
     sizeHint: Int = BoxedArrayBuilder.defaultInitialCapacity
   ): Array[Long] = {
-    val ab = new BoxedArrayBuilder[Long](sizeHint)
+    val ab = new LongArrayBuilder(sizeHint)
 
     var hasNext = decoder.readByte()
     while (hasNext == 1) {

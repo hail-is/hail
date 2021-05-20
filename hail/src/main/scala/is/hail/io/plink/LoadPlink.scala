@@ -217,7 +217,7 @@ object MatrixPLINKReader {
     val partSize = partition(nVariants, nPartitions)
     val partScan = partSize.scanLeft(0)(_ + _)
 
-    val cb = new BoxedArrayBuilder[Any]()
+    val cb = new BoxedArrayBuilder[Row]()
     val ib = new BoxedArrayBuilder[Interval]()
 
     var p = 0
@@ -247,7 +247,7 @@ object MatrixPLINKReader {
     }
     assert(prevEnd == nVariants)
 
-    val contexts = cb.result()
+    val contexts = cb.result().map(r => r: Any)
 
     val partitioner = new RVDPartitioner(locusAllelesType, ib.result(), 0)
 

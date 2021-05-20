@@ -13,6 +13,8 @@ import is.hail.HailContext
 import is.hail.types.physical.stypes.{PTypeReferenceSingleCodeType, SingleCodeType}
 import org.apache.spark.sql.Row
 
+import scala.collection.mutable
+
 object Interpret {
   type Agg = (IndexedSeq[Row], TStruct)
 
@@ -515,7 +517,7 @@ object Interpret {
 
           for (i <- 0 until k) { advance(i) }
 
-          val builder = new BoxedArrayBuilder[Any]()
+          val builder = new mutable.ArrayBuffer[Any]()
           while (tournament(0) != k) {
             val i = tournament(0)
             val elt = Array.fill[Row](k)(null)
@@ -530,7 +532,7 @@ object Interpret {
             }
             builder += interpret(joinF, env.bind(curKeyName -> curKey, curValsName -> elt.toFastIndexedSeq), args)
           }
-          builder.result().toFastIndexedSeq
+          builder.toFastIndexedSeq
         }
       case StreamFilter(a, name, cond) =>
         val aValue = interpret(a, env, args)

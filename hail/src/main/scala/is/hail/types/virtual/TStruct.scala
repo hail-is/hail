@@ -1,7 +1,7 @@
 package is.hail.types.virtual
 
 import is.hail.annotations.{Annotation, AnnotationPathException, _}
-import is.hail.expr.ir.{Env, IRParser}
+import is.hail.expr.ir.{Env, IRParser, IntArrayBuilder}
 import is.hail.types.physical.{PField, PStruct}
 import is.hail.utils._
 import org.apache.spark.sql.Row
@@ -185,7 +185,7 @@ final case class TStruct(fields: IndexedSeq[Field]) extends TBaseStruct {
 
   def annotate(other: TStruct): (TStruct, Merger) = {
     val newFieldsBuilder = new BoxedArrayBuilder[(String, Type)]()
-    val fieldIdxBuilder = new BoxedArrayBuilder[Int]()
+    val fieldIdxBuilder = new IntArrayBuilder()
     // In fieldIdxBuilder, positive integers are field indices from the left.
     // Negative integers are the complement of field indices from the right.
 

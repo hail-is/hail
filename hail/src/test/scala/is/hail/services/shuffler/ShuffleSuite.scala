@@ -41,7 +41,7 @@ class ShuffleSuite extends HailSuite {
       using(new ShuffleClient(shuffleType, rowPType, keyPType)) { c =>
         val rowDecodedPType = c.codecs.rowDecodedPType
 
-        val values = new BoxedArrayBuilder[Long]()
+        val values = new LongArrayBuilder()
         pool.scopedRegion { region =>
           val rvb = new RegionValueBuilder(region)
           val nElements = 1000000
@@ -77,7 +77,7 @@ class ShuffleSuite extends HailSuite {
             c.get(region, left, true, right, false))
 
           i = 0
-          val ab = new BoxedArrayBuilder[Long]()
+          val ab = new LongArrayBuilder()
           while (i < nPartitions) {
             ab ++= c.get(region,
               partitionBounds(i).offset, true,
