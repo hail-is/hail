@@ -1882,7 +1882,7 @@ class Emit[C](
       case x: NDArrayReshape => emitDeforestedNDArrayI(x)
       case x: NDArrayConcat => newEmitDeforestedNDArrayI(x)
       case x: NDArraySlice => emitDeforestedNDArrayI(x)
-      case x: NDArrayFilter => emitDeforestedNDArrayI(x)
+      case x: NDArrayFilter => newEmitDeforestedNDArrayI(x)
       case x: NDArrayAgg => newEmitDeforestedNDArrayI(x)
       case x@RunAgg(body, result, states) =>
         val newContainer = AggContainer.fromBuilder(cb, states.toArray, "run_agg")
@@ -2708,47 +2708,6 @@ class Emit[C](
 
                   childEmitter.outputElement(cb, newIdxVars)
                 }
-              }
-            }
-          }
-        case x@NDArrayFilter(child, filters) =>
-          deforest(child).map(cb) { childEmitter =>
-
-            val filterWasMissing = (0 until filters.size).map(i => cb.newField[Boolean](s"ndarray_filter_${ i }_was_missing"))
-            val filtPValues = new Array[SIndexableValue](filters.size)
-            val outputShape = childEmitter.outputShape.map(_ => cb.newField[Long]("ndarray_filter_output_shapes"))
-
-            filters.zipWithIndex.foreach { case (filt, i) =>
-              // Each filt is a sequence that may be missing with elements that may not be missing.
-              emit(filt).consume(cb,
-                {
-                  cb.assign(outputShape(i), childEmitter.outputShape(i))
-                  cb.assign(filterWasMissing(i), true)
-                },
-                {
-                  filtArrayPC => {
-                    val filtArrayPValue = filtArrayPC.asIndexable.memoize(cb, s"ndarray_filt_array_${ i }")
-                    filtPValues(i) = filtArrayPValue
-                    cb.assign(outputShape(i), filtArrayPValue.loadLength().toL)
-                    cb.assign(filterWasMissing(i), false)
-                  }
-                }
-              )
-            }
-
-            new NDArrayEmitter(outputShape, childEmitter.elementType) {
-              override def outputElement(cb: EmitCodeBuilder, idxVars: IndexedSeq[Value[Long]]): SCode = {
-                val newIdxVars: IndexedSeq[Settable[Long]] = Array.tabulate(outputNDims) { _ => cb.newField[Long]("ndarray_filter_new_idx_val") }
-                newIdxVars.zipWithIndex.foreach { case (newIdxVar, i) =>
-                  cb.ifx(filterWasMissing(i), {
-                    cb.assign(newIdxVar, idxVars(i))
-                  },
-                    {
-                      cb.assign(newIdxVar, filtPValues(i).loadElement(cb, idxVars(i).toI).get(cb, s"NDArrayFilter: can't filter on missing index (axis=$i)").asLong.longCode(cb))
-                    })
-                }
-
-                childEmitter.outputElement(cb, newIdxVars)
               }
             }
           }
