@@ -103,13 +103,13 @@ def rest_authenticated_developers_or_auth_only(fun):
 def catch_ui_error_in_dev(fun):
     @wraps(fun)
     async def wrapped(request, userdata, *args, **kwargs):
-            try:
-                return await fun(request, userdata, *args, **kwargs)
-            except Exception:
-                if SCOPE == 'dev':
-                    log.exception('error while populating ui page')
-                    raise web.HTTPInternalServerError(text=traceback.format_exc())
-                raise
+        try:
+            return await fun(request, userdata, *args, **kwargs)
+        except Exception:
+            if SCOPE == 'dev':
+                log.exception('error while populating ui page')
+                raise web.HTTPInternalServerError(text=traceback.format_exc())
+            raise
     return wrapped
 
 
