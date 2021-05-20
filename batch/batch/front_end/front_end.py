@@ -105,10 +105,10 @@ def catch_ui_error_in_dev(fun):
     async def wrapped(request, userdata, *args, **kwargs):
         try:
             return await fun(request, userdata, *args, **kwargs)
-        except Exception:
+        except Exception as e:
             if SCOPE == 'dev':
                 log.exception('error while populating ui page')
-                raise web.HTTPInternalServerError(text=traceback.format_exc())
+                raise web.HTTPInternalServerError(text=traceback.format_exc()) from e
             raise
     return wrapped
 
