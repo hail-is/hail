@@ -2,12 +2,14 @@ package is.hail.expr.ir.ndarrays
 
 import is.hail.annotations.Region
 import is.hail.expr.ir._
-import is.hail.types.physical.{PCanonicalArray, PCanonicalNDArray, PInt64}
+import is.hail.types.physical.{PCanonicalArray, PCanonicalNDArray, PInt64, PNumeric}
 import is.hail.types.physical.stypes.interfaces.{SNDArray, SNDArrayCode}
 import is.hail.types.physical.stypes.{SCode, SType}
 import is.hail.utils._
 import is.hail.asm4s._
 import is.hail.types.physical.stypes.interfaces._
+import is.hail.types.physical.stypes.primitives.{SFloat32, SFloat64, SInt32, SInt64}
+import is.hail.types.virtual.{TFloat32, TFloat64, TInt32, TInt64, TNDArray}
 
 
 object EmitNDArray {
@@ -310,6 +312,46 @@ object EmitNDArray {
               }
             })
           }
+        case NDArrayAgg(child, axesToSumOut) =>
+          deforest(child).map(cb) { childProducer: NDArrayProducer =>
+            val childDims = child.typ.asInstanceOf[TNDArray].nDims
+            val axesToKeep = (0 until childDims).filter(axis => !axesToSumOut.contains(axis))
+            val newOutputShape = axesToKeep.map(idx => childProducer.shape(idx))
+            val newOutputShapeComplement = axesToSumOut.map(idx => childProducer.shape(idx))
+
+            val newElementType = child.typ.asInstanceOf[TNDArray].elementType match {
+              case TInt32 => SInt32
+              case TInt64 => SInt64
+              case TFloat32 => SFloat32
+              case TFloat64 => SFloat64
+            }
+            new NDArrayProducer {
+              override def elementType: SType = newElementType
+
+              override val shape: IndexedSeq[Value[Long]] = newOutputShape)
+
+              override val initAll: EmitCodeBuilder => Unit = childProducer.initAll
+              // Important part here is that NDArrayAgg has less axes then its child. We need to map
+              // between them.
+              override val initAxis: IndexedSeq[EmitCodeBuilder => Unit] = {
+                axesToKeep.map(idx => childProducer.initAxis(idx))
+              }
+
+              override val stepAxis: IndexedSeq[(EmitCodeBuilder, Value[Long]) => Unit] = {
+                axesToKeep.map(idx => childProducer.stepAxis(idx))
+              }
+
+              override def loadElementAtCurrentAddr(cb: EmitCodeBuilder): SCode = {
+                // Idea: For each axis that is being summed over, step through and keep a running sum.
+                val numericElementType = coerce[PNumeric](elementType.canonicalPType())
+                val runningSum = NumericPrimitives.newLocal(cb, "ndarray_agg_running_sum", numericElementType.virtualType)
+                cb.assign(runningSum, numericElementType.zero)
+
+                ???
+              }
+            }
+          }
+
         case _ => {
           val ndI = emitI(x, cb)
           ndI.map(cb) { ndPCode =>
