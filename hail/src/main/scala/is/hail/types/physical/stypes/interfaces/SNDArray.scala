@@ -143,6 +143,41 @@ object SNDArray {
   }
 
   // Column major order
+  def forEachIndex2(cb: EmitCodeBuilder, shape: IndexedSeq[Value[Long]], inits: IndexedSeq[EmitCodeBuilder => Unit],
+                    incrementers: IndexedSeq[EmitCodeBuilder => Unit],context: String)
+                   (f: (EmitCodeBuilder, IndexedSeq[Value[Long]]) => Unit): Unit = {
+
+    val indices = Array.tabulate(shape.length) { dimIdx => cb.newLocal[Long](s"${ context }_foreach_dim_$dimIdx", 0L) }
+
+    def recurLoopBuilder(dimIdx: Int, innerLambda: () => Unit): Unit = {
+      if (dimIdx == shape.length) {
+        innerLambda()
+      }
+      else {
+        val dimVar = indices(dimIdx)
+
+        recurLoopBuilder(dimIdx + 1,
+          () => {
+            cb.forLoop({
+              inits(dimIdx)(cb)
+              cb.assign(dimVar, 0L)
+            }, dimVar < shape(dimIdx), {
+              incrementers(dimIdx)(cb)
+              cb.assign(dimVar, dimVar + 1L)
+            },
+              innerLambda()
+            )
+          }
+        )
+      }
+    }
+
+    val body = () => f(cb, indices)
+
+    recurLoopBuilder(0, body)
+  }
+
+  // Column major order
   def unstagedForEachIndex(shape: IndexedSeq[Long])
                           (f: IndexedSeq[Long] => Unit): Unit = {
 

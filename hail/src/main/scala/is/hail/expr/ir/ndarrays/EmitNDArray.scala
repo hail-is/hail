@@ -328,7 +328,7 @@ object EmitNDArray {
             new NDArrayProducer {
               override def elementType: SType = newElementType
 
-              override val shape: IndexedSeq[Value[Long]] = newOutputShape)
+              override val shape: IndexedSeq[Value[Long]] = newOutputShape
 
               override val initAll: EmitCodeBuilder => Unit = childProducer.initAll
               // Important part here is that NDArrayAgg has less axes then its child. We need to map
@@ -343,7 +343,7 @@ object EmitNDArray {
 
               override def loadElementAtCurrentAddr(cb: EmitCodeBuilder): SCode = {
                 // Idea: For each axis that is being summed over, step through and keep a running sum.
-                val numericElementType = coerce[PNumeric](elementType.canonicalPType())
+                val numericElementType = elementType.canonicalPType().asInstanceOf[PNumeric]
                 val runningSum = NumericPrimitives.newLocal(cb, "ndarray_agg_running_sum", numericElementType.virtualType)
                 cb.assign(runningSum, numericElementType.zero)
 
@@ -458,44 +458,14 @@ abstract class NDArrayProducer {
       cb,
       region)
 
-    val indices = Array.tabulate(shape.length) { dimIdx => cb.newLocal[Long](s"ndarray_producer_to_scode_foreach_dim_$dimIdx", 0L) }
-
-    def recurLoopBuilder(dimIdx: Int, innerLambda: () => Unit): Unit = {
-      if (dimIdx == shape.length) {
-        innerLambda()
-      }
-      else {
-        val dimVar = indices(dimIdx)
-
-        recurLoopBuilder(dimIdx + 1,
-          () => {
-            cb.forLoop({
-              initAxis(dimIdx)(cb)
-              cb.assign(dimVar, 0L)
-            }, dimVar < shape(dimIdx), {
-              stepAxis(dimIdx)(cb, 1L)
-              cb.assign(dimVar, dimVar + 1L)
-            },
-              innerLambda()
-            )
-          }
-        )
-      }
-    }
-
     val currentWriteAddr = cb.newLocal[Long]("ndarray_producer_to_scode_cur_write_addr")
     cb.assign(currentWriteAddr, firstElementAddress)
-    //   cb.println(const("firstElementAddr = ").concat(firstElementAddress.toS))
-    //   cb.println(const("shape =  ").concat(shape.map(_.toS.concat(" ")).reduce(_.concat(_))))
+
     initAll(cb)
-    def body(): Unit = {
-      //cb.println(currentWriteAddr.toS)
+    SNDArray.forEachIndex2(cb, shape, initAxis, stepAxis.map(stepper => (cb: EmitCodeBuilder) => stepper(cb, 1L)), "ndarray_producer_toSCode"){ (cb, indices) =>
       targetType.elementType.storeAtAddress(cb, currentWriteAddr, region, loadElementAtCurrentAddr(cb), true)
-      //cb.println("Stored successfully")
       cb.assign(currentWriteAddr, currentWriteAddr + targetType.elementType.byteSize)
     }
-
-    recurLoopBuilder(0, body)
 
     finish(cb)
   }
