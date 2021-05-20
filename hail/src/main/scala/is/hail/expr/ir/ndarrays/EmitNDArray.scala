@@ -347,7 +347,13 @@ object EmitNDArray {
                 val runningSum = NumericPrimitives.newLocal(cb, "ndarray_agg_running_sum", numericElementType.virtualType)
                 cb.assign(runningSum, numericElementType.zero)
 
-                ???
+                val initsToSumOut = axesToSumOut.map(idx => childProducer.initAxis(idx))
+                val stepsToSumOut = axesToSumOut.map(idx => (cb: EmitCodeBuilder) => childProducer.stepAxis(idx)(cb, 1L))
+
+                SNDArray.forEachIndex2(cb, newOutputShapeComplement, initsToSumOut, stepsToSumOut, "ndarray_producer_ndarray_agg"){ (cb, _) =>
+                  cb.assign(runningSum, numericElementType.add(runningSum, SType.extractPrimCode(cb, childProducer.loadElementAtCurrentAddr(cb))))
+                }
+                primitive(numericElementType.virtualType, runningSum)
               }
             }
           }

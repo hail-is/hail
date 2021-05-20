@@ -1883,7 +1883,7 @@ class Emit[C](
       case x: NDArrayConcat => newEmitDeforestedNDArrayI(x)
       case x: NDArraySlice => emitDeforestedNDArrayI(x)
       case x: NDArrayFilter => emitDeforestedNDArrayI(x)
-      case x: NDArrayAgg => emitDeforestedNDArrayI(x)
+      case x: NDArrayAgg => newEmitDeforestedNDArrayI(x)
       case x@RunAgg(body, result, states) =>
         val newContainer = AggContainer.fromBuilder(cb, states.toArray, "run_agg")
         emitVoid(body, container = Some(newContainer))
