@@ -11,14 +11,19 @@ set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 set(HAIL_PYTHON_MODULE_LIBDIR "." CACHE STRING "directory to put the python module library into on install, useful for python packaging")
 
-find_package(LLVM REQUIRED CONFIG)
+find_package(LLVM CONFIG)
 find_package(Python COMPONENTS Interpreter Development)
 
-message(STATUS "Found LLVM ${LLVM_PACKAGE_VERSION}")
-message(STATUS "Using LLVMConfig.cmake in: ${LLVM_DIR}")
+if (${LLVM_FOUND})
+  message(STATUS "Found LLVM ${LLVM_PACKAGE_VERSION}")
+  message(STATUS "Using LLVMConfig.cmake in: ${LLVM_DIR}")
+  include_directories(${LLVM_INCLUDE_DIRS})
+  add_definitions(${LLVM_DEFINITIONS})
+else()
+  message(STATUS "LLVM Not Found, skipping LLVM components")
+endif()
 
-include_directories(${LLVM_INCLUDE_DIRS} "src")
-add_definitions(${LLVM_DEFINITIONS})
+include_directories("src")
 
 set(lib_sources
   src/hail/allocators.cpp
@@ -26,15 +31,15 @@ set(lib_sources
   src/hail/type.cpp
   src/hail/value.cpp
   src/hail/vtype.cpp
-  # query
+  # runtime
+  src/hail/runtime/runtime.cpp)
+set(llvm_backend_sources
   src/hail/query/ir.cpp
   src/hail/query/ir_type.cpp
   src/hail/query/backend/compile.cpp
   src/hail/query/backend/jit.cpp
   src/hail/query/backend/stype.cpp
-  src/hail/query/backend/svalue.cpp
-  # runtime
-  src/hail/runtime/runtime.cpp)
+  src/hail/query/backend/svalue.cpp)
 set(python_module_sources
   src/hail/python/_hail/module.cpp)
 set(test_sources
@@ -43,12 +48,17 @@ set(test_sources
   src/hail/test.cpp)
 
 add_library(hail_objlib OBJECT ${lib_sources})
-add_executable(test $<TARGET_OBJECTS:hail_objlib> ${test_sources})
+if (${LLVM_FOUND})
+  add_library(llvm_backend_objlib OBJECT ${llvm_backend_sources})
+  add_executable(test
+    $<TARGET_OBJECTS:hail_objlib>
+    $<TARGET_OBJECTS:llvm_backend_objlib>
+    ${test_sources})
+  llvm_config(test x86asmparser x86codegen orcjit)
+endif()
+
 Python_add_library(_hail MODULE WITH_SOABI
   $<TARGET_OBJECTS:hail_objlib>
   ${python_module_sources})
-
-llvm_config(test x86asmparser x86codegen orcjit)
-llvm_config(_hail x86asmparser x86codegen orcjit)
 
 install(TARGETS _hail LIBRARY DESTINATION ${HAIL_PYTHON_MODULE_LIBDIR})
