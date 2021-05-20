@@ -312,6 +312,90 @@ object EmitNDArray {
               }
             })
           }
+        case NDArraySlice(child, slicesIR) =>
+          deforest(child).flatMap(cb) { childProducer =>
+            emitI(slicesIR, cb).flatMap(cb) { slicesPC =>
+              val slicesValue = slicesPC.asBaseStruct.memoize(cb, "ndarray_slice_tuple_pv")
+
+              val (indexingIndices, slicingIndices) = slicesValue.st.fieldTypes.zipWithIndex.partition { case (pFieldType, idx) =>
+                pFieldType.isPrimitive
+              } match {
+                case (a, b) => (a.map(_._2), b.map(_._2))
+              }
+
+              IEmitCode.multiFlatMap[Int, SCode, NDArrayProducer](indexingIndices, indexingIndex => slicesValue.loadField(cb, indexingIndex), cb) { indexingSCodes =>
+                val indexingValues = indexingSCodes.map(sCode => cb.newLocal("ndarray_slice_indexer", sCode.asInt64.longCode(cb)))
+                val slicingValueTriplesBuilder = new BoxedArrayBuilder[(Value[Long], Value[Long], Value[Long])]()
+                val outputShape = {
+                  IEmitCode.multiFlatMap[Int, SCode, IndexedSeq[Value[Long]]](slicingIndices,
+                    valueIdx => slicesValue.loadField(cb, valueIdx), cb) { sCodeSlices: IndexedSeq[SCode] =>
+                    IEmitCode.multiFlatMap(sCodeSlices, { sCodeSlice: SCode =>
+                      val sValueSlice = sCodeSlice.asBaseStruct.memoize(cb, "ndarray_slice_sCodeSlice")
+                      // I know I have a tuple of three elements here, start, stop, step
+
+                      val newDimSizeI = sValueSlice.loadField(cb, 0).flatMap(cb) { startC =>
+                        sValueSlice.loadField(cb, 1).flatMap(cb) { stopC =>
+                          sValueSlice.loadField(cb, 2).map(cb) { stepC =>
+                            val start = cb.newLocal[Long]("ndarray_slice_start", startC.asLong.longCode(cb))
+                            val stop = cb.newLocal[Long]("ndarray_slice_stop", stopC.asLong.longCode(cb))
+                            val step = cb.newLocal[Long]("ndarray_slice_step", stepC.asLong.longCode(cb))
+
+                            slicingValueTriplesBuilder.push((start, stop, step))
+
+                            val newDimSize = cb.newLocal[Long]("new_dim_size")
+                            cb.ifx(step >= 0L && start <= stop, {
+                              cb.assign(newDimSize, const(1L) + ((stop - start) - 1L) / step)
+                            }, {
+                              cb.ifx(step < 0L && start >= stop, {
+                                cb.assign(newDimSize, (((stop - start) + 1L) / step) + 1L)
+                              }, {
+                                cb.assign(newDimSize, 0L)
+                              })
+                            })
+                            newDimSize
+                          }
+                        }
+                      }
+                      newDimSizeI
+                    }, cb)(x => IEmitCode(cb, false, x))
+                  }
+                }
+                val slicingValueTriples = slicingValueTriplesBuilder.result()
+
+                outputShape.map(cb) { outputShapeSeq =>
+                  new NDArrayProducer() {
+                    override def elementType: SType = childProducer.elementType
+                    override val shape: IndexedSeq[Value[Long]] = outputShapeSeq
+
+                    override val initAll: EmitCodeBuilder => Unit = cb => {
+                      childProducer.initAll(cb)
+                      // Need to get the indexingIndices to the right starting points
+                      indexingIndices.zipWithIndex.foreach { case (childIdx, ordinalIdx) =>
+                        childProducer.initAxis(childIdx)
+                        childProducer.stepAxis(childIdx)(cb, indexingValues(ordinalIdx))
+                      }
+                    }
+
+                    override val initAxis: IndexedSeq[EmitCodeBuilder => Unit] = shape.indices.map( idx => { (cb: EmitCodeBuilder) =>
+                      val whichSlicingAxis = slicingIndices(idx)
+                      val slicingValue = slicingValueTriples(idx)
+                      childProducer.initAxis(whichSlicingAxis)(cb)
+                      childProducer.stepAxis(whichSlicingAxis)(cb, slicingValue._1)
+                    })
+                    override val stepAxis: IndexedSeq[(EmitCodeBuilder, Value[Long]) => Unit] = shape.indices.map( idx => { (cb: EmitCodeBuilder, outerStep: Value[Long]) =>
+                      // SlicingIndices is a map from my coordinates to my child's coordinates.
+                      val whichSlicingAxis = slicingIndices(idx)
+                      val (start, stop, sliceStep) = slicingValueTriples(idx)
+                      val innerStep = cb.newLocal[Long]("ndarray_producer_slice_child_step", sliceStep * outerStep)
+                      childProducer.stepAxis(whichSlicingAxis)(cb, innerStep)
+                    })
+
+                    override def loadElementAtCurrentAddr(cb: EmitCodeBuilder): SCode = childProducer.loadElementAtCurrentAddr(cb)
+                  }
+                }
+              }
+            }
+          }
         case NDArrayFilter(child, filters) =>
           deforest(child).map(cb) { childProducer: NDArrayProducer =>
 

@@ -1881,7 +1881,7 @@ class Emit[C](
       case x: NDArrayMap2 => newEmitDeforestedNDArrayI(x)
       case x: NDArrayReshape => emitDeforestedNDArrayI(x)
       case x: NDArrayConcat => newEmitDeforestedNDArrayI(x)
-      case x: NDArraySlice => emitDeforestedNDArrayI(x)
+      case x: NDArraySlice => newEmitDeforestedNDArrayI(x)
       case x: NDArrayFilter => newEmitDeforestedNDArrayI(x)
       case x: NDArrayAgg => newEmitDeforestedNDArrayI(x)
       case x@RunAgg(body, result, states) =>
@@ -2707,81 +2707,6 @@ class Emit[C](
                   assert(newIdxVars.length == childEmitter.nDims)
 
                   childEmitter.outputElement(cb, newIdxVars)
-                }
-              }
-            }
-          }
-        case NDArraySlice(child, slicesIR) =>
-          deforest(child).flatMap(cb) { childEmitter =>
-            emit(slicesIR).flatMap(cb) { slicesPC =>
-              val slicesValue = slicesPC.asBaseStruct.memoize(cb, "ndarray_slice_tuple_pv")
-
-              val (indexingIndices, slicingIndices) = slicesValue.st.fieldTypes.zipWithIndex.partition { case (pFieldType, idx) =>
-                pFieldType.isPrimitive
-              } match {
-                case (a, b) => (a.map(_._2), b.map(_._2))
-              }
-
-              IEmitCode.multiFlatMap[Int, SCode, NDArrayEmitter](indexingIndices, indexingIndex => slicesValue.loadField(cb, indexingIndex), cb) { indexingSCodes =>
-                val indexingValues = indexingSCodes.map(sCode => cb.newLocal("ndarray_slice_indexer", sCode.asInt64.longCode(cb)))
-                val slicingValueTriples = new BoxedArrayBuilder[(Value[Long], Value[Long], Value[Long])]()
-                val outputShape = {
-                  IEmitCode.multiFlatMap[Int, SCode, IndexedSeq[Value[Long]]](slicingIndices,
-                    valueIdx => slicesValue.loadField(cb, valueIdx), cb) { sCodeSlices: IndexedSeq[SCode] =>
-                    IEmitCode.multiFlatMap(sCodeSlices, { sCodeSlice: SCode =>
-                      val sValueSlice = sCodeSlice.asBaseStruct.memoize(cb, "ndarray_slice_sCodeSlice")
-                      // I know I have a tuple of three elements here, start, stop, step
-
-                      val newDimSizeI = sValueSlice.loadField(cb, 0).flatMap(cb) { startC =>
-                        sValueSlice.loadField(cb, 1).flatMap(cb) { stopC =>
-                          sValueSlice.loadField(cb, 2).map(cb) { stepC =>
-                            val start = cb.newLocal[Long]("ndarray_slice_start", startC.asLong.longCode(cb))
-                            val stop = cb.newLocal[Long]("ndarray_slice_stop", stopC.asLong.longCode(cb))
-                            val step = cb.newLocal[Long]("ndarray_slice_step", stepC.asLong.longCode(cb))
-
-                            slicingValueTriples.push((start, stop, step))
-
-                            val newDimSize = cb.newLocal[Long]("new_dim_size")
-                            cb.ifx(step >= 0L && start <= stop, {
-                              cb.assign(newDimSize, const(1L) + ((stop - start) - 1L) / step)
-                            }, {
-                              cb.ifx(step < 0L && start >= stop, {
-                                cb.assign(newDimSize, (((stop - start) + 1L) / step) + 1L)
-                              }, {
-                                cb.assign(newDimSize, 0L)
-                              })
-                            })
-
-                            newDimSize
-
-                          }
-                        }
-                      }
-                      newDimSizeI
-                    }, cb)(x => IEmitCode(cb, false, x))
-                  }
-                }
-
-                outputShape.map(cb) { outputShapeSeq =>
-                  new NDArrayEmitter(outputShapeSeq, childEmitter.elementType) {
-                    override def outputElement(cb: EmitCodeBuilder, idxVars: IndexedSeq[Value[Long]]): SCode = {
-                      // Iterate through the slices tuple given in. For each single integer, should just copy that integer into
-                      // an indexed seq. For each range, should use start and step to modify.
-                      val oldIdxVarsIterator = idxVars.toIterator
-                      val indexingIterator = indexingValues.toIterator
-                      val slicingIterator = slicingValueTriples.result().toIterator
-
-                      val newIdxVars = slicesValue.st.fieldTypes.map {
-                        case SInt64 =>
-                          indexingIterator.next()
-                        case slicer: SBaseStruct =>
-                          val (start, stop, step) = slicingIterator.next()
-                          cb.newLocal[Long]("ndarray_slice_adjusted_lookup", start + oldIdxVarsIterator.next() * step)
-                      }
-
-                      childEmitter.outputElement(cb, newIdxVars)
-                    }
-                  }
                 }
               }
             }
