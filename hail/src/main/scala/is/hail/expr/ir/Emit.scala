@@ -1880,7 +1880,7 @@ class Emit[C](
       case x: NDArrayMap => newEmitDeforestedNDArrayI(x)
       case x: NDArrayMap2 => newEmitDeforestedNDArrayI(x)
       case x: NDArrayReshape => emitDeforestedNDArrayI(x)
-      case x: NDArrayConcat => emitDeforestedNDArrayI(x)
+      case x: NDArrayConcat => newEmitDeforestedNDArrayI(x)
       case x: NDArraySlice => emitDeforestedNDArrayI(x)
       case x: NDArrayFilter => emitDeforestedNDArrayI(x)
       case x: NDArrayAgg => emitDeforestedNDArrayI(x)
