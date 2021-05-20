@@ -451,15 +451,12 @@ class Batch:
         invalid_job_ids = []
         for parent in parents:
             job = parent._job
-            if isinstance(job, UnsubmittedJob):
-                if job._batch != self:
-                    foreign_batches.append(job)
-                elif not 0 < job._job_id < self._job_idx:
-                    invalid_job_ids.append(job)
-                else:
-                    parent_ids.append(job._job_id)
-            else:
+            if job.batch_id != self.id:
                 foreign_batches.append(job)
+            elif not 0 < job.job_id < self._job_idx:
+                invalid_job_ids.append(job)
+            else:
+                parent_ids.append(job.job_id)
 
         error_msg = []
         if len(foreign_batches) != 0:
