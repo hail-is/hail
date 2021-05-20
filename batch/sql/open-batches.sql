@@ -117,7 +117,7 @@ BEGIN
       INNER JOIN (
         SELECT `job_parents`.batch_id, `job_parents`.job_id,
           SUM(1) AS n_parents,
-          SUM(state IN ('Ready', 'Pending', 'Creating', 'Running')) AS n_pending_parents,
+          SUM(state IN ('Pending', 'Ready', 'Creating', 'Running')) AS n_pending_parents,
           SUM(state = 'Success') AS n_succeeded
         FROM `job_parents`
         LEFT JOIN `jobs` ON jobs.batch_id = `job_parents`.batch_id AND jobs.job_id = `job_parents`.parent_id
@@ -128,7 +128,7 @@ BEGIN
            jobs.job_id = t.job_id
       SET jobs.state = IF(t.n_pending_parents = 0, 'Ready', 'Pending'),
           jobs.n_pending_parents = t.n_pending_parents,
-          jobs.cancelled = IF(t.n_succeeded = t.n_parents, jobs.cancelled, 1)
+          jobs.cancelled = IF(t.n_pending_parents > 0 OR t.n_succeeded = t.n_parents, jobs.cancelled, 1)
       WHERE `jobs`.batch_id = in_batch_id AND
             jobs.state = 'Pending' AND
             t.n_parents != 0;
