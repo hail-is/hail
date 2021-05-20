@@ -426,8 +426,7 @@ class BatchBuilder:
                    input_files=None, output_files=None, always_run=False,
                    timeout=None, gcsfuse=None, requester_pays_project=None,
                    mount_tokens=False, network: Optional[str] = None,
-                   unconfined: bool = False
-    ):
+                   unconfined: bool = False):
         if self._submitted:
             raise ValueError("cannot create a job in an already submitted batch")
 
