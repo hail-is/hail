@@ -113,6 +113,26 @@ BEGIN
       n_jobs = n_jobs + staging_n_jobs
     WHERE id = in_batch_id;
 
+    UPDATE jobs
+      INNER JOIN (
+        SELECT `job_parents`.batch_id, `job_parents`.job_id,
+          SUM(1) AS n_parents,
+          SUM(state IN ('Ready', 'Pending', 'Creating', 'Running')) AS n_pending_parents,
+          SUM(state = 'Success') AS n_succeeded
+        FROM `job_parents`
+        LEFT JOIN `jobs` ON jobs.batch_id = `job_parents`.batch_id AND jobs.job_id = `job_parents`.parent_id
+        WHERE `job_parents`.batch_id = in_batch_id
+        GROUP BY `job_parents`.batch_id, `job_parents`.job_id
+      ) AS t
+        ON jobs.batch_id = t.batch_id AND
+           jobs.job_id = t.job_id
+      SET jobs.state = IF(t.n_pending_parents = 0, 'Ready', 'Pending'),
+          jobs.n_pending_parents = t.n_pending_parents,
+          jobs.cancelled = IF(t.n_succeeded = t.n_parents, jobs.cancelled, 1)
+      WHERE `jobs`.batch_id = in_batch_id AND
+            jobs.state = 'Pending' AND
+            t.n_parents != 0;
+
     DELETE FROM batches_inst_coll_staging WHERE batch_id = in_batch_id;
 
     COMMIT;

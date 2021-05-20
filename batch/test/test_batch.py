@@ -801,14 +801,23 @@ def test_open_batch(client):
 
     j1 = b.create_job(DOCKER_ROOT_IMAGE, ['true'])
     b.commit()
-    j2 = b.create_job(DOCKER_ROOT_IMAGE, ['true'])
+    j2 = b.create_job(DOCKER_ROOT_IMAGE, ['false'])
+    j3 = b.create_job(DOCKER_ROOT_IMAGE, ['true'], parents=[j1])
+    b.commit()
+    j4 = b.create_job(DOCKER_ROOT_IMAGE, ['true'], parents=[j1, j2])
     b.close()
 
     status = j1.wait()
     assert status['state'] == 'Success', str(j1.log()['main'], status)
 
     status = j2.wait()
-    assert status['state'] == 'Success', str(j2.log()['main'], status)
+    assert status['state'] == 'Failure', str(j2.log()['main'], status)
+
+    status = j3.wait()
+    assert status['state'] == 'Success', str(j3.log()['main'], status)
+
+    status = j4.wait()
+    assert status['state'] == 'Cancelled', str(j4.log()['main'], status)
 
 
 def test_closed_batch(client):
