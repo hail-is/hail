@@ -1,9 +1,9 @@
 #!/usr/bin/env python
 
 import os
-import re
 import shutil
 import subprocess
+import sys
 
 from setuptools import Extension, find_packages, setup
 from setuptools.command.build_ext import build_ext
@@ -58,6 +58,7 @@ class cmake_build_ext(build_ext):
 
         cmake_args = [
             '-G', CMAKE_GENERATOR,
+            f'-DPython_ROOT_DIR={os.path.dirname(sys.executable)}',
             f'-DHAIL_PYTHON_MODULE_LIBDIR={os.path.abspath(self.build_lib)}',
             '-DCMAKE_BUILD_TYPE=RelWithDebInfo']
         for ext in self.extensions:

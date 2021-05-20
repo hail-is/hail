@@ -7,7 +7,7 @@ include hailtop/hailctl/deploy.yaml
 include hailtop/py.typed
 include requirements.txt
 prune _hail
-recursive-include _hail *.cpp *.hpp
+recursive-include _hail/src *.cpp *.hpp
 include _hail/CMakeLists.txt
 prune test
-prune cluster-test
+prune cluster-tests
