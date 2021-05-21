@@ -18,14 +18,3 @@ DOCKER_BUILDKIT=1 docker build \
 
 time DOCKER_BUILDKIT=1 docker push ${REMOTE_IMAGE_NAME}
 time DOCKER_BUILDKIT=1 docker push ${CACHE_NAME}
-
-
-
-
-
-
-
-
-
-
-
