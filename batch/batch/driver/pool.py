@@ -18,7 +18,7 @@ from hailtop.utils import (
     periodically_call,
 )
 
-from ..batch_configuration import STANDING_WORKER_MAX_IDLE_TIME_MSECS, WORKER_MAX_IDLE_TIME_MSECS
+from ..batch_configuration import STANDING_WORKER_MAX_IDLE_TIME_MSECS, WORKER_MAX_IDLE_TIME_MSECS, GCP_ZONE
 from ..inst_coll_config import PoolConfig
 from ..utils import (
     Box,
@@ -165,7 +165,7 @@ WHERE name = %s;
         if instance.state == 'active' and instance.failed_request_count <= 1:
             self.healthy_instances_by_free_cores.add(instance)
 
-    async def create_instance(self, cores=None, max_idle_time_msecs=None):
+    async def create_instance(self, cores=None, max_idle_time_msecs=None, zone=None):
         if cores is None:
             cores = self.worker_cores
 
@@ -174,9 +174,10 @@ WHERE name = %s;
 
         machine_name = self.generate_machine_name()
 
-        zone = self.zone_monitor.get_zone(cores, self.worker_local_ssd_data_disk, self.worker_pd_ssd_data_disk_size_gb)
         if zone is None:
-            return
+            zone = self.zone_monitor.get_zone(cores, self.worker_local_ssd_data_disk, self.worker_pd_ssd_data_disk_size_gb)
+            if zone is None:
+                return
 
         machine_type = f'n1-{self.worker_type}-{cores}'
 
@@ -251,6 +252,13 @@ LOCK IN SHARE MODE;
                 # parallelism will be bounded by thread pool
                 await asyncio.gather(*[self.create_instance() for _ in range(instances_needed)])
 
+        if self.scheduler.ci_no_viable_instances.value > 5 and self.live_free_cores_mcpu_by_zone[GCP_ZONE] == 0:
+            await self.create_instance(
+                cores=self.standing_worker_cores, max_idle_time_msecs=STANDING_WORKER_MAX_IDLE_TIME_MSECS,
+                zone=GCP_ZONE
+            )
+            self.scheduler.ci_no_viable_instances.value = 0
+
         n_live_instances = self.n_instances_by_state['pending'] + self.n_instances_by_state['active']
         if self.enable_standing_worker and n_live_instances == 0 and self.max_instances > 0:
             await self.create_instance(
@@ -272,6 +280,7 @@ class PoolScheduler:
         self.pool = pool
         self.async_worker_pool: AsyncWorkerPool = self.app['async_worker_pool']
         self.exceeded_shares_counter = ExceededSharesCounter()
+        self.ci_no_viable_instances = Box(0)
         self.task_manager = aiotools.BackgroundTaskManager()
 
     async def async_init(self):
@@ -428,16 +437,25 @@ LIMIT %s;
                 instance = self.pool.healthy_instances_by_free_cores[i]
                 assert cores_mcpu <= instance.free_cores_mcpu
                 if user != 'ci' or (user == 'ci' and instance.zone.startswith('us-central1')):
+                    if user == 'ci':
+                        self.ci_no_viable_instances.value = 0
                     return instance
                 i += 1
+
             histogram = collections.defaultdict(int)
             for instance in self.pool.healthy_instances_by_free_cores:
                 histogram[instance.free_cores_mcpu] += 1
             log.info(f'schedule {self.pool}: no viable instances for {cores_mcpu}: {histogram}')
+
+            if user == 'ci':
+                self.ci_no_viable_instances.value += 1
+
             return None
 
         should_wait = True
-        for user, resources in user_resources.items():
+        users = sorted(user_resources.keys(), key=lambda user: user != 'ci')
+        for user in users:
+            resources = user_resources[user]
             allocated_cores_mcpu = resources['allocated_cores_mcpu']
             if allocated_cores_mcpu == 0:
                 continue

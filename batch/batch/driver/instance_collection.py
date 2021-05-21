@@ -26,6 +26,7 @@ class InstanceCollection:
         self.is_pool = is_pool
 
         self.name_instance: Dict[str, Instance] = {}
+        self.live_free_cores_mcpu_by_zone: Dict[str, int] = {}
 
         self.instances_by_last_updated = sortedcontainers.SortedSet(key=lambda instance: instance.last_updated)
 
@@ -70,6 +71,7 @@ class InstanceCollection:
         if instance.state in ('pending', 'active'):
             self.live_free_cores_mcpu -= max(0, instance.free_cores_mcpu)
             self.live_total_cores_mcpu -= instance.cores_mcpu
+            self.live_free_cores_mcpu_by_zone[instance.zone] -= max(0, instance.free_cores_mcpu)
 
     async def remove_instance(self, instance, reason, timestamp=None):
         await instance.deactivate(reason, timestamp)
@@ -88,6 +90,7 @@ class InstanceCollection:
         if instance.state in ('pending', 'active'):
             self.live_free_cores_mcpu += max(0, instance.free_cores_mcpu)
             self.live_total_cores_mcpu += instance.cores_mcpu
+            self.live_free_cores_mcpu_by_zone[instance.zone] += max(0, instance.free_cores_mcpu)
 
     def add_instance(self, instance):
         assert instance.name not in self.name_instance

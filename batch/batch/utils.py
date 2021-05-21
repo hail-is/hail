@@ -248,7 +248,7 @@ class ExceededSharesCounter:
         self._global_counter = WindowFractionCounter(10)
 
     def push(self, success: bool):
-        self._global_counter.push('exceeded_shares', success)
+        self._global_counter.push(secrets.token_urlsafe(6), success)
 
     def rate(self) -> float:
         return self._global_counter.fraction()
