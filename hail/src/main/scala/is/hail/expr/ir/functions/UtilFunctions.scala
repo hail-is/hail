@@ -28,7 +28,7 @@ object UtilFunctions extends RegistryFunctions {
         if (s.equalsCaseInsensitive("nan")) return Float.NaN
         if (s.equalsCaseInsensitive("inf")) return Float.PositiveInfinity
       case 4 =>
-        if ((s equalsCaseInsensitive "+nan") || (s.equalsCaseInsensitive("-nan"))) return Float.NaN
+        if (s.equalsCaseInsensitive("+nan") || s.equalsCaseInsensitive("-nan")) return Float.NaN
         if (s.equalsCaseInsensitive("+inf")) return Float.PositiveInfinity
         if (s.equalsCaseInsensitive("-inf")) return Float.NegativeInfinity
       case 8 =>
@@ -47,7 +47,7 @@ object UtilFunctions extends RegistryFunctions {
         if (s.equalsCaseInsensitive("nan")) return Double.NaN
         if (s.equalsCaseInsensitive("inf")) return Double.PositiveInfinity
       case 4 =>
-        if ((s equalsCaseInsensitive "+nan") || (s.equalsCaseInsensitive("-nan"))) return Double.NaN
+        if (s.equalsCaseInsensitive("+nan") || s.equalsCaseInsensitive("-nan")) return Double.NaN
         if (s.equalsCaseInsensitive("+inf")) return Double.PositiveInfinity
         if (s.equalsCaseInsensitive("-inf")) return Double.NegativeInfinity
       case 8 =>
@@ -76,6 +76,37 @@ object UtilFunctions extends RegistryFunctions {
       case _: NumberFormatException =>
         parseSpecialNum64(s)
     }
+  }
+
+  def isValidBoolean(s: String): Boolean =
+    (s.equalsCaseInsensitive("true") || s.equalsCaseInsensitive("false"))
+
+  def isValidInt32(s: String): Boolean =
+    try {
+      s.toInt; true
+    } catch {
+      case _: NumberFormatException => false
+    }
+
+  def isValidInt64(s: String): Boolean =
+    try {
+      s.toLong; true
+    } catch {
+      case _: NumberFormatException => false
+    }
+
+  def isValidFloat32(s: String): Boolean = try {
+    parseFloat32(s)
+    true
+  } catch {
+    case _: NumberFormatException => false
+  }
+
+  def isValidFloat64(s: String): Boolean = try {
+    parseFloat64(s)
+    true
+  } catch {
+    case _: NumberFormatException => false
   }
 
   def min_ignore_missing(l: Int, lMissing: Boolean, r: Int, rMissing: Boolean): Int =
