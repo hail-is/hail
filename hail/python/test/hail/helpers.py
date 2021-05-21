@@ -154,8 +154,8 @@ fails_service_backend = pytest.mark.xfail(
     strict=True)
 
 def check_spark():
-    from hail.backend.spark_backend import SparkBackend
-    return isinstance(hl.utils.java.Env.backend(), SparkBackend)
+    backend_name = os.environ.get('HAIL_QUERY_BACKEND', 'spark')
+    return backend_name == 'spark'
 
 fails_spark_backend = pytest.mark.xfail(
     check_spark(),
