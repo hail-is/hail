@@ -34,11 +34,11 @@ def test_job(client):
     j = b.create_job(DOCKER_ROOT_IMAGE, ['echo', 'test'])
     b.submit()
     status = j.wait()
-    assert 'attributes' not in status, (status, j.log())
-    assert status['state'] == 'Success', (status, j.log())
-    assert status['exit_code'] == 0, status
-    assert j._get_exit_code(status, 'main') == 0, (status, j.log())
-    assert j.log()['main'] == 'test\n', status
+    assert 'attributes' not in status, f'{j.log(), status}'
+    assert status['state'] == 'Success', f'{j.log(), status}'
+    assert status['exit_code'] == 0, str(status)
+    assert j._get_exit_code(status, 'main') == 0, f'{j.log(), status}'
+    assert j.log()['main'] == 'test\n', str(status)
 
 
 def test_exit_code_duration(client):
@@ -46,9 +46,9 @@ def test_exit_code_duration(client):
     j = b.create_job(DOCKER_ROOT_IMAGE, ['bash', '-c', 'exit 7'])
     b.submit()
     status = j.wait()
-    assert status['exit_code'] == 7, status
+    assert status['exit_code'] == 7, str(status)
     assert isinstance(status['duration'], int)
-    assert j._get_exit_code(status, 'main') == 7, status
+    assert j._get_exit_code(status, 'main') == 7, str(status)
 
 
 def test_attributes(client):
@@ -148,7 +148,7 @@ def test_attached_disk(client):
     j = b.create_job('ubuntu:18.04', ['/bin/sh', '-c', 'df -h; fallocate -l 390GiB /io/foo'], resources=resources)
     b.submit()
     status = j.wait()
-    assert status['state'] == 'Success', str((status, j.log()))
+    assert status['state'] == 'Success', f'{j.log(), status}'
 
 
 def test_unsubmitted_state(client):
@@ -450,7 +450,7 @@ def test_gcr_image(client):
     j = b.create_job(os.environ['HAIL_CURL_IMAGE'], ['echo', 'test'])
     b.submit()
     status = j.wait()
-    assert status['state'] == 'Success', str(status, j.log())
+    assert status['state'] == 'Success', f'{j.log(), status}'
 
 
 def test_service_account(client):
@@ -489,7 +489,7 @@ def test_timeout(client):
     j = b.create_job(DOCKER_ROOT_IMAGE, ['sleep', '30'], timeout=5)
     b.submit()
     status = j.wait()
-    assert status['state'] == 'Error', (status, j.log())
+    assert status['state'] == 'Error', f'{j.log(), status}'
     error_msg = j._get_error(status, 'main')
     assert error_msg and 'JobTimeoutError' in error_msg
     assert j.exit_code(status) is None, str(status)
@@ -632,7 +632,7 @@ def test_verify_access_to_public_internet(client):
     j = b.create_job(os.environ['HAIL_CURL_IMAGE'], ['curl', '-fsSL', 'example.com'])
     b.submit()
     status = j.wait()
-    assert status['state'] == 'Success', status
+    assert status['state'] == 'Success', str(status)
 
 
 def test_verify_can_tcp_to_localhost(client):
@@ -648,7 +648,7 @@ echo "hello" | nc -q 1 localhost 5000
     j = b.create_job(os.environ['HAIL_NETCAT_UBUNTU_IMAGE'], command=['/bin/bash', '-c', script])
     b.submit()
     status = j.wait()
-    assert status['state'] == 'Success', str(j.log()['main'], status)
+    assert status['state'] == 'Success', f'{j.log(), status}'
     assert 'hello\n' == j.log()['main']
 
 
@@ -665,7 +665,7 @@ echo "hello" | nc -q 1 127.0.0.1 5000
     j = b.create_job(os.environ['HAIL_NETCAT_UBUNTU_IMAGE'], command=['/bin/bash', '-c', script])
     b.submit()
     status = j.wait()
-    assert status['state'] == 'Success', str(j.log()['main'], status)
+    assert status['state'] == 'Success', f'{j.log(), status}'
     assert 'hello\n' == j.log()['main']
 
 
@@ -682,7 +682,7 @@ echo "hello" | nc -q 1 $(hostname -i) 5000
     j = b.create_job(os.environ['HAIL_NETCAT_UBUNTU_IMAGE'], command=['/bin/sh', '-c', script])
     b.submit()
     status = j.wait()
-    assert status['state'] == 'Success', str(j.log()['main'], status)
+    assert status['state'] == 'Success', f'{j.log(), status}'
     assert 'hello\n' == j.log()['main'], str(j.log())
 
 
@@ -706,7 +706,7 @@ def test_pool_highmem_instance(client):
     j = b.create_job(DOCKER_ROOT_IMAGE, ['true'], resources=resources)
     b.submit()
     status = j.wait()
-    assert status['state'] == 'Success', str(j.log()['main'], status)
+    assert status['state'] == 'Success', f'{j.log(), status}'
     assert 'highmem' in status['status']['worker'], str(status)
 
     b = client.create_batch()
@@ -714,7 +714,7 @@ def test_pool_highmem_instance(client):
     j = b.create_job(DOCKER_ROOT_IMAGE, ['true'], resources=resources)
     b.submit()
     status = j.wait()
-    assert status['state'] == 'Success', str(j.log()['main'], status)
+    assert status['state'] == 'Success', f'{j.log(), status}'
     assert 'highmem' in status['status']['worker'], str(status)
 
     b = client.create_batch()
@@ -722,7 +722,7 @@ def test_pool_highmem_instance(client):
     j = b.create_job(DOCKER_ROOT_IMAGE, ['true'], resources=resources)
     b.submit()
     status = j.wait()
-    assert status['state'] == 'Success', str(j.log()['main'], status)
+    assert status['state'] == 'Success', f'{j.log(), status}'
     assert 'standard' in status['status']['worker'], str(status)
 
 
@@ -732,7 +732,7 @@ def test_pool_highcpu_instance(client):
     j = b.create_job(DOCKER_ROOT_IMAGE, ['true'], resources=resources)
     b.submit()
     status = j.wait()
-    assert status['state'] == 'Success', str(j.log()['main'], status)
+    assert status['state'] == 'Success', f'{j.log(), status}'
     assert 'highcpu' in status['status']['worker'], str(status)
 
     b = client.create_batch()
@@ -740,7 +740,7 @@ def test_pool_highcpu_instance(client):
     j = b.create_job(DOCKER_ROOT_IMAGE, ['true'], resources=resources)
     b.submit()
     status = j.wait()
-    assert status['state'] == 'Success', str(j.log()['main'], status)
+    assert status['state'] == 'Success', f'{j.log(), status}'
     assert 'highcpu' in status['status']['worker'], str(status)
 
     b = client.create_batch()
@@ -748,7 +748,7 @@ def test_pool_highcpu_instance(client):
     j = b.create_job(DOCKER_ROOT_IMAGE, ['true'], resources=resources)
     b.submit()
     status = j.wait()
-    assert status['state'] == 'Success', str(j.log()['main'], status)
+    assert status['state'] == 'Success', f'{j.log(), status}'
     assert 'standard' in status['status']['worker'], str(status)
 
 
@@ -758,7 +758,7 @@ def test_job_private_instance_preemptible(client):
     j = b.create_job(DOCKER_ROOT_IMAGE, ['true'], resources=resources)
     b.submit()
     status = j.wait()
-    assert status['state'] == 'Success', str(j.log()['main'], status)
+    assert status['state'] == 'Success', f'{j.log(), status}'
     assert 'job-private' in status['status']['worker'], str(status)
 
 
@@ -768,7 +768,7 @@ def test_job_private_instance_nonpreemptible(client):
     j = b.create_job(DOCKER_ROOT_IMAGE, ['true'], resources=resources)
     b.submit()
     status = j.wait()
-    assert status['state'] == 'Success', str(j.log()['main'], status)
+    assert status['state'] == 'Success', f'{j.log(), status}'
     assert 'job-private' in status['status']['worker'], str(status)
 
 
@@ -808,16 +808,16 @@ def test_open_batch(client):
     b.close()
 
     status = j1.wait()
-    assert status['state'] == 'Success', str(j1.log()['main'], status)
+    assert status['state'] == 'Success', f'{j1.log(), status}'
 
     status = j2.wait()
-    assert status['state'] == 'Failure', str(j2.log()['main'], status)
+    assert status['state'] == 'Failure', f'{j2.log(), status}'
 
     status = j3.wait()
-    assert status['state'] == 'Success', str(j3.log()['main'], status)
+    assert status['state'] == 'Success', f'{j3.log(), status}'
 
     status = j4.wait()
-    assert status['state'] == 'Cancelled', str(j4.log()['main'], status)
+    assert status['state'] == 'Cancelled', f'{j4.log(), status}'
 
 
 def test_closed_batch(client):
@@ -828,7 +828,7 @@ def test_closed_batch(client):
     assert b_stat['closed'], str(b_stat)
 
     status = j1.wait()
-    assert status['state'] == 'Success', str(j1.log()['main'], status)
+    assert status['state'] == 'Success', f'{j1.log(), status}'
 
     with pytest.raises(
             ValueError,
@@ -853,7 +853,7 @@ def test_closed_batch(client):
 
 def test_auto_closed_batch(client):
     b = client.create_batch(max_idle_time=0)
-    b.create_job(DOCKER_ROOT_IMAGE, ['sleep 300'], resources = {'cpu': '0.25'})
+    b.create_job(DOCKER_ROOT_IMAGE, ['sleep 300'], resources={'cpu': '0.25'})
     b.commit()
 
     delay = 0.1

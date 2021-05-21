@@ -616,8 +616,9 @@ async def create_jobs(request, userdata):
         async with timer.step('fetch batch'):
             record = await db.select_and_fetchone(
                 '''
-SELECT `closed`, format_version FROM batches
-WHERE user = %s AND id = %s AND NOT deleted;
+SELECT `closed`, format_version, `n_commits` FROM batches
+WHERE user = %s AND id = %s AND NOT deleted
+LOCK IN SHARE MODE;
 ''',
                 (user, batch_id),
             )
@@ -846,6 +847,7 @@ WHERE user = %s AND id = %s AND NOT deleted;
                         cores_mcpu,
                         len(parent_ids),
                         inst_coll_name,
+                        record['n_commits'] == 0
                     )
                 )
 
@@ -869,8 +871,8 @@ WHERE user = %s AND id = %s AND NOT deleted;
                 try:
                     await tx.execute_many(
                         '''
-INSERT INTO jobs (batch_id, job_id, state, spec, always_run, cores_mcpu, n_pending_parents, inst_coll)
-VALUES (%s, %s, %s, %s, %s, %s, %s, %s);
+INSERT INTO jobs (batch_id, job_id, state, spec, always_run, cores_mcpu, n_pending_parents, inst_coll, committed)
+VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s);
 ''',
                         jobs_args,
                     )

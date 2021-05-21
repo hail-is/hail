@@ -148,6 +148,7 @@ CREATE TABLE IF NOT EXISTS `batches` (
   `format_version` INT NOT NULL,
   `cancel_after_n_failures` INT DEFAULT NULL,
   `max_idle_time` INT DEFAULT NULL,
+  `n_commits` INT NOT NULL DEFAULT 0,
   PRIMARY KEY (`id`),
   FOREIGN KEY (`billing_project`) REFERENCES billing_projects(name)
 ) ENGINE = InnoDB;
@@ -200,12 +201,14 @@ CREATE TABLE IF NOT EXISTS `jobs` (
   `msec_mcpu` BIGINT NOT NULL DEFAULT 0,
   `attempt_id` VARCHAR(40),
   `inst_coll` VARCHAR(255),
+  `committed` BOOLEAN NOT NULL,
   PRIMARY KEY (`batch_id`, `job_id`),
   FOREIGN KEY (`batch_id`) REFERENCES batches(id) ON DELETE CASCADE,
   FOREIGN KEY (`inst_coll`) REFERENCES inst_colls(name) ON DELETE CASCADE
 ) ENGINE = InnoDB;
 CREATE INDEX `jobs_batch_id_state_always_run_inst_coll_cancelled` ON `jobs` (`batch_id`, `state`, `always_run`, `inst_coll`, `cancelled`);
 CREATE INDEX `jobs_batch_id_state_always_run_cancelled` ON `jobs` (`batch_id`, `state`, `always_run`, `cancelled`);
+CREATE INDEX `jobs_committed` ON `jobs` (`committed`);
 
 CREATE TABLE IF NOT EXISTS `batch_bunches` (
   `batch_id` BIGINT NOT NULL,
@@ -760,13 +763,14 @@ CREATE PROCEDURE commit_staged_jobs(
 )
 BEGIN
   DECLARE cur_batch_closed BOOLEAN;
+  DECLARE cur_n_commits INT;
   DECLARE staging_n_jobs INT;
   DECLARE staging_n_ready_jobs INT;
   DECLARE staging_ready_cores_mcpu BIGINT;
 
   START TRANSACTION;
 
-  SELECT `closed` INTO cur_batch_closed FROM batches
+  SELECT `closed`, `n_commits` INTO cur_batch_closed, cur_n_commits FROM batches
   WHERE id = in_batch_id AND NOT deleted
   FOR UPDATE;
 
@@ -795,28 +799,31 @@ BEGIN
                      'running',
                      IF(n_jobs != 0, `state`, 'complete')),
       time_last_updated = in_timestamp,
-      n_jobs = n_jobs + staging_n_jobs
+      n_jobs = n_jobs + staging_n_jobs,
+      n_commits = n_commits + 1
     WHERE id = in_batch_id;
 
-    UPDATE jobs
-      INNER JOIN (
-        SELECT `job_parents`.batch_id, `job_parents`.job_id,
-          SUM(1) AS n_parents,
-          SUM(state IN ('Pending', 'Ready', 'Creating', 'Running')) AS n_pending_parents,
-          SUM(state = 'Success') AS n_succeeded
-        FROM `job_parents`
-        LEFT JOIN `jobs` ON jobs.batch_id = `job_parents`.batch_id AND jobs.job_id = `job_parents`.parent_id
-        WHERE `job_parents`.batch_id = in_batch_id
-        GROUP BY `job_parents`.batch_id, `job_parents`.job_id
-      ) AS t
-        ON jobs.batch_id = t.batch_id AND
-           jobs.job_id = t.job_id
-      SET jobs.state = IF(t.n_pending_parents = 0, 'Ready', 'Pending'),
-          jobs.n_pending_parents = t.n_pending_parents,
-          jobs.cancelled = IF(t.n_pending_parents > 0 OR t.n_succeeded = t.n_parents, jobs.cancelled, 1)
-      WHERE `jobs`.batch_id = in_batch_id AND
-            jobs.state = 'Pending' AND
-            t.n_parents != 0;
+    IF cur_n_commits > 0 THEN
+      UPDATE jobs
+        INNER JOIN (
+          SELECT `job_parents`.batch_id, `job_parents`.job_id,
+            COALESCE(SUM(1), 0) AS n_parents,
+            COALESCE(SUM(state IN ('Pending', 'Ready', 'Creating', 'Running')), 0) AS n_pending_parents,
+            COALESCE(SUM(state = 'Success'), 0) AS n_succeeded
+          FROM `job_parents`
+          LEFT JOIN `jobs` ON jobs.batch_id = `job_parents`.batch_id AND jobs.job_id = `job_parents`.parent_id
+          WHERE `job_parents`.batch_id = in_batch_id
+          GROUP BY `job_parents`.batch_id, `job_parents`.job_id
+          FOR UPDATE
+        ) AS t
+          ON jobs.batch_id = t.batch_id AND
+             jobs.job_id = t.job_id
+        SET jobs.state = IF(t.n_pending_parents = 0, 'Ready', 'Pending'),
+            jobs.n_pending_parents = t.n_pending_parents,
+            jobs.cancelled = IF(t.n_pending_parents > 0 OR t.n_succeeded = t.n_parents, jobs.cancelled, 1)
+        WHERE jobs.batch_id = in_batch_id AND
+              jobs.committed = 0;
+    END IF;
 
     DELETE FROM batches_inst_coll_staging WHERE batch_id = in_batch_id;
 
