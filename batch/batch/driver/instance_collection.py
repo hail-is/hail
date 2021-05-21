@@ -1,3 +1,4 @@
+import asyncio
 import aiohttp
 import sortedcontainers
 import logging
@@ -157,12 +158,16 @@ class InstanceCollection:
 
     async def monitor_instances(self):
         if self.instances_by_last_updated:
-            # 0 is the smallest (oldest)
-            instance = self.instances_by_last_updated[0]
-            since_last_updated = time_msecs() - instance.last_updated
-            if since_last_updated > 60 * 1000:
-                log.info(f'checking on {instance}, last updated {since_last_updated / 1000}s ago')
-                await self.check_on_instance(instance)
+            # [:10] are the ten smallest (oldest)
+            instances = self.instances_by_last_updated[:10]
+
+            async def check(instance):
+                since_last_updated = time_msecs() - instance.last_updated
+                if since_last_updated > 60 * 1000:
+                    log.info(f'checking on {instance}, last updated {since_last_updated / 1000}s ago')
+                    await self.check_on_instance(instance)
+
+            await asyncio.gather(*[check(instance) for instance in instances])
 
     async def monitor_instances_loop(self):
         await periodically_call(1, self.monitor_instances)
