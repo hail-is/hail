@@ -3,7 +3,7 @@ package is.hail.io.index
 import java.io.OutputStream
 import is.hail.annotations.{Annotation, Region, RegionPool, RegionValueBuilder}
 import is.hail.asm4s._
-import is.hail.expr.ir.{CodeParam, EmitClassBuilder, EmitCodeBuilder, EmitFunctionBuilder, EmitMethodBuilder, ExecuteContext, IEmitCode, ParamType}
+import is.hail.expr.ir.{CodeParam, EmitClassBuilder, EmitCodeBuilder, EmitFunctionBuilder, EmitMethodBuilder, ExecuteContext, IEmitCode, IntArrayBuilder, LongArrayBuilder, ParamType}
 import is.hail.io._
 import is.hail.io.fs.FS
 import is.hail.rvd.AbstractRVDSpec
@@ -188,8 +188,8 @@ class IndexWriterUtils(path: String, fs: FS, meta: StagedIndexMetadata) {
   }
 
   val rBuilder = new BoxedArrayBuilder[Region]()
-  val aBuilder = new BoxedArrayBuilder[Long]()
-  val lBuilder = new BoxedArrayBuilder[Int]()
+  val aBuilder = new LongArrayBuilder()
+  val lBuilder = new IntArrayBuilder()
 
   def size: Int = rBuilder.size
 

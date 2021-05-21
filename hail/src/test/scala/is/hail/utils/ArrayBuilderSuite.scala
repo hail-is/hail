@@ -1,11 +1,12 @@
 package is.hail.utils
 
+import is.hail.expr.ir.IntArrayBuilder
 import org.scalatest.testng.TestNGSuite
 import org.testng.annotations.Test
 
 class ArrayBuilderSuite extends TestNGSuite {
   @Test def addOneElement() {
-    val ab = new BoxedArrayBuilder[Int](0)
+    val ab = new IntArrayBuilder(0)
     ab += 3
     val a = ab.result()
     assert(a.length == 1)
@@ -13,13 +14,13 @@ class ArrayBuilderSuite extends TestNGSuite {
   }
 
   @Test def addArray() {
-    val ab = new BoxedArrayBuilder[Int](0)
+    val ab = new IntArrayBuilder(0)
     ab ++= Array.fill[Int](5)(2)
     val a = ab.result()
     assert(a.length == 5)
     assert(a.forall(_ == 2))
 
-    val ab2 = new BoxedArrayBuilder[Int](0)
+    val ab2 = new IntArrayBuilder(0)
     ab2 ++= (Array.fill[Int](4)(3), 2)
     val a2 = ab2.result()
     assert(a2.length == 2)
@@ -29,7 +30,7 @@ class ArrayBuilderSuite extends TestNGSuite {
     val ab2Update = ab2.result()
     assert(ab2Update sameElements Array(5, 3))
 
-    val ab3 = new BoxedArrayBuilder[Int]
+    val ab3 = new IntArrayBuilder
     ab3 += 1
     ab3 += 5
     ab3 ++= Array.fill[Int](2)(3)

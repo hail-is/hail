@@ -7,9 +7,9 @@ import java.security.SecureRandom
 import java.text.SimpleDateFormat
 import java.util.{Base64, Date}
 import java.util.zip.{Deflater, Inflater}
-
 import is.hail.annotations.ExtendedOrdering
 import is.hail.check.Gen
+import is.hail.expr.ir.ByteArrayBuilder
 import org.apache.commons.io.output.TeeOutputStream
 import org.apache.commons.lang3.StringUtils
 import org.apache.hadoop.fs.PathIOException
@@ -801,7 +801,7 @@ package object utils extends Logging
     }
   }
 
-  def compress(bb: BoxedArrayBuilder[Byte], input: Array[Byte]): Int = {
+  def compress(bb: ByteArrayBuilder, input: Array[Byte]): Int = {
     val compressor = new Deflater()
     compressor.setInput(input)
     compressor.finish()

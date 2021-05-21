@@ -162,9 +162,9 @@ object PType {
   }
 
   def literalPType(t: Type, a: Annotation): PType = {
-    val rb = new BoxedArrayBuilder[Boolean]()
-    val crib = new BoxedArrayBuilder[Int]()
-    val cib = new BoxedArrayBuilder[Int]()
+    val rb = new BooleanArrayBuilder()
+    val crib = new IntArrayBuilder()
+    val cib = new IntArrayBuilder()
 
     def indexTypes(t: Type): Unit = {
       val ci = crib.size
@@ -194,6 +194,7 @@ object PType {
 
           crib.setSizeUninitialized(ci + n)
           cib.setSizeUninitialized(ci + n)
+          cib.setSize(ci + n)
 
           var j = 0
           while (j < n) {
