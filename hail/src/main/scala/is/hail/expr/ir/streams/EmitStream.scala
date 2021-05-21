@@ -143,24 +143,24 @@ object EmitStream {
     streamIR: IR,
     cb: EmitCodeBuilder,
     outerRegion: Value[Region],
-    env: Emit.E,
+    env: EmitEnv,
     container: Option[AggContainer]
   ): IEmitCode = {
 
     val mb = cb.emb
 
 
-    def emitVoid(ir: IR, cb: EmitCodeBuilder, region: Value[Region] = outerRegion, env: Emit.E = env, container: Option[AggContainer] = container): Unit =
+    def emitVoid(ir: IR, cb: EmitCodeBuilder, region: Value[Region] = outerRegion, env: EmitEnv = env, container: Option[AggContainer] = container): Unit =
       emitter.emitVoid(cb, ir, region, env, container, None)
 
-    def emit(ir: IR, cb: EmitCodeBuilder, region: Value[Region] = outerRegion, env: Emit.E = env, container: Option[AggContainer] = container): IEmitCode = {
+    def emit(ir: IR, cb: EmitCodeBuilder, region: Value[Region] = outerRegion, env: EmitEnv = env, container: Option[AggContainer] = container): IEmitCode = {
       ir.typ match {
         case _: TStream => produce(ir, cb, region, env, container)
         case _ => emitter.emitI(ir, cb, region, env, container, None)
       }
     }
 
-    def produce(streamIR: IR, cb: EmitCodeBuilder, region: Value[Region] = outerRegion, env: Emit.E = env, container: Option[AggContainer] = container): IEmitCode =
+    def produce(streamIR: IR, cb: EmitCodeBuilder, region: Value[Region] = outerRegion, env: EmitEnv = env, container: Option[AggContainer] = container): IEmitCode =
       EmitStream.produce(emitter, streamIR, cb, region, env, container)
 
     def typeWithReqx(node: IR): VirtualTypeWithReq = VirtualTypeWithReq(node.typ, emitter.ctx.req.lookup(node).asInstanceOf[TypeWithRequiredness])
@@ -188,7 +188,7 @@ object EmitStream {
 
       case Ref(name, _typ) =>
         assert(_typ.isInstanceOf[TStream])
-        env.lookup(name).toI(cb)
+        env.bindings.lookup(name).toI(cb)
           .map(cb) { case (stream: SStreamCode) =>
             val childProducer = stream.producer
             val producer = new StreamProducer {
@@ -219,7 +219,7 @@ object EmitStream {
 
       case In(n, _) =>
         // this, Code[Region], ...
-        val param = mb.getEmitParam(2 + n, outerRegion)
+        val param = env.inputValues(n).apply(outerRegion)
         if (!param.st.isInstanceOf[SStream])
           throw new RuntimeException(s"parameter ${ 2 + n } is not a stream! t=${ param.st } }, params=${ mb.emitParamTypes }")
         param.load.toI(cb)

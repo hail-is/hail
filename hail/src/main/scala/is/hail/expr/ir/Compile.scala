@@ -49,9 +49,6 @@ object Compile {
 
     TypeCheck(ir, BindingEnv.empty)
 
-    val usesAndDefs = ComputeUsesAndDefs(ir, errorIfFreeVariables = false)
-    val requiredness = Requiredness.apply(ir, usesAndDefs, null, Env.empty) // Value IR inference doesn't need context
-
     val returnParam = CodeParamType(SingleCodeType.typeInfoFromType(ir.typ))
 
     val fb = EmitFunctionBuilder[F](ctx, "Compiled",
@@ -75,8 +72,8 @@ object Compile {
     assert(fb.mb.parameterTypeInfo == expectedCodeParamTypes, s"expected $expectedCodeParamTypes, got ${ fb.mb.parameterTypeInfo }")
     assert(fb.mb.returnTypeInfo == expectedCodeReturnType, s"expected $expectedCodeReturnType, got ${ fb.mb.returnTypeInfo }")
 
-    val emitContext = new EmitContext(ctx, requiredness)
-    val rt = Emit(emitContext, ir, fb, expectedCodeReturnType)
+    val emitContext = EmitContext.analyze(ctx, ir)
+    val rt = Emit(emitContext, ir, fb, expectedCodeReturnType, params.length)
 
     val f = fb.resultWithIndex(print)
     codeCache += k -> CodeCacheValue(rt, f)
@@ -114,9 +111,6 @@ object CompileWithAggregators {
 
     TypeCheck(ir, BindingEnv(Env.fromSeq[Type](params.map { case (name, t) => name -> t.virtualType })))
 
-    val usesAndDefs = ComputeUsesAndDefs(ir, errorIfFreeVariables = false)
-    val requiredness = Requiredness.apply(ir, usesAndDefs, null, Env.empty) // Value IR inference doesn't need context
-
     val fb = EmitFunctionBuilder[F](ctx, "CompiledWithAggs",
       CodeParamType(typeInfo[Region]) +: params.map { case (_, pt) => pt },
       SingleCodeType.typeInfoFromType(ir.typ), Some("Emit.scala"))
@@ -134,8 +128,8 @@ object CompileWithAggregators {
     }
      */
 
-    val emitContext = new EmitContext(ctx, requiredness)
-    val rt = Emit(emitContext, ir, fb, expectedCodeReturnType, Some(aggSigs))
+    val emitContext = EmitContext.analyze(ctx, ir)
+    val rt = Emit(emitContext, ir, fb, expectedCodeReturnType, params.length, Some(aggSigs))
 
     val f = fb.resultWithIndex()
     codeCache += k -> CodeCacheValue(rt, f)
@@ -205,25 +199,26 @@ object CompileIterator {
     val ir = LoweringPipeline.compileLowerer(true)(ctx, body).asInstanceOf[IR].noSharing
     TypeCheck(ir)
 
-    val usesAndDefs = ComputeUsesAndDefs(ir, errorIfFreeVariables = false)
-    val requiredness = Requiredness.apply(ir, usesAndDefs, null, Env.empty) // Value IR inference doesn't need context
+    var elementAddress: Settable[Long] = null
+    var returnType: PType = null
 
-    val emitContext = new EmitContext(ctx, requiredness)
-    val emitter = new Emit(emitContext, stepFECB)
-
-    val optStream = EmitCode.fromI(stepF)(cb => EmitStream.produce(emitter, ir, cb, outerRegion, Env.empty, None))
-    val returnType = optStream.st.asInstanceOf[SStream].elementEmitType.canonicalPType.setRequired(true)
-    val returnPType = optStream.st.asInstanceOf[SStream].elementType.canonicalPType()
-
-    val elementAddress = stepF.genFieldThisRef[Long]("elementAddr")
-
-    val didSetup = stepF.genFieldThisRef[Boolean]("didSetup")
-    stepF.cb.emitInit(didSetup := false)
-
-    val eosField = stepF.genFieldThisRef[Boolean]("eos")
-
-    val producer = optStream.pv.asStream.producer
     stepF.emitWithBuilder[Boolean] { cb =>
+      val emitContext = EmitContext.analyze(ctx, ir)
+      val emitter = new Emit(emitContext, stepFECB)
+
+      val env = EmitEnv(Env.empty, argTypeInfo.indices.filter(i => argTypeInfo(i).isInstanceOf[EmitParamType]).map(i => stepF.storeEmitParam(i + 1, cb)))
+      val optStream = EmitCode.fromI(stepF)(cb => EmitStream.produce(emitter, ir, cb, outerRegion, env, None))
+      returnType = optStream.st.asInstanceOf[SStream].elementEmitType.canonicalPType.setRequired(true)
+      val returnPType = optStream.st.asInstanceOf[SStream].elementType.canonicalPType()
+
+      elementAddress = stepF.genFieldThisRef[Long]("elementAddr")
+
+      val didSetup = stepF.genFieldThisRef[Boolean]("didSetup")
+      stepF.cb.emitInit(didSetup := false)
+
+      val eosField = stepF.genFieldThisRef[Boolean]("eos")
+
+      val producer = optStream.pv.asStream.producer
 
       val ret = cb.newLocal[Boolean]("stepf_ret")
       val Lreturn = CodeLabel()
