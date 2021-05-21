@@ -2,6 +2,7 @@ import aiohttp
 import sortedcontainers
 import logging
 import dateutil.parser
+import collections
 from typing import Dict
 
 from hailtop.utils import time_msecs, secret_alnum_string, periodically_call
@@ -26,7 +27,7 @@ class InstanceCollection:
         self.is_pool = is_pool
 
         self.name_instance: Dict[str, Instance] = {}
-        self.live_free_cores_mcpu_by_zone: Dict[str, int] = {}
+        self.live_free_cores_mcpu_by_zone: Dict[str, int] = collections.defaultdict(int)
 
         self.instances_by_last_updated = sortedcontainers.SortedSet(key=lambda instance: instance.last_updated)
 
