@@ -120,7 +120,9 @@ class GCEEventMonitor:
             await self.db.execute_update('UPDATE `gevents_mark` SET mark = %s;', (mark,))
 
         filter = f'''
-logName="projects/{PROJECT}/logs/cloudaudit.googleapis.com%2Factivity" AND
+(logName="projects/{PROJECT}/logs/cloudaudit.googleapis.com%2Factivity" OR
+logName="projects/{PROJECT}/logs/cloudaudit.googleapis.com%2Fsystem_event"
+) AND
 resource.type=gce_instance AND
 protoPayload.resourceName:"{self.machine_name_prefix}" AND
 timestamp >= "{mark}"
