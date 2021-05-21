@@ -244,7 +244,7 @@ LOCK IN SHARE MODE;
                 # 20 queries/s; our GCE long-run quota
                 300,
                 # n * 16 cores / 15s = excess_scheduling_rate/s = 10/s => n ~= 10
-                10,
+                20,
             )
             if instances_needed > 0:
                 log.info(f'creating {instances_needed} new instances')
