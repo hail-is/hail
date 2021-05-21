@@ -22,53 +22,91 @@ object UtilFunctions extends RegistryFunctions {
 
   def parseInt64(s: String): Long = s.toLong
 
-  private val NAN = 1
-  private val POS_INF = 2
-  private val NEG_INF = 3
-
-  def parseSpecialNum(s: String): Int = s.length match {
-    case 3 if s equalsCI "nan" => NAN
-    case 4 if (s equalsCI "+nan") || (s equalsCI "-nan") => NAN
-    case 3 if s equalsCI "inf" => POS_INF
-    case 4 if s equalsCI "+inf" => POS_INF
-    case 4 if s equalsCI "-inf" => NEG_INF
-    case 8 if s equalsCI "infinity" => POS_INF
-    case 9 if s equalsCI "+infinity" => POS_INF
-    case 9 if s equalsCI "-infinity" => NEG_INF
-    case _ => 0
+  def parseSpecialNum32(s: String): Float = {
+    s.length match {
+      case 3 =>
+        if (s.equalsCaseInsensitive("nan")) return Float.NaN
+        if (s.equalsCaseInsensitive("inf")) return Float.PositiveInfinity
+      case 4 =>
+        if (s.equalsCaseInsensitive("+nan") || s.equalsCaseInsensitive("-nan")) return Float.NaN
+        if (s.equalsCaseInsensitive("+inf")) return Float.PositiveInfinity
+        if (s.equalsCaseInsensitive("-inf")) return Float.NegativeInfinity
+      case 8 =>
+        if (s.equalsCaseInsensitive("infinity")) return Float.PositiveInfinity
+      case 9 =>
+        if (s.equalsCaseInsensitive("+infinity")) return Float.PositiveInfinity
+        if (s.equalsCaseInsensitive("-infinity")) return Float.NegativeInfinity
+      case _ =>
+    }
+    throw new NumberFormatException(s"cannot parse float32 from $s")
   }
 
-  def parseFloat32(s: String): Float = parseSpecialNum(s) match {
-    case NAN => Float.NaN
-    case POS_INF => Float.PositiveInfinity
-    case NEG_INF => Float.NegativeInfinity
-    case _ => s.toFloat
+  def parseSpecialNum64(s: String): Double = {
+    s.length match {
+      case 3 =>
+        if (s.equalsCaseInsensitive("nan")) return Double.NaN
+        if (s.equalsCaseInsensitive("inf")) return Double.PositiveInfinity
+      case 4 =>
+        if (s.equalsCaseInsensitive("+nan") || s.equalsCaseInsensitive("-nan")) return Double.NaN
+        if (s.equalsCaseInsensitive("+inf")) return Double.PositiveInfinity
+        if (s.equalsCaseInsensitive("-inf")) return Double.NegativeInfinity
+      case 8 =>
+        if (s.equalsCaseInsensitive("infinity")) return Double.PositiveInfinity
+      case 9 =>
+        if (s.equalsCaseInsensitive("+infinity")) return Double.PositiveInfinity
+        if (s.equalsCaseInsensitive("-infinity")) return Double.NegativeInfinity
+      case _ =>
+    }
+    throw new NumberFormatException(s"cannot parse float64 from $s")
   }
 
-  def parseFloat64(s: String): Double = parseSpecialNum(s) match {
-    case NAN => Double.NaN
-    case POS_INF => Double.PositiveInfinity
-    case NEG_INF => Double.NegativeInfinity
-    case _ => s.toDouble
+  def parseFloat32(s: String): Float = {
+    try {
+      s.toFloat
+    } catch {
+      case _: NumberFormatException =>
+        parseSpecialNum32(s)
+    }
+  }
+
+  def parseFloat64(s: String): Double = {
+    try {
+      s.toDouble
+    } catch {
+      case _: NumberFormatException =>
+        parseSpecialNum64(s)
+    }
   }
 
   def isValidBoolean(s: String): Boolean =
-    (s equalsCI "true") || (s equalsCI "false")
+    (s.equalsCaseInsensitive("true") || s.equalsCaseInsensitive("false"))
 
   def isValidInt32(s: String): Boolean =
-    try { s.toInt; true } catch { case _: NumberFormatException => false }
+    try {
+      s.toInt; true
+    } catch {
+      case _: NumberFormatException => false
+    }
 
   def isValidInt64(s: String): Boolean =
-    try { s.toLong; true } catch { case _: NumberFormatException => false }
+    try {
+      s.toLong; true
+    } catch {
+      case _: NumberFormatException => false
+    }
 
-  def isValidFloat32(s: String): Boolean = parseSpecialNum(s) match {
-    case 0 => try { s.toFloat; true } catch { case _: NumberFormatException => false }
-    case _ => true
+  def isValidFloat32(s: String): Boolean = try {
+    parseFloat32(s)
+    true
+  } catch {
+    case _: NumberFormatException => false
   }
 
-  def isValidFloat64(s: String): Boolean = parseSpecialNum(s) match {
-    case 0 => try { s.toDouble; true } catch { case _: NumberFormatException => false }
-    case _ => true
+  def isValidFloat64(s: String): Boolean = try {
+    parseFloat64(s)
+    true
+  } catch {
+    case _: NumberFormatException => false
   }
 
   def min_ignore_missing(l: Int, lMissing: Boolean, r: Int, rMissing: Boolean): Int =

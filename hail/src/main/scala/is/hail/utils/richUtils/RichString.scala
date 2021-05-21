@@ -9,13 +9,14 @@ class RichString(val str: String) extends AnyVal {
     def strings: (String, String) = (truncate, str)
   }
 
-  def equalsCI(other: String): Boolean =
+  def equalsCaseInsensitive(other: String): Boolean =
     if (str.length == other.length) {
-      for (i <- 0 until str.length)
+      var i = 0
+      while (i < str.length) {
         if ((str charAt i).toLower != (other charAt i).toLower)
           return false
+        i += 1
+      }
       true
-    }
-    else
-      false
+    } else false
 }
