@@ -101,7 +101,7 @@ class GCEEventMonitor:
                     log.error(f'event for unknown instance {name}: {json.dumps(event)}')
                 return
 
-            if event_subtype == 'v1.compute.instances.preempted':
+            if event_subtype == 'compute.instances.preempted':
                 log.info(f'event handler: handle preempt {instance}')
                 await self.handle_preempt_event(instance, timestamp)
             elif event_subtype == 'v1.compute.instances.delete':
