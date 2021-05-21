@@ -811,7 +811,7 @@ def test_open_batch(client):
     assert status['state'] == 'Success', f'{j1.log(), status}'
 
     status = j2.wait()
-    assert status['state'] == 'Failure', f'{j2.log(), status}'
+    assert status['state'] == 'Failed', f'{j2.log(), status}'
 
     status = j3.wait()
     assert status['state'] == 'Success', f'{j3.log(), status}'
