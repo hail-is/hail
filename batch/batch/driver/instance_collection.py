@@ -158,8 +158,8 @@ class InstanceCollection:
 
     async def monitor_instances(self):
         if self.instances_by_last_updated:
-            # [:10] are the ten smallest (oldest)
-            instances = self.instances_by_last_updated[:10]
+            # [:50] are the fifty smallest (oldest)
+            instances = self.instances_by_last_updated[:50]
 
             async def check(instance):
                 since_last_updated = time_msecs() - instance.last_updated
