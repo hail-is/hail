@@ -228,7 +228,6 @@ def logistic_regression_rows_wald(mt_path):
                                       y=[mt[key] for key in pheno_dict.keys()],
                                       x=mt.x,
                                       covariates=[mt[key] for key in cov_dict.keys()])
-    res.write("/Users/johnc/Code/hail/hail/log_reg_bench_out")
     res._force_count()
 
 @benchmark(args=random_doubles.handle('mt'))
