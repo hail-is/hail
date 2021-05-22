@@ -14,14 +14,16 @@ object ControlFlowPreventsSplit {
           case TailLoop(`name`, _, _) => false
           case _ => true
         }) {
-          m.bind(parent, ())
+          if (!m.contains(parent))
+            m.bind(parent, ())
           parent = parentPointers.lookup(parent)
         }
       case r@Ref(name, t) if t.isInstanceOf[TStream] =>
         val declaration = usesAndDefs.defs.lookup(r)
         var parent: BaseIR = r
         while (!(parent.eq(declaration))) {
-          m.bind(parent, ())
+          if (!m.contains(parent))
+            m.bind(parent, ())
           parent = parentPointers.lookup(parent)
         }
       case _ =>

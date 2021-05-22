@@ -548,31 +548,34 @@ class Emit[C](
 
   def emitVoidInSeparateMethod(context: String, cb: EmitCodeBuilder, ir: IR, region: Value[Region], env: EmitEnv, container: Option[AggContainer], loopEnv: Option[Env[LoopRef]]): Unit = {
     assert(!ctx.inLoopCriticalPath.contains(ir))
-    val mb = cb.emb.genEmitMethod(context, FastIndexedSeq[ParamType](classInfo[Region]), UnitInfo)
+    val mb = cb.emb.genEmitMethod(context, FastIndexedSeq[ParamType](), UnitInfo)
+    val r = cb.newField[Region]("emitVoidSeparate_region", region)
     mb.voidWithBuilder { cb =>
       ctx.tryingToSplit.bind(ir, ())
-      emitVoid(cb, ir, mb.getCodeParam[Region](1), env, container, loopEnv)
+      emitVoid(cb, ir, r, env, container, loopEnv)
     }
-    cb.invokeVoid(mb, region)
+    cb.invokeVoid(mb)
   }
 
   def emitInSeparateMethod(context: String, cb: EmitCodeBuilder, ir: IR, region: Value[Region], env: EmitEnv, container: Option[AggContainer], loopEnv: Option[Env[LoopRef]]): IEmitCode = {
     if (ir.typ == TVoid) {
       emitVoidInSeparateMethod(context, cb, ir, region, env, container, loopEnv)
-      return IEmitCode(CodeLabel(), CodeLabel(), SCode._empty, required = true)
+      return IEmitCode.present(cb, SVoidCode)
     }
 
     assert(!ctx.inLoopCriticalPath.contains(ir))
-    val mb = cb.emb.genEmitMethod(context, FastIndexedSeq[ParamType](classInfo[Region]), UnitInfo)
+    val mb = cb.emb.genEmitMethod(context, FastIndexedSeq[ParamType](), UnitInfo)
+    val r = cb.newField[Region]("emitInSeparate_region", region)
+
     var ev: EmitSettable = null
     mb.voidWithBuilder { cb =>
       ctx.tryingToSplit.bind(ir, ())
-      val result = emitI(ir, cb, mb.getCodeParam[Region](1), env, container, loopEnv)
+      val result = emitI(ir, cb, r, env, container, loopEnv)
 
       ev = cb.emb.ecb.newEmitField(s"${context}_result", result.emitType)
       cb.assign(ev, result)
     }
-    cb.invokeVoid(mb, region)
+    cb.invokeVoid(mb)
     ev.toI(cb)
   }
 
@@ -791,7 +794,7 @@ class Emit[C](
 
     if (ir.typ == TVoid) {
       emitVoid(ir)
-      return IEmitCode(CodeLabel(), CodeLabel(), SCode._empty, required = true)
+      return IEmitCode.present(cb, SVoidCode)
     }
 
     def presentPC(pc: SCode): IEmitCode = IEmitCode.present(cb, pc)
