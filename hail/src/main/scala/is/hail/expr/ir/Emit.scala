@@ -546,19 +546,19 @@ class Emit[C](
 
   val methods: mutable.Map[(String, Seq[Type], Seq[SType], SType), EmitMethodBuilder[C]] = mutable.Map()
 
-  def emitVoidInSeparateMethod(context: String, cb: EmitCodeBuilder, ir: IR, region: Value[Region], env: EmitEnv, container: Option[AggContainer]): Unit = {
+  def emitVoidInSeparateMethod(context: String, cb: EmitCodeBuilder, ir: IR, region: Value[Region], env: EmitEnv, container: Option[AggContainer], loopEnv: Option[Env[LoopRef]]): Unit = {
     assert(!ctx.inLoopCriticalPath.contains(ir))
     val mb = cb.emb.genEmitMethod(context, FastIndexedSeq[ParamType](classInfo[Region]), UnitInfo)
     mb.voidWithBuilder { cb =>
       ctx.tryingToSplit.bind(ir, ())
-      emitVoid(cb, ir, mb.getCodeParam[Region](1), env, container, None)
+      emitVoid(cb, ir, mb.getCodeParam[Region](1), env, container, loopEnv)
     }
     cb.invokeVoid(mb, region)
   }
 
-  def emitInSeparateMethod(context: String, cb: EmitCodeBuilder, ir: IR, region: Value[Region], env: EmitEnv, container: Option[AggContainer]): IEmitCode = {
+  def emitInSeparateMethod(context: String, cb: EmitCodeBuilder, ir: IR, region: Value[Region], env: EmitEnv, container: Option[AggContainer], loopEnv: Option[Env[LoopRef]]): IEmitCode = {
     if (ir.typ == TVoid) {
-      emitVoidInSeparateMethod(context, cb, ir, region, env, container)
+      emitVoidInSeparateMethod(context, cb, ir, region, env, container, loopEnv)
       return IEmitCode(CodeLabel(), CodeLabel(), SCode._empty, required = true)
     }
 
@@ -567,7 +567,7 @@ class Emit[C](
     var ev: EmitSettable = null
     mb.voidWithBuilder { cb =>
       ctx.tryingToSplit.bind(ir, ())
-      val result = emitI(ir, cb, mb.getCodeParam[Region](1), env, container, None)
+      val result = emitI(ir, cb, mb.getCodeParam[Region](1), env, container, loopEnv)
 
       ev = cb.emb.ecb.newEmitField(s"${context}_result", result.emitType)
       cb.assign(ev, result)
@@ -578,7 +578,7 @@ class Emit[C](
 
   private[ir] def emitVoid(cb: EmitCodeBuilder, ir: IR, region: Value[Region], env: EmitEnv, container: Option[AggContainer], loopEnv: Option[Env[LoopRef]]): Unit = {
     if (ctx.methodSplits.contains(ir) && !ctx.tryingToSplit.contains(ir)) {
-      emitVoidInSeparateMethod(s"split_${ir.getClass.getSimpleName}", cb, ir, region, env, container)
+      emitVoidInSeparateMethod(s"split_${ir.getClass.getSimpleName}", cb, ir, region, env, container, loopEnv)
       return
     }
 
@@ -746,7 +746,7 @@ class Emit[C](
     container: Option[AggContainer], loopEnv: Option[Env[LoopRef]]
   ): IEmitCode = {
     if (ctx.methodSplits.contains(ir) && !ctx.tryingToSplit.contains(ir)) {
-      return emitInSeparateMethod(s"split_${ir.getClass.getSimpleName}", cb, ir, region, env, container)
+      return emitInSeparateMethod(s"split_${ir.getClass.getSimpleName}", cb, ir, region, env, container, loopEnv)
     }
 
     val mb: EmitMethodBuilder[C] = cb.emb.asInstanceOf[EmitMethodBuilder[C]]
@@ -2406,7 +2406,7 @@ class Emit[C](
   ): EmitCode = {
 
     if (ctx.methodSplits.contains(ir) && !ctx.tryingToSplit.contains(ir)) {
-      return EmitCode.fromI(mb)(cb => emitInSeparateMethod(s"split_${ir.getClass.getSimpleName}", cb, ir, region, env, container))
+      return EmitCode.fromI(mb)(cb => emitInSeparateMethod(s"split_${ir.getClass.getSimpleName}", cb, ir, region, env, container, loopEnv))
     }
 
 

@@ -11,7 +11,6 @@ object ComputeMethodSplits {
     def recurAndComputeSizeUnderneath(x: IR): Int = {
       val sizeUnderneath = x.children.iterator.map { case child: IR => recurAndComputeSizeUnderneath(child) }.sum
 
-
       val shouldSplit = x match {
         case tl: TailLoop =>
           assert(!controlFlowPreventsSplit.contains(tl))
