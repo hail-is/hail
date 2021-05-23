@@ -42,7 +42,7 @@ class EmitContext(
   val usesAndDefs: UsesAndDefs,
   val methodSplits: Memo[Unit],
   val inLoopCriticalPath: Memo[Unit],
-  val tryingToSplit: Memo[Unit],
+  val tryingToSplit: Memo[Unit]
 )
 
 case class EmitEnv(bindings: Env[EmitValue], inputValues: IndexedSeq[Value[Region] => EmitValue]) {

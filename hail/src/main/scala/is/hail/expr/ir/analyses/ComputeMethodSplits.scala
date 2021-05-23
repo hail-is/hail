@@ -13,8 +13,7 @@ object ComputeMethodSplits {
 
       val shouldSplit = x match {
         case tl: TailLoop =>
-          assert(!controlFlowPreventsSplit.contains(tl))
-          true
+          !controlFlowPreventsSplit.contains(tl) // split if not in a nested loop
         case x if sizeUnderneath > splitThreshold && !controlFlowPreventsSplit.contains(x) => true
         case _ => false
       }
