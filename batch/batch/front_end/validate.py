@@ -58,6 +58,7 @@ job_validator = keyed(
         required('job_id'): int_type,
         'mount_tokens': bool_type,
         'network': oneof('public', 'private'),
+        'unconfined': bool_type,
         'output_files': listof(keyed({required('from'): str_type, required('to'): str_type})),
         required('parent_ids'): listof(int_type),
         'port': int_type,

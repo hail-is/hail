@@ -1,5 +1,4 @@
 import abc
-import os.path
 import json
 import logging
 from collections import defaultdict, Counter
@@ -17,7 +16,7 @@ from .environment import (
     DOMAIN,
     IP,
     CI_UTILS_IMAGE,
-    KANIKO_IMAGE,
+    BUILDKIT_IMAGE,
     DEFAULT_NAMESPACE,
     KUBERNETES_SERVER_URL,
     BUCKET,
@@ -248,11 +247,18 @@ class BuildImage2Step(Step):
         self.publish_as = publish_as
         self.inputs = inputs
         self.resources = resources
+        self.extra_cache_repository = None
+        if publish_as:
+            self.extra_cache_repository = f'{DOCKER_PREFIX}/{self.publish_as}'
         if params.scope == 'deploy' and publish_as and not is_test_deployment:
             self.base_image = f'{DOCKER_PREFIX}/{self.publish_as}'
         else:
             self.base_image = f'{DOCKER_PREFIX}/ci-intermediate'
         self.image = f'{self.base_image}:{self.token}'
+        if publish_as:
+            self.cache_repository = f'{DOCKER_PREFIX}/{self.publish_as}:cache'
+        else:
+            self.cache_repository = f'{DOCKER_PREFIX}/ci-intermediate:cache'
         self.job = None
 
     def wrapped_job(self):
@@ -291,43 +297,47 @@ class BuildImage2Step(Step):
 
         if isinstance(self.dockerfile, dict):
             assert ['inline'] == list(self.dockerfile.keys())
-            unrendered_dockerfile = f'/io/Dockerfile.in.{self.token}'
+            unrendered_dockerfile = f'/home/user/Dockerfile.in.{self.token}'
             create_inline_dockerfile_if_present = f'echo {shq(self.dockerfile["inline"])} > {unrendered_dockerfile};\n'
         else:
             assert isinstance(self.dockerfile, str)
             unrendered_dockerfile = self.dockerfile
             create_inline_dockerfile_if_present = ''
-        dockerfile_in_context = os.path.join(context, 'Dockerfile.' + self.token)
 
-        cache_repo = DOCKER_PREFIX + '/cache'
         script = f'''
 set -ex
 
 {create_inline_dockerfile_if_present}
 
-cp {unrendered_dockerfile} /python3.7-slim-stretch/Dockerfile.in
-
-time chroot /python3.7-slim-stretch /usr/local/bin/python3 \
-     jinja2_render.py \
+time python3 \
+     ~/jinja2_render.py \
      {shq(json.dumps(config))} \
-     /Dockerfile.in \
-     /Dockerfile.out
+     {unrendered_dockerfile} \
+     /home/user/Dockerfile
 
-mv /python3.7-slim-stretch/Dockerfile.out {shq(dockerfile_in_context)}
+set +x
+/bin/sh /home/user/convert-google-application-credentials-to-docker-auth-config
+set -x
 
-set +e
-/busybox/sh /convert-google-application-credentials-to-kaniko-auth-config
-set -e
-
-exec /kaniko/executor --dockerfile={shq(dockerfile_in_context)} --context=dir://{shq(context)} --destination={shq(self.image)} --cache=true --cache-repo={shq(cache_repo)} --snapshotMode=redo --use-new-run'''
+export BUILDKITD_FLAGS=--oci-worker-no-process-sandbox
+buildctl-daemonless.sh \
+     build \
+     --frontend dockerfile.v0 \
+     --local context={shq(context)} \
+     --local dockerfile=/home/user \
+     --output 'type=image,"name={shq(self.image)},{shq(self.cache_repository)}",push=true' \
+     --export-cache type=inline \
+     --import-cache type=registry,ref={shq(self.cache_repository)} \
+     --trace=/home/user/trace
+cat /home/user/trace
+'''
 
         log.info(f'step {self.name}, script:\n{script}')
 
         docker_registry = DOCKER_PREFIX.split('/')[0]
-
         self.job = batch.create_job(
-            KANIKO_IMAGE,
-            command=['/busybox/sh', '-c', script],
+            BUILDKIT_IMAGE,
+            command=['/bin/sh', '-c', script],
             secrets=[
                 {
                     'namespace': DEFAULT_NAMESPACE,
@@ -343,6 +353,7 @@ exec /kaniko/executor --dockerfile={shq(dockerfile_in_context)} --context=dir://
             resources=self.resources,
             input_files=input_files,
             parents=self.deps_parents(),
+            unconfined=True,
         )
 
     def cleanup(self, batch, scope, parents):

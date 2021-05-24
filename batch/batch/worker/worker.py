@@ -359,6 +359,10 @@ class Container:
             network = 'public'
         host_config['NetworkMode'] = network  # not documented, I used strace to inspect the packets
 
+        unconfined = self.spec.get('unconfined')
+        if unconfined:
+            host_config['SecurityOpt'] = ["seccomp:unconfined", "apparmor:unconfined"]
+
         config['HostConfig'] = host_config
 
         return config
@@ -896,6 +900,9 @@ class DockerJob(Job):
         if network:
             assert network in ('public', 'private')
             main_spec['network'] = network
+        unconfined = job_spec.get('unconfined')
+        if unconfined:
+            main_spec['unconfined'] = unconfined
         containers['main'] = Container(self, 'main', main_spec)
 
         if output_files:

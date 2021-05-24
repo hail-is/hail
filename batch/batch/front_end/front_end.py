@@ -832,6 +832,10 @@ WHERE user = %s AND id = %s AND NOT deleted;
                 if user != 'ci' and not (network is None or network == 'public'):
                     raise web.HTTPBadRequest(reason=f'unauthorized network {network}')
 
+                unconfined = spec.get('unconfined')
+                if user != 'ci' and unconfined:
+                    raise web.HTTPBadRequest(reason=f'unauthorized use of unconfined={unconfined}')
+
                 spec_writer.add(json.dumps(spec))
                 db_spec = batch_format_version.db_spec(spec)
 

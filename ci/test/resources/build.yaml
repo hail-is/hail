@@ -111,7 +111,7 @@ steps:
       - from: /repo/ci/test/resources
         to: /io/ci/test/resources
     dependsOn:
-      - service_base_image
+      - hail_ubuntu_image
       - merge_code
   - kind: runImage
     name: create_certs
@@ -137,10 +137,10 @@ steps:
       - default_ns
       - create_certs_image
   - kind: buildImage2
-    name: hail_kaniko_image
-    dockerFile: /io/repo/ci/kaniko/Dockerfile
+    name: hail_buildkit_image
+    dockerFile: /io/repo/ci/buildkit/Dockerfile
     contextPath: /io/repo/ci
-    publishAs: hail-kaniko
+    publishAs: hail-buildkit
     inputs:
       - from: /repo/ci
         to: /io/repo/ci

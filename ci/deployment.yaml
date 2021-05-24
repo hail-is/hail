@@ -67,8 +67,8 @@ spec:
              value: "{{ global.zone }}"
            - name: HAIL_CI_UTILS_IMAGE
              value: "{{ ci_utils_image.image }}"
-           - name: HAIL_KANIKO_IMAGE
-             value: "{{ hail_kaniko_image.image }}"
+           - name: HAIL_BUILDKIT_IMAGE
+             value: "{{ hail_buildkit_image.image }}"
            - name: HAIL_IP
              value: "{{ global.ip }}"
            - name: HAIL_DOMAIN

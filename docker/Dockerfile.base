@@ -1,5 +1,17 @@
 FROM {{ hail_ubuntu_image.image }}
 
+RUN hail-pip-install pyspark==3.1.1
+ENV SPARK_HOME /usr/local/lib/python3.7/dist-packages/pyspark
+ENV PATH "$PATH:$SPARK_HOME/sbin:$SPARK_HOME/bin"
+ENV PYSPARK_PYTHON python3
+
+# source: https://cloud.google.com/storage/docs/gsutil_install#linux
+RUN curl -sSLO https://dl.google.com/dl/cloudsdk/channels/rapid/downloads/google-cloud-sdk-334.0.0-linux-x86_64.tar.gz && \
+    tar -xf google-cloud-sdk-334.0.0-linux-x86_64.tar.gz && \
+    curl -sSLO https://dl.k8s.io/release/v1.19.7/bin/linux/amd64/kubectl && \
+    install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
+ENV PATH $PATH:/google-cloud-sdk/bin
+
 RUN hail-apt-get-install \
     git \
     htop \
@@ -14,31 +26,14 @@ RUN hail-apt-get-install \
     liblapack3 \
     g++-10 \
     gcc-10 \
-    cmake
-
-RUN update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-10 10 && \
+    cmake \
+    && \
+    update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-10 10 && \
     update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-10 10
-
-# source: https://cloud.google.com/storage/docs/gsutil_install#linux
-RUN curl -sSLO https://dl.google.com/dl/cloudsdk/channels/rapid/downloads/google-cloud-sdk-334.0.0-linux-x86_64.tar.gz && \
-    tar -xf google-cloud-sdk-334.0.0-linux-x86_64.tar.gz && \
-    curl -sSLO https://dl.k8s.io/release/v1.19.7/bin/linux/amd64/kubectl && \
-    install -o root -g root -m 0755 kubectl /usr/local/bin/kubectl
-ENV PATH $PATH:/google-cloud-sdk/bin
-RUN gcloud version && kubectl version --client=true
-
-COPY docker/requirements.txt .
-RUN hail-pip-install -r requirements.txt pyspark==3.1.1
-
-ENV SPARK_HOME /usr/local/lib/python3.7/dist-packages/pyspark
-ENV PATH "$PATH:$SPARK_HOME/sbin:$SPARK_HOME/bin"
-ENV PYSPARK_PYTHON python3
 
 # Regarding explicitly selecting 2.0.1: https://github.com/hail-is/hail/issues/8343
 RUN wget -nv -O ${SPARK_HOME}/jars/gcs-connector-hadoop2-2.0.1.jar https://storage.googleapis.com/hadoop-lib/gcs/gcs-connector-hadoop2-2.0.1.jar
 COPY docker/core-site.xml ${SPARK_HOME}/conf/core-site.xml
-
-COPY pylintrc setup.cfg /
 
 RUN git clone https://github.com/catchorg/Catch2.git --depth 1 --branch v2.13.3 && \
   cd Catch2 && \
@@ -46,3 +41,8 @@ RUN git clone https://github.com/catchorg/Catch2.git --depth 1 --branch v2.13.3 
   cmake --build build/ --target install && \
   cd .. && \
   rm -rf Catch2
+
+COPY docker/requirements.txt .
+RUN hail-pip-install -r requirements.txt
+
+COPY pylintrc setup.cfg /
