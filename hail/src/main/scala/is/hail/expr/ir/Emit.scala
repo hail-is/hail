@@ -28,53 +28,6 @@ import scala.language.{existentials, postfixOps}
 // class for holding all information computed ahead-of-time that we need in the emitter
 class EmitContext(val executeContext: ExecuteContext, val req: RequirednessAnalysis)
 
-
-object SetupBuilder {
-  def apply(mb: EmitMethodBuilder[_]): SetupBuilder = new SetupBuilder(mb, Code._empty)
-
-  def apply(mb: EmitMethodBuilder[_], setup: Code[Unit]): SetupBuilder = new SetupBuilder(mb, setup)
-
-  def map[T, U](mb: EmitMethodBuilder[_])(is: IndexedSeq[T])(f: (SetupBuilder, T) => U): (Code[Unit], IndexedSeq[U]) = {
-    val sb = SetupBuilder(mb)
-    val rs = sb.map(is)(f)
-    (sb.setup, rs)
-  }
-
-  def map[T, U](mb: EmitMethodBuilder[_], setup: Code[Unit])(is: IndexedSeq[T])(f: (SetupBuilder, T) => U): (Code[Unit], IndexedSeq[U]) = {
-    val sb = SetupBuilder(mb, setup)
-    val rs = sb.map(is)(f)
-    (sb.setup, rs)
-  }
-}
-
-class SetupBuilder(mb: EmitMethodBuilder[_], var setup: Code[Unit]) {
-  def append(c: Code[Unit]): Unit = {
-    setup = Code(setup, c)
-  }
-
-  def +=(c: Code[Unit]): Unit = append(c)
-
-  def memoize[T](e: Code[T], name: String)(implicit tti: TypeInfo[T]): Value[T] = {
-    val l = mb.newLocal[T](name)
-    append(l := e)
-    l
-  }
-
-  def memoizeField[T](e: Code[T], name: String)(implicit tti: TypeInfo[T]): Value[T] = {
-    val l = mb.genFieldThisRef[T](name)
-    append(l := e)
-    l
-  }
-
-  def map[T, U](is: IndexedSeq[T])(f: (SetupBuilder, T) => U): IndexedSeq[U] = is.map(f(this, _))
-
-  def result(): Code[Unit] = {
-    val r = setup
-    setup = null
-    r
-  }
-}
-
 object Emit {
   type E = Env[EmitValue]
 
@@ -2582,15 +2535,13 @@ class Emit[C](
               val leftShapeValues = leftChildEmitter.outputShape
               val rightShapeValues = rightChildEmitter.outputShape
 
-              val (newSetupShape, shapeArray) = NDArrayEmitter.unifyShapes2(cb.emb, leftShapeValues, rightShapeValues)
+              val shapeArray = NDArrayEmitter.unifyShapes2(cb, leftShapeValues, rightShapeValues)
 
               val lElemRef = cb.emb.newEmitField(lName, leftChildEmitter.elementType, required = true)
               val rElemRef = cb.emb.newEmitField(rName, rightChildEmitter.elementType, required = true)
               val bodyEnv = env.bind(lName, lElemRef)
                 .bind(rName, rElemRef)
               val bodyEC = dEmit(body, bodyEnv)
-
-              cb.append(newSetupShape)
 
               new NDArrayEmitter(shapeArray, bodyEC.st) {
                 override def outputElement(cb: EmitCodeBuilder, idxVars: IndexedSeq[Value[Long]]): SCode = {
@@ -2967,12 +2918,11 @@ object NDArrayEmitter {
     }
   }
 
-  def unifyShapes2(mb: EmitMethodBuilder[_], leftShape: IndexedSeq[Value[Long]], rightShape: IndexedSeq[Value[Long]]): (Code[Unit], IndexedSeq[Value[Long]]) = {
-    val sb = SetupBuilder(mb)
-
+  def unifyShapes2(cb: EmitCodeBuilder, leftShape: IndexedSeq[Value[Long]], rightShape: IndexedSeq[Value[Long]]): IndexedSeq[Value[Long]] = {
     val shape = leftShape.zip(rightShape).zipWithIndex.map { case ((left, right), i) =>
       val notSameAndNotBroadcastable = !((left ceq right) || (left ceq 1L) || (right ceq 1L))
-      sb.memoizeField(
+      cb.newField[Long](
+        s"unify_shapes2_shape$i",
         notSameAndNotBroadcastable.mux(
           Code._fatal[Long](rightShape.foldLeft[Code[String]](
             leftShape.foldLeft[Code[String]](
@@ -2981,16 +2931,14 @@ object NDArrayEmitter {
               .concat("] vs [ ")
           )((accum, v) => accum.concat(v.toS).concat(" "))
             .concat("]")),
-          (left > right).mux(left, right)),
-        s"unify_shapes2_shape$i")
+          (left > right).mux(left, right)))
     }
 
-    (sb.result(), shape)
+    shape
   }
 
   def matmulShape(cb: EmitCodeBuilder, leftShape: IndexedSeq[Value[Long]], rightShape: IndexedSeq[Value[Long]]): IndexedSeq[Value[Long]] = {
     val mb = cb.emb
-    val sb = SetupBuilder(mb)
 
     assert(leftShape.nonEmpty)
     assert(rightShape.nonEmpty)
@@ -2998,7 +2946,6 @@ object NDArrayEmitter {
     var lK: Value[Long] = null
     var rK: Value[Long] = null
     var shape: IndexedSeq[Value[Long]] = null
-    var setup: Code[Unit] = Code._empty
 
     if (leftShape.length == 1) {
       lK = leftShape.head
@@ -3016,10 +2963,9 @@ object NDArrayEmitter {
         shape = leftShape.slice(0, leftShape.length - 1)
       } else {
         rK = rightShape(rightShape.length - 2)
-        val (unifiedSetup, unifiedShape) = unifyShapes2(mb,
+        val unifiedShape = unifyShapes2(cb,
           leftShape.slice(0, leftShape.length - 2),
           rightShape.slice(0, rightShape.length - 2))
-        setup = Code(setup, unifiedSetup)
         shape = unifiedShape :+ leftShape(leftShape.length - 2) :+ rightShape.last
       }
     }
@@ -3028,14 +2974,13 @@ object NDArrayEmitter {
     val rightShapeString = const("(").concat(rightShape.map(_.toS).reduce((a, b) => a.concat(", ").concat(b))).concat(")")
 
 
-    setup = Code(setup,
-      (lK cne rK).orEmpty(
-        Code._fatal[Unit](const("Matrix dimensions incompatible: ")
-          .concat(leftShapeString)
-          .concat(" can't be multiplied by matrix with dimensions ")
-          .concat(rightShapeString))))
+    cb.ifx(lK.cne(rK), {
+      cb._fatal("Matrix dimensions incompatible: ",
+        leftShapeString,
+        " can't be multiplied by matrix with dimensions ",
+        rightShapeString)
+    })
 
-    cb.append(setup)
     shape
   }
 }
