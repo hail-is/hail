@@ -761,6 +761,8 @@ class TableIRSuite extends HailSuite {
 
   @Test def testPartitionCountsWithDropRows() {
     val tr = new TableReader {
+      override def renderShort(): String = ???
+
       def pathsUsed: Seq[String] = FastSeq()
 
       override def apply(tr: TableRead, ctx: ExecuteContext): TableValue = ???

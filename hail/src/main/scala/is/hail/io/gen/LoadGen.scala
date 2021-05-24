@@ -267,6 +267,8 @@ class MatrixGENReader(
     decomposeWithName(params, "MatrixGENReader")
   }
 
+  def renderShort(): String = defaultRender()
+
   override def hashCode(): Int = params.hashCode()
 
   override def equals(that: Any): Boolean = that match {
