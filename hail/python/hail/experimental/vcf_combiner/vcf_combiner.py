@@ -442,8 +442,9 @@ class CombinerPlan(object):
 
 
 class CombinerConfig(object):
+    default_max_partitions_per_job = 75_000
     default_branch_factor = 100
-    default_batch_size = 100
+    default_phase1_batch_size = 100
     default_target_records = 30_000
 
     # These are used to calculate intervals for reading GVCFs in the combiner
@@ -455,7 +456,7 @@ class CombinerConfig(object):
 
     def __init__(self,
                  branch_factor: int = default_branch_factor,
-                 batch_size: int = default_batch_size,
+                 batch_size: int = default_phase1_batch_size,
                  target_records: int = default_target_records):
         self.branch_factor: int = branch_factor
         self.batch_size: int = batch_size
@@ -477,6 +478,7 @@ class CombinerConfig(object):
 
         file_size.append([1 for _ in range(n_inputs)])
         while len(file_size[-1]) > 1:
+            batch_size_this_phase = self.batch_size if len(file_size) == 1 else 1
             last_stage_files = file_size[-1]
             n = len(last_stage_files)
             i = 0
@@ -484,7 +486,7 @@ class CombinerConfig(object):
             while (i < n):
                 job = []
                 job_i = 0
-                while job_i < self.batch_size and i < n:
+                while job_i < self.batch_size_this_phase and i < n:
                     merge = []
                     merge_i = 0
                     merge_size = 0
@@ -517,7 +519,7 @@ class CombinerConfig(object):
 
         info(f"GVCF combiner plan:\n"
              f"    Branch factor: {self.branch_factor}\n"
-             f"    Batch size: {self.batch_size}\n"
+             f"    Phase 1 batch size: {self.batch_size}\n"
              f"    Combining {n_inputs} input files in {tree_height} phases with {total_jobs} total jobs.{''.join(phase_strs)}\n")
         return CombinerPlan(file_size, phases)
 
@@ -533,7 +535,7 @@ def run_combiner(sample_paths: List[str],
                  header: Optional[str] = None,
                  sample_names: Optional[List[str]] = None,
                  branch_factor: int = CombinerConfig.default_branch_factor,
-                 batch_size: int = CombinerConfig.default_batch_size,
+                 batch_size: int = CombinerConfig.default_phase1_batch_size,
                  target_records: int = CombinerConfig.default_target_records,
                  overwrite: bool = False,
                  reference_genome: str = 'default',
