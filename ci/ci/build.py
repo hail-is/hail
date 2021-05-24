@@ -353,7 +353,7 @@ cat /home/user/trace
             resources=self.resources,
             input_files=input_files,
             parents=self.deps_parents(),
-            unconfined=True
+            unconfined=True,
         )
 
     def cleanup(self, batch, scope, parents):
