@@ -1,4 +1,4 @@
-FROM moby/buildkit:master-rootless
+FROM moby/buildkit:v0.8.3-rootless
 USER root
 RUN apk add python3 py-pip && pip3 install jinja2
 USER user
