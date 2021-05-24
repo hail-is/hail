@@ -263,7 +263,7 @@ def test_unknown_image(client):
     b.submit()
     status = j.wait()
     assert j._get_exit_code(status, 'main') is None
-    assert status['container_statuses']['main']['short_error'] == 'image not found'
+    assert status['status']['container_statuses']['main']['short_error'] == 'image not found'
 
 
 def test_running_job_log_and_status(client):
