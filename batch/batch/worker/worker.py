@@ -280,6 +280,8 @@ def user_error(e):
     if isinstance(e, DockerError):
         if e.status == 404 and 'pull access denied' in e.message:
             return True
+        if e.status == 404 and 'not found: manifest unknown' in e.message:
+            return True
         if e.status == 400 and 'executable file not found' in e.message:
             return True
     return False
@@ -445,8 +447,11 @@ class Container:
                             docker.images.pull, self.image_ref_str, auth=auth
                         )
                 except DockerError as e:
-                    if e.status == 404 and 'pull access denied' in e.message:
-                        self.short_error = 'image cannot be pulled'
+                    if e.status == 404:
+                        if 'pull access denied' in e.message:
+                            self.short_error = 'image cannot be pulled'
+                        elif 'not found: manifest unknown' in e.message:
+                            self.short_error = 'image not found'
                     raise
 
             if self.port is not None:
