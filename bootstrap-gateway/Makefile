@@ -8,7 +8,7 @@ GATEWAY_IMAGE := $(DOCKER_PREFIX)/gateway:$(TOKEN)
 
 build:
 	$(MAKE) -C ../docker hail-ubuntu
-	python3 ../ci/jinja2_render.py '{"hail_ubuntu_image":{"image":"'$$(cat ../docker/hail-ubuntu-stmp)'"}}' Dockerfile Dockerfile.out
+	python3 ../ci/jinja2_render.py '{"hail_ubuntu_image":{"image":"'$$(cat ../docker/hail-ubuntu-image-ref)'"}}' Dockerfile Dockerfile.out
 	../docker-build.sh . Dockerfile.out $(GATEWAY_IMAGE)
 
 deploy: build

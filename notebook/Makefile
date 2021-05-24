@@ -18,13 +18,13 @@ check:
 .PHONY: build-notebook
 build-notebook:
 	$(MAKE) -C ../docker service-base
-	python3 ../ci/jinja2_render.py '{"service_base_image":{"image":"'$$(cat ../docker/service-base)'"}}' Dockerfile Dockerfile.out
+	python3 ../ci/jinja2_render.py '{"service_base_image":{"image":"'$$(cat ../docker/service-base-image-ref)'"}}' Dockerfile Dockerfile.out
 	../docker-build.sh .. notebook/Dockerfile.out $(NOTEBOOK_IMAGE)
 
 .PHONY: build-nginx
 build-nginx:
 	$(MAKE) -C ../docker hail-ubuntu
-	python3 ../ci/jinja2_render.py '{"hail_ubuntu_image":{"image":"'$$(cat ../docker/hail-ubuntu-stmp)'"}}' Dockerfile.nginx Dockerfile.nginx.out
+	python3 ../ci/jinja2_render.py '{"hail_ubuntu_image":{"image":"'$$(cat ../docker/hail-ubuntu-image-ref)'"}}' Dockerfile.nginx Dockerfile.nginx.out
 	python3 ../ci/jinja2_render.py '{"deploy": $(DEPLOY), "default_ns": {"name": "$(NAMESPACE)"}}' nginx.conf nginx.conf.out
 	../docker-build.sh . Dockerfile.nginx.out $(NOTEBOOK_NGINX_IMAGE)
 

@@ -29,7 +29,7 @@ build_and_push() {
     time DOCKER_BUILDKIT=1 docker push ${cache}
 }
 
-python3 ../ci/jinja2_render.py '{"hail_ubuntu_image":{"image":"gcr.io/hail-vdc/hail-ubuntu"}}' hail/Dockerfile hail/Dockerfile.out
+python3 ../ci/jinja2_render.py '{"hail_ubuntu_image":{"image":"'$(cat hail-ubuntu-image-ref)'"}}' hail/Dockerfile hail/Dockerfile.out
 build_and_push hail
 
 python3 ../ci/jinja2_render.py '{"hail_public_image":{"image":"'hailgenetics/hail:$hail_pip_version'"}}' genetics/Dockerfile genetics/Dockerfile.out

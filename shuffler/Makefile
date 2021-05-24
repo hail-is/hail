@@ -10,7 +10,7 @@ PYTHON := PYTHONPATH=$(PYTHONPATH) python3
 .PHONY: build
 build:
 	$(MAKE) -C ../docker service-base
-	python3 ../ci/jinja2_render.py '{"service_base_image":{"image":"'$$(cat ../docker/service-base)'"}}' Dockerfile Dockerfile.out
+	python3 ../ci/jinja2_render.py '{"service_base_image":{"image":"'$$(cat ../docker/service-base-image-ref)'"}}' Dockerfile Dockerfile.out
 	$(MAKE) -C ../hail shadowJar
 	cp ../hail/build/libs/hail-all-spark.jar hail.jar
 	../docker-build.sh . Dockerfile.out $(SHUFFLER_IMAGE)

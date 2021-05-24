@@ -8,7 +8,7 @@ PROM_NGINX_IMAGE := $(DOCKER_PREFIX)/prom_nginx:$(TOKEN)
 
 build:
 	$(MAKE) -C ../docker hail-ubuntu
-	python3 ../ci/jinja2_render.py '{"hail_ubuntu_image": {"image": "'$$(cat ../docker/hail-ubuntu-stmp)'"}}' Dockerfile.nginx Dockerfile.nginx.out
+	python3 ../ci/jinja2_render.py '{"hail_ubuntu_image": {"image": "'$$(cat ../docker/hail-ubuntu-image-ref)'"}}' Dockerfile.nginx Dockerfile.nginx.out
 	python3 ../ci/jinja2_render.py '{"deploy": $(DEPLOY), "default_ns": {"name": "$(NAMESPACE)"}}' nginx.conf nginx.conf.out
 	../docker-build.sh . Dockerfile.nginx.out $(PROM_NGINX_IMAGE)
 

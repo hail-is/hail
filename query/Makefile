@@ -18,7 +18,7 @@ build:
 	$(MAKE) -C ../hail shadowJar
 # janky
 	cp ../hail/build/libs/hail-all-spark.jar ./hail.jar
-	python3 ../ci/jinja2_render.py '{"service_java_run_base_image":{"image":"'$$(cat ../docker/service-java-run-base)'"}}' Dockerfile Dockerfile.out
+	python3 ../ci/jinja2_render.py '{"service_java_run_base_image":{"image":"'$$(cat ../docker/service-java-run-base-image-ref)'"}}' Dockerfile Dockerfile.out
 	../docker-build.sh . Dockerfile.out $(QUERY_IMAGE)
 
 UPLOAD_QUERY_JAR_TOKEN := $(shell cat /dev/urandom | LC_ALL=C tr -dc 'a-z0-9' | head -c 12)
