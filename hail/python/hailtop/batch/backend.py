@@ -253,6 +253,8 @@ class LocalBackend(Backend):
                             else:
                                 raise BatchException(f'must specify cpu when using {memory} to specify the memory')
                         memory = f'-m {memory}' if memory else ''
+                    else:
+                        memory = ''
 
                     code.append(f"docker run "
                                 "--entrypoint=''"
