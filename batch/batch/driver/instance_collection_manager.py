@@ -20,13 +20,14 @@ class InstanceCollectionManager:
         self.app = app
         self.db: Database = app['db']
         self.machine_name_prefix = machine_name_prefix
-        self.inst_coll_regex = re.compile(f'{self.machine_name_prefix}(?P<inst_coll>.*)-.*')
+        self.inst_coll_regex = re.compile(f'{self.machine_name_prefix}(?P<inst_coll>.*)-.*-.*')
 
         self.name_inst_coll: Dict[str, InstanceCollection] = {}
         self.name_pool: Dict[str, Pool] = {}
         self.job_private_inst_manager: JobPrivateInstanceManager = None
 
     async def async_init(self, config_manager: InstanceCollectionConfigs):
+        assert config_manager.jpim_config is not None
         jpim = JobPrivateInstanceManager(self.app, self.machine_name_prefix, config_manager.jpim_config)
         self.job_private_inst_manager = jpim
         self.name_inst_coll[jpim.name] = jpim
