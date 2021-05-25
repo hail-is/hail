@@ -18,11 +18,15 @@ tasks = ('input', 'main', 'output')
 valid_machine_types = []
 for typ in ('highcpu', 'standard', 'highmem'):
     if typ == 'standard':
-        possible_cores = [1, 2, 4, 8, 16, 32, 64, 96]
+        possible_n1_cores = [1, 2, 4, 8, 16, 32, 64, 96]
     else:
-        possible_cores = [2, 4, 8, 16, 32, 64, 96]
-    for cores in possible_cores:
+        possible_n1_cores = [2, 4, 8, 16, 32, 64, 96]
+    for cores in possible_n1_cores:
         valid_machine_types.append(f'n1-{typ}-{cores}')
+
+    possible_n2_cores = [2, 4, 8, 16, 32, 48, 64, 80]
+    for cores in possible_n2_cores:
+        valid_machine_types.append(f'n2-{typ}-{cores}')
 
 memory_to_worker_type = {'lowmem': 'highcpu', 'standard': 'standard', 'highmem': 'highmem'}
 

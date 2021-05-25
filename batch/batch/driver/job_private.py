@@ -244,7 +244,7 @@ HAVING n_ready_jobs + n_creating_jobs + n_running_jobs > 0;
         cores_mcpu = cores * 1000
         worker_type = machine_type_dict['machine_type']
 
-        zone = self.zone_monitor.get_zone(cores, False, storage_gb)
+        zone = self.zoned_family_monitor.get_zone(cores, False, storage_gb)
         if zone is None:
             return
 

@@ -3,7 +3,7 @@ from collections import defaultdict
 
 from .globals import WORKER_CONFIG_VERSION
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Dict, List
 
 if TYPE_CHECKING:
     from .inst_coll_config import PoolConfig  # pylint: disable=cyclic-import
@@ -48,7 +48,7 @@ def is_power_two(n):
 
 class WorkerConfig:
     @staticmethod
-    def from_instance_config(instance_config, job_private=False):
+    def from_instance_config(instance_config: dict, job_private: bool = False) -> 'WorkerConfig':
         instance_info = parse_machine_type_str(instance_config['machineType'])
 
         preemptible = instance_config['scheduling']['preemptible']
@@ -92,8 +92,8 @@ class WorkerConfig:
         return WorkerConfig(config)
 
     @staticmethod
-    def from_pool_config(pool_config: 'PoolConfig'):
-        disks = [
+    def from_pool_config(pool_config: 'PoolConfig', family: str) -> 'WorkerConfig':
+        disks: List[Dict[str, Any]] = [
             {
                 'boot': True,
                 'project': None,
@@ -118,7 +118,7 @@ class WorkerConfig:
             'instance': {
                 'project': None,
                 'zone': None,
-                'family': 'n1',  # FIXME: need to figure out how to handle variable family types
+                'family': family,
                 'type': pool_config.worker_type,
                 'cores': pool_config.worker_cores,
                 'preemptible': True,
@@ -201,9 +201,9 @@ class WorkerConfig:
 
         return resources
 
-    def cost_per_hour(self, resource_rates, cpu_in_mcpu, memory_in_bytes, storage_in_gb):
+    def cost_per_hour(self, resource_rates: Dict[str, float], cpu_in_mcpu, memory_in_bytes, storage_in_gb) -> float:
         resources = self.resources(cpu_in_mcpu, memory_in_bytes, storage_in_gb)
-        cost_per_msec = 0
+        cost_per_msec = 0.0
         for r in resources:
             name = r['name']
             quantity = r['quantity']

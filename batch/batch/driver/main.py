@@ -54,7 +54,7 @@ from ..batch_configuration import (
 from ..globals import HTTP_CLIENT_MAX_SIZE
 from ..inst_coll_config import InstanceCollectionConfigs
 
-from .zone_monitor import ZoneMonitor
+from .zoned_family_monitor import ZonedFamilyMonitor
 from .gce import GCEEventMonitor
 from .canceller import Canceller
 from .instance_collection_manager import InstanceCollectionManager
@@ -969,9 +969,9 @@ SELECT instance_id, internal_token FROM globals;
     log_store = LogStore(BATCH_BUCKET_NAME, instance_id, pool, credentials=credentials)
     app['log_store'] = log_store
 
-    zone_monitor = ZoneMonitor(app)
-    app['zone_monitor'] = zone_monitor
-    await zone_monitor.async_init()
+    zoned_family_monitor = ZonedFamilyMonitor(app)
+    app['zoned_family_monitor'] = zoned_family_monitor
+    await zoned_family_monitor.async_init()
 
     inst_coll_configs = InstanceCollectionConfigs(app)
     await inst_coll_configs.async_init()
@@ -1010,7 +1010,7 @@ async def on_cleanup(app):
             await app['db'].async_close()
         finally:
             try:
-                app['zone_monitor'].shutdown()
+                app['zoned_family_monitor'].shutdown()
             finally:
                 try:
                     app['inst_coll_manager'].shutdown()

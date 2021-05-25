@@ -174,11 +174,12 @@ WHERE name = %s;
 
         machine_name = self.generate_machine_name()
 
-        zone = self.zone_monitor.get_zone(cores, self.worker_local_ssd_data_disk, self.worker_pd_ssd_data_disk_size_gb)
-        if zone is None:
+        zoned_family = self.zoned_family_monitor.get_zoned_family(cores, self.worker_local_ssd_data_disk, self.worker_pd_ssd_data_disk_size_gb)
+        if zoned_family is None:
             return
+        zone, family = zoned_family
 
-        machine_type = f'n1-{self.worker_type}-{cores}'
+        machine_type = f'{family}-{self.worker_type}-{cores}'
 
         activation_token = secrets.token_urlsafe(32)
 

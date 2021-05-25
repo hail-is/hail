@@ -8,6 +8,7 @@ from hailtop.utils import time_msecs, time_msecs_str, retry_transient_errors
 from gear import Database
 
 from ..database import check_call_procedure
+from ..inst_coll_config import machine_type_to_dict
 from ..globals import INSTANCE_VERSION
 
 log = logging.getLogger('instance')
@@ -111,6 +112,7 @@ VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
         self.zone = zone
         self.machine_type = machine_type
         self.preemptible = preemptible
+        self.machine_family = machine_type_to_dict(self.machine_type)['machine_family']
 
     @property
     def state(self):

@@ -82,7 +82,7 @@ class PoolConfig(InstanceCollectionConfig):
         self.max_instances = max_instances
         self.max_live_instances = max_live_instances
 
-        self.worker_config = WorkerConfig.from_pool_config(self)
+        self.worker_config = WorkerConfig.from_pool_config(self, 'n2')  # n2 is the upper bound on cost
 
     def convert_requests_to_resources(self, cores_mcpu, memory_bytes, storage_bytes):
         storage_gib = requested_storage_bytes_to_actual_storage_gib(storage_bytes)
@@ -97,9 +97,8 @@ class PoolConfig(InstanceCollectionConfig):
 
         return None
 
-    def cost_per_hour(self, resource_rates, cores_mcpu, memory_bytes, storage_gib):
-        cost_per_hour = self.worker_config.cost_per_hour(resource_rates, cores_mcpu, memory_bytes, storage_gib)
-        return cost_per_hour
+    def cost_per_hour(self, resource_rates: Dict[str, float], cores_mcpu, memory_bytes, storage_gib):
+        return self.worker_config.cost_per_hour(resource_rates, cores_mcpu, memory_bytes, storage_gib)
 
 
 class JobPrivateInstanceManagerConfig(InstanceCollectionConfig):

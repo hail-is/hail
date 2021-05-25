@@ -10,7 +10,7 @@ from hailtop import aiotools, aiogoogle
 from gear import Database
 
 from .instance import Instance
-from .zone_monitor import ZoneMonitor
+from .zoned_family_monitor import ZonedFamilyMonitor
 
 log = logging.getLogger('inst_collection')
 
@@ -20,7 +20,7 @@ class InstanceCollection:
         self.app = app
         self.db: Database = app['db']
         self.compute_client: aiogoogle.ComputeClient = self.app['compute_client']
-        self.zone_monitor: ZoneMonitor = self.app['zone_monitor']
+        self.zoned_family_monitor: ZonedFamilyMonitor = self.app['zoned_family_monitor']
 
         self.name = name
         self.machine_name_prefix = f'{machine_name_prefix}{self.name}-'

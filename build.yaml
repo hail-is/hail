@@ -2243,6 +2243,8 @@ steps:
         script: /io/sql/do-not-lock-entire-batch.sql
       - name: add-fail-fast
         script: /io/sql/add-fail-fast.sql
+      - name: add-n2
+        script: /io/sql/add-n2.py
     inputs:
       - from: /repo/batch/sql
         to: /io/sql

@@ -10,7 +10,7 @@ from hailtop import aiotools, aiogoogle
 from hailtop.utils import periodically_call
 
 from ..batch_configuration import PROJECT, DEFAULT_NAMESPACE
-from .zone_monitor import ZoneMonitor
+from .zoned_family_monitor import ZonedFamilyMonitor
 from .instance_collection_manager import InstanceCollectionManager
 
 log = logging.getLogger('gce_event_monitor')
@@ -28,7 +28,7 @@ class GCEEventMonitor:
     def __init__(self, app, machine_name_prefix):
         self.app = app
         self.db: Database = app['db']
-        self.zone_monitor: ZoneMonitor = app['zone_monitor']
+        self.zoned_family_monitor: ZonedFamilyMonitor = app['zoned_family_monitor']
         self.compute_client: aiogoogle.ComputeClient = app['compute_client']
         self.logging_client: aiogoogle.LoggingClient = app['logging_client']
         self.inst_coll_manager: InstanceCollectionManager = app['inst_coll_manager']
@@ -87,20 +87,21 @@ class GCEEventMonitor:
             log.warning(f'event for unknown machine {name}')
             return
 
+        instance = self.inst_coll_manager.get_instance(name)
+        if not instance:
+            record = await self.db.select_and_fetchone('SELECT name FROM instances WHERE name = %s;', (name,))
+            if not record:
+                log.error(f'event for unknown instance {name}: {json.dumps(event)}')
+            return
+
         if event_subtype == 'v1.compute.instances.insert':
             if event_type == 'COMPLETED':
+                zone: str = resource['labels']['zone']
                 severity = event['severity']
                 operation_id = event['operation']['id']
                 success = severity != 'ERROR'
-                self.zone_monitor.zone_success_rate.push(resource['labels']['zone'], operation_id, success)
+                self.zoned_family_monitor.zoned_family_success_rate.push((zone, instance.machine_family), operation_id, success)
         else:
-            instance = self.inst_coll_manager.get_instance(name)
-            if not instance:
-                record = await self.db.select_and_fetchone('SELECT name FROM instances WHERE name = %s;', (name,))
-                if not record:
-                    log.error(f'event for unknown instance {name}: {json.dumps(event)}')
-                return
-
             if event_subtype == 'compute.instances.preempted':
                 log.info(f'event handler: handle preempt {instance}')
                 await self.handle_preempt_event(instance, timestamp)
@@ -153,7 +154,7 @@ timestamp >= "{mark}"
 
         params = {'filter': f'(labels.namespace = {DEFAULT_NAMESPACE})'}
 
-        for zone in self.zone_monitor.zones:
+        for zone in self.zoned_family_monitor.zones:
             async for disk in await self.compute_client.list(f'/zones/{zone}/disks', params=params):
                 instance_name = disk['labels']['instance-name']
                 instance = self.inst_coll_manager.get_instance(instance_name)

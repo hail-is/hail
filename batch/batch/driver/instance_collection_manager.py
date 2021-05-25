@@ -8,6 +8,7 @@ from gear import Database
 
 from ..inst_coll_config import InstanceCollectionConfigs
 from .instance_collection import InstanceCollection
+from .instance import Instance
 from .job_private import JobPrivateInstanceManager
 from .pool import Pool
 
@@ -73,7 +74,7 @@ class InstanceCollectionManager:
     def get_inst_coll(self, inst_coll_name):
         return self.name_inst_coll.get(inst_coll_name)
 
-    def get_instance(self, inst_name):
+    def get_instance(self, inst_name) -> Instance:
         inst_coll_name = None
 
         match = re.search(self.inst_coll_regex, inst_name)
