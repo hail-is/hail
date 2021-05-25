@@ -234,7 +234,6 @@ HAVING n_ready_jobs + n_creating_jobs + n_running_jobs > 0;
     async def create_instance(self, batch_id, job_id, machine_spec):
         assert machine_spec is not None
 
-        machine_name = self.generate_machine_name()
         machine_type = machine_spec['machine_type']
         preemptible = machine_spec['preemptible']
         storage_gb = machine_spec['storage_gib']
@@ -243,6 +242,9 @@ HAVING n_ready_jobs + n_creating_jobs + n_running_jobs > 0;
         cores = int(machine_type_dict['cores'])
         cores_mcpu = cores * 1000
         worker_type = machine_type_dict['machine_type']
+
+        family = machine_type_dict['machine_family']
+        machine_name = self.generate_machine_name(family)
 
         zone = self.zoned_family_monitor.get_zone(cores, False, storage_gb)
         if zone is None:

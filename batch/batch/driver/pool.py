@@ -172,12 +172,12 @@ WHERE name = %s;
         if max_idle_time_msecs is None:
             max_idle_time_msecs = WORKER_MAX_IDLE_TIME_MSECS
 
-        machine_name = self.generate_machine_name()
-
         zoned_family = self.zoned_family_monitor.get_zoned_family(cores, self.worker_local_ssd_data_disk, self.worker_pd_ssd_data_disk_size_gb)
         if zoned_family is None:
             return
         zone, family = zoned_family
+
+        machine_name = self.generate_machine_name(family)
 
         machine_type = f'{family}-{self.worker_type}-{cores}'
 
