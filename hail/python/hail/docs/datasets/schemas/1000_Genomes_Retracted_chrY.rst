@@ -1,13 +1,13 @@
-.. _1000_Genomes_chrX:
+.. _1000_Genomes_Retracted_chrY:
 
-1000_Genomes_chrX
-=================
+1000_Genomes_Retracted_chrY
+===========================
 
 *  **Versions:** phase_3
-*  **Reference genome builds:** GRCh37
+*  **Reference genome builds:** GRCh38
 *  **Type:** :class:`hail.MatrixTable`
 
-Schema (phase_3, GRCh37)
+Schema (phase_3, GRCh38)
 ~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. code-block:: text
@@ -57,25 +57,16 @@ Schema (phase_3, GRCh37)
         }
     ----------------------------------------
     Row fields:
-        'locus': locus<GRCh37>
+        'locus': locus<GRCh38>
         'alleles': array<str>
         'rsid': str
         'qual': float64
         'filters': set<str>
         'info': struct {
-            CIEND: int32,
-            CIPOS: int32,
-            CS: str,
+            DP: int32,
             END: int32,
-            IMPRECISE: bool,
-            MC: array<str>,
-            MEINFO: array<str>,
-            MEND: int32,
-            MLEN: int32,
-            MSTART: int32,
-            SVLEN: array<int32>,
             SVTYPE: str,
-            TSD: str,
+            AA: str,
             AC: int32,
             AF: float64,
             NS: int32,
@@ -85,15 +76,24 @@ Schema (phase_3, GRCh37)
             AFR_AF: float64,
             AMR_AF: float64,
             SAS_AF: float64,
-            DP: int32,
-            AA: str,
             VT: str,
             EX_TARGET: bool,
-            MULTI_ALLELIC: bool
+            MULTI_ALLELIC: bool,
+            STRAND_FLIP: bool,
+            REF_SWITCH: bool,
+            DEPRECATED_RSID: str,
+            RSID_REMOVED: str,
+            GRCH37_38_REF_STRING_MATCH: bool,
+            NOT_ALL_RSIDS_STRAND_CHANGE_OR_REF_SWITCH: bool,
+            GRCH37_POS: int32,
+            GRCH37_REF: str,
+            ALLELE_TRANSFORM: bool,
+            REF_NEW_ALLELE: bool,
+            CHROM_CHANGE_BETWEEN_ASSEMBLIES: str
         }
         'a_index': int32
         'was_split': bool
-        'old_locus': locus<GRCh37>
+        'old_locus': locus<GRCh38>
         'old_alleles': array<str>
         'variant_qc': struct {
             AC: array<int32>,

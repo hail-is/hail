@@ -1,13 +1,13 @@
-.. _1000_Genomes_chrX:
+.. _1000_Genomes_Retracted_autosomes:
 
-1000_Genomes_chrX
-=================
+1000_Genomes_Retracted_autosomes
+================================
 
 *  **Versions:** phase_3
-*  **Reference genome builds:** GRCh37
+*  **Reference genome builds:** GRCh38
 *  **Type:** :class:`hail.MatrixTable`
 
-Schema (phase_3, GRCh37)
+Schema (phase_3, GRCh38)
 ~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. code-block:: text
@@ -57,7 +57,7 @@ Schema (phase_3, GRCh37)
         }
     ----------------------------------------
     Row fields:
-        'locus': locus<GRCh37>
+        'locus': locus<GRCh38>
         'alleles': array<str>
         'rsid': str
         'qual': float64
@@ -89,11 +89,22 @@ Schema (phase_3, GRCh37)
             AA: str,
             VT: str,
             EX_TARGET: bool,
-            MULTI_ALLELIC: bool
+            MULTI_ALLELIC: bool,
+            STRAND_FLIP: bool,
+            REF_SWITCH: bool,
+            DEPRECATED_RSID: array<str>,
+            RSID_REMOVED: array<str>,
+            GRCH37_38_REF_STRING_MATCH: bool,
+            NOT_ALL_RSIDS_STRAND_CHANGE_OR_REF_SWITCH: bool,
+            GRCH37_POS: int32,
+            GRCH37_REF: str,
+            ALLELE_TRANSFORM: bool,
+            REF_NEW_ALLELE: bool,
+            CHROM_CHANGE_BETWEEN_ASSEMBLIES: str
         }
         'a_index': int32
         'was_split': bool
-        'old_locus': locus<GRCh37>
+        'old_locus': locus<GRCh38>
         'old_alleles': array<str>
         'variant_qc': struct {
             AC: array<int32>,
