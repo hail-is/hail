@@ -1,8 +1,8 @@
+from typing import Dict, Optional
 import asyncio
 import re
 import collections
 import logging
-from typing import Dict
 
 from gear import Database
 
@@ -75,9 +75,7 @@ class InstanceCollectionManager:
     def get_inst_coll(self, inst_coll_name):
         return self.name_inst_coll.get(inst_coll_name)
 
-    def get_instance(self, inst_name) -> Instance:
-        inst_coll_name = None
-
+    def get_instance(self, inst_name) -> Optional[Instance]:
         match = re.search(self.inst_coll_regex, inst_name)
         if match:
             inst_coll_name = match.groupdict()['inst_coll']
