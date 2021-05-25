@@ -129,9 +129,9 @@ class ZonedFamilyMonitor:
 
             weight = max(remaining / len(r['zones']), 1)
             for z in r['zones']:
-                zoned_family_name = url_basename(z)
-                for family in ZONES_TO_FAMILIES[z]:
-                    _zoned_family_weights.append(ZonedFamilyWeight(zoned_family_name, family, weight))
+                zone_shortname = url_basename(z)
+                for family in ZONES_TO_FAMILIES[zone_shortname]:
+                    _zoned_family_weights.append(ZonedFamilyWeight(zone_shortname, family, weight))
 
         log.info(f'zoned_family_weights {_zoned_family_weights}')
         return _zoned_family_weights
