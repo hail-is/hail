@@ -326,6 +326,15 @@ class Subsemaphore:
         self.release()
 
 
+async def cancel_task(t):
+    assert not t.done()
+    t.cancel()
+    try:
+        await t
+    except asyncio.CancelledError:
+        pass
+
+
 class PoolShutdownError(Exception):
     pass
 
@@ -375,15 +384,11 @@ class OnlineBoundedGather2:
             return
 
         # shut down the pending tasks
-        tasks = []
         for _, t in self._pending.items():
             if not t.done():
-                t.cancel()
-            tasks.append(t)
-        self._pending = None
+                await cancel_task(t)
 
-        if tasks:
-            await asyncio.wait(tasks)
+        self._pending = None
 
         self._done_event.set()
 
@@ -516,19 +521,19 @@ async def bounded_gather2_raise_exceptions(sema: asyncio.Semaphore, *aws, cancel
 
     tasks = [asyncio.create_task(run_with_subsema(aw)) for aw in aws]
 
-    if not cancel_on_error:
-        return await asyncio.gather(*tasks)
+    if cancel_on_error:
+        return_when = asyncio.FIRST_EXCEPTION
+    else:
+        return_when = asyncio.ALL_COMPLETED
 
-    try:
-        return await asyncio.gather(*tasks)
-    finally:
-        _, exc, _ = sys.exc_info()
-        if exc is not None:
-            for task in tasks:
-                if not task.done():
-                    task.cancel()
-            if tasks:
-                await asyncio.wait(tasks)
+    done, pending = await asyncio.wait(tasks, return_when=return_when)
+
+    for p in pending:
+        await cancel_task(p)
+
+    for d in done:
+        if d.exception():
+            raise d.exception()
 
 
 async def bounded_gather2(sema: asyncio.Semaphore, *aws, return_exceptions: bool = False, cancel_on_error: bool = False):
