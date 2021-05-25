@@ -680,6 +680,25 @@ def retry_all_errors(msg=None, error_logging_interval=10):
     return _wrapper
 
 
+def retry_all_errors_n_times(max_errors=10, msg=None, error_logging_interval=10):
+    async def _wrapper(f, *args, **kwargs):
+        delay = 0.1
+        errors = 0
+        while True:
+            try:
+                return await f(*args, **kwargs)
+            except asyncio.CancelledError:  # pylint: disable=try-except-raise
+                raise
+            except Exception:
+                errors += 1
+                if msg and errors % error_logging_interval == 0:
+                    log.exception(msg, stack_info=True)
+                if errors >= max_errors:
+                    raise
+            delay = await sleep_and_backoff(delay)
+    return _wrapper
+
+
 T = TypeVar('T')  # pylint: disable=invalid-name
 
 
