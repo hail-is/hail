@@ -42,6 +42,32 @@ class ZonedFamilySuccessRate:
         return f'global {self._global_counter}, zones {self._zoned_family_counters}'
 
 
+ZONES_TO_FAMILIES = {
+    'us-central1-a': ['n1', 'n2'],
+    'us-central1-b': ['n1', 'n2'],
+    'us-central1-c': ['n1', 'n2'],
+    'us-central1-f': ['n1', 'n2'],
+    'us-east1-b': ['n1', 'n2'],
+    'us-east1-c': ['n1', 'n2'],
+    'us-east1-d': ['n1', 'n2'],
+    'us-east4-a': ['n1', 'n2'],
+    'us-east4-b': ['n1', 'n2'],
+    'us-east4-c': ['n1', 'n2'],
+    'us-west1-a': ['n1', 'n2'],
+    'us-west1-b': ['n1', 'n2'],
+    'us-west1-c': ['n1', 'n2'],
+    'us-west2-a': ['n1'],
+    'us-west2-b': ['n1'],
+    'us-west2-c': ['n1'],
+    'us-west3-a': ['n1'],
+    'us-west3-b': ['n1'],
+    'us-west3-c': ['n1'],
+    'us-west4-a': ['n1', 'n2'],
+    'us-west4-b': ['n1', 'n2'],
+    'us-west4-c': ['n1', 'n2'],
+}
+
+
 class ZonedFamilyMonitor:
     def __init__(self, app):
         self.app = app
@@ -104,7 +130,7 @@ class ZonedFamilyMonitor:
             weight = max(remaining / len(r['zones']), 1)
             for z in r['zones']:
                 zoned_family_name = url_basename(z)
-                for family in ('n1', 'n2'):
+                for family in ZONES_TO_FAMILIES[z]:
                     _zoned_family_weights.append(ZonedFamilyWeight(zoned_family_name, family, weight))
 
         log.info(f'zoned_family_weights {_zoned_family_weights}')
