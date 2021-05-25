@@ -333,7 +333,7 @@ def calculate_new_intervals(mt, desired_average_partition_size: int, tmp_path: s
 
     ht = ht.annotate(cumulative_weight=hl.scan.sum(ht.weight),
                      last_weight=hl.scan._prev_nonnull(ht.weight),
-                     row_idx = hl.scan.count())
+                     row_idx=hl.scan.count())
 
     def partition_bound(x):
         return x - (x % hl.int64(partition_weight))
