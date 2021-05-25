@@ -20,7 +20,7 @@ class InstanceCollectionManager:
         self.app = app
         self.db: Database = app['db']
         self.machine_name_prefix = machine_name_prefix
-        self.inst_coll_regex = re.compile(f'{self.machine_name_prefix}(?P<inst_coll>.*)-.*-.*')
+        self.inst_coll_regex = re.compile(f'{self.machine_name_prefix}(?P<inst_coll>.*)-.*')
 
         self.name_inst_coll: Dict[str, InstanceCollection] = {}
         self.name_pool: Dict[str, Pool] = {}
