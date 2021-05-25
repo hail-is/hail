@@ -320,6 +320,7 @@ set +x
 set -x
 
 export BUILDKITD_FLAGS=--oci-worker-no-process-sandbox
+export BUILDCTL_CONNECT_RETRIES_MAX=100 # https://github.com/moby/buildkit/issues/1423
 buildctl-daemonless.sh \
      build \
      --frontend dockerfile.v0 \
