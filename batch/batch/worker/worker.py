@@ -38,6 +38,7 @@ from hailtop.httpx import client_session
 from hailtop.batch_client.parse import parse_cpu_in_mcpu, parse_memory_in_bytes, parse_storage_in_bytes
 from hailtop.batch.hail_genetics_images import HAIL_GENETICS_IMAGES
 from hailtop import aiotools
+from hailtop.utils import retry_long_running
 from hailtop.aiotools.fs import RouterAsyncFS, LocalAsyncFS
 import hailtop.aiogoogle as aiogoogle
 
@@ -1350,6 +1351,7 @@ class Worker:
         self.stop_event = asyncio.Event()
         self.task_manager = aiotools.BackgroundTaskManager()
         self.jar_download_locks = defaultdict(asyncio.Lock)
+        self.ws_queue = asyncio.Queue()
 
         # filled in during activation
         self.log_store = None
@@ -1357,7 +1359,13 @@ class Worker:
         self.compute_client = None
 
     def shutdown(self):
-        self.task_manager.shutdown()
+        try:
+            self.task_manager.shutdown()
+        finally:
+            try:
+                self.ws.close()
+            finally:
+                self.session.close()
 
     async def run_job(self, job):
         try:
@@ -1554,13 +1562,8 @@ class Worker:
         delay_secs = 0.1
         while True:
             try:
-                async with client_session() as session:
-                    await session.post(
-                        deploy_config.url('batch-driver', '/api/v1alpha/instances/job_complete'),
-                        json=body,
-                        headers=self.headers,
-                    )
-                    return
+                await self.ws_request({'op': 'job_complete', 'body': body})
+                return
             except asyncio.CancelledError:  # pylint: disable=try-except-raise
                 raise
             except Exception as e:
@@ -1607,14 +1610,7 @@ class Worker:
 
         body = {'status': status}
 
-        async with client_session() as session:
-            await request_retry_transient_errors(
-                session,
-                'POST',
-                deploy_config.url('batch-driver', '/api/v1alpha/instances/job_started'),
-                json=body,
-                headers=self.headers,
-            )
+        await self.ws_request({'op': 'job_started', 'body': body})
 
     async def post_job_started(self, job):
         try:
@@ -1655,6 +1651,31 @@ class Worker:
             resp_json = await resp.json()
 
             self.headers = {'X-Hail-Instance-Name': NAME, 'Authorization': f'Bearer {resp_json["token"]}'}
+            n_socket_connections = 2
+            for _ in range(n_socket_connections):
+                self.task_manager.ensure_future(
+                    retry_long_running('socket_task', self.socket_task))
+
+    async def ws_request(self, body: dict):
+        fut: asyncio.Future = asyncio.Future()
+        self.ws_queue.put(body, fut)
+        return await fut
+
+    async def socket_task(self):
+        async with client_session() as session:
+            async with session.ws_connect(
+                    deploy_config.url('batch-driver', '/api/v1alpha/instances/ws'),
+                    headers=self.headers) as ws:
+                while True:
+                    fut: asyncio.Future
+                    request, fut = await self.ws_queue.get()
+                    try:
+                        await ws.send_json(request)
+                        fut.set_result(await ws.receive_json())
+                    except Exception as exc:
+                        if not fut.done():
+                            fut.set_exception(exc)
+                        raise
 
 
 async def async_main():

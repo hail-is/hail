@@ -6,6 +6,7 @@ import copy
 import asyncio
 import signal
 import dictdiffer
+import aiohttp
 from aiohttp import web
 import aiohttp_session
 import kubernetes_asyncio as kube
@@ -39,6 +40,7 @@ from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_
 import googlecloudprofiler
 import uvloop
 
+from .instance import Instance
 from ..log_store import LogStore
 from ..batch import cancel_batch_in_db
 from ..batch_configuration import (
@@ -263,8 +265,7 @@ async def deactivate_instance(request, instance):  # pylint: disable=unused-argu
     return await asyncio.shield(deactivate_instance_1(instance))
 
 
-async def job_complete_1(request, instance):
-    body = await request.json()
+async def job_complete_1(body: dict, app: aiohttp.web.Application, instance: Instance):
     job_status = body['status']
 
     batch_id = job_status['batch_id']
@@ -286,7 +287,7 @@ async def job_complete_1(request, instance):
     resources = job_status.get('resources')
 
     await mark_job_complete(
-        request.app,
+        app,
         batch_id,
         job_id,
         attempt_id,
@@ -308,11 +309,11 @@ async def job_complete_1(request, instance):
 @monitor_endpoint
 @active_instances_only
 async def job_complete(request, instance):
-    return await asyncio.shield(job_complete_1(request, instance))
-
-
-async def job_started_1(request, instance):
     body = await request.json()
+    return await asyncio.shield(job_complete_1(body, request.app, instance))
+
+
+async def job_started_1(body: dict, app: aiohttp.web.Application, instance: Instance):
     job_status = body['status']
 
     batch_id = job_status['batch_id']
@@ -321,7 +322,7 @@ async def job_started_1(request, instance):
     start_time = job_status['start_time']
     resources = job_status.get('resources')
 
-    await mark_job_started(request.app, batch_id, job_id, attempt_id, instance, start_time, resources)
+    await mark_job_started(app, batch_id, job_id, attempt_id, instance, start_time, resources)
 
     await instance.mark_healthy()
 
@@ -332,7 +333,32 @@ async def job_started_1(request, instance):
 @monitor_endpoint
 @active_instances_only
 async def job_started(request, instance):
-    return await asyncio.shield(job_started_1(request, instance))
+    body = await request.json()
+    return await asyncio.shield(job_started_1(body, request.app, instance))
+
+@routes.get('/api/v1alpha/instances/ws')
+@active_instances_only
+async def instances_ws(request, instance):
+    app = request.app
+    ws = web.WebSocketResponse()
+    await ws.prepare(request)
+
+    async for msg in ws:
+        if msg.type == aiohttp.WSMsgType.TEXT:
+            msg = msg.json()
+            if msg['op'] == 'job_complete':
+                await asyncio.shield(job_complete_1(msg['body'], app, instance))
+            elif msg['op'] == 'job_started':
+                await asyncio.shield(job_started_1(msg['body'], app, instance))
+            else:
+                assert msg['op'] == 'close'
+                await ws.close()
+        else:
+            log.warning(
+                f'unexpected message type {msg.type} {ws.exception()}')
+
+    return ws
+
 
 
 @routes.get('/')
