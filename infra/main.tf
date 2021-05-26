@@ -20,6 +20,7 @@ variable "hail_query_bucket_location" {}
 variable "hail_query_bucket_storage_class" {}
 variable "gcp_region" {}
 variable "gcp_zone" {}
+variable "gcp_location" {}
 variable "domain" {}
 variable "use_artifact_registry" {
   type = bool
