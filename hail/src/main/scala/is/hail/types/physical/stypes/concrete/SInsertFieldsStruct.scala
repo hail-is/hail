@@ -70,7 +70,7 @@ case class SInsertFieldsStruct(virtualType: TStruct, parent: SBaseStruct, insert
 
     val parentType = parent.virtualType.asInstanceOf[TStruct]
 
-    val renamedInsertedFieldBuilder = new BoxedArrayBuilder[(String, EmitType)]()
+    val renamedInsertedFields = Array.fill[(String, EmitType)](insertedFields.size)(null)
     val parentPassThroughFieldBuilder = new BoxedArrayBuilder[(String, (String, Type))]()
 
     (0 until ts.size).foreach { i =>
@@ -80,7 +80,7 @@ case class SInsertFieldsStruct(virtualType: TStruct, parent: SBaseStruct, insert
       insertedFieldMap.get(oldName) match {
         case Some(idx) =>
           val et = insertedFields(idx)._2
-          renamedInsertedFieldBuilder += ((newName, et.copy(st = et.st.castRename(newField.typ))))
+          renamedInsertedFields(idx) = ((newName, et.copy(st = et.st.castRename(newField.typ))))
         case None => parentPassThroughFieldBuilder += ((oldName, (newName, newField.typ)))
       }
     }
@@ -90,7 +90,7 @@ case class SInsertFieldsStruct(virtualType: TStruct, parent: SBaseStruct, insert
     val renamedParentType = parent.castRename(parentCastType)
     SInsertFieldsStruct(ts,
       renamedParentType.asInstanceOf[SBaseStruct],
-      renamedInsertedFieldBuilder.result()
+      renamedInsertedFields
     )
   }
 }
@@ -148,5 +148,12 @@ class SInsertFieldsStructCode(val st: SInsertFieldsStruct, val parent: SBaseStru
       .filter { case (name, idx) => !newFieldSet.contains(name) }
       .map { case (name, idx) => (name, newFields(idx)) }
     parent.insert(newType, filteredNewFields ++ fields: _*)
+  }
+
+  override def loadSingleField(cb: EmitCodeBuilder, fieldIdx: Int): IEmitCode = {
+    st.getFieldIndexInNewOrParent(fieldIdx) match {
+      case Left(parentIdx) => parent.loadSingleField(cb, parentIdx)
+      case Right(newIdx) => newFields(newIdx).toI(cb)
+    }
   }
 }
