@@ -23,7 +23,7 @@ class ZonedFamilyWeight:
         return f'{(self.zone, self.family)}: {self.weight}'
 
 
-WINDOW_SIZE = 100
+WINDOW_SIZE = 30
 
 
 class ZonedFamilySuccessRate:
