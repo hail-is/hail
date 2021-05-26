@@ -23,10 +23,13 @@ class ZonedFamilyWeight:
         return f'{(self.zone, self.family)}: {self.weight}'
 
 
+WINDOW_SIZE = 100
+
+
 class ZonedFamilySuccessRate:
     def __init__(self):
-        self._global_counter = WindowFractionCounter(10)
-        self._zoned_family_counters: Dict[Tuple[str, str], WindowFractionCounter] = defaultdict(lambda: WindowFractionCounter(10))
+        self._global_counter = WindowFractionCounter(WINDOW_SIZE)
+        self._zoned_family_counters: Dict[Tuple[str, str], WindowFractionCounter] = defaultdict(lambda: WindowFractionCounter(WINDOW_SIZE))
 
     def push(self, zoned_family: Tuple[str, str], key: str, success: bool):
         self._global_counter.push(key, success)
@@ -105,7 +108,7 @@ class ZonedFamilyMonitor:
         zones = [(zw.zone, zw.family) for zw in zoned_family_weights]
 
         zoned_family_prob_weights = [
-            min(zw.weight, 10) * self.zoned_family_success_rate.zoned_family_success_rate((zw.zone, zw.family)) for zw in zoned_family_weights
+            min(zw.weight, WINDOW_SIZE) * self.zoned_family_success_rate.zoned_family_success_rate((zw.zone, zw.family)) for zw in zoned_family_weights
         ]
 
         log.info(f'zoned_family_success_rate {self.zoned_family_success_rate}')
