@@ -143,6 +143,7 @@ object Simplify {
 
     case StreamZip(as, names, body, _) if as.length == 1 => StreamMap(as.head, names.head, body)
     case StreamMap(StreamZip(as, names, zipBody, b), name, mapBody) => StreamZip(as, names, Let(name, zipBody, mapBody), b)
+    case StreamMap(StreamFlatMap(child, flatMapName, flatMapBody), mapName, mapBody) => StreamFlatMap(child, flatMapName, StreamMap(flatMapBody, mapName, mapBody))
 
     case x@StreamFlatMap(NA(_), _, _) => NA(x.typ)
 
