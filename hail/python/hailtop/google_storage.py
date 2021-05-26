@@ -18,7 +18,7 @@ class GCS:
     @staticmethod
     def _parse_uri(uri: str):
         assert uri.startswith('gs://'), uri
-        uri_parts = uri.lstrip('gs://').split('/')
+        uri_parts = uri[5:].split('/')
         bucket = uri_parts[0]
         path = '/'.join(uri_parts[1:])
         return bucket, path
