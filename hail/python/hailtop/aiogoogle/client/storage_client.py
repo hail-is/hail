@@ -764,5 +764,6 @@ class GoogleStorageAsyncFS(AsyncFS):
         return await self._rmtree(sema, url)
 
     async def close(self) -> None:
-        await self._storage_client.close()
-        del self._storage_client
+        if hasattr(self, '_storage_client'):
+            await self._storage_client.close()
+            del self._storage_client
