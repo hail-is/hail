@@ -326,7 +326,8 @@ class ServiceBackend(Backend):
         remote_tmpdir. Temporary data will be stored in the "/batch" folder of this
         bucket. Using this parameter as a positional argument is deprecated.
     remote_tmpdir:
-        Temporary data will be stored in this google cloud storage folder. Cannot be used with bucket. Example: "gs://
+        Temporary data will be stored in this google cloud storage folder. Cannot be used with
+        bucket.
 
     """
 
@@ -351,8 +352,6 @@ class ServiceBackend(Backend):
 
         if remote_tmpdir is not None and bucket is not None:
             raise ValueError('Cannot specify both remote_tmpdir and bucket in ServiceBackend()')
-        if remote_tmpdir is None and bucket is None:
-            raise ValueError('At least one of remote_tmpdir and bucket must be specified in ServiceBackend()')
 
         if billing_project is None:
             billing_project = get_user_config().get('batch', 'billing_project', fallback=None)
@@ -375,6 +374,10 @@ class ServiceBackend(Backend):
                     'The bucket parameter to ServiceBackend() should be a bucket name, not a path. '
                     'Use the remote_tmpdir parameter to specify a path.')
             remote_tmpdir = f'gs://{bucket}/batch'
+        else:
+            if not remote_tmpdir.startswith('gs://'):
+                raise ValueError(
+                    'remote_tmpdir must be a google storage path like gs://bucket/folder')
         self.remote_tmpdir = remote_tmpdir
 
     def close(self):
