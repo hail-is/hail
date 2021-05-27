@@ -1498,6 +1498,25 @@
       }
     ]
   },
+  "GTEx_eQTL_all_snp_gene_associations": {
+    "description": "GTEx: eQTL tissue-specific all SNP gene associations MatrixTable. All variant-gene cis-eQTL associations tested in each tissue (including non-significant associations). Contains all available tissues, with columns keyed by tissue.",
+    "url": "https://gtexportal.org/home/datasets",
+    "versions": [
+      {
+        "reference_genome": "GRCh38",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/GTEx/v8/eQTL/GRCh38/all_snp_gene_associations.mt"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/GTEx/v8/eQTL/GRCh38/all_snp_gene_associations.mt",
+            "us": "gs://hail-datasets-us/GTEx/v8/eQTL/GRCh38/all_snp_gene_associations.mt"
+          }
+        },
+        "version": "v8"
+      }
+    ]
+  },
   "GTEx_sQTL_Adipose_Subcutaneous_all_snp_gene_associations": {
     "annotation_db": {
       "key_properties": []
@@ -2570,6 +2589,25 @@
           "gcp": {
             "eu": "gs://hail-datasets-eu/GTEx/v8/sQTL/GRCh38/Whole_Blood_all_snp_gene_associations.ht",
             "us": "gs://hail-datasets-us/GTEx/v8/sQTL/GRCh38/Whole_Blood_all_snp_gene_associations.ht"
+          }
+        },
+        "version": "v8"
+      }
+    ]
+  },
+  "GTEx_sQTL_all_snp_gene_associations": {
+    "description": "GTEx: sQTL tissue-specific all SNP gene associations MatrixTable. All variant-gene cis-sQTL associations tested in each tissue (including non-significant associations). Contains all available tissues, with columns keyed by tissue.",
+    "url": "https://gtexportal.org/home/datasets",
+    "versions": [
+      {
+        "reference_genome": "GRCh38",
+        "url": {
+          "aws": {
+            "us": "s3://hail-datasets-us-east-1/GTEx/v8/sQTL/GRCh38/all_snp_gene_associations.mt"
+          },
+          "gcp": {
+            "eu": "gs://hail-datasets-eu/GTEx/v8/sQTL/GRCh38/all_snp_gene_associations.mt",
+            "us": "gs://hail-datasets-us/GTEx/v8/sQTL/GRCh38/all_snp_gene_associations.mt"
           }
         },
         "version": "v8"
