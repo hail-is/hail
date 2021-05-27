@@ -1652,7 +1652,7 @@ class Worker:
 
     async def ws_request(self, body: dict):
         fut: asyncio.Future = asyncio.Future()
-        self.ws_queue.put((body, fut))
+        await self.ws_queue.put((body, fut))
         return await fut
 
     async def socket_task(self):
