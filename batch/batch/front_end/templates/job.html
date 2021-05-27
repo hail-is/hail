@@ -15,7 +15,7 @@
   <li>Cost: {% if 'cost' in job and job['cost'] is not none %}{{ job['cost'] }}{% endif %}</li>
 </ul>
 
-<h2>Attempts</h2>
+<h2>Attempts <h2>
 {% if attempts %}
 <table class="data-table">
   <thead>
@@ -61,7 +61,32 @@
 <p>No attempts</p>
 {% endif %}
 
-<!-- Import Plotly (does not have to be from CDN) -->
+
+
+
+
+
+
+
+<h2>Step Status </h2>
+
+  <!-- {% for step in step_statuses %}
+    {% if step %}
+      {% for name, timing in step['timing'].items() %}
+        {% if 'duration' in timing and timing['duration'] is not none %}
+  <! <div class="main">
+    <div class="bar" style="width:{{timing['duration']/100}}px">
+      <div class="textbox">
+        <div class="mainText"> {{ step['name']}} {{name}}</div>
+      </div>
+    </div>
+  </div> -->
+        <!-- {% endif %}
+      {% endfor %}
+    {% endif %}
+  {% endfor %} --> 
+
+  <!-- Import Plotly (does not have to be from CDN) -->
 <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
 
 <div id="plotly-timeseries"></div>
@@ -70,29 +95,6 @@ var graph = {{ plot_json | safe }};
 Plotly.plot('plotly-timeseries', graph, {});
 </script>
 
-
-
-
-
-
-<h2>Step Status DOG</h2>
-<section class="progress_bar">
-  {% for step in step_statuses %}
-    {% if step %}
-      {% for name, timing in step['timing'].items() %}
-        {% if 'duration' in timing and timing['duration'] is not none %}
-  <div class="main">
-    <div class="bar" style="width:{{timing['duration']/100}}px">
-      <div class="textbox">
-        <div class="mainText"> {{ step['name']}} {{name}}</div>
-      </div>
-    </div>
-  </div>
-        {% endif %}
-      {% endfor %}
-    {% endif %}
-  {% endfor %}
-</section>
 
 <table class="data-table">
   <thead>
