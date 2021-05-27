@@ -521,19 +521,17 @@ async def bounded_gather2_raise_exceptions(sema: asyncio.Semaphore, *aws, cancel
 
     tasks = [asyncio.create_task(run_with_subsema(aw)) for aw in aws]
 
-    if cancel_on_error:
-        return_when = asyncio.FIRST_EXCEPTION
-    else:
-        return_when = asyncio.ALL_COMPLETED
+    if not cancel_on_error:
+        return await asyncio.gather(*tasks)
 
-    done, pending = await asyncio.wait(tasks, return_when=return_when)
-
-    for p in pending:
-        await cancel_task(p)
-
-    for d in done:
-        if d.exception():
-            raise d.exception()
+    try:
+        return await asyncio.gather(*tasks)
+    finally:
+        _, exc, _ = sys.exc_info()
+        if exc is not None:
+            for task in tasks:
+                if not task.done():
+                    await cancel_task(task)
 
 
 async def bounded_gather2(sema: asyncio.Semaphore, *aws, return_exceptions: bool = False, cancel_on_error: bool = False):
