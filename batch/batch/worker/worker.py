@@ -1359,13 +1359,7 @@ class Worker:
         self.compute_client = None
 
     def shutdown(self):
-        try:
-            self.task_manager.shutdown()
-        finally:
-            try:
-                self.ws.close()
-            finally:
-                self.session.close()
+        self.task_manager.shutdown()
 
     async def run_job(self, job):
         try:
