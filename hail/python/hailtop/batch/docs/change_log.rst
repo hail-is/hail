@@ -5,6 +5,9 @@ Change Log
 
 **Version 0.2.68**
 - Fixed copying a directory from GCS when using the ``LocalBackend``
+- Fixed writing files to GCS when the bucket name starts with a "g" or an "s"
+- Fixed the error "Argument list too long" when using the ``LocalBackend``
+- Fixed an error where memory is set to None when using the ``LocalBackend``
 
 **Version 0.2.66**
 
