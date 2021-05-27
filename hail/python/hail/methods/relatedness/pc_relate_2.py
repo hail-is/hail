@@ -2,8 +2,8 @@ from typing import Optional
 
 import hail as hl
 import hail.expr.aggregators as agg
-from hail.expr import (ArrayNumericExpression, BooleanExpression,
-                       CallExpression, Float64Expression, analyze, matrix_table_source)
+from hail.expr import (ArrayNumericExpression, BooleanExpression, CallExpression,
+                       Float64Expression, analyze, matrix_table_source)
 from hail.linalg import BlockMatrix
 from hail.table import Table
 from hail.utils import new_temp_file
@@ -398,7 +398,7 @@ def pc_relate_2(call_expr: CallExpression,
     :class:`.Table`
         A :class:`.Table` mapping pairs of samples to their pair-wise statistics.
     """
-    assert (min_individual_maf >= 0.0 and min_individual_maf <= 1.0), \
+    assert (0.0 <= min_individual_maf <= 1.0), \
         f"invalid argument: min_individual_maf={min_individual_maf}. " \
         f"Must have min_individual_maf on interval [0.0, 1.0]."
     mt = matrix_table_source('pc_relate_2/call_expr', call_expr)
@@ -430,18 +430,24 @@ def pc_relate_2(call_expr: CallExpression,
         block_size = BlockMatrix.default_block_size()
 
     g = BlockMatrix.from_entry_expr(mean_imputed_gt, block_size=block_size)
-    pcs = hl.nd.array(scores_table.collect(_localize=False).map(lambda x: x.__scores))
+    pc_scores = hl.nd.array(scores_table.collect(_localize=False).map(lambda x: x.__scores))
 
-    # Concat array of ones (intercept) with PCs, do QR
-    # Will need to get rid of this, use SVD from PCA
-    v = hl.nd.concatenate([hl.nd.ones((pcs.shape[0], 1)), pcs], axis=1)._persist()
-    q, r = hl.nd.qr(v, mode='reduced')
+    # g.shape is (n_variants, n_samples), pc_scores.shape is (n_samples, k)
+    sqrt_n_samples = hl.nd.array([hl.sqrt(g.shape[1])])
 
-    # Compute beta and mu
-    rinv_qt = BlockMatrix.from_ndarray(hl.nd.inv(r) @ q.T, block_size=block_size).checkpoint(new_temp_file("pcrelate2/rinv_qt", ".bm"))
-    beta = (rinv_qt @ g.T).checkpoint(new_temp_file("pcrelate2/beta", ".bm"))
-    v = BlockMatrix.from_ndarray(v, block_size=block_size)
-    mu = (0.5 * (v @ beta).T).checkpoint(new_temp_file("pcrelate2/mu", ".bm"))
+    # Recover singular values, S0, as vector of column norms of pc_scores
+    S0 = (pc_scores ** hl.int32(2)).sum(0).map(lambda x: hl.sqrt(x))
+    # We want sqrt(n_samples) as first entry in S, for intercept in beta
+    S = hl.nd.hstack((sqrt_n_samples, S0))._persist()
+
+    # Recover V from pc_scores with inv(S0)
+    V0 = (pc_scores * (1 / S0))._persist()
+    # First column in V needs all entries as 1/sqrt(n_samples), for intercept in beta
+    ones_normalized = hl.nd.full((V0.shape[0], 1), (1 / S[0]))
+    V = hl.nd.hstack((ones_normalized, V0))
+
+    beta = (BlockMatrix.from_ndarray(((1 / S) * V).T) @ g.T).checkpoint(new_temp_file("pcrelate2/beta", ".bm"))
+    mu = (0.5 * (BlockMatrix.from_ndarray(V * S) @ beta).T).checkpoint(new_temp_file("pcrelate2/mu", ".bm"))
 
     # Define NaN to use instead of missing, otherwise cannot go back to block matrix
     nan = hl.literal(0) / 0
