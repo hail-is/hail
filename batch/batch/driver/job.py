@@ -6,7 +6,7 @@ import base64
 import traceback
 
 from hailtop.aiotools import BackgroundTaskManager
-from hailtop.utils import time_msecs, Notice, retry_transient_errors_with_exclusions
+from hailtop.utils import time_msecs, Notice, retry_transient_errors
 from hailtop.httpx import client_session
 from gear import Database
 
@@ -251,6 +251,9 @@ async def unschedule_job(app, record):
             async with aiohttp.ClientSession(raise_for_status=True, timeout=aiohttp.ClientTimeout(total=5)) as session:
                 await session.delete(url)
                 await instance.mark_healthy()
+        except asyncio.TimeoutError:
+            await instance.incr_failed_request_count()
+            return
         except aiohttp.ClientResponseError as err:
             if err.status == 404:
                 await instance.mark_healthy()
@@ -258,10 +261,7 @@ async def unschedule_job(app, record):
             await instance.incr_failed_request_count()
             raise
 
-    def excl(e: Exception):
-        return isinstance(e, asyncio.TimeoutError)
-
-    await retry_transient_errors_with_exclusions(excl, make_request)
+    await retry_transient_errors(make_request)
 
     if not instance.inst_coll.is_pool:
         await instance.kill()
