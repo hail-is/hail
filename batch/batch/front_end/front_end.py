@@ -1441,9 +1441,9 @@ async def ui_get_job(request, userdata, batch_id):
     
     output= []
     for x in ['input', 'main', 'output']:
-        if type (step_statuses[x]) == dict and  step_statuses[x].get('timing') != None:
+        if type (container_statuses[x]) == dict and  container_statuses[x].get('timing')!= None:
             # print (step_statuses5[x]['timing'])
-            for y in step_statuses[x]['timing'].items():
+            for y in container_statuses[x]['timing'].items():
                 output.append(y)
                 y[1]['step_name']= x
 
