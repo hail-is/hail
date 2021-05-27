@@ -336,6 +336,7 @@ async def job_started(request, instance):
     body = await request.json()
     return await asyncio.shield(job_started_1(body, request.app, instance))
 
+
 @routes.get('/api/v1alpha/instances/ws')
 @active_instances_only
 async def instances_ws(request, instance):
@@ -358,7 +359,6 @@ async def instances_ws(request, instance):
                 f'unexpected message type {msg.type} {ws.exception()}')
 
     return ws
-
 
 
 @routes.get('/')
