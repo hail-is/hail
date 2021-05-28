@@ -1,24 +1,23 @@
 import json
 import re
+from typing import List
 
-from hail.typecheck import typecheck, nullable, oneof, dictof, anytype, \
-    sequenceof, enumeration, sized_tupleof, numeric, table_key_type, char
-from hail.utils.java import Env, FatalError, jindexed_seq_args, warning
-from hail.utils import wrap_to_list
-from hail.matrixtable import MatrixTable
-from hail.table import Table
-from hail.expr.types import hail_type, tarray, tfloat64, tstr, tint32, tstruct, \
-    tcall, tbool, tint64, tfloat32
+import hail as hl
+from hail import ir
 from hail.expr import StructExpression, LocusExpression, \
     expr_array, expr_float64, expr_str, expr_numeric, expr_call, expr_bool, \
     expr_any, \
     to_expr, analyze
-from hail import ir
+from hail.expr.types import hail_type, tarray, tfloat64, tstr, tint32, tstruct, \
+    tcall, tbool, tint64, tfloat32
 from hail.genetics.reference_genome import reference_genome_type
-from hail.methods.misc import require_biallelic, require_row_key_variant, require_row_key_variant_w_struct_locus, require_col_key_str
-import hail as hl
-
-from typing import List
+from hail.matrixtable import MatrixTable
+from hail.methods.misc import require_biallelic, require_row_key_variant, require_col_key_str
+from hail.table import Table
+from hail.typecheck import typecheck, nullable, oneof, dictof, anytype, \
+    sequenceof, enumeration, sized_tupleof, numeric, table_key_type, char
+from hail.utils import wrap_to_list
+from hail.utils.java import Env, FatalError, jindexed_seq_args, warning
 
 
 def locus_interval_expr(contig, start, end, includes_start, includes_end,
