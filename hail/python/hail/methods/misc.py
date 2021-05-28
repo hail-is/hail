@@ -230,9 +230,12 @@ def require_key(table, method):
         raise ValueError("Method '{}' requires a non-empty key".format(method))
 
 
-@typecheck(dataset=MatrixTable, method=str)
-def require_biallelic(dataset, method) -> MatrixTable:
-    require_row_key_variant(dataset, method)
+@typecheck(dataset=MatrixTable, method=str, tolerate_generic_locus=bool)
+def require_biallelic(dataset, method, tolerate_generic_locus: bool = False) -> MatrixTable:
+    if tolerate_generic_locus:
+        require_row_key_variant_w_struct_locus(dataset, method)
+    else:
+        require_row_key_variant(dataset, method)
     return dataset._select_rows(method,
                                 hl.case()
                                 .when(dataset.alleles.length() == 2, dataset._rvrow)

@@ -45,6 +45,8 @@ class PInt32(override val required: Boolean) extends PNumeric with PPrimitive {
   override def unstagedStoreJavaObjectAtAddress(addr: Long, annotation: Annotation, region: Region): Unit = {
     Region.storeInt(addr, annotation.asInstanceOf[Int])
   }
+
+  def unstagedLoadFromAddress(addr: Long): Int = Region.loadInt(addr)
 }
 
 object PInt32 {

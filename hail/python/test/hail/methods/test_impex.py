@@ -956,6 +956,24 @@ class PLINKTests(unittest.TestCase):
                         resource('sex_mt_contigs.fam'),
                         reference_genome='random')
 
+    @fails_service_backend()
+    @fails_local_backend()
+    def test_export_plink_struct_locus(self):
+        mt = hl.utils.range_matrix_table(10, 10)
+        mt = mt.key_rows_by(locus=hl.struct(contig=hl.str(mt.row_idx), position=mt.row_idx), alleles=['A', 'T']).select_rows()
+        mt = mt.key_cols_by(s=hl.str(mt.col_idx)).select_cols()
+        mt = mt.annotate_entries(GT=hl.call(0, 0))
+
+        out = new_temp_file()
+
+        hl.export_plink(mt, out)
+        mt2 = hl.import_plink(
+            bed=out + '.bed',
+            bim=out + '.bim',
+            fam=out + '.fam',
+            reference_genome=None).select_rows().select_cols()
+        assert mt._same(mt2)
+
 
 # this routine was used to generate resources random.gen, random.sample
 # random.bgen was generated with qctool v2.0rc9:
