@@ -3281,7 +3281,7 @@ class Table(ExprContainer):
         from hail.expr.functions import _values_similar
 
         if self._type != other._type:
-            print(f'Table._same: types differ: {self._type}, {other._type}')
+            print(f'Table._same: types differ:\n  {self._type}\n  {other._type}')
             return False
 
         left_global_value = Env.get_uid()

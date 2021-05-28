@@ -323,8 +323,7 @@ def export_plink(dataset, output, call=None, fam_id=None, ind_id=None, pat_id=No
         The default value is ``0.0``. The missing value is ``0.0``.
     """
 
-    require_biallelic(dataset, 'export_plink')
-    require_row_key_variant_w_struct_locus(dataset, 'export_plink')
+    require_biallelic(dataset, 'export_plink', tolerate_generic_locus=True)
 
     if ind_id is None:
         require_col_key_str(dataset, "export_plink")
