@@ -7,6 +7,62 @@ from .tls import internal_client_ssl_context, external_client_ssl_context
 from .config.deploy_config import get_deploy_config
 
 
+class ClientResponseError(aiohttp.ClientResponseError):
+    def __init__(self,
+                 request_info: aiohttp.RequestInfo,
+                 history: Tuple[aiohttp.ClientResponse, ...],
+                 body: str = "",
+                 **kwargs):
+        super().__init__(request_info, history, **kwargs)
+        self.body = body
+
+    def __str__(self) -> str:
+        return "{}, message={!r}, url={!r} body={!r}".format(
+            self.status,
+            self.message,
+            self.request_info.real_url,
+            self.body
+        )
+
+    def __repr__(self) -> str:
+        args = f"{self.request_info!r}, {self.history!r}"
+        if self.status != 0:
+            args += f", status={self.status!r}"
+        if self.message != "":
+            args += f", message={self.message!r}"
+        if self.headers is not None:
+            args += f", headers={self.headers!r}"
+        if self.body is not None:
+            args += f", body={self.body!r}"
+        return "{}({})".format(type(self).__name__, args)
+
+
+class ClientSession(aiohttp.ClientSession):
+    async def _request(
+        self,
+        method: str,
+        str_or_url: aiohttp.client.StrOrURL,
+        **kwargs
+    ):
+        raise_for_status = kwargs.pop('raise_for_status', self._raise_for_status)
+        resp = await super()._request(method, str_or_url, **kwargs, raise_for_status=False)
+        if raise_for_status:
+            if 400 <= resp.status:
+                # reason should always be not None for a started response
+                assert resp.reason is not None
+                body = (await resp.read()).decode()
+                resp.release()
+                raise ClientResponseError(
+                    resp.request_info,
+                    resp.history,
+                    status=resp.status,
+                    message=resp.reason,
+                    headers=resp.headers,
+                    body=body
+                )
+        return resp
+
+
 def client_session(*args,
                    raise_for_status: bool = True,
                    timeout: Union[aiohttp.ClientTimeout, float] = None,
@@ -30,7 +86,7 @@ def client_session(*args,
         timeout = aiohttp.ClientTimeout(total=5)
     kwargs['timeout'] = timeout
 
-    return aiohttp.ClientSession(*args, **kwargs)
+    return ClientSession(*args, **kwargs)
 
 
 def blocking_client_session(*args, **kwargs) -> 'BlockingClientSession':

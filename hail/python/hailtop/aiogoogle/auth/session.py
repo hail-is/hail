@@ -2,6 +2,7 @@ from types import TracebackType
 from typing import Optional, Type, TypeVar, Mapping
 import abc
 import aiohttp
+import hailtop.httpx
 from hailtop.utils import request_retry_transient_errors, RateLimit, RateLimiter
 from .credentials import Credentials
 from .access_token import AccessToken
@@ -66,11 +67,10 @@ class Session(BaseSession):
     def __init__(self, *, credentials: Credentials = None, params: Optional[Mapping[str, str]] = None, **kwargs):
         if credentials is None:
             credentials = Credentials.default_credentials()
-
         if 'raise_for_status' not in kwargs:
             kwargs['raise_for_status'] = True
         self._params = params
-        self._session = aiohttp.ClientSession(**kwargs)
+        self._session = hailtop.httpx.ClientSession(**kwargs)
         self._access_token = AccessToken(credentials)
 
     async def request(self, method: str, url: str, **kwargs):
