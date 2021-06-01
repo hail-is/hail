@@ -46,7 +46,7 @@ class EFlattenedArray(override val required: Boolean, nestedRequiredness: Array[
       cb.assign(len, in.readInt())
       cb.ifx(!const(req) && len.cne(0) && (len > maxLen || maxLen.ceq(0)), {
         cb.assign(maxLen, len)
-        cb.assign(missing, r.allocate(1, UnsafeUtils.packBitsToBytes(maxLen)))
+        cb.assign(missing, r.allocate(const(1L), UnsafeUtils.packBitsToBytes(maxLen).toL))
       })
       if (!req) {
         cb += in.readBytes(r, missing, UnsafeUtils.packBitsToBytes(len))
