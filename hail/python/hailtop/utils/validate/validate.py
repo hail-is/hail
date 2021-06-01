@@ -141,7 +141,7 @@ class NullableValidator:
 
 
 class TruthyValidator:
-    def validate(self, name: str, obj):
+    def validate(self, name: str, obj):  # pylint: disable=unused-argument
         if not obj:
             raise ValidationError(f'{name} cannot be {obj}')
 
