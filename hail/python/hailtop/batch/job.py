@@ -379,6 +379,11 @@ class Job:
         if not isinstance(self._batch._backend, backend.ServiceBackend):
             raise NotImplementedError("A ServiceBackend is required to use the 'gcsfuse' option")
 
+        if bucket == '':
+            raise BatchException('bucket cannot be the empty string')
+        if mount_point == '':
+            raise BatchException('mount_point cannot be the empty string')
+
         self._gcsfuse.append((bucket, mount_point, read_only))
         return self
 
