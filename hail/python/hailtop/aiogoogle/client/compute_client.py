@@ -1,10 +1,9 @@
 import uuid
-import aiohttp
 from typing import Mapping, Any, Optional, MutableMapping
 import logging
 
 from .base_client import BaseClient
-from hailtop.utils import sleep_and_backoff
+from hailtop.utils import sleep_and_backoff, retry_transient_errors
 
 log = logging.getLogger('compute_client')
 
@@ -21,16 +20,9 @@ async def request_with_wait_for_done(request_f, path, params: MutableMapping[str
 
     delay = 0.2
     while True:
-        try:
-            resp = await request_f(path, params=params, **kwargs)
-        except aiohttp.ClientResponseError as e:
-            if e.status == 403:
-                log.info(f'Exceeded quota with request {path} and params {params}. Trying again in {delay}s')
-            else:
-                raise e
-        else:
-            if resp['status'] == 'DONE':
-                return resp
+        resp = await retry_transient_errors(request_f, path, params=params, **kwargs)
+        if resp['status'] == 'DONE':
+            return resp
         delay = await sleep_and_backoff(delay)
 
 

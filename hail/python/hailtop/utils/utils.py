@@ -23,7 +23,10 @@ import weakref
 from requests.adapters import HTTPAdapter
 from urllib3.poolmanager import PoolManager
 
+import hailtop.httpx
+
 from .time import time_msecs
+
 
 log = logging.getLogger('hailtop.utils')
 
@@ -598,6 +601,9 @@ def is_transient_error(e):
         # nginx returns 502 if it cannot connect to the upstream server
         # 408 request timeout, 500 internal server error, 502 bad gateway
         # 503 service unavailable, 504 gateway timeout
+        return True
+    if isinstance(e, hailtop.httpx.ClientResponseError) and (
+        e.status == 403 and 'Rate Limit Exceeded' in e.body):
         return True
     if isinstance(e, aiohttp.ServerTimeoutError):
         return True
