@@ -23,7 +23,7 @@ case class SCanonicalLocusPointer(pType: PCanonicalLocus) extends SLocus {
 
   override def rg: ReferenceGenome = pType.rg
 
-  def coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = {
+  def _coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = {
     new SCanonicalLocusPointerCode(this, pType.store(cb, region, value, deepCopy))
   }
 

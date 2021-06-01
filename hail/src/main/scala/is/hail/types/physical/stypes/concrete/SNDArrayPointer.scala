@@ -22,7 +22,7 @@ case class SNDArrayPointer(pType: PCanonicalNDArray) extends SNDArray {
 
   override def castRename(t: Type): SType = SNDArrayPointer(pType.deepRename(t))
 
-  def coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = {
+  def _coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = {
     new SNDArrayPointerCode(this, pType.store(cb, region, value, deepCopy))
   }
 

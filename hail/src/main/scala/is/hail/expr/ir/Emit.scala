@@ -845,7 +845,7 @@ class Emit[C](
         emitI(v)
           .map(cb)(pc => pc.st.castRename(_typ).fromCodes(pc.makeCodeTuple(cb)))
       case NA(typ) =>
-        IEmitCode(cb, const(true), typeWithReq.canonicalEmitType.st.defaultValue)
+        IEmitCode.missing(cb, SUnreachable.fromVirtualType(typ).defaultValue)
       case IsNA(v) =>
         val m = emitI(v).consumeCode(cb, true, _ => false)
         presentPC(primitive(m))
@@ -1022,7 +1022,7 @@ class Emit[C](
 
       case ArrayLen(a) =>
         emitI(a).map(cb) { (ac) =>
-          primitive(ac.asIndexable.loadLength())
+          primitive(ac.asIndexable.codeLoadLength())
         }
 
       case GetField(o, name) =>
@@ -2075,7 +2075,7 @@ class Emit[C](
           { sc => cb.assign(msg, sc.asString.loadString()) })
         cb._throw[HailException](Code.newInstance[HailException, String, Int](msg, errorId))
 
-        IEmitCode.present(cb, typeWithReq.canonicalEmitType.st.defaultValue)
+        IEmitCode.present(cb, SUnreachable.fromVirtualType(typ).defaultValue)
 
       case CastToArray(a) =>
         emitI(a).map(cb) { ind => ind.asIndexable.castToArray(cb) }
@@ -2677,7 +2677,7 @@ abstract class NDArrayEmitter(val outputShape: IndexedSeq[Value[Long]], val elem
 
     SNDArray.forEachIndexColMajor(cb, shapeArray, "ndarrayemitter_emitloops") { case (cb, idxVars) =>
       val element = IEmitCode.present(cb, outputElement(cb, idxVars)).consume(cb, {
-        cb._fatal("NDArray elements cannot  be missing")
+        cb._fatal("NDArray elements cannot be missing")
       }, { elementPc =>
         targetType.elementType.storeAtAddress(cb, firstElementAddress + (idx.toL * targetType.elementType.byteSize), region, elementPc, true)
       })

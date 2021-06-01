@@ -21,7 +21,7 @@ case class SIndexablePointer(pType: PContainer) extends SContainer {
 
   def elementEmitType: EmitType = EmitType(elementType, pType.elementType.required)
 
-  def coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = {
+  def _coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = {
     new SIndexablePointerCode(this, pType.store(cb, region, value, deepCopy))
   }
 
@@ -54,7 +54,7 @@ class SIndexablePointerCode(val st: SIndexablePointer, val a: Code[Long]) extend
 
   def makeCodeTuple(cb: EmitCodeBuilder): IndexedSeq[Code[_]] = FastIndexedSeq(a)
 
-  def loadLength(): Code[Int] = pt.loadLength(a)
+  def codeLoadLength(): Code[Int] = pt.loadLength(a)
 
   def memoize(cb: EmitCodeBuilder, name: String, sb: SettableBuilder): SIndexableValue = {
     val s = SIndexablePointerSettable(sb, st, name)
