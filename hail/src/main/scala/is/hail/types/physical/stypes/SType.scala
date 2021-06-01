@@ -44,6 +44,8 @@ trait SType {
 
   def nCodes: Int = codeTupleTypes().length
 
+  def nSettables: Int = settableTupleTypes().length
+
   def fromSettables(settables: IndexedSeq[Settable[_]]): SSettable
 
   def fromCodes(codes: IndexedSeq[Code[_]]): SCode
@@ -85,18 +87,30 @@ case class EmitType(st: SType, required: Boolean) {
       tc :+ BooleanInfo
   }
 
+  lazy val settableTupleTypes: IndexedSeq[TypeInfo[_]] = {
+    val tc = st.settableTupleTypes()
+    if (required)
+      tc
+    else
+      tc :+ BooleanInfo
+  }
+
   def fromCodes(codes: IndexedSeq[Code[_]]): EmitCode = {
     val scode = st.fromCodes(codes.take(st.nCodes))
     val m: Code[Boolean] = if (required) const(false) else coerce[Boolean](codes.last)
     val ec = EmitCode(Code._empty, m, scode)
-    assert(ec.required == required)
-    ec
+    if (ec.required && !this.required)
+      ec.setOptional
+    else
+      ec
   }
 
   def fromSettables(settables: IndexedSeq[Settable[_]]): EmitSettable = new EmitSettable(
     if (required) None else Some(coerce[Boolean](settables.last)),
-    st.fromSettables(settables.take(st.nCodes))
+    st.fromSettables(settables.take(st.nSettables))
   )
 
   def nCodes: Int = codeTupleTypes.length
+
+  def nSettables: Int = settableTupleTypes.length
 }

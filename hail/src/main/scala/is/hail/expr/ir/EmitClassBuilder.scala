@@ -928,7 +928,7 @@ class EmitMethodBuilder[C](
     emit(EmitCodeBuilder.scopedCode(this) { cb =>
       val res = f(cb)
       require(res.st.nCodes == 1)
-      res.codeTuple().head
+      res.makeCodeTuple(cb).head
     })
   }
 

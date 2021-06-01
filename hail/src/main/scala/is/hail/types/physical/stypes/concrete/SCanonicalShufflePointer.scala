@@ -75,7 +75,7 @@ class SCanonicalShufflePointerCode(val st: SCanonicalShufflePointer, val shuffle
 
   def code: Code[_] = shuffle.code
 
-  def codeTuple(): IndexedSeq[Code[_]] = shuffle.codeTuple()
+  def makeCodeTuple(cb: EmitCodeBuilder): IndexedSeq[Code[_]] = shuffle.makeCodeTuple(cb)
 
   def memoize(cb: EmitCodeBuilder, name: String, sb: SettableBuilder): SCanonicalShufflePointerSettable = {
     val s = SCanonicalShufflePointerSettable(sb, st, name)

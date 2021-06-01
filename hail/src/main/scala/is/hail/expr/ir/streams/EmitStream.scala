@@ -686,7 +686,7 @@ object EmitStream {
               cb.ifx(first, {
 
                 cb.assign(first, false)
-                cb.assign(accValueEltRegion, emit(zeroIR, cb, region = elementRegion))
+                cb.assign(accValueEltRegion, emit(zeroIR, cb, region = elementRegion).map(cb)(sc => sc.castTo(cb, elementRegion, accValueAccRegion.st)))
 
                 cb.goto(LcopyAndReturn)
               })

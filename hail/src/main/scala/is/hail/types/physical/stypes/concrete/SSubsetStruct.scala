@@ -85,7 +85,7 @@ class SSubsetStructSettable(val st: SSubsetStruct, prev: SStructSettable) extend
 }
 
 class SSubsetStructCode(val st: SSubsetStruct, val prev: SBaseStructCode) extends SBaseStructCode {
-  def codeTuple(): IndexedSeq[Code[_]] = prev.codeTuple()
+  def makeCodeTuple(cb: EmitCodeBuilder): IndexedSeq[Code[_]] = prev.makeCodeTuple(cb)
 
   def memoize(cb: EmitCodeBuilder, name: String): SBaseStructValue = {
     new SSubsetStructSettable(st, prev.memoize(cb, name).asInstanceOf[SStructSettable])

@@ -13,7 +13,7 @@ import is.hail.linalg.{BLAS, LAPACK, LinalgCodeUtils}
 import is.hail.services.shuffler._
 import is.hail.types.{TypeWithRequiredness, VirtualTypeWithReq}
 import is.hail.types.physical._
-import is.hail.types.physical.stypes.concrete.{SBaseStructPointerCode, SCanonicalShufflePointer, SCanonicalShufflePointerCode, SCanonicalShufflePointerSettable, SNDArrayPointer, SNDArrayPointerCode}
+import is.hail.types.physical.stypes.concrete.{SBaseStructPointerCode, SCanonicalShufflePointer, SCanonicalShufflePointerCode, SCanonicalShufflePointerSettable, SNDArrayPointer, SNDArrayPointerCode, SStackStruct}
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.physical.stypes.primitives.{SFloat32, SFloat64, SInt32, SInt32Code, SInt64}
 import is.hail.types.physical.stypes.{EmitType, Int32SingleCodeType, SCode, SSettable, SType, SValue, SingleCodeSCode, SingleCodeType}
@@ -392,12 +392,18 @@ class EmitCode(private val start: CodeLabel, private val iec: IEmitCode) {
     EmitCode.fromI(mb)(cb => toI(cb).map(cb)(_.castTo(cb, region, destType)))
   }
 
-  def codeTuple(): IndexedSeq[Code[_]] = {
-    val tc = pv.codeTuple()
-    if (required)
-      tc
-    else
-      tc :+ m
+  def makeCodeTuple(cb: EmitCodeBuilder): IndexedSeq[Code[_]] = {
+    val ct = if (required) {
+      toI(cb).get(cb).makeCodeTuple(cb)
+    } else {
+      val es = cb.emb.newEmitLocal("ec_makecodetuple", emitType)
+      cb.assign(es, toI(cb))
+      es.pv.makeCodeTuple(cb) :+ es.m
+    }
+
+    assert(ct.zip(emitParamType.codeTupleTypes).forall { case (p, pt) => p.ti == pt.ti},
+      s"ctt mismatch: $emitType\n  param: ${ct.map(_.ti)}\n  types: ${emitParamType.codeTupleTypes}")
+    ct
   }
 
   def missingIf(mb: EmitMethodBuilder[_], cond: Code[Boolean]): EmitCode =
@@ -436,6 +442,8 @@ class EmitSettable(
       case None => vs.settableTuple()
     }
   }
+
+  def m: Code[Boolean] = missing.map(_.load()).getOrElse(const(false))
 
   def load: EmitCode = {
     val ec = EmitCode(Code._empty,
@@ -762,7 +770,7 @@ class Emit[C](
         iec.map(cb)(pc => cast(cb, pc))
       case CastRename(v, _typ) =>
         emitI(v)
-          .map(cb)(pc => pc.st.castRename(_typ).fromCodes(pc.codeTuple()))
+          .map(cb)(pc => pc.st.castRename(_typ).fromCodes(pc.makeCodeTuple(cb)))
       case NA(typ) =>
         IEmitCode(cb, const(true), typeWithReq.canonicalEmitType.st.defaultValue)
       case IsNA(v) =>
@@ -825,27 +833,18 @@ class Emit[C](
         }
 
       case x@MakeStruct(fields) =>
-        val emitted = fields.map { case (name, x) =>
-          EmitCode.fromI(cb.emb)(cb => emitInNewBuilder(cb, x))
-        }.toFastIndexedSeq
-
-        val pt = PCanonicalStruct(fields.zip(emitted).map { case ((name, _), ec) => (name, ec.emitType.canonicalPType) }: _*)
-        val scode = pt.constructFromFields(cb,
-          region,
-          emitted,
-          deepCopy = false)
-        presentPC(scode)
+        presentPC(SStackStruct.constructFromArgs(cb, region, x.typ.asInstanceOf[TBaseStruct],
+          fields.map { case (_, x) =>
+            EmitCode.fromI(cb.emb)(cb => emitInNewBuilder(cb, x))
+          }: _*
+        ))
 
       case x@MakeTuple(fields) =>
-        val emitted = fields.map { case (idx, x) =>
-          EmitCode.fromI(cb.emb)(cb => emitInNewBuilder(cb, x))
-        }.toFastIndexedSeq
-        val pt = PCanonicalTuple(fields.zip(emitted).map { case ((idx, _), ec) => PTupleField(idx, ec.emitType.canonicalPType) }.toArray)
-        val scode = pt.constructFromFields(cb,
-          region,
-          emitted,
-          deepCopy = false)
-        presentPC(scode)
+        presentPC(SStackStruct.constructFromArgs(cb, region, x.typ.asInstanceOf[TBaseStruct],
+          fields.map { case (_, x) =>
+            EmitCode.fromI(cb.emb)(cb => emitInNewBuilder(cb, x))
+          }: _*
+        ))
 
       case x@SelectFields(oldStruct, fields) =>
         emitI(oldStruct)
@@ -972,14 +971,12 @@ class Emit[C](
 
       case GetField(o, name) =>
         emitI(o).flatMap(cb) { oc =>
-          val ov = oc.asBaseStruct.memoize(cb, "get_tup_elem_o")
-          ov.loadField(cb, name)
+          oc.asBaseStruct.loadSingleField(cb, name)
         }
 
       case GetTupleElement(o, i) =>
         emitI(o).flatMap(cb) { oc =>
-          val ov = oc.asBaseStruct.memoize(cb, "get_tup_elem_o")
-          ov.loadField(cb, oc.st.virtualType.asInstanceOf[TTuple].fieldIndex(i))
+          oc.asBaseStruct.loadSingleField(cb, o.typ.asInstanceOf[TTuple].fieldIndex(i))
         }
 
       case x@LowerBoundOnOrderedCollection(orderedCollection, elem, onKey) =>

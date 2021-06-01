@@ -82,7 +82,7 @@ class SBaseStructPointerCode(val st: SBaseStructPointer, val a: Code[Long]) exte
 
   def code: Code[_] = a
 
-  def codeTuple(): IndexedSeq[Code[_]] = FastIndexedSeq(a)
+  def makeCodeTuple(cb: EmitCodeBuilder): IndexedSeq[Code[_]] = FastIndexedSeq(a)
 
   def memoize(cb: EmitCodeBuilder, name: String, sb: SettableBuilder): SBaseStructValue = {
     val s = SBaseStructPointerSettable(sb, st, name)
