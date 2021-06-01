@@ -2703,6 +2703,21 @@ class MatrixTable(ExprContainer):
 
         >>> entries_table = dataset.entries()
 
+        Notes
+        -----
+        The coordinate table representation of the source matrix table contains
+        one row for each **non-filtered** entry of the matrix -- if a matrix table
+        has no filtered entries nad contains N rows and M columns, the table will contain
+        ``M * N`` rows, which can be **a very large number**.
+
+        This representation can be useful for aggregating over both axes of a matrix table
+        at the same time -- it is not possible to aggregate over a matrix table using
+        :meth:`group_rows_by` and :meth:`group_cols_by` at the same time (aggregating
+        by population and chromosome from a variant-by-sample genetics representation,
+        for instance). After moving to the coordinate representation with :meth:`entries`,
+        it is possible to group and aggregate the resulting table much more flexibly,
+        albeit with potentially poorer computational performance.
+
         Warning
         -------
         The table returned by this method should be used for aggregation or queries,
