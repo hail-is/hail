@@ -47,7 +47,7 @@ class ClientSession(aiohttp.ClientSession):
         raise_for_status = kwargs.pop('raise_for_status', self._raise_for_status)
         resp = await super()._request(method, str_or_url, **kwargs, raise_for_status=False)
         if raise_for_status:
-            if 400 <= resp.status:
+            if resp.status >= 400:
                 # reason should always be not None for a started response
                 assert resp.reason is not None
                 body = (await resp.read()).decode()
