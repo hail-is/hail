@@ -32,7 +32,7 @@ object EmitNDArray {
       x match {
         case NDArrayMap(child, elemName, body) => {
           deforest(child).map(cb) { childProducer =>
-            val elemRef = cb.emb.newPresentEmitField("ndarray_map_element_name", childProducer.elementType)
+            val elemRef = cb.emb.newEmitField("ndarray_map_element_name", childProducer.elementType, required = true)
             val bodyEnv = env.bind(elemName, elemRef)
             val bodyEC = EmitCode.fromI(cb.emb)(cb => emitI(body, cb, env = bodyEnv))
 
@@ -45,7 +45,7 @@ object EmitNDArray {
               override val stepAxis: IndexedSeq[(EmitCodeBuilder, Value[Long]) => Unit] = childProducer.stepAxis
 
               override def loadElementAtCurrentAddr(cb: EmitCodeBuilder): SCode = {
-                cb.assign(elemRef, childProducer.loadElementAtCurrentAddr(cb))
+                cb.assign(elemRef, EmitCode.present(cb.emb, childProducer.loadElementAtCurrentAddr(cb)))
                 bodyEC.toI(cb).get(cb, "NDArray map body cannot be missing")
               }
             }
@@ -57,12 +57,10 @@ object EmitNDArray {
               val leftShapeValues = leftProducer.shape
               val rightShapeValues = rightProducer.shape
 
-              val (newSetupShape, shapeArray) = NDArrayEmitter.unifyShapes2(cb.emb, leftShapeValues, rightShapeValues)
-              cb.append(newSetupShape)
+              val shapeArray = NDArrayEmitter.unifyShapes2(cb, leftShapeValues, rightShapeValues)
 
-
-              val lElemRef = cb.emb.newPresentEmitField(lName, leftProducer.elementType)
-              val rElemRef = cb.emb.newPresentEmitField(rName, rightProducer.elementType)
+              val lElemRef = cb.emb.newEmitField(lName, leftProducer.elementType, required = true)
+              val rElemRef = cb.emb.newEmitField(rName, rightProducer.elementType, required = true)
               val bodyEnv = env.bind(lName, lElemRef)
                 .bind(rName, rElemRef)
               val bodyEC = EmitCode.fromI(cb.emb)(cb => emitI(body, cb, env = bodyEnv))
@@ -91,9 +89,9 @@ object EmitNDArray {
 
                 override def loadElementAtCurrentAddr(cb: EmitCodeBuilder): SCode = {
                   //cb.println("Load left element")
-                  cb.assign(lElemRef, leftBroadcasted.loadElementAtCurrentAddr(cb))
+                  cb.assign(lElemRef, EmitCode.present(cb.emb, leftBroadcasted.loadElementAtCurrentAddr(cb)))
                   //cb.println("Load right element")
-                  cb.assign(rElemRef, rightBroadcasted.loadElementAtCurrentAddr(cb))
+                  cb.assign(rElemRef, EmitCode.present(cb.emb, rightBroadcasted.loadElementAtCurrentAddr(cb)))
 
                   bodyEC.toI(cb).get(cb, "NDArrayMap2 body cannot be missing")
                 }
@@ -534,10 +532,8 @@ object EmitNDArray {
 
               override def loadElementAtCurrentAddr(cb: EmitCodeBuilder): SCode = {
                 val offset = counters.foldLeft[Code[Long]](const(0L)){ (a, b) => a + b}
-                //cb.println("Fall through Counter values")
-                //cb.println(counters.map(_.toS.concat(" ")):_*)
                 // TODO: Safe to canonicalPType here?
-                val loaded = elementType.loadFrom(cb, region, ndPv.st.elementType.canonicalPType(), ndPv.firstDataAddress(cb) + offset)
+                val loaded = elementType.canonicalPType().loadCheapPCode(cb, ndPv.firstDataAddress(cb) + offset) //elementType.loadFrom(cb, region, ndPv.st.elementType.canonicalPType(), ndPv.firstDataAddress(cb) + offset)
                 val memoLoaded = loaded.memoize(cb, "temp_memo")
                 //cb.println("Looked up ", cb.strValue(memoLoaded))
                 memoLoaded.get
