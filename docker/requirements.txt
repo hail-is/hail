@@ -57,7 +57,7 @@ sortedcontainers==2.1.0
 tabulate==0.8.3
 tqdm==4.42.1
 twine>=1.11.0
-urllib3==1.26.4
+urllib3==1.26.5
 uvloop==0.14.0
 Werkzeug==0.15.4
 wheel>=0.31.0
