@@ -1,6 +1,7 @@
 """An experimental library for combining (g)VCFS into sparse matrix tables"""
 # these are necessary for the diver script included at the end of this file
 import math
+import os
 import uuid
 from typing import Optional, List, Tuple, Dict
 
@@ -291,49 +292,62 @@ def combine_gvcfs(mts):
     return unlocalize(combined)
 
 
-@typecheck(ht=hl.Table, n=int, reference_genome=reference_genome_type)
-def calculate_new_intervals(ht, n, reference_genome):
+@typecheck(mt=hl.MatrixTable, desired_average_partition_size=int, tmp_path=str)
+def calculate_new_intervals(mt, desired_average_partition_size: int, tmp_path: str):
     """takes a table, keyed by ['locus', ...] and produces a list of intervals suitable
-    for repartitioning a combiner matrix table
+    for repartitioning a combiner matrix table.
 
     Parameters
     ----------
-    ht : :class:`.Table`
-        Table / Rows Table to compute new intervals for
-    n : :obj:`int`
-        Number of rows each partition should have, (last partition may be smaller)
-    reference_genome: :class:`str` or :class:`.ReferenceGenome`, optional
-        Reference genome to use.
+    mt : :class:`.MatrixTable`
+        Sparse MT intermediate.
+    desired_average_partition_size : :obj:`int`
+        Average target number of rows for each partition.
+    tmp_path : :obj:`str`
+        Temporary path for scan checkpointing.
 
     Returns
     -------
     :obj:`List[Interval]`
     """
-    assert list(ht.key) == ['locus']
-    assert ht.locus.dtype == hl.tlocus(reference_genome=reference_genome)
+    assert list(mt.row_key) == ['locus']
+    assert isinstance(mt.locus.dtype, hl.tlocus)
+    reference_genome = mt.locus.dtype.reference_genome
     end = hl.Locus(reference_genome.contigs[-1],
                    reference_genome.lengths[reference_genome.contigs[-1]],
                    reference_genome=reference_genome)
 
-    n_rows = ht.count()
+    (n_rows, n_cols) = mt.count()
 
     if n_rows == 0:
         raise ValueError('empty table!')
 
-    ht = ht.select()
-    ht = ht.annotate(x=hl.scan.count())
-    ht = ht.annotate(y=ht.x + 1)
-    ht = ht.filter((ht.x // n != ht.y // n) | (ht.x == (n_rows - 1)))
-    ht = ht.select()
+    # split by a weight function that takes into account the number of
+    # dense entries per row. However, give each row some base weight
+    # to prevent densify computations from becoming unbalanced (these
+    # scale roughly linearly with N_ROW * N_COL)
+    ht = mt.select_rows(weight=hl.agg.count() + (n_cols // 25) + 1).rows().checkpoint(tmp_path)
+
+    total_weight = ht.aggregate(hl.agg.sum(ht.weight))
+    partition_weight = int(total_weight / (n_rows / desired_average_partition_size))
+
+    ht = ht.annotate(cumulative_weight=hl.scan.sum(ht.weight),
+                     last_weight=hl.scan._prev_nonnull(ht.weight),
+                     row_idx=hl.scan.count())
+
+    def partition_bound(x):
+        return x - (x % hl.int64(partition_weight))
+
+    at_partition_bound = partition_bound(ht.cumulative_weight) != partition_bound(ht.cumulative_weight - ht.last_weight)
+
+    ht = ht.filter(at_partition_bound | (ht.row_idx == n_rows - 1))
     ht = ht.annotate(start=hl.or_else(
         hl.scan._prev_nonnull(hl.locus_from_global_position(ht.locus.global_position() + 1,
                                                             reference_genome=reference_genome)),
         hl.locus_from_global_position(0, reference_genome=reference_genome)))
-    ht = ht.key_by()
     ht = ht.select(interval=hl.interval(start=ht.start, end=ht.locus, includes_end=True))
 
     intervals = ht.aggregate(hl.agg.collect(ht.interval))
-
     last_st = hl.eval(
         hl.locus_from_global_position(hl.literal(intervals[-1].end).global_position() + 1,
                                       reference_genome=reference_genome))
@@ -644,9 +658,9 @@ def run_combiner(sample_paths: List[str],
         info(f"Starting phase {phase_i}/{n_phases}, merging {len(files_to_merge)} {merge_str} in {n_jobs} {job_str}.")
 
         if phase_i > 1:
-            intervals = calculate_new_intervals(hl.read_matrix_table(files_to_merge[0]).rows(),
+            intervals = calculate_new_intervals(hl.read_matrix_table(files_to_merge[0]),
                                                 config.target_records,
-                                                reference_genome=reference_genome)
+                                                os.path.join(tmp_path, f'phase{phase_i}_interval_checkpoint.ht'))
 
         new_files_to_merge = []
 
