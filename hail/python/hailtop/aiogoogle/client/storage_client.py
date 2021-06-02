@@ -478,10 +478,10 @@ class GoogleStorageMultiPartCreate(MultiPartCreate):
     def _part_name(self, number: int) -> str:
         return self._tmp_name(f'part-{number}')
 
-    async def create_part(self, number: int, start: int, *, retry_writes: bool = True) -> WritableStream:
+    async def create_part(self, number: int, start: int) -> WritableStream:
         part_name = self._part_name(number)
         params = {
-            'uploadType': 'resumable' if retry_writes else 'media'
+            'uploadType': 'media'
         }
         return await self._fs._storage_client.insert_object(self._bucket, part_name, params=params)
 
@@ -734,17 +734,12 @@ class GoogleStorageAsyncFS(AsyncFS):
 
     async def remove(self, url: str) -> None:
         bucket, name = self._get_bucket_name(url)
-        await self._storage_client.delete_object(bucket, name)
-
-    async def _remove_doesnt_exist_ok(self, url: str) -> None:
         try:
-            bucket, name = self._get_bucket_name(url)
             await self._storage_client.delete_object(bucket, name)
-        except FileNotFoundError:
-            pass
         except aiohttp.ClientResponseError as e:
-            if e.status != 404:
-                raise
+            if e.status == 404:
+                raise FileNotFoundError(url) from e
+            raise
 
     async def _rmtree(self, sema: asyncio.Semaphore, url: str) -> None:
         async with OnlineBoundedGather2(sema) as pool:

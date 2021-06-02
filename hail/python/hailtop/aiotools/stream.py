@@ -1,7 +1,9 @@
-from typing import Optional, Type, BinaryIO
+from typing import BinaryIO, Optional, Tuple, Type
 from types import TracebackType
 import abc
+import io
 from concurrent.futures import ThreadPoolExecutor
+import janus
 from hailtop.utils import blocking_to_async
 
 
@@ -92,6 +94,8 @@ class _ReadableStreamFromBlocking(ReadableStream):
         self._f = f
 
     async def read(self, n: int = -1) -> bytes:
+        if n == -1:
+            return await blocking_to_async(self._thread_pool, self._f.read)
         return await blocking_to_async(self._thread_pool, self._f.read, n)
 
     async def _wait_closed(self) -> None:
@@ -125,3 +129,74 @@ def blocking_readable_stream_to_async(thread_pool: ThreadPoolExecutor, f: Binary
 
 def blocking_writable_stream_to_async(thread_pool: ThreadPoolExecutor, f: BinaryIO) -> _WritableStreamFromBlocking:
     return _WritableStreamFromBlocking(thread_pool, f)
+
+
+class BlockingQueueReadableStream(io.RawIOBase):
+    # self.closed and self.close() must be multithread safe, because
+    # they can be accessed by both the stream reader and writer which
+    # are in different threads.
+    def __init__(self, q: janus.Queue):
+        super().__init__()
+        self._q = q
+        self._saw_eos = False
+        self._closed = False
+        self._unread = b''
+
+    def readable(self) -> bool:
+        return True
+
+    def readinto(self, b: bytearray) -> int:
+        if self._closed:
+            raise ValueError('read on closed stream')
+        if self._saw_eos:
+            return 0
+
+        if not self._unread:
+            self._unread = self._q.sync_q.get()
+            if self._unread is None:
+                self._saw_eos = True
+                return 0
+        assert self._unread
+
+        n = min(len(self._unread), len(b))
+        b[:n] = self._unread[:n]
+        self._unread = self._unread[n:]
+        return n
+
+    def close(self):
+        self._closed = True
+        # drain the q so the writer doesn't deadlock
+        while not self._saw_eos:
+            c = self._q.sync_q.get()
+            if c is None:
+                self._saw_eos = True
+
+
+class AsyncQueueWritableStream(WritableStream):
+    def __init__(self, q: janus.Queue, blocking_readable: BlockingQueueReadableStream):
+        super().__init__()
+        self._sent_eos = False
+        self._q = q
+        self._blocking_readable = blocking_readable
+
+    async def write(self, b: bytes) -> int:
+        if self._blocking_readable._closed:
+            if not self._sent_eos:
+                await self._q.async_q.put(None)
+                self._sent_eos = True
+            raise ValueError('reader closed')
+        if b:
+            await self._q.async_q.put(b)
+        return len(b)
+
+    async def _wait_closed(self) -> None:
+        if not self._sent_eos:
+            await self._q.async_q.put(None)
+            self._sent_eos = True
+
+
+def async_writable_blocking_readable_stream_pair() -> Tuple[AsyncQueueWritableStream, BlockingQueueReadableStream]:
+    q: janus.Queue = janus.Queue(maxsize=1)
+    blocking_readable = BlockingQueueReadableStream(q)
+    async_writable = AsyncQueueWritableStream(q, blocking_readable)
+    return async_writable, blocking_readable
