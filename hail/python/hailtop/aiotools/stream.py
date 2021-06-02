@@ -153,7 +153,7 @@ class BlockingQueueReadableStream(io.RawIOBase):
 
         if not self._unread:
             self._unread = self._q.sync_q.get()
-            if self._unead is None:
+            if self._unread is None:
                 self._saw_eos = True
                 return 0
         assert self._unread

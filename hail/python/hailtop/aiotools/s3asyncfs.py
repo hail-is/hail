@@ -68,17 +68,17 @@ class S3ListFilesFileStatus(FileStatus):
         return self._item['Size']
 
     async def __getitem__(self, key: str) -> Any:
-        return self._item.get(key)
+        return self._item[key]
 
 
 class S3CreateManager(AsyncContextManager[WritableStream]):
-    def __init__(self, fs, bucket, name):
-        self.fs = fs
-        self.bucket = bucket
-        self.name = name
-        self.async_writable = None
-        self.put_task = None
-        self._value = None
+    def __init__(self, fs: 'S3AsyncFS', bucket: str, name: str):
+        self.fs: S3AsyncFS = fs
+        self.bucket: str = bucket
+        self.name: str = name
+        self.async_writable: Optional[AsyncQueueWritableStream] = None
+        self.put_task: Optional[asyncio.Task] = None
+        self._value: Any = None
 
     async def __aenter__(self) -> WritableStream:
         async_writable, blocking_readable = async_writable_blocking_readable_stream_pair()
@@ -94,7 +94,9 @@ class S3CreateManager(AsyncContextManager[WritableStream]):
             self, exc_type: Optional[Type[BaseException]] = None,
             exc_value: Optional[BaseException] = None,
             exc_traceback: Optional[TracebackType] = None) -> None:
+        assert self.async_writable
         await self.async_writable.wait_closed()
+        assert self.put_task
         self._value = await self.put_task
 
 
@@ -352,7 +354,7 @@ class S3AsyncFS(AsyncFS):
     async def listfiles(self, url: str, recursive: bool = False) -> AsyncIterator[FileListEntry]:
         bucket, name = self._get_bucket_name(url)
         if name and not name.endswith('/'):
-            name = name + '/'
+            name += '/'
         if recursive:
             it = self._listfiles_recursive(bucket, name)
         else:
