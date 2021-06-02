@@ -563,6 +563,20 @@ def test_batch_create_validation():
         # token None/missing
         {'billing_project': 'foo', 'n_jobs': 5, 'token': None},
         {'billing_project': 'foo', 'n_jobs': 5},
+        # empty gcsfuse bucket name
+        {
+            'billing_project': 'foo',
+            'n_jobs': 5,
+            'token': 'baz',
+            'gcsfuse': [{'bucket': '', 'mount_path': '/bucket', 'read_only': False}],
+        },
+        # empty gcsfuse mount_path name
+        {
+            'billing_project': 'foo',
+            'n_jobs': 5,
+            'token': 'baz',
+            'gcsfuse': [{'bucket': 'foo', 'mount_path': '', 'read_only': False}],
+        },
         # attribute key/value None
         {'attributes': {'k': None}, 'billing_project': 'foo', 'n_jobs': 5, 'token': 'baz'},
     ]

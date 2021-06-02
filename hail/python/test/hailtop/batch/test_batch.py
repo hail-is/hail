@@ -8,6 +8,7 @@ import google.oauth2.service_account
 import google.cloud.storage
 
 from hailtop.batch import Batch, ServiceBackend, LocalBackend
+from hailtop.batch.exceptions import BatchException
 from hailtop.batch.globals import arg_max
 from hailtop.utils import grouped
 from hailtop.config import get_user_config
@@ -608,6 +609,14 @@ class ServiceTests(unittest.TestCase):
 
         res = b.run()
         assert res.status()['state'] == 'success', debug_info(res)
+
+    def test_gcsfuse_empty_string_bucket_fails(self):
+        b = self.batch()
+        j = b.new_job()
+        with self.assertRaises(BatchException):
+            j.gcsfuse('', '/empty_bucket')
+        with self.assertRaises(BatchException):
+            j.gcsfuse(self.bucket_name, '')
 
     def test_requester_pays(self):
         b = self.batch(requester_pays_project='hail-vdc')

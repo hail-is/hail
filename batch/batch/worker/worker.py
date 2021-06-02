@@ -604,6 +604,7 @@ def populate_secret_host_path(host_path, secret_data):
 
 
 async def add_gcsfuse_bucket(mount_path, bucket, key_file, read_only):
+    assert bucket
     os.makedirs(mount_path)
     options = ['allow_other']
     if read_only:

@@ -20,6 +20,7 @@ from hailtop.utils.validate import (
     regex,
     required,
     str_type,
+    non_empty_str_type,
     switch,
     ValidationError,
 )
@@ -48,8 +49,8 @@ job_validator = keyed(
         'gcsfuse': listof(
             keyed(
                 {
-                    required('bucket'): str_type,
-                    required('mount_path'): str_type,
+                    required('bucket'): non_empty_str_type,
+                    required('mount_path'): non_empty_str_type,
                     required('read_only'): bool_type,
                 }
             )
