@@ -101,6 +101,11 @@
   </tbody>
 </table>
 
+{% if error is not none %}
+<h2>Error</h2>
+<pre>{{ error }}</pre>
+{% endif %}
+
 {% if job_log %}
 <h2>Log</h2>
 
@@ -108,16 +113,26 @@
 <h3>Input</h3>
 <pre>{{ job_log['input'] }}</pre>
 {% endif %}
+{% if 'input' in step_errors and step_errors['input'] is not none %}
+<pre>{{ step_errors['input'] }}</pre>
+{% endif %}
 
 {% if 'main' in job_log %}
 <h3>Main</h3>
 <pre>{{ job_log['main'] }}</pre>
+{% endif %}
+{% if 'main' in step_errors and step_errors['main'] is not none %}
+<pre>{{ step_errors['main'] }}</pre>
 {% endif %}
 
 {% if 'output' in job_log %}
 <h3>Output</h3>
 <pre>{{ job_log['output'] }}</pre>
 {% endif %}
+{% if 'output' in step_errors and step_errors['output'] is not none %}
+<pre>{{ step_errors['output'] }}</pre>
+{% endif %}
+
 {% endif %}
 
 <h2>Job Specification</h2>

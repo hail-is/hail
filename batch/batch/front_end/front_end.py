@@ -339,7 +339,7 @@ async def _get_job_log_from_record(app, batch_id, job_id, record):
             except google.api_core.exceptions.NotFound:
                 id = (batch_id, job_id)
                 log.exception(f'missing log file for {id} and task {task}')
-                data = 'ERROR: could not read log file'
+                data = 'ERROR: could not find log file'
             return task, data
 
         spec = json.loads(record['spec'])
@@ -1392,6 +1392,7 @@ async def ui_get_job(request, userdata, batch_id):
                 'running': dictfix.NoneOr({'duration': dictfix.NoneOr(Number)}),
             },
             'short_error': dictfix.NoneOr(str),
+            'error': dictfix.NoneOr(str),
             'container_status': {'out_of_memory': dictfix.NoneOr(bool)},
             'state': str,
         }
@@ -1406,6 +1407,7 @@ async def ui_get_job(request, userdata, batch_id):
     job_status = dictfix.dictfix(job_status, job_status_spec)
     container_statuses = job_status['container_statuses']
     step_statuses = [container_statuses['input'], container_statuses['main'], container_statuses['output']]
+    step_errors = {step: status['error'] for step, status in container_statuses.items() if status is not None}
 
     for status in step_statuses:
         # backwards compatibility
@@ -1444,6 +1446,8 @@ async def ui_get_job(request, userdata, batch_id):
         'step_statuses': step_statuses,
         'job_specification': job_specification,
         'job_status_str': json.dumps(job, indent=2),
+        'step_errors': step_errors,
+        'error': job_status.get('error')
     }
     return await render_template('batch', request, userdata, 'job.html', page_context)
 
