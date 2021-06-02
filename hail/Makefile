@@ -327,7 +327,7 @@ HAIL_CACHE_VERSION = $(shell cat python/hail/hail_version)
 .PHONY: hail-docs
 hail-docs: $(PYTHON_VERSION_INFO) python/hail/docs/change_log.rst
 	$(MAKE) -C python/hail/docs \
-	        SPHINXOPTS='-tchecktutorial' \
+	        SPHINXOPTS='-tgenerate_notebook_outputs' \
 	        BUILDDIR=$(HAIL_DIR)/build/docs/hail \
 	        html
 	mkdir -p build/www/docs

@@ -1763,7 +1763,7 @@ steps:
     script: |
       set -ex
       export HAIL_SHORT_VERSION='0.2'
-      export SPHINXOPTS='-tchecktutorial'
+      export SPHINXOPTS='-tgenerate_notebook_outputs'
 
       mkdir -p {{ token }}/python
       cd {{ token }}
@@ -1825,6 +1825,7 @@ steps:
           git checkout $(cat hail/python/hail/hail_pip_version) || true
       fi
 
+      export SPHINXOPTS='-tgenerate_notebook_outputs'
       PYTHONPATH=$PYTHONPATH:$(pwd)/hail/python make -C hail hail-docs-no-test batch-docs
 
       tar czf /io/docs.tar.gz -C hail/build/www .
