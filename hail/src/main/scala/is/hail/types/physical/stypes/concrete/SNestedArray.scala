@@ -57,7 +57,13 @@ case class SNestedArray(levels: Int, baseContainerType: SContainer) extends SCon
 
   def canonicalPType(): PType = ???
 
-  def castRename(t: Type): SType = ???
+  def castRename(t: Type): SType = t match {
+    case TArray(t: TArray) =>
+      castRename(t) // FIXME: does no checks
+    case TArray(_) =>
+      val st = baseContainerType.castRename(t)
+      SNestedArray(levels, st.asInstanceOf[SContainer])
+  }
 }
 
 class SNestedArraySettable(
@@ -75,6 +81,7 @@ class SNestedArraySettable(
   }
 
   def loadLength(): Value[Int] = length
+
   def isElementMissing(i: Code[Int]): Code[Boolean] = if (st.levels == 0)
     values.isElementMissing(i + start)
   else if (missing(0) == null)
@@ -90,10 +97,15 @@ class SNestedArraySettable(
       new SNestedArrayCode(st.elementType.asInstanceOf, loadOffset(iv), loadOffset(iv + 1), missing.tail, offsets.tail, values.get))
   }
 
-  def hasMissingValues(cb: EmitCodeBuilder): Code[Boolean] = if (missing(0) == null)
-    const(false)
-  else
-    Region.containsNonZeroBits(offsets(0), loadLength().toL)
+  def hasMissingValues(cb: EmitCodeBuilder): Code[Boolean] = {
+    // FIXME: need to slice a bitvector to properly handle this
+    if (st.levels == 0)
+      values.hasMissingValues(cb) // wrong
+    else if (missing(0) == null)
+      const(false)
+    else
+      Region.containsNonZeroBits(missing(0), loadLength().toL) // also wrong
+  }
 
   def get: SIndexableCode = new SNestedArrayCode(st, start, end, missing, offsets, values.get)
 
@@ -109,7 +121,7 @@ class SNestedArraySettable(
   def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(start, end) ++ missing ++ offsets ++ values.settableTuple()
 
   def loadOffset(i: Code[Int]): Code[Int] = {
-    Region.loadInt(offsets(0) + (i * 4).toL)
+    Region.loadInt(offsets(0) + (i + start).toL * 4L)
   }
 }
 
