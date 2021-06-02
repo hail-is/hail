@@ -151,12 +151,12 @@ class BlockingQueueReadableStream(io.RawIOBase):
         if self._saw_eos:
             return 0
 
-        while not self._unread:
-            c = self._q.sync_q.get()
-            if c is None:
+        if not self._unread:
+            self._unread = self._q.sync_q.get()
+            if self._unead is None:
                 self._saw_eos = True
                 return 0
-            self._unread = c
+        assert self._unread
 
         n = min(len(self._unread), len(b))
         b[:n] = self._unread[:n]
@@ -185,7 +185,8 @@ class AsyncQueueWritableStream(WritableStream):
                 await self._q.async_q.put(None)
                 self._sent_eos = True
             raise ValueError('reader closed')
-        await self._q.async_q.put(b)
+        if b:
+            await self._q.async_q.put(b)
         return len(b)
 
     async def _wait_closed(self) -> None:

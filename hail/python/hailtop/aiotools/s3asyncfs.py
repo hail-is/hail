@@ -406,8 +406,16 @@ class S3AsyncFS(AsyncFS):
         except self._s3.exceptions.NoSuchKey as e:
             raise FileNotFoundError(url) from e
 
-    async def rmtree(self, sema: asyncio.Semaphore, url: str) -> None:
+    async def _rmtree(self, sema: asyncio.Semaphore, url: str) -> None:
         await self._rmtree_with_recursive_listfiles(sema, url)
+
+    async def rmtree(self, sema: Optional[asyncio.Semaphore], url: str) -> None:
+        if sema is None:
+            sema = asyncio.Semaphore(50)
+            async with sema:
+                return await self._rmtree(sema, url)
+
+        return await self._rmtree(sema, url)
 
     async def close(self) -> None:
         pass
