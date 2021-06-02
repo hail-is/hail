@@ -291,10 +291,13 @@ object EmitNDArray {
                     val curIdxVar = idxVars(idx)
                     cb.assign(curIdxVar, curIdxVar + step)
                     if (idx == axis) {
-                      cb.whileLoop(curIdxVar >= stagedArrayOfSizes.loadElement(cb, currentNDArrayIdx).get(cb).asInt64.longCode(cb),
+                      // If bigger than current ndarray, then we need to subtract out the size of this ndarray, increment to the next ndarray, and see if we are happy yet.
+                      val shouldLoop = cb.newLocal[Boolean]("should_loop", curIdxVar >= stagedArrayOfSizes.loadElement(cb, currentNDArrayIdx).get(cb).asInt64.longCode(cb))
+                      cb.whileLoop(shouldLoop,
                         {
                           cb.assign(curIdxVar, curIdxVar - stagedArrayOfSizes.loadElement(cb, currentNDArrayIdx).get(cb).asInt64.longCode(cb))
                           cb.assign(currentNDArrayIdx, currentNDArrayIdx + 1)
+                          cb.assign(shouldLoop, currentNDArrayIdx < newShape.size && (curIdxVar >= stagedArrayOfSizes.loadElement(cb, currentNDArrayIdx).get(cb).asInt64.longCode(cb)))
                         }
                       )
                     }
@@ -533,7 +536,6 @@ object EmitNDArray {
                 // TODO: Safe to canonicalPType here?
                 val loaded = elementType.canonicalPType().loadCheapPCode(cb, ndPv.firstDataAddress(cb) + offset) //elementType.loadFrom(cb, region, ndPv.st.elementType.canonicalPType(), ndPv.firstDataAddress(cb) + offset)
                 val memoLoaded = loaded.memoize(cb, "temp_memo")
-                //cb.println("Looked up ", cb.strValue(memoLoaded))
                 memoLoaded.get
               }
             }
