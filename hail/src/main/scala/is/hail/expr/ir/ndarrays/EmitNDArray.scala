@@ -284,18 +284,16 @@ object EmitNDArray {
                     }
                   })
                 override val stepAxis: IndexedSeq[(EmitCodeBuilder, Value[Long]) => Unit] = {
-                  // For all boring axes, just add to corrsponding indexVar. For the single interesting axis,
+                  // For all boring axes, just add to corresponding indexVar. For the single interesting axis,
                   // also consider updating the currently tracked ndarray.
                   shape.indices.map( idx => (cb: EmitCodeBuilder, step: Value[Long]) => {
                     // Start by updating the idxVar by the step
                     val curIdxVar = idxVars(idx)
                     cb.assign(curIdxVar, curIdxVar + step)
                     if (idx == axis) {
-                      // If its too big, panic.
-                      val sizeOfCurrentND = cb.newLocal[Long]("ndarray_concat_current_nd_size", stagedArrayOfSizes.loadElement(cb, currentNDArrayIdx).get(cb).asInt64.longCode(cb))
-                      cb.ifx(curIdxVar >= sizeOfCurrentND,
+                      cb.whileLoop(curIdxVar >= stagedArrayOfSizes.loadElement(cb, currentNDArrayIdx).get(cb).asInt64.longCode(cb),
                         {
-                          cb.assign(curIdxVar, curIdxVar % sizeOfCurrentND)
+                          cb.assign(curIdxVar, curIdxVar - stagedArrayOfSizes.loadElement(cb, currentNDArrayIdx).get(cb).asInt64.longCode(cb))
                           cb.assign(currentNDArrayIdx, currentNDArrayIdx + 1)
                         }
                       )
