@@ -18,12 +18,6 @@ export function usePollingApi<T>(apiPath: string): Maybe<T> {
   return value
 }
 
-// TODO This closes the websocket when the component using this
-// hook is unmounted. It is not clear to me what the best overall
-// strategy is around websockets, and whether we want to prioritize
-// simple 1:1 socket to REST url or minimize number of opening and
-// closing connections with a more complicated method of passing
-// messages.
 export function useStreamingApi<T>(apiPath: string): Maybe<T> {
   const [value, setValue] = useState<Maybe<T>>(undefined)
 
