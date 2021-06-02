@@ -24,7 +24,6 @@ from hail.matrixtable import MatrixTable
 from .py4j_backend import Py4JBackend, handle_java_exception
 from ..hail_logging import Logger
 
-
 if pyspark.__version__ < '3' and sys.version_info > (3, 8):
     raise EnvironmentError('Hail with spark {} requires Python 3.6 or 3.7, found {}.{}'.format(
         pyspark.__version__, sys.version_info.major, sys.version_info.minor))
@@ -311,7 +310,8 @@ class SparkBackend(Py4JBackend):
         t = t.expand_types()
         if flatten:
             t = t.flatten()
-        return pyspark.sql.DataFrame(self._jbackend.pyToDF(self._to_java_table_ir(t._tir)), Env.spark_session()._wrapped)
+        return pyspark.sql.DataFrame(self._jbackend.pyToDF(self._to_java_table_ir(t._tir)),
+                                     Env.spark_session()._wrapped)
 
     def to_pandas(self, t, flatten):
         return self.to_spark(t, flatten).toPandas()
@@ -382,4 +382,3 @@ class SparkBackend(Py4JBackend):
 
         results = self._jhc.backend().pyReadMultipleMatrixTables(json.dumps(json_repr))
         return [MatrixTable._from_java(jm) for jm in results]
-
