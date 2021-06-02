@@ -86,7 +86,8 @@ class SNestedArraySettable(
     values.loadElement(cb, i + start)
   } else {
     val iv = cb.newLocal("iv", i)
-    IEmitCode(cb, isElementMissing(iv), ???)
+    IEmitCode(cb, isElementMissing(iv),
+      new SNestedArrayCode(st.elementType.asInstanceOf, loadOffset(iv), loadOffset(iv + 1), missing.tail, offsets.tail, values.get))
   }
 
   def hasMissingValues(cb: EmitCodeBuilder): Code[Boolean] = if (missing(0) == null)
@@ -106,6 +107,10 @@ class SNestedArraySettable(
   }
 
   def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(start, end) ++ missing ++ offsets ++ values.settableTuple()
+
+  def loadOffset(i: Code[Int]): Code[Int] = {
+    Region.loadInt(offsets(0) + (i * 4).toL)
+  }
 }
 
 class SNestedArrayCode(
