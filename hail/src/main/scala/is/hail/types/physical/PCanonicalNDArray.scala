@@ -359,7 +359,7 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
           cb.append(region.trackNDArray(storedAddress))
         }
         storedAddress
-      case SNDArrayPointer(t) =>
+      case _ =>
         val oldND = value.asNDArray.memoize(cb, "pcanonical_ndarray_store_old")
         val shape = oldND.shapes(cb)
         val newStrides = makeColumnMajorStrides(shape, region, cb)
