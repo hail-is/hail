@@ -8,6 +8,9 @@ from threading import Thread
 import py4j
 import pyspark
 
+from typing import List
+
+import hail as hl
 from hail.utils.java import Env, scala_package_object, scala_object
 from hail.expr.types import dtype
 from hail.expr.table_type import ttable
@@ -20,7 +23,6 @@ from hail.matrixtable import MatrixTable
 
 from .py4j_backend import Py4JBackend, handle_java_exception
 from ..hail_logging import Logger
-
 
 if pyspark.__version__ < '3' and sys.version_info > (3, 8):
     raise EnvironmentError('Hail with spark {} requires Python 3.6 or 3.7, found {}.{}'.format(
@@ -308,7 +310,8 @@ class SparkBackend(Py4JBackend):
         t = t.expand_types()
         if flatten:
             t = t.flatten()
-        return pyspark.sql.DataFrame(self._jbackend.pyToDF(self._to_java_table_ir(t._tir)), Env.spark_session()._wrapped)
+        return pyspark.sql.DataFrame(self._jbackend.pyToDF(self._to_java_table_ir(t._tir)),
+                                     Env.spark_session()._wrapped)
 
     def to_pandas(self, t, flatten):
         return self.to_spark(t, flatten).toPandas()
@@ -369,3 +372,13 @@ class SparkBackend(Py4JBackend):
 
     def persist_ir(self, ir):
         return JavaIR(self._jhc.backend().executeLiteral(self._to_java_value_ir(ir)))
+
+    def read_multiple_matrix_tables(self, paths: 'List[str]', intervals: 'List[hl.Interval]', intervals_type):
+        json_repr = {
+            'paths': paths,
+            'intervals': intervals_type._convert_to_json(intervals),
+            'intervalPointType': intervals_type.element_type.point_type._parsable_string(),
+        }
+
+        results = self._jhc.backend().pyReadMultipleMatrixTables(json.dumps(json_repr))
+        return [MatrixTable._from_java(jm) for jm in results]

@@ -12,7 +12,7 @@ from hail.expr.expressions import expr_bool, expr_str
 from hail.genetics.reference_genome import reference_genome_type
 from hail.ir import Apply, TableMapRows, MatrixKeyRowsBy, TopLevelReference
 from hail.typecheck import oneof, sequenceof, typecheck
-from hail.utils.java import info, warning
+from hail.utils.java import info, warning, Env
 
 _transform_rows_function_map = {}
 _merge_function_map = {}
@@ -308,7 +308,7 @@ def calculate_new_intervals(mt, desired_average_partition_size: int, tmp_path: s
 
     Returns
     -------
-    :obj:`List[Interval]`
+    (:obj:`List[Interval]`, :obj:`.Type`)
     """
     assert list(mt.row_key) == ['locus']
     assert isinstance(mt.locus.dtype, hl.tlocus)
@@ -345,15 +345,17 @@ def calculate_new_intervals(mt, desired_average_partition_size: int, tmp_path: s
         hl.scan._prev_nonnull(hl.locus_from_global_position(ht.locus.global_position() + 1,
                                                             reference_genome=reference_genome)),
         hl.locus_from_global_position(0, reference_genome=reference_genome)))
-    ht = ht.select(interval=hl.interval(start=ht.start, end=ht.locus, includes_end=True))
+    ht = ht.select(
+        interval=hl.interval(start=hl.struct(locus=ht.start), end=hl.struct(locus=ht.locus), includes_end=True))
 
+    intervals_dtype = hl.tarray(ht.interval.dtype)
     intervals = ht.aggregate(hl.agg.collect(ht.interval))
     last_st = hl.eval(
-        hl.locus_from_global_position(hl.literal(intervals[-1].end).global_position() + 1,
+        hl.locus_from_global_position(hl.literal(intervals[-1].end.locus).global_position() + 1,
                                       reference_genome=reference_genome))
-    interval = hl.Interval(start=last_st, end=end, includes_end=True)
+    interval = hl.Interval(start=hl.Struct(locus=last_st), end=hl.Struct(locus=end), includes_end=True)
     intervals.append(interval)
-    return intervals
+    return intervals, intervals_dtype
 
 
 @typecheck(reference_genome=reference_genome_type, interval_size=int)
@@ -658,9 +660,10 @@ def run_combiner(sample_paths: List[str],
         info(f"Starting phase {phase_i}/{n_phases}, merging {len(files_to_merge)} {merge_str} in {n_jobs} {job_str}.")
 
         if phase_i > 1:
-            intervals = calculate_new_intervals(hl.read_matrix_table(files_to_merge[0]),
-                                                config.target_records,
-                                                os.path.join(tmp_path, f'phase{phase_i}_interval_checkpoint.ht'))
+            intervals, intervals_dtype = calculate_new_intervals(hl.read_matrix_table(files_to_merge[0]),
+                                                                 config.target_records,
+                                                                 os.path.join(tmp_path,
+                                                                              f'phase{phase_i}_interval_checkpoint.ht'))
 
         new_files_to_merge = []
 
@@ -685,7 +688,8 @@ def run_combiner(sample_paths: List[str],
                                                       reference_genome=reference_genome,
                                                       contig_recoding=contig_recoding)]
                 else:
-                    mts = [hl.read_matrix_table(path, _intervals=intervals) for path in inputs]
+                    mts = Env.spark_backend("vcf_combiner").read_multiple_matrix_tables(inputs, intervals,
+                                                                                        intervals_dtype)
 
                 merge_mts.append(combine_gvcfs(mts))
 
