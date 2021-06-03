@@ -23,7 +23,7 @@ import weakref
 from requests.adapters import HTTPAdapter
 from urllib3.poolmanager import PoolManager
 
-import hailtop.httpx
+import hailtop
 
 from .time import time_msecs
 
