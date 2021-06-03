@@ -105,6 +105,8 @@ def catch_ui_error_in_dev(fun):
     async def wrapped(request, userdata, *args, **kwargs):
         try:
             return await fun(request, userdata, *args, **kwargs)
+        except aiohttp.web_exceptions.HTTPFound as e:
+            raise e
         except Exception as e:
             if SCOPE == 'dev':
                 log.exception('error while populating ui page')
