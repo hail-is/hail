@@ -3769,21 +3769,30 @@ class NDArrayExpression(Expression):
 
     _opt_long_slice = sliceof(nullable(expr_int64), nullable(expr_int64), nullable(expr_int64))
 
-    @typecheck_method(item=oneof(expr_int64, _opt_long_slice, tupleof(oneof(expr_int64, _opt_long_slice))))
+    @typecheck_method(item=oneof(expr_int64, type(...), _opt_long_slice, tupleof(oneof(expr_int64, _opt_long_slice))))
     def __getitem__(self, item):
         if not isinstance(item, tuple):
             item = (item,)
 
-        if len(item) != self.ndim:
+        if len(item) > self.ndim:
             raise ValueError(f'Must specify one index per dimension. '
                              f'Expected {self.ndim} dimensions but got {len(item)}')
 
-        n_sliced_dims = len([s for s in item if isinstance(s, slice)])
+        list_item = list(item)
+        if len(list_item) < self.ndim:
+            list_item += [slice(None, None, None)] * (self.ndim - len(list_item))
+
+        ### pad the list with empty slices
+
+        n_sliced_dims = len([s for s in list_item if isinstance(s, slice)])
 
         if n_sliced_dims > 0:
             slices = []
-            for i, s in enumerate(item):
+            for i, s in enumerate(list_item):
                 dlen = self.shape[i]
+
+                #if isinstance(s, type(...)):
+                #    s = slice()
                 if isinstance(s, slice):
 
                     if s.step is not None:
@@ -3794,6 +3803,7 @@ class NDArrayExpression(Expression):
 
                     max_bound = hl.if_else(step > 0, dlen, dlen - 1)
                     min_bound = hl.if_else(step > 0, to_expr(0, tint64), to_expr(-1, tint64))
+
                     if s.start is not None:
                         # python treats start < -dlen as None when step < 0: [0,1][-3:0:-1]
                         # and 0 otherwise: [0,1][-3::1] == [0,1][0::1]
