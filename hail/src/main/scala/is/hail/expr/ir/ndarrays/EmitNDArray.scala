@@ -132,78 +132,82 @@ object EmitNDArray {
               override def loadElementAtCurrentAddr(cb: EmitCodeBuilder): SCode = childProducer.loadElementAtCurrentAddr(cb)
             }
           }
-//        case x@NDArrayReshape(childND,  shape) =>
-//          deforest(childND).flatMap(cb) { childProducer =>
-//
-//            val childShapeValues = childProducer.shape
-//            val outputNDims = x.typ.nDims
-//
-//            val requestedShapeValues = Array.tabulate(outputNDims)(i => cb.newLocal[Long](s"ndarray_reindex_request_shape_$i")).toIndexedSeq
-//
-//            emitI(shape, cb, env = env).map(cb) { sc: SCode =>
-//              val tupleCode = sc.asBaseStruct
-//              val tupleValue = tupleCode.memoize(cb, "ndarray_reshape_requested")
-//
-//              val hasNegativeOne = cb.newLocal[Boolean]("ndarray_reshape_has_neg_one")
-//              val runningProduct = cb.newLocal[Long]("ndarray_reshape_running_product")
-//              val replacesNegativeOne = cb.newLocal[Long]("ndarray_reshape_replaces_neg_one")
-//              val tempShapeElement = cb.newLocal[Long]("ndarray_reshape_temp_shape_element")
-//
-//              cb.assign(hasNegativeOne, false)
-//              cb.assign(runningProduct, 1L)
-//
-//              (0 until outputNDims).foreach { i =>
-//                cb.assign(tempShapeElement, tupleValue.loadField(cb, i).get(cb, "Can't reshape if elements of reshape tuple are missing.").asLong.longCode(cb))
-//                cb.ifx(tempShapeElement < 0L,
-//                  {
-//                    cb.ifx(tempShapeElement ceq -1L,
-//                      {
-//                        cb.ifx(hasNegativeOne, {
-//                          cb._fatal("Can't infer shape, more than one -1")
-//                        }, {
-//                          cb.assign(hasNegativeOne, true)
-//                        })
-//                      },
-//                      {
-//                        cb._fatal("Can't reshape, new shape must contain only nonnegative numbers or -1")
-//                      }
-//                    )
-//                  },
-//                  {
-//                    cb.assign(runningProduct, runningProduct * tempShapeElement)
-//                  }
-//                )
-//              }
-//
-//              val numElements = cb.newLocal[Long]("ndarray_reshape_child_num_elements")
-//              cb.assign(numElements, SNDArray.numElements(childShapeValues))
-//
-//              cb.ifx(hasNegativeOne.mux(
-//                (runningProduct ceq 0L) || (numElements % runningProduct) > 0L,
-//                numElements cne runningProduct
-//              ), {
-//                cb._fatal("Can't reshape since requested shape is incompatible with number of elements")
-//              })
-//              cb.assign(replacesNegativeOne, (runningProduct ceq 0L).mux(0L, numElements / runningProduct))
-//
-//              (0 until outputNDims).foreach { i =>
-//                cb.assign(tempShapeElement, tupleValue.loadField(cb, i).get(cb, "Can't reshape if elements of reshape tuple are missing.").asLong.longCode(cb))
-//                cb.assign(requestedShapeValues(i), (tempShapeElement ceq -1L).mux(replacesNegativeOne, tempShapeElement))
-//              }
-//
-//              new NDArrayProducer {
-//                override def elementType: SType = childProducer.elementType
-//
-//                override val shape: IndexedSeq[Value[Long]] = requestedShapeValues
-//
-//                override val initAll: EmitCodeBuilder => Unit = childProducer.initAll
-//                override val initAxis: IndexedSeq[EmitCodeBuilder => Unit] = ???
-//                override val stepAxis: IndexedSeq[(EmitCodeBuilder, Value[Long]) => Unit] = ???
-//
-//                override def loadElementAtCurrentAddr(cb: EmitCodeBuilder): SCode = ???
-//              }
-//            }
-//          }
+        case x@NDArrayReshape(childND,  shape) =>
+          emitI(childND, cb).flatMap(cb) { case childND: SNDArrayCode =>
+            // Plan: Run through the child row major, make an array. Then jump around it as needed.
+            val childMemo = childND.memoize(cb, "ndarray_reshape_child")
+
+            val childShapeValues = childMemo.shapes(cb)
+            val outputNDims = x.typ.nDims
+
+            val requestedShapeValues = Array.tabulate(outputNDims)(i => cb.newLocal[Long](s"ndarray_reindex_request_shape_$i")).toIndexedSeq
+
+            emitI(shape, cb, env = env).map(cb) { sc: SCode =>
+              val tupleCode = sc.asBaseStruct
+              val tupleValue = tupleCode.memoize(cb, "ndarray_reshape_requested")
+
+              val hasNegativeOne = cb.newLocal[Boolean]("ndarray_reshape_has_neg_one")
+              val runningProduct = cb.newLocal[Long]("ndarray_reshape_running_product")
+              val replacesNegativeOne = cb.newLocal[Long]("ndarray_reshape_replaces_neg_one")
+              val tempShapeElement = cb.newLocal[Long]("ndarray_reshape_temp_shape_element")
+
+              cb.assign(hasNegativeOne, false)
+              cb.assign(runningProduct, 1L)
+
+              (0 until outputNDims).foreach { i =>
+                cb.assign(tempShapeElement, tupleValue.loadField(cb, i).get(cb, "Can't reshape if elements of reshape tuple are missing.").asLong.longCode(cb))
+                cb.ifx(tempShapeElement < 0L,
+                  {
+                    cb.ifx(tempShapeElement ceq -1L,
+                      {
+                        cb.ifx(hasNegativeOne, {
+                          cb._fatal("Can't infer shape, more than one -1")
+                        }, {
+                          cb.assign(hasNegativeOne, true)
+                        })
+                      },
+                      {
+                        cb._fatal("Can't reshape, new shape must contain only nonnegative numbers or -1")
+                      }
+                    )
+                  },
+                  {
+                    cb.assign(runningProduct, runningProduct * tempShapeElement)
+                  }
+                )
+              }
+
+              val numElements = cb.newLocal[Long]("ndarray_reshape_child_num_elements")
+              cb.assign(numElements, SNDArray.numElements(childShapeValues))
+
+              cb.ifx(hasNegativeOne.mux(
+                (runningProduct ceq 0L) || (numElements % runningProduct) > 0L,
+                numElements cne runningProduct
+              ), {
+                cb._fatal("Can't reshape since requested shape is incompatible with number of elements")
+              })
+              cb.assign(replacesNegativeOne, (runningProduct ceq 0L).mux(0L, numElements / runningProduct))
+
+              (0 until outputNDims).foreach { i =>
+                cb.assign(tempShapeElement, tupleValue.loadField(cb, i).get(cb, "Can't reshape if elements of reshape tuple are missing.").asLong.longCode(cb))
+                cb.assign(requestedShapeValues(i), (tempShapeElement ceq -1L).mux(replacesNegativeOne, tempShapeElement))
+              }
+
+              new NDArrayProducer {
+                override def elementType: SType = childMemo.st.elementType
+
+                override val shape: IndexedSeq[Value[Long]] = requestedShapeValues
+
+                val whichElement = cb.newLocal[Long]("ndarray_reshape_current_flat_element")
+
+                override val initAll: EmitCodeBuilder => Unit = ???
+                override val initAxis: IndexedSeq[EmitCodeBuilder => Unit] = ???
+                override val stepAxis: IndexedSeq[(EmitCodeBuilder, Value[Long]) => Unit] = ???
+
+                override def loadElementAtCurrentAddr(cb: EmitCodeBuilder): SCode = ???
+              }
+            }
+          }
 
         case x@NDArrayConcat(nds, axis) =>
           emitI(nds, cb).flatMap(cb) { ndsPCode =>
@@ -502,49 +506,52 @@ object EmitNDArray {
               }
             }
           }
-
         case _ => {
           val ndI = emitI(x, cb)
           ndI.map(cb) { ndPCode =>
             val ndPv = ndPCode.asNDArray.memoize(cb, "deforestNDArray_fall_through_ndarray")
-            val ndPvShape = ndPv.shapes(cb)
-            val strides = ndPv.strides(cb)
-            val counters = ndPvShape.indices.map(i => cb.newLocal[Long](s"ndarray_produceer_fall_through_idx_${i}"))
-
-            new NDArrayProducer {
-              override def elementType: SType = ndPv.st.elementType
-              override val shape: IndexedSeq[Value[Long]] = ndPvShape
-
-              override val initAll: EmitCodeBuilder => Unit = cb => {
-                counters.foreach(ctr => cb.assign(ctr, 0L))
-              }
-              override val initAxis: IndexedSeq[EmitCodeBuilder => Unit] = {
-                shape.indices.map(i => (cb: EmitCodeBuilder) => {
-                  cb.assign(counters(i), 0L)
-                })
-              }
-              override val stepAxis: IndexedSeq[(EmitCodeBuilder, Value[Long]) => Unit] = {
-                shape.indices.map{ i =>
-                  (cb: EmitCodeBuilder, step: Value[Long]) => {
-                    cb.assign(counters(i), counters(i) + step * strides(i))
-                  }
-                }
-              }
-
-              override def loadElementAtCurrentAddr(cb: EmitCodeBuilder): SCode = {
-                val offset = counters.foldLeft[Code[Long]](const(0L)){ (a, b) => a + b}
-                // TODO: Safe to canonicalPType here?
-                val loaded = elementType.canonicalPType().loadCheapPCode(cb, ndPv.firstDataAddress(cb) + offset) //elementType.loadFrom(cb, region, ndPv.st.elementType.canonicalPType(), ndPv.firstDataAddress(cb) + offset)
-                val memoLoaded = loaded.memoize(cb, "temp_memo")
-                memoLoaded.get
-              }
-            }
+            fromSValue(ndPv, cb)
           }
         }
       }
     }
 
     deforest(ndIR).map(cb)(ndap => ndap.toSCode(cb, PCanonicalNDArray(ndap.elementType.canonicalPType().setRequired(true), ndap.nDims), region))
+  }
+
+  def fromSValue(ndSv: SNDArrayValue, cb: EmitCodeBuilder): NDArrayProducer = {
+    val ndSvShape = ndSv.shapes(cb)
+    val strides = ndSv.strides(cb)
+    val counters = ndSvShape.indices.map(i => cb.newLocal[Long](s"ndarray_produceer_fall_through_idx_${i}"))
+
+    new NDArrayProducer {
+      override def elementType: SType = ndSv.st.elementType
+      override val shape: IndexedSeq[Value[Long]] = ndSvShape
+
+      override val initAll: EmitCodeBuilder => Unit = cb => {
+        counters.foreach(ctr => cb.assign(ctr, 0L))
+      }
+      override val initAxis: IndexedSeq[EmitCodeBuilder => Unit] = {
+        shape.indices.map(i => (cb: EmitCodeBuilder) => {
+          cb.assign(counters(i), 0L)
+        })
+      }
+      override val stepAxis: IndexedSeq[(EmitCodeBuilder, Value[Long]) => Unit] = {
+        shape.indices.map{ i =>
+          (cb: EmitCodeBuilder, step: Value[Long]) => {
+            cb.assign(counters(i), counters(i) + step * strides(i))
+          }
+        }
+      }
+
+      override def loadElementAtCurrentAddr(cb: EmitCodeBuilder): SCode = {
+        val offset = counters.foldLeft[Code[Long]](const(0L)){ (a, b) => a + b}
+        // TODO: Safe to canonicalPType here?
+        val loaded = elementType.canonicalPType().loadCheapPCode(cb, ndSv.firstDataAddress(cb) + offset) //elementType.loadFrom(cb, region, ndPv.st.elementType.canonicalPType(), ndPv.firstDataAddress(cb) + offset)
+        val memoLoaded = loaded.memoize(cb, "temp_memo")
+        memoLoaded.get
+      }
+    }
   }
 
   def createBroadcastMask(cb: EmitCodeBuilder, shape: IndexedSeq[Value[Long]]): IndexedSeq[Value[Long]] = {
