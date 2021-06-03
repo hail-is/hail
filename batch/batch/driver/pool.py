@@ -165,6 +165,21 @@ WHERE name = %s;
         if instance.state == 'active' and instance.failed_request_count <= 1:
             self.healthy_instances_by_free_cores.add(instance)
 
+    async def ready_cores_mcpu_per_user(self):
+        records = self.db.execute_and_fetchall(
+            '''
+SELECT user,
+  CAST(COALESCE(SUM(ready_cores_mcpu), 0) AS SIGNED) AS ready_cores_mcpu
+FROM user_inst_coll_resources
+WHERE inst_coll = %s
+GROUP BY user;
+''',
+            (self.name,),
+            timer_description=f'in compute_ready_cores for {self.name}: ready_cores_mcpu_per_user',
+        )
+        records = {r['user']: r['ready_cores_mcpu'] async for r in records}
+        return records
+
     async def create_instance(self, cores=None, max_idle_time_msecs=None, zone=None):
         if cores is None:
             cores = self.worker_cores
@@ -210,6 +225,27 @@ WHERE name = %s;
             job_private=False,
         )
 
+    async def create_instances_from_ready_cores(self, ready_cores_mcpu):
+        n_live_instances = self.n_instances_by_state['pending'] + self.n_instances_by_state['active']
+
+        instances_needed = (ready_cores_mcpu - self.live_free_cores_mcpu + (self.worker_cores * 1000) - 1) // (
+                self.worker_cores * 1000
+        )
+        instances_needed = min(
+            instances_needed,
+            self.max_live_instances - n_live_instances,
+            self.max_instances - self.n_instances,
+            # 20 queries/s; our GCE long-run quota
+            300,
+            # n * 16 cores / 15s = excess_scheduling_rate/s = 10/s => n ~= 10
+            10,
+        )
+
+        if instances_needed > 0:
+            log.info(f'creating {instances_needed} new instances')
+            # parallelism will be bounded by thread pool
+            await asyncio.gather(*[self.create_instance() for _ in range(instances_needed)])
+
     async def create_instances(self):
         ready_cores = await self.db.select_and_fetchone(
             '''
@@ -233,31 +269,13 @@ LOCK IN SHARE MODE;
         )
 
         if ready_cores_mcpu > 0 and free_cores < 500:
-            n_live_instances = self.n_instances_by_state['pending'] + self.n_instances_by_state['active']
+            await self.create_instances_from_ready_cores(ready_cores_mcpu)
 
-            instances_needed = (ready_cores_mcpu - self.live_free_cores_mcpu + (self.worker_cores * 1000) - 1) // (
-                self.worker_cores * 1000
-            )
-            instances_needed = min(
-                instances_needed,
-                self.max_live_instances - n_live_instances,
-                self.max_instances - self.n_instances,
-                # 20 queries/s; our GCE long-run quota
-                300,
-                # n * 16 cores / 15s = excess_scheduling_rate/s = 10/s => n ~= 10
-                10,
-            )
-            if instances_needed > 0:
-                log.info(f'creating {instances_needed} new instances')
-                # parallelism will be bounded by thread pool
-                await asyncio.gather(*[self.create_instance() for _ in range(instances_needed)])
+        ready_cores_mcpu_per_user = await self.ready_cores_mcpu_per_user()
 
-        if self.scheduler.ci_no_viable_instances.value > 5 and self.live_free_cores_mcpu_by_zone[GCP_ZONE] == 0:
-            await self.create_instance(
-                cores=self.standing_worker_cores, max_idle_time_msecs=STANDING_WORKER_MAX_IDLE_TIME_MSECS,
-                zone=GCP_ZONE
-            )
-            self.scheduler.ci_no_viable_instances.value = 0
+        ci_ready_cores_mcpu = ready_cores_mcpu_per_user['ci']
+        if ci_ready_cores_mcpu > 0 and self.live_free_cores_mcpu_by_zone[GCP_ZONE] == 0:
+            await self.create_instances_from_ready_cores(ci_ready_cores_mcpu)
 
         n_live_instances = self.n_instances_by_state['pending'] + self.n_instances_by_state['active']
         if self.enable_standing_worker and n_live_instances == 0 and self.max_instances > 0:
@@ -280,7 +298,6 @@ class PoolScheduler:
         self.pool = pool
         self.async_worker_pool: AsyncWorkerPool = self.app['async_worker_pool']
         self.exceeded_shares_counter = ExceededSharesCounter()
-        self.ci_no_viable_instances = Box(0)
         self.task_manager = aiotools.BackgroundTaskManager()
 
     async def async_init(self):
@@ -437,24 +454,17 @@ LIMIT %s;
                 instance = self.pool.healthy_instances_by_free_cores[i]
                 assert cores_mcpu <= instance.free_cores_mcpu
                 if user != 'ci' or (user == 'ci' and instance.zone.startswith('us-central1')):
-                    if user == 'ci':
-                        self.ci_no_viable_instances.value = 0
                     return instance
                 i += 1
-
             histogram = collections.defaultdict(int)
             for instance in self.pool.healthy_instances_by_free_cores:
                 histogram[instance.free_cores_mcpu] += 1
             log.info(f'schedule {self.pool}: no viable instances for {cores_mcpu}: {histogram}')
 
-            if user == 'ci':
-                self.ci_no_viable_instances.value += 1
-
             return None
 
         should_wait = True
-        users = sorted(user_resources.keys(), key=lambda user: user != 'ci')
-        for user in users:
+        for user, resources in user_resources.items():
             resources = user_resources[user]
             allocated_cores_mcpu = resources['allocated_cores_mcpu']
             if allocated_cores_mcpu == 0:
