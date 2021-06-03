@@ -10,15 +10,18 @@ import is.hail.types.virtual.{TArray, Type}
 import is.hail.utils._
 
 // levels indicate level of nesting 0 is array<T>, 1 is array<array<T>>, etc.
-case class SNestedArray(levels: Int, baseContainerType: SContainer) extends SContainer {
-   def elementType: SType = levels match {
-     case 0 => baseContainerType.elementType
-     case _ => SNestedArray(levels - 1, baseContainerType)
-   }
+case class SNestedArray(requireds: IndexedSeq[Boolean], baseContainerType: SContainer) extends SContainer {
+  def levels: Int = requireds.length
+  private[concrete] val nMissing = requireds.count(identity)
 
-  def elementEmitType: EmitType = levels match {
-    case 0 => baseContainerType.elementEmitType
-    case _ => ???
+  lazy val elementType: SType = requireds match {
+     case IndexedSeq() => baseContainerType.elementType
+     case _ => SNestedArray(requireds.tail, baseContainerType)
+  }
+
+  lazy val elementEmitType: EmitType = requireds match {
+    case IndexedSeq() => baseContainerType.elementEmitType
+    case _ => EmitType(elementType, requireds.head)
   }
 
   lazy val virtualType: Type = {
@@ -31,11 +34,14 @@ case class SNestedArray(levels: Int, baseContainerType: SContainer) extends SCon
 
   def coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = ???
 
-  def codeTupleTypes(): IndexedSeq[TypeInfo[_]] = IndexedSeq.fill(2)(IntInfo) ++ IndexedSeq.fill(levels * 2)(LongInfo) ++ baseContainerType.codeTupleTypes()
+  def codeTupleTypes(): IndexedSeq[TypeInfo[_]] = IndexedSeq.fill(2)(IntInfo) ++
+    requireds.filter(identity).map(_ => LongInfo) ++
+    IndexedSeq.fill(levels)(LongInfo) ++
+    baseContainerType.codeTupleTypes()
 
   override def fromSettables(settables: IndexedSeq[Settable[_]]): SNestedArraySettable = {
     val IndexedSeq(start: Settable[Int], end: Settable[Int], rest @ _*) = settables
-    val (missing, rest1) = rest.toIndexedSeq.splitAt(levels)
+    val (missing, rest1) = rest.toIndexedSeq.splitAt(nMissing)
     val (offsets, values) = rest1.splitAt(levels)
     new SNestedArraySettable(this,
       start, end,
@@ -46,7 +52,7 @@ case class SNestedArray(levels: Int, baseContainerType: SContainer) extends SCon
 
   override def fromCodes(codes: IndexedSeq[Code[_]]): SNestedArrayCode = {
     val IndexedSeq(start: Code[Int], end: Code[Int], rest @ _*) = codes
-    val (missing, rest1) = rest.toIndexedSeq.splitAt(levels)
+    val (missing, rest1) = rest.toIndexedSeq.splitAt(nMissing)
     val (offsets, values) = rest1.splitAt(levels)
     new SNestedArrayCode(this,
       start, end,
@@ -62,7 +68,7 @@ case class SNestedArray(levels: Int, baseContainerType: SContainer) extends SCon
       castRename(t) // FIXME: does no checks
     case TArray(_) =>
       val st = baseContainerType.castRename(t)
-      SNestedArray(levels, st.asInstanceOf[SContainer])
+      SNestedArray(requireds, st.asInstanceOf[SContainer])
   }
 }
 
@@ -73,7 +79,7 @@ class SNestedArraySettable(
   val offsets: IndexedSeq[Settable[Long]],
   val values: SIndexableValue with SSettable
 ) extends SIndexableValue with SSettable {
-  require(missing.length == st.levels)
+  require(missing.length == st.nMissing)
   require(offsets.length == st.levels)
 
   private lazy val length: Value[Int] = new Value[Int] {
@@ -84,27 +90,32 @@ class SNestedArraySettable(
 
   def isElementMissing(i: Code[Int]): Code[Boolean] = if (st.levels == 0)
     values.isElementMissing(i + start)
-  else if (missing(0) == null)
+  else if (st.elementEmitType.required)
     const(false)
   else
-    Region.loadBit(missing(0), (i + start).toL)
+    Region.loadBit(missing.head, (i + start).toL)
 
   def loadElement(cb: EmitCodeBuilder, i: Code[Int]): IEmitCode = if (st.levels == 0) {
     values.loadElement(cb, i + start)
   } else {
     val iv = cb.newLocal("iv", i)
     IEmitCode(cb, isElementMissing(iv),
-      new SNestedArrayCode(st.elementType.asInstanceOf, loadOffset(iv), loadOffset(iv + 1), missing.tail, offsets.tail, values.get))
+      new SNestedArrayCode(st.elementType.asInstanceOf,
+        loadOffset(iv),
+        loadOffset(iv + 1),
+        if (st.elementEmitType.required) missing else missing.tail,
+        offsets.tail,
+        values.get))
   }
 
   def hasMissingValues(cb: EmitCodeBuilder): Code[Boolean] = {
     // FIXME: need to slice a bitvector to properly handle this
     if (st.levels == 0)
       values.hasMissingValues(cb) // wrong
-    else if (missing(0) == null)
+    else if (st.elementEmitType.required)
       const(false)
     else
-      Region.containsNonZeroBits(missing(0), loadLength().toL) // also wrong
+      Region.containsNonZeroBits(missing.head, loadLength().toL) // also wrong
   }
 
   def get: SIndexableCode = new SNestedArrayCode(st, start, end, missing, offsets, values.get)
@@ -113,7 +124,7 @@ class SNestedArraySettable(
     case v: SNestedArrayCode =>
       cb.assign(start, v.start)
       cb.assign(end, v.end)
-      missing.zip(v.missing).foreach(ms => if (ms._1 != null) cb.assign(ms._1, ms._2))
+      missing.zip(v.missing).foreach(ms => cb.assign(ms._1, ms._2))
       offsets.zip(v.offsets).foreach(os => cb.assign(os._1, os._2))
       cb.assign(values, v.values)
   }
@@ -121,18 +132,18 @@ class SNestedArraySettable(
   def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(start, end) ++ missing ++ offsets ++ values.settableTuple()
 
   def loadOffset(i: Code[Int]): Code[Int] = {
-    Region.loadInt(offsets(0) + (i + start).toL * 4L)
+    Region.loadInt(offsets.head + (i + start).toL * 4L)
   }
 }
 
 class SNestedArrayCode(
   override val st: SNestedArray,
   val start: Code[Int], val end: Code[Int],
-  val missing: IndexedSeq[Code[Long]], // all outer array missing bits, if null, then that level is required
+  val missing: IndexedSeq[Code[Long]], // all outer array missing bits, st.nMissing in length
   val offsets: IndexedSeq[Code[Long]], // all outer array offsets
-  val values: SIndexableCode,          // the innermost, flat array
+  val values: SIndexableCode           // the innermost, flat array
 ) extends SIndexableCode {
-  require(missing.length == st.levels)
+  require(missing.length == st.nMissing)
   require(offsets.length == st.levels)
 
   def loadLength(): Code[Int] = end - start
@@ -140,7 +151,7 @@ class SNestedArrayCode(
   private def memoize(cb: EmitCodeBuilder, name: String, values: SIndexableValue, sb: SettableBuilder): SNestedArraySettable = {
     val startSettable = sb.newSettable[Int](s"${ name }_start")
     val endSettable = sb.newSettable[Int](s"${ name }_end")
-    val missingSettable = IndexedSeq.tabulate(st.levels)(i => sb.newSettable[Long](s"${ name }_missing_$i"))
+    val missingSettable = st.requireds.zipWithIndex.filter(_._1).map{ case (_, i) => sb.newSettable[Long](s"${ name }_missing_$i") }
     val offsetsSettable = IndexedSeq.tabulate(st.levels)(i => sb.newSettable[Long](s"${ name }_offsets_$i"))
     val sv = new SNestedArraySettable(st, startSettable, endSettable, missingSettable, offsetsSettable, values.asInstanceOf)
     cb.assign(sv, this)
