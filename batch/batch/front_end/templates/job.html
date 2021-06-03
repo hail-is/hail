@@ -106,31 +106,43 @@
 <pre>{{ error }}</pre>
 {% endif %}
 
-{% if job_log %}
-<h2>Log</h2>
+{% if job_log or step_errors %}
+<h2>Logs</h2>
 
-{% if 'input' in job_log %}
+{% if 'input' in job_log or 'input' in step_errors %}
 <h3>Input</h3>
+{% if 'input' in job_log %}
+<h4>Log</h4>
 <pre>{{ job_log['input'] }}</pre>
 {% endif %}
 {% if 'input' in step_errors and step_errors['input'] is not none %}
+<h4>Error</h4>
 <pre>{{ step_errors['input'] }}</pre>
 {% endif %}
+{% endif %}
 
-{% if 'main' in job_log %}
+{% if 'main' in job_log or 'main' in step_errors %}
 <h3>Main</h3>
+{% if 'main' in job_log %}
+<h4>Log</h4>
 <pre>{{ job_log['main'] }}</pre>
 {% endif %}
 {% if 'main' in step_errors and step_errors['main'] is not none %}
+<h4>Error</h4>
 <pre>{{ step_errors['main'] }}</pre>
 {% endif %}
+{% endif %}
 
-{% if 'output' in job_log %}
+{% if 'output' in job_log or 'output' in step_errors %}
 <h3>Output</h3>
+{% if 'output' in job_log %}
+<h4>Log</h4>
 <pre>{{ job_log['output'] }}</pre>
 {% endif %}
 {% if 'output' in step_errors and step_errors['output'] is not none %}
+<h4>Error</h4>
 <pre>{{ step_errors['output'] }}</pre>
+{% endif %}
 {% endif %}
 
 {% endif %}
