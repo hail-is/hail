@@ -4,6 +4,10 @@ import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.types.physical.stypes.interfaces.{SBaseStructCode, SNDArray, SNDArrayCode, SNDArrayValue}
+import is.hail.asm4s.{Code, IntInfo, LongInfo, Settable, SettableBuilder, TypeInfo, Value, const}
+import is.hail.expr.ir.orderings.CodeOrdering
+import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, SortOrder}
+import is.hail.types.physical.stypes.interfaces.{SBaseStructCode, SNDArray, SNDArrayCode, SNDArraySettable, SNDArrayValue}
 import is.hail.types.physical.stypes.{SCode, SSettable, SType, SValue}
 import is.hail.types.physical.{PCanonicalNDArray, PType}
 import is.hail.types.virtual.Type
@@ -66,7 +70,7 @@ class SNDArrayPointerSettable(
    val shape: IndexedSeq[Settable[Long]],
    val strides: IndexedSeq[Settable[Long]],
    val dataFirstElement: Settable[Long]
- ) extends SNDArrayValue with SSettable {
+ ) extends SNDArraySettable {
   val pt: PCanonicalNDArray = st.pType
 
   def loadElement(indices: IndexedSeq[Value[Long]], cb: EmitCodeBuilder): SCode = {

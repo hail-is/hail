@@ -2,9 +2,9 @@ package is.hail.linalg
 
 import is.hail.annotations.Region
 import is.hail.asm4s.{Code, _}
-import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, IEmitCode}
-import is.hail.types.physical.stypes.concrete.{SNDArrayPointer, SNDArrayPointerSettable}
-import is.hail.types.physical.stypes.interfaces.{SNDArray, SNDArrayCode, SNDArrayValue}
+import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder}
+import is.hail.types.physical.stypes.concrete.SNDArrayPointer
+import is.hail.types.physical.stypes.interfaces.{SNDArray, SNDArrayCode, SNDArraySettable, SNDArrayValue}
 import is.hail.utils.FastIndexedSeq
 
 object LinalgCodeUtils {
@@ -59,7 +59,7 @@ object LinalgCodeUtils {
 
   def checkColMajorAndCopyIfNeeded(aInput: SNDArrayValue, cb: EmitCodeBuilder, region: Value[Region]): SNDArrayValue = {
     val aIsColumnMajor = LinalgCodeUtils.checkColumnMajor(aInput, cb)
-    val aColMajor = cb.emb.newPField("ndarray_output_column_major", aInput.st).asInstanceOf[SNDArrayPointerSettable]
+    val aColMajor = cb.emb.newPField("ndarray_output_column_major", aInput.st).asInstanceOf[SNDArraySettable]
     cb.ifx(aIsColumnMajor, {cb.assign(aColMajor, aInput)},
       {
         cb.assign(aColMajor, LinalgCodeUtils.createColumnMajorCode(aInput, cb, region))
@@ -69,7 +69,7 @@ object LinalgCodeUtils {
 
   def checkStandardStriding(aInput: SNDArrayValue, cb: EmitCodeBuilder, region: Value[Region]): (SNDArrayValue, Value[Boolean]) = {
     val aIsColumnMajor = LinalgCodeUtils.checkColumnMajor(aInput, cb)
-    val a = cb.emb.newPField("ndarray_output_standardized", aInput.st).asInstanceOf[SNDArrayPointerSettable]
+    val a = cb.emb.newPField("ndarray_output_standardized", aInput.st).asInstanceOf[SNDArraySettable]
     cb.ifx(aIsColumnMajor, {cb.assign(a, aInput)}, {
       val isRowMajor = LinalgCodeUtils.checkRowMajor(aInput, cb)
       cb.ifx(isRowMajor, {cb.assign(a, aInput)}, {
