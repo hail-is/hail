@@ -161,7 +161,7 @@ timestamp >= "{mark}"
                     except aiohttp.ClientResponseError as e:
                         if e.status == 404:
                             continue
-                        raise
+                        log.exception(f'error while deleting orphaned disk {disk["name"]}')
 
     async def delete_orphaned_disks_loop(self):
-        await periodically_call(300, self.delete_orphaned_disks)
+        await periodically_call(60, self.delete_orphaned_disks)
