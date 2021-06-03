@@ -593,7 +593,7 @@ def is_transient_error(e):
     #
     # OSError: [Errno 51] Connect call failed ('35.188.91.25', 443)
     # https://hail.zulipchat.com/#narrow/stream/223457-Batch-support/topic/ssl.20error
-    if isinstance(e, aiohttp.ClientResponseError) and (
+    if isinstance(e, (aiohttp.ClientResponseError, aiohttp.client_exceptions.ClientResponseError)) and (
             e.status in RETRYABLE_HTTP_STATUS_CODES):
         # nginx returns 502 if it cannot connect to the upstream server
         # 408 request timeout, 500 internal server error, 502 bad gateway
