@@ -243,6 +243,8 @@ case class SUnreachableNDArray(virtualType: TNDArray) extends SUnreachable with 
   override def nDims: Int = virtualType.nDims
 
   lazy val elementType: SType = SUnreachable.fromVirtualType(virtualType.elementType)
+
+  override def elementByteSize: Long = 0L
 }
 
 class SUnreachableNDArrayValue(val st: SUnreachableNDArray) extends SUnreachableValue with SNDArrayValue with SNDArrayCode {

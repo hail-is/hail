@@ -14,6 +14,8 @@ case class SNDArrayPointer(pType: PCanonicalNDArray) extends SNDArray {
 
   def nDims: Int = pType.nDims
 
+  override def elementByteSize: Long = pType.elementType.byteSize
+
   override def elementType: SType = pType.elementType.sType
 
   override def elementPType: PType = pType.elementType

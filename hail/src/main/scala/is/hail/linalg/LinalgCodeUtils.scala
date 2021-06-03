@@ -14,12 +14,11 @@ object LinalgCodeUtils {
     val strides = pndv.strides(cb)
     val runningProduct = cb.newLocal[Long]("check_column_major_running_product")
 
-    val pt = pndv.st.asInstanceOf[SNDArrayPointer].pType
-    val elementType = pt.elementType
+    val st = pndv.st
     val nDims = pndv.st.nDims
 
     cb.assign(answer, true)
-    cb.assign(runningProduct, elementType.byteSize)
+    cb.assign(runningProduct, st.elementByteSize)
     (0 until nDims).foreach{ index =>
       cb.assign(answer, answer & (strides(index) ceq runningProduct))
       cb.assign(runningProduct, runningProduct * (shapes(index) > 0L).mux(shapes(index), 1L))
@@ -33,12 +32,11 @@ object LinalgCodeUtils {
     val strides = pndv.strides(cb)
     val runningProduct = cb.newLocal[Long]("check_column_major_running_product")
 
-    val pt = pndv.st.asInstanceOf[SNDArrayPointer].pType
-    val elementType = pt.elementType
-    val nDims = pt.nDims
+    val st = pndv.st
+    val nDims = st.nDims
 
     cb.assign(answer, true)
-    cb.assign(runningProduct, elementType.byteSize)
+    cb.assign(runningProduct, st.elementByteSize)
     ((nDims - 1) to 0 by -1).foreach { index =>
       cb.assign(answer, answer & (strides(index) ceq runningProduct))
       cb.assign(runningProduct, runningProduct * (shapes(index) > 0L).mux(shapes(index), 1L))

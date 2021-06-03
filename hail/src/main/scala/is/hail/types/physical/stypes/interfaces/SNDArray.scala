@@ -233,6 +233,8 @@ trait SNDArray extends SType {
 
   def elementType: SType
   def elementPType: PType
+
+  def elementByteSize: Long
 }
 
 trait SNDArrayValue extends SValue {
