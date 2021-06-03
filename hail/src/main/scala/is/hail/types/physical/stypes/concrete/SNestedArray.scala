@@ -1,6 +1,6 @@
 package is.hail.types.physical.stypes.concrete
 
-import is.hail.annotations.Region
+import is.hail.annotations.{Region, UnsafeUtils}
 import is.hail.asm4s._
 import is.hail.expr.ir.{EmitCodeBuilder, IEmitCode}
 import is.hail.types.physical.PType
@@ -111,11 +111,11 @@ class SNestedArraySettable(
   def hasMissingValues(cb: EmitCodeBuilder): Code[Boolean] = {
     // FIXME: need to slice a bitvector to properly handle this
     if (st.levels == 0)
-      values.hasMissingValues(cb) // wrong
+      values.hasMissingValues(cb) // very wrong
     else if (st.elementEmitType.required)
       const(false)
     else
-      Region.containsNonZeroBits(missing.head, loadLength().toL) // also wrong
+      Region.containsNonZeroBits(missing.head + (start >>> 3).toL, loadLength().toL) // only sorta wrong
   }
 
   def get: SIndexableCode = new SNestedArrayCode(st, start, end, missing, offsets, values.get)
