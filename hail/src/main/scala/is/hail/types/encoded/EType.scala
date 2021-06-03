@@ -1,10 +1,10 @@
 package is.hail.types.encoded
 import java.util
 import java.util.Map.Entry
-import is.hail.HailContext
+
 import is.hail.annotations.Region
 import is.hail.asm4s.{coerce => _, _}
-import is.hail.expr.ir.{EmitClassBuilder, EmitCodeBuilder, EmitFunctionBuilder, EmitMethodBuilder, ExecuteContext, IRParser, ParamType, PunctuationToken, TokenIterator}
+import is.hail.expr.ir.{EmitClassBuilder, EmitCodeBuilder, EmitFunctionBuilder, EmitMethodBuilder, ExecuteContext, IRParser, IdentifierToken, ParamType, PunctuationToken, TokenIterator}
 import is.hail.io._
 import is.hail.types._
 import is.hail.types.physical._
@@ -327,6 +327,18 @@ object EType {
         val nDims = IRParser.int32_literal(it)
         IRParser.punctuation(it, "]")
         ENDArrayColumnMajor(elementType, nDims,  req)
+      case "EFlattenedArray" =>
+        IRParser.punctuation(it, "[")
+        val requireds = IRParser.consumeToken(it) match {
+          case IdentifierToken(value) if value.forall(c => c == 'r' || c == 'o') =>
+            value.map(_ == 'r')
+          case token =>
+            IRParser.error(token, s"invalid nested array requiredness string `${token.value}`")
+        }
+        IRParser.punctuation(it, ",")
+        val innerType = eTypeParser(it).asInstanceOf[EContainer]
+        IRParser.punctuation(it, "]")
+        EFlattenedArray(req, requireds, innerType)
       case x => throw new UnsupportedOperationException(s"Couldn't parse $x ${it.toIndexedSeq}")
 
     }

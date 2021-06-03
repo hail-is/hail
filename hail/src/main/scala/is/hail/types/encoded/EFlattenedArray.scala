@@ -11,7 +11,7 @@ import is.hail.utils._
 
 import scala.annotation.tailrec
 
-class EFlattenedArray(override val required: Boolean, nestedRequiredness: Array[Boolean], val innerType: EContainer) extends EType {
+case class EFlattenedArray(override val required: Boolean, nestedRequiredness: IndexedSeq[Boolean], val innerType: EContainer) extends EType {
   def _buildEncoder(cb: EmitCodeBuilder, v: SValue, out: Value[OutputBuffer]): Unit = ???
 
   def _buildDecoder(cb: EmitCodeBuilder, t: Type, region: Value[Region], in: Value[InputBuffer]): SCode = {
@@ -85,9 +85,9 @@ class EFlattenedArray(override val required: Boolean, nestedRequiredness: Array[
     }
   }
 
-  def _asIdent: String = ???
+  def _asIdent: String = s"flat_array_w_${ nestedRequiredness.map(if (_) "r" else "o").mkString }_of_${innerType.asIdent}"
 
-  def _toPretty: String = ???
+  def _toPretty: String = s"EFlattenedArray[${ nestedRequiredness.map(if (_) "r" else "o").mkString }, $innerType]"
 
   def _decodedSType(requestedType: Type): SType = {
     @tailrec def go(ty: Type): SContainer = ty match {
