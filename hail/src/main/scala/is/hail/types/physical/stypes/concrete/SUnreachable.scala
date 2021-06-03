@@ -247,7 +247,7 @@ case class SUnreachableNDArray(virtualType: TNDArray) extends SUnreachable with 
   override def elementByteSize: Long = 0L
 }
 
-class SUnreachableNDArrayValue(val st: SUnreachableNDArray) extends SUnreachableValue with SNDArrayValue with SNDArrayCode {
+class SUnreachableNDArrayValue(val st: SUnreachableNDArray) extends SUnreachableValue with SNDArraySettable with SNDArrayCode {
   override def memoizeField(cb: EmitCodeBuilder, name: String): SUnreachableNDArrayValue = this
 
   def shape(cb: EmitCodeBuilder): SBaseStructCode = SUnreachableStruct(TTuple((0 until st.nDims).map(_ => TInt64): _*)).defaultValue.asBaseStruct
