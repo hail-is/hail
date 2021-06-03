@@ -229,7 +229,7 @@ GROUP BY user;
         n_live_instances = self.n_instances_by_state['pending'] + self.n_instances_by_state['active']
 
         instances_needed = (ready_cores_mcpu - self.live_free_cores_mcpu + (self.worker_cores * 1000) - 1) // (
-                self.worker_cores * 1000
+            self.worker_cores * 1000
         )
         instances_needed = min(
             instances_needed,
