@@ -23,34 +23,36 @@ class EFlattenedArray(override val required: Boolean, nestedRequiredness: Array[
       val i = cb.newLocal[Int]("i")
       val len = cb.newLocal[Int]("len")
       val end = cb.newLocal[Int]("end")
-      val missing = nestedRequiredness.zipWithIndex.map { case (r, i) => if (r) null else cb.newLocal[Long](s"nested_array_decode_missing_$i") }
+      val missing = nestedRequiredness.zipWithIndex.filter(_._1).map { case (_, i) => cb.newLocal[Long](s"nested_array_decode_missing_$i") }
       val offsets = Array.tabulate(nestedRequiredness.length)(i => cb.newLocal[Long](s"nested_array_decode_offset_$i"))
       val cur = cb.newLocal[Int]("cur")
       var first = true
-      for ((missing, offsets) <- missing.zip(offsets)) {
+      var mj = 0
+      for ((r, j) <- nestedRequiredness.zipWithIndex) {
         cb.assign(len, in.readInt())
         if (first) {
           cb.assign(end, len)
           first = false
         }
 
-        if (missing != null) {
-          cb.assign(missing, region.allocate(1L, UnsafeUtils.packBitsToBytes(len)))
-          cb += in.readBytes(region, missing, UnsafeUtils.packBitsToBytes(len))
+        if (!r) {
+          cb.assign(missing(mj), region.allocate(1L, UnsafeUtils.packBitsToBytes(len)))
+          cb += in.readBytes(region, missing(mj), UnsafeUtils.packBitsToBytes(len))
         }
-        cb.assign(offsets, region.allocate(4L, 4L * (len + 1).toL))
+        cb.assign(offsets(j), region.allocate(4L, 4L * (len + 1).toL))
         cb.assign(cur, 0)
-        cb += Region.storeInt(offsets, cur)
+        cb += Region.storeInt(offsets(j), cur)
         cb.forLoop(cb.assign(i, 1), i <= len, cb.assign(i, i + 1), {
-          if (missing == null) {
+          if (r) {
             cb.assign(cur, cur + in.readInt())
           } else {
-            cb.ifx(!Region.loadBit(missing, (i - 1).toL), {
+            cb.ifx(!Region.loadBit(missing(mj), (i - 1).toL), {
               cb.assign(cur, cur + in.readInt())
             })
           }
-          cb += Region.storeInt(offsets + i.toL * 4L, cur)
+          cb += Region.storeInt(offsets(j) + i.toL * 4L, cur)
         })
+        mj += (!r).toInt
       }
 
       val values = innerType.buildDecoder(st.baseContainerType.virtualType, cb.emb.ecb)(cb, region, in).asIndexable
@@ -88,12 +90,12 @@ class EFlattenedArray(override val required: Boolean, nestedRequiredness: Array[
   def _toPretty: String = ???
 
   def _decodedSType(requestedType: Type): SType = {
-    @tailrec def go(level: Int, ty: Type): (Int, SContainer) = ty match {
-      case TArray(a: TArray) => go(level + 1, a)
-      case TArray(_) => (level, innerType.decodedSType(ty).asInstanceOf)
+    @tailrec def go(ty: Type): SContainer = ty match {
+      case TArray(a: TArray) => go(a)
+      case TArray(_) => innerType.decodedSType(ty).asInstanceOf
     }
-    val (levels, base) = go(0, requestedType)
-    SNestedArray(levels, base)
+    val base = go(requestedType)
+    SNestedArray(nestedRequiredness, base)
   }
 
   override def setRequired(required: Boolean): EFlattenedArray = if (required == this.required) this else new EFlattenedArray(required, nestedRequiredness, innerType)
