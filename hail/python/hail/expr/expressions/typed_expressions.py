@@ -3775,8 +3775,8 @@ class NDArrayExpression(Expression):
             item = (item,)
 
         if len(item) > self.ndim:
-            raise ValueError(f'Must specify one index per dimension. '
-                             f'Expected {self.ndim} dimensions but got {len(item)}')
+            raise IndexError(f'too many indices for array: array is '
+                             f'{self.ndim}-dimensional, but {len(item)} were indexed')
 
         list_item = list(item)
         if len(list_item) < self.ndim:

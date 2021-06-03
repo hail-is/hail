@@ -87,6 +87,12 @@ def test_ndarray_slice():
          np_rect_prism[0:, :, 1:4:2] + np_rect_prism[:, :1, 1:4:2]),
         (rect_prism[0, 0, -3:-1], np_rect_prism[0, 0, -3:-1]),
         (rect_prism[-1, 0:1, 3:0:-1], np_rect_prism[-1, 0:1, 3:0:-1]),
+        # partial indexing
+        (rect_prism[1], np_rect_prism[1]),
+        (rect_prism[1:2], np_rect_prism[1:2]),
+        (rect_prism[1:2:2], np_rect_prism[1:2:2]),
+        (rect_prism[1, 2], np_rect_prism[1, 2]),
+        (rect_prism[-1, 1:2:2], np_rect_prism[-1, 1:2:2]),
 
         (flat[15:5:-1], np_flat[15:5:-1]),
         (flat[::-1], np_flat[::-1]),
@@ -128,6 +134,9 @@ def test_ndarray_slice():
         (mat[:-5:-1, 0], np_mat[:-5:-1, 0]),
         (mat[0:-5, 0], np_mat[0:-5, 0]),
         (mat[0:-5:-1, 0], np_mat[0:-5:-1, 0]),
+        # partial indexing
+        (mat[1], np_mat[1]),
+        (mat[0:1], np_mat[0:1]),
 
         (ah[:-3:1], an[:-3:1]),
         (ah[:-3:-1], an[:-3:-1]),
