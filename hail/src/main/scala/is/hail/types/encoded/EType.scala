@@ -340,7 +340,6 @@ object EType {
         IRParser.punctuation(it, "]")
         EFlattenedArray(req, requireds, innerType)
       case x => throw new UnsupportedOperationException(s"Couldn't parse $x ${it.toIndexedSeq}")
-
     }
   }
 }

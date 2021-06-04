@@ -11,7 +11,7 @@ import is.hail.utils._
 
 import scala.annotation.tailrec
 
-case class EFlattenedArray(override val required: Boolean, nestedRequiredness: IndexedSeq[Boolean], val innerType: EContainer) extends EType {
+case class EFlattenedArray(override val required: Boolean, nestedRequiredness: IndexedSeq[Boolean], innerType: EContainer) extends EType {
   def _buildEncoder(cb: EmitCodeBuilder, v: SValue, out: Value[OutputBuffer]): Unit = ???
 
   def _buildDecoder(cb: EmitCodeBuilder, t: Type, region: Value[Region], in: Value[InputBuffer]): SCode = {
@@ -98,5 +98,5 @@ case class EFlattenedArray(override val required: Boolean, nestedRequiredness: I
     SNestedArray(nestedRequiredness, base)
   }
 
-  override def setRequired(required: Boolean): EFlattenedArray = if (required == this.required) this else new EFlattenedArray(required, nestedRequiredness, innerType)
+  override def setRequired(newRequired: Boolean): EFlattenedArray = EFlattenedArray(newRequired, nestedRequiredness, innerType)
 }
