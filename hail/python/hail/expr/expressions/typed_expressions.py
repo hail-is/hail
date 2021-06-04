@@ -3769,8 +3769,9 @@ class NDArrayExpression(Expression):
 
     _opt_long_slice = sliceof(nullable(expr_int64), nullable(expr_int64), nullable(expr_int64))
 
-    @typecheck_method(item=oneof(expr_int64, type(...), _opt_long_slice, tupleof(oneof(expr_int64, _opt_long_slice))))
+    @typecheck_method(item=oneof(expr_int64, type(...), _opt_long_slice, tupleof(oneof(expr_int64, type(...), _opt_long_slice))))
     def __getitem__(self, item):
+        ellipses_found = False
         if not isinstance(item, tuple):
             item = (item,)
 
@@ -3778,21 +3779,33 @@ class NDArrayExpression(Expression):
             raise IndexError(f'too many indices for array: array is '
                              f'{self.ndim}-dimensional, but {len(item)} were indexed')
 
+        num_ellipses = len([e for e in item if isinstance(e, type(...))])
         list_item = list(item)
-        if len(list_item) < self.ndim:
-            list_item += [slice(None, None, None)] * (self.ndim - len(list_item))
+        if num_ellipses > 1:
+            raise IndexError('an index can only have a single ellipsis (\'...\')')
 
-        ### pad the list with empty slices
+        no_ellipses = None
+        if num_ellipses == 1:
+            list_types = [type(e) for e in list_item]
+            ellipsis_location = list_types.index(type(...))
+            num_slices_to_add = self.ndim - len(item) + 1
+            no_ellipses = list_item[:ellipsis_location] + [slice(None)] * num_slices_to_add + list_item[ellipsis_location + 1:]
+        else:
+            no_ellipses = list_item
 
-        n_sliced_dims = len([s for s in list_item if isinstance(s, slice)])
+
+        if len(no_ellipses) < self.ndim:
+            no_ellipses += [slice(None, None, None)] * (self.ndim - len(list_item))
+
+        n_sliced_dims = len([s for s in no_ellipses if isinstance(s, slice)])
 
         if n_sliced_dims > 0:
             slices = []
-            for i, s in enumerate(list_item):
+            for i, s in enumerate(no_ellipses):
                 dlen = self.shape[i]
 
                 #if isinstance(s, type(...)):
-                #    s = slice()
+                #    list_item[i] = slice(None,None,None)
                 if isinstance(s, slice):
 
                     if s.step is not None:
