@@ -122,13 +122,13 @@ final case class EArray(val elementType: EType, override val required: Boolean =
     val len = cb.newLocal[Int]("len", in.readInt())
     val i = cb.newLocal[Int]("i")
     if (elementType.required) {
-      cb.forLoop(cb.assign(i, 0), i < len, cb.assign(i, i + 1), cb += skip(r, in))
+      cb.forLoop(cb.assign(i, 0), i < len, cb.assign(i, i + 1), skip(cb, r, in))
     } else {
       val nMissing = cb.newLocal[Int]("nMissing", UnsafeUtils.packBitsToBytes(len))
       val mbytes = cb.newLocal[Long]("mbytes", r.allocate(const(1L), nMissing.toL))
       cb += in.readBytes(r, mbytes, nMissing)
       cb.forLoop(cb.assign(i, 0), i < len, cb.assign(i, i + 1),
-        cb.ifx(!Region.loadBit(mbytes, i.toL), cb += skip(r, in)))
+        cb.ifx(!Region.loadBit(mbytes, i.toL), skip(cb, r, in)))
     }
   }
 

@@ -80,7 +80,7 @@ final case class EBlockMatrixNDArray(elementType: EType, encodeRowMajor: Boolean
     val len = cb.newLocal[Int]("len", in.readInt() * in.readInt())
     val i = cb.newLocal[Int]("i")
     cb += in.skipBoolean()
-    cb.forLoop(cb.assign(i, 0), i < len, cb.assign(i, i + 1), cb += skip(r, in))
+    cb.forLoop(cb.assign(i, 0), i < len, cb.assign(i, i + 1), skip(cb, r, in))
   }
 
   def _asIdent = s"ndarray_of_${ elementType.asIdent }"

@@ -109,8 +109,8 @@ abstract class EType extends BaseType with Serializable with Requiredness {
     })
   }
 
-  final def buildSkip(kb: EmitClassBuilder[_]): (Code[Region], Code[InputBuffer]) => Code[Unit] = {
-    kb.getOrGenEmitMethod(s"SKIP_${ asIdent }",
+  final def buildSkip(kb: EmitClassBuilder[_]): (EmitCodeBuilder, Code[Region], Code[InputBuffer]) => Unit = { (cb, r, ib) =>
+    val method = kb.getOrGenEmitMethod(s"SKIP_${ asIdent }",
       (this, "SKIP"),
       FastIndexedSeq[ParamType](classInfo[Region], classInfo[InputBuffer]),
       UnitInfo)({ mb =>
@@ -119,7 +119,8 @@ abstract class EType extends BaseType with Serializable with Requiredness {
         val in: Value[InputBuffer] = mb.getCodeParam[InputBuffer](2)
         _buildSkip(cb, r, in)
       }
-    }).invokeCode(_, _)
+    })
+    cb.invokeVoid(method, r, ib)
   }
 
   def _buildEncoder(cb: EmitCodeBuilder, v: SValue, out: Value[OutputBuffer]): Unit
