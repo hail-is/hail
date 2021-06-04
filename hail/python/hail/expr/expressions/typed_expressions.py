@@ -3771,7 +3771,6 @@ class NDArrayExpression(Expression):
 
     @typecheck_method(item=oneof(expr_int64, type(...), _opt_long_slice, tupleof(oneof(expr_int64, type(...), _opt_long_slice))))
     def __getitem__(self, item):
-        ellipses_found = False
         if not isinstance(item, tuple):
             item = (item,)
 
@@ -3793,19 +3792,14 @@ class NDArrayExpression(Expression):
         else:
             no_ellipses = list_item
 
-
         if len(no_ellipses) < self.ndim:
             no_ellipses += [slice(None, None, None)] * (self.ndim - len(list_item))
 
         n_sliced_dims = len([s for s in no_ellipses if isinstance(s, slice)])
-
         if n_sliced_dims > 0:
             slices = []
             for i, s in enumerate(no_ellipses):
                 dlen = self.shape[i]
-
-                #if isinstance(s, type(...)):
-                #    list_item[i] = slice(None,None,None)
                 if isinstance(s, slice):
 
                     if s.step is not None:
