@@ -54,6 +54,8 @@ case class SSubsetStruct(parent: SBaseStruct, fieldNames: IndexedSeq[String]) ex
 
   def codeTupleTypes(): IndexedSeq[TypeInfo[_]] = parent.codeTupleTypes()
 
+  override def settableTupleTypes(): IndexedSeq[TypeInfo[_]] = parent.settableTupleTypes()
+
   def fromSettables(settables: IndexedSeq[Settable[_]]): SSubsetStructSettable = {
     new SSubsetStructSettable(this, parent.fromSettables(settables).asInstanceOf[SStructSettable])
   }

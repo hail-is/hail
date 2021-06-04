@@ -42,9 +42,9 @@ trait SType {
 
   def settableTupleTypes(): IndexedSeq[TypeInfo[_]] = codeTupleTypes()
 
-  def nCodes: Int = codeTupleTypes().length
+  lazy val nCodes: Int = codeTupleTypes().length
 
-  def nSettables: Int = settableTupleTypes().length
+  lazy val nSettables: Int = settableTupleTypes().length
 
   def fromSettables(settables: IndexedSeq[Settable[_]]): SSettable
 
