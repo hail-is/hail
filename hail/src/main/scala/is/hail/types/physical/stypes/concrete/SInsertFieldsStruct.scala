@@ -12,20 +12,25 @@ import is.hail.utils.BoxedArrayBuilder
 case class SInsertFieldsStruct(virtualType: TStruct, parent: SBaseStruct, insertedFields: IndexedSeq[(String, EmitType)]) extends SBaseStruct {
   override def size: Int = virtualType.size
 
-  lazy val insertedFieldMap: Map[String, Int] = insertedFields.map(_._1).zipWithIndex.toMap
+  // Maps index in result struct to index in insertedFields.
+  // Indices that refer to parent fields are not present.
+  lazy val insertedFieldIndices: Map[Int, Int] = insertedFields.zipWithIndex
+    .map { case ((name, _), idx) => virtualType.fieldIdx(name) -> idx }
+    .toMap
 
   def getFieldIndexInNewOrParent(idx: Int): Either[Int, Int] = {
-    val fieldName = virtualType.fieldNames(idx)
-    insertedFieldMap.get(fieldName) match {
+    insertedFieldIndices.get(idx) match {
       case Some(idx) => Right(idx)
-      case None => Left(parent.fieldIdx(fieldName))
+      case None => Left(parent.fieldIdx(virtualType.fieldNames(idx)))
     }
   }
 
-  val fieldEmitTypes: IndexedSeq[EmitType] = virtualType.fieldNames.map(f => insertedFieldMap.get(f) match {
-    case Some(idx) => insertedFields(idx)._2
-    case None => parent.fieldEmitTypes(parent.fieldIdx(f))
-  })
+  val fieldEmitTypes: IndexedSeq[EmitType] = virtualType.fieldNames.zipWithIndex.map { case (f, idx) =>
+    insertedFieldIndices.get(idx) match {
+      case Some(idx) => insertedFields(idx)._2
+      case None => parent.fieldEmitTypes(parent.fieldIdx(f))
+    }
+  }
 
   private lazy val insertedFieldCodeStarts = insertedFields.map(_._2.nCodes).scanLeft(0)(_ + _).init
   private lazy val insertedFieldSettableStarts = insertedFields.map(_._2.nSettables).scanLeft(0)(_ + _).init
@@ -77,7 +82,7 @@ case class SInsertFieldsStruct(virtualType: TStruct, parent: SBaseStruct, insert
       val newField = ts.fields(i)
       val newName = newField.name
       val oldName = virtualType.fieldNames(i)
-      insertedFieldMap.get(oldName) match {
+      insertedFieldIndices.get(i) match {
         case Some(idx) =>
           val et = insertedFields(idx)._2
           renamedInsertedFields(idx) = ((newName, et.copy(st = et.st.castRename(newField.typ))))
@@ -141,13 +146,13 @@ class SInsertFieldsStructCode(val st: SInsertFieldsStruct, val parent: SBaseStru
     })
   }
 
-  override def insert(newType: TStruct, fields: (String, EmitCode)*): SBaseStructCode = {
+  override def _insert(newType: TStruct, fields: (String, EmitCode)*): SBaseStructCode = {
     val newFieldSet = fields.map(_._1).toSet
     val filteredNewFields = st.insertedFields.map(_._1)
       .zipWithIndex
       .filter { case (name, idx) => !newFieldSet.contains(name) }
       .map { case (name, idx) => (name, newFields(idx)) }
-    parent.insert(newType, filteredNewFields ++ fields: _*)
+    parent._insert(newType, filteredNewFields ++ fields: _*)
   }
 
   override def loadSingleField(cb: EmitCodeBuilder, fieldIdx: Int): IEmitCode = {

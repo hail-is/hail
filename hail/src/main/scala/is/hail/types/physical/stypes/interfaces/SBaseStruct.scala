@@ -56,7 +56,7 @@ trait SBaseStructCode extends SCode {
     new SSubsetStructCode(st, self)
   }
 
-  def insert(newType: TStruct, fields: (String, EmitCode)*): SBaseStructCode = {
+  protected[stypes] def _insert(newType: TStruct, fields: (String, EmitCode)*): SBaseStructCode = {
     new SInsertFieldsStructCode(
       SInsertFieldsStruct(newType, st, fields.map { case (name, ec) => (name, ec.emitType) }.toFastIndexedSeq),
       this,
@@ -64,9 +64,9 @@ trait SBaseStructCode extends SCode {
     )
   }
 
-  final def baseInsert(cb: EmitCodeBuilder, region: Value[Region], newType: TStruct, fields: (String, EmitCode)*): SBaseStructCode = {
+  final def insert(cb: EmitCodeBuilder, region: Value[Region], newType: TStruct, fields: (String, EmitCode)*): SBaseStructCode = {
     if (newType.size < 64 || fields.length < 16)
-      return insert(newType, fields: _*)
+      return _insert(newType, fields: _*)
 
     val newFieldMap = fields.toMap
     val oldPV = memoize(cb, "insert_fields_old")

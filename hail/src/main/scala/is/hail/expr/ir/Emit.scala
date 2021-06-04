@@ -920,7 +920,7 @@ class Emit[C](
           emitI(old)
         else {
           emitI(old).map(cb) { old =>
-            old.asBaseStruct.baseInsert(cb, region, x.typ,
+            old.asBaseStruct.insert(cb, region, x.typ,
               fields.map { case (name, x) => (name, EmitCode.fromI(cb.emb)(cb => emitInNewBuilder(cb, x))) }: _*)
           }
         }
