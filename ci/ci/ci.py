@@ -63,6 +63,7 @@ async def pr_config(app, pr: PR) -> Dict[str, Any]:
         'author': pr.author,
         'assignees': pr.assignees,
         'reviewers': pr.reviewers,
+        'labels': pr.labels,
         'out_of_date': pr.build_state in ['failure', 'success', None] and not pr.is_up_to_date(),
     }
 

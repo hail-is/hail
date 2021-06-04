@@ -6,6 +6,7 @@
     <tr>
       <th>PR</th>
       <th>Build State</th>
+      <th>Labels</th>
       <th>Review State</th>
       <th>Author</th>
     </tr>
@@ -27,6 +28,9 @@
         {% if pr.build_state is not none and pr.out_of_date %}
           *
         {% endif %}
+      </td>
+      <td>
+        {{ pr.labels|join(", ") }}
       </td>
       <td>
         {% if pr.review_state %}

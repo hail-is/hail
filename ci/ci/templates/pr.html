@@ -17,6 +17,7 @@
       {% for name, value in batch['attributes'].items() %}
       <div>{{ name }}: {{ value }}</div>
       {% endfor %}
+      <div>labels: {{ pr.labels|join(", ") }}</div>
     </div>
     <form action="{{ base_path }}/watched_branches/{{ wb.index }}/pr/{{ pr.number }}/retry" method="post">
       <input type="hidden" name="_csrf" value="{{ csrf_token }}"/>
