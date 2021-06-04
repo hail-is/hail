@@ -3769,20 +3769,36 @@ class NDArrayExpression(Expression):
 
     _opt_long_slice = sliceof(nullable(expr_int64), nullable(expr_int64), nullable(expr_int64))
 
-    @typecheck_method(item=oneof(expr_int64, _opt_long_slice, tupleof(oneof(expr_int64, _opt_long_slice))))
+    @typecheck_method(item=oneof(expr_int64, type(...), _opt_long_slice, tupleof(oneof(expr_int64, type(...), _opt_long_slice))))
     def __getitem__(self, item):
         if not isinstance(item, tuple):
             item = (item,)
 
-        if len(item) != self.ndim:
-            raise ValueError(f'Must specify one index per dimension. '
-                             f'Expected {self.ndim} dimensions but got {len(item)}')
+        if len(item) > self.ndim:
+            raise IndexError(f'too many indices for array: array is '
+                             f'{self.ndim}-dimensional, but {len(item)} were indexed')
 
-        n_sliced_dims = len([s for s in item if isinstance(s, slice)])
+        num_ellipses = len([e for e in item if isinstance(e, type(...))])
+        list_item = list(item)
+        if num_ellipses > 1:
+            raise IndexError('an index can only have a single ellipsis (\'...\')')
 
+        no_ellipses = None
+        if num_ellipses == 1:
+            list_types = [type(e) for e in list_item]
+            ellipsis_location = list_types.index(type(...))
+            num_slices_to_add = self.ndim - len(item) + 1
+            no_ellipses = list_item[:ellipsis_location] + [slice(None)] * num_slices_to_add + list_item[ellipsis_location + 1:]
+        else:
+            no_ellipses = list_item
+
+        if len(no_ellipses) < self.ndim:
+            no_ellipses += [slice(None, None, None)] * (self.ndim - len(list_item))
+
+        n_sliced_dims = len([s for s in no_ellipses if isinstance(s, slice)])
         if n_sliced_dims > 0:
             slices = []
-            for i, s in enumerate(item):
+            for i, s in enumerate(no_ellipses):
                 dlen = self.shape[i]
                 if isinstance(s, slice):
 
@@ -3794,6 +3810,7 @@ class NDArrayExpression(Expression):
 
                     max_bound = hl.if_else(step > 0, dlen, dlen - 1)
                     min_bound = hl.if_else(step > 0, to_expr(0, tint64), to_expr(-1, tint64))
+
                     if s.start is not None:
                         # python treats start < -dlen as None when step < 0: [0,1][-3:0:-1]
                         # and 0 otherwise: [0,1][-3::1] == [0,1][0::1]
