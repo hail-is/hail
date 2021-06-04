@@ -75,7 +75,7 @@ final case class EBlockMatrixNDArray(elementType: EType, encodeRowMajor: Boolean
   }
 
   def _buildSkip(cb: EmitCodeBuilder, r: Value[Region], in: Value[InputBuffer]): Unit = {
-    val skip = elementType.buildSkip(cb.emb)
+    val skip = elementType.buildSkip(cb.emb.ecb)
 
     val len = cb.newLocal[Int]("len", in.readInt() * in.readInt())
     val i = cb.newLocal[Int]("i")

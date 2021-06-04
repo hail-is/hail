@@ -118,7 +118,7 @@ final case class EArray(val elementType: EType, override val required: Boolean =
   }
 
   def _buildSkip(cb: EmitCodeBuilder, r: Value[Region], in: Value[InputBuffer]): Unit = {
-    val skip = elementType.buildSkip(cb.emb)
+    val skip = elementType.buildSkip(cb.emb.ecb)
     val len = cb.newLocal[Int]("len", in.readInt())
     val i = cb.newLocal[Int]("i")
     if (elementType.required) {

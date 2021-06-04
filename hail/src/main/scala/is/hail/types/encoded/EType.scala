@@ -109,8 +109,8 @@ abstract class EType extends BaseType with Serializable with Requiredness {
     })
   }
 
-  final def buildSkip(mb: EmitMethodBuilder[_]): (Code[Region], Code[InputBuffer]) => Code[Unit] = {
-    mb.getOrGenEmitMethod(s"SKIP_${ asIdent }",
+  final def buildSkip(kb: EmitClassBuilder[_]): (Code[Region], Code[InputBuffer]) => Code[Unit] = {
+    kb.getOrGenEmitMethod(s"SKIP_${ asIdent }",
       (this, "SKIP"),
       FastIndexedSeq[ParamType](classInfo[Region], classInfo[InputBuffer]),
       UnitInfo)({ mb =>

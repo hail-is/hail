@@ -162,7 +162,7 @@ final case class EBaseStruct(fields: IndexedSeq[EField], override val required: 
           })
         }
       } else {
-        val skip = f.typ.buildSkip(cb.emb)
+        val skip = f.typ.buildSkip(cb.emb.ecb)
         if (f.typ.required)
           cb += skip(region, in)
         else
@@ -175,7 +175,7 @@ final case class EBaseStruct(fields: IndexedSeq[EField], override val required: 
     val mbytes = cb.newLocal[Long]("mbytes", r.allocate(const(1), const(nMissingBytes)))
     cb += in.readBytes(r, mbytes, nMissingBytes)
     fields.foreach { f =>
-      val skip = f.typ.buildSkip(cb.emb)
+      val skip = f.typ.buildSkip(cb.emb.ecb)
       if (f.typ.required)
         cb += skip(r, in)
       else

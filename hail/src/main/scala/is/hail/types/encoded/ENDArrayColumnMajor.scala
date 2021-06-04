@@ -52,7 +52,7 @@ case class ENDArrayColumnMajor(elementType: EType, nDims: Int, required: Boolean
   }
 
   def _buildSkip(cb: EmitCodeBuilder, r: Value[Region], in: Value[InputBuffer]): Unit = {
-    val skip = elementType.buildSkip(cb.emb)
+    val skip = elementType.buildSkip(cb.emb.ecb)
 
     val numElements = cb.newLocal[Long]("ndarray_skipper_total_num_elements",
       (0 until nDims).foldLeft(const(1L).get) { (p, i) => p * in.readLong() })
