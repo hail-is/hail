@@ -3,35 +3,56 @@ package is.hail.expr.ir
 import is.hail.annotations._
 import is.hail.asm4s._
 import is.hail.backend.BackendContext
-import is.hail.expr.ir.Emit.E
 import is.hail.expr.ir.agg.{AggStateSig, ArrayAggStateSig, GroupedStateSig}
-import is.hail.expr.ir.functions.StringFunctions
+import is.hail.expr.ir.analyses.{ComputeMethodSplits, ControlFlowPreventsSplit, ParentPointers}
 import is.hail.expr.ir.lowering.TableStageDependency
 import is.hail.expr.ir.streams.{EmitStream, StreamProducer, StreamUtils}
 import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer, TypedCodecSpec}
 import is.hail.linalg.{BLAS, LAPACK, LinalgCodeUtils}
 import is.hail.services.shuffler._
-import is.hail.types.{TypeWithRequiredness, VirtualTypeWithReq}
 import is.hail.types.physical._
-import is.hail.types.physical.stypes.concrete.{SBaseStructPointerCode, SCanonicalShufflePointer, SCanonicalShufflePointerCode, SCanonicalShufflePointerSettable, SNDArrayPointer, SNDArrayPointerCode, SStackStruct}
+import is.hail.types.physical.stypes._
+import is.hail.types.physical.stypes.concrete._
 import is.hail.types.physical.stypes.interfaces._
-import is.hail.types.physical.stypes.primitives.{SFloat32, SFloat64, SInt32, SInt32Code, SInt64}
-import is.hail.types.physical.stypes.{EmitType, Int32SingleCodeType, SCode, SSettable, SType, SValue, SingleCodeSCode, SingleCodeType}
+import is.hail.types.physical.stypes.primitives._
 import is.hail.types.virtual._
+import is.hail.types.{TypeWithRequiredness, VirtualTypeWithReq}
 import is.hail.utils._
-import is.hail.utils.richUtils.RichCodeRegion
 
 import java.io._
 import scala.collection.mutable
 import scala.language.{existentials, postfixOps}
 
 // class for holding all information computed ahead-of-time that we need in the emitter
-class EmitContext(val executeContext: ExecuteContext, val req: RequirednessAnalysis)
+object EmitContext {
+  def analyze(ctx: ExecuteContext, ir: IR): EmitContext = {
+    ctx.timer.time("EmitContext.analyze") {
+      val usesAndDefs = ComputeUsesAndDefs(ir, errorIfFreeVariables = false)
+      val requiredness = Requiredness.apply(ir, usesAndDefs, null, Env.empty) // Value IR inference doesn't need context
+      val inLoopCriticalPath = ControlFlowPreventsSplit(ir, ParentPointers(ir), usesAndDefs)
+      val methodSplits = ComputeMethodSplits(ir,inLoopCriticalPath)
+      new EmitContext(ctx, requiredness, usesAndDefs, methodSplits, inLoopCriticalPath, Memo.empty[Unit])
+    }
+  }
+}
+
+class EmitContext(
+  val executeContext: ExecuteContext,
+  val req: RequirednessAnalysis,
+  val usesAndDefs: UsesAndDefs,
+  val methodSplits: Memo[Unit],
+  val inLoopCriticalPath: Memo[Unit],
+  val tryingToSplit: Memo[Unit]
+)
+
+case class EmitEnv(bindings: Env[EmitValue], inputValues: IndexedSeq[Value[Region] => EmitValue]) {
+  def bind(name: String, v: EmitValue): EmitEnv = copy(bindings = bindings.bind(name, v))
+
+  def bind(newBindings: (String, EmitValue)*): EmitEnv = copy(bindings = bindings.bindIterable(newBindings))
+}
 
 object Emit {
-  type E = Env[EmitValue]
-
-  def apply[C](ctx: EmitContext, ir: IR, fb: EmitFunctionBuilder[C], rti: TypeInfo[_], aggs: Option[Array[AggStateSig]] = None): Option[SingleCodeType] = {
+  def apply[C](ctx: EmitContext, ir: IR, fb: EmitFunctionBuilder[C], rti: TypeInfo[_], nParams: Int, aggs: Option[Array[AggStateSig]] = None): Option[SingleCodeType] = {
     TypeCheck(ir)
 
     val mb = fb.apply_method
@@ -43,19 +64,21 @@ object Emit {
     val region = mb.getCodeParam[Region](1)
     val returnTypeOption: Option[SingleCodeType] = if (ir.typ == TVoid) {
       fb.apply_method.voidWithBuilder { cb =>
-        emitter.emitVoid(cb, ir, region, Env.empty, container, None)
+        val env = EmitEnv(Env.empty, (0 until nParams).map(i => mb.storeEmitParam(i + 2, cb))) // this, region, ...
+        emitter.emitVoid(cb, ir, region, env, container, None)
       }
       None
     } else {
       var sct: SingleCodeType = null
       fb.emitWithBuilder { cb =>
 
-        val SCode = emitter.emitI(ir, cb, region, Env.empty, container, None).handle(cb, {
+        val env = EmitEnv(Env.empty, (0 until nParams).map(i => mb.storeEmitParam(i + 2, cb))) // this, region, ...
+        val sc = emitter.emitI(ir, cb, region, env, container, None).handle(cb, {
           cb._throw[RuntimeException](
             Code.newInstance[RuntimeException, String]("cannot return empty"))
         })
 
-        val scp = SingleCodeSCode.fromSCode(cb, SCode, region)
+        val scp = SingleCodeSCode.fromSCode(cb, sc, region)
         assert(scp.typ.ti == rti, s"type info mismatch: expect $rti, got ${ scp.typ.ti }")
         sct = scp.typ
         scp.code
@@ -250,6 +273,9 @@ object IEmitCodeGen {
 
     def memoize(cb: EmitCodeBuilder, name: String): EmitValue =
       cb.memoize(iec, name)
+
+    def memoizeField(cb: EmitCodeBuilder, name: String): EmitValue =
+      cb.memoizeField(iec, name)
   }
 
 }
@@ -520,20 +546,58 @@ class Emit[C](
 
   val methods: mutable.Map[(String, Seq[Type], Seq[SType], SType), EmitMethodBuilder[C]] = mutable.Map()
 
+  def emitVoidInSeparateMethod(context: String, cb: EmitCodeBuilder, ir: IR, region: Value[Region], env: EmitEnv, container: Option[AggContainer], loopEnv: Option[Env[LoopRef]]): Unit = {
+    assert(!ctx.inLoopCriticalPath.contains(ir))
+    val mb = cb.emb.genEmitMethod(context, FastIndexedSeq[ParamType](), UnitInfo)
+    val r = cb.newField[Region]("emitVoidSeparate_region", region)
+    mb.voidWithBuilder { cb =>
+      ctx.tryingToSplit.bind(ir, ())
+      emitVoid(cb, ir, r, env, container, loopEnv)
+    }
+    cb.invokeVoid(mb)
+  }
 
-  private[ir] def emitVoid(cb: EmitCodeBuilder, ir: IR, region: Value[Region], env: E, container: Option[AggContainer], loopEnv: Option[Env[LoopRef]]): Unit = {
+  def emitInSeparateMethod(context: String, cb: EmitCodeBuilder, ir: IR, region: Value[Region], env: EmitEnv, container: Option[AggContainer], loopEnv: Option[Env[LoopRef]]): IEmitCode = {
+    if (ir.typ == TVoid) {
+      emitVoidInSeparateMethod(context, cb, ir, region, env, container, loopEnv)
+      return IEmitCode.present(cb, SVoidCode)
+    }
+
+    assert(!ctx.inLoopCriticalPath.contains(ir))
+    val mb = cb.emb.genEmitMethod(context, FastIndexedSeq[ParamType](), UnitInfo)
+    val r = cb.newField[Region]("emitInSeparate_region", region)
+
+    var ev: EmitSettable = null
+    mb.voidWithBuilder { cb =>
+      ctx.tryingToSplit.bind(ir, ())
+      val result = emitI(ir, cb, r, env, container, loopEnv)
+
+      ev = cb.emb.ecb.newEmitField(s"${context}_result", result.emitType)
+      cb.assign(ev, result)
+    }
+    cb.invokeVoid(mb)
+    ev.toI(cb)
+  }
+
+  private[ir] def emitVoid(cb: EmitCodeBuilder, ir: IR, region: Value[Region], env: EmitEnv, container: Option[AggContainer], loopEnv: Option[Env[LoopRef]]): Unit = {
+    if (ctx.methodSplits.contains(ir) && !ctx.tryingToSplit.contains(ir)) {
+      emitVoidInSeparateMethod(s"split_${ir.getClass.getSimpleName}", cb, ir, region, env, container, loopEnv)
+      return
+    }
+
     val mb: EmitMethodBuilder[C] = cb.emb.asInstanceOf[EmitMethodBuilder[C]]
 
-    def emit(ir: IR, mb: EmitMethodBuilder[C] = mb, region: Value[Region] = region, env: E = env, container: Option[AggContainer] = container, loopEnv: Option[Env[LoopRef]] = loopEnv): EmitCode =
+
+    def emit(ir: IR, mb: EmitMethodBuilder[C] = mb, region: Value[Region] = region, env: EmitEnv = env, container: Option[AggContainer] = container, loopEnv: Option[Env[LoopRef]] = loopEnv): EmitCode =
       this.emit(ir, mb, region, env, container, loopEnv)
 
     def emitStream(ir: IR, outerRegion: Value[Region], mb: EmitMethodBuilder[C] = mb): EmitCode =
       EmitCode.fromI(mb)(cb => EmitStream.produce(this, ir, cb, outerRegion, env, container))
 
-    def emitVoid(ir: IR, cb: EmitCodeBuilder = cb, region: Value[Region] = region, env: E = env, container: Option[AggContainer] = container, loopEnv: Option[Env[LoopRef]] = loopEnv): Unit =
+    def emitVoid(ir: IR, cb: EmitCodeBuilder = cb, region: Value[Region] = region, env: EmitEnv = env, container: Option[AggContainer] = container, loopEnv: Option[Env[LoopRef]] = loopEnv): Unit =
       this.emitVoid(cb, ir, region, env, container, loopEnv)
 
-    def emitI(ir: IR, region: Value[Region] = region, env: E = env, container: Option[AggContainer] = container, loopEnv: Option[Env[LoopRef]] = loopEnv): IEmitCode =
+    def emitI(ir: IR, region: Value[Region] = region, env: EmitEnv = env, container: Option[AggContainer] = container, loopEnv: Option[Env[LoopRef]] = loopEnv): IEmitCode =
       this.emitI(ir, cb, region, env, container, loopEnv)
 
     (ir: @unchecked) match {
@@ -676,32 +740,33 @@ class Emit[C](
     }
   }
 
-  private[ir] def emitI(ir: IR, cb: EmitCodeBuilder, env: E, container: Option[AggContainer]): IEmitCode = {
+  private[ir] def emitI(ir: IR, cb: EmitCodeBuilder, env: EmitEnv, container: Option[AggContainer]): IEmitCode = {
     val region = cb.emb.getCodeParam[Region](1)
     emitI(ir, cb, region, env, container, None)
   }
 
-  private[ir] def emitI(ir: IR, cb: EmitCodeBuilder, region: Value[Region], env: E,
+  private[ir] def emitI(ir: IR, cb: EmitCodeBuilder, region: Value[Region], env: EmitEnv,
     container: Option[AggContainer], loopEnv: Option[Env[LoopRef]]
   ): IEmitCode = {
+    if (ctx.methodSplits.contains(ir) && !ctx.tryingToSplit.contains(ir)) {
+      return emitInSeparateMethod(s"split_${ir.getClass.getSimpleName}", cb, ir, region, env, container, loopEnv)
+    }
+
     val mb: EmitMethodBuilder[C] = cb.emb.asInstanceOf[EmitMethodBuilder[C]]
 
-    def emitI(ir: IR, region: Value[Region] = region, env: E = env, container: Option[AggContainer] = container, loopEnv: Option[Env[LoopRef]] = loopEnv): IEmitCode =
+    def emitI(ir: IR, region: Value[Region] = region, env: EmitEnv = env, container: Option[AggContainer] = container, loopEnv: Option[Env[LoopRef]] = loopEnv): IEmitCode =
       this.emitI(ir, cb, region, env, container, loopEnv)
 
-    def emitInNewBuilder(cb: EmitCodeBuilder, ir: IR, region: Value[Region] = region, env: E = env, container: Option[AggContainer] = container, loopEnv: Option[Env[LoopRef]] = loopEnv): IEmitCode =
+    def emitInNewBuilder(cb: EmitCodeBuilder, ir: IR, region: Value[Region] = region, env: EmitEnv = env, container: Option[AggContainer] = container, loopEnv: Option[Env[LoopRef]] = loopEnv): IEmitCode =
       this.emitI(ir, cb, region, env, container, loopEnv)
-
-    def emitInMethod(cb: EmitCodeBuilder, ir: IR): IEmitCode =
-      this.emitI(ir, cb, Env.empty, container)
 
     def emitStream(ir: IR, cb: EmitCodeBuilder, outerRegion: Value[Region]): IEmitCode =
       EmitStream.produce(this, ir, cb, outerRegion, env, container)
 
-    def emitVoid(ir: IR, env: E = env, container: Option[AggContainer] = container, loopEnv: Option[Env[LoopRef]] = loopEnv): Unit =
+    def emitVoid(ir: IR, env: EmitEnv = env, container: Option[AggContainer] = container, loopEnv: Option[Env[LoopRef]] = loopEnv): Unit =
       this.emitVoid(cb, ir: IR, region, env, container, loopEnv)
 
-    def emitFallback(ir: IR, env: E = env, container: Option[AggContainer] = container, loopEnv: Option[Env[LoopRef]] = loopEnv): IEmitCode =
+    def emitFallback(ir: IR, env: EmitEnv = env, container: Option[AggContainer] = container, loopEnv: Option[Env[LoopRef]] = loopEnv): IEmitCode =
       this.emit(ir, mb, region, env, container, loopEnv, fallingBackFromEmitI = true).toI(cb)
 
     def emitDeforestedNDArrayI(ir: IR): IEmitCode =
@@ -729,7 +794,7 @@ class Emit[C](
 
     if (ir.typ == TVoid) {
       emitVoid(ir)
-      return IEmitCode(CodeLabel(), CodeLabel(), SCode._empty, required = true)
+      return IEmitCode.present(cb, SVoidCode)
     }
 
     def presentPC(pc: SCode): IEmitCode = IEmitCode.present(cb, pc)
@@ -995,7 +1060,7 @@ class Emit[C](
           val vab = new StagedArrayBuilder(sct, producer.element.required, mb, 0)
           StreamUtils.writeToArrayBuilder(cb, stream.producer, vab, region)
           val sorter = new ArraySorter(EmitRegion(mb, region), vab)
-          sorter.sort(cb, region, makeDependentSortingFunction(cb, sct, lessThan, env, Array(left, right)))
+          sorter.sort(cb, region, makeDependentSortingFunction(cb, sct, lessThan, env, emitSelf, Array(left, right)))
           sorter.toRegion(cb, x.typ)
         }
 
@@ -2179,18 +2244,18 @@ class Emit[C](
               .asBaseStruct
               .memoize(cb, "decoded_context_tuple")
               .loadField(cb, 0)
-              .memoize(cb, "decoded_context")
+              .memoizeField(cb, "decoded_context")
 
             val decodedGlobal = globalSpec.encodedType.buildDecoder(globalSpec.encodedVirtualType, bodyFB.ecb)
               .apply(cb, region, gIB)
               .asBaseStruct
               .memoize(cb, "decoded_global_tuple")
               .loadField(cb, 0)
-              .memoize(cb, "decoded_global")
+              .memoizeField(cb, "decoded_global")
 
-            val env = Env[EmitValue](
+            val env = EmitEnv(Env[EmitValue](
               (cname, decodedContext),
-              (gname, decodedGlobal))
+              (gname, decodedGlobal)), FastIndexedSeq())
 
             val bodyResult = wrapInTuple(cb,
               region,
@@ -2325,34 +2390,36 @@ class Emit[C](
     * {@code tAggIn.elementType}.  {@code tAggIn.symTab} is not used by Emit.
     *
     **/
-  private[ir] def emit(ir: IR, mb: EmitMethodBuilder[C], env: E, container: Option[AggContainer]): EmitCode = {
+  private[ir] def emit(ir: IR, mb: EmitMethodBuilder[C], env: EmitEnv, container: Option[AggContainer]): EmitCode = {
     val region = mb.getCodeParam[Region](1)
     emit(ir, mb, region, env, container, None)
   }
 
-  private[ir] def emitWithRegion(ir: IR, mb: EmitMethodBuilder[C], region: Value[Region], env: E, container: Option[AggContainer]): EmitCode =
+  private[ir] def emitWithRegion(ir: IR, mb: EmitMethodBuilder[C], region: Value[Region], env: EmitEnv, container: Option[AggContainer]): EmitCode =
     emit(ir, mb, region, env, container, None)
 
   private def emit(
     ir: IR,
     mb: EmitMethodBuilder[C],
     region: Value[Region],
-    env: E,
+    env: EmitEnv,
     container: Option[AggContainer],
     loopEnv: Option[Env[LoopRef]],
     fallingBackFromEmitI: Boolean = false
   ): EmitCode = {
 
-    def emit(ir: IR, region: Value[Region] = region, env: E = env, container: Option[AggContainer] = container, loopEnv: Option[Env[LoopRef]] = loopEnv): EmitCode =
+    if (ctx.methodSplits.contains(ir) && !ctx.tryingToSplit.contains(ir)) {
+      return EmitCode.fromI(mb)(cb => emitInSeparateMethod(s"split_${ir.getClass.getSimpleName}", cb, ir, region, env, container, loopEnv))
+    }
+
+
+    def emit(ir: IR, region: Value[Region] = region, env: EmitEnv = env, container: Option[AggContainer] = container, loopEnv: Option[Env[LoopRef]] = loopEnv): EmitCode =
       this.emit(ir, mb, region, env, container, loopEnv)
 
-    def emitInMethod(ir: IR, mb: EmitMethodBuilder[C]): EmitCode =
-      this.emit(ir, mb, Env.empty, container)
-
-    def emitI(ir: IR, cb: EmitCodeBuilder, env: E = env, container: Option[AggContainer] = container, loopEnv: Option[Env[LoopRef]] = loopEnv): IEmitCode =
+    def emitI(ir: IR, cb: EmitCodeBuilder, env: EmitEnv = env, container: Option[AggContainer] = container, loopEnv: Option[Env[LoopRef]] = loopEnv): IEmitCode =
       this.emitI(ir, cb, region, env, container, loopEnv)
 
-    def emitVoid(ir: IR, env: E = env, container: Option[AggContainer] = container, loopEnv: Option[Env[LoopRef]] = loopEnv): Code[Unit] = {
+    def emitVoid(ir: IR, env: EmitEnv = env, container: Option[AggContainer] = container, loopEnv: Option[Env[LoopRef]] = loopEnv): Code[Unit] = {
       EmitCodeBuilder.scopedVoid(mb) { cb =>
         this.emitVoid(cb, ir, region, env, container, loopEnv)
       }
@@ -2380,14 +2447,14 @@ class Emit[C](
         }
 
       case Ref(name, t) =>
-        val ev = env.lookup(name)
+        val ev = env.bindings.lookup(name)
         if (ev.st.virtualType != t)
           throw new RuntimeException(s"emit value type did not match specified type:\n name: $name\n  ev: ${ ev.st.virtualType }\n  ir: ${ ir.typ }")
         ev.load
 
       case In(i, expectedPType) =>
         // this, Code[Region], ...
-        val ev = mb.getEmitParam(2 + i, region)
+        val ev = env.inputValues(i).apply(region)
         ev
 
       case ir@Apply(fn, typeArgs, args, rt) =>
@@ -2456,28 +2523,12 @@ class Emit[C](
     result
   }
 
-  private def capturedReferences(ir: IR, cb: EmitCodeBuilder, env: Emit.E): Emit.E = {
-    var ids = Set[String]()
-
-    VisitIR(ir) {
-      case Ref(id, _) =>
-        ids += id
-      case _ =>
-    }
-
-    Env.fromSeq[EmitValue](ids.toFastSeq.flatMap { id =>
-      env.lookupOption(id).map { e =>
-        (id, cb.memoizeField(e.load, id))
-      }
-    })
-  }
-
   private def makeDependentSortingFunction(
     cb: EmitCodeBuilder,
-    elemSCT: SingleCodeType, ir: IR, env: Emit.E, leftRightComparatorNames: Array[String]): (EmitCodeBuilder, Value[Region], Code[_], Code[_]) => Code[Boolean] = {
+    elemSCT: SingleCodeType, ir: IR, env: EmitEnv, emitter: Emit[_], leftRightComparatorNames: Array[String]): (EmitCodeBuilder, Value[Region], Code[_], Code[_]) => Code[Boolean] = {
     val fb = cb.emb.ecb
-    var newEnv = capturedReferences(ir, cb, env)
 
+    var newEnv = env
     val sort = fb.genEmitMethod("dependent_sorting_func",
       FastIndexedSeq(typeInfo[Region], CodeParamType(elemSCT.ti), CodeParamType(elemSCT.ti)),
       BooleanInfo)
@@ -2489,24 +2540,23 @@ class Emit[C](
 
       if (leftRightComparatorNames.nonEmpty) {
         assert(leftRightComparatorNames.length == 2)
-        newEnv = newEnv.bindIterable(
-          IndexedSeq(
+        newEnv = newEnv.bind(
             (leftRightComparatorNames(0), leftEC),
-            (leftRightComparatorNames(1), rightEC)))
+            (leftRightComparatorNames(1), rightEC))
       }
 
-      val iec = new Emit(ctx, fb).emitI(ir, cb, newEnv, None)
+      val iec = emitter.emitI(ir, cb, newEnv, None)
       iec.get(cb, "Result of sorting function cannot be missing").asBoolean.boolCode(cb)
     }
     (cb: EmitCodeBuilder, region: Value[Region], l: Code[_], r: Code[_]) => cb.invokeCode[Boolean](sort, region, l, r)
   }
 
-  def deforestNDArrayI(x0: IR, cb: EmitCodeBuilder, region: Value[Region], env: E): IEmitCode = {
+  def deforestNDArrayI(x0: IR, cb: EmitCodeBuilder, region: Value[Region], env: EmitEnv): IEmitCode = {
 
-    def emit(ir: IR, env: E = env): IEmitCode =
+    def emit(ir: IR, env: EmitEnv = env): IEmitCode =
       this.emitI(ir, cb, region, env, None, None)
 
-    def dEmit(ir: IR, env: E = env): EmitCode = EmitCode.fromI(cb.emb)(cb => this.emitI(ir, cb, region, env, None, None))
+    def dEmit(ir: IR, env: EmitEnv = env): EmitCode = EmitCode.fromI(cb.emb)(cb => this.emitI(ir, cb, region, env, None, None))
 
     def deforest(x: IR): IEmitCodeGen[NDArrayEmitter] = {
       val xType = coerce[TNDArray](x.typ)

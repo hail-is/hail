@@ -53,10 +53,8 @@ class EmitStreamSuite extends HailSuite {
     val fb = EmitFunctionBuilder[F](ctx, "F", (classInfo[Region]: ParamType) +: inputTypes.map(pt => pt: ParamType), LongInfo)
     val mb = fb.apply_method
     val ir = streamIR.deepCopy()
-    val usesAndDefs = ComputeUsesAndDefs(ir, errorIfFreeVariables = false)
-    val requiredness = Requiredness.apply(ir, usesAndDefs, null, Env.empty) // Value IR inference doesn't need context
 
-    val emitContext = new EmitContext(ctx, requiredness)
+    val emitContext = EmitContext.analyze(ctx, ir)
 
     var arrayType: PType = null
     mb.emit(EmitCodeBuilder.scopedCode(mb) { cb =>
@@ -66,7 +64,7 @@ class EmitStreamSuite extends HailSuite {
         case s => s
       }
       TypeCheck(s)
-      EmitStream.produce(new Emit(emitContext, fb.ecb), s, cb, region, Env.empty, None)
+      EmitStream.produce(new Emit(emitContext, fb.ecb), s, cb, region, EmitEnv(Env.empty, inputTypes.indices.map(i => mb.storeEmitParam(i + 2, cb))), None)
         .consumeCode[Long](cb, 0L, { s =>
           val arr = StreamUtils.toArray(cb, s.asStream.producer, region)
           val scp = SingleCodeSCode.fromSCode(cb, arr, region, false)
@@ -126,17 +124,14 @@ class EmitStreamSuite extends HailSuite {
     val mb = fb.apply_method
     val region = mb.getCodeParam[Region](1)
     val ir = streamIR.deepCopy()
-    val usesAndDefs = ComputeUsesAndDefs(ir, errorIfFreeVariables = false)
-    val requiredness = Requiredness.apply(ir, usesAndDefs, null, Env.empty) // Value IR inference doesn't need context
-
-    val emitContext = new EmitContext(ctx, requiredness)
+    val emitContext = EmitContext.analyze(ctx, ir)
 
     fb.emitWithBuilder { cb =>
       TypeCheck(ir)
       val len = cb.newLocal[Int]("len", 0)
       val len2 = cb.newLocal[Int]("len2", -1)
 
-      EmitStream.produce(new Emit(emitContext, fb.ecb), ir, cb, region, Env.empty, None)
+      EmitStream.produce(new Emit(emitContext, fb.ecb), ir, cb, region, EmitEnv(Env.empty, FastIndexedSeq()), None)
         .consume(cb,
           {},
           { case stream: SStreamCode =>

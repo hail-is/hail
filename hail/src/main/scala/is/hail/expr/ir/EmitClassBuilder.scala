@@ -832,6 +832,45 @@ class EmitMethodBuilder[C](
     })
   }
 
+  def storeEmitParam(emitIndex: Int, cb: EmitCodeBuilder): Value[Region] => EmitValue = {
+    assert(mb.isStatic || emitIndex != 0)
+    val static = (!mb.isStatic).toInt
+    val et = emitParamTypes(emitIndex - static) match {
+      case t: EmitParamType => t
+      case _ => throw new RuntimeException(s"isStatic=${ mb.isStatic }, emitIndex=$emitIndex, params=$emitParamTypes")
+    }
+    val codeIndex = emitParamCodeIndex(emitIndex - static)
+
+    et match {
+      case SingleCodeEmitParamType(required, sct) =>
+        val field = cb.newFieldAny(s"storeEmitParam_sct_$emitIndex", mb.getArg(codeIndex)(sct.ti).get)(sct.ti);
+        { region: Value[Region] =>
+          val emitCode = EmitCode.fromI(this) { cb =>
+            if (required) {
+              IEmitCode.present(cb, sct.loadToPCode(cb, region, field.load()))
+            } else {
+              IEmitCode(cb, mb.getArg[Boolean](codeIndex + 1).get, sct.loadToPCode(cb, null, field.load()))
+            }
+          }
+
+          new EmitValue {
+            evSelf =>
+
+            override def emitType: EmitType = emitCode.emitType
+
+            override def load: EmitCode = emitCode
+
+            override def get(cb: EmitCodeBuilder): SCode = emitCode.toI(cb).get(cb)
+          }
+        }
+
+      case PCodeEmitParamType(et) =>
+        val fd = cb.memoizeField(getEmitParam(emitIndex, null), s"storeEmitParam_$emitIndex")
+        _ => fd
+    }
+
+  }
+
   // needs region to support stream arguments
   def getEmitParam(emitIndex: Int, r: Value[Region]): EmitValue = {
     assert(mb.isStatic || emitIndex != 0)
