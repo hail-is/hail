@@ -74,7 +74,7 @@ def test_ndarray_slice():
     an = np.array(a)
     ah = hl.nd.array(a)
     ae_np = np.arange(4*4*5*6*5*4).reshape((4, 4, 5, 6, 5, 4))
-    ae = hl.nd.arange(4*4*5*6*5*4).reshape((4, 4, 5, 6, 5, 4))
+    ae = hl.nd.array(ae_np)
     assert_ndarrays_eq(
         (rect_prism[:, :, :], np_rect_prism[:, :, :]),
         (rect_prism[:, :, 1], np_rect_prism[:, :, 1]),
@@ -146,7 +146,7 @@ def test_ndarray_slice():
         (mat[1], np_mat[1]),
         (mat[0:1], np_mat[0:1]),
         # ellipses inclusion
-        (mat[...], mat[...]),
+        (mat[...], np_mat[...]),
 
         (ah[:-3:1], an[:-3:1]),
         (ah[:-3:-1], an[:-3:-1]),
