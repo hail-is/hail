@@ -206,10 +206,10 @@ ip -n {self.network_ns_name} route add default via {self.host_ip}'''
         # Appending to PREROUTING means this is only exposed to external traffic.
         # To expose for locally created packets, we would append instead to the OUTPUT chain.
         await check_shell(
-            f'iptables --table nat --{action} PREROUTING \\ '
-            f'--match addrtype --dst-type LOCAL \\ '
-            f'--protocol tcp \\ '
-            f'--match tcp --dport {self.host_port} \\ '
+            f'iptables --table nat --{action} PREROUTING '
+            f'--match addrtype --dst-type LOCAL '
+            f'--protocol tcp '
+            f'--match tcp --dport {self.host_port} '
             f'--jump DNAT --to-destination {self.job_ip}:{self.port}'
         )
 
@@ -388,12 +388,13 @@ class Container:
 
         self.image_config = None
         self.rootfs_path = None
-        self.container_name = f'batch-{self.job.batch_id}-job-{self.job.job_id}-{self.name}'
-        self.container_overlay_path = f'/host/containers/{self.container_name}'
-        self.config_path = f'/host/configs/{self.container_name}'
+        scratch = self.spec['scratch']
+        self.container_scratch = f'{scratch}/{self.name}'
+        self.container_overlay_path = f'{self.container_scratch}/rootfs_overlay'
+        self.config_path = f'{self.container_scratch}/config'
 
         self.netns: Optional[NetworkNamespace] = None
-        self.proc = None
+        self.process = None
 
     async def run(self, worker):
         try:
@@ -410,8 +411,8 @@ class Container:
                         await self.pull_image()
 
                     self.image_config = image_configs[self.image_ref_str]
-                    self.image_digest = get_image_digest(self.image_config)
-                    self.rootfs_path = f'/host/rootfs/{self.image_digest}'
+                    image_digest = get_image_digest(self.image_config)
+                    self.rootfs_path = f'/host/rootfs/{image_digest}'
                     if not os.path.exists(self.rootfs_path):
                         await self.extract_rootfs()
 
@@ -534,7 +535,6 @@ class Container:
         await check_shell(
             f'mount -t overlay overlay -o lowerdir={lower_dir},upperdir={upper_dir},workdir={work_dir} {merged_dir}'
         )
-        await check_shell(f'xfs_quota -x -c "project -s -p {self.container_overlay_path} {self.job.project_id}" /host')
 
     async def run_container(self) -> bool:
         self.started_at = time_msecs()
@@ -542,19 +542,19 @@ class Container:
             await self.write_container_config()
             async with async_timeout.timeout(self.timeout):
                 log.info('Creating the crun run process')
-                self.proc = await asyncio.create_subprocess_exec(
+                self.process = await asyncio.create_subprocess_exec(
                     'crun',
                     'run',
                     '--bundle',
                     f'{self.container_overlay_path}/merged',
                     '--config',
                     f'{self.config_path}/config.json',
-                    self.container_name,
+                    f'batch-{self.job.batch_id}-job-{self.job.job_id}-{self.name}',
                     stdout=asyncio.subprocess.PIPE,
                     stderr=asyncio.subprocess.PIPE,
                 )
-                await asyncio.gather(self.pipe_to_log(self.proc.stdout), self.pipe_to_log(self.proc.stderr))
-                await self.proc.wait()
+                await asyncio.gather(self.pipe_to_log(self.process.stdout), self.pipe_to_log(self.process.stderr))
+                await self.process.wait()
                 log.info('crun process completed')
         except asyncio.TimeoutError:
             return True
@@ -595,7 +595,7 @@ class Container:
                 'readonly': False,
             },
             'hostname': self.netns.hostname,
-            'mounts': self._mounts(),
+            'mounts': self._mounts(uid, gid),
             'process': {
                 'user': {  # uid/gid *inside the container*
                     'uid': uid,
@@ -681,57 +681,81 @@ class Container:
                     return uid, gid
             raise ValueError("Container user not found in image's /etc/passwd")
 
-    def _mounts(self):
-        return self.spec.get('volume_mounts') + [
-            {
-                'source': 'proc',
-                'destination': '/proc',
-                'type': 'proc',
-                'options': ['nosuid', 'noexec', 'nodev'],
-            },
-            {
-                'source': 'tmpfs',
-                'destination': '/dev',
-                'type': 'tmpfs',
-                'options': ['nosuid', 'strictatime', 'mode=755', 'size=65536k'],
-            },
-            {
-                'source': 'sysfs',
-                'destination': '/sys',
-                'type': 'sysfs',
-                'options': ['nosuid', 'noexec', 'nodev', 'ro'],
-            },
-            {
-                'source': 'cgroup',
-                'destination': '/sys/fs/cgroup',
-                'type': 'cgroup',
-                'options': ['nosuid', 'noexec', 'nodev', 'ro'],
-            },
-            {
-                'source': 'mqueue',
-                'destination': '/dev/mqueue',
-                'type': 'mqueue',
-                'options': ['nosuid', 'noexec', 'nodev'],
-            },
-            {
-                'source': 'shm',
-                'destination': '/dev/shm',
-                'type': 'tmpfs',
-                'options': ['nosuid', 'noexec', 'nodev', 'mode=1777', 'size=67108864'],
-            },
-            {
-                'source': f'/etc/netns/{self.netns.network_ns_name}/resolv.conf',
-                'destination': '/etc/resolv.conf',
-                'type': 'none',
-                'options': ['rbind', 'ro'],
-            },
-            {
-                'source': f'/etc/netns/{self.netns.network_ns_name}/hosts',
-                'destination': '/etc/hosts',
-                'type': 'none',
-                'options': ['rbind', 'ro'],
-            },
-        ]
+    def _mounts(self, uid, gid):
+        # Only supports empty volumes
+        external_volumes = []
+        volumes = self.image_config['Config']['Volumes']
+        if volumes:
+            for v_container_path in volumes:
+                if not v_container_path.startswith('/'):
+                    v_container_path = '/' + v_container_path
+                v_host_path = f'{self.container_scratch}/volumes{v_container_path}'
+                os.makedirs(v_host_path)
+                if uid != 0 or gid != 0:
+                    os.chown(v_host_path, uid, gid)
+                external_volumes.append(
+                    {
+                        'source': v_host_path,
+                        'destination': v_container_path,
+                        'type': 'none',
+                        'options': ['rbind', 'rw', 'shared'],
+                    }
+                )
+
+        return (
+            self.spec.get('volume_mounts')
+            + external_volumes
+            + [
+                {
+                    'source': 'proc',
+                    'destination': '/proc',
+                    'type': 'proc',
+                    'options': ['nosuid', 'noexec', 'nodev'],
+                },
+                {
+                    'source': 'tmpfs',
+                    'destination': '/dev',
+                    'type': 'tmpfs',
+                    'options': ['nosuid', 'strictatime', 'mode=755', 'size=65536k'],
+                },
+                {
+                    'source': 'sysfs',
+                    'destination': '/sys',
+                    'type': 'sysfs',
+                    'options': ['nosuid', 'noexec', 'nodev', 'ro'],
+                },
+                {
+                    'source': 'cgroup',
+                    'destination': '/sys/fs/cgroup',
+                    'type': 'cgroup',
+                    'options': ['nosuid', 'noexec', 'nodev', 'ro'],
+                },
+                {
+                    'source': 'mqueue',
+                    'destination': '/dev/mqueue',
+                    'type': 'mqueue',
+                    'options': ['nosuid', 'noexec', 'nodev'],
+                },
+                {
+                    'source': 'shm',
+                    'destination': '/dev/shm',
+                    'type': 'tmpfs',
+                    'options': ['nosuid', 'noexec', 'nodev', 'mode=1777', 'size=67108864'],
+                },
+                {
+                    'source': f'/etc/netns/{self.netns.network_ns_name}/resolv.conf',
+                    'destination': '/etc/resolv.conf',
+                    'type': 'none',
+                    'options': ['rbind', 'ro'],
+                },
+                {
+                    'source': f'/etc/netns/{self.netns.network_ns_name}/hosts',
+                    'destination': '/etc/hosts',
+                    'type': 'none',
+                    'options': ['rbind', 'ro'],
+                },
+            ]
+        )
 
     def _env(self):
         env = self.image_config['Config']['Env'] + self.spec.get('env', [])
@@ -745,12 +769,12 @@ class Container:
         if self.container_is_running():
             try:
                 log.info(f'{self} container is still running, killing crun process')
-                self.proc.kill()
+                self.process.kill()
             except asyncio.CancelledError:
                 raise
             except Exception:
                 log.warning('while deleting container, ignoring', exc_info=True)
-        self.proc = None
+        self.process = None
 
         if self.host_port is not None:
             port_allocator.free(self.host_port)
@@ -760,11 +784,8 @@ class Container:
             network_allocator.free(self.netns)
             self.netns = None
 
-        mount_point = f'{self.container_overlay_path}/merged'
-        if os.path.exists(mount_point):
-            await check_shell(f'umount {mount_point}')
-            shutil.rmtree(self.container_overlay_path)
-            shutil.rmtree(self.config_path)
+        if os.path.exists(f'{self.container_overlay_path}/merged'):
+            await check_shell(f'umount {self.container_overlay_path}/merged')
 
     async def delete(self):
         log.info(f'deleting {self}')
@@ -788,8 +809,6 @@ class Container:
         if not state:
             state = self.state
         status = {'name': self.name, 'state': state, 'timing': self.timings.to_dict()}
-        # TODO Remove
-        status['container_status'] = await self.get_container_status()
         if self.error:
             status['error'] = self.error
         if self.short_error:
@@ -801,7 +820,7 @@ class Container:
         return status
 
     async def get_container_status(self):
-        if not self.proc:
+        if not self.process:
             return None
 
         status = {
@@ -813,16 +832,16 @@ class Container:
             status['out_of_memory'] = False
         else:
             status['state'] = 'finished'
-            status['exit_code'] = self.proc.returncode
-            status['out_of_memory'] = self.proc.returncode == 137
+            status['exit_code'] = self.process.returncode
+            status['out_of_memory'] = self.process.returncode == 137
 
         return status
 
     def container_is_running(self):
-        return self.proc is not None and self.proc.returncode is None
+        return self.process is not None and self.process.returncode is None
 
     def container_finished(self):
-        return self.proc is not None and self.proc.returncode is not None
+        return self.process is not None and self.process.returncode is not None
 
     async def upload_log(self):
         await worker.log_store.write_log_file(
@@ -884,7 +903,7 @@ async def add_gcsfuse_bucket(mount_path, bucket, key_file, read_only):
         delay = await sleep_and_backoff(delay)
 
 
-def copy_container(job, name, files, volume_mounts, cpu, memory, requester_pays_project):
+def copy_container(job, name, files, volume_mounts, cpu, memory, scratch, requester_pays_project):
     assert files
     copy_spec = {
         'image': BATCH_WORKER_IMAGE,
@@ -899,6 +918,7 @@ def copy_container(job, name, files, volume_mounts, cpu, memory, requester_pays_
         'env': ['GOOGLE_APPLICATION_CREDENTIALS=/gsa-key/key.json'],
         'cpu': cpu,
         'memory': memory,
+        'scratch': scratch,
         'volume_mounts': volume_mounts,
     }
     return Container(job, name, copy_spec)
@@ -1150,6 +1170,7 @@ class DockerJob(Job):
                 self.input_volume_mounts,
                 self.cpu_in_mcpu,
                 self.memory_in_bytes,
+                self.scratch,
                 requester_pays_project,
             )
 
@@ -1176,6 +1197,7 @@ class DockerJob(Job):
         unconfined = job_spec.get('unconfined')
         if unconfined:
             main_spec['unconfined'] = unconfined
+        main_spec['scratch'] = self.scratch
         containers['main'] = Container(self, 'main', main_spec)
 
         if output_files:
@@ -1186,6 +1208,7 @@ class DockerJob(Job):
                 self.output_volume_mounts,
                 self.cpu_in_mcpu,
                 self.memory_in_bytes,
+                self.scratch,
                 requester_pays_project,
             )
 
@@ -1352,8 +1375,7 @@ class DockerJob(Job):
 
     async def delete(self):
         await super().delete()
-        for c in self.containers.values():
-            await c.delete()
+        await asyncio.wait(c.delete() for c in self.containers.values())
 
     async def status(self):
         status = await super().status()

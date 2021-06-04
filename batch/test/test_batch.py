@@ -132,6 +132,18 @@ def test_out_of_storage(client):
     assert "fallocate failed: No space left on device" in j.log()['main']
 
 
+def test_quota_applies_to_volume(client):
+    builder = client.create_batch()
+    resources = {'cpu': '0.25', 'memory': '10M', 'storage': '5Gi'}
+    j = builder.create_job(
+        os.environ['HAIL_VOLUME_IMAGE'], ['/bin/sh', '-c', 'fallocate -l 100GiB /data/foo'], resources=resources
+    )
+    builder.submit()
+    status = j.wait()
+    assert status['state'] == 'Failed', str(status)
+    assert "fallocate failed: No space left on device" in j.log()['main']
+
+
 def test_nonzero_storage(client):
     builder = client.create_batch()
     resources = {'cpu': '0.25', 'memory': '10M', 'storage': '20Gi'}

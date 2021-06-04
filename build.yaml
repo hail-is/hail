@@ -61,6 +61,10 @@ steps:
     dockerFile: /io/echo/Dockerfile
     contextPath: /io/echo
     publishAs: echo
+    resources:
+      storage: 50Gi
+      cpu: "2"
+      memory: 7.5Gi
     inputs:
       - from: /repo/echo
         to: /io/echo
@@ -2562,6 +2566,14 @@ steps:
     dependsOn:
       - hail_ubuntu_image
   - kind: buildImage2
+    name: volume_image
+    dockerFile:
+      inline: |
+        FROM {{ hail_ubuntu_image.image }}
+        VOLUME ["/data"]
+    dependsOn:
+      - hail_ubuntu_image
+  - kind: buildImage2
     name: curl_image
     dockerFile:
       inline: |
@@ -2623,6 +2635,7 @@ steps:
       export HAIL_CURL_IMAGE={{ curl_image.image }}
       export HAIL_DEFAULT_NAMESPACE={{ default_ns.name }}
       export HAIL_NETCAT_UBUNTU_IMAGE={{ netcat_ubuntu_image.image }}
+      export HAIL_VOLUME_IMAGE={{ volume_image.image }}
       export HAIL_HAIL_BASE_IMAGE={{ hail_base_image.image }}
       export DOCKER_PREFIX="{{ global.docker_prefix }}"
       export DOCKER_ROOT_IMAGE="{{ global.docker_root_image }}"
@@ -2678,6 +2691,7 @@ steps:
       - ci_utils_image
       - deploy_batch
       - netcat_ubuntu_image
+      - volume_image
       - curl_image
   - kind: runImage
     name: test_batch_1
@@ -2693,6 +2707,7 @@ steps:
       export HAIL_CURL_IMAGE={{ curl_image.image }}
       export HAIL_DEFAULT_NAMESPACE={{ default_ns.name }}
       export HAIL_NETCAT_UBUNTU_IMAGE={{ netcat_ubuntu_image.image }}
+      export HAIL_VOLUME_IMAGE={{ volume_image.image }}
       export HAIL_HAIL_BASE_IMAGE={{ hail_base_image.image }}
       export DOCKER_PREFIX="{{ global.docker_prefix }}"
       export DOCKER_ROOT_IMAGE="{{ global.docker_root_image }}"
@@ -2748,6 +2763,7 @@ steps:
       - ci_utils_image
       - deploy_batch
       - netcat_ubuntu_image
+      - volume_image
       - curl_image
   - kind: runImage
     name: test_batch_2
@@ -2763,6 +2779,7 @@ steps:
       export HAIL_CURL_IMAGE={{ curl_image.image }}
       export HAIL_DEFAULT_NAMESPACE={{ default_ns.name }}
       export HAIL_NETCAT_UBUNTU_IMAGE={{ netcat_ubuntu_image.image }}
+      export HAIL_VOLUME_IMAGE={{ volume_image.image }}
       export HAIL_HAIL_BASE_IMAGE={{ hail_base_image.image }}
       export DOCKER_PREFIX="{{ global.docker_prefix }}"
       export DOCKER_ROOT_IMAGE="{{ global.docker_root_image }}"
@@ -2818,6 +2835,7 @@ steps:
       - ci_utils_image
       - deploy_batch
       - netcat_ubuntu_image
+      - volume_image
       - curl_image
   - kind: runImage
     name: test_batch_3
@@ -2833,6 +2851,7 @@ steps:
       export HAIL_CURL_IMAGE={{ curl_image.image }}
       export HAIL_DEFAULT_NAMESPACE={{ default_ns.name }}
       export HAIL_NETCAT_UBUNTU_IMAGE={{ netcat_ubuntu_image.image }}
+      export HAIL_VOLUME_IMAGE={{ volume_image.image }}
       export HAIL_HAIL_BASE_IMAGE={{ hail_base_image.image }}
       export DOCKER_PREFIX="{{ global.docker_prefix }}"
       export DOCKER_ROOT_IMAGE="{{ global.docker_root_image }}"
@@ -2888,6 +2907,7 @@ steps:
       - ci_utils_image
       - deploy_batch
       - netcat_ubuntu_image
+      - volume_image
       - curl_image
   - kind: runImage
     name: test_batch_4
@@ -2903,6 +2923,7 @@ steps:
       export HAIL_CURL_IMAGE={{ curl_image.image }}
       export HAIL_DEFAULT_NAMESPACE={{ default_ns.name }}
       export HAIL_NETCAT_UBUNTU_IMAGE={{ netcat_ubuntu_image.image }}
+      export HAIL_VOLUME_IMAGE={{ volume_image.image }}
       export HAIL_HAIL_BASE_IMAGE={{ hail_base_image.image }}
       export DOCKER_PREFIX="{{ global.docker_prefix }}"
       export DOCKER_ROOT_IMAGE="{{ global.docker_root_image }}"
@@ -2958,6 +2979,7 @@ steps:
       - ci_utils_image
       - deploy_batch
       - netcat_ubuntu_image
+      - volume_image
       - curl_image
   - kind: runImage
     name: delete_test_billing_projects
