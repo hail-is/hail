@@ -381,6 +381,8 @@ class TextMatrixReader(
     decomposeWithName(params, "TextMatrixReader")
   }
 
+  override def renderShort(): String = defaultRender()
+
   override def hashCode(): Int = params.hashCode()
 
   override def equals(that: Any): Boolean = that match {

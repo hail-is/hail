@@ -1792,6 +1792,8 @@ class MatrixVCFReader(
     decomposeWithName(params, "MatrixVCFReader")
   }
 
+  def renderShort(): String = defaultRender()
+
   override def hashCode(): Int = params.hashCode()
 
   override def equals(that: Any): Boolean = that match {

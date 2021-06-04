@@ -25,6 +25,7 @@ import org.apache.spark.TaskContext
 import org.apache.spark.executor.InputMetrics
 import org.apache.spark.sql.Row
 import org.json4s.JsonAST.JString
+import org.json4s.jackson.JsonMethods
 import org.json4s.{DefaultFormats, Extraction, Formats, JValue, ShortTypeHints}
 
 import java.io.{ByteArrayInputStream, DataInputStream, DataOutputStream, InputStream}
@@ -415,6 +416,12 @@ abstract class TableReader {
 
   def toJValue: JValue = {
     Extraction.decompose(this)(TableReader.formats)
+  }
+
+  def renderShort(): String
+
+  def defaultRender(): String = {
+    StringEscapeUtils.escapeString(JsonMethods.compact(toJValue))
   }
 
   def lowerGlobals(ctx: ExecuteContext, requestedGlobalsType: TStruct): IR =
@@ -891,6 +898,8 @@ class TableNativeReader(
     decomposeWithName(params, "TableNativeReader")
   }
 
+  override def renderShort(): String = s"(TableNativeReader ${ params.path } ${ params.options.map(_.renderShort()).getOrElse("") })"
+
   override def hashCode(): Int = params.hashCode()
 
   override def equals(that: Any): Boolean = that match {
@@ -927,6 +936,8 @@ case class TableNativeZippedReader(
   specRight: AbstractTableSpec
 ) extends TableReader {
   def pathsUsed: Seq[String] = FastSeq(pathLeft, pathRight)
+
+  override def renderShort(): String = s"(TableNativeZippedReader $pathLeft $pathRight ${ options.map(_.renderShort()).getOrElse("") })"
 
   private lazy val filterIntervals = options.map(_.filterIntervals).getOrElse(false)
 
@@ -1112,6 +1123,8 @@ case class TableFromBlockMatrixNativeReader(params: TableFromBlockMatrixNativeRe
   override def toJValue: JValue = {
     decomposeWithName(params, "TableFromBlockMatrixNativeReader")(TableReader.formats)
   }
+
+  def renderShort(): String = defaultRender()
 }
 
 object TableRead {

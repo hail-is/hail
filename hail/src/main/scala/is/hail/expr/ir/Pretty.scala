@@ -205,7 +205,7 @@ object Pretty {
       FastSeq(if (typ == reader.fullMatrixType) "None" else typ.parsableString(),
         prettyBooleanLiteral(dropCols),
         prettyBooleanLiteral(dropRows),
-        '"' + StringEscapeUtils.escapeString(JsonMethods.compact(reader.toJValue)) + '"')
+        if (elideLiterals) reader.renderShort() else '"' + StringEscapeUtils.escapeString(JsonMethods.compact(reader.toJValue)) + '"')
     case MatrixWrite(_, writer) =>
       single('"' + StringEscapeUtils.escapeString(Serialization.write(writer)(MatrixWriter.formats)) + '"')
     case MatrixMultiWrite(_, writer) =>
