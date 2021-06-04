@@ -40,22 +40,22 @@ case class SNestedArray(requireds: IndexedSeq[Boolean], baseContainerType: SCont
     baseContainerType.codeTupleTypes()
 
   override def fromSettables(settables: IndexedSeq[Settable[_]]): SNestedArraySettable = {
-    val IndexedSeq(start: Settable[Int], end: Settable[Int], rest @ _*) = settables
-    val (missing, rest1) = rest.toIndexedSeq.splitAt(nMissing)
+    val (startEnd, rest) = settables.splitAt(2)
+    val (missing, rest1) = rest.splitAt(nMissing)
     val (offsets, values) = rest1.splitAt(levels)
     new SNestedArraySettable(this,
-      start, end,
+      startEnd(0).asInstanceOf, startEnd(1).asInstanceOf,
       missing.map(_.asInstanceOf),
       offsets.map(_.asInstanceOf),
       baseContainerType.fromSettables(values).asInstanceOf)
   }
 
   override def fromCodes(codes: IndexedSeq[Code[_]]): SNestedArrayCode = {
-    val IndexedSeq(start: Code[Int], end: Code[Int], rest @ _*) = codes
+    val IndexedSeq(start, end, rest @ _*) = codes
     val (missing, rest1) = rest.toIndexedSeq.splitAt(nMissing)
     val (offsets, values) = rest1.splitAt(levels)
     new SNestedArrayCode(this,
-      start, end,
+      start.asInstanceOf, end.asInstanceOf,
       missing.map(_.asInstanceOf),
       offsets.map(_.asInstanceOf),
       baseContainerType.fromCodes(values).asIndexable)

@@ -36,10 +36,10 @@ case class EFlattenedArray(override val required: Boolean, nestedRequiredness: I
         }
 
         if (!r) {
-          cb.assign(missing(mj), region.allocate(1L, UnsafeUtils.packBitsToBytes(len)))
+          cb.assign(missing(mj), region.allocate(const(1L), UnsafeUtils.packBitsToBytes(len).toL))
           cb += in.readBytes(region, missing(mj), UnsafeUtils.packBitsToBytes(len))
         }
-        cb.assign(offsets(j), region.allocate(4L, 4L * (len + 1).toL))
+        cb.assign(offsets(j), region.allocate(const(4L), const(4L) * (len + 1).toL))
         cb.assign(cur, 0)
         cb += Region.storeInt(offsets(j), cur)
         cb.forLoop(cb.assign(i, 1), i <= len, cb.assign(i, i + 1), {
@@ -83,6 +83,7 @@ case class EFlattenedArray(override val required: Boolean, nestedRequiredness: I
         }
       })
     }
+    innerType.buildSkip(cb.emb.ecb)(cb, r, in)
   }
 
   def _asIdent: String = s"flat_array_w_${ nestedRequiredness.map(if (_) "r" else "o").mkString }_of_${innerType.asIdent}"
