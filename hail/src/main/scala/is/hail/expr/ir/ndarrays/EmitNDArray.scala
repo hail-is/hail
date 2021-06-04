@@ -19,13 +19,13 @@ object EmitNDArray {
     ndIR: IR,
     cb: EmitCodeBuilder,
     region: Value[Region],
-    env: Emit.E,
+    env: EmitEnv,
     container: Option[AggContainer]
   ): IEmitCode = {
 
     def deforest(x: IR): IEmitCodeGen[NDArrayProducer] = {
 
-      def emitI(ir: IR, cb: EmitCodeBuilder, region: Value[Region] = region, env: Emit.E = env, container: Option[AggContainer] = container): IEmitCode = {
+      def emitI(ir: IR, cb: EmitCodeBuilder, region: Value[Region] = region, env: EmitEnv = env, container: Option[AggContainer] = container): IEmitCode = {
         emitter.emitI(ir, cb, region, env, container, None)
       }
 
@@ -132,7 +132,7 @@ object EmitNDArray {
               override def loadElementAtCurrentAddr(cb: EmitCodeBuilder): SCode = childProducer.loadElementAtCurrentAddr(cb)
             }
           }
-        case x@NDArrayReshape(childND,  shape) =>
+        case x@NDArrayReshape(childND,  shape) if false =>
           emitI(childND, cb).flatMap(cb) { case childND: SNDArrayCode =>
             // Plan: Run through the child row major, make an array. Then jump around it as needed.
             val childMemo = childND.memoize(cb, "ndarray_reshape_child")
