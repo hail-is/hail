@@ -2,6 +2,7 @@ package is.hail.expr.ir.lowering
 
 import is.hail.expr.ir._
 import is.hail.expr.ir.functions.TableToValueFunction
+import is.hail.io.TextMatrixReader
 import is.hail.io.bgen.MatrixBGENReader
 import is.hail.io.gen.MatrixGENReader
 import is.hail.io.plink.MatrixPLINKReader
@@ -24,6 +25,7 @@ object CanLowerEfficiently {
         case TableRead(_, _, _: TableNativeReader) =>
         case TableRead(_, _, _: TableNativeZippedReader) =>
         case TableRead(_, _, _: TextTableReader) =>
+        case TableRead(_, _, _: TextMatrixReader) =>
         case TableRead(_, _, _: MatrixPLINKReader) =>
         case TableRead(_, _, _: MatrixVCFReader) =>
         case TableRead(_, _, _: MatrixBGENReader) =>
@@ -67,6 +69,7 @@ object CanLowerEfficiently {
         case x: BlockMatrixIR => fail(s"BlockMatrixIR lowering not yet efficient/scalable")
         case x: BlockMatrixWrite => fail(s"BlockMatrixIR lowering not yet efficient/scalable")
         case x: BlockMatrixMultiWrite => fail(s"BlockMatrixIR lowering not yet efficient/scalable")
+        case x: BlockMatrixCollect => fail(s"BlockMatrixIR lowering not yet efficient/scalable")
 
         case mmr: MatrixMultiWrite => fail(s"no lowering for MatrixMultiWrite")
 
@@ -77,7 +80,9 @@ object CanLowerEfficiently {
         case TableAggregate(_, _) => fail("TableAggregate needs a tree aggregate implementation to scale")
         case TableCollect(_) =>
         case TableGetGlobals(_) =>
+
         case TableWrite(_, _) => fail(s"table writers don't correctly generate indices")
+        case TableMultiWrite(_, _) => fail(s"no lowering available for TableMultiWrite")
 
         case RelationalRef(_, _) => throw new RuntimeException(s"unexpected relational ref")
 
