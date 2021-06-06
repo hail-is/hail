@@ -39,7 +39,11 @@ object CanLowerEfficiently {
         case t: TableRepartition => fail(s"TableRepartition has no lowered implementation")
         case t: TableParallelize =>
         case t: TableRange =>
-        case t: TableKeyBy =>
+        case TableKeyBy(child, keys, isSorted) =>
+          val doesStrangeDNDArrayOneToOneRekey = isSorted &&
+            child.typ.key.zip(keys).takeWhile { case (l, r) => l == r }.isEmpty
+          if (doesStrangeDNDArrayOneToOneRekey)
+            fail(s"TableKeyBy cannot lower the one-to-one rekey done in dndarrays")
         case t: TableFilter =>
         case t: TableHead => fail("TableHead has no short-circuit using known partition counts")
         case t: TableTail => fail("TableTail has no short-circuit using known partition counts")

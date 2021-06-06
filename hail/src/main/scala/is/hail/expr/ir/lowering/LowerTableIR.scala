@@ -934,7 +934,9 @@ object LowerTableIR {
             .zip(newKey)
             .takeWhile { case (l, r) => l == r }
             .length
-          require(!isSorted || nPreservedFields > 0 || newKey.isEmpty)
+          require(!isSorted || nPreservedFields > 0 || newKey.isEmpty,
+            s"isSorted=${isSorted}, nPresFields=${nPreservedFields}, newKey=${newKey}, " +
+              s"originalKey = ${loweredChild.kType.fieldNames.toSeq}, child key=${child.typ.keyType}")
 
           if (nPreservedFields == newKey.length || isSorted)
             // TODO: should this add a runtime check that keys are within the
