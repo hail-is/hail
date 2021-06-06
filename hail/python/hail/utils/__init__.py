@@ -15,7 +15,7 @@ __all__ = ['hadoop_open',
            'hadoop_is_file',
            'hadoop_stat',
            'hadoop_ls',
-           'hadoop_scheme_supported'
+           'hadoop_scheme_supported',
            'copy_log',
            'wrap_to_list',
            'new_local_temp_dir',
