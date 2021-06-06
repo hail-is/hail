@@ -30,6 +30,7 @@ object CompileAndEvaluate {
       case Left(_) => Begin(FastIndexedSeq())
       case Right((pt, addr)) =>
         ir0.typ match {
+          case _ if pt.isFieldMissing(addr, 0) => NA(ir0.typ)
           case TInt32 | TInt64 | TFloat32 | TFloat64 | TBoolean | TString =>
             Literal.coerce(ir0.typ, SafeRow.read(pt, addr).asInstanceOf[Row].get(0))
           case _ => EncodedLiteral.fromPTypeAndAddress(pt.types(0), pt.loadField(addr, 0), ctx)
