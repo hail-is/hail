@@ -70,6 +70,7 @@ object CanLowerEfficiently {
         case x: BlockMatrixWrite => fail(s"BlockMatrixIR lowering not yet efficient/scalable")
         case x: BlockMatrixMultiWrite => fail(s"BlockMatrixIR lowering not yet efficient/scalable")
         case x: BlockMatrixCollect => fail(s"BlockMatrixIR lowering not yet efficient/scalable")
+        case x: BlockMatrixToValueApply => fail(s"BlockMatrixIR lowering not yet efficient/scalable")
 
         case mmr: MatrixMultiWrite => fail(s"no lowering for MatrixMultiWrite")
 
