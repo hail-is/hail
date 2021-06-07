@@ -486,7 +486,7 @@ class CombinerConfig(object):
             while (i < n):
                 job = []
                 job_i = 0
-                while job_i < self.batch_size_this_phase and i < n:
+                while job_i < batch_size_this_phase and i < n:
                     merge = []
                     merge_i = 0
                     merge_size = 0
