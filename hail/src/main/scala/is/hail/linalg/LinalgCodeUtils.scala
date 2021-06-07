@@ -4,6 +4,7 @@ import is.hail.annotations.Region
 import is.hail.asm4s.{Code, _}
 import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder}
 import is.hail.types.physical.PCanonicalNDArray
+import is.hail.types.physical.stypes.concrete.SUnreachableNDArray
 import is.hail.types.physical.stypes.interfaces.{SNDArray, SNDArrayCode, SNDArraySettable, SNDArrayValue}
 import is.hail.utils.FastIndexedSeq
 
@@ -68,6 +69,9 @@ object LinalgCodeUtils {
   }
 
   def checkStandardStriding(aInput: SNDArrayValue, cb: EmitCodeBuilder, region: Value[Region]): (SNDArrayValue, Value[Boolean]) = {
+    if (aInput.st.isInstanceOf[SUnreachableNDArray])
+      return (aInput, const(true))
+
     val aIsColumnMajor = LinalgCodeUtils.checkColumnMajor(aInput, cb)
     val a = cb.emb.newPField("ndarray_output_standardized", aInput.st).asInstanceOf[SNDArraySettable]
     cb.ifx(aIsColumnMajor, {cb.assign(a, aInput)}, {
