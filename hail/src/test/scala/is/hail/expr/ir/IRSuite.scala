@@ -290,12 +290,12 @@ class IRSuite extends HailSuite {
       assertEvalsTo(ApplyBinaryPrimOp(FloatingPointDivide(), In(0, t), In(1, t)), FastIndexedSeq(x -> t, y -> t), expected)
     }
 
-    assertExpected(TInt32, 5, 2, 2.5f)
+    assertExpected(TInt32, 5, 2, 2.5)
     assertExpected(TInt32, 5, null, null)
     assertExpected(TInt32, null, 2, null)
     assertExpected(TInt32, null, null, null)
 
-    assertExpected(TInt64, 5L, 2L, 2.5f)
+    assertExpected(TInt64, 5L, 2L, 2.5)
     assertExpected(TInt64, 5L, null, null)
     assertExpected(TInt64, null, 2L, null)
     assertExpected(TInt64, null, null, null)
