@@ -256,7 +256,7 @@ object Pretty {
     case TableRead(typ, dropRows, tr) =>
       FastSeq(if (typ == tr.fullType) "None" else typ.parsableString(),
         prettyBooleanLiteral(dropRows),
-        '"' + StringEscapeUtils.escapeString(JsonMethods.compact(tr.toJValue)) + '"')
+        if (elideLiterals) tr.renderShort() else '"' + StringEscapeUtils.escapeString(JsonMethods.compact(tr.toJValue)) + '"')
     case TableWrite(_, writer) =>
       single('"' + StringEscapeUtils.escapeString(Serialization.write(writer)(TableWriter.formats)) + '"')
     case TableMultiWrite(_, writer) =>
