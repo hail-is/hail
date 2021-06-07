@@ -90,7 +90,10 @@ class SUnreachableStructValue(val st: SUnreachableStruct) extends SUnreachableVa
     new SUnreachableStructValue(SUnreachableStruct(newType))
   }
 
-  override def baseInsert(cb: EmitCodeBuilder, region: Value[Region], newType: TStruct, fields: (String, EmitCode)*): SBaseStructCode =
+  override def insert(cb: EmitCodeBuilder, region: Value[Region], newType: TStruct, fields: (String, EmitCode)*): SBaseStructCode =
+    new SUnreachableStructValue(SUnreachableStruct(newType))
+
+  override def _insert(newType: TStruct, fields: (String, EmitCode)*): SBaseStructCode =
     new SUnreachableStructValue(SUnreachableStruct(newType))
 }
 
