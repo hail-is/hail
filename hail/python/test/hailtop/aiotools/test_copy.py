@@ -63,9 +63,9 @@ async def router_filesystem(request):
             async with sema:
                 yield (sema, fs, bases)
                 await bounded_gather2(sema,
-                                      fs.rmtree(sema, file_base),
-                                      fs.rmtree(sema, gs_base),
-                                      fs.rmtree(sema, s3_base))
+                                      functools.partial(fs.rmtree, sema, file_base),
+                                      functools.partial(fs.rmtree, sema, gs_base)),
+                                      functools.partial(fs.rmtree, sema, s3_base)))
 
             assert not await fs.isdir(file_base)
             assert not await fs.isdir(gs_base)
