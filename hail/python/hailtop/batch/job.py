@@ -5,6 +5,8 @@ import functools
 from io import BytesIO
 from typing import Union, Optional, Dict, List, Set, Tuple, Callable, Any, cast
 
+from hailtop.utils import async_to_blocking
+
 from . import backend, resource as _resource, batch  # pylint: disable=cyclic-import
 from .exceptions import BatchException
 
@@ -876,7 +878,7 @@ class PythonJob(Job):
 
         return result
 
-    def _compile(self, local_tmpdir, remote_tmpdir):
+    async def _compile(self, local_tmpdir, remote_tmpdir):
         for i, (result, unapplied, args, kwargs) in enumerate(self._functions):
             def prepare_argument_for_serialization(arg):
                 if isinstance(arg, _resource.PythonResult):
@@ -915,13 +917,8 @@ class PythonJob(Job):
             job_path = os.path.dirname(result._get_path(remote_tmpdir))
             code_path = f'{job_path}/code{i}.p'
 
-            if isinstance(self._batch._backend, backend.LocalBackend):
-                os.makedirs(os.path.dirname(code_path), exist_ok=True)
-                with open(code_path, 'wb') as f:
-                    f.write(pipe.getvalue())
-            else:
-                assert isinstance(self._batch._backend, backend.ServiceBackend)
-                self._batch._gcs._write_gs_file_from_file_like_object(code_path, pipe)
+            await self._batch._fs.makedirs(os.path.dirname(code_path), exist_ok=True)
+            await self._batch._fs.write(code_path, pipe.getvalue())
 
             code = self._batch.read_input(code_path)
             self._add_inputs(code)

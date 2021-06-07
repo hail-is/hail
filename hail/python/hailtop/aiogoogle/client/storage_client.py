@@ -546,8 +546,13 @@ class GoogleStorageMultiPartCreate(MultiPartCreate):
 class GoogleStorageAsyncFS(AsyncFS):
     def __init__(self, *,
                  storage_client: Optional[StorageClient] = None,
+                 project: Optional[str] = None,
                  **kwargs):
         if not storage_client:
+            if project is not None:
+                if 'params' not in kwargs:
+                    kwargs['params'] = {}
+                kwargs['params']['userProject'] = project
             storage_client = StorageClient(**kwargs)
         self._storage_client = storage_client
 

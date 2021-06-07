@@ -1,14 +1,12 @@
 import os
 import re
-import concurrent
 from typing import Optional, Dict, Union, List, Any, Set
 
 from hailtop.utils import secret_alnum_string
+from hailtop.aiotools import AsyncFS
 
 from . import backend as _backend, job, resource as _resource  # pylint: disable=cyclic-import
 from .exceptions import BatchException
-
-from ..google_storage import GCS
 
 
 class Batch:
@@ -77,10 +75,6 @@ class Batch:
         Python installed that is currently running. If `None`, a compatible Python image with
         `dill` pre-installed will automatically be used if the current Python version is
         3.6, 3.7, or 3.8.
-    project:
-        If specified, the project to use when authenticating with Google
-        Storage. Google Storage is used to transfer serialized values between
-        this computer and the cloud machines that execute Python jobs.
     cancel_after_n_failures:
         Automatically cancel the batch after N failures have occurred. The default
         behavior is there is no limit on the number of failures. Only
@@ -109,7 +103,6 @@ class Batch:
                  default_timeout: Optional[Union[float, int]] = None,
                  default_shell: Optional[str] = None,
                  default_python_image: Optional[str] = None,
-                 project: Optional[str] = None,
                  cancel_after_n_failures: Optional[int] = None):
         self._jobs: List[job.Job] = []
         self._resource_map: Dict[str, _resource.Resource] = {}
@@ -137,17 +130,11 @@ class Batch:
         self._default_shell = default_shell
         self._default_python_image = default_python_image
 
-        self._project = project
-        self.__gcs: Optional[GCS] = None
-
         self._cancel_after_n_failures = cancel_after_n_failures
 
     @property
-    def _gcs(self):
-        if self.__gcs is None:
-            self.__gcs = GCS(blocking_pool=concurrent.futures.ThreadPoolExecutor(),
-                             project=self._project)
-        return self.__gcs
+    def _fs(self) -> AsyncFS:
+        return self._backend._fs
 
     def new_job(self,
                 name: Optional[str] = None,
