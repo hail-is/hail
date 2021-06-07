@@ -132,7 +132,7 @@ object EmitNDArray {
               override def loadElementAtCurrentAddr(cb: EmitCodeBuilder): SCode = childProducer.loadElementAtCurrentAddr(cb)
             }
           }
-        case x@NDArrayReshape(childND,  shape) if false =>
+        case x@NDArrayReshape(childND,  shape) =>
           emitI(childND, cb).flatMap(cb) { case childND: SNDArrayCode =>
             // Plan: Run through the child row major, make an array. Then jump around it as needed.
             val childMemo = childND.memoize(cb, "ndarray_reshape_child")
@@ -193,19 +193,13 @@ object EmitNDArray {
                 cb.assign(requestedShapeValues(i), (tempShapeElement ceq -1L).mux(replacesNegativeOne, tempShapeElement))
               }
 
-              new NDArrayProducer {
-                override def elementType: SType = childMemo.st.elementType
+              val childPType = childND.st.canonicalPType().asInstanceOf[PCanonicalNDArray]
+              val rowMajor = fromSValue(childMemo, cb).toSCode(cb, childPType, region, true).memoize(cb, "ndarray_reshape_row_major_layout")
+              // The canonical row major thing is now in the order we want. We just need to read this with the row major striding that
+              // would be generated for something of the new shape.
+              val rowMajorStriding = childPType.makeRowMajorStrides(requestedShapeValues, region, cb)
 
-                override val shape: IndexedSeq[Value[Long]] = requestedShapeValues
-
-                val whichElement = cb.newLocal[Long]("ndarray_reshape_current_flat_element")
-
-                override val initAll: EmitCodeBuilder => Unit = ???
-                override val initAxis: IndexedSeq[EmitCodeBuilder => Unit] = ???
-                override val stepAxis: IndexedSeq[(EmitCodeBuilder, Value[Long]) => Unit] = ???
-
-                override def loadElementAtCurrentAddr(cb: EmitCodeBuilder): SCode = ???
-              }
+              fromShapeStridesFirstAddress(childND.st.elementType, requestedShapeValues, rowMajorStriding, rowMajor.firstDataAddress(cb), cb)
             }
           }
 
@@ -522,10 +516,46 @@ object EmitNDArray {
   def fromSValue(ndSv: SNDArrayValue, cb: EmitCodeBuilder): NDArrayProducer = {
     val ndSvShape = ndSv.shapes(cb)
     val strides = ndSv.strides(cb)
+
+    fromShapeStridesFirstAddress(ndSv.st.elementType, ndSvShape, strides, ndSv.firstDataAddress(cb), cb)
+//    val counters = ndSvShape.indices.map(i => cb.newLocal[Long](s"ndarray_produceer_fall_through_idx_${i}"))
+//
+//    new NDArrayProducer {
+//      override def elementType: SType = ndSv.st.elementType
+//      override val shape: IndexedSeq[Value[Long]] = ndSvShape
+//
+//      override val initAll: EmitCodeBuilder => Unit = cb => {
+//        counters.foreach(ctr => cb.assign(ctr, 0L))
+//      }
+//      override val initAxis: IndexedSeq[EmitCodeBuilder => Unit] = {
+//        shape.indices.map(i => (cb: EmitCodeBuilder) => {
+//          cb.assign(counters(i), 0L)
+//        })
+//      }
+//      override val stepAxis: IndexedSeq[(EmitCodeBuilder, Value[Long]) => Unit] = {
+//        shape.indices.map{ i =>
+//          (cb: EmitCodeBuilder, step: Value[Long]) => {
+//            cb.assign(counters(i), counters(i) + step * strides(i))
+//          }
+//        }
+//      }
+//
+//      override def loadElementAtCurrentAddr(cb: EmitCodeBuilder): SCode = {
+//        val offset = counters.foldLeft[Code[Long]](const(0L)){ (a, b) => a + b}
+//        // TODO: Safe to canonicalPType here?
+//        val loaded = elementType.canonicalPType().loadCheapPCode(cb, ndSv.firstDataAddress(cb) + offset) //elementType.loadFrom(cb, region, ndPv.st.elementType.canonicalPType(), ndPv.firstDataAddress(cb) + offset)
+//        val memoLoaded = loaded.memoize(cb, "temp_memo")
+//        memoLoaded.get
+//      }
+//    }
+  }
+
+  def fromShapeStridesFirstAddress(newElementType: SType, ndSvShape: IndexedSeq[Value[Long]], strides: IndexedSeq[Value[Long]], firstDataAddress: Value[Long], cb: EmitCodeBuilder): NDArrayProducer = {
     val counters = ndSvShape.indices.map(i => cb.newLocal[Long](s"ndarray_produceer_fall_through_idx_${i}"))
+    println(s"Shape was length: ${ndSvShape.size}")
 
     new NDArrayProducer {
-      override def elementType: SType = ndSv.st.elementType
+      override def elementType: SType = newElementType
       override val shape: IndexedSeq[Value[Long]] = ndSvShape
 
       override val initAll: EmitCodeBuilder => Unit = cb => {
@@ -547,7 +577,7 @@ object EmitNDArray {
       override def loadElementAtCurrentAddr(cb: EmitCodeBuilder): SCode = {
         val offset = counters.foldLeft[Code[Long]](const(0L)){ (a, b) => a + b}
         // TODO: Safe to canonicalPType here?
-        val loaded = elementType.canonicalPType().loadCheapPCode(cb, ndSv.firstDataAddress(cb) + offset) //elementType.loadFrom(cb, region, ndPv.st.elementType.canonicalPType(), ndPv.firstDataAddress(cb) + offset)
+        val loaded = elementType.canonicalPType().loadCheapPCode(cb, firstDataAddress + offset)
         val memoLoaded = loaded.memoize(cb, "temp_memo")
         memoLoaded.get
       }
@@ -606,7 +636,7 @@ abstract class NDArrayProducer {
     }
   }
 
-  def toSCode(cb: EmitCodeBuilder, targetType: PCanonicalNDArray, region: Value[Region]): SNDArrayCode =  {
+  def toSCode(cb: EmitCodeBuilder, targetType: PCanonicalNDArray, region: Value[Region], rowMajor: Boolean = false): SNDArrayCode =  {
     val (firstElementAddress, finish) = targetType.constructDataFunction(
       shape,
       targetType.makeColumnMajorStrides(shape, region, cb),
@@ -617,7 +647,8 @@ abstract class NDArrayProducer {
     cb.assign(currentWriteAddr, firstElementAddress)
 
     initAll(cb)
-    SNDArray.forEachIndexWithInitAndIncColMajor(cb, shape, initAxis, stepAxis.map(stepper => (cb: EmitCodeBuilder) => stepper(cb, 1L)), "ndarray_producer_toSCode"){ (cb, indices) =>
+    val idxGenerator = if (rowMajor) SNDArray.forEachIndexWithInitAndIncRowMajor _ else SNDArray.forEachIndexWithInitAndIncColMajor _
+    idxGenerator(cb, shape, initAxis, stepAxis.map(stepper => (cb: EmitCodeBuilder) => stepper(cb, 1L)), "ndarray_producer_toSCode"){ (cb, indices) =>
       targetType.elementType.storeAtAddress(cb, currentWriteAddr, region, loadElementAtCurrentAddr(cb), true)
       cb.assign(currentWriteAddr, currentWriteAddr + targetType.elementType.byteSize)
     }
