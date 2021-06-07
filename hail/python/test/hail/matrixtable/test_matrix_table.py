@@ -852,7 +852,7 @@ https://hail.zulipchat.com/#narrow/stream/123011-Hail-Dev/topic/test_drop/near/2
         f = new_temp_file(extension='mt')
         ds.write(f)
         t = hl.read_table(f + '/cols')
-        self.assertTrue(ds.cols()._same(t))
+        self.assertTrue(ds.cols().key_by()._same(t))
 
     @skip_when_service_backend('Shuffler encoding/decoding is broken.')
     def test_read_stored_rows(self):
