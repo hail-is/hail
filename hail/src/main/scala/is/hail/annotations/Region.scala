@@ -175,6 +175,9 @@ object Region {
   def containsNonZeroBits(address: Code[Long], nBits: Code[Long]): Code[Boolean] =
     Code.invokeScalaObject2[Long, Long, Boolean](Region.getClass, "containsNonZeroBits", address, nBits)
 
+  def containsNonZeroBits(address: Code[Long], skip: Code[Long], nBits: Code[Long]): Code[Boolean] =
+    Code.invokeScalaObject3[Long, Long, Long, Boolean](Region.getClass, "containsNonZeroBits", address, skip, nBits)
+
   def containsNonZeroBits(address: Long, nBits: Long): Boolean = {
     assert((address & 0x3) == 0)
 
@@ -205,6 +208,55 @@ object Region {
       if (loadByte(address + bitsRead/8) != 0)
         return true
 
+      bitsRead += 8
+    }
+
+    while (bitsRead < nBits) {
+      if (loadBit(address, bitsRead))
+        return true
+
+      bitsRead += 1
+    }
+
+    false
+  }
+
+  def containsNonZeroBits(address: Long, skip: Long, _nBits: Long): Boolean = {
+    assert((address & 0x3) == 0)
+
+    val nBits = skip + _nBits
+    var bitsRead: Long = skip & ~63L
+
+    if (bitsRead == 0 && (address & 0x7) != 0 && nBits >= 32) {
+      if (loadInt(address) != 0)
+        return true
+
+      bitsRead += 32
+    }
+
+    var mask: Long = ~((1L << (skip & 63)) - 1)
+
+    while (nBits - bitsRead >= 64) {
+      if (loadLong(address + bitsRead/8) & mask != 0)
+        return true
+
+      mask = -1L
+      bitsRead += 64
+    }
+
+    while (nBits - bitsRead >= 32) {
+      if (loadInt(address + bitsRead/8) & mask != 0)
+        return true
+
+      mask = -1L
+      bitsRead += 32
+    }
+
+    while (nBits - bitsRead >= 8) {
+      if (loadByte(address + bitsRead/8) & mask != 0)
+        return true
+
+      mask = -1L
       bitsRead += 8
     }
 
