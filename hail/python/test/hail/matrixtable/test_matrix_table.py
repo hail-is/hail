@@ -165,7 +165,6 @@ class Tests(unittest.TestCase):
         mt.count_rows()
 
     @fails_service_backend()
-    @fails_local_backend()
     def test_aggregate(self):
         mt = self.get_mt()
 
@@ -431,7 +430,6 @@ class Tests(unittest.TestCase):
         assert mt.anti_join_cols(ht).count() == (3, 7)
 
     @fails_service_backend()
-    @fails_local_backend()
     def test_joins(self):
         mt = self.get_mt().select_rows(x1=1, y1=1)
         mt2 = mt.select_rows(x2=1, y2=2)
@@ -451,7 +449,6 @@ class Tests(unittest.TestCase):
         self.assertTrue(ct.all(ct.c2 == 2))
 
     @fails_service_backend()
-    @fails_local_backend()
     def test_joins_with_key_structs(self):
         mt = self.get_mt()
 
