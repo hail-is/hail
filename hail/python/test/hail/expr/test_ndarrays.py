@@ -98,7 +98,16 @@ def test_ndarray_slice():
         (rect_prism[...], np_rect_prism[...]),
         (rect_prism[1, ...], np_rect_prism[1, ...]),
         (rect_prism[..., 1], np_rect_prism[..., 1]),
-
+        # np.newaxis inclusion
+        (rect_prism[np.newaxis, :, :], np_rect_prism[np.newaxis, :, :]),
+        (rect_prism[np.newaxis], np_rect_prism[np.newaxis]),
+        (rect_prism[np.newaxis, np.newaxis, np.newaxis], np_rect_prism[np.newaxis, np.newaxis, np.newaxis]),
+        (rect_prism[np.newaxis, np.newaxis, 1:4:2], np_rect_prism[np.newaxis, np.newaxis, 1:4:2]),
+        (rect_prism[1, :, np.newaxis], np_rect_prism[1, :, np.newaxis]),
+        (rect_prism[1, np.newaxis, 1], np_rect_prism[1, np.newaxis, 1]),
+        (rect_prism[..., np.newaxis, 1], np_rect_prism[..., np.newaxis, 1]),
+    )
+    assert_ndarrays_eq(
         (flat[15:5:-1], np_flat[15:5:-1]),
         (flat[::-1], np_flat[::-1]),
         (flat[::22], np_flat[::22]),
@@ -158,7 +167,8 @@ def test_ndarray_slice():
         (ae[3, ...], ae_np[3, ...]),
         (ae[2, 3, 1:2:2, ...], ae_np[2, 3, 1:2:2, ...]),
         (ae[3, 2, 3, ..., 2], ae_np[3, 2, 3, ..., 2]),
-        (ae[3, 2, 2, ..., 2, 1:2:2], ae_np[3, 2, 2, ..., 2, 1:2:2])
+        (ae[3, 2, 2, ..., 2, 1:2:2], ae_np[3, 2, 2, ..., 2, 1:2:2]),
+        (ae[3, :, np.newaxis, ..., :, np.newaxis, 2], ae_np[3, :, np.newaxis, ..., :, np.newaxis, 2])
     )
 
     assert hl.eval(flat[hl.missing(hl.tint32):4:1]) is None

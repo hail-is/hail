@@ -2673,7 +2673,7 @@ class Emit[C](
                 (runningProduct ceq 0L) || (numElements % runningProduct) > 0L,
                 numElements cne runningProduct
               ), {
-                cb._fatal("Can't reshape since requested shape is incompatible with number of elements")
+                cb._fatal("Can't reshape since requested shape is incompatible with number of elements. Requested ", cb.strValue(tupleValue), " and num elements was ", numElements.toS)
               })
               cb.assign(replacesNegativeOne, (runningProduct ceq 0L).mux(0L, numElements / runningProduct))
 

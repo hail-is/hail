@@ -3769,36 +3769,41 @@ class NDArrayExpression(Expression):
 
     _opt_long_slice = sliceof(nullable(expr_int64), nullable(expr_int64), nullable(expr_int64))
 
-    @typecheck_method(item=oneof(expr_int64, type(...), _opt_long_slice, tupleof(oneof(expr_int64, type(...), _opt_long_slice))))
+    @typecheck_method(item=nullable(oneof(expr_int64, type(...), _opt_long_slice, tupleof(nullable(oneof(expr_int64, type(...), _opt_long_slice))))))
     def __getitem__(self, item):
         if not isinstance(item, tuple):
             item = (item,)
 
-        if len(item) > self.ndim:
-            raise IndexError(f'too many indices for array: array is '
-                             f'{self.ndim}-dimensional, but {len(item)} were indexed')
-
         num_ellipses = len([e for e in item if isinstance(e, type(...))])
+        # indices_nones = [i for i, x in enumerate(item) if x is None]
+        # Doesn't account for ... as that will change indices if noaxis is after
         list_item = list(item)
         if num_ellipses > 1:
             raise IndexError('an index can only have a single ellipsis (\'...\')')
-
         no_ellipses = None
+        num_nones = len([x for x in item if x is None])
+
         if num_ellipses == 1:
             list_types = [type(e) for e in list_item]
             ellipsis_location = list_types.index(type(...))
-            num_slices_to_add = self.ndim - len(item) + 1
+            num_slices_to_add = self.ndim - (len(item) - num_nones) + 1
             no_ellipses = list_item[:ellipsis_location] + [slice(None)] * num_slices_to_add + list_item[ellipsis_location + 1:]
         else:
             no_ellipses = list_item
 
-        if len(no_ellipses) < self.ndim:
-            no_ellipses += [slice(None, None, None)] * (self.ndim - len(list_item))
+        no_nums = [x for x in no_ellipses if ((x is None) or (isinstance(x, slice)))]
+        indices_nones = [i for i, x in enumerate(no_nums) if x is None]
+        formatted_item = [x for x in no_ellipses if x is not None]
+        if len(formatted_item) > self.ndim:
+            raise IndexError(f'too many indices for array: array is '
+                             f'{self.ndim}-dimensional, but {len(item)} were indexed')
+        if len(formatted_item) < self.ndim:
+            formatted_item += [slice(None, None, None)] * (self.ndim - len(formatted_item))
+        n_sliced_dims = len([s for s in formatted_item if isinstance(s, slice)])
 
-        n_sliced_dims = len([s for s in no_ellipses if isinstance(s, slice)])
         if n_sliced_dims > 0:
             slices = []
-            for i, s in enumerate(no_ellipses):
+            for i, s in enumerate(formatted_item):
                 dlen = self.shape[i]
                 if isinstance(s, slice):
 
@@ -3840,15 +3845,31 @@ class NDArrayExpression(Expression):
                         hl.str("Index ") + hl.str(s) + hl.str(f" is out of bounds for axis {i} with size ") + hl.str(dlen)
                     )
                     slices.append(checked_int)
-            return construct_expr(ir.NDArraySlice(self._ir, hl.tuple(slices)._ir),
-                                  tndarray(self._type.element_type, n_sliced_dims),
-                                  self._indices,
-                                  self._aggregations)
-
-        return construct_expr(ir.NDArrayRef(self._ir, [idx._ir for idx in item]),
+            product = construct_expr(ir.NDArraySlice(self._ir, hl.tuple(slices)._ir),
+                                     tndarray(self._type.element_type, n_sliced_dims),
+                                     self._indices,
+                                     self._aggregations)
+            if len(indices_nones) > 0:
+                reshape_arg = []
+                index_non_nones = 0
+                for i in range(n_sliced_dims + num_nones):
+                    if i in indices_nones:
+                        reshape_arg.append(1)
+                    else:
+                        reshape_arg.append(product.shape[index_non_nones])
+                        index_non_nones += 1
+                product = product.reshape(tuple(reshape_arg))
+        else:
+            product = construct_expr(ir.NDArrayRef(self._ir, [idx._ir for idx in formatted_item]),
                               self._type.element_type,
                               self._indices,
                               self._aggregations)
+            if len(indices_nones) > 0:
+                reshape_arg = []
+                for i in indices_nones:
+                    reshape_arg.append(1)
+                product = hl.nd.array(product).reshape(tuple(reshape_arg))
+        return product
 
     @typecheck_method(shape=oneof(expr_int64, tupleof(expr_int64), expr_tuple()))
     def reshape(self, *shape):
