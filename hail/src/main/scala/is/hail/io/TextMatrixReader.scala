@@ -345,7 +345,7 @@ class TextMatrixReader(
         params.hasHeader)
 
       { (region: Region, context: Any) =>
-        val (lc, partitionIdx: Int) = context
+        val Row(lc, partitionIdx: Int) = context
         compiledLineParser.apply(partitionIdx, region,
           linesBody(lc).filter { line =>
             val l = line.toString
@@ -362,8 +362,8 @@ class TextMatrixReader(
         val subset = tt.globalType.valueSubsetter(requestedGlobalsType)
         subset(globals).asInstanceOf[Row]
       },
-      lines.contextType,
-      lines.contexts.zipWithIndex,
+      TTuple(lines.contextType, TInt32),
+      lines.contexts.zipWithIndex.map { case (x, i) => Row(x, i) },
       bodyPType,
       body)
 

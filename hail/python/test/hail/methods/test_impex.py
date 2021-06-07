@@ -1880,7 +1880,7 @@ class ImportMatrixTableTests(unittest.TestCase):
 
     @fails_service_backend()
     @fails_local_backend()
-    def test_devlish_nine_separated_eight_missing_file(self):
+    def test_devilish_nine_separated_eight_missing_file(self):
         fields = {'chr': hl.tstr,
                   '': hl.tint32,
                   'ref': hl.tstr,
