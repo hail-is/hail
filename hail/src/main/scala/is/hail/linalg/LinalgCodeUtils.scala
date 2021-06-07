@@ -3,7 +3,7 @@ package is.hail.linalg
 import is.hail.annotations.Region
 import is.hail.asm4s.{Code, _}
 import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder}
-import is.hail.types.physical.stypes.concrete.SNDArrayPointer
+import is.hail.types.physical.PCanonicalNDArray
 import is.hail.types.physical.stypes.interfaces.{SNDArray, SNDArrayCode, SNDArraySettable, SNDArrayValue}
 import is.hail.utils.FastIndexedSeq
 
@@ -46,7 +46,7 @@ object LinalgCodeUtils {
 
   def createColumnMajorCode(pndv: SNDArrayValue, cb: EmitCodeBuilder, region: Value[Region]): SNDArrayCode = {
     val shape = pndv.shapes(cb)
-    val pt = pndv.st.asInstanceOf[SNDArrayPointer].pType
+    val pt = PCanonicalNDArray(pndv.st.elementType.canonicalPType().setRequired(true), pndv.st.nDims, false)
     val strides = pt.makeColumnMajorStrides(shape, region, cb)
 
     val (dataFirstElementAddress, dataFinisher) = pt.constructDataFunction(shape, strides, cb, region)
