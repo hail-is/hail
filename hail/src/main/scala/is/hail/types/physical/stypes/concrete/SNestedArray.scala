@@ -10,23 +10,23 @@ import is.hail.types.virtual.{TArray, Type}
 import is.hail.utils._
 
 // levels indicate level of nesting 0 is array<T>, 1 is array<array<T>>, etc.
-case class SNestedArray(requireds: IndexedSeq[Boolean], baseContainerType: SContainer) extends SContainer {
-  def levels: Int = requireds.length
-  private[concrete] val nMissing = requireds.count(identity)
+case class SNestedArray(nestedRequired: IndexedSeq[Boolean], baseContainerType: SContainer) extends SContainer {
+  def levels: Int = nestedRequired.length
+  private[concrete] val nMissing = nestedRequired.count(identity)
 
-  lazy val elementType: SType = requireds match {
+  lazy val elementType: SType = nestedRequired match {
      case IndexedSeq() => baseContainerType.elementType
-     case _ => SNestedArray(requireds.tail, baseContainerType)
+     case _ => SNestedArray(nestedRequired.tail, baseContainerType)
   }
 
-  lazy val elementEmitType: EmitType = requireds match {
+  lazy val elementEmitType: EmitType = nestedRequired match {
     case IndexedSeq() => baseContainerType.elementEmitType
-    case _ => EmitType(elementType, requireds.head)
+    case _ => EmitType(elementType, nestedRequired.head)
   }
 
   lazy val virtualType: Type = {
     var ty = baseContainerType.virtualType
-    for (_ <- 0 until levels) {
+    for (_ <- nestedRequired) {
       ty = TArray(ty)
     }
     ty
@@ -35,7 +35,7 @@ case class SNestedArray(requireds: IndexedSeq[Boolean], baseContainerType: SCont
   def coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = ???
 
   def codeTupleTypes(): IndexedSeq[TypeInfo[_]] = IndexedSeq.fill(2)(IntInfo) ++
-    requireds.filter(identity).map(_ => LongInfo) ++
+    nestedRequired.filter(identity).map(_ => LongInfo) ++
     IndexedSeq.fill(levels)(LongInfo) ++
     baseContainerType.codeTupleTypes()
 
@@ -151,7 +151,7 @@ class SNestedArrayCode(
   private def memoize(cb: EmitCodeBuilder, name: String, values: SIndexableValue, sb: SettableBuilder): SNestedArraySettable = {
     val startSettable = sb.newSettable[Int](s"${ name }_start")
     val endSettable = sb.newSettable[Int](s"${ name }_end")
-    val missingSettable = st.requireds.zipWithIndex.filter(_._1).map{ case (_, i) => sb.newSettable[Long](s"${ name }_missing_$i") }
+    val missingSettable = st.nestedRequired.zipWithIndex.filter(_._1).map{ case (_, i) => sb.newSettable[Long](s"${ name }_missing_$i") }
     val offsetsSettable = IndexedSeq.tabulate(st.levels)(i => sb.newSettable[Long](s"${ name }_offsets_$i"))
     val sv = new SNestedArraySettable(st, startSettable, endSettable, missingSettable, offsetsSettable, values.asInstanceOf)
     cb.assign(sv, this)
