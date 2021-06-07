@@ -2782,7 +2782,7 @@ abstract class NDArrayEmitter(val outputShape: IndexedSeq[Value[Long]], val elem
       cb,
       region)
 
-    SNDArray.forEachIndex(cb, shapeArray, "ndarrayemitter_emitloops") { case (cb, idxVars) =>
+    SNDArray.forEachIndexColMajor(cb, shapeArray, "ndarrayemitter_emitloops") { case (cb, idxVars) =>
       val element = IEmitCode.present(cb, outputElement(cb, idxVars)).consume(cb, {
         cb._fatal("NDArray elements cannot  be missing")
       }, { elementPc =>

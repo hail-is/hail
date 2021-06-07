@@ -499,7 +499,7 @@ object EmitNDArray {
                 val initsToSumOut = axesToSumOut.map(idx => childProducer.initAxis(idx))
                 val stepsToSumOut = axesToSumOut.map(idx => (cb: EmitCodeBuilder) => childProducer.stepAxis(idx)(cb, 1L))
 
-                SNDArray.forEachIndex2(cb, newOutputShapeComplement, initsToSumOut, stepsToSumOut, "ndarray_producer_ndarray_agg"){ (cb, _) =>
+                SNDArray.forEachIndexWithInitAndIncColMajor(cb, newOutputShapeComplement, initsToSumOut, stepsToSumOut, "ndarray_producer_ndarray_agg"){ (cb, _) =>
                   cb.assign(runningSum, numericElementType.add(runningSum, SType.extractPrimCode(cb, childProducer.loadElementAtCurrentAddr(cb))))
                 }
                 primitive(numericElementType.virtualType, runningSum)
@@ -617,7 +617,7 @@ abstract class NDArrayProducer {
     cb.assign(currentWriteAddr, firstElementAddress)
 
     initAll(cb)
-    SNDArray.forEachIndex2(cb, shape, initAxis, stepAxis.map(stepper => (cb: EmitCodeBuilder) => stepper(cb, 1L)), "ndarray_producer_toSCode"){ (cb, indices) =>
+    SNDArray.forEachIndexWithInitAndIncColMajor(cb, shape, initAxis, stepAxis.map(stepper => (cb: EmitCodeBuilder) => stepper(cb, 1L)), "ndarray_producer_toSCode"){ (cb, indices) =>
       targetType.elementType.storeAtAddress(cb, currentWriteAddr, region, loadElementAtCurrentAddr(cb), true)
       cb.assign(currentWriteAddr, currentWriteAddr + targetType.elementType.byteSize)
     }
