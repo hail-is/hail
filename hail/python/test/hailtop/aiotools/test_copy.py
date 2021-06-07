@@ -2,6 +2,7 @@ import os
 import secrets
 from concurrent.futures import ThreadPoolExecutor
 import asyncio
+import functools
 import pytest
 from hailtop.utils import url_scheme, bounded_gather2
 from hailtop.aiotools import LocalAsyncFS, RouterAsyncFS, Transfer, FileAndDirectoryError
