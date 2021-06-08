@@ -24,8 +24,6 @@ repositories {
     jcenter()
     maven { url "https://repository.cloudera.com/artifactory/cloudera-repos/" }
     maven { url "https://repo.spring.io/plugins-release/" }
-    // Necessary for elasticsearch spark 3.0.1 snapshot.
-    maven { url "https://oss.sonatype.org/content/repositories/snapshots/"}
 }
 
 sourceSets.main.scala.srcDir "src/main/java"
@@ -191,7 +189,7 @@ dependencies {
     }
     else if (sparkVersion.startsWith("3.0.")) {
         assert(scalaMajorVersion == "2.12")
-        bundled 'org.elasticsearch:elasticsearch-spark-30_2.12:7.13.0-SNAPSHOT'
+        bundled 'org.elasticsearch:elasticsearch-spark-30_2.12:7.13.1'
     }
     else if (sparkVersion.startsWith("2.4.")) {
         assert(scalaMajorVersion == "2.11")
