@@ -132,8 +132,10 @@ case class StreamSingleCodeType(requiresMemoryManagementPerElement: Boolean, elt
       override val elementRegion: Settable[Region] = eltRegion
       override val requiresMemoryManagementPerElement: Boolean = self.requiresMemoryManagementPerElement
       override val LproduceElement: CodeLabel = mb.defineAndImplementLabel { cb =>
-        val hasNext = cb.newLocal[Boolean]("stream_in_hasnext", xIter.load().hasNext)
-        cb.ifx(!hasNext, cb.goto(LendOfStream))
+        // NB: locals should not be used in this implementation. The way In() nodes are
+        // stored in fields at the beginning of code generation leads to the method builder
+        // here being different from the method the stream will eventually be consumed in
+        cb.ifx(!xIter.load().hasNext, cb.goto(LendOfStream))
         cb.assign(rvAddr, xIter.load().next().invoke[Long]("longValue"))
         cb.goto(LproduceElementDone)
       }
