@@ -9,7 +9,7 @@ object FoldConstants {
       foldConstants(ctx, ir)
     }
 
-  private def foldConstants(ctx: ExecuteContext, ir: BaseIR): BaseIR =
+  private def foldConstants(ctx: ExecuteContext, ir: BaseIR): BaseIR = {
     RewriteBottomUp(ir, {
       case _: Ref |
            _: In |
@@ -48,4 +48,28 @@ object FoldConstants {
         }
       case _ => None
     })
+
+  }
+  def findConstantSubTrees(baseIR: BaseIR): Memo[Unit] = {
+    val constantSubTrees = Memo.empty[Unit]
+    findConstantHelper(baseIR, constantSubTrees)
+    constantSubTrees
+  }
+  def findConstantHelper(ir: BaseIR, memo: Memo[Unit]): Unit ={
+    if (IsConstant(ir)) {
+      memo.bind(ir, ())
+    }
+    else if (ir.children.size == 0) {}
+    else {
+      ir.children.foreach(child => {
+        findConstantHelper(child, memo)
+      })
+      val isConstantSubtree = ir.children.forall(child => {
+        memo.contains(child)
+      })
+      if (isConstantSubtree) {
+        memo.bind(ir,())
+      }
+    }
+  }
 }
