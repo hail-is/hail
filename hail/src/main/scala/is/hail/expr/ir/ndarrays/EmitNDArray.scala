@@ -512,7 +512,7 @@ object EmitNDArray {
 
     val deforested = deforest(ndIR)
     val deforestedEltType = deforested.value.elementType.virtualType
-    if (deforestedEltType != ndIR.asInstanceOf[TNDArray].elementType)
+    if (deforestedEltType != ndIR.typ.asInstanceOf[TNDArray].elementType)
       throw new RuntimeException(s"invalid NDArray deforest rule: deforested element type is ${ deforestedEltType }, expect ${ ndIR.asInstanceOf[TNDArray].elementType }")
 
     deforested.map(cb)(ndap => ndap.toSCode(cb, PCanonicalNDArray(ndap.elementType.canonicalPType().setRequired(true), ndap.nDims), region))
