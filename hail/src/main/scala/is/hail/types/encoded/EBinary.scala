@@ -9,7 +9,7 @@ import is.hail.types.virtual._
 import is.hail.io.{InputBuffer, OutputBuffer}
 import is.hail.types.physical.stypes.{SCode, SType, SValue}
 import is.hail.types.physical.stypes.concrete.{SBinaryPointer, SBinaryPointerCode, SBinaryPointerSettable, SStringPointer, SStringPointerCode, SStringPointerSettable}
-import is.hail.types.physical.stypes.interfaces.{SBinary, SBinaryValue}
+import is.hail.types.physical.stypes.interfaces.{SBinary, SBinaryValue, SString}
 import is.hail.utils._
 
 case object EBinaryOptional extends EBinary(false)
@@ -21,6 +21,7 @@ class EBinary(override val required: Boolean) extends EType {
     val bin = v.st match {
       case _: SBinary => v.asInstanceOf[SBinaryValue]
       case SStringPointer(t) => new SBinaryPointerSettable(SBinaryPointer(t.binaryRepresentation), v.asInstanceOf[SStringPointerSettable].a)
+      case _: SString => v.asString.asBytes().memoize(cb, "encoder_sstring")
     }
 
     val len = cb.newLocal[Int]("len", bin.loadLength())
