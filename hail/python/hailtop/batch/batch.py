@@ -154,7 +154,7 @@ class Batch:
         if self._DEPRECATED_project is not None:
             if self._DEPRECATED_fs is None:
                 self._DEPRECATED_fs = RouterAsyncFS('file', [LocalAsyncFS(ThreadPoolExecutor()),
-                                                            GoogleStorageAsyncFS(project=self._DEPRECATED_project)])
+                                                             GoogleStorageAsyncFS(project=self._DEPRECATED_project)])
             return self._DEPRECATED_fs
         return self._backend._fs
 
