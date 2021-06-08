@@ -68,3 +68,6 @@ class LocalFS(FS):
 
     def rmtree(self, path: str):
         rmtree(path)
+
+    def supports_scheme(self, scheme: str) -> bool:
+        return scheme == ""
