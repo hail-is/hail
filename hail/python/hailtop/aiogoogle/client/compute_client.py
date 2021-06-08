@@ -3,7 +3,7 @@ from typing import Mapping, Any, Optional, MutableMapping
 import logging
 
 from .base_client import BaseClient
-from hailtop.utils import sleep_and_backoff, retry_transient_errors
+from hailtop.utils import sleep_and_backoff
 
 log = logging.getLogger('compute_client')
 
@@ -20,7 +20,7 @@ async def request_with_wait_for_done(request_f, path, params: MutableMapping[str
 
     delay = 0.2
     while True:
-        resp = await retry_transient_errors(request_f, path, params=params, **kwargs)
+        resp = await request_f(path, params=params, **kwargs)
         if resp['status'] == 'DONE':
             return resp
         delay = await sleep_and_backoff(delay)
