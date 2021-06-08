@@ -17,6 +17,8 @@ trait SLocusValue extends SValue {
 
   def getLocusObj(cb: EmitCodeBuilder): Code[Locus] = Code.invokeStatic2[Locus, String, Int, Locus]("apply",
     contig(cb).loadString(), position(cb))
+
+  def structRepr(cb: EmitCodeBuilder): SBaseStructValue
 }
 
 trait SLocusCode extends SCode {
@@ -31,6 +33,4 @@ trait SLocusCode extends SCode {
   def memoize(cb: EmitCodeBuilder, name: String): SLocusValue
 
   def memoizeField(cb: EmitCodeBuilder, name: String): SLocusValue
-
-  def structRepr(cb: EmitCodeBuilder): SBaseStructCode
 }

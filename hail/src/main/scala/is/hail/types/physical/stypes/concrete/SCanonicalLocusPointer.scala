@@ -4,7 +4,7 @@ import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.expr.ir.orderings.CodeOrdering
 import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, SortOrder}
-import is.hail.types.physical.stypes.interfaces.{SBaseStructCode, SLocus, SLocusCode, SLocusValue, SString, SStringCode}
+import is.hail.types.physical.stypes.interfaces.{SBaseStructCode, SBaseStructValue, SLocus, SLocusCode, SLocusValue, SString, SStringCode}
 import is.hail.types.physical.stypes.{SCode, SSettable, SType}
 import is.hail.types.physical.{PCanonicalLocus, PType}
 import is.hail.types.virtual.Type
@@ -81,6 +81,9 @@ class SCanonicalLocusPointerSettable(
   }
 
   def position(cb: EmitCodeBuilder): Code[Int] = _position
+
+  override def structRepr(cb: EmitCodeBuilder): SBaseStructValue = new SBaseStructPointerSettable(
+    SBaseStructPointer(st.pType.representation), a)
 }
 
 class SCanonicalLocusPointerCode(val st: SCanonicalLocusPointer, val a: Code[Long]) extends SLocusCode {
