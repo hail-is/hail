@@ -775,10 +775,7 @@ class Emit[C](
     def emitFallback(ir: IR, env: EmitEnv = env, container: Option[AggContainer] = container, loopEnv: Option[Env[LoopRef]] = loopEnv): IEmitCode =
       this.emit(ir, mb, region, env, container, loopEnv, fallingBackFromEmitI = true).toI(cb)
 
-    def emitDeforestedNDArrayI(ir: IR): IEmitCode =
-      deforestNDArrayI(ir, cb, region, env)
-
-    def newEmitDeforestedNDArrayI(ir: IR): IEmitCode = EmitNDArray(this, ir, cb, region, env, container)
+    def emitDeforestedNDArrayI(ir: IR): IEmitCode = EmitNDArray(this, ir, cb, region, env, container)
 
     def emitNDArrayColumnMajorStrides(ir: IR): IEmitCode = {
       emitI(ir).map(cb) { case pNDCode: SNDArrayCode =>
@@ -1877,13 +1874,13 @@ class Emit[C](
           }
           result
         }
-      case x: NDArrayMap => newEmitDeforestedNDArrayI(x)
-      case x: NDArrayMap2 => newEmitDeforestedNDArrayI(x)
-      case x: NDArrayReshape => newEmitDeforestedNDArrayI(x)
-      case x: NDArrayConcat => newEmitDeforestedNDArrayI(x)
-      case x: NDArraySlice => newEmitDeforestedNDArrayI(x)
-      case x: NDArrayFilter => newEmitDeforestedNDArrayI(x)
-      case x: NDArrayAgg => newEmitDeforestedNDArrayI(x)
+      case x: NDArrayMap => emitDeforestedNDArrayI(x)
+      case x: NDArrayMap2 => emitDeforestedNDArrayI(x)
+      case x: NDArrayReshape => emitDeforestedNDArrayI(x)
+      case x: NDArrayConcat => emitDeforestedNDArrayI(x)
+      case x: NDArraySlice => emitDeforestedNDArrayI(x)
+      case x: NDArrayFilter => emitDeforestedNDArrayI(x)
+      case x: NDArrayAgg => emitDeforestedNDArrayI(x)
       case x@RunAgg(body, result, states) =>
         val newContainer = AggContainer.fromBuilder(cb, states.toArray, "run_agg")
         emitVoid(body, container = Some(newContainer))
@@ -2564,113 +2561,6 @@ class Emit[C](
       iec.get(cb, "Result of sorting function cannot be missing").asBoolean.boolCode(cb)
     }
     (cb: EmitCodeBuilder, region: Value[Region], l: Code[_], r: Code[_]) => cb.invokeCode[Boolean](sort, region, l, r)
-  }
-
-  def deforestNDArrayI(x0: IR, cb: EmitCodeBuilder, region: Value[Region], env: EmitEnv): IEmitCode = {
-
-    def emit(ir: IR, env: EmitEnv = env): IEmitCode =
-      this.emitI(ir, cb, region, env, None, None)
-
-    def dEmit(ir: IR, env: EmitEnv = env): EmitCode = EmitCode.fromI(cb.emb)(cb => this.emitI(ir, cb, region, env, None, None))
-
-    def deforest(x: IR): IEmitCodeGen[NDArrayEmitter] = {
-      val xType = coerce[TNDArray](x.typ)
-      val outputNDims = xType.nDims
-
-      val r = x match {
-        case x@NDArrayReshape(childND, shape) =>
-          deforest(childND).flatMap(cb) { childEmitter =>
-
-            val childShapeValues = childEmitter.outputShape
-
-            val requestedShapeValues = Array.tabulate(outputNDims)(i => cb.newLocal[Long](s"ndarray_reindex_request_shape_$i")).toIndexedSeq
-
-            emit(shape, env).map(cb) { pc =>
-              val tupleCode = pc.asBaseStruct
-              val tupleValue = tupleCode.memoize(cb, "ndarray_reshape_requested")
-
-              val hasNegativeOne = cb.newLocal[Boolean]("ndarray_reshape_has_neg_one")
-              val runningProduct = cb.newLocal[Long]("ndarray_reshape_running_product")
-              val replacesNegativeOne = cb.newLocal[Long]("ndarray_reshape_replaces_neg_one")
-              val tempShapeElement = cb.newLocal[Long]("ndarray_reshape_temp_shape_element")
-
-              cb.assign(hasNegativeOne, false)
-              cb.assign(runningProduct, 1L)
-
-              (0 until outputNDims).foreach { i =>
-                cb.assign(tempShapeElement, tupleValue.loadField(cb, i).get(cb, "Can't reshape if elements of reshape tuple are missing.").asLong.longCode(cb))
-                cb.ifx(tempShapeElement < 0L,
-                  {
-                    cb.ifx(tempShapeElement ceq -1L,
-                      {
-                        cb.ifx(hasNegativeOne, {
-                          cb._fatal("Can't infer shape, more than one -1")
-                        }, {
-                          cb.assign(hasNegativeOne, true)
-                        })
-                      },
-                      {
-                        cb._fatal("Can't reshape, new shape must contain only nonnegative numbers or -1")
-                      }
-                    )
-                  },
-                  {
-                    cb.assign(runningProduct, runningProduct * tempShapeElement)
-                  }
-                )
-              }
-
-              val numElements = cb.newLocal[Long]("ndarray_reshape_child_num_elements")
-              cb.assign(numElements, SNDArray.numElements(childShapeValues))
-
-              cb.ifx(hasNegativeOne.mux(
-                (runningProduct ceq 0L) || (numElements % runningProduct) > 0L,
-                numElements cne runningProduct
-              ), {
-                cb._fatal("Can't reshape since requested shape is incompatible with number of elements. Requested ", cb.strValue(tupleValue), " and num elements was ", numElements.toS)
-              })
-              cb.assign(replacesNegativeOne, (runningProduct ceq 0L).mux(0L, numElements / runningProduct))
-
-              (0 until outputNDims).foreach { i =>
-                cb.assign(tempShapeElement, tupleValue.loadField(cb, i).get(cb, "Can't reshape if elements of reshape tuple are missing.").asLong.longCode(cb))
-                cb.assign(requestedShapeValues(i), (tempShapeElement ceq -1L).mux(replacesNegativeOne, tempShapeElement))
-              }
-
-              new NDArrayEmitter(requestedShapeValues, childEmitter.elementType) {
-                override def outputElement(cb: EmitCodeBuilder, idxVars: IndexedSeq[Value[Long]]): SCode = {
-                  val storeElementIndex = cb.newLocal[Long]("ndarray_reshape_index_store")
-                  cb.assign(storeElementIndex, LinalgCodeUtils.linearizeIndicesRowMajor(idxVars, requestedShapeValues, cb.emb))
-
-                  val (newIdxVarsSetup, newIdxVars) = LinalgCodeUtils.unlinearizeIndexRowMajor(storeElementIndex, childShapeValues, cb.emb)
-                  cb.append(newIdxVarsSetup)
-                  assert(newIdxVars.length == childEmitter.nDims)
-
-                  childEmitter.outputElement(cb, newIdxVars)
-                }
-              }
-            }
-          }
-        case _ =>
-          val ndI = emit(x)
-          ndI.map(cb) { ndPCode =>
-            val ndPv = ndPCode.asNDArray.memoize(cb, "deforestNDArray_fall_through_ndarray")
-            val shape = ndPv.shapes(cb)
-
-            new NDArrayEmitter(shape, ndPCode.st.asInstanceOf[SNDArray].elementType) {
-              override def outputElement(cb: EmitCodeBuilder, idxVars: IndexedSeq[Value[Long]]): SCode = {
-                ndPv.loadElement(idxVars, cb)
-              }
-            }
-          }
-      }
-
-      val deforestedEltType = r.value.elementType.virtualType
-      if (deforestedEltType != xType.elementType)
-        throw new RuntimeException(s"invalid NDArray deforest rule: deforested element type is ${ deforestedEltType }, expect ${ xType.elementType }")
-      r
-    }
-
-    deforest(x0).map(cb)(emitter => emitter.emit(cb, PCanonicalNDArray(emitter.elementType.canonicalPType().setRequired(true), emitter.nDims), region))
   }
 }
 

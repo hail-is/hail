@@ -197,9 +197,9 @@ object EmitNDArray {
               val rowMajor = fromSValue(childMemo, cb).toSCode(cb, childPType, region, true).memoize(cb, "ndarray_reshape_row_major_layout")
               // The canonical row major thing is now in the order we want. We just need to read this with the row major striding that
               // would be generated for something of the new shape.
-              val rowMajorStriding = childPType.makeRowMajorStrides(requestedShapeValues, region, cb)
-
-              fromShapeStridesFirstAddress(childND.st.elementType, requestedShapeValues, rowMajorStriding, rowMajor.firstDataAddress(cb), cb)
+              val outputPType = PCanonicalNDArray(rowMajor.st.elementType.canonicalPType().setRequired(true), x.typ.nDims, true) // TODO Should it be required?
+              val rowMajorStriding = outputPType.makeRowMajorStrides(requestedShapeValues, region, cb)
+              fromShapeStridesFirstAddress(rowMajor.st.elementType, requestedShapeValues, rowMajorStriding, rowMajor.firstDataAddress(cb), cb)
             }
           }
 
@@ -510,7 +510,12 @@ object EmitNDArray {
       }
     }
 
-    deforest(ndIR).map(cb)(ndap => ndap.toSCode(cb, PCanonicalNDArray(ndap.elementType.canonicalPType().setRequired(true), ndap.nDims), region))
+    val deforested = deforest(ndIR)
+    val deforestedEltType = deforested.value.elementType.virtualType
+    if (deforestedEltType != ndIR.asInstanceOf[TNDArray].elementType)
+      throw new RuntimeException(s"invalid NDArray deforest rule: deforested element type is ${ deforestedEltType }, expect ${ ndIR.asInstanceOf[TNDArray].elementType }")
+
+    deforested.map(cb)(ndap => ndap.toSCode(cb, PCanonicalNDArray(ndap.elementType.canonicalPType().setRequired(true), ndap.nDims), region))
   }
 
   def fromSValue(ndSv: SNDArrayValue, cb: EmitCodeBuilder): NDArrayProducer = {
@@ -551,8 +556,10 @@ object EmitNDArray {
   }
 
   def fromShapeStridesFirstAddress(newElementType: SType, ndSvShape: IndexedSeq[Value[Long]], strides: IndexedSeq[Value[Long]], firstDataAddress: Value[Long], cb: EmitCodeBuilder): NDArrayProducer = {
-    val counters = ndSvShape.indices.map(i => cb.newLocal[Long](s"ndarray_produceer_fall_through_idx_${i}"))
+    val counters = ndSvShape.indices.map(i => cb.newLocal[Long](s"ndarray_producer_fall_through_idx_${i}"))
     println(s"Shape was length: ${ndSvShape.size}")
+
+    assert(ndSvShape.size == strides.size, s"shape.size = ${ndSvShape.size} != strides.size = ${strides.size}")
 
     new NDArrayProducer {
       override def elementType: SType = newElementType
