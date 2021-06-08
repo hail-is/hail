@@ -51,7 +51,7 @@ object BinaryOp {
           case Add() => ll + rr
           case Subtract() => ll - rr
           case Multiply() => ll * rr
-          case FloatingPointDivide() => ll.toF / rr.toF
+          case FloatingPointDivide() => ll.toD / rr.toD
           case RoundToNegInfDivide() => Code.invokeStatic2[Math, Int, Int, Int]("floorDiv", ll, rr)
           case BitAnd() => ll & rr
           case BitOr() => ll | rr
@@ -77,7 +77,7 @@ object BinaryOp {
           case Add() => ll + rr
           case Subtract() => ll - rr
           case Multiply() => ll * rr
-          case FloatingPointDivide() => ll.toF / rr.toF
+          case FloatingPointDivide() => ll.toD / rr.toD
           case RoundToNegInfDivide() => Code.invokeStatic2[Math, Long, Long, Long]("floorDiv", ll, rr)
           case BitAnd() => ll & rr
           case BitOr() => ll | rr
