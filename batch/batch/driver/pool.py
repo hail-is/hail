@@ -165,21 +165,6 @@ WHERE name = %s;
         if instance.state == 'active' and instance.failed_request_count <= 1:
             self.healthy_instances_by_free_cores.add(instance)
 
-    async def ready_cores_mcpu_per_user(self):
-        records = self.db.execute_and_fetchall(
-            '''
-SELECT user,
-  CAST(COALESCE(SUM(ready_cores_mcpu), 0) AS SIGNED) AS ready_cores_mcpu
-FROM user_inst_coll_resources
-WHERE inst_coll = %s
-GROUP BY user;
-''',
-            (self.name,),
-            timer_description=f'in compute_ready_cores for {self.name}: ready_cores_mcpu_per_user',
-        )
-        records = {r['user']: r['ready_cores_mcpu'] async for r in records}
-        return records
-
     async def create_instance(self, cores=None, max_idle_time_msecs=None, zone=None):
         if cores is None:
             cores = self.worker_cores
@@ -225,7 +210,7 @@ GROUP BY user;
             job_private=False,
         )
 
-    async def create_instances_from_ready_cores(self, ready_cores_mcpu):
+    async def create_instances_from_ready_cores(self, ready_cores_mcpu, zone=None):
         n_live_instances = self.n_instances_by_state['pending'] + self.n_instances_by_state['active']
 
         instances_needed = (ready_cores_mcpu - self.live_free_cores_mcpu + (self.worker_cores * 1000) - 1) // (
@@ -244,20 +229,22 @@ GROUP BY user;
         if instances_needed > 0:
             log.info(f'creating {instances_needed} new instances')
             # parallelism will be bounded by thread pool
-            await asyncio.gather(*[self.create_instance() for _ in range(instances_needed)])
+            await asyncio.gather(*[self.create_instance(zone=zone) for _ in range(instances_needed)])
 
     async def create_instances(self):
-        ready_cores = await self.db.select_and_fetchone(
+        ready_cores_mcpu_per_user = await self.db.select_and_fetchone(
             '''
-SELECT CAST(COALESCE(SUM(ready_cores_mcpu), 0) AS SIGNED) AS ready_cores_mcpu
+SELECT user,
+  CAST(COALESCE(SUM(ready_cores_mcpu), 0) AS SIGNED) AS ready_cores_mcpu
 FROM user_inst_coll_resources
 WHERE inst_coll = %s
-LOCK IN SHARE MODE;
+GROUP BY user;
 ''',
             (self.name,),
         )
 
-        ready_cores_mcpu = ready_cores['ready_cores_mcpu']
+        ready_cores_mcpu_per_user = {r['user']: r['ready_cores_mcpu'] async for r in ready_cores_mcpu_per_user}
+        ready_cores_mcpu = sum(ready_cores_mcpu_per_user.values())
 
         free_cores_mcpu = sum([worker.free_cores_mcpu for worker in self.healthy_instances_by_free_cores])
         free_cores = free_cores_mcpu / 1000
@@ -271,16 +258,15 @@ LOCK IN SHARE MODE;
         if ready_cores_mcpu > 0 and free_cores < 500:
             await self.create_instances_from_ready_cores(ready_cores_mcpu)
 
-        ready_cores_mcpu_per_user = await self.ready_cores_mcpu_per_user()
-
         ci_ready_cores_mcpu = ready_cores_mcpu_per_user['ci']
         if ci_ready_cores_mcpu > 0 and self.live_free_cores_mcpu_by_zone[GCP_ZONE] == 0:
-            await self.create_instances_from_ready_cores(ci_ready_cores_mcpu)
+            await self.create_instances_from_ready_cores(ci_ready_cores_mcpu, zone=GCP_ZONE)
 
         n_live_instances = self.n_instances_by_state['pending'] + self.n_instances_by_state['active']
         if self.enable_standing_worker and n_live_instances == 0 and self.max_instances > 0:
             await self.create_instance(
-                cores=self.standing_worker_cores, max_idle_time_msecs=STANDING_WORKER_MAX_IDLE_TIME_MSECS
+                cores=self.standing_worker_cores,
+                max_idle_time_msecs=STANDING_WORKER_MAX_IDLE_TIME_MSECS
             )
 
     async def control_loop(self):
@@ -465,7 +451,6 @@ LIMIT %s;
 
         should_wait = True
         for user, resources in user_resources.items():
-            resources = user_resources[user]
             allocated_cores_mcpu = resources['allocated_cores_mcpu']
             if allocated_cores_mcpu == 0:
                 continue
