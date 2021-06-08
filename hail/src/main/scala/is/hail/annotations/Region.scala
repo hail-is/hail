@@ -222,6 +222,10 @@ object Region {
   }
 
   def containsNonZeroBits(address: Long, skip: Long, _nBits: Long): Boolean = {
+    if (skip == 0) { // fast path
+      return containsNonZeroBits(address, _nBits)
+    }
+
     assert((address & 0x3) == 0)
 
     val nBits = skip + _nBits
