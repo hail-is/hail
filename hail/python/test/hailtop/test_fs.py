@@ -8,7 +8,7 @@ import asyncio
 import pytest
 import concurrent
 import urllib.parse
-from hailtop.utils import secret_alnum_string, bounded_gather2
+from hailtop.utils import secret_alnum_string
 from hailtop.aiotools import LocalAsyncFS, RouterAsyncFS
 from hailtop.aiotools.s3asyncfs import S3AsyncFS
 from hailtop.aiogoogle import GoogleStorageAsyncFS

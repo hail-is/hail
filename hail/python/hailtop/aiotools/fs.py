@@ -9,6 +9,7 @@ import shutil
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
 import urllib.parse
+import functools
 import humanize
 from hailtop.utils import (
     retry_transient_errors, blocking_to_async, url_basename, url_join, bounded_gather2,
@@ -611,7 +612,7 @@ class SourceCopier:
 
         async with part_creator:
             await bounded_gather2(sema, *[
-                retry_transient_errors(self._copy_part, source_report, srcfile, i, part_creator, return_exceptions)
+                functools.partial(retry_transient_errors, self._copy_part, source_report, srcfile, i, part_creator, return_exceptions)
                 for i in range(n_parts)
             ], cancel_on_error=True)
 
@@ -728,7 +729,7 @@ class SourceCopier:
             await self._copy_file_multi_part(sema, source_report, srcfile, await srcentry.status(), url_join(full_dest, relsrcfile), return_exceptions)
 
         await bounded_gather2(sema, *[
-            copy_source(srcentry)
+            functools.partial(copy_source, srcentry)
             async for srcentry in srcentries], cancel_on_error=True)
 
     async def copy(self, sema: asyncio.Semaphore, source_report: SourceReport, return_exceptions: bool):
@@ -812,7 +813,7 @@ class Copier:
                         raise NotADirectoryError(transfer.dest)
 
                     await bounded_gather2(sema, *[
-                        self.copy_source(sema, transfer, r, s, dest_type_task, return_exceptions)
+                        functools.partial(self.copy_source, sema, transfer, r, s, dest_type_task, return_exceptions)
                         for r, s in zip(src_report, src)
                     ], cancel_on_error=True)
 
@@ -838,7 +839,7 @@ class Copier:
 
             assert isinstance(transfer_report, list)
             await bounded_gather2(sema, *[
-                self._copy_one_transfer(sema, r, t, return_exceptions)
+                functools.partial(self._copy_one_transfer, sema, r, t, return_exceptions)
                 for r, t in zip(transfer_report, transfer)
             ], return_exceptions=return_exceptions, cancel_on_error=True)
         except Exception as e:

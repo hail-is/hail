@@ -8,6 +8,7 @@ import asyncio
 import pytest
 import concurrent
 import urllib.parse
+import functools
 from hailtop.utils import secret_alnum_string, bounded_gather2
 from hailtop.aiotools import LocalAsyncFS, RouterAsyncFS
 from hailtop.aiogoogle import StorageClient, GoogleStorageAsyncFS
@@ -112,7 +113,7 @@ async def test_multi_part_create_many_two_level_merge(gs_filesystem):
 
             # do in parallel
             await bounded_gather2(sema, *[
-                create_part(i) for i in range(len(part_data))])
+                functools.partial(create_part, i) for i in range(len(part_data))])
 
         expected = b''.join(part_data)
         actual = await fs.read(path)
