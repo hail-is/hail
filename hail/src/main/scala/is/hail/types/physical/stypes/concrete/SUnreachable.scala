@@ -177,6 +177,8 @@ class SUnreachableLocusValue(val st: SUnreachableLocus) extends SUnreachableValu
   override def position(cb: EmitCodeBuilder): Code[Int] = const(0)
 
   override def contig(cb: EmitCodeBuilder): SStringCode = new SUnreachableStringValue
+
+  override def structRepr(cb: EmitCodeBuilder): SBaseStructCode = SUnreachableStruct(TStruct("contig" -> TString, "position" -> TInt32)).defaultValue.asBaseStruct
 }
 
 

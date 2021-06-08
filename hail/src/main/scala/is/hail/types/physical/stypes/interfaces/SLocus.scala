@@ -31,4 +31,6 @@ trait SLocusCode extends SCode {
   def memoize(cb: EmitCodeBuilder, name: String): SLocusValue
 
   def memoizeField(cb: EmitCodeBuilder, name: String): SLocusValue
+
+  def structRepr(cb: EmitCodeBuilder): SBaseStructCode
 }
