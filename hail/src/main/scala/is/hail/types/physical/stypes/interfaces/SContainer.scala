@@ -1,5 +1,6 @@
 package is.hail.types.physical.stypes.interfaces
 
+import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.expr.ir.{EmitCodeBuilder, IEmitCode}
 import is.hail.types.physical.stypes.{EmitType, SCode, SType, SValue}
@@ -7,6 +8,7 @@ import is.hail.types.physical.stypes.{EmitType, SCode, SType, SValue}
 trait SContainer extends SType {
   def elementType: SType
   def elementEmitType: EmitType
+  override def coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SIndexableCode
 }
 
 trait SIndexableValue extends SValue {
@@ -49,5 +51,10 @@ trait SIndexableCode extends SCode {
   def memoizeField(cb: EmitCodeBuilder, name: String): SIndexableValue
 
   def castToArray(cb: EmitCodeBuilder): SIndexableCode
+
+  override def castTo(cb: EmitCodeBuilder, region: Value[Region], destType: SType): SIndexableCode =
+    castTo(cb, region, destType, false)
+  override def castTo(cb: EmitCodeBuilder, region: Value[Region], destType: SType, deepCopy: Boolean): SIndexableCode =
+    destType.asInstanceOf[SContainer].coerceOrCopy(cb, region, this, deepCopy)
 }
 

@@ -21,7 +21,7 @@ case class SIndexablePointer(pType: PContainer) extends SContainer {
 
   def elementEmitType: EmitType = EmitType(elementType, pType.elementType.required)
 
-  def coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = {
+  def coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SIndexableCode = {
     new SIndexablePointerCode(this, pType.store(cb, region, value, deepCopy))
   }
 

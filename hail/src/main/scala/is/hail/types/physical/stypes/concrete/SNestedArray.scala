@@ -1,6 +1,6 @@
 package is.hail.types.physical.stypes.concrete
 
-import is.hail.annotations.{Region, UnsafeUtils}
+import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.expr.ir.{EmitCodeBuilder, IEmitCode}
 import is.hail.types.physical.PType
@@ -8,6 +8,8 @@ import is.hail.types.physical.stypes.interfaces.{SContainer, SIndexableCode, SIn
 import is.hail.types.physical.stypes.{EmitType, SCode, SSettable, SType}
 import is.hail.types.virtual.{TArray, Type}
 import is.hail.utils._
+
+import scala.annotation.tailrec
 
 // levels indicate level of nesting 0 is array<T>, 1 is array<array<T>>, etc.
 case class SNestedArray(nestedRequired: IndexedSeq[Boolean], baseContainerType: SContainer) extends SContainer {
@@ -32,7 +34,18 @@ case class SNestedArray(nestedRequired: IndexedSeq[Boolean], baseContainerType: 
     ty
   }
 
-  def coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = ???
+  def coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SIndexableCode = value match {
+    case v: SNestedArrayCode if !deepCopy =>
+      assert(v.st.levels == levels)
+      new SNestedArrayCode(this, v.start, v.end, v.missing, v.offsets, v.values.castTo(cb, region, baseContainerType, deepCopy))
+    case _: SNestedArrayCode => // TODO
+      // deepCopy is true
+      // We want to normalize this, copying only the portions that we need
+      ???
+    case _: SIndexablePointerCode =>
+      // TODO
+      // woof
+  }
 
   def codeTupleTypes(): IndexedSeq[TypeInfo[_]] = IndexedSeq.fill(2)(IntInfo) ++
     nestedRequired.filter(identity).map(_ => LongInfo) ++
@@ -63,12 +76,21 @@ case class SNestedArray(nestedRequired: IndexedSeq[Boolean], baseContainerType: 
 
   def canonicalPType(): PType = ???
 
-  def castRename(t: Type): SType = t match {
-    case TArray(t: TArray) =>
-      castRename(t) // FIXME: does no checks
-    case TArray(_) =>
-      val st = baseContainerType.castRename(t)
-      SNestedArray(requireds, st.asInstanceOf[SContainer])
+  def castRename(t: Type): SType = {
+    val (levels, inner) = SNestedArray.countNesting(t)
+    assert(levels == this.levels)
+    SNestedArray(nestedRequired, baseContainerType.castRename(inner).asInstanceOf)
+  }
+}
+
+object SNestedArray {
+  private def countNesting(ty: Type): (Int, TArray) = {
+    @tailrec
+    def go(i: Int, ty: TArray): (Int, TArray) = ty match {
+      case TArray(t: TArray) => go(i + 1, t)
+      case _ => i -> ty
+    }
+    go(0, ty.asInstanceOf)
   }
 }
 
