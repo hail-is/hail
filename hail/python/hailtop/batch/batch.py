@@ -79,10 +79,10 @@ class Batch:
         `dill` pre-installed will automatically be used if the current Python version is
         3.6, 3.7, or 3.8.
     project:
-         DEPRECATED: please specify `google_project` on the ServiceBackend instead. If specified,
-         the project to use when authenticating with Google Storage. Google Storage is used to
-         transfer serialized values between this computer and the cloud machines that execute Python
-         jobs.
+        DEPRECATED: please specify `google_project` on the ServiceBackend instead. If specified,
+        the project to use when authenticating with Google Storage. Google Storage is used to
+        transfer serialized values between this computer and the cloud machines that execute Python
+        jobs.
     cancel_after_n_failures:
         Automatically cancel the batch after N failures have occurred. The default
         behavior is there is no limit on the number of failures. Only
@@ -566,6 +566,7 @@ class Batch:
         if self._DEPRECATED_fs is not None:
             # best effort only because this is deprecated
             self._DEPRECATED_fs.close()
+            self._DEPRECATED_fs = None
         return run_result
 
     def __str__(self):
