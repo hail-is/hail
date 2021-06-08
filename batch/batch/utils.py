@@ -7,6 +7,7 @@ from functools import wraps
 from collections import deque
 
 from gear import maybe_parse_bearer_header
+from hailtop.utils import secret_alnum_string
 
 from .globals import RESERVED_STORAGE_GB_PER_CORE
 
@@ -248,7 +249,8 @@ class ExceededSharesCounter:
         self._global_counter = WindowFractionCounter(10)
 
     def push(self, success: bool):
-        self._global_counter.push(secrets.token_urlsafe(6), success)
+        token = secret_alnum_string(6)
+        self._global_counter.push(token, success)
 
     def rate(self) -> float:
         return self._global_counter.fraction()
