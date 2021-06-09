@@ -36,9 +36,22 @@ class FoldConstantsSuite extends HailSuite {
   @Test def testFindConstantSubtrees(): Unit = {
     val i4 = I32(4)
     val i8 = I32(8)
-    val opp = ApplyBinaryPrimOp(Add(), i4, i8)
+    val ref = "x"
+    val range = StreamRange(0, 10, 1)
 
-    val f = FoldConstants.findConstantSubTrees(opp)
-    assert(f.contains(opp))
+    val oppIR = ApplyBinaryPrimOp(Add(), i4, i8)
+    val refOppIR = ApplyBinaryPrimOp(Add(), Ref(ref, TInt32), i8)
+    val letIR = Let(ref, i4, refOppIR)
+    val streamMapIR = StreamMap(range, ref, refOppIR)
+
+
+    val oppTest = FoldConstants.findConstantSubTrees(oppIR)
+    assert(oppTest.contains(oppIR))
+
+    val letTest = FoldConstants.findConstantSubTrees(letIR)
+    assert(letTest.contains(letIR))
+
+    val streamMapTest = FoldConstants.findConstantSubTrees(streamMapIR)
+    assert(streamMapTest.contains(streamMapIR))
   }
 }
