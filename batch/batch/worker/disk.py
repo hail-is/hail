@@ -46,7 +46,7 @@ class Disk:
 
     async def _unmount(self):
         await retry_all_errors_n_times(max_errors=10, msg=f'error while unmounting disk {self.name}', error_logging_interval=3)(
-            check_shell_output, f'umount {self.disk_path}'
+            check_shell_output, f'umount -v {self.disk_path} {self.mount_path}'
         )
 
     async def _format(self):
