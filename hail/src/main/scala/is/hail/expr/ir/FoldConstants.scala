@@ -1,7 +1,8 @@
 package is.hail.expr.ir
 
-import is.hail.types.virtual.TStream
-import is.hail.utils.HailException
+import is.hail.expr.ir.Bindings.empty
+import is.hail.types.virtual.{TArray, TNDArray, TStream, TStruct, TTuple}
+import is.hail.utils.{FastIndexedSeq, HailException}
 
 object FoldConstants {
   def apply(ctx: ExecuteContext, ir: BaseIR): BaseIR =
@@ -52,24 +53,57 @@ object FoldConstants {
   }
   def findConstantSubTrees(baseIR: BaseIR): Memo[Unit] = {
     val constantSubTrees = Memo.empty[Unit]
-    findConstantHelper(baseIR, constantSubTrees)
+    val usesAndDefs = ComputeUsesAndDefs(baseIR)
+    findConstantHelper(baseIR, constantSubTrees, usesAndDefs)
     constantSubTrees
   }
-  def findConstantHelper(ir: BaseIR, memo: Memo[Unit]): Unit ={
-    if (IsConstant(ir)) {
-      memo.bind(ir, ())
+  def findConstantHelper(ir: BaseIR, memo: Memo[Unit], usesAndDefs: UsesAndDefs): Unit = {
+    def recur(ir: BaseIR): Unit = findConstantHelper(ir, memo, usesAndDefs)
+    ir match {
+      case cir if IsConstant(cir) =>
+        memo.bind(cir, ())
+      case Ref(name, typ) => {}
+      case Let(name, value, body) =>
+        recur(value)
+        if (memo.contains(value)) {
+          val refs = usesAndDefs.uses(ir)
+          refs.foreach(ref => {
+            memo.bind(ref, ())
+          })
+        }
+        recur(value)
+      case TailLoop(name, args, body) => ???
+      case StreamMap(a, name, _) => ???
+      case StreamZip(as, names, _, _) => ???
+      case StreamZipJoin(as, key, curKey, curVals, _) => ???
+      case StreamFor(a, name, _) => ???
+      case StreamFlatMap(a, name, _) => ???
+      case StreamFilter(a, name, _) => ???
+      case StreamFold(a, zero, accumName, valueName, _) => ???
+      case StreamFold2(a, accum, valueName, seq, result) => ???
+      case RunAggScan(a, name, _, _, _, _) => ???
+      case StreamScan(a, zero, accumName, valueName, _) => ???
+      case StreamAggScan(a, name, _) => ???
+      case StreamJoinRightDistinct(ll, rr, _, _, l, r, _, _) => ???
+      case ArraySort(a, left, right, _) =>  ???
+      case AggArrayPerElement(a, _, indexName, _, _, _) =>  ???
+      case NDArrayMap(nd, name, _) =>  ???
+      case NDArrayMap2(l, r, lName, rName, _) =>  ???
+      case _ =>
+        ir.children.foreach(child => {
+          findConstantHelper(child, memo)
+        })
     }
-    else if (ir.children.size == 0) {}
-    else {
-      ir.children.foreach(child => {
-        findConstantHelper(child, memo)
-      })
-      val isConstantSubtree = ir.children.forall(child => {
-        memo.contains(child)
-      })
-      if (isConstantSubtree) {
-        memo.bind(ir,())
-      }
+    val isConstantSubtree = ir.children.forall(child => {
+      memo.contains(child)
+    }) && !badIRs(ir) && ir.isInstanceOf[IR]
+    if (isConstantSubtree) {
+      memo.bind(ir,())
     }
+  }
+
+  def badIRs(baseIR: BaseIR): Boolean = {
+    // TODO: Fill this in with bad IRS
+    false
   }
 }
