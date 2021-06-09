@@ -403,23 +403,6 @@ abstract class PType extends Serializable with Requiredness {
     }
   }
 
-  def deepInnerRequired(required: Boolean): PType =
-    this match {
-      case t: PArray => PCanonicalArray(t.elementType.deepInnerRequired(true), required)
-      case t: PSet => PCanonicalSet(t.elementType.deepInnerRequired(true), required)
-      case t: PDict => PCanonicalDict(t.keyType.deepInnerRequired(true), t.valueType.deepInnerRequired(true), required)
-      case t: PStruct =>
-        PCanonicalStruct(t.fields.map(f => PField(f.name, f.typ.deepInnerRequired(true), f.index)), required)
-      case t: PCanonicalTuple =>
-        PCanonicalTuple(t._types.map { f => f.copy(typ = f.typ.deepInnerRequired(true)) }, required)
-      case t: PInterval =>
-        PCanonicalInterval(t.pointType.deepInnerRequired(true), required)
-      case t: PStream =>
-        PCanonicalStream(t.elementType.deepInnerRequired(true), required = required)
-      case t =>
-        t.setRequired(required)
-    }
-
   protected[physical] def _copyFromAddress(region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Long
 
   def copyFromAddress(region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Long = {
