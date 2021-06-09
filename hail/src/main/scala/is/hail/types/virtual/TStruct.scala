@@ -39,8 +39,6 @@ final case class TStruct(fields: IndexedSeq[Field]) extends TBaseStruct {
 
   lazy val types: Array[Type] = fields.map(_.typ).toArray
 
-  lazy val fieldIdx: collection.Map[String, Int] = toMapFast(fields)(_.name, _.index)
-
   lazy val fieldNames: Array[String] = fields.map(_.name).toArray
 
   def size: Int = fields.length
