@@ -59,46 +59,66 @@ object FoldConstants {
   }
   def findConstantHelper(ir: BaseIR, memo: Memo[Unit], usesAndDefs: UsesAndDefs): Unit = {
     def recur(ir: BaseIR): Unit = findConstantHelper(ir, memo, usesAndDefs)
-    ir match {
-      case cir if IsConstant(cir) =>
-        memo.bind(cir, ())
-      case Ref(name, typ) => {}
-      case Let(name, value, body) =>
-        recur(value)
-        if (memo.contains(value)) {
-          val refs = usesAndDefs.uses(ir)
-          refs.foreach(ref => {
-            memo.bind(ref, ())
-          })
-        }
-        recur(value)
-      case TailLoop(name, args, body) => ???
-      case StreamMap(a, name, _) => ???
-      case StreamZip(as, names, _, _) => ???
-      case StreamZipJoin(as, key, curKey, curVals, _) => ???
-      case StreamFor(a, name, _) => ???
-      case StreamFlatMap(a, name, _) => ???
-      case StreamFilter(a, name, _) => ???
-      case StreamFold(a, zero, accumName, valueName, _) => ???
-      case StreamFold2(a, accum, valueName, seq, result) => ???
-      case RunAggScan(a, name, _, _, _, _) => ???
-      case StreamScan(a, zero, accumName, valueName, _) => ???
-      case StreamAggScan(a, name, _) => ???
-      case StreamJoinRightDistinct(ll, rr, _, _, l, r, _, _) => ???
-      case ArraySort(a, left, right, _) =>  ???
-      case AggArrayPerElement(a, _, indexName, _, _, _) =>  ???
-      case NDArrayMap(nd, name, _) =>  ???
-      case NDArrayMap2(l, r, lName, rName, _) =>  ???
-      case _ =>
-        ir.children.foreach(child => {
-          findConstantHelper(child, memo)
-        })
+    if (IsConstant(ir)) {
+      memo.bind(ir, ())
     }
-    val isConstantSubtree = ir.children.forall(child => {
-      memo.contains(child)
-    }) && !badIRs(ir) && ir.isInstanceOf[IR]
-    if (isConstantSubtree) {
-      memo.bind(ir,())
+    else {
+      ir match {
+        case Ref(name, typ) => {}
+        case Let(name, value, body) =>
+          recur(value)
+          if (memo.contains(value)) {
+            usesAndDefs.uses(ir).foreach(ref => memo.bind(ref, ()))
+          }
+          recur(body)
+        case TailLoop(name, args, body) => ???
+        case StreamMap(a, name, body) =>
+          recur(a)
+          if (memo.contains(a)) {
+            usesAndDefs.uses(ir).foreach(ref => memo.bind(ref, ()))
+          }
+          recur(body)
+        case StreamZip(as, names, _, _) => ???
+        case StreamZipJoin(as, key, curKey, curVals, _) => ???
+        case StreamFor(a, name, body) =>
+          recur(a)
+          if (memo.contains(a)) {
+            usesAndDefs.uses(ir).foreach(ref => memo.bind(ref, ()))
+          }
+          recur(body)
+        case StreamFlatMap(a, name, _) => ???
+        case StreamFilter(a, name, body) =>
+          recur(a)
+          if (memo.contains(a)) {
+            usesAndDefs.uses(ir).foreach(ref => memo.bind(ref, ()))
+          }
+          recur(body)
+        case StreamFold(a, zero, accumName, valueName, _) => ???
+        case StreamFold2(a, accum, valueName, seq, result) => ???
+        case RunAggScan(a, name, _, _, _, _) => ???
+        case StreamScan(a, zero, accumName, valueName, _) => ???
+        case StreamAggScan(a, name, _) => ???
+        case StreamJoinRightDistinct(ll, rr, _, _, l, r, _, _) => ???
+        case ArraySort(a, left, right, _) => ???
+        case AggArrayPerElement(a, _, indexName, _, _, _) => ???
+        case NDArrayMap(nd, name, body) =>
+          recur(nd)
+          if (memo.contains(nd)) {
+            usesAndDefs.uses(ir).foreach(ref => memo.bind(ref, ()))
+          }
+          recur(body)
+        case NDArrayMap2(l, r, lName, rName, _) => ???
+        case _ =>
+          ir.children.foreach(child => {
+            findConstantHelper(child, memo, usesAndDefs)
+          })
+      }
+      val isConstantSubtree = ir.children.forall(child => {
+        memo.contains(child)
+      }) && !badIRs(ir) && ir.isInstanceOf[IR]
+      if (isConstantSubtree) {
+        memo.bind(ir, ())
+      }
     }
   }
 
