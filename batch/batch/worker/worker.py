@@ -858,7 +858,7 @@ class Container:
 
     async def pipe_to_log(self, strm: Optional[asyncio.StreamReader]):
         if strm is not None:
-            while not strm.at_eof():
+            while not strm.at_eof() and not strm.exception():
                 self.logbuffer.extend(await strm.readline())
 
     def __str__(self):
