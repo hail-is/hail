@@ -479,13 +479,11 @@ https://hail.zulipchat.com/#narrow/stream/123011-Hail-Dev/topic/test_drop/near/2
                           b=mt2[mt.row_idx, mt.col_idx].x)
 
     @fails_service_backend()
-    @fails_local_backend()
     def test_multi_way_zip_join(self):
         d1 = [{"id": 0, "name": "a", "data": 0.0},
               {"id": 1, "name": "b", "data": 3.14},
               {"id": 2, "name": "c", "data": 2.78}]
         d2 = [{"id": 0, "name": "d", "data": 1.1},
-              {"id": 0, "name": "x", "data": 2.2},
               {"id": 2, "name": "v", "data": 7.89}]
         d3 = [{"id": 1, "name": "f", "data":  9.99},
               {"id": 2, "name": "g", "data": -1.0},
@@ -495,9 +493,6 @@ https://hail.zulipchat.com/#narrow/stream/123011-Hail-Dev/topic/test_drop/near/2
         joined = hl.Table.multi_way_zip_join(ts, '__data', '__globals').drop('__globals')
         dexpected = [{"id": 0, "__data": [{"name": "a", "data": 0.0},
                                           {"name": "d", "data": 1.1},
-                                          None]},
-                     {"id": 0, "__data": [None,
-                                          {"name": "x", "data": 2.2},
                                           None]},
                      {"id": 1, "__data": [{"name": "b", "data": 3.14},
                                           None,
@@ -519,7 +514,7 @@ https://hail.zulipchat.com/#narrow/stream/123011-Hail-Dev/topic/test_drop/near/2
         self.assertTrue(expected2._same(joined_same_name))
 
         joined_nothing = hl.Table.multi_way_zip_join(ts, 'data', 'globals').drop('data', 'globals')
-        self.assertEqual(joined_nothing._force_count(), 5)
+        self.assertEqual(joined_nothing._force_count(), 4)
 
     def test_multi_way_zip_join_globals(self):
         t1 = hl.utils.range_table(1).annotate_globals(x=hl.missing(hl.tint32))
