@@ -3470,6 +3470,10 @@ class Table(ExprContainer):
         is exactly one entry in some `data_field_name` array for every row in
         the inputs.
 
+        The :meth:`multi_way_zip_join` method assumes that inputs have distinct
+        keys. If any input has duplicate keys, the row value that is included
+        in the result array for that key is undefined.
+
         Parameters
         ----------
         tables : :class:`list` of :class:`Table`

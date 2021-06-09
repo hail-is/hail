@@ -1699,6 +1699,11 @@ case class TableIntervalJoin(
   }
 }
 
+/**
+  * The TableMultiWayZipJoin node assumes that input tables have distinct keys. If inputs
+  * do not have distinct keys, the key that is included in the result is undefined, but
+  * is likely the last.
+  */
 case class TableMultiWayZipJoin(children: IndexedSeq[TableIR], fieldName: String, globalName: String) extends TableIR {
   require(children.length > 0, "there must be at least one table as an argument")
 
