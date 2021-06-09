@@ -2069,7 +2069,6 @@ class GrepTests(unittest.TestCase):
 
 
 @fails_service_backend()
-@fails_local_backend()
 def test_matrix_and_table_read_intervals_with_hidden_key():
     f1 = new_temp_file()
     f2 = new_temp_file()
