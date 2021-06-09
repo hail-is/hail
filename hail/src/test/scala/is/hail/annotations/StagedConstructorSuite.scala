@@ -3,7 +3,7 @@ package is.hail.annotations
 import is.hail.HailSuite
 import is.hail.asm4s._
 import is.hail.check.{Gen, Prop}
-import is.hail.expr.ir.{EmitCode, EmitFunctionBuilder, IEmitCode}
+import is.hail.expr.ir.{EmitCode, EmitFunctionBuilder, IEmitCode, RequirednessSuite}
 import is.hail.types.physical._
 import is.hail.types.physical.stypes.concrete.SStringPointer
 import is.hail.types.physical.stypes.interfaces._
@@ -462,7 +462,7 @@ class StagedConstructorSuite extends HailSuite {
       "x3" -> PCanonicalArray(PInt32(true), required = true),
       "x4" -> PCanonicalSet(PCanonicalStruct(true, "y" -> PCanonicalString(true)), required = false)
     ), required = false)
-    val t2 = t1.deepInnerRequired(false)
+    val t2 = RequirednessSuite.deepInnerRequired(t1, false)
 
     val value = IndexedSeq(
       Row(1, IndexedSeq(1,2,3), IndexedSeq(0, -1), Set(Row("asdasdasd"), Row(""))),
@@ -490,7 +490,7 @@ class StagedConstructorSuite extends HailSuite {
       "x3" -> PCanonicalArray(PInt32(true), required = true),
       "x4" -> PCanonicalSet(PCanonicalStruct(true, "y" -> PCanonicalString(true)), required = false)
     ), required = false))
-    val t2 = t1.deepInnerRequired(false).asInstanceOf[PCanonicalStruct]
+    val t2 = RequirednessSuite.deepInnerRequired(t1, false).asInstanceOf[PCanonicalStruct]
 
     val value = IndexedSeq(
       Row(1, IndexedSeq(1,2,3), IndexedSeq(0, -1), Set(Row("asdasdasd"), Row(""))),
