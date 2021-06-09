@@ -1,8 +1,11 @@
 import uuid
 from typing import Mapping, Any, Optional, MutableMapping
+import logging
 
 from .base_client import BaseClient
 from hailtop.utils import sleep_and_backoff
+
+log = logging.getLogger('compute_client')
 
 
 async def request_with_wait_for_done(request_f, path, params: MutableMapping[str, Any] = None, **kwargs):
