@@ -232,7 +232,7 @@ WHERE name = %s;
             await asyncio.gather(*[self.create_instance(zone=zone) for _ in range(instances_needed)])
 
     async def create_instances(self):
-        ready_cores_mcpu_per_user = await self.db.select_and_fetchone(
+        ready_cores_mcpu_per_user = self.db.select_and_fetchall(
             '''
 SELECT user,
   CAST(COALESCE(SUM(ready_cores_mcpu), 0) AS SIGNED) AS ready_cores_mcpu
@@ -243,7 +243,11 @@ GROUP BY user;
             (self.name,),
         )
 
-        ready_cores_mcpu_per_user = {r['user']: r['ready_cores_mcpu'] async for r in ready_cores_mcpu_per_user}
+        if ready_cores_mcpu_per_user is None:
+            ready_cores_mcpu_per_user = {}
+        else:
+            ready_cores_mcpu_per_user = {r['user']: r['ready_cores_mcpu'] async for r in ready_cores_mcpu_per_user}
+
         ready_cores_mcpu = sum(ready_cores_mcpu_per_user.values())
 
         free_cores_mcpu = sum([worker.free_cores_mcpu for worker in self.healthy_instances_by_free_cores])
@@ -258,7 +262,7 @@ GROUP BY user;
         if ready_cores_mcpu > 0 and free_cores < 500:
             await self.create_instances_from_ready_cores(ready_cores_mcpu)
 
-        ci_ready_cores_mcpu = ready_cores_mcpu_per_user['ci']
+        ci_ready_cores_mcpu = ready_cores_mcpu_per_user.get('ci', 0)
         if ci_ready_cores_mcpu > 0 and self.live_free_cores_mcpu_by_zone[GCP_ZONE] == 0:
             await self.create_instances_from_ready_cores(ci_ready_cores_mcpu, zone=GCP_ZONE)
 
