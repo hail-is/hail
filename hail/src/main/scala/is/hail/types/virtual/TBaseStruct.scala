@@ -27,6 +27,8 @@ abstract class TBaseStruct extends Type {
 
   def fields: IndexedSeq[Field]
 
+  lazy val fieldIdx: Map[String, Int] = fields.map(f => (f.name, f.index)).toMap
+
   override def children: Seq[Type] = types
 
   def size: Int

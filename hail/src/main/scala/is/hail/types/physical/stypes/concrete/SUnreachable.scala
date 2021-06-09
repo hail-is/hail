@@ -66,7 +66,7 @@ case class SUnreachableStruct(virtualType: TBaseStruct) extends SUnreachable wit
   val fieldTypes: IndexedSeq[SType] = virtualType.types.map(SUnreachable.fromVirtualType)
   val fieldEmitTypes: IndexedSeq[EmitType] = fieldTypes.map(f => EmitType(f, true))
 
-  def fieldIdx(fieldName: String): Int = virtualType.asInstanceOf[TStruct].fieldIdx(fieldName)
+  def fieldIdx(fieldName: String): Int = virtualType.fieldIdx(fieldName)
 
   val sv = new SUnreachableStructValue(this)
 
