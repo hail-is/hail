@@ -32,4 +32,13 @@ class FoldConstantsSuite extends HailSuite {
   @Test(dataProvider = "aggNodes") def testAggNodesDoNotFold(node: IR): Unit = {
     assert(FoldConstants(ctx, node) == node)
   }
+
+  @Test def testFindConstantSubtrees(): Unit = {
+    val i4 = I32(4)
+    val i8 = I32(8)
+    val opp = ApplyBinaryPrimOp(Add(), i4, i8)
+
+    val f = FoldConstants.findConstantSubTrees(opp)
+    assert(f.contains(opp))
+  }
 }
