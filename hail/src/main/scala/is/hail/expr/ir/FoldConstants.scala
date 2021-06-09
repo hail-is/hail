@@ -59,55 +59,57 @@ object FoldConstants {
   }
   def findConstantHelper(ir: BaseIR, memo: Memo[Unit], usesAndDefs: UsesAndDefs): Unit = {
     def recur(ir: BaseIR): Unit = findConstantHelper(ir, memo, usesAndDefs)
+
+    def basicBindRecur(arg: IR, body: IR): Unit = {
+      recur(arg)
+      if (memo.contains(arg)) {
+        usesAndDefs.uses(ir).foreach(ref => memo.bind(ref, ()))
+      }
+      recur(body)
+    }
+    def checkNameBind(name: String): Unit = {
+      val refs = usesAndDefs.uses(ir).filter(ref => ref.t.name == name)
+      refs.foreach(ref => memo.bind(ref,()))
+    }
+    def basicTwoRefIRBindRecur(firstIR: IR, secondIR: IR, firstName: String, secondName: String, body: IR): Unit = {
+      recur(firstIR)
+      recur(secondIR)
+      if (memo.contains(firstIR)) {
+        checkNameBind(firstName)
+      }
+      if (memo.contains(secondIR)) {
+        checkNameBind(secondName)
+      }
+      recur(body)
+    }
+
     if (IsConstant(ir)) {
       memo.bind(ir, ())
     }
+    else if (ir.isInstanceOf[Ref]) {}
     else {
       ir match {
-        case Ref(name, typ) => {}
-        case Let(name, value, body) =>
-          recur(value)
-          if (memo.contains(value)) {
-            usesAndDefs.uses(ir).foreach(ref => memo.bind(ref, ()))
-          }
-          recur(body)
+        case Let(name, value, body) => basicBindRecur(value, body)
         case TailLoop(name, args, body) => ???
-        case StreamMap(a, name, body) =>
-          recur(a)
-          if (memo.contains(a)) {
-            usesAndDefs.uses(ir).foreach(ref => memo.bind(ref, ()))
-          }
-          recur(body)
-        case StreamZip(as, names, _, _) => ???
+        case StreamMap(a, name, body) => basicBindRecur(a, body)
+        case StreamZip(as, names, body, _) => ???
         case StreamZipJoin(as, key, curKey, curVals, _) => ???
-        case StreamFor(a, name, body) =>
-          recur(a)
-          if (memo.contains(a)) {
-            usesAndDefs.uses(ir).foreach(ref => memo.bind(ref, ()))
-          }
-          recur(body)
-        case StreamFlatMap(a, name, _) => ???
-        case StreamFilter(a, name, body) =>
-          recur(a)
-          if (memo.contains(a)) {
-            usesAndDefs.uses(ir).foreach(ref => memo.bind(ref, ()))
-          }
-          recur(body)
-        case StreamFold(a, zero, accumName, valueName, _) => ???
+        case StreamFor(a, name, body) => basicBindRecur(a, body)
+        case StreamFlatMap(a, name, body) => basicBindRecur(a, body)
+        case StreamFilter(a, name, body) => basicBindRecur(a, body)
+        case StreamFold(a, zero, accumName, valueName, body) =>
+          basicTwoRefIRBindRecur(a, zero, valueName, accumName, body)
         case StreamFold2(a, accum, valueName, seq, result) => ???
         case RunAggScan(a, name, _, _, _, _) => ???
-        case StreamScan(a, zero, accumName, valueName, _) => ???
+        case StreamScan(a, zero, valueName, accumName, body) => //Same as fold
+          basicTwoRefIRBindRecur(a, zero, accumName, valueName, body)
         case StreamAggScan(a, name, _) => ???
         case StreamJoinRightDistinct(ll, rr, _, _, l, r, _, _) => ???
-        case ArraySort(a, left, right, _) => ???
+        case ArraySort(a, left, right, body) => ???
         case AggArrayPerElement(a, _, indexName, _, _, _) => ???
-        case NDArrayMap(nd, name, body) =>
-          recur(nd)
-          if (memo.contains(nd)) {
-            usesAndDefs.uses(ir).foreach(ref => memo.bind(ref, ()))
-          }
-          recur(body)
-        case NDArrayMap2(l, r, lName, rName, _) => ???
+        case NDArrayMap(nd, name, body) => basicBindRecur(nd, body)
+        case NDArrayMap2(l, r, lName, rName, body) =>
+          basicTwoRefIRBindRecur(l, r, lName, rName, body)
         case _ =>
           ir.children.foreach(child => {
             findConstantHelper(child, memo, usesAndDefs)
@@ -123,7 +125,6 @@ object FoldConstants {
   }
 
   def badIRs(baseIR: BaseIR): Boolean = {
-    // TODO: Fill this in with bad IRS
-    false
+    baseIR.isInstanceOf[ApplySeeded] || baseIR.isInstanceOf[UUID4] || baseIR.isInstanceOf[In]
   }
 }
