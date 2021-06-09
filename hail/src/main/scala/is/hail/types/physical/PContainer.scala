@@ -52,6 +52,8 @@ abstract class PContainer extends PIterable {
 
   def elementOffset(aoff: Code[Long], i: Code[Int]): Code[Long]
 
+  final def elementOffsetFromBase(elementBase: Code[Long], i: Code[Int]): Code[Long] = elementBase + i.toL * elementByteSize
+
   def firstElementOffset(aoff: Code[Long], length: Code[Int]): Code[Long]
 
   def firstElementOffset(aoff: Code[Long]): Code[Long]

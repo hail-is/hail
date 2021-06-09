@@ -175,7 +175,7 @@ final case class PNewArray(elementType: PType, required: Boolean = false) extend
 
   def _pretty(sb: StringBuilder, indent: Int, compact: Boolean): Unit = ???
 
-  def setRequired(required: Boolean): PType = ???
+  def setRequired(required: Boolean): PType = PNewArray(elementType, required)
 
   protected[physical] def _copyFromAddress(region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Long = ???
 
