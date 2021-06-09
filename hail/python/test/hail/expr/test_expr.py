@@ -1521,33 +1521,33 @@ class Tests(unittest.TestCase):
         expected = [0.5, 1.0, 2.0, 4.0, None]
         expected_inv = [2.0, 1.0, 0.5, 0.25, None]
 
-        self.check_expr(a_int32 / 4, expected, tarray(tfloat32))
-        self.check_expr(a_int64 / 4, expected, tarray(tfloat32))
+        self.check_expr(a_int32 / 4, expected, tarray(tfloat64))
+        self.check_expr(a_int64 / 4, expected, tarray(tfloat64))
         self.check_expr(a_float32 / 4, expected, tarray(tfloat32))
         self.check_expr(a_float64 / 4, expected, tarray(tfloat64))
 
-        self.check_expr(int32_4s / a_int32, expected_inv, tarray(tfloat32))
-        self.check_expr(int32_4s / a_int64, expected_inv, tarray(tfloat32))
+        self.check_expr(int32_4s / a_int32, expected_inv, tarray(tfloat64))
+        self.check_expr(int32_4s / a_int64, expected_inv, tarray(tfloat64))
         self.check_expr(int32_4s / a_float32, expected_inv, tarray(tfloat32))
         self.check_expr(int32_4s / a_float64, expected_inv, tarray(tfloat64))
 
-        self.check_expr(a_int32 / int32_4s, expected, tarray(tfloat32))
-        self.check_expr(a_int64 / int32_4s, expected, tarray(tfloat32))
+        self.check_expr(a_int32 / int32_4s, expected, tarray(tfloat64))
+        self.check_expr(a_int64 / int32_4s, expected, tarray(tfloat64))
         self.check_expr(a_float32 / int32_4s, expected, tarray(tfloat32))
         self.check_expr(a_float64 / int32_4s, expected, tarray(tfloat64))
 
-        self.check_expr(a_int32 / int64_4, expected, tarray(tfloat32))
-        self.check_expr(a_int64 / int64_4, expected, tarray(tfloat32))
+        self.check_expr(a_int32 / int64_4, expected, tarray(tfloat64))
+        self.check_expr(a_int64 / int64_4, expected, tarray(tfloat64))
         self.check_expr(a_float32 / int64_4, expected, tarray(tfloat32))
         self.check_expr(a_float64 / int64_4, expected, tarray(tfloat64))
 
-        self.check_expr(int64_4 / a_int32, expected_inv, tarray(tfloat32))
-        self.check_expr(int64_4 / a_int64, expected_inv, tarray(tfloat32))
+        self.check_expr(int64_4 / a_int32, expected_inv, tarray(tfloat64))
+        self.check_expr(int64_4 / a_int64, expected_inv, tarray(tfloat64))
         self.check_expr(int64_4 / a_float32, expected_inv, tarray(tfloat32))
         self.check_expr(int64_4 / a_float64, expected_inv, tarray(tfloat64))
 
-        self.check_expr(a_int32 / int64_4s, expected, tarray(tfloat32))
-        self.check_expr(a_int64 / int64_4s, expected, tarray(tfloat32))
+        self.check_expr(a_int32 / int64_4s, expected, tarray(tfloat64))
+        self.check_expr(a_int64 / int64_4s, expected, tarray(tfloat64))
         self.check_expr(a_float32 / int64_4s, expected, tarray(tfloat32))
         self.check_expr(a_float64 / int64_4s, expected, tarray(tfloat64))
 
