@@ -167,20 +167,8 @@ class NetworkNamespace:
         self.host_port = None
 
     async def init(self):
-        await check_shell(
-            f'''
-ip netns add {self.network_ns_name} && \
-ip link add name {self.veth_host} type veth peer name {self.veth_job} && \
-ip link set dev {self.veth_host} up && \
-ip link set {self.veth_job} netns {self.network_ns_name} && \
-ip address add {self.host_ip}/24 dev {self.veth_host}
-ip -n {self.network_ns_name} link set dev {self.veth_job} up && \
-ip -n {self.network_ns_name} link set dev lo up && \
-ip -n {self.network_ns_name} address add {self.job_ip}/24 dev {self.veth_job} && \
-ip -n {self.network_ns_name} route add default via {self.host_ip}'''
-        )
-
-        await self.iptables_forwarding(action='append')
+        await self.create_netns()
+        await self.enable_iptables_forwarding()
 
         os.makedirs(f'/etc/netns/{self.network_ns_name}')
         with open(f'/etc/netns/{self.network_ns_name}/hosts', 'w') as hosts:
@@ -196,6 +184,27 @@ ip -n {self.network_ns_name} route add default via {self.host_ip}'''
                 hosts.write('search c.hail-vdc.internal google.internal\n')
             else:
                 hosts.write('nameserver 8.8.8.8\n')
+
+    async def create_netns(self):
+        await check_shell(
+            f'''
+ip netns add {self.network_ns_name} && \
+ip link add name {self.veth_host} type veth peer name {self.veth_job} && \
+ip link set dev {self.veth_host} up && \
+ip link set {self.veth_job} netns {self.network_ns_name} && \
+ip address add {self.host_ip}/24 dev {self.veth_host}
+ip -n {self.network_ns_name} link set dev {self.veth_job} up && \
+ip -n {self.network_ns_name} link set dev lo up && \
+ip -n {self.network_ns_name} address add {self.job_ip}/24 dev {self.veth_job} && \
+ip -n {self.network_ns_name} route add default via {self.host_ip}'''
+        )
+
+    async def enable_iptables_forwarding(self):
+        await check_shell(
+            f'''
+iptables -w 10 --append FORWARD --in-interface {self.veth_host} --jump ACCEPT && \
+iptables -w 10 --append FORWARD --out-interface {self.veth_host} --jump ACCEPT'''
+        )
 
     async def expose_port(self, port, host_port):
         self.port = port
@@ -213,21 +222,18 @@ ip -n {self.network_ns_name} route add default via {self.host_ip}'''
             f'--jump DNAT --to-destination {self.job_ip}:{self.port}'
         )
 
-    async def iptables_forwarding(self, action: str):
-        await check_shell(
-            f'''
-iptables -w 10 --{action} FORWARD --in-interface {self.veth_host} --jump ACCEPT && \
-iptables -w 10 --{action} FORWARD --out-interface {self.veth_host} --jump ACCEPT'''
-        )
-
     async def cleanup(self):
         if self.host_port:
             assert self.port
             await self.expose_port_rule(action='delete')
-        await self.iptables_forwarding(action='delete')
-        # Also deletes associated veth-pairs
-        await check_shell(f'ip netns delete {self.network_ns_name}')
-        shutil.rmtree(f'/etc/netns/{self.network_ns_name}')
+        self.host_port = None
+        self.port = None
+        await check_shell(
+            f'''
+ip netns delete {self.network_ns_name} && \
+ip link delete {self.veth_host}'''
+        )
+        await self.create_netns()
 
 
 class NetworkAllocator:
@@ -252,12 +258,10 @@ class NetworkAllocator:
         return await self.public_networks.get()
 
     def free(self, netns: NetworkNamespace):
-        asyncio.ensure_future(self._free_and_enqueue_new(netns))
+        asyncio.ensure_future(self._free(netns))
 
-    async def _free_and_enqueue_new(self, netns: NetworkNamespace):
+    async def _free(self, netns: NetworkNamespace):
         await netns.cleanup()
-        netns = NetworkNamespace(netns.subnet_index, netns.private)
-        await netns.init()
         if netns.private:
             self.private_networks.put_nowait(netns)
         else:
