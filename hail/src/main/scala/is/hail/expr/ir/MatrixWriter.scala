@@ -1,31 +1,32 @@
 package is.hail.expr.ir
 
-import java.io.OutputStream
 import is.hail.annotations.Region
 import is.hail.asm4s._
-import is.hail.expr.{JSONAnnotationImpex, Nat}
 import is.hail.expr.ir.functions.MatrixWriteBlockMatrix
 import is.hail.expr.ir.lowering.{LowererUnsupportedOperation, TableStage}
 import is.hail.expr.ir.streams.StreamProducer
+import is.hail.expr.{JSONAnnotationImpex, Nat}
 import is.hail.io._
 import is.hail.io.fs.FS
 import is.hail.io.gen.{ExportBGEN, ExportGen}
 import is.hail.io.index.StagedIndexWriter
 import is.hail.io.plink.ExportPlink
 import is.hail.io.vcf.ExportVCF
-import is.hail.linalg.{BlockMatrix, BlockMatrixMetadata, GridPartitioner}
-import is.hail.rvd.{RVDPartitioner, RVDSpecMaker}
+import is.hail.linalg.BlockMatrix
+import is.hail.rvd.{IndexSpec, RVDPartitioner, RVDSpecMaker}
 import is.hail.types.encoded.{EBaseStruct, EBlockMatrixNDArray, EType}
 import is.hail.types.physical.stypes.SCode
 import is.hail.types.physical.stypes.interfaces._
-import is.hail.types.physical.{PCanonicalBaseStruct, PCanonicalString, PCanonicalStruct, PInt64, PInt64Required, PStream, PStruct, PType}
+import is.hail.types.physical.{PCanonicalBaseStruct, PCanonicalString, PCanonicalStruct, PInt64, PStream, PStruct, PType}
 import is.hail.types.virtual._
-import is.hail.types.{BlockMatrixSparsity, BlockMatrixType, MatrixType, RTable, TableType}
+import is.hail.types._
 import is.hail.utils._
 import is.hail.utils.richUtils.ByteTrackingOutputStream
 import org.apache.spark.sql.Row
 import org.json4s.jackson.JsonMethods
 import org.json4s.{DefaultFormats, Formats, ShortTypeHints}
+
+import java.io.OutputStream
 
 object MatrixWriter {
   implicit val formats: Formats = new DefaultFormats() {
@@ -123,6 +124,9 @@ case class MatrixNativeWriter(
 
       val matrixWriter = MatrixSpecWriter(path, tm, "rows/rows", "globals/rows", "cols/rows", "entries/rows", "references", log = true)
 
+      val rowsIndexSpec = IndexSpec.defaultAnnotation("../../index", coerce[PStruct](pKey))
+      val entriesIndexSpec = IndexSpec.defaultAnnotation("../../index", coerce[PStruct](pKey), withOffsetField = true)
+
       RelationalWriter.scoped(path, overwrite = overwrite, Some(t.typ))(
         RelationalWriter.scoped(s"$path/globals", overwrite = false, None)(
           RelationalWriter.scoped(s"$path/cols", overwrite = false, None)(
@@ -141,8 +145,8 @@ case class MatrixNativeWriter(
                       WriteMetadata(MakeArray(GetField(colInfo, "partitionCounts")), colTableWriter),
                       bindIR(ToArray(mapIR(ToStream(partInfo)) { fc => GetField(fc, "filePath") })) { files =>
                         Begin(FastIndexedSeq(
-                          WriteMetadata(files, RVDSpecWriter(s"$path/rows/rows", RVDSpecMaker(rowSpec, lowered.partitioner))),
-                          WriteMetadata(files, RVDSpecWriter(s"$path/entries/rows", RVDSpecMaker(entrySpec, RVDPartitioner.unkeyed(lowered.numPartitions))))))
+                          WriteMetadata(files, RVDSpecWriter(s"$path/rows/rows", RVDSpecMaker(rowSpec, lowered.partitioner, rowsIndexSpec))),
+                          WriteMetadata(files, RVDSpecWriter(s"$path/entries/rows", RVDSpecMaker(entrySpec, RVDPartitioner.unkeyed(lowered.numPartitions), entriesIndexSpec)))))
                       },
                       bindIR(ToArray(mapIR(ToStream(partInfo)) { fc => GetField(fc, "partitionCounts") })) { counts =>
                         Begin(FastIndexedSeq(
@@ -182,8 +186,9 @@ case class SplitPartitionNativeWriter(
     context: EmitCode,
     region: Value[Region]): IEmitCode = {
     val keyType = ifIndexed { index.get._2 }
-    val iAnnotationType = PCanonicalStruct(required = true, "entries_offset" -> PInt64Required)
+    val iAnnotationType = PCanonicalStruct(required = true, "entries_offset" -> PInt64())
     val mb = cb.emb
+
     val indexWriter = ifIndexed { StagedIndexWriter.withDefaults(keyType, mb.ecb, annotationType = iAnnotationType) }
 
 
@@ -230,7 +235,7 @@ case class SplitPartitionNativeWriter(
       cb.assign(filename1, pctx.asString.loadString())
       if (hasIndex) {
         val indexFile = cb.newLocal[String]("indexFile")
-        cb.assign(indexFile, const(index.get._1).concat(filename1))
+        cb.assign(indexFile, const(index.get._1).concat(filename1).concat(".idx"))
         indexWriter.init(cb, indexFile)
       }
       cb.assign(filename2, const(partPrefix2).concat(filename1))
