@@ -164,7 +164,7 @@ object AbstractRVDSpec {
         contexts,
         body)
       extendedNewPartitioner match {
-        case Some(np) if filterIntervals =>
+        case Some(np) if !filterIntervals =>
           ts.repartitionNoShuffle(np)
         case _ => ts
       }
