@@ -1231,7 +1231,7 @@ class Emit[C](
             cb.assign(grpIdx, grpIdx + 1)
           })
 
-          dictType.construct(finishOuter(cb))
+          dictType.sType.fromCodes(finishOuter(cb).makeCodeTuple(cb))
         }
 
       case x@StreamLen(a) =>

@@ -9,8 +9,11 @@ abstract class PContainer extends PIterable {
   override def containsPointers: Boolean = true
 
   def elementByteSize: Long
-
   def contentsAlignment: Long
+
+  override def setRequired(required: Boolean): PContainer
+
+  final def elementOffsetFromBase(baseAddress: Code[Long], i: Code[Int]): Code[Long] = baseAddress + const(elementByteSize) * i.toL
 
   def loadLength(aoff: Long): Int
 

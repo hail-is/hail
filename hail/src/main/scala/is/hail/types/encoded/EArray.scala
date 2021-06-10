@@ -43,12 +43,12 @@ final case class EArray(val elementType: EType, override val required: Boolean =
           case t: PCanonicalDict => t.arrayRep
         }
 
-        val array = value.asInstanceOf[SIndexablePointerSettable].a
+        val array = value.asInstanceOf[SIndexablePointerSettable]
         if (!elementType.required) {
           val nMissingLocal = cb.newLocal[Int]("nMissingBytes", pArray.nMissingBytes(prefixLen))
           cb.ifx(nMissingLocal > 0, {
-            cb += out.writeBytes(array + const(pArray.lengthHeaderBytes), nMissingLocal - 1)
-            cb += out.writeByte((Region.loadByte(array + const(pArray.lengthHeaderBytes)
+            cb += out.writeBytes(array.missing.get, nMissingLocal - 1)
+            cb += out.writeByte((Region.loadByte(array.missing.get
               + (nMissingLocal - 1).toL) & EType.lowBitMask(prefixLen)).toB)
           })
         }
@@ -105,16 +105,18 @@ final case class EArray(val elementType: EType, override val required: Boolean =
     if (!elementType.required)
       cb += in.readBytes(region, array + const(arrayType.lengthHeaderBytes), arrayType.nMissingBytes(len))
 
+    val elements = cb.newLocal[Long]("elements_base", arrayType.firstElementOffset(array, len))
+    val elementAddr = cb.newLocal[Long]("cur_elt", elements)
     cb.forLoop(cb.assign(i, 0), i < len, cb.assign(i, i + 1), {
-      val elemAddr = arrayType.elementOffset(array, len, i)
       if (elementType.required)
-        readElemF(cb, region, elemAddr, in)
+        readElemF(cb, region, elementAddr, in)
       else
         cb.ifx(arrayType.isElementDefined(array, i),
-          readElemF(cb, region, elemAddr, in))
+          readElemF(cb, region, elementAddr, in))
+      cb.assign(elementAddr, elementAddr + arrayType.elementByteSize)
     })
 
-    new SIndexablePointerCode(st, array.load())
+    new SIndexablePointerCode(st, len, elements, if (elementType.required) None else Some(array + arrayType.lengthHeaderBytes))
   }
 
   def _buildSkip(cb: EmitCodeBuilder, r: Value[Region], in: Value[InputBuffer]): Unit = {

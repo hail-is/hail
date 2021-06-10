@@ -232,9 +232,9 @@ class StagedBlockLinkedList(val elemType: PType, val kb: EmitClassBuilder[_]) {
   }
 
   private def appendShallow(cb: EmitCodeBuilder, r: Code[Region], aCode: SCode): Unit = {
-    val buff = cb.memoize(aCode, "sbll_append_shallow_a").asInstanceOf[SIndexablePointerSettable]
+    val buff = cb.memoize(aCode, "sbll_append_shallow_list").asInstanceOf[SIndexablePointerSettable]
     val newNode = cb.newLocal[Long]("sbll_append_shallow_newnode", nodeType.allocate(r))
-    cb += initNode(newNode, buf = buff.a, count = buff.length)
+    cb += initNode(newNode, buf = buff.baseAddress(), count = buff.length)
     cb += setNext(lastNode, newNode)
     cb.assign(lastNode, newNode)
     cb.assign(totalCount, totalCount + buff.length)

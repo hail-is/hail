@@ -1,6 +1,7 @@
 package is.hail.io.index
 
 import java.io.OutputStream
+
 import is.hail.annotations.{Annotation, Region, RegionPool, RegionValueBuilder}
 import is.hail.asm4s._
 import is.hail.expr.ir.{CodeParam, EmitClassBuilder, EmitCodeBuilder, EmitFunctionBuilder, EmitMethodBuilder, ExecuteContext, IEmitCode, IntArrayBuilder, LongArrayBuilder, ParamType}
@@ -9,7 +10,7 @@ import is.hail.io.fs.FS
 import is.hail.rvd.AbstractRVDSpec
 import is.hail.types
 import is.hail.types.physical.stypes.SCode
-import is.hail.types.physical.stypes.concrete.{SBaseStructPointer, SBaseStructPointerSettable}
+import is.hail.types.physical.stypes.concrete.{SBaseStructPointer, SBaseStructPointerSettable, SIndexablePointerCode, SIndexablePointerSettable}
 import is.hail.types.physical.stypes.interfaces.SBaseStructValue
 import is.hail.types.physical.{PCanonicalArray, PCanonicalStruct, PType}
 import is.hail.types.virtual.Type
@@ -100,7 +101,7 @@ class IndexWriter(keyType: PType, valueType: PType, comp: CompiledIndexWriter, p
 }
 
 class IndexWriterArrayBuilder(name: String, maxSize: Int, sb: SettableBuilder, region: Value[Region], arrayType: PCanonicalArray) {
-  private val aoff = sb.newSettable[Long](s"${name}_aoff")
+  private val array = SIndexablePointerSettable(sb, arrayType.sType, name)
   private val len = sb.newSettable[Int](s"${name}_len")
 
   val eltType: PCanonicalStruct = types.coerce[PCanonicalStruct](arrayType.elementType.setRequired((false)))
@@ -108,19 +109,20 @@ class IndexWriterArrayBuilder(name: String, maxSize: Int, sb: SettableBuilder, r
 
   def length: Code[Int] = len
 
-  def loadFrom(cb: EmitCodeBuilder, a: Code[Long], l: Code[Int]): Unit = {
-    cb.assign(aoff, a)
+  def loadFrom(cb: EmitCodeBuilder, v: SIndexablePointerCode, l: Code[Int]): Unit = {
+    cb.assign(array, v)
     cb.assign(len, l)
   }
 
   def create(cb: EmitCodeBuilder, dest: Code[Long]): Unit = {
-    cb.assign(aoff, arrayType.allocate(region, maxSize))
-    cb += arrayType.stagedInitialize(aoff, maxSize)
-    arrayType.storeAtAddress(cb, dest, region, arrayType.loadCheapPCode(cb, aoff), deepCopy = false)
+    val arrayAddr = cb.newLocal[Long]("idx_wtr_ab_create_array_addr", arrayType.allocate(region, maxSize))
+    cb += arrayType.stagedInitialize(arrayAddr, maxSize)
+    cb.assign(array, arrayType.loadCheapPCode(cb, arrayAddr))
+    arrayType.storeAtAddress(cb, dest, region, array, deepCopy = false)
     cb.assign(len, 0)
   }
 
-  def storeLength(cb: EmitCodeBuilder): Unit = cb += arrayType.storeLength(aoff, length)
+  def storeLength(cb: EmitCodeBuilder): Unit = cb += arrayType.storeLength(array.baseAddress(), length)
 
   def setFieldValue(cb: EmitCodeBuilder, name: String, field: SCode): Unit = {
     cb += eltType.setFieldPresent(elt.a, name)
@@ -136,7 +138,7 @@ class IndexWriterArrayBuilder(name: String, maxSize: Int, sb: SettableBuilder, r
     loadChild(cb, len)
     cb.assign(len, len + 1)
   }
-  def loadChild(cb: EmitCodeBuilder, idx: Code[Int]): Unit = elt.store(cb, eltType.loadCheapPCode(cb, arrayType.loadElement(aoff, idx)))
+  def loadChild(cb: EmitCodeBuilder, idx: Code[Int]): Unit = elt.store(cb, array.loadElement(cb, idx).get(cb))
   def getLoadedChild: SBaseStructValue = elt
 }
 

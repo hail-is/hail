@@ -5,7 +5,7 @@ import is.hail.asm4s._
 import is.hail.check.{Gen, Prop}
 import is.hail.expr.ir.{EmitCode, EmitFunctionBuilder, IEmitCode, RequirednessSuite}
 import is.hail.types.physical._
-import is.hail.types.physical.stypes.concrete.SStringPointer
+import is.hail.types.physical.stypes.concrete.{SStringPointer, SIndexablePointerSettable}
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.physical.stypes.primitives.SInt32Code
 import is.hail.types.virtual._
@@ -100,7 +100,7 @@ class StagedConstructorSuite extends HailSuite {
       val elt = fb.getCodeParam[Int](2)
       rt.constructFromElements(cb, region, const(1), false) { (cb, idx) =>
         IEmitCode.present(cb, primitive(elt))
-      }.a
+      }.memoize(cb, "result").asInstanceOf[SIndexablePointerSettable].baseAddress()
     }
 
     val region = Region(pool=pool)
@@ -188,7 +188,7 @@ class StagedConstructorSuite extends HailSuite {
           EmitCode.fromI(cb.emb)(cb => IEmitCode.present(cb, primitive(idx + 1))),
           EmitCode.fromI(cb.emb)(cb => IEmitCode.present(cb, st.constructFromString(cb, region, fb.getCodeParam[String](2))))
         ), deepCopy = false))
-      }.a
+      }.memoize(cb, "result").asInstanceOf[SIndexablePointerSettable].baseAddress()
     }
 
     val region = Region(pool=pool)
@@ -363,7 +363,7 @@ class StagedConstructorSuite extends HailSuite {
       val region = fb.emb.getCodeParam[Region](1)
       rt.constructFromElements(cb, region, const(2), deepCopy = false) { (cb, idx) =>
         IEmitCode(cb, idx > 0, new SInt32Code(fb.getCodeParam[Int](2)))
-      }.a
+      }.memoize(cb, "result").asInstanceOf[SIndexablePointerSettable].baseAddress()
     }
 
     val region = Region(pool=pool)

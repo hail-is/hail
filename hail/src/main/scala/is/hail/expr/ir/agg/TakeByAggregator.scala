@@ -510,7 +510,7 @@ class TakeByRVAS(val valueVType: VirtualTypeWithReq, val keyVType: VirtualTypeWi
       mb.invokeCode(_, _, _)
     }
 
-    mb.emitWithBuilder[Long] { cb =>
+    mb.emitPCode { cb =>
       val r = mb.getCodeParam[Region](1)
 
       val indicesToSort = cb.newLocal[Long]("indices_to_sort",
@@ -533,9 +533,9 @@ class TakeByRVAS(val valueVType: VirtualTypeWithReq, val keyVType: VirtualTypeWi
           .flatMap(cb) { case pct: SBaseStructPointerCode =>
             pct.memoize(cb, "takeby_result_tuple").loadField(cb, 1)
           }
-      }.a
+      }
     }
-    resultType.loadCheapPCode(cb, cb.invokeCode[Long](mb, _r))
+    cb.invokePCode(mb, _r).asInstanceOf[SIndexablePointerCode]
   }
 }
 

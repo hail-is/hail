@@ -49,8 +49,8 @@ class StagedInternalNodeBuilder(maxSize: Int, keyType: PType, annotationType: PT
   def loadFrom(cb: EmitCodeBuilder, ib: StagedIndexWriterUtils, idx: Value[Int]): Unit = {
     cb.assign(region, ib.getRegion(idx))
     cb.assign(node.a, ib.getArrayOffset(idx))
-    val aoff = node.loadField(cb, 0).get(cb).asInstanceOf[SIndexablePointerCode].a
-    ab.loadFrom(cb, aoff, ib.getLength(idx))
+    val value = node.loadField(cb, 0).get(cb).asInstanceOf[SIndexablePointerCode]
+    ab.loadFrom(cb, value, ib.getLength(idx))
   }
 
   def store(cb: EmitCodeBuilder, ib: StagedIndexWriterUtils, idx: Value[Int]): Unit =

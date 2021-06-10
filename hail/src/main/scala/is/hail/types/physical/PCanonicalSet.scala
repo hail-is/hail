@@ -1,16 +1,17 @@
 package is.hail.types.physical
 
 import is.hail.annotations.{Annotation, Region}
+import is.hail.expr.ir.EmitCodeBuilder
 import is.hail.types.physical.stypes.concrete.{SIndexablePointer, SIndexablePointerCode}
 import is.hail.types.physical.stypes.interfaces.SIndexableCode
 import is.hail.types.virtual.{TSet, Type}
 import is.hail.utils._
 
 object PCanonicalSet {
-  def coerceArrayCode(contents: SIndexableCode): SIndexableCode = {
+  def coerceArrayCode(cb: EmitCodeBuilder, contents: SIndexableCode): SIndexableCode = {
     contents.st match {
       case SIndexablePointer(PCanonicalArray(elt, r)) =>
-        PCanonicalSet(elt, r).construct(contents)
+        PCanonicalSet(elt, r).sType.fromCodes(contents.makeCodeTuple(cb))
     }
   }
 }
@@ -18,7 +19,7 @@ object PCanonicalSet {
 final case class PCanonicalSet(elementType: PType,  required: Boolean = false) extends PSet with PArrayBackedContainer {
   val arrayRep = PCanonicalArray(elementType, required)
 
-  def setRequired(required: Boolean) = if (required == this.required) this else PCanonicalSet(elementType, required)
+  override def setRequired(required: Boolean): PCanonicalSet = if (required == this.required) this else PCanonicalSet(elementType, required)
 
   def _asIdent = s"set_of_${elementType.asIdent}"
 
@@ -38,11 +39,5 @@ final case class PCanonicalSet(elementType: PType,  required: Boolean = false) e
       .toFastIndexedSeq
       .sorted(elementType.virtualType.ordering.toOrdering)
     arrayRep.unstagedStoreJavaObject(s, region)
-  }
-
-  def construct(_contents: SIndexableCode): SIndexableCode = {
-    val contents = _contents.asInstanceOf[SIndexablePointerCode]
-    assert(contents.pt.equalModuloRequired(arrayRep), s"\n  contents:  ${ contents.pt }\n  arrayrep: ${ arrayRep }")
-    new SIndexablePointerCode(SIndexablePointer(this), contents.asInstanceOf[SIndexablePointerCode].a)
   }
 }

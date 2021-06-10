@@ -138,7 +138,7 @@ class LinearRegressionAggregator() extends StagedAggregator {
     val xty = cb.newLocal[Long]("linreg_agg_seqop_xty")
     val xtx = cb.newLocal[Long]("linreg_agg_seqop_xtx")
 
-    val x = xc.memoize(cb, "lra_seqop_x").asInstanceOf[SIndexableValue]
+    val x = xc.memoize(cb, "lra_seqop_x").asInstanceOf[SIndexablePointerSettable]
 
     cb.ifx(!x.hasMissingValues(cb),
       {
@@ -151,10 +151,8 @@ class LinearRegressionAggregator() extends StagedAggregator {
           case SIndexablePointer(pt: PCanonicalArray) =>
             assert(pt.elementType.isInstanceOf[PFloat64])
 
-            val xAddr = x.asInstanceOf[SIndexablePointerSettable].a
-            val xptr = cb.newLocal[Long]("linreg_agg_seqop_xptr")
+            val xptr = cb.newLocal[Long]("linreg_agg_seqop_xptr", x.elements)
             val xptr2 = cb.newLocal[Long]("linreg_agg_seqop_xptr2")
-            cb.assign(xptr, pt.firstElementOffset(xAddr, k))
             cb.whileLoop(i < k,
               {
                 cb += Region.storeDouble(sptr, Region.loadDouble(sptr) + (Region.loadDouble(xptr) * y))
@@ -165,12 +163,12 @@ class LinearRegressionAggregator() extends StagedAggregator {
 
             cb.assign(i, 0)
             cb.assign(sptr, vector.firstElementOffset(xtx, k))
-            cb.assign(xptr, pt.firstElementOffset(xAddr, k))
+            cb.assign(xptr, x.elements)
 
             cb.whileLoop(i < k,
               {
                 cb.assign(j, 0)
-                cb.assign(xptr2, pt.firstElementOffset(xAddr, k))
+                cb.assign(xptr2, x.elements)
                 cb.whileLoop(j < k,
                   {
                     // add x[i] * x[j] to the value at sptr

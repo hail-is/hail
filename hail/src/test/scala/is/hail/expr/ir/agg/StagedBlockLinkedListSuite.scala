@@ -5,6 +5,7 @@ import is.hail.annotations.{Region, SafeRow, ScalaToRegionValue}
 import is.hail.asm4s.Code
 import is.hail.expr.ir.{EmitCode, EmitFunctionBuilder}
 import is.hail.types.physical._
+import is.hail.types.physical.stypes.concrete.SIndexablePointerSettable
 import is.hail.utils._
 import org.testng.Assert._
 import org.testng.annotations.Test
@@ -93,7 +94,7 @@ class StagedBlockLinkedListSuite extends HailSuite {
       fb.emitWithBuilder { cb =>
         cb.assign(rField, rArg)
         sbll.load(cb, ptr)
-        sbll.resultArray(cb, rArg, arrayPType).a
+        sbll.resultArray(cb, rArg, arrayPType).memoize(cb, "result").asInstanceOf[SIndexablePointerSettable].baseAddress()
       }
 
       val f = fb.result()()

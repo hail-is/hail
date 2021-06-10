@@ -6,6 +6,7 @@ import is.hail.asm4s._
 import is.hail.expr.ir.agg.TakeByRVAS
 import is.hail.types.VirtualTypeWithReq
 import is.hail.types.physical._
+import is.hail.types.physical.stypes.concrete.SIndexablePointerSettable
 import is.hail.types.physical.stypes.primitives.{SInt32, SInt32Code}
 import is.hail.utils._
 import org.testng.annotations.Test
@@ -34,7 +35,7 @@ class TakeByAggregatorSuite extends HailSuite {
             tba.seqOp(cb, false, off, false, -i)
             cb += (i := i + 1L)
           })
-          tba.result(cb, argR, rt).a
+          tba.result(cb, argR, rt).memoize(cb, "result").asInstanceOf[SIndexablePointerSettable].baseAddress()
         }
 
         val o = fb.resultWithIndex()(ctx.fs, 0, r)(r)
@@ -68,7 +69,7 @@ class TakeByAggregatorSuite extends HailSuite {
         tba.seqOp(cb, false, 3, false, 3)
         tba.seqOp(cb, true, 0, true, 0)
         tba.seqOp(cb, true, 0, true, 0)
-        tba.result(cb, argR, rt).a
+        tba.result(cb, argR, rt).memoize(cb, "result").asInstanceOf[SIndexablePointerSettable].baseAddress()
       }
 
       val o = fb.resultWithIndex()(ctx.fs, 0, r)(r)
@@ -109,7 +110,8 @@ class TakeByAggregatorSuite extends HailSuite {
           })
           cb += ab.size.cne(n).orEmpty(Code._fatal[Unit]("bad size!"))
           cb += (resultOff := argR.allocate(8L, 16L))
-          cb += Region.storeAddress(resultOff, tba.result(cb, argR, rt).a)
+          val a = tba.result(cb, argR, rt).memoize(cb, "result").asInstanceOf[SIndexablePointerSettable].baseAddress()
+          cb += Region.storeAddress(resultOff, a)
           cb += Region.storeAddress(resultOff + 8L, ab.data)
           resultOff
         }

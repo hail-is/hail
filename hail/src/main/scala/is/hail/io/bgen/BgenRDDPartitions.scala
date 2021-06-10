@@ -8,7 +8,7 @@ import is.hail.io.fs.FS
 import is.hail.io.index.IndexReaderBuilder
 import is.hail.io.{ByteArrayReader, HadoopFSDataBinaryReader}
 import is.hail.types._
-import is.hail.types.physical.stypes.concrete.{SCanonicalCallCode, SStackStruct, SStringPointer}
+import is.hail.types.physical.stypes.concrete.{SCanonicalCallCode, SStackStruct, SStringPointer, SIndexablePointerSettable}
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.physical.{PCanonicalArray, PCanonicalLocus, PCanonicalString, PCanonicalStruct, PStruct}
 import is.hail.types.virtual.{TInterval, Type}
@@ -331,9 +331,8 @@ object CompileDecoder {
           val includeDosage = t.hasField("dosage")
 
           val alreadyMemoized = mb.genFieldThisRef[Boolean]("alreadyMemoized")
-          val memoizedEntryData = mb.genFieldThisRef[Long]("memoizedEntryData")
-
           val memoTyp = PCanonicalArray(entryType.setRequired(true), required = true)
+          val memoizedEntryData = mb.newPField("memoizedEntryData", memoTyp.sType).asInstanceOf[SIndexablePointerSettable]
 
           val memoMB = mb.genEmitMethod("memoizeEntries", FastIndexedSeq[ParamType](), UnitInfo)
           memoMB.voidWithBuilder { cb =>
@@ -419,7 +418,7 @@ object CompileDecoder {
               cb.assign(d0, d0 + 1)
             })
 
-            cb.assign(memoizedEntryData, finish(cb).a)
+            cb.assign(memoizedEntryData, finish(cb))
             cb.assign(alreadyMemoized, true)
 
             cb.define(LnoOp)
@@ -517,7 +516,7 @@ object CompileDecoder {
             val dataOffset = cb.newLocal[Int]("bgen_add_entries_offset", const(settings.nSamples + 10) + i * 2)
             val d0 = data(dataOffset) & 0xff
             val d1 = data(dataOffset + 1) & 0xff
-            val pc = entryType.loadCheapPCode(cb, memoTyp.loadElement(memoizedEntryData, settings.nSamples, (d0 << 8) | d1))
+            val pc = memoizedEntryData.loadElement(cb, (d0 << 8) | d1).get(cb)
             cb.goto(Lpresent)
             val iec = IEmitCode(Lmissing, Lpresent, pc, false)
             pushElement(cb, iec)
