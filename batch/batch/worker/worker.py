@@ -230,8 +230,8 @@ iptables -w 10 --append FORWARD --out-interface {self.veth_host} --jump ACCEPT''
         self.port = None
         await check_shell(
             f'''
-ip netns delete {self.network_ns_name} && \
-ip link delete {self.veth_host}'''
+ip link delete {self.veth_host} && \
+ip netns delete {self.network_ns_name}'''
         )
         await self.create_netns()
 
