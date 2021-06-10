@@ -939,7 +939,7 @@ case class TableNativeZippedReader(
 
   override def renderShort(): String = s"(TableNativeZippedReader $pathLeft $pathRight ${ options.map(_.renderShort()).getOrElse("") })"
 
-  private lazy val filterIntervals = options.map(_.filterIntervals).getOrElse(false)
+  private lazy val filterIntervals = options.exists(_.filterIntervals)
 
   private def intervals = options.map(_.intervals)
 
@@ -1057,7 +1057,7 @@ case class TableNativeZippedReader(
     AbstractRVDSpec.readZippedLowered(ctx,
       specLeft.rowsSpec, specRight.rowsSpec,
       pathLeft + "/rows", pathRight + "/rows",
-      partitioner, options.exists(_.filterIntervals),
+      partitioner, filterIntervals,
       requestedType.rowType, reqLeft, reqRight, requestedType.key).apply(globals)
   }
 

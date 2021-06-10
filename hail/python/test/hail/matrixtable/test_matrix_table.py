@@ -872,7 +872,6 @@ https://hail.zulipchat.com/#narrow/stream/123011-Hail-Dev/topic/test_drop/near/2
         self.assertTrue(ds.globals_table()._same(t))
 
     @fails_service_backend()
-    @fails_local_backend()
     def test_indexed_read(self):
         mt = hl.utils.range_matrix_table(2000, 100, 10)
         f = new_temp_file(extension='mt')
@@ -892,7 +891,6 @@ https://hail.zulipchat.com/#narrow/stream/123011-Hail-Dev/topic/test_drop/near/2
         self.assertTrue(mt.filter_rows((mt.row_idx >= 150) & (mt.row_idx < 500))._same(mt2))
 
     @fails_service_backend()
-    @fails_local_backend()
     def test_indexed_read_vcf(self):
         vcf = self.get_mt(10)
         f = new_temp_file(extension='mt')
