@@ -7,7 +7,7 @@ import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer, TypedCodecSpec}
 import is.hail.types.VirtualTypeWithReq
 import is.hail.types.physical._
 import is.hail.types.physical.stypes.SCode
-import is.hail.types.physical.stypes.concrete.{SBaseStructPointer, SBaseStructPointerCode}
+import is.hail.types.physical.stypes.concrete.{SBaseStructPointer, SBaseStructPointerCode, SStackStruct}
 import is.hail.types.physical.stypes.interfaces.SBinaryCode
 import is.hail.utils._
 
@@ -197,7 +197,11 @@ class PrimitiveRVAState(val vtypes: Array[VirtualTypeWithReq], val kb: EmitClass
 
   def store(cb: EmitCodeBuilder, regionStorer: (EmitCodeBuilder, Value[Region]) => Unit, destc: Code[Long]): Unit = {
     val dest = cb.newLocal("prim_rvastate_store_dest", destc)
-    storageType.storeAtAddressFromFields(cb, dest, null, fields.map(_.load), false)
+    storageType.storeAtAddress(cb,
+      dest,
+      null,
+      SStackStruct.constructFromArgs(cb, null, storageType.virtualType, fields.map(_.load): _*),
+      false)
   }
 
   def copyFrom(cb: EmitCodeBuilder, src: Code[Long]): Unit = loadVarsFromRegion(cb, src)

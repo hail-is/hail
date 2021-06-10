@@ -9,7 +9,7 @@ import is.hail.rvd.RVDPartitioner
 import is.hail.types._
 import is.hail.types.physical._
 import is.hail.types.physical.stypes.SCode
-import is.hail.types.physical.stypes.concrete.{SIndexablePointerCode, SStringPointer}
+import is.hail.types.physical.stypes.concrete.{SIndexablePointerCode, SStackStruct, SStringPointer}
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.virtual._
 import is.hail.utils._
@@ -641,16 +641,14 @@ class CompiledLineParser(
   private[this] def parseEntries(cb: EmitCodeBuilder, entriesType: PCanonicalArray): SIndexablePointerCode = {
     val entryType = entriesType.elementType.asInstanceOf[PCanonicalStruct]
     assert(entryType.fields.size == 1)
-    val (nextAddress, _, finish) = entriesType.constructFromNextAddress(cb, region, nCols)
+    val (push, finish) = entriesType.constructFromFunctions(cb, region, nCols, false)
 
     val i = cb.newLocal[Int]("i", 0)
     cb.whileLoop(i < nCols, {
-      val nextAddr = nextAddress(cb)
-
       cb.ifx(pos >= line.length, parseError(cb, const("unexpected end of line while reading entry ").concat(i.toS)))
 
       val ec = EmitCode.fromI(cb.emb)(cb => parseValueOfType(cb, entryType.fields(0).typ))
-      entryType.storeAtAddressFromFields(cb, nextAddr, region, FastIndexedSeq(ec), deepCopy = false)
+      push(cb, IEmitCode.present(cb, SStackStruct.constructFromArgs(cb, region, entryType.virtualType, ec)))
       cb.assign(pos, pos + 1)
       cb.assign(i, i + 1)
     })
