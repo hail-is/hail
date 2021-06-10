@@ -128,8 +128,7 @@ class BatchPoolExecutor:
         if not isinstance(self.backend, ServiceBackend):
             raise ValueError(f'BatchPoolExecutor is not compatible with {type(backend)}')
         self.batches: List[Batch] = []
-        bucket: str = self.backend._bucket_name
-        self.directory = f'gs://{bucket}/batch-pool-executor/{self.name}/'
+        self.directory = self.backend.remote_tmpdir + 'batch-pool-executor/{self.name}/'
         self.inputs = self.directory + 'inputs/'
         self.outputs = self.directory + 'outputs/'
         self.gcs = GCS(blocking_pool=concurrent.futures.ThreadPoolExecutor(),

@@ -295,7 +295,7 @@ class ServiceBackend(Backend):
     Examples
     --------
 
-    >>> service_backend = ServiceBackend('my-billing-account', 'my-bucket') # doctest: +SKIP
+    >>> service_backend = ServiceBackend('my-billing-account', bucket='my-bucket') # doctest: +SKIP
     >>> b = Batch(backend=service_backend) # doctest: +SKIP
     >>> b.run() # doctest: +SKIP
     >>> service_backend.close() # doctest: +SKIP
@@ -309,18 +309,50 @@ class ServiceBackend(Backend):
     >>> b.run() # doctest: +SKIP
     >>> service_backend.close()
 
+    Instead of a bucket, a full path may be specified for the remote temporary directory:
+
+    >>> service_backend = ServiceBackend('my-billing-account',
+    ...                                  remote_tmpdir='gs://my-bucket/temporary-files/')
+    >>> b = Batch(backend=service_backend)
+    >>> b.run() # doctest: +SKIP
+    >>> service_backend.close()
+
     Parameters
     ----------
     billing_project:
         Name of billing project to use.
     bucket:
-        Name of bucket to use.  Should not include the ``gs://``
-        prefix.
+        Name of bucket to use. Should not include the ``gs://`` prefix. Cannot be used with
+        remote_tmpdir. Temporary data will be stored in the "/batch" folder of this
+        bucket. Using this parameter as a positional argument is deprecated.
+    remote_tmpdir:
+        Temporary data will be stored in this google cloud storage folder. Cannot be used with
+        bucket.
+
     """
 
     def __init__(self,
-                 billing_project: str = None,
-                 bucket: str = None):
+                 *args,
+                 billing_project: Optional[str] = None,
+                 bucket: Optional[str] = None,
+                 remote_tmpdir: Optional[str] = None
+                 ):
+        if len(args) > 2:
+            raise TypeError(f'ServiceBackend() takes 2 positional arguments but {len(args)} were given')
+        if len(args) >= 1:
+            if billing_project is not None:
+                raise TypeError('ServiceBackend() got multiple values for argument \'billing_project\'')
+            warnings.warn('Use of deprecated positional argument \'billing_project\' in ServiceBackend(). Specify \'billing_project\' as a keyword argument instead.')
+            billing_project = args[0]
+        if len(args) >= 2:
+            if bucket is not None:
+                raise TypeError('ServiceBackend() got multiple values for argument \'bucket\'')
+            warnings.warn('Use of deprecated positional argument \'bucket\' in ServiceBackend(). Specify \'bucket\' as a keyword argument instead.')
+            bucket = args[1]
+
+        if remote_tmpdir is not None and bucket is not None:
+            raise ValueError('Cannot specify both remote_tmpdir and bucket in ServiceBackend()')
+
         if billing_project is None:
             billing_project = get_user_config().get('batch', 'billing_project', fallback=None)
         if billing_project is None:
@@ -330,14 +362,25 @@ class ServiceBackend(Backend):
                 'MY_BILLING_PROJECT`')
         self._batch_client = BatchClient(billing_project)
 
-        if bucket is None:
-            bucket = get_user_config().get('batch', 'bucket', fallback=None)
-        if bucket is None:
-            raise ValueError(
-                'the bucket parameter of ServiceBackend must be set '
-                'or run `hailctl config set batch/bucket '
-                'MY_BUCKET`')
-        self._bucket_name = bucket
+        if remote_tmpdir is None:
+            if bucket is None:
+                bucket = get_user_config().get('batch', 'bucket', fallback=None)
+            if bucket is None:
+                raise ValueError(
+                    'either the bucket or remote_tmpdir parameter of ServiceBackend '
+                    'must be set or run `hailctl config set batch/bucket MY_BUCKET`')
+            if 'gs://' in bucket:
+                raise ValueError(
+                    'The bucket parameter to ServiceBackend() should be a bucket name, not a path. '
+                    'Use the remote_tmpdir parameter to specify a path.')
+            remote_tmpdir = f'gs://{bucket}/batch'
+        else:
+            if not remote_tmpdir.startswith('gs://'):
+                raise ValueError(
+                    'remote_tmpdir must be a google storage path like gs://bucket/folder')
+        if remote_tmpdir[-1] != '/':
+            remote_tmpdir += '/'
+        self.remote_tmpdir = remote_tmpdir
 
     def close(self):
         """
@@ -397,7 +440,7 @@ class ServiceBackend(Backend):
         build_dag_start = time.time()
 
         uid = uuid.uuid4().hex[:6]
-        remote_tmpdir = f'gs://{self._bucket_name}/batch/{uid}'
+        batch_remote_tmpdir = f'{self.remote_tmpdir}{uid}'
         local_tmpdir = f'/io/batch/{uid}'
 
         default_image = 'ubuntu:18.04'
@@ -425,11 +468,11 @@ class ServiceBackend(Backend):
             if isinstance(r, resource.InputResourceFile):
                 return [(r._input_path, r._get_path(local_tmpdir))]
             assert isinstance(r, (resource.JobResourceFile, resource.PythonResult))
-            return [(r._get_path(remote_tmpdir), r._get_path(local_tmpdir))]
+            return [(r._get_path(batch_remote_tmpdir), r._get_path(local_tmpdir))]
 
         def copy_internal_output(r):
             assert isinstance(r, (resource.JobResourceFile, resource.PythonResult))
-            return [(r._get_path(local_tmpdir), r._get_path(remote_tmpdir))]
+            return [(r._get_path(local_tmpdir), r._get_path(batch_remote_tmpdir))]
 
         def copy_external_output(r):
             if isinstance(r, resource.InputResourceFile):
@@ -474,7 +517,7 @@ class ServiceBackend(Backend):
                         raise BatchException(
                             f"You must specify 'image' for Python jobs if you are using a Python version other than 3.6, 3.7, or 3.8 (you are using {version})")
                     job._image = f'hailgenetics/python-dill:{version.major}.{version.minor}-slim'
-                job._compile(local_tmpdir, remote_tmpdir)
+                job._compile(local_tmpdir, batch_remote_tmpdir)
 
             inputs = [x for r in job._inputs for x in copy_input(r)]
 
@@ -558,7 +601,7 @@ class ServiceBackend(Backend):
 
         if delete_scratch_on_exit and used_remote_tmpdir:
             parents = list(jobs_to_command.keys())
-            rm_cmd = f'gsutil -m rm -r {remote_tmpdir}'
+            rm_cmd = f'gsutil -m rm -r {batch_remote_tmpdir}'
             cmd = f'''
 {bash_flags}
 {activate_service_account}
