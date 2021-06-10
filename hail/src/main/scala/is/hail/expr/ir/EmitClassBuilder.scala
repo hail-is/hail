@@ -503,50 +503,49 @@ class EmitClassBuilder[C](
   ): CodeOrdering.F[op.ReturnType] =
     getOrderingFunction(t, t, sortOrder, op)
 
-  private def getCodeArgsInfo(argsInfo: IndexedSeq[ParamType], returnInfo: ParamType): (IndexedSeq[TypeInfo[_]], TypeInfo[_]) = {
+  private def getCodeArgsInfo(argsInfo: IndexedSeq[ParamType], returnInfo: ParamType): (IndexedSeq[TypeInfo[_]], TypeInfo[_], AsmTuple[_]) = {
     val codeArgsInfo = argsInfo.flatMap {
       case CodeParamType(ti) => FastIndexedSeq(ti)
       case t: EmitParamType => t.codeTupleTypes
       case PCodeParamType(pt) => pt.codeTupleTypes()
     }
-    val codeReturnInfo = returnInfo match {
-      case CodeParamType(ti) => ti
-      case PCodeParamType(pt) if pt.nCodes == 1 => pt.codeTupleTypes().head
+    val (codeReturnInfo, asmTuple) = returnInfo match {
+      case CodeParamType(ti) => ti -> null
+      case PCodeParamType(pt) if pt.nCodes == 1 => pt.codeTupleTypes().head -> null
+      case PCodeParamType(pt) =>
+        val asmTuple = modb.tupleClass(pt.codeTupleTypes())
+        asmTuple.ti -> asmTuple
       case t: EmitParamType =>
         val ts = t.codeTupleTypes
         if (ts.length == 1)
-          ts.head
+          ts.head -> null
         else {
-          throw new UnsupportedOperationException
+          val asmTuple = modb.tupleClass(ts)
+          asmTuple.ti -> asmTuple
         }
     }
 
-    (codeArgsInfo, codeReturnInfo)
+    (codeArgsInfo, codeReturnInfo, asmTuple)
   }
 
   def newEmitMethod(name: String, argsInfo: IndexedSeq[ParamType], returnInfo: ParamType): EmitMethodBuilder[C] = {
-    val (codeArgsInfo, codeReturnInfo) = getCodeArgsInfo(argsInfo, returnInfo)
+    val (codeArgsInfo, codeReturnInfo, asmTuple) = getCodeArgsInfo(argsInfo, returnInfo)
 
-    new EmitMethodBuilder[C](
-      argsInfo, returnInfo,
-      this,
-      cb.newMethod(name, codeArgsInfo, codeReturnInfo))
+    new EmitMethodBuilder[C](argsInfo, returnInfo, this, cb.newMethod(name, codeArgsInfo, codeReturnInfo), asmTuple)
   }
 
   def newEmitMethod(name: String, argsInfo: IndexedSeq[MaybeGenericTypeInfo[_]], returnInfo: MaybeGenericTypeInfo[_]): EmitMethodBuilder[C] = {
     new EmitMethodBuilder[C](
       argsInfo.map(ai => CodeParamType(ai.base)), CodeParamType(returnInfo.base),
-      this,
-      cb.newMethod(name, argsInfo, returnInfo))
+      this, cb.newMethod(name, argsInfo, returnInfo), asmTuple = null)
   }
 
   def newStaticEmitMethod(name: String, argsInfo: IndexedSeq[ParamType], returnInfo: ParamType): EmitMethodBuilder[C] = {
-    val (codeArgsInfo, codeReturnInfo) = getCodeArgsInfo(argsInfo, returnInfo)
+    val (codeArgsInfo, codeReturnInfo, asmTuple) = getCodeArgsInfo(argsInfo, returnInfo)
 
-    new EmitMethodBuilder[C](
-      argsInfo, returnInfo,
-      this,
-      cb.newStaticMethod(name, codeArgsInfo, codeReturnInfo))
+    new EmitMethodBuilder[C](argsInfo, returnInfo, this,
+      cb.newStaticMethod(name, codeArgsInfo, codeReturnInfo),
+      asmTuple)
   }
 
   val rngs: BoxedArrayBuilder[(Settable[IRRandomness], Code[IRRandomness])] = new BoxedArrayBuilder()
@@ -790,7 +789,8 @@ class EmitMethodBuilder[C](
   val emitParamTypes: IndexedSeq[ParamType],
   val emitReturnType: ParamType,
   val ecb: EmitClassBuilder[C],
-  val mb: MethodBuilder[C]
+  val mb: MethodBuilder[C],
+  private[ir] val asmTuple: AsmTuple[_]
 ) extends WrappedEmitClassBuilder[C] {
   // wrapped MethodBuilder methods
   def newLocal[T: TypeInfo](name: String = null): LocalRef[T] = mb.newLocal[T](name)
@@ -966,8 +966,10 @@ class EmitMethodBuilder[C](
     // FIXME: this should optionally construct a tuple to support multiple-code SCodes
     emit(EmitCodeBuilder.scopedCode(this) { cb =>
       val res = f(cb)
-      require(res.st.nCodes == 1)
-      res.makeCodeTuple(cb).head
+      if (res.st.nCodes == 1)
+        res.makeCodeTuple(cb).head
+      else
+        asmTuple.newTuple(res.makeCodeTuple(cb))
     })
   }
 

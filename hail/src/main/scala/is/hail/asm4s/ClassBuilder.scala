@@ -76,6 +76,8 @@ class ClassesBytes(classesBytes: Array[(String, Array[Byte])]) extends Serializa
 }
 
 class AsmTuple[C](val cb: ClassBuilder[C], val fields: IndexedSeq[Field[_]], val ctor: MethodBuilder[C]) {
+  val ti: TypeInfo[_] = cb.ti
+
   def newTuple(elems: IndexedSeq[Code[_]]): Code[C] = Code.newInstance(cb, ctor, elems)
 
   def loadElementsAny(t: Value[_]): IndexedSeq[Code[_]] = fields.map(_.get(coerce[C](t) ))
@@ -108,7 +110,7 @@ class ModuleBuilder() {
 
   def tupleClass(fieldTypes: IndexedSeq[TypeInfo[_]]): AsmTuple[_] = {
     tuples.getOrElseUpdate(fieldTypes, {
-      val cb = genClass[AnyRef]("Tuple")
+      val cb = genClass[AnyRef](s"Tuple${fieldTypes.length}")
       val fields = fieldTypes.zipWithIndex.map { case (ti, i) =>
         cb.newField(s"_$i")(ti)
       }
