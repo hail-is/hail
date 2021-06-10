@@ -6,7 +6,7 @@ import is.hail.expr.ir.{CodeParam, CodeParamType, EmitCode, EmitCodeBuilder, PCo
 import is.hail.types.physical.stypes.SCode
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.virtual.{TNDArray, Type}
-import is.hail.types.physical.stypes.concrete.{SNDArrayPointer, SNDArrayPointerCode}
+import is.hail.types.physical.stypes.concrete.{SNDArrayPointer, SNDArrayPointerCode, SStackStruct}
 import org.apache.spark.sql.Row
 import is.hail.utils._
 
@@ -196,13 +196,13 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
 
         val ndAddr = cb.newLocal[Long]("ndarray_construct_addr")
         cb.assign(ndAddr, this.allocate(shape, region))
-        shapeType.storeAtAddressFromFields(cb, cb.newLocal[Long]("construct_shape", this.representation.fieldOffset(ndAddr, "shape")),
+        shapeType.storeAtAddress(cb, cb.newLocal[Long]("construct_shape", this.representation.fieldOffset(ndAddr, "shape")),
           region,
-          shape.map(s => EmitCode.present(cb.emb, primitive(s))),
+          SStackStruct.constructFromArgs(cb, region, shapeType.virtualType, shape.map(s => EmitCode.present(cb.emb, primitive(s))): _*),
           false)
-        strideType.storeAtAddressFromFields(cb, cb.newLocal[Long]("construct_strides", this.representation.fieldOffset(ndAddr, "strides")),
+        strideType.storeAtAddress(cb, cb.newLocal[Long]("construct_strides", this.representation.fieldOffset(ndAddr, "strides")),
           region,
-          strides.map(s => EmitCode.present(cb.emb, primitive(s))),
+          SStackStruct.constructFromArgs(cb, region, strideType.virtualType, strides.map(s => EmitCode.present(cb.emb, primitive(s))): _*),
           false)
 
         val newDataPointer = cb.newLocal("ndarray_construct_new_data_pointer", ndAddr + this.representation.byteSize)
@@ -227,13 +227,13 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
 
     val ndAddr = cb.newLocal[Long]("ndarray_construct_addr")
     cb.assign(ndAddr, this.allocate(shape, region))
-    shapeType.storeAtAddressFromFields(cb, cb.newLocal[Long]("construct_shape", this.representation.fieldOffset(ndAddr, "shape")),
+    shapeType.storeAtAddress(cb, cb.newLocal[Long]("construct_shape", this.representation.fieldOffset(ndAddr, "shape")),
       region,
-      shape.map(s => EmitCode.present(cb.emb, primitive(s))),
+      SStackStruct.constructFromArgs(cb, region, shapeType.virtualType, shape.map(s => EmitCode.present(cb.emb, primitive(s))): _*),
       false)
-    strideType.storeAtAddressFromFields(cb, cb.newLocal[Long]("construct_strides", this.representation.fieldOffset(ndAddr, "strides")),
+    strideType.storeAtAddress(cb, cb.newLocal[Long]("construct_strides", this.representation.fieldOffset(ndAddr, "strides")),
       region,
-      strides.map(s => EmitCode.present(cb.emb, primitive(s))),
+      SStackStruct.constructFromArgs(cb, region, strideType.virtualType, strides.map(s => EmitCode.present(cb.emb, primitive(s))): _*),
       false)
 
     val newDataPointer = cb.newLocal("ndarray_construct_new_data_pointer", ndAddr + this.representation.byteSize)

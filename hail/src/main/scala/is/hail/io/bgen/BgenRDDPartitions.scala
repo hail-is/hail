@@ -8,7 +8,7 @@ import is.hail.io.fs.FS
 import is.hail.io.index.IndexReaderBuilder
 import is.hail.io.{ByteArrayReader, HadoopFSDataBinaryReader}
 import is.hail.types._
-import is.hail.types.physical.stypes.concrete.{SCanonicalCallCode, SStringPointer}
+import is.hail.types.physical.stypes.concrete.{SCanonicalCallCode, SStackStruct, SStringPointer}
 import is.hail.types.physical.stypes.interfaces._
 import is.hail.types.physical.{PCanonicalArray, PCanonicalLocus, PCanonicalString, PCanonicalStruct, PStruct}
 import is.hail.types.virtual.{TInterval, Type}
@@ -343,15 +343,13 @@ object CompileDecoder {
             val LnoOp = CodeLabel()
             cb.ifx(alreadyMemoized, cb.goto(LnoOp))
 
-            val (nextAddr, _, finish) = memoTyp.constructFromNextAddress(cb, partRegion, 1 << 16)
+            val (push, finish) = memoTyp.constructFromFunctions(cb, partRegion, 1 << 16, false)
 
             val d0 = cb.newLocal[Int]("memoize_entries_d0", 0)
             cb.whileLoop(d0 < 256, {
               val d1 = cb.newLocal[Int]("memoize_entries_d1", 0)
               cb.whileLoop(d1 < 256, {
                 val d2 = cb.newLocal[Int]("memoize_entries_d2", const(255) - d0 - d1)
-
-                val structAddr = nextAddr(cb)
 
                 val entryFieldCodes = new BoxedArrayBuilder[EmitCode]()
 
@@ -412,7 +410,8 @@ object CompileDecoder {
                     IEmitCode.present(cb, primitive((d1 + (d2 << 1)).toD / 255.0))
                   }
 
-                entryType.storeAtAddressFromFields(cb, structAddr, partRegion, entryFieldCodes.result(), deepCopy = false)
+                push(cb, IEmitCode.present(cb,
+                  SStackStruct.constructFromArgs(cb, partRegion, entryType.virtualType, entryFieldCodes.result(): _*)))
 
                 cb.assign(d1, d1 + 1)
               })
