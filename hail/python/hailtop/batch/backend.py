@@ -339,21 +339,16 @@ class ServiceBackend(Backend):
                  ):
         if len(args) > 2:
             raise TypeError(f'ServiceBackend() takes 2 positional arguments but {len(args)} were given')
-        if len(args) == 2:
+        if len(args) >= 1:
             if billing_project is not None:
                 raise TypeError('ServiceBackend() got multiple values for argument \'billing_project\'')
             warnings.warn('Use of deprecated positional argument \'billing_project\' in ServiceBackend(). Specify \'billing_project\' as a keyword argument instead.')
             billing_project = args[0]
-
+        if len(args) >= 2:
             if bucket is not None:
                 raise TypeError('ServiceBackend() got multiple values for argument \'bucket\'')
             warnings.warn('Use of deprecated positional argument \'bucket\' in ServiceBackend(). Specify \'bucket\' as a keyword argument instead.')
             bucket = args[1]
-        elif len(args) == 1:
-            if billing_project is not None:
-                raise TypeError('ServiceBackend() got multiple values for argument \'billing_project\'')
-            warnings.warn('Use of deprecated positional argument \'billing_project\' in ServiceBackend(). Specify \'billing_project\' as a keyword argument instead.')
-            billing_project = args[0]
 
         if remote_tmpdir is not None and bucket is not None:
             raise ValueError('Cannot specify both remote_tmpdir and bucket in ServiceBackend()')
