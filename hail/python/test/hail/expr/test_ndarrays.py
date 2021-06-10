@@ -186,6 +186,12 @@ def test_ndarray_slice():
     with pytest.raises(HailUserError, match="Index -4 is out of bounds for axis 0 with size 2"):
         hl.eval(mat[-4, 0:3])
 
+    with pytest.raises(IndexError, match="an index can only have a single ellipsis"):
+        hl.eval(rect_prism[..., ...])
+
+    with pytest.raises(IndexError, match="too many indices for array: array is 3-dimensional, but 4 were indexed"):
+        hl.eval(rect_prism[1, 1, 1, 1])
+
 
 def test_ndarray_transposed_slice():
     a = hl.nd.array([[1, 2, 3, 4, 5], [6, 7, 8, 9, 10]])
@@ -255,6 +261,8 @@ def test_ndarray_eval():
 
     with pytest.raises(HailUserError) as exc:
         hl.eval(hl.nd.array([1, hl.missing(hl.tint32), 3]))
+
+
 
 
 def test_ndarray_shape():

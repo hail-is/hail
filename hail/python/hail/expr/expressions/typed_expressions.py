@@ -3776,7 +3776,7 @@ class NDArrayExpression(Expression):
 
         num_ellipses = len([e for e in item if isinstance(e, type(...))])
         if num_ellipses > 1:
-            raise IndexError('an index can only have a single ellipsis (\'...\')')
+            raise IndexError("an index can only have a single ellipsis (\'...\')")
 
         num_nones = len([x for x in item if x is None])
         list_item = list(item)
@@ -3845,7 +3845,7 @@ class NDArrayExpression(Expression):
                         hl.str("Index ") + hl.str(s) + hl.str(f" is out of bounds for axis {i} with size ") + hl.str(dlen)
                     )
                     slices.append(checked_int)
-            product_item = construct_expr(ir.NDArraySlice(self._ir, hl.tuple(slices)._ir),
+            product = construct_expr(ir.NDArraySlice(self._ir, hl.tuple(slices)._ir),
                                           tndarray(self._type.element_type, n_sliced_dims),
                                           self._indices,
                                           self._aggregations)
@@ -3857,12 +3857,12 @@ class NDArrayExpression(Expression):
                     if i in indices_nones:
                         reshape_arg.append(1)
                     else:
-                        reshape_arg.append(product_item.shape[index_non_nones])
+                        reshape_arg.append(product.shape[index_non_nones])
                         index_non_nones += 1
-                product_item = product_item.reshape(tuple(reshape_arg))
+                product = product.reshape(tuple(reshape_arg))
 
         else:
-            product_item = construct_expr(ir.NDArrayRef(self._ir, [idx._ir for idx in formatted_item]),
+            product = construct_expr(ir.NDArrayRef(self._ir, [idx._ir for idx in formatted_item]),
                                           self._type.element_type,
                                           self._indices,
                                           self._aggregations)
@@ -3871,9 +3871,9 @@ class NDArrayExpression(Expression):
                 reshape_arg = []
                 for i in indices_nones:
                     reshape_arg.append(1)
-                product_item = hl.nd.array(product_item).reshape(tuple(reshape_arg))
+                product = hl.nd.array(product).reshape(tuple(reshape_arg))
 
-        return product_item
+        return product
 
     @typecheck_method(shape=oneof(expr_int64, tupleof(expr_int64), expr_tuple()))
     def reshape(self, *shape):
