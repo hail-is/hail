@@ -1,4 +1,4 @@
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, TypeVar, Generic
 import sys
 import abc
 import os
@@ -25,14 +25,18 @@ from . import resource, batch, job as _job  # pylint: disable=unused-import
 from .exceptions import BatchException
 
 
-class Backend(abc.ABC):
+RunningBatchType = TypeVar('RunningBatchType')
+SelfType = TypeVar('SelfType')
+
+
+class Backend(abc.ABC, Generic[RunningBatchType]):
     """
     Abstract class for backends.
     """
     _DEFAULT_SHELL = '/bin/bash'
 
     @abc.abstractmethod
-    def _run(self, batch, dry_run, verbose, delete_scratch_on_exit, **backend_kwargs):
+    def _run(self, batch, dry_run, verbose, delete_scratch_on_exit, **backend_kwargs) -> RunningBatchType:
         """
         Execute a batch.
 
@@ -40,7 +44,7 @@ class Backend(abc.ABC):
         -------
         This method should not be called directly. Instead, use :meth:`.batch.Batch.run`.
         """
-        return
+        raise NotImplementedError()
 
     @property
     @abc.abstractmethod
@@ -54,14 +58,14 @@ class Backend(abc.ABC):
         """
         return
 
-    def __enter__(self):
+    def __enter__(self: SelfType) -> SelfType:
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.close()
 
 
-class LocalBackend(Backend):
+class LocalBackend(Backend[None]):
     """
     Backend that executes batches on a local computer.
 
@@ -115,7 +119,7 @@ class LocalBackend(Backend):
              dry_run: bool,
              verbose: bool,
              delete_scratch_on_exit: bool,
-             **backend_kwargs):  # pylint: disable=R0915
+             **backend_kwargs) -> None:  # pylint: disable=R0915
         """
         Execute a batch.
 
@@ -306,7 +310,7 @@ class LocalBackend(Backend):
         async_to_blocking(self._fs.close())
 
 
-class ServiceBackend(Backend):
+class ServiceBackend(Backend[bc.Batch]):
     """Backend that executes batches on Hail's Batch Service on Google Cloud.
 
     Examples
@@ -432,7 +436,7 @@ class ServiceBackend(Backend):
              disable_progress_bar: bool = False,
              callback: Optional[str] = None,
              token: Optional[str] = None,
-             **backend_kwargs):  # pylint: disable-msg=too-many-statements
+             **backend_kwargs) -> bc.Batch:  # pylint: disable-msg=too-many-statements
         """Execute a batch.
 
         Warning
