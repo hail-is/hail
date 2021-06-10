@@ -378,6 +378,8 @@ class ServiceBackend(Backend):
             if not remote_tmpdir.startswith('gs://'):
                 raise ValueError(
                     'remote_tmpdir must be a google storage path like gs://bucket/folder')
+        if remote_tmpdir[-1] != '/':
+            remote_tmpdir += '/'
         self.remote_tmpdir = remote_tmpdir
 
     def close(self):
@@ -438,7 +440,7 @@ class ServiceBackend(Backend):
         build_dag_start = time.time()
 
         uid = uuid.uuid4().hex[:6]
-        batch_remote_tmpdir = f'{self.remote_tmpdir}/{uid}'
+        batch_remote_tmpdir = f'{self.remote_tmpdir}{uid}'
         local_tmpdir = f'/io/batch/{uid}'
 
         default_image = 'ubuntu:18.04'

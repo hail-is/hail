@@ -805,8 +805,17 @@ class ServiceTests(unittest.TestCase):
         j2.command(f'cat {j1.ofile}')
         b.run()
 
-    def test_service_backend_remote_tempdir_parameter(self):
+    def test_service_backend_remote_tempdir_with_trailing_slash(self):
         backend = ServiceBackend(remote_tmpdir='gs://hail-test-dmk9z/temporary-files/')
+        b = Batch(backend=backend)
+        j1 = b.new_job()
+        j1.command(f'echo hello > {j1.ofile}')
+        j2 = b.new_job()
+        j2.command(f'cat {j1.ofile}')
+        b.run()
+
+    def test_service_backend_remote_tempdir_with_no_trailing_slash(self):
+        backend = ServiceBackend(remote_tmpdir='gs://hail-test-dmk9z/temporary-files')
         b = Batch(backend=backend)
         j1 = b.new_job()
         j1.command(f'echo hello > {j1.ofile}')
