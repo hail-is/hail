@@ -7,7 +7,7 @@ import is.hail.backend.BroadcastValue
 import is.hail.backend.spark.SparkBackend
 import is.hail.expr.JSONAnnotationImpex
 import is.hail.expr.ir.lowering.TableStage
-import is.hail.expr.ir.{ExecuteContext, GenericLine, GenericLines, GenericTableValue, IRParser, LowerMatrixIR, LoweredTableReader, MatrixHybridReader, MatrixIR, MatrixLiteral, PruneDeadFields, TableRead, TableValue}
+import is.hail.expr.ir.{ExecuteContext, GenericLine, GenericLines, GenericTableValue, IR, IRParser, Literal, LowerMatrixIR, LoweredTableReader, MatrixHybridReader, MatrixIR, MatrixLiteral, PruneDeadFields, TableRead, TableValue}
 import is.hail.types._
 import is.hail.types.physical.{PBoolean, PCall, PCanonicalArray, PCanonicalCall, PCanonicalLocus, PCanonicalSet, PCanonicalString, PCanonicalStruct, PField, PFloat64, PInt32, PStruct, PType}
 import is.hail.types.virtual._
@@ -1779,6 +1779,13 @@ class MatrixVCFReader(
       lines.contexts,
       bodyPType,
       body)
+  }
+
+  override def lowerGlobals(ctx: ExecuteContext, requestedGlobalsType: TStruct): IR = {
+    val globals = Row(sampleIDs.map(Row(_)).toFastIndexedSeq)
+    Literal.coerce(requestedGlobalsType,
+      fullType.globalType.valueSubsetter(requestedGlobalsType)
+        .apply(globals))
   }
 
   override def lower(ctx: ExecuteContext, requestedType: TableType): TableStage =
