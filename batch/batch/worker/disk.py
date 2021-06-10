@@ -37,9 +37,17 @@ class Disk:
 
     async def delete(self):
         try:
-            await self._detach()
+            await self._unmount()
         finally:
-            await self._delete()
+            try:
+                await self._detach()
+            finally:
+                await self._delete()
+
+    async def _unmount(self):
+        await retry_all_errors_n_times(max_errors=10, msg=f'error while unmounting disk {self.name}', error_logging_interval=3)(
+            check_shell_output, f'umount -v {self.disk_path} {self.mount_path}'
+        )
 
     async def _format(self):
         async def format_disk():
