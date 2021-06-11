@@ -363,15 +363,14 @@ final case class PCanonicalNDArray(elementType: PType, nDims: Int, required: Boo
         val shape = oldND.shapes(cb)
         val newStrides = makeColumnMajorStrides(shape, region, cb)
         val (targetDataFirstElementAddr, finish) = this.constructDataFunction(shape, newStrides, cb, region)
+        val result = finish(cb)
 
-        val currentOffset = cb.newLocal[Long]("pcanonical_ndarray_store_offset", targetDataFirstElementAddr)
-        SNDArray.forEachIndex(cb, shape, "PCanonicalNDArray_store") { (cb, currentIndices) =>
-          val oldElement = oldND.loadElement(currentIndices, cb)
-          elementType.storeAtAddress(cb, currentOffset, region, oldElement, true)
-          cb.assign(currentOffset, currentOffset + elementType.byteSize)
-        }
+        SNDArray.coiterate(cb, region, FastIndexedSeq((result, "result"), (oldND.get, "oldND")), {
+          case Seq(dest, elt) =>
+            cb.assign(dest, elt)
+        }, deepCopy = true)
 
-        finish(cb).a
+        result.a
     }
   }
 

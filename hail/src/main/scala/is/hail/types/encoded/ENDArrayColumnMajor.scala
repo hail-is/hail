@@ -19,11 +19,11 @@ case class ENDArrayColumnMajor(elementType: EType, nDims: Int, required: Boolean
     val shapes = ndarray.shapes(cb)
     shapes.foreach(s => cb += out.writeLong(s))
 
-    SNDArray.forEachIndex(cb, shapes, "ndarray_encoder") { case (cb, idxVars) =>
-      val elt = ndarray.loadElement(idxVars, cb)
-      elementType.buildEncoder(elt.st, cb.emb.ecb)
-        .apply(cb, elt, out)
-    }
+    SNDArray.coiterate(cb, null, FastIndexedSeq((ndarray.get, "A")), {
+      case Seq(elt) =>
+        elementType.buildEncoder(elt.st, cb.emb.ecb)
+          .apply(cb, elt, out)
+    })
   }
 
   override def _buildDecoder(cb: EmitCodeBuilder, t: Type, region: Value[Region], in: Value[InputBuffer]): SCode = {

@@ -5,6 +5,7 @@ import is.hail.asm4s.{Code, _}
 import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, IEmitCode}
 import is.hail.types.physical.stypes.concrete.{SNDArrayPointer, SNDArrayPointerSettable}
 import is.hail.types.physical.stypes.interfaces.{SNDArray, SNDArrayCode, SNDArrayValue}
+import is.hail.utils.FastIndexedSeq
 
 object LinalgCodeUtils {
   def checkColumnMajor(pndv: SNDArrayValue, cb: EmitCodeBuilder): Value[Boolean] = {
@@ -51,14 +52,13 @@ object LinalgCodeUtils {
     val strides = pt.makeColumnMajorStrides(shape, region, cb)
 
     val (dataFirstElementAddress, dataFinisher) = pt.constructDataFunction(shape, strides, cb, region)
+    // construct an SNDArrayCode with undefined contents
+    val result = dataFinisher(cb).memoize(cb, "col_major_result")
 
-    val curAddr = cb.newLocal[Long]("create_column_major_cur_addr", dataFirstElementAddress)
-
-    SNDArray.forEachIndex(cb, shape, "nda_create_column_major") { case (cb, idxVars) =>
-      pt.elementType.storeAtAddress(cb, curAddr, region, pndv.loadElement(idxVars, cb), true)
-      cb.assign(curAddr, curAddr + pt.elementType.byteSize)
-    }
-    dataFinisher(cb)
+    SNDArray.coiterate(cb, region, FastIndexedSeq((result.get, "result"), (pndv.get, "pndv")), {
+      case Seq(l, r) => cb.assign(l, r)
+    })
+    result.get
   }
 
   def checkColMajorAndCopyIfNeeded(aInput: SNDArrayValue, cb: EmitCodeBuilder, region: Value[Region]): SNDArrayValue = {

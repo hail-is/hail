@@ -80,7 +80,7 @@ class SNDArrayPointerSettable(
     cb.assign(dataFirstElement, pt.dataFirstElementPointer(a))
   }
 
-  override def get: SCode = new SNDArrayPointerCode(st, a)
+  override def get: SNDArrayPointerCode = new SNDArrayPointerCode(st, a)
 
   override def outOfBounds(indices: IndexedSeq[Value[Long]], cb: EmitCodeBuilder): Code[Boolean] = {
     val shape = this.shapes(cb)
