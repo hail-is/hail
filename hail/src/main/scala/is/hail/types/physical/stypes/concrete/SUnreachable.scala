@@ -34,7 +34,7 @@ abstract class SUnreachable extends SType {
 
   override def settableTupleTypes(): IndexedSeq[TypeInfo[_]] = FastIndexedSeq()
 
-  def canonicalPType(): PType = PType.canonical(virtualType).deepInnerRequired(true).setRequired(false)
+  def canonicalPType(): PType = PType.canonical(virtualType, required = false, innerRequired = true)
 
   override def asIdent: String = s"s_unreachable"
 
