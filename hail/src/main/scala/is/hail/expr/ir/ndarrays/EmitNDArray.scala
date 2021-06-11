@@ -557,7 +557,6 @@ object EmitNDArray {
 
   def fromShapeStridesFirstAddress(newElementType: SType, ndSvShape: IndexedSeq[Value[Long]], strides: IndexedSeq[Value[Long]], firstDataAddress: Value[Long], cb: EmitCodeBuilder): NDArrayProducer = {
     val counters = ndSvShape.indices.map(i => cb.newLocal[Long](s"ndarray_producer_fall_through_idx_${i}"))
-    println(s"Shape was length: ${ndSvShape.size}")
 
     assert(ndSvShape.size == strides.size, s"shape.size = ${ndSvShape.size} != strides.size = ${strides.size}")
 
