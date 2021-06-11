@@ -76,6 +76,7 @@ object SNDArray {
 
     val info = arrays.map { case (_array, indices, name) =>
       for (idx <- indices) assert(idx < indexVars.length && idx >= 0)
+      // FIXME: relax this assumption to handle transposing, non-column major
       for (i <- 0 until indices.length - 1) assert(indices(i) < indices(i+1))
       assert(indices.length == _array.st.nDims)
 
@@ -96,7 +97,8 @@ object SNDArray {
         def st: SType = array.st.elementType
         val pt: PType = array.st.pType.elementType
 
-        def get: SCode = pt.loadCheapPCode(cb, pt.loadFromNested(pos.last))
+        // FIXME: need to use `pos` of smallest index var
+        def get: SCode = pt.loadCheapPCode(cb, pt.loadFromNested(pos(0)))
         def store(cb: EmitCodeBuilder, v: SCode): Unit = pt.storeAtAddress(cb, pos.last, region, v, deepCopy)
         def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(pos.last)
       }
@@ -114,7 +116,8 @@ object SNDArray {
           for (n <- arrays.indices) {
             if (info(n).indexToDim.contains(idx)) {
               val i = info(n).indexToDim(idx)
-              cb.assign(info(n).pos(i), if (i == 0) info(n).array.firstDataAddress(cb) else info(n).pos(i-1))
+              // FIXME: assumes array's indices in ascending order
+              cb.assign(info(n).pos(i), if (i == info(n).array.st.nDims - 1) info(n).array.firstDataAddress(cb) else info(n).pos(i+1))
             }
           }
         }
