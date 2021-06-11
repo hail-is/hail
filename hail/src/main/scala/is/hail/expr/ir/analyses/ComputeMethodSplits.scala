@@ -13,12 +13,20 @@ object ComputeMethodSplits {
     def recurAndComputeSizeUnderneath(x: IR): Int = {
       val sizeUnderneath = x.children.iterator.map { case child: IR => recurAndComputeSizeUnderneath(child) }.sum
 
-      val shouldSplit = x match {
-        case tl: TailLoop =>
-          !controlFlowPreventsSplit.contains(tl) // split if not in a nested loop
-        case x if sizeUnderneath > splitThreshold && !controlFlowPreventsSplit.contains(x) => true
-        case _ => false
-      }
+      val shouldSplit = !controlFlowPreventsSplit.contains(x) && (x match {
+        case _: TailLoop => true
+
+        // stream consumers
+        case _: ToArray => true
+        case _: ToSet => true
+        case _: ToDict => true
+        case _: StreamFold => true
+        case _: StreamFold2 => true
+        case _: StreamLen => true
+        case _: StreamFor => true
+
+        case _ => sizeUnderneath > splitThreshold
+      })
       if (shouldSplit) {
         m.bind(x, ())
         0 // method call is small
