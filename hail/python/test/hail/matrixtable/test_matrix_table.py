@@ -845,7 +845,6 @@ https://hail.zulipchat.com/#narrow/stream/123011-Hail-Dev/topic/test_drop/near/2
         self.assertTrue(ds_small.count_rows() < ds.count_rows())
 
     @fails_service_backend()
-    @fails_local_backend()
     def test_read_stored_cols(self):
         ds = self.get_mt()
         ds = ds.annotate_globals(x='foo')
