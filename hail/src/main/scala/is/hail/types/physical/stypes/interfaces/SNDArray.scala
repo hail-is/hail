@@ -92,7 +92,7 @@ object SNDArray {
         }
       }
       val strides = array.strides(cb)
-      val pos = Array.tabulate(array.st.nDims) { i => cb.newLocal[Long](s"$name$i") }
+      val pos = Array.tabulate(array.st.nDims + 1) { i => cb.newLocal[Long](s"$name$i") }
       val elt = new SSettable {
         def st: SType = array.st.elementType
         val pt: PType = array.st.pType.elementType
@@ -117,7 +117,7 @@ object SNDArray {
             if (info(n).indexToDim.contains(idx)) {
               val i = info(n).indexToDim(idx)
               // FIXME: assumes array's indices in ascending order
-              cb.assign(info(n).pos(i), if (i == info(n).array.st.nDims - 1) info(n).array.firstDataAddress(cb) else info(n).pos(i+1))
+              cb.assign(info(n).pos(i), info(n).pos(i+1))
             }
           }
         }
@@ -135,6 +135,9 @@ object SNDArray {
       }
     }
 
+    for (n <- arrays.indices) {
+      cb.assign(info(n).pos(info(n).array.st.nDims), info(n).array.firstDataAddress(cb))
+    }
     recurLoopBuilder(indexVars.length - 1)
   }
 
