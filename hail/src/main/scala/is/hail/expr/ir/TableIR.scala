@@ -924,7 +924,7 @@ class TableNativeReader(
     else
       params.options.map(opts => new RVDPartitioner(specPart.kType, opts.intervals))
 
-    spec.rowsSpec.readTableStage(ctx, spec.rowsComponent.absolutePath(params.path), requestedType.rowType, partitioner, filterIntervals).apply(globals)
+    spec.rowsSpec.readTableStage(ctx, spec.rowsComponent.absolutePath(params.path), requestedType, partitioner, filterIntervals).apply(globals)
   }
 }
 

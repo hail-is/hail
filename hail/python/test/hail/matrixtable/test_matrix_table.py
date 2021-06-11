@@ -842,14 +842,13 @@ https://hail.zulipchat.com/#narrow/stream/123011-Hail-Dev/topic/test_drop/near/2
         self.assertTrue(ds_small.count_rows() < ds.count_rows())
 
     @fails_service_backend()
-    @fails_local_backend()
     def test_read_stored_cols(self):
         ds = self.get_mt()
         ds = ds.annotate_globals(x='foo')
         f = new_temp_file(extension='mt')
         ds.write(f)
         t = hl.read_table(f + '/cols')
-        self.assertTrue(ds.cols()._same(t))
+        self.assertTrue(ds.cols().key_by()._same(t))
 
     @skip_when_service_backend('Shuffler encoding/decoding is broken.')
     def test_read_stored_rows(self):
