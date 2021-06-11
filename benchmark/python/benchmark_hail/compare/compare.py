@@ -113,10 +113,12 @@ def compare(args):
     print(format('Benchmark Name', 'Ratio', 'Time 1', 'Time 2', 'Mem Ratio', 'Mem 1 (MB)', 'Mem 2 (MB)'))
     print(format('--------------', '-----', '------', '------', '---------', '----------', '----------'))
     for name, r1, r2, m1, m2 in comparison:
-        comps.append(r2 / r1)
         print(format(name,
                      fmt_diff(r2 / r1), fmt_time(r1, 8), fmt_time(r2, 8),
                      fmt_mem_ratio(m2, m1), fmt_mem(m1), fmt_mem(m2)))
+        if name.startswith('sentinel'):
+            continue
+        comps.append(r2 / r1)
 
     print('----------------------')
     print(f'Harmonic mean: {fmt_diff(hmean(comps))}')
