@@ -145,7 +145,7 @@ sudo mkdir -p /etc/netns
 iptables --table nat --append POSTROUTING --source 10.0.0.0/15 --jump MASQUERADE
 
 # [public] Block public traffic to the metadata server
-iptables --table net --append PREROUTING --source 10.1.0.0/16 --destination 169.254.169.254 --jump DROP
+iptables --table net --append OUTPUT --source 10.1.0.0/16 --destination 169.254.169.254 --jump DROP
 
 CORES=$(nproc)
 NAMESPACE=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/namespace")
