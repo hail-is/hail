@@ -54,8 +54,9 @@ class FoldConstantsSuite extends HailSuite {
     val streamFoldBodyIR = ApplyBinaryPrimOp(Add(), vRefIR, refOppIR)
     val letIR = Let(ref, i4, refOppIR)
     val streamMapIR = StreamMap(range, ref, refOppIR)
-    val streamFoldIR = StreamFold(range, refIR, ref, vRef, streamFoldBodyIR)
-    val streamFoldLetIR = Let(ref, i4, streamFoldIR)
+    val streamFoldIR = StreamFold(range, Ref("z", TInt32), ref, vRef, streamFoldBodyIR)
+    val streamFoldLetIR = Let("z", i4, streamFoldIR)
+    println(Pretty(streamFoldLetIR))
     val letZipIR = Let(ref, i8, Let(vRef, i4, StreamZip(toZip, zipNames, True(), behavior)))
     val streamFold2IR = Let(ref, i8, Let(vRef, i4, StreamFold2(streamIRA,
                         FastIndexedSeq((ref, I32(0)), (vRef, I32(8))),
@@ -81,6 +82,6 @@ class FoldConstantsSuite extends HailSuite {
     val streamFold2Test = FoldConstants.findConstantSubTrees(streamFold2IR)
     assert(streamFold2Test.contains(streamFold2IR))
 
-
+    println(FoldConstants.mainMethod(ctx, streamFoldLetIR))
   }
 }
