@@ -620,6 +620,13 @@ def test_verify_no_access_to_metadata_server(client):
     assert status['state'] == 'Failed', str(status)
     assert "Could not resolve host" in j.log()['main'], (str(j.log()['main']), status)
 
+    builder = client.create_batch()
+    j = builder.create_job(os.environ['HAIL_CURL_IMAGE'], ['curl', '-fsSL', '169.254.169.254', '--max-time', '10'])
+    builder.submit()
+    status = j.wait()
+    assert status['state'] == 'Failed', str(status)
+    assert "Request timed out" in j.log()['main'], (str(j.log()['main']), status)
+
 
 def test_can_use_google_credentials(client):
     token = os.environ["HAIL_TOKEN"]
