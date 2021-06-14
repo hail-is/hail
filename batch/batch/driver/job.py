@@ -428,6 +428,8 @@ async def schedule_job(app, record, instance):
             await instance.mark_healthy()
             if e.status == 403:
                 log.info(f'attempt already exists for job {id} on {instance}, aborting')
+            if e.status == 503:
+                log.info(f'job {id} cannot be scheduled because {instance} is shutting down, aborting')
             raise e
         except Exception:
             await instance.incr_failed_request_count()

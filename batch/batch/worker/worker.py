@@ -1,4 +1,4 @@
-from typing import Optional, Dict, Callable
+from typing import Optional, Dict, Callable, Tuple
 import os
 import json
 import sys
@@ -1307,12 +1307,13 @@ class JVMJob(Job):
 
 class Worker:
     def __init__(self):
+        self.active = False
         self.cores_mcpu = CORES * 1000
         self.last_updated = time_msecs()
         self.cpu_sem = FIFOWeightedSemaphore(self.cores_mcpu)
         self.data_disk_space_remaining = Box(UNRESERVED_WORKER_DATA_DISK_SIZE_GB)
         self.pool = concurrent.futures.ThreadPoolExecutor()
-        self.jobs = {}
+        self.jobs: Dict[Tuple[int, int], Job] = {}
         self.stop_event = asyncio.Event()
         self.task_manager = aiotools.BackgroundTaskManager()
         self.jar_download_locks = defaultdict(asyncio.Lock)
@@ -1368,6 +1369,10 @@ class Worker:
         # already running
         if id in self.jobs:
             return web.HTTPForbidden()
+
+        # check worker hasn't started shutting down
+        if not self.active:
+            return web.HTTPServiceUnavailable()
 
         job = Job.create(
             batch_id, body['user'], body['gsa_key'], job_spec, format_version, self.task_manager, self.pool
@@ -1465,6 +1470,7 @@ class Worker:
                         f'free worker data disk storage {self.data_disk_space_remaining.value}Gi'
                     )
         finally:
+            self.active = False
             log.info('shutting down')
             await site.stop()
             log.info('stopped site')
@@ -1621,6 +1627,7 @@ class Worker:
             resp_json = await resp.json()
 
             self.headers = {'X-Hail-Instance-Name': NAME, 'Authorization': f'Bearer {resp_json["token"]}'}
+            self.active = True
 
 
 async def async_main():
