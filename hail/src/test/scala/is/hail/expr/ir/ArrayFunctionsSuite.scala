@@ -186,9 +186,9 @@ class ArrayFunctionsSuite extends HailSuite {
 
   @Test(dataProvider = "arrayOpsData")
   def arrayOpsFPDiv(a: IndexedSeq[Integer], b: IndexedSeq[Integer]) {
-    assertEvalsTo(invoke("div", TArray(TFloat32), toIRArray(a), toIRArray(b)),
+    assertEvalsTo(invoke("div", TArray(TFloat64), toIRArray(a), toIRArray(b)),
       Option(a).zip(Option(b)).headOption.map { case (a0, b0) =>
-        a0.zip(b0).map { case (i, j) => Option(i).zip(Option(j)).headOption.map[java.lang.Float] { case (m, n) => m.toFloat / n }.orNull }
+        a0.zip(b0).map { case (i, j) => Option(i).zip(Option(j)).headOption.map[java.lang.Double] { case (m, n) => m.toDouble / n }.orNull }
       }.orNull )
   }
 
