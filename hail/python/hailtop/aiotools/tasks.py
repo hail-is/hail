@@ -23,7 +23,7 @@ class BackgroundTaskManager:
 
     def shutdown(self):
         for task in self.tasks:
-            if not task.done():
+            try:
                 task.cancel()
-        if self.tasks:
-            await asyncio.wait(self.tasks)
+            except Exception:
+                log.warning(f'encountered an exception while cancelling background task: {task}', exc_info=True)
