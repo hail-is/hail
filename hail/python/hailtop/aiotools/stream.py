@@ -2,6 +2,7 @@ from typing import BinaryIO, Optional, Tuple, Type
 from types import TracebackType
 import abc
 import io
+import os
 from concurrent.futures import ThreadPoolExecutor
 import janus
 from hailtop.utils import blocking_to_async
@@ -31,7 +32,7 @@ class ReadableStream(abc.ABC):
                 self._waited_closed = True
 
     @property
-    def closed(self) -> None:
+    def closed(self) -> bool:
         return self._closed
 
     async def __aenter__(self) -> 'ReadableStream':
@@ -71,7 +72,7 @@ class WritableStream(abc.ABC):
                 self._waited_closed = True
 
     @property
-    def closed(self) -> None:
+    def closed(self) -> bool:
         return self._closed
 
     async def __aenter__(self) -> 'WritableStream':
@@ -119,6 +120,8 @@ class _WritableStreamFromBlocking(WritableStream):
         return await blocking_to_async(self._thread_pool, self._f.write, b)
 
     async def _wait_closed(self) -> None:
+        await blocking_to_async(self._thread_pool, self._f.flush)
+        await blocking_to_async(self._thread_pool, os.fsync, self._f.fileno())
         await blocking_to_async(self._thread_pool, self._f.close)
         del self._f
 
