@@ -24,13 +24,29 @@ an earlier version of Hail to read files written in a later version.
 
 ---
 
+Version 0.2.69
+
+Released 2021-06-14
+
+### Bug fixes
+
+- (hail#10553) Dividing two integers now returns a float64, not a float32.
+
+---
+
+## Version 0.2.68
+
+Released 2021-05-27
+
+---
+
 ## Version 0.2.67
 
 ### Critical performance fix
 
 Released 2021-05-06
 
-- (hail#10451) Fixed a memory leak / performance bug triggered by `hl.literal(...).contains(...)
+- (hail#10451) Fixed a memory leak / performance bug triggered by `hl.literal(...).contains(...)`
 
 ---
 
