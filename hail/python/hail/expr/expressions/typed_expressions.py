@@ -2179,27 +2179,10 @@ class NumericExpression(Expression):
         :class:`.NumericExpression`
             The left number divided by the left.
         """
-
-        def ret_type_f(t):
-            assert is_numeric(t)
-            if t == tint32 or t == tint64:
-                return tfloat32
-            else:
-                # Float64 or Float32
-                return t
-
-        return self._bin_op_numeric("/", other, ret_type_f)
+        return self._bin_op_numeric("/", other, self._div_ret_type_f)
 
     def __rtruediv__(self, other):
-        def ret_type_f(t):
-            assert is_numeric(t)
-            if t == tint32 or t == tint64:
-                return tfloat32
-            else:
-                # float64 or float32
-                return t
-
-        return self._bin_op_numeric_reverse("/", other, ret_type_f)
+        return self._bin_op_numeric_reverse("/", other, self._div_ret_type_f)
 
     def __floordiv__(self, other):
         """Divide two numbers with floor division.

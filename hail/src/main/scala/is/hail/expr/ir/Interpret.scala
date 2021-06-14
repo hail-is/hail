@@ -133,7 +133,7 @@ object Interpret {
                 case Add() => ll + rr
                 case Subtract() => ll - rr
                 case Multiply() => ll * rr
-                case FloatingPointDivide() => ll.toFloat / rr.toFloat
+                case FloatingPointDivide() => ll.toDouble / rr.toDouble
                 case RoundToNegInfDivide() => java.lang.Math.floorDiv(ll, rr)
                 case BitAnd() => ll & rr
                 case BitOr() => ll | rr
@@ -157,7 +157,7 @@ object Interpret {
                 case Add() => ll + rr
                 case Subtract() => ll - rr
                 case Multiply() => ll * rr
-                case FloatingPointDivide() => ll.toFloat / rr.toFloat
+                case FloatingPointDivide() => ll.toDouble / rr.toDouble
                 case RoundToNegInfDivide() => java.lang.Math.floorDiv(ll, rr)
                 case BitAnd() => ll & rr
                 case BitOr() => ll | rr

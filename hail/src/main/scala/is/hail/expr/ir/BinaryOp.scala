@@ -9,8 +9,8 @@ import is.hail.utils._
 
 object BinaryOp {
   private val returnType: ((BinaryOp, Type, Type)) => Option[Type] = lift {
-    case (FloatingPointDivide(), TInt32, TInt32) => TFloat32
-    case (FloatingPointDivide(), TInt64, TInt64) => TFloat32
+    case (FloatingPointDivide(), TInt32, TInt32) => TFloat64
+    case (FloatingPointDivide(), TInt64, TInt64) => TFloat64
     case (FloatingPointDivide(), TFloat32, TFloat32) => TFloat32
     case (FloatingPointDivide(), TFloat64, TFloat64) => TFloat64
     case (Add() | Subtract() | Multiply() | RoundToNegInfDivide() | BitAnd() | BitOr() | BitXOr(), TInt32, TInt32) => TInt32
@@ -51,7 +51,7 @@ object BinaryOp {
           case Add() => ll + rr
           case Subtract() => ll - rr
           case Multiply() => ll * rr
-          case FloatingPointDivide() => ll.toF / rr.toF
+          case FloatingPointDivide() => ll.toD / rr.toD
           case RoundToNegInfDivide() => Code.invokeStatic2[Math, Int, Int, Int]("floorDiv", ll, rr)
           case BitAnd() => ll & rr
           case BitOr() => ll | rr
@@ -77,7 +77,7 @@ object BinaryOp {
           case Add() => ll + rr
           case Subtract() => ll - rr
           case Multiply() => ll * rr
-          case FloatingPointDivide() => ll.toF / rr.toF
+          case FloatingPointDivide() => ll.toD / rr.toD
           case RoundToNegInfDivide() => Code.invokeStatic2[Math, Long, Long, Long]("floorDiv", ll, rr)
           case BitAnd() => ll & rr
           case BitOr() => ll | rr
