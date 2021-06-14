@@ -78,7 +78,9 @@ class FoldConstantsSuite extends HailSuite {
     val zipTest = FoldConstants.findConstantSubTrees(letZipIR)
     assert(zipTest.contains(letZipIR))
 
-    val streamfold2Test = FoldConstants.findConstantSubTrees(streamFold2IR)
-    assert(streamfold2Test.contains(streamFold2IR))
+    val streamFold2Test = FoldConstants.findConstantSubTrees(streamFold2IR)
+    assert(streamFold2Test.contains(streamFold2IR))
+
+
   }
 }

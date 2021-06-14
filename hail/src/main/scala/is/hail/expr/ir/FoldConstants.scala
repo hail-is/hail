@@ -2,14 +2,29 @@ package is.hail.expr.ir
 
 import is.hail.expr.ir.Bindings.empty
 import is.hail.expr.ir.analyses.ParentPointers
-import is.hail.types.virtual.{TArray, TNDArray, TStream, TStruct, TTuple}
+import is.hail.types.virtual.{TArray, TNDArray, TStream, TStruct, TTuple, TVoid}
 import is.hail.utils.{FastIndexedSeq, HailException}
+
+import scala.collection.mutable.ArrayBuffer
 
 object FoldConstants {
   def apply(ctx: ExecuteContext, ir: BaseIR): BaseIR =
     ExecuteContext.scopedNewRegion(ctx) { ctx =>
       foldConstants(ctx, ir)
     }
+
+  def mainMethod(ir : BaseIR): Unit = {
+    val constantSubTrees = Memo.empty[Unit]
+    val usesAndDefs = ComputeUsesAndDefs(ir)
+    findConstantSubTreesHelper(ir, constantSubTrees, usesAndDefs)
+    val parents = ParentPointers(ir)
+    removeUnrealizableConstants(ir, constantSubTrees, parents, usesAndDefs)
+    val constants = ArrayBuffer[IR]()
+    val refs = ArrayBuffer[(String,IR)]()
+    getConstantIRsAndRefs(ir, constantSubTrees, constants, refs)
+    val contstantsIS = constants.toIndexedSeq
+    val refsIS = refs.toIndexedSeq
+  }
 
   private def foldConstants(ctx: ExecuteContext, ir: BaseIR): BaseIR = {
     RewriteBottomUp(ir, {
@@ -52,104 +67,75 @@ object FoldConstants {
     })
 
   }
+
   def findConstantSubTrees(baseIR: BaseIR): Memo[Unit] = {
     val constantSubTrees = Memo.empty[Unit]
     val usesAndDefs = ComputeUsesAndDefs(baseIR)
-    findConstantHelper(baseIR, constantSubTrees, usesAndDefs)
+    findConstantSubTreesHelper(baseIR, constantSubTrees, usesAndDefs)
     constantSubTrees
   }
-  def findConstantHelper(ir: BaseIR, memo: Memo[Unit], usesAndDefs: UsesAndDefs): Unit = {
-    def recur(ir: BaseIR): Unit = findConstantHelper(ir, memo, usesAndDefs) //Does this or a lot of this
-                                                                            //even need arguments if base ir
-
-    def bindRefRecur(arg: IR, body: IR): Unit = {
-      recur(arg)
-      if (memo.contains(arg)) {
-        bindAllRefs(arg)
+  def findConstantSubTreesHelper(ir: BaseIR, memo: Memo[Unit], usesAndDefs: UsesAndDefs): Unit = {
+    def recur(ir: BaseIR): Unit = findConstantSubTreesHelper(ir, memo, usesAndDefs)
+    def bindRefRecur(args: IndexedSeq[IR], body: IR, names : Option[IndexedSeq[String]] = None): Unit = {
+      args.foreach( arg => recur(arg))
+      if (names.isEmpty) bindRefs()
+      else {
+        val refNames = names.get
+        stringIRSeqBind(refNames.zip(args))
       }
       recur(body)
     }
-    def bindRefs(arg: IR, name: String): Unit = {
-      //take place of below two methods
-      //confused if the arg IR is always current IR or passed IR
-      //Pretty sure its either both or always the current one we
-      //are on
-      val refs = if (name == null)  usesAndDefs.uses(ir).filter(ref => ref.t.name == name)
+    def bindRefs(name: Option[String] = None): Unit = {
+
+      val refs = if (!name.isEmpty)  usesAndDefs.uses(ir).filter(ref => ref.t.name == name.get)
                  else usesAndDefs.uses(ir)
       refs.foreach(ref => memo.bind(ref, ()))
     }
-    def bindAllRefs(arg: IR): Unit = usesAndDefs.uses(ir).foreach(ref => memo.bind(ref, ()))
-    def checkNameBind(name: String): Unit = {
-      //Should this take an ir as as an argument
-      val refs = usesAndDefs.uses(ir).filter(ref => ref.t.name == name)
-      refs.foreach(ref => memo.bind(ref,()))
-    }
-    def stringIRSeqRecurBind(seq: IndexedSeq[(String, IR)]): Unit =
-      seq.foreach { case (name, streamIr) => if (memo.contains(streamIr)) checkNameBind(name)}
+    def stringIRSeqBind(seq: IndexedSeq[(String, IR)]): Unit = {
+     seq.foreach { case (name, streamIr) => if (memo.contains(streamIr)) bindRefs(Some(name))}
+   }
 
-    def twoRefIRBindRecur(firstIR: IR, secondIR: IR, firstName: String, secondName: String, body: IR): Unit = {
-      recur(firstIR)
-      recur(secondIR)
-      if (memo.contains(firstIR)) {
-        if (firstName == null) bindAllRefs(firstIR) //Ugly ;-;
-        checkNameBind(firstName)
-      }
-      if (memo.contains(secondIR)) {
-        if (secondName == null) bindAllRefs(secondIR)
-        checkNameBind(secondName)
-      }
-      recur(body)
-    }
-
-    if (IsConstant(ir)) {
-      memo.bind(ir, ())
-    }
+     if (IsConstant(ir)) {
+       memo.bind(ir, ())
+     }
     else if (ir.isInstanceOf[Ref]) {}
     else {
       ir match {
-        case Let(name, value, body) => bindRefRecur(value, body)
-        case StreamMap(a, name, body) => bindRefRecur(a, body)
-        case StreamZip(as, names, body, _) => {
-          as.foreach(seq => recur(seq))
-          stringIRSeqRecurBind(names.zip(as))
-          recur(body)
-        }
+        case Let(name, value, body) => bindRefRecur(IndexedSeq(value), body)
+        case StreamMap(a, name, body) => bindRefRecur(IndexedSeq(a), body)
+        case StreamZip(as, names, body, _) => bindRefRecur(as, body, Some(names))
         case StreamZipJoin(as, key, curKey, curVals, body) => {
           as.foreach(seq => recur(seq))
           val allConstant = as.forall(streamIR => memo.contains(streamIR))
-          if (allConstant) as.foreach(streamIr => bindAllRefs(streamIr))
+          if (allConstant) bindRefs()
           recur(body)
-          // or is it if(allConstant) key.zip(as).foreach{ case (name, streamIr) => checkNameBind(name)
-
         }
-        case StreamFor(a, name, body) => bindRefRecur(a, body)
-        case StreamFlatMap(a, name, body) => bindRefRecur(a, body)
-        case StreamFilter(a, name, body) => bindRefRecur(a, body)
+        case StreamFlatMap(a, name, body) => bindRefRecur(IndexedSeq(a), body)
+        case StreamFilter(a, name, body) => bindRefRecur(IndexedSeq(a), body)
         case StreamFold(a, zero, accumName, valueName, body) =>
-          twoRefIRBindRecur(a, zero, valueName, accumName, body)
+          bindRefRecur(IndexedSeq(a, zero), body, Some(IndexedSeq(valueName, accumName)))
         case StreamFold2(a, accum, valueName, seq, result) => {
           recur(a)
           accum.map(item => item._2).foreach(streamIr => recur(streamIr))
-          if(memo.contains(a)) checkNameBind(valueName)
-          stringIRSeqRecurBind(accum)
+          if(memo.contains(a)) bindRefs(Some(valueName))
+          stringIRSeqBind(accum)
           seq.foreach(seqIR => recur(seqIR))
           recur(result)   //prob not right
         }
-
         case RunAggScan(a, name, _, _, _, _) => ???
         case StreamScan(a, zero, valueName, accumName, body) =>
-          twoRefIRBindRecur(a, zero, accumName, valueName, body)
-        case StreamAggScan(a, name, body) => bindRefRecur(a, body)
+          bindRefRecur(IndexedSeq(a, zero), body, Some(IndexedSeq(valueName, accumName)))
+        case StreamAggScan(a, name, body) => bindRefRecur(IndexedSeq(a), body)
         case StreamJoinRightDistinct(ll, rr, lkeys, rkeys, l, r, body, _) =>
-          twoRefIRBindRecur(ll, rr, firstName = null, secondName =null, body)
-        case ArraySort(a, left, right, body) => bindRefRecur(a, body)
-        case AggArrayPerElement(a, _, indexName, _, _, _) => ???
-        case NDArrayMap(nd, name, body) => bindRefRecur(nd, body)
+          bindRefRecur(IndexedSeq(ll, rr), body)
+        case ArraySort(a, left, right, body) => bindRefRecur(IndexedSeq(a), body)
+        case AggArrayPerElement(a, element, indexName, aggBody, knownLength, _) => ???
+        case NDArrayMap(nd, name, body) => bindRefRecur(IndexedSeq(nd), body)
         case NDArrayMap2(l, r, lName, rName, body) =>
-          twoRefIRBindRecur(l, r, lName, rName, body)
+          bindRefRecur(IndexedSeq(l, r), body, Some(IndexedSeq(lName, rName)))
         case _ =>
           ir.children.foreach(child => {
-            findConstantHelper(child, memo, usesAndDefs)
+            findConstantSubTreesHelper(child, memo, usesAndDefs)
           })
       }
       val isConstantSubtree = ir.children.forall(child => {
@@ -163,15 +149,60 @@ object FoldConstants {
 
   def badIRs(baseIR: BaseIR): Boolean = {
     baseIR.isInstanceOf[ApplySeeded] || baseIR.isInstanceOf[UUID4] || baseIR.isInstanceOf[In]||
-      baseIR.isInstanceOf[TailLoop]
+      baseIR.isInstanceOf[TailLoop] || baseIR.typ == TVoid
   }
 
-  def fixupStreams(ir: BaseIR, constantSubtrees: Memo[Unit]): Unit = {
-    val parents = ParentPointers(ir)
-    fixupStreamsHelper(ir, constantSubtrees, parents)
+//  def removeUnrealizableConstants(ir: BaseIR, constantSubTrees: Memo[Unit], usesAndDefs: UsesAndDefs) : Unit = {
+//    val parents = ParentPointers(ir)
+//    removeUnrealizableConstants(ir, constantSubTrees, parents, usesAndDefs)
+//
+//  }
+
+  def removeUnrealizableConstants(ir : BaseIR, constantSubTrees: Memo[Unit], parents: Memo[BaseIR],
+                                  usesAndDefs: UsesAndDefs): Unit = {
+    if (!constantSubTrees.contains(ir)) {
+      ir.children.foreach(child => removeUnrealizableConstants(child, constantSubTrees,
+        ParentPointers(child), usesAndDefs))
+    }
+    else {
+      ir match {
+        case ir : IR =>
+          if (!ir.typ.isRealizable) {
+            constantSubTrees.delete(ir)
+            usesAndDefs.uses(ir).foreach(ref => {
+              var current: BaseIR = ref.t
+              while (constantSubTrees.contains(current)) {
+                constantSubTrees.delete(ref)
+                current = parents.get(current).getOrElse(current)
+              }
+            })
+          }
+      }
+    }
   }
+//  def getConstantIRsAndRefs(ir: BaseIR, constantSubTrees: Memo[Unit]): (IndexedSeq[IR], IndexedSeq[(String, IR)]) = {
+//    val constants = ArrayBuffer[IR]()
+//    val refs = ArrayBuffer[(String,IR)]()
+//    val results = getConstantIRsAndRefsHelper(ir, constantSubTrees, constants, refs)
+//    (constants.toIndexedSeq , refs.toIndexedSeq)
+//
+//  }
 
-  def fixupStreamsHelper(ir: BaseIR, constantSubtrees: Memo[Unit], parents: Memo[BaseIR]): Unit = {
+  def getConstantIRsAndRefs(ir: BaseIR, constantSubTrees: Memo[Unit], constants : ArrayBuffer[IR],
+                                  refs : ArrayBuffer[(String,IR)]) : Unit  = {
+    ir match {
+      case ir: IR if constantSubTrees.contains(ir) => constants += ir
 
+      case let@Let(name, value, body) => {
+        if (constantSubTrees.contains(value)) {
+          refs += ((name, value))
+          constants += let
+        }
+        else getConstantIRsAndRefs(value, constantSubTrees, constants, refs)
+        getConstantIRsAndRefs(body, constantSubTrees, constants, refs)
+      }
+
+      case _ => ir.children.foreach(child => getConstantIRsAndRefs(child, constantSubTrees, constants, refs))
+    }
   }
 }
