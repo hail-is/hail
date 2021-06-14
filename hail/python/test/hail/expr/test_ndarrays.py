@@ -263,8 +263,6 @@ def test_ndarray_eval():
         hl.eval(hl.nd.array([1, hl.missing(hl.tint32), 3]))
 
 
-
-
 def test_ndarray_shape():
     np_e = np.array(3)
     np_row = np.array([1, 2, 3])

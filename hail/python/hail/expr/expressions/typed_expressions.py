@@ -3846,9 +3846,9 @@ class NDArrayExpression(Expression):
                     )
                     slices.append(checked_int)
             product = construct_expr(ir.NDArraySlice(self._ir, hl.tuple(slices)._ir),
-                                          tndarray(self._type.element_type, n_sliced_dims),
-                                          self._indices,
-                                          self._aggregations)
+                                     tndarray(self._type.element_type, n_sliced_dims),
+                                     self._indices,
+                                     self._aggregations)
 
             if len(indices_nones) > 0:
                 reshape_arg = []
@@ -3863,9 +3863,9 @@ class NDArrayExpression(Expression):
 
         else:
             product = construct_expr(ir.NDArrayRef(self._ir, [idx._ir for idx in formatted_item]),
-                                          self._type.element_type,
-                                          self._indices,
-                                          self._aggregations)
+                                     self._type.element_type,
+                                     self._indices,
+                                     self._aggregations)
 
             if len(indices_nones) > 0:
                 reshape_arg = []
