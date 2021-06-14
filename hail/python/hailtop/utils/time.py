@@ -3,11 +3,11 @@ import datetime
 import humanize
 
 
-def time_msecs():
+def time_msecs() -> int:
     return int(time.time() * 1000 + 0.5)
 
 
-def time_msecs_str(t):
+def time_msecs_str(t) -> str:
     return datetime.datetime.utcfromtimestamp(t / 1000).strftime(
         '%Y-%m-%dT%H:%M:%SZ')
 

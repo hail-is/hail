@@ -23,7 +23,8 @@ async def test_update_commits():
 
     async def request(method):
         return await utils.request_retry_transient_errors(
-            session, method, f'{commit_benchmark_url}', headers=headers, json={'sha': sha})
+            session, method, f'{commit_benchmark_url}', headers=headers, json={'sha': sha}
+        )
 
     async with client_session() as session:
         await request('DELETE')

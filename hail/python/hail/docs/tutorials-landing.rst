@@ -4,9 +4,17 @@
 Hail Tutorials
 ==============
 
-To take Hail for a test drive, go through our tutorials. These can be viewed here in the documentation,
-but we recommend instead that you run them yourself with Jupyter by
-`downloading the archive (.tar.gz) <tutorials.tar.gz>`__ and running the following::
+.. raw:: html
+
+    <!-- for some reason, Safari is confused if we do not include the download attribute in the
+    anchor. At time of writing, there does not appear to be a way to tell Sphinx to include that
+    attribute. -->
+    <p>To take Hail for a test drive, go through our tutorials. These can be viewed here in the
+    documentation, but we recommend instead that you run them yourself with Jupyter by
+    <a class="reference external" href="tutorials.tar.gz" download>downloading the archive (.tar.gz)</a>
+    and running the following:</p>
+
+::
 
     pip install jupyter
     tar xf tutorials.tar.gz

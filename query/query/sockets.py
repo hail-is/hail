@@ -38,9 +38,7 @@ class ServiceBackendSocketConnection:
 
     def __enter__(self) -> 'ServiceBackendSocketConnection':
         self._conn = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)  # pylint: disable=attribute-defined-outside-init
-        sync_retry_transient_errors(
-            self._conn.connect,
-            ServiceBackendSocketConnection.FNAME)
+        sync_retry_transient_errors(self._conn.connect, ServiceBackendSocketConnection.FNAME)
         return self
 
     def __exit__(self, type, value, traceback):
@@ -98,10 +96,9 @@ class ServiceBackendSocketConnection:
         b = self.read_bytes()
         return b.decode('utf-8')
 
-    def load_references_from_dataset(self, username: str, session_id: str, billing_project: str, bucket: str, path: str):
+    def load_references_from_dataset(self, username: str, billing_project: str, bucket: str, path: str):
         self.write_int(ServiceBackendSocketConnection.LOAD_REFERENCES_FROM_DATASET)
         self.write_str(username)
-        self.write_str(session_id)
         self.write_str(billing_project)
         self.write_str(bucket)
         self.write_str(path)

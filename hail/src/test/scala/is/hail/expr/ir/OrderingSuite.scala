@@ -9,6 +9,7 @@ import is.hail.TestUtils._
 import is.hail.expr.ir.orderings.CodeOrdering
 import is.hail.rvd.RVDType
 import is.hail.types.physical._
+import is.hail.types.physical.stypes.EmitType
 import is.hail.types.virtual._
 import is.hail.utils._
 import org.apache.spark.sql.Row
@@ -43,7 +44,7 @@ class OrderingSuite extends HailSuite {
       fb.ecb.getOrderingFunction(cv1.st, cv2.st, op)
           .apply(cb, EmitCode.present(cb.emb, cv1), EmitCode.present(cb.emb, cv2))
     }
-    fb.resultWithIndex()(0, r)
+    fb.resultWithIndex()(ctx.fs, 0, r)
   }
 
   @Test def testMissingNonequalComparisons() {
@@ -65,7 +66,7 @@ class OrderingSuite extends HailSuite {
         fb.ecb.getOrderingFunction(ev1.st, ev2.st, op)
           .apply(cb, ev1, ev2)
       }
-      fb.resultWithIndex()(0, r)
+      fb.resultWithIndex()(ctx.fs, 0, r)
     }
 
     val compareGen = for {
@@ -457,12 +458,14 @@ class OrderingSuite extends HailSuite {
         val cset = fb.getCodeParam[Long](2)
         val cetuple = fb.getCodeParam[Long](3)
 
-        val bs = new BinarySearch(fb.apply_method, pset, pset.elementType, keyOnly = false)
-        fb.emitWithBuilder(cb => bs.getClosestIndex(cset, false, pt.loadCheapPCode(cb, pTuple.loadField(cetuple, 0)).code))
+        val bs = new BinarySearch(fb.apply_method, pset.sType, EmitType(pset.elementType.sType, true), keyOnly = false)
+        fb.emitWithBuilder(cb =>
+          bs.getClosestIndex(cb, pset.loadCheapPCode(cb, cset),
+            EmitCode.fromI(fb.apply_method)(cb => IEmitCode.present(cb, pt.loadCheapPCode(cb, pTuple.loadField(cetuple, 0))))))
 
         val asArray = SafeIndexedSeq(pArray, soff)
 
-        val f = fb.resultWithIndex()(0, region)
+        val f = fb.resultWithIndex()(ctx.fs, 0, region)
         val closestI = f(region, soff, eoff)
         val maybeEqual = asArray(closestI)
 
@@ -493,13 +496,16 @@ class OrderingSuite extends HailSuite {
         val cdict = fb.getCodeParam[Long](2)
         val cktuple = fb.getCodeParam[Long](3)
 
-        val bs = new BinarySearch(fb.apply_method, pDict, pDict.keyType, keyOnly = true)
+        val bs = new BinarySearch(fb.apply_method, pDict.sType, EmitType(pDict.keyType.sType, false), keyOnly = true)
+
         val m = ptuple.isFieldMissing(cktuple, 0)
-        fb.emitWithBuilder(cb => bs.getClosestIndex(cdict, m, pDict.keyType.loadCheapPCode(cb, ptuple.loadField(cktuple, 0)).code))
+        fb.emitWithBuilder(cb =>
+          bs.getClosestIndex(cb, pDict.loadCheapPCode(cb, cdict),
+            EmitCode.fromI(fb.apply_method)(cb => IEmitCode.present(cb, pDict.keyType.loadCheapPCode(cb, ptuple.loadField(cktuple, 0))))))
 
         val asArray = SafeIndexedSeq(PCanonicalArray(pDict.elementType), soff)
 
-        val f = fb.resultWithIndex()(0, region)
+        val f = fb.resultWithIndex()(ctx.fs, 0, region)
         val closestI = f(region, soff, eoff)
 
         if (closestI == asArray.length) {

@@ -39,8 +39,7 @@ class LogStore:
         return await self.gcs.write_gs_file_from_string(path, data)
 
     async def delete_batch_logs(self, batch_id):
-        await self.gcs.delete_gs_files(
-            self.batch_log_dir(batch_id))
+        await self.gcs.delete_gs_files(self.batch_log_dir(batch_id))
 
     def status_path(self, batch_id, job_id, attempt_id):
         return f'{self.batch_log_dir(batch_id)}/{job_id}/{attempt_id}/status.json'
@@ -77,8 +76,7 @@ class LogStore:
 
     async def write_spec_file(self, batch_id, token, data_bytes, offsets_bytes):
         idx_path = self.specs_index_path(batch_id, token)
-        write1 = self.gcs.write_gs_file_from_string(idx_path, offsets_bytes,
-                                                    content_type='application/octet-stream')
+        write1 = self.gcs.write_gs_file_from_string(idx_path, offsets_bytes, content_type='application/octet-stream')
 
         specs_path = self.specs_path(batch_id, token)
         write2 = self.gcs.write_gs_file_from_string(specs_path, data_bytes)

@@ -2,11 +2,10 @@ package is.hail.expr.ir
 
 import java.io._
 import java.security.SecureRandom
-
 import is.hail.HailContext
 import is.hail.utils._
 import is.hail.annotations.{Region, RegionPool}
-import is.hail.backend.{Backend, BackendContext, BroadcastValue}
+import is.hail.backend.{Backend, BackendContext, BroadcastValue, HailTaskContext}
 import is.hail.io.fs.FS
 
 import scala.collection.mutable
@@ -44,8 +43,8 @@ object ExecuteContext {
   }
 
   def scoped[T](tmpdir: String, localTmpdir: String, backend: Backend, fs: FS, timer: ExecutionTimer, tempFileManager: TempFileManager)(f: ExecuteContext => T): T = {
-    RegionPool.scoped { rp =>
-      using(new ExecuteContext(tmpdir, localTmpdir, backend, fs, Region(pool = rp), timer, tempFileManager))(f(_))
+    RegionPool.scoped { pool =>
+      using(new ExecuteContext(tmpdir, localTmpdir, backend, fs, Region(pool = pool), timer, tempFileManager))(f(_))
     }
   }
 

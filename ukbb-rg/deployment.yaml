@@ -33,7 +33,7 @@ spec:
         preemptible: "false"
       containers:
        - name: ukbb-rg-static
-         image: gcr.io/hail-vdc/ukbb-rg-static
+         image: {{ docker_prefix }}/ukbb-rg-static
          imagePullPolicy: Always
          resources:
            requests:
@@ -82,7 +82,7 @@ spec:
         preemptible: "false"
       containers:
        - name: ukbb-rg-browser
-         image: gcr.io/hail-vdc/ukbb-rg-browser
+         image: {{ docker_prefix }}/ukbb-rg-browser
          imagePullPolicy: Always
          resources:
            requests:

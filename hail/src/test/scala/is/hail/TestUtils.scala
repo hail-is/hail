@@ -1,7 +1,6 @@
 package is.hail
 
 import java.io.{File, PrintWriter}
-
 import breeze.linalg.{DenseMatrix, Matrix, Vector}
 import is.hail.ExecStrategy.ExecStrategy
 import is.hail.annotations.{Region, RegionValueBuilder, SafeRow}
@@ -10,13 +9,16 @@ import is.hail.backend.spark.SparkBackend
 import is.hail.expr.ir._
 import is.hail.expr.ir.{BindingEnv, MakeTuple, Subst}
 import is.hail.expr.ir.lowering.LowererUnsupportedOperation
-import is.hail.types.physical.{PBaseStruct, PCanonicalArray, PType, PTypeReferenceSingleCodeType}
+import is.hail.types.physical.{PBaseStruct, PCanonicalArray, PType, stypes}
 import is.hail.types.virtual._
 import is.hail.io.vcf.MatrixVCFReader
+import is.hail.types.physical.stypes.PTypeReferenceSingleCodeType
 import is.hail.utils._
 import is.hail.variant._
 import org.apache.spark.SparkException
 import org.apache.spark.sql.Row
+
+import scala.collection.mutable
 
 object ExecStrategy extends Enumeration {
   type ExecStrategy = Value
@@ -148,7 +150,7 @@ object TestUtils {
       None
   }
 
-  def loweredExecute(x: IR, env: Env[(Any, Type)],
+  def loweredExecute(ctx: ExecuteContext, x: IR, env: Env[(Any, Type)],
     args: IndexedSeq[(Any, Type)],
     agg: Option[(IndexedSeq[Row], TStruct)],
     bytecodePrinter: Option[PrintWriter] = None
@@ -158,7 +160,7 @@ object TestUtils {
 
     ExecutionTimer.logTime("TestUtils.loweredExecute") { timer =>
       HailContext.sparkBackend("TestUtils.loweredExecute")
-        .jvmLowerAndExecute(timer, x, optimize = false, lowerTable = true, lowerBM = true, print = bytecodePrinter)
+        .jvmLowerAndExecute(ctx, timer, x, optimize = false, lowerTable = true, lowerBM = true, print = bytecodePrinter)
     }
   }
 
@@ -175,7 +177,7 @@ object TestUtils {
     ctx: ExecuteContext
   ): Any = {
       val inputTypesB = new BoxedArrayBuilder[Type]()
-      val inputsB = new BoxedArrayBuilder[Any]()
+      val inputsB = new mutable.ArrayBuffer[Any]()
 
       args.foreach { case (v, t) =>
         inputsB += v
@@ -248,7 +250,7 @@ object TestUtils {
             rvb.endArray()
             val aggOff = rvb.end()
 
-            val resultOff = f(0, region)(region, argsOff, aggOff)
+            val resultOff = f(ctx.fs, 0, region)(region, argsOff, aggOff)
             SafeRow(resultType2.asInstanceOf[PBaseStruct], resultOff).get(0)
           }
 
@@ -273,7 +275,7 @@ object TestUtils {
             rvb.endTuple()
             val argsOff = rvb.end()
 
-            val resultOff = f(0, region)(region, argsOff)
+            val resultOff = f(ctx.fs, 0, region)(region, argsOff)
             SafeRow(resultType2.asInstanceOf[PBaseStruct], resultOff).get(0)
           }
       }
@@ -346,7 +348,6 @@ object TestUtils {
         }
 
       filteredExecStrats.foreach { strat =>
-        InferPType.clearPTypes(x)
         try {
           val res = strat match {
             case ExecStrategy.Interpret =>
@@ -375,7 +376,7 @@ object TestUtils {
                   },
                 optimize = false, ctx)
             case ExecStrategy.LoweredJVMCompile =>
-              loweredExecute(x, env, args, agg)
+              loweredExecute(ctx, x, env, args, agg)
           }
           if (t != TVoid) {
             assert(t.typeCheck(res), s"\n  t=$t\n  result=$res\n  strategy=$strat")

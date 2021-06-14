@@ -3,6 +3,7 @@ package is.hail.methods
 import breeze.linalg.{Vector => BVector}
 import is.hail.annotations.{Annotation, Region, RegionPool, RegionValue, RegionValueBuilder}
 import is.hail.backend.HailTaskContext
+import is.hail.backend.spark.SparkTaskContext
 import is.hail.check.Prop._
 import is.hail.check.{Gen, Properties}
 import is.hail.expr.ir.{Interpret, MatrixValue, TableValue}
@@ -198,7 +199,7 @@ class LocalLDPruneSuite extends HailSuite {
       locallyPrunedRDD.mapPartitions(it => {
         // bind function for serialization
         val computeCorrelationMatrix = (gts: Array[Iterable[Annotation]], nSamps: Int) =>
-          LocalLDPruneSuite.correlationMatrix(gts, nSamps, HailTaskContext.get().getRegionPool())
+          LocalLDPruneSuite.correlationMatrix(gts, nSamps, SparkTaskContext.get().getRegionPool())
 
         val (it1, it2) = it.duplicate
         val localR2Matrix = computeCorrelationMatrix(it1.map { case (locus, alleles, gs) => gs }.toArray, nSamples)

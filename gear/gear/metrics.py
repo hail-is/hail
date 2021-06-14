@@ -12,7 +12,10 @@ def monitor_endpoint(handler):
         # Use the path template given to @route.<METHOD>, not the fully resolved one
         endpoint = request.match_info.route.resource.canonical
         verb = request.method
-        response = await prom_async_time(REQUEST_TIME.labels(endpoint=endpoint, verb=verb), handler(request, *args, **kwargs))
+        response = await prom_async_time(
+            REQUEST_TIME.labels(endpoint=endpoint, verb=verb), handler(request, *args, **kwargs)
+        )
         REQUEST_COUNT.labels(endpoint=endpoint, verb=verb, status=response.status).inc()
         return response
+
     return wrapped

@@ -12,13 +12,11 @@ class K8sCache:
         self.max_size = max_size
 
         self.secrets = {}
-        self.secret_ids = sortedcontainers.SortedSet(
-            key=lambda id: self.secrets[id][1])
+        self.secret_ids = sortedcontainers.SortedSet(key=lambda id: self.secrets[id][1])
         self.secret_locks = {}
 
         self.service_accounts = {}
-        self.service_account_ids = sortedcontainers.SortedSet(
-            key=lambda id: self.service_accounts[id][1])
+        self.service_account_ids = sortedcontainers.SortedSet(key=lambda id: self.service_accounts[id][1])
         self.service_account_locks = {}
 
     async def read_secret(self, name, namespace, timeout):
@@ -39,10 +37,8 @@ class K8sCache:
                 del self.secrets[head_id]
 
             secret = await retry_transient_errors(
-                self.client.read_namespaced_secret,
-                name,
-                namespace,
-                _request_timeout=timeout)
+                self.client.read_namespaced_secret, name, namespace, _request_timeout=timeout
+            )
 
             self.secrets[id] = (secret, time.time())
             self.secret_ids.add(id)
@@ -68,10 +64,8 @@ class K8sCache:
                 del self.service_accounts[head_id]
 
             sa = await retry_transient_errors(
-                self.client.read_namespaced_service_account,
-                name,
-                namespace,
-                _request_timeout=timeout)
+                self.client.read_namespaced_service_account, name, namespace, _request_timeout=timeout
+            )
 
             self.service_accounts[id] = (sa, time.time())
             self.service_account_ids.add(id)

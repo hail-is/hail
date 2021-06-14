@@ -3,9 +3,10 @@ package is.hail.expr.ir.lowering
 import is.hail.annotations.{Annotation, ExtendedOrdering, Region, SafeRow, UnsafeRow}
 import is.hail.asm4s.{AsmFunction1RegionLong, LongInfo, classInfo}
 import is.hail.expr.ir._
-import is.hail.types.physical.{PArray, PStruct, PTuple, PTypeReferenceSingleCodeType}
+import is.hail.types.physical.{PArray, PStruct, PTuple}
 import is.hail.types.virtual.{TStream, TStruct, Type}
 import is.hail.rvd.RVDPartitioner
+import is.hail.types.physical.stypes.PTypeReferenceSingleCodeType
 import is.hail.utils._
 import org.apache.spark.sql.Row
 
@@ -21,7 +22,7 @@ object LowerDistributedSort {
       print = None,
       optimize = true))
 
-    val fRunnable = ctx.timer.time("LowerDistributedSort.localSort.initialize")(f(0, ctx.r))
+    val fRunnable = ctx.timer.time("LowerDistributedSort.localSort.initialize")(f(ctx.fs, 0, ctx.r))
     val resultAddress = ctx.timer.time("LowerDistributedSort.localSort.run")(fRunnable(ctx.r))
     val rowsAndGlobal = ctx.timer.time("LowerDistributedSort.localSort.toJavaObject")(SafeRow.read(resultPType, resultAddress)).asInstanceOf[Row]
 

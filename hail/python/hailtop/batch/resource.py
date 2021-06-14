@@ -1,10 +1,9 @@
 import abc
-
 from shlex import quote as shq
-from typing import Optional, Set
+from typing import Optional, Set, cast
 
-from .exceptions import BatchException
 from . import job  # pylint: disable=cyclic-import
+from .exceptions import BatchException
 
 
 class Resource:
@@ -13,6 +12,7 @@ class Resource:
     """
 
     _uid: str
+    _source: Optional[job.Job]
 
     @abc.abstractmethod
     def _get_path(self, directory: str) -> str:
@@ -23,7 +23,7 @@ class Resource:
         pass
 
     def _declare(self, directory: str) -> str:
-        return f"{self._uid}={shq(self._get_path(directory))}"  # pylint: disable=no-member
+        return f"export {self._uid}={shq(self._get_path(directory))}"  # pylint: disable=no-member
 
 
 class ResourceFile(Resource, str):
@@ -163,7 +163,7 @@ class JobResourceFile(ResourceFile):
 
         Returns
         -------
-        :class:`.ResourceFile`
+        :class:`.JobResourceFile`
             Same resource file with the extension specified
         """
         if self._has_extension:
@@ -270,3 +270,185 @@ class ResourceGroup(Resource):
 
     def __str__(self):
         return f'"{self._uid}"'
+
+
+class PythonResult(Resource, str):
+    """
+    Class representing a result from a Python job.
+
+    Examples
+    --------
+
+    Add two numbers and then square the result:
+
+    .. code-block:: python
+
+        def add(x, y):
+            return x + y
+
+        def square(x):
+            return x ** 2
+
+
+        b = Batch()
+        j = b.new_python_job(name='add')
+        result = j.call(add, 3, 2)
+        result = j.call(square, result)
+        b.write_output(result.as_str(), 'output/squared.txt')
+        b.run()
+
+    Notes
+    -----
+    All :class:`.PythonResult` are temporary Python objects and must be written
+    to a permanent location using :meth:`.Batch.write_output` if the output needs
+    to be saved. In most cases, you'll want to convert the :class:`.PythonResult`
+    to a :class:`.JobResourceFile` in a human-readable format.
+    """
+    _counter = 0
+    _uid_prefix = "__PYTHON_RESULT__"
+    _regex_pattern = r"(?P<PYTHON_RESULT>{}\d+)".format(_uid_prefix)
+
+    @classmethod
+    def _new_uid(cls):
+        uid = "{}{}".format(cls._uid_prefix, cls._counter)
+        cls._counter += 1
+        return uid
+
+    def __new__(cls, *args, **kwargs):  # pylint: disable=W0613
+        uid = PythonResult._new_uid()
+        r = str.__new__(cls, uid)
+        r._uid = uid
+        return r
+
+    def __init__(self, value: str, source: job.PythonJob):
+        super().__init__()
+        assert value is None or isinstance(value, str)
+        self._value = value
+        self._source = source
+        self._output_paths: Set[str] = set()
+        self._json = None
+        self._str = None
+        self._repr = None
+
+    def _get_path(self, directory: str) -> str:
+        assert self._source is not None
+        assert self._value is not None
+        return f'{directory}/{self._source._job_id}/{self._value}'
+
+    def _add_converted_resource(self, value):
+        jrf = self._source._batch._new_job_resource_file(self._source, value)
+        self._source._resources[value] = jrf
+        self._source._resources_inverse[jrf] = value
+        self._source._valid.add(jrf)
+        self._source._mentioned.add(jrf)
+        return jrf
+
+    def _add_output_path(self, path: str) -> None:
+        self._output_paths.add(path)
+        if self._source is not None:
+            self._source._external_outputs.add(self)
+
+    def source(self) -> job.PythonJob:
+        """
+        Get the job that created the Python result.
+        """
+        return cast(job.PythonJob, self._source)
+
+    def as_json(self) -> JobResourceFile:
+        """
+        Convert a Python result to a file with a JSON representation of the object.
+
+        Examples
+        --------
+
+        .. code-block:: python
+
+            def add(x, y):
+                return {'result': x + y}
+
+
+            b = Batch()
+            j = b.new_python_job(name='add')
+            result = j.call(add, 3, 2)
+            b.write_output(result.as_json(), 'output/add.json')
+            b.run()
+
+        Returns
+        -------
+        :class:`.JobResourceFile`
+            A new resource file where the contents are a Python object
+            that has been converted to JSON.
+        """
+        if self._json is None:
+            jrf = self._add_converted_resource(self._value + '-json')
+            jrf.add_extension('.json')
+            self._json = jrf
+        return cast(JobResourceFile, self._json)
+
+    def as_str(self) -> JobResourceFile:
+        """
+        Convert a Python result to a file with the str representation of the object.
+
+        Examples
+        --------
+
+        .. code-block:: python
+
+            def add(x, y):
+                return x + y
+
+
+            b = Batch()
+            j = b.new_python_job(name='add')
+            result = j.call(add, 3, 2)
+            b.write_output(result.as_str(), 'output/add.txt')
+            b.run()
+
+        Returns
+        -------
+        :class:`.JobResourceFile`
+            A new resource file where the contents are the str representation
+            of a Python object.
+        """
+        if self._str is None:
+            jrf = self._add_converted_resource(self._value + '-str')
+            jrf.add_extension('.txt')
+            self._str = jrf
+        return cast(JobResourceFile, self._str)
+
+    def as_repr(self) -> JobResourceFile:
+        """
+        Convert a Python result to a file with the repr representation of the object.
+
+        Examples
+        --------
+
+        .. code-block:: python
+
+            def add(x, y):
+                return x + y
+
+
+            b = Batch()
+            j = b.new_python_job(name='add')
+            result = j.call(add, 3, 2)
+            b.write_output(result.as_repr(), 'output/add.txt')
+            b.run()
+
+        Returns
+        -------
+        :class:`.JobResourceFile`
+            A new resource file where the contents are the repr representation
+            of a Python object.
+        """
+        if self._repr is None:
+            jrf = self._add_converted_resource(self._value + '-repr')
+            jrf.add_extension('.txt')
+            self._repr = jrf
+        return cast(JobResourceFile, self._repr)
+
+    def __str__(self):
+        return f'"{self._uid}"'  # pylint: disable=no-member
+
+    def __repr__(self):
+        return self._uid  # pylint: disable=no-member

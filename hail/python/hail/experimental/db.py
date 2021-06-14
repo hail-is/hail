@@ -5,8 +5,7 @@ from typing import Iterable, List, Optional, Set, Tuple, Union
 
 import hail as hl
 import pkg_resources
-from hailtop.utils import (retry_response_returning_functions,
-                           external_requests_client_session)
+from hailtop.utils import (external_requests_client_session, retry_response_returning_functions)
 
 from .lens import MatrixRows, TableRows
 from ..expr import StructExpression
@@ -34,7 +33,7 @@ class DatasetVersion:
     """
 
     @staticmethod
-    def from_json(doc: dict, cloud: str) -> 'DatasetVersion':
+    def from_json(doc: dict, cloud: str) -> Optional['DatasetVersion']:
         """Create :class:`.DatasetVersion` object from dictionary.
 
         Parameters
@@ -48,15 +47,17 @@ class DatasetVersion:
 
         Returns
         -------
-        :class:`.DatasetVersion`
+        :class:`.DatasetVersion` if available on cloud platform, else ``None``.
         """
         assert 'url' in doc, doc
         assert 'version' in doc, doc
         assert 'reference_genome' in doc, doc
-        assert cloud in doc['url'], doc['url']
-        return DatasetVersion(doc['url'][cloud],
-                              doc['version'],
-                              doc['reference_genome'])
+        if cloud in doc['url']:
+            return DatasetVersion(doc['url'][cloud],
+                                  doc['version'],
+                                  doc['reference_genome'])
+        else:
+            return None
 
     @staticmethod
     def get_region(name: str,
@@ -209,7 +210,8 @@ class Dataset:
         assert 'versions' in doc, doc
         key_properties = set(x for x in doc['annotation_db']['key_properties']
                              if x is not None)
-        versions = [DatasetVersion.from_json(x, cloud) for x in doc['versions']]
+        versions = [DatasetVersion.from_json(x, cloud) for x in doc['versions']
+                    if DatasetVersion.from_json(x, cloud) is not None]
         versions_in_region = DatasetVersion.get_region(name, versions, region)
         if versions_in_region:
             return Dataset(name,
@@ -267,9 +269,13 @@ class Dataset:
                           for version in self.versions)
             if index is not None]
         if len(compatible_indexed_values) == 0:
-            raise ValueError(f'Could not find compatible version of'
-                             f' {self.name} for user dataset with'
-                             f' key {key_expr.dtype}.')
+            versions = [f'{(v.version, v.reference_genome)}' for v in self.versions]
+            raise ValueError(
+                f'Could not find compatible version of {self.name} for user'
+                f' dataset with key {key_expr.dtype}.\n'
+                f'This annotation dataset is available for the following'
+                f' versions and reference genome builds: {", ".join(versions)}.'
+            )
         assert len(compatible_indexed_values) == 1, \
             f'{key_expr.dtype}, {self.name}, {compatible_indexed_values}'
         return compatible_indexed_values[0]

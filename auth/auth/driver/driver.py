@@ -58,9 +58,7 @@ class EventHandler:
                 await asyncio.sleep(t)
 
                 ran_for_secs = (end_time - start_time) * 1000
-                delay_secs = min(
-                    max(self.min_delay_secs, 2 * delay_secs - min(0, (ran_for_secs - t) / 2)),
-                    30.0)
+                delay_secs = min(max(self.min_delay_secs, 2 * delay_secs - min(0, (ran_for_secs - t) / 2)), 30.0)
 
     async def bump_loop(self):
         while True:
@@ -88,11 +86,13 @@ class SessionResource:
         if self.session_id is None:
             return
 
-        await self.db.just_execute('''
+        await self.db.just_execute(
+            '''
 DELETE FROM sessions
 WHERE session_id = %s;
 ''',
-                                   (self.session_id,))
+            (self.session_id,),
+        )
         self.session_id = None
 
 
@@ -110,19 +110,16 @@ class K8sSecretResource:
         await self.k8s_client.create_namespaced_secret(
             namespace,
             kube.client.V1Secret(
-                metadata=kube.client.V1ObjectMeta(
-                    name=name),
-                data={
-                    k: base64.b64encode(v.encode('utf-8')).decode('utf-8')
-                    for k, v in data.items()
-                }))
+                metadata=kube.client.V1ObjectMeta(name=name),
+                data={k: base64.b64encode(v.encode('utf-8')).decode('utf-8') for k, v in data.items()},
+            ),
+        )
         self.name = name
         self.namespace = namespace
 
     async def _delete(self, name, namespace):
         try:
-            await self.k8s_client.delete_namespaced_secret(
-                name, namespace)
+            await self.k8s_client.delete_namespaced_secret(name, namespace)
         except kube.client.rest.ApiException as e:
             if e.status == 404:
                 pass
@@ -150,18 +147,12 @@ class GSAResource:
         await self._delete(gsa_email)
 
         service_account = await self.iam_client.post(
-            '/serviceAccounts',
-            json={
-                "accountId": username,
-                "serviceAccount": {
-                    "displayName": username
-                }
-            })
+            '/serviceAccounts', json={"accountId": username, "serviceAccount": {"displayName": username}}
+        )
         assert service_account['email'] == gsa_email
         self.gsa_email = gsa_email
 
-        key = await self.iam_client.post(
-            f'/serviceAccounts/{self.gsa_email}/keys')
+        key = await self.iam_client.post(f'/serviceAccounts/{self.gsa_email}/keys')
 
         return (self.gsa_email, key)
 
@@ -196,12 +187,14 @@ class DatabaseResource:
         await self._delete(name)
 
         self.password = secrets.token_urlsafe(16)
-        await self.db_instance.just_execute(f'''
+        await self.db_instance.just_execute(
+            f'''
 CREATE DATABASE `{name}`;
 
 CREATE USER '{name}'@'%' IDENTIFIED BY '{self.password}';
 GRANT ALL ON `{name}`.* TO '{name}'@'%';
-''')
+'''
+        )
         self.name = name
 
     def secret_data(self):
@@ -215,8 +208,7 @@ GRANT ALL ON `{name}`.* TO '{name}'@'%';
             client_key = f.read()
 
         if is_test_deployment:
-            return create_secret_data_from_config(
-                server_config, server_ca, client_cert, client_key)
+            return create_secret_data_from_config(server_config, server_ca, client_cert, client_key)
 
         assert self.name is not None
         assert self.password is not None
@@ -232,17 +224,16 @@ GRANT ALL ON `{name}`.* TO '{name}'@'%';
             ssl_ca='/sql-config/server-ca.pem',
             ssl_cert='/sql-config/client-cert.pem',
             ssl_key='/sql-config/client-key.pem',
-            ssl_mode='VERIFY_CA')
-        return create_secret_data_from_config(
-            config, server_ca, client_cert, client_key)
+            ssl_mode='VERIFY_CA',
+        )
+        return create_secret_data_from_config(config, server_ca, client_cert, client_key)
 
     async def _delete(self, name):
         if is_test_deployment:
             return
 
         # no DROP USER IF EXISTS in current db version
-        row = await self.db_instance.execute_and_fetchone(
-            'SELECT 1 FROM mysql.user WHERE User = %s;', (name,))
+        row = await self.db_instance.execute_and_fetchone('SELECT 1 FROM mysql.user WHERE User = %s;', (name,))
         if row is not None:
             await self.db_instance.just_execute(f"DROP USER '{name}';")
 
@@ -265,10 +256,7 @@ class K8sNamespaceResource:
 
         await self._delete(name)
 
-        await self.k8s_client.create_namespace(
-            kube.client.V1Namespace(
-                metadata=kube.client.V1ObjectMeta(
-                    name=name)))
+        await self.k8s_client.create_namespace(kube.client.V1Namespace(metadata=kube.client.V1ObjectMeta(name=name)))
         self.name = name
 
     async def _delete(self, name):
@@ -368,9 +356,7 @@ async def _create_user(app, user, skip_trial_bp, cleanup):
     else:
         ident = ident_token
 
-    updates = {
-        'state': 'active'
-    }
+    updates = {'state': 'active'}
 
     tokens_secret_name = user['tokens_secret_name']
     if tokens_secret_name is None:
@@ -381,11 +367,11 @@ async def _create_user(app, user, skip_trial_bp, cleanup):
         tokens_secret_name = f'{ident}-tokens'
         tokens_secret = K8sSecretResource(k8s_client)
         cleanup.append(tokens_secret.delete)
-        await tokens_secret.create(tokens_secret_name, DEFAULT_NAMESPACE, {
-            'tokens.json': json.dumps({
-                DEFAULT_NAMESPACE: tokens_session.session_id
-            })
-        })
+        await tokens_secret.create(
+            tokens_secret_name,
+            DEFAULT_NAMESPACE,
+            {'tokens.json': json.dumps({DEFAULT_NAMESPACE: tokens_session.session_id})},
+        )
         updates['tokens_secret_name'] = tokens_secret_name
 
     gsa_email = user['gsa_email']
@@ -402,9 +388,11 @@ async def _create_user(app, user, skip_trial_bp, cleanup):
         gsa_key_secret_name = f'{ident}-gsa-key'
         gsa_key_secret = K8sSecretResource(k8s_client)
         cleanup.append(gsa_key_secret.delete)
-        await gsa_key_secret.create(gsa_key_secret_name, DEFAULT_NAMESPACE, {
-            'key.json': base64.b64decode(key['privateKeyData']).decode('utf-8')
-        })
+        await gsa_key_secret.create(
+            gsa_key_secret_name,
+            DEFAULT_NAMESPACE,
+            {'key.json': base64.b64decode(key['privateKeyData']).decode('utf-8')},
+        )
         updates['gsa_key_secret_name'] = gsa_key_secret_name
 
     namespace_name = user['namespace_name']
@@ -421,8 +409,7 @@ async def _create_user(app, user, skip_trial_bp, cleanup):
 
         db_secret = K8sSecretResource(k8s_client)
         cleanup.append(db_secret.delete)
-        await db_secret.create(
-            'database-server-config', namespace_name, db_resource.secret_data())
+        await db_secret.create('database-server-config', namespace_name, db_resource.secret_data())
 
     if not skip_trial_bp and user['is_service_account'] != 1:
         trial_bp = user['trial_bp_name']
@@ -434,12 +421,14 @@ async def _create_user(app, user, skip_trial_bp, cleanup):
             await billing_project.create(username, billing_project_name)
             updates['trial_bp_name'] = billing_project_name
 
-    n_rows = await db.execute_update(f'''
+    n_rows = await db.execute_update(
+        f'''
 UPDATE users
 SET {', '.join([f'{k} = %({k})s' for k in updates])}
 WHERE id = %(id)s AND state = 'creating';
 ''',
-                                     {'id': user['id'], **updates})
+        {'id': user['id'], **updates},
+    )
     if n_rows != 1:
         assert n_rows == 0
         raise DatabaseConflictError
@@ -502,11 +491,13 @@ async def delete_user(app, user):
         bp = BillingProjectResource(batch_client, user['username'], trial_bp_name)
         await bp.delete()
 
-    await db.just_execute('''
+    await db.just_execute(
+        '''
 DELETE FROM sessions WHERE user_id = %s;
 UPDATE users SET state = 'deleted' WHERE id = %s;
 ''',
-                          (user['id'], user['id']))
+        (user['id'], user['id']),
+    )
 
 
 async def update_users(app):
@@ -514,16 +505,12 @@ async def update_users(app):
 
     db = app['db']
 
-    creating_users = [
-        x async for x in
-        db.execute_and_fetchall('SELECT * FROM users WHERE state = %s;', 'creating')]
+    creating_users = [x async for x in db.execute_and_fetchall('SELECT * FROM users WHERE state = %s;', 'creating')]
 
     for user in creating_users:
         await create_user(app, user)
 
-    deleting_users = [
-        x async for x in
-        db.execute_and_fetchall('SELECT * FROM users WHERE state = %s;', 'deleting')]
+    deleting_users = [x async for x in db.execute_and_fetchall('SELECT * FROM users WHERE state = %s;', 'deleting')]
 
     for user in deleting_users:
         await delete_user(app, user)
@@ -549,7 +536,8 @@ async def async_main():
         app['k8s_client'] = k8s_client
 
         app['iam_client'] = aiogoogle.IAmClient(
-            PROJECT, credentials=aiogoogle.Credentials.from_file('/gsa-key/key.json'))
+            PROJECT, credentials=aiogoogle.Credentials.from_file('/gsa-key/key.json')
+        )
 
         app['batch_client'] = bc.aioclient.BatchClient(None)
 
@@ -559,10 +547,7 @@ async def async_main():
         async def users_changed_handler():
             return await update_users(app)
 
-        user_creation_loop = EventHandler(
-            users_changed_handler,
-            event=users_changed_event,
-            min_delay_secs=1.0)
+        user_creation_loop = EventHandler(users_changed_handler, event=users_changed_event, min_delay_secs=1.0)
         await user_creation_loop.start()
 
         while True:

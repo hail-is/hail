@@ -138,7 +138,7 @@ case class BlockMatrixType(
 
   def blockShape(i: Int, j: Int): (Long, Long) = {
     val r = if (i == nRowBlocks - 1) nRows - (i * blockSize) else blockSize
-    val c = if (i == nColBlocks - 1) nCols - (i * blockSize) else blockSize
+    val c = if (j == nColBlocks - 1) nCols - (j * blockSize) else blockSize
     r -> c
   }
 

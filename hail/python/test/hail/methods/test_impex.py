@@ -58,7 +58,7 @@ class VCFTests(unittest.TestCase):
         for f in _FLOAT_ARRAY_INFO_FIELDS:
             self.assertEqual(mt['info'][f].dtype, hl.tarray(hl.tfloat64))
 
-    @fails_service_backend()
+    @skip_when_service_backend('Shuffler encoding/decoding is broken.')
     def test_glob(self):
         full = hl.import_vcf(resource('sample.vcf'))
         parts = hl.import_vcf(resource('samplepart*.vcf'))
@@ -74,6 +74,10 @@ class VCFTests(unittest.TestCase):
         self.assertTrue('InbreedingCoeff' in info_type)
         self.assertFalse('undeclared' in info_type)
         self.assertFalse('undeclaredFlag' in info_type)
+
+    @fails_service_backend()
+    def test_can_import_bad_number_flag(self):
+        hl.import_vcf(resource('bad_flag_number.vcf')).rows()._force_count()
 
     @fails_service_backend()
     def test_malformed(self):
@@ -142,7 +146,6 @@ class VCFTests(unittest.TestCase):
         entries = entries.select('GT', 'GTA', 'GTZ')
         self.assertTrue(entries._same(expected))
 
-    @fails_service_backend()
     def test_import_vcf(self):
         vcf = hl.split_multi_hts(
             hl.import_vcf(resource('sample2.vcf'),
@@ -188,7 +191,6 @@ class VCFTests(unittest.TestCase):
                                              hl.agg.all(mt.negative_int_array == [-1, -2]) &
                                              hl.agg.all(mt.negative_float_array == [-0.5, -1.5])))
 
-    @fails_service_backend()
     def test_import_vcf_missing_info_field_elements(self):
         mt = hl.import_vcf(resource('missingInfoArray.vcf'), reference_genome='GRCh37', array_elements_required=False)
         mt = mt.select_rows(FOO=mt.info.FOO, BAR=mt.info.BAR)
@@ -233,7 +235,6 @@ class VCFTests(unittest.TestCase):
         mt = hl.import_vcf(resource('test_set_field_missing.vcf'))
         mt.aggregate_entries(hl.agg.sum(mt.DP))
 
-    @fails_service_backend()
     def test_import_vcf_dosages_as_doubles_or_floats(self):
         mt = hl.import_vcf(resource('small-ds.vcf'))
         self.assertEqual(hl.expr.expressions.typed_expressions.Float64Expression, type(mt.entry.DS))
@@ -458,6 +459,26 @@ class VCFTests(unittest.TestCase):
         comb = combine_gvcfs(vcfs)
         self.assertEqual(len(parts), comb.n_partitions())
         comb._force_count_rows()
+
+    @fails_service_backend(reason='register_ir_function')
+    def test_haploid_combiner_ok(self):
+        from hail.experimental.vcf_combiner.vcf_combiner import transform_gvcf
+        # make a combiner table
+        mt = hl.utils.range_matrix_table(2, 1)
+        mt = mt.annotate_cols(s='S01')
+        mt = mt.key_cols_by('s')
+        mt = mt.select_cols()
+        mt = mt.annotate_rows(locus=hl.locus(contig='chrX', pos=mt.row_idx + 100, reference_genome='GRCh38'))
+        mt = mt.key_rows_by('locus')
+        mt = mt.annotate_rows(alleles=['A', '<NON_REF>'])
+        mt = mt.annotate_entries(GT=hl.if_else((mt.row_idx % 2) == 0, hl.call(0), hl.call(0, 0)))
+        mt = mt.annotate_entries(DP=31)
+        mt = mt.annotate_entries(GQ=30)
+        mt = mt.annotate_entries(PL=hl.if_else((mt.row_idx % 2) == 0, [0, 20], [0, 20, 400]))
+        mt = mt.annotate_rows(info=hl.struct(END=mt.locus.position))
+        mt = mt.annotate_rows(rsid=hl.missing(hl.tstr))
+        mt = mt.drop('row_idx')
+        transform_gvcf(mt)._force_count()
 
     def test_combiner_parse_as_annotations(self):
         from hail.experimental.vcf_combiner.vcf_combiner import parse_as_fields
@@ -934,6 +955,24 @@ class PLINKTests(unittest.TestCase):
                         resource('sex_mt_contigs.bim'),
                         resource('sex_mt_contigs.fam'),
                         reference_genome='random')
+
+    @fails_service_backend()
+    @fails_local_backend()
+    def test_export_plink_struct_locus(self):
+        mt = hl.utils.range_matrix_table(10, 10)
+        mt = mt.key_rows_by(locus=hl.struct(contig=hl.str(mt.row_idx), position=mt.row_idx), alleles=['A', 'T']).select_rows()
+        mt = mt.key_cols_by(s=hl.str(mt.col_idx)).select_cols()
+        mt = mt.annotate_entries(GT=hl.call(0, 0))
+
+        out = new_temp_file()
+
+        hl.export_plink(mt, out)
+        mt2 = hl.import_plink(
+            bed=out + '.bed',
+            bim=out + '.bim',
+            fam=out + '.fam',
+            reference_genome=None).select_rows().select_cols()
+        assert mt._same(mt2)
 
 
 # this routine was used to generate resources random.gen, random.sample
@@ -1841,7 +1880,7 @@ class ImportMatrixTableTests(unittest.TestCase):
 
     @fails_service_backend()
     @fails_local_backend()
-    def test_devlish_nine_separated_eight_missing_file(self):
+    def test_devilish_nine_separated_eight_missing_file(self):
         fields = {'chr': hl.tstr,
                   '': hl.tint32,
                   'ref': hl.tstr,
@@ -1985,7 +2024,6 @@ class ImportTableTests(unittest.TestCase):
                        ht.source.endswith('variantAnnotations.split.2.tsv'))))
 
 
-    @fails_service_backend()
     def test_read_write_identity(self):
         ht = self.small_dataset_1()
         f = new_temp_file(extension='ht')
@@ -1999,7 +2037,6 @@ class ImportTableTests(unittest.TestCase):
         ht.write(f)
         assert ht._same(hl.read_table(f))
 
-    @fails_service_backend()
     def test_import_same(self):
         ht = hl.import_table(resource('sampleAnnotations.tsv'))
         ht2 = hl.import_table(resource('sampleAnnotations.tsv'))
@@ -2032,7 +2069,6 @@ class GrepTests(unittest.TestCase):
 
 
 @fails_service_backend()
-@fails_local_backend()
 def test_matrix_and_table_read_intervals_with_hidden_key():
     f1 = new_temp_file()
     f2 = new_temp_file()

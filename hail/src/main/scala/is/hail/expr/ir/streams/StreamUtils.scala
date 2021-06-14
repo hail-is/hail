@@ -3,7 +3,9 @@ package is.hail.expr.ir.streams
 import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.expr.ir.{EmitCodeBuilder, IEmitCode, IR, NDArrayMap, NDArrayMap2, Ref, RunAggScan, StagedArrayBuilder, StreamFilter, StreamFlatMap, StreamFold, StreamFold2, StreamFor, StreamJoinRightDistinct, StreamMap, StreamScan, StreamZip, StreamZipJoin}
-import is.hail.types.physical.{PCanonicalArray, PCode, PIndexableCode, SingleCodePCode}
+import is.hail.types.physical.stypes.interfaces.SIndexableCode
+import is.hail.types.physical.PCanonicalArray
+import is.hail.types.physical.stypes.SingleCodeType
 
 trait StreamArgType {
   def apply(outerRegion: Region, eltRegion: Region): Iterator[java.lang.Long]
@@ -15,28 +17,28 @@ object StreamUtils {
     cb: EmitCodeBuilder,
     stream: StreamProducer,
     destRegion: Value[Region]
-  ): PIndexableCode = {
+  ): SIndexableCode = {
     val mb = cb.emb
 
     val xLen = mb.newLocal[Int]("sta_len")
-    val aTyp = PCanonicalArray(stream.element.st.canonicalPType(), true)
+    val aTyp = PCanonicalArray(stream.element.emitType.canonicalPType, true)
     stream.length match {
       case None =>
-        val vab = new StagedArrayBuilder(stream.element.st.canonicalPType(), mb, 0)
+        val vab = new StagedArrayBuilder(SingleCodeType.fromSType(stream.element.st), stream.element.required, mb, 0)
         writeToArrayBuilder(cb, stream, vab, destRegion)
         cb.assign(xLen, vab.size)
 
         aTyp.constructFromElements(cb, destRegion, xLen, deepCopy = false) { (cb, i) =>
-          IEmitCode(cb, vab.isMissing(i), PCode(aTyp.elementType, vab(i)))
+          vab.loadFromIndex(cb, destRegion, i)
         }
 
-      case Some(len) =>
+      case Some(computeLen) =>
 
         var pushElem: (EmitCodeBuilder, IEmitCode) => Unit = null
-        var finish: (EmitCodeBuilder) => PIndexableCode = null
+        var finish: (EmitCodeBuilder) => SIndexableCode = null
 
         stream.memoryManagedConsume(destRegion, cb, setup = { cb =>
-          cb.assign(xLen, len)
+          cb.assign(xLen, computeLen(cb))
           val (_pushElem, _finish) = aTyp.constructFromFunctions(cb, destRegion, xLen, deepCopy = stream.requiresMemoryManagementPerElement)
           pushElem = _pushElem
           finish = _finish
@@ -56,12 +58,16 @@ object StreamUtils {
   ): Unit = {
     stream.memoryManagedConsume(destRegion, cb, setup = { cb =>
       cb += ab.clear
-      cb += ab.ensureCapacity(stream.length.getOrElse(const(16)))
+      stream.length match {
+        case Some(computeLen) => cb += ab.ensureCapacity(computeLen(cb))
+        case None => cb += ab.ensureCapacity(16)
+      }
+
 
     }) { cb =>
       stream.element.toI(cb).consume(cb,
         cb += ab.addMissing(),
-        sc => cb += ab.add(SingleCodePCode.fromPCode(cb, sc, destRegion, deepCopy = stream.requiresMemoryManagementPerElement).code)
+        sc => cb += ab.add(ab.elt.coerceSCode(cb, sc, destRegion, deepCopy = stream.requiresMemoryManagementPerElement).code)
       )
     }
   }

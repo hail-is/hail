@@ -46,9 +46,9 @@ final case class PCanonicalShuffle(
 
   def loadBinary(cb: EmitCodeBuilder, addr: Code[Long]): SBinaryPointerCode = representation.loadCheapPCode(cb, addr).asInstanceOf[SBinaryPointerCode]
 
-  def sType: SCanonicalShufflePointer = SCanonicalShufflePointer(this)
+  def sType: SCanonicalShufflePointer = SCanonicalShufflePointer(setRequired(false).asInstanceOf[PCanonicalShuffle])
 
-  def loadCheapPCode(cb: EmitCodeBuilder, addr: Code[Long]): PCode = new SCanonicalShufflePointerCode(sType, representation.loadCheapPCode(cb, addr))
+  def loadCheapPCode(cb: EmitCodeBuilder, addr: Code[Long]): SCode = new SCanonicalShufflePointerCode(sType, representation.loadCheapPCode(cb, addr))
 
   def store(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): Code[Long] = {
     value.st match {

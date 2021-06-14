@@ -2,8 +2,8 @@ package is.hail.asm4s
 
 import java.io.PrintStream
 import java.lang.reflect
-
 import is.hail.lir
+import is.hail.lir.{LdcX, ValueX}
 import is.hail.utils._
 import org.objectweb.asm.Opcodes._
 import org.objectweb.asm.Type
@@ -315,6 +315,7 @@ object Code {
     invokeStatic[S](tct.runtimeClass, method, Array[Class[_]](a1ct.runtimeClass, a2ct.runtimeClass, a3ct.runtimeClass, a4ct.runtimeClass, a5ct.runtimeClass), Array[Code[_]](a1, a2, a3, a4, a5))(sct)
 
   def _null[T >: Null](implicit tti: TypeInfo[T]): Code[T] = Code(lir.insn0(ACONST_NULL, tti))
+  def _uncheckednull(tti: TypeInfo[_]): Code[_] = Code(lir.insn0(ACONST_NULL, tti))
 
   def _empty: Code[Unit] = Code[Unit](null: lir.ValueX)
 
@@ -427,6 +428,12 @@ object Code {
     assert(f.isStatic)
     f.put(null, rhs)
   }
+
+  def constBoolValue(c: Code[Boolean]): Option[Boolean] =
+    c match {
+      case const: ConstCodeBoolean => Some(const.b)
+      case _ => None
+    }
 
   def currentTimeMillis(): Code[Long] = Code.invokeStatic0[java.lang.System, Long]("currentTimeMillis")
 
@@ -678,6 +685,27 @@ class CCode(
   }
 }
 
+class ConstCodeBoolean(val b: Boolean) extends Code[Boolean] {
+
+  private[this] lazy val ldc = new lir.LdcX(if (b) 1 else 0, BooleanInfo, 0)
+  private[this] lazy val vc = {
+    val L = new lir.Block()
+    new VCode(L, L, ldc)
+  }
+
+  def toCCode: CCode = vc.toCCode
+
+  def start: lir.Block = vc.start
+
+  def end: lir.Block = vc.end
+
+  def v: lir.ValueX = vc.v
+
+  def check(): Unit = vc.check()
+
+  def clear(): Unit = vc.clear()
+}
+
 class CodeBoolean(val lhs: Code[Boolean]) extends AnyVal {
   def toCCode: CCode = lhs match {
     case x: CCode =>
@@ -701,7 +729,10 @@ class CodeBoolean(val lhs: Code[Boolean]) extends AnyVal {
       newC
   }
 
-  def unary_!(): Code[Boolean] = !lhs.toCCode
+  def unary_!(): Code[Boolean] = lhs match {
+    case const: ConstCodeBoolean => new ConstCodeBoolean(!const.b)
+    case _ => !lhs.toCCode
+  }
 
   def muxAny(cthen: Code[_], celse: Code[_]): Code[_] = {
     mux[Any](coerce[Any](cthen), coerce[Any](celse))
@@ -1007,6 +1038,25 @@ class CodeArray[T](val lhs: Code[Array[T]])(implicit tti: TypeInfo[T]) {
     Code(lhs, i, lir.insn2(tti.aloadOp))
 
   def update(i: Code[Int], x: Code[T]): Code[Unit] = {
+    lhs.start.append(lir.goto(i.end))
+    i.start.append(lir.goto(x.start))
+    x.end.append(lir.stmtOp(tti.astoreOp, lhs.v, i.v, x.v))
+    val newC = new VCode(lhs.start, x.end, null)
+    lhs.clear()
+    i.clear()
+    x.clear()
+    newC
+  }
+
+  def length(): Code[Int] =
+    Code(lhs, lir.insn1(ARRAYLENGTH))
+}
+
+class UntypedCodeArray(val lhs: Code[_], tti: TypeInfo[_]) {
+  def apply(i: Code[Int]): Code[_] =
+    Code(lhs, i, lir.insn2(tti.aloadOp))
+
+  def update(i: Code[Int], x: Code[_]): Code[Unit] = {
     lhs.start.append(lir.goto(i.end))
     i.start.append(lir.goto(x.start))
     x.end.append(lir.stmtOp(tti.astoreOp, lhs.v, i.v, x.v))

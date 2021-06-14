@@ -10,8 +10,7 @@ from hailtop.utils import async_to_blocking
 
 
 class BlockingMemoryClient:
-    def __init__(self, gcs_project=None, fs=None, deploy_config=None, session=None,
-                 headers=None, _token=None):
+    def __init__(self, gcs_project=None, fs=None, deploy_config=None, session=None, headers=None, _token=None):
         self._client = MemoryClient(gcs_project, fs, deploy_config, session, headers, _token)
         async_to_blocking(self._client.async_init())
 
@@ -21,8 +20,12 @@ class BlockingMemoryClient:
     def read_file(self, filename):
         return async_to_blocking(self._client.read_file(filename))
 
+    def write_file(self, filename, data):
+        return async_to_blocking(self._client.write_file(filename, data))
+
     def close(self):
         return async_to_blocking(self._client.close())
+
 
 class Tests(unittest.TestCase):
     def setUp(self):
@@ -47,7 +50,7 @@ class Tests(unittest.TestCase):
         for _ in range(3):
             self.assertIsNone(self.client._get_file_if_exists(f'{self.test_path}/nonexistent'))
 
-    def test_small(self):
+    def test_small_write_around(self):
         cases = [('empty_file', b''), ('null', b'\0'), ('small', b'hello world')]
         for file, data in cases:
             handle = self.add_temp_file_from_string(file, data)
@@ -59,3 +62,11 @@ class Tests(unittest.TestCase):
                 cached = self.client._get_file_if_exists(handle)
                 i += 1
             self.assertEqual(cached, expected)
+
+    def test_small_write_through(self):
+        cases = [('empty_file2', b''), ('null2', b'\0'), ('small2', b'hello world')]
+        for file, data in cases:
+            filename = f'{self.test_path}/{file}'
+            self.client.write_file(filename, data)
+            cached = self.client._get_file_if_exists(filename)
+            self.assertEqual(cached, data)

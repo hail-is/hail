@@ -1,7 +1,8 @@
-#include <hail/query/backend/compile.hpp>
-#include <hail/query/backend/svalue.hpp>
 #include <llvm/IR/BasicBlock.h>
 #include <llvm/IR/IRBuilder.h>
+
+#include "hail/query/backend/compile.hpp"
+#include "hail/query/backend/svalue.hpp"
 
 namespace hail {
 

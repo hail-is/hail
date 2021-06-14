@@ -3,6 +3,7 @@
 HAIL_DIR := $(shell dirname $(realpath $(firstword $(MAKEFILE_LIST))))
 
 include env_var.mk
+
 .DEFAULT_GOAL := shadowJar
 MAKEFLAGS += --no-builtin-rules
 .SUFFIXES:
@@ -13,7 +14,7 @@ BRANCH := $(shell git rev-parse --abbrev-ref HEAD)
 SCALA_VERSION ?= 2.12.13
 SPARK_VERSION ?= 3.1.1
 HAIL_MAJOR_MINOR_VERSION := 0.2
-HAIL_PATCH_VERSION := 64
+HAIL_PATCH_VERSION := 68
 HAIL_PIP_VERSION := $(HAIL_MAJOR_MINOR_VERSION).$(HAIL_PATCH_VERSION)
 HAIL_VERSION := $(HAIL_PIP_VERSION)-$(SHORT_REVISION)
 ELASTIC_MAJOR_VERSION ?= 7
@@ -191,7 +192,7 @@ copy-py-files: $(PYTHON_VERSION_INFO) $(SHADOW_JAR) $(INIT_SCRIPTS) $(PY_FILES) 
 	mkdir -p build/deploy
 	mkdir -p build/deploy/src
 	cp ../README.md build/deploy/
-	rsync -rv \
+	rsync -r \
 	    --exclude '.eggs/' \
 	    --exclude '.pytest_cache/' \
 	    --exclude '__pycache__/' \
@@ -240,7 +241,7 @@ python/hailtop/hailctl/deploy.yaml: $(resources) python/requirements.txt
 	for FILE in $(notdir $(resources)); do \
 	  echo "  $$FILE: $(cloud_base)/$$FILE" >> $@ || exit 1; done
 	echo "  wheel: $(wheel_cloud_path)" >> $@
-	echo "  pip_dependencies: $(shell cat python/requirements.txt | grep -v pyspark | tr "\n" "|||")" >> $@
+	echo "  pip_dependencies: $(shell cat python/requirements.txt | sed '/^[[:blank:]]*#/d;s/#.*//' | grep -v pyspark | tr "\n" "|||")" >> $@
 
 .PHONY: upload-artifacts
 upload-artifacts: $(WHEEL)
@@ -261,7 +262,7 @@ install: $(WHEEL)
 
 .PHONY: install-on-cluster
 install-on-cluster: $(WHEEL)
-	sed '/^pyspark/d' python/requirements.txt | xargs $(PIP) install -U
+	sed '/^pyspark/d' python/requirements.txt | grep -v '^#' | xargs $(PIP) install -U
 	-$(PIP) uninstall -y hail
 	$(PIP) install $(WHEEL) --no-deps
 
@@ -326,7 +327,7 @@ HAIL_CACHE_VERSION = $(shell cat python/hail/hail_version)
 .PHONY: hail-docs
 hail-docs: $(PYTHON_VERSION_INFO) python/hail/docs/change_log.rst
 	$(MAKE) -C python/hail/docs \
-	        SPHINXOPTS='-tchecktutorial' \
+	        SPHINXOPTS='-tgenerate_notebook_outputs' \
 	        BUILDDIR=$(HAIL_DIR)/build/docs/hail \
 	        html
 	mkdir -p build/www/docs

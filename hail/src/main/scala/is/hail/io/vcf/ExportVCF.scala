@@ -470,7 +470,7 @@ object ExportVCF {
           val localFsBc = ctx.fsBc
           val files = fs.glob(path + "/part-*").map(_.getPath.getBytes)
           info(s"Writing tabix index for ${ files.length } in $path")
-          ctx.backend.parallelizeAndComputeWithIndex(ctx.backendContext, files)({ (pathBytes, _) =>
+          ctx.backend.parallelizeAndComputeWithIndex(ctx.backendContext, files)({ (pathBytes, _, _) =>
                       TabixVCF(localFsBc, new String(pathBytes))
                       Array.empty
                     })

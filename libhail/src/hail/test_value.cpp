@@ -1,8 +1,8 @@
-#include <hail/allocators.hpp>
-#include <hail/test.hpp>
-#include <hail/type.hpp>
-#include <hail/value.hpp>
-#include <hail/vtype.hpp>
+#include "hail/allocators.hpp"
+#include "hail/test.hpp"
+#include "hail/type.hpp"
+#include "hail/value.hpp"
+#include "hail/vtype.hpp"
 
 namespace hail {
 

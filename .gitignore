@@ -20,12 +20,17 @@ hs_err_pid*.log
 *hail/python/hail/docs/tutorials/data*
 *hail/python/hailtop/pipeline/docs/output*
 .mypy_cache/
+node_modules
 *.out
 GPATH
 GRTAGS
 GTAGS
 hail/python/hail/docs/experimental/hail.experimental.DB.rst
 hail/python/hailtop/batch/docs/api/
+**/hail_version
 web_common/web_common/static/css/
 website/docs.tar.gz
 website/website/static/css/
+*.dylib  # macOS dynamic libraries
+*/hail.jar
+infra/.terraform.lock.hcl

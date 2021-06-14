@@ -4,7 +4,7 @@ import breeze.linalg._
 import is.hail.HailContext
 import is.hail.annotations._
 import is.hail.expr.ir.functions.MatrixToTableFunction
-import is.hail.expr.ir.{ExecuteContext, MatrixValue, TableValue}
+import is.hail.expr.ir.{ExecuteContext, IntArrayBuilder, MatrixValue, TableValue}
 import is.hail.types.virtual.{TArray, TFloat64, TStruct}
 import is.hail.types.{MatrixType, TableType}
 import is.hail.rvd.RVDType
@@ -94,7 +94,7 @@ case class LogisticRegression(
     val newRVD = mv.rvd.mapPartitions(newRVDType) { (ctx, it) =>
       val rvb = ctx.rvb
 
-      val missingCompleteCols = new BoxedArrayBuilder[Int]()
+      val missingCompleteCols = new IntArrayBuilder()
       val _nullFits = nullFitBc.value
       val _yVecs = yVecsBc.value
       val X = XBc.value.copy

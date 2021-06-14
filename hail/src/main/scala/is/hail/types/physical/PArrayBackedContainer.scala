@@ -142,14 +142,14 @@ trait PArrayBackedContainer extends PContainer {
   def unstagedStoreAtAddress(addr: Long, region: Region, srcPType: PType, srcAddress: Long, deepCopy: Boolean): Unit =
     arrayRep.unstagedStoreAtAddress(addr, region, srcPType.asInstanceOf[PArrayBackedContainer].arrayRep, srcAddress, deepCopy)
 
-  def sType: SContainer = SIndexablePointer(this)
+  def sType: SIndexablePointer = SIndexablePointer(setRequired(false).asInstanceOf[PArrayBackedContainer])
 
-  def loadCheapPCode(cb: EmitCodeBuilder, addr: Code[Long]): PCode = new SIndexablePointerCode(SIndexablePointer(this), addr)
+  def loadCheapPCode(cb: EmitCodeBuilder, addr: Code[Long]): SCode = new SIndexablePointerCode(sType, addr)
 
-  def store(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): Code[Long] = arrayRep.store(cb, region, value, deepCopy)
+  def store(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): Code[Long] = arrayRep.store(cb, region, value.asIndexable.castToArray(cb), deepCopy)
 
   def storeAtAddress(cb: EmitCodeBuilder, addr: Code[Long], region: Value[Region], value: SCode, deepCopy: Boolean): Unit =
-    arrayRep.storeAtAddress(cb, addr, region, value, deepCopy)
+    arrayRep.storeAtAddress(cb, addr, region, value.asIndexable.castToArray(cb), deepCopy)
 
   def loadFromNested(addr: Code[Long]): Code[Long] = arrayRep.loadFromNested(addr)
 

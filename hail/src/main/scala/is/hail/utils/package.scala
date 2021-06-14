@@ -7,9 +7,9 @@ import java.security.SecureRandom
 import java.text.SimpleDateFormat
 import java.util.{Base64, Date}
 import java.util.zip.{Deflater, Inflater}
-
 import is.hail.annotations.ExtendedOrdering
 import is.hail.check.Gen
+import is.hail.expr.ir.ByteArrayBuilder
 import org.apache.commons.io.output.TeeOutputStream
 import org.apache.commons.lang3.StringUtils
 import org.apache.hadoop.fs.PathIOException
@@ -309,6 +309,15 @@ package object utils extends Logging
   def formatDouble(d: Double, precision: Int): String = d.formatted(s"%.${ precision }f")
 
   def uriPath(uri: String): String = new URI(uri).getPath
+
+  def removeFileProtocol(uriString: String): String = {
+    val uri = new URI(uriString)
+    if (uri.getScheme == "file") {
+      uri.getPath
+    } else {
+      uri.toString
+    }
+  }
 
   // NB: can't use Nothing here because it is not a super type of Null
   private object flattenOrNullInstance extends FlattenOrNull[Array]
@@ -792,7 +801,7 @@ package object utils extends Logging
     }
   }
 
-  def compress(bb: BoxedArrayBuilder[Byte], input: Array[Byte]): Int = {
+  def compress(bb: ByteArrayBuilder, input: Array[Byte]): Int = {
     val compressor = new Deflater()
     compressor.setInput(input)
     compressor.finish()

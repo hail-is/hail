@@ -17,7 +17,7 @@ BEARER = 'Bearer '
 
 def maybe_parse_bearer_header(value: str) -> Optional[str]:
     if value.startswith(BEARER):
-        return value[len(BEARER):]
+        return value[len(BEARER) :]
     return None
 
 
@@ -58,6 +58,7 @@ def rest_authenticated_users_only(fun):
                 return web.HTTPUnauthorized(reason="provided web auth to REST endpoint")
             raise web.HTTPUnauthorized()
         return await fun(request, userdata, *args, **kwargs)
+
     return wrapped
 
 
@@ -90,7 +91,9 @@ def web_authenticated_users_only(redirect=True):
                     return web.HTTPUnauthorized(reason="provided REST auth to web endpoint")
                 raise _web_unauthorized(request, redirect)
             return await fun(request, userdata, *args, **kwargs)
+
         return wrapped
+
     return wrap
 
 
@@ -98,6 +101,7 @@ def web_maybe_authenticated_user(fun):
     @wraps(fun)
     async def wrapped(request, *args, **kwargs):
         return await fun(request, await userdata_from_web_request(request), *args, **kwargs)
+
     return wrapped
 
 
@@ -109,7 +113,9 @@ def web_authenticated_developers_only(redirect=True):
             if userdata['is_developer'] == 1:
                 return await fun(request, userdata, *args, **kwargs)
             raise _web_unauthorized(request, redirect)
+
         return wrapped
+
     return wrap
 
 
@@ -120,4 +126,5 @@ def rest_authenticated_developers_only(fun):
         if userdata['is_developer'] == 1:
             return await fun(request, userdata, *args, **kwargs)
         raise web.HTTPUnauthorized()
+
     return wrapped

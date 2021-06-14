@@ -478,8 +478,8 @@ def any(condition) -> BooleanExpression:
     +-----+-------------+
     | str | bool        |
     +-----+-------------+
-    | "F" | false       |
-    | "M" | true        |
+    | "F" | False       |
+    | "M" | True        |
     +-----+-------------+
 
     Notes
@@ -516,8 +516,8 @@ def all(condition) -> BooleanExpression:
     +-----+--------------+
     | str | bool         |
     +-----+--------------+
-    | "F" | false        |
-    | "M" | false        |
+    | "F" | False        |
+    | "M" | False        |
     +-----+--------------+
 
     Notes

@@ -7,7 +7,8 @@ import is.hail.io.{BufferSpec, InputBuffer, OutputBuffer, TypedCodecSpec}
 import is.hail.types.VirtualTypeWithReq
 import is.hail.types.physical._
 import is.hail.types.physical.stypes.SCode
-import is.hail.types.physical.stypes.concrete.{SBaseStructPointer, SBaseStructPointerCode}
+import is.hail.types.physical.stypes.concrete.{SBaseStructPointer, SBaseStructPointerCode, SStackStruct}
+import is.hail.types.physical.stypes.interfaces.SBinaryCode
 import is.hail.utils._
 
 trait AggregatorState {
@@ -34,15 +35,14 @@ trait AggregatorState {
 
   def deserialize(codec: BufferSpec): (EmitCodeBuilder, Value[InputBuffer]) => Unit
 
-  def deserializeFromBytes(cb: EmitCodeBuilder, t: PBinary, address: Code[Long]): Unit = {
+  def deserializeFromBytes(cb: EmitCodeBuilder, bytes: SBinaryCode): Unit = {
     val lazyBuffer = kb.getOrDefineLazyField[MemoryBufferWrapper](Code.newInstance[MemoryBufferWrapper](), (this, "bufferWrapper"))
-    val addr = cb.newField[Long]("addr", address)
-    cb += lazyBuffer.invoke[Long, Int, Unit]("clearAndSetFrom", t.bytesAddress(addr), t.loadLength(addr))
+    cb += lazyBuffer.invoke[Array[Byte], Unit]("set", bytes.loadBytes())
     val ib = cb.newLocal("aggstate_deser_from_bytes_ib", lazyBuffer.invoke[InputBuffer]("buffer"))
     deserialize(BufferSpec.defaultUncompressed)(cb, ib)
   }
 
-  def serializeToRegion(cb: EmitCodeBuilder, t: PBinary, r: Code[Region]): Code[Long] = {
+  def serializeToRegion(cb: EmitCodeBuilder, t: PBinary, r: Code[Region]): SCode = {
     val lazyBuffer = kb.getOrDefineLazyField[MemoryWriterWrapper](Code.newInstance[MemoryWriterWrapper](), (this, "writerWrapper"))
     val addr = kb.genFieldThisRef[Long]("addr")
     cb += lazyBuffer.invoke[Unit]("clear")
@@ -52,7 +52,7 @@ trait AggregatorState {
     cb += t.storeLength(addr, lazyBuffer.invoke[Int]("length"))
     cb += lazyBuffer.invoke[Long, Unit]("copyToAddress", t.bytesAddress(addr))
 
-    addr
+    t.loadCheapPCode(cb, addr)
   }
 }
 
@@ -166,13 +166,13 @@ abstract class AbstractTypedRegionBackedAggState(val ptype: PType) extends Regio
 }
 
 class PrimitiveRVAState(val vtypes: Array[VirtualTypeWithReq], val kb: EmitClassBuilder[_]) extends AggregatorState {
-  private[this] val ptypes = vtypes.map(_.canonicalPType)
-  assert(ptypes.forall(_.isPrimitive))
+  private[this] val emitTypes = vtypes.map(_.canonicalEmitType)
+  assert(emitTypes.forall(_.st.isPrimitive))
 
-  val nFields: Int = ptypes.length
-  val fields: Array[EmitSettable] = Array.tabulate(nFields) { i => kb.newEmitField(s"primitiveRVA_${ i }_v", ptypes(i)) }
-  val storageType = PCanonicalTuple(true, ptypes: _*)
-  val sStorageType = SBaseStructPointer(storageType)
+  val nFields: Int = emitTypes.length
+  val fields: Array[EmitSettable] = Array.tabulate(nFields) { i => kb.newEmitField(s"primitiveRVA_${ i }_v", emitTypes(i)) }
+  val storageType = PCanonicalTuple(true, emitTypes.map(_.canonicalPType): _*)
+  val sStorageType = storageType.sType
 
   def foreachField(f: (Int, EmitSettable) => Unit): Unit = {
     (0 until nFields).foreach { i =>
@@ -187,7 +187,7 @@ class PrimitiveRVAState(val vtypes: Array[VirtualTypeWithReq], val kb: EmitClass
   private[this] def loadVarsFromRegion(cb: EmitCodeBuilder, srcc: Code[Long]): Unit = {
     val pv = new SBaseStructPointerCode(sStorageType, srcc).memoize(cb, "prim_rvastate_load_vars")
     foreachField { (i, es) =>
-      cb.assign(es, pv.loadField(cb, i).map(cb)(_.asPCode))
+      cb.assign(es, pv.loadField(cb, i))
     }
   }
 
@@ -197,7 +197,11 @@ class PrimitiveRVAState(val vtypes: Array[VirtualTypeWithReq], val kb: EmitClass
 
   def store(cb: EmitCodeBuilder, regionStorer: (EmitCodeBuilder, Value[Region]) => Unit, destc: Code[Long]): Unit = {
     val dest = cb.newLocal("prim_rvastate_store_dest", destc)
-    storageType.storeAtAddressFromFields(cb, dest, null, fields.map(_.load), false)
+    storageType.storeAtAddress(cb,
+      dest,
+      null,
+      SStackStruct.constructFromArgs(cb, null, storageType.virtualType, fields.map(_.load): _*),
+      false)
   }
 
   def copyFrom(cb: EmitCodeBuilder, src: Code[Long]): Unit = loadVarsFromRegion(cb, src)
@@ -205,11 +209,15 @@ class PrimitiveRVAState(val vtypes: Array[VirtualTypeWithReq], val kb: EmitClass
   def serialize(codec: BufferSpec): (EmitCodeBuilder, Value[OutputBuffer]) => Unit = {
     (cb, ob: Value[OutputBuffer]) =>
       foreachField { case (_, es) =>
-        if (es.pt.required) {
-          cb += ob.writePrimitive(es.pt)(es.v)
+        if (es.emitType.required) {
+          ob.writePrimitive(cb, es.get(cb))
         } else {
-          cb += ob.writeBoolean(es.m)
-          cb.ifx(!es.m, cb += ob.writePrimitive(es.pt)(es.v))
+          es.toI(cb).consume(cb,
+            cb += ob.writeBoolean(true),
+            { sc =>
+              cb += ob.writeBoolean(false)
+              ob.writePrimitive(cb, sc)
+            })
         }
       }
   }
@@ -217,12 +225,12 @@ class PrimitiveRVAState(val vtypes: Array[VirtualTypeWithReq], val kb: EmitClass
   def deserialize(codec: BufferSpec): (EmitCodeBuilder, Value[InputBuffer]) => Unit = {
     (cb, ib: Value[InputBuffer]) =>
       foreachField { case (_, es) =>
-        if (es.pt.required) {
-          cb.assign(es, EmitCode.present(cb.emb, PCode(es.pt, ib.readPrimitive(es.pt))))
+        if (es.emitType.required) {
+          cb.assign(es, EmitCode.present(cb.emb, ib.readPrimitive(es.st.virtualType)))
         } else {
           cb.ifx(ib.readBoolean(),
-            cb.assign(es, EmitCode.missing(cb.emb, es.pt)),
-            cb.assign(es, EmitCode.present(cb.emb, PCode(es.pt, ib.readPrimitive(es.pt)))))
+            cb.assign(es, EmitCode.missing(cb.emb, es.st)),
+            cb.assign(es, EmitCode.present(cb.emb, ib.readPrimitive(es.st.virtualType))))
         }
       }
   }

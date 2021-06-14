@@ -16,7 +16,7 @@ import is.hail.utils._
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.Row
 import org.apache.spark.{Partition, TaskContext}
-import org.json4s.JsonAST.JObject
+import org.json4s.JsonAST.{JObject, JString}
 import org.json4s.{Extraction, JValue}
 
 class PartitionIteratorLongReader(
@@ -44,7 +44,7 @@ class PartitionIteratorLongReader(
       val rv = mb.genFieldThisRef[Long]("pilr_rv")
 
       val producer = new StreamProducer {
-        override val length: Option[Code[Int]] = None
+        override val length: Option[EmitCodeBuilder => Code[Int]] = None
 
         override def initialize(cb: EmitCodeBuilder): Unit = {
           cb.assign(it, cb.emb.getObject(body(requestedType))
@@ -65,12 +65,13 @@ class PartitionIteratorLongReader(
         override def close(cb: EmitCodeBuilder): Unit = {}
       }
 
-      SStreamCode(SStream(producer.element.st, true), producer)
+      SStreamCode(SStream(producer.element.emitType), producer)
     }
   }
 
   def toJValue: JValue = {
     JObject(
+      "category" -> JString("PartitionIteratorLongReader"),
       "fullRowType" -> Extraction.decompose(fullRowType)(PartitionReader.formats),
       "contextType" -> Extraction.decompose(contextType)(PartitionReader.formats))
   }

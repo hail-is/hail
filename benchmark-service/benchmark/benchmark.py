@@ -11,8 +11,15 @@ from hailtop.utils import retry_long_running, collect_agen, humanize_timedelta_m
 from hailtop import aiotools
 import hailtop.batch_client.aioclient as bc
 from web_common import setup_aiohttp_jinja2, setup_common_static_routes, render_template
-from benchmark.utils import ReadGoogleStorage, get_geometric_mean, parse_file_path, enumerate_list_of_trials,\
-    list_benchmark_files, round_if_defined, submit_test_batch
+from benchmark.utils import (
+    ReadGoogleStorage,
+    get_geometric_mean,
+    parse_file_path,
+    enumerate_list_of_trials,
+    list_benchmark_files,
+    round_if_defined,
+    submit_test_batch,
+)
 import json
 import re
 import plotly
@@ -31,19 +38,15 @@ logging.basicConfig(level=logging.DEBUG)
 deploy_config = get_deploy_config()
 log = logging.getLogger('benchmark')
 
-BENCHMARK_FILE_REGEX = re.compile(r'gs://((?P<bucket>[^/]+)/)((?P<user>[^/]+)/)((?P<instanceId>[^/]*)/)((?P<version>[^-]+)-)((?P<sha>[^-]+))(-(?P<tag>[^\.]+))?\.json')
+BENCHMARK_FILE_REGEX = re.compile(
+    r'gs://((?P<bucket>[^/]+)/)((?P<user>[^/]+)/)((?P<instanceId>[^/]*)/)((?P<version>[^-]+)-)((?P<sha>[^-]+))(-(?P<tag>[^\.]+))?\.json'
+)
 
 GH_COMMIT_MESSAGE_REGEX = re.compile(r'(?P<title>.*)\s\(#(?P<pr_id>\d+)\)(?P<rest>.*)')
 
 BENCHMARK_ROOT = os.path.dirname(os.path.abspath(__file__))
 
-benchmark_data = {
-    'commits': {},
-    'dates': [],
-    'geo_means': [],
-    'pr_ids': [],
-    'shas': []
-}
+benchmark_data = {'commits': {}, 'dates': [], 'geo_means': [], 'pr_ids': [], 'shas': []}
 
 
 with open(os.environ.get('HAIL_CI_OAUTH_TOKEN', 'oauth-token/oauth-token'), 'r') as f:
@@ -169,11 +172,7 @@ async def show_name(request: web.Request, userdata) -> web.Response:  # pylint: 
 
     try:
         data = enumerate_list_of_trials(name_data['trials'])
-        d = {
-            'trial': data['trial_indices'],
-            'wall_time': data['wall_times'],
-            'index': data['within_group_index']
-        }
+        d = {'trial': data['trial_indices'], 'wall_time': data['wall_times'], 'index': data['within_group_index']}
         df = pd.DataFrame(d)
         fig = px.scatter(df, x=df.trial, y=df.wall_time, hover_data=['index'])
         plot = json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
@@ -182,10 +181,7 @@ async def show_name(request: web.Request, userdata) -> web.Response:  # pylint: 
         log.info('name is of type NoneType: ' + message, exc_info=True)
         raise web.HTTPBadRequest(text=message) from e
 
-    context = {
-        'name': request.match_info.get('name', ''),
-        'plot': plot
-    }
+    context = {'name': request.match_info.get('name', ''), 'plot': plot}
 
     return await render_template('benchmark', request, userdata, 'name.html', context)
 
@@ -199,7 +195,7 @@ async def index(request):
         'dates': benchmark_data['dates'],
         'geo_means': benchmark_data['geo_means'],
         'pr_ids': benchmark_data['pr_ids'],
-        'commits': benchmark_data['shas']
+        'commits': benchmark_data['shas'],
     }
     assert len(d['dates']) == len(d['geo_means']), d
     df = pd.DataFrame(d)
@@ -209,11 +205,7 @@ async def index(request):
         plot = json.dumps(fig, cls=plotly.utils.PlotlyJSONEncoder)
     else:
         plot = None
-    context = {
-        'commits': benchmark_data['commits'],
-        'plot': plot,
-        'benchmark_results_path': BENCHMARK_RESULTS_PATH
-    }
+    context = {'commits': benchmark_data['commits'], 'plot': plot, 'benchmark_results_path': BENCHMARK_RESULTS_PATH}
     return await render_template('benchmark', request, userdata, 'index.html', context)
 
 
@@ -226,9 +218,11 @@ async def lookup(request, userdata):  # pylint: disable=unused-argument
         benchmarks_context = None
     else:
         benchmarks_context = get_benchmarks(request.app, file)
-    context = {'file': file,
-               'benchmarks': benchmarks_context,
-               'benchmark_file_list': list_benchmark_files(app['gs_reader'])}
+    context = {
+        'file': file,
+        'benchmarks': benchmarks_context,
+        'benchmark_file_list': list_benchmark_files(app['gs_reader']),
+    }
     return await render_template('benchmark', request, userdata, 'lookup.html', context)
 
 
@@ -247,13 +241,15 @@ async def compare(request, userdata):  # pylint: disable=unused-argument
         benchmarks_context1 = get_benchmarks(app, file1)
         benchmarks_context2 = get_benchmarks(app, file2)
         comparisons = final_comparisons(get_comparisons(benchmarks_context1, benchmarks_context2, metric))
-    context = {'file1': file1,
-               'file2': file2,
-               'metric': metric,
-               'benchmarks1': benchmarks_context1,
-               'benchmarks2': benchmarks_context2,
-               'comparisons': comparisons,
-               'benchmark_file_list': list_benchmark_files(app['gs_reader'])}
+    context = {
+        'file1': file1,
+        'file2': file2,
+        'metric': metric,
+        'benchmarks1': benchmarks_context1,
+        'benchmarks2': benchmarks_context2,
+        'comparisons': comparisons,
+        'benchmark_file_list': list_benchmark_files(app['gs_reader']),
+    }
     return await render_template('benchmark', request, userdata, 'compare.html', context)
 
 
@@ -267,10 +263,7 @@ async def get_batch(request, userdata):
     jobs = await collect_agen(b.jobs())
     for j in jobs:
         j['duration'] = humanize_timedelta_msecs(j['duration'])
-    page_context = {
-        'batch': status,
-        'jobs': jobs
-    }
+    page_context = {'batch': status, 'jobs': jobs}
     return await render_template('benchmark', request, userdata, 'batch.html', page_context)
 
 
@@ -286,7 +279,7 @@ async def get_job(request, userdata):
         'job_id': job_id,
         'job_log': await job.log(),
         'job_status': json.dumps(await job.status(), indent=2),
-        'attempts': await job.attempts()
+        'attempts': await job.attempts(),
     }
     return await render_template('benchmark', request, userdata, 'job.html', page_context)
 
@@ -351,7 +344,7 @@ async def get_commit(app, sha):  # pylint: disable=unused-argument
         'date': gh_commit['commit']['author']['date'],
         'status': status,
         'batch_id': batch_id,
-        'pr_id': pr_id
+        'pr_id': pr_id,
     }
 
     return commit
@@ -440,13 +433,12 @@ async def github_polling_loop(app):
 async def on_startup(app):
     app['gs_reader'] = ReadGoogleStorage(service_account_key_file='/benchmark-gsa-key/key.json')
     app['gh_client_session'] = aiohttp.ClientSession()
-    app['github_client'] = gidgethub.aiohttp.GitHubAPI(app['gh_client_session'],
-                                                       'hail-is/hail',
-                                                       oauth_token=oauth_token)
+    app['github_client'] = gidgethub.aiohttp.GitHubAPI(
+        app['gh_client_session'], 'hail-is/hail', oauth_token=oauth_token
+    )
     app['batch_client'] = bc.BatchClient(billing_project='benchmark')
     app['task_manager'] = aiotools.BackgroundTaskManager()
-    app['task_manager'].ensure_future(retry_long_running(
-        'github_polling_loop', github_polling_loop, app))
+    app['task_manager'].ensure_future(retry_long_running('github_polling_loop', github_polling_loop, app))
 
 
 async def on_cleanup(app):
@@ -464,8 +456,10 @@ def run():
     app.add_routes(router)
     app.on_startup.append(on_startup)
     app.on_cleanup.append(on_cleanup)
-    web.run_app(deploy_config.prefix_application(app, 'benchmark'),
-                host='0.0.0.0',
-                port=5000,
-                access_log_class=AccessLogger,
-                ssl_context=internal_server_ssl_context())
+    web.run_app(
+        deploy_config.prefix_application(app, 'benchmark'),
+        host='0.0.0.0',
+        port=5000,
+        access_log_class=AccessLogger,
+        ssl_context=internal_server_ssl_context(),
+    )

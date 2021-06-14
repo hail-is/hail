@@ -1,8 +1,9 @@
 #ifndef HAIL_IR_TYPE_HPP_INCLUDED
 #define HAIL_IR_TYPE_HPP_INCLUDED 1
 
-#include <hail/query/ir.hpp>
 #include <unordered_map>
+
+#include "hail/query/ir.hpp"
 
 namespace hail {
 
@@ -13,7 +14,7 @@ class IR;
 
 class IRType {
   friend class IRTypeVisitor;
-  
+
   TypeContext &tc;
 
   std::unordered_map<IR *, const Type *> ir_type;

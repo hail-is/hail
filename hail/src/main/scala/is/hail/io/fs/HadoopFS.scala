@@ -105,9 +105,10 @@ class HadoopFS(val conf: SerializableHadoopConfiguration) extends FS {
     if (statuses == null) {
       throw new FileNotFoundException(filename)
     } else {
-      statuses.map(_.getPath)
+      statuses.par.map(_.getPath)
         .flatMap(fs.listStatus(_))
         .map(new HadoopFileStatus(_))
+        .toArray
     }
   }
 
@@ -173,5 +174,19 @@ class HadoopFS(val conf: SerializableHadoopConfiguration) extends FS {
     val ppath = new hadoop.fs.Path(filename)
     val pathFS = ppath.getFileSystem(conf.value)
     pathFS.deleteOnExit(ppath)
+  }
+
+  def supportsScheme(scheme: String): Boolean = {
+    if (scheme == "") {
+      true
+    } else {
+      try {
+        hadoop.fs.FileSystem.getFileSystemClass(scheme, conf.value)
+        true
+      } catch {
+        case e: hadoop.fs.UnsupportedFileSystemException => false
+        case e: Exception => throw e
+      }
+    }
   }
 }

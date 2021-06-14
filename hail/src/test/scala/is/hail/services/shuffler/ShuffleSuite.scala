@@ -14,6 +14,7 @@ import is.hail.services.shuffler.ShufflerTestUtils._
 import is.hail.io._
 import is.hail.utils._
 import is.hail._
+import is.hail.types.physical.stypes.PTypeReferenceSingleCodeType
 import org.scalatest.testng.TestNGSuite
 import org.testng.annotations.Test
 
@@ -40,7 +41,7 @@ class ShuffleSuite extends HailSuite {
       using(new ShuffleClient(shuffleType, rowPType, keyPType)) { c =>
         val rowDecodedPType = c.codecs.rowDecodedPType
 
-        val values = new BoxedArrayBuilder[Long]()
+        val values = new LongArrayBuilder()
         pool.scopedRegion { region =>
           val rvb = new RegionValueBuilder(region)
           val nElements = 1000000
@@ -76,7 +77,7 @@ class ShuffleSuite extends HailSuite {
             c.get(region, left, true, right, false))
 
           i = 0
-          val ab = new BoxedArrayBuilder[Long]()
+          val ab = new LongArrayBuilder()
           while (i < nPartitions) {
             ab ++= c.get(region,
               partitionBounds(i).offset, true,
@@ -216,7 +217,7 @@ class ShuffleSuite extends HailSuite {
         .asInstanceOf[PArray]
       val elementPType = rowArrayPType.elementType
         .asInstanceOf[PBaseStruct]
-      val pairOff = retryTransientErrors { f(0, ctx.r)(ctx.r) }
+      val pairOff = retryTransientErrors { f(ctx.fs, 0, ctx.r)(ctx.r) }
       val pair = new UnsafeRow(pairPType, null, pairOff)
       val partitionBounds = pair.get(0).asInstanceOf[IndexedSeq[UnsafeRow]]
       assert(nParts > 0)

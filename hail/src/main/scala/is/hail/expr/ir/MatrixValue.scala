@@ -96,7 +96,7 @@ case class MatrixValue(
       FileFormat.version.rep,
       is.hail.HAIL_PRETTY_VERSION,
       "../references",
-      typ.colsTableType,
+      typ.colsTableType.copy(key = FastIndexedSeq[String]()),
       Map("globals" -> RVDComponentSpec("../globals/rows"),
         "rows" -> RVDComponentSpec("rows"),
         "partition_counts" -> PartitionCountsComponentSpec(partitionCounts)))

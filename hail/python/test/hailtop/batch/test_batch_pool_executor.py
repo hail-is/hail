@@ -20,6 +20,10 @@ def test_simple_submit_result():
 
 def test_cancel_future():
     with BatchPoolExecutor(project='hail-vdc', image=PYTHON_DILL_IMAGE) as bpe:
+        def sleep_forever():
+            while True:
+                time.sleep(3600)
+
         future = bpe.submit(sleep_forever)
         was_cancelled = future.cancel()
     assert was_cancelled
@@ -28,6 +32,10 @@ def test_cancel_future():
 
 def test_cancel_future_after_shutdown_no_wait():
     bpe = BatchPoolExecutor(project='hail-vdc', image=PYTHON_DILL_IMAGE)
+    def sleep_forever():
+        while True:
+            time.sleep(3600)
+
     future = bpe.submit(sleep_forever)
     bpe.shutdown(wait=False)
     was_cancelled = future.cancel()
@@ -37,6 +45,10 @@ def test_cancel_future_after_shutdown_no_wait():
 
 def test_cancel_future_after_exit_no_wait_on_exit():
     with BatchPoolExecutor(project='hail-vdc', wait_on_exit=False, image=PYTHON_DILL_IMAGE) as bpe:
+        def sleep_forever():
+            while True:
+                time.sleep(3600)
+
         future = bpe.submit(sleep_forever)
     was_cancelled = future.cancel()
     assert was_cancelled
@@ -45,6 +57,10 @@ def test_cancel_future_after_exit_no_wait_on_exit():
 
 def test_result_with_timeout():
     with BatchPoolExecutor(project='hail-vdc', image=PYTHON_DILL_IMAGE) as bpe:
+        def sleep_forever():
+            while True:
+                time.sleep(3600)
+
         future = bpe.submit(sleep_forever)
         try:
             future.result(timeout=2)
@@ -78,6 +94,9 @@ def test_map_chunksize():
 
 def test_map_timeout():
     with BatchPoolExecutor(project='hail-vdc', image=PYTHON_DILL_IMAGE) as bpe:
+        def sleep_forever():
+            while True:
+                time.sleep(3600)
         try:
             list(bpe.map(lambda _: sleep_forever(), range(5), timeout=2))
         except asyncio.TimeoutError:
@@ -153,8 +172,3 @@ def test_bad_image_gives_good_error():
         assert 'submitted job failed:' in exc.args[0]
     else:
         assert False
-
-
-def sleep_forever():
-    while True:
-        time.sleep(3600)

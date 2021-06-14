@@ -7,14 +7,26 @@ import collections
 
 from gear import Database, transaction
 from hailtop import aiotools
-from hailtop.utils import (secret_alnum_string, retry_long_running, run_if_changed,
-                           time_msecs, WaitableSharedPool, AsyncWorkerPool, Notice,
-                           periodically_call)
+from hailtop.utils import (
+    secret_alnum_string,
+    retry_long_running,
+    run_if_changed,
+    time_msecs,
+    WaitableSharedPool,
+    AsyncWorkerPool,
+    Notice,
+    periodically_call,
+)
 
 from ..batch_configuration import STANDING_WORKER_MAX_IDLE_TIME_MSECS, WORKER_MAX_IDLE_TIME_MSECS
 from ..inst_coll_config import PoolConfig
-from ..utils import (Box, ExceededSharesCounter, adjust_cores_for_memory_request,
-                     adjust_cores_for_packability, adjust_cores_for_storage_request)
+from ..utils import (
+    Box,
+    ExceededSharesCounter,
+    adjust_cores_for_memory_request,
+    adjust_cores_for_packability,
+    adjust_cores_for_storage_request,
+)
 from .create_instance import create_instance
 from .instance import Instance
 from .instance_collection import InstanceCollection
@@ -31,8 +43,7 @@ class Pool(InstanceCollection):
         self.scheduler_state_changed = global_scheduler_state_changed.subscribe()
         self.scheduler = PoolScheduler(self.app, self)
 
-        self.healthy_instances_by_free_cores = sortedcontainers.SortedSet(
-            key=lambda instance: instance.free_cores_mcpu)
+        self.healthy_instances_by_free_cores = sortedcontainers.SortedSet(key=lambda instance: instance.free_cores_mcpu)
 
         self.worker_type = config.worker_type
         self.worker_cores = config.worker_cores
@@ -50,8 +61,8 @@ class Pool(InstanceCollection):
         await super().async_init()
 
         async for record in self.db.select_and_fetchall(
-                'SELECT * FROM instances WHERE removed = 0 AND inst_coll = %s;',
-                (self.name,)):
+            'SELECT * FROM instances WHERE removed = 0 AND inst_coll = %s;', (self.name,)
+        ):
             instance = Instance.from_record(self.app, self, record)
             self.add_instance(instance)
 
@@ -76,15 +87,20 @@ class Pool(InstanceCollection):
             'enable_standing_worker': self.enable_standing_worker,
             'standing_worker_cores': self.standing_worker_cores,
             'max_instances': self.max_instances,
-            'max_live_instances': self.max_live_instances
+            'max_live_instances': self.max_live_instances,
         }
 
     async def configure(
-            self, worker_cores, boot_disk_size_gb,
-            worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gb,
-            enable_standing_worker, standing_worker_cores,
-            max_instances, max_live_instances):
-
+        self,
+        worker_cores,
+        boot_disk_size_gb,
+        worker_local_ssd_data_disk,
+        worker_pd_ssd_data_disk_size_gb,
+        enable_standing_worker,
+        standing_worker_cores,
+        max_instances,
+        max_live_instances,
+    ):
         @transaction(self.db)
         async def update(tx):
             await tx.just_execute(
@@ -94,9 +110,15 @@ SET worker_cores = %s, worker_local_ssd_data_disk = %s, worker_pd_ssd_data_disk_
   enable_standing_worker = %s, standing_worker_cores = %s
 WHERE name = %s;
 ''',
-                (worker_cores, worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gb,
-                 enable_standing_worker, standing_worker_cores,
-                 self.name))
+                (
+                    worker_cores,
+                    worker_local_ssd_data_disk,
+                    worker_pd_ssd_data_disk_size_gb,
+                    enable_standing_worker,
+                    standing_worker_cores,
+                    self.name,
+                ),
+            )
 
             await tx.just_execute(
                 '''
@@ -104,7 +126,8 @@ UPDATE inst_colls
 SET boot_disk_size_gb = %s, max_instances = %s, max_live_instances = %s
 WHERE name = %s;
 ''',
-                (boot_disk_size_gb, max_instances, max_live_instances, self.name))
+                (boot_disk_size_gb, max_instances, max_live_instances, self.name),
+            )
 
         await update()  # pylint: disable=no-value-for-parameter
 
@@ -119,8 +142,13 @@ WHERE name = %s;
 
     def resources_to_cores_mcpu(self, cores_mcpu, memory_bytes, storage_bytes):
         cores_mcpu = adjust_cores_for_memory_request(cores_mcpu, memory_bytes, self.worker_type)
-        cores_mcpu = adjust_cores_for_storage_request(cores_mcpu, storage_bytes, self.worker_cores,
-                                                      self.worker_local_ssd_data_disk, self.worker_pd_ssd_data_disk_size_gb)
+        cores_mcpu = adjust_cores_for_storage_request(
+            cores_mcpu,
+            storage_bytes,
+            self.worker_cores,
+            self.worker_local_ssd_data_disk,
+            self.worker_pd_ssd_data_disk_size_gb,
+        )
         cores_mcpu = adjust_cores_for_packability(cores_mcpu)
 
         if cores_mcpu < self.worker_cores * 1000:
@@ -134,8 +162,7 @@ WHERE name = %s;
 
     def adjust_for_add_instance(self, instance):
         super().adjust_for_add_instance(instance)
-        if (instance.state == 'active'
-                and instance.failed_request_count <= 1):
+        if instance.state == 'active' and instance.failed_request_count <= 1:
             self.healthy_instances_by_free_cores.add(instance)
 
     async def create_instance(self, cores=None, max_idle_time_msecs=None):
@@ -147,8 +174,7 @@ WHERE name = %s;
 
         machine_name = self.generate_machine_name()
 
-        zone = self.zone_monitor.get_zone(cores, self.worker_local_ssd_data_disk,
-                                          self.worker_pd_ssd_data_disk_size_gb)
+        zone = self.zone_monitor.get_zone(cores, self.worker_local_ssd_data_disk, self.worker_pd_ssd_data_disk_size_gb)
         if zone is None:
             return
 
@@ -156,28 +182,32 @@ WHERE name = %s;
 
         activation_token = secrets.token_urlsafe(32)
 
-        instance = await Instance.create(app=self.app,
-                                         inst_coll=self,
-                                         name=machine_name,
-                                         activation_token=activation_token,
-                                         worker_cores_mcpu=cores * 1000,
-                                         zone=zone,
-                                         machine_type=machine_type,
-                                         preemptible=True)
+        instance = await Instance.create(
+            app=self.app,
+            inst_coll=self,
+            name=machine_name,
+            activation_token=activation_token,
+            worker_cores_mcpu=cores * 1000,
+            zone=zone,
+            machine_type=machine_type,
+            preemptible=True,
+        )
         self.add_instance(instance)
         log.info(f'created {instance}')
 
-        await create_instance(app=self.app,
-                              zone=zone,
-                              machine_name=machine_name,
-                              machine_type=machine_type,
-                              activation_token=activation_token,
-                              max_idle_time_msecs=max_idle_time_msecs,
-                              worker_local_ssd_data_disk=self.worker_local_ssd_data_disk,
-                              worker_pd_ssd_data_disk_size_gb=self.worker_pd_ssd_data_disk_size_gb,
-                              boot_disk_size_gb=self.boot_disk_size_gb,
-                              preemptible=True,
-                              job_private=False)
+        await create_instance(
+            app=self.app,
+            zone=zone,
+            machine_name=machine_name,
+            machine_type=machine_type,
+            activation_token=activation_token,
+            max_idle_time_msecs=max_idle_time_msecs,
+            worker_local_ssd_data_disk=self.worker_local_ssd_data_disk,
+            worker_pd_ssd_data_disk_size_gb=self.worker_pd_ssd_data_disk_size_gb,
+            boot_disk_size_gb=self.boot_disk_size_gb,
+            preemptible=True,
+            job_private=False,
+        )
 
     async def create_instances(self):
         ready_cores = await self.db.select_and_fetchone(
@@ -187,44 +217,45 @@ FROM user_inst_coll_resources
 WHERE inst_coll = %s
 LOCK IN SHARE MODE;
 ''',
-            (self.name,))
+            (self.name,),
+        )
 
         ready_cores_mcpu = ready_cores['ready_cores_mcpu']
 
-        free_cores_mcpu = sum([
-            worker.free_cores_mcpu
-            for worker in self.healthy_instances_by_free_cores
-        ])
+        free_cores_mcpu = sum([worker.free_cores_mcpu for worker in self.healthy_instances_by_free_cores])
         free_cores = free_cores_mcpu / 1000
 
-        log.info(f'{self} n_instances {self.n_instances} {self.n_instances_by_state}'
-                 f' free_cores {free_cores} live_free_cores {self.live_free_cores_mcpu / 1000}'
-                 f' ready_cores {ready_cores_mcpu / 1000}')
+        log.info(
+            f'{self} n_instances {self.n_instances} {self.n_instances_by_state}'
+            f' free_cores {free_cores} live_free_cores {self.live_free_cores_mcpu / 1000}'
+            f' ready_cores {ready_cores_mcpu / 1000}'
+        )
 
         if ready_cores_mcpu > 0 and free_cores < 500:
             n_live_instances = self.n_instances_by_state['pending'] + self.n_instances_by_state['active']
 
-            instances_needed = (
-                (ready_cores_mcpu - self.live_free_cores_mcpu + (self.worker_cores * 1000) - 1)
-                // (self.worker_cores * 1000))
-            instances_needed = min(instances_needed,
-                                   self.max_live_instances - n_live_instances,
-                                   self.max_instances - self.n_instances,
-                                   # 20 queries/s; our GCE long-run quota
-                                   300,
-                                   # n * 16 cores / 15s = excess_scheduling_rate/s = 10/s => n ~= 10
-                                   10)
+            instances_needed = (ready_cores_mcpu - self.live_free_cores_mcpu + (self.worker_cores * 1000) - 1) // (
+                self.worker_cores * 1000
+            )
+            instances_needed = min(
+                instances_needed,
+                self.max_live_instances - n_live_instances,
+                self.max_instances - self.n_instances,
+                # 20 queries/s; our GCE long-run quota
+                300,
+                # n * 16 cores / 15s = excess_scheduling_rate/s = 10/s => n ~= 10
+                10,
+            )
             if instances_needed > 0:
                 log.info(f'creating {instances_needed} new instances')
                 # parallelism will be bounded by thread pool
                 await asyncio.gather(*[self.create_instance() for _ in range(instances_needed)])
 
         n_live_instances = self.n_instances_by_state['pending'] + self.n_instances_by_state['active']
-        if (self.enable_standing_worker
-                and n_live_instances == 0
-                and self.max_instances > 0):
-            await self.create_instance(cores=self.standing_worker_cores,
-                                       max_idle_time_msecs=STANDING_WORKER_MAX_IDLE_TIME_MSECS)
+        if self.enable_standing_worker and n_live_instances == 0 and self.max_instances > 0:
+            await self.create_instance(
+                cores=self.standing_worker_cores, max_idle_time_msecs=STANDING_WORKER_MAX_IDLE_TIME_MSECS
+            )
 
     async def control_loop(self):
         await periodically_call(15, self.create_instances)
@@ -244,9 +275,9 @@ class PoolScheduler:
         self.task_manager = aiotools.BackgroundTaskManager()
 
     async def async_init(self):
-        self.task_manager.ensure_future(retry_long_running(
-            'schedule_loop',
-            run_if_changed, self.scheduler_state_changed, self.schedule_loop_body))
+        self.task_manager.ensure_future(
+            retry_long_running('schedule_loop', run_if_changed, self.scheduler_state_changed, self.schedule_loop_body)
+        )
 
     def shutdown(self):
         try:
@@ -255,19 +286,14 @@ class PoolScheduler:
             self.async_worker_pool.shutdown()
 
     async def compute_fair_share(self):
-        free_cores_mcpu = sum([
-            worker.free_cores_mcpu
-            for worker in self.pool.healthy_instances_by_free_cores
-        ])
+        free_cores_mcpu = sum([worker.free_cores_mcpu for worker in self.pool.healthy_instances_by_free_cores])
 
         user_running_cores_mcpu = {}
         user_total_cores_mcpu = {}
         result = {}
 
-        pending_users_by_running_cores = sortedcontainers.SortedSet(
-            key=lambda user: user_running_cores_mcpu[user])
-        allocating_users_by_total_cores = sortedcontainers.SortedSet(
-            key=lambda user: user_total_cores_mcpu[user])
+        pending_users_by_running_cores = sortedcontainers.SortedSet(key=lambda user: user_running_cores_mcpu[user])
+        allocating_users_by_total_cores = sortedcontainers.SortedSet(key=lambda user: user_total_cores_mcpu[user])
 
         records = self.db.execute_and_fetchall(
             '''
@@ -282,7 +308,8 @@ GROUP BY user
 HAVING n_ready_jobs + n_running_jobs > 0;
 ''',
             (self.pool.name,),
-            timer_description=f'in compute_fair_share for {self.pool.name}: aggregate user_inst_coll_resources')
+            timer_description=f'in compute_fair_share for {self.pool.name}: aggregate user_inst_coll_resources',
+        )
 
         async for record in records:
             user = record['user']
@@ -341,8 +368,7 @@ HAVING n_ready_jobs + n_running_jobs > 0;
 
         user_resources = await self.compute_fair_share()
 
-        total = sum(resources['allocated_cores_mcpu']
-                    for resources in user_resources.values())
+        total = sum(resources['allocated_cores_mcpu'] for resources in user_resources.values())
         if not total:
             log.info(f'schedule {self.pool}: no allocated cores')
             should_wait = True
@@ -354,22 +380,24 @@ HAVING n_ready_jobs + n_running_jobs > 0;
 
         async def user_runnable_jobs(user, remaining):
             async for batch in self.db.select_and_fetchall(
-                    '''
+                '''
 SELECT id, cancelled, userdata, user, format_version
 FROM batches
 WHERE user = %s AND `state` = 'running';
 ''',
-                    (user,),
-                    timer_description=f'in schedule {self.pool}: get {user} running batches'):
+                (user,),
+                timer_description=f'in schedule {self.pool}: get {user} running batches',
+            ):
                 async for record in self.db.select_and_fetchall(
-                        '''
+                    '''
 SELECT job_id, spec, cores_mcpu
 FROM jobs FORCE INDEX(jobs_batch_id_state_always_run_inst_coll_cancelled)
 WHERE batch_id = %s AND state = 'Ready' AND always_run = 1 AND inst_coll = %s
 LIMIT %s;
 ''',
-                        (batch['id'], self.pool.name, remaining.value),
-                        timer_description=f'in schedule {self.pool}: get {user} batch {batch["id"]} runnable jobs (1)'):
+                    (batch['id'], self.pool.name, remaining.value),
+                    timer_description=f'in schedule {self.pool}: get {user} batch {batch["id"]} runnable jobs (1)',
+                ):
                     record['batch_id'] = batch['id']
                     record['userdata'] = batch['userdata']
                     record['user'] = batch['user']
@@ -377,14 +405,15 @@ LIMIT %s;
                     yield record
                 if not batch['cancelled']:
                     async for record in self.db.select_and_fetchall(
-                            '''
+                        '''
 SELECT job_id, spec, cores_mcpu
 FROM jobs FORCE INDEX(jobs_batch_id_state_always_run_cancelled)
 WHERE batch_id = %s AND state = 'Ready' AND always_run = 0 AND inst_coll = %s AND cancelled = 0
 LIMIT %s;
 ''',
-                            (batch['id'], self.pool.name, remaining.value),
-                            timer_description=f'in schedule {self.pool}: get {user} batch {batch["id"]} runnable jobs (2)'):
+                        (batch['id'], self.pool.name, remaining.value),
+                        timer_description=f'in schedule {self.pool}: get {user} batch {batch["id"]} runnable jobs (2)',
+                    ):
                         record['batch_id'] = batch['id']
                         record['userdata'] = batch['userdata']
                         record['user'] = batch['user']
@@ -445,8 +474,8 @@ LIMIT %s;
                             await schedule_job(app, record, instance)
                         except Exception:
                             log.info(f'scheduling job {id} on {instance} for {self.pool}', exc_info=True)
-                    await waitable_pool.call(
-                        schedule_with_error_handling, self.app, record, id, instance)
+
+                    await waitable_pool.call(schedule_with_error_handling, self.app, record, id, instance)
 
                 remaining.value -= 1
                 if remaining.value <= 0:

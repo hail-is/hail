@@ -5,9 +5,11 @@ import json
 
 from hailtop import aiogoogle
 
-from ..batch_configuration import PROJECT, DEFAULT_NAMESPACE
+from ..batch_configuration import PROJECT, DOCKER_ROOT_IMAGE, DOCKER_PREFIX, DEFAULT_NAMESPACE
+from ..inst_coll_config import machine_type_to_dict
 from ..worker_config import WorkerConfig
 from ..log_store import LogStore
+from ..utils import unreserved_worker_data_disk_size_gib
 
 log = logging.getLogger('create_instance')
 
@@ -16,86 +18,96 @@ BATCH_WORKER_IMAGE = os.environ['HAIL_BATCH_WORKER_IMAGE']
 log.info(f'BATCH_WORKER_IMAGE {BATCH_WORKER_IMAGE}')
 
 
-async def create_instance(app, zone, machine_name, machine_type, activation_token,
-                          max_idle_time_msecs, worker_local_ssd_data_disk,
-                          worker_pd_ssd_data_disk_size_gb, boot_disk_size_gb,
-                          preemptible, job_private):
+async def create_instance(
+    app,
+    zone,
+    machine_name,
+    machine_type,
+    activation_token,
+    max_idle_time_msecs,
+    worker_local_ssd_data_disk,
+    worker_pd_ssd_data_disk_size_gb,
+    boot_disk_size_gb,
+    preemptible,
+    job_private,
+):
     log_store: LogStore = app['log_store']
     compute_client: aiogoogle.ComputeClient = app['compute_client']
+
+    cores = int(machine_type_to_dict(machine_type)['cores'])
 
     if worker_local_ssd_data_disk:
         worker_data_disk = {
             'type': 'SCRATCH',
             'autoDelete': True,
             'interface': 'NVME',
-            'initializeParams': {
-                'diskType': f'zones/{zone}/diskTypes/local-ssd'
-            }}
+            'initializeParams': {'diskType': f'zones/{zone}/diskTypes/local-ssd'},
+        }
         worker_data_disk_name = 'nvme0n1'
     else:
         worker_data_disk = {
             'autoDelete': True,
             'initializeParams': {
                 'diskType': f'projects/{PROJECT}/zones/{zone}/diskTypes/pd-ssd',
-                'diskSizeGb': str(worker_pd_ssd_data_disk_size_gb)
-            }
+                'diskSizeGb': str(worker_pd_ssd_data_disk_size_gb),
+            },
         }
         worker_data_disk_name = 'sdb'
+
+    if job_private:
+        unreserved_disk_storage_gb = worker_pd_ssd_data_disk_size_gb
+    else:
+        unreserved_disk_storage_gb = unreserved_worker_data_disk_size_gib(
+            worker_local_ssd_data_disk, worker_pd_ssd_data_disk_size_gb, cores
+        )
+    assert unreserved_disk_storage_gb >= 0
 
     config = {
         'name': machine_name,
         'machineType': f'projects/{PROJECT}/zones/{zone}/machineTypes/{machine_type}',
-        'labels': {
-            'role': 'batch2-agent',
-            'namespace': DEFAULT_NAMESPACE
-        },
-
-        'disks': [{
-            'boot': True,
-            'autoDelete': True,
-            'initializeParams': {
-                'sourceImage': f'projects/{PROJECT}/global/images/batch-worker-12',
-                'diskType': f'projects/{PROJECT}/zones/{zone}/diskTypes/pd-ssd',
-                'diskSizeGb': str(boot_disk_size_gb)
+        'labels': {'role': 'batch2-agent', 'namespace': DEFAULT_NAMESPACE},
+        'disks': [
+            {
+                'boot': True,
+                'autoDelete': True,
+                'initializeParams': {
+                    'sourceImage': f'projects/{PROJECT}/global/images/batch-worker-12',
+                    'diskType': f'projects/{PROJECT}/zones/{zone}/diskTypes/pd-ssd',
+                    'diskSizeGb': str(boot_disk_size_gb),
+                },
+            },
+            worker_data_disk,
+        ],
+        'networkInterfaces': [
+            {
+                'network': 'global/networks/default',
+                'networkTier': 'PREMIUM',
+                'accessConfigs': [{'type': 'ONE_TO_ONE_NAT', 'name': 'external-nat'}],
             }
-        }, worker_data_disk],
-
-        'networkInterfaces': [{
-            'network': 'global/networks/default',
-            'networkTier': 'PREMIUM',
-            'accessConfigs': [{
-                'type': 'ONE_TO_ONE_NAT',
-                'name': 'external-nat'
-            }]
-        }],
-
-        'scheduling': {
-            'automaticRestart': False,
-            'onHostMaintenance': "TERMINATE",
-            'preemptible': preemptible
-        },
-
-        'serviceAccounts': [{
-            'email': f'batch2-agent@{PROJECT}.iam.gserviceaccount.com',
-            'scopes': [
-                'https://www.googleapis.com/auth/cloud-platform'
-            ]
-        }],
-
+        ],
+        'scheduling': {'automaticRestart': False, 'onHostMaintenance': "TERMINATE", 'preemptible': preemptible},
+        'serviceAccounts': [
+            {
+                'email': f'batch2-agent@{PROJECT}.iam.gserviceaccount.com',
+                'scopes': ['https://www.googleapis.com/auth/cloud-platform'],
+            }
+        ],
         'metadata': {
-            'items': [{
-                'key': 'startup-script',
-                'value': '''
+            'items': [
+                {
+                    'key': 'startup-script',
+                    'value': '''
 #!/bin/bash
 set -x
 
 curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/run_script"  >./run.sh
 
 nohup /bin/bash run.sh >run.log 2>&1 &
-    '''
-            }, {
-                'key': 'run_script',
-                'value': rf'''
+    ''',
+                },
+                {
+                    'key': 'run_script',
+                    'value': rf'''
 #!/bin/bash
 set -x
 
@@ -124,8 +136,9 @@ iptables -I DOCKER-USER -i batch-worker -d 169.254.169.254 -j ACCEPT
 
 
 WORKER_DATA_DISK_NAME="{worker_data_disk_name}"
+UNRESERVED_WORKER_DATA_DISK_SIZE_GB="{unreserved_disk_storage_gb}"
 
-# format local SSD
+# format worker data disk
 sudo mkfs.xfs -m reflink=1 -n ftype=1 /dev/$WORKER_DATA_DISK_NAME
 sudo mkdir -p /mnt/disks/$WORKER_DATA_DISK_NAME
 sudo mount -o prjquota /dev/$WORKER_DATA_DISK_NAME /mnt/disks/$WORKER_DATA_DISK_NAME
@@ -148,15 +161,6 @@ sudo ln -s /mnt/disks/$WORKER_DATA_DISK_NAME/logs /logs
 sudo mkdir -p /mnt/disks/$WORKER_DATA_DISK_NAME/gcsfuse/
 sudo ln -s /mnt/disks/$WORKER_DATA_DISK_NAME/gcsfuse /gcsfuse
 
-sudo mkdir -p /mnt/disks/$WORKER_DATA_DISK_NAME/xfsquota/
-sudo ln -s /mnt/disks/$WORKER_DATA_DISK_NAME/xfsquota /xfsquota
-
-touch /xfsquota/projects
-touch /xfsquota/projid
-
-ln -s /xfsquota/projects /etc/projects
-ln -s /xfsquota/projid /etc/projid
-
 export HOME=/root
 
 CORES=$(nproc)
@@ -173,6 +177,8 @@ NAME=$(curl -s http://metadata.google.internal/computeMetadata/v1/instance/name 
 ZONE=$(curl -s http://metadata.google.internal/computeMetadata/v1/instance/zone -H 'Metadata-Flavor: Google')
 
 BATCH_WORKER_IMAGE=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/batch_worker_image")
+DOCKER_ROOT_IMAGE=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/docker_root_image")
+DOCKER_PREFIX=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/docker_prefix")
 
 # Setup fluentd
 touch /worker.log
@@ -191,7 +197,7 @@ tag syslog
 </source>
 EOF
 
-sudo tee /etc/google-fluentd/config.d/worker-log.conf <<EOF {{
+sudo tee /etc/google-fluentd/config.d/worker-log.conf <<EOF
 <source>
 @type tail
 format json
@@ -249,21 +255,27 @@ docker run \
 -e BATCH_LOGS_BUCKET_NAME=$BATCH_LOGS_BUCKET_NAME \
 -e INSTANCE_ID=$INSTANCE_ID \
 -e PROJECT=$PROJECT \
+-e ZONE=$ZONE \
+-e DOCKER_PREFIX=$DOCKER_PREFIX \
+-e DOCKER_ROOT_IMAGE=$DOCKER_ROOT_IMAGE \
 -e WORKER_CONFIG=$WORKER_CONFIG \
 -e MAX_IDLE_TIME_MSECS=$MAX_IDLE_TIME_MSECS \
 -e WORKER_DATA_DISK_MOUNT=/mnt/disks/$WORKER_DATA_DISK_NAME \
 -e BATCH_WORKER_IMAGE=$BATCH_WORKER_IMAGE \
+-e UNRESERVED_WORKER_DATA_DISK_SIZE_GB=$UNRESERVED_WORKER_DATA_DISK_SIZE_GB \
 -v /var/run/docker.sock:/var/run/docker.sock \
 -v /usr/bin/docker:/usr/bin/docker \
 -v /usr/sbin/xfs_quota:/usr/sbin/xfs_quota \
--v /batch:/batch \
+-v /batch:/batch:shared \
 -v /logs:/logs \
 -v /gcsfuse:/gcsfuse:shared \
--v /xfsquota:/xfsquota \
 --mount type=bind,source=/mnt/disks/$WORKER_DATA_DISK_NAME,target=/host \
+--mount type=bind,source=/dev,target=/dev,bind-propagation=rshared \
 -p 5000:5000 \
 --device /dev/fuse \
 --device $XFS_DEVICE \
+--device /dev \
+--privileged \
 --cap-add SYS_ADMIN \
 --security-opt apparmor:unconfined \
 --network batch-worker \
@@ -276,53 +288,39 @@ while true; do
 gcloud -q compute instances delete $NAME --zone=$ZONE
 sleep 1
 done
-'''
-            }, {
-                'key': 'shutdown-script',
-                'value': '''
+''',
+                },
+                {
+                    'key': 'shutdown-script',
+                    'value': '''
 set -x
 
 INSTANCE_ID=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/attributes/instance_id")
 NAME=$(curl -s http://metadata.google.internal/computeMetadata/v1/instance/name -H 'Metadata-Flavor: Google')
 
 journalctl -u docker.service > dockerd.log
-'''
-            }, {
-                'key': 'activation_token',
-                'value': activation_token
-            }, {
-                'key': 'batch_worker_image',
-                'value': BATCH_WORKER_IMAGE
-            }, {
-                'key': 'namespace',
-                'value': DEFAULT_NAMESPACE
-            }, {
-                'key': 'batch_logs_bucket_name',
-                'value': log_store.batch_logs_bucket_name
-            }, {
-                'key': 'instance_id',
-                'value': log_store.instance_id
-            }, {
-                'key': 'max_idle_time_msecs',
-                'value': max_idle_time_msecs
-            }]
-        },
-        'tags': {
-            'items': [
-                "batch2-agent"
+''',
+                },
+                {'key': 'activation_token', 'value': activation_token},
+                {'key': 'batch_worker_image', 'value': BATCH_WORKER_IMAGE},
+                {'key': 'docker_root_image', 'value': DOCKER_ROOT_IMAGE},
+                {'key': 'docker_prefix', 'value': DOCKER_PREFIX},
+                {'key': 'namespace', 'value': DEFAULT_NAMESPACE},
+                {'key': 'batch_logs_bucket_name', 'value': log_store.batch_logs_bucket_name},
+                {'key': 'instance_id', 'value': log_store.instance_id},
+                {'key': 'max_idle_time_msecs', 'value': max_idle_time_msecs},
             ]
         },
+        'tags': {'items': ["batch2-agent"]},
     }
 
     worker_config = WorkerConfig.from_instance_config(config, job_private)
     assert worker_config.is_valid_configuration(app['resources'])
-    config['metadata']['items'].append({
-        'key': 'worker_config',
-        'value': base64.b64encode(json.dumps(worker_config.config).encode()).decode()
-    })
+    config['metadata']['items'].append(
+        {'key': 'worker_config', 'value': base64.b64encode(json.dumps(worker_config.config).encode()).decode()}
+    )
 
-    await compute_client.post(
-        f'/zones/{zone}/instances', json=config)
+    await compute_client.post(f'/zones/{zone}/instances', json=config)
 
     log.info(f'created machine {machine_name}')
 

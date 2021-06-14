@@ -154,9 +154,9 @@ abstract class PCanonicalBaseStruct(val types: Array[PType]) extends PBaseStruct
     }
   }
 
-  def sType: SBaseStruct = SBaseStructPointer(this)
+  def sType: SBaseStructPointer = SBaseStructPointer(setRequired(false).asInstanceOf[PCanonicalBaseStruct])
 
-  def loadCheapPCode(cb: EmitCodeBuilder, addr: Code[Long]): SBaseStructPointerCode = new SBaseStructPointerCode(SBaseStructPointer(this), addr)
+  def loadCheapPCode(cb: EmitCodeBuilder, addr: Code[Long]): SBaseStructPointerCode = new SBaseStructPointerCode(sType, addr)
 
   def store(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): Code[Long] = {
     value.st match {
@@ -196,21 +196,6 @@ abstract class PCanonicalBaseStruct(val types: Array[PType]) extends PBaseStruct
     }
   }
 
-  // FIXME: this doesn't need to exist when we have StackStruct!
-  def storeAtAddressFromFields(cb: EmitCodeBuilder, addr: Value[Long], region: Value[Region], emitFields: IndexedSeq[EmitCode], deepCopy: Boolean): Unit = {
-    require(emitFields.length == size)
-    cb += stagedInitialize(addr, setMissing = false)
-    emitFields.zipWithIndex.foreach { case (ev, i) =>
-      ev.toI(cb)
-        .consume(cb,
-          cb += setFieldMissing(addr, i),
-          { sc =>
-            types(i).storeAtAddress(cb, fieldOffset(addr, i), region, sc, deepCopy = deepCopy)
-          }
-        )
-    }
-  }
-
   def constructFromFields(cb: EmitCodeBuilder, region: Value[Region], emitFields: IndexedSeq[EmitCode], deepCopy: Boolean): SBaseStructPointerCode = {
     require(emitFields.length == size)
     val addr = cb.newLocal[Long]("pcbs_construct_fields", allocate(region))
@@ -225,7 +210,7 @@ abstract class PCanonicalBaseStruct(val types: Array[PType]) extends PBaseStruct
         )
     }
 
-    new SBaseStructPointerCode(SBaseStructPointer(this), addr)
+    new SBaseStructPointerCode(sType, addr)
   }
 
   override def unstagedStoreJavaObject(annotation: Annotation, region: Region): Long = {

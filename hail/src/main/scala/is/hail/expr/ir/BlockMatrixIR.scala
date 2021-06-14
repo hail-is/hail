@@ -8,7 +8,7 @@ import is.hail.utils._
 import breeze.linalg
 import breeze.linalg.DenseMatrix
 import breeze.numerics
-import is.hail.annotations.Region
+import is.hail.annotations.{NDArray, Region}
 import is.hail.backend.BackendContext
 import is.hail.backend.spark.SparkBackend
 import is.hail.expr.Nat
@@ -243,8 +243,6 @@ class BlockMatrixLiteral(value: BlockMatrix) extends BlockMatrixIR {
 }
 
 case class BlockMatrixMap(child: BlockMatrixIR, eltName: String, f: IR, needsDense: Boolean) extends BlockMatrixIR {
-  assert(f.isInstanceOf[ApplyUnaryPrimOp] || f.isInstanceOf[Apply] || f.isInstanceOf[ApplyBinaryPrimOp])
-
   override lazy val typ: BlockMatrixType = child.typ
   assert(!needsDense || !typ.isSparse)
 
@@ -268,6 +266,7 @@ case class BlockMatrixMap(child: BlockMatrixIR, eltName: String, f: IR, needsDen
     f(_, scalar)
 
   override protected[ir] def execute(ctx: ExecuteContext): BlockMatrix = {
+    assert(f.isInstanceOf[ApplyUnaryPrimOp] || f.isInstanceOf[Apply] || f.isInstanceOf[ApplyBinaryPrimOp])
     val prev = child.execute(ctx)
 
     val functionArgs = f match {
@@ -359,7 +358,6 @@ case object NeedsDense extends SparsityStrategy {
 }
 
 case class BlockMatrixMap2(left: BlockMatrixIR, right: BlockMatrixIR, leftName: String, rightName: String, f: IR, sparsityStrategy: SparsityStrategy) extends BlockMatrixIR {
-  assert(f.isInstanceOf[ApplyBinaryPrimOp] || f.isInstanceOf[Apply])
   assert(
     left.typ.nRows == right.typ.nRows &&
     left.typ.nCols == right.typ.nCols &&
@@ -382,6 +380,8 @@ case class BlockMatrixMap2(left: BlockMatrixIR, right: BlockMatrixIR, leftName: 
   }
 
   override protected[ir] def execute(ctx: ExecuteContext): BlockMatrix = {
+    assert(f.isInstanceOf[ApplyBinaryPrimOp] || f.isInstanceOf[Apply])
+
     left match {
       case BlockMatrixBroadcast(vectorIR: BlockMatrixIR, IndexedSeq(x), _, _) =>
         val vector = coerceToVector(ctx , vectorIR)
@@ -421,6 +421,11 @@ case class BlockMatrixMap2(left: BlockMatrixIR, right: BlockMatrixIR, leftName: 
       case ValueToBlockMatrix(child, _, _) =>
         Interpret[Any](ctx, child) match {
           case vector: IndexedSeq[_] => vector.asInstanceOf[IndexedSeq[Double]].toArray
+          case vector: NDArray => {
+            val IndexedSeq(numRows, numCols) = vector.shape
+            assert(numRows == 1L || numCols == 1L)
+            vector.getRowMajorElements().asInstanceOf[IndexedSeq[Double]].toArray
+          }
         }
       case _ => ir.execute(ctx).toBreezeMatrix().data
     }
@@ -912,6 +917,7 @@ case class ValueToBlockMatrix(
 
   private def elementType(childType: Type): Type = {
     childType match {
+      case ndarray: TNDArray => ndarray.elementType
       case array: TArray => array.elementType
       case _ => childType
     }
@@ -927,12 +933,14 @@ case class ValueToBlockMatrix(
   override protected[ir] def execute(ctx: ExecuteContext): BlockMatrix = {
     val IndexedSeq(nRows, nCols) = shape
     BlockMatrixIR.checkFitsIntoArray(nRows, nCols)
-    Interpret[Any](ctx, child) match {
+    CompileAndEvaluate[Any](ctx, child, true) match {
       case scalar: Double =>
         assert(nRows == 1 && nCols == 1)
         BlockMatrix.fill(nRows, nCols, scalar, blockSize)
       case data: IndexedSeq[_] =>
         BlockMatrixIR.toBlockMatrix(nRows.toInt, nCols.toInt, data.asInstanceOf[IndexedSeq[Double]].toArray, blockSize)
+      case ndData: NDArray =>
+        BlockMatrixIR.toBlockMatrix(nRows.toInt, nCols.toInt, ndData.getRowMajorElements().asInstanceOf[IndexedSeq[Double]].toArray, blockSize)
     }
   }
 }

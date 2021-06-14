@@ -5,10 +5,10 @@
 #include <unordered_set>
 #include <string>
 
-#include <hail/allocators.hpp>
-#include <hail/hash.hpp>
-#include <hail/type.hpp>
-#include <hail/value.hpp>
+#include "hail/allocators.hpp"
+#include "hail/hash.hpp"
+#include "hail/type.hpp"
+#include "hail/value.hpp"
 
 namespace hail {
 
@@ -52,7 +52,7 @@ class Module {
   friend class Function;
   friend class IR;
   friend void format1(FormatStream &s, const Module *m);
-  
+
   std::map<std::string, Function *> functions;
 
 public:
@@ -101,7 +101,7 @@ public:
 class IR {
   friend class Module;
   friend class Function;
-  
+
 public:
   using BaseType = IR;
   enum class Tag {

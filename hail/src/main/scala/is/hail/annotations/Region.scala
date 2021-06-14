@@ -311,6 +311,7 @@ object Region {
 }
 
 final class Region protected[annotations](var blockSize: Region.Size, var pool: RegionPool, var memory: RegionMemory = null) extends AutoCloseable {
+  def getMemory(): RegionMemory = memory
 
   def isValid(): Boolean = memory != null
 
@@ -378,6 +379,8 @@ final class Region protected[annotations](var blockSize: Region.Size, var pool: 
     memory.setReferenceAtIndex(child.memory, idx)
   }
 
+  def getReferenceCount(): Long = memory.getReferenceCount
+
   def getParentReference(idx: Int, blockSize: Region.Size): Region = {
     new Region(blockSize, pool, memory.getReferenceAtIndex(idx, blockSize))
   }
@@ -431,6 +434,7 @@ object RegionUtils {
     val nUsed = region.numBlocks
     val off = region.currentOffset
     val numChunks = region.numChunks
+    val ndarrays = region.numNDArrays
     val addr = "%016x".format(region.getCurrentBlock())
 
     val nReferenced = region.nReferencedRegions()
@@ -442,11 +446,12 @@ object RegionUtils {
          | blocks used: $nUsed
          | current off: $off
          |  big chunks: $numChunks
+         |  ndarrays: $ndarrays
          |  block addr: $addr
          |  referenced: $nReferenced
        """.stripMargin)
   }
 
   def logRegionStats(header: String, region: Code[Region]): Code[Unit] =
-    Code.invokeScalaObject2[String, Region, Unit](RegionUtils.getClass, "logRegionStats", header, region)
+    Code.invokeScalaObject2[String, RegionMemory, Unit](RegionUtils.getClass, "logRegionStats", header, region.invoke[RegionMemory]("getMemory"))
 }

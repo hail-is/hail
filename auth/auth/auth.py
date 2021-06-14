@@ -15,15 +15,18 @@ from hailtop.hail_logging import AccessLogger
 from hailtop.utils import secret_alnum_string
 from gear import (
     setup_aiohttp_session,
-    rest_authenticated_users_only, web_authenticated_developers_only,
-    web_maybe_authenticated_user, web_authenticated_users_only, create_session,
-    check_csrf_token, transaction, Database, maybe_parse_bearer_header,
-    monitor_endpoint
+    rest_authenticated_users_only,
+    web_authenticated_developers_only,
+    web_maybe_authenticated_user,
+    web_authenticated_users_only,
+    create_session,
+    check_csrf_token,
+    transaction,
+    Database,
+    maybe_parse_bearer_header,
+    monitor_endpoint,
 )
-from web_common import (
-    setup_aiohttp_jinja2, setup_common_static_routes, set_message,
-    render_template
-)
+from web_common import setup_aiohttp_jinja2, setup_common_static_routes, set_message, render_template
 
 log = logging.getLogger('auth')
 
@@ -40,17 +43,17 @@ def get_flow(redirect_uri, state=None):
     scopes = [
         'https://www.googleapis.com/auth/userinfo.profile',
         'https://www.googleapis.com/auth/userinfo.email',
-        'openid'
+        'openid',
     ]
     flow = google_auth_oauthlib.flow.Flow.from_client_secrets_file(
-        '/auth-oauth2-client-secret/client_secret.json', scopes=scopes, state=state)
+        '/auth-oauth2-client-secret/client_secret.json', scopes=scopes, state=state
+    )
     flow.redirect_uri = redirect_uri
     return flow
 
 
 async def user_from_email(db, email):
-    users = [x async for x in db.select_and_fetchall(
-        "SELECT * FROM users WHERE email = %s;", email)]
+    users = [x async for x in db.select_and_fetchall("SELECT * FROM users WHERE email = %s;", email)]
     if len(users) == 1:
         return users[0]
     assert len(users) == 0, users
@@ -101,11 +104,7 @@ async def creating_account(request, userdata):
             set_message(session, f'Account does not exist for email {email}.', 'error')
             return aiohttp.web.HTTPFound(nb_url)
 
-        page_context = {
-            'username': user['username'],
-            'state': user['state'],
-            'email': user['email']
-        }
+        page_context = {'username': user['username'], 'state': user['state'], 'email': user['email']}
 
         if user['state'] == 'deleting' or user['state'] == 'deleted':
             return await render_template('auth', request, userdata, 'account-error.html', page_context)
@@ -177,9 +176,7 @@ async def signup(request):
 
     flow = get_flow(deploy_config.external_url('auth', '/oauth2callback'))
 
-    authorization_url, state = flow.authorization_url(
-        access_type='offline',
-        include_granted_scopes='true')
+    authorization_url, state = flow.authorization_url(access_type='offline', include_granted_scopes='true')
 
     session = await aiohttp_session.new_session(request)
     cleanup_session(session)
@@ -197,9 +194,7 @@ async def login(request):
 
     flow = get_flow(deploy_config.external_url('auth', '/oauth2callback'))
 
-    authorization_url, state = flow.authorization_url(
-        access_type='offline',
-        include_granted_scopes='true')
+    authorization_url, state = flow.authorization_url(access_type='offline', include_granted_scopes='true')
 
     session = await aiohttp_session.new_session(request)
 
@@ -231,7 +226,8 @@ async def callback(request):
     try:
         flow.fetch_token(code=request.query['code'])
         token = google.oauth2.id_token.verify_oauth2_token(
-            flow.credentials.id_token, google.auth.transport.requests.Request())
+            flow.credentials.id_token, google.auth.transport.requests.Request()
+        )
         email = token['email']
     except Exception as e:
         log.exception('oauth2 callback: could not fetch and verify token')
@@ -259,7 +255,8 @@ async def callback(request):
         INSERT INTO users (state, username, email, is_developer)
         VALUES (%s, %s, %s, %s);
         ''',
-            ('creating', username, email, False))
+            ('creating', username, email, False),
+        )
 
         session['pending'] = True
         session['email'] = email
@@ -267,11 +264,7 @@ async def callback(request):
         return web.HTTPFound(creating_url)
 
     if user['state'] in ('deleting', 'deleted'):
-        page_context = {
-            'username': user['username'],
-            'state': user['state'],
-            'email': user['email']
-        }
+        page_context = {'username': user['username'], 'state': user['state'], 'email': user['email']}
         return await render_template('auth', request, user, 'account-error.html', page_context)
 
     if user['state'] == 'creating':
@@ -302,7 +295,8 @@ async def create_copy_paste_token(db, session_id, max_age_secs=300):
     copy_paste_token = secret_alnum_string()
     await db.just_execute(
         "INSERT INTO copy_paste_tokens (id, session_id, max_age_secs) VALUES(%s, %s, %s);",
-        (copy_paste_token, session_id, max_age_secs))
+        (copy_paste_token, session_id, max_age_secs),
+    )
     return copy_paste_token
 
 
@@ -315,9 +309,7 @@ async def get_copy_paste_token(request, userdata):
     session_id = session['session_id']
     db = request.app['db']
     copy_paste_token = await create_copy_paste_token(db, session_id)
-    page_context = {
-        'copy_paste_token': copy_paste_token
-    }
+    page_context = {'copy_paste_token': copy_paste_token}
     return await render_template('auth', request, userdata, 'copy-paste-token.html', page_context)
 
 
@@ -355,14 +347,9 @@ async def rest_login(request):
     callback_port = request.query['callback_port']
 
     flow = get_flow(f'http://127.0.0.1:{callback_port}/oauth2callback')
-    authorization_url, state = flow.authorization_url(
-        access_type='offline',
-        include_granted_scopes='true')
+    authorization_url, state = flow.authorization_url(access_type='offline', include_granted_scopes='true')
 
-    return web.json_response({
-        'authorization_url': authorization_url,
-        'state': state
-    })
+    return web.json_response({'authorization_url': authorization_url, 'state': state})
 
 
 @routes.get('/roles')
@@ -370,11 +357,8 @@ async def rest_login(request):
 @web_authenticated_developers_only()
 async def get_roles(request, userdata):
     db = request.app['db']
-    roles = [x async for x in
-             db.select_and_fetchall('SELECT * FROM roles;')]
-    page_context = {
-        'roles': roles
-    }
+    roles = [x async for x in db.select_and_fetchall('SELECT * FROM roles;')]
+    page_context = {'roles': roles}
     return await render_template('auth', request, userdata, 'roles.html', page_context)
 
 
@@ -393,7 +377,8 @@ async def post_create_role(request, userdata):  # pylint: disable=unused-argumen
 INSERT INTO `roles` (`name`)
 VALUES (%s);
 ''',
-        (name))
+        (name),
+    )
 
     set_message(session, f'Created role {role_id} {name}.', 'info')
 
@@ -405,11 +390,8 @@ VALUES (%s);
 @web_authenticated_developers_only()
 async def get_users(request, userdata):
     db = request.app['db']
-    users = [x async for x in
-             db.select_and_fetchall('SELECT * FROM users;')]
-    page_context = {
-        'users': users
-    }
+    users = [x async for x in db.select_and_fetchall('SELECT * FROM users;')]
+    page_context = {'users': users}
     return await render_template('auth', request, userdata, 'users.html', page_context)
 
 
@@ -441,7 +423,8 @@ async def post_create_user(request, userdata):  # pylint: disable=unused-argumen
 INSERT INTO users (state, username, email, is_developer, is_service_account)
 VALUES (%s, %s, %s, %s, %s);
 ''',
-        ('creating', username, email, is_developer, is_service_account))
+        ('creating', username, email, is_developer, is_service_account),
+    )
 
     set_message(session, f'Created user {user_id} {username} {email}.', 'info')
 
@@ -465,7 +448,8 @@ UPDATE users
 SET state = 'deleting'
 WHERE id = %s AND username = %s;
 ''',
-        (id, username))
+        (id, username),
+    )
     if n_rows != 1:
         assert n_rows == 0
         set_message(session, f'Delete failed, no such user {id} {username}.', 'error')
@@ -486,15 +470,17 @@ async def rest_callback(request):
         flow = get_flow(f'http://127.0.0.1:{callback_port}/oauth2callback', state=state)
         flow.fetch_token(code=code)
         token = google.oauth2.id_token.verify_oauth2_token(
-            flow.credentials.id_token, google.auth.transport.requests.Request())
+            flow.credentials.id_token, google.auth.transport.requests.Request()
+        )
         email = token['email']
     except Exception as e:
         log.exception('fetching and decoding token')
         raise web.HTTPUnauthorized() from e
 
     db = request.app['db']
-    users = [x async for x in
-             db.select_and_fetchall("SELECT * FROM users WHERE email = %s AND state = 'active';", email)]
+    users = [
+        x async for x in db.select_and_fetchall("SELECT * FROM users WHERE email = %s AND state = 'active';", email)
+    ]
 
     if len(users) != 1:
         raise web.HTTPUnauthorized()
@@ -502,10 +488,7 @@ async def rest_callback(request):
 
     session_id = await create_session(db, user['id'], max_age_secs=None)
 
-    return web.json_response({
-        'token': session_id,
-        'username': user['username']
-    })
+    return web.json_response({'token': session_id, 'username': user['username']})
 
 
 @routes.post('/api/v1alpha/copy-paste-login')
@@ -516,23 +499,23 @@ async def rest_copy_paste_login(request):
 
     @transaction(db)
     async def maybe_pop_token(tx):
-        session = await tx.execute_and_fetchone("""
+        session = await tx.execute_and_fetchone(
+            """
 SELECT sessions.session_id AS session_id, users.username AS username FROM copy_paste_tokens
 INNER JOIN sessions ON sessions.session_id = copy_paste_tokens.session_id
 INNER JOIN users ON users.id = sessions.user_id
 WHERE copy_paste_tokens.id = %s
   AND NOW() < TIMESTAMPADD(SECOND, copy_paste_tokens.max_age_secs, copy_paste_tokens.created)
-  AND users.state = 'active';""", copy_paste_token)
+  AND users.state = 'active';""",
+            copy_paste_token,
+        )
         if session is None:
             raise web.HTTPUnauthorized()
         await tx.just_execute("DELETE FROM copy_paste_tokens WHERE id = %s;", copy_paste_token)
         return session
 
     session = await maybe_pop_token()  # pylint: disable=no-value-for-parameter
-    return web.json_response({
-        'token': session['session_id'],
-        'username': session['username']
-    })
+    return web.json_response({'token': session['session_id'], 'username': session['username']})
 
 
 @routes.post('/api/v1alpha/logout')
@@ -553,12 +536,17 @@ async def get_userinfo(request, session_id):
         raise web.HTTPUnauthorized()
 
     db = request.app['db']
-    users = [x async for x in
-             db.select_and_fetchall('''
+    users = [
+        x
+        async for x in db.select_and_fetchall(
+            '''
 SELECT users.*, sessions.session_id FROM users
 INNER JOIN sessions ON users.id = sessions.user_id
 WHERE users.state = 'active' AND (sessions.session_id = %s) AND (ISNULL(sessions.max_age_secs) OR (NOW() < TIMESTAMPADD(SECOND, sessions.max_age_secs, sessions.created)));
-''', session_id)]
+''',
+            session_id,
+        )
+    ]
 
     if len(users) != 1:
         log.info(f'Unknown session id: {session_id}')
@@ -629,8 +617,10 @@ def run():
     app.on_startup.append(on_startup)
     app.on_cleanup.append(on_cleanup)
 
-    web.run_app(deploy_config.prefix_application(app, 'auth'),
-                host='0.0.0.0',
-                port=5000,
-                access_log_class=AccessLogger,
-                ssl_context=internal_server_ssl_context())
+    web.run_app(
+        deploy_config.prefix_application(app, 'auth'),
+        host='0.0.0.0',
+        port=5000,
+        access_log_class=AccessLogger,
+        ssl_context=internal_server_ssl_context(),
+    )

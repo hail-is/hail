@@ -1,7 +1,8 @@
-#include <hail/query/backend/compile.hpp>
-#include <hail/query/backend/svalue.hpp>
 #include <llvm/IR/Verifier.h>
 #include <llvm/Support/raw_ostream.h>
+
+#include "hail/query/backend/compile.hpp"
+#include "hail/query/backend/svalue.hpp"
 
 namespace hail {
 

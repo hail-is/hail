@@ -3,7 +3,14 @@ from collections import defaultdict
 
 from .globals import WORKER_CONFIG_VERSION
 
-MACHINE_TYPE_REGEX = re.compile('projects/(?P<project>[^/]+)/zones/(?P<zone>[^/]+)/machineTypes/(?P<machine_family>[^-]+)-(?P<machine_type>[^-]+)-(?P<cores>\\d+)')
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .inst_coll_config import PoolConfig  # pylint: disable=cyclic-import
+
+MACHINE_TYPE_REGEX = re.compile(
+    'projects/(?P<project>[^/]+)/zones/(?P<zone>[^/]+)/machineTypes/(?P<machine_family>[^-]+)-(?P<machine_type>[^-]+)-(?P<cores>\\d+)'
+)
 DISK_TYPE_REGEX = re.compile('(projects/(?P<project>[^/]+)/)?zones/(?P<zone>[^/]+)/diskTypes/(?P<disk_type>.+)')
 
 
@@ -57,14 +64,16 @@ class WorkerConfig:
             else:
                 disk_size = int(params['diskSizeGb'])
 
-            disks.append({
-                'boot': disk_config.get('boot', False),
-                'project': disk_info.get('project'),
-                'zone': disk_info['zone'],
-                'type': disk_type,
-                'size': disk_size,
-                'image': params.get('sourceImage', None)
-            })
+            disks.append(
+                {
+                    'boot': disk_config.get('boot', False),
+                    'project': disk_info.get('project'),
+                    'zone': disk_info['zone'],
+                    'type': disk_type,
+                    'size': disk_size,
+                    'image': params.get('sourceImage', None),
+                }
+            )
 
         config = {
             'version': WORKER_CONFIG_VERSION,
@@ -74,10 +83,48 @@ class WorkerConfig:
                 'family': instance_info['machine_family'],
                 'type': instance_info['machine_type'],
                 'cores': int(instance_info['cores']),
-                'preemptible': preemptible
+                'preemptible': preemptible,
             },
             'disks': disks,
-            'job-private': job_private
+            'job-private': job_private,
+        }
+
+        return WorkerConfig(config)
+
+    @staticmethod
+    def from_pool_config(pool_config: 'PoolConfig'):
+        disks = [
+            {
+                'boot': True,
+                'project': None,
+                'zone': None,
+                'type': 'pd-ssd',
+                'size': pool_config.boot_disk_size_gb,
+                'image': None,
+            }
+        ]
+
+        if pool_config.worker_local_ssd_data_disk:
+            typ = 'local-ssd'
+            size = 375
+        else:
+            typ = 'pd-ssd'
+            size = pool_config.worker_pd_ssd_data_disk_size_gb
+
+        disks.append({'boot': False, 'project': None, 'zone': None, 'type': typ, 'size': size, 'image': None})
+
+        config = {
+            'version': WORKER_CONFIG_VERSION,
+            'instance': {
+                'project': None,
+                'zone': None,
+                'family': 'n1',  # FIXME: need to figure out how to handle variable family types
+                'type': pool_config.worker_type,
+                'cores': pool_config.worker_cores,
+                'preemptible': True,
+            },
+            'disks': disks,
+            'job-private': False,
         }
 
         return WorkerConfig(config)
@@ -105,30 +152,35 @@ class WorkerConfig:
         data_disk = self.disks[1]
         assert not data_disk['boot']
 
-        self.local_ssd_data_disk = (data_disk['type'] == 'local-ssd')
+        self.local_ssd_data_disk = data_disk['type'] == 'local-ssd'
         self.data_disk_size_gb = data_disk['size']
 
         self.job_private = self.config['job-private']
 
     def is_valid_configuration(self, valid_resources):
         is_valid = True
-        dummy_resources = self.resources(0, 0)
+        dummy_resources = self.resources(0, 0, 0)
         for resource in dummy_resources:
             is_valid &= resource['name'] in valid_resources
         return is_valid
 
-    def resources(self, cpu_in_mcpu, memory_in_bytes):
-        assert memory_in_bytes % (1024 * 1024) == 0
+    def resources(self, cpu_in_mcpu, memory_in_bytes, storage_in_gib):
+        assert memory_in_bytes % (1024 * 1024) == 0, memory_in_bytes
+        assert isinstance(storage_in_gib, int), storage_in_gib
+
         resources = []
 
         preemptible = 'preemptible' if self.preemptible else 'nonpreemptible'
         worker_fraction_in_1024ths = 1024 * cpu_in_mcpu // (self.cores * 1000)
 
-        resources.append({'name': f'compute/{self.instance_family}-{preemptible}/1',
-                          'quantity': cpu_in_mcpu})
+        resources.append({'name': f'compute/{self.instance_family}-{preemptible}/1', 'quantity': cpu_in_mcpu})
 
-        resources.append({'name': f'memory/{self.instance_family}-{preemptible}/1',
-                          'quantity': memory_in_bytes // 1024 // 1024})
+        resources.append(
+            {'name': f'memory/{self.instance_family}-{preemptible}/1', 'quantity': memory_in_bytes // 1024 // 1024}
+        )
+
+        # storage is in units of MiB
+        resources.append({'name': 'disk/pd-ssd/1', 'quantity': storage_in_gib * 1024})
 
         quantities = defaultdict(lambda: 0)
         for disk in self.disks:
@@ -138,16 +190,23 @@ class WorkerConfig:
             quantities[name] += disk_size_in_mib
 
         for name, quantity in quantities.items():
-            resources.append({'name': name,
-                              'quantity': quantity})
+            resources.append({'name': name, 'quantity': quantity})
 
-        resources.append({'name': 'service-fee/1',
-                          'quantity': cpu_in_mcpu})
+        resources.append({'name': 'service-fee/1', 'quantity': cpu_in_mcpu})
 
         if is_power_two(self.cores) and self.cores <= 256:
-            resources.append({'name': 'ip-fee/1024/1',
-                              'quantity': worker_fraction_in_1024ths})
+            resources.append({'name': 'ip-fee/1024/1', 'quantity': worker_fraction_in_1024ths})
         else:
             raise NotImplementedError(self.cores)
 
         return resources
+
+    def cost_per_hour(self, resource_rates, cpu_in_mcpu, memory_in_bytes, storage_in_gb):
+        resources = self.resources(cpu_in_mcpu, memory_in_bytes, storage_in_gb)
+        cost_per_msec = 0
+        for r in resources:
+            name = r['name']
+            quantity = r['quantity']
+            rate_unit_msec = resource_rates[name]
+            cost_per_msec += quantity * rate_unit_msec
+        return cost_per_msec * 1000 * 60 * 60

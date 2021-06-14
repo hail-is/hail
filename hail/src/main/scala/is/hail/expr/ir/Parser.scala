@@ -19,6 +19,7 @@ import org.json4s.{Formats, JObject}
 import org.json4s.jackson.{JsonMethods, Serialization}
 
 import scala.collection.JavaConverters._
+import scala.collection.mutable
 import scala.reflect.ClassTag
 import scala.util.parsing.combinator.JavaTokenParsers
 import scala.util.parsing.input.Positional
@@ -161,7 +162,13 @@ object IRParser {
   def error(t: Token, msg: String): Nothing = ParserUtils.error(t.pos, msg)
 
   def deserialize[T](str: String)(implicit formats: Formats, mf: Manifest[T]): T = {
-    Serialization.read[T](str)
+    try {
+      Serialization.read[T](str)
+    } catch {
+      case e: org.json4s.MappingException =>
+        throw new RuntimeException(s"Couldn't deserialize ${str}", e)
+    }
+
   }
 
   def consumeToken(it: TokenIterator): Token = {
@@ -280,25 +287,25 @@ object IRParser {
     f: (TokenIterator) => T,
     sep: Token,
     end: Token)(implicit tct: ClassTag[T]): Array[T] = {
-    val xs = new BoxedArrayBuilder[T]()
+    val xs = new mutable.ArrayBuffer[T]()
     while (it.hasNext && it.head != end) {
       xs += f(it)
       if (it.head == sep)
         consumeToken(it)
     }
-    xs.result()
+    xs.toArray
   }
 
   def repUntil[T](it: TokenIterator,
     f: (TokenIterator) => StackFrame[T],
     end: Token)(implicit tct: ClassTag[T]): StackFrame[Array[T]] = {
-    val xs = new BoxedArrayBuilder[T]()
+    val xs = new mutable.ArrayBuffer[T]()
     var cont: T => StackFrame[Array[T]] = null
     def loop(): StackFrame[Array[T]] = {
       if (it.hasNext && it.head != end) {
         f(it).flatMap(cont)
       } else {
-        done(xs.result())
+        done(xs.toArray)
       }
     }
     cont = { t =>
@@ -311,11 +318,11 @@ object IRParser {
   def repUntilNonStackSafe[T](it: TokenIterator,
     f: (TokenIterator) => T,
     end: Token)(implicit tct: ClassTag[T]): Array[T] = {
-    val xs = new BoxedArrayBuilder[T]()
+    val xs = new mutable.ArrayBuffer[T]()
     while (it.hasNext && it.head != end) {
       xs += f(it)
     }
-    xs.result()
+    xs.toArray
   }
 
   def base_seq_parser[T : ClassTag](f: TokenIterator => T)(it: TokenIterator): Array[T] = {

@@ -3,9 +3,9 @@
 
 #include <memory>
 
-#include <hail/allocators.hpp>
-#include <hail/tunion.hpp>
-#include <hail/vtype.hpp>
+#include "hail/allocators.hpp"
+#include "hail/tunion.hpp"
+#include "hail/vtype.hpp"
 
 namespace hail {
 
@@ -337,7 +337,7 @@ ArrayValue::get_element(size_t i) const {
 		     p->elements + i * vtype->element_stride);
 }
 
-void 
+void
 ArrayValue::set_element(size_t i, const Value &new_element) {
   Value::store(p->elements + i * vtype->element_stride, new_element);
 }

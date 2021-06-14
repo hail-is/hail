@@ -13,8 +13,7 @@ async def copy(requester_pays_project: Optional[str], transfer: Union[Transfer, 
     else:
         params = None
     with ThreadPoolExecutor() as thread_pool:
-        async with RouterAsyncFS(
-                'file', [LocalAsyncFS(thread_pool), GoogleStorageAsyncFS(params=params)]) as fs:
+        async with RouterAsyncFS('file', [LocalAsyncFS(thread_pool), GoogleStorageAsyncFS(params=params)]) as fs:
             sema = asyncio.Semaphore(50)
             async with sema:
                 copy_report = await fs.copy(sema, transfer)
@@ -26,9 +25,9 @@ async def main() -> None:
     requster_pays_project = json.loads(sys.argv[1])
     files = json.loads(sys.argv[2])
 
-    await copy(requster_pays_project, [
-        Transfer(f['from'], f['to'], treat_dest_as=Transfer.DEST_IS_TARGET)
-        for f in files])
+    await copy(
+        requster_pays_project, [Transfer(f['from'], f['to'], treat_dest_as=Transfer.DEST_IS_TARGET) for f in files]
+    )
 
 
 if __name__ == '__main__':

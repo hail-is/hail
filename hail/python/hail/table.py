@@ -697,7 +697,7 @@ class Table(ExprContainer):
         +-------+------+---------+-------+-------+-------+-------+-------+
         | int32 | bool | str     | bool  | int32 | int32 | int32 | int32 |
         +-------+------+---------+-------+-------+-------+-------+-------+
-        |    32 | true | "hello" | false |     5 |     7 |     5 |     7 |
+        |    32 | True | "hello" | False |     5 |     7 |     5 |     7 |
         +-------+------+---------+-------+-------+-------+-------+-------+
 
         >>> table_result = table4.transmute(F=table4.A + 2 * table4.E.B)
@@ -707,7 +707,7 @@ class Table(ExprContainer):
         +------+---------+-------+-------+-------+-------+
         | bool | str     | bool  | int32 | int32 | int32 |
         +------+---------+-------+-------+-------+-------+
-        | true | "hello" | false |     5 |     7 |    46 |
+        | True | "hello" | False |     5 |     7 |    46 |
         +------+---------+-------+-------+-------+-------+
 
         Notes
@@ -1504,7 +1504,7 @@ class Table(ExprContainer):
         del n_rows
         if handler is None:
             handler = hl.utils.default_handler()
-        handler(self._show(n, width, truncate, types))
+        return handler(self._show(n, width, truncate, types))
 
     def index(self, *exprs, all_matches=False) -> 'Expression':
         """Expose the row values as if looked up in a dictionary, indexing
@@ -3281,7 +3281,7 @@ class Table(ExprContainer):
         from hail.expr.functions import _values_similar
 
         if self._type != other._type:
-            print(f'Table._same: types differ: {self._type}, {other._type}')
+            print(f'Table._same: types differ:\n  {self._type}\n  {other._type}')
             return False
 
         left_global_value = Env.get_uid()
@@ -3469,6 +3469,10 @@ class Table(ExprContainer):
         to create the full Cartesian product of duplicate keys. Instead, there
         is exactly one entry in some `data_field_name` array for every row in
         the inputs.
+
+        The :meth:`multi_way_zip_join` method assumes that inputs have distinct
+        keys. If any input has duplicate keys, the row value that is included
+        in the result array for that key is undefined.
 
         Parameters
         ----------

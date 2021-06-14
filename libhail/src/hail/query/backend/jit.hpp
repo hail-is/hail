@@ -1,8 +1,9 @@
 #ifndef HAIL_QUERY_BACKEND_JIT_HPP_INCLUDED
 #define HAIL_QUERY_BACKEND_JIT_HPP_INCLUDED 1
 
-#include <hail/vtype.hpp>
 #include <memory>
+
+#include "hail/vtype.hpp"
 
 namespace hail {
 

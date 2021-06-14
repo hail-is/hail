@@ -143,6 +143,7 @@ object Simplify {
 
     case StreamZip(as, names, body, _) if as.length == 1 => StreamMap(as.head, names.head, body)
     case StreamMap(StreamZip(as, names, zipBody, b), name, mapBody) => StreamZip(as, names, Let(name, zipBody, mapBody), b)
+    case StreamMap(StreamFlatMap(child, flatMapName, flatMapBody), mapName, mapBody) => StreamFlatMap(child, flatMapName, StreamMap(flatMapBody, mapName, mapBody))
 
     case x@StreamFlatMap(NA(_), _, _) => NA(x.typ)
 
@@ -174,6 +175,7 @@ object Simplify {
     case Cast(Cast(x, _), t) if x.typ == t =>x
 
     case CastRename(x, t) if x.typ == t => x
+    case CastRename(CastRename(x, _), t) => CastRename(x, t)
 
     case ApplyBinaryPrimOp(Add(), I32(0), x) => x
     case ApplyBinaryPrimOp(Add(), x, I32(0)) => x
@@ -194,8 +196,11 @@ object Simplify {
 
     case ArrayLen(MakeArray(args, _)) => I32(args.length)
 
+    case StreamLen(MakeStream(args, _, _)) => I32(args.length)
+    case StreamLen(Let(name, value, body)) => Let(name, value, StreamLen(body))
     case StreamLen(StreamMap(s, _, _)) => StreamLen(s)
     case StreamLen(StreamFlatMap(a, name, body)) => streamSumIR(StreamMap(a, name, StreamLen(body)))
+    case StreamLen(StreamGrouped(a, groupSize)) => bindIR(groupSize)(groupSizeRef => (StreamLen(a) + groupSizeRef - 1) floorDiv groupSizeRef)
       
     case ArrayLen(ToArray(s)) if s.typ.isInstanceOf[TStream] => StreamLen(s)
     case ArrayLen(StreamFlatMap(a, _, MakeArray(args, _))) => ApplyBinaryPrimOp(Multiply(), I32(args.length), ArrayLen(a))
@@ -203,7 +208,6 @@ object Simplify {
     case ArrayLen(ArraySort(a, _, _, _)) => ArrayLen(ToArray(a))
 
     case ArrayLen(ToArray(MakeStream(args, _, _))) => I32(args.length)
-    case StreamLen(MakeStream(args, _, _)) => I32(args.length)
 
     case ArrayRef(MakeArray(args, _), I32(i), _) if i >= 0 && i < args.length => args(i)
 
@@ -237,7 +241,14 @@ object Simplify {
     case ToStream(Let(name, value, ToArray(x)), _) if x.typ.isInstanceOf[TStream] =>
       Let(name, value, x)
 
+    case NDArrayShape(MakeNDArray(data, shape, _, _)) => {
+      If(IsNA(data), NA(shape.typ), shape)
+    }
     case NDArrayShape(NDArrayMap(nd, _, _)) => NDArrayShape(nd)
+
+    case NDArrayMap(NDArrayMap(child, innerName, innerBody), outerName, outerBody) => {
+      NDArrayMap(child, innerName, Let(outerName, innerBody, outerBody))
+    }
 
     case GetField(MakeStruct(fields), name) =>
       val (_, x) = fields.find { case (n, _) => n == name }.get
@@ -456,7 +467,8 @@ object Simplify {
       }
 
     case TableCollect(TableParallelize(x, _)) => x
-    case x@TableCollect(TableOrderBy(child, sortFields)) if sortFields.forall(_.sortOrder == Ascending) =>
+    case x@TableCollect(TableOrderBy(child, sortFields)) if sortFields.forall(_.sortOrder == Ascending)
+      && !child.typ.key.startsWith(sortFields.map(_.field)) =>
       val uid = genUID()
       val uid2 = genUID()
       val left = genUID()
@@ -555,9 +567,11 @@ object Simplify {
       canBeLifted(query)
     } => query
 
-    case BlockMatrixToValueApply(ValueToBlockMatrix(child, IndexedSeq(nrows, ncols), _), functions.GetElement(Seq(i, j))) =>
-      if (child.typ.isInstanceOf[TArray]) ArrayRef(child, I32((i * ncols + j).toInt)) else child
-
+    case BlockMatrixToValueApply(ValueToBlockMatrix(child, IndexedSeq(nrows, ncols), _), functions.GetElement(Seq(i, j))) => child.typ match {
+      case TArray(_) => ArrayRef(child, I32((i * ncols + j).toInt))
+      case TNDArray(_, _) => NDArrayRef(child, IndexedSeq(i, j), ErrorIDs.NO_ERROR)
+      case TFloat64 => child
+    }
     case LiftMeOut(child) if IsConstant(child) => child
   }
 
@@ -931,12 +945,12 @@ object Simplify {
     case BlockMatrixSlice(BlockMatrixMap2(l, r, ln, rn, f, sparsityStrategy), slices) =>
       BlockMatrixMap2(BlockMatrixSlice(l, slices), BlockMatrixSlice(r, slices), ln, rn, f, sparsityStrategy)
     case BlockMatrixMap2(BlockMatrixBroadcast(scalarBM, IndexedSeq(), _, _), right, leftName, rightName, f, sparsityStrategy) =>
-      val getElement = BlockMatrixToValueApply(scalarBM, functions.GetElement(Seq(0, 0)))
+      val getElement = BlockMatrixToValueApply(scalarBM, functions.GetElement(IndexedSeq(0, 0)))
       val needsDense = sparsityStrategy == NeedsDense || sparsityStrategy.exists(leftBlock = true, rightBlock = false)
       val maybeDense = if (needsDense) BlockMatrixDensify(right) else right
       BlockMatrixMap(maybeDense, rightName, Subst(f, BindingEnv.eval(leftName -> getElement)), needsDense)
     case BlockMatrixMap2(left, BlockMatrixBroadcast(scalarBM, IndexedSeq(), _, _), leftName, rightName, f, sparsityStrategy) =>
-      val getElement = BlockMatrixToValueApply(scalarBM, functions.GetElement(Seq(0, 0)))
+      val getElement = BlockMatrixToValueApply(scalarBM, functions.GetElement(IndexedSeq(0, 0)))
       val needsDense = sparsityStrategy == NeedsDense || sparsityStrategy.exists(leftBlock = false, rightBlock = true)
       val maybeDense = if (needsDense) BlockMatrixDensify(left) else left
       BlockMatrixMap(maybeDense, leftName, Subst(f, BindingEnv.eval(rightName -> getElement)), needsDense)

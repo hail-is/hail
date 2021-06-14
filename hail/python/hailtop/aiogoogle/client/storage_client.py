@@ -1,5 +1,5 @@
 import os
-from typing import Tuple, Any, Set, Optional, Mapping, Dict, AsyncIterator, cast, Type, Iterator, List
+from typing import Tuple, Any, Set, Optional, MutableMapping, Dict, AsyncIterator, cast, Type, Iterator, List
 from types import TracebackType
 import collections
 from multidict import CIMultiDictProxy  # pylint: disable=unused-import
@@ -15,14 +15,14 @@ from hailtop.aiotools import (
     FileStatus, FileListEntry, ReadableStream, WritableStream, AsyncFS,
     FeedableAsyncIterable, FileAndDirectoryError, MultiPartCreate)
 
-from hailtop.aiogoogle.auth import Session
+from hailtop.aiogoogle.auth import BaseSession
 from .base_client import BaseClient
 
 log = logging.getLogger(__name__)
 
 
 class PageIterator:
-    def __init__(self, client: 'BaseClient', path: str, request_kwargs: Mapping[str, Any]):
+    def __init__(self, client: 'BaseClient', path: str, request_kwargs: MutableMapping[str, Any]):
         if 'params' in request_kwargs:
             request_params = request_kwargs['params']
             del request_kwargs['params']
@@ -142,7 +142,7 @@ class _TaskManager:
         self._coro = coro
         self._task = None
 
-    async def __aenter__(self) -> '_TaskManager':
+    async def __aenter__(self) -> asyncio.Task:
         self._task = asyncio.create_task(self._coro)
         return self._task
 
@@ -164,7 +164,7 @@ class _TaskManager:
 
 
 class ResumableInsertObjectStream(WritableStream):
-    def __init__(self, session: Session, session_url: str, chunk_size: int):
+    def __init__(self, session: BaseSession, session_url: str, chunk_size: int):
         super().__init__()
         self._session = session
         self._session_url = session_url
@@ -328,7 +328,7 @@ class StorageClient(BaseClient):
     # docs:
     # https://cloud.google.com/storage/docs/json_api/v1
 
-    async def insert_object(self, bucket: str, name: str, **kwargs) -> InsertObjectStream:
+    async def insert_object(self, bucket: str, name: str, **kwargs) -> WritableStream:
         assert name
         # Insert an object.  See:
         # https://cloud.google.com/storage/docs/json_api/v1/objects/insert
@@ -363,6 +363,7 @@ class StorageClient(BaseClient):
         # https://cloud.google.com/storage/docs/performing-resumable-uploads
         assert upload_type == 'resumable'
         chunk_size = kwargs.get('bufsize', 256 * 1024)
+
         resp = await self._session.post(
             f'https://storage.googleapis.com/upload/storage/v1/b/{bucket}/o',
             **kwargs)
@@ -424,10 +425,9 @@ class GetObjectFileStatus(FileStatus):
 
 class GoogleStorageFileListEntry(FileListEntry):
     def __init__(self, url: str, items: Optional[Dict[str, Any]]):
-        assert url.endswith('/') == (items is None), f'{url} {items}'
         self._url = url
         self._items = items
-        self._status = None
+        self._status: Optional[GetObjectFileStatus] = None
 
     def name(self) -> str:
         parsed = urllib.parse.urlparse(self._url)
@@ -448,7 +448,7 @@ class GoogleStorageFileListEntry(FileListEntry):
     async def status(self) -> FileStatus:
         if self._status is None:
             if self._items is None:
-                raise ValueError("directory has no file status")
+                raise IsADirectoryError(self._url)
             self._status = GetObjectFileStatus(self._items)
         return self._status
 
@@ -478,10 +478,10 @@ class GoogleStorageMultiPartCreate(MultiPartCreate):
     def _part_name(self, number: int) -> str:
         return self._tmp_name(f'part-{number}')
 
-    async def create_part(self, number: int, start: int, *, retry_writes: bool = True) -> WritableStream:
+    async def create_part(self, number: int, start: int) -> WritableStream:
         part_name = self._part_name(number)
         params = {
-            'uploadType': 'resumable' if retry_writes else 'media'
+            'uploadType': 'media'
         }
         return await self._fs._storage_client.insert_object(self._bucket, part_name, params=params)
 
@@ -576,7 +576,7 @@ class GoogleStorageAsyncFS(AsyncFS):
         return await self._storage_client.get_object(
             bucket, name, headers={'Range': f'bytes={start}-'})
 
-    async def create(self, url: str, retry_writes: bool = True) -> WritableStream:
+    async def create(self, url: str, *, retry_writes: bool = True) -> WritableStream:
         bucket, name = self._get_bucket_name(url)
         params = {
             'uploadType': 'resumable' if retry_writes else 'media'
@@ -658,8 +658,7 @@ class GoogleStorageAsyncFS(AsyncFS):
             if prefixes:
                 for prefix in prefixes:
                     assert prefix.endswith('/')
-                    url = f'gs://{bucket}/{prefix}'
-                    yield GoogleStorageFileListEntry(url, None)
+                    yield GoogleStorageFileListEntry(f'gs://{bucket}/{prefix}', None)
 
             items = page.get('items')
             if items:
@@ -682,11 +681,23 @@ class GoogleStorageAsyncFS(AsyncFS):
         except StopAsyncIteration:
             raise FileNotFoundError(url)  # pylint: disable=raise-missing-from
 
+        async def should_yield(entry):
+            url = await entry.url()
+            if url.endswith('/') and await entry.is_file():
+                stat = await entry.status()
+                if await stat.size() != 0:
+                    raise FileAndDirectoryError(url)
+                return False
+            return True
+
         async def cons(first_entry, it):
-            yield first_entry
+            if await should_yield(first_entry):
+                yield first_entry
             try:
                 while True:
-                    yield await it.__anext__()
+                    next_entry = await it.__anext__()
+                    if await should_yield(next_entry):
+                        yield next_entry
             except StopAsyncIteration:
                 pass
 
@@ -708,7 +719,7 @@ class GoogleStorageAsyncFS(AsyncFS):
 
     async def isdir(self, url: str) -> bool:
         bucket, name = self._get_bucket_name(url)
-        assert not name or name.endswith('/')
+        assert not name or name.endswith('/'), name
         params = {
             'prefix': name,
             'delimiter': '/',
@@ -723,27 +734,31 @@ class GoogleStorageAsyncFS(AsyncFS):
 
     async def remove(self, url: str) -> None:
         bucket, name = self._get_bucket_name(url)
-        await self._storage_client.delete_object(bucket, name)
-
-    async def _remove_doesnt_exist_ok(self, url: str) -> None:
         try:
-            bucket, name = self._get_bucket_name(url)
             await self._storage_client.delete_object(bucket, name)
-        except FileNotFoundError:
-            pass
         except aiohttp.ClientResponseError as e:
-            if e.status != 404:
-                raise
+            if e.status == 404:
+                raise FileNotFoundError(url) from e
+            raise
 
-    async def rmtree(self, sema: asyncio.Semaphore, url: str) -> None:
+    async def _rmtree(self, sema: asyncio.Semaphore, url: str) -> None:
         async with OnlineBoundedGather2(sema) as pool:
-            try:
-                it = await self.listfiles(url, recursive=True)
-            except FileNotFoundError:
-                return
+            bucket, name = self._get_bucket_name(url)
+            if name and not name.endswith('/'):
+                name = f'{name}/'
+            it = self._listfiles_recursive(bucket, name)
             async for entry in it:
                 await pool.call(self._remove_doesnt_exist_ok, await entry.url())
 
+    async def rmtree(self, sema: Optional[asyncio.Semaphore], url: str) -> None:
+        if sema is None:
+            sema = asyncio.Semaphore(50)
+            async with sema:
+                return await self._rmtree(sema, url)
+
+        return await self._rmtree(sema, url)
+
     async def close(self) -> None:
-        await self._storage_client.close()
-        self._storage_client = None
+        if hasattr(self, '_storage_client'):
+            await self._storage_client.close()
+            del self._storage_client

@@ -9,7 +9,7 @@ final class RegionMemory(pool: RegionPool) extends AutoCloseable {
   private[this] val usedBlocks = new LongArrayBuilder(4)
   private[this] val bigChunks = new LongArrayBuilder(4)
   private[this] val jObjects = new AnyRefArrayBuilder[AnyRef](0)
-  private val ndarrayRefs = new LongArrayBuilder(4)
+  private[this] val ndarrayRefs = new LongArrayBuilder(4)
 
   private[this] var totalChunkMemory = 0L
   private[this] var currentBlock: Long = 0L
@@ -230,6 +230,8 @@ final class RegionMemory(pool: RegionPool) extends AutoCloseable {
   }
 
   def numChunks: Int = bigChunks.size
+
+  def numNDArrays: Int = ndarrayRefs.size
 
   def numBlocks: Int = usedBlocks.size + (currentBlock != 0).toInt
 

@@ -35,8 +35,7 @@ class InstanceCollectionManager:
             self.name_pool[pool_name] = pool
             self.name_inst_coll[pool_name] = pool
 
-        await asyncio.gather(*[inst_coll.async_init()
-                               for inst_coll in self.name_inst_coll.values()])
+        await asyncio.gather(*[inst_coll.async_init() for inst_coll in self.name_inst_coll.values()])
 
         log.info('finished initializing instance collections')
 
@@ -65,8 +64,7 @@ class InstanceCollectionManager:
 
     @property
     def global_n_instances_by_state(self):
-        counters = [collections.Counter(inst_coll.n_instances_by_state)
-                    for inst_coll in self.name_inst_coll.values()]
+        counters = [collections.Counter(inst_coll.n_instances_by_state) for inst_coll in self.name_inst_coll.values()]
         result = collections.Counter({})
         for counter in counters:
             result += counter

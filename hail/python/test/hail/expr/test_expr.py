@@ -18,7 +18,6 @@ class Tests(unittest.TestCase):
     def collect_unindexed_expression(self):
         self.assertEqual(hl.array([4,1,2,3]).collect(), [4,1,2,3])
 
-    @fails_service_backend()
     def test_key_by_random(self):
         ht = hl.utils.range_table(10, 4)
         ht = ht.annotate(new_key=hl.rand_unif(0, 1))
@@ -80,7 +79,6 @@ class Tests(unittest.TestCase):
             self.assertEqual(set(s1.idx.collect()), expected)
             self.assertEqual(set(s2.idx.collect()), expected)
 
-    @fails_service_backend()
     def test_order_by_head_optimization_with_randomness(self):
         ht = hl.utils.range_table(10, 6).annotate(x=hl.rand_unif(0, 1))
         expected = sorted(ht.collect(), key=lambda x: x['x'])[:5]
@@ -398,7 +396,6 @@ class Tests(unittest.TestCase):
         table = hl.utils.range_table(10).annotate(foo=hl.missing(tint))
         table.aggregate(hl.agg.approx_quantiles(table.foo, qs=[0.5]))
 
-    @fails_service_backend()
     def test_approx_cdf_col_aggregate(self):
         mt = hl.utils.range_matrix_table(10, 10)
         mt = mt.annotate_entries(foo=mt.row_idx + mt.col_idx)
@@ -829,7 +826,6 @@ class Tests(unittest.TestCase):
         assert t.annotate(x=hl.bind(lambda i: hl.scan.sum(t.idx + i), 1, _ctx='scan')).x.collect() == [0, 1, 3, 6, 10]
         assert t.aggregate(hl.bind(lambda i: hl.agg.collect(i), t.idx * t.idx, _ctx='agg')) == [0, 1, 4, 9, 16]
 
-    @fails_service_backend()
     def test_scan(self):
         table = hl.utils.range_table(10)
 
@@ -877,7 +873,6 @@ class Tests(unittest.TestCase):
         for aggregation, expected in tests:
             self.assertEqual(aggregation.collect(), expected)
 
-    @fails_service_backend()
     def test_scan_explode(self):
         t = hl.utils.range_table(5)
         tests = [
@@ -909,7 +904,6 @@ class Tests(unittest.TestCase):
         for aggregation, expected in tests:
             self.assertEqual(aggregation.collect(), expected)
 
-    @fails_service_backend()
     def test_scan_group_by(self):
         t = hl.utils.range_table(5)
         tests = [
@@ -992,7 +986,6 @@ class Tests(unittest.TestCase):
         assert r.n_smaller == 0
         assert r.n_larger == 0
 
-    @fails_service_backend()
     def test_aggregator_cse(self):
         ht = hl.utils.range_table(10)
         x = hl.agg.count()
@@ -1113,7 +1106,6 @@ class Tests(unittest.TestCase):
         r = ht.aggregate(hl.agg.downsample(ht.idx, ht.y, n_divisions=10))
         self.assertTrue(len(r) == 0)
 
-    @fails_service_backend()
     def test_downsample_in_array_agg(self):
         mt = hl.utils.range_matrix_table(50, 50)
         mt = mt.annotate_rows(y = hl.rand_unif(0, 1))
@@ -1474,40 +1466,35 @@ class Tests(unittest.TestCase):
         self.assertFalse(hl.eval(s_whitespace.endswith('a')))
 
     def test_str_parsing(self):
-        for x in ('true', 'True', 'TRUE'):
-            self.assertTrue(hl.eval(hl.bool(x)))
-
-        for x in ('false', 'False', 'FALSE'):
-            self.assertFalse(hl.eval(hl.bool(x)))
+        assert_all_eval_to(*[(hl.bool(x), True) for x in ('true', 'True', 'TRUE')])
+        assert_all_eval_to(*[(hl.bool(x), False) for x in ('false', 'False', 'FALSE')])
 
         for x in ('nan', 'Nan', 'naN', 'NaN'):
             for f in (hl.float, hl.float32, hl.float64, hl.parse_float32, hl.parse_float64):
-                self.assertTrue(hl.eval(hl.is_nan(f(x))))
-                self.assertTrue(hl.eval(hl.is_nan(f('+' + x))))
-                self.assertTrue(hl.eval(hl.is_nan(f('-' + x))))
-
+                assert_all_eval_to(
+                    (hl.is_nan(f(x)), True),
+                    (hl.is_nan(f('+' + x)), True),
+                    (hl.is_nan(f('-' + x)), True)
+                )
         for x in ('inf', 'Inf', 'iNf', 'InF', 'infinity', 'InfiNitY', 'INFINITY'):
             for f in (hl.float, hl.float32, hl.float64, hl.parse_float32, hl.parse_float64):
-                self.assertTrue(hl.eval(hl.is_infinite(f(x))))
-                self.assertTrue(hl.eval(hl.is_infinite(f('+' + x))))
-                self.assertTrue(hl.eval(hl.is_infinite(f('-' + x))))
-                self.assertTrue(hl.eval(f('-' + x) < 0.0))
+                assert_all_eval_to(
+                    (hl.is_infinite(f(x)), True),
+                    (hl.is_infinite(f('+' + x)), True),
+                    (hl.is_infinite(f('-' + x)), True),
+                    (f('-' + x) < 0.0, True)
+                )
 
         for x in ('0', '1', '-5', '12382421'):
-            for f in (hl.int32, hl.int64, hl.parse_int32, hl.parse_int64):
-                self.assertEqual(hl.eval(f(hl.literal(x))), int(x))
-            for f in (hl.float32, hl.float64, hl.parse_float32, hl.parse_float64):
-                self.assertEqual(hl.eval(f(hl.literal(x))), float(x))
+            assert_all_eval_to(*[(f(hl.literal(x)), int(x)) for f in (hl.int32, hl.int64, hl.parse_int32, hl.parse_int64)])
+            assert_all_eval_to(*[(f(hl.literal(x)), float(x)) for f in (hl.float32, hl.float64, hl.parse_float32, hl.parse_float64)])
 
         for x in ('-1.5', '0.0', '2.5'):
-            for f in (hl.float32, hl.float64, hl.parse_float32, hl.parse_float64):
-                self.assertEqual(hl.eval(f(hl.literal(x))), float(x))
-            for f in (hl.parse_int32, hl.parse_int64):
-                self.assertEqual(hl.eval(f(hl.literal(x))), None)
+            assert_all_eval_to(*[(f(hl.literal(x)), float(x)) for f in (hl.float32, hl.float64, hl.parse_float32, hl.parse_float64)])
+            assert_all_eval_to(*[(f(hl.literal(x)), None) for f in (hl.parse_int32, hl.parse_int64)])
 
         for x in ('abc', '1abc', ''):
-            for f in (hl.parse_float32, hl.parse_float64, hl.parse_int32, hl.parse_int64):
-                self.assertEqual(hl.eval(f(hl.literal(x))), None)
+            assert_all_eval_to(*[(f(hl.literal(x)), None) for f in (hl.parse_float32, hl.parse_float64, hl.parse_int32, hl.parse_int64)])
 
     def test_str_missingness(self):
         self.assertEqual(hl.eval(hl.str(1)), '1')
@@ -1534,33 +1521,33 @@ class Tests(unittest.TestCase):
         expected = [0.5, 1.0, 2.0, 4.0, None]
         expected_inv = [2.0, 1.0, 0.5, 0.25, None]
 
-        self.check_expr(a_int32 / 4, expected, tarray(tfloat32))
-        self.check_expr(a_int64 / 4, expected, tarray(tfloat32))
+        self.check_expr(a_int32 / 4, expected, tarray(tfloat64))
+        self.check_expr(a_int64 / 4, expected, tarray(tfloat64))
         self.check_expr(a_float32 / 4, expected, tarray(tfloat32))
         self.check_expr(a_float64 / 4, expected, tarray(tfloat64))
 
-        self.check_expr(int32_4s / a_int32, expected_inv, tarray(tfloat32))
-        self.check_expr(int32_4s / a_int64, expected_inv, tarray(tfloat32))
+        self.check_expr(int32_4s / a_int32, expected_inv, tarray(tfloat64))
+        self.check_expr(int32_4s / a_int64, expected_inv, tarray(tfloat64))
         self.check_expr(int32_4s / a_float32, expected_inv, tarray(tfloat32))
         self.check_expr(int32_4s / a_float64, expected_inv, tarray(tfloat64))
 
-        self.check_expr(a_int32 / int32_4s, expected, tarray(tfloat32))
-        self.check_expr(a_int64 / int32_4s, expected, tarray(tfloat32))
+        self.check_expr(a_int32 / int32_4s, expected, tarray(tfloat64))
+        self.check_expr(a_int64 / int32_4s, expected, tarray(tfloat64))
         self.check_expr(a_float32 / int32_4s, expected, tarray(tfloat32))
         self.check_expr(a_float64 / int32_4s, expected, tarray(tfloat64))
 
-        self.check_expr(a_int32 / int64_4, expected, tarray(tfloat32))
-        self.check_expr(a_int64 / int64_4, expected, tarray(tfloat32))
+        self.check_expr(a_int32 / int64_4, expected, tarray(tfloat64))
+        self.check_expr(a_int64 / int64_4, expected, tarray(tfloat64))
         self.check_expr(a_float32 / int64_4, expected, tarray(tfloat32))
         self.check_expr(a_float64 / int64_4, expected, tarray(tfloat64))
 
-        self.check_expr(int64_4 / a_int32, expected_inv, tarray(tfloat32))
-        self.check_expr(int64_4 / a_int64, expected_inv, tarray(tfloat32))
+        self.check_expr(int64_4 / a_int32, expected_inv, tarray(tfloat64))
+        self.check_expr(int64_4 / a_int64, expected_inv, tarray(tfloat64))
         self.check_expr(int64_4 / a_float32, expected_inv, tarray(tfloat32))
         self.check_expr(int64_4 / a_float64, expected_inv, tarray(tfloat64))
 
-        self.check_expr(a_int32 / int64_4s, expected, tarray(tfloat32))
-        self.check_expr(a_int64 / int64_4s, expected, tarray(tfloat32))
+        self.check_expr(a_int32 / int64_4s, expected, tarray(tfloat64))
+        self.check_expr(a_int64 / int64_4s, expected, tarray(tfloat64))
         self.check_expr(a_float32 / int64_4s, expected, tarray(tfloat32))
         self.check_expr(a_float64 / int64_4s, expected, tarray(tfloat64))
 
@@ -2642,6 +2629,20 @@ class Tests(unittest.TestCase):
         ds = hl.utils.range_matrix_table(3, 3)
         ds.col_idx.show(3)
 
+    def test_show_expression(self):
+        ds = hl.utils.range_matrix_table(3, 3)
+        result = ds.col_idx.show(handler=str)
+        assert result == '''+---------+
+| col_idx |
++---------+
+|   int32 |
++---------+
+|       0 |
+|       1 |
+|       2 |
++---------+
+'''
+
     @fails_service_backend()
     @fails_local_backend()
     def test_export(self):
@@ -2836,7 +2837,6 @@ class Tests(unittest.TestCase):
             hl.eval(hl.contig_length('chr5', 'GRCh37'))
 
 
-    @fails_service_backend()
     def test_initop(self):
         t = (hl.utils.range_table(5, 3)
              .annotate(GT=hl.call(0, 1))

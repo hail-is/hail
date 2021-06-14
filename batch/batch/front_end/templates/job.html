@@ -68,7 +68,7 @@
       <th>Job Step</th>
       <th>Image Pulling Time (s)</th>
       <th>Running Time (s)</th>
-      <th>Exceeded Memory Limits?</th>
+      <th>Error Type</th>
       <th>State</th>
     </tr>
   </thead>
@@ -87,10 +87,10 @@
         {{ step['timing']['running']['duration'] / 1000.0 }}
         {% endif %}
       </td>
-      {% if step['container_status']['out_of_memory'] %}
-      <td class="data-table-bad" >Yes</td>
+      {% if step['short_error'] is not none %}
+      <td class="data-table-bad" >{{ step['short_error'] }}</td>
       {% else %}
-      <td>No</td>
+      <td></td>
       {% endif %}
       <td {% if step['state'] in ['failed', 'error'] %}class="data-table-bad"{% endif %}>
         {{ step['state'] }}
@@ -101,23 +101,50 @@
   </tbody>
 </table>
 
-{% if job_log %}
-<h2>Log</h2>
+{% if error is not none %}
+<h2>Error</h2>
+<pre>{{ error }}</pre>
+{% endif %}
 
-{% if 'input' in job_log %}
+{% if job_log or step_errors %}
+<h2>Logs</h2>
+
+{% if 'input' in job_log or 'input' in step_errors %}
 <h3>Input</h3>
+{% if 'input' in job_log %}
+<h4>Log</h4>
 <pre>{{ job_log['input'] }}</pre>
 {% endif %}
+{% if 'input' in step_errors and step_errors['input'] is not none %}
+<h4>Error</h4>
+<pre>{{ step_errors['input'] }}</pre>
+{% endif %}
+{% endif %}
 
-{% if 'main' in job_log %}
+{% if 'main' in job_log or 'main' in step_errors %}
 <h3>Main</h3>
+{% if 'main' in job_log %}
+<h4>Log</h4>
 <pre>{{ job_log['main'] }}</pre>
 {% endif %}
+{% if 'main' in step_errors and step_errors['main'] is not none %}
+<h4>Error</h4>
+<pre>{{ step_errors['main'] }}</pre>
+{% endif %}
+{% endif %}
 
-{% if 'output' in job_log %}
+{% if 'output' in job_log or 'output' in step_errors %}
 <h3>Output</h3>
+{% if 'output' in job_log %}
+<h4>Log</h4>
 <pre>{{ job_log['output'] }}</pre>
 {% endif %}
+{% if 'output' in step_errors and step_errors['output'] is not none %}
+<h4>Error</h4>
+<pre>{{ step_errors['output'] }}</pre>
+{% endif %}
+{% endif %}
+
 {% endif %}
 
 <h2>Job Specification</h2>

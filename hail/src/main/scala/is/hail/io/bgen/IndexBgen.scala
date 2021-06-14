@@ -1,15 +1,15 @@
 package is.hail.io.bgen
 
-import is.hail.HailContext
-import is.hail.backend.{BroadcastValue, HailTaskContext}
+import is.hail.backend.BroadcastValue
+import is.hail.backend.spark.SparkTaskContext
 import is.hail.expr.ir.ExecuteContext
+import is.hail.io._
+import is.hail.io.fs.FS
+import is.hail.io.index.IndexWriter
+import is.hail.rvd.{RVD, RVDPartitioner, RVDType}
 import is.hail.types.TableType
 import is.hail.types.physical.{PCanonicalStruct, PStruct}
 import is.hail.types.virtual._
-import is.hail.io.fs.FS
-import is.hail.io.index.IndexWriter
-import is.hail.io._
-import is.hail.rvd.{RVD, RVDPartitioner, RVDType}
 import is.hail.utils._
 import is.hail.variant.ReferenceGenome
 import org.apache.spark.sql.Row
@@ -117,7 +117,7 @@ object IndexBgen {
       .foreachPartition { it =>
         val partIdx = TaskContext.get.partitionId()
         val idxPath = indexFilePaths(partIdx)
-        val htc = HailTaskContext.get()
+        val htc = SparkTaskContext.get()
 
         htc.getRegionPool().scopedRegion { r =>
           using(makeIW(idxPath, r.pool)) { iw =>

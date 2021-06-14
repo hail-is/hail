@@ -1,13 +1,13 @@
 package is.hail.io.tabix
 
 import java.io.InputStream
-
 import htsjdk.samtools.util.FileExtensions
 import htsjdk.tribble.util.ParsingUtils
 import is.hail.io.compress.BGzipLineReader
 import is.hail.io.fs.FS
 import is.hail.utils._
 import is.hail.backend.BroadcastValue
+import is.hail.expr.ir.IntArrayBuilder
 
 import scala.collection.mutable
 import scala.language.implicitConversions
@@ -256,7 +256,7 @@ class TabixReader(val filePath: String, fs: FS, idxFilePath: Option[String] = No
       new Array[Int](0)
     else {
       var end = _end
-      val bins = new BoxedArrayBuilder[Int](MaxBin)
+      val bins = new IntArrayBuilder(MaxBin)
       if (end >= (1 << 29)) {
         end = 1 << 29
       }

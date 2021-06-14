@@ -1,8 +1,9 @@
 #ifndef HAIL_QUERY_BACKEND_SVALUE_HPP_INCLUDED
 #define HAIL_QUERY_BACKEND_SVALUE_HPP_INCLUDED 1
 
-#include <hail/query/backend/stype.hpp>
 #include <vector>
+
+#include "hail/query/backend/stype.hpp"
 
 namespace hail {
 

@@ -5,6 +5,10 @@ set -ex
 curl --silent --show-error --remote-name --fail https://dl.google.com/cloudagents/add-logging-agent-repo.sh
 bash add-logging-agent-repo.sh
 
+
+# Get the latest GPG key as it might not always be up to date
+# https://cloud.google.com/compute/docs/troubleshooting/known-issues#keyexpired
+curl https://packages.cloud.google.com/apt/doc/apt-key.gpg | sudo apt-key add -
 apt-get update
 
 apt-get install -y \
@@ -29,7 +33,7 @@ rm -rf /var/lib/apt/lists/*
 
 [ -f /etc/docker/daemon.json ] || echo "{}" > /etc/docker/daemon.json
 
-VERSION=1.5.0
+VERSION=2.0.4
 OS=linux
 ARCH=amd64
 
@@ -39,10 +43,9 @@ curl -fsSL "https://github.com/GoogleCloudPlatform/docker-credential-gcr/release
 
 # avoid "unable to get current user home directory: os/user lookup failed"
 export HOME=/root
-docker-credential-gcr configure-docker
 
-GCP_PROJECT=$(curl -s -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/project/project-id")
-docker pull gcr.io/$GCP_PROJECT/ubuntu:18.04
+docker-credential-gcr configure-docker --include-artifact-registry
+docker pull {{ global.docker_root_image }}
 
 # add docker daemon debug logging
 jq '.debug = true' /etc/docker/daemon.json > daemon.json.tmp

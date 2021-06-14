@@ -47,6 +47,14 @@ changed files every commit. For example, services code uses the
 [Black python formatter](https://black.readthedocs.io/en/stable/)
 to enforce PEP8 compliance.
 
+Sometimes large formatting or refactoring commits can muddle the git history
+for a file. If your change is one of these, follow up by adding the commit SHA to
+`.git-blame-ignore-revs`. To configure `git blame` to ignore these commits, run
+
+```
+git config blame.ignoreRevsFile $HAIL/.git-blame-ignore-revs
+```
+
 #### Services
 
 Install and configure tools necessary for working on the Hail Services:
@@ -59,8 +67,9 @@ Install and configure tools necessary for working on the Hail Services:
 gcloud auth login
 gcloud config set project hail-vdc
 gcloud container clusters get-credentials vdc --zone=us-central1-a
-gcloud auth configure-docker
+gcloud auth -q configure-docker gcr.io
 ```
+
 5. Add these lines to `~/.zshrc` or `~/.bashrc` to configure your shell and environment for Hail:
 ```
 # BuildKit, a fast docker backend
@@ -105,7 +114,7 @@ Your namespace name is the same as your username.
 Submitting a dev deploy with hailctl will give you the link to a UI
 where you can monitor the progress of everything deploying and get the logs for
 any steps that fail. You can also see a recent history of your dev deploys at
-[ci.hail.is/me](ci.hail.is/me).
+[ci.hail.is/me](https://ci.hail.is/me).
 
 
 If the tests fail, you can then examine the Kubernetes logs for the service
@@ -147,9 +156,9 @@ PRs will not have any labels.
 
 For the PR title, start the title with the name of the service(s) the changes
 impact. For example, if it’s a Benchmark change, then you’d write
-[benchmark]. If it’s a Hail Query change, then it would be [query]. We also want
+`[benchmark]`. If it’s a Hail Query change, then it would be `[query]`. We also want
 the title to be descriptive enough to know what the change is without being too
-verbose. An example is “[batch] Added read_only option for gcsfuse”.
+verbose. An example is “`[batch]` Added read_only option for gcsfuse”.
 
 For the PR commit message, we want the message to be descriptive of the complete
 set of changes that occurred, especially if it’s a complicated set of

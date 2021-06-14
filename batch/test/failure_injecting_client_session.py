@@ -20,12 +20,9 @@ class FailureInjectingClientSession:
             raise aiohttp.ClientResponseError(
                 status=503,
                 message='Service Unavailable from FailureInjectingClientSession',
-                request_info=aiohttp.RequestInfo(
-                    url=path,
-                    method=method,
-                    headers=headers,
-                    real_url=path),
-                history=())
+                request_info=aiohttp.RequestInfo(url=path, method=method, headers=headers, real_url=path),
+                history=(),
+            )
 
     async def request(self, method, path, *args, **kwargs):
         self.maybe_fail(method, path, kwargs.get('headers', {}))

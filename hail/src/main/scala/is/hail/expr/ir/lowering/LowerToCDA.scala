@@ -3,7 +3,8 @@ package is.hail.expr.ir.lowering
 import is.hail.annotations.{Region, SafeRow, UnsafeRow}
 import is.hail.asm4s.{AsmFunction1RegionLong, AsmFunction1RegionUnit, LongInfo, UnitInfo, classInfo}
 import is.hail.expr.ir._
-import is.hail.types.physical.{PTuple, PType, PTypeReferenceSingleCodeType}
+import is.hail.types.physical.stypes.PTypeReferenceSingleCodeType
+import is.hail.types.physical.{PTuple, PType}
 import is.hail.types.virtual.Type
 import is.hail.utils.{FastIndexedSeq, FastSeq}
 import org.apache.spark.sql.Row
@@ -46,7 +47,7 @@ object LowerToCDA {
           print = None)
       }
 
-      val addr = ctx.timer.time("Run")(f(0, ctx.r).apply(ctx.r))
+      val addr = ctx.timer.time("Run")(f(ctx.fs, 0, ctx.r).apply(ctx.r))
       val litValue = ctx.timer.time("SafeRow.convert")(SafeRow.read(pt, addr).asInstanceOf[Row].get(0))
       val lit = Literal.coerce(value.typ, litValue)
       lower(body, typesToLower, ctx, r, relationalLetsAbove + ((name, lit)))

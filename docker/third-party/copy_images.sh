@@ -4,15 +4,15 @@ set -ex
 
 images=$(cat images.txt)
 
-if [ -z "${PROJECT}" ]
+if [ -z "${DOCKER_PREFIX}" ]
 then
-    echo ERROR: PROJECT must be set before running this
+    echo ERROR: DOCKER_PREFIX must be set before running this
     exit 1
 fi
 
 for image in ${images}
 do
-    dest="gcr.io/${PROJECT}/${image}"
+    dest="${DOCKER_PREFIX}/${image}"
     docker pull $image
     docker tag $image $dest
     docker push $dest

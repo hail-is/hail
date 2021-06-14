@@ -4,6 +4,7 @@ import subprocess
 import traceback
 import sys
 import os
+import re
 import errno
 import random
 import logging
@@ -22,7 +23,10 @@ import weakref
 from requests.adapters import HTTPAdapter
 from urllib3.poolmanager import PoolManager
 
+import hailtop
+
 from .time import time_msecs
+
 
 log = logging.getLogger('hailtop.utils')
 
@@ -267,73 +271,66 @@ class WaitableSharedPool:
         await self.wait()
 
 
-class Subsemaphore:
-    def __init__(self, sema: asyncio.Semaphore):
+class WithoutSemaphore:
+    def __init__(self, sema):
         self._sema = sema
-        self._borrowed = 0
-        self._lent = False
-        self._pending: List[Callable[[], None]] = []
 
-    async def acquire(self):
-        if not self._lent:
-            self._lent = True
-            return self
-
-        acquired = asyncio.Event()
-
-        async def borrow():
-            await self._sema.acquire()
-            if acquired.is_set():
-                self._sema.release()
-                return
-            self._borrowed += 1
-            acquired.set()
-
-        def on_return():
-            assert not self._lent
-            if acquired.is_set():
-                return
-            self._lent = True
-            acquired.set()
-
-        asyncio.create_task(borrow())
-        self._pending.append(on_return)
-
-        await acquired.wait()
-
-        return self
-
-    def release(self):
-        if self._borrowed > 0:
-            self._sema.release()
-            self._borrowed -= 1
-        else:
-            assert self._lent
-            self._lent = False
-            while self._pending and not self._lent:
-                f = self._pending.pop()
-                f()
-
-    async def __aenter__(self) -> 'Subsemaphore':
-        await self.acquire()
+    async def __aenter__(self) -> 'WithoutSemaphore':
+        self._sema.release()
         return self
 
     async def __aexit__(self,
                         exc_type: Optional[Type[BaseException]],
                         exc_val: Optional[BaseException],
                         exc_tb: Optional[TracebackType]) -> None:
-        self.release()
+        await self._sema.acquire()
+
+
+class PoolShutdownError(Exception):
+    pass
 
 
 class OnlineBoundedGather2:
+    '''`OnlineBoundedGather2` provides the capability to run background
+    tasks with bounded parallelism.  It is a context manager, and
+    waits for all background tasks to complete on exit.
+
+    `OnlineBoundedGather2` supports cancellation of background tasks.
+    When a background task raises `asyncio.CancelledError`, the task
+    is considered complete and the pool and other background tasks
+    continue runnning.
+
+    If a background task fails (raises an exception besides
+    `asyncio.CancelledError`), all running background tasks are
+    cancelled and the the pool is shut down.  Subsequent calls to
+    `OnlineBoundedGather2.call()` raise `PoolShutdownError`.
+
+    Because the pool runs tasks in the background, multiple exceptions
+    can occur simultaneously.  The first exception raised, whether by
+    a background task or into the context manager exit, is raised by
+    the context manager exit, and any further exceptions are logged
+    and otherwise discarded.
+    '''
+
     def __init__(self, sema: asyncio.Semaphore):
         self._counter = 0
-        self._subsema = Subsemaphore(sema)
+        self._sema = sema
         self._pending: Optional[Dict[int, asyncio.Task]] = {}
+        # done if there are no pending tasks (the tasks are all
+        # complete), or if we've shutdown and the cancelled tasks are
+        # complete
         self._done_event = asyncio.Event()
+        # not pending tasks, so done
+        self._done_event.set()
         self._exception: Optional[BaseException] = None
 
     async def _shutdown(self) -> None:
+        '''Shut down the pool.
+
+        Cancel all pending tasks and wait for them to complete.
+        Subsequent calls to call will raise `PoolShutdownError`.
+        '''
+
         if self._pending is None:
             return
 
@@ -345,28 +342,39 @@ class OnlineBoundedGather2:
             tasks.append(t)
         self._pending = None
 
-        # wake up if waiting
-        self._done_event.set()
-
         if tasks:
             await asyncio.wait(tasks)
 
+        self._done_event.set()
+
     async def call(self, f, *args, **kwargs) -> asyncio.Task:
-        if self._exception:
-            raise self._exception
+        '''Invoke a function as a background task.
+
+        Return the task, which can be used to wait on (using
+        `OnlineBoundedGather2.wait()`) or cancel the task (using
+        `asyncio.Task.cancel()`).  Note, waiting on a task using
+        `asyncio.wait()` directly can lead to deadlock.
+        '''
+
+        if self._pending is None:
+            raise PoolShutdownError
 
         id = self._counter
         self._counter += 1
 
         async def run_and_cleanup():
             try:
-                async with self._subsema:
+                async with self._sema:
                     await f(*args, **kwargs)
+            except asyncio.CancelledError:
+                pass
             except:
-                if not self._exception:
+                if self._exception is None:
                     _, exc, _ = sys.exc_info()
                     self._exception = exc
-                    await self._shutdown()
+                    await asyncio.shield(self._shutdown())
+                else:
+                    log.info('discarding exception', exc_info=True)
 
             if self._pending is None:
                 return
@@ -374,95 +382,103 @@ class OnlineBoundedGather2:
             if not self._pending:
                 self._done_event.set()
 
-        assert self._pending is not None
         t = asyncio.create_task(run_and_cleanup())
         self._pending[id] = t
+        self._done_event.clear()
         return t
 
     async def wait(self, tasks: List[asyncio.Task]) -> None:
-        self._subsema.release()
-        try:
+        '''Wait for a list of tasks returned to complete.
+
+        The tasks should be tasks returned from
+        `OnlineBoundedGather2.call()`.  They can be a subset of the
+        running tasks, `OnlineBoundedGather2.wait()` can be called
+        multiple times, and additional tasks can be submitted to the
+        pool after waiting.
+        '''
+
+        async with WithoutSemaphore(self._sema):
             await asyncio.wait(tasks)
-        finally:
-            await self._subsema.acquire()
-
-    async def wait_done(self) -> None:
-        while self._pending:
-            if self._exception:
-                raise self._exception
-
-            self._done_event.clear()
-            await self._done_event.wait()
-
-        if self._exception:
-            raise self._exception
 
     async def __aenter__(self) -> 'OnlineBoundedGather2':
-        await self._subsema.acquire()
         return self
 
     async def __aexit__(self,
                         exc_type: Optional[Type[BaseException]],
                         exc_val: Optional[BaseException],
                         exc_tb: Optional[TracebackType]) -> None:
-        self._subsema.release()
+        if exc_val:
+            if self._exception is None:
+                self._exception = exc_val
+                await self._shutdown()
+            else:
+                log.info('discarding exception', exc_info=exc_val)
 
-        _, exc, _ = sys.exc_info()
-        if exc:
-            await self._shutdown()
-        else:
-            await self.wait_done()
+        # wait for done and not pending _done_event.wait can return
+        # when when there are pending jobs if the last job completed
+        # (setting _done_event) and then more tasks were submitted
+        async with WithoutSemaphore(self._sema):
+            await self._done_event.wait()
+        while self._pending:
+            assert not self._done_event.is_set()
+            async with WithoutSemaphore(self._sema):
+                await self._done_event.wait()
+
+        if self._exception:
+            raise self._exception
 
 
-async def bounded_gather2_return_exceptions(sema: asyncio.Semaphore, *aws):
-    '''Run the awaitables aws as tasks with parallelism bounded by sema,
-    which should be asyncio.Semaphore whose initial value is the level
-    of parallelism.
+async def bounded_gather2_return_exceptions(sema: asyncio.Semaphore, *pfs):
+    '''Run the partial functions `pfs` as tasks with parallelism bounded
+    by `sema`, which should be `asyncio.Semaphore` whose initial value
+    is the desired level of parallelism.
 
-    The return value is the list of awaitable results as pairs: the
-    pair (value, None) if the awaitable returned value or (None, exc)
-    if the awaitable raised the exception exc.
+    The return value is the list of partial function results as pairs:
+    the pair `(value, None)` if the partial function returned value or
+    `(None, exc)` if the partial function raised the exception `exc`.
+
     '''
-    subsema = Subsemaphore(sema)
-
-    async def run_with_sema_return_exceptions(aw):
+    async def run_with_sema_return_exceptions(pf):
         try:
-            async with subsema:
-                return (await aw, None)
+            async with sema:
+                return (await pf(), None)
         except:
             _, exc, _ = sys.exc_info()
             return (None, exc)
 
-    return await asyncio.gather(*[asyncio.create_task(run_with_sema_return_exceptions(aw)) for aw in aws])
+    tasks = [asyncio.create_task(run_with_sema_return_exceptions(pf)) for pf in pfs]
+    async with WithoutSemaphore(sema):
+        return await asyncio.gather(*tasks)
 
 
-async def bounded_gather2_raise_exceptions(sema: asyncio.Semaphore, *aws, cancel_on_error: bool = False):
-    '''Run the awaitables aws as tasks with parallelism bounded by sema,
-    which should be asyncio.Semaphore whose initial value is the level
-    of parallelism.
+async def bounded_gather2_raise_exceptions(sema: asyncio.Semaphore, *pfs, cancel_on_error: bool = False):
+    '''Run the partial functions `pfs` as tasks with parallelism bounded
+    by `sema`, which should be `asyncio.Semaphore` whose initial value
+    is the level of parallelism.
 
-    The return value is the list of awaitable results.
+    The return value is the list of partial function results.
 
-    The first exception raised by an awaitable is raised by
+    The first exception raised by a partial function is raised by
     bounded_gather2_raise_exceptions.
 
-    If cancel_on_error is False (the default), the remaining
-    awaitables continue to run with bounded parallelism.  If
+    If cancel_on_error is False (the default), the remaining partial
+    functions continue to run with bounded parallelism.  If
     cancel_on_error is True, the unfinished tasks are all cancelled.
+
     '''
-    subsema = Subsemaphore(sema)
+    async def run_with_sema(pf):
+        async with sema:
+            return await pf()
 
-    async def run_with_subsema(aw):
-        async with subsema:
-            return await aw
-
-    tasks = [asyncio.create_task(run_with_subsema(aw)) for aw in aws]
+    tasks = [asyncio.create_task(run_with_sema(pf)) for pf in pfs]
 
     if not cancel_on_error:
-        return await asyncio.gather(*tasks)
+        async with WithoutSemaphore(sema):
+            return await asyncio.gather(*tasks)
 
     try:
-        return await asyncio.gather(*tasks)
+        async with WithoutSemaphore(sema):
+            return await asyncio.gather(*tasks)
     finally:
         _, exc, _ = sys.exc_info()
         if exc is not None:
@@ -470,13 +486,14 @@ async def bounded_gather2_raise_exceptions(sema: asyncio.Semaphore, *aws, cancel
                 if not task.done():
                     task.cancel()
             if tasks:
-                await asyncio.wait(tasks)
+                async with WithoutSemaphore(sema):
+                    await asyncio.wait(tasks)
 
 
-async def bounded_gather2(sema: asyncio.Semaphore, *aws, return_exceptions: bool = False, cancel_on_error: bool = False):
+async def bounded_gather2(sema: asyncio.Semaphore, *pfs, return_exceptions: bool = False, cancel_on_error: bool = False):
     if return_exceptions:
-        return await bounded_gather2_return_exceptions(sema, *aws)
-    return await bounded_gather2_raise_exceptions(sema, *aws, cancel_on_error=cancel_on_error)
+        return await bounded_gather2_return_exceptions(sema, *pfs)
+    return await bounded_gather2_raise_exceptions(sema, *pfs, cancel_on_error=cancel_on_error)
 
 
 RETRYABLE_HTTP_STATUS_CODES = {408, 500, 502, 503, 504}
@@ -541,6 +558,9 @@ def is_transient_error(e):
         # 408 request timeout, 500 internal server error, 502 bad gateway
         # 503 service unavailable, 504 gateway timeout
         return True
+    if isinstance(e, hailtop.httpx.ClientResponseError) and (
+            e.status == 403 and 'Rate Limit Exceeded' in e.body):
+        return True
     if isinstance(e, aiohttp.ServerTimeoutError):
         return True
     if isinstance(e, aiohttp.ServerDisconnectedError):
@@ -564,6 +584,9 @@ def is_transient_error(e):
                             errno.EPIPE
                             )):
         return True
+    if isinstance(e, aiohttp.ClientOSError):
+        # aiohttp/client_reqrep.py wraps all OSError instances with a ClientOSError
+        return is_transient_error(e.__cause__)
     if isinstance(e, urllib3.exceptions.ReadTimeoutError):
         return True
     if isinstance(e, requests.exceptions.ReadTimeout):
@@ -572,11 +595,16 @@ def is_transient_error(e):
         return True
     if isinstance(e, socket.timeout):
         return True
+    if isinstance(e, socket.gaierror):
+        # socket.EAI_AGAIN: [Errno -3] Temporary failure in name resolution
+        return e.errno == socket.EAI_AGAIN
     if isinstance(e, ConnectionResetError):
         return True
     if isinstance(e, google.auth.exceptions.TransportError):
         return is_transient_error(e.__cause__)
     if isinstance(e, google.api_core.exceptions.GatewayTimeout):
+        return True
+    if isinstance(e, google.api_core.exceptions.ServiceUnavailable):
         return True
     if isinstance(e, TransientError):
         return True
@@ -585,16 +613,16 @@ def is_transient_error(e):
 
 async def sleep_and_backoff(delay):
     # exponentially back off, up to (expected) max of 30s
-    t = delay * random.random()
+    t = delay * random.uniform(0.9, 1.1)
     await asyncio.sleep(t)
-    return min(delay * 2, 60.0)
+    return min(delay * 2, 30.0)
 
 
 def sync_sleep_and_backoff(delay):
     # exponentially back off, up to (expected) max of 30s
-    t = delay * random.random()
+    t = delay * random.uniform(0.9, 1.1)
     time.sleep(t)
-    return min(delay * 2, 60.0)
+    return min(delay * 2, 30.0)
 
 
 def retry_all_errors(msg=None, error_logging_interval=10):
@@ -614,6 +642,25 @@ def retry_all_errors(msg=None, error_logging_interval=10):
     return _wrapper
 
 
+def retry_all_errors_n_times(max_errors=10, msg=None, error_logging_interval=10):
+    async def _wrapper(f, *args, **kwargs):
+        delay = 0.1
+        errors = 0
+        while True:
+            try:
+                return await f(*args, **kwargs)
+            except asyncio.CancelledError:  # pylint: disable=try-except-raise
+                raise
+            except Exception:
+                errors += 1
+                if msg and errors % error_logging_interval == 0:
+                    log.exception(msg, stack_info=True)
+                if errors >= max_errors:
+                    raise
+            delay = await sleep_and_backoff(delay)
+    return _wrapper
+
+
 T = TypeVar('T')  # pylint: disable=invalid-name
 
 
@@ -629,7 +676,7 @@ async def retry_transient_errors(f: Callable[..., Awaitable[T]], *args, **kwargs
             errors += 1
             if errors % 10 == 0:
                 st = ''.join(traceback.format_stack())
-                log.warning(f'encountered {errors} errors. My stack trace is {st}. Most recent error was {e}', exc_info=True)
+                log.warning(f'Encountered {errors} errors. My stack trace is {st}. Most recent error was {e}', exc_info=True)
         delay = await sleep_and_backoff(delay)
 
 
@@ -642,7 +689,8 @@ def sync_retry_transient_errors(f, *args, **kwargs):
         except Exception as e:
             errors += 1
             if errors % 10 == 0:
-                log.warning(f'encountered {errors} errors, most recent one was {e}', exc_info=True)
+                st = ''.join(traceback.format_stack())
+                log.warning(f'Encountered {errors} errors. My stack trace is {st}. Most recent error was {e}', exc_info=True)
             if is_transient_error(e):
                 pass
             else:
@@ -711,7 +759,7 @@ async def collect_agen(agen):
 
 def dump_all_stacktraces():
     for t in asyncio.all_tasks():
-        print(t)
+        log.debug(t)
         t.print_stack()
 
 
@@ -813,11 +861,47 @@ def url_scheme(url: str) -> str:
     return parsed.scheme
 
 
-def is_google_registry_image(path: str) -> bool:
+class ParsedDockerImageReference:
+    def __init__(self, domain: str, path: str, tag: str, digest: str):
+        self.domain = domain
+        self.path = path
+        self.tag = tag
+        self.digest = digest
+
+    def name(self):
+        if self.domain:
+            return self.domain + '/' + self.path
+        return self.path
+
+    def __str__(self):
+        s = self.name()
+        if self.tag is not None:
+            s += ':'
+            s += self.tag
+        if self.digest is not None:
+            s += '@'
+            s += self.digest
+        return s
+
+
+# https://github.com/distribution/distribution/blob/v2.7.1/reference/reference.go
+DOCKER_IMAGE_REFERENCE_REGEX = re.compile(r"(?:([^/]+)/)?([^:@]+)(?::([^@]+))?(?:@(.+))?")
+
+
+def parse_docker_image_reference(reference_string: str) -> ParsedDockerImageReference:
+    match = DOCKER_IMAGE_REFERENCE_REGEX.fullmatch(reference_string)
+    if match is None:
+        raise ValueError(f'could not parse {reference_string!r} as a docker image reference')
+    domain, path, tag, digest = (match.group(i + 1) for i in range(4))
+    return ParsedDockerImageReference(domain, path, tag, digest)
+
+
+def is_google_registry_domain(domain: Optional[str]) -> bool:
     """Returns true if the given Docker image path points to either the Google
     Container Registry or the Artifact Registry."""
-    host = path.partition('/')[0]
-    return host == 'gcr.io' or host.endswith('docker.pkg.dev')
+    if domain is None:
+        return False
+    return domain == 'gcr.io' or domain.endswith('docker.pkg.dev')
 
 
 class Notice:

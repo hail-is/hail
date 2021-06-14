@@ -18,7 +18,8 @@ async def insert_user_if_not_exists(db, username, email):
     INSERT INTO users (state, username, email, is_developer, is_service_account)
     VALUES (%s, %s, %s, %s, %s);
     ''',
-            ('creating', username, email, 1, 0))
+            ('creating', username, email, 1, 0),
+        )
 
     return await insert(db)
 
@@ -26,10 +27,8 @@ async def insert_user_if_not_exists(db, username, email):
 async def main():
     parser = argparse.ArgumentParser(description='Create initial Hail as a service account.')
 
-    parser.add_argument('username',
-                        help='The username of the initial user.')
-    parser.add_argument('email',
-                        help='The email of the initial user.')
+    parser.add_argument('username', help='The username of the initial user.')
+    parser.add_argument('email', help='The email of the initial user.')
 
     args = parser.parse_args()
 

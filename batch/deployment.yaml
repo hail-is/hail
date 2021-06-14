@@ -59,6 +59,10 @@ spec:
            value: "{{ default_ns.name }}"
          - name: PROJECT
            value: "{{ global.project }}"
+         - name: HAIL_DOCKER_ROOT_IMAGE
+           value: "{{ global.docker_root_image }}"
+         - name: HAIL_DOCKER_PREFIX
+           value: "{{ global.docker_prefix }}"
          - name: HAIL_GCP_REGION
            valueFrom:
              secretKeyRef:
@@ -82,6 +86,8 @@ spec:
          - name: HAIL_SHOULD_PROFILE
            value: "1"
 {% endif %}
+         - name: HAIL_SCOPE
+           value: "{{ scope }}"
 {% if deploy %}
          - name: HAIL_BATCH_BUCKET_NAME
            valueFrom:
@@ -195,6 +201,10 @@ spec:
            value: "{{ default_ns.name }}"
          - name: PROJECT
            value: "{{ global.project }}"
+         - name: HAIL_DOCKER_ROOT_IMAGE
+           value: "{{ global.docker_root_image }}"
+         - name: HAIL_DOCKER_PREFIX
+           value: "{{ global.docker_prefix }}"
          - name: HAIL_GCP_REGION
            valueFrom:
              secretKeyRef:
@@ -214,6 +224,8 @@ spec:
            value: "{{ global.k8s_server_url }}"
          - name: HAIL_SHA
            value: "{{ code.sha }}"
+         - name: HAIL_SCOPE
+           value: "{{ scope }}"
 {% if deploy %}
          - name: HAIL_BATCH_BUCKET_NAME
            valueFrom:

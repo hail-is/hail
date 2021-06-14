@@ -488,6 +488,8 @@ class MatrixBGENReader(
 
   override def toJValue: JValue = params.toJValue
 
+  def renderShort(): String = defaultRender()
+
   override def hashCode(): Int = params.hashCode()
 
   override def equals(that: Any): Boolean = that match {

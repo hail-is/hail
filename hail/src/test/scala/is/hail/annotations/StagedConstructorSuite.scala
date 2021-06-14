@@ -3,7 +3,7 @@ package is.hail.annotations
 import is.hail.HailSuite
 import is.hail.asm4s._
 import is.hail.check.{Gen, Prop}
-import is.hail.expr.ir.{EmitCode, EmitFunctionBuilder, IEmitCode}
+import is.hail.expr.ir.{EmitCode, EmitFunctionBuilder, IEmitCode, RequirednessSuite}
 import is.hail.types.physical._
 import is.hail.types.physical.stypes.concrete.SStringPointer
 import is.hail.types.physical.stypes.interfaces._
@@ -362,7 +362,7 @@ class StagedConstructorSuite extends HailSuite {
     fb.emitWithBuilder { cb =>
       val region = fb.emb.getCodeParam[Region](1)
       rt.constructFromElements(cb, region, const(2), deepCopy = false) { (cb, idx) =>
-        IEmitCode(cb, idx > 0, new SInt32Code(false, fb.getCodeParam[Int](2)))
+        IEmitCode(cb, idx > 0, new SInt32Code(fb.getCodeParam[Int](2)))
       }.a
     }
 
@@ -438,7 +438,7 @@ class StagedConstructorSuite extends HailSuite {
             fb.apply_method.getCodeParam[Region](1),
             t.loadCheapPCode(cb, fb.apply_method.getCodeParam[Long](2)),
               deepCopy = true))
-          val copyF = fb.resultWithIndex()(0, region)
+          val copyF = fb.resultWithIndex()(ctx.fs, 0, region)
           val newOff = copyF(region, src)
 
 
@@ -462,7 +462,7 @@ class StagedConstructorSuite extends HailSuite {
       "x3" -> PCanonicalArray(PInt32(true), required = true),
       "x4" -> PCanonicalSet(PCanonicalStruct(true, "y" -> PCanonicalString(true)), required = false)
     ), required = false)
-    val t2 = t1.deepInnerRequired(false)
+    val t2 = RequirednessSuite.deepInnerRequired(t1, false)
 
     val value = IndexedSeq(
       Row(1, IndexedSeq(1,2,3), IndexedSeq(0, -1), Set(Row("asdasdasd"), Row(""))),
@@ -490,7 +490,7 @@ class StagedConstructorSuite extends HailSuite {
       "x3" -> PCanonicalArray(PInt32(true), required = true),
       "x4" -> PCanonicalSet(PCanonicalStruct(true, "y" -> PCanonicalString(true)), required = false)
     ), required = false))
-    val t2 = t1.deepInnerRequired(false).asInstanceOf[PCanonicalStruct]
+    val t2 = RequirednessSuite.deepInnerRequired(t1, false).asInstanceOf[PCanonicalStruct]
 
     val value = IndexedSeq(
       Row(1, IndexedSeq(1,2,3), IndexedSeq(0, -1), Set(Row("asdasdasd"), Row(""))),
@@ -507,7 +507,7 @@ class StagedConstructorSuite extends HailSuite {
         val region = f1.partitionRegion
         t2.constructFromFields(cb, region, FastIndexedSeq(EmitCode.present(cb.emb, t2.types(0).loadCheapPCode(cb, v1))), deepCopy = false).a
       }
-      val cp1 = f1.resultWithIndex()(0, r)()
+      val cp1 = f1.resultWithIndex()(ctx.fs, 0, r)()
       assert(SafeRow.read(t2, cp1) == Row(value))
 
       val f2 = EmitFunctionBuilder[Long](ctx, "stagedCopy2")
@@ -515,7 +515,7 @@ class StagedConstructorSuite extends HailSuite {
         val region = f2.partitionRegion
         t1.constructFromFields(cb, region, FastIndexedSeq(EmitCode.present(cb.emb, t2.types(0).loadCheapPCode(cb, v1))), deepCopy = false).a
       }
-      val cp2 = f2.resultWithIndex()(0, r)()
+      val cp2 = f2.resultWithIndex()(ctx.fs, 0, r)()
       assert(SafeRow.read(t1, cp2) == Row(value))
     }
   }

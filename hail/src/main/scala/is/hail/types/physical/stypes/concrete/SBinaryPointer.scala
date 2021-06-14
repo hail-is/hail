@@ -4,13 +4,17 @@ import is.hail.annotations.Region
 import is.hail.asm4s._
 import is.hail.expr.ir.orderings.CodeOrdering
 import is.hail.expr.ir.{EmitCodeBuilder, EmitMethodBuilder, SortOrder}
-import is.hail.types.physical.stypes.interfaces.SBinary
-import is.hail.types.physical.stypes.{SCode, SType}
-import is.hail.types.physical.{PBinary, PBinaryCode, PBinaryValue, PCode, PSettable, PType}
+import is.hail.types.physical.stypes.interfaces.{SBinary, SBinaryCode, SBinaryValue}
+import is.hail.types.physical.stypes.{SCode, SSettable, SType}
+import is.hail.types.physical.{PBinary, PType}
+import is.hail.types.virtual.Type
 import is.hail.utils._
 
 
 case class SBinaryPointer(pType: PBinary) extends SBinary {
+  require(!pType.required)
+
+  lazy val virtualType: Type = pType.virtualType
   def coerceOrCopy(cb: EmitCodeBuilder, region: Value[Region], value: SCode, deepCopy: Boolean): SCode = {
     new SBinaryPointerCode(this, pType.store(cb, region, value, deepCopy))
   }
@@ -37,6 +41,8 @@ case class SBinaryPointer(pType: PBinary) extends SBinary {
   }
 
   def canonicalPType(): PType = pType
+
+  override def castRename(t: Type): SType = this
 }
 
 object SBinaryPointerSettable {
@@ -44,8 +50,8 @@ object SBinaryPointerSettable {
     new SBinaryPointerSettable(st, sb.newSettable[Long](name))
 }
 
-class SBinaryPointerSettable(val st: SBinaryPointer, val a: Settable[Long]) extends PBinaryValue with PSettable {
-  val pt: PBinary = st.pType
+class SBinaryPointerSettable(val st: SBinaryPointer, val a: Settable[Long]) extends SBinaryValue with SSettable {
+  private val pt: PBinary = st.pType
 
   override def bytesAddress(): Code[Long] = st.pType.bytesAddress(a)
 
@@ -59,15 +65,15 @@ class SBinaryPointerSettable(val st: SBinaryPointer, val a: Settable[Long]) exte
 
   def loadByte(i: Code[Int]): Code[Byte] = Region.loadByte(pt.bytesAddress(a) + i.toL)
 
-  def store(cb: EmitCodeBuilder, pc: PCode): Unit = cb.assign(a, pc.asInstanceOf[SBinaryPointerCode].a)
+  def store(cb: EmitCodeBuilder, pc: SCode): Unit = cb.assign(a, pc.asInstanceOf[SBinaryPointerCode].a)
 }
 
-class SBinaryPointerCode(val st: SBinaryPointer, val a: Code[Long]) extends PBinaryCode {
-  val pt: PBinary = st.pType
+class SBinaryPointerCode(val st: SBinaryPointer, val a: Code[Long]) extends SBinaryCode {
+  private val pt: PBinary = st.pType
 
   def code: Code[_] = a
 
-  def codeTuple(): IndexedSeq[Code[_]] = FastIndexedSeq(a)
+  def makeCodeTuple(cb: EmitCodeBuilder): IndexedSeq[Code[_]] = FastIndexedSeq(a)
 
   def loadLength(): Code[Int] = pt.loadLength(a)
 

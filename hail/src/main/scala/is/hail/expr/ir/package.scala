@@ -4,7 +4,7 @@ import is.hail.asm4s
 import is.hail.asm4s._
 import is.hail.expr.ir.functions.IRFunctionRegistry
 import is.hail.types.physical._
-import is.hail.types.physical.stypes.SCode
+import is.hail.types.physical.stypes.{SCode, SValue}
 import is.hail.types.virtual._
 import is.hail.types.{coerce => tycoerce, _}
 import is.hail.utils._
@@ -14,9 +14,7 @@ import scala.language.implicitConversions
 
 package object ir {
   type TokenIterator = BufferedIterator[Token]
-
-  type IEmitCode = IEmitCodeGen[PCode]
-  type IEmitSCode = IEmitCodeGen[SCode]
+  type IEmitCode = IEmitCodeGen[SCode]
 
   var uidCounter: Long = 0
 
@@ -143,6 +141,16 @@ package object ir {
     ArraySort(stream, l.name, r.name, f(l, r))
   }
 
+  def sliceArrayIR(arrayIR: IR, startIR: IR, stopIR: IR): IR = {
+    invoke("slice", arrayIR.typ, arrayIR, startIR, stopIR)
+  }
+
+  def joinIR(left: IR, right: IR, lkey: IndexedSeq[String], rkey: IndexedSeq[String], joinType: String)(f: (Ref, Ref) => IR): IR = {
+    val lRef = Ref(genUID(), left.typ.asInstanceOf[TStream].elementType)
+    val rRef = Ref(genUID(), right.typ.asInstanceOf[TStream].elementType)
+    StreamJoin(left, right, lkey, rkey, lRef.name, rRef.name, f(lRef, rRef), joinType)
+  }
+
   def streamSumIR(stream: IR): IR = {
     foldIR(stream, 0){ case (accum, elt) => accum + elt}
   }
@@ -169,6 +177,7 @@ package object ir {
   }
 
   def makestruct(fields: (String, IR)*): MakeStruct = MakeStruct(fields)
+  def maketuple(fields: IR*): MakeTuple = MakeTuple(fields.zipWithIndex.map{ case (field, idx) => (idx, field)})
 
   implicit def toRichIndexedSeqEmitSettable(s: IndexedSeq[EmitSettable]): RichIndexedSeqEmitSettable = new RichIndexedSeqEmitSettable(s)
 
@@ -180,9 +189,9 @@ package object ir {
 
   implicit def valueToCodeParam(v: Value[_]): CodeParam = CodeParam(v)
 
-  implicit def toPCodeParam(pc: PCode): PCodeParam = PCodeParam(pc)
+  implicit def toPCodeParam(pc: SCode): PCodeParam = PCodeParam(pc)
 
-  implicit def pValueToPCodeParam(pv: PValue): PCodeParam = PCodeParam(pv)
+  implicit def pValueToPCodeParam(pv: SValue): PCodeParam = PCodeParam(pv)
 
   implicit def toEmitParam(ec: EmitCode): EmitParam = EmitParam(ec)
 

@@ -73,7 +73,8 @@ def test_ndarray_slice():
     a = [0, 1]
     an = np.array(a)
     ah = hl.nd.array(a)
-
+    ae_np = np.arange(4*4*5*6*5*4).reshape((4, 4, 5, 6, 5, 4))
+    ae = hl.nd.array(ae_np)
     assert_ndarrays_eq(
         (rect_prism[:, :, :], np_rect_prism[:, :, :]),
         (rect_prism[:, :, 1], np_rect_prism[:, :, 1]),
@@ -87,6 +88,16 @@ def test_ndarray_slice():
          np_rect_prism[0:, :, 1:4:2] + np_rect_prism[:, :1, 1:4:2]),
         (rect_prism[0, 0, -3:-1], np_rect_prism[0, 0, -3:-1]),
         (rect_prism[-1, 0:1, 3:0:-1], np_rect_prism[-1, 0:1, 3:0:-1]),
+        # partial indexing
+        (rect_prism[1], np_rect_prism[1]),
+        (rect_prism[1:2], np_rect_prism[1:2]),
+        (rect_prism[1:2:2], np_rect_prism[1:2:2]),
+        (rect_prism[1, 2], np_rect_prism[1, 2]),
+        (rect_prism[-1, 1:2:2], np_rect_prism[-1, 1:2:2]),
+        # ellipses inclusion
+        (rect_prism[...], np_rect_prism[...]),
+        (rect_prism[1, ...], np_rect_prism[1, ...]),
+        (rect_prism[..., 1], np_rect_prism[..., 1]),
 
         (flat[15:5:-1], np_flat[15:5:-1]),
         (flat[::-1], np_flat[::-1]),
@@ -98,6 +109,9 @@ def test_ndarray_slice():
         (flat[4:1:-2], np_flat[4:1:-2]),
         (flat[0:0:1], np_flat[0:0:1]),
         (flat[-4:-1:2], np_flat[-4:-1:2]),
+        # ellipses inclusion
+        (flat[...], np_flat[...]),
+
 
         (mat[::-1, :], np_mat[::-1, :]),
         (mat[0, 1:4:2] + mat[:, 1:4:2], np_mat[0, 1:4:2] + np_mat[:, 1:4:2]),
@@ -128,11 +142,23 @@ def test_ndarray_slice():
         (mat[:-5:-1, 0], np_mat[:-5:-1, 0]),
         (mat[0:-5, 0], np_mat[0:-5, 0]),
         (mat[0:-5:-1, 0], np_mat[0:-5:-1, 0]),
+        # partial indexing
+        (mat[1], np_mat[1]),
+        (mat[0:1], np_mat[0:1]),
+        # ellipses inclusion
+        (mat[...], np_mat[...]),
 
         (ah[:-3:1], an[:-3:1]),
         (ah[:-3:-1], an[:-3:-1]),
         (ah[-3::-1], an[-3::-1]),
-        (ah[-3::1], an[-3::1])
+        (ah[-3::1], an[-3::1]),
+
+        # ellipses inclusion
+        (ae[..., 3], ae_np[..., 3]),
+        (ae[3, ...], ae_np[3, ...]),
+        (ae[2, 3, 1:2:2, ...], ae_np[2, 3, 1:2:2, ...]),
+        (ae[3, 2, 3, ..., 2], ae_np[3, 2, 3, ..., 2]),
+        (ae[3, 2, 2, ..., 2, 1:2:2], ae_np[3, 2, 2, ..., 2, 1:2:2])
     )
 
     assert hl.eval(flat[hl.missing(hl.tint32):4:1]) is None
@@ -328,10 +354,12 @@ def test_ndarray_reshape():
 def test_ndarray_map():
     a = hl.nd.array([[2, 3, 4], [5, 6, 7]])
     b = hl.map(lambda x: -x, a)
+    b2 = b.map(lambda x: x * x)
     c = hl.map(lambda x: True, a)
 
     assert_ndarrays_eq(
         (b, [[-2, -3, -4], [-5, -6, -7]]),
+        (b2, [[4, 9, 16], [25, 36, 49]]),
         (c, [[True, True, True],
              [True, True, True]]))
 
@@ -486,10 +514,10 @@ def test_ndarray_sum():
     assert_ndarrays_eq(
         (m.sum(axis=0), np_m.sum(axis=0)),
         (m.sum(axis=1), np_m.sum(axis=1)),
-        (m.sum(), np_m.sum()),
-        (m.sum(tuple([])), np_m.sum(tuple([]))),
-        (m.sum((0, 1)), np_m.sum((0, 1)))
-    )
+        (m.sum(tuple([])), np_m.sum(tuple([]))))
+
+    assert hl.eval(m.sum()) == 10
+    assert hl.eval(m.sum((0, 1))) == 10
 
     with pytest.raises(ValueError) as exc:
         m.sum(3)
@@ -616,7 +644,7 @@ def test_ndarray_matmul():
 
     with pytest.raises(FatalError) as exc:
         hl.eval(r @ r)
-    assert "Matrix dimensions incompatible: 3 2" in str(exc.value)
+    assert "Matrix dimensions incompatible: (2, 3) can't be multiplied by matrix with dimensions (2, 3)" in str(exc.value), str(exc.value)
 
     with pytest.raises(FatalError) as exc:
         hl.eval(hl.nd.array([1, 2]) @ hl.nd.array([1, 2, 3]))
@@ -694,7 +722,7 @@ def test_ndarray_solve():
 
     with pytest.raises(FatalError) as exc:
         hl.eval(hl.nd.solve(hl.nd.array([[1, 2], [1, 2]]), hl.nd.array([8, 10])))
-    assert "singular" in str(exc)
+    assert "singular" in str(exc.value), str(exc.value)
 
 
 def test_ndarray_qr():
@@ -1044,13 +1072,11 @@ def test_hstack():
 
 def test_eye():
     for i in range(13):
-        for y in range(13):
-            assert(np.array_equal(hl.eval(hl.nd.eye(i, y)), np.eye(i, y)))
+        assert_ndarrays_eq(*[(hl.nd.eye(i, y), np.eye(i, y)) for y in range(13)])
 
 
 def test_identity():
-    for i in range(13):
-        assert(np.array_equal(hl.eval(hl.nd.identity(i)), np.identity(i)))
+    assert_ndarrays_eq(*[(hl.nd.identity(i), np.identity(i)) for i in range(13)])
 
 
 def test_agg_ndarray_sum():

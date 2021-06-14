@@ -1,5 +1,7 @@
 package is.hail.linalg
 
+import java.util.function._
+
 import com.sun.jna.{FunctionMapper, Library, Native}
 import com.sun.jna.ptr.{DoubleByReference, FloatByReference, IntByReference}
 import is.hail.utils._
@@ -8,26 +10,28 @@ import scala.util.{Failure, Success, Try}
 
 
 object BLAS {
-  lazy val libraryInstance = {
-    val standard = Native.loadLibrary("blas", classOf[BLASLibrary]).asInstanceOf[BLASLibrary]
+  private[this] val libraryInstance = ThreadLocal.withInitial(new Supplier[BLASLibrary]() {
+    def get() = {
+      val standard = Native.loadLibrary("blas", classOf[BLASLibrary]).asInstanceOf[BLASLibrary]
 
-    verificationTest(standard) match {
-      case Success(_) =>
-        log.info("Imported BLAS with standard names")
-        standard
-      case Failure(exc) =>
-        val underscoreAfterMap = new java.util.HashMap[String, FunctionMapper]()
-        underscoreAfterMap.put(Library.OPTION_FUNCTION_MAPPER, new UnderscoreFunctionMapper)
-        val underscoreAfter = Native.loadLibrary("blas", classOf[BLASLibrary], underscoreAfterMap).asInstanceOf[BLASLibrary]
-        verificationTest(underscoreAfter) match {
-          case Success(_) =>
-            log.info("Imported BLAS with underscore names")
-            underscoreAfter
-          case Failure(exception) =>
-            throw exception
-        }
+      verificationTest(standard) match {
+        case Success(_) =>
+          log.info("Imported BLAS with standard names")
+          standard
+        case Failure(exc) =>
+          val underscoreAfterMap = new java.util.HashMap[String, FunctionMapper]()
+          underscoreAfterMap.put(Library.OPTION_FUNCTION_MAPPER, new UnderscoreFunctionMapper)
+          val underscoreAfter = Native.loadLibrary("blas", classOf[BLASLibrary], underscoreAfterMap).asInstanceOf[BLASLibrary]
+          verificationTest(underscoreAfter) match {
+            case Success(_) =>
+              log.info("Imported BLAS with underscore names")
+              underscoreAfter
+            case Failure(exception) =>
+              throw exception
+          }
+      }
     }
-  }
+  })
 
   private def verificationTest(libInstance: BLASLibrary): Try[Unit] = {
     val n = new IntByReference(2)
@@ -49,7 +53,7 @@ object BLAS {
     val betaDouble = new FloatByReference(BETA)
     val LDCInt = new IntByReference(LDC)
 
-    libraryInstance.sgemm(TRANSA, TRANSB, mInt, nInt, kInt, alphaDouble, A, LDAInt, B, LDBInt, betaDouble, C, LDCInt)
+    libraryInstance.get.sgemm(TRANSA, TRANSB, mInt, nInt, kInt, alphaDouble, A, LDAInt, B, LDBInt, betaDouble, C, LDCInt)
   }
 
   def dgemm(TRANSA: String, TRANSB: String, M: Int, N: Int, K: Int, ALPHA: Double, A: Long, LDA: Int, B: Long, LDB: Int, BETA: Double, C: Long, LDC: Int) = {
@@ -62,7 +66,7 @@ object BLAS {
     val betaDouble = new DoubleByReference(BETA)
     val LDCInt = new IntByReference(LDC)
 
-    libraryInstance.dgemm(TRANSA, TRANSB, mInt, nInt, kInt, alphaDouble, A, LDAInt, B, LDBInt, betaDouble, C, LDCInt)
+    libraryInstance.get.dgemm(TRANSA, TRANSB, mInt, nInt, kInt, alphaDouble, A, LDAInt, B, LDBInt, betaDouble, C, LDCInt)
   }
 }
 
