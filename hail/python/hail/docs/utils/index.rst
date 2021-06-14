@@ -20,6 +20,7 @@ utils
     range_table
     range_matrix_table
     get_1kg
+    get_hgdp
     get_movie_lens
 
 .. autoclass:: Interval
@@ -37,4 +38,5 @@ utils
 .. autofunction:: range_table
 .. autofunction:: range_matrix_table
 .. autofunction:: get_1kg
+.. autofunction:: get_hgdp
 .. autofunction:: get_movie_lens
