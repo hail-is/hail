@@ -323,7 +323,10 @@ case class IEmitCodeGen[+A](Lmissing: CodeLabel, Lpresent: CodeLabel, value: A, 
     value
   }
 
-  def get(cb: EmitCodeBuilder, errorMsg: String = s"expected non-missing ${Thread.currentThread().getStackTrace.mkString("\n"bb)}"): A =
+  def get(cb: EmitCodeBuilder, errorMsg: String = s"expected non-missing"): A =
+    handle(cb, cb._fatal(errorMsg))
+
+  def get(cb: EmitCodeBuilder, errorMsg: Code[String]): A =
     handle(cb, cb._fatal(errorMsg))
 
   def consume(cb: EmitCodeBuilder, ifMissing: => Unit, ifPresent: (A) => Unit): Unit = {

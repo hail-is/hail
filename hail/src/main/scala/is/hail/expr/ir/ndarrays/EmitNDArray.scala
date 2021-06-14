@@ -295,7 +295,11 @@ object EmitNDArray {
                         {
                           cb.assign(curIdxVar, curIdxVar - stagedArrayOfSizes.loadElement(cb, currentNDArrayIdx).get(cb).asInt64.longCode(cb))
                           cb.assign(currentNDArrayIdx, currentNDArrayIdx + 1)
-                          cb.assign(shouldLoop, currentNDArrayIdx < newShape.size && (curIdxVar >= stagedArrayOfSizes.loadElement(cb, currentNDArrayIdx).get(cb).asInt64.longCode(cb)))
+                          cb.ifx(currentNDArrayIdx < stagedArrayOfSizes.loadLength(), {
+                            cb.assign(shouldLoop, curIdxVar >= stagedArrayOfSizes.loadElement(cb, currentNDArrayIdx).get(cb).asInt64.longCode(cb))
+                          }, {
+                            cb.assign(shouldLoop, false)
+                          })
                         }
                       )
                     }
