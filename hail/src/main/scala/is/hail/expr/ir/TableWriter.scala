@@ -33,6 +33,8 @@ abstract class TableWriter {
   def apply(ctx: ExecuteContext, mv: TableValue): Unit
   def lower(ctx: ExecuteContext, ts: TableStage, t: TableIR, r: RTable, relationalLetsAbove: Map[String, IR]): IR =
     throw new LowererUnsupportedOperation(s"${ this.getClass } does not have defined lowering!")
+
+  def canLowerEfficiently: Boolean = false
 }
 
 case class TableNativeWriter(
@@ -41,6 +43,8 @@ case class TableNativeWriter(
   stageLocally: Boolean = false,
   codecSpecJSONStr: String = null
 ) extends TableWriter {
+
+  override def canLowerEfficiently: Boolean = true
 
   override def lower(ctx: ExecuteContext, ts: TableStage, t: TableIR, r: RTable, relationalLetsAbove: Map[String, IR]): IR = {
     val bufferSpec: BufferSpec = BufferSpec.parseOrDefault(codecSpecJSONStr)

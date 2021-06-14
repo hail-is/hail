@@ -45,9 +45,17 @@ object CompileAndEvaluate {
   ): Either[Unit, (PTuple, Long)] = {
     val ir = LoweringPipeline.relationalLowerer(optimize).apply(ctx, ir0).asInstanceOf[IR]
 
-    if (ir.typ == TVoid)
-      // void is not really supported by IR utilities
+    if (ir.typ == TVoid) {
+      val (_, f) = ctx.timer.time("Compile")(Compile[AsmFunction1RegionUnit](ctx,
+        FastIndexedSeq(),
+        FastIndexedSeq(classInfo[Region]), UnitInfo,
+        ir,
+        print = None, optimize = optimize))
+
+      val fRunnable = ctx.timer.time("InitializeCompiledFunction")(f(ctx.fs, 0, ctx.r))
+      ctx.timer.time("RunCompiledVoidFunction")(fRunnable(ctx.r))
       return Left(())
+    }
 
     val (Some(PTypeReferenceSingleCodeType(resType: PTuple)), f) = ctx.timer.time("Compile")(Compile[AsmFunction1RegionLong](ctx,
       FastIndexedSeq(),

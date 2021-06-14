@@ -86,7 +86,7 @@ object CanLowerEfficiently {
         case TableCollect(_) =>
         case TableGetGlobals(_) =>
 
-        case TableWrite(_, _) => fail(s"table writers don't correctly generate indices")
+        case TableWrite(_, writer) => if (!writer.canLowerEfficiently) fail(s"writer has no efficient lowering: ${ writer.getClass.getSimpleName }")
         case TableMultiWrite(_, _) => fail(s"no lowering available for TableMultiWrite")
 
         case RelationalRef(_, _) => throw new RuntimeException(s"unexpected relational ref")
