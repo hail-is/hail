@@ -72,7 +72,8 @@ object SNDArray {
       strides: IndexedSeq[Value[Long]],
       pos: IndexedSeq[Settable[Long]],
       elt: SSettable,
-      indexToDim: Map[Int, Int])
+      indexToDim: Map[Int, Int],
+      name: String)
 
     val info = arrays.map { case (_array, indices, name) =>
       for (idx <- indices) assert(idx < indexVars.length && idx >= 0)
@@ -99,11 +100,11 @@ object SNDArray {
 
         // FIXME: need to use `pos` of smallest index var
         def get: SCode = pt.loadCheapPCode(cb, pt.loadFromNested(pos(0)))
-        def store(cb: EmitCodeBuilder, v: SCode): Unit = pt.storeAtAddress(cb, pos.last, region, v, deepCopy)
+        def store(cb: EmitCodeBuilder, v: SCode): Unit = pt.storeAtAddress(cb, pos(0), region, v, deepCopy)
         def settableTuple(): IndexedSeq[Settable[_]] = FastIndexedSeq(pos.last)
       }
       val indexToDim = Map(indices.indices.map(i => indices(i) -> i): _*)
-      ArrayInfo(array, strides, pos, elt, indexToDim)
+      ArrayInfo(array, strides, pos, elt, indexToDim, name)
     }
 
     def recurLoopBuilder(idx: Int): Unit = {
