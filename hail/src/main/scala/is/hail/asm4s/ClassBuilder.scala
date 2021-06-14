@@ -110,7 +110,7 @@ class ModuleBuilder() {
 
   def tupleClass(fieldTypes: IndexedSeq[TypeInfo[_]]): AsmTuple[_] = {
     tuples.getOrElseUpdate(fieldTypes, {
-      val cb = genClass[AnyRef](s"Tuple${fieldTypes.length}")
+      val cb = genClass[Unit](s"Tuple${fieldTypes.length}")
       val fields = fieldTypes.zipWithIndex.map { case (ti, i) =>
         cb.newField(s"_$i")(ti)
       }
