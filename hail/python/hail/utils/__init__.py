@@ -5,7 +5,7 @@ from .linkedlist import LinkedList
 from .interval import Interval
 from .frozendict import frozendict
 from .java import error, warning, info, FatalError, HailUserError
-from .tutorial import get_1kg, get_movie_lens
+from .tutorial import get_1kg, get_hgdp, get_movie_lens
 from .deduplicate import deduplicate
 
 __all__ = ['hadoop_open',
@@ -39,6 +39,7 @@ __all__ = ['hadoop_open',
            'HailSeedGenerator',
            'LinkedList',
            'get_1kg',
+           'get_hgdp',
            'get_movie_lens',
            'timestamp_path',
            '_dumps_partitions',
