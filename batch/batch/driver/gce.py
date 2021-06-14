@@ -101,7 +101,7 @@ class GCEEventMonitor:
                     log.error(f'event for unknown instance {name}: {json.dumps(event)}')
                 return
 
-            if event_subtype == 'v1.compute.instances.preempted':
+            if event_subtype == 'compute.instances.preempted':
                 log.info(f'event handler: handle preempt {instance}')
                 await self.handle_preempt_event(instance, timestamp)
             elif event_subtype == 'v1.compute.instances.delete':
@@ -120,7 +120,9 @@ class GCEEventMonitor:
             await self.db.execute_update('UPDATE `gevents_mark` SET mark = %s;', (mark,))
 
         filter = f'''
-logName="projects/{PROJECT}/logs/cloudaudit.googleapis.com%2Factivity" AND
+(logName="projects/{PROJECT}/logs/cloudaudit.googleapis.com%2Factivity" OR
+logName="projects/{PROJECT}/logs/cloudaudit.googleapis.com%2Fsystem_event"
+) AND
 resource.type=gce_instance AND
 protoPayload.resourceName:"{self.machine_name_prefix}" AND
 timestamp >= "{mark}"
