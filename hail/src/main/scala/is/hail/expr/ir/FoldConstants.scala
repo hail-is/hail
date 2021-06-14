@@ -4,6 +4,7 @@ import is.hail.expr.ir.Bindings.empty
 import is.hail.expr.ir.analyses.ParentPointers
 import is.hail.types.virtual.{TArray, TNDArray, TStream, TStruct, TTuple, TVoid}
 import is.hail.utils.{FastIndexedSeq, HailException}
+import org.apache.spark.sql.Row
 
 import scala.collection.mutable.ArrayBuffer
 
@@ -13,17 +14,21 @@ object FoldConstants {
       foldConstants(ctx, ir)
     }
 
-  def mainMethod(ir : BaseIR): Unit = {
+  def mainMethod(ctx: ExecuteContext, ir : BaseIR): Row = {
     val constantSubTrees = Memo.empty[Unit]
     val usesAndDefs = ComputeUsesAndDefs(ir)
     findConstantSubTreesHelper(ir, constantSubTrees, usesAndDefs)
     val parents = ParentPointers(ir)
     removeUnrealizableConstants(ir, constantSubTrees, parents, usesAndDefs)
     val constants = ArrayBuffer[IR]()
-    val refs = ArrayBuffer[(String,IR)]()
-    getConstantIRsAndRefs(ir, constantSubTrees, constants, refs)
-    val contstantsIS = constants.toIndexedSeq
-    val refsIS = refs.toIndexedSeq
+    val bindings = ArrayBuffer[(String,IR)]()
+    getConstantIRsAndRefs(ir, constantSubTrees, constants, bindings)
+    val constantsIS = constants.toIndexedSeq
+    val bindingsIS = bindings.toIndexedSeq
+    val constantTuple = MakeTuple.ordered(constantsIS)
+    val letWrapped = bindingsIS.foldRight[IR](constantTuple){ case ((name, binding), accum) => Let(name, binding, accum)}
+    val compiled = CompileAndEvaluate[Any](ctx, letWrapped)
+    return compiled.asInstanceOf[Row]
   }
 
   private def foldConstants(ctx: ExecuteContext, ir: BaseIR): BaseIR = {
