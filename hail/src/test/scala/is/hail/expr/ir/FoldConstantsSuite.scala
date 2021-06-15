@@ -51,18 +51,26 @@ class FoldConstantsSuite extends HailSuite {
     val oppIR = ApplyBinaryPrimOp(Add(), i4, i8)
     val refOppIR = ApplyBinaryPrimOp(Add(), refIR, i8)
 
+    val ir = MakeStream.unify(FastIndexedSeq(12, 2, 4, 8, 6).zipWithIndex.map { case (n, idx) => MakeStruct(FastIndexedSeq("lk" -> (if (n == null) NA(TInt32) else I32(n)), "l" -> I32(idx)))})
     val streamFoldBodyIR = ApplyBinaryPrimOp(Add(), vRefIR, refOppIR)
     val letIR = Let(ref, i4, refOppIR)
     val streamMapIR = StreamMap(range, ref, refOppIR)
     val streamFoldIR = StreamFold(range, Ref("z", TInt32), ref, vRef, streamFoldBodyIR)
     val streamFoldLetIR = Let("z", i4, streamFoldIR)
-    println(Pretty(streamFoldLetIR))
     val letZipIR = Let(ref, i8, Let(vRef, i4, StreamZip(toZip, zipNames, True(), behavior)))
     val streamFold2IR = Let(ref, i8, Let(vRef, i4, StreamFold2(streamIRA,
                         FastIndexedSeq((ref, I32(0)), (vRef, I32(8))),
                         "val", FastIndexedSeq(Ref("val", TInt32) + Ref(ref, TInt32),
                         Coalesce(FastSeq(Ref(vRef, TInt32), Ref("val", TInt32)))),
                         MakeStruct(FastSeq((ref, Ref(ref, TInt32)), (vRef, Ref(vRef, TInt32)))))))
+
+    val originalIR = ToArray(
+      StreamFilter(
+        StreamMap(
+          range,
+          "x", ApplyBinaryPrimOp(Add(), Ref("x", TInt32), I32(3))),
+        "element",
+        ApplyComparisonOp(LT(TInt32, TInt32), Ref("element", TInt32), ApplySeeded("rand_norm", Seq(F64(0d), F64(0d)), 0L, TFloat64))))
 
     val oppTest = FoldConstants.findConstantSubTrees(oppIR)
     assert(oppTest.contains(oppIR))
