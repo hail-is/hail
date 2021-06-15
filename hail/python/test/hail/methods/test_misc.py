@@ -212,3 +212,9 @@ class Tests(unittest.TestCase):
         lgc2 = hl.lambda_gc(ht.x2)
         self.assertAlmostEqual(lgc, 1, places=1)  # approximate, 1 place is safe
         self.assertAlmostEqual(lgc2, 1.89, places=1)  # approximate, 1 place is safe
+
+    def test_lambda_gc_nans(self):
+        N = 5000000
+        ht = hl.utils.range_table(N).annotate(x = hl.scan.count() / N, is_even=hl.scan.count() % 2 == 0)
+        lgc_nan = hl.lambda_gc(hl.case().when(ht.is_even, hl.float('nan')).default(ht.x))
+        self.assertAlmostEqual(lgc_nan, 1, places=1)  # approximate, 1 place is safe

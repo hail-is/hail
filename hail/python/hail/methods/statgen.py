@@ -1868,9 +1868,9 @@ def lambda_gc(p_value, approximate=True):
 def _lambda_gc_agg(p_value, approximate=True):
     chisq = hl.qchisqtail(p_value, 1)
     if approximate:
-        med_chisq = hl.agg.approx_quantiles(chisq, 0.5)
+        med_chisq = hl.agg.filter(~hl.is_nan(p_value), hl.agg.approx_quantiles(chisq, 0.5))
     else:
-        med_chisq = hl.median(hl.agg.collect(chisq))
+        med_chisq = hl.agg.filter(~hl.is_nan(p_value), hl.median(hl.agg.collect(chisq)))
     return med_chisq / hl.qchisqtail(0.5, 1)
 
 
