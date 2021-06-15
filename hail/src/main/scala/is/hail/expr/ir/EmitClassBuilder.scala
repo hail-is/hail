@@ -963,7 +963,6 @@ class EmitMethodBuilder[C](
   def voidWithBuilder(f: (EmitCodeBuilder) => Unit): Unit = emit(EmitCodeBuilder.scopedVoid(this)(f))
 
   def emitPCode(f: (EmitCodeBuilder) => SCode): Unit = {
-    // FIXME: this should optionally construct a tuple to support multiple-code SCodes
     emit(EmitCodeBuilder.scopedCode(this) { cb =>
       val res = f(cb)
       if (res.st.nCodes == 1)

@@ -181,7 +181,7 @@ class EmitCodeBuilder(val emb: EmitMethodBuilder[_], var code: Code[Unit]) exten
     _invoke[T](callee, args: _*)
   }
 
-  // FIXME: this should be invokeSCode and should allocate/destructure a tuple when more than one code is present
+  // FIXME: this should be invokeSCode
   def invokePCode(callee: EmitMethodBuilder[_], args: Param*): SCode = {
     val st = callee.emitReturnType.asInstanceOf[PCodeParamType].st
     if (st.nCodes == 1)
