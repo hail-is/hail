@@ -370,12 +370,14 @@ def linear_regression_rows(y, x, covariates, block_size=16, pass_through=()) -> 
     return ht_result.persist()
 
 
+# Weights are m X num_y values.
 @typecheck(y=oneof(expr_float64, sequenceof(expr_float64), sequenceof(sequenceof(expr_float64))),
            x=expr_float64,
            covariates=sequenceof(expr_float64),
            block_size=int,
+           weights=oneof(expr_float64, sequenceof(expr_float64), sequenceof(sequenceof(expr_float64))),
            pass_through=sequenceof(oneof(str, Expression)))
-def _linear_regression_rows_nd(y, x, covariates, block_size=16, pass_through=()) -> hail.Table:
+def _linear_regression_rows_nd(y, x, covariates, block_size=16, weights=[], pass_through=()) -> hail.Table:
     mt = matrix_table_source('linear_regression_rows_nd/x', x)
     check_entry_indexed('linear_regression_rows_nd/x', x)
 
@@ -388,6 +390,7 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, pass_through=())
         raise ValueError("'linear_regression_rows': found empty inner list for 'y'")
 
     y = wrap_to_list(y)
+    weights = wrap_to_list(weights)
 
     for e in (itertools.chain.from_iterable(y) if is_chained else y):
         analyze('linear_regression_rows_nd/y', e, mt._col_indices)
@@ -401,12 +404,16 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, pass_through=())
     if is_chained:
         y_field_name_groups = [[f'__y_{i}_{j}' for j in range(len(y[i]))] for i in range(len(y))]
         y_dict = dict(zip(itertools.chain.from_iterable(y_field_name_groups), itertools.chain.from_iterable(y)))
-
+        weight_field_name_groups = [[f'__weight_{i}_{j}' for j in range(len(weights[i]))] for i in range(weights(y))]
+        weight_dict = dict(zip(itertools.chain.from_iterable(weight_field_name_groups), itertools.chain.from_iterable(weights)))
     else:
         y_field_name_groups = list(f'__y_{i}' for i in range(len(y)))
         y_dict = dict(zip(y_field_name_groups, y))
+        weight_field_name_groups = list(f'__weight__{i}' for i in range(len(weights)))
+        weight_dict = dict(zip(weight_field_name_groups, weights))
         # Wrapping in a list since the code is written for the more general chained case.
         y_field_name_groups = [y_field_name_groups]
+        weight_field_name_groups = [weight_field_name_groups]
 
     cov_field_names = list(f'__cov{i}' for i in range(len(covariates)))
 
@@ -414,6 +421,7 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, pass_through=())
 
     # FIXME: selecting an existing entry field should be emitted as a SelectFields
     mt = mt._select_all(col_exprs=dict(**y_dict,
+                                       **weight_dict,
                                        **dict(zip(cov_field_names, covariates))),
                         row_exprs=row_field_names,
                         col_key=[],
@@ -450,11 +458,20 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, pass_through=())
         else:
             ht = ht.annotate_globals(cov_arrays=ht[sample_field_name].map(lambda sample_struct: hl.empty_array(hl.tfloat64)))
 
+        y_arrays_per_group = [ht[sample_field_name].map(lambda sample_struct: [sample_struct[y_name] for y_name in one_y_field_name_set]) for one_y_field_name_set in y_field_name_groups]
+
+        if weight_field_name_groups == [[]]:
+            weight_arrays_per_group = hl.empty_array(hl.tarray(hl.tfloat64))
+        else:
+            weight_arrays_per_group = [ht[sample_field_name].map(lambda sample_struct: [sample_struct[weight_name] for weight_name in one_weight_field_name_set]) for one_weight_field_name_set in weight_field_name_groups]
+
         ht = ht.annotate_globals(
-            y_arrays_per_group=[ht[sample_field_name].map(lambda sample_struct: [sample_struct[y_name] for y_name in one_y_field_name_set]) for one_y_field_name_set in y_field_name_groups]
+            y_arrays_per_group=y_arrays_per_group,
+            weight_arrays_per_group=weight_arrays_per_group
         )
         all_covs_defined = ht.cov_arrays.map(lambda sample_covs: no_missing(sample_covs))
 
+        #TODO: I guess I have to filter for weights too?
         def get_kept_samples(sample_ys):
             # sample_ys is an array of samples, with each element being an array of the y_values
             return hl.enumerate(sample_ys).filter(
@@ -465,6 +482,9 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, pass_through=())
         y_nds = hl.zip(kept_samples, ht.y_arrays_per_group).map(lambda sample_indices_and_y_arrays:
                                                                 hl.nd.array(sample_indices_and_y_arrays[0].map(lambda idx:
                                                                                                                sample_indices_and_y_arrays[1][idx])))
+        weight_nds = hl.zip(kept_samples, ht.weight_arrays_per_group).map(lambda sample_indices_and_weight_arrays:
+                                                                hl.nd.array(sample_indices_and_weight_arrays[0].map(lambda idx:
+                                                                                                               sample_indices_and_weight_arrays[1][idx])))
         cov_nds = kept_samples.map(lambda group: hl.nd.array(group.map(lambda idx: ht.cov_arrays[idx])))
 
         k = builtins.len(covariates)
@@ -476,6 +496,7 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, pass_through=())
         return ht.annotate_globals(
             kept_samples=kept_samples,
             __y_nds=y_nds,
+            __weight_nds = weight_nds,
             ns=ns,
             ds=ns.map(lambda n: n - k - 1),
             __cov_Qts=cov_Qts,
@@ -483,6 +504,8 @@ def _linear_regression_rows_nd(y, x, covariates, block_size=16, pass_through=())
             __yyps=hl.range(num_y_lists).map(lambda i: dot_rows_with_themselves(y_nds[i].T) - dot_rows_with_themselves(Qtys[i].T)))
 
     ht = setup_globals(ht)
+
+    import pdb; pdb.set_trace()
 
     def process_block(block):
         rows_in_block = hl.len(block)
