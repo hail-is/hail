@@ -28,9 +28,20 @@ Version 0.2.69
 
 Released 2021-06-14
 
+### New Features
+
+- (hail#10592) Added `hl.get_hgdp` function.
+- (hail#10555) Added `hl.hadoop_scheme_supported` function.
+- (hail#10551) Indexing ndarrays now supports ellipses.
+
 ### Bug fixes
 
-- (hail#10553) Dividing two integers now returns a float64, not a float32.
+- (hail#10553) Dividing two integers now returns a `float64`, not a `float32`.
+- (hail#10595) Don't include nans in `lambda_gc_agg`.
+
+### hailctl dataproc
+
+- (hail#10574) Hail logs will now be stored in `/home/hail` by default. 
 
 ---
 
